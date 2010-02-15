@@ -1,0 +1,41 @@
+TARGETNAME=viostor
+TARGETTYPE=MINIPORT
+
+!if "$(DDK_TARGET_OS)" == "WinNET" 
+C_DEFINES = -DUSE_STORPORT=1 $(C_DEFINES)
+TARGETLIBS=$(SDK_LIB_PATH)\storport.lib
+!elseif "$(DDK_TARGET_OS)" == "WinLH"
+C_DEFINES = -DUSE_STORPORT=1 $(C_DEFINES)
+TARGETLIBS=$(SDK_LIB_PATH)\storport.lib
+!elseif "$(DDK_TARGET_OS)" == "WinXP"
+TARGETLIBS=$(SDK_LIB_PATH)\scsiport.lib
+!else
+C_DEFINES = -DUSE_STORPORT=1 $(C_DEFINES)
+TARGETLIBS=$(SDK_LIB_PATH)\storport.lib
+!endif
+
+SOURCES= virtio_stor.c \
+         virtio_stor_utils.c \
+         virtio_stor_hw_helper.c \
+         virtio_stor.rc \
+         virtio_pci.c \
+         virtio_ring.c
+
+MAJORCOMP=ntos
+
+
+TARGETLIBS=$(TARGETLIBS) \
+         $(SDK_LIB_PATH)\ntoskrnl.lib\
+         $(SDK_LIB_PATH)\bufferoverflowk.lib\
+         $(SDK_LIB_PATH)\wdm.lib
+
+BUFFER_OVERFLOW_CHECKS=1
+MSC_WARNING_LEVEL=/W3 /WX
+
+#
+# UNSUPPORTED OPTION
+#
+# Define this if you want debug messages to come out the console
+# 
+C_DEFINES = -DRHEL_COM_DEBUG=1 $(C_DEFINES)
+
