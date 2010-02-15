@@ -1,3 +1,7 @@
 *.ncb
 *.suo
 *.vcproj.*
+*.wrn
+*.log
+*.err
+
