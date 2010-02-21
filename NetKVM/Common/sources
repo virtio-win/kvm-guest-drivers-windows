@@ -1,0 +1,12 @@
+TARGETNAME=ndiscommon
+TARGETTYPE=DRIVER_LIBRARY
+TARGETPATH=obj
+
+!include "common.mak"
+
+INCLUDES=.;..\VirtIO
+
+SOURCES =  $(SOURCES) ParaNdis-Common.c ParaNdis-Debug.c ParaNdis-Oid.c sw-offload.c
+
+
+

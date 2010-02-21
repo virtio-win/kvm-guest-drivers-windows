@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<VisualStudioPropertySheet
+	ProjectType="Visual C++"
+	Version="8.00"
+	Name="ndis5"
+	>
+	<Tool
+		Name="VCNMakeTool"
+		BuildCommandLine=""
+		ReBuildCommandLine=""
+		CleanCommandLine=""
+		Output=""
+		PreprocessorDefinitions="XP;CHECKED;NTDDI_VERSION=NTDDI_WINXP;&#x0A;_WIN32_WINNT=0x0501;WINVER=0x0501;_WIN32_IE=0x0603;NDIS_MINIPORT_DRIVER;NDIS50=1;NDIS51=1;NDIS51_MINIPORT=1;DBG=1"
+		IncludeSearchPath="&quot;$(DDK)\inc\crt&quot;;&quot;$(DDK)\inc\api&quot;;&quot;$(DDK)\inc\ddk&quot;"
+		ForcedIncludes=""
+		AssemblySearchPath=""
+		ForcedUsingAssemblies=""
+		CompileAsManaged=""
+	/>
+	<UserMacro
+		Name="DDK"
+		Value="c:\winddk\6001.18001"
+	/>
+	<UserMacro
+		Name="WNETBASE"
+		Value="$(DDK)"
+	/>
+	<UserMacro
+		Name="WLHBASE"
+		Value="$(DDK)"
+	/>
+</VisualStudioPropertySheet>

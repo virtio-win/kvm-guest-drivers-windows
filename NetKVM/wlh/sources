@@ -1,0 +1,20 @@
+TARGETNAME=netkvm
+TARGETTYPE=DRIVER
+
+INCLUDES=..\VirtIO;..\Common
+
+USER_C_FLAGS=$(USER_C_FLAGS) /nologo
+
+
+
+
+TARGETLIBS=  \
+            $(DDK_LIB_PATH)\ndis.lib  \
+            ..\Common\$O\ndiscommon.lib \
+            ..\VirtIO\$O\virtiolib.lib
+            
+
+SOURCES =	ParaNdis6-Driver.c ParaNdis6-Oid.c ParaNdis6-Impl.c Parandis6.rc
+
+
+!include "..\Common\common.mak"

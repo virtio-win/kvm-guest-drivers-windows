@@ -1,0 +1,298 @@
+---
+
+# Definition file to build NetKVM driver
+
+Name: NetKVM
+Version: 6.0.0.0
+Desctription: Windows guest network driver based on VirtIO interface.
+
+OS:
+	- WindowsXP
+	- Windows2003
+	- WindowsVista
+	- Windows2008
+	- Windows2008R2
+	- Windows7
+	
+Arch:
+	- x86
+	- x64
+	
+BuildCommands:
+	# - changever.bat # embed the version into the resource and INF files
+	- buildall.bat # for now without parameters
+	
+	
+OutputFiles:
+
+# Windows XP x86
+	- 
+		OS: WindowsXP
+		Arch: x86
+		File: Install\XP\x86\netkvm.sys
+	- 
+		OS: WindowsXP
+		Arch: x86
+		File: Install\XP\x86\netkvm.inf
+	-
+		OS: WindowsXP
+		Arch: x86
+		File: Install\XP\x86\netkvm.cat
+		
+# Windows 2003 x86
+	- 
+		OS: Windows2003
+		Arch: x86
+		File: Install\XP\x86\netkvm.sys  #example of the same binary for different OSes
+	- 
+		OS: Windows2003
+		Arch: x86
+		File: Install\XP\x86\netkvm.inf
+	-
+		OS: Windows2003
+		Arch: x86
+		File: Install\XP\x86\netkvm.cat
+	
+
+# Windows 2003 x64
+	- 
+		OS: Windows2003
+		Arch: x64
+		File: Install\XP\amd64\netkvm.sys  #example of the same binary for different OSes
+	- 
+		OS: Windows2003
+		Arch: x64
+		File: Install\XP\amd64\netkvm.inf
+	-
+		OS: Windows2003
+		Arch: x64
+		File: Install\XP\amd64\netkvm.cat
+
+# Windows Vista x86
+	- 
+		OS: WindowsVista
+		Arch: x86
+		File: Install\Vista\x86\netkvm.sys
+	- 
+		OS: WindowsVista
+		Arch: x86
+		File: Install\Vista\x86\netkvm.inf
+	-
+		OS: WindowsVista
+		Arch: x86
+		File: Install\Vista\x86\netkvm.cat
+
+# Windows Vista x64
+	- 
+		OS: WindowsVista
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.sys
+	- 
+		OS: WindowsVista
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.inf
+	-
+		OS: WindowsVista
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.cat
+		
+# Windows 2008 x86
+	- 
+		OS: Windows2008
+		Arch: x86
+		File: Install\Vista\x86\netkvm.sys
+	- 
+		OS: Windows2008
+		Arch: x86
+		File: Install\Vista\x86\netkvm.inf
+	-
+		OS: Windows2008
+		Arch: x86
+		File: Install\Vista\x86\netkvm.cat
+
+
+# Windows 2008 x64
+	- 
+		OS: Windows2008
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.sys
+	- 
+		OS: Windows2008
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.inf
+	-
+		OS: Windows2008
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.cat
+	
+
+# Windows 2008 R2 x64
+	- 
+		OS: Windows2008
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.sys
+	- 
+		OS: Windows2008
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.inf
+	-
+		OS: Windows2008
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.cat
+	
+
+# Windows 7 x86
+	- 
+		OS: Windows7
+		Arch: x86
+		File: Install\Vista\x86\netkvm.sys
+	- 
+		OS: Windows7
+		Arch: x86
+		File: Install\Vista\x86\netkvm.inf
+	-
+		OS: Windows7
+		Arch: x86
+		File: Install\Vista\x86\netkvm.cat
+
+
+# Windows 7 x64
+	- 
+		OS: Windows7
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.sys
+	- 
+		OS: Windows7
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.inf
+	-
+		OS: Windows7
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.cat
+	
+DebugFiles:
+# Windows XP x86
+	- 
+		OS: WindowsXP
+		Arch: x86
+		File: Install\XP\x86\netkvm.pdb
+		
+# Windows 2003 x86
+	- 
+		OS: Windows2003
+		Arch: x86
+		File: Install\XP\x86\netkvm.pdb
+
+# Windows 2003 x64
+	- 
+		OS: Windows2003
+		Arch: x64
+		File: Install\XP\amd64\netkvm.pdb
+
+# Windows Vista x86
+	- 
+		OS: WindowsVista
+		Arch: x86
+		File: Install\Vista\x86\netkvm.pdb
+
+# Windows Vista x64
+	- 
+		OS: WindowsVista
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.pdb
+		
+# Windows 2008 x86
+	- 
+		OS: Windows2008
+		Arch: x86
+		File: Install\Vista\x86\netkvm.pdb
+
+# Windows 2008 x64
+	- 
+		OS: Windows2008
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.pdb	
+
+# Windows 2008 R2 x64
+	- 
+		OS: Windows2008
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.pdb
+	
+# Windows 7 x86
+	- 
+		OS: Windows7
+		Arch: x86
+		File: Install\Vista\x86\netkvm.pdb
+
+# Windows 7 x64
+	- 
+		OS: Windows7
+		Arch: x64
+		File: Install\Vista\amd64\netkvm.pdb
+
+
+# Other non binary output - log, errors and warning files		
+# In case the output files are missing those should be provided in order to understand build failures.
+	
+LogFiles:
+	- 	OS: WindowsXP 
+		Arch: x86
+		Log: buildfre_wxp_x86.log
+	- 	OS: Windows2003 
+		Arch: x64
+		Log: buildfre_wnet_amd64.log
+	- 	OS: WindowsVista 
+		Arch: x86
+		log: buildfre_wlh_x86.log
+	- 	OS: WindowsVista 
+		Arch: x64
+		log: buildfre_wlh_amd64.log	
+	- 	OS: Windows7 
+		Arch: x86
+		log: buildfre_win7_x86.log
+	- 	OS: Windows7 
+		Arch: x64
+		log: buildfre_win7_amd64.log	
+	
+ErrorFiles:
+	- 	OS: WindowsXP 
+		Arch: x86
+		Log: buildfre_wxp_x86.err
+	- 	OS: Windows2003 
+		Arch: x64
+		Log: buildfre_wnet_amd64.err
+	- 	OS: WindowsVista 
+		Arch: x86
+		log: buildfre_wlh_x86.err
+	- 	OS: WindowsVista 
+		Arch: x64
+		log: buildfre_wlh_amd64.err	
+	- 	OS: Windows7 
+		Arch: x86
+		log: buildfre_win7_x86.err
+	- 	OS: Windows7 
+		Arch: x64
+		log: buildfre_win7_amd64.err
+		
+WarningFiles:
+	- 	OS: WindowsXP 
+		Arch: x86
+		Log: buildfre_wxp_x86.wrn
+	- 	OS: Windows2003 
+		Arch: x64
+		Log: buildfre_wnet_amd64.wrn
+	- 	OS: WindowsVista 
+		Arch: x86
+		log: buildfre_wlh_x86.wrn
+	- 	OS: WindowsVista 
+		Arch: x64
+		log: buildfre_wlh_amd64.wrn	
+	- 	OS: Windows7 
+		Arch: x86
+		log: buildfre_win7_x86.wrn
+	- 	OS: Windows7 
+		Arch: x64
+		log: buildfre_win7_amd64.wrn
+		
+
