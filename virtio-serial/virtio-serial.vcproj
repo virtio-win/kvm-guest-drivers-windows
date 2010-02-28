@@ -108,6 +108,10 @@
 		<Filter
 			Name="Install"
 			>
+			<File
+				RelativePath=".\vioser.inx"
+				>
+			</File>
 		</Filter>
 		<File
 			RelativePath=".\readme.txt"
