@@ -1,4 +1,5 @@
 rmdir /S /Q Debug
+rmdir /S /Q Free
 rmdir /S /Q Release
 rmdir /S /Q objfre_wxp_x86
 rmdir /S /Q objfre_wnet_x86
