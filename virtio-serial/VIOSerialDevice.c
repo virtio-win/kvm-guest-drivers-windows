@@ -13,6 +13,7 @@
 #include "osdep.h"
 #include "kdebugprint.h"
 #include "VIOSerialDriver.h"
+#include "VIOSerialCore.h"
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceAdd)
@@ -38,16 +39,16 @@ NTSTATUS VIOSerialEvtDeviceAdd(IN WDFDRIVER Driver,IN PWDFDEVICE_INIT DeviceInit
 	NTSTATUS				status = STATUS_SUCCESS;
 	WDF_OBJECT_ATTRIBUTES	fdoAttributes;
 	//TBD
-	//PVIOSERIAL_FDO			fdoData;
+	//PDEVICE_CONTEXT			pContext;
 	WDFDEVICE				hDevice;
 	WDF_PNPPOWER_EVENT_CALLBACKS stPnpPowerCallbacks;
 	
 	UNREFERENCED_PARAMETER(Driver);
 	PAGED_CODE();
 
-	DPrintFunctionName(0)
+	DPrintFunctionName(0);
 
-	WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&fdoAttributes, VIOSERIAL_FDO);
+	WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&fdoAttributes, DEVICE_CONTEXT);
 
 	WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&stPnpPowerCallbacks);
 	stPnpPowerCallbacks.EvtDevicePrepareHardware = VIOSerialEvtDevicePrepareHardware;
@@ -77,6 +78,7 @@ NTSTATUS VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
 										   IN WDFCMRESLIST ResourcesRaw,
 										   IN WDFCMRESLIST ResourcesTranslated)
 {
+	DPrintFunctionName(0);
 
 	return STATUS_SUCCESS;
 }
@@ -84,7 +86,28 @@ NTSTATUS VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
 NTSTATUS VIOSerialEvtDeviceReleaseHardware(IN WDFDEVICE Device,
 										   IN WDFCMRESLIST ResourcesTranslated)
 {
+	PDEVICE_CONTEXT pContext = NULL;
+	UNREFERENCED_PARAMETER(ResourcesTranslated);
+	
+	PAGED_CODE();
+	
 	DPrintFunctionName(0);
+	
+	//TBD - uncomment after initaliation is implemented
+	//VIOSerialDeinit(Device);
+	
+	pContext = GetDeviceContext(Device);
+	
+	if (pContext ->PortBase) 
+	{
+		//TBD - unmap the port
+	/*	if (pContext->PortMapped) 
+		{
+			MmUnmapIoSpace(pContext ->PortBase, pContext->PortCount);
+		}*/
+
+		pContext->PortBase = (ULONG_PTR)NULL;
+	}
 
 	return STATUS_SUCCESS;
 }

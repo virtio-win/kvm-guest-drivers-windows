@@ -1,0 +1,7 @@
+#ifndef VIOSERIAL_CORE_H
+#define VIOSERIAL_CORE_H
+
+NTSTATUS VIOSerialInit(IN WDFOBJECT WdfDevice);
+NTSTATUS VIOSerialDeinit(IN WDFOBJECT WdfDevice);
+
+#endif /* VIOSERIAL_CORE_H */

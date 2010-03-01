@@ -1,6 +1,9 @@
 #ifndef VIOSERIAL_DRIVER_H
 #define VIOSERIAL_DRIVER_H
 
+#include "virtio_pci.h"
+#include "VirtIO.h"
+
 #define VIOSERIAL_DRIVER_MEMORY_TAG (ULONG)'rsIV'
 
 // WDF callbacks declarations
@@ -23,12 +26,13 @@ EVT_WDF_IO_QUEUE_IO_WRITE VIOSerialEvtIoWrite;
 //
 // The device extension for the device object
 //
-typedef struct _VIOSERIAL_FDO
+typedef struct _DEVICE_CONTEXT
 {
-	int nVIOSerialRevision;
+	VirtIODevice	IODevice;
+	ULONG_PTR		PortBase;
 
-} VIOSERIAL_FDO, *PVIOSERIAL_FDO;
+} DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
-WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSERIAL_FDO, GetVIOSerialFdoData)
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext)
 
 #endif /* VIOSERIAL_DRIVER_H */

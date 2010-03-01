@@ -7,9 +7,13 @@ INF_NAME=vioser
 NTTARGETFILE0=$(OBJ_PATH)\$(O)\$(INF_NAME).inf
 PASS0_BINPLACE=$(NTTARGETFILE0)
 
+TARGETLIBS=$(TARGETLIBS) \
+		   $(DDK_LIB_PATH)\ntstrsafe.lib \
+		   ..\VirtIO\$(O)\virtiolib.lib
+
 INCLUDES = $(INCLUDES);..\VirtIO;
 
-SOURCES= VIOSerialDriver.c VIOSerialDevice.c
+SOURCES= VIOSerialDriver.c VIOSerialDevice.c VIOSerialCore.c VIOSerialUtils.c
 
 TARGET_DESTINATION=wdf
 
