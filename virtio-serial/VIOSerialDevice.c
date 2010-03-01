@@ -16,6 +16,9 @@
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceAdd)
+#pragma alloc_text (PAGE, VIOSerialEvtDevicePrepareHardware)
+#pragma alloc_text (PAGE, VIOSerialEvtDeviceReleaseHardware)
+
 //#pragma alloc_text (PAGE, VIOSerialEvtIoRead)
 //#pragma alloc_text (PAGE, VIOSerialEvtIoWrite)
 //#pragma alloc_text (PAGE, VIOSerialEvtIoDeviceControl)
@@ -37,16 +40,22 @@ NTSTATUS VIOSerialEvtDeviceAdd(IN WDFDRIVER Driver,IN PWDFDEVICE_INIT DeviceInit
 	//TBD
 	//PVIOSERIAL_FDO			fdoData;
 	WDFDEVICE				hDevice;
-
-    WDFQUEUE               queue;
-	WDF_IO_QUEUE_CONFIG    queueConfig;
-
+	WDF_PNPPOWER_EVENT_CALLBACKS stPnpPowerCallbacks;
+	
 	UNREFERENCED_PARAMETER(Driver);
 	PAGED_CODE();
 
 	DPrintFunctionName(0)
 
 	WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&fdoAttributes, VIOSERIAL_FDO);
+
+	WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&stPnpPowerCallbacks);
+	stPnpPowerCallbacks.EvtDevicePrepareHardware = VIOSerialEvtDevicePrepareHardware;
+	stPnpPowerCallbacks.EvtDeviceReleaseHardware = VIOSerialEvtDeviceReleaseHardware;
+	stPnpPowerCallbacks.EvtDeviceD0Entry = VIOSerialEvtDeviceD0Entry;
+	stPnpPowerCallbacks.EvtDeviceD0Exit = VIOSerialEvtDeviceD0Exit;
+
+	WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &stPnpPowerCallbacks);
 
 	if (!NT_SUCCESS(status = WdfDeviceCreate(&DeviceInit, &fdoAttributes, &hDevice)))
 	{
@@ -55,5 +64,48 @@ NTSTATUS VIOSerialEvtDeviceAdd(IN WDFDRIVER Driver,IN PWDFDEVICE_INIT DeviceInit
 	}
 
 	return status;
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+//
+// VIOSerialEvtDevicePrepareHardware
+//
+// Init virtio interface for usage
+//
+/////////////////////////////////////////////////////////////////////////////////
+NTSTATUS VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
+										   IN WDFCMRESLIST ResourcesRaw,
+										   IN WDFCMRESLIST ResourcesTranslated)
+{
+
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS VIOSerialEvtDeviceReleaseHardware(IN WDFDEVICE Device,
+										   IN WDFCMRESLIST ResourcesTranslated)
+{
+	DPrintFunctionName(0);
+
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS VIOSerialEvtDeviceD0Entry(IN WDFDEVICE Device, 
+								   WDF_POWER_DEVICE_STATE  PreviousState)
+{
+	DPrintFunctionName(0);
+
+	//TBD - "power up" the device
+
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS VIOSerialEvtDeviceD0Exit(IN WDFDEVICE Device, 
+								  IN WDF_POWER_DEVICE_STATE TargetState)
+{
+	DPrintFunctionName(0);
+
+	//TBD - "power down" the device
+
+	return STATUS_SUCCESS;
 }
 
