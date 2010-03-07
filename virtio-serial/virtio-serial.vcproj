@@ -96,6 +96,10 @@
 				RelativePath=".\VIOSerialDriver.c"
 				>
 			</File>
+			<File
+				RelativePath=".\VIOSerialMemUtils.c"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -116,6 +120,10 @@
 			</File>
 			<File
 				RelativePath=".\VIOSerialDriver.h"
+				>
+			</File>
+			<File
+				RelativePath=".\VIOSerialMemUtils.h"
 				>
 			</File>
 		</Filter>
