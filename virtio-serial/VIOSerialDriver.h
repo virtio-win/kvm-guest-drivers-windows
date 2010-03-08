@@ -1,8 +1,10 @@
 #ifndef VIOSERIAL_DRIVER_H
 #define VIOSERIAL_DRIVER_H
 
+#include "osdep.h"
 #include "virtio_pci.h"
 #include "VirtIO.h"
+#include "VIOSerial.h"
 
 #define VIOSERIAL_DRIVER_MEMORY_TAG (ULONG)'rsIV'
 
@@ -30,6 +32,10 @@ typedef struct _DEVICE_CONTEXT
 {
 	VirtIODevice	IODevice;
 	ULONG_PTR		PortBase;
+
+	VIOSERIAL_DEVICE SerialDevices[VIRTIO_SERIAL_MAX_QUEUES];
+
+	KSPIN_LOCK			DPCLock;
 
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
