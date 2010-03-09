@@ -41,4 +41,6 @@ typedef struct _DEVICE_CONTEXT
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext)
 
+#define VIOSERIAL_SYMBOLIC_LINK L"\\DosDevices\\viosdev"
+
 #endif /* VIOSERIAL_DRIVER_H */
