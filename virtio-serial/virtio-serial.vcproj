@@ -115,6 +115,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\VIOSerial.h"
+				>
+			</File>
+			<File
 				RelativePath=".\VIOSerialCore.h"
 				>
 			</File>

@@ -3,7 +3,8 @@
 #include "VIOSerialDriver.h"
 #include "VIOSerialCore.h"
 
-NTSTATUS VIOSerialInit(IN WDFOBJECT WdfDevice)
+
+NTSTATUS VSCInit(IN WDFOBJECT WdfDevice)
 {
 	//TBD -----------------------
 
@@ -12,6 +13,9 @@ NTSTATUS VIOSerialInit(IN WDFOBJECT WdfDevice)
 
 	DPrintFunctionName(0);
 
+	//Init Spin locks
+	KeInitializeSpinLock(&pContext->DPCLock);
+
 	VirtIODeviceSetIOAddress(&pContext->IODevice, (ULONG_PTR)pContext->PortBase);
 	VirtIODeviceDumpRegisters(&pContext->IODevice);
 	VirtIODeviceReset(&pContext->IODevice);
@@ -19,12 +23,15 @@ NTSTATUS VIOSerialInit(IN WDFOBJECT WdfDevice)
 	VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
 	VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER);
 
+
+	//KeInitializeSpinLock();
 	//TBD init queues
 	//pContext->vqueue = = VirtIODeviceFindVirtualQueue(&pContext->IODevice, 1, NULL);
 	//if (NULL == devCtx->pContext->vqueue) 
 	//{
 	//	status = STATUS_INSUFFICIENT_RESOURCES;
 	//}
+	//InitQueues(pContext);
 
 	if(!NT_SUCCESS(status))
 	{
@@ -38,7 +45,7 @@ NTSTATUS VIOSerialInit(IN WDFOBJECT WdfDevice)
 	return status;
 }
 
-NTSTATUS VIOSerialDeinit(IN WDFOBJECT WdfDevice)
+NTSTATUS VSCDeinit(IN WDFOBJECT WdfDevice)
 {
 	NTSTATUS		status = STATUS_SUCCESS;
 	PDEVICE_CONTEXT	pContext = GetDeviceContext(WdfDevice);
@@ -61,4 +68,28 @@ NTSTATUS VIOSerialDeinit(IN WDFOBJECT WdfDevice)
 	VirtIODeviceReset(&pContext->IODevice);
 
 	return status;
+}
+
+NTSTATUS VSCGuestOpenedPort(/* TBD */)
+{
+
+	return STATUS_SUCCESS;
+}
+
+void VSCGuestClosedPort(/* TBD */)
+{
+
+}
+
+NTSTATUS VSCSendData(/* TBD ,*/PVOID pBuffer, size_t *pSize)
+{
+
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS VSCGetData(/* TBD ,*/WDFMEMORY * pMem, size_t *pSize)
+{
+	//WdfMemoryCopyFromBuffer
+
+	return STATUS_SUCCESS;
 }
