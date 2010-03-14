@@ -97,6 +97,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\VIOSerialInterrupt.c"
+				>
+			</File>
+			<File
 				RelativePath=".\VIOSerialMemUtils.c"
 				>
 			</File>
@@ -120,6 +124,10 @@
 			</File>
 			<File
 				RelativePath=".\VIOSerialCore.h"
+				>
+			</File>
+			<File
+				RelativePath=".\VIOSerialDevice.h"
 				>
 			</File>
 			<File

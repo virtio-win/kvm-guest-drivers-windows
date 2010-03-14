@@ -13,6 +13,7 @@
 #include "osdep.h"
 #include "kdebugprint.h"
 #include "VIOSerialDriver.h"
+#include "VIOSerialDevice.h"
 #include "VIOSerialCore.h"
 
 
@@ -140,30 +141,34 @@ static void VIOSerialInitDeviceContext(WDFDEVICE hDevice)
 
 static NTSTATUS VIOSerialInitInterruptHandling(WDFDEVICE hDevice)
 {
+	WDF_OBJECT_ATTRIBUTES attributes;
+	WDF_INTERRUPT_CONFIG interruptConfig;
+	PDEVICE_CONTEXT	pContext = GetDeviceContext(hDevice);
+	NTSTATUS status = STATUS_SUCCESS;
+
 	PAGED_CODE();
 	DEBUG_ENTRY(0);
 
-/*
-	WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&interruptAttributes, INTERRUPT_DATA);
+	WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
 	WDF_INTERRUPT_CONFIG_INIT(&interruptConfig,
-							VIOSerialInterruptIsr,
-							VIOSerialInterruptDpc);
+							  VIOSerialInterruptIsr,
+							  VIOSerialInterruptDpc);
 
 	interruptConfig.EvtInterruptEnable = VIOSerialInterruptEnable;
 	interruptConfig.EvtInterruptDisable = VIOSerialInterruptDisable;
 
 	status = WdfInterruptCreate(hDevice,
-							  &interruptConfig,
-							  &interruptAttributes,
-							  &devCtx->WdfInterrupt);
+								&interruptConfig,
+								&attributes,
+								&pContext->WdfInterrupt);
+
 	if (!NT_SUCCESS (status))
 	{
 		DPrintf(0, ("WdfInterruptCreate failed: %s\n", status));
 		return status;
 	}
-*/
 
-	return STATUS_SUCCESS;
+	return status;
 }
 
 /////////////////////////////////////////////////////////////////////////////////
