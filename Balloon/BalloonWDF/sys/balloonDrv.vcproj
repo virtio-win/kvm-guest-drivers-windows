@@ -65,23 +65,19 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath=".\Hypercall.h"
+				RelativePath=".\precomp.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\Kutils\KUtils\kdebugprint.h"
+				RelativePath=".\ProtoTypes.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\Kutils\inc\osdep.h"
+				RelativePath=".\public.h"
 				>
 			</File>
 			<File
-				RelativePath=".\pch.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\Kutils\KUtils\RegistryUtils.h"
+				RelativePath=".\trace.h"
 				>
 			</File>
 		</Filter>
@@ -91,7 +87,7 @@
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
 			<File
-				RelativePath=".\Balloon.rc"
+				RelativePath=".\balloon.rc"
 				>
 			</File>
 		</Filter>
@@ -101,35 +97,43 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath=".\Balloon.c"
+				RelativePath=".\balloon.c"
 				>
 			</File>
 			<File
-				RelativePath=".\debug.c"
+				RelativePath=".\Device.c"
 				>
 			</File>
 			<File
-				RelativePath=".\Hypercall.c"
+				RelativePath=".\Driver.c"
 				>
 			</File>
 			<File
-				RelativePath=".\interrupt.c"
+				RelativePath=".\utils.c"
+				>
+			</File>
+		</Filter>
+		<Filter
+			Name="Compilation"
+			>
+			<File
+				RelativePath=".\buildAll.bat"
 				>
 			</File>
 			<File
-				RelativePath=".\iorw.c"
+				RelativePath=".\clean.bat"
 				>
 			</File>
 			<File
-				RelativePath=".\pnp.c"
+				RelativePath=".\makefile"
 				>
 			</File>
 			<File
-				RelativePath=".\power.c"
+				RelativePath=".\makefile.inc"
 				>
 			</File>
 			<File
-				RelativePath=".\queue.c"
+				RelativePath=".\sources"
 				>
 			</File>
 		</Filter>
