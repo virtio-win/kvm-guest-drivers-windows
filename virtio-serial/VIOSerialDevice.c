@@ -15,10 +15,26 @@
 #include "VIOSerialDriver.h"
 #include "VIOSerialCore.h"
 
+
+// Break huge add device into chunks
+static void VIOSerialInitPowerManagement(IN PWDFDEVICE_INIT DeviceInit,
+										 IN WDF_PNPPOWER_EVENT_CALLBACKS *stPnpPowerCallbacks);
+static void VIOSerialInitFileObject(IN PWDFDEVICE_INIT DeviceInit,
+									WDF_FILEOBJECT_CONFIG * pFileCfg);
+static NTSTATUS VIOSerialInitIO(WDFDEVICE hDevice);
+static void VIOSerialInitDeviceContext(WDFDEVICE hDevice);
+static NTSTATUS VIOSerialInitInterruptHandling(WDFDEVICE hDevice);
+
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceAdd)
 #pragma alloc_text (PAGE, VIOSerialEvtDevicePrepareHardware)
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceReleaseHardware)
+
+#pragma alloc_text (PAGE, VIOSerialInitPowerManagement)
+#pragma alloc_text (PAGE, VIOSerialInitFileObject)
+#pragma alloc_text (PAGE, VIOSerialInitIO)
+#pragma alloc_text (PAGE, VIOSerialInitDeviceContext)
+#pragma alloc_text (PAGE, VIOSerialInitInterruptHandling)
 
 //#pragma alloc_text (PAGE, VIOSerialEvtIoRead)
 //#pragma alloc_text (PAGE, VIOSerialEvtIoWrite)
@@ -26,65 +42,48 @@
 #endif
 
 
-/////////////////////////////////////////////////////////////////////////////////
-//
-// VIOSerialEvtDeviceAdd
-//
-// Called by WDF framework as a callback for AddDevice from PNP manager.
-// New device object instance should be initialized here
-//
-/////////////////////////////////////////////////////////////////////////////////
-NTSTATUS VIOSerialEvtDeviceAdd(IN WDFDRIVER Driver,IN PWDFDEVICE_INIT DeviceInit)
+static void VIOSerialInitPowerManagement(IN PWDFDEVICE_INIT DeviceInit,
+										 IN WDF_PNPPOWER_EVENT_CALLBACKS *stPnpPowerCallbacks)
 {
-	NTSTATUS						status = STATUS_SUCCESS;
-	WDF_OBJECT_ATTRIBUTES			fdoAttributes;
-	WDFDEVICE						hDevice;
-	WDF_PNPPOWER_EVENT_CALLBACKS	stPnpPowerCallbacks;
-	DECLARE_CONST_UNICODE_STRING(strVIOSerialSymbolicLink, VIOSERIAL_SYMBOLIC_LINK);
-	WDF_IO_QUEUE_CONFIG				queueCfg;
-	WDF_FILEOBJECT_CONFIG			fileCfg;
-	WDFQUEUE						queue;
-	PDEVICE_CONTEXT	pContext;
-	
-	UNREFERENCED_PARAMETER(Driver);
 	PAGED_CODE();
-
 	DEBUG_ENTRY(0);
 
-	WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&fdoAttributes, DEVICE_CONTEXT);
+	WDF_PNPPOWER_EVENT_CALLBACKS_INIT(stPnpPowerCallbacks);
+	stPnpPowerCallbacks->EvtDevicePrepareHardware = VIOSerialEvtDevicePrepareHardware;
+	stPnpPowerCallbacks->EvtDeviceReleaseHardware = VIOSerialEvtDeviceReleaseHardware;
+	stPnpPowerCallbacks->EvtDeviceD0Entry = VIOSerialEvtDeviceD0Entry;
+	stPnpPowerCallbacks->EvtDeviceD0Exit = VIOSerialEvtDeviceD0Exit;
 
-	WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&stPnpPowerCallbacks);
-	stPnpPowerCallbacks.EvtDevicePrepareHardware = VIOSerialEvtDevicePrepareHardware;
-	stPnpPowerCallbacks.EvtDeviceReleaseHardware = VIOSerialEvtDeviceReleaseHardware;
-	stPnpPowerCallbacks.EvtDeviceD0Entry = VIOSerialEvtDeviceD0Entry;
-	stPnpPowerCallbacks.EvtDeviceD0Exit = VIOSerialEvtDeviceD0Exit;
+	WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, stPnpPowerCallbacks);
+}
 
-	WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &stPnpPowerCallbacks);
+static void VIOSerialInitFileObject(IN PWDFDEVICE_INIT DeviceInit,
+									WDF_FILEOBJECT_CONFIG * pFileCfg)
+{
+	PAGED_CODE();
+	DEBUG_ENTRY(0);
 
 // Create file object to handle Open\Close events
-	WDF_FILEOBJECT_CONFIG_INIT(&fileCfg,
+	WDF_FILEOBJECT_CONFIG_INIT(pFileCfg,
 							   VIOSerialEvtDeviceFileCreate,
 							   VIOSerialEvtFileClose,
 							   WDF_NO_EVENT_CALLBACK);
 
 	WdfDeviceInitSetFileObjectConfig(DeviceInit,
-									 &fileCfg,
+									 pFileCfg,
 									 WDF_NO_OBJECT_ATTRIBUTES);
 
-	if (!NT_SUCCESS(status = WdfDeviceCreate(&DeviceInit, &fdoAttributes, &hDevice)))
-	{
-		DPrintf(0, ("WdfDeviceCreate failed - 0x%x\n", status));
-		return status;
-	}
+}
 
-	pContext = GetDeviceContext(hDevice);
+static NTSTATUS VIOSerialInitIO(WDFDEVICE hDevice)
+{
+	WDF_IO_QUEUE_CONFIG		queueCfg;
+	NTSTATUS				status;
+	WDFQUEUE				queue;
+	DECLARE_CONST_UNICODE_STRING(strVIOSerialSymbolicLink, VIOSERIAL_SYMBOLIC_LINK);
 
-	if(pContext)
-	{
-		memset(pContext, 0, sizeof(DEVICE_CONTEXT));
-		//Init Spin locks
-		KeInitializeSpinLock(&pContext->DPCLock);
-	}
+	PAGED_CODE();
+	DEBUG_ENTRY(0);
 
 	/*
 	TBD - after initial implementation change to raw mode.
@@ -116,6 +115,96 @@ If a bus driver can control a device in raw mode, it sets RawDeviceOK in the DEV
 	if (!NT_SUCCESS (status))
 	{
 		DPrintf(0, ("WdfIoQueueCreate failed - 0x%x\n", status));
+		return status;
+	}
+
+	return STATUS_SUCCESS;
+}
+
+static void VIOSerialInitDeviceContext(WDFDEVICE hDevice)
+{
+	PDEVICE_CONTEXT	pContext;
+
+	PAGED_CODE();
+	DEBUG_ENTRY(0);
+
+	pContext = GetDeviceContext(hDevice);
+
+	if(pContext)
+	{
+		memset(pContext, 0, sizeof(DEVICE_CONTEXT));
+		//Init Spin locks
+		KeInitializeSpinLock(&pContext->DPCLock);
+	}
+}
+
+static NTSTATUS VIOSerialInitInterruptHandling(WDFDEVICE hDevice)
+{
+	PAGED_CODE();
+	DEBUG_ENTRY(0);
+
+/*
+	WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&interruptAttributes, INTERRUPT_DATA);
+	WDF_INTERRUPT_CONFIG_INIT(&interruptConfig,
+							VIOSerialInterruptIsr,
+							VIOSerialInterruptDpc);
+
+	interruptConfig.EvtInterruptEnable = VIOSerialInterruptEnable;
+	interruptConfig.EvtInterruptDisable = VIOSerialInterruptDisable;
+
+	status = WdfInterruptCreate(hDevice,
+							  &interruptConfig,
+							  &interruptAttributes,
+							  &devCtx->WdfInterrupt);
+	if (!NT_SUCCESS (status))
+	{
+		DPrintf(0, ("WdfInterruptCreate failed: %s\n", status));
+		return status;
+	}
+*/
+
+	return STATUS_SUCCESS;
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+//
+// VIOSerialEvtDeviceAdd
+//
+// Called by WDF framework as a callback for AddDevice from PNP manager.
+// New device object instance should be initialized here
+//
+/////////////////////////////////////////////////////////////////////////////////
+NTSTATUS VIOSerialEvtDeviceAdd(IN WDFDRIVER Driver,IN PWDFDEVICE_INIT DeviceInit)
+{
+	NTSTATUS						status = STATUS_SUCCESS;
+	WDF_OBJECT_ATTRIBUTES			fdoAttributes;
+	WDFDEVICE						hDevice;
+	WDF_PNPPOWER_EVENT_CALLBACKS	stPnpPowerCallbacks;
+	WDF_FILEOBJECT_CONFIG			fileCfg;
+	
+	UNREFERENCED_PARAMETER(Driver);
+	PAGED_CODE();
+	DEBUG_ENTRY(0);
+
+	WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&fdoAttributes, DEVICE_CONTEXT);
+	VIOSerialInitPowerManagement(DeviceInit, &stPnpPowerCallbacks);
+	VIOSerialInitFileObject(DeviceInit, &fileCfg);
+
+	if (!NT_SUCCESS(status = WdfDeviceCreate(&DeviceInit, &fdoAttributes, &hDevice)))
+	{
+		DPrintf(0, ("WdfDeviceCreate failed - 0x%x\n", status));
+		return status;
+	}
+
+	VIOSerialInitDeviceContext(hDevice);
+
+	if(!NT_SUCCESS(status = VIOSerialInitIO(hDevice)))
+	{
+		return status;
+	}
+
+	if(!NT_SUCCESS(status = VIOSerialInitInterruptHandling(hDevice)))
+	{
 		return status;
 	}
 
