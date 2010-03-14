@@ -12,6 +12,6 @@ extern int bDebugPrint;
     } \
 }
 
-#define DPrintFunctionName(Level) DPrintf(Level, ("%s\n", __FUNCTION__))
+#define DEBUG_ENTRY(level) DPrintf(level, ("%s\n", __FUNCTION__))
 
 #endif

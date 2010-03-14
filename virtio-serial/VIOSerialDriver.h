@@ -30,10 +30,15 @@ EVT_WDF_IO_QUEUE_IO_WRITE VIOSerialEvtIoWrite;
 //
 typedef struct _DEVICE_CONTEXT
 {
-	VirtIODevice	IODevice;
-	ULONG_PTR		PortBase;
+	VirtIODevice		IODevice;
+	
+	// IO imapping info
+	PHYSICAL_ADDRESS	PortBasePA;
+	ULONG				uPortLength;
+	PVOID				pPortBase;	//Mapped IO port address
+	bool				bPortMapped; // Is the port mapped
 
-	VIOSERIAL_DEVICE SerialDevices[VIRTIO_SERIAL_MAX_QUEUES];
+	VIOSERIAL_DEVICE	SerialDevices[VIRTIO_SERIAL_MAX_QUEUES];
 
 	KSPIN_LOCK			DPCLock;
 

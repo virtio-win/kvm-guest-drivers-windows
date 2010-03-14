@@ -44,11 +44,12 @@ NTSTATUS VIOSerialEvtDeviceAdd(IN WDFDRIVER Driver,IN PWDFDEVICE_INIT DeviceInit
 	WDF_IO_QUEUE_CONFIG				queueCfg;
 	WDF_FILEOBJECT_CONFIG			fileCfg;
 	WDFQUEUE						queue;
+	PDEVICE_CONTEXT	pContext;
 	
 	UNREFERENCED_PARAMETER(Driver);
 	PAGED_CODE();
 
-	DPrintFunctionName(0);
+	DEBUG_ENTRY(0);
 
 	WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&fdoAttributes, DEVICE_CONTEXT);
 
@@ -74,6 +75,15 @@ NTSTATUS VIOSerialEvtDeviceAdd(IN WDFDRIVER Driver,IN PWDFDEVICE_INIT DeviceInit
 	{
 		DPrintf(0, ("WdfDeviceCreate failed - 0x%x\n", status));
 		return status;
+	}
+
+	pContext = GetDeviceContext(hDevice);
+
+	if(pContext)
+	{
+		memset(pContext, 0, sizeof(DEVICE_CONTEXT));
+		//Init Spin locks
+		KeInitializeSpinLock(&pContext->DPCLock);
 	}
 
 	/*
@@ -123,36 +133,92 @@ NTSTATUS VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
 										   IN WDFCMRESLIST ResourcesRaw,
 										   IN WDFCMRESLIST ResourcesTranslated)
 {
-	DPrintFunctionName(0);
+	int nListSize = 0;
+	PCM_PARTIAL_RESOURCE_DESCRIPTOR pResDescriptor;
+	int i = 0;
+	PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
+	bool bPortFound = FALSE;
 
+	DEBUG_ENTRY(0);
+
+	nListSize = WdfCmResourceListGetCount(ResourcesTranslated);
+
+	for (i = 0; i < nListSize; i++)
+	{
+		if(pResDescriptor = WdfCmResourceListGetDescriptor(ResourcesTranslated, i))
+		{
+			switch(pResDescriptor->Type)
+			{
+				case CmResourceTypePort:
+					pContext->bPortMapped =
+							(pResDescriptor->Flags & CM_RESOURCE_PORT_IO) ? FALSE : TRUE;
+
+					pContext->PortBasePA = pResDescriptor->u.Port.Start;
+					pContext->uPortLength = pResDescriptor->u.Port.Length;
+
+					DPrintf(0, ("IO Port Info  [%08I64X-%08I64X]",
+							pResDescriptor->u.Port.Start.QuadPart,
+							pResDescriptor->u.Port.Start.QuadPart +
+							pResDescriptor->u.Port.Length));
+
+					if (pContext->bPortMapped ) // Port is IO mapped
+					{
+						pContext->pPortBase = MmMapIoSpace(pContext->PortBasePA,
+														   pContext->uPortLength,
+														   MmNonCached);
+
+						if (!pContext->pPortBase) {
+							DPrintf(0, ("%s>>> %s", __FUNCTION__, "Failed to map IO port!"));
+							return STATUS_INSUFFICIENT_RESOURCES;
+						}
+					}
+					else // Memory mapped port
+					{
+						pContext->pPortBase = (PVOID)(ULONG_PTR)pContext->PortBasePA.QuadPart;
+					}
+
+					bPortFound = TRUE;
+
+					break;
+				///
+				case CmResourceTypeInterrupt:
+					// Print out interrupt info- debugging only
+					break;
+			}
+		}
+	}
+
+	if(!bPortFound)
+	{
+		DPrintf(0, ("%s>>> %s", __FUNCTION__, "IO port wasn't found!"));
+		return STATUS_DEVICE_CONFIGURATION_ERROR;
+	}
+
+	//RBD - Init virto part
+	//VSCInit(Device);
+	
 	return STATUS_SUCCESS;
 }
 
 NTSTATUS VIOSerialEvtDeviceReleaseHardware(IN WDFDEVICE Device,
 										   IN WDFCMRESLIST ResourcesTranslated)
 {
-	PDEVICE_CONTEXT pContext = NULL;
+	PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
 	UNREFERENCED_PARAMETER(ResourcesTranslated);
 	
 	PAGED_CODE();
 	
-	DPrintFunctionName(0);
+	DEBUG_ENTRY(0);
 	
 	//TBD - uncomment after initaliation is implemented
 	//VSCDeinit(Device);
 	
-	pContext = GetDeviceContext(Device);
-	
-	if (pContext ->PortBase) 
+	if (pContext->pPortBase && pContext->bPortMapped) 
 	{
-		//TBD - unmap the port
-	/*	if (pContext->PortMapped) 
-		{
-			MmUnmapIoSpace(pContext ->PortBase, pContext->PortCount);
-		}*/
-
-		pContext->PortBase = (ULONG_PTR)NULL;
+		MmUnmapIoSpace(pContext->pPortBase, pContext->uPortLength);
 	}
+
+	pContext->pPortBase = (ULONG_PTR)NULL;
 
 	return STATUS_SUCCESS;
 }
@@ -160,7 +226,7 @@ NTSTATUS VIOSerialEvtDeviceReleaseHardware(IN WDFDEVICE Device,
 NTSTATUS VIOSerialEvtDeviceD0Entry(IN WDFDEVICE Device, 
 								   WDF_POWER_DEVICE_STATE  PreviousState)
 {
-	DPrintFunctionName(0);
+	DEBUG_ENTRY(0);
 
 	//TBD - "power up" the device
 
@@ -170,7 +236,7 @@ NTSTATUS VIOSerialEvtDeviceD0Entry(IN WDFDEVICE Device,
 NTSTATUS VIOSerialEvtDeviceD0Exit(IN WDFDEVICE Device, 
 								  IN WDF_POWER_DEVICE_STATE TargetState)
 {
-	DPrintFunctionName(0);
+	DEBUG_ENTRY(0);
 
 	//TBD - "power down" the device
 
@@ -183,13 +249,10 @@ VOID VIOSerialEvtIoDeviceControl(IN WDFQUEUE  Queue,
 								 IN size_t InputBufferLength,
 								 IN ULONG  IoControlCode)
 {
-	DPrintFunctionName(0);
-/*VOID
-  WdfRequestCompleteWithInformation(
-    IN WDFREQUEST  Request,
-    IN NTSTATUS  Status,
-    IN ULONG_PTR  Information
-   );*/
+	DEBUG_ENTRY(0);
+
+	/* Do we need to handle IOCTLs?*/
+	WdfRequestComplete(Request, STATUS_SUCCESS);
 }
 
 VOID VIOSerialEvtIoRead(IN WDFQUEUE  Queue,
@@ -201,7 +264,7 @@ VOID VIOSerialEvtIoRead(IN WDFQUEUE  Queue,
 	PVOID buffer = NULL;
 	NTSTATUS status;
 
-	DPrintFunctionName(0);
+	DEBUG_ENTRY(0);
 
 	if(NT_SUCCESS(WdfRequestRetrieveOutputMemory(Request, &outMemory)))
 	{
@@ -220,7 +283,7 @@ VOID VIOSerialEvtIoWrite(IN WDFQUEUE  Queue,
 	PVOID buffer = NULL;
 	NTSTATUS status;
 
-	DPrintFunctionName(0);
+	DEBUG_ENTRY(0);
 	
 	if(NT_SUCCESS(WdfRequestRetrieveInputMemory(Request, &inMemory)))
 	{
@@ -245,7 +308,7 @@ void VIOSerialEvtDeviceFileCreate(IN WDFDEVICE Device,
 								  IN WDFFILEOBJECT FileObject)
 {
 	NTSTATUS status;
-	DPrintFunctionName(0);
+	DEBUG_ENTRY(0);
 
 	if(NT_SUCCESS(status = VSCGuestOpenedPort(/* TBD */)))
 	{
@@ -257,7 +320,7 @@ void VIOSerialEvtDeviceFileCreate(IN WDFDEVICE Device,
 
 VOID VIOSerialEvtFileClose(IN WDFFILEOBJECT FileObject)
 {
-	DPrintFunctionName(0);
+	DEBUG_ENTRY(0);
 	//Clean up on file close
 
 	VSCGuestClosedPort(/* TBD */);
