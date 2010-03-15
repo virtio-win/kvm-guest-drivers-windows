@@ -45,18 +45,51 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 	//TBD handle the transfer
 }
 
+static VOID VIOSerialEnableDisableInterrupt(IN WDFINTERRUPT Interrupt,
+											IN BOOLEAN bEnable)
+{
+	PDEVICE_CONTEXT	pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
+	int i;
+
+	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES; i++ )
+	{
+		if(pContext->SerialDevices[i].ReceiveQueue)
+		{
+			pContext->SerialDevices[i].ReceiveQueue->vq_ops->enable_interrupt(pContext->SerialDevices[i].ReceiveQueue, bEnable);
+		}
+
+		if(pContext->SerialDevices[i].SendQueue)
+		{
+			pContext->SerialDevices[i].SendQueue->vq_ops->enable_interrupt(pContext->SerialDevices[i].SendQueue, bEnable);
+		}
+	}
+
+	if(bEnable) // Also kick
+	{
+		if(pContext->SerialDevices[i].ReceiveQueue)
+		{
+			pContext->SerialDevices[i].ReceiveQueue->vq_ops->kick(pContext->SerialDevices[i].ReceiveQueue);
+		}
+
+		if(pContext->SerialDevices[i].SendQueue)
+		{
+			pContext->SerialDevices[i].SendQueue->vq_ops->kick(pContext->SerialDevices[i].SendQueue);
+		}
+	}
+}
+
 NTSTATUS VIOSerialInterruptEnable(IN WDFINTERRUPT Interrupt,
 								  IN WDFDEVICE AssociatedDevice)
 {
-	//TBD
+	VIOSerialEnableDisableInterrupt(Interrupt, TRUE);
 
 	return STATUS_SUCCESS;
 }
-//vring_enable_interrupts
+
 NTSTATUS VIOSerialInterruptDisable(IN WDFINTERRUPT Interrupt,
 								   IN WDFDEVICE AssociatedDevice)
 {
-	//TBD
+	VIOSerialEnableDisableInterrupt(Interrupt, FALSE);
 
 	return STATUS_SUCCESS;
 }

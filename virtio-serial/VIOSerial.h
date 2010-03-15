@@ -13,8 +13,8 @@ typedef struct _VIOSERIAL_DEVICE
 	unsigned int	NofSendBuffers;
 	LIST_ENTRY		SendBuffers;
 
-	struct virtqueue *		ReceiveQueues;
-	struct virtqueue *		SendQueues;
+	struct virtqueue *		ReceiveQueue;
+	struct virtqueue *		SendQueue;
 
 	// The 'id' to identify the port with the Host
 	u32 id;
