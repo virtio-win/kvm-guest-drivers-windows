@@ -51,7 +51,7 @@ static VOID VIOSerialEnableDisableInterrupt(IN WDFINTERRUPT Interrupt,
 	PDEVICE_CONTEXT	pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
 	int i;
 
-	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES; i++ )
+	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++ )
 	{
 		if(pContext->SerialDevices[i].ReceiveQueue)
 		{

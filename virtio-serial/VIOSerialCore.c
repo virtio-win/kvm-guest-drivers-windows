@@ -3,6 +3,28 @@
 #include "VIOSerialDriver.h"
 #include "VIOSerialCore.h"
 
+static void VSCCleanupQueues(IN WDFOBJECT WdfDevice)
+{
+	PDEVICE_CONTEXT	pContext = GetDeviceContext(WdfDevice);
+	int i;
+
+	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++ )
+	{
+		if(pContext->SerialDevices[i].ReceiveQueue)
+		{
+			pContext->SerialDevices[i].ReceiveQueue->vq_ops->shutdown(pContext->SerialDevices[i].ReceiveQueue);
+			VirtIODeviceDeleteVirtualQueue(pContext->SerialDevices[i].ReceiveQueue);
+			pContext->SerialDevices[i].ReceiveQueue =  NULL;
+		}
+
+		if(pContext->SerialDevices[i].SendQueue)
+		{
+			pContext->SerialDevices[i].SendQueue->vq_ops->shutdown(pContext->SerialDevices[i].SendQueue);
+			VirtIODeviceDeleteVirtualQueue(pContext->SerialDevices[i].SendQueue);
+			pContext->SerialDevices[i].SendQueue =  NULL;
+		}
+	}
+}
 
 NTSTATUS VSCInit(IN WDFOBJECT WdfDevice)
 {
@@ -10,28 +32,39 @@ NTSTATUS VSCInit(IN WDFOBJECT WdfDevice)
 
 	NTSTATUS		status = STATUS_SUCCESS;
 	PDEVICE_CONTEXT	pContext = GetDeviceContext(WdfDevice);
+	int i;
 
-	DPrintFunctionName(0);
+	DEBUG_ENTRY(0);
 
-	//Init Spin locks
-	KeInitializeSpinLock(&pContext->DPCLock);
+	if(pContext->pPortBase == NULL)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
 
-	VirtIODeviceSetIOAddress(&pContext->IODevice, (ULONG_PTR)pContext->PortBase);
+	VirtIODeviceSetIOAddress(&pContext->IODevice, (ULONG_PTR)pContext->pPortBase);
 	VirtIODeviceDumpRegisters(&pContext->IODevice);
 	VirtIODeviceReset(&pContext->IODevice);
 
 	VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
 	VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER);
 
+	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i += 2)
+	{
+		pContext->SerialDevices[i].ReceiveQueue = VirtIODeviceFindVirtualQueue(&pContext->IODevice, i, NULL);
+		pContext->SerialDevices[i].SendQueue = VirtIODeviceFindVirtualQueue(&pContext->IODevice, i + 1, NULL);
 
-	//KeInitializeSpinLock();
-	//TBD init queues
-	//pContext->vqueue = = VirtIODeviceFindVirtualQueue(&pContext->IODevice, 1, NULL);
-	//if (NULL == devCtx->pContext->vqueue) 
-	//{
-	//	status = STATUS_INSUFFICIENT_RESOURCES;
-	//}
-	//InitQueues(pContext);
+		if (pContext->SerialDevices[i].ReceiveQueue && pContext->SerialDevices[i].SendQueue)
+		{
+		//	PrepareTransmitBuffers(pContext);
+		//	PrepareReceiveBuffers(pContext);
+		}
+		else
+		{
+			VSCCleanupQueues(WdfDevice);
+			status = STATUS_INSUFFICIENT_RESOURCES;
+			break;
+		}
+	}
 
 	if(!NT_SUCCESS(status))
 	{
@@ -39,6 +72,7 @@ NTSTATUS VSCInit(IN WDFOBJECT WdfDevice)
 	}
 	else
 	{
+		//TBD - clear it to enable transfer
 //		VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 	}
 
@@ -50,45 +84,41 @@ NTSTATUS VSCDeinit(IN WDFOBJECT WdfDevice)
 	NTSTATUS		status = STATUS_SUCCESS;
 	PDEVICE_CONTEXT	pContext = GetDeviceContext(WdfDevice);
 
-	DPrintFunctionName(0);
+	DEBUG_ENTRY(0);
 
 	VirtIODeviceRemoveStatus(&pContext->IODevice , VIRTIO_CONFIG_S_DRIVER_OK);
-
-	//TBD - clean up queues
-	//for(,,) //clean all the queues
-	//{
-	//	if(pContext->VirtQueue) 
-	//	{
-	//		pContext->VirtQueue->vq_ops->shutdown(pContext->VirtQueue);
-	//		VirtIODeviceDeleteVirtualQueue(pContext->VirtQueue);
-	//		pContext->VirtQueue = NULL;
-	//	}
-	//}
-
+	VSCCleanupQueues(WdfDevice);
 	VirtIODeviceReset(&pContext->IODevice);
+
+	//TBD
+	//If we don't get InterruptEnable from framework- kick the queues
 
 	return status;
 }
 
 NTSTATUS VSCGuestOpenedPort(/* TBD */)
 {
+	DEBUG_ENTRY(0);
 
 	return STATUS_SUCCESS;
 }
 
 void VSCGuestClosedPort(/* TBD */)
 {
+	DEBUG_ENTRY(0);
 
 }
 
 NTSTATUS VSCSendData(/* TBD ,*/PVOID pBuffer, size_t *pSize)
 {
+	DEBUG_ENTRY(0);
 
 	return STATUS_SUCCESS;
 }
 
 NTSTATUS VSCGetData(/* TBD ,*/WDFMEMORY * pMem, size_t *pSize)
 {
+	DEBUG_ENTRY(0);
 	//WdfMemoryCopyFromBuffer
 
 	return STATUS_SUCCESS;

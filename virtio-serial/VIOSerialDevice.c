@@ -125,6 +125,7 @@ If a bus driver can control a device in raw mode, it sets RawDeviceOK in the DEV
 static void VIOSerialInitDeviceContext(WDFDEVICE hDevice)
 {
 	PDEVICE_CONTEXT	pContext;
+	int i;
 
 	PAGED_CODE();
 	DEBUG_ENTRY(0);
@@ -136,6 +137,12 @@ static void VIOSerialInitDeviceContext(WDFDEVICE hDevice)
 		memset(pContext, 0, sizeof(DEVICE_CONTEXT));
 		//Init Spin locks
 		KeInitializeSpinLock(&pContext->DPCLock);
+
+		for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++)
+		{
+			InitializeListHead(&pContext->SerialDevices[i].ReceiveBuffers);
+			InitializeListHead(&pContext->SerialDevices[i].SendBuffers);
+		}
 	}
 }
 
@@ -288,8 +295,7 @@ NTSTATUS VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
 		return STATUS_DEVICE_CONFIGURATION_ERROR;
 	}
 
-	//RBD - Init virto part
-	//VSCInit(Device);
+	VSCInit(Device);
 	
 	return STATUS_SUCCESS;
 }
@@ -304,8 +310,7 @@ NTSTATUS VIOSerialEvtDeviceReleaseHardware(IN WDFDEVICE Device,
 	
 	DEBUG_ENTRY(0);
 	
-	//TBD - uncomment after initaliation is implemented
-	//VSCDeinit(Device);
+	VSCDeinit(Device);
 	
 	if (pContext->pPortBase && pContext->bPortMapped) 
 	{
