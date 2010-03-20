@@ -6,5 +6,10 @@
 
 void VSCCleanupQueues(IN PDEVICE_CONTEXT pContext);
 NTSTATUS VSCInitQueues(IN PDEVICE_CONTEXT pContext);
+NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
+						   PVOID buffer,
+						   unsigned int size,
+						   PKSPIN_LOCK pLock,
+						   BOOLEAN bKick);
 
 #endif /* VIOSERIAL_CORE_QUEUE_H */

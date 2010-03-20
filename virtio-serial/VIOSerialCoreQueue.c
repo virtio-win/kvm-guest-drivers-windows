@@ -151,6 +151,25 @@ static void PrepareTransmitBuffers(PVIOSERIAL_PORT pPort)
 		__FUNCTION__, pPort->NofSendFreeBuffers, pPort));
 }
 
+static u32 VSCMapIndexToID(int index)
+{
+	////////////////////////////
+	// The assignment of the queues:
+	// 0 - Port 0
+	// 1 - Port 0
+	// 2 - control
+	// 3 - control 
+	// All the above because of legacy
+	// 4 - Port 1
+	// 5 - Port 1
+	// and etc....
+	////////////////////////////
+	// Each port has 2 queus and one control for the device
+	// Index for the array of queue's pairs (ports)
+
+	return (index >= 2)? (index - 1) : 0;
+}
+
 void VSCCleanupQueues(IN PDEVICE_CONTEXT pContext)
 {
 	int i;
@@ -174,6 +193,8 @@ void VSCCleanupQueues(IN PDEVICE_CONTEXT pContext)
 				}
 			}while (b);
 		*/
+
+		pContext->SerialPorts[i].id = VSCMapIndexToID(i);
 
 		if(pContext->SerialPorts[i].ReceiveQueue)
 		{
@@ -238,4 +259,65 @@ NTSTATUS VSCInitQueues(IN PDEVICE_CONTEXT pContext)
 	}
 
 	return status;
+}
+
+NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
+						   PVOID buffer,
+						   unsigned int size,
+						   PKSPIN_LOCK pLock,
+						   BOOLEAN bKick) 	//size already devided in chuncks
+{
+	KIRQL IRQL;
+	pIODescriptor pBufferDescriptor;
+	struct VirtIOBufferDescriptor sg[1];
+
+	KeAcquireSpinLock(pLock, &IRQL);
+
+	if(IsListEmpty(&pPort->SendFreeBuffers))
+	{
+		KeReleaseSpinLock(pLock, IRQL);
+		DPrintf (3, ("[%s] No free buffers for send operation on port %x.", 
+			__FUNCTION__, pPort));
+
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	pBufferDescriptor = (pIODescriptor)RemoveHeadList(&pPort->SendFreeBuffers);
+
+	if(pBufferDescriptor->DataInfo.size < size)
+	{
+		//Adding buffer back to free list
+		InsertTailList(&pPort->SendFreeBuffers, &pBufferDescriptor->listEntry);
+		KeReleaseSpinLock(pLock, IRQL);
+		DPrintf (0, ("[%s] Buffer too small! s: %d d: %d.", 
+			__FUNCTION__, size, pBufferDescriptor->DataInfo.size));
+
+		return STATUS_BUFFER_TOO_SMALL;
+	}
+
+	RtlZeroMemory(pBufferDescriptor->DataInfo.Virtual, pBufferDescriptor->DataInfo.size);
+	RtlCopyMemory(pBufferDescriptor->DataInfo.Virtual, buffer, size);
+	sg[0].physAddr = pBufferDescriptor->DataInfo.Physical;
+	sg[0].ulSize = pBufferDescriptor->DataInfo.size;
+
+	if (0 == pPort->SendQueue->vq_ops->add_buf(pPort->SendQueue, sg, 1, 0, pBufferDescriptor))
+	{
+		pPort->NofSendFreeBuffers--;
+		InsertTailList(&pPort->SendInUseBuffers, &pBufferDescriptor->listEntry);
+
+		if(bKick)
+		{
+			pPort->SendQueue->vq_ops->kick(pPort->SendQueue);
+		}
+	}
+	else
+	{
+		DPrintf(0, ("[%s] Unexpected ERROR adding buffer to TX engine!..", __FUNCTION__));
+		//Adding buffer back to free list
+		InsertTailList(&pPort->SendFreeBuffers, &pBufferDescriptor->listEntry);
+	}
+
+	KeReleaseSpinLock(pLock, IRQL);
+
+	return STATUS_SUCCESS;
 }
