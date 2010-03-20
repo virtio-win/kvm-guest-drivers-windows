@@ -24,13 +24,12 @@ BOOLEAN VIOSerialInterruptIsr(IN WDFINTERRUPT Interrupt,
 	BOOLEAN b;
 
 	status = VirtIODeviceISR(&pContext->IODevice);
-	/* TBD - something we did in NetKVM (corner PM case), not sure it is needed it here
-	if(status == VIRTIO_NET_INVALID_INTERRUPT_STATUS ||
-	   pContext->powerState != NetDeviceStateD0)
+	if(status == VIRTIO_SERIAL_INVALID_INTERRUPT_STATUS)
+	//|| pContext->powerState != NetDeviceStateD0) /* TBD - something we did in NetKVM (corner PM case), not sure it is needed it here
 	{
 		status = 0;
 	}
-*/
+
 	if(!!status)
 	{
 		WdfInterruptQueueDpcForIsr(Interrupt);

@@ -5,8 +5,8 @@
 //#define VIRTIO_SERIAL_MAX_PORTS 31 //theoritical max ports value
 // +1 for control queue
 #define VIRTIO_SERIAL_MAX_QUEUES_COUPLES (VIRTIO_SERIAL_MAX_PORTS + 1)
-#define VIRTIO_SERIAL_MAX_CONTROL_RECEIVE_BUFFERS 16
-#define VIRTIO_SERIAL_MAX_PORT_RECEIVE_BUFFERS 128
+
+#define VIRTIO_SERIAL_INVALID_INTERRUPT_STATUS 0xFF
 
 typedef struct _tagCompletePhysicalAddress
 {

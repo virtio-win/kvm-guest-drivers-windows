@@ -89,6 +89,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\VIOSerialCoreQueue.c"
+				>
+			</File>
+			<File
 				RelativePath=".\VIOSerialDevice.c"
 				>
 			</File>
@@ -124,6 +128,10 @@
 			</File>
 			<File
 				RelativePath=".\VIOSerialCore.h"
+				>
+			</File>
+			<File
+				RelativePath=".\VIOSerialCoreQueue.h"
 				>
 			</File>
 			<File

@@ -18,7 +18,8 @@ SOURCES= VIOSerialDriver.c \
 		 VIOSerialCore.c \
 		 VIOSerialUtils.c \
 		 VIOSerialMemUtils.c \
-		 VIOSerialInterrupt.c
+		 VIOSerialInterrupt.c \
+		 VIOSerialCoreQueue.c
 
 TARGET_DESTINATION=wdf
 
