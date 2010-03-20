@@ -141,7 +141,8 @@ static void VIOSerialInitDeviceContext(WDFDEVICE hDevice)
 		for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++)
 		{
 			InitializeListHead(&pContext->SerialPorts[i].ReceiveBuffers);
-			InitializeListHead(&pContext->SerialPorts[i].SendBuffers);
+			InitializeListHead(&pContext->SerialPorts[i].SendFreeBuffers);
+			InitializeListHead(&pContext->SerialPorts[i].SendInUseBuffers);
 		}
 	}
 }
@@ -215,10 +216,10 @@ NTSTATUS VIOSerialEvtDeviceAdd(IN WDFDRIVER Driver,IN PWDFDEVICE_INIT DeviceInit
 		return status;
 	}
 
-	if(!NT_SUCCESS(status = VIOSerialInitInterruptHandling(hDevice)))
+	/*if(!NT_SUCCESS(status = VIOSerialInitInterruptHandling(hDevice)))
 	{
 		return status;
-	}
+	}*/
 
 	return status;
 }

@@ -20,7 +20,7 @@
 // AllocatePhysical - Utility function for allocating physical memory
 //
 /////////////////////////////////////////////////////////////////////////////////////
-PVOID VIOSerialAllocatePhysical(ULONG uSize)
+PVOID AllocatePhysical(ULONG uSize)
 {
 	PHYSICAL_ADDRESS HighestAcceptable;
 
@@ -33,13 +33,13 @@ PVOID VIOSerialAllocatePhysical(ULONG uSize)
 	return MmAllocateContiguousMemory(uSize,HighestAcceptable);
 }
 
-void VIOSerialFreePhysical(PVOID addr)
+void FreePhysical(PVOID addr)
 {
 	MmFreeContiguousMemory(addr);
 }
 
 
-PHYSICAL_ADDRESS VIOSerialGetPhysicalAddress(PVOID addr)
+PHYSICAL_ADDRESS GetPhysicalAddress(PVOID addr)
 {
 	return MmGetPhysicalAddress(addr);
 }
