@@ -2,10 +2,11 @@
 #define VIOSERIAL_H
 
 #define VIRTIO_SERIAL_MAX_PORTS 1
+//#define VIRTIO_SERIAL_MAX_PORTS 31 //theoritical max ports value
 // +1 for control queue
 #define VIRTIO_SERIAL_MAX_QUEUES_COUPLES (VIRTIO_SERIAL_MAX_PORTS + 1)
 
-typedef struct _VIOSERIAL_DEVICE
+typedef struct _VIOSERIAL_PORT
 {
 	//LIST_ENTRY listEntry;
 	unsigned int	NofReceiveBuffers;
@@ -24,7 +25,7 @@ typedef struct _VIOSERIAL_DEVICE
 
 	// We should allow only one process to open a port
 	bool bGuestConnected;
-} VIOSERIAL_DEVICE, *PVIOSERIAL_DEVICE;
+} VIOSERIAL_PORT, *PVIOSERIAL_PORT;
 
 
 #endif /* VIOSERIAL_H */

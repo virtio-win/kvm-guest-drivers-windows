@@ -3,6 +3,37 @@
 #include "VIOSerialDriver.h"
 #include "VIOSerialCore.h"
 
+/*
+static void PrepareTransmitBuffers(PDEVICE_CONTEXT	pContext,
+								   VIOSERIAL_PORT * pPort)
+{
+	UINT nBuffers, nMaxBuffers;
+	DEBUG_ENTRY(4);
+	nMaxBuffers = VirtIODeviceGetQueueSize(pContext->NetSendQueue) / 2;
+	if (nMaxBuffers > pContext->maxFreeTxDescriptors) nMaxBuffers = pContext->maxFreeTxDescriptors;
+
+	for (nBuffers = 0; nBuffers < nMaxBuffers; ++nBuffers)
+	{
+		pIONetDescriptor pBuffersDescriptor =
+			AllocatePairOfBuffersOnInit(
+				pContext,
+				pContext->nVirtioHeaderSize,
+				pContext->MaxPacketSize.nMaxFullSizeHwTx,
+				TRUE);
+		if (!pBuffersDescriptor) break;
+
+		NdisZeroMemory(pBuffersDescriptor->HeaderInfo.Virtual, pBuffersDescriptor->HeaderInfo.size);
+		InsertTailList(&pContext->NetFreeSendBuffers, &pBuffersDescriptor->listEntry);
+		pContext->nofFreeTxDescriptors++;
+	}
+
+	pContext->maxFreeTxDescriptors = pContext->nofFreeTxDescriptors;
+	pContext->nofFreeHardwareBuffers = pContext->nofFreeTxDescriptors * 2;
+	pContext->maxFreeHardwareBuffers = pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
+	DPrintf(0, ("[%s] available %d Tx descriptors, %d hw buffers",
+		__FUNCTION__, pContext->nofFreeTxDescriptors, pContext->nofFreeHardwareBuffers));
+}
+*/
 static void VSCCleanupQueues(IN WDFOBJECT WdfDevice)
 {
 	PDEVICE_CONTEXT	pContext = GetDeviceContext(WdfDevice);
@@ -10,18 +41,18 @@ static void VSCCleanupQueues(IN WDFOBJECT WdfDevice)
 
 	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++ )
 	{
-		if(pContext->SerialDevices[i].ReceiveQueue)
+		if(pContext->SerialPorts[i].ReceiveQueue)
 		{
-			pContext->SerialDevices[i].ReceiveQueue->vq_ops->shutdown(pContext->SerialDevices[i].ReceiveQueue);
-			VirtIODeviceDeleteVirtualQueue(pContext->SerialDevices[i].ReceiveQueue);
-			pContext->SerialDevices[i].ReceiveQueue =  NULL;
+			pContext->SerialPorts[i].ReceiveQueue->vq_ops->shutdown(pContext->SerialPorts[i].ReceiveQueue);
+			VirtIODeviceDeleteVirtualQueue(pContext->SerialPorts[i].ReceiveQueue);
+			pContext->SerialPorts[i].ReceiveQueue = NULL;
 		}
 
-		if(pContext->SerialDevices[i].SendQueue)
+		if(pContext->SerialPorts[i].SendQueue)
 		{
-			pContext->SerialDevices[i].SendQueue->vq_ops->shutdown(pContext->SerialDevices[i].SendQueue);
-			VirtIODeviceDeleteVirtualQueue(pContext->SerialDevices[i].SendQueue);
-			pContext->SerialDevices[i].SendQueue =  NULL;
+			pContext->SerialPorts[i].SendQueue->vq_ops->shutdown(pContext->SerialPorts[i].SendQueue);
+			VirtIODeviceDeleteVirtualQueue(pContext->SerialPorts[i].SendQueue);
+			pContext->SerialPorts[i].SendQueue = NULL;
 		}
 	}
 }
@@ -50,10 +81,10 @@ NTSTATUS VSCInit(IN WDFOBJECT WdfDevice)
 
 	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i += 2)
 	{
-		pContext->SerialDevices[i].ReceiveQueue = VirtIODeviceFindVirtualQueue(&pContext->IODevice, i, NULL);
-		pContext->SerialDevices[i].SendQueue = VirtIODeviceFindVirtualQueue(&pContext->IODevice, i + 1, NULL);
+		pContext->SerialPorts[i].ReceiveQueue = VirtIODeviceFindVirtualQueue(&pContext->IODevice, i, NULL);
+		pContext->SerialPorts[i].SendQueue = VirtIODeviceFindVirtualQueue(&pContext->IODevice, i + 1, NULL);
 
-		if (pContext->SerialDevices[i].ReceiveQueue && pContext->SerialDevices[i].SendQueue)
+		if (pContext->SerialPorts[i].ReceiveQueue && pContext->SerialPorts[i].SendQueue)
 		{
 		//	PrepareTransmitBuffers(pContext);
 		//	PrepareReceiveBuffers(pContext);
@@ -76,6 +107,10 @@ NTSTATUS VSCInit(IN WDFOBJECT WdfDevice)
 //		VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 	}
 
+	//TBD
+	//If we don't get InterruptEnable from framework- kick the queues
+
+
 	return status;
 }
 
@@ -90,9 +125,7 @@ NTSTATUS VSCDeinit(IN WDFOBJECT WdfDevice)
 	VSCCleanupQueues(WdfDevice);
 	VirtIODeviceReset(&pContext->IODevice);
 
-	//TBD
-	//If we don't get InterruptEnable from framework- kick the queues
-
+	
 	return status;
 }
 

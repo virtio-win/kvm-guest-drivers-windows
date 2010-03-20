@@ -53,27 +53,27 @@ static VOID VIOSerialEnableDisableInterrupt(IN WDFINTERRUPT Interrupt,
 
 	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++ )
 	{
-		if(pContext->SerialDevices[i].ReceiveQueue)
+		if(pContext->SerialPorts[i].ReceiveQueue)
 		{
-			pContext->SerialDevices[i].ReceiveQueue->vq_ops->enable_interrupt(pContext->SerialDevices[i].ReceiveQueue, bEnable);
+			pContext->SerialPorts[i].ReceiveQueue->vq_ops->enable_interrupt(pContext->SerialPorts[i].ReceiveQueue, bEnable);
 		}
 
-		if(pContext->SerialDevices[i].SendQueue)
+		if(pContext->SerialPorts[i].SendQueue)
 		{
-			pContext->SerialDevices[i].SendQueue->vq_ops->enable_interrupt(pContext->SerialDevices[i].SendQueue, bEnable);
+			pContext->SerialPorts[i].SendQueue->vq_ops->enable_interrupt(pContext->SerialPorts[i].SendQueue, bEnable);
 		}
 	}
 
 	if(bEnable) // Also kick
 	{
-		if(pContext->SerialDevices[i].ReceiveQueue)
+		if(pContext->SerialPorts[i].ReceiveQueue)
 		{
-			pContext->SerialDevices[i].ReceiveQueue->vq_ops->kick(pContext->SerialDevices[i].ReceiveQueue);
+			pContext->SerialPorts[i].ReceiveQueue->vq_ops->kick(pContext->SerialPorts[i].ReceiveQueue);
 		}
 
-		if(pContext->SerialDevices[i].SendQueue)
+		if(pContext->SerialPorts[i].SendQueue)
 		{
-			pContext->SerialDevices[i].SendQueue->vq_ops->kick(pContext->SerialDevices[i].SendQueue);
+			pContext->SerialPorts[i].SendQueue->vq_ops->kick(pContext->SerialPorts[i].SendQueue);
 		}
 	}
 }

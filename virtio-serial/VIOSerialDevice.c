@@ -140,8 +140,8 @@ static void VIOSerialInitDeviceContext(WDFDEVICE hDevice)
 
 		for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++)
 		{
-			InitializeListHead(&pContext->SerialDevices[i].ReceiveBuffers);
-			InitializeListHead(&pContext->SerialDevices[i].SendBuffers);
+			InitializeListHead(&pContext->SerialPorts[i].ReceiveBuffers);
+			InitializeListHead(&pContext->SerialPorts[i].SendBuffers);
 		}
 	}
 }
