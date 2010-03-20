@@ -9,8 +9,13 @@ static void FreeBufferDescriptor(pIODescriptor pBufferDescriptor)
 	if(pBufferDescriptor)
 	{
 		if (pBufferDescriptor->DataInfo.Virtual)
-			FreePhysical(&pBufferDescriptor->DataInfo.Virtual);
+		{
+			FreePhysical(pBufferDescriptor->DataInfo.Virtual);
+		}
+		
 		ExFreePoolWithTag(pBufferDescriptor, VIOSERIAL_DRIVER_MEMORY_TAG);
+
+		DPrintf(6, ("Freeing %x", pBufferDescriptor));
 		pBufferDescriptor = NULL;
 	}
 }
@@ -188,8 +193,8 @@ static void VSCCleanupQueues(IN WDFOBJECT WdfDevice)
 								&pContext->DPCLock);
 
 		// this can be freed, queue shut down
-		FreeDescriptorsFromList(&pContext->SerialPorts[i].SendInUseBuffers,
-								&pContext->DPCLock);
+		//FreeDescriptorsFromList(&pContext->SerialPorts[i].SendInUseBuffers,
+		//						&pContext->DPCLock);
 
 		// this can be freed, send disabled
 		FreeDescriptorsFromList(&pContext->SerialPorts[i].SendFreeBuffers,
