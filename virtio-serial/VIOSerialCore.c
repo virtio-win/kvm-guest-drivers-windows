@@ -3,12 +3,12 @@
 #include "VIOSerialDriver.h"
 #include "VIOSerialCore.h"
 #include "VIOSerialCoreQueue.h"
+#include "VIOSerialCoreControl.h"
 
 NTSTATUS VSCInit(IN WDFOBJECT WdfDevice)
 {
 	NTSTATUS		status = STATUS_SUCCESS;
 	PDEVICE_CONTEXT	pContext = GetDeviceContext(WdfDevice);
-
 
 	DEBUG_ENTRY(0);
 
@@ -39,7 +39,6 @@ NTSTATUS VSCInit(IN WDFOBJECT WdfDevice)
 	//TBD
 	//If we don't get InterruptEnable from framework- kick the queues
 
-
 	return status;
 }
 
@@ -61,6 +60,10 @@ NTSTATUS VSCGuestOpenedPort(/* TBD */)
 {
 	DEBUG_ENTRY(0);
 
+	//Send control message...
+	//SendControlMessage(, , VIRTIO_CONSOLE_PORT_OPEN, 1);
+	//??? SendControlMessage(, , VIRTIO_CONSOLE_PORT_READY, 1);
+
 	return STATUS_SUCCESS;
 }
 
@@ -68,19 +71,53 @@ void VSCGuestClosedPort(/* TBD */)
 {
 	DEBUG_ENTRY(0);
 
+	//SendControlMessage(, , VIRTIO_CONSOLE_PORT_OPEN, 0);
 }
 
-NTSTATUS VSCSendData(/* TBD ,*/PVOID pBuffer, size_t *pSize)
+static PVIOSERIAL_PORT MapFileToPort(PDEVICE_CONTEXT pContext)
 {
+	//TBD - for now always return first port
+	return &pContext->SerialPorts[0];
+}
+
+NTSTATUS VSCSendData(PDEVICE_CONTEXT pContext, PVOID pBuffer, size_t *pSize)
+{
+	unsigned int uiPortID;
+	int i;
+	NTSTATUS status = STATUS_SUCCESS;
+	size_t sizeToSend = *pSize;
+	size_t sizeChunk;
+
 	DEBUG_ENTRY(0);
 
-	return STATUS_SUCCESS;
+	//Will count acctual size sent
+	*pSize = 0;
+	
+	while(*pSize < sizeToSend)
+	{
+		sizeChunk = sizeToSend > PAGE_SIZE? PAGE_SIZE : sizeToSend;
+		if(!NT_SUCCESS(status = VSCSendCopyBuffer(MapFileToPort(pContext),
+												  (unsigned char *)pBuffer + *pSize,
+												  sizeChunk,
+												  &pContext->DPCLock,
+												  sizeToSend > PAGE_SIZE? FALSE : TRUE)))
+		{
+			break;
+		}
+
+		*pSize += sizeChunk;
+		sizeToSend -= sizeChunk;
+		
+	}
+
+	return status;
 }
 
-NTSTATUS VSCGetData(/* TBD ,*/WDFMEMORY * pMem, size_t *pSize)
+NTSTATUS VSCGetData(PDEVICE_CONTEXT pContex, WDFMEMORY * pMem, size_t *pSize)
 {
 	DEBUG_ENTRY(0);
 	//WdfMemoryCopyFromBuffer
 
 	return STATUS_SUCCESS;
 }
+

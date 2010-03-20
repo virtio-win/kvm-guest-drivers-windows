@@ -343,8 +343,15 @@ NTSTATUS VIOSerialEvtDeviceD0Exit(IN WDFDEVICE Device,
 	return STATUS_SUCCESS;
 }
 
-VOID VIOSerialEvtIoDeviceControl(IN WDFQUEUE  Queue,
-								 IN WDFREQUEST  Request,
+static PDEVICE_CONTEXT GetContextFromQueue(IN WDFQUEUE Queue)
+{
+	PDEVICE_CONTEXT pContext = GetDeviceContext(WdfIoQueueGetDevice(Queue));
+
+	return pContext;
+}
+
+VOID VIOSerialEvtIoDeviceControl(IN WDFQUEUE Queue,
+								 IN WDFREQUEST Request,
 								 IN size_t OutputBufferLength,
 								 IN size_t InputBufferLength,
 								 IN ULONG  IoControlCode)
@@ -368,7 +375,7 @@ VOID VIOSerialEvtIoRead(IN WDFQUEUE  Queue,
 
 	if(NT_SUCCESS(WdfRequestRetrieveOutputMemory(Request, &outMemory)))
 	{
-		status = VSCGetData(&outMemory, &size);
+		status = VSCGetData(GetContextFromQueue(Queue), &outMemory, &size);
 	}
 
 	WdfRequestCompleteWithInformation(Request, status, size);
@@ -396,7 +403,7 @@ VOID VIOSerialEvtIoWrite(IN WDFQUEUE  Queue,
 			size = Length;
 		}
 
-		status = VSCSendData(buffer, &size);
+		status = VSCSendData(GetContextFromQueue(Queue), buffer, &size);
 	}
 
 	WdfRequestCompleteWithInformation(Request, status, size);

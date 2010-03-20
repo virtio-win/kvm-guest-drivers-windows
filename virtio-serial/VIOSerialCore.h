@@ -9,7 +9,7 @@ NTSTATUS VSCDeinit(IN WDFOBJECT WdfDevice);
 NTSTATUS VSCGuestOpenedPort(/* TBD */);
 void VSCGuestClosedPort(/* TBD */);
 
-NTSTATUS VSCSendData(/* TBD ,*/PVOID pBuffer, size_t *pSize);
-NTSTATUS VSCGetData(/* TBD ,*/WDFMEMORY *pMem, size_t *pSize);
+NTSTATUS VSCSendData(PDEVICE_CONTEXT pContex, PVOID pBuffer, size_t *pSize);
+NTSTATUS VSCGetData(PDEVICE_CONTEXT pContex, WDFMEMORY *pMem, size_t *pSize);
 
 #endif /* VIOSERIAL_CORE_H */
