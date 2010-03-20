@@ -155,6 +155,8 @@ void VSCCleanupQueues(IN PDEVICE_CONTEXT pContext)
 {
 	int i;
 
+	DEBUG_ENTRY(0);
+
 	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++ )
 	{
 		/* TBD - check if needed
@@ -205,6 +207,8 @@ NTSTATUS VSCInitQueues(IN PDEVICE_CONTEXT pContext)
 {
 	NTSTATUS status = STATUS_SUCCESS;
 	int i;
+
+	DEBUG_ENTRY(0);
 
 	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++)
 	{
