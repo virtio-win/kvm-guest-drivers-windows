@@ -113,10 +113,16 @@ NTSTATUS VSCSendData(PDEVICE_CONTEXT pContext, PVOID pBuffer, size_t *pSize)
 	return status;
 }
 
-NTSTATUS VSCGetData(PDEVICE_CONTEXT pContex, WDFMEMORY * pMem, size_t *pSize)
+NTSTATUS VSCGetData(PDEVICE_CONTEXT pContext, WDFMEMORY * pMem, size_t *pSize)
 {
 	DEBUG_ENTRY(0);
-	//WdfMemoryCopyFromBuffer
+
+	// For now let's assume only one chunck!
+
+	return VSCRecieveCopyBuffer(MapFileToPort(pContext),
+								pMem,
+								pSize,
+								&pContext->DPCLock);
 
 	return STATUS_SUCCESS;
 }

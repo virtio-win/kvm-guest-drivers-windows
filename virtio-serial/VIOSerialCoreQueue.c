@@ -283,10 +283,12 @@ NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 	}
 
 	pBufferDescriptor = (pIODescriptor)RemoveHeadList(&pPort->SendFreeBuffers);
+	KeReleaseSpinLock(pLock, IRQL);
 
 	if(pBufferDescriptor->DataInfo.size < size)
 	{
 		//Adding buffer back to free list
+		KeAcquireSpinLock(pLock, &IRQL);
 		InsertTailList(&pPort->SendFreeBuffers, &pBufferDescriptor->listEntry);
 		KeReleaseSpinLock(pLock, IRQL);
 		DPrintf (0, ("[%s] Buffer too small! s: %d d: %d.", 
@@ -300,6 +302,7 @@ NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 	sg[0].physAddr = pBufferDescriptor->DataInfo.Physical;
 	sg[0].ulSize = pBufferDescriptor->DataInfo.size;
 
+	KeAcquireSpinLock(pLock, &IRQL);
 	if (0 == pPort->SendQueue->vq_ops->add_buf(pPort->SendQueue, sg, 1, 0, pBufferDescriptor))
 	{
 		pPort->NofSendFreeBuffers--;
@@ -320,4 +323,36 @@ NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 	KeReleaseSpinLock(pLock, IRQL);
 
 	return STATUS_SUCCESS;
+}
+
+NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
+							  WDFMEMORY * buffer,
+							  unsigned int * pSize,
+							  PKSPIN_LOCK pLock)
+{
+	NTSTATUS status = STATUS_SUCCESS;
+	unsigned int len;
+
+	KIRQL IRQL;
+	pIODescriptor pBufferDescriptor;
+
+	KeAcquireSpinLock(pLock, &IRQL);
+
+	if(NULL == (pBufferDescriptor = pPort->ReceiveQueue->vq_ops->get_buf(pPort->ReceiveQueue, &len)))
+	{
+		//status = STATUS_FAILED;
+	}
+	KeReleaseSpinLock(pLock, IRQL);
+
+	if(NT_SUCCESS(status))
+	{
+		*pSize = len;
+		return WdfMemoryCopyFromBuffer(*buffer,
+									   0,
+									   pBufferDescriptor->DataInfo.Virtual,
+									   len);
+
+	}
+
+	return status;
 }

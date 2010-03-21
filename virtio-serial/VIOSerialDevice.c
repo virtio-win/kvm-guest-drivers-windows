@@ -414,7 +414,7 @@ void VIOSerialEvtDeviceFileCreate(IN WDFDEVICE Device,
 								  IN WDFREQUEST Request,
 								  IN WDFFILEOBJECT FileObject)
 {
-	NTSTATUS status;
+	NTSTATUS status = STATUS_SUCCESS;
 	DEBUG_ENTRY(0);
 
 	if(NT_SUCCESS(status = VSCGuestOpenedPort(/* TBD */)))
