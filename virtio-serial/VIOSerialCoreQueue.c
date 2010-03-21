@@ -86,6 +86,8 @@ static BOOLEAN AddRxBufferToQueue(PVIOSERIAL_PORT pPort, pIODescriptor pBufferDe
 {
 	struct VirtIOBufferDescriptor sg[1];
 
+	RtlZeroMemory(pBufferDescriptor->DataInfo.Virtual, pBufferDescriptor->DataInfo.size);
+
 	sg[0].physAddr = pBufferDescriptor->DataInfo.Physical;
 	sg[0].ulSize = pBufferDescriptor->DataInfo.size;
 
@@ -340,18 +342,21 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 
 	if(NULL == (pBufferDescriptor = pPort->ReceiveQueue->vq_ops->get_buf(pPort->ReceiveQueue, &len)))
 	{
-		//status = STATUS_FAILED;
+		status = STATUS_UNSUCCESSFUL;
 	}
 	KeReleaseSpinLock(pLock, IRQL);
 
 	if(NT_SUCCESS(status))
 	{
 		*pSize = len;
-		return WdfMemoryCopyFromBuffer(*buffer,
-									   0,
-									   pBufferDescriptor->DataInfo.Virtual,
-									   len);
+		status =  WdfMemoryCopyFromBuffer(*buffer,
+										   0,
+										   pBufferDescriptor->DataInfo.Virtual,
+										   len);
 
+		KeAcquireSpinLock(pLock, &IRQL);
+		AddRxBufferToQueue(pPort, pBufferDescriptor);
+		KeReleaseSpinLock(pLock, IRQL);
 	}
 
 	return status;
