@@ -28,12 +28,13 @@ NTSTATUS VSCInit(IN WDFOBJECT WdfDevice)
 
 	if(!NT_SUCCESS(status))
 	{
+		DPrintf(0, ("Setting VIRTIO_CONFIG_S_FAILED flag"));
 		VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_FAILED);
 	}
 	else
 	{
-		//TBD - clear it to enable transfer
-//		VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+		DPrintf(0, ("Setting VIRTIO_CONFIG_S_DRIVER_OK flag"));
+		VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 	}
 
 	//TBD
