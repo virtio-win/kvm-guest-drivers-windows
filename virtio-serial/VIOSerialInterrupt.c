@@ -15,6 +15,7 @@
 #include "VIOSerialDriver.h"
 #include "VIOSerialDevice.h"
 #include "VIOSerialCore.h"
+#include "VIOSerialCoreQueue.h"
 
 BOOLEAN VIOSerialInterruptIsr(IN WDFINTERRUPT Interrupt,
 							  IN ULONG MessageID)
@@ -23,9 +24,6 @@ BOOLEAN VIOSerialInterruptIsr(IN WDFINTERRUPT Interrupt,
 	ULONG status = 0;
 	BOOLEAN b;
 
-	DPrintf(0, ("Got ISR"));
-
-
 	if(!pContext->isDeviceInitialized)
 	{
 		return FALSE;
@@ -33,14 +31,13 @@ BOOLEAN VIOSerialInterruptIsr(IN WDFINTERRUPT Interrupt,
 
 	status = VirtIODeviceISR(&pContext->IODevice);
 	if(status == VIRTIO_SERIAL_INVALID_INTERRUPT_STATUS)
-	//|| pContext->powerState != NetDeviceStateD0) /* TBD - something we did in NetKVM (corner PM case), not sure it is needed it here
 	{
 		status = 0;
 	}
 
 	if(!!status)
 	{
-		DPrintf(0, ("Got ISR - it is ours!"));
+		DPrintf(0, ("Got ISR - it is ours %d!", status));
 		WdfInterruptQueueDpcForIsr(Interrupt);
 	}
 
@@ -51,6 +48,41 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 						   IN WDFOBJECT AssociatedObject)
 {
 	//TBD handle the transfer
+	unsigned int len;
+	int i;
+	KIRQL IRQL;
+	pIODescriptor pBufferDescriptor;
+
+	PDEVICE_CONTEXT	pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
+
+	KeAcquireSpinLock(&pContext->DPCLock, &IRQL);
+	//Get consumed buffers for transmit queues
+	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++ )
+	{
+		if(pContext->SerialPorts[i].SendQueue)
+		{
+			while(pBufferDescriptor = pContext->SerialPorts[i].ReceiveQueue->vq_ops->get_buf(pContext->SerialPorts[i].ReceiveQueue, &len))
+			{
+				RemoveEntryList(&pBufferDescriptor->listEntry); // Remove from in use list
+				InsertTailList(&pContext->SerialPorts[i].SendFreeBuffers, &pBufferDescriptor->listEntry);
+			}
+		}
+	}
+
+	//Get control messages
+	if(pContext->SerialPorts[VIRTIO_SERIAL_CONTROL_PORT_INDEX].ReceiveQueue)
+	{
+		if(pBufferDescriptor = pContext->SerialPorts[VIRTIO_SERIAL_CONTROL_PORT_INDEX].ReceiveQueue->vq_ops->get_buf(pContext->SerialPorts[VIRTIO_SERIAL_CONTROL_PORT_INDEX].ReceiveQueue, &len))
+		{
+			DPrintf(0, ("Got control message"));
+			//HandleIncomingControlMessage(pBufferDescriptor->DataInfo.Virtual, len);
+
+			//Return the buffer to usage... - if we handle the mesages in workitem, the below line should move there
+			AddRxBufferToQueue(&pContext->SerialPorts[VIRTIO_SERIAL_CONTROL_PORT_INDEX], pBufferDescriptor);
+		}
+	}
+
+	KeReleaseSpinLock(&pContext->DPCLock, IRQL);
 }
 
 VOID VIOSerialEnableDisableInterrupt(PDEVICE_CONTEXT pContext,
@@ -59,6 +91,9 @@ VOID VIOSerialEnableDisableInterrupt(PDEVICE_CONTEXT pContext,
 	int i;
 
 	DEBUG_ENTRY(0);
+
+	if(!pContext)
+		return;
 
 	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++ )
 	{
@@ -75,14 +110,17 @@ VOID VIOSerialEnableDisableInterrupt(PDEVICE_CONTEXT pContext,
 
 	if(bEnable) // Also kick
 	{
-		if(pContext->SerialPorts[i].ReceiveQueue)
+		for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++ )
 		{
-			pContext->SerialPorts[i].ReceiveQueue->vq_ops->kick(pContext->SerialPorts[i].ReceiveQueue);
-		}
+			if(pContext->SerialPorts[i].ReceiveQueue)
+			{
+				pContext->SerialPorts[i].ReceiveQueue->vq_ops->kick(pContext->SerialPorts[i].ReceiveQueue);
+			}
 
-		if(pContext->SerialPorts[i].SendQueue)
-		{
-			pContext->SerialPorts[i].SendQueue->vq_ops->kick(pContext->SerialPorts[i].SendQueue);
+			if(pContext->SerialPorts[i].SendQueue)
+			{
+				pContext->SerialPorts[i].SendQueue->vq_ops->kick(pContext->SerialPorts[i].SendQueue);
+			}
 		}
 	}
 }
@@ -91,7 +129,8 @@ NTSTATUS VIOSerialInterruptEnable(IN WDFINTERRUPT Interrupt,
 								  IN WDFDEVICE AssociatedDevice)
 {
 	DEBUG_ENTRY(0);
-	//VIOSerialEnableDisableInterrupt(Interrupt, TRUE);
+	VIOSerialEnableDisableInterrupt(GetDeviceContext(WdfInterruptGetDevice(Interrupt)), 
+									TRUE);
 
 	return STATUS_SUCCESS;
 }
@@ -100,7 +139,8 @@ NTSTATUS VIOSerialInterruptDisable(IN WDFINTERRUPT Interrupt,
 								   IN WDFDEVICE AssociatedDevice)
 {
 	DEBUG_ENTRY(0);
-	//VIOSerialEnableDisableInterrupt(Interrupt, FALSE);
+	VIOSerialEnableDisableInterrupt(GetDeviceContext(WdfInterruptGetDevice(Interrupt)),
+									FALSE);
 
 	return STATUS_SUCCESS;
 }

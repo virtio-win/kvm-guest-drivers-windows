@@ -101,7 +101,7 @@ static pIODescriptor AllocateIOBuffer(ULONG size)
 	return p;
 }
 
-static BOOLEAN AddRxBufferToQueue(PVIOSERIAL_PORT pPort, pIODescriptor pBufferDescriptor)
+BOOLEAN AddRxBufferToQueue(PVIOSERIAL_PORT pPort, pIODescriptor pBufferDescriptor)
 {
 	struct VirtIOBufferDescriptor sg[1];
 
@@ -278,7 +278,7 @@ NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 	if(IsListEmpty(&pPort->SendFreeBuffers))
 	{
 		KeReleaseSpinLock(pLock, IRQL);
-		DPrintf (3, ("[%s] No free buffers for send operation on port %x.", 
+		DPrintf (0, ("[%s] No free buffers for send operation on port %x.", 
 			__FUNCTION__, pPort));
 
 		return STATUS_INSUFFICIENT_RESOURCES;

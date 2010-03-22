@@ -19,5 +19,6 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 							  PKSPIN_LOCK pLock);
 
 u32 VSCMapIndexToID(int index);
+BOOLEAN AddRxBufferToQueue(PVIOSERIAL_PORT pPort, pIODescriptor pBufferDescriptor);
 
 #endif /* VIOSERIAL_CORE_QUEUE_H */
