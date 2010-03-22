@@ -342,6 +342,7 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 
 	if(NULL == (pBufferDescriptor = pPort->ReceiveQueue->vq_ops->get_buf(pPort->ReceiveQueue, &len)))
 	{
+		DPrintf(0, ("[%s] No buffers in queue!", __FUNCTION__));
 		status = STATUS_UNSUCCESSFUL;
 	}
 	KeReleaseSpinLock(pLock, IRQL);
