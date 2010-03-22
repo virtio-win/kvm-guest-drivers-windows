@@ -6,8 +6,9 @@
 NTSTATUS VSCInit(IN WDFOBJECT WdfDevice);
 NTSTATUS VSCDeinit(IN WDFOBJECT WdfDevice);
 
-NTSTATUS VSCGuestOpenedPort(/* TBD */);
-void VSCGuestClosedPort(/* TBD */);
+NTSTATUS VSCGuestOpenedPort(PDEVICE_CONTEXT pContext);
+void VSCGuestClosedPort(PDEVICE_CONTEXT pContext);
+void VSCGuestSetPortsReady(PDEVICE_CONTEXT pContext);
 
 NTSTATUS VSCSendData(PDEVICE_CONTEXT pContex, PVOID pBuffer, size_t *pSize);
 NTSTATUS VSCGetData(PDEVICE_CONTEXT pContex, WDFMEMORY *pMem, size_t *pSize);

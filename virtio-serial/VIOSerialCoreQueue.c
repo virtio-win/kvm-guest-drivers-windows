@@ -4,6 +4,25 @@
 #include "VIOSerialMemUtils.h"
 #include "VIOSerialCoreQueue.h"
 
+u32 VSCMapIndexToID(int index)
+{
+	////////////////////////////
+	// The assignment of the queues:
+	// 0 - Port 0
+	// 1 - Port 0
+	// 2 - control
+	// 3 - control 
+	// All the above because of legacy
+	// 4 - Port 1
+	// 5 - Port 1
+	// and etc....
+	////////////////////////////
+	// Each port has 2 queus and one control for the device
+	// Index for the array of queue's pairs (ports)
+
+	return (index >= 2)? (index - 1) : 0;
+}
+
 static void FreeBufferDescriptor(pIODescriptor pBufferDescriptor)
 {
 	if(pBufferDescriptor)
@@ -151,25 +170,6 @@ static void PrepareTransmitBuffers(PVIOSERIAL_PORT pPort)
 
 	DPrintf(0, ("[%s] available %d Tx descriptors for port %x",
 		__FUNCTION__, pPort->NofSendFreeBuffers, pPort));
-}
-
-static u32 VSCMapIndexToID(int index)
-{
-	////////////////////////////
-	// The assignment of the queues:
-	// 0 - Port 0
-	// 1 - Port 0
-	// 2 - control
-	// 3 - control 
-	// All the above because of legacy
-	// 4 - Port 1
-	// 5 - Port 1
-	// and etc....
-	////////////////////////////
-	// Each port has 2 queus and one control for the device
-	// Index for the array of queue's pairs (ports)
-
-	return (index >= 2)? (index - 1) : 0;
 }
 
 void VSCCleanupQueues(IN PDEVICE_CONTEXT pContext)

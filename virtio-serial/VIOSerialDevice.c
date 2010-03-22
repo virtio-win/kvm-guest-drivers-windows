@@ -305,6 +305,7 @@ NTSTATUS VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
 	pContext->isDeviceInitialized = TRUE;
 
 	VIOSerialEnableDisableInterrupt(pContext, TRUE);
+	VSCGuestSetPortsReady(pContext);
 
 	return STATUS_SUCCESS;
 }
@@ -360,6 +361,15 @@ static PDEVICE_CONTEXT GetContextFromQueue(IN WDFQUEUE Queue)
 
 	return pContext;
 }
+
+static PDEVICE_CONTEXT GetContextFromFileObject(IN WDFFILEOBJECT FileObject)
+{
+	PDEVICE_CONTEXT pContext = GetDeviceContext(WdfFileObjectGetDevice(FileObject));
+
+	return pContext;
+}
+
+
 
 VOID VIOSerialEvtIoDeviceControl(IN WDFQUEUE Queue,
 								 IN WDFREQUEST Request,
@@ -428,7 +438,7 @@ void VIOSerialEvtDeviceFileCreate(IN WDFDEVICE Device,
 	NTSTATUS status = STATUS_SUCCESS;
 	DEBUG_ENTRY(0);
 
-	if(NT_SUCCESS(status = VSCGuestOpenedPort(/* TBD */)))
+	if(NT_SUCCESS(status = VSCGuestOpenedPort(GetDeviceContext(Device))))
 	{
 		//TBD - do some stuff on the device level on file open if needed
 	}
@@ -441,5 +451,5 @@ VOID VIOSerialEvtFileClose(IN WDFFILEOBJECT FileObject)
 	DEBUG_ENTRY(0);
 	//Clean up on file close
 
-	VSCGuestClosedPort(/* TBD */);
+	VSCGuestClosedPort(GetContextFromFileObject(FileObject));
 }

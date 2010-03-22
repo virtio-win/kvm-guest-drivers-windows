@@ -57,28 +57,61 @@ NTSTATUS VSCDeinit(IN WDFOBJECT WdfDevice)
 	return status;
 }
 
-NTSTATUS VSCGuestOpenedPort(/* TBD */)
-{
-	DEBUG_ENTRY(0);
-
-	//Send control message...
-	//SendControlMessage(, , VIRTIO_CONSOLE_PORT_OPEN, 1);
-	//??? SendControlMessage(, , VIRTIO_CONSOLE_PORT_READY, 1);
-
-	return STATUS_SUCCESS;
-}
-
-void VSCGuestClosedPort(/* TBD */)
-{
-	DEBUG_ENTRY(0);
-
-	//SendControlMessage(, , VIRTIO_CONSOLE_PORT_OPEN, 0);
-}
-
 static PVIOSERIAL_PORT MapFileToPort(PDEVICE_CONTEXT pContext)
 {
 	//TBD - for now always return first port
 	return &pContext->SerialPorts[0];
+}
+
+void VSCGuestSetPortsReady(PDEVICE_CONTEXT pContext)
+{
+	int i;
+	int nPortIndex;
+	BOOLEAN bSendFor0 = TRUE;
+
+	DEBUG_ENTRY(0);
+
+	for (i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++)
+	{
+		nPortIndex = VSCMapIndexToID(i);
+		if(nPortIndex != 0 || bSendFor0 == TRUE) 
+		{
+			SendControlMessage(pContext, nPortIndex, VIRTIO_CONSOLE_PORT_READY, 1);
+			bSendFor0 = FALSE;
+		}
+	}
+}
+
+NTSTATUS VSCGuestOpenedPort(PDEVICE_CONTEXT pContext)
+{
+	PVIOSERIAL_PORT pPort= MapFileToPort(pContext);
+
+	DEBUG_ENTRY(0);
+
+	if(pPort)
+	{
+		//Send control message...
+		SendControlMessage(pContext, pPort->id, VIRTIO_CONSOLE_PORT_OPEN, 1);
+		SendControlMessage(pContext, pPort->id, VIRTIO_CONSOLE_PORT_READY, 1);
+	}
+	else
+	{
+		return STATUS_UNSUCCESSFUL;
+	}
+	
+	return STATUS_SUCCESS;
+}
+
+void VSCGuestClosedPort(PDEVICE_CONTEXT pContext)
+{
+	PVIOSERIAL_PORT pPort = MapFileToPort(pContext);
+	
+	DEBUG_ENTRY(0);
+
+	if(pPort)
+	{
+		SendControlMessage(pContext, pPort->id, VIRTIO_CONSOLE_PORT_OPEN, 0);
+	}
 }
 
 NTSTATUS VSCSendData(PDEVICE_CONTEXT pContext, PVOID pBuffer, size_t *pSize)

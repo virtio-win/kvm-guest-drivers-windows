@@ -18,4 +18,6 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 							  unsigned int * pSize,
 							  PKSPIN_LOCK pLock);
 
+u32 VSCMapIndexToID(int index);
+
 #endif /* VIOSERIAL_CORE_QUEUE_H */
