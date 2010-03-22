@@ -35,7 +35,6 @@ static NTSTATUS VIOSerialInitInterruptHandling(WDFDEVICE hDevice);
 #pragma alloc_text (PAGE, VIOSerialInitFileObject)
 #pragma alloc_text (PAGE, VIOSerialInitIO)
 #pragma alloc_text (PAGE, VIOSerialInitDeviceContext)
-#pragma alloc_text (PAGE, VIOSerialInitInterruptHandling)
 
 //#pragma alloc_text (PAGE, VIOSerialEvtIoRead)
 //#pragma alloc_text (PAGE, VIOSerialEvtIoWrite)
@@ -154,7 +153,6 @@ static NTSTATUS VIOSerialInitInterruptHandling(WDFDEVICE hDevice)
 	PDEVICE_CONTEXT	pContext = GetDeviceContext(hDevice);
 	NTSTATUS status = STATUS_SUCCESS;
 
-	PAGED_CODE();
 	DEBUG_ENTRY(0);
 
 	WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
@@ -172,7 +170,7 @@ static NTSTATUS VIOSerialInitInterruptHandling(WDFDEVICE hDevice)
 
 	if (!NT_SUCCESS (status))
 	{
-		DPrintf(0, ("WdfInterruptCreate failed: %s\n", status));
+		DPrintf(0, ("WdfInterruptCreate failed: %x\n", status));
 		return status;
 	}
 
@@ -216,10 +214,10 @@ NTSTATUS VIOSerialEvtDeviceAdd(IN WDFDRIVER Driver,IN PWDFDEVICE_INIT DeviceInit
 		return status;
 	}
 
-	/*if(!NT_SUCCESS(status = VIOSerialInitInterruptHandling(hDevice)))
+	if(!NT_SUCCESS(status = VIOSerialInitInterruptHandling(hDevice)))
 	{
 		return status;
-	}*/
+	}
 
 	return status;
 }
@@ -240,6 +238,7 @@ NTSTATUS VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
 	int i = 0;
 	PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
 	bool bPortFound = FALSE;
+	NTSTATUS status = STATUS_SUCCESS;
 
 	DEBUG_ENTRY(0);
 
@@ -285,6 +284,11 @@ NTSTATUS VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
 				///
 				case CmResourceTypeInterrupt:
 					// Print out interrupt info- debugging only
+					DPrintf(0, ("Resource Type Interrupt"));
+					DPrintf(0, ("Interrupt.Level %x", pResDescriptor->u.Interrupt.Level));
+					DPrintf(0, ("Interrupt.Vector %x", pResDescriptor->u.Interrupt.Vector));
+					DPrintf(0, ("Interrupt.Affinity %x", pResDescriptor->u.Interrupt.Affinity));
+
 					break;
 			}
 		}
@@ -298,6 +302,10 @@ NTSTATUS VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
 	VSCInit(Device);
 	
+	pContext->isDeviceInitialized = TRUE;
+
+	VIOSerialEnableDisableInterrupt(pContext, TRUE);
+
 	return STATUS_SUCCESS;
 }
 
@@ -311,7 +319,10 @@ NTSTATUS VIOSerialEvtDeviceReleaseHardware(IN WDFDEVICE Device,
 	
 	DEBUG_ENTRY(0);
 	
+	VIOSerialEnableDisableInterrupt(pContext, FALSE);
 	VSCDeinit(Device);
+
+	pContext->isDeviceInitialized = FALSE;
 	
 	if (pContext->pPortBase && pContext->bPortMapped) 
 	{

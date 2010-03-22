@@ -124,7 +124,5 @@ NTSTATUS VSCGetData(PDEVICE_CONTEXT pContext, WDFMEMORY * pMem, size_t *pSize)
 								pMem,
 								pSize,
 								&pContext->DPCLock);
-
-	return STATUS_SUCCESS;
 }
 

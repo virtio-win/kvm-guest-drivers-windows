@@ -20,8 +20,16 @@ BOOLEAN VIOSerialInterruptIsr(IN WDFINTERRUPT Interrupt,
 							  IN ULONG MessageID)
 {
 	PDEVICE_CONTEXT	pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
-	ULONG status;
+	ULONG status = 0;
 	BOOLEAN b;
+
+	DPrintf(0, ("Got ISR"));
+
+
+	if(!pContext->isDeviceInitialized)
+	{
+		return FALSE;
+	}
 
 	status = VirtIODeviceISR(&pContext->IODevice);
 	if(status == VIRTIO_SERIAL_INVALID_INTERRUPT_STATUS)
@@ -32,6 +40,7 @@ BOOLEAN VIOSerialInterruptIsr(IN WDFINTERRUPT Interrupt,
 
 	if(!!status)
 	{
+		DPrintf(0, ("Got ISR - it is ours!"));
 		WdfInterruptQueueDpcForIsr(Interrupt);
 	}
 
@@ -44,11 +53,12 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 	//TBD handle the transfer
 }
 
-static VOID VIOSerialEnableDisableInterrupt(IN WDFINTERRUPT Interrupt,
-											IN BOOLEAN bEnable)
+VOID VIOSerialEnableDisableInterrupt(PDEVICE_CONTEXT pContext,
+									 IN BOOLEAN bEnable)
 {
-	PDEVICE_CONTEXT	pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
 	int i;
+
+	DEBUG_ENTRY(0);
 
 	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++ )
 	{
@@ -80,7 +90,8 @@ static VOID VIOSerialEnableDisableInterrupt(IN WDFINTERRUPT Interrupt,
 NTSTATUS VIOSerialInterruptEnable(IN WDFINTERRUPT Interrupt,
 								  IN WDFDEVICE AssociatedDevice)
 {
-	VIOSerialEnableDisableInterrupt(Interrupt, TRUE);
+	DEBUG_ENTRY(0);
+	//VIOSerialEnableDisableInterrupt(Interrupt, TRUE);
 
 	return STATUS_SUCCESS;
 }
@@ -88,7 +99,8 @@ NTSTATUS VIOSerialInterruptEnable(IN WDFINTERRUPT Interrupt,
 NTSTATUS VIOSerialInterruptDisable(IN WDFINTERRUPT Interrupt,
 								   IN WDFDEVICE AssociatedDevice)
 {
-	VIOSerialEnableDisableInterrupt(Interrupt, FALSE);
+	DEBUG_ENTRY(0);
+	//VIOSerialEnableDisableInterrupt(Interrupt, FALSE);
 
 	return STATUS_SUCCESS;
 }

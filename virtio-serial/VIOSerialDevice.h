@@ -23,6 +23,8 @@ EVT_WDF_INTERRUPT_ISR				VIOSerialInterruptIsr;
 EVT_WDF_INTERRUPT_DPC				VIOSerialInterruptDpc;
 EVT_WDF_INTERRUPT_ENABLE			VIOSerialInterruptEnable;
 EVT_WDF_INTERRUPT_DISABLE			VIOSerialInterruptDisable;
+VOID VIOSerialEnableDisableInterrupt(PDEVICE_CONTEXT pContext,
+									 IN BOOLEAN bEnable);
 
 
 #endif /* VIOSERIAL_DEVICE_H */
