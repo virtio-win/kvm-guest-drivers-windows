@@ -37,7 +37,7 @@ BOOLEAN VIOSerialInterruptIsr(IN WDFINTERRUPT Interrupt,
 
 	if(!!status)
 	{
-		DPrintf(0, ("Got ISR - it is ours %d!", status));
+		DPrintf(6, ("Got ISR - it is ours %d!", status));
 		WdfInterruptQueueDpcForIsr(Interrupt);
 	}
 
@@ -52,8 +52,9 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 	int i;
 	KIRQL IRQL;
 	pIODescriptor pBufferDescriptor;
-
 	PDEVICE_CONTEXT	pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
+	
+	DEBUG_ENTRY(5);
 
 	KeAcquireSpinLock(&pContext->DPCLock, &IRQL);
 	//Get consumed buffers for transmit queues
@@ -61,7 +62,7 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 	{
 		if(pContext->SerialPorts[i].SendQueue)
 		{
-			while(pBufferDescriptor = pContext->SerialPorts[i].ReceiveQueue->vq_ops->get_buf(pContext->SerialPorts[i].ReceiveQueue, &len))
+			while(pBufferDescriptor = pContext->SerialPorts[i].SendQueue->vq_ops->get_buf(pContext->SerialPorts[i].SendQueue, &len))
 			{
 				RemoveEntryList(&pBufferDescriptor->listEntry); // Remove from in use list
 				InsertTailList(&pContext->SerialPorts[i].SendFreeBuffers, &pBufferDescriptor->listEntry);
