@@ -37,8 +37,11 @@ NTSTATUS VSCInit(IN WDFOBJECT WdfDevice)
 		VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 	}
 
-	//TBD
-	//If we don't get InterruptEnable from framework- kick the queues
+	if(pContext->isHostMultiport = VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_CONSOLE_F_MULTIPORT))
+	{
+		DPrintf(0, ("We have multiport host"));
+		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_CONSOLE_F_MULTIPORT);
+	}
 
 	return status;
 }
@@ -92,7 +95,6 @@ NTSTATUS VSCGuestOpenedPort(PDEVICE_CONTEXT pContext)
 	{
 		//Send control message...
 		SendControlMessage(pContext, pPort->id, VIRTIO_CONSOLE_PORT_OPEN, 1);
-		SendControlMessage(pContext, pPort->id, VIRTIO_CONSOLE_PORT_READY, 1);
 	}
 	else
 	{
