@@ -196,8 +196,6 @@ void VSCCleanupQueues(IN PDEVICE_CONTEXT pContext)
 			}while (b);
 		*/
 
-		pContext->SerialPorts[i].id = VSCMapIndexToID(i);
-
 		if(pContext->SerialPorts[i].ReceiveQueue)
 		{
 			pContext->SerialPorts[i].ReceiveQueue->vq_ops->shutdown(pContext->SerialPorts[i].ReceiveQueue);
@@ -235,6 +233,8 @@ NTSTATUS VSCInitQueues(IN PDEVICE_CONTEXT pContext)
 
 	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++)
 	{
+		pContext->SerialPorts[i].id = VSCMapIndexToID(i);
+
 		if(i == 1) // Control Port
 		{
 			pContext->SerialPorts[i].MaxReceiveBuffers = VIRTIO_SERIAL_MAX_CONTROL_RECEIVE_BUFFERS;

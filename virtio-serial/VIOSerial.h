@@ -9,6 +9,9 @@
 
 #define VIRTIO_SERIAL_INVALID_INTERRUPT_STATUS 0xFF
 
+//Feature list
+#define VIRTIO_CONSOLE_F_MULTIPORT 1	/* Does host provide multiple ports? */
+
 typedef struct _tagCompletePhysicalAddress
 {
 	PHYSICAL_ADDRESS	Physical;
