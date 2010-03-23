@@ -4,7 +4,7 @@ Signature="$Windows NT$"
 Provider=%RHEL%
 ClassGUID={4D36E97B-E325-11CE-BFC1-08002BE10318}
 Class=SCSIAdapter
-DriverVer   = 05/05/2009,4.3.0.17241
+DriverVer   = 10/10/2009,5.3.0.17241
 CatalogFile=viostor.cat
 
 ;
@@ -55,8 +55,6 @@ viostor.sys,,,2
 
 [rhelscsi_inst]
 CopyFiles=viostor_Files_Driver
-
-
 
 ;
 ; Service Installation
@@ -114,6 +112,3 @@ REG_DWORD      = 0x00010001
 SERVICE_KERNEL_DRIVER  = 1
 SERVICE_BOOT_START     = 0
 SERVICE_ERROR_NORMAL   = 1
-
-
-

@@ -19,15 +19,17 @@
 #include "VirtIO.h"
 
 /* This marks a buffer as continuing via the next field. */
-#define VRING_DESC_F_NEXT	1
+#define VRING_DESC_F_NEXT            1
 /* This marks a buffer as write-only (otherwise read-only). */
-#define VRING_DESC_F_WRITE	2
+#define VRING_DESC_F_WRITE           2
+#define VRING_DESC_F_INDIRECT        4
 
 /* This means don't notify other side when buffer added. */
-#define VRING_USED_F_NO_NOTIFY	1
+#define VRING_USED_F_NO_NOTIFY       1
 /* This means don't interrupt guest when buffer consumed. */
-#define VRING_AVAIL_F_NO_INTERRUPT	1
+#define VRING_AVAIL_F_NO_INTERRUPT   1
 
+#define VIRTIO_RING_F_INDIRECT_DESC  28
 
 #pragma warning(disable:4200)
 

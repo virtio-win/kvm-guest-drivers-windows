@@ -1,90 +1,74 @@
-:
-: Set global parameters: 
-:
+@echo off
 
-: Use Windows 7 DDK
-if "%DDKVER%"=="" set DDKVER=7600.16385.0
+set SYS_FILE_NAME=viostor
 
-: By default DDK is installed under C:\WINDDK, but it can be installed in different location
-if "%DDKISNTALLROOT%"=="" set DDKISNTALLROOT=C:\WINDDK\
-set BUILDROOT=%DDKISNTALLROOT%%DDKVER%
-set X64ENV=x64
-if "%DDKVER%"=="6000" set X64ENV=amd64
+for %%A in (Win7 Wnet Wlh WXp) do for %%B in (32 64) do call :%%A_%%B
+goto :eof 
 
-if not "%1"=="" goto parameters_here
-echo no parameters specified, rebuild all
-call clean.bat
-call "%0" WIN7 WIN7_64 Vista Vista64 Win2003 Win200364 XP
+:buildsys
+call buildOne.bat %1 %2
 goto :eof
-:parameters_here
 
-:nextparam
-if "%1"=="" goto :eof
-goto %1
-:continue
-shift
-goto nextparam
+:packsys
+call packOne.bat %1 %2 %SYS_FILE_NAME% %3
+goto :eof
 
-:Win7
-set DDKBUILDENV=
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WIN7
-popd
-build -cZg
+:buildpack
+call :buildsys %1 %2
+call :packsys %1 %2 %3
+set BUILD_OS=
+set BUILD_ARC=
+set INF_FILE_NAME=
+goto :eof
 
-goto continue
+:WIN7_32
+set BUILD_OS=Win7
+set BUILD_ARC=x86
+set INF_FILE_NAME=Wlh
+call :buildpack %BUILD_OS% %BUILD_ARC% %INF_FILE_NAME%
+goto :eof
 
-:Win7_64
-set DDKBUILDENV=
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WIN7
-popd
-build -cZg
+:WIN7_64
+set BUILD_OS=Win7
+set BUILD_ARC=x64
+set INF_FILE_NAME=Wlh
+call :buildpack %BUILD_OS% %BUILD_ARC% %INF_FILE_NAME%
+goto :eof
 
-goto continue
+:WLH_32
+set BUILD_OS=Wlh
+set BUILD_ARC=x86
+set INF_FILE_NAME=Wlh
+call :buildpack %BUILD_OS% %BUILD_ARC% %INF_FILE_NAME%
+goto :eof
 
+:WLH_64
+set BUILD_OS=Wlh
+set BUILD_ARC=x64
+set INF_FILE_NAME=Wlh
+call :buildpack %BUILD_OS% %BUILD_ARC% %INF_FILE_NAME%
+goto :eof
 
-:Vista
-set DDKBUILDENV=
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Wlh
-popd
-build -cZg
+:WNET_32
+set BUILD_OS=Wnet
+set BUILD_ARC=x86
+set INF_FILE_NAME=Wnet
+call :buildpack %BUILD_OS% %BUILD_ARC% %INF_FILE_NAME%
+goto :eof
 
-goto continue
+:WNET_64
+set BUILD_OS=Wnet
+set BUILD_ARC=x64
+set INF_FILE_NAME=Wnet
+call :buildpack %BUILD_OS% %BUILD_ARC% %INF_FILE_NAME%
+goto :eof
 
-:Vista64
-set DDKBUILDENV=
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre Wlh
-popd
-build -cZg
+:WXP_32
+set BUILD_OS=WXp
+set BUILD_ARC=x86
+set INF_FILE_NAME=Wxp
+call :buildpack %BUILD_OS% %BUILD_ARC% %INF_FILE_NAME%
+goto :eof
 
-goto continue
-
-:Win2003
-set DDKBUILDENV=
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WNET
-popd
-build -cZg
-
-goto continue
-
-:Win200364
-set DDKBUILDENV=
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WNET
-popd
-build -cZg
-
-goto continue
-
-:XP
-set DDKBUILDENV=
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WXP
-popd
-build -cZg
-
+:WXP_64
 goto :eof

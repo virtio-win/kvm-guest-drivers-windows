@@ -42,6 +42,63 @@ initialize_virtqueue(
 //#define to_vvq(_vq) container_of(_vq, struct vring_virtqueue, vq)
 #define to_vvq(_vq) (struct vring_virtqueue *)_vq
 
+#if (NTDDI_VERSION >= NTDDI_VISTA)
+/* Set up an indirect table of descriptors and add it to the queue. */
+static 
+int 
+vring_add_indirect(
+    IN struct vring_virtqueue *vq,
+    IN struct VirtIOBufferDescriptor sg[],
+    IN unsigned int out,
+    IN unsigned int in,
+    IN PVOID va)
+{
+    struct vring_desc *desc = (struct vring_desc *)va;
+    unsigned head;
+    unsigned int i;
+    STOR_PHYSICAL_ADDRESS addr;
+    ULONG len;
+
+    addr = StorPortGetPhysicalAddress(vq->vq.DeviceExtension, NULL, desc, &len);
+    if (!addr.QuadPart) {
+        return vq->vring.num;
+    }
+    /* Transfer entries from the sg list into the indirect page */
+    for (i = 0; i < out; i++) {
+        desc[i].flags = VRING_DESC_F_NEXT;
+        desc[i].addr = sg->physAddr.QuadPart;
+        desc[i].len = sg->ulSize;
+        desc[i].next = i+1;
+        sg++;
+    }
+    for (; i < (out + in); i++) {
+        desc[i].flags = VRING_DESC_F_NEXT|VRING_DESC_F_WRITE;
+        desc[i].addr = sg->physAddr.QuadPart;
+        desc[i].len = sg->ulSize;
+        desc[i].next = i+1;
+        sg++;
+    }
+
+    /* Last one doesn't continue. */
+    desc[i-1].flags &= ~VRING_DESC_F_NEXT;
+    desc[i-1].next = 0;
+
+    /* We're about to use a buffer */
+    vq->num_free--;
+
+    /* Use a single buffer which doesn't continue */
+    head = vq->free_head;
+    vq->vring.desc[head].flags = VRING_DESC_F_INDIRECT;
+    vq->vring.desc[head].addr = addr.QuadPart;
+    vq->vring.desc[head].len = i * sizeof(struct vring_desc);
+
+    /* Update free pointer */
+    vq->free_head = vq->vring.desc[head].next;
+
+    return head;
+}
+#endif
+
 static
 int
 vring_add_buf(
@@ -53,12 +110,28 @@ vring_add_buf(
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
     unsigned int i, avail, head, prev;
+#if (NTDDI_VERSION >= NTDDI_VISTA)
+    PSCSI_REQUEST_BLOCK Srb;
+    PRHEL_SRB_EXTENSION srbExt;
+    PADAPTER_EXTENSION adaptExt;
+    pblk_req vbr;
+#endif
 
     if(data == NULL) {
         RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s: data is NULL!\n",  __FUNCTION__) );
         return -1;
     }
-
+#if (NTDDI_VERSION >= NTDDI_VISTA)
+    adaptExt = (PADAPTER_EXTENSION)vq->vq.DeviceExtension;
+    vbr = (pblk_req) data;
+    Srb      = (PSCSI_REQUEST_BLOCK)vbr->req;
+    srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
+    if (srbExt->addr  && (out + in) > 1 && vq->num_free) {
+        head = vring_add_indirect(vq, sg, out, in, srbExt->addr);
+        if (head != vq->vring.num)
+            goto add_head;
+    }
+#endif
     if(out + in > vq->vring.num) {
         RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s: out + in > vq->vring.num!\n",  __FUNCTION__) );
         return -1;
@@ -104,7 +177,9 @@ vring_add_buf(
 
     /* Update free pointer */
     vq->free_head = i;
-
+#if (NTDDI_VERSION >= NTDDI_VISTA)
+add_head:
+#endif
     /* Set token. */
     vq->data[head] = data;
 
@@ -118,12 +193,15 @@ vring_add_buf(
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s: Added buffer head %i to %p\n",
         __FUNCTION__, head, vq) );
-
+#if (NTDDI_VERSION >= NTDDI_VISTA)
+    if (adaptExt->indirect)
+        return vq->num_free ? vq->vring.num : 0;
+#endif
     return vq->num_free;
 }
 
-static
-VOID
+static 
+VOID 
 vring_kick_always(
     struct virtqueue *_vq)
 {
@@ -174,12 +252,23 @@ detach_buf(
     unsigned int head)
 {
     unsigned int i;
+    PVOID addr;
+#if (NTDDI_VERSION >= NTDDI_VISTA)
+    STOR_PHYSICAL_ADDRESS  pa;
+#endif
 
 	/* Clear data ptr. */
     vq->data[head] = NULL;
 
 	/* Put back on free list: find end */
     i = head;
+#if (NTDDI_VERSION >= NTDDI_VISTA)
+    if (vq->vring.desc[i].flags & VRING_DESC_F_INDIRECT) {
+        pa.QuadPart = vq->vring.desc[i].addr;
+        addr = StorPortGetVirtualAddress(vq->vq.DeviceExtension, pa);
+        StorPortFreePool(vq->vq.DeviceExtension, addr);
+    }
+#endif
     while (vq->vring.desc[i].flags & VRING_DESC_F_NEXT) {
         i = vq->vring.desc[i].next;
         vq->num_free++;
@@ -233,21 +322,23 @@ vring_get_buf(
     unsigned int i;
 
     if (!more_used(vq)) {
-        RhelDbgPrint(TRACE_LEVEL_ERROR, ("No more buffers in queue: last_used_idx %d vring.used->idx %d\n", vq->last_used_idx, vq->vring.used->idx));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("No more buffers in queue: last_used_idx %d vring.used->idx %d\n", vq->last_used_idx, vq->vring.used->idx));
         return NULL;
     }
+
+    rmb();
 
     i = vq->vring.used->ring[vq->last_used_idx%vq->vring.num].id;
     *len = vq->vring.used->ring[vq->last_used_idx%vq->vring.num].len;
 
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s>>> id %d, len %d\n", __FUNCTION__, i, *len) );
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s>>> id %d, len %d\n", __FUNCTION__, i, *len) );
 
     if (i >= vq->vring.num) {
-        RhelDbgPrint(TRACE_LEVEL_ERROR, ("id %u out of range\n", i) );
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("id %u out of range\n", i) );
         return NULL;
     }
     if (!vq->data[i]) {
-        RhelDbgPrint(TRACE_LEVEL_ERROR, ("id %u is not a head!\n", i) );
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("id %u is not a head!\n", i) );
         return NULL;
     }
 
@@ -316,7 +407,7 @@ initialize_virtqueue(
 
 }
 
-struct
+struct 
 virtqueue*
 vring_new_virtqueue(
     unsigned int num,

@@ -23,6 +23,8 @@
 #endif
 #include <stdarg.h>
 
+#define CHECKBIT(value, nbit) (((value) & (1 << (nbit))) != 0)
+
 int
 _cdecl
 _vsnprintf(

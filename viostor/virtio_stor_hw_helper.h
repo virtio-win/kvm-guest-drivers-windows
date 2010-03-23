@@ -35,9 +35,22 @@ RhelDoReadWrite(
     PSCSI_REQUEST_BLOCK Srb
     );
 
+BOOLEAN
+RhelDoFlush(
+    IN PVOID DeviceExtension,
+    PSCSI_REQUEST_BLOCK Srb
+    );
+
 VOID
 RhelShutDown(
     IN PVOID DeviceExtension
     );
+
+ULONGLONG
+RhelGetLba(
+    IN PVOID DeviceExtension,
+    IN PCDB Cdb
+    );
+
 
 #endif ___VIOSTOR_HW_HELPER_H___

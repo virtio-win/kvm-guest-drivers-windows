@@ -30,23 +30,29 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 
 /* Feature bits */
-#define VIRTIO_BLK_F_BARRIER	0	/* Does host support barriers? */
-#define VIRTIO_BLK_F_SIZE_MAX	1	/* Indicates maximum segment size */
-#define VIRTIO_BLK_F_SEG_MAX	2	/* Indicates maximum # of segments */
-#define VIRTIO_BLK_F_GEOMETRY	4	/* Legacy geometry available  */
-#define VIRTIO_BLK_F_RO		5	/* Disk is read-only */
-#define VIRTIO_BLK_F_BLK_SIZE	6	/* Block size of disk is available*/
+#define VIRTIO_BLK_F_BARRIER    0       /* Does host support barriers? */
+#define VIRTIO_BLK_F_SIZE_MAX   1       /* Indicates maximum segment size */
+#define VIRTIO_BLK_F_SEG_MAX    2       /* Indicates maximum # of segments */
+#define VIRTIO_BLK_F_GEOMETRY   4       /* Legacy geometry available  */
+#define VIRTIO_BLK_F_RO	        5       /* Disk is read-only */
+#define VIRTIO_BLK_F_BLK_SIZE   6       /* Block size of disk is available*/
+#define VIRTIO_BLK_F_SCSI       7       /* Supports scsi command passthru */
+#define VIRTIO_BLK_F_WCACHE     9       /* write cache enabled */
+#define VIRTIO_BLK_F_TOPOLOGY   10      /* Topology information is available */
 
 /* These two define direction. */
-#define VIRTIO_BLK_T_IN		0
-#define VIRTIO_BLK_T_OUT	1
+#define VIRTIO_BLK_T_IN         0
+#define VIRTIO_BLK_T_OUT        1
 
-#define VIRTIO_BLK_S_OK		0
-#define VIRTIO_BLK_S_IOERR	1
-#define VIRTIO_BLK_S_UNSUPP	2
+#define VIRTIO_BLK_T_SCSI_CMD   2
+#define VIRTIO_BLK_T_FLUSH      4
+
+#define VIRTIO_BLK_S_OK	        0
+#define VIRTIO_BLK_S_IOERR      1
+#define VIRTIO_BLK_S_UNSUPP     2
 
 #define SECTOR_SIZE             512
-#define MAX_PHYS_SEGMENTS       17
+#define MAX_PHYS_SEGMENTS       16
 #define VIRTIO_MAX_SG	        (3+MAX_PHYS_SEGMENTS)
 #define IO_PORT_LENGTH          0x40
 
@@ -66,6 +72,10 @@ typedef struct virtio_blk_config {
     } geometry;
     /* block size of device (if VIRTIO_BLK_F_BLK_SIZE) */
     u32 blk_size;
+    u8  physical_block_exp;
+    u8  alignment_offset;
+    u16 min_io_size;
+    u16 opt_io_size;
 }blk_config, *pblk_config;
 #pragma pack()
 
@@ -98,9 +108,13 @@ typedef struct _ADAPTER_EXTENSION {
     BOOLEAN               dump_mode;
     LIST_ENTRY            list_head;
     ULONG                 msix_vectors;
+    ULONG                 features;
 #ifdef USE_STORPORT
     LIST_ENTRY            complete_list;
     STOR_DPC              completion_dpc;
+#if (NTDDI_VERSION >= NTDDI_VISTA)
+    BOOLEAN               indirect;
+#endif
 #endif
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
@@ -111,11 +125,9 @@ typedef struct _RHEL_SRB_EXTENSION {
 #ifndef USE_STORPORT
     BOOLEAN               call_next;
 #endif
+#if (NTDDI_VERSION >= NTDDI_VISTA)
+    PVOID                 addr; 
+#endif
 }RHEL_SRB_EXTENSION, *PRHEL_SRB_EXTENSION;
-
-ULONGLONG
-RhelGetLba(
-    PCDB Cdb
-    );
 
 #endif ___VIOSTOR__H__

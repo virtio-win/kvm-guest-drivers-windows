@@ -118,7 +118,7 @@ VirtIODeviceFindVirtualQueue(
     unsigned           res;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s\n", __FUNCTION__));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s  index = %d, vector = %d\n", __FUNCTION__, index, vector));
 
     if(vector) {
         ScsiPortWritePortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_MSI_CONFIG_VECTOR),(USHORT)0);
@@ -137,7 +137,7 @@ VirtIODeviceFindVirtualQueue(
     num = ScsiPortReadPortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM));
 
     RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>>> [vp_dev->addr + VIRTIO_PCI_QUEUE_NUM] = %x\n", __FUNCTION__, num) );
-    if (!num || ScsiPortReadPortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN)))
+    if (!num || ScsiPortReadPortUlong((PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN)))
         return NULL;
 
     // allocate and fill out our structure the represents an active queue
