@@ -1,7 +1,7 @@
 #ifndef VIOSERIAL_H
 #define VIOSERIAL_H
 
-#define VIRTIO_SERIAL_MAX_PORTS 1
+#define VIRTIO_SERIAL_MAX_PORTS 31
 //#define VIRTIO_SERIAL_MAX_PORTS 31 //theoritical max ports value
 // +1 for control queue
 #define VIRTIO_SERIAL_MAX_QUEUES_COUPLES (VIRTIO_SERIAL_MAX_PORTS + 1)
@@ -11,6 +11,23 @@
 
 //Feature list
 #define VIRTIO_CONSOLE_F_MULTIPORT 1	/* Does host provide multiple ports? */
+
+// Config struct
+#pragma pack (push)
+#pragma pack (1)
+
+typedef struct virtio_console_config {
+	//* colums of the screens
+	u16 cols;
+	//* rows of the screens
+	u16 rows;
+	//* max. number of ports this device can hold
+	u32 max_nr_ports;
+	//* number of ports added so far
+	u32 nr_ports;
+} VirtIOConsoleConfig, * PVirtIOConsoleConfig;
+#pragma pack (pop)
+
 
 typedef struct _tagCompletePhysicalAddress
 {

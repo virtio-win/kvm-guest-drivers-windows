@@ -174,11 +174,11 @@ static void PrepareTransmitBuffers(PVIOSERIAL_PORT pPort)
 
 void VSCCleanupQueues(IN PDEVICE_CONTEXT pContext)
 {
-	int i;
+	unsigned int i;
 
 	DEBUG_ENTRY(0);
 
-	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++ )
+	for(i = 0; i < pContext->consoleConfig.nr_ports; i++ )
 	{
 		/* TBD - check if needed
 	// list NetReceiveBuffersWaiting must be free 
@@ -227,11 +227,11 @@ void VSCCleanupQueues(IN PDEVICE_CONTEXT pContext)
 NTSTATUS VSCInitQueues(IN PDEVICE_CONTEXT pContext)
 {
 	NTSTATUS status = STATUS_SUCCESS;
-	int i;
+	unsigned int i;
 
 	DEBUG_ENTRY(0);
 
-	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++)
+	for(i = 0; i < pContext->consoleConfig.nr_ports; i++)
 	{
 		pContext->SerialPorts[i].id = VSCMapIndexToID(i);
 

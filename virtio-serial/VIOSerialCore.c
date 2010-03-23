@@ -24,6 +24,17 @@ NTSTATUS VSCInit(IN WDFOBJECT WdfDevice)
 	VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
 	VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER);
 
+	VirtIODeviceGet(&pContext->IODevice,
+					0,
+					&pContext->consoleConfig,
+					sizeof(VirtIOConsoleConfig));
+
+	DPrintf(0 ,("VirtIOConsoleConfig->nr_ports %d", pContext->consoleConfig.nr_ports));
+	DPrintf(0 ,("VirtIOConsoleConfig->max_nr_ports %d", pContext->consoleConfig.max_nr_ports));
+
+	//Also count control queues
+	pContext->consoleConfig.nr_ports +=1;
+
 	VSCInitQueues(pContext);
 
 	if(!NT_SUCCESS(status))
@@ -68,13 +79,13 @@ static PVIOSERIAL_PORT MapFileToPort(PDEVICE_CONTEXT pContext)
 
 void VSCGuestSetPortsReady(PDEVICE_CONTEXT pContext)
 {
-	int i;
+	unsigned int i;
 	int nPortIndex;
 	BOOLEAN bSendFor0 = TRUE;
 
 	DEBUG_ENTRY(0);
 
-	for (i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++)
+	for (i = 0; i < pContext->consoleConfig.nr_ports; i++)
 	{
 		nPortIndex = VSCMapIndexToID(i);
 		if(nPortIndex != 0 || bSendFor0 == TRUE) 

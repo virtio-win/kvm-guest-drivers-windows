@@ -49,7 +49,7 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 {
 	//TBD handle the transfer
 	unsigned int len;
-	int i;
+	unsigned int i;
 	KIRQL IRQL;
 	pIODescriptor pBufferDescriptor;
 	PDEVICE_CONTEXT	pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
@@ -58,7 +58,7 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 
 	KeAcquireSpinLock(&pContext->DPCLock, &IRQL);
 	//Get consumed buffers for transmit queues
-	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++ )
+	for(i = 0; i < pContext->consoleConfig.nr_ports; i++ )
 	{
 		if(pContext->SerialPorts[i].SendQueue)
 		{
@@ -90,14 +90,14 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 static VOID VIOSerialEnableDisableInterrupt(PDEVICE_CONTEXT pContext,
 											IN BOOLEAN bEnable)
 {
-	int i;
+	unsigned int i;
 
 	DEBUG_ENTRY(0);
 
 	if(!pContext)
 		return;
 
-	for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++ )
+	for(i = 0; i < pContext->consoleConfig.nr_ports; i++ )
 	{
 		if(pContext->SerialPorts[i].ReceiveQueue)
 		{
@@ -112,7 +112,7 @@ static VOID VIOSerialEnableDisableInterrupt(PDEVICE_CONTEXT pContext,
 
 	if(bEnable) // Also kick
 	{
-		for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++ )
+		for(i = 0; i < pContext->consoleConfig.nr_ports; i++ )
 		{
 			if(pContext->SerialPorts[i].ReceiveQueue)
 			{
