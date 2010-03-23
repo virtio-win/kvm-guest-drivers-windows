@@ -86,8 +86,8 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 	KeReleaseSpinLock(&pContext->DPCLock, IRQL);
 }
 
-VOID VIOSerialEnableDisableInterrupt(PDEVICE_CONTEXT pContext,
-									 IN BOOLEAN bEnable)
+static VOID VIOSerialEnableDisableInterrupt(PDEVICE_CONTEXT pContext,
+											IN BOOLEAN bEnable)
 {
 	int i;
 

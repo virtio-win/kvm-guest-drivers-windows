@@ -303,8 +303,6 @@ NTSTATUS VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
 	VSCInit(Device);
 	
 	pContext->isDeviceInitialized = TRUE;
-
-	//VIOSerialEnableDisableInterrupt(pContext, TRUE);
 	VSCGuestSetPortsReady(pContext);
 
 	return STATUS_SUCCESS;
@@ -320,7 +318,6 @@ NTSTATUS VIOSerialEvtDeviceReleaseHardware(IN WDFDEVICE Device,
 	
 	DEBUG_ENTRY(0);
 	
-	//VIOSerialEnableDisableInterrupt(pContext, FALSE);
 	VSCDeinit(Device);
 
 	pContext->isDeviceInitialized = FALSE;
