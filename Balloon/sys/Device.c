@@ -33,11 +33,10 @@ NTSTATUS BalloonDeviceAdd(
     WDF_OBJECT_ATTRIBUTES       attributes;
     WDF_PNPPOWER_EVENT_CALLBACKS pnpPowerCallbacks;
     WDF_INTERRUPT_CONFIG        interruptConfig;
-    WDF_OBJECT_ATTRIBUTES       interruptAttributes;
 
     UNREFERENCED_PARAMETER(Driver);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonDeviceAdd\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpPowerCallbacks);
     pnpPowerCallbacks.EvtDevicePrepareHardware = BalloonPrepareHardware;
@@ -60,34 +59,41 @@ NTSTATUS BalloonDeviceAdd(
     devCtx->Device = device;
     devCtx->DriverObject = WdfDriverWdmGetDriverObject(Driver);
 
-    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&interruptAttributes, INTERRUPT_DATA);
     WDF_INTERRUPT_CONFIG_INIT(&interruptConfig,
                             BalloonInterruptIsr,
                             BalloonInterruptDpc);
  
-    interruptConfig.EvtInterruptEnable = BalloonInterruptEnable;
+    interruptConfig.EvtInterruptEnable  = BalloonInterruptEnable;
     interruptConfig.EvtInterruptDisable = BalloonInterruptDisable;
 
     status = WdfInterruptCreate(device,
                               &interruptConfig,
-                              &interruptAttributes,
+                              WDF_NO_OBJECT_ATTRIBUTES,
                               &devCtx->WdfInterrupt);
     if (!NT_SUCCESS (status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-           "WdfInterruptCreate failed: %!STATUS!\n", status);
+           "WdfInterruptCreate failed: 0x%08x\n", status);
         return status;
     }
 
-    status = WdfDeviceCreateDeviceInterface(device, &GUID_DEV_IF_BALLOON, NULL);
+    status = WdfDeviceCreateDeviceInterface(device, &GUID_DEVINTERFACE_BALLOON, NULL);
     if(!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-           "WdfDeviceCreateDeviceInterface failed with status %!STATUS!\n", status);
+           "WdfDeviceCreateDeviceInterface failed with status 0x%08x\n", status);
         return status;
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- BalloonDeviceAdd\n");
+    status = BalloonQueueInitialize(device);
+    if(!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+           "BalloonQueueInitialize failed with status 0x%08x\n", status);
+        return status;
+    }
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return status;
 }
 
@@ -98,17 +104,17 @@ BalloonPrepareHardware(
     IN WDFCMRESLIST ResourceListTranslated
     )
 {
-    NTSTATUS status = STATUS_SUCCESS;
-    ULONG               i;
+    NTSTATUS            status         = STATUS_SUCCESS;
     BOOLEAN             foundPort      = FALSE;
     PHYSICAL_ADDRESS    PortBasePA     = {0};
     ULONG               PortLength     = 0;
+    ULONG               i;
   
     PDEVICE_CONTEXT     devCtx = NULL;
 
     PCM_PARTIAL_RESOURCE_DESCRIPTOR  desc;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> EvtDevicePrepareHardware\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     UNREFERENCED_PARAMETER(ResourceList);
 
@@ -165,9 +171,6 @@ BalloonPrepareHardware(
                 break;
 
             default:
-                //
-                // Ignore all other descriptors
-                //
                 break;
         }
     }
@@ -182,11 +185,11 @@ BalloonPrepareHardware(
     if (status != STATUS_SUCCESS)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, 
-           "BalloonInit failed with status %!STATUS!\n", status);
+           "BalloonInit failed with status 0x%08x\n", status);
         return status;
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- EvtDevicePrepareHardware\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return status;
 }
 
@@ -198,7 +201,7 @@ BalloonReleaseHardware (
 {                  
     PDEVICE_CONTEXT     devCtx = NULL;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> EvtDeviceReleaseHardware\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     UNREFERENCED_PARAMETER(ResourcesTranslated);
 
@@ -208,15 +211,13 @@ BalloonReleaseHardware (
     devCtx = GetDeviceContext(Device);
 
     if (devCtx->PortBase) {
-
         if (devCtx->PortMapped) {
             MmUnmapIoSpace( devCtx->PortBase,  devCtx->PortCount );
         }
         devCtx->PortBase = NULL;
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- EvtDeviceReleaseHardware\n");
-
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 
@@ -239,7 +240,6 @@ BalloonInterruptIsr(
 
     if(VirtIODeviceISR(&devCtx->VDevice) > 0)
     {
-        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-> Interrupt\n");
         WdfInterruptQueueDpcForIsr( WdfInterrupt );
         return TRUE;
     }
@@ -255,19 +255,21 @@ FillLeakWorkItem(
     PDEVICE_CONTEXT       devCtx = NULL;
     PDRIVER_CONTEXT       drvCtx = GetDriverContext(WdfGetDriver());
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> FillLeakWorkItem\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     pItemContext = GetWorkItemContext(WorkItem);
 
     devCtx = GetDeviceContext(pItemContext->Device);
 
-    if (pItemContext->Diff > 0)
+    if (pItemContext->Diff > 0) {
         BalloonFill(pItemContext->Device, pItemContext->Diff);
-    else
+    } else if (pItemContext->Diff < 0) {  
         BalloonLeak(pItemContext->Device, -pItemContext->Diff);
-
+    }
     SetBalloonSize(pItemContext->Device, drvCtx->num_pages); 
-
+    if (pItemContext->bStatUpdate) {
+        BalloonMemStats(pItemContext->Device);
+    }
     WdfInterruptSynchronize(
         devCtx->WdfInterrupt,
         RestartInterrupt,
@@ -275,7 +277,7 @@ FillLeakWorkItem(
 
     WdfObjectDelete(WorkItem);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- FillLeakWorkItem\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return;
 }
 
@@ -295,17 +297,20 @@ BalloonInterruptDpc(
     WDFWORKITEM           hWorkItem;
     NTSTATUS              status = STATUS_SUCCESS;
     size_t                num_pages;
+    BOOLEAN               bStatUpdate = FALSE;
 
     UNREFERENCED_PARAMETER( WdfInterrupt );
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> BalloonInterruptDpc\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "--> %s\n", __FUNCTION__);
   
     devCtx->InfVirtQueue->vq_ops->get_buf(devCtx->InfVirtQueue, &len);
     devCtx->DefVirtQueue->vq_ops->get_buf(devCtx->DefVirtQueue, &len);
-
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "--> BalloonInterruptDpc 1\n");
+    if(devCtx->StatVirtQueue &&
+       devCtx->StatVirtQueue->vq_ops->get_buf(devCtx->StatVirtQueue, &len)) {
+       bStatUpdate = TRUE;
+    }
     num_pages = GetBalloonSize(WdfDevice);
-
-    if((num_pages - drvCtx->num_pages) == 0) return;
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
     WDF_OBJECT_ATTRIBUTES_SET_CONTEXT_TYPE(&attributes, WORKITEM_CONTEXT);
@@ -318,6 +323,7 @@ BalloonInterruptDpc(
                                 &hWorkItem);
 
     if (!NT_SUCCESS(status)) {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "WdfWorkItemCreate failed with status = 0x%08x\n", status);
         return;
     }
 
@@ -325,11 +331,11 @@ BalloonInterruptDpc(
 
     context->Device = WdfDevice;
     context->Diff = num_pages - drvCtx->num_pages;
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "<-- num_pages = 0x%x, pages = 0x%x\n", num_pages, drvCtx->num_pages);
+    context->bStatUpdate = bStatUpdate;
 
     WdfWorkItemEnqueue(hWorkItem);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- BalloonInterruptDpc\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "<-- %s\n", __FUNCTION__);
     return;
 }
 
@@ -341,12 +347,12 @@ BalloonInterruptEnable(
 {
     PDEVICE_CONTEXT     devCtx = NULL;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> BalloonInterruptEnable\n");
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     devCtx = GetDeviceContext(WdfDevice);
     EnableInterrupt(WdfInterrupt, devCtx);
     
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- BalloonInterruptEnable\n");
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 
@@ -359,11 +365,11 @@ BalloonInterruptDisable(
     PDEVICE_CONTEXT     devCtx = NULL;
     UNREFERENCED_PARAMETER( WdfInterrupt );
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> BalloonInterruptDisable\n");
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     devCtx = GetDeviceContext(WdfDevice);
     DisableInterrupt(devCtx);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- BalloonInterruptDisable\n");
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }

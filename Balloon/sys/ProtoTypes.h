@@ -16,6 +16,7 @@
 #define _PROTOTYPES_H_
 
 #include "virtio.h"
+#include "public.h"
 
 
 /* The ID for virtio_balloon */
@@ -23,13 +24,12 @@
 
 /* The feature bitmap for virtio balloon */
 #define VIRTIO_BALLOON_F_MUST_TELL_HOST	0 /* Tell before reclaiming pages */
+#define VIRTIO_BALLOON_F_STATS_VQ	1 /* Memory status virtqueue */
 
 typedef struct _VIRTIO_BALLOON_CONFIG
 {
-	/* Number of pages host wants Guest to give up. */
-	u32 num_pages;
-	/* Number of pages we've actually got in balloon. */
-	u32 actual;
+    u32 num_pages;
+    u32 actual;
 }VIRTIO_BALLOON_CONFIG, *PVIRTIO_BALLOON_CONFIG;
 
 
@@ -47,42 +47,32 @@ typedef struct {
 
 
 typedef struct _DEVICE_CONTEXT {
-    WDFDEVICE           Device;                 // A WDFDEVICE handle
+    WDFDEVICE           Device;
     WDFINTERRUPT        WdfInterrupt;
-    
     PDRIVER_OBJECT      DriverObject;
-
-    PUCHAR              PortBase;               // I/O port base address
-    ULONG               PortCount;              // Number of assigned ports
-    BOOLEAN             PortMapped;             // TRUE if mapped port addr
-  
+    PUCHAR              PortBase;
+    ULONG               PortCount;
+    BOOLEAN             PortMapped;
     PKEVENT             evLowMem;
     HANDLE              hLowMem;
-
     VIODEVICE           VDevice;
-
-    PVIOQUEUE           InfVirtQueue, DefVirtQueue;
-
+    PVIOQUEUE           InfVirtQueue;
+    PVIOQUEUE           DefVirtQueue;
+    PVIOQUEUE           StatVirtQueue;
     BOOLEAN             bTellHostFirst;
+    WDFQUEUE            StatusQueue;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 
-typedef struct _INTERRUPT_DATA {
-    PVOID Context;
-} INTERRUPT_DATA, *PINTERRUPT_DATA;
-
-WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(INTERRUPT_DATA, GetInterruptData)
-
 typedef struct _DRIVER_CONTEXT {
     volatile ULONG          num_pages;   
-
     ULONG                   num_pfns;
     PPFN_NUMBER             pfns_table;
-
     NPAGED_LOOKASIDE_LIST   LookAsideList;
     SINGLE_LIST_ENTRY       PageListHead;
     WDFSPINLOCK             SpinLock;
+    PBALLOON_STAT           MemStats;
 } DRIVER_CONTEXT, * PDRIVER_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DRIVER_CONTEXT, GetDriverContext)
@@ -90,16 +80,15 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DRIVER_CONTEXT, GetDriverContext)
 typedef struct _WORKITEM_CONTEXT {
     WDFDEVICE           Device;
     LONG                Diff;
+    BOOLEAN             bStatUpdate;
 } WORKITEM_CONTEXT, *PWORKITEM_CONTEXT;
 
-WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(WORKITEM_CONTEXT,
-                                                GetWorkItemContext)
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(WORKITEM_CONTEXT, GetWorkItemContext)
 
 
 #define arraysize(p) (sizeof(p)/sizeof((p)[0]))
 
 #define BALLOON_MGMT_POOL_TAG 'mtlB'
-
 
 DRIVER_INITIALIZE DriverEntry; 
 EVT_WDF_OBJECT_CONTEXT_CLEANUP EvtDriverContextCleanup;
@@ -173,6 +162,11 @@ BalloonLeak(
     );
 
 VOID 
+BalloonMemStats(
+    IN WDFOBJECT WdfDevice
+    );
+
+VOID 
 BalloonTellHost(
     IN WDFOBJECT WdfDevice, 
     IN PVIOQUEUE vq
@@ -213,6 +207,10 @@ GetBalloonSize(
     return v.num_pages;
 }
 
+NTSTATUS
+BalloonQueueInitialize(
+    WDFDEVICE hDevice
+    );
 
 __inline BOOLEAN
 RestartInterrupt(
@@ -228,8 +226,8 @@ RestartInterrupt(
 
 BOOLEAN 
 LogError(
-    __in PDRIVER_OBJECT  drvObj,
-    __in NTSTATUS        ErrorCode
+    IN PDRIVER_OBJECT  drvObj,
+    IN NTSTATUS        ErrorCode
    );
 
 __inline BOOLEAN

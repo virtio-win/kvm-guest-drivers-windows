@@ -32,11 +32,12 @@ BalloonInit(
 
     NTSTATUS            status = STATUS_SUCCESS;
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
+    PDRIVER_CONTEXT     drvCtx = GetDriverContext(WdfGetDriver());
+    VIO_SG              sg;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonInit\n");
 
     VirtIODeviceSetIOAddress(&devCtx->VDevice, (ULONG_PTR)devCtx->PortBase);
-    VirtIODeviceDumpRegisters(&devCtx->VDevice);
 
     VirtIODeviceReset(&devCtx->VDevice);
 
@@ -56,9 +57,29 @@ BalloonInit(
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto free_mem;
     }
+    if(VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> VIRTIO_BALLOON_F_STATS_VQ\n");
+        devCtx->StatVirtQueue = VirtIODeviceFindVirtualQueue(&devCtx->VDevice, 2, NULL);
+        if(NULL == devCtx->StatVirtQueue)
+        {
+            status = STATUS_INSUFFICIENT_RESOURCES;
+            goto free_mem;
+        }
+        sg.physAddr = GetPhysicalAddress(drvCtx->MemStats);
+        sg.ulSize = sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR;
 
+        if(devCtx->StatVirtQueue->vq_ops->add_buf(devCtx->StatVirtQueue, &sg, 1, 0, devCtx) != 0)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> Cannot add buffer\n");
+        }
+
+        devCtx->StatVirtQueue->vq_ops->kick(devCtx->StatVirtQueue);
+
+        VirtIODeviceEnableGuestFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ);
+    }
     devCtx->bTellHostFirst
-        = (BOOLEAN)VirtIODeviceEnableGuestFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_MUST_TELL_HOST); 
+        = (BOOLEAN)VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_MUST_TELL_HOST); 
 
 #if (WINVER >= 0x0501)
     devCtx->evLowMem = IoCreateNotificationEvent(
@@ -69,13 +90,13 @@ BalloonInit(
 free_mem:
     KeMemoryBarrier();
 
-    if(!NT_SUCCESS(status))
+    if(NT_SUCCESS(status))
     {
-        VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_FAILED);
+        VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_DRIVER_OK);
     }
     else
     {
-        VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_DRIVER_OK);
+        VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_FAILED);
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- BalloonInit\n");
@@ -112,6 +133,13 @@ BalloonTerm(
         devCtx->InfVirtQueue->vq_ops->shutdown(devCtx->InfVirtQueue);
         VirtIODeviceDeleteVirtualQueue(devCtx->InfVirtQueue);
         devCtx->InfVirtQueue = NULL;
+    }
+
+    if(devCtx->StatVirtQueue) 
+    {
+        devCtx->StatVirtQueue->vq_ops->shutdown(devCtx->StatVirtQueue);
+        VirtIODeviceDeleteVirtualQueue(devCtx->StatVirtQueue);
+        devCtx->StatVirtQueue = NULL;
     }
 
     VirtIODeviceReset(&devCtx->VDevice);
@@ -289,3 +317,36 @@ BalloonTellHost(
     vq->vq_ops->kick(vq);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- BalloonTellHost\n");
 }
+
+
+VOID 
+BalloonMemStats(
+    IN WDFOBJECT WdfDevice
+    )
+{
+    VIO_SG              sg;
+    PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
+    PDRIVER_CONTEXT     drvCtx = GetDriverContext(WdfGetDriver());
+    WDFREQUEST request;
+    NTSTATUS  status;
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+    status = WdfIoQueueRetrieveNextRequest(devCtx->StatusQueue, &request);
+
+    if (NT_SUCCESS(status)) {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS,"got available request\n");
+        WdfRequestComplete(request, STATUS_SUCCESS);
+    } else {
+        sg.physAddr = GetPhysicalAddress(drvCtx->MemStats);
+        sg.ulSize = 0;
+
+        if(devCtx->StatVirtQueue->vq_ops->add_buf(devCtx->StatVirtQueue, &sg, 1, 0, devCtx) != 0)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> Cannot add buffer\n");
+        }
+
+        devCtx->StatVirtQueue->vq_ops->kick(devCtx->StatVirtQueue);
+    }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+}
+
+

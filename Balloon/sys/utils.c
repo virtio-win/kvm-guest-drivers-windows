@@ -19,15 +19,15 @@
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGESRP0,LogError)
-#endif // ALLOC_PRAGMA
+#endif
 
 int nDebugLevel = 0;
 int bDebugPrint = 0;
 
 BOOLEAN 
 LogError(
-    __in PDRIVER_OBJECT  drvObj,
-    __in NTSTATUS        ErrorCode
+    IN PDRIVER_OBJECT  drvObj,
+    IN NTSTATUS        ErrorCode
    )
 {
     PIO_ERROR_LOG_PACKET Packet;
@@ -56,49 +56,30 @@ LogError(
 
 u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
 {
-    ULONG ulValue;
-
-    ulValue = READ_PORT_ULONG((PULONG)(ulRegister));
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Rd R[%x] = %x\n", (ULONG)(ulRegister), ulValue);
-    return ulValue;
+    return READ_PORT_ULONG((PULONG)(ulRegister));
 }
 
 void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
 {
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Wr R[%x] = %x\n", (ULONG)(ulRegister), ulValue);
     WRITE_PORT_ULONG( (PULONG)(ulRegister),(ULONG)(ulValue) );
 }
 
 u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
 {
-    u8 bValue;
-
-    bValue = READ_PORT_UCHAR((PUCHAR)(ulRegister));
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Rd R[%x] = %x\n", (ULONG)(ulRegister), bValue);
-    return bValue;
+    return READ_PORT_UCHAR((PUCHAR)(ulRegister));
 }
 
 void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
 {
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Wr R[%x] = %x\n", (ULONG)(ulRegister), bValue);
     WRITE_PORT_UCHAR((PUCHAR)(ulRegister),(UCHAR)(bValue));
 }
 
 u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
 {
-    u16 wValue;
-
-    wValue = READ_PORT_USHORT((PUSHORT)(ulRegister));
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Rd R[%x] = %x\n", (ULONG)(ulRegister), wValue);
-
-    return wValue;
+    return READ_PORT_USHORT((PUSHORT)(ulRegister));
 }
 
 void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
 {
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Wr R[%x] = %x\n", (ULONG)(ulRegister), wValue);
     WRITE_PORT_USHORT((PUSHORT)(ulRegister),(USHORT)(wValue));
 }

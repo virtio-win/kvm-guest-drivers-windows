@@ -56,7 +56,7 @@ BALLOON.sys  = 1,,
 ; Decorated model section take precedence over undecorated 
 ; ones on XP and later.
 [Standard.NT$ARCH$]
-%BALLOON.DeviceDesc%=BALLOON_Device, PCI\VEN_1AF4&DEV_1002&SUBSYS_00050000&REV_00
+%BALLOON.DeviceDesc%=BALLOON_Device, PCI\VEN_1AF4&DEV_1002&SUBSYS_00051AF4&REV_00
 
 [BALLOON_Device.NT]
 CopyFiles=Drivers_Dir

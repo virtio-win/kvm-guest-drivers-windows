@@ -9,12 +9,12 @@ MSC_WARNING_LEVEL=-W3 -WX
 
 TARGETLIBS=$(TARGETLIBS) \
            $(DDK_LIB_PATH)\ntstrsafe.lib \
-	   ..\..\..\VirtIO\$(O)\virtiolib.lib
+	   ..\..\VirtIO\$(O)\virtiolib.lib
 
 
 MISCFILES=$(OBJ_PATH)\$(O)\$(INF_NAME).inf
 
-INCLUDES = $(INCLUDES);..\..\..\VirtIO
+INCLUDES = $(INCLUDES);..\..\VirtIO;..\app
 
 NTTARGETFILES=
 
@@ -24,6 +24,7 @@ SOURCES=            \
         Driver.c    \
         Device.c    \
         Balloon.c   \
+        queue.c     \
         utils.c 
 
 PRECOMPILED_INCLUDE=precomp.h

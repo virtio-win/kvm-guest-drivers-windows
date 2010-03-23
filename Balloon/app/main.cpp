@@ -1,0 +1,75 @@
+#include <windows.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "utils.h"
+#include "service.h"
+
+LPWSTR ServiceName = L"BalloonService";
+CService srvc;
+
+void __stdcall Handler(DWORD ctlcode) 
+{ 
+    CService::HandlerThunk(&srvc, ctlcode);
+} 
+void __stdcall ServiceMain(DWORD argc, TCHAR* argv[]) 
+{
+    srvc.m_StatusHandle = RegisterServiceCtrlHandler(argv[0], (LPHANDLER_FUNCTION) Handler);
+    CService::ServiceMainThunk(&srvc, argc, argv);
+}
+
+SERVICE_TABLE_ENTRY serviceTable[] =
+{
+    { ServiceName, (LPSERVICE_MAIN_FUNCTION) ServiceMain},
+    { NULL, NULL}
+};
+
+ULONG
+_cdecl
+wmain(
+    __in              ULONG argc,
+    __in_ecount(Argc) PWCHAR argv[]
+    )
+{
+    if(argc == 2)
+    {
+        if (_tcsicmp(L"-i", argv[1]) == 0) {
+           InstallService();
+        } else if (_tcsicmp(L"-u", argv[1]) == 0) {		
+           UninstallService();
+        } else if (_tcsicmp(L"-r", argv[1]) == 0) {
+           ServiceRun();
+        } else if (_tcsicmp(L"-s", argv[1]) == 0) {
+           ServiceControl(SERVICE_CONTROL_STOP);
+        } else if (_tcsicmp(L"-p", argv[1]) == 0) {
+           ServiceControl(SERVICE_CONTROL_PAUSE);
+        } else if (_tcsicmp(L"-c", argv[1]) == 0) {
+           ServiceControl(SERVICE_CONTROL_CONTINUE);
+        } else if (_tcsicmp(L"status", argv[1]) == 0) {	
+           SC_HANDLE scm, service;
+           scm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
+           if (!scm) {
+              ErrorHandler("OpenSCManager", GetLastError());
+           } 
+           service = OpenService(scm, ServiceName, SERVICE_ALL_ACCESS);
+           if (!service) {
+              ErrorHandler("OpenService", GetLastError());
+           }
+           printf("STATUS: ");
+           srvc.GetStatus(service);
+        } else if (_tcsicmp(L"config", argv[1]) == 0) {
+           GetConfiguration();
+        } else if (_tcsicmp(L"help", argv[1]) == 0) {
+           ShowUsage();
+        } else {
+           ShowUsage();
+        }
+    } else {
+        BOOL success;
+        success = StartServiceCtrlDispatcher(serviceTable);
+        if (!success) {
+           ErrorHandler("StartServiceCtrlDispatcher",GetLastError());
+        }
+    }
+    return 0;
+}

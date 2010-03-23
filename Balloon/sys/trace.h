@@ -59,7 +59,7 @@ TraceEvents    (
 #define WPP_CLEANUP(DriverObject)
 
 #else
-#define WPP_CHECK_FOR_NULL_STRING  //to prevent exceptions due to NULL strings
+#define WPP_CHECK_FOR_NULL_STRING
 
 #define WPP_CONTROL_GUIDS \
     WPP_DEFINE_CONTROL_GUID(BalloonTraceGuid,(08cb9471,36fb,46ee,998b,d1bfbe1c4899), \

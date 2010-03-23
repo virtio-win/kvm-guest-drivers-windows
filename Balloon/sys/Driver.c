@@ -20,9 +20,9 @@
 
 #if !defined(EVENT_TRACING)
 ULONG DebugLevel = TRACE_LEVEL_INFORMATION;
-ULONG DebugFlag = 0x2f;//0x46;//0x4FF; //0x00000006;
+ULONG DebugFlag = 0x2f;
 #else
-ULONG DebugLevel; // wouldn't be used to control the TRACE_LEVEL_VERBOSE
+ULONG DebugLevel;
 ULONG DebugFlag;
 #endif
 
@@ -43,7 +43,7 @@ NTSTATUS DriverEntry(
 
     WPP_INIT_TRACING( DriverObject, RegistryPath );
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> DriverEntry\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s\n", __FUNCTION__);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attrib, DRIVER_CONTEXT);
     attrib.EvtCleanupCallback = EvtDriverContextCleanup;
@@ -58,7 +58,7 @@ NTSTATUS DriverEntry(
                       &driver);
     if(!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"WdfDriverCreate failed with status %!STATUS!\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"WdfDriverCreate failed with status 0x%08x\n", status);
         WPP_CLEANUP(DriverObject);
     }
 
@@ -91,17 +91,31 @@ NTSTATUS DriverEntry(
         return status;
     }
   
+    drvCxt->MemStats = 
+              ExAllocatePoolWithTag(
+                      NonPagedPool,
+                      sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR,
+                      BALLOON_MGMT_POOL_TAG
+                      );
+
+    if(drvCxt->MemStats == NULL)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"ExAllocatePoolWithTag failed\n");
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        WPP_CLEANUP(DriverObject);
+        return status;
+    }
     WDF_OBJECT_ATTRIBUTES_INIT(&attrib);
     attrib.ParentObject = driver;
 
     status = WdfSpinLockCreate(&attrib, &drvCxt->SpinLock);
     if (!NT_SUCCESS(status)) {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"WdfSpinLockCreate failed %!STATUS!\n",status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"WdfSpinLockCreate failed 0x%08x\n",status);
         WPP_CLEANUP(DriverObject);
         return status;
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- DriverEntry\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
 
     LogError( DriverObject, BALLOON_STARTED);
     return status;
@@ -115,7 +129,7 @@ EvtDriverContextCleanup(
     PDRIVER_CONTEXT drvCxt = GetDriverContext( Driver );
     PDRIVER_OBJECT  drvObj = WdfDriverWdmGetDriverObject( Driver );
     PAGED_CODE ();
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> DriverContextCleanup\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s\n", __FUNCTION__);
 
     ExDeleteNPagedLookasideList(&drvCxt->LookAsideList);
     ExFreePoolWithTag(
@@ -123,7 +137,12 @@ EvtDriverContextCleanup(
                    BALLOON_MGMT_POOL_TAG
                    );
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- DriverContextCleanup\n");
+    ExFreePoolWithTag(
+                   drvCxt->MemStats,
+                   BALLOON_MGMT_POOL_TAG
+                   );
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
   
     LogError( drvObj, BALLOON_STOPPED);
     WPP_CLEANUP( drvObj);
@@ -153,10 +172,6 @@ DbgPrintToComPort(
         WRITE_PORT_BUFFER_UCHAR(RHEL_DEBUG_PORT, (PUCHAR)Format, rc);
         WRITE_PORT_UCHAR(RHEL_DEBUG_PORT, '\r');
     } else {
-        //
-        // Just put an O for overflow, shouldn't get this really but
-        // goot to let the user know in some way or another...
-        //
         WRITE_PORT_UCHAR(RHEL_DEBUG_PORT, 'O');
         WRITE_PORT_UCHAR(RHEL_DEBUG_PORT, '\n');
     }
@@ -199,7 +214,7 @@ TraceEvents    (
                                       list );
         if(!NT_SUCCESS(status)) {
 
-            BalloonDbgPrint ((__DRIVER_NAME ": RtlStringCbVPrintfA failed %!STATUS!\n",
+            BalloonDbgPrint ((__DRIVER_NAME ": RtlStringCbVPrintfA failed 0x%08x\n",
                       status));
             return;
         }
