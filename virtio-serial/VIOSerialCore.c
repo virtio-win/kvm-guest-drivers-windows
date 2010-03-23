@@ -129,8 +129,9 @@ NTSTATUS VSCSendData(PDEVICE_CONTEXT pContext, PVOID pBuffer, size_t *pSize)
 	//Will count acctual size sent
 	*pSize = 0;
 	
-	while(*pSize < sizeToSend)
+	while(sizeToSend)
 	{
+		//DPrintf(0, ("how much to send %d", sizeToSend));
 		sizeChunk = sizeToSend > PAGE_SIZE? PAGE_SIZE : sizeToSend;
 		if(!NT_SUCCESS(status = VSCSendCopyBuffer(MapFileToPort(pContext),
 												  (unsigned char *)pBuffer + *pSize,
@@ -143,6 +144,8 @@ NTSTATUS VSCSendData(PDEVICE_CONTEXT pContext, PVOID pBuffer, size_t *pSize)
 
 		*pSize += sizeChunk;
 		sizeToSend -= sizeChunk;
+
+		//DPrintf(0, ("Last sent %d, total sent %d", sizeChunk, *pSize));
 		
 	}
 
