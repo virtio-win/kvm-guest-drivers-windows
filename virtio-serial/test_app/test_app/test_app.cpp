@@ -26,12 +26,28 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 	DWORD size;
-	char buffer[256] = "hello world!";
-	char read_buffer[PAGE_SIZE];
 
+	char buffer[PAGE_SIZE*2] = "hello world!\n\r";
+	char read_buffer[PAGE_SIZE+1];
 
+/*
 	for(int i = 0; i < 512; i++)
 	{
+		sprintf(buffer, "Hello world %d\n\r ", i );
+		if(!WriteFile(hFile,
+					  buffer,
+					  5012,
+					  &size,
+					  NULL))
+		{
+			printf("Error writing to file %d\n", GetLastError());
+		}
+	}
+*/
+	
+	while(true)
+	{
+		gets(buffer);
 		if(!WriteFile(hFile,
 					  buffer,
 					  strlen(buffer) + 1,
@@ -40,27 +56,21 @@ int _tmain(int argc, _TCHAR* argv[])
 		{
 			printf("Error writing to file %d\n", GetLastError());
 		}
-	}
+		while(ReadFile(hFile,
+					 read_buffer,
+					 PAGE_SIZE,
+					 &size,
+					 NULL))
+		{
+			read_buffer[size] = '\0';
 
-	Sleep(10000);
+			//printf("Got from device %d bytes>>> \n%s\n", size, read_buffer);
+			printf("%s", read_buffer);
+		}
 
-	if(!ReadFile(hFile,
-				 read_buffer,
-				 PAGE_SIZE,
-				 &size,
-				 NULL))
-	{
-		printf("Error reading from file %d\n", GetLastError());
-	}
-	else
-	{
-		read_buffer[size] = '\0';
-
-		printf("Got from device %d bytes>>> \n%s\n", size, read_buffer);
 	}
 
 	CloseHandle(hFile);
 
 	return 0;
 }
-
