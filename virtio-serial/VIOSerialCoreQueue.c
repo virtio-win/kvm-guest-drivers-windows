@@ -357,6 +357,7 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 
 		KeAcquireSpinLock(pLock, &IRQL);
 		AddRxBufferToQueue(pPort, pBufferDescriptor);
+		pPort->ReceiveQueue->vq_ops->kick(pPort->ReceiveQueue);
 		KeReleaseSpinLock(pLock, IRQL);
 	}
 
