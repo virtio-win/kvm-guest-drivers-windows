@@ -63,8 +63,8 @@
 			>
 			<Tool
 				Name="VCNMakeTool"
-				BuildCommandLine="buildall.bat XP"
-				ReBuildCommandLine="buildall.bat XP"
+				BuildCommandLine="buildOne.bat WXP x86"
+				ReBuildCommandLine="buildOne.bat WXP x86"
 				CleanCommandLine="clean.bat"
 				Output="vioser.sys"
 				PreprocessorDefinitions="WIN32;NDEBUG"
