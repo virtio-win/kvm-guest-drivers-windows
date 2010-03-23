@@ -15,7 +15,7 @@ NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 
 NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 							  WDFMEMORY * buffer,
-							  unsigned int * pSize,
+							  size_t * pSize,
 							  PKSPIN_LOCK pLock);
 
 u32 VSCMapIndexToID(int index);
