@@ -78,11 +78,11 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 
 			if(NT_SUCCESS(status = WdfRequestRetrieveOutputMemory(pContext->SerialPorts[i].lastReadRequest, &outMemory)))
 			{
-				if(STATUS_UNSUCCESSFUL != VSCRecieveCopyBuffer(&pContext->SerialPorts[i],
-															   &outMemory,
-															   &size,
-															   pContext->DPCLock,
-															   TRUE))
+				if(STATUS_UNSUCCESSFUL != (status = VSCRecieveCopyBuffer(&pContext->SerialPorts[i],
+																		 &outMemory,
+																		 &size,
+																		 pContext->DPCLock,
+																		 TRUE)))
 				{
 					cancelationStatus = WdfRequestUnmarkCancelable(pContext->SerialPorts[i].lastReadRequest);
 					if(cancelationStatus != STATUS_CANCELLED) 
@@ -92,8 +92,9 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 						WdfRequestCompleteWithInformation(pContext->SerialPorts[i].lastReadRequest,
 														  status,
 														  size);
-						pContext->SerialPorts[i].lastReadRequest = NULL;
 					}
+
+					pContext->SerialPorts[i].lastReadRequest = NULL;
 				}
 			}
 			else

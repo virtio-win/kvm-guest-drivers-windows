@@ -69,6 +69,8 @@ typedef struct _VIOSERIAL_PORT
 
 	// Placeholder for pending read request
 	WDFREQUEST lastReadRequest;
+	pIODescriptor internalReadBuffer;
+	unsigned int internalReadBufferLength;
 } VIOSERIAL_PORT, *PVIOSERIAL_PORT;
 
 

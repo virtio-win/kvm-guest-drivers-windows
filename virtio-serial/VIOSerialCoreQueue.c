@@ -100,6 +100,12 @@ static pIODescriptor AllocateIOBuffer(ULONG size)
 	return p;
 }
 
+static void AddRxBufferToInternalWaitingQueue(PVIOSERIAL_PORT pPort, pIODescriptor pBufferDescriptor, unsigned int len)
+{
+	pPort->internalReadBuffer = pBufferDescriptor;
+	pPort->internalReadBufferLength = len;
+}
+
 BOOLEAN AddRxBufferToQueue(PVIOSERIAL_PORT pPort, pIODescriptor pBufferDescriptor)
 {
 	struct VirtIOBufferDescriptor sg[1];
@@ -205,6 +211,8 @@ void VSCCleanupQueues(IN PDEVICE_CONTEXT pContext)
 		// this can be freed, send disabled
 		FreeDescriptorsFromList(&pContext->SerialPorts[i].SendFreeBuffers,
 								pContext->DPCLock);
+
+		pContext->SerialPorts[i].internalReadBuffer = NULL;
 	}
 }
 
@@ -322,10 +330,19 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 
 	if(!bDPC) WdfSpinLockAcquire(Lock);
 
-	if(NULL == (pBufferDescriptor = pPort->ReceiveQueue->vq_ops->get_buf(pPort->ReceiveQueue, &len)))
+	if(pPort->internalReadBuffer)
 	{
-		DPrintf(0, ("[%s] No buffers in queue!", __FUNCTION__));
-		status = STATUS_UNSUCCESSFUL;
+		pBufferDescriptor = pPort->internalReadBuffer;
+		len = pPort->internalReadBufferLength;
+		DPrintf(0, ("Using internal buffer!"));
+	}
+	else
+	{
+		if(NULL == (pBufferDescriptor = pPort->ReceiveQueue->vq_ops->get_buf(pPort->ReceiveQueue, &len)))
+		{
+			DPrintf(0, ("[%s] No buffers in queue!", __FUNCTION__));
+			status = STATUS_UNSUCCESSFUL;
+		}
 	}
 	if(!bDPC) WdfSpinLockRelease(Lock);
 
@@ -338,10 +355,22 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 										   len);
 
 		if(!bDPC) WdfSpinLockAcquire(Lock);
-		AddRxBufferToQueue(pPort, pBufferDescriptor);
+		if(NT_SUCCESS(status))
+		{
+			AddRxBufferToQueue(pPort, pBufferDescriptor);
+			pPort->internalReadBuffer = NULL;
+			pPort->internalReadBufferLength = 0;
+		}
+		else
+		{
+			DPrintf(0, ("Keeping buffer internally, *pSize %d", pSize));
+			AddRxBufferToInternalWaitingQueue(pPort, pBufferDescriptor, len);
+		}
+
 		pPort->ReceiveQueue->vq_ops->kick(pPort->ReceiveQueue);
 		if(!bDPC) WdfSpinLockRelease(Lock);
 	}
 
+	DPrintf(0, ("%s> exit status %x", __FUNCTION__, status));
 	return status;
 }
