@@ -47,6 +47,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	
 	while(true)
 	{
+		printf("\n>");
 		gets(buffer);
 		if(!WriteFile(hFile,
 					  buffer,
@@ -56,7 +57,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		{
 			printf("Error writing to file %d\n", GetLastError());
 		}
-		while(ReadFile(hFile,
+		if(ReadFile(hFile,
 					 read_buffer,
 					 PAGE_SIZE,
 					 &size,
