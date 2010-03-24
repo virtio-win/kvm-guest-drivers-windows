@@ -147,7 +147,7 @@ NTSTATUS VSCSendData(PDEVICE_CONTEXT pContext, PVOID pBuffer, size_t *pSize)
 		if(!NT_SUCCESS(status = VSCSendCopyBuffer(MapFileToPort(pContext),
 												  (unsigned char *)pBuffer + *pSize,
 												  sizeChunk,
-												  &pContext->DPCLock,
+												  pContext->DPCLock,
 												  sizeToSend > PAGE_SIZE? FALSE : TRUE)))
 		{
 			break;
@@ -172,6 +172,6 @@ NTSTATUS VSCGetData(PDEVICE_CONTEXT pContext, WDFMEMORY * pMem, size_t *pSize)
 	return VSCRecieveCopyBuffer(MapFileToPort(pContext),
 								pMem,
 								pSize,
-								&pContext->DPCLock);
+								pContext->DPCLock);
 }
 

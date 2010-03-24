@@ -24,6 +24,6 @@ NTSTATUS SendControlMessage(PDEVICE_CONTEXT pContext,
 	return VSCSendCopyBuffer(&pContext->SerialPorts[VIRTIO_SERIAL_CONTROL_PORT_INDEX], 
 							 &cpkt, 
 							 sizeof(VIRTIO_CONSOLE_CONTROL),
-							 &pContext->DPCLock,
+							 pContext->DPCLock,
 							 TRUE);
 }

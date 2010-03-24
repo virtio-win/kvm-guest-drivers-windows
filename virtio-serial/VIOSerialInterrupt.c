@@ -50,13 +50,12 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 	//TBD handle the transfer
 	unsigned int len;
 	unsigned int i;
-	KIRQL IRQL;
 	pIODescriptor pBufferDescriptor;
 	PDEVICE_CONTEXT	pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
 	
 	DEBUG_ENTRY(5);
 
-	KeAcquireSpinLock(&pContext->DPCLock, &IRQL);
+	WdfSpinLockAcquire(pContext->DPCLock);
 	//Get consumed buffers for transmit queues
 	for(i = 0; i < pContext->consoleConfig.nr_ports; i++ )
 	{
@@ -84,7 +83,7 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 		}
 	}
 
-	KeReleaseSpinLock(&pContext->DPCLock, IRQL);
+	WdfSpinLockRelease(pContext->DPCLock);
 }
 
 static VOID VIOSerialEnableDisableInterrupt(PDEVICE_CONTEXT pContext,

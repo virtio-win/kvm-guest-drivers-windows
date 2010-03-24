@@ -135,7 +135,8 @@ static void VIOSerialInitDeviceContext(WDFDEVICE hDevice)
 	{
 		memset(pContext, 0, sizeof(DEVICE_CONTEXT));
 		//Init Spin locks
-		KeInitializeSpinLock(&pContext->DPCLock);
+		WdfSpinLockCreate(WDF_NO_OBJECT_ATTRIBUTES,
+						  &pContext->DPCLock);
 
 		for(i = 0; i < VIRTIO_SERIAL_MAX_QUEUES_COUPLES; i++)
 		{
@@ -380,6 +381,18 @@ VOID VIOSerialEvtIoDeviceControl(IN WDFQUEUE Queue,
 	WdfRequestComplete(Request, STATUS_SUCCESS);
 }
 
+/*
+VOID VIOSerialEvtRequestCancel(IN WDFREQUEST Request)
+{
+	WdfRequestComplete(Request, STATUS_CANCELLED);
+
+	QueueRequest(GetContextFromQueue(WdfRequestGetIoQueue(Request)),
+				 WdfRequestGetFileObject(Request),
+				 NULL);
+
+	return;
+}
+*/
 VOID VIOSerialEvtIoRead(IN WDFQUEUE  Queue,
 						IN WDFREQUEST Request,
 						IN size_t Length)
@@ -388,15 +401,70 @@ VOID VIOSerialEvtIoRead(IN WDFQUEUE  Queue,
 	size_t size = Length;
 	PVOID buffer = NULL;
 	NTSTATUS status;
+	PDEVICE_CONTEXT pContext = GetContextFromQueue(Queue);
 
 	DEBUG_ENTRY(0);
 
 	if(NT_SUCCESS(WdfRequestRetrieveOutputMemory(Request, &outMemory)))
 	{
-		status = VSCGetData(GetContextFromQueue(Queue), &outMemory, &size);
+		status = VSCGetData(pContext, &outMemory, &size);
 	}
 
 	WdfRequestCompleteWithInformation(Request, status, size);
+/*
+	/if(status != STATUS_UNSUCCESSFUL)
+	{
+		WdfRequestCompleteWithInformation(Request, status, size);
+	}
+	else  //There was no data to in queue, add
+	{
+		WdfSpinLockAcquire(pContext->DPCLock);
+		if(STATUS_SUCCESS(WdfRequestMarkCancelableEx(Request,
+						  VIOSerialEvtRequestCancel))
+		{
+			QueueRequest(pContext, WdfRequestGetFileObject(Request), Request);
+		}
+		WdfSpinLockRelease(pContext->DPCLock);
+	}
+
+*/
+/*
+
+VOID
+  EchoEvtTimerFunc(
+    IN WDFTIMER  Timer
+    )
+{
+    NTSTATUS  Status;
+    WDFREQUEST  Request;
+    WDFQUEUE  queue;
+    PQUEUE_CONTEXT  queueContext;
+
+    // Retrieve our saved copy of the request handle.
+    queue = WdfTimerGetParentObject(Timer);
+    queueContext = QueueGetContext(queue);
+    Request = queueContext->CurrentRequest;
+
+    // We cannot call WdfRequestUnmarkCancelable
+    // after a request completes, so check here to see
+    // if EchoEvtRequestCancel cleared our saved
+    // request handle. 
+    if( Request != NULL ) {
+        Status = WdfRequestUnmarkCancelable(Request);
+        if(Status != STATUS_CANCELLED) {
+            queueContext->CurrentRequest = NULL;
+            Status = queueContext->CurrentStatus;
+            WdfRequestComplete(
+                               Request,
+                               Status
+                               );
+        }
+    }
+
+    return;
+}
+*/
+
 }
 
 VOID VIOSerialEvtIoWrite(IN WDFQUEUE  Queue,

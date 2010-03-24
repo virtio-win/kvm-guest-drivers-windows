@@ -29,7 +29,7 @@ typedef struct _DEVICE_CONTEXT
 
 	VIOSERIAL_PORT	SerialPorts[VIRTIO_SERIAL_MAX_QUEUES_COUPLES];
 
-	KSPIN_LOCK			DPCLock;
+	WDFSPINLOCK			DPCLock;
 
 	BOOLEAN				isDeviceInitialized;
 

@@ -39,20 +39,19 @@ static void FreeBufferDescriptor(pIODescriptor pBufferDescriptor)
 	}
 }
 
-static void FreeDescriptorsFromList(PLIST_ENTRY pListRoot, PKSPIN_LOCK pLock)
+static void FreeDescriptorsFromList(PLIST_ENTRY pListRoot, WDFSPINLOCK Lock)
 {
 	pIODescriptor pBufferDescriptor;
 	LIST_ENTRY TempList;
-	KIRQL IRQL;
 
 	InitializeListHead(&TempList);
-	KeAcquireSpinLock(pLock, &IRQL);
+	WdfSpinLockAcquire(Lock);
 	while(!IsListEmpty(pListRoot))
 	{
 		pBufferDescriptor = (pIODescriptor)RemoveHeadList(pListRoot);
 		InsertTailList(&TempList, &pBufferDescriptor->listEntry);
 	}
-	KeReleaseSpinLock(pLock, IRQL);
+	WdfSpinLockRelease(Lock);
 
 	while(!IsListEmpty(&TempList))
 	{
@@ -180,22 +179,6 @@ void VSCCleanupQueues(IN PDEVICE_CONTEXT pContext)
 
 	for(i = 0; i < pContext->consoleConfig.nr_ports; i++ )
 	{
-		/* TBD - check if needed
-	// list NetReceiveBuffersWaiting must be free 
-			do
-			{
-				NdisAcquireSpinLock(&pContext->ReceiveLock);
-				b = !IsListEmpty(&pContext->NetReceiveBuffersWaiting);
-				NdisReleaseSpinLock(&pContext->ReceiveLock);
-				if (b)
-				{
-					DPrintf(0, ("[%s] There are waiting buffers", __FUNCTION__));
-					PrintStatistics(pContext);
-					NdisMSleep(5000000);
-				}
-			}while (b);
-		*/
-
 		if(pContext->SerialPorts[i].ReceiveQueue)
 		{
 			pContext->SerialPorts[i].ReceiveQueue->vq_ops->shutdown(pContext->SerialPorts[i].ReceiveQueue);
@@ -212,15 +195,16 @@ void VSCCleanupQueues(IN PDEVICE_CONTEXT pContext)
 
 		// this can be freed, queue shut down
 		FreeDescriptorsFromList(&pContext->SerialPorts[i].ReceiveBuffers,
-								&pContext->DPCLock);
+								pContext->DPCLock);
 
+		//TBD
 		// this can be freed, queue shut down
 		//FreeDescriptorsFromList(&pContext->SerialPorts[i].SendInUseBuffers,
-		//						&pContext->DPCLock);
+		//						pContext->DPCLock);
 
 		// this can be freed, send disabled
 		FreeDescriptorsFromList(&pContext->SerialPorts[i].SendFreeBuffers,
-								&pContext->DPCLock);
+								pContext->DPCLock);
 	}
 }
 
@@ -266,18 +250,17 @@ NTSTATUS VSCInitQueues(IN PDEVICE_CONTEXT pContext)
 NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 						   PVOID buffer,
 						   unsigned int size,
-						   PKSPIN_LOCK pLock,
+						   WDFSPINLOCK Lock,
 						   BOOLEAN bKick) 	//size already devided in chuncks
 {
-	KIRQL IRQL;
 	pIODescriptor pBufferDescriptor;
 	struct VirtIOBufferDescriptor sg[1];
 
-	KeAcquireSpinLock(pLock, &IRQL);
+	WdfSpinLockAcquire(Lock);
 
 	if(IsListEmpty(&pPort->SendFreeBuffers))
 	{
-		KeReleaseSpinLock(pLock, IRQL);
+		WdfSpinLockRelease(Lock);
 		DPrintf (0, ("[%s] No free buffers for send operation on port %x.", 
 			__FUNCTION__, pPort));
 
@@ -285,14 +268,14 @@ NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 	}
 
 	pBufferDescriptor = (pIODescriptor)RemoveHeadList(&pPort->SendFreeBuffers);
-	KeReleaseSpinLock(pLock, IRQL);
+	WdfSpinLockRelease(Lock);
 
 	if(pBufferDescriptor->DataInfo.size < size)
 	{
 		//Adding buffer back to free list
-		KeAcquireSpinLock(pLock, &IRQL);
+		WdfSpinLockAcquire(Lock);
 		InsertTailList(&pPort->SendFreeBuffers, &pBufferDescriptor->listEntry);
-		KeReleaseSpinLock(pLock, IRQL);
+		WdfSpinLockRelease(Lock);
 		DPrintf (0, ("[%s] Buffer too small! s: %d d: %d.", 
 			__FUNCTION__, size, pBufferDescriptor->DataInfo.size));
 
@@ -304,7 +287,7 @@ NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 	sg[0].physAddr = pBufferDescriptor->DataInfo.Physical;
 	sg[0].ulSize = pBufferDescriptor->DataInfo.size;
 
-	KeAcquireSpinLock(pLock, &IRQL);
+	WdfSpinLockAcquire(Lock);
 	if (0 == pPort->SendQueue->vq_ops->add_buf(pPort->SendQueue, sg, 1, 0, pBufferDescriptor))
 	{
 		pPort->NofSendFreeBuffers--;
@@ -322,7 +305,7 @@ NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 		InsertTailList(&pPort->SendFreeBuffers, &pBufferDescriptor->listEntry);
 	}
 
-	KeReleaseSpinLock(pLock, IRQL);
+	WdfSpinLockRelease(Lock);
 
 	return STATUS_SUCCESS;
 }
@@ -330,22 +313,20 @@ NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 							  WDFMEMORY * buffer,
 							  size_t * pSize,
-							  PKSPIN_LOCK pLock)
+							  WDFSPINLOCK Lock)
 {
 	NTSTATUS status = STATUS_SUCCESS;
 	unsigned int len;
-
-	KIRQL IRQL;
 	pIODescriptor pBufferDescriptor;
 
-	KeAcquireSpinLock(pLock, &IRQL);
+	WdfSpinLockAcquire(Lock);
 
 	if(NULL == (pBufferDescriptor = pPort->ReceiveQueue->vq_ops->get_buf(pPort->ReceiveQueue, &len)))
 	{
 		DPrintf(4, ("[%s] No buffers in queue!", __FUNCTION__));
 		status = STATUS_UNSUCCESSFUL;
 	}
-	KeReleaseSpinLock(pLock, IRQL);
+	WdfSpinLockRelease(Lock);
 
 	if(NT_SUCCESS(status))
 	{
@@ -355,10 +336,10 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 										   pBufferDescriptor->DataInfo.Virtual,
 										   len);
 
-		KeAcquireSpinLock(pLock, &IRQL);
+		WdfSpinLockAcquire(Lock);
 		AddRxBufferToQueue(pPort, pBufferDescriptor);
 		pPort->ReceiveQueue->vq_ops->kick(pPort->ReceiveQueue);
-		KeReleaseSpinLock(pLock, IRQL);
+		WdfSpinLockRelease(Lock);
 	}
 
 	return status;
