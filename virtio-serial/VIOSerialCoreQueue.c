@@ -313,20 +313,21 @@ NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 							  WDFMEMORY * buffer,
 							  size_t * pSize,
-							  WDFSPINLOCK Lock)
+							  WDFSPINLOCK Lock,
+							  BOOLEAN bDPC)
 {
 	NTSTATUS status = STATUS_SUCCESS;
 	unsigned int len;
 	pIODescriptor pBufferDescriptor;
 
-	WdfSpinLockAcquire(Lock);
+	if(!bDPC) WdfSpinLockAcquire(Lock);
 
 	if(NULL == (pBufferDescriptor = pPort->ReceiveQueue->vq_ops->get_buf(pPort->ReceiveQueue, &len)))
 	{
-		DPrintf(4, ("[%s] No buffers in queue!", __FUNCTION__));
+		DPrintf(0, ("[%s] No buffers in queue!", __FUNCTION__));
 		status = STATUS_UNSUCCESSFUL;
 	}
-	WdfSpinLockRelease(Lock);
+	if(!bDPC) WdfSpinLockRelease(Lock);
 
 	if(NT_SUCCESS(status))
 	{
@@ -336,10 +337,10 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 										   pBufferDescriptor->DataInfo.Virtual,
 										   len);
 
-		WdfSpinLockAcquire(Lock);
+		if(!bDPC) WdfSpinLockAcquire(Lock);
 		AddRxBufferToQueue(pPort, pBufferDescriptor);
 		pPort->ReceiveQueue->vq_ops->kick(pPort->ReceiveQueue);
-		WdfSpinLockRelease(Lock);
+		if(!bDPC) WdfSpinLockRelease(Lock);
 	}
 
 	return status;

@@ -67,6 +67,44 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 				InsertTailList(&pContext->SerialPorts[i].SendFreeBuffers, &pBufferDescriptor->listEntry);
 			}
 		}
+
+		if(pContext->SerialPorts[i].lastReadRequest &&
+		   pContext->SerialPorts[i].ReceiveQueue)
+		{
+			size_t size;
+			WDFMEMORY outMemory;
+			NTSTATUS status;
+			NTSTATUS cancelationStatus;
+
+			if(NT_SUCCESS(status = WdfRequestRetrieveOutputMemory(pContext->SerialPorts[i].lastReadRequest, &outMemory)))
+			{
+				if(STATUS_UNSUCCESSFUL != VSCRecieveCopyBuffer(&pContext->SerialPorts[i],
+															   &outMemory,
+															   &size,
+															   pContext->DPCLock,
+															   TRUE))
+				{
+					cancelationStatus = WdfRequestUnmarkCancelable(pContext->SerialPorts[i].lastReadRequest);
+					if(cancelationStatus != STATUS_CANCELLED) 
+					{
+						DPrintf(0, ("Complete pending read %x", pContext->SerialPorts[i].lastReadRequest));
+
+						WdfRequestCompleteWithInformation(pContext->SerialPorts[i].lastReadRequest,
+														  status,
+														  size);
+						pContext->SerialPorts[i].lastReadRequest = NULL;
+					}
+				}
+			}
+			else
+			{
+				WdfRequestCompleteWithInformation(pContext->SerialPorts[i].lastReadRequest,
+												  status,
+												  size);
+
+				pContext->SerialPorts[i].lastReadRequest = NULL;
+			}
+		}
 	}
 
 	//Get control messages

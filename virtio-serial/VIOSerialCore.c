@@ -179,12 +179,18 @@ NTSTATUS VSCGetData(WDFFILEOBJECT FileObject, PDEVICE_CONTEXT pContext, WDFMEMOR
 	return VSCRecieveCopyBuffer(MapFileToPort(FileObject),
 								pMem,
 								pSize,
-								pContext->DPCLock);
+								pContext->DPCLock,
+								FALSE);
 }
 
 void VIOSerialQueueRequest(IN PDEVICE_CONTEXT pContext,
 						   IN WDFFILEOBJECT FileObject,
 						   IN WDFREQUEST Request)
 {
+	PVIOSERIAL_PORT pPort = MapFileToPort(FileObject);
 
+	if(pPort)
+	{
+		pPort->lastReadRequest = Request;
+	}
 }

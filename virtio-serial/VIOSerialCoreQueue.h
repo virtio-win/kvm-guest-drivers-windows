@@ -16,7 +16,8 @@ NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 							  WDFMEMORY * buffer,
 							  size_t * pSize,
-							  WDFSPINLOCK Lock);
+							  WDFSPINLOCK Lock,
+							  BOOLEAN bDPC);
 
 u32 VSCMapIndexToID(int index);
 BOOLEAN AddRxBufferToQueue(PVIOSERIAL_PORT pPort, pIODescriptor pBufferDescriptor);

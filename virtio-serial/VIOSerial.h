@@ -66,6 +66,9 @@ typedef struct _VIOSERIAL_PORT
 
 	// We should allow only one process to open a port
 	bool bGuestConnected;
+
+	// Placeholder for pending read request
+	WDFREQUEST lastReadRequest;
 } VIOSERIAL_PORT, *PVIOSERIAL_PORT;
 
 
