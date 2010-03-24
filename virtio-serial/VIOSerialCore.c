@@ -5,6 +5,13 @@
 #include "VIOSerialCoreQueue.h"
 #include "VIOSerialCoreControl.h"
 
+PDEVICE_CONTEXT GetContextFromFileObject(IN WDFFILEOBJECT FileObject)
+{
+	PDEVICE_CONTEXT pContext = GetDeviceContext(WdfFileObjectGetDevice(FileObject));
+
+	return pContext;
+}
+
 NTSTATUS VSCInit(IN WDFOBJECT WdfDevice)
 {
 	NTSTATUS		status = STATUS_SUCCESS;
@@ -71,10 +78,10 @@ NTSTATUS VSCDeinit(IN WDFOBJECT WdfDevice)
 	return status;
 }
 
-static PVIOSERIAL_PORT MapFileToPort(PDEVICE_CONTEXT pContext)
+PVIOSERIAL_PORT MapFileToPort(WDFFILEOBJECT FileObject)
 {
 	//TBD - for now always return first port
-	return &pContext->SerialPorts[0];
+	return &GetContextFromFileObject(FileObject)->SerialPorts[0];
 }
 
 void VSCGuestSetPortsReady(PDEVICE_CONTEXT pContext)
@@ -96,9 +103,9 @@ void VSCGuestSetPortsReady(PDEVICE_CONTEXT pContext)
 	}
 }
 
-NTSTATUS VSCGuestOpenedPort(PDEVICE_CONTEXT pContext)
+NTSTATUS VSCGuestOpenedPort(WDFFILEOBJECT FileObject, PDEVICE_CONTEXT pContext)
 {
-	PVIOSERIAL_PORT pPort= MapFileToPort(pContext);
+	PVIOSERIAL_PORT pPort= MapFileToPort(FileObject);
 
 	DEBUG_ENTRY(0);
 
@@ -115,9 +122,9 @@ NTSTATUS VSCGuestOpenedPort(PDEVICE_CONTEXT pContext)
 	return STATUS_SUCCESS;
 }
 
-void VSCGuestClosedPort(PDEVICE_CONTEXT pContext)
+void VSCGuestClosedPort(WDFFILEOBJECT FileObject, PDEVICE_CONTEXT pContext)
 {
-	PVIOSERIAL_PORT pPort = MapFileToPort(pContext);
+	PVIOSERIAL_PORT pPort = MapFileToPort(FileObject);
 	
 	DEBUG_ENTRY(0);
 
@@ -127,7 +134,7 @@ void VSCGuestClosedPort(PDEVICE_CONTEXT pContext)
 	}
 }
 
-NTSTATUS VSCSendData(PDEVICE_CONTEXT pContext, PVOID pBuffer, size_t *pSize)
+NTSTATUS VSCSendData(WDFFILEOBJECT FileObject, PDEVICE_CONTEXT pContext, PVOID pBuffer, size_t *pSize)
 {
 	unsigned int uiPortID;
 	int i;
@@ -144,7 +151,7 @@ NTSTATUS VSCSendData(PDEVICE_CONTEXT pContext, PVOID pBuffer, size_t *pSize)
 	{
 		//DPrintf(0, ("how much to send %d", sizeToSend));
 		sizeChunk = sizeToSend > PAGE_SIZE? PAGE_SIZE : sizeToSend;
-		if(!NT_SUCCESS(status = VSCSendCopyBuffer(MapFileToPort(pContext),
+		if(!NT_SUCCESS(status = VSCSendCopyBuffer(MapFileToPort(FileObject),
 												  (unsigned char *)pBuffer + *pSize,
 												  sizeChunk,
 												  pContext->DPCLock,
@@ -163,15 +170,21 @@ NTSTATUS VSCSendData(PDEVICE_CONTEXT pContext, PVOID pBuffer, size_t *pSize)
 	return status;
 }
 
-NTSTATUS VSCGetData(PDEVICE_CONTEXT pContext, WDFMEMORY * pMem, size_t *pSize)
+NTSTATUS VSCGetData(WDFFILEOBJECT FileObject, PDEVICE_CONTEXT pContext, WDFMEMORY * pMem, size_t *pSize)
 {
 	DEBUG_ENTRY(0);
 
 	// For now let's assume only one chunck!
 
-	return VSCRecieveCopyBuffer(MapFileToPort(pContext),
+	return VSCRecieveCopyBuffer(MapFileToPort(FileObject),
 								pMem,
 								pSize,
 								pContext->DPCLock);
 }
 
+void VIOSerialQueueRequest(IN PDEVICE_CONTEXT pContext,
+						   IN WDFFILEOBJECT FileObject,
+						   IN WDFREQUEST Request)
+{
+
+}

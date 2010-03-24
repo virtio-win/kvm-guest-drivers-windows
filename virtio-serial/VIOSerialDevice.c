@@ -360,15 +360,6 @@ static PDEVICE_CONTEXT GetContextFromQueue(IN WDFQUEUE Queue)
 	return pContext;
 }
 
-static PDEVICE_CONTEXT GetContextFromFileObject(IN WDFFILEOBJECT FileObject)
-{
-	PDEVICE_CONTEXT pContext = GetDeviceContext(WdfFileObjectGetDevice(FileObject));
-
-	return pContext;
-}
-
-
-
 VOID VIOSerialEvtIoDeviceControl(IN WDFQUEUE Queue,
 								 IN WDFREQUEST Request,
 								 IN size_t OutputBufferLength,
@@ -381,18 +372,17 @@ VOID VIOSerialEvtIoDeviceControl(IN WDFQUEUE Queue,
 	WdfRequestComplete(Request, STATUS_SUCCESS);
 }
 
-/*
 VOID VIOSerialEvtRequestCancel(IN WDFREQUEST Request)
 {
 	WdfRequestComplete(Request, STATUS_CANCELLED);
 
-	QueueRequest(GetContextFromQueue(WdfRequestGetIoQueue(Request)),
-				 WdfRequestGetFileObject(Request),
-				 NULL);
+	VIOSerialQueueRequest(GetContextFromQueue(WdfRequestGetIoQueue(Request)),
+						  WdfRequestGetFileObject(Request),
+						  NULL);
 
 	return;
 }
-*/
+
 VOID VIOSerialEvtIoRead(IN WDFQUEUE  Queue,
 						IN WDFREQUEST Request,
 						IN size_t Length)
@@ -407,7 +397,10 @@ VOID VIOSerialEvtIoRead(IN WDFQUEUE  Queue,
 
 	if(NT_SUCCESS(WdfRequestRetrieveOutputMemory(Request, &outMemory)))
 	{
-		status = VSCGetData(pContext, &outMemory, &size);
+		status = VSCGetData(WdfRequestGetFileObject(Request), 
+							pContext,
+							&outMemory,
+							&size);
 	}
 
 	WdfRequestCompleteWithInformation(Request, status, size);
@@ -422,7 +415,7 @@ VOID VIOSerialEvtIoRead(IN WDFQUEUE  Queue,
 		if(STATUS_SUCCESS(WdfRequestMarkCancelableEx(Request,
 						  VIOSerialEvtRequestCancel))
 		{
-			QueueRequest(pContext, WdfRequestGetFileObject(Request), Request);
+			VIOSerialQueueRequest(pContext, WdfRequestGetFileObject(Request), Request);
 		}
 		WdfSpinLockRelease(pContext->DPCLock);
 	}
@@ -489,7 +482,10 @@ VOID VIOSerialEvtIoWrite(IN WDFQUEUE  Queue,
 			size = Length;
 		}
 
-		status = VSCSendData(GetContextFromQueue(Queue), buffer, &size);
+		status = VSCSendData(WdfRequestGetFileObject(Request),
+							 GetContextFromQueue(Queue),
+							 buffer,
+							 &size);
 	}
 
 	WdfRequestCompleteWithInformation(Request, status, size);
@@ -503,7 +499,7 @@ void VIOSerialEvtDeviceFileCreate(IN WDFDEVICE Device,
 	NTSTATUS status = STATUS_SUCCESS;
 	DEBUG_ENTRY(0);
 
-	if(NT_SUCCESS(status = VSCGuestOpenedPort(GetDeviceContext(Device))))
+	if(NT_SUCCESS(status = VSCGuestOpenedPort(FileObject, GetDeviceContext(Device))))
 	{
 		//TBD - do some stuff on the device level on file open if needed
 	}
@@ -516,5 +512,5 @@ VOID VIOSerialEvtFileClose(IN WDFFILEOBJECT FileObject)
 	DEBUG_ENTRY(0);
 	//Clean up on file close
 
-	VSCGuestClosedPort(GetContextFromFileObject(FileObject));
+	VSCGuestClosedPort(FileObject, GetContextFromFileObject(FileObject));
 }

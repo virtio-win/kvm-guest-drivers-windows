@@ -6,11 +6,19 @@
 NTSTATUS VSCInit(IN WDFOBJECT WdfDevice);
 NTSTATUS VSCDeinit(IN WDFOBJECT WdfDevice);
 
-NTSTATUS VSCGuestOpenedPort(PDEVICE_CONTEXT pContext);
-void VSCGuestClosedPort(PDEVICE_CONTEXT pContext);
+NTSTATUS VSCGuestOpenedPort(WDFFILEOBJECT FileObject, PDEVICE_CONTEXT pContext);
+void VSCGuestClosedPort(WDFFILEOBJECT FileObject, PDEVICE_CONTEXT pContext);
 void VSCGuestSetPortsReady(PDEVICE_CONTEXT pContext);
 
-NTSTATUS VSCSendData(PDEVICE_CONTEXT pContex, PVOID pBuffer, size_t *pSize);
-NTSTATUS VSCGetData(PDEVICE_CONTEXT pContex, WDFMEMORY *pMem, size_t *pSize);
+NTSTATUS VSCSendData(WDFFILEOBJECT FileObject, PDEVICE_CONTEXT pContex, PVOID pBuffer, size_t *pSize);
+NTSTATUS VSCGetData(WDFFILEOBJECT FileObject, PDEVICE_CONTEXT pContext, WDFMEMORY *pMem, size_t *pSize);
+
+PVIOSERIAL_PORT MapFileToPort(WDFFILEOBJECT FileObject);
+PDEVICE_CONTEXT GetContextFromFileObject(IN WDFFILEOBJECT FileObject);
+
+void VIOSerialQueueRequest(IN PDEVICE_CONTEXT pContext,
+						   IN WDFFILEOBJECT FileObject,
+						   IN WDFREQUEST Request);
+
 
 #endif /* VIOSERIAL_CORE_H */
