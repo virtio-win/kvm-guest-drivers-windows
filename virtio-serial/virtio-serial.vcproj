@@ -2,11 +2,10 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9.00"
-	Name="VirtIO"
-	ProjectGUID="{15DC9616-56BC-474A-90C2-38DBAF64BA06}"
-	RootNamespace="VirtIO"
+	Name="virtio-serial"
+	ProjectGUID="{664B23AC-FC07-46C1-9B0E-A34A3DFEE5E7}"
 	Keyword="MakeFileProj"
-	TargetFrameworkVersion="131072"
+	TargetFrameworkVersion="196613"
 	>
 	<Platforms>
 		<Platform
@@ -27,9 +26,9 @@
 				BuildCommandLine="buildall.bat"
 				ReBuildCommandLine="buildall.bat"
 				CleanCommandLine="clean.bat"
-				Output="VirtIOlib.lib"
+				Output="vioser.sys"
 				PreprocessorDefinitions="WIN32;_DEBUG"
-				IncludeSearchPath=""
+				IncludeSearchPath="..\VirtIO"
 				ForcedIncludes=""
 				AssemblySearchPath=""
 				ForcedUsingAssemblies=""
@@ -47,9 +46,29 @@
 				BuildCommandLine="buildall.bat"
 				ReBuildCommandLine="buildall.bat"
 				CleanCommandLine="clean.bat"
-				Output="VirtIOlib.lib"
+				Output="vioser.sys"
 				PreprocessorDefinitions="WIN32;NDEBUG"
-				IncludeSearchPath=""
+				IncludeSearchPath="..\VirtIO"
+				ForcedIncludes=""
+				AssemblySearchPath=""
+				ForcedUsingAssemblies=""
+				CompileAsManaged=""
+			/>
+		</Configuration>
+		<Configuration
+			Name="Free|Win32"
+			OutputDirectory="$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
+			ConfigurationType="0"
+			>
+			<Tool
+				Name="VCNMakeTool"
+				BuildCommandLine="buildOne.bat WXP x86"
+				ReBuildCommandLine="buildOne.bat WXP x86"
+				CleanCommandLine="clean.bat"
+				Output="vioser.sys"
+				PreprocessorDefinitions="WIN32;NDEBUG"
+				IncludeSearchPath="..\VirtIO"
 				ForcedIncludes=""
 				AssemblySearchPath=""
 				ForcedUsingAssemblies=""
@@ -66,15 +85,31 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath=".\PVUtils.c"
+				RelativePath=".\VIOSerialCore.c"
 				>
 			</File>
 			<File
-				RelativePath=".\VirtIOPCI.c"
+				RelativePath=".\VIOSerialCoreControl.c"
 				>
 			</File>
 			<File
-				RelativePath=".\VirtIORing.c"
+				RelativePath=".\VIOSerialCoreQueue.c"
+				>
+			</File>
+			<File
+				RelativePath=".\VIOSerialDevice.c"
+				>
+			</File>
+			<File
+				RelativePath=".\VIOSerialDriver.c"
+				>
+			</File>
+			<File
+				RelativePath=".\VIOSerialInterrupt.c"
+				>
+			</File>
+			<File
+				RelativePath=".\VIOSerialMemUtils.c"
 				>
 			</File>
 		</Filter>
@@ -84,27 +119,39 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath="..\Kutils\KUtils\kdebugprint.h"
+				RelativePath=".\kdebugprint.h"
 				>
 			</File>
 			<File
-				RelativePath="..\Kutils\inc\osdep.h"
+				RelativePath=".\osdep.h"
 				>
 			</File>
 			<File
-				RelativePath=".\PVUtils.h"
+				RelativePath=".\VIOSerial.h"
 				>
 			</File>
 			<File
-				RelativePath=".\VirtIO.h"
+				RelativePath=".\VIOSerialCore.h"
 				>
 			</File>
 			<File
-				RelativePath=".\virtio_pci.h"
+				RelativePath=".\VIOSerialCoreControl.h"
 				>
 			</File>
 			<File
-				RelativePath=".\virtio_ring.h"
+				RelativePath=".\VIOSerialCoreQueue.h"
+				>
+			</File>
+			<File
+				RelativePath=".\VIOSerialDevice.h"
+				>
+			</File>
+			<File
+				RelativePath=".\VIOSerialDriver.h"
+				>
+			</File>
+			<File
+				RelativePath=".\VIOSerialMemUtils.h"
 				>
 			</File>
 		</Filter>
@@ -130,10 +177,38 @@
 				>
 			</File>
 			<File
+				RelativePath=".\makefile.inc"
+				>
+			</File>
+			<File
 				RelativePath=".\sources"
 				>
 			</File>
 		</Filter>
+		<Filter
+			Name="Install"
+			>
+			<File
+				RelativePath=".\vioser.inx"
+				>
+			</File>
+		</Filter>
+		<Filter
+			Name="Licensing"
+			>
+			<File
+				RelativePath=".\COPYING"
+				>
+			</File>
+			<File
+				RelativePath=".\LICENSE"
+				>
+			</File>
+		</Filter>
+		<File
+			RelativePath=".\readme.txt"
+			>
+		</File>
 	</Files>
 	<Globals>
 	</Globals>
