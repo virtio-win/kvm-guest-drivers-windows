@@ -1,6 +1,6 @@
 @echo on
 
-rmdir /S /Q ..\Install
+rmdir /S /Q .\Install
 
 rmdir /S /Q objfre_wxp_x86
 rmdir /S /Q objfre_wnet_x86
