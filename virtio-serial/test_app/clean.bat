@@ -10,6 +10,9 @@ rmdir /S /Q objfre_wlh_amd64
 rmdir /S /Q objfre_win7_x86
 rmdir /S /Q objfre_win7_amd64
 
+rmdir /S /Q test_app\Debug
+rmdir /S /Q test_app\Free
+rmdir /S /Q test_app\Release
 
 
 del /F *.log *.wrn *.err
