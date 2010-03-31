@@ -117,6 +117,7 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 			//HandleIncomingControlMessage(pBufferDescriptor->DataInfo.Virtual, len);
 
 			//Return the buffer to usage... - if we handle the mesages in workitem, the below line should move there
+			pBufferDescriptor->DataInfo.size = PAGE_SIZE;
 			AddRxBufferToQueue(&pContext->SerialPorts[VIRTIO_SERIAL_CONTROL_PORT_INDEX], pBufferDescriptor);
 			pContext->SerialPorts[VIRTIO_SERIAL_CONTROL_PORT_INDEX].ReceiveQueue->vq_ops->kick(pContext->SerialPorts[VIRTIO_SERIAL_CONTROL_PORT_INDEX].ReceiveQueue);
 		}

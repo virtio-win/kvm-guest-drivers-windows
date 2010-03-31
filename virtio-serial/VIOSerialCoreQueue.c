@@ -111,7 +111,7 @@ BOOLEAN AddRxBufferToQueue(PVIOSERIAL_PORT pPort, pIODescriptor pBufferDescripto
 	struct VirtIOBufferDescriptor sg[1];
 
 	RtlZeroMemory(pBufferDescriptor->DataInfo.Virtual, pBufferDescriptor->DataInfo.size);
-
+	
 	sg[0].physAddr = pBufferDescriptor->DataInfo.Physical;
 	sg[0].ulSize = pBufferDescriptor->DataInfo.size;
 
@@ -293,7 +293,7 @@ NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 	RtlZeroMemory(pBufferDescriptor->DataInfo.Virtual, pBufferDescriptor->DataInfo.size);
 	RtlCopyMemory(pBufferDescriptor->DataInfo.Virtual, buffer, size);
 	sg[0].physAddr = pBufferDescriptor->DataInfo.Physical;
-	sg[0].ulSize = pBufferDescriptor->DataInfo.size;
+	sg[0].ulSize = size;
 
 	WdfSpinLockAcquire(Lock);
 	if (0 == pPort->SendQueue->vq_ops->add_buf(pPort->SendQueue, sg, 1, 0, pBufferDescriptor))
@@ -357,6 +357,7 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 		if(!bDPC) WdfSpinLockAcquire(Lock);
 		if(NT_SUCCESS(status))
 		{
+			pBufferDescriptor->DataInfo.size = PAGE_SIZE;
 			AddRxBufferToQueue(pPort, pBufferDescriptor);
 			pPort->internalReadBuffer = NULL;
 			pPort->internalReadBufferLength = 0;
