@@ -41,14 +41,16 @@ set INST_EXT=amd64
 :startcopy
 set SYS_PATH_AND_NAME=objfre_%INST_OS%_%INST_ARC%\%INST_EXT%\%SYS_NAME%.sys
 set PDB_PATH_AND_NAME=objfre_%INST_OS%_%INST_ARC%\%INST_EXT%\%SYS_NAME%.pdb
-set INF_PATH_AND_NAME=%INF_NAME%.inf
+set INF_PATH_AND_NAME=objfre_%INST_OS%_%INST_ARC%\%INST_EXT%\%SYS_NAME%.inf
+set WDF_PATH_AND_NAME=%BUILDROOT%\redist\wdf\%INST_ARC%\WdfCoInstaller01009.dll
 
 rem echo makeinstall %1 %2 %3 %4
 mkdir Install\%INST_OS%\%INST_ARC%
 del /Q Install\%INST_OS%\%INST_ARC%\%FILE_NAME%.*
 copy /Y %SYS_PATH_AND_NAME% Install\%INST_OS%\%INST_ARC%
 copy /Y %PDB_PATH_AND_NAME% Install\%INST_OS%\%INST_ARC%
-copy /Y %INF_PATH_AND_NAME% Install\%INST_OS%\%INST_ARC%\%SYS_NAME%.inf
+copy /Y %INF_PATH_AND_NAME% Install\%INST_OS%\%INST_ARC%
+copy /Y %WDF_PATH_AND_NAME% Install\%INST_OS%\%INST_ARC%
 
 set INST_OS=
 set INST_ARC=

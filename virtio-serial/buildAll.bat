@@ -2,6 +2,8 @@
 
 set SYS_FILE_NAME=vioser
 
+call clean.bat
+
 for %%A in (Win7 Wnet Wlh WXp) do for %%B in (32 64) do call :%%A_%%B
 goto :eof 
 
