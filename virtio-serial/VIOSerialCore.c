@@ -192,6 +192,7 @@ void VIOSerialQueueRequest(IN PDEVICE_CONTEXT pContext,
 
 	if(pPort)
 	{
+		DPrintf(0, ("Set last read request %x\n", Request));
 		pPort->lastReadRequest = Request;
 	}
 }

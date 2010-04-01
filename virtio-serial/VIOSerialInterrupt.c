@@ -95,7 +95,7 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 					cancelationStatus = WdfRequestUnmarkCancelable(pContext->SerialPorts[i].lastReadRequest);
 					if(cancelationStatus != STATUS_CANCELLED) 
 					{
-						DPrintf(0, ("Complete pending read %x\n", pContext->SerialPorts[i].lastReadRequest));
+						DPrintf(0, ("Complete pending read %x, size %d\n", pContext->SerialPorts[i].lastReadRequest, size));
 						WdfSpinLockRelease(pContext->DPCLock);
 						WdfRequestCompleteWithInformation(pContext->SerialPorts[i].lastReadRequest,
 														  status,
