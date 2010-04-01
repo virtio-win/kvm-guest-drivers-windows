@@ -37,7 +37,7 @@ BOOLEAN VIOSerialInterruptIsr(IN WDFINTERRUPT Interrupt,
 
 	if(!!status)
 	{
-		DPrintf(6, ("Got ISR - it is ours %d!", status));
+		DPrintf(6, ("Got ISR - it is ours %d!\n", status));
 		WdfInterruptQueueDpcForIsr(Interrupt);
 	}
 
@@ -51,10 +51,18 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 	unsigned int len;
 	unsigned int i;
 	pIODescriptor pBufferDescriptor;
-	PDEVICE_CONTEXT	pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
+	PDEVICE_CONTEXT	pContext;
 	
-	DEBUG_ENTRY(5);
+	
+	DEBUG_ENTRY(0);
 
+	if(!Interrupt)
+	{
+		DPrintf(0, ("Got NULL interrupt object DPC!\n"));
+		return;
+	}
+
+	pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
 	WdfSpinLockAcquire(pContext->DPCLock);
 	//Get consumed buffers for transmit queues
 	for(i = 0; i < pContext->consoleConfig.nr_ports; i++ )
@@ -87,11 +95,12 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 					cancelationStatus = WdfRequestUnmarkCancelable(pContext->SerialPorts[i].lastReadRequest);
 					if(cancelationStatus != STATUS_CANCELLED) 
 					{
-						DPrintf(0, ("Complete pending read %x", pContext->SerialPorts[i].lastReadRequest));
-
+						DPrintf(0, ("Complete pending read %x\n", pContext->SerialPorts[i].lastReadRequest));
+						WdfSpinLockRelease(pContext->DPCLock);
 						WdfRequestCompleteWithInformation(pContext->SerialPorts[i].lastReadRequest,
 														  status,
 														  size);
+						WdfSpinLockAcquire(pContext->DPCLock);
 					}
 
 					pContext->SerialPorts[i].lastReadRequest = NULL;
@@ -99,10 +108,11 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 			}
 			else
 			{
+				WdfSpinLockRelease(pContext->DPCLock);
 				WdfRequestCompleteWithInformation(pContext->SerialPorts[i].lastReadRequest,
 												  status,
 												  size);
-
+				WdfSpinLockAcquire(pContext->DPCLock);
 				pContext->SerialPorts[i].lastReadRequest = NULL;
 			}
 		}
@@ -113,7 +123,7 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 	{
 		if(pBufferDescriptor = pContext->SerialPorts[VIRTIO_SERIAL_CONTROL_PORT_INDEX].ReceiveQueue->vq_ops->get_buf(pContext->SerialPorts[VIRTIO_SERIAL_CONTROL_PORT_INDEX].ReceiveQueue, &len))
 		{
-			DPrintf(0, ("Got control message"));
+			DPrintf(0, ("Got control message\n"));
 			//HandleIncomingControlMessage(pBufferDescriptor->DataInfo.Virtual, len);
 
 			//Return the buffer to usage... - if we handle the mesages in workitem, the below line should move there
