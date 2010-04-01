@@ -78,8 +78,12 @@ static void VIOSerialInitFileObject(IN PWDFDEVICE_INIT DeviceInit,
 static NTSTATUS VIOSerialInitIO(WDFDEVICE hDevice)
 {
 	WDF_IO_QUEUE_CONFIG		queueCfg;
+	WDF_IO_QUEUE_CONFIG		queueReadCfg;
+	WDF_IO_QUEUE_CONFIG		queueWriteCfg;
 	NTSTATUS				status;
 	WDFQUEUE				queue;
+	WDFQUEUE				queueRead;
+	WDFQUEUE				queueWrite;
 	DECLARE_CONST_UNICODE_STRING(strVIOSerialSymbolicLink, VIOSERIAL_SYMBOLIC_LINK);
 
 	PAGED_CODE();
@@ -101,10 +105,12 @@ If a bus driver can control a device in raw mode, it sets RawDeviceOK in the DEV
 	//Create the IO queue to handle IO requests
 	// TDB - check if parallel mode is more apropreate
 	WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(&queueCfg, WdfIoQueueDispatchSequential);
+	WDF_IO_QUEUE_CONFIG_INIT(&queueReadCfg, WdfIoQueueDispatchSequential);
+	WDF_IO_QUEUE_CONFIG_INIT(&queueWriteCfg, WdfIoQueueDispatchSequential);
 
 	queueCfg.EvtIoDeviceControl = VIOSerialEvtIoDeviceControl;
-	queueCfg.EvtIoRead = VIOSerialEvtIoRead;
-	queueCfg.EvtIoWrite = VIOSerialEvtIoWrite;
+	queueReadCfg.EvtIoRead = VIOSerialEvtIoRead;
+	queueWriteCfg.EvtIoWrite = VIOSerialEvtIoWrite;
 
 	status = WdfIoQueueCreate(hDevice,
 							  &queueCfg,
@@ -115,6 +121,50 @@ If a bus driver can control a device in raw mode, it sets RawDeviceOK in the DEV
 	if (!NT_SUCCESS (status))
 	{
 		DPrintf(0, ("WdfIoQueueCreate failed - 0x%x\n", status));
+		return status;
+	}
+
+	status = WdfIoQueueCreate(hDevice,
+							  &queueReadCfg,
+							  WDF_NO_OBJECT_ATTRIBUTES,
+							  &queueRead
+							  );
+
+	if (!NT_SUCCESS (status))
+	{
+		DPrintf(0, ("WdfIoQueueCreate for read failed - 0x%x\n", status));
+		return status;
+	}
+
+	status = WdfIoQueueCreate(hDevice,
+							  &queueWriteCfg,
+							  WDF_NO_OBJECT_ATTRIBUTES,
+							  &queueWrite
+							  );
+
+	if (!NT_SUCCESS (status))
+	{
+		DPrintf(0, ("WdfIoQueueCreate for write failed - 0x%x\n", status));
+		return status;
+	}
+
+	status = WdfDeviceConfigureRequestDispatching(hDevice,
+												  queueRead,
+												  WdfRequestTypeRead);
+
+	if(!NT_SUCCESS(status))
+	{
+		DPrintf(0, ("WdfDeviceConfigureRequestDispatching read failed - 0x%x\n", status));
+		return status;
+	}
+
+	status = WdfDeviceConfigureRequestDispatching(hDevice,
+												  queueWrite,
+												  WdfRequestTypeWrite);
+
+	if(!NT_SUCCESS(status))
+	{
+		DPrintf(0, ("WdfDeviceConfigureRequestDispatching write failed - 0x%x\n", status));
 		return status;
 	}
 
@@ -258,7 +308,7 @@ NTSTATUS VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
 					pContext->PortBasePA = pResDescriptor->u.Port.Start;
 					pContext->uPortLength = pResDescriptor->u.Port.Length;
 
-					DPrintf(0, ("IO Port Info  [%08I64X-%08I64X]",
+					DPrintf(0, ("IO Port Info  [%08I64X-%08I64X]\n",
 							pResDescriptor->u.Port.Start.QuadPart,
 							pResDescriptor->u.Port.Start.QuadPart +
 							pResDescriptor->u.Port.Length));
@@ -270,7 +320,7 @@ NTSTATUS VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
 														   MmNonCached);
 
 						if (!pContext->pPortBase) {
-							DPrintf(0, ("%s>>> %s", __FUNCTION__, "Failed to map IO port!"));
+							DPrintf(0, ("%s>>> Failed to map IO port!\n", __FUNCTION__));
 							return STATUS_INSUFFICIENT_RESOURCES;
 						}
 					}
@@ -285,10 +335,10 @@ NTSTATUS VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
 				///
 				case CmResourceTypeInterrupt:
 					// Print out interrupt info- debugging only
-					DPrintf(0, ("Resource Type Interrupt"));
-					DPrintf(0, ("Interrupt.Level %x", pResDescriptor->u.Interrupt.Level));
-					DPrintf(0, ("Interrupt.Vector %x", pResDescriptor->u.Interrupt.Vector));
-					DPrintf(0, ("Interrupt.Affinity %x", pResDescriptor->u.Interrupt.Affinity));
+					DPrintf(0, ("Resource Type Interrupt\n"));
+					DPrintf(0, ("Interrupt.Level %x\n", pResDescriptor->u.Interrupt.Level));
+					DPrintf(0, ("Interrupt.Vector %x\n", pResDescriptor->u.Interrupt.Vector));
+					DPrintf(0, ("Interrupt.Affinity %x\n", pResDescriptor->u.Interrupt.Affinity));
 
 					break;
 			}
@@ -297,7 +347,7 @@ NTSTATUS VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
 	if(!bPortFound)
 	{
-		DPrintf(0, ("%s>>> %s", __FUNCTION__, "IO port wasn't found!"));
+		DPrintf(0, ("%s>>> %s", __FUNCTION__, "IO port wasn't found!\n"));
 		return STATUS_DEVICE_CONFIGURATION_ERROR;
 	}
 
@@ -383,10 +433,9 @@ VOID VIOSerialEvtRequestCancel(IN WDFREQUEST Request)
 	VIOSerialQueueRequest(pContext,
 						  WdfRequestGetFileObject(Request),
 						  NULL);
+	WdfSpinLockRelease(pContext->DPCLock);
 
 	WdfRequestComplete(Request, STATUS_CANCELLED);
-
-	WdfSpinLockRelease(pContext->DPCLock);
 
 	return;
 }
@@ -416,18 +465,20 @@ VOID VIOSerialEvtIoRead(IN WDFQUEUE  Queue,
 		}
 		else  //There was no data to in queue, handle request when the data is ready
 		{
-			DPrintf(0, ("Mark read request pending %x", Request));
+			DPrintf(0, ("Mark read request pending %x\n", Request));
 
 			WdfSpinLockAcquire(pContext->DPCLock);
 			if(NT_SUCCESS(status = WdfRequestMarkCancelableEx(Request, VIOSerialEvtRequestCancel)))
 			{
 				VIOSerialQueueRequest(pContext, WdfRequestGetFileObject(Request), Request);
+				WdfSpinLockRelease(pContext->DPCLock);
 			}
 			else
 			{
+				WdfSpinLockRelease(pContext->DPCLock);
 				WdfRequestCompleteWithInformation (Request, status, 0);
 			}
-			WdfSpinLockRelease(pContext->DPCLock);
+			
 		}
 	}
 	else
