@@ -36,8 +36,8 @@ NTSTATUS VSCInit(IN WDFOBJECT WdfDevice)
 					&pContext->consoleConfig,
 					sizeof(VirtIOConsoleConfig));
 
-	DPrintf(0 ,("VirtIOConsoleConfig->nr_ports %d", pContext->consoleConfig.nr_ports));
-	DPrintf(0 ,("VirtIOConsoleConfig->max_nr_ports %d", pContext->consoleConfig.max_nr_ports));
+	DPrintf(0 ,("VirtIOConsoleConfig->nr_ports %d\n", pContext->consoleConfig.nr_ports));
+	DPrintf(0 ,("VirtIOConsoleConfig->max_nr_ports %d\n", pContext->consoleConfig.max_nr_ports));
 
 	//Also count control queues
 	pContext->consoleConfig.nr_ports +=1;
@@ -46,18 +46,18 @@ NTSTATUS VSCInit(IN WDFOBJECT WdfDevice)
 
 	if(!NT_SUCCESS(status))
 	{
-		DPrintf(0, ("Setting VIRTIO_CONFIG_S_FAILED flag"));
+		DPrintf(0, ("Setting VIRTIO_CONFIG_S_FAILED flag\n"));
 		VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_FAILED);
 	}
 	else
 	{
-		DPrintf(0, ("Setting VIRTIO_CONFIG_S_DRIVER_OK flag"));
+		DPrintf(0, ("Setting VIRTIO_CONFIG_S_DRIVER_OK flag\n"));
 		VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 	}
 
 	if(pContext->isHostMultiport = VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_CONSOLE_F_MULTIPORT))
 	{
-		DPrintf(0, ("We have multiport host"));
+		DPrintf(0, ("We have multiport host\n"));
 		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_CONSOLE_F_MULTIPORT);
 	}
 
@@ -141,17 +141,18 @@ NTSTATUS VSCSendData(WDFFILEOBJECT FileObject, PDEVICE_CONTEXT pContext, PVOID p
 	NTSTATUS status = STATUS_SUCCESS;
 	size_t sizeToSend = *pSize;
 	size_t sizeChunk;
+	PVIOSERIAL_PORT pPort = MapFileToPort(FileObject);
 
 	DEBUG_ENTRY(0);
 
 	//Will count acctual size sent
 	*pSize = 0;
-	
+
 	while(sizeToSend)
 	{
 		//DPrintf(0, ("how much to send %d", sizeToSend));
 		sizeChunk = sizeToSend > PAGE_SIZE? PAGE_SIZE : sizeToSend;
-		if(!NT_SUCCESS(status = VSCSendCopyBuffer(MapFileToPort(FileObject),
+		if(!NT_SUCCESS(status = VSCSendCopyBuffer(pPort,
 												  (unsigned char *)pBuffer + *pSize,
 												  sizeChunk,
 												  pContext->DPCLock,

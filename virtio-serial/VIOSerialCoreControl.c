@@ -19,7 +19,7 @@ NTSTATUS SendControlMessage(PDEVICE_CONTEXT pContext,
 	cpkt.event = uiEvent;
 	cpkt.value = uiValue;
 
-	DPrintf(0, ("Sending control>> Port: %d, event %d, value %d", uiPortID, uiEvent, uiValue));
+	DPrintf(0, ("Sending control>> Port: %d, event %d, value %d\n", uiPortID, uiEvent, uiValue));
 
 	return VSCSendCopyBuffer(&pContext->SerialPorts[VIRTIO_SERIAL_CONTROL_PORT_INDEX], 
 							 &cpkt, 

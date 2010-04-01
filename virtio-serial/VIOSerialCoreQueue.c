@@ -34,7 +34,7 @@ static void FreeBufferDescriptor(pIODescriptor pBufferDescriptor)
 		
 		ExFreePoolWithTag(pBufferDescriptor, VIOSERIAL_DRIVER_MEMORY_TAG);
 
-		DPrintf(6, ("Freeing %x", pBufferDescriptor));
+		DPrintf(6, ("Freeing %x\n", pBufferDescriptor));
 		pBufferDescriptor = NULL;
 	}
 }
@@ -83,17 +83,17 @@ static pIODescriptor AllocateIOBuffer(ULONG size)
 		{
 			FreeBufferDescriptor(p);
 			p = NULL;
-			DPrintf(0, ("[INITPHYS](Failed to allocate physical memory block"));
+			DPrintf(0, ("[INITPHYS](Failed to allocate physical memory block\n"));
 		}
 	}
 	else
 	{
-		DPrintf(0, ("[INITPHYS] Failed to allocate IODescriptor!"));
+		DPrintf(0, ("[INITPHYS] Failed to allocate IODescriptor!\n"));
 	}
 
 	if (p)
 	{
-		DPrintf(3, ("[INITPHYS] Data v%p(p%08lX)",
+		DPrintf(3, ("[INITPHYS] Data v%p(p%08lX)\n",
 					p->DataInfo.Virtual, p->DataInfo.Physical.LowPart));
 	}
 
@@ -173,7 +173,7 @@ static void PrepareTransmitBuffers(PVIOSERIAL_PORT pPort)
 		pPort->NofSendFreeBuffers++;
 	}
 
-	DPrintf(0, ("[%s] available %d Tx descriptors for port %x",
+	DPrintf(0, ("[%s] available %d Tx descriptors for port %x\n",
 		__FUNCTION__, pPort->NofSendFreeBuffers, pPort));
 }
 
@@ -269,7 +269,7 @@ NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 	if(IsListEmpty(&pPort->SendFreeBuffers))
 	{
 		WdfSpinLockRelease(Lock);
-		DPrintf (0, ("[%s] No free buffers for send operation on port %x.", 
+		DPrintf (0, ("[%s] No free buffers for send operation on port %x.\n", 
 			__FUNCTION__, pPort));
 
 		return STATUS_INSUFFICIENT_RESOURCES;
@@ -284,7 +284,7 @@ NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 		WdfSpinLockAcquire(Lock);
 		InsertTailList(&pPort->SendFreeBuffers, &pBufferDescriptor->listEntry);
 		WdfSpinLockRelease(Lock);
-		DPrintf (0, ("[%s] Buffer too small! s: %d d: %d.", 
+		DPrintf (0, ("[%s] Buffer too small! s: %d d: %d.\n", 
 			__FUNCTION__, size, pBufferDescriptor->DataInfo.size));
 
 		return STATUS_BUFFER_TOO_SMALL;
@@ -308,7 +308,7 @@ NTSTATUS VSCSendCopyBuffer(PVIOSERIAL_PORT pPort,
 	}
 	else
 	{
-		DPrintf(0, ("[%s] Unexpected ERROR adding buffer to TX engine!..", __FUNCTION__));
+		DPrintf(0, ("[%s] Unexpected ERROR adding buffer to TX engine!..\n", __FUNCTION__));
 		//Adding buffer back to free list
 		InsertTailList(&pPort->SendFreeBuffers, &pBufferDescriptor->listEntry);
 	}
@@ -334,13 +334,13 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 	{
 		pBufferDescriptor = pPort->internalReadBuffer;
 		len = pPort->internalReadBufferLength;
-		DPrintf(0, ("Using internal buffer!"));
+		DPrintf(0, ("Using internal buffer!\n"));
 	}
 	else
 	{
 		if(NULL == (pBufferDescriptor = pPort->ReceiveQueue->vq_ops->get_buf(pPort->ReceiveQueue, &len)))
 		{
-			DPrintf(0, ("[%s] No buffers in queue!", __FUNCTION__));
+			DPrintf(0, ("[%s] No buffers in queue!\n", __FUNCTION__));
 			status = STATUS_UNSUCCESSFUL;
 		}
 	}
@@ -364,7 +364,7 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 		}
 		else
 		{
-			DPrintf(0, ("Keeping buffer internally, *pSize %d", pSize));
+			DPrintf(0, ("Keeping buffer internally, *pSize %d\n", pSize));
 			AddRxBufferToInternalWaitingQueue(pPort, pBufferDescriptor, len);
 		}
 
@@ -372,6 +372,6 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 		if(!bDPC) WdfSpinLockRelease(Lock);
 	}
 
-	DPrintf(0, ("%s> exit status %x", __FUNCTION__, status));
+	DPrintf(0, ("%s> exit status %x\n", __FUNCTION__, status));
 	return status;
 }
