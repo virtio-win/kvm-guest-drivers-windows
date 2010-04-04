@@ -143,7 +143,7 @@ NTSTATUS VSCSendData(WDFFILEOBJECT FileObject, PDEVICE_CONTEXT pContext, PVOID p
 	size_t sizeChunk;
 	PVIOSERIAL_PORT pPort = MapFileToPort(FileObject);
 
-	DEBUG_ENTRY(0);
+	DEBUG_ENTRY(2);
 
 	//Will count acctual size sent
 	*pSize = 0;
@@ -173,7 +173,7 @@ NTSTATUS VSCSendData(WDFFILEOBJECT FileObject, PDEVICE_CONTEXT pContext, PVOID p
 
 NTSTATUS VSCGetData(WDFFILEOBJECT FileObject, PDEVICE_CONTEXT pContext, WDFMEMORY * pMem, size_t *pSize)
 {
-	DEBUG_ENTRY(0);
+	DEBUG_ENTRY(2);
 
 	// For now let's assume only one chunck!
 
@@ -192,7 +192,7 @@ void VIOSerialQueueRequest(IN PDEVICE_CONTEXT pContext,
 
 	if(pPort)
 	{
-		DPrintf(0, ("Set last read request %x\n", Request));
+		DPrintf(2, ("Set last read request %x\n", Request));
 		pPort->lastReadRequest = Request;
 	}
 }

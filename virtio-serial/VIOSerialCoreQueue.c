@@ -334,13 +334,13 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 	{
 		pBufferDescriptor = pPort->internalReadBuffer;
 		len = pPort->internalReadBufferLength;
-		DPrintf(0, ("Using internal buffer!\n"));
+		DPrintf(2, ("Using internal buffer!\n"));
 	}
 	else
 	{
 		if(NULL == (pBufferDescriptor = pPort->ReceiveQueue->vq_ops->get_buf(pPort->ReceiveQueue, &len)))
 		{
-			DPrintf(0, ("[%s] No buffers in queue!\n", __FUNCTION__));
+			DPrintf(2, ("[%s] No buffers in queue!\n", __FUNCTION__));
 			status = STATUS_UNSUCCESSFUL;
 		}
 	}
@@ -364,7 +364,7 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 		}
 		else
 		{
-			DPrintf(0, ("Keeping buffer internally, *pSize %d\n", pSize));
+			DPrintf(2, ("Keeping buffer internally, *pSize %d\n", pSize));
 			AddRxBufferToInternalWaitingQueue(pPort, pBufferDescriptor, len);
 		}
 
@@ -372,6 +372,6 @@ NTSTATUS VSCRecieveCopyBuffer(PVIOSERIAL_PORT pPort,
 		if(!bDPC) WdfSpinLockRelease(Lock);
 	}
 
-	DPrintf(0, ("%s> exit status %x\n", __FUNCTION__, status));
+	DPrintf(2, ("%s> exit status %x\n", __FUNCTION__, status));
 	return status;
 }

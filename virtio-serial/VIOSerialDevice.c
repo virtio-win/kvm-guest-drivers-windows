@@ -450,7 +450,7 @@ VOID VIOSerialEvtIoRead(IN WDFQUEUE  Queue,
 	NTSTATUS status;
 	PDEVICE_CONTEXT pContext = GetContextFromQueue(Queue);
 
-	DPrintf(0, ("%s> %d bytes", __FUNCTION__, Length));
+	DPrintf(2, ("%s> %d bytes", __FUNCTION__, Length));
 
 	if(NT_SUCCESS(status = WdfRequestRetrieveOutputMemory(Request, &outMemory)))
 	{
@@ -465,7 +465,7 @@ VOID VIOSerialEvtIoRead(IN WDFQUEUE  Queue,
 		}
 		else  //There was no data to in queue, handle request when the data is ready
 		{
-			DPrintf(0, ("Mark read request pending %x\n", Request));
+			DPrintf(2, ("Mark read request pending %x\n", Request));
 
 			WdfSpinLockAcquire(pContext->DPCLock);
 			if(NT_SUCCESS(status = WdfRequestMarkCancelableEx(Request, VIOSerialEvtRequestCancel)))
@@ -496,7 +496,7 @@ VOID VIOSerialEvtIoWrite(IN WDFQUEUE  Queue,
 	PVOID buffer = NULL;
 	NTSTATUS status;
 
-	DEBUG_ENTRY(0);
+	DEBUG_ENTRY(2);
 	
 	if(NT_SUCCESS(WdfRequestRetrieveInputMemory(Request, &inMemory)))
 	{
