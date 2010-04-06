@@ -30,16 +30,16 @@ goto :eof
 :signVista
 shift
 if /i "%1"=="x86" set _OSMASK_=Vista_X86,Server2008_X86,7_X86
-if /i "%1"=="amd64" set _OSMASK_=Vista_X64,Server2008_X64,7_X64
-if /i "%1"=="x64" set _OSMASK_=Vista_X64,Server2008_X64,7_X64
+if /i "%1"=="amd64" set _OSMASK_=Vista_X64,Server2008_X64,7_X64,Server2008R2_X64
+if /i "%1"=="x64" set _OSMASK_=Vista_X64,Server2008_X64,7_X64,Server2008R2_X64
 call :dosign %1 %2 %3 
 goto :eof
 
 :signWin7
 shift
 if /i "%1"=="x86" set _OSMASK_=Vista_X86,Server2008_X86,7_X86
-if /i "%1"=="amd64" set _OSMASK_=Vista_X64,Server2008_X64,7_X64
-if /i "%1"=="x64" set _OSMASK_=Vista_X64,Server2008_X64,7_X64
+if /i "%1"=="amd64" set _OSMASK_=Vista_X64,Server2008_X64,7_X64,Server2008R2_X64
+if /i "%1"=="x64" set _OSMASK_=Vista_X64,Server2008_X64,7_X64,Server2008R2_X64
 call :dosign %1 %2 %3 
 goto :eof
 
