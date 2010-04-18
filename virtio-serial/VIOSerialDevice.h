@@ -10,6 +10,7 @@ EVT_WDF_DEVICE_PREPARE_HARDWARE		VIOSerialEvtDevicePrepareHardware;
 EVT_WDF_DEVICE_RELEASE_HARDWARE		VIOSerialEvtDeviceReleaseHardware;
 EVT_WDF_DEVICE_D0_ENTRY				VIOSerialEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT				VIOSerialEvtDeviceD0Exit;
+EVT_WDF_DEVICE_D0_ENTRY_POST_INTERRUPTS_ENABLED VIOSerialEvtDeviceD0EntryPostInterruptsEnabled;
 
 // IO related callbacks.
 EVT_WDF_DEVICE_FILE_CREATE			VIOSerialEvtDeviceFileCreate;

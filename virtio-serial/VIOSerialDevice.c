@@ -53,6 +53,7 @@ static void VIOSerialInitPowerManagement(IN PWDFDEVICE_INIT DeviceInit,
 	stPnpPowerCallbacks->EvtDeviceReleaseHardware = VIOSerialEvtDeviceReleaseHardware;
 	stPnpPowerCallbacks->EvtDeviceD0Entry = VIOSerialEvtDeviceD0Entry;
 	stPnpPowerCallbacks->EvtDeviceD0Exit = VIOSerialEvtDeviceD0Exit;
+	stPnpPowerCallbacks->EvtDeviceD0EntryPostInterruptsEnabled = VIOSerialEvtDeviceD0EntryPostInterruptsEnabled;
 
 	WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, stPnpPowerCallbacks);
 }
@@ -354,7 +355,6 @@ NTSTATUS VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
 	VSCInit(Device);
 	
 	pContext->isDeviceInitialized = TRUE;
-	VSCGuestSetPortsReady(pContext);
 
 	return STATUS_SUCCESS;
 }
@@ -379,6 +379,18 @@ NTSTATUS VIOSerialEvtDeviceReleaseHardware(IN WDFDEVICE Device,
 	}
 
 	pContext->pPortBase = (ULONG_PTR)NULL;
+
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS VIOSerialEvtDeviceD0EntryPostInterruptsEnabled(IN WDFDEVICE Device,
+														IN WDF_POWER_DEVICE_STATE PreviousState)
+{
+	PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
+
+	DEBUG_ENTRY(0);
+
+	VSCGuestSetPortsReady(pContext);
 
 	return STATUS_SUCCESS;
 }

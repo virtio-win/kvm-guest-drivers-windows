@@ -54,7 +54,7 @@ VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt,
 	PDEVICE_CONTEXT	pContext;
 	
 	
-	DEBUG_ENTRY(0);
+	DEBUG_ENTRY(4);
 
 	if(!Interrupt)
 	{
