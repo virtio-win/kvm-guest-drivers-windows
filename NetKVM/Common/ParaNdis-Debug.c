@@ -272,6 +272,7 @@ static UINT FillDataOnBugCheck()
 		pSave->nofReadyTxBuffers = p->nofFreeHardwareBuffers;
 		pSave->LastInterruptTimeStamp = p->LastInterruptTimeStamp;
 		pSave->LastTxCompletionTimeStamp = p->LastTxCompletionTimeStamp;
+		ParaNdis_CallOnBugCheck(p);
 		++n;
 	}
 	return n;

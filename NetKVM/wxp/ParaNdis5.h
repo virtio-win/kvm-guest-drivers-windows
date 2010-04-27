@@ -54,6 +54,8 @@ NDIS_STATUS ParaNdis5_StopReceive(
 	BOOLEAN bStop,
 	ONPAUSECOMPLETEPROC Callback
 	);
+VOID ParaNdis5_HandleDPC(
+	IN NDIS_HANDLE MiniportAdapterContext);
 
 typedef struct _tagPowerWorkItem
 {

@@ -158,6 +158,29 @@ BOOLEAN ParaNdis_InitialAllocatePhysicalMemory(
 	return pAddresses->Virtual != NULL;
 }
 
+/**********************************************************
+Callback of timer for pending events cleanup after regular DPC processing
+Parameters:
+	context (on FunctionContext)
+	all the rest are irrelevant
+***********************************************************/
+static VOID OnDPCPostProcessTimer(
+	IN PVOID  SystemSpecific1,
+	IN PVOID  FunctionContext,
+	IN PVOID  SystemSpecific2,
+	IN PVOID  SystemSpecific3
+	)
+{
+	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)FunctionContext;
+	ULONG requiresProcessing;
+	requiresProcessing = ParaNdis_DPCWorkBody(pContext);
+	if (requiresProcessing)
+	{
+		// we need to request additional DPC
+		InterlockedOr(&pContext->InterruptStatus, requiresProcessing);
+		NdisSetTimer(&pContext->DPCPostProcessTimer, 10);
+	}
+}
 
 /**********************************************************
 NDIS5 implementation of shared memory freeing
@@ -205,6 +228,7 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(
 	InitializeListHead(&pContext->SendQueue);
 	InitializeListHead(&pContext->TxWaitingList);
 	NdisInitializeTimer(&pContext->ConnectTimer, OnConnectTimer, pContext);
+	NdisInitializeTimer(&pContext->DPCPostProcessTimer, OnDPCPostProcessTimer, pContext);
 
 	status = NdisMRegisterInterrupt(
 		&pContext->Interrupt,
@@ -466,11 +490,12 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 
 VOID ParaNdis_IndicateReceivedBatch(
 	PARANDIS_ADAPTER *pContext,
+	tPacketIndicationType *pBatch,
 	ULONG nofPackets)
 {
 	NdisMIndicateReceivePacket(
 		pContext->MiniportHandle,
-		pContext->pBatchOfPackets,
+		pBatch,
 		nofPackets);
 }
 
@@ -1237,18 +1262,6 @@ NDIS_STATUS ParaNdis5_StopSend(PARANDIS_ADAPTER *pContext, BOOLEAN bStop, ONPAUS
 }
 
 /**********************************************************
-Syncronize interrupt enable from DPC
-Parameters:
-	context
-***********************************************************/
-void ParaNdis_SyncInterruptEnable(PARANDIS_ADAPTER *pContext)
-{
-	NdisMSynchronizeWithInterrupt(&pContext->Interrupt,
-								  ParaNdis_MiniportSynchronizeInterruptEnable,
-								  pContext);
-}
-
-/**********************************************************
 Pause or resume receive operation:
 Parameters:
 	context
@@ -1291,5 +1304,38 @@ NDIS_STATUS ParaNdis5_StopReceive(
 	return status;
 }
 
+/*************************************************************
+Required NDIS procedure, spawns regular (Common) DPC processing
+*************************************************************/
+VOID ParaNdis5_HandleDPC(IN NDIS_HANDLE MiniportAdapterContext)
+{
+	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportAdapterContext;
+	ULONG requiresProcessing;
+	BOOLEAN unused;
+	DEBUG_ENTRY(7);
+	// we do not need the timer, as DPC will do all the job
+	// this is not a problem if the timer procedure is already running, 
+	// we need to do our job anyway
+	NdisCancelTimer(&pContext->DPCPostProcessTimer, &unused);
+	requiresProcessing = ParaNdis_DPCWorkBody(pContext);
+	if (requiresProcessing)
+	{
+		// we need to request additional DPC
+		InterlockedOr(&pContext->InterruptStatus, requiresProcessing);
+		NdisSetTimer(&pContext->DPCPostProcessTimer, 10);
+	}
+}
+
+BOOLEAN ParaNdis_SynchronizeWithInterrupt(
+	PARANDIS_ADAPTER *pContext,
+	ULONG messageId,
+	tSynchronizedProcedure procedure,
+	ULONG parameter)
+{
+	tSynchronizedContext SyncContext;
+	SyncContext.pContext  = pContext;
+	SyncContext.Parameter = parameter;
+	return NdisMSynchronizeWithInterrupt(&pContext->Interrupt, procedure, &SyncContext);
+}
 
 #endif //defined(NDIS51_MINIPORT) || defined(NDIS50_MINIPORT)

@@ -54,9 +54,6 @@
 #error "Something is wrong with our versioning"
 #endif
 
-//define to start really using MSI-X interrupt in Vista+
-//#define VIRTIO_USE_MSIX_INTERRUPT
-
 //define to see when the status register is unreadable(see ParaNdis_ResetVirtIONetDevice)
 //#define VIRTIO_RESET_VERIFY
 
@@ -65,8 +62,10 @@
 
 // define if qemu supports logging to static IO port for synchronization
 // of driver output with qemu printouts; in this case define the port number
-//#define VIRTIO_DBG_USE_IOPORT	0x99
+// #define VIRTIO_DBG_USE_IOPORT	0x99
 
+// to be set to real limit later 
+#define MAX_RX_LOOPS	1000
 
 /* The feature bitmap for virtio net */
 #define VIRTIO_NET_F_CSUM	0	/* Host handles pkts w/ partial csum */
@@ -95,6 +94,17 @@
 #define PARANDIS_MAXIMUM_RECEIVE_SPEED		PARANDIS_FORMAL_LINK_SPEED
 #define PARANDIS_MIN_LSO_SEGMENTS			2
 #define PARANDIS_MAX_LSO_SIZE				0xF000
+
+typedef enum _tagInterruptSource 
+{ 
+	isReceive  = 0x01, 
+	isTransmit = 0x02, 
+	isControl  = 0x04,
+	isUnknown  = 0x08,
+	isBothTransmitReceive = isReceive | isTransmit, 
+	isAny      = isReceive | isTransmit | isControl | isUnknown,
+	isDisable  = 0x80
+}tInterruptSource;
 
 static const ULONG PARANDIS_PACKET_FILTERS =
 	NDIS_PACKET_TYPE_DIRECTED |
@@ -242,7 +252,6 @@ typedef struct _tagPARANDIS_ADAPTER
 	LARGE_INTEGER			LastTxCompletionTimeStamp;
 	LARGE_INTEGER			LastInterruptTimeStamp;
 	BOOLEAN					bConnected;
-	BOOLEAN 				bDPCInactive;
 	BOOLEAN					bEnableInterruptHandlingDPC;
 	BOOLEAN					bEnableInterruptChecking;
 	BOOLEAN					bDoInterruptRecovery;
@@ -260,6 +269,8 @@ typedef struct _tagPARANDIS_ADAPTER
 	BOOLEAN					bSurprizeRemoved;
 	BOOLEAN					bUsingMSIX;
 	NDIS_DEVICE_POWER_STATE powerState;
+	LONG 					counterDPCInside;
+	LONG 					bDPCInactive;
 	LONG					InterruptStatus;
 	ULONG					ulPriorityVlanSetting;
 	ULONG					VlanId;
@@ -289,7 +300,6 @@ typedef struct _tagPARANDIS_ADAPTER
 	NDIS_SPIN_LOCK			ReceiveLock;
 	};
 #endif
-	NDIS_SPIN_LOCK			DPCLock;
 	NDIS_STATISTICS_INFO	Statistics;
 	tOurCounters			Counters;
 	tOurCounters			Limits;
@@ -324,13 +334,17 @@ typedef struct _tagPARANDIS_ADAPTER
 	LONG					NetTxPacketsToReturn;
 	/* total of Rx buffer in turnaround */
 	UINT					NetMaxReceiveBuffers;
-	tPacketIndicationType	*pBatchOfPackets;
-	UINT					maxPacketsInBatch;
 	struct VirtIOBufferDescriptor *sgTxGatherTable;
 	UINT					nPnpEventIndex;
 	NDIS_DEVICE_PNP_EVENT	PnpEvents[16];
 	tOffloadSettings		Offload;
 	NDIS_OFFLOAD_PARAMETERS	InitialOffloadParameters;
+	// we keep these members common for XP and Vista
+	// for XP and non-MSI case of Vista they are set to zero
+	ULONG						ulRxMessage;
+	ULONG						ulTxMessage;
+	ULONG						ulControlMessage;
+
 #if NDIS60_MINIPORT
 // Vista +
 	PIO_INTERRUPT_MESSAGE_INFO	pMSIXInfoTable;
@@ -354,6 +368,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	LIST_ENTRY					TxWaitingList;
 	NDIS_EVENT					HaltEvent;
 	NDIS_TIMER					ConnectTimer;
+	NDIS_TIMER					DPCPostProcessTimer;
 	BOOLEAN						bDmaInitialized;
 #endif
 }PARANDIS_ADAPTER, *PPARANDIS_ADAPTER;
@@ -365,6 +380,13 @@ typedef struct _tagCopyPacketResult
 	enum tCopyPacketError { cpeOK, cpeNoBuffer, cpeInternalError, cpeTooLarge } error;
 }tCopyPacketResult;
 
+typedef struct _tagSynchronizedContext
+{
+	PARANDIS_ADAPTER *pContext;
+	ULONG			 Parameter;
+}tSynchronizedContext;
+
+typedef BOOLEAN (*tSynchronizedProcedure)(tSynchronizedContext *context);
 
 /**********************************************************
 LAZZY release procedure returns buffers to VirtIO
@@ -430,13 +452,7 @@ void ParaNdis_VirtIONetReuseRecvBuffer(
 UINT ParaNdis_VirtIONetReleaseTransmitBuffers(
 	PARANDIS_ADAPTER *pContext);
 
-void ParaNdis_DPCWorkBody(
-	PARANDIS_ADAPTER *pContext);
-
-BOOLEAN ParaNdis_MiniportSynchronizeInterruptEnable(
-	IN PVOID SynchronizeContext);
-
-void ParaNdis_SyncInterruptEnable(
+ULONG ParaNdis_DPCWorkBody(
 	PARANDIS_ADAPTER *pContext);
 
 NDIS_STATUS ParaNdis_SetMulticastList(
@@ -446,9 +462,10 @@ NDIS_STATUS ParaNdis_SetMulticastList(
 	PUINT pBytesRead,
 	PUINT pBytesNeeded);
 
-VOID ParaNdis_VirtIOEnableInterrupt(
+VOID ParaNdis_VirtIOEnableIrqSynchronized(
 	PARANDIS_ADAPTER *pContext,
-	BOOLEAN bEnable);
+	ULONG interruptSource,
+	BOOLEAN b);
 
 VOID ParaNdis_OnPnPEvent(
 	PARANDIS_ADAPTER *pContext,
@@ -458,7 +475,8 @@ VOID ParaNdis_OnPnPEvent(
 
 BOOLEAN ParaNdis_OnInterrupt(
 	PARANDIS_ADAPTER *pContext,
-	BOOLEAN *pRunDpc);
+	BOOLEAN *pRunDpc,
+	ULONG knownInterruptSources);
 
 VOID ParaNdis_OnShutdown(
 	PARANDIS_ADAPTER *pContext);
@@ -532,6 +550,8 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 
 void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsFlags *pDest, PULONG from);
 
+void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext);
+
 /*****************************************************
 Procedures to implement for NDIS specific implementation
 ******************************************************/
@@ -558,6 +578,7 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 
 VOID ParaNdis_IndicateReceivedBatch(
 	PARANDIS_ADAPTER *pContext,
+	tPacketIndicationType *pBatch,
 	ULONG nofPackets);
 
 
@@ -583,6 +604,12 @@ VOID ParaNdis_ProcessTx(
 BOOLEAN ParaNdis_SetTimer(
 	NDIS_HANDLE timer,
 	LONG millies);
+
+BOOLEAN ParaNdis_SynchronizeWithInterrupt(
+	PARANDIS_ADAPTER *pContext,
+	ULONG messageId,
+	tSynchronizedProcedure procedure,
+	ULONG parameter);
 
 VOID ParaNdis_Suspend(
 	PARANDIS_ADAPTER *pContext);
@@ -634,6 +661,9 @@ void ParaNdis_IndicateConnect(
 	PARANDIS_ADAPTER *pContext,
 	BOOLEAN bConnected,
 	BOOLEAN bForce);
+
+void ParaNdis_RestoreDeviceConfigurationAfterReset(
+	PARANDIS_ADAPTER *pContext);
 
 #endif //-OFFLOAD_UNIT_TEST
 

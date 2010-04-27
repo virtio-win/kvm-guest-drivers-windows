@@ -916,8 +916,6 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
 #if !defined(UNIFY_LOCKS)
 	NdisAllocateSpinLock(&pContext->ReceiveLock);
 #endif
-	NdisAllocateSpinLock(&pContext->DPCLock);
-
 
 	InitializeListHead(&pContext->NetReceiveBuffers);
 	InitializeListHead(&pContext->NetReceiveBuffersWaiting);
@@ -925,20 +923,6 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
 	InitializeListHead(&pContext->NetFreeSendBuffers);
 
 	status = ParaNdis_FinishSpecificInitialization(pContext);
-
-	if (pContext->bBatchReceive && status == NDIS_STATUS_SUCCESS)
-	{
-		// prepare the buffer for batch data indication
-		// just to be on the safe side - double the number, pContext->NetMaxReceiveBuffers is enough
-		pContext->maxPacketsInBatch = pContext->NetMaxReceiveBuffers * 2;
-		pContext->pBatchOfPackets =
-			ParaNdis_AllocateMemory(pContext, sizeof(tPacketIndicationType) * pContext->maxPacketsInBatch);
-		if (!pContext->pBatchOfPackets)
-		{
-			pContext->maxPacketsInBatch = 0;
-			status = NDIS_STATUS_RESOURCES;
-		}
-	}
 
 	if (status == NDIS_STATUS_SUCCESS)
 	{
@@ -1028,6 +1012,22 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 }
 
 
+static void PreventDPCServicing(PARANDIS_ADAPTER *pContext)
+{
+	LONG inside;;
+	pContext->bEnableInterruptHandlingDPC = FALSE;
+	do 
+	{
+		inside = InterlockedIncrement(&pContext->counterDPCInside);
+		InterlockedDecrement(&pContext->counterDPCInside);
+		if (inside > 1)
+		{
+			DPrintf(0, ("[%s] waiting!", __FUNCTION__));
+			NdisMSleep(20000);
+		}
+	} while (inside > 1);
+}
+
 /**********************************************************
 Frees all the resources allocated when the context initialized,
 	calling also version-dependent part
@@ -1048,9 +1048,7 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 		//DPrintf(0, ("cleanup %d", nActive));
 	}
 
-	NdisAcquireSpinLock(&pContext->DPCLock);
-	pContext->bEnableInterruptHandlingDPC = FALSE;
-	NdisReleaseSpinLock(&pContext->DPCLock);
+	PreventDPCServicing(pContext);
 
 	/****************************************
 	ensure all the incoming packets returned,
@@ -1065,11 +1063,6 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 	}
 	VirtIONetRelease(pContext);
 
-	if (pContext->pBatchOfPackets)
-	{
-		NdisFreeMemory(pContext->pBatchOfPackets, 0, 0);
-	}
-
 	ParaNdis_FinalizeCleanup(pContext);
 
 	if (pContext->SendLock.SpinLock)
@@ -1083,10 +1076,6 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 		NdisFreeSpinLock(&pContext->ReceiveLock);
 	}
 #endif
-	if (pContext->DPCLock.SpinLock)
-	{
-		NdisFreeSpinLock(&pContext->DPCLock);
-	}
 
 	if (pContext->AdapterResources.ulIOAddress)
 	{
@@ -1095,7 +1084,7 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 			pContext->AdapterResources.ulIOAddress,
 			pContext->AdapterResources.IOLength,
 			pContext->pIoPortOffset);
-
+		pContext->AdapterResources.ulIOAddress = 0;
 	}
 }
 
@@ -1115,32 +1104,48 @@ VOID ParaNdis_OnShutdown(PARANDIS_ADAPTER *pContext)
 Handles hardware interrupt
 Parameters:
 	context
-	void *pDescriptor - pIONetDescriptor to return
+	ULONG knownInterruptSources - bitmask of 
 Return value:
 	TRUE, if it is our interrupt
 	sets *pRunDpc to TRUE if the DPC should be fired
 ***********************************************************/
 BOOLEAN ParaNdis_OnInterrupt(
 	PARANDIS_ADAPTER *pContext,
-	BOOLEAN *pRunDpc)
+	OUT BOOLEAN *pRunDpc,
+	ULONG knownInterruptSources)
 {
 	ULONG status;
-	BOOLEAN b;
-	status = VirtIODeviceISR(&pContext->IODevice);
-	// ignore interrupts with invalid status bits
-	if (
-		status == VIRTIO_NET_INVALID_INTERRUPT_STATUS ||
-		pContext->powerState != NetDeviceStateD0
-		)
-		status = 0;
-	InterlockedOr(&pContext->InterruptStatus, (LONG)status);
-	b = !!status;
-	*pRunDpc = b;
-	if (b)
+	BOOLEAN b = FALSE;
+	if (knownInterruptSources == isAny)
 	{
-		NdisGetCurrentSystemTime(&pContext->LastInterruptTimeStamp);
-		ParaNdis_VirtIOEnableInterrupt(pContext, FALSE);
+		status = VirtIODeviceISR(&pContext->IODevice);
+		// ignore interrupts with invalid status bits
+		if (
+			status == VIRTIO_NET_INVALID_INTERRUPT_STATUS ||
+			pContext->powerState != NetDeviceStateD0
+			)
+			status = 0;
+		if (status)
+		{
+			*pRunDpc = TRUE;
+			b = TRUE;
+			NdisGetCurrentSystemTime(&pContext->LastInterruptTimeStamp);
+			ParaNdis_VirtIOEnableIrqSynchronized(pContext, isAny, FALSE);
+			status = (status & 2) ? isControl : 0;
+			status |= isReceive | isTransmit;
+			InterlockedOr(&pContext->InterruptStatus, (LONG)status);
+		}
 	}
+	else
+	{
+		b = TRUE;	
+		*pRunDpc = TRUE;
+		NdisGetCurrentSystemTime(&pContext->LastInterruptTimeStamp);
+		InterlockedOr(&pContext->InterruptStatus, (LONG)knownInterruptSources);
+		ParaNdis_VirtIOEnableIrqSynchronized(pContext, knownInterruptSources, FALSE);
+		status = knownInterruptSources;
+	}
+	DPrintf(5, ("[%s](src%X)=>st%X", __FUNCTION__, knownInterruptSources, status));
 	return b;
 }
 
@@ -1244,11 +1249,16 @@ UINT ParaNdis_VirtIONetReleaseTransmitBuffers(
 	{
 		NdisGetCurrentSystemTime(&pContext->LastTxCompletionTimeStamp);
 		pContext->bDoKickOnNoBuffer = TRUE;
+		pContext->nDetectedStoppedTx = 0;
 	}
 	DEBUG_EXIT_STATUS((i ? 3 : 5), i);
 	return i;
 }
 
+/*********************************************************
+Called with from ProcessTx routine with TxLock held
+Uses pContext->sgTxGatherTable
+***********************************************************/
 tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperationParameters *Params)
 {
 	tCopyPacketResult result;
@@ -1604,6 +1614,10 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext)
 	UINT len, headerSize = pContext->nVirtioHeaderSize;
 	eInspectedPacketType packetType = iptInvalid;
 	UINT nReceived = 0, nRetrieved = 0, nReported = 0;
+	tPacketIndicationType	*pBatchOfPackets;
+	UINT					maxPacketsInBatch = pContext->NetMaxReceiveBuffers;
+	pBatchOfPackets = pContext->bBatchReceive ? 
+		ParaNdis_AllocateMemory(pContext, maxPacketsInBatch * sizeof(tPacketIndicationType)) : NULL;
 	NdisAcquireSpinLock(&pContext->ReceiveLock);
 	while ((uLoopCount++ < pContext->uRXPacketsDPCLimit) && NULL != (pBuffersDescriptor = pContext->NetReceiveQueue->vq_ops->get_buf(pContext->NetReceiveQueue, &len)))
 	{
@@ -1622,7 +1636,7 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext)
 		{
 			BOOLEAN b = FALSE;
 			ULONG length = len - headerSize;
-			if (!pContext->pBatchOfPackets)
+			if (!pBatchOfPackets)
 			{
 				NdisReleaseSpinLock(&pContext->ReceiveLock);
 				b = NULL != ParaNdis_IndicateReceivedPacket(
@@ -1643,7 +1657,7 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext)
 					TRUE,
 					pBuffersDescriptor);
 				b = packet != NULL;
-				if (b) pContext->pBatchOfPackets[nReceived] = packet;
+				if (b) pBatchOfPackets[nReceived] = packet;
 			}
 			if (!b)
 			{
@@ -1673,10 +1687,11 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext)
 						pContext->Statistics.ifHCInUcastOctets += length;
 						break;
 				}
-				if (pContext->pBatchOfPackets && nReceived == pContext->maxPacketsInBatch)
+				if (pBatchOfPackets && nReceived == maxPacketsInBatch)
 				{
+					DPrintf(1, ("[%s] received %d buffers", __FUNCTION__, nReceived));
 					NdisReleaseSpinLock(&pContext->ReceiveLock);
-					ParaNdis_IndicateReceivedBatch(pContext, nReceived);
+					ParaNdis_IndicateReceivedBatch(pContext, pBatchOfPackets, nReceived);
 					NdisAcquireSpinLock(&pContext->ReceiveLock);
 					nReceived = 0;
 				}
@@ -1690,12 +1705,12 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext)
 	}
 	ParaNdis_DebugHistory(pContext, hopReceiveStat, NULL, nRetrieved, nReported, pContext->NetNofReceiveBuffers);
 	NdisReleaseSpinLock(&pContext->ReceiveLock);
-	if (nReceived)
+	if (nReceived && pBatchOfPackets)
 	{
 		DPrintf(1, ("[%s] received %d buffers", __FUNCTION__, nReceived));
-		if (pContext->pBatchOfPackets)
-			ParaNdis_IndicateReceivedBatch(pContext, nReceived);
+		ParaNdis_IndicateReceivedBatch(pContext, pBatchOfPackets, nReceived);
 	}
+	if (pBatchOfPackets) NdisFreeMemory(pBatchOfPackets, 0, 0);
 	return nRetrieved;
 }
 
@@ -1713,71 +1728,82 @@ void ParaNdis_ReportLinkStatus(PARANDIS_ADAPTER *pContext)
 	ParaNdis_IndicateConnect(pContext, bConnected, FALSE);
 }
 
-BOOLEAN ParaNdis_MiniportSynchronizeInterruptEnable(IN PVOID  SynchronizeContext)
+
+static BOOLEAN RestartQueueSynchronously(tSynchronizedContext *SyncContext)
 {
-	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)SynchronizeContext;
-
-	DEBUG_ENTRY(6);
-	ParaNdis_VirtIOEnableInterrupt(pContext, TRUE);
-
-	return TRUE;
+	PARANDIS_ADAPTER *pContext = SyncContext->pContext;
+	BOOLEAN b = 0;
+	if (SyncContext->Parameter & isReceive)
+	{
+		b = !pContext->NetReceiveQueue->vq_ops->restart(pContext->NetReceiveQueue);
+	}
+	if (SyncContext->Parameter & isTransmit)
+	{
+		b = !pContext->NetSendQueue->vq_ops->restart(pContext->NetSendQueue);
+	}
+	return b;
 }
-
 /**********************************************************
 DPC implementation, common for both NDIS
 Parameters:
 	context
 ***********************************************************/
-void ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
+ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
 {
-	int nRestartResult = 2, nLoop = 0;
-	LONG interruptStatus;
+	ULONG stillRequiresProcessing = 0;
+	ULONG interruptSources;
 	DEBUG_ENTRY(5);
-	NdisAcquireSpinLock(&pContext->DPCLock);
-	ParaNdis_DebugHistory(pContext, hopDPC, NULL, 1, pContext->InterruptStatus, 0);
-	if (pContext->bEnableInterruptHandlingDPC)
+	ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)1, 0, 0, 0);
+	if (pContext->bEnableInterruptHandlingDPC)	
 	{
-		pContext->bDPCInactive = FALSE;
-		interruptStatus = InterlockedExchange(&pContext->InterruptStatus, 0);
-#ifdef VIRTIO_SIGNAL_ERROR
-		if (interruptStatus & 4)
+		InterlockedIncrement(&pContext->counterDPCInside);
+		if (pContext->bEnableInterruptHandlingDPC)
 		{
-			DPrintf(0, ("[%s] ERROR signaled by hardware!!!!!", __FUNCTION__));
-		}
-#endif
-		if (interruptStatus & 2)
-		{
-			if (pContext->bLinkDetectSupported) ParaNdis_ReportLinkStatus(pContext);
-		}
-		ParaNdis_ProcessTx(pContext, TRUE);
-		while (nRestartResult)
-		{
-			UINT n = ParaNdis_ProcessRxPath(pContext);
-			if (nRestartResult == 1 && !n)
+			InterlockedExchange(&pContext->bDPCInactive, 0);
+			interruptSources = InterlockedExchange(&pContext->InterruptStatus, 0);
+			if ((interruptSources & isControl) && pContext->bLinkDetectSupported)
 			{
-				DPrintf(0, ("[%s] Rx restarted by mistake", __FUNCTION__));
+				ParaNdis_ReportLinkStatus(pContext);
 			}
-			NdisAcquireSpinLock(&pContext->ReceiveLock);
-			nRestartResult = !pContext->NetReceiveQueue->vq_ops->restart(pContext->NetReceiveQueue);
-			NdisReleaseSpinLock(&pContext->ReceiveLock);
-			DPrintf(nRestartResult ? 2 : 6, ("[%s] queue restarted%s", __FUNCTION__, nRestartResult ? "(Rerun)" : ""));
-			++nLoop;
-			if (nRestartResult && pContext->InterruptStatus)
+			if (interruptSources & isTransmit)
 			{
-				DPrintf(2, ("[%s] another dpc already scheduled(%d)", __FUNCTION__, nLoop));
-				break;
+				ParaNdis_ProcessTx(pContext, TRUE);
 			}
-			if (nLoop == 1000)
+			if (interruptSources & isReceive)
 			{
-				DPrintf(0, ("[%s] Too many (%d) Rx restarts, prevent infinite loop", __FUNCTION__, nLoop));
-				break;
-			}
-		}
-	}
-	ParaNdis_DebugHistory(pContext, hopDPC, NULL, 0, pContext->nofFreeHardwareBuffers, pContext->nofFreeTxDescriptors);
-	NdisReleaseSpinLock(&pContext->DPCLock);
+				int nRestartResult = 2, nLoop = 0;
+				while (nRestartResult)
+				{
+					UINT n = ParaNdis_ProcessRxPath(pContext);
 
-	ParaNdis_SyncInterruptEnable(pContext);
+					NdisAcquireSpinLock(&pContext->ReceiveLock);
+					nRestartResult = ParaNdis_SynchronizeWithInterrupt(
+						pContext, pContext->ulRxMessage, RestartQueueSynchronously, isReceive); 
+					NdisReleaseSpinLock(&pContext->ReceiveLock);
+					DPrintf(nRestartResult ? 2 : 6, ("[%s] queue restarted%s", __FUNCTION__, nRestartResult ? "(Rerun)" : "(Done)"));
+					
+					++nLoop;
+					if (nLoop > MAX_RX_LOOPS)
+					{
+						DPrintf(0, ("[%s] Breaking Rx loop on %d-th operation", __FUNCTION__, nLoop));
+						break;
+					}
+				}
+				if (nRestartResult) stillRequiresProcessing |= isReceive;
+			}
+
+			if (interruptSources & isTransmit)
+			{
+				NdisAcquireSpinLock(&pContext->SendLock);
+				if (ParaNdis_SynchronizeWithInterrupt(pContext, pContext->ulTxMessage, RestartQueueSynchronously, isTransmit)) 
+					stillRequiresProcessing |= isTransmit;
+				NdisReleaseSpinLock(&pContext->SendLock);
+			}
+		}
+		InterlockedDecrement(&pContext->counterDPCInside);
+		ParaNdis_DebugHistory(pContext, hopDPC, NULL, stillRequiresProcessing, pContext->nofFreeHardwareBuffers, pContext->nofFreeTxDescriptors);
+	}
+	return stillRequiresProcessing;
 }
 
 /**********************************************************
@@ -1790,53 +1816,49 @@ static BOOLEAN CheckRunningDpc(PARANDIS_ADAPTER *pContext)
 {
 	BOOLEAN bStopped;
 	BOOLEAN bReportHang = FALSE;
-	NdisAcquireSpinLock(&pContext->DPCLock);
-	bStopped = pContext->bDPCInactive;
-	pContext->bDPCInactive = TRUE;
-	NdisReleaseSpinLock(&pContext->DPCLock);
+	bStopped = 0 != InterlockedExchange(&pContext->bDPCInactive, TRUE);
 
 	if (bStopped)
 	{
 		pContext->nDetectedInactivity++;
 		if (pContext->nEnableDPCChecker)
 		{
-			DPrintf(0, ("[%s] - NO ACTIVITY!", __FUNCTION__));
-			if (!pContext->Limits.nPrintDiagnostic) PrintStatistics(pContext);
-			if (pContext->nEnableDPCChecker > 1)
+			if (pContext->NetTxPacketsToReturn)
 			{
-				int isrStatus1, isrStatus2;
-				isrStatus1 = VirtIODeviceISR(&pContext->IODevice);
-				isrStatus2 = VirtIODeviceISR(&pContext->IODevice);
-				if (isrStatus1 || isrStatus2)
+				DPrintf(0, ("[%s] - NO ACTIVITY!", __FUNCTION__));
+				if (!pContext->Limits.nPrintDiagnostic) PrintStatistics(pContext);
+				if (pContext->nEnableDPCChecker > 1)
 				{
-					DPrintf(0, ("WARNING: Interrupt status %d=>%d", isrStatus1, isrStatus2));
+					int isrStatus1, isrStatus2;
+					isrStatus1 = VirtIODeviceISR(&pContext->IODevice);
+					isrStatus2 = VirtIODeviceISR(&pContext->IODevice);
+					if (isrStatus1 || isrStatus2)
+					{
+						DPrintf(0, ("WARNING: Interrupt status %d=>%d", isrStatus1, isrStatus2));
+					}
 				}
+				// simulateDPC
+				InterlockedOr(&pContext->InterruptStatus, isAny);			
+				ParaNdis_DPCWorkBody(pContext);
 			}
-			// simulateDPC
-			ParaNdis_DPCWorkBody(pContext);
-		}
-		else
-		{
-			// this works only without scatter-gather...
-			// TODO: provide some kind of detection also for SG case
-			NdisAcquireSpinLock(&pContext->SendLock);
-			if (pContext->NetTxPacketsToReturn && !pContext->nofFreeTxDescriptors)
-			{
-				DPrintf(0, ("[%s] - Tx path does not transfer data!", __FUNCTION__));
-				bReportHang = TRUE;
-				pContext->nDetectedStoppedTx++;
-				// TODO: remove it when the problem solved
-				// just to be able to make breakpoint or dump in QEMU
-				// when such a problem happens
-				WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 1);
-			}
-			NdisReleaseSpinLock(&pContext->SendLock);
 		}
 	}
 	else
 	{
 		pContext->nDetectedInactivity = 0;
 	}
+
+	NdisAcquireSpinLock(&pContext->SendLock);
+	if (pContext->nofFreeHardwareBuffers != pContext->maxFreeHardwareBuffers)
+	{
+		if (pContext->nDetectedStoppedTx++ > 1)
+		{
+			DPrintf(0, ("[%s] - Suspicious Tx inactivity (%d)!", __FUNCTION__, pContext->nofFreeHardwareBuffers));
+			//bReportHang = TRUE;
+			WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 0);
+		}
+	}
+	NdisReleaseSpinLock(&pContext->SendLock);
 
 
 	if (pContext->Limits.nPrintDiagnostic &&
@@ -1881,13 +1903,13 @@ u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
 
 	NdisRawReadPortUlong(ulRegister, &ulValue);
 
-	DPrintf(6, ("%s> R[%x] = %x\n", __FUNCTION__, (ULONG)ulRegister, ulValue) );
+	DPrintf(6, ("[%s]R[%x]=%x", __FUNCTION__, (ULONG)ulRegister, ulValue) );
 	return ulValue;
 }
 
 void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
 {
-	DPrintf(6, ("%s> R[%x] = %x\n", __FUNCTION__, (ULONG)ulRegister, ulValue) );
+	DPrintf(6, ("[%s]R[%x]=%x", __FUNCTION__, (ULONG)ulRegister, ulValue) );
 
 	NdisRawWritePortUlong(ulRegister, ulValue);
 }
@@ -1898,14 +1920,14 @@ u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
 
 	NdisRawReadPortUchar(ulRegister, &bValue);
 
-	DPrintf(6, ("%s> R[%x] = %x\n", __FUNCTION__, (ULONG)ulRegister, bValue) );
+	DPrintf(6, ("[%s]R[%x]=%x", __FUNCTION__, (ULONG)ulRegister, bValue) );
 
 	return bValue;
 }
 
 void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
 {
-	DPrintf(6, ("%s> R[%x] = %x\n", __FUNCTION__, (ULONG)ulRegister, bValue) );
+	DPrintf(6, ("[%s]R[%x]=%x", __FUNCTION__, (ULONG)ulRegister, bValue) );
 
 	NdisRawWritePortUchar(ulRegister, bValue);
 }
@@ -1916,7 +1938,7 @@ u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
 
 	NdisRawReadPortUshort(ulRegister, &wValue);
 
-	DPrintf(6, ("%s> R[%x] = %x\n", __FUNCTION__, (ULONG)ulRegister, wValue) );
+	DPrintf(6, ("[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, wValue) );
 
 	return wValue;
 }
@@ -1980,7 +2002,7 @@ NDIS_STATUS ParaNdis_SetMulticastList(
 		if (length)
 			NdisMoveMemory(pContext->MulticastList, Buffer, length);
 		pContext->MulticastListSize = length;
-		DPrintf(0, ("[%s] New multicast list of %d bytes", __FUNCTION__, length));
+		DPrintf(1, ("[%s] New multicast list of %d bytes", __FUNCTION__, length));
 		*pBytesRead = length;
 		status = NDIS_STATUS_SUCCESS;
 	}
@@ -1988,16 +2010,19 @@ NDIS_STATUS ParaNdis_SetMulticastList(
 }
 
 /**********************************************************
-
+Callable from synchronized routine or interrupt handler
+to enable or disable Rx and/or Tx interrupt generation
 Parameters:
-Return value:
+	context
+	interruptSource - isReceive, isTransmit
+	b - 1/0 enable/disable
 ***********************************************************/
-VOID ParaNdis_VirtIOEnableInterrupt(
-	PARANDIS_ADAPTER *pContext,
-	BOOLEAN bEnable)
+VOID ParaNdis_VirtIOEnableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource, BOOLEAN b)
 {
-	pContext->NetSendQueue->vq_ops->enable_interrupt(pContext->NetSendQueue, bEnable);
-	pContext->NetReceiveQueue->vq_ops->enable_interrupt(pContext->NetReceiveQueue, bEnable);
+	if (interruptSource & isTransmit)
+		pContext->NetSendQueue->vq_ops->enable_interrupt(pContext->NetSendQueue, b);
+	if (interruptSource & isReceive)
+		pContext->NetReceiveQueue->vq_ops->enable_interrupt(pContext->NetReceiveQueue, b);
 }
 
 /**********************************************************
@@ -2060,6 +2085,7 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 
 	VirtIODeviceRenewVirtualQueue(pContext->NetReceiveQueue);
 	VirtIODeviceRenewVirtualQueue(pContext->NetSendQueue);
+	ParaNdis_RestoreDeviceConfigurationAfterReset(pContext);
 
 	InitializeListHead(&TempList);
 	/* submit all the receive buffers */
@@ -2109,9 +2135,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
 	ParaNdis_Suspend(pContext);
 	pContext->powerState = NetDeviceStateD3;
 
-	NdisAcquireSpinLock(&pContext->DPCLock);
-	pContext->bEnableInterruptHandlingDPC = FALSE;
-	NdisReleaseSpinLock(&pContext->DPCLock);
+	PreventDPCServicing(pContext);
 
 	/*******************************************************************
 		shutdown queues to have all the receive buffers under our control
@@ -2143,5 +2167,12 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
 	ParaNdis_DebugHistory(pContext, hopPowerOff, NULL, 0, 0, 0);
 }
 
+void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext)
+{
+	if (pContext->AdapterResources.ulIOAddress)
+	{
+		WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 1);
+	}
+}
 
 

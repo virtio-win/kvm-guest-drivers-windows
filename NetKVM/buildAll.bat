@@ -20,6 +20,8 @@ set _MAJORVERSION_=209
 set _MINORVERSION_=605
 set _DRIVER_ISO_NAME=Install-%_MINORVERSION_%%_MAJORVERSION_%.iso
 
+set OLD_PATH=%PATH%
+
 if not "%1"=="" goto parameters_here
 echo no parameters specified, rebuild all
 call clean.bat
@@ -59,7 +61,6 @@ set /a _NT_TARGET_MIN="%_NT_TARGET_VERSION% & 255"
 set _VERSION_=%_NT_TARGET_MAJ%.%_NT_TARGET_MIN%.%_MAJORVERSION_%.%_MINORVERSION_%
 echo version set: %_VERSION_%
 goto :eof
-
 
 :Win7 
 set DDKBUILDENV=
@@ -159,3 +160,4 @@ goto continue
 :echo Packing to ISO image
 :call tools\makecdimage.cmd %_DRIVER_ISO_NAME% Install
 goto :eof
+set PATH=%OLD_PATH%

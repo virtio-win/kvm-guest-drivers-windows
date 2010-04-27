@@ -490,7 +490,7 @@ NDIS_STATUS ParaNdis_OnSetPower(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 
 static void DumpOffloadStructure(NDIS_OFFLOAD *po, LPCSTR message)
 {
-	int level = 0;
+	int level = 1;
 	ULONG *pul;
 	DPrintf(level, ("[%s](%s)", __FUNCTION__, message));
 	pul = (ULONG *)&po->Checksum.IPv4Transmit;

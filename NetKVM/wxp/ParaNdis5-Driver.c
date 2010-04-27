@@ -22,8 +22,6 @@
 static NDIS_HANDLE		DriverHandle;
 static ULONG			gID = 0;
 
-static DRIVER_UNLOAD ParaVirtualNICUnload;
-
 /******************************************************
 Unload handler, only responsibility is cleanup WPP
 *******************************************************/
@@ -322,6 +320,7 @@ static VOID ParaNdis5_Halt(
 		NdisSetEvent(&pContext->HaltEvent);
 	WaitHaltEvent(pContext, "Receive");
 	ParaNdis_CleanupContext(pContext);
+	NdisCancelTimer(&pContext->DPCPostProcessTimer, &bUnused);
 	ParaNdis_DebugHistory(pContext, hopHalt, NULL, 0, 0, 0);
 	ParaNdis_DebugRegisterMiniport(pContext, FALSE);
 	NdisFreeMemory(pContext, 0, 0);
@@ -339,18 +338,6 @@ static BOOLEAN ParaNdis5_CheckForHang(IN NDIS_HANDLE MiniportAdapterContext)
 	return ParaNdis_CheckForHang(pContext);
 }
 
-
-
-/*************************************************************
-Required NDIS procedure, just calls regular (Common) DPC processing
-*************************************************************/
-static VOID ParaNdis5_HandleDPC(IN NDIS_HANDLE MiniportAdapterContext)
-{
-	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportAdapterContext;
-	DEBUG_ENTRY(7);
-	ParaNdis_DPCWorkBody(pContext);
-}
-
 /*************************************************************
 Required NDIS procedure
 Responsible for hardware interrupt handling
@@ -362,7 +349,7 @@ static VOID ParaNdis5_MiniportISR(OUT PBOOLEAN InterruptRecognized,
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportAdapterContext;
 	BOOLEAN b;
 	*QueueMiniportHandleInterrupt = FALSE;
-	b = ParaNdis_OnInterrupt(pContext, QueueMiniportHandleInterrupt);
+	b = ParaNdis_OnInterrupt(pContext, QueueMiniportHandleInterrupt, isAny);
 	*InterruptRecognized = b;
 	DEBUG_EXIT_STATUS(7, (ULONG)b);
 }

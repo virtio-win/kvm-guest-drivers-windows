@@ -27,12 +27,12 @@ DriverPackageDisplayName = %kvmnet6.DeviceDesc%
 AddReg          = kvmnet6.EnableMSI
 
 [kvmnet6.EnableMSI]
-HKR, "Interrupt Management",, 0x00000010
-HKR, "Interrupt Management\MessageSignaledInterruptProperties",, 0x00000010
+;HKR, "Interrupt Management",, 0x00000010
+;HKR, "Interrupt Management\MessageSignaledInterruptProperties",, 0x00000010
 HKR, "Interrupt Management\MessageSignaledInterruptProperties",	MSISupported, 0x00010001, 1
 HKR, "Interrupt Management\MessageSignaledInterruptProperties", MessageNumberLimit, 0x00010001, 4
-HKR, "Interrupt Management\Affinity Policy",, 0x00000010
-HKR, "Interrupt Management\Affinity Policy", DevicePolicy, 0x00010001, 1
+;HKR, "Interrupt Management\Affinity Policy",, 0x00000010
+HKR, "Interrupt Management\Affinity Policy", DevicePolicy, 0x00010001, 0
 HKR, "Interrupt Management\Affinity Policy", DevicePriority, 0x00010001, 2
 
 
@@ -250,7 +250,9 @@ HKR, , EventMessageFile, 0x00020000, "%%SystemRoot%%\System32\netevent.dll"
 HKR, , TypesSupported,   0x00010001, 7
 
 [TextModeFlags.Reg]
-HKR, , TextModeFlags,    0x00010001, 0x0001
+HKR,,TextModeFlags,0x00010001, 0x0001
+HKR,Parameters,DisableMSI,,"0" 
+HKR,Parameters,EarlyDebug,,"3" 
 
 [SourceDisksNames]
 1 = %DiskId1%,,,""

@@ -16,6 +16,11 @@
 
 //#define NO_VISTA_POWER_MANAGEMENT
 
+//by default printouts from resource filtering are invisible
+//change it to 2 or smaller to make it visible always 
+ULONG bDisableMSI = FALSE;
+LONG resourceFilterLevel = 3;
+
 #ifdef WPP_EVENT_TRACING
 #include "ParaNdis6-Driver.tmh"
 #endif
@@ -141,66 +146,18 @@ static VOID ConnectTimerCallback(
 	ParaNdis_ReportLinkStatus(pContext);
 }
 
-#define VISTA_RECOVERY_CANCEL_TIMER						1
-#define VISTA_RECOVERY_RUN_DPC							2
-#define VISTA_RECOVERY_INFO_ONLY_SECOND_READ			4
-
-
-static UCHAR MiniportSynchronizeInterruptProcedure(PVOID  SynchronizeContext)
-{
-	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)SynchronizeContext;
-	BOOLEAN b1;
-	UCHAR val = ParaNdis_OnInterrupt(pContext, &b1);
-	if (val)
-	{
-		// we read the interrupt, in any case run the DRC
-		val = VISTA_RECOVERY_RUN_DPC;
-		b1 = !VirtIODeviceISR(&pContext->IODevice);
-		// if we read it again, it does not mean anything
-		if (b1) val |= VISTA_RECOVERY_INFO_ONLY_SECOND_READ;
-	}
-	else
-	{
-		// we did not read the interrupt
-		val = (pContext->ulIrqReceived > 1) ? VISTA_RECOVERY_CANCEL_TIMER : 0;
-	}
-	return val;
-}
-
-
-
 /**********************************************************
 This is timer procedure for Interrupt recovery timer
 ***********************************************************/
-static VOID InteruptRecoveryTimerCallback(
+static VOID InterruptRecoveryTimerCallback(
 	IN PVOID  SystemSpecific1,
 	IN PVOID  FunctionContext,
 	IN PVOID  SystemSpecific2,
 	IN PVOID  SystemSpecific3
 	)
 {
-	UCHAR val;
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)FunctionContext;
-	val = NdisMSynchronizeWithInterruptEx(
-		pContext->InterruptHandle,
-		0,
-		MiniportSynchronizeInterruptProcedure,
-		pContext);
-	if (val & VISTA_RECOVERY_RUN_DPC)
-		ParaNdis_DPCWorkBody(pContext);
-	/* this does not happen and as such, not related to the problem
-	if (val == VISTA_RECOVERY_RUN_DPC)
-	{
-		DPrintf(0, ("[%s] The interrupt was still set", __FUNCTION__));
-	}
-	*/
-	if (~val & VISTA_RECOVERY_CANCEL_TIMER)
-		ParaNdis_SetTimer(pContext->InterruptRecoveryTimer, 15);
-	else
-	{
-		DPrintf(0, ("[%s] Cancelled", __FUNCTION__));
-	}
-	DEBUG_EXIT_STATUS(5, val);
+	ParaNdis6_OnInterruptRecoveryTimer(pContext);
 }
 
 
@@ -223,7 +180,7 @@ static NDIS_STATUS CreateTimers(PARANDIS_ADAPTER *pContext)
 	status = NdisAllocateTimerObject(pContext->MiniportHandle, &tch, &pContext->ConnectTimer);
 	if (status == NDIS_STATUS_SUCCESS)
 	{
-		tch.TimerFunction = InteruptRecoveryTimerCallback;
+		tch.TimerFunction = InterruptRecoveryTimerCallback;
 		status = NdisAllocateTimerObject(pContext->MiniportHandle, &tch, &pContext->InterruptRecoveryTimer);
 	}
 	DEBUG_EXIT_STATUS(2, status);
@@ -413,7 +370,10 @@ static NDIS_STATUS ParaNdis6_Initialize(
 		if (pContext->ulMilliesToConnect)
 			ParaNdis_SetTimer(pContext->ConnectTimer, pContext->ulMilliesToConnect);
 		if (pContext->bDoInterruptRecovery)
-			ParaNdis_SetTimer(pContext->InterruptRecoveryTimer, 15); //15 mSec is the recovery timeout
+		{
+			//200 mSec for first shot of recovery circuit
+			ParaNdis_SetTimer(pContext->InterruptRecoveryTimer, 200); 
+		}
 	}
 	DEBUG_EXIT_STATUS(status ? 0 : 2, status);
 	return status;
@@ -834,8 +794,9 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
 	BOOLEAN bRemoveMSIResources)
 {
 	tRRLData newRRLData;
+	ULONG nRemoved = 0;
 	PIO_RESOURCE_REQUIREMENTS_LIST newPrrl = NULL;
-	DPrintf(0, ("[%s]%s", __FUNCTION__, bRemoveMSIResources ? "(Remove MSI resources...)" : ""));
+	DPrintf(resourceFilterLevel, ("[%s]%s", __FUNCTION__, bRemoveMSIResources ? "(Remove MSI resources...)" : ""));
 	if (MiniportAddDeviceContext && prrl) newPrrl = (PIO_RESOURCE_REQUIREMENTS_LIST)NdisAllocateMemoryWithTagPriority(
 			MiniportAddDeviceContext,
 			prrl->ListSize,
@@ -846,7 +807,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
 	{
 		ULONG n, offset;
 		PVOID p = &prrl->List[0];
-		DPrintf(0, ("[%s] %d bytes, %d lists", __FUNCTION__, prrl->ListSize, prrl->AlternativeLists));
+		DPrintf(resourceFilterLevel, ("[%s] %d bytes, %d lists", __FUNCTION__, prrl->ListSize, prrl->AlternativeLists));
 		offset = RtlPointerToOffset(prrl, p);
 		for (n = 0; n < prrl->AlternativeLists && offset < prrl->ListSize; ++n)
 		{
@@ -855,7 +816,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
 			if ((offset + sizeof(*pior)) < prrl->ListSize)
 			{
 				IO_RESOURCE_DESCRIPTOR *pd = &pior->Descriptors[0];
-				DPrintf(0, ("[%s]+%d %d:%d descriptors follow", __FUNCTION__, offset, n, pior->Count));
+				DPrintf(resourceFilterLevel, ("[%s]+%d %d:%d descriptors follow", __FUNCTION__, offset, n, pior->Count));
 				offset += RtlPointerToOffset(p, pd);
 				AddNewResourceList(&newRRLData, pior);
 				for (nDesc = 0; nDesc < pior->Count; ++nDesc)
@@ -863,10 +824,11 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
 					BOOLEAN bRemove = FALSE;
 					if ((offset + sizeof(*pd)) <= prrl->ListSize)
 					{
-						DPrintf(0, ("[%s]+%d %d: type %d, flags %X, option %X",
-							__FUNCTION__, offset, nDesc, pd->Type, pd->Flags, pd->Option));
+						DPrintf(resourceFilterLevel, ("[%s]+%d %d: type %d, flags %X, option %X", __FUNCTION__, offset, nDesc, pd->Type, pd->Flags, pd->Option));
 						if (pd->Type == CmResourceTypeInterrupt)
 						{
+							
+							//DPrintf(1, ("    policy %d, affinity %X", pd->u.Interrupt.AffinityPolicy, pd->u.Interrupt.TargetedProcessors));
 							if (pd->Flags & CM_RESOURCE_INTERRUPT_MESSAGE)
 							{
 								bRemove = bRemoveMSIResources;
@@ -882,6 +844,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
 							}
 						}
 						if (!bRemove) AddNewResourceDescriptor(&newRRLData, pd);
+						else nRemoved++;
 					}
 					offset += sizeof(*pd);
 					pd = (IO_RESOURCE_DESCRIPTOR *)RtlOffsetToPointer(prrl, offset);
@@ -891,7 +854,10 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
 			}
 		}
 	}
-
+	if (bRemoveMSIResources && nRemoved)
+	{
+		DPrintf(0, ("[%s] %d resources removed", __FUNCTION__, nRemoved));
+	}
 	return newPrrl;
 }
 
@@ -907,12 +873,8 @@ we just enumerate allocated resources and do not modify them.
 *******************************************************************/
 static NDIS_STATUS ParaNdis6_FilterResource(IN NDIS_HANDLE  MiniportAddDeviceContext, IN PIRP  Irp)
 {
-	BOOLEAN bRemoveMSI = FALSE;
 	PIO_RESOURCE_REQUIREMENTS_LIST prrl = (PIO_RESOURCE_REQUIREMENTS_LIST)(PVOID)Irp->IoStatus.Information;
-#if !defined(VIRTIO_USE_MSIX_INTERRUPT)
-	bRemoveMSI = TRUE;
-#endif
-	if (bRemoveMSI)
+	if (bDisableMSI)
 	{
 		// traverse the resource requirements list, clean up all the MSI resources
 		PIO_RESOURCE_REQUIREMENTS_LIST newPrrl = ParseFilterResourceIrp(MiniportAddDeviceContext, prrl, TRUE);
@@ -920,8 +882,8 @@ static NDIS_STATUS ParaNdis6_FilterResource(IN NDIS_HANDLE  MiniportAddDeviceCon
 		{
 			Irp->IoStatus.Information = (ULONG_PTR)newPrrl;
 			NdisFreeMemory(prrl, 0, 0);
-			DPrintf(0, ("[%s] Reparsing resources using new requirements...", __FUNCTION__));
-			// just parse and print after MSI cleanup, this time do not remove amything and do not reallocate the list
+			DPrintf(resourceFilterLevel, ("[%s] Reparsing resources after filtering...", __FUNCTION__));
+			// just parse and print after MSI cleanup, this time do not remove anything and do not reallocate the list
 			ParseFilterResourceIrp(NULL, newPrrl, FALSE);
 		}
 	}
@@ -955,6 +917,61 @@ static NDIS_STATUS ParaNdis6_SetOptions(IN  NDIS_HANDLE NdisDriverHandle, IN  ND
 	pnpChars.MiniportFilterResourceRequirementsHandler = ParaNdis6_FilterResource;
 	status = NdisSetOptionalHandlers(NdisDriverHandle, (PNDIS_DRIVER_OPTIONAL_HANDLERS)&pnpChars);
 	return status;
+}
+
+static NDIS_STATUS ReadGlobalConfigurationEntry(NDIS_HANDLE cfg, const char *_name, PULONG pValue)
+{
+	NDIS_STATUS status;
+	PNDIS_CONFIGURATION_PARAMETER pParam = NULL;
+	NDIS_STRING name;
+	const char *statusName;
+	NDIS_PARAMETER_TYPE ParameterType = NdisParameterInteger;
+	NdisInitializeString(&name, (PUCHAR)_name);
+	NdisReadConfiguration(
+		&status,
+		&pParam,
+		cfg,
+		&name,
+		ParameterType);
+	if (status == NDIS_STATUS_SUCCESS)
+	{
+		*pValue = pParam->ParameterData.IntegerData;
+		statusName = "value";
+	}
+	else
+	{
+		statusName = "nothing";
+	}
+	DPrintf(2, ("[%s] %s read for %s - 0x%x", __FUNCTION__, statusName, _name, *pValue));
+	NdisFreeString(name);
+	return status;
+}
+
+static void RetrieveDriverConfiguration()
+{
+	NDIS_CONFIGURATION_OBJECT co;
+	NDIS_HANDLE cfg, params;
+	NDIS_STATUS status;
+	DEBUG_ENTRY(2);
+	co.Header.Type = NDIS_OBJECT_TYPE_CONFIGURATION_OBJECT;
+	co.Header.Revision = NDIS_CONFIGURATION_OBJECT_REVISION_1;
+	co.Header.Size = sizeof(co);
+	co.Flags = 0;
+	co.NdisHandle = DriverHandle;
+	status = NdisOpenConfigurationEx(&co, &cfg);
+	if (status == NDIS_STATUS_SUCCESS)
+	{
+		NDIS_STRING paramsName;
+		NdisInitializeString(&paramsName, (PUCHAR)"Parameters");
+		NdisOpenConfigurationKeyByName(&status, cfg, &paramsName, &params);
+		if (status == NDIS_STATUS_SUCCESS)
+		{
+			ReadGlobalConfigurationEntry(params, "DisableMSI", &bDisableMSI);
+			ReadGlobalConfigurationEntry(params, "EarlyDebug", (PULONG)&resourceFilterLevel);
+			NdisCloseConfiguration(params);
+		}
+		NdisCloseConfiguration(cfg);
+	}
 }
 
 /**********************************************************
@@ -1027,6 +1044,10 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 			ParaNdis_OnCPUChange,
 			NULL,
 			KE_PROCESSOR_CHANGE_ADD_EXISTING);
+	}
+	if (status == NDIS_STATUS_SUCCESS)
+	{
+		RetrieveDriverConfiguration();
 	}
 	DEBUG_EXIT_STATUS(status ? 0 : 4, status);
 	return status;
