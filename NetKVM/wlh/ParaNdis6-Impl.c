@@ -1286,6 +1286,13 @@ static BOOLEAN PrepareSingleNBL(
 		bOK = FALSE;
 		pFailReason = "Failure to allocate BLE";
 	}
+
+	if (bOK && !pB)
+	{
+		bOK = FALSE;
+		pFailReason = "Empty NBL";
+	}
+
 	while (pB && bOK)
 	{
 		ULONG dataLength = NET_BUFFER_DATA_LENGTH(pB);
