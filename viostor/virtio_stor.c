@@ -1033,6 +1033,10 @@ RhelScsiGetModeSense(
         memset(header, 0, sizeof(MODE_PARAMETER_HEADER));
         header->DeviceSpecificParameter = MODE_DSP_FUA_SUPPORTED;
 
+        if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_RO)) {
+           header->DeviceSpecificParameter |= MODE_DSP_WRITE_PROTECT;
+        }
+
         ModeSenseDataLen -= sizeof(MODE_PARAMETER_HEADER);
         if (ModeSenseDataLen >= sizeof(MODE_CACHING_PAGE)) {
 
@@ -1064,6 +1068,10 @@ RhelScsiGetModeSense(
         header = Srb->DataBuffer;
         memset(header, 0, sizeof(MODE_PARAMETER_HEADER));
         header->DeviceSpecificParameter = MODE_DSP_FUA_SUPPORTED;
+
+        if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_RO)) {
+           header->DeviceSpecificParameter |= MODE_DSP_WRITE_PROTECT;
+        }
 
         ModeSenseDataLen -= sizeof(MODE_PARAMETER_HEADER);
         if (ModeSenseDataLen >= sizeof(MODE_PARAMETER_BLOCK)) {
