@@ -1,10 +1,24 @@
 #include "precomp.h"
 
 EVT_WDF_IO_QUEUE_IO_WRITE BalloonIoWrite;
+EVT_WDF_IO_QUEUE_IO_CANCELED_ON_QUEUE BalloonEvtIoCanceledOnQueue;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, BalloonQueueInitialize)
 #endif
+
+VOID
+BalloonEvtIoCanceledOnQueue(
+    IN WDFQUEUE  Queue,
+    IN WDFREQUEST  Request
+    )
+{
+    UNREFERENCED_PARAMETER(Queue);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+    WdfRequestComplete(Request, STATUS_CANCELLED);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
+}
 
 NTSTATUS
 BalloonQueueInitialize(
@@ -22,6 +36,7 @@ BalloonQueueInitialize(
                  WdfIoQueueDispatchSequential);
 
     queueConfig.EvtIoWrite  = BalloonIoWrite;
+    queueConfig.EvtIoCanceledOnQueue = BalloonEvtIoCanceledOnQueue;
 
     status = WdfIoQueueCreate(
                  Device,
@@ -40,6 +55,9 @@ BalloonQueueInitialize(
     WDF_IO_QUEUE_CONFIG_INIT(
                  &queueConfig,
                  WdfIoQueueDispatchManual);
+
+    queueConfig.EvtIoCanceledOnQueue = BalloonEvtIoCanceledOnQueue;
+
     status = WdfIoQueueCreate(
                  Device,
                  &queueConfig,

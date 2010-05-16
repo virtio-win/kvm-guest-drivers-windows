@@ -1,6 +1,6 @@
 ;/*++
 ;
-;Copyright (c) 2005-2009 Red Hat Inc.
+;Copyright (c) 2005-2010 Red Hat Inc.
 ;
 ;Module Name:
 ;    BALLOON.INF
@@ -16,21 +16,12 @@
 Signature="$WINDOWS NT$"
 Class=System
 ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
-Provider=%QMRNT%
+Provider=%RHEL%
 DriverVer=05/19/2008,6.0.6000.16386
 CatalogFile=Balloon.cat
 
 [DestinationDirs]
 DefaultDestDir = 12
-
-; ================= Class section =====================
-
-[ClassInstall32]
-Addreg=BalloonClassReg     
-
-[BalloonClassReg]
-HKR,,,0,%ClassName%
-HKR,,Icon,,-5
 
 [SourceDisksNames]
 1 = %DiskId1%,,,""
@@ -80,7 +71,7 @@ LoadOrderGroup = Extended Base
 
 ; -------------- BALLOON driver eventlog install sections
 [BALLOON_Logging_Inst]
-AddReg = BALOON_Logging_Inst_AddReg
+AddReg = BALLOON_Logging_Inst_AddReg
 
 [BALLOON_Logging_Inst_AddReg]
 HKR,,EventMessageFile,0x00020000,"%%SystemRoot%%\System32\IoLogMsg.dll;%%SystemRoot%%\System32\drivers\BALLOON.sys"
@@ -113,7 +104,7 @@ KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
 SPSVCINST_ASSOCSERVICE= 0x00000002
-QMRNT = "Red Hat Inc."
+RHEL = "Red Hat Inc."
 StdMfg = "VirtIO ballooning devices"
 DiskId1 = "VirtIO Balloon Installation Disk #1"
 BALLOON.DeviceDesc = "VirtIO Balloon Driver"

@@ -336,8 +336,10 @@ BalloonMemStats(
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS,"got available request\n");
         WdfRequestComplete(request, STATUS_SUCCESS);
     } else {
+        drvCtx->MemStats[0].tag = VIRTIO_BALLOON_S_NR;
+        drvCtx->MemStats[0].val = 0;
         sg.physAddr = GetPhysicalAddress(drvCtx->MemStats);
-        sg.ulSize = 0;
+        sg.ulSize = sizeof(BALLOON_STAT);
 
         if(devCtx->StatVirtQueue->vq_ops->add_buf(devCtx->StatVirtQueue, &sg, 1, 0, devCtx) != 0)
         {
