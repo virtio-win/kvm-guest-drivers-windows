@@ -269,5 +269,5 @@ RhelGetLba(
         }
     }
 
-    return (lba.AsULongLong << adaptExt->info.physical_block_exp);
+    return (lba.AsULongLong * (adaptExt->info.blk_size / SECTOR_SIZE));
 }

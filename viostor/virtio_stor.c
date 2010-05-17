@@ -455,8 +455,10 @@ VirtIoHwInitialize(
         VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, blk_size),
                       &v, sizeof(v));
         adaptExt->info.blk_size = v;
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_BLK_SIZE = %d\n", adaptExt->info.blk_size));
+    } else {
+        adaptExt->info.blk_size = SECTOR_SIZE;
     }
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_BLK_SIZE = %d\n", adaptExt->info.blk_size));
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_GEOMETRY)) {
         VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, geometry),
@@ -476,19 +478,19 @@ VirtIoHwInitialize(
     if(CHECKBIT(adaptExt->features, VIRTIO_BLK_F_TOPOLOGY)) {
         VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, physical_block_exp),
                       &adaptExt->info.physical_block_exp, sizeof(adaptExt->info.physical_block_exp));
-        RhelDbgPrint(TRACE_LEVEL_ERROR, ("physical_block_exp = %d\n", adaptExt->info.physical_block_exp));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("physical_block_exp = %d\n", adaptExt->info.physical_block_exp));
 
         VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, alignment_offset),
                       &adaptExt->info.alignment_offset, sizeof(adaptExt->info.alignment_offset));
-        RhelDbgPrint(TRACE_LEVEL_ERROR, ("alignment_offset = %d\n", adaptExt->info.alignment_offset));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("alignment_offset = %d\n", adaptExt->info.alignment_offset));
 
         VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, min_io_size),
                       &adaptExt->info.min_io_size, sizeof(adaptExt->info.min_io_size));
-        RhelDbgPrint(TRACE_LEVEL_ERROR, ("min_io_size = %d\n", adaptExt->info.min_io_size));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("min_io_size = %d\n", adaptExt->info.min_io_size));
 
         VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, opt_io_size),
                       &adaptExt->info.opt_io_size, sizeof(adaptExt->info.opt_io_size));
-        RhelDbgPrint(TRACE_LEVEL_ERROR, ("opt_io_size = %d\n", adaptExt->info.opt_io_size));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("opt_io_size = %d\n", adaptExt->info.opt_io_size));
       
     }
 
@@ -591,8 +593,9 @@ VirtIoStartIo(
             readCap = (PREAD_CAPACITY_DATA)Srb->DataBuffer;
             readCapEx = (PREAD_CAPACITY_DATA_EX)Srb->DataBuffer;
 
-            lastLBA = (adaptExt->info.capacity >> adaptExt->info.physical_block_exp) - 1;
-            blocksize = adaptExt->info.size_max * (1 << adaptExt->info.physical_block_exp);
+            blocksize = adaptExt->info.blk_size;
+            lastLBA = adaptExt->info.capacity / (blocksize / SECTOR_SIZE) - 1;
+
             if (Srb->DataTransferLength == sizeof(READ_CAPACITY_DATA)) {
                 if (lastLBA > 0xFFFFFFFF) {
                     readCap->LogicalBlockAddress = (ULONG)-1;
