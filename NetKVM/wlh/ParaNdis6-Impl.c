@@ -450,6 +450,8 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
 	NDIS_MINIPORT_INTERRUPT_CHARACTERISTICS mic;
 	DEBUG_ENTRY(0);
 
+	InitializeListHead(&pContext->WaitingMapping);
+
 	NdisZeroMemory(&mic, sizeof(mic));
 	mic.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_INTERRUPT;
 	mic.Header.Revision = NDIS_MINIPORT_INTERRUPT_REVISION_1;
@@ -1286,13 +1288,13 @@ static BOOLEAN PrepareSingleNBL(
 		bOK = FALSE;
 		pFailReason = "Failure to allocate BLE";
 	}
-
+	
 	if (bOK && !pB)
 	{
 		bOK = FALSE;
 		pFailReason = "Empty NBL";
 	}
-
+	
 	while (pB && bOK)
 	{
 		ULONG dataLength = NET_BUFFER_DATA_LENGTH(pB);
@@ -1403,6 +1405,8 @@ static void StartTransferSingleNBL(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST 
 		tNetBufferEntry *pnbe = (tNetBufferEntry *)RemoveHeadList(&list);
 		DPrintf(4, ("[%s] mapping entry %p", __FUNCTION__, pnbe));
 		//ParaNdis_DebugHistory(pContext, hopSendPacketRequest, pNBL, 0, 0, status);
+		NdisInterlockedInsertTailList(&pContext->WaitingMapping, &pnbe->list, &pContext->SendLock);
+
 		if (bPassive) irql = KeRaiseIrqlToDpcLevel();
 		if (pContext->bUseScatterGather)
 		{
@@ -1533,7 +1537,14 @@ VOID ProcessSGListHandler(
 	PNET_BUFFER_LIST pNBL = pnbe->nbl;
 	LONG DoneCounter;
 	tNetBufferListEntry *pble = (tNetBufferListEntry *)pNBL->Scratch;
+
+	NdisAcquireSpinLock(&pContext->SendLock);
+	// remove the netbuffer entry from WaitingMapping list
+	RemoveEntryList(&pnbe->list);
+	// insert it into list of buffers under netbufferlist entry
 	InsertTailList(&pble->bufferEntries, &pnbe->list);
+	NdisReleaseSpinLock(&pContext->SendLock);
+
 	pnbe->pSGList = pSGL;
 	DoneCounter = InterlockedIncrement(&pble->nBuffersMapped);
 	DPrintf(3, ("[%s] mapped %d of %d(%d)", __FUNCTION__,

@@ -351,6 +351,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	PNET_BUFFER_LIST			SendHead;
 	PNET_BUFFER_LIST			SendTail;
 	PNET_BUFFER_LIST			SendWaitingList;
+	LIST_ENTRY					WaitingMapping;
 	NDIS_HANDLE					DmaHandle;
 	NDIS_HANDLE					ConnectTimer;
 	NDIS_HANDLE					InterruptRecoveryTimer;

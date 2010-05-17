@@ -38,6 +38,22 @@ typedef BOOLEAN (*KeDeregisterBugCheckReasonCallbackType) (
     __inout PKBUGCHECK_REASON_CALLBACK_RECORD CallbackRecord
     );
 
+typedef ULONG (*vDbgPrintExType)(
+    __in ULONG ComponentId,
+    __in ULONG Level,
+    __in PCCH Format,
+    __in va_list arglist
+    );
+
+static ULONG DummyPrintProcedure(
+    __in ULONG ComponentId,
+    __in ULONG Level,
+    __in PCCH Format,
+    __in va_list arglist
+    )
+{
+	return 0;
+}
 static BOOLEAN KeRegisterBugCheckReasonCallbackDummyProc(
     __out PKBUGCHECK_REASON_CALLBACK_RECORD CallbackRecord,
     __in PKBUGCHECK_REASON_CALLBACK_ROUTINE CallbackRoutine,
@@ -55,6 +71,7 @@ BOOLEAN KeDeregisterBugCheckReasonCallbackDummyProc(
 	return FALSE;
 }
 
+static vDbgPrintExType PrintProcedure = DummyPrintProcedure;
 static KeRegisterBugCheckReasonCallbackType BugCheckRegisterCallback = KeRegisterBugCheckReasonCallbackDummyProc;
 static KeDeregisterBugCheckReasonCallbackType BugCheckDeregisterCallback = KeDeregisterBugCheckReasonCallbackDummyProc;
 KBUGCHECK_REASON_CALLBACK_RECORD CallbackRecord;
@@ -68,7 +85,7 @@ static void DebugPrint(const char *fmt, ...)
 	NTSTATUS status;
 	va_list list;
 	va_start(list, fmt);
-	vDbgPrintEx(DPFLTR_DEFAULT_ID, 9 | DPFLTR_MASK, fmt, list);
+	PrintProcedure(DPFLTR_DEFAULT_ID, 9 | DPFLTR_MASK, fmt, list);
 #if defined(VIRTIO_DBG_USE_IOPORT)
 	{
 		// use this way of output only for DISPATCH_LEVEL,
@@ -149,7 +166,7 @@ static void AnotherDbgBreak()
 
 void ParaNdis_DebugInitialize(PVOID DriverObject,PVOID RegistryPath)
 {
-	NDIS_STRING usRegister, usDeregister;
+	NDIS_STRING usRegister, usDeregister, usPrint;
 	PVOID pr, pd;
 	BOOLEAN res;
 	WPP_INIT_TRACING(DriverObject, RegistryPath);
@@ -157,8 +174,11 @@ void ParaNdis_DebugInitialize(PVOID DriverObject,PVOID RegistryPath)
 	NdisAllocateSpinLock(&CrashLock);
 	KeInitializeCallbackRecord(&CallbackRecord);
 	ParaNdis_PrepareBugCheckData();
+	NdisInitUnicodeString(&usPrint, L"vDbgPrintEx");
 	NdisInitUnicodeString(&usRegister, L"KeRegisterBugCheckReasonCallback");
 	NdisInitUnicodeString(&usDeregister, L"KeDeregisterBugCheckReasonCallback");
+	pd = MmGetSystemRoutineAddress(&usPrint);
+	if (pd) PrintProcedure = (vDbgPrintExType)pd;
 	pr = MmGetSystemRoutineAddress(&usRegister);
 	pd = MmGetSystemRoutineAddress(&usDeregister);
 	if (pr && pd)
