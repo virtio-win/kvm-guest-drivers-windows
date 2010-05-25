@@ -21,6 +21,8 @@
 #pragma alloc_text(PAGE, BalloonPrepareHardware)
 #pragma alloc_text(PAGE, BalloonReleaseHardware)
 #pragma alloc_text(PAGE, BalloonDeviceAdd)
+#pragma alloc_text(PAGE, BalloonEvtDeviceFileCreate)
+#pragma alloc_text(PAGE, BalloonEvtFileClose)
 
 NTSTATUS BalloonDeviceAdd(
                       IN WDFDRIVER  Driver,
@@ -33,6 +35,7 @@ NTSTATUS BalloonDeviceAdd(
     WDF_OBJECT_ATTRIBUTES       attributes;
     WDF_PNPPOWER_EVENT_CALLBACKS pnpPowerCallbacks;
     WDF_INTERRUPT_CONFIG        interruptConfig;
+    WDF_FILEOBJECT_CONFIG       fileConfig;
 
     UNREFERENCED_PARAMETER(Driver);
 
@@ -42,6 +45,18 @@ NTSTATUS BalloonDeviceAdd(
     pnpPowerCallbacks.EvtDevicePrepareHardware = BalloonPrepareHardware;
     pnpPowerCallbacks.EvtDeviceReleaseHardware = BalloonReleaseHardware;
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
+
+
+    WDF_FILEOBJECT_CONFIG_INIT(
+                            &fileConfig,
+                            BalloonEvtDeviceFileCreate,
+                            BalloonEvtFileClose,
+                            WDF_NO_EVENT_CALLBACK
+                            );
+
+    WdfDeviceInitSetFileObjectConfig(DeviceInit,
+                            &fileConfig,
+                            WDF_NO_OBJECT_ATTRIBUTES);
 
     WdfDeviceInitSetIoType(DeviceInit, WdfDeviceIoBuffered);
 
@@ -67,9 +82,9 @@ NTSTATUS BalloonDeviceAdd(
     interruptConfig.EvtInterruptDisable = BalloonInterruptDisable;
 
     status = WdfInterruptCreate(device,
-                              &interruptConfig,
-                              WDF_NO_OBJECT_ATTRIBUTES,
-                              &devCtx->WdfInterrupt);
+                            &interruptConfig,
+                            WDF_NO_OBJECT_ATTRIBUTES,
+                            &devCtx->WdfInterrupt);
     if (!NT_SUCCESS (status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
@@ -201,7 +216,7 @@ BalloonReleaseHardware (
 {                  
     PDEVICE_CONTEXT     devCtx = NULL;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     UNREFERENCED_PARAMETER(ResourcesTranslated);
 
@@ -217,7 +232,7 @@ BalloonReleaseHardware (
         devCtx->PortBase = NULL;
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 
@@ -372,4 +387,56 @@ BalloonInterruptDisable(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
+}
+
+VOID
+BalloonEvtDeviceFileCreate (
+    IN WDFDEVICE WdfDevice,
+    IN WDFREQUEST Request,
+    IN WDFFILEOBJECT FileObject
+    )
+{
+    PDEVICE_CONTEXT     devCtx = NULL;
+
+    UNREFERENCED_PARAMETER(FileObject);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s Device = %p\n", __FUNCTION__, WdfDevice);
+
+    PAGED_CODE ();
+
+    devCtx = GetDeviceContext(WdfDevice);
+
+    if(VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
+    {
+        VirtIODeviceEnableGuestFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ);
+    }
+    WdfRequestComplete(Request, STATUS_SUCCESS);
+
+    return;
+}
+
+
+VOID
+BalloonEvtFileClose (
+    IN WDFFILEOBJECT    FileObject
+    )
+{
+    PDEVICE_CONTEXT     devCtx = NULL;
+
+    PAGED_CODE ();
+
+    devCtx = GetDeviceContext(WdfFileObjectGetDevice(FileObject));
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s\n", __FUNCTION__);
+
+    if(VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
+    {
+	ULONG ulValue = 0;
+
+	ulValue = ReadVirtIODeviceRegister(devCtx->VDevice.addr + VIRTIO_PCI_GUEST_FEATURES);
+	ulValue	&= ~(1 << VIRTIO_BALLOON_F_STATS_VQ);
+	WriteVirtIODeviceRegister(devCtx->VDevice.addr + VIRTIO_PCI_GUEST_FEATURES, ulValue);
+
+    }
+    return;
 }

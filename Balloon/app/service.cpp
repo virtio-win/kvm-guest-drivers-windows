@@ -1,8 +1,10 @@
 #include "service.h"
+#include "utils.h"
 
 CService::CService()
 {
     m_evTerminate = NULL;
+    m_evWakeUp = NULL;
     m_thHandle = NULL;
     m_bPauseService = FALSE;
     m_bRunningService = FALSE;
@@ -14,6 +16,7 @@ CService::CService()
 CService::~CService()
 {
     m_evTerminate = NULL;
+    m_evWakeUp = NULL;
     m_thHandle = NULL;
     m_bPauseService = FALSE;
     m_bRunningService = FALSE;
@@ -25,6 +28,23 @@ CService::~CService()
 void __stdcall CService::HandlerThunk(CService* service, DWORD ctlcode)
 {
     service->ServiceCtrlHandler(ctlcode);
+}
+
+DWORD __stdcall CService::HandlerExThunk(CService* service, DWORD ctlcode, DWORD evtype, PVOID evdata)
+{
+    switch (ctlcode) {
+
+    case SERVICE_CONTROL_DEVICEEVENT:
+    case SERVICE_CONTROL_HARDWAREPROFILECHANGE:
+        return service->ServiceHandleDeviceChange(evtype, (_DEV_BROADCAST_HEADER*) evdata);
+
+    case SERVICE_CONTROL_POWEREVENT:
+        return service->ServiceHandlePowerEvent(evtype, (DWORD) evdata);
+
+    default:
+        service->ServiceCtrlHandler(ctlcode);
+        return NO_ERROR;
+    }    
 }
 
 void __stdcall CService::ServiceMainThunk(CService* service, DWORD argc, TCHAR* argv[])
@@ -45,6 +65,7 @@ BOOL CService::InitService()
                               &id);
 
     if (m_thHandle == NULL) {
+        PrintMessage("Cannot create thread"); 
         return FALSE;
     }
     m_bRunningService = TRUE;
@@ -60,14 +81,19 @@ DWORD WINAPI CService::ServiceThread(LPDWORD lParam)
 
 void CService::Run()
 {
-    HANDLE ev = CreateEvent(NULL, TRUE, FALSE, NULL);
     BALLOON_STAT stat[VIRTIO_BALLOON_S_NR];
-    DWORD res;
+    BOOL res;
+
     while (1) {
+        memset(stat, -1, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR);
         if (m_pMemStat->GetStatus(stat)) {
-           if (!m_pDev->Write(stat, VIRTIO_BALLOON_S_NR, ev) &&
-              (GetLastError() == ERROR_IO_PENDING)) {
-              res = WaitForSingleObject(ev, 1000);
+           EnterCriticalSection(&m_scWrite);
+           res = m_pDev->Write(stat, VIRTIO_BALLOON_S_NR);
+           LeaveCriticalSection(&m_scWrite);
+           if (res && 
+              (WaitForSingleObject(m_evWakeUp, 1000) == WAIT_OBJECT_0)) {
+              ResetEvent(m_evWakeUp);
+              break;
            }
         }
     }
@@ -115,14 +141,31 @@ void CService::ResumeService()
 }
 
 void CService::PauseService()
-{
-    m_bPauseService = TRUE;
-    SuspendThread(m_thHandle);
+{   
+    BALLOON_STAT stat[VIRTIO_BALLOON_S_NR];
+    if (m_bRunningService && !m_bPauseService && m_pDev) {
+        memset(stat, -1, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR);
+        EnterCriticalSection(&m_scWrite);
+        m_pDev->Write(stat, VIRTIO_BALLOON_S_NR);
+        m_bPauseService = TRUE;
+        SuspendThread(m_thHandle);
+        LeaveCriticalSection(&m_scWrite);
+    }
 }
 
 void CService::StopService()
 {
-    m_bRunningService = FALSE;
+    if (m_bRunningService && m_pDev) {
+        if (m_evWakeUp) {
+           SetEvent(m_evWakeUp);
+           if (WaitForSingleObject(m_thHandle, 1000) == WAIT_TIMEOUT) {
+              TerminateThread(m_thHandle, 0);
+           }
+        }
+        EnterCriticalSection(&m_scWrite);
+        m_bRunningService = FALSE;
+        LeaveCriticalSection(&m_scWrite);
+    }
     SetEvent(m_evTerminate);
 }
 
@@ -131,6 +174,12 @@ void CService::terminate(DWORD error)
     if (m_evTerminate) {
         CloseHandle(m_evTerminate);
     }
+
+    if (m_evWakeUp) {
+        CloseHandle(m_evWakeUp);
+    }
+
+    DeleteCriticalSection(&m_scWrite);
 
     if (m_StatusHandle) {
         SendStatusToSCM(SERVICE_STOPPED, error, 0, 0, 0);
@@ -199,6 +248,18 @@ void CService::ServiceCtrlHandler(DWORD controlCode)
     SendStatusToSCM(currentState, NO_ERROR, 0, 0, 0);
 }
 
+DWORD CService::ServiceHandleDeviceChange(DWORD evtype, _DEV_BROADCAST_HEADER* dbhdr)
+{
+    PrintMessage("ServiceHandleDeviceChange"); 
+    return NO_ERROR;
+}
+
+DWORD CService::ServiceHandlePowerEvent(DWORD evtype, DWORD flags)
+{
+    PrintMessage("ServiceHandlePowerEvent"); 
+    return NO_ERROR;
+}
+
 void CService::ServiceMain(DWORD argc, LPTSTR *argv)
 {
     BOOL res;
@@ -209,13 +270,13 @@ void CService::ServiceMain(DWORD argc, LPTSTR *argv)
     }
 
     m_pMemStat = new CMemStat;
-    if(!m_pMemStat || !m_pMemStat->Init()) {
+    if (!m_pMemStat || !m_pMemStat->Init()) {
         terminate(GetLastError());
         return;
     }
 
     m_pDev = new CDevice;
-    if(!m_pDev || !m_pDev->Init()) {
+    if (!m_pDev || !m_pDev->Init()) {
         terminate(GetLastError());
         return;
     }
@@ -226,11 +287,19 @@ void CService::ServiceMain(DWORD argc, LPTSTR *argv)
         return;
     }
 
-    m_evTerminate = CreateEvent (0, TRUE, FALSE, 0);
+    m_evTerminate = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (!m_evTerminate) {
         terminate(GetLastError());
         return;
     }
+
+    m_evWakeUp = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!m_evWakeUp) {
+        terminate(GetLastError());
+        return;
+    }
+
+    InitializeCriticalSection(&m_scWrite);
 
     res = SendStatusToSCM(SERVICE_START_PENDING, NO_ERROR, 0 , 2, 1000);
     if (!res) { 

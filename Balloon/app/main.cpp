@@ -12,6 +12,7 @@ void __stdcall Handler(DWORD ctlcode)
 { 
     CService::HandlerThunk(&srvc, ctlcode);
 } 
+
 void __stdcall ServiceMain(DWORD argc, TCHAR* argv[]) 
 {
     srvc.m_StatusHandle = RegisterServiceCtrlHandler(argv[0], (LPHANDLER_FUNCTION) Handler);
@@ -21,6 +22,23 @@ void __stdcall ServiceMain(DWORD argc, TCHAR* argv[])
 SERVICE_TABLE_ENTRY serviceTable[] =
 {
     { ServiceName, (LPSERVICE_MAIN_FUNCTION) ServiceMain},
+    { NULL, NULL}
+};
+
+void __stdcall HandlerEx(DWORD ctlcode, DWORD evtype, PVOID evdata, PVOID context)
+{
+    CService::HandlerExThunk((CService*) context, ctlcode, evtype, evdata);
+}
+
+void __stdcall ServiceMainEx(DWORD argc, TCHAR* argv[]) 
+{
+    srvc.m_StatusHandle = RegisterServiceCtrlHandlerEx(argv[0], (LPHANDLER_FUNCTION_EX) HandlerEx, (PVOID) &srvc);
+    CService::ServiceMainThunk(&srvc, argc, argv);
+}
+
+SERVICE_TABLE_ENTRY serviceTableEx[] =
+{
+    { ServiceName, (LPSERVICE_MAIN_FUNCTION) ServiceMainEx},
     { NULL, NULL}
 };
 
@@ -66,7 +84,7 @@ wmain(
         }
     } else {
         BOOL success;
-        success = StartServiceCtrlDispatcher(serviceTable);
+        success = StartServiceCtrlDispatcher(serviceTableEx);
         if (!success) {
            ErrorHandler("StartServiceCtrlDispatcher",GetLastError());
         }

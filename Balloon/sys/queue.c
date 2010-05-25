@@ -1,24 +1,10 @@
 #include "precomp.h"
 
 EVT_WDF_IO_QUEUE_IO_WRITE BalloonIoWrite;
-EVT_WDF_IO_QUEUE_IO_CANCELED_ON_QUEUE BalloonEvtIoCanceledOnQueue;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, BalloonQueueInitialize)
 #endif
-
-VOID
-BalloonEvtIoCanceledOnQueue(
-    IN WDFQUEUE  Queue,
-    IN WDFREQUEST  Request
-    )
-{
-    UNREFERENCED_PARAMETER(Queue);
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
-    WdfRequestComplete(Request, STATUS_CANCELLED);
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
-}
 
 NTSTATUS
 BalloonQueueInitialize(
@@ -36,7 +22,6 @@ BalloonQueueInitialize(
                  WdfIoQueueDispatchSequential);
 
     queueConfig.EvtIoWrite  = BalloonIoWrite;
-    queueConfig.EvtIoCanceledOnQueue = BalloonEvtIoCanceledOnQueue;
 
     status = WdfIoQueueCreate(
                  Device,
@@ -49,27 +34,24 @@ BalloonQueueInitialize(
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfIoQueueCreate failed 0x%08x\n", status);
         return status;
     }
-
-    devCtx = GetDeviceContext(Device);
-
-    WDF_IO_QUEUE_CONFIG_INIT(
-                 &queueConfig,
-                 WdfIoQueueDispatchManual);
-
-    queueConfig.EvtIoCanceledOnQueue = BalloonEvtIoCanceledOnQueue;
-
-    status = WdfIoQueueCreate(
-                 Device,
-                 &queueConfig,
-                 WDF_NO_OBJECT_ATTRIBUTES,
-                 &devCtx->StatusQueue);
-
-    if( !NT_SUCCESS(status) ) {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfIoQueueCreate failed 0x%08x\n", status);
-        return status;
-    }
     return status;
 }
+
+VOID
+Dump(
+   PBALLOON_STAT Buffer,
+   ULONG   Length
+   )
+{
+#ifdef DBG
+    ULONG i;
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "\n");
+    for (i = 0; i < Length/sizeof(BALLOON_STAT); ++i) {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "[%d] = %08I64X\n", Buffer[i].tag, Buffer[i].val);
+    }
+#endif
+}
+
 
 VOID
 BalloonIoWrite(
@@ -78,56 +60,35 @@ BalloonIoWrite(
     IN size_t     Length
     )
 {
-    WDFMEMORY              memory;
-    VIO_SG                 sg;
-    PVIOQUEUE              vq;
+    PVOID                  buffer = NULL;
+    size_t                 buffSize;
     PDEVICE_CONTEXT        devCtx = GetDeviceContext(WdfIoQueueGetDevice( Queue ));
     PDRIVER_CONTEXT        drvCtx = GetDriverContext(WdfGetDriver());
     NTSTATUS               status = STATUS_SUCCESS;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "BalloonIoWrite Called! Queue 0x%p, Request 0x%p Length %d\n",
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "BalloonIoWrite Called! Queue 0x%p, Request 0x%p Length %d\n",
              Queue,Request,Length);
 
     if( Length < sizeof(BALLOON_STAT)) {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "BalloonIoWrite Buffer Length to small %d, expected is %d\n",
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "BalloonIoWrite Buffer Length to small %d, expected is %d\n",
                  Length, sizeof(BALLOON_STAT));
         WdfRequestCompleteWithInformation(Request, STATUS_BUFFER_OVERFLOW, 0L);
         return;
     }
 
-    status = WdfRequestRetrieveInputMemory(Request, &memory);
-    if( !NT_SUCCESS(status) ) {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "BalloonIoWrite Could not get request memory buffer 0x%08x\n",
+    status = WdfRequestRetrieveInputBuffer(Request, 0, &buffer, &buffSize);
+    if( !NT_SUCCESS(status) || (buffer == NULL)) {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "BalloonIoWrite Could not get request memory buffer 0x%08x\n",
                  status);
         WdfVerifierDbgBreakPoint();
         WdfRequestComplete(Request, status);
         return;
     }
-
-    status = WdfMemoryCopyToBuffer( 
-                             memory,
-                             0,
-                             drvCtx->MemStats,
-                             Length );
-    if( !NT_SUCCESS(status) ) {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "WdfMemoryCopyFromBuffer failed 0x%08x\n", status);
-        WdfRequestComplete(Request, status);
-        return;
-    }
-
-    sg.physAddr = GetPhysicalAddress(drvCtx->MemStats);
-    sg.ulSize = Length ;
-
-    vq = devCtx->StatVirtQueue; 
-    if(vq->vq_ops->add_buf(vq, &sg, 1, 0, devCtx)) {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Cannot add buffer\n");
-    }
-
-    vq->vq_ops->kick(vq);
-
-    status = WdfRequestForwardToIoQueue(Request, devCtx->StatusQueue);
-    if ( !NT_SUCCESS(status) ) {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "WdfRequestForwardToIoQueue failed: 0x%08x\n", status);
-    }
-    return;
+    ASSERT (buffSize == Length);
+    RtlCopyMemory(drvCtx->MemStats, buffer, Length);
+    Dump(buffer, Length);
+    Dump(drvCtx->MemStats, Length);
+    WdfRequestCompleteWithInformation(Request, status, Length);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "WdfRequestCompleteWithInformation Called! Queue 0x%p, Request 0x%p Length %d Status 0x%08x\n",
+             Queue,Request,Length, status);
 }

@@ -14,5 +14,6 @@ BOOL ServiceControl(int ctrl);
 
 void ShowUsage();
 void ErrorHandler(char *s, int err);
+void PrintMessage(char *s);
 
 #endif

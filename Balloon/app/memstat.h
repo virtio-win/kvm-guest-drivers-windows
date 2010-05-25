@@ -12,7 +12,6 @@ public:
     CMemStat();
     ~CMemStat();
     BOOL Init();
-    HRESULT GetStat();
     BOOL GetStatus(PBALLOON_STAT pstat);
 private:
     BOOL initialized;

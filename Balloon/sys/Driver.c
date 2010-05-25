@@ -44,6 +44,8 @@ NTSTATUS DriverEntry(
     WPP_INIT_TRACING( DriverObject, RegistryPath );
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Balloon driver, built on %s %s\n",
+            __DATE__, __TIME__);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attrib, DRIVER_CONTEXT);
     attrib.EvtCleanupCallback = EvtDriverContextCleanup;
@@ -105,6 +107,7 @@ NTSTATUS DriverEntry(
         WPP_CLEANUP(DriverObject);
         return status;
     }
+    RtlFillMemory (drvCxt->MemStats, sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
     WDF_OBJECT_ATTRIBUTES_INIT(&attrib);
     attrib.ParentObject = driver;
 

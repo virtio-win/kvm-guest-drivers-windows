@@ -16,7 +16,7 @@ public:
     CDevice();
     ~CDevice();
     BOOL     Init();
-    BOOL     Write(PBALLOON_STAT pstat, int nr, HANDLE ev);
+    BOOL     Write(PBALLOON_STAT pstat, int nr);
 protected:
     HANDLE   m_hDevice;
     PTCHAR   GetDevicePath( IN  LPGUID InterfaceGuid );

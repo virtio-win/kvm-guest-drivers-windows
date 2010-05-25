@@ -60,7 +60,6 @@ typedef struct _DEVICE_CONTEXT {
     PVIOQUEUE           DefVirtQueue;
     PVIOQUEUE           StatVirtQueue;
     BOOLEAN             bTellHostFirst;
-    WDFQUEUE            StatusQueue;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
@@ -93,6 +92,8 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(WORKITEM_CONTEXT, GetWorkItemContext)
 DRIVER_INITIALIZE DriverEntry; 
 EVT_WDF_OBJECT_CONTEXT_CLEANUP EvtDriverContextCleanup;
 EVT_WDF_DRIVER_DEVICE_ADD BalloonDeviceAdd;
+EVT_WDF_DEVICE_FILE_CREATE BalloonEvtDeviceFileCreate;
+EVT_WDF_FILE_CLOSE BalloonEvtFileClose;
 
 NTSTATUS
 BalloonPrepareHardware(

@@ -45,24 +45,33 @@ void ErrorHandler(char *s, int err)
         printf("unknown error\n");
     }
 
-    FILE* pLog = fopen("server.log","a");
+    FILE* pLog = fopen("balloon.log","a");
     fprintf(pLog, "%s failed, error code = %d\n",s , err); 
     fclose(pLog);
 
     ExitProcess(err);
 }
 
+void PrintMessage(char *s)
+{
+#ifdef DBG
+    FILE* pLog = fopen("balloon.log", "a");
+    fprintf(pLog, "%s\n", s); 
+    fclose(pLog);
+#endif
+}
+
 void ShowUsage()
 {
     printf("\n");
     printf("USAGE:\n");
-    printf("server -i\tInstall service\n");
-    printf("server -u\tUninstall service\n");
-    printf("server -r\tRun service\n");
-    printf("server -s\tStop service\n");
-    printf("server -p\tPause service\n");
-    printf("server -c\tResume service\n");
-    printf("server status\tCurrent status\n");
+    printf("blnsvr -i\tInstall service\n");
+    printf("blnsvr -u\tUninstall service\n");
+    printf("blnsvr -r\tRun service\n");
+    printf("blnsvr -s\tStop service\n");
+    printf("blnsvr -p\tPause service\n");
+    printf("blnsvr -c\tResume service\n");
+    printf("blnsvr status\tCurrent status\n");
     printf("\n");
 }
 
@@ -123,7 +132,7 @@ BOOL UninstallService()
     BOOL res;
     SERVICE_STATUS status;
 
-    scm = OpenSCManager(NULL, NULL, SC_MANAGER_CREATE_SERVICE);
+    scm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (!scm) {
         ErrorHandler("OpenSCManager", GetLastError());
     }
@@ -144,7 +153,7 @@ BOOL UninstallService()
         if (!res) {
             ErrorHandler("ControlService", GetLastError());
         }
-        Sleep(500);
+        Sleep(5000);
     }
 
     res = DeleteService(service);

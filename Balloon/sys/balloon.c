@@ -76,7 +76,7 @@ BalloonInit(
 
         devCtx->StatVirtQueue->vq_ops->kick(devCtx->StatVirtQueue);
 
-        VirtIODeviceEnableGuestFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ);
+//        VirtIODeviceEnableGuestFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ);
     }
     devCtx->bTellHostFirst
         = (BOOLEAN)VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_MUST_TELL_HOST); 
@@ -330,24 +330,16 @@ BalloonMemStats(
     WDFREQUEST request;
     NTSTATUS  status;
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
-    status = WdfIoQueueRetrieveNextRequest(devCtx->StatusQueue, &request);
 
-    if (NT_SUCCESS(status)) {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS,"got available request\n");
-        WdfRequestComplete(request, STATUS_SUCCESS);
-    } else {
-        drvCtx->MemStats[0].tag = VIRTIO_BALLOON_S_NR;
-        drvCtx->MemStats[0].val = 0;
-        sg.physAddr = GetPhysicalAddress(drvCtx->MemStats);
-        sg.ulSize = sizeof(BALLOON_STAT);
+    sg.physAddr = GetPhysicalAddress(drvCtx->MemStats);
+    sg.ulSize = sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR;
 
-        if(devCtx->StatVirtQueue->vq_ops->add_buf(devCtx->StatVirtQueue, &sg, 1, 0, devCtx) != 0)
-        {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> Cannot add buffer\n");
-        }
-
-        devCtx->StatVirtQueue->vq_ops->kick(devCtx->StatVirtQueue);
+    if(devCtx->StatVirtQueue->vq_ops->add_buf(devCtx->StatVirtQueue, &sg, 1, 0, devCtx) != 0)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> Cannot add buffer\n");
     }
+
+    devCtx->StatVirtQueue->vq_ops->kick(devCtx->StatVirtQueue);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
 
