@@ -112,7 +112,7 @@ typedef struct _ADAPTER_EXTENSION {
 #ifdef USE_STORPORT
     LIST_ENTRY            complete_list;
     STOR_DPC              completion_dpc;
-#if (NTDDI_VERSION >= NTDDI_VISTA)
+#if (INDIRECT_SUPPORTED)
     BOOLEAN               indirect;
 #endif
 #endif
@@ -125,7 +125,7 @@ typedef struct _RHEL_SRB_EXTENSION {
 #ifndef USE_STORPORT
     BOOLEAN               call_next;
 #endif
-#if (NTDDI_VERSION >= NTDDI_VISTA)
+#if (INDIRECT_SUPPORTED)
     PVOID                 addr; 
 #endif
 }RHEL_SRB_EXTENSION, *PRHEL_SRB_EXTENSION;

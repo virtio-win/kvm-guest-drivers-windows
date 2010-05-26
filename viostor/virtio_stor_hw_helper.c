@@ -116,13 +116,13 @@ RhelDoReadWrite(PVOID DeviceExtension,
 {
     BOOLEAN res = FALSE;
     PRHEL_SRB_EXTENSION srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
-#if (NTDDI_VERSION >= NTDDI_VISTA)
+#if (INDIRECT_SUPPORTED)
     NTSTATUS status = STATUS_SUCCESS;
     struct vring_desc *desc = NULL;
     srbExt->addr = NULL;
 #endif
     res = StorPortSynchronizeAccess(DeviceExtension, SynchronizedReadWriteRoutine, (PVOID)Srb);
-#if (NTDDI_VERSION >= NTDDI_VISTA)
+#if (INDIRECT_SUPPORTED)
 
     if (!res) {
         status = StorPortAllocatePool(DeviceExtension, 

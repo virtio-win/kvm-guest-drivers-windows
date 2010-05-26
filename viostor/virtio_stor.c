@@ -322,7 +322,7 @@ VirtIoFindAdapter(
     ConfigInfo->MaximumTransferLength = 0x00FFFFFF;
     adaptExt->queue_depth = pageNum / ConfigInfo->NumberOfPhysicalBreaks - 1;
 
-#if (NTDDI_VERSION >= NTDDI_VISTA)
+#if (INDIRECT_SUPPORTED)
     if(!adaptExt->dump_mode) {
         adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);	
     }

@@ -42,7 +42,7 @@ initialize_virtqueue(
 //#define to_vvq(_vq) container_of(_vq, struct vring_virtqueue, vq)
 #define to_vvq(_vq) (struct vring_virtqueue *)_vq
 
-#if (NTDDI_VERSION >= NTDDI_VISTA)
+#if (INDIRECT_SUPPORTED)
 /* Set up an indirect table of descriptors and add it to the queue. */
 static 
 int 
@@ -110,7 +110,7 @@ vring_add_buf(
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
     unsigned int i, avail, head, prev;
-#if (NTDDI_VERSION >= NTDDI_VISTA)
+#if (INDIRECT_SUPPORTED)
     PSCSI_REQUEST_BLOCK Srb;
     PRHEL_SRB_EXTENSION srbExt;
     PADAPTER_EXTENSION adaptExt;
@@ -121,7 +121,7 @@ vring_add_buf(
         RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s: data is NULL!\n",  __FUNCTION__) );
         return -1;
     }
-#if (NTDDI_VERSION >= NTDDI_VISTA)
+#if (INDIRECT_SUPPORTED)
     adaptExt = (PADAPTER_EXTENSION)vq->vq.DeviceExtension;
     vbr = (pblk_req) data;
     Srb      = (PSCSI_REQUEST_BLOCK)vbr->req;
@@ -177,7 +177,7 @@ vring_add_buf(
 
     /* Update free pointer */
     vq->free_head = i;
-#if (NTDDI_VERSION >= NTDDI_VISTA)
+#if (INDIRECT_SUPPORTED)
 add_head:
 #endif
     /* Set token. */
@@ -193,7 +193,7 @@ add_head:
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s: Added buffer head %i to %p\n",
         __FUNCTION__, head, vq) );
-#if (NTDDI_VERSION >= NTDDI_VISTA)
+#if (INDIRECT_SUPPORTED)
     if (adaptExt->indirect)
         return vq->num_free ? vq->vring.num : 0;
 #endif
@@ -253,7 +253,7 @@ detach_buf(
 {
     unsigned int i;
     PVOID addr;
-#if (NTDDI_VERSION >= NTDDI_VISTA)
+#if (INDIRECT_SUPPORTED)
     STOR_PHYSICAL_ADDRESS  pa;
 #endif
 
@@ -262,7 +262,7 @@ detach_buf(
 
 	/* Put back on free list: find end */
     i = head;
-#if (NTDDI_VERSION >= NTDDI_VISTA)
+#if (INDIRECT_SUPPORTED)
     if (vq->vring.desc[i].flags & VRING_DESC_F_INDIRECT) {
         pa.QuadPart = vq->vring.desc[i].addr;
         addr = StorPortGetVirtualAddress(vq->vq.DeviceExtension, pa);
