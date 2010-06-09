@@ -62,6 +62,7 @@ NTSTATUS DriverEntry(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"WdfDriverCreate failed with status 0x%08x\n", status);
         WPP_CLEANUP(DriverObject);
+        return status;
     }
 
     drvCxt = GetDriverContext(driver);
