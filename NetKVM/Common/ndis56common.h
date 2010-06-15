@@ -83,6 +83,7 @@
 #define VIRTIO_NET_F_MRG_RXBUF	15  /* Host can handle merged Rx buffers and requires bigger header for that. */
 #define VIRTIO_NET_F_STATUS     16
 
+
 #define VIRTIO_NET_S_LINK_UP    1       /* Link is up */
 
 #define VIRTIO_NET_INVALID_INTERRUPT_STATUS		0xFF
@@ -265,6 +266,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	BOOLEAN					bDoIPCheck;
 	BOOLEAN					bFixIPChecksum;
 	BOOLEAN					bUseMergedBuffers;
+	BOOLEAN					bDoPublishIndices;
 	BOOLEAN					bDoKickOnNoBuffer;
 	BOOLEAN					bSurprizeRemoved;
 	BOOLEAN					bUsingMSIX;
@@ -272,6 +274,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	LONG 					counterDPCInside;
 	LONG 					bDPCInactive;
 	LONG					InterruptStatus;
+	ULONG					ulIrqReceived;
 	ULONG					ulPriorityVlanSetting;
 	ULONG					VlanId;
 	ULONG					ulFormalLinkSpeed;
@@ -355,7 +358,6 @@ typedef struct _tagPARANDIS_ADAPTER
 	NDIS_HANDLE					DmaHandle;
 	NDIS_HANDLE					ConnectTimer;
 	NDIS_HANDLE					InterruptRecoveryTimer;
-	ULONG						ulIrqReceived;
 	NDIS_OFFLOAD				ReportedOffloadCapabilities;
 	NDIS_OFFLOAD				ReportedOffloadConfiguration;
 	BOOLEAN						bOffloadEnabled;
