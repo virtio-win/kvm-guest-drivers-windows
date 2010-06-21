@@ -125,7 +125,7 @@ struct virtqueue *vring_new_virtqueue(unsigned int num,
 				      bool (*callback)(struct virtqueue *vq));
 
 void vring_del_virtqueue(struct virtqueue *vq);
-
+void* vring_detach_unused_buf(struct virtqueue *vq);
 
 
 #endif /* _LINUX_VIRTIO_RING_H */

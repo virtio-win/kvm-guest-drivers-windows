@@ -75,6 +75,7 @@ struct virtqueue *VirtIODeviceFindVirtualQueue(VirtIODevice *vp_dev,
 void VirtIODeviceDeleteVirtualQueue(struct virtqueue *vq);
 u32  VirtIODeviceGetQueueSize(struct virtqueue *vq);
 void VirtIODeviceRenewVirtualQueue(struct virtqueue *vq);
+void* VirtIODeviceDetachUnusedBuf(struct virtqueue *vq);
 
 void VirtIODeviceAddStatus(VirtIODevice * pVirtIODevice, u8 status);
 void VirtIODeviceRemoveStatus(VirtIODevice * pVirtIODevice, u8 status);
