@@ -1,0 +1,46 @@
+TARGETNAME=vioser
+TARGETTYPE=DRIVER
+
+KMDF_VERSION_MAJOR=1
+MSC_WARNING_LEVEL=-W3 -WX
+
+INF_NAME=vioser
+NTTARGETFILE0=$(OBJ_PATH)\$(O)\$(INF_NAME).inf
+PASS0_BINPLACE=$(NTTARGETFILE0)
+
+TARGETLIBS=$(TARGETLIBS) \
+		   $(DDK_LIB_PATH)\ntstrsafe.lib \
+                   $(DDK_LIB_PATH)\wdmsec.lib    \
+		   ..\VirtIO\$(O)\virtiolib.lib
+
+INCLUDES = $(INCLUDES);..\VirtIO;
+
+SOURCES= Driver.c  \
+         Device.c  \
+         IsrDpc.c  \
+         Port.c    \
+         Buffer.c  \
+         utils.c   \
+         Control.c  
+
+TARGET_DESTINATION=wdf
+
+PRECOMPILED_INCLUDE=precomp.h
+PRECOMPILED_PCH=precomp.pch
+PRECOMPILED_OBJ=precomp.obj
+
+#ENABLE_EVENT_TRACING=1
+
+ENABLE_COM_DEBUG=1
+
+!IFDEF ENABLE_EVENT_TRACING
+C_DEFINES = $(C_DEFINES) -DEVENT_TRACING
+RUN_WPP= $(SOURCES)                             \
+         -km                                    \
+         -func:TraceEvents(LEVEL,FLAGS,MSG,...) \
+         -gen:{km-WdfDefault.tpl}*.tmh       
+!ENDIF
+
+!IFDEF ENABLE_COM_DEBUG
+C_DEFINES = $(C_DEFINES) -DCOM_DEBUG
+!ENDIF
