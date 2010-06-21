@@ -12,7 +12,7 @@ VIOSerialAllocateBuffer(
 {
     PPORT_BUFFER buf;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     buf = ExAllocatePoolWithTag(
                                  NonPagedPool,
@@ -47,7 +47,7 @@ VIOSerialFreeBuffer(
     IN PPORT_BUFFER buf
 )
 {
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     ExFreePoolWithTag(buf->va_buf, VIOSERIAL_DRIVER_MEMORY_TAG);
     ExFreePoolWithTag(buf, VIOSERIAL_DRIVER_MEMORY_TAG);
@@ -62,7 +62,7 @@ VIOSerialReclaimConsumedBuffers(
     UINT len;
     struct virtqueue *vq = port->out_vq;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     while (buf = vq->vq_ops->get_buf(vq, &len))
     {
@@ -84,7 +84,7 @@ VIOSerialSendBuffers(
     struct VirtIOBufferDescriptor sg;
     struct virtqueue *vq = port->in_vq;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     VIOSerialReclaimConsumedBuffers(port);
 
@@ -125,7 +125,7 @@ VIOSerialFillReadBuf(
     struct virtqueue *vq = port->out_vq;
     NTSTATUS  status = STATUS_SUCCESS;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     if (!count || !VIOSerialPortHasData(port))
         return 0;
@@ -159,7 +159,7 @@ VIOSerialAddInBuf(
     NTSTATUS  status = STATUS_SUCCESS;
     struct VirtIOBufferDescriptor sg;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     sg.physAddr = buf->pa_buf;
     sg.ulSize = buf->size;
@@ -184,7 +184,7 @@ VIOSerialGetInBuf(
     struct virtqueue *vq = port->in_vq;
     UINT len;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     vq = port->in_vq;
     buf = vq->vq_ops->get_buf(vq, &len);

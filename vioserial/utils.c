@@ -17,9 +17,6 @@
 #include "utils.tmh"
 #endif
 
-//int nDebugLevel = 0;
-//int bDebugPrint = 0;
-
 u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
 {
     return READ_PORT_ULONG((PULONG)(ulRegister));

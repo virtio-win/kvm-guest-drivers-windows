@@ -73,8 +73,6 @@ typedef struct _tagVirtioConsoleControl {
 
 typedef struct _tagPortDevice
 {
-    LIST_ENTRY          Ports;
-    WDFSPINLOCK         PortsListLock;
     VirtIODevice        IODevice;
 
     PHYSICAL_ADDRESS    PortBasePA;
@@ -258,38 +256,10 @@ VIOSerialEnableDisableInterruptQueue(
 );
 
 
-NTSTATUS
-VIOSerialDeviceListCreatePdo(
-    IN WDFCHILDLIST DeviceList,
-    IN PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER IdentificationDescription,
-    IN PWDFDEVICE_INIT ChildInit
-);
-
-VOID
-VIOSerialPortRead(
-    IN WDFQUEUE   Queue,
-    IN WDFREQUEST Request,
-    IN size_t     Length
-);
-
-VOID
-VIOSerialPortWrite(
-    IN WDFQUEUE   Queue,
-    IN WDFREQUEST Request,
-    IN size_t     Length
-);
-
-VOID
-VIOSerialPortCreate (
-    IN WDFDEVICE WdfDevice,
-    IN WDFREQUEST Request,
-    IN WDFFILEOBJECT FileObject
-);
-
-VOID
-VIOSerialPortClose (
-    IN WDFFILEOBJECT    FileObject
-);
-
+EVT_WDF_CHILD_LIST_CREATE_DEVICE VIOSerialDeviceListCreatePdo;
+EVT_WDF_IO_QUEUE_IO_READ VIOSerialPortRead;
+EVT_WDF_IO_QUEUE_IO_WRITE VIOSerialPortWrite;
+EVT_WDF_DEVICE_FILE_CREATE VIOSerialPortCreate;
+EVT_WDF_FILE_CLOSE VIOSerialPortClose;
 
 #endif /* VIOSERIAL_H */

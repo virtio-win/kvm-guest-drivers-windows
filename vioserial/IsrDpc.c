@@ -36,7 +36,7 @@ VIOSerialInterruptDpc(
     PVIOSERIAL_PORT  port;
     WDFDEVICE        Device;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     if(!Interrupt)
     {
@@ -66,7 +66,7 @@ VIOSerialInterruptDpc(
         }
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
 }
 
 
@@ -79,7 +79,7 @@ VIOSerialEnableDisableInterrupt(
 {
     unsigned int i;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
 
     if(!pContext)
         return;
@@ -109,7 +109,7 @@ VIOSerialInterruptEnable(
     IN WDFINTERRUPT Interrupt,
     IN WDFDEVICE AssociatedDevice)
 {
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
     VIOSerialEnableDisableInterrupt(
                                  GetPortsDevice(WdfInterruptGetDevice(Interrupt)), 
                                  TRUE);
@@ -122,7 +122,7 @@ VIOSerialInterruptDisable(
     IN WDFINTERRUPT Interrupt,
     IN WDFDEVICE AssociatedDevice)
 {
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
     VIOSerialEnableDisableInterrupt(
                                  GetPortsDevice(WdfInterruptGetDevice(Interrupt)),
                                  FALSE);
@@ -136,7 +136,7 @@ VIOSerialEnableDisableInterruptQueue(
 {
     unsigned int i;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
 
     if(!vq)
         return;

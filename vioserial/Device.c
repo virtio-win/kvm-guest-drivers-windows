@@ -16,8 +16,6 @@
 EVT_WDF_DEVICE_PREPARE_HARDWARE     VIOSerialEvtDevicePrepareHardware;
 EVT_WDF_DEVICE_RELEASE_HARDWARE     VIOSerialEvtDeviceReleaseHardware;
 
-
-// Break huge add device into chunks
 static NTSTATUS VIOSerialInitInterruptHandling(IN WDFDEVICE hDevice);
 static NTSTATUS VIOSerialInit(IN WDFOBJECT hDevice);
 static NTSTATUS VIOSerialDeinit(IN WDFOBJECT WdfDevice);
@@ -36,7 +34,7 @@ static NTSTATUS VIOSerialInitInterruptHandling(WDFDEVICE hDevice)
     PPORTS_DEVICE	         pContext = GetPortsDevice(hDevice);
     NTSTATUS                     status = STATUS_SUCCESS;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, PORTS_DEVICE);
     WDF_INTERRUPT_CONFIG_INIT(
@@ -152,7 +150,7 @@ VIOSerialEvtDevicePrepareHardware(
     WDF_OBJECT_ATTRIBUTES attributes;
 
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
 
     nListSize = WdfCmResourceListGetCount(ResourcesTranslated);
 
@@ -212,17 +210,6 @@ VIOSerialEvtDevicePrepareHardware(
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
     attributes.ParentObject = Device;
 
-    status = WdfSpinLockCreate(
-                                 &attributes,
-                                 &pContext->PortsListLock
-                                 );
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfSpinLockCreate failed - 0x%x\n", status);
-        return status;
-    }
-
-    InitializeListHead(&pContext->Ports);
     pContext->isDeviceInitialized = TRUE;
 
     return STATUS_SUCCESS;
@@ -238,7 +225,7 @@ VIOSerialEvtDeviceReleaseHardware(
 	
     PAGED_CODE();
 	
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
 	
     VIOSerialDeinit(Device);
 
@@ -263,7 +250,7 @@ VIOSerialInit(IN WDFOBJECT Device)
     UINT nr_ports, nr_queues, i, j;
     struct virtqueue *in_vq, *out_vq;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
     VirtIODeviceSetIOAddress(&pContext->IODevice, (ULONG_PTR)pContext->pPortBase);
 
     VirtIODeviceReset(&pContext->IODevice);
@@ -361,7 +348,7 @@ VIOSerialDeinit(
     PPORTS_DEVICE	pContext = GetPortsDevice(WdfDevice);
     UINT                nr_ports, i;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
 
     VirtIODeviceRemoveStatus(&pContext->IODevice , VIRTIO_CONFIG_S_DRIVER_OK);
 
@@ -424,7 +411,7 @@ VIOSerialFillQueue(
     NTSTATUS  status = STATUS_SUCCESS;
     PPORT_BUFFER buf;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
 
     buf = VIOSerialAllocateBuffer(PAGE_SIZE);
     if(buf == NULL)

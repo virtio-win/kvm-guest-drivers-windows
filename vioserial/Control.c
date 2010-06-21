@@ -28,7 +28,7 @@ VIOSerialSendCtrlMsg(
 
     vq = pContext->c_ovq;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     cpkt.id = id;
     cpkt.event = event;
@@ -58,7 +58,7 @@ VIOSerialCtrlWorkHandler(
     NTSTATUS  status = STATUS_SUCCESS;
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     vq = pContext->c_ivq;                                     
     ASSERT(vq);

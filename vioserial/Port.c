@@ -21,9 +21,9 @@ VIOSerialFindPortById(
     NTSTATUS        status = STATUS_SUCCESS;
     WDFCHILDLIST    list;
     WDF_CHILD_LIST_ITERATOR     iterator;
-    PVIOSERIAL_PORT          pport = NULL;
+    PRAWPDO_VIOSERIAL_PORT          rawPdo = NULL;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  port = %d\n", __FUNCTION__, id);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP,"%s  port = %d\n", __FUNCTION__, id);
 
     list = WdfFdoGetDefaultChildList(Device);
     WDF_CHILD_LIST_ITERATOR_INIT(&iterator,
@@ -54,16 +54,18 @@ VIOSerialFindPortById(
             break;
         }
         ASSERT(childInfo.Status == WdfChildListRetrieveDeviceSuccess);
-        pport = SerialPortGetData(hChild);
+        rawPdo = RawPdoSerialPortGetData(hChild);
 
-        if(pport->Id != id)
+        if(rawPdo && rawPdo->port->Id == id)
         {
-           pport = NULL;
-       }
+            WdfChildListEndIteration(list, &iterator);
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  id = %d port = 0x%p\n", __FUNCTION__, id, rawPdo->port);
+            return rawPdo->port;
+        }
     }
     WdfChildListEndIteration(list, &iterator);
-
-    return pport;
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"Port was not found id = %d\n", id);
+    return NULL;
 }
 
 VOID
@@ -77,6 +79,11 @@ VIOSerialAddPort(
     NTSTATUS        status = STATUS_SUCCESS;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  port = %d\n", __FUNCTION__, id);
+
+    WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(
+                                 &port.Header,
+                                 sizeof(port)
+                                 );
 
     port.Id = id;
     port.Name = NULL;
@@ -107,6 +114,11 @@ VIOSerialAddPort(
            "The description is already present in the list, the serial number is not unique.\n");
     }
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
+           "WdfChildListAddOrUpdateChildDescriptionAsPresent = 0x%x.\n", status);
+
+
+
     VIOSerialEnableDisableInterruptQueue(port.in_vq, TRUE);
     VIOSerialEnableDisableInterruptQueue(port.out_vq, TRUE);
 
@@ -129,9 +141,6 @@ VIOSerialRemovePort(
     NTSTATUS        status = STATUS_SUCCESS;
     WDFCHILDLIST    list;
     WDF_CHILD_LIST_ITERATOR     iterator;
-
-    PAGED_CODE ();
-
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  port = %d\n", __FUNCTION__, id);
 
