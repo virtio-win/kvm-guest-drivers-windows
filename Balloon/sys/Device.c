@@ -24,10 +24,10 @@
 #pragma alloc_text(PAGE, BalloonEvtDeviceFileCreate)
 #pragma alloc_text(PAGE, BalloonEvtFileClose)
 
-NTSTATUS BalloonDeviceAdd(
-                      IN WDFDRIVER  Driver,
-                      IN PWDFDEVICE_INIT  DeviceInit
-                      )
+NTSTATUS 
+BalloonDeviceAdd(
+    IN WDFDRIVER  Driver,
+    IN PWDFDEVICE_INIT  DeviceInit)
 {
     NTSTATUS                    status = STATUS_SUCCESS;
     WDFDEVICE                   device;
@@ -150,7 +150,6 @@ BalloonPrepareHardware(
         switch (desc->Type) {
 
             case CmResourceTypePort:
-
                 if (!foundPort && 
                      desc->u.Port.Length >= 0x20) {
 
