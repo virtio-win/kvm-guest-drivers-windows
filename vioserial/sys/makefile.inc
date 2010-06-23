@@ -1,7 +1,7 @@
 _LNG=$(LANGUAGE)
 _INX=.
-STAMP=stampinf -f $@ -d * -v * -a $(_BUILDARCH) -k $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)
-#STAMP=stampinf -f $@ -d * -a $(_BUILDARCH) -k $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)
+#STAMP=stampinf -f $@ -d * -v * -a $(_BUILDARCH) -k $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)
+STAMP=stampinf -f $@ -d * -a $(_BUILDARCH) -k $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)
 
 
 
