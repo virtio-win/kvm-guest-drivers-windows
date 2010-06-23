@@ -36,6 +36,14 @@ VIOSerialInterruptDpc(
     PVIOSERIAL_PORT  port;
     WDFDEVICE        Device;
 
+
+    ULONG            information;
+    NTSTATUS         status;
+    PUCHAR           systemBuffer;
+    size_t           Length;
+    WDFREQUEST       request;
+
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     if(!Interrupt)
@@ -48,8 +56,9 @@ VIOSerialInterruptDpc(
 
     for (i = 0; i < pContext->consoleConfig.max_nr_ports; ++i)
     {
+        VIOSerialCtrlWorkHandler(WdfInterruptGetDevice(Interrupt)); 
         port = VIOSerialFindPortById(Device, i);
-        if (i != 1 && port)
+        if (port)
         {
            if (port->InBuf == NULL)
            {
@@ -59,10 +68,20 @@ VIOSerialInterruptDpc(
            {
               VIOSerialDiscardPortData(port);
            }
-        }
-        else if (i == 1)
-        {
-           VIOSerialCtrlWorkHandler(WdfInterruptGetDevice(Interrupt)); 
+           else
+           {
+              status = WdfIoQueueRetrieveNextRequest(port->ReadQueue, &request);
+              if (NT_SUCCESS(status))
+              {
+                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"Got available request\n");
+                 status = WdfRequestRetrieveOutputBuffer(request, 0, &systemBuffer, &Length);
+                 if (NT_SUCCESS(status))
+                 {
+                    information = (ULONG)VIOSerialFillReadBuf(port, systemBuffer, Length);
+                    WdfRequestCompleteWithInformation(request, STATUS_SUCCESS, information);
+                 }
+              }
+           }
         }
     }
 

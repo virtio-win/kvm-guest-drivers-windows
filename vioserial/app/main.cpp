@@ -267,7 +267,7 @@ wmain(
         free (deviceInterfaceDetailData);
         return 0;
     }
-/*
+
     if(!PerformWriteTest(file)) { 
         printf("WriteTest request failed:0x%x\n", GetLastError());
         free (deviceInterfaceDetailData);
@@ -276,7 +276,7 @@ wmain(
     }
 
     printf("WriteTest completed successfully\n");
-*/
+/*
     if(!PerformReadTest(file)) { 
         printf("WriteTest request failed:0x%x\n", GetLastError());
         free (deviceInterfaceDetailData);
@@ -285,7 +285,7 @@ wmain(
     }
 
     printf("PerformReadTest completed successfully\n");
-
+*/
     free (deviceInterfaceDetailData);
     CloseHandle(file);
     return 0;

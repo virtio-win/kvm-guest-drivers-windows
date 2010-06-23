@@ -135,6 +135,7 @@ typedef struct _tagVioSerialPort
     BOOLEAN             OutVqFull;
     BOOLEAN             HostConnected;
     BOOLEAN             GuestConnected;
+    WDFQUEUE            ReadQueue;
 } VIOSERIAL_PORT, *PVIOSERIAL_PORT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSERIAL_PORT, SerialPortGetData)

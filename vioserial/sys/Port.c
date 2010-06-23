@@ -457,19 +457,19 @@ VIOSerialDeviceListCreatePdo(
         return status;
     }
 
-//    WDF_IO_QUEUE_CONFIG_INIT(&ioQueueConfig,
-//                             WdfIoQueueDispatchManual);
-//
-//    status = WdfIoQueueCreate(hChild,
-//                              &ioQueueConfig,
-//                              WDF_NO_OBJECT_ATTRIBUTES,
-//                              &pdoData->ReadQueue
-//                             );
-//    if (!NT_SUCCESS(status)) 
-//    {
-//        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfIoQueueCreate failed 0x%x\n", status);
-//        return status;
-//    }
+    WDF_IO_QUEUE_CONFIG_INIT(&ioQueueConfig,
+                             WdfIoQueueDispatchManual);
+
+    status = WdfIoQueueCreate(hChild,
+                              &ioQueueConfig,
+                              WDF_NO_OBJECT_ATTRIBUTES,
+                              &pport->ReadQueue
+                             );
+    if (!NT_SUCCESS(status)) 
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfIoQueueCreate failed 0x%x\n", status);
+        return status;
+    }
 
     WDF_DEVICE_PNP_CAPABILITIES_INIT(&pnpCaps);
 
@@ -522,14 +522,29 @@ VIOSerialPortRead(
         WdfRequestComplete(Request, status);
         return;
     }
-    if (VIOSerialPortHasData(pdoData->port) && !pdoData->port->HostConnected)
+
+    if (!VIOSerialPortHasData(pdoData->port))
     {
-        information = 0;
+        if (!pdoData->port->HostConnected)
+        {
+           WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, 0);
+           return;
+        }
+
+        status = WdfRequestForwardToIoQueue(Request, pdoData->port->ReadQueue);
+        if (NT_SUCCESS(status)) 
+        {
+            return;
+        } 
+        else 
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"WdfRequestForwardToIoQueue failed: %x\n", status);
+           WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, 0);
+           return;
+        }
     }
-    else
-    {
-        information = (ULONG)VIOSerialFillReadBuf(pdoData->port, systemBuffer, Length);
-    }
+
+    information = (ULONG)VIOSerialFillReadBuf(pdoData->port, systemBuffer, Length);
     WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, information);
     return;
 }
@@ -556,8 +571,23 @@ VIOSerialPortWrite(
         return;
     }
 
-    length = VIOSerialSendBuffers(pdoData->port, systemBuffer, Length, FALSE);
+    if (!pdoData->port->HostConnected)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"Host Is Not Connected\n");
+        WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, 0);
+        return;
+    }
 
+    VIOSerialReclaimConsumedBuffers(pdoData->port);
+
+    if (pdoData->port->OutVqFull)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"Out VQ Is Full\n");
+        WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, 0);
+        return;
+    }
+
+    length = VIOSerialSendBuffers(pdoData->port, systemBuffer, Length, FALSE);
     WdfRequestCompleteWithInformation(Request, status, (ULONG_PTR)length);
 }
 
