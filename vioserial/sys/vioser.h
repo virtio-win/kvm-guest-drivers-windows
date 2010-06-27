@@ -89,6 +89,7 @@ typedef struct _tagPortDevice
     CONSOLE_CONFIG      consoleConfig;
     struct virtqueue    *c_ivq, *c_ovq;
     struct virtqueue    **in_vqs, **out_vqs;
+    WDFSPINLOCK         CVqLock;
 
 } PORTS_DEVICE, *PPORTS_DEVICE;
 
@@ -113,11 +114,11 @@ DEFINE_GUID (GUID_DEVINTERFACE_PORTSENUM_VIOSERIAL,
 
 typedef struct _tagPortBuffer
 {
-    PHYSICAL_ADDRESS  pa_buf;
-    PVOID             va_buf;
-    size_t            size;
-    size_t            len;
-    size_t            offset;
+    PHYSICAL_ADDRESS    pa_buf;
+    PVOID               va_buf;
+    size_t              size;
+    size_t              len;
+    size_t              offset;
 } PORT_BUFFER, * PPORT_BUFFER;
 
 typedef struct _tagVioSerialPort
@@ -128,7 +129,8 @@ typedef struct _tagVioSerialPort
 
     PPORT_BUFFER        InBuf;
     struct virtqueue    *in_vq, *out_vq;
-
+    WDFSPINLOCK         InBufLock;
+    WDFSPINLOCK         OutVqLock;
     PCHAR               Name;
     UINT                Id;
 
@@ -136,6 +138,7 @@ typedef struct _tagVioSerialPort
     BOOLEAN             HostConnected;
     BOOLEAN             GuestConnected;
     WDFQUEUE            ReadQueue;
+    WDFQUEUE            WriteQueue;
 } VIOSERIAL_PORT, *PVIOSERIAL_PORT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSERIAL_PORT, SerialPortGetData)
@@ -151,7 +154,8 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(RAWPDO_VIOSERIAL_PORT, RawPdoSerialPortGetDat
 
 NTSTATUS 
 VIOSerialFillQueue(
-    IN struct virtqueue *vq
+    IN struct virtqueue *vq,
+    IN WDFSPINLOCK Lock
 );
 
 NTSTATUS 
@@ -240,6 +244,17 @@ PVOID
 VIOSerialGetInBuf(
     IN PVIOSERIAL_PORT port
 );
+
+BOOLEAN
+VIOSerialWillWriteBlock(
+    IN PVIOSERIAL_PORT port
+);
+
+BOOLEAN
+VIOSerialWillReadBlock(
+    IN PVIOSERIAL_PORT port
+);
+
 
 VOID 
 VIOSerialEnableDisableInterruptQueue(

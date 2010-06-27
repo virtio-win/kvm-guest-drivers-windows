@@ -62,13 +62,15 @@ VIOSerialReclaimConsumedBuffers(
     UINT len;
     struct virtqueue *vq = port->out_vq;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
-    while (buf = vq->vq_ops->get_buf(vq, &len))
+    while ((buf = vq->vq_ops->get_buf(vq, &len)) != NULL)
     {
         ExFreePoolWithTag(buf, VIOSERIAL_DRIVER_MEMORY_TAG);  
+        KeStallExecutionProcessor(100);
         port->OutVqFull = FALSE;
     }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 }
 
 SSIZE_T 
@@ -84,8 +86,9 @@ VIOSerialSendBuffers(
     struct VirtIOBufferDescriptor sg;
     struct virtqueue *vq = port->in_vq;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
+    WdfSpinLockAcquire(port->OutVqLock);
     VIOSerialReclaimConsumedBuffers(port);
 
     sg.physAddr = GetPhysicalAddress(buf);
@@ -95,6 +98,7 @@ VIOSerialSendBuffers(
     vq->vq_ops->kick(vq);
     if (ret < 0)
     {
+        WdfSpinLockRelease(port->OutVqLock);
         return count;
     }
     
@@ -110,6 +114,8 @@ VIOSerialSendBuffers(
            KeStallExecutionProcessor(100);
         }   
     }
+    WdfSpinLockRelease(port->OutVqLock);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return count;
 }
 
@@ -139,6 +145,7 @@ VIOSerialFillReadBuf(
 
     if (buf->offset == buf->len) 
     {
+        WdfSpinLockAcquire(port->InBufLock);
         port->InBuf = NULL;
 
         status = VIOSerialAddInBuf(port->in_vq, buf);
@@ -146,6 +153,7 @@ VIOSerialFillReadBuf(
         {
            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"%s::%d  VIOSerialAddInBuf failed\n", __FUNCTION__, __LINE__);
         }
+        WdfSpinLockRelease(port->InBufLock);
     }
     return count;
 }

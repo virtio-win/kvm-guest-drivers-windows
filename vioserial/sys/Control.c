@@ -63,11 +63,15 @@ VIOSerialCtrlWorkHandler(
     vq = pContext->c_ivq;                                     
     ASSERT(vq);
 
+    WdfSpinLockAcquire(pContext->CVqLock);
     while ((buf = vq->vq_ops->get_buf(vq, &len))) 
     {
+        WdfSpinLockRelease(pContext->CVqLock);
         buf->len = len;
         buf->offset = 0;
         VIOSerialHandleCtrlMsg(Device, buf);
+
+        WdfSpinLockAcquire(pContext->CVqLock);
         status = VIOSerialAddInBuf(vq, buf); 
         if (!NT_SUCCESS(status))
         {
@@ -75,6 +79,7 @@ VIOSerialCtrlWorkHandler(
            VIOSerialFreeBuffer(buf);  
         }
     }
+    WdfSpinLockRelease(pContext->CVqLock);
 }
 
 VOID
@@ -136,9 +141,11 @@ VIOSerialHandleCtrlMsg(
         break;
 
         case VIRTIO_CONSOLE_PORT_OPEN:
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_OPEN id = %d\n", cpkt->id);
+           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_OPEN id = %d, HostConnected = %d\n", cpkt->id, cpkt->value);
            port->HostConnected = (BOOLEAN)cpkt->value;
+           WdfSpinLockAcquire(port->OutVqLock);
            VIOSerialReclaimConsumedBuffers(port);
+           WdfSpinLockRelease(port->OutVqLock);
         break;
 
         case VIRTIO_CONSOLE_PORT_NAME:

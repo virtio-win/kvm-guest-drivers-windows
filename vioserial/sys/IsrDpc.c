@@ -42,6 +42,7 @@ VIOSerialInterruptDpc(
     PUCHAR           systemBuffer;
     size_t           Length;
     WDFREQUEST       request;
+    BOOLEAN          nonBlock;
 
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
@@ -60,7 +61,9 @@ VIOSerialInterruptDpc(
         port = VIOSerialFindPortById(Device, i);
         if (port)
         {
-           if (port->InBuf == NULL)
+
+           WdfSpinLockAcquire(port->InBufLock);
+           if (!port->InBuf)
            {
               port->InBuf = VIOSerialGetInBuf(port);
            }
@@ -68,12 +71,14 @@ VIOSerialInterruptDpc(
            {
               VIOSerialDiscardPortData(port);
            }
-           else
+           WdfSpinLockRelease(port->InBufLock);
+
+           if (!VIOSerialWillReadBlock(port))
            {
               status = WdfIoQueueRetrieveNextRequest(port->ReadQueue, &request);
               if (NT_SUCCESS(status))
               {
-                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"Got available request\n");
+                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"Got available read request\n");
                  status = WdfRequestRetrieveOutputBuffer(request, 0, &systemBuffer, &Length);
                  if (NT_SUCCESS(status))
                  {
@@ -82,6 +87,26 @@ VIOSerialInterruptDpc(
                  }
               }
            }
+
+           if (!VIOSerialWillWriteBlock(port))
+           {
+
+              status = WdfIoQueueRetrieveNextRequest(port->WriteQueue, &request);
+              if (NT_SUCCESS(status))
+              {
+                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"Got available write request\n");
+                 nonBlock = !!(WdfFileObjectGetFlags(WdfRequestGetFileObject(request)) & FO_SYNCHRONOUS_IO);
+                 status = WdfRequestRetrieveOutputBuffer(request, 0, &systemBuffer, &Length);
+                 if (NT_SUCCESS(status))
+                 {
+                    Length = min((32 * 1024), Length);
+
+                    information = (ULONG)VIOSerialSendBuffers(port, systemBuffer, Length, nonBlock);
+                    WdfRequestCompleteWithInformation(request, status, (ULONG_PTR)information);
+                 }
+              }
+           }
+
         }
     }
 

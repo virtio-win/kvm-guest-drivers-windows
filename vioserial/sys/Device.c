@@ -245,10 +245,11 @@ static
 NTSTATUS 
 VIOSerialInit(IN WDFOBJECT Device)
 {
-    NTSTATUS status = STATUS_SUCCESS;
-    PPORTS_DEVICE pContext = GetPortsDevice(Device);
-    UINT nr_ports, nr_queues, i, j;
-    struct virtqueue *in_vq, *out_vq;
+    NTSTATUS               status = STATUS_SUCCESS;
+    PPORTS_DEVICE          pContext = GetPortsDevice(Device);
+    UINT                   nr_ports, nr_queues, i, j;
+    struct virtqueue       *in_vq, *out_vq;
+    WDF_OBJECT_ATTRIBUTES  attributes;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
     VirtIODeviceSetIOAddress(&pContext->IODevice, (ULONG_PTR)pContext->pPortBase);
@@ -317,8 +318,20 @@ VIOSerialInit(IN WDFOBJECT Device)
 
     if(pContext->isHostMultiport)
     {
+        WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+        attributes.ParentObject = Device;
+        status = WdfSpinLockCreate(
+                                &attributes,
+                                &pContext->CVqLock
+                                );
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                "WdfSpinLockCreate failed 0x%x\n", status);
+           return status;
+        }
         ASSERT(pContext->c_ivq);
-        status = VIOSerialFillQueue(pContext->c_ivq);
+        status = VIOSerialFillQueue(pContext->c_ivq, pContext->CVqLock);
     }
     else
     {
@@ -405,21 +418,34 @@ VIOSerialDeinit(
 
 NTSTATUS 
 VIOSerialFillQueue(
-    IN struct virtqueue *vq
+    IN struct virtqueue *vq,
+    IN WDFSPINLOCK Lock
 )
 {
-    NTSTATUS  status = STATUS_SUCCESS;
-    PPORT_BUFFER buf;
+    NTSTATUS     status = STATUS_SUCCESS;
+    PPORT_BUFFER buf = NULL;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
 
-    buf = VIOSerialAllocateBuffer(PAGE_SIZE);
-    if(buf == NULL)
+    for (;;)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"VIOSerialAllocateBuffer failed\n");
-        status = STATUS_INSUFFICIENT_RESOURCES;
-        return status;
-    }
+        buf = VIOSerialAllocateBuffer(PAGE_SIZE);
+        if(buf == NULL)
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"VIOSerialAllocateBuffer failed\n");
+           return STATUS_INSUFFICIENT_RESOURCES;
+        }
 
-    return VIOSerialAddInBuf(vq, buf);
+        WdfSpinLockAcquire(Lock);
+        status = VIOSerialAddInBuf(vq, buf);
+        if(!NT_SUCCESS(status))
+        {
+           WdfSpinLockRelease(Lock);
+           VIOSerialFreeBuffer(buf);
+           break;
+        }
+        WdfSpinLockRelease(Lock);
+    }
+    return STATUS_SUCCESS;
 }
+
