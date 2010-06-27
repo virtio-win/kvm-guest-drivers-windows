@@ -82,7 +82,7 @@ PerformWriteTest(
     WriteBuffer = (PUCHAR)malloc(1024);
     if( WriteBuffer == NULL ) {
 
-        printf("PerformWriteTest: Could not allocate %d "
+         printf("PerformWriteTest: Could not allocate %d "
                "bytes WriteBuffer\n",1024);
 
          result = FALSE;
@@ -95,13 +95,13 @@ PerformWriteTest(
 
     for(i = 0; i < 1024; i++)
     {
-        int ch = getchar(); 
-
-        if(ch == 13) {
-           ++i; 
-           break;
-        }
-        WriteBuffer[i] = (char)ch;
+//        int ch = getchar();
+//
+//        if(ch == 13) {
+//           ++i;
+//           break;
+//        }
+        WriteBuffer[i] = (char)'A';//ch;
     }
     if (!WriteFile ( hDevice,
             WriteBuffer,
@@ -137,6 +137,74 @@ Cleanup:
     }
     return result;
 }
+
+
+BOOLEAN
+PerformGetInfoTest(
+    IN HANDLE hDevice
+    )
+{
+    BOOLEAN bStatus = FALSE;
+    DWORD   ulOutLength = 0;
+    ULONG   ulReturnedLength = 0;
+    PVOID   pBuffer = NULL;
+    PVIRTIO_PORT_INFO pInfoBuffer = NULL;
+
+    pBuffer = malloc(sizeof(VIRTIO_PORT_INFO));
+    ulOutLength = sizeof(VIRTIO_PORT_INFO);
+
+    bStatus = DeviceIoControl(
+                              hDevice,                // Handle to device
+                              IOCTL_GET_INFORMATION,        // IO Control code
+                              NULL,              // Input Buffer to driver.
+                              0,        // Length of input buffer in bytes.
+                              pBuffer,                   // Output Buffer from driver.
+                              ulOutLength,                // Length of output buffer in bytes.
+                              &ulReturnedLength,      // Bytes placed in buffer.
+                              NULL                    // synchronous call
+                              );
+
+
+    if ( !bStatus )
+    {
+        printf("Ioctl failed with code %d\n", GetLastError() );
+        printf(" ulOutLength = %d   ulReturnedLength = %d\n", ulOutLength, ulReturnedLength );
+        free (pBuffer);
+        ulOutLength = ulReturnedLength;
+        pBuffer = malloc(ulOutLength);
+
+        bStatus = DeviceIoControl(
+                              hDevice,                // Handle to device
+                              IOCTL_GET_INFORMATION,        // IO Control code
+                              NULL,              // Input Buffer to driver.
+                              0,        // Length of input buffer in bytes.
+                              pBuffer,                   // Output Buffer from driver.
+                              ulOutLength,                // Length of output buffer in bytes.
+                              &ulReturnedLength,      // Bytes placed in buffer.
+                              NULL                    // synchronous call
+                              );
+
+        if ( !bStatus )
+        {
+           printf("Ioctl failed with code %d\n", GetLastError() );
+           free (pBuffer);
+           return FALSE;
+        }
+    }
+
+    pInfoBuffer = (PVIRTIO_PORT_INFO) pBuffer;
+    printf("Id = %d\n", pInfoBuffer->Id);
+    printf("OutVqFull = %d\n", pInfoBuffer->OutVqFull);
+    printf("HostConnected = %d\n", pInfoBuffer->HostConnected);
+    printf("GuestConnected = %d\n", pInfoBuffer->GuestConnected);
+    if (pInfoBuffer->Name)
+    {
+        printf("Id = %s\n", pInfoBuffer->Name);
+    }
+    free (pBuffer);
+    return TRUE;
+}
+
 
 
 ULONG
@@ -229,7 +297,7 @@ wmain(
                 free (deviceInterfaceDetailData);
                 return FALSE;
             }
-            printf("%d) %s\n", ++i,
+            printf("%d) %S\n", ++i,
                     deviceInterfaceDetailData->DevicePath);
         }
         else if (ERROR_NO_MORE_ITEMS != GetLastError()) {
@@ -251,7 +319,7 @@ wmain(
         return 0;
     }
 
-    printf("\nOpening the last interface:\n %s\n",
+    printf("\nOpening the last interface:\n %S\n",
                     deviceInterfaceDetailData->DevicePath);
 
     file = CreateFile ( deviceInterfaceDetailData->DevicePath,
@@ -267,14 +335,21 @@ wmain(
         free (deviceInterfaceDetailData);
         return 0;
     }
+    if(!PerformGetInfoTest(file)) {
+        printf("PerformGetInfoTest request failed:0x%x\n", GetLastError());
+        free (deviceInterfaceDetailData);
+        CloseHandle(file);
+        return 0;
+    }
 
+/*
     if(!PerformWriteTest(file)) { 
         printf("WriteTest request failed:0x%x\n", GetLastError());
         free (deviceInterfaceDetailData);
         CloseHandle(file);
         return 0;
     }
-
+*/
     printf("WriteTest completed successfully\n");
 /*
     if(!PerformReadTest(file)) { 

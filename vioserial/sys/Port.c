@@ -9,6 +9,9 @@
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, VIOSerialDeviceListCreatePdo)
+#pragma alloc_text(PAGE, VIOSerialPortRead)
+#pragma alloc_text(PAGE, VIOSerialPortWrite)
+#pragma alloc_text(PAGE, VIOSerialPortDeviceControl)
 #endif
 
 
@@ -461,6 +464,7 @@ VIOSerialDeviceListCreatePdo(
 
     ioQueueConfig.EvtIoRead   =  VIOSerialPortRead;
     ioQueueConfig.EvtIoWrite  =  VIOSerialPortWrite;
+    ioQueueConfig.EvtIoDeviceControl = VIOSerialPortDeviceControl;
 
     status = WdfIoQueueCreate(
                                  hChild,
@@ -585,7 +589,10 @@ VIOSerialPortRead(
     PUCHAR             systemBuffer;
     size_t             bufLen;
 
+    PAGED_CODE();
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "-->%s\n", __FUNCTION__);
+
     status = WdfRequestRetrieveOutputBuffer(Request, Length, &systemBuffer, &bufLen);
     if (!NT_SUCCESS(status))
     {
@@ -634,6 +641,8 @@ VIOSerialPortWrite(
     PUCHAR             systemBuffer;
     BOOLEAN            nonBlock;
 
+    PAGED_CODE();
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "-->%s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveInputBuffer(Request, Length, &systemBuffer, &length);
@@ -665,6 +674,90 @@ VIOSerialPortWrite(
 
     length = VIOSerialSendBuffers(pdoData->port, systemBuffer, Length, nonBlock);
     WdfRequestCompleteWithInformation(Request, status, (ULONG_PTR)length);
+}
+
+VOID
+VIOSerialPortDeviceControl(
+    IN WDFQUEUE   Queue,
+    IN WDFREQUEST Request,
+    IN size_t     OutputBufferLength,
+    IN size_t     InputBufferLength,
+    IN ULONG      IoControlCode
+    )
+{
+    PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
+    size_t                  length = 0;
+    NTSTATUS                status = STATUS_SUCCESS;
+    PVIRTIO_PORT_INFO       pport_info = NULL;
+    size_t                  name_size = 0;
+    PAGED_CODE();
+
+    UNREFERENCED_PARAMETER( InputBufferLength  );
+    UNREFERENCED_PARAMETER( OutputBufferLength  );
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "-->%s\n", __FUNCTION__);
+
+    switch (IoControlCode)
+    {
+
+        case IOCTL_GET_INFORMATION:
+        {
+           status = WdfRequestRetrieveOutputBuffer(Request, sizeof(VIRTIO_PORT_INFO), &pport_info, &length);
+           if (!NT_SUCCESS(status))
+           {
+              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                            "WdfRequestRetrieveInputBuffer failed 0x%x\n", status);
+              break;
+           }
+           if (pdoData->port->Name)
+           {
+              status = RtlStringCbLengthA(pdoData->port->Name,NTSTRSAFE_MAX_CCH * sizeof(char),&name_size);
+              if (!NT_SUCCESS(status))
+              {
+                 TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                            "RtlStringCbLengthA failed 0x%x\n", status);
+                 name_size = 0;
+              }
+              else
+              {
+                 name_size += sizeof(char);
+              }
+           }
+           if (length < sizeof (VIRTIO_PORT_INFO) + name_size)
+           {
+              status = STATUS_BUFFER_OVERFLOW;
+              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                            "Buffer too small. get = %d, expected = %d\n", length, sizeof (VIRTIO_PORT_INFO) + name_size);
+              length = sizeof (VIRTIO_PORT_INFO) + name_size;
+              break;
+           }
+
+           pport_info->Id = pdoData->port->Id;
+           pport_info->OutVqFull = pdoData->port->OutVqFull;
+           pport_info->HostConnected = pdoData->port->HostConnected;
+           pport_info->GuestConnected = pdoData->port->GuestConnected;
+
+           if (pdoData->port->Name && name_size > 0 )
+           {
+              RtlZeroMemory(pport_info->Name, name_size);
+              status = RtlStringCbCopyA(pport_info->Name, name_size, pdoData->port->Name);   
+              if (!NT_SUCCESS(status))
+              {
+                 TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                            "RtlStringCbCopyA failed 0x%x\n", status);
+                 name_size = 0;
+              }
+           }
+           status = STATUS_SUCCESS;
+           length =  sizeof (VIRTIO_PORT_INFO) + name_size;
+           break;
+        }
+
+        default:
+           status = STATUS_INVALID_DEVICE_REQUEST;
+           break;
+    }
+    WdfRequestCompleteWithInformation(Request, status, length);
 }
 
 VOID
