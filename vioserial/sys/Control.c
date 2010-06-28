@@ -102,7 +102,9 @@ VIOSerialHandleCtrlMsg(
 
     if(!port && cpkt->event != VIRTIO_CONSOLE_PORT_ADD)
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Invlid index %u in control packet\n", cpkt->id);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, 
+           "Invalid index %u in control packet id = 0x%x, event = %d, value = %d\n", cpkt->id, cpkt->event, cpkt->value);
+        return;
     }
 
     switch (cpkt->event) 
@@ -130,6 +132,7 @@ VIOSerialHandleCtrlMsg(
         case VIRTIO_CONSOLE_CONSOLE_PORT:
            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, 
                        "VIRTIO_CONSOLE_CONSOLE_PORT id = %d value = %u\n", cpkt->id, cpkt->value);
+           ASSERT(port);
            if (cpkt->value)
            {
               VIOSerialInitPortConsole(port);
@@ -142,6 +145,7 @@ VIOSerialHandleCtrlMsg(
 
         case VIRTIO_CONSOLE_PORT_OPEN:
            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_OPEN id = %d, HostConnected = %d\n", cpkt->id, cpkt->value);
+           ASSERT(port);
            port->HostConnected = (BOOLEAN)cpkt->value;
            WdfSpinLockAcquire(port->OutVqLock);
            VIOSerialReclaimConsumedBuffers(port);
@@ -149,6 +153,7 @@ VIOSerialHandleCtrlMsg(
         break;
 
         case VIRTIO_CONSOLE_PORT_NAME:
+           ASSERT(port);
            name_size = buf->len - buf->offset - sizeof(VIRTIO_CONSOLE_CONTROL) + 1;
            port->Name = ExAllocatePoolWithTag(
                     NonPagedPool,

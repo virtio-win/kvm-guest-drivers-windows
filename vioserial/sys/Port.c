@@ -570,7 +570,7 @@ VIOSerialDeviceListCreatePdo(
 
     VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 1);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--VmchannelEvtDeviceListCreatePdo\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s\n", __FUNCTION__);
     return status;
 }
 
@@ -731,7 +731,7 @@ VIOSerialPortDeviceControl(
               length = sizeof (VIRTIO_PORT_INFO) + name_size;
               break;
            }
-
+           RtlZeroMemory(pport_info, sizeof(VIRTIO_PORT_INFO));
            pport_info->Id = pdoData->port->Id;
            pport_info->OutVqFull = pdoData->port->OutVqFull;
            pport_info->HostConnected = pdoData->port->HostConnected;
