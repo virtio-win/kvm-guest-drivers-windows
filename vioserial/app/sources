@@ -8,7 +8,8 @@ USE_MSVCRT=1
 UMTYPE=console
 UMENTRY=wmain
 
-SOURCES=main.cpp  
+SOURCES=main.cpp \
+        device.cpp 
 
 TARGETLIBS=$(SDK_LIB_PATH)\setupapi.lib  \
            $(SDK_LIB_PATH)\user32.lib    \

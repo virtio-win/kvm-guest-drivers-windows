@@ -1,211 +1,143 @@
-#include <basetyps.h>
-#include <stdlib.h>
-#include <wtypes.h>
-#include <initguid.h>
-#include <stdio.h>
-#include <string.h>
-#include <conio.h>
-#include "..\sys\public.h"
-#pragma warning(disable:4201)
-
-#include <setupapi.h>
-#include <winioctl.h>
+//#include <basetyps.h>
+#include "device.h"
+#include "assert.h"
 
 #pragma warning(default:4201)
 
-//-----------------------------------------------------------------------------
-// 4127 -- Conditional Expression is Constant warning
-//-----------------------------------------------------------------------------
-#define WHILE(constant) \
-__pragma(warning(disable: 4127)) while(constant); __pragma(warning(default: 4127))
-
-BOOLEAN
-PerformReadTest(
-    IN HANDLE hDevice
+BOOL
+GetInfoTest(
+    __in CDevice *pDev
     )
 {
-    PUCHAR ReadBuffer = NULL;
-    BOOLEAN result = TRUE;
-    DWORD bytesReturned;
-    int i;
-    ReadBuffer = (PUCHAR)malloc(1024);
-    if( ReadBuffer == NULL ) {
+    PVOID   buf = NULL;
+    PVIRTIO_PORT_INFO inf = NULL;
+    size_t  len; 
+    
+    if (!pDev) return FALSE;
 
-        printf("PerformReadTest: Could not allocate %d "
-               "bytes ReadBuffer\n",1024);
-
-         result = FALSE;
-         goto Cleanup;
-
-    }
-
-    bytesReturned = 0;
-
-    memset(ReadBuffer, '\0', 1024);
-
-    if (!ReadFile ( hDevice,
-            ReadBuffer,
-            1024,
-            &bytesReturned,
-            NULL)) {
-
-        printf ("PerformReadTest: ReadFile failed: "
-                "Error %d\n", GetLastError());
-
-        result = FALSE;
-        goto Cleanup;
-
-    } else {
-
-
-    }
-    printf ("%s\n",
-                ReadBuffer);
-
-Cleanup:
-
-    if (ReadBuffer) {
-        free (ReadBuffer);
-    }
-    return result;
-}
-
-BOOLEAN
-PerformWriteTest(
-    IN HANDLE hDevice
-    )
-{
-    PUCHAR WriteBuffer = NULL;
-    BOOLEAN result = TRUE;
-    DWORD bytesReturned;
-    int i;
-    WriteBuffer = (PUCHAR)malloc(1024);
-    if( WriteBuffer == NULL ) {
-
-         printf("PerformWriteTest: Could not allocate %d "
-               "bytes WriteBuffer\n",1024);
-
-         result = FALSE;
-         goto Cleanup;
-    }
-
-    bytesReturned = 0;
-
-    memset(WriteBuffer, '\n', 1024);
-
-    for(i = 0; i < 1024; i++)
+    len = sizeof(VIRTIO_PORT_INFO);
+    buf = GlobalAlloc(0, len);
+    if (!pDev->GetInfo(buf, &len))
     {
-//        int ch = getchar();
-//
-//        if(ch == 13) {
-//           ++i;
-//           break;
-//        }
-        WriteBuffer[i] = (char)'A';//ch;
-    }
-    if (!WriteFile ( hDevice,
-            WriteBuffer,
-            i,
-            &bytesReturned,
-            NULL)) {
-
-        printf ("PerformWriteTest: WriteFile failed: "
-                "Error %d\n", GetLastError());
-
-        result = FALSE;
-        goto Cleanup;
-
-    } else {
-
-        if( bytesReturned != i ) {
-
-            printf("bytes written is not test length! Written %d, "
-                   "SB %d\n",bytesReturned, i);
-
-            result = FALSE;
-            goto Cleanup;
-        }
-
-        printf ("%d Pattern Bytes Written successfully\n",
-                bytesReturned);
-    }
-
-Cleanup:
-
-    if (WriteBuffer) {
-        free (WriteBuffer);
-    }
-    return result;
-}
-
-
-BOOLEAN
-PerformGetInfoTest(
-    IN HANDLE hDevice
-    )
-{
-    BOOLEAN bStatus = FALSE;
-    DWORD   ulOutLength = 0;
-    ULONG   ulReturnedLength = 0;
-    PVOID   pBuffer = NULL;
-    PVIRTIO_PORT_INFO pInfoBuffer = NULL;
-
-    pBuffer = malloc(sizeof(VIRTIO_PORT_INFO));
-    ulOutLength = sizeof(VIRTIO_PORT_INFO);
-
-    bStatus = DeviceIoControl(
-                              hDevice,                // Handle to device
-                              IOCTL_GET_INFORMATION,        // IO Control code
-                              NULL,              // Input Buffer to driver.
-                              0,        // Length of input buffer in bytes.
-                              pBuffer,                   // Output Buffer from driver.
-                              ulOutLength,                // Length of output buffer in bytes.
-                              &ulReturnedLength,      // Bytes placed in buffer.
-                              NULL                    // synchronous call
-                              );
-
-
-    if ( !bStatus )
-    {
-        printf("Ioctl failed with code %d\n", GetLastError() );
-        printf(" ulOutLength = %d   ulReturnedLength = %d\n", ulOutLength, ulReturnedLength );
-        free (pBuffer);
-        ulOutLength = ulReturnedLength;
-        pBuffer = malloc(ulOutLength);
-
-        bStatus = DeviceIoControl(
-                              hDevice,                // Handle to device
-                              IOCTL_GET_INFORMATION,        // IO Control code
-                              NULL,              // Input Buffer to driver.
-                              0,        // Length of input buffer in bytes.
-                              pBuffer,                   // Output Buffer from driver.
-                              ulOutLength,                // Length of output buffer in bytes.
-                              &ulReturnedLength,      // Bytes placed in buffer.
-                              NULL                    // synchronous call
-                              );
-
-        if ( !bStatus )
+        GlobalFree(buf);
+        buf = GlobalAlloc(0, len);
+        if (!pDev->GetInfo(buf, &len))
         {
-           printf("Ioctl failed with code %d\n", GetLastError() );
-           free (pBuffer);
+           free (buf);
            return FALSE;
         }
     }
 
-    pInfoBuffer = (PVIRTIO_PORT_INFO) pBuffer;
-    printf("Id = %d\n", pInfoBuffer->Id);
-    printf("OutVqFull = %d\n", pInfoBuffer->OutVqFull);
-    printf("HostConnected = %d\n", pInfoBuffer->HostConnected);
-    printf("GuestConnected = %d\n", pInfoBuffer->GuestConnected);
-    if (pInfoBuffer->Name)
+    inf = (PVIRTIO_PORT_INFO)buf;
+    printf("Id = %d\n", inf->Id);
+    printf("OutVqFull = %d\n", inf->OutVqFull);
+    printf("HostConnected = %d\n", inf->HostConnected);
+    printf("GuestConnected = %d\n", inf->GuestConnected);
+    if (len > sizeof(VIRTIO_PORT_INFO) && inf->Name)
     {
-        printf("Id = %s\n", pInfoBuffer->Name);
+        printf("Id = %s\n", inf->Name);
     }
-    free (pBuffer);
+    GlobalFree(buf);
     return TRUE;
 }
 
+BOOL
+WriteTest(
+    __in CDevice *pDev,
+    __in BOOLEAN ovrl
+    )
+{
+    PUCHAR  buf = NULL;
+    BOOLEAN res = TRUE;
+    int     i;
+    size_t  size = 4096;
 
+    if (!pDev) return FALSE;
+
+    printf("%s.\n", __FUNCTION__);
+
+
+    buf = (PUCHAR)malloc(size);
+
+    if( buf == NULL )
+    {
+        printf("%s: Could not allocate %d "
+               "bytes buf\n", __FUNCTION__, size);
+
+        return FALSE;
+    }
+
+    for(i = 0 ;i < size; i++)
+    {
+        int ch = getchar();
+
+        buf[i] = ch;
+        if (ch == '\n') break;
+    }
+
+    res =  ovrl ? pDev->WriteEx(buf, &size) : pDev->Write(buf, &size);
+
+    if (!res)
+    {
+        printf ("%s: WriteFile failed: "
+                "Error %d\n", __FUNCTION__, GetLastError());
+    }
+    else
+    {
+        printf ("%s: WriteFile OK: "
+                "snd %d bytes\n\n", __FUNCTION__, size);
+        printf ("%s\n", buf);
+    }
+
+    free (buf);
+
+    return res;
+}
+
+BOOL
+ReadTest(
+    __in CDevice *pDev,
+    __in BOOLEAN ovrl
+    )
+{
+    PUCHAR buf = NULL;
+    BOOLEAN res = TRUE;
+
+    size_t size = 4096;
+
+    if (!pDev) return FALSE;
+
+    printf("%s.\n", __FUNCTION__);
+
+
+    buf = (PUCHAR)malloc(size);
+
+    if( buf == NULL )
+    {
+        printf("%s: Could not allocate %d "
+               "bytes buf\n", __FUNCTION__, size);
+
+        return FALSE;
+    }
+
+    res =  ovrl ? pDev->ReadEx(buf, &size) : pDev->Read(buf, &size);
+
+    if (!res)
+    {
+        printf ("%s: ReadFile failed: "
+                "Error %d\n", __FUNCTION__, GetLastError());
+    }
+    else
+    {
+        printf ("%s: ReadFile OK: "
+                "rcv %d bytes\n\n", __FUNCTION__, size);
+        printf ("%s\n", buf);
+    }
+
+    free (buf);
+
+    return res;
+}
 
 ULONG
 _cdecl
@@ -214,154 +146,63 @@ wmain(
     __in_ecount(Argc) PWCHAR argv[]
     )
 {
-    HDEVINFO                            hardwareDeviceInfo;
-    SP_DEVICE_INTERFACE_DATA            deviceInterfaceData;
-    PSP_DEVICE_INTERFACE_DETAIL_DATA    deviceInterfaceDetailData = NULL;
-    ULONG                               predictedLength = 0;
-    ULONG                               requiredLength = 0, bytes=0;
-    HANDLE                              file;
-    ULONG                               i =0;
+    int ch;
+    CDevice *m_pDev;
+    BOOL stoptest = FALSE;
+    BOOL ovrl = FALSE;
 
-    UNREFERENCED_PARAMETER(argc);
-    UNREFERENCED_PARAMETER(argv);
-
-    hardwareDeviceInfo = SetupDiGetClassDevs (
-                       (LPGUID)&GUID_VIOSERIAL_PORT,
-                       NULL, // Define no enumerator (global)
-                       NULL, // Define no
-                       (DIGCF_PRESENT | // Only Devices present
-                       DIGCF_DEVICEINTERFACE)); // Function class devices.
-    if(INVALID_HANDLE_VALUE == hardwareDeviceInfo)
+    if(argc == 2)
     {
-        printf("SetupDiGetClassDevs failed: %x\n", GetLastError());
-        return 0;
+        if (_wcsicmp(L"-o", argv[1]) == 0) {
+           ovrl = TRUE;
+        }
     }
 
-    deviceInterfaceData.cbSize = sizeof (SP_DEVICE_INTERFACE_DATA);
-
-    printf("\nList of VISERIAL PORT Device Interfaces\n");
-    printf("---------------------------------\n");
-
-    i = 0;
-
-    do {
-        if (SetupDiEnumDeviceInterfaces (hardwareDeviceInfo,
-                                 0, // No care about specific PDOs
-                                 (LPGUID)&GUID_VIOSERIAL_PORT,
-                                 i, //
-                                 &deviceInterfaceData)) {
-
-            if(deviceInterfaceDetailData) {
-                free (deviceInterfaceDetailData);
-                deviceInterfaceDetailData = NULL;
-            }
-
-            if(!SetupDiGetDeviceInterfaceDetail (
-                    hardwareDeviceInfo,
-                    &deviceInterfaceData,
-                    NULL, // probing so no output buffer yet
-                    0, // probing so output buffer length of zero
-                    &requiredLength,
-                    NULL)) {
-                if(ERROR_INSUFFICIENT_BUFFER != GetLastError()) {
-                    printf("SetupDiGetDeviceInterfaceDetail failed %d\n", GetLastError());
-                    SetupDiDestroyDeviceInfoList (hardwareDeviceInfo);
-                    return FALSE;
-                }
-
-            }
-
-            predictedLength = requiredLength;
-
-            deviceInterfaceDetailData = (PSP_DEVICE_INTERFACE_DETAIL_DATA) malloc (predictedLength);
-
-            if(deviceInterfaceDetailData) {
-                deviceInterfaceDetailData->cbSize =
-                                sizeof (SP_DEVICE_INTERFACE_DETAIL_DATA);
-            } else {
-                printf("Couldn't allocate %d bytes for device interface details.\n", predictedLength);
-                SetupDiDestroyDeviceInfoList (hardwareDeviceInfo);
-                return FALSE;
-            }
-
-
-            if (! SetupDiGetDeviceInterfaceDetail (
-                       hardwareDeviceInfo,
-                       &deviceInterfaceData,
-                       deviceInterfaceDetailData,
-                       predictedLength,
-                       &requiredLength,
-                       NULL)) {
-                printf("Error in SetupDiGetDeviceInterfaceDetail\n");
-                SetupDiDestroyDeviceInfoList (hardwareDeviceInfo);
-                free (deviceInterfaceDetailData);
-                return FALSE;
-            }
-            printf("%d) %S\n", ++i,
-                    deviceInterfaceDetailData->DevicePath);
-        }
-        else if (ERROR_NO_MORE_ITEMS != GetLastError()) {
-            free (deviceInterfaceDetailData);
-            deviceInterfaceDetailData = NULL;
-            continue;
-        }
-        else
-            break;
-
-    } WHILE (TRUE);
-
-
-    SetupDiDestroyDeviceInfoList (hardwareDeviceInfo);
-
-    if(!deviceInterfaceDetailData)
+    if (ovrl)
     {
-        printf("No device interfaces present\n");
-        return 0;
+        printf("Running in non-blocking mode.\n");
+    }
+    else
+    {
+        printf("Running in blocking mode.\n");
     }
 
-    printf("\nOpening the last interface:\n %S\n",
-                    deviceInterfaceDetailData->DevicePath);
-
-    file = CreateFile ( deviceInterfaceDetailData->DevicePath,
-                        GENERIC_READ | GENERIC_WRITE,
-                        0,
-                        NULL,
-                        OPEN_EXISTING, // No special create flags
-                        0,
-                        NULL);
-
-    if (INVALID_HANDLE_VALUE == file) {
-        printf("Error in CreateFile: %x", GetLastError());
-        free (deviceInterfaceDetailData);
-        return 0;
+    m_pDev = new CDevice;
+    if (!m_pDev) 
+    {
+        return 1;
     }
-    if(!PerformGetInfoTest(file)) {
-        printf("PerformGetInfoTest request failed:0x%x\n", GetLastError());
-        free (deviceInterfaceDetailData);
-        CloseHandle(file);
-        return 0;
+    if (!m_pDev->Init(ovrl))
+    {
+        delete m_pDev;
+        return 2;
     }
 
-/*
-    if(!PerformWriteTest(file)) { 
-        printf("WriteTest request failed:0x%x\n", GetLastError());
-        free (deviceInterfaceDetailData);
-        CloseHandle(file);
-        return 0;
-    }
-*/
-    printf("WriteTest completed successfully\n");
-/*
-    if(!PerformReadTest(file)) { 
-        printf("WriteTest request failed:0x%x\n", GetLastError());
-        free (deviceInterfaceDetailData);
-        CloseHandle(file);
-        return 0;
+    while (!stoptest)
+    {
+        ch = getchar();
+        while(getchar()!='\n');
+        switch (ch)
+        {
+           case 'i':
+           case 'I':
+              GetInfoTest(m_pDev);
+              break;
+           case 'r':
+           case 'R':
+              ReadTest(m_pDev, ovrl);
+              break;
+           case 'w':
+           case 'W':
+              WriteTest(m_pDev, ovrl);
+              break;
+           case 'q':
+           case 'Q':
+              stoptest = TRUE;
+              break;
+        }
     }
 
-    printf("PerformReadTest completed successfully\n");
-*/
-    free (deviceInterfaceDetailData);
-    CloseHandle(file);
+    delete m_pDev;
     return 0;
 }
