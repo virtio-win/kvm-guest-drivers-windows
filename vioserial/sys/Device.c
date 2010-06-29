@@ -13,6 +13,10 @@
 #include "precomp.h"
 #include "vioser.h"
 
+#if defined(EVENT_TRACING)
+#include "Device.tmh"
+#endif
+
 EVT_WDF_DEVICE_PREPARE_HARDWARE     VIOSerialEvtDevicePrepareHardware;
 EVT_WDF_DEVICE_RELEASE_HARDWARE     VIOSerialEvtDeviceReleaseHardware;
 

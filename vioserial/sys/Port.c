@@ -252,7 +252,7 @@ VIOSerialDiscardPortData(
     if (ret > 0)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "%s::%d Error adding %u buffers back to queue\n",
-                    ret,  __FUNCTION__, __LINE__);
+                      __FUNCTION__, __LINE__, ret);
     }
 }
 
