@@ -17,13 +17,15 @@ GetInfoTest(
 
     len = sizeof(VIRTIO_PORT_INFO);
     buf = GlobalAlloc(0, len);
+    if (!buf) return FALSE;
     if (!pDev->GetInfo(buf, &len))
     {
         GlobalFree(buf);
         buf = GlobalAlloc(0, len);
+        if (!buf) return FALSE;
         if (!pDev->GetInfo(buf, &len))
         {
-           free (buf);
+           GlobalFree(buf);
            return FALSE;
         }
     }
@@ -33,7 +35,7 @@ GetInfoTest(
     printf("OutVqFull = %d\n", inf->OutVqFull);
     printf("HostConnected = %d\n", inf->HostConnected);
     printf("GuestConnected = %d\n", inf->GuestConnected);
-    if (len > sizeof(VIRTIO_PORT_INFO) && inf->Name)
+    if (len > sizeof(VIRTIO_PORT_INFO) && inf->Name[0])
     {
         printf("Id = %s\n", inf->Name);
     }
@@ -57,7 +59,7 @@ WriteTest(
     printf("%s.\n", __FUNCTION__);
 
 
-    buf = (PUCHAR)malloc(size);
+    buf = (PUCHAR)GlobalAlloc(0, size);
 
     if( buf == NULL )
     {
@@ -74,7 +76,7 @@ WriteTest(
         buf[i] = ch;
         if (ch == '\n') break;
     }
-
+    size = i;
     res =  ovrl ? pDev->WriteEx(buf, &size) : pDev->Write(buf, &size);
 
     if (!res)
@@ -89,9 +91,26 @@ WriteTest(
         printf ("%s\n", buf);
     }
 
-    free (buf);
+    GlobalFree(buf);
 
     return res;
+}
+
+BOOL
+WriteTestCycl(
+    __in CDevice *pDev,
+    __in BOOLEAN ovrl
+    )
+{
+    int ch;
+    for (;;)
+    {   
+        if(!WriteTest(pDev, ovrl)) return FALSE;
+        ch = getchar();
+        if(ch == EOF) break;
+        putchar(ch);
+    }
+    return TRUE;
 }
 
 BOOL
@@ -110,7 +129,7 @@ ReadTest(
     printf("%s.\n", __FUNCTION__);
 
 
-    buf = (PUCHAR)malloc(size);
+    buf = (PUCHAR)GlobalAlloc(0, size);
 
     if( buf == NULL )
     {
@@ -134,9 +153,29 @@ ReadTest(
         printf ("%s\n", buf);
     }
 
-    free (buf);
+    GlobalFree(buf);
 
     return res;
+}
+
+BOOL
+ReadTestCycl(
+    __in CDevice *pDev,
+    __in BOOLEAN ovrl
+    )
+{
+    int ch;
+    for (;;)
+    {   
+        if(!ReadTest(pDev, ovrl)) return FALSE;
+        if(_kbhit())
+        {
+           ch = getchar();
+           if(ch == EOF) break;
+           putchar(ch);
+        }
+    }
+    return TRUE;
 }
 
 ULONG
@@ -149,12 +188,12 @@ wmain(
     int ch;
     CDevice *m_pDev;
     BOOL stoptest = FALSE;
-    BOOL ovrl = FALSE;
+    BOOL ovrl = TRUE;
 
     if(argc == 2)
     {
-        if (_wcsicmp(L"-o", argv[1]) == 0) {
-           ovrl = TRUE;
+        if (_wcsicmp(L"-n", argv[1]) == 0) {
+           ovrl = FALSE;
         }
     }
 
@@ -192,9 +231,17 @@ wmain(
            case 'R':
               ReadTest(m_pDev, ovrl);
               break;
+           case 'f':
+           case 'F':
+              ReadTestCycl(m_pDev, ovrl);
+              break;
            case 'w':
            case 'W':
               WriteTest(m_pDev, ovrl);
+              break;
+           case 's':
+           case 'S':
+              WriteTestCycl(m_pDev, ovrl);
               break;
            case 'q':
            case 'Q':

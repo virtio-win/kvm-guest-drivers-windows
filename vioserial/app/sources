@@ -9,7 +9,8 @@ UMTYPE=console
 UMENTRY=wmain
 
 SOURCES=main.cpp \
-        device.cpp 
+        device.cpp \
+        notifier.cpp 
 
 TARGETLIBS=$(SDK_LIB_PATH)\setupapi.lib  \
            $(SDK_LIB_PATH)\user32.lib    \
