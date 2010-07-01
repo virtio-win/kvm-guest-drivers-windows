@@ -56,24 +56,23 @@ BalloonIoWrite(
     if( Length < sizeof(BALLOON_STAT)) {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "BalloonIoWrite Buffer Length too small %d, expected is %d\n",
                  Length, sizeof(BALLOON_STAT));
-        WdfRequestCompleteWithInformation(Request, STATUS_BUFFER_OVERFLOW, 0L);
+        WdfRequestComplete(Request, STATUS_BUFFER_TOO_SMALL);
         return;
     }
 
-    status = WdfRequestRetrieveInputBuffer(Request, 0, &buffer, &buffSize);
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(BALLOON_STAT), &buffer, &buffSize);
     if( !NT_SUCCESS(status) || (buffer == NULL)) {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "BalloonIoWrite Could not get request memory buffer 0x%08x\n",
                  status);
-        WdfRequestComplete(Request, status);
+        WdfRequestCompleteWithInformation(Request, status, 0L);
         return;
     }
-    ASSERT (buffSize == Length);
 
     drv = WdfGetDriver();
     drvCtx = GetDriverContext( drv );
 
-    RtlCopyMemory(drvCtx->MemStats, buffer, Length);
-    WdfRequestCompleteWithInformation(Request, status, Length);
+    RtlCopyMemory(drvCtx->MemStats, buffer, sizeof(BALLOON_STAT));
+    WdfRequestCompleteWithInformation(Request, status, sizeof(BALLOON_STAT));
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "WdfRequestCompleteWithInformation Called! Queue 0x%p, Request 0x%p Length %d Status 0x%08x\n",
              Queue,Request,Length, status);
 }
