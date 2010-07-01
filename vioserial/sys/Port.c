@@ -169,9 +169,14 @@ VIOSerialRemovePort(
                                  &port.Header
                                  );
 
+           if (status == STATUS_NO_SUCH_DEVICE)
+           {
+              status = STATUS_INVALID_PARAMETER;
+              break;
+           }
+
            VIOSerialEnableDisableInterruptQueue(port.in_vq, FALSE);
            VIOSerialEnableDisableInterruptQueue(port.out_vq, FALSE);
-
 
            if(port.GuestConnected)
            {
@@ -267,15 +272,18 @@ VIOSerialPortHasData(
     if (port->InBuf) 
     {
         WdfSpinLockRelease(port->InBufLock);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
         return TRUE;
     }
     port->InBuf = VIOSerialGetInBuf(port);
     if (port->InBuf) 
     {
         WdfSpinLockRelease(port->InBufLock);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
         return TRUE;
     }
     WdfSpinLockRelease(port->InBufLock);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
     return FALSE;
 }
 
@@ -584,19 +592,19 @@ VIOSerialPortRead(
 {
 
     PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
-    ULONG              information;
+    SIZE_T             length;
     NTSTATUS           status;
     PUCHAR             systemBuffer;
-    size_t             bufLen;
+//    size_t             bufLen;
 
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "-->%s\n", __FUNCTION__);
 
-    status = WdfRequestRetrieveOutputBuffer(Request, Length, &systemBuffer, &bufLen);
+    status = WdfRequestRetrieveOutputBuffer(Request, Length, &systemBuffer, &length);
     if (!NT_SUCCESS(status))
     {
-        WdfRequestCompleteWithInformation(Request, status, 0);
+        WdfRequestComplete(Request, status);
         return;
     }
 
@@ -604,7 +612,7 @@ VIOSerialPortRead(
     {
         if (!pdoData->port->HostConnected)
         {
-           WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, 0);
+           WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
            return;
         }
 
@@ -616,13 +624,18 @@ VIOSerialPortRead(
         else 
         {
            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"WdfRequestForwardToIoQueue failed: %x\n", status);
-           WdfRequestCompleteWithInformation(Request, status, 0);
+           WdfRequestComplete(Request, status);
            return;
         }
     }
 
-    information = (ULONG)VIOSerialFillReadBuf(pdoData->port, systemBuffer, Length);
-    WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, information);
+    length = (ULONG)VIOSerialFillReadBuf(pdoData->port, systemBuffer, length);
+    if (length == Length)
+    {
+        WdfRequestCompleteWithInformation(Request, status, (ULONG_PTR)length);
+        return;
+    }
+    WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
     return;
 }
 
@@ -648,16 +661,21 @@ VIOSerialPortWrite(
     status = WdfRequestRetrieveInputBuffer(Request, Length, &systemBuffer, &length);
     if (!NT_SUCCESS(status))
     {
-        WdfRequestCompleteWithInformation(Request, status, 0);
+        WdfRequestComplete(Request, status);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
         return;
     }
 
-    nonBlock = !!(WdfFileObjectGetFlags(WdfRequestGetFileObject(Request)) & FO_SYNCHRONOUS_IO);
+    nonBlock = ((WdfFileObjectGetFlags(WdfRequestGetFileObject(Request)) & FO_SYNCHRONOUS_IO) != FO_SYNCHRONOUS_IO);
+//FIXME
+    nonBlock = FALSE;
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-->%s::%d nonBlock = %s\n", __FUNCTION__, __LINE__, nonBlock ? "true" : "false");
     if (VIOSerialWillWriteBlock(pdoData->port))
     {
         if (nonBlock)
         {
-           WdfRequestCompleteWithInformation(Request, STATUS_INSUFFICIENT_RESOURCES, 0);
+           WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
+           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
            return;
         }
 
@@ -665,15 +683,36 @@ VIOSerialPortWrite(
         if (!NT_SUCCESS(status))
         {
            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"WdfRequestForwardToIoQueue failed: %x\n", status);
-           WdfRequestCompleteWithInformation(Request, status, 0);
+           WdfRequestComplete(Request, status);
         }
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
         return;
     }
 
     Length = min((32 * 1024), Length);
 
-    length = VIOSerialSendBuffers(pdoData->port, systemBuffer, Length, nonBlock);
-    WdfRequestCompleteWithInformation(Request, status, (ULONG_PTR)length);
+    length = VIOSerialSendBuffers(pdoData->port, systemBuffer, length, nonBlock);
+    if(!nonBlock)
+    {
+        if (length == Length)
+        {
+           WdfRequestCompleteWithInformation(Request, status, (ULONG_PTR)length);
+           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
+           return;
+        }
+        WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
+    }
+    else
+    {
+        status = WdfRequestForwardToIoQueue(Request, pdoData->port->WriteQueue);
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"WdfRequestForwardToIoQueue failed: %x\n", status);
+           WdfRequestComplete(Request, status);
+        }
+    }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
+    return;
 }
 
 VOID
@@ -690,6 +729,7 @@ VIOSerialPortDeviceControl(
     NTSTATUS                status = STATUS_SUCCESS;
     PVIRTIO_PORT_INFO       pport_info = NULL;
     size_t                  name_size = 0;
+
     PAGED_CODE();
 
     UNREFERENCED_PARAMETER( InputBufferLength  );
@@ -707,7 +747,8 @@ VIOSerialPortDeviceControl(
            {
               TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                             "WdfRequestRetrieveInputBuffer failed 0x%x\n", status);
-              break;
+              WdfRequestComplete(Request, status);
+              return;
            }
            if (pdoData->port->Name)
            {
@@ -774,8 +815,6 @@ VIOSerialPortCreate (
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s Port id = %d\n", __FUNCTION__, pdoData->port->Id);
 
-    PAGED_CODE ();
-
     WdfSpinLockAcquire(pdoData->port->InBufLock);
     if (pdoData->port->GuestConnected == TRUE)
     {
@@ -805,8 +844,6 @@ VIOSerialPortClose (
     )
 {
     PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfFileObjectGetDevice(FileObject));
-
-    PAGED_CODE ();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s\n", __FUNCTION__);
 

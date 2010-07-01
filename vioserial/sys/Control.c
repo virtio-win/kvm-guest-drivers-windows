@@ -37,7 +37,9 @@ VIOSerialSendCtrlMsg(
     sg.physAddr = GetPhysicalAddress(&cpkt);
     sg.ulSize = sizeof(cpkt);
 
-    if(vq->vq_ops->add_buf(vq, &sg, 1, 0, &cpkt) >= 0)
+//FIXME
+//    if(vq->vq_ops->add_buf(vq, &sg, 1, 0, &cpkt) >= 0)
+    if(vq->vq_ops->add_buf(vq, &sg, 1, 0, &cpkt) == 0)
     {
         vq->vq_ops->kick(vq);
         while(!vq->vq_ops->get_buf(vq, &len))
@@ -155,6 +157,11 @@ VIOSerialHandleCtrlMsg(
         case VIRTIO_CONSOLE_PORT_NAME:
            ASSERT(port);
            name_size = buf->len - buf->offset - sizeof(VIRTIO_CONSOLE_CONTROL) + 1;
+           if (port->Name)
+           {
+              ExFreePoolWithTag(port->Name, VIOSERIAL_DRIVER_MEMORY_TAG);
+              port->Name = NULL;
+           }
            port->Name = ExAllocatePoolWithTag(
                     NonPagedPool,
                     name_size,

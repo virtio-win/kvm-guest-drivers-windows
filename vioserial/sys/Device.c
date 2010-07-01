@@ -149,10 +149,9 @@ VIOSerialEvtDevicePrepareHardware(
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
     bool bPortFound = FALSE;
     NTSTATUS status = STATUS_SUCCESS;
-
-
     WDF_OBJECT_ATTRIBUTES attributes;
 
+    PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
 

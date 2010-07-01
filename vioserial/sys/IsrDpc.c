@@ -94,23 +94,31 @@ VIOSerialInterruptDpc(
               status = WdfIoQueueRetrieveNextRequest(port->WriteQueue, &request);
               if (NT_SUCCESS(status))
               {
-                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"Got available write request\n");
-                 nonBlock = !!(WdfFileObjectGetFlags(WdfRequestGetFileObject(request)) & FO_SYNCHRONOUS_IO);
-                 status = WdfRequestRetrieveOutputBuffer(request, 0, &systemBuffer, &Length);
-                 if (NT_SUCCESS(status))
-                 {
-                    Length = min((32 * 1024), Length);
+                 WDF_REQUEST_PARAMETERS  params;
+                 ULONG                   length = 0;
+                 WDF_REQUEST_PARAMETERS_INIT(&params);
 
-                    information = (ULONG)VIOSerialSendBuffers(port, systemBuffer, Length, nonBlock);
-                    WdfRequestCompleteWithInformation(request, status, (ULONG_PTR)information);
-                 }
+                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"Got available write request\n");
+                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s::%d\n", __FUNCTION__, __LINE__);
+                 VIOSerialReclaimConsumedBuffers(port);
+                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s::%d\n", __FUNCTION__, __LINE__);
+                 WdfRequestGetParameters(
+                                         request,
+                                         &params
+                                        );
+                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s::%d\n", __FUNCTION__, __LINE__);
+                 length = params.Parameters.Write.Length;
+                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s::%d length = 0x%x\n", __FUNCTION__, __LINE__, length);
+                 WdfRequestCompleteWithInformation(request, status, length);
+                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s::%d\n", __FUNCTION__, __LINE__);
+
               }
            }
 
         }
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 }
 
 

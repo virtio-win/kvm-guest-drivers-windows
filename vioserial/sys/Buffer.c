@@ -70,7 +70,7 @@ VIOSerialReclaimConsumedBuffers(
         KeStallExecutionProcessor(100);
         port->OutVqFull = FALSE;
     }
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
 }
 
 SSIZE_T 
@@ -84,9 +84,9 @@ VIOSerialSendBuffers(
     UINT len;
     SSIZE_T ret;
     struct VirtIOBufferDescriptor sg;
-    struct virtqueue *vq = port->in_vq;
+    struct virtqueue *vq = port->out_vq;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
 
     WdfSpinLockAcquire(port->OutVqLock);
     VIOSerialReclaimConsumedBuffers(port);
@@ -96,26 +96,41 @@ VIOSerialSendBuffers(
 
     ret = vq->vq_ops->add_buf(vq, &sg, 1, 0, buf);
     vq->vq_ops->kick(vq);
+//FIXME vring_add_buf
+//    if (ret < 0)
+//    {
+//        WdfSpinLockRelease(port->OutVqLock);
+//        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s::%d port->OutVqFull = %d\n", __FUNCTION__, __LINE__, port->OutVqFull);
+//        return 0;
+//    }
+//    
+//    if (ret == 0)
+//    {
+//        port->OutVqFull = TRUE;
+//        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s::%d port->OutVqFull = %d\n", __FUNCTION__, __LINE__, port->OutVqFull);
+//    }
+
     if (ret < 0)
     {
-        WdfSpinLockRelease(port->OutVqLock);
-        return count;
-    }
-    
-    if (ret == 0)
-    {
         port->OutVqFull = TRUE;
+        WdfSpinLockRelease(port->OutVqLock);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s::%d port->OutVqFull = %d\n", __FUNCTION__, __LINE__, port->OutVqFull);
+        return 0;
     }
+//FIXME
 
     if (!nonblock)
     {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s::%d port->OutVqFull = %d\n", __FUNCTION__, __LINE__, port->OutVqFull);
         while(!vq->vq_ops->get_buf(vq, &len))
         {
+           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s::%d port->OutVqFull = %d\n", __FUNCTION__, __LINE__, port->OutVqFull);
            KeStallExecutionProcessor(100);
+           port->OutVqFull = FALSE;
         }   
     }
     WdfSpinLockRelease(port->OutVqLock);
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
     return count;
 }
 
