@@ -69,11 +69,11 @@ WriteTest(
         return FALSE;
     }
 
-    for(i = 0 ;i < size; i++)
+    for(i = 0 ;i < (int)size; i++)
     {
         int ch = getchar();
 
-        buf[i] = ch;
+        buf[i] = (char)ch;
         if (ch == '\n') break;
     }
     size = i;
@@ -187,8 +187,8 @@ wmain(
 {
     int ch;
     CDevice *m_pDev;
-    BOOL stoptest = FALSE;
-    BOOL ovrl = TRUE;
+    BOOLEAN stoptest = FALSE;
+    BOOLEAN ovrl = TRUE;
 
     if(argc == 2)
     {
