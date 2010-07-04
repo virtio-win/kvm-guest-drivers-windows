@@ -595,7 +595,6 @@ VIOSerialPortRead(
     SIZE_T             length;
     NTSTATUS           status;
     PUCHAR             systemBuffer;
-//    size_t             bufLen;
 
     PAGED_CODE();
 
@@ -667,8 +666,6 @@ VIOSerialPortWrite(
     }
 
     nonBlock = ((WdfFileObjectGetFlags(WdfRequestGetFileObject(Request)) & FO_SYNCHRONOUS_IO) != FO_SYNCHRONOUS_IO);
-//FIXME
-    nonBlock = FALSE;
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-->%s::%d nonBlock = %s\n", __FUNCTION__, __LINE__, nonBlock ? "true" : "false");
     if (VIOSerialWillWriteBlock(pdoData->port))
     {
@@ -690,29 +687,16 @@ VIOSerialPortWrite(
     }
 
     Length = min((32 * 1024), Length);
+    length = VIOSerialSendBuffers(pdoData->port, systemBuffer, length, FALSE);
 
-    length = VIOSerialSendBuffers(pdoData->port, systemBuffer, length, nonBlock);
-    if(!nonBlock)
+    if (length == Length)
     {
-        if (length == Length)
-        {
-           WdfRequestCompleteWithInformation(Request, status, (ULONG_PTR)length);
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
-           return;
-        }
-        WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
+        WdfRequestCompleteWithInformation(Request, status, (ULONG_PTR)length);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
+        return;
     }
-    else
-    {
-        status = WdfRequestForwardToIoQueue(Request, pdoData->port->WriteQueue);
-        if (!NT_SUCCESS(status))
-        {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"WdfRequestForwardToIoQueue failed: %x\n", status);
-           WdfRequestComplete(Request, status);
-        }
-    }
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
-    return;
+    ASSERT(0);
+    WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
 }
 
 VOID

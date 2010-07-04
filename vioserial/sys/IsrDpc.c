@@ -99,6 +99,7 @@ VIOSerialInterruptDpc(
                  WDF_REQUEST_PARAMETERS_INIT(&params);
 
                  TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"Got available write request\n");
+
                  TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s::%d\n", __FUNCTION__, __LINE__);
                  VIOSerialReclaimConsumedBuffers(port);
                  TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s::%d\n", __FUNCTION__, __LINE__);
@@ -108,8 +109,19 @@ VIOSerialInterruptDpc(
                                         );
                  TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s::%d\n", __FUNCTION__, __LINE__);
                  length = params.Parameters.Write.Length;
+
+                 length = min((32 * 1024), length);
+                 length = VIOSerialSendBuffers(port, systemBuffer, length, FALSE);
+
+                 if (length == params.Parameters.Write.Length)
+                 {
+                    WdfRequestCompleteWithInformation(request, status, (ULONG_PTR)length);
+                    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
+                    return;
+                 }
+
                  TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s::%d length = 0x%x\n", __FUNCTION__, __LINE__, length);
-                 WdfRequestCompleteWithInformation(request, status, length);
+                 WdfRequestComplete(request, STATUS_INSUFFICIENT_RESOURCES);
                  TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s::%d\n", __FUNCTION__, __LINE__);
 
               }
