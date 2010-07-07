@@ -109,6 +109,7 @@ typedef struct _ADAPTER_EXTENSION {
     LIST_ENTRY            list_head;
     ULONG                 msix_vectors;
     ULONG                 features;
+    BOOLEAN               flush_done;
 #ifdef USE_STORPORT
     LIST_ENTRY            complete_list;
     STOR_DPC              completion_dpc;

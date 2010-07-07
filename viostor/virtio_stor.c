@@ -207,8 +207,6 @@ VirtIoFindAdapter(
     UNREFERENCED_PARAMETER( ArgumentString );
     UNREFERENCED_PARAMETER( Again );
 
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s (%d)\n", __FUNCTION__, KeGetCurrentIrql()));
-
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     adaptExt->dump_mode  = IsCrashDumpMode;
@@ -308,6 +306,7 @@ VirtIoFindAdapter(
 
     adaptExt->features = ScsiPortReadPortUlong((PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
     ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WCACHE) ? TRUE : FALSE;
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_WCACHE = %d\n", ConfigInfo->CachesData));
 
     pageNum = ScsiPortReadPortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM));
     vr_sz = vring_size(pageNum,PAGE_SIZE);
@@ -407,7 +406,7 @@ VirtIoHwInitialize(
     }
 
     if(!adaptExt->dump_mode && (adaptExt->msix_vectors > 1)) {
-    RhelDbgPrint(TRACE_LEVEL_ERROR, ("xru dump_mode = %x\n", adaptExt->dump_mode));
+    RhelDbgPrint(TRACE_LEVEL_ERROR, ("dump_mode = %x\n", adaptExt->dump_mode));
         adaptExt->pci_vq_info.vq = VirtIODeviceFindVirtualQueue(DeviceExtension, 0, adaptExt->msix_vectors - 1);
     }
 #endif
@@ -541,18 +540,11 @@ VirtIoStartIo(
             CompleteSRB(DeviceExtension, Srb);
             return TRUE;
         }
-        case SRB_FUNCTION_SHUTDOWN:
-        case SRB_FUNCTION_FLUSH: {
-            if(CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WCACHE)) { 
-                Srb->SrbStatus = SRB_STATUS_PENDING;
-                if(!RhelDoFlush(DeviceExtension, Srb)) {
-                    Srb->SrbStatus = SRB_STATUS_BUSY;
-                    CompleteSRB(DeviceExtension, Srb);
-                }
-            } else {
-                Srb->SrbStatus = SRB_STATUS_SUCCESS;
-                CompleteSRB(DeviceExtension, Srb);
-            }
+        case SRB_FUNCTION_FLUSH:
+        case SRB_FUNCTION_SHUTDOWN: {
+            Srb->SrbStatus = (UCHAR)RhelDoFlush(DeviceExtension, Srb);
+            Srb->ScsiStatus = SCSISTAT_GOOD;
+            CompleteSRB(DeviceExtension, Srb);
             return TRUE;
         }
 
@@ -642,9 +634,15 @@ VirtIoStartIo(
         case SCSIOP_RELEASE_UNIT10:
         case SCSIOP_VERIFY:
         case SCSIOP_VERIFY16:
-        case SCSIOP_SYNCHRONIZE_CACHE:
         case SCSIOP_MEDIUM_REMOVAL: {
             Srb->SrbStatus = SRB_STATUS_SUCCESS;
+            Srb->ScsiStatus = SCSISTAT_GOOD;
+            CompleteSRB(DeviceExtension, Srb);
+            return TRUE;
+        }
+        case SCSIOP_SYNCHRONIZE_CACHE:
+        case SCSIOP_SYNCHRONIZE_CACHE16: {
+            Srb->SrbStatus = (UCHAR)RhelDoFlush(DeviceExtension, Srb);
             Srb->ScsiStatus = SCSISTAT_GOOD;
             CompleteSRB(DeviceExtension, Srb);
             return TRUE;
@@ -695,9 +693,16 @@ VirtIoInterrupt(
                 break;
            default:
                 Srb->SrbStatus = SRB_STATUS_ERROR;
+                RhelDbgPrint(TRACE_LEVEL_ERROR, ("SRB_STATUS_ERROR\n"));
                 break;
            }
-           CompleteDPC(DeviceExtension, vbr, 0);
+           if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
+              adaptExt->flush_done = TRUE;
+           }
+           else
+           {
+               CompleteDPC(DeviceExtension, vbr, 0);
+           }
         }
     }
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s isInterruptServiced = %d\n", __FUNCTION__, isInterruptServiced));
@@ -711,9 +716,12 @@ VirtIoResetBus(
     )
 {
     UNREFERENCED_PARAMETER( DeviceExtension );
-    UNREFERENCED_PARAMETER( PathId );
 
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<--->%s\n", __FUNCTION__));
+    ScsiPortCompleteRequest(DeviceExtension,
+                            (UCHAR)PathId,
+                            0xFF,
+                            0xFF,
+                            SRB_STATUS_BUS_RESET);
     return TRUE;
 }
 
@@ -1200,11 +1208,9 @@ CompleteDpcRoutine(
 #ifdef MSI_SUPPORTED
         }
 #endif
-
         ScsiPortNotification(RequestComplete,
                          Context,
                          Srb);
-
 #ifdef MSI_SUPPORTED
         if(adaptExt->msix_vectors) {
            StorPortAcquireMSISpinLock (Context, MessageID, &OldIrql);
