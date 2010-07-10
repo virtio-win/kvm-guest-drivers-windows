@@ -131,4 +131,11 @@ typedef struct _RHEL_SRB_EXTENSION {
 #endif
 }RHEL_SRB_EXTENSION, *PRHEL_SRB_EXTENSION;
 
+BOOLEAN
+VirtIoInterrupt(
+    IN PVOID DeviceExtension
+    );
+
+
+
 #endif ___VIOSTOR__H__

@@ -84,6 +84,7 @@ RhelDoFlush(
     int                 num_free;
     ULONG               i;
     ULONG               Wait   = 100000;
+    ULONG               status = SRB_STATUS_ERROR;
 
     srbExt->vbr.out_hdr.sector = 0;
     srbExt->vbr.out_hdr.ioprio = 0;
@@ -97,22 +98,36 @@ RhelDoFlush(
     srbExt->vbr.sg[1].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
     srbExt->vbr.sg[1].ulSize   = sizeof(srbExt->vbr.status);
 
+ 
     num_free = adaptExt->pci_vq_info.vq->vq_ops->add_buf(adaptExt->pci_vq_info.vq,
                                       &srbExt->vbr.sg[0],
                                       srbExt->out, srbExt->in,
                                       &srbExt->vbr);
-
     if ( num_free >= 0) {
         adaptExt->pci_vq_info.vq->vq_ops->kick(adaptExt->pci_vq_info.vq);
         for (i = 0; i < Wait; i++) {
-           ScsiPortStallExecution(1000);
            if (adaptExt->flush_done == TRUE) {
               adaptExt->flush_done = FALSE;
-              return Srb->SrbStatus;
+              status = Srb->SrbStatus;
+              break;
            }
+           ScsiPortStallExecution(1000);
+           VirtIoInterrupt(DeviceExtension);
         }
     }
-    return SRB_STATUS_ERROR;
+    if (status != SRB_STATUS_SUCCESS) {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s  0x%x\n",  __FUNCTION__, status) );
+        ScsiPortLogError(DeviceExtension,
+                         NULL,
+                         0,
+                         0,
+                         0,
+                         SP_INTERNAL_ADAPTER_ERROR,
+                         __LINE__);
+        status = SRB_STATUS_SUCCESS;
+    }
+    ScsiPortNotification(NextLuRequest, DeviceExtension, Srb->PathId, Srb->TargetId, Srb->Lun);
+    return status;
 }
 #endif
 
