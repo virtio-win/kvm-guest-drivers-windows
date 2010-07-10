@@ -62,7 +62,7 @@ extern ULONG RhelDbgLevel;
 ULONG
 _cdecl
 RhelDbgPrintToComPort(
-    __in LPTSTR Format,
+    IN LPTSTR Format,
     ...
     );
 
