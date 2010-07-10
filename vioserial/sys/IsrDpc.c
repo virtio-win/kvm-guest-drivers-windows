@@ -10,18 +10,18 @@ VIOSerialInterruptIsr(
     IN WDFINTERRUPT Interrupt,
     IN ULONG MessageID)
 {
-    ULONG  ret;
-    PPORTS_DEVICE	pContext = GetPortsDevice(WdfInterruptGetDevice(Interrupt));
+    ULONG          ret;
+    PPORTS_DEVICE  pContext = GetPortsDevice(WdfInterruptGetDevice(Interrupt));
 
     ASSERT(pContext->isDeviceInitialized);
 
     if((ret = VirtIODeviceISR(&pContext->IODevice)) > 0)
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Got ISR - it is ours %d!\n", ret);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "Got ISR - it is ours %d!\n", ret);
         WdfInterruptQueueDpcForIsr(Interrupt);
         return TRUE;
     }
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "WRONG ISR!\n");
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "WRONG ISR!\n");
     return FALSE;
 }
 
@@ -44,12 +44,11 @@ VIOSerialInterruptDpc(
     WDFREQUEST       request;
     BOOLEAN          nonBlock;
 
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
 
     if(!Interrupt)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "Got NULL interrupt object DPC!\n");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_DPC, "Got NULL interrupt object DPC!\n");
         return;
     }
     Device = WdfInterruptGetDevice(Interrupt);
@@ -78,7 +77,7 @@ VIOSerialInterruptDpc(
               status = WdfIoQueueRetrieveNextRequest(port->ReadQueue, &request);
               if (NT_SUCCESS(status))
               {
-                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"Got available read request\n");
+                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,"Got available read request\n");
                  status = WdfRequestRetrieveOutputBuffer(request, 0, &systemBuffer, &Length);
                  if (NT_SUCCESS(status))
                  {
@@ -90,7 +89,6 @@ VIOSerialInterruptDpc(
 
            if (!VIOSerialWillWriteBlock(port))
            {
-
               status = WdfIoQueueRetrieveNextRequest(port->WriteQueue, &request);
               if (NT_SUCCESS(status))
               {
@@ -98,16 +96,13 @@ VIOSerialInterruptDpc(
                  ULONG                   length = 0;
                  WDF_REQUEST_PARAMETERS_INIT(&params);
 
-                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"Got available write request\n");
+                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,"Got available write request\n");
 
-                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s::%d\n", __FUNCTION__, __LINE__);
                  VIOSerialReclaimConsumedBuffers(port);
-                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s::%d\n", __FUNCTION__, __LINE__);
                  WdfRequestGetParameters(
                                          request,
                                          &params
                                         );
-                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s::%d\n", __FUNCTION__, __LINE__);
                  length = params.Parameters.Write.Length;
 
                  length = min((32 * 1024), length);
@@ -116,24 +111,17 @@ VIOSerialInterruptDpc(
                  if (length == params.Parameters.Write.Length)
                  {
                     WdfRequestCompleteWithInformation(request, status, (ULONG_PTR)length);
-                    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
                     return;
                  }
 
-                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s::%d length = 0x%x\n", __FUNCTION__, __LINE__, length);
                  WdfRequestComplete(request, STATUS_INSUFFICIENT_RESOURCES);
-                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s::%d\n", __FUNCTION__, __LINE__);
-
               }
            }
 
         }
     }
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
 }
-
-
 
 static 
 VOID 
@@ -143,7 +131,7 @@ VIOSerialEnableDisableInterrupt(
 {
     unsigned int i;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
 
     if(!pContext)
         return;
@@ -173,7 +161,7 @@ VIOSerialInterruptEnable(
     IN WDFINTERRUPT Interrupt,
     IN WDFDEVICE AssociatedDevice)
 {
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
     VIOSerialEnableDisableInterrupt(
                                  GetPortsDevice(WdfInterruptGetDevice(Interrupt)), 
                                  TRUE);
@@ -186,7 +174,7 @@ VIOSerialInterruptDisable(
     IN WDFINTERRUPT Interrupt,
     IN WDFDEVICE AssociatedDevice)
 {
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
     VIOSerialEnableDisableInterrupt(
                                  GetPortsDevice(WdfInterruptGetDevice(Interrupt)),
                                  FALSE);
@@ -198,9 +186,7 @@ VIOSerialEnableDisableInterruptQueue(
     IN struct virtqueue *vq,
     IN BOOLEAN bEnable)
 {
-    unsigned int i;
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
 
     if(!vq)
         return;

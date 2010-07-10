@@ -69,7 +69,6 @@ VIOSerialFindPortById(
         }
     }
     WdfChildListEndIteration(list, &iterator);
-//    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"Port was not found id = %d\n", id);
     return NULL;
 }
 
@@ -598,7 +597,7 @@ VIOSerialPortRead(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "-->%s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "-->%s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveOutputBuffer(Request, Length, &systemBuffer, &length);
     if (!NT_SUCCESS(status))
@@ -622,7 +621,7 @@ VIOSerialPortRead(
         } 
         else 
         {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"WdfRequestForwardToIoQueue failed: %x\n", status);
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestForwardToIoQueue failed: %x\n", status);
            WdfRequestComplete(Request, status);
            return;
         }
@@ -655,34 +654,33 @@ VIOSerialPortWrite(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "-->%s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "-->%s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveInputBuffer(Request, Length, &systemBuffer, &length);
     if (!NT_SUCCESS(status))
     {
         WdfRequestComplete(Request, status);
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "<--%s::%d\n", __FUNCTION__, __LINE__);
         return;
     }
 
     nonBlock = ((WdfFileObjectGetFlags(WdfRequestGetFileObject(Request)) & FO_SYNCHRONOUS_IO) != FO_SYNCHRONOUS_IO);
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-->%s::%d nonBlock = %s\n", __FUNCTION__, __LINE__, nonBlock ? "true" : "false");
     if (VIOSerialWillWriteBlock(pdoData->port))
     {
         if (nonBlock)
         {
            WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
+           TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<--%s::%d\n", __FUNCTION__, __LINE__);
            return;
         }
 
         status = WdfRequestForwardToIoQueue(Request, pdoData->port->WriteQueue);
         if (!NT_SUCCESS(status))
         {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"WdfRequestForwardToIoQueue failed: %x\n", status);
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfRequestForwardToIoQueue failed: %x\n", status);
            WdfRequestComplete(Request, status);
         }
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<--%s::%d\n", __FUNCTION__, __LINE__);
         return;
     }
 
@@ -719,7 +717,7 @@ VIOSerialPortDeviceControl(
     UNREFERENCED_PARAMETER( InputBufferLength  );
     UNREFERENCED_PARAMETER( OutputBufferLength  );
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "-->%s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "-->%s\n", __FUNCTION__);
 
     switch (IoControlCode)
     {
@@ -729,7 +727,7 @@ VIOSerialPortDeviceControl(
            status = WdfRequestRetrieveOutputBuffer(Request, sizeof(VIRTIO_PORT_INFO), &pport_info, &length);
            if (!NT_SUCCESS(status))
            {
-              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+              TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
                             "WdfRequestRetrieveInputBuffer failed 0x%x\n", status);
               WdfRequestComplete(Request, status);
               return;
@@ -739,7 +737,7 @@ VIOSerialPortDeviceControl(
               status = RtlStringCbLengthA(pdoData->port->Name,NTSTRSAFE_MAX_CCH * sizeof(char),&name_size);
               if (!NT_SUCCESS(status))
               {
-                 TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                 TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
                             "RtlStringCbLengthA failed 0x%x\n", status);
                  name_size = 0;
               }
@@ -751,7 +749,7 @@ VIOSerialPortDeviceControl(
            if (length < sizeof (VIRTIO_PORT_INFO) + name_size)
            {
               status = STATUS_BUFFER_OVERFLOW;
-              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+              TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
                             "Buffer too small. get = %d, expected = %d\n", length, sizeof (VIRTIO_PORT_INFO) + name_size);
               length = sizeof (VIRTIO_PORT_INFO) + name_size;
               break;
@@ -768,7 +766,7 @@ VIOSerialPortDeviceControl(
               status = RtlStringCbCopyA(pport_info->Name, name_size, pdoData->port->Name);   
               if (!NT_SUCCESS(status))
               {
-                 TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                 TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
                             "RtlStringCbCopyA failed 0x%x\n", status);
                  name_size = 0;
               }
@@ -797,13 +795,13 @@ VIOSerialPortCreate (
 
     UNREFERENCED_PARAMETER(FileObject);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s Port id = %d\n", __FUNCTION__, pdoData->port->Id);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,"%s Port id = %d\n", __FUNCTION__, pdoData->port->Id);
 
     WdfSpinLockAcquire(pdoData->port->InBufLock);
     if (pdoData->port->GuestConnected == TRUE)
     {
         WdfSpinLockRelease(pdoData->port->InBufLock);
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"Guest already connected Port id = %d\n", pdoData->port->Id);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,"Guest already connected Port id = %d\n", pdoData->port->Id);
         status = STATUS_OBJECT_NAME_EXISTS;
     }
     else
@@ -829,7 +827,7 @@ VIOSerialPortClose (
 {
     PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfFileObjectGetDevice(FileObject));
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "%s\n", __FUNCTION__);
 
     VIOSerialSendCtrlMsg(pdoData->port->Device, pdoData->port->Id, VIRTIO_CONSOLE_PORT_OPEN, 0);
 

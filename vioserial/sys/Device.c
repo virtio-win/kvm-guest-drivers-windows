@@ -38,7 +38,7 @@ static NTSTATUS VIOSerialInitInterruptHandling(WDFDEVICE hDevice)
     PPORTS_DEVICE	         pContext = GetPortsDevice(hDevice);
     NTSTATUS                     status = STATUS_SUCCESS;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, PORTS_DEVICE);
     WDF_INTERRUPT_CONFIG_INIT(
@@ -59,7 +59,7 @@ static NTSTATUS VIOSerialInitInterruptHandling(WDFDEVICE hDevice)
 
     if (!NT_SUCCESS (status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfInterruptCreate failed: %x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "WdfInterruptCreate failed: %x\n", status);
         return status;
     }
 
@@ -153,7 +153,7 @@ VIOSerialEvtDevicePrepareHardware(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
 
     nListSize = WdfCmResourceListGetCount(ResourcesTranslated);
 
@@ -179,7 +179,7 @@ VIOSerialEvtDevicePrepareHardware(
                                                            MmNonCached);
 
                         if (!pContext->pPortBase) {
-                            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "%s>>> Failed to map IO port!\n", __FUNCTION__);
+                            TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "%s>>> Failed to map IO port!\n", __FUNCTION__);
                             return STATUS_INSUFFICIENT_RESOURCES;
                         }
                     }
@@ -199,14 +199,14 @@ VIOSerialEvtDevicePrepareHardware(
 
     if(!bPortFound)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "%s>>> %s", __FUNCTION__, "IO port wasn't found!\n");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "%s>>> %s", __FUNCTION__, "IO port wasn't found!\n");
         return STATUS_DEVICE_CONFIGURATION_ERROR;
     }
 
     status = VIOSerialInit(Device);
     if(!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIOSerialInit failed - 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VIOSerialInit failed - 0x%x\n", status);
         return status;
     }
 
@@ -228,7 +228,7 @@ VIOSerialEvtDeviceReleaseHardware(
 	
     PAGED_CODE();
 	
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
 	
     VIOSerialDeinit(Device);
 
@@ -254,7 +254,7 @@ VIOSerialInit(IN WDFOBJECT Device)
     struct virtqueue       *in_vq, *out_vq;
     WDF_OBJECT_ATTRIBUTES  attributes;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<--> %s\n", __FUNCTION__);
     VirtIODeviceSetIOAddress(&pContext->IODevice, (ULONG_PTR)pContext->pPortBase);
 
     VirtIODeviceReset(&pContext->IODevice);
@@ -265,7 +265,7 @@ VIOSerialInit(IN WDFOBJECT Device)
     pContext->consoleConfig.max_nr_ports = 1;
     if(pContext->isHostMultiport = VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_CONSOLE_F_MULTIPORT))
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "We have multiport host\n");
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "We have multiport host\n");
         VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_CONSOLE_F_MULTIPORT);
         VirtIODeviceGet(&pContext->IODevice,
                                  FIELD_OFFSET(CONSOLE_CONFIG, max_nr_ports),
@@ -285,7 +285,7 @@ VIOSerialInit(IN WDFOBJECT Device)
 
     if(pContext->in_vqs == NULL)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"ExAllocatePoolWithTag failed\n");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,"ExAllocatePoolWithTag failed\n");
         status = STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -297,7 +297,7 @@ VIOSerialInit(IN WDFOBJECT Device)
 
     if(pContext->out_vqs == NULL)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"ExAllocatePoolWithTag failed\n");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "ExAllocatePoolWithTag failed\n");
         status = STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -329,7 +329,7 @@ VIOSerialInit(IN WDFOBJECT Device)
                                 );
         if (!NT_SUCCESS(status))
         {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
                 "WdfSpinLockCreate failed 0x%x\n", status);
            return status;
         }
@@ -342,13 +342,13 @@ VIOSerialInit(IN WDFOBJECT Device)
     }
     if(!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Setting VIRTIO_CONFIG_S_FAILED flag\n");
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Setting VIRTIO_CONFIG_S_FAILED flag\n");
         VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_FAILED);
         return status; 
     }
     else
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Setting VIRTIO_CONFIG_S_DRIVER_OK flag\n");
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Setting VIRTIO_CONFIG_S_DRIVER_OK flag\n");
         VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
     }
 
@@ -364,7 +364,7 @@ VIOSerialDeinit(
     PPORTS_DEVICE	pContext = GetPortsDevice(WdfDevice);
     UINT                nr_ports, i;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "--> %s\n", __FUNCTION__);
 
     VirtIODeviceRemoveStatus(&pContext->IODevice , VIRTIO_CONFIG_S_DRIVER_OK);
 
@@ -428,14 +428,14 @@ VIOSerialFillQueue(
     NTSTATUS     status = STATUS_SUCCESS;
     PPORT_BUFFER buf = NULL;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<--> %s\n", __FUNCTION__);
 
     for (;;)
     {
         buf = VIOSerialAllocateBuffer(PAGE_SIZE);
         if(buf == NULL)
         {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"VIOSerialAllocateBuffer failed\n");
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSerialAllocateBuffer failed\n");
            return STATUS_INSUFFICIENT_RESOURCES;
         }
 
