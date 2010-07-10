@@ -68,12 +68,12 @@ VirtIoResetBus(
     IN PVOID DeviceExtension,
     IN ULONG PathId
     );
-
+/*
 BOOLEAN
 VirtIoInterrupt(
     IN PVOID DeviceExtension
     );
-
+*/
 SCSI_ADAPTER_CONTROL_STATUS
 VirtIoAdapterControl(
     IN PVOID DeviceExtension,
@@ -129,6 +129,7 @@ DriverEntry(
     UCHAR devId[4]  = {'1', '0', '0', '1'};
 #endif
 
+    RhelDbgPrint(TRACE_LEVEL_ERROR, ("Viostor driver started...built on %s %s\n", __DATE__, __TIME__));
     IsCrashDumpMode = FALSE;
     if (RegistryPath == NULL) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION,
@@ -406,7 +407,6 @@ VirtIoHwInitialize(
     }
 
     if(!adaptExt->dump_mode && (adaptExt->msix_vectors > 1)) {
-    RhelDbgPrint(TRACE_LEVEL_ERROR, ("dump_mode = %x\n", adaptExt->dump_mode));
         adaptExt->pci_vq_info.vq = VirtIODeviceFindVirtualQueue(DeviceExtension, 0, adaptExt->msix_vectors - 1);
     }
 #endif
@@ -501,6 +501,7 @@ VirtIoHwInitialize(
     adaptExt->inquiry_data.CommandQueue = 1;
     adaptExt->inquiry_data.DeviceType   = DIRECT_ACCESS_DEVICE;
     adaptExt->inquiry_data.Wide32Bit    = 1;
+    adaptExt->inquiry_data.AdditionalLength = 91;
     ScsiPortMoveMemory(&adaptExt->inquiry_data.VendorId, "Red Hat ", sizeof("Red Hat "));
     ScsiPortMoveMemory(&adaptExt->inquiry_data.ProductId, "VirtIO", sizeof("VirtIO"));
     ScsiPortMoveMemory(&adaptExt->inquiry_data.ProductRevisionLevel, "0001", sizeof("0001"));
