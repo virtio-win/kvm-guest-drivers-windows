@@ -1,0 +1,13 @@
+
+Date	12 July 2010 
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm13
+
+Fixed bugs:
+607555  winxp with virtio block BSOD at the first reboot of installation
+607557  Failed to install windows guests using virtio-win-1.1.5-0.vfd
+609831  Windows 7 guest installed in RHEL5 BSODs on shutdown when booted in RHEL6
+609838  XP installed under RHEL55 has missing sys files on 2nd reboot under RHEL6
+
+New features:
+None
