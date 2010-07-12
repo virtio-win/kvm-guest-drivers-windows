@@ -1,7 +1,7 @@
 
 Date	12 July 2010 
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
-tag	mm13
+tag	mm14
 
 Fixed bugs:
 607555  winxp with virtio block BSOD at the first reboot of installation
