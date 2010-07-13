@@ -106,7 +106,7 @@ VIOSerialInterruptDpc(
                  length = params.Parameters.Write.Length;
 
                  length = min((32 * 1024), length);
-                 length = VIOSerialSendBuffers(port, systemBuffer, length, FALSE);
+                 length = (ULONG)VIOSerialSendBuffers(port, systemBuffer, length, FALSE);
 
                  if (length == params.Parameters.Write.Length)
                  {
