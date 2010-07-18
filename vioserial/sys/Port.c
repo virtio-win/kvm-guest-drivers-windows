@@ -628,7 +628,7 @@ VIOSerialPortRead(
     }
 
     length = (ULONG)VIOSerialFillReadBuf(pdoData->port, systemBuffer, length);
-    if (length == Length)
+    if (length)
     {
         WdfRequestCompleteWithInformation(Request, status, (ULONG_PTR)length);
         return;
