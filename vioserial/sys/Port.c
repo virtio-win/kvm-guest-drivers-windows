@@ -336,8 +336,10 @@ VIOSerialDeviceListCreatePdo(
 
     DECLARE_CONST_UNICODE_STRING(deviceId, PORT_DEVICE_ID );
     DECLARE_CONST_UNICODE_STRING(deviceLocation, L"RedHat VIOSerial Port" );
+
     DECLARE_UNICODE_STRING_SIZE(HwId,   DEVICE_DESC_LENGTH);
     DECLARE_UNICODE_STRING_SIZE(buffer, DEVICE_DESC_LENGTH);
+    DECLARE_UNICODE_STRING_SIZE(symbolicLinkName,SYMBOLIC_NAME_LENGTH ) ;
 
 
     PAGED_CODE();
@@ -349,6 +351,32 @@ VIOSerialDeviceListCreatePdo(
                                  Header
                                  );
 
+//    WdfDeviceInitSetIoType(ChildInit, WdfDeviceIoDirect);
+
+    status = RtlUnicodeStringPrintf(
+                                 &symbolicLinkName,
+                                 L"%ws%vport%up%u",
+                                 L"\\Device\\",
+                                 0,
+                                 pport->Id
+                                 );
+
+
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                "RtlUnicodeStringPrintf failed 0x%x\n", status);
+        return status;
+    }
+
+    status = WdfDeviceInitAssignName(ChildInit,&symbolicLinkName);
+    if (!NT_SUCCESS(status)) {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                "WdfDeviceInitAssignName failed %ws 0x%x\n", status, symbolicLinkName);
+    }
+
+    WdfDeviceInitSetExclusive(ChildInit, TRUE);
     status = WdfPdoInitAssignRawDevice(ChildInit, &GUID_DEVCLASS_PORT_DEVICE);
     if (!NT_SUCCESS(status)) 
     {
@@ -408,7 +436,8 @@ VIOSerialDeviceListCreatePdo(
 
     status = RtlUnicodeStringPrintf(
                                  &buffer,
-                                 L"VIOSerial Port %02d",
+                                 L"vport%up%u",
+                                 0,
                                  pport->Id
                                  );
     if (!NT_SUCCESS(status)) 
@@ -433,8 +462,6 @@ VIOSerialDeviceListCreatePdo(
 
     WdfPdoInitSetDefaultLocale(ChildInit, 0x409);
 
-    WdfDeviceInitSetIoType(ChildInit, WdfDeviceIoBuffered);
-
     WDF_FILEOBJECT_CONFIG_INIT(
                                  &fileConfig,
                                  VIOSerialPortCreate,
@@ -450,14 +477,33 @@ VIOSerialDeviceListCreatePdo(
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, RAWPDO_VIOSERIAL_PORT);
     status = WdfDeviceCreate(
-                                &ChildInit, 
-                                &attributes,
-                                &hChild
-                                );
+                                 &ChildInit,
+                                 &attributes,
+                                 &hChild
+                                 );
     if (!NT_SUCCESS(status)) 
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                 "WdfDeviceCreate failed 0x%x\n", status);
+        return status;
+    }
+
+    status = RtlUnicodeStringPrintf(
+                                 &symbolicLinkName,
+                                 L"%ws%vport%up%u",
+                                 L"\\DosDevices\\",
+                                 0,
+                                 pport->Id
+                                 );
+
+    status = WdfDeviceCreateSymbolicLink(
+                                 hChild,
+                                 &symbolicLinkName
+                                 );
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                "WdfDeviceCreateSymbolicLink %ws failed 0x%x\n", status, &symbolicLinkName);
         return status;
     }
 
