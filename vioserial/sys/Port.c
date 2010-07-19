@@ -351,7 +351,7 @@ VIOSerialDeviceListCreatePdo(
                                  Header
                                  );
 
-//    WdfDeviceInitSetIoType(ChildInit, WdfDeviceIoDirect);
+    WdfDeviceInitSetIoType(ChildInit, WdfDeviceIoDirect);
 
     status = RtlUnicodeStringPrintf(
                                  &symbolicLinkName,
