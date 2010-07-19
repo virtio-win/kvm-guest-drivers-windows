@@ -47,6 +47,9 @@ EVT_WDF_INTERRUPT_DISABLE                       VIOSerialInterruptDisable;
 #define VIRTIO_CONSOLE_PORT_NAME        7
 
 
+#define PORT_MAXIMUM_TRANSFER_LENGTH    (32*1024)
+
+
 #pragma pack (push)
 #pragma pack (1)
 
@@ -82,14 +85,15 @@ typedef struct _tagPortDevice
 
     WDFINTERRUPT        WdfInterrupt;
 
-    BOOLEAN             isDeviceInitialized;
-
     int                 isHostMultiport;
 
     CONSOLE_CONFIG      consoleConfig;
     struct virtqueue    *c_ivq, *c_ovq;
     struct virtqueue    **in_vqs, **out_vqs;
     WDFSPINLOCK         CVqLock;
+
+    WDFDMAENABLER       DmaEnabler;
+    ULONG               MaximumTransferLength;
 
 } PORTS_DEVICE, *PPORTS_DEVICE;
 
@@ -140,6 +144,14 @@ typedef struct _tagVioSerialPort
     BOOLEAN             GuestConnected;
     WDFQUEUE            ReadQueue;
     WDFQUEUE            WriteQueue;
+    WDFCOMMONBUFFER     WriteCommonBuffer;
+    WDFDMATRANSACTION   WriteDmaTransaction;
+    ULONG               WriteTransferElements;
+    size_t              WriteCommonBufferSize;
+    PUCHAR              WriteCommonBufferBase;
+    PHYSICAL_ADDRESS    WriteCommonBufferBaseLA;
+
+    WDFQUEUE            IoctlQueue;
 } VIOSERIAL_PORT, *PVIOSERIAL_PORT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSERIAL_PORT, SerialPortGetData)
@@ -151,6 +163,13 @@ typedef struct _tagRawPdoVioSerialPort
 } RAWPDO_VIOSERIAL_PORT, *PRAWPDO_VIOSERIAL_PORT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(RAWPDO_VIOSERIAL_PORT, RawPdoSerialPortGetData)
+
+
+typedef struct _tagTransactionContext {
+    WDFREQUEST     Request;
+} TRANSACTION_CONTEXT, * PTRANSACTION_CONTEXT;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(TRANSACTION_CONTEXT, RawPdoSerialPortGetTransactionContext)
 
 
 NTSTATUS 
@@ -270,5 +289,12 @@ EVT_WDF_IO_QUEUE_IO_WRITE VIOSerialPortWrite;
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL VIOSerialPortDeviceControl;
 EVT_WDF_DEVICE_FILE_CREATE VIOSerialPortCreate;
 EVT_WDF_FILE_CLOSE VIOSerialPortClose;
+EVT_WDF_PROGRAM_DMA VIOSerialPortProgramWriteDma;
+
+VOID
+VIOSerialPortWriteRequestComplete(
+    IN WDFDMATRANSACTION  DmaTransaction,
+    IN NTSTATUS           Status
+);
 
 #endif /* VIOSERIAL_H */

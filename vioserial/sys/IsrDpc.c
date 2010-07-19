@@ -13,8 +13,6 @@ VIOSerialInterruptIsr(
     ULONG          ret;
     PPORTS_DEVICE  pContext = GetPortsDevice(WdfInterruptGetDevice(Interrupt));
 
-    ASSERT(pContext->isDeviceInitialized);
-
     if((ret = VirtIODeviceISR(&pContext->IODevice)) > 0)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "Got ISR - it is ours %d!\n", ret);
@@ -35,6 +33,7 @@ VIOSerialInterruptDpc(
     PPORTS_DEVICE    pContext;
     PVIOSERIAL_PORT  port;
     WDFDEVICE        Device;
+    WDFDMATRANSACTION dmaTransaction;
 
 
     ULONG            information;
@@ -87,34 +86,19 @@ VIOSerialInterruptDpc(
               }
            }
 
-           if (!VIOSerialWillWriteBlock(port))
+           if(port->out_vq->vq_ops->get_buf(port->out_vq, &len))
            {
-              status = WdfIoQueueRetrieveNextRequest(port->WriteQueue, &request);
-              if (NT_SUCCESS(status))
+              BOOLEAN transactionComplete;
+              dmaTransaction = port->WriteDmaTransaction;
+              transactionComplete = WdfDmaTransactionDmaCompleted( dmaTransaction,
+                                                         &status );
+
+              if (transactionComplete)
               {
-                 WDF_REQUEST_PARAMETERS  params;
-                 ULONG                   length = 0;
-                 WDF_REQUEST_PARAMETERS_INIT(&params);
-
-                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,"Got available write request\n");
-
                  VIOSerialReclaimConsumedBuffers(port);
-                 WdfRequestGetParameters(
-                                         request,
-                                         &params
-                                        );
-                 length = params.Parameters.Write.Length;
-
-                 length = min((32 * 1024), length);
-                 length = (ULONG)VIOSerialSendBuffers(port, systemBuffer, length, FALSE);
-
-                 if (length == params.Parameters.Write.Length)
-                 {
-                    WdfRequestCompleteWithInformation(request, status, (ULONG_PTR)length);
-                    return;
-                 }
-
-                 WdfRequestComplete(request, STATUS_INSUFFICIENT_RESOURCES);
+                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
+                                     "Completing Write request in the DpcForIsr");
+                 VIOSerialPortWriteRequestComplete( dmaTransaction, status );
               }
            }
 

@@ -149,7 +149,7 @@ VIOSerialEvtDevicePrepareHardware(
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
     bool bPortFound = FALSE;
     NTSTATUS status = STATUS_SUCCESS;
-    WDF_OBJECT_ATTRIBUTES attributes;
+    WDF_DMA_ENABLER_CONFIG dmaConfig;
 
     PAGED_CODE();
 
@@ -210,10 +210,26 @@ VIOSerialEvtDevicePrepareHardware(
         return status;
     }
 
-    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-    attributes.ParentObject = Device;
+    pContext->MaximumTransferLength = PORT_MAXIMUM_TRANSFER_LENGTH;
+    WDF_DMA_ENABLER_CONFIG_INIT( &dmaConfig,
+                                 WdfDmaProfileScatterGather64Duplex,
+                                 pContext->MaximumTransferLength );
 
-    pContext->isDeviceInitialized = TRUE;
+    status = WdfDmaEnablerCreate(Device,
+                                 &dmaConfig,
+                                 WDF_NO_OBJECT_ATTRIBUTES,
+                                 &pContext->DmaEnabler
+                                 );
+
+    if (!NT_SUCCESS (status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                        "WdfDmaEnablerCreate failed: 0x%x\n", status);
+        return status;
+    }
+
+
+    VIOSerialSendCtrlMsg(Device, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 1);
 
     return STATUS_SUCCESS;
 }
@@ -232,8 +248,6 @@ VIOSerialEvtDeviceReleaseHardware(
 	
     VIOSerialDeinit(Device);
 
-    pContext->isDeviceInitialized = FALSE;
-	
     if (pContext->pPortBase && pContext->bPortMapped) 
     {
         MmUnmapIoSpace(pContext->pPortBase, pContext->uPortLength);
@@ -352,7 +366,6 @@ VIOSerialInit(IN WDFOBJECT Device)
         VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
     }
 
-    VIOSerialSendCtrlMsg(Device, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 1);
     return status;
 }
 
