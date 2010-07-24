@@ -48,7 +48,7 @@ goto nextparam
 : (NDIS is different from general-purpose kernel)
 :
 :copyVirtIO
-for %%f in (..\VirtIO\*.h ..\VirtIO\*.c) do copy %%f VirtIO /Y
+for %%f in (..\VirtIO\VirtIO*.h ..\VirtIO\VirtIO*.c ..\VirtIO\PVUtils.c ..\VirtIO\PVUtils.h ..\VirtIO\PVUtils.h) do copy %%f VirtIO /Y
 goto :eof
 
 
