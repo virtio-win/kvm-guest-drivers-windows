@@ -67,6 +67,7 @@ VIOSerialFindPortById(
             return rawPdo->port;
         }
     }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  id = %d not found\n", __FUNCTION__, id);
     WdfChildListEndIteration(list, &iterator);
     return NULL;
 }
@@ -365,6 +366,7 @@ VIOSerialDeviceListCreatePdo(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                 "RtlUnicodeStringPrintf failed 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -379,6 +381,7 @@ VIOSerialDeviceListCreatePdo(
     if (!NT_SUCCESS(status)) 
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfPdoInitAssignRawDevice failed - 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -386,6 +389,7 @@ VIOSerialDeviceListCreatePdo(
     if (!NT_SUCCESS(status)) 
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfDeviceInitAssignSDDLString failed - 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -393,6 +397,7 @@ VIOSerialDeviceListCreatePdo(
     if (!NT_SUCCESS(status)) 
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfPdoInitAssignDeviceID failed - 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -404,6 +409,7 @@ VIOSerialDeviceListCreatePdo(
     if (!NT_SUCCESS(status)) 
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "RtlUnicodeStringPrintf failed - 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -411,6 +417,7 @@ VIOSerialDeviceListCreatePdo(
     if (!NT_SUCCESS(status)) 
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfPdoInitAddHardwareID failed - 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -422,6 +429,7 @@ VIOSerialDeviceListCreatePdo(
     if (!NT_SUCCESS(status)) 
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "RtlUnicodeStringPrintf failed - 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -429,6 +437,7 @@ VIOSerialDeviceListCreatePdo(
     if (!NT_SUCCESS(status)) 
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfPdoInitAssignInstanceID failed - 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -442,6 +451,7 @@ VIOSerialDeviceListCreatePdo(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                 "RtlUnicodeStringPrintf failed 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -455,6 +465,7 @@ VIOSerialDeviceListCreatePdo(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                 "WdfPdoInitAddDeviceText failed 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -483,6 +494,7 @@ VIOSerialDeviceListCreatePdo(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                 "WdfDeviceCreate failed 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -502,6 +514,7 @@ VIOSerialDeviceListCreatePdo(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                 "WdfDeviceCreateSymbolicLink %ws failed 0x%x\n", status, &symbolicLinkName);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -523,6 +536,7 @@ VIOSerialDeviceListCreatePdo(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                     "WdfIoQueueCreate failed (IoCtrl Queue): 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
     status = WdfDeviceConfigureRequestDispatching(
@@ -535,6 +549,7 @@ VIOSerialDeviceListCreatePdo(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                     "DeviceConfigureRequestDispatching failed (IoCtrl Queue): 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -551,6 +566,7 @@ VIOSerialDeviceListCreatePdo(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                     "WdfIoQueueCreate (Read Queue) failed 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -564,6 +580,7 @@ VIOSerialDeviceListCreatePdo(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                     "DeviceConfigureRequestDispatching failed (Read Queue): 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -580,6 +597,7 @@ VIOSerialDeviceListCreatePdo(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                     "WdfIoQueueCreate failed (Write Queue): 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
     status = WdfDeviceConfigureRequestDispatching(
@@ -592,6 +610,7 @@ VIOSerialDeviceListCreatePdo(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                     "DeviceConfigureRequestDispatching failed (Write Queue): 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -617,6 +636,7 @@ VIOSerialDeviceListCreatePdo(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                 "WdfDeviceCreateDeviceInterface failed 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -630,6 +650,7 @@ VIOSerialDeviceListCreatePdo(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                 "WdfSpinLockCreate failed 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -643,6 +664,7 @@ VIOSerialDeviceListCreatePdo(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                 "WdfSpinLockCreate failed 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -663,6 +685,7 @@ VIOSerialDeviceListCreatePdo(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                     "WdfCommonBufferCreate (write) failed: 0x%x\n", status);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 
@@ -686,6 +709,7 @@ VIOSerialDeviceListCreatePdo(
     if(!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"%s::%d  Error allocating inbufs\n", __FUNCTION__, __LINE__);
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
         return status;
     }
 

@@ -180,6 +180,7 @@ VIOSerialEvtDevicePrepareHardware(
 
                         if (!pContext->pPortBase) {
                             TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "%s>>> Failed to map IO port!\n", __FUNCTION__);
+                            VIOSerialSendCtrlMsg(Device, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 0);
                             return STATUS_INSUFFICIENT_RESOURCES;
                         }
                     }
@@ -200,6 +201,7 @@ VIOSerialEvtDevicePrepareHardware(
     if(!bPortFound)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "%s>>> %s", __FUNCTION__, "IO port wasn't found!\n");
+        VIOSerialSendCtrlMsg(Device, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 0);
         return STATUS_DEVICE_CONFIGURATION_ERROR;
     }
 
@@ -207,6 +209,7 @@ VIOSerialEvtDevicePrepareHardware(
     if(!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VIOSerialInit failed - 0x%x\n", status);
+        VIOSerialSendCtrlMsg(Device, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 0);
         return status;
     }
 
@@ -225,6 +228,7 @@ VIOSerialEvtDevicePrepareHardware(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                         "WdfDmaEnablerCreate failed: 0x%x\n", status);
+        VIOSerialSendCtrlMsg(Device, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 0);
         return status;
     }
 
@@ -246,6 +250,7 @@ VIOSerialEvtDeviceReleaseHardware(
 	
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
 	
+    VIOSerialSendCtrlMsg(Device, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 0);
     VIOSerialDeinit(Device);
 
     if (pContext->pPortBase && pContext->bPortMapped) 

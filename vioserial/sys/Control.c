@@ -26,6 +26,11 @@ VIOSerialSendCtrlMsg(
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
     VIRTIO_CONSOLE_CONTROL cpkt;
 
+    if (!pContext->isHostMultiport)
+    {
+        return;
+    }
+
     vq = pContext->c_ovq;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
