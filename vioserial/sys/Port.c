@@ -67,7 +67,7 @@ VIOSerialFindPortById(
             return rawPdo->port;
         }
     }
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  id = %d not found\n", __FUNCTION__, id);
+//    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  id = %d not found\n", __FUNCTION__, id);
     WdfChildListEndIteration(list, &iterator);
     return NULL;
 }
@@ -90,7 +90,10 @@ VIOSerialAddPort(
                                  );
 
     port.Id = id;
-    port.Name = NULL;
+    port.NameString.Buffer = NULL;
+    port.NameString.Length = 0;
+    port.NameString.MaximumLength = 0;
+
     port.InBuf = NULL;
     port.HostConnected = port.GuestConnected = FALSE;
     port.OutVqFull = FALSE;
@@ -119,7 +122,7 @@ VIOSerialAddPort(
 VOID
 VIOSerialRemovePort(
     IN WDFDEVICE Device,
-    IN ULONG id
+    IN PVIOSERIAL_PORT port
 )
 {
     PPORT_BUFFER    buf;
@@ -128,7 +131,7 @@ VIOSerialRemovePort(
     WDFCHILDLIST    list;
     WDF_CHILD_LIST_ITERATOR     iterator;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  port = %d\n", __FUNCTION__, id);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  port = %d\n", __FUNCTION__, port->Id);
 
     list = WdfFdoGetDefaultChildList(Device);
     WDF_CHILD_LIST_ITERATOR_INIT(&iterator,
@@ -140,14 +143,14 @@ VIOSerialRemovePort(
     for (;;)
     {
         WDF_CHILD_RETRIEVE_INFO  childInfo;
-        VIOSERIAL_PORT           port;
+        VIOSERIAL_PORT           vport;
         WDFDEVICE                hChild;
 
-        WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &port.Header);
+        WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &vport.Header);
 
         WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(
-                                 &port.Header,
-                                 sizeof(port)
+                                 &vport.Header,
+                                 sizeof(vport)
                                  );
         status = WdfChildListRetrieveNextDevice(
                                  list,
@@ -161,11 +164,11 @@ VIOSerialRemovePort(
         }
         ASSERT(childInfo.Status == WdfChildListRetrieveDeviceSuccess);
 
-        if(port.Id == id)
+        if(vport.Id == port->Id)
         {
            status = WdfChildListUpdateChildDescriptionAsMissing(
                                  list,
-                                 &port.Header
+                                 &vport.Header
                                  );
 
            if (status == STATUS_NO_SUCH_DEVICE)
@@ -174,24 +177,26 @@ VIOSerialRemovePort(
               break;
            }
 
-           VIOSerialEnableDisableInterruptQueue(port.in_vq, FALSE);
-           VIOSerialEnableDisableInterruptQueue(port.out_vq, FALSE);
+           VIOSerialEnableDisableInterruptQueue(vport.in_vq, FALSE);
+           VIOSerialEnableDisableInterruptQueue(vport.out_vq, FALSE);
 
-           if(port.GuestConnected)
+           if(vport.GuestConnected)
            {
-              VIOSerialSendCtrlMsg(port.Device, port.Id, VIRTIO_CONSOLE_PORT_OPEN, 0);
+              VIOSerialSendCtrlMsg(vport.Device, vport.Id, VIRTIO_CONSOLE_PORT_OPEN, 0);
            }
 
-           VIOSerialDiscardPortData(&port);
-           VIOSerialReclaimConsumedBuffers(&port);
-           while (buf = VirtIODeviceDetachUnusedBuf(port.in_vq))
+           VIOSerialDiscardPortData(&vport);
+           VIOSerialReclaimConsumedBuffers(&vport);
+           while (buf = VirtIODeviceDetachUnusedBuf(vport.in_vq))
            {
               VIOSerialFreeBuffer(buf);
            }
-           if (port.Name)
+           if (vport.NameString.Buffer)
            {
-              ExFreePoolWithTag(port.Name, VIOSERIAL_DRIVER_MEMORY_TAG);
-              port.Name = NULL;
+              ExFreePoolWithTag(vport.NameString.Buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
+              vport.NameString.Buffer = NULL;
+              vport.NameString.Length = 0;
+              vport.NameString.MaximumLength = 0;
            }
         }
     }
@@ -338,10 +343,7 @@ VIOSerialDeviceListCreatePdo(
     DECLARE_CONST_UNICODE_STRING(deviceId, PORT_DEVICE_ID );
     DECLARE_CONST_UNICODE_STRING(deviceLocation, L"RedHat VIOSerial Port" );
 
-    DECLARE_UNICODE_STRING_SIZE(HwId,   DEVICE_DESC_LENGTH);
     DECLARE_UNICODE_STRING_SIZE(buffer, DEVICE_DESC_LENGTH);
-    DECLARE_UNICODE_STRING_SIZE(symbolicLinkName,SYMBOLIC_NAME_LENGTH ) ;
-
 
     PAGED_CODE();
 
@@ -354,372 +356,358 @@ VIOSerialDeviceListCreatePdo(
 
     WdfDeviceInitSetIoType(ChildInit, WdfDeviceIoDirect);
 
-    status = RtlUnicodeStringPrintf(
-                                 &symbolicLinkName,
+    do
+    {
+
+        status = RtlUnicodeStringPrintf(
+                                 &buffer,
                                  L"%ws%vport%up%u",
                                  L"\\Device\\",
                                  0,
                                  pport->Id
                                  );
 
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                "RtlUnicodeStringPrintf failed 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                                 "RtlUnicodeStringPrintf failed 0x%x\n", status
+                                 );
+           break;
+        }
 
-    status = WdfDeviceInitAssignName(ChildInit,&symbolicLinkName);
-    if (!NT_SUCCESS(status)) {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                "WdfDeviceInitAssignName failed %ws 0x%x\n", status, symbolicLinkName);
-    }
+        status = WdfDeviceInitAssignName(ChildInit,&buffer);
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                                 "WdfDeviceInitAssignName failed %ws 0x%x\n",
+                                 status,
+                                 buffer
+                                 );
+           break;
+        }
 
-    WdfDeviceInitSetExclusive(ChildInit, TRUE);
-    status = WdfPdoInitAssignRawDevice(ChildInit, &GUID_DEVCLASS_PORT_DEVICE);
-    if (!NT_SUCCESS(status)) 
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfPdoInitAssignRawDevice failed - 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+        WdfDeviceInitSetExclusive(ChildInit, TRUE);
+        status = WdfPdoInitAssignRawDevice(ChildInit, &GUID_DEVCLASS_PORT_DEVICE);
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfPdoInitAssignRawDevice failed - 0x%x\n", status);
+           break;
+        }
 
-    status = WdfDeviceInitAssignSDDLString(ChildInit, &SDDL_DEVOBJ_SYS_ALL_ADM_ALL);
-    if (!NT_SUCCESS(status)) 
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfDeviceInitAssignSDDLString failed - 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+        status = WdfDeviceInitAssignSDDLString(ChildInit, &SDDL_DEVOBJ_SYS_ALL_ADM_ALL);
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfDeviceInitAssignSDDLString failed - 0x%x\n", status);
+           break;
+        }
 
-    status = WdfPdoInitAssignDeviceID(ChildInit, &deviceId);
-    if (!NT_SUCCESS(status)) 
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfPdoInitAssignDeviceID failed - 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+        status = WdfPdoInitAssignDeviceID(ChildInit, &deviceId);
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfPdoInitAssignDeviceID failed - 0x%x\n", status);
+           break;
+        }
 
-    status = RtlUnicodeStringPrintf(
-                                 &HwId, 
+        status = RtlUnicodeStringPrintf(
+                                 &buffer,
                                  L"%04d", 
                                  pport->Id
                                  );
-    if (!NT_SUCCESS(status)) 
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "RtlUnicodeStringPrintf failed - 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "RtlUnicodeStringPrintf failed - 0x%x\n", status);
+           break;
+        }
 
-    status = WdfPdoInitAddHardwareID(ChildInit, &HwId);
-    if (!NT_SUCCESS(status)) 
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfPdoInitAddHardwareID failed - 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+        status = WdfPdoInitAddHardwareID(ChildInit, &buffer);
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfPdoInitAddHardwareID failed - 0x%x\n", status);
+           break;
+        }
 
-    status = RtlUnicodeStringPrintf(
+        status = RtlUnicodeStringPrintf(
                                  &buffer, 
                                  L"%02d", 
                                  pport->Id
                                  );
-    if (!NT_SUCCESS(status)) 
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "RtlUnicodeStringPrintf failed - 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "RtlUnicodeStringPrintf failed - 0x%x\n", status);
+           break;
+        }
 
-    status = WdfPdoInitAssignInstanceID(ChildInit, &buffer);
-    if (!NT_SUCCESS(status)) 
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfPdoInitAssignInstanceID failed - 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+        status = WdfPdoInitAssignInstanceID(ChildInit, &buffer);
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfPdoInitAssignInstanceID failed - 0x%x\n", status);
+           break;
+        }
 
-    status = RtlUnicodeStringPrintf(
+        status = RtlUnicodeStringPrintf(
                                  &buffer,
                                  L"vport%up%u",
                                  0,
                                  pport->Id
                                  );
-    if (!NT_SUCCESS(status)) 
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                 "RtlUnicodeStringPrintf failed 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+           break;
+        }
 
-    status = WdfPdoInitAddDeviceText(
+        status = WdfPdoInitAddDeviceText(
                                  ChildInit,
                                  &buffer,
                                  &deviceLocation,
                                  0x409
                                  );
-    if (!NT_SUCCESS(status)) 
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                 "WdfPdoInitAddDeviceText failed 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+           break;
+        }
 
-    WdfPdoInitSetDefaultLocale(ChildInit, 0x409);
+        WdfPdoInitSetDefaultLocale(ChildInit, 0x409);
 
-    WDF_FILEOBJECT_CONFIG_INIT(
+        WDF_FILEOBJECT_CONFIG_INIT(
                                  &fileConfig,
                                  VIOSerialPortCreate,
                                  VIOSerialPortClose,
                                  WDF_NO_EVENT_CALLBACK
                                  );
 
-    WdfDeviceInitSetFileObjectConfig(
+        WdfDeviceInitSetFileObjectConfig(
                                  ChildInit,
                                  &fileConfig,
                                  WDF_NO_OBJECT_ATTRIBUTES 
                                  );
 
-    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, RAWPDO_VIOSERIAL_PORT);
-    status = WdfDeviceCreate(
+        WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, RAWPDO_VIOSERIAL_PORT);
+//        attributes.ExecutionLevel = WdfExecutionLevelPassive;
+
+        status = WdfDeviceCreate(
                                  &ChildInit,
                                  &attributes,
                                  &hChild
                                  );
-    if (!NT_SUCCESS(status)) 
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                 "WdfDeviceCreate failed 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+           break;
+        }
 
-    status = RtlUnicodeStringPrintf(
-                                 &symbolicLinkName,
-                                 L"%ws%vport%up%u",
-                                 L"\\DosDevices\\",
-                                 0,
-                                 pport->Id
-                                 );
+        rawPdo = RawPdoSerialPortGetData(hChild);
+        rawPdo->port = pport;
 
-    status = WdfDeviceCreateSymbolicLink(
-                                 hChild,
-                                 &symbolicLinkName
-                                 );
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                "WdfDeviceCreateSymbolicLink %ws failed 0x%x\n", status, &symbolicLinkName);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
-
-    rawPdo = RawPdoSerialPortGetData(hChild);
-
-    rawPdo->port = pport;
-
-    WDF_IO_QUEUE_CONFIG_INIT(    &queueConfig,
+        WDF_IO_QUEUE_CONFIG_INIT(&queueConfig,
                                  WdfIoQueueDispatchSequential
                                  );
 
-    queueConfig.EvtIoDeviceControl = VIOSerialPortDeviceControl;
-    status = WdfIoQueueCreate(   hChild,
+        queueConfig.EvtIoDeviceControl = VIOSerialPortDeviceControl;
+        status = WdfIoQueueCreate(hChild,
                                  &queueConfig,
                                  WDF_NO_OBJECT_ATTRIBUTES,
                                  &pport->IoctlQueue
                                  );
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                     "WdfIoQueueCreate failed (IoCtrl Queue): 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
-    status = WdfDeviceConfigureRequestDispatching(
+           break;
+        }
+        status = WdfDeviceConfigureRequestDispatching(
                                  hChild,
                                  pport->IoctlQueue,
                                  WdfRequestTypeDeviceControl
                                  );
 
-    if(!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+        if(!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                     "DeviceConfigureRequestDispatching failed (IoCtrl Queue): 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+           break;
+        }
 
-    WDF_IO_QUEUE_CONFIG_INIT(    &queueConfig,
+        WDF_IO_QUEUE_CONFIG_INIT(&queueConfig,
                                  WdfIoQueueDispatchSequential);
 
-    queueConfig.EvtIoRead   =  VIOSerialPortRead;
-    status = WdfIoQueueCreate(   hChild,
+        queueConfig.EvtIoRead   =  VIOSerialPortRead;
+        status = WdfIoQueueCreate(hChild,
                                  &queueConfig,
                                  WDF_NO_OBJECT_ATTRIBUTES,
                                  &pport->ReadQueue
                                  );
-    if (!NT_SUCCESS(status)) 
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                     "WdfIoQueueCreate (Read Queue) failed 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+           break;
+        }
 
-    status = WdfDeviceConfigureRequestDispatching(
+        status = WdfDeviceConfigureRequestDispatching(
                                  hChild,
                                  pport->ReadQueue,
                                  WdfRequestTypeRead
                                  );
 
-    if(!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+        if(!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                     "DeviceConfigureRequestDispatching failed (Read Queue): 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+           break;
+        }
 
-    WDF_IO_QUEUE_CONFIG_INIT(    &queueConfig,
+        WDF_IO_QUEUE_CONFIG_INIT(&queueConfig,
                                  WdfIoQueueDispatchSequential);
 
-    queueConfig.EvtIoWrite  =  VIOSerialPortWrite;
-    status = WdfIoQueueCreate(   hChild,
+        queueConfig.EvtIoWrite  =  VIOSerialPortWrite;
+        status = WdfIoQueueCreate(hChild,
                                  &queueConfig,
                                  WDF_NO_OBJECT_ATTRIBUTES,
                                  &pport->WriteQueue
                                  );
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                     "WdfIoQueueCreate failed (Write Queue): 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
-    status = WdfDeviceConfigureRequestDispatching(
+           break;
+        }
+        status = WdfDeviceConfigureRequestDispatching(
                                  hChild,
                                  pport->WriteQueue,
                                  WdfRequestTypeWrite
                                  );
 
-    if(!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+        if(!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                     "DeviceConfigureRequestDispatching failed (Write Queue): 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+           break;
+        }
 
-    WDF_DEVICE_PNP_CAPABILITIES_INIT(&pnpCaps);
+        WDF_DEVICE_PNP_CAPABILITIES_INIT(&pnpCaps);
 
-    pnpCaps.NoDisplayInUI     =  WdfTrue;
-    pnpCaps.Address           =  pport->Id;
-    pnpCaps.UINumber          =  pport->Id;
+        pnpCaps.NoDisplayInUI =  WdfTrue;
+        pnpCaps.Address       =  pport->Id;
+        pnpCaps.UINumber      =  pport->Id;
 
-    WdfDeviceSetPnpCapabilities(hChild, &pnpCaps);
+        WdfDeviceSetPnpCapabilities(hChild, &pnpCaps);
 
-    WDF_DEVICE_STATE_INIT(&deviceState);
-    deviceState.DontDisplayInUI = WdfTrue;
-    WdfDeviceSetDeviceState(hChild, &deviceState);
+        WDF_DEVICE_STATE_INIT(&deviceState);
+        deviceState.DontDisplayInUI = WdfTrue;
+        WdfDeviceSetDeviceState(hChild, &deviceState);
 
-    status = WdfDeviceCreateDeviceInterface(
+        status = WdfDeviceCreateDeviceInterface(
                                  hChild,
                                  &GUID_VIOSERIAL_PORT,
                                  NULL
                                  );
 
-    if (!NT_SUCCESS (status)) 
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+        if (!NT_SUCCESS (status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                 "WdfDeviceCreateDeviceInterface failed 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+           break;
+        }
 
-    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-    attributes.ParentObject = hChild;
-    status = WdfSpinLockCreate(
+        WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+        attributes.ParentObject = hChild;
+        status = WdfSpinLockCreate(
                                 &attributes,
                                 &pport->InBufLock
                                 );
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                 "WdfSpinLockCreate failed 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+           break;
+        }
 
-    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-    attributes.ParentObject = hChild;
-    status = WdfSpinLockCreate(
+        WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+        attributes.ParentObject = hChild;
+        status = WdfSpinLockCreate(
                                 &attributes,
                                 &pport->OutVqLock
                                 );
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                 "WdfSpinLockCreate failed 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+           break;
+        }
 
-    pContext = GetPortsDevice(pport->Device);
+        pContext = GetPortsDevice(pport->Device);
 
-    pport->WriteTransferElements =  BYTES_TO_PAGES((ULONG) ROUND_TO_PAGES(
+        pport->WriteTransferElements =  BYTES_TO_PAGES((ULONG) ROUND_TO_PAGES(
                                     pContext->MaximumTransferLength) + PAGE_SIZE) + 2;
 
-    pport->WriteCommonBufferSize =  sizeof(struct VirtIOBufferDescriptor) * pport->WriteTransferElements;
+        pport->WriteCommonBufferSize =  sizeof(struct VirtIOBufferDescriptor) * pport->WriteTransferElements;
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                    "pport->WriteCommonBufferSize = %d\n", (int)pport->WriteCommonBufferSize);
 
-    status = WdfCommonBufferCreate(
+        status = WdfCommonBufferCreate(
                                  pContext->DmaEnabler,
                                  pport->WriteCommonBufferSize,
                                  WDF_NO_OBJECT_ATTRIBUTES,
                                  &pport->WriteCommonBuffer
                                  );
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                     "WdfCommonBufferCreate (write) failed: 0x%x\n", status);
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
-    }
+           break;
+        }
 
-    pport->WriteCommonBufferBase =
-        WdfCommonBufferGetAlignedVirtualAddress(pport->WriteCommonBuffer);
+        pport->WriteCommonBufferBase =
+           WdfCommonBufferGetAlignedVirtualAddress(pport->WriteCommonBuffer);
 
-    pport->WriteCommonBufferBaseLA =
-        WdfCommonBufferGetAlignedLogicalAddress(pport->WriteCommonBuffer);
+        pport->WriteCommonBufferBaseLA =
+           WdfCommonBufferGetAlignedLogicalAddress(pport->WriteCommonBuffer);
 
-    RtlZeroMemory( pport->WriteCommonBufferBase,
-                   pport->WriteCommonBufferSize);
+        RtlZeroMemory( pport->WriteCommonBufferBase,
+                       pport->WriteCommonBufferSize);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
-                                 "WriteCommonBuffer 0x%p  (#0x%I64X), length %U64d",
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                                 "WriteCommonBuffer 0x%p   %08I64X, length %d\n",
                                  pport->WriteCommonBufferBase,
                                  pport->WriteCommonBufferBaseLA.QuadPart,
-                                 WdfCommonBufferGetLength(pport->WriteCommonBuffer) );
+                                 (int)WdfCommonBufferGetLength(pport->WriteCommonBuffer) );
 
+        WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, TRANSACTION_CONTEXT);
+        status = WdfDmaTransactionCreate(pContext->DmaEnabler,
+                                 &attributes,
+                                 &pport->WriteDmaTransaction
+                                 );
 
-    status = VIOSerialFillQueue(pport->in_vq, pport->InBufLock);
-    if(!NT_SUCCESS(status))
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                    "WdfDmaTransactionCreate failed: 0x%x\n", status);
+           break;
+        }
+
+        status = VIOSerialFillQueue(pport->in_vq, pport->InBufLock);
+        if(!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"%s::%d  Error allocating inbufs\n", __FUNCTION__, __LINE__);
+           break;
+        }
+
+        VIOSerialEnableDisableInterruptQueue(pport->in_vq, TRUE);
+        VIOSerialEnableDisableInterruptQueue(pport->out_vq, TRUE);
+
+        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 1);
+    } while (0);
+
+    if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"%s::%d  Error allocating inbufs\n", __FUNCTION__, __LINE__);
         VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
-        return status;
     }
-
-
-    VIOSerialEnableDisableInterruptQueue(pport->in_vq, TRUE);
-    VIOSerialEnableDisableInterruptQueue(pport->out_vq, TRUE);
-
-    VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 1);
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s status 0x%x\n", __FUNCTION__, status);
     return status;
 }
 
@@ -855,6 +843,7 @@ VIOSerialPortProgramWriteDma(
     UNREFERENCED_PARAMETER(Device);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "--> %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
 
     WdfSpinLockAcquire(port->OutVqLock);
     VIOSerialReclaimConsumedBuffers(port);
@@ -885,6 +874,7 @@ VIOSerialPortProgramWriteDma(
     vq->vq_ops->kick(vq);
     WdfSpinLockRelease(port->OutVqLock);
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "<-- %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
     return TRUE;
 }
 
@@ -904,7 +894,7 @@ VIOSerialPortWriteRequestComplete(
     bytesTransferred =  WdfDmaTransactionGetBytesTransferred( DmaTransaction );
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
-                                "%s:  Request %p, Status %!STATUS!, "
+                                "%s:  Request %p, Status 0x%x, "
                                 "bytes transferred %d\n",
                                  __FUNCTION__,
                                  request,
@@ -953,19 +943,9 @@ VIOSerialPortDeviceControl(
               WdfRequestComplete(Request, status);
               return;
            }
-           if (pdoData->port->Name)
+           if (pdoData->port->NameString.Buffer)
            {
-              status = RtlStringCbLengthA(pdoData->port->Name,NTSTRSAFE_MAX_CCH * sizeof(char),&name_size);
-              if (!NT_SUCCESS(status))
-              {
-                 TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
-                            "RtlStringCbLengthA failed 0x%x\n", status);
-                 name_size = 0;
-              }
-              else
-              {
-                 name_size += sizeof(char);
-              }
+              name_size = pdoData->port->NameString.MaximumLength;
            }
            if (length < sizeof (VIRTIO_PORT_INFO) + name_size)
            {
@@ -981,10 +961,10 @@ VIOSerialPortDeviceControl(
            pport_info->HostConnected = pdoData->port->HostConnected;
            pport_info->GuestConnected = pdoData->port->GuestConnected;
 
-           if (pdoData->port->Name && name_size > 0 )
+           if (pdoData->port->NameString.Buffer)
            {
               RtlZeroMemory(pport_info->Name, name_size);
-              status = RtlStringCbCopyA(pport_info->Name, name_size, pdoData->port->Name);   
+              status = RtlStringCbCopyA(pport_info->Name, name_size - 1, pdoData->port->NameString.Buffer);   
               if (!NT_SUCCESS(status))
               {
                  TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
@@ -1063,4 +1043,137 @@ VIOSerialPortClose (
 
     return;
 
+}
+
+VOID
+VIOSerialPortCreateName (
+    IN WDFDEVICE WdfDevice,
+    IN PVIOSERIAL_PORT port,
+    IN PPORT_BUFFER buf
+    )
+{
+    WDF_OBJECT_ATTRIBUTES attributes;
+    WDF_WORKITEM_CONFIG   workitemConfig;
+    WDFWORKITEM           hWorkItem;
+    PRAWPDO_VIOSERIAL_PORT  pdoData = NULL;
+    NTSTATUS              status = STATUS_SUCCESS;
+    size_t                length;
+    PVIRTIO_CONSOLE_CONTROL cpkt;
+
+    cpkt = (PVIRTIO_CONSOLE_CONTROL)((ULONG_PTR)buf->va_buf + buf->offset);
+    if (port && !port->NameString.Buffer)
+    {
+        length = buf->len - buf->offset - sizeof(VIRTIO_CONSOLE_CONTROL);
+        port->NameString.Length = (USHORT)( length );
+        port->NameString.MaximumLength = port->NameString.Length + 1;
+        port->NameString.Buffer = (PCHAR)ExAllocatePoolWithTag(
+                                 NonPagedPool,
+                                 port->NameString.MaximumLength,
+                                 VIOSERIAL_DRIVER_MEMORY_TAG
+                                 );
+        if (port->NameString.Buffer)
+        {
+           RtlCopyMemory(  port->NameString.Buffer,
+                                 (PVOID)((LONG_PTR)buf->va_buf + buf->offset + sizeof(*cpkt)),
+                                 length
+                                 );
+           port->NameString.Buffer[length] = '\0';
+           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_NAME name_size = %d %s\n", length, port->NameString.Buffer);
+        }
+        else
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                                 "VIRTIO_CONSOLE_PORT_NAME: Unable to alloc string buffer\n"
+                                 );
+        }
+
+        WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+        WDF_OBJECT_ATTRIBUTES_SET_CONTEXT_TYPE(&attributes, RAWPDO_VIOSERIAL_PORT);
+        attributes.ParentObject = WdfDevice;
+        WDF_WORKITEM_CONFIG_INIT(&workitemConfig, VIOSerialPortCreateSymbolicName);
+
+        status = WdfWorkItemCreate( &workitemConfig,
+                                 &attributes,
+                                 &hWorkItem);
+
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "WdfWorkItemCreate failed with status = 0x%08x\n", status);
+           return;
+        }
+
+        pdoData = RawPdoSerialPortGetData(hWorkItem);
+
+        pdoData->port = port;
+
+        WdfWorkItemEnqueue(hWorkItem);
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIRTIO_CONSOLE_PORT_NAME invalid id = %d\n", cpkt->id);
+    }
+}
+
+
+VOID
+VIOSerialPortCreateSymbolicName (
+    IN WDFWORKITEM  WorkItem
+    )
+{
+
+    PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WorkItem);
+    PVIOSERIAL_PORT         pport = pdoData->port;
+    UNICODE_STRING          deviceUnicodeString = {0};
+    NTSTATUS                status  = STATUS_SUCCESS;
+
+    DECLARE_UNICODE_STRING_SIZE(symbolicLinkName, 256);
+
+    do
+    {
+        if (pport->NameString.Buffer)
+        {
+           status = RtlAnsiStringToUnicodeString( &deviceUnicodeString,
+                                 &pport->NameString,
+                                 TRUE
+                                 );
+           if (!NT_SUCCESS(status))
+           {
+              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                "RtlAnsiStringToUnicodeString failed 0x%x\n", status);
+              break;
+           }
+
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"deviceUnicodeString = %ws\n", deviceUnicodeString.Buffer);
+
+           status = RtlUnicodeStringPrintf(
+                                 &symbolicLinkName,
+                                 L"%ws%ws",
+                                 L"\\DosDevices\\",
+                                 deviceUnicodeString.Buffer
+                                 );
+           if (!NT_SUCCESS(status))
+           {
+              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                "RtlUnicodeStringPrintf failed 0x%x\n", status);
+              break;
+           }
+
+           status = WdfDeviceCreateSymbolicLink(
+                                 pport->Device,
+                                 &symbolicLinkName
+                                 );
+           if (!NT_SUCCESS(status))
+           {
+              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                "WdfDeviceCreateSymbolicLink %ws failed 0x%x\n", status, &symbolicLinkName);
+              break;
+           }
+        }
+    } while (0);
+
+    if (deviceUnicodeString.Buffer != NULL)
+    {
+        RtlFreeUnicodeString( &deviceUnicodeString );
+    }
+    WdfObjectDelete(WorkItem);
 }

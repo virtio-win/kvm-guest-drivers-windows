@@ -113,9 +113,7 @@ DEFINE_GUID (GUID_DEVINTERFACE_PORTSENUM_VIOSERIAL,
 //  {F55F7844-6A0C-11d2-B841-00C04FAD5171}
 
 
-#define DEVICE_DESC_LENGTH       64
-
-#define SYMBOLIC_NAME_LENGTH     128
+#define DEVICE_DESC_LENGTH  128
 
 typedef struct _tagPortBuffer
 {
@@ -136,13 +134,15 @@ typedef struct _tagVioSerialPort
     struct virtqueue    *in_vq, *out_vq;
     WDFSPINLOCK         InBufLock;
     WDFSPINLOCK         OutVqLock;
-    PCHAR               Name;
+    ANSI_STRING         NameString;
     UINT                Id;
 
     BOOLEAN             OutVqFull;
     BOOLEAN             HostConnected;
     BOOLEAN             GuestConnected;
+
     WDFQUEUE            ReadQueue;
+
     WDFQUEUE            WriteQueue;
     WDFCOMMONBUFFER     WriteCommonBuffer;
     WDFDMATRANSACTION   WriteDmaTransaction;
@@ -242,7 +242,7 @@ VIOSerialAddPort(
 VOID
 VIOSerialRemovePort(
     IN WDFDEVICE Device,
-    IN ULONG id
+    IN PVIOSERIAL_PORT port
 );
 
 VOID
@@ -295,6 +295,18 @@ VOID
 VIOSerialPortWriteRequestComplete(
     IN WDFDMATRANSACTION  DmaTransaction,
     IN NTSTATUS           Status
+);
+
+VOID
+VIOSerialPortCreateName (
+    IN WDFDEVICE WdfDevice,
+    IN PVIOSERIAL_PORT port,
+    IN PPORT_BUFFER buf
+);
+
+VOID
+VIOSerialPortCreateSymbolicName(
+    IN WDFWORKITEM  WorkItem
 );
 
 #endif /* VIOSERIAL_H */

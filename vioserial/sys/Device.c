@@ -103,6 +103,7 @@ VIOSerialEvtDeviceAdd(
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&Attributes, PORTS_DEVICE);
     Attributes.SynchronizationScope = WdfSynchronizationScopeDevice;
+    Attributes.ExecutionLevel = WdfExecutionLevelPassive;
     status = WdfDeviceCreate(&DeviceInit, &Attributes, &hDevice);
     if (!NT_SUCCESS(status))
     {
@@ -115,7 +116,6 @@ VIOSerialEvtDeviceAdd(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIOSerialInitInterruptHandling failed - 0x%x\n", status);
     }
-
 
     status = WdfDeviceCreateDeviceInterface(
                                  hDevice,

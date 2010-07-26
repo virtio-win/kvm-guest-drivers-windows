@@ -105,7 +105,7 @@ VIOSerialHandleCtrlMsg(
 
     port = VIOSerialFindPortById(Device, cpkt->id);
 
-    if(!port && cpkt->event != VIRTIO_CONSOLE_PORT_ADD)
+    if (!port && (cpkt->event != VIRTIO_CONSOLE_PORT_ADD))
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Invlid index %u in control packet\n", cpkt->id);
     }
@@ -125,11 +125,18 @@ VIOSerialHandleCtrlMsg(
                break;
            } 
            VIOSerialAddPort(Device, cpkt->id); 
-           break;
+        break;
 
         case VIRTIO_CONSOLE_PORT_REMOVE:
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_REMOVE id = %d\n", cpkt->id);
-           VIOSerialRemovePort(Device,  cpkt->id); 
+           if (port)
+           {
+              TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_REMOVE id = %d\n", cpkt->id);
+              VIOSerialRemovePort(Device, port);
+           }
+           else
+           {
+              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIRTIO_CONSOLE_PORT_REMOVE invalid id = %d\n", cpkt->id);
+           }
         break;
 
         case VIRTIO_CONSOLE_CONSOLE_PORT:
@@ -146,27 +153,25 @@ VIOSerialHandleCtrlMsg(
         break;
 
         case VIRTIO_CONSOLE_PORT_OPEN:
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_OPEN id = %d, HostConnected = %d\n", cpkt->id, cpkt->value);
-           port->HostConnected = (BOOLEAN)cpkt->value;
-           WdfSpinLockAcquire(port->OutVqLock);
-           VIOSerialReclaimConsumedBuffers(port);
-           WdfSpinLockRelease(port->OutVqLock);
+           if (port)
+           {
+              TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_OPEN id = %d, HostConnected = %d\n", cpkt->id, cpkt->value);
+              port->HostConnected = (BOOLEAN)cpkt->value;
+              WdfSpinLockAcquire(port->OutVqLock);
+              VIOSerialReclaimConsumedBuffers(port);
+              WdfSpinLockRelease(port->OutVqLock);
+           }
+           else
+           {
+              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIRTIO_CONSOLE_PORT_OPEN invalid id = %d\n", cpkt->id);
+           }
         break;
 
         case VIRTIO_CONSOLE_PORT_NAME:
-           name_size = buf->len - buf->offset - sizeof(VIRTIO_CONSOLE_CONTROL) + 1;
-           port->Name = ExAllocatePoolWithTag(
-                    NonPagedPool,
-                    name_size,
-                    VIOSERIAL_DRIVER_MEMORY_TAG); 
-           if (port->Name == NULL)
+           if (port)
            {
-              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"ExAllocatePoolWithTag failed, %s::%d\n", __FUNCTION__, __LINE__);
-              break;
+              VIOSerialPortCreateName(Device, port, buf);
            }
-           memcpy(port->Name, (PVOID)((LONG_PTR)buf->va_buf + buf->offset + sizeof(*cpkt)), name_size-1);
-           port->Name[name_size-1] = 0; 
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_NAME name_size = %d %s\n", name_size, port->Name);
         break;
         default:
            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s UNKNOWN event = %d\n", __FUNCTION__, cpkt->event);
