@@ -319,6 +319,18 @@ VIOSerialWillWriteBlock(
     return ret;
 }
 
+VOID
+VIOSerialPortSendPortReady (
+    IN WDFWORKITEM  WorkItem
+    )
+{
+    PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WorkItem);
+    PVIOSERIAL_PORT         pport = pdoData->port;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s sending PORT_READY for id=%d\n",
+        __FUNCTION__, pport->Id);
+    VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 1);
+}
 
 NTSTATUS
 VIOSerialDeviceListCreatePdo(
@@ -339,6 +351,11 @@ VIOSerialDeviceListCreatePdo(
     PRAWPDO_VIOSERIAL_PORT          rawPdo = NULL;
     WDF_FILEOBJECT_CONFIG           fileConfig;
     PPORTS_DEVICE                   pContext = NULL;
+
+    // Work item to send PORT_READY when successfull
+    WDF_WORKITEM_CONFIG             workitemConfig;
+    WDFWORKITEM                     hWorkItem;
+    PRAWPDO_VIOSERIAL_PORT          pdoData = NULL;
 
     DECLARE_CONST_UNICODE_STRING(deviceId, PORT_DEVICE_ID );
     DECLARE_CONST_UNICODE_STRING(deviceLocation, L"RedHat VIOSerial Port" );
@@ -700,13 +717,36 @@ VIOSerialDeviceListCreatePdo(
         VIOSerialEnableDisableInterruptQueue(pport->in_vq, TRUE);
         VIOSerialEnableDisableInterruptQueue(pport->out_vq, TRUE);
 
-        VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 1);
+        // schedule a workitem to send PORT_READY, hopefully runs __after__ this function returns.
+        WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+        WDF_OBJECT_ATTRIBUTES_SET_CONTEXT_TYPE(&attributes, RAWPDO_VIOSERIAL_PORT);
+        attributes.ParentObject = hChild;
+        WDF_WORKITEM_CONFIG_INIT(&workitemConfig, VIOSerialPortSendPortReady);
+
+        status = WdfWorkItemCreate( &workitemConfig,
+                                 &attributes,
+                                 &hWorkItem);
+
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
+                "%s WdfWorkItemCreate failed with status = 0x%08x\n",
+                __FUNCTION__, status);
+        }
+        else
+        {
+            pdoData = RawPdoSerialPortGetData(hWorkItem);
+            pdoData->port = pport;
+            WdfWorkItemEnqueue(hWorkItem);
+        }
     } while (0);
 
     if (!NT_SUCCESS(status))
     {
+        // We can send this before PDO is PRESENT since the device won't send any response.
         VIOSerialSendCtrlMsg(pport->Device, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
     }
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s status 0x%x\n", __FUNCTION__, status);
     return status;
 }

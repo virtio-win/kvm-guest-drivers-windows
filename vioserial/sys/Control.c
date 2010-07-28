@@ -116,7 +116,6 @@ VIOSerialHandleCtrlMsg(
            if (port) 
            {
                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_ADD id = %d\n", cpkt->id);
-               VIOSerialSendCtrlMsg(Device, port->Id, VIRTIO_CONSOLE_PORT_READY, 1);
                break;
            }
            if (cpkt->id >= pContext->consoleConfig.max_nr_ports)
