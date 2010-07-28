@@ -67,8 +67,6 @@ struct vring {
 	struct vring_avail *avail;
 
 	struct vring_used *used;
-
-	u16 *vring_last_used_ptr;
 };
 #pragma pack (pop)
 
@@ -84,7 +82,6 @@ struct vring {
  *	__u16 avail_flags;
  *	__u16 avail_idx;
  *	__u16 available[num];
- *  __u16 last_used_idx;
  *
  *	// Padding to the next page boundary.
  *	char pad[];
@@ -93,12 +90,8 @@ struct vring {
  *	__u16 used_flags;
  *	__u16 used_idx;
  *	struct vring_used_elem used[num];
- *  __u16 last_avail_idx;
  * };
  */
-
-#define vring_last_used(vr) ((vr)->avail->ring[(vr)->num])
-#define vring_last_avail(vr) (*(__u16 *)&(vr)->used->ring[(vr)->num])
 
 static void vring_init(struct vring *vr, unsigned int num, void *p,
 			      unsigned long pagesize)
@@ -108,14 +101,13 @@ static void vring_init(struct vring *vr, unsigned int num, void *p,
 	vr->avail = (void *) ((u8 *)p + num*sizeof(struct vring_desc));
 	vr->used = (void *)(((ULONG_PTR)&vr->avail->ring[num] + pagesize-1)
 			    & ~((ULONG_PTR)pagesize - 1));
-	vr->vring_last_used_ptr = &vring_last_used(vr);
 }
 
 static  unsigned vring_size(unsigned int num, unsigned long pagesize)
 {
-	return ((sizeof(struct vring_desc) * num + sizeof(u16) * (3 + num)
+	return ((sizeof(struct vring_desc) * num + sizeof(u16) * (2 + num)
 		 + pagesize - 1) & ~((ULONG_PTR)pagesize - 1))
-		+ sizeof(u16) * 3 + sizeof(struct vring_used_elem) * num;
+		+ sizeof(u16) * 2 + sizeof(struct vring_used_elem) * num;
 }
 
 struct virtqueue *vring_new_virtqueue(unsigned int num,
@@ -126,6 +118,5 @@ struct virtqueue *vring_new_virtqueue(unsigned int num,
 
 void vring_del_virtqueue(struct virtqueue *vq);
 void* vring_detach_unused_buf(struct virtqueue *vq);
-
 
 #endif /* _LINUX_VIRTIO_RING_H */

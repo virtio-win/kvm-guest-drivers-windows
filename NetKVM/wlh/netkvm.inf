@@ -229,12 +229,6 @@ HKR, Ndi\Params\MergeableBuf,		type,		0,			"enum"
 HKR, Ndi\Params\MergeableBuf\enum,	"1",		0,			%Enable%
 HKR, Ndi\Params\MergeableBuf\enum,	"0",		0,			%Disable%
 
-HKR, Ndi\Params\PublishIndices,		ParamDesc,	0,			%PublishIndices%
-HKR, Ndi\Params\PublishIndices,		Default,	0,			"1"
-HKR, Ndi\Params\PublishIndices,		type,		0,			"enum"
-HKR, Ndi\Params\PublishIndices\enum,	"1",		0,			%Enable%
-HKR, Ndi\Params\PublishIndices\enum,	"0",		0,			%Disable%
-
 
 [kvmnet6.CopyFiles]
 netkvm.sys,,,2
@@ -314,5 +308,4 @@ PriorityOnly = "Priority"
 VLan = "VLan"
 Priority_Vlan = "All"
 MergeableBuf = "Use mergeable buffers"
-PublishIndices = "Publish Indices"
 MTU = "MTU size"

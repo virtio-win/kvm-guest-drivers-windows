@@ -44,6 +44,9 @@ struct _declspec(align(PAGE_SIZE)) vring_virtqueue
 	/* Number we've added since last sync. */
 	unsigned int num_added;
 
+	/* Last used index we've seen. */
+	u16 last_used_idx;
+
 	/* How to notify other side. FIXME: commonalize hcalls! */
 	void (*notify)(struct virtqueue *vq);
 
@@ -231,27 +234,25 @@ static void vring_shutdown(struct virtqueue *_vq)
 
 static bool more_used(const struct vring_virtqueue *vq)
 {
-    return vring_last_used(&vq->vring) != vq->vring.used->idx;
+	return vq->last_used_idx != vq->vring.used->idx;
 }
 
 static void *vring_get_buf(struct virtqueue *_vq, unsigned int *len)
 {
 	struct vring_virtqueue *vq = to_vvq(_vq);
 	void *ret;
-    struct vring_used_elem *u;
 	unsigned int i;
 
 	if (!more_used(vq)) {
-		DPrintf(4, ("No more buffers in queue: last_used_idx %d vring.used->idx %d\n", 
-			vring_last_used(&vq->vring),
-			vq->vring.used->idx));
+		DPrintf(4, ("No more buffers in queue: last_used_idx %d vring.used->idx %d\n", vq->last_used_idx, vq->vring.used->idx));
 		return NULL;
 	}
 
-	u = &vq->vring.used->ring[vring_last_used(&vq->vring) % vq->vring.num];
-	i = u->id;
-	*len = u->len;
+	/* Only get used array entries after they have been exposed by host. */
+	rmb();
 
+	i = vq->vring.used->ring[vq->last_used_idx%vq->vring.num].id;
+	*len = vq->vring.used->ring[vq->last_used_idx%vq->vring.num].len;
 
 	DPrintf(4, ("%s>>> id %d, len %d\n", __FUNCTION__, i, *len) );
 
@@ -267,7 +268,7 @@ static void *vring_get_buf(struct virtqueue *_vq, unsigned int *len)
 	/* detach_buf clears data, so grab it now. */
 	ret = vq->data[i];
 	detach_buf(vq, i);
-    vring_last_used(&vq->vring)++;
+	vq->last_used_idx++;
 	return ret;
 }
 
@@ -316,7 +317,7 @@ void initialize_virtqueue(struct vring_virtqueue *vq,
 	vq->vq.vq_ops = &vring_vq_ops;
 	vq->notify = notify;
 	vq->broken = 0;
-	vring_last_used(&vq->vring) = 0;
+	vq->last_used_idx = 0;
 	vq->num_added = 0;
 
 	/* No callback?  Tell other side not to bother us. */

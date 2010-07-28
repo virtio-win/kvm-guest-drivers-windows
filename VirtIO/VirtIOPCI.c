@@ -97,12 +97,6 @@ bool VirtIODeviceEnableGuestFeature(VirtIODevice * pVirtIODevice, unsigned uFeat
 	return !!(ulValue & (1 << uFeature));
 }
 
-bool VirtIODeviceHasFeature(unsigned uFeature)
-{
-	if (uFeature == VIRTIO_F_PUBLISH_INDICES) return TRUE;
-	return FALSE;
-}
-
 /////////////////////////////////////////////////////////////////////////////////////
 //
 // Reset device
@@ -206,7 +200,7 @@ static void vp_notify(struct virtqueue *vq)
 ULONG VirtIODeviceISR(VirtIODevice * pVirtIODevice)
 {
 	ULONG status;
-	DPrintf(6, ("%s\n", __FUNCTION__));
+	DPrintf(4, ("%s\n", __FUNCTION__));
 
 	status = ReadVirtIODeviceByte(pVirtIODevice->addr + VIRTIO_PCI_ISR);
 
