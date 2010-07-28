@@ -19,6 +19,9 @@
 
 EVT_WDF_DEVICE_PREPARE_HARDWARE     VIOSerialEvtDevicePrepareHardware;
 EVT_WDF_DEVICE_RELEASE_HARDWARE     VIOSerialEvtDeviceReleaseHardware;
+EVT_WDF_DEVICE_D0_ENTRY             VIOSerialEvtDeviceD0Entry;
+EVT_WDF_DEVICE_D0_EXIT              VIOSerialEvtDeviceD0Exit;
+
 
 static NTSTATUS VIOSerialInitInterruptHandling(IN WDFDEVICE hDevice);
 static NTSTATUS VIOSerialInit(IN WDFOBJECT hDevice);
@@ -28,6 +31,7 @@ static NTSTATUS VIOSerialDeinit(IN WDFOBJECT WdfDevice);
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceAdd)
 #pragma alloc_text (PAGE, VIOSerialEvtDevicePrepareHardware)
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceReleaseHardware)
+#pragma alloc_text (PAGE, VIOSerialEvtDeviceD0Exit)
 
 #endif
 
@@ -87,6 +91,8 @@ VIOSerialEvtDeviceAdd(
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&PnpPowerCallbacks);
     PnpPowerCallbacks.EvtDevicePrepareHardware = VIOSerialEvtDevicePrepareHardware;
     PnpPowerCallbacks.EvtDeviceReleaseHardware = VIOSerialEvtDeviceReleaseHardware;
+    PnpPowerCallbacks.EvtDeviceD0Entry         = VIOSerialEvtDeviceD0Entry;
+    PnpPowerCallbacks.EvtDeviceD0Exit          = VIOSerialEvtDeviceD0Exit;
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &PnpPowerCallbacks);
 
     WDF_CHILD_LIST_CONFIG_INIT(
@@ -467,6 +473,34 @@ VIOSerialFillQueue(
         }
         WdfSpinLockRelease(Lock);
     }
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+VIOSerialEvtDeviceD0Entry(
+    IN  WDFDEVICE Device,
+    IN  WDF_POWER_DEVICE_STATE PreviousState
+    )
+{
+    UNREFERENCED_PARAMETER(Device);
+    UNREFERENCED_PARAMETER(PreviousState);
+
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "<--> %s\n", __FUNCTION__);
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+VIOSerialEvtDeviceD0Exit(
+    IN  WDFDEVICE Device,
+    IN  WDF_POWER_DEVICE_STATE TargetState
+    )
+{
+    UNREFERENCED_PARAMETER(Device);
+    UNREFERENCED_PARAMETER(TargetState);
+
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "<--> %s\n", __FUNCTION__);
+
     return STATUS_SUCCESS;
 }
 
