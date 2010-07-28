@@ -1,3 +1,12 @@
+Date	28 July 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm17
+
+Fixed bugs:
+616814  vioserial driver fails to recognize HostConnected with spicevmc
+
+New features:
+Reverting published indexes
 
 Date	13 July 2010
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
