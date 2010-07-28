@@ -73,7 +73,7 @@ VIOSerialInterruptDpc(
 
            if (!VIOSerialWillReadBlock(port))
            {
-              status = WdfIoQueueRetrieveNextRequest(port->ReadQueue, &request);
+              status = WdfIoQueueRetrieveNextRequest(port->PendingReadQueue, &request);
               if (NT_SUCCESS(status))
               {
                  TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,"Got available read request\n");

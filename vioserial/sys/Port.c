@@ -579,6 +579,21 @@ VIOSerialDeviceListCreatePdo(
         }
 
         WDF_IO_QUEUE_CONFIG_INIT(&queueConfig,
+                                 WdfIoQueueDispatchManual);
+
+        status = WdfIoQueueCreate(hChild,
+                                 &queueConfig,
+                                 WDF_NO_OBJECT_ATTRIBUTES,
+                                 &pport->PendingReadQueue
+                                 );
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                    "WdfIoQueueCreate (Pending Read Queue) failed 0x%x\n", status);
+           break;
+        }
+
+        WDF_IO_QUEUE_CONFIG_INIT(&queueConfig,
                                  WdfIoQueueDispatchSequential);
 
         queueConfig.EvtIoWrite  =  VIOSerialPortWrite;
@@ -782,7 +797,7 @@ VIOSerialPortRead(
            return;
         }
 
-        status = WdfRequestForwardToIoQueue(Request, pdoData->port->ReadQueue);
+        status = WdfRequestForwardToIoQueue(Request, pdoData->port->PendingReadQueue);
         if (NT_SUCCESS(status)) 
         {
             return;

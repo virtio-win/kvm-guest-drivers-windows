@@ -142,6 +142,7 @@ typedef struct _tagVioSerialPort
     BOOLEAN             GuestConnected;
 
     WDFQUEUE            ReadQueue;
+    WDFQUEUE            PendingReadQueue;
 
     WDFQUEUE            WriteQueue;
     WDFCOMMONBUFFER     WriteCommonBuffer;
