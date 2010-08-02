@@ -1,3 +1,13 @@
+Date	02 August 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm18
+
+Fixed bugs:
+615205  BSOD happens when doing hibernation for windows guest with virtio blk
+
+New features:
+None
+
 Date	28 July 2010
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm17
