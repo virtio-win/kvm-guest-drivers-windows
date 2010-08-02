@@ -717,12 +717,7 @@ VirtIoResetBus(
     )
 {
     UNREFERENCED_PARAMETER( DeviceExtension );
-
-    ScsiPortCompleteRequest(DeviceExtension,
-                            (UCHAR)PathId,
-                            0xFF,
-                            0xFF,
-                            SRB_STATUS_BUS_RESET);
+    UNREFERENCED_PARAMETER( PathId );
     return TRUE;
 }
 
@@ -768,6 +763,7 @@ VirtIoAdapterControl(
     }
     case ScsiRestartAdapter: {
         RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("ScsiRestartAdapter\n"));
+        VirtIODeviceReset(DeviceExtension);
         adaptExt->pci_vq_info.vq = NULL;
 #ifdef MSI_SUPPORTED
         if(!adaptExt->dump_mode && adaptExt->msix_vectors) {

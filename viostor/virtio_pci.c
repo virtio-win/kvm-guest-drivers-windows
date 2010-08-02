@@ -115,6 +115,7 @@ VirtIODeviceFindVirtualQueue(
     ULONG              dummy;
     PHYSICAL_ADDRESS   pa;
     ULONG              pageNum;
+    ULONG              pfns;
     unsigned           res;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
@@ -135,11 +136,11 @@ VirtIODeviceFindVirtualQueue(
 
     // Check if queue is either not available or already active.
     num = ScsiPortReadPortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM));
-
-    RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>>> [vp_dev->addr + VIRTIO_PCI_QUEUE_NUM] = %x\n", __FUNCTION__, num) );
-    if (!num || ScsiPortReadPortUlong((PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN)))
+    pfns = ScsiPortReadPortUlong((PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN));
+    if (!num || pfns) {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>>> num = 0x%x, pfns= 0x%x\n", __FUNCTION__, num, pfns) );
         return NULL;
-
+    }
     // allocate and fill out our structure the represents an active queue
     info = &adaptExt->pci_vq_info;
 
@@ -156,6 +157,7 @@ VirtIODeviceFindVirtualQueue(
 
     if (!vq) {
         ScsiPortWritePortUlong((PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(ULONG)0);
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>>> vring_new_virtqueue failed\n", __FUNCTION__) );
         return NULL;
     }
 
