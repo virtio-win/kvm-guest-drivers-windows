@@ -129,6 +129,7 @@ typedef struct _tagVioSerialPort
 {
     WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER Header;
 
+    WDFDEVICE           BusDevice;
     WDFDEVICE           Device;
 
     PPORT_BUFFER        InBuf;
