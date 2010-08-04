@@ -31,7 +31,7 @@ int bDebugPrint;
 
 
 #if !defined(EVENT_TRACING)
-ULONG DebugLevel = TRACE_LEVEL_INFORMATION;
+ULONG DebugLevel = TRACE_LEVEL_ERROR;
 ULONG DebugFlag = 0xff;
 #else
 ULONG DebugLevel;

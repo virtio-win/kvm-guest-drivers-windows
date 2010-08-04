@@ -115,7 +115,7 @@ VIOSerialEnableDisableInterrupt(
 {
     unsigned int i;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_INTERRUPT, "--> %s enable = %d\n", __FUNCTION__, bEnable);
 
     if(!pContext)
         return;

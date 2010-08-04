@@ -95,6 +95,7 @@ typedef struct _tagPortDevice
     WDFDMAENABLER       DmaEnabler;
     ULONG               MaximumTransferLength;
 
+    BOOLEAN             DeviceOK;
 } PORTS_DEVICE, *PPORTS_DEVICE;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(PORTS_DEVICE, GetPortsDevice)

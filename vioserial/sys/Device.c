@@ -21,6 +21,7 @@ EVT_WDF_DEVICE_PREPARE_HARDWARE     VIOSerialEvtDevicePrepareHardware;
 EVT_WDF_DEVICE_RELEASE_HARDWARE     VIOSerialEvtDeviceReleaseHardware;
 EVT_WDF_DEVICE_D0_ENTRY             VIOSerialEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT              VIOSerialEvtDeviceD0Exit;
+EVT_WDF_DEVICE_D0_ENTRY_POST_INTERRUPTS_ENABLED VIOSerialEvtDeviceD0EntryPostInterruptsEnabled;
 
 
 static NTSTATUS VIOSerialInitInterruptHandling(IN WDFDEVICE hDevice);
@@ -32,6 +33,7 @@ static NTSTATUS VIOSerialDeinit(IN WDFOBJECT WdfDevice);
 #pragma alloc_text (PAGE, VIOSerialEvtDevicePrepareHardware)
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceReleaseHardware)
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceD0Exit)
+#pragma alloc_text (PAGE, VIOSerialEvtDeviceD0EntryPostInterruptsEnabled)
 
 #endif
 
@@ -93,6 +95,7 @@ VIOSerialEvtDeviceAdd(
     PnpPowerCallbacks.EvtDeviceReleaseHardware = VIOSerialEvtDeviceReleaseHardware;
     PnpPowerCallbacks.EvtDeviceD0Entry         = VIOSerialEvtDeviceD0Entry;
     PnpPowerCallbacks.EvtDeviceD0Exit          = VIOSerialEvtDeviceD0Exit;
+    PnpPowerCallbacks.EvtDeviceD0EntryPostInterruptsEnabled = VIOSerialEvtDeviceD0EntryPostInterruptsEnabled;
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &PnpPowerCallbacks);
 
     WDF_CHILD_LIST_CONFIG_INIT(
@@ -238,9 +241,7 @@ VIOSerialEvtDevicePrepareHardware(
         return status;
     }
 
-
-    VIOSerialSendCtrlMsg(Device, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 1);
-
+    pContext->DeviceOK = TRUE;
     return STATUS_SUCCESS;
 }
 
@@ -365,17 +366,6 @@ VIOSerialInit(IN WDFOBJECT Device)
     {
         VIOSerialAddPort(Device, 0);
     }
-    if(!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Setting VIRTIO_CONFIG_S_FAILED flag\n");
-        VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_FAILED);
-        return status; 
-    }
-    else
-    {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Setting VIRTIO_CONFIG_S_DRIVER_OK flag\n");
-        VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
-    }
 
     return status;
 }
@@ -478,14 +468,26 @@ VIOSerialFillQueue(
 
 NTSTATUS
 VIOSerialEvtDeviceD0Entry(
-    IN  WDFDEVICE Device,
+    IN  WDFDEVICE WdfDevice,
     IN  WDF_POWER_DEVICE_STATE PreviousState
     )
 {
-    UNREFERENCED_PARAMETER(Device);
+    PPORTS_DEVICE	pContext = GetPortsDevice(WdfDevice);
+    UNREFERENCED_PARAMETER(WdfDevice);
     UNREFERENCED_PARAMETER(PreviousState);
 
     TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "<--> %s\n", __FUNCTION__);
+
+    if(!pContext->DeviceOK)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Setting VIRTIO_CONFIG_S_FAILED flag\n");
+        VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_FAILED);
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Setting VIRTIO_CONFIG_S_DRIVER_OK flag\n");
+        VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+    }
 
     return STATUS_SUCCESS;
 }
@@ -500,6 +502,32 @@ VIOSerialEvtDeviceD0Exit(
     UNREFERENCED_PARAMETER(TargetState);
 
     TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "<--> %s\n", __FUNCTION__);
+
+    return STATUS_SUCCESS;
+}
+
+
+NTSTATUS
+VIOSerialEvtDeviceD0EntryPostInterruptsEnabled(
+    IN  WDFDEVICE WdfDevice,
+    IN  WDF_POWER_DEVICE_STATE PreviousState
+    )
+{
+    PPORTS_DEVICE	pContext = GetPortsDevice(WdfDevice);
+    UNREFERENCED_PARAMETER(PreviousState);
+
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "<--> %s\n", __FUNCTION__);
+
+    if(!pContext->DeviceOK)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Sending VIRTIO_CONSOLE_DEVICE_READY 0\n");
+        VIOSerialSendCtrlMsg(WdfDevice, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 0);
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Sending VIRTIO_CONSOLE_DEVICE_READY 1\n");
+        VIOSerialSendCtrlMsg(WdfDevice, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 1);
+    }
 
     return STATUS_SUCCESS;
 }
