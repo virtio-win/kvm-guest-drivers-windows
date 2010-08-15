@@ -456,6 +456,7 @@ VIOSerialDeviceListCreatePdo(
                                  Header
                                  );
 
+    WdfDeviceInitSetDeviceType(ChildInit, FILE_DEVICE_SERIAL_PORT);
     WdfDeviceInitSetIoType(ChildInit, WdfDeviceIoDirect);
 
     do
