@@ -104,6 +104,15 @@ VIOSerialEvtDeviceAdd(
                                  VIOSerialDeviceListCreatePdo
                                  );
 
+    ChildListConfig.EvtChildListIdentificationDescriptionDuplicate =
+                                 VIOSerialEvtChildListIdentificationDescriptionDuplicate;
+
+    ChildListConfig.EvtChildListIdentificationDescriptionCompare =
+                                 VIOSerialEvtChildListIdentificationDescriptionCompare;
+
+    ChildListConfig.EvtChildListIdentificationDescriptionCleanup =
+                                 VIOSerialEvtChildListIdentificationDescriptionCleanup;
+
     WdfFdoInitSetDefaultChildListConfig(
                                  DeviceInit,
                                  &ChildListConfig,
@@ -498,11 +507,10 @@ VIOSerialEvtDeviceD0Exit(
     IN  WDF_POWER_DEVICE_STATE TargetState
     )
 {
-    UNREFERENCED_PARAMETER(Device);
     UNREFERENCED_PARAMETER(TargetState);
 
     TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "<--> %s\n", __FUNCTION__);
-
+    VIOSerialRemoveAllPorts(Device);
     return STATUS_SUCCESS;
 }
 

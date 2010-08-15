@@ -67,7 +67,6 @@ VIOSerialFindPortById(
             return rawPdo->port;
         }
     }
-//    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  id = %d not found\n", __FUNCTION__, id);
     WdfChildListEndIteration(list, &iterator);
     return NULL;
 }
@@ -198,6 +197,85 @@ VIOSerialRemovePort(
               vport.NameString.Length = 0;
               vport.NameString.MaximumLength = 0;
            }
+        }
+    }
+    WdfChildListEndIteration(list, &iterator);
+
+    if (status != STATUS_NO_MORE_ENTRIES)
+    {
+        ASSERT(0);
+    }
+}
+
+
+VOID
+VIOSerialRemoveAllPorts(
+    IN WDFDEVICE Device
+)
+{
+    PPORT_BUFFER    buf;
+    PPORTS_DEVICE   pContext = GetPortsDevice(Device);
+    NTSTATUS        status = STATUS_SUCCESS;
+    WDFCHILDLIST    list;
+    WDF_CHILD_LIST_ITERATOR     iterator;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s\n", __FUNCTION__);
+
+    list = WdfFdoGetDefaultChildList(Device);
+    WDF_CHILD_LIST_ITERATOR_INIT(&iterator,
+                                 WdfRetrievePresentChildren );
+
+    WdfChildListBeginIteration(list, &iterator);
+
+
+    for (;;)
+    {
+        WDF_CHILD_RETRIEVE_INFO  childInfo;
+        VIOSERIAL_PORT           vport;
+        WDFDEVICE                hChild;
+
+        WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &vport.Header);
+
+        WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(
+                                 &vport.Header,
+                                 sizeof(vport)
+                                 );
+        status = WdfChildListRetrieveNextDevice(
+                                 list,
+                                 &iterator,
+                                 &hChild,
+                                 &childInfo
+                                 );
+        if (!NT_SUCCESS(status) || status == STATUS_NO_MORE_ENTRIES) 
+        {
+            break;
+        }
+        ASSERT(childInfo.Status == WdfChildListRetrieveDeviceSuccess);
+
+        status = WdfChildListUpdateChildDescriptionAsMissing(
+                                 list,
+                                 &vport.Header
+                                 );
+
+        if (status == STATUS_NO_SUCH_DEVICE)
+        {
+           status = STATUS_INVALID_PARAMETER;
+           break;
+        }
+
+        VIOSerialEnableDisableInterruptQueue(vport.in_vq, FALSE);
+        VIOSerialEnableDisableInterruptQueue(vport.out_vq, FALSE);
+
+        if(vport.GuestConnected)
+        {
+           VIOSerialSendCtrlMsg(vport.BusDevice, vport.Id, VIRTIO_CONSOLE_PORT_OPEN, 0);
+        }
+
+        VIOSerialDiscardPortData(&vport);
+        VIOSerialReclaimConsumedBuffers(&vport);
+        while (buf = VirtIODeviceDetachUnusedBuf(vport.in_vq))
+        {
+           VIOSerialFreeBuffer(buf);
         }
     }
     WdfChildListEndIteration(list, &iterator);
@@ -510,7 +588,6 @@ VIOSerialDeviceListCreatePdo(
                                  );
 
         WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, RAWPDO_VIOSERIAL_PORT);
-//        attributes.ExecutionLevel = WdfExecutionLevelPassive;
 
         status = WdfDeviceCreate(
                                  &ChildInit,
@@ -631,9 +708,12 @@ VIOSerialDeviceListCreatePdo(
 
         WDF_DEVICE_PNP_CAPABILITIES_INIT(&pnpCaps);
 
-        pnpCaps.NoDisplayInUI =  WdfTrue;
-        pnpCaps.Address       =  pport->Id;
-        pnpCaps.UINumber      =  pport->Id;
+        pnpCaps.NoDisplayInUI    =  WdfTrue;
+        pnpCaps.Removable        =  WdfTrue;
+        pnpCaps.EjectSupported   =  WdfTrue;
+        pnpCaps.SurpriseRemovalOK=  WdfTrue;
+        pnpCaps.Address          =  pport->Id;
+        pnpCaps.UINumber         =  pport->Id;
 
         WdfDeviceSetPnpCapabilities(hChild, &pnpCaps);
 
@@ -1240,4 +1320,122 @@ VIOSerialPortCreateSymbolicName (
         RtlFreeUnicodeString( &deviceUnicodeString );
     }
     WdfObjectDelete(WorkItem);
+}
+
+NTSTATUS
+VIOSerialEvtChildListIdentificationDescriptionDuplicate(
+    WDFCHILDLIST DeviceList,
+    PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER SourceIdentificationDescription,
+    PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER DestinationIdentificationDescription
+    )
+{
+    PVIOSERIAL_PORT src, dst;
+    size_t safeMultResult;
+    NTSTATUS status;
+
+    UNREFERENCED_PARAMETER(DeviceList);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "%s\n", __FUNCTION__);
+
+    src = CONTAINING_RECORD(SourceIdentificationDescription,
+                            VIOSERIAL_PORT,
+                            Header);
+    dst = CONTAINING_RECORD(DestinationIdentificationDescription,
+                            VIOSERIAL_PORT,
+                            Header);
+
+    dst->BusDevice = src->BusDevice;
+    dst->Device = src->Device;
+
+    dst->InBuf = src->InBuf;
+    dst->in_vq = src->in_vq;
+    dst->out_vq = src->out_vq;
+    dst->InBufLock = src->InBufLock;
+    dst->OutVqLock = src->OutVqLock;
+
+    dst->NameString.Length = src->NameString.Length;
+    dst->NameString.MaximumLength = src->NameString.MaximumLength;
+    dst->NameString.Buffer = (PCHAR)ExAllocatePoolWithTag(
+                                 NonPagedPool,
+                                 dst->NameString.MaximumLength,
+                                 VIOSERIAL_DRIVER_MEMORY_TAG
+                                 );
+    if (!dst->NameString.Buffer)
+    {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlCopyMemory(dst->NameString.Buffer,
+                                 src->NameString.Buffer,
+                                 dst->NameString.MaximumLength
+                                 );
+
+    dst->Id = src->Id;
+
+    dst->OutVqFull = src->OutVqFull;
+    dst->HostConnected = src->HostConnected;
+    dst->GuestConnected = src->GuestConnected;
+
+    dst->ReadQueue = src->ReadQueue;
+    dst->PendingReadQueue = src->PendingReadQueue;
+
+    dst->WriteQueue = src->WriteQueue;
+    dst->WriteCommonBuffer = src->WriteCommonBuffer;
+    dst->WriteDmaTransaction = src->WriteDmaTransaction;
+    dst->WriteTransferElements = src->WriteTransferElements;
+    dst->WriteCommonBufferSize = src->WriteCommonBufferSize;
+    dst->WriteCommonBufferBase = src->WriteCommonBufferBase;
+    dst->WriteCommonBufferBaseLA = src->WriteCommonBufferBaseLA;
+
+    dst->IoctlQueue = src->IoctlQueue;
+
+    return STATUS_SUCCESS;
+}
+
+BOOLEAN
+VIOSerialEvtChildListIdentificationDescriptionCompare(
+    WDFCHILDLIST DeviceList,
+    PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER FirstIdentificationDescription,
+    PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER SecondIdentificationDescription
+    )
+{
+    PVIOSERIAL_PORT lhs, rhs;
+
+    UNREFERENCED_PARAMETER(DeviceList);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "%s\n", __FUNCTION__);
+
+    lhs = CONTAINING_RECORD(FirstIdentificationDescription,
+                            VIOSERIAL_PORT,
+                            Header);
+    rhs = CONTAINING_RECORD(SecondIdentificationDescription,
+                            VIOSERIAL_PORT,
+                            Header);
+
+    return (lhs->Id == rhs->Id);
+}
+
+VOID
+VIOSerialEvtChildListIdentificationDescriptionCleanup(
+    WDFCHILDLIST DeviceList,
+    PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER IdentificationDescription
+    )
+{
+    PVIOSERIAL_PORT pDesc;
+
+    UNREFERENCED_PARAMETER(DeviceList);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "%s\n", __FUNCTION__);
+
+    pDesc = CONTAINING_RECORD(IdentificationDescription,
+                              VIOSERIAL_PORT,
+                              Header);
+
+    if (pDesc->NameString.Buffer)
+    {
+       ExFreePoolWithTag(pDesc->NameString.Buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
+       pDesc->NameString.Buffer = NULL;
+       pDesc->NameString.Length = 0;
+       pDesc->NameString.MaximumLength = 0;
+    }
+
 }

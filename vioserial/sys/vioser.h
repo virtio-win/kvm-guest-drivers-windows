@@ -249,6 +249,11 @@ VIOSerialRemovePort(
 );
 
 VOID
+VIOSerialRemoveAllPorts(
+    IN WDFDEVICE Device
+);
+
+VOID
 VIOSerialInitPortConsole(
     IN PVIOSERIAL_PORT port
 );
@@ -287,6 +292,9 @@ VIOSerialEnableDisableInterruptQueue(
 
 
 EVT_WDF_CHILD_LIST_CREATE_DEVICE VIOSerialDeviceListCreatePdo;
+EVT_WDF_CHILD_LIST_IDENTIFICATION_DESCRIPTION_COMPARE VIOSerialEvtChildListIdentificationDescriptionCompare;
+EVT_WDF_CHILD_LIST_IDENTIFICATION_DESCRIPTION_CLEANUP VIOSerialEvtChildListIdentificationDescriptionCleanup;
+EVT_WDF_CHILD_LIST_IDENTIFICATION_DESCRIPTION_DUPLICATE VIOSerialEvtChildListIdentificationDescriptionDuplicate;
 EVT_WDF_IO_QUEUE_IO_READ VIOSerialPortRead;
 EVT_WDF_IO_QUEUE_IO_WRITE VIOSerialPortWrite;
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL VIOSerialPortDeviceControl;
