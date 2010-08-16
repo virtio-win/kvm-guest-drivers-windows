@@ -70,9 +70,19 @@ BalloonIoWrite(
 
     drv = WdfGetDriver();
     drvCtx = GetDriverContext( drv );
-
-    RtlCopyMemory(drvCtx->MemStats, buffer, sizeof(BALLOON_STAT));
-    WdfRequestCompleteWithInformation(Request, status, sizeof(BALLOON_STAT));
+    Length = min(buffSize, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR);
+#if 0
+    {
+        size_t i;
+        PBALLOON_STAT stat = (PBALLOON_STAT)buffer;
+        for (i = 0; i < Length / sizeof(BALLOON_STAT); ++i)
+        {
+           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "tag = %d, val = %08I64X\n\n", stat[i].tag, stat[i].val);
+        }
+    }
+#endif
+    RtlCopyMemory(drvCtx->MemStats, buffer, Length);
+    WdfRequestCompleteWithInformation(Request, status, Length);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "WdfRequestCompleteWithInformation Called! Queue 0x%p, Request 0x%p Length %d Status 0x%08x\n",
              Queue,Request,Length, status);
 }

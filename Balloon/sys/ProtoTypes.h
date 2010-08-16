@@ -17,7 +17,7 @@
 
 #include "virtio.h"
 #include "public.h"
-
+#include "trace.h"
 
 /* The ID for virtio_balloon */
 #define VIRTIO_ID_BALLOON	5
@@ -197,15 +197,21 @@ SetBalloonSize(
     VirtIODeviceSet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, actual), &v.actual, sizeof(v.actual));
 }
 
-__inline size_t 
+__inline int 
 GetBalloonSize(
     IN WDFOBJECT WdfDevice
     )
 {
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(WdfDevice);
-    VIRTIO_BALLOON_CONFIG v;
-    VirtIODeviceGet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, num_pages), &v.num_pages, sizeof(v.num_pages));
-    return v.num_pages;
+    PDRIVER_CONTEXT       drvCtx = GetDriverContext(WdfGetDriver());
+
+    u32 v;
+    int ret;
+    VirtIODeviceGet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, num_pages), &v, sizeof(v));
+    ret = (int)((int)(v) - drvCtx->num_pages);
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_DPC, "<--> %s num_pages = %d, drvCtx->num_pages = %d, ret = %d\n", 
+                                __FUNCTION__, v, drvCtx->num_pages, ret);
+    return ret;
 }
 
 NTSTATUS

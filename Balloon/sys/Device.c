@@ -215,7 +215,7 @@ BalloonReleaseHardware (
 {                  
     PDEVICE_CONTEXT     devCtx = NULL;
 
-    TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     UNREFERENCED_PARAMETER(ResourcesTranslated);
 
@@ -231,7 +231,7 @@ BalloonReleaseHardware (
         devCtx->PortBase = NULL;
     }
 
-    TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 
@@ -310,7 +310,7 @@ BalloonInterruptDpc(
     WDF_WORKITEM_CONFIG   workitemConfig;
     WDFWORKITEM           hWorkItem;
     NTSTATUS              status = STATUS_SUCCESS;
-    size_t                num_pages;
+    int                   num_pages;
     BOOLEAN               bStatUpdate = FALSE;
 
     UNREFERENCED_PARAMETER( WdfInterrupt );
@@ -345,6 +345,10 @@ BalloonInterruptDpc(
 
     context->Device = WdfDevice;
     context->Diff = num_pages - drvCtx->num_pages;
+
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_DPC, "<--> %s num_pages = %d, drvCtx->num_pages = %d, context->Diff = %d\n", 
+                                __FUNCTION__, num_pages, drvCtx->num_pages, context->Diff);
+
     context->bStatUpdate = bStatUpdate;
 
     WdfWorkItemEnqueue(hWorkItem);

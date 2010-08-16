@@ -171,11 +171,13 @@ BalloonFill(
     HighAddress.QuadPart = (ULONGLONG)-1;
 
     num = min(num, pages_per_request);
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "--> BalloonFill num = %d\n", num);
+
     for (drvCtx->num_pfns = 0; drvCtx->num_pfns < num; drvCtx->num_pfns++) 
     {
         if(IsLowMemory(WdfDevice))
         {
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, 
+           TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
                 "LowMemoryCondition event was set to signaled,allocations stops, BalPageCount=%d\n", drvCtx->num_pages);
            break;
         }
@@ -187,14 +189,14 @@ BalloonFill(
                                         );
         if (pPageMdl == NULL)
         {
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, 
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
                  "Balloon MDL Page Allocation Failed!!!, BalPageCount=%d\n", drvCtx->num_pages);
             break;
         }
 
         if (MmGetMdlByteCount(pPageMdl) != PAGE_SIZE)
         {
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, 
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
                  "Balloon MDL Page Allocation < PAGE_SIZE =%d, Failed!!!, BalPageCount=%d\n",MmGetMdlByteCount(pPageMdl), drvCtx->num_pages);
             MmFreePagesFromMdl(pPageMdl);
             ExFreePool(pPageMdl);
@@ -223,6 +225,7 @@ BalloonFill(
     {
         BalloonTellHost(WdfDevice , devCtx->InfVirtQueue);
     }
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- BalloonFill\n");
 }
 
@@ -272,7 +275,7 @@ BalloonLeak(
 
         if (pPageListEntry == NULL)
         {
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "PopEntryList=NULL\n");
+           TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "PopEntryList=NULL\n");
            break;
         }
 
