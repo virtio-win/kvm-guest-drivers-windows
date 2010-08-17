@@ -1707,7 +1707,7 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext)
 	NdisReleaseSpinLock(&pContext->ReceiveLock);
 	if (nReceived && pBatchOfPackets)
 	{
-		DPrintf(1, ("[%s] received %d buffers", __FUNCTION__, nReceived));
+		DPrintf(1, ("[%s]%d: received %d buffers", __FUNCTION__, KeGetCurrentProcessorNumber(), nReceived));
 		ParaNdis_IndicateReceivedBatch(pContext, pBatchOfPackets, nReceived);
 	}
 	if (pBatchOfPackets) NdisFreeMemory(pBatchOfPackets, 0, 0);
@@ -1774,19 +1774,29 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
 				int nRestartResult = 2, nLoop = 0;
 				while (nRestartResult)
 				{
-					UINT n = ParaNdis_ProcessRxPath(pContext);
-
-					NdisAcquireSpinLock(&pContext->ReceiveLock);
-					nRestartResult = ParaNdis_SynchronizeWithInterrupt(
-						pContext, pContext->ulRxMessage, RestartQueueSynchronously, isReceive); 
-					NdisReleaseSpinLock(&pContext->ReceiveLock);
-					DPrintf(nRestartResult ? 2 : 6, ("[%s] queue restarted%s", __FUNCTION__, nRestartResult ? "(Rerun)" : "(Done)"));
-					
-					++nLoop;
-					if (nLoop > MAX_RX_LOOPS)
+					UINT n;
+					LONG rxActive = InterlockedIncrement(&pContext->dpcReceiveActive);
+					if (rxActive == 1) 
 					{
-						DPrintf(0, ("[%s] Breaking Rx loop on %d-th operation", __FUNCTION__, nLoop));
-						break;
+						n = ParaNdis_ProcessRxPath(pContext);
+						InterlockedDecrement(&pContext->dpcReceiveActive);
+						NdisAcquireSpinLock(&pContext->ReceiveLock);
+						nRestartResult = ParaNdis_SynchronizeWithInterrupt(
+							pContext, pContext->ulRxMessage, RestartQueueSynchronously, isReceive); 
+						NdisReleaseSpinLock(&pContext->ReceiveLock);
+						DPrintf(nRestartResult ? 2 : 6, ("[%s] queue restarted%s", __FUNCTION__, nRestartResult ? "(Rerun)" : "(Done)"));
+						++nLoop;
+						if (nLoop > MAX_RX_LOOPS)
+						{
+							DPrintf(0, ("[%s] Breaking Rx loop on %d-th operation", __FUNCTION__, nLoop));
+							break;
+						}
+					}
+					else
+					{
+						InterlockedDecrement(&pContext->dpcReceiveActive);
+						nRestartResult = 0;	
+						DPrintf(1, ("[%s] Skip Rx processing no.%d", __FUNCTION__, rxActive));
 					}
 				}
 				if (nRestartResult) stillRequiresProcessing |= isReceive;
