@@ -269,6 +269,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	BOOLEAN					bSurprizeRemoved;
 	BOOLEAN					bUsingMSIX;
 	NDIS_DEVICE_POWER_STATE powerState;
+	LONG					dpcReceiveActive;
 	LONG 					counterDPCInside;
 	LONG 					bDPCInactive;
 	LONG					InterruptStatus;
