@@ -1,3 +1,15 @@
+Date	17 August 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm20
+
+Fixed bugs:
+Bug 603015 - fix for WHQL LSO test problem on MSI mashine
+Bug 613949 - [WHQL] Win2k8-R2 guest got BSOD when running virtio-serial Plug and Play Driver Test 
+Bug 614722 - [WHQL] Win2k8-R2 got BSOD during virtio-serial run simpleIOStress test (Error code 0x1E) 
+
+New features:
+None
+
 Date	10 August 2010
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm19
