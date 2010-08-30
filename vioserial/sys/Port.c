@@ -6,6 +6,8 @@
 #include "Port.tmh"
 #endif
 
+EVT_WDF_WORKITEM VIOSerialPortSendPortReady;
+EVT_WDF_WORKITEM VIOSerialPortCreateSymbolicName;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, VIOSerialDeviceListCreatePdo)
@@ -53,7 +55,7 @@ VIOSerialFindPortById(
                                  &hChild,
                                  &childInfo
                                  );
-        if (!NT_SUCCESS(status) || status == STATUS_NO_MORE_ENTRIES) 
+        if (!NT_SUCCESS(status) || status == STATUS_NO_MORE_ENTRIES)
         {
             break;
         }
@@ -157,7 +159,7 @@ VIOSerialRemovePort(
                                  &hChild,
                                  &childInfo
                                  );
-        if (!NT_SUCCESS(status) || status == STATUS_NO_MORE_ENTRIES) 
+        if (!NT_SUCCESS(status) || status == STATUS_NO_MORE_ENTRIES)
         {
             break;
         }
@@ -246,7 +248,7 @@ VIOSerialRemoveAllPorts(
                                  &hChild,
                                  &childInfo
                                  );
-        if (!NT_SUCCESS(status) || status == STATUS_NO_MORE_ENTRIES) 
+        if (!NT_SUCCESS(status) || status == STATUS_NO_MORE_ENTRIES)
         {
             break;
         }
@@ -283,6 +285,202 @@ VIOSerialRemoveAllPorts(
     if (status != STATUS_NO_MORE_ENTRIES)
     {
         ASSERT(0);
+    }
+}
+
+VOID
+VIOSerialRenewAllPorts(
+    IN WDFDEVICE Device
+)
+{
+    NTSTATUS                     status = STATUS_SUCCESS;
+    WDFCHILDLIST                 list;
+    WDF_CHILD_LIST_ITERATOR      iterator;
+    UINT                         nr_ports, i, j;
+    struct virtqueue             *in_vq, *out_vq;
+    PPORTS_DEVICE                pContext = GetPortsDevice(Device);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s\n", __FUNCTION__);
+
+    VirtIODeviceReset(&pContext->IODevice);
+    VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE | VIRTIO_CONFIG_S_DRIVER);
+
+    nr_ports = pContext->consoleConfig.max_nr_ports;
+    for(i = 0, j = 0; i < nr_ports; i++)
+    {
+        in_vq  = VirtIODeviceFindVirtualQueue(&pContext->IODevice, i * 2, NULL);
+        out_vq = VirtIODeviceFindVirtualQueue(&pContext->IODevice, (i * 2 ) + 1, NULL);
+
+        if(i == 1) // Control Port
+        {
+           pContext->c_ivq = in_vq;
+           pContext->c_ovq = out_vq;
+        }
+        else
+        {
+           pContext->in_vqs[j] = in_vq;
+           pContext->out_vqs[j] = out_vq;
+           ++j;
+        }
+    }
+
+    if(pContext->isHostMultiport)
+    {
+        VIOSerialFillQueue(pContext->c_ivq, pContext->CVqLock);
+    }
+
+
+    list = WdfFdoGetDefaultChildList(Device);
+    WDF_CHILD_LIST_ITERATOR_INIT(&iterator,
+                                 WdfRetrievePresentChildren );
+
+    WdfChildListBeginIteration(list, &iterator);
+
+    for (;;)
+    {
+        WDF_CHILD_RETRIEVE_INFO  childInfo;
+        VIOSERIAL_PORT           vport;
+        WDFDEVICE                hChild;
+
+        WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &vport.Header);
+
+        WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(
+                                 &vport.Header,
+                                 sizeof(vport)
+                                 );
+        status = WdfChildListRetrieveNextDevice(
+                                 list,
+                                 &iterator,
+                                 &hChild,
+                                 &childInfo
+                                 );
+        if (!NT_SUCCESS(status) || status == STATUS_NO_MORE_ENTRIES)
+        {
+            break;
+        }
+        ASSERT(childInfo.Status == WdfChildListRetrieveDeviceSuccess);
+
+        if (status == STATUS_NO_SUCH_DEVICE)
+        {
+           status = STATUS_INVALID_PARAMETER;
+           break;
+        }
+
+        vport.in_vq = pContext->in_vqs[vport.Id];
+        vport.out_vq = pContext->out_vqs[vport.Id];
+        VIOSerialEnableDisableInterruptQueue(vport.in_vq, TRUE);
+        VIOSerialEnableDisableInterruptQueue(vport.out_vq, TRUE);
+
+        if(vport.GuestConnected)
+        {
+           VIOSerialSendCtrlMsg(vport.BusDevice, vport.Id, VIRTIO_CONSOLE_PORT_OPEN, 1);
+        }
+
+    }
+    WdfChildListEndIteration(list, &iterator);
+
+    return;
+}
+
+VOID
+VIOSerialShutdownAllPorts(
+    IN WDFDEVICE Device
+)
+{
+    PPORT_BUFFER    buf;
+    PPORTS_DEVICE   pContext = GetPortsDevice(Device);
+    NTSTATUS        status = STATUS_SUCCESS;
+    WDFCHILDLIST    list;
+    WDF_CHILD_LIST_ITERATOR     iterator;
+    UINT            nr_ports, i;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s\n", __FUNCTION__);
+
+    list = WdfFdoGetDefaultChildList(Device);
+    WDF_CHILD_LIST_ITERATOR_INIT(&iterator,
+                                 WdfRetrievePresentChildren );
+
+    WdfChildListBeginIteration(list, &iterator);
+
+    for (;;)
+    {
+        WDF_CHILD_RETRIEVE_INFO  childInfo;
+        VIOSERIAL_PORT           vport;
+        WDFDEVICE                hChild;
+
+        WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &vport.Header);
+
+        WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(
+                                 &vport.Header,
+                                 sizeof(vport)
+                                 );
+        status = WdfChildListRetrieveNextDevice(
+                                 list,
+                                 &iterator,
+                                 &hChild,
+                                 &childInfo
+                                 );
+        if (!NT_SUCCESS(status) || status == STATUS_NO_MORE_ENTRIES)
+        {
+            break;
+        }
+        ASSERT(childInfo.Status == WdfChildListRetrieveDeviceSuccess);
+
+        if (status == STATUS_NO_SUCH_DEVICE)
+        {
+           status = STATUS_INVALID_PARAMETER;
+           break;
+        }
+
+        VIOSerialEnableDisableInterruptQueue(vport.in_vq, FALSE);
+        VIOSerialEnableDisableInterruptQueue(vport.out_vq, FALSE);
+
+        if(vport.GuestConnected)
+        {
+           VIOSerialSendCtrlMsg(vport.BusDevice, vport.Id, VIRTIO_CONSOLE_PORT_OPEN, 0);
+        }
+
+        VIOSerialDiscardPortData(&vport);
+        VIOSerialReclaimConsumedBuffers(&vport);
+        while (buf = VirtIODeviceDetachUnusedBuf(vport.in_vq))
+        {
+           VIOSerialFreeBuffer(buf);
+        }
+    }
+    WdfChildListEndIteration(list, &iterator);
+
+    if(pContext->isHostMultiport)
+    {
+        if(pContext->c_ivq)
+        {
+            pContext->c_ivq->vq_ops->shutdown(pContext->c_ivq);
+            VirtIODeviceDeleteVirtualQueue(pContext->c_ivq);
+            pContext->c_ivq = NULL;
+        }
+        if(pContext->c_ovq)
+        {
+            pContext->c_ovq->vq_ops->shutdown(pContext->c_ovq);
+            VirtIODeviceDeleteVirtualQueue(pContext->c_ovq);
+            pContext->c_ovq = NULL;
+        }
+    }
+
+    nr_ports = pContext->consoleConfig.max_nr_ports - 1;
+    for (i = 0; i < nr_ports; i++ )
+    {
+        if(pContext->in_vqs && pContext->in_vqs[i])
+        {
+            pContext->in_vqs[i]->vq_ops->shutdown(pContext->in_vqs[i]);
+            VirtIODeviceDeleteVirtualQueue(pContext->in_vqs[i]);
+            pContext->in_vqs[i] = NULL;
+        }
+
+        if(pContext->out_vqs && pContext->out_vqs[i])
+        {
+            pContext->out_vqs[i]->vq_ops->shutdown(pContext->out_vqs[i]);
+            VirtIODeviceDeleteVirtualQueue(pContext->out_vqs[i]);
+            pContext->out_vqs[i] = NULL;
+        }
     }
 }
 
@@ -1356,19 +1554,23 @@ VIOSerialEvtChildListIdentificationDescriptionDuplicate(
 
     dst->NameString.Length = src->NameString.Length;
     dst->NameString.MaximumLength = src->NameString.MaximumLength;
-    dst->NameString.Buffer = (PCHAR)ExAllocatePoolWithTag(
+    if (dst->NameString.Length)
+    {
+        dst->NameString.Buffer = (PCHAR)ExAllocatePoolWithTag(
                                  NonPagedPool,
                                  dst->NameString.MaximumLength,
                                  VIOSERIAL_DRIVER_MEMORY_TAG
                                  );
-    if (!dst->NameString.Buffer)
-    {
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-    RtlCopyMemory(dst->NameString.Buffer,
+        if (!dst->NameString.Buffer)
+        {
+           ASSERT(0);
+           return STATUS_INSUFFICIENT_RESOURCES;
+        }
+        RtlCopyMemory(dst->NameString.Buffer,
                                  src->NameString.Buffer,
                                  dst->NameString.MaximumLength
                                  );
+    }
 
     dst->Id = src->Id;
 

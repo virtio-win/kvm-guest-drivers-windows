@@ -25,7 +25,7 @@ VIOSerialSendCtrlMsg(
     UINT len;     
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
     VIRTIO_CONSOLE_CONTROL cpkt;
-
+    int cnt = 0;
     if (!pContext->isHostMultiport)
     {
         return;
@@ -33,7 +33,7 @@ VIOSerialSendCtrlMsg(
 
     vq = pContext->c_ovq;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s vq = %p\n", __FUNCTION__, vq);
 
     cpkt.id = id;
     cpkt.event = event;
@@ -42,14 +42,16 @@ VIOSerialSendCtrlMsg(
     sg.physAddr = GetPhysicalAddress(&cpkt);
     sg.ulSize = sizeof(cpkt);
 
-    if(vq->vq_ops->add_buf(vq, &sg, 1, 0, &cpkt) >= 0)
+    if(vq->vq_ops->add_buf(vq, &sg, 1, 0, &cpkt) == 0)
     {
         vq->vq_ops->kick(vq);
         while(!vq->vq_ops->get_buf(vq, &len))
         {
            KeStallExecutionProcessor(100);
-        }   
+           if(++cnt == 20) break;
+        }
     }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s cnt = %d\n", __FUNCTION__, cnt);
 }
 
 VOID
@@ -101,7 +103,6 @@ VIOSerialHandleCtrlMsg(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
     
     cpkt = (PVIRTIO_CONSOLE_CONTROL)((ULONG_PTR)buf->va_buf + buf->offset);
-
 
     port = VIOSerialFindPortById(Device, cpkt->id);
 

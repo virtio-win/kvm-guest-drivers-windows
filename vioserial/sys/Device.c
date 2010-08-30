@@ -171,7 +171,7 @@ VIOSerialEvtDevicePrepareHardware(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
 
     nListSize = WdfCmResourceListGetCount(ResourcesTranslated);
 
@@ -264,9 +264,12 @@ VIOSerialEvtDeviceReleaseHardware(
 	
     PAGED_CODE();
 	
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
 	
     VIOSerialSendCtrlMsg(Device, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 0);
+//FIXME
+    VIOSerialRemoveAllPorts(Device);
+
     VIOSerialDeinit(Device);
 
     if (pContext->pPortBase && pContext->bPortMapped) 
@@ -285,17 +288,16 @@ VIOSerialInit(IN WDFOBJECT Device)
 {
     NTSTATUS               status = STATUS_SUCCESS;
     PPORTS_DEVICE          pContext = GetPortsDevice(Device);
-    UINT                   nr_ports, nr_queues, i, j;
+    UINT                   nr_ports, i, j;
     struct virtqueue       *in_vq, *out_vq;
     WDF_OBJECT_ATTRIBUTES  attributes;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
     VirtIODeviceSetIOAddress(&pContext->IODevice, (ULONG_PTR)pContext->pPortBase);
 
     VirtIODeviceReset(&pContext->IODevice);
 
     VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
-    VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER);
 
     pContext->consoleConfig.max_nr_ports = 1;
     if(pContext->isHostMultiport = VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_CONSOLE_F_MULTIPORT))
@@ -311,7 +313,6 @@ VIOSerialInit(IN WDFOBJECT Device)
     }
     
     nr_ports = pContext->consoleConfig.max_nr_ports;
-    nr_queues = pContext->isHostMultiport ? (nr_ports + 1) * 2 : 2;
 
     pContext->in_vqs = ExAllocatePoolWithTag(
                                  NonPagedPool,
@@ -387,7 +388,7 @@ VIOSerialDeinit(
     PPORTS_DEVICE	pContext = GetPortsDevice(WdfDevice);
     UINT                nr_ports, i;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
     VirtIODeviceRemoveStatus(&pContext->IODevice , VIRTIO_CONFIG_S_DRIVER_OK);
 
@@ -437,8 +438,6 @@ VIOSerialDeinit(
         pContext->out_vqs = NULL;
     }
 
-    VirtIODeviceReset(&pContext->IODevice);
-
     return status;
 }
 
@@ -483,9 +482,13 @@ VIOSerialEvtDeviceD0Entry(
 {
     PPORTS_DEVICE	pContext = GetPortsDevice(WdfDevice);
     UNREFERENCED_PARAMETER(WdfDevice);
-    UNREFERENCED_PARAMETER(PreviousState);
 
-    TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
+    if (PreviousState == WdfPowerDeviceD3)
+    {
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<--> %s TargetState = %s\n", __FUNCTION__, "WdfPowerDeviceD3");
+        VIOSerialRenewAllPorts(WdfDevice);
+    }
 
     if(!pContext->DeviceOK)
     {
@@ -507,10 +510,15 @@ VIOSerialEvtDeviceD0Exit(
     IN  WDF_POWER_DEVICE_STATE TargetState
     )
 {
-    UNREFERENCED_PARAMETER(TargetState);
 
-    TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "<--> %s\n", __FUNCTION__);
-    VIOSerialRemoveAllPorts(Device);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
+
+    if (TargetState == WdfPowerDeviceD3)
+    {
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<--> %s TargetState = %s\n", __FUNCTION__, "WdfPowerDeviceD3");
+        VIOSerialShutdownAllPorts(Device);
+    }
+
     return STATUS_SUCCESS;
 }
 
@@ -522,9 +530,8 @@ VIOSerialEvtDeviceD0EntryPostInterruptsEnabled(
     )
 {
     PPORTS_DEVICE	pContext = GetPortsDevice(WdfDevice);
-    UNREFERENCED_PARAMETER(PreviousState);
 
-    TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
 
     if(!pContext->DeviceOK)
     {

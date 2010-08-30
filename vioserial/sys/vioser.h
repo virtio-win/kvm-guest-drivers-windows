@@ -254,6 +254,16 @@ VIOSerialRemoveAllPorts(
 );
 
 VOID
+VIOSerialRenewAllPorts(
+    IN WDFDEVICE Device
+);
+
+VOID
+VIOSerialShutdownAllPorts(
+    IN WDFDEVICE Device
+);
+
+VOID
 VIOSerialInitPortConsole(
     IN PVIOSERIAL_PORT port
 );
