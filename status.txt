@@ -1,3 +1,14 @@
+Date	30 August 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm21
+
+Fixed bugs:  
+Bug 610787 - balloon evict windows guest free memory does not work
+Bug 626333 - [WHQL] Win2k8-R2 got BSOD during virtio-serial run sleep stress with IO and common 
+scenario stress with IO (partial fix. vioserial should be able to pass WHQL test while running w/o 
+child devices (ports)). 
+
+
 Date	17 August 2010
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm20
