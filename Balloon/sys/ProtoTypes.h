@@ -206,12 +206,8 @@ GetBalloonSize(
     PDRIVER_CONTEXT       drvCtx = GetDriverContext(WdfGetDriver());
 
     u32 v;
-    int ret;
     VirtIODeviceGet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, num_pages), &v, sizeof(v));
-    ret = (int)((int)(v) - drvCtx->num_pages);
-    TraceEvents(TRACE_LEVEL_WARNING, DBG_DPC, "<--> %s num_pages = %d, drvCtx->num_pages = %d, ret = %d\n", 
-                                __FUNCTION__, v, drvCtx->num_pages, ret);
-    return ret;
+    return v;
 }
 
 NTSTATUS
