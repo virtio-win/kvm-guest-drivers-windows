@@ -133,7 +133,6 @@ typedef struct _tagVioSerialPort
     WDFDEVICE           Device;
 
     PPORT_BUFFER        InBuf;
-    struct virtqueue    *in_vq, *out_vq;
     WDFSPINLOCK         InBufLock;
     WDFSPINLOCK         OutVqLock;
     ANSI_STRING         NameString;
@@ -249,11 +248,6 @@ VIOSerialRemovePort(
 );
 
 VOID
-VIOSerialRemoveAllPorts(
-    IN WDFDEVICE Device
-);
-
-VOID
 VIOSerialRenewAllPorts(
     IN WDFDEVICE Device
 );
@@ -329,5 +323,35 @@ VOID
 VIOSerialPortCreateSymbolicName(
     IN WDFWORKITEM  WorkItem
 );
+
+__inline
+struct
+virtqueue*
+GetInQueue (
+    IN PVIOSERIAL_PORT port
+)
+{
+    PPORTS_DEVICE    pContext = NULL;
+    ASSERT (port);
+    ASSERT (port->BusDevice);
+    pContext = GetPortsDevice(port->BusDevice);
+    ASSERT (pContext->in_vqs);
+    return pContext->in_vqs[port->Id];
+};
+
+__inline
+struct
+virtqueue*
+GetOutQueue (
+    IN PVIOSERIAL_PORT port
+)
+{
+    PPORTS_DEVICE    pContext = NULL;
+    ASSERT (port);
+    ASSERT (port->BusDevice);
+    pContext = GetPortsDevice(port->BusDevice);
+    ASSERT (pContext->out_vqs);
+    return pContext->out_vqs[port->Id];
+};
 
 #endif /* VIOSERIAL_H */

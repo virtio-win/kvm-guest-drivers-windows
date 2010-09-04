@@ -60,7 +60,7 @@ VIOSerialReclaimConsumedBuffers(
 {
     PVOID buf;
     UINT len;
-    struct virtqueue *vq = port->out_vq;
+    struct virtqueue *vq = GetOutQueue(port);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
 
@@ -84,7 +84,7 @@ VIOSerialSendBuffers(
     UINT len;
     SSIZE_T ret;
     struct VirtIOBufferDescriptor sg;
-    struct virtqueue *vq = port->out_vq;
+    struct virtqueue *vq = GetOutQueue(port);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
 
@@ -96,19 +96,6 @@ VIOSerialSendBuffers(
 
     ret = vq->vq_ops->add_buf(vq, &sg, 1, 0, buf);
     vq->vq_ops->kick(vq);
-//FIXME vring_add_buf
-//    if (ret < 0)
-//    {
-//        WdfSpinLockRelease(port->OutVqLock);
-//        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "<--> %s::%d port->OutVqFull = %d\n", __FUNCTION__, __LINE__, port->OutVqFull);
-//        return 0;
-//    }
-//    
-//    if (ret == 0)
-//    {
-//        port->OutVqFull = TRUE;
-//        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "<--> %s::%d port->OutVqFull = %d\n", __FUNCTION__, __LINE__, port->OutVqFull);
-//    }
 
     if (ret < 0)
     {
@@ -141,7 +128,7 @@ VIOSerialFillReadBuf(
 )
 {
     PPORT_BUFFER buf;
-    struct virtqueue *vq = port->out_vq;
+    struct virtqueue *vq = GetOutQueue(port);
     NTSTATUS  status = STATUS_SUCCESS;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
@@ -161,7 +148,7 @@ VIOSerialFillReadBuf(
         WdfSpinLockAcquire(port->InBufLock);
         port->InBuf = NULL;
 
-        status = VIOSerialAddInBuf(port->in_vq, buf);
+        status = VIOSerialAddInBuf(GetInQueue(port), buf);
         if (!NT_SUCCESS(status))
         {
            TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "%s::%d  VIOSerialAddInBuf failed\n", __FUNCTION__, __LINE__);
@@ -202,12 +189,11 @@ VIOSerialGetInBuf(
 )
 {
     PPORT_BUFFER buf;
-    struct virtqueue *vq = port->in_vq;
+    struct virtqueue *vq = GetInQueue(port);
     UINT len;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
 
-    vq = port->in_vq;
     buf = vq->vq_ops->get_buf(vq, &len);
     if (buf) 
     {

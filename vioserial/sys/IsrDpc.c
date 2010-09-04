@@ -53,13 +53,13 @@ VIOSerialInterruptDpc(
     Device = WdfInterruptGetDevice(Interrupt);
     pContext = GetPortsDevice(Device);
 
+    VIOSerialCtrlWorkHandler(Device);
     for (i = 0; i < pContext->consoleConfig.max_nr_ports; ++i)
     {
-        VIOSerialCtrlWorkHandler(WdfInterruptGetDevice(Interrupt)); 
         port = VIOSerialFindPortById(Device, i);
         if (port)
         {
-
+           struct virtqueue    *out_vq = GetOutQueue(port);
            WdfSpinLockAcquire(port->InBufLock);
            if (!port->InBuf)
            {
@@ -86,7 +86,7 @@ VIOSerialInterruptDpc(
               }
            }
 
-           if(port->out_vq->vq_ops->get_buf(port->out_vq, &len))
+           if(out_vq && out_vq->vq_ops->get_buf(out_vq, &len))
            {
               BOOLEAN transactionComplete;
               dmaTransaction = port->WriteDmaTransaction;

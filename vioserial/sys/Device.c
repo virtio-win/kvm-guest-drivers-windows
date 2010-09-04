@@ -25,8 +25,8 @@ EVT_WDF_DEVICE_D0_ENTRY_POST_INTERRUPTS_ENABLED VIOSerialEvtDeviceD0EntryPostInt
 
 
 static NTSTATUS VIOSerialInitInterruptHandling(IN WDFDEVICE hDevice);
-static NTSTATUS VIOSerialInit(IN WDFOBJECT hDevice);
-static NTSTATUS VIOSerialDeinit(IN WDFOBJECT WdfDevice);
+static NTSTATUS VIOSerialInitAllQueues(IN WDFOBJECT hDevice);
+static NTSTATUS VIOSerialShutDownAllQueues(IN WDFOBJECT WdfDevice);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceAdd)
@@ -37,7 +37,10 @@ static NTSTATUS VIOSerialDeinit(IN WDFOBJECT WdfDevice);
 
 #endif
 
-static NTSTATUS VIOSerialInitInterruptHandling(WDFDEVICE hDevice)
+static
+NTSTATUS
+VIOSerialInitInterruptHandling(
+    IN WDFDEVICE hDevice)
 {
     WDF_OBJECT_ATTRIBUTES        attributes;
     WDF_INTERRUPT_CONFIG         interruptConfig;
@@ -168,7 +171,7 @@ VIOSerialEvtDevicePrepareHardware(
     bool bPortFound = FALSE;
     NTSTATUS status = STATUS_SUCCESS;
     WDF_DMA_ENABLER_CONFIG dmaConfig;
-
+    UINT nr_ports;
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
@@ -198,7 +201,6 @@ VIOSerialEvtDevicePrepareHardware(
 
                         if (!pContext->pPortBase) {
                             TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "%s>>> Failed to map IO port!\n", __FUNCTION__);
-                            VIOSerialSendCtrlMsg(Device, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 0);
                             return STATUS_INSUFFICIENT_RESOURCES;
                         }
                     }
@@ -219,16 +221,26 @@ VIOSerialEvtDevicePrepareHardware(
     if(!bPortFound)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "%s>>> %s", __FUNCTION__, "IO port wasn't found!\n");
-        VIOSerialSendCtrlMsg(Device, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 0);
         return STATUS_DEVICE_CONFIGURATION_ERROR;
     }
 
-    status = VIOSerialInit(Device);
-    if(!NT_SUCCESS(status))
+    VirtIODeviceSetIOAddress(&pContext->IODevice, (ULONG_PTR)pContext->pPortBase);
+
+    VirtIODeviceReset(&pContext->IODevice);
+
+    VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
+
+    pContext->consoleConfig.max_nr_ports = 1;
+    if(pContext->isHostMultiport = VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_CONSOLE_F_MULTIPORT))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VIOSerialInit failed - 0x%x\n", status);
-        VIOSerialSendCtrlMsg(Device, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 0);
-        return status;
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "We have multiport host\n");
+        VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_CONSOLE_F_MULTIPORT);
+        VirtIODeviceGet(&pContext->IODevice,
+                                 FIELD_OFFSET(CONSOLE_CONFIG, max_nr_ports),
+                                 &pContext->consoleConfig.max_nr_ports,
+                                 sizeof(pContext->consoleConfig.max_nr_ports));
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
+                                "VirtIOConsoleConfig->max_nr_ports %d\n", pContext->consoleConfig.max_nr_ports);
     }
 
     pContext->MaximumTransferLength = PORT_MAXIMUM_TRANSFER_LENGTH;
@@ -246,74 +258,32 @@ VIOSerialEvtDevicePrepareHardware(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                         "WdfDmaEnablerCreate failed: 0x%x\n", status);
-        VIOSerialSendCtrlMsg(Device, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 0);
         return status;
     }
 
-    pContext->DeviceOK = TRUE;
-    return STATUS_SUCCESS;
-}
-
-NTSTATUS 
-VIOSerialEvtDeviceReleaseHardware(
-    IN WDFDEVICE Device,
-    IN WDFCMRESLIST ResourcesTranslated)
-{
-    PPORTS_DEVICE pContext = GetPortsDevice(Device);
-    UNREFERENCED_PARAMETER(ResourcesTranslated);
-	
-    PAGED_CODE();
-	
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
-	
-    VIOSerialSendCtrlMsg(Device, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 0);
+    if(pContext->isHostMultiport)
+    {
+        WDF_OBJECT_ATTRIBUTES  attributes;
+        WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+        attributes.ParentObject = Device;
+        status = WdfSpinLockCreate(
+                                &attributes,
+                                &pContext->CVqLock
+                                );
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+                "WdfSpinLockCreate failed 0x%x\n", status);
+           return status;
+        }
+    }
+    else
+    {
 //FIXME
-    VIOSerialRemoveAllPorts(Device);
-
-    VIOSerialDeinit(Device);
-
-    if (pContext->pPortBase && pContext->bPortMapped) 
-    {
-        MmUnmapIoSpace(pContext->pPortBase, pContext->uPortLength);
+//        VIOSerialAddPort(Device, 0);
     }
 
-    pContext->pPortBase = (ULONG_PTR)NULL;
-
-    return STATUS_SUCCESS;
-}
-
-static 
-NTSTATUS 
-VIOSerialInit(IN WDFOBJECT Device)
-{
-    NTSTATUS               status = STATUS_SUCCESS;
-    PPORTS_DEVICE          pContext = GetPortsDevice(Device);
-    UINT                   nr_ports, i, j;
-    struct virtqueue       *in_vq, *out_vq;
-    WDF_OBJECT_ATTRIBUTES  attributes;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
-    VirtIODeviceSetIOAddress(&pContext->IODevice, (ULONG_PTR)pContext->pPortBase);
-
-    VirtIODeviceReset(&pContext->IODevice);
-
-    VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
-
-    pContext->consoleConfig.max_nr_ports = 1;
-    if(pContext->isHostMultiport = VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_CONSOLE_F_MULTIPORT))
-    {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "We have multiport host\n");
-        VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_CONSOLE_F_MULTIPORT);
-        VirtIODeviceGet(&pContext->IODevice,
-                                 FIELD_OFFSET(CONSOLE_CONFIG, max_nr_ports),
-                                 &pContext->consoleConfig.max_nr_ports,
-                                 sizeof(pContext->consoleConfig.max_nr_ports));
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, 
-                                "VirtIOConsoleConfig->max_nr_ports %d\n", pContext->consoleConfig.max_nr_ports);
-    }
-    
     nr_ports = pContext->consoleConfig.max_nr_ports;
-
     pContext->in_vqs = ExAllocatePoolWithTag(
                                  NonPagedPool,
                                  nr_ports * sizeof(struct virtqueue*),
@@ -337,6 +307,61 @@ VIOSerialInit(IN WDFOBJECT Device)
         status = STATUS_INSUFFICIENT_RESOURCES;
     }
 
+
+    pContext->DeviceOK = TRUE;
+    return status;
+}
+
+NTSTATUS 
+VIOSerialEvtDeviceReleaseHardware(
+    IN WDFDEVICE Device,
+    IN WDFCMRESLIST ResourcesTranslated)
+{
+    PPORTS_DEVICE pContext = GetPortsDevice(Device);
+    UNREFERENCED_PARAMETER(ResourcesTranslated);
+	
+    PAGED_CODE();
+	
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
+	
+    if (pContext->pPortBase && pContext->bPortMapped) 
+    {
+        MmUnmapIoSpace(pContext->pPortBase, pContext->uPortLength);
+    }
+
+    pContext->pPortBase = (ULONG_PTR)NULL;
+
+    if(pContext->in_vqs)
+    {
+        ExFreePoolWithTag(pContext->in_vqs, VIOSERIAL_DRIVER_MEMORY_TAG);
+        pContext->in_vqs = NULL;
+    }
+
+    if(pContext->out_vqs)
+    {
+        ExFreePoolWithTag(pContext->out_vqs, VIOSERIAL_DRIVER_MEMORY_TAG);
+        pContext->out_vqs = NULL;
+    }
+
+
+    return STATUS_SUCCESS;
+}
+
+static 
+NTSTATUS 
+VIOSerialInitAllQueues(
+    IN WDFOBJECT Device)
+{
+    NTSTATUS               status = STATUS_SUCCESS;
+    PPORTS_DEVICE          pContext = GetPortsDevice(Device);
+    UINT                   nr_ports, i, j;
+    struct virtqueue       *in_vq, *out_vq;
+    WDF_OBJECT_ATTRIBUTES  attributes;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
+    
+    nr_ports = pContext->consoleConfig.max_nr_ports;
+
     for(i = 0, j = 0; i < nr_ports; i++)
     {
         in_vq  = VirtIODeviceFindVirtualQueue(&pContext->IODevice, i * 2, NULL);
@@ -357,31 +382,15 @@ VIOSerialInit(IN WDFOBJECT Device)
 
     if(pContext->isHostMultiport)
     {
-        WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-        attributes.ParentObject = Device;
-        status = WdfSpinLockCreate(
-                                &attributes,
-                                &pContext->CVqLock
-                                );
-        if (!NT_SUCCESS(status))
-        {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-                "WdfSpinLockCreate failed 0x%x\n", status);
-           return status;
-        }
         ASSERT(pContext->c_ivq);
         status = VIOSerialFillQueue(pContext->c_ivq, pContext->CVqLock);
-    }
-    else
-    {
-        VIOSerialAddPort(Device, 0);
     }
 
     return status;
 }
 
 NTSTATUS 
-VIOSerialDeinit(
+VIOSerialShutDownAllQueues(
     IN WDFOBJECT WdfDevice)
 {
     NTSTATUS		status = STATUS_SUCCESS;
@@ -425,19 +434,6 @@ VIOSerialDeinit(
             pContext->out_vqs[i] = NULL;
         }
     }
-
-    if(pContext->in_vqs)
-    {
-        ExFreePoolWithTag(pContext->in_vqs, VIOSERIAL_DRIVER_MEMORY_TAG);
-        pContext->in_vqs = NULL;
-    }
-
-    if(pContext->out_vqs)
-    {
-        ExFreePoolWithTag(pContext->out_vqs, VIOSERIAL_DRIVER_MEMORY_TAG);
-        pContext->out_vqs = NULL;
-    }
-
     return status;
 }
 
@@ -476,19 +472,14 @@ VIOSerialFillQueue(
 
 NTSTATUS
 VIOSerialEvtDeviceD0Entry(
-    IN  WDFDEVICE WdfDevice,
+    IN  WDFDEVICE Device,
     IN  WDF_POWER_DEVICE_STATE PreviousState
     )
 {
-    PPORTS_DEVICE	pContext = GetPortsDevice(WdfDevice);
-    UNREFERENCED_PARAMETER(WdfDevice);
+    PPORTS_DEVICE	pContext = GetPortsDevice(Device);
+    UNREFERENCED_PARAMETER(PreviousState);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
-    if (PreviousState == WdfPowerDeviceD3)
-    {
-        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<--> %s TargetState = %s\n", __FUNCTION__, "WdfPowerDeviceD3");
-        VIOSerialRenewAllPorts(WdfDevice);
-    }
 
     if(!pContext->DeviceOK)
     {
@@ -497,8 +488,10 @@ VIOSerialEvtDeviceD0Entry(
     }
     else
     {
+        VIOSerialInitAllQueues(Device);
+        VIOSerialRenewAllPorts(Device);
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Setting VIRTIO_CONFIG_S_DRIVER_OK flag\n");
-        VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+        VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER);
     }
 
     return STATUS_SUCCESS;
@@ -510,14 +503,14 @@ VIOSerialEvtDeviceD0Exit(
     IN  WDF_POWER_DEVICE_STATE TargetState
     )
 {
+    UNREFERENCED_PARAMETER(TargetState);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
 
-    if (TargetState == WdfPowerDeviceD3)
-    {
-        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<--> %s TargetState = %s\n", __FUNCTION__, "WdfPowerDeviceD3");
-        VIOSerialShutdownAllPorts(Device);
-    }
+    PAGED_CODE();
+
+    VIOSerialShutdownAllPorts(Device);
+    VIOSerialShutDownAllQueues(Device);
 
     return STATUS_SUCCESS;
 }
@@ -530,15 +523,18 @@ VIOSerialEvtDeviceD0EntryPostInterruptsEnabled(
     )
 {
     PPORTS_DEVICE	pContext = GetPortsDevice(WdfDevice);
+    UNREFERENCED_PARAMETER(PreviousState);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
+
+    PAGED_CODE();
 
     if(!pContext->DeviceOK)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Sending VIRTIO_CONSOLE_DEVICE_READY 0\n");
         VIOSerialSendCtrlMsg(WdfDevice, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 0);
     }
-    else
+    else if (PreviousState == WdfPowerDeviceD3Final)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Sending VIRTIO_CONSOLE_DEVICE_READY 1\n");
         VIOSerialSendCtrlMsg(WdfDevice, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 1);

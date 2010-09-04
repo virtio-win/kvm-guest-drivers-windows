@@ -114,7 +114,7 @@ VIOSerialHandleCtrlMsg(
     switch (cpkt->event) 
     {
         case VIRTIO_CONSOLE_PORT_ADD:
-           if (port) 
+           if (port)
            {
                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_ADD id = %d\n", cpkt->id);
                break;
