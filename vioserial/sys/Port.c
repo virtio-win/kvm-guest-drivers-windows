@@ -183,9 +183,12 @@ VIOSerialRemovePort(
            {
               VIOSerialSendCtrlMsg(vport.BusDevice, vport.Id, VIRTIO_CONSOLE_PORT_OPEN, 0);
            }
-
+           WdfSpinLockAcquire(vport.InBufLock);
            VIOSerialDiscardPortData(&vport);
+           WdfSpinLockRelease(vport.InBufLock);
+           WdfSpinLockAcquire(vport.OutVqLock);
            VIOSerialReclaimConsumedBuffers(&vport);
+           WdfSpinLockRelease(vport.OutVqLock);
            while (buf = VirtIODeviceDetachUnusedBuf(GetInQueue(&vport)))
            {
               VIOSerialFreeBuffer(buf);
@@ -254,7 +257,7 @@ VIOSerialRenewAllPorts(
             break;
         }
         ASSERT(childInfo.Status == WdfChildListRetrieveDeviceSuccess);
-
+        vport.InBuf = NULL;
         status = VIOSerialFillQueue(GetInQueue(&vport), vport.InBufLock);
         if(!NT_SUCCESS(status))
         {
@@ -333,14 +336,20 @@ VIOSerialShutdownAllPorts(
            VIOSerialSendCtrlMsg(vport.BusDevice, vport.Id, VIRTIO_CONSOLE_PORT_OPEN, 0);
         }
 
+        WdfSpinLockAcquire(vport.InBufLock);
         VIOSerialDiscardPortData(&vport);
+        vport.InBuf = NULL;
+        WdfSpinLockRelease(vport.InBufLock);
+        WdfSpinLockAcquire(vport.OutVqLock);
         VIOSerialReclaimConsumedBuffers(&vport);
+        WdfSpinLockRelease(vport.OutVqLock);
         while (buf = VirtIODeviceDetachUnusedBuf(GetInQueue(&vport)))
         {
            VIOSerialFreeBuffer(buf);
         }
     }
     WdfChildListEndIteration(list, &iterator);
+    WdfChildListUpdateAllChildDescriptionsAsPresent(list);
 }
 
 VOID
@@ -388,7 +397,6 @@ VIOSerialDiscardPortData(
         if(!NT_SUCCESS(status))
         {
            ++ret;
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "%s::%d Error adding buffer to queue\n", __FUNCTION__, __LINE__);
            VIOSerialFreeBuffer(buf);  
         }
         buf = vq->vq_ops->get_buf(vq, &len);
@@ -396,7 +404,7 @@ VIOSerialDiscardPortData(
     port->InBuf = NULL;
     if (ret > 0)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "%s::%d Error adding %u buffers back to queue\n",
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s::%d Error adding %u buffers back to queue\n",
                       __FUNCTION__, __LINE__, ret);
     }
 }
@@ -1042,7 +1050,6 @@ VIOSerialPortProgramWriteDma(
 
     UNREFERENCED_PARAMETER(Device);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "--> %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
 
     WdfSpinLockAcquire(port->OutVqLock);

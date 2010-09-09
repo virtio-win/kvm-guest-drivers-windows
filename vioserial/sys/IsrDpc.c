@@ -61,13 +61,14 @@ VIOSerialInterruptDpc(
         {
            struct virtqueue    *out_vq = GetOutQueue(port);
            WdfSpinLockAcquire(port->InBufLock);
-           if (!port->InBuf)
-           {
-              port->InBuf = VIOSerialGetInBuf(port);
-           }
            if (!port->GuestConnected)
            {
               VIOSerialDiscardPortData(port);
+           }
+           if (!port->InBuf)
+           {
+              port->InBuf = VIOSerialGetInBuf(port);
+              TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "%s::%d  port->InBuf = %p\n", __FUNCTION__, __LINE__, port->InBuf);
            }
            WdfSpinLockRelease(port->InBufLock);
 
@@ -95,7 +96,9 @@ VIOSerialInterruptDpc(
 
               if (transactionComplete)
               {
+                 WdfSpinLockAcquire(port->OutVqLock);
                  VIOSerialReclaimConsumedBuffers(port);
+                 WdfSpinLockRelease(port->OutVqLock);
                  TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
                                      "Completing Write request in the DpcForIsr");
                  VIOSerialPortWriteRequestComplete( dmaTransaction, status );
@@ -171,7 +174,7 @@ VIOSerialEnableDisableInterruptQueue(
     IN struct virtqueue *vq,
     IN BOOLEAN bEnable)
 {
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s enable = %d\n", __FUNCTION__, bEnable);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s enable = %d\n", __FUNCTION__, bEnable);
 
     if(!vq)
         return;
@@ -181,5 +184,4 @@ VIOSerialEnableDisableInterruptQueue(
     {
         vq->vq_ops->kick(vq);
     }
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s enable = %d\n", __FUNCTION__, bEnable);
 }

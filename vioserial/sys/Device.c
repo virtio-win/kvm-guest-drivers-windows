@@ -307,7 +307,6 @@ VIOSerialEvtDevicePrepareHardware(
         status = STATUS_INSUFFICIENT_RESOURCES;
     }
 
-
     pContext->DeviceOK = TRUE;
     return status;
 }
@@ -342,7 +341,6 @@ VIOSerialEvtDeviceReleaseHardware(
         ExFreePoolWithTag(pContext->out_vqs, VIOSERIAL_DRIVER_MEMORY_TAG);
         pContext->out_vqs = NULL;
     }
-
 
     return STATUS_SUCCESS;
 }
@@ -461,8 +459,8 @@ VIOSerialFillQueue(
         status = VIOSerialAddInBuf(vq, buf);
         if(!NT_SUCCESS(status))
         {
-           WdfSpinLockRelease(Lock);
            VIOSerialFreeBuffer(buf);
+           WdfSpinLockRelease(Lock);
            break;
         }
         WdfSpinLockRelease(Lock);
@@ -491,7 +489,7 @@ VIOSerialEvtDeviceD0Entry(
         VIOSerialInitAllQueues(Device);
         VIOSerialRenewAllPorts(Device);
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Setting VIRTIO_CONFIG_S_DRIVER_OK flag\n");
-        VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER);
+        VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
     }
 
     return STATUS_SUCCESS;

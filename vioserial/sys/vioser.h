@@ -192,14 +192,6 @@ VIOSerialReclaimConsumedBuffers(
 );
 
 SSIZE_T 
-VIOSerialSendBuffers(
-    IN PVIOSERIAL_PORT port,
-    IN PVOID buf,
-    IN SIZE_T count,
-    IN BOOLEAN nonblock
-);
-
-SSIZE_T 
 VIOSerialFillReadBuf(
     IN PVIOSERIAL_PORT port,
     IN PVOID outbuf,

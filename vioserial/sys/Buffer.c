@@ -47,9 +47,13 @@ VIOSerialFreeBuffer(
     IN PPORT_BUFFER buf
 )
 {
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
-
-    ExFreePoolWithTag(buf->va_buf, VIOSERIAL_DRIVER_MEMORY_TAG);
+    ASSERT(buf);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "--> %s  buf = %p, buf->va_buf = %p\n", __FUNCTION__, buf, buf->va_buf);
+    if (buf->va_buf)
+    {
+        ExFreePoolWithTag(buf->va_buf, VIOSERIAL_DRIVER_MEMORY_TAG);
+        buf->va_buf = NULL;
+    }
     ExFreePoolWithTag(buf, VIOSERIAL_DRIVER_MEMORY_TAG);
 }
 
@@ -72,53 +76,6 @@ VIOSerialReclaimConsumedBuffers(
     }
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
 }
-
-SSIZE_T 
-VIOSerialSendBuffers(
-    IN PVIOSERIAL_PORT port,
-    IN PVOID buf,
-    IN SIZE_T count,
-    IN BOOLEAN nonblock
-)
-{
-    UINT len;
-    SSIZE_T ret;
-    struct VirtIOBufferDescriptor sg;
-    struct virtqueue *vq = GetOutQueue(port);
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
-
-    WdfSpinLockAcquire(port->OutVqLock);
-    VIOSerialReclaimConsumedBuffers(port);
-
-    sg.physAddr = GetPhysicalAddress(buf);
-    sg.ulSize = (unsigned long)count;
-
-    ret = vq->vq_ops->add_buf(vq, &sg, 1, 0, buf);
-    vq->vq_ops->kick(vq);
-
-    if (ret < 0)
-    {
-        port->OutVqFull = TRUE;
-        WdfSpinLockRelease(port->OutVqLock);
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "<--> %s::%d port->OutVqFull = %d\n", __FUNCTION__, __LINE__, port->OutVqFull);
-        return 0;
-    }
-
-    if (!nonblock)
-    {
-        while(!vq->vq_ops->get_buf(vq, &len))
-        {
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "<--> %s::%d port->OutVqFull = %d\n", __FUNCTION__, __LINE__, port->OutVqFull);
-           KeStallExecutionProcessor(100);
-           port->OutVqFull = FALSE;
-        }   
-    }
-    WdfSpinLockRelease(port->OutVqLock);
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
-    return count;
-}
-
 
 SSIZE_T 
 VIOSerialFillReadBuf(
@@ -167,7 +124,12 @@ VIOSerialAddInBuf(
     NTSTATUS  status = STATUS_SUCCESS;
     struct VirtIOBufferDescriptor sg;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "--> %s  buf = %p\n", __FUNCTION__, buf);
+    if (buf == NULL)
+    {
+        ASSERT(0);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     sg.physAddr = buf->pa_buf;
     sg.ulSize = buf->size;
