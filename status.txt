@@ -1,12 +1,23 @@
+Date	09 September 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm22
+
+Fixed bugs:
+Bug 626333 - [WHQL] Win2k8-R2 got BSOD during virtio-serial run sleep stress with IO and common
+scenario stress with IO (finale fix. vioserial will be able to pass WHQL test while running with
+child devices (ports)).
+Bug 630536 - Crash when running on Windows XP SMP
+
+
 Date	30 August 2010
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm21
 
-Fixed bugs:  
+Fixed bugs:
 Bug 610787 - balloon evict windows guest free memory does not work
-Bug 626333 - [WHQL] Win2k8-R2 got BSOD during virtio-serial run sleep stress with IO and common 
-scenario stress with IO (partial fix. vioserial should be able to pass WHQL test while running w/o 
-child devices (ports)). 
+Bug 626333 - [WHQL] Win2k8-R2 got BSOD during virtio-serial run sleep stress with IO and common
+scenario stress with IO (partial fix. vioserial should be able to pass WHQL test while running w/o
+child devices (ports)).
 
 
 Date	17 August 2010
@@ -15,8 +26,8 @@ tag	mm20
 
 Fixed bugs:
 Bug 603015 - fix for WHQL LSO test problem on MSI mashine
-Bug 613949 - [WHQL] Win2k8-R2 guest got BSOD when running virtio-serial Plug and Play Driver Test 
-Bug 614722 - [WHQL] Win2k8-R2 got BSOD during virtio-serial run simpleIOStress test (Error code 0x1E) 
+Bug 613949 - [WHQL] Win2k8-R2 guest got BSOD when running virtio-serial Plug and Play Driver Test
+Bug 614722 - [WHQL] Win2k8-R2 got BSOD during virtio-serial run simpleIOStress test (Error code 0x1E)
 
 New features:
 None
