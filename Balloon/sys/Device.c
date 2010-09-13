@@ -18,11 +18,25 @@
 #include "device.tmh"
 #endif
 
-#pragma alloc_text(PAGE, BalloonPrepareHardware)
-#pragma alloc_text(PAGE, BalloonReleaseHardware)
+EVT_WDF_DEVICE_PREPARE_HARDWARE     BalloonEvtDevicePrepareHardware;
+EVT_WDF_DEVICE_RELEASE_HARDWARE     BalloonEvtDeviceReleaseHardware;
+EVT_WDF_DEVICE_D0_ENTRY             BalloonEvtDeviceD0Entry;
+EVT_WDF_DEVICE_D0_EXIT              BalloonEvtDeviceD0Exit;
+
+#ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, BalloonEvtDevicePrepareHardware)
+#pragma alloc_text(PAGE, BalloonEvtDeviceReleaseHardware)
+#pragma alloc_text(PAGE, BalloonEvtDeviceD0Exit)
 #pragma alloc_text(PAGE, BalloonDeviceAdd)
 #pragma alloc_text(PAGE, BalloonEvtDeviceFileCreate)
 #pragma alloc_text(PAGE, BalloonEvtFileClose)
+#endif
+
+#if (WINVER >= 0x0501)
+#define LOMEMEVENTNAME L"\\KernelObjects\\LowMemoryCondition"
+DECLARE_CONST_UNICODE_STRING(evLowMemString, LOMEMEVENTNAME);
+#endif // (WINVER >= 0x0501)
+
 
 NTSTATUS 
 BalloonDeviceAdd(
@@ -42,8 +56,10 @@ BalloonDeviceAdd(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpPowerCallbacks);
-    pnpPowerCallbacks.EvtDevicePrepareHardware = BalloonPrepareHardware;
-    pnpPowerCallbacks.EvtDeviceReleaseHardware = BalloonReleaseHardware;
+    pnpPowerCallbacks.EvtDevicePrepareHardware = BalloonEvtDevicePrepareHardware;
+    pnpPowerCallbacks.EvtDeviceReleaseHardware = BalloonEvtDeviceReleaseHardware;
+    pnpPowerCallbacks.EvtDeviceD0Entry         = BalloonEvtDeviceD0Entry;
+    pnpPowerCallbacks.EvtDeviceD0Exit          = BalloonEvtDeviceD0Exit;
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
 
 
@@ -113,7 +129,7 @@ BalloonDeviceAdd(
 }
 
 NTSTATUS
-BalloonPrepareHardware(
+BalloonEvtDevicePrepareHardware(
     IN WDFDEVICE    Device,
     IN WDFCMRESLIST ResourceList,
     IN WDFCMRESLIST ResourceListTranslated
@@ -194,21 +210,18 @@ BalloonPrepareHardware(
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, " Missing resources\n");
         return STATUS_DEVICE_CONFIGURATION_ERROR;
     }
-
-    status = BalloonInit(Device);
-    if (status != STATUS_SUCCESS)
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, 
-           "BalloonInit failed with status 0x%08x\n", status);
-        return status;
-    }
+#if (WINVER >= 0x0501)
+    devCtx->evLowMem = IoCreateNotificationEvent(
+                               (PUNICODE_STRING )&evLowMemString,
+                               &devCtx->hLowMem);
+#endif // (WINVER >= 0x0501)
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return status;
 }
 
 NTSTATUS
-BalloonReleaseHardware (
+BalloonEvtDeviceReleaseHardware (
     WDFDEVICE      Device,
     WDFCMRESLIST   ResourcesTranslated
     )
@@ -221,7 +234,10 @@ BalloonReleaseHardware (
 
     PAGED_CODE();
 
-    BalloonTerm(Device);
+#if (WINVER >= 0x0501)
+    ZwClose(&devCtx->hLowMem);
+#endif // (WINVER >= 0x0501)
+
     devCtx = GetDeviceContext(Device);
 
     if (devCtx->PortBase) {
@@ -235,6 +251,60 @@ BalloonReleaseHardware (
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+BalloonEvtDeviceD0Entry(
+    IN  WDFDEVICE Device,
+    IN  WDF_POWER_DEVICE_STATE PreviousState
+    )
+{
+    PDEVICE_CONTEXT     devCtx = NULL;
+    NTSTATUS            status = STATUS_SUCCESS;
+    PDRIVER_CONTEXT     drvCtx = GetDriverContext(WdfGetDriver());
+
+    UNREFERENCED_PARAMETER(PreviousState);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+    devCtx = GetDeviceContext(Device);
+    status = BalloonInit(Device);
+    if(!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+           "BalloonInit failed with status 0x%08x\n", status);
+        return status;
+    }
+    if(devCtx->bServiceConnected && VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
+    {
+        VirtIODeviceEnableGuestFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ);
+    }
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+BalloonEvtDeviceD0Exit(
+    IN  WDFDEVICE Device,
+    IN  WDF_POWER_DEVICE_STATE TargetState
+    )
+{
+    PDEVICE_CONTEXT       devCtx = GetDeviceContext(Device);
+    PDRIVER_CONTEXT       drvCtx = GetDriverContext(WdfGetDriver());
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
+
+    PAGED_CODE();
+
+    if (TargetState == WdfPowerDeviceD3Final)
+    {
+        while(drvCtx->num_pages)
+        {
+           BalloonLeak(Device, drvCtx->num_pages);
+        }
+        SetBalloonSize(Device, drvCtx->num_pages);
+    }
+    BalloonTerm(Device);
+    return STATUS_SUCCESS;
+}
+
 
 BOOLEAN
 BalloonInterruptIsr(
@@ -244,8 +314,6 @@ BalloonInterruptIsr(
 {
     PDEVICE_CONTEXT     devCtx = NULL;
     WDFDEVICE           Device;
-    int hsr;
-    int hcr;
 
     UNREFERENCED_PARAMETER( MessageID );
 
@@ -276,18 +344,14 @@ FillLeakWorkItem(
     devCtx = GetDeviceContext(pItemContext->Device);
 
     if (pItemContext->Diff > 0) {
-        BalloonFill(pItemContext->Device, pItemContext->Diff);
+        BalloonFill(pItemContext->Device, (size_t)(pItemContext->Diff));
     } else if (pItemContext->Diff < 0) {  
-        BalloonLeak(pItemContext->Device, -pItemContext->Diff);
+        BalloonLeak(pItemContext->Device, (size_t)(-pItemContext->Diff));
     }
     SetBalloonSize(pItemContext->Device, drvCtx->num_pages); 
     if (pItemContext->bStatUpdate) {
         BalloonMemStats(pItemContext->Device);
     }
-    WdfInterruptSynchronize(
-        devCtx->WdfInterrupt,
-        RestartInterrupt,
-        devCtx);
 
     WdfObjectDelete(WorkItem);
 
@@ -310,7 +374,6 @@ BalloonInterruptDpc(
     WDF_WORKITEM_CONFIG   workitemConfig;
     WDFWORKITEM           hWorkItem;
     NTSTATUS              status = STATUS_SUCCESS;
-    int                   num_pages;
     BOOLEAN               bStatUpdate = FALSE;
 
     UNREFERENCED_PARAMETER( WdfInterrupt );
@@ -319,12 +382,10 @@ BalloonInterruptDpc(
   
     devCtx->InfVirtQueue->vq_ops->get_buf(devCtx->InfVirtQueue, &len);
     devCtx->DefVirtQueue->vq_ops->get_buf(devCtx->DefVirtQueue, &len);
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "--> BalloonInterruptDpc 1\n");
     if(devCtx->StatVirtQueue &&
        devCtx->StatVirtQueue->vq_ops->get_buf(devCtx->StatVirtQueue, &len)) {
        bStatUpdate = TRUE;
     }
-    num_pages = GetBalloonSize(WdfDevice);
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
     WDF_OBJECT_ATTRIBUTES_SET_CONTEXT_TYPE(&attributes, WORKITEM_CONTEXT);
@@ -344,16 +405,12 @@ BalloonInterruptDpc(
     context = GetWorkItemContext(hWorkItem);
 
     context->Device = WdfDevice;
-    context->Diff = num_pages - drvCtx->num_pages;
-
-    TraceEvents(TRACE_LEVEL_WARNING, DBG_DPC, "<--> %s num_pages = %d, drvCtx->num_pages = %d, context->Diff = %d\n", 
-                                __FUNCTION__, num_pages, drvCtx->num_pages, context->Diff);
+    context->Diff = GetBalloonSize(WdfDevice);
 
     context->bStatUpdate = bStatUpdate;
 
     WdfWorkItemEnqueue(hWorkItem);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "<-- %s\n", __FUNCTION__);
     return;
 }
 
@@ -412,6 +469,7 @@ BalloonEvtDeviceFileCreate (
     if(VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
     {
         VirtIODeviceEnableGuestFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ);
+        devCtx->bServiceConnected = TRUE;
     }
     WdfRequestComplete(Request, STATUS_SUCCESS);
 
@@ -439,7 +497,32 @@ BalloonEvtFileClose (
 	ulValue = ReadVirtIODeviceRegister(devCtx->VDevice.addr + VIRTIO_PCI_GUEST_FEATURES);
 	ulValue	&= ~(1 << VIRTIO_BALLOON_F_STATS_VQ);
 	WriteVirtIODeviceRegister(devCtx->VDevice.addr + VIRTIO_PCI_GUEST_FEATURES, ulValue);
-
+        devCtx->bServiceConnected = FALSE;
     }
     return;
 }
+
+VOID
+SetBalloonSize(
+    IN WDFOBJECT WdfDevice,
+    IN size_t    num
+    )
+{
+    PDEVICE_CONTEXT       devCtx = GetDeviceContext(WdfDevice);
+    u32 actual = (u32)num;
+    VirtIODeviceSet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, actual), &actual, sizeof(actual));
+}
+
+LONGLONG
+GetBalloonSize(
+    IN WDFOBJECT WdfDevice
+    )
+{
+    PDEVICE_CONTEXT       devCtx = GetDeviceContext(WdfDevice);
+    PDRIVER_CONTEXT       drvCtx = GetDriverContext(WdfGetDriver());
+
+    u32 v;
+    VirtIODeviceGet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, num_pages), &v, sizeof(v));
+    return (LONGLONG)v - drvCtx->num_pages;
+}
+
