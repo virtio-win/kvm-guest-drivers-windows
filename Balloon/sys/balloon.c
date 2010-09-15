@@ -86,8 +86,6 @@ free_mem:
     {
         VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_FAILED);
     }
-//FIXME
-    SetBalloonSize(WdfDevice, drvCtx->num_pages);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- BalloonInit\n");
     return status;

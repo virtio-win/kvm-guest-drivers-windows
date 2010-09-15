@@ -165,6 +165,8 @@ EnableInterrupt(
 
     devCtx->InfVirtQueue->vq_ops->enable_interrupt(devCtx->InfVirtQueue, TRUE);
     devCtx->InfVirtQueue->vq_ops->kick(devCtx->InfVirtQueue);
+    devCtx->DefVirtQueue->vq_ops->enable_interrupt(devCtx->DefVirtQueue, TRUE);
+    devCtx->DefVirtQueue->vq_ops->kick(devCtx->DefVirtQueue);
 
     if (devCtx->StatVirtQueue)
     {
@@ -181,6 +183,7 @@ DisableInterrupt(
     )
 {
     devCtx->InfVirtQueue->vq_ops->enable_interrupt(devCtx->InfVirtQueue, FALSE);
+    devCtx->DefVirtQueue->vq_ops->enable_interrupt(devCtx->DefVirtQueue, FALSE);
     if (devCtx->StatVirtQueue)
     {
        devCtx->StatVirtQueue->vq_ops->enable_interrupt(devCtx->StatVirtQueue, FALSE);

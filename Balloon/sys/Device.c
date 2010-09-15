@@ -261,8 +261,6 @@ BalloonEvtDeviceD0Entry(
     NTSTATUS            status = STATUS_SUCCESS;
     PDRIVER_CONTEXT     drvCtx = GetDriverContext(WdfGetDriver());
 
-    UNREFERENCED_PARAMETER(PreviousState);
-
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
     devCtx = GetDeviceContext(Device);
     status = BalloonInit(Device);
@@ -272,11 +270,19 @@ BalloonEvtDeviceD0Entry(
            "BalloonInit failed with status 0x%08x\n", status);
         return status;
     }
-    if(devCtx->bServiceConnected && VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
+
+    if (PreviousState != WdfPowerDeviceD3Final)
+    {
+        u32 num_pages = drvCtx->num_pages;
+        VirtIODeviceSet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, num_pages), &num_pages, sizeof(num_pages));
+        SetBalloonSize(Device, num_pages);
+    }
+
+    if (devCtx->bServiceConnected &&
+       VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
     {
         VirtIODeviceEnableGuestFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ);
     }
-
     return STATUS_SUCCESS;
 }
 
@@ -460,7 +466,7 @@ BalloonEvtDeviceFileCreate (
 
     UNREFERENCED_PARAMETER(FileObject);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s Device = %p\n", __FUNCTION__, WdfDevice);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s\n", __FUNCTION__);
 
     PAGED_CODE ();
 
