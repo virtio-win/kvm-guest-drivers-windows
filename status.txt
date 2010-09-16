@@ -1,3 +1,10 @@
+Date	16 September 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm23
+
+Fixed bugs:
+Bug 610787 - [balloon] evict windows guest free memory does not work.
+
 Date	09 September 2010
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm22
