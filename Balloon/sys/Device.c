@@ -22,10 +22,12 @@ EVT_WDF_DEVICE_PREPARE_HARDWARE     BalloonEvtDevicePrepareHardware;
 EVT_WDF_DEVICE_RELEASE_HARDWARE     BalloonEvtDeviceReleaseHardware;
 EVT_WDF_DEVICE_D0_ENTRY             BalloonEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT              BalloonEvtDeviceD0Exit;
+EVT_WDF_DEVICE_D0_EXIT_PRE_INTERRUPTS_DISABLED BalloonEvtDeviceD0ExitPreInterruptsDisabled;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, BalloonEvtDevicePrepareHardware)
 #pragma alloc_text(PAGE, BalloonEvtDeviceReleaseHardware)
+#pragma alloc_text(PAGE, BalloonEvtDeviceD0ExitPreInterruptsDisabled)
 #pragma alloc_text(PAGE, BalloonEvtDeviceD0Exit)
 #pragma alloc_text(PAGE, BalloonDeviceAdd)
 #pragma alloc_text(PAGE, BalloonEvtDeviceFileCreate)
@@ -60,6 +62,7 @@ BalloonDeviceAdd(
     pnpPowerCallbacks.EvtDeviceReleaseHardware = BalloonEvtDeviceReleaseHardware;
     pnpPowerCallbacks.EvtDeviceD0Entry         = BalloonEvtDeviceD0Entry;
     pnpPowerCallbacks.EvtDeviceD0Exit          = BalloonEvtDeviceD0Exit;
+    pnpPowerCallbacks.EvtDeviceD0ExitPreInterruptsDisabled = BalloonEvtDeviceD0ExitPreInterruptsDisabled;
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
 
 
@@ -263,19 +266,13 @@ BalloonEvtDeviceD0Entry(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
     devCtx = GetDeviceContext(Device);
+    devCtx->bShutDown = FALSE;
     status = BalloonInit(Device);
     if(!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
            "BalloonInit failed with status 0x%08x\n", status);
         return status;
-    }
-
-    if (PreviousState != WdfPowerDeviceD3Final)
-    {
-        u32 num_pages = drvCtx->num_pages;
-        VirtIODeviceSet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, num_pages), &num_pages, sizeof(num_pages));
-        SetBalloonSize(Device, num_pages);
     }
 
     if (devCtx->bServiceConnected &&
@@ -295,19 +292,38 @@ BalloonEvtDeviceD0Exit(
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(Device);
     PDRIVER_CONTEXT       drvCtx = GetDriverContext(WdfGetDriver());
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_INIT, "<--> %s\n", __FUNCTION__);
+
+    PAGED_CODE();
+
+    BalloonTerm(Device);
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+BalloonEvtDeviceD0ExitPreInterruptsDisabled(
+    IN  WDFDEVICE Device,
+    IN  WDF_POWER_DEVICE_STATE TargetState
+    )
+{
+    PDEVICE_CONTEXT       devCtx = GetDeviceContext(Device);
+    PDRIVER_CONTEXT       drvCtx = GetDriverContext(WdfGetDriver());
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_INIT, "<--> %s\n", __FUNCTION__);
 
     PAGED_CODE();
 
     if (TargetState == WdfPowerDeviceD3Final)
     {
+        devCtx->bShutDown = TRUE;
+
         while(drvCtx->num_pages)
         {
            BalloonLeak(Device, drvCtx->num_pages);
         }
         SetBalloonSize(Device, drvCtx->num_pages);
     }
-    BalloonTerm(Device);
+
     return STATUS_SUCCESS;
 }
 
@@ -386,11 +402,21 @@ BalloonInterruptDpc(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "--> %s\n", __FUNCTION__);
   
-    devCtx->InfVirtQueue->vq_ops->get_buf(devCtx->InfVirtQueue, &len);
-    devCtx->DefVirtQueue->vq_ops->get_buf(devCtx->DefVirtQueue, &len);
+    if (devCtx->InfVirtQueue->vq_ops->get_buf(devCtx->InfVirtQueue, &len))
+    {
+        KeSetEvent (&drvCtx->InfEvent, IO_NO_INCREMENT, FALSE);
+    }
+    if (devCtx->DefVirtQueue->vq_ops->get_buf(devCtx->DefVirtQueue, &len))
+    {
+        KeSetEvent (&drvCtx->DefEvent, IO_NO_INCREMENT, FALSE);
+    }
     if(devCtx->StatVirtQueue &&
        devCtx->StatVirtQueue->vq_ops->get_buf(devCtx->StatVirtQueue, &len)) {
        bStatUpdate = TRUE;
+    }
+    if (devCtx->bShutDown == TRUE)
+    {
+        return;
     }
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);

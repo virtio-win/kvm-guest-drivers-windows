@@ -61,18 +61,21 @@ typedef struct _DEVICE_CONTEXT {
     PVIOQUEUE           StatVirtQueue;
     BOOLEAN             bTellHostFirst;
     BOOLEAN             bServiceConnected;
+    BOOLEAN             bShutDown;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 
 typedef struct _DRIVER_CONTEXT {
-    volatile ULONG          num_pages;   
+    volatile ULONG          num_pages;
     ULONG                   num_pfns;
     PPFN_NUMBER             pfns_table;
     NPAGED_LOOKASIDE_LIST   LookAsideList;
     SINGLE_LIST_ENTRY       PageListHead;
     WDFSPINLOCK             SpinLock;
     PBALLOON_STAT           MemStats;
+    KEVENT                  InfEvent;
+    KEVENT                  DefEvent;
 } DRIVER_CONTEXT, * PDRIVER_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DRIVER_CONTEXT, GetDriverContext)
@@ -150,7 +153,8 @@ BalloonMemStats(
 VOID 
 BalloonTellHost(
     IN WDFOBJECT WdfDevice, 
-    IN PVIOQUEUE vq
+    IN PVIOQUEUE vq,
+    IN PVOID     ev
     );
 
 __inline

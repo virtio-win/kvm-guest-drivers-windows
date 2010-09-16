@@ -118,6 +118,16 @@ NTSTATUS DriverEntry(
         return status;
     }
 
+    KeInitializeEvent(&drvCxt->InfEvent,
+                      SynchronizationEvent,
+                      FALSE
+                      );
+
+    KeInitializeEvent(&drvCxt->DefEvent,
+                      SynchronizationEvent,
+                      FALSE
+                      );
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
 
     LogError( DriverObject, BALLOON_STARTED);
