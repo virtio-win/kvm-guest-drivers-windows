@@ -193,13 +193,6 @@ VIOSerialRemovePort(
            {
               VIOSerialFreeBuffer(buf);
            }
-           if (vport.NameString.Buffer)
-           {
-              ExFreePoolWithTag(vport.NameString.Buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
-              vport.NameString.Buffer = NULL;
-              vport.NameString.Length = 0;
-              vport.NameString.MaximumLength = 0;
-           }
         }
     }
     WdfChildListEndIteration(list, &iterator);
@@ -1064,7 +1057,6 @@ VIOSerialPortProgramWriteDma(
     }
 
     ret = vq->vq_ops->add_buf(vq, sg, i, 0, Context);
-
     if (ret < 0)
     {
         NTSTATUS status;
@@ -1080,7 +1072,6 @@ VIOSerialPortProgramWriteDma(
 
     vq->vq_ops->kick(vq);
     WdfSpinLockRelease(port->OutVqLock);
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "<-- %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
     return TRUE;
 }
