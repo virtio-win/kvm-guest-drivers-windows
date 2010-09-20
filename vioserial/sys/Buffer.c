@@ -107,7 +107,7 @@ VIOSerialFillReadBuf(
         status = VIOSerialAddInBuf(GetInQueue(port), buf);
         if (!NT_SUCCESS(status))
         {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "%s::%d  VIOSerialAddInBuf failed\n", __FUNCTION__, __LINE__);
+           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "%s::%d  VIOSerialAddInBuf failed\n", __FUNCTION__, __LINE__);
         }
         WdfSpinLockRelease(port->InBufLock);
     }
@@ -135,7 +135,6 @@ VIOSerialAddInBuf(
 
     if(vq->vq_ops->add_buf(vq, &sg, 0, 1, buf) != 0)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "<-> Cannot add buffer\n");
         status = STATUS_INSUFFICIENT_RESOURCES;
     }
 

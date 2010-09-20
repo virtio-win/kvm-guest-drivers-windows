@@ -993,7 +993,7 @@ VIOSerialPortWrite(
         status = STATUS_INVALID_BUFFER_SIZE;
         WdfDmaTransactionRelease(pport->WriteDmaTransaction);
         WdfRequestComplete(Request, status);
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "<--%s::%d\n", __FUNCTION__, __LINE__);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "<--%s::%d\n", __FUNCTION__, __LINE__);
         return;
     }
 
