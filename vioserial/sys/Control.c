@@ -157,9 +157,6 @@ VIOSerialHandleCtrlMsg(
            {
               TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_OPEN id = %d, HostConnected = %d\n", cpkt->id, cpkt->value);
               port->HostConnected = (BOOLEAN)cpkt->value;
-              WdfSpinLockAcquire(port->OutVqLock);
-              VIOSerialReclaimConsumedBuffers(port);
-              WdfSpinLockRelease(port->OutVqLock);
            }
            else
            {
