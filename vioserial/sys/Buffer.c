@@ -70,7 +70,6 @@ VIOSerialReclaimConsumedBuffers(
 
     while ((buf = vq->vq_ops->get_buf(vq, &len)) != NULL)
     {
-        ExFreePoolWithTag(buf, VIOSERIAL_DRIVER_MEMORY_TAG);  
         KeStallExecutionProcessor(100);
         port->OutVqFull = FALSE;
     }

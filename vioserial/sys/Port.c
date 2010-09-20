@@ -646,6 +646,8 @@ VIOSerialDeviceListCreatePdo(
                                  );
 
         WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, RAWPDO_VIOSERIAL_PORT);
+        attributes.SynchronizationScope = WdfSynchronizationScopeDevice;
+        attributes.ExecutionLevel = WdfExecutionLevelPassive;
 
         status = WdfDeviceCreate(
                                  &ChildInit,
