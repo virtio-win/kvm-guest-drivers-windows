@@ -1,3 +1,12 @@
+Date	20 September 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm24
+
+Fixed bugs:
+Bug 634536 - BSOD after hot-unplug a virtio-serial port.
+Bug 635506   [WHQL] Win2k8-32 quest always got BSOD (0x93) buring balloon testing.
+
+
 Date	16 September 2010
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm23
