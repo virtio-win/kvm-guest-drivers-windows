@@ -310,7 +310,6 @@ BalloonTellHost(
     }
 }
 
-
 VOID 
 BalloonMemStats(
     IN WDFOBJECT WdfDevice

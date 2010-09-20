@@ -237,11 +237,15 @@ BalloonEvtDeviceReleaseHardware (
 
     PAGED_CODE();
 
-#if (WINVER >= 0x0501)
-    ZwClose(&devCtx->hLowMem);
-#endif // (WINVER >= 0x0501)
-
     devCtx = GetDeviceContext(Device);
+
+#if (WINVER >= 0x0501)
+    if(devCtx->evLowMem)
+    {
+        ZwClose(devCtx->hLowMem);
+        devCtx->evLowMem = NULL;
+    }
+#endif // (WINVER >= 0x0501)
 
     if (devCtx->PortBase) {
         if (devCtx->PortMapped) {
@@ -292,7 +296,7 @@ BalloonEvtDeviceD0Exit(
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(Device);
     PDRIVER_CONTEXT       drvCtx = GetDriverContext(WdfGetDriver());
 
-    TraceEvents(TRACE_LEVEL_WARNING, DBG_INIT, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
 
     PAGED_CODE();
 
@@ -309,7 +313,8 @@ BalloonEvtDeviceD0ExitPreInterruptsDisabled(
 {
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(Device);
     PDRIVER_CONTEXT       drvCtx = GetDriverContext(WdfGetDriver());
-    TraceEvents(TRACE_LEVEL_WARNING, DBG_INIT, "<--> %s\n", __FUNCTION__);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
 
     PAGED_CODE();
 
