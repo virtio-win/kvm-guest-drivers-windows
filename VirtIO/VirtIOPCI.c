@@ -97,7 +97,6 @@ bool VirtIODeviceEnableGuestFeature(VirtIODevice * pVirtIODevice, unsigned uFeat
 	return !!(ulValue & (1 << uFeature));
 }
 
-
 /////////////////////////////////////////////////////////////////////////////////////
 //
 // Reset device
@@ -328,4 +327,9 @@ u32 VirtIODeviceGetQueueSize(struct virtqueue *vq)
 {
 	struct virtio_pci_vq_info *info = vq->priv;
 	return info->num;
+}
+
+void* VirtIODeviceDetachUnusedBuf(struct virtqueue *vq)
+{
+    return vring_detach_unused_buf(vq);
 }
