@@ -69,11 +69,6 @@ VirtIoResetBus(
     IN ULONG PathId
     );
 
-BOOLEAN
-VirtIoInterrupt(
-    IN PVOID DeviceExtension
-    );
-
 SCSI_ADAPTER_CONTROL_STATUS
 VirtIoAdapterControl(
     IN PVOID DeviceExtension,
@@ -129,6 +124,7 @@ DriverEntry(
     UCHAR devId[4]  = {'1', '0', '0', '1'};
 #endif
 
+    RhelDbgPrint(TRACE_LEVEL_ERROR, ("Viostor driver started...built on %s %s\n", __DATE__, __TIME__));
     IsCrashDumpMode = FALSE;
     if (RegistryPath == NULL) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION,
@@ -206,8 +202,6 @@ VirtIoFindAdapter(
     UNREFERENCED_PARAMETER( BusInformation );
     UNREFERENCED_PARAMETER( ArgumentString );
     UNREFERENCED_PARAMETER( Again );
-
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s (%d)\n", __FUNCTION__, KeGetCurrentIrql()));
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
@@ -308,6 +302,7 @@ VirtIoFindAdapter(
 
     adaptExt->features = ScsiPortReadPortUlong((PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
     ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WCACHE) ? TRUE : FALSE;
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_WCACHE = %d\n", ConfigInfo->CachesData));
 
     pageNum = ScsiPortReadPortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM));
     vr_sz = vring_size(pageNum,PAGE_SIZE);
@@ -322,7 +317,7 @@ VirtIoFindAdapter(
     ConfigInfo->MaximumTransferLength = 0x00FFFFFF;
     adaptExt->queue_depth = pageNum / ConfigInfo->NumberOfPhysicalBreaks - 1;
 
-#if (NTDDI_VERSION >= NTDDI_VISTA)
+#if (INDIRECT_SUPPORTED)
     if(!adaptExt->dump_mode) {
         adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);	
     }
@@ -407,7 +402,6 @@ VirtIoHwInitialize(
     }
 
     if(!adaptExt->dump_mode && (adaptExt->msix_vectors > 1)) {
-    RhelDbgPrint(TRACE_LEVEL_ERROR, ("xru dump_mode = %x\n", adaptExt->dump_mode));
         adaptExt->pci_vq_info.vq = VirtIODeviceFindVirtualQueue(DeviceExtension, 0, adaptExt->msix_vectors - 1);
     }
 #endif
@@ -502,6 +496,7 @@ VirtIoHwInitialize(
     adaptExt->inquiry_data.CommandQueue = 1;
     adaptExt->inquiry_data.DeviceType   = DIRECT_ACCESS_DEVICE;
     adaptExt->inquiry_data.Wide32Bit    = 1;
+    adaptExt->inquiry_data.AdditionalLength = 91;
     ScsiPortMoveMemory(&adaptExt->inquiry_data.VendorId, "Red Hat ", sizeof("Red Hat "));
     ScsiPortMoveMemory(&adaptExt->inquiry_data.ProductId, "VirtIO", sizeof("VirtIO"));
     ScsiPortMoveMemory(&adaptExt->inquiry_data.ProductRevisionLevel, "0001", sizeof("0001"));
@@ -541,18 +536,11 @@ VirtIoStartIo(
             CompleteSRB(DeviceExtension, Srb);
             return TRUE;
         }
-        case SRB_FUNCTION_SHUTDOWN:
-        case SRB_FUNCTION_FLUSH: {
-            if(CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WCACHE)) { 
-                Srb->SrbStatus = SRB_STATUS_PENDING;
-                if(!RhelDoFlush(DeviceExtension, Srb)) {
-                    Srb->SrbStatus = SRB_STATUS_BUSY;
-                    CompleteSRB(DeviceExtension, Srb);
-                }
-            } else {
-                Srb->SrbStatus = SRB_STATUS_SUCCESS;
-                CompleteSRB(DeviceExtension, Srb);
-            }
+        case SRB_FUNCTION_FLUSH:
+        case SRB_FUNCTION_SHUTDOWN: {
+            Srb->SrbStatus = (UCHAR)RhelDoFlush(DeviceExtension, Srb);
+            Srb->ScsiStatus = SCSISTAT_GOOD;
+            CompleteSRB(DeviceExtension, Srb);
             return TRUE;
         }
 
@@ -642,9 +630,15 @@ VirtIoStartIo(
         case SCSIOP_RELEASE_UNIT10:
         case SCSIOP_VERIFY:
         case SCSIOP_VERIFY16:
-        case SCSIOP_SYNCHRONIZE_CACHE:
         case SCSIOP_MEDIUM_REMOVAL: {
             Srb->SrbStatus = SRB_STATUS_SUCCESS;
+            Srb->ScsiStatus = SCSISTAT_GOOD;
+            CompleteSRB(DeviceExtension, Srb);
+            return TRUE;
+        }
+        case SCSIOP_SYNCHRONIZE_CACHE:
+        case SCSIOP_SYNCHRONIZE_CACHE16: {
+            Srb->SrbStatus = (UCHAR)RhelDoFlush(DeviceExtension, Srb);
             Srb->ScsiStatus = SCSISTAT_GOOD;
             CompleteSRB(DeviceExtension, Srb);
             return TRUE;
@@ -695,9 +689,16 @@ VirtIoInterrupt(
                 break;
            default:
                 Srb->SrbStatus = SRB_STATUS_ERROR;
+                RhelDbgPrint(TRACE_LEVEL_ERROR, ("SRB_STATUS_ERROR\n"));
                 break;
            }
-           CompleteDPC(DeviceExtension, vbr, 0);
+           if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
+              adaptExt->flush_done = TRUE;
+           }
+           else
+           {
+               CompleteDPC(DeviceExtension, vbr, 0);
+           }
         }
     }
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s isInterruptServiced = %d\n", __FUNCTION__, isInterruptServiced));
@@ -712,8 +713,6 @@ VirtIoResetBus(
 {
     UNREFERENCED_PARAMETER( DeviceExtension );
     UNREFERENCED_PARAMETER( PathId );
-
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<--->%s\n", __FUNCTION__));
     return TRUE;
 }
 
@@ -759,6 +758,7 @@ VirtIoAdapterControl(
     }
     case ScsiRestartAdapter: {
         RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("ScsiRestartAdapter\n"));
+        VirtIODeviceReset(DeviceExtension);
         adaptExt->pci_vq_info.vq = NULL;
 #ifdef MSI_SUPPORTED
         if(!adaptExt->dump_mode && adaptExt->msix_vectors) {
@@ -1200,11 +1200,9 @@ CompleteDpcRoutine(
 #ifdef MSI_SUPPORTED
         }
 #endif
-
         ScsiPortNotification(RequestComplete,
                          Context,
                          Srb);
-
 #ifdef MSI_SUPPORTED
         if(adaptExt->msix_vectors) {
            StorPortAcquireMSISpinLock (Context, MessageID, &OldIrql);

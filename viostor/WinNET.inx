@@ -1,10 +1,10 @@
-﻿; Copyright (c) 2009, Red Hat Inc.
+; Copyright (c) 2009, Red Hat Inc.
 [Version]
 Signature="$Windows NT$"
-Provider=%RHEL%
-ClassGUID={4D36E97B-E325-11CE-BFC1-08002BE10318}
 Class=SCSIAdapter
-DriverVer   = 10/10/2009,5.3.0.17241
+ClassGUID={4D36E97B-E325-11CE-BFC1-08002BE10318}
+Provider=%RHEL%
+DriverVer=05/03/2010,6.0.6001.16640
 CatalogFile=viostor.cat
 
 ;
@@ -29,19 +29,9 @@ viostor_Files_Driver = 12
 ;
 
 [Manufacturer]
-%RHEL%   = RHEL,NTx86,NTamd64
+%RHEL%   = RHEL,NT$ARCH$
 
-[RHEL]
-%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_00000000
-%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_00020000
-%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4
-
-[RHEL.NTx86]
-%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_00000000
-%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_00020000
-%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4
-
-[RHEL.NTamd64]
+[RHEL.NT$ARCH$]
 %RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_00000000
 %RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_00020000
 %RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4
