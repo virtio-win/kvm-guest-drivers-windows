@@ -70,7 +70,7 @@ else
 end
 
 # File patterns that will be cleared from white spaces
-FILE_PATTERNS = ["*.txt", "*.c", "*.h", "*.cpp", "*/"]
+FILE_PATTERNS = ["*.txt", "*.rc", "*.c", "*.h", "*.cpp", "*/"]
 
 if(not File.exist?(str_file))
   print "error: file doesn't exits\n"
