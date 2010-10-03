@@ -17,7 +17,7 @@
 
 #include "virtio.h"
 #include "public.h"
-
+#include "trace.h"
 
 /* The ID for virtio_balloon */
 #define VIRTIO_ID_BALLOON	5
@@ -60,25 +60,29 @@ typedef struct _DEVICE_CONTEXT {
     PVIOQUEUE           DefVirtQueue;
     PVIOQUEUE           StatVirtQueue;
     BOOLEAN             bTellHostFirst;
+    BOOLEAN             bServiceConnected;
+    BOOLEAN             bShutDown;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 
 typedef struct _DRIVER_CONTEXT {
-    volatile ULONG          num_pages;   
+    volatile ULONG          num_pages;
     ULONG                   num_pfns;
     PPFN_NUMBER             pfns_table;
     NPAGED_LOOKASIDE_LIST   LookAsideList;
     SINGLE_LIST_ENTRY       PageListHead;
     WDFSPINLOCK             SpinLock;
     PBALLOON_STAT           MemStats;
+    KEVENT                  InfEvent;
+    KEVENT                  DefEvent;
 } DRIVER_CONTEXT, * PDRIVER_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DRIVER_CONTEXT, GetDriverContext)
 
 typedef struct _WORKITEM_CONTEXT {
     WDFDEVICE           Device;
-    LONG                Diff;
+    LONGLONG            Diff;
     BOOLEAN             bStatUpdate;
 } WORKITEM_CONTEXT, *PWORKITEM_CONTEXT;
 
@@ -94,19 +98,6 @@ EVT_WDF_OBJECT_CONTEXT_CLEANUP EvtDriverContextCleanup;
 EVT_WDF_DRIVER_DEVICE_ADD BalloonDeviceAdd;
 EVT_WDF_DEVICE_FILE_CREATE BalloonEvtDeviceFileCreate;
 EVT_WDF_FILE_CLOSE BalloonEvtFileClose;
-
-NTSTATUS
-BalloonPrepareHardware(
-    IN WDFDEVICE    Device,
-    IN WDFCMRESLIST ResourceList,
-    IN WDFCMRESLIST ResourceListTranslated
-    );
-
-NTSTATUS
-BalloonReleaseHardware(
-    IN WDFDEVICE    Device,
-    IN WDFCMRESLIST ResourceList
-    );
 
 VOID
 BalloonInterruptDpc(
@@ -142,14 +133,6 @@ BalloonTerm(
     IN WDFOBJECT    WdfDevice
     );
 
-__inline VOID
-DisableInterrupt(
-    IN PDEVICE_CONTEXT devCtx
-    )
-{
-    UNREFERENCED_PARAMETER(devCtx);
-}
-
 VOID 
 BalloonFill(
     IN WDFOBJECT WdfDevice, 
@@ -170,10 +153,13 @@ BalloonMemStats(
 VOID 
 BalloonTellHost(
     IN WDFOBJECT WdfDevice, 
-    IN PVIOQUEUE vq
+    IN PVIOQUEUE vq,
+    IN PVOID     ev
     );
 
-__inline BOOLEAN EnableInterrupt(
+__inline
+BOOLEAN
+EnableInterrupt(
     IN WDFINTERRUPT WdfInterrupt,
     IN WDFCONTEXT Context
     )
@@ -181,39 +167,52 @@ __inline BOOLEAN EnableInterrupt(
     PDEVICE_CONTEXT devCtx = (PDEVICE_CONTEXT)Context;
     UNREFERENCED_PARAMETER(WdfInterrupt);
 
+    devCtx->InfVirtQueue->vq_ops->enable_interrupt(devCtx->InfVirtQueue, TRUE);
     devCtx->InfVirtQueue->vq_ops->kick(devCtx->InfVirtQueue);
+    devCtx->DefVirtQueue->vq_ops->enable_interrupt(devCtx->DefVirtQueue, TRUE);
+    devCtx->DefVirtQueue->vq_ops->kick(devCtx->DefVirtQueue);
+
+    if (devCtx->StatVirtQueue)
+    {
+       devCtx->StatVirtQueue->vq_ops->enable_interrupt(devCtx->StatVirtQueue, TRUE);
+       devCtx->StatVirtQueue->vq_ops->kick(devCtx->StatVirtQueue);
+    }
     return TRUE;
 }
 
-__inline VOID 
-SetBalloonSize(
-    IN WDFOBJECT WdfDevice, 
-    IN size_t    num
+__inline
+VOID
+DisableInterrupt(
+    IN PDEVICE_CONTEXT devCtx
     )
 {
-    PDEVICE_CONTEXT       devCtx = GetDeviceContext(WdfDevice);
-    VIRTIO_BALLOON_CONFIG v;
-    v.actual = num;
-    VirtIODeviceSet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, actual), &v.actual, sizeof(v.actual));
+    devCtx->InfVirtQueue->vq_ops->enable_interrupt(devCtx->InfVirtQueue, FALSE);
+    devCtx->DefVirtQueue->vq_ops->enable_interrupt(devCtx->DefVirtQueue, FALSE);
+    if (devCtx->StatVirtQueue)
+    {
+       devCtx->StatVirtQueue->vq_ops->enable_interrupt(devCtx->StatVirtQueue, FALSE);
+    }
 }
 
-__inline size_t 
+
+VOID
+SetBalloonSize(
+    IN WDFOBJECT WdfDevice,
+    IN size_t    num
+    );
+
+LONGLONG
 GetBalloonSize(
     IN WDFOBJECT WdfDevice
-    )
-{
-    PDEVICE_CONTEXT       devCtx = GetDeviceContext(WdfDevice);
-    VIRTIO_BALLOON_CONFIG v;
-    VirtIODeviceGet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, num_pages), &v.num_pages, sizeof(v.num_pages));
-    return v.num_pages;
-}
+    );
 
 NTSTATUS
 BalloonQueueInitialize(
     WDFDEVICE hDevice
     );
 
-__inline BOOLEAN
+__inline
+BOOLEAN
 RestartInterrupt(
     IN WDFINTERRUPT WdfInterrupt,
     IN WDFCONTEXT Context

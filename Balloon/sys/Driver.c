@@ -19,8 +19,8 @@
 #endif
 
 #if !defined(EVENT_TRACING)
-ULONG DebugLevel = TRACE_LEVEL_INFORMATION;
-ULONG DebugFlag = 0x2f;
+ULONG DebugLevel = TRACE_LEVEL_WARNING;
+ULONG DebugFlag = 0x0000ffff;
 #else
 ULONG DebugLevel;
 ULONG DebugFlag;
@@ -43,8 +43,7 @@ NTSTATUS DriverEntry(
 
     WPP_INIT_TRACING( DriverObject, RegistryPath );
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s\n", __FUNCTION__);
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Balloon driver, built on %s %s\n",
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "Balloon driver, built on %s %s\n",
             __DATE__, __TIME__);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attrib, DRIVER_CONTEXT);
@@ -62,6 +61,7 @@ NTSTATUS DriverEntry(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"WdfDriverCreate failed with status 0x%08x\n", status);
         WPP_CLEANUP(DriverObject);
+        return status;
     }
 
     drvCxt = GetDriverContext(driver);
@@ -117,6 +117,16 @@ NTSTATUS DriverEntry(
         WPP_CLEANUP(DriverObject);
         return status;
     }
+
+    KeInitializeEvent(&drvCxt->InfEvent,
+                      SynchronizationEvent,
+                      FALSE
+                      );
+
+    KeInitializeEvent(&drvCxt->DefEvent,
+                      SynchronizationEvent,
+                      FALSE
+                      );
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
 
@@ -221,8 +231,7 @@ TraceEvents    (
                       status));
             return;
         }
-        if (TraceEventsLevel <= TRACE_LEVEL_INFORMATION ||
-            (TraceEventsLevel <= DebugLevel &&
+        if ((TraceEventsLevel <= DebugLevel &&
              ((TraceEventsFlag & DebugFlag) == TraceEventsFlag))) {
             BalloonDbgPrint((debugMessageBuffer));
         }

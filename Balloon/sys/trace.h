@@ -17,7 +17,6 @@
 
 #if !defined(TRACE_LEVEL_NONE)
   #define TRACE_LEVEL_NONE        0
-  #define TRACE_LEVEL_CRITICAL    1
   #define TRACE_LEVEL_FATAL       1
   #define TRACE_LEVEL_ERROR       2
   #define TRACE_LEVEL_WARNING     3

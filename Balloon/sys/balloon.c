@@ -19,14 +19,9 @@
 #endif
 
 
-#if (WINVER >= 0x0501)
-#define LOMEMEVENTNAME L"\\KernelObjects\\LowMemoryCondition"
-DECLARE_CONST_UNICODE_STRING(evLowMemString, LOMEMEVENTNAME);
-#endif // (WINVER >= 0x0501)
-
 NTSTATUS
 BalloonInit(
-            IN WDFOBJECT    WdfDevice
+    IN WDFOBJECT    WdfDevice
             )
 {
 
@@ -71,21 +66,14 @@ BalloonInit(
 
         if(devCtx->StatVirtQueue->vq_ops->add_buf(devCtx->StatVirtQueue, &sg, 1, 0, devCtx) != 0)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> Cannot add buffer\n");
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> %s :: Cannot add buffer\n", __FUNCTION__);
         }
 
         devCtx->StatVirtQueue->vq_ops->kick(devCtx->StatVirtQueue);
 
-//        VirtIODeviceEnableGuestFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ);
     }
     devCtx->bTellHostFirst
         = (BOOLEAN)VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_MUST_TELL_HOST); 
-
-#if (WINVER >= 0x0501)
-    devCtx->evLowMem = IoCreateNotificationEvent(
-                               (PUNICODE_STRING )&evLowMemString,
-                               &devCtx->hLowMem);
-#endif // (WINVER >= 0x0501)
 
 free_mem:
     KeMemoryBarrier();
@@ -113,12 +101,6 @@ BalloonTerm(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonTerm\n");
 
-    while(drvCtx->num_pages)
-    {
-        BalloonLeak(WdfDevice, drvCtx->num_pages);
-    }
-
-    SetBalloonSize(WdfDevice, drvCtx->num_pages); 
     VirtIODeviceRemoveStatus(&devCtx->VDevice , VIRTIO_CONFIG_S_DRIVER_OK);
 
     if(devCtx->DefVirtQueue) 
@@ -144,11 +126,6 @@ BalloonTerm(
 
     VirtIODeviceReset(&devCtx->VDevice);
 
-
-#if (WINVER >= 0x0501)
-    ZwClose(&devCtx->hLowMem);
-#endif // (WINVER >= 0x0501)
-
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- BalloonTerm\n");
 }
 
@@ -165,17 +142,19 @@ BalloonFill(
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
     ULONG               pages_per_request = PAGE_SIZE/sizeof(PFN_NUMBER); 
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> BalloonFill\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     LowAddress.QuadPart = 0;
     HighAddress.QuadPart = (ULONGLONG)-1;
 
     num = min(num, pages_per_request);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> BalloonFill num = %d\n", num);
+
     for (drvCtx->num_pfns = 0; drvCtx->num_pfns < num; drvCtx->num_pfns++) 
     {
         if(IsLowMemory(WdfDevice))
         {
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, 
+           TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
                 "LowMemoryCondition event was set to signaled,allocations stops, BalPageCount=%d\n", drvCtx->num_pages);
            break;
         }
@@ -187,14 +166,14 @@ BalloonFill(
                                         );
         if (pPageMdl == NULL)
         {
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, 
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
                  "Balloon MDL Page Allocation Failed!!!, BalPageCount=%d\n", drvCtx->num_pages);
             break;
         }
 
         if (MmGetMdlByteCount(pPageMdl) != PAGE_SIZE)
         {
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, 
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
                  "Balloon MDL Page Allocation < PAGE_SIZE =%d, Failed!!!, BalPageCount=%d\n",MmGetMdlByteCount(pPageMdl), drvCtx->num_pages);
             MmFreePagesFromMdl(pPageMdl);
             ExFreePool(pPageMdl);
@@ -221,9 +200,8 @@ BalloonFill(
 
     if (drvCtx->num_pfns > 0)
     {
-        BalloonTellHost(WdfDevice , devCtx->InfVirtQueue);
+        BalloonTellHost(WdfDevice , devCtx->InfVirtQueue, &drvCtx->InfEvent);
     }
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- BalloonFill\n");
 }
 
 VOID 
@@ -238,7 +216,7 @@ BalloonLeak(
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
     PDRIVER_CONTEXT     drvCtx = GetDriverContext(WdfGetDriver());
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> BalloonLeak\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
     
     num = min(num, PAGE_SIZE/sizeof(PFN_NUMBER));
 
@@ -249,7 +227,7 @@ BalloonLeak(
     {
         if (pPageListEntry == NULL)
         {
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "PopEntryList=NULL\n");
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "PopEntryList=NULL\n");
             break;
         }
         drvCtx->pfns_table[drvCtx->num_pfns] = pPageListEntry->PagePfn;
@@ -259,7 +237,7 @@ BalloonLeak(
  
     if (devCtx->bTellHostFirst) 
     {
-        BalloonTellHost(WdfDevice, devCtx->DefVirtQueue);
+        BalloonTellHost(WdfDevice, devCtx->DefVirtQueue, &drvCtx->DefEvent);
     }
 
     for (i = 0; i < drvCtx->num_pfns; i++) 
@@ -267,14 +245,15 @@ BalloonLeak(
 
         WdfSpinLockAcquire(drvCtx->SpinLock);
         pPageListEntry = (PPAGE_LIST_ENTRY)PopEntryList(&drvCtx->PageListHead);
-        drvCtx->num_pages--;
-        WdfSpinLockRelease(drvCtx->SpinLock);
 
         if (pPageListEntry == NULL)
         {
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "PopEntryList=NULL\n");
+           TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "PopEntryList=NULL\n");
+           WdfSpinLockRelease(drvCtx->SpinLock);
            break;
         }
+        drvCtx->num_pages--;
+        WdfSpinLockRelease(drvCtx->SpinLock);
 
         pPageMdl = pPageListEntry->PageMdl;
         MmFreePagesFromMdl(pPageMdl);
@@ -288,36 +267,48 @@ BalloonLeak(
 
     if (!devCtx->bTellHostFirst) 
     {
-        BalloonTellHost(WdfDevice, devCtx->DefVirtQueue);
+        BalloonTellHost(WdfDevice, devCtx->DefVirtQueue, &drvCtx->DefEvent);
     }
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- BalloonLeak\n");
 }
 
 VOID 
 BalloonTellHost(
     IN WDFOBJECT WdfDevice, 
-    IN PVIOQUEUE vq
+    IN PVIOQUEUE vq,
+    IN PVOID     ev
     )
 {
     VIO_SG              sg;
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
     PDRIVER_CONTEXT     drvCtx = GetDriverContext(WdfGetDriver());
+    NTSTATUS            status;
+    LARGE_INTEGER       timeout = {0};
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> BalloonTellHost\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     sg.physAddr = GetPhysicalAddress(drvCtx->pfns_table);
     sg.ulSize = sizeof(drvCtx->pfns_table[0]) * drvCtx->num_pfns;
 
     if(vq->vq_ops->add_buf(vq, &sg, 1, 0, devCtx) != 0)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> Cannot add buffer\n");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> %s :: Cannot add buffer\n", __FUNCTION__);
+        return;
     }
-
     vq->vq_ops->kick(vq);
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- BalloonTellHost\n");
-}
 
+    timeout.QuadPart = Int32x32To64(1000, -10000);
+    status = KeWaitForSingleObject (
+                ev,
+                Executive,
+                KernelMode,
+                FALSE,
+                &timeout);
+    ASSERT(NT_SUCCESS(status));
+    if(STATUS_TIMEOUT == status)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "<--> TimeOut\n");
+    }
+}
 
 VOID 
 BalloonMemStats(
@@ -329,6 +320,7 @@ BalloonMemStats(
     PDRIVER_CONTEXT     drvCtx = GetDriverContext(WdfGetDriver());
     WDFREQUEST request;
     NTSTATUS  status;
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     sg.physAddr = GetPhysicalAddress(drvCtx->MemStats);
@@ -336,7 +328,7 @@ BalloonMemStats(
 
     if(devCtx->StatVirtQueue->vq_ops->add_buf(devCtx->StatVirtQueue, &sg, 1, 0, devCtx) != 0)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> Cannot add buffer\n");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> %s :: Cannot add buffer\n", __FUNCTION__);
     }
 
     devCtx->StatVirtQueue->vq_ops->kick(devCtx->StatVirtQueue);
