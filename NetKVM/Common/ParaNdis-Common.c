@@ -1776,7 +1776,7 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
 				{
 					UINT n;
 					LONG rxActive = InterlockedIncrement(&pContext->dpcReceiveActive);
-					if (rxActive == 1) 
+					if (rxActive == 1)
 					{
 						n = ParaNdis_ProcessRxPath(pContext);
 						InterlockedDecrement(&pContext->dpcReceiveActive);
@@ -1795,7 +1795,7 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
 					else
 					{
 						InterlockedDecrement(&pContext->dpcReceiveActive);
-						nRestartResult = 0;	
+						nRestartResult = 0;
 						DPrintf(1, ("[%s] Skip Rx processing no.%d", __FUNCTION__, rxActive));
 					}
 				}
