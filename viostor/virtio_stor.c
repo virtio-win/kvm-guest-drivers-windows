@@ -893,7 +893,6 @@ VirtIoMSInterruptRoutine (
        }
        if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
             adaptExt->flush_done = TRUE;
-//            RhelDbgPrint(TRACE_LEVEL_ERROR, ("<--->%s OKay\n", __FUNCTION__));
        }
        else
        {
