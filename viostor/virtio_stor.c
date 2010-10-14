@@ -68,12 +68,7 @@ VirtIoResetBus(
     IN PVOID DeviceExtension,
     IN ULONG PathId
     );
-/*
-BOOLEAN
-VirtIoInterrupt(
-    IN PVOID DeviceExtension
-    );
-*/
+
 SCSI_ADAPTER_CONTROL_STATUS
 VirtIoAdapterControl(
     IN PVOID DeviceExtension,
@@ -896,7 +891,14 @@ VirtIoMSInterruptRoutine (
             Srb->SrbStatus = SRB_STATUS_ERROR;
             break;
        }
-       CompleteDPC(DeviceExtension, vbr, MessageID);
+       if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
+            adaptExt->flush_done = TRUE;
+//            RhelDbgPrint(TRACE_LEVEL_ERROR, ("<--->%s OKay\n", __FUNCTION__));
+       }
+       else
+       {
+            CompleteDPC(DeviceExtension, vbr, MessageID);
+       }
     }
 
     return TRUE;

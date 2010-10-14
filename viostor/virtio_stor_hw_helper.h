@@ -35,7 +35,6 @@ RhelDoReadWrite(
     PSCSI_REQUEST_BLOCK Srb
     );
 
-//BOOLEAN
 ULONG
 RhelDoFlush(
     IN PVOID DeviceExtension,

@@ -141,6 +141,7 @@ SynchronizedReadWriteRoutine(
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
     PRHEL_SRB_EXTENSION srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
+
     if (adaptExt->pci_vq_info.vq->vq_ops->add_buf(adaptExt->pci_vq_info.vq,
                      &srbExt->vbr.sg[0],
                      srbExt->out, srbExt->in,
