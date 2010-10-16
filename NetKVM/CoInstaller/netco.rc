@@ -1,0 +1,136 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "afxres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// Russian resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_RUS)
+#ifdef _WIN32
+LANGUAGE LANG_RUSSIAN, SUBLANG_DEFAULT
+#pragma code_page(1251)
+#endif //_WIN32
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""afxres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+#endif    // Russian resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// English (U.S.) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE 
+BEGIN
+    IDS_ROOTGROUPDESC       "NetKVM device configuration\n"
+    IDS_LOGICEXCEPTION      "Exception while processing request\n"
+    IDS_NODEVICESFOUND      "Warning: No NetKVM devices were found in the system\n"
+    IDS_CANNOTOPENKEY       "Failed to open device registry key\n"
+    IDS_SHOWCMDHELP         "Show basic information like NetKVM device list\n"
+    IDS_SHOWDEVICESSHORT    "Show NetKVM devices present\n"
+    IDS_SHOWDEVICESLONG     "\nUsage: show devices\n\nRemarks:\n\n\tLists all NetKVM devices currently present in the system.\n\tEach device is assigned unique index.\n\tThe index is used to identify the device for other NetKVM commands.\n\n"
+    IDS_DEVICEIDX           "Index"
+    IDS_DEVICEID            "NetKVM device"
+    IDS_DEVICEDESC          "Description"
+    IDS_DEVICEFRNAME        "Name"
+END
+
+STRINGTABLE 
+BEGIN
+    IDS_DEVICELOCINFO       "Location"
+    IDS_DEVICENUM           "Number on bus"
+    IDS_DEVICEREGKEY        "Software registry key"
+    IDS_RESTARTDEVICE       "Restart NetKVM device given by index\n"
+    IDS_RESTARTDEVICELONG   "\nUsage: restart [idx=]0-N\n\nParameters:\n\n\tIDX - the device index as it is shown in ""show devices"" output.\n\nRemarks:\n\n\tRestarts device specified by index.\n\nExamples:\n\n\trestart idx=0\n\trestart 2\n\n"
+    IDS_RESTARTINGDEVICE    "Restarting device"
+    IDS_DONE                "done."
+    IDS_INDEXOUTOFRANGE     "Device index is out of range."
+    IDS_FAIL                "failed."
+    IDS_REBOOTREQUIRED      "reboot required."
+    IDS_SHOWPARAMSSHORT     "Show parameters of NetKVM device given by index\n"
+    IDS_SHOWPARAMSLONG      "\nUsage: show parameters [idx=]0-N\n\nParameters:\n\n\tIDX - the device index as it is shown in ""show devices"" output.\n\nRemarks:\n\n\tShows parameters of device specified by index.\n\nExamples:\n\n\tshow parameters idx=0\n\tshow parameters 2\n\n"
+    IDS_SHOWPARAMINFOSHORT  "Show detailed info about specified parameter of specified device\n"
+    IDS_SHOWPARAMINFOLONG   "\nUsage: show paraminfo [idx=]0-N [param=]name\n\nParameters:\n\n\tIDX - the device index as it is shown in ""show devices"" output.\n\tPARAM - Specifies name of the parameter.\n\nRemarks:\n\n\tShows detailed information about specified parameter of specified device.\n\nExamples:\n\n\tshow paraminfo idx=0 param=window\n\tshow paraminfo 2 rx_buffers\n\n"
+    IDS_PARAMENUMVALUE      "Value"
+    IDS_PARAMNUMMIN         "Min value"
+END
+
+STRINGTABLE 
+BEGIN
+    IDS_PARAMNUMMAX         "Max value"
+    IDS_PARAMNUMSTEP        "Value increment"
+    IDS_PARAMTEXTLIMIT      "Max text length"
+    IDS_PARAMUPPERCASE      "Upper-case only"
+    IDS_PARAMUNKNOWNPROP    "UNKNOWN PROPERTY"
+    IDS_PARAMTYPE           "Parameter type"
+    IDS_PARAMENUM           "enumeration"
+    IDS_PARAMINT            "integer"
+    IDS_PARAMLONG           "long integer"
+    IDS_PARAMTEXT           "text"
+    IDS_PARAMUNKNOWN        "UNKNOWN"
+    IDS_GETPARAM            "Get NetKVM device parameter value\n"
+    IDS_GETPARAMLONG        "\nUsage: getparam  [idx=]0-N [param=]name\n\nParameters:\n\n\tIDX - the device index as it is shown in ""show devices"" output.\n\tPARAM - Specifies name of the parameter.\n\nRemarks:\n\n\tRetrieves given parameter value.\n\nExamples:\n\n\tgetparam  idx=0 param=window\n\tgetparam  2 rx_buffers\n\n"
+    IDS_SETPARAMLONG        "\nUsage: setparam [idx=]0-N [param=]name [value=]value\n\nParameters:\n\n\tIDX - the device index as it is shown in ""show devices"" output.\n\tPARAM - Specifies name of the parameter.\n\tVALUE - Specifies the value of the parameter.\n\nRemarks:\n\n\tSet given parameter value.\n\nExamples:\n\n\tsetparam idx=0 param=window value=10\n\tsetparam 2 rx_buffers 45\n\n"
+    IDS_SETPARAM            "Set NetKVM device parameter value\n"
+    IDS_LOCALONLY           "Local computer only is supported by NetKVM context\n"
+END
+
+#endif    // English (U.S.) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

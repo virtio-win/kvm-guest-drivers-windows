@@ -16,7 +16,6 @@ using std::stringstream;
 using std::wstringstream;
 using std::wcout;
 using std::cout;
-using std::exception;
 using std::list;
 using std::allocator;
 
@@ -41,31 +40,9 @@ wstring __string2wstring(const string& str);
 #   define wstring2tstring(str) __wstring2string(str)
 #endif
 
-class neTKVMException : public exception
-{
-public:
-	neTKVMException(tstring Message) :
-	  m_Message(Message) 
-	{ 
-		m_MBCSMessage = tstring2string(m_Message); 
-	}
-	virtual ~neTKVMException(void) {}
-
-	virtual const char *what() const
-	{
-		return m_MBCSMessage.c_str();
-	}
-
-	virtual LPCTSTR twhat() const
-	{
-		return m_Message.c_str();
-	}
-
-protected:
-	tstring m_Message;
-	string  m_MBCSMessage;
-};
 
 typedef list<tstring, allocator<tstring>> neTKVMTStrList;
 
 #define TBUF_SIZEOF(a) ARRAY_SIZE(a)
+
+

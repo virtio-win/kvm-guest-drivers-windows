@@ -8,7 +8,10 @@
 #include "targetver.h"
 #include "resource.h"
 
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
+#endif
+
 // Windows Header Files:
 #pragma warning(push, 3)
 #include <stdio.h>
