@@ -126,8 +126,8 @@ vring_add_buf(
     vbr = (pblk_req) data;
     Srb      = (PSCSI_REQUEST_BLOCK)vbr->req;
     srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
-    if (srbExt->addr  && (out + in) > 1 && vq->num_free) {
-        head = vring_add_indirect(vq, sg, out, in, srbExt->addr);
+    if ((out + in) > 1 && vq->num_free) {
+        head = vring_add_indirect(vq, sg, out, in, srbExt->desc);
         if (head != vq->vring.num)
             goto add_head;
     }
@@ -252,23 +252,13 @@ detach_buf(
     unsigned int head)
 {
     unsigned int i;
-    PVOID addr;
-#if (INDIRECT_SUPPORTED)
-    STOR_PHYSICAL_ADDRESS  pa;
-#endif
 
 	/* Clear data ptr. */
     vq->data[head] = NULL;
 
 	/* Put back on free list: find end */
     i = head;
-#if (INDIRECT_SUPPORTED)
-    if (vq->vring.desc[i].flags & VRING_DESC_F_INDIRECT) {
-        pa.QuadPart = vq->vring.desc[i].addr;
-        addr = StorPortGetVirtualAddress(vq->vq.DeviceExtension, pa);
-        StorPortFreePool(vq->vq.DeviceExtension, addr);
-    }
-#endif
+
     while (vq->vring.desc[i].flags & VRING_DESC_F_NEXT) {
         i = vq->vring.desc[i].next;
         vq->num_free++;

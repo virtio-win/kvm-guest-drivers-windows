@@ -159,29 +159,7 @@ BOOLEAN
 RhelDoReadWrite(PVOID DeviceExtension,
                 PSCSI_REQUEST_BLOCK Srb)
 {
-    BOOLEAN res = FALSE;
-    PRHEL_SRB_EXTENSION srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
-#if (INDIRECT_SUPPORTED)
-    NTSTATUS status = STATUS_SUCCESS;
-    struct vring_desc *desc = NULL;
-    srbExt->addr = NULL;
-#endif
-    res = StorPortSynchronizeAccess(DeviceExtension, SynchronizedReadWriteRoutine, (PVOID)Srb);
-#if (INDIRECT_SUPPORTED)
-
-    if (!res) {
-        status = StorPortAllocatePool(DeviceExtension, 
-                                     (srbExt->out + srbExt->in) * sizeof(struct vring_desc), 
-                                     'rdnI', (PVOID)&desc);
-        if (!NT_SUCCESS(status)) {
-           RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s  StorPortAllocatePool failed 0x%x\n",  __FUNCTION__, status) );
-           return FALSE;
-        }
-        srbExt->addr = desc;
-        res = StorPortSynchronizeAccess(DeviceExtension, SynchronizedReadWriteRoutine, (PVOID)Srb);
-    }
-#endif
-    return res;
+    return StorPortSynchronizeAccess(DeviceExtension, SynchronizedReadWriteRoutine, (PVOID)Srb);
 }
 #else
 BOOLEAN

@@ -322,7 +322,7 @@ VirtIoFindAdapter(
         adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);	
     }
     if(adaptExt->indirect) {
-        adaptExt->queue_depth <<= 1;
+        adaptExt->queue_depth = pageNum;
     }	
 #endif
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("breaks_number = %x  queue_depth = %x\n",
