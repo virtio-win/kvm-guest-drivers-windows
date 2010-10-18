@@ -1,5 +1,6 @@
 #include "precomp.h"
 #include "vioser.h"
+#include "public.h"
 
 #if defined(EVENT_TRACING)
 #include "Control.tmh"
@@ -155,8 +156,51 @@ VIOSerialHandleCtrlMsg(
         case VIRTIO_CONSOLE_PORT_OPEN:
            if (port)
            {
-              TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_OPEN id = %d, HostConnected = %d\n", cpkt->id, cpkt->value);
-              port->HostConnected = (BOOLEAN)cpkt->value;
+              PTARGET_DEVICE_CUSTOM_NOTIFICATION  notification;
+              ULONG                               requiredSize;
+              NTSTATUS                            status;
+              BOOLEAN                             Connected = (BOOLEAN)cpkt->value;
+              VIRTIO_PORT_STATUS_CHANGE           portStatus = {0};
+              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIRTIO_CONSOLE_PORT_OPEN id = %d, HostConnected = %d\n", cpkt->id, Connected);
+              if (port->HostConnected != Connected)
+              {
+                 port->HostConnected = Connected;
+                 portStatus.Version = 1;
+                 portStatus.Reason = Connected;
+
+                 status = RtlULongAdd((sizeof(TARGET_DEVICE_CUSTOM_NOTIFICATION) - sizeof(UCHAR)),
+                                 sizeof(VIRTIO_PORT_STATUS_CHANGE),
+                                 &requiredSize);
+
+                 if (NT_SUCCESS(status))
+                 {
+                    notification = ExAllocatePoolWithTag(NonPagedPool,
+                                 requiredSize,
+                                 VIOSERIAL_DRIVER_MEMORY_TAG);
+
+                    if (notification != NULL)
+                    {
+                       RtlZeroMemory(notification, requiredSize);
+                       notification->Version = 1;
+                       notification->Size = (USHORT)(requiredSize);
+                       notification->FileObject = NULL;
+                       notification->NameBufferOffset = -1;
+                       notification->Event = GUID_VIOSERIAL_PORT_CHANGE_STATUS;
+                       RtlCopyMemory(notification->CustomDataBuffer, &portStatus, sizeof(VIRTIO_PORT_STATUS_CHANGE));
+                       status = IoReportTargetDeviceChangeAsynchronous(
+                                 WdfDeviceWdmGetPhysicalDevice(port->Device),
+                                 notification,
+                                 NULL,
+                                 NULL);
+                       if (!NT_SUCCESS(status))
+                       {
+                          TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                                 "IoReportTargetDeviceChangeAsynchronous Failed! status = 0x%x\n", status);   
+                       }
+                       ExFreePoolWithTag(notification, VIOSERIAL_DRIVER_MEMORY_TAG);
+                    }
+                 }
+              }
            }
            else
            {

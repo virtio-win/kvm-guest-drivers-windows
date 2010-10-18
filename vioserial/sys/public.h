@@ -30,4 +30,13 @@ typedef struct _tagVirtioPortInfo {
     CHAR                Name[1];
 }VIRTIO_PORT_INFO, * PVIRTIO_PORT_INFO;
 
+DEFINE_GUID(GUID_VIOSERIAL_PORT_CHANGE_STATUS,
+0x2c0f39ac, 0xb156, 0x4237, 0x9c, 0x64, 0x89, 0x91, 0xa1, 0x8b, 0xf3, 0x5c);
+// {2C0F39AC-B156-4237-9C64-8991A18BF35C}
+
+typedef struct _tagVirtioPortStatusChange {
+    ULONG Version;
+    ULONG Reason;
+} VIRTIO_PORT_STATUS_CHANGE, *PVIRTIO_PORT_STATUS_CHANGE;
+
 #endif /* VIOS_PUBLIC_H */
