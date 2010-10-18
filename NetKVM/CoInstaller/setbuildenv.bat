@@ -1,2 +1,2 @@
-set PSDK_INC_PATH="C:\Program Files\Microsoft SDKs\Windows\v6.0A\Include"
-set PSDK_LIB_PATH="C:\Program Files\Microsoft SDKs\Windows\v6.0A\Lib"
+set PSDK_INC_PATH=C:\PROGRA~1\MI2578~1\Windows\v6.0A\Include
+set PSDK_LIB_PATH=C:\PROGRA~1\MI2578~1\Windows\v6.0A\Lib

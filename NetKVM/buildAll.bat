@@ -13,6 +13,13 @@
 :
 :
 if "%DDKVER%"=="" set DDKVER=7600.16385.0
+
+if "%PSDK_INC_PATH%" NEQ "" goto :sdk_set
+pushd CoInstaller
+call setbuildenv.bat
+popd
+:sdk_set
+
 set BUILDROOT=C:\WINDDK\%DDKVER%
 set X64ENV=x64
 if "%DDKVER%"=="6000" set X64ENV=amd64
@@ -68,6 +75,9 @@ call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Win7
 popd
 call :preparebuild Common wlh VirtIO
 build -cZg
+pushd CoInstaller
+build -cZg
+popd
 
 if exist wlh\objfre_win7_x86\i386\netkvm.sys call tools\makeinstall x86 wlh\objfre_win7_x86\i386\netkvm.sys wlh\netkvm.inf %_VERSION_% Win7
 if not exist wlh\objfre_win7_x86\i386\netkvm.sys goto :eof
@@ -80,6 +90,9 @@ call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre Win7
 popd
 call :preparebuild Common wlh VirtIO
 build -cZg
+pushd CoInstaller
+build -cZg
+popd
 
 if exist wlh\objfre_win7_amd64\amd64\netkvm.sys call tools\makeinstall amd64 wlh\objfre_win7_amd64\amd64\netkvm.sys wlh\netkvm.inf %_VERSION_% Win7
 if not exist wlh\objfre_win7_amd64\amd64\netkvm.sys goto :eof
@@ -92,6 +105,9 @@ call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Wlh
 popd
 call :preparebuild Common wlh VirtIO
 build -cZg
+pushd CoInstaller
+build -cZg
+popd
 
 if exist wlh\objfre_wlh_x86\i386\netkvm.sys call tools\makeinstall x86 wlh\objfre_wlh_x86\i386\netkvm.sys wlh\netkvm.inf %_VERSION_% Vista
 if not exist wlh\objfre_wlh_x86\i386\netkvm.sys goto :eof
@@ -107,6 +123,9 @@ call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre Wlh
 popd
 call :preparebuild Common wlh VirtIO
 build -cZg
+pushd CoInstaller
+build -cZg
+popd
 
 if exist wlh\objfre_wlh_amd64\amd64\netkvm.sys call tools\makeinstall amd64 wlh\objfre_wlh_amd64\amd64\netkvm.sys wlh\netkvm.inf %_VERSION_% Vista
 if not exist wlh\objfre_wlh_amd64\amd64\netkvm.sys goto :eof
@@ -145,6 +164,9 @@ goto continue
 :popd
 :call :preparebuild Common wxp VirtIO
 :build -cZg
+:pushd CoInstaller
+:build -cZg
+:popd
 
 :if exist wxp\objfre_w2k_x86\i386\netkvm.sys call tools\makeinstall x86 wxp\objfre_w2k_x86\i386\netkvm.sys wxp\netkvm2k.inf %_VERSION_% 2K
 :if not exist wxp\objfre_w2k_x86\i386\netkvm.sys goto :eof
