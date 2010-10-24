@@ -140,7 +140,7 @@ VIOSerialEvtDeviceAdd(
 
     status = WdfDeviceCreateDeviceInterface(
                                  hDevice,
-                                 &GUID_DEVINTERFACE_PORTSENUM_VIOSERIAL,
+                                 &GUID_VIOSERIAL_CONTROLLER,
                                  NULL
                                  );
     if (!NT_SUCCESS(status)) 
