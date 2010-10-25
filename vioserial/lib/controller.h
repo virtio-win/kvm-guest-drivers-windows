@@ -12,7 +12,7 @@ class CController {
 public:
     CController(LPCTSTR linkname, LPCTSTR friendlyname);
     ~CController();
-    BOOL     EnumPorts();
+    BOOL EnumPorts();
 protected:
     wstring m_linkname;
     wstring m_friendlyname;

@@ -5,7 +5,7 @@
  * 
  * Author(s):
  * 
- * Pre-compiled header file for balloon driver.
+ * Pre-compiled header file for virtio-serial interface library.
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
