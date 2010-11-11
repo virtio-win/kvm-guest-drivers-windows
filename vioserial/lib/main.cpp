@@ -1,4 +1,4 @@
-#include "precomp.h"
+#include "StdAfx.h"
 
 
 HINSTANCE                   ghInstance = NULL;      // module handle.
