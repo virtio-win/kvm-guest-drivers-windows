@@ -47,9 +47,6 @@ EVT_WDF_INTERRUPT_DISABLE                       VIOSerialInterruptDisable;
 #define VIRTIO_CONSOLE_PORT_NAME        7
 
 
-#define PORT_MAXIMUM_TRANSFER_LENGTH    (32*1024)
-
-
 #pragma pack (push)
 #pragma pack (1)
 
@@ -91,9 +88,6 @@ typedef struct _tagPortDevice
     struct virtqueue    *c_ivq, *c_ovq;
     struct virtqueue    **in_vqs, **out_vqs;
     WDFSPINLOCK         CVqLock;
-
-    WDFDMAENABLER       DmaEnabler;
-    ULONG               MaximumTransferLength;
 
     BOOLEAN             DeviceOK;
 } PORTS_DEVICE, *PPORTS_DEVICE;
@@ -142,13 +136,6 @@ typedef struct _tagVioSerialPort
     WDFQUEUE            PendingReadQueue;
 
     WDFQUEUE            WriteQueue;
-    WDFCOMMONBUFFER     WriteCommonBuffer;
-    WDFDMATRANSACTION   WriteDmaTransaction;
-    ULONG               WriteTransferElements;
-    size_t              WriteCommonBufferSize;
-    PUCHAR              WriteCommonBufferBase;
-    PHYSICAL_ADDRESS    WriteCommonBufferBaseLA;
-
     WDFQUEUE            IoctlQueue;
 } VIOSERIAL_PORT, *PVIOSERIAL_PORT;
 
@@ -170,7 +157,7 @@ typedef struct _tagTransactionContext {
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(TRANSACTION_CONTEXT, RawPdoSerialPortGetTransactionContext)
 
 
-NTSTATUS 
+NTSTATUS
 VIOSerialFillQueue(
     IN struct virtqueue *vq,
     IN WDFSPINLOCK Lock
@@ -185,6 +172,14 @@ VIOSerialAddInBuf(
 VOID 
 VIOSerialReclaimConsumedBuffers(
     IN PVIOSERIAL_PORT port
+);
+
+SSIZE_T 
+VIOSerialSendBuffers(
+    IN PVIOSERIAL_PORT port,
+    IN PVOID buf,
+    IN SIZE_T count,
+    IN BOOLEAN nonblock
 );
 
 SSIZE_T 
@@ -292,13 +287,6 @@ EVT_WDF_IO_QUEUE_IO_WRITE VIOSerialPortWrite;
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL VIOSerialPortDeviceControl;
 EVT_WDF_DEVICE_FILE_CREATE VIOSerialPortCreate;
 EVT_WDF_FILE_CLOSE VIOSerialPortClose;
-EVT_WDF_PROGRAM_DMA VIOSerialPortProgramWriteDma;
-
-VOID
-VIOSerialPortWriteRequestComplete(
-    IN WDFDMATRANSACTION  DmaTransaction,
-    IN NTSTATUS           Status
-);
 
 VOID
 VIOSerialPortCreateName (

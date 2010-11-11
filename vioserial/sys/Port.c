@@ -177,7 +177,6 @@ VIOSerialRemovePort(
            }
 
            VIOSerialEnableDisableInterruptQueue(GetInQueue(&vport), FALSE);
-           VIOSerialEnableDisableInterruptQueue(GetOutQueue(&vport), FALSE);
 
            if(vport.GuestConnected)
            {
@@ -259,7 +258,6 @@ VIOSerialRenewAllPorts(
         }
 
         VIOSerialEnableDisableInterruptQueue(GetInQueue(&vport), TRUE);
-        VIOSerialEnableDisableInterruptQueue(GetOutQueue(&vport), TRUE);
 
         if(vport.GuestConnected)
         {
@@ -322,7 +320,6 @@ VIOSerialShutdownAllPorts(
         }
 
         VIOSerialEnableDisableInterruptQueue(GetInQueue(&vport), FALSE);
-        VIOSerialEnableDisableInterruptQueue(GetOutQueue(&vport), FALSE);
 
         if(vport.GuestConnected)
         {
@@ -822,54 +819,6 @@ VIOSerialDeviceListCreatePdo(
 
         pContext = GetPortsDevice(pport->BusDevice);
 
-        pport->WriteTransferElements =  BYTES_TO_PAGES((ULONG) ROUND_TO_PAGES(
-                                    pContext->MaximumTransferLength) + PAGE_SIZE) + 2;
-
-        pport->WriteCommonBufferSize =  sizeof(struct VirtIOBufferDescriptor) * pport->WriteTransferElements;
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                    "pport->WriteCommonBufferSize = %d\n", (int)pport->WriteCommonBufferSize);
-
-        status = WdfCommonBufferCreate(
-                                 pContext->DmaEnabler,
-                                 pport->WriteCommonBufferSize,
-                                 WDF_NO_OBJECT_ATTRIBUTES,
-                                 &pport->WriteCommonBuffer
-                                 );
-        if (!NT_SUCCESS(status))
-        {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                    "WdfCommonBufferCreate (write) failed: 0x%x\n", status);
-           break;
-        }
-
-        pport->WriteCommonBufferBase =
-           WdfCommonBufferGetAlignedVirtualAddress(pport->WriteCommonBuffer);
-
-        pport->WriteCommonBufferBaseLA =
-           WdfCommonBufferGetAlignedLogicalAddress(pport->WriteCommonBuffer);
-
-        RtlZeroMemory( pport->WriteCommonBufferBase,
-                       pport->WriteCommonBufferSize);
-
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                                 "WriteCommonBuffer 0x%p   %08I64X, length %d\n",
-                                 pport->WriteCommonBufferBase,
-                                 pport->WriteCommonBufferBaseLA.QuadPart,
-                                 (int)WdfCommonBufferGetLength(pport->WriteCommonBuffer) );
-
-        WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, TRANSACTION_CONTEXT);
-        status = WdfDmaTransactionCreate(pContext->DmaEnabler,
-                                 &attributes,
-                                 &pport->WriteDmaTransaction
-                                 );
-
-        if (!NT_SUCCESS(status))
-        {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                    "WdfDmaTransactionCreate failed: 0x%x\n", status);
-           break;
-        }
-
         status = VIOSerialFillQueue(GetInQueue(pport), pport->InBufLock);
         if(!NT_SUCCESS(status))
         {
@@ -980,132 +929,39 @@ VIOSerialPortWrite(
     PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
     NTSTATUS           status = STATUS_SUCCESS;
     SIZE_T             length;
-    WDFREQUEST         readRequest;
     PUCHAR             systemBuffer;
     PVIOSERIAL_PORT    pport = pdoData->port;
-
+    BOOLEAN            nonBlock;
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "-->%s length = %d\n", __FUNCTION__, Length);
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "-->%s length = %d\n", __FUNCTION__, Length);
 
-    if (Length > PORT_MAXIMUM_TRANSFER_LENGTH)
+    if (Length == 0)
     {
         status = STATUS_INVALID_BUFFER_SIZE;
-        WdfDmaTransactionRelease(pport->WriteDmaTransaction);
         WdfRequestComplete(Request, status);
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "<--%s::%d\n", __FUNCTION__, __LINE__);
         return;
     }
-
-    status = WdfDmaTransactionInitializeUsingRequest(
-                                 pport->WriteDmaTransaction,
-                                 Request,
-                                 VIOSerialPortProgramWriteDma,
-                                 WdfDmaDirectionWriteToDevice
-                                 );
-
-    if(!NT_SUCCESS(status))
+    status = WdfRequestRetrieveInputBuffer(Request, Length, &systemBuffer, &length);
+    if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
-                                 "WdfDmaTransactionInitializeUsingRequest failed: 0x%x\n",
-                                 status
-                                 );
-        WdfDmaTransactionRelease(pport->WriteDmaTransaction);
         WdfRequestComplete(Request, status);
         return;
     }
-
-    status = WdfDmaTransactionExecute( pport->WriteDmaTransaction,
-                                       pport);
-
-    if(!NT_SUCCESS(status))
+    nonBlock = FALSE;
+    if (VIOSerialWillWriteBlock(pport))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
-                    "WdfDmaTransactionExecute failed: 0x%x\n", status);
-        WdfDmaTransactionRelease(pport->WriteDmaTransaction);
-        WdfRequestComplete(Request, status);
+        if (nonBlock)
+        {
+           status = STATUS_INSUFFICIENT_RESOURCES;
+           WdfRequestComplete(Request, status);
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "<--%s::%d\n", __FUNCTION__, __LINE__);
+           return;
+        }
     }
-}
-
-BOOLEAN
-VIOSerialPortProgramWriteDma(
-    IN  WDFDMATRANSACTION       Transaction,
-    IN  WDFDEVICE               Device,
-    IN  PVOID                   Context,
-    IN  WDF_DMA_DIRECTION       Direction,
-    IN  PSCATTER_GATHER_LIST    SgList
-    )
-{
-    UINT len;
-    SSIZE_T ret;
-    struct VirtIOBufferDescriptor* sg;
-    PVIOSERIAL_PORT port = (PVIOSERIAL_PORT)Context;
-    struct virtqueue *vq = GetOutQueue(port);
-    ULONG i;
-
-    UNREFERENCED_PARAMETER(Device);
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "--> %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
-
-    WdfSpinLockAcquire(port->OutVqLock);
-    VIOSerialReclaimConsumedBuffers(port);
-
-    sg = (struct VirtIOBufferDescriptor*) port->WriteCommonBufferBase;
-
-    for (i=0; i < SgList->NumberOfElements; i++)
-    {
-        sg[i].physAddr = SgList->Elements[i].Address;
-        sg[i].ulSize   = SgList->Elements[i].Length;
-    }
-
-    ret = vq->vq_ops->add_buf(vq, sg, i, 0, Context);
-    if (ret < 0)
-    {
-        NTSTATUS status;
-        port->OutVqFull = TRUE;
-        WdfSpinLockRelease(port->OutVqLock);
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "<--> %s::%d port->OutVqFull = %d\n", __FUNCTION__, __LINE__, port->OutVqFull);
-
-        (VOID) WdfDmaTransactionDmaCompletedFinal(Transaction, 0, &status);
-        ASSERT(NT_SUCCESS(status));
-        VIOSerialPortWriteRequestComplete( Transaction, STATUS_INVALID_DEVICE_STATE );
-        return FALSE;
-    }
-
-    vq->vq_ops->kick(vq);
-    WdfSpinLockRelease(port->OutVqLock);
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "<-- %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
-    return TRUE;
-}
-
-VOID
-VIOSerialPortWriteRequestComplete(
-    IN WDFDMATRANSACTION  DmaTransaction,
-    IN NTSTATUS           Status
-    )
-{
-    WDFDEVICE          device= WdfDmaTransactionGetDevice(DmaTransaction);
-    PRAWPDO_VIOSERIAL_PORT   pdoData = RawPdoSerialPortGetData(device);
-    WDFREQUEST         request;
-    size_t             bytesTransferred;
-
-    request = WdfDmaTransactionGetRequest(DmaTransaction);
-
-    bytesTransferred =  WdfDmaTransactionGetBytesTransferred( DmaTransaction );
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
-                                "%s:  Request %p, Status 0x%x, "
-                                "bytes transferred %d\n",
-                                 __FUNCTION__,
-                                 request,
-                                 Status,
-                                 (int)bytesTransferred
-                                 );
-
-    WdfDmaTransactionRelease(DmaTransaction);
-
-    WdfRequestCompleteWithInformation( request, Status, bytesTransferred);
-
+    length = VIOSerialSendBuffers(pport, systemBuffer, length, nonBlock);
+    WdfRequestCompleteWithInformation( Request, status, length);
 }
 
 VOID
@@ -1435,15 +1291,7 @@ VIOSerialEvtChildListIdentificationDescriptionDuplicate(
 
     dst->ReadQueue = src->ReadQueue;
     dst->PendingReadQueue = src->PendingReadQueue;
-
     dst->WriteQueue = src->WriteQueue;
-    dst->WriteCommonBuffer = src->WriteCommonBuffer;
-    dst->WriteDmaTransaction = src->WriteDmaTransaction;
-    dst->WriteTransferElements = src->WriteTransferElements;
-    dst->WriteCommonBufferSize = src->WriteCommonBufferSize;
-    dst->WriteCommonBufferBase = src->WriteCommonBufferBase;
-    dst->WriteCommonBufferBaseLA = src->WriteCommonBufferBaseLA;
-
     dst->IoctlQueue = src->IoctlQueue;
 
     return STATUS_SUCCESS;

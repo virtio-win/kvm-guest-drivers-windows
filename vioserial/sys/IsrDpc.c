@@ -61,18 +61,18 @@ VIOSerialInterruptDpc(
         {
            struct virtqueue    *out_vq = GetOutQueue(port);
            WdfSpinLockAcquire(port->InBufLock);
-           if (!port->GuestConnected)
-           {
-              VIOSerialDiscardPortData(port);
-           }
            if (!port->InBuf)
            {
               port->InBuf = VIOSerialGetInBuf(port);
               TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "%s::%d  port->InBuf = %p\n", __FUNCTION__, __LINE__, port->InBuf);
            }
+           if (!port->GuestConnected)
+           {
+              VIOSerialDiscardPortData(port);
+           }
            WdfSpinLockRelease(port->InBufLock);
 
-           if (!VIOSerialWillReadBlock(port))
+           if (port->InBuf)
            {
               status = WdfIoQueueRetrieveNextRequest(port->PendingReadQueue, &request);
               if (NT_SUCCESS(status))
@@ -86,25 +86,6 @@ VIOSerialInterruptDpc(
                  }
               }
            }
-
-           if(out_vq && out_vq->vq_ops->get_buf(out_vq, &len))
-           {
-              BOOLEAN transactionComplete;
-              dmaTransaction = port->WriteDmaTransaction;
-              transactionComplete = WdfDmaTransactionDmaCompleted( dmaTransaction,
-                                                         &status );
-
-              if (transactionComplete)
-              {
-                 WdfSpinLockAcquire(port->OutVqLock);
-                 VIOSerialReclaimConsumedBuffers(port);
-                 WdfSpinLockRelease(port->OutVqLock);
-                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
-                                     "Completing Write request in the DpcForIsr");
-                 VIOSerialPortWriteRequestComplete( dmaTransaction, status );
-              }
-           }
-
         }
     }
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
@@ -132,14 +113,6 @@ VIOSerialEnableDisableInterrupt(
         }
     }
 
-    if(pContext->c_ovq)
-    {
-        pContext->c_ovq->vq_ops->enable_interrupt(pContext->c_ovq, bEnable);
-        if(bEnable)
-        {
-           pContext->c_ovq->vq_ops->kick(pContext->c_ovq);
-        }
-    }
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s enable = %d\n", __FUNCTION__, bEnable);
 }
 

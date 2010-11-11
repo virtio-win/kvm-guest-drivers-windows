@@ -42,6 +42,51 @@ VIOSerialAllocateBuffer(
     return buf; 
 }
 
+SSIZE_T
+VIOSerialSendBuffers(
+    IN PVIOSERIAL_PORT port,
+    IN PVOID buf,
+    IN SIZE_T count,
+    IN BOOLEAN nonblock
+)
+{
+    UINT len;
+    SSIZE_T ret;
+    struct VirtIOBufferDescriptor sg;
+    struct virtqueue *vq = GetOutQueue(port);
+
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "--> %s buf = %p, length = %d\n", __FUNCTION__, buf, (int)count);
+
+    WdfSpinLockAcquire(port->OutVqLock);
+    VIOSerialReclaimConsumedBuffers(port);
+
+    sg.physAddr = GetPhysicalAddress(buf);
+    sg.ulSize = min(PAGE_SIZE, (unsigned long)count);
+
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "--> %s buf = %p, length = %d pa = %p\n", __FUNCTION__, buf, (int)sg.ulSize, sg.physAddr);
+
+    ret = vq->vq_ops->add_buf(vq, &sg, 1, 0, buf);
+    vq->vq_ops->kick(vq);
+    if (ret < 0)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s::Cannot Add buffer \n", __FUNCTION__);
+        WdfSpinLockRelease(port->OutVqLock);
+        return 0;
+    }
+
+    port->OutVqFull = TRUE;
+    if (!nonblock)
+    {
+        while(!vq->vq_ops->get_buf(vq, &len))
+        {
+           KeStallExecutionProcessor(100);
+        }
+    }
+    WdfSpinLockRelease(port->OutVqLock);
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "<-- %s\n", __FUNCTION__);
+    return count;
+}
+
 VOID 
 VIOSerialFreeBuffer(
     IN PPORT_BUFFER buf
@@ -84,7 +129,7 @@ VIOSerialFillReadBuf(
 )
 {
     PPORT_BUFFER buf;
-    struct virtqueue *vq = GetOutQueue(port);
+//    struct virtqueue *vq = GetOutQueue(port);
     NTSTATUS  status = STATUS_SUCCESS;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);

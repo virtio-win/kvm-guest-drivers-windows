@@ -170,7 +170,6 @@ VIOSerialEvtDevicePrepareHardware(
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
     bool bPortFound = FALSE;
     NTSTATUS status = STATUS_SUCCESS;
-    WDF_DMA_ENABLER_CONFIG dmaConfig;
     UINT nr_ports;
     PAGED_CODE();
 
@@ -241,24 +240,6 @@ VIOSerialEvtDevicePrepareHardware(
                                  sizeof(pContext->consoleConfig.max_nr_ports));
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
                                 "VirtIOConsoleConfig->max_nr_ports %d\n", pContext->consoleConfig.max_nr_ports);
-    }
-
-    pContext->MaximumTransferLength = PORT_MAXIMUM_TRANSFER_LENGTH;
-    WDF_DMA_ENABLER_CONFIG_INIT( &dmaConfig,
-                                 WdfDmaProfileScatterGather64Duplex,
-                                 pContext->MaximumTransferLength );
-
-    status = WdfDmaEnablerCreate(Device,
-                                 &dmaConfig,
-                                 WDF_NO_OBJECT_ATTRIBUTES,
-                                 &pContext->DmaEnabler
-                                 );
-
-    if (!NT_SUCCESS (status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                        "WdfDmaEnablerCreate failed: 0x%x\n", status);
-        return status;
     }
 
     if(pContext->isHostMultiport)
