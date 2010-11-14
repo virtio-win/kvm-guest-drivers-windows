@@ -46,7 +46,7 @@ class PnPControl
 public:
 #pragma warning(push)
 #pragma warning(disable: 4355)
-    PnPControl(const GUID& guid) :  m_guid(guid), Thread(INVALID_HANDLE_VALUE), Notification(0, 0, 0) 
+    PnPControl() :  Thread(INVALID_HANDLE_VALUE), Notification(0, 0, 0)
     { 
         Init(); 
         FindControllers(); 
@@ -88,7 +88,6 @@ protected:
     void AddPort(const wchar_t* name);
     void RemovePort(wchar_t* name);
     HDEVNOTIFY RegisterInterfaceNotify(GUID InterfaceClassGuid);
-    GUID m_guid;
     HANDLE Thread;
     HWND Wnd;
 };
