@@ -1,5 +1,8 @@
 #include "StdAfx.h"
 
+PnPControl* PnPControl::Instance = NULL;
+PnPControl::Reference = 0;
+
 void PnPControl::FindControllers()
 {
     wstring name;

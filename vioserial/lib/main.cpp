@@ -15,48 +15,67 @@ BOOL APIENTRY DllMain (HANDLE hModule, ULONG ul_reason_for_call, LPVOID lpReserv
 
 DLL_API BOOL VIOSStartup(void)
 {
-    control = (PnPControl*) new PnPControl();
+    PnPControl::GetInstance();
     return TRUE;
 }
 
 DLL_API VOID VIOSCleanup ( void )
 {
-    delete control;
-    control = NULL;
+    PnPControl::CloseInstance();
 }
 
 DLL_API BOOL FindPort ( const wchar_t* name )
 {
-    return control->FindPort(name);
+    PnPControl* control = PnPControl::GetInstance();
+    BOOL ret = control->FindPort(name);
+    PnPControl::CloseInstance();
+    return ret;
 }
 
 DLL_API PVOID OpenPort ( const wchar_t* name )
 {
-    return control->OpenPort(name);
+    PnPControl* control = PnPControl::GetInstance();
+    PVOID ret = control->OpenPort(name);
+    PnPControl::CloseInstance();
+    return ret;
 }
 
 DLL_API BOOL ReadPort ( PVOID port, PVOID buf, PULONG size )
 {
-    return control->ReadPort(port, buf, size);
+    PnPControl* control = PnPControl::GetInstance();
+    BOOL ret = control->ReadPort(port, buf, size);
+    PnPControl::CloseInstance();
+    return ret;
 }
 
 DLL_API BOOL WritePort ( PVOID port, PVOID buf, ULONG size )
 {
-    return control->WritePort(port, buf, size);
+    PnPControl* control = PnPControl::GetInstance();
+    BOOL ret = control->WritePort(port, buf, size);
+    PnPControl::CloseInstance();
+    return ret;
 }
 
 DLL_API VOID ClosePort ( PVOID port )
 {
-    return control->ClosePort(port);
+    PnPControl* control = PnPControl::GetInstance();
+    control->ClosePort(port);
+    PnPControl::CloseInstance();
 }
 
 DLL_API UINT NumPorts(void)
 {
-    return control->NumPorts();
+    PnPControl* control = PnPControl::GetInstance();
+    UINT ret = control->NumPorts();
+    PnPControl::CloseInstance();
+    return ret;
 }
 
 DLL_API wchar_t* PortSymbolicName ( int index )
 {
-    return control->PortSymbolicName(index);
+    PnPControl* control = PnPControl::GetInstance();
+    wstring ret = control->PortSymbolicName(index);
+    PnPControl::CloseInstance();
+    return (wchar_t*)ret.c_str();
 }
 

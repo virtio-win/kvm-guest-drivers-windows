@@ -43,7 +43,6 @@ class PnPControl
         for(Iterator it = Controllers.begin(); it != Controllers.end(); it++)
             (*it)->handleEvent(*this);
     }
-public:
 #pragma warning(push)
 #pragma warning(disable: 4355)
     PnPControl() :  Thread(INVALID_HANDLE_VALUE), Notification(0, 0, 0)
@@ -52,15 +51,35 @@ public:
         FindControllers(); 
         FindPorts();
     }
-	BOOL FindPort(const wchar_t* name);
-	PVOID OpenPort(const wchar_t* name);
-	BOOL ReadPort(PVOID port, PVOID buf, PULONG size);
-	BOOL WritePort(PVOID port, PVOID buf, ULONG size);
-	VOID ClosePort(PVOID port);
-	size_t NumPorts() {return Ports.size();};
-	wchar_t* PortSymbolicName(int index);
 #pragma warning(pop)
-    ~PnPControl() {Close();}
+    ~PnPControl() { Close(); }
+public:
+    static PnPControl* GetInstance()
+    {
+        if (PnPControl::Instance == NULL)
+        {
+           PnPControl::Instance = new PnPControl();
+        }
+        PnPControl::Reference++;
+        return PnPControl::Instance;
+    }
+    static void CloseInstance()
+    {
+        PnPControl::Reference--;
+        if ((PnPControl::Reference <= 0) &&
+           (PnPControl::Instance != NULL))
+        {
+           delete Instance;
+           Instance = NULL;
+        }
+    }
+    BOOL FindPort(const wchar_t* name);
+    PVOID OpenPort(const wchar_t* name);
+    BOOL ReadPort(PVOID port, PVOID buf, PULONG size);
+    BOOL WritePort(PVOID port, PVOID buf, ULONG size);
+    VOID ClosePort(PVOID port);
+    size_t NumPorts() {return Ports.size();};
+    wchar_t* PortSymbolicName(int index);
     const PnPNotification& GetNotification() const
     {
         return Notification;
@@ -72,6 +91,8 @@ public:
     HDEVNOTIFY RegisterHandleNotify(HANDLE handle);
 private:
     static void ProcessPnPNotification(PnPControl* ptr, PnPNotification newNotification);
+    static PnPControl* Instance;
+    static int Reference;
 protected:
     HDEVNOTIFY ControllerNotify;
     HDEVNOTIFY PortNotify;
