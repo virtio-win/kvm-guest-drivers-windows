@@ -43,15 +43,12 @@ class PnPControl
         for(Iterator it = Controllers.begin(); it != Controllers.end(); it++)
             (*it)->handleEvent(*this);
     }
-#pragma warning(push)
-#pragma warning(disable: 4355)
     PnPControl() :  Thread(INVALID_HANDLE_VALUE), Notification(0, 0, 0)
     { 
         Init(); 
         FindControllers(); 
         FindPorts();
     }
-#pragma warning(pop)
     ~PnPControl() { Close(); }
 public:
     static PnPControl* GetInstance()
@@ -116,19 +113,13 @@ protected:
 class SerialController : public IPnPEventObserver
 {
 private:
-#pragma warning(push)
-#pragma warning(disable: 4355)
     SerialController() { }
-#pragma warning(pop)
 public:
-#pragma warning(push)
-#pragma warning(disable: 4355)
     SerialController(wstring LinkName) {Name = LinkName;}
     virtual ~SerialController() 
     {
         printf("~SerialController.\n");
     }
-#pragma warning(pop)
     virtual void handleEvent(const PnPControl& ref)
     {
         UNREFERENCED_PARAMETER(  ref );
@@ -138,25 +129,19 @@ public:
 class SerialPort : public IPnPEventObserver
 {
 private:
-#pragma warning(push)
-#pragma warning(disable: 4355)
     SerialPort() { }
-#pragma warning(pop)
     HANDLE Handle;
     BOOL HostConnected;
     BOOL GuestConnected;
     HDEVNOTIFY Notify;
     PnPControl* Control;
 public:
-#pragma warning(push)
-#pragma warning(disable: 4355)
     SerialPort(wstring LinkName, PnPControl* ptr);
     virtual ~SerialPort();
     BOOL OpenPort();
     void ClosePort();
     BOOL ReadPort(PVOID buf, size_t *len);
     BOOL WritePort(PVOID buf, size_t *len);
-#pragma warning(pop)
     virtual void handleEvent(const PnPControl& ref);
 };
 
