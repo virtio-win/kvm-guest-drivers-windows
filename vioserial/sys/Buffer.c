@@ -50,36 +50,41 @@ VIOSerialSendBuffers(
     IN BOOLEAN nonblock
 )
 {
-    UINT len;
+    UINT dummy;
     SSIZE_T ret;
     struct VirtIOBufferDescriptor sg;
     struct virtqueue *vq = GetOutQueue(port);
-
+    PVOID ptr = buf;
+    SIZE_T len = count;
     TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "--> %s buf = %p, length = %d\n", __FUNCTION__, buf, (int)count);
 
     WdfSpinLockAcquire(port->OutVqLock);
     VIOSerialReclaimConsumedBuffers(port);
 
-    sg.physAddr = GetPhysicalAddress(buf);
-    sg.ulSize = min(PAGE_SIZE, (unsigned long)count);
-
-    TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "--> %s buf = %p, length = %d pa = %p\n", __FUNCTION__, buf, (int)sg.ulSize, sg.physAddr);
-
-    ret = vq->vq_ops->add_buf(vq, &sg, 1, 0, buf);
-    vq->vq_ops->kick(vq);
-    if (ret < 0)
+    while (len)
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s::Cannot Add buffer \n", __FUNCTION__);
-        WdfSpinLockRelease(port->OutVqLock);
-        return 0;
-    }
+        sg.physAddr = GetPhysicalAddress(ptr);
+        sg.ulSize = min(PAGE_SIZE, (unsigned long)len);
 
-    port->OutVqFull = TRUE;
-    if (!nonblock)
-    {
-        while(!vq->vq_ops->get_buf(vq, &len))
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "--> %s buf = %p, length = %d pa = %p\n", __FUNCTION__, buf, (int)sg.ulSize, sg.physAddr);
+
+        ret = vq->vq_ops->add_buf(vq, &sg, 1, 0, ptr);
+        if (ret < 0)
         {
-           KeStallExecutionProcessor(100);
+           vq->vq_ops->kick(vq);
+           port->OutVqFull = TRUE;
+           if (!nonblock)
+           {
+              while(!vq->vq_ops->get_buf(vq, &dummy))
+              {
+                 KeStallExecutionProcessor(100);
+              }
+           }
+        }
+        else
+        {
+           ptr = (PVOID)((LONG_PTR)ptr + sg.ulSize);
+           len -= sg.ulSize;
         }
     }
     WdfSpinLockRelease(port->OutVqLock);
@@ -129,7 +134,6 @@ VIOSerialFillReadBuf(
 )
 {
     PPORT_BUFFER buf;
-//    struct virtqueue *vq = GetOutQueue(port);
     NTSTATUS  status = STATUS_SUCCESS;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
