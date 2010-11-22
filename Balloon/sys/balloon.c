@@ -190,7 +190,7 @@ BalloonFill(
         }
  
         pNewPageListEntry->PageMdl = pPageMdl;
-        pNewPageListEntry->PagePfn = drvCtx->pfns_table[drvCtx->num_pfns] = *(PPFN_NUMBER)(pPageMdl + 1);
+        pNewPageListEntry->PagePfn = drvCtx->pfns_table[drvCtx->num_pfns] = *MmGetMdlPfnArray(pPageMdl);
  
         WdfSpinLockAcquire(drvCtx->SpinLock);
         PushEntryList(&drvCtx->PageListHead, &(pNewPageListEntry->SingleListEntry));
