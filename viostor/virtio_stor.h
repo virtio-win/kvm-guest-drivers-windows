@@ -55,9 +55,9 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define IO_PORT_LENGTH          0x40
 
 #ifdef INDIRECT_SUPPORTED
-#define MAX_PHYS_SEGMENTS       16
-#else
 #define MAX_PHYS_SEGMENTS       64
+#else
+#define MAX_PHYS_SEGMENTS       16
 #endif
 
 #define VIRTIO_MAX_SG	        (3+MAX_PHYS_SEGMENTS)
