@@ -4,8 +4,7 @@
 #define _WIN32_WINNT 0x0501
 #endif
 
-#include <stdio.h>
-#include <tchar.h>
+#define INITGUID
 
 #include <windows.h>
 #include <initguid.h>
@@ -16,6 +15,9 @@
 #include <dbt.h>
 
 #include <conio.h>
+#include <stdio.h>
+#include <tchar.h>
+
 
 #include "PnPAll.h"
 #include "vioser.h"
