@@ -56,6 +56,7 @@ VIOSerialSendBuffers(
     struct virtqueue *vq = GetOutQueue(port);
     PVOID ptr = buf;
     SIZE_T len = count;
+    UINT elements = 0;
     TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "--> %s buf = %p, length = %d\n", __FUNCTION__, buf, (int)count);
 
     WdfSpinLockAcquire(port->OutVqLock);
@@ -63,19 +64,32 @@ VIOSerialSendBuffers(
 
     while (len)
     {
-        sg.physAddr = GetPhysicalAddress(ptr);
-        sg.ulSize = min(PAGE_SIZE, (unsigned long)len);
-
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "--> %s buf = %p, length = %d pa = %p\n", __FUNCTION__, buf, (int)sg.ulSize, sg.physAddr);
-
-        ret = vq->vq_ops->add_buf(vq, &sg, 1, 0, ptr);
-        if (ret < 0)
+        do
         {
-           vq->vq_ops->kick(vq);
-           port->OutVqFull = TRUE;
-           if (!nonblock)
+           sg.physAddr = GetPhysicalAddress(ptr);
+           sg.ulSize = min(PAGE_SIZE, (unsigned long)len);
+
+           ret = vq->vq_ops->add_buf(vq, &sg, 1, 0, ptr);
+           if (ret == 0)
            {
-              while(!vq->vq_ops->get_buf(vq, &dummy))
+              ptr = (PVOID)((LONG_PTR)ptr + sg.ulSize);
+              len -= sg.ulSize;
+              elements++;
+           }
+        } while ((ret == 0) && (len > 0));
+
+        vq->vq_ops->kick(vq);
+        port->OutVqFull = TRUE;
+        if (!nonblock)
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "--> %s !nonblock\n", __FUNCTION__);
+           while(elements)
+           {
+              if(vq->vq_ops->get_buf(vq, &dummy))
+              {
+                 elements--;
+              }
+              else
               {
                  KeStallExecutionProcessor(100);
               }
@@ -83,8 +97,7 @@ VIOSerialSendBuffers(
         }
         else
         {
-           ptr = (PVOID)((LONG_PTR)ptr + sg.ulSize);
-           len -= sg.ulSize;
+           //FIXME
         }
     }
     WdfSpinLockRelease(port->OutVqLock);
