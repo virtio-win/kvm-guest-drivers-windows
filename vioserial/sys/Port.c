@@ -62,7 +62,7 @@ VIOSerialFindPortById(
         ASSERT(childInfo.Status == WdfChildListRetrieveDeviceSuccess);
         rawPdo = RawPdoSerialPortGetData(hChild);
 
-        if(rawPdo && rawPdo->port->Id == id)
+        if(rawPdo && rawPdo->port->PortId == id)
         {
             WdfChildListEndIteration(list, &iterator);
             TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  id = %d port = 0x%p\n", __FUNCTION__, id, rawPdo->port);
@@ -83,14 +83,15 @@ VIOSerialAddPort(
     PPORTS_DEVICE   pContext = GetPortsDevice(Device);
     NTSTATUS        status = STATUS_SUCCESS;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  port = %d\n", __FUNCTION__, id);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  DeviceId = %d :: PortId = %d\n", __FUNCTION__, pContext->DeviceId, id);
 
     WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(
                                  &port.Header,
                                  sizeof(port)
                                  );
 
-    port.Id = id;
+    port.PortId = id;
+    port.DeviceId = pContext->DeviceId;
     port.NameString.Buffer = NULL;
     port.NameString.Length = 0;
     port.NameString.MaximumLength = 0;
@@ -130,7 +131,7 @@ VIOSerialRemovePort(
     WDFCHILDLIST    list;
     WDF_CHILD_LIST_ITERATOR     iterator;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  port = %d\n", __FUNCTION__, port->Id);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  port = %d\n", __FUNCTION__, port->PortId);
 
     list = WdfFdoGetDefaultChildList(Device);
     WDF_CHILD_LIST_ITERATOR_INIT(&iterator,
@@ -163,7 +164,8 @@ VIOSerialRemovePort(
         }
         ASSERT(childInfo.Status == WdfChildListRetrieveDeviceSuccess);
 
-        if(vport.Id == port->Id)
+        if ((vport.PortId == port->PortId) &&
+            (vport.DeviceId == port->DeviceId))
         {
            status = WdfChildListUpdateChildDescriptionAsMissing(
                                  list,
@@ -180,7 +182,7 @@ VIOSerialRemovePort(
 
            if(vport.GuestConnected)
            {
-              VIOSerialSendCtrlMsg(vport.BusDevice, vport.Id, VIRTIO_CONSOLE_PORT_OPEN, 0);
+              VIOSerialSendCtrlMsg(vport.BusDevice, vport.PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
            }
            WdfSpinLockAcquire(vport.InBufLock);
            VIOSerialDiscardPortData(&vport);
@@ -261,7 +263,7 @@ VIOSerialRenewAllPorts(
 
         if(vport.GuestConnected)
         {
-           VIOSerialSendCtrlMsg(vport.BusDevice, vport.Id, VIRTIO_CONSOLE_PORT_OPEN, 1);
+           VIOSerialSendCtrlMsg(vport.BusDevice, vport.PortId, VIRTIO_CONSOLE_PORT_OPEN, 1);
         }
     }
     WdfChildListEndIteration(list, &iterator);
@@ -323,7 +325,7 @@ VIOSerialShutdownAllPorts(
 
         if(vport.GuestConnected)
         {
-           VIOSerialSendCtrlMsg(vport.BusDevice, vport.Id, VIRTIO_CONSOLE_PORT_OPEN, 0);
+           VIOSerialSendCtrlMsg(vport.BusDevice, vport.PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
         }
 
         WdfSpinLockAcquire(vport.InBufLock);
@@ -353,7 +355,7 @@ VIOSerialInitPortConsole(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     port->GuestConnected = TRUE;
-    VIOSerialSendCtrlMsg(port->BusDevice, port->Id, VIRTIO_CONSOLE_PORT_OPEN, 1);
+    VIOSerialSendCtrlMsg(port->BusDevice, port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 1);
 }
 
 VOID
@@ -460,16 +462,16 @@ VIOSerialPortSendPortReady(
     PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WorkItem);
     PVIOSERIAL_PORT         pport = pdoData->port;
 
-    if(!VIOSerialFindPortById(pport->BusDevice, pport->Id))
+    if(!VIOSerialFindPortById(pport->BusDevice, pport->PortId))
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s re-enqueue work item for id=%d\n",
-        __FUNCTION__, pport->Id);
+        __FUNCTION__, pport->PortId);
         WdfWorkItemEnqueue(WorkItem);
         return;
     }
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s sending PORT_READY for id=%d\n",
-        __FUNCTION__, pport->Id);
-    VIOSerialSendCtrlMsg(pport->BusDevice, pport->Id, VIRTIO_CONSOLE_PORT_READY, 1);
+        __FUNCTION__, pport->PortId);
+    VIOSerialSendCtrlMsg(pport->BusDevice, pport->PortId, VIRTIO_CONSOLE_PORT_READY, 1);
 }
 
 NTSTATUS
@@ -520,8 +522,8 @@ VIOSerialDeviceListCreatePdo(
                                  &buffer,
                                  L"%ws%vport%up%u",
                                  L"\\Device\\",
-                                 0,
-                                 pport->Id
+                                 pport->DeviceId,
+                                 pport->PortId
                                  );
 
         if (!NT_SUCCESS(status))
@@ -568,7 +570,7 @@ VIOSerialDeviceListCreatePdo(
         status = RtlUnicodeStringPrintf(
                                  &buffer,
                                  L"%04d", 
-                                 pport->Id
+                                 pport->PortId
                                  );
         if (!NT_SUCCESS(status))
         {
@@ -586,7 +588,7 @@ VIOSerialDeviceListCreatePdo(
         status = RtlUnicodeStringPrintf(
                                  &buffer, 
                                  L"%02d", 
-                                 pport->Id
+                                 pport->PortId
                                  );
         if (!NT_SUCCESS(status))
         {
@@ -604,8 +606,8 @@ VIOSerialDeviceListCreatePdo(
         status = RtlUnicodeStringPrintf(
                                  &buffer,
                                  L"vport%up%u",
-                                 0,
-                                 pport->Id
+                                 pport->DeviceId,
+                                 pport->PortId
                                  );
         if (!NT_SUCCESS(status))
         {
@@ -769,8 +771,8 @@ VIOSerialDeviceListCreatePdo(
         pnpCaps.Removable        =  WdfTrue;
         pnpCaps.EjectSupported   =  WdfTrue;
         pnpCaps.SurpriseRemovalOK=  WdfTrue;
-        pnpCaps.Address          =  pport->Id;
-        pnpCaps.UINumber         =  pport->Id;
+        pnpCaps.Address          =  pport->DeviceId;
+        pnpCaps.UINumber         =  pport->PortId;
 
         WdfDeviceSetPnpCapabilities(hChild, &pnpCaps);
 
@@ -856,7 +858,7 @@ VIOSerialDeviceListCreatePdo(
     if (!NT_SUCCESS(status))
     {
         // We can send this before PDO is PRESENT since the device won't send any response.
-        VIOSerialSendCtrlMsg(pport->BusDevice, pport->Id, VIRTIO_CONSOLE_PORT_READY, 0);
+        VIOSerialSendCtrlMsg(pport->BusDevice, pport->PortId, VIRTIO_CONSOLE_PORT_READY, 0);
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s status 0x%x\n", __FUNCTION__, status);
@@ -1012,7 +1014,7 @@ VIOSerialPortDeviceControl(
               break;
            }
            RtlZeroMemory(pport_info, sizeof(VIRTIO_PORT_INFO));
-           pport_info->Id = pdoData->port->Id;
+           pport_info->Id = pdoData->port->PortId;
            pport_info->OutVqFull = pdoData->port->OutVqFull;
            pport_info->HostConnected = pdoData->port->HostConnected;
            pport_info->GuestConnected = pdoData->port->GuestConnected;
@@ -1052,13 +1054,13 @@ VIOSerialPortCreate(
 
     UNREFERENCED_PARAMETER(FileObject);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,"%s Port id = %d\n", __FUNCTION__, pdoData->port->Id);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,"%s Port id = %d\n", __FUNCTION__, pdoData->port->PortId);
 
     WdfSpinLockAcquire(pdoData->port->InBufLock);
     if (pdoData->port->GuestConnected == TRUE)
     {
         WdfSpinLockRelease(pdoData->port->InBufLock);
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,"Guest already connected Port id = %d\n", pdoData->port->Id);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,"Guest already connected Port id = %d\n", pdoData->port->PortId);
         status = STATUS_OBJECT_NAME_EXISTS;
     }
     else
@@ -1070,7 +1072,7 @@ VIOSerialPortCreate(
         VIOSerialReclaimConsumedBuffers(pdoData->port);
         WdfSpinLockRelease(pdoData->port->OutVqLock);
 
-        VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->Id, VIRTIO_CONSOLE_PORT_OPEN, 1);
+        VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 1);
     }
     WdfRequestComplete(Request, status);
 
@@ -1086,7 +1088,7 @@ VIOSerialPortClose(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "%s\n", __FUNCTION__);
 
-    VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->Id, VIRTIO_CONSOLE_PORT_OPEN, 0);
+    VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
 
     WdfSpinLockAcquire(pdoData->port->InBufLock);
     pdoData->port->GuestConnected = FALSE;
@@ -1282,8 +1284,8 @@ VIOSerialEvtChildListIdentificationDescriptionDuplicate(
                                  dst->NameString.MaximumLength
                                  );
     }
-
-    dst->Id = src->Id;
+    dst->DeviceId = src->DeviceId;
+    dst->PortId = src->PortId;
 
     dst->OutVqFull = src->OutVqFull;
     dst->HostConnected = src->HostConnected;
@@ -1317,7 +1319,7 @@ VIOSerialEvtChildListIdentificationDescriptionCompare(
                             VIOSERIAL_PORT,
                             Header);
 
-    return (lhs->Id == rhs->Id);
+    return ((lhs->PortId == rhs->PortId) && (lhs->DeviceId == rhs->DeviceId));
 }
 
 VOID

@@ -90,6 +90,7 @@ typedef struct _tagPortDevice
     WDFSPINLOCK         CVqLock;
 
     BOOLEAN             DeviceOK;
+    UINT                DeviceId;
 } PORTS_DEVICE, *PPORTS_DEVICE;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(PORTS_DEVICE, GetPortsDevice)
@@ -126,8 +127,8 @@ typedef struct _tagVioSerialPort
     WDFSPINLOCK         InBufLock;
     WDFSPINLOCK         OutVqLock;
     ANSI_STRING         NameString;
-    UINT                Id;
-
+    UINT                PortId;
+    UINT                DeviceId;
     BOOLEAN             OutVqFull;
     BOOLEAN             HostConnected;
     BOOLEAN             GuestConnected;
@@ -312,7 +313,7 @@ GetInQueue (
     ASSERT (port->BusDevice);
     pContext = GetPortsDevice(port->BusDevice);
     ASSERT (pContext->in_vqs);
-    return pContext->in_vqs[port->Id];
+    return pContext->in_vqs[port->PortId];
 };
 
 __inline
@@ -327,7 +328,7 @@ GetOutQueue (
     ASSERT (port->BusDevice);
     pContext = GetPortsDevice(port->BusDevice);
     ASSERT (pContext->out_vqs);
-    return pContext->out_vqs[port->Id];
+    return pContext->out_vqs[port->PortId];
 };
 
 #endif /* VIOSERIAL_H */

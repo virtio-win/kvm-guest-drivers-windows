@@ -111,7 +111,7 @@ VIOSerialFreeBuffer(
 )
 {
     ASSERT(buf);
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "--> %s  buf = %p, buf->va_buf = %p\n", __FUNCTION__, buf, buf->va_buf);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s  buf = %p, buf->va_buf = %p\n", __FUNCTION__, buf, buf->va_buf);
     if (buf->va_buf)
     {
         ExFreePoolWithTag(buf->va_buf, VIOSERIAL_DRIVER_MEMORY_TAG);
@@ -185,7 +185,7 @@ VIOSerialAddInBuf(
     NTSTATUS  status = STATUS_SUCCESS;
     struct VirtIOBufferDescriptor sg;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "--> %s  buf = %p\n", __FUNCTION__, buf);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s  buf = %p\n", __FUNCTION__, buf);
     if (buf == NULL)
     {
         ASSERT(0);

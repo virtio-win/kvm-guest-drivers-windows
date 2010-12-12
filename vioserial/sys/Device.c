@@ -37,6 +37,8 @@ static NTSTATUS VIOSerialShutDownAllQueues(IN WDFOBJECT WdfDevice);
 
 #endif
 
+static UINT gDeviceCount = 0;
+
 static
 NTSTATUS
 VIOSerialInitInterruptHandling(
@@ -86,6 +88,7 @@ VIOSerialEvtDeviceAdd(
     WDF_PNPPOWER_EVENT_CALLBACKS PnpPowerCallbacks;
     WDF_CHILD_LIST_CONFIG        ChildListConfig;
     PNP_BUS_INFORMATION          busInfo;
+    PPORTS_DEVICE                pContext = NULL;
 	
     UNREFERENCED_PARAMETER(Driver);
 
@@ -149,9 +152,12 @@ VIOSerialEvtDeviceAdd(
         return status;
     }
 
+    pContext = GetPortsDevice(hDevice);
+    pContext->DeviceId = gDeviceCount++;
+
     busInfo.BusTypeGuid = GUID_DEVCLASS_PORT_DEVICE;
     busInfo.LegacyBusType = PNPBus;
-    busInfo.BusNumber = 0;
+    busInfo.BusNumber = pContext->DeviceId;
 
     WdfDeviceSetBusInformationForChildren(hDevice, &busInfo);
 
