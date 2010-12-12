@@ -21,7 +21,8 @@ SOURCES= Driver.c  \
          Port.c    \
          Buffer.c  \
          utils.c   \
-         Control.c  
+         Control.c \
+         vioser.rc
 
 TARGET_DESTINATION=wdf
 
