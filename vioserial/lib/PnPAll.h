@@ -45,6 +45,7 @@ class PnPControl
     }
     PnPControl() :  Thread(INVALID_HANDLE_VALUE), Notification(0, 0, 0)
     { 
+        IsRunningAsService();
         Init(); 
         FindControllers(); 
         FindPorts();
@@ -105,6 +106,7 @@ protected:
     void RemoveController(wchar_t* name);
     void AddPort(const wchar_t* name);
     void RemovePort(wchar_t* name);
+    BOOL IsRunningAsService();
     HDEVNOTIFY RegisterInterfaceNotify(GUID InterfaceClassGuid);
     HANDLE Thread;
     HWND Wnd;

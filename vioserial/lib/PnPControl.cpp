@@ -111,10 +111,15 @@ void PnPControl::Close( )
         UnregisterDeviceNotification(ControllerNotify);
         ControllerNotify = NULL;
     }
-    SendMessage(Wnd, WM_DESTROY, 0, 0);
-    if (WAIT_TIMEOUT == WaitForSingleObject(Thread, 1000))
+    if (Wnd && Thread)
     {
-        printf("xru\n");
+        SendMessage(Wnd, WM_DESTROY, 0, 0);
+        if (WAIT_TIMEOUT == WaitForSingleObject(Thread, 1000))
+        {
+            printf("Cannot close thread after 1 sec\n");
+            TerminateThread(Thread, 0);
+        }
+        Thread = NULL;
     }
 }
 
@@ -323,7 +328,7 @@ void PnPControl::RemovePort(wchar_t* name)
 
 BOOL PnPControl::FindPort(const wchar_t* name)
 {
-	wstring tmp = name;
+    wstring tmp = name;
     for(Iterator it = Ports.begin(); it != Ports.end(); it++)
     {
         if (_wcsnicmp((*it)->SymbolicName.c_str(), name, (*it)->Name.size()) == 0)
@@ -331,22 +336,22 @@ BOOL PnPControl::FindPort(const wchar_t* name)
             return TRUE;
         }
     }
-	return FALSE;
+    return FALSE;
 }
 PVOID PnPControl::OpenPort(const wchar_t* name)
 {
-	wstring tmp = name;
+    wstring tmp = name;
     for(Iterator it = Ports.begin(); it != Ports.end(); it++)
     {
         if (_wcsnicmp((*it)->SymbolicName.c_str(), name, (*it)->Name.size()) == 0)
         {
-			if(((SerialPort*)(*it))->OpenPort() == TRUE)
-			{
-				return *it;
-			}
+            if(((SerialPort*)(*it))->OpenPort() == TRUE)
+            {
+                return *it;
+            }
         }
     }
-	return NULL;
+   return NULL;
 }
 BOOL PnPControl::ReadPort(PVOID port, PVOID buf, PULONG size)
 {
@@ -354,10 +359,10 @@ BOOL PnPControl::ReadPort(PVOID port, PVOID buf, PULONG size)
     {
         if (*it == port)
         {
-			return ((SerialPort*)(*it))->ReadPort(buf, (size_t*)(size));
+            return ((SerialPort*)(*it))->ReadPort(buf, (size_t*)(size));
         }
     }
-	return FALSE;
+    return FALSE;
 }
 BOOL PnPControl::WritePort(PVOID port, PVOID buf, ULONG size)
 {
@@ -365,30 +370,73 @@ BOOL PnPControl::WritePort(PVOID port, PVOID buf, ULONG size)
     {
         if (*it == port)
         {
-			return ((SerialPort*)(*it))->WritePort(buf, (size_t*)(&size));
+            return ((SerialPort*)(*it))->WritePort(buf, (size_t*)(&size));
         }
     }
-	return FALSE;
+    return FALSE;
 }
 VOID PnPControl::ClosePort(PVOID port)
 {
-	for(Iterator it = Ports.begin(); it != Ports.end(); it++)
+    for(Iterator it = Ports.begin(); it != Ports.end(); it++)
     {
         if (*it == port)
         {
-			((SerialPort*)(*it))->ClosePort();
-			return;
+            ((SerialPort*)(*it))->ClosePort();
+            return;
         }
     }
 }
 
 wchar_t* PnPControl::PortSymbolicName(int index)
 {
-	if ((size_t)(index) > NumPorts())
-	{
-		return NULL;
-	}
-	Iterator it = Ports.begin();
-	advance(it, index);
-	return (wchar_t*)((*it)->SymbolicName.c_str());
+    if ((size_t)(index) > NumPorts())
+    {
+        return NULL;
+    }
+    Iterator it = Ports.begin();
+    advance(it, index);
+    return (wchar_t*)((*it)->SymbolicName.c_str());
+}
+
+BOOL PnPControl::IsRunningAsService()
+{
+    wchar_t wstrPath[_MAX_FNAME];
+    if (!GetModuleFileName( NULL, wstrPath, _MAX_FNAME))
+    {
+        printf ("Error getting module file name (%d)\n", GetLastError());
+        return FALSE;
+    }
+    printf ("Module File Name is %ws\n", wstrPath);
+
+    wstring fullname(wstrPath);
+    size_t pos_begin = fullname.rfind(L'\\') + 1;
+    size_t pos_end   = fullname.rfind(L'.');
+    wstring filename(fullname, pos_begin, pos_end-pos_begin);
+    printf ("File name = %ws\n", filename.c_str());
+    SERVICE_STATUS_PROCESS status;
+    DWORD                  needed;
+
+    SC_HANDLE scm = OpenSCManager (NULL, NULL, SC_MANAGER_ALL_ACCESS);
+    if (scm == NULL)
+    {
+        printf ("OpenSCManager failed (%d)\n", GetLastError());
+        return FALSE;
+    }
+    SC_HANDLE svc = OpenService (scm, filename.c_str(), SERVICE_ALL_ACCESS);
+    if (svc == NULL)
+    {
+        printf ("OpenService failed (%d)\n", GetLastError());
+        return FALSE;
+    }
+    if(!QueryServiceStatusEx(svc, SC_STATUS_PROCESS_INFO, (LPBYTE) &status, sizeof(SERVICE_STATUS_PROCESS), &needed))
+    {
+        printf ("QueryServiceStatusEx failed (%d)\n", GetLastError());
+        CloseServiceHandle (svc);
+        CloseServiceHandle (scm);
+        return FALSE;
+    }
+
+    CloseServiceHandle (svc);
+    CloseServiceHandle (scm);
+    return (status.dwProcessId == GetCurrentProcessId());
 }
