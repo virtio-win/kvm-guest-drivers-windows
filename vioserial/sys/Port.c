@@ -8,6 +8,7 @@
 
 EVT_WDF_WORKITEM VIOSerialPortSendPortReady;
 EVT_WDF_WORKITEM VIOSerialPortCreateSymbolicName;
+EVT_WDF_REQUEST_CANCEL VIOSerialRequestCancel;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, VIOSerialDeviceListCreatePdo)
@@ -881,6 +882,7 @@ VIOSerialPortRead(
            return;
         }
         ASSERT (pdoData->port->PendingReadRequest == NULL);
+        WdfRequestMarkCancelableEx(Request, VIOSerialRequestCancel);
         pdoData->port->PendingReadRequest = Request;
         return;
     }
@@ -941,6 +943,31 @@ VIOSerialPortWrite(
     length = VIOSerialSendBuffers(pport, systemBuffer, length, nonBlock);
     WdfRequestCompleteWithInformation( Request, status, length);
 }
+
+
+VOID
+VIOSerialRequestCancel(
+    IN WDFREQUEST Request
+    )
+{
+    PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(WdfRequestGetIoQueue(Request)));
+
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "-->%s called on request 0x%p\n", __FUNCTION__, Request);
+    //
+    // The following is race free by the callside or DPC side
+    // synchronizing completion by calling
+    // WdfRequestMarkCancelable(Queue, Request, FALSE) before
+    // completion and not calling WdfRequestComplete if the
+    // return status == STATUS_CANCELLED.
+    //
+    WdfRequestCompleteWithInformation(Request, STATUS_CANCELLED, 0L);
+
+    ASSERT(pdoData->port->PendingReadRequest == Request);
+    pdoData->port->PendingReadRequest = NULL;
+
+    return;
+}
+
 
 VOID
 VIOSerialPortDeviceControl(
