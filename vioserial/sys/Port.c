@@ -862,10 +862,13 @@ VIOSerialPortRead(
     SIZE_T             length;
     NTSTATUS           status;
     PUCHAR             systemBuffer;
+    BOOLEAN            nonBlock;
 
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "-->%s\n", __FUNCTION__);
+
+    nonBlock = ((WdfFileObjectGetFlags(WdfRequestGetFileObject(Request)) & FO_SYNCHRONOUS_IO) != FO_SYNCHRONOUS_IO);
 
     status = WdfRequestRetrieveOutputBuffer(Request, Length, &systemBuffer, &length);
     if (!NT_SUCCESS(status))
@@ -876,7 +879,7 @@ VIOSerialPortRead(
 
     if (!VIOSerialPortHasData(pdoData->port))
     {
-        if (!pdoData->port->HostConnected)
+        if (!pdoData->port->HostConnected && !nonBlock)
         {
            WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
            return;
@@ -953,13 +956,7 @@ VIOSerialRequestCancel(
     PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(WdfRequestGetIoQueue(Request)));
 
     TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "-->%s called on request 0x%p\n", __FUNCTION__, Request);
-    //
-    // The following is race free by the callside or DPC side
-    // synchronizing completion by calling
-    // WdfRequestMarkCancelable(Queue, Request, FALSE) before
-    // completion and not calling WdfRequestComplete if the
-    // return status == STATUS_CANCELLED.
-    //
+
     WdfRequestCompleteWithInformation(Request, STATUS_CANCELLED, 0L);
 
     ASSERT(pdoData->port->PendingReadRequest == Request);
