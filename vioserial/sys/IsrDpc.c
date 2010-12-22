@@ -74,13 +74,14 @@ VIOSerialInterruptDpc(
 
            if (port->InBuf)
            {
-              status = WdfIoQueueRetrieveNextRequest(port->PendingReadQueue, &request);
-              if (NT_SUCCESS(status))
+              if (port->PendingReadRequest)
               {
+                 request = port->PendingReadRequest;
                  TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,"Got available read request\n");
                  status = WdfRequestRetrieveOutputBuffer(request, 0, &systemBuffer, &Length);
                  if (NT_SUCCESS(status))
                  {
+                    port->PendingReadRequest = NULL;
                     information = (ULONG)VIOSerialFillReadBuf(port, systemBuffer, Length);
                     WdfRequestCompleteWithInformation(request, STATUS_SUCCESS, information);
                  }
