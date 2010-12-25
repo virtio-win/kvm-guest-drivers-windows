@@ -338,7 +338,7 @@ BOOL PnPControl::FindPort(const wchar_t* name)
     }
     return FALSE;
 }
-PVOID PnPControl::OpenPort(const wchar_t* name)
+PVOID PnPControl::OpenPortByName(const wchar_t* name)
 {
     wstring tmp = name;
     for(Iterator it = Ports.begin(); it != Ports.end(); it++)
@@ -352,6 +352,16 @@ PVOID PnPControl::OpenPort(const wchar_t* name)
         }
     }
    return NULL;
+}
+PVOID PnPControl::OpenPortById(UINT id)
+{
+    if ((size_t)(id) > NumPorts())
+    {
+        return NULL;
+    }
+    Iterator it = Ports.begin();
+    advance(it, id);
+    return *it;
 }
 BOOL PnPControl::ReadPort(PVOID port, PVOID buf, PULONG size)
 {

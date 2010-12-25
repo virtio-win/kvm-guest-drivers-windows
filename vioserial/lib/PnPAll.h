@@ -72,7 +72,8 @@ public:
         }
     }
     BOOL FindPort(const wchar_t* name);
-    PVOID OpenPort(const wchar_t* name);
+    PVOID OpenPortByName(const wchar_t* name);
+    PVOID OpenPortById(UINT id);
     BOOL ReadPort(PVOID port, PVOID buf, PULONG size);
     BOOL WritePort(PVOID port, PVOID buf, ULONG size);
     VOID ClosePort(PVOID port);

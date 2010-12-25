@@ -32,10 +32,18 @@ DLL_API BOOL FindPort ( const wchar_t* name )
     return ret;
 }
 
-DLL_API PVOID OpenPort ( const wchar_t* name )
+DLL_API PVOID OpenPortByName ( const wchar_t* name )
 {
     PnPControl* control = PnPControl::GetInstance();
-    PVOID ret = control->OpenPort(name);
+    PVOID ret = control->OpenPortByName(name);
+    PnPControl::CloseInstance();
+    return ret;
+}
+
+DLL_API PVOID OpenPortById ( UINT id )
+{
+    PnPControl* control = PnPControl::GetInstance();
+    PVOID ret = control->OpenPortById(id);
     PnPControl::CloseInstance();
     return ret;
 }
