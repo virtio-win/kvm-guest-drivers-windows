@@ -33,7 +33,6 @@ VIOSerialInterruptDpc(
     PPORTS_DEVICE    pContext;
     PVIOSERIAL_PORT  port;
     WDFDEVICE        Device;
-    WDFDMATRANSACTION dmaTransaction;
 
 
     ULONG            information;
@@ -41,7 +40,6 @@ VIOSerialInterruptDpc(
     PUCHAR           systemBuffer;
     size_t           Length;
     WDFREQUEST       request;
-    BOOLEAN          nonBlock;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
 
