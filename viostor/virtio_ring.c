@@ -56,10 +56,10 @@ vring_add_indirect(
     struct vring_desc *desc = (struct vring_desc *)va;
     unsigned head;
     unsigned int i;
-    STOR_PHYSICAL_ADDRESS addr;
+    SCSI_PHYSICAL_ADDRESS addr;
     ULONG len;
 
-    addr = StorPortGetPhysicalAddress(vq->vq.DeviceExtension, NULL, desc, &len);
+    addr = ScsiPortGetPhysicalAddress(vq->vq.DeviceExtension, NULL, desc, &len);
     if (!addr.QuadPart) {
         return vq->vring.num;
     }
