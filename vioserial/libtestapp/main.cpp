@@ -33,6 +33,7 @@ VOID ReadTest( UINT id)
         {
            printf ("%s\n", data);
         }
+        ClosePort(port);
         delete[] data;
         return;
     }
@@ -49,6 +50,7 @@ VOID InfoTest( )
         {
            printf ("Port index %d.\n", i);
            printf ("\tSymbolic name %ws\n", PortSymbolicName(i));
+           ClosePort(port);
         }
     }
 }
@@ -65,6 +67,7 @@ VOID WriteTest( UINT id)
         {
            printf ("WriteTest Error.\n");
         }
+        ClosePort(port);
         delete[] data;
         return;
     }
@@ -85,7 +88,10 @@ VOID NotificationTest( UINT id)
         int test_data = 5;
         RegisterNotification(port, NotificationTestFunction, (PVOID)&test_data);
         while(getchar() != 'q');
+        ClosePort(port);
+        return;
     }
+    printf ("NotificationTest Error. Invalid port index.\n");
 }
 
 
