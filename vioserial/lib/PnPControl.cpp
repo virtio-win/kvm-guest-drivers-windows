@@ -408,6 +408,19 @@ wchar_t* PnPControl::PortSymbolicName(int index)
     return (wchar_t*)((*it)->SymbolicName.c_str());
 }
 
+VOID PnPControl::RegisterNotification(PVOID port, VIOSERIALNOTIFYCALLBACK pfn, PVOID ptr)
+{
+    for(Iterator it = Ports.begin(); it != Ports.end(); it++)
+    {
+        if (*it == port)
+        {
+            ((SerialPort*)(*it))->NotificationPair.first = pfn;
+            ((SerialPort*)(*it))->NotificationPair.second = ptr;
+            return;
+        }
+    }
+}
+
 BOOL PnPControl::IsRunningAsService()
 {
     wchar_t wstrPath[_MAX_FNAME];

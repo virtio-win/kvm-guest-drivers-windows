@@ -82,8 +82,14 @@ DLL_API UINT NumPorts(void)
 DLL_API wchar_t* PortSymbolicName ( int index )
 {
     PnPControl* control = PnPControl::GetInstance();
-    wstring ret = control->PortSymbolicName(index);
+    wchar_t* ret = control->PortSymbolicName(index);
     PnPControl::CloseInstance();
-    return (wchar_t*)ret.c_str();
+    return ret;
 }
 
+DLL_API VOID RegisterNotification(PVOID port, VIOSERIALNOTIFYCALLBACK pfn, PVOID ptr)
+{
+    PnPControl* control = PnPControl::GetInstance();
+    control->RegisterNotification(port, pfn, ptr);
+    PnPControl::CloseInstance();
+}

@@ -4,6 +4,8 @@ SerialPort::SerialPort(wstring LinkName, PnPControl* ptr)
 {
     Name = LinkName;
     Notify = NULL;
+    NotificationPair.first = NULL;
+    NotificationPair.second = NULL;
     Handle = CreateFile(Name.c_str(),
         GENERIC_WRITE | GENERIC_READ,
         0,
@@ -16,7 +18,7 @@ SerialPort::SerialPort(wstring LinkName, PnPControl* ptr)
         return;
     }
     ULONG   ulReturnedLength = 0;
-    BYTE buf[256];
+    BYTE buf[512];
     PVIRTIO_PORT_INFO inf = (PVIRTIO_PORT_INFO)buf;
     BOOL res = DeviceIoControl(
         Handle,
@@ -24,17 +26,20 @@ SerialPort::SerialPort(wstring LinkName, PnPControl* ptr)
         NULL,
         0,
         buf,
-        1024,
+        sizeof(buf),
         &ulReturnedLength,
         NULL);
     if (res == FALSE)
     {
+        printf ("Error. DeviceIoControl failed %d.\n", GetLastError());
         return;
     }
     HostConnected = inf->HostConnected;
     string s = inf->Name;
+
     SymbolicName.resize(s.length(),L' ');
     copy(s.begin(), s.end(), SymbolicName.begin());
+
     Control = ptr;
     CloseHandle(Handle);
     Handle = INVALID_HANDLE_VALUE;
@@ -57,7 +62,7 @@ BOOL SerialPort::OpenPort()
         return FALSE;
     }
     ULONG   ulReturnedLength = 0;
-    BYTE buf[256];
+    BYTE buf[512];
     PVIRTIO_PORT_INFO inf = (PVIRTIO_PORT_INFO)buf;
     BOOL res = DeviceIoControl(
         Handle,
@@ -65,11 +70,12 @@ BOOL SerialPort::OpenPort()
         NULL,
         0,
         buf,
-        1024,
+        sizeof(buf),
         &ulReturnedLength,
         NULL);
     if (res == FALSE)
     {
+        printf ("Error. DeviceIoControl failed %d.\n", GetLastError());
         return FALSE;
     }
     HostConnected = inf->HostConnected;
@@ -215,6 +221,10 @@ void SerialPort::handleEvent(const PnPControl& ref)
         {
             PVIRTIO_PORT_STATUS_CHANGE pEventInfo = (PVIRTIO_PORT_STATUS_CHANGE) pHdr->dbch_data;
             HostConnected = pEventInfo->Reason;
+            if (NotificationPair.first)
+            {
+                NotificationPair.first(NotificationPair.second);
+            }
         }
                           }
                           break;

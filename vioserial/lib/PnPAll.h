@@ -3,6 +3,7 @@
 #include "stdafx.h"
 #include <list>
 #include <string>
+#include "vioser.h"
 
 using namespace std;
 
@@ -79,6 +80,7 @@ public:
     VOID ClosePort(PVOID port);
     size_t NumPorts() {return Ports.size();};
     wchar_t* PortSymbolicName(int index);
+    VOID RegisterNotification(PVOID port, VIOSERIALNOTIFYCALLBACK pfn, PVOID ptr);
     const PnPNotification& GetNotification() const
     {
         return Notification;
@@ -146,5 +148,6 @@ public:
     BOOL ReadPort(PVOID buf, size_t *len);
     BOOL WritePort(PVOID buf, size_t *len);
     virtual void handleEvent(const PnPControl& ref);
+    pair <VIOSERIALNOTIFYCALLBACK*, PVOID> NotificationPair; 
 };
 
