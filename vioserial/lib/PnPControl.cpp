@@ -361,7 +361,11 @@ PVOID PnPControl::OpenPortById(UINT id)
     }
     Iterator it = Ports.begin();
     advance(it, id);
-    return *it;
+    if (((SerialPort*)(*it))->OpenPort() == TRUE)
+    {
+        return *it;
+    }
+    return NULL;
 }
 BOOL PnPControl::ReadPort(PVOID port, PVOID buf, PULONG size)
 {

@@ -123,9 +123,10 @@ BOOL SerialPort::ReadPort(PVOID buf, size_t *len)
         ); 
     if (!res)
     {
-        if (GetLastError() != ERROR_IO_PENDING)
+        DWORD err = GetLastError();
+        if ( err != ERROR_IO_PENDING)
         {
-            printf("Write failed but isn't delayed.\n");
+            printf("Read failed but isn't delayed. Error = %d\n", err);
             res = FALSE;
         }
         else
@@ -179,9 +180,10 @@ BOOL SerialPort::WritePort(PVOID buf, size_t *len)
         );
     if (!res)
     {
-        if (GetLastError() != ERROR_IO_PENDING)
+        DWORD err = GetLastError();
+        if (err != ERROR_IO_PENDING)
         {
-            printf("Write failed but isn't delayed.\n");
+            printf("Write failed but isn't delayed. Error = %d\n", err);
             res = FALSE;
         }
         else
