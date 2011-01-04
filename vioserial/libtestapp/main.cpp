@@ -39,15 +39,18 @@ VOID ReadTest( UINT id)
     printf ("ReadTest Error. Invalid port index.\n");
 }
 
-VOID InfoTest( UINT id)
+VOID InfoTest( )
 {
-    PVOID port = OpenPortById(0);
-    if (port)
+    UINT nr = NumPorts();
+    for (UINT i = 0; i < nr; i++)
     {
-        //
-        return;
+        PVOID port = OpenPortById(i);
+        if (port)
+        {
+           printf ("Port index %d.\n", i);
+           printf ("\tSymbolic name %ws\n", PortSymbolicName(i));
+        }
     }
-    printf ("InfoTest Error. Invalid port index.\n");
 }
 
 VOID WriteTest( UINT id)
@@ -68,6 +71,23 @@ VOID WriteTest( UINT id)
     printf ("WriteTest Error. Invalid port index.\n");
 }
 
+BOOL NotificationTestFunction(PVOID ptr)
+{
+    printf ("NotificationTestFunction.\n");
+    return TRUE;
+}
+
+VOID NotificationTest( UINT id)
+{
+    PVOID port = OpenPortById(id);
+    if (port)
+    {
+        int test_data = 5;
+        RegisterNotification(port, NotificationTestFunction, (PVOID)&test_data);
+        while(getchar() != 'q');
+    }
+}
+
 
 ULONG
 _cdecl
@@ -85,7 +105,9 @@ wmain(
         } else if (_tcsicmp(L"-w", argv[1]) == 0) {
            WriteTest(0);
         } else if (_tcsicmp(L"-i", argv[1]) == 0) {
-           InfoTest(0);
+           InfoTest();
+        } else if (_tcsicmp(L"-n", argv[1]) == 0) {
+           NotificationTest(0);
         } else if (_tcsicmp(L"help", argv[1]) == 0) {
            ShowUsage();
         } else {
