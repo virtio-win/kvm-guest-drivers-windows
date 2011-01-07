@@ -1,3 +1,17 @@
+Date	7 January 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm25
+
+Fixed bugs:
+ 
+Bug 617000 - feature request: virtio-serial windows driver has a write size limitation that should be lifted
+Bug 625036 - For virtio-blk driver MSISupported should be turned on by default on VISTA and higher,
+Bug 637713 - fail to attach virtio serial port to guest when use same nr for different virtio serial pci
+
+New features:
+Indirect buffers support for viostor driver.
+
+
 Date	20 September 2010
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm24
