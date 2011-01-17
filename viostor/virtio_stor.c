@@ -198,6 +198,12 @@ VirtIoFindAdapter(
     ULONG              vq_sz;
     USHORT             pageNum;
 
+#ifdef MSI_SUPPORTED
+    PPCI_COMMON_CONFIG pPciConf = NULL;
+    UCHAR              pci_cfg_buf[256];
+    ULONG              pci_cfg_len;
+#endif
+
     UNREFERENCED_PARAMETER( HwContext );
     UNREFERENCED_PARAMETER( BusInformation );
     UNREFERENCED_PARAMETER( ArgumentString );
@@ -267,7 +273,6 @@ VirtIoFindAdapter(
         return SP_RETURN_ERROR;
     }
 
-
     ConfigInfo->NumberOfBuses               = 1;
     ConfigInfo->MaximumNumberOfTargets      = 1;
     ConfigInfo->MaximumNumberOfLogicalUnits = 1;
@@ -293,6 +298,63 @@ VirtIoFindAdapter(
                    (*ConfigInfo->AccessRanges)[0].RangeLength));
         return SP_RETURN_ERROR;
     }
+
+    adaptExt->msix_enabled = FALSE;
+
+#ifdef MSI_SUPPORTED
+    pci_cfg_len = StorPortGetBusData (DeviceExtension,
+                                           PCIConfiguration,
+                                           ConfigInfo->SystemIoBusNumber,
+                                           (ULONG)ConfigInfo->SlotNumber,
+                                           (PVOID)pci_cfg_buf,
+                                           (ULONG)256);
+    if (pci_cfg_len == 256)
+    {
+        UCHAR CapOffset;
+        PPCI_MSIX_CAPABILITY pMsixCapOffset;
+
+        pPciConf = (PPCI_COMMON_CONFIG)pci_cfg_buf;
+        if ( (pPciConf->Status & PCI_STATUS_CAPABILITIES_LIST) == 0)
+        {
+           RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("NO CAPABILITIES_LIST\n"));
+        }
+        else
+        {
+           if ( (pPciConf->HeaderType & (~PCI_MULTIFUNCTION)) == PCI_DEVICE_TYPE )
+           {
+              CapOffset = pPciConf->u.type0.CapabilitiesPtr;
+              while (CapOffset != 0)
+              {
+                 pMsixCapOffset = (PPCI_MSIX_CAPABILITY)(pci_cfg_buf + CapOffset);
+                 if ( pMsixCapOffset->Header.CapabilityID == PCI_CAPABILITY_ID_MSIX )
+                 {
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageControl.TableSize = %d\n", pMsixCapOffset->MessageControl.TableSize));
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageControl.FunctionMask = %d\n", pMsixCapOffset->MessageControl.FunctionMask));
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageControl.MSIXEnable = %d\n", pMsixCapOffset->MessageControl.MSIXEnable));
+
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageTable = %p\n", pMsixCapOffset->MessageTable));
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("PBATable = %d\n", pMsixCapOffset->PBATable));
+                    adaptExt->msix_enabled = (pMsixCapOffset->MessageControl.MSIXEnable == 1);
+                    break;
+                 }
+                 else
+                 {
+                    CapOffset = pMsixCapOffset->Header.Next;
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("CapabilityID = %x, Next CapOffset = %x\n", pMsixCapOffset->Header.CapabilityID, CapOffset));
+                 }
+              }
+           }
+           else
+           {
+              RhelDbgPrint(TRACE_LEVEL_FATAL, ("NOT A PCI_DEVICE_TYPE\n"));
+           }
+        }
+    }
+    else
+    {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("CANNOT READ PCI CONFIGURATION SPACE %d\n", pci_cfg_len));
+    }
+#endif
 
     VirtIODeviceReset(DeviceExtension);
     ScsiPortWritePortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)0);
@@ -759,21 +821,15 @@ VirtIoAdapterControl(
     case ScsiRestartAdapter: {
         RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("ScsiRestartAdapter\n"));
         VirtIODeviceReset(DeviceExtension);
+        ScsiPortWritePortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)0);
+        ScsiPortWritePortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
         adaptExt->pci_vq_info.vq = NULL;
-#ifdef MSI_SUPPORTED
-        if(!adaptExt->dump_mode && adaptExt->msix_vectors) {
-           adaptExt->pci_vq_info.vq = VirtIODeviceFindVirtualQueue(DeviceExtension, 0, adaptExt->msix_vectors);
-        }
-#endif
-        if(!adaptExt->pci_vq_info.vq) {
-           adaptExt->pci_vq_info.vq = VirtIODeviceFindVirtualQueue(DeviceExtension, 0, 0);
-        }
-        if (!adaptExt->pci_vq_info.vq)
+
+        if (!VirtIoHwInitialize(DeviceExtension))
         {
-           RhelDbgPrint(TRACE_LEVEL_FATAL, ("Cannot find snd virtual queue\n"));
+           RhelDbgPrint(TRACE_LEVEL_FATAL, ("Cannot Initialize HW\n"));
            break;
         }
-        VirtIoHwInitialize(DeviceExtension);
         status = ScsiAdapterControlSuccess;
         break;
     }

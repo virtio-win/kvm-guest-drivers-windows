@@ -114,6 +114,7 @@ typedef struct _ADAPTER_EXTENSION {
     BOOLEAN               dump_mode;
     LIST_ENTRY            list_head;
     ULONG                 msix_vectors;
+    BOOLEAN               msix_enabled;
     ULONG                 features;
     BOOLEAN               flush_done;
 #ifdef INDIRECT_SUPPORTED
@@ -142,6 +143,34 @@ VirtIoInterrupt(
     IN PVOID DeviceExtension
     );
 
+
+#ifdef MSI_SUPPORTED
+#ifndef PCIX_TABLE_POINTER
+typedef struct {
+  union {
+    struct {
+      ULONG BaseIndexRegister:3;
+      ULONG Reserved:29;
+    };
+    ULONG TableOffset;
+  };
+} PCIX_TABLE_POINTER, *PPCIX_TABLE_POINTER;
+#endif
+
+#ifndef PCI_MSIX_CAPABILITY
+typedef struct {
+  PCI_CAPABILITIES_HEADER Header;
+  struct {
+    USHORT TableSize  :11;
+    USHORT Reserved  :3;
+    USHORT FunctionMask  :1;
+    USHORT MSIXEnable  :1;
+  } MessageControl;
+  PCIX_TABLE_POINTER      MessageTable;
+  PCIX_TABLE_POINTER      PBATable;
+} PCI_MSIX_CAPABILITY, *PPCI_MSIX_CAPABILITY;
+#endif
+#endif
 
 
 #endif ___VIOSTOR__H__
