@@ -1,3 +1,16 @@
+Date	20 January 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm26
+
+Fixed bugs:
+ 
+Bug 669276 - [WHQL]Windows fails to do S4/S3 with virtio-win-1.1.17
+Bug 669633 - [WHQL]Job of "DPWDK-HotReplace-Device Test-Verify driver support for D3 power state" 
+             fails with getting BSOD 
+Bug 669314 - (virtio-win-1.1.17) Can not generate crash dump file after BSOD of Windows guests
+Bug 669316 - [WHQL] BSOD occurs when running "CHAOS-Concurrent Hardware And OS test"  
+
+
 Date	7 January 2011
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm25
