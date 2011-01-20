@@ -427,7 +427,7 @@ VirtIoPassiveInitializeRoutine (
     StorPortInitializeDpc(DeviceExtension,
                     &adaptExt->completion_dpc,
                     CompleteDpcRoutine);
-
+    adaptExt->dpc_ok = TRUE;
     return TRUE;
 }
 #endif
@@ -565,11 +565,12 @@ VirtIoHwInitialize(
     ScsiPortMoveMemory(&adaptExt->inquiry_data.VendorSpecific, "0001", sizeof("0001"));
 
 #ifdef USE_STORPORT
-    if(!adaptExt->dump_mode)
+    if(!adaptExt->dump_mode && !adaptExt->dpc_ok)
     {
         return StorPortEnablePassiveInitialization(DeviceExtension, VirtIoPassiveInitializeRoutine);
     }
 #endif
+    RhelDbgPrint(TRACE_LEVEL_ERROR, ("<--->%s : return TRUE\n", __FUNCTION__));
     return TRUE;
 }
 
@@ -1197,7 +1198,7 @@ CompleteDPC(
     RemoveEntryList(&vbr->list_entry);
 
 #ifdef USE_STORPORT
-    if(!adaptExt->dump_mode) {
+    if(!adaptExt->dump_mode && adaptExt->dpc_ok) {
         InsertTailList(&adaptExt->complete_list, &vbr->list_entry);
         StorPortIssueDpc(DeviceExtension,
                          &adaptExt->completion_dpc,

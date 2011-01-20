@@ -123,6 +123,7 @@ typedef struct _ADAPTER_EXTENSION {
 #ifdef USE_STORPORT
     LIST_ENTRY            complete_list;
     STOR_DPC              completion_dpc;
+    BOOLEAN               dpc_ok;
 #endif
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 

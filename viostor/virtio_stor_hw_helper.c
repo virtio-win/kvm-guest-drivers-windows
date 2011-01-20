@@ -57,15 +57,18 @@ RhelDoFlush(
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     ULONG i;
-    ULONG Wait = 100000;
+    ULONG Wait = 10000;
 
     ASSERT(adaptExt->flush_done != TRUE);
     if(StorPortSynchronizeAccess(DeviceExtension, SynchronizedFlushRoutine, (PVOID)Srb)) {
         for (i = 0; i < Wait; i++) {
-           StorPortStallExecution(1000);
            if (adaptExt->flush_done == TRUE) {
               adaptExt->flush_done = FALSE;
               return Srb->SrbStatus;
+           }
+           StorPortStallExecution(500);
+           if (adaptExt->dump_mode) {
+              VirtIoInterrupt(DeviceExtension);
            }
         }
     }
@@ -83,7 +86,7 @@ RhelDoFlush(
     ULONG               fragLen;
     int                 num_free;
     ULONG               i;
-    ULONG               Wait   = 100000;
+    ULONG               Wait   = 10000;
     ULONG               status = SRB_STATUS_ERROR;
 
     srbExt->vbr.out_hdr.sector = 0;
@@ -111,7 +114,7 @@ RhelDoFlush(
               status = Srb->SrbStatus;
               break;
            }
-           ScsiPortStallExecution(1000);
+           ScsiPortStallExecution(500);
            VirtIoInterrupt(DeviceExtension);
         }
     }
@@ -150,7 +153,6 @@ SynchronizedReadWriteRoutine(
         adaptExt->pci_vq_info.vq->vq_ops->kick(adaptExt->pci_vq_info.vq);
         return TRUE;
     }
-
     StorPortBusy(DeviceExtension, 5);
     return FALSE;
 }
@@ -291,6 +293,5 @@ RhelGetLba(
             return (ULONGLONG)-1;
         }
     }
-
     return (lba.AsULongLong * (adaptExt->info.blk_size / SECTOR_SIZE));
 }
