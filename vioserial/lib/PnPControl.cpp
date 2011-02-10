@@ -97,6 +97,12 @@ void PnPControl::Init( )
     {
         printf("Cannot create thread Error = %d.\n", GetLastError());
     }
+
+    if ( !InitializeCriticalSectionAndSpinCount(&PortsSC, 0x4000))
+    {
+        printf("Cannot initalize critical section Error = %d.\n", GetLastError());
+    }
+
 }
 
 void PnPControl::Close( )
@@ -121,6 +127,7 @@ void PnPControl::Close( )
         }
         Thread = NULL;
     }
+    DeleteCriticalSection(&PortsSC);
 }
 
 DWORD WINAPI PnPControl::ServiceThread(PnPControl* ptr)
@@ -309,12 +316,15 @@ void PnPControl::RemoveController(wchar_t* name)
 void PnPControl::AddPort(const wchar_t* name)
 {
     printf ("Add Port %ws\n", name);
+    EnterCriticalSection(&PortsCS);
     Ports.push_back(new SerialPort(name, this));
+    LeaveCriticalSection(&PortsCS);
 }
 
 void PnPControl::RemovePort(wchar_t* name)
 {
     printf ("Remove Port %ws\n", name);
+    EnterCriticalSection(&PortsCS);
     for(Iterator it = Ports.begin(); it != Ports.end(); it++)
     {
         if (_wcsnicmp((*it)->Name.c_str(), name, (*it)->Name.size()) == 0)
@@ -324,34 +334,43 @@ void PnPControl::RemovePort(wchar_t* name)
             break;
         }
     }
+    LeaveCriticalSection(&PortsCS);
 }
 
 BOOL PnPControl::FindPort(const wchar_t* name)
 {
     wstring tmp = name;
+    EnterCriticalSection(&PortsCS);
+    BOOL ret = FALSE;
     for(Iterator it = Ports.begin(); it != Ports.end(); it++)
     {
         if (_wcsnicmp((*it)->SymbolicName.c_str(), name, (*it)->Name.size()) == 0)
         {
-            return TRUE;
+            ret = TRUE;
+            break;
         }
     }
-    return FALSE;
+    LeaveCriticalSection(&PortsCS);
+    return ret;
 }
 PVOID PnPControl::OpenPortByName(const wchar_t* name)
 {
     wstring tmp = name;
+    PVOID ret = NULL;
+    EnterCriticalSection(&PortsCS);
     for(Iterator it = Ports.begin(); it != Ports.end(); it++)
     {
         if (_wcsnicmp((*it)->SymbolicName.c_str(), name, (*it)->Name.size()) == 0)
         {
             if(((SerialPort*)(*it))->OpenPort() == TRUE)
             {
-                return *it;
+                ret = *it;
+                break;
             }
         }
     }
-   return NULL;
+    LeaveCriticalSection(&PortsCS);
+    return ret;
 }
 PVOID PnPControl::OpenPortById(UINT id)
 {
@@ -359,46 +378,55 @@ PVOID PnPControl::OpenPortById(UINT id)
     {
         return NULL;
     }
+    PVOID ret = NULL;
+    EnterCriticalSection(&PortsCS);
     Iterator it = Ports.begin();
     advance(it, id);
     if (((SerialPort*)(*it))->OpenPort() == TRUE)
     {
-        return *it;
+        ret = *it;
     }
-    return NULL;
+    LeaveCriticalSection(&PortsCS);
+    return ret;
 }
 BOOL PnPControl::ReadPort(PVOID port, PVOID buf, PULONG size)
 {
+    EnterCriticalSection(&PortsCS);
     for(Iterator it = Ports.begin(); it != Ports.end(); it++)
     {
         if (*it == port)
         {
-            return ((SerialPort*)(*it))->ReadPort(buf, (size_t*)(size));
+            break;
         }
     }
-    return FALSE;
+    LeaveCriticalSection(&PortsCS);
+    return (*it != port) ? FALSE : ((SerialPort*)(*it))->ReadPort(buf, (size_t*)(size));
 }
 BOOL PnPControl::WritePort(PVOID port, PVOID buf, ULONG size)
 {
+    EnterCriticalSection(&PortsCS);
     for(Iterator it = Ports.begin(); it != Ports.end(); it++)
     {
         if (*it == port)
         {
-            return ((SerialPort*)(*it))->WritePort(buf, (size_t*)(&size));
+            break;
         }
     }
-    return FALSE;
+    LeaveCriticalSection(&PortsCS);
+    return (*it != port) ? FALSE : ((SerialPort*)(*it))->WritePort(buf, (size_t*)(&size));
 }
 VOID PnPControl::ClosePort(PVOID port)
 {
+    EnterCriticalSection(&PortsCS);
     for(Iterator it = Ports.begin(); it != Ports.end(); it++)
     {
         if (*it == port)
         {
             ((SerialPort*)(*it))->ClosePort();
-            return;
+            break;
         }
     }
+    LeaveCriticalSection(&PortsCS);
 }
 
 wchar_t* PnPControl::PortSymbolicName(int index)
@@ -407,6 +435,7 @@ wchar_t* PnPControl::PortSymbolicName(int index)
     {
         return NULL;
     }
+    EnterCriticalSection(&PortsCS);
     Iterator it = Ports.begin();
     advance(it, index);
     return (wchar_t*)((*it)->SymbolicName.c_str());
