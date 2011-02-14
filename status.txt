@@ -1,3 +1,14 @@
+Date	14 February 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm27
+
+Fixed bugs:
+ 
+Bug 669597 - (virtio-win-1.1.17)Upgrade fails with BSOD when upgrade virtio block driver 
+             from version of 1.1.16 to 1.1.17 on windows 
+Bug 616685 - balloon:window guest can not keep memory change after guest restart 
+Bug 621834 - Poor write I/O performance of virtio-win driver 
+
 Date	20 January 2011
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm26
