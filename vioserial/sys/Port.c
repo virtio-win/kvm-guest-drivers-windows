@@ -6,8 +6,9 @@
 #include "Port.tmh"
 #endif
 
-EVT_WDF_WORKITEM VIOSerialPortSendPortReady;
-EVT_WDF_WORKITEM VIOSerialPortCreateSymbolicName;
+EVT_WDF_WORKITEM VIOSerialPortPortReadyWork;
+EVT_WDF_WORKITEM VIOSerialPortSymbolicNameWork;
+EVT_WDF_WORKITEM VIOSerialPortPnpNotifyWork;
 EVT_WDF_REQUEST_CANCEL VIOSerialRequestCancel;
 
 #ifdef ALLOC_PRAGMA
@@ -456,7 +457,7 @@ VIOSerialWillWriteBlock(
 }
 
 VOID
-VIOSerialPortSendPortReady(
+VIOSerialPortPortReadyWork(
     IN WDFWORKITEM  WorkItem
     )
 {
@@ -821,7 +822,7 @@ VIOSerialDeviceListCreatePdo(
         WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
         WDF_OBJECT_ATTRIBUTES_SET_CONTEXT_TYPE(&attributes, RAWPDO_VIOSERIAL_PORT);
         attributes.ParentObject = hChild;
-        WDF_WORKITEM_CONFIG_INIT(&workitemConfig, VIOSerialPortSendPortReady);
+        WDF_WORKITEM_CONFIG_INIT(&workitemConfig, VIOSerialPortPortReadyWork);
 
         status = WdfWorkItemCreate( &workitemConfig,
                                  &attributes,
@@ -1148,7 +1149,7 @@ VIOSerialPortCreateName(
         WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
         WDF_OBJECT_ATTRIBUTES_SET_CONTEXT_TYPE(&attributes, RAWPDO_VIOSERIAL_PORT);
         attributes.ParentObject = WdfDevice;
-        WDF_WORKITEM_CONFIG_INIT(&workitemConfig, VIOSerialPortCreateSymbolicName);
+        WDF_WORKITEM_CONFIG_INIT(&workitemConfig, VIOSerialPortSymbolicNameWork);
 
         status = WdfWorkItemCreate( &workitemConfig,
                                  &attributes,
@@ -1172,9 +1173,45 @@ VIOSerialPortCreateName(
     }
 }
 
+VOID
+VIOSerialPortPnpNotify (
+    IN WDFDEVICE WdfDevice,
+    IN PVIOSERIAL_PORT port,
+    IN BOOLEAN connected
+)
+{
+    WDF_OBJECT_ATTRIBUTES attributes;
+    WDF_WORKITEM_CONFIG   workitemConfig;
+    WDFWORKITEM           hWorkItem;
+    PRAWPDO_VIOSERIAL_PORT  pdoData = NULL;
+    NTSTATUS              status = STATUS_SUCCESS;
+
+    port->HostConnected = connected;
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    WDF_OBJECT_ATTRIBUTES_SET_CONTEXT_TYPE(&attributes, RAWPDO_VIOSERIAL_PORT);
+    attributes.ParentObject = WdfDevice;
+    WDF_WORKITEM_CONFIG_INIT(&workitemConfig, VIOSerialPortPnpNotifyWork);
+
+    status = WdfWorkItemCreate( &workitemConfig,
+                                 &attributes,
+                                 &hWorkItem);
+
+    if (!NT_SUCCESS(status))
+    {
+       TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "WdfWorkItemCreate failed with status = 0x%08x\n", status);
+       return;
+    }
+
+    pdoData = RawPdoSerialPortGetData(hWorkItem);
+
+    pdoData->port = port;
+
+    WdfWorkItemEnqueue(hWorkItem);
+}
 
 VOID
-VIOSerialPortCreateSymbolicName(
+VIOSerialPortSymbolicNameWork(
     IN WDFWORKITEM  WorkItem
     )
 {
@@ -1232,6 +1269,56 @@ VIOSerialPortCreateSymbolicName(
     if (deviceUnicodeString.Buffer != NULL)
     {
         RtlFreeUnicodeString( &deviceUnicodeString );
+    }
+    WdfObjectDelete(WorkItem);
+}
+
+VOID
+VIOSerialPortPnpNotifyWork(
+    IN WDFWORKITEM  WorkItem
+    )
+{
+    PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WorkItem);
+    PVIOSERIAL_PORT         pport = pdoData->port;
+    PTARGET_DEVICE_CUSTOM_NOTIFICATION  notification;
+    ULONG                               requiredSize;
+    NTSTATUS                            status;
+    VIRTIO_PORT_STATUS_CHANGE           portStatus = {0};
+
+    portStatus.Version = 1;
+    portStatus.Reason = pport->HostConnected;
+
+    status = RtlULongAdd((sizeof(TARGET_DEVICE_CUSTOM_NOTIFICATION) - sizeof(UCHAR)),
+                                 sizeof(VIRTIO_PORT_STATUS_CHANGE),
+                                 &requiredSize);
+
+    if (NT_SUCCESS(status))
+    {
+        notification = ExAllocatePoolWithTag(NonPagedPool,
+                                 requiredSize,
+                                 VIOSERIAL_DRIVER_MEMORY_TAG);
+
+        if (notification != NULL)
+        {
+            RtlZeroMemory(notification, requiredSize);
+            notification->Version = 1;
+            notification->Size = (USHORT)(requiredSize);
+            notification->FileObject = NULL;
+            notification->NameBufferOffset = -1;
+            notification->Event = GUID_VIOSERIAL_PORT_CHANGE_STATUS;
+            RtlCopyMemory(notification->CustomDataBuffer, &portStatus, sizeof(VIRTIO_PORT_STATUS_CHANGE));
+            status = IoReportTargetDeviceChangeAsynchronous(
+                                 WdfDeviceWdmGetPhysicalDevice(pport->Device),
+                                 notification,
+                                 NULL,
+                                 NULL);
+            if (!NT_SUCCESS(status))
+            {
+                 TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                                 "IoReportTargetDeviceChangeAsynchronous Failed! status = 0x%x\n", status);   
+            }
+            ExFreePoolWithTag(notification, VIOSERIAL_DRIVER_MEMORY_TAG);
+        }
     }
     WdfObjectDelete(WorkItem);
 }

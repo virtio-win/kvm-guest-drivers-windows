@@ -297,6 +297,13 @@ VIOSerialPortCreateName (
 );
 
 VOID
+VIOSerialPortPnpNotify (
+    IN WDFDEVICE WdfDevice,
+    IN PVIOSERIAL_PORT port,
+    IN BOOLEAN connected
+);
+
+VOID
 VIOSerialPortCreateSymbolicName(
     IN WDFWORKITEM  WorkItem
 );
