@@ -98,7 +98,7 @@ void PnPControl::Init( )
         printf("Cannot create thread Error = %d.\n", GetLastError());
     }
 
-    if ( !InitializeCriticalSectionAndSpinCount(&PortsSC, 0x4000))
+    if ( !InitializeCriticalSectionAndSpinCount(&PortsCS, 0x4000))
     {
         printf("Cannot initalize critical section Error = %d.\n", GetLastError());
     }
@@ -127,7 +127,7 @@ void PnPControl::Close( )
         }
         Thread = NULL;
     }
-    DeleteCriticalSection(&PortsSC);
+    DeleteCriticalSection(&PortsCS);
 }
 
 DWORD WINAPI PnPControl::ServiceThread(PnPControl* ptr)
@@ -391,8 +391,9 @@ PVOID PnPControl::OpenPortById(UINT id)
 }
 BOOL PnPControl::ReadPort(PVOID port, PVOID buf, PULONG size)
 {
+    Iterator it;
     EnterCriticalSection(&PortsCS);
-    for(Iterator it = Ports.begin(); it != Ports.end(); it++)
+    for(it = Ports.begin(); it != Ports.end(); it++)
     {
         if (*it == port)
         {
@@ -404,8 +405,9 @@ BOOL PnPControl::ReadPort(PVOID port, PVOID buf, PULONG size)
 }
 BOOL PnPControl::WritePort(PVOID port, PVOID buf, ULONG size)
 {
+    Iterator it;
     EnterCriticalSection(&PortsCS);
-    for(Iterator it = Ports.begin(); it != Ports.end(); it++)
+    for(it = Ports.begin(); it != Ports.end(); it++)
     {
         if (*it == port)
         {

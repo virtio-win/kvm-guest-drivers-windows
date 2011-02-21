@@ -113,7 +113,7 @@ protected:
     HDEVNOTIFY RegisterInterfaceNotify(GUID InterfaceClassGuid);
     HANDLE Thread;
     HWND Wnd;
-    CRITICAL_SECTION PortsSC;
+    CRITICAL_SECTION PortsCS;
 
 };
 
