@@ -229,6 +229,8 @@ typedef struct _tagOurCounters
 {
 	UINT nReusedRxBuffers;
 	UINT nPrintDiagnostic;
+	ULONG64 prevIn;
+	UINT nRxInactivity;
 }tOurCounters;
 
 typedef struct _tagMaxPacketSize

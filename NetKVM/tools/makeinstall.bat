@@ -3,7 +3,7 @@
 : Param3 - path to INF file
 : Param4 - version in x.x.x.x form
 : Param5 - Win7 | Vista | XP | 2K 
- 
+: Param6 - Path to coinstaller file (optional)
 
 if /i "%1"=="x86" goto makeinstall
 if /i "%1"=="amd64" goto makeinstall
@@ -18,6 +18,7 @@ del /Q Install\%5\%1\*
 copy /Y %2 Install\%5\%1
 copy /Y %~dpn2.pdb Install\%5\%1
 copy /Y %3 Install\%5\%1
+if exist %6 copy %6 Install\%5\%1
 if not exist Install\NetKVMTemporaryCert.cer copy /Y "%~dp0\NetKVMTemporaryCert.cer" Install
 if not exist "%~dp0\NetKvmInstall.exe" goto skipinstall
 if not exist Install\NetKvmInstall.exe copy /Y "%~dp0\NetKvmInstall.exe" Install

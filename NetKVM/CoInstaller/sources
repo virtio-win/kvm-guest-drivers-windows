@@ -1,0 +1,43 @@
+TARGETNAME=netkvmco
+TARGETTYPE=DYNLINK
+
+USE_MSVCRT=1
+
+WIN32_WINNT_VERSION=$(LATEST_WIN32_WINNT_VERSION)
+_NT_TARGET_VERSION=$(_NT_TARGET_VERSION_WINXP)
+NTDDI_VERSION=$(LATEST_NTDDI_VERSION)
+
+MSC_WARNING_LEVEL=/W4 /WX
+
+C_DEFINES = $(C_DEFINES)  /D_UNICODE /DUNICODE /DNETCO_EXPORTS
+
+DLLENTRY=_DllMainCRTStartup
+DLLDEF=
+
+INCLUDES=$(PSDK_INC_PATH);$(MFC_INC_PATH);$(INCLUDES);
+
+PRECOMPILED_INCLUDE=stdafx.h
+PRECOMPILED_CXX=1
+
+USE_STL=1
+STL_VER=70
+USE_NATIVE_EH=1
+USER_C_FLAGS=$(USER_C_FLAGS) /nologo
+
+SOURCES=\
+    netco.rc                        \
+    Exception.cpp                   \
+    NetKVMAux.cpp                   \
+    NetKVMnetsh.cpp                 \
+    RegAccess.cpp                   \
+    RegParam.cpp                    \
+    tstrings.cpp                    \
+    netkvmco.c                      \ 
+
+TARGETLIBS=\
+        $(PSDK_LIB_PATH)\Netsh.lib     \
+        $(PSDK_LIB_PATH)\x64\Netsh.lib \
+        $(SDK_LIB_PATH)\Setupapi.lib   \
+        $(SDK_LIB_PATH)\advapi32.lib   \
+        $(SDK_LIB_PATH)\kernel32.lib
+

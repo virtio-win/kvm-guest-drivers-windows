@@ -1741,6 +1741,7 @@ static BOOLEAN RestartQueueSynchronously(tSynchronizedContext *SyncContext)
 	{
 		b = !pContext->NetSendQueue->vq_ops->restart(pContext->NetSendQueue);
 	}
+	ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x20, SyncContext->Parameter, !b, 0);
 	return b;
 }
 /**********************************************************
@@ -1753,7 +1754,6 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
 	ULONG stillRequiresProcessing = 0;
 	ULONG interruptSources;
 	DEBUG_ENTRY(5);
-	ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)1, 0, 0, 0);
 	if (pContext->bEnableInterruptHandlingDPC)	
 	{
 		InterlockedIncrement(&pContext->counterDPCInside);
@@ -1761,6 +1761,7 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
 		{
 			InterlockedExchange(&pContext->bDPCInactive, 0);
 			interruptSources = InterlockedExchange(&pContext->InterruptStatus, 0);
+			ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)1, interruptSources, 0, 0);
 			if ((interruptSources & isControl) && pContext->bLinkDetectSupported)
 			{
 				ParaNdis_ReportLinkStatus(pContext);
@@ -1771,34 +1772,45 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
 			}
 			if (interruptSources & isReceive)
 			{
-				int nRestartResult = 2, nLoop = 0;
-				while (nRestartResult)
+				int nRestartResult = 0, nLoop = 0;
+				do
 				{
 					UINT n;
 					LONG rxActive = InterlockedIncrement(&pContext->dpcReceiveActive);
-					if (rxActive == 1) 
+					if (rxActive == 1)
 					{
 						n = ParaNdis_ProcessRxPath(pContext);
 						InterlockedDecrement(&pContext->dpcReceiveActive);
 						NdisAcquireSpinLock(&pContext->ReceiveLock);
 						nRestartResult = ParaNdis_SynchronizeWithInterrupt(
 							pContext, pContext->ulRxMessage, RestartQueueSynchronously, isReceive); 
+						ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)3, nRestartResult, 0, 0);
 						NdisReleaseSpinLock(&pContext->ReceiveLock);
 						DPrintf(nRestartResult ? 2 : 6, ("[%s] queue restarted%s", __FUNCTION__, nRestartResult ? "(Rerun)" : "(Done)"));
 						++nLoop;
 						if (nLoop > MAX_RX_LOOPS)
 						{
 							DPrintf(0, ("[%s] Breaking Rx loop on %d-th operation", __FUNCTION__, nLoop));
+							ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)4, nRestartResult, 0, 0);
 							break;
 						}
 					}
 					else
 					{
 						InterlockedDecrement(&pContext->dpcReceiveActive);
-						nRestartResult = 0;	
+						if (!nRestartResult)
+						{
+							NdisAcquireSpinLock(&pContext->ReceiveLock);
+							nRestartResult = ParaNdis_SynchronizeWithInterrupt(
+								pContext, pContext->ulRxMessage, RestartQueueSynchronously, isReceive); 
+							ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)5, nRestartResult, 0, 0);
+							NdisReleaseSpinLock(&pContext->ReceiveLock);
+						}
 						DPrintf(1, ("[%s] Skip Rx processing no.%d", __FUNCTION__, rxActive));
+						break;
 					}
-				}
+				} while (nRestartResult);
+
 				if (nRestartResult) stillRequiresProcessing |= isReceive;
 			}
 
@@ -1877,6 +1889,24 @@ static BOOLEAN CheckRunningDpc(PARANDIS_ADAPTER *pContext)
 		pContext->Counters.nPrintDiagnostic = 0;
 		// todo - collect more and put out optionally
 		PrintStatistics(pContext);
+	}
+	
+	if (pContext->Statistics.ifHCInOctets == pContext->Counters.prevIn)
+	{
+		pContext->Counters.nRxInactivity++;
+		if (pContext->Counters.nRxInactivity >= 10)
+		{
+//#define CRASH_ON_NO_RX
+#if defined(CRASH_ON_NO_RX) 
+			ONPAUSECOMPLETEPROC proc = (ONPAUSECOMPLETEPROC)(PVOID)1;
+			proc(pContext);
+#endif
+		}
+	}
+	else
+	{
+		pContext->Counters.nRxInactivity = 0;
+		pContext->Counters.prevIn = pContext->Statistics.ifHCInOctets;
 	}
 	return bReportHang;
 }
@@ -2033,6 +2063,7 @@ VOID ParaNdis_VirtIOEnableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG inte
 		pContext->NetSendQueue->vq_ops->enable_interrupt(pContext->NetSendQueue, b);
 	if (interruptSource & isReceive)
 		pContext->NetReceiveQueue->vq_ops->enable_interrupt(pContext->NetReceiveQueue, b);
+	ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, b, 0);
 }
 
 /**********************************************************

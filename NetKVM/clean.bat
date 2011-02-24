@@ -26,3 +26,8 @@ for /d %%d in  (VirtIO\fre*) do rmdir /S /Q %%d
 
 del /F *.log *.wrn
 del dirs
+
+pushd CoInstaller
+call clean.bat
+popd
+
