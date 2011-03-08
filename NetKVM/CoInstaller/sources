@@ -22,6 +22,7 @@ PRECOMPILED_CXX=1
 USE_STL=1
 STL_VER=70
 USE_NATIVE_EH=1
+USER_C_FLAGS=$(USER_C_FLAGS) /nologo
 
 SOURCES=\
     netco.rc                        \
