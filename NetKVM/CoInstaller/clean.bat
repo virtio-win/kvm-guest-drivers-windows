@@ -7,6 +7,8 @@ rmdir /S /Q objfre_wxp_x86
 rmdir /S /Q objfre_wlh_amd64
 rmdir /S /Q "Debug unicode"
 rmdir /S /Q "Release unicode"
+rmdir /S /Q "Debug MBCS"
+rmdir /S /Q "Release MBCS"
 rmdir /S /Q x64
 
-del /F *.log *.wrn *.err
+del /F *.log *.wrn *.err *.aps
