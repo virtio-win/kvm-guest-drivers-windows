@@ -33,7 +33,6 @@ VIOSerialInterruptDpc(
     PPORTS_DEVICE    pContext;
     PVIOSERIAL_PORT  port;
     WDFDEVICE        Device;
-    WDFDMATRANSACTION dmaTransaction;
 
 
     ULONG            information;
@@ -41,7 +40,6 @@ VIOSerialInterruptDpc(
     PUCHAR           systemBuffer;
     size_t           Length;
     WDFREQUEST       request;
-    BOOLEAN          nonBlock;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
 
@@ -61,50 +59,40 @@ VIOSerialInterruptDpc(
         {
            struct virtqueue    *out_vq = GetOutQueue(port);
            WdfSpinLockAcquire(port->InBufLock);
-           if (!port->GuestConnected)
-           {
-              VIOSerialDiscardPortData(port);
-           }
            if (!port->InBuf)
            {
               port->InBuf = VIOSerialGetInBuf(port);
               TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "%s::%d  port->InBuf = %p\n", __FUNCTION__, __LINE__, port->InBuf);
            }
+           if (!port->GuestConnected)
+           {
+              VIOSerialDiscardPortData(port);
+           }
            WdfSpinLockRelease(port->InBufLock);
 
-           if (!VIOSerialWillReadBlock(port))
+           if (port->InBuf)
            {
-              status = WdfIoQueueRetrieveNextRequest(port->PendingReadQueue, &request);
-              if (NT_SUCCESS(status))
+              if (port->PendingReadRequest)
               {
-                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,"Got available read request\n");
-                 status = WdfRequestRetrieveOutputBuffer(request, 0, &systemBuffer, &Length);
-                 if (NT_SUCCESS(status))
+                 request = port->PendingReadRequest;
+                 status = WdfRequestUnmarkCancelable(request);
+                 if (status != STATUS_CANCELLED)
                  {
-                    information = (ULONG)VIOSerialFillReadBuf(port, systemBuffer, Length);
-                    WdfRequestCompleteWithInformation(request, STATUS_SUCCESS, information);
+                    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,"Got available read request\n");
+                    status = WdfRequestRetrieveOutputBuffer(request, 0, &systemBuffer, &Length);
+                    if (NT_SUCCESS(status))
+                    {
+                       port->PendingReadRequest = NULL;
+                       information = (ULONG)VIOSerialFillReadBuf(port, systemBuffer, Length);
+                       WdfRequestCompleteWithInformation(request, STATUS_SUCCESS, information);
+                    }
+                 }
+                 else
+                 {
+                    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "Request = %p was cancelled\n", request);
                  }
               }
            }
-
-           if(out_vq && out_vq->vq_ops->get_buf(out_vq, &len))
-           {
-              BOOLEAN transactionComplete;
-              dmaTransaction = port->WriteDmaTransaction;
-              transactionComplete = WdfDmaTransactionDmaCompleted( dmaTransaction,
-                                                         &status );
-
-              if (transactionComplete)
-              {
-                 WdfSpinLockAcquire(port->OutVqLock);
-                 VIOSerialReclaimConsumedBuffers(port);
-                 WdfSpinLockRelease(port->OutVqLock);
-                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
-                                     "Completing Write request in the DpcForIsr");
-                 VIOSerialPortWriteRequestComplete( dmaTransaction, status );
-              }
-           }
-
         }
     }
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
@@ -132,14 +120,6 @@ VIOSerialEnableDisableInterrupt(
         }
     }
 
-    if(pContext->c_ovq)
-    {
-        pContext->c_ovq->vq_ops->enable_interrupt(pContext->c_ovq, bEnable);
-        if(bEnable)
-        {
-           pContext->c_ovq->vq_ops->kick(pContext->c_ovq);
-        }
-    }
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s enable = %d\n", __FUNCTION__, bEnable);
 }
 

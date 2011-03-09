@@ -1,5 +1,6 @@
 #include "precomp.h"
 #include "vioser.h"
+#include "public.h"
 
 #if defined(EVENT_TRACING)
 #include "Control.tmh"
@@ -128,15 +129,13 @@ VIOSerialHandleCtrlMsg(
         break;
 
         case VIRTIO_CONSOLE_PORT_REMOVE:
-           if (port)
-           {
-              TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_REMOVE id = %d\n", cpkt->id);
-              VIOSerialRemovePort(Device, port);
-           }
-           else
+           if (!port)
            {
               TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIRTIO_CONSOLE_PORT_REMOVE invalid id = %d\n", cpkt->id);
+              break;
            }
+           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_REMOVE id = %d\n", cpkt->id);
+           VIOSerialRemovePort(Device, port);
         break;
 
         case VIRTIO_CONSOLE_CONSOLE_PORT:
@@ -155,8 +154,12 @@ VIOSerialHandleCtrlMsg(
         case VIRTIO_CONSOLE_PORT_OPEN:
            if (port)
            {
-              TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_OPEN id = %d, HostConnected = %d\n", cpkt->id, cpkt->value);
-              port->HostConnected = (BOOLEAN)cpkt->value;
+              BOOLEAN  Connected = (BOOLEAN)cpkt->value;
+              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIRTIO_CONSOLE_PORT_OPEN id = %d, HostConnected = %d\n", cpkt->id, Connected);
+              if (port->HostConnected != Connected)
+              {
+                 VIOSerialPortPnpNotify(Device, port, Connected);
+              }
            }
            else
            {

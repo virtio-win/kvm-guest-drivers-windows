@@ -3,8 +3,6 @@
 set SYS_FILE_NAME=vioser
 set APP_FILE_NAME=vioser-test
 
-set OLD_PATH=%PATH%
-
 for %%A in (Win7 Wnet Wlh WXp) do for %%B in (32 64) do call :%%A_%%B
 goto :eof 
 
@@ -86,4 +84,3 @@ goto :eof
 :WXP_64
 goto :eof
 
-rem PATH=%OLD_PATH%

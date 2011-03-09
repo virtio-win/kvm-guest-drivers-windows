@@ -80,7 +80,41 @@ free_mem:
 
     if(NT_SUCCESS(status))
     {
+        LONGLONG  diff = GetBalloonSize(WdfDevice);
         VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_DRIVER_OK);
+
+        if (diff != 0) {
+           PWORKITEM_CONTEXT     context;
+           WDF_OBJECT_ATTRIBUTES attributes;
+           WDF_WORKITEM_CONFIG   workitemConfig;
+           WDFWORKITEM           hWorkItem;
+           WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+           WDF_OBJECT_ATTRIBUTES_SET_CONTEXT_TYPE(&attributes, WORKITEM_CONTEXT);
+           attributes.ParentObject = WdfDevice;
+
+           WDF_WORKITEM_CONFIG_INIT(&workitemConfig, FillLeakWorkItem);
+
+           status = WdfWorkItemCreate( &workitemConfig,
+                                &attributes,
+                                &hWorkItem);
+
+           if (NT_SUCCESS(status)) {
+              context = GetWorkItemContext(hWorkItem);
+
+              context->Device = WdfDevice;
+              context->Diff = GetBalloonSize(WdfDevice);
+
+              context->bStatUpdate = FALSE;
+
+              WdfWorkItemEnqueue(hWorkItem);
+
+           }
+           else
+           {
+              VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_FAILED);
+              TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "WdfWorkItemCreate failed with status = 0x%08x\n", status);
+           }
+        }
     }
     else
     {
@@ -190,7 +224,7 @@ BalloonFill(
         }
  
         pNewPageListEntry->PageMdl = pPageMdl;
-        pNewPageListEntry->PagePfn = drvCtx->pfns_table[drvCtx->num_pfns] = *(PPFN_NUMBER)(pPageMdl + 1);
+        pNewPageListEntry->PagePfn = drvCtx->pfns_table[drvCtx->num_pfns] = *MmGetMdlPfnArray(pPageMdl);
  
         WdfSpinLockAcquire(drvCtx->SpinLock);
         PushEntryList(&drvCtx->PageListHead, &(pNewPageListEntry->SingleListEntry));

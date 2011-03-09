@@ -51,6 +51,7 @@ BOOL CNotifier::Stop()
 
 DWORD WINAPI CNotifier::ServiceThread(CNotifier* ptr)
 {
+    ptr->Run();
     return 0;
 }
 

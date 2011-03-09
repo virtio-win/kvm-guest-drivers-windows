@@ -194,6 +194,10 @@ DisableInterrupt(
     }
 }
 
+VOID
+FillLeakWorkItem(
+    IN WDFWORKITEM  WorkItem
+    );
 
 VOID
 SetBalloonSize(

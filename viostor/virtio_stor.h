@@ -52,9 +52,15 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_BLK_S_UNSUPP     2
 
 #define SECTOR_SIZE             512
-#define MAX_PHYS_SEGMENTS       16
-#define VIRTIO_MAX_SG	        (3+MAX_PHYS_SEGMENTS)
 #define IO_PORT_LENGTH          0x40
+
+#ifdef INDIRECT_SUPPORTED
+#define MAX_PHYS_SEGMENTS       64
+#else
+#define MAX_PHYS_SEGMENTS       16
+#endif
+
+#define VIRTIO_MAX_SG	        (3+MAX_PHYS_SEGMENTS)
 
 #pragma pack(1)
 typedef struct virtio_blk_config {
@@ -108,14 +114,16 @@ typedef struct _ADAPTER_EXTENSION {
     BOOLEAN               dump_mode;
     LIST_ENTRY            list_head;
     ULONG                 msix_vectors;
+    BOOLEAN               msix_enabled;
     ULONG                 features;
     BOOLEAN               flush_done;
+#ifdef INDIRECT_SUPPORTED
+    BOOLEAN               indirect;
+#endif
 #ifdef USE_STORPORT
     LIST_ENTRY            complete_list;
     STOR_DPC              completion_dpc;
-#if (INDIRECT_SUPPORTED)
-    BOOLEAN               indirect;
-#endif
+    BOOLEAN               dpc_ok;
 #endif
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
@@ -126,8 +134,8 @@ typedef struct _RHEL_SRB_EXTENSION {
 #ifndef USE_STORPORT
     BOOLEAN               call_next;
 #endif
-#if (INDIRECT_SUPPORTED)
-    PVOID                 addr; 
+#if INDIRECT_SUPPORTED
+    struct vring_desc     desc[VIRTIO_MAX_SG];
 #endif
 }RHEL_SRB_EXTENSION, *PRHEL_SRB_EXTENSION;
 
@@ -136,6 +144,34 @@ VirtIoInterrupt(
     IN PVOID DeviceExtension
     );
 
+
+#ifdef MSI_SUPPORTED
+#ifndef PCIX_TABLE_POINTER
+typedef struct {
+  union {
+    struct {
+      ULONG BaseIndexRegister:3;
+      ULONG Reserved:29;
+    };
+    ULONG TableOffset;
+  };
+} PCIX_TABLE_POINTER, *PPCIX_TABLE_POINTER;
+#endif
+
+#ifndef PCI_MSIX_CAPABILITY
+typedef struct {
+  PCI_CAPABILITIES_HEADER Header;
+  struct {
+    USHORT TableSize  :11;
+    USHORT Reserved  :3;
+    USHORT FunctionMask  :1;
+    USHORT MSIXEnable  :1;
+  } MessageControl;
+  PCIX_TABLE_POINTER      MessageTable;
+  PCIX_TABLE_POINTER      PBATable;
+} PCI_MSIX_CAPABILITY, *PPCI_MSIX_CAPABILITY;
+#endif
+#endif
 
 
 #endif ___VIOSTOR__H__

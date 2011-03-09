@@ -67,7 +67,7 @@ VirtIODeviceGet(
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s\n", __FUNCTION__));
 
-    ioaddr = adaptExt->device_base + VIRTIO_PCI_CONFIG((adaptExt->msix_vectors > 0)) + offset;
+    ioaddr = adaptExt->device_base + VIRTIO_PCI_CONFIG(adaptExt->msix_enabled) + offset;
 
     for (i = 0; i < len; i++) {
         ptr[i] = ScsiPortReadPortUchar((PUCHAR)(ioaddr + i));

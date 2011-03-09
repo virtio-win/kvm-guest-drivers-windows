@@ -14,7 +14,7 @@
 **********************************************************************/
 #if !defined(VIOSERIAL_H)
 #define VIOSERIAL_H
-
+#include "public.h"
 
 EVT_WDF_DRIVER_DEVICE_ADD VIOSerialEvtDeviceAdd;
 
@@ -45,9 +45,6 @@ EVT_WDF_INTERRUPT_DISABLE                       VIOSerialInterruptDisable;
 #define VIRTIO_CONSOLE_RESIZE           5
 #define VIRTIO_CONSOLE_PORT_OPEN        6
 #define VIRTIO_CONSOLE_PORT_NAME        7
-
-
-#define PORT_MAXIMUM_TRANSFER_LENGTH    (32*1024)
 
 
 #pragma pack (push)
@@ -92,26 +89,20 @@ typedef struct _tagPortDevice
     struct virtqueue    **in_vqs, **out_vqs;
     WDFSPINLOCK         CVqLock;
 
-    WDFDMAENABLER       DmaEnabler;
-    ULONG               MaximumTransferLength;
-
     BOOLEAN             DeviceOK;
+    UINT                DeviceId;
 } PORTS_DEVICE, *PPORTS_DEVICE;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(PORTS_DEVICE, GetPortsDevice)
 
 #define VIOSERIAL_DRIVER_MEMORY_TAG (ULONG)'rsIV'
 
-#define  PORT_DEVICE_ID L"{6FDE7521-1B65-48ae-B628-80BE62016026}\\VIOSerialPort\0"
+#define  PORT_DEVICE_ID L"{6FDE7547-1B65-48ae-B628-80BE62016026}\\VIOSerialPort\0"
 
 DEFINE_GUID(GUID_DEVCLASS_PORT_DEVICE,
 0x6fde7547, 0x1b65, 0x48ae, 0xb6, 0x28, 0x80, 0xbe, 0x62, 0x1, 0x60, 0x26);
 // {6FDE7547-1B65-48ae-B628-80BE62016026}
 
-
-DEFINE_GUID (GUID_DEVINTERFACE_PORTSENUM_VIOSERIAL,
-        0xF55F7844, 0x6A0C, 0x11d2, 0xB8, 0x41, 0x00, 0xC0, 0x4F, 0xAD, 0x51, 0x71);
-//  {F55F7844-6A0C-11d2-B841-00C04FAD5171}
 
 
 #define DEVICE_DESC_LENGTH  128
@@ -136,23 +127,16 @@ typedef struct _tagVioSerialPort
     WDFSPINLOCK         InBufLock;
     WDFSPINLOCK         OutVqLock;
     ANSI_STRING         NameString;
-    UINT                Id;
-
+    UINT                PortId;
+    UINT                DeviceId;
     BOOLEAN             OutVqFull;
     BOOLEAN             HostConnected;
     BOOLEAN             GuestConnected;
 
     WDFQUEUE            ReadQueue;
-    WDFQUEUE            PendingReadQueue;
+    WDFREQUEST          PendingReadRequest;
 
     WDFQUEUE            WriteQueue;
-    WDFCOMMONBUFFER     WriteCommonBuffer;
-    WDFDMATRANSACTION   WriteDmaTransaction;
-    ULONG               WriteTransferElements;
-    size_t              WriteCommonBufferSize;
-    PUCHAR              WriteCommonBufferBase;
-    PHYSICAL_ADDRESS    WriteCommonBufferBaseLA;
-
     WDFQUEUE            IoctlQueue;
 } VIOSERIAL_PORT, *PVIOSERIAL_PORT;
 
@@ -174,7 +158,7 @@ typedef struct _tagTransactionContext {
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(TRANSACTION_CONTEXT, RawPdoSerialPortGetTransactionContext)
 
 
-NTSTATUS 
+NTSTATUS
 VIOSerialFillQueue(
     IN struct virtqueue *vq,
     IN WDFSPINLOCK Lock
@@ -189,6 +173,14 @@ VIOSerialAddInBuf(
 VOID 
 VIOSerialReclaimConsumedBuffers(
     IN PVIOSERIAL_PORT port
+);
+
+SSIZE_T 
+VIOSerialSendBuffers(
+    IN PVIOSERIAL_PORT port,
+    IN PVOID buf,
+    IN SIZE_T count,
+    IN BOOLEAN nonblock
 );
 
 SSIZE_T 
@@ -296,19 +288,19 @@ EVT_WDF_IO_QUEUE_IO_WRITE VIOSerialPortWrite;
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL VIOSerialPortDeviceControl;
 EVT_WDF_DEVICE_FILE_CREATE VIOSerialPortCreate;
 EVT_WDF_FILE_CLOSE VIOSerialPortClose;
-EVT_WDF_PROGRAM_DMA VIOSerialPortProgramWriteDma;
-
-VOID
-VIOSerialPortWriteRequestComplete(
-    IN WDFDMATRANSACTION  DmaTransaction,
-    IN NTSTATUS           Status
-);
 
 VOID
 VIOSerialPortCreateName (
     IN WDFDEVICE WdfDevice,
     IN PVIOSERIAL_PORT port,
     IN PPORT_BUFFER buf
+);
+
+VOID
+VIOSerialPortPnpNotify (
+    IN WDFDEVICE WdfDevice,
+    IN PVIOSERIAL_PORT port,
+    IN BOOLEAN connected
 );
 
 VOID
@@ -328,7 +320,7 @@ GetInQueue (
     ASSERT (port->BusDevice);
     pContext = GetPortsDevice(port->BusDevice);
     ASSERT (pContext->in_vqs);
-    return pContext->in_vqs[port->Id];
+    return pContext->in_vqs[port->PortId];
 };
 
 __inline
@@ -343,7 +335,7 @@ GetOutQueue (
     ASSERT (port->BusDevice);
     pContext = GetPortsDevice(port->BusDevice);
     ASSERT (pContext->out_vqs);
-    return pContext->out_vqs[port->Id];
+    return pContext->out_vqs[port->PortId];
 };
 
 #endif /* VIOSERIAL_H */
