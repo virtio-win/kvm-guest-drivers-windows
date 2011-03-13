@@ -9,6 +9,7 @@ void ShowUsage()
     printf("blnsvr -r\tRead Test\n");
     printf("blnsvr -w\tWrite Test\n");
     printf("blnsvr -i\tPort Status\n");
+    printf("blnsvr -n\tPort Notification Test\n");
     printf("\n");
 }
 
