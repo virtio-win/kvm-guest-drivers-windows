@@ -4,4 +4,6 @@
 *.wrn
 *.log
 *.err
-
+*.pfx
+*.cer
+*.bak
