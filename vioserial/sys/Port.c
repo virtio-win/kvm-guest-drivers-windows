@@ -1307,15 +1307,19 @@ VIOSerialPortPnpNotifyWork(
             notification->NameBufferOffset = -1;
             notification->Event = GUID_VIOSERIAL_PORT_CHANGE_STATUS;
             RtlCopyMemory(notification->CustomDataBuffer, &portStatus, sizeof(VIRTIO_PORT_STATUS_CHANGE));
-            status = IoReportTargetDeviceChangeAsynchronous(
+            //FIXME
+            if(WdfDeviceGetDevicePnpState(pport->Device) == WdfDevStatePnpStarted)
+            {
+               status = IoReportTargetDeviceChangeAsynchronous(
                                  WdfDeviceWdmGetPhysicalDevice(pport->Device),
                                  notification,
                                  NULL,
                                  NULL);
-            if (!NT_SUCCESS(status))
-            {
-                 TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+               if (!NT_SUCCESS(status))
+               {
+                    TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                                  "IoReportTargetDeviceChangeAsynchronous Failed! status = 0x%x\n", status);   
+               }
             }
             ExFreePoolWithTag(notification, VIOSERIAL_DRIVER_MEMORY_TAG);
         }
