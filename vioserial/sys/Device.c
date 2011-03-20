@@ -346,7 +346,10 @@ VIOSerialInitAllQueues(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
     
     nr_ports = pContext->consoleConfig.max_nr_ports;
-
+    if(pContext->isHostMultiport)
+    {
+        nr_ports++;
+    }
     for(i = 0, j = 0; i < nr_ports; i++)
     {
         in_vq  = VirtIODeviceFindVirtualQueue(&pContext->IODevice, i * 2, NULL);
@@ -402,7 +405,7 @@ VIOSerialShutDownAllQueues(
         }
     } 
 
-    nr_ports = pContext->consoleConfig.max_nr_ports - 1;
+    nr_ports = pContext->consoleConfig.max_nr_ports;
     for(i = 0; i < nr_ports; i++ )
     {
         if(pContext->in_vqs && pContext->in_vqs[i])
