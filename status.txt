@@ -1,3 +1,17 @@
+Date	21 March 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm31
+
+Fixed bugs:
+Bug 688839 - Failed to boot windows guest with 30 virtio serial ports (Got BSOD 0XD1)
+
+Date	13 March 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm30
+
+Fixed bugs:
+Bug 670713 - (virtio-win-1.1.17)Virtio serial driver always causes windows BSOD when install or run whql jobs.
+
 Date	24 February 2011
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm29
