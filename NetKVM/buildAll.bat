@@ -76,7 +76,7 @@ popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
 
-if exist wlh\objfre_win7_x86\i386\netkvm.sys call tools\makeinstall x86 wlh\objfre_win7_x86\i386\netkvm.sys wlh\netkvm.inf %_VERSION_% Win7 CoInstaller\objfre_win7_x86\i386\netkvmco.dll
+if exist wlh\objfre_win7_x86\i386\netkvm.sys call tools\makeinstall x86 wlh\objfre_win7_x86\i386\netkvm.sys wlh\netkvm.inf %_VERSION_% Win7 CoInstaller\objfre_win7_x86\i386\netkvmco.dll CoInstaller\readme.doc
 if not exist wlh\objfre_win7_x86\i386\netkvm.sys goto :eof
 if not exist CoInstaller\objfre_win7_x86\i386\netkvmco.dll goto :eof
 goto continue
@@ -89,7 +89,7 @@ popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
 
-if exist wlh\objfre_win7_amd64\amd64\netkvm.sys call tools\makeinstall amd64 wlh\objfre_win7_amd64\amd64\netkvm.sys wlh\netkvm.inf %_VERSION_% Win7 CoInstaller\objfre_win7_amd64\amd64\netkvmco.dll
+if exist wlh\objfre_win7_amd64\amd64\netkvm.sys call tools\makeinstall amd64 wlh\objfre_win7_amd64\amd64\netkvm.sys wlh\netkvm.inf %_VERSION_% Win7 CoInstaller\objfre_win7_amd64\amd64\netkvmco.dll CoInstaller\readme.doc
 if not exist wlh\objfre_win7_amd64\amd64\netkvm.sys goto :eof
 if not exist CoInstaller\objfre_win7_amd64\amd64\netkvmco.dll goto :eof
 goto continue
@@ -102,7 +102,7 @@ popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
 
-if exist wlh\objfre_wlh_x86\i386\netkvm.sys call tools\makeinstall x86 wlh\objfre_wlh_x86\i386\netkvm.sys wlh\netkvm.inf %_VERSION_% Vista CoInstaller\objfre_wlh_x86\i386\netkvmco.dll
+if exist wlh\objfre_wlh_x86\i386\netkvm.sys call tools\makeinstall x86 wlh\objfre_wlh_x86\i386\netkvm.sys wlh\netkvm.inf %_VERSION_% Vista CoInstaller\objfre_wlh_x86\i386\netkvmco.dll CoInstaller\readme.doc
 if not exist wlh\objfre_wlh_x86\i386\netkvm.sys goto :eof
 if not exist CoInstaller\objfre_wlh_x86\i386\netkvmco.dll goto :eof
 goto continue
@@ -118,7 +118,7 @@ popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
 
-if exist wlh\objfre_wlh_amd64\amd64\netkvm.sys call tools\makeinstall amd64 wlh\objfre_wlh_amd64\amd64\netkvm.sys wlh\netkvm.inf %_VERSION_% Vista CoInstaller\objfre_wlh_amd64\amd64\netkvmco.dll
+if exist wlh\objfre_wlh_amd64\amd64\netkvm.sys call tools\makeinstall amd64 wlh\objfre_wlh_amd64\amd64\netkvm.sys wlh\netkvm.inf %_VERSION_% Vista CoInstaller\objfre_wlh_amd64\amd64\netkvmco.dll CoInstaller\readme.doc
 if not exist wlh\objfre_wlh_amd64\amd64\netkvm.sys goto :eof
 if not exist CoInstaller\objfre_wlh_amd64\amd64\netkvmco.dll goto :eof
 goto continue

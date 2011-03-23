@@ -19,6 +19,7 @@ copy /Y %2 Install\%5\%1
 copy /Y %~dpn2.pdb Install\%5\%1
 copy /Y %3 Install\%5\%1
 if exist %6 copy %6 Install\%5\%1
+if exist %7 copy %7 Install\%5\%1
 if not exist Install\NetKVMTemporaryCert.cer copy /Y "%~dp0\NetKVMTemporaryCert.cer" Install
 if not exist "%~dp0\NetKvmInstall.exe" goto skipinstall
 if not exist Install\NetKvmInstall.exe copy /Y "%~dp0\NetKvmInstall.exe" Install
