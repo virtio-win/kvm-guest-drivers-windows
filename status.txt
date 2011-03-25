@@ -1,3 +1,13 @@
+Date	25 March 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm32
+
+Fixed bugs:
+Bug 690713 - [WHQL] Virtio block job "Embedded Signature Verification" fails on virtio-win-prewhql-0.1-7
+
+New features:
+NetKvmConfig documentation.
+
 Date	21 March 2011
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm31
