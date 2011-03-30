@@ -7,6 +7,10 @@ set DDKBUILDENV=
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %2 fre %1 no_oacr
 popd
+
+set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% & 255)"
+set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_% 
+
 build -cZg
 
 set DDKVER=
