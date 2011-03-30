@@ -1,3 +1,18 @@
+Date	30 March 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm33
+
+Fixed bugs:
+Turn MSISupported flag off. Workaround for #669597 & #691192  
+Bug 691192 - RHEV-Block: Workaround for bug #669597 - (virtio-win) BSOD when upgrade virtio 
+block driver from version of 1.1.16 to 1.1.17 
+ 
+Bug 669597 - (virtio-win-1.1.17) Upgrade fails with BSOD when upgrade virtio block driver from 
+version of 1.1.16 to 1.1.17 on windows 
+
+New features:
+New version numbering scheme.
+
 Date	25 March 2011
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm32
