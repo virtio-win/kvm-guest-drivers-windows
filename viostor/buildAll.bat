@@ -1,6 +1,5 @@
 @echo off
 
-set STAMPINF_VERSION=6.0.0.10
 set SYS_FILE_NAME=viostor
 
 for %%A in (Win7 Wnet Wlh WXp) do for %%B in (32 64) do call :%%A_%%B
