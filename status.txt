@@ -1,3 +1,11 @@
+Date	04 April 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm34
+
+Workaround for:
+Bug 693041 - [WHQL] Virtio block job of "Sleep Stress With IO" 
+for win2k8-32 fails with BSOD on build of virtio-win-prewhql-0.1-9 
+
 Date	30 March 2011
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm33
