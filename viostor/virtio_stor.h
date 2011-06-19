@@ -46,6 +46,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define VIRTIO_BLK_T_SCSI_CMD   2
 #define VIRTIO_BLK_T_FLUSH      4
+#define VIRTIO_BLK_T_GET_ID     8
 
 #define VIRTIO_BLK_S_OK	        0
 #define VIRTIO_BLK_S_IOERR      1
@@ -53,6 +54,8 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define SECTOR_SIZE             512
 #define IO_PORT_LENGTH          0x40
+
+#define BLOCK_SERIAL_STRLEN     20
 
 #ifdef INDIRECT_SUPPORTED
 #define MAX_PHYS_SEGMENTS       64
@@ -117,6 +120,9 @@ typedef struct _ADAPTER_EXTENSION {
     BOOLEAN               msix_enabled;
     ULONG                 features;
     BOOLEAN               flush_done;
+    CHAR                  sn[BLOCK_SERIAL_STRLEN];
+    BOOLEAN               sn_ok;
+    blk_req               vbr;
 #ifdef INDIRECT_SUPPORTED
     BOOLEAN               indirect;
 #endif

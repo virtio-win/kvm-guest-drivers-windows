@@ -273,6 +273,7 @@ VirtIoFindAdapter(
         return SP_RETURN_ERROR;
     }
 
+
     ConfigInfo->NumberOfBuses               = 1;
     ConfigInfo->MaximumNumberOfTargets      = 1;
     ConfigInfo->MaximumNumberOfLogicalUnits = 1;
@@ -550,7 +551,6 @@ VirtIoHwInitialize(
       
     }
 
-
     memset(&adaptExt->inquiry_data, 0, sizeof(INQUIRYDATA));
 
     adaptExt->inquiry_data.ANSIVersion = 4;
@@ -564,13 +564,17 @@ VirtIoHwInitialize(
     ScsiPortMoveMemory(&adaptExt->inquiry_data.ProductRevisionLevel, "0001", sizeof("0001"));
     ScsiPortMoveMemory(&adaptExt->inquiry_data.VendorSpecific, "0001", sizeof("0001"));
 
+    if(!adaptExt->dump_mode)
+    {
+        RhelGetSerialNumber(DeviceExtension);
+    }
+
 #ifdef USE_STORPORT
     if(!adaptExt->dump_mode && !adaptExt->dpc_ok)
     {
         return StorPortEnablePassiveInitialization(DeviceExtension, VirtIoPassiveInitializeRoutine);
     }
 #endif
-    RhelDbgPrint(TRACE_LEVEL_ERROR, ("<--->%s : return TRUE\n", __FUNCTION__));
     return TRUE;
 }
 
@@ -743,24 +747,26 @@ VirtIoInterrupt(
         isInterruptServiced = TRUE;
         while((vbr = adaptExt->pci_vq_info.vq->vq_ops->get_buf(adaptExt->pci_vq_info.vq, &len)) != NULL) {
            Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
-           switch (vbr->status) {
-           case VIRTIO_BLK_S_OK:
-                Srb->SrbStatus = SRB_STATUS_SUCCESS;
-                break;
-           case VIRTIO_BLK_S_UNSUPP:
-                Srb->SrbStatus = SRB_STATUS_INVALID_REQUEST;
-                break;
-           default:
-                Srb->SrbStatus = SRB_STATUS_ERROR;
-                RhelDbgPrint(TRACE_LEVEL_ERROR, ("SRB_STATUS_ERROR\n"));
-                break;
+           if (Srb) {
+              switch (vbr->status) {
+              case VIRTIO_BLK_S_OK:
+                 Srb->SrbStatus = SRB_STATUS_SUCCESS;
+                 break;
+              case VIRTIO_BLK_S_UNSUPP:
+                 Srb->SrbStatus = SRB_STATUS_INVALID_REQUEST;
+                 break;
+              default:
+                 Srb->SrbStatus = SRB_STATUS_ERROR;
+                 RhelDbgPrint(TRACE_LEVEL_ERROR, ("SRB_STATUS_ERROR\n"));
+                 break;
+              }
            }
            if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
               adaptExt->flush_done = TRUE;
-           }
-           else
-           {
-               CompleteDPC(DeviceExtension, vbr, 0);
+           } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
+              adaptExt->sn_ok = TRUE;
+           } else {
+              CompleteDPC(DeviceExtension, vbr, 0);
            }
         }
     }
@@ -929,6 +935,7 @@ VirtIoMSInterruptRoutine (
     unsigned int        len;
     PADAPTER_EXTENSION  adaptExt;
     PSCSI_REQUEST_BLOCK Srb;
+    BOOLEAN             isInterruptServiced = FALSE;
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
@@ -936,28 +943,33 @@ VirtIoMSInterruptRoutine (
                  ("<--->%s : MessageID 0x%x\n", __FUNCTION__, MessageID));
 
     while((vbr = adaptExt->pci_vq_info.vq->vq_ops->get_buf(adaptExt->pci_vq_info.vq, &len)) != NULL) {
-       Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
-       switch (vbr->status) {
-       case VIRTIO_BLK_S_OK:
-            Srb->SrbStatus = SRB_STATUS_SUCCESS;
-            break;
-       case VIRTIO_BLK_S_UNSUPP:
-            Srb->SrbStatus = SRB_STATUS_INVALID_REQUEST;
-            break;
-       default:
-            Srb->SrbStatus = SRB_STATUS_ERROR;
-            break;
-       }
-       if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
-            adaptExt->flush_done = TRUE;
-       }
-       else
-       {
-            CompleteDPC(DeviceExtension, vbr, MessageID);
-       }
-    }
+        Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
+        if (Srb) {
+           switch (vbr->status) {
+           case VIRTIO_BLK_S_OK:
+              Srb->SrbStatus = SRB_STATUS_SUCCESS;
+              break;
+           case VIRTIO_BLK_S_UNSUPP:
+              Srb->SrbStatus = SRB_STATUS_INVALID_REQUEST;
+              break;
+           default:
+              Srb->SrbStatus = SRB_STATUS_ERROR;
+              RhelDbgPrint(TRACE_LEVEL_ERROR, ("SRB_STATUS_ERROR\n"));
+              break;
+           }
+        }
 
-    return TRUE;
+        if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
+            adaptExt->flush_done = TRUE;
+        } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
+            adaptExt->sn_ok = TRUE;
+            RhelDbgPrint(TRACE_LEVEL_ERROR, ("Viostor serial id %s\n", adaptExt->sn));
+        } else {
+            CompleteDPC(DeviceExtension, vbr, 0);
+        }
+        isInterruptServiced = TRUE;
+    }
+    return isInterruptServiced;
 }
 #endif
 
@@ -1005,8 +1017,13 @@ RhelScsiGetInquiryData(
         PVPD_SERIAL_NUMBER_PAGE SerialPage;
         SerialPage = (PVPD_SERIAL_NUMBER_PAGE)Srb->DataBuffer;
         SerialPage->PageCode = VPD_SERIAL_NUMBER;
-        SerialPage->PageLength = 1;
-        SerialPage->SerialNumber[0] = '0';
+        if (adaptExt->sn_ok) {
+           SerialPage->PageLength = 1;
+           SerialPage->SerialNumber[0] = '0';
+        } else {
+           SerialPage->PageLength = BLOCK_SERIAL_STRLEN;
+           ScsiPortMoveMemory(&SerialPage->SerialNumber, &adaptExt->sn, BLOCK_SERIAL_STRLEN);
+        }
         Srb->DataTransferLength = sizeof(VPD_SERIAL_NUMBER_PAGE) + SerialPage->PageLength;
     }
     else if ((cdb->CDB6INQUIRY3.PageCode == VPD_DEVICE_IDENTIFIERS) &&
