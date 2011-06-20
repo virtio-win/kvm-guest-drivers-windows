@@ -122,6 +122,8 @@ typedef struct _ADAPTER_EXTENSION {
     BOOLEAN               flush_done;
     CHAR                  sn[BLOCK_SERIAL_STRLEN];
     BOOLEAN               sn_ok;
+    BOOLEAN               rescan_geometry;
+    UCHAR                 rescan_cnt;
     blk_req               vbr;
 #ifdef INDIRECT_SUPPORTED
     BOOLEAN               indirect;

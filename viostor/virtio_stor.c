@@ -441,13 +441,10 @@ VirtIoHwInitialize(
 {
 
     PADAPTER_EXTENSION adaptExt;
-    u64                cap;
-    u32                v;
+    BOOLEAN            ret = FALSE;
 #ifdef MSI_SUPPORTED
     MESSAGE_INTERRUPT_INFORMATION msi_info;
 #endif
-
-    struct virtio_blk_geometry vgeo;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s (%d)\n", __FUNCTION__, KeGetCurrentIrql()));
 
@@ -482,74 +479,10 @@ VirtIoHwInitialize(
                          __LINE__);
 
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Cannot find snd virtual queue\n"));
-        return FALSE;
+        return ret;
     }
 
-    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BARRIER)) {
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_BARRIER\n"));
-    }
-
-    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_RO)) {
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_RO\n"));
-    }
-
-    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SIZE_MAX)) {
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, size_max),
-                      &v, sizeof(v));
-        adaptExt->info.size_max = v;
-    } else {
-        adaptExt->info.size_max = SECTOR_SIZE;
-    }
-
-    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SEG_MAX)) {
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, seg_max),
-                      &v, sizeof(v));
-        adaptExt->info.seg_max = v;
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_SEG_MAX = %d\n", adaptExt->info.seg_max));
-    }
-
-    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BLK_SIZE)) {
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, blk_size),
-                      &v, sizeof(v));
-        adaptExt->info.blk_size = v;
-    } else {
-        adaptExt->info.blk_size = SECTOR_SIZE;
-    }
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_BLK_SIZE = %d\n", adaptExt->info.blk_size));
-
-    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_GEOMETRY)) {
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, geometry),
-                      &vgeo, sizeof(vgeo));
-        adaptExt->info.geometry.cylinders= vgeo.cylinders;
-        adaptExt->info.geometry.heads    = vgeo.heads;
-        adaptExt->info.geometry.sectors  = vgeo.sectors;
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_GEOMETRY. cylinders = %d  heads = %d  sectors = %d\n", adaptExt->info.geometry.cylinders, adaptExt->info.geometry.heads, adaptExt->info.geometry.sectors));
-    }
-
-    VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, capacity),
-                      &cap, sizeof(cap));
-    adaptExt->info.capacity = cap;
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("capacity = %08I64X\n", adaptExt->info.capacity));
-
-
-    if(CHECKBIT(adaptExt->features, VIRTIO_BLK_F_TOPOLOGY)) {
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, physical_block_exp),
-                      &adaptExt->info.physical_block_exp, sizeof(adaptExt->info.physical_block_exp));
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("physical_block_exp = %d\n", adaptExt->info.physical_block_exp));
-
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, alignment_offset),
-                      &adaptExt->info.alignment_offset, sizeof(adaptExt->info.alignment_offset));
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("alignment_offset = %d\n", adaptExt->info.alignment_offset));
-
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, min_io_size),
-                      &adaptExt->info.min_io_size, sizeof(adaptExt->info.min_io_size));
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("min_io_size = %d\n", adaptExt->info.min_io_size));
-
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, opt_io_size),
-                      &adaptExt->info.opt_io_size, sizeof(adaptExt->info.opt_io_size));
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("opt_io_size = %d\n", adaptExt->info.opt_io_size));
-      
-    }
+    RhelGetDiskGeometry(DeviceExtension);
 
     memset(&adaptExt->inquiry_data, 0, sizeof(INQUIRYDATA));
 
@@ -569,13 +502,21 @@ VirtIoHwInitialize(
         RhelGetSerialNumber(DeviceExtension);
     }
 
+    ret = TRUE;
+
 #ifdef USE_STORPORT
     if(!adaptExt->dump_mode && !adaptExt->dpc_ok)
     {
-        return StorPortEnablePassiveInitialization(DeviceExtension, VirtIoPassiveInitializeRoutine);
+        ret = StorPortEnablePassiveInitialization(DeviceExtension, VirtIoPassiveInitializeRoutine);
     }
 #endif
-    return TRUE;
+
+    if (ret)
+    {
+        ScsiPortWritePortUchar((PUCHAR)(adaptExt->device_base + VIRTIO_PCI_STATUS),(UCHAR)VIRTIO_CONFIG_S_DRIVER_OK);
+    }
+
+    return ret;
 }
 
 BOOLEAN
@@ -738,12 +679,12 @@ VirtIoInterrupt(
     PADAPTER_EXTENSION  adaptExt;
     BOOLEAN             isInterruptServiced = FALSE;
     PSCSI_REQUEST_BLOCK Srb;
-
+    ULONG               intReason = 0;
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s (%d)\n", __FUNCTION__, KeGetCurrentIrql()));
-
-    if (VirtIODeviceISR(DeviceExtension) > 0) {
+    VirtIODeviceISR(DeviceExtension);
+    if ( intReason == 1) {
         isInterruptServiced = TRUE;
         while((vbr = adaptExt->pci_vq_info.vq->vq_ops->get_buf(adaptExt->pci_vq_info.vq, &len)) != NULL) {
            Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
@@ -769,6 +710,10 @@ VirtIoInterrupt(
               CompleteDPC(DeviceExtension, vbr, 0);
            }
         }
+    } else if (intReason == 3) {
+        adaptExt->rescan_geometry = TRUE;
+        adaptExt->rescan_cnt++;
+        isInterruptServiced = TRUE;
     }
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s isInterruptServiced = %d\n", __FUNCTION__, isInterruptServiced));
     return isInterruptServiced;
@@ -942,6 +887,13 @@ VirtIoMSInterruptRoutine (
     RhelDbgPrint(TRACE_LEVEL_VERBOSE,
                  ("<--->%s : MessageID 0x%x\n", __FUNCTION__, MessageID));
 
+    if (MessageID == 0) {
+       adaptExt->rescan_geometry = TRUE;
+       adaptExt->rescan_cnt++;
+       StorPortNotification( BusChangeDetected, DeviceExtension, 0);
+       return TRUE;
+    }
+
     while((vbr = adaptExt->pci_vq_info.vq->vq_ops->get_buf(adaptExt->pci_vq_info.vq, &len)) != NULL) {
         Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
         if (Srb) {
@@ -993,6 +945,11 @@ RhelScsiGetInquiryData(
     InquiryData = (PINQUIRYDATA)Srb->DataBuffer;
     dataLen = Srb->DataTransferLength;
 
+    if (adaptExt->rescan_geometry) {
+        RhelGetDiskGeometry(DeviceExtension);
+        adaptExt->rescan_geometry = FALSE;
+    }
+
     SrbStatus = SRB_STATUS_SUCCESS;
     if((cdb->CDB6INQUIRY3.PageCode != VPD_SUPPORTED_PAGES) &&
        (cdb->CDB6INQUIRY3.EnableVitalProductData == 0)) {
@@ -1017,7 +974,7 @@ RhelScsiGetInquiryData(
         PVPD_SERIAL_NUMBER_PAGE SerialPage;
         SerialPage = (PVPD_SERIAL_NUMBER_PAGE)Srb->DataBuffer;
         SerialPage->PageCode = VPD_SERIAL_NUMBER;
-        if (adaptExt->sn_ok) {
+        if (!adaptExt->sn_ok) {
            SerialPage->PageLength = 1;
            SerialPage->SerialNumber[0] = '0';
         } else {
@@ -1034,13 +991,13 @@ RhelScsiGetInquiryData(
         IdentificationPage = (PVPD_IDENTIFICATION_PAGE)Srb->DataBuffer;
         memset(IdentificationPage, 0, sizeof(VPD_IDENTIFICATION_PAGE));
         IdentificationPage->PageCode = VPD_DEVICE_IDENTIFIERS;
-        IdentificationPage->PageLength = sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + 8;
+        IdentificationPage->PageLength = sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + 11;
 
         IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
         memset(IdentificationDescr, 0, sizeof(VPD_IDENTIFICATION_DESCRIPTOR));
         IdentificationDescr->CodeSet = VpdCodeSetBinary;
         IdentificationDescr->IdentifierType = VpdIdentifierTypeEUI64;
-        IdentificationDescr->IdentifierLength = 8;
+        IdentificationDescr->IdentifierLength = 11;
         IdentificationDescr->Identifier[0] = '1';
         IdentificationDescr->Identifier[1] = 'A';
         IdentificationDescr->Identifier[2] = 'F';
@@ -1049,6 +1006,10 @@ RhelScsiGetInquiryData(
         IdentificationDescr->Identifier[5] = '0';
         IdentificationDescr->Identifier[6] = '0';
         IdentificationDescr->Identifier[7] = '1';
+        IdentificationDescr->Identifier[8] = '_';
+        IdentificationDescr->Identifier[9] = '0' + (adaptExt->rescan_cnt / 10);
+        IdentificationDescr->Identifier[10] = '0' + (adaptExt->rescan_cnt % 10);
+
         Srb->DataTransferLength = sizeof(VPD_IDENTIFICATION_PAGE) +
                                  IdentificationPage->PageLength;
 

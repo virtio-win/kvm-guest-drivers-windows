@@ -78,5 +78,9 @@ struct virtqueue_ops {
     void (*shutdown)(struct virtqueue *vq);
 };
 
+
+#define VIRTIO_CONFIG_S_DRIVER_OK	4
+
+
 #endif /* _LINUX_VIRTIO_H */
 

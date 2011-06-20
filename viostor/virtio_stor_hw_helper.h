@@ -57,4 +57,9 @@ RhelGetSerialNumber(
     IN PVOID DeviceExtension
     );
 
+VOID
+RhelGetDiskGeometry(
+    IN PVOID DeviceExtension
+    );
+
 #endif ___VIOSTOR_HW_HELPER_H___

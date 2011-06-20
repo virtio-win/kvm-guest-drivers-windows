@@ -39,4 +39,3 @@ RhelDbgPrintToComPort(
     }
     return rc;
 }
-
