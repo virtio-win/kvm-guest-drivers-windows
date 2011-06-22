@@ -1124,7 +1124,7 @@ RhelScsiGetModeSense(
            blockDescriptor = (PMODE_PARAMETER_BLOCK)header;
            blockDescriptor = (PMODE_PARAMETER_BLOCK)((unsigned char *)(blockDescriptor) + (ULONG)sizeof(MODE_PARAMETER_HEADER));
 
-           memset(blockDescriptor, 0, sizeof(MODE_PARAMETER_HEADER));
+           memset(blockDescriptor, 0, sizeof(MODE_PARAMETER_BLOCK));
 
            Srb->DataTransferLength = sizeof(MODE_PARAMETER_HEADER) +
                                      sizeof(MODE_PARAMETER_BLOCK);
