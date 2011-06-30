@@ -262,6 +262,7 @@ RhelGetLba(
 
         case SCSIOP_READ:
         case SCSIOP_WRITE:
+        case SCSIOP_READ_CAPACITY:
         case SCSIOP_WRITE_VERIFY: {
             lba.Byte0 = Cdb->CDB10.LogicalBlockByte3;
             lba.Byte1 = Cdb->CDB10.LogicalBlockByte2;
@@ -284,6 +285,7 @@ RhelGetLba(
         break;
         case SCSIOP_READ16:
         case SCSIOP_WRITE16:
+        case SCSIOP_READ_CAPACITY16:
         case SCSIOP_WRITE_VERIFY16: {
             REVERSE_BYTES_QUAD(&lba, &Cdb->CDB16.LogicalBlock[0]);
         }
@@ -334,6 +336,10 @@ RhelGetDiskGeometry(
     struct virtio_blk_geometry vgeo;
 
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+
+    adaptExt->features = ScsiPortReadPortUlong((PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
+
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BARRIER)) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_BARRIER\n"));
@@ -398,6 +404,5 @@ RhelGetDiskGeometry(
         VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, opt_io_size),
                       &adaptExt->info.opt_io_size, sizeof(adaptExt->info.opt_io_size));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("opt_io_size = %d\n", adaptExt->info.opt_io_size));
-
     }
 }

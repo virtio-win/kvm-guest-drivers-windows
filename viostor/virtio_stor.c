@@ -89,6 +89,12 @@ RhelScsiGetModeSense(
     );
 
 UCHAR
+RhelScsiGetCapacity(
+    IN PVOID DeviceExtension,
+    IN OUT PSCSI_REQUEST_BLOCK Srb
+    );
+
+UCHAR
 RhelScsiReportLuns(
     IN PVOID DeviceExtension,
     IN OUT PSCSI_REQUEST_BLOCK Srb
@@ -573,44 +579,7 @@ VirtIoStartIo(
 
         case SCSIOP_READ_CAPACITY16:
         case SCSIOP_READ_CAPACITY: {
-            PREAD_CAPACITY_DATA readCap;
-            PREAD_CAPACITY_DATA_EX readCapEx;
-            u64 lastLBA;
-            u64 blocksize;
-#ifdef USE_STORPORT
-            BOOLEAN depthSet;
-            depthSet = StorPortSetDeviceQueueDepth(DeviceExtension,
-                                                   Srb->PathId,
-                                                   Srb->TargetId,
-                                                   Srb->Lun,
-                                                   adaptExt->queue_depth);
-            ASSERT(depthSet);
-#endif
-            readCap = (PREAD_CAPACITY_DATA)Srb->DataBuffer;
-            readCapEx = (PREAD_CAPACITY_DATA_EX)Srb->DataBuffer;
-
-            blocksize = adaptExt->info.blk_size;
-            lastLBA = adaptExt->info.capacity / (blocksize / SECTOR_SIZE) - 1;
-
-            if (Srb->DataTransferLength == sizeof(READ_CAPACITY_DATA)) {
-                if (lastLBA > 0xFFFFFFFF) {
-                    readCap->LogicalBlockAddress = (ULONG)-1;
-                } else {
-                    REVERSE_BYTES(&readCap->LogicalBlockAddress,
-                                  &lastLBA);
-                }
-                REVERSE_BYTES(&readCap->BytesPerBlock,
-                              &blocksize);
-            } else {
-                ASSERT(Srb->DataTransferLength ==
-                                    sizeof(READ_CAPACITY_DATA_EX));
-                REVERSE_BYTES_QUAD(&readCapEx->LogicalBlockAddress.QuadPart,
-                                   &lastLBA);
-                REVERSE_BYTES(&readCapEx->BytesPerBlock,
-                              &blocksize);
-            }
-
-            Srb->SrbStatus = SRB_STATUS_SUCCESS;
+            Srb->SrbStatus = RhelScsiGetCapacity(DeviceExtension, Srb);
             CompleteSRB(DeviceExtension, Srb);
             return TRUE;
         }
@@ -1139,6 +1108,74 @@ RhelScsiGetModeSense(
 
     return SrbStatus;
 }
+
+UCHAR
+RhelScsiGetCapacity(
+    IN PVOID DeviceExtension,
+    IN OUT PSCSI_REQUEST_BLOCK Srb
+    )
+{
+    UCHAR SrbStatus = SRB_STATUS_SUCCESS;
+    PREAD_CAPACITY_DATA readCap;
+    PREAD_CAPACITY_DATA_EX readCapEx;
+    u64 lastLBA;
+    EIGHT_BYTE lba;
+    u64 blocksize;
+    BOOLEAN depthSet;
+    PADAPTER_EXTENSION adaptExt= (PADAPTER_EXTENSION)DeviceExtension;
+    PCDB cdb = (PCDB)&Srb->Cdb[0];
+    UCHAR  PMI = 0;
+#ifdef USE_STORPORT
+    depthSet = StorPortSetDeviceQueueDepth(DeviceExtension,
+                                           Srb->PathId,
+                                           Srb->TargetId,
+                                           Srb->Lun,
+                                           adaptExt->queue_depth);
+    ASSERT(depthSet);
+#endif
+
+    readCap = (PREAD_CAPACITY_DATA)Srb->DataBuffer;
+    readCapEx = (PREAD_CAPACITY_DATA_EX)Srb->DataBuffer;
+
+    lba.AsULongLong = 0;
+    if (cdb->CDB6GENERIC.OperationCode == SCSIOP_READ_CAPACITY16 ){
+         PMI = cdb->READ_CAPACITY16.PMI & 1;
+         REVERSE_BYTES_QUAD(&lba, &cdb->READ_CAPACITY16.LogicalBlock[0]);
+    }
+
+    if (!PMI && lba.AsULongLong) {
+
+        PSENSE_DATA senseBuffer = (PSENSE_DATA) Srb->SenseInfoBuffer;
+        Srb->ScsiStatus = SCSISTAT_CHECK_CONDITION;
+        senseBuffer->SenseKey = SCSI_SENSE_ILLEGAL_REQUEST;
+        senseBuffer->AdditionalSenseCode = SCSI_ADSENSE_INVALID_CDB;
+        return SrbStatus;
+    }
+
+    blocksize = adaptExt->info.blk_size;
+    lastLBA = adaptExt->info.capacity / (blocksize / SECTOR_SIZE) - 1;
+
+    if (Srb->DataTransferLength == sizeof(READ_CAPACITY_DATA)) {
+        if (lastLBA > 0xFFFFFFFF) {
+            readCap->LogicalBlockAddress = (ULONG)-1;
+        } else {
+            REVERSE_BYTES(&readCap->LogicalBlockAddress,
+                          &lastLBA);
+        }
+        REVERSE_BYTES(&readCap->BytesPerBlock,
+                          &blocksize);
+    } else {
+        ASSERT(Srb->DataTransferLength ==
+                          sizeof(READ_CAPACITY_DATA_EX));
+        REVERSE_BYTES_QUAD(&readCapEx->LogicalBlockAddress.QuadPart,
+                          &lastLBA);
+        REVERSE_BYTES(&readCapEx->BytesPerBlock,
+                          &blocksize);
+    }
+    Srb->ScsiStatus = SCSISTAT_GOOD;
+    return SrbStatus;
+}
+
 
 VOID
 CompleteSRB(
