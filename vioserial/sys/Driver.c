@@ -167,8 +167,7 @@ TraceEvents    (
                       status));
             return;
         }
-        if (TraceEventsLevel <= TRACE_LEVEL_INFORMATION ||
-            (TraceEventsLevel <= DebugLevel &&
+        if ((TraceEventsLevel <= DebugLevel &&
              ((TraceEventsFlag & DebugFlag) == TraceEventsFlag))) {
             VioSerDbgPrint((debugMessageBuffer));
         }
