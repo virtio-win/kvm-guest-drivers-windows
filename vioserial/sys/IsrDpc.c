@@ -41,6 +41,8 @@ VIOSerialInterruptDpc(
     size_t           Length;
     WDFREQUEST       request;
 
+    BOOLEAN          ComleteRequest = FALSE;
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
 
     if(!Interrupt)
@@ -68,7 +70,6 @@ VIOSerialInterruptDpc(
            {
               VIOSerialDiscardPortData(port);
            }
-           WdfSpinLockRelease(port->InBufLock);
 
            if (port->InBuf)
            {
@@ -83,15 +84,24 @@ VIOSerialInterruptDpc(
                     if (NT_SUCCESS(status))
                     {
                        port->PendingReadRequest = NULL;
+                       WdfSpinLockRelease(port->InBufLock);
                        information = (ULONG)VIOSerialFillReadBuf(port, systemBuffer, Length);
-                       WdfRequestCompleteWithInformation(request, STATUS_SUCCESS, information);
+                       WdfSpinLockAcquire(port->InBufLock);
+                       ComleteRequest = TRUE;
                     }
                  }
                  else
                  {
+                    request = NULL;
                     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "Request = %p was cancelled\n", request);
                  }
               }
+           }
+           WdfSpinLockRelease(port->InBufLock);
+
+           if (ComleteRequest)
+           {
+               WdfRequestCompleteWithInformation(request, STATUS_SUCCESS, information);
            }
         }
     }

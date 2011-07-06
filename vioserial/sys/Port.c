@@ -18,7 +18,7 @@ EVT_WDF_REQUEST_CANCEL VIOSerialRequestCancel;
 #pragma alloc_text(PAGE, VIOSerialPortDeviceControl)
 #endif
 
-
+extern int nWaitTimer;
 
 PVIOSERIAL_PORT
 VIOSerialFindPortById(
@@ -501,6 +501,8 @@ VIOSerialDeviceListCreatePdo(
     WDFWORKITEM                     hWorkItem;
     PRAWPDO_VIOSERIAL_PORT          pdoData = NULL;
 
+    WDF_TIMER_CONFIG                Config;
+
     DECLARE_CONST_UNICODE_STRING(deviceId, PORT_DEVICE_ID );
     DECLARE_CONST_UNICODE_STRING(deviceLocation, L"RedHat VIOSerial Port" );
 
@@ -840,6 +842,38 @@ VIOSerialDeviceListCreatePdo(
             pdoData->port = pport;
             WdfWorkItemEnqueue(hWorkItem);
         }
+
+        WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+        attributes.ParentObject = hChild;
+        status = WdfSpinLockCreate(
+                                &attributes,
+                                &pport->OutVqLock
+                                );
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+                "WdfSpinLockCreate failed 0x%x\n", status);
+           break;
+        }
+
+        WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+        attributes.ParentObject = hChild;
+        WDF_TIMER_CONFIG_INIT(&Config, VIOSerialReadTimeout);
+        Config.AutomaticSerialization = FALSE;
+        status = WdfTimerCreate(
+                                &Config,
+                                &attributes,
+                                &pport->ReadTimer
+                                );
+
+
+        if (!NT_SUCCESS(status))
+        {
+           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
+                "WdfRTimerCreate failed 0x%x\n", status);
+           break;
+        }
+
     } while (0);
 
     if (!NT_SUCCESS(status))
@@ -888,6 +922,7 @@ VIOSerialPortRead(
         ASSERT (pdoData->port->PendingReadRequest == NULL);
         WdfRequestMarkCancelableEx(Request, VIOSerialRequestCancel);
         pdoData->port->PendingReadRequest = Request;
+        WdfTimerStart(pdoData->port->ReadTimer, WDF_REL_TIMEOUT_IN_MS(nWaitTimer) );
         return;
     }
 
@@ -955,14 +990,23 @@ VIOSerialRequestCancel(
     )
 {
     PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(WdfRequestGetIoQueue(Request)));
+    BOOLEAN reqComplete = FALSE;
 
     TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "-->%s called on request 0x%p\n", __FUNCTION__, Request);
 
-    WdfRequestCompleteWithInformation(Request, STATUS_CANCELLED, 0L);
-
+    WdfSpinLockAcquire(pdoData->port->InBufLock);
     ASSERT(pdoData->port->PendingReadRequest == Request);
-    pdoData->port->PendingReadRequest = NULL;
+    if (pdoData->port->PendingReadRequest)
+    {
+        pdoData->port->PendingReadRequest = NULL;
+        reqComplete = TRUE;
+    }
+    WdfSpinLockRelease(pdoData->port->InBufLock);
 
+    if (reqComplete)
+    {
+        WdfRequestCompleteWithInformation(Request, STATUS_CANCELLED, 0L);
+    }
     return;
 }
 
@@ -1435,5 +1479,30 @@ VIOSerialEvtChildListIdentificationDescriptionCleanup(
        pDesc->NameString.Buffer = NULL;
        pDesc->NameString.Length = 0;
        pDesc->NameString.MaximumLength = 0;
+    }
+}
+
+VOID
+VIOSerialReadTimeout(IN WDFTIMER Timer)
+{
+    PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfTimerGetParentObject(Timer));
+    WDFREQUEST request = NULL;
+    NTSTATUS status;
+
+    WdfSpinLockAcquire(pdoData->port->InBufLock);
+    if(pdoData->port->PendingReadRequest)
+    {
+        status = WdfRequestUnmarkCancelable(pdoData->port->PendingReadRequest);
+        if (status != STATUS_CANCELLED)
+        {
+            request= pdoData->port->PendingReadRequest;
+            pdoData->port->PendingReadRequest = NULL;
+        }
+    }
+    WdfSpinLockRelease(pdoData->port->InBufLock);
+
+    if (request)
+    {
+        WdfRequestCompleteWithInformation(request , STATUS_CANCELLED, 0L);
     }
 }

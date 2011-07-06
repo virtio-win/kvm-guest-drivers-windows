@@ -138,6 +138,9 @@ typedef struct _tagVioSerialPort
 
     WDFQUEUE            WriteQueue;
     WDFQUEUE            IoctlQueue;
+
+    WDFTIMER            ReadTimer;
+
 } VIOSERIAL_PORT, *PVIOSERIAL_PORT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSERIAL_PORT, SerialPortGetData)
@@ -337,5 +340,10 @@ GetOutQueue (
     ASSERT (pContext->out_vqs);
     return pContext->out_vqs[port->PortId];
 };
+
+VOID
+VIOSerialReadTimeout(
+    IN WDFTIMER Timer
+);
 
 #endif /* VIOSERIAL_H */
