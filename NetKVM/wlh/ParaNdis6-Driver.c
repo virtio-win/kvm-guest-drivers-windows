@@ -490,6 +490,7 @@ static NDIS_STATUS ParaNdis6_Restart(
 	NDIS_STATUS  status = NDIS_STATUS_SUCCESS;
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
 	DEBUG_ENTRY(0);
+
 	ParaNdis_DebugHistory(pContext, hopSysResume, NULL, 1, 0, 0);
 	ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
 	ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
@@ -985,11 +986,21 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 {
 	NDIS_STATUS                             status = NDIS_STATUS_FAILURE;
 	NDIS_MINIPORT_DRIVER_CHARACTERISTICS    chars;
+#ifdef DEBUG_TIMING
+	LARGE_INTEGER TickCount;
+	LARGE_INTEGER SysTime;
+#endif DEBUG_TIMING
 
 	ParaNdis_DebugInitialize(pDriverObject, pRegistryPath);
 
 	DEBUG_ENTRY(0);
 	_LogOutString(0, __DATE__ " " __TIME__);
+#ifdef DEBUG_TIMING
+	KeQueryTickCount(&TickCount);
+	NdisGetCurrentSystemTime(&SysTime);
+	DPrintf(0, ("\n%s>> CPU #%d, perf-counter %I64d, tick count %I64d, NDIS_sys_time %I64d\n", __FUNCTION__, KeGetCurrentProcessorNumber(), KeQueryPerformanceCounter(NULL).QuadPart,TickCount.QuadPart, SysTime.QuadPart));
+#endif
+
 	NdisZeroMemory(&chars, sizeof(chars));
 
 	chars.Header.Type      = NDIS_OBJECT_TYPE_MINIPORT_DRIVER_CHARACTERISTICS;

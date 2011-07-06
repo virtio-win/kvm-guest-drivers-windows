@@ -441,6 +441,15 @@ static void OnSetPowerWorkItem(PVOID  WorkItemContext, NDIS_HANDLE  NdisIoWorkIt
 	PARANDIS_ADAPTER *pContext = pwi->pContext;
 	PNDIS_OID_REQUEST pRequest = (PNDIS_OID_REQUEST)pwi->request;
 	NDIS_STATUS status = NDIS_STATUS_SUCCESS;
+#ifdef DEBUG_TIMING
+	LARGE_INTEGER TickCount;
+	LARGE_INTEGER SysTime;
+
+	KeQueryTickCount(&TickCount);
+	NdisGetCurrentSystemTime(&SysTime);
+	DPrintf(0, ("\n%s>> CPU #%d, perf-counter %I64d, tick count %I64d, NDIS_sys_time %I64d\n", __FUNCTION__, KeGetCurrentProcessorNumber(), KeQueryPerformanceCounter(NULL).QuadPart,TickCount.QuadPart, SysTime.QuadPart));
+#endif
+
 	if (pwi->state == NetDeviceStateD0)
 	{
 		ParaNdis_PowerOn(pContext);
@@ -463,7 +472,17 @@ NDIS_STATUS ParaNdis_OnSetPower(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
 	NDIS_STATUS status;
 	NDIS_DEVICE_POWER_STATE newState;
+#ifdef DEBUG_TIMING
+	LARGE_INTEGER TickCount;
+	LARGE_INTEGER SysTime;
+
+	KeQueryTickCount(&TickCount);
+	NdisGetCurrentSystemTime(&SysTime);
+	DPrintf(0, ("\n%s>> CPU #%d, perf-counter %I64d, tick count %I64d, NDIS_sys_time %I64d\n", __FUNCTION__, KeGetCurrentProcessorNumber(), KeQueryPerformanceCounter(NULL).QuadPart,TickCount.QuadPart, SysTime.QuadPart));
+#endif
+
 	DEBUG_ENTRY(0);
+
 	status = ParaNdis_OidSetCopy(pOid, &newState, sizeof(newState));
 	if (status == NDIS_STATUS_SUCCESS)
 	{
