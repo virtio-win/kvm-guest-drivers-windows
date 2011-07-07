@@ -56,7 +56,9 @@ VIOSerialSendBuffers(
     struct virtqueue *vq = GetOutQueue(port);
     PVOID ptr = buf;
     SIZE_T len = count;
+    SIZE_T sent = 0;
     UINT elements = 0;
+    UINT retries = 0;
     TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "--> %s buf = %p, length = %d\n", __FUNCTION__, buf, (int)count);
 
     WdfSpinLockAcquire(port->OutVqLock);
@@ -74,35 +76,38 @@ VIOSerialSendBuffers(
            {
               ptr = (PVOID)((LONG_PTR)ptr + sg.ulSize);
               len -= sg.ulSize;
+              sent += sg.ulSize;
               elements++;
            }
         } while ((ret == 0) && (len > 0));
 
         vq->vq_ops->kick(vq);
         port->OutVqFull = TRUE;
-        if (!nonblock)
+        if (!nonblock && sent)
         {
            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "--> %s !nonblock\n", __FUNCTION__);
-           while(elements)
+           while(elements && retries < RETRY_THRESHOLD)
            {
               if(vq->vq_ops->get_buf(vq, &dummy))
               {
                  elements--;
+                 retries = 0;
               }
               else
               {
                  KeStallExecutionProcessor(100);
+                 retries++;
               }
            }
-        }
-        else
-        {
-           //FIXME
+           if (retries == RETRY_THRESHOLD)
+           {
+              break;
+           }
         }
     }
     WdfSpinLockRelease(port->OutVqLock);
     TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "<-- %s\n", __FUNCTION__);
-    return count;
+    return sent;
 }
 
 VOID 

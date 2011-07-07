@@ -980,7 +980,15 @@ VIOSerialPortWrite(
         }
     }
     length = VIOSerialSendBuffers(pport, systemBuffer, length, nonBlock);
-    WdfRequestCompleteWithInformation( Request, status, length);
+    if (length > 0)
+    {
+        WdfRequestCompleteWithInformation( Request, status, length);
+    }
+    else
+    {
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        WdfRequestComplete(Request, status);
+    }
 }
 
 
