@@ -49,7 +49,7 @@ VIOSerialSendCtrlMsg(
         while(!vq->vq_ops->get_buf(vq, &len))
         {
            KeStallExecutionProcessor(100);
-           if(++cnt == 20) break;
+           if(++cnt == RETRY_THRESHOLD) break;
         }
     }
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s cnt = %d\n", __FUNCTION__, cnt);
