@@ -315,7 +315,7 @@ RhelGetSerialNumber(
     adaptExt->vbr.sg[0].ulSize   = sizeof(adaptExt->vbr.out_hdr);
     adaptExt->vbr.sg[1].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &adaptExt->sn, &fragLen);
     adaptExt->vbr.sg[1].ulSize   = sizeof(adaptExt->sn);
-    adaptExt->vbr.sg[2].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &adaptExt->vbr.status, &fragLen);
+    adaptExt->vbr.sg[2].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &adaptExt->vbr.status, &fragLen);
     adaptExt->vbr.sg[2].ulSize   = sizeof(adaptExt->vbr.status);
 
     if (adaptExt->pci_vq_info.vq->vq_ops->add_buf(adaptExt->pci_vq_info.vq,
