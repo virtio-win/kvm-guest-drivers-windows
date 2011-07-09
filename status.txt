@@ -1,3 +1,12 @@
+Date	09 July 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm35
+
+Fixed bugs: 
+Bug 702258 - Virtio-Serial issue with IC116 windows Guest tools - vm stuck on reboot 
+Bug 677219 - [RFE] Include support for online resizing of storage and network block devices 
+Bug 689366 - (virtio serial) Guest aborted when transferring data from guest to host
+
 Date	04 April 2011
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm34
