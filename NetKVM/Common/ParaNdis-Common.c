@@ -111,6 +111,7 @@ typedef struct _tagConfigurationEntries
 	tConfigurationEntry VlanId;
 	tConfigurationEntry UseMergeableBuffers;
 	tConfigurationEntry MTU;
+	tConfigurationEntry NumberOfHandledRXPackersInDPC;
 }tConfigurationEntries;
 
 static const tConfigurationEntries defaultConfiguration =
@@ -149,6 +150,7 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "VlanId", 0, 0, 4095},
 	{ "MergeableBuf", 1, 0, 1},
 	{ "MTU", 1500, 500, 65500},
+	{ "NumberOfHandledRXPackersInDPC", MAX_RX_LOOPS, 1, 10000},
 };
 
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
@@ -278,6 +280,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			GetConfigurationEntry(cfg, &pConfiguration->VlanId);
 			GetConfigurationEntry(cfg, &pConfiguration->UseMergeableBuffers);
 			GetConfigurationEntry(cfg, &pConfiguration->MTU);
+			GetConfigurationEntry(cfg, &pConfiguration->NumberOfHandledRXPackersInDPC);
 
 	#if !defined(WPP_EVENT_TRACING)
 			bDebugPrint = pConfiguration->isLogEnabled.ulValue;
@@ -290,6 +293,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->nEnableDPCChecker = pConfiguration->dpcChecker.ulValue;
 			pContext->bDoInterruptRecovery = pConfiguration->InterruptRecovery.ulValue != 0;
 			pContext->Limits.nPrintDiagnostic = pConfiguration->LogStatistics.ulValue;
+			pContext->uNumberOfHandledRXPacketsInDPC = pConfiguration->NumberOfHandledRXPackersInDPC.ulValue;
 			pContext->bDoHardReset = pConfiguration->HardReset.ulValue != 0;
 			pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;
 			pContext->ulFormalLinkSpeed  = pConfiguration->ConnectRate.ulValue * 1000000;
@@ -1772,7 +1776,8 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
 			}
 			if (interruptSources & isReceive)
 			{
-				int nRestartResult = 0, nLoop = 0;
+				int nRestartResult = 0;
+				UINT nLoop = 0;
 				do
 				{
 					UINT n;
@@ -1788,7 +1793,7 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
 						NdisReleaseSpinLock(&pContext->ReceiveLock);
 						DPrintf(nRestartResult ? 2 : 6, ("[%s] queue restarted%s", __FUNCTION__, nRestartResult ? "(Rerun)" : "(Done)"));
 						++nLoop;
-						if (nLoop > MAX_RX_LOOPS)
+						if (nLoop > pContext->uNumberOfHandledRXPacketsInDPC)
 						{
 							DPrintf(0, ("[%s] Breaking Rx loop on %d-th operation", __FUNCTION__, nLoop));
 							ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)4, nRestartResult, 0, 0);
