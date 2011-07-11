@@ -270,6 +270,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	BOOLEAN					bDoKickOnNoBuffer;
 	BOOLEAN					bSurprizeRemoved;
 	BOOLEAN					bUsingMSIX;
+	UINT					uNumberOfHandledRXPacketsInDPC;
 	NDIS_DEVICE_POWER_STATE powerState;
 	LONG					dpcReceiveActive;
 	LONG 					counterDPCInside;
