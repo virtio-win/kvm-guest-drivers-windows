@@ -682,6 +682,7 @@ VirtIoInterrupt(
     } else if (intReason == 3) {
         adaptExt->rescan_geometry = TRUE;
         adaptExt->rescan_cnt++;
+        ScsiPortNotification( BusChangeDetected, DeviceExtension, 0);
         isInterruptServiced = TRUE;
     }
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s isInterruptServiced = %d\n", __FUNCTION__, isInterruptServiced));
