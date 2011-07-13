@@ -652,7 +652,7 @@ VirtIoInterrupt(
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s (%d)\n", __FUNCTION__, KeGetCurrentIrql()));
-    VirtIODeviceISR(DeviceExtension);
+    intReason = VirtIODeviceISR(DeviceExtension);
     if ( intReason == 1) {
         isInterruptServiced = TRUE;
         while((vbr = adaptExt->pci_vq_info.vq->vq_ops->get_buf(adaptExt->pci_vq_info.vq, &len)) != NULL) {
