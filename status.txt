@@ -1,3 +1,19 @@
+Date	16 July 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm36
+
+Fixed bugs:
+Bug 720540 - [WHQL][viostor] Failed to install viostor dirver on Windows XP 
+and Windows 2k3 32/64 bits (edit)  
+
+New features:
+- [NetKvm] Number of handled RX packets handled during DPC are
+configured through INF file and advanced tab in device
+manager.
+- rhel6.2 version numbering.
+
+
+
 Date	09 July 2011
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm35
