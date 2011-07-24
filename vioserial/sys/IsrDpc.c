@@ -92,8 +92,8 @@ VIOSerialInterruptDpc(
                  }
                  else
                  {
-                    request = NULL;
                     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "Request = %p was cancelled\n", request);
+                    request = NULL;
                  }
               }
            }
@@ -102,6 +102,7 @@ VIOSerialInterruptDpc(
            if (ComleteRequest)
            {
                WdfRequestCompleteWithInformation(request, STATUS_SUCCESS, information);
+               ComleteRequest = FALSE;
            }
         }
     }
