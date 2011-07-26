@@ -1,3 +1,11 @@
+Date	25 July 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm37
+
+Fixed bugs:
+Bug 721355 - unable to shut down win guest gracefully 
+
+
 Date	16 July 2011
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm36
