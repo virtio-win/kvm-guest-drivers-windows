@@ -303,7 +303,7 @@ RhelGetSerialNumber(
     IN PVOID DeviceExtension
 )
 {
-    ULONG               fragLen;
+    ULONG              fragLen;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     adaptExt->vbr.out_hdr.type = VIRTIO_BLK_T_GET_ID | VIRTIO_BLK_T_IN;

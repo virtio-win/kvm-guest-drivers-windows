@@ -505,7 +505,8 @@ VirtIoHwInitialize(
 
     if(!adaptExt->dump_mode)
     {
-        RhelGetSerialNumber(DeviceExtension);
+//  FIXME
+//        RhelGetSerialNumber(DeviceExtension);
     }
 
     ret = TRUE;
