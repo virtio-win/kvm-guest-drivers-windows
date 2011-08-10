@@ -12,6 +12,8 @@ ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
 Provider=%REDHAT%
 DriverVer=02/22/2010,6.0.1000.10000
 CatalogFile=vioser.cat
+DriverPackageType = PlugAndPlay
+DriverPackageDisplayName = %VirtioSerial.DeviceDesc%
 
 [DestinationDirs]
 DefaultDestDir = 12
