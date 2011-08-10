@@ -1,3 +1,9 @@
+Date	10 August 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm38
+
+Bug 727034 [WHQL][viostor]winxpsp3 32 bit guest exited with "virtio: trying to map MMIO memory" error
+
 Date	25 July 2011
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm37
