@@ -6,6 +6,8 @@ ClassGUID={4D36E97B-E325-11CE-BFC1-08002BE10318}
 Provider=%RHEL%
 DriverVer=05/03/2010,6.0.6001.16640
 CatalogFile=viostor.cat
+DriverPackageType = PlugAndPlay
+DriverPackageDisplayName = %RHELScsi.DeviceDesc%
 
 ;
 ; Source file information
