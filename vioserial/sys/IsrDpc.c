@@ -5,7 +5,7 @@
 #include "IsrDpc.tmh"
 #endif
 
-BOOLEAN 
+BOOLEAN
 VIOSerialInterruptIsr(
     IN WDFINTERRUPT Interrupt,
     IN ULONG MessageID)
@@ -23,7 +23,7 @@ VIOSerialInterruptIsr(
     return FALSE;
 }
 
-VOID 
+VOID
 VIOSerialInterruptDpc(
     IN WDFINTERRUPT Interrupt,
     IN WDFOBJECT AssociatedObject)
@@ -40,8 +40,6 @@ VIOSerialInterruptDpc(
     PUCHAR           systemBuffer;
     size_t           Length;
     WDFREQUEST       request;
-
-    BOOLEAN          ComleteRequest = FALSE;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
 
@@ -70,6 +68,7 @@ VIOSerialInterruptDpc(
            {
               VIOSerialDiscardPortData(port);
            }
+           WdfSpinLockRelease(port->InBufLock);
 
            if (port->InBuf)
            {
@@ -84,33 +83,23 @@ VIOSerialInterruptDpc(
                     if (NT_SUCCESS(status))
                     {
                        port->PendingReadRequest = NULL;
-                       WdfSpinLockRelease(port->InBufLock);
                        information = (ULONG)VIOSerialFillReadBuf(port, systemBuffer, Length);
-                       WdfSpinLockAcquire(port->InBufLock);
-                       ComleteRequest = TRUE;
+                       WdfRequestCompleteWithInformation(request, STATUS_SUCCESS, information);
                     }
                  }
                  else
                  {
                     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "Request = %p was cancelled\n", request);
-                    request = NULL;
                  }
               }
-           }
-           WdfSpinLockRelease(port->InBufLock);
-
-           if (ComleteRequest)
-           {
-               WdfRequestCompleteWithInformation(request, STATUS_SUCCESS, information);
-               ComleteRequest = FALSE;
            }
         }
     }
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
 }
 
-static 
-VOID 
+static
+VOID
 VIOSerialEnableDisableInterrupt(
     PPORTS_DEVICE pContext,
     IN BOOLEAN bEnable)
@@ -135,7 +124,7 @@ VIOSerialEnableDisableInterrupt(
 }
 
 
-NTSTATUS 
+NTSTATUS
 VIOSerialInterruptEnable(
     IN WDFINTERRUPT Interrupt,
     IN WDFDEVICE AssociatedDevice)
@@ -148,7 +137,7 @@ VIOSerialInterruptEnable(
     return STATUS_SUCCESS;
 }
 
-NTSTATUS 
+NTSTATUS
 VIOSerialInterruptDisable(
     IN WDFINTERRUPT Interrupt,
     IN WDFDEVICE AssociatedDevice)
@@ -160,7 +149,7 @@ VIOSerialInterruptDisable(
     return STATUS_SUCCESS;
 }
 
-VOID 
+VOID
 VIOSerialEnableDisableInterruptQueue(
     IN struct virtqueue *vq,
     IN BOOLEAN bEnable)
