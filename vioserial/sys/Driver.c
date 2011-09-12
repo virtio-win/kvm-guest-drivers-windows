@@ -42,8 +42,6 @@ ULONG DebugLevel;
 ULONG DebugFlag;
 #endif
 
-int nWaitTimer = 20000;
-
 void InitializeDebugPrints(PUNICODE_STRING RegistryPath)
 {
     //TBD - Read nDebugLevel and bDebugPrint from the registry
@@ -82,52 +80,6 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
            "WdfDriverCreate failed - 0x%x\n", status);
         WPP_CLEANUP(DriverObject);
         return status;
-    }
-    else
-    {
-        RTL_OSVERSIONINFOEXW  os;
-        NTSTATUS              keystatus = STATUS_SUCCESS;
-        UNICODE_STRING        KeyName = {0};
-        WDFKEY                hKey;
-
-
-        memset( &os, 0, sizeof(RTL_OSVERSIONINFOEXW) );
-        os.dwOSVersionInfoSize = sizeof(RTL_OSVERSIONINFOEXW);
-
-        RtlGetVersion( (PRTL_OSVERSIONINFOW)&os );
-
-        if( VER_NT_WORKSTATION == os.wProductType )
-            if( os.dwMajorVersion > 5 ) // Vista+
-                nWaitTimer = 12000;
-
-        RtlInitUnicodeString(&KeyName, L"\\Registry\\Machine\\System\\CurrentControlSet\\Control");
-
-        keystatus = WdfRegistryOpenKey(NULL, &KeyName, KEY_READ, WDF_NO_OBJECT_ATTRIBUTES, &hKey);
-        if (NT_SUCCESS(keystatus))
-        {
-            WCHAR Buf[10];
-            UNICODE_STRING  TOName, TOVal ;
-            ULONG           dwTO = 0;
-
-            TOVal.Buffer = Buf;
-            TOVal.MaximumLength = sizeof(Buf);
-            TOVal.Length = 0;
-
-            RtlInitUnicodeString(&TOName, L"WaitToKillServiceTimeout");
-
-            keystatus = WdfRegistryQueryUnicodeString(hKey, &TOName, NULL, &TOVal );
-            if (NT_SUCCESS(keystatus))
-            {
-                keystatus = RtlUnicodeStringToInteger( &TOVal, 10, &dwTO );
-                if( NT_SUCCESS(keystatus) && ( dwTO > 0 ) )
-                     nWaitTimer = dwTO;
-            }
-
-            WdfRegistryClose( hKey );
-        }
-
-        nWaitTimer /= 2; // Meanwhile TO is half of that value
-
     }
 
     return status;
@@ -184,7 +136,7 @@ DbgPrintToComPort(
 #define VioSerDbgPrint(__MSG__) DbgPrint __MSG__;
 #endif COM_DEBUG
 #else DBG
-#define VioSerDbgPrint(__MSG__) 
+#define VioSerDbgPrint(__MSG__)
 #endif DBG
 
 
