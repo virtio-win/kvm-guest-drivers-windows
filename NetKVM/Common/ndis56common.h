@@ -278,7 +278,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	LONG					InterruptStatus;
 	ULONG					ulPriorityVlanSetting;
 	ULONG					VlanId;
-	ULONG					ulFormalLinkSpeed;
+	ULONGLONG				ulFormalLinkSpeed;
 	ULONG					ulEnableWakeup;
 	tMaxPacketSize			MaxPacketSize;
 	ULONG					nEnableDPCChecker;

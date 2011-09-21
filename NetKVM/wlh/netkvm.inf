@@ -70,11 +70,12 @@ HKR, Ndi\Params\Promiscuous\enum,	"1",		0,			%Enable%
 HKR, Ndi\Params\Promiscuous\enum,	"0",		0,			%Disable%
 
 HKR, Ndi\Params\ConnectRate,		ParamDesc,	0,			%ConnectRate%
-HKR, Ndi\Params\ConnectRate,		Default,	0,			"1001"
+HKR, Ndi\Params\ConnectRate,		Default,	0,			"10000"
 HKR, Ndi\Params\ConnectRate,		type,		0,			"enum"
 HKR, Ndi\Params\ConnectRate\enum,	"10",		0,			%10M%
 HKR, Ndi\Params\ConnectRate\enum,	"100",		0,			%100M%
-HKR, Ndi\Params\ConnectRate\enum,	"1001",		0,			%1G%
+HKR, Ndi\Params\ConnectRate\enum,	"1000",		0,			%1G%
+HKR, Ndi\Params\ConnectRate\enum,	"10000",	0,			%10G%
 
 HKR, Ndi\Params\Priority,			ParamDesc,	0,			%Priority%
 HKR, Ndi\Params\Priority,			Default,	0,			"1"
@@ -301,6 +302,7 @@ ConnectRate = "Connection Rate (Mb)"
 10M = "10M"
 100M = "100M"
 1G   = "1G"
+10G =  "10G"
 Priority = "802.1PQ"
 PacketFilter = "Enable Packet Filter"
 BatchReceive = "Batch Receive"
