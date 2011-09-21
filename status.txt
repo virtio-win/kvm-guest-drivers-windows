@@ -1,3 +1,9 @@
+Date	21 September 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm40
+
+[NetKVM] Change PM capabilities to report NdisDeviceStateUnspecified for different wake up capabilities
+
 Date	12 September 2011
 repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag	mm39
