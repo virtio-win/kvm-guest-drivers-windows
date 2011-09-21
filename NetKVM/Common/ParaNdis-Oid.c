@@ -118,8 +118,8 @@ NDIS_STATUS ParaNdis_OnSetPacketFilter(PARANDIS_ADAPTER *pContext, tOidDesc *pOi
 void ParaNdis_FillPowerCapabilities(PNDIS_PNP_CAPABILITIES pCaps)
 {
 	NdisZeroMemory(pCaps, sizeof(*pCaps));
-	pCaps->WakeUpCapabilities.MinMagicPacketWakeUp = NdisDeviceStateD3;
-	pCaps->WakeUpCapabilities.MinPatternWakeUp = NdisDeviceStateD3;
+	pCaps->WakeUpCapabilities.MinMagicPacketWakeUp = NdisDeviceStateUnspecified;
+	pCaps->WakeUpCapabilities.MinPatternWakeUp = NdisDeviceStateUnspecified;
 	pCaps->WakeUpCapabilities.MinLinkChangeWakeUp = NdisDeviceStateUnspecified;
 }
 
