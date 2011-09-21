@@ -118,7 +118,7 @@ static const tConfigurationEntries defaultConfiguration =
 {
 	{ "Promiscuous",	0,	0,	1 },
 	{ "Priority",		0,	0,	1 },
-	{ "ConnectRate",	100,10,1001 },
+	{ "ConnectRate",	100,10,10000 },
 	{ "DoLog",			1,	0,	1 },
 	{ "DebugLevel",		2,	0,	8 },
 	{ "ConnectTimer",	0,	0,	300000 },
@@ -297,6 +297,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->bDoHardReset = pConfiguration->HardReset.ulValue != 0;
 			pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;
 			pContext->ulFormalLinkSpeed  = pConfiguration->ConnectRate.ulValue * 1000000;
+			pContext->ulFormalLinkSpeed *= 1000000;
 			pContext->bDoPacketFiltering = pConfiguration->PacketFiltering.ulValue != 0;
 			pContext->bUseScatterGather  = pConfiguration->ScatterGather.ulValue != 0;
 			pContext->bBatchReceive      = pConfiguration->BatchReceive.ulValue != 0;

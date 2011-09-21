@@ -236,7 +236,7 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 		break;
 	case OID_GEN_LINK_SPEED:
 		/* units are 100 bps */
-		SETINFO(ul, PARANDIS_FORMAL_LINK_SPEED / 100);
+		SETINFO(ul64, PARANDIS_FORMAL_LINK_SPEED / 100);
 		break;
 	case OID_GEN_TRANSMIT_BUFFER_SPACE:
 		SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOS * pContext->nofFreeTxDescriptors);
