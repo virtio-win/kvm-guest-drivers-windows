@@ -42,6 +42,8 @@
 #define VER_PRODUCTMINORVERSION			_NT_TARGET_MIN
 #undef __BUILDMACHINE__
 
+#define VER_LANGNEUTRAL
+
 #define VER_FILETYPE                VFT_DRV
 #define VER_FILESUBTYPE             VFT2_DRV_SYSTEM
 #define VER_FILEDESCRIPTION_STR     "NDIS Miniport Driver"
