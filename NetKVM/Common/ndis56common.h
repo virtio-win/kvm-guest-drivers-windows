@@ -142,7 +142,8 @@ typedef enum _tagOffloadSettingsBit
 	osbT4IpOptionsChecksum = 0x10,
 	osbT4Lso = 0x20,
 	osbT4LsoIp = 0x40,
-	osbT4LsoTcp = 0x80
+	osbT4LsoTcp = 0x80,
+	osbT4IpRxChecksum = 0x100
 }tOffloadSettingsBit;
 
 typedef struct _tagOffloadSettingsFlags

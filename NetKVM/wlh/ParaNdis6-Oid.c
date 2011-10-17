@@ -543,6 +543,9 @@ static void FillOffloadStructure(NDIS_OFFLOAD *po, tOffloadSettingsFlags f)
 	pcso->IPv4Transmit.TcpChecksum = f.fTxTCPChecksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
 	pcso->IPv4Transmit.TcpOptionsSupported = f.fTxTCPOptions ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
 	pcso->IPv4Transmit.UdpChecksum = f.fTxUDPChecksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
+	pcso->IPv4Receive.Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
+	pcso->IPv4Receive.IpChecksum = f.fRxIPChecksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
+	pcso->IPv4Receive.IpOptionsSupported = f.fRxIPOptions ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
 	plso->IPv4.Encapsulation = f.fTxLso ? NDIS_ENCAPSULATION_IEEE_802_3 : NDIS_ENCAPSULATION_NOT_SUPPORTED;
 	plso->IPv4.TcpOptions = (f.fTxLsoTCP && f.fTxLso) ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
 	plso->IPv4.IpOptions  = (f.fTxLsoIP  && f.fTxLso) ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
@@ -690,6 +693,8 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
 	pf->fTxTCPChecksum = SetOffloadField(pf->fTxTCPChecksum, fSupported.fTxTCPChecksum, pop->TCPIPv4Checksum, &bFailed);
 	pf->fTxTCPOptions = pf->fTxTCPChecksum;
 	pf->fTxUDPChecksum = SetOffloadField(pf->fTxUDPChecksum, fSupported.fTxUDPChecksum, pop->UDPIPv4Checksum, &bFailed);
+	pf->fRxIPChecksum = SetOffloadField(pf->fRxIPChecksum, fSupported.fRxIPChecksum, pop->IPv4Checksum, &bFailed);
+	pf->fRxIPOptions = pf->fRxIPChecksum;
 	if (NDIS_OFFLOAD_PARAMETERS_LSOV1_DISABLED == pop->LsoV1 || NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED == pop->LsoV2IPv4)
 	{
 		pf->fTxLso = 0;
