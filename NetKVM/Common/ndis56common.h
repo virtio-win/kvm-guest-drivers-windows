@@ -268,6 +268,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	BOOLEAN					bDoIPCheck;
 	BOOLEAN					bFixIPChecksum;
 	BOOLEAN					bUseMergedBuffers;
+	BOOLEAN					bDoPublishIndices;
 	BOOLEAN					bDoKickOnNoBuffer;
 	BOOLEAN					bSurprizeRemoved;
 	BOOLEAN					bUsingMSIX;
