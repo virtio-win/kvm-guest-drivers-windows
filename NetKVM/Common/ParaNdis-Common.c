@@ -302,7 +302,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->uNumberOfHandledRXPacketsInDPC = pConfiguration->NumberOfHandledRXPackersInDPC.ulValue;
 			pContext->bDoHardReset = pConfiguration->HardReset.ulValue != 0;
 			pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;
-			pContext->ulFormalLinkSpeed  = pConfiguration->ConnectRate.ulValue * 1000000;
+			pContext->ulFormalLinkSpeed  = pConfiguration->ConnectRate.ulValue;
 			pContext->ulFormalLinkSpeed *= 1000000;
 			pContext->bDoPacketFiltering = pConfiguration->PacketFiltering.ulValue != 0;
 			pContext->bUseScatterGather  = pConfiguration->ScatterGather.ulValue != 0;
