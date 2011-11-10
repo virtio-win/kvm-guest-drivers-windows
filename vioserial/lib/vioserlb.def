@@ -1,0 +1,12 @@
+LIBRARY      "VIOSerLb.DLL"
+
+EXPORTS
+;       VIOSStartup             PRIVATE
+;       VIOSCleanup             PRIVATE
+;       FindPort                PRIVATE
+;       OpenPort                PRIVATE
+;       ReadPort                PRIVATE
+;       WritePort               PRIVATE
+;       ClosePort               PRIVATE
+;       NumPorts                PRIVATE
+;       PortSymbolicName        PRIVATE

@@ -1,0 +1,30 @@
+TARGETNAME=vioser-test
+TARGETTYPE=PROGRAM
+
+_NT_TARGET_VERSION= $(_NT_TARGET_VERSION_WINXP)
+
+USE_MSVCRT=1
+
+UMTYPE=console
+UMENTRY=wmain
+
+SOURCES=main.cpp \
+        device.cpp \
+        notifier.cpp 
+
+TARGETLIBS=$(SDK_LIB_PATH)\setupapi.lib  \
+           $(SDK_LIB_PATH)\user32.lib    \
+           $(SDK_LIB_PATH)\uuid.lib      \
+           $(SDK_LIB_PATH)\strsafe.lib
+
+C_DEFINES=$(C_DEFINES) /D_UNICODE /DUNICODE
+
+USE_MSVCRT=1
+USE_VCCOM=1
+USE_ATL=1
+ATL_VER=71
+
+INCLUDES=$(INCLUDES);$(DDK_INC_PATH)
+
+#TARGET_DESTINATION=wdf
+
