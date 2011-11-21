@@ -37,7 +37,7 @@ set OLD_PATH=%PATH%
 if not "%1"=="" goto parameters_here
 echo no parameters specified, rebuild all
 call clean.bat
-call "%0" Vista Vista64 XP XP64 Win2K
+call "%0" Vista Vista64 XP XP64 Win7 Win7_64
 call :PackInstall
 goto :eof
 :parameters_here
