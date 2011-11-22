@@ -12,6 +12,9 @@
 #define VIRTIO_CONFIG_S_DRIVER_OK	4
 /* We've given up on this device. */
 #define VIRTIO_CONFIG_S_FAILED		0x80
+/* virtio library features bits */
+#define VIRTIO_F_INDIRECT			28
+#define VIRTIO_F_PUBLISH_INDICES	29
 
 /**
  * virtqueue - a queue to register buffers for sending or receiving.

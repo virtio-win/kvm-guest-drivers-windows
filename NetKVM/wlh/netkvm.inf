@@ -115,6 +115,12 @@ HKR, Ndi\Params\OffLoad.TxLSO,		type,		0,			"enum"
 HKR, Ndi\Params\OffLoad.TxLSO\enum,	"1",		0,			%Enable%
 HKR, Ndi\Params\OffLoad.TxLSO\enum,	"0",		0,			%Disable%
 
+HKR, Ndi\Params\OffLoad.RxIP,		ParamDesc,	0,			%OffLoad.RxIP%
+HKR, Ndi\Params\OffLoad.RxIP,		Default,	0,			"0"
+HKR, Ndi\Params\OffLoad.RxIP,		type,		0,			"enum"
+HKR, Ndi\Params\OffLoad.RxIP\enum,	"1",		0,			%Enable%
+HKR, Ndi\Params\OffLoad.RxIP\enum,	"0",		0,			%Disable%
+
 HKR, Ndi\Params\BatchReceive,		ParamDesc,	0,			%BatchReceive%
 HKR, Ndi\Params\BatchReceive,		Default,	0,			"1"
 HKR, Ndi\Params\BatchReceive,		type,		0,			"enum"
@@ -237,6 +243,12 @@ HKR, Ndi\Params\MergeableBuf,		type,		0,			"enum"
 HKR, Ndi\Params\MergeableBuf\enum,	"1",		0,			%Enable%
 HKR, Ndi\Params\MergeableBuf\enum,	"0",		0,			%Disable%
 
+HKR, Ndi\Params\PublishIndices,		ParamDesc,	0,			%PublishIndices%
+HKR, Ndi\Params\PublishIndices,		Default,	0,			"1"
+HKR, Ndi\Params\PublishIndices,		type,		0,			"enum"
+HKR, Ndi\Params\PublishIndices\enum,	"1",		0,			%Enable%
+HKR, Ndi\Params\PublishIndices\enum,	"0",		0,			%Disable%
+
 
 [kvmnet6.CopyFiles]
 netkvm.sys,,,2
@@ -309,6 +321,7 @@ BatchReceive = "Batch Receive"
 Offload.TxIP = "Offload Tx IP checksum"
 Offload.TxTCP = "Offload Tx TCP checksum"
 Offload.TxLSO = "Offload Tx LSO"
+Offload.RxIP =  "Offload Rx IP checksum"
 HwOffload = "Hardware checksumming"
 IPPacketsCheck = "Analyze IP packets"
 IPChecksumFix = "Fix IP checksum on LSO"
@@ -317,5 +330,6 @@ PriorityOnly = "Priority"
 VLan = "VLan"
 Priority_Vlan = "All"
 MergeableBuf = "Use mergeable buffers"
+PublishIndices = "Publish Indices"
 MTU = "MTU size"
 NumberOfHandledRXPackersInDPC = "Handled RX packers in DPC"

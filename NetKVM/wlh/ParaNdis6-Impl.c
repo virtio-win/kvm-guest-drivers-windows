@@ -12,7 +12,6 @@
 #if NDIS60_MINIPORT
 
 #include "ParaNdis6.h"
-
 #ifdef WPP_EVENT_TRACING
 #include "ParaNdis6-Impl.tmh"
 #endif
@@ -626,6 +625,7 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 	PMDL pMDL = pBuffersDesc->pHolder;
 	ULONG length = *pLength;
 	PNET_BUFFER_LIST pNBL = NULL;
+	virtio_net_hdr_basic *pHeader = NULL;
 
 	if (pMDL)
 	{
@@ -689,6 +689,18 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 				DPrintf(1, ("Found priority tag %p", qInfo.Value));
 			}
 			pNBL->MiniportReserved[0] = pBuffersDesc;
+			pHeader = (virtio_net_hdr_basic *)pBuffersDesc->HeaderInfo.Virtual;
+			if (NDIS_OFFLOAD_SUPPORTED == pContext->Offload.flags.fRxIPChecksum)
+			{
+				// if we are configured to offload Rx Checksum and receive VIRTIO_NET_HDR_F_DATA_VALID from host, we indicate IpChecksumSucceeded.
+				// for future reference, if we get a flag for invalid checksum, use IpChecksumFailed.
+				if (pHeader->flags & VIRTIO_NET_HDR_F_DATA_VALID) 
+				{
+					PNDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO pNBLInfo = (PNDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO) NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo);
+					DPrintf(3, ("Host reports VIRTIO_NET_HDR_F_DATA_VALID"));
+					pNBLInfo->Receive.IpChecksumSucceeded = TRUE;
+				}
+			}
 			pNBL->Status = NDIS_STATUS_SUCCESS;
 #if defined(ENABLE_HISTORY_LOG)
 			{
