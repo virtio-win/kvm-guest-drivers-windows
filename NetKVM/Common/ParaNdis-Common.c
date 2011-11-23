@@ -96,6 +96,7 @@ typedef struct _tagConfigurationEntries
 	tConfigurationEntry OffloadTxTCP;
 	tConfigurationEntry OffloadTxUDP;
 	tConfigurationEntry OffloadTxLSO;
+	tConfigurationEntry OffloadRxIP;
 	tConfigurationEntry HwOffload;
 	tConfigurationEntry IPPacketsCheck;
 	tConfigurationEntry IPChecksumFix;
@@ -135,6 +136,7 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "Offload.TxTCP",	0, 0, 1},
 	{ "Offload.TxUDP",	0, 0, 1},
 	{ "Offload.TxLSO",	0, 0, 1},
+	{ "Offload.RxIP",	0, 0, 1},
 	{ "HwOffload",		0, 0, 1 },
 	{ "IPPacketsCheck",	0, 0, 1 },
 	{ "IPChecksumFix",	1, 0, 1 },
@@ -265,6 +267,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxTCP);
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxUDP);
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxLSO);
+			GetConfigurationEntry(cfg, &pConfiguration->OffloadRxIP);
 			GetConfigurationEntry(cfg, &pConfiguration->HwOffload);
 			GetConfigurationEntry(cfg, &pConfiguration->IPPacketsCheck);
 			GetConfigurationEntry(cfg, &pConfiguration->IPChecksumFix);
@@ -296,7 +299,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->uNumberOfHandledRXPacketsInDPC = pConfiguration->NumberOfHandledRXPackersInDPC.ulValue;
 			pContext->bDoHardReset = pConfiguration->HardReset.ulValue != 0;
 			pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;
-			pContext->ulFormalLinkSpeed  = pConfiguration->ConnectRate.ulValue * 1000000;
+			pContext->ulFormalLinkSpeed  = pConfiguration->ConnectRate.ulValue;
 			pContext->ulFormalLinkSpeed *= 1000000;
 			pContext->bDoPacketFiltering = pConfiguration->PacketFiltering.ulValue != 0;
 			pContext->bUseScatterGather  = pConfiguration->ScatterGather.ulValue != 0;
@@ -309,6 +312,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			if (pConfiguration->OffloadTxTCP.ulValue) pContext->Offload.flagsValue |= osbT4TcpChecksum | osbT4TcpOptionsChecksum;
 			if (pConfiguration->OffloadTxUDP.ulValue) pContext->Offload.flagsValue |= osbT4UdpChecksum;
 			if (pConfiguration->OffloadTxLSO.ulValue) pContext->Offload.flagsValue |= osbT4Lso | osbT4LsoIp | osbT4LsoTcp;
+			if (pConfiguration->OffloadRxIP.ulValue) pContext->Offload.flagsValue |= osbT4IpRxChecksum | osbT4IpOptionsChecksum;
 			/* full packet size that can be configured as GSO for VIRTIO is short */
 			/* NDIS test fails sometimes fails on segments 50-60K */
 			pContext->Offload.maxPacketSize = PARANDIS_MAX_LSO_SIZE;
@@ -374,7 +378,8 @@ void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsF
 	pDest->fTxLso = !!(*from & osbT4Lso);
 	pDest->fTxLsoIP = !!(*from & osbT4LsoIp);
 	pDest->fTxLsoTCP = !!(*from & osbT4LsoTcp);
-	pDest->fRxIPChecksum = 0;
+	pDest->fRxIPChecksum = !!(*from & osbT4IpRxChecksum);
+	pDest->fTxIPOptions = !!(*from & osbT4IpOptionsChecksum);
 	pDest->fRxIPOptions = 0;
 	pDest->fRxTCPChecksum = 0;
 	pDest->fRxTCPOptions = 0;
