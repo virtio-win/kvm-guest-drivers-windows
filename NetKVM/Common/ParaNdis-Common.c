@@ -111,6 +111,7 @@ typedef struct _tagConfigurationEntries
 	tConfigurationEntry PriorityVlanTagging;
 	tConfigurationEntry VlanId;
 	tConfigurationEntry UseMergeableBuffers;
+	tConfigurationEntry PublishIndices;
 	tConfigurationEntry MTU;
 	tConfigurationEntry NumberOfHandledRXPackersInDPC;
 }tConfigurationEntries;
@@ -151,6 +152,7 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "*PriorityVLANTag", 3, 0, 3},
 	{ "VlanId", 0, 0, 4095},
 	{ "MergeableBuf", 1, 0, 1},
+	{ "PublishIndices", 1, 0, 1},
 	{ "MTU", 1500, 500, 65500},
 	{ "NumberOfHandledRXPackersInDPC", MAX_RX_LOOPS, 1, 10000},
 };
@@ -282,6 +284,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			GetConfigurationEntry(cfg, &pConfiguration->PriorityVlanTagging);
 			GetConfigurationEntry(cfg, &pConfiguration->VlanId);
 			GetConfigurationEntry(cfg, &pConfiguration->UseMergeableBuffers);
+			GetConfigurationEntry(cfg, &pConfiguration->PublishIndices);
 			GetConfigurationEntry(cfg, &pConfiguration->MTU);
 			GetConfigurationEntry(cfg, &pConfiguration->NumberOfHandledRXPackersInDPC);
 
@@ -327,6 +330,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->ulPriorityVlanSetting = pConfiguration->PriorityVlanTagging.ulValue;
 			pContext->VlanId = pConfiguration->VlanId.ulValue;
 			pContext->bUseMergedBuffers = pConfiguration->UseMergeableBuffers.ulValue != 0;
+			pContext->bDoPublishIndices = pConfiguration->PublishIndices.ulValue != 0;
 			pContext->MaxPacketSize.nMaxDataSize = pConfiguration->MTU.ulValue;
 			if (!pContext->bDoSupportPriority)
 				pContext->ulPriorityVlanSetting = 0;
@@ -442,6 +446,8 @@ static void DumpVirtIOFeatures(VirtIODevice *pIO)
 		{VIRTIO_NET_F_HOST_UFO, "VIRTIO_NET_F_HOST_UFO"},
 		{VIRTIO_NET_F_MRG_RXBUF, "VIRTIO_NET_F_MRG_RXBUF"},
 		{VIRTIO_NET_F_STATUS, "VIRTIO_NET_F_STATUS"},
+		{VIRTIO_F_INDIRECT, "VIRTIO_F_INDIRECT"},
+		{VIRTIO_F_PUBLISH_INDICES, "VIRTIO_F_PUBLISH_INDICES"},
 	};
 	UINT i;
 	for (i = 0; i < sizeof(Features)/sizeof(Features[0]); ++i)
@@ -623,6 +629,16 @@ NDIS_STATUS ParaNdis_InitializeContext(
 				pContext->CurrentMacAddress[3],
 				pContext->CurrentMacAddress[4],
 				pContext->CurrentMacAddress[5]));
+		}
+		if (pContext->bDoPublishIndices)
+			pContext->bDoPublishIndices = VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_F_PUBLISH_INDICES) != 0;
+		if (pContext->bDoPublishIndices && VirtIODeviceHasFeature(VIRTIO_F_PUBLISH_INDICES))
+		{
+			VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_F_PUBLISH_INDICES);
+		}
+		else
+		{
+			pContext->bDoPublishIndices = FALSE;
 		}
 	}
 	else
@@ -2134,6 +2150,8 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 	Dummy = VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_MAC);
 	if (pContext->bUseMergedBuffers)
 		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_NET_F_MRG_RXBUF);
+	if (pContext->bDoPublishIndices)
+		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_F_PUBLISH_INDICES);
 
 	VirtIODeviceRenewVirtualQueue(pContext->NetReceiveQueue);
 	VirtIODeviceRenewVirtualQueue(pContext->NetSendQueue);

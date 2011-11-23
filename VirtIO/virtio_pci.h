@@ -59,6 +59,7 @@ void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice);
 
 bool VirtIODeviceGetHostFeature(VirtIODevice * pVirtIODevice, unsigned uFeature);
 bool VirtIODeviceEnableGuestFeature(VirtIODevice * pVirtIODevice, unsigned uFeature);
+bool VirtIODeviceHasFeature(unsigned uFeature);
 void VirtIODeviceGet(VirtIODevice * pVirtIODevice,
 					 unsigned offset,
 					 void *buf,
