@@ -35,7 +35,7 @@
 #endif
 #define VER_COMPANYNAME_STR				"Red Hat Inc."
 #define	VER_LEGALTRADEMARKS_STR			""
-#define VER_LEGALCOPYRIGHT_STR			"(c) Red Hat Inc."
+#define VER_LEGALCOPYRIGHT_STR			"Copyright (C) 2008 Red Hat Inc."
 #define VER_PRODUCTBUILD				_MAJORVERSION_
 #define VER_PRODUCTBUILD_QFE			_MINORVERSION_
 #define VER_PRODUCTMAJORVERSION			_NT_TARGET_MAJ
@@ -46,7 +46,7 @@
 
 #define VER_FILETYPE                VFT_DRV
 #define VER_FILESUBTYPE             VFT2_DRV_SYSTEM
-#define VER_FILEDESCRIPTION_STR     "NDIS Miniport Driver"
+#define VER_FILEDESCRIPTION_STR     "Red Hat NDIS Miniport Driver"
 #define VER_INTERNALNAME_STR        "netkvm.sys"
 #define VER_PRODUCTNAME_STR			"RedHat VirtIO Ethernet Adapter"
 
