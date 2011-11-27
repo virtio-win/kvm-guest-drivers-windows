@@ -303,19 +303,17 @@ RhelGetSerialNumber(
     IN PVOID DeviceExtension
 )
 {
-    ULONG              fragLen;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     adaptExt->vbr.out_hdr.type = VIRTIO_BLK_T_GET_ID | VIRTIO_BLK_T_IN;
     adaptExt->vbr.out_hdr.sector = 0;
     adaptExt->vbr.out_hdr.ioprio = 0;
 
-
-    adaptExt->vbr.sg[0].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &adaptExt->vbr.out_hdr, &fragLen);
+    adaptExt->vbr.sg[0].physAddr = MmGetPhysicalAddress(&adaptExt->vbr.out_hdr);
     adaptExt->vbr.sg[0].ulSize   = sizeof(adaptExt->vbr.out_hdr);
-    adaptExt->vbr.sg[1].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &adaptExt->sn, &fragLen);
+    adaptExt->vbr.sg[1].physAddr = MmGetPhysicalAddress(&adaptExt->sn);
     adaptExt->vbr.sg[1].ulSize   = sizeof(adaptExt->sn);
-    adaptExt->vbr.sg[2].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &adaptExt->vbr.status, &fragLen);
+    adaptExt->vbr.sg[2].physAddr = MmGetPhysicalAddress(&adaptExt->vbr.statusn);
     adaptExt->vbr.sg[2].ulSize   = sizeof(adaptExt->vbr.status);
 
     if (adaptExt->pci_vq_info.vq->vq_ops->add_buf(adaptExt->pci_vq_info.vq,

@@ -505,8 +505,7 @@ VirtIoHwInitialize(
 
     if(!adaptExt->dump_mode)
     {
-//  FIXME
-//        RhelGetSerialNumber(DeviceExtension);
+        RhelGetSerialNumber(DeviceExtension);
     }
 
     ret = TRUE;
@@ -886,7 +885,6 @@ VirtIoMSInterruptRoutine (
             adaptExt->flush_done = TRUE;
         } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
             adaptExt->sn_ok = TRUE;
-            RhelDbgPrint(TRACE_LEVEL_ERROR, ("Viostor serial id %s\n", adaptExt->sn));
         } else {
             CompleteDPC(DeviceExtension, vbr, 0);
         }
