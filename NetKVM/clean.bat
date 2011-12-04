@@ -1,3 +1,5 @@
+rmdir /S /Q win7
+
 rmdir /S /Q wlh\objfre_wlh_x86
 rmdir /S /Q wlh\objfre_wlh_amd64
 rmdir /S /Q wlh\objfre_win7_amd64
