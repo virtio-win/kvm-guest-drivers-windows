@@ -7,3 +7,5 @@
 *.pfx
 *.cer
 *.bak
+*.user
+
