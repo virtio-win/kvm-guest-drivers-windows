@@ -12,7 +12,7 @@
 #include "ParaNdis6.h"
 #include "ParaNdis-Oid.h"
 
-#if NDIS60_MINIPORT
+#if NDIS60_MINIPORT || NDIS620_MINIPORT
 
 //#define NO_VISTA_POWER_MANAGEMENT
 
@@ -975,6 +975,18 @@ static void RetrieveDriverConfiguration()
 	}
 }
 
+#if !NDIS60_MINIPORT
+static NDIS_STATUS ParaNdis6x_DirectOidRequest(IN  NDIS_HANDLE MiniportAdapterContext,  IN  PNDIS_OID_REQUEST OidRequest)
+{
+	return NDIS_STATUS_SUCCESS;
+}
+
+static VOID ParaNdis6x_CancelDirectOidRequest(IN  NDIS_HANDLE MiniportAdapterContext,  IN  PVOID RequestId)
+{
+
+}
+#endif
+
 /**********************************************************
 Driver entry point:
 Register miniport driver
@@ -1005,7 +1017,11 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 
 	chars.Header.Type      = NDIS_OBJECT_TYPE_MINIPORT_DRIVER_CHARACTERISTICS;
 	chars.Header.Size      = sizeof(NDIS_MINIPORT_DRIVER_CHARACTERISTICS);
+#if NDIS60_MINIPORT
 	chars.Header.Revision  = NDIS_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_1;
+#else
+	chars.Header.Revision  = NDIS_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_2;
+#endif
 
 	chars.MajorNdisVersion = NDIS_MINIPORT_MAJOR_VERSION;
 	chars.MinorNdisVersion = NDIS_MINIPORT_MINOR_VERSION;
@@ -1031,6 +1047,11 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 	chars.ShutdownHandlerEx				= ParaNdis6_AdapterShutdown;
 	chars.DevicePnPEventNotifyHandler	= ParaNdis6_DevicePnPEvent;
 	chars.SetOptionsHandler				= ParaNdis6_SetOptions;
+#if !NDIS60_MINIPORT
+	chars.DirectOidRequestHandler		= ParaNdis6x_DirectOidRequest;
+	chars.CancelDirectOidRequestHandler	= ParaNdis6x_CancelDirectOidRequest;
+#endif
+
 	status = NdisMRegisterMiniportDriver(
 			pDriverObject,
 			pRegistryPath,
