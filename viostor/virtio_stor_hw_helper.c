@@ -101,7 +101,7 @@ RhelDoFlush(
     srbExt->vbr.sg[1].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
     srbExt->vbr.sg[1].ulSize   = sizeof(srbExt->vbr.status);
 
- 
+
     num_free = adaptExt->pci_vq_info.vq->vq_ops->add_buf(adaptExt->pci_vq_info.vq,
                                       &srbExt->vbr.sg[0],
                                       srbExt->out, srbExt->in,

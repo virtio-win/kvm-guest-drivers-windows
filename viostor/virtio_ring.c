@@ -44,8 +44,8 @@ initialize_virtqueue(
 
 #if (INDIRECT_SUPPORTED)
 /* Set up an indirect table of descriptors and add it to the queue. */
-static 
-int 
+static
+int
 vring_add_indirect(
     IN struct vring_virtqueue *vq,
     IN struct VirtIOBufferDescriptor sg[],
@@ -200,8 +200,8 @@ add_head:
     return vq->num_free;
 }
 
-static 
-VOID 
+static
+VOID
 vring_kick_always(
     struct virtqueue *_vq)
 {
@@ -397,7 +397,7 @@ initialize_virtqueue(
 
 }
 
-struct 
+struct
 virtqueue*
 vring_new_virtqueue(
     unsigned int num,

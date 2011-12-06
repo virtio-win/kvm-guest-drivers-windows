@@ -2,10 +2,10 @@
  * Copyright (c) 2009  Red Hat, Inc.
  *
  * File: device.c
- * 
+ *
  * Author(s):
  *
- * This file contains various vioserial driver routines 
+ * This file contains various vioserial driver routines
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
