@@ -976,12 +976,32 @@ static void RetrieveDriverConfiguration()
 }
 
 #if !NDIS60_MINIPORT
-static NDIS_STATUS ParaNdis6x_DirectOidRequest(IN  NDIS_HANDLE MiniportAdapterContext,  IN  PNDIS_OID_REQUEST OidRequest)
+static NDIS_STATUS ParaNdis6x_DirectOidRequest(IN  NDIS_HANDLE miniportAdapterContext,  IN  PNDIS_OID_REQUEST OidRequest)
 {
-	return NDIS_STATUS_SUCCESS;
+	NDIS_STATUS  status = NDIS_STATUS_NOT_SUPPORTED;
+	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
+
+	if (pContext->bSurprizeRemoved) status = NDIS_STATUS_NOT_ACCEPTED;
+
+	switch(OidRequest->DATA.SET_INFORMATION.Oid) {
+	case OID_TCP_TASK_IPSEC_OFFLOAD_V2_ADD_SA:
+		DPrintf(0, ("Received: OID_TCP_TASK_IPSEC_OFFLOAD_V2_ADD_SA"));
+		break;
+	case OID_TCP_TASK_IPSEC_OFFLOAD_V2_DELETE_SA:
+		DPrintf(0, ("Received: OID_TCP_TASK_IPSEC_OFFLOAD_V2_DELETE_SA"));
+		break;
+	case OID_TCP_TASK_IPSEC_OFFLOAD_V2_UPDATE_SA:
+		DPrintf(0, ("Received: OID_TCP_TASK_IPSEC_OFFLOAD_V2_UPDATE_SA"));
+		break;
+	default:
+		DPrintf(0, ("%s> Unknown OID received: %x", __FUNCTION__, OidRequest->DATA.SET_INFORMATION.Oid));
+		break;
+	}
+
+	return status;
 }
 
-static VOID ParaNdis6x_CancelDirectOidRequest(IN  NDIS_HANDLE MiniportAdapterContext,  IN  PVOID RequestId)
+static VOID ParaNdis6x_CancelDirectOidRequest(IN  NDIS_HANDLE miniportAdapterContext,  IN  PVOID RequestId)
 {
 
 }
@@ -1085,4 +1105,4 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 	return status;
 }
 
-#endif //NDIS60_MINIPORT
+#endif //NDIS60_MINIPORT || NDIS620_MINIPORT
