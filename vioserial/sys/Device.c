@@ -39,6 +39,30 @@ static NTSTATUS VIOSerialShutDownAllQueues(IN WDFOBJECT WdfDevice);
 
 static UINT gDeviceCount = 0;
 
+PVOID VIOSerialAllocatePhysical(IN PVOID Context, IN ULONG uSize, IN OUT pmeminfo pmi)
+{
+	PHYSICAL_ADDRESS HighestAcceptable;
+
+	UNREFERENCED_PARAMETER(Context);
+	UNREFERENCED_PARAMETER(pmi);
+
+#ifdef _WIN64
+	HighestAcceptable.QuadPart = 0xFFFFFFFFFF;
+#else
+	HighestAcceptable.QuadPart = (ULONG)-1;
+#endif
+
+	return MmAllocateContiguousMemory(uSize,HighestAcceptable);
+}
+
+void VIOSerialFreePhysical(IN PVOID Context, IN PVOID addr, IN pmeminfo pmi)
+{
+	UNREFERENCED_PARAMETER(Context);
+	UNREFERENCED_PARAMETER(pmi);
+
+	MmFreeContiguousMemory(addr);
+}
+
 static
 NTSTATUS
 VIOSerialInitInterruptHandling(
@@ -352,8 +376,10 @@ VIOSerialInitAllQueues(
     }
     for(i = 0, j = 0; i < nr_ports; i++)
     {
-        in_vq  = VirtIODeviceFindVirtualQueue(&pContext->IODevice, i * 2, NULL);
-        out_vq = VirtIODeviceFindVirtualQueue(&pContext->IODevice, (i * 2 ) + 1, NULL);
+        in_vq  = VirtIODeviceFindVirtualQueue(&pContext->IODevice, i * 2, 0, NULL,
+			                                  NULL, VIOSerialAllocatePhysical, VIOSerialFreePhysical, FALSE, FALSE, FALSE);
+        out_vq = VirtIODeviceFindVirtualQueue(&pContext->IODevice, (i * 2 ) + 1, 0, NULL,
+			                                  NULL, VIOSerialAllocatePhysical, VIOSerialFreePhysical, FALSE, FALSE, FALSE);
 
         if(i == 1) // Control Port
         {
@@ -394,13 +420,13 @@ VIOSerialShutDownAllQueues(
         if(pContext->c_ivq)
         {
             pContext->c_ivq->vq_ops->shutdown(pContext->c_ivq);
-            VirtIODeviceDeleteVirtualQueue(pContext->c_ivq);
+            VirtIODeviceDeleteVirtualQueue(pContext->c_ivq, NULL, VIOSerialFreePhysical, FALSE);
             pContext->c_ivq = NULL;
         }
         if(pContext->c_ovq)
         {
             pContext->c_ovq->vq_ops->shutdown(pContext->c_ovq);
-            VirtIODeviceDeleteVirtualQueue(pContext->c_ovq);
+            VirtIODeviceDeleteVirtualQueue(pContext->c_ovq, NULL, VIOSerialFreePhysical, FALSE);
             pContext->c_ovq = NULL;
         }
     }
@@ -411,14 +437,14 @@ VIOSerialShutDownAllQueues(
         if(pContext->in_vqs && pContext->in_vqs[i])
         {
             pContext->in_vqs[i]->vq_ops->shutdown(pContext->in_vqs[i]);
-            VirtIODeviceDeleteVirtualQueue(pContext->in_vqs[i]);
+            VirtIODeviceDeleteVirtualQueue(pContext->in_vqs[i], NULL, VIOSerialFreePhysical, FALSE);
             pContext->in_vqs[i] = NULL;
         }
 
         if(pContext->out_vqs && pContext->out_vqs[i])
         {
             pContext->out_vqs[i]->vq_ops->shutdown(pContext->out_vqs[i]);
-            VirtIODeviceDeleteVirtualQueue(pContext->out_vqs[i]);
+            VirtIODeviceDeleteVirtualQueue(pContext->out_vqs[i], NULL, VIOSerialFreePhysical, FALSE);
             pContext->out_vqs[i] = NULL;
         }
     }

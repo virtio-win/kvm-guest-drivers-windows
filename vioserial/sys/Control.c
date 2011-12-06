@@ -40,7 +40,7 @@ VIOSerialSendCtrlMsg(
     cpkt.event = event;
     cpkt.value = value;
 
-    sg.physAddr = GetPhysicalAddress(&cpkt);
+    sg.physAddr = MmGetPhysicalAddress(&cpkt);
     sg.ulSize = sizeof(cpkt);
 
     if(vq->vq_ops->add_buf(vq, &sg, 1, 0, &cpkt) == 0)

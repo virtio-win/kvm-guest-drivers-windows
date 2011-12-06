@@ -40,9 +40,7 @@
 #define bool INT
 #endif
 
-
-#include "virtio_pci.h"
 #include "virtio.h"
-#include "PVUtils.h"
+#include "virtio_pci.h"
 
 #include "trace.h"

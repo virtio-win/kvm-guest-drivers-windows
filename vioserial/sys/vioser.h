@@ -339,4 +339,8 @@ GetOutQueue (
     return pContext->out_vqs[port->PortId];
 };
 
+PVOID VIOSerialAllocatePhysical(IN PVOID Context, IN ULONG uSize, IN OUT pmeminfo pmi);
+
+void VIOSerialFreePhysical(IN PVOID Context, IN PVOID addr, IN pmeminfo pmi);
+
 #endif /* VIOSERIAL_H */

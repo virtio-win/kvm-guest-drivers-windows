@@ -35,7 +35,7 @@ VIOSerialAllocateBuffer(
         ExFreePoolWithTag(buf, VIOSERIAL_DRIVER_MEMORY_TAG);
         return NULL;
     }
-    buf->pa_buf = GetPhysicalAddress(buf->va_buf);
+    buf->pa_buf = MmGetPhysicalAddress(buf->va_buf);
     buf->len = 0;
     buf->offset = 0;
     buf->size = buf_size;
@@ -68,7 +68,7 @@ VIOSerialSendBuffers(
     {
         do
         {
-           sg.physAddr = GetPhysicalAddress(ptr);
+           sg.physAddr = MmGetPhysicalAddress(ptr);
            sg.ulSize = min(PAGE_SIZE, (unsigned long)len);
 
            ret = vq->vq_ops->add_buf(vq, &sg, 1, 0, ptr);

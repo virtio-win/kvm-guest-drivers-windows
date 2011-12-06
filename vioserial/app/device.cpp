@@ -35,7 +35,8 @@ BOOL CDevice::Init(BOOL ovrl)
         }
 
     }
-    printf("Cannot find vioserial device.\n");
+    DWORD err = GetLastError();
+    printf("Cannot find vioserial device. %S , error = %d\n", DevicePath, err );
     return FALSE;
 }
 
