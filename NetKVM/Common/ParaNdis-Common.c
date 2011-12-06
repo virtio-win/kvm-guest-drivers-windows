@@ -879,6 +879,76 @@ static int PrepareReceiveBuffers(PARANDIS_ADAPTER *pContext)
 	return nRet;
 }
 
+/**********************************************************
+Allocates ndis memory either shared for DMA or from non-paged pool
+Parameters:
+	PVOID context (Miniport's handle)
+	ULONG size    (#0-size for alloc of non-paged pool,=0-mean share for DMA alloc)
+	pmeminfo pmi  (used for DMA alloc, size taken from it)
+Return value:
+	PVOID pointer on the memory block ( NULL if not allocated )
+***********************************************************/
+PVOID ParaNdis_allocmem( IN PVOID Context, IN ULONG size, IN OUT pmeminfo pmi )
+{
+	NDIS_PHYSICAL_ADDRESS Physical;
+	PVOID				  Virtual = NULL;
+
+	if(Context)
+	{
+		if(!size)
+		{
+			if(pmi->size)
+			{
+				NdisMAllocateSharedMemory(
+					((PARANDIS_ADAPTER *)Context)->MiniportHandle,
+					pmi->size,
+					pmi->Cached,
+					&Virtual,
+					&Physical);
+				if(Virtual)
+				{
+					pmi->Addr = Virtual;
+					pmi->physAddr = Physical;
+				}
+			}
+		}
+		else
+			Virtual = ParaNdis_AllocateMemory( (PARANDIS_ADAPTER *)Context, size);
+	}
+	return Virtual;
+}
+
+/**********************************************************
+Free ndis memory either shared for DMA or from non-paged pool
+Parameters:
+	PVOID context  (Miniport's handle)
+	PVOID Address  (#NULL-pointer for free of non-paged pool,=NULL -mean free of DMA alloc)
+	pmeminfo pmi   (used for DMA free, pointer for free taken from it)
+***********************************************************/
+VOID ParaNdis_freemem( IN PVOID Context, IN PVOID Address, IN pmeminfo pmi )
+{
+	if(Context)
+	{
+		if(!Address)
+		{
+			if(pmi->Addr)
+				NdisMFreeSharedMemory(
+					((PARANDIS_ADAPTER *)Context)->MiniportHandle,
+					pmi->size,
+					pmi->Cached,
+					pmi->Addr,
+					pmi->physAddr);
+		}
+		else
+			NdisFreeMemory(Address, 0, 0);
+	}
+	else
+		if(Address)
+			NdisFreeMemory(Address, 0, 0);
+
+	return;
+}
+
 
 /**********************************************************
 Initializes VirtIO buffering and related stuff:
@@ -894,8 +964,8 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 	DEBUG_ENTRY(0);
 
 	// We expect two virtqueues, receive then send.
-	pContext->NetReceiveQueue = VirtIODeviceFindVirtualQueue(&pContext->IODevice, 0, NULL); //vp_find_vq(vdev, 0, skb_recv_done);
-	pContext->NetSendQueue = VirtIODeviceFindVirtualQueue(&pContext->IODevice, 1, NULL); //vp_find_vq(vdev, 0, skb_recv_done);
+	pContext->NetReceiveQueue = VirtIODeviceFindVirtualQueue((PVOID)&pContext->IODevice, 0, 0, NULL, pContext, ParaNdis_allocmem, ParaNdis_freemem, TRUE, TRUE, FALSE); //vp_find_vq(vdev, 0, skb_recv_done);
+	pContext->NetSendQueue = VirtIODeviceFindVirtualQueue((PVOID)&pContext->IODevice, 1, 0, NULL, pContext, ParaNdis_allocmem, ParaNdis_freemem, TRUE, TRUE, FALSE); //vp_find_vq(vdev, 0, skb_recv_done);
 
 	if (pContext->NetReceiveQueue && pContext->NetSendQueue)
 	{
@@ -917,9 +987,9 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 	else
 	{
 		if(pContext->NetSendQueue)
-			VirtIODeviceDeleteVirtualQueue(pContext->NetSendQueue);
+			VirtIODeviceDeleteVirtualQueue(pContext->NetSendQueue, pContext, ParaNdis_freemem, FALSE);
 		if(pContext->NetReceiveQueue)
-			VirtIODeviceDeleteVirtualQueue(pContext->NetReceiveQueue);
+			VirtIODeviceDeleteVirtualQueue(pContext->NetReceiveQueue, pContext, ParaNdis_freemem, FALSE);
 		pContext->NetSendQueue = pContext->NetReceiveQueue = NULL;
 	}
 	return status;
@@ -1001,9 +1071,9 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 	if(pContext->NetReceiveQueue)
 		pContext->NetReceiveQueue->vq_ops->shutdown(pContext->NetReceiveQueue);
 	if(pContext->NetSendQueue)
-		VirtIODeviceDeleteVirtualQueue(pContext->NetSendQueue);
+		VirtIODeviceDeleteVirtualQueue(pContext->NetSendQueue, pContext, ParaNdis_freemem, FALSE);
 	if(pContext->NetReceiveQueue)
-		VirtIODeviceDeleteVirtualQueue(pContext->NetReceiveQueue);
+		VirtIODeviceDeleteVirtualQueue(pContext->NetReceiveQueue, pContext, ParaNdis_freemem, FALSE);
 	pContext->NetSendQueue = pContext->NetReceiveQueue = NULL;
 
 	/* intentionally commented out
@@ -2034,6 +2104,87 @@ void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
 #endif
 }
 
+/////////////////////////////////////////////////////////////////////////////////////
+//
+// GetVirtIODeviceAddr supply device address
+//
+/////////////////////////////////////////////////////////////////////////////////////
+ULONG_PTR GetVirtIODeviceAddr( PVOID pVirtIODevice )
+{
+	return ((VirtIODevice *)pVirtIODevice)->addr ;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+//
+// SetVirtIODeviceAddr set device address and must be implemented in device specific module
+//
+/////////////////////////////////////////////////////////////////////////////////////
+void SetVirtIODeviceAddr(PVOID pVirtIODevice, ULONG_PTR addr)
+{
+	((VirtIODevice *)pVirtIODevice)->addr = addr;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+//
+// VirtIODeviceFindVirtualQueue_InDrv is driver specific VirtIODeviceFindVirtualQueue
+//
+/////////////////////////////////////////////////////////////////////////////////////
+struct virtqueue *VirtIODeviceFindVirtualQueue_InDrv(PVOID vp_dev,
+													 unsigned index,
+													 unsigned vector,
+													 bool (*callback)(struct virtqueue *vq),
+													 PVOID Context,
+													 PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
+													 VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi ),
+													 BOOLEAN Cached, BOOLEAN bPhysical)
+{
+	UNREFERENCED_PARAMETER(vp_dev);
+	UNREFERENCED_PARAMETER(index);
+	UNREFERENCED_PARAMETER(vector);
+	UNREFERENCED_PARAMETER(callback);
+	UNREFERENCED_PARAMETER(Context);
+	UNREFERENCED_PARAMETER(allocmem);
+	UNREFERENCED_PARAMETER(freemem);
+	UNREFERENCED_PARAMETER(Cached);
+	UNREFERENCED_PARAMETER(bPhysical);
+
+	return NULL;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+//
+// GetPciConfig is driver specific to return VIRTIO_PCI_CONFIG specific
+//
+/////////////////////////////////////////////////////////////////////////////////////
+int GetPciConfig(PVOID pVirtIODevice)
+{
+	UNREFERENCED_PARAMETER(pVirtIODevice);
+	return VIRTIO_PCI_CONFIG;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+//
+// drv_alloc_needed_mem is driver specific.
+//
+/////////////////////////////////////////////////////////////////////////////////////
+PVOID drv_alloc_needed_mem(PVOID vdev, PVOID Context,
+						   PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
+						   ULONG size, pmeminfo pmi)
+{
+	UNREFERENCED_PARAMETER(vdev);
+	return alloc_needed_mem(Context, allocmem, size, pmi);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+//
+// GetPhysicalAddress is driver specific MmGetPhysicalAddress. Not used in NetKvm
+//
+/////////////////////////////////////////////////////////////////////////////////////
+PHYSICAL_ADDRESS GetPhysicalAddress(PVOID addr)
+{
+	return MmGetPhysicalAddress(addr);
+}
+
 /**********************************************************
 Common handler of multicast address configuration
 Parameters:
@@ -2244,5 +2395,3 @@ void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext)
 		WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 1);
 	}
 }
-
-
