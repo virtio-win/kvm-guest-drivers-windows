@@ -242,7 +242,7 @@ static void *vring_get_buf(struct virtqueue *_vq, unsigned int *len)
 	unsigned int i;
 
 	if (!more_used(vq)) {
-		DPrintf(4, ("No more buffers in queue: last_used_idx %d vring.used->idx %d\n", 
+		DPrintf(4, ("No more buffers in queue: last_used_idx %d vring.used->idx %d\n",
 			vring_last_used(&vq->vring),
 			vq->vring.used->idx));
 		return NULL;
