@@ -256,5 +256,8 @@ IsLowMemory(
     return FALSE;
 }
 
+PVOID BalloonAllocatePhysical(IN PVOID Context, IN ULONG uSize, IN OUT pmeminfo pmi);
+
+void BalloonFreePhysical(IN PVOID Context, IN PVOID addr, IN pmeminfo pmi);
 
 #endif  // _PROTOTYPES_H_

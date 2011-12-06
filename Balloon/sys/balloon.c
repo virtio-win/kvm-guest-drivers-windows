@@ -18,6 +18,29 @@
 #include "balloon.tmh"
 #endif
 
+PVOID BalloonAllocatePhysical(IN PVOID Context, IN ULONG uSize, IN OUT pmeminfo pmi)
+{
+	PHYSICAL_ADDRESS HighestAcceptable;
+
+	UNREFERENCED_PARAMETER(Context);
+	UNREFERENCED_PARAMETER(pmi);
+
+#ifdef _WIN64
+	HighestAcceptable.QuadPart = 0xFFFFFFFFFF;
+#else
+	HighestAcceptable.QuadPart = (ULONG)-1;
+#endif
+
+	return MmAllocateContiguousMemory(uSize,HighestAcceptable);
+}
+
+void BalloonFreePhysical(IN PVOID Context, IN PVOID addr, IN pmeminfo pmi)
+{
+	UNREFERENCED_PARAMETER(Context);
+	UNREFERENCED_PARAMETER(pmi);
+
+	MmFreeContiguousMemory(addr);
+}
 
 NTSTATUS
 BalloonInit(
@@ -39,14 +62,16 @@ BalloonInit(
     VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
     VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_DRIVER);
 
-    devCtx->InfVirtQueue = VirtIODeviceFindVirtualQueue(&devCtx->VDevice, 0, NULL);
+    devCtx->InfVirtQueue = VirtIODeviceFindVirtualQueue(&devCtx->VDevice, 0, 0, NULL,
+		                                                NULL, BalloonAllocatePhysical, BalloonFreePhysical, FALSE, FALSE, FALSE);
     if (NULL == devCtx->InfVirtQueue)
     {
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto free_mem;
     }
 
-    devCtx->DefVirtQueue = VirtIODeviceFindVirtualQueue(&devCtx->VDevice, 1, NULL);
+    devCtx->DefVirtQueue = VirtIODeviceFindVirtualQueue(&devCtx->VDevice, 1, 0, NULL,
+		                                                NULL, BalloonAllocatePhysical, BalloonFreePhysical, FALSE, FALSE, FALSE);
     if (NULL == devCtx->DefVirtQueue)
     {
         status = STATUS_INSUFFICIENT_RESOURCES;
@@ -55,13 +80,14 @@ BalloonInit(
     if(VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> VIRTIO_BALLOON_F_STATS_VQ\n");
-        devCtx->StatVirtQueue = VirtIODeviceFindVirtualQueue(&devCtx->VDevice, 2, NULL);
+        devCtx->StatVirtQueue = VirtIODeviceFindVirtualQueue(&devCtx->VDevice, 2, 0, NULL,
+			                                                 NULL, BalloonAllocatePhysical, BalloonFreePhysical, FALSE, FALSE, FALSE);
         if(NULL == devCtx->StatVirtQueue)
         {
             status = STATUS_INSUFFICIENT_RESOURCES;
             goto free_mem;
         }
-        sg.physAddr = GetPhysicalAddress(drvCtx->MemStats);
+        sg.physAddr = MmGetPhysicalAddress(drvCtx->MemStats);
         sg.ulSize = sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR;
 
         if(devCtx->StatVirtQueue->vq_ops->add_buf(devCtx->StatVirtQueue, &sg, 1, 0, devCtx) != 0)
@@ -140,21 +166,21 @@ BalloonTerm(
     if(devCtx->DefVirtQueue)
     {
         devCtx->DefVirtQueue->vq_ops->shutdown(devCtx->DefVirtQueue);
-        VirtIODeviceDeleteVirtualQueue(devCtx->DefVirtQueue);
+        VirtIODeviceDeleteVirtualQueue(devCtx->DefVirtQueue, NULL, BalloonFreePhysical, FALSE);
         devCtx->DefVirtQueue = NULL;
     }
 
     if(devCtx->InfVirtQueue)
     {
         devCtx->InfVirtQueue->vq_ops->shutdown(devCtx->InfVirtQueue);
-        VirtIODeviceDeleteVirtualQueue(devCtx->InfVirtQueue);
+        VirtIODeviceDeleteVirtualQueue(devCtx->InfVirtQueue, NULL, BalloonFreePhysical, FALSE);
         devCtx->InfVirtQueue = NULL;
     }
 
     if(devCtx->StatVirtQueue)
     {
         devCtx->StatVirtQueue->vq_ops->shutdown(devCtx->StatVirtQueue);
-        VirtIODeviceDeleteVirtualQueue(devCtx->StatVirtQueue);
+        VirtIODeviceDeleteVirtualQueue(devCtx->StatVirtQueue, NULL, BalloonFreePhysical, FALSE);
         devCtx->StatVirtQueue = NULL;
     }
 
@@ -320,7 +346,7 @@ BalloonTellHost(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    sg.physAddr = GetPhysicalAddress(drvCtx->pfns_table);
+    sg.physAddr = MmGetPhysicalAddress(drvCtx->pfns_table);
     sg.ulSize = sizeof(drvCtx->pfns_table[0]) * drvCtx->num_pfns;
 
     if(vq->vq_ops->add_buf(vq, &sg, 1, 0, devCtx) != 0)
@@ -357,7 +383,7 @@ BalloonMemStats(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    sg.physAddr = GetPhysicalAddress(drvCtx->MemStats);
+    sg.physAddr = MmGetPhysicalAddress(drvCtx->MemStats);
     sg.ulSize = sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR;
 
     if(devCtx->StatVirtQueue->vq_ops->add_buf(devCtx->StatVirtQueue, &sg, 1, 0, devCtx) != 0)
@@ -368,5 +394,3 @@ BalloonMemStats(
     devCtx->StatVirtQueue->vq_ops->kick(devCtx->StatVirtQueue);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
-
-
