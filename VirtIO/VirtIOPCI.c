@@ -15,42 +15,25 @@
  *
  */
 #include "osdep.h"
-#include "VirtIO_PCI.h"
 #include "VirtIO.h"
+#include "VirtIO_PCI.h"
 #include "kdebugprint.h"
 #include "VirtIO_Ring.h"
-#include "PVUtils.h"
 
 #ifdef WPP_EVENT_TRACING
 #include "VirtIOPCI.tmh"
 #endif
-
-
-struct virtio_pci_vq_info
-{
-	/* the actual virtqueue */
-	struct virtqueue *vq;
-
-	/* the number of entries in the queue */
-	int num;
-
-	/* the index of the queue */
-	int queue_index;
-
-	/* the virtual address of the ring queue */
-	void *queue;
-};
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
 // VirtIODeviceSetIOAddress - Dump HW registers of the device
 //
 /////////////////////////////////////////////////////////////////////////////////////
-void VirtIODeviceSetIOAddress(VirtIODevice * pVirtIODevice, ULONG_PTR addr)
+void VirtIODeviceSetIOAddress(PVOID pVirtIODevice, ULONG_PTR addr)
 {
 	DPrintf(4, ("%s\n", __FUNCTION__));
 
-	pVirtIODevice->addr = addr;
+	SetVirtIODeviceAddr(pVirtIODevice, addr);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -58,18 +41,18 @@ void VirtIODeviceSetIOAddress(VirtIODevice * pVirtIODevice, ULONG_PTR addr)
 // VirtIODeviceDumpRegisters - Dump HW registers of the device
 //
 /////////////////////////////////////////////////////////////////////////////////////
-void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice)
+void VirtIODeviceDumpRegisters(PVOID pVirtIODevice)
 {
 	DPrintf(4, ("%s\n", __FUNCTION__));
 
-	DPrintf(0, ("[VIRTIO_PCI_HOST_FEATURES] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_HOST_FEATURES)));
-	DPrintf(0, ("[VIRTIO_PCI_GUEST_FEATURES] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_GUEST_FEATURES)));
-	DPrintf(0, ("[VIRTIO_PCI_QUEUE_PFN] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_QUEUE_PFN)));
-	DPrintf(0, ("[VIRTIO_PCI_QUEUE_NUM] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_QUEUE_NUM)));
-	DPrintf(0, ("[VIRTIO_PCI_QUEUE_SEL] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_QUEUE_SEL)));
-	DPrintf(0, ("[VIRTIO_PCI_QUEUE_NOTIFY] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_QUEUE_NOTIFY)));
-	DPrintf(0, ("[VIRTIO_PCI_STATUS] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_STATUS)));
-	DPrintf(0, ("[VIRTIO_PCI_ISR] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_ISR)));
+	DPrintf(0, ("[VIRTIO_PCI_HOST_FEATURES] = %x\n", ReadVirtIODeviceRegister(GetVirtIODeviceAddr(pVirtIODevice) + VIRTIO_PCI_HOST_FEATURES)));
+	DPrintf(0, ("[VIRTIO_PCI_GUEST_FEATURES] = %x\n", ReadVirtIODeviceRegister(GetVirtIODeviceAddr(pVirtIODevice) + VIRTIO_PCI_GUEST_FEATURES)));
+	DPrintf(0, ("[VIRTIO_PCI_QUEUE_PFN] = %x\n", ReadVirtIODeviceRegister(GetVirtIODeviceAddr(pVirtIODevice) + VIRTIO_PCI_QUEUE_PFN)));
+	DPrintf(0, ("[VIRTIO_PCI_QUEUE_NUM] = %x\n", ReadVirtIODeviceRegister(GetVirtIODeviceAddr(pVirtIODevice) + VIRTIO_PCI_QUEUE_NUM)));
+	DPrintf(0, ("[VIRTIO_PCI_QUEUE_SEL] = %x\n", ReadVirtIODeviceRegister(GetVirtIODeviceAddr(pVirtIODevice) + VIRTIO_PCI_QUEUE_SEL)));
+	DPrintf(0, ("[VIRTIO_PCI_QUEUE_NOTIFY] = %x\n", ReadVirtIODeviceRegister(GetVirtIODeviceAddr(pVirtIODevice) + VIRTIO_PCI_QUEUE_NOTIFY)));
+	DPrintf(0, ("[VIRTIO_PCI_STATUS] = %x\n", ReadVirtIODeviceRegister(GetVirtIODeviceAddr(pVirtIODevice) + VIRTIO_PCI_STATUS)));
+	DPrintf(0, ("[VIRTIO_PCI_ISR] = %x\n", ReadVirtIODeviceRegister(GetVirtIODeviceAddr(pVirtIODevice) + VIRTIO_PCI_ISR)));
 }
 
 
@@ -78,21 +61,21 @@ void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice)
 // Get\Set features
 //
 /////////////////////////////////////////////////////////////////////////////////////
-bool VirtIODeviceGetHostFeature(VirtIODevice * pVirtIODevice, unsigned uFeature)
+bool VirtIODeviceGetHostFeature(PVOID pVirtIODevice, unsigned uFeature)
 {
 	DPrintf(4, ("%s\n", __FUNCTION__));
 
-	return !!(ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_HOST_FEATURES) & (1 << uFeature));
+	return !!(ReadVirtIODeviceRegister(GetVirtIODeviceAddr(pVirtIODevice) + VIRTIO_PCI_HOST_FEATURES) & (1 << uFeature));
 }
 
-bool VirtIODeviceEnableGuestFeature(VirtIODevice * pVirtIODevice, unsigned uFeature)
+bool VirtIODeviceEnableGuestFeature(PVOID pVirtIODevice, unsigned uFeature)
 {
 	ULONG ulValue = 0;
 	DPrintf(4, ("%s\n", __FUNCTION__));
 
-	ulValue = ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_GUEST_FEATURES);
+	ulValue = ReadVirtIODeviceRegister(GetVirtIODeviceAddr(pVirtIODevice) + VIRTIO_PCI_GUEST_FEATURES);
 	ulValue	|= (1 << uFeature);
-	WriteVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_GUEST_FEATURES, ulValue);
+	WriteVirtIODeviceRegister(GetVirtIODeviceAddr(pVirtIODevice) + VIRTIO_PCI_GUEST_FEATURES, ulValue);
 
 	return !!(ulValue & (1 << uFeature));
 }
@@ -108,10 +91,10 @@ bool VirtIODeviceHasFeature(unsigned uFeature)
 // Reset device
 //
 /////////////////////////////////////////////////////////////////////////////////////
-void VirtIODeviceReset(VirtIODevice * pVirtIODevice)
+void VirtIODeviceReset(PVOID pVirtIODevice)
 {
 	/* 0 status means a reset. */
-	WriteVirtIODeviceByte(pVirtIODevice->addr + VIRTIO_PCI_STATUS, 0);
+	WriteVirtIODeviceByte(GetVirtIODeviceAddr(pVirtIODevice) + VIRTIO_PCI_STATUS, 0);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -119,27 +102,27 @@ void VirtIODeviceReset(VirtIODevice * pVirtIODevice)
 // Get\Set status
 //
 /////////////////////////////////////////////////////////////////////////////////////
-static u8 VirtIODeviceGetStatus(VirtIODevice * pVirtIODevice)
+static u8 VirtIODeviceGetStatus(PVOID pVirtIODevice)
 {
 	DPrintf(6, ("%s\n", __FUNCTION__));
 
-	return ReadVirtIODeviceByte(pVirtIODevice->addr + VIRTIO_PCI_STATUS);
+	return ReadVirtIODeviceByte(GetVirtIODeviceAddr(pVirtIODevice) + VIRTIO_PCI_STATUS);
 }
 
-static void VirtIODeviceSetStatus(VirtIODevice * pVirtIODevice, u8 status)
+static void VirtIODeviceSetStatus(PVOID pVirtIODevice, u8 status)
 {
 	DPrintf(6, ("%s>>> %x\n", __FUNCTION__, status));
-	WriteVirtIODeviceByte(pVirtIODevice->addr + VIRTIO_PCI_STATUS, status);
+	WriteVirtIODeviceByte(GetVirtIODeviceAddr(pVirtIODevice) + VIRTIO_PCI_STATUS, status);
 }
 
-void VirtIODeviceAddStatus(VirtIODevice * pVirtIODevice, u8 status)
+void VirtIODeviceAddStatus(PVOID pVirtIODevice, u8 status)
 {
 	DPrintf(4, ("%s>>> %x\n", __FUNCTION__, status));
 
 	VirtIODeviceSetStatus(pVirtIODevice, VirtIODeviceGetStatus(pVirtIODevice) | status);
 }
 
-void VirtIODeviceRemoveStatus(VirtIODevice * pVirtIODevice, u8 status)
+void VirtIODeviceRemoveStatus(PVOID pVirtIODevice, u8 status)
 {
 	DPrintf(4, ("%s>>> %x\n", __FUNCTION__, status));
 
@@ -152,12 +135,12 @@ void VirtIODeviceRemoveStatus(VirtIODevice * pVirtIODevice, u8 status)
 // Get\Set device data
 //
 /////////////////////////////////////////////////////////////////////////////////////
-void VirtIODeviceGet(VirtIODevice * pVirtIODevice,
+void VirtIODeviceGet(PVOID pVirtIODevice,
 							unsigned offset,
 							void *buf,
 							unsigned len)
 {
-	ULONG_PTR ioaddr = pVirtIODevice->addr + VIRTIO_PCI_CONFIG + offset;
+	ULONG_PTR ioaddr = GetVirtIODeviceAddr(pVirtIODevice) + GetPciConfig(pVirtIODevice)/*VIRTIO_PCI_CONFIG*/ + offset;
 	u8 *ptr = buf;
 	unsigned i;
 
@@ -167,12 +150,12 @@ void VirtIODeviceGet(VirtIODevice * pVirtIODevice,
 		ptr[i] = ReadVirtIODeviceByte(ioaddr + i);
 }
 
-void VirtIODeviceSet(VirtIODevice * pVirtIODevice,
+void VirtIODeviceSet(PVOID pVirtIODevice,
 							   unsigned offset,
 							   const void *buf,
 							   unsigned len)
 {
-	ULONG_PTR ioaddr = pVirtIODevice->addr + VIRTIO_PCI_CONFIG + offset;
+	ULONG_PTR ioaddr = GetVirtIODeviceAddr(pVirtIODevice) + GetPciConfig(pVirtIODevice)/*VIRTIO_PCI_CONFIG*/ + offset;
 	const u8 *ptr = buf;
 	unsigned i;
 
@@ -183,74 +166,87 @@ void VirtIODeviceSet(VirtIODevice * pVirtIODevice,
 }
 
 // the notify function used when creating a virt queue /
-static void vp_notify(struct virtqueue *vq)
+void vp_notify(struct virtqueue *vq)
 {
-	VirtIODevice *vp_dev = vq->vdev;
 	struct virtio_pci_vq_info *info = vq->priv;
 
 	DPrintf(4, ("%s>> queue %d\n", __FUNCTION__, info->queue_index));
 
 	// we write the queue's selector into the notification register to
 	// * signal the other end
-	WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_NOTIFY, (u16) info->queue_index);
+	WriteVirtIODeviceWord(GetVirtIODeviceAddr(vq->vdev) + VIRTIO_PCI_QUEUE_NOTIFY, (u16) info->queue_index);
 }
 
-
 //* A small wrapper to also acknowledge the interrupt when it's handled.
-// * I really need an EIO hook for the vring so I can ack the interrupt once we
+//* I really need an EIO hook for the vring so I can ack the interrupt once we
 //* know that we'll be handling the IRQ but before we invoke the callback since
 //* the callback may notify the host which results in the host attempting to
-// * raise an interrupt that we would then mask once we acknowledged the
-// * interrupt.
+//* raise an interrupt that we would then mask once we acknowledged the
+//* interrupt.
 /* changed: status is a bitmap rather than boolean value */
-ULONG VirtIODeviceISR(VirtIODevice * pVirtIODevice)
+ULONG VirtIODeviceISR(PVOID pVirtIODevice)
 {
 	ULONG status;
 	DPrintf(4, ("%s\n", __FUNCTION__));
 
-	status = ReadVirtIODeviceByte(pVirtIODevice->addr + VIRTIO_PCI_ISR);
+	status = ReadVirtIODeviceByte(GetVirtIODeviceAddr(pVirtIODevice) + VIRTIO_PCI_ISR);
 
 	return status;
 }
 
 //the config->find_vq() implementation
 //VirtIODeviceFindVirtualQueue
-struct virtqueue *VirtIODeviceFindVirtualQueue(VirtIODevice *vp_dev,
+struct virtqueue *VirtIODeviceFindVirtualQueue(PVOID vp_dev,
 											   unsigned index,
-											   bool (*callback)(struct virtqueue *vq))
+											   unsigned vector,
+											   bool (*callback)(struct virtqueue *vq),
+											   PVOID Context, PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
+											   VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi ),
+											   BOOLEAN Cached, BOOLEAN bPhysical, BOOLEAN bLocal)
 {
 	struct virtio_pci_vq_info *info;
 	struct virtqueue *vq;
 	u16 num;
 	int err;
 
+	if( bLocal )
+		return VirtIODeviceFindVirtualQueue_InDrv(vp_dev, index, vector, callback, Context, allocmem, freemem, Cached, bPhysical );
+
 	DPrintf(4, ("%s\n", __FUNCTION__));
 
 	// Select the queue we're interested in
-	WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_SEL, (u16) index);
+	WriteVirtIODeviceWord(GetVirtIODeviceAddr(vp_dev) + VIRTIO_PCI_QUEUE_SEL, (u16) index);
 
 	// Check if queue is either not available or already active.
-	num = ReadVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_NUM);
+	num = ReadVirtIODeviceWord(GetVirtIODeviceAddr(vp_dev) + VIRTIO_PCI_QUEUE_NUM);
 
 	DPrintf(0, ("%s>>> [vp_dev->addr + VIRTIO_PCI_QUEUE_NUM] = %x\n", __FUNCTION__, num) );
-	if (!num || ReadVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN))
+	if (!num || ReadVirtIODeviceWord(GetVirtIODeviceAddr(vp_dev) + VIRTIO_PCI_QUEUE_PFN))
 		return NULL;
 
 	// allocate and fill out our structure the represents an active queue
-	info = AllocatePhysical(sizeof(struct virtio_pci_vq_info));
+	info = alloc_needed_mem(Context, allocmem, sizeof(struct virtio_pci_vq_info), NULL);
+
 	if (!info)
 		return NULL;
 
 	info->queue_index = index;
 	info->num = num;
 
-	info->queue = AllocatePhysical(vring_size(num,PAGE_SIZE));
+	info->mi.Addr = NULL;
+	info->mi.Cached = Cached;
+	info->mi.size = vring_size(num,PAGE_SIZE);
+    info->pFree = NULL;
+
+	info->queue = alloc_needed_mem(Context, allocmem, bPhysical ? 0 : info->mi.size/*vring_size(num,PAGE_SIZE)*/,
+		                                              bPhysical ? &info->mi : NULL );
+
 	if (info->queue == NULL) {
 		err = -1;
 		goto out_info;
 	}
 
-	memset(info->queue, 0, vring_size(num,PAGE_SIZE));
+	memset(info->queue, 0, info->mi.size/*vring_size(num,PAGE_SIZE)*/);
 
 	DPrintf(0, ("[%s] info = %p, info->queue = %p\n", __FUNCTION__, info, info->queue) );
 	// create the vring
@@ -258,7 +254,8 @@ struct virtqueue *VirtIODeviceFindVirtualQueue(VirtIODevice *vp_dev,
 							 vp_dev,
 							 info->queue,
 							 vp_notify,
-							 callback);
+							 callback,
+							 Context, allocmem);
 
 	if (!vq) {
 		err = -1;
@@ -270,48 +267,61 @@ struct virtqueue *VirtIODeviceFindVirtualQueue(VirtIODevice *vp_dev,
 
 	// activate the queue
 	{
-		PHYSICAL_ADDRESS pa = MmGetPhysicalAddress(info->queue);
-		ULONG pageNum = (ULONG)(pa.QuadPart >> PAGE_SHIFT);
+		PHYSICAL_ADDRESS pa;
+		ULONG pageNum;
+
+		if( info->mi.Addr )
+			pa = info->mi.physAddr;
+		else
+			pa = MmGetPhysicalAddress(info->queue);
+
+		pageNum = (ULONG)(pa.QuadPart >> PAGE_SHIFT);
+
 		DPrintf(0, ("[%s] queue phys.address %08lx:%08lx, pfn %lx\n", __FUNCTION__, pa.u.HighPart, pa.u.LowPart, pageNum));
-		WriteVirtIODeviceRegister(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN, pageNum);
+		WriteVirtIODeviceRegister(GetVirtIODeviceAddr(vp_dev) + VIRTIO_PCI_QUEUE_PFN, pageNum);
 	}
 
 	return vq;
 
 out_activate_queue:
-	WriteVirtIODeviceRegister(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN, 0);
+	WriteVirtIODeviceRegister(GetVirtIODeviceAddr(vp_dev) + VIRTIO_PCI_QUEUE_PFN, 0);
 	if(info->queue) {
-		MmFreeContiguousMemory(info->queue);
+		free_needed_mem(Context, freemem, !info->mi.Addr ? info->queue: NULL,
+											!info->mi.Addr ? NULL :&info->mi);
 	}
 out_info:
 	if(info) {
-		MmFreeContiguousMemory(info);
-	}
+		free_needed_mem(Context, freemem, info, NULL);
+		}
 
 	return NULL;
 }
 
-
 /* the config->del_vq() implementation  */
-void VirtIODeviceDeleteVirtualQueue(struct virtqueue *vq)
+void VirtIODeviceDeleteVirtualQueue(struct virtqueue *vq, PVOID Context,
+									VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi ), BOOLEAN bLocal)
 {
-	VirtIODevice *vp_dev = vq->vdev;
 	struct virtio_pci_vq_info *info = (struct virtio_pci_vq_info *)vq->priv;
 
 	DPrintf(4, ("%s\n", __FUNCTION__));
 
-	vring_del_virtqueue(vq);
+	if( !bLocal )
+	    vring_del_virtqueue(vq, Context, freemem);
 
 	// Select and deactivate the queue
-	WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_SEL, (u16) info->queue_index);
-	WriteVirtIODeviceRegister(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN, 0);
+	WriteVirtIODeviceWord(GetVirtIODeviceAddr(vq->vdev) + VIRTIO_PCI_QUEUE_SEL, (u16) info->queue_index);
+	WriteVirtIODeviceRegister(GetVirtIODeviceAddr(vq->vdev) + VIRTIO_PCI_QUEUE_PFN, 0);
+
+	if( bLocal )
+		return;
 
 	if(info->queue) {
-		MmFreeContiguousMemory(info->queue);
+		free_needed_mem(Context, freemem, !info->mi.Addr ? info->queue: NULL,
+											!info->mi.Addr ? NULL :&info->mi);
 	}
 
 	if(info) {
-		MmFreeContiguousMemory(info);
+		free_needed_mem(Context, freemem, info, NULL);
 	}
 }
 
@@ -321,12 +331,16 @@ void VirtIODeviceRenewVirtualQueue(struct virtqueue *vq)
 	PHYSICAL_ADDRESS pa;
 	ULONG pageNum;
 	struct virtio_pci_vq_info *info = vq->priv;
-	VirtIODevice *vp_dev = vq->vdev;
-	pa = MmGetPhysicalAddress(info->queue);
+
+	if( info->mi.Addr )
+	    pa = info->mi.physAddr;
+	else
+	    pa = GetPhysicalAddress(info->queue);
+
 	pageNum = (ULONG)(pa.QuadPart >> PAGE_SHIFT);
-	DPrintf(0, ("[%s] devaddr %p, queue %d, pfn %x\n", __FUNCTION__, vp_dev->addr, info->queue_index, pageNum));
-	WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_SEL, (u16)info->queue_index);
-	WriteVirtIODeviceRegister(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN, pageNum);
+	DPrintf(0, ("[%s] devaddr %p, queue %d, pfn %x\n", __FUNCTION__, GetVirtIODeviceAddr(vq->vdev), info->queue_index, pageNum));
+	WriteVirtIODeviceWord(GetVirtIODeviceAddr(vq->vdev) + VIRTIO_PCI_QUEUE_SEL, (u16)info->queue_index);
+	WriteVirtIODeviceRegister(GetVirtIODeviceAddr(vq->vdev) + VIRTIO_PCI_QUEUE_PFN, pageNum);
 }
 
 u32 VirtIODeviceGetQueueSize(struct virtqueue *vq)
@@ -338,4 +352,115 @@ u32 VirtIODeviceGetQueueSize(struct virtqueue *vq)
 void* VirtIODeviceDetachUnusedBuf(struct virtqueue *vq)
 {
     return vring_detach_unused_buf(vq);
+}
+
+PVOID VirtIODeviceAllocVirtualQueueAddMem( struct virtqueue *vq,
+										   PVOID Context, PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
+										   int size, BOOLEAN Cached, BOOLEAN bPhysical)
+{
+	bool ret = FALSE;
+	struct virtio_pci_vq_info *info = (struct virtio_pci_vq_info *)vq->priv;
+	void *pAddAllocWork = NULL;
+	unsigned nunits = (size+sizeof(Header)-1)/sizeof(Header) + 1; //size in header units
+	unsigned allocsize = nunits*sizeof(Header);
+
+	if( bPhysical )
+	{
+		info->Add_alloc = NULL;
+		info->mi_add.size = allocsize;
+		info->mi_add.Cached = Cached;
+	}
+
+	pAddAllocWork = alloc_needed_mem( Context, allocmem, !bPhysical ? allocsize : 0,
+		                                                 !bPhysical ? NULL : &info->mi_add );
+
+	if( !bPhysical )
+		info->Add_alloc = pAddAllocWork;
+
+	info->base.pHead = info->pFree = &info->base;
+	info->base.size = 0;
+
+	info->pFree->pHead = pAddAllocWork;
+	info->pFree->pHead->size  = nunits;
+	info->pFree->pHead->pHead = &info->base;
+
+	return pAddAllocWork;
+}
+
+void VirtIODeviceDeleteVirtualQueueAddMem(struct virtqueue *vq, PVOID Context, VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi ))
+{
+	struct virtio_pci_vq_info *info = (struct virtio_pci_vq_info *)vq->priv;
+
+	free_needed_mem(Context, freemem,  info->Add_alloc ?  info->Add_alloc : NULL,
+									   info->Add_alloc ? NULL : &info->mi_add);
+	info->pFree = NULL;
+}
+
+
+void *VirtIODevicemallocVirtualQueueAddMem(struct virtqueue *vq, unsigned nbytes)
+{
+    Header *p, *prevp;
+    unsigned nunits;
+
+	struct virtio_pci_vq_info *info = (struct virtio_pci_vq_info *)vq->priv;
+
+	if( !info->pFree )
+		return NULL;
+
+    nunits = (nbytes+sizeof(Header)-1)/sizeof(Header) + 1;
+
+	prevp = info->pFree ;
+
+    for (p = prevp->pHead; ; prevp = p, p = p->pHead)
+    {
+        if (p->size >= (int)nunits)
+        {
+            if (p->size == (int)nunits)
+                prevp->pHead = p->pHead;
+             else
+             {
+                 p->size -= nunits;
+                 p += p->size;
+                 p->size = nunits;
+             }
+             info->pFree = prevp;
+             return (void *)(p+1);
+         }
+         if (p == info->pFree)
+             return NULL;
+    }
+	return NULL ;
+}
+
+
+void VirtIODevicefreeVirtualQueueAddMem(struct virtqueue *vq, void *ap)
+{
+    Header *bp, *p;
+
+	struct virtio_pci_vq_info *info = (struct virtio_pci_vq_info *)vq->priv;
+
+	if( !info->pFree )
+		return;
+
+    bp = (Header *)ap - 1;
+
+    for (p = info->pFree; !(bp > p && bp < p->pHead); p = p->pHead)
+        if (p >= p->pHead && (bp > p || bp < p->pHead))
+            break;
+
+    if (bp + bp->size == p->pHead)
+	{
+        bp->size += p->pHead->size;
+        bp->pHead = p->pHead->pHead;
+    } else
+        bp->pHead = p->pHead;
+
+    if (p + p->size == bp)
+	{
+        p->size += bp->size;
+        p->pHead = bp->pHead;
+    } else
+        p->pHead = bp;
+
+    info->pFree = p;
 }

@@ -16,6 +16,24 @@
 #define VIRTIO_F_INDIRECT			28
 #define VIRTIO_F_PUBLISH_INDICES	29
 
+
+typedef struct TypeVirtIODevice
+{
+	ULONG_PTR addr;
+} VirtIODevice;
+
+typedef struct _meminfo
+{
+	PVOID            Addr;
+	PHYSICAL_ADDRESS physAddr;
+	ULONG            size;
+	BOOLEAN          Cached;
+
+    ULONG            alignment;
+	PVOID            Reserved;
+
+}meminfo, *pmeminfo;
+
 /**
  * virtqueue - a queue to register buffers for sending or receiving.
  * @callback: the function to call when buffers are consumed (can be NULL).
@@ -28,7 +46,7 @@
 struct virtqueue
 {
 	bool (*callback)(struct virtqueue *vq);
-	VirtIODevice *vdev;
+	PVOID vdev;
 	struct virtqueue_ops *vq_ops;
 	void *priv;
 };
