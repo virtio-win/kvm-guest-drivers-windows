@@ -2,7 +2,7 @@
  * Copyright (c) 2010  Red Hat, Inc.
  *
  * File: vioser.rc
- * 
+ *
  * This file contains resource (version) definitions for viostor driver.
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
@@ -24,7 +24,7 @@
 #undef  VER_PRODUCTMINORVERSION
 
 #undef  VER_LEGALCOPYRIGHT_STR
-#define VER_LEGALCOPYRIGHT_STR      "Copyright (C) 2010 Red Hat Inc." 
+#define VER_LEGALCOPYRIGHT_STR      "Copyright (C) 2010 Red Hat Inc."
 
 #undef  VER_COMPANYNAME_STR
 #define VER_COMPANYNAME_STR         "Red Hat Inc."

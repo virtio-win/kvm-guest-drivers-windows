@@ -201,7 +201,7 @@ LRESULT CALLBACK PnPControl::GlobalWndProc(HWND hWnd, UINT msg, WPARAM wParam, L
     return 0;
 }
 
-HDEVNOTIFY PnPControl::RegisterInterfaceNotify( 
+HDEVNOTIFY PnPControl::RegisterInterfaceNotify(
     GUID InterfaceClassGuid
     )
 {
@@ -209,7 +209,7 @@ HDEVNOTIFY PnPControl::RegisterInterfaceNotify(
     HDEVNOTIFY Notify;
 
     ZeroMemory( &NotificationFilter, sizeof(NotificationFilter) );
-    NotificationFilter.dbcc_size = 
+    NotificationFilter.dbcc_size =
         sizeof(DEV_BROADCAST_DEVICEINTERFACE);
     NotificationFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
     NotificationFilter.dbcc_classguid = InterfaceClassGuid;
@@ -255,7 +255,7 @@ HDEVNOTIFY PnPControl::RegisterHandleNotify(HANDLE handle)
 
 void PnPControl::ProcessPnPNotification(PnPControl* ptr, PnPNotification Notification)
 {
-    switch (Notification.wParam) 
+    switch (Notification.wParam)
     {
     case DBT_DEVICEARRIVAL: {
         PDEV_BROADCAST_HDR pHdr = (PDEV_BROADCAST_HDR)Notification.lParam;

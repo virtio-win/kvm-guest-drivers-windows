@@ -94,7 +94,7 @@ VIOSerialEvtDriverContextCleanup(
     PAGED_CODE ();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
-  
+
     WPP_CLEANUP( drvObj);
 }
 
@@ -115,8 +115,8 @@ DbgPrintToComPort(
     NTSTATUS   status;
     size_t     rc;
 
-    status = RtlStringCbLengthA(Format, TEMP_BUFFER_SIZE, &rc); 
- 
+    status = RtlStringCbLengthA(Format, TEMP_BUFFER_SIZE, &rc);
+
     if(NT_SUCCESS(status)) {
         WRITE_PORT_BUFFER_UCHAR(RHEL_DEBUG_PORT, (PUCHAR)Format, rc);
         WRITE_PORT_UCHAR(RHEL_DEBUG_PORT, '\r');

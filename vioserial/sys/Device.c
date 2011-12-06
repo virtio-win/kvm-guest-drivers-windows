@@ -77,7 +77,7 @@ VIOSerialInitInterruptHandling(
     return status;
 }
 
-NTSTATUS 
+NTSTATUS
 VIOSerialEvtDeviceAdd(
     IN WDFDRIVER Driver,
     IN PWDFDEVICE_INIT DeviceInit)
@@ -89,7 +89,7 @@ VIOSerialEvtDeviceAdd(
     WDF_CHILD_LIST_CONFIG        ChildListConfig;
     PNP_BUS_INFORMATION          busInfo;
     PPORTS_DEVICE                pContext = NULL;
-	
+
     UNREFERENCED_PARAMETER(Driver);
 
     PAGED_CODE();
@@ -146,7 +146,7 @@ VIOSerialEvtDeviceAdd(
                                  &GUID_VIOSERIAL_CONTROLLER,
                                  NULL
                                  );
-    if (!NT_SUCCESS(status)) 
+    if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfDeviceCreateDeviceInterface failed - 0x%x\n", status);
         return status;
@@ -164,7 +164,7 @@ VIOSerialEvtDeviceAdd(
     return status;
 }
 
-NTSTATUS 
+NTSTATUS
 VIOSerialEvtDevicePrepareHardware(
     IN WDFDEVICE Device,
     IN WDFCMRESLIST ResourcesRaw,
@@ -298,19 +298,19 @@ VIOSerialEvtDevicePrepareHardware(
     return status;
 }
 
-NTSTATUS 
+NTSTATUS
 VIOSerialEvtDeviceReleaseHardware(
     IN WDFDEVICE Device,
     IN WDFCMRESLIST ResourcesTranslated)
 {
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
     UNREFERENCED_PARAMETER(ResourcesTranslated);
-	
+
     PAGED_CODE();
-	
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
-	
-    if (pContext->pPortBase && pContext->bPortMapped) 
+
+    if (pContext->pPortBase && pContext->bPortMapped)
     {
         MmUnmapIoSpace(pContext->pPortBase, pContext->uPortLength);
     }
@@ -332,8 +332,8 @@ VIOSerialEvtDeviceReleaseHardware(
     return STATUS_SUCCESS;
 }
 
-static 
-NTSTATUS 
+static
+NTSTATUS
 VIOSerialInitAllQueues(
     IN WDFOBJECT Device)
 {
@@ -344,7 +344,7 @@ VIOSerialInitAllQueues(
     WDF_OBJECT_ATTRIBUTES  attributes;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
-    
+
     nr_ports = pContext->consoleConfig.max_nr_ports;
     if(pContext->isHostMultiport)
     {
@@ -377,7 +377,7 @@ VIOSerialInitAllQueues(
     return status;
 }
 
-NTSTATUS 
+NTSTATUS
 VIOSerialShutDownAllQueues(
     IN WDFOBJECT WdfDevice)
 {
@@ -403,7 +403,7 @@ VIOSerialShutDownAllQueues(
             VirtIODeviceDeleteVirtualQueue(pContext->c_ovq);
             pContext->c_ovq = NULL;
         }
-    } 
+    }
 
     nr_ports = pContext->consoleConfig.max_nr_ports;
     for(i = 0; i < nr_ports; i++ )
@@ -425,7 +425,7 @@ VIOSerialShutDownAllQueues(
     return status;
 }
 
-NTSTATUS 
+NTSTATUS
 VIOSerialFillQueue(
     IN struct virtqueue *vq,
     IN WDFSPINLOCK Lock

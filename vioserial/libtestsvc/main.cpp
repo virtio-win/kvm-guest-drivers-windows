@@ -16,7 +16,7 @@ void __stdcall HandlerEx(DWORD ctlcode, DWORD evtype, PVOID evdata, PVOID contex
     CService::HandlerExThunk((CService*) context, ctlcode, evtype, evdata);
 }
 
-void __stdcall ServiceMainEx(DWORD argc, TCHAR* argv[]) 
+void __stdcall ServiceMainEx(DWORD argc, TCHAR* argv[])
 {
     srvc.m_StatusHandle = RegisterServiceCtrlHandlerEx(argv[0], (LPHANDLER_FUNCTION_EX) HandlerEx, (PVOID) &srvc);
     CService::ServiceMainThunk(&srvc, argc, argv);
@@ -40,7 +40,7 @@ wmain(
     {
         if (_tcsicmp(L"-i", argv[1]) == 0) {
            InstallService();
-        } else if (_tcsicmp(L"-u", argv[1]) == 0) {		
+        } else if (_tcsicmp(L"-u", argv[1]) == 0) {
            UninstallService();
         } else if (_tcsicmp(L"-r", argv[1]) == 0) {
            ServiceRun();
@@ -50,12 +50,12 @@ wmain(
            ServiceControl(SERVICE_CONTROL_PAUSE);
         } else if (_tcsicmp(L"-c", argv[1]) == 0) {
            ServiceControl(SERVICE_CONTROL_CONTINUE);
-        } else if (_tcsicmp(L"status", argv[1]) == 0) {	
+        } else if (_tcsicmp(L"status", argv[1]) == 0) {
            SC_HANDLE scm, service;
            scm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
            if (!scm) {
               ErrorHandler("OpenSCManager", GetLastError());
-           } 
+           }
            service = OpenService(scm, ServiceName, SERVICE_ALL_ACCESS);
            if (!service) {
               ErrorHandler("OpenService", GetLastError());

@@ -103,7 +103,7 @@ VIOSerialAddPort(
     port.BusDevice = Device;
 
     status = WdfChildListAddOrUpdateChildDescriptionAsPresent(
-                                 WdfFdoGetDefaultChildList(Device), 
+                                 WdfFdoGetDefaultChildList(Device),
                                  &port.Header,
                                  NULL
                                  );
@@ -434,7 +434,7 @@ VIOSerialPortHasData(
         return TRUE;
     }
     port->InBuf = VIOSerialGetInBuf(port);
-    if (port->InBuf) 
+    if (port->InBuf)
     {
         WdfSpinLockRelease(port->InBufLock);
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
@@ -661,7 +661,7 @@ VIOSerialDeviceListCreatePdo(
         WdfDeviceInitSetFileObjectConfig(
                                  ChildInit,
                                  &fileConfig,
-                                 WDF_NO_OBJECT_ATTRIBUTES 
+                                 WDF_NO_OBJECT_ATTRIBUTES
                                  );
 
         WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, RAWPDO_VIOSERIAL_PORT);
@@ -1072,7 +1072,7 @@ VIOSerialPortDeviceControl(
            if (pdoData->port->NameString.Buffer)
            {
               RtlZeroMemory(pport_info->Name, name_size);
-              status = RtlStringCbCopyA(pport_info->Name, name_size - 1, pdoData->port->NameString.Buffer);   
+              status = RtlStringCbCopyA(pport_info->Name, name_size - 1, pdoData->port->NameString.Buffer);
               if (!NT_SUCCESS(status))
               {
                  TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
@@ -1367,7 +1367,7 @@ VIOSerialPortPnpNotifyWork(
                if (!NT_SUCCESS(status))
                {
                     TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                                 "IoReportTargetDeviceChangeAsynchronous Failed! status = 0x%x\n", status);   
+                                 "IoReportTargetDeviceChangeAsynchronous Failed! status = 0x%x\n", status);
                }
             }
             ExFreePoolWithTag(notification, VIOSERIAL_DRIVER_MEMORY_TAG);
