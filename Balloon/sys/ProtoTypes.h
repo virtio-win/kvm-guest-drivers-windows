@@ -2,11 +2,11 @@
  * Copyright (c) 2009  Red Hat, Inc.
  *
  * File: precomp.h
- * 
+ *
  * Author(s):
- * 
- * Main include file 
- * This file contains various routines and globals 
+ *
+ * Main include file
+ * This file contains various routines and globals
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
@@ -93,7 +93,7 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(WORKITEM_CONTEXT, GetWorkItemContext)
 
 #define BALLOON_MGMT_POOL_TAG 'mtlB'
 
-DRIVER_INITIALIZE DriverEntry; 
+DRIVER_INITIALIZE DriverEntry;
 EVT_WDF_OBJECT_CONTEXT_CLEANUP EvtDriverContextCleanup;
 EVT_WDF_DRIVER_DEVICE_ADD BalloonDeviceAdd;
 EVT_WDF_DEVICE_FILE_CREATE BalloonEvtDeviceFileCreate;
@@ -133,26 +133,26 @@ BalloonTerm(
     IN WDFOBJECT    WdfDevice
     );
 
-VOID 
+VOID
 BalloonFill(
-    IN WDFOBJECT WdfDevice, 
+    IN WDFOBJECT WdfDevice,
     IN size_t num
     );
 
-VOID 
+VOID
 BalloonLeak(
-    IN WDFOBJECT WdfDevice, 
+    IN WDFOBJECT WdfDevice,
     IN size_t num
     );
 
-VOID 
+VOID
 BalloonMemStats(
     IN WDFOBJECT WdfDevice
     );
 
-VOID 
+VOID
 BalloonTellHost(
-    IN WDFOBJECT WdfDevice, 
+    IN WDFOBJECT WdfDevice,
     IN PVIOQUEUE vq,
     IN PVOID     ev
     );
@@ -228,7 +228,7 @@ RestartInterrupt(
     return TRUE;
 }
 
-BOOLEAN 
+BOOLEAN
 LogError(
     IN PDRIVER_OBJECT  drvObj,
     IN NTSTATUS        ErrorCode

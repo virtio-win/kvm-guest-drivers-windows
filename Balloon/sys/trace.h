@@ -2,10 +2,10 @@
  * Copyright (c) 2009  Red Hat, Inc.
  *
  * File: precomp.h
- * 
+ *
  * Author(s):
- * 
- * This file contains trace and debugging related definitions 
+ *
+ * This file contains trace and debugging related definitions
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.

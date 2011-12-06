@@ -12,7 +12,7 @@ CDevice::~CDevice()
     BALLOON_STAT stat[VIRTIO_BALLOON_S_NR];
     if (m_hDevice != INVALID_HANDLE_VALUE) {
         memset(stat, -1, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR);
-        Write(stat, VIRTIO_BALLOON_S_NR); 
+        Write(stat, VIRTIO_BALLOON_S_NR);
         CloseHandle(m_hDevice);
         m_hDevice = INVALID_HANDLE_VALUE;
     }
@@ -31,25 +31,25 @@ BOOL CDevice::Init()
                              NULL );
 
         if (m_hDevice != INVALID_HANDLE_VALUE) {
-            PrintMessage("Open balloon device"); 
+            PrintMessage("Open balloon device");
             return TRUE;
         }
 
     }
-    PrintMessage("Cannot find balloon device"); 
+    PrintMessage("Cannot find balloon device");
     return FALSE;
 }
 
 BOOL CDevice::Write(PBALLOON_STAT pstat, int nr)
 {
     BOOL res = FALSE;
-    ULONG ret = 0; 
+    ULONG ret = 0;
     res = WriteFile(m_hDevice, pstat, sizeof(BALLOON_STAT) * nr, &ret, NULL);
     if (!res) {
-        PrintMessage("Cannot write balloon device"); 
+        PrintMessage("Cannot write balloon device");
     } else if ( ret != sizeof(BALLOON_STAT) * nr) {
         PrintMessage("Write balloon device error");
-        ret = FALSE; 
+        ret = FALSE;
     }
     return res;
 }
@@ -70,7 +70,7 @@ PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
                              (DIGCF_PRESENT | DIGCF_DEVICEINTERFACE));
 
     if (HardwareDeviceInfo == INVALID_HANDLE_VALUE) {
-        PrintMessage("Cannot get class devices"); 
+        PrintMessage("Cannot get class devices");
         return NULL;
     }
 
@@ -83,7 +83,7 @@ PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
                                               &DeviceInterfaceData);
 
     if (bResult == FALSE) {
-        PrintMessage("Cannot get enumerate device interfaces"); 
+        PrintMessage("Cannot get enumerate device interfaces");
         SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
         return NULL;
     }
@@ -100,7 +100,7 @@ PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
     DeviceInterfaceDetailData = (PSP_DEVICE_INTERFACE_DETAIL_DATA) LocalAlloc(LMEM_FIXED, RequiredLength);
 
     if (DeviceInterfaceDetailData == NULL) {
-        PrintMessage("Cannot allocate memory"); 
+        PrintMessage("Cannot allocate memory");
         SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
         return NULL;
     }
@@ -118,7 +118,7 @@ PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
                   NULL);
 
     if (bResult == FALSE) {
-        PrintMessage("Cannot get device interface details"); 
+        PrintMessage("Cannot get device interface details");
         SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
         LocalFree(DeviceInterfaceDetailData);
         return NULL;

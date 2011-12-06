@@ -2,11 +2,11 @@
  * Copyright (c) 2009  Red Hat, Inc.
  *
  * File: balloon.c
- * 
+ *
  * Author(s):
  *  Vadim Rozenfeld <vrozenfe@redhat.com>
  *
- * This file contains balloon driver routines 
+ * This file contains balloon driver routines
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
@@ -40,14 +40,14 @@ BalloonInit(
     VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_DRIVER);
 
     devCtx->InfVirtQueue = VirtIODeviceFindVirtualQueue(&devCtx->VDevice, 0, NULL);
-    if (NULL == devCtx->InfVirtQueue) 
+    if (NULL == devCtx->InfVirtQueue)
     {
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto free_mem;
     }
 
     devCtx->DefVirtQueue = VirtIODeviceFindVirtualQueue(&devCtx->VDevice, 1, NULL);
-    if (NULL == devCtx->DefVirtQueue) 
+    if (NULL == devCtx->DefVirtQueue)
     {
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto free_mem;
@@ -73,7 +73,7 @@ BalloonInit(
 
     }
     devCtx->bTellHostFirst
-        = (BOOLEAN)VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_MUST_TELL_HOST); 
+        = (BOOLEAN)VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_MUST_TELL_HOST);
 
 free_mem:
     KeMemoryBarrier();
@@ -137,21 +137,21 @@ BalloonTerm(
 
     VirtIODeviceRemoveStatus(&devCtx->VDevice , VIRTIO_CONFIG_S_DRIVER_OK);
 
-    if(devCtx->DefVirtQueue) 
+    if(devCtx->DefVirtQueue)
     {
         devCtx->DefVirtQueue->vq_ops->shutdown(devCtx->DefVirtQueue);
         VirtIODeviceDeleteVirtualQueue(devCtx->DefVirtQueue);
         devCtx->DefVirtQueue = NULL;
     }
 
-    if(devCtx->InfVirtQueue) 
+    if(devCtx->InfVirtQueue)
     {
         devCtx->InfVirtQueue->vq_ops->shutdown(devCtx->InfVirtQueue);
         VirtIODeviceDeleteVirtualQueue(devCtx->InfVirtQueue);
         devCtx->InfVirtQueue = NULL;
     }
 
-    if(devCtx->StatVirtQueue) 
+    if(devCtx->StatVirtQueue)
     {
         devCtx->StatVirtQueue->vq_ops->shutdown(devCtx->StatVirtQueue);
         VirtIODeviceDeleteVirtualQueue(devCtx->StatVirtQueue);
@@ -163,9 +163,9 @@ BalloonTerm(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- BalloonTerm\n");
 }
 
-VOID 
+VOID
 BalloonFill(
-    IN WDFOBJECT WdfDevice, 
+    IN WDFOBJECT WdfDevice,
     IN size_t num)
 {
     PMDL                pPageMdl;
@@ -174,7 +174,7 @@ BalloonFill(
     PPAGE_LIST_ENTRY    pNewPageListEntry;
     PDRIVER_CONTEXT     drvCtx = GetDriverContext(WdfGetDriver());
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
-    ULONG               pages_per_request = PAGE_SIZE/sizeof(PFN_NUMBER); 
+    ULONG               pages_per_request = PAGE_SIZE/sizeof(PFN_NUMBER);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
@@ -184,7 +184,7 @@ BalloonFill(
     num = min(num, pages_per_request);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> BalloonFill num = %d\n", num);
 
-    for (drvCtx->num_pfns = 0; drvCtx->num_pfns < num; drvCtx->num_pfns++) 
+    for (drvCtx->num_pfns = 0; drvCtx->num_pfns < num; drvCtx->num_pfns++)
     {
         if(IsLowMemory(WdfDevice))
         {
@@ -220,12 +220,12 @@ BalloonFill(
             TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "List Entry Allocation Failed!!!\n");
             MmFreePagesFromMdl(pPageMdl);
             ExFreePool(pPageMdl);
-            break;  
+            break;
         }
- 
+
         pNewPageListEntry->PageMdl = pPageMdl;
         pNewPageListEntry->PagePfn = drvCtx->pfns_table[drvCtx->num_pfns] = *MmGetMdlPfnArray(pPageMdl);
- 
+
         WdfSpinLockAcquire(drvCtx->SpinLock);
         PushEntryList(&drvCtx->PageListHead, &(pNewPageListEntry->SingleListEntry));
         drvCtx->num_pages++;
@@ -238,9 +238,9 @@ BalloonFill(
     }
 }
 
-VOID 
+VOID
 BalloonLeak(
-    IN WDFOBJECT WdfDevice, 
+    IN WDFOBJECT WdfDevice,
     IN size_t num
     )
 {
@@ -251,13 +251,13 @@ BalloonLeak(
     PDRIVER_CONTEXT     drvCtx = GetDriverContext(WdfGetDriver());
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
-    
+
     num = min(num, PAGE_SIZE/sizeof(PFN_NUMBER));
 
     WdfSpinLockAcquire(drvCtx->SpinLock);
-    pPageListEntry = (PPAGE_LIST_ENTRY)&(drvCtx->PageListHead).Next; 
+    pPageListEntry = (PPAGE_LIST_ENTRY)&(drvCtx->PageListHead).Next;
 
-    for (drvCtx->num_pfns = 0; drvCtx->num_pfns < num; drvCtx->num_pfns++) 
+    for (drvCtx->num_pfns = 0; drvCtx->num_pfns < num; drvCtx->num_pfns++)
     {
         if (pPageListEntry == NULL)
         {
@@ -268,13 +268,13 @@ BalloonLeak(
         pPageListEntry = (PPAGE_LIST_ENTRY)pPageListEntry->SingleListEntry.Next;
     }
     WdfSpinLockRelease(drvCtx->SpinLock);
- 
-    if (devCtx->bTellHostFirst) 
+
+    if (devCtx->bTellHostFirst)
     {
         BalloonTellHost(WdfDevice, devCtx->DefVirtQueue, &drvCtx->DefEvent);
     }
 
-    for (i = 0; i < drvCtx->num_pfns; i++) 
+    for (i = 0; i < drvCtx->num_pfns; i++)
     {
 
         WdfSpinLockAcquire(drvCtx->SpinLock);
@@ -299,15 +299,15 @@ BalloonLeak(
                                 );
     }
 
-    if (!devCtx->bTellHostFirst) 
+    if (!devCtx->bTellHostFirst)
     {
         BalloonTellHost(WdfDevice, devCtx->DefVirtQueue, &drvCtx->DefEvent);
     }
 }
 
-VOID 
+VOID
 BalloonTellHost(
-    IN WDFOBJECT WdfDevice, 
+    IN WDFOBJECT WdfDevice,
     IN PVIOQUEUE vq,
     IN PVOID     ev
     )
@@ -344,7 +344,7 @@ BalloonTellHost(
     }
 }
 
-VOID 
+VOID
 BalloonMemStats(
     IN WDFOBJECT WdfDevice
     )

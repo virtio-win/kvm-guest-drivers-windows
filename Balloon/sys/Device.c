@@ -2,11 +2,11 @@
  * Copyright (c) 2009  Red Hat, Inc.
  *
  * File: device.c
- * 
+ *
  * Author(s):
  *  Vadim Rozenfeld <vrozenfe@redhat.com>
  *
- * This file contains balloon driver routines 
+ * This file contains balloon driver routines
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
@@ -40,7 +40,7 @@ DECLARE_CONST_UNICODE_STRING(evLowMemString, LOMEMEVENTNAME);
 #endif // (WINVER >= 0x0501)
 
 
-NTSTATUS 
+NTSTATUS
 BalloonDeviceAdd(
     IN WDFDRIVER  Driver,
     IN PWDFDEVICE_INIT  DeviceInit)
@@ -81,14 +81,14 @@ BalloonDeviceAdd(
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
 
-    status = WdfDeviceCreate(&DeviceInit, &attributes, &device);  
+    status = WdfDeviceCreate(&DeviceInit, &attributes, &device);
     if(!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
            "WdfDeviceCreate failed with status 0x%08x\n", status);
         return status;
     }
-  
+
     devCtx = GetDeviceContext(device);
     devCtx->Device = device;
     devCtx->DriverObject = WdfDriverWdmGetDriverObject(Driver);
@@ -96,7 +96,7 @@ BalloonDeviceAdd(
     WDF_INTERRUPT_CONFIG_INIT(&interruptConfig,
                             BalloonInterruptIsr,
                             BalloonInterruptDpc);
- 
+
     interruptConfig.EvtInterruptEnable  = BalloonInterruptEnable;
     interruptConfig.EvtInterruptDisable = BalloonInterruptDisable;
 
@@ -143,7 +143,7 @@ BalloonEvtDevicePrepareHardware(
     PHYSICAL_ADDRESS    PortBasePA     = {0};
     ULONG               PortLength     = 0;
     ULONG               i;
-  
+
     PDEVICE_CONTEXT     devCtx = NULL;
 
     PCM_PARTIAL_RESOURCE_DESCRIPTOR  desc;
@@ -161,7 +161,7 @@ BalloonEvtDevicePrepareHardware(
         desc = WdfCmResourceListGetDescriptor( ResourceListTranslated, i );
 
         if(!desc) {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, 
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
                         "WdfResourceCmGetDescriptor failed\n");
             return STATUS_DEVICE_CONFIGURATION_ERROR;
         }
@@ -169,7 +169,7 @@ BalloonEvtDevicePrepareHardware(
         switch (desc->Type) {
 
             case CmResourceTypePort:
-                if (!foundPort && 
+                if (!foundPort &&
                      desc->u.Port.Length >= 0x20) {
 
                     devCtx->PortMapped =
@@ -228,7 +228,7 @@ BalloonEvtDeviceReleaseHardware (
     WDFDEVICE      Device,
     WDFCMRESLIST   ResourcesTranslated
     )
-{                  
+{
     PDEVICE_CONTEXT     devCtx = NULL;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
@@ -372,10 +372,10 @@ FillLeakWorkItem(
 
     if (pItemContext->Diff > 0) {
         BalloonFill(pItemContext->Device, (size_t)(pItemContext->Diff));
-    } else if (pItemContext->Diff < 0) {  
+    } else if (pItemContext->Diff < 0) {
         BalloonLeak(pItemContext->Device, (size_t)(-pItemContext->Diff));
     }
-    SetBalloonSize(pItemContext->Device, drvCtx->num_pages); 
+    SetBalloonSize(pItemContext->Device, drvCtx->num_pages);
     if (pItemContext->bStatUpdate) {
         BalloonMemStats(pItemContext->Device);
     }
@@ -406,7 +406,7 @@ BalloonInterruptDpc(
     UNREFERENCED_PARAMETER( WdfInterrupt );
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "--> %s\n", __FUNCTION__);
-  
+
     if (devCtx->InfVirtQueue->vq_ops->get_buf(devCtx->InfVirtQueue, &len))
     {
         KeSetEvent (&drvCtx->InfEvent, IO_NO_INCREMENT, FALSE);
@@ -463,7 +463,7 @@ BalloonInterruptEnable(
 
     devCtx = GetDeviceContext(WdfDevice);
     EnableInterrupt(WdfInterrupt, devCtx);
-    
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }

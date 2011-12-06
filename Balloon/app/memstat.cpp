@@ -21,10 +21,10 @@ CMemStat::~CMemStat()
 BOOL CMemStat::Init()
 {
     HRESULT status  = S_OK;
-    status = CoInitializeEx(NULL, 
+    status = CoInitializeEx(NULL,
                             COINIT_MULTITHREADED);
     if (FAILED(status)) {
-        PrintMessage("Cannot initialize COM"); 
+        PrintMessage("Cannot initialize COM");
         return status;
     }
     initialized = TRUE;
@@ -40,7 +40,7 @@ BOOL CMemStat::Init()
                             0);
 
     if (FAILED(status)) {
-        PrintMessage("Cannot initialize security"); 
+        PrintMessage("Cannot initialize security");
         return FALSE;
     }
 
@@ -51,7 +51,7 @@ BOOL CMemStat::Init()
                             reinterpret_cast< void** >( &locator ));
 
     if (FAILED(status)) {
-        PrintMessage("Cannot create instance"); 
+        PrintMessage("Cannot create instance");
         return FALSE;
     }
 
@@ -64,7 +64,7 @@ BOOL CMemStat::Init()
                             NULL,
                             &service);
     if (FAILED(status)) {
-        PrintMessage("Cannot connect to wmi server"); 
+        PrintMessage("Cannot connect to wmi server");
         return FALSE;
     }
 
@@ -77,7 +77,7 @@ BOOL CMemStat::Init()
                             NULL,
                             EOAC_NONE);
     if (FAILED(status)) {
-        PrintMessage("Cannot set proxy blanket"); 
+        PrintMessage("Cannot set proxy blanket");
         return FALSE;
     }
     return TRUE;
@@ -93,18 +93,18 @@ BOOL  CMemStat::GetStatus(PBALLOON_STAT pStat)
     HRESULT status  = S_OK;
     UINT idx = 0;
     if(!pStat) {
-        PrintMessage("Invalid pointer"); 
+        PrintMessage("Invalid pointer");
         return FALSE;
     }
 
-    status = service->ExecQuery(L"WQL", 
+    status = service->ExecQuery(L"WQL",
                             L"SELECT * FROM Win32_PerfFormattedData_PerfOS_Memory",
-                            WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY, 
+                            WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
                             NULL,
                             &enumerator);
 
     if (FAILED(status)) {
-        PrintMessage("Cannot execute query"); 
+        PrintMessage("Cannot execute query");
         return FALSE;
     }
 
@@ -115,56 +115,56 @@ BOOL  CMemStat::GetStatus(PBALLOON_STAT pStat)
                             &memory,
                             &retcnt);
         if (retcnt == 0) {
-            break; 
+            break;
         }
 
-        status = memory->Get( L"PagesInputPerSec", 
-                            0, 
-                            &var_val, 
-                            NULL, 
+        status = memory->Get( L"PagesInputPerSec",
+                            0,
+                            &var_val,
+                            NULL,
                             NULL );
         if (FAILED(status) || (var_val.vt == VT_NULL)) {
-            PrintMessage("Cannot get PagesInputPerSec"); 
-            var_val.vt =  -1; 
+            PrintMessage("Cannot get PagesInputPerSec");
+            var_val.vt =  -1;
         }
         pStat[idx].tag = VIRTIO_BALLOON_S_SWAP_IN;
         pStat[idx].val = (long)var_val;
         idx++;
 
-        status = memory->Get( L"PagesOutputPerSec", 
-                            0, 
-                            &var_val, 
-                            NULL, 
+        status = memory->Get( L"PagesOutputPerSec",
+                            0,
+                            &var_val,
+                            NULL,
                             NULL );
         if (FAILED(status) || (var_val.vt == VT_NULL)) {
-            PrintMessage("Cannot get PagesOutputPerSec"); 
-            var_val.vt =  -1; 
+            PrintMessage("Cannot get PagesOutputPerSec");
+            var_val.vt =  -1;
         }
         pStat[idx].tag = VIRTIO_BALLOON_S_SWAP_OUT;
         pStat[idx].val = (long)var_val;
         idx++;
 
-        status = memory->Get( L"PageReadsPerSec", 
-                            0, 
-                            &var_val, 
-                            NULL, 
+        status = memory->Get( L"PageReadsPerSec",
+                            0,
+                            &var_val,
+                            NULL,
                             NULL );
         if (FAILED(status) || (var_val.vt == VT_NULL)) {
-            PrintMessage("Cannot get PageReadsPerSec"); 
-            var_val.vt =  -1; 
-        } 
+            PrintMessage("Cannot get PageReadsPerSec");
+            var_val.vt =  -1;
+        }
         pStat[idx].tag = VIRTIO_BALLOON_S_MAJFLT;
         pStat[idx].val = (long)var_val;
         idx++;
 
-        status = memory->Get( L"PageFaultsPerSec", 
-                            0, 
-                            &var_val, 
-                            NULL, 
+        status = memory->Get( L"PageFaultsPerSec",
+                            0,
+                            &var_val,
+                            NULL,
                             NULL );
         if (FAILED(status) || (var_val.vt == VT_NULL)) {
-            PrintMessage("Cannot get PageFaultsPerSec"); 
-            var_val.vt =  -1; 
+            PrintMessage("Cannot get PageFaultsPerSec");
+            var_val.vt =  -1;
         }
         pStat[idx].tag = VIRTIO_BALLOON_S_MINFLT;
         pStat[idx].val = (long)var_val;

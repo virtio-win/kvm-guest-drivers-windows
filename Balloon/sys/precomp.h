@@ -2,9 +2,9 @@
  * Copyright (c) 2009  Red Hat, Inc.
  *
  * File: precomp.h
- * 
+ *
  * Author(s):
- * 
+ *
  * Pre-compiled header file for balloon driver.
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
@@ -13,7 +13,7 @@
 **********************************************************************/
 #include <stddef.h>
 #include <stdarg.h>
-#include <ntddk.h> 
+#include <ntddk.h>
 #include <wdf.h>
 #define NTSTRSAFE_LIB
 #include <ntstrsafe.h>
