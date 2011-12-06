@@ -985,13 +985,13 @@ static NDIS_STATUS ParaNdis6x_DirectOidRequest(IN  NDIS_HANDLE miniportAdapterCo
 
 	switch(OidRequest->DATA.SET_INFORMATION.Oid) {
 	case OID_TCP_TASK_IPSEC_OFFLOAD_V2_ADD_SA:
-		DPrintf(0, ("Received: OID_TCP_TASK_IPSEC_OFFLOAD_V2_ADD_SA"));
+		DPrintf(1, ("Received: OID_TCP_TASK_IPSEC_OFFLOAD_V2_ADD_SA"));
 		break;
 	case OID_TCP_TASK_IPSEC_OFFLOAD_V2_DELETE_SA:
-		DPrintf(0, ("Received: OID_TCP_TASK_IPSEC_OFFLOAD_V2_DELETE_SA"));
+		DPrintf(1, ("Received: OID_TCP_TASK_IPSEC_OFFLOAD_V2_DELETE_SA"));
 		break;
 	case OID_TCP_TASK_IPSEC_OFFLOAD_V2_UPDATE_SA:
-		DPrintf(0, ("Received: OID_TCP_TASK_IPSEC_OFFLOAD_V2_UPDATE_SA"));
+		DPrintf(1, ("Received: OID_TCP_TASK_IPSEC_OFFLOAD_V2_UPDATE_SA"));
 		break;
 	default:
 		DPrintf(0, ("%s> Unknown OID received: %x", __FUNCTION__, OidRequest->DATA.SET_INFORMATION.Oid));
