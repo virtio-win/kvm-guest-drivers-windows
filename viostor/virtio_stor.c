@@ -15,9 +15,20 @@
 #include "virtio_stor.h"
 #include "virtio_stor_utils.h"
 #include "virtio_stor_hw_helper.h"
+#include "kdebugprint.h"
 
-ULONG   RhelDbgLevel = TRACE_LEVEL_ERROR;
+//ULONG   RhelDbgLevel = TRACE_LEVEL_ERROR;
+int nDebugLevel = TRACE_LEVEL_ERROR;
+int bDebugPrint = 2;
+
 BOOLEAN IsCrashDumpMode;
+
+extern int vring_add_buf_stor(
+    IN struct virtqueue *_vq,
+    IN struct VirtIOBufferDescriptor sg[],
+    IN unsigned int out,
+    IN unsigned int in,
+    IN PVOID data);
 
 BOOLEAN
 VirtIoHwInitialize(
@@ -115,6 +126,13 @@ CompleteDPC(
     IN ULONG  MessageID
     );
 
+void InitializeDebugPrints(PUNICODE_STRING RegistryPath)
+{
+    //TBD - Read nDebugLevel and bDebugPrint from the registry
+    nDebugLevel = TRACE_LEVEL_ERROR;
+    bDebugPrint = 2;
+}
+
 ULONG
 DriverEntry(
     IN PVOID  DriverObject,
@@ -129,6 +147,8 @@ DriverEntry(
     UCHAR venId[4]  = {'1', 'A', 'F', '4'};
     UCHAR devId[4]  = {'1', '0', '0', '1'};
 #endif
+
+    InitializeDebugPrints(RegistryPath);
 
     RhelDbgPrint(TRACE_LEVEL_ERROR, ("Viostor driver started...built on %s %s\n", __DATE__, __TIME__));
     IsCrashDumpMode = FALSE;
@@ -468,12 +488,14 @@ VirtIoHwInitialize(
     }
 
     if(!adaptExt->dump_mode && (adaptExt->msix_vectors > 1)) {
-        adaptExt->pci_vq_info.vq = VirtIODeviceFindVirtualQueue(DeviceExtension, 0, adaptExt->msix_vectors - 1);
+        adaptExt->pci_vq_info.vq = VirtIODeviceFindVirtualQueue(DeviceExtension, 0, adaptExt->msix_vectors - 1,
+                                                                NULL, NULL, NULL, NULL, FALSE, FALSE, TRUE);
     }
 #endif
 
     if(!adaptExt->pci_vq_info.vq) {
-        adaptExt->pci_vq_info.vq = VirtIODeviceFindVirtualQueue(DeviceExtension, 0, 0);
+        adaptExt->pci_vq_info.vq = VirtIODeviceFindVirtualQueue(DeviceExtension, 0, 0,
+                                                                NULL, NULL, NULL, NULL, FALSE, FALSE, TRUE);
     }
     if (!adaptExt->pci_vq_info.vq) {
         ScsiPortLogError(DeviceExtension,
@@ -487,6 +509,8 @@ VirtIoHwInitialize(
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Cannot find snd virtual queue\n"));
         return ret;
     }
+
+    set_vring_add_buf(vring_add_buf_stor);
 
     RhelGetDiskGeometry(DeviceExtension);
 

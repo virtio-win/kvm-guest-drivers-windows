@@ -23,8 +23,11 @@
 #endif
 
 #include "osdep.h"
+#include "VirtIO.h"
 #include "virtio_pci.h"
 #include "virtio_ring.h"
+#include "kdebugprint.h"
+
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
@@ -107,7 +110,7 @@ typedef struct virtio_blk_req {
 
 typedef struct _ADAPTER_EXTENSION {
     ULONG_PTR             device_base;
-    virtio_pci_vq_info    pci_vq_info;
+    struct virtio_pci_vq_info    pci_vq_info;
     vring_virtqueue*      virtqueue;
     INQUIRYDATA           inquiry_data;
     blk_config            info;

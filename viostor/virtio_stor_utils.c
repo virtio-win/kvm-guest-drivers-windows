@@ -10,6 +10,9 @@
  *
 **********************************************************************/
 #include"virtio_stor_utils.h"
+#include "kdebugprint.h"
+
+// Global debug printout level and enable\disable flag
 
 ULONG
 _cdecl

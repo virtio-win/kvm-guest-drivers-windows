@@ -241,7 +241,7 @@ RhelShutDown(
     ScsiPortWritePortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), 0);
     if (adaptExt->pci_vq_info.vq) {
        adaptExt->pci_vq_info.vq->vq_ops->shutdown(adaptExt->pci_vq_info.vq);
-       VirtIODeviceDeleteVirtualQueue(adaptExt->pci_vq_info.vq);
+       VirtIODeviceDeleteVirtualQueue(adaptExt->pci_vq_info.vq, NULL, NULL, TRUE);
        adaptExt->pci_vq_info.vq = NULL;
     }
 }

@@ -23,13 +23,14 @@
  *
 **********************************************************************/
 #include "osdep.h"
-#include "VirtIO_PCI.h"
 #include "VirtIO.h"
+#include "VirtIO_PCI.h"
 #include "VirtIO_Ring.h"
+#include "kdebugprint.h"
 #include "virtio_stor_utils.h"
 #include "virtio_stor.h"
 
-
+/*
 bool
 VirtIODeviceGetHostFeature(
     IN PVOID DeviceExtension,
@@ -98,18 +99,87 @@ vp_notify(
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s>> queue %d\n", __FUNCTION__, info->queue_index));
 
     // we write the queue's selector into the notification register to
-    // * signal the other end
+    // (*) signal the other end
     ScsiPortWritePortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NOTIFY),(USHORT)(info->queue_index));
 }
+*/
+
+
+u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
+{
+    return ScsiPortReadPortUlong((PULONG)(ulRegister));
+}
+
+void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
+{
+    ScsiPortWritePortUlong( (PULONG)(ulRegister),(ULONG)(ulValue) );
+}
+
+u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
+{
+    return ScsiPortReadPortUchar((PUCHAR)(ulRegister));
+}
+
+void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
+{
+    ScsiPortWritePortUchar((PUCHAR)(ulRegister),(UCHAR)(bValue));
+}
+
+u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
+{
+    return ScsiPortReadPortUshort((PUSHORT)(ulRegister));
+}
+
+void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
+{
+    ScsiPortWritePortUshort((PUSHORT)(ulRegister),(USHORT)(wValue));
+}
+
+ULONG_PTR GetVirtIODeviceAddr( PVOID pVirtIODevice )
+{
+    return ((PADAPTER_EXTENSION)pVirtIODevice)->device_base ;
+}
+
+void SetVirtIODeviceAddr(PVOID pVirtIODevice, ULONG_PTR addr)
+{
+    ((PADAPTER_EXTENSION)pVirtIODevice)->device_base = addr;
+}
+
+int GetPciConfig(PVOID pVirtIODevice)
+{
+    return VIRTIO_PCI_CONFIG_STOR(((PADAPTER_EXTENSION)pVirtIODevice)->msix_enabled);
+}
+
+PVOID drv_alloc_needed_mem(PVOID vdev, PVOID Context,
+						   PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
+						   ULONG size, pmeminfo pmi)
+{
+    UNREFERENCED_PARAMETER(Context);
+    UNREFERENCED_PARAMETER(allocmem);
+    UNREFERENCED_PARAMETER(size);
+    UNREFERENCED_PARAMETER(pmi);
+
+    return ((PADAPTER_EXTENSION)vdev)->virtqueue;
+}
+
+PHYSICAL_ADDRESS GetPhysicalAddress(PVOID addr)
+{
+    return MmGetPhysicalAddress(addr);
+}
+
 
 struct
 virtqueue*
-VirtIODeviceFindVirtualQueue(
+VirtIODeviceFindVirtualQueue_InDrv(
     IN PVOID DeviceExtension,
     IN unsigned index,
-    IN unsigned vector)
+    IN unsigned vector,
+    bool (*callback)(struct virtqueue *vq),
+    PVOID Context,											                      PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
+    VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi),
+    BOOLEAN Cached, BOOLEAN bPhysical)
 {
-    virtio_pci_vq_info *info;
+    struct virtio_pci_vq_info *info;
     struct virtqueue   *vq;
     u16                num;
     ULONG              dummy;
@@ -118,6 +188,11 @@ VirtIODeviceFindVirtualQueue(
     ULONG              pfns;
     unsigned           res;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    UNREFERENCED_PARAMETER(freemem);
+    UNREFERENCED_PARAMETER(Cached);
+    UNREFERENCED_PARAMETER(bPhysical);
+
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s  index = %d, vector = %d\n", __FUNCTION__, index, vector));
 
@@ -153,7 +228,9 @@ VirtIODeviceFindVirtualQueue(
     vq = vring_new_virtqueue(info->num,
                              DeviceExtension,
                              info->queue,
-                             vp_notify);
+                             vp_notify,
+                             callback,
+                             Context, allocmem);
 
     if (!vq) {
         ScsiPortWritePortUlong((PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(ULONG)0);
@@ -184,7 +261,7 @@ VirtIODeviceFindVirtualQueue(
     return vq;
 }
 
-
+/*
 void
 VirtIODeviceDeleteVirtualQueue(
     IN struct virtqueue *vq)
@@ -199,3 +276,4 @@ VirtIODeviceDeleteVirtualQueue(
 
     ScsiPortWritePortUlong((PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(ULONG)0);
 }
+*/
