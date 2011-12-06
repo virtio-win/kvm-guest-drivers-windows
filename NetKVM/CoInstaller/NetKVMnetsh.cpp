@@ -5,7 +5,7 @@
 #include "RegParam.h"
 
 //This is NetSH Helper GUID {D9C599C4-8DCF-4a6a-93AA-A16FE6D5125C}
-static const GUID NETKVM_HELPER_GUID = 
+static const GUID NETKVM_HELPER_GUID =
     { 0xd9c599c4, 0x8dcf, 0x4a6a, { 0x93, 0xaa, 0xa1, 0x6f, 0xe6, 0xd5, 0x12, 0x5c } };
 static const DWORD NETKVM_HELPER_VERSION = 1;
 
@@ -67,7 +67,7 @@ tstring _NetKVMQueryDeviceString(HDEVINFO hDeviceSet, PSP_DEVINFO_DATA DeviceInf
     DWORD dwSize = 0;
     DWORD dwDataType;
 
-    while(!SetupDiGetDeviceRegistryProperty(hDeviceSet, DeviceInfoData, dwPropertyID, 
+    while(!SetupDiGetDeviceRegistryProperty(hDeviceSet, DeviceInfoData, dwPropertyID,
         &dwDataType, (PBYTE)szDeviceString, dwSize, &dwSize))
     {
         DWORD dwErr = GetLastError();
@@ -99,7 +99,7 @@ DWORD _NetKVMQueryDeviceDWORD(HDEVINFO hDeviceSet, PSP_DEVINFO_DATA DeviceInfoDa
     DWORD dwDeviceDword;
     DWORD dwDataType;
 
-    if(!SetupDiGetDeviceRegistryProperty(hDeviceSet, DeviceInfoData, dwPropertyID, 
+    if(!SetupDiGetDeviceRegistryProperty(hDeviceSet, DeviceInfoData, dwPropertyID,
         &dwDataType, (PBYTE)&dwDeviceDword, sizeof(dwDeviceDword), NULL))
     {
         DWORD dwErr = GetLastError();
@@ -143,7 +143,7 @@ typedef struct tag_NetKVMDeviceInfo
 
 bool _NetKVMIsKnownDevice(const tstring &strDeviceID)
 {
-    return (tstring::npos != strDeviceID.find(tstring(TEXT("VEN_")) + NETKVM_DEVICE_VENDOR_ID)) && 
+    return (tstring::npos != strDeviceID.find(tstring(TEXT("VEN_")) + NETKVM_DEVICE_VENDOR_ID)) &&
            (tstring::npos != strDeviceID.find(tstring(TEXT("DEV_")) + NETKVM_DEVICE_HARDWARE_ID));
 }
 
@@ -186,8 +186,8 @@ static bool _NetKVMGetKnownDevices(GUID *pguidDevClassPtr, vector<_NetKVMDeviceI
     for(DWORD dwDevIndex = 0; SetupDiEnumDeviceInfo(*phDeviceInfo, dwDevIndex, &CurrDeviceInfo); dwDevIndex++)
     {
         TCHAR szDeviceId[MAX_DEVICE_ID_LEN];
-        CONFIGRET err = CM_Get_Device_ID_Ex(CurrDeviceInfo.DevInst, 
-                                            szDeviceId, MAX_DEVICE_ID_LEN, 
+        CONFIGRET err = CM_Get_Device_ID_Ex(CurrDeviceInfo.DevInst,
+                                            szDeviceId, MAX_DEVICE_ID_LEN,
                                             0, DevListInfo.RemoteMachineHandle);
         if(CR_SUCCESS == err)
         {
@@ -216,7 +216,7 @@ static bool _NetKVMGetKnownDevices(GUID *pguidDevClassPtr, vector<_NetKVMDeviceI
             return false;
         }
     }
-    
+
     DWORD dwErr = GetLastError();
     if(ERROR_NO_MORE_ITEMS != dwErr)
     {
@@ -291,8 +291,8 @@ static DWORD _NetKVMRestartDevice(DWORD dwIndex)
         return GetLastError();
     }
 
-    if(!SetupDiCallClassInstaller(DIF_PROPERTYCHANGE, 
-                                  g_hDeviceInfoList, 
+    if(!SetupDiCallClassInstaller(DIF_PROPERTYCHANGE,
+                                  g_hDeviceInfoList,
                                   &g_DevicesOfInterest[dwIndex].DevInfoData))
     {
         return GetLastError();
@@ -376,9 +376,9 @@ static void _NetKVMFillDeviceValuesList(DWORD dwDeviceIndex, ParamValueListT& Li
     }
 }
 
-static bool _NetKVMQueryDetailedParamInfo(DWORD dwDeviceIndex, 
-                                          const tstring &strParamName, 
-                                          neTKVMRegParamType &ParamType, 
+static bool _NetKVMQueryDetailedParamInfo(DWORD dwDeviceIndex,
+                                          const tstring &strParamName,
+                                          neTKVMRegParamType &ParamType,
                                           neTKVMRegParamExInfoList &ParamInfo)
 {
     neTKVMRegAccess DeviceRegKey(HKEY_LOCAL_MACHINE, g_DevicesOfInterest[dwDeviceIndex].strRegPathName.c_str());
@@ -400,8 +400,8 @@ static bool _NetKVMQueryDetailedParamInfo(DWORD dwDeviceIndex,
     return true;
 }
 
-static bool _NetKVMQueryParamValue(DWORD dwDeviceIndex, 
-                                   const tstring &strParamName, 
+static bool _NetKVMQueryParamValue(DWORD dwDeviceIndex,
+                                   const tstring &strParamName,
                                    tstring &strParamValue)
 {
     neTKVMRegAccess DeviceRegKey(HKEY_LOCAL_MACHINE, g_DevicesOfInterest[dwDeviceIndex].strRegPathName.c_str());
@@ -416,8 +416,8 @@ static bool _NetKVMQueryParamValue(DWORD dwDeviceIndex,
     return true;
 }
 
-static bool _NetKVMSetParamValue(DWORD dwDeviceIndex, 
-                                 const tstring &strParamName, 
+static bool _NetKVMSetParamValue(DWORD dwDeviceIndex,
+                                 const tstring &strParamName,
                                  const tstring &strParamValue)
 {
     neTKVMRegAccess DeviceRegKey(HKEY_LOCAL_MACHINE, g_DevicesOfInterest[dwDeviceIndex].strRegPathName.c_str());
@@ -438,9 +438,9 @@ static bool _NetKVMSetParamValue(DWORD dwDeviceIndex,
 
 //
 // Usage: show devices
-// 
+//
 // Remarks:
-// 
+//
 //      Lists all NetKVM devices currently present in the system.
 //      Each device is assigned unique index.
 //      The index is used to identify the device for all other NetKVM commands.
@@ -479,18 +479,18 @@ DWORD WINAPI _NetKVMShowDevicesCmdHandler(__in   PWCHAR  /*pwszMachine*/,
 
 //
 // Usage: show paraminfo [idx=]0-N [param=]name
-// 
+//
 // Parameters:
-// 
+//
 //      IDX - Specifies the device index as it is shown in "show devices" output.
 //      PARAM - Specifies name of the parameter.
-// 
+//
 // Remarks:
-// 
+//
 //      Shows detailed information about specified parameter of specified device.
-// 
+//
 // Examples:
-// 
+//
 //      show paraminfo idx=0 param=window
 //      show paraminfo 2 rx_buffers
 //
@@ -505,7 +505,7 @@ DWORD WINAPI _NetKVMShowParamInfoCmdHandler (__in   PWCHAR  /*pwszMachine*/,
     try
     {
         NETCO_DEBUG_PRINT(TEXT("_NetKVMShowParamInfoCmdHandler called"));
-        TAG_TYPE TagsList[] = 
+        TAG_TYPE TagsList[] =
             { {NETKVM_IDX_PARAM_NAME,   NS_REQ_PRESENT},
               {NETKVM_PARAM_PARAM_NAME, NS_REQ_PRESENT} };
 
@@ -625,18 +625,18 @@ DWORD WINAPI _NetKVMShowParamInfoCmdHandler (__in   PWCHAR  /*pwszMachine*/,
 
 //
 // Usage: getparam [idx=]0-N [param=]name
-// 
+//
 // Parameters:
-// 
+//
 //      IDX - Specifies the device index as it is shown in "show devices" output.
 //      PARAM - Specifies name of the parameter.
-// 
+//
 // Remarks:
-// 
+//
 //      Retrieves given parameter value.
-// 
+//
 // Examples:
-// 
+//
 //      getparam idx=0 param=window
 //      getparam 2 rx_buffers
 //
@@ -651,7 +651,7 @@ DWORD WINAPI _NetKVMGetParamCmdHandler (__in   PWCHAR  /*pwszMachine*/,
     try
     {
         NETCO_DEBUG_PRINT(TEXT("_NetKVMGetParamCmdHandler called"));
-        TAG_TYPE TagsList[] = 
+        TAG_TYPE TagsList[] =
             { {NETKVM_IDX_PARAM_NAME,   NS_REQ_PRESENT},
               {NETKVM_PARAM_PARAM_NAME, NS_REQ_PRESENT} };
 
@@ -704,19 +704,19 @@ DWORD WINAPI _NetKVMGetParamCmdHandler (__in   PWCHAR  /*pwszMachine*/,
 
 //
 // Usage: setparam [idx=]0-N [param=]name [value=]value
-// 
+//
 // Parameters:
-// 
+//
 //      IDX - Specifies the device index as it is shown in "show devices" output.
 //      PARAM - Specifies name of the parameter.
 //      VALUE - Specifies the value of the parameter.
-// 
+//
 // Remarks:
-// 
+//
 //      Set given parameter value.
-// 
+//
 // Examples:
-// 
+//
 //      setparam idx=0 param=window value=10
 //      setparam 2 rx_buffers 45
 //
@@ -731,7 +731,7 @@ DWORD WINAPI _NetKVMSetParamCmdHandler (__in   PWCHAR  /*pwszMachine*/,
     try
     {
         NETCO_DEBUG_PRINT(TEXT("_NetKVMSetParamCmdHandler called"));
-        TAG_TYPE TagsList[] = 
+        TAG_TYPE TagsList[] =
             { {NETKVM_IDX_PARAM_NAME,   NS_REQ_PRESENT},
               {NETKVM_PARAM_PARAM_NAME, NS_REQ_PRESENT},
               {NETKVM_VALUE_PARAM_NAME, NS_REQ_PRESENT} };
@@ -782,17 +782,17 @@ DWORD WINAPI _NetKVMSetParamCmdHandler (__in   PWCHAR  /*pwszMachine*/,
 }
 //
 // Usage: show parameters [idx=]0-N
-// 
+//
 // Parameters:
-// 
+//
 //      IDX - Specifies the device index as it is shown in "show devices" output.
-// 
+//
 // Remarks:
-// 
+//
 //      Shows parameters of device specified by index.
-// 
+//
 // Examples:
-// 
+//
 //      show parameters idx=0
 //      show parameters 2
 //
@@ -807,7 +807,7 @@ DWORD WINAPI _NetKVMShowParamsCmdHandler(__in   PWCHAR  /*pwszMachine*/,
     try
     {
         NETCO_DEBUG_PRINT(TEXT("_NetKVMShowParamsCmdHandler called"));
-        TAG_TYPE TagsList[] = 
+        TAG_TYPE TagsList[] =
             { {NETKVM_IDX_PARAM_NAME,   NS_REQ_PRESENT} };
 
         auto_ptr<DWORD> pdwTagMatchResults(new DWORD[dwArgCount - dwCurrentIndex]);
@@ -858,17 +858,17 @@ DWORD WINAPI _NetKVMShowParamsCmdHandler(__in   PWCHAR  /*pwszMachine*/,
 
 //
 // Usage: restart [idx=]0-N
-// 
+//
 // Parameters:
-// 
+//
 //      IDX - Specifies the device index as it is shown in "show devices" output.
-// 
+//
 // Remarks:
-// 
+//
 //      Restarts device specified by index.
-// 
+//
 // Examples:
-// 
+//
 //      restart idx=0
 //      restart 2
 //
@@ -883,7 +883,7 @@ DWORD WINAPI _NetKVMRestartDeviceCmdHandler(__in   PWCHAR  /*pwszMachine*/,
     try
     {
         NETCO_DEBUG_PRINT(TEXT("_NetKVMRestartDeviceCmdHandler called"));
-        TAG_TYPE TagsList[] = 
+        TAG_TYPE TagsList[] =
             { {NETKVM_IDX_PARAM_NAME,   NS_REQ_PRESENT} };
 
         auto_ptr<DWORD> pdwTagMatchResults(new DWORD[dwArgCount - dwCurrentIndex]);
@@ -949,16 +949,16 @@ DWORD WINAPI _NetKVMRestartDeviceCmdHandler(__in   PWCHAR  /*pwszMachine*/,
 #define HLP_NETKVM_SHOW_PARAMINFO     IDS_SHOWPARAMINFOSHORT
 #define HLP_NETKVM_SHOW_PARAMINFO_EX  IDS_SHOWPARAMINFOLONG
 
-CMD_ENTRY  g_ShowCmdTable[] = 
+CMD_ENTRY  g_ShowCmdTable[] =
 {
-    CREATE_CMD_ENTRY_EX(NETKVM_SHOW_DEVICES, 
-                        (PFN_HANDLE_CMD) _NetKVMShowDevicesCmdHandler, 
+    CREATE_CMD_ENTRY_EX(NETKVM_SHOW_DEVICES,
+                        (PFN_HANDLE_CMD) _NetKVMShowDevicesCmdHandler,
                         CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL),
-    CREATE_CMD_ENTRY_EX(NETKVM_SHOW_PARAMS, 
-                        (PFN_HANDLE_CMD) _NetKVMShowParamsCmdHandler, 
+    CREATE_CMD_ENTRY_EX(NETKVM_SHOW_PARAMS,
+                        (PFN_HANDLE_CMD) _NetKVMShowParamsCmdHandler,
                         CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL),
-    CREATE_CMD_ENTRY_EX(NETKVM_SHOW_PARAMINFO, 
-                        (PFN_HANDLE_CMD) _NetKVMShowParamInfoCmdHandler, 
+    CREATE_CMD_ENTRY_EX(NETKVM_SHOW_PARAMINFO,
+                        (PFN_HANDLE_CMD) _NetKVMShowParamInfoCmdHandler,
                         CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL)
 
 };
@@ -975,16 +975,16 @@ CMD_ENTRY  g_ShowCmdTable[] =
 #define HLP_NETKVM_SET_PARAM            IDS_SETPARAM
 #define HLP_NETKVM_SET_PARAM_EX         IDS_SETPARAMLONG
 
-CMD_ENTRY  g_TopLevelCommands[] = 
+CMD_ENTRY  g_TopLevelCommands[] =
 {
-    CREATE_CMD_ENTRY_EX(NETKVM_RESTART_DEVICE, 
-                        (PFN_HANDLE_CMD) _NetKVMRestartDeviceCmdHandler, 
+    CREATE_CMD_ENTRY_EX(NETKVM_RESTART_DEVICE,
+                        (PFN_HANDLE_CMD) _NetKVMRestartDeviceCmdHandler,
                         CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL),
-    CREATE_CMD_ENTRY_EX(NETKVM_GET_PARAM, 
-                        (PFN_HANDLE_CMD) _NetKVMGetParamCmdHandler, 
+    CREATE_CMD_ENTRY_EX(NETKVM_GET_PARAM,
+                        (PFN_HANDLE_CMD) _NetKVMGetParamCmdHandler,
                         CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL),
-    CREATE_CMD_ENTRY_EX(NETKVM_SET_PARAM, 
-                        (PFN_HANDLE_CMD) _NetKVMSetParamCmdHandler, 
+    CREATE_CMD_ENTRY_EX(NETKVM_SET_PARAM,
+                        (PFN_HANDLE_CMD) _NetKVMSetParamCmdHandler,
                         CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL)
 };
 
@@ -992,7 +992,7 @@ CMD_ENTRY  g_TopLevelCommands[] =
 #define HLP_GROUP_SHOW       IDS_SHOWCMDHELP
 #define CMD_GROUP_SHOW       L"show"
 
-static CMD_GROUP_ENTRY g_TopLevelGroups[] = 
+static CMD_GROUP_ENTRY g_TopLevelGroups[] =
 {
     CREATE_CMD_GROUP_ENTRY_EX(GROUP_SHOW, g_ShowCmdTable, CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL)
 };
@@ -1107,7 +1107,7 @@ DWORD WINAPI _NetKVMNetshStopHelper(__in  DWORD dwReserved)
 
     NETCO_DEBUG_PRINT(TEXT("_NetKVMNetshStopHelper called"));
 
-    return SetupDiDestroyDeviceInfoList(g_hDeviceInfoList) ? NO_ERROR 
+    return SetupDiDestroyDeviceInfoList(g_hDeviceInfoList) ? NO_ERROR
                                                            : GetLastError();
 }
 

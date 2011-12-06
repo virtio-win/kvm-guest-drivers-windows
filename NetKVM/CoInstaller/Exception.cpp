@@ -2,7 +2,7 @@
 #include "Exception.h"
 
 neTKVMException::neTKVMException()
-{ 
+{
 
 }
 
@@ -15,7 +15,7 @@ neTKVMException::neTKVMException(LPCTSTR lpzMessage)
 }
 
 neTKVMException::neTKVMException(const tstring &Message)
-{ 
+{
 	SetMessage(Message);
 }
 
@@ -42,7 +42,7 @@ LPCTSTR neTKVMException::twhat() const
 void neTKVMException::SetMessage(const tstring &Message)
 {
 	m_Message     = Message;
-	m_MBCSMessage = tstring2string(m_Message); 
+	m_MBCSMessage = tstring2string(m_Message);
 }
 
 neTKVMNumErrorException::neTKVMNumErrorException(LPCTSTR lpzDescription, DWORD dwErrorCode)
@@ -126,8 +126,8 @@ neTKVMW32ErrorException::neTKVMW32ErrorException(const neTKVMW32ErrorException &
 tstring neTKVMW32ErrorException::GetErrorString(DWORD dwErrorCode)
 {
 	LPVOID lpMsgBuf;
-	DWORD  msgLen = ::FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | 
-									FORMAT_MESSAGE_FROM_SYSTEM | 
+	DWORD  msgLen = ::FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+									FORMAT_MESSAGE_FROM_SYSTEM |
 									FORMAT_MESSAGE_IGNORE_INSERTS|
 									FORMAT_MESSAGE_MAX_WIDTH_MASK,
 									NULL,

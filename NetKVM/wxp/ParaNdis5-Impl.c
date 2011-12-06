@@ -759,7 +759,7 @@ tMapperResult ParaNdis_PacketMapper(
 				ULONG flags = pcrIpChecksum | pcrTcpChecksum | pcrFixPHChecksum;
 				PVOID pIpHeader = RtlOffsetToPointer(pBuffer, pContext->Offload.ipHeaderOffset);
 				res.nBuffersMapped = 0;
-				if (pContext->bFixIPChecksum) flags |= pcrFixIPChecksum; 
+				if (pContext->bFixIPChecksum) flags |= pcrFixIPChecksum;
 				packetReview = ParaNdis_CheckSumVerify(
 					pIpHeader,
 					lengthGet - pContext->Offload.ipHeaderOffset,
@@ -1314,7 +1314,7 @@ VOID ParaNdis5_HandleDPC(IN NDIS_HANDLE MiniportAdapterContext)
 	BOOLEAN unused;
 	DEBUG_ENTRY(7);
 	// we do not need the timer, as DPC will do all the job
-	// this is not a problem if the timer procedure is already running, 
+	// this is not a problem if the timer procedure is already running,
 	// we need to do our job anyway
 	NdisCancelTimer(&pContext->DPCPostProcessTimer, &unused);
 	requiresProcessing = ParaNdis_DPCWorkBody(pContext);

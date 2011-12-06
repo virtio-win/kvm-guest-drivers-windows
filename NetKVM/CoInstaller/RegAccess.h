@@ -24,7 +24,7 @@ public:
 	VOID  SetPrimaryKey(HKEY hNewPrKey);
 	BOOL  SetRegPath(LPCTSTR lpzNewRegPath);
 	HKEY  GetPrimaryKey(VOID);
-	BOOL  GetRegPath(LPTSTR lpsBuffer, 
+	BOOL  GetRegPath(LPTSTR lpsBuffer,
 					 DWORD  dwNumberOfElements);
 
 	BOOL  ReadValueName(LPTSTR lpsValueName,
@@ -36,7 +36,7 @@ public:
 					  DWORD   dwIndex,
 					  LPCTSTR lpzSubKey = NULL);
 
-	BOOL GetValueInfo(LPCTSTR lpzValueName, 
+	BOOL GetValueInfo(LPCTSTR lpzValueName,
 					  DWORD*  lpDataType,
 					  DWORD*  lpDataSize,
 					  LPCTSTR lpzSubKey = NULL);
@@ -47,40 +47,40 @@ public:
 					LPDWORD lpdwMaxValueLen,
 					LPCTSTR lpzSubKey = NULL);
 
-	DWORD ReadDWord(LPCTSTR lpzValueName, 
+	DWORD ReadDWord(LPCTSTR lpzValueName,
 					DWORD   dwDefault = 0,
 					LPCTSTR lpzSubKey = NULL);
-	BOOL  ReadDWord(LPCTSTR lpzValueName, 
+	BOOL  ReadDWord(LPCTSTR lpzValueName,
 					LPDWORD lpdwValue,
 					LPCTSTR lpzSubKey = NULL);
-	DWORD ReadString(LPCTSTR lpzValueName, 
-					 LPTSTR  lpzData, 
+	DWORD ReadString(LPCTSTR lpzValueName,
+					 LPTSTR  lpzData,
 					 DWORD   dwNumberOfElements,
 					 LPCTSTR lpzSubKey=NULL);
-    DWORD ReadBinary(LPCTSTR lpzValueName, 
-					 LPBYTE  lpzData, 
+    DWORD ReadBinary(LPCTSTR lpzValueName,
+					 LPBYTE  lpzData,
 					 DWORD   dwSize,
 					 LPCTSTR lpzSubKey=NULL);
-	BOOL  WriteValue(LPCTSTR lpzValueName, 
-					 DWORD  dwValue, 
+	BOOL  WriteValue(LPCTSTR lpzValueName,
+					 DWORD  dwValue,
 					 LPCTSTR lpzSubKey = NULL);
 	BOOL  WriteString(LPCTSTR lpzValueName,
 					  LPCTSTR lpzValue,
 					  LPCTSTR lpzSubKey=NULL);
-	BOOL  WriteBinary(LPCTSTR lpzValueName, 
-					  LPCBYTE lpData, 
+	BOOL  WriteBinary(LPCTSTR lpzValueName,
+					  LPCBYTE lpData,
 					  DWORD   dwDataSize,
 					  LPCTSTR lpzSubKey = NULL);
-	BOOL  DeleteKey(LPCTSTR lpzKeyName, 
+	BOOL  DeleteKey(LPCTSTR lpzKeyName,
 					LPCTSTR lpzSubKey = NULL);
-	BOOL  DeleteValue(LPCTSTR lpzValueName, 
+	BOOL  DeleteValue(LPCTSTR lpzValueName,
 					  LPCTSTR lpzSubKey = NULL);
 
 	BOOL  AddKey(LPCTSTR lpzKeyName);
 
 protected:
-	VOID FormatFullRegPath(LPTSTR    lpzFullPathBuff, 
-						   DWORD_PTR dwNumberOfElements, 
+	VOID FormatFullRegPath(LPTSTR    lpzFullPathBuff,
+						   DWORD_PTR dwNumberOfElements,
 						   LPCTSTR   lpzSubKey);
 
 	LPTSTR m_lpsRegPath;

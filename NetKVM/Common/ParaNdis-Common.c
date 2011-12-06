@@ -1042,7 +1042,7 @@ static void PreventDPCServicing(PARANDIS_ADAPTER *pContext)
 {
 	LONG inside;;
 	pContext->bEnableInterruptHandlingDPC = FALSE;
-	do 
+	do
 	{
 		inside = InterlockedIncrement(&pContext->counterDPCInside);
 		InterlockedDecrement(&pContext->counterDPCInside);
@@ -1130,7 +1130,7 @@ VOID ParaNdis_OnShutdown(PARANDIS_ADAPTER *pContext)
 Handles hardware interrupt
 Parameters:
 	context
-	ULONG knownInterruptSources - bitmask of 
+	ULONG knownInterruptSources - bitmask of
 Return value:
 	TRUE, if it is our interrupt
 	sets *pRunDpc to TRUE if the DPC should be fired
@@ -1164,7 +1164,7 @@ BOOLEAN ParaNdis_OnInterrupt(
 	}
 	else
 	{
-		b = TRUE;	
+		b = TRUE;
 		*pRunDpc = TRUE;
 		NdisGetCurrentSystemTime(&pContext->LastInterruptTimeStamp);
 		InterlockedOr(&pContext->InterruptStatus, (LONG)knownInterruptSources);
@@ -1642,7 +1642,7 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext)
 	UINT nReceived = 0, nRetrieved = 0, nReported = 0;
 	tPacketIndicationType	*pBatchOfPackets;
 	UINT					maxPacketsInBatch = pContext->NetMaxReceiveBuffers;
-	pBatchOfPackets = pContext->bBatchReceive ? 
+	pBatchOfPackets = pContext->bBatchReceive ?
 		ParaNdis_AllocateMemory(pContext, maxPacketsInBatch * sizeof(tPacketIndicationType)) : NULL;
 	NdisAcquireSpinLock(&pContext->ReceiveLock);
 	while ((uLoopCount++ < pContext->uRXPacketsDPCLimit) && NULL != (pBuffersDescriptor = pContext->NetReceiveQueue->vq_ops->get_buf(pContext->NetReceiveQueue, &len)))
@@ -1780,7 +1780,7 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
 	ULONG stillRequiresProcessing = 0;
 	ULONG interruptSources;
 	DEBUG_ENTRY(5);
-	if (pContext->bEnableInterruptHandlingDPC)	
+	if (pContext->bEnableInterruptHandlingDPC)
 	{
 		InterlockedIncrement(&pContext->counterDPCInside);
 		if (pContext->bEnableInterruptHandlingDPC)
@@ -1810,7 +1810,7 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
 						InterlockedDecrement(&pContext->dpcReceiveActive);
 						NdisAcquireSpinLock(&pContext->ReceiveLock);
 						nRestartResult = ParaNdis_SynchronizeWithInterrupt(
-							pContext, pContext->ulRxMessage, RestartQueueSynchronously, isReceive); 
+							pContext, pContext->ulRxMessage, RestartQueueSynchronously, isReceive);
 						ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)3, nRestartResult, 0, 0);
 						NdisReleaseSpinLock(&pContext->ReceiveLock);
 						DPrintf(nRestartResult ? 2 : 6, ("[%s] queue restarted%s", __FUNCTION__, nRestartResult ? "(Rerun)" : "(Done)"));
@@ -1829,7 +1829,7 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
 						{
 							NdisAcquireSpinLock(&pContext->ReceiveLock);
 							nRestartResult = ParaNdis_SynchronizeWithInterrupt(
-								pContext, pContext->ulRxMessage, RestartQueueSynchronously, isReceive); 
+								pContext, pContext->ulRxMessage, RestartQueueSynchronously, isReceive);
 							ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)5, nRestartResult, 0, 0);
 							NdisReleaseSpinLock(&pContext->ReceiveLock);
 						}
@@ -1844,7 +1844,7 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
 			if (interruptSources & isTransmit)
 			{
 				NdisAcquireSpinLock(&pContext->SendLock);
-				if (ParaNdis_SynchronizeWithInterrupt(pContext, pContext->ulTxMessage, RestartQueueSynchronously, isTransmit)) 
+				if (ParaNdis_SynchronizeWithInterrupt(pContext, pContext->ulTxMessage, RestartQueueSynchronously, isTransmit))
 					stillRequiresProcessing |= isTransmit;
 				NdisReleaseSpinLock(&pContext->SendLock);
 			}
@@ -1887,7 +1887,7 @@ static BOOLEAN CheckRunningDpc(PARANDIS_ADAPTER *pContext)
 					}
 				}
 				// simulateDPC
-				InterlockedOr(&pContext->InterruptStatus, isAny);			
+				InterlockedOr(&pContext->InterruptStatus, isAny);
 				ParaNdis_DPCWorkBody(pContext);
 			}
 		}
@@ -1917,14 +1917,14 @@ static BOOLEAN CheckRunningDpc(PARANDIS_ADAPTER *pContext)
 		// todo - collect more and put out optionally
 		PrintStatistics(pContext);
 	}
-	
+
 	if (pContext->Statistics.ifHCInOctets == pContext->Counters.prevIn)
 	{
 		pContext->Counters.nRxInactivity++;
 		if (pContext->Counters.nRxInactivity >= 10)
 		{
 //#define CRASH_ON_NO_RX
-#if defined(CRASH_ON_NO_RX) 
+#if defined(CRASH_ON_NO_RX)
 			ONPAUSECOMPLETEPROC proc = (ONPAUSECOMPLETEPROC)(PVOID)1;
 			proc(pContext);
 #endif
