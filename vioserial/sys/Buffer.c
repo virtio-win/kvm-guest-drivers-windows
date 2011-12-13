@@ -82,10 +82,10 @@ VIOSerialSendBuffers(
         } while ((ret == 0) && (len > 0));
 
         vq->vq_ops->kick(vq);
-        port->OutVqFull = TRUE;
+        port->OutVqFull = (ret != 0);
         if (!nonblock && sent)
         {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "--> %s !nonblock\n", __FUNCTION__);
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "<-> %s !nonblock\n", __FUNCTION__);
            while(elements && retries < RETRY_THRESHOLD)
            {
               if(vq->vq_ops->get_buf(vq, &dummy))
@@ -101,6 +101,7 @@ VIOSerialSendBuffers(
            }
            if (retries == RETRY_THRESHOLD)
            {
+              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "<-> %s retries = %d\n", __FUNCTION__, retries);
               break;
            }
         }

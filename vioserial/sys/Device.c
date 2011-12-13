@@ -465,7 +465,6 @@ VIOSerialEvtDeviceD0Entry(
     )
 {
     PPORTS_DEVICE	pContext = GetPortsDevice(Device);
-    UNREFERENCED_PARAMETER(PreviousState);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
 
@@ -497,9 +496,12 @@ VIOSerialEvtDeviceD0Exit(
 
     PAGED_CODE();
 
-    VIOSerialShutdownAllPorts(Device);
-    VIOSerialShutDownAllQueues(Device);
+    if (PowerActionSleep != WdfDeviceGetSystemPowerAction(Device))
+    {
+        VIOSerialShutdownAllPorts(Device);
+    }
 
+    VIOSerialShutDownAllQueues(Device);
     return STATUS_SUCCESS;
 }
 
@@ -511,11 +513,15 @@ VIOSerialEvtDeviceD0EntryPostInterruptsEnabled(
     )
 {
     PPORTS_DEVICE	pContext = GetPortsDevice(WdfDevice);
-    UNREFERENCED_PARAMETER(PreviousState);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
 
     PAGED_CODE();
+
+    if (PowerActionSleep == WdfDeviceGetSystemPowerAction(WdfDevice))
+    {
+        return STATUS_SUCCESS;
+    }
 
     if(!pContext->DeviceOK)
     {
