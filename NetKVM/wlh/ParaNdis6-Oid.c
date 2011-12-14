@@ -12,7 +12,7 @@
 #include "ParaNdis-Oid.h"
 #include "ParaNdis6.h"
 
-#if NDIS60_MINIPORT
+#if NDIS60_MINIPORT || NDIS620_MINIPORT
 
 #ifdef WPP_EVENT_TRACING
 #include "ParaNdis6-Oid.tmh"

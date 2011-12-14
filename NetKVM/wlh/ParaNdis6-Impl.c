@@ -9,7 +9,7 @@
  * the COPYING file in the top-level directory.
  *
 **********************************************************************/
-#if NDIS60_MINIPORT
+#if NDIS60_MINIPORT || NDIS620_MINIPORT
 
 #include "ParaNdis6.h"
 #ifdef WPP_EVENT_TRACING
