@@ -177,7 +177,7 @@ typedef struct _tagOffloadSettings
 /*
 for simplicity, we use for NDIS5 the same statistics as native NDIS6 uses
 */
-#if !NDIS60_MINIPORT
+#if !NDIS60_MINIPORT && !NDIS620_MINIPORT
 typedef struct _tagNdisStatustics
 {
     ULONG64                     ifHCInOctets;
@@ -351,7 +351,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	ULONG						ulTxMessage;
 	ULONG						ulControlMessage;
 
-#if NDIS60_MINIPORT
+#if NDIS60_MINIPORT || NDIS620_MINIPORT
 // Vista +
 	PIO_INTERRUPT_MESSAGE_INFO	pMSIXInfoTable;
 	PNET_BUFFER_LIST			SendHead;

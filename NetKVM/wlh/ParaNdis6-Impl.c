@@ -2077,4 +2077,4 @@ VOID ParaNdis6_OnInterruptRecoveryTimer(PARANDIS_ADAPTER *pContext)
 	DEBUG_EXIT_STATUS(5, val);
 }
 
-#endif // NDIS60_MINIPORT
+#endif // NDIS60_MINIPORT || NDIS620_MINIPORT
