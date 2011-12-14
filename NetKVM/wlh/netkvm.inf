@@ -179,12 +179,6 @@ HKR, Ndi\Params\IPPacketsCheck,		type,		0,			"enum"
 HKR, Ndi\Params\IPPacketsCheck\enum,"1",		0,			%Enable%
 HKR, Ndi\Params\IPPacketsCheck\enum,"0",		0,			%Disable%
 
-HKR, Ndi\Params\IPChecksumFix,		ParamDesc,	0,			%IPChecksumFix%
-HKR, Ndi\Params\IPChecksumFix,		Default,	0,			"1"
-HKR, Ndi\Params\IPChecksumFix,		type,		0,			"enum"
-HKR, Ndi\Params\IPChecksumFix\enum,	"1",		0,			%Enable%
-HKR, Ndi\Params\IPChecksumFix\enum,	"0",		0,			%Disable%
-
 HKR, Ndi\Params\HardReset,			ParamDesc,	0,			%HardReset%
 HKR, Ndi\Params\HardReset,			Default,	0,			"1"
 HKR, Ndi\Params\HardReset,			type,		0,			"enum"
@@ -324,7 +318,6 @@ Offload.TxLSO = "Offload Tx LSO"
 Offload.RxIP =  "Offload Rx IP checksum"
 HwOffload = "Hardware checksumming"
 IPPacketsCheck = "Analyze IP packets"
-IPChecksumFix = "Fix IP checksum on LSO"
 PriorityVlanTag = "Priority and VLAN tagging"
 PriorityOnly = "Priority"
 VLan = "VLan"
