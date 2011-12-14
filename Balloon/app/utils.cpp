@@ -5,7 +5,7 @@
 extern LPWSTR ServiceName;
 extern CService srvc;
 
-static struct ErrEntry {                                                   
+static struct ErrEntry {
     int code;
     const char* msg;
 } ErrList[] = {
@@ -46,7 +46,7 @@ void ErrorHandler(char *s, int err)
     }
 
     FILE* pLog = fopen("balloon.log","a");
-    fprintf(pLog, "%s failed, error code = %d\n",s , err); 
+    fprintf(pLog, "%s failed, error code = %d\n",s , err);
     fclose(pLog);
 
     ExitProcess(err);
@@ -56,7 +56,7 @@ void PrintMessage(char *s)
 {
 #ifdef DBG
     FILE* pLog = fopen("balloon.log", "a");
-    fprintf(pLog, "%s\n", s); 
+    fprintf(pLog, "%s\n", s);
     fclose(pLog);
 #endif
 }
@@ -78,7 +78,7 @@ void ShowUsage()
 BOOL InstallService()
 {
     SC_HANDLE newService;
-    SC_HANDLE scm; 
+    SC_HANDLE scm;
     TCHAR szBuffer[255];
     TCHAR szPath[MAX_PATH];
 
@@ -146,7 +146,7 @@ BOOL UninstallService()
     if (!res) {
         ErrorHandler("QueryServiceStatus", GetLastError());
     }
-	
+
     if (status.dwCurrentState != SERVICE_STOPPED) {
         printf("Stopping service...\n");
         res = ControlService(service, SERVICE_CONTROL_STOP, &status);
@@ -169,15 +169,15 @@ BOOL UninstallService()
     return TRUE;
 }
 
-BOOL ServiceRun() 
-{ 
+BOOL ServiceRun()
+{
     SC_HANDLE scm, Service;
-    SERVICE_STATUS ssStatus; 
-    DWORD dwOldCheckPoint; 
+    SERVICE_STATUS ssStatus;
+    DWORD dwOldCheckPoint;
     DWORD dwStartTickCount;
     DWORD dwWaitTime;
     DWORD dwStatus;
- 	
+
     scm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (!scm) {
         ErrorHandler("OpenSCManager", GetLastError());
@@ -197,19 +197,19 @@ BOOL ServiceRun()
         dwStartTickCount = GetTickCount();
         dwOldCheckPoint = ssStatus.dwCheckPoint;
 
-        while (ssStatus.dwCurrentState == SERVICE_START_PENDING) { 
+        while (ssStatus.dwCurrentState == SERVICE_START_PENDING) {
             dwWaitTime = ssStatus.dwWaitHint / 10;
 
             if( dwWaitTime < 1000 ) {
-                dwWaitTime = 1000;         
+                dwWaitTime = 1000;
             } else if ( dwWaitTime > 10000 ) {
                 dwWaitTime = 10000;
             }
-            
+
             Sleep( dwWaitTime );
 
-            if (!QueryServiceStatus(Service, &ssStatus) ) { 
-                break; 
+            if (!QueryServiceStatus(Service, &ssStatus) ) {
+                break;
             }
 
             if ( ssStatus.dwCheckPoint > dwOldCheckPoint ) {
@@ -221,24 +221,24 @@ BOOL ServiceRun()
                 }
             }
         }
-		
+
         if (ssStatus.dwCurrentState == SERVICE_RUNNING) {
             srvc.GetStatus(Service);
             dwStatus = NO_ERROR;
-        } else { 
+        } else {
 
             printf("\nService not started.\n");
-            printf("  Current State: %d\n", ssStatus.dwCurrentState); 
-            printf("  Exit Code: %d\n", ssStatus.dwWin32ExitCode); 
+            printf("  Current State: %d\n", ssStatus.dwCurrentState);
+            printf("  Exit Code: %d\n", ssStatus.dwWin32ExitCode);
             printf("  Service Specific Exit Code: %d\n", ssStatus.dwServiceSpecificExitCode);
             printf("  Check Point: %d\n", ssStatus.dwCheckPoint);
             printf("  Wait Hint: %d\n", ssStatus.dwWaitHint);
             dwStatus = GetLastError();
-        } 	
+        }
     }
 
     CloseServiceHandle(scm);
-    CloseServiceHandle(Service); 
+    CloseServiceHandle(Service);
     return TRUE;
 }
 
@@ -334,11 +334,11 @@ BOOL ChangeConfig()
     lock = LockServiceDatabase(scm);
     if (lock == 0) {
         ErrorHandler("LockServiceDatabase", GetLastError());
-    }		
+    }
     service = OpenService(scm, ServiceName, SERVICE_ALL_ACCESS);
     if (!service) {
         ErrorHandler("OpenService", GetLastError());
-    }	
+    }
     res = ChangeServiceConfig(
                                 service,
                                 SERVICE_NO_CHANGE,
@@ -359,7 +359,7 @@ BOOL ChangeConfig()
     res = UnlockServiceDatabase(lock);
     if (!res) {
         ErrorHandler("UnlockServiceDatabase", GetLastError());
-    }	
+    }
     CloseServiceHandle(service);
     CloseServiceHandle(scm);
     return TRUE;

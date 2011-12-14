@@ -2,11 +2,11 @@
  * Copyright (c) 2009  Red Hat, Inc.
  *
  * File: driver.c
- * 
+ *
  * Author(s):
  *  Vadim Rozenfeld <vrozenfe@redhat.com>
  *
- * This file contains balloon driver routines 
+ * This file contains balloon driver routines
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
@@ -31,7 +31,7 @@ ULONG DebugFlag;
 #pragma alloc_text(PAGE, EvtDriverContextCleanup)
 
 NTSTATUS DriverEntry(
-                      IN PDRIVER_OBJECT   DriverObject, 
+                      IN PDRIVER_OBJECT   DriverObject,
                       IN PUNICODE_STRING  RegistryPath
                       )
 {
@@ -78,7 +78,7 @@ NTSTATUS DriverEntry(
                       0
                       );
 
-    drvCxt->pfns_table = 
+    drvCxt->pfns_table =
               ExAllocatePoolWithTag(
                       NonPagedPool,
                       PAGE_SIZE,
@@ -92,8 +92,8 @@ NTSTATUS DriverEntry(
         WPP_CLEANUP(DriverObject);
         return status;
     }
-  
-    drvCxt->MemStats = 
+
+    drvCxt->MemStats =
               ExAllocatePoolWithTag(
                       NonPagedPool,
                       sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR,
@@ -156,7 +156,7 @@ EvtDriverContextCleanup(
                    );
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
-  
+
     LogError( drvObj, BALLOON_STOPPED);
     WPP_CLEANUP( drvObj);
 }
@@ -174,13 +174,13 @@ DbgPrintToComPort(
     __in LPTSTR Format,
     ...
     )
-{   
+{
 
     NTSTATUS   status;
     size_t     rc;
 
-    status = RtlStringCbLengthA(Format, TEMP_BUFFER_SIZE, &rc); 
- 
+    status = RtlStringCbLengthA(Format, TEMP_BUFFER_SIZE, &rc);
+
     if(NT_SUCCESS(status)) {
         WRITE_PORT_BUFFER_UCHAR(RHEL_DEBUG_PORT, (PUCHAR)Format, rc);
         WRITE_PORT_UCHAR(RHEL_DEBUG_PORT, '\r');
@@ -200,7 +200,7 @@ DbgPrintToComPort(
 #define BalloonDbgPrint(__MSG__) DbgPrint __MSG__;
 #endif COM_DEBUG
 #else DBG
-#define BalloonDbgPrint(__MSG__) 
+#define BalloonDbgPrint(__MSG__)
 #endif DBG
 
 

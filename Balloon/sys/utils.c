@@ -2,10 +2,10 @@
  * Copyright (c) 2009  Red Hat, Inc.
  *
  * File: device.c
- * 
+ *
  * Author(s):
  *
- * This file contains various balloon driver routines 
+ * This file contains various balloon driver routines
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
@@ -24,7 +24,7 @@
 int nDebugLevel = 0;
 int bDebugPrint = 0;
 
-BOOLEAN 
+BOOLEAN
 LogError(
     IN PDRIVER_OBJECT  drvObj,
     IN NTSTATUS        ErrorCode
