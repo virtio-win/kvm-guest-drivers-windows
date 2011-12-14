@@ -1,3 +1,13 @@
+Date    14 December 2011
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm42
+
+Fixed bugs:
+Bug 713130 - event index support in virtio and vhost-net
+Bug 713643 - backport checksum optimization for virtio_net
+Bug 753723 - Backport serial number support for virtio-blk devices
+Bug 714908 - virtio-serial is disfunctional after S3
+
 Date    24 November 2011
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm41
