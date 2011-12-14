@@ -17,7 +17,7 @@
 //#define NO_VISTA_POWER_MANAGEMENT
 
 //by default printouts from resource filtering are invisible
-//change it to 2 or smaller to make it visible always 
+//change it to 2 or smaller to make it visible always
 ULONG bDisableMSI = FALSE;
 LONG resourceFilterLevel = 3;
 
@@ -372,7 +372,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
 		if (pContext->bDoInterruptRecovery)
 		{
 			//200 mSec for first shot of recovery circuit
-			ParaNdis_SetTimer(pContext->InterruptRecoveryTimer, 200); 
+			ParaNdis_SetTimer(pContext->InterruptRecoveryTimer, 200);
 		}
 	}
 	DEBUG_EXIT_STATUS(status ? 0 : 2, status);
@@ -828,7 +828,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
 						DPrintf(resourceFilterLevel, ("[%s]+%d %d: type %d, flags %X, option %X", __FUNCTION__, offset, nDesc, pd->Type, pd->Flags, pd->Option));
 						if (pd->Type == CmResourceTypeInterrupt)
 						{
-							
+
 							//DPrintf(1, ("    policy %d, affinity %X", pd->u.Interrupt.AffinityPolicy, pd->u.Interrupt.TargetedProcessors));
 							if (pd->Flags & CM_RESOURCE_INTERRUPT_MESSAGE)
 							{

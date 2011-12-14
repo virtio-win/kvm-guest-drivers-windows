@@ -475,7 +475,7 @@ NDIS_STATUS ParaNdis_OnSetPower(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 #ifdef DEBUG_TIMING
 	LARGE_INTEGER TickCount;
 	LARGE_INTEGER SysTime;
-	
+
 	KeQueryTickCount(&TickCount);
 	NdisGetCurrentSystemTime(&SysTime);
 	DPrintf(0, ("\n%s>> CPU #%d, perf-counter %I64d, tick count %I64d, NDIS_sys_time %I64d\n", __FUNCTION__, KeGetCurrentProcessorNumber(), KeQueryPerformanceCounter(NULL).QuadPart,TickCount.QuadPart, SysTime.QuadPart));

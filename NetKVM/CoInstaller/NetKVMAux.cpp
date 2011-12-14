@@ -8,7 +8,7 @@ typedef LONG NTSTATUS;
 #endif
 
 #ifndef STATUS_SUCCESS
-#define STATUS_SUCCESS ((NTSTATUS)0x00000000L) 
+#define STATUS_SUCCESS ((NTSTATUS)0x00000000L)
 #endif
 
 wstring NetKVMGetKeyPathFromKKEY(HKEY hKey)
