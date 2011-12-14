@@ -11,8 +11,8 @@ GetInfoTest(
 {
     PVOID   buf = NULL;
     PVIRTIO_PORT_INFO inf = NULL;
-    size_t  len; 
-    
+    size_t  len;
+
     if (!pDev) return FALSE;
 
     len = sizeof(VIRTIO_PORT_INFO);
@@ -104,7 +104,7 @@ WriteTestCycl(
 {
     int ch;
     for (;;)
-    {   
+    {
         if(!WriteTest(pDev, ovrl)) return FALSE;
         ch = getchar();
         if(ch == EOF) break;
@@ -166,7 +166,7 @@ ReadTestCycl(
 {
     int ch;
     for (;;)
-    {   
+    {
         if(!ReadTest(pDev, ovrl)) return FALSE;
         if(_kbhit())
         {
@@ -207,7 +207,7 @@ wmain(
     }
 
     m_pDev = new CDevice;
-    if (!m_pDev) 
+    if (!m_pDev)
     {
         return 1;
     }

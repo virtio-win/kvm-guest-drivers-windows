@@ -5,7 +5,7 @@
 #include "Buffer.tmh"
 #endif
 
-PPORT_BUFFER 
+PPORT_BUFFER
 VIOSerialAllocateBuffer(
     IN size_t buf_size
 )
@@ -39,7 +39,7 @@ VIOSerialAllocateBuffer(
     buf->len = 0;
     buf->offset = 0;
     buf->size = buf_size;
-    return buf; 
+    return buf;
 }
 
 SSIZE_T
@@ -111,7 +111,7 @@ VIOSerialSendBuffers(
     return sent;
 }
 
-VOID 
+VOID
 VIOSerialFreeBuffer(
     IN PPORT_BUFFER buf
 )
@@ -126,7 +126,7 @@ VIOSerialFreeBuffer(
     ExFreePoolWithTag(buf, VIOSERIAL_DRIVER_MEMORY_TAG);
 }
 
-VOID 
+VOID
 VIOSerialReclaimConsumedBuffers(
     IN PVIOSERIAL_PORT port
 )
@@ -145,7 +145,7 @@ VIOSerialReclaimConsumedBuffers(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
 }
 
-SSIZE_T 
+SSIZE_T
 VIOSerialFillReadBuf(
     IN PVIOSERIAL_PORT port,
     IN PVOID outbuf,
@@ -167,7 +167,7 @@ VIOSerialFillReadBuf(
 
     buf->offset += count;
 
-    if (buf->offset == buf->len) 
+    if (buf->offset == buf->len)
     {
         WdfSpinLockAcquire(port->InBufLock);
         port->InBuf = NULL;
@@ -183,7 +183,7 @@ VIOSerialFillReadBuf(
 }
 
 
-NTSTATUS 
+NTSTATUS
 VIOSerialAddInBuf(
     IN struct virtqueue *vq,
     IN PPORT_BUFFER buf)
@@ -223,7 +223,7 @@ VIOSerialGetInBuf(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
 
     buf = vq->vq_ops->get_buf(vq, &len);
-    if (buf) 
+    if (buf)
     {
         buf->len = len;
         buf->offset = 0;

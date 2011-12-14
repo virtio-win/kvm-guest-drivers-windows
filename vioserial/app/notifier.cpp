@@ -35,7 +35,7 @@ BOOL CNotifier::Init()
                               &id);
 
     if (m_hThread == NULL) {
-        printf("Cannot create thread.\n"); 
+        printf("Cannot create thread.\n");
         return FALSE;
     }
     m_bRunning = TRUE;

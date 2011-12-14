@@ -2,10 +2,10 @@
  * Copyright (c) 2010  Red Hat, Inc.
  *
  * File: public.h
- * 
+ *
  * Author(s):
- * 
- * Public include file 
+ *
+ * Public include file
  * This file contains
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See

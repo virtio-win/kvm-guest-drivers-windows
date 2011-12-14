@@ -28,7 +28,7 @@ public:
     LPARAM lParam;
     PnPNotification(UINT msg, WPARAM wParam, LPARAM lParam) :
     msg(msg), wParam(wParam), lParam(lParam){ };
-}; 
+};
 
 
 class PnPControl
@@ -45,10 +45,10 @@ class PnPControl
             (*it)->handleEvent(*this);
     }
     PnPControl() :  Thread(INVALID_HANDLE_VALUE), Notification(0, 0, 0)
-    { 
+    {
         IsRunningAsService();
-        Init(); 
-        FindControllers(); 
+        Init();
+        FindControllers();
         FindPorts();
     }
     ~PnPControl() { Close(); }
@@ -123,7 +123,7 @@ private:
     SerialController() { }
 public:
     SerialController(wstring LinkName) {Name = LinkName;}
-    virtual ~SerialController() 
+    virtual ~SerialController()
     {
         printf("~SerialController.\n");
     }
@@ -150,6 +150,6 @@ public:
     BOOL ReadPort(PVOID buf, size_t *len);
     BOOL WritePort(PVOID buf, size_t *len);
     virtual void handleEvent(const PnPControl& ref);
-    pair <VIOSERIALNOTIFYCALLBACK*, PVOID> NotificationPair; 
+    pair <VIOSERIALNOTIFYCALLBACK*, PVOID> NotificationPair;
 };
 

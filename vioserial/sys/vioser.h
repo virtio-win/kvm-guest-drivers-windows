@@ -2,11 +2,11 @@
  * Copyright (c) 2009  Red Hat, Inc.
  *
  * File: vioser.h
- * 
+ *
  * Author(s):
- * 
- * Main include file 
- * This file contains various routines and globals 
+ *
+ * Main include file
+ * This file contains various routines and globals
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
@@ -40,7 +40,7 @@ EVT_WDF_INTERRUPT_DISABLE                       VIOSerialInterruptDisable;
 #define VIRTIO_CONSOLE_PORT_ADD         1
 #define VIRTIO_CONSOLE_PORT_REMOVE      2
 #define VIRTIO_CONSOLE_PORT_READY       3
-  
+
 #define VIRTIO_CONSOLE_CONSOLE_PORT     4
 #define VIRTIO_CONSOLE_RESIZE           5
 #define VIRTIO_CONSOLE_PORT_OPEN        6
@@ -165,18 +165,18 @@ VIOSerialFillQueue(
     IN WDFSPINLOCK Lock
 );
 
-NTSTATUS 
+NTSTATUS
 VIOSerialAddInBuf(
     IN struct virtqueue *vq,
     IN PPORT_BUFFER buf
 );
 
-VOID 
+VOID
 VIOSerialReclaimConsumedBuffers(
     IN PVIOSERIAL_PORT port
 );
 
-SSIZE_T 
+SSIZE_T
 VIOSerialSendBuffers(
     IN PVIOSERIAL_PORT port,
     IN PVOID buf,
@@ -184,29 +184,29 @@ VIOSerialSendBuffers(
     IN BOOLEAN nonblock
 );
 
-SSIZE_T 
+SSIZE_T
 VIOSerialFillReadBuf(
     IN PVIOSERIAL_PORT port,
     IN PVOID outbuf,
     IN SIZE_T count
 );
 
-PPORT_BUFFER 
+PPORT_BUFFER
 VIOSerialAllocateBuffer(
     IN size_t buf_size
 );
 
-VOID 
+VOID
 VIOSerialFreeBuffer(
     IN PPORT_BUFFER buf
 );
 
-VOID 
+VOID
 VIOSerialSendCtrlMsg(
     IN WDFDEVICE hDevice,
     IN ULONG id,
     IN USHORT event,
-    IN USHORT value 
+    IN USHORT value
 );
 
 VOID
@@ -273,7 +273,7 @@ VIOSerialWillReadBlock(
 );
 
 
-VOID 
+VOID
 VIOSerialEnableDisableInterruptQueue(
     IN struct virtqueue *vq,
     IN BOOLEAN bEnable

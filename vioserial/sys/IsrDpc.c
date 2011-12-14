@@ -131,7 +131,7 @@ VIOSerialInterruptEnable(
 {
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
     VIOSerialEnableDisableInterrupt(
-                                 GetPortsDevice(WdfInterruptGetDevice(Interrupt)), 
+                                 GetPortsDevice(WdfInterruptGetDevice(Interrupt)),
                                  TRUE);
 
     return STATUS_SUCCESS;

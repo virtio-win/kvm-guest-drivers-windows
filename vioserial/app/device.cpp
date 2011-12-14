@@ -30,38 +30,38 @@ BOOL CDevice::Init(BOOL ovrl)
 
         if (m_hDevice != INVALID_HANDLE_VALUE)
         {
-            printf("Open vioserial device  %S.\n", DevicePath); 
+            printf("Open vioserial device  %S.\n", DevicePath);
             return TRUE;
         }
 
     }
-    printf("Cannot find vioserial device.\n"); 
+    printf("Cannot find vioserial device.\n");
     return FALSE;
 }
 
 BOOL CDevice::Write(PVOID buf, size_t *size)
 {
     BOOL res = FALSE;
-    ULONG ret = 0; 
+    ULONG ret = 0;
     DWORD bytes = *size;
 
     if (!buf) return FALSE;
 
-    res = WriteFile ( m_hDevice, 
-                      buf, 
-                      bytes, 
-                      &ret, 
+    res = WriteFile ( m_hDevice,
+                      buf,
+                      bytes,
+                      &ret,
                       NULL
                      );
     if (!res)
     {
-        printf("Cannot write vioserial device.\n"); 
+        printf("Cannot write vioserial device.\n");
     }
     else if ( ret != bytes)
     {
         printf("Write vioserial device error. written = 0x%x, expected = 0x%x\n", ret, bytes);
         *size = ret;
-        ret = FALSE; 
+        ret = FALSE;
     }
     return res;
 }
@@ -69,19 +69,19 @@ BOOL CDevice::Write(PVOID buf, size_t *size)
 BOOL CDevice::WriteEx(PVOID buf, size_t *size)
 {
     BOOL res = FALSE;
-    ULONG ret = 0; 
+    ULONG ret = 0;
     DWORD bytes = *size;
     OVERLAPPED  ol = {0};
 
-    assert( buf ); 
+    assert( buf );
 
     ol.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-    assert( ol.hEvent ); 
+    assert( ol.hEvent );
 
-    res = WriteFile ( m_hDevice, 
-                      buf, 
-                      bytes, 
-                      &ret, 
+    res = WriteFile ( m_hDevice,
+                      buf,
+                      bytes,
+                      &ret,
                       &ol
                      );
     if (!res)
@@ -101,13 +101,13 @@ BOOL CDevice::WriteEx(PVOID buf, size_t *size)
            {
               *size = ret;
               res = TRUE;
-           } 
+           }
         }
     }
     else
     {
         *size = ret;
-        res = TRUE; 
+        res = TRUE;
     }
 
     CloseHandle( ol.hEvent );
@@ -129,7 +129,7 @@ BOOL CDevice::Read(PVOID buf, size_t *size)
                     bytes,
                     &ret,
                     NULL
-                   ); 
+                   );
     if (!res)
     {
 
@@ -140,7 +140,7 @@ BOOL CDevice::Read(PVOID buf, size_t *size)
     {
         printf("Read vioserial device error. get = 0x%x, expected = 0x%x\n", ret, bytes);
         *size = ret;
-        ret = FALSE; 
+        ret = FALSE;
     }
 
     return res;
@@ -165,7 +165,7 @@ BOOL CDevice::ReadEx(PVOID buf, size_t *size)
                     bytes,
                     &ret,
                     &ol
-                   ); 
+                   );
     if (!res)
     {
         if (GetLastError() != ERROR_IO_PENDING)
@@ -183,13 +183,13 @@ BOOL CDevice::ReadEx(PVOID buf, size_t *size)
            {
               *size = ret;
               res = TRUE;
-           } 
+           }
         }
     }
     else
     {
         *size = ret;
-        res = TRUE; 
+        res = TRUE;
     }
 
     CloseHandle( ol.hEvent );
@@ -217,7 +217,7 @@ BOOL CDevice::ReadEx(PVOID buf, size_t *size)
     {
         printf("Read vioserial device error. get = 0x%x, expected = 0x%x\n", ret, bytes);
         *size = ret;
-        ret = FALSE; 
+        ret = FALSE;
     }
 
     return res;
@@ -267,7 +267,7 @@ PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
 
     if (HardwareDeviceInfo == INVALID_HANDLE_VALUE)
     {
-        printf("Cannot get class devices.\n"); 
+        printf("Cannot get class devices.\n");
         return NULL;
     }
 
@@ -281,7 +281,7 @@ PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
                              );
 
     if (bResult == FALSE) {
-        printf("Cannot get enumerate device interfaces.\n"); 
+        printf("Cannot get enumerate device interfaces.\n");
         SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
         return NULL;
     }
@@ -299,7 +299,7 @@ PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
 
     if (DeviceInterfaceDetailData == NULL)
     {
-        printf("Cannot allocate memory.\n"); 
+        printf("Cannot allocate memory.\n");
         SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
         return NULL;
     }
@@ -319,7 +319,7 @@ PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
 
     if (bResult == FALSE)
     {
-        printf("Cannot get device interface details.\n"); 
+        printf("Cannot get device interface details.\n");
         SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
         LocalFree(DeviceInterfaceDetailData);
         return NULL;

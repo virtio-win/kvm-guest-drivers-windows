@@ -6,24 +6,24 @@
 #include "Control.tmh"
 #endif
 
-static 
-VOID 
+static
+VOID
 VIOSerialHandleCtrlMsg(
     IN WDFDEVICE Device,
     IN PPORT_BUFFER buf
 );
 
-VOID 
+VOID
 VIOSerialSendCtrlMsg(
     IN WDFDEVICE Device,
     IN ULONG id,
     IN USHORT event,
-    IN USHORT value 
+    IN USHORT value
 )
 {
     struct VirtIOBufferDescriptor sg;
     struct virtqueue *vq;
-    UINT len;     
+    UINT len;
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
     VIRTIO_CONSOLE_CONTROL cpkt;
     int cnt = 0;
@@ -68,11 +68,11 @@ VIOSerialCtrlWorkHandler(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
-    vq = pContext->c_ivq;                                     
+    vq = pContext->c_ivq;
     ASSERT(vq);
 
     WdfSpinLockAcquire(pContext->CVqLock);
-    while ((buf = vq->vq_ops->get_buf(vq, &len))) 
+    while ((buf = vq->vq_ops->get_buf(vq, &len)))
     {
         WdfSpinLockRelease(pContext->CVqLock);
         buf->len = len;
@@ -80,11 +80,11 @@ VIOSerialCtrlWorkHandler(
         VIOSerialHandleCtrlMsg(Device, buf);
 
         WdfSpinLockAcquire(pContext->CVqLock);
-        status = VIOSerialAddInBuf(vq, buf); 
+        status = VIOSerialAddInBuf(vq, buf);
         if (!NT_SUCCESS(status))
         {
            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s::%d Error adding buffer to queue\n", __FUNCTION__, __LINE__);
-           VIOSerialFreeBuffer(buf);  
+           VIOSerialFreeBuffer(buf);
         }
     }
     WdfSpinLockRelease(pContext->CVqLock);
@@ -102,7 +102,7 @@ VIOSerialHandleCtrlMsg(
     PVIOSERIAL_PORT port;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
-    
+
     cpkt = (PVIRTIO_CONSOLE_CONTROL)((ULONG_PTR)buf->va_buf + buf->offset);
 
     port = VIOSerialFindPortById(Device, cpkt->id);
@@ -112,7 +112,7 @@ VIOSerialHandleCtrlMsg(
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Invlid index %u in control packet\n", cpkt->id);
     }
 
-    switch (cpkt->event) 
+    switch (cpkt->event)
     {
         case VIRTIO_CONSOLE_PORT_ADD:
            if (port)
@@ -124,8 +124,8 @@ VIOSerialHandleCtrlMsg(
            {
                TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "Out-of-bound id %u\n", cpkt->id);
                break;
-           } 
-           VIOSerialAddPort(Device, cpkt->id); 
+           }
+           VIOSerialAddPort(Device, cpkt->id);
         break;
 
         case VIRTIO_CONSOLE_PORT_REMOVE:
@@ -139,7 +139,7 @@ VIOSerialHandleCtrlMsg(
         break;
 
         case VIRTIO_CONSOLE_CONSOLE_PORT:
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, 
+           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
                        "VIRTIO_CONSOLE_CONSOLE_PORT id = %d value = %u\n", cpkt->id, cpkt->value);
            if (cpkt->value)
            {
@@ -175,5 +175,5 @@ VIOSerialHandleCtrlMsg(
         break;
         default:
            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s UNKNOWN event = %d\n", __FUNCTION__, cpkt->event);
-    }  
+    }
 }

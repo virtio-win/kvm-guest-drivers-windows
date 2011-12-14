@@ -40,7 +40,7 @@ DWORD __stdcall CService::HandlerExThunk(CService* service, DWORD ctlcode, DWORD
     default:
         service->ServiceCtrlHandler(ctlcode);
         return NO_ERROR;
-    }    
+    }
 }
 
 void __stdcall CService::ServiceMainThunk(CService* service, DWORD argc, TCHAR* argv[])
@@ -61,7 +61,7 @@ BOOL CService::InitService()
                               &id);
 
     if (m_thHandle == NULL) {
-        PrintMessage("Cannot create thread"); 
+        PrintMessage("Cannot create thread");
         return FALSE;
     }
     m_bRunningService = TRUE;
@@ -71,7 +71,7 @@ BOOL CService::InitService()
 DWORD WINAPI CService::ServiceThread(LPDWORD lParam)
 {
     CService* service = (CService*)lParam;
-    service->Run(); 
+    service->Run();
     return 0;
 }
 
@@ -98,8 +98,8 @@ BOOL CService::SendStatusToSCM(DWORD dwCurrentState, DWORD dwWin32ExitCode, DWOR
     if (dwCurrentState == SERVICE_START_PENDING) {
         serviceStatus.dwControlsAccepted = 0;
     } else {
-        serviceStatus.dwControlsAccepted = 
-                SERVICE_ACCEPT_STOP | 
+        serviceStatus.dwControlsAccepted =
+                SERVICE_ACCEPT_STOP |
                 SERVICE_ACCEPT_PAUSE_CONTINUE |
                 SERVICE_ACCEPT_SHUTDOWN;
     }
@@ -109,11 +109,11 @@ BOOL CService::SendStatusToSCM(DWORD dwCurrentState, DWORD dwWin32ExitCode, DWOR
     } else {
         serviceStatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
     }
-	
+
     serviceStatus.dwServiceSpecificExitCode = dwServiceSpecificExitCode;
     serviceStatus.dwCheckPoint = dwCheckPoint;
     serviceStatus.dwWaitHint = dwWaitHint;
-	
+
     res = SetServiceStatus (m_StatusHandle, &serviceStatus);
     if (!res) {
         StopService();
@@ -129,7 +129,7 @@ void CService::ResumeService()
 }
 
 void CService::PauseService()
-{   
+{
     if (m_bRunningService && !m_bPauseService) {
         m_bPauseService = TRUE;
         SuspendThread(m_thHandle);
@@ -195,12 +195,12 @@ void CService::ServiceCtrlHandler(DWORD controlCode)
                                 0,
                                 1,
                                 1000);
-				
+
                 PauseService();
                 currentState = SERVICE_PAUSED;
             }
             break;
-			
+
         case SERVICE_CONTROL_CONTINUE:
             if (m_bRunningService && m_bPauseService) {
                 SendStatusToSCM(SERVICE_CONTINUE_PENDING,
@@ -208,7 +208,7 @@ void CService::ServiceCtrlHandler(DWORD controlCode)
                                 0,
                                 1,
                                 1000);
-				
+
                 ResumeService();
                 currentState = SERVICE_RUNNING;
             }
@@ -216,7 +216,7 @@ void CService::ServiceCtrlHandler(DWORD controlCode)
 
         case SERVICE_CONTROL_INTERROGATE:
             break;
-			
+
         case SERVICE_CONTROL_SHUTDOWN:
             return;
 
@@ -228,13 +228,13 @@ void CService::ServiceCtrlHandler(DWORD controlCode)
 
 DWORD CService::ServiceHandleDeviceChange(DWORD evtype, _DEV_BROADCAST_HEADER* dbhdr)
 {
-    PrintMessage("ServiceHandleDeviceChange"); 
+    PrintMessage("ServiceHandleDeviceChange");
     return NO_ERROR;
 }
 
 DWORD CService::ServiceHandlePowerEvent(DWORD evtype, DWORD flags)
 {
-    PrintMessage("ServiceHandlePowerEvent"); 
+    PrintMessage("ServiceHandlePowerEvent");
     return NO_ERROR;
 }
 
@@ -248,7 +248,7 @@ void CService::ServiceMain(DWORD argc, LPTSTR *argv)
     }
 
     res = SendStatusToSCM(SERVICE_START_PENDING, NO_ERROR, 0 , 1, 5000);
-    if (!res) { 
+    if (!res) {
         terminate(GetLastError());
         return;
     }
@@ -268,25 +268,25 @@ void CService::ServiceMain(DWORD argc, LPTSTR *argv)
     InitializeCriticalSection(&m_scWrite);
 
     res = SendStatusToSCM(SERVICE_START_PENDING, NO_ERROR, 0 , 2, 1000);
-    if (!res) { 
+    if (!res) {
         terminate(GetLastError());
         return;
     }
 
     res = SendStatusToSCM(SERVICE_START_PENDING, NO_ERROR, 0 , 3, 5000);
-    if (!res) { 
+    if (!res) {
         terminate(GetLastError());
         return;
     }
 
     res = InitService();
-    if (!res) { 
+    if (!res) {
         terminate(GetLastError());
         return;
     }
 
     res = SendStatusToSCM(SERVICE_RUNNING, NO_ERROR, 0 , 0, 0);
-    if (!res) { 
+    if (!res) {
         terminate(GetLastError());
         return;
     }
@@ -298,11 +298,11 @@ void CService::ServiceMain(DWORD argc, LPTSTR *argv)
 
 void CService::GetStatus(SC_HANDLE service)
 {
-    SERVICE_STATUS status;	
+    SERVICE_STATUS status;
     DWORD CurrentState;
 
     QueryServiceStatus(service, &status);
-	
+
     switch(status.dwCurrentState) {
         case SERVICE_RUNNING:
             CurrentState = SERVICE_RUNNING;

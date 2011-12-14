@@ -1,6 +1,6 @@
 #include "StdAfx.h"
 
-SerialPort::SerialPort(wstring LinkName, PnPControl* ptr) 
+SerialPort::SerialPort(wstring LinkName, PnPControl* ptr)
 {
     Name = LinkName;
     Notify = NULL;
@@ -120,7 +120,7 @@ BOOL SerialPort::ReadPort(PVOID buf, size_t *len)
         bytes,
         &ret,
         &ol
-        ); 
+        );
     if (!res)
     {
         DWORD err = GetLastError();
@@ -139,13 +139,13 @@ BOOL SerialPort::ReadPort(PVOID buf, size_t *len)
             {
                 *len = ret;
                 res = TRUE;
-            } 
+            }
         }
     }
     else
     {
         *len = ret;
-        res = TRUE; 
+        res = TRUE;
     }
 
     CloseHandle( ol.hEvent );
@@ -155,7 +155,7 @@ BOOL SerialPort::ReadPort(PVOID buf, size_t *len)
 BOOL SerialPort::WritePort(PVOID buf, size_t *len)
 {
     BOOL res = FALSE;
-    ULONG ret = 0; 
+    ULONG ret = 0;
     DWORD bytes = (DWORD)(*len);
     OVERLAPPED  ol = {0};
 
@@ -172,10 +172,10 @@ BOOL SerialPort::WritePort(PVOID buf, size_t *len)
         return FALSE;
     }
 
-    res = WriteFile ( Handle, 
-        buf, 
-        bytes, 
-        &ret, 
+    res = WriteFile ( Handle,
+        buf,
+        bytes,
+        &ret,
         &ol
         );
     if (!res)
@@ -196,13 +196,13 @@ BOOL SerialPort::WritePort(PVOID buf, size_t *len)
             {
                 *len = ret;
                 res = TRUE;
-            } 
+            }
         }
     }
     else
     {
         *len = ret;
-        res = TRUE; 
+        res = TRUE;
     }
 
     CloseHandle( ol.hEvent );
