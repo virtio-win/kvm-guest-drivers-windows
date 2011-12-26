@@ -12,6 +12,9 @@
 : to sign the drivers with your certificate. Change tools\makeinstall.bat if needed
 :
 :
+
+setlocal
+
 if "%DDKVER%"=="" set DDKVER=7600.16385.0
 
 if "%PSDK_INC_PATH%" NEQ "" goto :sdk_set
@@ -32,8 +35,6 @@ set _MAJORVERSION_=%_BUILD_MAJOR_VERSION_%
 set _MINORVERSION_=%_BUILD_MINOR_VERSION_%
 set _DRIVER_ISO_NAME=Install-%_MINORVERSION_%%_MAJORVERSION_%.iso
 
-set OLD_PATH=%PATH%
-
 if not "%1"=="" goto parameters_here
 echo no parameters specified, rebuild all
 call clean.bat
@@ -49,8 +50,10 @@ call :copyVirtIO
 
 
 :nextparam
-if "%1"=="" goto :eof
-goto %1
+if NOT "%1"=="" goto %1
+endlocal
+echo Environment cleanup done
+goto :eof
 :continue
 shift
 goto nextparam
@@ -80,11 +83,13 @@ goto :eof
 
 :Win7 
 set DDKBUILDENV=
+setlocal
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Win7
 popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
+endlocal
 
 if exist wlh\objfre_win7_x86\i386\netkvm.sys call tools\makeinstall x86 wlh\objfre_win7_x86\i386\netkvm.sys wlh\netkvm.inf %_VERSION_% Win7 CoInstaller\objfre_win7_x86\i386\netkvmco.dll CoInstaller\readme.doc
 if not exist wlh\objfre_win7_x86\i386\netkvm.sys goto :eof
@@ -93,11 +98,13 @@ goto continue
 
 :Win7_64 
 set DDKBUILDENV=
+setlocal
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre Win7
 popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
+endlocal
 
 if exist wlh\objfre_win7_amd64\amd64\netkvm.sys call tools\makeinstall amd64 wlh\objfre_win7_amd64\amd64\netkvm.sys wlh\netkvm.inf %_VERSION_% Win7 CoInstaller\objfre_win7_amd64\amd64\netkvmco.dll CoInstaller\readme.doc
 if not exist wlh\objfre_win7_amd64\amd64\netkvm.sys goto :eof
@@ -106,11 +113,13 @@ goto continue
 
 :Vista
 set DDKBUILDENV=
+setlocal
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Wlh
 popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
+endlocal
 
 if exist wlh\objfre_wlh_x86\i386\netkvm.sys call tools\makeinstall x86 wlh\objfre_wlh_x86\i386\netkvm.sys wlh\netkvm.inf %_VERSION_% Vista CoInstaller\objfre_wlh_x86\i386\netkvmco.dll CoInstaller\readme.doc
 if not exist wlh\objfre_wlh_x86\i386\netkvm.sys goto :eof
@@ -122,11 +131,13 @@ rem echo Skipping Vista64 for now, comment to enable
 rem goto :eof
 
 set DDKBUILDENV=
+setlocal
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre Wlh
 popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
+endlocal
 
 if exist wlh\objfre_wlh_amd64\amd64\netkvm.sys call tools\makeinstall amd64 wlh\objfre_wlh_amd64\amd64\netkvm.sys wlh\netkvm.inf %_VERSION_% Vista CoInstaller\objfre_wlh_amd64\amd64\netkvmco.dll CoInstaller\readme.doc
 if not exist wlh\objfre_wlh_amd64\amd64\netkvm.sys goto :eof
@@ -135,11 +146,13 @@ goto continue
 
 :XP
 set DDKBUILDENV=
+setlocal
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WXP
 popd
 call :preparebuild Common wxp VirtIO
 build -cZg
+endlocal
 
 if exist wxp\objfre_wxp_x86\i386\netkvm.sys call tools\makeinstall x86 wxp\objfre_wxp_x86\i386\netkvm.sys wxp\netkvm.inf %_VERSION_% XP
 if not exist wxp\objfre_wxp_x86\i386\netkvm.sys goto :eof
@@ -147,11 +160,13 @@ goto continue
 
 :XP64
 set DDKBUILDENV=
+setlocal
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WNET
 popd
 call :preparebuild Common wxp VirtIO
 build -cZg
+endlocal
 
 if exist wxp\objfre_wnet_amd64\amd64\netkvm.sys call tools\makeinstall amd64 wxp\objfre_wnet_amd64\amd64\netkvm.sys wxp\netkvm.inf %_VERSION_% XP
 if not exist wxp\objfre_wnet_amd64\amd64\netkvm.sys goto :eof
@@ -179,6 +194,5 @@ goto continue
 :PackInstall
 :echo Packing to ISO image
 :call tools\makecdimage.cmd %_DRIVER_ISO_NAME% Install
-goto :eof
-echo "setting old path back"
-set PATH=%OLD_PATH%
+
+:goto :eof
