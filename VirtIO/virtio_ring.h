@@ -14,11 +14,14 @@
 #define VRING_DESC_F_NEXT	1
 /* This marks a buffer as write-only (otherwise read-only). */
 #define VRING_DESC_F_WRITE	2
+#define VRING_DESC_F_INDIRECT        4
 
 /* This means don't notify other side when buffer added. */
 #define VRING_USED_F_NO_NOTIFY	1
 /* This means don't interrupt guest when buffer consumed. */
 #define VRING_AVAIL_F_NO_INTERRUPT	1
+
+#define VIRTIO_RING_F_INDIRECT_DESC  28
 
 #pragma pack (push)
 #pragma pack (1)
@@ -97,6 +100,31 @@ struct vring {
  * };
  */
 
+typedef struct _declspec(align(PAGE_SIZE)) vring_virtqueue
+{
+	struct virtqueue vq;
+
+	/* Actual memory layout for this queue */
+	struct vring vring;
+
+	/* Other side has made a mess, don't try any more. */
+	bool broken;
+
+	/* Number of free buffers */
+	unsigned int num_free;
+	/* Head of free buffer list. */
+	unsigned int free_head;
+	/* Number we've added since last sync. */
+	unsigned int num_added;
+
+	/* How to notify other side. FIXME: commonalize hcalls! */
+	void (*notify)(struct virtqueue *vq);
+
+	/* Tokens for callbacks. */
+	void *data[];
+}vring_virtqueue, *pvring_virtqueue;
+
+
 #define vring_last_used(vr) ((vr)->avail->ring[(vr)->num])
 #define vring_last_avail(vr) (*(__u16 *)&(vr)->used->ring[(vr)->num])
 
@@ -119,12 +147,65 @@ static  unsigned vring_size(unsigned int num, unsigned long pagesize)
 }
 
 struct virtqueue *vring_new_virtqueue(unsigned int num,
-				      VirtIODevice * pVirtIODevice,
+				      PVOID vdev,
 				      void *pages,
 				      void (*notify)(struct virtqueue *vq),
-				      bool (*callback)(struct virtqueue *vq));
+				      bool (*callback)(struct virtqueue *vq),
+					  PVOID Context,
+					  PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi));
 
-void vring_del_virtqueue(struct virtqueue *vq);
+void vring_del_virtqueue(struct virtqueue *vq,
+						 PVOID Context,
+						 VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi ));
 void* vring_detach_unused_buf(struct virtqueue *vq);
+
+/* Implementation of allocmem()have to be done in the driver itself
+Allocates memory either shared for DMA or from non-paged pool
+Parameters:
+	PVOID context (Miniport's handle)
+	ULONG size    (#0-size for alloc of non-paged pool,=0-mean share for DMA alloc)
+	pmeminfo pmi  (used for DMA alloc, size taken from it)
+Return value:
+	PVOID pointer on the memory block ( NULL if not allocated )
+*/
+PVOID allocmem( IN PVOID Context, IN ULONG size, IN OUT pmeminfo pmi);
+
+/* Implementation of freemem()have to be done in the driver itself
+Free memory either shared for DMA or from non-paged pool
+Parameters:
+	PVOID context  (Miniport's handle)
+	PVOID Address  (#NULL-pointer for free of non-paged pool,=NULL -mean free of DMA alloc)
+	pmeminfo pmi   (used for DMA free, pointer for free taken from it)
+*/
+VOID  freemem(IN PVOID Context, IN PVOID Address, IN pmeminfo pmi );
+
+/*
+Previous allocmem() and freemem() may be supplied by driver itself or passed as NULL to use
+default MmAllocateContiguousMemory()/MmFreeContiguousMemory().
+allocmem() passed as parameters in next functions:
+VirtIODeviceAllocVirtualQueueAddMem() and alloc_needed_mem()
+
+BOOLEAN bPhysical in VirtIODeviceAllocVirtualQueueAddMem() defined if DMA memory used for allocation
+e.g. for NDIS miniport driver will be used NdisMAllocateSharedMemory() in the case bPhysical equal TRUE,
+In the case bPhysical equal FALSE, NDIS miniport driver will use NdisAllocateMemoryWithTagPriority().
+BOOLEAN Cached define type of DMA memory allocated and not relevant in the case of bPhysical equal FALSE.
+BTW VirtIODeviceFindVirtualQueue() have additional BOOLEAN Cached parameter too because queue allocation
+in NDIS miniport driver done with NdisMAllocateSharedMemory(), so demand that parameter too(set to TRUE)
+
+freemem() passed as parameters in next functions:
+VirtIODeviceDeleteVirtualQueueAddMem() and free_needed_mem()
+
+*/
+
+void set_vring_add_buf(int (*vring_add_buf)(struct virtqueue *_vq,
+							struct VirtIOBufferDescriptor sg[],
+							unsigned int out, unsigned int in, void *data) );
+
+void initialize_virtqueue(struct vring_virtqueue *vq,
+						  unsigned int num,
+						  PVOID vdev,
+						  void *pages,
+						  void (*notify)(struct virtqueue *),
+						  bool (*callback)(struct virtqueue *));
 
 #endif /* _LINUX_VIRTIO_RING_H */

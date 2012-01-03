@@ -206,11 +206,22 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 	BOOLEAN bFreeInfo = FALSE;
 	PVOID pInfo = NULL;
 	ULONG ulSize = 0;
+	ULONG ulLinkSpeed = 0;
+
 	switch(pOid->Oid)
 	{
 		case OID_TCP_TASK_OFFLOAD:
 			status = CreateOffloadInfo5ForQuery(pContext, pOid, &pInfo, &ulSize);
 			bFreeInfo = pInfo != NULL;
+			break;
+		case OID_GEN_LINK_SPEED:
+			{
+				/* units are 100 bps */
+				ulLinkSpeed = (ULONG)(PARANDIS_FORMAL_LINK_SPEED / 100);
+				pInfo = &ulLinkSpeed;
+				ulSize = sizeof(ulLinkSpeed);
+				status = NDIS_STATUS_SUCCESS;
+			}
 			break;
 		default:
 			return ParaNdis_OidQueryCommon(pContext, pOid);

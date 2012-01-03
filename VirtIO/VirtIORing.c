@@ -17,47 +17,14 @@
  *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 #include "osdep.h"
-#include "VirtIO_PCI.h"
 #include "VirtIO.h"
+#include "VirtIO_PCI.h"
 #include "kdebugprint.h"
 #include "virtio_ring.h"
-#include "PVUtils.h"
 
 #ifdef WPP_EVENT_TRACING
 #include "VirtIORing.tmh"
 #endif
-
-struct _declspec(align(PAGE_SIZE)) vring_virtqueue
-{
-	struct virtqueue vq;
-
-	/* Actual memory layout for this queue */
-	struct vring vring;
-
-	/* Other side has made a mess, don't try any more. */
-	bool broken;
-
-	/* Number of free buffers */
-	unsigned int num_free;
-	/* Head of free buffer list. */
-	unsigned int free_head;
-	/* Number we've added since last sync. */
-	unsigned int num_added;
-
-	/* How to notify other side. FIXME: commonalize hcalls! */
-	void (*notify)(struct virtqueue *vq);
-
-	/* Tokens for callbacks. */
-	void *data[];
-};
-
-static void initialize_virtqueue(struct vring_virtqueue *vq,
-							unsigned int num,
-							VirtIODevice * pVirtIODevice,
-							void *pages,
-							void (*notify)(struct virtqueue *),
-							bool (*callback)(struct virtqueue *));
-
 
 //#define to_vvq(_vq) container_of(_vq, struct vring_virtqueue, vq)
 #define to_vvq(_vq) (struct vring_virtqueue *)_vq
@@ -219,13 +186,12 @@ static void vring_shutdown(struct virtqueue *_vq)
 	struct vring_virtqueue *vq = to_vvq(_vq);
 	unsigned int num = vq->vring.num;
 	void *pages = vq->vring.desc;
-	VirtIODevice * pVirtIODevice = vq->vq.vdev;
 	void (*notify)(struct virtqueue *) = vq->notify;
 	bool (*callback)(struct virtqueue *) = vq->vq.callback;
 	void *priv = vq->vq.priv;
 
 	memset(pages, 0, vring_size(num,PAGE_SIZE));
-	initialize_virtqueue(vq, num, pVirtIODevice, pages, notify, callback);
+	initialize_virtqueue(vq, num, vq->vq.vdev, pages, notify, callback);
 	vq->vq.priv = priv;
 }
 
@@ -242,7 +208,7 @@ static void *vring_get_buf(struct virtqueue *_vq, unsigned int *len)
 	unsigned int i;
 
 	if (!more_used(vq)) {
-		DPrintf(4, ("No more buffers in queue: last_used_idx %d vring.used->idx %d\n", 
+		DPrintf(4, ("No more buffers in queue: last_used_idx %d vring.used->idx %d\n",
 			vring_last_used(&vq->vring),
 			vq->vring.used->idx));
 		return NULL;
@@ -305,7 +271,7 @@ static struct virtqueue_ops vring_vq_ops = { vring_add_buf,
 
 void initialize_virtqueue(struct vring_virtqueue *vq,
 							unsigned int num,
-							VirtIODevice * pVirtIODevice,
+							PVOID vdev,
 							void *pages,
 							void (*notify)(struct virtqueue *),
 							bool (*callback)(struct virtqueue *))
@@ -315,7 +281,7 @@ void initialize_virtqueue(struct vring_virtqueue *vq,
 
 	vring_init(&vq->vring, num, pages, PAGE_SIZE);
 	vq->vq.callback = callback;
-	vq->vq.vdev = pVirtIODevice;
+	vq->vq.vdev = vdev;
 	vq->vq.vq_ops = &vring_vq_ops;
 	vq->notify = notify;
 	vq->broken = 0;
@@ -336,13 +302,13 @@ void initialize_virtqueue(struct vring_virtqueue *vq,
 }
 
 struct virtqueue *vring_new_virtqueue(unsigned int num,
-									  VirtIODevice * pVirtIODevice,
+									  PVOID vdev,
 									  void *pages,
 									  void (*notify)(struct virtqueue *),
-									  bool (*callback)(struct virtqueue *))
+									  bool (*callback)(struct virtqueue *),
+									  PVOID Context, PVOID (*allocmem)(PVOID Context,ULONG size, pmeminfo pmi))
 {
 	struct vring_virtqueue *vq;
-	unsigned int i;
 
 	DPrintf(0, ("Creating new virtqueue>>> size %d, pages %p\n", num, pages) );
 
@@ -352,20 +318,21 @@ struct virtqueue *vring_new_virtqueue(unsigned int num,
 		return NULL;
 	}
 
-	vq = AllocatePhysical(sizeof(*vq) + sizeof(void *)*num);
+    vq = drv_alloc_needed_mem(vdev, Context, allocmem, sizeof(*vq) + sizeof(void *)*num, NULL);
+
 	if (!vq)
 		return NULL;
 
-	initialize_virtqueue(vq, num, pVirtIODevice, pages, notify, callback);
+	initialize_virtqueue(vq, num, vdev, pages, notify, callback);
 
 	return &vq->vq;
 }
 
 
-void vring_del_virtqueue(struct virtqueue *vq)
+void vring_del_virtqueue(struct virtqueue *vq, PVOID Context, VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi))
 {
 	if(vq) {
-		MmFreeContiguousMemory(to_vvq(vq));
+		free_needed_mem(Context, freemem, vq, NULL);
 	}
 }
 
@@ -382,4 +349,33 @@ void* vring_detach_unused_buf(struct virtqueue *_vq)
 		return buf;
 	}
 	return NULL;
+}
+
+PVOID alloc_needed_mem(PVOID Context, PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi), ULONG size, pmeminfo pmi)
+{
+	if(allocmem)
+	{
+		if(size || pmi->size)
+			return allocmem(Context,size ? size: 0, size ? NULL: pmi);
+		else
+			return NULL;
+	}
+	else
+		return NULL;
+}
+
+void free_needed_mem(PVOID Context, VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi), PVOID Address, pmeminfo pmi)
+{
+    if(freemem)
+		if(Address || pmi->Addr)
+			freemem(Context, Address, pmi);
+		else
+			return;
+}
+
+void set_vring_add_buf(int (*vring_add_buf)(struct virtqueue *_vq,
+							struct VirtIOBufferDescriptor sg[],
+							unsigned int out, unsigned int in, void *data))
+{
+	 vring_vq_ops.add_buf = vring_add_buf;
 }

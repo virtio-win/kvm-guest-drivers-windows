@@ -9,7 +9,7 @@
  * the COPYING file in the top-level directory.
  *
 **********************************************************************/
-#if NDIS60_MINIPORT
+#if NDIS60_MINIPORT || NDIS620_MINIPORT
 
 #include "ParaNdis6.h"
 #ifdef WPP_EVENT_TRACING
@@ -234,8 +234,8 @@ static BOOLEAN MiniportInterrupt(
 static ULONG MessageToInterruptSource(PARANDIS_ADAPTER *pContext, ULONG  MessageId)
 {
 	ULONG interruptSource = 0;
-	if (MessageId == pContext->ulRxMessage) interruptSource |= isReceive;	
-	if (MessageId == pContext->ulTxMessage) interruptSource |= isTransmit;	
+	if (MessageId == pContext->ulRxMessage) interruptSource |= isReceive;
+	if (MessageId == pContext->ulTxMessage) interruptSource |= isTransmit;
 	if (MessageId == pContext->ulControlMessage) interruptSource |= isControl;
 	return interruptSource;
 }
@@ -694,7 +694,7 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 			{
 				// if we are configured to offload Rx Checksum and receive VIRTIO_NET_HDR_F_DATA_VALID from host, we indicate IpChecksumSucceeded.
 				// for future reference, if we get a flag for invalid checksum, use IpChecksumFailed.
-				if (pHeader->flags & VIRTIO_NET_HDR_F_DATA_VALID) 
+				if (pHeader->flags & VIRTIO_NET_HDR_F_DATA_VALID)
 				{
 					PNDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO pNBLInfo = (PNDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO) NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo);
 					DPrintf(3, ("Host reports VIRTIO_NET_HDR_F_DATA_VALID"));
@@ -1300,13 +1300,13 @@ static BOOLEAN PrepareSingleNBL(
 		bOK = FALSE;
 		pFailReason = "Failure to allocate BLE";
 	}
-	
+
 	if (bOK && !pB)
 	{
 		bOK = FALSE;
 		pFailReason = "Empty NBL";
 	}
-	
+
 	while (pB && bOK)
 	{
 		ULONG dataLength = NET_BUFFER_DATA_LENGTH(pB);
@@ -2077,4 +2077,4 @@ VOID ParaNdis6_OnInterruptRecoveryTimer(PARANDIS_ADAPTER *pContext)
 	DEBUG_EXIT_STATUS(5, val);
 }
 
-#endif // NDIS60_MINIPORT
+#endif // NDIS60_MINIPORT || NDIS620_MINIPORT

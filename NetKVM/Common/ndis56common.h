@@ -34,8 +34,8 @@
 #include "osdep.h"
 #include "kdebugprint.h"
 #include "ethernetutils.h"
-#include "virtio_pci.h"
 #include "VirtIO.h"
+#include "virtio_pci.h"
 #include "IONetDescriptor.h"
 #include "DebugData.h"
 
@@ -64,7 +64,7 @@
 // of driver output with qemu printouts; in this case define the port number
 // #define VIRTIO_DBG_USE_IOPORT	0x99
 
-// to be set to real limit later 
+// to be set to real limit later
 #define MAX_RX_LOOPS	1000
 
 /* The feature bitmap for virtio net */
@@ -95,13 +95,13 @@
 #define PARANDIS_MIN_LSO_SEGMENTS			2
 #define PARANDIS_MAX_LSO_SIZE				0xF000
 
-typedef enum _tagInterruptSource 
-{ 
-	isReceive  = 0x01, 
-	isTransmit = 0x02, 
+typedef enum _tagInterruptSource
+{
+	isReceive  = 0x01,
+	isTransmit = 0x02,
 	isControl  = 0x04,
 	isUnknown  = 0x08,
-	isBothTransmitReceive = isReceive | isTransmit, 
+	isBothTransmitReceive = isReceive | isTransmit,
 	isAny      = isReceive | isTransmit | isControl | isUnknown,
 	isDisable  = 0x80
 }tInterruptSource;
@@ -177,7 +177,7 @@ typedef struct _tagOffloadSettings
 /*
 for simplicity, we use for NDIS5 the same statistics as native NDIS6 uses
 */
-#if !NDIS60_MINIPORT
+#if !NDIS60_MINIPORT && !NDIS620_MINIPORT
 typedef struct _tagNdisStatustics
 {
     ULONG64                     ifHCInOctets;
@@ -351,7 +351,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	ULONG						ulTxMessage;
 	ULONG						ulControlMessage;
 
-#if NDIS60_MINIPORT
+#if NDIS60_MINIPORT || NDIS620_MINIPORT
 // Vista +
 	PIO_INTERRUPT_MESSAGE_INFO	pMSIXInfoTable;
 	PNET_BUFFER_LIST			SendHead;

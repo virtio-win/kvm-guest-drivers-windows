@@ -12,12 +12,12 @@
 #include "ParaNdis6.h"
 #include "ParaNdis-Oid.h"
 
-#if NDIS60_MINIPORT
+#if NDIS60_MINIPORT || NDIS620_MINIPORT
 
 //#define NO_VISTA_POWER_MANAGEMENT
 
 //by default printouts from resource filtering are invisible
-//change it to 2 or smaller to make it visible always 
+//change it to 2 or smaller to make it visible always
 ULONG bDisableMSI = FALSE;
 LONG resourceFilterLevel = 3;
 
@@ -372,7 +372,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
 		if (pContext->bDoInterruptRecovery)
 		{
 			//200 mSec for first shot of recovery circuit
-			ParaNdis_SetTimer(pContext->InterruptRecoveryTimer, 200); 
+			ParaNdis_SetTimer(pContext->InterruptRecoveryTimer, 200);
 		}
 	}
 	DEBUG_EXIT_STATUS(status ? 0 : 2, status);
@@ -828,7 +828,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
 						DPrintf(resourceFilterLevel, ("[%s]+%d %d: type %d, flags %X, option %X", __FUNCTION__, offset, nDesc, pd->Type, pd->Flags, pd->Option));
 						if (pd->Type == CmResourceTypeInterrupt)
 						{
-							
+
 							//DPrintf(1, ("    policy %d, affinity %X", pd->u.Interrupt.AffinityPolicy, pd->u.Interrupt.TargetedProcessors));
 							if (pd->Flags & CM_RESOURCE_INTERRUPT_MESSAGE)
 							{
@@ -975,6 +975,38 @@ static void RetrieveDriverConfiguration()
 	}
 }
 
+#if !NDIS60_MINIPORT
+static NDIS_STATUS ParaNdis6x_DirectOidRequest(IN  NDIS_HANDLE miniportAdapterContext,  IN  PNDIS_OID_REQUEST OidRequest)
+{
+	NDIS_STATUS  status = NDIS_STATUS_NOT_SUPPORTED;
+	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
+
+	if (pContext->bSurprizeRemoved) status = NDIS_STATUS_NOT_ACCEPTED;
+
+	switch(OidRequest->DATA.SET_INFORMATION.Oid) {
+	case OID_TCP_TASK_IPSEC_OFFLOAD_V2_ADD_SA:
+		DPrintf(1, ("Received: OID_TCP_TASK_IPSEC_OFFLOAD_V2_ADD_SA"));
+		break;
+	case OID_TCP_TASK_IPSEC_OFFLOAD_V2_DELETE_SA:
+		DPrintf(1, ("Received: OID_TCP_TASK_IPSEC_OFFLOAD_V2_DELETE_SA"));
+		break;
+	case OID_TCP_TASK_IPSEC_OFFLOAD_V2_UPDATE_SA:
+		DPrintf(1, ("Received: OID_TCP_TASK_IPSEC_OFFLOAD_V2_UPDATE_SA"));
+		break;
+	default:
+		DPrintf(0, ("%s> Unknown OID received: %x", __FUNCTION__, OidRequest->DATA.SET_INFORMATION.Oid));
+		break;
+	}
+
+	return status;
+}
+
+static VOID ParaNdis6x_CancelDirectOidRequest(IN  NDIS_HANDLE miniportAdapterContext,  IN  PVOID RequestId)
+{
+
+}
+#endif
+
 /**********************************************************
 Driver entry point:
 Register miniport driver
@@ -1005,7 +1037,11 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 
 	chars.Header.Type      = NDIS_OBJECT_TYPE_MINIPORT_DRIVER_CHARACTERISTICS;
 	chars.Header.Size      = sizeof(NDIS_MINIPORT_DRIVER_CHARACTERISTICS);
+#if NDIS60_MINIPORT
 	chars.Header.Revision  = NDIS_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_1;
+#else
+	chars.Header.Revision  = NDIS_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_2;
+#endif
 
 	chars.MajorNdisVersion = NDIS_MINIPORT_MAJOR_VERSION;
 	chars.MinorNdisVersion = NDIS_MINIPORT_MINOR_VERSION;
@@ -1031,6 +1067,11 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 	chars.ShutdownHandlerEx				= ParaNdis6_AdapterShutdown;
 	chars.DevicePnPEventNotifyHandler	= ParaNdis6_DevicePnPEvent;
 	chars.SetOptionsHandler				= ParaNdis6_SetOptions;
+#if !NDIS60_MINIPORT
+	chars.DirectOidRequestHandler		= ParaNdis6x_DirectOidRequest;
+	chars.CancelDirectOidRequestHandler	= ParaNdis6x_CancelDirectOidRequest;
+#endif
+
 	status = NdisMRegisterMiniportDriver(
 			pDriverObject,
 			pRegistryPath,
@@ -1064,4 +1105,4 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 	return status;
 }
 
-#endif //NDIS60_MINIPORT
+#endif //NDIS60_MINIPORT || NDIS620_MINIPORT

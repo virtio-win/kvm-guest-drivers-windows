@@ -78,6 +78,27 @@
 				CompileAsManaged=""
 			/>
 		</Configuration>
+		<Configuration
+			Name="Win7|Win32"
+			OutputDirectory="$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
+			ConfigurationType="0"
+			InheritedPropertySheets=".\ide\ndis6.vsprops"
+			>
+			<Tool
+				Name="VCNMakeTool"
+				BuildCommandLine="BuildAll.bat Win7 Win7_64"
+				ReBuildCommandLine=""
+				CleanCommandLine="Clean.bat"
+				Output="NetKVM"
+				PreprocessorDefinitions="WIN32;_DEBUG;NDIS620_MINIPORT"
+				IncludeSearchPath="Common;VirtIO"
+				ForcedIncludes=""
+				AssemblySearchPath=""
+				ForcedUsingAssemblies=""
+				CompileAsManaged=""
+			/>
+		</Configuration>
 	</Configurations>
 	<References>
 	</References>

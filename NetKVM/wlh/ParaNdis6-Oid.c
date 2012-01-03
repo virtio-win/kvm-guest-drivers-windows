@@ -12,7 +12,7 @@
 #include "ParaNdis-Oid.h"
 #include "ParaNdis6.h"
 
-#if NDIS60_MINIPORT
+#if NDIS60_MINIPORT || NDIS620_MINIPORT
 
 #ifdef WPP_EVENT_TRACING
 #include "ParaNdis6-Oid.tmh"
@@ -298,10 +298,19 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 	PVOID pInfo  = NULL;
 	ULONG ulSize = 0;
 	BOOLEAN bFreeInfo = FALSE;
+	LONGLONG ul64LinkSpeed = 0;
 
 #define SETINFO(field, value) pInfo = &u.##field; ulSize = sizeof(u.##field); u.##field = (value)
 	switch(pOid->Oid)
 	{
+		case OID_GEN_LINK_SPEED:
+			{
+				/* units are 100 bps */
+				ul64LinkSpeed = PARANDIS_FORMAL_LINK_SPEED / 100;
+				pInfo = &ul64LinkSpeed;
+				ulSize = sizeof(ul64LinkSpeed);
+			}
+			break;
 		case OID_GEN_LINK_SPEED_EX:
 			{
 				ULONG64 speed = pContext->bConnected ? PARANDIS_FORMAL_LINK_SPEED : NDIS_LINK_SPEED_UNKNOWN;
@@ -475,7 +484,7 @@ NDIS_STATUS ParaNdis_OnSetPower(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 #ifdef DEBUG_TIMING
 	LARGE_INTEGER TickCount;
 	LARGE_INTEGER SysTime;
-	
+
 	KeQueryTickCount(&TickCount);
 	NdisGetCurrentSystemTime(&SysTime);
 	DPrintf(0, ("\n%s>> CPU #%d, perf-counter %I64d, tick count %I64d, NDIS_sys_time %I64d\n", __FUNCTION__, KeGetCurrentProcessorNumber(), KeQueryPerformanceCounter(NULL).QuadPart,TickCount.QuadPart, SysTime.QuadPart));

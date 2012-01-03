@@ -234,10 +234,6 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 	case OID_GEN_MAXIMUM_FRAME_SIZE:
 		SETINFO(ul, pContext->MaxPacketSize.nMaxDataSize);
 		break;
-	case OID_GEN_LINK_SPEED:
-		/* units are 100 bps */
-		SETINFO(ul64, PARANDIS_FORMAL_LINK_SPEED / 100);
-		break;
 	case OID_GEN_TRANSMIT_BUFFER_SPACE:
 		SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOS * pContext->nofFreeTxDescriptors);
 		break;
@@ -497,7 +493,7 @@ const char *ParaNdis_OidName(NDIS_OID oid)
 	MAKECASE(OID_802_3_XMIT_LATE_COLLISIONS)
 	MAKECASE(OID_GEN_MACHINE_NAME)
 	MAKECASE(OID_TCP_TASK_OFFLOAD)
-#if NDIS60_MINIPORT
+#if NDIS60_MINIPORT || NDIS620_MINIPORT
 	MAKECASE(OID_GEN_STATISTICS)
 	MAKECASE(OID_GEN_INTERRUPT_MODERATION)
 #endif

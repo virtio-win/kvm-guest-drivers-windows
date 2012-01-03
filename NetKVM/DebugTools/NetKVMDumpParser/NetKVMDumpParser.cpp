@@ -327,7 +327,7 @@ public:
 	void ProcessSymbols(tModule *pModule);
 	void ParseCrashData(tBugCheckStaticDataHeader *ph, ULONG64 databuffer, ULONG bytesRead, BOOL bWithSymbols);
 	typedef enum _tageSystemProperty {
-		espSymbolPath, 
+		espSymbolPath,
 		espSystemVersion,
 		espSystemTime,
 	} eSystemProperty;

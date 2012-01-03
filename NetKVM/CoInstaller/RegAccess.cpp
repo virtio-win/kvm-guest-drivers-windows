@@ -69,7 +69,7 @@ BOOL neTKVMRegAccess::GetRegPath(LPTSTR lpsBuffer, DWORD dwNumberOfElements)
 	return (_tcscpy_s(lpsBuffer, dwNumberOfElements, m_lpsRegPath) == 0)?TRUE:FALSE;
 }
 
-DWORD neTKVMRegAccess::ReadDWord(LPCTSTR lpzValueName, 
+DWORD neTKVMRegAccess::ReadDWord(LPCTSTR lpzValueName,
 							  DWORD   dwDefault,
 							  LPCTSTR lpzSubKey)
 {
@@ -78,20 +78,20 @@ DWORD neTKVMRegAccess::ReadDWord(LPCTSTR lpzValueName,
 	return (ReadDWord(lpzValueName, &dwRes, lpzSubKey) == TRUE)?dwRes:dwDefault;
 }
 
-BOOL neTKVMRegAccess::ReadDWord(LPCTSTR lpzValueName, 
+BOOL neTKVMRegAccess::ReadDWord(LPCTSTR lpzValueName,
 							 LPDWORD lpdwValue,
 							 LPCTSTR lpzSubKey)
 {
 	BOOL  bRes = FALSE;
 	DWORD dwValue = 0,
-		  dwSize = sizeof(dwValue), 
+		  dwSize = sizeof(dwValue),
 		  dwType = REG_DWORD;
 	HKEY hkReadKeyHandle = NULL;
    	TCHAR tcaFullRegPath[DEFAULT_REG_ENTRY_DATA_LEN];
 
 	FormatFullRegPath(tcaFullRegPath, TBUF_SIZEOF(tcaFullRegPath), lpzSubKey);
 
-	if (RegOpenKeyEx(m_hkPrimaryHKey, 
+	if (RegOpenKeyEx(m_hkPrimaryHKey,
 					 tcaFullRegPath,
 					 0,
 					 KEY_QUERY_VALUE,
@@ -117,7 +117,7 @@ BOOL neTKVMRegAccess::ReadDWord(LPCTSTR lpzValueName,
 	return bRes;
 }
 
-DWORD neTKVMRegAccess::ReadString(LPCTSTR lpzValueName, 
+DWORD neTKVMRegAccess::ReadString(LPCTSTR lpzValueName,
 							   LPTSTR  lpzData,
 							   DWORD   dwNumberOfElements,
 							   LPCTSTR lpzSubKey)
@@ -132,7 +132,7 @@ DWORD neTKVMRegAccess::ReadString(LPCTSTR lpzValueName,
 
 	FormatFullRegPath(tcaFullRegPath, TBUF_SIZEOF(tcaFullRegPath), lpzSubKey);
 
-	if (RegOpenKeyEx(m_hkPrimaryHKey, 
+	if (RegOpenKeyEx(m_hkPrimaryHKey,
 					 tcaFullRegPath,
 					 0,
 					 KEY_QUERY_VALUE,
@@ -152,7 +152,7 @@ DWORD neTKVMRegAccess::ReadString(LPCTSTR lpzValueName,
 	return dwRes;
 }
 
-DWORD neTKVMRegAccess::ReadBinary(LPCTSTR lpzValueName, 
+DWORD neTKVMRegAccess::ReadBinary(LPCTSTR lpzValueName,
 							   LPBYTE  lpzData,
 							   DWORD   dwSize,
 							   LPCTSTR lpzSubKey)
@@ -166,7 +166,7 @@ DWORD neTKVMRegAccess::ReadBinary(LPCTSTR lpzValueName,
 
 	FormatFullRegPath(tcaFullRegPath, TBUF_SIZEOF(tcaFullRegPath), lpzSubKey);
 
-	if (RegOpenKeyEx(m_hkPrimaryHKey, 
+	if (RegOpenKeyEx(m_hkPrimaryHKey,
 					 tcaFullRegPath,
 					 0,
 					 KEY_QUERY_VALUE,
@@ -193,14 +193,14 @@ BOOL neTKVMRegAccess::ReadValueName(LPTSTR  lpsValueName,
 {
 	BOOL bResult = FALSE;
     BYTE baData[DEFAULT_REG_ENTRY_DATA_LEN];
-	DWORD dwDataSize = DEFAULT_REG_ENTRY_DATA_LEN, 
+	DWORD dwDataSize = DEFAULT_REG_ENTRY_DATA_LEN,
 		  dwType = REG_BINARY;
 	HKEY hkReadKeyHandle = NULL;
    	TCHAR tcaFullRegPath[DEFAULT_REG_ENTRY_DATA_LEN];
 
 	FormatFullRegPath(tcaFullRegPath, TBUF_SIZEOF(tcaFullRegPath), lpzSubKey);
 
-	if (RegOpenKeyEx(m_hkPrimaryHKey, 
+	if (RegOpenKeyEx(m_hkPrimaryHKey,
 					 tcaFullRegPath,
 					 0,
 					 KEY_QUERY_VALUE,
@@ -234,7 +234,7 @@ BOOL neTKVMRegAccess::ReadKeyName(LPTSTR  lpsKeyName,
 
 	FormatFullRegPath(tcaFullRegPath, TBUF_SIZEOF(tcaFullRegPath), lpzSubKey);
 
-	if (RegOpenKeyEx(m_hkPrimaryHKey, 
+	if (RegOpenKeyEx(m_hkPrimaryHKey,
 					 tcaFullRegPath,
 					 0,
 					 KEY_ENUMERATE_SUB_KEYS,
@@ -256,7 +256,7 @@ BOOL neTKVMRegAccess::ReadKeyName(LPTSTR  lpsKeyName,
 	return bResult;
 }
 
-BOOL neTKVMRegAccess::WriteValue(LPCTSTR lpzValueName, 
+BOOL neTKVMRegAccess::WriteValue(LPCTSTR lpzValueName,
 							  DWORD   dwValue,
 							  LPCTSTR lpzSubKey)
 {
@@ -267,7 +267,7 @@ BOOL neTKVMRegAccess::WriteValue(LPCTSTR lpzValueName,
 
 	FormatFullRegPath(tcaFullRegPath, TBUF_SIZEOF(tcaFullRegPath), lpzSubKey);
 
-	if (RegCreateKeyEx(m_hkPrimaryHKey, 
+	if (RegCreateKeyEx(m_hkPrimaryHKey,
 					   tcaFullRegPath,
 					   0,
 					   TEXT(""),
@@ -301,7 +301,7 @@ BOOL neTKVMRegAccess::WriteString(LPCTSTR lpzValueName,
 
 	FormatFullRegPath(tcaFullRegPath, TBUF_SIZEOF(tcaFullRegPath), lpzSubKey);
 
-	if (RegCreateKeyEx(m_hkPrimaryHKey, 
+	if (RegCreateKeyEx(m_hkPrimaryHKey,
 					   tcaFullRegPath,
 					   0,
 					   TEXT(""),
@@ -325,8 +325,8 @@ BOOL neTKVMRegAccess::WriteString(LPCTSTR lpzValueName,
 	return bResult;
 }
 
-BOOL neTKVMRegAccess::WriteBinary(LPCTSTR lpzValueName, 
-							   LPCBYTE lpData, 
+BOOL neTKVMRegAccess::WriteBinary(LPCTSTR lpzValueName,
+							   LPCBYTE lpData,
 							   DWORD   dwDataSize,
 							   LPCTSTR lpzSubKey)
 {
@@ -337,7 +337,7 @@ BOOL neTKVMRegAccess::WriteBinary(LPCTSTR lpzValueName,
 
 	FormatFullRegPath(tcaFullRegPath, TBUF_SIZEOF(tcaFullRegPath), lpzSubKey);
 
-	if (RegCreateKeyEx(m_hkPrimaryHKey, 
+	if (RegCreateKeyEx(m_hkPrimaryHKey,
 					   tcaFullRegPath,
 					   0,
 					   TEXT(""),
@@ -369,7 +369,7 @@ BOOL neTKVMRegAccess::AddKey(LPCTSTR lpzKeyName)
 
 	FormatFullRegPath(tcaFullRegPath, TBUF_SIZEOF(tcaFullRegPath), lpzKeyName);
 
-	if (RegCreateKeyEx(m_hkPrimaryHKey, 
+	if (RegCreateKeyEx(m_hkPrimaryHKey,
 					   tcaFullRegPath,
 					   0,
 					   TEXT(""),
@@ -393,7 +393,7 @@ BOOL neTKVMRegAccess::DeleteKey(LPCTSTR lpzKeyName, LPCTSTR lpzSubKey)
 
 	FormatFullRegPath(tcaFullRegPath, TBUF_SIZEOF(tcaFullRegPath), lpzSubKey);
 
-	if (RegOpenKeyEx(m_hkPrimaryHKey, 
+	if (RegOpenKeyEx(m_hkPrimaryHKey,
 					 tcaFullRegPath,
 					 0,
 					 KEY_WRITE,
@@ -417,7 +417,7 @@ BOOL neTKVMRegAccess::DeleteValue(LPCTSTR lpzValueName, LPCTSTR lpzSubKey)
 
 	FormatFullRegPath(tcaFullRegPath, TBUF_SIZEOF(tcaFullRegPath), lpzSubKey);
 
-	if (RegOpenKeyEx(m_hkPrimaryHKey, 
+	if (RegOpenKeyEx(m_hkPrimaryHKey,
 					 tcaFullRegPath,
 					 0,
 					 KEY_WRITE,
@@ -432,7 +432,7 @@ BOOL neTKVMRegAccess::DeleteValue(LPCTSTR lpzValueName, LPCTSTR lpzSubKey)
 	return bResult;
 }
 
-BOOL neTKVMRegAccess::GetValueInfo(LPCTSTR lpzValueName, 
+BOOL neTKVMRegAccess::GetValueInfo(LPCTSTR lpzValueName,
 						  DWORD* lpDataType,
 						  DWORD* lpDataSize,
 						  LPCTSTR lpzSubKey)
@@ -443,7 +443,7 @@ BOOL neTKVMRegAccess::GetValueInfo(LPCTSTR lpzValueName,
 
 	FormatFullRegPath(tcaFullRegPath, TBUF_SIZEOF(tcaFullRegPath), lpzSubKey);
 
-	if (RegOpenKeyEx(m_hkPrimaryHKey, 
+	if (RegOpenKeyEx(m_hkPrimaryHKey,
 					 tcaFullRegPath,
 					 0,
 					 KEY_QUERY_VALUE,
@@ -476,7 +476,7 @@ BOOL neTKVMRegAccess::GetKeyInfo(LPDWORD lpdwNofSubKeys,
 
 	FormatFullRegPath(tcaFullRegPath, TBUF_SIZEOF(tcaFullRegPath), lpzSubKey);
 
-	if (RegOpenKeyEx(m_hkPrimaryHKey, 
+	if (RegOpenKeyEx(m_hkPrimaryHKey,
 					 tcaFullRegPath,
 					 0,
 					 KEY_QUERY_VALUE,
@@ -506,8 +506,8 @@ BOOL neTKVMRegAccess::GetKeyInfo(LPDWORD lpdwNofSubKeys,
 
 VOID neTKVMRegAccess::FormatFullRegPath(LPTSTR lpzFullPathBuff, DWORD_PTR dwNumberOfElements, LPCTSTR lpzSubKey)
 {
-	DWORD_PTR dwReqNumberOfElements = (m_lpsRegPath?_tcslen(m_lpsRegPath):0) + 
-								      (lpzSubKey?_tcslen(lpzSubKey):0) + 
+	DWORD_PTR dwReqNumberOfElements = (m_lpsRegPath?_tcslen(m_lpsRegPath):0) +
+								      (lpzSubKey?_tcslen(lpzSubKey):0) +
 								      ((m_lpsRegPath && lpzSubKey)?1:0) + 1;
 
 	memset(lpzFullPathBuff, 0, dwNumberOfElements);

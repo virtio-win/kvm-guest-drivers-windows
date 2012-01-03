@@ -6,7 +6,7 @@
 #define REG_DEV_PARAMS_KNAME            TEXT("Ndi\\Params")
 
 #define REG_PARAM_DESC_VNAME            TEXT("ParamDesc")
-#define REG_PARAM_VALUE_VNAME           TEXT("Default")
+#define REG_PARAM_DEFAULT_VNAME         TEXT("Default")
 #define REG_PARAM_TYPE_VNAME            TEXT("Type")
 #define REG_PARAM_OPT_VNAME             TEXT("Optional")
 
@@ -22,7 +22,7 @@
 #define REG_PARAM_INFO_DELIMETER        TEXT("-----------------------------------------------------")
 #define REG_PARAM_INFO_IDENT            TEXT("  ")
 
-static const LPCTSTR RegParamTypes[] = 
+static const LPCTSTR RegParamTypes[] =
 {
 	TEXT("enum"),
 	TEXT("int"),
@@ -31,13 +31,13 @@ static const LPCTSTR RegParamTypes[] =
 };
 
 static BOOL  ReadStringDWord(neTKVMRegAccess &DevParamsRegKey,
-							 LPCTSTR       lpzValueName, 
+							 LPCTSTR       lpzValueName,
 							 LPDWORD       lpdwValue,
 							 LPCTSTR       lpzSubKey)
 {
 	BOOL  bRes = FALSE;
 	TCHAR tcaBuf[DEFAULT_REG_ENTRY_DATA_LEN];
-	
+
 	bRes = (DevParamsRegKey.ReadString(lpzValueName, tcaBuf, TBUF_SIZEOF(tcaBuf), lpzSubKey) != 0);
 	if (bRes == TRUE)
 	{
@@ -48,7 +48,7 @@ static BOOL  ReadStringDWord(neTKVMRegAccess &DevParamsRegKey,
 		{
 			throw neTKVMRegParamBadRegistryException();
 		}
-		
+
 		*lpdwValue = dwVal;
 	}
 
@@ -57,7 +57,7 @@ static BOOL  ReadStringDWord(neTKVMRegAccess &DevParamsRegKey,
 
 
 static DWORD ReadStringDWord(neTKVMRegAccess &DevParamsRegKey,
-							 LPCTSTR       lpzValueName, 
+							 LPCTSTR       lpzValueName,
 							 DWORD         dwDefault,
 							 LPCTSTR       lpzSubKey)
 {
@@ -172,7 +172,7 @@ void neTKVMRegParam::Load(void)
 {
 	TCHAR tcaBuf[DEFAULT_REG_ENTRY_DATA_LEN];
 	DWORD dwRes;
-		
+
 	if (GetType(m_DevParamsRegKey, m_Name.c_str()) != GetType())
 	{
 		throw neTKVMRegParamBadTypeException();
@@ -180,7 +180,13 @@ void neTKVMRegParam::Load(void)
 
 	m_bOptional = ReadStringDWord(m_DevParamsRegKey, REG_PARAM_OPT_VNAME, (DWORD)false, m_ParamRegSubKey.c_str())?true:false;
 
-	dwRes = m_DevParamsRegKey.ReadString(REG_PARAM_VALUE_VNAME, tcaBuf, TBUF_SIZEOF(tcaBuf), m_ParamRegSubKey.c_str());
+	// Read Value
+	dwRes = m_DevParamsRegKey.ReadString(m_Name.c_str(), tcaBuf, TBUF_SIZEOF(tcaBuf));
+	if (dwRes == 0)
+	{ // There's no value => Read Default
+		dwRes = m_DevParamsRegKey.ReadString(REG_PARAM_DEFAULT_VNAME, tcaBuf, TBUF_SIZEOF(tcaBuf), m_ParamRegSubKey.c_str());
+	}
+
 	if (dwRes != 0)
 	{
 		SetValue(tcaBuf);
@@ -198,7 +204,7 @@ void neTKVMRegParam::Load(void)
 
 bool neTKVMRegParam::Save(void)
 {
-	return (m_DevParamsRegKey.WriteString(REG_PARAM_VALUE_VNAME, m_Value.c_str(), m_ParamRegSubKey.c_str()) == TRUE)?true:false;
+	return (m_DevParamsRegKey.WriteString(m_Name.c_str(), m_Value.c_str()) == TRUE)?true:false;
 }
 
 void neTKVMRegParam::FillExInfo(neTKVMRegParamExInfoList &ExInfoList)
@@ -252,8 +258,8 @@ void neTKVMRegEnumParam::FillExInfo(neTKVMRegParamExInfoList &ExInfoList)
 
 	neTKVMRegParam::FillExInfo(ExInfoList);
 
-	for (i = m_Values.begin(), j = m_ValueDescs.begin(); 
-		 i!= m_Values.end() && j != m_ValueDescs.end(); 
+	for (i = m_Values.begin(), j = m_ValueDescs.begin();
+		 i!= m_Values.end() && j != m_ValueDescs.end();
 		 i++, j++)
 	{
 		ExInfoList.push_back(neTKVMRegParamExInfo(NETKVM_RPIID_ENUM_VALUE, *i));

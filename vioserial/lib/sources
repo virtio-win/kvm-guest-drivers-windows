@@ -1,0 +1,34 @@
+TARGETNAME = vioserlb
+TARGETTYPE = DYNLINK
+DLLDEF     = vioserlb.def
+
+#_NT_TARGET_VERSION= $(_NT_TARGET_VERSION_WINXP)
+
+USE_MSVCRT=1
+
+SOURCES=main.cpp \
+        PnPControl.cpp \
+        Port.cpp
+
+TARGETLIBS=$(SDK_LIB_PATH)\setupapi.lib  \
+           $(SDK_LIB_PATH)\user32.lib    \
+           $(SDK_LIB_PATH)\uuid.lib      \
+           $(SDK_LIB_PATH)\advapi32.lib  \
+           $(SDK_LIB_PATH)\kernel32.lib
+
+C_DEFINES=$(C_DEFINES) -DUNICODE -DWIN32 -DDLL_EXPORTS
+
+USE_MSVCRT=1
+USE_STL=1
+STL_VER=70
+USER_C_FLAGS= $(USER_C_FLAGS) /EHa
+
+INCLUDES=$(INCLUDES);$(DDK_INC_PATH);..\sys\
+
+MSC_WARNING_LEVEL = /W4 /WX
+
+DLLENTRY=_DllMainCRTStartup
+PRECOMPILED_CXX=1
+PRECOMPILED_INCLUDE=stdafx.h
+PRECOMPILED_PCH=stdafx.pch
+PRECOMPILED_OBJ=stdafx.obj
