@@ -89,9 +89,9 @@ call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Win7
 popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
-endlocal
 
 if exist wlh\objfre_win7_x86\i386\netkvm.sys call tools\makeinstall x86 wlh\objfre_win7_x86\i386\netkvm.sys wlh\netkvm.inf %_VERSION_% Win7 CoInstaller\objfre_win7_x86\i386\netkvmco.dll CoInstaller\readme.doc
+endlocal
 if not exist wlh\objfre_win7_x86\i386\netkvm.sys goto :eof
 if not exist CoInstaller\objfre_win7_x86\i386\netkvmco.dll goto :eof
 goto continue
@@ -104,9 +104,9 @@ call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre Win7
 popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
-endlocal
 
 if exist wlh\objfre_win7_amd64\amd64\netkvm.sys call tools\makeinstall amd64 wlh\objfre_win7_amd64\amd64\netkvm.sys wlh\netkvm.inf %_VERSION_% Win7 CoInstaller\objfre_win7_amd64\amd64\netkvmco.dll CoInstaller\readme.doc
+endlocal
 if not exist wlh\objfre_win7_amd64\amd64\netkvm.sys goto :eof
 if not exist CoInstaller\objfre_win7_amd64\amd64\netkvmco.dll goto :eof
 goto continue
@@ -119,9 +119,9 @@ call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Wlh
 popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
-endlocal
 
 if exist wlh\objfre_wlh_x86\i386\netkvm.sys call tools\makeinstall x86 wlh\objfre_wlh_x86\i386\netkvm.sys wlh\netkvm.inf %_VERSION_% Vista CoInstaller\objfre_wlh_x86\i386\netkvmco.dll CoInstaller\readme.doc
+endlocal
 if not exist wlh\objfre_wlh_x86\i386\netkvm.sys goto :eof
 if not exist CoInstaller\objfre_wlh_x86\i386\netkvmco.dll goto :eof
 goto continue
@@ -137,9 +137,9 @@ call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre Wlh
 popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
-endlocal
 
 if exist wlh\objfre_wlh_amd64\amd64\netkvm.sys call tools\makeinstall amd64 wlh\objfre_wlh_amd64\amd64\netkvm.sys wlh\netkvm.inf %_VERSION_% Vista CoInstaller\objfre_wlh_amd64\amd64\netkvmco.dll CoInstaller\readme.doc
+endlocal
 if not exist wlh\objfre_wlh_amd64\amd64\netkvm.sys goto :eof
 if not exist CoInstaller\objfre_wlh_amd64\amd64\netkvmco.dll goto :eof
 goto continue
@@ -152,9 +152,9 @@ call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WXP
 popd
 call :preparebuild Common wxp VirtIO
 build -cZg
-endlocal
 
 if exist wxp\objfre_wxp_x86\i386\netkvm.sys call tools\makeinstall x86 wxp\objfre_wxp_x86\i386\netkvm.sys wxp\netkvm.inf %_VERSION_% XP
+endlocal
 if not exist wxp\objfre_wxp_x86\i386\netkvm.sys goto :eof
 goto continue
 
@@ -166,15 +166,16 @@ call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WNET
 popd
 call :preparebuild Common wxp VirtIO
 build -cZg
-endlocal
 
 if exist wxp\objfre_wnet_amd64\amd64\netkvm.sys call tools\makeinstall amd64 wxp\objfre_wnet_amd64\amd64\netkvm.sys wxp\netkvm.inf %_VERSION_% XP
+endlocal
 if not exist wxp\objfre_wnet_amd64\amd64\netkvm.sys goto :eof
 goto continue
 
 
 :Win2K compilation is no longer supported by Windows 7 DDK
 :Win2K
+:setlocal
 :set DDKBUILDENV=
 :pushd %BUILDROOT%
 :call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre W2K
@@ -183,6 +184,7 @@ goto continue
 :build -cZg
 
 :if exist wxp\objfre_w2k_x86\i386\netkvm.sys call tools\makeinstall x86 wxp\objfre_w2k_x86\i386\netkvm.sys wxp\netkvm2k.inf %_VERSION_% 2K
+:endlocal
 :if not exist wxp\objfre_w2k_x86\i386\netkvm.sys goto :eof
 :goto continue
 
