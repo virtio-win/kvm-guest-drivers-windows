@@ -298,10 +298,19 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 	PVOID pInfo  = NULL;
 	ULONG ulSize = 0;
 	BOOLEAN bFreeInfo = FALSE;
+	LONGLONG ul64LinkSpeed = 0;
 
 #define SETINFO(field, value) pInfo = &u.##field; ulSize = sizeof(u.##field); u.##field = (value)
 	switch(pOid->Oid)
 	{
+		case OID_GEN_LINK_SPEED:
+			{
+				/* units are 100 bps */
+				ul64LinkSpeed = PARANDIS_FORMAL_LINK_SPEED / 100;
+				pInfo = &ul64LinkSpeed;
+				ulSize = sizeof(ul64LinkSpeed);
+			}
+			break;
 		case OID_GEN_LINK_SPEED_EX:
 			{
 				ULONG64 speed = pContext->bConnected ? PARANDIS_FORMAL_LINK_SPEED : NDIS_LINK_SPEED_UNKNOWN;
