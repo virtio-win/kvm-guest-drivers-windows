@@ -886,7 +886,7 @@ VirtIoMSInterruptRoutine (
         } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
             adaptExt->sn_ok = TRUE;
         } else {
-            CompleteDPC(DeviceExtension, vbr, 0);
+            CompleteDPC(DeviceExtension, vbr, MessageID);
         }
         isInterruptServiced = TRUE;
     }
