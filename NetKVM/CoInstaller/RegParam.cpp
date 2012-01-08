@@ -6,7 +6,7 @@
 #define REG_DEV_PARAMS_KNAME            TEXT("Ndi\\Params")
 
 #define REG_PARAM_DESC_VNAME            TEXT("ParamDesc")
-#define REG_PARAM_VALUE_VNAME           TEXT("Default")
+#define REG_PARAM_DEFAULT_VNAME         TEXT("Default")
 #define REG_PARAM_TYPE_VNAME            TEXT("Type")
 #define REG_PARAM_OPT_VNAME             TEXT("Optional")
 
@@ -180,7 +180,13 @@ void neTKVMRegParam::Load(void)
 
 	m_bOptional = ReadStringDWord(m_DevParamsRegKey, REG_PARAM_OPT_VNAME, (DWORD)false, m_ParamRegSubKey.c_str())?true:false;
 
-	dwRes = m_DevParamsRegKey.ReadString(REG_PARAM_VALUE_VNAME, tcaBuf, TBUF_SIZEOF(tcaBuf), m_ParamRegSubKey.c_str());
+	// Read Value
+	dwRes = m_DevParamsRegKey.ReadString(m_Name.c_str(), tcaBuf, TBUF_SIZEOF(tcaBuf));
+	if (dwRes == 0)
+	{ // There's no value => Read Default
+		dwRes = m_DevParamsRegKey.ReadString(REG_PARAM_DEFAULT_VNAME, tcaBuf, TBUF_SIZEOF(tcaBuf), m_ParamRegSubKey.c_str());
+	}
+
 	if (dwRes != 0)
 	{
 		SetValue(tcaBuf);
@@ -198,7 +204,7 @@ void neTKVMRegParam::Load(void)
 
 bool neTKVMRegParam::Save(void)
 {
-	return (m_DevParamsRegKey.WriteString(REG_PARAM_VALUE_VNAME, m_Value.c_str(), m_ParamRegSubKey.c_str()) == TRUE)?true:false;
+	return (m_DevParamsRegKey.WriteString(m_Name.c_str(), m_Value.c_str()) == TRUE)?true:false;
 }
 
 void neTKVMRegParam::FillExInfo(neTKVMRegParamExInfoList &ExInfoList)
