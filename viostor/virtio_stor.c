@@ -583,10 +583,20 @@ VirtIoStartIo(
             CompleteSRB(DeviceExtension, Srb);
             return TRUE;
         }
-        case SCSIOP_READ:
         case SCSIOP_WRITE:
-        case SCSIOP_READ16:
         case SCSIOP_WRITE16: {
+            if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_RO)) {
+                PSENSE_DATA senseBuffer = (PSENSE_DATA) Srb->SenseInfoBuffer;
+                Srb->SrbStatus = SRB_STATUS_ERROR;
+                Srb->ScsiStatus = SCSISTAT_CHECK_CONDITION;
+                senseBuffer->SenseKey = SCSI_SENSE_DATA_PROTECT;
+                senseBuffer->AdditionalSenseCode = SCSI_ADWRITE_PROTECT;
+                CompleteSRB(DeviceExtension, Srb);
+                return TRUE;
+            }
+        }
+        case SCSIOP_READ:
+        case SCSIOP_READ16: {
             Srb->SrbStatus = SRB_STATUS_PENDING;
             if(!RhelDoReadWrite(DeviceExtension, Srb)) {
                 Srb->SrbStatus = SRB_STATUS_BUSY;
