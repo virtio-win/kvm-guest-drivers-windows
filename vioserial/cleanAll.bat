@@ -9,7 +9,7 @@ call cleanAll.bat
 cd ..
 
 cd sys
-cleanAll.bat
+call cleanAll.bat
 cd ..
 
 
