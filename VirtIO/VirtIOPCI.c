@@ -302,6 +302,7 @@ void VirtIODeviceDeleteVirtualQueue(struct virtqueue *vq, PVOID Context,
 									VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi ), BOOLEAN bLocal)
 {
 	struct virtio_pci_vq_info *info = (struct virtio_pci_vq_info *)vq->priv;
+	ULONG_PTR addr = GetVirtIODeviceAddr(vq->vdev);
 
 	DPrintf(4, ("%s\n", __FUNCTION__));
 
@@ -309,8 +310,8 @@ void VirtIODeviceDeleteVirtualQueue(struct virtqueue *vq, PVOID Context,
 	    vring_del_virtqueue(vq, Context, freemem);
 
 	// Select and deactivate the queue
-	WriteVirtIODeviceWord(GetVirtIODeviceAddr(vq->vdev) + VIRTIO_PCI_QUEUE_SEL, (u16) info->queue_index);
-	WriteVirtIODeviceRegister(GetVirtIODeviceAddr(vq->vdev) + VIRTIO_PCI_QUEUE_PFN, 0);
+	WriteVirtIODeviceWord(addr + VIRTIO_PCI_QUEUE_SEL, (u16) info->queue_index);
+	WriteVirtIODeviceRegister(addr + VIRTIO_PCI_QUEUE_PFN, 0);
 
 	if( bLocal )
 		return;
