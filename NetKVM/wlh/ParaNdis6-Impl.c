@@ -625,7 +625,6 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 	PMDL pMDL = pBuffersDesc->pHolder;
 	ULONG length = *pLength;
 	PNET_BUFFER_LIST pNBL = NULL;
-	virtio_net_hdr_basic *pHeader = NULL;
 
 	if (pMDL)
 	{
@@ -689,16 +688,25 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 				DPrintf(1, ("Found priority tag %p", qInfo.Value));
 			}
 			pNBL->MiniportReserved[0] = pBuffersDesc;
-			pHeader = (virtio_net_hdr_basic *)pBuffersDesc->HeaderInfo.Virtual;
 			if (NDIS_OFFLOAD_SUPPORTED == pContext->Offload.flags.fRxIPChecksum)
 			{
+				virtio_net_hdr_basic *pHeader =
+					(virtio_net_hdr_basic *)(pContext->bUseMergedBuffers?pBuffersDesc->DataInfo.Virtual:pBuffersDesc->HeaderInfo.Virtual);
 				// if we are configured to offload Rx Checksum and receive VIRTIO_NET_HDR_F_DATA_VALID from host, we indicate IpChecksumSucceeded.
-				// for future reference, if we get a flag for invalid checksum, use IpChecksumFailed.
-				if (pHeader->flags & VIRTIO_NET_HDR_F_DATA_VALID)
+				// if host will notify us of invalid checksum (using a new VIRTIO_NET_HDR_...), we must indicate IpChecksumFailed.
+				if (pHeader->flags & VIRTIO_NET_HDR_F_NEEDS_CSUM)
 				{
-					PNDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO pNBLInfo = (PNDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO) NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo);
-					DPrintf(3, ("Host reports VIRTIO_NET_HDR_F_DATA_VALID"));
-					pNBLInfo->Receive.IpChecksumSucceeded = TRUE;
+					// This branch is based on Linux driver implementation.
+					// It could be both flags can be set in some cases.
+					DPrintf(3, ("Host reports VIRTIO_NET_HDR_F_NEEDS_CSUM (0x%02X)", pHeader->flags));
+				}
+				else if (pHeader->flags & VIRTIO_NET_HDR_F_DATA_VALID)
+				{
+					NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
+					qCSInfo.Value = NULL;
+					qCSInfo.Receive.IpChecksumSucceeded  = TRUE;
+					NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
+					DPrintf(3, ("Host reports VIRTIO_NET_HDR_F_DATA_VALID (0x%02X)", pHeader->flags));
 				}
 			}
 			pNBL->Status = NDIS_STATUS_SUCCESS;

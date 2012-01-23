@@ -315,7 +315,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			if (pConfiguration->OffloadTxTCP.ulValue) pContext->Offload.flagsValue |= osbT4TcpChecksum | osbT4TcpOptionsChecksum;
 			if (pConfiguration->OffloadTxUDP.ulValue) pContext->Offload.flagsValue |= osbT4UdpChecksum;
 			if (pConfiguration->OffloadTxLSO.ulValue) pContext->Offload.flagsValue |= osbT4Lso | osbT4LsoIp | osbT4LsoTcp;
-			if (pConfiguration->OffloadRxIP.ulValue) pContext->Offload.flagsValue |= osbT4IpRxChecksum | osbT4IpOptionsChecksum;
+			if (pConfiguration->OffloadRxIP.ulValue) pContext->Offload.flagsValue |= osbT4IpRxChecksum | osbT4IpRxOptionsChecksum;
 			/* full packet size that can be configured as GSO for VIRTIO is short */
 			/* NDIS test fails sometimes fails on segments 50-60K */
 			pContext->Offload.maxPacketSize = PARANDIS_MAX_LSO_SIZE;
@@ -383,8 +383,7 @@ void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsF
 	pDest->fTxLsoIP = !!(*from & osbT4LsoIp);
 	pDest->fTxLsoTCP = !!(*from & osbT4LsoTcp);
 	pDest->fRxIPChecksum = !!(*from & osbT4IpRxChecksum);
-	pDest->fTxIPOptions = !!(*from & osbT4IpOptionsChecksum);
-	pDest->fRxIPOptions = 0;
+	pDest->fRxIPOptions = !!(*from & osbT4IpRxOptionsChecksum);
 	pDest->fRxTCPChecksum = 0;
 	pDest->fRxTCPOptions = 0;
 	pDest->fRxUDPChecksum = 0;
