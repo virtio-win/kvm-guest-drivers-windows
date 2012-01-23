@@ -1,3 +1,12 @@
+Date    23 January 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm43
+
+Fixed bugs:
+Bug 752743 - Windows guest stopped with EIO when trying to initialize readonly disk.
+Bug 771390 - Win 7 (32-bit) guest "quitting" with latest VirtIO block drivers - virtio: trying to map MMIO memory
+Bug 768981 - guest BSOD when boot a win7-64 guest with 232 virtio disks(enable multifunction=on)
+
 Date    14 December 2011
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm42
