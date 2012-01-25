@@ -130,7 +130,7 @@ static void vring_kick(struct virtqueue *_vq)
 
 	/* Descriptors and available array need to be set before we expose the
 	 * new available array entries. */
-	wmb();
+	mb();
 
 	vq->vring.avail->idx += (u16) vq->num_added;
 	DPrintf(4, ("%s>>> vq->vring.avail->idx %d\n", __FUNCTION__, vq->vring.avail->idx));
