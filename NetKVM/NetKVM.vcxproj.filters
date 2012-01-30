@@ -69,6 +69,9 @@
     <None Include="tools\signing.cmd">
       <Filter>Build</Filter>
     </None>
+    <None Include="CoInstaller\setbuildenv.bat">
+      <Filter>Build</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="wxp\parandis.rc">
