@@ -1,0 +1,39 @@
+#ifndef osdep_sim_h
+#define osdep_sim_h
+
+#include <Windows.h>
+#include <stdio.h>
+
+#define PAGE_SIZE		0x1000
+#define PAGE_SHIFT		12
+
+#ifdef __cplusplus
+#else
+typedef BOOLEAN bool;
+#endif
+typedef ULONG u32;
+typedef UCHAR u8;
+typedef USHORT u16;
+typedef ULONGLONG u64;
+typedef LARGE_INTEGER PHYSICAL_ADDRESS;
+
+EXTERN_C int debugLevel;
+
+EXTERN_C void DoPrint(const char *format, ...);
+
+#define DPrintf(level, statement) if (debugLevel < level) {} else DoPrint statement 
+
+#define wmb()
+#define mb()
+
+PVOID AllocatePhysical(ULONG size);
+PHYSICAL_ADDRESS MmGetPhysicalAddress(PVOID virtualAddress);
+void MmFreeContiguousMemory(PVOID virtualAddress);
+
+#define malloc AllocateMemory
+#define free   DeallocateMemory
+
+EXTERN_C void *AllocateMemory(size_t size);
+EXTERN_C void DeallocateMemory(void *);
+
+#endif

@@ -1,0 +1,210 @@
+goto Test17
+//goto Example
+
+;Test17
+:Test17
+; produces 30 interrupts
+set use_published_events 0
+set async 1
+goto Test13
+
+;Test16
+:Test16
+; produces 3 interrupts
+set use_published_events 1
+set async 1
+goto Test13
+
+
+;Test15
+:Test15
+; produces 30 interrupts
+set use_published_events 0
+set async 0
+goto Test13
+
+;Test14
+:Test14
+; produces 3 interrupts
+set use_published_events 1
+set async 0
+goto Test13
+
+:Test13
+; this test is to be used from another one
+; which shall set $use_published_events and $async
+set use_merged_buffers 1
+prepare
+set txswcount 1
+set txhwcount 1
+txasync $async
+:13send
+send $txswcount 10
+add txswcount 10
+txcomplete -1
+:13txgetnext
+txget $txhwcount
+add txhwcount 1
+if "txhwcount lt $txswcount" "goto 13txgetnext"
+if "txswcount le 30" "goto 13send"
+goto end
+
+;Test12 - simple tx + events index
+:Test12
+; restart - 0 (call again), 1 (all done)
+set use_merged_buffers 1
+set use_published_events 1
+prepare
+txasync 0
+send 1 1
+txasync 1
+send 2 3
+txcomplete 1
+txcomplete 1
+txcomplete 1
+txrestart 0
+goto end
+
+
+
+;Test11 - simple tx
+:Test11
+; restart - 0 (call again), 1 (all done)
+set use_merged_buffers 0
+set use_published_events 0
+prepare
+txasync 0
+send 1 1
+send 2 1
+txrestart 0
+txget 1
+txget 2
+txrestart 1
+
+txasync 1
+send 1 1
+send 2 1
+send 3 1
+txrestart 1
+txcomplete 1
+txget 1
+txcomplete 1
+txrestart 0
+txget 2
+txcomplete 1
+txget 3
+txrestart 1
+
+
+goto end
+
+
+;Test10 - simple rx
+:Test10
+; restart - 0 (call again), 1 (all done)
+set use_merged_buffers 1
+set use_published_events 0
+prepare
+recv 1
+recv 2
+rxget 0
+rxrestart 0
+rxget 1
+rxrestart 1
+rxret 1
+rxret 0
+goto end
+
+:Test9
+prepare
+goto end
+
+:Test8
+goto end
+
+
+:Test7
+set var0 0
+set var1 8
+set var2 $var1
+add var2 0
+set var3 11
+if "var2 eq 8" "goto end"
+set var4 25
+goto Test8 
+
+;Test6 - if
+:Test6
+if "true" "goto Test7"
+goto end
+
+
+:"string with spaces"
+goto "end"
+
+;Test5 - label does not exist
+:Test5
+goto Test8
+
+;Test4 - lack of first parameter
+:Test4
+//goto
+
+;Test3 - lack of second parameter
+:Test3
+//set var1
+
+;Test2 - wrong integer format
+:Test2
+//set var1 P
+
+;Test1 - string with ""
+:Test1
+//goto "end"
+goto "string with spaces"
+
+
+
+;Example
+:Example
+
+set use_merged_buffers 1
+set use_published_events 1
+prepare
+set txindex_sw 0
+set txindex_hw 0
+set rxindex_sw 0
+set rxindex_hw 0
+set rxindex_ret 0
+
+:MainLoop
+
+txdis
+send $txindex_sw 3
+add txindex_sw 3
+txcomplete 1
+txrestart 0
+txget $txindex_hw
+add txindex_hw 1
+txget $txindex_hw
+add txindex_hw 1
+txget $txindex_hw
+add txindex_hw 1
+txrestart 1
+
+rxdis
+recv $rxindex_hw
+add rxindex_hw 1
+rxen
+recv $rxindex_hw
+add rxindex_hw 1
+rxget $rxindex_sw
+add rxindex_sw 1
+rxrestart 0
+rxret $rxindex_ret
+add rxindex_ret 1
+if "txindex_sw ge 10" "goto MainLoop"
+goto end
+
+
+:end
