@@ -15,3 +15,5 @@ rmdir /S /Q "Release MBCS"
 rmdir /S /Q x64
 
 del /F *.log *.wrn *.err *.aps
+
+del makefile
