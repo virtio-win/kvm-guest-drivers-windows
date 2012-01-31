@@ -1,0 +1,31 @@
+TARGETNAME=vioscsi
+TARGETTYPE=MINIPORT
+
+TARGETLIBS=$(SDK_LIB_PATH)\storport.lib
+
+#C_DEFINES = -DINDIRECT_SUPPORTED=1 $(C_DEFINES)
+
+INF_NAME=vioscsi
+NTTARGETFILE0=$(OBJ_PATH)\$(O)\$(INF_NAME).inf
+PASS0_BINPLACE=$(NTTARGETFILE0)
+
+SOURCES= vioscsi.c \
+         utils.c \
+         helper.c \
+         vioscsi.rc \
+         virtio_pci.c \
+         virtio_ring.c
+
+MAJORCOMP=ntos
+
+
+TARGETLIBS=$(TARGETLIBS) \
+         $(SDK_LIB_PATH)\ntoskrnl.lib\
+         $(SDK_LIB_PATH)\bufferoverflowk.lib\
+         $(SDK_LIB_PATH)\wdm.lib
+
+BUFFER_OVERFLOW_CHECKS=1
+MSC_WARNING_LEVEL=/W3 /WX
+
+#C_DEFINES = -DRHEL_COM_DEBUG=1 $(C_DEFINES)
+
