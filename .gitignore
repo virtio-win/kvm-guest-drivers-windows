@@ -10,3 +10,10 @@
 *.user
 *.sln
 *.sdf
+*.opensdf
+objfre*
+Install
+NetKVM/VirtIO/
+!NetKVM/VirtIO/sources
+NetKVM/dirs
+NetKVM/*/makefile
