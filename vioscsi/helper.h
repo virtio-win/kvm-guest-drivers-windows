@@ -25,13 +25,24 @@
 #include "vioscsi.h"
 
 BOOLEAN
-DoReadWrite(
+SendSRB(
+    IN PVOID DeviceExtension,
+    PSCSI_REQUEST_BLOCK Srb
+    );
+
+BOOLEAN
+SendTMF(
     IN PVOID DeviceExtension,
     PSCSI_REQUEST_BLOCK Srb
     );
 
 VOID
 ShutDown(
+    IN PVOID DeviceExtension
+    );
+
+BOOLEAN
+DeviceReset(
     IN PVOID DeviceExtension
     );
 

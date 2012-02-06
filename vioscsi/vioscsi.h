@@ -168,8 +168,22 @@ typedef struct {
         VirtIOSCSICtrlANResp  an;
         VirtIOSCSIEvent       event;
     } resp;
-} VirtIOSCSICmd;
+} VirtIOSCSICmd,* PVirtIOSCSICmd;
 #pragma pack()
+
+typedef struct _SRB_EXTENSION {
+    ULONG                 out;
+    ULONG                 in;
+    ULONG                 Xfer;
+    VirtIOSCSICmd         cmd;
+    VIO_SG                sg[128];
+}SRB_EXTENSION, *PSRB_EXTENSION;
+
+typedef struct {
+    SCSI_REQUEST_BLOCK    Srb;
+    PSRB_EXTENSION        SrbExtension;
+}TMF_COMMAND, *PTMF_COMMAND;
+
 
 typedef struct _ADAPTER_EXTENSION {
     ULONG_PTR             device_base;
@@ -180,21 +194,14 @@ typedef struct _ADAPTER_EXTENSION {
 
     ULONG                 features;
 
-
     virtio_pci_vq_info    pci_vq_info[3];
     vring_virtqueue*      virtqueue[3];
     BOOLEAN               msix_enabled;
 
+    TMF_COMMAND           tmf_cmd;
+    BOOLEAN               tmf_infly;
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
-typedef struct _SRB_EXTENSION {
-    ULONG                 out;
-    ULONG                 in;
-    ULONG                 Xfer;
-    VirtIOSCSICmd         cmd;
-    VIO_SG                sg[128];
-
-}SRB_EXTENSION, *PSRB_EXTENSION;
 
 BOOLEAN
 VioScsiInterrupt(

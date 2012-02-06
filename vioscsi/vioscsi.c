@@ -61,7 +61,14 @@ VioScsiAdapterControl(
 
 VOID
 FORCEINLINE
-CompleteSRB(
+PostProcessRequest(
+    IN PVOID DeviceExtension,
+    IN PSCSI_REQUEST_BLOCK Srb
+    );
+
+VOID
+FORCEINLINE
+CompleteRequest(
     IN PVOID DeviceExtension,
     IN PSCSI_REQUEST_BLOCK Srb
     );
@@ -136,6 +143,7 @@ VioScsiFindAdapter(
     ULONG_PTR          ptr;
     ULONG              vr_sz;
     ULONG              vq_sz;
+    ULONG              sz;
     USHORT             pageNum;
 
     UNREFERENCED_PARAMETER( HwContext );
@@ -160,9 +168,9 @@ ENTER_FN();
     ConfigInfo->Dma32BitAddresses           = TRUE;
     ConfigInfo->Dma64BitAddresses           = TRUE;
     ConfigInfo->WmiDataProvider             = FALSE;
+    ConfigInfo->AlignmentMask               = 3;
     ConfigInfo->MapBuffers                  = STOR_MAP_NON_READ_WRITE_BUFFERS;
     ConfigInfo->SynchronizationModel        = StorSynchronizeFullDuplex;
-    ConfigInfo->MapBuffers                  = TRUE;
     ConfigInfo->NumberOfBuses               = 1;
     ConfigInfo->MaximumNumberOfTargets      = (UCHAR)adaptExt->scsi_config.max_target;
     ConfigInfo->MaximumNumberOfLogicalUnits = (UCHAR)adaptExt->scsi_config.max_lun;
@@ -185,9 +193,9 @@ ENTER_FN();
     adaptExt->features = StorPortReadPortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
 
     pageNum = StorPortReadPortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM));
-    vr_sz = vring_size(pageNum,PAGE_SIZE);
-    vq_sz = (sizeof(struct vring_virtqueue) + sizeof(PVOID) * pageNum);
-
+    vr_sz = ROUND_TO_PAGES(vring_size(pageNum,PAGE_SIZE));
+    vq_sz = ROUND_TO_PAGES(sizeof(struct vring_virtqueue) + sizeof(PVOID) * pageNum);
+    sz = PAGE_SIZE + (vr_sz + vq_sz) * 3 + ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
 
     adaptExt->queue_depth = pageNum / ConfigInfo->NumberOfPhysicalBreaks - 1;
 
@@ -195,7 +203,7 @@ ENTER_FN();
                 ConfigInfo->NumberOfPhysicalBreaks,
                 adaptExt->queue_depth));
 
-    ptr = (ULONG_PTR)StorPortGetUncachedExtension(DeviceExtension, ConfigInfo, (PAGE_SIZE + vr_sz + vq_sz) * 20);
+    ptr = (ULONG_PTR)StorPortGetUncachedExtension(DeviceExtension, ConfigInfo, sz);
     if (ptr == (ULONG_PTR)NULL) {
         StorPortLogError(DeviceExtension,
                          NULL,
@@ -212,20 +220,23 @@ ENTER_FN();
     ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + PAGE_SIZE - 1));
     adaptExt->pci_vq_info[0].queue = (PVOID)ptr;
 
-    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + ROUND_TO_PAGES(vr_sz)));
+    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + vr_sz));
     adaptExt->virtqueue[0] = (vring_virtqueue*)(ptr);
 
-    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + ROUND_TO_PAGES(vq_sz)));
+    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + vq_sz));
     adaptExt->pci_vq_info[1].queue = (PVOID)ptr;
 
-    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + ROUND_TO_PAGES(vr_sz)));
+    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + vr_sz));
     adaptExt->virtqueue[1] = (vring_virtqueue*)(ptr);
 
-    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + ROUND_TO_PAGES(vq_sz)));
+    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + vq_sz));
     adaptExt->pci_vq_info[2].queue = (PVOID)ptr;
 
-    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + ROUND_TO_PAGES(vr_sz)));
+    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + vr_sz));
     adaptExt->virtqueue[2] = (vring_virtqueue*)(ptr);
+
+    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + vq_sz));
+    adaptExt->tmf_cmd.SrbExtension = (PSRB_EXTENSION)ptr;
 
 EXIT_FN();
     return SP_RETURN_FOUND;
@@ -301,9 +312,8 @@ VioScsiStartIo(
     )
 {
 ENTER_FN();
-    if(!DoReadWrite(DeviceExtension, Srb)) {
-        Srb->SrbStatus = SRB_STATUS_BUSY;
-        CompleteSRB(DeviceExtension, Srb);
+    if(!SendSRB(DeviceExtension, Srb)) {
+        CompleteRequest(DeviceExtension, Srb);
 EXIT_ERR();
     }
 EXIT_FN();
@@ -317,7 +327,6 @@ VioScsiInterrupt(
     )
 {
     VirtIOSCSICmd       *cmd;
-    VirtIOSCSICmdResp   *resp;
     unsigned int        len;
     PADAPTER_EXTENSION  adaptExt;
     BOOLEAN             isInterruptServiced = FALSE;
@@ -331,6 +340,7 @@ VioScsiInterrupt(
     if ( intReason == 1) {
         isInterruptServiced = TRUE;
         while((cmd = adaptExt->pci_vq_info[2].vq->vq_ops->get_buf(adaptExt->pci_vq_info[2].vq, &len)) != NULL) {
+           VirtIOSCSICmdResp   *resp;
            Srb = (PSCSI_REQUEST_BLOCK)cmd->sc;
            resp = &cmd->resp.cmd;
               
@@ -341,23 +351,23 @@ VioScsiInterrupt(
               break;
            case VIRTIO_SCSI_S_UNDERRUN:
               RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_UNDERRUN\n"));
-              Srb->SrbStatus = SRB_STATUS_ERROR;
+              Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
               break;
            case VIRTIO_SCSI_S_ABORTED:
               RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_ABORTED\n"));
-              Srb->SrbStatus = SRB_STATUS_ERROR;
+              Srb->SrbStatus = SRB_STATUS_ABORTED;
               break;
            case VIRTIO_SCSI_S_BAD_TARGET:
               RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_BAD_TARGET\n"));
-              Srb->SrbStatus = SRB_STATUS_ERROR;
+              Srb->SrbStatus = SRB_STATUS_INVALID_TARGET_ID;
               break;
            case VIRTIO_SCSI_S_RESET:
               RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_RESET\n"));
-              Srb->SrbStatus = SRB_STATUS_ERROR;
+              Srb->SrbStatus = SRB_STATUS_BUS_RESET;
               break;
            case VIRTIO_SCSI_S_BUSY:
               RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_BUSY\n"));
-              Srb->SrbStatus = SRB_STATUS_ERROR;
+              Srb->SrbStatus = SRB_STATUS_BUSY;
               break;
            case VIRTIO_SCSI_S_TRANSPORT_FAILURE:
               RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_TRANSPORT_FAILURE\n"));
@@ -380,14 +390,34 @@ VioScsiInterrupt(
               RhelDbgPrint(TRACE_LEVEL_ERROR, ("Unknown response %d\n", resp->response));
               break;
            }
-//           if (Srb->DataBuffer) {
-//              memcpy(Srb->DataBuffer, resp->sense,
-//                 min(resp->sense_len, VIRTIO_SCSI_SENSE_SIZE));
-//           }
-           CompleteSRB(DeviceExtension, Srb);
+           if (Srb->DataBuffer) {
+              memcpy(Srb->DataBuffer, resp->sense,
+              min(resp->sense_len, VIRTIO_SCSI_SENSE_SIZE));
+           }
+           CompleteRequest(DeviceExtension, Srb);
+        }
+        if (adaptExt->tmf_infly) {
+           while((cmd = adaptExt->pci_vq_info[0].vq->vq_ops->get_buf(adaptExt->pci_vq_info[0].vq, &len)) != NULL) {
+              VirtIOSCSICtrlTMFResp *resp;
+              Srb = (PSCSI_REQUEST_BLOCK)cmd->sc;
+              ASSERT(Srb == &adaptExt->tmf_cmd.Srb);
+              resp = &cmd->resp.tmf;
+              switch(resp->response) {
+              case VIRTIO_SCSI_S_OK:
+              case VIRTIO_SCSI_S_FUNCTION_SUCCEEDED:
+                 break;
+              default:
+                 RhelDbgPrint(TRACE_LEVEL_ERROR, ("Unknown response %d\n", resp->response));
+                 ASSERT(0);
+                 break;
+              }
+//FIXME
+              StorPortResume(DeviceExtension);
+           }
+           adaptExt->tmf_infly = FALSE;
         }
     } else if (intReason == 3) {
-//        ScsiPortNotification( BusChangeDetected, DeviceExtension, 0);
+        StorPortNotification( BusChangeDetected, DeviceExtension, 0);
         isInterruptServiced = TRUE;
     }
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s isInterruptServiced = %d\n", __FUNCTION__, isInterruptServiced));
@@ -400,11 +430,9 @@ VioScsiResetBus(
     IN ULONG PathId
     )
 {
-    UNREFERENCED_PARAMETER( DeviceExtension );
     UNREFERENCED_PARAMETER( PathId );
-ENTER_FN();
-EXIT_FN();
-    return TRUE;
+
+    return DeviceReset(DeviceExtension);
 }
 
 SCSI_ADAPTER_CONTROL_STATUS
@@ -492,7 +520,9 @@ ENTER_FN();
     srbExt   = (PSRB_EXTENSION)Srb->SrbExtension;
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if(Srb->PathId || Srb->TargetId || Srb->Lun) {
+    if( (Srb->PathId > 0) ||
+        (Srb->TargetId >= adaptExt->scsi_config.max_target) ||
+        (Srb->Lun >= adaptExt->scsi_config.max_lun) ) {
         Srb->SrbStatus = SRB_STATUS_NO_DEVICE;
         StorPortNotification(RequestComplete,
                              DeviceExtension,
@@ -556,32 +586,48 @@ ENTER_FN();
     }
     srbExt->in = sgElement - srbExt->out;
 
-    if ((cdb->CDB6GENERIC.OperationCode == SCSIOP_READ_CAPACITY) ||
-        (cdb->CDB6GENERIC.OperationCode == SCSIOP_READ_CAPACITY16))
-    {
-        StorPortSetDeviceQueueDepth( DeviceExtension, Srb->PathId,
-                                     Srb->TargetId, Srb->Lun,
-                                     adaptExt->queue_depth);
-    }
 EXIT_FN();
     return TRUE;
 }
 
+VOID
+PostProcessRequest(
+    IN PVOID DeviceExtension,
+    IN PSCSI_REQUEST_BLOCK Srb
+    )
+{
+    PCDB                  cdb;
+    PADAPTER_EXTENSION    adaptExt;
+    PSRB_EXTENSION        srbExt;
+
+    cdb      = (PCDB)&Srb->Cdb[0];
+    srbExt   = (PSRB_EXTENSION)Srb->SrbExtension;
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    switch (cdb->CDB6GENERIC.OperationCode)
+    {
+        case SCSIOP_READ_CAPACITY:
+        case SCSIOP_READ_CAPACITY16:
+           StorPortSetDeviceQueueDepth( DeviceExtension, Srb->PathId,
+                                     Srb->TargetId, Srb->Lun,
+                                     adaptExt->queue_depth);
+           break;
+        default:
+           break;
+
+    }
+}
 
 VOID
-CompleteSRB(
+CompleteRequest(
     IN PVOID DeviceExtension,
     IN PSCSI_REQUEST_BLOCK Srb
     )
 {
 ENTER_FN();
+    PostProcessRequest(DeviceExtension, Srb);
     StorPortNotification(RequestComplete,
                          DeviceExtension,
                          Srb);
-    StorPortNotification(NextLuRequest,
-                         DeviceExtension,
-                         Srb->PathId,
-                         Srb->TargetId,
-                         Srb->Lun);
 EXIT_FN();
 }

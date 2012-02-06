@@ -17,7 +17,7 @@
 
 
 BOOLEAN
-SynchronizedReadWriteRoutine(
+SynchronizedSRBRoutine(
     IN PVOID DeviceExtension,
     IN PVOID Context
     )
@@ -34,18 +34,101 @@ ENTER_FN();
         adaptExt->pci_vq_info[2].vq->vq_ops->kick(adaptExt->pci_vq_info[2].vq);
         return TRUE;
     }
-    StorPortBusy(DeviceExtension, 5);
+    Srb->SrbStatus = SRB_STATUS_BUSY;
+    StorPortBusy(DeviceExtension, adaptExt->queue_depth);
 EXIT_ERR();
     return FALSE;
 }
 
 BOOLEAN
-DoReadWrite(PVOID DeviceExtension,
-                PSCSI_REQUEST_BLOCK Srb)
+SendSRB(
+    IN PVOID DeviceExtension,
+    IN PSCSI_REQUEST_BLOCK Srb
+    )
 {
 ENTER_FN();
-    return StorPortSynchronizeAccess(DeviceExtension, SynchronizedReadWriteRoutine, (PVOID)Srb);
+    return StorPortSynchronizeAccess(DeviceExtension, SynchronizedSRBRoutine, (PVOID)Srb);
 EXIT_FN();
+}
+
+BOOLEAN
+SynchronizedTMFRoutine(
+    IN PVOID DeviceExtension,
+    IN PVOID Context
+    )
+{
+    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
+    PSRB_EXTENSION srbExt        = (PSRB_EXTENSION)Srb->SrbExtension;
+
+ENTER_FN();
+    if (adaptExt->pci_vq_info[0].vq->vq_ops->add_buf(adaptExt->pci_vq_info[0].vq,
+                     &srbExt->sg[0],
+                     srbExt->out, srbExt->in,
+                     &srbExt->cmd) >= 0){
+        adaptExt->pci_vq_info[0].vq->vq_ops->kick(adaptExt->pci_vq_info[0].vq);
+        return TRUE;
+    }
+    Srb->SrbStatus = SRB_STATUS_BUSY;
+    StorPortBusy(DeviceExtension, adaptExt->queue_depth);
+EXIT_ERR();
+    return FALSE;
+}
+
+BOOLEAN
+SendTMF(
+    IN PVOID DeviceExtension,
+    IN PSCSI_REQUEST_BLOCK Srb
+    )
+{
+ENTER_FN();
+    return StorPortSynchronizeAccess(DeviceExtension, SynchronizedTMFRoutine, (PVOID)Srb);
+EXIT_FN();
+}
+
+BOOLEAN
+DeviceReset(
+    IN PVOID DeviceExtension
+    )
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    PSCSI_REQUEST_BLOCK   Srb = &adaptExt->tmf_cmd.Srb;
+    PSRB_EXTENSION        srbExt = adaptExt->tmf_cmd.SrbExtension;
+    VirtIOSCSICmd         *cmd = &srbExt->cmd;
+    ULONG                 fragLen;
+    ULONG                 sgElement;
+
+ENTER_FN();
+    if (adaptExt->dump_mode) {
+        return TRUE;
+    }
+    ASSERT(adaptExt->tmf_infly == FALSE);
+
+    memset((PVOID)cmd, 0, sizeof(VirtIOSCSICmd));
+    cmd->sc = Srb;
+    cmd->req.tmf.lun[0] = 1;
+    cmd->req.tmf.lun[1] = 0;
+    cmd->req.tmf.lun[2] = 0;
+    cmd->req.tmf.lun[3] = 0;
+    cmd->req.tmf.type = VIRTIO_SCSI_T_TMF;
+    cmd->req.tmf.subtype = VIRTIO_SCSI_T_TMF_LOGICAL_UNIT_RESET;
+
+    sgElement = 0;
+    srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->req.tmf, &fragLen);
+    srbExt->sg[sgElement].ulSize   = sizeof(cmd->req.tmf);
+    sgElement++;
+    srbExt->out = sgElement;
+    srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->resp.tmf, &fragLen);
+    srbExt->sg[sgElement].ulSize   = sizeof(cmd->resp.tmf);
+    sgElement++;
+    srbExt->in = sgElement - srbExt->out;
+    StorPortPause(DeviceExtension, 60);
+    if (!SendTMF(DeviceExtension, Srb)) {
+        StorPortResume(DeviceExtension);
+        return FALSE;
+    }
+    adaptExt->tmf_infly = TRUE;
+    return TRUE;
 }
 
 VOID
