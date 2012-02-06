@@ -16,42 +16,22 @@
 #define VIRTIO_F_INDIRECT			28
 #define VIRTIO_F_PUBLISH_INDICES	29
 
-
-typedef struct TypeVirtIODevice
-{
-	ULONG_PTR addr;
-} VirtIODevice;
-
-typedef struct _meminfo
-{
-	PVOID            Addr;
-	PHYSICAL_ADDRESS physAddr;
-	ULONG            size;
-	BOOLEAN          Cached;
-
-    ULONG            alignment;
-	PVOID            Reserved;
-
-}meminfo, *pmeminfo;
-
 /**
  * virtqueue - a queue to register buffers for sending or receiving.
- * @callback: the function to call when buffers are consumed (can be NULL).
- *    If this returns false, callbacks are suppressed until vq_ops->restart
- *    is called.
  * @vdev: the virtio device this queue was created for.
  * @vq_ops: the operations for this virtqueue (see below).
- * @priv: a pointer for the virtqueue implementation to use.
+ * @ulIndex: queue number defined by the device.
  */
-struct virtqueue
+typedef struct virtqueue
 {
-	bool (*callback)(struct virtqueue *vq);
-	PVOID vdev;
+	VirtIODevice *vdev;
 	struct virtqueue_ops *vq_ops;
-	void *priv;
+	unsigned long ulIndex;
+	unsigned long ulReserved;
 };
 
-struct VirtIOBufferDescriptor
+
+typedef struct VirtIOBufferDescriptor
 {
 	PHYSICAL_ADDRESS physAddr;
 	unsigned long ulSize;
@@ -91,7 +71,9 @@ struct virtqueue_ops {
 		       struct VirtIOBufferDescriptor sg[],
 		       unsigned int out_num,
 		       unsigned int in_num,
-		       void *data);
+		       void *data,
+		       void *va_indirect,
+		       ULONGLONG phys_indirect);
 
 	void (*kick)(struct virtqueue *vq);
 

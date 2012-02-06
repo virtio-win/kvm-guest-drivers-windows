@@ -1,6 +1,10 @@
+#if defined(IGNORE_VIRTIO_OSDEP_H)
+// to make simulation environment easy
+#include "external_os_dep.h"
+#else
+
 #ifndef _K_DEBUG_PRINT_H
 #define _K_DEBUG_PRINT_H
-
 
 #include <ntddk.h>
 #include <stdarg.h>
@@ -76,4 +80,5 @@ RhelDbgPrintToComPort(
 
 void InitializeDebugPrints(PUNICODE_STRING RegistryPath);
 
+#endif
 #endif
