@@ -71,15 +71,15 @@ VIOSerialSendBuffers(
            sg.physAddr = MmGetPhysicalAddress(ptr);
            sg.ulSize = min(PAGE_SIZE, (unsigned long)len);
 
-           ret = vq->vq_ops->add_buf(vq, &sg, 1, 0, ptr);
-           if (ret == 0)
+           ret = vq->vq_ops->add_buf(vq, &sg, 1, 0, ptr, NULL, 0);
+           if (ret >= 0)
            {
               ptr = (PVOID)((LONG_PTR)ptr + sg.ulSize);
               len -= sg.ulSize;
               sent += sg.ulSize;
               elements++;
            }
-        } while ((ret == 0) && (len > 0));
+        } while ((ret >= 0) && (len > 0));
 
         vq->vq_ops->kick(vq);
         port->OutVqFull = TRUE;
@@ -200,7 +200,7 @@ VIOSerialAddInBuf(
     sg.physAddr = buf->pa_buf;
     sg.ulSize = buf->size;
 
-    if(vq->vq_ops->add_buf(vq, &sg, 0, 1, buf) != 0)
+    if(0 > vq->vq_ops->add_buf(vq, &sg, 0, 1, buf, NULL, 0))
     {
         status = STATUS_INSUFFICIENT_RESOURCES;
     }

@@ -57,44 +57,6 @@ void SetVirtIODeviceAddr(PVOID pVirtIODevice, ULONG_PTR addr)
 	((VirtIODevice *)pVirtIODevice)->addr = addr;
 }
 
-struct virtqueue *VirtIODeviceFindVirtualQueue_InDrv(PVOID vp_dev,
-                                                     unsigned index,
-                                                     unsigned vector,
-    						     bool (*callback)(struct virtqueue *vq),
-						     PVOID Context,											                             PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
-					             VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi ),
-						     BOOLEAN Cached, BOOLEAN bPhysical)
-{
-	UNREFERENCED_PARAMETER(vp_dev);
-	UNREFERENCED_PARAMETER(index);
-	UNREFERENCED_PARAMETER(callback);
-	UNREFERENCED_PARAMETER(Context);
-	UNREFERENCED_PARAMETER(allocmem);
-	UNREFERENCED_PARAMETER(freemem);
-	UNREFERENCED_PARAMETER(Cached);
-	UNREFERENCED_PARAMETER(bPhysical);
-
-	return NULL;
-}
-
-int GetPciConfig(PVOID pVirtIODevice)
-{
-	UNREFERENCED_PARAMETER(pVirtIODevice);
-	return VIRTIO_PCI_CONFIG;
-}
-
-PVOID drv_alloc_needed_mem(PVOID vdev, PVOID Context,
-						   PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
-						   ULONG size, pmeminfo pmi)
-{
-	UNREFERENCED_PARAMETER(vdev);
-	return alloc_needed_mem(Context, allocmem, size, pmi);
-}
-
-PHYSICAL_ADDRESS GetPhysicalAddress(PVOID addr)
-{
-	return MmGetPhysicalAddress(addr);
-}
 
 ULONG
 _cdecl
