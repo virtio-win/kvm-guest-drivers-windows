@@ -599,7 +599,9 @@ static BOOLEAN GetTcpIpCheckSumCapabilities(
 	pcs->V4Transmit.UdpChecksum = !!f.fTxUDPChecksum;
 	pcs->V4Transmit.IpOptionsSupported = !!f.fTxIPOptions;
 	pcs->V4Transmit.TcpOptionsSupported = !!f.fTxTCPOptions;
-	return pcs->V4Transmit.IpChecksum || pcs->V4Transmit.TcpChecksum || pcs->V4Transmit.UdpChecksum;
+	pcs->V4Receive.IpChecksum = !!f.fRxIPChecksum;
+	pcs->V4Receive.IpOptionsSupported = !!f.fRxIPOptions;
+	return pcs->V4Transmit.IpChecksum || pcs->V4Transmit.TcpChecksum || pcs->V4Transmit.UdpChecksum || pcs->V4Receive.IpChecksum;
 }
 
 /********************************************************

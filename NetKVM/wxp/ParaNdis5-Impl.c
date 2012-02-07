@@ -458,6 +458,28 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 
 		if (pBuffer)
 		{
+			if (pContext->Offload.flags.fRxIPChecksum)
+			{
+				virtio_net_hdr_basic *pHeader =
+					(virtio_net_hdr_basic *)(pContext->bUseMergedBuffers?pBuffersDesc->DataInfo.Virtual:pBuffersDesc->HeaderInfo.Virtual);
+				// if we are configured to offload Rx Checksum and receive VIRTIO_NET_HDR_F_DATA_VALID from host, we indicate IpChecksumSucceeded.
+				// if host will notify us of invalid checksum (using a new VIRTIO_NET_HDR_...), we must indicate IpChecksumFailed.
+				if (pHeader->flags & VIRTIO_NET_HDR_F_NEEDS_CSUM)
+				{
+					// This branch is based on Linux driver implementation.
+					// It could be both flags can be set in some cases.
+					DPrintf(3, ("Host reports VIRTIO_NET_HDR_F_NEEDS_CSUM (0x%02X)", pHeader->flags));
+				}
+				else if (pHeader->flags & VIRTIO_NET_HDR_F_DATA_VALID)
+				{
+					NDIS_TCP_IP_CHECKSUM_PACKET_INFO qCSInfo;
+					qCSInfo.Value = 0;
+					qCSInfo.Receive.NdisPacketIpChecksumSucceeded  = TRUE;
+					NDIS_PER_PACKET_INFO_FROM_PACKET(Packet, TcpIpChecksumPacketInfo) = (PVOID) (ULONG_PTR) qCSInfo.Value;
+					DPrintf(3, ("Host reports VIRTIO_NET_HDR_F_DATA_VALID (0x%02X)", pHeader->flags));
+				}
+			}
+
 			NDIS_PER_PACKET_INFO_FROM_PACKET(Packet, Ieee8021QInfo) = qInfo.Value;
 			NDIS_SET_PACKET_STATUS(Packet, STATUS_SUCCESS);
 			NdisAdjustBufferLength(pBuffer, length);

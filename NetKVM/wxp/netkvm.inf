@@ -93,6 +93,12 @@ HKR, Ndi\Params\OffLoad.TxIP,		type,		0,			"enum"
 HKR, Ndi\Params\OffLoad.TxIP\enum,	"1",		0,			%Enable%
 HKR, Ndi\Params\OffLoad.TxIP\enum,	"0",		0,			%Disable%
 
+HKR, Ndi\Params\OffLoad.RxIP,		ParamDesc,	0,			%Offload.RxIP%
+HKR, Ndi\Params\OffLoad.RxIP,		Default,	0,			"0"
+HKR, Ndi\Params\OffLoad.RxIP,		type,		0,			"enum"
+HKR, Ndi\Params\OffLoad.RxIP\enum,	"1",		0,			%Enable%
+HKR, Ndi\Params\OffLoad.RxIP\enum,	"0",		0,			%Disable%
+
 HKR, Ndi\Params\OffLoad.TxTCP,		ParamDesc,	0,			%OffLoad.TxTCP%
 HKR, Ndi\Params\OffLoad.TxTCP,		Default,	0,			"0"
 HKR, Ndi\Params\OffLoad.TxTCP,		type,		0,			"enum"
@@ -273,6 +279,7 @@ Offload.TxIP = "Offload Tx IP checksum"
 Offload.TxTCP = "Offload Tx TCP checksum"
 OffLoad.TxUDP = "Offload Tx UDP checksum"
 Offload.TxLSO = "Offload Tx LSO"
+Offload.RxIP = "Offload Rx IP checksum"
 HwOffload = "Hardware checksumming"
 IPPacketsCheck = "Analyze IP packets"
 PriorityVlanTag = "Priority and VLAN tagging"
