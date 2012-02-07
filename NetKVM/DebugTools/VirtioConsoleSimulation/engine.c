@@ -1,10 +1,8 @@
 #include "osdep.h"
-#include "virtio_pci.h"
 #include "VirtIO_Win.h"
 #include "testcommands.h"
 #include "IONetDescriptor.h"
 #include "Hardware\Hardware.h"
-
 
 #define VIRTIO_NET_INVALID_INTERRUPT_STATUS		0xFF
 
@@ -16,6 +14,7 @@ BOOLEAN bUsePublishedIndices = TRUE;
 BOOLEAN bHostHasVnetHdr = TRUE;
 BOOLEAN bVirtioF_NotifyOnEmpty = FALSE;
 BOOLEAN bAsyncTransmit = FALSE;
+BOOLEAN bUseIndirectTx = FALSE;
 
 int debugLevel = 4;
 
@@ -46,6 +45,7 @@ typedef struct
 	virtio_net_hdr_ext header;
 	ULONG serial;
 	UCHAR  buffer[MAX_TX_PACKET];
+	void *storageForIndirect;
 } tTxPacket;
 
 
@@ -181,6 +181,8 @@ void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
 	}
 }
 
+#if 0
+
 PVOID AllocatePhysical(ULONG size)
 {
 	ULONG_PTR addr, base;
@@ -194,14 +196,7 @@ PVOID AllocatePhysical(ULONG size)
 	return pRet;
 }
 
-PHYSICAL_ADDRESS MmGetPhysicalAddress(PVOID virtualAddress)
-{
-	PHYSICAL_ADDRESS pa;
-	pa.QuadPart = (UINT_PTR)virtualAddress;
-	return pa;
-}
-
-void MmFreeContiguousMemory(PVOID virtualAddress)
+static void MmFreeContiguousMemory(PVOID virtualAddress)
 {
 	PVOID actualAddr;
 	ULONG_PTR addr = (ULONG_PTR)virtualAddress;
@@ -211,6 +206,42 @@ void MmFreeContiguousMemory(PVOID virtualAddress)
 	DPrintf(0, ("freeing %p\n", actualAddr));
 	free(actualAddr);
 }
+
+#else
+
+PVOID AllocatePhysical(ULONG size)
+{
+	ULONG_PTR addr, base;
+	PVOID pRet, p = malloc(size + 2 * PAGE_SIZE);
+	DPrintf(0, ("asked for %d, allocated %p\n", size, p));
+	addr = (ULONG_PTR)p;
+	base = (addr + PAGE_SIZE) & ~(PAGE_SIZE - 1);
+	*(PVOID *)base = p;
+	pRet = (PVOID)(base + PAGE_SIZE);
+	DPrintf(0, ("returning %p\n", pRet));
+	return pRet;
+}
+
+static void MmFreeContiguousMemory(PVOID virtualAddress)
+{
+	PVOID actualAddr;
+	ULONG_PTR addr = (ULONG_PTR)virtualAddress;
+	DPrintf(0, ("asked to free %p\n", addr));
+	addr -= PAGE_SIZE;
+	actualAddr = *(PVOID *)addr;
+	DPrintf(0, ("freeing %p\n", actualAddr));
+	free(actualAddr);
+}
+
+#endif
+
+static PHYSICAL_ADDRESS MmGetPhysicalAddress(PVOID virtualAddress)
+{
+	PHYSICAL_ADDRESS pa;
+	pa.QuadPart = (UINT_PTR)virtualAddress;
+	return pa;
+}
+
 
 
 static void InitializeDevice(tDevice *pDev)
@@ -251,7 +282,7 @@ static BOOLEAN AddRxBuffer(tRxPacket *pPacket, BOOLEAN bKick)
 		struct VirtIOBufferDescriptor sg;
 		sg.physAddr.QuadPart = (ULONG_PTR)pPacket;
 		sg.ulSize = sizeof(pPacket->ext);
-		bOK = !RxQ->vq_ops->add_buf(RxQ, &sg, 0, 1, pPacket);
+		bOK = 0 <= RxQ->vq_ops->add_buf(RxQ, &sg, 0, 1, pPacket, NULL, 0);
 	}
 	else
 	{
@@ -260,7 +291,7 @@ static BOOLEAN AddRxBuffer(tRxPacket *pPacket, BOOLEAN bKick)
 		sg[0].ulSize = sizeof(pPacket->basic.header);
 		sg[1].physAddr.QuadPart = (ULONG_PTR)&pPacket->basic.buffer;
 		sg[1].ulSize = sizeof(pPacket->basic.buffer);
-		bOK = !RxQ->vq_ops->add_buf(RxQ, sg, 0, 2, pPacket);
+		bOK = 0 <= RxQ->vq_ops->add_buf(RxQ, sg, 0, 2, pPacket, NULL, 0);
 	}
 
 	if (!bOK)
@@ -284,6 +315,7 @@ void ReturnRxBuffer(ULONG serial)
 static BOOLEAN AddTxBuffer(ULONG serial)
 {
 	BOOLEAN bOK = TRUE;
+	ULONGLONG hwIndirectAddress = 0;
 	ULONG headerSize = bUseMergedBuffers ? sizeof(virtio_net_hdr_ext) : sizeof(virtio_net_hdr_basic);
 	struct VirtIOBufferDescriptor sg[2];
 	tTxPacket *pPacket = (tTxPacket *)malloc(sizeof(tTxPacket));
@@ -293,7 +325,12 @@ static BOOLEAN AddTxBuffer(ULONG serial)
 	sg[0].ulSize = headerSize;
 	sg[1].physAddr.QuadPart = (ULONG_PTR)(PVOID)pPacket->buffer;
 	sg[1].ulSize = sizeof(pPacket->buffer);
-	if (TxQ->vq_ops->add_buf(TxQ, sg, 2, 0, pPacket))
+	if (bUseIndirectTx)
+	{
+		pPacket->storageForIndirect = AllocatePhysical(2 * 16);
+		hwIndirectAddress = MmGetPhysicalAddress(pPacket->storageForIndirect).QuadPart;
+	}
+	if (0 > TxQ->vq_ops->add_buf(TxQ, sg, 2, 0, pPacket, pPacket->storageForIndirect, hwIndirectAddress))
 	{
 		free(pPacket);
 		bOK = FALSE;
@@ -331,6 +368,7 @@ void GetTxBuffer(ULONG serial)
 		{
 			//FailCase("[%s] got invalid packet", __FUNCTION__);
 		}
+		if (p->storageForIndirect) free(p->storageForIndirect);
 		free(p);
 	}
 	else
@@ -341,18 +379,36 @@ void GetTxBuffer(ULONG serial)
 
 void SimulationPrepare()
 {
-	UINT i, size;
+	ULONG i, size, allocSize;
 	pDevice = (tDevice *)AllocatePhysical(sizeof(tDevice));
 	memset(pDevice, 0, sizeof(*pDevice));
 
 	InitializeDevice(pDevice);
 
-	VirtIODeviceSetIOAddress(&Host.dev, (ULONG_PTR)pDevice);
+	VirtIODeviceInitialize(&Host.dev, (ULONG_PTR)pDevice);
 
-	TxQ = VirtIODeviceFindVirtualQueue(&Host.dev, 1, NULL);
+	VirtIODeviceQueryQueueAllocation(&Host.dev, 1, &size, &allocSize);
+	if (allocSize)
+	{
+		PVOID p = AllocatePhysical(allocSize);
+		if (p)
+		{
+			PHYSICAL_ADDRESS phys = MmGetPhysicalAddress(p);
+			TxQ = VirtIODevicePrepareQueue(&Host.dev, 1, phys, p, allocSize, p);
+		}
+	}
 
-	RxQ = VirtIODeviceFindVirtualQueue(&Host.dev, 0, NULL);
-
+	VirtIODeviceQueryQueueAllocation(&Host.dev, 0, &size, &allocSize);
+	if (allocSize)
+	{
+		PVOID p = AllocatePhysical(allocSize);
+		if (p)
+		{
+			PHYSICAL_ADDRESS phys = MmGetPhysicalAddress(p);
+			RxQ = VirtIODevicePrepareQueue(&Host.dev, 0, phys, p, allocSize, (PUCHAR)p + 1);
+		}
+	}
+	
 	if (TxQ && RxQ)
 	{
 		size = VirtIODeviceGetQueueSize(RxQ);
@@ -378,6 +434,19 @@ void SimulationPrepare()
 
 void	SimulationFinish()
 {
+	if (TxQ)
+	{
+		TxQ->vq_ops->shutdown(TxQ);
+		VirtIODeviceDeleteQueue(TxQ, NULL);
+	}
+	if (RxQ)
+	{
+		PVOID va = NULL;
+		RxQ->vq_ops->shutdown(RxQ);
+		VirtIODeviceDeleteQueue(RxQ, &va);
+		if (va) MmFreeContiguousMemory((PUCHAR)va - 1);
+	}
+
 	if (pDevice)
 	{
 		ULONG tx = 0, rx = 0;

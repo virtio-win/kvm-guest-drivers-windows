@@ -2,13 +2,19 @@
     CONSOLE APPLICATION : ConsoleSim
 ========================================================================
 
-Virtio library code is almost untouched:
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Virtio files used here are ORIGINAL files from VirtIO library 
+If you modify them, you affect all the projects
 VirtIOPCI.c
 VirtIORing.c
+VirtIO_PCI.h
+VirtIO.h
+VirtIO_ring.h
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 Hardware code (Hardware.c) is mostly cuts from QEMU code.
 
-Run it, for example, as "ConsoleSim.exe test.txt"
+Run it, for example, as "ConsoleSim.exe test-to-run.txt" or without parameters to run "text.txt"
 
 Script organization:
 Script contains:
@@ -17,7 +23,7 @@ Script contains:
 3.Commands with parameters 
 Parameters can be:
 a) strings, with or without quotes. If spaces are inside, quotes are mandatory
-b) numbers - negative (with - before number) or positive (without sign)
+b) integers - negative (with - before number) or positive (without sign)
 c) referenced integers (prefixed by $)
 
 Available commands:
@@ -28,7 +34,7 @@ if {string=condition} {string=command to execute, usually "goto label" }
    variable-name without $
    compare-operation: le,lt,ge,gt,eq,ne
    operand: integer or variable with $
-
+.preprocess {command} command = loud | quiet
 
 2. Manipulation with variables:
 set {string=variable name} {integer=value} (set index 1) (set index1=$index2)
@@ -37,6 +43,7 @@ add {string=variable name} {integer=value} (add index 1) (add index1 -1) (add in
 special variables:
 use_published_events: to be used before "prepare" command. Default=1
 use_merged_buffers: to be used before "prepare" command. Default=1
+use_indirect: Default=0. If 1, tx transmits using indirect;
 
 3. Functional commands:
 prepare - initializes the simulation. Used once.

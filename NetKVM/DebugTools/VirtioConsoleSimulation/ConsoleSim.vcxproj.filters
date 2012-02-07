@@ -16,10 +16,14 @@
     <Filter Include="Hardware">
       <UniqueIdentifier>{61d43eba-7137-4f7f-8f48-5ffd413904ca}</UniqueIdentifier>
     </Filter>
+    <Filter Include="OriginalVirtIO">
+      <UniqueIdentifier>{bcae9d6c-7220-46b5-894e-669d8504d7ee}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="ReadMe.txt" />
     <None Include="test.txt" />
+    <None Include="test.log" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h">
@@ -32,12 +36,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ConsoleSim.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="virtio_pci.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="virtio_ring.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="osdep.h">
@@ -66,12 +64,6 @@
     <ClCompile Include="ConsoleSim.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="VirtIOPCI.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="VirtIORing.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="engine.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -80,6 +72,12 @@
     </ClCompile>
     <ClCompile Include="testCommands.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\VirtIO\VirtIOPCI.c">
+      <Filter>OriginalVirtIO</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\VirtIO\VirtIORing.c">
+      <Filter>OriginalVirtIO</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

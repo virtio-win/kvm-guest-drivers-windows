@@ -1047,17 +1047,18 @@ static size_t virtio_net_receive(void *pHw, const uint8_t *buf, size_t size)
 size_t qemu_sendv_packet_async(PVOID p, struct iovec *out_sg, unsigned int out_num, void *completeproc)
 {
 	tHardwareDevice *pd = (tHardwareDevice *)p;
+	unsigned int i;
+	for (i = 0; i < out_num; ++i)
+	{
+		LogTestFlow("[%s] sending entry %p, len %d\n", __FUNCTION__, out_sg[i].iov_base, out_sg[i].iov_len);
+	}
 	if (!bAsyncTransmit)
 	{
 		pd->bShallComplete = FALSE;
 	}
 	else
 	{
-		unsigned int i;
-		for (i = 0; i < out_num; ++i)
-		{
-			LogTestFlow("[%s] pending entry %p, len %d\n", __FUNCTION__, out_sg[i].iov_base, out_sg[i].iov_len);
-		}
+		LogTestFlow("[%s] %d entries pending\n", __FUNCTION__, out_num);
 		pd->bShallComplete = TRUE;
 	}
 	return !bAsyncTransmit;
