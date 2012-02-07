@@ -231,14 +231,12 @@
     <ClCompile Include="Common\ParaNdis-Debug.c" />
     <ClCompile Include="Common\ParaNdis-Oid.c" />
     <ClCompile Include="Common\sw-offload.c" />
-    <ClCompile Include="VirtIO\PVUtils.c" />
     <ClCompile Include="VirtIO\VirtIOPCI.c" />
     <ClCompile Include="VirtIO\VirtIORing.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="wxp\ParaNdis5.h" />
     <ClInclude Include="wlh\ParaNdis6.h" />
-    <ClInclude Include="VirtIO\PVUtils.h" />
     <ClInclude Include="VirtIO\VirtIO.h" />
     <ClInclude Include="VirtIO\virtio_pci.h" />
     <ClInclude Include="VirtIO\virtio_ring.h" />

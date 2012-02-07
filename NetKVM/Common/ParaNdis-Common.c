@@ -550,7 +550,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 			pContext->bUsingMSIX = TRUE;
 		}
 
-		VirtIODeviceSetIOAddress(&pContext->IODevice, pContext->AdapterResources.ulIOAddress);
+		VirtIODeviceInitialize(&pContext->IODevice, pContext->AdapterResources.ulIOAddress);
 		JustForCheckClearInterrupt(pContext, "init 0");
 		ParaNdis_ResetVirtIONetDevice(pContext);
 		JustForCheckClearInterrupt(pContext, "init 1");
@@ -831,12 +831,14 @@ static BOOLEAN AddRxBufferToQueue(PARANDIS_ADAPTER *pContext, pIONetDescriptor p
 		sg[0].ulSize = pBufferDescriptor->DataInfo.size;
 		nBuffersToSubmit = 1;
 	}
-	return 0 == pContext->NetReceiveQueue->vq_ops->add_buf(
+	return 0 <= pContext->NetReceiveQueue->vq_ops->add_buf(
 		pContext->NetReceiveQueue,
 		sg,
 		0,
 		nBuffersToSubmit,
-		pBufferDescriptor);
+		pBufferDescriptor,
+		NULL,
+		0);
 }
 
 
@@ -878,74 +880,20 @@ static int PrepareReceiveBuffers(PARANDIS_ADAPTER *pContext)
 	return nRet;
 }
 
-/**********************************************************
-Allocates ndis memory either shared for DMA or from non-paged pool
-Parameters:
-	PVOID context (Miniport's handle)
-	ULONG size    (#0-size for alloc of non-paged pool,=0-mean share for DMA alloc)
-	pmeminfo pmi  (used for DMA alloc, size taken from it)
-Return value:
-	PVOID pointer on the memory block ( NULL if not allocated )
-***********************************************************/
-PVOID ParaNdis_allocmem( IN PVOID Context, IN ULONG size, IN OUT pmeminfo pmi )
+// called on PASSIVE upon unsuccessful Init or upon Halt
+static void	DeleteNetQueues(PARANDIS_ADAPTER *pContext)
 {
-	NDIS_PHYSICAL_ADDRESS Physical;
-	PVOID				  Virtual = NULL;
-
-	if(Context)
-	{
-		if(!size)
-		{
-			if(pmi->size)
-			{
-				NdisMAllocateSharedMemory(
-					((PARANDIS_ADAPTER *)Context)->MiniportHandle,
-					pmi->size,
-					pmi->Cached,
-					&Virtual,
-					&Physical);
-				if(Virtual)
-				{
-					pmi->Addr = Virtual;
-					pmi->physAddr = Physical;
-				}
-			}
-		}
-		else
-			Virtual = ParaNdis_AllocateMemory( (PARANDIS_ADAPTER *)Context, size);
-	}
-	return Virtual;
-}
-
-/**********************************************************
-Free ndis memory either shared for DMA or from non-paged pool
-Parameters:
-	PVOID context  (Miniport's handle)
-	PVOID Address  (#NULL-pointer for free of non-paged pool,=NULL -mean free of DMA alloc)
-	pmeminfo pmi   (used for DMA free, pointer for free taken from it)
-***********************************************************/
-VOID ParaNdis_freemem( IN PVOID Context, IN PVOID Address, IN pmeminfo pmi )
-{
-	if(Context)
-	{
-		if(!Address)
-		{
-			if(pmi->Addr)
-				NdisMFreeSharedMemory(
-					((PARANDIS_ADAPTER *)Context)->MiniportHandle,
-					pmi->size,
-					pmi->Cached,
-					pmi->Addr,
-					pmi->physAddr);
-		}
-		else
-			NdisFreeMemory(Address, 0, 0);
-	}
-	else
-		if(Address)
-			NdisFreeMemory(Address, 0, 0);
-
-	return;
+	if(pContext->NetSendQueue)
+		VirtIODeviceDeleteQueue(pContext->NetSendQueue, NULL);
+	if(pContext->NetReceiveQueue)
+		VirtIODeviceDeleteQueue(pContext->NetReceiveQueue, NULL);
+	pContext->NetSendQueue = pContext->NetReceiveQueue = NULL;
+	if (pContext->SendQueueRing.Virtual)
+		ParaNdis_FreePhysicalMemory(pContext, &pContext->SendQueueRing);
+	RtlZeroMemory(&pContext->SendQueueRing, sizeof(pContext->SendQueueRing));
+	if (pContext->ReceiveQueueRing.Virtual)
+		ParaNdis_FreePhysicalMemory(pContext, &pContext->ReceiveQueueRing);
+	RtlZeroMemory(&pContext->ReceiveQueueRing, sizeof(pContext->ReceiveQueueRing));
 }
 
 
@@ -960,11 +908,37 @@ Return value:
 static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 {
 	NDIS_STATUS status = NDIS_STATUS_RESOURCES;
+	ULONG size;
 	DEBUG_ENTRY(0);
+	
+	pContext->ReceiveQueueRing.IsCached = 1;
+	pContext->ReceiveQueueRing.IsTX = 0;
+	pContext->SendQueueRing.IsCached = 1;
+	pContext->SendQueueRing.IsTX = 1;
 
-	// We expect two virtqueues, receive then send.
-	pContext->NetReceiveQueue = VirtIODeviceFindVirtualQueue((PVOID)&pContext->IODevice, 0, 0, NULL, pContext, ParaNdis_allocmem, ParaNdis_freemem, TRUE, TRUE, FALSE); //vp_find_vq(vdev, 0, skb_recv_done);
-	pContext->NetSendQueue = VirtIODeviceFindVirtualQueue((PVOID)&pContext->IODevice, 1, 0, NULL, pContext, ParaNdis_allocmem, ParaNdis_freemem, TRUE, TRUE, FALSE); //vp_find_vq(vdev, 0, skb_recv_done);
+	// We work with two virtqueues, 0 - receive and 1 - send.
+	VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 0, &size, &pContext->ReceiveQueueRing.size);
+	VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 1, &size, &pContext->SendQueueRing.size);
+	if (pContext->ReceiveQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ReceiveQueueRing))
+	{
+		pContext->NetReceiveQueue = VirtIODevicePrepareQueue(
+			&pContext->IODevice,
+			0,
+			pContext->ReceiveQueueRing.Physical,
+			pContext->ReceiveQueueRing.Virtual,
+			pContext->ReceiveQueueRing.size,
+			NULL);
+	}
+	if (pContext->SendQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->SendQueueRing))
+	{
+		pContext->NetSendQueue = VirtIODevicePrepareQueue(
+			&pContext->IODevice,
+			1,
+			pContext->SendQueueRing.Physical,
+			pContext->SendQueueRing.Virtual,
+			pContext->SendQueueRing.size,
+			NULL);
+	}
 
 	if (pContext->NetReceiveQueue && pContext->NetSendQueue)
 	{
@@ -985,11 +959,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 	}
 	else
 	{
-		if(pContext->NetSendQueue)
-			VirtIODeviceDeleteVirtualQueue(pContext->NetSendQueue, pContext, ParaNdis_freemem, FALSE);
-		if(pContext->NetReceiveQueue)
-			VirtIODeviceDeleteVirtualQueue(pContext->NetReceiveQueue, pContext, ParaNdis_freemem, FALSE);
-		pContext->NetSendQueue = pContext->NetReceiveQueue = NULL;
+		DeleteNetQueues(pContext);
 	}
 	return status;
 }
@@ -1069,11 +1039,8 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 		pContext->NetSendQueue->vq_ops->shutdown(pContext->NetSendQueue);
 	if(pContext->NetReceiveQueue)
 		pContext->NetReceiveQueue->vq_ops->shutdown(pContext->NetReceiveQueue);
-	if(pContext->NetSendQueue)
-		VirtIODeviceDeleteVirtualQueue(pContext->NetSendQueue, pContext, ParaNdis_freemem, FALSE);
-	if(pContext->NetReceiveQueue)
-		VirtIODeviceDeleteVirtualQueue(pContext->NetReceiveQueue, pContext, ParaNdis_freemem, FALSE);
-	pContext->NetSendQueue = pContext->NetReceiveQueue = NULL;
+	
+	DeleteNetQueues(pContext);
 
 	/* intentionally commented out
 	FreeDescriptorsFromList(
@@ -1420,7 +1387,14 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 		if (nMappedBuffers)
 		{
 			nMappedBuffers++;
-			if (0 == pContext->NetSendQueue->vq_ops->add_buf(pContext->NetSendQueue, sg, nMappedBuffers, 0, pBuffersDescriptor))
+			if (0 <= pContext->NetSendQueue->vq_ops->add_buf(
+				pContext->NetSendQueue, 
+				sg, 
+				nMappedBuffers, 
+				0, 
+				pBuffersDescriptor,
+				NULL,
+				0))
 			{
 				pBuffersDescriptor->nofUsedBuffers = nMappedBuffers;
 				pContext->nofFreeHardwareBuffers -= nMappedBuffers;
@@ -1606,7 +1580,15 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 			pContext->nofFreeHardwareBuffers -= nRequiredHardwareBuffers;
 			if (pContext->minFreeHardwareBuffers > pContext->nofFreeHardwareBuffers)
 				pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
-			if (pContext->NetSendQueue->vq_ops->add_buf(pContext->NetSendQueue, sg, 2, 0, pBuffersDescriptor))
+			if (0 > pContext->NetSendQueue->vq_ops->add_buf(
+				pContext->NetSendQueue, 
+				sg, 
+				2, 
+				0, 
+				pBuffersDescriptor,
+				NULL,
+				0
+				))
 			{
 				pBuffersDescriptor->nofUsedBuffers = 0;
 				pContext->nofFreeHardwareBuffers += nRequiredHardwareBuffers;
@@ -2103,87 +2085,6 @@ void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
 #endif
 }
 
-/////////////////////////////////////////////////////////////////////////////////////
-//
-// GetVirtIODeviceAddr supply device address
-//
-/////////////////////////////////////////////////////////////////////////////////////
-ULONG_PTR GetVirtIODeviceAddr( PVOID pVirtIODevice )
-{
-	return ((VirtIODevice *)pVirtIODevice)->addr ;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////
-//
-// SetVirtIODeviceAddr set device address and must be implemented in device specific module
-//
-/////////////////////////////////////////////////////////////////////////////////////
-void SetVirtIODeviceAddr(PVOID pVirtIODevice, ULONG_PTR addr)
-{
-	((VirtIODevice *)pVirtIODevice)->addr = addr;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////
-//
-// VirtIODeviceFindVirtualQueue_InDrv is driver specific VirtIODeviceFindVirtualQueue
-//
-/////////////////////////////////////////////////////////////////////////////////////
-struct virtqueue *VirtIODeviceFindVirtualQueue_InDrv(PVOID vp_dev,
-													 unsigned index,
-													 unsigned vector,
-													 bool (*callback)(struct virtqueue *vq),
-													 PVOID Context,
-													 PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
-													 VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi ),
-													 BOOLEAN Cached, BOOLEAN bPhysical)
-{
-	UNREFERENCED_PARAMETER(vp_dev);
-	UNREFERENCED_PARAMETER(index);
-	UNREFERENCED_PARAMETER(vector);
-	UNREFERENCED_PARAMETER(callback);
-	UNREFERENCED_PARAMETER(Context);
-	UNREFERENCED_PARAMETER(allocmem);
-	UNREFERENCED_PARAMETER(freemem);
-	UNREFERENCED_PARAMETER(Cached);
-	UNREFERENCED_PARAMETER(bPhysical);
-
-	return NULL;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////
-//
-// GetPciConfig is driver specific to return VIRTIO_PCI_CONFIG specific
-//
-/////////////////////////////////////////////////////////////////////////////////////
-int GetPciConfig(PVOID pVirtIODevice)
-{
-	UNREFERENCED_PARAMETER(pVirtIODevice);
-	return VIRTIO_PCI_CONFIG;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////
-//
-// drv_alloc_needed_mem is driver specific.
-//
-/////////////////////////////////////////////////////////////////////////////////////
-PVOID drv_alloc_needed_mem(PVOID vdev, PVOID Context,
-						   PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
-						   ULONG size, pmeminfo pmi)
-{
-	UNREFERENCED_PARAMETER(vdev);
-	return alloc_needed_mem(Context, allocmem, size, pmi);
-}
-
-/////////////////////////////////////////////////////////////////////////////////////
-//
-// GetPhysicalAddress is driver specific MmGetPhysicalAddress. Not used in NetKvm
-//
-/////////////////////////////////////////////////////////////////////////////////////
-PHYSICAL_ADDRESS GetPhysicalAddress(PVOID addr)
-{
-	return MmGetPhysicalAddress(addr);
-}
-
 /**********************************************************
 Common handler of multicast address configuration
 Parameters:
@@ -2303,8 +2204,8 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 	if (pContext->bDoPublishIndices)
 		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_F_PUBLISH_INDICES);
 
-	VirtIODeviceRenewVirtualQueue(pContext->NetReceiveQueue);
-	VirtIODeviceRenewVirtualQueue(pContext->NetSendQueue);
+	VirtIODeviceRenewQueue(pContext->NetReceiveQueue);
+	VirtIODeviceRenewQueue(pContext->NetSendQueue);
 	ParaNdis_RestoreDeviceConfigurationAfterReset(pContext);
 
 	InitializeListHead(&TempList);

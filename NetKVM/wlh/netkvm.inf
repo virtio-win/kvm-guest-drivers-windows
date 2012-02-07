@@ -13,7 +13,7 @@ Class       = Net
 CatalogFile = netkvm.cat
 ClassGUID   = {4d36e972-e325-11ce-bfc1-08002be10318}
 Provider    = %RedHat%
-DriverVer   = 03/15/2007,1.0.0.0
+DriverVer   = 03/15/2010,1.0.0.0
 DriverPackageType = PlugAndPlay
 DriverPackageDisplayName = %kvmnet6.DeviceDesc%
 

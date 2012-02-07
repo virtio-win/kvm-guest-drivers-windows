@@ -29,13 +29,21 @@
 
 #if !defined(OFFLOAD_UNIT_TEST)
 
-#include <ntifs.h>
+#if !defined(RtlOffsetToPointer)
+#define RtlOffsetToPointer(Base,Offset)  ((PCHAR)(((PCHAR)(Base))+((ULONG_PTR)(Offset))))
+#endif
+
+#if !defined(RtlPointerToOffset)
+#define RtlPointerToOffset(Base,Pointer)  ((ULONG)(((PCHAR)(Pointer))-((PCHAR)(Base))))
+#endif
+
+
 #include <ndis.h>
 #include "osdep.h"
 #include "kdebugprint.h"
 #include "ethernetutils.h"
-#include "VirtIO.h"
 #include "virtio_pci.h"
+#include "VirtIO.h"
 #include "IONetDescriptor.h"
 #include "DebugData.h"
 
@@ -243,6 +251,15 @@ typedef struct _tagMaxPacketSize
 	UINT nMaxFullSizeHwRx;
 }tMaxPacketSize;
 
+typedef struct _tagCompletePhysicalAddress
+{
+	PHYSICAL_ADDRESS	Physical;
+	PVOID				Virtual;
+	ULONG				size;
+	ULONG				IsCached		: 1;
+	ULONG				IsTX			: 1;
+} tCompletePhysicalAddress;
+
 typedef struct _tagPARANDIS_ADAPTER
 {
 	NDIS_HANDLE				DriverHandle;
@@ -317,7 +334,9 @@ typedef struct _tagPARANDIS_ADAPTER
 	ONPAUSECOMPLETEPROC		ReceivePauseCompletionProc;
 	/* Net part - management of buffers and queues of QEMU */
 	struct virtqueue *		NetReceiveQueue;
+	tCompletePhysicalAddress ReceiveQueueRing;
 	struct virtqueue *		NetSendQueue;
+	tCompletePhysicalAddress SendQueueRing;
 	/* list of Rx buffers available for data (under VIRTIO management) */
 	LIST_ENTRY				NetReceiveBuffers;
 	UINT					NetNofReceiveBuffers;
@@ -418,16 +437,6 @@ BOOLEAN FORCEINLINE IsValidVlanId(PARANDIS_ADAPTER *pContext, ULONG VlanID)
 {
 	return pContext->VlanId == 0 || pContext->VlanId == VlanID;
 }
-
-typedef struct _tagCompletePhysicalAddress
-{
-	PHYSICAL_ADDRESS	Physical;
-	PVOID				Virtual;
-	ULONG				IsCached		: 1;
-	ULONG				IsTX			: 1;
-	// the size limit will be 1G instead of 4G
-	ULONG				size			: 30;
-} tCompletePhysicalAddress;
 
 typedef struct _tagIONetDescriptor {
 	LIST_ENTRY listEntry;

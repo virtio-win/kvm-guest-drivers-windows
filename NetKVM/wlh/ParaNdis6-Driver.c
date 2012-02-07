@@ -61,8 +61,10 @@ static KeRegisterProcessorChangeCallbackType
 static KeDeregisterProcessorChangeCallbackType
 	ParaNdis2008_DeregisterCallback = DummyDeregisterProcessorChangeCallback;
 
-static PROCESSOR_CALLBACK_FUNCTION * ProcessorChangeCallbackHandle = NULL;
+static PVOID ProcessorChangeCallbackHandle = NULL;
 
+// this is for OACR
+PROCESSOR_CALLBACK_FUNCTION ParaNdis_OnCPUChange;
 static VOID ParaNdis_OnCPUChange(
 	__in PVOID CallbackContext,
 	__in PKE_PROCESSOR_CHANGE_NOTIFY_CONTEXT ChangeContext,
@@ -1014,6 +1016,8 @@ Initialize WPP
 Return value:
 	status of driver registration
 ***********************************************************/
+// this is for OACR
+DRIVER_INITIALIZE DriverEntry;
 NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath)
 {
 	NDIS_STATUS                             status = NDIS_STATUS_FAILURE;
