@@ -26,8 +26,8 @@
 #endif
 
 #include "osdep.h"
-#include "virtio.h"
 #include "virtio_pci.h"
+#include "virtio.h"
 #include "kdebugprint.h"
 #include "virtio_stor.h"
 

@@ -30,7 +30,7 @@ C_DEFINES = -DUSE_STORPORT=1 $(C_DEFINES)
 TARGETLIBS=$(SDK_LIB_PATH)\storport.lib ..\VirtIO\$(O)\virtiolib.lib
 !endif
 
-#C_DEFINES = -DINDIRECT_SUPPORTED=1 $(C_DEFINES)
+C_DEFINES = -DINDIRECT_SUPPORTED=1 $(C_DEFINES)
 
 
 INF_TARGET=$(OBJ_PATH)\$(O)\$(TARGETNAME).inf
@@ -45,7 +45,6 @@ SOURCES= virtio_stor.c \
          virtio_stor_hw_helper.c \
          virtio_stor.rc \
          virtio_pci.c \
-         virtio_ring.c
 
 MAJORCOMP=ntos
 

@@ -23,9 +23,8 @@
  *
 **********************************************************************/
 #include "osdep.h"
-#include "VirtIO.h"
 #include "VirtIO_PCI.h"
-#include "VirtIO_Ring.h"
+#include "VirtIO.h"
 #include "kdebugprint.h"
 #include "virtio_stor_utils.h"
 #include "virtio_stor.h"
@@ -135,38 +134,7 @@ void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
     ScsiPortWritePortUshort((PUSHORT)(ulRegister),(USHORT)(wValue));
 }
 
-ULONG_PTR GetVirtIODeviceAddr( PVOID pVirtIODevice )
-{
-    return ((PADAPTER_EXTENSION)pVirtIODevice)->device_base ;
-}
-
-void SetVirtIODeviceAddr(PVOID pVirtIODevice, ULONG_PTR addr)
-{
-    ((PADAPTER_EXTENSION)pVirtIODevice)->device_base = addr;
-}
-
-int GetPciConfig(PVOID pVirtIODevice)
-{
-    return VIRTIO_PCI_CONFIG_STOR(((PADAPTER_EXTENSION)pVirtIODevice)->msix_enabled);
-}
-
-PVOID drv_alloc_needed_mem(PVOID vdev, PVOID Context,
-						   PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
-						   ULONG size, pmeminfo pmi)
-{
-    UNREFERENCED_PARAMETER(Context);
-    UNREFERENCED_PARAMETER(allocmem);
-    UNREFERENCED_PARAMETER(size);
-    UNREFERENCED_PARAMETER(pmi);
-
-    return ((PADAPTER_EXTENSION)vdev)->virtqueue;
-}
-
-PHYSICAL_ADDRESS GetPhysicalAddress(PVOID addr)
-{
-    return MmGetPhysicalAddress(addr);
-}
-
+#if 0
 
 struct
 virtqueue*
@@ -261,19 +229,4 @@ VirtIODeviceFindVirtualQueue_InDrv(
     return vq;
 }
 
-/*
-void
-VirtIODeviceDeleteVirtualQueue(
-    IN struct virtqueue *vq)
-{
-    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)vq->DeviceExtension;
-    struct virtio_pci_vq_info *info = (struct virtio_pci_vq_info *)vq->priv;
-
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s\n", __FUNCTION__));
-
-    // Select and deactivate the queue
-    ScsiPortWritePortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL),(USHORT)(info->queue_index));
-
-    ScsiPortWritePortUlong((PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(ULONG)0);
-}
-*/
+#endif

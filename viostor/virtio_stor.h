@@ -23,9 +23,8 @@
 #endif
 
 #include "osdep.h"
-#include "VirtIO.h"
 #include "virtio_pci.h"
-#include "virtio_ring.h"
+#include "VirtIO.h"
 #include "kdebugprint.h"
 
 
@@ -57,6 +56,8 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define SECTOR_SIZE             512
 #define IO_PORT_LENGTH          0x40
+
+#define VIRTIO_RING_F_INDIRECT_DESC     28
 
 #define BLOCK_SERIAL_STRLEN     20
 
@@ -109,10 +110,10 @@ typedef struct virtio_blk_req {
 }blk_req, *pblk_req;
 
 typedef struct _ADAPTER_EXTENSION {
-    ULONG_PTR             device_base;
-    struct virtio_pci_vq_info    pci_vq_info;
-    vring_virtqueue*      virtqueue;
-    INQUIRYDATA           inquiry_data;
+	VirtIODevice          vdev;
+	PVOID                 uncachedExtensionVa;	
+	struct virtqueue *    vq;
+	INQUIRYDATA           inquiry_data;
     blk_config            info;
     ULONG                 breaks_number;
     ULONG                 transfer_size;
@@ -128,15 +129,18 @@ typedef struct _ADAPTER_EXTENSION {
     BOOLEAN               rescan_geometry;
     UCHAR                 rescan_cnt;
     blk_req               vbr;
-#ifdef INDIRECT_SUPPORTED
     BOOLEAN               indirect;
-#endif
 #ifdef USE_STORPORT
     LIST_ENTRY            complete_list;
     STOR_DPC              completion_dpc;
     BOOLEAN               dpc_ok;
 #endif
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
+
+typedef struct vring_desc_alias
+{
+	ULONGLONG data[2];
+};
 
 typedef struct _RHEL_SRB_EXTENSION {
     blk_req               vbr;
@@ -146,7 +150,7 @@ typedef struct _RHEL_SRB_EXTENSION {
     BOOLEAN               call_next;
 #endif
 #if INDIRECT_SUPPORTED
-    struct vring_desc     desc[VIRTIO_MAX_SG];
+    struct vring_desc_alias     desc[VIRTIO_MAX_SG];
 #endif
 }RHEL_SRB_EXTENSION, *PRHEL_SRB_EXTENSION;
 
