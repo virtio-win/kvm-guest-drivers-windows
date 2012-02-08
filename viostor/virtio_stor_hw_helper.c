@@ -175,20 +175,23 @@ RhelDoReadWrite(PVOID DeviceExtension,
     PADAPTER_EXTENSION    adaptExt;
     PRHEL_SRB_EXTENSION   srbExt;
     int                   num_free;
+    ULONG                 i;
+    ULONG                 sgMaxElements;
 
     cdb      = (PCDB)&Srb->Cdb[0];
     srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     BytesLeft= Srb->DataTransferLength;
     DataBuffer = Srb->DataBuffer;
-    sgElement = 1;
 
-    while (BytesLeft) {
+    memset(srbExt, 0, sizeof (RHEL_SRB_EXTENSION));
+    sgMaxElements = MAX_PHYS_SEGMENTS + 1;
+    for (i = 0, sgElement = 1; (i < sgMaxElements) && BytesLeft; i++, sgElement++) {
         srbExt->vbr.sg[sgElement].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, Srb, DataBuffer, &fragLen);
-        srbExt->vbr.sg[sgElement].ulSize = fragLen;
+        srbExt->vbr.sg[sgElement].ulSize   = fragLen;
+        srbExt->Xfer += fragLen;
         BytesLeft -= fragLen;
         DataBuffer = (PVOID)((ULONG_PTR)DataBuffer + fragLen);
-        sgElement++;
     }
 
     srbExt->vbr.out_hdr.sector = RhelGetLba(DeviceExtension, cdb);

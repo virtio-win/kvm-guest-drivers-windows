@@ -1236,6 +1236,10 @@ CompleteDPC(
     }
     CompleteSRB(DeviceExtension, Srb);
 #else
+   if (Srb->DataTransferLength > srbExt->Xfer) {
+       Srb->DataTransferLength = srbExt->Xfer;
+       Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
+    }
     ScsiPortNotification(RequestComplete,
                          DeviceExtension,
                          Srb);
