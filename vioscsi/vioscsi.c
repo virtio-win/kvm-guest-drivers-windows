@@ -331,6 +331,7 @@ VioScsiInterrupt(
     PADAPTER_EXTENSION  adaptExt;
     BOOLEAN             isInterruptServiced = FALSE;
     PSCSI_REQUEST_BLOCK Srb;
+    PSRB_EXTENSION      srbExt;
     ULONG               intReason = 0;
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
@@ -341,9 +342,10 @@ VioScsiInterrupt(
         isInterruptServiced = TRUE;
         while((cmd = adaptExt->pci_vq_info[2].vq->vq_ops->get_buf(adaptExt->pci_vq_info[2].vq, &len)) != NULL) {
            VirtIOSCSICmdResp   *resp;
-           Srb = (PSCSI_REQUEST_BLOCK)cmd->sc;
-           resp = &cmd->resp.cmd;
-              
+           Srb     = (PSCSI_REQUEST_BLOCK)cmd->sc;
+           resp    = &cmd->resp.cmd;
+           srbExt  = (PSRB_EXTENSION)Srb->SrbExtension;
+
            switch (resp->response) {
            case VIRTIO_SCSI_S_OK:
               RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_OK\n"));
@@ -392,7 +394,11 @@ VioScsiInterrupt(
            }
            if (Srb->DataBuffer) {
               memcpy(Srb->DataBuffer, resp->sense,
-              min(resp->sense_len, VIRTIO_SCSI_SENSE_SIZE));
+              min(resp->sense_len, Srb->DataTransferLength));
+           }
+           if (srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) {
+              Srb->DataTransferLength = srbExt->Xfer;
+              Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
            CompleteRequest(DeviceExtension, Srb);
         }
@@ -411,7 +417,6 @@ VioScsiInterrupt(
                  ASSERT(0);
                  break;
               }
-//FIXME
               StorPortResume(DeviceExtension);
            }
            adaptExt->tmf_infly = FALSE;
@@ -556,9 +561,7 @@ ENTER_FN();
     sgList = StorPortGetScatterGatherList(DeviceExtension, Srb);
     if (sgList)
     {
-//FIXME
         sgMaxElements = sgList->NumberOfElements;
-        srbExt->Xfer = 0; 
 
         if((Srb->SrbFlags & SRB_FLAGS_DATA_OUT) == SRB_FLAGS_DATA_OUT) {
             for (i = 0; i < sgMaxElements; i++, sgElement++) {
@@ -574,9 +577,7 @@ ENTER_FN();
     sgElement++;
     if (sgList)
     {
-//FIXME
         sgMaxElements = sgList->NumberOfElements;
-        srbExt->Xfer = 0; 
 
         if((Srb->SrbFlags & SRB_FLAGS_DATA_OUT) != SRB_FLAGS_DATA_OUT) {
             for (i = 0; i < sgMaxElements; i++, sgElement++) {
