@@ -482,6 +482,8 @@ ENTER_FN();
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)0);
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
         adaptExt->pci_vq_info[0].vq = NULL;
+        adaptExt->pci_vq_info[1].vq = NULL;
+        adaptExt->pci_vq_info[2].vq = NULL;
 
         if (!VioScsiHwInitialize(DeviceExtension))
         {

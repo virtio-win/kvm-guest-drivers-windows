@@ -140,6 +140,21 @@ ShutDown(
 ENTER_FN();
     VirtIODeviceReset(DeviceExtension);
     StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), 0);
+    if (adaptExt->pci_vq_info[0].vq) {
+       adaptExt->pci_vq_info[0].vq->vq_ops->shutdown(adaptExt->pci_vq_info[0].vq);
+       VirtIODeviceDeleteVirtualQueue(adaptExt->pci_vq_info[0].vq);
+       adaptExt->pci_vq_info[0].vq = NULL;
+    }
+    if (adaptExt->pci_vq_info[1].vq) {
+       adaptExt->pci_vq_info[1].vq->vq_ops->shutdown(adaptExt->pci_vq_info[1].vq);
+       VirtIODeviceDeleteVirtualQueue(adaptExt->pci_vq_info[1].vq);
+       adaptExt->pci_vq_info[1].vq = NULL;
+    }
+    if (adaptExt->pci_vq_info[2].vq) {
+       adaptExt->pci_vq_info[2].vq->vq_ops->shutdown(adaptExt->pci_vq_info[2].vq);
+       VirtIODeviceDeleteVirtualQueue(adaptExt->pci_vq_info[2].vq);
+       adaptExt->pci_vq_info[2].vq = NULL;
+    }
 
 EXIT_FN();
 }
