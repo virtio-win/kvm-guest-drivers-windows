@@ -2,7 +2,7 @@
 
 set SYS_FILE_NAME=vioscsi
 
-for %%A in (Win7 Wlh) do for %%B in (32 64) do call :%%A_%%B
+for %%A in (Win7 Wlh Wnet) do for %%B in (32 64) do call :%%A_%%B
 goto :eof 
 
 :buildsys
@@ -44,3 +44,14 @@ set BUILD_ARC=x64
 call :buildpack %BUILD_OS% %BUILD_ARC%
 goto :eof
 
+:WNET_32
+set BUILD_OS=Wnet
+set BUILD_ARC=x86
+call :buildpack %BUILD_OS% %BUILD_ARC%
+goto :eof
+
+:WNET_64
+set BUILD_OS=Wnet
+set BUILD_ARC=x64
+call :buildpack %BUILD_OS% %BUILD_ARC%
+goto :eof
