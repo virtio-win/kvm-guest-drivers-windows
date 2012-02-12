@@ -53,14 +53,24 @@ echo "Setting OS mask for:" %1 %2
 
 if /i "%1"=="wlh" goto create_vista
 if /i "%1"=="win7" goto create_vista
-if /i "%1"=="wnet" goto create_xp
-if /i "%1"=="wxp" goto create_xp
+if /i "%1"=="wnet" goto create_wnet
+rem if /i "%1"=="wxp" goto create_xp
 goto error_cat2inf
 
 :create_vista
 if /i "%2"=="x86" set _OSMASK_=Vista_X86,Server2008_X86,7_X86
 if /i "%2"=="x64" set _OSMASK_=Vista_X64,Server2008_X64,7_X64,Server2008R2_X64
 goto run_cat2inf
+
+:create_wnet
+if /i "%2"=="x86" set _OSMASK_=Server2003_X86
+if /i "%2"=="x64" set _OSMASK_=Server2003_X64
+goto run_cat2inf
+
+rem :create_xp
+rem if /i "%2"=="x86" set _OSMASK_=XP_X86
+rem if /i "%2"=="x64" set _OSMASK_=XP_X64
+rem goto run_cat2inf
 
 :error_cat2inf 
 echo "Error setting OS mask for inf2cat"
