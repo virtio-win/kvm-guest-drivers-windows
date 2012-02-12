@@ -45,7 +45,6 @@ typedef struct {
     PFN_NUMBER          PagePfn;
 } PAGE_LIST_ENTRY, *PPAGE_LIST_ENTRY;
 
-
 typedef struct _DEVICE_CONTEXT {
     WDFDEVICE           Device;
     WDFINTERRUPT        WdfInterrupt;
@@ -59,7 +58,7 @@ typedef struct _DEVICE_CONTEXT {
     PVIOQUEUE           InfVirtQueue;
     PVIOQUEUE           DefVirtQueue;
     PVIOQUEUE           StatVirtQueue;
-    BOOLEAN             bTellHostFirst;
+	BOOLEAN             bTellHostFirst;
     BOOLEAN             bServiceConnected;
     BOOLEAN             bShutDown;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
@@ -255,9 +254,5 @@ IsLowMemory(
 #endif // (WINVER >= 0x0501)
     return FALSE;
 }
-
-PVOID BalloonAllocatePhysical(IN PVOID Context, IN ULONG uSize, IN OUT pmeminfo pmi);
-
-void BalloonFreePhysical(IN PVOID Context, IN PVOID addr, IN pmeminfo pmi);
 
 #endif  // _PROTOTYPES_H_

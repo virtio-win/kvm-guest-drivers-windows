@@ -61,6 +61,13 @@ HKR, Ndi\Params\ConnectRate\enum,	"10",		0,			%10M%
 HKR, Ndi\Params\ConnectRate\enum,	"100",		0,			%100M%
 HKR, Ndi\Params\ConnectRate\enum,	"1001",		0,			%1G%
 
+HKR, Ndi\Params\Indirect,			ParamDesc,	0,			%Indirect%
+HKR, Ndi\Params\Indirect,			Default,	0,			"0"
+HKR, Ndi\Params\Indirect,			type,		0,			"enum"
+HKR, Ndi\Params\Indirect\enum,		"0",		0,			%Disable%
+HKR, Ndi\Params\Indirect\enum,		"1",		0,			%Enable%
+HKR, Ndi\Params\Indirect\enum,		"2",		0,			%Enable*%
+
 HKR, Ndi\params\LogStatistics,		ParamDesc,  0,          %LogStatistics%
 HKR, Ndi\params\LogStatistics,		type,       0,          "int"
 HKR, Ndi\params\LogStatistics,		default,    0,          "0"
@@ -290,3 +297,4 @@ MergeableBuf = "Use mergeable buffers"
 PublishIndices = "Publish Indices"
 MTU = "MTU size"
 NumberOfHandledRXPackersInDPC = "Handled RX packers in DPC"
+Indirect = "Use Indirect Tx"

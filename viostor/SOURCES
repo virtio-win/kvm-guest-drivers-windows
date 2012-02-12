@@ -30,7 +30,7 @@ C_DEFINES = -DUSE_STORPORT=1 $(C_DEFINES)
 TARGETLIBS=$(SDK_LIB_PATH)\storport.lib ..\VirtIO\$(O)\virtiolib.lib
 !endif
 
-#C_DEFINES = -DINDIRECT_SUPPORTED=1 $(C_DEFINES)
+C_DEFINES = -DINDIRECT_SUPPORTED=1 $(C_DEFINES)
 
 
 INF_TARGET=$(OBJ_PATH)\$(O)\$(TARGETNAME).inf
@@ -45,7 +45,6 @@ SOURCES= virtio_stor.c \
          virtio_stor_hw_helper.c \
          virtio_stor.rc \
          virtio_pci.c \
-         virtio_ring.c
 
 MAJORCOMP=ntos
 
@@ -58,10 +57,18 @@ TARGETLIBS=$(TARGETLIBS) \
 BUFFER_OVERFLOW_CHECKS=1
 MSC_WARNING_LEVEL=/W3 /WX
 
+#ENABLE_EVENT_TRACING=1
 #
-# UNSUPPORTED OPTION
-#
-# Define this if you want debug messages to come out the console
-# 
-#C_DEFINES = -DRHEL_COM_DEBUG=1 $(C_DEFINES)
 
+
+# select one or none of those
+#ENABLE_COM_DEBUG=1
+ENABLE_PRINT_DEBUG=1
+
+!IFDEF ENABLE_COM_DEBUG
+C_DEFINES = $(C_DEFINES) -DCOM_DEBUG
+!ENDIF
+
+!IFDEF ENABLE_PRINT_DEBUG
+C_DEFINES = $(C_DEFINES) -DPRINT_DEBUG
+!ENDIF

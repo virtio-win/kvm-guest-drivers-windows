@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets">
+    <Import Project="ddk.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <NMakePreprocessorDefinitions>XP;CHECKED;NTDDI_VERSION=NTDDI_WINXP;_WIN32_WINNT=0x0501;WINVER=0x0501;_WIN32_IE=0x0603;DBG=1</NMakePreprocessorDefinitions>
+  </PropertyGroup>
+  <PropertyGroup>
+    <NMakeIncludeSearchPath>$(DDK)\inc\crt;$(DDK)\inc\api;$(DDK)\inc\ddk</NMakeIncludeSearchPath>
+  </PropertyGroup>
+  <ItemGroup />
+</Project>

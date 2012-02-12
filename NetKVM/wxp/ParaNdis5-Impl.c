@@ -24,6 +24,8 @@ Per-packet information holder
 ***********************************************************/
 #define SEND_ENTRY_FLAG_READY		0x0001
 #define SEND_ENTRY_TSO_USED			0x0002
+#define SEND_ENTRY_NO_INDIRECT		0x0004
+
 
 typedef struct _tagSendEntry
 {
@@ -680,25 +682,24 @@ Parameters:
 	pIONetDescriptor pDesc - holder of VirtIO header and reserved data buffer
 	   for possible replacement of one or more HW buffers
 
-Return value:
-	.nBuffersMapped - number of buffers mapped (one of them may be our own)
+Returns @pMapperResult: (zeroed before call)
+	.usBuffersMapped - number of buffers mapped (one of them may be our own)
 	.ulDataSize - number of bytes to report as transmitted (802.1P tag is not counted)
+	.usBufferSpaceUsed - number of bytes used in data space of pIONetDescriptor pDesc 
 ***********************************************************/
-tMapperResult ParaNdis_PacketMapper(
+VOID ParaNdis_PacketMapper(
 	PARANDIS_ADAPTER *pContext,
 	PNDIS_PACKET packet,
 	PVOID ReferenceValue,
 	struct VirtIOBufferDescriptor *buffers,
-	pIONetDescriptor pDesc)
+	pIONetDescriptor pDesc,
+	tMapperResult *pMapperResult)
 {
 	tSendEntry *pSendEntry = (tSendEntry *)ReferenceValue;
 	ULONG PriorityDataLong = pSendEntry->PriorityDataLong;
-	tMapperResult res;
 	PSCATTER_GATHER_LIST pSGList = NDIS_PER_PACKET_INFO_FROM_PACKET(packet, ScatterGatherListPacketInfo);
 	SCATTER_GATHER_ELEMENT *pSGElements = pSGList->Elements;
 
-	res.nBuffersMapped = 0;
-	res.ulDataSize = 0;
 
 	if (pSGList && pSGList->NumberOfElements)
 	{
@@ -737,8 +738,9 @@ tMapperResult ParaNdis_PacketMapper(
 			// we replace 1 or more HW buffers with one buffer preallocated for data
 			buffers->physAddr = pDesc->DataInfo.Physical;
 			buffers->ulSize   = lengthPut;
-			res.ulDataSize += lengthGet;
-			res.nBuffersMapped = pSGList->NumberOfElements - nCompleteBuffersToSkip + 1;
+			pMapperResult->usBufferSpaceUsed = (USHORT)lengthPut;
+			pMapperResult->ulDataSize += lengthGet;
+			pMapperResult->usBuffersMapped = (USHORT)(pSGList->NumberOfElements - nCompleteBuffersToSkip + 1);
 			pSGElements += nCompleteBuffersToSkip;
 			buffers++;
 			DPrintf(1, ("[%s](%d bufs) skip %d buffers + %d bytes",
@@ -746,7 +748,7 @@ tMapperResult ParaNdis_PacketMapper(
 		}
 		else
 		{
-			res.nBuffersMapped = pSGList->NumberOfElements;
+			pMapperResult->usBuffersMapped = (USHORT)pSGList->NumberOfElements;
 		}
 
 		for (i = nCompleteBuffersToSkip; i < pSGList->NumberOfElements; ++i)
@@ -763,7 +765,7 @@ tMapperResult ParaNdis_PacketMapper(
 				buffers->physAddr = pSGElements->Address;
 				buffers->ulSize   = pSGElements->Length;
 			}
-			res.ulDataSize += buffers->ulSize;
+			pMapperResult->ulDataSize += buffers->ulSize;
 			pSGElements++;
 			buffers++;
 		}
@@ -777,10 +779,10 @@ tMapperResult ParaNdis_PacketMapper(
 			{
 				tTcpIpPacketParsingResult packetReview;
 				ULONG dummyTransferSize = 0;
-				ULONG saveBuffers = res.nBuffersMapped;
+				USHORT saveBuffers = pMapperResult->usBuffersMapped;
 				ULONG flags = pcrIpChecksum | pcrTcpChecksum | pcrFixPHChecksum;
 				PVOID pIpHeader = RtlOffsetToPointer(pBuffer, pContext->Offload.ipHeaderOffset);
-				res.nBuffersMapped = 0;
+				pMapperResult->usBuffersMapped = 0;
 				if (pContext->bFixIPChecksum) flags |= pcrFixIPChecksum;
 				packetReview = ParaNdis_CheckSumVerify(
 					pIpHeader,
@@ -798,7 +800,7 @@ tMapperResult ParaNdis_PacketMapper(
 				if (packetReview.ipCheckSum == ppresCSOK || packetReview.fixedIpCS)
 				{
 					dummyTransferSize =	CalculateTotalOffloadSize(
-						res.ulDataSize,
+						pMapperResult->ulDataSize,
 						pSendEntry->ipTransferUnit,
 						pContext->Offload.ipHeaderOffset,
 						pContext->MaxPacketSize.nMaxFullSizeOS,
@@ -819,11 +821,11 @@ tMapperResult ParaNdis_PacketMapper(
 					pheader->gso_size = (USHORT)pSendEntry->ipTransferUnit;
 					pheader->csum_start = (USHORT)pContext->Offload.ipHeaderOffset + (USHORT)packetReview.ipHeaderSize;
 					pheader->csum_offset = TCP_CHECKSUM_OFFSET;
-					res.nBuffersMapped = saveBuffers;
+					pMapperResult->usBuffersMapped = saveBuffers;
 				}
 			}
 
-			if (PriorityDataLong && res.nBuffersMapped)
+			if (PriorityDataLong && pMapperResult->usBuffersMapped)
 			{
 				RtlMoveMemory(
 					RtlOffsetToPointer(pBuffer, ETH_PRIORITY_HEADER_OFFSET + ETH_PRIORITY_HEADER_SIZE),
@@ -839,13 +841,13 @@ tMapperResult ParaNdis_PacketMapper(
 		}
 	}
 
-	return res;
 }
 
 static void InitializeTransferParameters(tTxOperationParameters *pParams, tSendEntry *pEntry)
 {
-	ULONG flags = (pEntry->flags & SEND_ENTRY_TSO_USED) ? pcrLSO : 0;
 	static const LPCSTR names[8] = { "NO", "IP", "TCP", "IP+TCP", "UDP", "IP+UDP", "TCP+UDP??", "IP+TCP+UDP??"};
+	ULONG flags = (pEntry->flags & SEND_ENTRY_TSO_USED) ? pcrLSO : 0;
+	if (pEntry->flags & SEND_ENTRY_NO_INDIRECT) flags |= pcrNoIndirect;
 	NdisQueryPacket(pEntry->packet, &pParams->nofSGFragments, NULL, NULL, &pParams->ulDataSize);
 	pParams->ReferenceValue = pEntry;
 	pParams->packet = pEntry->packet;
@@ -917,6 +919,11 @@ VOID ParaNdis_ProcessTx(
 				// can not send now, try next time
 				InsertHeadList(&pContext->SendQueue, &pEntry->list);
 				pEntry = NULL;
+			}
+			else if (result.error == cpeNoIndirect)
+			{
+				InsertHeadList(&pContext->SendQueue, &pEntry->list);
+				pEntry->flags |= SEND_ENTRY_NO_INDIRECT;
 			}
 			else
 			{

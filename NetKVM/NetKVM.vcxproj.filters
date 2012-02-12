@@ -112,9 +112,6 @@
     <ClCompile Include="Common\sw-offload.c">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="VirtIO\PVUtils.c">
-      <Filter>Source Files\VirtIO-Clone</Filter>
-    </ClCompile>
     <ClCompile Include="VirtIO\VirtIOPCI.c">
       <Filter>Source Files\VirtIO-Clone</Filter>
     </ClCompile>
@@ -128,9 +125,6 @@
     </ClInclude>
     <ClInclude Include="wlh\ParaNdis6.h">
       <Filter>Source Files\Vista</Filter>
-    </ClInclude>
-    <ClInclude Include="VirtIO\PVUtils.h">
-      <Filter>Source Files\VirtIO-Clone</Filter>
     </ClInclude>
     <ClInclude Include="VirtIO\VirtIO.h">
       <Filter>Source Files\VirtIO-Clone</Filter>

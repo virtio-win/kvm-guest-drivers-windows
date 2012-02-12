@@ -52,10 +52,12 @@ EXTERN_C void DeallocateMemory(void *p)
 void	FailCase(const char* format, ...)
 {
 	va_list list;
+	CString s;
 	va_start(list, format);
-	printf("FAILED:\n");
-	vprintf(format, list);
-	puts("");
+	LogTestFlow("FAILED:\n");
+	s.FormatV(format, list);
+	s += "\n";
+	LogTestFlow("%s", (LPCSTR)s);
 	bFailed = TRUE;
 }
 
@@ -167,6 +169,7 @@ typedef enum _tCommandId
 	cmdSet,
 	cmdEval,
 	cmdAdd,
+	cmdPreprocess,
 	cmdPrepare,
 	cmdTxAsync,
 	cmdSend,
@@ -225,6 +228,7 @@ public:
 		return *this;
 	}
 	CString Description();
+
 	~tCommand()
 	{
 		FreeParams();
@@ -269,7 +273,7 @@ class tScriptState
 protected:
 	ULONG result;
 	FILE *f;
-	ULONG currentCommandIndex; 
+	int currentCommandIndex; 
 	ULONG currentLine; 
 	ULONG currentDot; 
 	CList<tLabel *> Labels;
@@ -278,17 +282,17 @@ protected:
 	tScriptCallback callback;
 	CString name;
 	CMap<CString, LPCSTR, ULONG, ULONG> Variables;
-	void PreprocessScript();
+	void PreprocessScript(bool& bSilent);
 	void SetVariable(LPCSTR s, ULONG value);
 	bool EvaluateCondition(CString s);
-	bool PreprocessCommand(tCommand& cmd, CString& s);
+	bool PreprocessCommand(tCommand& cmd, CString& s, bool& bSilent);
 	bool ExecuteCommand(tCommand& cmd);
 	bool FindLabelByName(const tParameter& param, ULONG *pStep = NULL);
 	bool GetParam(CString& s, tParamType paramType, CString& dest, tParameter& param);
 	bool FillParameters(CString& s, tCommand& cmd, const _tCommandDecs& cmdDesc);
-	void ParseCommand(CString& s, tCommand& cmd, ULONG step);
+	void ParseCommand(CString& s, tCommand& cmd, ULONG step, bool& bSilent);
 	ULONG ReadCommand(CString& s);
-	tCommand GetNextCommand(CString& sLine);
+	tCommand GetNextCommand(CString& sLine, bool& bSilent);
 public:
 	tScriptState(const char *_name, PVOID _ref, tScriptCallback _callback)
 	{
@@ -335,6 +339,7 @@ static tCommandDescription commands[] =
 	{ NULL, cmdEnd, "end" },
 	{ NULL, cmdSet, "set", {ptString, ptInteger } },
 	{ NULL, cmdAdd, "add", {ptString, ptInteger } },
+	{ NULL, cmdPreprocess, ".preprocess", {ptString} },
 	/* ------- custom part of commands ---------*/
 	{ NULL, cmdPrepare, "prepare" },
 	{ NULL, cmdTxAsync, "txasync", {ptInteger} },
@@ -491,7 +496,7 @@ bool tScriptState::FillParameters(CString& s, tCommand& cmd, const _tCommandDecs
 	{
 		FailCase("Command %04d:%s Can't retrieve parameter %d from \"%s\"",
 		cmd.step,
-		cmd.Description(),
+		(LPCSTR)cmd.Description(),
 		i,
 		s.GetBuffer());
 	}
@@ -517,7 +522,7 @@ CString tCommand::Description()
 	return s;
 }
 
-void tScriptState::ParseCommand(CString& s, tCommand& cmd, ULONG step)
+void tScriptState::ParseCommand(CString& s, tCommand& cmd, ULONG step, bool& bSilent)
 {
 	size_t len = 0;
 	int i, selected = -1;
@@ -544,14 +549,16 @@ void tScriptState::ParseCommand(CString& s, tCommand& cmd, ULONG step)
 		// get parameters
 		if (FillParameters(s, cmd, commands[selected]))
 		{
-			s.Format("%04d.%d(%04d) Command %s", cmd.line, cmd.lineDot, cmd.step, cmd.Description());
-			LogTestFlow("%s\n", (LPCSTR)s);
+			if (!bSilent)
+			{
+				s.Format("%04d.%d(%04d) Command %s", cmd.line, cmd.lineDot, cmd.step, (LPCSTR)cmd.Description());
+				LogTestFlow("%s\n", (LPCSTR)s);
+			}
 		}
-		else cmd.cmdId = cmdInvalid;
 	}
 }
 
-tCommand tScriptState::GetNextCommand(CString& sLine)
+tCommand tScriptState::GetNextCommand(CString& sLine, bool& bSilent)
 {
 	tCommand cmd;
 	ULONG step = ReadCommand(sLine);
@@ -559,7 +566,7 @@ tCommand tScriptState::GetNextCommand(CString& sLine)
 	{
 		CString s;
 		s = sLine;
-		ParseCommand(s, cmd, step);
+		ParseCommand(s, cmd, step, bSilent);
 	}
 	else
 	{
@@ -663,6 +670,9 @@ bool tScriptState::GetVariable(LPCSTR s, ULONG& value) const
 void tScriptState::SetVariable(LPCSTR s, ULONG value)
 {
 	Variables.SetAt(s, value);
+
+	if (!strcmp(s, "use_indirect"))
+		bUseIndirectTx = !!value;
 }
 
 // returns FALSE on END command, TRUE otherwise
@@ -817,7 +827,7 @@ bool tScriptState::ExecuteCommand(tCommand& cmd)
 	return bContinue;
 }
 
-bool tScriptState::PreprocessCommand(tCommand& cmd, CString& s)
+bool tScriptState::PreprocessCommand(tCommand& cmd, CString& s, bool& bSilent)
 {
 	bool bAdd = FALSE;
 	bool bEnd = FALSE;
@@ -825,6 +835,14 @@ bool tScriptState::PreprocessCommand(tCommand& cmd, CString& s)
 	{
 		case cmdInvalid:
 			FailCase("Invalid line: %s", s.GetBuffer());
+			break;
+		case cmdPreprocess:
+			if (!strcmp(cmd.params[0]->String(), "loud"))
+				bSilent = FALSE;
+			if (!strcmp(cmd.params[0]->String(), "noisy"))
+				bSilent = FALSE;
+			if (!strcmp(cmd.params[0]->String(), "quiet"))
+				bSilent = TRUE;
 			break;
 		case cmdEnd:
 			bEnd = TRUE;
@@ -848,7 +866,7 @@ bool tScriptState::PreprocessCommand(tCommand& cmd, CString& s)
 				bool bIsBad;
 				CString sNested = cmd.params[1]->String();
 				CString sCopy = sNested;
-				ParseCommand(sNested, nestedCommand, currentCommandIndex++);
+				ParseCommand(sNested, nestedCommand, currentCommandIndex++, bSilent);
 				bIsBad = nestedCommand.cmdId == cmdLabel || nestedCommand.cmdId == cmdComment;
 				if (bIsBad)
 				{
@@ -859,7 +877,7 @@ bool tScriptState::PreprocessCommand(tCommand& cmd, CString& s)
 					cmd.elseStepForIf = currentCommandIndex;
 					tCommand *pNewCommand = new tCommand(cmd);
 					Commands.Add(pNewCommand);
-					PreprocessCommand(nestedCommand, sCopy);
+					PreprocessCommand(nestedCommand, sCopy, bSilent);
 				}
 			}
 			break;
@@ -876,15 +894,15 @@ bool tScriptState::PreprocessCommand(tCommand& cmd, CString& s)
 	return bEnd;
 }
 
-void tScriptState::PreprocessScript()
+void tScriptState::PreprocessScript(bool& bSilent)
 {
 	bool bEnd = FALSE;
 	LogTestFlow("Preprocessing...\n");
 	while (!IsFailed() && !bEnd)
 	{
 		CString s;
-		tCommand cmd = GetNextCommand(s);
-		bEnd = PreprocessCommand(cmd, s);
+		tCommand cmd = GetNextCommand(s, bSilent);
+		bEnd = PreprocessCommand(cmd, s, bSilent);
 	}
 	LogTestFlow("Preprocessing %s\n", IsFailed() ? "failed" : "done" );
 }
@@ -906,7 +924,8 @@ bool tScriptState::Run()
 	f = fopen(name, "rt");
 	if (f)
 	{
-		PreprocessScript();
+		bool bSilent = TRUE;
+		PreprocessScript(bSilent);
 		fclose(f);
 		if (!IsFailed())
 		{
@@ -915,11 +934,11 @@ bool tScriptState::Run()
 			while (bResult)
 			{
 				tCommand *pCommand = NULL;
-				if ((int)currentCommandIndex < Commands.GetCount())
+				if (currentCommandIndex < Commands.GetCount())
 					pCommand = Commands.GetAt(currentCommandIndex);
 				if (pCommand)
 				{
-					LogTestFlow("Executing %04d.%d(%04d) %s\n", pCommand->line, pCommand->lineDot, currentCommandIndex, pCommand->Description() );
+					LogTestFlow("Executing %04d.%d(%04d) %s\n", pCommand->line, pCommand->lineDot, currentCommandIndex, (LPCSTR)pCommand->Description() );
 					currentCommandIndex++;
 					if (!ExecuteCommand(*pCommand))
 						break;

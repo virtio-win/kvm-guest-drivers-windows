@@ -49,12 +49,19 @@ set _OSMASK_=2000
 call :dosign %1 %2 %3 
 goto :eof
 
+:_stampinf
+..\Tools\xdate.exe -u > timestamp.txt
+set /p STAMPINF_DATE= < timestamp.txt
+del timestamp.txt
+stampinf -f %1 -v %2 -a %_BUILDARCH%.%_NT_TARGET_MAJ_ARCH%.%_NT_TARGET_MIN_ARCH%
+goto :eof
+
 :dosign
 echo system %1 
 echo INF file %2
 echo VERSION file %3
 echo Target OS mask %_OSMASK_% 
-for /F "usebackq tokens=2" %%d in (`date /t`) do stampinf -f %2 -d %%d -v %3 -a %_BUILDARCH%.%_NT_TARGET_MAJ_ARCH%.%_NT_TARGET_MIN_ARCH%
+call :_stampinf %2 %3
 inf2cat /driver:%~dp2 /os:%_OSMASK_%
 SignTool sign %SIGNCERT% %SIGNTIMESTAMP%  %~dpn2.cat 
 goto :eof
@@ -69,7 +76,7 @@ if /i "%1"=="x86" set _OSMASK_=256
 if /i "%1"=="amd64" set _OSMASK_=512
 if /i "%1"=="x64" set _OSMASK_=512
 echo Target OS mask %_OSMASK_% 
-for /F "usebackq tokens=2" %%d in (`date /t`) do stampinf -f %2 -d %%d -v %3 -a %_BUILDARCH%.%_NT_TARGET_MAJ_ARCH%.%_NT_TARGET_MIN_ARCH%
+call :_stampinf %2 %3
 signability /driver:%~dp2 /auto /cat /dtc /os:%_OSMASK_%
 taskkill /FI "WINDOWTITLE eq signability*"
 SignTool sign %SIGNCERT% %SIGNTIMESTAMP%  %~dpn2.cat 
@@ -87,7 +94,7 @@ rem (128+16=144) xp64 + 2003-64
 if /i "%1"=="amd64" set _OSMASK_=144
 if /i "%1"=="x64" set _OSMASK_=144
 echo Target OS mask %_OSMASK_% 
-for /F "usebackq tokens=2" %%d in (`date /t`) do stampinf -f %2 -d %%d -v %3 -a %_BUILDARCH%.%_NT_TARGET_MAJ_ARCH%.%_NT_TARGET_MIN_ARCH%
+call :_stampinf %2 %3
 signability /driver:%~dp2 /auto /cat /os:%_OSMASK_%
 taskkill /FI "WINDOWTITLE eq signability*"
 SignTool sign %SIGNCERT% %SIGNTIMESTAMP%  %~dpn2.cat 
@@ -100,7 +107,8 @@ echo INF file %2
 echo VERSION file %3
 set _OSMASK_=2
 echo Target OS mask %_OSMASK_% 
-for /F "usebackq tokens=2" %%d in (`date /t`) do stampinf -f %2 -d %%d -v %3
+::for /F "usebackq tokens=2" %%d in (`date /t`) do 
+stampinf -f %2 -d * -v %3
 signability /driver:%~dp2 /auto /cat /os:%_OSMASK_%
 taskkill /FI "WINDOWTITLE eq signability*"
 SignTool sign %SIGNCERT% %SIGNTIMESTAMP%  %~dpn2.cat 

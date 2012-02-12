@@ -47,11 +47,6 @@
  * configuration space */
 #define VIRTIO_PCI_CONFIG		20
 
-
-/* The remaining space is defined by each driver as the per-driver
- * configuration space */
-#define VIRTIO_PCI_CONFIG_STOR(msix_enabled)		(msix_enabled ? 24 : 20)
-
 /* MSI-X registers: only enabled if MSI-X is enabled. */
 /* A 16-bit vector for configuration changes. */
 #define VIRTIO_MSI_CONFIG_VECTOR        20
@@ -60,111 +55,61 @@
 /* Vector value used to disable MSI for queue */
 #define VIRTIO_MSI_NO_VECTOR            0xffff
 
-/* Moved to VirtIO.h to remove dependency of virtioring.c from virtio_pci.h
- * That mean that VirtIO.h have to stand before other virto H files and not after as before
+#define MAX_QUEUES_PER_DEVICE	16
 
-typedef struct _meminfo
+typedef struct _tVirtIOPerQueueInfo
 {
-	PVOID            Addr;
-	PHYSICAL_ADDRESS physAddr;
-	ULONG            size;
-	BOOLEAN          Cached;
-
-    ULONG            alignment;
-	PVOID            Reserved;
-
-}meminfo, *pmeminfo;
+	/* the actual virtqueue */
+	struct virtqueue *vq;
+	/* the number of entries in the queue */
+	int num;
+	/* the index of the queue */
+	int queue_index;
+	/* the virtual address of the ring queue */
+	void *queue;
+	/* physical address of the ring queue */
+	PHYSICAL_ADDRESS phys;
+	/* owner per-queue context */
+	void *pOwnerContext;
+}tVirtIOPerQueueInfo;
 
 typedef struct TypeVirtIODevice
 {
 	ULONG_PTR addr;
+	tVirtIOPerQueueInfo info[MAX_QUEUES_PER_DEVICE];
 } VirtIODevice;
-*/
-typedef struct _Header
-{
-	struct _Header *pHead;
-	unsigned size;
-#ifdef _WIN64
-	unsigned Dummy ; // That make header to be 2 LONG64 and not 1.5 without it
-#endif
-}Header, *pHeader;
 
-
-struct virtio_pci_vq_info
-{
-	/* the actual virtqueue */
-	struct virtqueue *vq;
-
-	/* the number of entries in the queue */
-	int num;
-
-	/* the index of the queue */
-	int queue_index;
-
-	/* the virtual address of the ring queue */
-	void *queue;
-
-	/* memory info for queue */
-	meminfo mi;
-
-	/*Additional memory info*/
-	Header base;
-	Header *pFree;
-	void *Add_alloc;
-	meminfo mi_add;
-};
-
-void VirtIODeviceReset(PVOID pVirtIODevice);
-
-void VirtIODeviceSetIOAddress(PVOID pVirtIODevice, ULONG_PTR addr);
-void VirtIODeviceDumpRegisters(PVOID pVirtIODevice);
-
-bool VirtIODeviceGetHostFeature(PVOID pVirtIODevice, unsigned uFeature);
-bool VirtIODeviceEnableGuestFeature(PVOID pVirtIODevice, unsigned uFeature);
+void VirtIODeviceInitialize(VirtIODevice * pVirtIODevice, ULONG_PTR addr);
+void VirtIODeviceReset(VirtIODevice * pVirtIODevice);
+void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice);
+bool VirtIODeviceGetHostFeature(VirtIODevice * pVirtIODevice, unsigned uFeature);
+bool VirtIODeviceEnableGuestFeature(VirtIODevice * pVirtIODevice, unsigned uFeature);
 bool VirtIODeviceHasFeature(unsigned uFeature);
-void VirtIODeviceGet(PVOID pVirtIODevice,
+void VirtIODeviceGet(VirtIODevice * pVirtIODevice,
 					 unsigned offset,
 					 void *buf,
 					 unsigned len);
-void VirtIODeviceSet(PVOID pVirtIODevice,
+void VirtIODeviceSet(VirtIODevice * pVirtIODevice,
 					 unsigned offset,
 					 const void *buf,
 					 unsigned len);
+ULONG VirtIODeviceISR(VirtIODevice * pVirtIODevice);
+void VirtIODeviceAddStatus(VirtIODevice * pVirtIODevice, u8 status);
+void VirtIODeviceRemoveStatus(VirtIODevice * pVirtIODevice, u8 status);
 
-ULONG VirtIODeviceISR(PVOID pVirtIODevice);
-struct virtqueue *VirtIODeviceFindVirtualQueue(PVOID vp_dev,
-											   unsigned index,
-											   unsigned vector,
-											   bool (*callback)(struct virtqueue *vq),
-											   PVOID Context,
-											   PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
-											   VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi ),
-											   BOOLEAN Cached, BOOLEAN bPhysical, BOOLEAN bLocal);
-void VirtIODeviceDeleteVirtualQueue(struct virtqueue *vq,
-									PVOID Context,
-									VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi ), BOOLEAN bLocal);
+void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, unsigned long *pNumEntries, unsigned long *pAllocationSize);
+struct virtqueue *VirtIODevicePrepareQueue(
+					VirtIODevice *vp_dev, 
+					unsigned index, 
+					PHYSICAL_ADDRESS pa, 
+					void *va, 
+					unsigned long size,
+					void *ownerContext);
+void VirtIODeviceDeleteQueue(struct virtqueue *vq, /* optional*/ void **pOwnerContext);
 u32  VirtIODeviceGetQueueSize(struct virtqueue *vq);
-void VirtIODeviceRenewVirtualQueue(struct virtqueue *vq);
+void VirtIODeviceRenewQueue(struct virtqueue *vq);
 void* VirtIODeviceDetachUnusedBuf(struct virtqueue *vq);
 
-void VirtIODeviceAddStatus(PVOID pVirtIODevice, u8 status);
-void VirtIODeviceRemoveStatus(PVOID pVirtIODevice, u8 status);
-
-PVOID VirtIODeviceAllocVirtualQueueAddMem( struct virtqueue *vq,
-										   PVOID Context, PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
-										   int size, BOOLEAN Cached, BOOLEAN bPhysical);
-void VirtIODeviceDeleteVirtualQueueAddMem(struct virtqueue *vq, PVOID Context,
-										  VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi ));
-void *VirtIODevicemallocVirtualQueueAddMem(struct virtqueue *vq, unsigned nbytes);
-void VirtIODevicefreeVirtualQueueAddMem(struct virtqueue *vq, void *ap);
-
-PVOID alloc_needed_mem(PVOID Context,
-	                   PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
-					   ULONG size, pmeminfo pmi);
-
-void free_needed_mem(PVOID Context, VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi), PVOID Address, pmeminfo pmi);
-
-void vp_notify(struct virtqueue *vq);
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
@@ -184,56 +129,5 @@ extern u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister);
 extern void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue);
 extern u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister);
 extern void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 bValue);
-
-/////////////////////////////////////////////////////////////////////////////////////
-//
-// GetVirtIODeviceAddr supply device address and must be implemented in device specific module
-//
-/////////////////////////////////////////////////////////////////////////////////////
-extern ULONG_PTR GetVirtIODeviceAddr(PVOID pVirtIODevice);
-
-/////////////////////////////////////////////////////////////////////////////////////
-//
-// SetVirtIODeviceAddr set device address and must be implemented in device specific module
-//
-/////////////////////////////////////////////////////////////////////////////////////
-extern void SetVirtIODeviceAddr(PVOID pVirtIODevice, ULONG_PTR addr);
-
-/////////////////////////////////////////////////////////////////////////////////////
-//
-// VirtIODeviceFindVirtualQueue_InDrv is driver specific VirtIODeviceFindVirtualQueue
-//
-/////////////////////////////////////////////////////////////////////////////////////
-extern struct virtqueue *VirtIODeviceFindVirtualQueue_InDrv(PVOID vp_dev,
-															unsigned index,
-															unsigned vector,
-															bool (*callback)(struct virtqueue *vq),
-															PVOID Context,
-															PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
-															VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi ),
-															BOOLEAN Cached, BOOLEAN bPhysical);
-
-/////////////////////////////////////////////////////////////////////////////////////
-//
-// GetPciConfig is driver specific. It return VIRTIO_PCI_CONFIG specific
-//
-/////////////////////////////////////////////////////////////////////////////////////
-extern int GetPciConfig(PVOID pVirtIODevice);
-
-/////////////////////////////////////////////////////////////////////////////////////
-//
-// drv_alloc_needed_mem is driver specific.
-//
-/////////////////////////////////////////////////////////////////////////////////////
-extern PVOID drv_alloc_needed_mem(PVOID vdev, PVOID Context,
-						   PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
-						   ULONG size, pmeminfo pmi);
-
-/////////////////////////////////////////////////////////////////////////////////////
-//
-// GetPhysicalAddress is driver specific.
-//
-/////////////////////////////////////////////////////////////////////////////////////
-extern  PHYSICAL_ADDRESS GetPhysicalAddress(PVOID addr);
 
 #endif

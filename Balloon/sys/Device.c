@@ -90,6 +90,7 @@ BalloonDeviceAdd(
     }
 
     devCtx = GetDeviceContext(device);
+	RtlZeroMemory(devCtx, sizeof(*devCtx));
     devCtx->Device = device;
     devCtx->DriverObject = WdfDriverWdmGetDriverObject(Driver);
 

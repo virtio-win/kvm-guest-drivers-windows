@@ -73,6 +73,10 @@ int _tmain(int argc, TCHAR* argv[], TCHAR* envp[])
 			{
 				RunScript(argv[1], NULL, OnScriptEvent);
 			}
+			else
+			{
+				RunScript("test.txt", NULL, OnScriptEvent);
+			}
 		}
 	}
 	else

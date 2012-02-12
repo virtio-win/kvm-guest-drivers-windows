@@ -15,6 +15,16 @@
 #include "virtio_stor_hw_helper.h"
 #include"virtio_stor_utils.h"
 
+
+#if (INDIRECT_SUPPORTED)
+#define SET_VA_PA() { ULONG len; va = adaptExt->indirect ? srbExt->desc : NULL; \
+					pa = va ? ScsiPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0; \
+					}
+#else
+#define SET_VA_PA()	va = NULL; pa = 0;
+#endif
+
+
 #ifdef USE_STORPORT
 BOOLEAN
 SynchronizedFlushRoutine(
@@ -26,6 +36,8 @@ SynchronizedFlushRoutine(
     PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
     PRHEL_SRB_EXTENSION srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
     ULONG               fragLen;
+	PVOID				va;
+	ULONGLONG			pa;
 
     srbExt->vbr.out_hdr.sector = 0;
     srbExt->vbr.out_hdr.ioprio = 0;
@@ -39,11 +51,13 @@ SynchronizedFlushRoutine(
     srbExt->vbr.sg[1].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
     srbExt->vbr.sg[1].ulSize   = sizeof(srbExt->vbr.status);
 
-    if (adaptExt->pci_vq_info.vq->vq_ops->add_buf(adaptExt->pci_vq_info.vq,
+	 
+	SET_VA_PA();
+	if (adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
                      &srbExt->vbr.sg[0],
                      srbExt->out, srbExt->in,
-                     &srbExt->vbr) >= 0) {
-        adaptExt->pci_vq_info.vq->vq_ops->kick(adaptExt->pci_vq_info.vq);
+                     &srbExt->vbr, va, pa) >= 0) {
+        adaptExt->vq->vq_ops->kick(adaptExt->vq);
         return TRUE;
     }
     return FALSE;
@@ -88,6 +102,8 @@ RhelDoFlush(
     ULONG               i;
     ULONG               Wait   = 10000;
     ULONG               status = SRB_STATUS_ERROR;
+	PVOID				va;
+	ULONGLONG			pa;
 
     srbExt->vbr.out_hdr.sector = 0;
     srbExt->vbr.out_hdr.ioprio = 0;
@@ -102,12 +118,14 @@ RhelDoFlush(
     srbExt->vbr.sg[1].ulSize   = sizeof(srbExt->vbr.status);
 
 
-    num_free = adaptExt->pci_vq_info.vq->vq_ops->add_buf(adaptExt->pci_vq_info.vq,
+    SET_VA_PA();
+	num_free = adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
                                       &srbExt->vbr.sg[0],
                                       srbExt->out, srbExt->in,
-                                      &srbExt->vbr);
-    if ( num_free >= 0) {
-        adaptExt->pci_vq_info.vq->vq_ops->kick(adaptExt->pci_vq_info.vq);
+                                      &srbExt->vbr, va, pa);
+    
+	if ( num_free >= 0) {
+        adaptExt->vq->vq_ops->kick(adaptExt->vq);
         for (i = 0; i < Wait; i++) {
            if (adaptExt->flush_done == TRUE) {
               adaptExt->flush_done = FALSE;
@@ -144,13 +162,17 @@ SynchronizedReadWriteRoutine(
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
     PRHEL_SRB_EXTENSION srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
-
-    if (adaptExt->pci_vq_info.vq->vq_ops->add_buf(adaptExt->pci_vq_info.vq,
+	PVOID va;
+	ULONGLONG pa;
+	
+	SET_VA_PA();
+    
+	if (adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
                      &srbExt->vbr.sg[0],
                      srbExt->out, srbExt->in,
-                     &srbExt->vbr) >= 0){
+                     &srbExt->vbr, va, pa) >= 0){
         InsertTailList(&adaptExt->list_head, &srbExt->vbr.list_entry);
-        adaptExt->pci_vq_info.vq->vq_ops->kick(adaptExt->pci_vq_info.vq);
+        adaptExt->vq->vq_ops->kick(adaptExt->vq);
         return TRUE;
     }
     StorPortBusy(DeviceExtension, 5);
@@ -176,6 +198,8 @@ RhelDoReadWrite(PVOID DeviceExtension,
     PADAPTER_EXTENSION    adaptExt;
     PRHEL_SRB_EXTENSION   srbExt;
     int                   num_free;
+	PVOID                 va;
+	ULONGLONG             pa;
 
     cdb      = (PCDB)&Srb->Cdb[0];
     srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
@@ -211,17 +235,20 @@ RhelDoReadWrite(PVOID DeviceExtension,
 
     srbExt->vbr.sg[sgElement].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
     srbExt->vbr.sg[sgElement].ulSize = sizeof(srbExt->vbr.status);
-    num_free = adaptExt->pci_vq_info.vq->vq_ops->add_buf(adaptExt->pci_vq_info.vq,
+    
+	SET_VA_PA();
+	num_free = adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
                                       &srbExt->vbr.sg[0],
                                       srbExt->out, srbExt->in,
-                                      &srbExt->vbr);
+                                      &srbExt->vbr, va, pa);
 
     if ( num_free >= 0) {
         InsertTailList(&adaptExt->list_head, &srbExt->vbr.list_entry);
-        adaptExt->pci_vq_info.vq->vq_ops->kick(adaptExt->pci_vq_info.vq);
+        adaptExt->vq->vq_ops->kick(adaptExt->vq);
         srbExt->call_next = FALSE;
-        if(num_free < VIRTIO_MAX_SG) {
-           srbExt->call_next = TRUE;
+		// PLEASE REVIEW!!!		
+		if(!adaptExt->indirect && num_free < VIRTIO_MAX_SG) {
+			srbExt->call_next = TRUE;
         } else {
            ScsiPortNotification(NextLuRequest, DeviceExtension, Srb->PathId, Srb->TargetId, Srb->Lun);
         }
@@ -237,12 +264,12 @@ RhelShutDown(
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    VirtIODeviceReset(DeviceExtension);
-    ScsiPortWritePortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), 0);
-    if (adaptExt->pci_vq_info.vq) {
-       adaptExt->pci_vq_info.vq->vq_ops->shutdown(adaptExt->pci_vq_info.vq);
-       VirtIODeviceDeleteVirtualQueue(adaptExt->pci_vq_info.vq, NULL, NULL, TRUE);
-       adaptExt->pci_vq_info.vq = NULL;
+    VirtIODeviceReset(&adaptExt->vdev);
+	ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_GUEST_FEATURES), 0);
+    if (adaptExt->vq) {
+       adaptExt->vq->vq_ops->shutdown(adaptExt->vq);
+       VirtIODeviceDeleteQueue(adaptExt->vq, NULL);
+       adaptExt->vq = NULL;
     }
 }
 
@@ -318,11 +345,11 @@ RhelGetSerialNumber(
     adaptExt->vbr.sg[2].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &adaptExt->vbr.status, &fragLen);
     adaptExt->vbr.sg[2].ulSize   = sizeof(adaptExt->vbr.status);
 
-    if (adaptExt->pci_vq_info.vq->vq_ops->add_buf(adaptExt->pci_vq_info.vq,
+    if (adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
                      &adaptExt->vbr.sg[0],
                      1, 2,
-                     &adaptExt->vbr) >= 0) {
-        adaptExt->pci_vq_info.vq->vq_ops->kick(adaptExt->pci_vq_info.vq);
+                     &adaptExt->vbr, NULL, 0) >= 0) {
+        adaptExt->vq->vq_ops->kick(adaptExt->vq);
     }
 }
 
@@ -338,7 +365,7 @@ RhelGetDiskGeometry(
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
 
-    adaptExt->features = ScsiPortReadPortUlong((PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
+	adaptExt->features = ScsiPortReadPortUlong((PULONG)(adaptExt->vdev.addr + VIRTIO_PCI_HOST_FEATURES));
 
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BARRIER)) {
@@ -350,7 +377,7 @@ RhelGetDiskGeometry(
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SIZE_MAX)) {
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, size_max),
+        VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, size_max),
                       &v, sizeof(v));
         adaptExt->info.size_max = v;
     } else {
@@ -358,14 +385,14 @@ RhelGetDiskGeometry(
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SEG_MAX)) {
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, seg_max),
+		VirtIODeviceGet(&adaptExt->vdev, FIELD_OFFSET(blk_config, seg_max),
                       &v, sizeof(v));
         adaptExt->info.seg_max = v;
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_SEG_MAX = %d\n", adaptExt->info.seg_max));
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BLK_SIZE)) {
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, blk_size),
+        VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, blk_size),
                       &v, sizeof(v));
         adaptExt->info.blk_size = v;
     } else {
@@ -374,7 +401,7 @@ RhelGetDiskGeometry(
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_BLK_SIZE = %d\n", adaptExt->info.blk_size));
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_GEOMETRY)) {
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, geometry),
+        VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, geometry),
                       &vgeo, sizeof(vgeo));
         adaptExt->info.geometry.cylinders= vgeo.cylinders;
         adaptExt->info.geometry.heads    = vgeo.heads;
@@ -382,26 +409,26 @@ RhelGetDiskGeometry(
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_GEOMETRY. cylinders = %d  heads = %d  sectors = %d\n", adaptExt->info.geometry.cylinders, adaptExt->info.geometry.heads, adaptExt->info.geometry.sectors));
     }
 
-    VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, capacity),
+    VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, capacity),
                       &cap, sizeof(cap));
     adaptExt->info.capacity = cap;
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("capacity = %08I64X\n", adaptExt->info.capacity));
 
 
     if(CHECKBIT(adaptExt->features, VIRTIO_BLK_F_TOPOLOGY)) {
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, physical_block_exp),
+        VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, physical_block_exp),
                       &adaptExt->info.physical_block_exp, sizeof(adaptExt->info.physical_block_exp));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("physical_block_exp = %d\n", adaptExt->info.physical_block_exp));
 
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, alignment_offset),
+        VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, alignment_offset),
                       &adaptExt->info.alignment_offset, sizeof(adaptExt->info.alignment_offset));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("alignment_offset = %d\n", adaptExt->info.alignment_offset));
 
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, min_io_size),
+        VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, min_io_size),
                       &adaptExt->info.min_io_size, sizeof(adaptExt->info.min_io_size));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("min_io_size = %d\n", adaptExt->info.min_io_size));
 
-        VirtIODeviceGet( DeviceExtension, FIELD_OFFSET(blk_config, opt_io_size),
+        VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, opt_io_size),
                       &adaptExt->info.opt_io_size, sizeof(adaptExt->info.opt_io_size));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("opt_io_size = %d\n", adaptExt->info.opt_io_size));
     }

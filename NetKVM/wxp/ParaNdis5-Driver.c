@@ -25,6 +25,7 @@ static ULONG			gID = 0;
 /******************************************************
 Unload handler, only responsibility is cleanup WPP
 *******************************************************/
+DRIVER_UNLOAD ParaVirtualNICUnload;
 static VOID ParaVirtualNICUnload(IN  PDRIVER_OBJECT  pDriverObject)
 {
 	DEBUG_ENTRY(0);

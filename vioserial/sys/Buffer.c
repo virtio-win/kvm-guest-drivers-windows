@@ -64,22 +64,22 @@ VIOSerialSendBuffers(
     WdfSpinLockAcquire(port->OutVqLock);
     VIOSerialReclaimConsumedBuffers(port);
 
-    while (len)
+    while (len && vq)
     {
         do
         {
            sg.physAddr = MmGetPhysicalAddress(ptr);
            sg.ulSize = min(PAGE_SIZE, (unsigned long)len);
 
-           ret = vq->vq_ops->add_buf(vq, &sg, 1, 0, ptr);
-           if (ret == 0)
+           ret = vq->vq_ops->add_buf(vq, &sg, 1, 0, ptr, NULL, 0);
+           if (ret >= 0)
            {
               ptr = (PVOID)((LONG_PTR)ptr + sg.ulSize);
               len -= sg.ulSize;
               sent += sg.ulSize;
               elements++;
            }
-        } while ((ret == 0) && (len > 0));
+        } while ((ret >= 0) && (len > 0));
 
         vq->vq_ops->kick(vq);
         port->OutVqFull = TRUE;
@@ -136,7 +136,7 @@ VIOSerialReclaimConsumedBuffers(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
 
-    while ((buf = vq->vq_ops->get_buf(vq, &len)) != NULL)
+    while (vq && (buf = vq->vq_ops->get_buf(vq, &len)) != NULL)
     {
         KeStallExecutionProcessor(100);
         port->OutVqFull = FALSE;
@@ -196,11 +196,16 @@ VIOSerialAddInBuf(
         ASSERT(0);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
+    if (vq == NULL)
+    {
+        ASSERT(0);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     sg.physAddr = buf->pa_buf;
     sg.ulSize = buf->size;
 
-    if(vq->vq_ops->add_buf(vq, &sg, 0, 1, buf) != 0)
+    if(0 > vq->vq_ops->add_buf(vq, &sg, 0, 1, buf, NULL, 0))
     {
         status = STATUS_INSUFFICIENT_RESOURCES;
     }
@@ -215,17 +220,20 @@ VIOSerialGetInBuf(
     IN PVIOSERIAL_PORT port
 )
 {
-    PPORT_BUFFER buf;
+    PPORT_BUFFER buf = NULL;
     struct virtqueue *vq = GetInQueue(port);
     UINT len;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
+	if (vq)
+	{
+		TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
 
-    buf = vq->vq_ops->get_buf(vq, &len);
-    if (buf)
-    {
-        buf->len = len;
-        buf->offset = 0;
-    }
+		buf = vq->vq_ops->get_buf(vq, &len);
+		if (buf)
+		{
+			buf->len = len;
+			buf->offset = 0;
+		}
+	}
     return buf;
 }

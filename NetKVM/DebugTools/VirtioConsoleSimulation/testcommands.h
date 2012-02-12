@@ -8,6 +8,8 @@ EXTERN_C BOOLEAN bUsePublishedIndices;
 EXTERN_C BOOLEAN bHostHasVnetHdr;
 EXTERN_C BOOLEAN bVirtioF_NotifyOnEmpty;
 EXTERN_C BOOLEAN bAsyncTransmit;
+EXTERN_C BOOLEAN bUseIndirectTx;
+
 
 #define LogTestFlow(format, ...) DoPrint("[test]" format, __VA_ARGS__)
 

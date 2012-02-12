@@ -25,10 +25,7 @@ EXTERN_C void DoPrint(const char *format, ...);
 
 #define wmb()
 #define mb()
-
-PVOID AllocatePhysical(ULONG size);
-PHYSICAL_ADDRESS MmGetPhysicalAddress(PVOID virtualAddress);
-void MmFreeContiguousMemory(PVOID virtualAddress);
+#define rmb()
 
 #define malloc AllocateMemory
 #define free   DeallocateMemory

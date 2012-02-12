@@ -17,6 +17,8 @@
 #include "utils.tmh"
 #endif
 
+#define     TEMP_BUFFER_SIZE        256
+
 u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
 {
     return READ_PORT_ULONG((PULONG)(ulRegister));
@@ -47,62 +49,83 @@ void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
     WRITE_PORT_USHORT((PUSHORT)(ulRegister),(USHORT)(wValue));
 }
 
-ULONG_PTR GetVirtIODeviceAddr( PVOID pVirtIODevice )
+// Global debug printout level and enable\disable flag
+int virtioDebugLevel;
+int bDebugPrint;
+int driverDebugLevel;
+ULONG driverDebugFlags;
+
+
+
+#if defined(COM_DEBUG)
+
+#define RHEL_DEBUG_PORT     ((PUCHAR)0x3F8)
+
+static void DebugPrintFuncSerial(const char *format, ...)
 {
-	return ((VirtIODevice *)pVirtIODevice)->addr ;
+	char buf[TEMP_BUFFER_SIZE];
+	NTSTATUS status;
+	size_t len;
+	va_list list;
+	va_start(list, format);
+	status = RtlStringCbVPrintfA(buf, sizeof(buf), format, list);
+	if (status == STATUS_SUCCESS) 
+	{
+		len = strlen(buf);
+	}
+	else
+	{
+		len = 2;
+		buf[0] = 'O';
+		buf[1] = '\n';
+	}
+	if (len)
+	{
+        WRITE_PORT_BUFFER_UCHAR(RHEL_DEBUG_PORT, (PUCHAR)buf, len);
+        WRITE_PORT_UCHAR(RHEL_DEBUG_PORT, '\r');
+	}
+}
+#endif
+
+#if defined(PRINT_DEBUG)
+static void DebugPrintFunc(const char *format, ...)
+{
+	va_list list;
+	va_start(list, format);
+	vDbgPrintEx(DPFLTR_DEFAULT_ID, 9 | DPFLTR_MASK, format, list);
+}
+#endif
+
+static void DebugPrintFuncWPP(const char *format, ...)
+{
+	// TODO later, if needed
 }
 
-void SetVirtIODeviceAddr(PVOID pVirtIODevice, ULONG_PTR addr)
+static void NoDebugPrintFunc(const char *format, ...)
 {
-	((VirtIODevice *)pVirtIODevice)->addr = addr;
+
 }
 
-struct virtqueue *VirtIODeviceFindVirtualQueue_InDrv(PVOID vp_dev,
-                                                     unsigned index,
-                                                     unsigned vector,
-    						     bool (*callback)(struct virtqueue *vq),
-						     PVOID Context,											                             PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
-					             VOID (*freemem)(PVOID Context, PVOID Address, pmeminfo pmi ),
-						     BOOLEAN Cached, BOOLEAN bPhysical)
-{
-	UNREFERENCED_PARAMETER(vp_dev);
-	UNREFERENCED_PARAMETER(index);
-	UNREFERENCED_PARAMETER(callback);
-	UNREFERENCED_PARAMETER(Context);
-	UNREFERENCED_PARAMETER(allocmem);
-	UNREFERENCED_PARAMETER(freemem);
-	UNREFERENCED_PARAMETER(Cached);
-	UNREFERENCED_PARAMETER(bPhysical);
 
-	return NULL;
+void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath)
+{
+    //TBD - Read nDebugLevel and bDebugPrint from the registry
+    bDebugPrint = 1;
+    virtioDebugLevel = 0;
+#if defined(EVENT_TRACING)
+	VirtioDebugPrintProc = DebugPrintFuncWPP;
+#elif defined(PRINT_DEBUG)
+	VirtioDebugPrintProc = DebugPrintFunc;
+#elif defined(COM_DEBUG)
+	VirtioDebugPrintProc = DebugPrintFuncSerial;
+#else
+	VirtioDebugPrintProc = NoDebugPrintFunc;
+#endif
+	driverDebugLevel = TRACE_LEVEL_INFORMATION;
+	driverDebugFlags = 0xff;
+
+	driverDebugLevel = TRACE_LEVEL_VERBOSE;
+    virtioDebugLevel = 4;
 }
 
-int GetPciConfig(PVOID pVirtIODevice)
-{
-	UNREFERENCED_PARAMETER(pVirtIODevice);
-	return VIRTIO_PCI_CONFIG;
-}
-
-PVOID drv_alloc_needed_mem(PVOID vdev, PVOID Context,
-						   PVOID (*allocmem)(PVOID Context, ULONG size, pmeminfo pmi),
-						   ULONG size, pmeminfo pmi)
-{
-	UNREFERENCED_PARAMETER(vdev);
-	return alloc_needed_mem(Context, allocmem, size, pmi);
-}
-
-PHYSICAL_ADDRESS GetPhysicalAddress(PVOID addr)
-{
-	return MmGetPhysicalAddress(addr);
-}
-
-ULONG
-_cdecl
-RhelDbgPrintToComPort(
-    IN LPTSTR Format,
-    ...
-    )
-{
-    UNREFERENCED_PARAMETER(Format);
-    return 0;
-}
+tDebugPrintFunc VirtioDebugPrintProc;

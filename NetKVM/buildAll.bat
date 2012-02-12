@@ -63,7 +63,7 @@ goto nextparam
 : (NDIS is different from general-purpose kernel)
 :
 :copyVirtIO
-for %%f in (..\VirtIO\VirtIO*.h ..\VirtIO\VirtIO*.c ..\VirtIO\PVUtils.c ..\VirtIO\PVUtils.h ..\VirtIO\PVUtils.h) do copy %%f VirtIO /Y
+for %%f in (..\VirtIO\VirtIO*.h ..\VirtIO\VirtIO*.c) do copy %%f VirtIO /Y
 goto :eof
 
 
@@ -85,7 +85,7 @@ goto :eof
 set DDKBUILDENV=
 setlocal
 pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Win7
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Win7 no_oacr
 popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
@@ -100,7 +100,7 @@ goto continue
 set DDKBUILDENV=
 setlocal
 pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre Win7
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre Win7 no_oacr
 popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
@@ -115,7 +115,7 @@ goto continue
 set DDKBUILDENV=
 setlocal
 pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Wlh
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Wlh no_oacr
 popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
@@ -133,7 +133,7 @@ rem goto :eof
 set DDKBUILDENV=
 setlocal
 pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre Wlh
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre Wlh no_oacr
 popd
 call :preparebuild Common wlh VirtIO CoInstaller
 build -cZg
@@ -148,7 +148,7 @@ goto continue
 set DDKBUILDENV=
 setlocal
 pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WXP
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WXP no_oacr
 popd
 call :preparebuild Common wxp VirtIO
 build -cZg
@@ -162,7 +162,7 @@ goto continue
 set DDKBUILDENV=
 setlocal
 pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WNET
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WNET no_oacr
 popd
 call :preparebuild Common wxp VirtIO
 build -cZg
