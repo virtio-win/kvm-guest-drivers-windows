@@ -3,8 +3,6 @@ TARGETTYPE=MINIPORT
 
 TARGETLIBS=$(SDK_LIB_PATH)\storport.lib
 
-#C_DEFINES = -DINDIRECT_SUPPORTED=1 $(C_DEFINES)
-
 INF_NAME=vioscsi
 NTTARGETFILE0=$(OBJ_PATH)\$(O)\$(INF_NAME).inf
 PASS0_BINPLACE=$(NTTARGETFILE0)
@@ -17,7 +15,6 @@ SOURCES= vioscsi.c \
          virtio_ring.c
 
 MAJORCOMP=ntos
-
 
 TARGETLIBS=$(TARGETLIBS) \
          $(SDK_LIB_PATH)\ntoskrnl.lib\
