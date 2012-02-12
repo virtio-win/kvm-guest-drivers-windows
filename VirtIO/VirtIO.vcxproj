@@ -64,8 +64,8 @@
     <ClCompile Include="VirtIORing.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\Kutils\KUtils\kdebugprint.h" />
-    <ClInclude Include="..\Kutils\inc\osdep.h" />
+    <ClInclude Include="kdebugprint.h" />
+    <ClInclude Include="osdep.h" />
     <ClInclude Include="VirtIO.h" />
     <ClInclude Include="virtio_pci.h" />
     <ClInclude Include="virtio_ring.h" />
