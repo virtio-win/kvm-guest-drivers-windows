@@ -22,6 +22,8 @@
 #include <scsi.h>
 #endif
 #include <stdarg.h>
+#include "kdebugprint.h"
+#include "evntrace.h"
 
 #define CHECKBIT(value, nbit) (((value) & (1 << (nbit))) != 0)
 
@@ -35,6 +37,12 @@ _vsnprintf(
     );
 #define vsnprintf _vsnprintf
 
+
+void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath);
+
+extern int nViostorDebugLevel;
+
+#define RhelDbgPrint(level, line) if ((!bDebugPrint) || level > nViostorDebugLevel) {} else VirtioDebugPrintProc line 
 
 #endif ___VIOSTOR_UTILS_H___
 

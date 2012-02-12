@@ -15,11 +15,6 @@
 #include "virtio_stor.h"
 #include "virtio_stor_utils.h"
 #include "virtio_stor_hw_helper.h"
-#include "kdebugprint.h"
-
-//ULONG   RhelDbgLevel = TRACE_LEVEL_ERROR;
-int nDebugLevel = TRACE_LEVEL_ERROR;
-int bDebugPrint = 2;
 
 BOOLEAN IsCrashDumpMode;
 
@@ -126,12 +121,6 @@ CompleteDPC(
     IN ULONG  MessageID
     );
 
-void InitializeDebugPrints(PUNICODE_STRING RegistryPath)
-{
-    //TBD - Read nDebugLevel and bDebugPrint from the registry
-    nDebugLevel = TRACE_LEVEL_ERROR;
-    bDebugPrint = 2;
-}
 
 ULONG
 DriverEntry(
@@ -148,7 +137,7 @@ DriverEntry(
     UCHAR devId[4]  = {'1', '0', '0', '1'};
 #endif
 
-    InitializeDebugPrints(RegistryPath);
+    InitializeDebugPrints(DriverObject, RegistryPath);
 
     RhelDbgPrint(TRACE_LEVEL_ERROR, ("Viostor driver started...built on %s %s\n", __DATE__, __TIME__));
     IsCrashDumpMode = FALSE;

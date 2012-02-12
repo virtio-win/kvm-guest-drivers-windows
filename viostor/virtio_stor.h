@@ -25,8 +25,6 @@
 #include "osdep.h"
 #include "virtio_pci.h"
 #include "VirtIO.h"
-#include "kdebugprint.h"
-
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
@@ -139,7 +137,11 @@ typedef struct _ADAPTER_EXTENSION {
 
 typedef struct vring_desc_alias
 {
-	ULONGLONG data[2];
+	union
+	{
+		ULONGLONG data[2];
+		UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
+	}u;
 };
 
 typedef struct _RHEL_SRB_EXTENSION {
