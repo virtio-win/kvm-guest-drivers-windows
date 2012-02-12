@@ -59,6 +59,13 @@ VioScsiAdapterControl(
     IN PVOID Parameters
     );
 
+BOOLEAN
+FORCEINLINE
+PreProcessRequest(
+    IN PVOID DeviceExtension,
+    IN PSCSI_REQUEST_BLOCK Srb
+    );
+
 VOID
 FORCEINLINE
 PostProcessRequest(
@@ -137,8 +144,6 @@ VioScsiFindAdapter(
     OUT PBOOLEAN Again
     )
 {
-
-    PACCESS_RANGE      accessRange;
     PADAPTER_EXTENSION adaptExt;
     ULONG_PTR          ptr;
     ULONG              vr_sz;
@@ -153,35 +158,35 @@ VioScsiFindAdapter(
 
 ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    memset(adaptExt, 0, sizeof(ADAPTER_EXTENSION));
 
     adaptExt->dump_mode  = IsCrashDumpMode;
-
     
-    if (!InitHW(DeviceExtension, ConfigInfo)) {
-        return SP_RETURN_ERROR;
-    }
-    GetScsiConfig(DeviceExtension);
-
     ConfigInfo->Master                      = TRUE;
     ConfigInfo->ScatterGather               = TRUE;
     ConfigInfo->DmaWidth                    = Width32Bits;
     ConfigInfo->Dma32BitAddresses           = TRUE;
     ConfigInfo->Dma64BitAddresses           = TRUE;
     ConfigInfo->WmiDataProvider             = FALSE;
-    ConfigInfo->AlignmentMask               = 3;
     ConfigInfo->MapBuffers                  = STOR_MAP_NON_READ_WRITE_BUFFERS;
     ConfigInfo->SynchronizationModel        = StorSynchronizeFullDuplex;
+
+    if (!InitHW(DeviceExtension, ConfigInfo)) {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, ("Cannot initialize HardWare\n"));
+        return SP_RETURN_NOT_FOUND;
+    }
+
+    GetScsiConfig(DeviceExtension);
+
     ConfigInfo->NumberOfBuses               = 1;
     ConfigInfo->MaximumNumberOfTargets      = (UCHAR)adaptExt->scsi_config.max_target;
     ConfigInfo->MaximumNumberOfLogicalUnits = (UCHAR)adaptExt->scsi_config.max_lun;
-    ConfigInfo->MaximumTransferLength       = 0x00FFFFFF;
-
     if(adaptExt->dump_mode) {
         ConfigInfo->NumberOfPhysicalBreaks  = 8;
     } else {
         ConfigInfo->NumberOfPhysicalBreaks  = min((MAX_PHYS_SEGMENTS + 1), adaptExt->scsi_config.seg_max);
     }
-
+    ConfigInfo->MaximumTransferLength       = 0x00FFFFFF;
 
     VirtIODeviceReset(DeviceExtension);
     StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)0);
@@ -196,12 +201,6 @@ ENTER_FN();
     vr_sz = ROUND_TO_PAGES(vring_size(pageNum,PAGE_SIZE));
     vq_sz = ROUND_TO_PAGES(sizeof(struct vring_virtqueue) + sizeof(PVOID) * pageNum);
     sz = PAGE_SIZE + (vr_sz + vq_sz) * 3 + ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
-
-    adaptExt->queue_depth = pageNum / ConfigInfo->NumberOfPhysicalBreaks - 1;
-
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("breaks_number = %x  queue_depth = %x\n",
-                ConfigInfo->NumberOfPhysicalBreaks,
-                adaptExt->queue_depth));
 
     ptr = (ULONG_PTR)StorPortGetUncachedExtension(DeviceExtension, ConfigInfo, sz);
     if (ptr == (ULONG_PTR)NULL) {
@@ -238,11 +237,16 @@ ENTER_FN();
     ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + vq_sz));
     adaptExt->tmf_cmd.SrbExtension = (PSRB_EXTENSION)ptr;
 
-EXIT_FN();
+    adaptExt->queue_depth = pageNum / ConfigInfo->NumberOfPhysicalBreaks - 1;
+    RhelDbgPrint(TRACE_LEVEL_ERROR, ("breaks_number = %x  queue_depth = %x\n",
+                ConfigInfo->NumberOfPhysicalBreaks,
+                adaptExt->queue_depth));
+
     return SP_RETURN_FOUND;
 }
+
 BOOLEAN
-VioScsiPassiveInit (
+VioScsiHwInitialize(
     IN PVOID DeviceExtension
     )
 {
@@ -296,15 +300,6 @@ VioScsiPassiveInit (
     return TRUE;
 }
 
-
-BOOLEAN
-VioScsiHwInitialize(
-    IN PVOID DeviceExtension
-    )
-{
-    return  StorPortEnablePassiveInitialization(DeviceExtension, VioScsiPassiveInit);
-}
-
 BOOLEAN
 VioScsiStartIo(
     IN PVOID DeviceExtension,
@@ -312,9 +307,9 @@ VioScsiStartIo(
     )
 {
 ENTER_FN();
-    if(!SendSRB(DeviceExtension, Srb)) {
+    if (PreProcessRequest(DeviceExtension, Srb) ||
+       !SendSRB(DeviceExtension, Srb)) {
         CompleteRequest(DeviceExtension, Srb);
-EXIT_ERR();
     }
 EXIT_FN();
     return TRUE;
@@ -348,7 +343,6 @@ VioScsiInterrupt(
 
            switch (resp->response) {
            case VIRTIO_SCSI_S_OK:
-              RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_OK\n"));
               Srb->SrbStatus = SRB_STATUS_SUCCESS;
               break;
            case VIRTIO_SCSI_S_UNDERRUN:
@@ -593,6 +587,31 @@ EXIT_FN();
     return TRUE;
 }
 
+BOOLEAN
+FORCEINLINE
+PreProcessRequest(
+    IN PVOID DeviceExtension,
+    IN PSCSI_REQUEST_BLOCK Srb
+    )
+{
+    PADAPTER_EXTENSION adaptExt;
+
+ENTER_FN();
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    switch (Srb->Function) {
+        case SRB_FUNCTION_PNP:
+        case SRB_FUNCTION_POWER:
+        case SRB_FUNCTION_RESET_DEVICE:
+        case SRB_FUNCTION_RESET_LOGICAL_UNIT: {
+            Srb->SrbStatus = SRB_STATUS_SUCCESS;
+            return TRUE;
+        }
+    }
+EXIT_FN();
+    return FALSE;
+}
+
 VOID
 PostProcessRequest(
     IN PVOID DeviceExtension,
@@ -603,6 +622,7 @@ PostProcessRequest(
     PADAPTER_EXTENSION    adaptExt;
     PSRB_EXTENSION        srbExt;
 
+ENTER_FN();
     cdb      = (PCDB)&Srb->Cdb[0];
     srbExt   = (PSRB_EXTENSION)Srb->SrbExtension;
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
@@ -619,6 +639,7 @@ PostProcessRequest(
            break;
 
     }
+EXIT_FN();
 }
 
 VOID
