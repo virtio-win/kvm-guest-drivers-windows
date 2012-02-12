@@ -216,7 +216,7 @@ static void _VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned ind
 	*pNumEntries = 0;
 	*pAllocationSize = 0;
 
-	if (index < MAX_QUEUES_PER_DEVICE)
+	if (index < MAX_QUEUES_PER_DEVICE && sizeof(struct vring_desc) == SIZE_OF_SINGLE_INDIRECT_DESC)
 	{
 		// Select the queue we're interested in
 		WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_SEL, (u16) index);
@@ -266,7 +266,7 @@ struct virtqueue *VirtIODevicePrepareQueue(
 	struct virtqueue *vq = NULL;
 	ULONG sizeNeeded, num;
 	_VirtIODeviceQueryQueueAllocation(vp_dev, index, &num, &sizeNeeded);
-	if (num && size >= sizeNeeded && checkpa(pa.QuadPart, PAGE_SIZE))
+	if (num && sizeNeeded && size >= sizeNeeded && checkpa(pa.QuadPart, PAGE_SIZE))
 	{
 		tVirtIOPerQueueInfo *info = &vp_dev->info[index];
 		ULONG pageNum = (ULONG)(pa.QuadPart >> PAGE_SHIFT);
@@ -305,12 +305,12 @@ void VirtIODeviceDeleteQueue(struct virtqueue *vq, void **pOwnerContext)
 	VirtIODevice *vp_dev = vq->vdev;
 	tVirtIOPerQueueInfo *info = &vp_dev->info[vq->ulIndex];
 
-	DPrintf(4, ("%s\n", __FUNCTION__));
+	DPrintf(4, ("%s, index %d\n", __FUNCTION__, vq->ulIndex));
 
 	// Select and deactivate the queue
 	WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_SEL, (u16) info->queue_index);
 	WriteVirtIODeviceRegister(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN, 0);
-	if (pOwnerContext) *pOwnerContext = info[vq->ulIndex].pOwnerContext;
+	if (pOwnerContext) *pOwnerContext = info->pOwnerContext;
 }
 
 /* implementation of queue renew on resume from standby/hibernation */

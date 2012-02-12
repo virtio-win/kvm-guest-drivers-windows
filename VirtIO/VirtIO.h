@@ -5,16 +5,20 @@
 
 /* Status byte for guest to report progress, and synchronize features. */
 /* We have seen device and processed generic fields (VIRTIO_CONFIG_F_VIRTIO) */
-#define VIRTIO_CONFIG_S_ACKNOWLEDGE	1
+#define VIRTIO_CONFIG_S_ACKNOWLEDGE			1
 /* We have found a driver for the device. */
-#define VIRTIO_CONFIG_S_DRIVER		2
+#define VIRTIO_CONFIG_S_DRIVER				2
 /* Driver has used its parts of the config, and is happy */
-#define VIRTIO_CONFIG_S_DRIVER_OK	4
+#define VIRTIO_CONFIG_S_DRIVER_OK			4
 /* We've given up on this device. */
-#define VIRTIO_CONFIG_S_FAILED		0x80
+#define VIRTIO_CONFIG_S_FAILED				0x80
 /* virtio library features bits */
-#define VIRTIO_F_INDIRECT			28
-#define VIRTIO_F_PUBLISH_INDICES	29
+#define VIRTIO_F_INDIRECT					28
+#define VIRTIO_F_PUBLISH_INDICES			29
+
+
+// if this number is not equal to desc size, queue creation fails
+#define SIZE_OF_SINGLE_INDIRECT_DESC		16
 
 /**
  * virtqueue - a queue to register buffers for sending or receiving.
