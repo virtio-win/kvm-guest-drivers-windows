@@ -167,6 +167,14 @@ HKR, Ndi\params\MTU,				min,        0,          "500"
 HKR, Ndi\params\MTU,				max,        0,          "65500"
 HKR, Ndi\params\MTU,				step,       0,          "1"
 
+HKR, Ndi\Params\Indirect,			ParamDesc,	0,			%Indirect%
+HKR, Ndi\Params\Indirect,			Default,	0,			"0"
+HKR, Ndi\Params\Indirect,			type,		0,			"enum"
+HKR, Ndi\Params\Indirect\enum,		"0",		0,			%Disable%
+HKR, Ndi\Params\Indirect\enum,		"1",		0,			%Enable%
+HKR, Ndi\Params\Indirect\enum,		"2",		0,			%Enable*%
+
+
 HKR, Ndi\Params\InterruptRecovery,	ParamDesc,	0,			%InterruptRecovery%
 HKR, Ndi\Params\InterruptRecovery,	Default,	0,			"1"
 HKR, Ndi\Params\InterruptRecovery,	type,		0,			"enum"
@@ -326,3 +334,4 @@ MergeableBuf = "Use mergeable buffers"
 PublishIndices = "Publish Indices"
 MTU = "MTU size"
 NumberOfHandledRXPackersInDPC = "Handled RX packers in DPC"
+Indirect = "Use Indirect Tx"

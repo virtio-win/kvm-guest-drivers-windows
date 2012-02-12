@@ -114,6 +114,7 @@ typedef struct _tagConfigurationEntries
 	tConfigurationEntry PublishIndices;
 	tConfigurationEntry MTU;
 	tConfigurationEntry NumberOfHandledRXPackersInDPC;
+	tConfigurationEntry Indirect;
 }tConfigurationEntries;
 
 static const tConfigurationEntries defaultConfiguration =
@@ -155,6 +156,7 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "PublishIndices", 1, 0, 1},
 	{ "MTU", 1500, 500, 65500},
 	{ "NumberOfHandledRXPackersInDPC", MAX_RX_LOOPS, 1, 10000},
+	{ "Indirect", 0, 0, 2},
 };
 
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
@@ -287,6 +289,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			GetConfigurationEntry(cfg, &pConfiguration->PublishIndices);
 			GetConfigurationEntry(cfg, &pConfiguration->MTU);
 			GetConfigurationEntry(cfg, &pConfiguration->NumberOfHandledRXPackersInDPC);
+			GetConfigurationEntry(cfg, &pConfiguration->Indirect);
 
 	#if !defined(WPP_EVENT_TRACING)
 			bDebugPrint = pConfiguration->isLogEnabled.ulValue;
@@ -332,6 +335,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->bUseMergedBuffers = pConfiguration->UseMergeableBuffers.ulValue != 0;
 			pContext->bDoPublishIndices = pConfiguration->PublishIndices.ulValue != 0;
 			pContext->MaxPacketSize.nMaxDataSize = pConfiguration->MTU.ulValue;
+			pContext->bUseIndirect = pConfiguration->Indirect.ulValue != 0;
 			if (!pContext->bDoSupportPriority)
 				pContext->ulPriorityVlanSetting = 0;
 			// if Vlan not supported
@@ -678,6 +682,21 @@ NDIS_STATUS ParaNdis_InitializeContext(
 		!VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_HOST_TSO4))
 	{
 		DisableLSOPermanently(pContext, __FUNCTION__, "Host does not support TSO");
+	}
+	if (pContext->bUseIndirect)
+	{
+		const char *reason = "";
+		if (!VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_F_INDIRECT))
+		{
+			pContext->bUseIndirect = FALSE;
+			reason = "Host support";
+		}
+		else if (!pContext->bUseScatterGather)
+		{
+			pContext->bUseIndirect = FALSE;
+			reason = "SG";
+		}
+		DPrintf(0, ("[%s] %sable indirect Tx(!%s)", __FUNCTION__, pContext->bUseIndirect ? "En" : "Dis", reason) );
 	}
 
 
@@ -1324,11 +1343,14 @@ Uses pContext->sgTxGatherTable
 tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperationParameters *Params)
 {
 	tCopyPacketResult result;
-	tMapperResult mapResult;
+	tMapperResult mapResult = {0,0,0};
 	// populating priority tag or LSO MAY require additional SG element
-	UINT nRequiredBuffers = Params->nofSGFragments + 1 + ((Params->flags & (pcrPriorityTag | pcrLSO)) ? 1 : 0);
+	UINT nRequiredBuffers;
 	BOOLEAN bUseCopy = FALSE;
 	struct VirtIOBufferDescriptor *sg = pContext->sgTxGatherTable;
+	
+	nRequiredBuffers = Params->nofSGFragments + 1 + ((Params->flags & (pcrPriorityTag | pcrLSO)) ? 1 : 0);
+	
 	result.size = 0;
 	result.error = cpeOK;
 	if (!pContext->bUseScatterGather ||			// only copy available
@@ -1342,7 +1364,11 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 		nRequiredBuffers = 2;
 		bUseCopy = TRUE;
 	}
-
+	else if (pContext->bUseIndirect && !(Params->flags & pcrNoIndirect))
+	{
+		nRequiredBuffers = 1;
+	}
+	
 	// I do not think this will help, but at least we can try freeing some buffers right now
 	if (pContext->nofFreeHardwareBuffers < nRequiredBuffers || !pContext->nofFreeTxDescriptors)
 	{
@@ -1351,6 +1377,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 
 	if (nRequiredBuffers > pContext->maxFreeHardwareBuffers)
 	{
+		// LSO and too many buffers, impossible to send
 		result.error = cpeTooLarge;
 		DPrintf(0, ("[%s] ERROR: too many fragments(%d required, %d max.avail)!", __FUNCTION__,
 			nRequiredBuffers, pContext->maxFreeHardwareBuffers));
@@ -1372,45 +1399,70 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 	else
 	{
 		UINT nMappedBuffers;
+		ULONGLONG paOfIndirectArea = 0;
+		PVOID vaOfIndirectArea = NULL;
 		pIONetDescriptor pBuffersDescriptor = (pIONetDescriptor)RemoveHeadList(&pContext->NetFreeSendBuffers);
 		pContext->nofFreeTxDescriptors--;
 		NdisZeroMemory(pBuffersDescriptor->HeaderInfo.Virtual, pBuffersDescriptor->HeaderInfo.size);
 		sg[0].physAddr = pBuffersDescriptor->HeaderInfo.Physical;
 		sg[0].ulSize = pBuffersDescriptor->HeaderInfo.size;
-		mapResult = ParaNdis_PacketMapper(
+		ParaNdis_PacketMapper(
 			pContext,
 			Params->packet,
 			Params->ReferenceValue,
 			sg + 1,
-			pBuffersDescriptor);
-		nMappedBuffers = mapResult.nBuffersMapped;
+			pBuffersDescriptor,
+			&mapResult);
+		nMappedBuffers = mapResult.usBuffersMapped;
 		if (nMappedBuffers)
 		{
 			nMappedBuffers++;
-			if (0 <= pContext->NetSendQueue->vq_ops->add_buf(
-				pContext->NetSendQueue, 
-				sg, 
-				nMappedBuffers, 
-				0, 
-				pBuffersDescriptor,
-				NULL,
-				0))
+			if (pContext->bUseIndirect && !(Params->flags & pcrNoIndirect))
 			{
-				pBuffersDescriptor->nofUsedBuffers = nMappedBuffers;
-				pContext->nofFreeHardwareBuffers -= nMappedBuffers;
-				if (pContext->minFreeHardwareBuffers > pContext->nofFreeHardwareBuffers)
-					pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
-				pBuffersDescriptor->ReferenceValue = Params->ReferenceValue;
-				result.size = Params->ulDataSize;
-				DPrintf(2, ("[%s] Submitted %d buffers (%d bytes), avail %d desc, %d bufs",
-					__FUNCTION__, nMappedBuffers, result.size,
-					pContext->nofFreeTxDescriptors, pContext->nofFreeHardwareBuffers
-				));
+				ULONG space1 = (mapResult.usBufferSpaceUsed + 7) & ~7;
+				ULONG space2 = nMappedBuffers * SIZE_OF_SINGLE_INDIRECT_DESC;
+				if (pBuffersDescriptor->DataInfo.size >= (space1 + space2))
+				{
+					vaOfIndirectArea = RtlOffsetToPointer(pBuffersDescriptor->DataInfo.Virtual, space1);
+					paOfIndirectArea = pBuffersDescriptor->DataInfo.Physical.QuadPart + space1;
+				}
+				else if (nMappedBuffers <= pContext->nofFreeHardwareBuffers)
+				{
+					// send as is, no indirect
+				}
+				else
+				{
+					result.error = cpeNoIndirect;
+					DPrintf(0, ("[%s] Unexpected ERROR of placement!", __FUNCTION__));
+				}
 			}
-			else
+			if (result.error == cpeOK)
 			{
-				result.error = cpeInternalError;
-				DPrintf(0, ("[%s] Unexpected ERROR adding buffer to TX engine!..", __FUNCTION__));
+				if (0 <= pContext->NetSendQueue->vq_ops->add_buf(
+					pContext->NetSendQueue, 
+					sg, 
+					nMappedBuffers, 
+					0, 
+					pBuffersDescriptor,
+					vaOfIndirectArea,
+					paOfIndirectArea))
+				{
+					pBuffersDescriptor->nofUsedBuffers = nMappedBuffers;
+					pContext->nofFreeHardwareBuffers -= nMappedBuffers;
+					if (pContext->minFreeHardwareBuffers > pContext->nofFreeHardwareBuffers)
+						pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
+					pBuffersDescriptor->ReferenceValue = Params->ReferenceValue;
+					result.size = Params->ulDataSize;
+					DPrintf(2, ("[%s] Submitted %d buffers (%d bytes), avail %d desc, %d bufs",
+						__FUNCTION__, nMappedBuffers, result.size,
+						pContext->nofFreeTxDescriptors, pContext->nofFreeHardwareBuffers
+					));
+				}
+				else
+				{
+					result.error = cpeInternalError;
+					DPrintf(0, ("[%s] Unexpected ERROR adding buffer to TX engine!..", __FUNCTION__));
+				}
 			}
 		}
 		else
