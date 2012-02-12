@@ -247,6 +247,12 @@ VIOSerialEvtDevicePrepareHardware(
                                  sizeof(pContext->consoleConfig.max_nr_ports));
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
                                 "VirtIOConsoleConfig->max_nr_ports %d\n", pContext->consoleConfig.max_nr_ports);
+		if (pContext->consoleConfig.max_nr_ports >= MAX_QUEUES_PER_DEVICE / 2)
+		{
+			pContext->consoleConfig.max_nr_ports = MAX_QUEUES_PER_DEVICE / 2 - 1;
+			TraceEvents(TRACE_LEVEL_WARNING, DBG_PNP,
+                                "VirtIOConsoleConfig->max_nr_ports limited to %d\n", pContext->consoleConfig.max_nr_ports);
+		}
     }
 
     if(pContext->isHostMultiport)
@@ -352,6 +358,25 @@ static struct virtqueue * FindVirtualQueue(VirtIODevice *dev, ULONG index)
 	return pq;
 }
 
+#if 0
+void DumpQueues(WDFOBJECT Device)
+{
+    ULONG i, nr_ports;
+	PPORTS_DEVICE          pContext = GetPortsDevice(Device);
+    nr_ports = pContext->consoleConfig.max_nr_ports;
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "pContext->c_ivq %p\n",  pContext->c_ivq);
+	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "pContext->c_ovq %p\n",  pContext->c_ovq);
+	for (i = 0; i < nr_ports; ++i)
+	{
+		TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "pContext->in_vqs[%d] %p\n", i,  pContext->in_vqs[i]);
+	}
+	for (i = 0; i < nr_ports; ++i)
+	{
+		TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "pContext->out_vqs[%d] %p\n", i, pContext->out_vqs[i]);
+	}
+}
+#endif
 
 static
 NTSTATUS
@@ -389,13 +414,17 @@ VIOSerialInitAllQueues(
         }
     }
 
-    if(pContext->isHostMultiport)
+    //DumpQueues(Device);
+
+	if(pContext->isHostMultiport)
     {
         ASSERT(pContext->c_ivq);
         status = VIOSerialFillQueue(pContext->c_ivq, pContext->CVqLock);
     }
 
-    return status;
+    //DumpQueues(Device);
+
+	return status;
 }
 
 static void DeleteQueue(struct virtqueue **ppq)
@@ -421,6 +450,8 @@ VIOSerialShutDownAllQueues(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
+    //DumpQueues(WdfDevice);
+
     VirtIODeviceRemoveStatus(&pContext->IODevice , VIRTIO_CONFIG_S_DRIVER_OK);
 
     if(pContext->isHostMultiport)
@@ -429,17 +460,17 @@ VIOSerialShutDownAllQueues(
         DeleteQueue(&pContext->c_ovq);
     }
 
-    nr_ports = pContext->consoleConfig.max_nr_ports;
+	nr_ports = pContext->consoleConfig.max_nr_ports;
     for(i = 0; i < nr_ports; i++ )
     {
         if(pContext->in_vqs && pContext->in_vqs[i])
         {
-            DeleteQueue(&pContext->in_vqs[i]);
+            DeleteQueue(&(pContext->in_vqs[i]));
         }
 
         if(pContext->out_vqs && pContext->out_vqs[i])
         {
-            DeleteQueue(&pContext->out_vqs[i]);
+            DeleteQueue(&(pContext->out_vqs[i]));
         }
     }
     return status;
@@ -513,9 +544,12 @@ VIOSerialEvtDeviceD0Exit(
 {
     UNREFERENCED_PARAMETER(TargetState);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
+	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
+	//DumpQueues(Device);
 
     PAGED_CODE();
+
+
 
     VIOSerialShutdownAllPorts(Device);
     VIOSerialShutDownAllQueues(Device);

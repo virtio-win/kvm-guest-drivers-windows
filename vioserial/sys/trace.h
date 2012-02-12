@@ -15,6 +15,11 @@
 
 #if !defined(EVENT_TRACING)
 
+#include "kdebugprint.h"
+
+extern ULONG driverDebugFlags;
+extern int driverDebugLevel;
+
 #if !defined(TRACE_LEVEL_NONE)
   #define TRACE_LEVEL_NONE        0
   #define TRACE_LEVEL_CRITICAL    1
@@ -47,15 +52,13 @@
 #define DBG_QUEUEING            0x00000800
 #define DBG_HW_ACCESS           0x00001000
 
-VOID
-TraceEvents    (
-    IN ULONG   DebugPrintLevel,
-    IN ULONG   DebugPrintFlag,
-    IN PCCHAR  DebugMessage,
-    ...
-    );
+#define TraceEvents(level, flags, message, ...) \
+if (level > driverDebugLevel || !bDebugPrint || !(driverDebugFlags & flags)) {} \
+else VirtioDebugPrintProc(message, __VA_ARGS__)
 
-#define WPP_INIT_TRACING(DriverObject, RegistryPath)
+void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath);
+
+#define WPP_INIT_TRACING InitializeDebugPrints
 #define WPP_CLEANUP(DriverObject)
 
 #else
