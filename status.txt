@@ -1,3 +1,14 @@
+Date    13 February 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm44
+
+Fixed bugs:
+Bug 771390 - Win 7 (32-bit) guest "quitting" with latest VirtIO block drivers - virtio: 
+             trying to map MMIO memory - PART 2 - fix this problem for scsiport part (WXP).
+
+New features:
+virtio scsi passthrough device driver.          
+
 Date    23 January 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm43
