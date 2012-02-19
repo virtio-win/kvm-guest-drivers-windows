@@ -21,7 +21,7 @@ EXTERN_C int debugLevel;
 
 EXTERN_C void DoPrint(const char *format, ...);
 
-#define DPrintf(level, statement) if (debugLevel < level) {} else DoPrint statement 
+#define DPrintf(level, statement) if (debugLevel < level) {} else DoPrint statement
 
 #define wmb()
 #define mb()

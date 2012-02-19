@@ -15,6 +15,7 @@ BOOLEAN bHostHasVnetHdr = TRUE;
 BOOLEAN bVirtioF_NotifyOnEmpty = FALSE;
 BOOLEAN bAsyncTransmit = FALSE;
 BOOLEAN bUseIndirectTx = FALSE;
+BOOLEAN bMSIXUsed = FALSE;
 
 int debugLevel = 4;
 
@@ -48,10 +49,16 @@ typedef struct
 	void *storageForIndirect;
 } tTxPacket;
 
+typedef struct
+{
+	virtio_net_hdr_ext header;
+	UCHAR  buffer[128];
+} tAuxPacket;
+
 
 typedef struct
 {
-	VirtIODevice dev;
+	VirtIODevice *dev;
 	ULONG hostFeatures;
 } tHost;
 
@@ -117,7 +124,10 @@ u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
 			val = hwGetDeviceStatus(device->hardwareDevice);
 			break;
 		default:
-			FailCase("%s(%d) - not supported", __FUNCTION__, reg);
+			if (!hwReadDeviceData(device->hardwareDevice, reg, &val))
+			{
+				FailCase("%s(%d) - not supported", __FUNCTION__, reg);
+			}
 			break;
 	}
 	DPrintf(0, ("B[%d] => %x\n", reg, val));
@@ -131,12 +141,15 @@ void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
 	DPrintf(0, ("B %x => %d\n", bValue, reg));
 	switch (reg)
 	{
-		case VIRTIO_PCI_STATUS:	
+		case VIRTIO_PCI_STATUS:
 			hwSetDeviceStatus(device->hardwareDevice, bValue);
 			if (bValue) DeviceReset(device);
 			break;
 		default:
-			FailCase("%s(%d) - not supported", __FUNCTION__, reg);
+			if (!hwWriteDeviceData(device->hardwareDevice, reg, bValue))
+			{
+				FailCase("%s(%d) - not supported", __FUNCTION__, reg);
+			}
 			break;
 	}
 }
@@ -170,7 +183,7 @@ void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
 	switch (reg)
 	{
 		case VIRTIO_PCI_QUEUE_SEL:
-			device->queueSelect = wValue & 3;
+			device->queueSelect = (UCHAR)wValue;
 			break;
 		case VIRTIO_PCI_QUEUE_NOTIFY:
 			hwQueueNotify(device->hardwareDevice, wValue);
@@ -253,6 +266,8 @@ static void InitializeDevice(tDevice *pDev)
 
 static struct virtqueue *TxQ;
 static struct virtqueue *RxQ;
+static struct virtqueue *AuxQ;
+
 tDevice *pDevice;
 static tHost Host;
 
@@ -260,7 +275,7 @@ void GetRxBuffer(PULONG pLenght)
 {
 	UINT len;
 	ULONG serial = 0;
-	tRxPacket *p = (tRxPacket *)RxQ->vq_ops->get_buf(RxQ, &len); 
+	tRxPacket *p = (tRxPacket *)RxQ->vq_ops->get_buf(RxQ, &len);
 	if (p)
 	{
 		serial = p->serial;
@@ -280,16 +295,16 @@ static BOOLEAN AddRxBuffer(tRxPacket *pPacket, BOOLEAN bKick)
 	if (bUseMergedBuffers)
 	{
 		struct VirtIOBufferDescriptor sg;
-		sg.physAddr.QuadPart = (ULONG_PTR)pPacket;
+		sg.physAddr = MmGetPhysicalAddress(pPacket);
 		sg.ulSize = sizeof(pPacket->ext);
 		bOK = 0 <= RxQ->vq_ops->add_buf(RxQ, &sg, 0, 1, pPacket, NULL, 0);
 	}
 	else
 	{
 		struct VirtIOBufferDescriptor sg[2];
-		sg[0].physAddr.QuadPart = (ULONG_PTR)&pPacket->basic.header;
+		sg[0].physAddr = MmGetPhysicalAddress(&pPacket->basic.header);
 		sg[0].ulSize = sizeof(pPacket->basic.header);
-		sg[1].physAddr.QuadPart = (ULONG_PTR)&pPacket->basic.buffer;
+		sg[1].physAddr = MmGetPhysicalAddress(pPacket->basic.buffer);
 		sg[1].ulSize = sizeof(pPacket->basic.buffer);
 		bOK = 0 <= RxQ->vq_ops->add_buf(RxQ, sg, 0, 2, pPacket, NULL, 0);
 	}
@@ -303,6 +318,26 @@ static BOOLEAN AddRxBuffer(tRxPacket *pPacket, BOOLEAN bKick)
 		RxQ->vq_ops->kick(RxQ);
 	}
 	return bOK;
+}
+
+static BOOLEAN AddAuxBuffer(ULONG size)
+{
+	UINT i;
+	BOOLEAN bOK;
+	PUCHAR p = (PUCHAR)malloc(size);
+	struct VirtIOBufferDescriptor sg;
+	for (i = 0; i < size; ++i) p[i] = 'A' + i;
+	sg.physAddr = MmGetPhysicalAddress(p);
+	sg.ulSize = size;
+	bOK = 0 <= AuxQ->vq_ops->add_buf(AuxQ, &sg, 1, 0, p, NULL, 0);
+	if (!bOK)
+	{
+		FailCase("[%s] failed");
+	}
+	else
+	{
+		AuxQ->vq_ops->kick(AuxQ);
+	}
 }
 
 void ReturnRxBuffer(ULONG serial)
@@ -321,9 +356,9 @@ static BOOLEAN AddTxBuffer(ULONG serial)
 	tTxPacket *pPacket = (tTxPacket *)malloc(sizeof(tTxPacket));
 	memset(pPacket, 0, sizeof(tTxPacket));
 	pPacket->serial = serial;
-	sg[0].physAddr.QuadPart = (ULONG_PTR)(PVOID)&pPacket->header;
+	sg[0].physAddr = MmGetPhysicalAddress(&pPacket->header);
 	sg[0].ulSize = headerSize;
-	sg[1].physAddr.QuadPart = (ULONG_PTR)(PVOID)pPacket->buffer;
+	sg[1].physAddr = MmGetPhysicalAddress(pPacket->buffer);
 	sg[1].ulSize = sizeof(pPacket->buffer);
 	if (bUseIndirectTx)
 	{
@@ -357,7 +392,7 @@ void AddTxBuffers(ULONG startSerial, ULONG num)
 void GetTxBuffer(ULONG serial)
 {
 	UINT len = 0;
-	tTxPacket *p = (tTxPacket *)TxQ->vq_ops->get_buf(TxQ, &len); 
+	tTxPacket *p = (tTxPacket *)TxQ->vq_ops->get_buf(TxQ, &len);
 	if (p)
 	{
 		if (serial != p->serial)
@@ -379,37 +414,54 @@ void GetTxBuffer(ULONG serial)
 
 void SimulationPrepare()
 {
-	ULONG i, size, allocSize;
+	ULONG i, size, allocSize, numQueueus;
 	pDevice = (tDevice *)AllocatePhysical(sizeof(tDevice));
 	memset(pDevice, 0, sizeof(*pDevice));
 
+	numQueueus = AUX_QUEUE_NUMBER + 1;
+
 	InitializeDevice(pDevice);
 
-	VirtIODeviceInitialize(&Host.dev, (ULONG_PTR)pDevice);
+	allocSize = VirtIODeviceSizeRequired((USHORT)numQueueus);
+	Host.dev = (VirtIODevice *)malloc(allocSize);
 
-	VirtIODeviceQueryQueueAllocation(&Host.dev, 1, &size, &allocSize);
+	VirtIODeviceInitialize(Host.dev, (ULONG_PTR)pDevice, allocSize);
+	VirtIODeviceSetMSIXUsed(Host.dev, bMSIXUsed);
+	VirtIODeviceQueryQueueAllocation(Host.dev, TX_QUEUE_NUMBER, &size, &allocSize);
 	if (allocSize)
 	{
 		PVOID p = AllocatePhysical(allocSize);
 		if (p)
 		{
 			PHYSICAL_ADDRESS phys = MmGetPhysicalAddress(p);
-			TxQ = VirtIODevicePrepareQueue(&Host.dev, 1, phys, p, allocSize, p);
+			TxQ = VirtIODevicePrepareQueue(Host.dev, TX_QUEUE_NUMBER, phys, p, allocSize, p);
 		}
 	}
 
-	VirtIODeviceQueryQueueAllocation(&Host.dev, 0, &size, &allocSize);
+	VirtIODeviceQueryQueueAllocation(Host.dev, RX_QUEUE_NUMBER, &size, &allocSize);
 	if (allocSize)
 	{
 		PVOID p = AllocatePhysical(allocSize);
 		if (p)
 		{
 			PHYSICAL_ADDRESS phys = MmGetPhysicalAddress(p);
-			RxQ = VirtIODevicePrepareQueue(&Host.dev, 0, phys, p, allocSize, (PUCHAR)p + 1);
+			RxQ = VirtIODevicePrepareQueue(Host.dev, RX_QUEUE_NUMBER, phys, p, allocSize, (PUCHAR)p + 1);
 		}
 	}
-	
-	if (TxQ && RxQ)
+
+	VirtIODeviceQueryQueueAllocation(Host.dev, AUX_QUEUE_NUMBER, &size, &allocSize);
+	if (allocSize)
+	{
+		PVOID p = AllocatePhysical(allocSize);
+		if (p)
+		{
+			PHYSICAL_ADDRESS phys = MmGetPhysicalAddress(p);
+			AuxQ = VirtIODevicePrepareQueue(Host.dev, AUX_QUEUE_NUMBER, phys, p, allocSize, (PUCHAR)p - 1);
+		}
+	}
+
+
+	if (TxQ && RxQ && AuxQ)
 	{
 		size = VirtIODeviceGetQueueSize(RxQ);
 		for (i = 0; i < size; ++i)
@@ -425,6 +477,8 @@ void SimulationPrepare()
 		}
 		DPrintf(0, ("added %d blocks\n", i));
 		RxQ->vq_ops->kick(RxQ);
+
+		AddAuxBuffer(8);
 	}
 	else
 	{
@@ -446,6 +500,13 @@ void	SimulationFinish()
 		VirtIODeviceDeleteQueue(RxQ, &va);
 		if (va) MmFreeContiguousMemory((PUCHAR)va - 1);
 	}
+	if (AuxQ)
+	{
+		PVOID va = NULL;
+		AuxQ->vq_ops->shutdown(AuxQ);
+		VirtIODeviceDeleteQueue(AuxQ, &va);
+		if (va) MmFreeContiguousMemory((PUCHAR)va + 1);
+	}
 
 	if (pDevice)
 	{
@@ -456,8 +517,9 @@ void	SimulationFinish()
 			LogTestFlow("Interrupts: TX:%d, RX:%d\n", tx, rx);
 		}
 		hwDestroyDevice(pDevice->hardwareDevice);
-		MmFreeContiguousMemory(pDevice);	
+		MmFreeContiguousMemory(pDevice);
 	}
+	free(Host.dev);
 }
 
 
@@ -517,4 +579,16 @@ EXTERN_C void RxReceivePacket(UCHAR fill)
 EXTERN_C void CompleteTx(int num)
 {
 	hwCompleteTx(pDevice->hardwareDevice, num);
+}
+
+EXTERN_C UCHAR GetDeviceData(UCHAR offset)
+{
+	UCHAR val;
+	VirtIODeviceGet(Host.dev, offset, &val, 1);
+	return val;
+}
+
+EXTERN_C void SetDeviceData(UCHAR offset, UCHAR val)
+{
+	VirtIODeviceSet(Host.dev, offset, &val, 1);
 }

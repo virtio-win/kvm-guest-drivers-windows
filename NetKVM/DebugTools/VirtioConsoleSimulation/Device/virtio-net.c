@@ -926,7 +926,7 @@ static int virtio_net_load(QEMUFile *f, void *opaque, int version_id)
             n->mac_table.in_use = 0;
         }
     }
- 
+
     if (version_id >= 6)
         qemu_get_buffer(f, (uint8_t *)n->vlans, MAX_VLAN >> 3);
 

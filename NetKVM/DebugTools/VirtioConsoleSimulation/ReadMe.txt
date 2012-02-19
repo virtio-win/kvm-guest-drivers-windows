@@ -3,7 +3,7 @@
 ========================================================================
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-Virtio files used here are ORIGINAL files from VirtIO library 
+Virtio files used here are ORIGINAL files from VirtIO library
 If you modify them, you affect all the projects
 VirtIOPCI.c
 VirtIORing.c
@@ -20,7 +20,7 @@ Script organization:
 Script contains:
 1.Labels (for example :label1). Case insensitive.
 2.Comments (start from ; or from // )
-3.Commands with parameters 
+3.Commands with parameters
 Parameters can be:
 a) strings, with or without quotes. If spaces are inside, quotes are mandatory
 b) integers - negative (with - before number) or positive (without sign)
@@ -43,6 +43,7 @@ add {string=variable name} {integer=value} (add index 1) (add index1 -1) (add in
 special variables:
 use_published_events: to be used before "prepare" command. Default=1
 use_merged_buffers: to be used before "prepare" command. Default=1
+use_msix: to be used before "prepare" command. Default=0
 use_indirect: Default=0. If 1, tx transmits using indirect;
 
 3. Functional commands:
@@ -54,7 +55,7 @@ txget {integer=serial number of packet} gets completed sent packet with specifie
       if packet is not completed or serial is different - produces error
 txrestart {integer=expected value} calls restart operation on Tx queue
       if returned value is not equal to parameter - produces error
-txen,txdis,rxen,rxdis call enable/disable interrupt	on Tx or Rx queue   
+txen,txdis,rxen,rxdis call enable/disable interrupt	on Tx or Rx queue
 recv {integer=serial number} receives packet with specified serial number into RX queue
 rxget {integer=serial number} - retrieves packet from Rx queue and AS IF indicates it to the system
       if packet is not available or serial is different - produces error

@@ -1,9 +1,52 @@
 
-goto TestSimpleTxIndirect
+goto TestMsiGetSet
 
 
 //.preprocess loud
 //.preprocess quiet
+
+//TestMsiGetSet
+//TestGetSet
+//TestSimpleTxIndirect
+//TestTx10x3_NoPubAsync
+//TestTx10x3_PubAsync
+//TestTx10x3_NoPubSync
+//TestTx10x3_PubSync
+//TestSimpleTxPubMerged
+//TestSimpleTxNoPubNoMerged
+//TestSimpleRxPubMerged
+//TestSimpleRxNoPubMerged
+//TestPrepare
+//TestSetVar
+
+:TestMsiGetSet
+set use_msix 1
+goto TestGetSet
+
+:TestGetSet
+prepare
+set i 0
+set val 100
+:do1TestGetSet
+dataget $i $val
+add i 1
+add val -1
+if "i lt 8" "goto do1TestGetSet"
+set i 0
+set val 9
+:do2TestGetSet
+dataset $i $val
+add i 1
+add val 1
+if "i lt 8" "goto do2TestGetSet"
+set i 0
+set val 9
+:do3TestGetSet
+dataget $i $val
+add i 1
+add val 1
+if "i lt 8" "goto do3TestGetSet"
+end
 
 
 :TestSimpleTxIndirect
@@ -155,7 +198,7 @@ add var2 0
 set var3 11
 if "var2 eq 8" "goto end"
 set var4 25
-goto Test8 
+goto Test8
 
 ;TestIf1 - if true
 :TestIf1

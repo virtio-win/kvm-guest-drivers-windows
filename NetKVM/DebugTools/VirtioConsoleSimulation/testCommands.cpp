@@ -37,7 +37,7 @@ EXTERN_C void *AllocateMemory(size_t size)
 EXTERN_C void DeallocateMemory(void *p)
 {
 	void *pp;
-	if (deallocator.Lookup(p, pp) && pp == p) 
+	if (deallocator.Lookup(p, pp) && pp == p)
 	{
 		deallocator.RemoveKey(p);
 		free(p);
@@ -81,19 +81,19 @@ class tParameter
 public:
 	tParamType _type;
 	tParameter() { _type = ptNone; }
-	tParameter(UINT v) 
-	{ 
-		_type = ptInteger; 
-		integerValue = v; 
+	tParameter(UINT v)
+	{
+		_type = ptInteger;
+		integerValue = v;
 		content.Format("%d", v);
 	}
-	tParameter(const tParameter& param) 
+	tParameter(const tParameter& param)
 	{
 		*this = param;
 	}
 	void operator = (const tParameter& param)
-	{ 
-		_type = param._type; 
+	{
+		_type = param._type;
 		integerValue = param.integerValue;
 		content = param.content;
 		queryContext = param.queryContext;
@@ -101,7 +101,7 @@ public:
 	}
 	bool IsString() const {return _type == ptString; }
 	LPCSTR String() const {return content; }
-	CString Printable() const 
+	CString Printable() const
 	{
 		CString s;
 		switch(_type)
@@ -112,7 +112,7 @@ public:
 			case ptIntegerRef: s.Format("\"$%s\"", content); break;
 			default: s = "OOPS"; break;
 		}
-		return s; 
+		return s;
 	}
 	const tParameter& operator = (const char *s)
 	{
@@ -184,13 +184,15 @@ typedef enum _tCommandId
 	cmdRxEnableInterrupt,
 	cmdRxDisableInterrupt,
 	cmdRxGet,
+	cmdDataGet,
+	cmdDataSet
 }tCommandId;
 
 class CParametersArray : public CArray<tParameter *>
 {
 public:
 	CParametersArray() {}
-	CParametersArray(const CParametersArray& a) 
+	CParametersArray(const CParametersArray& a)
 	{
 		int i;
 		for (i = 0; i < a.GetCount(); ++i)
@@ -273,9 +275,9 @@ class tScriptState
 protected:
 	ULONG result;
 	FILE *f;
-	int currentCommandIndex; 
-	ULONG currentLine; 
-	ULONG currentDot; 
+	int currentCommandIndex;
+	ULONG currentLine;
+	ULONG currentDot;
 	CList<tLabel *> Labels;
 	CArray<tCommand *> Commands;
 	PVOID ref;
@@ -308,7 +310,7 @@ public:
 	}
 	bool Run();
 	bool GetVariable (LPCSTR s, ULONG& value)  const;
-	bool IsFailed() const { return bFailed;} 
+	bool IsFailed() const { return bFailed;}
 	~tScriptState()
 	{
 		int i;
@@ -323,11 +325,11 @@ public:
 			tLabel *pLabel = Labels.GetAt(pos);
 			delete pLabel;
 			Labels.GetNext(pos);
-		} 
+		}
 	}
 };
 
-static tCommandDescription commands[] = 
+static tCommandDescription commands[] =
 {
 	/* ------- standard part of commands ---------*/
 	{ "comment", cmdComment, ";" },
@@ -355,6 +357,8 @@ static tCommandDescription commands[] =
 	{ NULL, cmdRxRestart, "rxrestart", {ptInteger} },
 	{ NULL, cmdRxEnableInterrupt, "rxen" },
 	{ NULL, cmdRxDisableInterrupt, "rxdis" },
+	{ NULL, cmdDataGet, "dataget", {ptInteger, ptInteger} },
+	{ NULL, cmdDataSet, "dataset", {ptInteger, ptInteger} },
 };
 
 static const char *FindToken(tCommandId id)
@@ -378,7 +382,7 @@ static ULONG NumberOfParameters(const _tCommandDecs& cmdDesc)
 	ULONG n = 0, i, nMax = 0;
 	for (i = 0; i < ELEMENTS_IN(cmdDesc.types); ++i)
 	{
-		if (cmdDesc.types[i] != ptNone) nMax = i + 1; 
+		if (cmdDesc.types[i] != ptNone) nMax = i + 1;
 	}
 	return nMax;
 }
@@ -396,7 +400,7 @@ ULONG tScriptState::ReadCommand(CString& s)
 	char buf[256];
 	if (!fgets(buf, sizeof(buf) - 1, f))
 	{
-		if (feof(f)) s = FindToken(cmdEnd); 
+		if (feof(f)) s = FindToken(cmdEnd);
 		else s = "<Error reading from file>";
 	}
 	else
@@ -444,14 +448,14 @@ bool tScriptState::GetParam(CString& s, tParamType paramType, CString& dest, tPa
 			}
 			else
 			{
-				while (IsSuitableCharForString(s[0])) { dest += s[0]; s.Delete(0, 1); }			
+				while (IsSuitableCharForString(s[0])) { dest += s[0]; s.Delete(0, 1); }
 			}
 			bOK = !dest.IsEmpty();
 			param = dest;
 			break;
 		case ptInteger:
 			if (s[0] == '-') { dest += s[0]; s.Delete(0, 1); }
-			while (isdigit(s[0])) { dest += s[0]; s.Delete(0, 1); }			
+			while (isdigit(s[0])) { dest += s[0]; s.Delete(0, 1); }
 			bOK = !dest.IsEmpty();
 			param = dest;
 			if (bOK)
@@ -465,7 +469,7 @@ bool tScriptState::GetParam(CString& s, tParamType paramType, CString& dest, tPa
 			else if (s[0] == '$')
 			{
 				s.Delete(0,1);
-				while (IsSuitableCharForString(s[0])) { dest += s[0]; s.Delete(0, 1); }			
+				while (IsSuitableCharForString(s[0])) { dest += s[0]; s.Delete(0, 1); }
 				param.Refer(dest, QueryVariable, this);
 				bOK = TRUE;
 			}
@@ -492,7 +496,7 @@ bool tScriptState::FillParameters(CString& s, tCommand& cmd, const _tCommandDecs
 		if (bOK) cmd.params.Add(pParam);
 		else delete pParam;
 	}
-	if (!bOK) 
+	if (!bOK)
 	{
 		FailCase("Command %04d:%s Can't retrieve parameter %d from \"%s\"",
 		cmd.step,
@@ -590,10 +594,10 @@ bool tScriptState::FindLabelByName(const tParameter& param, ULONG *pStep)
 		if (!pLabel->name.CompareNoCase(param.String()))
 		{
 			if (pStep) *pStep = pLabel->index;
-			return TRUE;	
+			return TRUE;
 		}
 		Labels.GetNext(pos);
-	} 
+	}
 
 	return FALSE;
 }
@@ -604,11 +608,11 @@ bool tScriptState::EvaluateCondition(CString s)
 	CString sPrintable;
 	CString sTemp;
 	sPrintable.Format("Evaluating %s", (LPCSTR)s );
-	if (!s.CompareNoCase("true")) 
+	if (!s.CompareNoCase("true"))
 	{
 		b = TRUE;
 	}
-	else if (!s.CompareNoCase("false")) 
+	else if (!s.CompareNoCase("false"))
 	{
 
 	}
@@ -652,6 +656,10 @@ bool tScriptState::EvaluateCondition(CString s)
 				{
 					b = val != operand;
 				}
+			}
+			else
+			{
+				FailCase("Variable %s does not exist", cmd.params[0]->String());
 			}
 		}
 	}
@@ -741,6 +749,8 @@ bool tScriptState::ExecuteCommand(tCommand& cmd)
 					bUseMergedBuffers = !!data;
 				if (GetVariable("use_published_events", data))
 					bUsePublishedIndices = !!data;
+				if (GetVariable("use_msix", data))
+					bMSIXUsed = !!data;
 				SimulationPrepare();
 			}
 			break;
@@ -774,6 +784,27 @@ bool tScriptState::ExecuteCommand(tCommand& cmd)
 				RxReceivePacket((UCHAR)cmd.params[0]->Value());
 			}
 			break;
+		case cmdDataGet:
+			{
+				UCHAR offset, val, res;
+				offset = (UCHAR)cmd.params[0]->Value();
+				val = (UCHAR)cmd.params[1]->Value();
+				res = GetDeviceData(offset);
+				if (res != val)
+				{
+					FailCase("cmdDataGet(%d) = %d, expected %d", offset, res, val);
+				}
+			}
+			break;
+		case cmdDataSet:
+			{
+				UCHAR offset, val;
+				offset = (UCHAR)cmd.params[0]->Value();
+				val = (UCHAR)cmd.params[1]->Value();
+				SetDeviceData(offset, val);
+			}
+			break;
+
 		case cmdRxRestart:
 			{
 				BOOLEAN bExpected = (BOOLEAN)cmd.params[0]->Value();
@@ -806,12 +837,12 @@ bool tScriptState::ExecuteCommand(tCommand& cmd)
 			break;
 		case cmdRxEnableInterrupt:
 			{
-				RxEnableInterrupt(TRUE);		
+				RxEnableInterrupt(TRUE);
 			}
 			break;
 		case cmdRxDisableInterrupt:
 			{
-				RxEnableInterrupt(FALSE);		
+				RxEnableInterrupt(FALSE);
 			}
 			break;
 		case cmdRxGet:
@@ -881,7 +912,7 @@ bool tScriptState::PreprocessCommand(tCommand& cmd, CString& s, bool& bSilent)
 				}
 			}
 			break;
-		default: 			
+		default:
 			bAdd = TRUE;
 			break;
 	}
@@ -910,7 +941,7 @@ void tScriptState::PreprocessScript(bool& bSilent)
 
 BOOLEAN RunScript(const char *name, PVOID ref, tScriptCallback callback)
 {
-	BOOLEAN b; 
+	BOOLEAN b;
 	tScriptState state(name, ref, callback);
 	b = state.Run();
 	SimulationFinish();

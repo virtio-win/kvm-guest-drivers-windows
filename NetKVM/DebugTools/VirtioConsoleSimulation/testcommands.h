@@ -9,6 +9,7 @@ EXTERN_C BOOLEAN bHostHasVnetHdr;
 EXTERN_C BOOLEAN bVirtioF_NotifyOnEmpty;
 EXTERN_C BOOLEAN bAsyncTransmit;
 EXTERN_C BOOLEAN bUseIndirectTx;
+EXTERN_C BOOLEAN bMSIXUsed;
 
 
 #define LogTestFlow(format, ...) DoPrint("[test]" format, __VA_ARGS__)
@@ -49,6 +50,10 @@ EXTERN_C void RxReceivePacket(UCHAR fill);
 EXTERN_C void CompleteTx(int num);
 
 EXTERN_C void GetTxBuffer(ULONG serial);
+
+EXTERN_C UCHAR GetDeviceData(UCHAR offset);
+
+EXTERN_C void SetDeviceData(UCHAR offset, UCHAR val);
 
 /* management of packets until they're returned */
 EXTERN_C void KeepRxPacket(void *buffer, ULONG serial);

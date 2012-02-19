@@ -34,7 +34,7 @@ struct iovec
 	uint32_t iov_len;
 };
 
-static size_t qemu_sendv_packet_async(PVOID p, struct iovec *out_sg, unsigned int out_num, void *completeproc); 
+static size_t qemu_sendv_packet_async(PVOID p, struct iovec *out_sg, unsigned int out_num, void *completeproc);
 
 
 typedef struct VirtQueueElement
@@ -564,7 +564,7 @@ int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem)
 
 static void virtio_queue_notify_vq(VirtQueue *vq)
 {
-    if (vq->vring.desc) 
+    if (vq->vring.desc)
 	{
         //VirtIODevice *vdev = vq->vdev;
 		PVOID hardwareDevice = vq->hardwareDevice;
@@ -576,16 +576,18 @@ static void virtio_queue_notify_vq(VirtQueue *vq)
 typedef struct _tHardwareDevice
 {
 	PVOID hostDev;
-	
+
 	VirtQueue tx;
 	VirtQueue rx;
-		
+	VirtQueue ctrl;
+	VirtQueue aux;
+
 	BYTE status;
 	BYTE interrupt;
 
 	unsigned long TxInterrupts;
 	unsigned long RxInterrupts;
-	
+
 	BOOLEAN bShallComplete;
 
 	struct
@@ -600,6 +602,8 @@ static void resetDevice(tHardwareDevice *pd)
 {
 	virtqueue_reset(&pd->rx);
 	virtqueue_reset(&pd->tx);
+	virtqueue_reset(&pd->ctrl);
+	virtqueue_reset(&pd->aux);
 }
 
 void virtio_notify(tHardwareDevice *pd, VirtQueue *pQueue)
@@ -697,6 +701,41 @@ static int32_t virtio_net_flush_tx(PVOID hardwareDevice, VirtQueue *vq)
 }
 
 
+static void virtio_handle_ctrl(PVOID hardwareDevice, VirtQueue *vq)
+{
+    tHardwareDevice *pd = (tHardwareDevice *)hardwareDevice;
+	VirtQueueElement elem;
+	while (virtqueue_pop(vq, &elem)) {
+        size_t ret, len = 0;
+        unsigned int out_num = elem.out_num;
+        struct iovec *out_sg = &elem.out_sg[0];
+
+		ret = 1;
+		len += ret;
+
+		virtqueue_push(vq, &elem, len);
+		virtio_notify(pd, vq);
+	}
+	LogTestFlow("%s\n",__FUNCTION__);
+}
+
+static void virtio_handle_aux(PVOID hardwareDevice, VirtQueue *vq)
+{
+    tHardwareDevice *pd = (tHardwareDevice *)hardwareDevice;
+	VirtQueueElement elem;
+	while (virtqueue_pop(vq, &elem)) {
+        size_t ret, len = 0;
+        unsigned int out_num = elem.out_num;
+        struct iovec *out_sg = &elem.out_sg[0];
+
+		ret = 1;
+		len += ret;
+
+		virtqueue_push(vq, &elem, len);
+		virtio_notify(pd, vq);
+	}
+	LogTestFlow("%s\n", __FUNCTION__);
+}
 
 
 static void virtio_net_handle_tx_timer(PVOID hardwareDevice, VirtQueue *vq)
@@ -780,12 +819,24 @@ void *hwCreateDevice(void *pHostDevice)
 	pd->hostDev = pHostDevice;
 	pd->rx.vring.num = 256;
 	pd->rx.vector = RXQ_INTERRUPT_VECTOR;
-	pd->tx.vring.num = 256;
-	pd->rx.hardwareDevice = pd;
-	pd->tx.vector = TXQ_INTERRUPT_VECTOR;
 	pd->rx.handle_output = virtio_net_handle_rx;
+	pd->rx.hardwareDevice = pd;
+
+	pd->tx.vring.num = 256;
+	pd->tx.vector = TXQ_INTERRUPT_VECTOR;
 	pd->tx.handle_output = virtio_net_handle_tx_timer;
 	pd->tx.hardwareDevice = pd;
+
+	pd->ctrl.vring.num = 4;
+	pd->ctrl.vector = CTL_INTERRUPT_VECTOR;
+	pd->ctrl.handle_output = virtio_handle_ctrl;
+	pd->ctrl.hardwareDevice = pd;
+
+	pd->aux.vring.num = 16;
+	pd->aux.vector = AUX_INTERRUPT_VECTOR;
+	pd->aux.handle_output = virtio_handle_aux;
+	pd->aux.hardwareDevice = pd;
+
 	return pd;
 }
 
@@ -801,11 +852,17 @@ unsigned short hwGetQueueSize(void *pHw, unsigned short queueIndex)
 	USHORT val = 0;
 	switch(queueIndex)
 	{
-		case 0:
+		case RX_QUEUE_NUMBER:
 			val = pd->rx.vring.num;
 			break;
-		case 1:
+		case TX_QUEUE_NUMBER:
 			val = pd->tx.vring.num;
+			break;
+		case CTL_QUEUE_NUMBER:
+			val = pd->ctrl.vring.num;
+			break;
+		case AUX_QUEUE_NUMBER:
+			val = pd->aux.vring.num;
 			break;
 		default:
 			break;
@@ -819,11 +876,17 @@ ULONG hwGetQueuePfn(void *pHw, unsigned short queueIndex)
 	ULONG val = 0;
 	switch(queueIndex)
 	{
-		case 0:
+		case RX_QUEUE_NUMBER:
 			val = (ULONG)(pd->rx.pa >> 12);
 			break;
-		case 1:
+		case TX_QUEUE_NUMBER:
 			val = (ULONG)(pd->tx.pa >> 12);
+			break;
+		case CTL_QUEUE_NUMBER:
+			val = (ULONG)(pd->ctrl.pa >> 12);
+			break;
+		case AUX_QUEUE_NUMBER:
+			val = (ULONG)(pd->aux.pa >> 12);
 			break;
 		default:
 			FailCase("[%s](%d)", __FUNCTION__, queueIndex);
@@ -837,13 +900,21 @@ void hwSetQueuePfn(void *pHw, unsigned short queueIndex, ULONG val)
 	tHardwareDevice *pd = (tHardwareDevice *)pHw;
 	switch(queueIndex)
 	{
-		case 0:
+		case RX_QUEUE_NUMBER:
 			pd->rx.pa = ((ULONGLONG)val) << 12;
 			virtqueue_init(&pd->rx);
 			break;
-		case 1:
+		case TX_QUEUE_NUMBER:
 			pd->tx.pa = ((ULONGLONG)val) << 12;
 			virtqueue_init(&pd->tx);
+			break;
+		case CTL_QUEUE_NUMBER:
+			pd->ctrl.pa = ((ULONGLONG)val) << 12;
+			virtqueue_init(&pd->ctrl);
+			break;
+		case AUX_QUEUE_NUMBER:
+			pd->aux.pa = ((ULONGLONG)val) << 12;
+			virtqueue_init(&pd->aux);
 			break;
 		default:
 			FailCase("[%s](%d)", __FUNCTION__, queueIndex);
@@ -881,11 +952,17 @@ void hwQueueNotify(void *pHw, WORD wValue)
 	tHardwareDevice *pd = (tHardwareDevice *)pHw;
 	switch(wValue)
 	{
-		case 0:
+		case RX_QUEUE_NUMBER:
 			virtio_queue_notify_vq(&pd->rx);
 			break;
-		case 1:
+		case TX_QUEUE_NUMBER:
 			virtio_queue_notify_vq(&pd->tx);
+			break;
+		case CTL_QUEUE_NUMBER:
+			virtio_queue_notify_vq(&pd->ctrl);
+			break;
+		case AUX_QUEUE_NUMBER:
+			virtio_queue_notify_vq(&pd->aux);
 			break;
 		default:
 			FailCase("[%s](%d)", __FUNCTION__, wValue);
@@ -1103,5 +1180,29 @@ void hwGetInterrups(void *pHw, unsigned long *ptx, unsigned long *prx)
 	tHardwareDevice *pd = (tHardwareDevice *)pHw;
 	*ptx = pd->TxInterrupts;
 	*prx = pd->RxInterrupts;
+}
+
+static BYTE DeviceData[] = { 100, 99, 98, 97, 96, 95, 94, 93, 92, 91, 90, 89 };
+
+bool hwReadDeviceData(void *pHw, ULONG reg, BYTE *pval)
+{
+	ULONG lowerLimit, upperLimit;
+	bool b;
+	lowerLimit = bMSIXUsed ? 24 : 20;
+	upperLimit = 32;
+	b = reg >= lowerLimit && reg < upperLimit;
+	if (b) *pval = DeviceData[reg - lowerLimit];
+	return b;
+}
+
+bool hwWriteDeviceData(void *pHw, ULONG reg, BYTE val)
+{
+	ULONG lowerLimit, upperLimit;
+	bool b;
+	lowerLimit = bMSIXUsed ? 24 : 20;
+	upperLimit = 32;
+	b = reg >= lowerLimit && reg < upperLimit;
+	if (b) DeviceData[reg - lowerLimit] = val;
+	return b;
 }
 
