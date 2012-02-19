@@ -32,11 +32,31 @@
 // VirtIODeviceInitialize - initializes the device structure
 //
 /////////////////////////////////////////////////////////////////////////////////////
-void VirtIODeviceInitialize(VirtIODevice * pVirtIODevice, ULONG_PTR addr)
+void VirtIODeviceInitialize(VirtIODevice * pVirtIODevice, ULONG_PTR addr, ULONG allocatedSize)
 {
 	DPrintf(4, ("%s\n", __FUNCTION__));
-	memset(pVirtIODevice, 0, sizeof(*pVirtIODevice));
+	memset(pVirtIODevice, 0, allocatedSize);
 	pVirtIODevice->addr = addr;
+	if (allocatedSize >= sizeof(VirtIODevice))
+	{
+		pVirtIODevice->maxQueues = MAX_QUEUES_PER_DEVICE_DEFAULT +
+			(allocatedSize - sizeof(VirtIODevice)) / sizeof(tVirtIOPerQueueInfo);
+	}
+	else
+	{
+		ULONG requiredSize = sizeof(VirtIODevice);
+		pVirtIODevice->maxQueues = MAX_QUEUES_PER_DEVICE_DEFAULT;
+		while (pVirtIODevice->maxQueues && requiredSize > allocatedSize)
+		{
+			pVirtIODevice->maxQueues--;
+			requiredSize -= sizeof(tVirtIOPerQueueInfo);
+		}
+	}
+}
+
+void VirtIODeviceSetMSIXUsed(VirtIODevice * pVirtIODevice, bool used)
+{
+	pVirtIODevice->msix_used = used != 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -143,7 +163,7 @@ void VirtIODeviceGet(VirtIODevice * pVirtIODevice,
 							void *buf,
 							unsigned len)
 {
-	ULONG_PTR ioaddr = pVirtIODevice->addr + VIRTIO_PCI_CONFIG + offset;
+	ULONG_PTR ioaddr = pVirtIODevice->addr + VIRTIO_PCI_CONFIG(pVirtIODevice->msix_used) + offset;
 	u8 *ptr = buf;
 	unsigned i;
 
@@ -158,7 +178,7 @@ void VirtIODeviceSet(VirtIODevice * pVirtIODevice,
 							   const void *buf,
 							   unsigned len)
 {
-	ULONG_PTR ioaddr = pVirtIODevice->addr + VIRTIO_PCI_CONFIG + offset;
+	ULONG_PTR ioaddr = pVirtIODevice->addr + VIRTIO_PCI_CONFIG(pVirtIODevice->msix_used) + offset;
 	const u8 *ptr = buf;
 	unsigned i;
 
@@ -216,7 +236,7 @@ static void _VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned ind
 	*pNumEntries = 0;
 	*pAllocationSize = 0;
 
-	if (index < MAX_QUEUES_PER_DEVICE && sizeof(struct vring_desc) == SIZE_OF_SINGLE_INDIRECT_DESC)
+	if (index < vp_dev->maxQueues && sizeof(struct vring_desc) == SIZE_OF_SINGLE_INDIRECT_DESC)
 	{
 		// Select the queue we're interested in
 		WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_SEL, (u16) index);

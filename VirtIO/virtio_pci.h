@@ -43,10 +43,6 @@
  * a read-and-acknowledge. */
 #define VIRTIO_PCI_ISR			19
 
-/* The remaining space is defined by each driver as the per-driver
- * configuration space */
-#define VIRTIO_PCI_CONFIG		20
-
 /* MSI-X registers: only enabled if MSI-X is enabled. */
 /* A 16-bit vector for configuration changes. */
 #define VIRTIO_MSI_CONFIG_VECTOR        20
@@ -55,7 +51,12 @@
 /* Vector value used to disable MSI for queue */
 #define VIRTIO_MSI_NO_VECTOR            0xffff
 
-#define MAX_QUEUES_PER_DEVICE	16
+/* The remaining space is defined by each driver as the per-driver
+ * configuration space. The actual start offset of this area depends on
+ * whether MSI-X is used by the device */
+#define VIRTIO_PCI_CONFIG(msix_used)	((msix_used) ? 24 : 20)
+
+#define MAX_QUEUES_PER_DEVICE_DEFAULT			8
 
 typedef struct _tVirtIOPerQueueInfo
 {
@@ -76,10 +77,43 @@ typedef struct _tVirtIOPerQueueInfo
 typedef struct TypeVirtIODevice
 {
 	ULONG_PTR addr;
-	tVirtIOPerQueueInfo info[MAX_QUEUES_PER_DEVICE];
+	ULONG msix_used         : 1;
+	ULONG maxQueues;
+	tVirtIOPerQueueInfo info[MAX_QUEUES_PER_DEVICE_DEFAULT];
+	/* do not add any members after info struct, it is extensible */
 } VirtIODevice;
 
-void VirtIODeviceInitialize(VirtIODevice * pVirtIODevice, ULONG_PTR addr);
+
+/***************************************************
+shall be used only if VirtIODevice device storage is allocated
+dynamically to provide support for more than 8 (MAX_QUEUES_PER_DEVICE_DEFAULT) queues.
+return size in bytes to allocate for VirtIODevice structure.
+***************************************************/
+ULONG __inline VirtIODeviceSizeRequired(USHORT maxNumberOfQueues)
+{
+	ULONG size = sizeof(VirtIODevice);
+	if (maxNumberOfQueues > MAX_QUEUES_PER_DEVICE_DEFAULT)
+	{
+		size += sizeof(tVirtIOPerQueueInfo) * (maxNumberOfQueues - MAX_QUEUES_PER_DEVICE_DEFAULT);
+	}
+	return size;
+}
+
+/***************************************************
+addr - start of IO address space (usually 32 bytes)
+allocatedSize - sizeof(VirtIODevice) if static or built-in allocation used
+
+if allocated dynamically to provide support for more than MAX_QUEUES_PER_DEVICE_DEFAULT queues
+allocatedSize should be at least VirtIODeviceSizeRequired(...) and pVirtIODevice should be aligned
+at 8 bytes boundary (OS allocation does it automatically
+***************************************************/
+void VirtIODeviceInitialize(VirtIODevice * pVirtIODevice, ULONG_PTR addr, ULONG allocatedSize);
+/***************************************************
+shall be called if the device currently uses MSI-X feature
+as soon as possible after initialization
+before use VirtIODeviceGet or VirtIODeviceSet
+***************************************************/
+void VirtIODeviceSetMSIXUsed(VirtIODevice * pVirtIODevice, bool used);
 void VirtIODeviceReset(VirtIODevice * pVirtIODevice);
 void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice);
 bool VirtIODeviceGetHostFeature(VirtIODevice * pVirtIODevice, unsigned uFeature);
