@@ -314,7 +314,7 @@ VirtIoFindAdapter(
         return SP_RETURN_ERROR;
     }
 
-	VirtIODeviceInitialize(&adaptExt->vdev, deviceBase);
+	VirtIODeviceInitialize(&adaptExt->vdev, deviceBase, sizeof(adaptExt->vdev));
 	adaptExt->msix_enabled = FALSE;
 
 #ifdef MSI_SUPPORTED
@@ -359,6 +359,7 @@ VirtIoFindAdapter(
                     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("CapabilityID = %x, Next CapOffset = %x\n", pMsixCapOffset->Header.CapabilityID, CapOffset));
                  }
               }
+              VirtIODeviceSetMSIXUsed(&adaptExt->vdev, adaptExt->msix_enabled);
            }
            else
            {

@@ -74,7 +74,7 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regi
     //TBD - Read nDebugLevel and bDebugPrint from the registry
     bDebugPrint = 1;
     virtioDebugLevel = 0;
-	virtioDebugLevel = TRACE_LEVEL_ERROR;
+	nViostorDebugLevel = TRACE_LEVEL_ERROR;
 
 #if defined(EVENT_TRACING)
 	VirtioDebugPrintProc = DebugPrintFuncWPP;
