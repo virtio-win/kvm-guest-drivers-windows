@@ -367,19 +367,19 @@ static NDIS_STATUS SetInterruptMessage(PARANDIS_ADAPTER *pContext, UINT queueInd
 	{
 	case 0: // Rx queue interrupt:
 		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_QUEUE_SEL, (u16)queueIndex);
-		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_CONFIG + 2, (u16)messageIndex);
-		val = ReadVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_CONFIG + 2);
+		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_QUEUE_VECTOR, (u16)messageIndex);
+		val = ReadVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_QUEUE_VECTOR);
 		pMessage = &pContext->ulRxMessage;
 		break;
 	case 1: // Tx queue interrupt:
 		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_QUEUE_SEL, (u16)queueIndex);
-		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_CONFIG + 2, (u16)messageIndex);
-		val = ReadVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_CONFIG + 2);
+		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_QUEUE_VECTOR, (u16)messageIndex);
+		val = ReadVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_QUEUE_VECTOR);
 		pMessage = &pContext->ulTxMessage;
 		break;
 	case 2: // config interrupt
-		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_CONFIG, (u16)messageIndex);
-		val = ReadVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_CONFIG);
+		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_CONFIG_VECTOR, (u16)messageIndex);
+		val = ReadVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_CONFIG_VECTOR);
 		pMessage = &pContext->ulControlMessage;
 		break;
 	default:
@@ -522,7 +522,7 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
 		{
 			DPrintf(0, ("[%s] ERROR: Interrupt type %d, message table %p",
 				__FUNCTION__, mic.InterruptType, mic.MessageInfoTable));
-			pContext->bUsingMSIX = FALSE;
+			status = NDIS_STATUS_RESOURCE_CONFLICT;
 		}
 		ParaNdis6_ApplyOffloadPersistentConfiguration(pContext);
 	}

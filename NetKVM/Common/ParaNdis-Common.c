@@ -554,7 +554,8 @@ NDIS_STATUS ParaNdis_InitializeContext(
 			pContext->bUsingMSIX = TRUE;
 		}
 
-		VirtIODeviceInitialize(&pContext->IODevice, pContext->AdapterResources.ulIOAddress);
+		VirtIODeviceInitialize(&pContext->IODevice, pContext->AdapterResources.ulIOAddress, sizeof(pContext->IODevice));
+		VirtIODeviceSetMSIXUsed(&pContext->IODevice, pContext->bUsingMSIX);
 		JustForCheckClearInterrupt(pContext, "init 0");
 		ParaNdis_ResetVirtIONetDevice(pContext);
 		JustForCheckClearInterrupt(pContext, "init 1");
@@ -582,7 +583,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 		{
 			VirtIODeviceGet(
 				&pContext->IODevice,
-				pContext->bUsingMSIX ? 4 : 0, // offsetof(struct virtio_net_config, mac)
+				0, // offsetof(struct virtio_net_config, mac)
 				&pContext->PermanentMacAddress,
 				ETH_LENGTH_OF_ADDRESS);
 			if (!ParaNdis_ValidateMacAddress(pContext->PermanentMacAddress, FALSE))
@@ -1849,7 +1850,7 @@ void ParaNdis_ReportLinkStatus(PARANDIS_ADAPTER *pContext)
 	if (pContext->bLinkDetectSupported)
 	{
 		USHORT linkStatus = 0;
-		USHORT offset = (pContext->bUsingMSIX ? 4 : 0) + sizeof(pContext->CurrentMacAddress);
+		USHORT offset = sizeof(pContext->CurrentMacAddress);
 		// link changed
 		VirtIODeviceGet(&pContext->IODevice, offset, &linkStatus, sizeof(linkStatus));
 		bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
