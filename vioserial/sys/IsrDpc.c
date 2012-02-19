@@ -13,7 +13,7 @@ VIOSerialInterruptIsr(
     ULONG          ret;
     PPORTS_DEVICE  pContext = GetPortsDevice(WdfInterruptGetDevice(Interrupt));
 
-    if((ret = VirtIODeviceISR(&pContext->IODevice)) > 0)
+    if((ret = VirtIODeviceISR(pContext->pIODevice)) > 0)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "Got ISR - it is ours %d!\n", ret);
         WdfInterruptQueueDpcForIsr(Interrupt);

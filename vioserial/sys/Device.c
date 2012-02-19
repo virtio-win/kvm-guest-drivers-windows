@@ -173,16 +173,29 @@ VIOSerialEvtDevicePrepareHardware(
 {
     int nListSize = 0;
     PCM_PARTIAL_RESOURCE_DESCRIPTOR pResDescriptor;
+	WDF_INTERRUPT_INFO interruptInfo;
     int i = 0;
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
     bool bPortFound = FALSE;
     NTSTATUS status = STATUS_SUCCESS;
-    UINT nr_ports;
+    UINT nr_ports, max_queues, size_to_allocate;
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
 
-    nListSize = WdfCmResourceListGetCount(ResourcesTranslated);
+    max_queues = 64; // 2 for each of max 32 ports
+	size_to_allocate = VirtIODeviceSizeRequired((USHORT)max_queues);
+
+	pContext->pIODevice = (VirtIODevice *)ExAllocatePoolWithTag(
+                                 NonPagedPool,
+                                 size_to_allocate,
+                                 VIOSERIAL_DRIVER_MEMORY_TAG);
+	if (NULL == pContext->pIODevice)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	nListSize = WdfCmResourceListGetCount(ResourcesTranslated);
 
     for (i = 0; i < nListSize; i++)
     {
@@ -229,27 +242,30 @@ VIOSerialEvtDevicePrepareHardware(
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "%s>>> %s", __FUNCTION__, "IO port wasn't found!\n");
         return STATUS_DEVICE_CONFIGURATION_ERROR;
     }
+    WDF_INTERRUPT_INFO_INIT(&interruptInfo);
+    WdfInterruptGetInfo(pContext->WdfInterrupt, &interruptInfo);
 
-    VirtIODeviceInitialize(&pContext->IODevice, (ULONG_PTR)pContext->pPortBase);
+    VirtIODeviceInitialize(pContext->pIODevice, (ULONG_PTR)pContext->pPortBase, size_to_allocate);
+	VirtIODeviceSetMSIXUsed(pContext->pIODevice, interruptInfo.MessageSignaled);
 
-    VirtIODeviceReset(&pContext->IODevice);
+    VirtIODeviceReset(pContext->pIODevice);
 
-    VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
+    VirtIODeviceAddStatus(pContext->pIODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
 
     pContext->consoleConfig.max_nr_ports = 1;
-    if(pContext->isHostMultiport = VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_CONSOLE_F_MULTIPORT))
+    if(pContext->isHostMultiport = VirtIODeviceGetHostFeature(pContext->pIODevice, VIRTIO_CONSOLE_F_MULTIPORT))
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "We have multiport host\n");
-        VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_CONSOLE_F_MULTIPORT);
-        VirtIODeviceGet(&pContext->IODevice,
+        VirtIODeviceEnableGuestFeature(pContext->pIODevice, VIRTIO_CONSOLE_F_MULTIPORT);
+        VirtIODeviceGet(pContext->pIODevice,
                                  FIELD_OFFSET(CONSOLE_CONFIG, max_nr_ports),
                                  &pContext->consoleConfig.max_nr_ports,
                                  sizeof(pContext->consoleConfig.max_nr_ports));
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
                                 "VirtIOConsoleConfig->max_nr_ports %d\n", pContext->consoleConfig.max_nr_ports);
-		if (pContext->consoleConfig.max_nr_ports >= MAX_QUEUES_PER_DEVICE / 2)
+		if (pContext->consoleConfig.max_nr_ports > pContext->pIODevice->maxQueues / 2)
 		{
-			pContext->consoleConfig.max_nr_ports = MAX_QUEUES_PER_DEVICE / 2 - 1;
+			pContext->consoleConfig.max_nr_ports = pContext->pIODevice->maxQueues / 2;
 			TraceEvents(TRACE_LEVEL_WARNING, DBG_PNP,
                                 "VirtIOConsoleConfig->max_nr_ports limited to %d\n", pContext->consoleConfig.max_nr_ports);
 		}
@@ -336,7 +352,12 @@ VIOSerialEvtDeviceReleaseHardware(
         pContext->out_vqs = NULL;
     }
 
-    return STATUS_SUCCESS;
+    if (pContext->pIODevice)
+	{
+        ExFreePoolWithTag(pContext->pIODevice, VIOSERIAL_DRIVER_MEMORY_TAG);
+		pContext->pIODevice = NULL;
+	}
+	return STATUS_SUCCESS;
 }
 
 static struct virtqueue * FindVirtualQueue(VirtIODevice *dev, ULONG index)
@@ -398,8 +419,8 @@ VIOSerialInitAllQueues(
     }
     for(i = 0, j = 0; i < nr_ports; i++)
     {
-        in_vq  = FindVirtualQueue(&pContext->IODevice, i * 2);
-        out_vq = FindVirtualQueue(&pContext->IODevice, (i * 2 ) + 1);
+        in_vq  = FindVirtualQueue(pContext->pIODevice, i * 2);
+        out_vq = FindVirtualQueue(pContext->pIODevice, (i * 2 ) + 1);
 
         if(i == 1) // Control Port
         {
@@ -452,7 +473,7 @@ VIOSerialShutDownAllQueues(
 
     //DumpQueues(WdfDevice);
 
-    VirtIODeviceRemoveStatus(&pContext->IODevice , VIRTIO_CONFIG_S_DRIVER_OK);
+    VirtIODeviceRemoveStatus(pContext->pIODevice , VIRTIO_CONFIG_S_DRIVER_OK);
 
     if(pContext->isHostMultiport)
     {
@@ -523,14 +544,14 @@ VIOSerialEvtDeviceD0Entry(
     if(!pContext->DeviceOK)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Setting VIRTIO_CONFIG_S_FAILED flag\n");
-        VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_FAILED);
+        VirtIODeviceAddStatus(pContext->pIODevice, VIRTIO_CONFIG_S_FAILED);
     }
     else
     {
         VIOSerialInitAllQueues(Device);
         VIOSerialRenewAllPorts(Device);
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Setting VIRTIO_CONFIG_S_DRIVER_OK flag\n");
-        VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+        VirtIODeviceAddStatus(pContext->pIODevice, VIRTIO_CONFIG_S_DRIVER_OK);
     }
 
     return STATUS_SUCCESS;

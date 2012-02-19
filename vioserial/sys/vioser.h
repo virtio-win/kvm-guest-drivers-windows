@@ -74,7 +74,7 @@ typedef struct _tagVirtioConsoleControl {
 
 typedef struct _tagPortDevice
 {
-    VirtIODevice        IODevice;
+    VirtIODevice        *pIODevice;
 
     PHYSICAL_ADDRESS    PortBasePA;
     ULONG               uPortLength;
