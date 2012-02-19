@@ -50,8 +50,6 @@ BalloonInit(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonInit\n");
 
-	VirtIODeviceInitialize(&devCtx->VDevice, (ULONG_PTR)devCtx->PortBase);
-
     VirtIODeviceReset(&devCtx->VDevice);
 
     VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
