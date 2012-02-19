@@ -100,6 +100,7 @@
   <ItemGroup>
     <None Include="buildOne.bat" />
     <None Include="cleanAll.bat" />
+    <None Include="makefile.inc" />
     <None Include="packOne.bat" />
     <None Include="readme.txt" />
     <None Include="sources" />

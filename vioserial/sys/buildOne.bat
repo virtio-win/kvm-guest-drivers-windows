@@ -14,6 +14,9 @@ popd
 
 set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% & 255)"
 set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_% 
+if exist ..\..\Tools\xdate.exe ..\..\Tools\xdate.exe -u > timestamp.txt
+if exist timestamp.txt set /p STAMPINF_DATE= < timestamp.txt
+del timestamp.txt    
 
 build -cZg
 

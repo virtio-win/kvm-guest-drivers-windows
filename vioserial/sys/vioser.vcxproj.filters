@@ -34,6 +34,9 @@
     <None Include="packOne.bat">
       <Filter>Build</Filter>
     </None>
+    <None Include="makefile.inc">
+      <Filter>Build</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Buffer.c">

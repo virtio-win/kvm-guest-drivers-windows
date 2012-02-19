@@ -75,6 +75,7 @@ goto after_cat2inf
 
 :run_cat2inf
 inf2cat /driver:..\Install\%INST_OS%\%INST_ARC% /os:%_OSMASK_%
+if exist ..\..\Tools\NetKVMTemporaryCert.pfx SignTool sign /f ..\..\Tools\NetKVMTemporaryCert.pfx /p password ..\Install\%INST_OS%\%INST_ARC%\%FILE_NAME%.cat
 rem pause
 :after_cat2inf
 
