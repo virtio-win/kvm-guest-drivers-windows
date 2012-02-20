@@ -364,7 +364,7 @@ VIOSerialDiscardPortData(
 )
 {
     struct virtqueue *vq;
-    PPORT_BUFFER buf;
+    PPORT_BUFFER buf = NULL;
     UINT len;
     PPORTS_DEVICE pContext = GetPortsDevice(port->BusDevice);
     NTSTATUS  status = STATUS_SUCCESS;
@@ -396,7 +396,7 @@ VIOSerialDiscardPortData(
     {
         buf = port->InBuf;
     }
-    else
+    else if (vq)
     {
         buf = vq->vq_ops->get_buf(vq, &len);
     }
