@@ -16,8 +16,14 @@
 #include "virtio_stor_utils.h"
 #include "virtio_stor_hw_helper.h"
 
-ULONG   RhelDbgLevel = TRACE_LEVEL_ERROR;
 BOOLEAN IsCrashDumpMode;
+
+extern int vring_add_buf_stor(
+    IN struct virtqueue *_vq,
+    IN struct VirtIOBufferDescriptor sg[],
+    IN unsigned int out,
+    IN unsigned int in,
+    IN PVOID data);
 
 BOOLEAN
 VirtIoHwInitialize(
@@ -115,6 +121,7 @@ CompleteDPC(
     IN ULONG  MessageID
     );
 
+
 ULONG
 DriverEntry(
     IN PVOID  DriverObject,
@@ -129,6 +136,8 @@ DriverEntry(
     UCHAR venId[4]  = {'1', 'A', 'F', '4'};
     UCHAR devId[4]  = {'1', '0', '0', '1'};
 #endif
+
+    InitializeDebugPrints(DriverObject, RegistryPath);
 
     RhelDbgPrint(TRACE_LEVEL_ERROR, ("Viostor driver started...built on %s %s\n", __DATE__, __TIME__));
     IsCrashDumpMode = FALSE;
@@ -199,10 +208,9 @@ VirtIoFindAdapter(
 
     PACCESS_RANGE      accessRange;
     PADAPTER_EXTENSION adaptExt;
-    ULONG_PTR          ptr;
-    ULONG              vr_sz;
-    ULONG              vq_sz;
-    USHORT             pageNum;
+    ULONG_PTR          deviceBase;
+    ULONG              allocationSize;
+    ULONG              pageNum;
 
 #ifdef MSI_SUPPORTED
     PPCI_COMMON_CONFIG pPciConf = NULL;
@@ -284,14 +292,14 @@ VirtIoFindAdapter(
     ConfigInfo->MaximumNumberOfTargets      = 1;
     ConfigInfo->MaximumNumberOfLogicalUnits = 1;
 
-    adaptExt->device_base = (ULONG_PTR)ScsiPortGetDeviceBase(DeviceExtension,
+    deviceBase = (ULONG_PTR)ScsiPortGetDeviceBase(DeviceExtension,
                                            ConfigInfo->AdapterInterfaceType,
                                            ConfigInfo->SystemIoBusNumber,
                                            accessRange->RangeStart,
                                            accessRange->RangeLength,
                                            (BOOLEAN)!accessRange->RangeInMemory);
 
-    if (adaptExt->device_base == (ULONG_PTR)NULL) {
+    if (deviceBase == (ULONG_PTR)NULL) {
         ScsiPortLogError(DeviceExtension,
                          NULL,
                          0,
@@ -306,7 +314,8 @@ VirtIoFindAdapter(
         return SP_RETURN_ERROR;
     }
 
-    adaptExt->msix_enabled = FALSE;
+	VirtIODeviceInitialize(&adaptExt->vdev, deviceBase, sizeof(adaptExt->vdev));
+	adaptExt->msix_enabled = FALSE;
 
 #ifdef MSI_SUPPORTED
     pci_cfg_len = StorPortGetBusData (DeviceExtension,
@@ -350,6 +359,7 @@ VirtIoFindAdapter(
                     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("CapabilityID = %x, Next CapOffset = %x\n", pMsixCapOffset->Header.CapabilityID, CapOffset));
                  }
               }
+              VirtIODeviceSetMSIXUsed(&adaptExt->vdev, adaptExt->msix_enabled);
            }
            else
            {
@@ -363,19 +373,17 @@ VirtIoFindAdapter(
     }
 #endif
 
-    VirtIODeviceReset(DeviceExtension);
-    ScsiPortWritePortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)0);
+	VirtIODeviceReset(&adaptExt->vdev);
+	WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_SEL, (USHORT)0);
     if (adaptExt->dump_mode) {
-        ScsiPortWritePortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
+        WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_PFN, (USHORT)0);
     }
 
-    adaptExt->features = ScsiPortReadPortUlong((PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
+	adaptExt->features = ReadVirtIODeviceRegister(adaptExt->vdev.addr + VIRTIO_PCI_HOST_FEATURES);
     ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WCACHE) ? TRUE : FALSE;
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_WCACHE = %d\n", ConfigInfo->CachesData));
 
-    pageNum = ScsiPortReadPortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM));
-    vr_sz = vring_size(pageNum,PAGE_SIZE);
-    vq_sz = (sizeof(struct vring_virtqueue) + sizeof(PVOID) * pageNum);
+	VirtIODeviceQueryQueueAllocation(&adaptExt->vdev, 0, &pageNum, &allocationSize);
 
     if(adaptExt->dump_mode) {
         ConfigInfo->NumberOfPhysicalBreaks = 8;
@@ -393,13 +401,15 @@ VirtIoFindAdapter(
     if(adaptExt->indirect) {
         adaptExt->queue_depth = pageNum;
     }
+#else
+	adaptExt->indirect = 0;
 #endif
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("breaks_number = %x  queue_depth = %x\n",
                 ConfigInfo->NumberOfPhysicalBreaks,
                 adaptExt->queue_depth));
 
-    ptr = (ULONG_PTR)ScsiPortGetUncachedExtension(DeviceExtension, ConfigInfo, (PAGE_SIZE + vr_sz + vq_sz));
-    if (ptr == (ULONG_PTR)NULL) {
+    adaptExt->uncachedExtensionVa = ScsiPortGetUncachedExtension(DeviceExtension, ConfigInfo, allocationSize);
+    if (!adaptExt->uncachedExtensionVa) {
         ScsiPortLogError(DeviceExtension,
                          NULL,
                          0,
@@ -411,10 +421,6 @@ VirtIoFindAdapter(
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Couldn't get uncached extension\n"));
         return SP_RETURN_ERROR;
     }
-
-    ptr += (PAGE_SIZE - 1);
-    adaptExt->pci_vq_info.queue = PAGE_ALIGN(ptr);
-    adaptExt->virtqueue = (vring_virtqueue*)((ULONG_PTR)(adaptExt->pci_vq_info.queue) + vr_sz);
 
     InitializeListHead(&adaptExt->list_head);
 #ifdef USE_STORPORT
@@ -439,6 +445,34 @@ VirtIoPassiveInitializeRoutine (
 }
 #endif
 
+
+static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG index, ULONG vector)
+{
+	struct virtqueue *vq = NULL;
+	if (adaptExt->uncachedExtensionVa)
+	{
+		ULONG len;
+		PHYSICAL_ADDRESS pa = ScsiPortGetPhysicalAddress(adaptExt, NULL, adaptExt->uncachedExtensionVa, &len);
+		if (pa.QuadPart)
+			vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, adaptExt->uncachedExtensionVa, len, NULL);
+	}
+
+	if (vq && vector)
+	{
+		unsigned res;
+		ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR),(USHORT)vector);
+		res = ScsiPortReadPortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR));
+		RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> VIRTIO_MSI_QUEUE_VECTOR vector = %d, res = 0x%x\n", __FUNCTION__, vector, res));
+		if(res == VIRTIO_MSI_NO_VECTOR) {
+			VirtIODeviceDeleteQueue(vq, NULL);
+			vq = NULL;
+			RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot create vq vector\n", __FUNCTION__));
+			return NULL;
+		}
+	}
+
+	return vq;
+}
 
 BOOLEAN
 VirtIoHwInitialize(
@@ -468,14 +502,14 @@ VirtIoHwInitialize(
     }
 
     if(!adaptExt->dump_mode && (adaptExt->msix_vectors > 1)) {
-        adaptExt->pci_vq_info.vq = VirtIODeviceFindVirtualQueue(DeviceExtension, 0, adaptExt->msix_vectors - 1);
+        adaptExt->vq = FindVirtualQueue(adaptExt, 0, adaptExt->msix_vectors - 1);
     }
 #endif
 
-    if(!adaptExt->pci_vq_info.vq) {
-        adaptExt->pci_vq_info.vq = VirtIODeviceFindVirtualQueue(DeviceExtension, 0, 0);
+    if(!adaptExt->vq) {
+        adaptExt->vq = FindVirtualQueue(adaptExt, 0, 0);
     }
-    if (!adaptExt->pci_vq_info.vq) {
+    if (!adaptExt->vq) {
         ScsiPortLogError(DeviceExtension,
                          NULL,
                          0,
@@ -519,7 +553,7 @@ VirtIoHwInitialize(
 
     if (ret)
     {
-        ScsiPortWritePortUchar((PUCHAR)(adaptExt->device_base + VIRTIO_PCI_STATUS),(UCHAR)VIRTIO_CONFIG_S_DRIVER_OK);
+		VirtIODeviceAddStatus(&adaptExt->vdev, VIRTIO_CONFIG_S_DRIVER_OK);
     }
 
     return ret;
@@ -665,7 +699,7 @@ VirtIoInterrupt(
     intReason = VirtIODeviceISR(DeviceExtension);
     if ( intReason == 1) {
         isInterruptServiced = TRUE;
-        while((vbr = adaptExt->pci_vq_info.vq->vq_ops->get_buf(adaptExt->pci_vq_info.vq, &len)) != NULL) {
+        while((vbr = adaptExt->vq->vq_ops->get_buf(adaptExt->vq, &len)) != NULL) {
            Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
            if (Srb) {
               switch (vbr->status) {
@@ -752,10 +786,10 @@ VirtIoAdapterControl(
     }
     case ScsiRestartAdapter: {
         RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("ScsiRestartAdapter\n"));
-        VirtIODeviceReset(DeviceExtension);
-        ScsiPortWritePortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)0);
-        ScsiPortWritePortUshort((PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
-        adaptExt->pci_vq_info.vq = NULL;
+        VirtIODeviceReset(&adaptExt->vdev);
+		WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_SEL, (USHORT)0);
+        WriteVirtIODeviceRegister(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_PFN,(USHORT)0);
+        adaptExt->vq = NULL;
 
         if (!VirtIoHwInitialize(DeviceExtension))
         {
@@ -877,7 +911,7 @@ VirtIoMSInterruptRoutine (
        return TRUE;
     }
 
-    while((vbr = adaptExt->pci_vq_info.vq->vq_ops->get_buf(adaptExt->pci_vq_info.vq, &len)) != NULL) {
+    while((vbr = adaptExt->vq->vq_ops->get_buf(adaptExt->vq, &len)) != NULL) {
         Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
         if (Srb) {
            switch (vbr->status) {

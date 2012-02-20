@@ -27,7 +27,9 @@
 
 #include "osdep.h"
 #include "virtio_pci.h"
+#include "virtio.h"
 #include "virtio_stor.h"
+
 
 BOOLEAN
 RhelDoReadWrite(
