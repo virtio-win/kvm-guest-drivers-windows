@@ -19,38 +19,44 @@
 #include "VirtIO.h"
 #include "kdebugprint.h"
 #include "VirtIO_Ring.h"
-#include "PVUtils.h"
 
 #ifdef WPP_EVENT_TRACING
 #include "VirtIOPCI.tmh"
 #endif
 
 
-struct virtio_pci_vq_info
-{
-	/* the actual virtqueue */
-	struct virtqueue *vq;
 
-	/* the number of entries in the queue */
-	int num;
-
-	/* the index of the queue */
-	int queue_index;
-
-	/* the virtual address of the ring queue */
-	void *queue;
-};
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
-// VirtIODeviceSetIOAddress - Dump HW registers of the device
+// VirtIODeviceInitialize - initializes the device structure
 //
 /////////////////////////////////////////////////////////////////////////////////////
-void VirtIODeviceSetIOAddress(VirtIODevice * pVirtIODevice, ULONG_PTR addr)
+void VirtIODeviceInitialize(VirtIODevice * pVirtIODevice, ULONG_PTR addr, ULONG allocatedSize)
 {
 	DPrintf(4, ("%s\n", __FUNCTION__));
-
+	memset(pVirtIODevice, 0, allocatedSize);
 	pVirtIODevice->addr = addr;
+	if (allocatedSize >= sizeof(VirtIODevice))
+	{
+		pVirtIODevice->maxQueues = MAX_QUEUES_PER_DEVICE_DEFAULT +
+			(allocatedSize - sizeof(VirtIODevice)) / sizeof(tVirtIOPerQueueInfo);
+	}
+	else
+	{
+		ULONG requiredSize = sizeof(VirtIODevice);
+		pVirtIODevice->maxQueues = MAX_QUEUES_PER_DEVICE_DEFAULT;
+		while (pVirtIODevice->maxQueues && requiredSize > allocatedSize)
+		{
+			pVirtIODevice->maxQueues--;
+			requiredSize -= sizeof(tVirtIOPerQueueInfo);
+		}
+	}
+}
+
+void VirtIODeviceSetMSIXUsed(VirtIODevice * pVirtIODevice, bool used)
+{
+	pVirtIODevice->msix_used = used != 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -157,7 +163,7 @@ void VirtIODeviceGet(VirtIODevice * pVirtIODevice,
 							void *buf,
 							unsigned len)
 {
-	ULONG_PTR ioaddr = pVirtIODevice->addr + VIRTIO_PCI_CONFIG + offset;
+	ULONG_PTR ioaddr = pVirtIODevice->addr + VIRTIO_PCI_CONFIG(pVirtIODevice->msix_used) + offset;
 	u8 *ptr = buf;
 	unsigned i;
 
@@ -172,7 +178,7 @@ void VirtIODeviceSet(VirtIODevice * pVirtIODevice,
 							   const void *buf,
 							   unsigned len)
 {
-	ULONG_PTR ioaddr = pVirtIODevice->addr + VIRTIO_PCI_CONFIG + offset;
+	ULONG_PTR ioaddr = pVirtIODevice->addr + VIRTIO_PCI_CONFIG(pVirtIODevice->msix_used) + offset;
 	const u8 *ptr = buf;
 	unsigned i;
 
@@ -186,13 +192,12 @@ void VirtIODeviceSet(VirtIODevice * pVirtIODevice,
 static void vp_notify(struct virtqueue *vq)
 {
 	VirtIODevice *vp_dev = vq->vdev;
-	struct virtio_pci_vq_info *info = vq->priv;
 
-	DPrintf(4, ("%s>> queue %d\n", __FUNCTION__, info->queue_index));
+	DPrintf(4, ("%s>> queue %d\n", __FUNCTION__, vq->ulIndex));
 
 	// we write the queue's selector into the notification register to
 	// * signal the other end
-	WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_NOTIFY, (u16) info->queue_index);
+	WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_NOTIFY, (u16) vq->ulIndex);
 }
 
 
@@ -206,124 +211,135 @@ static void vp_notify(struct virtqueue *vq)
 ULONG VirtIODeviceISR(VirtIODevice * pVirtIODevice)
 {
 	ULONG status;
-	DPrintf(4, ("%s\n", __FUNCTION__));
+	DPrintf(6, ("%s\n", __FUNCTION__));
 
 	status = ReadVirtIODeviceByte(pVirtIODevice->addr + VIRTIO_PCI_ISR);
 
 	return status;
 }
 
-//the config->find_vq() implementation
-//VirtIODeviceFindVirtualQueue
-struct virtqueue *VirtIODeviceFindVirtualQueue(VirtIODevice *vp_dev,
-											   unsigned index,
-											   bool (*callback)(struct virtqueue *vq))
+static ULONG align(ULONG ul, ULONG size)
 {
-	struct virtio_pci_vq_info *info;
-	struct virtqueue *vq;
+	return ((ul + size - 1) / size ) * size;
+}
+
+static BOOLEAN checkpa(ULONGLONG addr, ULONG align)
+{
+	BOOLEAN b;
+	b = (((addr >> PAGE_SHIFT) & 0xffffffff) << PAGE_SHIFT) == addr;
+	return b;
+}
+
+static void _VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, unsigned long *pNumEntries, unsigned long *pAllocationSize)
+{
 	u16 num;
-	int err;
+	*pNumEntries = 0;
+	*pAllocationSize = 0;
 
-	DPrintf(4, ("%s\n", __FUNCTION__));
-
-	// Select the queue we're interested in
-	WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_SEL, (u16) index);
-
-	// Check if queue is either not available or already active.
-	num = ReadVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_NUM);
-
-	DPrintf(0, ("%s>>> [vp_dev->addr + VIRTIO_PCI_QUEUE_NUM] = %x\n", __FUNCTION__, num) );
-	if (!num || ReadVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN))
-		return NULL;
-
-	// allocate and fill out our structure the represents an active queue
-	info = AllocatePhysical(sizeof(struct virtio_pci_vq_info));
-	if (!info)
-		return NULL;
-
-	info->queue_index = index;
-	info->num = num;
-
-	info->queue = AllocatePhysical(vring_size(num,PAGE_SIZE));
-	if (info->queue == NULL) {
-		err = -1;
-		goto out_info;
+	if (index < vp_dev->maxQueues && sizeof(struct vring_desc) == SIZE_OF_SINGLE_INDIRECT_DESC)
+	{
+		// Select the queue we're interested in
+		WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_SEL, (u16) index);
+		if (!ReadVirtIODeviceRegister(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN))
+		{
+			// Check if queue is either not available or already active.
+			num = ReadVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_NUM);
+			if (num)
+			{
+				ULONG ringSize, dataSize;
+				ringSize = vring_size(num,PAGE_SIZE);
+				ringSize = align(ringSize, PAGE_SIZE);
+				dataSize = sizeof(void *) * num + vring_control_block_size();
+				dataSize = align(dataSize, PAGE_SIZE);
+				*pNumEntries = num;
+				*pAllocationSize = ringSize + dataSize;
+			}
+			else
+			{
+				DPrintf(0, ("%s: queue %d is not supported\n", __FUNCTION__, index) );
+			}
+		}
+		else
+		{
+			DPrintf(0, ("%s: queue %d is already in use\n", __FUNCTION__, index) );
+		}
 	}
+}
 
-	memset(info->queue, 0, vring_size(num,PAGE_SIZE));
+void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, unsigned long *pNumEntries, unsigned long *pAllocationSize)
+{
+	_VirtIODeviceQueryQueueAllocation(vp_dev, index, pNumEntries, pAllocationSize);
+	if (*pAllocationSize)
+	{
+		DPrintf(0, ("%s: queue %d requires 0x%x for %d entries\n", __FUNCTION__, index, *pAllocationSize, *pNumEntries) );
+	}
+}
 
-	DPrintf(0, ("[%s] info = %p, info->queue = %p\n", __FUNCTION__, info, info->queue) );
-	// create the vring
-	vq = vring_new_virtqueue(info->num,
+struct virtqueue *VirtIODevicePrepareQueue(
+					VirtIODevice *vp_dev,
+					unsigned index,
+					PHYSICAL_ADDRESS pa,
+					void *va,
+					unsigned long size,
+					void *ownerContext)
+{
+	struct virtqueue *vq = NULL;
+	ULONG sizeNeeded, num;
+	_VirtIODeviceQueryQueueAllocation(vp_dev, index, &num, &sizeNeeded);
+	if (num && sizeNeeded && size >= sizeNeeded && checkpa(pa.QuadPart, PAGE_SIZE))
+	{
+		tVirtIOPerQueueInfo *info = &vp_dev->info[index];
+		ULONG pageNum = (ULONG)(pa.QuadPart >> PAGE_SHIFT);
+		ULONG ringSize;
+		ringSize = vring_size(num,PAGE_SIZE);
+		ringSize = align(ringSize, PAGE_SIZE);
+		info->queue_index = index;
+		info->num = num;
+		info->queue = va;
+		info->phys = pa;
+		info->pOwnerContext = ownerContext;
+		memset(va, 0, size);
+		info->vq = vq = vring_new_virtqueue(info->num,
 							 vp_dev,
 							 info->queue,
 							 vp_notify,
-							 callback);
-
-	if (!vq) {
-		err = -1;
-		goto out_activate_queue;
+							 (char *)va + ringSize,
+							 index);
+		if (vq)
+		{
+			DPrintf(0, ("[%s] queue phys.address %08lx:%08lx, pfn %lx\n", __FUNCTION__, pa.HighPart, pa.LowPart, pageNum));
+			WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_SEL, (u16) index);
+			WriteVirtIODeviceRegister(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN, pageNum);
+		}
 	}
-
-	vq->priv = info;
-	info->vq = vq;
-
-	// activate the queue
+	else
 	{
-		PHYSICAL_ADDRESS pa = MmGetPhysicalAddress(info->queue);
-		ULONG pageNum = (ULONG)(pa.QuadPart >> PAGE_SHIFT);
-		DPrintf(0, ("[%s] queue phys.address %08lx:%08lx, pfn %lx\n", __FUNCTION__, pa.u.HighPart, pa.u.LowPart, pageNum));
-		WriteVirtIODeviceRegister(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN, pageNum);
+		DPrintf(0, ("[%s] FAILED (num 0x%X, size 0x%X, addr %X.%X)\n", __FUNCTION__, num, size, pa.HighPart, pa.LowPart));
 	}
-
 	return vq;
-
-out_activate_queue:
-	WriteVirtIODeviceRegister(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN, 0);
-	if(info->queue) {
-		MmFreeContiguousMemory(info->queue);
-	}
-out_info:
-	if(info) {
-		MmFreeContiguousMemory(info);
-	}
-
-	return NULL;
 }
 
-
 /* the config->del_vq() implementation  */
-void VirtIODeviceDeleteVirtualQueue(struct virtqueue *vq)
+void VirtIODeviceDeleteQueue(struct virtqueue *vq, void **pOwnerContext)
 {
 	VirtIODevice *vp_dev = vq->vdev;
-	struct virtio_pci_vq_info *info = (struct virtio_pci_vq_info *)vq->priv;
+	tVirtIOPerQueueInfo *info = &vp_dev->info[vq->ulIndex];
 
-	DPrintf(4, ("%s\n", __FUNCTION__));
-
-	vring_del_virtqueue(vq);
+	DPrintf(4, ("%s, index %d\n", __FUNCTION__, vq->ulIndex));
 
 	// Select and deactivate the queue
 	WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_SEL, (u16) info->queue_index);
 	WriteVirtIODeviceRegister(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN, 0);
-
-	if(info->queue) {
-		MmFreeContiguousMemory(info->queue);
-	}
-
-	if(info) {
-		MmFreeContiguousMemory(info);
-	}
+	if (pOwnerContext) *pOwnerContext = info->pOwnerContext;
 }
 
 /* implementation of queue renew on resume from standby/hibernation */
-void VirtIODeviceRenewVirtualQueue(struct virtqueue *vq)
+void VirtIODeviceRenewQueue(struct virtqueue *vq)
 {
-	PHYSICAL_ADDRESS pa;
 	ULONG pageNum;
-	struct virtio_pci_vq_info *info = vq->priv;
 	VirtIODevice *vp_dev = vq->vdev;
-	pa = MmGetPhysicalAddress(info->queue);
-	pageNum = (ULONG)(pa.QuadPart >> PAGE_SHIFT);
+	tVirtIOPerQueueInfo *info = &vp_dev->info[vq->ulIndex];
+	pageNum = (ULONG)(info->phys.QuadPart >> PAGE_SHIFT);
 	DPrintf(0, ("[%s] devaddr %p, queue %d, pfn %x\n", __FUNCTION__, vp_dev->addr, info->queue_index, pageNum));
 	WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_SEL, (u16)info->queue_index);
 	WriteVirtIODeviceRegister(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN, pageNum);
@@ -331,8 +347,7 @@ void VirtIODeviceRenewVirtualQueue(struct virtqueue *vq)
 
 u32 VirtIODeviceGetQueueSize(struct virtqueue *vq)
 {
-	struct virtio_pci_vq_info *info = vq->priv;
-	return info->num;
+	return vq->vdev->info[vq->ulIndex].num;
 }
 
 void* VirtIODeviceDetachUnusedBuf(struct virtqueue *vq)

@@ -11,9 +11,10 @@
 #include "osdep.h"
 
 /* This marks a buffer as continuing via the next field. */
-#define VRING_DESC_F_NEXT	1
+#define VRING_DESC_F_NEXT			1
 /* This marks a buffer as write-only (otherwise read-only). */
-#define VRING_DESC_F_WRITE	2
+#define VRING_DESC_F_WRITE			2
+#define VRING_DESC_F_INDIRECT       4
 
 /* This means don't notify other side when buffer added. */
 #define VRING_USED_F_NO_NOTIFY	1
@@ -122,9 +123,12 @@ struct virtqueue *vring_new_virtqueue(unsigned int num,
 				      VirtIODevice * pVirtIODevice,
 				      void *pages,
 				      void (*notify)(struct virtqueue *vq),
-				      bool (*callback)(struct virtqueue *vq));
+					  void *control,
+					  unsigned int index
+					  );
 
-void vring_del_virtqueue(struct virtqueue *vq);
-void* vring_detach_unused_buf(struct virtqueue *vq);
+void* vring_detach_unused_buf(struct virtqueue *_vq);
+
+unsigned int vring_control_block_size();
 
 #endif /* _LINUX_VIRTIO_RING_H */

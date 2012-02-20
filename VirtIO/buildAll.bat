@@ -27,64 +27,72 @@ goto nextparam
 
 :Win7
 set DDKBUILDENV=
+setlocal
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Wlh
 popd
 build -cZg
-
+endlocal
 goto continue
 
 :Win7_64
 set DDKBUILDENV=
+setlocal
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WIN7
 popd
 build -cZg
-
+endlocal
 goto continue
 
 
 :Vista
 set DDKBUILDENV=
+setlocal
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WIN7
 popd
 build -cZg
-
+endlocal
 goto continue
 
 :Vista64
 set DDKBUILDENV=
+setlocal
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre Wlh
 popd
 build -cZg
-
+endlocal
 goto continue
 
 :Win2003
 set DDKBUILDENV=
+setlocal
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WNET
 popd
 build -cZg
-
+endlocal
 goto continue
 
 :Win200364
 set DDKBUILDENV=
+setlocal
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WNET
 popd
 build -cZg
-
+endlocal
 goto continue
 
 :XP
 set DDKBUILDENV=
+setlocal
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WXP
 popd
 build -cZg
+endlocal
 
 goto :eof

@@ -5,35 +5,37 @@
 
 /* Status byte for guest to report progress, and synchronize features. */
 /* We have seen device and processed generic fields (VIRTIO_CONFIG_F_VIRTIO) */
-#define VIRTIO_CONFIG_S_ACKNOWLEDGE	1
+#define VIRTIO_CONFIG_S_ACKNOWLEDGE			1
 /* We have found a driver for the device. */
-#define VIRTIO_CONFIG_S_DRIVER		2
+#define VIRTIO_CONFIG_S_DRIVER				2
 /* Driver has used its parts of the config, and is happy */
-#define VIRTIO_CONFIG_S_DRIVER_OK	4
+#define VIRTIO_CONFIG_S_DRIVER_OK			4
 /* We've given up on this device. */
-#define VIRTIO_CONFIG_S_FAILED		0x80
+#define VIRTIO_CONFIG_S_FAILED				0x80
 /* virtio library features bits */
-#define VIRTIO_F_INDIRECT			28
-#define VIRTIO_F_PUBLISH_INDICES	29
+#define VIRTIO_F_INDIRECT					28
+#define VIRTIO_F_PUBLISH_INDICES			29
+
+
+// if this number is not equal to desc size, queue creation fails
+#define SIZE_OF_SINGLE_INDIRECT_DESC		16
 
 /**
  * virtqueue - a queue to register buffers for sending or receiving.
- * @callback: the function to call when buffers are consumed (can be NULL).
- *    If this returns false, callbacks are suppressed until vq_ops->restart
- *    is called.
  * @vdev: the virtio device this queue was created for.
  * @vq_ops: the operations for this virtqueue (see below).
- * @priv: a pointer for the virtqueue implementation to use.
+ * @ulIndex: queue number defined by the device.
  */
-struct virtqueue
+typedef struct virtqueue
 {
-	bool (*callback)(struct virtqueue *vq);
 	VirtIODevice *vdev;
 	struct virtqueue_ops *vq_ops;
-	void *priv;
+	unsigned long ulIndex;
+	unsigned long ulReserved;
 };
 
-struct VirtIOBufferDescriptor
+
+typedef struct VirtIOBufferDescriptor
 {
 	PHYSICAL_ADDRESS physAddr;
 	unsigned long ulSize;
@@ -73,7 +75,9 @@ struct virtqueue_ops {
 		       struct VirtIOBufferDescriptor sg[],
 		       unsigned int out_num,
 		       unsigned int in_num,
-		       void *data);
+		       void *data,
+		       void *va_indirect,
+		       ULONGLONG phys_indirect);
 
 	void (*kick)(struct virtqueue *vq);
 

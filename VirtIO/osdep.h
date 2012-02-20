@@ -12,6 +12,11 @@
 //
 //////////////////////////////////////////////////////////////////////////////////////////
 
+#if defined(IGNORE_VIRTIO_OSDEP_H)
+// to make simulation environment easy
+#include "external_os_dep.h"
+#else
+
 #ifndef __OS_DEP_H
 #define __OS_DEP_H
 
@@ -44,4 +49,5 @@
 #define max(_a, _b) (((_a) > (_b)) ? (_a) : (_b))
 #endif
 
+#endif
 #endif
