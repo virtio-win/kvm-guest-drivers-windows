@@ -1,3 +1,13 @@
+Date    20 February 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm45
+
+Fixed bugs:
+Bug 790305 - [virtio-scsi] BSOD occurs when install virtio scsi driver in windows guest
+
+New features:
+Unified virtio library.
+
 Date    13 February 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm44
