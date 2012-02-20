@@ -34,7 +34,8 @@ typedef struct _tagNetBufferEntry
 	PARANDIS_ADAPTER		*pContext;
 }tNetBufferEntry;
 
-#define NBLEFLAGS_FAILED	0x0001
+#define NBLEFLAGS_FAILED			0x0001
+#define NBLEFLAGS_NO_INDIRECT		0x0002
 typedef struct _tagNetBufferListEntry
 {
 	PNET_BUFFER_LIST		nbl;
@@ -366,19 +367,19 @@ static NDIS_STATUS SetInterruptMessage(PARANDIS_ADAPTER *pContext, UINT queueInd
 	{
 	case 0: // Rx queue interrupt:
 		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_QUEUE_SEL, (u16)queueIndex);
-		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_CONFIG + 2, (u16)messageIndex);
-		val = ReadVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_CONFIG + 2);
+		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_QUEUE_VECTOR, (u16)messageIndex);
+		val = ReadVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_QUEUE_VECTOR);
 		pMessage = &pContext->ulRxMessage;
 		break;
 	case 1: // Tx queue interrupt:
 		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_QUEUE_SEL, (u16)queueIndex);
-		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_CONFIG + 2, (u16)messageIndex);
-		val = ReadVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_CONFIG + 2);
+		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_QUEUE_VECTOR, (u16)messageIndex);
+		val = ReadVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_QUEUE_VECTOR);
 		pMessage = &pContext->ulTxMessage;
 		break;
 	case 2: // config interrupt
-		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_CONFIG, (u16)messageIndex);
-		val = ReadVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_CONFIG);
+		WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_CONFIG_VECTOR, (u16)messageIndex);
+		val = ReadVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_CONFIG_VECTOR);
 		pMessage = &pContext->ulControlMessage;
 		break;
 	default:
@@ -521,7 +522,7 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
 		{
 			DPrintf(0, ("[%s] ERROR: Interrupt type %d, message table %p",
 				__FUNCTION__, mic.InterruptType, mic.MessageInfoTable));
-			pContext->bUsingMSIX = FALSE;
+			status = NDIS_STATUS_RESOURCE_CONFLICT;
 		}
 		ParaNdis6_ApplyOffloadPersistentConfiguration(pContext);
 	}
@@ -625,7 +626,6 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 	PMDL pMDL = pBuffersDesc->pHolder;
 	ULONG length = *pLength;
 	PNET_BUFFER_LIST pNBL = NULL;
-	virtio_net_hdr_basic *pHeader = NULL;
 
 	if (pMDL)
 	{
@@ -689,16 +689,25 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 				DPrintf(1, ("Found priority tag %p", qInfo.Value));
 			}
 			pNBL->MiniportReserved[0] = pBuffersDesc;
-			pHeader = (virtio_net_hdr_basic *)pBuffersDesc->HeaderInfo.Virtual;
 			if (NDIS_OFFLOAD_SUPPORTED == pContext->Offload.flags.fRxIPChecksum)
 			{
+				virtio_net_hdr_basic *pHeader =
+					(virtio_net_hdr_basic *)(pContext->bUseMergedBuffers?pBuffersDesc->DataInfo.Virtual:pBuffersDesc->HeaderInfo.Virtual);
 				// if we are configured to offload Rx Checksum and receive VIRTIO_NET_HDR_F_DATA_VALID from host, we indicate IpChecksumSucceeded.
-				// for future reference, if we get a flag for invalid checksum, use IpChecksumFailed.
-				if (pHeader->flags & VIRTIO_NET_HDR_F_DATA_VALID)
+				// if host will notify us of invalid checksum (using a new VIRTIO_NET_HDR_...), we must indicate IpChecksumFailed.
+				if (pHeader->flags & VIRTIO_NET_HDR_F_NEEDS_CSUM)
 				{
-					PNDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO pNBLInfo = (PNDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO) NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo);
-					DPrintf(3, ("Host reports VIRTIO_NET_HDR_F_DATA_VALID"));
-					pNBLInfo->Receive.IpChecksumSucceeded = TRUE;
+					// This branch is based on Linux driver implementation.
+					// It could be both flags can be set in some cases.
+					DPrintf(3, ("Host reports VIRTIO_NET_HDR_F_NEEDS_CSUM (0x%02X)", pHeader->flags));
+				}
+				else if (pHeader->flags & VIRTIO_NET_HDR_F_DATA_VALID)
+				{
+					NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
+					qCSInfo.Value = NULL;
+					qCSInfo.Receive.IpChecksumSucceeded  = TRUE;
+					NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
+					DPrintf(3, ("Host reports VIRTIO_NET_HDR_F_DATA_VALID (0x%02X)", pHeader->flags));
 				}
 			}
 			pNBL->Status = NDIS_STATUS_SUCCESS;
@@ -953,19 +962,30 @@ static FORCEINLINE ULONG CalculateTotalOffloadSize(
 	return ul;
 }
 
-
-tMapperResult ParaNdis_PacketMapper(
+/*
+	Fills array @buffers with SG data for transmission.
+	If needed, copies part of data into data buffer @pDesc
+	(priority, ETH, IP and TCP headers) and for copied part and
+	original part of the packet copies SG data (address and length)
+	into provided buffers.
+	Receives zeroed tMapperResult struct,
+	fills it as follows:
+	usBuffersMapped - total number of filled VirtIOBufferDescriptor structures
+	ulDataSize - total sent length as Windows shall think
+	usBufferSpaceUsed - used area from data block, placed in first descriptor, if any
+	  it could be as big as: ethernet header + max IP header + TCP header + priority
+*/
+VOID ParaNdis_PacketMapper(
 	PARANDIS_ADAPTER *pContext,
 	tPacketType packet,
 	PVOID ReferenceValue,
 	struct VirtIOBufferDescriptor *buffers,
-	pIONetDescriptor pDesc
+	pIONetDescriptor pDesc,
+	tMapperResult *pMapperResult
 	)
 {
-	tMapperResult res;
 	tNetBufferEntry *pnbe = (tNetBufferEntry *)ReferenceValue;
-	res.ulDataSize = 0;
-	res.nBuffersMapped = 0;
+	USHORT nBuffersMapped = 0;
 	if (pnbe->netBuffer == packet)
 	{
 		PSCATTER_GATHER_LIST pSGList = pnbe->pSGList;
@@ -991,7 +1011,7 @@ tMapperResult ParaNdis_PacketMapper(
 				for (i = 0; i < pSGList->NumberOfElements; ++i)
 				{
 					len += pSGList->Elements[i].Length - nBytesSkipInFirstBuffer;
-					DPrintf(2, ("[%s] buffer %d of %d->%d",
+					DPrintf(3, ("[%s] buffer %d of %d->%d",
 						__FUNCTION__, nCompleteBuffersToSkip, pSGElements[i].Length, len));
 					if (len > lengthGet)
 					{
@@ -1017,8 +1037,9 @@ tMapperResult ParaNdis_PacketMapper(
 				// we replace 1 or more HW buffers with one buffer preallocated for data
 				buffers->physAddr = pDesc->DataInfo.Physical;
 				buffers->ulSize   = lengthPut;
-				res.ulDataSize += lengthGet;
-				res.nBuffersMapped = pSGList->NumberOfElements - nCompleteBuffersToSkip + 1;
+				pMapperResult->usBufferSpaceUsed = (USHORT)lengthPut;
+				pMapperResult->ulDataSize += lengthGet;
+				nBuffersMapped = (USHORT)(pSGList->NumberOfElements - nCompleteBuffersToSkip + 1);
 				pSGElements += nCompleteBuffersToSkip;
 				buffers++;
 				DPrintf(1, ("[%s] (%d bufs) skip %d buffers + %d bytes",
@@ -1026,7 +1047,7 @@ tMapperResult ParaNdis_PacketMapper(
 			}
 			else
 			{
-				res.nBuffersMapped = pSGList->NumberOfElements;
+				nBuffersMapped = (USHORT)pSGList->NumberOfElements;
 			}
 
 			for (i = nCompleteBuffersToSkip; i < pSGList->NumberOfElements; ++i)
@@ -1043,7 +1064,7 @@ tMapperResult ParaNdis_PacketMapper(
 					buffers->physAddr = pSGElements->Address;
 					buffers->ulSize   = pSGElements->Length;
 				}
-				res.ulDataSize += buffers->ulSize;
+				pMapperResult->ulDataSize += buffers->ulSize;
 				pSGElements++;
 				buffers++;
 			}
@@ -1058,9 +1079,9 @@ tMapperResult ParaNdis_PacketMapper(
 					NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO lso;
 					ULONG dummyTransferSize;
 					ULONG flags = pcrIpChecksum | pcrTcpChecksum | pcrFixPHChecksum;
-					ULONG saveBuffers = res.nBuffersMapped;
+					USHORT saveBuffers = nBuffersMapped;
 					PVOID pIpHeader = RtlOffsetToPointer(pBuffer, pContext->Offload.ipHeaderOffset);
-					res.nBuffersMapped = 0;
+					nBuffersMapped = 0;
 					if (pContext->bFixIPChecksum) flags |= pcrFixIPChecksum;
 					packetReview = ParaNdis_CheckSumVerify(
 						pIpHeader,
@@ -1070,7 +1091,7 @@ tMapperResult ParaNdis_PacketMapper(
 					if (packetReview.ipCheckSum == ppresCSOK || packetReview.fixedIpCS)
 					{
 						dummyTransferSize =	CalculateTotalOffloadSize(
-							res.ulDataSize,
+							pMapperResult->ulDataSize,
 							pble->mss,
 							pContext->Offload.ipHeaderOffset,
 							pContext->MaxPacketSize.nMaxFullSizeOS,
@@ -1106,11 +1127,11 @@ tMapperResult ParaNdis_PacketMapper(
 						pheader->gso_size = (USHORT)pble->mss;
 						pheader->csum_start = (USHORT)pble->tcpHeaderOffset;
 						pheader->csum_offset = TCP_CHECKSUM_OFFSET;
-						res.nBuffersMapped = saveBuffers;
+						nBuffersMapped = saveBuffers;
 					}
 				}
 
-				if (PriorityDataLong && res.nBuffersMapped)
+				if (PriorityDataLong && nBuffersMapped)
 				{
 					RtlMoveMemory(
 						RtlOffsetToPointer(pBuffer, ETH_PRIORITY_HEADER_OFFSET + ETH_PRIORITY_HEADER_SIZE),
@@ -1134,7 +1155,7 @@ tMapperResult ParaNdis_PacketMapper(
 	{
 		DPrintf(0, ("[%s] ERROR: packet <> NBE!", __FUNCTION__));
 	}
-	return res;
+	pMapperResult->usBuffersMapped = nBuffersMapped;
 }
 
 static void FreeAllocatedNBLResources(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST pNBL)
@@ -1244,12 +1265,10 @@ static PNET_BUFFER_LIST GetTail(PNET_BUFFER_LIST pNBL)
 	return pNBL;
 }
 
-
-
 /*********************************************************************
 Prepares single NBL to be mapped and sent:
 Allocate per-NBL entry and save it in NBL->Scratch
-Allocate pre-NET_BUFFER entries for each NET_BUFFER and chain them in the list
+Allocate per-NET_BUFFER entries for each NET_BUFFER and chain them in the list
 If some allocation fails, this single NBL will be completed later
 with erroneous status and all the allocated resources freed
 *********************************************************************/
@@ -1729,6 +1748,14 @@ static FORCEINLINE void InitializeTransferParameters(tNetBufferEntry *pnbe, tTxO
 	{
 		pParams->flags |= pcrIsIP;
 	}
+	if (pble->PriorityDataLong)
+	{
+		pParams->flags |= pcrPriorityTag;
+	}
+	if (pble->flags & NBLEFLAGS_NO_INDIRECT)
+	{
+		pParams->flags |= pcrNoIndirect;
+	}
 }
 
 
@@ -1816,20 +1843,27 @@ VOID ParaNdis_ProcessTx(PARANDIS_ADAPTER *pContext, BOOLEAN IsDpc)
 								nBuffersSent++;
 								nBytesSent += result.size;
 							}
-
-							if (result.error != cpeOK)
+							else
 							{
 								OnNetBufferEntryCompleted(pnbe);
 							}
 							break;
 						case cpeNoBuffer:
+						case cpeNoIndirect:
 							// insert the entry back to the list
 							InsertHeadList(&pble->bufferEntries, &pnbe->list);
 							// insert the NBL back to the queue
 							NET_BUFFER_LIST_NEXT_NBL(pCurrent) = pContext->SendHead;
 							pContext->SendHead = pCurrent;
 							// break the loop, allow to kick and free some buffers
-							pCurrent = NULL;
+							if (result.error == cpeNoBuffer)
+							{
+								pCurrent = NULL;
+							}
+							else
+							{
+								pble->flags |= NBLEFLAGS_NO_INDIRECT;
+							}
 							break;
 					}
 				}

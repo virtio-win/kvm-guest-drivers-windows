@@ -29,7 +29,15 @@
 
 #if !defined(OFFLOAD_UNIT_TEST)
 
-#include <ntifs.h>
+#if !defined(RtlOffsetToPointer)
+#define RtlOffsetToPointer(Base,Offset)  ((PCHAR)(((PCHAR)(Base))+((ULONG_PTR)(Offset))))
+#endif
+
+#if !defined(RtlPointerToOffset)
+#define RtlPointerToOffset(Base,Pointer)  ((ULONG)(((PCHAR)(Pointer))-((PCHAR)(Base))))
+#endif
+
+
 #include <ndis.h>
 #include "osdep.h"
 #include "kdebugprint.h"
@@ -143,7 +151,8 @@ typedef enum _tagOffloadSettingsBit
 	osbT4Lso = 0x20,
 	osbT4LsoIp = 0x40,
 	osbT4LsoTcp = 0x80,
-	osbT4IpRxChecksum = 0x100
+	osbT4IpRxChecksum = 0x100,
+	osbT4IpRxOptionsChecksum = 0x200,
 }tOffloadSettingsBit;
 
 typedef struct _tagOffloadSettingsFlags
@@ -242,6 +251,15 @@ typedef struct _tagMaxPacketSize
 	UINT nMaxFullSizeHwRx;
 }tMaxPacketSize;
 
+typedef struct _tagCompletePhysicalAddress
+{
+	PHYSICAL_ADDRESS	Physical;
+	PVOID				Virtual;
+	ULONG				size;
+	ULONG				IsCached		: 1;
+	ULONG				IsTX			: 1;
+} tCompletePhysicalAddress;
+
 typedef struct _tagPARANDIS_ADAPTER
 {
 	NDIS_HANDLE				DriverHandle;
@@ -272,6 +290,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	BOOLEAN					bDoKickOnNoBuffer;
 	BOOLEAN					bSurprizeRemoved;
 	BOOLEAN					bUsingMSIX;
+	BOOLEAN					bUseIndirect;
 	UINT					uNumberOfHandledRXPacketsInDPC;
 	NDIS_DEVICE_POWER_STATE powerState;
 	LONG					dpcReceiveActive;
@@ -316,7 +335,9 @@ typedef struct _tagPARANDIS_ADAPTER
 	ONPAUSECOMPLETEPROC		ReceivePauseCompletionProc;
 	/* Net part - management of buffers and queues of QEMU */
 	struct virtqueue *		NetReceiveQueue;
+	tCompletePhysicalAddress ReceiveQueueRing;
 	struct virtqueue *		NetSendQueue;
+	tCompletePhysicalAddress SendQueueRing;
 	/* list of Rx buffers available for data (under VIRTIO management) */
 	LIST_ENTRY				NetReceiveBuffers;
 	UINT					NetNofReceiveBuffers;
@@ -380,11 +401,11 @@ typedef struct _tagPARANDIS_ADAPTER
 #endif
 }PARANDIS_ADAPTER, *PPARANDIS_ADAPTER;
 
-
+typedef enum { cpeOK, cpeNoBuffer, cpeInternalError, cpeTooLarge, cpeNoIndirect } tCopyPacketError;
 typedef struct _tagCopyPacketResult
 {
 	ULONG		size;
-	enum tCopyPacketError { cpeOK, cpeNoBuffer, cpeInternalError, cpeTooLarge } error;
+	tCopyPacketError error;
 }tCopyPacketResult;
 
 typedef struct _tagSynchronizedContext
@@ -417,16 +438,6 @@ BOOLEAN FORCEINLINE IsValidVlanId(PARANDIS_ADAPTER *pContext, ULONG VlanID)
 {
 	return pContext->VlanId == 0 || pContext->VlanId == VlanID;
 }
-
-typedef struct _tagCompletePhysicalAddress
-{
-	PHYSICAL_ADDRESS	Physical;
-	PVOID				Virtual;
-	ULONG				IsCached		: 1;
-	ULONG				IsTX			: 1;
-	// the size limit will be 1G instead of 4G
-	ULONG				size			: 30;
-} tCompletePhysicalAddress;
 
 typedef struct _tagIONetDescriptor {
 	LIST_ENTRY listEntry;
@@ -548,8 +559,9 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 
 typedef struct _tagMapperResult
 {
-	ULONG	nBuffersMapped	: 8;
-	ULONG	ulDataSize		: 24;
+	USHORT	usBuffersMapped;
+	USHORT	usBufferSpaceUsed;
+	ULONG	ulDataSize;
 }tMapperResult;
 
 
@@ -588,13 +600,13 @@ VOID ParaNdis_IndicateReceivedBatch(
 	tPacketIndicationType *pBatch,
 	ULONG nofPackets);
 
-
-tMapperResult ParaNdis_PacketMapper(
+VOID ParaNdis_PacketMapper(
 	PARANDIS_ADAPTER *pContext,
 	tPacketType packet,
 	PVOID Reference,
 	struct VirtIOBufferDescriptor *buffers,
-	pIONetDescriptor pDesc
+	pIONetDescriptor pDesc,
+	tMapperResult *pMapperResult
 	);
 
 tCopyPacketResult ParaNdis_PacketCopier(
@@ -724,7 +736,8 @@ typedef enum _tagPacketOffloadRequest
 	pcrFixIPChecksum = 0x100,
 	pcrFixPHChecksum = 0x200,
 	pcrFixXxpChecksum = 0x400,
-	pcrPriorityTag = 0x800
+	pcrPriorityTag = 0x800,
+	pcrNoIndirect  = 0x1000
 }tPacketOffloadRequest;
 
 // sw offload

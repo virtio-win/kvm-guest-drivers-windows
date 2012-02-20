@@ -61,6 +61,13 @@ HKR, Ndi\Params\ConnectRate\enum,	"10",		0,			%10M%
 HKR, Ndi\Params\ConnectRate\enum,	"100",		0,			%100M%
 HKR, Ndi\Params\ConnectRate\enum,	"1001",		0,			%1G%
 
+HKR, Ndi\Params\Indirect,			ParamDesc,	0,			%Indirect%
+HKR, Ndi\Params\Indirect,			Default,	0,			"0"
+HKR, Ndi\Params\Indirect,			type,		0,			"enum"
+HKR, Ndi\Params\Indirect\enum,		"0",		0,			%Disable%
+HKR, Ndi\Params\Indirect\enum,		"1",		0,			%Enable%
+HKR, Ndi\Params\Indirect\enum,		"2",		0,			%Enable*%
+
 HKR, Ndi\params\LogStatistics,		ParamDesc,  0,          %LogStatistics%
 HKR, Ndi\params\LogStatistics,		type,       0,          "int"
 HKR, Ndi\params\LogStatistics,		default,    0,          "0"
@@ -92,6 +99,12 @@ HKR, Ndi\Params\OffLoad.TxIP,		Default,	0,			"0"
 HKR, Ndi\Params\OffLoad.TxIP,		type,		0,			"enum"
 HKR, Ndi\Params\OffLoad.TxIP\enum,	"1",		0,			%Enable%
 HKR, Ndi\Params\OffLoad.TxIP\enum,	"0",		0,			%Disable%
+
+HKR, Ndi\Params\OffLoad.RxIP,		ParamDesc,	0,			%Offload.RxIP%
+HKR, Ndi\Params\OffLoad.RxIP,		Default,	0,			"0"
+HKR, Ndi\Params\OffLoad.RxIP,		type,		0,			"enum"
+HKR, Ndi\Params\OffLoad.RxIP\enum,	"1",		0,			%Enable%
+HKR, Ndi\Params\OffLoad.RxIP\enum,	"0",		0,			%Disable%
 
 HKR, Ndi\Params\OffLoad.TxTCP,		ParamDesc,	0,			%OffLoad.TxTCP%
 HKR, Ndi\Params\OffLoad.TxTCP,		Default,	0,			"0"
@@ -249,6 +262,7 @@ EnableLogging = "Logging enabled"
 DebugLevel = "Logging level"
 Disable = "Disable"
 Enable  = "Enable"
+Enable* = "Enable*"
 String_16 = "16"
 String_32 = "32"
 String_64 = "64"
@@ -273,6 +287,7 @@ Offload.TxIP = "Offload Tx IP checksum"
 Offload.TxTCP = "Offload Tx TCP checksum"
 OffLoad.TxUDP = "Offload Tx UDP checksum"
 Offload.TxLSO = "Offload Tx LSO"
+Offload.RxIP = "Offload Rx IP checksum"
 HwOffload = "Hardware checksumming"
 IPPacketsCheck = "Analyze IP packets"
 PriorityVlanTag = "Priority and VLAN tagging"
@@ -283,3 +298,4 @@ MergeableBuf = "Use mergeable buffers"
 PublishIndices = "Publish Indices"
 MTU = "MTU size"
 NumberOfHandledRXPackersInDPC = "Handled RX packers in DPC"
+Indirect = "Use Indirect Tx"

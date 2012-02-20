@@ -4,8 +4,8 @@ TARGETPATH=obj
 
 MSC_WARNING_LEVEL=/W3 /WX
 SOURCES=VirtIOPCI.c  \
-        VirtIORing.c \
-        PVUtils.c
+        VirtIORing.c
+
 
 
 #for NETKVM project until full merge

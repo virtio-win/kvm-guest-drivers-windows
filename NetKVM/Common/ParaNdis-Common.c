@@ -114,6 +114,7 @@ typedef struct _tagConfigurationEntries
 	tConfigurationEntry PublishIndices;
 	tConfigurationEntry MTU;
 	tConfigurationEntry NumberOfHandledRXPackersInDPC;
+	tConfigurationEntry Indirect;
 }tConfigurationEntries;
 
 static const tConfigurationEntries defaultConfiguration =
@@ -155,6 +156,7 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "PublishIndices", 1, 0, 1},
 	{ "MTU", 1500, 500, 65500},
 	{ "NumberOfHandledRXPackersInDPC", MAX_RX_LOOPS, 1, 10000},
+	{ "Indirect", 0, 0, 2},
 };
 
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
@@ -287,6 +289,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			GetConfigurationEntry(cfg, &pConfiguration->PublishIndices);
 			GetConfigurationEntry(cfg, &pConfiguration->MTU);
 			GetConfigurationEntry(cfg, &pConfiguration->NumberOfHandledRXPackersInDPC);
+			GetConfigurationEntry(cfg, &pConfiguration->Indirect);
 
 	#if !defined(WPP_EVENT_TRACING)
 			bDebugPrint = pConfiguration->isLogEnabled.ulValue;
@@ -315,7 +318,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			if (pConfiguration->OffloadTxTCP.ulValue) pContext->Offload.flagsValue |= osbT4TcpChecksum | osbT4TcpOptionsChecksum;
 			if (pConfiguration->OffloadTxUDP.ulValue) pContext->Offload.flagsValue |= osbT4UdpChecksum;
 			if (pConfiguration->OffloadTxLSO.ulValue) pContext->Offload.flagsValue |= osbT4Lso | osbT4LsoIp | osbT4LsoTcp;
-			if (pConfiguration->OffloadRxIP.ulValue) pContext->Offload.flagsValue |= osbT4IpRxChecksum | osbT4IpOptionsChecksum;
+			if (pConfiguration->OffloadRxIP.ulValue) pContext->Offload.flagsValue |= osbT4IpRxChecksum | osbT4IpRxOptionsChecksum;
 			/* full packet size that can be configured as GSO for VIRTIO is short */
 			/* NDIS test fails sometimes fails on segments 50-60K */
 			pContext->Offload.maxPacketSize = PARANDIS_MAX_LSO_SIZE;
@@ -332,6 +335,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->bUseMergedBuffers = pConfiguration->UseMergeableBuffers.ulValue != 0;
 			pContext->bDoPublishIndices = pConfiguration->PublishIndices.ulValue != 0;
 			pContext->MaxPacketSize.nMaxDataSize = pConfiguration->MTU.ulValue;
+			pContext->bUseIndirect = pConfiguration->Indirect.ulValue != 0;
 			if (!pContext->bDoSupportPriority)
 				pContext->ulPriorityVlanSetting = 0;
 			// if Vlan not supported
@@ -383,8 +387,7 @@ void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsF
 	pDest->fTxLsoIP = !!(*from & osbT4LsoIp);
 	pDest->fTxLsoTCP = !!(*from & osbT4LsoTcp);
 	pDest->fRxIPChecksum = !!(*from & osbT4IpRxChecksum);
-	pDest->fTxIPOptions = !!(*from & osbT4IpOptionsChecksum);
-	pDest->fRxIPOptions = 0;
+	pDest->fRxIPOptions = !!(*from & osbT4IpRxOptionsChecksum);
 	pDest->fRxTCPChecksum = 0;
 	pDest->fRxTCPOptions = 0;
 	pDest->fRxUDPChecksum = 0;
@@ -551,7 +554,8 @@ NDIS_STATUS ParaNdis_InitializeContext(
 			pContext->bUsingMSIX = TRUE;
 		}
 
-		VirtIODeviceSetIOAddress(&pContext->IODevice, pContext->AdapterResources.ulIOAddress);
+		VirtIODeviceInitialize(&pContext->IODevice, pContext->AdapterResources.ulIOAddress, sizeof(pContext->IODevice));
+		VirtIODeviceSetMSIXUsed(&pContext->IODevice, pContext->bUsingMSIX);
 		JustForCheckClearInterrupt(pContext, "init 0");
 		ParaNdis_ResetVirtIONetDevice(pContext);
 		JustForCheckClearInterrupt(pContext, "init 1");
@@ -579,7 +583,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 		{
 			VirtIODeviceGet(
 				&pContext->IODevice,
-				pContext->bUsingMSIX ? 4 : 0, // offsetof(struct virtio_net_config, mac)
+				0, // offsetof(struct virtio_net_config, mac)
 				&pContext->PermanentMacAddress,
 				ETH_LENGTH_OF_ADDRESS);
 			if (!ParaNdis_ValidateMacAddress(pContext->PermanentMacAddress, FALSE))
@@ -679,6 +683,21 @@ NDIS_STATUS ParaNdis_InitializeContext(
 		!VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_HOST_TSO4))
 	{
 		DisableLSOPermanently(pContext, __FUNCTION__, "Host does not support TSO");
+	}
+	if (pContext->bUseIndirect)
+	{
+		const char *reason = "";
+		if (!VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_F_INDIRECT))
+		{
+			pContext->bUseIndirect = FALSE;
+			reason = "Host support";
+		}
+		else if (!pContext->bUseScatterGather)
+		{
+			pContext->bUseIndirect = FALSE;
+			reason = "SG";
+		}
+		DPrintf(0, ("[%s] %sable indirect Tx(!%s)", __FUNCTION__, pContext->bUseIndirect ? "En" : "Dis", reason) );
 	}
 
 
@@ -832,12 +851,14 @@ static BOOLEAN AddRxBufferToQueue(PARANDIS_ADAPTER *pContext, pIONetDescriptor p
 		sg[0].ulSize = pBufferDescriptor->DataInfo.size;
 		nBuffersToSubmit = 1;
 	}
-	return 0 == pContext->NetReceiveQueue->vq_ops->add_buf(
+	return 0 <= pContext->NetReceiveQueue->vq_ops->add_buf(
 		pContext->NetReceiveQueue,
 		sg,
 		0,
 		nBuffersToSubmit,
-		pBufferDescriptor);
+		pBufferDescriptor,
+		NULL,
+		0);
 }
 
 
@@ -879,6 +900,22 @@ static int PrepareReceiveBuffers(PARANDIS_ADAPTER *pContext)
 	return nRet;
 }
 
+// called on PASSIVE upon unsuccessful Init or upon Halt
+static void	DeleteNetQueues(PARANDIS_ADAPTER *pContext)
+{
+	if(pContext->NetSendQueue)
+		VirtIODeviceDeleteQueue(pContext->NetSendQueue, NULL);
+	if(pContext->NetReceiveQueue)
+		VirtIODeviceDeleteQueue(pContext->NetReceiveQueue, NULL);
+	pContext->NetSendQueue = pContext->NetReceiveQueue = NULL;
+	if (pContext->SendQueueRing.Virtual)
+		ParaNdis_FreePhysicalMemory(pContext, &pContext->SendQueueRing);
+	RtlZeroMemory(&pContext->SendQueueRing, sizeof(pContext->SendQueueRing));
+	if (pContext->ReceiveQueueRing.Virtual)
+		ParaNdis_FreePhysicalMemory(pContext, &pContext->ReceiveQueueRing);
+	RtlZeroMemory(&pContext->ReceiveQueueRing, sizeof(pContext->ReceiveQueueRing));
+}
+
 
 /**********************************************************
 Initializes VirtIO buffering and related stuff:
@@ -891,11 +928,37 @@ Return value:
 static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 {
 	NDIS_STATUS status = NDIS_STATUS_RESOURCES;
+	ULONG size;
 	DEBUG_ENTRY(0);
 
-	// We expect two virtqueues, receive then send.
-	pContext->NetReceiveQueue = VirtIODeviceFindVirtualQueue(&pContext->IODevice, 0, NULL); //vp_find_vq(vdev, 0, skb_recv_done);
-	pContext->NetSendQueue = VirtIODeviceFindVirtualQueue(&pContext->IODevice, 1, NULL); //vp_find_vq(vdev, 0, skb_recv_done);
+	pContext->ReceiveQueueRing.IsCached = 1;
+	pContext->ReceiveQueueRing.IsTX = 0;
+	pContext->SendQueueRing.IsCached = 1;
+	pContext->SendQueueRing.IsTX = 1;
+
+	// We work with two virtqueues, 0 - receive and 1 - send.
+	VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 0, &size, &pContext->ReceiveQueueRing.size);
+	VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 1, &size, &pContext->SendQueueRing.size);
+	if (pContext->ReceiveQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ReceiveQueueRing))
+	{
+		pContext->NetReceiveQueue = VirtIODevicePrepareQueue(
+			&pContext->IODevice,
+			0,
+			pContext->ReceiveQueueRing.Physical,
+			pContext->ReceiveQueueRing.Virtual,
+			pContext->ReceiveQueueRing.size,
+			NULL);
+	}
+	if (pContext->SendQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->SendQueueRing))
+	{
+		pContext->NetSendQueue = VirtIODevicePrepareQueue(
+			&pContext->IODevice,
+			1,
+			pContext->SendQueueRing.Physical,
+			pContext->SendQueueRing.Virtual,
+			pContext->SendQueueRing.size,
+			NULL);
+	}
 
 	if (pContext->NetReceiveQueue && pContext->NetSendQueue)
 	{
@@ -916,11 +979,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 	}
 	else
 	{
-		if(pContext->NetSendQueue)
-			VirtIODeviceDeleteVirtualQueue(pContext->NetSendQueue);
-		if(pContext->NetReceiveQueue)
-			VirtIODeviceDeleteVirtualQueue(pContext->NetReceiveQueue);
-		pContext->NetSendQueue = pContext->NetReceiveQueue = NULL;
+		DeleteNetQueues(pContext);
 	}
 	return status;
 }
@@ -1000,11 +1059,8 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 		pContext->NetSendQueue->vq_ops->shutdown(pContext->NetSendQueue);
 	if(pContext->NetReceiveQueue)
 		pContext->NetReceiveQueue->vq_ops->shutdown(pContext->NetReceiveQueue);
-	if(pContext->NetSendQueue)
-		VirtIODeviceDeleteVirtualQueue(pContext->NetSendQueue);
-	if(pContext->NetReceiveQueue)
-		VirtIODeviceDeleteVirtualQueue(pContext->NetReceiveQueue);
-	pContext->NetSendQueue = pContext->NetReceiveQueue = NULL;
+
+	DeleteNetQueues(pContext);
 
 	/* intentionally commented out
 	FreeDescriptorsFromList(
@@ -1288,11 +1344,14 @@ Uses pContext->sgTxGatherTable
 tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperationParameters *Params)
 {
 	tCopyPacketResult result;
-	tMapperResult mapResult;
+	tMapperResult mapResult = {0,0,0};
 	// populating priority tag or LSO MAY require additional SG element
-	UINT nRequiredBuffers = Params->nofSGFragments + 1 + ((Params->flags & (pcrPriorityTag | pcrLSO)) ? 1 : 0);
+	UINT nRequiredBuffers;
 	BOOLEAN bUseCopy = FALSE;
 	struct VirtIOBufferDescriptor *sg = pContext->sgTxGatherTable;
+
+	nRequiredBuffers = Params->nofSGFragments + 1 + ((Params->flags & (pcrPriorityTag | pcrLSO)) ? 1 : 0);
+
 	result.size = 0;
 	result.error = cpeOK;
 	if (!pContext->bUseScatterGather ||			// only copy available
@@ -1306,6 +1365,10 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 		nRequiredBuffers = 2;
 		bUseCopy = TRUE;
 	}
+	else if (pContext->bUseIndirect && !(Params->flags & pcrNoIndirect))
+	{
+		nRequiredBuffers = 1;
+	}
 
 	// I do not think this will help, but at least we can try freeing some buffers right now
 	if (pContext->nofFreeHardwareBuffers < nRequiredBuffers || !pContext->nofFreeTxDescriptors)
@@ -1315,6 +1378,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 
 	if (nRequiredBuffers > pContext->maxFreeHardwareBuffers)
 	{
+		// LSO and too many buffers, impossible to send
 		result.error = cpeTooLarge;
 		DPrintf(0, ("[%s] ERROR: too many fragments(%d required, %d max.avail)!", __FUNCTION__,
 			nRequiredBuffers, pContext->maxFreeHardwareBuffers));
@@ -1336,38 +1400,70 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 	else
 	{
 		UINT nMappedBuffers;
+		ULONGLONG paOfIndirectArea = 0;
+		PVOID vaOfIndirectArea = NULL;
 		pIONetDescriptor pBuffersDescriptor = (pIONetDescriptor)RemoveHeadList(&pContext->NetFreeSendBuffers);
 		pContext->nofFreeTxDescriptors--;
 		NdisZeroMemory(pBuffersDescriptor->HeaderInfo.Virtual, pBuffersDescriptor->HeaderInfo.size);
 		sg[0].physAddr = pBuffersDescriptor->HeaderInfo.Physical;
 		sg[0].ulSize = pBuffersDescriptor->HeaderInfo.size;
-		mapResult = ParaNdis_PacketMapper(
+		ParaNdis_PacketMapper(
 			pContext,
 			Params->packet,
 			Params->ReferenceValue,
 			sg + 1,
-			pBuffersDescriptor);
-		nMappedBuffers = mapResult.nBuffersMapped;
+			pBuffersDescriptor,
+			&mapResult);
+		nMappedBuffers = mapResult.usBuffersMapped;
 		if (nMappedBuffers)
 		{
 			nMappedBuffers++;
-			if (0 == pContext->NetSendQueue->vq_ops->add_buf(pContext->NetSendQueue, sg, nMappedBuffers, 0, pBuffersDescriptor))
+			if (pContext->bUseIndirect && !(Params->flags & pcrNoIndirect))
 			{
-				pBuffersDescriptor->nofUsedBuffers = nMappedBuffers;
-				pContext->nofFreeHardwareBuffers -= nMappedBuffers;
-				if (pContext->minFreeHardwareBuffers > pContext->nofFreeHardwareBuffers)
-					pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
-				pBuffersDescriptor->ReferenceValue = Params->ReferenceValue;
-				result.size = Params->ulDataSize;
-				DPrintf(2, ("[%s] Submitted %d buffers (%d bytes), avail %d desc, %d bufs",
-					__FUNCTION__, nMappedBuffers, result.size,
-					pContext->nofFreeTxDescriptors, pContext->nofFreeHardwareBuffers
-				));
+				ULONG space1 = (mapResult.usBufferSpaceUsed + 7) & ~7;
+				ULONG space2 = nMappedBuffers * SIZE_OF_SINGLE_INDIRECT_DESC;
+				if (pBuffersDescriptor->DataInfo.size >= (space1 + space2))
+				{
+					vaOfIndirectArea = RtlOffsetToPointer(pBuffersDescriptor->DataInfo.Virtual, space1);
+					paOfIndirectArea = pBuffersDescriptor->DataInfo.Physical.QuadPart + space1;
+				}
+				else if (nMappedBuffers <= pContext->nofFreeHardwareBuffers)
+				{
+					// send as is, no indirect
+				}
+				else
+				{
+					result.error = cpeNoIndirect;
+					DPrintf(0, ("[%s] Unexpected ERROR of placement!", __FUNCTION__));
+				}
 			}
-			else
+			if (result.error == cpeOK)
 			{
-				result.error = cpeInternalError;
-				DPrintf(0, ("[%s] Unexpected ERROR adding buffer to TX engine!..", __FUNCTION__));
+				if (0 <= pContext->NetSendQueue->vq_ops->add_buf(
+					pContext->NetSendQueue,
+					sg,
+					nMappedBuffers,
+					0,
+					pBuffersDescriptor,
+					vaOfIndirectArea,
+					paOfIndirectArea))
+				{
+					pBuffersDescriptor->nofUsedBuffers = nMappedBuffers;
+					pContext->nofFreeHardwareBuffers -= nMappedBuffers;
+					if (pContext->minFreeHardwareBuffers > pContext->nofFreeHardwareBuffers)
+						pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
+					pBuffersDescriptor->ReferenceValue = Params->ReferenceValue;
+					result.size = Params->ulDataSize;
+					DPrintf(2, ("[%s] Submitted %d buffers (%d bytes), avail %d desc, %d bufs",
+						__FUNCTION__, nMappedBuffers, result.size,
+						pContext->nofFreeTxDescriptors, pContext->nofFreeHardwareBuffers
+					));
+				}
+				else
+				{
+					result.error = cpeInternalError;
+					DPrintf(0, ("[%s] Unexpected ERROR adding buffer to TX engine!..", __FUNCTION__));
+				}
 			}
 		}
 		else
@@ -1537,7 +1633,15 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 			pContext->nofFreeHardwareBuffers -= nRequiredHardwareBuffers;
 			if (pContext->minFreeHardwareBuffers > pContext->nofFreeHardwareBuffers)
 				pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
-			if (pContext->NetSendQueue->vq_ops->add_buf(pContext->NetSendQueue, sg, 2, 0, pBuffersDescriptor))
+			if (0 > pContext->NetSendQueue->vq_ops->add_buf(
+				pContext->NetSendQueue,
+				sg,
+				2,
+				0,
+				pBuffersDescriptor,
+				NULL,
+				0
+				))
 			{
 				pBuffersDescriptor->nofUsedBuffers = 0;
 				pContext->nofFreeHardwareBuffers += nRequiredHardwareBuffers;
@@ -1746,7 +1850,7 @@ void ParaNdis_ReportLinkStatus(PARANDIS_ADAPTER *pContext)
 	if (pContext->bLinkDetectSupported)
 	{
 		USHORT linkStatus = 0;
-		USHORT offset = (pContext->bUsingMSIX ? 4 : 0) + sizeof(pContext->CurrentMacAddress);
+		USHORT offset = sizeof(pContext->CurrentMacAddress);
 		// link changed
 		VirtIODeviceGet(&pContext->IODevice, offset, &linkStatus, sizeof(linkStatus));
 		bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
@@ -2153,8 +2257,8 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 	if (pContext->bDoPublishIndices)
 		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_F_PUBLISH_INDICES);
 
-	VirtIODeviceRenewVirtualQueue(pContext->NetReceiveQueue);
-	VirtIODeviceRenewVirtualQueue(pContext->NetSendQueue);
+	VirtIODeviceRenewQueue(pContext->NetReceiveQueue);
+	VirtIODeviceRenewQueue(pContext->NetSendQueue);
 	ParaNdis_RestoreDeviceConfigurationAfterReset(pContext);
 
 	InitializeListHead(&TempList);
@@ -2244,5 +2348,3 @@ void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext)
 		WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 1);
 	}
 }
-
-
