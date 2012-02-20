@@ -685,7 +685,7 @@ Parameters:
 Returns @pMapperResult: (zeroed before call)
 	.usBuffersMapped - number of buffers mapped (one of them may be our own)
 	.ulDataSize - number of bytes to report as transmitted (802.1P tag is not counted)
-	.usBufferSpaceUsed - number of bytes used in data space of pIONetDescriptor pDesc 
+	.usBufferSpaceUsed - number of bytes used in data space of pIONetDescriptor pDesc
 ***********************************************************/
 VOID ParaNdis_PacketMapper(
 	PARANDIS_ADAPTER *pContext,

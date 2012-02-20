@@ -31,7 +31,7 @@ static PVIOQUEUE FindVirtualQueue(VIODEVICE *dev, ULONG index)
 		p = MmAllocateContiguousMemory(allocSize, HighestAcceptable);
 		if (p)
 		{
-			pq = VirtIODevicePrepareQueue(dev, index, MmGetPhysicalAddress(p), p, allocSize, p); 
+			pq = VirtIODevicePrepareQueue(dev, index, MmGetPhysicalAddress(p), p, allocSize, p);
 		}
 	}
 	return pq;
@@ -68,7 +68,7 @@ BalloonInit(
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto free_mem;
     }
-    
+
 	if(VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> VIRTIO_BALLOON_F_STATS_VQ\n");

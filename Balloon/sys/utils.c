@@ -104,7 +104,7 @@ static void DebugPrintFuncSerial(const char *format, ...)
 	va_list list;
 	va_start(list, format);
 	status = RtlStringCbVPrintfA(buf, sizeof(buf), format, list);
-	if (status == STATUS_SUCCESS) 
+	if (status == STATUS_SUCCESS)
 	{
 		len = strlen(buf);
 	}

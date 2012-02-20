@@ -456,7 +456,7 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
 		if (pa.QuadPart)
 			vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, adaptExt->uncachedExtensionVa, len, NULL);
 	}
-	
+
 	if (vq && vector)
 	{
 		unsigned res;
@@ -470,7 +470,7 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
 			return NULL;
 		}
 	}
-	
+
 	return vq;
 }
 

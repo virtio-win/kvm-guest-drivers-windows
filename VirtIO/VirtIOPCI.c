@@ -276,10 +276,10 @@ void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, unsi
 }
 
 struct virtqueue *VirtIODevicePrepareQueue(
-					VirtIODevice *vp_dev, 
-					unsigned index, 
-					PHYSICAL_ADDRESS pa, 
-					void *va, 
+					VirtIODevice *vp_dev,
+					unsigned index,
+					PHYSICAL_ADDRESS pa,
+					void *va,
 					unsigned long size,
 					void *ownerContext)
 {

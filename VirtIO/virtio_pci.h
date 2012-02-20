@@ -133,10 +133,10 @@ void VirtIODeviceRemoveStatus(VirtIODevice * pVirtIODevice, u8 status);
 
 void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, unsigned long *pNumEntries, unsigned long *pAllocationSize);
 struct virtqueue *VirtIODevicePrepareQueue(
-					VirtIODevice *vp_dev, 
-					unsigned index, 
-					PHYSICAL_ADDRESS pa, 
-					void *va, 
+					VirtIODevice *vp_dev,
+					unsigned index,
+					PHYSICAL_ADDRESS pa,
+					void *va,
 					unsigned long size,
 					void *ownerContext);
 void VirtIODeviceDeleteQueue(struct virtqueue *vq, /* optional*/ void **pOwnerContext);

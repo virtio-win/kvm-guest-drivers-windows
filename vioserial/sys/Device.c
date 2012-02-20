@@ -373,7 +373,7 @@ static struct virtqueue * FindVirtualQueue(VirtIODevice *dev, ULONG index)
 		p = MmAllocateContiguousMemory(allocSize, HighestAcceptable);
 		if (p)
 		{
-			pq = VirtIODevicePrepareQueue(dev, index, MmGetPhysicalAddress(p), p, allocSize, p); 
+			pq = VirtIODevicePrepareQueue(dev, index, MmGetPhysicalAddress(p), p, allocSize, p);
 		}
 	}
 	return pq;

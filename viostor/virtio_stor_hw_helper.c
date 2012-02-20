@@ -51,7 +51,7 @@ SynchronizedFlushRoutine(
     srbExt->vbr.sg[1].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
     srbExt->vbr.sg[1].ulSize   = sizeof(srbExt->vbr.status);
 
-	 
+
 	SET_VA_PA();
 	if (adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
                      &srbExt->vbr.sg[0],
@@ -123,7 +123,7 @@ RhelDoFlush(
                                       &srbExt->vbr.sg[0],
                                       srbExt->out, srbExt->in,
                                       &srbExt->vbr, va, pa);
-    
+
 	if ( num_free >= 0) {
         adaptExt->vq->vq_ops->kick(adaptExt->vq);
         for (i = 0; i < Wait; i++) {
@@ -164,9 +164,9 @@ SynchronizedReadWriteRoutine(
     PRHEL_SRB_EXTENSION srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
 	PVOID va;
 	ULONGLONG pa;
-	
+
 	SET_VA_PA();
-    
+
 	if (adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
                      &srbExt->vbr.sg[0],
                      srbExt->out, srbExt->in,
@@ -235,7 +235,7 @@ RhelDoReadWrite(PVOID DeviceExtension,
 
     srbExt->vbr.sg[sgElement].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
     srbExt->vbr.sg[sgElement].ulSize = sizeof(srbExt->vbr.status);
-    
+
 	SET_VA_PA();
 	num_free = adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
                                       &srbExt->vbr.sg[0],
@@ -246,7 +246,7 @@ RhelDoReadWrite(PVOID DeviceExtension,
         InsertTailList(&adaptExt->list_head, &srbExt->vbr.list_entry);
         adaptExt->vq->vq_ops->kick(adaptExt->vq);
         srbExt->call_next = FALSE;
-		// PLEASE REVIEW!!!		
+		// PLEASE REVIEW!!!
 		if(!adaptExt->indirect && num_free < VIRTIO_MAX_SG) {
 			srbExt->call_next = TRUE;
         } else {

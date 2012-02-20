@@ -930,7 +930,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 	NDIS_STATUS status = NDIS_STATUS_RESOURCES;
 	ULONG size;
 	DEBUG_ENTRY(0);
-	
+
 	pContext->ReceiveQueueRing.IsCached = 1;
 	pContext->ReceiveQueueRing.IsTX = 0;
 	pContext->SendQueueRing.IsCached = 1;
@@ -1059,7 +1059,7 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 		pContext->NetSendQueue->vq_ops->shutdown(pContext->NetSendQueue);
 	if(pContext->NetReceiveQueue)
 		pContext->NetReceiveQueue->vq_ops->shutdown(pContext->NetReceiveQueue);
-	
+
 	DeleteNetQueues(pContext);
 
 	/* intentionally commented out
@@ -1349,9 +1349,9 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 	UINT nRequiredBuffers;
 	BOOLEAN bUseCopy = FALSE;
 	struct VirtIOBufferDescriptor *sg = pContext->sgTxGatherTable;
-	
+
 	nRequiredBuffers = Params->nofSGFragments + 1 + ((Params->flags & (pcrPriorityTag | pcrLSO)) ? 1 : 0);
-	
+
 	result.size = 0;
 	result.error = cpeOK;
 	if (!pContext->bUseScatterGather ||			// only copy available
@@ -1369,7 +1369,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 	{
 		nRequiredBuffers = 1;
 	}
-	
+
 	// I do not think this will help, but at least we can try freeing some buffers right now
 	if (pContext->nofFreeHardwareBuffers < nRequiredBuffers || !pContext->nofFreeTxDescriptors)
 	{
@@ -1440,10 +1440,10 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 			if (result.error == cpeOK)
 			{
 				if (0 <= pContext->NetSendQueue->vq_ops->add_buf(
-					pContext->NetSendQueue, 
-					sg, 
-					nMappedBuffers, 
-					0, 
+					pContext->NetSendQueue,
+					sg,
+					nMappedBuffers,
+					0,
 					pBuffersDescriptor,
 					vaOfIndirectArea,
 					paOfIndirectArea))
@@ -1634,10 +1634,10 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 			if (pContext->minFreeHardwareBuffers > pContext->nofFreeHardwareBuffers)
 				pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
 			if (0 > pContext->NetSendQueue->vq_ops->add_buf(
-				pContext->NetSendQueue, 
-				sg, 
-				2, 
-				0, 
+				pContext->NetSendQueue,
+				sg,
+				2,
+				0,
 				pBuffersDescriptor,
 				NULL,
 				0

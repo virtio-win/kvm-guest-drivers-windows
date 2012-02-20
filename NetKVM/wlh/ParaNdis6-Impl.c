@@ -964,9 +964,9 @@ static FORCEINLINE ULONG CalculateTotalOffloadSize(
 
 /*
 	Fills array @buffers with SG data for transmission.
-	If needed, copies part of data into data buffer @pDesc 
-	(priority, ETH, IP and TCP headers) and for copied part and 
-	original part of the packet copies SG data (address and length) 
+	If needed, copies part of data into data buffer @pDesc
+	(priority, ETH, IP and TCP headers) and for copied part and
+	original part of the packet copies SG data (address and length)
 	into provided buffers.
 	Receives zeroed tMapperResult struct,
 	fills it as follows:

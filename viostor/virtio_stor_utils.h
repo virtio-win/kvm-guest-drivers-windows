@@ -42,7 +42,7 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regi
 
 extern int nViostorDebugLevel;
 
-#define RhelDbgPrint(level, line) if ((!bDebugPrint) || level > nViostorDebugLevel) {} else VirtioDebugPrintProc line 
+#define RhelDbgPrint(level, line) if ((!bDebugPrint) || level > nViostorDebugLevel) {} else VirtioDebugPrintProc line
 
 #endif ___VIOSTOR_UTILS_H___
 

@@ -223,7 +223,7 @@ BalloonEvtDevicePrepareHardware(
 
     WDF_INTERRUPT_INFO_INIT(&interruptInfo);
     WdfInterruptGetInfo(devCtx->WdfInterrupt, &interruptInfo);
-    
+
 	VirtIODeviceInitialize(&devCtx->VDevice, (ULONG_PTR)devCtx->PortBase, sizeof(devCtx->VDevice));
 	VirtIODeviceSetMSIXUsed(&devCtx->VDevice, interruptInfo.MessageSignaled);
 

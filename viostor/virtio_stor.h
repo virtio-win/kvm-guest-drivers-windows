@@ -109,7 +109,7 @@ typedef struct virtio_blk_req {
 
 typedef struct _ADAPTER_EXTENSION {
 	VirtIODevice          vdev;
-	PVOID                 uncachedExtensionVa;	
+	PVOID                 uncachedExtensionVa;
 	struct virtqueue *    vq;
 	INQUIRYDATA           inquiry_data;
     blk_config            info;

@@ -401,7 +401,7 @@ typedef struct _tagPARANDIS_ADAPTER
 #endif
 }PARANDIS_ADAPTER, *PPARANDIS_ADAPTER;
 
-typedef enum { cpeOK, cpeNoBuffer, cpeInternalError, cpeTooLarge, cpeNoIndirect } tCopyPacketError; 
+typedef enum { cpeOK, cpeNoBuffer, cpeInternalError, cpeTooLarge, cpeNoIndirect } tCopyPacketError;
 typedef struct _tagCopyPacketResult
 {
 	ULONG		size;
