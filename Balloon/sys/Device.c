@@ -90,6 +90,7 @@ BalloonDeviceAdd(
     }
 
     devCtx = GetDeviceContext(device);
+	RtlZeroMemory(devCtx, sizeof(*devCtx));
     devCtx->Device = device;
     devCtx->DriverObject = WdfDriverWdmGetDriverObject(Driver);
 
@@ -143,6 +144,7 @@ BalloonEvtDevicePrepareHardware(
     PHYSICAL_ADDRESS    PortBasePA     = {0};
     ULONG               PortLength     = 0;
     ULONG               i;
+	WDF_INTERRUPT_INFO interruptInfo;
 
     PDEVICE_CONTEXT     devCtx = NULL;
 
@@ -219,7 +221,13 @@ BalloonEvtDevicePrepareHardware(
                                &devCtx->hLowMem);
 #endif // (WINVER >= 0x0501)
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
+    WDF_INTERRUPT_INFO_INIT(&interruptInfo);
+    WdfInterruptGetInfo(devCtx->WdfInterrupt, &interruptInfo);
+
+	VirtIODeviceInitialize(&devCtx->VDevice, (ULONG_PTR)devCtx->PortBase, sizeof(devCtx->VDevice));
+	VirtIODeviceSetMSIXUsed(&devCtx->VDevice, interruptInfo.MessageSignaled);
+
+	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return status;
 }
 

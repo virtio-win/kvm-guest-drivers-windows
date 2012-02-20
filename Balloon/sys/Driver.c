@@ -18,13 +18,6 @@
 #include "Driver.tmh"
 #endif
 
-#if !defined(EVENT_TRACING)
-ULONG DebugLevel = TRACE_LEVEL_WARNING;
-ULONG DebugFlag = 0x0000ffff;
-#else
-ULONG DebugLevel;
-ULONG DebugFlag;
-#endif
 
 
 #pragma alloc_text(INIT, DriverEntry)
@@ -160,89 +153,3 @@ EvtDriverContextCleanup(
     LogError( drvObj, BALLOON_STOPPED);
     WPP_CLEANUP( drvObj);
 }
-
-
-#if DBG
-#define     TEMP_BUFFER_SIZE        512
-
-#if COM_DEBUG
-
-#define RHEL_DEBUG_PORT     ((PUCHAR)0x3F8)
-ULONG
-_cdecl
-DbgPrintToComPort(
-    __in LPTSTR Format,
-    ...
-    )
-{
-
-    NTSTATUS   status;
-    size_t     rc;
-
-    status = RtlStringCbLengthA(Format, TEMP_BUFFER_SIZE, &rc);
-
-    if(NT_SUCCESS(status)) {
-        WRITE_PORT_BUFFER_UCHAR(RHEL_DEBUG_PORT, (PUCHAR)Format, rc);
-        WRITE_PORT_UCHAR(RHEL_DEBUG_PORT, '\r');
-    } else {
-        WRITE_PORT_UCHAR(RHEL_DEBUG_PORT, 'O');
-        WRITE_PORT_UCHAR(RHEL_DEBUG_PORT, '\n');
-    }
-    return rc;
-}
-#endif COM_DEBUG
-#endif DBG
-
-#if DBG
-#if COM_DEBUG
-#define BalloonDbgPrint(__MSG__) DbgPrintToComPort __MSG__;
-#else
-#define BalloonDbgPrint(__MSG__) DbgPrint __MSG__;
-#endif COM_DEBUG
-#else DBG
-#define BalloonDbgPrint(__MSG__)
-#endif DBG
-
-
-#if !defined(EVENT_TRACING)
-VOID
-TraceEvents    (
-    IN ULONG   TraceEventsLevel,
-    IN ULONG   TraceEventsFlag,
-    IN PCCHAR  DebugMessage,
-    ...
-    )
- {
-#if DBG
-    va_list    list;
-    CHAR       debugMessageBuffer[TEMP_BUFFER_SIZE];
-    NTSTATUS   status;
-
-    va_start(list, DebugMessage);
-
-    if (DebugMessage) {
-        status = RtlStringCbVPrintfA( debugMessageBuffer,
-                                      sizeof(debugMessageBuffer),
-                                      DebugMessage,
-                                      list );
-        if(!NT_SUCCESS(status)) {
-
-            BalloonDbgPrint ((__DRIVER_NAME ": RtlStringCbVPrintfA failed 0x%08x\n",
-                      status));
-            return;
-        }
-        if ((TraceEventsLevel <= DebugLevel &&
-             ((TraceEventsFlag & DebugFlag) == TraceEventsFlag))) {
-            BalloonDbgPrint((debugMessageBuffer));
-        }
-    }
-    va_end(list);
-
-    return;
-#else
-    UNREFERENCED_PARAMETER(TraceEventsLevel);
-    UNREFERENCED_PARAMETER(TraceEventsFlag);
-    UNREFERENCED_PARAMETER(DebugMessage);
-#endif
-}
-#endif

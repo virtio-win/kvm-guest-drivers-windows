@@ -8,8 +8,8 @@ cd app
 call cleanAll.bat
 cd ..
 
+pushd
 cd sys
-cleanAll.bat
+call cleanAll.bat
 cd ..
-
 
