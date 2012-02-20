@@ -216,25 +216,25 @@ ENTER_FN();
         return SP_RETURN_ERROR;
     }
 
-    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + PAGE_SIZE - 1));
+    ptr = (ULONG_PTR)PAGE_ALIGN(ptr + PAGE_SIZE - 1);
     adaptExt->pci_vq_info[0].queue = (PVOID)ptr;
 
-    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + vr_sz));
+    ptr = (ULONG_PTR)PAGE_ALIGN(ptr + vr_sz);
     adaptExt->virtqueue[0] = (vring_virtqueue*)(ptr);
 
-    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + vq_sz));
+    ptr = (ULONG_PTR)PAGE_ALIGN(ptr + vq_sz);
     adaptExt->pci_vq_info[1].queue = (PVOID)ptr;
 
-    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + vr_sz));
+    ptr = (ULONG_PTR)PAGE_ALIGN(ptr + vr_sz);
     adaptExt->virtqueue[1] = (vring_virtqueue*)(ptr);
 
-    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + vq_sz));
+    ptr = (ULONG_PTR)PAGE_ALIGN(ptr + vq_sz);
     adaptExt->pci_vq_info[2].queue = (PVOID)ptr;
 
-    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + vr_sz));
+    ptr = (ULONG_PTR)PAGE_ALIGN(ptr + vr_sz);
     adaptExt->virtqueue[2] = (vring_virtqueue*)(ptr);
 
-    ptr = (ULONG_PTR)PAGE_ALIGN(((ULONG)(ptr) + vq_sz));
+    ptr = (ULONG_PTR)PAGE_ALIGN(ptr + vq_sz);
     adaptExt->tmf_cmd.SrbExtension = (PSRB_EXTENSION)ptr;
 
     adaptExt->queue_depth = pageNum / ConfigInfo->NumberOfPhysicalBreaks - 1;
