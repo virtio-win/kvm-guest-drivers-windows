@@ -230,6 +230,7 @@ BOOL CDevice::GetInfo(PVOID buf, size_t *size)
     DWORD   ulOutLength = *size;
     ULONG   ulReturnedLength = 0;
     PVOID   pBuffer = NULL;
+    DWORD   err;
 
     printf ("%s, buf = %p, size = %d\n", __FUNCTION__, buf, *size);
     res = DeviceIoControl(
@@ -244,8 +245,11 @@ BOOL CDevice::GetInfo(PVOID buf, size_t *size)
                              );
 
     if ( !res )
-    {
-        printf("Ioctl failed with code %d\n", GetLastError() );
+    {   err = GetLastError();
+        if (err != ERROR_MORE_DATA)
+        {
+           printf("Ioctl failed with code %d\n", err );
+        }
     }
     *size = ulReturnedLength;
     return res;
