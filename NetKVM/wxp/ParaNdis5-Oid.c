@@ -400,7 +400,8 @@ static BOOLEAN IsValidPcs(	PARANDIS_ADAPTER *pContext, NDIS_TASK_TCP_IP_CHECKSUM
 	bInvalid |= pcs->V4Receive.IpOptionsSupported && !f.fRxIPOptions;
 	bInvalid |= pcs->V4Receive.TcpChecksum && !f.fRxTCPChecksum;
 	bInvalid |= pcs->V4Receive.TcpOptionsSupported && !f.fRxTCPOptions;
-	bInvalid |= pcs->V4Receive.UdpChecksum && f.fRxUDPChecksum;
+	bInvalid |= pcs->V4Receive.UdpChecksum && !f.fRxUDPChecksum;
+	
 	bInvalid |= pcs->V4Transmit.IpChecksum && !f.fTxIPChecksum;
 	bInvalid |= pcs->V4Transmit.IpOptionsSupported && !f.fTxIPOptions;
 	bInvalid |= pcs->V4Transmit.TcpChecksum && !f.fTxTCPChecksum;
@@ -495,6 +496,11 @@ static NDIS_STATUS ParseOffloadTask(
 				pf->fTxUDPChecksum = !!pcs->V4Transmit.UdpChecksum;
 				pf->fTxTCPOptions = !!pcs->V4Transmit.TcpOptionsSupported;
 				pf->fTxIPOptions = !!pcs->V4Transmit.IpOptionsSupported;
+				pf->fRxIPChecksum = !!pcs->V4Receive.IpChecksum;
+				pf->fRxIPOptions = !!pcs->V4Receive.IpOptionsSupported;
+				pf->fRxTCPChecksum = !!pcs->V4Receive.TcpChecksum;
+				pf->fRxTCPOptions = !!pcs->V4Receive.TcpOptionsSupported;
+				pf->fRxUDPChecksum = !!pcs->V4Receive.UdpChecksum;
 			}
 			else
 				status = STATUS_NOT_SUPPORTED;
@@ -559,6 +565,7 @@ static NDIS_STATUS ParseOffload(
 		if (!offset && bApply)
 		{
 			/* disable all the capabilities */
+			// according to DDK, 0 at first task offset means disabling all the capabilities
 			DPrintf(0, ("[%s] RESETTING offload capabilities", __FUNCTION__));
 			ParaNdis_ResetOffloadSettings(pContext, NULL, &ulNoCapabilities);
 			bReset = TRUE;
@@ -601,7 +608,17 @@ static BOOLEAN GetTcpIpCheckSumCapabilities(
 	pcs->V4Transmit.TcpOptionsSupported = !!f.fTxTCPOptions;
 	pcs->V4Receive.IpChecksum = !!f.fRxIPChecksum;
 	pcs->V4Receive.IpOptionsSupported = !!f.fRxIPOptions;
-	return pcs->V4Transmit.IpChecksum || pcs->V4Transmit.TcpChecksum || pcs->V4Transmit.UdpChecksum || pcs->V4Receive.IpChecksum;
+	pcs->V4Receive.TcpChecksum = !!f.fRxTCPChecksum;
+	pcs->V4Receive.TcpOptionsSupported = !!f.fRxTCPOptions;
+	pcs->V4Receive.UdpChecksum = !!f.fRxUDPChecksum;
+
+	return
+		pcs->V4Transmit.IpChecksum ||
+		pcs->V4Transmit.TcpChecksum ||
+		pcs->V4Transmit.UdpChecksum ||
+		pcs->V4Receive.IpChecksum ||
+		pcs->V4Receive.TcpChecksum ||
+		pcs->V4Receive.UdpChecksum;
 }
 
 /********************************************************

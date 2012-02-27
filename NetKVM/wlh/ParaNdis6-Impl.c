@@ -9,12 +9,14 @@
  * the COPYING file in the top-level directory.
  *
 **********************************************************************/
-#if NDIS60_MINIPORT || NDIS620_MINIPORT
+
 
 #include "ParaNdis6.h"
 #ifdef WPP_EVENT_TRACING
 #include "ParaNdis6-Impl.tmh"
 #endif
+
+#if NDIS_SUPPORT_NDIS6
 
 static VOID ProcessSGListHandler(IN PDEVICE_OBJECT  pDO, IN PVOID  Reserved, IN PSCATTER_GATHER_LIST  pSGL, IN PVOID  Context);
 
@@ -36,6 +38,9 @@ typedef struct _tagNetBufferEntry
 
 #define NBLEFLAGS_FAILED			0x0001
 #define NBLEFLAGS_NO_INDIRECT		0x0002
+#define NBLEFLAGS_TCP_CS			0x0004
+#define NBLEFLAGS_UDP_CS			0x0008
+
 typedef struct _tagNetBufferListEntry
 {
 	PNET_BUFFER_LIST		nbl;
@@ -274,7 +279,9 @@ Parameters:
 static VOID MiniportInterruptDPC(
     IN PVOID  MiniportInterruptContext,
     IN PVOID  MiniportDpcContext,
-    IN PULONG  NdisReserved1,
+	// TODO:
+	// Under Win7 this is NDIS_RECEIVE_THROTTLE_PARAMETERS!
+	IN PULONG  NdisReserved1,
     IN PULONG  NdisReserved2
     )
 {
@@ -601,7 +608,6 @@ void ParaNdis_UnbindBufferFromPacket(
 	NdisFreeMdl(pBufferDesc->pHolder);
 }
 
-
 /**********************************************************
 NDIS6 implementation of packet indication
 
@@ -682,33 +688,30 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 		}
 		if (pNBL)
 		{
+			PVOID headerBuffer = pContext->bUseMergedBuffers ? pBuffersDesc->DataInfo.Virtual:pBuffersDesc->HeaderInfo.Virtual;
+			virtio_net_hdr_basic *pHeader = (virtio_net_hdr_basic *)headerBuffer;
+			tChecksumCheckResult csRes;
 			pNBL->SourceHandle = pContext->MiniportHandle;
 			NET_BUFFER_LIST_INFO(pNBL, Ieee8021QNetBufferListInfo) = qInfo.Value;
 			if (qInfo.Value)
 			{
 				DPrintf(1, ("Found priority tag %p", qInfo.Value));
+				pContext->extraStatistics.framesRxPriority++;
 			}
 			pNBL->MiniportReserved[0] = pBuffersDesc;
-			if (NDIS_OFFLOAD_SUPPORTED == pContext->Offload.flags.fRxIPChecksum)
+			csRes = ParaNdis_CheckRxChecksum(pContext, pHeader->flags, dataBuffer, length);
+			if (csRes.value)
 			{
-				virtio_net_hdr_basic *pHeader =
-					(virtio_net_hdr_basic *)(pContext->bUseMergedBuffers?pBuffersDesc->DataInfo.Virtual:pBuffersDesc->HeaderInfo.Virtual);
-				// if we are configured to offload Rx Checksum and receive VIRTIO_NET_HDR_F_DATA_VALID from host, we indicate IpChecksumSucceeded.
-				// if host will notify us of invalid checksum (using a new VIRTIO_NET_HDR_...), we must indicate IpChecksumFailed.
-				if (pHeader->flags & VIRTIO_NET_HDR_F_NEEDS_CSUM)
-				{
-					// This branch is based on Linux driver implementation.
-					// It could be both flags can be set in some cases.
-					DPrintf(3, ("Host reports VIRTIO_NET_HDR_F_NEEDS_CSUM (0x%02X)", pHeader->flags));
-				}
-				else if (pHeader->flags & VIRTIO_NET_HDR_F_DATA_VALID)
-				{
-					NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
-					qCSInfo.Value = NULL;
-					qCSInfo.Receive.IpChecksumSucceeded  = TRUE;
-					NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
-					DPrintf(3, ("Host reports VIRTIO_NET_HDR_F_DATA_VALID (0x%02X)", pHeader->flags));
-				}
+				NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
+				qCSInfo.Value = NULL;
+				qCSInfo.Receive.IpChecksumFailed = csRes.flags.IpFailed;
+				qCSInfo.Receive.IpChecksumSucceeded = csRes.flags.IpOK;
+				qCSInfo.Receive.TcpChecksumFailed = csRes.flags.TcpFailed;
+				qCSInfo.Receive.TcpChecksumSucceeded = csRes.flags.TcpOK;
+				qCSInfo.Receive.UdpChecksumFailed = csRes.flags.UdpFailed;
+				qCSInfo.Receive.UdpChecksumSucceeded = csRes.flags.UdpOK;
+				NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
+				DPrintf(1, ("Reporting CS %0x%X", qInfo.Value));
 			}
 			pNBL->Status = NDIS_STATUS_SUCCESS;
 #if defined(ENABLE_HISTORY_LOG)
@@ -964,9 +967,9 @@ static FORCEINLINE ULONG CalculateTotalOffloadSize(
 
 /*
 	Fills array @buffers with SG data for transmission.
-	If needed, copies part of data into data buffer @pDesc
-	(priority, ETH, IP and TCP headers) and for copied part and
-	original part of the packet copies SG data (address and length)
+	If needed, copies part of data into data buffer @pDesc 
+	(priority, ETH, IP and TCP headers) and for copied part and 
+	original part of the packet copies SG data (address and length) 
 	into provided buffers.
 	Receives zeroed tMapperResult struct,
 	fills it as follows:
@@ -997,7 +1000,7 @@ VOID ParaNdis_PacketMapper(
 			UINT nCompleteBuffersToSkip = 0;
 			UINT nBytesSkipInFirstBuffer = NET_BUFFER_CURRENT_MDL_OFFSET(packet);
 			ULONG PriorityDataLong = pble->PriorityDataLong;
-			if (pble->mss)
+			if (pble->mss || (pble->flags & (NBLEFLAGS_TCP_CS | NBLEFLAGS_UDP_CS)))
 			{
 				lengthGet = pble->tcpHeaderOffset + sizeof(TCPHeader);
 			}
@@ -1021,6 +1024,10 @@ VOID ParaNdis_PacketMapper(
 					nCompleteBuffersToSkip++;
 					nBytesSkipInFirstBuffer = 0;
 				}
+				
+				// this can happen only with short UDP packet with checksum offload required
+				if (lengthGet > len) lengthGet = len;
+				
 				lengthPut = lengthGet + (PriorityDataLong ? ETH_PRIORITY_HEADER_SIZE : 0);
 			}
 
@@ -1078,11 +1085,10 @@ VOID ParaNdis_PacketMapper(
 					tTcpIpPacketParsingResult packetReview;
 					NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO lso;
 					ULONG dummyTransferSize;
-					ULONG flags = pcrIpChecksum | pcrTcpChecksum | pcrFixPHChecksum;
+					ULONG flags = pcrIpChecksum | pcrTcpChecksum | pcrFixIPChecksum | pcrFixPHChecksum;
 					USHORT saveBuffers = nBuffersMapped;
 					PVOID pIpHeader = RtlOffsetToPointer(pBuffer, pContext->Offload.ipHeaderOffset);
 					nBuffersMapped = 0;
-					if (pContext->bFixIPChecksum) flags |= pcrFixIPChecksum;
 					packetReview = ParaNdis_CheckSumVerify(
 						pIpHeader,
 						lengthGet - pContext->Offload.ipHeaderOffset,
@@ -1130,7 +1136,7 @@ VOID ParaNdis_PacketMapper(
 						nBuffersMapped = saveBuffers;
 					}
 				}
-
+				
 				if (PriorityDataLong && nBuffersMapped)
 				{
 					RtlMoveMemory(
@@ -1281,6 +1287,7 @@ static BOOLEAN PrepareSingleNBL(
 	ULONG maxDataLength = 0;
 	const char *pFailReason = "Unknown";
 	NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO lso;
+	NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO checksumReq;
 	PNET_BUFFER pB = NET_BUFFER_LIST_FIRST_NB(pNBL);
 	tNetBufferListEntry	*pble = ParaNdis_AllocateMemory(pContext, sizeof(*pble));
 	pNBL->Scratch = pble;
@@ -1407,10 +1414,60 @@ static BOOLEAN PrepareSingleNBL(
 				NET_BUFFER_LIST_INFO(pNBL, TcpLargeSendNetBufferListInfo) = lso.Value;
 			}
 		}
+		else
+		{
+			checksumReq.Value = NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo);
+			pble->tcpHeaderOffset = (USHORT)checksumReq.Transmit.TcpHeaderOffset;
+			if (checksumReq.Transmit.TcpChecksum)
+			{
+				if(pContext->Offload.flags.fTxTCPChecksum && pContext->bOffloadEnabled)
+				{
+					pble->flags |= NBLEFLAGS_TCP_CS;
+				}
+				else
+				{
+					bOK = FALSE;
+					pFailReason = "TCP CS request when it is not supported";
+				}
+			}
+			else if (checksumReq.Transmit.UdpChecksum)
+			{
+				if (pContext->Offload.flags.fTxUDPChecksum && pContext->bOffloadEnabled)
+				{
+					pble->flags |= NBLEFLAGS_UDP_CS;
+				}
+				else
+				{
+					bOK = FALSE;
+					pFailReason = "UDP CS request when it is not supported";
+				}
+			}
+		}
 	}
 	if (!bOK)
 	{
 		DPrintf(0, ("[%s] Failed to prepare NBL %p due to %s", __FUNCTION__, pNBL, pFailReason));
+	}
+	else
+	{
+		if (pContext->bDoIPCheckTx)
+		{
+			pB = NET_BUFFER_LIST_FIRST_NB(pNBL);
+			while (pB)
+			{
+				tTcpIpPacketParsingResult res;
+				ULONG len = NET_BUFFER_DATA_LENGTH(pB);
+				VOID *pcopy = ParaNdis_AllocateMemory(pContext, len);
+				ParaNdis_PacketCopier(pB, pcopy, len, NULL, TRUE);
+				res = ParaNdis_CheckSumVerify(
+					RtlOffsetToPointer(pcopy, ETH_HEADER_SIZE),
+					len,
+					pcrAnyChecksum/* | pcrFixAnyChecksum*/,
+					__FUNCTION__);
+				NdisFreeMemory(pcopy, 0, 0);
+				pB = NET_BUFFER_NEXT_NB(pB);
+			}
+		}
 	}
 	return bOK;
 }
@@ -1736,6 +1793,7 @@ static FORCEINLINE void InitializeTransferParameters(tNetBufferEntry *pnbe, tTxO
 	pParams->packet = pnbe->netBuffer;
 	pParams->ulDataSize = NET_BUFFER_DATA_LENGTH(pnbe->netBuffer);
 	pParams->offloalMss = pble->mss;
+	pParams->tcpHeaderOffset = pble->tcpHeaderOffset;
 	pParams->flags = pParams->offloalMss ? pcrLSO : 0;
 	/*
 	NdisQueryNetBufferPhysicalCount(pnbe->netBuffer)
@@ -1755,6 +1813,14 @@ static FORCEINLINE void InitializeTransferParameters(tNetBufferEntry *pnbe, tTxO
 	if (pble->flags & NBLEFLAGS_NO_INDIRECT)
 	{
 		pParams->flags |= pcrNoIndirect;
+	}
+	if (pble->flags & NBLEFLAGS_TCP_CS)
+	{
+		pParams->flags |= pcrTcpChecksum;
+	}
+	if (pble->flags & NBLEFLAGS_UDP_CS)
+	{
+		pParams->flags |= pcrUdpChecksum;
 	}
 }
 
@@ -2111,4 +2177,4 @@ VOID ParaNdis6_OnInterruptRecoveryTimer(PARANDIS_ADAPTER *pContext)
 	DEBUG_EXIT_STATUS(5, val);
 }
 
-#endif // NDIS60_MINIPORT || NDIS620_MINIPORT
+#endif // NDIS_SUPPORT_NDIS6

@@ -88,18 +88,14 @@ typedef struct _tagConfigurationEntries
 	tConfigurationEntry RxCapacity;
 	tConfigurationEntry InterruptRecovery;
 	tConfigurationEntry LogStatistics;
-	tConfigurationEntry HardReset;
 	tConfigurationEntry PacketFiltering;
 	tConfigurationEntry ScatterGather;
 	tConfigurationEntry BatchReceive;
-	tConfigurationEntry OffloadTxIP;
-	tConfigurationEntry OffloadTxTCP;
-	tConfigurationEntry OffloadTxUDP;
+	tConfigurationEntry OffloadTxChecksum;
 	tConfigurationEntry OffloadTxLSO;
-	tConfigurationEntry OffloadRxIP;
-	tConfigurationEntry HwOffload;
+	tConfigurationEntry OffloadRxCS;
+	tConfigurationEntry NoHwChecksum;
 	tConfigurationEntry IPPacketsCheck;
-	tConfigurationEntry IPChecksumFix;
 	tConfigurationEntry stdIpcsV4;
 	tConfigurationEntry stdTcpcsV4;
 	tConfigurationEntry stdTcpcsV6;
@@ -126,22 +122,18 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "DebugLevel",		2,	0,	8 },
 	{ "ConnectTimer",	0,	0,	300000 },
 	{ "DpcCheck",		0,	0,	2 },
-	{ "TxCapacity",		64,	16,	1024 },
+	{ "TxCapacity",		1024,	16,	1024 },
 	{ "RxCapacity",		256, 32, 1024 },
 	{ "InterruptRecovery",	0, 0, 1},
 	{ "LogStatistics",	0, 0, 10000},
-	{ "HardReset",		0, 0, 1},
-	{ "PacketFilter",	0, 0, 1},
-	{ "Gather",			0, 0, 1},
+	{ "PacketFilter",	1, 0, 1},
+	{ "Gather",			1, 0, 1},
 	{ "BatchReceive",	1, 0, 1},
-	{ "Offload.TxIP",	0, 0, 1},
-	{ "Offload.TxTCP",	0, 0, 1},
-	{ "Offload.TxUDP",	0, 0, 1},
+	{ "Offload.TxChecksum",	0, 0, 2},
 	{ "Offload.TxLSO",	0, 0, 1},
-	{ "Offload.RxIP",	0, 0, 1},
-	{ "HwOffload",		0, 0, 1 },
-	{ "IPPacketsCheck",	0, 0, 1 },
-	{ "IPChecksumFix",	1, 0, 1 },
+	{ "Offload.RxCS",	0, 0, 3},
+	{ "NoHwChecksum", 0, 0, 1 },
+	{ "IPPacketsCheck",	0, 0, 3 },
 	{ "*IPChecksumOffloadIPv4",	3, 0, 3 },
 	{ "*TCPChecksumOffloadIPv4",3, 0, 3 },
 	{ "*TCPChecksumOffloadIPv6",3, 0, 3 },
@@ -263,18 +255,14 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			GetConfigurationEntry(cfg, &pConfiguration->dpcChecker);
 			GetConfigurationEntry(cfg, &pConfiguration->InterruptRecovery);
 			GetConfigurationEntry(cfg, &pConfiguration->LogStatistics);
-			GetConfigurationEntry(cfg, &pConfiguration->HardReset);
 			GetConfigurationEntry(cfg, &pConfiguration->PacketFiltering);
 			GetConfigurationEntry(cfg, &pConfiguration->ScatterGather);
 			GetConfigurationEntry(cfg, &pConfiguration->BatchReceive);
-			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxIP);
-			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxTCP);
-			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxUDP);
+			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxChecksum);
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxLSO);
-			GetConfigurationEntry(cfg, &pConfiguration->OffloadRxIP);
-			GetConfigurationEntry(cfg, &pConfiguration->HwOffload);
+			GetConfigurationEntry(cfg, &pConfiguration->OffloadRxCS);
+			GetConfigurationEntry(cfg, &pConfiguration->NoHwChecksum);
 			GetConfigurationEntry(cfg, &pConfiguration->IPPacketsCheck);
-			GetConfigurationEntry(cfg, &pConfiguration->IPChecksumFix);
 			GetConfigurationEntry(cfg, &pConfiguration->stdIpcsV4);
 			GetConfigurationEntry(cfg, &pConfiguration->stdTcpcsV4);
 			GetConfigurationEntry(cfg, &pConfiguration->stdTcpcsV6);
@@ -303,22 +291,23 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->bDoInterruptRecovery = pConfiguration->InterruptRecovery.ulValue != 0;
 			pContext->Limits.nPrintDiagnostic = pConfiguration->LogStatistics.ulValue;
 			pContext->uNumberOfHandledRXPacketsInDPC = pConfiguration->NumberOfHandledRXPackersInDPC.ulValue;
-			pContext->bDoHardReset = pConfiguration->HardReset.ulValue != 0;
 			pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;
 			pContext->ulFormalLinkSpeed  = pConfiguration->ConnectRate.ulValue;
 			pContext->ulFormalLinkSpeed *= 1000000;
 			pContext->bDoPacketFiltering = pConfiguration->PacketFiltering.ulValue != 0;
 			pContext->bUseScatterGather  = pConfiguration->ScatterGather.ulValue != 0;
 			pContext->bBatchReceive      = pConfiguration->BatchReceive.ulValue != 0;
-			pContext->bDoHardwareOffload = pConfiguration->HwOffload.ulValue != 0;
-			pContext->bDoIPCheck = pConfiguration->IPPacketsCheck.ulValue != 0;
-			pContext->bFixIPChecksum = pConfiguration->IPChecksumFix.ulValue != 0;
+			pContext->bDoHardwareChecksum = pConfiguration->NoHwChecksum.ulValue == 0;
+			pContext->bDoIPCheckTx = pConfiguration->IPPacketsCheck.ulValue & 1;
+			pContext->bDoIPCheckRx = pConfiguration->IPPacketsCheck.ulValue & 2;
 			pContext->Offload.flagsValue = 0;
-			if (pConfiguration->OffloadTxIP.ulValue) pContext->Offload.flagsValue |= osbT4IpChecksum | osbT4IpOptionsChecksum;
-			if (pConfiguration->OffloadTxTCP.ulValue) pContext->Offload.flagsValue |= osbT4TcpChecksum | osbT4TcpOptionsChecksum;
-			if (pConfiguration->OffloadTxUDP.ulValue) pContext->Offload.flagsValue |= osbT4UdpChecksum;
+			if (pConfiguration->OffloadTxChecksum.ulValue) pContext->Offload.flagsValue |= osbT4TcpChecksum | osbT4TcpOptionsChecksum;
+			if (pConfiguration->OffloadTxChecksum.ulValue > 1) pContext->Offload.flagsValue |= osbT4UdpChecksum;
 			if (pConfiguration->OffloadTxLSO.ulValue) pContext->Offload.flagsValue |= osbT4Lso | osbT4LsoIp | osbT4LsoTcp;
-			if (pConfiguration->OffloadRxIP.ulValue) pContext->Offload.flagsValue |= osbT4IpRxChecksum | osbT4IpRxOptionsChecksum;
+			// RX: 1 - TCP, 2 - TCP/UDP, 3 - all
+			if (pConfiguration->OffloadRxCS.ulValue) pContext->Offload.flagsValue |= osbT4RxTCPChecksum | osbT4RxTCPOptionsChecksum;
+			if (pConfiguration->OffloadRxCS.ulValue > 1) pContext->Offload.flagsValue |= osbT4RxUDPChecksum;
+			if (pConfiguration->OffloadRxCS.ulValue > 2) pContext->Offload.flagsValue |= osbT4RxIPChecksum | osbT4RxIPOptionsChecksum;
 			/* full packet size that can be configured as GSO for VIRTIO is short */
 			/* NDIS test fails sometimes fails on segments 50-60K */
 			pContext->Offload.maxPacketSize = PARANDIS_MAX_LSO_SIZE;
@@ -378,19 +367,22 @@ void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsF
 {
 	if (!pDest) pDest = &pContext->Offload.flags;
 	if (!from)  from = &pContext->Offload.flagsValue;
+
 	pDest->fTxIPChecksum = !!(*from & osbT4IpChecksum);
 	pDest->fTxTCPChecksum = !!(*from & osbT4TcpChecksum);
 	pDest->fTxUDPChecksum = !!(*from & osbT4UdpChecksum);
 	pDest->fTxTCPOptions = !!(*from & osbT4TcpOptionsChecksum);
 	pDest->fTxIPOptions = !!(*from & osbT4IpOptionsChecksum);
+	
 	pDest->fTxLso = !!(*from & osbT4Lso);
 	pDest->fTxLsoIP = !!(*from & osbT4LsoIp);
 	pDest->fTxLsoTCP = !!(*from & osbT4LsoTcp);
-	pDest->fRxIPChecksum = !!(*from & osbT4IpRxChecksum);
-	pDest->fRxIPOptions = !!(*from & osbT4IpRxOptionsChecksum);
-	pDest->fRxTCPChecksum = 0;
-	pDest->fRxTCPOptions = 0;
-	pDest->fRxUDPChecksum = 0;
+
+	pDest->fRxIPChecksum = !!(*from & osbT4RxIPChecksum);
+	pDest->fRxIPOptions = !!(*from & osbT4RxIPOptionsChecksum);
+	pDest->fRxTCPChecksum = !!(*from & osbT4RxTCPChecksum);
+	pDest->fRxTCPOptions = !!(*from & osbT4RxTCPOptionsChecksum);
+	pDest->fRxUDPChecksum = !!(*from & osbT4RxUDPChecksum);
 }
 /**********************************************************
 Enumerates adapter resources and fills the structure holding them
@@ -485,13 +477,43 @@ Prints out statistics
 ***********************************************************/
 static void PrintStatistics(PARANDIS_ADAPTER *pContext)
 {
-	DPrintf(0, ("[Diag!] RX buffers at VIRTIO %d of %d", pContext->NetNofReceiveBuffers, pContext->NetMaxReceiveBuffers));
+	ULONG64 totalTxFrames = 
+		pContext->Statistics.ifHCOutBroadcastPkts +
+		pContext->Statistics.ifHCOutMulticastPkts +
+		pContext->Statistics.ifHCOutUcastPkts;
+	ULONG64 totalRxFrames =
+		pContext->Statistics.ifHCInBroadcastPkts +
+		pContext->Statistics.ifHCInMulticastPkts +
+		pContext->Statistics.ifHCInUcastPkts;
+
+	DPrintf(0, ("[Diag!] RX buffers at VIRTIO %d of %d", 
+		pContext->NetNofReceiveBuffers, 
+		pContext->NetMaxReceiveBuffers));
 	DPrintf(0, ("[Diag!] TX desc available %d/%d, buf %d/min. %d",
-		pContext->nofFreeTxDescriptors, pContext->maxFreeTxDescriptors,
-		pContext->nofFreeHardwareBuffers, pContext->minFreeHardwareBuffers));
+		pContext->nofFreeTxDescriptors, 
+		pContext->maxFreeTxDescriptors,
+		pContext->nofFreeHardwareBuffers, 
+		pContext->minFreeHardwareBuffers));
 	pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
-	DPrintf(0, ("[Diag!] TX packets to return %d", pContext->NetTxPacketsToReturn));
-	DPrintf(0, ("[Diag!] Bytes transmitted %I64u, received %I64u", pContext->Statistics.ifHCOutOctets, pContext->Statistics.ifHCInOctets));
+	if (pContext->NetTxPacketsToReturn)
+	{
+		DPrintf(0, ("[Diag!] TX packets to return %d", pContext->NetTxPacketsToReturn));
+	}
+	DPrintf(0, ("[Diag!] Bytes transmitted %I64u, received %I64u", 
+		pContext->Statistics.ifHCOutOctets, 
+		pContext->Statistics.ifHCInOctets));
+	DPrintf(0, ("[Diag!] Tx frames %I64u, CSO %d, LSO %d, indirect %d", 
+		totalTxFrames, 
+		pContext->extraStatistics.framesCSOffload, 
+		pContext->extraStatistics.framesLSO,
+		pContext->extraStatistics.framesIndirect));
+	DPrintf(0, ("[Diag!] Rx frames %I64u, Rx.Pri %d, RxHwCS.OK %d", 
+		totalRxFrames, pContext->extraStatistics.framesRxPriority, pContext->extraStatistics.framesRxCSHwOK));
+	if (pContext->extraStatistics.framesRxCSHwMissedBad || pContext->extraStatistics.framesRxCSHwMissedGood)
+	{
+		DPrintf(0, ("[Diag!] RxHwCS mistakes: missed bad %d, missed good %d", 
+			pContext->extraStatistics.framesRxCSHwMissedBad, pContext->extraStatistics.framesRxCSHwMissedGood));
+	}
 }
 
 
@@ -654,7 +676,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 	}
 
 
-	if (pContext->bDoHardwareOffload)
+	if (pContext->bDoHardwareChecksum)
  	{
 		ULONG dependentOptions;
 		dependentOptions = osbT4TcpChecksum | osbT4UdpChecksum | osbT4TcpOptionsChecksum;
@@ -930,7 +952,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 	NDIS_STATUS status = NDIS_STATUS_RESOURCES;
 	ULONG size;
 	DEBUG_ENTRY(0);
-
+	
 	pContext->ReceiveQueueRing.IsCached = 1;
 	pContext->ReceiveQueueRing.IsTX = 0;
 	pContext->SendQueueRing.IsCached = 1;
@@ -1337,6 +1359,26 @@ UINT ParaNdis_VirtIONetReleaseTransmitBuffers(
 	return i;
 }
 
+static ULONG FORCEINLINE QueryTcpHeaderOffset(PVOID packetData, ULONG ipHeaderOffset, ULONG ipPacketLength)
+{
+	ULONG res;
+	tTcpIpPacketParsingResult ppr = ParaNdis_ReviewIPPacket(
+		(PUCHAR)packetData + ipHeaderOffset, 
+		ipPacketLength, 
+		__FUNCTION__);
+	if (ppr.ipStatus == ppresIPV4 && ppr.xxpStatus == ppresXxpKnown)
+	{
+		res = ipHeaderOffset + ppr.ipHeaderSize;
+	}
+	else
+	{
+		DPrintf(0, ("[%s] ERROR: NOT a TCP or UDP packet - expected troubles!", __FUNCTION__));
+		res = 0;
+	}
+	return res;
+}
+
+
 /*********************************************************
 Called with from ProcessTx routine with TxLock held
 Uses pContext->sgTxGatherTable
@@ -1426,6 +1468,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 				{
 					vaOfIndirectArea = RtlOffsetToPointer(pBuffersDescriptor->DataInfo.Virtual, space1);
 					paOfIndirectArea = pBuffersDescriptor->DataInfo.Physical.QuadPart + space1;
+					pContext->extraStatistics.framesIndirect++;
 				}
 				else if (nMappedBuffers <= pContext->nofFreeHardwareBuffers)
 				{
@@ -1439,6 +1482,46 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 			}
 			if (result.error == cpeOK)
 			{
+				if (Params->flags & (pcrTcpChecksum | pcrUdpChecksum))
+				{
+					if (pContext->bDoHardwareChecksum)
+					{
+						virtio_net_hdr_basic *pheader = pBuffersDescriptor->HeaderInfo.Virtual;
+						pheader->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
+						if (!Params->tcpHeaderOffset)
+						{
+							Params->tcpHeaderOffset = QueryTcpHeaderOffset(
+								pBuffersDescriptor->DataInfo.Virtual,
+								pContext->Offload.ipHeaderOffset,
+								mapResult.usBufferSpaceUsed - pContext->Offload.ipHeaderOffset);
+						}
+						pheader->csum_start = (USHORT)Params->tcpHeaderOffset;
+						pheader->csum_offset = (Params->flags & pcrTcpChecksum) ? TCP_CHECKSUM_OFFSET : UDP_CHECKSUM_OFFSET;
+					}
+					else
+					{
+						// emulation mode - it is slow and intended only for test of flows
+						// and debugging of WLK test cases
+						PVOID pCopy = ParaNdis_AllocateMemory(pContext, Params->ulDataSize);
+						if (pCopy)
+						{
+							// calculate complete TCP/UDP checksum
+							tTcpIpPacketParsingResult ppr = ParaNdis_CheckSumVerify(
+								RtlOffsetToPointer(pCopy, pContext->Offload.ipHeaderOffset),
+								Params->ulDataSize - pContext->Offload.ipHeaderOffset,
+								pcrAnyChecksum | pcrFixXxpChecksum,
+								__FUNCTION__);
+							// data portion in aside buffer contains complete IP+TCP header
+							// rewrite copy of original buffer by one new with calculated data
+							NdisMoveMemory(
+								pBuffersDescriptor->DataInfo.Virtual,
+								pCopy,
+								mapResult.usBufferSpaceUsed);
+							NdisFreeMemory(pCopy, 0, 0);
+						}
+					}
+				}
+				
 				if (0 <= pContext->NetSendQueue->vq_ops->add_buf(
 					pContext->NetSendQueue,
 					sg,
@@ -1497,6 +1580,9 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 					pContext->Statistics.ifHCOutUcastPkts++;
 					break;
 			}
+
+			if (Params->flags & pcrLSO)
+				pContext->extraStatistics.framesLSO++;
 		}
 		else
 		{
@@ -1509,8 +1595,14 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 		pContext->NetSendQueue->vq_ops->kick_always(pContext->NetSendQueue);
 		pContext->bDoKickOnNoBuffer = FALSE;
 	}
+	if (result.error == cpeOK)
+	{
+		if (Params->flags & (pcrTcpChecksum | pcrUdpChecksum))
+			pContext->extraStatistics.framesCSOffload++;
+	}
 	return result;
 }
+
 
 /**********************************************************
 It is called from Tx processing routines
@@ -1527,7 +1619,7 @@ Return value:
 ***********************************************************/
 tCopyPacketResult ParaNdis_DoCopyPacketData(
 	PARANDIS_ADAPTER *pContext,
-	const tTxOperationParameters *pParams)
+	tTxOperationParameters *pParams)
 {
 	tCopyPacketResult result;
 	tCopyPacketResult CopierResult;
@@ -1557,35 +1649,27 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 			FALSE);
 		sg[1].ulSize = result.size = CopierResult.size;
 		// did NDIS ask us to compute CS?
-		if ((flags & (pcrIpChecksum | pcrTcpChecksum | pcrUdpChecksum )) != 0)
+		if ((flags & (pcrTcpChecksum | pcrUdpChecksum )) != 0)
 		{
 			// we asked
 			tOffloadSettingsFlags f = pContext->Offload.flags;
 			PVOID ipPacket = RtlOffsetToPointer(pBuffersDescriptor->DataInfo.Virtual, pContext->Offload.ipHeaderOffset);
 			ULONG ipPacketLength = CopierResult.size - pContext->Offload.ipHeaderOffset;
-			if (pContext->bDoHardwareOffload)
+			if (!pParams->tcpHeaderOffset)
+			{
+				// this is case of NDIS5, on NDIS6 we know it
+				pParams->tcpHeaderOffset = QueryTcpHeaderOffset(
+					pBuffersDescriptor->DataInfo.Virtual, 
+					pContext->Offload.ipHeaderOffset, 
+					ipPacketLength);	
+			}
+			if (pContext->bDoHardwareChecksum)
 			{
 				// hardware offload
 				virtio_net_hdr_basic *pvnh = (virtio_net_hdr_basic *)pBuffersDescriptor->HeaderInfo.Virtual;
-				tTcpIpPacketParsingResult ppr = ParaNdis_CheckSumVerify(ipPacket, ipPacketLength, pcrAnyChecksum, __FUNCTION__);
-				if (ppr.ipStatus == ppresIPV4 && ppr.xxpStatus == ppresXxpKnown)
-				{
-					/* attempt to pass Ndis test (offloadmisc) - does not help
-					if (ppr.ipCheckSum == ppresCSBad)
-					{
-						ppr = ParaNdis_CheckSumVerify(ipPacket, ipPacketLength, pcrIpChecksum | pcrFixIPChecksum, __FUNCTION__);
-					}
-					*/
-					pvnh->csum_start = (USHORT)pContext->Offload.ipHeaderOffset + (USHORT)ppr.ipHeaderSize;
-					pvnh->csum_offset = ppr.TcpUdp == ppresIsTCP ? TCP_CHECKSUM_OFFSET : UDP_CHECKSUM_OFFSET;
-					pvnh->flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM;
-				}
-				else
-				{
-					DPrintf(0, ("[%s] ERROR: not valid TCP packet!", __FUNCTION__));
-					result.size = 0;
-					result.error = cpeInternalError;
-				}
+				pvnh->csum_start = (USHORT)pParams->tcpHeaderOffset;
+				pvnh->csum_offset = (flags & pcrTcpChecksum) ? TCP_CHECKSUM_OFFSET : UDP_CHECKSUM_OFFSET;
+				pvnh->flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM;
 			}
 			else if (CopierResult.size > pContext->Offload.ipHeaderOffset)
 			{
@@ -1593,26 +1677,17 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 				if (!f.fTxIPChecksum) flags &= ~pcrIpChecksum;
 				if (!f.fTxTCPChecksum) flags &= ~pcrTcpChecksum;
 				if (!f.fTxUDPChecksum) flags &= ~pcrUdpChecksum;
-				ParaNdis_CheckSumVerify(ipPacket, ipPacketLength, flags | pcrFixIPChecksum | pcrFixXxpChecksum, __FUNCTION__);
+				ParaNdis_CheckSumVerify(
+					ipPacket, 
+					ipPacketLength, 
+					flags | pcrFixIPChecksum | pcrFixXxpChecksum, 
+					__FUNCTION__);
 			}
 			else
 			{
 				DPrintf(0, ("[%s] ERROR: Invalid buffer size for offload!", __FUNCTION__));
 				result.size = 0;
 				result.error = cpeInternalError;
-			}
-		}
-		else if (pContext->Offload.flags.fTxTCPChecksum && (flags & pcrIsIP))
-		{
-			if (pContext->bDoIPCheck)
-			{
-				// we should not do anything there, as required no CS calculation!
-				// just check what we send, if it is IP packet
-				tOffloadSettingsFlags f = pContext->Offload.flags;
-				PVOID ipPacket = RtlOffsetToPointer(pBuffersDescriptor->DataInfo.Virtual, pContext->Offload.ipHeaderOffset);
-				ULONG ipPacketLength = CopierResult.size - pContext->Offload.ipHeaderOffset;
-				ParaNdis_CheckSumVerify(ipPacket, ipPacketLength,
-					pcrIpChecksum /*| pcrFixChecksum*/ | pcrTcpChecksum |  pcrUdpChecksum, __FUNCTION__);
 			}
 		}
 		pContext->nofFreeTxDescriptors--;
@@ -2347,4 +2422,58 @@ void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext)
 	{
 		WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 1);
 	}
+}
+
+tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG virtioFlags, PVOID pRxPacket, ULONG len)
+{
+	tOffloadSettingsFlags f = pContext->Offload.flags;
+	tChecksumCheckResult res, resIp;
+	res.value = 0;
+	resIp.value = 0;
+	if (f.fRxIPChecksum || f.fRxTCPChecksum || f.fRxUDPChecksum)
+	{
+		//VIRTIO_NET_HDR_F_NEEDS_CSUM - do nothing
+		//VIRTIO_NET_HDR_F_DATA_VALID - host tell us CS is OK
+		if (pContext->bDoIPCheckRx)
+		{
+			PVOID pIpHeader = RtlOffsetToPointer(pRxPacket, ETH_HEADER_SIZE);
+			tTcpIpPacketParsingResult ppr;
+			ppr = ParaNdis_CheckSumVerify(pIpHeader, len - ETH_HEADER_SIZE, pcrAnyChecksum, __FUNCTION__);
+			if (ppr.ipStatus == ppresIPV4)
+			{
+				resIp.flags.IpOK = !!f.fRxIPChecksum && ppr.ipCheckSum == ppresCSOK;
+				resIp.flags.IpFailed = !!f.fRxIPChecksum && ppr.ipCheckSum == ppresCSBad;
+				if (f.fRxTCPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsTCP)
+				{
+					resIp.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK;
+					resIp.flags.TcpFailed = ppr.xxpCheckSum == ppresCSBad;
+				}
+				if (f.fRxUDPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsUDP)
+				{
+					resIp.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK;
+					resIp.flags.UdpFailed = ppr.xxpCheckSum == ppresCSBad;
+				}
+			}
+		}
+		if (virtioFlags & VIRTIO_NET_HDR_F_DATA_VALID)
+		{
+			pContext->extraStatistics.framesRxCSHwOK++;
+			res.flags.IpOK = !!f.fRxIPChecksum;
+			res.flags.TcpOK = !!f.fRxTCPChecksum;
+			res.flags.UdpOK = !!f.fRxUDPChecksum;
+		}
+	}
+	if (resIp.value && res.value != resIp.value)
+	{
+		// if HW did not set some bits that IP checker set, it is a mistake:
+		// or GOOD CS is not labeled, or BAD checksum is not labeled
+		tChecksumCheckResult diff;
+		diff.value = resIp.value & ~res.value;
+		if (diff.flags.IpFailed || diff.flags.TcpFailed || diff.flags.UdpFailed) 
+			pContext->extraStatistics.framesRxCSHwMissedBad++;
+		if (diff.flags.IpOK || diff.flags.TcpOK || diff.flags.UdpOK) 
+			pContext->extraStatistics.framesRxCSHwMissedGood++;
+		res.value = resIp.value; 
+	}
+	return res;
 }

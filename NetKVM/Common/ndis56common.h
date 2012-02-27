@@ -151,8 +151,11 @@ typedef enum _tagOffloadSettingsBit
 	osbT4Lso = 0x20,
 	osbT4LsoIp = 0x40,
 	osbT4LsoTcp = 0x80,
-	osbT4IpRxChecksum = 0x100,
-	osbT4IpRxOptionsChecksum = 0x200,
+	osbT4RxTCPChecksum = 0x100,
+	osbT4RxTCPOptionsChecksum = 0x200,
+	osbT4RxIPChecksum = 0x400,
+	osbT4RxIPOptionsChecksum = 0x800,
+	osbT4RxUDPChecksum = 0x1000,
 }tOffloadSettingsBit;
 
 typedef struct _tagOffloadSettingsFlags
@@ -183,10 +186,27 @@ typedef struct _tagOffloadSettings
 	ULONG maxPacketSize;
 }tOffloadSettings;
 
+typedef struct _tagChecksumCheckResult
+{
+	union
+	{
+		struct
+		{
+			ULONG   TcpFailed		:1;
+			ULONG   UdpFailed		:1;
+			ULONG   IpFailed		:1;
+			ULONG   TcpOK			:1;
+			ULONG   UdpOK			:1;
+			ULONG   IpOK			:1;
+		} flags;
+		ULONG value;
+	};
+}tChecksumCheckResult;
+
 /*
 for simplicity, we use for NDIS5 the same statistics as native NDIS6 uses
 */
-#if !NDIS60_MINIPORT && !NDIS620_MINIPORT
+#if !NDIS_SUPPORT_NDIS6
 typedef struct _tagNdisStatustics
 {
     ULONG64                     ifHCInOctets;
@@ -225,13 +245,13 @@ typedef struct _tagNdisOffloadParams
     UCHAR	LsoV2IPv6;
 }NDIS_OFFLOAD_PARAMETERS;
 
-#else // NDIS60_MINIPORT
+#else // NDIS_SUPPORT_NDIS6
 
 typedef PNET_BUFFER			tPacketType;
 typedef PMDL				tPacketHolderType;
 typedef PNET_BUFFER_LIST	tPacketIndicationType;
 
-#endif	//!NDIS60_MINIPORT
+#endif	//!NDIS_SUPPORT_NDIS6
 
 //#define UNIFY_LOCKS
 
@@ -276,15 +296,14 @@ typedef struct _tagPARANDIS_ADAPTER
 	BOOLEAN					bEnableInterruptHandlingDPC;
 	BOOLEAN					bEnableInterruptChecking;
 	BOOLEAN					bDoInterruptRecovery;
-	BOOLEAN					bDoHardReset;
 	BOOLEAN					bDoSupportPriority;
 	BOOLEAN					bDoPacketFiltering;
 	BOOLEAN					bUseScatterGather;
 	BOOLEAN					bBatchReceive;
 	BOOLEAN					bLinkDetectSupported;
-	BOOLEAN					bDoHardwareOffload;
-	BOOLEAN					bDoIPCheck;
-	BOOLEAN					bFixIPChecksum;
+	BOOLEAN					bDoHardwareChecksum;
+	BOOLEAN					bDoIPCheckTx;
+	BOOLEAN					bDoIPCheckRx;
 	BOOLEAN					bUseMergedBuffers;
 	BOOLEAN					bDoPublishIndices;
 	BOOLEAN					bDoKickOnNoBuffer;
@@ -326,6 +345,16 @@ typedef struct _tagPARANDIS_ADAPTER
 	};
 #endif
 	NDIS_STATISTICS_INFO	Statistics;
+	struct
+	{
+		ULONG framesCSOffload;
+		ULONG framesLSO;
+		ULONG framesIndirect;
+		ULONG framesRxPriority;
+		ULONG framesRxCSHwOK;
+		ULONG framesRxCSHwMissedBad;
+		ULONG framesRxCSHwMissedGood;
+	} extraStatistics;
 	tOurCounters			Counters;
 	tOurCounters			Limits;
 	UINT					uRXPacketsDPCLimit;
@@ -372,7 +401,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	ULONG						ulTxMessage;
 	ULONG						ulControlMessage;
 
-#if NDIS60_MINIPORT || NDIS620_MINIPORT
+#if NDIS_SUPPORT_NDIS6
 // Vista +
 	PIO_INTERRUPT_MESSAGE_INFO	pMSIXInfoTable;
 	PNET_BUFFER_LIST			SendHead;
@@ -401,7 +430,7 @@ typedef struct _tagPARANDIS_ADAPTER
 #endif
 }PARANDIS_ADAPTER, *PPARANDIS_ADAPTER;
 
-typedef enum { cpeOK, cpeNoBuffer, cpeInternalError, cpeTooLarge, cpeNoIndirect } tCopyPacketError;
+typedef enum { cpeOK, cpeNoBuffer, cpeInternalError, cpeTooLarge, cpeNoIndirect } tCopyPacketError; 
 typedef struct _tagCopyPacketResult
 {
 	ULONG		size;
@@ -550,12 +579,13 @@ typedef struct _tagTxOperationParameters
 	UINT			nofSGFragments;
 	ULONG			ulDataSize;
 	ULONG			offloalMss;
+	ULONG			tcpHeaderOffset;
 	ULONG			flags;		//see tPacketOffloadRequest
 }tTxOperationParameters;
 
 tCopyPacketResult ParaNdis_DoCopyPacketData(
 	PARANDIS_ADAPTER *pContext,
-	const tTxOperationParameters *pParams);
+	tTxOperationParameters *pParams);
 
 typedef struct _tagMapperResult
 {
@@ -568,6 +598,8 @@ typedef struct _tagMapperResult
 tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperationParameters *Params);
 
 void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsFlags *pDest, PULONG from);
+
+tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG virtioFlags, PVOID pRxPacket, ULONG len);
 
 void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext);
 
