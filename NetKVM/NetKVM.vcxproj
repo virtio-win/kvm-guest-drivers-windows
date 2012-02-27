@@ -203,6 +203,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="CoInstaller\setbuildenv.bat" />
+    <None Include="Common\common.inf.h" />
+    <None Include="tools\cleanemptystrings.vbs" />
     <None Include="wxp\netkvm.inf" />
     <None Include="wxp\netkvm2k.inf" />
     <None Include="wxp\sources" />

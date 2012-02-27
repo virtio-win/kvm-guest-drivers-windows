@@ -72,6 +72,12 @@
     <None Include="CoInstaller\setbuildenv.bat">
       <Filter>Build</Filter>
     </None>
+    <None Include="Common\common.inf.h">
+      <Filter>Source Files\Common</Filter>
+    </None>
+    <None Include="tools\cleanemptystrings.vbs">
+      <Filter>Build</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="wxp\parandis.rc">

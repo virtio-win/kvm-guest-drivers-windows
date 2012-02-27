@@ -11,13 +11,22 @@ if /i "%1"=="x64" goto makeinstall
 echo wrong parameters (1)%1 (2)%2 (3)%3
 goto :eof
 
+:prepareinf
+::original inf %1, copy to %2
+echo processing %1
+cl /nologo -DINCLUDE_TEST_PARAMS /I. /EP %1 > %~nx1
+echo cleaning INF file...
+cscript /nologo tools\cleanemptystrings.vbs %~nx1 > %2\%~nx1
+del %~nx1
+goto :eof
+
 :makeinstall
 echo makeinstall %1 %2 %3 %4 %5
 mkdir Install\%5\%1
 del /Q Install\%5\%1\*
 copy /Y %2 Install\%5\%1
 copy /Y %~dpn2.pdb Install\%5\%1
-copy /Y %3 Install\%5\%1
+call :prepareinf %3 Install\%5\%1
 if exist %6 copy %6 Install\%5\%1
 if exist %7 copy %7 Install\%5\%1
 if not exist Install\NetKVMTemporaryCert.cer copy /Y "%~dp0\NetKVMTemporaryCert.cer" Install
