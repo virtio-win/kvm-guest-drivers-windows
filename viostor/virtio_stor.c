@@ -539,8 +539,7 @@ VirtIoHwInitialize(
 
     if(!adaptExt->dump_mode)
     {
-//  FIXME
-//        RhelGetSerialNumber(DeviceExtension);
+        RhelGetSerialNumber(DeviceExtension);
     }
 
     ret = TRUE;
@@ -618,10 +617,20 @@ VirtIoStartIo(
             CompleteSRB(DeviceExtension, Srb);
             return TRUE;
         }
-        case SCSIOP_READ:
         case SCSIOP_WRITE:
-        case SCSIOP_READ16:
         case SCSIOP_WRITE16: {
+            if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_RO)) {
+                PSENSE_DATA senseBuffer = (PSENSE_DATA) Srb->SenseInfoBuffer;
+                Srb->SrbStatus = SRB_STATUS_ERROR;
+                Srb->ScsiStatus = SCSISTAT_CHECK_CONDITION;
+                senseBuffer->SenseKey = SCSI_SENSE_DATA_PROTECT;
+                senseBuffer->AdditionalSenseCode = SCSI_ADWRITE_PROTECT;
+                CompleteSRB(DeviceExtension, Srb);
+                return TRUE;
+            }
+        }
+        case SCSIOP_READ:
+        case SCSIOP_READ16: {
             Srb->SrbStatus = SRB_STATUS_PENDING;
             if(!RhelDoReadWrite(DeviceExtension, Srb)) {
                 Srb->SrbStatus = SRB_STATUS_BUSY;
@@ -808,6 +817,7 @@ VirtIoBuildIo(
     ULONG                 i;
     ULONG                 dummy;
     ULONG                 sgElement;
+    ULONG                 sgMaxElements;
     PADAPTER_EXTENSION    adaptExt;
     PRHEL_SRB_EXTENSION   srbExt;
     PSTOR_SCATTER_GATHER_LIST sgList;
@@ -845,10 +855,12 @@ VirtIoBuildIo(
     }
 
     sgList = StorPortGetScatterGatherList(DeviceExtension, Srb);
-
-    for (i = 0, sgElement = 1; i < sgList->NumberOfElements; i++, sgElement++) {
+    sgMaxElements = min((MAX_PHYS_SEGMENTS + 1), sgList->NumberOfElements);
+    srbExt->Xfer = 0;
+    for (i = 0, sgElement = 1; i < sgMaxElements; i++, sgElement++) {
         srbExt->vbr.sg[sgElement].physAddr = sgList->List[i].PhysicalAddress;
         srbExt->vbr.sg[sgElement].ulSize   = sgList->List[i].Length;
+        srbExt->Xfer += sgList->List[i].Length;
     }
 
     srbExt->vbr.out_hdr.sector = RhelGetLba(DeviceExtension, cdb);
@@ -920,9 +932,8 @@ VirtIoMSInterruptRoutine (
             adaptExt->flush_done = TRUE;
         } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
             adaptExt->sn_ok = TRUE;
-            RhelDbgPrint(TRACE_LEVEL_ERROR, ("Viostor serial id %s\n", adaptExt->sn));
         } else {
-            CompleteDPC(DeviceExtension, vbr, 0);
+            CompleteDPC(DeviceExtension, vbr, MessageID);
         }
         isInterruptServiced = TRUE;
     }
@@ -1259,6 +1270,10 @@ CompleteDPC(
     }
     CompleteSRB(DeviceExtension, Srb);
 #else
+   if (Srb->DataTransferLength > srbExt->Xfer) {
+       Srb->DataTransferLength = srbExt->Xfer;
+       Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
+    }
     ScsiPortNotification(RequestComplete,
                          DeviceExtension,
                          Srb);
@@ -1301,10 +1316,11 @@ CompleteDpcRoutine(
 
     while (!IsListEmpty(&adaptExt->complete_list)) {
         PSCSI_REQUEST_BLOCK Srb;
+        PRHEL_SRB_EXTENSION srbExt;
         pblk_req vbr;
         vbr  = (pblk_req) RemoveHeadList(&adaptExt->complete_list);
         Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
-
+        srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
 #ifdef MSI_SUPPORTED
         if(adaptExt->msix_vectors) {
            StorPortReleaseMSISpinLock (Context, MessageID, OldIrql);
@@ -1314,6 +1330,10 @@ CompleteDpcRoutine(
 #ifdef MSI_SUPPORTED
         }
 #endif
+        if (Srb->DataTransferLength > srbExt->Xfer) {
+           Srb->DataTransferLength = srbExt->Xfer;
+           Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
+        }
         ScsiPortNotification(RequestComplete,
                          Context,
                          Srb);

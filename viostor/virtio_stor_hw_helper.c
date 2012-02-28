@@ -200,20 +200,23 @@ RhelDoReadWrite(PVOID DeviceExtension,
     int                   num_free;
 	PVOID                 va;
 	ULONGLONG             pa;
+    ULONG                 i;
+    ULONG                 sgMaxElements;
 
     cdb      = (PCDB)&Srb->Cdb[0];
     srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     BytesLeft= Srb->DataTransferLength;
     DataBuffer = Srb->DataBuffer;
-    sgElement = 1;
 
-    while (BytesLeft) {
+    memset(srbExt, 0, sizeof (RHEL_SRB_EXTENSION));
+    sgMaxElements = MAX_PHYS_SEGMENTS + 1;
+    for (i = 0, sgElement = 1; (i < sgMaxElements) && BytesLeft; i++, sgElement++) {
         srbExt->vbr.sg[sgElement].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, Srb, DataBuffer, &fragLen);
-        srbExt->vbr.sg[sgElement].ulSize = fragLen;
+        srbExt->vbr.sg[sgElement].ulSize   = fragLen;
+        srbExt->Xfer += fragLen;
         BytesLeft -= fragLen;
         DataBuffer = (PVOID)((ULONG_PTR)DataBuffer + fragLen);
-        sgElement++;
     }
 
     srbExt->vbr.out_hdr.sector = RhelGetLba(DeviceExtension, cdb);
@@ -246,7 +249,6 @@ RhelDoReadWrite(PVOID DeviceExtension,
         InsertTailList(&adaptExt->list_head, &srbExt->vbr.list_entry);
         adaptExt->vq->vq_ops->kick(adaptExt->vq);
         srbExt->call_next = FALSE;
-		// PLEASE REVIEW!!!
 		if(!adaptExt->indirect && num_free < VIRTIO_MAX_SG) {
 			srbExt->call_next = TRUE;
         } else {
@@ -330,19 +332,17 @@ RhelGetSerialNumber(
     IN PVOID DeviceExtension
 )
 {
-    ULONG              fragLen;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     adaptExt->vbr.out_hdr.type = VIRTIO_BLK_T_GET_ID | VIRTIO_BLK_T_IN;
     adaptExt->vbr.out_hdr.sector = 0;
     adaptExt->vbr.out_hdr.ioprio = 0;
 
-
-    adaptExt->vbr.sg[0].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &adaptExt->vbr.out_hdr, &fragLen);
+    adaptExt->vbr.sg[0].physAddr = MmGetPhysicalAddress(&adaptExt->vbr.out_hdr);
     adaptExt->vbr.sg[0].ulSize   = sizeof(adaptExt->vbr.out_hdr);
-    adaptExt->vbr.sg[1].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &adaptExt->sn, &fragLen);
+    adaptExt->vbr.sg[1].physAddr = MmGetPhysicalAddress(&adaptExt->sn);
     adaptExt->vbr.sg[1].ulSize   = sizeof(adaptExt->sn);
-    adaptExt->vbr.sg[2].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &adaptExt->vbr.status, &fragLen);
+    adaptExt->vbr.sg[2].physAddr = MmGetPhysicalAddress(&adaptExt->vbr.status);
     adaptExt->vbr.sg[2].ulSize   = sizeof(adaptExt->vbr.status);
 
     if (adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
@@ -433,3 +433,4 @@ RhelGetDiskGeometry(
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("opt_io_size = %d\n", adaptExt->info.opt_io_size));
     }
 }
+

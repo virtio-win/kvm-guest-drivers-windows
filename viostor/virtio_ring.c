@@ -90,7 +90,6 @@ vring_add_indirect(
 }
 #endif
 
-/*static*/
 int
 vring_add_buf_stor(
     IN struct virtqueue *_vq,

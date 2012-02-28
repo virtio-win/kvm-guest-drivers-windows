@@ -148,6 +148,7 @@ typedef struct _RHEL_SRB_EXTENSION {
     blk_req               vbr;
     ULONG                 out;
     ULONG                 in;
+    ULONG                 Xfer;
 #ifndef USE_STORPORT
     BOOLEAN               call_next;
 #endif

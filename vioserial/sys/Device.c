@@ -435,7 +435,6 @@ VIOSerialInitAllQueues(
         }
     }
 
-    //DumpQueues(Device);
 
 	if(pContext->isHostMultiport)
     {
@@ -443,7 +442,6 @@ VIOSerialInitAllQueues(
         status = VIOSerialFillQueue(pContext->c_ivq, pContext->CVqLock);
     }
 
-    //DumpQueues(Device);
 
 	return status;
 }
@@ -471,7 +469,6 @@ VIOSerialShutDownAllQueues(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
-    //DumpQueues(WdfDevice);
 
     VirtIODeviceRemoveStatus(pContext->pIODevice , VIRTIO_CONFIG_S_DRIVER_OK);
 
@@ -566,15 +563,15 @@ VIOSerialEvtDeviceD0Exit(
     UNREFERENCED_PARAMETER(TargetState);
 
 	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
-	//DumpQueues(Device);
 
     PAGED_CODE();
 
+    if (PowerActionSleep != WdfDeviceGetSystemPowerAction(Device))
+    {
+        VIOSerialShutdownAllPorts(Device);
+    }
 
-
-    VIOSerialShutdownAllPorts(Device);
     VIOSerialShutDownAllQueues(Device);
-
     return STATUS_SUCCESS;
 }
 
@@ -591,6 +588,11 @@ VIOSerialEvtDeviceD0EntryPostInterruptsEnabled(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
 
     PAGED_CODE();
+
+    if (PowerActionSleep == WdfDeviceGetSystemPowerAction(WdfDevice))
+    {
+        return STATUS_SUCCESS;
+    }
 
     if(!pContext->DeviceOK)
     {
