@@ -834,7 +834,6 @@ VIOSerialDeviceListCreatePdo(
         }
 
         VIOSerialEnableDisableInterruptQueue(GetInQueue(pport), TRUE);
-        VIOSerialEnableDisableInterruptQueue(GetOutQueue(pport), TRUE);
 
         // schedule a workitem to send PORT_READY, hopefully runs __after__ this function returns.
         WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
