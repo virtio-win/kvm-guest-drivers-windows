@@ -1,4 +1,4 @@
-#!/ust/bin/ruby
+#!/usr/bin/ruby
 
 if ARGV[0].to_s == ""
   print "error: syntax netperf_log_parser <filename>\n"
