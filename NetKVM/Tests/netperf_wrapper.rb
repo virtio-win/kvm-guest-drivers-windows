@@ -9,7 +9,7 @@ HOST_PREFIX = " -H "                    # Server address prefix
 TEST_TIME_PREFIX = " -l "            # Test time prefix
 ADDITIONAL_PARAMS = " -- "          # Additional test params go after this prefix
 PACKET_SIZE_PREFIX = " -m "         # Packet size prefix
-PACKET_SIZES = [32, 64, 128, 256, 512, 1024, 2048, 4096, 16384] # packer sizes
+PACKET_SIZES = [32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536] # packer sizes
 
 
 def Log(log_file)
