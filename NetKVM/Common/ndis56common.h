@@ -751,6 +751,8 @@ typedef union _tagTcpIpPacketParsingResult
 		ULONG TcpUdp			: 1;
 		ULONG fixedIpCS			: 1;
 		ULONG fixedXxpCS		: 1;
+		ULONG IsFragment		: 1;
+		ULONG reserved			: 3;
 		ULONG ipHeaderSize		: 8;
 		ULONG XxpIpHeaderSize	: 8;
 	};

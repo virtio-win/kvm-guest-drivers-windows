@@ -174,11 +174,11 @@ HKR, Ndi\Params\IPPacketsCheck\enum,"1",		0,			%Tx%
 HKR, Ndi\Params\IPPacketsCheck\enum,"2",		0,			%Rx%
 HKR, Ndi\Params\IPPacketsCheck\enum,"3",		0,			%TxRx%
 
-HKR, Ndi\Params\NoHwChecksum,		ParamDesc,	0,			%NoHwChecksum%
-HKR, Ndi\Params\NoHwChecksum,		Default,	0,			"0"
-HKR, Ndi\Params\NoHwChecksum,		type,		0,			"enum"
-HKR, Ndi\Params\NoHwChecksum\enum,	"1",		0,			%Enable%
-HKR, Ndi\Params\NoHwChecksum\enum,	"0",		0,			%Disable%
+HKR, Ndi\Params\UseSwTxChecksum,	ParamDesc,	0,			%UseSwTxChecksum%
+HKR, Ndi\Params\UseSwTxChecksum,	Default,	0,			"0"
+HKR, Ndi\Params\UseSwTxChecksum,	type,		0,			"enum"
+HKR, Ndi\Params\UseSwTxChecksum\enum,	"1",	0,			%Enable%
+HKR, Ndi\Params\UseSwTxChecksum\enum,	"0",	0,			%Disable%
 #endif
 
 #endif
@@ -210,7 +210,7 @@ BatchReceive						= "TestOnly.BatchReceive"
 Promiscuous							= "TestOnly.Promiscuous"
 IPPacketsCheck						= "TestOnly.AnalyzeIPPackets"
 NumberOfHandledRXPackersInDPC		= "TestOnly.RXThrottle"
-NoHwChecksum						= "TestOnly.NoHwChecksum"
+UseSwTxChecksum						= "TestOnly.UseSwTxChecksum"
 Tx									= "Tx";
 Rx									= "Rx";
 TxRx								= "Tx/Rx";

@@ -47,7 +47,7 @@ HKR, Ndi\Interfaces,              LowerRange,          0, "ethernet"
 [Parameters]
 #define INCLUDE_PARAMS
 #define DEFAULT_CONNECT_RATE	"1001"
-#define DEFAULT_TX_CHECKSUM		"0"
+#define DEFAULT_TX_CHECKSUM		"2"
 #include "Common\common.inf.h"
 #undef INCLUDE_PARAMS
 

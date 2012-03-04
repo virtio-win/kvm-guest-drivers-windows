@@ -94,7 +94,7 @@ typedef struct _tagConfigurationEntries
 	tConfigurationEntry OffloadTxChecksum;
 	tConfigurationEntry OffloadTxLSO;
 	tConfigurationEntry OffloadRxCS;
-	tConfigurationEntry NoHwChecksum;
+	tConfigurationEntry UseSwTxChecksum;
 	tConfigurationEntry IPPacketsCheck;
 	tConfigurationEntry stdIpcsV4;
 	tConfigurationEntry stdTcpcsV4;
@@ -132,7 +132,7 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "Offload.TxChecksum",	0, 0, 2},
 	{ "Offload.TxLSO",	0, 0, 1},
 	{ "Offload.RxCS",	0, 0, 3},
-	{ "NoHwChecksum", 0, 0, 1 },
+	{ "UseSwTxChecksum", 0, 0, 1 },
 	{ "IPPacketsCheck",	0, 0, 3 },
 	{ "*IPChecksumOffloadIPv4",	3, 0, 3 },
 	{ "*TCPChecksumOffloadIPv4",3, 0, 3 },
@@ -261,7 +261,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxChecksum);
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxLSO);
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadRxCS);
-			GetConfigurationEntry(cfg, &pConfiguration->NoHwChecksum);
+			GetConfigurationEntry(cfg, &pConfiguration->UseSwTxChecksum);
 			GetConfigurationEntry(cfg, &pConfiguration->IPPacketsCheck);
 			GetConfigurationEntry(cfg, &pConfiguration->stdIpcsV4);
 			GetConfigurationEntry(cfg, &pConfiguration->stdTcpcsV4);
@@ -297,7 +297,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->bDoPacketFiltering = pConfiguration->PacketFiltering.ulValue != 0;
 			pContext->bUseScatterGather  = pConfiguration->ScatterGather.ulValue != 0;
 			pContext->bBatchReceive      = pConfiguration->BatchReceive.ulValue != 0;
-			pContext->bDoHardwareChecksum = pConfiguration->NoHwChecksum.ulValue == 0;
+			pContext->bDoHardwareChecksum = pConfiguration->UseSwTxChecksum.ulValue == 0;
 			pContext->bDoIPCheckTx = pConfiguration->IPPacketsCheck.ulValue & 1;
 			pContext->bDoIPCheckRx = pConfiguration->IPPacketsCheck.ulValue & 2;
 			pContext->Offload.flagsValue = 0;
@@ -373,7 +373,7 @@ void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsF
 	pDest->fTxUDPChecksum = !!(*from & osbT4UdpChecksum);
 	pDest->fTxTCPOptions = !!(*from & osbT4TcpOptionsChecksum);
 	pDest->fTxIPOptions = !!(*from & osbT4IpOptionsChecksum);
-	
+
 	pDest->fTxLso = !!(*from & osbT4Lso);
 	pDest->fTxLsoIP = !!(*from & osbT4LsoIp);
 	pDest->fTxLsoTCP = !!(*from & osbT4LsoTcp);
@@ -477,7 +477,7 @@ Prints out statistics
 ***********************************************************/
 static void PrintStatistics(PARANDIS_ADAPTER *pContext)
 {
-	ULONG64 totalTxFrames = 
+	ULONG64 totalTxFrames =
 		pContext->Statistics.ifHCOutBroadcastPkts +
 		pContext->Statistics.ifHCOutMulticastPkts +
 		pContext->Statistics.ifHCOutUcastPkts;
@@ -486,32 +486,32 @@ static void PrintStatistics(PARANDIS_ADAPTER *pContext)
 		pContext->Statistics.ifHCInMulticastPkts +
 		pContext->Statistics.ifHCInUcastPkts;
 
-	DPrintf(0, ("[Diag!] RX buffers at VIRTIO %d of %d", 
-		pContext->NetNofReceiveBuffers, 
+	DPrintf(0, ("[Diag!] RX buffers at VIRTIO %d of %d",
+		pContext->NetNofReceiveBuffers,
 		pContext->NetMaxReceiveBuffers));
 	DPrintf(0, ("[Diag!] TX desc available %d/%d, buf %d/min. %d",
-		pContext->nofFreeTxDescriptors, 
+		pContext->nofFreeTxDescriptors,
 		pContext->maxFreeTxDescriptors,
-		pContext->nofFreeHardwareBuffers, 
+		pContext->nofFreeHardwareBuffers,
 		pContext->minFreeHardwareBuffers));
 	pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
 	if (pContext->NetTxPacketsToReturn)
 	{
 		DPrintf(0, ("[Diag!] TX packets to return %d", pContext->NetTxPacketsToReturn));
 	}
-	DPrintf(0, ("[Diag!] Bytes transmitted %I64u, received %I64u", 
-		pContext->Statistics.ifHCOutOctets, 
+	DPrintf(0, ("[Diag!] Bytes transmitted %I64u, received %I64u",
+		pContext->Statistics.ifHCOutOctets,
 		pContext->Statistics.ifHCInOctets));
-	DPrintf(0, ("[Diag!] Tx frames %I64u, CSO %d, LSO %d, indirect %d", 
-		totalTxFrames, 
-		pContext->extraStatistics.framesCSOffload, 
+	DPrintf(0, ("[Diag!] Tx frames %I64u, CSO %d, LSO %d, indirect %d",
+		totalTxFrames,
+		pContext->extraStatistics.framesCSOffload,
 		pContext->extraStatistics.framesLSO,
 		pContext->extraStatistics.framesIndirect));
-	DPrintf(0, ("[Diag!] Rx frames %I64u, Rx.Pri %d, RxHwCS.OK %d", 
+	DPrintf(0, ("[Diag!] Rx frames %I64u, Rx.Pri %d, RxHwCS.OK %d",
 		totalRxFrames, pContext->extraStatistics.framesRxPriority, pContext->extraStatistics.framesRxCSHwOK));
 	if (pContext->extraStatistics.framesRxCSHwMissedBad || pContext->extraStatistics.framesRxCSHwMissedGood)
 	{
-		DPrintf(0, ("[Diag!] RxHwCS mistakes: missed bad %d, missed good %d", 
+		DPrintf(0, ("[Diag!] RxHwCS mistakes: missed bad %d, missed good %d",
 			pContext->extraStatistics.framesRxCSHwMissedBad, pContext->extraStatistics.framesRxCSHwMissedGood));
 	}
 }
@@ -952,7 +952,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 	NDIS_STATUS status = NDIS_STATUS_RESOURCES;
 	ULONG size;
 	DEBUG_ENTRY(0);
-	
+
 	pContext->ReceiveQueueRing.IsCached = 1;
 	pContext->ReceiveQueueRing.IsTX = 0;
 	pContext->SendQueueRing.IsCached = 1;
@@ -1363,8 +1363,8 @@ static ULONG FORCEINLINE QueryTcpHeaderOffset(PVOID packetData, ULONG ipHeaderOf
 {
 	ULONG res;
 	tTcpIpPacketParsingResult ppr = ParaNdis_ReviewIPPacket(
-		(PUCHAR)packetData + ipHeaderOffset, 
-		ipPacketLength, 
+		(PUCHAR)packetData + ipHeaderOffset,
+		ipPacketLength,
 		__FUNCTION__);
 	if (ppr.ipStatus == ppresIPV4 && ppr.xxpStatus == ppresXxpKnown)
 	{
@@ -1521,7 +1521,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 						}
 					}
 				}
-				
+
 				if (0 <= pContext->NetSendQueue->vq_ops->add_buf(
 					pContext->NetSendQueue,
 					sg,
@@ -1659,9 +1659,9 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 			{
 				// this is case of NDIS5, on NDIS6 we know it
 				pParams->tcpHeaderOffset = QueryTcpHeaderOffset(
-					pBuffersDescriptor->DataInfo.Virtual, 
-					pContext->Offload.ipHeaderOffset, 
-					ipPacketLength);	
+					pBuffersDescriptor->DataInfo.Virtual,
+					pContext->Offload.ipHeaderOffset,
+					ipPacketLength);
 			}
 			if (pContext->bDoHardwareChecksum)
 			{
@@ -1678,9 +1678,9 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 				if (!f.fTxTCPChecksum) flags &= ~pcrTcpChecksum;
 				if (!f.fTxUDPChecksum) flags &= ~pcrUdpChecksum;
 				ParaNdis_CheckSumVerify(
-					ipPacket, 
-					ipPacketLength, 
-					flags | pcrFixIPChecksum | pcrFixXxpChecksum, 
+					ipPacket,
+					ipPacketLength,
+					flags | pcrFixIPChecksum | pcrFixXxpChecksum,
 					__FUNCTION__);
 			}
 			else
@@ -2428,6 +2428,8 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG 
 {
 	tOffloadSettingsFlags f = pContext->Offload.flags;
 	tChecksumCheckResult res, resIp;
+	PVOID pIpHeader = RtlOffsetToPointer(pRxPacket, ETH_HEADER_SIZE);
+	tTcpIpPacketParsingResult ppr;
 	res.value = 0;
 	resIp.value = 0;
 	if (f.fRxIPChecksum || f.fRxTCPChecksum || f.fRxUDPChecksum)
@@ -2436,10 +2438,8 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG 
 		//VIRTIO_NET_HDR_F_DATA_VALID - host tell us CS is OK
 		if (pContext->bDoIPCheckRx)
 		{
-			PVOID pIpHeader = RtlOffsetToPointer(pRxPacket, ETH_HEADER_SIZE);
-			tTcpIpPacketParsingResult ppr;
 			ppr = ParaNdis_CheckSumVerify(pIpHeader, len - ETH_HEADER_SIZE, pcrAnyChecksum, __FUNCTION__);
-			if (ppr.ipStatus == ppresIPV4)
+			if (ppr.ipStatus == ppresIPV4 && !ppr.IsFragment)
 			{
 				resIp.flags.IpOK = !!f.fRxIPChecksum && ppr.ipCheckSum == ppresCSOK;
 				resIp.flags.IpFailed = !!f.fRxIPChecksum && ppr.ipCheckSum == ppresCSBad;
@@ -2455,25 +2455,42 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG 
 				}
 			}
 		}
+
 		if (virtioFlags & VIRTIO_NET_HDR_F_DATA_VALID)
 		{
+			ppr = ParaNdis_ReviewIPPacket(pIpHeader, len - ETH_HEADER_SIZE, __FUNCTION__);
+			if (ppr.ipStatus != ppresIPV4 || ppr.IsFragment)
+				virtioFlags &= VIRTIO_NET_HDR_F_DATA_VALID;
+			else if (ppr.xxpStatus != ppresXxpKnown)
+			{
+				f.fRxTCPChecksum = 0;
+				f.fRxUDPChecksum = 0;
+			}
+			else if (ppr.TcpUdp == ppresIsTCP)
+				f.fRxUDPChecksum = 0;
+			else if (ppr.TcpUdp == ppresIsUDP)
+				f.fRxTCPChecksum = 0;
 			pContext->extraStatistics.framesRxCSHwOK++;
 			res.flags.IpOK = !!f.fRxIPChecksum;
 			res.flags.TcpOK = !!f.fRxTCPChecksum;
 			res.flags.UdpOK = !!f.fRxUDPChecksum;
 		}
-	}
-	if (resIp.value && res.value != resIp.value)
-	{
-		// if HW did not set some bits that IP checker set, it is a mistake:
-		// or GOOD CS is not labeled, or BAD checksum is not labeled
-		tChecksumCheckResult diff;
-		diff.value = resIp.value & ~res.value;
-		if (diff.flags.IpFailed || diff.flags.TcpFailed || diff.flags.UdpFailed) 
-			pContext->extraStatistics.framesRxCSHwMissedBad++;
-		if (diff.flags.IpOK || diff.flags.TcpOK || diff.flags.UdpOK) 
-			pContext->extraStatistics.framesRxCSHwMissedGood++;
-		res.value = resIp.value; 
+		if (pContext->bDoIPCheckRx && res.value != resIp.value)
+		{
+			// if HW did not set some bits that IP checker set, it is a mistake:
+			// or GOOD CS is not labeled, or BAD checksum is not labeled
+			tChecksumCheckResult diff;
+			diff.value = resIp.value & ~res.value;
+			if (diff.flags.IpFailed || diff.flags.TcpFailed || diff.flags.UdpFailed)
+				pContext->extraStatistics.framesRxCSHwMissedBad++;
+			if (diff.flags.IpOK || diff.flags.TcpOK || diff.flags.UdpOK)
+				pContext->extraStatistics.framesRxCSHwMissedGood++;
+			if (diff.value)
+			{
+				DPrintf(1, ("[%s] real %X <> %X", __FUNCTION__, resIp.value, res.value));
+			}
+			res.value = resIp.value;
+		}
 	}
 	return res;
 }

@@ -210,6 +210,36 @@ VOID ParaNdis_FreePhysicalMemory(
 		pAddresses->Physical);
 }
 
+static void DebugParseOffloadBits()
+{
+	NDIS_TCP_IP_CHECKSUM_PACKET_INFO info;
+	tChecksumCheckResult res;
+	ULONG val = 1;
+	int level = 1;
+	while (val)
+	{
+		info.Value = val;
+		if (info.Receive.NdisPacketIpChecksumFailed) DPrintf(level, ("W.%X=IPCS failed", val));
+		if (info.Receive.NdisPacketIpChecksumSucceeded) DPrintf(level, ("W.%X=IPCS OK", val));
+		if (info.Receive.NdisPacketTcpChecksumFailed) DPrintf(level, ("W.%X=TCPCS failed", val));
+		if (info.Receive.NdisPacketTcpChecksumSucceeded) DPrintf(level, ("W.%X=TCPCS OK", val));
+		if (info.Receive.NdisPacketUdpChecksumFailed) DPrintf(level, ("W.%X=UDPCS failed", val));
+		if (info.Receive.NdisPacketUdpChecksumSucceeded) DPrintf(level, ("W.%X=UDPCS OK", val));
+		val = val << 1;
+	}
+	val = 1;
+	while (val)
+	{
+		res.value = val;
+		if (res.flags.IpFailed) DPrintf(level, ("C.%X=IPCS failed", val));
+		if (res.flags.IpOK) DPrintf(level, ("C.%X=IPCS OK", val));
+		if (res.flags.TcpFailed) DPrintf(level, ("C.%X=TCPCS failed", val));
+		if (res.flags.TcpOK) DPrintf(level, ("C.%X=TCPCS OK", val));
+		if (res.flags.UdpFailed) DPrintf(level, ("C.%X=UDPCS failed", val));
+		if (res.flags.UdpOK) DPrintf(level, ("C.%X=UDPCS OK", val));
+		val = val << 1;
+	}
+}
 
 /**********************************************************
 Procedure for NDIS5 specific initialization:
@@ -280,6 +310,10 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(
 		pContext->bDmaInitialized = status == NDIS_STATUS_SUCCESS;
 	}
 #endif
+	if (status == NDIS_STATUS_SUCCESS)
+	{
+		DebugParseOffloadBits();
+	}
 	DEBUG_EXIT_STATUS(status ? 0 : 2, status);
 	return status;
 }
@@ -484,8 +518,9 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 				qCSInfo.Receive.NdisPacketUdpChecksumFailed = csRes.flags.UdpFailed;
 				qCSInfo.Receive.NdisPacketUdpChecksumSucceeded = csRes.flags.UdpOK;
 				NDIS_PER_PACKET_INFO_FROM_PACKET(Packet, TcpIpChecksumPacketInfo) = (PVOID) (ULONG_PTR) qCSInfo.Value;
+				DPrintf(1, ("Reporting CS %X->%X", csRes.value, qCSInfo.Value));
 			}
-			
+
 			DPrintf(4, ("[%s] buffer %p(%d b.)", __FUNCTION__, pBuffersDesc, length));
 			if (!bPrepareOnly)
 			{
@@ -1082,6 +1117,7 @@ static __inline tSendEntry * PrepareSendEntry(PARANDIS_ADAPTER *pContext, PNDIS_
 		}
 		else
 		{
+			// unexpected CS requests we do not fail - WHQL expects us to send them as is
 			NDIS_TCP_IP_CHECKSUM_PACKET_INFO csInfo;
 			csInfo.Value = (ULONG)(ULONG_PTR)NDIS_PER_PACKET_INFO_FROM_PACKET(Packet, TcpIpChecksumPacketInfo);
 			if (csInfo.Transmit.NdisPacketChecksumV4)
@@ -1101,6 +1137,11 @@ static __inline tSendEntry * PrepareSendEntry(PARANDIS_ADAPTER *pContext, PNDIS_
 						pse->flags |= SEND_ENTRY_UDP_CS;
 					else
 						errorFmt = "UDP CS requested but not enabled";
+				}
+				if (errorFmt)
+				{
+					DPrintf(0, ("[%s] ERROR: %s (len %d)", __FUNCTION__, errorFmt, len));
+					errorFmt = NULL;
 				}
 			}
 		}

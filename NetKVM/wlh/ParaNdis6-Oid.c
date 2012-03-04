@@ -737,7 +737,7 @@ static ULONG SetOffloadField(
 			if (!isSupportedTx || !isSupportedRx)
 			{
 				*pbFailed = TRUE;
-				current   = 0;
+				current   = isTx ? isSupportedTx : isSupportedRx;
 			}
 			else
 			{
@@ -882,12 +882,12 @@ void ParaNdis6_ApplyOffloadPersistentConfiguration(PARANDIS_ADAPTER *pContext)
 	pContext->InitialOffloadParameters.UDPIPv4Checksum++;
 	pContext->InitialOffloadParameters.UDPIPv6Checksum++;
 
-	DPrintf(0, ("[%s] IPv4Checksum=%d TCPIPv4Checksum=%d TCPIPv6Checksum=%d UDPIPv4Checksum=%d UDPIPv6Checksum=%d",
+	DPrintf(0, ("[%s] V4: IPCS=%d,TCPCS=%d,UDPCS=%d V6: TCPCS=%d,UDPCS=%d",
 				__FUNCTION__,
 				pContext->InitialOffloadParameters.IPv4Checksum,
 				pContext->InitialOffloadParameters.TCPIPv4Checksum,
-				pContext->InitialOffloadParameters.TCPIPv6Checksum,
 				pContext->InitialOffloadParameters.UDPIPv4Checksum,
+				pContext->InitialOffloadParameters.TCPIPv6Checksum,
 				pContext->InitialOffloadParameters.UDPIPv6Checksum));
 
 	ApplyOffloadConfiguration(pContext,&pContext->InitialOffloadParameters, NULL);

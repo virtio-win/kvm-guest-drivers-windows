@@ -439,6 +439,36 @@ void ParaNdis_RestoreDeviceConfigurationAfterReset(
 	ConfigureMSIXVectors(pContext);
 }
 
+static void DebugParseOffloadBits()
+{
+	NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO info;
+	tChecksumCheckResult res;
+	ULONG val = 1;
+	int level = 1;
+	while (val)
+	{
+		info.Value = (PVOID)(ULONG_PTR)val;
+		if (info.Receive.IpChecksumFailed) DPrintf(level, ("W.%X=IPCS failed", val));
+		if (info.Receive.IpChecksumSucceeded) DPrintf(level, ("W.%X=IPCS OK", val));
+		if (info.Receive.TcpChecksumFailed) DPrintf(level, ("W.%X=TCPCS failed", val));
+		if (info.Receive.TcpChecksumSucceeded) DPrintf(level, ("W.%X=TCPCS OK", val));
+		if (info.Receive.UdpChecksumFailed) DPrintf(level, ("W.%X=UDPCS failed", val));
+		if (info.Receive.UdpChecksumSucceeded) DPrintf(level, ("W.%X=UDPCS OK", val));
+		val = val << 1;
+	}
+	val = 1;
+	while (val)
+	{
+		res.value = val;
+		if (res.flags.IpFailed) DPrintf(level, ("C.%X=IPCS failed", val));
+		if (res.flags.IpOK) DPrintf(level, ("C.%X=IPCS OK", val));
+		if (res.flags.TcpFailed) DPrintf(level, ("C.%X=TCPCS failed", val));
+		if (res.flags.TcpOK) DPrintf(level, ("C.%X=TCPCS OK", val));
+		if (res.flags.UdpFailed) DPrintf(level, ("C.%X=UDPCS failed", val));
+		if (res.flags.UdpOK) DPrintf(level, ("C.%X=UDPCS OK", val));
+		val = val << 1;
+	}
+}
 
 /**********************************************************
 NDIS6-related final initialization:
@@ -532,6 +562,7 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
 			status = NDIS_STATUS_RESOURCE_CONFLICT;
 		}
 		ParaNdis6_ApplyOffloadPersistentConfiguration(pContext);
+		DebugParseOffloadBits();
 	}
 	DEBUG_EXIT_STATUS(0, status);
 	return status;
@@ -711,7 +742,7 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 				qCSInfo.Receive.UdpChecksumFailed = csRes.flags.UdpFailed;
 				qCSInfo.Receive.UdpChecksumSucceeded = csRes.flags.UdpOK;
 				NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
-				DPrintf(1, ("Reporting CS %0x%X", qInfo.Value));
+				DPrintf(1, ("Reporting CS %X->%X", csRes.value, (ULONG)(ULONG_PTR)qCSInfo.Value));
 			}
 			pNBL->Status = NDIS_STATUS_SUCCESS;
 #if defined(ENABLE_HISTORY_LOG)
@@ -741,7 +772,6 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 	}
 	return pNBL;
 }
-
 
 VOID ParaNdis_IndicateReceivedBatch(
 	PARANDIS_ADAPTER *pContext,
@@ -967,9 +997,9 @@ static FORCEINLINE ULONG CalculateTotalOffloadSize(
 
 /*
 	Fills array @buffers with SG data for transmission.
-	If needed, copies part of data into data buffer @pDesc 
-	(priority, ETH, IP and TCP headers) and for copied part and 
-	original part of the packet copies SG data (address and length) 
+	If needed, copies part of data into data buffer @pDesc
+	(priority, ETH, IP and TCP headers) and for copied part and
+	original part of the packet copies SG data (address and length)
 	into provided buffers.
 	Receives zeroed tMapperResult struct,
 	fills it as follows:
@@ -1024,10 +1054,10 @@ VOID ParaNdis_PacketMapper(
 					nCompleteBuffersToSkip++;
 					nBytesSkipInFirstBuffer = 0;
 				}
-				
+
 				// this can happen only with short UDP packet with checksum offload required
 				if (lengthGet > len) lengthGet = len;
-				
+
 				lengthPut = lengthGet + (PriorityDataLong ? ETH_PRIORITY_HEADER_SIZE : 0);
 			}
 
@@ -1136,7 +1166,7 @@ VOID ParaNdis_PacketMapper(
 						nBuffersMapped = saveBuffers;
 					}
 				}
-				
+
 				if (PriorityDataLong && nBuffersMapped)
 				{
 					RtlMoveMemory(
@@ -1416,6 +1446,8 @@ static BOOLEAN PrepareSingleNBL(
 		}
 		else
 		{
+			// ignore unexpected CS requests while this passes WHQL
+			BOOLEAN bFailUnexpected = FALSE;
 			checksumReq.Value = NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo);
 			pble->tcpHeaderOffset = (USHORT)checksumReq.Transmit.TcpHeaderOffset;
 			if (checksumReq.Transmit.TcpChecksum)
@@ -1426,8 +1458,15 @@ static BOOLEAN PrepareSingleNBL(
 				}
 				else
 				{
-					bOK = FALSE;
-					pFailReason = "TCP CS request when it is not supported";
+					if (bFailUnexpected)
+					{
+						bOK = FALSE;
+						pFailReason = "TCP CS request when it is not supported";
+					}
+					else
+					{
+						DPrintf(0, ("[%s] TCP CS request when it is not supported", __FUNCTION__));
+					}
 				}
 			}
 			else if (checksumReq.Transmit.UdpChecksum)
@@ -1438,8 +1477,15 @@ static BOOLEAN PrepareSingleNBL(
 				}
 				else
 				{
-					bOK = FALSE;
-					pFailReason = "UDP CS request when it is not supported";
+					if (bFailUnexpected)
+					{
+						bOK = FALSE;
+						pFailReason = "UDP CS request when it is not supported";
+					}
+					else
+					{
+						DPrintf(0, ("[%s] UDP CS request when it is not supported", __FUNCTION__));
+					}
 				}
 			}
 		}
