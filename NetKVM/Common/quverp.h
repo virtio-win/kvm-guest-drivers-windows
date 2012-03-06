@@ -48,6 +48,6 @@
 #define VER_FILESUBTYPE             VFT2_DRV_SYSTEM
 #define VER_FILEDESCRIPTION_STR     "Red Hat NDIS Miniport Driver"
 #define VER_INTERNALNAME_STR        "netkvm.sys"
-#define VER_PRODUCTNAME_STR			"RedHat VirtIO Ethernet Adapter"
+#define VER_PRODUCTNAME_STR         "Red Hat VirtIO Ethernet Adapter"
 
 #include "common.ver"
