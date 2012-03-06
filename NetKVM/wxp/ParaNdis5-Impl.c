@@ -25,6 +25,8 @@ Per-packet information holder
 #define SEND_ENTRY_FLAG_READY		0x0001
 #define SEND_ENTRY_TSO_USED			0x0002
 #define SEND_ENTRY_NO_INDIRECT		0x0004
+#define SEND_ENTRY_TCP_CS			0x0008
+#define SEND_ENTRY_UDP_CS			0x0010
 
 
 typedef struct _tagSendEntry
@@ -208,6 +210,36 @@ VOID ParaNdis_FreePhysicalMemory(
 		pAddresses->Physical);
 }
 
+static void DebugParseOffloadBits()
+{
+	NDIS_TCP_IP_CHECKSUM_PACKET_INFO info;
+	tChecksumCheckResult res;
+	ULONG val = 1;
+	int level = 1;
+	while (val)
+	{
+		info.Value = val;
+		if (info.Receive.NdisPacketIpChecksumFailed) DPrintf(level, ("W.%X=IPCS failed", val));
+		if (info.Receive.NdisPacketIpChecksumSucceeded) DPrintf(level, ("W.%X=IPCS OK", val));
+		if (info.Receive.NdisPacketTcpChecksumFailed) DPrintf(level, ("W.%X=TCPCS failed", val));
+		if (info.Receive.NdisPacketTcpChecksumSucceeded) DPrintf(level, ("W.%X=TCPCS OK", val));
+		if (info.Receive.NdisPacketUdpChecksumFailed) DPrintf(level, ("W.%X=UDPCS failed", val));
+		if (info.Receive.NdisPacketUdpChecksumSucceeded) DPrintf(level, ("W.%X=UDPCS OK", val));
+		val = val << 1;
+	}
+	val = 1;
+	while (val)
+	{
+		res.value = val;
+		if (res.flags.IpFailed) DPrintf(level, ("C.%X=IPCS failed", val));
+		if (res.flags.IpOK) DPrintf(level, ("C.%X=IPCS OK", val));
+		if (res.flags.TcpFailed) DPrintf(level, ("C.%X=TCPCS failed", val));
+		if (res.flags.TcpOK) DPrintf(level, ("C.%X=TCPCS OK", val));
+		if (res.flags.UdpFailed) DPrintf(level, ("C.%X=UDPCS failed", val));
+		if (res.flags.UdpOK) DPrintf(level, ("C.%X=UDPCS OK", val));
+		val = val << 1;
+	}
+}
 
 /**********************************************************
 Procedure for NDIS5 specific initialization:
@@ -278,6 +310,10 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(
 		pContext->bDmaInitialized = status == NDIS_STATUS_SUCCESS;
 	}
 #endif
+	if (status == NDIS_STATUS_SUCCESS)
+	{
+		DebugParseOffloadBits();
+	}
 	DEBUG_EXIT_STATUS(status ? 0 : 2, status);
 	return status;
 }
@@ -455,39 +491,36 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 					pBuffer = NULL;
 				}
 				DPrintf(1, ("[%s] Found priority data %p", __FUNCTION__, qInfo.Value));
+				pContext->extraStatistics.framesRxPriority++;
 			}
 		}
 
 		if (pBuffer)
 		{
-			if (pContext->Offload.flags.fRxIPChecksum)
-			{
-				virtio_net_hdr_basic *pHeader =
-					(virtio_net_hdr_basic *)(pContext->bUseMergedBuffers?pBuffersDesc->DataInfo.Virtual:pBuffersDesc->HeaderInfo.Virtual);
-				// if we are configured to offload Rx Checksum and receive VIRTIO_NET_HDR_F_DATA_VALID from host, we indicate IpChecksumSucceeded.
-				// if host will notify us of invalid checksum (using a new VIRTIO_NET_HDR_...), we must indicate IpChecksumFailed.
-				if (pHeader->flags & VIRTIO_NET_HDR_F_NEEDS_CSUM)
-				{
-					// This branch is based on Linux driver implementation.
-					// It could be both flags can be set in some cases.
-					DPrintf(3, ("Host reports VIRTIO_NET_HDR_F_NEEDS_CSUM (0x%02X)", pHeader->flags));
-				}
-				else if (pHeader->flags & VIRTIO_NET_HDR_F_DATA_VALID)
-				{
-					NDIS_TCP_IP_CHECKSUM_PACKET_INFO qCSInfo;
-					qCSInfo.Value = 0;
-					qCSInfo.Receive.NdisPacketIpChecksumSucceeded  = TRUE;
-					NDIS_PER_PACKET_INFO_FROM_PACKET(Packet, TcpIpChecksumPacketInfo) = (PVOID) (ULONG_PTR) qCSInfo.Value;
-					DPrintf(3, ("Host reports VIRTIO_NET_HDR_F_DATA_VALID (0x%02X)", pHeader->flags));
-				}
-			}
-
+			PVOID headerBuffer = pContext->bUseMergedBuffers ? pBuffersDesc->DataInfo.Virtual:pBuffersDesc->HeaderInfo.Virtual;
+			virtio_net_hdr_basic *pHeader = (virtio_net_hdr_basic *)headerBuffer;
+			tChecksumCheckResult csRes;
 			NDIS_PER_PACKET_INFO_FROM_PACKET(Packet, Ieee8021QInfo) = qInfo.Value;
 			NDIS_SET_PACKET_STATUS(Packet, STATUS_SUCCESS);
 			NdisAdjustBufferLength(pBuffer, length);
 			NdisChainBufferAtFront(Packet, pBuffer);
 			NdisQueryPacket(Packet, NULL, NULL, NULL, &uTotalLength);
 			*REF_MINIPORT(Packet) = pBuffersDesc;
+			csRes = ParaNdis_CheckRxChecksum(pContext, pHeader->flags, dataBuffer, length);
+			if (csRes.value)
+			{
+				NDIS_TCP_IP_CHECKSUM_PACKET_INFO qCSInfo;
+				qCSInfo.Value = 0;
+				qCSInfo.Receive.NdisPacketIpChecksumFailed = csRes.flags.IpFailed;
+				qCSInfo.Receive.NdisPacketIpChecksumSucceeded = csRes.flags.IpOK;
+				qCSInfo.Receive.NdisPacketTcpChecksumFailed = csRes.flags.TcpFailed;
+				qCSInfo.Receive.NdisPacketTcpChecksumSucceeded = csRes.flags.TcpOK;
+				qCSInfo.Receive.NdisPacketUdpChecksumFailed = csRes.flags.UdpFailed;
+				qCSInfo.Receive.NdisPacketUdpChecksumSucceeded = csRes.flags.UdpOK;
+				NDIS_PER_PACKET_INFO_FROM_PACKET(Packet, TcpIpChecksumPacketInfo) = (PVOID) (ULONG_PTR) qCSInfo.Value;
+				DPrintf(1, ("Reporting CS %X->%X", csRes.value, qCSInfo.Value));
+			}
+
 			DPrintf(4, ("[%s] buffer %p(%d b.)", __FUNCTION__, pBuffersDesc, length));
 			if (!bPrepareOnly)
 			{
@@ -704,7 +737,7 @@ VOID ParaNdis_PacketMapper(
 	if (pSGList && pSGList->NumberOfElements)
 	{
 		UINT i, lengthGet = 0, lengthPut = 0, nCompleteBuffersToSkip = 0, nBytesSkipInFirstBuffer = 0;
-		if (pSendEntry->flags & SEND_ENTRY_TSO_USED)
+		if (pSendEntry->flags & (SEND_ENTRY_TSO_USED | SEND_ENTRY_TCP_CS | SEND_ENTRY_UDP_CS))
 			lengthGet = pContext->Offload.ipHeaderOffset + MAX_IP_HEADER_SIZE + sizeof(TCPHeader);
 		if (PriorityDataLong && !lengthGet)
 			lengthGet = ETH_HEADER_SIZE;
@@ -722,6 +755,8 @@ VOID ParaNdis_PacketMapper(
 				DPrintf(2, ("[%s] skipping buffer %d of %d", __FUNCTION__, nCompleteBuffersToSkip, pSGElements[i].Length));
 				nCompleteBuffersToSkip++;
 			}
+			// just for case of UDP packet shorter than TCP header
+			if (lengthGet > len) lengthGet = len;
 			lengthPut = lengthGet + (PriorityDataLong ? ETH_PRIORITY_HEADER_SIZE : 0);
 		}
 
@@ -780,10 +815,9 @@ VOID ParaNdis_PacketMapper(
 				tTcpIpPacketParsingResult packetReview;
 				ULONG dummyTransferSize = 0;
 				USHORT saveBuffers = pMapperResult->usBuffersMapped;
-				ULONG flags = pcrIpChecksum | pcrTcpChecksum | pcrFixPHChecksum;
+				ULONG flags = pcrIpChecksum | pcrTcpChecksum | pcrFixIPChecksum | pcrFixPHChecksum;
 				PVOID pIpHeader = RtlOffsetToPointer(pBuffer, pContext->Offload.ipHeaderOffset);
 				pMapperResult->usBuffersMapped = 0;
-				if (pContext->bFixIPChecksum) flags |= pcrFixIPChecksum;
 				packetReview = ParaNdis_CheckSumVerify(
 					pIpHeader,
 					lengthGet - pContext->Offload.ipHeaderOffset,
@@ -845,43 +879,30 @@ VOID ParaNdis_PacketMapper(
 
 static void InitializeTransferParameters(tTxOperationParameters *pParams, tSendEntry *pEntry)
 {
-	static const LPCSTR names[8] = { "NO", "IP", "TCP", "IP+TCP", "UDP", "IP+UDP", "TCP+UDP??", "IP+TCP+UDP??"};
 	ULONG flags = (pEntry->flags & SEND_ENTRY_TSO_USED) ? pcrLSO : 0;
 	if (pEntry->flags & SEND_ENTRY_NO_INDIRECT) flags |= pcrNoIndirect;
 	NdisQueryPacket(pEntry->packet, &pParams->nofSGFragments, NULL, NULL, &pParams->ulDataSize);
 	pParams->ReferenceValue = pEntry;
 	pParams->packet = pEntry->packet;
 	pParams->offloalMss = (pEntry->flags & SEND_ENTRY_TSO_USED) ? pEntry->ipTransferUnit : 0;
+	// on NDIS5 it is unknown
+	pParams->tcpHeaderOffset = 0;
 	// fills only if SGList present in the packet
 	GET_NUMBER_OF_SG_ELEMENTS(pEntry->packet, &pParams->nofSGFragments);
 	if (NDIS_GET_PACKET_PROTOCOL_TYPE(pEntry->packet) == NDIS_PROTOCOL_ID_TCP_IP)
 	{
-		NDIS_TCP_IP_CHECKSUM_PACKET_INFO csInfo;
 		flags |= pcrIsIP;
-		csInfo.Value = (ULONG)(ULONG_PTR)NDIS_PER_PACKET_INFO_FROM_PACKET(pEntry->packet, TcpIpChecksumPacketInfo);
-		if (csInfo.Transmit.NdisPacketChecksumV4)
+		if (pEntry->flags & SEND_ENTRY_TCP_CS)
 		{
-			if (csInfo.Transmit.NdisPacketIpChecksum)
-			{
-				flags |= pcrIpChecksum;
-			}
-			if (csInfo.Transmit.NdisPacketTcpChecksum)
-			{
-				flags |= pcrTcpChecksum;
-			}
-			if (csInfo.Transmit.NdisPacketUdpChecksum)
-			{
-				flags |= pcrUdpChecksum;
-			}
+			flags |= pcrTcpChecksum;
+		}
+		if (pEntry->flags & SEND_ENTRY_UDP_CS)
+		{
+			flags |= pcrUdpChecksum;
 		}
 	}
 	if (pEntry->PriorityDataLong) flags |= pcrPriorityTag;
 	pParams->flags = flags;
-
-	DPrintf(1, ("[%s] Sending %d bytes(%d fr.) with %s checksum%s",
-			__FUNCTION__, pParams->ulDataSize, pParams->nofSGFragments,
-			names[flags & (pcrIpChecksum | pcrTcpChecksum | pcrUdpChecksum)],
-			flags & pcrLSO ? "(LSO)" : ""));
 }
 
 VOID ParaNdis_ProcessTx(
@@ -1028,6 +1049,7 @@ static __inline tSendEntry * PrepareSendEntry(PARANDIS_ADAPTER *pContext, PNDIS_
 	ULONG mss = (ULONG)(ULONG_PTR)NDIS_PER_PACKET_INFO_FROM_PACKET(Packet, TcpLargeSendPacketInfo);
 	UINT  protocol = NDIS_GET_PACKET_PROTOCOL_TYPE(Packet);
 	LPCSTR errorFmt = NULL;
+	LPCSTR offloadName = "NO offload";
 	tSendEntry *pse = (tSendEntry *)ParaNdis_AllocateMemory(pContext, sizeof(tSendEntry));
 	if (pse)
 	{
@@ -1079,6 +1101,7 @@ static __inline tSendEntry * PrepareSendEntry(PARANDIS_ADAPTER *pContext, PNDIS_
 			errorFmt = "packet is bigger than we able to send";
 		else if (mss && pContext->Offload.flags.fTxLso)
 		{
+			offloadName = "LSO";
 			pse->ipTransferUnit = mss;
 			pse->flags |= SEND_ENTRY_TSO_USED;
 			// todo: move to common space
@@ -1091,27 +1114,34 @@ static __inline tSendEntry * PrepareSendEntry(PARANDIS_ADAPTER *pContext, PNDIS_
 				errorFmt = "attempt to offload non-IP packet";
 			else if (mss < pContext->Offload.ipHeaderOffset)
 				errorFmt = "mss is too small";
-			else
+		}
+		else
+		{
+			// unexpected CS requests we do not fail - WHQL expects us to send them as is
+			NDIS_TCP_IP_CHECKSUM_PACKET_INFO csInfo;
+			csInfo.Value = (ULONG)(ULONG_PTR)NDIS_PER_PACKET_INFO_FROM_PACKET(Packet, TcpIpChecksumPacketInfo);
+			if (csInfo.Transmit.NdisPacketChecksumV4)
 			{
-				if (pContext->bDoIPCheck)
+				if (csInfo.Transmit.NdisPacketTcpChecksum)
 				{
-					tTcpIpPacketParsingResult res;
-					VOID *pcopy = ParaNdis_AllocateMemory(pContext, len);
-					ParaNdis_PacketCopier(pse->packet, pcopy, len, pse, TRUE);
-					res = ParaNdis_CheckSumVerify(
-						RtlOffsetToPointer(pcopy, pContext->Offload.ipHeaderOffset),
-						len,
-						pcrAnyChecksum/* | pcrFixAnyChecksum*/,
-						__FUNCTION__);
-					/*
-					if (res.xxpStatus == ppresXxpKnown)
-					{
-						TCPHeader *ptcp = (TCPHeader *)
-							RtlOffsetToPointer(pcopy, pContext->Offload.ipHeaderOffset + res.ipHeaderSize);
-						pse->fullTCPCheckSum = ptcp->tcp_xsum;
-					}
-					*/
-					NdisFreeMemory(pcopy, 0, 0);
+					offloadName = "TCP CS";
+					if (pContext->Offload.flags.fTxTCPChecksum)
+						pse->flags |= SEND_ENTRY_TCP_CS;
+					else
+						errorFmt = "TCP CS requested but not enabled";
+				}
+				if (csInfo.Transmit.NdisPacketUdpChecksum)
+				{
+					offloadName = "UDP CS";
+					if (pContext->Offload.flags.fTxUDPChecksum)
+						pse->flags |= SEND_ENTRY_UDP_CS;
+					else
+						errorFmt = "UDP CS requested but not enabled";
+				}
+				if (errorFmt)
+				{
+					DPrintf(0, ("[%s] ERROR: %s (len %d)", __FUNCTION__, errorFmt, len));
+					errorFmt = NULL;
 				}
 			}
 		}
@@ -1123,9 +1153,30 @@ static __inline tSendEntry * PrepareSendEntry(PARANDIS_ADAPTER *pContext, PNDIS_
 		if (pse) NdisFreeMemory(pse, 0, 0);
 		pse = NULL;
 	}
-	else if (mss)
+	else
 	{
 		NDIS_PER_PACKET_INFO_FROM_PACKET(Packet, TcpLargeSendPacketInfo) = (PVOID)(ULONG_PTR)0;
+		DPrintf(1, ("[%s] Sending packet of %d with %s", __FUNCTION__, len, offloadName));
+		if (pContext->bDoIPCheckTx)
+		{
+			tTcpIpPacketParsingResult res;
+			VOID *pcopy = ParaNdis_AllocateMemory(pContext, len);
+			ParaNdis_PacketCopier(pse->packet, pcopy, len, pse, TRUE);
+			res = ParaNdis_CheckSumVerify(
+				RtlOffsetToPointer(pcopy, pContext->Offload.ipHeaderOffset),
+				len,
+				pcrAnyChecksum/* | pcrFixAnyChecksum*/,
+				__FUNCTION__);
+			/*
+			if (res.xxpStatus == ppresXxpKnown)
+			{
+				TCPHeader *ptcp = (TCPHeader *)
+					RtlOffsetToPointer(pcopy, pContext->Offload.ipHeaderOffset + res.ipHeaderSize);
+				pse->fullTCPCheckSum = ptcp->tcp_xsum;
+			}
+			*/
+			NdisFreeMemory(pcopy, 0, 0);
+		}
 	}
 	return pse;
 }

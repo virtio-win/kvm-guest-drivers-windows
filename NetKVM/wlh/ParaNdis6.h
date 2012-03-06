@@ -84,4 +84,9 @@ typedef struct _tagGeneralWorkItem
 	PPARANDIS_ADAPTER			pContext;
 }tGeneralWorkItem;
 
+
+#if NDIS_SUPPORT_NDIS620
+void ParaNdis6_Fill620PowerCapabilities(PARANDIS_ADAPTER *pContext, PNDIS_PM_CAPABILITIES pPower620Caps);		
+#endif
+
 #endif

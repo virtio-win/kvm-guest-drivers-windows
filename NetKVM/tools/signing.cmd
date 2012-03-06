@@ -107,7 +107,7 @@ echo INF file %2
 echo VERSION file %3
 set _OSMASK_=2
 echo Target OS mask %_OSMASK_% 
-::for /F "usebackq tokens=2" %%d in (`date /t`) do
+::for /F "usebackq tokens=2" %%d in (`date /t`) do 
 stampinf -f %2 -d * -v %3
 signability /driver:%~dp2 /auto /cat /os:%_OSMASK_%
 taskkill /FI "WINDOWTITLE eq signability*"

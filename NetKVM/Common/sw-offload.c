@@ -82,6 +82,8 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
 	{
 		res.ipHeaderSize = ipHeaderSize;
 		res.xxpFull = len >= fullLength ? 1 : 0;
+		// bit "more fragments" or fragment offset mean the packet is fragmented
+		res.IsFragment = (pIpHeader->ip_offset & ~0xC0) != 0;
 		switch (pIpHeader->ip_protocol)
 		{
 			case PROTOCOL_TCP:

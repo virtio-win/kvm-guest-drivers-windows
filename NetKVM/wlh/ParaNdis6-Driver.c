@@ -9,10 +9,12 @@
  * the COPYING file in the top-level directory.
  *
 **********************************************************************/
+
+
 #include "ParaNdis6.h"
 #include "ParaNdis-Oid.h"
 
-#if NDIS60_MINIPORT || NDIS620_MINIPORT
+#if NDIS_SUPPORT_NDIS6
 
 //#define NO_VISTA_POWER_MANAGEMENT
 
@@ -107,7 +109,7 @@ void ParaNdis_IndicateConnect(PARANDIS_ADAPTER *pContext, BOOLEAN bConnected, BO
 		NdisZeroMemory(&state, sizeof(state));
 		state.Header.Revision = NDIS_LINK_STATE_REVISION_1;
 		state.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
-		state.Header.Size = sizeof(state);
+		state.Header.Size = NDIS_SIZEOF_LINK_STATE_REVISION_1;
 		state.MediaConnectState =
 			pContext->bConnected ?
 				MediaConnectStateConnected :
@@ -123,7 +125,7 @@ void ParaNdis_IndicateConnect(PARANDIS_ADAPTER *pContext, BOOLEAN bConnected, BO
 
 		indication.Header.Type = NDIS_OBJECT_TYPE_STATUS_INDICATION;
 		indication.Header.Revision = NDIS_STATUS_INDICATION_REVISION_1;
-		indication.Header.Size = sizeof(indication);
+		indication.Header.Size = NDIS_SIZEOF_STATUS_INDICATION_REVISION_1;
 		indication.SourceHandle = pContext->MiniportHandle;
 		indication.StatusCode = NDIS_STATUS_LINK_STATE;
 		indication.StatusBuffer = &state;
@@ -175,7 +177,7 @@ static NDIS_STATUS CreateTimers(PARANDIS_ADAPTER *pContext)
 	DEBUG_ENTRY(4);
 	tch.Header.Type = NDIS_OBJECT_TYPE_TIMER_CHARACTERISTICS;
 	tch.Header.Revision = NDIS_TIMER_CHARACTERISTICS_REVISION_1;
-	tch.Header.Size = sizeof(tch);
+	tch.Header.Size = NDIS_SIZEOF_TIMER_CHARACTERISTICS_REVISION_1;
 	tch.AllocationTag = PARANDIS_MEMORY_TAG;
 	tch.FunctionContext = pContext;
 	tch.TimerFunction = ConnectTimerCallback;
@@ -232,7 +234,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
 		NdisZeroMemory(&miniportAttributes, sizeof(miniportAttributes));
 		miniportAttributes.RegistrationAttributes.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES;
 		miniportAttributes.RegistrationAttributes.Header.Revision = NDIS_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES_REVISION_1;
-		miniportAttributes.RegistrationAttributes.Header.Size = sizeof(NDIS_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES);
+		miniportAttributes.RegistrationAttributes.Header.Size = NDIS_SIZEOF_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES_REVISION_1;
 		miniportAttributes.RegistrationAttributes.MiniportAdapterContext = pContext;
 		miniportAttributes.RegistrationAttributes.AttributeFlags =
 #ifndef NO_VISTA_POWER_MANAGEMENT
@@ -261,7 +263,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
 		/* prepare statistics struct for further reports */
 		pContext->Statistics.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
 		pContext->Statistics.Header.Revision = NDIS_STATISTICS_INFO_REVISION_1;
-		pContext->Statistics.Header.Size = sizeof(pContext->Statistics);
+		pContext->Statistics.Header.Size = NDIS_SIZEOF_STATISTICS_INFO_REVISION_1;
 		/* let Common do all the rest */
 		status = ParaNdis_InitializeContext(pContext, miniportInitParameters->AllocatedResources);
 		if (status != NDIS_STATUS_SUCCESS)
@@ -282,16 +284,27 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
 	if (status == NDIS_STATUS_SUCCESS)
 	{
-		NDIS_PNP_CAPABILITIES powerCaps;
-		PNDIS_PNP_CAPABILITIES pPowerCaps = &powerCaps;
-		ParaNdis_FillPowerCapabilities(&powerCaps);
+		NDIS_PNP_CAPABILITIES power60Caps;
+#if NDIS_SUPPORT_NDIS620
+		NDIS_PM_CAPABILITIES power620Caps;
+#endif
 #ifdef NO_VISTA_POWER_MANAGEMENT
 		pPowerCaps = NULL;
 #endif
+		ParaNdis_FillPowerCapabilities(&power60Caps);
+
 		NdisZeroMemory(&miniportAttributes, sizeof(miniportAttributes));
 		miniportAttributes.GeneralAttributes.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_GENERAL_ATTRIBUTES;
 		miniportAttributes.GeneralAttributes.Header.Revision = NDIS_MINIPORT_ADAPTER_GENERAL_ATTRIBUTES_REVISION_1;
-		miniportAttributes.GeneralAttributes.Header.Size = sizeof(NDIS_MINIPORT_ADAPTER_GENERAL_ATTRIBUTES);
+		miniportAttributes.GeneralAttributes.Header.Size = NDIS_SIZEOF_MINIPORT_ADAPTER_GENERAL_ATTRIBUTES_REVISION_1;
+#if NDIS_SUPPORT_NDIS620
+		miniportAttributes.GeneralAttributes.Header.Revision = NDIS_MINIPORT_ADAPTER_GENERAL_ATTRIBUTES_REVISION_2;
+		miniportAttributes.GeneralAttributes.Header.Size = NDIS_SIZEOF_MINIPORT_ADAPTER_GENERAL_ATTRIBUTES_REVISION_2;
+		miniportAttributes.GeneralAttributes.PowerManagementCapabilitiesEx = &power620Caps;
+		ParaNdis6_Fill620PowerCapabilities(pContext, &power620Caps);
+#else
+		miniportAttributes.GeneralAttributes.PowerManagementCapabilities = &power60Caps;
+#endif
 		miniportAttributes.GeneralAttributes.MediaType = NdisMedium802_3;
 		miniportAttributes.GeneralAttributes.PhysicalMediumType = NdisPhysicalMedium802_3;
 		miniportAttributes.GeneralAttributes.MtuSize = pContext->MaxPacketSize.nMaxDataSize;
@@ -304,7 +317,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
 		miniportAttributes.GeneralAttributes.RcvLinkSpeed = pContext->bConnected ?
 			PARANDIS_FORMAL_LINK_SPEED : NDIS_LINK_SPEED_UNKNOWN;
 		miniportAttributes.GeneralAttributes.MediaDuplexState = MediaDuplexStateFull;
-		miniportAttributes.GeneralAttributes.PowerManagementCapabilities = pPowerCaps;
 		miniportAttributes.GeneralAttributes.MacOptions =
 					NDIS_MAC_OPTION_COPY_LOOKAHEAD_DATA |		/* NIC has no internal loopback support */
 					NDIS_MAC_OPTION_TRANSFERS_NOT_PEND  |		/* Must be set since using  NdisMIndicateReceivePacket */
@@ -577,21 +589,12 @@ static void OnResetWorkItem(PVOID  WorkItemContext, NDIS_HANDLE  NdisIoWorkItemH
 	DEBUG_ENTRY(0);
 	bSendActive = pContext->SendState == srsEnabled;
 	bReceiveActive = pContext->ReceiveState == srsEnabled;
-	if (!pContext->bDoHardReset)
-	{
-		ParaNdis_IndicateConnect(pContext, FALSE, FALSE);
-		ParaNdis_Suspend(pContext);
-		if (bSendActive) ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
-		if (bReceiveActive) ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
-		ParaNdis_ReportLinkStatus(pContext);
-	}
-	else
-	{
-		ParaNdis_PowerOff(pContext);
-		ParaNdis_PowerOn(pContext);
-		if (bSendActive) ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
-		if (bReceiveActive) ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
-	}
+
+	ParaNdis_PowerOff(pContext);
+	ParaNdis_PowerOn(pContext);
+	if (bSendActive) ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
+	if (bReceiveActive) ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
+
 	NdisFreeMemory(pwi, 0, 0);
 	NdisFreeIoWorkItem(NdisIoWorkItemHandle);
 	ParaNdis_DebugHistory(pContext, hopSysReset, NULL, 0, NDIS_STATUS_SUCCESS, 0);
@@ -958,7 +961,7 @@ static void RetrieveDriverConfiguration()
 	DEBUG_ENTRY(2);
 	co.Header.Type = NDIS_OBJECT_TYPE_CONFIGURATION_OBJECT;
 	co.Header.Revision = NDIS_CONFIGURATION_OBJECT_REVISION_1;
-	co.Header.Size = sizeof(co);
+	co.Header.Size = NDIS_SIZEOF_CONFIGURATION_OBJECT_REVISION_1;
 	co.Flags = 0;
 	co.NdisHandle = DriverHandle;
 	status = NdisOpenConfigurationEx(&co, &cfg);
@@ -977,7 +980,7 @@ static void RetrieveDriverConfiguration()
 	}
 }
 
-#if !NDIS60_MINIPORT
+#if NDIS_SUPPORT_NDIS61
 static NDIS_STATUS ParaNdis6x_DirectOidRequest(IN  NDIS_HANDLE miniportAdapterContext,  IN  PNDIS_OID_REQUEST OidRequest)
 {
 	NDIS_STATUS  status = NDIS_STATUS_NOT_SUPPORTED;
@@ -985,20 +988,7 @@ static NDIS_STATUS ParaNdis6x_DirectOidRequest(IN  NDIS_HANDLE miniportAdapterCo
 
 	if (pContext->bSurprizeRemoved) status = NDIS_STATUS_NOT_ACCEPTED;
 
-	switch(OidRequest->DATA.SET_INFORMATION.Oid) {
-	case OID_TCP_TASK_IPSEC_OFFLOAD_V2_ADD_SA:
-		DPrintf(1, ("Received: OID_TCP_TASK_IPSEC_OFFLOAD_V2_ADD_SA"));
-		break;
-	case OID_TCP_TASK_IPSEC_OFFLOAD_V2_DELETE_SA:
-		DPrintf(1, ("Received: OID_TCP_TASK_IPSEC_OFFLOAD_V2_DELETE_SA"));
-		break;
-	case OID_TCP_TASK_IPSEC_OFFLOAD_V2_UPDATE_SA:
-		DPrintf(1, ("Received: OID_TCP_TASK_IPSEC_OFFLOAD_V2_UPDATE_SA"));
-		break;
-	default:
-		DPrintf(0, ("%s> Unknown OID received: %x", __FUNCTION__, OidRequest->DATA.SET_INFORMATION.Oid));
-		break;
-	}
+	DPrintf(1, ("[%s] came %s", __FUNCTION__, ParaNdis_OidName(OidRequest->DATA.SET_INFORMATION.Oid)));
 
 	return status;
 }
@@ -1031,6 +1021,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 
 	DEBUG_ENTRY(0);
 	_LogOutString(0, __DATE__ " " __TIME__);
+	DPrintf(0, (__DATE__ " " __TIME__ "built %d.%d", NDIS_MINIPORT_MAJOR_VERSION, NDIS_MINIPORT_MINOR_VERSION));
 #ifdef DEBUG_TIMING
 	KeQueryTickCount(&TickCount);
 	NdisGetCurrentSystemTime(&SysTime);
@@ -1040,13 +1031,8 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 	NdisZeroMemory(&chars, sizeof(chars));
 
 	chars.Header.Type      = NDIS_OBJECT_TYPE_MINIPORT_DRIVER_CHARACTERISTICS;
-	chars.Header.Size      = sizeof(NDIS_MINIPORT_DRIVER_CHARACTERISTICS);
-#if NDIS60_MINIPORT
 	chars.Header.Revision  = NDIS_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_1;
-#else
-	chars.Header.Revision  = NDIS_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_2;
-#endif
-
+	chars.Header.Size      = NDIS_SIZEOF_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_1;
 	chars.MajorNdisVersion = NDIS_MINIPORT_MAJOR_VERSION;
 	chars.MinorNdisVersion = NDIS_MINIPORT_MINOR_VERSION;
 	/* stupid thing, they are at least short */
@@ -1071,7 +1057,10 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 	chars.ShutdownHandlerEx				= ParaNdis6_AdapterShutdown;
 	chars.DevicePnPEventNotifyHandler	= ParaNdis6_DevicePnPEvent;
 	chars.SetOptionsHandler				= ParaNdis6_SetOptions;
-#if !NDIS60_MINIPORT
+
+#if NDIS_SUPPORT_NDIS61
+	chars.Header.Revision  = NDIS_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_2;
+	chars.Header.Size      = NDIS_SIZEOF_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_2;
 	chars.DirectOidRequestHandler		= ParaNdis6x_DirectOidRequest;
 	chars.CancelDirectOidRequestHandler	= ParaNdis6x_CancelDirectOidRequest;
 #endif
@@ -1109,4 +1098,4 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 	return status;
 }
 
-#endif //NDIS60_MINIPORT || NDIS620_MINIPORT
+#endif //NDIS_SUPPORT_NDIS6
