@@ -275,6 +275,20 @@ void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, unsi
 	}
 }
 
+static void AlignPointers(PHYSICAL_ADDRESS *ppa, void **pva, unsigned long *pSize)
+{
+	ULONG unaligned, cutOut;
+	unaligned = ppa->LowPart & (PAGE_SIZE - 1);
+	cutOut = (PAGE_SIZE - unaligned) & (PAGE_SIZE - 1);
+	if (unaligned && *pSize > cutOut)
+	{
+		ppa->QuadPart += cutOut;
+		*pSize -= cutOut;
+		*pva = (PUCHAR)*pva + cutOut;
+		DPrintf(0, ("%s: Unaligned address: cut 0x%X bytes to %X\n", __FUNCTION__, cutOut, *pSize) );
+	}
+}
+
 struct virtqueue *VirtIODevicePrepareQueue(
 					VirtIODevice *vp_dev,
 					unsigned index,
@@ -286,6 +300,7 @@ struct virtqueue *VirtIODevicePrepareQueue(
 	struct virtqueue *vq = NULL;
 	ULONG sizeNeeded, num;
 	_VirtIODeviceQueryQueueAllocation(vp_dev, index, &num, &sizeNeeded);
+	AlignPointers(&pa, &va, &size);
 	if (num && sizeNeeded && size >= sizeNeeded && checkpa(pa.QuadPart, PAGE_SIZE))
 	{
 		tVirtIOPerQueueInfo *info = &vp_dev->info[index];
