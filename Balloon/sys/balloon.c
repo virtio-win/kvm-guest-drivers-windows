@@ -124,7 +124,7 @@ free_mem:
               context->bStatUpdate = FALSE;
 
               WdfWorkItemEnqueue(hWorkItem);
-
+              devCtx->CurrentWorkItem = hWorkItem;
            }
            else
            {
