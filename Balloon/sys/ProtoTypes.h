@@ -58,9 +58,10 @@ typedef struct _DEVICE_CONTEXT {
     PVIOQUEUE           InfVirtQueue;
     PVIOQUEUE           DefVirtQueue;
     PVIOQUEUE           StatVirtQueue;
-	BOOLEAN             bTellHostFirst;
+    BOOLEAN             bTellHostFirst;
     BOOLEAN             bServiceConnected;
     BOOLEAN             bShutDown;
+    WDFWORKITEM         CurrentWorkItem;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);

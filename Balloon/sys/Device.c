@@ -308,6 +308,10 @@ BalloonEvtDeviceD0Exit(
 
     PAGED_CODE();
 
+    if (devCtx->CurrentWorkItem) {
+        WdfWorkItemFlush(devCtx->CurrentWorkItem);
+        devCtx->CurrentWorkItem = NULL;
+    }
     BalloonTerm(Device);
 
     return STATUS_SUCCESS;
@@ -330,6 +334,10 @@ BalloonEvtDeviceD0ExitPreInterruptsDisabled(
     {
         devCtx->bShutDown = TRUE;
 
+        if (devCtx->CurrentWorkItem) {
+           WdfWorkItemFlush(devCtx->CurrentWorkItem);
+           devCtx->CurrentWorkItem = NULL;
+        }
         while(drvCtx->num_pages)
         {
            BalloonLeak(Device, drvCtx->num_pages);
@@ -389,7 +397,7 @@ FillLeakWorkItem(
     }
 
     WdfObjectDelete(WorkItem);
-
+    devCtx->CurrentWorkItem = NULL;
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return;
 }
@@ -423,13 +431,13 @@ BalloonInterruptDpc(
     {
         KeSetEvent (&drvCtx->DefEvent, IO_NO_INCREMENT, FALSE);
     }
-    if(devCtx->StatVirtQueue &&
-       devCtx->StatVirtQueue->vq_ops->get_buf(devCtx->StatVirtQueue, &len)) {
-       bStatUpdate = TRUE;
-    }
     if (devCtx->bShutDown == TRUE)
     {
         return;
+    }
+    if(devCtx->StatVirtQueue &&
+       devCtx->StatVirtQueue->vq_ops->get_buf(devCtx->StatVirtQueue, &len)) {
+       bStatUpdate = TRUE;
     }
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
@@ -455,7 +463,7 @@ BalloonInterruptDpc(
     context->bStatUpdate = bStatUpdate;
 
     WdfWorkItemEnqueue(hWorkItem);
-
+    devCtx->CurrentWorkItem = hWorkItem;
     return;
 }
 
