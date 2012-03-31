@@ -50,7 +50,7 @@ VIOSerialInitInterruptHandling(
     PPORTS_DEVICE	         pContext = GetPortsDevice(hDevice);
     NTSTATUS                     status = STATUS_SUCCESS;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, PORTS_DEVICE);
     WDF_INTERRUPT_CONFIG_INIT(
@@ -75,6 +75,7 @@ VIOSerialInitInterruptHandling(
         return status;
     }
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return status;
 }
 
@@ -95,7 +96,7 @@ VIOSerialEvtDeviceAdd(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&PnpPowerCallbacks);
     PnpPowerCallbacks.EvtDevicePrepareHardware = VIOSerialEvtDevicePrepareHardware;
@@ -162,6 +163,7 @@ VIOSerialEvtDeviceAdd(
 
     WdfDeviceSetBusInformationForChildren(hDevice, &busInfo);
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return status;
 }
 
@@ -263,12 +265,12 @@ VIOSerialEvtDevicePrepareHardware(
                                  sizeof(pContext->consoleConfig.max_nr_ports));
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
                                 "VirtIOConsoleConfig->max_nr_ports %d\n", pContext->consoleConfig.max_nr_ports);
-		if (pContext->consoleConfig.max_nr_ports > pContext->pIODevice->maxQueues / 2)
-		{
-			pContext->consoleConfig.max_nr_ports = pContext->pIODevice->maxQueues / 2;
-			TraceEvents(TRACE_LEVEL_WARNING, DBG_PNP,
+        if (pContext->consoleConfig.max_nr_ports > pContext->pIODevice->maxQueues / 2)
+        {
+           pContext->consoleConfig.max_nr_ports = pContext->pIODevice->maxQueues / 2;
+           TraceEvents(TRACE_LEVEL_WARNING, DBG_PNP,
                                 "VirtIOConsoleConfig->max_nr_ports limited to %d\n", pContext->consoleConfig.max_nr_ports);
-		}
+        }
     }
 
     if(pContext->isHostMultiport)
@@ -318,6 +320,7 @@ VIOSerialEvtDevicePrepareHardware(
     }
 
     pContext->DeviceOK = TRUE;
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return status;
 }
 
@@ -331,7 +334,7 @@ VIOSerialEvtDeviceReleaseHardware(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     if (pContext->pPortBase && pContext->bPortMapped)
     {
@@ -353,11 +356,12 @@ VIOSerialEvtDeviceReleaseHardware(
     }
 
     if (pContext->pIODevice)
-	{
+    {
         ExFreePoolWithTag(pContext->pIODevice, VIOSERIAL_DRIVER_MEMORY_TAG);
-		pContext->pIODevice = NULL;
-	}
-	return STATUS_SUCCESS;
+        pContext->pIODevice = NULL;
+    }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+    return STATUS_SUCCESS;
 }
 
 static struct virtqueue * FindVirtualQueue(VirtIODevice *dev, ULONG index)
@@ -383,19 +387,19 @@ static struct virtqueue * FindVirtualQueue(VirtIODevice *dev, ULONG index)
 void DumpQueues(WDFOBJECT Device)
 {
     ULONG i, nr_ports;
-	PPORTS_DEVICE          pContext = GetPortsDevice(Device);
+    PPORTS_DEVICE          pContext = GetPortsDevice(Device);
     nr_ports = pContext->consoleConfig.max_nr_ports;
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
-	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "pContext->c_ivq %p\n",  pContext->c_ivq);
-	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "pContext->c_ovq %p\n",  pContext->c_ovq);
-	for (i = 0; i < nr_ports; ++i)
-	{
-		TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "pContext->in_vqs[%d] %p\n", i,  pContext->in_vqs[i]);
-	}
-	for (i = 0; i < nr_ports; ++i)
-	{
-		TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "pContext->out_vqs[%d] %p\n", i, pContext->out_vqs[i]);
-	}
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "pContext->c_ivq %p\n",  pContext->c_ivq);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "pContext->c_ovq %p\n",  pContext->c_ovq);
+    for (i = 0; i < nr_ports; ++i)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "pContext->in_vqs[%d] %p\n", i,  pContext->in_vqs[i]);
+    }
+    for (i = 0; i < nr_ports; ++i)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "pContext->out_vqs[%d] %p\n", i, pContext->out_vqs[i]);
+    }
 }
 #endif
 
@@ -410,7 +414,7 @@ VIOSerialInitAllQueues(
     struct virtqueue       *in_vq, *out_vq;
     WDF_OBJECT_ATTRIBUTES  attributes;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
     nr_ports = pContext->consoleConfig.max_nr_ports;
     if(pContext->isHostMultiport)
@@ -435,28 +439,29 @@ VIOSerialInitAllQueues(
         }
     }
 
-
-	if(pContext->isHostMultiport)
+    if(pContext->isHostMultiport)
     {
         ASSERT(pContext->c_ivq);
         status = VIOSerialFillQueue(pContext->c_ivq, pContext->CVqLock);
     }
 
-
-	return status;
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
+    return status;
 }
 
 static void DeleteQueue(struct virtqueue **ppq)
 {
-	PVOID p;
-	struct virtqueue *pq = *ppq;
-	if (pq)
-	{
-		pq->vq_ops->shutdown(pq);
-		VirtIODeviceDeleteQueue(pq, &p);
-		*ppq = NULL;
-		MmFreeContiguousMemory(p);
-	}
+    PVOID p;
+    struct virtqueue *pq = *ppq;
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+    if (pq)
+    {
+        pq->vq_ops->shutdown(pq);
+        VirtIODeviceDeleteQueue(pq, &p);
+        *ppq = NULL;
+        MmFreeContiguousMemory(p);
+    }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
 }
 
 NTSTATUS
@@ -469,7 +474,6 @@ VIOSerialShutDownAllQueues(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
-
     VirtIODeviceRemoveStatus(pContext->pIODevice , VIRTIO_CONFIG_S_DRIVER_OK);
 
     if(pContext->isHostMultiport)
@@ -478,7 +482,7 @@ VIOSerialShutDownAllQueues(
         DeleteQueue(&pContext->c_ovq);
     }
 
-	nr_ports = pContext->consoleConfig.max_nr_ports;
+    nr_ports = pContext->consoleConfig.max_nr_ports;
     for(i = 0; i < nr_ports; i++ )
     {
         if(pContext->in_vqs && pContext->in_vqs[i])
@@ -491,6 +495,7 @@ VIOSerialShutDownAllQueues(
             DeleteQueue(&(pContext->out_vqs[i]));
         }
     }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return status;
 }
 
@@ -503,7 +508,7 @@ VIOSerialFillQueue(
     NTSTATUS     status = STATUS_SUCCESS;
     PPORT_BUFFER buf = NULL;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "--> %s\n", __FUNCTION__);
 
     for (;;)
     {
@@ -524,6 +529,7 @@ VIOSerialFillQueue(
         }
         WdfSpinLockRelease(Lock);
     }
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 
@@ -536,7 +542,7 @@ VIOSerialEvtDeviceD0Entry(
     PPORTS_DEVICE	pContext = GetPortsDevice(Device);
     UNREFERENCED_PARAMETER(PreviousState);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
     if(!pContext->DeviceOK)
     {
@@ -549,6 +555,7 @@ VIOSerialEvtDeviceD0Entry(
         VIOSerialRenewAllPorts(Device);
     }
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 
@@ -560,7 +567,7 @@ VIOSerialEvtDeviceD0Exit(
 {
     UNREFERENCED_PARAMETER(TargetState);
 
-	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
     PAGED_CODE();
 
@@ -570,6 +577,7 @@ VIOSerialEvtDeviceD0Exit(
     }
 
     VIOSerialShutDownAllQueues(Device);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 
@@ -583,7 +591,7 @@ VIOSerialEvtDeviceD0EntryPostInterruptsEnabled(
     PPORTS_DEVICE	pContext = GetPortsDevice(WdfDevice);
     UNREFERENCED_PARAMETER(PreviousState);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
     PAGED_CODE();
 
@@ -605,6 +613,7 @@ VIOSerialEvtDeviceD0EntryPostInterruptsEnabled(
         VIOSerialSendCtrlMsg(WdfDevice, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 1);
     }
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 

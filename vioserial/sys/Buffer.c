@@ -39,6 +39,8 @@ VIOSerialAllocateBuffer(
     buf->len = 0;
     buf->offset = 0;
     buf->size = buf_size;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
     return buf;
 }
 
@@ -124,6 +126,7 @@ VIOSerialFreeBuffer(
         buf->va_buf = NULL;
     }
     ExFreePoolWithTag(buf, VIOSERIAL_DRIVER_MEMORY_TAG);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -179,6 +182,7 @@ VIOSerialFillReadBuf(
         }
         WdfSpinLockRelease(port->InBufLock);
     }
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
     return count;
 }
 
@@ -212,6 +216,7 @@ VIOSerialAddInBuf(
     }
 
     vq->vq_ops->kick(vq);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
     return status;
 }
 
@@ -225,16 +230,17 @@ VIOSerialGetInBuf(
     struct virtqueue *vq = GetInQueue(port);
     UINT len;
 
-	if (vq)
-	{
-		TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
 
-		buf = vq->vq_ops->get_buf(vq, &len);
-		if (buf)
-		{
-			buf->len = len;
-			buf->offset = 0;
-		}
-	}
+    if (vq)
+    {
+        buf = vq->vq_ops->get_buf(vq, &len);
+        if (buf)
+        {
+           buf->len = len;
+           buf->offset = 0;
+        }
+    }
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
     return buf;
 }

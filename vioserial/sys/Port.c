@@ -70,6 +70,7 @@ VIOSerialFindPortById(
         }
     }
     WdfChildListEndIteration(list, &iterator);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return NULL;
 }
 
@@ -202,6 +203,7 @@ VIOSerialRemovePort(
     {
         ASSERT(0);
     }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -214,13 +216,12 @@ VIOSerialRenewAllPorts(
     WDF_CHILD_LIST_ITERATOR      iterator;
     PPORTS_DEVICE                pContext = GetPortsDevice(Device);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s\n", __FUNCTION__);
 
     if(pContext->isHostMultiport)
     {
         VIOSerialFillQueue(pContext->c_ivq, pContext->CVqLock);
     }
-
 
     list = WdfFdoGetDefaultChildList(Device);
     WDF_CHILD_LIST_ITERATOR_INIT(&iterator,
@@ -268,6 +269,7 @@ VIOSerialRenewAllPorts(
     }
     WdfChildListEndIteration(list, &iterator);
     WdfChildListUpdateAllChildDescriptionsAsPresent(list);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
     return;
 }
 
@@ -283,7 +285,7 @@ VIOSerialShutdownAllPorts(
     WDF_CHILD_LIST_ITERATOR     iterator;
     UINT            nr_ports, i;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s\n", __FUNCTION__);
 
     list = WdfFdoGetDefaultChildList(Device);
     WDF_CHILD_LIST_ITERATOR_INIT(&iterator,
@@ -342,6 +344,7 @@ VIOSerialShutdownAllPorts(
     }
     WdfChildListEndIteration(list, &iterator);
     WdfChildListUpdateAllChildDescriptionsAsPresent(list);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -356,6 +359,7 @@ VIOSerialInitPortConsole(
 
     port->GuestConnected = TRUE;
     VIOSerialSendCtrlMsg(port->BusDevice, port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 1);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -417,6 +421,7 @@ VIOSerialDiscardPortData(
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s::%d Error adding %u buffers back to queue\n",
                       __FUNCTION__, __LINE__, ret);
     }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
 }
 
 BOOLEAN
@@ -460,6 +465,7 @@ VIOSerialWillWriteBlock(
 {
     BOOLEAN ret = FALSE;
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s\n", __FUNCTION__);
     if (!port->HostConnected)
     {
         return TRUE;
@@ -469,6 +475,7 @@ VIOSerialWillWriteBlock(
     VIOSerialReclaimConsumedBuffers(port);
     ret = port->OutVqFull;
     WdfSpinLockRelease(port->OutVqLock);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
     return ret;
 }
 
@@ -480,6 +487,7 @@ VIOSerialPortPortReadyWork(
     PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WorkItem);
     PVIOSERIAL_PORT         pport = pdoData->port;
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s\n", __FUNCTION__);
     if(!VIOSerialFindPortById(pport->BusDevice, pport->PortId))
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s re-enqueue work item for id=%d\n",
@@ -490,6 +498,7 @@ VIOSerialPortPortReadyWork(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s sending PORT_READY for id=%d\n",
         __FUNCTION__, pport->PortId);
     VIOSerialSendCtrlMsg(pport->BusDevice, pport->PortId, VIRTIO_CONSOLE_PORT_READY, 1);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
 }
 
 NTSTATUS
@@ -929,6 +938,7 @@ VIOSerialPortRead(
         return;
     }
     WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ,"<-- %s\n", __FUNCTION__);
     return;
 }
 
@@ -985,6 +995,7 @@ VIOSerialPortWrite(
         status = STATUS_INSUFFICIENT_RESOURCES;
         WdfRequestComplete(Request, status);
     }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE,"<-- %s\n", __FUNCTION__);
 }
 
 
@@ -1011,6 +1022,7 @@ VIOSerialRequestCancel(
     {
         WdfRequestCompleteWithInformation(Request, STATUS_CANCELLED, 0L);
     }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE,"<-- %s\n", __FUNCTION__);
     return;
 }
 
@@ -1035,7 +1047,7 @@ VIOSerialPortDeviceControl(
     UNREFERENCED_PARAMETER( InputBufferLength  );
     UNREFERENCED_PARAMETER( OutputBufferLength  );
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "-->%s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
 
     switch (IoControlCode)
     {
@@ -1089,6 +1101,7 @@ VIOSerialPortDeviceControl(
            break;
     }
     WdfRequestCompleteWithInformation(Request, status, length);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -1125,6 +1138,7 @@ VIOSerialPortCreate(
     }
     WdfRequestComplete(Request, status);
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
     return;
 }
 
@@ -1135,7 +1149,7 @@ VIOSerialPortClose(
 {
     PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfFileObjectGetDevice(FileObject));
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "%s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "--> %s\n", __FUNCTION__);
 
     VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
 
@@ -1148,8 +1162,8 @@ VIOSerialPortClose(
     VIOSerialReclaimConsumedBuffers(pdoData->port);
     WdfSpinLockRelease(pdoData->port->OutVqLock);
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
     return;
-
 }
 
 VOID
@@ -1167,6 +1181,7 @@ VIOSerialPortCreateName(
     size_t                length;
     PVIRTIO_CONSOLE_CONTROL cpkt;
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "--> %s\n", __FUNCTION__);
     cpkt = (PVIRTIO_CONSOLE_CONTROL)((ULONG_PTR)buf->va_buf + buf->offset);
     if (port && !port->NameString.Buffer)
     {
@@ -1219,6 +1234,7 @@ VIOSerialPortCreateName(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIRTIO_CONSOLE_PORT_NAME invalid id = %d\n", cpkt->id);
     }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -1234,6 +1250,7 @@ VIOSerialPortPnpNotify (
     PRAWPDO_VIOSERIAL_PORT  pdoData = NULL;
     NTSTATUS              status = STATUS_SUCCESS;
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
     port->HostConnected = connected;
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
@@ -1256,6 +1273,7 @@ VIOSerialPortPnpNotify (
     pdoData->port = port;
 
     WdfWorkItemEnqueue(hWorkItem);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -1270,6 +1288,8 @@ VIOSerialPortSymbolicNameWork(
     NTSTATUS                status  = STATUS_SUCCESS;
 
     DECLARE_UNICODE_STRING_SIZE(symbolicLinkName, 256);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     do
     {
@@ -1319,6 +1339,7 @@ VIOSerialPortSymbolicNameWork(
         RtlFreeUnicodeString( &deviceUnicodeString );
     }
     WdfObjectDelete(WorkItem);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -1333,6 +1354,7 @@ VIOSerialPortPnpNotifyWork(
     NTSTATUS                            status;
     VIRTIO_PORT_STATUS_CHANGE           portStatus = {0};
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
     portStatus.Version = 1;
     portStatus.Reason = pport->HostConnected;
 
@@ -1373,6 +1395,7 @@ VIOSerialPortPnpNotifyWork(
         }
     }
     WdfObjectDelete(WorkItem);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 }
 
 NTSTATUS
@@ -1388,7 +1411,7 @@ VIOSerialEvtChildListIdentificationDescriptionDuplicate(
 
     UNREFERENCED_PARAMETER(DeviceList);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "%s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "--> %s\n", __FUNCTION__);
 
     src = CONTAINING_RECORD(SourceIdentificationDescription,
                             VIOSERIAL_PORT,
@@ -1435,6 +1458,7 @@ VIOSerialEvtChildListIdentificationDescriptionDuplicate(
     dst->WriteQueue = src->WriteQueue;
     dst->IoctlQueue = src->IoctlQueue;
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 
@@ -1449,7 +1473,7 @@ VIOSerialEvtChildListIdentificationDescriptionCompare(
 
     UNREFERENCED_PARAMETER(DeviceList);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "%s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "--> %s\n", __FUNCTION__);
 
     lhs = CONTAINING_RECORD(FirstIdentificationDescription,
                             VIOSERIAL_PORT,
@@ -1458,6 +1482,7 @@ VIOSerialEvtChildListIdentificationDescriptionCompare(
                             VIOSERIAL_PORT,
                             Header);
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
     return ((lhs->PortId == rhs->PortId) && (lhs->DeviceId == rhs->DeviceId));
 }
 
@@ -1471,7 +1496,7 @@ VIOSerialEvtChildListIdentificationDescriptionCleanup(
 
     UNREFERENCED_PARAMETER(DeviceList);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "%s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "--> %s\n", __FUNCTION__);
 
     pDesc = CONTAINING_RECORD(IdentificationDescription,
                               VIOSERIAL_PORT,
@@ -1484,5 +1509,6 @@ VIOSerialEvtChildListIdentificationDescriptionCleanup(
        pDesc->NameString.Length = 0;
        pDesc->NameString.MaximumLength = 0;
     }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
 }
 

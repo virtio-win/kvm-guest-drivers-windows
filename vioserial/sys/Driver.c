@@ -62,6 +62,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
         return status;
     }
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return status;
 }
 
