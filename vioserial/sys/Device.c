@@ -547,8 +547,6 @@ VIOSerialEvtDeviceD0Entry(
     {
         VIOSerialInitAllQueues(Device);
         VIOSerialRenewAllPorts(Device);
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Setting VIRTIO_CONFIG_S_DRIVER_OK flag\n");
-        VirtIODeviceAddStatus(pContext->pIODevice, VIRTIO_CONFIG_S_DRIVER_OK);
     }
 
     return STATUS_SUCCESS;
@@ -601,6 +599,8 @@ VIOSerialEvtDeviceD0EntryPostInterruptsEnabled(
     }
     else if (PreviousState == WdfPowerDeviceD3Final)
     {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Setting VIRTIO_CONFIG_S_DRIVER_OK flag\n");
+        VirtIODeviceAddStatus(pContext->pIODevice, VIRTIO_CONFIG_S_DRIVER_OK);
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Sending VIRTIO_CONSOLE_DEVICE_READY 1\n");
         VIOSerialSendCtrlMsg(WdfDevice, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 1);
     }
