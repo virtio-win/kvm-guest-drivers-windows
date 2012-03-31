@@ -87,6 +87,7 @@ VIOSerialCtrlWorkHandler(
            VIOSerialFreeBuffer(buf);
         }
     }
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
     WdfSpinLockRelease(pContext->CVqLock);
 }
 
@@ -176,4 +177,5 @@ VIOSerialHandleCtrlMsg(
         default:
            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s UNKNOWN event = %d\n", __FUNCTION__, cpkt->event);
     }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 }

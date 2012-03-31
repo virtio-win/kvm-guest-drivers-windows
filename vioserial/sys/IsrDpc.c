@@ -13,6 +13,7 @@ VIOSerialInterruptIsr(
     ULONG          ret;
     PPORTS_DEVICE  pContext = GetPortsDevice(WdfInterruptGetDevice(Interrupt));
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
     if((ret = VirtIODeviceISR(pContext->pIODevice)) > 0)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "Got ISR - it is ours %d!\n", ret);
@@ -134,6 +135,7 @@ VIOSerialInterruptEnable(
                                  GetPortsDevice(WdfInterruptGetDevice(Interrupt)),
                                  TRUE);
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 
@@ -146,6 +148,7 @@ VIOSerialInterruptDisable(
     VIOSerialEnableDisableInterrupt(
                                  GetPortsDevice(WdfInterruptGetDevice(Interrupt)),
                                  FALSE);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 
@@ -164,4 +167,5 @@ VIOSerialEnableDisableInterruptQueue(
     {
         vq->vq_ops->kick(vq);
     }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
 }
