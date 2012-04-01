@@ -178,7 +178,15 @@ VIOSerialRemovePort(
               status = STATUS_INVALID_PARAMETER;
               break;
            }
-
+           WdfIoQueuePurge(port->ReadQueue,
+                                 WDF_NO_EVENT_CALLBACK,
+                                 WDF_NO_CONTEXT);
+           WdfIoQueuePurge(port->WriteQueue,
+                                 WDF_NO_EVENT_CALLBACK,
+                                 WDF_NO_CONTEXT);
+           WdfIoQueuePurge(port->IoctlQueue,
+                                 WDF_NO_EVENT_CALLBACK,
+                                 WDF_NO_CONTEXT);
            VIOSerialEnableDisableInterruptQueue(GetInQueue(&vport), FALSE);
 
            if(vport.GuestConnected)
@@ -323,6 +331,15 @@ VIOSerialShutdownAllPorts(
            break;
         }
 
+        WdfIoQueuePurge(vport.ReadQueue,
+                                 WDF_NO_EVENT_CALLBACK,
+                                 WDF_NO_CONTEXT);
+        WdfIoQueuePurge(vport.WriteQueue,
+                                 WDF_NO_EVENT_CALLBACK,
+                                 WDF_NO_CONTEXT);
+        WdfIoQueuePurge(vport.IoctlQueue,
+                                 WDF_NO_EVENT_CALLBACK,
+                                 WDF_NO_CONTEXT);
         VIOSerialEnableDisableInterruptQueue(GetInQueue(&vport), FALSE);
 
         if(vport.GuestConnected)
