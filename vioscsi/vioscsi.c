@@ -90,6 +90,8 @@ DriverEntry(
     HW_INITIALIZATION_DATA hwInitData;
     ULONG                  initResult;
 
+    InitializeDebugPrints(DriverObject, RegistryPath);
+
     RhelDbgPrint(TRACE_LEVEL_ERROR, ("Vioscsi driver started...built on %s %s\n", __DATE__, __TIME__));
     IsCrashDumpMode = FALSE;
     if (RegistryPath == NULL) {
@@ -145,11 +147,10 @@ VioScsiFindAdapter(
     )
 {
     PADAPTER_EXTENSION adaptExt;
-    ULONG_PTR          ptr;
-    ULONG              vr_sz;
-    ULONG              vq_sz;
-    ULONG              sz;
-    USHORT             pageNum;
+    ULONG              allocationSize;
+    ULONG              pageNum;
+    ULONG              dummy;
+    ULONG              Size;
 
     UNREFERENCED_PARAMETER( HwContext );
     UNREFERENCED_PARAMETER( BusInformation );
@@ -197,13 +198,41 @@ ENTER_FN();
 
     adaptExt->features = StorPortReadPortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
 
-    pageNum = StorPortReadPortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM));
-    vr_sz = ROUND_TO_PAGES(vring_size(pageNum,PAGE_SIZE));
-    vq_sz = ROUND_TO_PAGES(sizeof(struct vring_virtqueue) + sizeof(PVOID) * pageNum);
-    sz = PAGE_SIZE + (vr_sz + vq_sz) * 3 + ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
+    allocationSize = 0;
+    adaptExt->offset[0] = 0;
+    VirtIODeviceQueryQueueAllocation(&adaptExt->vdev, 0, &pageNum, &Size);
+    allocationSize += ROUND_TO_PAGES(Size);
+    adaptExt->offset[1] = ROUND_TO_PAGES(Size);
+    VirtIODeviceQueryQueueAllocation(&adaptExt->vdev, 1, &dummy, &Size);
+    allocationSize += ROUND_TO_PAGES(Size);
+    adaptExt->offset[2] = adaptExt->offset[1] + ROUND_TO_PAGES(Size);
+    VirtIODeviceQueryQueueAllocation(&adaptExt->vdev, 2, &dummy, &Size);
+    allocationSize += ROUND_TO_PAGES(Size);
+    adaptExt->offset[3] = adaptExt->offset[2] + ROUND_TO_PAGES(Size);
+    allocationSize += ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
 
-    ptr = (ULONG_PTR)StorPortGetUncachedExtension(DeviceExtension, ConfigInfo, sz);
-    if (ptr == (ULONG_PTR)NULL) {
+#if (INDIRECT_SUPPORTED)
+    if(!adaptExt->dump_mode) {
+        adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
+    }
+#else
+    adaptExt->indirect = 0;
+#endif
+
+
+    if(adaptExt->indirect) {
+        adaptExt->queue_depth = pageNum;
+    } else {
+        adaptExt->queue_depth = pageNum / ConfigInfo->NumberOfPhysicalBreaks - 1;
+    }
+
+    RhelDbgPrint(TRACE_LEVEL_ERROR, ("breaks_number = %x  queue_depth = %x\n",
+                ConfigInfo->NumberOfPhysicalBreaks,
+                adaptExt->queue_depth));
+
+
+    adaptExt->uncachedExtensionVa = StorPortGetUncachedExtension(DeviceExtension, ConfigInfo, allocationSize);
+    if (!adaptExt->uncachedExtensionVa) {
         StorPortLogError(DeviceExtension,
                          NULL,
                          0,
@@ -216,33 +245,39 @@ ENTER_FN();
         return SP_RETURN_ERROR;
     }
 
-    ptr = (ULONG_PTR)PAGE_ALIGN(ptr + PAGE_SIZE - 1);
-    adaptExt->pci_vq_info[0].queue = (PVOID)ptr;
-
-    ptr = (ULONG_PTR)PAGE_ALIGN(ptr + vr_sz);
-    adaptExt->virtqueue[0] = (vring_virtqueue*)(ptr);
-
-    ptr = (ULONG_PTR)PAGE_ALIGN(ptr + vq_sz);
-    adaptExt->pci_vq_info[1].queue = (PVOID)ptr;
-
-    ptr = (ULONG_PTR)PAGE_ALIGN(ptr + vr_sz);
-    adaptExt->virtqueue[1] = (vring_virtqueue*)(ptr);
-
-    ptr = (ULONG_PTR)PAGE_ALIGN(ptr + vq_sz);
-    adaptExt->pci_vq_info[2].queue = (PVOID)ptr;
-
-    ptr = (ULONG_PTR)PAGE_ALIGN(ptr + vr_sz);
-    adaptExt->virtqueue[2] = (vring_virtqueue*)(ptr);
-
-    ptr = (ULONG_PTR)PAGE_ALIGN(ptr + vq_sz);
-    adaptExt->tmf_cmd.SrbExtension = (PSRB_EXTENSION)ptr;
-
-    adaptExt->queue_depth = pageNum / ConfigInfo->NumberOfPhysicalBreaks - 1;
-    RhelDbgPrint(TRACE_LEVEL_ERROR, ("breaks_number = %x  queue_depth = %x\n",
-                ConfigInfo->NumberOfPhysicalBreaks,
-                adaptExt->queue_depth));
-
     return SP_RETURN_FOUND;
+}
+
+
+static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG index, ULONG vector)
+{
+    struct virtqueue *vq = NULL;
+    if (adaptExt->uncachedExtensionVa)
+    {
+        ULONG len;
+        PVOID  ptr = (PVOID)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset[index]);
+        PHYSICAL_ADDRESS pa = StorPortGetPhysicalAddress(adaptExt, NULL, ptr, &len);
+        if (pa.QuadPart)
+        {
+           vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, ptr, len, NULL);
+        }
+
+        if (vq && vector)
+        {
+           unsigned res;
+           StorPortWritePortUshort(adaptExt, (PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR),(USHORT)vector);
+           res = StorPortReadPortUshort(adaptExt, (PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR));
+           RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> VIRTIO_MSI_QUEUE_VECTOR vector = %d, res = 0x%x\n", __FUNCTION__, vector, res));
+           if(res == VIRTIO_MSI_NO_VECTOR)
+           {
+              VirtIODeviceDeleteQueue(vq, NULL);
+              vq = NULL;
+              RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot create vq vector\n", __FUNCTION__));
+              return NULL;
+           }
+	}
+    }
+    return vq;
 }
 
 BOOLEAN
@@ -251,10 +286,10 @@ VioScsiHwInitialize(
     )
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    PVOID              ptr      = adaptExt->uncachedExtensionVa;
 
-    adaptExt->pci_vq_info[0].vq = VirtIODeviceFindVirtualQueue(DeviceExtension, 0, 0);
-
-    if (!adaptExt->pci_vq_info[0].vq) {
+    adaptExt->vq[0] = FindVirtualQueue(DeviceExtension, 0, 0);
+    if (!adaptExt->vq[0]) {
         StorPortLogError(DeviceExtension,
                          NULL,
                          0,
@@ -267,9 +302,9 @@ VioScsiHwInitialize(
         return FALSE;
     }
 
-    adaptExt->pci_vq_info[1].vq = VirtIODeviceFindVirtualQueue(DeviceExtension, 1, 0);
+    adaptExt->vq[1] = FindVirtualQueue(DeviceExtension, 1, 0);
 
-    if (!adaptExt->pci_vq_info[1].vq) {
+    if (!adaptExt->vq[1]) {
         StorPortLogError(DeviceExtension,
                          NULL,
                          0,
@@ -282,9 +317,9 @@ VioScsiHwInitialize(
         return FALSE;
     }
 
-    adaptExt->pci_vq_info[2].vq = VirtIODeviceFindVirtualQueue(DeviceExtension, 2, 0);
+    adaptExt->vq[2] = FindVirtualQueue(DeviceExtension, 2, 0);
 
-    if (!adaptExt->pci_vq_info[2].vq) {
+    if (!adaptExt->vq[2]) {
         StorPortLogError(DeviceExtension,
                          NULL,
                          0,
@@ -296,6 +331,7 @@ VioScsiHwInitialize(
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Cannot find virtual queue 2\n"));
         return FALSE;
     }
+    adaptExt->tmf_cmd.SrbExtension = (PSRB_EXTENSION)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset[3]);
     StorPortWritePortUchar(DeviceExtension, (PUCHAR)(adaptExt->device_base + VIRTIO_PCI_STATUS),(UCHAR)VIRTIO_CONFIG_S_DRIVER_OK);
     return TRUE;
 }
@@ -335,7 +371,7 @@ VioScsiInterrupt(
 
     if ( intReason == 1) {
         isInterruptServiced = TRUE;
-        while((cmd = adaptExt->pci_vq_info[2].vq->vq_ops->get_buf(adaptExt->pci_vq_info[2].vq, &len)) != NULL) {
+        while((cmd = adaptExt->vq[2]->vq_ops->get_buf(adaptExt->vq[2], &len)) != NULL) {
            VirtIOSCSICmdResp   *resp;
            Srb     = (PSCSI_REQUEST_BLOCK)cmd->sc;
            resp    = &cmd->resp.cmd;
@@ -397,7 +433,7 @@ VioScsiInterrupt(
            CompleteRequest(DeviceExtension, Srb);
         }
         if (adaptExt->tmf_infly) {
-           while((cmd = adaptExt->pci_vq_info[0].vq->vq_ops->get_buf(adaptExt->pci_vq_info[0].vq, &len)) != NULL) {
+           while((cmd = adaptExt->vq[0]->vq_ops->get_buf(adaptExt->vq[0], &len)) != NULL) {
               VirtIOSCSICtrlTMFResp *resp;
               Srb = (PSCSI_REQUEST_BLOCK)cmd->sc;
               ASSERT(Srb == &adaptExt->tmf_cmd.Srb);
@@ -480,9 +516,9 @@ ENTER_FN();
         VirtIODeviceReset(DeviceExtension);
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)0);
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
-        adaptExt->pci_vq_info[0].vq = NULL;
-        adaptExt->pci_vq_info[1].vq = NULL;
-        adaptExt->pci_vq_info[2].vq = NULL;
+        adaptExt->vq[0] = NULL;
+        adaptExt->vq[1] = NULL;
+        adaptExt->vq[2] = NULL;
 
         if (!VioScsiHwInitialize(DeviceExtension))
         {

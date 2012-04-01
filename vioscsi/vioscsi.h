@@ -19,15 +19,21 @@
 
 #include "osdep.h"
 #include "virtio_pci.h"
-#include "virtio_ring.h"
+#include "VirtIO.h"
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
-
 
 #define VIRTIO_SCSI_CDB_SIZE   32
 #define VIRTIO_SCSI_SENSE_SIZE 96
 
+#ifdef INDIRECT_SUPPORTED
+#define MAX_PHYS_SEGMENTS       64
+#else
 #define MAX_PHYS_SEGMENTS       16
+#endif
+
+#define VIRTIO_MAX_SG	        (3+MAX_PHYS_SEGMENTS)
+
 #define SECTOR_SIZE             512
 #define IO_PORT_LENGTH          0x40
 
@@ -186,6 +192,10 @@ typedef struct {
 
 
 typedef struct _ADAPTER_EXTENSION {
+    VirtIODevice          vdev;
+    PVOID                 uncachedExtensionVa;
+    struct virtqueue *    vq[3];
+    ULONG                 offset[4];
     ULONG_PTR             device_base;
     VirtIOSCSIConfig      scsi_config;
 
@@ -194,13 +204,22 @@ typedef struct _ADAPTER_EXTENSION {
 
     ULONG                 features;
 
-    virtio_pci_vq_info    pci_vq_info[3];
-    vring_virtqueue*      virtqueue[3];
+    ULONG                 msix_vectors;
     BOOLEAN               msix_enabled;
+    BOOLEAN               indirect;
 
     TMF_COMMAND           tmf_cmd;
     BOOLEAN               tmf_infly;
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
+
+typedef struct vring_desc_alias
+{
+    union
+    {
+        ULONGLONG data[2];
+        UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
+    }u;
+};
 
 
 BOOLEAN

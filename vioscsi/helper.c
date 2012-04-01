@@ -15,6 +15,13 @@
 #include "helper.h"
 #include "utils.h"
 
+#if (INDIRECT_SUPPORTED)
+#define SET_VA_PA() { ULONG len; va = adaptExt->indirect ? srbExt->desc : NULL; \
+                      pa = va ? StorPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0; \
+                    }
+#else
+#define SET_VA_PA()   va = NULL; pa = 0;
+#endif
 
 BOOLEAN
 SynchronizedSRBRoutine(
@@ -24,14 +31,17 @@ SynchronizedSRBRoutine(
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
-    PSRB_EXTENSION srbExt        = (PSRB_EXTENSION)Srb->SrbExtension;
+    PSRB_EXTENSION      srbExt        = (PSRB_EXTENSION)Srb->SrbExtension;
+    PVOID               va;
+    ULONGLONG           pa;
 
 ENTER_FN();
-    if (adaptExt->pci_vq_info[2].vq->vq_ops->add_buf(adaptExt->pci_vq_info[2].vq,
+    SET_VA_PA();
+    if (adaptExt->vq[2]->vq_ops->add_buf(adaptExt->vq[2],
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
-                     &srbExt->cmd) >= 0){
-        adaptExt->pci_vq_info[2].vq->vq_ops->kick(adaptExt->pci_vq_info[2].vq);
+                     &srbExt->cmd, va, pa) >= 0){
+        adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
         return TRUE;
     }
     Srb->SrbStatus = SRB_STATUS_BUSY;
@@ -59,14 +69,17 @@ SynchronizedTMFRoutine(
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
-    PSRB_EXTENSION srbExt        = (PSRB_EXTENSION)Srb->SrbExtension;
+    PSRB_EXTENSION      srbExt        = (PSRB_EXTENSION)Srb->SrbExtension;
+    PVOID               va;
+    ULONGLONG           pa;
 
 ENTER_FN();
-    if (adaptExt->pci_vq_info[0].vq->vq_ops->add_buf(adaptExt->pci_vq_info[0].vq,
+    SET_VA_PA();
+    if (adaptExt->vq[0]->vq_ops->add_buf(adaptExt->vq[0],
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
-                     &srbExt->cmd) >= 0){
-        adaptExt->pci_vq_info[0].vq->vq_ops->kick(adaptExt->pci_vq_info[0].vq);
+                     &srbExt->cmd, va, pa) >= 0){
+        adaptExt->vq[0]->vq_ops->kick(adaptExt->vq[0]);
         return TRUE;
     }
     Srb->SrbStatus = SRB_STATUS_BUSY;
@@ -140,22 +153,21 @@ ShutDown(
 ENTER_FN();
     VirtIODeviceReset(DeviceExtension);
     StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), 0);
-    if (adaptExt->pci_vq_info[0].vq) {
-       adaptExt->pci_vq_info[0].vq->vq_ops->shutdown(adaptExt->pci_vq_info[0].vq);
-       VirtIODeviceDeleteVirtualQueue(adaptExt->pci_vq_info[0].vq);
-       adaptExt->pci_vq_info[0].vq = NULL;
+    if (adaptExt->vq[0]) {
+       adaptExt->vq[0]->vq_ops->shutdown(adaptExt->vq[0]);
+       VirtIODeviceDeleteQueue(adaptExt->vq[0], NULL);
+       adaptExt->vq[0] = NULL;
     }
-    if (adaptExt->pci_vq_info[1].vq) {
-       adaptExt->pci_vq_info[1].vq->vq_ops->shutdown(adaptExt->pci_vq_info[1].vq);
-       VirtIODeviceDeleteVirtualQueue(adaptExt->pci_vq_info[1].vq);
-       adaptExt->pci_vq_info[1].vq = NULL;
+    if (adaptExt->vq[1]) {
+       adaptExt->vq[1]->vq_ops->shutdown(adaptExt->vq[1]);
+       VirtIODeviceDeleteQueue(adaptExt->vq[1], NULL);
+       adaptExt->vq[1] = NULL;
     }
-    if (adaptExt->pci_vq_info[2].vq) {
-       adaptExt->pci_vq_info[2].vq->vq_ops->shutdown(adaptExt->pci_vq_info[2].vq);
-       VirtIODeviceDeleteVirtualQueue(adaptExt->pci_vq_info[2].vq);
-       adaptExt->pci_vq_info[2].vq = NULL;
+    if (adaptExt->vq[2]) {
+       adaptExt->vq[2]->vq_ops->shutdown(adaptExt->vq[2]);
+       VirtIODeviceDeleteQueue(adaptExt->vq[2], NULL);
+       adaptExt->vq[2] = NULL;
     }
-
 EXIT_FN();
 }
 
@@ -267,6 +279,9 @@ ENTER_FN();
                    (*ConfigInfo->AccessRanges)[0].RangeLength));
         return FALSE;
     }
+
+    VirtIODeviceInitialize(&adaptExt->vdev, adaptExt->device_base, sizeof(adaptExt->vdev));
+    adaptExt->msix_enabled = FALSE;
 
 EXIT_FN();
     return TRUE;

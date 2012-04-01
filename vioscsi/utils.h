@@ -17,6 +17,8 @@
 #include <ntddk.h>
 #include <storport.h>
 #include <stdarg.h>
+#include "kdebugprint.h"
+#include "evntrace.h"
 
 #define CHECKBIT(value, nbit) (((value) & (1 << (nbit))) != 0)
 
@@ -38,7 +40,15 @@ _vsnprintf(
     const char *fmt,
     va_list args
     );
+
 #define vsnprintf _vsnprintf
+
+
+void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath);
+
+extern int nViostorDebugLevel;
+
+#define RhelDbgPrint(level, line) if ((!bDebugPrint) || level > nViostorDebugLevel) {} else VirtioDebugPrintProc line
 
 char *DbgGetScsiOpStr(PSCSI_REQUEST_BLOCK Srb);
 
@@ -61,34 +71,6 @@ extern ULONG RhelDbgLevel;
 #define TRACE_LEVEL_RESERVED9   9
 #endif // TRACE_LEVEL_INFORMATION
 
-
-//
-// Just use the base of COM1
-//
-#define RHEL_DEBUG_PORT     ((PUCHAR)0x3F8)
-
-ULONG
-_cdecl
-RhelDbgPrintToComPort(
-    IN LPTSTR Format,
-    ...
-    );
-
-#if DBG
-#if RHEL_COM_DEBUG
-#define RhelDbgPrint(__LEVEL__,__MSG__) \
-    if (RhelDbgLevel >= (__LEVEL__)) {  \
-        RhelDbgPrintToComPort __MSG__;   \
-    }
-#else
-#define RhelDbgPrint(__LEVEL__,__MSG__) \
-    if (RhelDbgLevel >= (__LEVEL__)) {  \
-        DbgPrint __MSG__;               \
-    }
-#endif RHEL_COM_DEBUG
-#else DBG
-#define RhelDbgPrint(__LEVEL__,__MSG__)
-#endif DBG
 
 #endif ___UTILS_H___
 
