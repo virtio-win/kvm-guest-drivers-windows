@@ -107,11 +107,17 @@ typedef struct virtio_blk_req {
     VIO_SG sg[VIRTIO_MAX_SG];
 }blk_req, *pblk_req;
 
+typedef enum {
+    FlushIdle = 0,
+    FlushRequested,
+    FlushInflight
+} FLUSH_STATE;
+
 typedef struct _ADAPTER_EXTENSION {
-	VirtIODevice          vdev;
-	PVOID                 uncachedExtensionVa;
-	struct virtqueue *    vq;
-	INQUIRYDATA           inquiry_data;
+    VirtIODevice          vdev;
+    PVOID                 uncachedExtensionVa;
+    struct virtqueue *    vq;
+    INQUIRYDATA           inquiry_data;
     blk_config            info;
     ULONG                 breaks_number;
     ULONG                 transfer_size;
@@ -121,7 +127,7 @@ typedef struct _ADAPTER_EXTENSION {
     ULONG                 msix_vectors;
     BOOLEAN               msix_enabled;
     ULONG                 features;
-    BOOLEAN               flush_done;
+    FLUSH_STATE           flush_state;
     CHAR                  sn[BLOCK_SERIAL_STRLEN];
     BOOLEAN               sn_ok;
     BOOLEAN               rescan_geometry;
