@@ -586,9 +586,12 @@ VirtIoStartIo(
         }
         case SRB_FUNCTION_FLUSH:
         case SRB_FUNCTION_SHUTDOWN: {
-            Srb->SrbStatus = (UCHAR)RhelDoFlush(DeviceExtension, Srb);
+            Srb->SrbStatus = SRB_STATUS_SUCCESS;
             Srb->ScsiStatus = SCSISTAT_GOOD;
             CompleteSRB(DeviceExtension, Srb);
+            if (adaptExt->flush_state == FlushIdle) {
+                adaptExt->flush_state = FlushRequested;
+            }
             return TRUE;
         }
 
@@ -659,9 +662,12 @@ VirtIoStartIo(
         }
         case SCSIOP_SYNCHRONIZE_CACHE:
         case SCSIOP_SYNCHRONIZE_CACHE16: {
-            Srb->SrbStatus = (UCHAR)RhelDoFlush(DeviceExtension, Srb);
+            Srb->SrbStatus = SRB_STATUS_SUCCESS;
             Srb->ScsiStatus = SCSISTAT_GOOD;
             CompleteSRB(DeviceExtension, Srb);
+            if (adaptExt->flush_state == FlushIdle) {
+                adaptExt->flush_state = FlushRequested;
+            }
             return TRUE;
         }
         default: {
@@ -715,8 +721,9 @@ VirtIoInterrupt(
                  break;
               }
            }
-           if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
-              adaptExt->flush_done = TRUE;
+           if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH &&
+              adaptExt->flush_state == FlushInflight) {
+              adaptExt->flush_state = FlushIdle;
            } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
               adaptExt->sn_ok = TRUE;
            } else {
@@ -927,9 +934,9 @@ VirtIoMSInterruptRoutine (
               break;
            }
         }
-
-        if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
-            adaptExt->flush_done = TRUE;
+        if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH &&
+            adaptExt->flush_state == FlushInflight) {
+            adaptExt->flush_state = FlushIdle;
         } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
             adaptExt->sn_ok = TRUE;
         } else {
@@ -1251,9 +1258,8 @@ CompleteDPC(
     )
 {
     PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK)vbr->req;
-#ifdef USE_STORPORT
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-#else
+#ifndef USE_STORPORT
     PRHEL_SRB_EXTENSION srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
     UNREFERENCED_PARAMETER( MessageID );
 #endif
@@ -1283,6 +1289,10 @@ CompleteDPC(
                          Srb->PathId,
                          Srb->TargetId,
                          Srb->Lun);
+    }
+    if (adaptExt->flush_state == FlushRequested) {
+        adaptExt->flush_state = FlushInflight;
+        RhelDoFlush(DeviceExtension);
     }
 #endif
 }
@@ -1357,6 +1367,10 @@ CompleteDpcRoutine(
 #ifdef MSI_SUPPORTED
     }
 #endif
+    if (adaptExt->flush_state == FlushRequested) {
+        adaptExt->flush_state = FlushInflight;
+        RhelDoFlush(Context);
+    }
     return;
 }
 #endif
