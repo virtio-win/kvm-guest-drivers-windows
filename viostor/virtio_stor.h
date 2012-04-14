@@ -107,12 +107,6 @@ typedef struct virtio_blk_req {
     VIO_SG sg[VIRTIO_MAX_SG];
 }blk_req, *pblk_req;
 
-typedef enum {
-    FlushIdle = 0,
-    FlushRequested,
-    FlushInflight
-} FLUSH_STATE;
-
 typedef struct _ADAPTER_EXTENSION {
     VirtIODevice          vdev;
     PVOID                 uncachedExtensionVa;
@@ -127,7 +121,6 @@ typedef struct _ADAPTER_EXTENSION {
     ULONG                 msix_vectors;
     BOOLEAN               msix_enabled;
     ULONG                 features;
-    FLUSH_STATE           flush_state;
     CHAR                  sn[BLOCK_SERIAL_STRLEN];
     BOOLEAN               sn_ok;
     BOOLEAN               rescan_geometry;
@@ -143,11 +136,11 @@ typedef struct _ADAPTER_EXTENSION {
 
 typedef struct vring_desc_alias
 {
-	union
-	{
-		ULONGLONG data[2];
-		UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
-	}u;
+    union
+    {
+        ULONGLONG data[2];
+        UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
+    }u;
 };
 
 typedef struct _RHEL_SRB_EXTENSION {

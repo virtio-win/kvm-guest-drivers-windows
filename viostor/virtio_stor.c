@@ -586,11 +586,11 @@ VirtIoStartIo(
         }
         case SRB_FUNCTION_FLUSH:
         case SRB_FUNCTION_SHUTDOWN: {
-            Srb->SrbStatus = SRB_STATUS_SUCCESS;
+            Srb->SrbStatus = SRB_STATUS_PENDING;
             Srb->ScsiStatus = SCSISTAT_GOOD;
-            CompleteSRB(DeviceExtension, Srb);
-            if (adaptExt->flush_state == FlushIdle) {
-                adaptExt->flush_state = FlushRequested;
+            if (!RhelDoFlush(DeviceExtension, Srb)) {
+                Srb->SrbStatus = SRB_STATUS_ERROR;
+                CompleteSRB(DeviceExtension, Srb);
             }
             return TRUE;
         }
@@ -662,11 +662,11 @@ VirtIoStartIo(
         }
         case SCSIOP_SYNCHRONIZE_CACHE:
         case SCSIOP_SYNCHRONIZE_CACHE16: {
-            Srb->SrbStatus = SRB_STATUS_SUCCESS;
+            Srb->SrbStatus = SRB_STATUS_PENDING;
             Srb->ScsiStatus = SCSISTAT_GOOD;
-            CompleteSRB(DeviceExtension, Srb);
-            if (adaptExt->flush_state == FlushIdle) {
-                adaptExt->flush_state = FlushRequested;
+            if (!RhelDoFlush(DeviceExtension, Srb)) {
+                Srb->SrbStatus = SRB_STATUS_ERROR;
+                CompleteSRB(DeviceExtension, Srb);
             }
             return TRUE;
         }
@@ -721,9 +721,8 @@ VirtIoInterrupt(
                  break;
               }
            }
-           if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH &&
-              adaptExt->flush_state == FlushInflight) {
-              adaptExt->flush_state = FlushIdle;
+           if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
+              CompleteSRB(DeviceExtension, Srb);
            } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
               adaptExt->sn_ok = TRUE;
            } else {
@@ -934,9 +933,8 @@ VirtIoMSInterruptRoutine (
               break;
            }
         }
-        if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH &&
-            adaptExt->flush_state == FlushInflight) {
-            adaptExt->flush_state = FlushIdle;
+        if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
+            CompleteSRB(DeviceExtension, Srb);
         } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
             adaptExt->sn_ok = TRUE;
         } else {
@@ -1290,10 +1288,6 @@ CompleteDPC(
                          Srb->TargetId,
                          Srb->Lun);
     }
-    if (adaptExt->flush_state == FlushRequested) {
-        adaptExt->flush_state = FlushInflight;
-        RhelDoFlush(DeviceExtension);
-    }
 #endif
 }
 #ifdef USE_STORPORT
@@ -1367,10 +1361,6 @@ CompleteDpcRoutine(
 #ifdef MSI_SUPPORTED
     }
 #endif
-    if (adaptExt->flush_state == FlushRequested) {
-        adaptExt->flush_state = FlushInflight;
-        RhelDoFlush(Context);
-    }
     return;
 }
 #endif
