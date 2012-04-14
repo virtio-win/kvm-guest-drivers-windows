@@ -62,14 +62,14 @@ BalloonInit(
         goto free_mem;
     }
 
-	devCtx->DefVirtQueue = FindVirtualQueue(&devCtx->VDevice, 1);
+    devCtx->DefVirtQueue = FindVirtualQueue(&devCtx->VDevice, 1);
     if (NULL == devCtx->DefVirtQueue)
     {
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto free_mem;
     }
 
-	if(VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
+    if(VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> VIRTIO_BALLOON_F_STATS_VQ\n");
 		devCtx->StatVirtQueue = FindVirtualQueue(&devCtx->VDevice, 2);
@@ -340,7 +340,10 @@ BalloonTellHost(
     LARGE_INTEGER       timeout = {0};
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
-
+//FIXME
+    if (vq == NULL) {
+        return;
+    }
     sg.physAddr = MmGetPhysicalAddress(drvCtx->pfns_table);
     sg.ulSize = sizeof(drvCtx->pfns_table[0]) * drvCtx->num_pfns;
 
