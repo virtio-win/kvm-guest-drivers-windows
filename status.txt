@@ -1,3 +1,23 @@
+Date    14 April 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm48
+
+Fixed bugs:
+Bug 811161 - [virtio-win][viostor]Guest BSOD during S3 with virtio disk.
+Bug 803950 - [virtio-win][balloon] Guest BOSD when evict memory and suspend(s4) guest at the same time.
+
+Date    08 April 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm47
+
+Fixed bugs:
+Bug 810694 - viostor fails with DRIVER_IRQL_NOT_LESS_OR_EQUAL BOSD under heavy random write load 
+Bug 806223 - [virtio-win][serial] guest BOSD when doing s3 while virtio-serial in use
+Bug 803950 - [virtio-win][balloon] Guest BOSD when evict memory and suspend(s4) guest at the same time
+Bug 803633 - balloon does not work after s3
+Bug 750773 - qemu-kvm hang while booting a win7 32 bit VM with the qxl and virtio-serial drivers installed 
+
+
 Date    18 March 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm46
