@@ -1495,7 +1495,8 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 								pContext->Offload.ipHeaderOffset,
 								mapResult.usBufferSpaceUsed - pContext->Offload.ipHeaderOffset);
 						}
-						pheader->csum_start = (USHORT)Params->tcpHeaderOffset;
+						pheader->csum_start = (USHORT)Params->tcpHeaderOffset +
+							((Params->flags & pcrPriorityTag) ? ETH_PRIORITY_HEADER_SIZE : 0);
 						pheader->csum_offset = (Params->flags & pcrTcpChecksum) ? TCP_CHECKSUM_OFFSET : UDP_CHECKSUM_OFFSET;
 					}
 					else
@@ -1667,7 +1668,8 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 			{
 				// hardware offload
 				virtio_net_hdr_basic *pvnh = (virtio_net_hdr_basic *)pBuffersDescriptor->HeaderInfo.Virtual;
-				pvnh->csum_start = (USHORT)pParams->tcpHeaderOffset;
+				pvnh->csum_start = (USHORT)pParams->tcpHeaderOffset +
+					((pParams->flags & pcrPriorityTag) ? ETH_PRIORITY_HEADER_SIZE : 0);
 				pvnh->csum_offset = (flags & pcrTcpChecksum) ? TCP_CHECKSUM_OFFSET : UDP_CHECKSUM_OFFSET;
 				pvnh->flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM;
 			}

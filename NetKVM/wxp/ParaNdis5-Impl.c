@@ -853,7 +853,10 @@ VOID ParaNdis_PacketMapper(
 					pheader->gso_type = VIRTIO_NET_HDR_GSO_TCPV4;
 					pheader->hdr_len  = (USHORT)(packetReview.XxpIpHeaderSize + pContext->Offload.ipHeaderOffset);
 					pheader->gso_size = (USHORT)pSendEntry->ipTransferUnit;
-					pheader->csum_start = (USHORT)pContext->Offload.ipHeaderOffset + (USHORT)packetReview.ipHeaderSize;
+					pheader->csum_start = 
+						(USHORT)pContext->Offload.ipHeaderOffset +
+						(USHORT)packetReview.ipHeaderSize +
+						(PriorityDataLong ? ETH_PRIORITY_HEADER_SIZE : 0);
 					pheader->csum_offset = TCP_CHECKSUM_OFFSET;
 					pMapperResult->usBuffersMapped = saveBuffers;
 				}

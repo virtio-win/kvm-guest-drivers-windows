@@ -1161,7 +1161,7 @@ VOID ParaNdis_PacketMapper(
 						pheader->gso_type = VIRTIO_NET_HDR_GSO_TCPV4;
 						pheader->hdr_len  = (USHORT)(packetReview.XxpIpHeaderSize + pContext->Offload.ipHeaderOffset);
 						pheader->gso_size = (USHORT)pble->mss;
-						pheader->csum_start = (USHORT)pble->tcpHeaderOffset;
+						pheader->csum_start = (USHORT)pble->tcpHeaderOffset + (PriorityDataLong ? ETH_PRIORITY_HEADER_SIZE : 0);
 						pheader->csum_offset = TCP_CHECKSUM_OFFSET;
 						nBuffersMapped = saveBuffers;
 					}
