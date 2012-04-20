@@ -1,3 +1,11 @@
+Date    21 April 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm49
+
+Fixed bugs:
+Bug 808654 - [NetKvm] Fix the start of checksum calculation in case on vlan\priority tags usage
+
+
 Date    14 April 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm48
