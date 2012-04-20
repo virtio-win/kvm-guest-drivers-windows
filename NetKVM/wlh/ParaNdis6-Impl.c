@@ -1157,11 +1157,12 @@ VOID ParaNdis_PacketMapper(
 					if (dummyTransferSize)
 					{
 						virtio_net_hdr_basic *pheader = pDesc->HeaderInfo.Virtual;
+						unsigned short addPriorityLen = PriorityDataLong ? ETH_PRIORITY_HEADER_SIZE : 0;
 						pheader->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
 						pheader->gso_type = VIRTIO_NET_HDR_GSO_TCPV4;
-						pheader->hdr_len  = (USHORT)(packetReview.XxpIpHeaderSize + pContext->Offload.ipHeaderOffset);
+						pheader->hdr_len  = (USHORT)(packetReview.XxpIpHeaderSize + pContext->Offload.ipHeaderOffset) + addPriorityLen;
 						pheader->gso_size = (USHORT)pble->mss;
-						pheader->csum_start = (USHORT)pble->tcpHeaderOffset;
+						pheader->csum_start = (USHORT)pble->tcpHeaderOffset + addPriorityLen;
 						pheader->csum_offset = TCP_CHECKSUM_OFFSET;
 						nBuffersMapped = saveBuffers;
 					}
