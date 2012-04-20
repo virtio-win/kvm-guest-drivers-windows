@@ -1484,6 +1484,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 			{
 				if (Params->flags & (pcrTcpChecksum | pcrUdpChecksum))
 				{
+					unsigned short addPriorityLen = (Params->flags & pcrPriorityTag) ? ETH_PRIORITY_HEADER_SIZE : 0;
 					if (pContext->bDoHardwareChecksum)
 					{
 						virtio_net_hdr_basic *pheader = pBuffersDescriptor->HeaderInfo.Virtual;
@@ -1492,11 +1493,14 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 						{
 							Params->tcpHeaderOffset = QueryTcpHeaderOffset(
 								pBuffersDescriptor->DataInfo.Virtual,
-								pContext->Offload.ipHeaderOffset,
-								mapResult.usBufferSpaceUsed - pContext->Offload.ipHeaderOffset);
+								pContext->Offload.ipHeaderOffset + addPriorityLen,
+								mapResult.usBufferSpaceUsed - pContext->Offload.ipHeaderOffset - addPriorityLen);
 						}
-						pheader->csum_start = (USHORT)Params->tcpHeaderOffset +
-							((Params->flags & pcrPriorityTag) ? ETH_PRIORITY_HEADER_SIZE : 0);
+						else
+						{
+							Params->tcpHeaderOffset += addPriorityLen;
+						}
+						pheader->csum_start = (USHORT)Params->tcpHeaderOffset;
 						pheader->csum_offset = (Params->flags & pcrTcpChecksum) ? TCP_CHECKSUM_OFFSET : UDP_CHECKSUM_OFFSET;
 					}
 					else
@@ -1506,10 +1510,13 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 						PVOID pCopy = ParaNdis_AllocateMemory(pContext, Params->ulDataSize);
 						if (pCopy)
 						{
+							tTcpIpPacketParsingResult ppr;
+							// duplicate entire packet
+							ParaNdis_PacketCopier(Params->packet, pCopy, Params->ulDataSize, Params->ReferenceValue, FALSE);
 							// calculate complete TCP/UDP checksum
-							tTcpIpPacketParsingResult ppr = ParaNdis_CheckSumVerify(
-								RtlOffsetToPointer(pCopy, pContext->Offload.ipHeaderOffset),
-								Params->ulDataSize - pContext->Offload.ipHeaderOffset,
+							ppr = ParaNdis_CheckSumVerify(
+								RtlOffsetToPointer(pCopy, pContext->Offload.ipHeaderOffset + addPriorityLen),
+								Params->ulDataSize - pContext->Offload.ipHeaderOffset - addPriorityLen,
 								pcrAnyChecksum | pcrFixXxpChecksum,
 								__FUNCTION__);
 							// data portion in aside buffer contains complete IP+TCP header
@@ -1653,23 +1660,28 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 		if ((flags & (pcrTcpChecksum | pcrUdpChecksum )) != 0)
 		{
 			// we asked
+			unsigned short addPriorityLen = (pParams->flags & pcrPriorityTag) ? ETH_PRIORITY_HEADER_SIZE : 0;
 			tOffloadSettingsFlags f = pContext->Offload.flags;
-			PVOID ipPacket = RtlOffsetToPointer(pBuffersDescriptor->DataInfo.Virtual, pContext->Offload.ipHeaderOffset);
-			ULONG ipPacketLength = CopierResult.size - pContext->Offload.ipHeaderOffset;
+			PVOID ipPacket = RtlOffsetToPointer(
+				pBuffersDescriptor->DataInfo.Virtual, pContext->Offload.ipHeaderOffset + addPriorityLen);
+			ULONG ipPacketLength = CopierResult.size - pContext->Offload.ipHeaderOffset - addPriorityLen;
 			if (!pParams->tcpHeaderOffset)
 			{
-				// this is case of NDIS5, on NDIS6 we know it
 				pParams->tcpHeaderOffset = QueryTcpHeaderOffset(
 					pBuffersDescriptor->DataInfo.Virtual,
-					pContext->Offload.ipHeaderOffset,
+					pContext->Offload.ipHeaderOffset + addPriorityLen,
 					ipPacketLength);
 			}
+			else
+			{
+				pParams->tcpHeaderOffset += addPriorityLen;
+			}
+
 			if (pContext->bDoHardwareChecksum)
 			{
 				// hardware offload
 				virtio_net_hdr_basic *pvnh = (virtio_net_hdr_basic *)pBuffersDescriptor->HeaderInfo.Virtual;
-				pvnh->csum_start = (USHORT)pParams->tcpHeaderOffset +
-					((pParams->flags & pcrPriorityTag) ? ETH_PRIORITY_HEADER_SIZE : 0);
+				pvnh->csum_start = (USHORT)pParams->tcpHeaderOffset;
 				pvnh->csum_offset = (flags & pcrTcpChecksum) ? TCP_CHECKSUM_OFFSET : UDP_CHECKSUM_OFFSET;
 				pvnh->flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM;
 			}
