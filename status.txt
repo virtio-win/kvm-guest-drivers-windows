@@ -1,3 +1,12 @@
+Date    21 May 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm50
+
+Fixed bugs:
+
+Bug 815295 - [NetKvm] Adding ability to handle DPC rx throttling from OS. With this fix glitch 
+free test for Windows 7 will pass
+
 Date    21 April 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm49
