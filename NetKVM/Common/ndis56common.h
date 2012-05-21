@@ -103,6 +103,8 @@
 #define PARANDIS_MIN_LSO_SEGMENTS			2
 #define PARANDIS_MAX_LSO_SIZE				0xF000
 
+#define PARANDIS_UNLIMITED_PACKETS_TO_INDICATE	(~0ul)
+
 typedef enum _tagInterruptSource
 {
 	isReceive  = 0x01,
@@ -310,7 +312,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	BOOLEAN					bSurprizeRemoved;
 	BOOLEAN					bUsingMSIX;
 	BOOLEAN					bUseIndirect;
-	UINT					uNumberOfHandledRXPacketsInDPC;
+	ULONG		  			uNumberOfHandledRXPacketsInDPC;
 	NDIS_DEVICE_POWER_STATE powerState;
 	LONG					dpcReceiveActive;
 	LONG 					counterDPCInside;
@@ -357,7 +359,6 @@ typedef struct _tagPARANDIS_ADAPTER
 	} extraStatistics;
 	tOurCounters			Counters;
 	tOurCounters			Limits;
-	UINT					uRXPacketsDPCLimit;
 	tSendReceiveState		SendState;
 	tSendReceiveState		ReceiveState;
 	ONPAUSECOMPLETEPROC		SendPauseCompletionProc;
@@ -500,7 +501,8 @@ UINT ParaNdis_VirtIONetReleaseTransmitBuffers(
 	PARANDIS_ADAPTER *pContext);
 
 ULONG ParaNdis_DPCWorkBody(
-	PARANDIS_ADAPTER *pContext);
+  PARANDIS_ADAPTER *pContext,
+  ULONG ulMaxPacketsToIndicate);
 
 NDIS_STATUS ParaNdis_SetMulticastList(
 	PARANDIS_ADAPTER *pContext,

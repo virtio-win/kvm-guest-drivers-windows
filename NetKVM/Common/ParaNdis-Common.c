@@ -1037,7 +1037,6 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
 	}
 
 	pContext->Limits.nReusedRxBuffers = pContext->NetMaxReceiveBuffers / 4 + 1;
-	pContext->uRXPacketsDPCLimit = pContext->NetMaxReceiveBuffers * 2;
 
 	if (status == NDIS_STATUS_SUCCESS)
 	{
@@ -1826,10 +1825,9 @@ Manages RX path, calling NDIS-specific procedure for packet indication
 Parameters:
 	context
 ***********************************************************/
-static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext)
+static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndicate)
 {
 	pIONetDescriptor pBuffersDescriptor;
-	UINT uLoopCount = 0;
 	UINT len, headerSize = pContext->nVirtioHeaderSize;
 	eInspectedPacketType packetType = iptInvalid;
 	UINT nReceived = 0, nRetrieved = 0, nReported = 0;
@@ -1838,7 +1836,7 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext)
 	pBatchOfPackets = pContext->bBatchReceive ?
 		ParaNdis_AllocateMemory(pContext, maxPacketsInBatch * sizeof(tPacketIndicationType)) : NULL;
 	NdisAcquireSpinLock(&pContext->ReceiveLock);
-	while ((uLoopCount++ < pContext->uRXPacketsDPCLimit) && NULL != (pBuffersDescriptor = pContext->NetReceiveQueue->vq_ops->get_buf(pContext->NetReceiveQueue, &len)))
+	while ((nReported < ulMaxPacketsToIndicate) && NULL != (pBuffersDescriptor = pContext->NetReceiveQueue->vq_ops->get_buf(pContext->NetReceiveQueue, &len)))
 	{
 		PVOID pDataBuffer = RtlOffsetToPointer(pBuffersDescriptor->DataInfo.Virtual, pContext->bUseMergedBuffers ? pContext->nVirtioHeaderSize : 0);
 		RemoveEntryList(&pBuffersDescriptor->listEntry);
@@ -1968,10 +1966,13 @@ DPC implementation, common for both NDIS
 Parameters:
 	context
 ***********************************************************/
-ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
+ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndicate)
 {
 	ULONG stillRequiresProcessing = 0;
 	ULONG interruptSources;
+  UINT uIndicatedRXPackets = 0;
+  UINT numOfPacketsToIndicate = min(ulMaxPacketsToIndicate, pContext->uNumberOfHandledRXPacketsInDPC);
+
 	DEBUG_ENTRY(5);
 	if (pContext->bEnableInterruptHandlingDPC)
 	{
@@ -1992,14 +1993,13 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
 			if (interruptSources & isReceive)
 			{
 				int nRestartResult = 0;
-				UINT nLoop = 0;
+
 				do
 				{
-					UINT n;
 					LONG rxActive = InterlockedIncrement(&pContext->dpcReceiveActive);
 					if (rxActive == 1)
 					{
-						n = ParaNdis_ProcessRxPath(pContext);
+						uIndicatedRXPackets += ParaNdis_ProcessRxPath(pContext, numOfPacketsToIndicate - uIndicatedRXPackets);
 						InterlockedDecrement(&pContext->dpcReceiveActive);
 						NdisAcquireSpinLock(&pContext->ReceiveLock);
 						nRestartResult = ParaNdis_SynchronizeWithInterrupt(
@@ -2007,11 +2007,12 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext)
 						ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)3, nRestartResult, 0, 0);
 						NdisReleaseSpinLock(&pContext->ReceiveLock);
 						DPrintf(nRestartResult ? 2 : 6, ("[%s] queue restarted%s", __FUNCTION__, nRestartResult ? "(Rerun)" : "(Done)"));
-						++nLoop;
-						if (nLoop > pContext->uNumberOfHandledRXPacketsInDPC)
+
+						if (uIndicatedRXPackets >= numOfPacketsToIndicate)
 						{
-							DPrintf(0, ("[%s] Breaking Rx loop on %d-th operation", __FUNCTION__, nLoop));
+							DPrintf(0, ("[%s] Breaking Rx loop on %d-th operation", __FUNCTION__, uIndicatedRXPackets));
 							ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)4, nRestartResult, 0, 0);
+							stillRequiresProcessing |= isReceive;
 							break;
 						}
 					}
@@ -2081,7 +2082,7 @@ static BOOLEAN CheckRunningDpc(PARANDIS_ADAPTER *pContext)
 				}
 				// simulateDPC
 				InterlockedOr(&pContext->InterruptStatus, isAny);
-				ParaNdis_DPCWorkBody(pContext);
+				ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
 			}
 		}
 	}
