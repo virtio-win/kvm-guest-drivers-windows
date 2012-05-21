@@ -279,22 +279,44 @@ Parameters:
 static VOID MiniportInterruptDPC(
     IN PVOID  MiniportInterruptContext,
     IN PVOID  MiniportDpcContext,
-	// TODO:
-	// Under Win7 this is NDIS_RECEIVE_THROTTLE_PARAMETERS!
-	IN PULONG  NdisReserved1,
+    IN PULONG  ReceiveThrottleParameters, // On earlier ndis then 6.2 - this field is reserved
     IN PULONG  NdisReserved2
     )
 {
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
 	ULONG requiresProcessing;
-	DEBUG_ENTRY(5);
-	requiresProcessing = ParaNdis_DPCWorkBody(pContext);
+
+#if NDIS_SUPPORT_NDIS620
+  PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters = (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
+  DEBUG_ENTRY(5);
+
+  RxThrottleParameters->MoreNblsPending = 0;
+  requiresProcessing = ParaNdis_DPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
+
+  if(requiresProcessing)
+  {
+    DPrintf(4, ("[%s] Queued additional DPC for %d", __FUNCTION__, 	requiresProcessing));
+    InterlockedOr(&pContext->InterruptStatus, requiresProcessing);
+    if((requiresProcessing & isReceive) && NDIS_INDICATE_ALL_NBLS != RxThrottleParameters->MaxNblsToIndicate)
+    {
+      RxThrottleParameters->MoreNblsPending = 1;
+    }
+
+    if(requiresProcessing & isTransmit)
+    {
+      NdisMQueueDpc(pContext->InterruptHandle, 0, 1 << KeGetCurrentProcessorNumber(), pContext);
+    }
+  }
+#else /* NDIS 6.0*/
+  DEBUG_ENTRY(5);
+	requiresProcessing = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
 	if (requiresProcessing)
 	{
 		DPrintf(4, ("[%s] Queued additional DPC for %d", __FUNCTION__, 	requiresProcessing));
 		InterlockedOr(&pContext->InterruptStatus, requiresProcessing);
 		NdisMQueueDpc(pContext->InterruptHandle, 0, 1 << KeGetCurrentProcessorNumber(), pContext);
 	}
+#endif /* NDIS_SUPPORT_NDIS620 */
 }
 
 /**********************************************************
@@ -307,20 +329,45 @@ static VOID MiniportMSIInterruptDpc(
     IN PVOID  MiniportInterruptContext,
     IN ULONG  MessageId,
     IN PVOID  MiniportDpcContext,
-    IN PULONG  NdisReserved1,
+    IN PULONG  ReceiveThrottleParameters, // On earlier ndis then 6.2 - this field is reserved
     IN PULONG  NdisReserved2
     )
 {
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
-	ULONG interruptSource = MessageToInterruptSource(pContext, MessageId);
+  ULONG interruptSource = MessageToInterruptSource(pContext, MessageId);
+
+#if NDIS_SUPPORT_NDIS620
+  PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters = (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
+
+  DPrintf(5, ("[%s] (Message %d, source %d)", __FUNCTION__, MessageId, interruptSource));
+
+  RxThrottleParameters->MoreNblsPending = 0;
+  interruptSource = ParaNdis_DPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
+
+  if (interruptSource)
+  {
+    DPrintf(4, ("[%s] Queued additional DPC for %d", __FUNCTION__, interruptSource));
+    InterlockedOr(&pContext->InterruptStatus, interruptSource);
+    if((interruptSource & isReceive) && NDIS_INDICATE_ALL_NBLS != RxThrottleParameters->MaxNblsToIndicate)
+    {
+      RxThrottleParameters->MoreNblsPending = 1;
+    }
+
+    if(interruptSource & isTransmit)
+    {
+      NdisMQueueDpc(pContext->InterruptHandle, 0, 1 << KeGetCurrentProcessorNumber(), pContext);
+    }
+  }
+#else
 	DPrintf(5, ("[%s] (Message %d, source %d)", __FUNCTION__, MessageId, interruptSource));
-	interruptSource = ParaNdis_DPCWorkBody(pContext);
+	interruptSource = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
 	if (interruptSource)
 	{
 		DPrintf(4, ("[%s] Queued additional DPC for %d", __FUNCTION__, interruptSource));
 		InterlockedOr(&pContext->InterruptStatus, interruptSource);
 		NdisMQueueDpc(pContext->InterruptHandle, MessageId, 1 << KeGetCurrentProcessorNumber(), pContext);
 	}
+#endif
 }
 
 static VOID MiniportDisableMSIInterrupt(
@@ -2213,7 +2260,7 @@ VOID ParaNdis6_OnInterruptRecoveryTimer(PARANDIS_ADAPTER *pContext)
 	if (val & VISTA_RECOVERY_RUN_DPC)
 	{
 		InterlockedOr(&pContext->InterruptStatus, isAny);
-		ParaNdis_DPCWorkBody(pContext);
+		ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
 	}
 	if (~val & VISTA_RECOVERY_CANCEL_TIMER)
 		ParaNdis_SetTimer(pContext->InterruptRecoveryTimer, 15);

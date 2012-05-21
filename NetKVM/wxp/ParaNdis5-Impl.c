@@ -177,7 +177,7 @@ static VOID OnDPCPostProcessTimer(
 {
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)FunctionContext;
 	ULONG requiresProcessing;
-	requiresProcessing = ParaNdis_DPCWorkBody(pContext);
+	requiresProcessing = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
 	if (requiresProcessing)
 	{
 		// we need to request additional DPC
@@ -1398,7 +1398,7 @@ VOID ParaNdis5_HandleDPC(IN NDIS_HANDLE MiniportAdapterContext)
 	// this is not a problem if the timer procedure is already running,
 	// we need to do our job anyway
 	NdisCancelTimer(&pContext->DPCPostProcessTimer, &unused);
-	requiresProcessing = ParaNdis_DPCWorkBody(pContext);
+	requiresProcessing = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
 	if (requiresProcessing)
 	{
 		// we need to request additional DPC
