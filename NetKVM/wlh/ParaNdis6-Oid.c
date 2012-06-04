@@ -963,13 +963,13 @@ NDIS_STATUS ParaNdis6_GetRegistrationOffloadInfo(
 
 #if NDIS_SUPPORT_NDIS620
 
-void ParaNdis6_Fill620PowerCapabilities(PARANDIS_ADAPTER *pContext, PNDIS_PM_CAPABILITIES pPower620Caps)		
+void ParaNdis6_Fill620PowerCapabilities(PARANDIS_ADAPTER *pContext, PNDIS_PM_CAPABILITIES pPower620Caps)
 {
 	NdisZeroMemory(pPower620Caps, sizeof(*pPower620Caps));
 	pPower620Caps->Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
 	pPower620Caps->Header.Revision = NDIS_PM_CAPABILITIES_REVISION_1;
 	pPower620Caps->Header.Size = NDIS_SIZEOF_NDIS_PM_CAPABILITIES_REVISION_1;
-	
+
 	// part of WOL support
 	pPower620Caps->SupportedWoLPacketPatterns = 0;
 	pPower620Caps->NumTotalWoLPatterns = 0;
@@ -983,15 +983,15 @@ void ParaNdis6_Fill620PowerCapabilities(PARANDIS_ADAPTER *pContext, PNDIS_PM_CAP
 	pPower620Caps->NumNSOffloadIPv6Addresses = 0;
 
 	// if wake on magic packet supported
-	pPower620Caps->MinMagicPacketWakeUp = 
+	pPower620Caps->MinMagicPacketWakeUp =
 		(pPower620Caps->SupportedWoLPacketPatterns & NDIS_PM_WOL_MAGIC_PACKET_SUPPORTED) ?
 		NdisDeviceStateD3 : NdisDeviceStateUnspecified;
-	
+
 	// if wake on link change supported
 	pPower620Caps->MinLinkChangeWakeUp = NdisDeviceStateUnspecified;
-	
+
 	// if wake on pattern supported
-	pPower620Caps->MinPatternWakeUp = 
+	pPower620Caps->MinPatternWakeUp =
 		(pPower620Caps->SupportedWoLPacketPatterns & ~NDIS_PM_WOL_MAGIC_PACKET_SUPPORTED) ?
 		NdisDeviceStateD3 : NdisDeviceStateUnspecified;
 }

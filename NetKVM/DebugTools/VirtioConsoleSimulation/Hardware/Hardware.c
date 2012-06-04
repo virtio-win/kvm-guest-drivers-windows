@@ -573,6 +573,27 @@ static void virtio_queue_notify_vq(VirtQueue *vq)
     }
 }
 
+#define MAC_TABLE_ENTRIES    64
+#define MAX_VLAN    (1 << 12)   /* Per 802.1Q definition */
+
+typedef struct _tag_filtering
+{
+	uint8_t promisc;
+	uint8_t allmulti;
+	uint8_t alluni;
+	uint8_t nomulti;
+	uint8_t nouni;
+	uint8_t nobcast;
+	struct {
+		int in_use;
+		int first_multi;
+		uint8_t multi_overflow;
+		uint8_t uni_overflow;
+		uint8_t macs[MAC_TABLE_ENTRIES * ETH_ALEN];
+	} mac_table;
+	uint32_t vlans[MAX_VLAN >> 5];
+} tFiltering;
+
 typedef struct _tHardwareDevice
 {
 	PVOID hostDev;
@@ -596,7 +617,29 @@ typedef struct _tHardwareDevice
 		unsigned int len;
 	} async_tx;
 
+	tFiltering filtering;
+
 }tHardwareDevice;
+
+static void reset_filtering(tFiltering *n)
+{
+    /* Reset back to compatibility mode */
+    n->promisc = 1;
+    n->allmulti = 0;
+    n->alluni = 0;
+    n->nomulti = 0;
+    n->nouni = 0;
+    n->nobcast = 0;
+
+    /* Flush any MAC and VLAN filter table state */
+    n->mac_table.in_use = 0;
+    n->mac_table.first_multi = 0;
+    n->mac_table.multi_overflow = 0;
+    n->mac_table.uni_overflow = 0;
+    memset(n->mac_table.macs, 0, MAC_TABLE_ENTRIES * ETH_ALEN);
+    memset(n->vlans, 0, MAX_VLAN >> 3);
+}
+
 
 static void resetDevice(tHardwareDevice *pd)
 {
@@ -604,6 +647,8 @@ static void resetDevice(tHardwareDevice *pd)
 	virtqueue_reset(&pd->tx);
 	virtqueue_reset(&pd->ctrl);
 	virtqueue_reset(&pd->aux);
+
+	reset_filtering(&pd->filtering);
 }
 
 void virtio_notify(tHardwareDevice *pd, VirtQueue *pQueue)
@@ -700,7 +745,191 @@ static int32_t virtio_net_flush_tx(PVOID hardwareDevice, VirtQueue *vq)
     return num_packets;
 }
 
+static int virtio_net_handle_rx_mode(tFiltering *n, uint8_t cmd,
+                                     VirtQueueElement *elem)
+{
+    uint8_t on;
 
+    if (elem->out_num != 2 || elem->out_sg[1].iov_len != sizeof(on)) {
+        error_report("virtio-net ctrl invalid rx mode command");
+        exit(1);
+    }
+
+    on = ldub_p(elem->out_sg[1].iov_base);
+
+    if (cmd == VIRTIO_NET_CTRL_RX_MODE_PROMISC)
+        n->promisc = on;
+    else if (cmd == VIRTIO_NET_CTRL_RX_MODE_ALLMULTI)
+        n->allmulti = on;
+    else if (cmd == VIRTIO_NET_CTRL_RX_MODE_ALLUNI)
+        n->alluni = on;
+    else if (cmd == VIRTIO_NET_CTRL_RX_MODE_NOMULTI)
+        n->nomulti = on;
+    else if (cmd == VIRTIO_NET_CTRL_RX_MODE_NOUNI)
+        n->nouni = on;
+    else if (cmd == VIRTIO_NET_CTRL_RX_MODE_NOBCAST)
+        n->nobcast = on;
+    else
+        return VIRTIO_NET_ERR;
+
+    return VIRTIO_NET_OK;
+}
+
+static int virtio_net_handle_mac(tFiltering *n, uint8_t cmd,
+                                 VirtQueueElement *elem)
+{
+    struct virtio_net_ctrl_mac mac_data;
+
+    if (cmd != VIRTIO_NET_CTRL_MAC_TABLE_SET || elem->out_num != 3 ||
+        elem->out_sg[1].iov_len < sizeof(mac_data) ||
+        elem->out_sg[2].iov_len < sizeof(mac_data))
+        return VIRTIO_NET_ERR;
+
+    n->mac_table.in_use = 0;
+    n->mac_table.first_multi = 0;
+    n->mac_table.uni_overflow = 0;
+    n->mac_table.multi_overflow = 0;
+    memset(n->mac_table.macs, 0, MAC_TABLE_ENTRIES * ETH_ALEN);
+
+    mac_data.entries = ldl_p(elem->out_sg[1].iov_base);
+
+    if (sizeof(mac_data.entries) +
+        (mac_data.entries * ETH_ALEN) > elem->out_sg[1].iov_len)
+        return VIRTIO_NET_ERR;
+
+    if (mac_data.entries <= MAC_TABLE_ENTRIES) {
+        memcpy(n->mac_table.macs, elem->out_sg[1].iov_base + sizeof(mac_data),
+               mac_data.entries * ETH_ALEN);
+        n->mac_table.in_use += mac_data.entries;
+    } else {
+        n->mac_table.uni_overflow = 1;
+    }
+
+    n->mac_table.first_multi = n->mac_table.in_use;
+
+    mac_data.entries = ldl_p(elem->out_sg[2].iov_base);
+
+    if (sizeof(mac_data.entries) +
+        (mac_data.entries * ETH_ALEN) > elem->out_sg[2].iov_len)
+        return VIRTIO_NET_ERR;
+
+    if (mac_data.entries) {
+        if (n->mac_table.in_use + mac_data.entries <= MAC_TABLE_ENTRIES) {
+            memcpy(n->mac_table.macs + (n->mac_table.in_use * ETH_ALEN),
+                   elem->out_sg[2].iov_base + sizeof(mac_data),
+                   mac_data.entries * ETH_ALEN);
+            n->mac_table.in_use += mac_data.entries;
+        } else {
+            n->mac_table.multi_overflow = 1;
+        }
+    }
+
+    return VIRTIO_NET_OK;
+}
+
+static int virtio_net_handle_vlan_table(tFiltering *n, uint8_t cmd,
+                                        VirtQueueElement *elem)
+{
+    uint16_t vid;
+
+    if (elem->out_num != 2 || elem->out_sg[1].iov_len != sizeof(vid)) {
+        error_report("virtio-net ctrl invalid vlan command");
+        return VIRTIO_NET_ERR;
+    }
+
+    vid = lduw_p(elem->out_sg[1].iov_base);
+
+    if (vid >= MAX_VLAN)
+        return VIRTIO_NET_ERR;
+
+    if (cmd == VIRTIO_NET_CTRL_VLAN_ADD)
+        n->vlans[vid >> 5] |= (1U << (vid & 0x1f));
+    else if (cmd == VIRTIO_NET_CTRL_VLAN_DEL)
+        n->vlans[vid >> 5] &= ~(1U << (vid & 0x1f));
+    else
+        return VIRTIO_NET_ERR;
+
+    return VIRTIO_NET_OK;
+}
+
+static void LogTestFlowMac(const tFiltering *f, const char *header, int from, int to)
+{
+	if (from < to)
+	{
+		int i;
+		const uint8_t *base = f->mac_table.macs;
+		LogTestFlow("%s:\n", header);
+		for (i = from; i < to; ++i)
+		{
+			const uint8_t *p = base + i * ETH_ALEN;
+			LogTestFlow("[%d]=%02X%02X%02X%02X%02X%02X\n", i, *p, *(p+1), *(p+2), *(p+3), *(p+4), *(p+5));
+		}
+	}
+}
+
+static void	PrintFiltersState(const tFiltering *f)
+{
+	int i;
+	LogTestFlow("Promisc=%d\n",f->promisc);
+	LogTestFlow("AllMulti=%d\n",f->allmulti);
+	LogTestFlow("AllUni=%d\n",f->alluni);
+	LogTestFlow("NoMulti=%d\n",f->nomulti);
+	LogTestFlow("NoUni=%d\n",f->nouni);
+	LogTestFlow("NoBroad=%d\n",f->nobcast);
+	if (f->mac_table.multi_overflow)
+		LogTestFlow("Mac table multicast overflow\n");
+	if (f->mac_table.uni_overflow)
+		LogTestFlow("Mac table unicast overflow\n");
+	LogTestFlowMac(f, "Unicast table", 0, f->mac_table.first_multi);
+	LogTestFlowMac(f, "Multicast table", f->mac_table.first_multi, f->mac_table.in_use);
+	for (i = 0; i < MAX_VLAN; ++i)
+	{
+		if (f->vlans[i >> 5] & (1 << (i & 0x1f)))
+			LogTestFlow("VLAN 0x%X enabled\n", i);
+	}
+}
+
+
+static void virtio_net_handle_ctrl(PVOID hardwareDevice, VirtQueue *vq)
+{
+    tHardwareDevice *pd = (tHardwareDevice *)hardwareDevice;
+    virtio_net_ctrl_hdr ctrl;
+    virtio_net_ctrl_ack status = VIRTIO_NET_ERR;
+    VirtQueueElement elem;
+
+    while (virtqueue_pop(vq, &elem)) {
+        if ((elem.in_num < 1) || (elem.out_num < 1)) {
+            error_report("virtio-net ctrl missing headers");
+            exit(1);
+        }
+
+        if (elem.out_sg[0].iov_len < sizeof(ctrl) ||
+            elem.in_sg[elem.in_num - 1].iov_len < sizeof(status)) {
+            error_report("virtio-net ctrl header not in correct element");
+            exit(1);
+        }
+
+        ctrl.class = ldub_p(elem.out_sg[0].iov_base);
+        ctrl.cmd = ldub_p(elem.out_sg[0].iov_base + sizeof(ctrl.class));
+
+        if (ctrl.class == VIRTIO_NET_CTRL_RX_MODE)
+			status = virtio_net_handle_rx_mode(&pd->filtering, ctrl.cmd, &elem);
+        else if (ctrl.class == VIRTIO_NET_CTRL_MAC)
+            status = virtio_net_handle_mac(&pd->filtering, ctrl.cmd, &elem);
+        else if (ctrl.class == VIRTIO_NET_CTRL_VLAN)
+            status = virtio_net_handle_vlan_table(&pd->filtering, ctrl.cmd, &elem);
+
+        stb_p(elem.in_sg[elem.in_num - 1].iov_base, status);
+
+        virtqueue_push(vq, &elem, sizeof(status));
+        virtio_notify(pd, vq);
+    }
+
+	PrintFiltersState(&pd->filtering);
+}
+
+
+/*
 static void virtio_handle_ctrl(PVOID hardwareDevice, VirtQueue *vq)
 {
     tHardwareDevice *pd = (tHardwareDevice *)hardwareDevice;
@@ -718,6 +947,7 @@ static void virtio_handle_ctrl(PVOID hardwareDevice, VirtQueue *vq)
 	}
 	LogTestFlow("%s\n",__FUNCTION__);
 }
+*/
 
 static void virtio_handle_aux(PVOID hardwareDevice, VirtQueue *vq)
 {
@@ -829,13 +1059,15 @@ void *hwCreateDevice(void *pHostDevice)
 
 	pd->ctrl.vring.num = 4;
 	pd->ctrl.vector = CTL_INTERRUPT_VECTOR;
-	pd->ctrl.handle_output = virtio_handle_ctrl;
+	pd->ctrl.handle_output = virtio_net_handle_ctrl;
 	pd->ctrl.hardwareDevice = pd;
 
 	pd->aux.vring.num = 16;
 	pd->aux.vector = AUX_INTERRUPT_VECTOR;
 	pd->aux.handle_output = virtio_handle_aux;
 	pd->aux.hardwareDevice = pd;
+
+	resetDevice(pd);
 
 	return pd;
 }

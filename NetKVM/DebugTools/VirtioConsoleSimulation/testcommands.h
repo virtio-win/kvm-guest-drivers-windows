@@ -55,6 +55,14 @@ EXTERN_C UCHAR GetDeviceData(UCHAR offset);
 
 EXTERN_C void SetDeviceData(UCHAR offset, UCHAR val);
 
+EXTERN_C void SetRxMode(UCHAR mode, BOOLEAN bOnOff);
+
+EXTERN_C void VlansAdd(USHORT *tags, int num);
+
+EXTERN_C void VlansDel(USHORT *tags, int num);
+
+EXTERN_C void SetMacAddresses(int num);
+
 /* management of packets until they're returned */
 EXTERN_C void KeepRxPacket(void *buffer, ULONG serial);
 EXTERN_C void *GetRxPacket(ULONG serial);

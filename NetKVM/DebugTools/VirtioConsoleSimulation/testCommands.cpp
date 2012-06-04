@@ -185,7 +185,11 @@ typedef enum _tCommandId
 	cmdRxDisableInterrupt,
 	cmdRxGet,
 	cmdDataGet,
-	cmdDataSet
+	cmdDataSet,
+	cmdControlMacTable,
+	cmdControlRxMode,
+	cmdControlVlanAdd,
+	cmdControlVlanDel,
 }tCommandId;
 
 class CParametersArray : public CArray<tParameter *>
@@ -359,6 +363,10 @@ static tCommandDescription commands[] =
 	{ NULL, cmdRxDisableInterrupt, "rxdis" },
 	{ NULL, cmdDataGet, "dataget", {ptInteger, ptInteger} },
 	{ NULL, cmdDataSet, "dataset", {ptInteger, ptInteger} },
+	{ NULL, cmdControlRxMode, "control.rxmode", {ptInteger, ptInteger} },
+	{ NULL, cmdControlMacTable, "control.mac", {ptInteger} },
+	{ NULL, cmdControlVlanAdd, "control.addvlan", {ptInteger} },
+	{ NULL, cmdControlVlanDel, "control.delvlan", {ptInteger} },
 };
 
 static const char *FindToken(tCommandId id)
@@ -851,6 +859,27 @@ bool tScriptState::ExecuteCommand(tCommand& cmd)
 				GetRxBuffer(&len);
 			}
 			break;
+		case cmdControlRxMode:
+			{
+				SetRxMode((UCHAR)cmd.params[0]->Value(), cmd.params[1]->Value() != 0);
+			}
+			break;
+		case cmdControlVlanAdd:
+			{
+				USHORT us = (USHORT)cmd.params[0]->Value();
+				VlansAdd(&us, 1);
+			}
+			break;
+		case cmdControlVlanDel:
+			{
+				USHORT us = (USHORT)cmd.params[0]->Value();
+				VlansDel(&us, 1);
+			}
+			break;
+		case cmdControlMacTable:
+			{
+				SetMacAddresses(cmd.params[0]->Value());
+			}
 		default:
 			result = 1;
 			break;

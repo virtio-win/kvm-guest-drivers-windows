@@ -11,8 +11,8 @@
 #else
 typedef BOOLEAN bool;
 #endif
-typedef ULONG u32;
-typedef UCHAR u8;
+typedef ULONG u32, uint32_t;
+typedef UCHAR u8, uint8_t;
 typedef USHORT u16;
 typedef ULONGLONG u64;
 typedef LARGE_INTEGER PHYSICAL_ADDRESS;

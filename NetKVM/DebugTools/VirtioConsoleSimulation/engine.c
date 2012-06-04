@@ -266,6 +266,7 @@ static void InitializeDevice(tDevice *pDev)
 
 static struct virtqueue *TxQ;
 static struct virtqueue *RxQ;
+static struct virtqueue *CtlQ;
 static struct virtqueue *AuxQ;
 
 tDevice *pDevice;
@@ -338,6 +339,7 @@ static BOOLEAN AddAuxBuffer(ULONG size)
 	{
 		AuxQ->vq_ops->kick(AuxQ);
 	}
+	return bOK;
 }
 
 void ReturnRxBuffer(ULONG serial)
@@ -449,6 +451,18 @@ void SimulationPrepare()
 		}
 	}
 
+	VirtIODeviceQueryQueueAllocation(Host.dev, CTL_QUEUE_NUMBER, &size, &allocSize);
+	if (allocSize)
+	{
+		PVOID p = AllocatePhysical(allocSize);
+		if (p)
+		{
+			PHYSICAL_ADDRESS phys = MmGetPhysicalAddress(p);
+			CtlQ = VirtIODevicePrepareQueue(Host.dev, CTL_QUEUE_NUMBER, phys, p, allocSize, p);
+		}
+	}
+
+
 	VirtIODeviceQueryQueueAllocation(Host.dev, AUX_QUEUE_NUMBER, &size, &allocSize);
 	if (allocSize)
 	{
@@ -461,7 +475,7 @@ void SimulationPrepare()
 	}
 
 
-	if (TxQ && RxQ && AuxQ)
+	if (TxQ && RxQ && AuxQ && CtlQ)
 	{
 		size = VirtIODeviceGetQueueSize(RxQ);
 		for (i = 0; i < size; ++i)
@@ -499,6 +513,13 @@ void	SimulationFinish()
 		RxQ->vq_ops->shutdown(RxQ);
 		VirtIODeviceDeleteQueue(RxQ, &va);
 		if (va) MmFreeContiguousMemory((PUCHAR)va - 1);
+	}
+	if (CtlQ)
+	{
+		PVOID va = NULL;
+		CtlQ->vq_ops->shutdown(CtlQ);
+		VirtIODeviceDeleteQueue(CtlQ, &va);
+		if (va) MmFreeContiguousMemory(va);
 	}
 	if (AuxQ)
 	{
@@ -592,3 +613,126 @@ EXTERN_C void SetDeviceData(UCHAR offset, UCHAR val)
 {
 	VirtIODeviceSet(Host.dev, offset, &val, 1);
 }
+
+void SendControlMessageEx(UCHAR cls, UCHAR cmd, UCHAR *buffer1, USHORT size1, UCHAR *buffer2, USHORT size2)
+{
+	PVOID vaIn, vaOut, va1 = NULL, va2 = NULL;
+	struct VirtIOBufferDescriptor sg[4];
+	int nOut = 1;
+	vaIn = AllocatePhysical(sizeof(virtio_net_ctrl_ack));
+	*(virtio_net_ctrl_ack *)vaIn = VIRTIO_NET_ERR;
+	vaOut = AllocatePhysical(sizeof(virtio_net_ctrl_hdr));
+	((virtio_net_ctrl_hdr *)vaOut)->class = cls;
+	((virtio_net_ctrl_hdr *)vaOut)->cmd = cmd;
+	if (size1)
+	{
+		va1 = AllocatePhysical(size1);
+		memcpy(va1, buffer1, size1);
+	}
+	if (size2)
+	{
+		va2 = AllocatePhysical(size2);
+		memcpy(va2, buffer2, size2);
+	}
+	sg[0].physAddr = MmGetPhysicalAddress(vaOut);
+	sg[0].ulSize = sizeof(virtio_net_ctrl_hdr);
+	if (va1)
+	{
+		sg[nOut].physAddr = MmGetPhysicalAddress(va1);
+		sg[nOut].ulSize = size1;
+		nOut++;
+	}
+	if (va2)
+	{
+		sg[nOut].physAddr = MmGetPhysicalAddress(va2);
+		sg[nOut].ulSize = size2;
+		nOut++;
+	}
+	sg[nOut].physAddr = MmGetPhysicalAddress(vaIn);
+	sg[nOut].ulSize = sizeof(virtio_net_ctrl_ack);
+	if (0 <= CtlQ->vq_ops->add_buf(CtlQ, sg, nOut, 1, (PVOID)1, NULL, 0))
+	{
+		UINT len;
+		void *p;
+		CtlQ->vq_ops->kick_always(CtlQ);
+		p = CtlQ->vq_ops->get_buf(CtlQ, &len);
+		if (!p)
+		{
+			FailCase("%s - get_buf failed", __FUNCTION__);
+		}
+		else if (len != sizeof(virtio_net_ctrl_ack))
+		{
+			FailCase("%s - wrong len %d", __FUNCTION__, len);
+		}
+		else if (*(virtio_net_ctrl_ack *)vaIn != VIRTIO_NET_OK)
+		{
+			FailCase("%s - error %d returned", __FUNCTION__, len);
+		}
+		else
+		{
+			// everything is OK
+		}
+	}
+	else
+	{
+		FailCase("%s - add_buf failed", __FUNCTION__);
+	}
+	MmFreeContiguousMemory(vaIn);
+	MmFreeContiguousMemory(vaOut);
+	if (va1) MmFreeContiguousMemory(va1);
+	if (va2) MmFreeContiguousMemory(va2);
+}
+
+void SendControlMessage(UCHAR cls, UCHAR cmd, UCHAR *buffer, USHORT size)
+{
+	SendControlMessageEx(cls, cmd, buffer, size, NULL, 0);
+}
+
+EXTERN_C void SetRxMode(UCHAR mode, BOOLEAN bOnOff)
+{
+	UCHAR val = bOnOff ? 1 : 0;
+	SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, mode, &val, sizeof(val));
+}
+
+EXTERN_C void VlansAdd(USHORT *tags, int num)
+{
+	SendControlMessage(VIRTIO_NET_CTRL_VLAN, VIRTIO_NET_CTRL_VLAN_ADD, (UCHAR *)tags, sizeof(tags[0]) * num);
+}
+
+EXTERN_C void VlansDel(USHORT *tags, int num)
+{
+	SendControlMessage(VIRTIO_NET_CTRL_VLAN, VIRTIO_NET_CTRL_VLAN_DEL, (UCHAR *)tags, sizeof(tags[0]) * num);
+}
+
+EXTERN_C void SetMacAddresses(int num)
+{
+	UCHAR _mac[10] = {0};
+	struct virtio_net_ctrl_mac *pMacCtrl;
+	USHORT mcSize = sizeof(uint32_t) + num * ETH_ALEN;
+	UCHAR *multicasts = (UCHAR *)malloc(mcSize);
+	int i;
+
+	pMacCtrl = (struct virtio_net_ctrl_mac *)_mac;
+	pMacCtrl->entries = 1;
+	for (i = 1; i < 6; ++i)
+	{
+		pMacCtrl->macs[0][i] = num + i;
+	}
+
+	memset(multicasts, 0, mcSize);
+	pMacCtrl = (struct virtio_net_ctrl_mac *)multicasts;
+	pMacCtrl->entries = num;
+	for (i = 0; i < num; ++i)
+	{
+		UCHAR *p = &pMacCtrl->macs[i][0];
+		p[0] = 1;
+		p[1] = num + i;
+		p[2] = num + i + 1;
+		p[3] = num + i + 2;
+		p[4] = num + i + 3;
+		p[5] = num + i + 4;
+	}
+	SendControlMessageEx(VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_TABLE_SET, _mac, sizeof(_mac), multicasts, mcSize);
+	free(multicasts);
+}
+
