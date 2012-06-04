@@ -476,6 +476,7 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 					if (pContext->VlanId && pContext->VlanId != qInfo.TagHeader.VlanId)
 					{
 						DPrintf(0, ("[%s] Failing unexpected VlanID %d", __FUNCTION__, qInfo.TagHeader.VlanId));
+						pContext->extraStatistics.framesFilteredOut++;
 						pBuffer = NULL;
 					}
 				}

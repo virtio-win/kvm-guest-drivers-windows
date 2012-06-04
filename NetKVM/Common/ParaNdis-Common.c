@@ -19,7 +19,7 @@
 void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue);
 
 //#define ROUNDSIZE(sz)	((sz + 15) & ~15)
-
+#define MAX_VLAN_ID		4095 
 
 #if 0
 void FORCEINLINE DebugDumpPacket(LPCSTR prefix, PVOID header, int level)
@@ -143,7 +143,7 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "*LsoV2IPv4",	1, 0, 1 },
 	{ "*LsoV2IPv6",	1, 0, 1 },
 	{ "*PriorityVLANTag", 3, 0, 3},
-	{ "VlanId", 0, 0, 4095},
+	{ "VlanId", 0, 0, MAX_VLAN_ID},
 	{ "MergeableBuf", 1, 0, 1},
 	{ "PublishIndices", 1, 0, 1},
 	{ "MTU", 1500, 500, 65500},
@@ -294,7 +294,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;
 			pContext->ulFormalLinkSpeed  = pConfiguration->ConnectRate.ulValue;
 			pContext->ulFormalLinkSpeed *= 1000000;
-			pContext->bDoPacketFiltering = pConfiguration->PacketFiltering.ulValue != 0;
+			pContext->bDoHwPacketFiltering = pConfiguration->PacketFiltering.ulValue != 0;
 			pContext->bUseScatterGather  = pConfiguration->ScatterGather.ulValue != 0;
 			pContext->bBatchReceive      = pConfiguration->BatchReceive.ulValue != 0;
 			pContext->bDoHardwareChecksum = pConfiguration->UseSwTxChecksum.ulValue == 0;
@@ -320,7 +320,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->InitialOffloadParameters.LsoV2IPv4 = (UCHAR)pConfiguration->stdLsoV2ip4.ulValue;
 			pContext->InitialOffloadParameters.LsoV2IPv6 = (UCHAR)pConfiguration->stdLsoV2ip6.ulValue;
 			pContext->ulPriorityVlanSetting = pConfiguration->PriorityVlanTagging.ulValue;
-			pContext->VlanId = pConfiguration->VlanId.ulValue;
+			pContext->VlanId = pConfiguration->VlanId.ulValue & 0xfff;
 			pContext->bUseMergedBuffers = pConfiguration->UseMergeableBuffers.ulValue != 0;
 			pContext->bDoPublishIndices = pConfiguration->PublishIndices.ulValue != 0;
 			pContext->MaxPacketSize.nMaxDataSize = pConfiguration->MTU.ulValue;
@@ -441,6 +441,10 @@ static void DumpVirtIOFeatures(VirtIODevice *pIO)
 		{VIRTIO_NET_F_HOST_UFO, "VIRTIO_NET_F_HOST_UFO"},
 		{VIRTIO_NET_F_MRG_RXBUF, "VIRTIO_NET_F_MRG_RXBUF"},
 		{VIRTIO_NET_F_STATUS, "VIRTIO_NET_F_STATUS"},
+		{VIRTIO_NET_F_CTRL_VQ, "VIRTIO_NET_F_CTRL_VQ"},
+		{VIRTIO_NET_F_CTRL_RX, "VIRTIO_NET_F_CTRL_RX"},
+		{VIRTIO_NET_F_CTRL_VLAN, "VIRTIO_NET_F_CTRL_VLAN"},
+		{VIRTIO_NET_F_CTRL_RX_EXTRA, "VIRTIO_NET_F_CTRL_RX_EXTRA"},
 		{VIRTIO_F_INDIRECT, "VIRTIO_F_INDIRECT"},
 		{VIRTIO_F_PUBLISH_INDICES, "VIRTIO_F_PUBLISH_INDICES"},
 	};
@@ -507,8 +511,9 @@ static void PrintStatistics(PARANDIS_ADAPTER *pContext)
 		pContext->extraStatistics.framesCSOffload,
 		pContext->extraStatistics.framesLSO,
 		pContext->extraStatistics.framesIndirect));
-	DPrintf(0, ("[Diag!] Rx frames %I64u, Rx.Pri %d, RxHwCS.OK %d",
-		totalRxFrames, pContext->extraStatistics.framesRxPriority, pContext->extraStatistics.framesRxCSHwOK));
+	DPrintf(0, ("[Diag!] Rx frames %I64u, Rx.Pri %d, RxHwCS.OK %d, FiltOut %d",
+		totalRxFrames, pContext->extraStatistics.framesRxPriority, 
+		pContext->extraStatistics.framesRxCSHwOK, pContext->extraStatistics.framesFilteredOut));
 	if (pContext->extraStatistics.framesRxCSHwMissedBad || pContext->extraStatistics.framesRxCSHwMissedGood)
 	{
 		DPrintf(0, ("[Diag!] RxHwCS mistakes: missed bad %d, missed good %d",
@@ -722,6 +727,12 @@ NDIS_STATUS ParaNdis_InitializeContext(
 		DPrintf(0, ("[%s] %sable indirect Tx(!%s)", __FUNCTION__, pContext->bUseIndirect ? "En" : "Dis", reason) );
 	}
 
+	if (VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_CTRL_RX_EXTRA) &&
+		pContext->bDoHwPacketFiltering)
+	{
+		DPrintf(0, ("[%s] Using hardware packet filtering", __FUNCTION__));
+		pContext->bHasHardwareFilters = TRUE;
+	}
 
 	NdisInitializeEvent(&pContext->ResetEvent);
 	DEBUG_EXIT_STATUS(0, status);
@@ -922,20 +933,20 @@ static int PrepareReceiveBuffers(PARANDIS_ADAPTER *pContext)
 	return nRet;
 }
 
+static void DeleteQueue(PARANDIS_ADAPTER *pContext, struct virtqueue **ppq, tCompletePhysicalAddress *ppa)
+{
+	if (*ppq) VirtIODeviceDeleteQueue(*ppq, NULL);
+	*ppq = NULL;
+	if (ppa->Virtual) ParaNdis_FreePhysicalMemory(pContext, ppa);
+	RtlZeroMemory(ppa, sizeof(*ppa));
+}
+
 // called on PASSIVE upon unsuccessful Init or upon Halt
 static void	DeleteNetQueues(PARANDIS_ADAPTER *pContext)
 {
-	if(pContext->NetSendQueue)
-		VirtIODeviceDeleteQueue(pContext->NetSendQueue, NULL);
-	if(pContext->NetReceiveQueue)
-		VirtIODeviceDeleteQueue(pContext->NetReceiveQueue, NULL);
-	pContext->NetSendQueue = pContext->NetReceiveQueue = NULL;
-	if (pContext->SendQueueRing.Virtual)
-		ParaNdis_FreePhysicalMemory(pContext, &pContext->SendQueueRing);
-	RtlZeroMemory(&pContext->SendQueueRing, sizeof(pContext->SendQueueRing));
-	if (pContext->ReceiveQueueRing.Virtual)
-		ParaNdis_FreePhysicalMemory(pContext, &pContext->ReceiveQueueRing);
-	RtlZeroMemory(&pContext->ReceiveQueueRing, sizeof(pContext->ReceiveQueueRing));
+	DeleteQueue(pContext, &pContext->NetControlQueue, &pContext->ControlQueueRing);
+	DeleteQueue(pContext, &pContext->NetSendQueue, &pContext->SendQueueRing);
+	DeleteQueue(pContext, &pContext->NetReceiveQueue, &pContext->ReceiveQueueRing);
 }
 
 
@@ -954,13 +965,15 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 	DEBUG_ENTRY(0);
 
 	pContext->ReceiveQueueRing.IsCached = 1;
-	pContext->ReceiveQueueRing.IsTX = 0;
 	pContext->SendQueueRing.IsCached = 1;
-	pContext->SendQueueRing.IsTX = 1;
+	pContext->ControlQueueRing.IsCached = 1;
+	pContext->ControlData.IsCached = 1;
+	pContext->ControlData.size = 512;
 
 	// We work with two virtqueues, 0 - receive and 1 - send.
 	VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 0, &size, &pContext->ReceiveQueueRing.size);
 	VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 1, &size, &pContext->SendQueueRing.size);
+	VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 1, &size, &pContext->ControlQueueRing.size);
 	if (pContext->ReceiveQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ReceiveQueueRing))
 	{
 		pContext->NetReceiveQueue = VirtIODevicePrepareQueue(
@@ -981,11 +994,29 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 			pContext->SendQueueRing.size,
 			NULL);
 	}
+	if (pContext->ControlQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ControlQueueRing))
+	{
+		pContext->NetControlQueue = VirtIODevicePrepareQueue(
+			&pContext->IODevice,
+			2,
+			pContext->ControlQueueRing.Physical,
+			pContext->ControlQueueRing.Virtual,
+			pContext->ControlQueueRing.size,
+			NULL);
+	}
 
 	if (pContext->NetReceiveQueue && pContext->NetSendQueue)
 	{
 		PrepareTransmitBuffers(pContext);
 		PrepareReceiveBuffers(pContext);
+
+		if (pContext->NetControlQueue)
+			ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ControlData);
+		if (!pContext->NetControlQueue || !pContext->ControlData.Virtual)
+		{
+			DPrintf(0, ("[%s] The Control vQueue does not work!\n", __FUNCTION__) );
+			pContext->bHasHardwareFilters = FALSE;
+		}
 		if (pContext->nofFreeTxDescriptors &&
 			pContext->NetMaxReceiveBuffers &&
 			pContext->maxFreeHardwareBuffers)
@@ -1045,6 +1076,8 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
 		pContext->powerState = NetDeviceStateD0;
 		VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 		JustForCheckClearInterrupt(pContext, "start 4");
+
+		ParaNdis_UpdateDeviceFilters(pContext);
 		pContext->NetReceiveQueue->vq_ops->kick(pContext->NetReceiveQueue);
 	}
 	DEBUG_EXIT_STATUS(0, status);
@@ -1080,6 +1113,8 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 		pContext->NetSendQueue->vq_ops->shutdown(pContext->NetSendQueue);
 	if(pContext->NetReceiveQueue)
 		pContext->NetReceiveQueue->vq_ops->shutdown(pContext->NetReceiveQueue);
+	if(pContext->NetControlQueue)
+		pContext->NetControlQueue->vq_ops->shutdown(pContext->NetControlQueue);
 
 	DeleteNetQueues(pContext);
 
@@ -1107,6 +1142,10 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 		pContext,
 		&pContext->NetFreeSendBuffers,
 		&pContext->SendLock);
+
+	if (pContext->ControlData.Virtual)
+		ParaNdis_FreePhysicalMemory(pContext, &pContext->ControlData);
+
 	PrintStatistics(pContext);
 	if (pContext->sgTxGatherTable)
 	{
@@ -1793,7 +1832,7 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PVOID address, UINT len
 	if (len > pContext->MaxPacketSize.nMaxFullSizeOS && !ETH_HAS_PRIO_HEADER(address)) return FALSE;
 	*pType = QueryPacketType(address);
 	if (pContext->PacketFilter & NDIS_PACKET_TYPE_PROMISCUOUS)	return TRUE;
-	if (!pContext->bDoPacketFiltering) return TRUE;
+	
 	switch(*pType)
 	{
 		case iptBroadcast:
@@ -1803,11 +1842,11 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PVOID address, UINT len
 			b = pContext->PacketFilter & NDIS_PACKET_TYPE_ALL_MULTICAST;
 			if (!b && (pContext->PacketFilter & NDIS_PACKET_TYPE_MULTICAST))
 			{
-				UINT i, n = (pContext->MulticastListSize / ETH_LENGTH_OF_ADDRESS) * ETH_LENGTH_OF_ADDRESS;
+				UINT i, n = pContext->MulticastData.nofMulticastEntries * ETH_LENGTH_OF_ADDRESS;
 				b = 1;
 				for (i = 0; b && i < n; i += ETH_LENGTH_OF_ADDRESS)
 				{
-					ETH_COMPARE_NETWORK_ADDRESSES((PUCHAR)address, &pContext->MulticastList[i], &b)
+					ETH_COMPARE_NETWORK_ADDRESSES((PUCHAR)address, &pContext->MulticastData.MulticastList[i], &b)
 				}
 				b = !b;
 			}
@@ -1816,6 +1855,10 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PVOID address, UINT len
 			ETH_COMPARE_NETWORK_ADDRESSES((PUCHAR)address, pContext->CurrentMacAddress, &b);
 			b = !b && (pContext->PacketFilter & NDIS_PACKET_TYPE_DIRECTED);
 			break;
+	}
+	if (!b)
+	{
+		pContext->extraStatistics.framesFilteredOut++;
 	}
 	return b;
 }
@@ -2255,10 +2298,10 @@ NDIS_STATUS ParaNdis_SetMulticastList(
 {
 	NDIS_STATUS status;
 	ULONG length = BufferSize;
-	if (length > sizeof(pContext->MulticastList))
+	if (length > sizeof(pContext->MulticastData.MulticastList))
 	{
 		status = NDIS_STATUS_MULTICAST_FULL;
-		*pBytesNeeded = sizeof(pContext->MulticastList);
+		*pBytesNeeded = sizeof(pContext->MulticastData.MulticastList);
 	}
 	else if (length % ETH_LENGTH_OF_ADDRESS)
 	{
@@ -2267,10 +2310,10 @@ NDIS_STATUS ParaNdis_SetMulticastList(
 	}
 	else
 	{
-		NdisZeroMemory(pContext->MulticastList, sizeof(pContext->MulticastList));
+		NdisZeroMemory(pContext->MulticastData.MulticastList, sizeof(pContext->MulticastData.MulticastList));
 		if (length)
-			NdisMoveMemory(pContext->MulticastList, Buffer, length);
-		pContext->MulticastListSize = length;
+			NdisMoveMemory(pContext->MulticastData.MulticastList, Buffer, length);
+		pContext->MulticastData.nofMulticastEntries = length / ETH_LENGTH_OF_ADDRESS;
 		DPrintf(1, ("[%s] New multicast list of %d bytes", __FUNCTION__, length));
 		*pBytesRead = length;
 		status = NDIS_STATUS_SUCCESS;
@@ -2338,6 +2381,141 @@ VOID ParaNdis_OnPnPEvent(
 		pContext->nPnpEventIndex = 0;
 }
 
+static void SendControlMessage(
+	PARANDIS_ADAPTER *pContext, 
+	UCHAR cls, 
+	UCHAR cmd, 
+	PVOID buffer1, 
+	ULONG size1, 
+	PVOID buffer2, 
+	ULONG size2) 
+{
+	NdisAcquireSpinLock(&pContext->ReceiveLock);
+	if (pContext->ControlData.Virtual && pContext->ControlData.size > (size1 + size2 + 16))
+	{
+		struct VirtIOBufferDescriptor sg[4];
+		PUCHAR pBase = (PUCHAR)pContext->ControlData.Virtual;
+		PHYSICAL_ADDRESS phBase = pContext->ControlData.Physical;
+		ULONG offset = 0;
+		UINT nOut = 1;
+		
+		((virtio_net_ctrl_hdr *)pBase)->class_of_command = cls;
+		((virtio_net_ctrl_hdr *)pBase)->cmd = cmd;
+		sg[0].physAddr = phBase;
+		sg[0].ulSize = sizeof(virtio_net_ctrl_hdr);
+		offset += sg[0].ulSize;
+		offset = (offset + 3) & ~3;
+		if (size1)
+		{
+			NdisMoveMemory(pBase + offset, buffer1, size1);		
+			sg[nOut].physAddr = phBase;
+			sg[nOut].physAddr.QuadPart += offset;
+			sg[nOut].ulSize = size1;
+			offset += size1;
+			offset = (offset + 3) & ~3;
+			nOut++;
+		}
+		if (size2)
+		{
+			NdisMoveMemory(pBase + offset, buffer2, size2);		
+			sg[nOut].physAddr = phBase;
+			sg[nOut].physAddr.QuadPart += offset;
+			sg[nOut].ulSize = size2;
+			offset += size2;
+			offset = (offset + 3) & ~3;
+			nOut++;
+		}
+		sg[nOut].physAddr = phBase;
+		sg[nOut].physAddr.QuadPart += offset;
+		sg[nOut].ulSize = sizeof(virtio_net_ctrl_ack);
+		*(virtio_net_ctrl_ack *)(pBase + offset) = VIRTIO_NET_ERR;
+
+		if (0 <= pContext->NetControlQueue->vq_ops->add_buf(pContext->NetControlQueue, sg, nOut, 1, (PVOID)1, NULL, 0))
+		{
+			UINT len;
+			void *p;
+			pContext->NetControlQueue->vq_ops->kick_always(pContext->NetControlQueue);
+			p = pContext->NetControlQueue->vq_ops->get_buf(pContext->NetControlQueue, &len);
+			if (!p)
+			{
+				DPrintf(0, ("%s - ERROR: get_buf failed", __FUNCTION__));
+			}
+			else if (len != sizeof(virtio_net_ctrl_ack))
+			{
+				DPrintf(0, ("%s - ERROR: wrong len %d", __FUNCTION__, len));
+			}
+			else if (*(virtio_net_ctrl_ack *)(pBase + offset) != VIRTIO_NET_OK)
+			{
+				DPrintf(0, ("%s - ERROR: error %d returned", __FUNCTION__, *(virtio_net_ctrl_ack *)(pBase + offset)));
+			}
+			else
+			{
+				// everything is OK
+				DPrintf(1, ("%s OK(%d.%d,buffers of %d and %d) ", __FUNCTION__, cls, cmd, size1, size2));
+			}
+		}
+		else
+		{
+			DPrintf(0, ("%s - ERROR: add_buf failed", __FUNCTION__));
+		}
+	}
+	else
+	{
+		DPrintf(0, ("%s (buffer %d,%d) - ERROR: message too LARGE", __FUNCTION__, size1, size2));
+	}
+	NdisReleaseSpinLock(&pContext->ReceiveLock);
+}
+
+static VOID ParaNdis_DeviceFiltersUpdateRxMode(PARANDIS_ADAPTER *pContext)
+{
+	u8 val;
+	ULONG f = pContext->PacketFilter;
+	val = (f & NDIS_PACKET_TYPE_ALL_MULTICAST) ? 1 : 0;
+	SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_ALLMULTI, &val, sizeof(val), NULL, 0);
+	//SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_ALLUNI, &val, sizeof(val), NULL, 0);
+	val = (f & (NDIS_PACKET_TYPE_MULTICAST | NDIS_PACKET_TYPE_ALL_MULTICAST)) ? 0 : 1;
+	SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOMULTI, &val, sizeof(val), NULL, 0);
+	val = (f & NDIS_PACKET_TYPE_DIRECTED) ? 0 : 1;
+	SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOUNI, &val, sizeof(val), NULL, 0);
+	val = (f & NDIS_PACKET_TYPE_BROADCAST) ? 0 : 1;
+	SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOBCAST, &val, sizeof(val), NULL, 0);
+	val = (f & NDIS_PACKET_TYPE_PROMISCUOUS) ? 1 : 0;
+	SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_PROMISC, &val, sizeof(val), NULL, 0);
+}
+
+static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)
+{
+	struct 
+	{
+		struct virtio_net_ctrl_mac header;
+		UCHAR addr[ETH_LENGTH_OF_ADDRESS];
+	} uCast;
+	uCast.header.entries = 1;
+	NdisMoveMemory(uCast.addr, pContext->CurrentMacAddress, sizeof(uCast.addr));
+	SendControlMessage(pContext, VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_TABLE_SET, 
+		&uCast, sizeof(uCast), &pContext->MulticastData, sizeof(pContext->MulticastData));
+}
+
+VOID ParaNdis_DeviceFiltersUpdateVlanId(PARANDIS_ADAPTER *pContext, ULONG oldVlan)
+{
+	if (pContext->bHasHardwareFilters)
+	{	
+		u16 val = (u16)(oldVlan & 0xfff);
+		SendControlMessage(pContext, VIRTIO_NET_CTRL_VLAN, VIRTIO_NET_CTRL_VLAN_DEL, &val, sizeof(val), NULL, 0);
+		val = (u16)(pContext->VlanId & 0xfff);
+		SendControlMessage(pContext, VIRTIO_NET_CTRL_VLAN, VIRTIO_NET_CTRL_VLAN_ADD, &val, sizeof(val), NULL, 0);
+	}
+}
+
+VOID ParaNdis_UpdateDeviceFilters(PARANDIS_ADAPTER *pContext)
+{
+	if (pContext->bHasHardwareFilters)
+	{
+		ParaNdis_DeviceFiltersUpdateRxMode(pContext);
+		ParaNdis_DeviceFiltersUpdateAddresses(pContext);
+		ParaNdis_DeviceFiltersUpdateVlanId(pContext, pContext->VlanId);
+	}
+}
 
 VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 {
@@ -2357,7 +2535,11 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 
 	VirtIODeviceRenewQueue(pContext->NetReceiveQueue);
 	VirtIODeviceRenewQueue(pContext->NetSendQueue);
+	VirtIODeviceRenewQueue(pContext->NetControlQueue);
+
 	ParaNdis_RestoreDeviceConfigurationAfterReset(pContext);
+
+	ParaNdis_UpdateDeviceFilters(pContext);
 
 	InitializeListHead(&TempList);
 	/* submit all the receive buffers */
@@ -2429,6 +2611,9 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
 	NdisAcquireSpinLock(&pContext->ReceiveLock);
 	pContext->NetReceiveQueue->vq_ops->shutdown(pContext->NetReceiveQueue);
 	NdisReleaseSpinLock(&pContext->ReceiveLock);
+	
+	pContext->NetControlQueue->vq_ops->shutdown(pContext->NetControlQueue);
+	
 	/*
 	DPrintf(0, ("WARNING: deleting queues!!!!!!!!!"));
 	VirtIODeviceDeleteVirtualQueue(pContext->NetSendQueue);

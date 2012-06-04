@@ -740,6 +740,7 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 					if (pContext->VlanId && pContext->VlanId != qInfo.TagHeader.VlanId)
 					{
 						DPrintf(0, ("[%s] Failing unexpected VlanID %d", __FUNCTION__, qInfo.TagHeader.VlanId));
+						pContext->extraStatistics.framesFilteredOut++;
 						pMDL = NULL;
 					}
 				}
@@ -1406,7 +1407,7 @@ static BOOLEAN PrepareSingleNBL(
 			if (priorityInfo.Value)
 			{
 				SetPriorityData(pble->PriorityData, priorityInfo.TagHeader.UserPriority, priorityInfo.TagHeader.VlanId);
-				DPrintf(0, ("[%s] Populated priority tag %p", __FUNCTION__, priorityInfo.Value));
+				DPrintf(1, ("[%s] Populated priority tag %p", __FUNCTION__, priorityInfo.Value));
 			}
 		}
 	}

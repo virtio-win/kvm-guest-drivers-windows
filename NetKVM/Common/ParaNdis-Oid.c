@@ -111,6 +111,7 @@ NDIS_STATUS ParaNdis_OnSetPacketFilter(PARANDIS_ADAPTER *pContext, tOidDesc *pOi
 	if (status == NDIS_STATUS_SUCCESS)
 	{
 		DPrintf(1, ("[%s] PACKET FILTER SET TO %x", __FUNCTION__, pContext->PacketFilter));
+		ParaNdis_UpdateDeviceFilters(pContext);
 	}
 	return status;
 }
@@ -136,6 +137,7 @@ NDIS_STATUS ParaNdis_OnOidSetMulticastList(PARANDIS_ADAPTER *pContext, tOidDesc 
 		pOid->InformationBufferLength,
 		pOid->pBytesRead,
 		pOid->pBytesNeeded);
+	ParaNdis_UpdateDeviceFilters(pContext);
 	return status;
 }
 
@@ -368,8 +370,8 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 		SETINFO(ul64, 0);
 		break;
 	case OID_802_3_MULTICAST_LIST:
-		pInfo = pContext->MulticastList;
-		ulSize = pContext->MulticastListSize;
+		pInfo = pContext->MulticastData.MulticastList;
+		ulSize = pContext->MulticastData.nofMulticastEntries * ETH_LENGTH_OF_ADDRESS;
 		break;
 	case OID_802_3_MAXIMUM_LIST_SIZE:
 		SETINFO(ul, PARANDIS_MULTICAST_LIST_SIZE);
@@ -675,7 +677,12 @@ NDIS_STATUS ParaNdis_OnSetLookahead(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 
 NDIS_STATUS ParaNdis_OnSetVlanId(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
-	return ParaNdis_OidSetCopy(pOid, &pContext->VlanId, sizeof(pContext->VlanId));
+	NDIS_STATUS status;
+	ULONG oldVlan = pContext->VlanId;
+	status = ParaNdis_OidSetCopy(pOid, &pContext->VlanId, sizeof(pContext->VlanId));
+	pContext->VlanId &= 0xfff;
+	ParaNdis_DeviceFiltersUpdateVlanId(pContext, oldVlan);
+	return status;
 }
 
 /**********************************************************
