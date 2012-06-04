@@ -287,28 +287,29 @@ static VOID MiniportInterruptDPC(
 	ULONG requiresProcessing;
 
 #if NDIS_SUPPORT_NDIS620
-  PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters = (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
-  DEBUG_ENTRY(5);
-
-  RxThrottleParameters->MoreNblsPending = 0;
-  requiresProcessing = ParaNdis_DPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
-
-  if(requiresProcessing)
-  {
-    DPrintf(4, ("[%s] Queued additional DPC for %d", __FUNCTION__, 	requiresProcessing));
-    InterlockedOr(&pContext->InterruptStatus, requiresProcessing);
-    if((requiresProcessing & isReceive) && NDIS_INDICATE_ALL_NBLS != RxThrottleParameters->MaxNblsToIndicate)
-    {
-      RxThrottleParameters->MoreNblsPending = 1;
-    }
-
-    if(requiresProcessing & isTransmit)
-    {
-      NdisMQueueDpc(pContext->InterruptHandle, 0, 1 << KeGetCurrentProcessorNumber(), pContext);
-    }
-  }
+	PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters = (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
+	DEBUG_ENTRY(5);
+	RxThrottleParameters->MoreNblsPending = 0;
+	requiresProcessing = ParaNdis_DPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
+	if(requiresProcessing)
+	{
+		BOOLEAN bSpawnNextDpc = FALSE;
+		DPrintf(4, ("[%s] Queued additional DPC for %d", __FUNCTION__, 	requiresProcessing));
+		InterlockedOr(&pContext->InterruptStatus, requiresProcessing);
+		if(requiresProcessing & isReceive)
+		{
+			if (NDIS_INDICATE_ALL_NBLS != RxThrottleParameters->MaxNblsToIndicate)
+				RxThrottleParameters->MoreNblsPending = 1;
+			else
+				bSpawnNextDpc = TRUE;
+		}
+		if(requiresProcessing & isTransmit)
+			bSpawnNextDpc = TRUE;
+		if (bSpawnNextDpc)
+			NdisMQueueDpc(pContext->InterruptHandle, 0, 1 << KeGetCurrentProcessorNumber(), pContext);
+	}
 #else /* NDIS 6.0*/
-  DEBUG_ENTRY(5);
+	DEBUG_ENTRY(5);
 	requiresProcessing = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
 	if (requiresProcessing)
 	{
@@ -334,30 +335,40 @@ static VOID MiniportMSIInterruptDpc(
     )
 {
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
-  ULONG interruptSource = MessageToInterruptSource(pContext, MessageId);
+	ULONG interruptSource = MessageToInterruptSource(pContext, MessageId);
 
 #if NDIS_SUPPORT_NDIS620
-  PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters = (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
+	BOOLEAN bSpawnNextDpc = FALSE;
+	PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters = (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
 
-  DPrintf(5, ("[%s] (Message %d, source %d)", __FUNCTION__, MessageId, interruptSource));
+	DPrintf(5, ("[%s] (Message %d, source %d)", __FUNCTION__, MessageId, interruptSource));
 
-  RxThrottleParameters->MoreNblsPending = 0;
-  interruptSource = ParaNdis_DPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
+	RxThrottleParameters->MoreNblsPending = 0;
+	interruptSource = ParaNdis_DPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
 
-  if (interruptSource)
-  {
-    DPrintf(4, ("[%s] Queued additional DPC for %d", __FUNCTION__, interruptSource));
-    InterlockedOr(&pContext->InterruptStatus, interruptSource);
-    if((interruptSource & isReceive) && NDIS_INDICATE_ALL_NBLS != RxThrottleParameters->MaxNblsToIndicate)
-    {
-      RxThrottleParameters->MoreNblsPending = 1;
+	if (interruptSource)
+	{
+		InterlockedOr(&pContext->InterruptStatus, interruptSource);
+		if (interruptSource & isReceive)
+		{
+			if (NDIS_INDICATE_ALL_NBLS != RxThrottleParameters->MaxNblsToIndicate)
+			{
+				RxThrottleParameters->MoreNblsPending = 1;
+				DPrintf(3, ("[%s] Requested additional RX DPC", __FUNCTION__));
+			}
+			else
+				bSpawnNextDpc = TRUE;
+		}
+
+		if (interruptSource & isTransmit)
+			bSpawnNextDpc = TRUE;
+
+		if (bSpawnNextDpc)
+		{
+			DPrintf(4, ("[%s] Queued additional DPC for %d", __FUNCTION__, interruptSource));
+			NdisMQueueDpc(pContext->InterruptHandle, MessageId, 1 << KeGetCurrentProcessorNumber(), pContext);
+		}
     }
-
-    if(interruptSource & isTransmit)
-    {
-      NdisMQueueDpc(pContext->InterruptHandle, 0, 1 << KeGetCurrentProcessorNumber(), pContext);
-    }
-  }
 #else
 	DPrintf(5, ("[%s] (Message %d, source %d)", __FUNCTION__, MessageId, interruptSource));
 	interruptSource = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
