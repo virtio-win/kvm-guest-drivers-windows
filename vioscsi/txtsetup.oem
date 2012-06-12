@@ -6,8 +6,8 @@ d2 = "OEM DISK (SCSI) Win2003/64-bit",\disk1,\amd64\Win2003
 SCSI = WNET32
 
 [scsi]
-WNET32 = "Red Hat VirtIO SCSI Passthrough Disk Device Win2003/32-bit"
-WNET64 = "Red Hat VirtIO SCSI Passthrough Disk Device Win2003/64-bit"
+WNET32 = "Red Hat VirtIO SCSI pass-through Disk Device Win2003/32-bit"
+WNET64 = "Red Hat VirtIO SCSI pass-through Disk Device Win2003/64-bit"
 
 [Files.scsi.WNET32]
 driver = d1, vioscsi.sys, vioscsi
@@ -21,13 +21,13 @@ catalog= d2, vioscsi.cat
 
 [HardwareIds.scsi.WNET32]
 id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00000000", "vioscsi"
-id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00070000", "vioscsi"
-id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00071AF4", "vioscsi"
+id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00080000", "vioscsi"
+id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4", "vioscsi"
 
 [HardwareIds.scsi.WNET64]
 id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00000000", "vioscsi"
-id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00070000", "vioscsi"
-id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00071AF4", "vioscsi"
+id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00080000", "vioscsi"
+id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4", "vioscsi"
 
 [Config.WNET32]
 value = Parameters\PnpInterface,5,REG_DWORD,1

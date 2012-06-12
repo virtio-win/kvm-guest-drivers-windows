@@ -14,7 +14,7 @@
 
 #define VER_FILETYPE                VFT_DRV
 #define VER_FILESUBTYPE             VFT2_DRV_SYSTEM
-#define VER_FILEDESCRIPTION_STR     "Red Hat VirtIO SCSI passthrough driver"
+#define VER_FILEDESCRIPTION_STR     "Red Hat VirtIO SCSI pass-through driver"
 #define VER_INTERNALNAME_STR        "vioscsi.sys"
 #define VER_ORIGINALFILENAME_STR    "vioscsi.sys"
 
@@ -30,7 +30,7 @@
 #define VER_COMPANYNAME_STR         "Red Hat Inc."
 
 #undef  VER_PRODUCTNAME_STR
-#define VER_PRODUCTNAME_STR         "Red Hat VirtIO SCSI passthrough controller"
+#define VER_PRODUCTNAME_STR         "Red Hat VirtIO SCSI pass-through controller"
 
 #define VER_LANGNEUTRAL
 
