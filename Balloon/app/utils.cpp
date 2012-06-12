@@ -98,19 +98,20 @@ BOOL InstallService()
         ErrorHandler("OpenSCManager", GetLastError());
     }
     newService = CreateService(
-                            scm,
-                            ServiceName,
-                            ServiceName,
-                            SERVICE_ALL_ACCESS,
-                            SERVICE_WIN32_OWN_PROCESS,
-                            SERVICE_AUTO_START,
-                            SERVICE_ERROR_NORMAL,
-                            szBuffer,
-                            NULL,
-                            NULL,
-                            NULL,
-                            NULL,
-                            NULL);
+                             scm,
+                             ServiceName,
+                             ServiceName,
+                             SERVICE_ALL_ACCESS,
+                             SERVICE_WIN32_OWN_PROCESS,
+                             SERVICE_AUTO_START,
+                             SERVICE_ERROR_NORMAL,
+                             szBuffer,
+                             NULL,
+                             NULL,
+                             NULL,
+                             NULL,
+                             NULL
+                             );
     if (!newService) {
         ErrorHandler("CreateService", GetLastError());
         return FALSE;
@@ -340,17 +341,18 @@ BOOL ChangeConfig()
         ErrorHandler("OpenService", GetLastError());
     }
     res = ChangeServiceConfig(
-                                service,
-                                SERVICE_NO_CHANGE,
-                                SERVICE_NO_CHANGE,
-                                SERVICE_NO_CHANGE,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL);
+                             service,
+                             SERVICE_NO_CHANGE,
+                             SERVICE_NO_CHANGE,
+                             SERVICE_NO_CHANGE,
+                             NULL,
+                             NULL,
+                             NULL,
+                             NULL,
+                             NULL,
+                             NULL,
+                             NULL
+                             );
     if (!res) {
         UnlockServiceDatabase(lock);
         ErrorHandler("ChangeServiceConfig", GetLastError());

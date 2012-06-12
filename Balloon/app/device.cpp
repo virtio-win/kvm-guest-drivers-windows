@@ -22,13 +22,15 @@ BOOL CDevice::Init()
 {
     PWCHAR DevicePath = NULL;
     if ((DevicePath = GetDevicePath((LPGUID)&GUID_DEVINTERFACE_BALLOON)) != NULL) {
-        m_hDevice = CreateFile(DevicePath,
+        m_hDevice = CreateFile(
+                             DevicePath,
                              GENERIC_WRITE,
                              0,
                              NULL,
                              OPEN_EXISTING,
                              FILE_ATTRIBUTE_NORMAL,
-                             NULL );
+                             NULL
+                             );
 
         if (m_hDevice != INVALID_HANDLE_VALUE) {
             PrintMessage("Open balloon device");
@@ -67,7 +69,8 @@ PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
                              InterfaceGuid,
                              NULL,
                              NULL,
-                             (DIGCF_PRESENT | DIGCF_DEVICEINTERFACE));
+                             (DIGCF_PRESENT | DIGCF_DEVICEINTERFACE)
+                             );
 
     if (HardwareDeviceInfo == INVALID_HANDLE_VALUE) {
         PrintMessage("Cannot get class devices");
@@ -76,11 +79,13 @@ PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
 
     DeviceInterfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
 
-    bResult = SetupDiEnumDeviceInterfaces(HardwareDeviceInfo,
-                                              0,
-                                              InterfaceGuid,
-                                              0,
-                                              &DeviceInterfaceData);
+    bResult = SetupDiEnumDeviceInterfaces(
+                             HardwareDeviceInfo,
+                             0,
+                             InterfaceGuid,
+                             0,
+                             &DeviceInterfaceData
+                             );
 
     if (bResult == FALSE) {
         PrintMessage("Cannot get enumerate device interfaces");
@@ -89,13 +94,13 @@ PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
     }
 
     SetupDiGetDeviceInterfaceDetail(
-        HardwareDeviceInfo,
-        &DeviceInterfaceData,
-        NULL,
-        0,
-        &RequiredLength,
-        NULL
-        );
+                             HardwareDeviceInfo,
+                             &DeviceInterfaceData,
+                             NULL,
+                             0,
+                             &RequiredLength,
+                             NULL
+                             );
 
     DeviceInterfaceDetailData = (PSP_DEVICE_INTERFACE_DETAIL_DATA) LocalAlloc(LMEM_FIXED, RequiredLength);
 
@@ -110,12 +115,13 @@ PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
     Length = RequiredLength;
 
     bResult = SetupDiGetDeviceInterfaceDetail(
-                  HardwareDeviceInfo,
-                  &DeviceInterfaceData,
-                  DeviceInterfaceDetailData,
-                  Length,
-                  &RequiredLength,
-                  NULL);
+                             HardwareDeviceInfo,
+                             &DeviceInterfaceData,
+                             DeviceInterfaceDetailData,
+                             Length,
+                             &RequiredLength,
+                             NULL
+                             );
 
     if (bResult == FALSE) {
         PrintMessage("Cannot get device interface details");

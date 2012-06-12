@@ -41,7 +41,6 @@ private:
     CRITICAL_SECTION m_scWrite;
     CMemStat* m_pMemStat;
     CDevice* m_pDev;
-
 };
 
 #endif
