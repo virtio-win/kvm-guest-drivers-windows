@@ -18,16 +18,23 @@
 #include "device.tmh"
 #endif
 
-EVT_WDF_DEVICE_PREPARE_HARDWARE     BalloonEvtDevicePrepareHardware;
-EVT_WDF_DEVICE_RELEASE_HARDWARE     BalloonEvtDeviceReleaseHardware;
-EVT_WDF_DEVICE_D0_ENTRY             BalloonEvtDeviceD0Entry;
-EVT_WDF_DEVICE_D0_EXIT              BalloonEvtDeviceD0Exit;
-EVT_WDF_DEVICE_D0_EXIT_PRE_INTERRUPTS_DISABLED BalloonEvtDeviceD0ExitPreInterruptsDisabled;
+EVT_WDF_DEVICE_SELF_MANAGED_IO_INIT            BalloonEvtDeviceSelfManagedIoInit;
+EVT_WDF_DEVICE_SELF_MANAGED_IO_SUSPEND         BalloonEvtDeviceSelfManagedIoSuspend;
+EVT_WDF_DEVICE_SELF_MANAGED_IO_RESTART         BalloonEvtDeviceSelfManagedIoRestart;
+
+EVT_WDF_DEVICE_CONTEXT_CLEANUP                 BalloonEvtDeviceContextCleanup;
+EVT_WDF_DEVICE_PREPARE_HARDWARE                BalloonEvtDevicePrepareHardware;
+EVT_WDF_DEVICE_RELEASE_HARDWARE                BalloonEvtDeviceReleaseHardware;
+EVT_WDF_DEVICE_D0_ENTRY                        BalloonEvtDeviceD0Entry;
+EVT_WDF_DEVICE_D0_EXIT                         BalloonEvtDeviceD0Exit;
+EVT_WDF_DEVICE_FILE_CREATE                     BalloonEvtDeviceFileCreate;
+EVT_WDF_FILE_CLOSE                             BalloonEvtFileClose;
 
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, BalloonEvtDeviceSelfManagedIoSuspend)
+#pragma alloc_text(PAGE, BalloonEvtDeviceContextCleanup)
 #pragma alloc_text(PAGE, BalloonEvtDevicePrepareHardware)
 #pragma alloc_text(PAGE, BalloonEvtDeviceReleaseHardware)
-#pragma alloc_text(PAGE, BalloonEvtDeviceD0ExitPreInterruptsDisabled)
 #pragma alloc_text(PAGE, BalloonEvtDeviceD0Exit)
 #pragma alloc_text(PAGE, BalloonDeviceAdd)
 #pragma alloc_text(PAGE, BalloonEvtDeviceFileCreate)
@@ -45,26 +52,30 @@ BalloonDeviceAdd(
     IN WDFDRIVER  Driver,
     IN PWDFDEVICE_INIT  DeviceInit)
 {
-    NTSTATUS                    status = STATUS_SUCCESS;
-    WDFDEVICE                   device;
-    PDEVICE_CONTEXT             devCtx = NULL;
-    WDF_OBJECT_ATTRIBUTES       attributes;
+    NTSTATUS                     status = STATUS_SUCCESS;
+    WDFDEVICE                    device;
+    PDEVICE_CONTEXT              devCtx = NULL;
+    WDF_INTERRUPT_CONFIG         interruptConfig;
+    WDF_FILEOBJECT_CONFIG        fileConfig;
+    WDF_OBJECT_ATTRIBUTES        attributes;
     WDF_PNPPOWER_EVENT_CALLBACKS pnpPowerCallbacks;
-    WDF_INTERRUPT_CONFIG        interruptConfig;
-    WDF_FILEOBJECT_CONFIG       fileConfig;
 
     UNREFERENCED_PARAMETER(Driver);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpPowerCallbacks);
-    pnpPowerCallbacks.EvtDevicePrepareHardware = BalloonEvtDevicePrepareHardware;
-    pnpPowerCallbacks.EvtDeviceReleaseHardware = BalloonEvtDeviceReleaseHardware;
-    pnpPowerCallbacks.EvtDeviceD0Entry         = BalloonEvtDeviceD0Entry;
-    pnpPowerCallbacks.EvtDeviceD0Exit          = BalloonEvtDeviceD0Exit;
-    pnpPowerCallbacks.EvtDeviceD0ExitPreInterruptsDisabled = BalloonEvtDeviceD0ExitPreInterruptsDisabled;
-    WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
 
+    pnpPowerCallbacks.EvtDeviceSelfManagedIoInit    = BalloonEvtDeviceSelfManagedIoInit;
+    pnpPowerCallbacks.EvtDeviceSelfManagedIoSuspend = BalloonEvtDeviceSelfManagedIoSuspend;
+    pnpPowerCallbacks.EvtDeviceSelfManagedIoRestart = BalloonEvtDeviceSelfManagedIoRestart;
+
+    pnpPowerCallbacks.EvtDevicePrepareHardware      = BalloonEvtDevicePrepareHardware;
+    pnpPowerCallbacks.EvtDeviceReleaseHardware      = BalloonEvtDeviceReleaseHardware;
+    pnpPowerCallbacks.EvtDeviceD0Entry              = BalloonEvtDeviceD0Entry;
+    pnpPowerCallbacks.EvtDeviceD0Exit               = BalloonEvtDeviceD0Exit;
+
+    WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
 
     WDF_FILEOBJECT_CONFIG_INIT(
                             &fileConfig,
@@ -77,10 +88,8 @@ BalloonDeviceAdd(
                             &fileConfig,
                             WDF_NO_OBJECT_ATTRIBUTES);
 
-    WdfDeviceInitSetIoType(DeviceInit, WdfDeviceIoBuffered);
-
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
-
+    attributes.EvtCleanupCallback = BalloonEvtDeviceContextCleanup;
     status = WdfDeviceCreate(&DeviceInit, &attributes, &device);
     if(!NT_SUCCESS(status))
     {
@@ -90,9 +99,6 @@ BalloonDeviceAdd(
     }
 
     devCtx = GetDeviceContext(device);
-	RtlZeroMemory(devCtx, sizeof(*devCtx));
-    devCtx->Device = device;
-    devCtx->DriverObject = WdfDriverWdmGetDriverObject(Driver);
 
     WDF_INTERRUPT_CONFIG_INIT(&interruptConfig,
                             BalloonInterruptIsr,
@@ -119,6 +125,64 @@ BalloonDeviceAdd(
            "WdfDeviceCreateDeviceInterface failed with status 0x%08x\n", status);
         return status;
     }
+    devCtx->bShutDown = FALSE;
+    devCtx->num_pages = 0;
+    devCtx->PageListHead.Next = NULL;
+    ExInitializeNPagedLookasideList(
+                      &devCtx->LookAsideList,
+                      NULL,
+                      NULL,
+                      0,
+                      sizeof(PAGE_LIST_ENTRY),
+                      BALLOON_MGMT_POOL_TAG,
+                      0
+                      );
+
+    devCtx->pfns_table =
+              ExAllocatePoolWithTag(
+                      NonPagedPool,
+                      PAGE_SIZE,
+                      BALLOON_MGMT_POOL_TAG
+                      );
+
+    if(devCtx->pfns_table == NULL)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"ExAllocatePoolWithTag failed\n");
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        return status;
+    }
+
+    devCtx->MemStats =
+              ExAllocatePoolWithTag(
+                      NonPagedPool,
+                      sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR,
+                      BALLOON_MGMT_POOL_TAG
+                      );
+
+    if(devCtx->MemStats == NULL)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"ExAllocatePoolWithTag failed\n");
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        return status;
+    }
+
+    RtlFillMemory (devCtx->MemStats, sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
+
+    KeInitializeEvent(&devCtx->HostAckEvent,
+                      SynchronizationEvent,
+                      FALSE
+                      );
+
+    KeInitializeEvent(&devCtx->WakeUpThread,
+                      SynchronizationEvent,
+                      FALSE
+                      );
+                      
+#if (WINVER >= 0x0501)
+    devCtx->evLowMem = IoCreateNotificationEvent(
+                               (PUNICODE_STRING )&evLowMemString,
+                               &devCtx->hLowMem);
+#endif // (WINVER >= 0x0501)
 
     status = BalloonQueueInitialize(device);
     if(!NT_SUCCESS(status))
@@ -130,6 +194,44 @@ BalloonDeviceAdd(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return status;
+}
+
+VOID
+BalloonEvtDeviceContextCleanup(
+    IN WDFDEVICE  Device
+    )
+{
+    PDEVICE_CONTEXT     devCtx = GetDeviceContext(Device);
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+#if (WINVER >= 0x0501)
+    if(devCtx->evLowMem)
+    {
+        ZwClose(devCtx->hLowMem);
+        devCtx->evLowMem = NULL;
+    }
+#endif // (WINVER >= 0x0501)
+
+    ExDeleteNPagedLookasideList(&devCtx->LookAsideList);
+    if(devCtx->pfns_table)
+    {
+        ExFreePoolWithTag(
+                   devCtx->pfns_table,
+                   BALLOON_MGMT_POOL_TAG
+                   );
+        devCtx->pfns_table = NULL;
+    }
+    if(devCtx->MemStats)
+    {
+        ExFreePoolWithTag(
+                   devCtx->MemStats,
+                   BALLOON_MGMT_POOL_TAG
+                   );
+        devCtx->MemStats = NULL;
+    }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
 }
 
 NTSTATUS
@@ -144,8 +246,7 @@ BalloonEvtDevicePrepareHardware(
     PHYSICAL_ADDRESS    PortBasePA     = {0};
     ULONG               PortLength     = 0;
     ULONG               i;
-	WDF_INTERRUPT_INFO interruptInfo;
-
+    WDF_INTERRUPT_INFO  interruptInfo;
     PDEVICE_CONTEXT     devCtx = NULL;
 
     PCM_PARTIAL_RESOURCE_DESCRIPTOR  desc;
@@ -210,31 +311,25 @@ BalloonEvtDevicePrepareHardware(
         }
     }
 
-
     if (!foundPort) {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, " Missing resources\n");
         return STATUS_DEVICE_CONFIGURATION_ERROR;
     }
-#if (WINVER >= 0x0501)
-    devCtx->evLowMem = IoCreateNotificationEvent(
-                               (PUNICODE_STRING )&evLowMemString,
-                               &devCtx->hLowMem);
-#endif // (WINVER >= 0x0501)
 
     WDF_INTERRUPT_INFO_INIT(&interruptInfo);
     WdfInterruptGetInfo(devCtx->WdfInterrupt, &interruptInfo);
 
-	VirtIODeviceInitialize(&devCtx->VDevice, (ULONG_PTR)devCtx->PortBase, sizeof(devCtx->VDevice));
-	VirtIODeviceSetMSIXUsed(&devCtx->VDevice, interruptInfo.MessageSignaled);
+    VirtIODeviceInitialize(&devCtx->VDevice, (ULONG_PTR)devCtx->PortBase, sizeof(devCtx->VDevice));
+    VirtIODeviceSetMSIXUsed(&devCtx->VDevice, interruptInfo.MessageSignaled);
 
-	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return status;
 }
 
 NTSTATUS
 BalloonEvtDeviceReleaseHardware (
-    WDFDEVICE      Device,
-    WDFCMRESLIST   ResourcesTranslated
+    IN WDFDEVICE      Device,
+    IN WDFCMRESLIST   ResourcesTranslated
     )
 {
     PDEVICE_CONTEXT     devCtx = NULL;
@@ -247,23 +342,119 @@ BalloonEvtDeviceReleaseHardware (
 
     devCtx = GetDeviceContext(Device);
 
-#if (WINVER >= 0x0501)
-    if(devCtx->evLowMem)
+    if(devCtx->PortBase && devCtx->PortMapped)
     {
-        ZwClose(devCtx->hLowMem);
-        devCtx->evLowMem = NULL;
+        MmUnmapIoSpace( devCtx->PortBase,  devCtx->PortCount );
     }
-#endif // (WINVER >= 0x0501)
 
-    if (devCtx->PortBase) {
-        if (devCtx->PortMapped) {
-            MmUnmapIoSpace( devCtx->PortBase,  devCtx->PortCount );
-        }
-        devCtx->PortBase = NULL;
-    }
+    devCtx->PortBase = NULL;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
+}
+
+NTSTATUS
+BalloonCreateWorkerThread(
+    IN WDFDEVICE  Device
+    )
+{
+    PDEVICE_CONTEXT     devCtx = GetDeviceContext(Device);
+    NTSTATUS            status = STATUS_SUCCESS;
+    HANDLE              hThread = 0;
+    OBJECT_ATTRIBUTES   oa;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+    devCtx->bShutDown = FALSE;
+
+    if(NULL == devCtx->Thread)
+    {
+        InitializeObjectAttributes(&oa, NULL, 
+            OBJ_KERNEL_HANDLE, NULL, NULL);
+
+        status = PsCreateSystemThread(&hThread, THREAD_ALL_ACCESS, &oa, NULL, NULL,
+                                          BalloonRoutine, Device);
+
+        if(!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+              "failed to create worker thread status 0x%08x\n", status);
+            return status;
+        }
+
+        ObReferenceObjectByHandle(hThread, THREAD_ALL_ACCESS, NULL,
+                                  KernelMode, (PVOID*)&devCtx->Thread, NULL);
+        ZwClose(hThread);
+    }
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
+    return status;
+}
+
+NTSTATUS
+BalloonEvtDeviceSelfManagedIoInit(
+    IN WDFDEVICE  Device
+    )
+{
+    NTSTATUS            status = STATUS_SUCCESS;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+
+    status = BalloonCreateWorkerThread(Device);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
+    return status;
+}
+
+NTSTATUS
+BalloonEvtDeviceSelfManagedIoRestart(
+    IN WDFDEVICE  Device
+    )
+{
+    NTSTATUS            status = STATUS_SUCCESS;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+
+    status = BalloonCreateWorkerThread(Device);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
+    return status;
+}
+
+NTSTATUS
+BalloonEvtDeviceSelfManagedIoSuspend(
+    IN WDFDEVICE  Device
+    )
+{
+    PDEVICE_CONTEXT     devCtx = GetDeviceContext(Device);
+    NTSTATUS            status = STATUS_SUCCESS;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+
+    PAGED_CODE();
+
+    if(NULL != devCtx->Thread)
+    {
+        devCtx->bShutDown = TRUE;
+        KeSetEvent(&devCtx->WakeUpThread, 0, FALSE);
+        status = KeWaitForSingleObject(devCtx->Thread, Executive, KernelMode, FALSE, NULL);
+        if(!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+              "KeWaitForSingleObject didn't succeed status 0x%08x\n", status);
+        }
+        ObDereferenceObject(devCtx->Thread);
+        devCtx->Thread = NULL;
+    }
+
+    while(devCtx->num_pages)
+    {
+       BalloonLeak(Device, devCtx->num_pages);
+    }
+
+    BalloonSetSize(Device, devCtx->num_pages);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
+    return status;
 }
 
 NTSTATUS
@@ -272,27 +463,19 @@ BalloonEvtDeviceD0Entry(
     IN  WDF_POWER_DEVICE_STATE PreviousState
     )
 {
-    PDEVICE_CONTEXT     devCtx = NULL;
+    PDEVICE_CONTEXT     devCtx = GetDeviceContext(Device);
     NTSTATUS            status = STATUS_SUCCESS;
-    PDRIVER_CONTEXT     drvCtx = GetDriverContext(WdfGetDriver());
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
-    devCtx = GetDeviceContext(Device);
-    devCtx->bShutDown = FALSE;
+
     status = BalloonInit(Device);
     if(!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
            "BalloonInit failed with status 0x%08x\n", status);
-        return status;
     }
 
-    if (devCtx->bServiceConnected &&
-       VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
-    {
-        VirtIODeviceEnableGuestFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ);
-    }
-    return STATUS_SUCCESS;
+    return status;
 }
 
 NTSTATUS
@@ -302,52 +485,15 @@ BalloonEvtDeviceD0Exit(
     )
 {
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(Device);
-    PDRIVER_CONTEXT       drvCtx = GetDriverContext(WdfGetDriver());
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
 
     PAGED_CODE();
 
-    if (devCtx->CurrentWorkItem) {
-        WdfWorkItemFlush(devCtx->CurrentWorkItem);
-        devCtx->CurrentWorkItem = NULL;
-    }
     BalloonTerm(Device);
 
     return STATUS_SUCCESS;
 }
-
-NTSTATUS
-BalloonEvtDeviceD0ExitPreInterruptsDisabled(
-    IN  WDFDEVICE Device,
-    IN  WDF_POWER_DEVICE_STATE TargetState
-    )
-{
-    PDEVICE_CONTEXT       devCtx = GetDeviceContext(Device);
-    PDRIVER_CONTEXT       drvCtx = GetDriverContext(WdfGetDriver());
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
-
-    PAGED_CODE();
-
-    if (TargetState == WdfPowerDeviceD3Final)
-    {
-        devCtx->bShutDown = TRUE;
-
-        if (devCtx->CurrentWorkItem) {
-           WdfWorkItemFlush(devCtx->CurrentWorkItem);
-           devCtx->CurrentWorkItem = NULL;
-        }
-        while(drvCtx->num_pages)
-        {
-           BalloonLeak(Device, drvCtx->num_pages);
-        }
-        SetBalloonSize(Device, drvCtx->num_pages);
-    }
-
-    return STATUS_SUCCESS;
-}
-
 
 BOOLEAN
 BalloonInterruptIsr(
@@ -360,6 +506,7 @@ BalloonInterruptIsr(
 
     UNREFERENCED_PARAMETER( MessageID );
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
     Device = WdfInterruptGetDevice(WdfInterrupt);
     devCtx = GetDeviceContext(Device);
 
@@ -372,37 +519,6 @@ BalloonInterruptIsr(
 }
 
 VOID
-FillLeakWorkItem(
-    IN WDFWORKITEM  WorkItem
-    )
-{
-    PWORKITEM_CONTEXT     pItemContext;
-    PDEVICE_CONTEXT       devCtx = NULL;
-    PDRIVER_CONTEXT       drvCtx = GetDriverContext(WdfGetDriver());
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
-
-    pItemContext = GetWorkItemContext(WorkItem);
-
-    devCtx = GetDeviceContext(pItemContext->Device);
-
-    if (pItemContext->Diff > 0) {
-        BalloonFill(pItemContext->Device, (size_t)(pItemContext->Diff));
-    } else if (pItemContext->Diff < 0) {
-        BalloonLeak(pItemContext->Device, (size_t)(-pItemContext->Diff));
-    }
-    SetBalloonSize(pItemContext->Device, drvCtx->num_pages);
-    if (pItemContext->bStatUpdate) {
-        BalloonMemStats(pItemContext->Device);
-    }
-
-    WdfObjectDelete(WorkItem);
-    devCtx->CurrentWorkItem = NULL;
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
-    return;
-}
-
-VOID
 BalloonInterruptDpc(
     IN WDFINTERRUPT WdfInterrupt,
     IN WDFOBJECT    WdfDevice
@@ -410,60 +526,37 @@ BalloonInterruptDpc(
 {
     unsigned int          len;
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(WdfDevice);
-    PDRIVER_CONTEXT       drvCtx = GetDriverContext(WdfGetDriver());
 
-    PWORKITEM_CONTEXT     context;
-    WDF_OBJECT_ATTRIBUTES attributes;
-    WDF_WORKITEM_CONFIG   workitemConfig;
-    WDFWORKITEM           hWorkItem;
-    NTSTATUS              status = STATUS_SUCCESS;
     BOOLEAN               bStatUpdate = FALSE;
-
+    BOOLEAN               bHostAck = FALSE;
     UNREFERENCED_PARAMETER( WdfInterrupt );
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "--> %s\n", __FUNCTION__);
 
     if (devCtx->InfVirtQueue->vq_ops->get_buf(devCtx->InfVirtQueue, &len))
     {
-        KeSetEvent (&drvCtx->InfEvent, IO_NO_INCREMENT, FALSE);
+        bHostAck = TRUE;
     }
     if (devCtx->DefVirtQueue->vq_ops->get_buf(devCtx->DefVirtQueue, &len))
     {
-        KeSetEvent (&drvCtx->DefEvent, IO_NO_INCREMENT, FALSE);
+        bHostAck = TRUE;
     }
-    if (devCtx->bShutDown == TRUE)
+
+    if(bHostAck)
     {
-        return;
+        KeSetEvent (&devCtx->HostAckEvent, IO_NO_INCREMENT, FALSE);
     }
+
     if(devCtx->StatVirtQueue &&
        devCtx->StatVirtQueue->vq_ops->get_buf(devCtx->StatVirtQueue, &len)) {
-       bStatUpdate = TRUE;
+       BalloonMemStats(WdfDevice);
     }
 
-    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-    WDF_OBJECT_ATTRIBUTES_SET_CONTEXT_TYPE(&attributes, WORKITEM_CONTEXT);
-    attributes.ParentObject = WdfDevice;
-
-    WDF_WORKITEM_CONFIG_INIT(&workitemConfig, FillLeakWorkItem);
-
-    status = WdfWorkItemCreate( &workitemConfig,
-                                &attributes,
-                                &hWorkItem);
-
-    if (!NT_SUCCESS(status)) {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "WdfWorkItemCreate failed with status = 0x%08x\n", status);
-        return;
+    if(devCtx->Thread)
+    {
+       KeSetEvent(&devCtx->WakeUpThread, 0, FALSE);
     }
 
-    context = GetWorkItemContext(hWorkItem);
-
-    context->Device = WdfDevice;
-    context->Diff = GetBalloonSize(WdfDevice);
-
-    context->bStatUpdate = bStatUpdate;
-
-    WdfWorkItemEnqueue(hWorkItem);
-    devCtx->CurrentWorkItem = hWorkItem;
     return;
 }
 
@@ -556,7 +649,7 @@ BalloonEvtFileClose (
 }
 
 VOID
-SetBalloonSize(
+BalloonSetSize(
     IN WDFOBJECT WdfDevice,
     IN size_t    num
     )
@@ -567,15 +660,60 @@ SetBalloonSize(
 }
 
 LONGLONG
-GetBalloonSize(
+BalloonGetSize(
     IN WDFOBJECT WdfDevice
     )
 {
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(WdfDevice);
-    PDRIVER_CONTEXT       drvCtx = GetDriverContext(WdfGetDriver());
 
     u32 v;
     VirtIODeviceGet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, num_pages), &v, sizeof(v));
-    return (LONGLONG)v - drvCtx->num_pages;
+    return (LONGLONG)v - devCtx->num_pages;
 }
 
+VOID
+BalloonRoutine(
+    IN PVOID pContext
+    )
+{
+    WDFOBJECT Device  =  (WDFOBJECT)pContext;
+    PDEVICE_CONTEXT                 devCtx = GetDeviceContext(Device);
+
+    NTSTATUS                        status = STATUS_SUCCESS;
+    LARGE_INTEGER                   Timeout = {0};
+    BOOLEAN                         Opened = FALSE;
+    LONGLONG            diff;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Balloon thread started....\n");
+
+    while(TRUE)
+    {
+        Timeout.QuadPart = Int32x32To64(10000, -10000);
+        status = KeWaitForSingleObject(&devCtx->WakeUpThread, Executive,
+                                       KernelMode, FALSE, &Timeout);
+        if(STATUS_WAIT_0 == status)
+        {
+            if(devCtx->bShutDown)
+            {
+                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Exiting Thread!\n");
+                break;
+            }
+            else
+            {
+                diff = BalloonGetSize(Device);
+                if (diff > 0)
+                {
+                    BalloonFill(Device, (size_t)(diff));
+                }
+                else if (diff < 0)
+                {
+                    BalloonLeak(Device, (size_t)(-diff));
+                }
+                BalloonSetSize(Device, devCtx->num_pages);
+            }
+        }
+    }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Thread about to exit...\n");
+
+    PsTerminateSystemThread(STATUS_SUCCESS);
+}
