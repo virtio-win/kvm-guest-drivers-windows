@@ -1,3 +1,19 @@
+Date    13 June 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm51
+
+Fixed bugs:
+
+Bug 828275 - Implement and test control queue in virtio-simulator environment.
+Bug 828275 - Initial implementation of RX filtering using QEMU
+
+Bug 768795 - BSOD when excercising Balloon Driver
+Bug 816452 - Uninstall balloon driver from Device Manager leads to BSOD after changing balloon 
+             value in monitor.
+Bug 803633 - balloon does not work after s3 or s4
+Bug 799864 - user cannot distinguish the difference between viostor and vioscsi because of listing 
+             the two drivers together at the same time in Device Manager
+
 Date    21 May 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm50
