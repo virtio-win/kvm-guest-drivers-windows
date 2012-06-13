@@ -24,7 +24,6 @@ INCLUDES = $(INCLUDES);..\..\VirtIO
 NTTARGETFILES=
 
 SOURCES=            \
-        ballog.mc   \
         Balloon.rc  \
         Driver.c    \
         Device.c    \

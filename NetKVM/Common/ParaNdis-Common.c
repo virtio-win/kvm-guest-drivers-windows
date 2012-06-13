@@ -1949,7 +1949,7 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacket
 				}
 				if (pBatchOfPackets && nReceived == maxPacketsInBatch)
 				{
-					DPrintf(1, ("[%s] received %d buffers", __FUNCTION__, nReceived));
+					DPrintf(1, ("[%s] received %d buffers of max %d", __FUNCTION__, nReceived, ulMaxPacketsToIndicate));
 					NdisReleaseSpinLock(&pContext->ReceiveLock);
 					ParaNdis_IndicateReceivedBatch(pContext, pBatchOfPackets, nReceived);
 					NdisAcquireSpinLock(&pContext->ReceiveLock);
@@ -1967,11 +1967,11 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacket
 	NdisReleaseSpinLock(&pContext->ReceiveLock);
 	if (nReceived && pBatchOfPackets)
 	{
-		DPrintf(1, ("[%s]%d: received %d buffers", __FUNCTION__, KeGetCurrentProcessorNumber(), nReceived));
+		DPrintf(1, ("[%s]%d: received %d buffers of max %d", __FUNCTION__, KeGetCurrentProcessorNumber(), nReceived, ulMaxPacketsToIndicate));
 		ParaNdis_IndicateReceivedBatch(pContext, pBatchOfPackets, nReceived);
 	}
 	if (pBatchOfPackets) NdisFreeMemory(pBatchOfPackets, 0, 0);
-	return nRetrieved;
+	return nReported;
 }
 
 void ParaNdis_ReportLinkStatus(PARANDIS_ADAPTER *pContext)
@@ -2013,8 +2013,8 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
 {
 	ULONG stillRequiresProcessing = 0;
 	ULONG interruptSources;
-  UINT uIndicatedRXPackets = 0;
-  UINT numOfPacketsToIndicate = min(ulMaxPacketsToIndicate, pContext->uNumberOfHandledRXPacketsInDPC);
+	UINT uIndicatedRXPackets = 0;
+	UINT numOfPacketsToIndicate = min(ulMaxPacketsToIndicate, pContext->uNumberOfHandledRXPacketsInDPC);
 
 	DEBUG_ENTRY(5);
 	if (pContext->bEnableInterruptHandlingDPC)
@@ -2051,12 +2051,20 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
 						NdisReleaseSpinLock(&pContext->ReceiveLock);
 						DPrintf(nRestartResult ? 2 : 6, ("[%s] queue restarted%s", __FUNCTION__, nRestartResult ? "(Rerun)" : "(Done)"));
 
-						if (uIndicatedRXPackets >= numOfPacketsToIndicate)
+						if (uIndicatedRXPackets < numOfPacketsToIndicate)
 						{
-							DPrintf(0, ("[%s] Breaking Rx loop on %d-th operation", __FUNCTION__, uIndicatedRXPackets));
+
+						}
+						else if (uIndicatedRXPackets == numOfPacketsToIndicate)
+						{
+							DPrintf(1, ("[%s] Breaking Rx loop after %d indications", __FUNCTION__, uIndicatedRXPackets));
 							ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)4, nRestartResult, 0, 0);
-							stillRequiresProcessing |= isReceive;
 							break;
+						}
+						else
+						{
+							DPrintf(0, ("[%s] Glitch found: %d allowed, %d indicated", __FUNCTION__, numOfPacketsToIndicate, uIndicatedRXPackets));
+							ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)6, nRestartResult, 0, 0);
 						}
 					}
 					else
@@ -2380,7 +2388,7 @@ static void SendControlMessage(
 	PVOID buffer1,
 	ULONG size1,
 	PVOID buffer2,
-	ULONG size2
+	ULONG size2)
 {
 	NdisAcquireSpinLock(&pContext->ReceiveLock);
 	if (pContext->ControlData.Virtual && pContext->ControlData.size > (size1 + size2 + 16))
