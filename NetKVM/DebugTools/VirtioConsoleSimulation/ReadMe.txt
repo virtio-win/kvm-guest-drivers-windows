@@ -62,5 +62,8 @@ rxget {integer=serial number} - retrieves packet from Rx queue and AS IF indicat
 rxret {integer=serial number} - AS IF the system returns packet with specified serial number
 rxrestart {integer=expected value} calls restart operation on Rx queue
       if returned value is not equal to parameter - produces error
+control.rxmode {integer=mode,integer=0|1}
+control.addvlan {integer=vlan}
+control.delvlan {integer=vlan}
 
 See test.txt for examples

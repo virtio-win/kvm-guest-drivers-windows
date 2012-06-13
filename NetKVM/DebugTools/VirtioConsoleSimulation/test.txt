@@ -1,10 +1,11 @@
 
-goto TestMsiGetSet
+goto TestControl
 
 
 //.preprocess loud
 //.preprocess quiet
 
+//TestControl
 //TestMsiGetSet
 //TestGetSet
 //TestSimpleTxIndirect
@@ -18,6 +19,19 @@ goto TestMsiGetSet
 //TestSimpleRxNoPubMerged
 //TestPrepare
 //TestSetVar
+
+:TestControl
+prepare
+control.addvlan 125
+control.addvlan 2
+control.delvlan 125
+// turn promisc off
+control.rxmode 0 0
+// disable broadcast
+control.rxmode 5 1
+control.mac 8
+control.mac 100
+end
 
 :TestMsiGetSet
 set use_msix 1

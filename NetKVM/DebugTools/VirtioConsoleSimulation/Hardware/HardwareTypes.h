@@ -47,6 +47,26 @@ static inline void stw_p(uint16_t *va, uint16_t val)
 	*va = val;
 }
 
+static inline void stb_p(uint8_t *va, uint8_t val)
+{
+	*va = val;
+}
+
+static inline uint8_t ldub_p(uint8_t *va)
+{
+	return *va;
+}
+
+static inline uint32_t ldl_p(void *va)
+{
+	return *(uint32_t *)va;
+}
+
+static inline uint16_t lduw_p(void *va)
+{
+	return *(uint16_t *)va;
+}
+
 #define cpu_physical_memory_unmap(...)
 #define cpu_physical_memory_map(a,b,c) ((PVOID)(a))
 #define error_report FailCase

@@ -90,6 +90,10 @@
 #define VIRTIO_NET_F_HOST_UFO	14	/* Host can handle UFO in. */
 #define VIRTIO_NET_F_MRG_RXBUF	15  /* Host can handle merged Rx buffers and requires bigger header for that. */
 #define VIRTIO_NET_F_STATUS     16
+#define VIRTIO_NET_F_CTRL_VQ    17      /* Control channel available */
+#define VIRTIO_NET_F_CTRL_RX    18      /* Control channel RX mode support */
+#define VIRTIO_NET_F_CTRL_VLAN  19      /* Control channel VLAN filtering */
+#define VIRTIO_NET_F_CTRL_RX_EXTRA 20   /* Extra RX mode control support */
 
 #define VIRTIO_NET_S_LINK_UP    1       /* Link is up */
 
@@ -282,6 +286,12 @@ typedef struct _tagCompletePhysicalAddress
 	ULONG				IsTX			: 1;
 } tCompletePhysicalAddress;
 
+typedef struct _tagMulticastData
+{
+	ULONG					nofMulticastEntries;
+	UCHAR					MulticastList[ETH_LENGTH_OF_ADDRESS * PARANDIS_MULTICAST_LIST_SIZE];
+}tMulticastData;
+
 typedef struct _tagPARANDIS_ADAPTER
 {
 	NDIS_HANDLE				DriverHandle;
@@ -299,7 +309,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	BOOLEAN					bEnableInterruptChecking;
 	BOOLEAN					bDoInterruptRecovery;
 	BOOLEAN					bDoSupportPriority;
-	BOOLEAN					bDoPacketFiltering;
+	BOOLEAN					bDoHwPacketFiltering;
 	BOOLEAN					bUseScatterGather;
 	BOOLEAN					bBatchReceive;
 	BOOLEAN					bLinkDetectSupported;
@@ -312,7 +322,9 @@ typedef struct _tagPARANDIS_ADAPTER
 	BOOLEAN					bSurprizeRemoved;
 	BOOLEAN					bUsingMSIX;
 	BOOLEAN					bUseIndirect;
-	ULONG		  			uNumberOfHandledRXPacketsInDPC;
+	BOOLEAN					bHasHardwareFilters;
+	tMulticastData			MulticastData;
+	UINT					uNumberOfHandledRXPacketsInDPC;
 	NDIS_DEVICE_POWER_STATE powerState;
 	LONG					dpcReceiveActive;
 	LONG 					counterDPCInside;
@@ -329,8 +341,6 @@ typedef struct _tagPARANDIS_ADAPTER
 	UCHAR					CurrentMacAddress[ETH_LENGTH_OF_ADDRESS];
 	ULONG					PacketFilter;
 	ULONG					DummyLookAhead;
-	UCHAR					MulticastList[ETH_LENGTH_OF_ADDRESS * PARANDIS_MULTICAST_LIST_SIZE];
-	ULONG					MulticastListSize;
 	ULONG					ulMilliesToConnect;
 	ULONG					nDetectedStoppedTx;
 	ULONG					nDetectedInactivity;
@@ -356,6 +366,7 @@ typedef struct _tagPARANDIS_ADAPTER
 		ULONG framesRxCSHwOK;
 		ULONG framesRxCSHwMissedBad;
 		ULONG framesRxCSHwMissedGood;
+		ULONG framesFilteredOut;
 	} extraStatistics;
 	tOurCounters			Counters;
 	tOurCounters			Limits;
@@ -364,6 +375,9 @@ typedef struct _tagPARANDIS_ADAPTER
 	ONPAUSECOMPLETEPROC		SendPauseCompletionProc;
 	ONPAUSECOMPLETEPROC		ReceivePauseCompletionProc;
 	/* Net part - management of buffers and queues of QEMU */
+	struct virtqueue *		NetControlQueue;
+	tCompletePhysicalAddress ControlQueueRing;
+	tCompletePhysicalAddress ControlData;
 	struct virtqueue *		NetReceiveQueue;
 	tCompletePhysicalAddress ReceiveQueueRing;
 	struct virtqueue *		NetSendQueue;
@@ -431,7 +445,7 @@ typedef struct _tagPARANDIS_ADAPTER
 #endif
 }PARANDIS_ADAPTER, *PPARANDIS_ADAPTER;
 
-typedef enum { cpeOK, cpeNoBuffer, cpeInternalError, cpeTooLarge, cpeNoIndirect } tCopyPacketError; 
+typedef enum { cpeOK, cpeNoBuffer, cpeInternalError, cpeTooLarge, cpeNoIndirect } tCopyPacketError;
 typedef struct _tagCopyPacketResult
 {
 	ULONG		size;
@@ -717,6 +731,12 @@ void ParaNdis_IndicateConnect(
 
 void ParaNdis_RestoreDeviceConfigurationAfterReset(
 	PARANDIS_ADAPTER *pContext);
+
+VOID ParaNdis_UpdateDeviceFilters(
+	PARANDIS_ADAPTER *pContext);
+
+VOID ParaNdis_DeviceFiltersUpdateVlanId(
+	PARANDIS_ADAPTER *pContext, ULONG oldVlan);
 
 #endif //-OFFLOAD_UNIT_TEST
 

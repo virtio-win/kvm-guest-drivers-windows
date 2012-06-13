@@ -40,6 +40,77 @@ typedef struct _tagvirtio_net_hdr_ext
 	u16 nBuffers;
 }virtio_net_hdr_ext;
 
+/*
+ * Control virtqueue data structures
+ *
+ * The control virtqueue expects a header in the first sg entry
+ * and an ack/status response in the last entry.  Data for the
+ * command goes in between.
+ */
+typedef struct tag_virtio_net_ctrl_hdr {
+    u8 class_of_command;
+    u8 cmd;
+}virtio_net_ctrl_hdr;
+
+typedef u8 virtio_net_ctrl_ack;
+
+#define VIRTIO_NET_OK     0
+#define VIRTIO_NET_ERR    1
+
+/*
+ * Control the RX mode, ie. promisucous, allmulti, etc...
+ * All commands require an "out" sg entry containing a 1 byte
+ * state value, zero = disable, non-zero = enable.  Commands
+ * 0 and 1 are supported with the VIRTIO_NET_F_CTRL_RX feature.
+ * Commands 2-5 are added with VIRTIO_NET_F_CTRL_RX_EXTRA.
+ */
+#define VIRTIO_NET_CTRL_RX_MODE    0
+ #define VIRTIO_NET_CTRL_RX_MODE_PROMISC      0
+ #define VIRTIO_NET_CTRL_RX_MODE_ALLMULTI     1
+ #define VIRTIO_NET_CTRL_RX_MODE_ALLUNI       2
+ #define VIRTIO_NET_CTRL_RX_MODE_NOMULTI      3
+ #define VIRTIO_NET_CTRL_RX_MODE_NOUNI        4
+ #define VIRTIO_NET_CTRL_RX_MODE_NOBCAST      5
+
+/*
+ * Control the MAC filter table.
+ *
+ * The MAC filter table is managed by the hypervisor, the guest should
+ * assume the size is infinite.  Filtering should be considered
+ * non-perfect, ie. based on hypervisor resources, the guest may
+ * received packets from sources not specified in the filter list.
+ *
+ * In addition to the class/cmd header, the TABLE_SET command requires
+ * two out scatterlists.  Each contains a 4 byte count of entries followed
+ * by a concatenated byte stream of the ETH_ALEN MAC addresses.  The
+ * first sg list contains unicast addresses, the second is for multicast.
+ * This functionality is present if the VIRTIO_NET_F_CTRL_RX feature
+ * is available.
+ */
+#define ETH_ALEN	6
+
+struct virtio_net_ctrl_mac {
+    u32 entries;
+    // follows
+    //u8 macs[][ETH_ALEN];
+};
+#define VIRTIO_NET_CTRL_MAC                  1
+  #define VIRTIO_NET_CTRL_MAC_TABLE_SET        0
+
+/*
+ * Control VLAN filtering
+ *
+ * The VLAN filter table is controlled via a simple ADD/DEL interface.
+ * VLAN IDs not added may be filterd by the hypervisor.  Del is the
+ * opposite of add.  Both commands expect an out entry containing a 2
+ * byte VLAN ID.  VLAN filterting is available with the
+ * VIRTIO_NET_F_CTRL_VLAN feature bit.
+ */
+#define VIRTIO_NET_CTRL_VLAN                 2
+  #define VIRTIO_NET_CTRL_VLAN_ADD             0
+  #define VIRTIO_NET_CTRL_VLAN_DEL             1
+
+
 #pragma pack (pop)
 
 #endif
