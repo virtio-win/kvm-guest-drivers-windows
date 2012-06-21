@@ -36,6 +36,11 @@
 #define VER_COMPANYNAME_STR				"Red Hat Inc."
 #define	VER_LEGALTRADEMARKS_STR			""
 #define VER_LEGALCOPYRIGHT_STR			"Copyright (C) 2008 Red Hat Inc."
+
+#ifndef _NT_TARGET_MAJ
+#include "NetKVM-2012.h"
+#endif
+
 #define VER_PRODUCTBUILD				_MAJORVERSION_
 #define VER_PRODUCTBUILD_QFE			_MINORVERSION_
 #define VER_PRODUCTMAJORVERSION			_NT_TARGET_MAJ

@@ -38,7 +38,7 @@ set _DRIVER_ISO_NAME=Install-%_MINORVERSION_%%_MAJORVERSION_%.iso
 if not "%1"=="" goto parameters_here
 echo no parameters specified, rebuild all
 call clean.bat
-call "%0" Vista Vista64 XP XP64 Win7 Win7_64
+call "%0" Win8 Win8_64 Vista Vista64 XP XP64 Win7 Win7_64
 call :PackInstall
 goto :eof
 :parameters_here
@@ -171,6 +171,118 @@ if exist wxp\objfre_wnet_amd64\amd64\netkvm.sys call tools\makeinstall amd64 wxp
 endlocal
 if not exist wxp\objfre_wnet_amd64\amd64\netkvm.sys goto :eof
 goto continue
+
+:BuildUsing2012
+reg query "HKLM\Software\Microsoft\Windows Kits\WDK" /v WDKProductVersion > nul
+if %ERRORLEVEL% EQU 0 goto BuildUsing2012_WDKOK
+echo ERROR building Win8 drivers: Win8 WDK is not installed
+cd .
+goto :eof
+:BuildUsing2012_WDKOK
+reg query HKLM\Software\Microsoft\VisualStudio\11.0 /v InstallDir > nul
+if %ERRORLEVEL% EQU 0 goto BuildUsing2012_VS11OK
+echo ERROR building Win8 drivers: VS11 is not installed
+cd .
+goto :eof
+:BuildUsing2012_VS11OK
+cscript ..\tools\callVisuaStudio.vbs 11 NetKVM-2012.vcxproj /Rebuild "%~1" /Out %2
+if %ERRORLEVEL% GEQ 1 echo VS2011 Build of "%~1" FAILED
+goto :eof
+
+
+:Win8
+:: building regular old-style coinstaller for Win8
+set DDKBUILDENV=
+setlocal
+pushd %BUILDROOT%
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Win7 no_oacr
+popd
+call :preparebuild CoInstaller
+build -cZg
+endlocal
+if not exist CoInstaller\objfre_win7_x86\i386\netkvmco.dll goto :eof
+if exist Install\win8\x86 rmdir Install\win8\x86 /s /q
+call :BuildUsing2012 "Win8 Release|Win32" buildfre_win8_x86.log
+if %ERRORLEVEL% EQU 0 goto continue
+goto :eof
+
+
+:Win8_64
+:: building regular old-style coinstaller for Win8
+set DDKBUILDENV=
+setlocal
+pushd %BUILDROOT%
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre %X64ENV% Win7 no_oacr
+popd
+call :preparebuild CoInstaller
+build -cZg
+endlocal
+if not exist CoInstaller\objfre_win7_amd64\amd64\netkvmco.dll goto :eof
+if exist Install\win8\amd64 rmdir Install\win8\amd64 /s /q
+call :BuildUsing2012 "Win8 Release|x64" buildfre_win8_amd64.log
+if %ERRORLEVEL% EQU 0 goto continue
+goto :eof
+
+
+::
+:: This part of the batch called from Win8 environment
+:: (Start)
+
+:set2012OS-wlh
+set _NT_TARGET_VERSION=0x600
+set OSName=Vista
+goto :eof
+
+:set2012OS-win7
+set _NT_TARGET_VERSION=0x601
+set OSName=Win7
+goto :eof
+
+:set2012OS-win8
+set _NT_TARGET_VERSION=0x602
+set OSName=Win8
+goto :eof
+
+:create2012H
+echo #ifndef __DATE__ 
+echo #define __DATE__ "%DATE%"
+echo #endif
+echo #ifndef __TIME__
+echo #define __TIME__ "%TIME%"
+echo #endif
+echo #define PARANDIS_MAJOR_DRIVER_VERSION %_MAJORVERSION_%
+echo #define PARANDIS_MINOR_DRIVER_VERSION %_MINORVERSION_%
+echo #define _NT_TARGET_MAJ %_NT_TARGET_MAJ%
+echo #define _NT_TARGET_MIN %_NT_TARGET_MIN%
+echo #define _MAJORVERSION_ %_MAJORVERSION_%
+echo #define _MINORVERSION_ %_MINORVERSION_%
+goto :eof
+
+::%1=OS(wlh,win7,win8)
+:Prepare2012
+shift
+echo Prepare2012 (1) %1
+call :set2012OS-%1
+call :preparebuild
+call :create2012H  > NetKVM-2012.h
+goto :eof
+
+::%1=OS(wlh,win7,win8) %2=(x86,amd64) %3=targetdir 
+:Finalize2012
+shift
+echo Finalize2012: (1) %1 (2) %2 (3) %3
+call :set2012OS-%1
+call :preparebuild
+set _BUILDARCH=%2
+set _COINSTBIN=CoInstaller\objfre_win7_amd64\amd64\netkvmco.dll
+if /i "%2"=="x86" set _COINSTBIN=CoInstaller\objfre_win7_x86\i386\netkvmco.dll 
+if exist "%~3netkvm.sys" call tools\makeinstall %2 "%~3netkvm.sys" wlh\netkvm.inf %_VERSION_% %OSName% %_COINSTBIN% CoInstaller\readme.doc
+del NetKVM-2012.h
+goto :eof
+
+:: (End)
+:: This part of the batch called from Win8 environment
+:: (End)
 
 
 :Win2K compilation is no longer supported by Windows 7 DDK
