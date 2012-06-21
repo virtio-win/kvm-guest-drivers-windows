@@ -275,9 +275,9 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 			ULONG options = NDIS_MAC_OPTION_COPY_LOOKAHEAD_DATA |
 				NDIS_MAC_OPTION_TRANSFERS_NOT_PEND |
 				NDIS_MAC_OPTION_NO_LOOPBACK;
-			if (pContext->ulPriorityVlanSetting & 1)
+			if (IsPrioritySupported(pContext))
 				options |= NDIS_MAC_OPTION_8021P_PRIORITY;
-			if (pContext->ulPriorityVlanSetting & 2)
+			if (IsVlanSupported(pContext))
 				options |= NDIS_MAC_OPTION_8021Q_VLAN;
 			SETINFO(ul, options);
 		}
@@ -386,6 +386,8 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 		break;
 	case OID_GEN_VLAN_ID:
 		SETINFO(ul, pContext->VlanId);
+		if (!IsVlanSupported(pContext))
+			status = NDIS_STATUS_NOT_SUPPORTED;
 		break;
 	case OID_GEN_CURRENT_LOOKAHEAD:
 		if (!pContext->DummyLookAhead) pContext->DummyLookAhead = pContext->MaxPacketSize.nMaxFullSizeOS;
@@ -677,11 +679,15 @@ NDIS_STATUS ParaNdis_OnSetLookahead(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 
 NDIS_STATUS ParaNdis_OnSetVlanId(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
-	NDIS_STATUS status;
+	NDIS_STATUS status = NDIS_STATUS_NOT_SUPPORTED;
 	ULONG oldVlan = pContext->VlanId;
-	status = ParaNdis_OidSetCopy(pOid, &pContext->VlanId, sizeof(pContext->VlanId));
-	pContext->VlanId &= 0xfff;
-	ParaNdis_DeviceFiltersUpdateVlanId(pContext, oldVlan);
+	if (IsVlanSupported(pContext))
+	{
+		status = ParaNdis_OidSetCopy(pOid, &pContext->VlanId, sizeof(pContext->VlanId));
+		pContext->VlanId &= 0xfff;
+		DPrintf(0, ("[%s] new value %d on MAC %X", __FUNCTION__, pContext->VlanId, pContext->CurrentMacAddress[5]));
+		ParaNdis_DeviceFiltersUpdateVlanId(pContext);
+	}
 	return status;
 }
 
