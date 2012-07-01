@@ -148,8 +148,9 @@ VIOSerialReclaimConsumedBuffers(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
 }
 
+// this procedure must be called with port InBuf spinlock held
 SSIZE_T
-VIOSerialFillReadBuf(
+VIOSerialFillReadBufLocked(
     IN PVIOSERIAL_PORT port,
     IN PVOID outbuf,
     IN SIZE_T count
@@ -160,7 +161,7 @@ VIOSerialFillReadBuf(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
 
-    if (!count || !VIOSerialPortHasData(port))
+    if (!count || !VIOSerialPortHasDataLocked(port))
         return 0;
 
     buf = port->InBuf;
@@ -172,7 +173,6 @@ VIOSerialFillReadBuf(
 
     if (buf->offset == buf->len)
     {
-        WdfSpinLockAcquire(port->InBufLock);
         port->InBuf = NULL;
 
         status = VIOSerialAddInBuf(GetInQueue(port), buf);
@@ -180,7 +180,6 @@ VIOSerialFillReadBuf(
         {
            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "%s::%d  VIOSerialAddInBuf failed\n", __FUNCTION__, __LINE__);
         }
-        WdfSpinLockRelease(port->InBufLock);
     }
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
     return count;

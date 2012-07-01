@@ -185,7 +185,7 @@ VIOSerialSendBuffers(
 );
 
 SSIZE_T
-VIOSerialFillReadBuf(
+VIOSerialFillReadBufLocked(
     IN PVIOSERIAL_PORT port,
     IN PVOID outbuf,
     IN SIZE_T count
@@ -248,12 +248,12 @@ VIOSerialInitPortConsole(
 );
 
 VOID
-VIOSerialDiscardPortData(
+VIOSerialDiscardPortDataLocked(
     IN PVIOSERIAL_PORT port
 );
 
 BOOLEAN
-VIOSerialPortHasData(
+VIOSerialPortHasDataLocked(
     IN PVIOSERIAL_PORT port
 );
 
@@ -264,11 +264,6 @@ VIOSerialGetInBuf(
 
 BOOLEAN
 VIOSerialWillWriteBlock(
-    IN PVIOSERIAL_PORT port
-);
-
-BOOLEAN
-VIOSerialWillReadBlock(
     IN PVIOSERIAL_PORT port
 );
 
