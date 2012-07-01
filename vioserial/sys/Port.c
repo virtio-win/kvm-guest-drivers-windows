@@ -13,7 +13,6 @@ EVT_WDF_REQUEST_CANCEL VIOSerialRequestCancel;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, VIOSerialDeviceListCreatePdo)
-#pragma alloc_text(PAGE, VIOSerialPortRead)
 #pragma alloc_text(PAGE, VIOSerialPortWrite)
 #pragma alloc_text(PAGE, VIOSerialPortDeviceControl)
 #endif
@@ -194,7 +193,7 @@ VIOSerialRemovePort(
               VIOSerialSendCtrlMsg(vport.BusDevice, vport.PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
            }
            WdfSpinLockAcquire(vport.InBufLock);
-           VIOSerialDiscardPortData(&vport);
+           VIOSerialDiscardPortDataLocked(&vport);
            WdfSpinLockRelease(vport.InBufLock);
            WdfSpinLockAcquire(vport.OutVqLock);
            VIOSerialReclaimConsumedBuffers(&vport);
@@ -348,7 +347,7 @@ VIOSerialShutdownAllPorts(
         }
 
         WdfSpinLockAcquire(vport.InBufLock);
-        VIOSerialDiscardPortData(&vport);
+        VIOSerialDiscardPortDataLocked(&vport);
         vport.InBuf = NULL;
         WdfSpinLockRelease(vport.InBufLock);
         WdfSpinLockAcquire(vport.OutVqLock);
@@ -379,8 +378,10 @@ VIOSerialInitPortConsole(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
 }
 
+
+// this procedure must be called with port InBuf spinlock held
 VOID
-VIOSerialDiscardPortData(
+VIOSerialDiscardPortDataLocked(
     IN PVIOSERIAL_PORT port
 )
 {
@@ -396,15 +397,12 @@ VIOSerialDiscardPortData(
     if( port->PendingReadRequest )
     {
         WDFREQUEST request = NULL;
-
-        WdfSpinLockAcquire(port->InBufLock);
         status = WdfRequestUnmarkCancelable(port->PendingReadRequest);
         if (status != STATUS_CANCELLED)
         {
             request= port->PendingReadRequest;
             port->PendingReadRequest = NULL;
         }
-        WdfSpinLockRelease(port->InBufLock);
 
         if( request )
             WdfRequestCompleteWithInformation(request , STATUS_CANCELLED, 0L);
@@ -441,39 +439,29 @@ VIOSerialDiscardPortData(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
 }
 
+// this procedure must be called with port InBuf spinlock held
 BOOLEAN
-VIOSerialPortHasData(
+VIOSerialPortHasDataLocked(
     IN PVIOSERIAL_PORT port
 )
 {
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
-    WdfSpinLockAcquire(port->InBufLock);
     if (port->InBuf)
     {
-        WdfSpinLockRelease(port->InBufLock);
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
         return TRUE;
     }
     port->InBuf = VIOSerialGetInBuf(port);
     if (port->InBuf)
     {
-        WdfSpinLockRelease(port->InBufLock);
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
         return TRUE;
     }
-    WdfSpinLockRelease(port->InBufLock);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
     return FALSE;
 }
 
-BOOLEAN
-VIOSerialWillReadBlock(
-    IN PVIOSERIAL_PORT port
-)
-{
-    return !VIOSerialPortHasData(port) && port->HostConnected;
-}
 
 BOOLEAN
 VIOSerialWillWriteBlock(
@@ -922,8 +910,6 @@ VIOSerialPortRead(
     PUCHAR             systemBuffer;
     BOOLEAN            nonBlock;
 
-    PAGED_CODE();
-
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "-->%s\n", __FUNCTION__);
 
     nonBlock = ((WdfFileObjectGetFlags(WdfRequestGetFileObject(Request)) & FO_SYNCHRONOUS_IO) != FO_SYNCHRONOUS_IO);
@@ -935,27 +921,36 @@ VIOSerialPortRead(
         return;
     }
 
-    if (!VIOSerialPortHasData(pdoData->port))
+	WdfSpinLockAcquire(pdoData->port->InBufLock);
+
+	if (!VIOSerialPortHasDataLocked(pdoData->port))
     {
         if (!pdoData->port->HostConnected)
         {
            WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
-           return;
         }
-        ASSERT (pdoData->port->PendingReadRequest == NULL);
-        WdfRequestMarkCancelableEx(Request, VIOSerialRequestCancel);
-        pdoData->port->PendingReadRequest = Request;
-        return;
+		else
+		{
+			ASSERT (pdoData->port->PendingReadRequest == NULL);
+			WdfRequestMarkCancelableEx(Request, VIOSerialRequestCancel);
+			pdoData->port->PendingReadRequest = Request;
+		}
     }
-
-    length = (ULONG)VIOSerialFillReadBuf(pdoData->port, systemBuffer, length);
-    if (length)
-    {
-        WdfRequestCompleteWithInformation(Request, status, (ULONG_PTR)length);
-        return;
-    }
-    WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ,"<-- %s\n", __FUNCTION__);
+	else
+	{
+		length = (ULONG)VIOSerialFillReadBufLocked(pdoData->port, systemBuffer, length);
+		if (length)
+		{
+			WdfRequestCompleteWithInformation(Request, status, (ULONG_PTR)length);
+		}
+		else
+		{
+			WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
+		}
+	}
+	WdfSpinLockRelease(pdoData->port->InBufLock);
+    
+	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ,"<-- %s\n", __FUNCTION__);
     return;
 }
 
@@ -1172,7 +1167,7 @@ VIOSerialPortClose(
 
     WdfSpinLockAcquire(pdoData->port->InBufLock);
     pdoData->port->GuestConnected = FALSE;
-    VIOSerialDiscardPortData(pdoData->port);
+    VIOSerialDiscardPortDataLocked(pdoData->port);
     WdfSpinLockRelease(pdoData->port->InBufLock);
 
     WdfSpinLockAcquire(pdoData->port->OutVqLock);
