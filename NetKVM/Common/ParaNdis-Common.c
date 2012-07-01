@@ -19,7 +19,7 @@
 void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue);
 
 //#define ROUNDSIZE(sz)	((sz + 15) & ~15)
-#define MAX_VLAN_ID		4095 
+#define MAX_VLAN_ID		4095
 
 #if 0
 void FORCEINLINE DebugDumpPacket(LPCSTR prefix, PVOID header, int level)
@@ -156,6 +156,7 @@ static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
 	VirtIODeviceReset(&pContext->IODevice);
 	DPrintf(0, ("[%s] Done", __FUNCTION__));
 	/* reset all the features in the device */
+	pContext->ulCurrentVlansFilterSet = 0;
 	WriteVirtIODeviceRegister(pContext->IODevice.addr + VIRTIO_PCI_GUEST_FEATURES, 0);
 #ifdef VIRTIO_RESET_VERIFY
 	if (1)
@@ -328,7 +329,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			if (!pContext->bDoSupportPriority)
 				pContext->ulPriorityVlanSetting = 0;
 			// if Vlan not supported
-			if (~pContext->ulPriorityVlanSetting & 2)
+			if (!IsVlanSupported(pContext))
 				pContext->VlanId = 0;
 			if (1)
 			{
@@ -490,7 +491,8 @@ static void PrintStatistics(PARANDIS_ADAPTER *pContext)
 		pContext->Statistics.ifHCInMulticastPkts +
 		pContext->Statistics.ifHCInUcastPkts;
 
-	DPrintf(0, ("[Diag!] RX buffers at VIRTIO %d of %d",
+	DPrintf(0, ("[Diag!%X] RX buffers at VIRTIO %d of %d",
+		pContext->CurrentMacAddress[5],
 		pContext->NetNofReceiveBuffers,
 		pContext->NetMaxReceiveBuffers));
 	DPrintf(0, ("[Diag!] TX desc available %d/%d, buf %d/min. %d",
@@ -512,7 +514,7 @@ static void PrintStatistics(PARANDIS_ADAPTER *pContext)
 		pContext->extraStatistics.framesLSO,
 		pContext->extraStatistics.framesIndirect));
 	DPrintf(0, ("[Diag!] Rx frames %I64u, Rx.Pri %d, RxHwCS.OK %d, FiltOut %d",
-		totalRxFrames, pContext->extraStatistics.framesRxPriority, 
+		totalRxFrames, pContext->extraStatistics.framesRxPriority,
 		pContext->extraStatistics.framesRxCSHwOK, pContext->extraStatistics.framesFilteredOut));
 	if (pContext->extraStatistics.framesRxCSHwMissedBad || pContext->extraStatistics.framesRxCSHwMissedGood)
 	{
@@ -1832,7 +1834,7 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PVOID address, UINT len
 	if (len > pContext->MaxPacketSize.nMaxFullSizeOS && !ETH_HAS_PRIO_HEADER(address)) return FALSE;
 	*pType = QueryPacketType(address);
 	if (pContext->PacketFilter & NDIS_PACKET_TYPE_PROMISCUOUS)	return TRUE;
-	
+
 	switch(*pType)
 	{
 		case iptBroadcast:
@@ -2382,13 +2384,13 @@ VOID ParaNdis_OnPnPEvent(
 }
 
 static void SendControlMessage(
-	PARANDIS_ADAPTER *pContext, 
-	UCHAR cls, 
-	UCHAR cmd, 
-	PVOID buffer1, 
-	ULONG size1, 
-	PVOID buffer2, 
-	ULONG size2) 
+	PARANDIS_ADAPTER *pContext,
+	UCHAR cls,
+	UCHAR cmd,
+	PVOID buffer1,
+	ULONG size1,
+	PVOID buffer2,
+	ULONG size2)
 {
 	NdisAcquireSpinLock(&pContext->ReceiveLock);
 	if (pContext->ControlData.Virtual && pContext->ControlData.size > (size1 + size2 + 16))
@@ -2398,7 +2400,7 @@ static void SendControlMessage(
 		PHYSICAL_ADDRESS phBase = pContext->ControlData.Physical;
 		ULONG offset = 0;
 		UINT nOut = 1;
-		
+
 		((virtio_net_ctrl_hdr *)pBase)->class_of_command = cls;
 		((virtio_net_ctrl_hdr *)pBase)->cmd = cmd;
 		sg[0].physAddr = phBase;
@@ -2407,7 +2409,7 @@ static void SendControlMessage(
 		offset = (offset + 3) & ~3;
 		if (size1)
 		{
-			NdisMoveMemory(pBase + offset, buffer1, size1);		
+			NdisMoveMemory(pBase + offset, buffer1, size1);
 			sg[nOut].physAddr = phBase;
 			sg[nOut].physAddr.QuadPart += offset;
 			sg[nOut].ulSize = size1;
@@ -2417,7 +2419,7 @@ static void SendControlMessage(
 		}
 		if (size2)
 		{
-			NdisMoveMemory(pBase + offset, buffer2, size2);		
+			NdisMoveMemory(pBase + offset, buffer2, size2);
 			sg[nOut].physAddr = phBase;
 			sg[nOut].physAddr.QuadPart += offset;
 			sg[nOut].ulSize = size2;
@@ -2485,25 +2487,61 @@ static VOID ParaNdis_DeviceFiltersUpdateRxMode(PARANDIS_ADAPTER *pContext)
 
 static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)
 {
-	struct 
+	struct
 	{
 		struct virtio_net_ctrl_mac header;
 		UCHAR addr[ETH_LENGTH_OF_ADDRESS];
 	} uCast;
 	uCast.header.entries = 1;
 	NdisMoveMemory(uCast.addr, pContext->CurrentMacAddress, sizeof(uCast.addr));
-	SendControlMessage(pContext, VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_TABLE_SET, 
+	SendControlMessage(pContext, VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_TABLE_SET,
 		&uCast, sizeof(uCast), &pContext->MulticastData, sizeof(pContext->MulticastData));
 }
 
-VOID ParaNdis_DeviceFiltersUpdateVlanId(PARANDIS_ADAPTER *pContext, ULONG oldVlan)
+static VOID SetSingleVlanFilter(PARANDIS_ADAPTER *pContext, ULONG vlanId, BOOLEAN bOn)
+{
+	u16 val = vlanId & 0xfff;
+	UCHAR cmd = bOn ? VIRTIO_NET_CTRL_VLAN_ADD : VIRTIO_NET_CTRL_VLAN_DEL;
+	SendControlMessage(pContext, VIRTIO_NET_CTRL_VLAN, cmd, &val, sizeof(val), NULL, 0);
+}
+
+static VOID SetAllVlanFilters(PARANDIS_ADAPTER *pContext, BOOLEAN bOn)
+{
+	ULONG i;
+	for (i = 0; i <= MAX_VLAN_ID; ++i)
+		SetSingleVlanFilter(pContext, i, bOn);
+}
+
+/*
+	possible values of filter set (pContext->ulCurrentVlansFilterSet):
+	0 - all disabled
+	1..4095 - one selected enabled
+	4096 - all enabled
+	Note that only 0th vlan can't be enabled
+*/
+VOID ParaNdis_DeviceFiltersUpdateVlanId(PARANDIS_ADAPTER *pContext)
 {
 	if (pContext->bHasHardwareFilters)
-	{	
-		u16 val = (u16)(oldVlan & 0xfff);
-		SendControlMessage(pContext, VIRTIO_NET_CTRL_VLAN, VIRTIO_NET_CTRL_VLAN_DEL, &val, sizeof(val), NULL, 0);
-		val = (u16)(pContext->VlanId & 0xfff);
-		SendControlMessage(pContext, VIRTIO_NET_CTRL_VLAN, VIRTIO_NET_CTRL_VLAN_ADD, &val, sizeof(val), NULL, 0);
+	{
+		ULONG newFilterSet;
+		if (IsVlanSupported(pContext))
+			newFilterSet = pContext->VlanId ? pContext->VlanId : (MAX_VLAN_ID + 1);
+		else
+			newFilterSet = IsPrioritySupported(pContext) ? (MAX_VLAN_ID + 1) : 0;
+		if (newFilterSet != pContext->ulCurrentVlansFilterSet)
+		{
+			if (pContext->ulCurrentVlansFilterSet > MAX_VLAN_ID)
+				SetAllVlanFilters(pContext, FALSE);
+			else if (pContext->ulCurrentVlansFilterSet)
+				SetSingleVlanFilter(pContext, pContext->ulCurrentVlansFilterSet, FALSE);
+
+			pContext->ulCurrentVlansFilterSet = newFilterSet;
+
+			if (pContext->ulCurrentVlansFilterSet > MAX_VLAN_ID)
+				SetAllVlanFilters(pContext, TRUE);
+			else if (pContext->ulCurrentVlansFilterSet)
+				SetSingleVlanFilter(pContext, pContext->ulCurrentVlansFilterSet, TRUE);
+		}
 	}
 }
 
@@ -2513,7 +2551,7 @@ VOID ParaNdis_UpdateDeviceFilters(PARANDIS_ADAPTER *pContext)
 	{
 		ParaNdis_DeviceFiltersUpdateRxMode(pContext);
 		ParaNdis_DeviceFiltersUpdateAddresses(pContext);
-		ParaNdis_DeviceFiltersUpdateVlanId(pContext, pContext->VlanId);
+		ParaNdis_DeviceFiltersUpdateVlanId(pContext);
 	}
 }
 
@@ -2611,9 +2649,9 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
 	NdisAcquireSpinLock(&pContext->ReceiveLock);
 	pContext->NetReceiveQueue->vq_ops->shutdown(pContext->NetReceiveQueue);
 	NdisReleaseSpinLock(&pContext->ReceiveLock);
-	
+
 	pContext->NetControlQueue->vq_ops->shutdown(pContext->NetControlQueue);
-	
+
 	/*
 	DPrintf(0, ("WARNING: deleting queues!!!!!!!!!"));
 	VirtIODeviceDeleteVirtualQueue(pContext->NetSendQueue);

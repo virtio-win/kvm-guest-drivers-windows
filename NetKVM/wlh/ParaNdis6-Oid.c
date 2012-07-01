@@ -55,6 +55,7 @@ static NDIS_STATUS OnSetInterruptModeration(PARANDIS_ADAPTER *pContext, tOidDesc
 
 static NDIS_STATUS OnSetOffloadParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 static NDIS_STATUS OnSetOffloadEncapsulation(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
+static NDIS_STATUS OnSetLinkParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 
 /**********************************************************
 Structure defining how to support each OID
@@ -138,10 +139,10 @@ OIDENTRY(OID_802_3_XMIT_TIMES_CRS_LOST,			2,4,4, 0				),
 OIDENTRY(OID_802_3_XMIT_LATE_COLLISIONS,		2,4,4, 0				),
 OIDENTRY(OID_GEN_MACHINE_NAME,					2,4,4, 0				),
 OIDENTRY(OID_GEN_STATISTICS,					3,4,4, ohfQueryStat		),
-OIDENTRYPROC(OID_GEN_VLAN_ID,					0,4,4, ohfQueryStat | ohfSet, ParaNdis_OnSetVlanId),
+OIDENTRYPROC(OID_GEN_VLAN_ID,					2,4,4, ohfQueryStat | ohfSet, ParaNdis_OnSetVlanId),
 OIDENTRYPROC(OID_GEN_INTERRUPT_MODERATION,		2,4,4, ohfQueryStat | ohfSet, OnSetInterruptModeration),
-//TODO: turning link off, disable duplex etc
-//OIDENTRYPROC(OID_GEN_LINK_PARAMETERS,			2,0,4, ohfQuerySet, OnSetLinkParameters),
+//Win8 NDIS 6.0 fails without it (Mini6OidsNdisRequests)
+OIDENTRYPROC(OID_GEN_LINK_PARAMETERS,			2,0,4, ohfSet, OnSetLinkParameters),
 OIDENTRY(OID_IP4_OFFLOAD_STATS,					4,4,4, 0),
 OIDENTRY(OID_IP6_OFFLOAD_STATS,					4,4,4, 0),
 OIDENTRYPROC(OID_TCP_OFFLOAD_PARAMETERS,		0,0,0, ohfSet | ohfSetMoreOK, OnSetOffloadParameters),
@@ -187,6 +188,7 @@ static NDIS_OID SupportedOids[] =
 		OID_GEN_MAC_OPTIONS,
 		OID_GEN_MEDIA_CONNECT_STATUS,
 		OID_GEN_MAXIMUM_SEND_PACKETS,
+		OID_GEN_LINK_PARAMETERS,
 		OID_GEN_NETWORK_LAYER_ADDRESSES,
 		OID_GEN_INTERRUPT_MODERATION,
 		OID_GEN_XMIT_ERROR,
@@ -996,5 +998,21 @@ void ParaNdis6_Fill620PowerCapabilities(PARANDIS_ADAPTER *pContext, PNDIS_PM_CAP
 		NdisDeviceStateD3 : NdisDeviceStateUnspecified;
 }
 #endif
+
+NDIS_STATUS OnSetLinkParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
+{
+	NDIS_LINK_PARAMETERS params;
+	NDIS_STATUS status;
+	status = ParaNdis_OidSetCopy(pOid, &params, sizeof(params));
+	if (status == NDIS_STATUS_SUCCESS)
+	{
+		status = NDIS_STATUS_NOT_ACCEPTED;
+		DPrintf(0, ("[%s] requested:", __FUNCTION__));
+		DPrintf(0, ("Tx speed 0x%X, Rx speed 0x%X", params.XmitLinkSpeed, params.RcvLinkSpeed));
+		DPrintf(0, ("Duplex %d, PauseFn %d, AutoNeg 0x%X",
+			params.MediaDuplexState, params.PauseFunctions, params.AutoNegotiationFlags));
+	}
+	return status;
+}
 
 #endif //NDIS6_MINIPORT

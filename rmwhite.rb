@@ -63,14 +63,13 @@ def rmwhite_directory(dir, patterns)
 end
 
 if((str_file = ARGV[0].to_s) == "")
-  print "error: syntax rmwhite <file>\n"
-  exit -1
+  str_file = "."
 else
   str_file = ARGV[0].to_s
 end
 
 # File patterns that will be cleared from white spaces
-FILE_PATTERNS = ["*.txt", "*.rc", "*.c", "*.h", "*.cpp", "*/"]
+FILE_PATTERNS = ["*.txt", "*.rc", "*.c", "*.h", "*.cpp", "*.vbs", "*/"]
 
 if(not File.exist?(str_file))
   print "error: file doesn't exits\n"

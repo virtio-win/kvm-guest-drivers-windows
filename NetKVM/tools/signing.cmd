@@ -7,10 +7,11 @@
 set SIGNCERT=/f tools\NetKVMTemporaryCert.pfx /p password
 set _OSMASK_=
 if exist %BUILDROOT%\bin\SelfSign\signability.exe set USESIGNABILITY=old
-if "%1"=="signVista" goto signVista%USESIGNABILITY%
-if "%1"=="signXP" goto signXP%USESIGNABILITY%
-if "%1"=="sign2K" goto sign2K%USESIGNABILITY%
-if "%1"=="signWin7" goto signWin7%USESIGNABILITY%
+if /i "%1"=="signVista" goto signVista%USESIGNABILITY%
+if /i "%1"=="signXP" goto signXP%USESIGNABILITY%
+if /i "%1"=="sign2K" goto sign2K%USESIGNABILITY%
+if /i "%1"=="signWin7" goto signWin7%USESIGNABILITY%
+if /i "%1"=="signWin8" goto signWin8
 echo unsupported parameter %1
 goto :eof
 :create
@@ -19,6 +20,7 @@ rem set _CERTSTORE_=NetKVMTemporaryCertStore
 rem certmgr -del -all -s %_CERTSTORE_%
 rem Makecert -r -pe -ss %_CERTSTORE_% -n "CN=NetKVMTemporaryCert" NetKVMTemporaryCert.cer
 goto :eof
+
 :signXP
 shift
 if /i "%1"=="x86" set _OSMASK_=XP_X86,Server2003_X86
@@ -42,6 +44,15 @@ if /i "%1"=="amd64" set _OSMASK_=Vista_X64,Server2008_X64,7_X64,Server2008R2_X64
 if /i "%1"=="x64" set _OSMASK_=Vista_X64,Server2008_X64,7_X64,Server2008R2_X64
 call :dosign %1 %2 %3 
 goto :eof
+
+:signWin8
+shift
+if /i "%1"=="x86" set _OSMASK_=8_X86
+if /i "%1"=="amd64" set _OSMASK_=8_X64,Server8_X64
+if /i "%1"=="x64" set _OSMASK_=8_X64,Server8_X64
+call :dosign %1 %2 %3 
+goto :eof
+
 
 :sign2K
 shift
