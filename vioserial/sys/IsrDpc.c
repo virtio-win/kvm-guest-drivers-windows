@@ -67,9 +67,8 @@ VIOSerialInterruptDpc(
            }
            if (!port->GuestConnected)
            {
-              VIOSerialDiscardPortData(port);
+              VIOSerialDiscardPortDataLocked(port);
            }
-           WdfSpinLockRelease(port->InBufLock);
 
            if (port->InBuf)
            {
@@ -84,7 +83,7 @@ VIOSerialInterruptDpc(
                     if (NT_SUCCESS(status))
                     {
                        port->PendingReadRequest = NULL;
-                       information = (ULONG)VIOSerialFillReadBuf(port, systemBuffer, Length);
+                       information = (ULONG)VIOSerialFillReadBufLocked(port, systemBuffer, Length);
                        WdfRequestCompleteWithInformation(request, STATUS_SUCCESS, information);
                     }
                  }
@@ -94,6 +93,7 @@ VIOSerialInterruptDpc(
                  }
               }
            }
+           WdfSpinLockRelease(port->InBufLock);
         }
     }
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
