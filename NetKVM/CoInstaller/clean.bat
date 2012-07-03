@@ -1,19 +1,22 @@
-del BuildLog.htm
+@echo off
+goto start
+:rmdir
+if exist "%~1" rmdir "%~1" /s /q
+goto :eof
 
-rmdir /S /Q objfre_wlh_x86
-rmdir /S /Q objfre_wnet_amd64
-rmdir /S /Q objfre_w2k_x86
-rmdir /S /Q objfre_wxp_x86
-rmdir /S /Q objfre_wlh_amd64
-rmdir /S /Q objfre_win7_amd64
-rmdir /S /Q objfre_win7_x86
+:rmfiles
+if "%~1"=="" goto :eof
+if exist "%~1" del "%~1"
+shift
+goto rmfiles
 
-rmdir /S /Q "Debug unicode"
-rmdir /S /Q "Release unicode"
-rmdir /S /Q "Debug MBCS"
-rmdir /S /Q "Release MBCS"
-rmdir /S /Q x64
+:start
 
-del /F *.log *.wrn *.err *.aps
+for /d %%d in  (objfre*) do call :rmdir %%d
+call :rmdir "Debug unicode"
+call :rmdir "Release unicode"
+call :rmdir "Debug MBCS"
+call :rmdir "Release MBCS"
+call :rmdir x64
+call :rmfiles BuildLog.htm makefile
 
-del makefile

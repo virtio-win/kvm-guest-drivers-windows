@@ -156,6 +156,7 @@ static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
 	VirtIODeviceReset(&pContext->IODevice);
 	DPrintf(0, ("[%s] Done", __FUNCTION__));
 	/* reset all the features in the device */
+	pContext->ulCurrentVlansFilterSet = 0;
 	WriteVirtIODeviceRegister(pContext->IODevice.addr + VIRTIO_PCI_GUEST_FEATURES, 0);
 #ifdef VIRTIO_RESET_VERIFY
 	if (1)
@@ -328,7 +329,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			if (!pContext->bDoSupportPriority)
 				pContext->ulPriorityVlanSetting = 0;
 			// if Vlan not supported
-			if (~pContext->ulPriorityVlanSetting & 2)
+			if (!IsVlanSupported(pContext))
 				pContext->VlanId = 0;
 			if (1)
 			{
@@ -490,7 +491,8 @@ static void PrintStatistics(PARANDIS_ADAPTER *pContext)
 		pContext->Statistics.ifHCInMulticastPkts +
 		pContext->Statistics.ifHCInUcastPkts;
 
-	DPrintf(0, ("[Diag!] RX buffers at VIRTIO %d of %d",
+	DPrintf(0, ("[Diag!%X] RX buffers at VIRTIO %d of %d",
+		pContext->CurrentMacAddress[5],
 		pContext->NetNofReceiveBuffers,
 		pContext->NetMaxReceiveBuffers));
 	DPrintf(0, ("[Diag!] TX desc available %d/%d, buf %d/min. %d",
@@ -2496,14 +2498,50 @@ static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)
 		&uCast, sizeof(uCast), &pContext->MulticastData, sizeof(pContext->MulticastData));
 }
 
-VOID ParaNdis_DeviceFiltersUpdateVlanId(PARANDIS_ADAPTER *pContext, ULONG oldVlan)
+static VOID SetSingleVlanFilter(PARANDIS_ADAPTER *pContext, ULONG vlanId, BOOLEAN bOn)
+{
+	u16 val = vlanId & 0xfff;
+	UCHAR cmd = bOn ? VIRTIO_NET_CTRL_VLAN_ADD : VIRTIO_NET_CTRL_VLAN_DEL;
+	SendControlMessage(pContext, VIRTIO_NET_CTRL_VLAN, cmd, &val, sizeof(val), NULL, 0);
+}
+
+static VOID SetAllVlanFilters(PARANDIS_ADAPTER *pContext, BOOLEAN bOn)
+{
+	ULONG i;
+	for (i = 0; i <= MAX_VLAN_ID; ++i)
+		SetSingleVlanFilter(pContext, i, bOn);
+}
+
+/*
+	possible values of filter set (pContext->ulCurrentVlansFilterSet):
+	0 - all disabled
+	1..4095 - one selected enabled
+	4096 - all enabled
+	Note that only 0th vlan can't be enabled
+*/
+VOID ParaNdis_DeviceFiltersUpdateVlanId(PARANDIS_ADAPTER *pContext)
 {
 	if (pContext->bHasHardwareFilters)
 	{
-		u16 val = (u16)(oldVlan & 0xfff);
-		SendControlMessage(pContext, VIRTIO_NET_CTRL_VLAN, VIRTIO_NET_CTRL_VLAN_DEL, &val, sizeof(val), NULL, 0);
-		val = (u16)(pContext->VlanId & 0xfff);
-		SendControlMessage(pContext, VIRTIO_NET_CTRL_VLAN, VIRTIO_NET_CTRL_VLAN_ADD, &val, sizeof(val), NULL, 0);
+		ULONG newFilterSet;
+		if (IsVlanSupported(pContext))
+			newFilterSet = pContext->VlanId ? pContext->VlanId : (MAX_VLAN_ID + 1);
+		else
+			newFilterSet = IsPrioritySupported(pContext) ? (MAX_VLAN_ID + 1) : 0;
+		if (newFilterSet != pContext->ulCurrentVlansFilterSet)
+		{
+			if (pContext->ulCurrentVlansFilterSet > MAX_VLAN_ID)
+				SetAllVlanFilters(pContext, FALSE);
+			else if (pContext->ulCurrentVlansFilterSet)
+				SetSingleVlanFilter(pContext, pContext->ulCurrentVlansFilterSet, FALSE);
+
+			pContext->ulCurrentVlansFilterSet = newFilterSet;
+
+			if (pContext->ulCurrentVlansFilterSet > MAX_VLAN_ID)
+				SetAllVlanFilters(pContext, TRUE);
+			else if (pContext->ulCurrentVlansFilterSet)
+				SetSingleVlanFilter(pContext, pContext->ulCurrentVlansFilterSet, TRUE);
+		}
 	}
 }
 
@@ -2513,7 +2551,7 @@ VOID ParaNdis_UpdateDeviceFilters(PARANDIS_ADAPTER *pContext)
 	{
 		ParaNdis_DeviceFiltersUpdateRxMode(pContext);
 		ParaNdis_DeviceFiltersUpdateAddresses(pContext);
-		ParaNdis_DeviceFiltersUpdateVlanId(pContext, pContext->VlanId);
+		ParaNdis_DeviceFiltersUpdateVlanId(pContext);
 	}
 }
 

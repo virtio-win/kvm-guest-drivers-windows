@@ -323,6 +323,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	BOOLEAN					bUsingMSIX;
 	BOOLEAN					bUseIndirect;
 	BOOLEAN					bHasHardwareFilters;
+	ULONG					ulCurrentVlansFilterSet;
 	tMulticastData			MulticastData;
 	UINT					uNumberOfHandledRXPacketsInDPC;
 	NDIS_DEVICE_POWER_STATE powerState;
@@ -481,6 +482,16 @@ BOOLEAN FORCEINLINE IsTimeToReleaseTx(PARANDIS_ADAPTER *pContext)
 BOOLEAN FORCEINLINE IsValidVlanId(PARANDIS_ADAPTER *pContext, ULONG VlanID)
 {
 	return pContext->VlanId == 0 || pContext->VlanId == VlanID;
+}
+
+BOOLEAN FORCEINLINE IsVlanSupported(PARANDIS_ADAPTER *pContext)
+{
+	return pContext->ulPriorityVlanSetting & 2;
+}
+
+BOOLEAN FORCEINLINE IsPrioritySupported(PARANDIS_ADAPTER *pContext)
+{
+	return pContext->ulPriorityVlanSetting & 1;
 }
 
 typedef struct _tagIONetDescriptor {
@@ -736,7 +747,7 @@ VOID ParaNdis_UpdateDeviceFilters(
 	PARANDIS_ADAPTER *pContext);
 
 VOID ParaNdis_DeviceFiltersUpdateVlanId(
-	PARANDIS_ADAPTER *pContext, ULONG oldVlan);
+	PARANDIS_ADAPTER *pContext);
 
 #endif //-OFFLOAD_UNIT_TEST
 

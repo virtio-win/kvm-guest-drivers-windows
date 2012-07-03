@@ -321,9 +321,9 @@ static NDIS_STATUS ParaNdis6_Initialize(
 					NDIS_MAC_OPTION_COPY_LOOKAHEAD_DATA |		/* NIC has no internal loopback support */
 					NDIS_MAC_OPTION_TRANSFERS_NOT_PEND  |		/* Must be set since using  NdisMIndicateReceivePacket */
 					NDIS_MAC_OPTION_NO_LOOPBACK;				/* NIC has no internal loopback support */
-		if (pContext->ulPriorityVlanSetting & 1)
+		if (IsPrioritySupported(pContext))
 			miniportAttributes.GeneralAttributes.MacOptions |= NDIS_MAC_OPTION_8021P_PRIORITY;
-		if (pContext->ulPriorityVlanSetting & 1)
+		if (IsVlanSupported(pContext))
 			miniportAttributes.GeneralAttributes.MacOptions |= NDIS_MAC_OPTION_8021Q_VLAN;
 		miniportAttributes.GeneralAttributes.SupportedPacketFilters = PARANDIS_PACKET_FILTERS;
 		miniportAttributes.GeneralAttributes.MaxMulticastListSize = PARANDIS_MULTICAST_LIST_SIZE;

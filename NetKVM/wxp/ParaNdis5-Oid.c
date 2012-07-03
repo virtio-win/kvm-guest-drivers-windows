@@ -401,7 +401,7 @@ static BOOLEAN IsValidPcs(	PARANDIS_ADAPTER *pContext, NDIS_TASK_TCP_IP_CHECKSUM
 	bInvalid |= pcs->V4Receive.TcpChecksum && !f.fRxTCPChecksum;
 	bInvalid |= pcs->V4Receive.TcpOptionsSupported && !f.fRxTCPOptions;
 	bInvalid |= pcs->V4Receive.UdpChecksum && !f.fRxUDPChecksum;
-	
+
 	bInvalid |= pcs->V4Transmit.IpChecksum && !f.fTxIPChecksum;
 	bInvalid |= pcs->V4Transmit.IpOptionsSupported && !f.fTxIPOptions;
 	bInvalid |= pcs->V4Transmit.TcpChecksum && !f.fTxTCPChecksum;

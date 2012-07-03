@@ -468,9 +468,9 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 			PUCHAR pPriority = (PUCHAR)dataBuffer + ETH_PRIORITY_HEADER_OFFSET;
 			if (ETH_HAS_PRIO_HEADER(dataBuffer))
 			{
-				if (pContext->ulPriorityVlanSetting & 1)
+				if (IsPrioritySupported(pContext))
 					qInfo.TagHeader.UserPriority = (pPriority[2] & 0xE0) >> 5;
-				if (pContext->ulPriorityVlanSetting & 2)
+				if (IsVlanSupported(pContext))
 				{
 					qInfo.TagHeader.VlanId = (((USHORT)(pPriority[2] & 0x0F)) << 8) | pPriority[3];
 					if (pContext->VlanId && pContext->VlanId != qInfo.TagHeader.VlanId)
@@ -1072,10 +1072,10 @@ static __inline tSendEntry * PrepareSendEntry(PARANDIS_ADAPTER *pContext, PNDIS_
 		else if (qInfo.Value)
 		{
 			// ignore priority, if configured
-			if (~pContext->ulPriorityVlanSetting & 1)
+			if (!IsPrioritySupported(pContext))
 				qInfo.TagHeader.UserPriority = 0;
 			// ignore VlanId, if specified
-			if (~pContext->ulPriorityVlanSetting & 2)
+			if (!IsVlanSupported(pContext))
 				qInfo.TagHeader.VlanId = 0;
 			SetPriorityData(pse->PriorityData, qInfo.TagHeader.UserPriority, qInfo.TagHeader.VlanId);
 			DPrintf(1, ("[%s] Populated priority tag %p", __FUNCTION__, qInfo.Value));

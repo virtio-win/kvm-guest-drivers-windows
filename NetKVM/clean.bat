@@ -1,42 +1,30 @@
-rmdir /S /Q win7
+@echo off
+goto start
+:rmdir
+if exist "%~1" rmdir "%~1" /s /q
+goto :eof
 
-rmdir /S /Q wlh\objfre_wlh_x86
-rmdir /S /Q wlh\objfre_wlh_amd64
-rmdir /S /Q wlh\objfre_win7_amd64
-rmdir /S /Q wlh\objfre_win7_x86
-del wlh\makefile
-del wlh\BuildLog.htm
+:rmfiles
+if "%~1"=="" goto :eof
+if exist "%~1" del /f "%~1"
+shift
+goto rmfiles
 
-rmdir /S /Q wxp\objfre_wnet_amd64
-rmdir /S /Q wxp\objfre_w2k_x86
-rmdir /S /Q wxp\objfre_wxp_x86
-del wxp\makefile
-del wxp\BuildLog.htm
+:start
+for /d %%d in  (VirtIO\fre*) do call :rmdir %%d
+for /d %%d in  (VirtIO\obj*) do call :rmdir %%d
+for /d %%d in  (wlh\objfre*) do call :rmdir %%d
+for /d %%d in  (wxp\objfre*) do call :rmdir %%d
+for /d %%d in  (common\objfre*) do call :rmdir %%d
+call :rmdir Install
+call :rmdir win7
+call :rmdir wlh\objfre_wlh_x86
+call :rmdir wlh\objfre_wlh_amd64
+call :rmdir wlh\objfre_win7_amd64
+call :rmdir wlh\objfre_win7_x86
+call :rmfiles dirs wlh\makefile wlh\BuildLog.htm wxp\makefile wxp\BuildLog.htm common\makefile VirtIO\makefile
+for %%f in (VirtIO\*.c VirtIO\*.h *.log *.wrn) do call :rmfiles %%f
 
-rmdir /S /Q virtio\objfre_wlh_x86
-rmdir /S /Q virtio\objfre_wnet_amd64
-rmdir /S /Q virtio\objfre_w2k_x86
-rmdir /S /Q virtio\objfre_wxp_x86
-rmdir /S /Q virtio\objfre_wlh_amd64
-rmdir /S /Q virtio\objfre_win7_amd64
-rmdir /S /Q virtio\objfre_win7_x86
-
-rmdir /S /Q common\objfre_wlh_x86
-rmdir /S /Q common\objfre_wnet_amd64
-rmdir /S /Q common\objfre_w2k_x86
-rmdir /S /Q common\objfre_wxp_x86
-rmdir /S /Q common\objfre_wlh_amd64
-rmdir /S /Q common\objfre_win7_amd64
-rmdir /S /Q common\objfre_win7_x86
-del common\makefile
-
-rmdir /S /Q Install
-
-del VirtIO\*.c VirtIO\*.h VirtIO\makefile
-for /d %%d in  (VirtIO\fre*) do rmdir /S /Q %%d
-
-del /F *.log *.wrn
-del dirs
 
 pushd CoInstaller
 call clean.bat
