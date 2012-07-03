@@ -1,3 +1,10 @@
+#if defined(Win8) || defined(win8) || defined(WIN8) || defined(Win7) || defined(win7) || defined(WIN7)
+#define _LsoV2IPv4
+#define _UDPChecksumOffloadIPv4
+#define _TCPChecksumOffloadIPv4
+#endif
+
+
 #if defined(INCLUDE_PARAMS)
 HKR, Ndi\Params\ConnectRate,		ParamDesc,	0,			%ConnectRate%
 HKR, Ndi\Params\ConnectRate,		Default,	0,			DEFAULT_CONNECT_RATE
@@ -114,6 +121,35 @@ HKR, Ndi\Params\OffLoad.RxCS\enum,	"2",		0,			%TCPUDP%
 HKR, Ndi\Params\OffLoad.RxCS\enum,	"1",		0,			%TCP%
 HKR, Ndi\Params\OffLoad.RxCS\enum,	"0",		0,			%Disable%
 
+#if defined(_LsoV2IPv4)
+HKR, Ndi\Params\*LsoV2IPv4,					ParamDesc,	0,		%Std.LsoV2IPv4%
+HKR, Ndi\Params\*LsoV2IPv4,					Default,	0,		"1"
+HKR, Ndi\Params\*LsoV2IPv4,					type,		0,		"enum"
+HKR, Ndi\Params\*LsoV2IPv4\enum,			"1",		0,		%Enable%
+HKR, Ndi\Params\*LsoV2IPv4\enum,			"0",		0,		%Disable%
+#endif
+
+#if defined(_UDPChecksumOffloadIPv4)
+HKR, Ndi\Params\*UDPChecksumOffloadIPv4,	ParamDesc,	0,		%Std.UDPChecksumOffloadIPv4%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv4,	Default,	0,		"3"
+HKR, Ndi\Params\*UDPChecksumOffloadIPv4,	type,		0,		"enum"
+HKR, Ndi\Params\*UDPChecksumOffloadIPv4\enum,	"3",	0,		%TxRx%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv4\enum,	"2",	0,		%Rx%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv4\enum,	"1",	0,		%Tx%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv4\enum,	"0",	0,		%Disable%
+#endif
+
+#if defined(_TCPChecksumOffloadIPv4)
+HKR, Ndi\Params\*TCPChecksumOffloadIPv4,	ParamDesc,	0,		%Std.TCPChecksumOffloadIPv4%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv4,	Default,	0,		"3"
+HKR, Ndi\Params\*TCPChecksumOffloadIPv4,	type,		0,		"enum"
+HKR, Ndi\Params\*TCPChecksumOffloadIPv4\enum,	"3",	0,		%TxRx%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv4\enum,	"2",	0,		%Rx%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv4\enum,	"1",	0,		%Tx%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv4\enum,	"0",	0,		%Disable%
+#endif
+
+
 #if defined(INCLUDE_TEST_PARAMS)
 HKR, Ndi\params\ConnectTimer,		ParamDesc,  0,          %ConnectAfter%
 HKR, Ndi\params\ConnectTimer,       type,       0,          "long"
@@ -181,44 +217,58 @@ HKR, Ndi\Params\UseSwTxChecksum\enum,	"1",	0,			%Enable%
 HKR, Ndi\Params\UseSwTxChecksum\enum,	"0",	0,			%Disable%
 #endif
 
+
+
 #endif
 
 #if defined(INCLUDE_STRINGS)
-NetworkAddress						= "Assign MAC"
-ConnectRate							= "Init.ConnectionRate(Mb)"
-Priority							= "Init.Do802.1PQ"
-MergeableBuf						= "Init.UseMergedBuffers"
-PublishIndices						= "Init.UsePublishEvents"
-MTU									= "Init.MTUSize"
-Indirect							= "Init.IndirectTx"
-TxCapacity							= "Init.MaxTxBuffers"
-RxCapacity							= "Init.MaxRxBuffers"
-Offload.TxChecksum					= "Offload.Tx.Checksum"
-Offload.TxLSO						= "Offload.Tx.LSO"
-Offload.RxCS						= "Offload.Rx.Checksum"
-EnableLogging						= "Logging.Enable"
-DebugLevel							= "Logging.Level"
-LogStatistics						= "Logging.Statistics(sec)"
+NetworkAddress = "Assign MAC"
+ConnectRate = "Init.ConnectionRate(Mb)"
+Priority = "Init.Do802.1PQ"
+MergeableBuf = "Init.UseMergedBuffers"
+PublishIndices = "Init.UsePublishEvents"
+MTU = "Init.MTUSize"
+Indirect = "Init.IndirectTx"
+TxCapacity = "Init.MaxTxBuffers"
+RxCapacity = "Init.MaxRxBuffers"
+Offload.TxChecksum = "Offload.Tx.Checksum"
+Offload.TxLSO = "Offload.Tx.LSO"
+Offload.RxCS = "Offload.Rx.Checksum"
+EnableLogging = "Logging.Enable"
+DebugLevel = "Logging.Level"
+LogStatistics = "Logging.Statistics(sec)"
 
 #if defined(INCLUDE_TEST_PARAMS)
-ConnectAfter						= "TestOnly.DelayConnect(ms)"
-DPCCheck							= "TestOnly.DPCChecking"
-Gather								= "TestOnly.Scatter-Gather"
-InterruptRecovery					= "TestOnly.InterruptRecovery"
-PacketFilter						= "TestOnly.HwPacketFilter"
-BatchReceive						= "TestOnly.BatchReceive"
-Promiscuous							= "TestOnly.Promiscuous"
-IPPacketsCheck						= "TestOnly.AnalyzeIPPackets"
-NumberOfHandledRXPackersInDPC		= "TestOnly.RXThrottle"
-UseSwTxChecksum						= "TestOnly.UseSwTxChecksum"
-Tx									= "Tx";
-Rx									= "Rx";
-TxRx								= "Tx/Rx";
+ConnectAfter = "TestOnly.DelayConnect(ms)"
+DPCCheck = "TestOnly.DPCChecking"
+Gather = "TestOnly.Scatter-Gather"
+InterruptRecovery = "TestOnly.InterruptRecovery"
+PacketFilter = "TestOnly.HwPacketFilter"
+BatchReceive = "TestOnly.BatchReceive"
+Promiscuous = "TestOnly.Promiscuous"
+IPPacketsCheck = "TestOnly.AnalyzeIPPackets"
+NumberOfHandledRXPackersInDPC = "TestOnly.RXThrottle"
+UseSwTxChecksum = "TestOnly.UseSwTxChecksum"
+Tx = "Tx Enabled";
+Rx = "Rx Enabled";
+TxRx = "Rx & Tx Enabled";
 #endif
 
-Disable = "Disable"
-Enable  = "Enable"
-Enable* = "Enable*"
+#if defined(_LsoV2IPv4)
+Std.LsoV2IPv4 = "Large Send Offload V2 (IPv4)"
+#endif
+
+#if defined(_UDPChecksumOffloadIPv4)
+Std.UDPChecksumOffloadIPv4 = "UDP Checksum Offload (IPv4)"
+#endif
+
+#if defined(_TCPChecksumOffloadIPv4)
+Std.TCPChecksumOffloadIPv4 = "TCP Checksum Offload (IPv4)"
+#endif
+
+Disable = "Disabled"
+Enable  = "Enabled"
+Enable* = "Enabled*"
 String_16 = "16"
 String_32 = "32"
 String_64 = "64"

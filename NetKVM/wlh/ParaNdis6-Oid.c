@@ -785,7 +785,6 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
 	NDIS_STATUS status = NDIS_STATUS_SUCCESS;
 	tOffloadSettingsFlags fSupported;
 	tOffloadSettingsFlags fPresent = pContext->Offload.flags;
-	NDIS_OFFLOAD PreviousOffload = pContext->ReportedOffloadConfiguration;
 	tOffloadSettingsFlags *pf = &fPresent;
 
 	ParaNdis_ResetOffloadSettings(pContext, &fSupported, NULL);
@@ -850,8 +849,8 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
 		ParaNdis6_FillOffloadConfiguration(pContext);
 		if (pOid)
 		{
-			//DumpOffloadStructure(&pContext->ReportedOffloadConfiguration, "Updated");
-			SendStatusIndication(pContext, &PreviousOffload, pOid);
+			DumpOffloadStructure(&pContext->ReportedOffloadConfiguration, "Updated");
+			SendStatusIndication(pContext, &pContext->ReportedOffloadConfiguration, pOid);
 		}
 	}
 	return status;
@@ -884,7 +883,7 @@ void ParaNdis6_ApplyOffloadPersistentConfiguration(PARANDIS_ADAPTER *pContext)
 	pContext->InitialOffloadParameters.UDPIPv4Checksum++;
 	pContext->InitialOffloadParameters.UDPIPv6Checksum++;
 
-	DPrintf(0, ("[%s] V4: IPCS=%d,TCPCS=%d,UDPCS=%d V6: TCPCS=%d,UDPCS=%d",
+	DPrintf(0, ("[%s] Initial V4: IPCS=%d,TCPCS=%d,UDPCS=%d V6: TCPCS=%d,UDPCS=%d",
 				__FUNCTION__,
 				pContext->InitialOffloadParameters.IPv4Checksum,
 				pContext->InitialOffloadParameters.TCPIPv4Checksum,
