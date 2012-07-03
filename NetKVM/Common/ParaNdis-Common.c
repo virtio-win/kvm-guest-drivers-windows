@@ -1684,7 +1684,9 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 	}
 	if(result.error == cpeOK)
 	{
+		unsigned short addPriorityLen = (pParams->flags & pcrPriorityTag) ? ETH_PRIORITY_HEADER_SIZE : 0;
 		pBuffersDescriptor = (pIONetDescriptor)RemoveHeadList(&pContext->NetFreeSendBuffers);
+
 		NdisZeroMemory(pBuffersDescriptor->HeaderInfo.Virtual, pBuffersDescriptor->HeaderInfo.size);
 		sg[0].physAddr = pBuffersDescriptor->HeaderInfo.Physical;
 		sg[0].ulSize = pBuffersDescriptor->HeaderInfo.size;
@@ -1695,12 +1697,11 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 			pBuffersDescriptor->DataInfo.size,
 			pParams->ReferenceValue,
 			FALSE);
-		sg[1].ulSize = result.size = CopierResult.size;
+		result.size = CopierResult.size;
 		// did NDIS ask us to compute CS?
 		if ((flags & (pcrTcpChecksum | pcrUdpChecksum )) != 0)
 		{
 			// we asked
-			unsigned short addPriorityLen = (pParams->flags & pcrPriorityTag) ? ETH_PRIORITY_HEADER_SIZE : 0;
 			tOffloadSettingsFlags f = pContext->Offload.flags;
 			PVOID ipPacket = RtlOffsetToPointer(
 				pBuffersDescriptor->DataInfo.Virtual, pContext->Offload.ipHeaderOffset + addPriorityLen);
@@ -1748,12 +1749,12 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 		if (result.size)
 		{
 			eInspectedPacketType packetType;
-			if (result.size < ETH_MIN_PACKET_SIZE)
+			if (result.size < (ETH_MIN_PACKET_SIZE + (ULONG)addPriorityLen))
 			{
-				ULONG padding = ETH_MIN_PACKET_SIZE - result.size;
+				ULONG padding = ETH_MIN_PACKET_SIZE + addPriorityLen - result.size;
 				PVOID dest  = (PUCHAR)pBuffersDescriptor->DataInfo.Virtual + result.size;
 				NdisZeroMemory(dest, padding);
-				result.size = ETH_MIN_PACKET_SIZE;
+				result.size += padding;
 			}
 			packetType = QueryPacketType(pBuffersDescriptor->DataInfo.Virtual);
 			DebugDumpPacket("sending", pBuffersDescriptor->DataInfo.Virtual, 3);
@@ -1762,6 +1763,7 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 			pContext->nofFreeHardwareBuffers -= nRequiredHardwareBuffers;
 			if (pContext->minFreeHardwareBuffers > pContext->nofFreeHardwareBuffers)
 				pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
+			sg[1].ulSize = result.size;
 			if (0 > pContext->NetSendQueue->vq_ops->add_buf(
 				pContext->NetSendQueue,
 				sg,
