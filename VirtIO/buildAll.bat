@@ -14,7 +14,7 @@ if "%DDKVER%"=="6000" set X64ENV=amd64
 if not "%1"=="" goto parameters_here
 echo no parameters specified, rebuild all
 call clean.bat
-call "%0" Win7 Win7_64 Vista Vista64 Win2003 Win200364 XP
+call "%0" Win8 Win8_64 Win7 Win7_64 Vista Vista64 Win2003 Win200364 XP
 goto :eof
 :parameters_here
 
@@ -94,5 +94,31 @@ call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WXP
 popd
 build -cZg
 endlocal
+goto continue
 
+:Win8
+call :BuildWin8 "Win8 Release|Win32" buildfre_win8_x86.log
+goto continue
+
+:Win8_64
+call :BuildWin8 "Win8 Release|x64" buildfre_win8_amd64.log
+goto continue
+
+
+:BuildWin8
+reg query "HKLM\Software\Microsoft\Windows Kits\WDK" /v WDKProductVersion > nul
+if %ERRORLEVEL% EQU 0 goto wdk8ok
+echo ERROR building Win8 drivers: Win8 WDK is not installed
+cd .
 goto :eof
+:wdk8ok
+reg query HKLM\Software\Microsoft\VisualStudio\11.0 /v InstallDir > nul
+if %ERRORLEVEL% EQU 0 goto ws11ok
+echo ERROR building Win8 drivers: VS11 is not installed
+cd .
+goto :eof
+:ws11ok
+cscript ..\tools\callVisuaStudio.vbs 11 VirtioLib-win8.vcxproj /Rebuild "%~1" /Out %2
+if %ERRORLEVEL% GEQ 1 echo VS11Build of %1 FAILED
+goto :eof
+
