@@ -739,7 +739,7 @@ VOID ParaNdis_PacketMapper(
 	{
 		UINT i, lengthGet = 0, lengthPut = 0, nCompleteBuffersToSkip = 0, nBytesSkipInFirstBuffer = 0;
 		if (pSendEntry->flags & (SEND_ENTRY_TSO_USED | SEND_ENTRY_TCP_CS | SEND_ENTRY_UDP_CS))
-			lengthGet = pContext->Offload.ipHeaderOffset + MAX_IP_HEADER_SIZE + sizeof(TCPHeader);
+			lengthGet = pContext->Offload.ipHeaderOffset + MAX_IPV4_HEADER_SIZE + sizeof(TCPHeader);
 		if (PriorityDataLong && !lengthGet)
 			lengthGet = ETH_HEADER_SIZE;
 		if (lengthGet)

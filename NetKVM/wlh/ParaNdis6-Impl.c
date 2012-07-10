@@ -1218,7 +1218,8 @@ VOID ParaNdis_PacketMapper(
 						virtio_net_hdr_basic *pheader = pDesc->HeaderInfo.Virtual;
 						unsigned short addPriorityLen = PriorityDataLong ? ETH_PRIORITY_HEADER_SIZE : 0;
 						pheader->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
-						pheader->gso_type = VIRTIO_NET_HDR_GSO_TCPV4;
+						pheader->gso_type = packetReview.ipStatus == ppresIPV4 ?
+							VIRTIO_NET_HDR_GSO_TCPV4 : VIRTIO_NET_HDR_GSO_TCPV6;
 						pheader->hdr_len  = (USHORT)(packetReview.XxpIpHeaderSize + pContext->Offload.ipHeaderOffset) + addPriorityLen;
 						pheader->gso_size = (USHORT)pble->mss;
 						pheader->csum_start = (USHORT)pble->tcpHeaderOffset + addPriorityLen;
@@ -1375,6 +1376,7 @@ static BOOLEAN PrepareSingleNBL(
 	BOOLEAN bOK = TRUE;
 	BOOLEAN bExpectedLSO = FALSE;
 	ULONG maxDataLength = 0;
+	ULONG ulFailParameter = 0;
 	const char *pFailReason = "Unknown";
 	NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO lso;
 	NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO checksumReq;
@@ -1454,11 +1456,7 @@ static BOOLEAN PrepareSingleNBL(
 	if (bOK)
 	{
 		if (maxDataLength > pContext->MaxPacketSize.nMaxFullSizeOS) bExpectedLSO = TRUE;
-		if (maxDataLength > 0xFFF0)
-		{
-			bOK = FALSE;
-			pFailReason = "too large packet";
-		}
+		checksumReq.Value = NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo);
 		lso.Value = NET_BUFFER_LIST_INFO(pNBL, TcpLargeSendNetBufferListInfo);
 		if (lso.Value)
 		{
@@ -1471,13 +1469,6 @@ static BOOLEAN PrepareSingleNBL(
 				pFailReason = "wrong LSO transmit type";
 			}
 
-			if (lso.LsoV2Transmit.Type == NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE &&
-				lso.LsoV2Transmit.IPVersion != NDIS_TCP_LARGE_SEND_OFFLOAD_IPv4)
-			{
-				bOK = FALSE;
-				pFailReason = "IPV6 LSO not supported";
-			}
-
 			if (bExpectedLSO &&
 				(!lso.LsoV2Transmit.MSS ||
 				!lso.LsoV2Transmit.TcpHeaderOffset
@@ -1486,15 +1477,33 @@ static BOOLEAN PrepareSingleNBL(
 				bOK = FALSE;
 				pFailReason = "wrong LSO parameters";
 			}
+
+			if (maxDataLength > (PARANDIS_MAX_LSO_SIZE + (ULONG)pble->tcpHeaderOffset) + MAX_TCP_HEADER_SIZE)
+			{
+				bOK = FALSE;
+				pFailReason = "too large packet";
+				ulFailParameter = maxDataLength;
+			}
+
 			if (!lso.LsoV2Transmit.MSS != !lso.LsoV1Transmit.TcpHeaderOffset)
 			{
 				bOK = FALSE;
 				pFailReason = "inconsistent LSO parameters";
 			}
-			if (!pContext->Offload.flags.fTxLso || !pContext->bOffloadEnabled)
+
+			if ((!pContext->Offload.flags.fTxLso || !pContext->bOffloadv4Enabled) &&
+				lso.LsoV2Transmit.IPVersion == NDIS_TCP_LARGE_SEND_OFFLOAD_IPv4)
 			{
 				bOK = FALSE;
-				pFailReason = "LSO request when LSO is off";
+				pFailReason = "LSO request when LSOv4 is off";
+			}
+
+			if (lso.LsoV2Transmit.Type == NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE &&
+				lso.LsoV2Transmit.IPVersion == NDIS_TCP_LARGE_SEND_OFFLOAD_IPv6 &&
+				(!pContext->Offload.flags.fTxLsov6 || !pContext->bOffloadv6Enabled))
+			{
+				bOK = FALSE;
+				pFailReason = "LSO request when LSOv6 is off";
 			}
 
 			// do it for both LsoV1 and LsoV2
@@ -1504,15 +1513,14 @@ static BOOLEAN PrepareSingleNBL(
 				NET_BUFFER_LIST_INFO(pNBL, TcpLargeSendNetBufferListInfo) = lso.Value;
 			}
 		}
-		else
+		else if (checksumReq.Transmit.IsIPv4)
 		{
 			// ignore unexpected CS requests while this passes WHQL
 			BOOLEAN bFailUnexpected = FALSE;
-			checksumReq.Value = NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo);
 			pble->tcpHeaderOffset = (USHORT)checksumReq.Transmit.TcpHeaderOffset;
 			if (checksumReq.Transmit.TcpChecksum)
 			{
-				if(pContext->Offload.flags.fTxTCPChecksum && pContext->bOffloadEnabled)
+				if(pContext->Offload.flags.fTxTCPChecksum && pContext->bOffloadv4Enabled)
 				{
 					pble->flags |= NBLEFLAGS_TCP_CS;
 				}
@@ -1531,7 +1539,7 @@ static BOOLEAN PrepareSingleNBL(
 			}
 			else if (checksumReq.Transmit.UdpChecksum)
 			{
-				if (pContext->Offload.flags.fTxUDPChecksum && pContext->bOffloadEnabled)
+				if (pContext->Offload.flags.fTxUDPChecksum && pContext->bOffloadv4Enabled)
 				{
 					pble->flags |= NBLEFLAGS_UDP_CS;
 				}
@@ -1549,10 +1557,54 @@ static BOOLEAN PrepareSingleNBL(
 				}
 			}
 		}
+		else if (checksumReq.Transmit.IsIPv6)
+		{
+			// ignore unexpected CS requests while this passes WHQL
+			BOOLEAN bFailUnexpected = FALSE;
+			pble->tcpHeaderOffset = (USHORT)checksumReq.Transmit.TcpHeaderOffset;
+			if (checksumReq.Transmit.TcpChecksum)
+			{
+				if(pContext->Offload.flags.fTxTCPv6Checksum && pContext->bOffloadv6Enabled)
+				{
+					pble->flags |= NBLEFLAGS_TCP_CS;
+				}
+				else
+				{
+					if (bFailUnexpected)
+					{
+						bOK = FALSE;
+						pFailReason = "TCPv6 CS request when it is not supported";
+					}
+					else
+					{
+						DPrintf(0, ("[%s] TCPv6 CS request when it is not supported", __FUNCTION__));
+					}
+				}
+			}
+			else if (checksumReq.Transmit.UdpChecksum)
+			{
+				if (pContext->Offload.flags.fTxUDPv6Checksum && pContext->bOffloadv6Enabled)
+				{
+					pble->flags |= NBLEFLAGS_UDP_CS;
+				}
+				else
+				{
+					if (bFailUnexpected)
+					{
+						bOK = FALSE;
+						pFailReason = "UDPv6 CS request when it is not supported";
+					}
+					else
+					{
+						DPrintf(0, ("[%s] UDPv6 CS request when it is not supported", __FUNCTION__));
+					}
+				}
+			}
+		}
 	}
 	if (!bOK)
 	{
-		DPrintf(0, ("[%s] Failed to prepare NBL %p due to %s", __FUNCTION__, pNBL, pFailReason));
+		DPrintf(0, ("[%s] Failed to prepare NBL %p due to %s(info %d)", __FUNCTION__, pNBL, pFailReason, ulFailParameter));
 	}
 	else
 	{

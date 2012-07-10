@@ -105,7 +105,8 @@
 #define PARANDIS_MAXIMUM_TRANSMIT_SPEED		PARANDIS_FORMAL_LINK_SPEED
 #define PARANDIS_MAXIMUM_RECEIVE_SPEED		PARANDIS_FORMAL_LINK_SPEED
 #define PARANDIS_MIN_LSO_SEGMENTS			2
-#define PARANDIS_MAX_LSO_SIZE				0xF000
+// reported
+#define PARANDIS_MAX_LSO_SIZE				0xF800
 
 #define PARANDIS_UNLIMITED_PACKETS_TO_INDICATE	(~0ul)
 
@@ -162,6 +163,13 @@ typedef enum _tagOffloadSettingsBit
 	osbT4RxIPChecksum = 0x400,
 	osbT4RxIPOptionsChecksum = 0x800,
 	osbT4RxUDPChecksum = 0x1000,
+	osbT6TcpChecksum = 0x2000,
+	osbT6UdpChecksum = 0x4000,
+	osbT6TcpOptionsChecksum = 0x8000,
+	osbT6IpExtChecksum = 0x10000,
+	osbT6Lso = 0x20000,
+	osbT6LsoIpExt = 0x40000,
+	osbT6LsoTcpOptions = 0x80000,
 }tOffloadSettingsBit;
 
 typedef struct _tagOffloadSettingsFlags
@@ -179,6 +187,17 @@ typedef struct _tagOffloadSettingsFlags
 	ULONG fRxUDPChecksum	: 1;
 	ULONG fRxTCPOptions		: 1;
 	ULONG fRxIPOptions		: 1;
+	ULONG fTxTCPv6Checksum	: 1;
+	ULONG fTxUDPv6Checksum	: 1;
+	ULONG fTxTCPv6Options	: 1;
+	ULONG fTxIPv6Options	: 1;
+	ULONG fTxLsov6			: 1;
+	ULONG fTxLsov6IP		: 1;
+	ULONG fTxLsov6TCP		: 1;
+	ULONG fRxTCPv6Checksum	: 1;
+	ULONG fRxUDPv6Checksum	: 1;
+	ULONG fRxTCPv6Options	: 1;
+	ULONG fRxIPv6Options	: 1;
 }tOffloadSettingsFlags;
 
 
@@ -430,7 +449,8 @@ typedef struct _tagPARANDIS_ADAPTER
 	ULONG						ulIrqReceived;
 	NDIS_OFFLOAD				ReportedOffloadCapabilities;
 	NDIS_OFFLOAD				ReportedOffloadConfiguration;
-	BOOLEAN						bOffloadEnabled;
+	BOOLEAN						bOffloadv4Enabled;
+	BOOLEAN						bOffloadv6Enabled;
 #else
 // Vista -
 	NDIS_MINIPORT_INTERRUPT		Interrupt;
@@ -756,7 +776,7 @@ typedef enum _tagppResult
 	ppresNotTested = 0,
 	ppresNotIP     = 1,
 	ppresIPV4      = 2,
-	ppresIPforFuture = 3,
+	ppresIPV6      = 3,
 	ppresIPTooShort  = 1,
 	ppresPCSOK       = 1,
 	ppresCSOK        = 2,
@@ -771,7 +791,7 @@ typedef enum _tagppResult
 typedef union _tagTcpIpPacketParsingResult
 {
 	struct {
-		/* 0 - not tested, 1 - not IP, 2 - IPV4, 3 -n/a */
+		/* 0 - not tested, 1 - not IP, 2 - IPV4, 3 - IPV6 */
 		ULONG ipStatus			: 2;
 		/* 0 - not tested, 1 - n/a, 2 - CS, 3 - bad */
 		ULONG ipCheckSum		: 2;

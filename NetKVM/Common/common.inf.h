@@ -1,7 +1,30 @@
-#if defined(Win8) || defined(win8) || defined(WIN8) || defined(Win7) || defined(win7) || defined(WIN7)
+#if defined(Win8) || defined(win8) || defined(WIN8)
+#define TARGETOS 62
+#elif defined(Win7) || defined(win7) || defined(WIN7)
+#define TARGETOS 61
+#elif defined(Vista) || defined(vista) || defined(VISTA)
+#define TARGETOS 60
+#elif defined(XP) || defined(xp)
+#define TARGETOS 51
+#else
+#define TARGETOS 50
+#endif
+
+#if TARGETOS >= 61 
 #define _LsoV2IPv4
+#define _LsoV2IPv6
 #define _UDPChecksumOffloadIPv4
 #define _TCPChecksumOffloadIPv4
+#define _UDPChecksumOffloadIPv6
+#define _TCPChecksumOffloadIPv6
+#endif
+
+#if TARGETOS == 51
+#define DEFAULT_CONNECT_RATE	"1001"
+#define DEFAULT_TX_CHECKSUM		"0" 
+#else
+#define DEFAULT_CONNECT_RATE	"10000"
+#define DEFAULT_TX_CHECKSUM		"27"
 #endif
 
 
@@ -101,24 +124,26 @@ HKR, Ndi\Params\Indirect\enum,		"1",		0,			%Enable%
 HKR, Ndi\Params\Indirect\enum,		"2",		0,			%Enable*%
 
 HKR, Ndi\Params\OffLoad.TxChecksum,	ParamDesc,	0,			%OffLoad.TxChecksum%
-HKR, Ndi\Params\OffLoad.TxChecksum,	Default,	0,			DEFAULT_TX_CHECKSUM ;"0" or "2"
+HKR, Ndi\Params\OffLoad.TxChecksum,	Default,	0,			DEFAULT_TX_CHECKSUM
 HKR, Ndi\Params\OffLoad.TxChecksum,	type,		0,			"enum"
-HKR, Ndi\Params\OffLoad.TxChecksum\enum,	"2",		0,	%TCPUDP%
-HKR, Ndi\Params\OffLoad.TxChecksum\enum,	"1",		0,	%TCP%
+HKR, Ndi\Params\OffLoad.TxChecksum\enum,	"27",		0,	%TCPUDPAll%
+HKR, Ndi\Params\OffLoad.TxChecksum\enum,	"3",		0,	%TCPUDPv4%
+HKR, Ndi\Params\OffLoad.TxChecksum\enum,	"1",		0,	%TCPv4%
 HKR, Ndi\Params\OffLoad.TxChecksum\enum,	"0",		0,	%Disable%
 
 HKR, Ndi\Params\OffLoad.TxLSO,		ParamDesc,	0,			%OffLoad.TxLSO%
-HKR, Ndi\Params\OffLoad.TxLSO,		Default,	0,			"1"
+HKR, Ndi\Params\OffLoad.TxLSO,		Default,	0,			"2"
 HKR, Ndi\Params\OffLoad.TxLSO,		type,		0,			"enum"
-HKR, Ndi\Params\OffLoad.TxLSO\enum,	"1",		0,			%Enable%
+HKR, Ndi\Params\OffLoad.TxLSO\enum,	"2",		0,			%Maximal%
+HKR, Ndi\Params\OffLoad.TxLSO\enum,	"1",		0,			%IPv4%
 HKR, Ndi\Params\OffLoad.TxLSO\enum,	"0",		0,			%Disable%
 
 HKR, Ndi\Params\OffLoad.RxCS,		ParamDesc,	0,			%OffLoad.RxCS%
 HKR, Ndi\Params\OffLoad.RxCS,		Default,	0,			"0"
 HKR, Ndi\Params\OffLoad.RxCS,		type,		0,			"enum"
 HKR, Ndi\Params\OffLoad.RxCS\enum,	"3",		0,			%All%
-HKR, Ndi\Params\OffLoad.RxCS\enum,	"2",		0,			%TCPUDP%
-HKR, Ndi\Params\OffLoad.RxCS\enum,	"1",		0,			%TCP%
+HKR, Ndi\Params\OffLoad.RxCS\enum,	"2",		0,			%TCPUDPv4%
+HKR, Ndi\Params\OffLoad.RxCS\enum,	"1",		0,			%TCPv4%
 HKR, Ndi\Params\OffLoad.RxCS\enum,	"0",		0,			%Disable%
 
 #if defined(_LsoV2IPv4)
@@ -127,6 +152,14 @@ HKR, Ndi\Params\*LsoV2IPv4,					Default,	0,		"1"
 HKR, Ndi\Params\*LsoV2IPv4,					type,		0,		"enum"
 HKR, Ndi\Params\*LsoV2IPv4\enum,			"1",		0,		%Enable%
 HKR, Ndi\Params\*LsoV2IPv4\enum,			"0",		0,		%Disable%
+#endif
+
+#if defined(_LsoV2IPv6)
+HKR, Ndi\Params\*LsoV2IPv6,					ParamDesc,	0,		%Std.LsoV2IPv6%
+HKR, Ndi\Params\*LsoV2IPv6,					Default,	0,		"1"
+HKR, Ndi\Params\*LsoV2IPv6,					type,		0,		"enum"
+HKR, Ndi\Params\*LsoV2IPv6\enum,			"1",		0,		%Enable%
+HKR, Ndi\Params\*LsoV2IPv6\enum,			"0",		0,		%Disable%
 #endif
 
 #if defined(_UDPChecksumOffloadIPv4)
@@ -149,6 +182,26 @@ HKR, Ndi\Params\*TCPChecksumOffloadIPv4\enum,	"1",	0,		%Tx%
 HKR, Ndi\Params\*TCPChecksumOffloadIPv4\enum,	"0",	0,		%Disable%
 #endif
 
+
+#if defined(_TCPChecksumOffloadIPv6)
+HKR, Ndi\Params\*TCPChecksumOffloadIPv6,	ParamDesc,	0,		%Std.TCPChecksumOffloadIPv6%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv6,	Default,	0,		"3"
+HKR, Ndi\Params\*TCPChecksumOffloadIPv6,	type,		0,		"enum"
+HKR, Ndi\Params\*TCPChecksumOffloadIPv6\enum,	"3",	0,		%TxRx%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv6\enum,	"2",	0,		%Rx%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv6\enum,	"1",	0,		%Tx%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv6\enum,	"0",	0,		%Disable%
+#endif
+
+#if defined(_UDPChecksumOffloadIPv6)
+HKR, Ndi\Params\*UDPChecksumOffloadIPv6,	ParamDesc,	0,		%Std.UDPChecksumOffloadIPv6%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv6,	Default,	0,		"3"
+HKR, Ndi\Params\*UDPChecksumOffloadIPv6,	type,		0,		"enum"
+HKR, Ndi\Params\*UDPChecksumOffloadIPv6\enum,	"3",	0,		%TxRx%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv6\enum,	"2",	0,		%Rx%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv6\enum,	"1",	0,		%Tx%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv6\enum,	"0",	0,		%Disable%
+#endif
 
 #if defined(INCLUDE_TEST_PARAMS)
 HKR, Ndi\params\ConnectTimer,		ParamDesc,  0,          %ConnectAfter%
@@ -258,12 +311,24 @@ TxRx = "Rx & Tx Enabled";
 Std.LsoV2IPv4 = "Large Send Offload V2 (IPv4)"
 #endif
 
+#if defined(_LsoV2IPv6)
+Std.LsoV2IPv6 = "Large Send Offload V2 (IPv6)"
+#endif
+
 #if defined(_UDPChecksumOffloadIPv4)
 Std.UDPChecksumOffloadIPv4 = "UDP Checksum Offload (IPv4)"
 #endif
 
 #if defined(_TCPChecksumOffloadIPv4)
 Std.TCPChecksumOffloadIPv4 = "TCP Checksum Offload (IPv4)"
+#endif
+
+#if defined(_UDPChecksumOffloadIPv6)
+Std.UDPChecksumOffloadIPv6 = "UDP Checksum Offload (IPv6)"
+#endif
+
+#if defined(_TCPChecksumOffloadIPv6)
+Std.TCPChecksumOffloadIPv6 = "TCP Checksum Offload (IPv6)"
 #endif
 
 Disable = "Disabled"
@@ -284,7 +349,10 @@ Priority_Vlan = "All"
 100M = "100M"
 1G   = "1G"
 10G = "10G"
-TCP = "TCP"
-TCPUDP = "TCP/UDP"
+TCPv4 = "TCP(v4)"
+TCPUDPv4 = "TCP/UDP(v4)"
+TCPUDPAll = "TCP/UDP(v4,v6)"
 All = "All"
+IPv4 = "IPv4"
+Maximal = "Maximal"
 #endif

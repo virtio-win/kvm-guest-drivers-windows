@@ -562,22 +562,28 @@ static void FillOffloadStructure(NDIS_OFFLOAD *po, tOffloadSettingsFlags f)
 	po->Header.Type = NDIS_OBJECT_TYPE_OFFLOAD;
 	po->Header.Revision = NDIS_OFFLOAD_REVISION_1;
 	po->Header.Size = NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_1;
-#if NDIS_SUPPORT_NDIS61
-	po->Header.Revision = NDIS_OFFLOAD_REVISION_2;
-	po->Header.Size = NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_2;
-#endif
 	pcso->IPv4Transmit.Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
 	pcso->IPv4Transmit.IpChecksum = f.fTxIPChecksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
 	pcso->IPv4Transmit.IpOptionsSupported = f.fTxIPOptions ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
 	pcso->IPv4Transmit.TcpChecksum = f.fTxTCPChecksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
 	pcso->IPv4Transmit.TcpOptionsSupported = f.fTxTCPOptions ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
 	pcso->IPv4Transmit.UdpChecksum = f.fTxUDPChecksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
+	
+	pcso->IPv6Transmit.Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
+	pcso->IPv6Transmit.IpExtensionHeadersSupported = f.fTxIPv6Options ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
+	pcso->IPv6Transmit.TcpChecksum = f.fTxTCPv6Checksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
+	pcso->IPv6Transmit.TcpOptionsSupported = f.fTxTCPv6Options ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
+	pcso->IPv6Transmit.UdpChecksum = f.fTxUDPv6Checksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
+
 	pcso->IPv4Receive.Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
 	pcso->IPv4Receive.IpChecksum = f.fRxIPChecksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
 	pcso->IPv4Receive.IpOptionsSupported = f.fRxIPOptions ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
 	pcso->IPv4Receive.TcpChecksum = f.fRxTCPChecksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
 	pcso->IPv4Receive.TcpOptionsSupported = f.fRxTCPOptions ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
 	pcso->IPv4Receive.UdpChecksum = f.fRxUDPChecksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
+	
+	pcso->IPv6Receive.Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
+
 	plso->IPv4.Encapsulation = f.fTxLso ? NDIS_ENCAPSULATION_IEEE_802_3 : NDIS_ENCAPSULATION_NOT_SUPPORTED;
 	plso->IPv4.TcpOptions = (f.fTxLsoTCP && f.fTxLso) ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
 	plso->IPv4.IpOptions  = (f.fTxLsoIP  && f.fTxLso) ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
@@ -586,7 +592,12 @@ static void FillOffloadStructure(NDIS_OFFLOAD *po, tOffloadSettingsFlags f)
 	plso2->IPv4.Encapsulation = plso->IPv4.Encapsulation;
 	plso2->IPv4.MaxOffLoadSize = plso->IPv4.MaxOffLoadSize;
 	plso2->IPv4.MinSegmentCount = plso->IPv4.MinSegmentCount;
-	plso2->IPv6.Encapsulation = NDIS_ENCAPSULATION_NOT_SUPPORTED;
+	
+	plso2->IPv6.Encapsulation = f.fTxLsov6 ? NDIS_ENCAPSULATION_IEEE_802_3 : NDIS_ENCAPSULATION_NOT_SUPPORTED;
+	plso2->IPv6.IpExtensionHeadersSupported = f.fTxLsov6IP ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
+	plso2->IPv6.MaxOffLoadSize = f.fTxLsov6 ? PARANDIS_MAX_LSO_SIZE : 0;
+	plso2->IPv6.MinSegmentCount = f.fTxLsov6 ? PARANDIS_MIN_LSO_SEGMENTS : 0;
+	plso2->IPv6.TcpOptionsSupported = f.fTxLsov6TCP ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
 }
 
 void ParaNdis6_FillOffloadConfiguration(PARANDIS_ADAPTER *pContext)
@@ -603,6 +614,7 @@ void ParaNdis6_FillOffloadCapabilities(PARANDIS_ADAPTER *pContext)
 	FillOffloadStructure(po, f);
 }
 
+#if 0
 static const NDIS_TCP_IP_CHECKSUM_OFFLOAD CheckSumAllOff =
 {
 	{
@@ -642,38 +654,17 @@ static const NDIS_TCP_IP_CHECKSUM_OFFLOAD CheckSumAllOff =
 };
 
 
-static void BuildOffloadChangeReport(
-	const NDIS_OFFLOAD *Previous,
-	const NDIS_OFFLOAD *Current,
-	NDIS_OFFLOAD *diff)
+static void BuildOffloadStatusReport(
+	const NDIS_TCP_IP_CHECKSUM_OFFLOAD *Current,
+	NDIS_TCP_IP_CHECKSUM_OFFLOAD *update)
 {
-/*
-    struct
-    {
-        ULONG       Encapsulation;
-        ULONG       IpOptionsSupported:2;
-        ULONG       TcpOptionsSupported:2;
-        ULONG       TcpChecksum:2;
-        ULONG       UdpChecksum:2;
-        ULONG       IpChecksum:2;
-    } IPv4Transmit;
-
-    struct
-    {
-        ULONG       Encapsulation;
-        ULONG       IpOptionsSupported:2;
-        ULONG       TcpOptionsSupported:2;
-        ULONG       TcpChecksum:2;
-        ULONG       UdpChecksum:2;
-        ULONG       IpChecksum:2;
-    } IPv4Receive;
-*/
-
+	// see
 #if 1
-#define SYNC_STRUCT(_struct, field) if (Current->Checksum.##_struct.##field == NDIS_OFFLOAD_SUPPORTED) \
-	diff->Checksum.##_struct.##field = NDIS_OFFLOAD_SET_ON
+#define SYNC_STRUCT(_struct, field) update->##_struct.##field = (Current->##_struct.##field == NDIS_OFFLOAD_SUPPORTED) ? NDIS_OFFLOAD_SET_ON : NDIS_OFFLOAD_SET_OFF
 #define SYNC_FIELD_TX4(field) SYNC_STRUCT(IPv4Transmit,field)
 #define SYNC_FIELD_RX4(field) SYNC_STRUCT(IPv4Receive,field)
+#define SYNC_FIELD_TX6(field) SYNC_STRUCT(IPv6Transmit,field)
+#define SYNC_FIELD_RX6(field) SYNC_STRUCT(IPv6Receive,field)
 
 	SYNC_FIELD_TX4(IpChecksum);
 	SYNC_FIELD_TX4(IpOptionsSupported);
@@ -685,17 +676,52 @@ static void BuildOffloadChangeReport(
 	SYNC_FIELD_RX4(TcpChecksum);
 	SYNC_FIELD_RX4(TcpOptionsSupported);
 	SYNC_FIELD_RX4(UdpChecksum);
+	SYNC_FIELD_TX6(IpExtensionHeadersSupported);
+	SYNC_FIELD_TX6(TcpOptionsSupported);
+	SYNC_FIELD_TX6(TcpChecksum);
+	SYNC_FIELD_TX6(UdpChecksum);
+	SYNC_FIELD_RX6(IpExtensionHeadersSupported);
+	SYNC_FIELD_RX6(TcpOptionsSupported);
+	SYNC_FIELD_RX6(TcpChecksum);
+	SYNC_FIELD_RX6(UdpChecksum);
 #else
 	RtlCopyMemory(&diff->Checksum, &CheckSumAllOff, sizeof(diff->Checksum));
 #endif
 }
+#endif //0
 
-static void SendStatusIndication(PARANDIS_ADAPTER *pContext, NDIS_OFFLOAD *Prev, tOidDesc *pOid)
+static const char *MakeTxRxString(ULONG bTx, ULONG bRx)
+{
+	const char *const titles[] = {"None", "Tx", "Rx", "TxRx"};
+	ULONG index = !!bTx + 2 * !!bRx;
+	return titles[index];
+}
+
+static const char *MakeOffloadParameterString(UCHAR val)
+{
+	switch(val)
+	{
+		case NDIS_OFFLOAD_PARAMETERS_NO_CHANGE:
+			return "NoChange";
+		case NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED:
+			return "None";
+		case NDIS_OFFLOAD_PARAMETERS_TX_ENABLED_RX_DISABLED:
+			return "Tx";
+		case NDIS_OFFLOAD_PARAMETERS_RX_ENABLED_TX_DISABLED:
+			return "Rx";
+		case NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED:
+			return "TxRx";
+		default:
+			break;
+	}
+	return "OUT OF RANGE";
+}
+
+static void SendStatusIndication(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
 	NDIS_STATUS_INDICATION	indication;
 	PNDIS_OID_REQUEST pRequest = NULL;
 	NDIS_OFFLOAD offload = pContext->ReportedOffloadConfiguration;
-	BuildOffloadChangeReport(Prev, &pContext->ReportedOffloadConfiguration, &offload);
 	NdisZeroMemory(&indication, sizeof(indication));
 	indication.Header.Type = NDIS_OBJECT_TYPE_STATUS_INDICATION;
 	indication.Header.Revision = NDIS_STATUS_INDICATION_REVISION_1;
@@ -712,7 +738,7 @@ static void SendStatusIndication(PARANDIS_ADAPTER *pContext, NDIS_OFFLOAD *Prev,
 		indication.RequestId = pRequest->RequestId;
 		indication.DestinationHandle = pRequest->RequestHandle;
 	}
-	DPrintf(0, ("Indicating offload change:"));
+	DPrintf(0, ("Indicating offload change"));
 	NdisMIndicateStatusEx(pContext->MiniportHandle , &indication);
 }
 
@@ -727,8 +753,10 @@ static ULONG SetOffloadField(
 {
 	if (!*pbFailed)
 	{
-		DPrintf(0, ("[%s] >>>> %s %s: current=%d TxSupported=%d RxSupported=%d TxRxValue=%d",
-				__FUNCTION__, name, isTx? "TX" : "RX", current, isSupportedTx, isSupportedRx, TxRxValue));
+		DPrintf(0, ("[%s] IN %s %s: current=%d Supported %s Requested %s",
+				__FUNCTION__, name, isTx? "TX" : "RX", current,
+				MakeTxRxString(isSupportedTx, isSupportedRx),
+				MakeOffloadParameterString(TxRxValue)));
 
 		switch(TxRxValue)
 		{
@@ -773,7 +801,7 @@ static ULONG SetOffloadField(
 			break;
 		}
 
-		DPrintf(0, ("[%s] <<<<%s %s: new=%d %s", __FUNCTION__, name, isTx? "TX" : "RX", current, *pbFailed ? "Failed" : "Pass"));
+		DPrintf(0, ("[%s] OUT %s %s: new=%d (%saccepted)", __FUNCTION__, name, isTx? "TX" : "RX", current, *pbFailed ? "NOT " : ""));
 	}
 	return current;
 }
@@ -787,35 +815,62 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
 	tOffloadSettingsFlags fPresent = pContext->Offload.flags;
 	tOffloadSettingsFlags *pf = &fPresent;
 
+	DPrintf(0, ("[%s] Requested: V4:IPCS=%s,TCPCS=%s,UDPCS=%s V6:TCPCS=%s,UDPCS=%s",
+				__FUNCTION__,
+				MakeOffloadParameterString(pop->IPv4Checksum),
+				MakeOffloadParameterString(pop->TCPIPv4Checksum),
+				MakeOffloadParameterString(pop->UDPIPv4Checksum),
+				MakeOffloadParameterString(pop->TCPIPv6Checksum),
+				MakeOffloadParameterString(pop->UDPIPv6Checksum)));
+
 	ParaNdis_ResetOffloadSettings(pContext, &fSupported, NULL);
 	pf->fTxIPChecksum = SetOffloadField("TxIPChecksum", TRUE,
 		pf->fTxIPChecksum, fSupported.fTxIPChecksum,
 		fSupported.fRxIPChecksum, pop->IPv4Checksum, &bFailed);
-	pf->fTxIPOptions = pf->fTxIPChecksum;
+	pf->fTxIPOptions = pf->fTxIPChecksum && fSupported.fTxIPOptions;
 	pf->fTxTCPChecksum = SetOffloadField("TxTCPChecksum", TRUE,
 		pf->fTxTCPChecksum, fSupported.fTxTCPChecksum,
 		fSupported.fRxTCPChecksum, pop->TCPIPv4Checksum, &bFailed);
-	pf->fTxTCPOptions = pf->fTxTCPChecksum;
+	pf->fTxTCPOptions = pf->fTxTCPChecksum && fSupported.fTxTCPOptions;
 	pf->fTxUDPChecksum = SetOffloadField("TxUDPChecksum", TRUE,
 		pf->fTxUDPChecksum, fSupported.fTxUDPChecksum,
 		fSupported.fRxUDPChecksum, pop->UDPIPv4Checksum, &bFailed);
 	pf->fRxIPChecksum = SetOffloadField("RxIPChecksum", FALSE,
 		pf->fRxIPChecksum, fSupported.fTxIPChecksum,
 		fSupported.fRxIPChecksum, pop->IPv4Checksum, &bFailed);
-	pf->fRxIPOptions = pf->fRxIPChecksum;
+	pf->fRxIPOptions = pf->fRxIPChecksum && fSupported.fRxIPOptions;
 	pf->fRxTCPChecksum = SetOffloadField("RxTCPChecksum", FALSE,
 		pf->fRxTCPChecksum, fSupported.fTxTCPChecksum,
 		fSupported.fRxTCPChecksum, pop->TCPIPv4Checksum, &bFailed);
-	pf->fRxTCPOptions = pf->fRxTCPChecksum;
+	pf->fRxTCPOptions = pf->fRxTCPChecksum && fSupported.fRxTCPOptions;
 	pf->fRxUDPChecksum = SetOffloadField("RxUDPChecksum", FALSE,
 		pf->fRxUDPChecksum, fSupported.fTxUDPChecksum,
 		fSupported.fRxUDPChecksum, pop->UDPIPv4Checksum, &bFailed);
+	pf->fTxTCPv6Checksum = SetOffloadField("TxTCPv6Checksum", TRUE,
+		pf->fTxTCPv6Checksum, fSupported.fTxTCPv6Checksum,
+		fSupported.fRxTCPv6Checksum, pop->TCPIPv6Checksum, &bFailed);
+	pf->fTxTCPv6Options = pf->fTxTCPv6Checksum && fSupported.fTxTCPv6Options;
+	pf->fTxIPv6Options = pf->fTxTCPv6Checksum && fSupported.fTxIPv6Options;
+	pf->fTxUDPv6Checksum = SetOffloadField("TxUDPv6Checksum", TRUE,
+		pf->fTxUDPv6Checksum, fSupported.fTxUDPv6Checksum,
+		fSupported.fRxUDPv6Checksum, pop->UDPIPv6Checksum, &bFailed);
+	pf->fRxTCPv6Checksum = SetOffloadField("RxTCPv6Checksum", FALSE,
+		pf->fRxTCPv6Checksum, fSupported.fTxTCPv6Checksum,
+		fSupported.fRxTCPv6Checksum, pop->TCPIPv6Checksum, &bFailed);
+	pf->fRxIPv6Options = pf->fRxTCPv6Checksum && fSupported.fRxIPv6Options;
+	pf->fRxTCPv6Options = pf->fRxTCPv6Checksum && fSupported.fRxTCPv6Options;
+	pf->fRxUDPv6Checksum = SetOffloadField("RxUDPv6Checksum", FALSE,
+		pf->fRxUDPv6Checksum, fSupported.fTxUDPv6Checksum,
+		fSupported.fRxUDPv6Checksum, pop->UDPIPv6Checksum, &bFailed);
 
-	DPrintf(0, ("[%s] Checksum request %s: TCP:Tx=%d,Rx=%d, UDP:Tx=%d,Rx=%d, IPCS:Tx=%d,Rx=%d",
-		__FUNCTION__, bFailed ? "Failed" : "Pass",
-		pf->fTxTCPChecksum, pf->fRxTCPChecksum,
-		pf->fTxUDPChecksum, pf->fRxUDPChecksum,
-		pf->fTxIPChecksum, pf->fRxIPChecksum));
+
+	DPrintf(0, ("[%s] Result: TCPv4:%s,UDPv4:%s,IPCS:%s TCPv6:%s,UDPv6:%s", __FUNCTION__,
+		MakeTxRxString(pf->fTxTCPChecksum, pf->fRxTCPChecksum),
+		MakeTxRxString(pf->fTxUDPChecksum, pf->fRxUDPChecksum),
+		MakeTxRxString(pf->fTxIPChecksum, pf->fRxIPChecksum),
+		MakeTxRxString(pf->fTxTCPv6Checksum, pf->fRxTCPv6Checksum),
+		MakeTxRxString(pf->fTxUDPv6Checksum, pf->fRxUDPv6Checksum))
+		);
 
 	if (NDIS_OFFLOAD_PARAMETERS_LSOV1_DISABLED == pop->LsoV1 || NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED == pop->LsoV2IPv4)
 	{
@@ -827,30 +882,44 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
 		else
 			bFailed = TRUE;
 	}
+
+	if (NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED == pop->LsoV2IPv6)
+	{
+		pf->fTxLsov6 = 0;
+	}
+	else if (NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED  == pop->LsoV2IPv6)
+	{
+		if (fSupported.fTxLsov6) pf->fTxLsov6 = 1;
+		else
+			bFailed = TRUE;
+	}
+
+	pf->fTxLsoIP = pf->fTxLso && fSupported.fTxLsoIP;
+	pf->fTxLsoTCP = pf->fTxLso && fSupported.fTxLsoTCP;
+
 	if ((NDIS_OFFLOAD_PARAMETERS_LSOV1_DISABLED == pop->LsoV1 && NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED  == pop->LsoV2IPv4) ||
 		(NDIS_OFFLOAD_PARAMETERS_LSOV1_ENABLED == pop->LsoV1 && NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED  == pop->LsoV2IPv4))
 	{
 		bFailed = TRUE;
 	}
-	if (pop->LsoV2IPv6 == NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED)
-	{
-		bFailed = TRUE;
-	}
 
-	DPrintf(0, ("[%s] LSO request %s: LSO=%d", __FUNCTION__, bFailed ? "Failed" : "Pass", pf->fTxLso));
-
+	DPrintf(0, ("[%s] Result: LSO: v4 %d, v6 %d", __FUNCTION__, pf->fTxLso, pf->fTxLsov6));
+	DPrintf(0, ("[%s] Final: the request %saccepted", __FUNCTION__, bFailed ? "NOT " : ""));
 	if (bFailed && pOid)
 	{
 		status = NDIS_STATUS_INVALID_PARAMETER;
 	}
 	else
 	{
+		// at initialization time due to absense of pOid
+		// we initialize the ReportedOffloadConfiguration
+		// according to our capabilities
 		pContext->Offload.flags = fPresent;
 		ParaNdis6_FillOffloadConfiguration(pContext);
 		if (pOid)
 		{
 			DumpOffloadStructure(&pContext->ReportedOffloadConfiguration, "Updated");
-			SendStatusIndication(pContext, &pContext->ReportedOffloadConfiguration, pOid);
+			SendStatusIndication(pContext, pOid);
 		}
 	}
 	return status;
@@ -873,7 +942,9 @@ NDIS_STATUS OnSetOffloadParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 
 void ParaNdis6_ApplyOffloadPersistentConfiguration(PARANDIS_ADAPTER *pContext)
 {
-	// 0/1 =>NDIS_OFFLOAD_PARAMETERS_LSOV1_DISABLED/NDIS_OFFLOAD_PARAMETERS_LSOV1_ENABLED
+	// see NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED and below
+	// this unobvious code translates setting from registry conventions
+	// (where 0 = disable) to NDIS offload parameters (where 1 = disable)
 	pContext->InitialOffloadParameters.LsoV1++;
 	pContext->InitialOffloadParameters.LsoV2IPv4++;
 	pContext->InitialOffloadParameters.LsoV2IPv6++;
@@ -882,14 +953,6 @@ void ParaNdis6_ApplyOffloadPersistentConfiguration(PARANDIS_ADAPTER *pContext)
 	pContext->InitialOffloadParameters.TCPIPv6Checksum++;
 	pContext->InitialOffloadParameters.UDPIPv4Checksum++;
 	pContext->InitialOffloadParameters.UDPIPv6Checksum++;
-
-	DPrintf(0, ("[%s] Initial V4: IPCS=%d,TCPCS=%d,UDPCS=%d V6: TCPCS=%d,UDPCS=%d",
-				__FUNCTION__,
-				pContext->InitialOffloadParameters.IPv4Checksum,
-				pContext->InitialOffloadParameters.TCPIPv4Checksum,
-				pContext->InitialOffloadParameters.UDPIPv4Checksum,
-				pContext->InitialOffloadParameters.TCPIPv6Checksum,
-				pContext->InitialOffloadParameters.UDPIPv6Checksum));
 
 	ApplyOffloadConfiguration(pContext,&pContext->InitialOffloadParameters, NULL);
 	ParaNdis6_FillOffloadCapabilities(pContext);
@@ -922,16 +985,35 @@ NDIS_STATUS OnSetOffloadEncapsulation(PARANDIS_ADAPTER *pContext, tOidDesc *pOid
 				encaps.IPv6.EncapsulationType,
 				encaps.IPv6.HeaderSize,
 				encaps.IPv6.Enabled));
-			if (encaps.IPv4.Enabled == NDIS_OFFLOAD_SET_ON)
+
+			if (encaps.IPv4.Enabled == NDIS_OFFLOAD_SET_ON && encaps.IPv6.Enabled == NDIS_OFFLOAD_SET_ON && 
+				encaps.IPv6.HeaderSize == encaps.IPv4.HeaderSize)
 			{
 				pContext->Offload.ipHeaderOffset = encaps.IPv4.HeaderSize;
-				pContext->bOffloadEnabled = TRUE;
+				pContext->bOffloadv4Enabled = TRUE;
+				pContext->bOffloadv6Enabled = TRUE;
+				status = NDIS_STATUS_SUCCESS;
 			}
-			else if (encaps.IPv4.Enabled == NDIS_OFFLOAD_SET_OFF)
+			else if (encaps.IPv4.Enabled == NDIS_OFFLOAD_SET_OFF && encaps.IPv6.Enabled == NDIS_OFFLOAD_SET_ON)
 			{
-				pContext->bOffloadEnabled = FALSE;
+				pContext->bOffloadv4Enabled = FALSE;
+				pContext->bOffloadv6Enabled = TRUE;
+				pContext->Offload.ipHeaderOffset = encaps.IPv6.HeaderSize;
+				status = NDIS_STATUS_SUCCESS;
 			}
-			status = NDIS_STATUS_SUCCESS;
+			else if (encaps.IPv6.Enabled == NDIS_OFFLOAD_SET_OFF && encaps.IPv4.Enabled == NDIS_OFFLOAD_SET_ON)
+			{
+				pContext->bOffloadv4Enabled = TRUE;
+				pContext->bOffloadv6Enabled = FALSE;
+				pContext->Offload.ipHeaderOffset = encaps.IPv4.HeaderSize;
+				status = NDIS_STATUS_SUCCESS;
+			}
+			else if (encaps.IPv4.Enabled == NDIS_OFFLOAD_SET_OFF && encaps.IPv6.Enabled == NDIS_OFFLOAD_SET_OFF)
+			{
+				pContext->bOffloadv4Enabled = FALSE;
+				pContext->bOffloadv6Enabled = FALSE;
+				status = NDIS_STATUS_SUCCESS;
+			}
 		 }
 	}
 	return status;

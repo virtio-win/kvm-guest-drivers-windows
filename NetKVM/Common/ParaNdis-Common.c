@@ -129,8 +129,8 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "PacketFilter",	1, 0, 1},
 	{ "Gather",			1, 0, 1},
 	{ "BatchReceive",	1, 0, 1},
-	{ "Offload.TxChecksum",	0, 0, 2},
-	{ "Offload.TxLSO",	0, 0, 1},
+	{ "Offload.TxChecksum",	0, 0, 31},
+	{ "Offload.TxLSO",	0, 0, 2},
 	{ "Offload.RxCS",	0, 0, 3},
 	{ "UseSwTxChecksum", 0, 0, 1 },
 	{ "IPPacketsCheck",	0, 0, 3 },
@@ -219,12 +219,32 @@ static void	GetConfigurationEntry(NDIS_HANDLE cfg, tConfigurationEntry *pEntry)
 	NdisFreeString(name);
 }
 
-static __inline void DisableLSOPermanently(PARANDIS_ADAPTER *pContext, LPCSTR procname, LPCSTR reason)
+static void DisableLSOv4Permanently(PARANDIS_ADAPTER *pContext, LPCSTR procname, LPCSTR reason)
 {
 	if (pContext->Offload.flagsValue & osbT4Lso)
 	{
 		DPrintf(0, ("[%s] Warning: %s", procname, reason));
 		pContext->Offload.flagsValue &= ~osbT4Lso;
+		ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
+	}
+}
+
+static void DisableLSOv6Permanently(PARANDIS_ADAPTER *pContext, LPCSTR procname, LPCSTR reason)
+{
+	if (pContext->Offload.flagsValue & osbT6Lso)
+	{
+		DPrintf(0, ("[%s] Warning: %s", procname, reason));
+		pContext->Offload.flagsValue &= ~osbT6Lso;
+		ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
+	}
+}
+
+static void DisableBothLSOPermanently(PARANDIS_ADAPTER *pContext, LPCSTR procname, LPCSTR reason)
+{
+	if (pContext->Offload.flagsValue & (osbT4Lso | osbT6Lso))
+	{
+		DPrintf(0, ("[%s] Warning: %s", procname, reason));
+		pContext->Offload.flagsValue &= ~(osbT6Lso | osbT4Lso);
 		ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
 	}
 }
@@ -302,9 +322,12 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->bDoIPCheckTx = pConfiguration->IPPacketsCheck.ulValue & 1;
 			pContext->bDoIPCheckRx = pConfiguration->IPPacketsCheck.ulValue & 2;
 			pContext->Offload.flagsValue = 0;
-			if (pConfiguration->OffloadTxChecksum.ulValue) pContext->Offload.flagsValue |= osbT4TcpChecksum | osbT4TcpOptionsChecksum;
-			if (pConfiguration->OffloadTxChecksum.ulValue > 1) pContext->Offload.flagsValue |= osbT4UdpChecksum;
+			if (pConfiguration->OffloadTxChecksum.ulValue & 1) pContext->Offload.flagsValue |= osbT4TcpChecksum | osbT4TcpOptionsChecksum;
+			if (pConfiguration->OffloadTxChecksum.ulValue & 2) pContext->Offload.flagsValue |= osbT4UdpChecksum;
+			if (pConfiguration->OffloadTxChecksum.ulValue & 8) pContext->Offload.flagsValue |= osbT6TcpChecksum | osbT6TcpOptionsChecksum;
+			if (pConfiguration->OffloadTxChecksum.ulValue & 16) pContext->Offload.flagsValue |= osbT6UdpChecksum;
 			if (pConfiguration->OffloadTxLSO.ulValue) pContext->Offload.flagsValue |= osbT4Lso | osbT4LsoIp | osbT4LsoTcp;
+			if (pConfiguration->OffloadTxLSO.ulValue > 1) pContext->Offload.flagsValue |= osbT6Lso | osbT6LsoTcpOptions;
 			// RX: 1 - TCP, 2 - TCP/UDP, 3 - all
 			if (pConfiguration->OffloadRxCS.ulValue) pContext->Offload.flagsValue |= osbT4RxTCPChecksum | osbT4RxTCPOptionsChecksum;
 			if (pConfiguration->OffloadRxCS.ulValue > 1) pContext->Offload.flagsValue |= osbT4RxUDPChecksum;
@@ -313,6 +336,11 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			/* NDIS test fails sometimes fails on segments 50-60K */
 			pContext->Offload.maxPacketSize = PARANDIS_MAX_LSO_SIZE;
 			pContext->InitialOffloadParameters.IPv4Checksum = (UCHAR)pConfiguration->stdIpcsV4.ulValue;
+			// align with our capabilities to avoid initial conflict
+			if (~pContext->Offload.flagsValue & osbT4RxIPChecksum)
+				pContext->InitialOffloadParameters.IPv4Checksum &= ~2;
+			if (~pContext->Offload.flagsValue & osbT4IpChecksum)
+				pContext->InitialOffloadParameters.IPv4Checksum &= ~1;
 			pContext->InitialOffloadParameters.TCPIPv4Checksum = (UCHAR)pConfiguration->stdTcpcsV4.ulValue;
 			pContext->InitialOffloadParameters.TCPIPv6Checksum = (UCHAR)pConfiguration->stdTcpcsV6.ulValue;
 			pContext->InitialOffloadParameters.UDPIPv4Checksum = (UCHAR)pConfiguration->stdUdpcsV4.ulValue;
@@ -384,7 +412,17 @@ void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsF
 	pDest->fRxTCPChecksum = !!(*from & osbT4RxTCPChecksum);
 	pDest->fRxTCPOptions = !!(*from & osbT4RxTCPOptionsChecksum);
 	pDest->fRxUDPChecksum = !!(*from & osbT4RxUDPChecksum);
+
+	pDest->fTxTCPv6Checksum = !!(*from & osbT6TcpChecksum);
+	pDest->fTxTCPv6Options = !!(*from & osbT6TcpOptionsChecksum);
+	pDest->fTxUDPv6Checksum = !!(*from & osbT6UdpChecksum);
+	pDest->fTxIPv6Options = !!(*from & osbT6IpExtChecksum);
+
+	pDest->fTxLsov6 = !!(*from & osbT6Lso);
+	pDest->fTxLsov6IP = !!(*from & osbT6LsoIpExt);
+	pDest->fTxLsov6TCP = !!(*from & osbT6LsoTcpOptions);
 }
+
 /**********************************************************
 Enumerates adapter resources and fills the structure holding them
 Verifies that IO assigned and has correct size
@@ -706,12 +744,17 @@ NDIS_STATUS ParaNdis_InitializeContext(
 	ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
 	if (pContext->Offload.flags.fTxLso && !pContext->bUseScatterGather)
 	{
-		DisableLSOPermanently(pContext, __FUNCTION__, "SG is not active");
+		DisableBothLSOPermanently(pContext, __FUNCTION__, "SG is not active");
 	}
 	if (pContext->Offload.flags.fTxLso &&
 		!VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_HOST_TSO4))
 	{
-		DisableLSOPermanently(pContext, __FUNCTION__, "Host does not support TSO");
+		DisableLSOv4Permanently(pContext, __FUNCTION__, "Host does not support TSOv4");
+	}
+	if (pContext->Offload.flags.fTxLsov6 &&
+		!VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_HOST_TSO6))
+	{
+		DisableLSOv6Permanently(pContext, __FUNCTION__, "Host does not support TSOv6");
 	}
 	if (pContext->bUseIndirect)
 	{
@@ -1027,7 +1070,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 				pContext->maxFreeHardwareBuffers * sizeof(pContext->sgTxGatherTable[0]));
 			if (!pContext->sgTxGatherTable)
 			{
-				DisableLSOPermanently(pContext, __FUNCTION__, "Can not allocate SG table");
+				DisableBothLSOPermanently(pContext, __FUNCTION__, "Can not allocate SG table");
 			}
 			status = NDIS_STATUS_SUCCESS;
 		}
@@ -1406,7 +1449,7 @@ static ULONG FORCEINLINE QueryTcpHeaderOffset(PVOID packetData, ULONG ipHeaderOf
 		(PUCHAR)packetData + ipHeaderOffset,
 		ipPacketLength,
 		__FUNCTION__);
-	if (ppr.ipStatus == ppresIPV4 && ppr.xxpStatus == ppresXxpKnown)
+	if (ppr.xxpStatus == ppresXxpKnown)
 	{
 		res = ipHeaderOffset + ppr.ipHeaderSize;
 	}
