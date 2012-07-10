@@ -1684,7 +1684,9 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 	}
 	if(result.error == cpeOK)
 	{
+		unsigned short addPriorityLen = (pParams->flags & pcrPriorityTag) ? ETH_PRIORITY_HEADER_SIZE : 0;
 		pBuffersDescriptor = (pIONetDescriptor)RemoveHeadList(&pContext->NetFreeSendBuffers);
+
 		NdisZeroMemory(pBuffersDescriptor->HeaderInfo.Virtual, pBuffersDescriptor->HeaderInfo.size);
 		sg[0].physAddr = pBuffersDescriptor->HeaderInfo.Physical;
 		sg[0].ulSize = pBuffersDescriptor->HeaderInfo.size;
@@ -1695,12 +1697,11 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 			pBuffersDescriptor->DataInfo.size,
 			pParams->ReferenceValue,
 			FALSE);
-		sg[1].ulSize = result.size = CopierResult.size;
+		result.size = CopierResult.size;
 		// did NDIS ask us to compute CS?
 		if ((flags & (pcrTcpChecksum | pcrUdpChecksum )) != 0)
 		{
 			// we asked
-			unsigned short addPriorityLen = (pParams->flags & pcrPriorityTag) ? ETH_PRIORITY_HEADER_SIZE : 0;
 			tOffloadSettingsFlags f = pContext->Offload.flags;
 			PVOID ipPacket = RtlOffsetToPointer(
 				pBuffersDescriptor->DataInfo.Virtual, pContext->Offload.ipHeaderOffset + addPriorityLen);
@@ -1748,12 +1749,12 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 		if (result.size)
 		{
 			eInspectedPacketType packetType;
-			if (result.size < ETH_MIN_PACKET_SIZE)
+			if (result.size < (ETH_MIN_PACKET_SIZE + (ULONG)addPriorityLen))
 			{
-				ULONG padding = ETH_MIN_PACKET_SIZE - result.size;
+				ULONG padding = ETH_MIN_PACKET_SIZE + addPriorityLen - result.size;
 				PVOID dest  = (PUCHAR)pBuffersDescriptor->DataInfo.Virtual + result.size;
 				NdisZeroMemory(dest, padding);
-				result.size = ETH_MIN_PACKET_SIZE;
+				result.size += padding;
 			}
 			packetType = QueryPacketType(pBuffersDescriptor->DataInfo.Virtual);
 			DebugDumpPacket("sending", pBuffersDescriptor->DataInfo.Virtual, 3);
@@ -1762,6 +1763,7 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 			pContext->nofFreeHardwareBuffers -= nRequiredHardwareBuffers;
 			if (pContext->minFreeHardwareBuffers > pContext->nofFreeHardwareBuffers)
 				pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
+			sg[1].ulSize = result.size;
 			if (0 > pContext->NetSendQueue->vq_ops->add_buf(
 				pContext->NetSendQueue,
 				sg,
@@ -2383,15 +2385,18 @@ VOID ParaNdis_OnPnPEvent(
 		pContext->nPnpEventIndex = 0;
 }
 
-static void SendControlMessage(
+static BOOLEAN SendControlMessage(
 	PARANDIS_ADAPTER *pContext,
 	UCHAR cls,
 	UCHAR cmd,
 	PVOID buffer1,
 	ULONG size1,
 	PVOID buffer2,
-	ULONG size2)
+	ULONG size2,
+	int levelIfOK
+	)
 {
+	BOOLEAN bOK = FALSE;
 	NdisAcquireSpinLock(&pContext->ReceiveLock);
 	if (pContext->ControlData.Virtual && pContext->ControlData.size > (size1 + size2 + 16))
 	{
@@ -2453,7 +2458,8 @@ static void SendControlMessage(
 			else
 			{
 				// everything is OK
-				DPrintf(1, ("%s OK(%d.%d,buffers of %d and %d) ", __FUNCTION__, cls, cmd, size1, size2));
+				DPrintf(levelIfOK, ("%s OK(%d.%d,buffers of %d and %d) ", __FUNCTION__, cls, cmd, size1, size2));
+				bOK = TRUE;
 			}
 		}
 		else
@@ -2466,6 +2472,7 @@ static void SendControlMessage(
 		DPrintf(0, ("%s (buffer %d,%d) - ERROR: message too LARGE", __FUNCTION__, size1, size2));
 	}
 	NdisReleaseSpinLock(&pContext->ReceiveLock);
+	return bOK;
 }
 
 static VOID ParaNdis_DeviceFiltersUpdateRxMode(PARANDIS_ADAPTER *pContext)
@@ -2473,16 +2480,16 @@ static VOID ParaNdis_DeviceFiltersUpdateRxMode(PARANDIS_ADAPTER *pContext)
 	u8 val;
 	ULONG f = pContext->PacketFilter;
 	val = (f & NDIS_PACKET_TYPE_ALL_MULTICAST) ? 1 : 0;
-	SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_ALLMULTI, &val, sizeof(val), NULL, 0);
-	//SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_ALLUNI, &val, sizeof(val), NULL, 0);
+	SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_ALLMULTI, &val, sizeof(val), NULL, 0, 2);
+	//SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_ALLUNI, &val, sizeof(val), NULL, 0, 2);
 	val = (f & (NDIS_PACKET_TYPE_MULTICAST | NDIS_PACKET_TYPE_ALL_MULTICAST)) ? 0 : 1;
-	SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOMULTI, &val, sizeof(val), NULL, 0);
+	SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOMULTI, &val, sizeof(val), NULL, 0, 2);
 	val = (f & NDIS_PACKET_TYPE_DIRECTED) ? 0 : 1;
-	SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOUNI, &val, sizeof(val), NULL, 0);
+	SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOUNI, &val, sizeof(val), NULL, 0, 2);
 	val = (f & NDIS_PACKET_TYPE_BROADCAST) ? 0 : 1;
-	SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOBCAST, &val, sizeof(val), NULL, 0);
+	SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOBCAST, &val, sizeof(val), NULL, 0, 2);
 	val = (f & NDIS_PACKET_TYPE_PROMISCUOUS) ? 1 : 0;
-	SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_PROMISC, &val, sizeof(val), NULL, 0);
+	SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_PROMISC, &val, sizeof(val), NULL, 0, 2);
 }
 
 static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)
@@ -2495,21 +2502,21 @@ static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)
 	uCast.header.entries = 1;
 	NdisMoveMemory(uCast.addr, pContext->CurrentMacAddress, sizeof(uCast.addr));
 	SendControlMessage(pContext, VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_TABLE_SET,
-		&uCast, sizeof(uCast), &pContext->MulticastData, sizeof(pContext->MulticastData));
+		&uCast, sizeof(uCast), &pContext->MulticastData, sizeof(pContext->MulticastData), 2);
 }
 
-static VOID SetSingleVlanFilter(PARANDIS_ADAPTER *pContext, ULONG vlanId, BOOLEAN bOn)
+static VOID SetSingleVlanFilter(PARANDIS_ADAPTER *pContext, ULONG vlanId, BOOLEAN bOn, int levelIfOK)
 {
 	u16 val = vlanId & 0xfff;
 	UCHAR cmd = bOn ? VIRTIO_NET_CTRL_VLAN_ADD : VIRTIO_NET_CTRL_VLAN_DEL;
-	SendControlMessage(pContext, VIRTIO_NET_CTRL_VLAN, cmd, &val, sizeof(val), NULL, 0);
+	SendControlMessage(pContext, VIRTIO_NET_CTRL_VLAN, cmd, &val, sizeof(val), NULL, 0, levelIfOK);
 }
 
 static VOID SetAllVlanFilters(PARANDIS_ADAPTER *pContext, BOOLEAN bOn)
 {
 	ULONG i;
 	for (i = 0; i <= MAX_VLAN_ID; ++i)
-		SetSingleVlanFilter(pContext, i, bOn);
+		SetSingleVlanFilter(pContext, i, bOn, 7);
 }
 
 /*
@@ -2533,14 +2540,14 @@ VOID ParaNdis_DeviceFiltersUpdateVlanId(PARANDIS_ADAPTER *pContext)
 			if (pContext->ulCurrentVlansFilterSet > MAX_VLAN_ID)
 				SetAllVlanFilters(pContext, FALSE);
 			else if (pContext->ulCurrentVlansFilterSet)
-				SetSingleVlanFilter(pContext, pContext->ulCurrentVlansFilterSet, FALSE);
+				SetSingleVlanFilter(pContext, pContext->ulCurrentVlansFilterSet, FALSE, 2);
 
 			pContext->ulCurrentVlansFilterSet = newFilterSet;
 
 			if (pContext->ulCurrentVlansFilterSet > MAX_VLAN_ID)
 				SetAllVlanFilters(pContext, TRUE);
 			else if (pContext->ulCurrentVlansFilterSet)
-				SetSingleVlanFilter(pContext, pContext->ulCurrentVlansFilterSet, TRUE);
+				SetSingleVlanFilter(pContext, pContext->ulCurrentVlansFilterSet, TRUE, 2);
 		}
 	}
 }

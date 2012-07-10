@@ -99,17 +99,18 @@ Common handler of setting packet filter
 ***********************************************************/
 NDIS_STATUS ParaNdis_OnSetPacketFilter(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
+	ULONG newValue;
 	NDIS_STATUS status = ParaNdis_OidSetCopy(
 		pOid,
-		&pContext->PacketFilter,
-		sizeof(pContext->PacketFilter));
+		&newValue,
+		sizeof(newValue));
 
-	// TODO: and if not match?
-	// TODO: send to host
-	pContext->PacketFilter &= PARANDIS_PACKET_FILTERS;
+	if (newValue & ~PARANDIS_PACKET_FILTERS)
+		status = NDIS_STATUS_INVALID_DATA;
 
 	if (status == NDIS_STATUS_SUCCESS)
 	{
+		pContext->PacketFilter = newValue;
 		DPrintf(1, ("[%s] PACKET FILTER SET TO %x", __FUNCTION__, pContext->PacketFilter));
 		ParaNdis_UpdateDeviceFilters(pContext);
 	}
