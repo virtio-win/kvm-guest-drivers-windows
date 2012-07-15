@@ -27,6 +27,8 @@ Per-packet information holder
 #define SEND_ENTRY_NO_INDIRECT		0x0004
 #define SEND_ENTRY_TCP_CS			0x0008
 #define SEND_ENTRY_UDP_CS			0x0010
+#define SEND_ENTRY_IP_CS			0x0020
+
 
 
 typedef struct _tagSendEntry
@@ -738,7 +740,7 @@ VOID ParaNdis_PacketMapper(
 	if (pSGList && pSGList->NumberOfElements)
 	{
 		UINT i, lengthGet = 0, lengthPut = 0, nCompleteBuffersToSkip = 0, nBytesSkipInFirstBuffer = 0;
-		if (pSendEntry->flags & (SEND_ENTRY_TSO_USED | SEND_ENTRY_TCP_CS | SEND_ENTRY_UDP_CS))
+		if (pSendEntry->flags & (SEND_ENTRY_TSO_USED | SEND_ENTRY_TCP_CS | SEND_ENTRY_UDP_CS | SEND_ENTRY_IP_CS))
 			lengthGet = pContext->Offload.ipHeaderOffset + MAX_IPV4_HEADER_SIZE + sizeof(TCPHeader);
 		if (PriorityDataLong && !lengthGet)
 			lengthGet = ETH_HEADER_SIZE;
@@ -809,6 +811,7 @@ VOID ParaNdis_PacketMapper(
 		if (lengthPut)
 		{
 			PVOID pBuffer = pDesc->DataInfo.Virtual;
+			PVOID pIpHeader = RtlOffsetToPointer(pBuffer, pContext->Offload.ipHeaderOffset);
 			ParaNdis_PacketCopier(packet, pBuffer, lengthGet, ReferenceValue, TRUE);
 
 			if (pSendEntry->flags & SEND_ENTRY_TSO_USED)
@@ -817,7 +820,6 @@ VOID ParaNdis_PacketMapper(
 				ULONG dummyTransferSize = 0;
 				USHORT saveBuffers = pMapperResult->usBuffersMapped;
 				ULONG flags = pcrIpChecksum | pcrTcpChecksum | pcrFixIPChecksum | pcrFixPHChecksum;
-				PVOID pIpHeader = RtlOffsetToPointer(pBuffer, pContext->Offload.ipHeaderOffset);
 				pMapperResult->usBuffersMapped = 0;
 				packetReview = ParaNdis_CheckSumVerify(
 					pIpHeader,
@@ -860,6 +862,14 @@ VOID ParaNdis_PacketMapper(
 					pMapperResult->usBuffersMapped = saveBuffers;
 				}
 			}
+			else if (pSendEntry->flags & SEND_ENTRY_IP_CS)
+			{
+				ParaNdis_CheckSumVerify(
+					pIpHeader,
+					lengthGet - pContext->Offload.ipHeaderOffset,
+					pcrIpChecksum | pcrFixIPChecksum,
+					__FUNCTION__);
+			}
 
 			if (PriorityDataLong && pMapperResult->usBuffersMapped)
 			{
@@ -901,6 +911,10 @@ static void InitializeTransferParameters(tTxOperationParameters *pParams, tSendE
 		if (pEntry->flags & SEND_ENTRY_UDP_CS)
 		{
 			flags |= pcrUdpChecksum;
+		}
+		if (pEntry->flags & SEND_ENTRY_IP_CS)
+		{
+			flags |= pcrIpChecksum;
 		}
 	}
 	if (pEntry->PriorityDataLong) flags |= pcrPriorityTag;
@@ -1139,6 +1153,13 @@ static __inline tSendEntry * PrepareSendEntry(PARANDIS_ADAPTER *pContext, PNDIS_
 						pse->flags |= SEND_ENTRY_UDP_CS;
 					else
 						errorFmt = "UDP CS requested but not enabled";
+				}
+				if (csInfo.Transmit.NdisPacketIpChecksum)
+				{
+					if (pContext->Offload.flags.fTxIPChecksum)
+						pse->flags |= SEND_ENTRY_IP_CS;
+					else
+						errorFmt = "IP CS requested but not enabled";
 				}
 				if (errorFmt)
 				{

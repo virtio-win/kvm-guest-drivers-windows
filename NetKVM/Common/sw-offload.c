@@ -428,6 +428,16 @@ VerifyTcpChecksum( IPHeader *pIpHeader, ULONG len, tTcpIpPacketParsingResult kno
 				res.xxpStatus = ppresXxpIncomplete;
 			}
 		}
+		else if (res.xxpFull)
+		{
+			// we have correct PHCS and we do not need to fix anything
+			// there is a very small chance that it is also good TCP CS
+			// in such rare case we give a priority to TCP CS
+			CalculateTcpChecksumGivenPseudoCS(pTcpHeader, xxpHeaderAndPayloadLen);
+			if (saved == pTcpHeader->tcp_xsum)
+				res.xxpCheckSum = ppresCSOK;
+			pTcpHeader->tcp_xsum = saved;
+		}
 	}
 	else
 		res.ipCheckSum = ppresIPTooShort;
@@ -480,6 +490,16 @@ VerifyUdpChecksum( IPHeader *pIpHeader, ULONG len, tTcpIpPacketParsingResult kno
 			else
 				res.xxpCheckSum = ppresXxpIncomplete;
 		}
+		else if (res.xxpFull)
+		{
+			// we have correct PHCS and we do not need to fix anything
+			// there is a very small chance that it is also good UDP CS
+			// in such rare case we give a priority to UDP CS
+			CalculateUdpChecksumGivenPseudoCS(pUdpHeader, xxpHeaderAndPayloadLen);
+			if (saved == pUdpHeader->udp_xsum)
+				res.xxpCheckSum = ppresCSOK;
+			pUdpHeader->udp_xsum = saved;
+		}
 	}
 	else
 		res.ipCheckSum = ppresIPTooShort;
@@ -526,21 +546,37 @@ static __inline VOID PrintOutParsingResult(
 tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(PVOID buffer, ULONG size, ULONG flags, LPCSTR caller)
 {
 	tTcpIpPacketParsingResult res = QualifyIpPacket(buffer, size);
-	if (res.ipStatus == ppresIPV4 && (flags & pcrIpChecksum))
+	if (res.ipStatus == ppresIPV4)
 	{
-		res = VerifyIpChecksum(buffer, res, (flags & pcrFixIPChecksum) != 0);
+		if (flags & pcrIpChecksum)
+			res = VerifyIpChecksum(buffer, res, (flags & pcrFixIPChecksum) != 0);
+		if (res.xxpStatus == ppresXxpKnown
+			&& res.TcpUdp == ppresIsTCP
+			&& (flags & pcrTcpV4Checksum))
+		{
+			res = VerifyTcpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixTcpV4Checksum));
+		}
+		if (res.xxpStatus == ppresXxpKnown
+			&& res.TcpUdp == ppresIsUDP
+			&& (flags & pcrUdpV4Checksum))
+		{
+			res = VerifyUdpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixUdpV4Checksum));
+		}
 	}
-	if (res.xxpStatus == ppresXxpKnown
-		&& res.TcpUdp == ppresIsTCP
-		&& (flags & pcrTcpChecksum))
+	else if (res.ipStatus == ppresIPV6)
 	{
-		res = VerifyTcpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixXxpChecksum));
-	}
-	if (res.xxpStatus == ppresXxpKnown
-		&& res.TcpUdp == ppresIsUDP
-		&& (flags & pcrUdpChecksum))
-	{
-		res = VerifyUdpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixXxpChecksum));
+		if (res.xxpStatus == ppresXxpKnown
+			&& res.TcpUdp == ppresIsTCP
+			&& (flags & pcrTcpV6Checksum))
+		{
+			res = VerifyTcpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixTcpV6Checksum));
+		}
+		if (res.xxpStatus == ppresXxpKnown
+			&& res.TcpUdp == ppresIsUDP
+			&& (flags & pcrUdpV6Checksum))
+		{
+			res = VerifyUdpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixUdpV6Checksum));
+		}
 	}
 	PrintOutParsingResult(res, 1, caller);
 	return res;

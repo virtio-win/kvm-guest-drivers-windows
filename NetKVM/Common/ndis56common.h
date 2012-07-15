@@ -150,26 +150,30 @@ typedef struct _tagAdapterResources
 
 typedef enum _tagOffloadSettingsBit
 {
-	osbT4IpChecksum = 1,
-	osbT4TcpChecksum = 2,
-	osbT4UdpChecksum = 4,
-	osbT4TcpOptionsChecksum = 8,
-	osbT4IpOptionsChecksum = 0x10,
-	osbT4Lso = 0x20,
-	osbT4LsoIp = 0x40,
-	osbT4LsoTcp = 0x80,
-	osbT4RxTCPChecksum = 0x100,
-	osbT4RxTCPOptionsChecksum = 0x200,
-	osbT4RxIPChecksum = 0x400,
-	osbT4RxIPOptionsChecksum = 0x800,
-	osbT4RxUDPChecksum = 0x1000,
-	osbT6TcpChecksum = 0x2000,
-	osbT6UdpChecksum = 0x4000,
-	osbT6TcpOptionsChecksum = 0x8000,
-	osbT6IpExtChecksum = 0x10000,
-	osbT6Lso = 0x20000,
-	osbT6LsoIpExt = 0x40000,
-	osbT6LsoTcpOptions = 0x80000,
+	osbT4IpChecksum = (1 << 0),
+	osbT4TcpChecksum = (1 << 1),
+	osbT4UdpChecksum = (1 << 2),
+	osbT4TcpOptionsChecksum = (1 << 3),
+	osbT4IpOptionsChecksum = (1 << 4),
+	osbT4Lso = (1 << 5),
+	osbT4LsoIp = (1 << 6),
+	osbT4LsoTcp = (1 << 7),
+	osbT4RxTCPChecksum = (1 << 8),
+	osbT4RxTCPOptionsChecksum = (1 << 9),
+	osbT4RxIPChecksum = (1 << 10),
+	osbT4RxIPOptionsChecksum = (1 << 11),
+	osbT4RxUDPChecksum = (1 << 12),
+	osbT6TcpChecksum = (1 << 13),
+	osbT6UdpChecksum = (1 << 14),
+	osbT6TcpOptionsChecksum = (1 << 15),
+	osbT6IpExtChecksum = (1 << 16),
+	osbT6Lso = (1 << 17),
+	osbT6LsoIpExt = (1 << 18),
+	osbT6LsoTcpOptions = (1 << 19),
+	osbT6RxTCPChecksum = (1 << 20),
+	osbT6RxTCPOptionsChecksum = (1 << 21),
+	osbT6RxUDPChecksum = (1 << 22),
+	osbT6RxIpExtChecksum = (1 << 23),
 }tOffloadSettingsBit;
 
 typedef struct _tagOffloadSettingsFlags
@@ -190,14 +194,14 @@ typedef struct _tagOffloadSettingsFlags
 	ULONG fTxTCPv6Checksum	: 1;
 	ULONG fTxUDPv6Checksum	: 1;
 	ULONG fTxTCPv6Options	: 1;
-	ULONG fTxIPv6Options	: 1;
+	ULONG fTxIPv6Ext		: 1;
 	ULONG fTxLsov6			: 1;
 	ULONG fTxLsov6IP		: 1;
 	ULONG fTxLsov6TCP		: 1;
 	ULONG fRxTCPv6Checksum	: 1;
 	ULONG fRxUDPv6Checksum	: 1;
 	ULONG fRxTCPv6Options	: 1;
-	ULONG fRxIPv6Options	: 1;
+	ULONG fRxIPv6Ext		: 1;
 }tOffloadSettingsFlags;
 
 
@@ -333,6 +337,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	BOOLEAN					bBatchReceive;
 	BOOLEAN					bLinkDetectSupported;
 	BOOLEAN					bDoHardwareChecksum;
+	BOOLEAN					bDoGuestChecksumOnReceive;
 	BOOLEAN					bDoIPCheckTx;
 	BOOLEAN					bDoIPCheckRx;
 	BOOLEAN					bUseMergedBuffers;
@@ -814,17 +819,25 @@ typedef union _tagTcpIpPacketParsingResult
 
 typedef enum _tagPacketOffloadRequest
 {
-	pcrIpChecksum  = 1,
-	pcrTcpChecksum = 2,
-	pcrUdpChecksum = 4,
-	pcrAnyChecksum = (pcrIpChecksum | pcrTcpChecksum | pcrUdpChecksum),
-	pcrLSO   = 0x10,
-	pcrIsIP  = 0x40,
-	pcrFixIPChecksum = 0x100,
-	pcrFixPHChecksum = 0x200,
-	pcrFixXxpChecksum = 0x400,
-	pcrPriorityTag = 0x800,
-	pcrNoIndirect  = 0x1000
+	pcrIpChecksum  = (1 << 0),
+	pcrTcpV4Checksum = (1 << 1),
+	pcrUdpV4Checksum = (1 << 2),
+	pcrTcpV6Checksum = (1 << 3),
+	pcrUdpV6Checksum = (1 << 4),
+	pcrTcpChecksum = (pcrTcpV4Checksum | pcrTcpV6Checksum),
+	pcrUdpChecksum = (pcrUdpV4Checksum | pcrUdpV6Checksum),
+	pcrAnyChecksum = (pcrIpChecksum | pcrTcpV4Checksum | pcrUdpV4Checksum | pcrTcpV6Checksum | pcrUdpV6Checksum),
+	pcrLSO   = (1 << 5),
+	pcrIsIP  = (1 << 6),
+	pcrFixIPChecksum = (1 << 7),
+	pcrFixPHChecksum = (1 << 8),
+	pcrFixTcpV4Checksum = (1 << 9),
+	pcrFixUdpV4Checksum = (1 << 10),
+	pcrFixTcpV6Checksum = (1 << 11),
+	pcrFixUdpV6Checksum = (1 << 12),
+	pcrFixXxpChecksum = (pcrFixTcpV4Checksum | pcrFixUdpV4Checksum | pcrFixTcpV6Checksum | pcrFixUdpV6Checksum),
+	pcrPriorityTag = (1 << 13),
+	pcrNoIndirect  = (1 << 14)
 }tPacketOffloadRequest;
 
 // sw offload

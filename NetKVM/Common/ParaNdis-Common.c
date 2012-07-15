@@ -94,6 +94,7 @@ typedef struct _tagConfigurationEntries
 	tConfigurationEntry OffloadTxChecksum;
 	tConfigurationEntry OffloadTxLSO;
 	tConfigurationEntry OffloadRxCS;
+	tConfigurationEntry OffloadGuestCS;
 	tConfigurationEntry UseSwTxChecksum;
 	tConfigurationEntry IPPacketsCheck;
 	tConfigurationEntry stdIpcsV4;
@@ -131,7 +132,8 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "BatchReceive",	1, 0, 1},
 	{ "Offload.TxChecksum",	0, 0, 31},
 	{ "Offload.TxLSO",	0, 0, 2},
-	{ "Offload.RxCS",	0, 0, 3},
+	{ "Offload.RxCS",	0, 0, 31},
+	{ "Offload.GuestCS", 1, 0, 1},
 	{ "UseSwTxChecksum", 0, 0, 1 },
 	{ "IPPacketsCheck",	0, 0, 3 },
 	{ "*IPChecksumOffloadIPv4",	3, 0, 3 },
@@ -282,6 +284,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxChecksum);
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxLSO);
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadRxCS);
+			GetConfigurationEntry(cfg, &pConfiguration->OffloadGuestCS);
 			GetConfigurationEntry(cfg, &pConfiguration->UseSwTxChecksum);
 			GetConfigurationEntry(cfg, &pConfiguration->IPPacketsCheck);
 			GetConfigurationEntry(cfg, &pConfiguration->stdIpcsV4);
@@ -319,28 +322,28 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->bUseScatterGather  = pConfiguration->ScatterGather.ulValue != 0;
 			pContext->bBatchReceive      = pConfiguration->BatchReceive.ulValue != 0;
 			pContext->bDoHardwareChecksum = pConfiguration->UseSwTxChecksum.ulValue == 0;
+			pContext->bDoGuestChecksumOnReceive = pConfiguration->OffloadGuestCS.ulValue != 0;
 			pContext->bDoIPCheckTx = pConfiguration->IPPacketsCheck.ulValue & 1;
 			pContext->bDoIPCheckRx = pConfiguration->IPPacketsCheck.ulValue & 2;
 			pContext->Offload.flagsValue = 0;
+			// TX caps: 1 - TCP, 2 - UDP, 4 - IP, 8 - TCPv6, 16 - UDPv6
 			if (pConfiguration->OffloadTxChecksum.ulValue & 1) pContext->Offload.flagsValue |= osbT4TcpChecksum | osbT4TcpOptionsChecksum;
 			if (pConfiguration->OffloadTxChecksum.ulValue & 2) pContext->Offload.flagsValue |= osbT4UdpChecksum;
+			if (pConfiguration->OffloadTxChecksum.ulValue & 4) pContext->Offload.flagsValue |= osbT4IpChecksum | osbT4IpOptionsChecksum;
 			if (pConfiguration->OffloadTxChecksum.ulValue & 8) pContext->Offload.flagsValue |= osbT6TcpChecksum | osbT6TcpOptionsChecksum;
 			if (pConfiguration->OffloadTxChecksum.ulValue & 16) pContext->Offload.flagsValue |= osbT6UdpChecksum;
 			if (pConfiguration->OffloadTxLSO.ulValue) pContext->Offload.flagsValue |= osbT4Lso | osbT4LsoIp | osbT4LsoTcp;
 			if (pConfiguration->OffloadTxLSO.ulValue > 1) pContext->Offload.flagsValue |= osbT6Lso | osbT6LsoTcpOptions;
-			// RX: 1 - TCP, 2 - TCP/UDP, 3 - all
-			if (pConfiguration->OffloadRxCS.ulValue) pContext->Offload.flagsValue |= osbT4RxTCPChecksum | osbT4RxTCPOptionsChecksum;
-			if (pConfiguration->OffloadRxCS.ulValue > 1) pContext->Offload.flagsValue |= osbT4RxUDPChecksum;
-			if (pConfiguration->OffloadRxCS.ulValue > 2) pContext->Offload.flagsValue |= osbT4RxIPChecksum | osbT4RxIPOptionsChecksum;
+			// RX caps: 1 - TCP, 2 - UDP, 4 - IP, 8 - TCPv6, 16 - UDPv6
+			if (pConfiguration->OffloadRxCS.ulValue & 1) pContext->Offload.flagsValue |= osbT4RxTCPChecksum | osbT4RxTCPOptionsChecksum;
+			if (pConfiguration->OffloadRxCS.ulValue & 2) pContext->Offload.flagsValue |= osbT4RxUDPChecksum;
+			if (pConfiguration->OffloadRxCS.ulValue & 4) pContext->Offload.flagsValue |= osbT4RxIPChecksum | osbT4RxIPOptionsChecksum;
+			if (pConfiguration->OffloadRxCS.ulValue & 8) pContext->Offload.flagsValue |= osbT6RxTCPChecksum | osbT6RxTCPOptionsChecksum;
+			if (pConfiguration->OffloadRxCS.ulValue & 16) pContext->Offload.flagsValue |= osbT6RxUDPChecksum;
 			/* full packet size that can be configured as GSO for VIRTIO is short */
 			/* NDIS test fails sometimes fails on segments 50-60K */
 			pContext->Offload.maxPacketSize = PARANDIS_MAX_LSO_SIZE;
 			pContext->InitialOffloadParameters.IPv4Checksum = (UCHAR)pConfiguration->stdIpcsV4.ulValue;
-			// align with our capabilities to avoid initial conflict
-			if (~pContext->Offload.flagsValue & osbT4RxIPChecksum)
-				pContext->InitialOffloadParameters.IPv4Checksum &= ~2;
-			if (~pContext->Offload.flagsValue & osbT4IpChecksum)
-				pContext->InitialOffloadParameters.IPv4Checksum &= ~1;
 			pContext->InitialOffloadParameters.TCPIPv4Checksum = (UCHAR)pConfiguration->stdTcpcsV4.ulValue;
 			pContext->InitialOffloadParameters.TCPIPv6Checksum = (UCHAR)pConfiguration->stdTcpcsV6.ulValue;
 			pContext->InitialOffloadParameters.UDPIPv4Checksum = (UCHAR)pConfiguration->stdUdpcsV4.ulValue;
@@ -416,11 +419,16 @@ void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsF
 	pDest->fTxTCPv6Checksum = !!(*from & osbT6TcpChecksum);
 	pDest->fTxTCPv6Options = !!(*from & osbT6TcpOptionsChecksum);
 	pDest->fTxUDPv6Checksum = !!(*from & osbT6UdpChecksum);
-	pDest->fTxIPv6Options = !!(*from & osbT6IpExtChecksum);
+	pDest->fTxIPv6Ext = !!(*from & osbT6IpExtChecksum);
 
 	pDest->fTxLsov6 = !!(*from & osbT6Lso);
 	pDest->fTxLsov6IP = !!(*from & osbT6LsoIpExt);
 	pDest->fTxLsov6TCP = !!(*from & osbT6LsoTcpOptions);
+
+	pDest->fRxTCPv6Checksum = !!(*from & osbT6RxTCPChecksum);
+	pDest->fRxTCPv6Options = !!(*from & osbT6RxTCPOptionsChecksum);
+	pDest->fRxUDPv6Checksum = !!(*from & osbT6RxUDPChecksum);
+	pDest->fRxIPv6Ext = !!(*from & osbT6RxIpExtChecksum);
 }
 
 /**********************************************************
@@ -731,12 +739,16 @@ NDIS_STATUS ParaNdis_InitializeContext(
 			DPrintf(0, ("[%s] Host does not support CSUM, disabling CS offload", __FUNCTION__) );
 			pContext->Offload.flagsValue &= ~dependentOptions;
 		}
-		dependentOptions = osbT4IpChecksum | osbT4IpOptionsChecksum;
-		if (pContext->Offload.flagsValue & dependentOptions)
-		{
-			DPrintf(0, ("[%s] Host does not support IPCS, disabling it", __FUNCTION__) );
-			pContext->Offload.flagsValue &= ~dependentOptions;
-		}
+	}
+
+	if (pContext->bDoGuestChecksumOnReceive && VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_GUEST_CSUM))
+	{
+		DPrintf(0, ("[%s] Enabling guest checksum", __FUNCTION__) );
+		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_NET_F_GUEST_CSUM);
+	}
+	else
+	{
+		pContext->bDoGuestChecksumOnReceive = FALSE;
 	}
 
 	// now, after we checked the capabilities, we can initialize current
@@ -1483,7 +1495,6 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 		Params->nofSGFragments == 0 ||			// theoretical case
 		!sg ||									// only copy available
 		Params->ulDataSize < ETH_MIN_PACKET_SIZE ||		// padding required
-		(Params->flags & pcrAnyChecksum) ||				// TCP checksumming required
 		((~Params->flags & pcrLSO) && nRequiredBuffers > pContext->maxFreeHardwareBuffers) // to many fragments and normal size of packet
 		)
 	{
@@ -1742,14 +1753,15 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 			FALSE);
 		result.size = CopierResult.size;
 		// did NDIS ask us to compute CS?
-		if ((flags & (pcrTcpChecksum | pcrUdpChecksum )) != 0)
+		if ((flags & (pcrTcpChecksum | pcrUdpChecksum | pcrIpChecksum)) != 0)
 		{
 			// we asked
 			tOffloadSettingsFlags f = pContext->Offload.flags;
 			PVOID ipPacket = RtlOffsetToPointer(
 				pBuffersDescriptor->DataInfo.Virtual, pContext->Offload.ipHeaderOffset + addPriorityLen);
 			ULONG ipPacketLength = CopierResult.size - pContext->Offload.ipHeaderOffset - addPriorityLen;
-			if (!pParams->tcpHeaderOffset)
+			if (!pParams->tcpHeaderOffset &&
+				(flags & (pcrTcpChecksum | pcrUdpChecksum)) )
 			{
 				pParams->tcpHeaderOffset = QueryTcpHeaderOffset(
 					pBuffersDescriptor->DataInfo.Virtual,
@@ -1763,22 +1775,33 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 
 			if (pContext->bDoHardwareChecksum)
 			{
-				// hardware offload
-				virtio_net_hdr_basic *pvnh = (virtio_net_hdr_basic *)pBuffersDescriptor->HeaderInfo.Virtual;
-				pvnh->csum_start = (USHORT)pParams->tcpHeaderOffset;
-				pvnh->csum_offset = (flags & pcrTcpChecksum) ? TCP_CHECKSUM_OFFSET : UDP_CHECKSUM_OFFSET;
-				pvnh->flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM;
+				if (flags & (pcrTcpChecksum | pcrUdpChecksum))
+				{
+					// hardware offload
+					virtio_net_hdr_basic *pvnh = (virtio_net_hdr_basic *)pBuffersDescriptor->HeaderInfo.Virtual;
+					pvnh->csum_start = (USHORT)pParams->tcpHeaderOffset;
+					pvnh->csum_offset = (flags & pcrTcpChecksum) ? TCP_CHECKSUM_OFFSET : UDP_CHECKSUM_OFFSET;
+					pvnh->flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM;
+				}
+				if (flags & (pcrIpChecksum))
+				{
+					ParaNdis_CheckSumVerify(
+						ipPacket,
+						ipPacketLength,
+						pcrIpChecksum | pcrFixIPChecksum,
+						__FUNCTION__);
+				}
 			}
 			else if (CopierResult.size > pContext->Offload.ipHeaderOffset)
 			{
+				ULONG csFlags = 0;
+				if (flags & pcrIpChecksum) csFlags |= pcrIpChecksum | pcrFixIPChecksum;
+				if (flags & (pcrTcpChecksum | pcrUdpChecksum)) csFlags |= pcrTcpChecksum | pcrUdpChecksum| pcrFixXxpChecksum;
 				// software offload
-				if (!f.fTxIPChecksum) flags &= ~pcrIpChecksum;
-				if (!f.fTxTCPChecksum) flags &= ~pcrTcpChecksum;
-				if (!f.fTxUDPChecksum) flags &= ~pcrUdpChecksum;
 				ParaNdis_CheckSumVerify(
 					ipPacket,
 					ipPacketLength,
-					flags | pcrFixIPChecksum | pcrFixXxpChecksum,
+					csFlags,
 					__FUNCTION__);
 			}
 			else
@@ -2620,6 +2643,8 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_NET_F_MRG_RXBUF);
 	if (pContext->bDoPublishIndices)
 		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_F_PUBLISH_INDICES);
+	if (pContext->bDoGuestChecksumOnReceive)
+		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_NET_F_GUEST_CSUM);
 
 	VirtIODeviceRenewQueue(pContext->NetReceiveQueue);
 	VirtIODeviceRenewQueue(pContext->NetSendQueue);
@@ -2726,52 +2751,105 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG 
 	tChecksumCheckResult res, resIp;
 	PVOID pIpHeader = RtlOffsetToPointer(pRxPacket, ETH_HEADER_SIZE);
 	tTcpIpPacketParsingResult ppr;
+	ULONG flagsToCalculate = 0;
 	res.value = 0;
 	resIp.value = 0;
-	if (f.fRxIPChecksum || f.fRxTCPChecksum || f.fRxUDPChecksum)
+
+	//VIRTIO_NET_HDR_F_NEEDS_CSUM - we need to calculate TCP/UDP CS
+	//VIRTIO_NET_HDR_F_DATA_VALID - host tells us TCP/UDP CS is OK
+
+	if (f.fRxIPChecksum) flagsToCalculate |= pcrIpChecksum; // check only
+
+	if (virtioFlags & VIRTIO_NET_HDR_F_DATA_VALID)
 	{
-		//VIRTIO_NET_HDR_F_NEEDS_CSUM - do nothing
-		//VIRTIO_NET_HDR_F_DATA_VALID - host tell us CS is OK
-		if (pContext->bDoIPCheckRx)
+		//flagsToCalculate &= ~(pcrFixXxpChecksum | pcrTcpChecksum | pcrUdpChecksum);
+	}
+	else if (virtioFlags & VIRTIO_NET_HDR_F_NEEDS_CSUM)
+	{
+		flagsToCalculate |= pcrFixXxpChecksum | pcrTcpChecksum | pcrUdpChecksum;
+	}
+	else if (f.fRxTCPChecksum || f.fRxUDPChecksum || f.fRxTCPv6Checksum || f.fRxUDPv6Checksum)
+	{
+		if (f.fRxTCPChecksum) flagsToCalculate |= pcrTcpV4Checksum;
+		if (f.fRxUDPChecksum) flagsToCalculate |= pcrUdpV4Checksum;
+		if (f.fRxTCPv6Checksum) flagsToCalculate |= pcrTcpV6Checksum;
+		if (f.fRxUDPv6Checksum) flagsToCalculate |= pcrUdpV6Checksum;
+	}
+
+	ppr = ParaNdis_CheckSumVerify(pIpHeader, len - ETH_HEADER_SIZE, flagsToCalculate, __FUNCTION__);
+
+	if (virtioFlags & VIRTIO_NET_HDR_F_DATA_VALID)
+	{
+		pContext->extraStatistics.framesRxCSHwOK++;
+		ppr.xxpCheckSum = ppresCSOK;
+	}
+
+	if (ppr.ipStatus == ppresIPV4 && !ppr.IsFragment)
+	{
+		if (f.fRxIPChecksum)
 		{
-			ppr = ParaNdis_CheckSumVerify(pIpHeader, len - ETH_HEADER_SIZE, pcrAnyChecksum, __FUNCTION__);
-			if (ppr.ipStatus == ppresIPV4 && !ppr.IsFragment)
+			res.flags.IpOK =  ppr.ipCheckSum == ppresCSOK;
+			res.flags.IpFailed = ppr.ipCheckSum == ppresCSBad;
+		}
+		if (f.fRxTCPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsTCP)
+		{
+			res.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+			res.flags.TcpFailed = !res.flags.TcpOK;
+		}
+		if (f.fRxUDPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsUDP)
+		{
+			res.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+			res.flags.UdpFailed = !res.flags.UdpOK;
+		}
+	}
+	else if (ppr.ipStatus == ppresIPV6)
+	{
+		if (f.fRxTCPv6Checksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsTCP)
+		{
+			res.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+			res.flags.TcpFailed = !res.flags.TcpOK;
+		}
+		if (f.fRxUDPv6Checksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsUDP)
+		{
+			res.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+			res.flags.UdpFailed = !res.flags.UdpOK;
+		}
+	}
+
+	if (pContext->bDoIPCheckRx &&
+		(f.fRxIPChecksum || f.fRxTCPChecksum || f.fRxUDPChecksum || f.fRxTCPv6Checksum || f.fRxUDPv6Checksum))
+	{
+		ppr = ParaNdis_CheckSumVerify(pIpHeader, len - ETH_HEADER_SIZE, pcrAnyChecksum, __FUNCTION__"(2)");
+		if (ppr.ipStatus == ppresIPV4 && !ppr.IsFragment)
+		{
+			resIp.flags.IpOK = !!f.fRxIPChecksum && ppr.ipCheckSum == ppresCSOK;
+			resIp.flags.IpFailed = !!f.fRxIPChecksum && ppr.ipCheckSum == ppresCSBad;
+			if (f.fRxTCPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsTCP)
 			{
-				resIp.flags.IpOK = !!f.fRxIPChecksum && ppr.ipCheckSum == ppresCSOK;
-				resIp.flags.IpFailed = !!f.fRxIPChecksum && ppr.ipCheckSum == ppresCSBad;
-				if (f.fRxTCPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsTCP)
-				{
-					resIp.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK;
-					resIp.flags.TcpFailed = ppr.xxpCheckSum == ppresCSBad;
-				}
-				if (f.fRxUDPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsUDP)
-				{
-					resIp.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK;
-					resIp.flags.UdpFailed = ppr.xxpCheckSum == ppresCSBad;
-				}
+				resIp.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK;
+				resIp.flags.TcpFailed = ppr.xxpCheckSum == ppresCSBad;
+			}
+			if (f.fRxUDPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsUDP)
+			{
+				resIp.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK;
+				resIp.flags.UdpFailed = ppr.xxpCheckSum == ppresCSBad;
+			}
+		}
+		else if (ppr.ipStatus == ppresIPV6)
+		{
+			if (f.fRxTCPv6Checksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsTCP)
+			{
+				resIp.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK;
+				resIp.flags.TcpFailed = ppr.xxpCheckSum == ppresCSBad;
+			}
+			if (f.fRxUDPv6Checksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsUDP)
+			{
+				resIp.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK;
+				resIp.flags.UdpFailed = ppr.xxpCheckSum == ppresCSBad;
 			}
 		}
 
-		if (virtioFlags & VIRTIO_NET_HDR_F_DATA_VALID)
-		{
-			ppr = ParaNdis_ReviewIPPacket(pIpHeader, len - ETH_HEADER_SIZE, __FUNCTION__);
-			if (ppr.ipStatus != ppresIPV4 || ppr.IsFragment)
-				virtioFlags &= VIRTIO_NET_HDR_F_DATA_VALID;
-			else if (ppr.xxpStatus != ppresXxpKnown)
-			{
-				f.fRxTCPChecksum = 0;
-				f.fRxUDPChecksum = 0;
-			}
-			else if (ppr.TcpUdp == ppresIsTCP)
-				f.fRxUDPChecksum = 0;
-			else if (ppr.TcpUdp == ppresIsUDP)
-				f.fRxTCPChecksum = 0;
-			pContext->extraStatistics.framesRxCSHwOK++;
-			res.flags.IpOK = !!f.fRxIPChecksum;
-			res.flags.TcpOK = !!f.fRxTCPChecksum;
-			res.flags.UdpOK = !!f.fRxUDPChecksum;
-		}
-		if (pContext->bDoIPCheckRx && res.value != resIp.value)
+		if (res.value != resIp.value)
 		{
 			// if HW did not set some bits that IP checker set, it is a mistake:
 			// or GOOD CS is not labeled, or BAD checksum is not labeled
@@ -2783,10 +2861,11 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG 
 				pContext->extraStatistics.framesRxCSHwMissedGood++;
 			if (diff.value)
 			{
-				DPrintf(1, ("[%s] real %X <> %X", __FUNCTION__, resIp.value, res.value));
+				DPrintf(0, ("[%s] real %X <> %X (virtio %X)", __FUNCTION__, resIp.value, res.value, virtioFlags));
 			}
 			res.value = resIp.value;
 		}
 	}
+
 	return res;
 }

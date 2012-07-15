@@ -553,6 +553,8 @@ static void DumpOffloadStructure(NDIS_OFFLOAD *po, LPCSTR message)
 	DPrintf(level, ("LSO6V2:(%d,%d,%d,%d)", pul[0], pul[1], pul[2], pul[3]));
 }
 
+#define OFFLOAD_FEATURE_SUPPORT(flag) (flag) ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED
+
 static void FillOffloadStructure(NDIS_OFFLOAD *po, tOffloadSettingsFlags f)
 {
 	NDIS_TCP_IP_CHECKSUM_OFFLOAD *pcso = &po->Checksum;
@@ -563,26 +565,30 @@ static void FillOffloadStructure(NDIS_OFFLOAD *po, tOffloadSettingsFlags f)
 	po->Header.Revision = NDIS_OFFLOAD_REVISION_1;
 	po->Header.Size = NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_1;
 	pcso->IPv4Transmit.Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
-	pcso->IPv4Transmit.IpChecksum = f.fTxIPChecksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
-	pcso->IPv4Transmit.IpOptionsSupported = f.fTxIPOptions ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
-	pcso->IPv4Transmit.TcpChecksum = f.fTxTCPChecksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
-	pcso->IPv4Transmit.TcpOptionsSupported = f.fTxTCPOptions ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
-	pcso->IPv4Transmit.UdpChecksum = f.fTxUDPChecksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
+	pcso->IPv4Transmit.IpChecksum = OFFLOAD_FEATURE_SUPPORT(f.fTxIPChecksum);
+	pcso->IPv4Transmit.IpOptionsSupported = OFFLOAD_FEATURE_SUPPORT(f.fTxIPOptions);
+	pcso->IPv4Transmit.TcpChecksum = OFFLOAD_FEATURE_SUPPORT(f.fTxTCPChecksum);
+	pcso->IPv4Transmit.TcpOptionsSupported = OFFLOAD_FEATURE_SUPPORT(f.fTxTCPOptions);
+	pcso->IPv4Transmit.UdpChecksum = OFFLOAD_FEATURE_SUPPORT(f.fTxUDPChecksum);
 	
 	pcso->IPv6Transmit.Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
-	pcso->IPv6Transmit.IpExtensionHeadersSupported = f.fTxIPv6Options ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
-	pcso->IPv6Transmit.TcpChecksum = f.fTxTCPv6Checksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
-	pcso->IPv6Transmit.TcpOptionsSupported = f.fTxTCPv6Options ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
-	pcso->IPv6Transmit.UdpChecksum = f.fTxUDPv6Checksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
+	pcso->IPv6Transmit.IpExtensionHeadersSupported = OFFLOAD_FEATURE_SUPPORT(f.fTxIPv6Ext);
+	pcso->IPv6Transmit.TcpChecksum = OFFLOAD_FEATURE_SUPPORT(f.fTxTCPv6Checksum);
+	pcso->IPv6Transmit.TcpOptionsSupported = OFFLOAD_FEATURE_SUPPORT(f.fTxTCPv6Options);
+	pcso->IPv6Transmit.UdpChecksum = OFFLOAD_FEATURE_SUPPORT(f.fTxUDPv6Checksum);
 
 	pcso->IPv4Receive.Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
-	pcso->IPv4Receive.IpChecksum = f.fRxIPChecksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
-	pcso->IPv4Receive.IpOptionsSupported = f.fRxIPOptions ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
-	pcso->IPv4Receive.TcpChecksum = f.fRxTCPChecksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
-	pcso->IPv4Receive.TcpOptionsSupported = f.fRxTCPOptions ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
-	pcso->IPv4Receive.UdpChecksum = f.fRxUDPChecksum ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
+	pcso->IPv4Receive.IpChecksum = OFFLOAD_FEATURE_SUPPORT(f.fRxIPChecksum);
+	pcso->IPv4Receive.IpOptionsSupported = OFFLOAD_FEATURE_SUPPORT(f.fRxIPOptions);
+	pcso->IPv4Receive.TcpChecksum = OFFLOAD_FEATURE_SUPPORT(f.fRxTCPChecksum);
+	pcso->IPv4Receive.TcpOptionsSupported = OFFLOAD_FEATURE_SUPPORT(f.fRxTCPOptions);
+	pcso->IPv4Receive.UdpChecksum = OFFLOAD_FEATURE_SUPPORT(f.fRxUDPChecksum);
 	
 	pcso->IPv6Receive.Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
+	pcso->IPv6Receive.IpExtensionHeadersSupported = OFFLOAD_FEATURE_SUPPORT(f.fRxIPv6Ext);
+	pcso->IPv6Receive.TcpChecksum = OFFLOAD_FEATURE_SUPPORT(f.fRxTCPv6Checksum);
+	pcso->IPv6Receive.TcpOptionsSupported = OFFLOAD_FEATURE_SUPPORT(f.fRxTCPv6Options);
+	pcso->IPv6Receive.UdpChecksum = OFFLOAD_FEATURE_SUPPORT(f.fRxUDPv6Checksum);
 
 	plso->IPv4.Encapsulation = f.fTxLso ? NDIS_ENCAPSULATION_IEEE_802_3 : NDIS_ENCAPSULATION_NOT_SUPPORTED;
 	plso->IPv4.TcpOptions = (f.fTxLsoTCP && f.fTxLso) ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
@@ -850,14 +856,14 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
 		pf->fTxTCPv6Checksum, fSupported.fTxTCPv6Checksum,
 		fSupported.fRxTCPv6Checksum, pop->TCPIPv6Checksum, &bFailed);
 	pf->fTxTCPv6Options = pf->fTxTCPv6Checksum && fSupported.fTxTCPv6Options;
-	pf->fTxIPv6Options = pf->fTxTCPv6Checksum && fSupported.fTxIPv6Options;
+	pf->fTxIPv6Ext = pf->fTxTCPv6Checksum && fSupported.fTxIPv6Ext;
 	pf->fTxUDPv6Checksum = SetOffloadField("TxUDPv6Checksum", TRUE,
 		pf->fTxUDPv6Checksum, fSupported.fTxUDPv6Checksum,
 		fSupported.fRxUDPv6Checksum, pop->UDPIPv6Checksum, &bFailed);
 	pf->fRxTCPv6Checksum = SetOffloadField("RxTCPv6Checksum", FALSE,
 		pf->fRxTCPv6Checksum, fSupported.fTxTCPv6Checksum,
 		fSupported.fRxTCPv6Checksum, pop->TCPIPv6Checksum, &bFailed);
-	pf->fRxIPv6Options = pf->fRxTCPv6Checksum && fSupported.fRxIPv6Options;
+	pf->fRxIPv6Ext = pf->fRxTCPv6Checksum && fSupported.fRxIPv6Ext;
 	pf->fRxTCPv6Options = pf->fRxTCPv6Checksum && fSupported.fRxTCPv6Options;
 	pf->fRxUDPv6Checksum = SetOffloadField("RxUDPv6Checksum", FALSE,
 		pf->fRxUDPv6Checksum, fSupported.fTxUDPv6Checksum,

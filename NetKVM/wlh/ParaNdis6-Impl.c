@@ -40,6 +40,7 @@ typedef struct _tagNetBufferEntry
 #define NBLEFLAGS_NO_INDIRECT		0x0002
 #define NBLEFLAGS_TCP_CS			0x0004
 #define NBLEFLAGS_UDP_CS			0x0008
+#define NBLEFLAGS_IP_CS				0x0010
 
 typedef struct _tagNetBufferListEntry
 {
@@ -1089,9 +1090,12 @@ VOID ParaNdis_PacketMapper(
 			UINT nCompleteBuffersToSkip = 0;
 			UINT nBytesSkipInFirstBuffer = NET_BUFFER_CURRENT_MDL_OFFSET(packet);
 			ULONG PriorityDataLong = pble->PriorityDataLong;
-			if (pble->mss || (pble->flags & (NBLEFLAGS_TCP_CS | NBLEFLAGS_UDP_CS)))
+			if (pble->mss || (pble->flags & (NBLEFLAGS_TCP_CS | NBLEFLAGS_UDP_CS | NBLEFLAGS_IP_CS)))
 			{
-				lengthGet = pble->tcpHeaderOffset + sizeof(TCPHeader);
+				// for IP CS only tcpHeaderOffset could be not set
+				lengthGet = (pble->tcpHeaderOffset) ?
+					(pble->tcpHeaderOffset + sizeof(TCPHeader)) :
+					(ETH_HEADER_SIZE + MAX_IPV4_HEADER_SIZE + sizeof(TCPHeader));
 			}
 			if (PriorityDataLong && !lengthGet)
 			{
@@ -1174,7 +1178,7 @@ VOID ParaNdis_PacketMapper(
 					tTcpIpPacketParsingResult packetReview;
 					NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO lso;
 					ULONG dummyTransferSize;
-					ULONG flags = pcrIpChecksum | pcrTcpChecksum | pcrFixIPChecksum | pcrFixPHChecksum;
+					ULONG flags = pcrIpChecksum | pcrFixIPChecksum | pcrTcpChecksum | pcrFixPHChecksum;
 					USHORT saveBuffers = nBuffersMapped;
 					PVOID pIpHeader = RtlOffsetToPointer(pBuffer, pContext->Offload.ipHeaderOffset);
 					nBuffersMapped = 0;
@@ -1183,7 +1187,7 @@ VOID ParaNdis_PacketMapper(
 						lengthGet - pContext->Offload.ipHeaderOffset,
 						flags,
 						__FUNCTION__);
-					if (packetReview.ipCheckSum == ppresCSOK || packetReview.fixedIpCS)
+					if (packetReview.xxpCheckSum == ppresPCSOK || packetReview.fixedXxpCS)
 					{
 						dummyTransferSize =	CalculateTotalOffloadSize(
 							pMapperResult->ulDataSize,
@@ -1227,7 +1231,16 @@ VOID ParaNdis_PacketMapper(
 						nBuffersMapped = saveBuffers;
 					}
 				}
-
+				else if (pble->flags & NBLEFLAGS_IP_CS)
+				{
+					PVOID pIpHeader = RtlOffsetToPointer(pBuffer, pContext->Offload.ipHeaderOffset);
+					ParaNdis_CheckSumVerify(
+						pIpHeader,
+						lengthGet - pContext->Offload.ipHeaderOffset,
+						pcrIpChecksum | pcrFixIPChecksum,
+						__FUNCTION__);
+				}
+				
 				if (PriorityDataLong && nBuffersMapped)
 				{
 					RtlMoveMemory(
@@ -1553,6 +1566,25 @@ static BOOLEAN PrepareSingleNBL(
 					else
 					{
 						DPrintf(0, ("[%s] UDP CS request when it is not supported", __FUNCTION__));
+					}
+				}
+			}
+			if (checksumReq.Transmit.IpHeaderChecksum)
+			{
+				if (pContext->Offload.flags.fTxIPChecksum && pContext->bOffloadv4Enabled)
+				{
+					pble->flags |= NBLEFLAGS_IP_CS;
+				}
+				else
+				{
+					if (bFailUnexpected)
+					{
+						bOK = FALSE;
+						pFailReason = "IP CS request when it is not supported";
+					}
+					else
+					{
+						DPrintf(0, ("[%s] IP CS request when it is not supported", __FUNCTION__));
 					}
 				}
 			}
@@ -1979,6 +2011,10 @@ static FORCEINLINE void InitializeTransferParameters(tNetBufferEntry *pnbe, tTxO
 	if (pble->flags & NBLEFLAGS_UDP_CS)
 	{
 		pParams->flags |= pcrUdpChecksum;
+	}
+	if (pble->flags & NBLEFLAGS_IP_CS)
+	{
+		pParams->flags |= pcrIpChecksum;
 	}
 }
 
