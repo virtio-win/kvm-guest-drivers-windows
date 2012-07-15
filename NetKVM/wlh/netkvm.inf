@@ -98,6 +98,7 @@ netkvm.sys  = 1,,
 kvmnet6.CopyFiles = 12
 
 [Strings]
+;<Dense>
 RedHat = "Red Hat Inc."                      
 kvmnet6.DeviceDesc        = "Red Hat VirtIO Ethernet Adapter"
 kvmnet6.Service.DispName    = "Red Hat VirtIO Ethernet Adapter Service"
