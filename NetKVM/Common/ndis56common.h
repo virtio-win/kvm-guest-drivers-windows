@@ -315,6 +315,17 @@ typedef struct _tagMulticastData
 	UCHAR					MulticastList[ETH_LENGTH_OF_ADDRESS * PARANDIS_MULTICAST_LIST_SIZE];
 }tMulticastData;
 
+typedef struct _tagIONetDescriptor {
+	LIST_ENTRY listEntry;
+	tCompletePhysicalAddress HeaderInfo;
+	tCompletePhysicalAddress DataInfo;
+	tPacketHolderType pHolder;
+	PVOID ReferenceValue;
+	UINT  nofUsedBuffers;
+} IONetDescriptor, * pIONetDescriptor;
+
+typedef void (*tReuseReceiveBufferProc)(void *pContext, pIONetDescriptor pDescriptor);
+
 typedef struct _tagPARANDIS_ADAPTER
 {
 	NDIS_HANDLE				DriverHandle;
@@ -347,6 +358,9 @@ typedef struct _tagPARANDIS_ADAPTER
 	BOOLEAN					bUsingMSIX;
 	BOOLEAN					bUseIndirect;
 	BOOLEAN					bHasHardwareFilters;
+	BOOLEAN					bNoPauseOnSuspend;
+	BOOLEAN					bFastSuspendInProcess;
+	BOOLEAN					bResetInProgress;
 	ULONG					ulCurrentVlansFilterSet;
 	tMulticastData			MulticastData;
 	UINT					uNumberOfHandledRXPacketsInDPC;
@@ -399,6 +413,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	tSendReceiveState		ReceiveState;
 	ONPAUSECOMPLETEPROC		SendPauseCompletionProc;
 	ONPAUSECOMPLETEPROC		ReceivePauseCompletionProc;
+	tReuseReceiveBufferProc ReuseBufferProc;
 	/* Net part - management of buffers and queues of QEMU */
 	struct virtqueue *		NetControlQueue;
 	tCompletePhysicalAddress ControlQueueRing;
@@ -519,15 +534,6 @@ BOOLEAN FORCEINLINE IsPrioritySupported(PARANDIS_ADAPTER *pContext)
 	return pContext->ulPriorityVlanSetting & 1;
 }
 
-typedef struct _tagIONetDescriptor {
-	LIST_ENTRY listEntry;
-	tCompletePhysicalAddress HeaderInfo;
-	tCompletePhysicalAddress DataInfo;
-	tPacketHolderType pHolder;
-	PVOID ReferenceValue;
-	UINT  nofUsedBuffers;
-} IONetDescriptor, * pIONetDescriptor;
-
 BOOLEAN ParaNdis_ValidateMacAddress(
 	PUCHAR pcMacAddress,
 	BOOLEAN bLocal);
@@ -542,10 +548,6 @@ NDIS_STATUS ParaNdis_FinishInitialization(
 VOID ParaNdis_CleanupContext(
 	PARANDIS_ADAPTER *pContext);
 
-
-void ParaNdis_VirtIONetReuseRecvBuffer(
-	PARANDIS_ADAPTER *pContext,
-	void *pDescriptor);
 
 UINT ParaNdis_VirtIONetReleaseTransmitBuffers(
 	PARANDIS_ADAPTER *pContext);
@@ -583,8 +585,10 @@ VOID ParaNdis_OnShutdown(
 BOOLEAN ParaNdis_CheckForHang(
 	PARANDIS_ADAPTER *pContext);
 
-void ParaNdis_ReportLinkStatus(
-	PARANDIS_ADAPTER *pContext);
+VOID ParaNdis_ReportLinkStatus(
+	PARANDIS_ADAPTER *pContext,
+	BOOLEAN bForce);
+
 VOID ParaNdis_PowerOn(
 	PARANDIS_ADAPTER *pContext
 );
@@ -773,6 +777,11 @@ VOID ParaNdis_UpdateDeviceFilters(
 
 VOID ParaNdis_DeviceFiltersUpdateVlanId(
 	PARANDIS_ADAPTER *pContext);
+
+VOID ParaNdis_SetPowerState(
+	PARANDIS_ADAPTER *pContext,
+	NDIS_DEVICE_POWER_STATE newState);
+
 
 #endif //-OFFLOAD_UNIT_TEST
 

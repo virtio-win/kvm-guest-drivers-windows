@@ -15,6 +15,9 @@
 #include "ParaNdis-Common.tmh"
 #endif
 
+static void ReuseReceiveBufferRegular(PARANDIS_ADAPTER *pContext, pIONetDescriptor pBuffersDescriptor);
+static void ReuseReceiveBufferPowerOff(PARANDIS_ADAPTER *pContext, pIONetDescriptor pBuffersDescriptor);
+
 // TODO: remove when the problem solved
 void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue);
 
@@ -186,7 +189,7 @@ static void	GetConfigurationEntry(NDIS_HANDLE cfg, tConfigurationEntry *pEntry)
 {
 	NDIS_STATUS status;
 	const char *statusName;
-	NDIS_STRING name;
+	NDIS_STRING name = {0};
 	PNDIS_CONFIGURATION_PARAMETER pParam = NULL;
 	NDIS_PARAMETER_TYPE ParameterType = NdisParameterInteger;
 	NdisInitializeString(&name, (PUCHAR)pEntry->Name);
@@ -218,7 +221,7 @@ static void	GetConfigurationEntry(NDIS_HANDLE cfg, tConfigurationEntry *pEntry)
 		statusName,
 		pEntry->Name,
 		pEntry->ulValue));
-	NdisFreeString(name);
+	if (name.Buffer) NdisFreeString(name);
 }
 
 static void DisableLSOv4Permanently(PARANDIS_ADAPTER *pContext, LPCSTR procname, LPCSTR reason)
@@ -791,6 +794,9 @@ NDIS_STATUS ParaNdis_InitializeContext(
 		pContext->bHasHardwareFilters = TRUE;
 	}
 
+	pContext->ReuseBufferProc = ReuseReceiveBufferRegular;
+
+	
 	NdisInitializeEvent(&pContext->ResetEvent);
 	DEBUG_EXIT_STATUS(0, status);
 	return status;
@@ -1130,7 +1136,7 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
 	{
 		JustForCheckClearInterrupt(pContext, "start 3");
 		pContext->bEnableInterruptHandlingDPC = TRUE;
-		pContext->powerState = NetDeviceStateD0;
+		ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
 		VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 		JustForCheckClearInterrupt(pContext, "start 4");
 
@@ -1321,7 +1327,7 @@ BOOLEAN ParaNdis_OnInterrupt(
 		// ignore interrupts with invalid status bits
 		if (
 			status == VIRTIO_NET_INVALID_INTERRUPT_STATUS ||
-			pContext->powerState != NetDeviceStateD0
+			pContext->powerState != NdisDeviceStateD0
 			)
 			status = 0;
 		if (status)
@@ -1350,7 +1356,7 @@ BOOLEAN ParaNdis_OnInterrupt(
 
 
 /**********************************************************
-It is called from Rx processing routines.
+It is called from Rx processing routines in regular mode of operation.
 Returns received buffer back to VirtIO queue, inserting it to NetReceiveBuffers.
 If needed, signals end of RX pause operation
 
@@ -1360,10 +1366,8 @@ Parameters:
 	context
 	void *pDescriptor - pIONetDescriptor to return
 ***********************************************************/
-void ParaNdis_VirtIONetReuseRecvBuffer(PARANDIS_ADAPTER *pContext, void *pDescriptor)
+void ReuseReceiveBufferRegular(PARANDIS_ADAPTER *pContext, pIONetDescriptor pBuffersDescriptor)
 {
-	pIONetDescriptor pBuffersDescriptor = (pIONetDescriptor)pDescriptor;
-
 	DEBUG_ENTRY(4);
 
 	if(!pBuffersDescriptor)
@@ -1407,6 +1411,23 @@ void ParaNdis_VirtIONetReuseRecvBuffer(PARANDIS_ADAPTER *pContext, void *pDescri
 		VirtIONetFreeBufferDescriptor(pContext, pBuffersDescriptor);
 		pContext->NetMaxReceiveBuffers--;
 	}
+}
+
+/**********************************************************
+It is called from Rx processing routines between power off and power on in non-paused mode (Win8).
+Returns received buffer to NetReceiveBuffers. 
+All the buffers will be placed into Virtio queue during power-on procedure
+
+Must be called with &pContext->ReceiveLock acquired
+
+Parameters:
+	context
+	void *pDescriptor - pIONetDescriptor to return
+***********************************************************/
+static void ReuseReceiveBufferPowerOff(PARANDIS_ADAPTER *pContext, pIONetDescriptor pBuffersDescriptor)
+{
+	RemoveEntryList(&pBuffersDescriptor->listEntry);
+	InsertTailList(&pContext->NetReceiveBuffers, &pBuffersDescriptor->listEntry);
 }
 
 /**********************************************************
@@ -1991,7 +2012,7 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacket
 			}
 			if (!b)
 			{
-				ParaNdis_VirtIONetReuseRecvBuffer(pContext, pBuffersDescriptor);
+				pContext->ReuseBufferProc(pContext, pBuffersDescriptor);
 				//only possible reason for that is unexpected Vlan tag
 				//shall I count it as error?
 				pContext->Statistics.ifInErrors++;
@@ -2030,7 +2051,7 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacket
 		else
 		{
 			// reuse packet, there is no data or the RX is suppressed
-			ParaNdis_VirtIONetReuseRecvBuffer(pContext, pBuffersDescriptor);
+			pContext->ReuseBufferProc(pContext, pBuffersDescriptor);
 		}
 	}
 	ParaNdis_DebugHistory(pContext, hopReceiveStat, NULL, nRetrieved, nReported, pContext->NetNofReceiveBuffers);
@@ -2044,7 +2065,7 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacket
 	return nReported;
 }
 
-void ParaNdis_ReportLinkStatus(PARANDIS_ADAPTER *pContext)
+void ParaNdis_ReportLinkStatus(PARANDIS_ADAPTER *pContext, BOOLEAN bForce)
 {
 	BOOLEAN bConnected = TRUE;
 	if (pContext->bLinkDetectSupported)
@@ -2055,7 +2076,7 @@ void ParaNdis_ReportLinkStatus(PARANDIS_ADAPTER *pContext)
 		VirtIODeviceGet(&pContext->IODevice, offset, &linkStatus, sizeof(linkStatus));
 		bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
 	}
-	ParaNdis_IndicateConnect(pContext, bConnected, FALSE);
+	ParaNdis_IndicateConnect(pContext, bConnected, bForce);
 }
 
 
@@ -2097,7 +2118,7 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
 			ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)1, interruptSources, 0, 0);
 			if ((interruptSources & isControl) && pContext->bLinkDetectSupported)
 			{
-				ParaNdis_ReportLinkStatus(pContext);
+				ParaNdis_ReportLinkStatus(pContext, FALSE);
 			}
 			if (interruptSources & isTransmit)
 			{
@@ -2655,8 +2676,12 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 	ParaNdis_UpdateDeviceFilters(pContext);
 
 	InitializeListHead(&TempList);
+	
 	/* submit all the receive buffers */
 	NdisAcquireSpinLock(&pContext->ReceiveLock);
+	
+	pContext->ReuseBufferProc = ReuseReceiveBufferRegular;
+	
 	while (!IsListEmpty(&pContext->NetReceiveBuffers))
 	{
 		pIONetDescriptor pBufferDescriptor =
@@ -2680,14 +2705,20 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 			pContext->NetMaxReceiveBuffers--;
 		}
 	}
-	pContext->powerState = NetDeviceStateD0;
+	ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
 	pContext->bEnableInterruptHandlingDPC = TRUE;
 	VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 	pContext->NetReceiveQueue->vq_ops->kick(pContext->NetReceiveQueue);
+	
 	NdisReleaseSpinLock(&pContext->ReceiveLock);
 
+	// if bFastSuspendInProcess is set by Win8 power-off procedure,
+	// the ParaNdis_Resume enables Tx and RX
+	// otherwise it does not do anything in Vista+ (Tx and RX are enabled after power-on by Restart)
 	ParaNdis_Resume(pContext);
-	ParaNdis_ReportLinkStatus(pContext);
+	pContext->bFastSuspendInProcess = FALSE;
+	
+	ParaNdis_ReportLinkStatus(pContext, TRUE);
 	ParaNdis_DebugHistory(pContext, hopPowerOn, NULL, 0, 0, 0);
 }
 
@@ -2695,12 +2726,21 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
 {
 	DEBUG_ENTRY(0);
 	ParaNdis_DebugHistory(pContext, hopPowerOff, NULL, 1, 0, 0);
-	/* stop processing of interrupts, DPC and Send operations */
-	ParaNdis_IndicateConnect(pContext, FALSE, FALSE);
-	VirtIODeviceRemoveStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
-	// TODO: Synchronize with IRQ
+
+	// if bFastSuspendInProcess is set by Win8 power-off procedure
+	// the ParaNdis_Suspend does fast Rx stop without waiting (=>srsPausing, if there are some RX packets in Ndis)
+	pContext->bFastSuspendInProcess = pContext->bNoPauseOnSuspend && pContext->ReceiveState == srsEnabled;
 	ParaNdis_Suspend(pContext);
-	pContext->powerState = NetDeviceStateD3;
+	VirtIODeviceRemoveStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+	
+	if (pContext->bFastSuspendInProcess)
+	{
+		NdisAcquireSpinLock(&pContext->ReceiveLock);
+		pContext->ReuseBufferProc = ReuseReceiveBufferPowerOff;
+		NdisReleaseSpinLock(&pContext->ReceiveLock);
+	}
+	
+	ParaNdis_SetPowerState(pContext, NdisDeviceStateD3);
 
 	PreventDPCServicing(pContext);
 

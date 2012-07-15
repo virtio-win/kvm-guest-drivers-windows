@@ -449,6 +449,7 @@ static NDIS_STATUS SetInterruptMessage(PARANDIS_ADAPTER *pContext, UINT queueInd
 		pMessage = &pContext->ulControlMessage;
 		break;
 	default:
+		val = (ULONG)-1;
 		break;
 	}
 
@@ -885,7 +886,7 @@ VOID ParaNdis6_ReturnNetBufferLists(
 		NET_BUFFER_LIST_NEXT_NBL(pTemp) = NULL;
 		NdisFreeNetBufferList(pTemp);
 		NdisAcquireSpinLock(&pContext->ReceiveLock);
-		ParaNdis_VirtIONetReuseRecvBuffer(pContext, pBuffersDescriptor);
+		pContext->ReuseBufferProc(pContext, pBuffersDescriptor);
 		NdisReleaseSpinLock(&pContext->ReceiveLock);
 	}
 }
@@ -1349,7 +1350,7 @@ static void CompleteBufferLists(
 		ParaNdis_DebugHistory(pContext, hopSendComplete, pTemp, 0, lRestToReturn, status);
 		pTemp = NET_BUFFER_LIST_NEXT_NBL(pTemp);
 	}
-	NdisMSendNetBufferListsComplete(pContext->MiniportHandle,
+	if (pNBL) NdisMSendNetBufferListsComplete(pContext->MiniportHandle,
 			pNBL,
 			IsDpc ? NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL : 0
 			);
@@ -1373,6 +1374,25 @@ static PNET_BUFFER_LIST GetTail(PNET_BUFFER_LIST pNBL)
 		pNBL = NET_BUFFER_LIST_NEXT_NBL(pNBL);
 	}
 	return pNBL;
+}
+
+static NDIS_STATUS ExactSendFailureStatus(PARANDIS_ADAPTER *pContext)
+{
+	NDIS_STATUS status = NDIS_STATUS_FAILURE;
+	if (pContext->SendState != srsEnabled ) status = NDIS_STATUS_PAUSED;
+	if (!pContext->bConnected) status = NDIS_STATUS_MEDIA_DISCONNECTED;
+	if (pContext->bSurprizeRemoved) status = NDIS_STATUS_NOT_ACCEPTED;
+	// override NDIS_STATUS_PAUSED is there is a specific reason of implicit paused state
+	if (pContext->powerState != NdisDeviceStateD0) status = NDIS_STATUS_LOW_POWER_STATE;
+	if (pContext->bResetInProgress) status = NDIS_STATUS_RESET_IN_PROGRESS;
+	return status;
+}
+
+static BOOLEAN FORCEINLINE IsSendPossible(PARANDIS_ADAPTER *pContext)
+{
+	BOOLEAN b;
+	b =  !pContext->bSurprizeRemoved && pContext->bConnected && pContext->SendState == srsEnabled;
+	return b;
 }
 
 /*********************************************************************
@@ -1743,7 +1763,7 @@ VOID ParaNdis6_Send(
 		nextList = NET_BUFFER_LIST_NEXT_NBL(nextList);
 		NET_BUFFER_LIST_NEXT_NBL(temp) = NULL;
 
-		if (bOK && !pContext->bSurprizeRemoved && pContext->bConnected && pContext->SendState == srsEnabled)
+		if (bOK && IsSendPossible(pContext))
 		{
 			ParaNdis_DebugHistory(pContext, hopSendNBLRequest, temp, NUMBER_OF_PACKETS_IN_NBL(temp), 0, 0);
 			StartTransferSingleNBL(pContext, temp);
@@ -1751,9 +1771,7 @@ VOID ParaNdis6_Send(
 		else
 		{
 			NDIS_STATUS status = NDIS_STATUS_FAILURE;
-			if (pContext->SendState != srsEnabled) status = NDIS_STATUS_PAUSED;
-			if (!pContext->bConnected) status = NDIS_STATUS_MEDIA_DISCONNECTED;
-			if (pContext->bSurprizeRemoved) status = NDIS_STATUS_NOT_ACCEPTED;
+			status = ExactSendFailureStatus(pContext);
 			CompleteBufferLists(pContext, temp, status, IsDpc);
 		}
 	}
@@ -2018,7 +2036,6 @@ static FORCEINLINE void InitializeTransferParameters(tNetBufferEntry *pnbe, tTxO
 	}
 }
 
-
 /**********************************************************
 Implements NDIS6-specific processing of TX path
 Parameters:
@@ -2040,11 +2057,10 @@ VOID ParaNdis_ProcessTx(PARANDIS_ADAPTER *pContext, BOOLEAN IsDpc)
 		// release some buffers
 		ParaNdis_VirtIONetReleaseTransmitBuffers(pContext);
 	}
-	if (!pContext->bConnected || pContext->SendState != srsEnabled)
+	if (!IsSendPossible(pContext))
 	{
 		pNBLFailNow = RemoveAllNonWaitingNBLs(pContext);
-		if (pContext->SendState != srsEnabled ) status = NDIS_STATUS_PAUSED;
-		if (!pContext->bConnected) status = NDIS_STATUS_MEDIA_DISCONNECTED;
+		status = ExactSendFailureStatus(pContext);
 		if (pNBLFailNow)
 		{
 			DPrintf(0, (__FUNCTION__ " Failing send"));
@@ -2270,7 +2286,7 @@ NDIS_STATUS ParaNdis6_SendPauseRestart(
 		ParaNdis_DebugHistory(pContext, hopInternalSendResume, NULL, 0, 0, 0);
 	}
 	NdisReleaseSpinLock(&pContext->SendLock);
-	if (pNBL) CompleteBufferLists(pContext, pNBL, NDIS_STATUS_PAUSED, FALSE);
+	if (pNBL) CompleteBufferLists(pContext, pNBL, ExactSendFailureStatus(pContext), FALSE);
 	return status;
 }
 

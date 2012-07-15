@@ -122,6 +122,11 @@ VOID ParaNdis_IndicateConnect(PARANDIS_ADAPTER *pContext, BOOLEAN bConnected, BO
 	}
 }
 
+VOID ParaNdis_SetPowerState(PARANDIS_ADAPTER *pContext, NDIS_DEVICE_POWER_STATE newState)
+{
+	//NDIS_DEVICE_POWER_STATE prev = pContext->powerState;
+	pContext->powerState = newState;
+}
 
 
 /**********************************************************
@@ -138,7 +143,7 @@ static VOID OnConnectTimer(
 	)
 {
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)FunctionContext;
-	ParaNdis_ReportLinkStatus(pContext);
+	ParaNdis_ReportLinkStatus(pContext, FALSE);
 }
 
 /**********************************************************
@@ -1056,7 +1061,7 @@ VOID ParaNdis5_ReturnPacket(IN NDIS_HANDLE  MiniportAdapterContext,IN PNDIS_PACK
 	DPrintf(4, ("[%s] buffer %p", __FUNCTION__, pBufferDescriptor));
 
 	NdisAcquireSpinLock(&pContext->ReceiveLock);
-	ParaNdis_VirtIONetReuseRecvBuffer(pContext, pBufferDescriptor);
+	pContext->ReuseBufferProc(pContext, pBufferDescriptor);
 	NdisReleaseSpinLock(&pContext->ReceiveLock);
 }
 
