@@ -14,7 +14,7 @@ It will be loaded if available at native path (where it was built) or in current
 
 (of course, when analyzing the dump in WinDBG, there is AN ADVANTAGE).
 
-In order to compile the tool please make sure that WinDBG SDK is installed. 
+In order to compile the tool please make sure that WinDBG SDK is installed.
 Point include and libraries paths to appropriate locations.
 
 

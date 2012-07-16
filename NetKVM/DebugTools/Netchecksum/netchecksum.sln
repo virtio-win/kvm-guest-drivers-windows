@@ -1,18 +1,15 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 9.00
-# Visual Studio 2005
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "netchecksum", "netchecksum.vcproj", "{B9D81752-EA28-475B-B758-F7CE1D627A8D}"
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "netchecksum", "netchecksum.vcxproj", "{B9D81752-EA28-475B-B758-F7CE1D627A8D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
-		Release|Win32 = Release|Win32
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{B9D81752-EA28-475B-B758-F7CE1D627A8D}.Debug|Win32.ActiveCfg = Debug|Win32
 		{B9D81752-EA28-475B-B758-F7CE1D627A8D}.Debug|Win32.Build.0 = Debug|Win32
-		{B9D81752-EA28-475B-B758-F7CE1D627A8D}.Release|Win32.ActiveCfg = Release|Win32
-		{B9D81752-EA28-475B-B758-F7CE1D627A8D}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
