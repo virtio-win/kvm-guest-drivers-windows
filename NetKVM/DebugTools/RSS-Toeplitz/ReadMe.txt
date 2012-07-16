@@ -1,5 +1,5 @@
 ========================================================================
-    CONSOLE APPLICATION : RSS-Toeplitz 
+    CONSOLE APPLICATION : RSS-Toeplitz
 ========================================================================
 
 See Toeplitz test vectors at

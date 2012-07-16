@@ -143,7 +143,7 @@ static NDIS_STATUS ParaNdis5_Initialize(OUT PNDIS_STATUS OpenErrorStatus,
 			ParaNdis5_StopReceive(pContext, FALSE, NULL);
 			if (!pContext->ulMilliesToConnect)
 			{
-				ParaNdis_ReportLinkStatus(pContext);
+				ParaNdis_ReportLinkStatus(pContext, FALSE);
 			}
 			else
 			{
@@ -218,10 +218,12 @@ static void OnResetWorkItem(NDIS_WORK_ITEM * pWorkItem, PVOID  Context)
 	PARANDIS_ADAPTER *pContext = pwi->pContext;
 	DEBUG_ENTRY(0);
 
+	pContext->bResetInProgress = TRUE;
 	ParaNdis_IndicateConnect(pContext, FALSE, FALSE);
 	ParaNdis_Suspend(pContext);
 	ParaNdis_Resume(pContext);
-	ParaNdis_ReportLinkStatus(pContext);
+	pContext->bResetInProgress = FALSE;
+	ParaNdis_ReportLinkStatus(pContext, FALSE);
 
 	NdisFreeMemory(pwi, 0, 0);
 	ParaNdis_DebugHistory(pContext, hopSysReset, NULL, 0, NDIS_STATUS_SUCCESS, 0);

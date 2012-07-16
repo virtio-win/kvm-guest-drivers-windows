@@ -89,6 +89,43 @@ static VOID ParaNdis_OnCPUChange(
 	}
 }
 
+static const char *ConnectStateName(NDIS_MEDIA_CONNECT_STATE state)
+{
+	if (state == MediaConnectStateConnected) return "Connected";
+	if (state == MediaConnectStateDisconnected) return "Disconnected";
+	return "Unknown";
+}
+
+static void PostLinkState(PARANDIS_ADAPTER *pContext, NDIS_MEDIA_CONNECT_STATE connectState)
+{
+	NDIS_STATUS_INDICATION	indication;
+	NDIS_LINK_STATE         state;
+	NdisZeroMemory(&state, sizeof(state));
+	state.Header.Revision = NDIS_LINK_STATE_REVISION_1;
+	state.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+	state.Header.Size = NDIS_SIZEOF_LINK_STATE_REVISION_1;
+	state.MediaConnectState = connectState;
+	state.MediaDuplexState = MediaDuplexStateFull;
+	state.RcvLinkSpeed = state.XmitLinkSpeed =
+		connectState == MediaConnectStateConnected ?
+			PARANDIS_MAXIMUM_RECEIVE_SPEED :
+			NDIS_LINK_SPEED_UNKNOWN;
+	state.PauseFunctions = NdisPauseFunctionsUnsupported;
+
+	NdisZeroMemory(&indication, sizeof(indication));
+
+	indication.Header.Type = NDIS_OBJECT_TYPE_STATUS_INDICATION;
+	indication.Header.Revision = NDIS_STATUS_INDICATION_REVISION_1;
+	indication.Header.Size = NDIS_SIZEOF_STATUS_INDICATION_REVISION_1;
+	indication.SourceHandle = pContext->MiniportHandle;
+	indication.StatusCode = NDIS_STATUS_LINK_STATE;
+	indication.StatusBuffer = &state;
+	indication.StatusBufferSize = sizeof(state);
+	DPrintf(0, ("Indicating %s", ConnectStateName(connectState)));
+	ParaNdis_DebugHistory(pContext, hopConnectIndication, NULL, connectState, 0, 0);
+	NdisMIndicateStatusEx(pContext->MiniportHandle , &indication);
+}
+
 /**********************************************************
 Produces connect indication to NDIS
 Parameters:
@@ -97,43 +134,23 @@ Parameters:
 ***********************************************************/
 void ParaNdis_IndicateConnect(PARANDIS_ADAPTER *pContext, BOOLEAN bConnected, BOOLEAN bForce)
 {
-	NDIS_STATUS status;
-	NDIS_STATUS_INDICATION	indication;
-	NDIS_LINK_STATE         state;
+	NDIS_MEDIA_CONNECT_STATE connectState = bConnected ? MediaConnectStateConnected : MediaConnectStateDisconnected;
 	DEBUG_ENTRY(3);
 
-	if (bConnected != pContext->bConnected)
+	if (bConnected != pContext->bConnected || bForce)
 	{
 		pContext->bConnected = bConnected;
-
-		NdisZeroMemory(&state, sizeof(state));
-		state.Header.Revision = NDIS_LINK_STATE_REVISION_1;
-		state.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
-		state.Header.Size = NDIS_SIZEOF_LINK_STATE_REVISION_1;
-		state.MediaConnectState =
-			pContext->bConnected ?
-				MediaConnectStateConnected :
-				MediaConnectStateDisconnected;
-		state.MediaDuplexState = MediaDuplexStateFull;
-		state.RcvLinkSpeed = state.XmitLinkSpeed =
-			pContext->bConnected ?
-				PARANDIS_MAXIMUM_RECEIVE_SPEED :
-				NDIS_LINK_SPEED_UNKNOWN;;
-		state.PauseFunctions = NdisPauseFunctionsUnsupported;
-
-		NdisZeroMemory(&indication, sizeof(indication));
-
-		indication.Header.Type = NDIS_OBJECT_TYPE_STATUS_INDICATION;
-		indication.Header.Revision = NDIS_STATUS_INDICATION_REVISION_1;
-		indication.Header.Size = NDIS_SIZEOF_STATUS_INDICATION_REVISION_1;
-		indication.SourceHandle = pContext->MiniportHandle;
-		indication.StatusCode = NDIS_STATUS_LINK_STATE;
-		indication.StatusBuffer = &state;
-		indication.StatusBufferSize = sizeof(state);
-		DPrintf(0, ("Indicating %sconnect", pContext->bConnected ? "" : "dis"));
-		ParaNdis_DebugHistory(pContext, hopConnectIndication, NULL, bConnected, 0, 0);
-		NdisMIndicateStatusEx(pContext->MiniportHandle , &indication);
+		PostLinkState(pContext, connectState);
 	}
+}
+
+VOID ParaNdis_SetPowerState(PARANDIS_ADAPTER *pContext, NDIS_DEVICE_POWER_STATE newState)
+{
+	NDIS_DEVICE_POWER_STATE prev = pContext->powerState;
+	pContext->powerState = newState;
+
+	if (prev == NetDeviceStateD0 && newState == NetDeviceStateD3)
+		PostLinkState(pContext, MediaConnectStateUnknown);
 }
 
 /**********************************************************
@@ -147,7 +164,7 @@ static VOID ConnectTimerCallback(
 	)
 {
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)FunctionContext;
-	ParaNdis_ReportLinkStatus(pContext);
+	ParaNdis_ReportLinkStatus(pContext, FALSE);
 }
 
 /**********************************************************
@@ -205,6 +222,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
 {
 	NDIS_MINIPORT_ADAPTER_ATTRIBUTES        miniportAttributes;
 	NDIS_STATUS  status = NDIS_STATUS_SUCCESS;
+	BOOLEAN bNoPauseOnSuspend = FALSE;
 	PARANDIS_ADAPTER *pContext;
 	DEBUG_ENTRY(0);
 	/* allocate context structure */
@@ -237,13 +255,17 @@ static NDIS_STATUS ParaNdis6_Initialize(
 		miniportAttributes.RegistrationAttributes.Header.Size = NDIS_SIZEOF_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES_REVISION_1;
 		miniportAttributes.RegistrationAttributes.MiniportAdapterContext = pContext;
 		miniportAttributes.RegistrationAttributes.AttributeFlags =
-#ifndef NO_VISTA_POWER_MANAGEMENT
-			NDIS_MINIPORT_ATTRIBUTES_NO_HALT_ON_SUSPEND |
-#endif
 			// actual for USB
 			// NDIS_MINIPORT_ATTRIBUTES_SURPRISE_REMOVE_OK
 			NDIS_MINIPORT_ATTRIBUTES_HARDWARE_DEVICE |
 			NDIS_MINIPORT_ATTRIBUTES_BUS_MASTER;
+#ifndef NO_VISTA_POWER_MANAGEMENT
+		miniportAttributes.RegistrationAttributes.AttributeFlags |= NDIS_MINIPORT_ATTRIBUTES_NO_HALT_ON_SUSPEND;
+#endif
+#if NDIS_SUPPORT_NDIS630
+		miniportAttributes.RegistrationAttributes.AttributeFlags |= NDIS_MINIPORT_ATTRIBUTES_NO_PAUSE_ON_SUSPEND;
+		bNoPauseOnSuspend = TRUE;
+#endif
 		miniportAttributes.RegistrationAttributes.CheckForHangTimeInSeconds = 4;
 		miniportAttributes.RegistrationAttributes.InterfaceType = NdisInterfacePci;
 		status = NdisMSetMiniportAttributes(miniportAdapterHandle, &miniportAttributes);
@@ -255,11 +277,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
 	if (status == NDIS_STATUS_SUCCESS)
 	{
-		/* set mandatory fields which Common use */
-		NdisZeroMemory(pContext, sizeof(PARANDIS_ADAPTER));
-		pContext->ulUniqueID = InterlockedIncrement(&gID);
-		pContext->DriverHandle = DriverHandle;
-		pContext->MiniportHandle = miniportAdapterHandle;
 		/* prepare statistics struct for further reports */
 		pContext->Statistics.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
 		pContext->Statistics.Header.Revision = NDIS_STATISTICS_INFO_REVISION_1;
@@ -270,6 +287,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
 		{
 			DPrintf(0, ("[%s] ERROR: ParaNdis6_InitializeContext failed (%X)!", __FUNCTION__, status));
 		}
+		pContext->bNoPauseOnSuspend = bNoPauseOnSuspend; 
 	}
 
 	if (status == NDIS_STATUS_SUCCESS)
@@ -356,7 +374,9 @@ static NDIS_STATUS ParaNdis6_Initialize(
 	{
 		// no need to cleanup
 		NdisFreeMemory(pContext, 0, 0);
+		pContext = NULL;
 	}
+
 	if (pContext && status == NDIS_STATUS_SUCCESS)
 	{
 		status = ParaNdis_FinishInitialization(pContext);
@@ -364,6 +384,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
 		{
 			ParaNdis_CleanupContext(pContext);
 			NdisFreeMemory(pContext, 0, 0);
+			pContext = NULL;
 		}
 	}
 	if (pContext && status == NDIS_STATUS_SUCCESS)
@@ -510,7 +531,7 @@ static NDIS_STATUS ParaNdis6_Restart(
 	ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
 	if (!pContext->ulMilliesToConnect)
 	{
-		ParaNdis_ReportLinkStatus(pContext);
+		ParaNdis_ReportLinkStatus(pContext, FALSE);
 	}
 	ParaNdis_DebugHistory(pContext, hopSysResume, NULL, 0, 0, 0);
 	DEBUG_EXIT_STATUS(2, status);
@@ -565,19 +586,26 @@ static void OnReceivePauseCompleteOnReset(PARANDIS_ADAPTER *pContext)
 
 VOID ParaNdis_Suspend(PARANDIS_ADAPTER *pContext)
 {
-	DEBUG_ENTRY(0);
+	DPrintf(0, ("[%s]%s", __FUNCTION__, pContext->bFastSuspendInProcess ? "(Fast)" : ""));
 	NdisResetEvent(&pContext->ResetEvent);
 	if (NDIS_STATUS_PENDING != ParaNdis6_SendPauseRestart(pContext, TRUE, OnSendPauseCompleteOnReset))
 	{
 		NdisSetEvent(&pContext->ResetEvent);
 	}
 	NdisWaitEvent(&pContext->ResetEvent, 0);
-	NdisResetEvent(&pContext->ResetEvent);
-	if (NDIS_STATUS_PENDING != ParaNdis6_ReceivePauseRestart(pContext, TRUE, OnReceivePauseCompleteOnReset))
+	if (!pContext->bFastSuspendInProcess)
 	{
-		NdisSetEvent(&pContext->ResetEvent);
+		NdisResetEvent(&pContext->ResetEvent);
+		if (NDIS_STATUS_PENDING != ParaNdis6_ReceivePauseRestart(pContext, TRUE, OnReceivePauseCompleteOnReset))
+		{
+			NdisSetEvent(&pContext->ResetEvent);
+		}
+		NdisWaitEvent(&pContext->ResetEvent, 0);
 	}
-	NdisWaitEvent(&pContext->ResetEvent, 0);
+	else
+	{
+		ParaNdis6_ReceivePauseRestart(pContext, TRUE, NULL);
+	}
 	DEBUG_EXIT_STATUS(0, 0);
 }
 
@@ -589,11 +617,13 @@ static void OnResetWorkItem(PVOID  WorkItemContext, NDIS_HANDLE  NdisIoWorkItemH
 	DEBUG_ENTRY(0);
 	bSendActive = pContext->SendState == srsEnabled;
 	bReceiveActive = pContext->ReceiveState == srsEnabled;
-
+	pContext->bResetInProgress = TRUE;
+	ParaNdis_Suspend(pContext);
 	ParaNdis_PowerOff(pContext);
 	ParaNdis_PowerOn(pContext);
 	if (bSendActive) ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
 	if (bReceiveActive) ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
+	pContext->bResetInProgress = FALSE;
 
 	NdisFreeMemory(pwi, 0, 0);
 	NdisFreeIoWorkItem(NdisIoWorkItemHandle);
@@ -639,8 +669,12 @@ static NDIS_STATUS ParaNdis6_Reset(
 
 VOID ParaNdis_Resume(PARANDIS_ADAPTER *pContext)
 {
-	/* nothing to do */
-	DEBUG_EXIT_STATUS(0, 0);
+	DPrintf(0, ("[%s] %s", __FUNCTION__, pContext->bFastSuspendInProcess ? " Resuming TX and RX" : "(nothing to do)"));
+	if (pContext->bFastSuspendInProcess)
+	{
+		ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
+		ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
+	}
 }
 
 
@@ -929,7 +963,7 @@ static NDIS_STATUS ReadGlobalConfigurationEntry(NDIS_HANDLE cfg, const char *_na
 {
 	NDIS_STATUS status;
 	PNDIS_CONFIGURATION_PARAMETER pParam = NULL;
-	NDIS_STRING name;
+	NDIS_STRING name = {0};
 	const char *statusName;
 	NDIS_PARAMETER_TYPE ParameterType = NdisParameterInteger;
 	NdisInitializeString(&name, (PUCHAR)_name);
@@ -949,7 +983,7 @@ static NDIS_STATUS ReadGlobalConfigurationEntry(NDIS_HANDLE cfg, const char *_na
 		statusName = "nothing";
 	}
 	DPrintf(2, ("[%s] %s read for %s - 0x%x", __FUNCTION__, statusName, _name, *pValue));
-	NdisFreeString(name);
+	if (name.Buffer) NdisFreeString(name);
 	return status;
 }
 
@@ -1072,6 +1106,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 			&chars,
 			&DriverHandle);
 
+#if 0
 	if (status == NDIS_STATUS_SUCCESS)
 	{
 		NDIS_STRING usRegister, usDeregister;
@@ -1087,9 +1122,10 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 		}
 		ProcessorChangeCallbackHandle = ParaNdis2008_RegisterCallback(
 			ParaNdis_OnCPUChange,
-			NULL,
+			&DriverHandle,
 			KE_PROCESSOR_CHANGE_ADD_EXISTING);
 	}
+#endif
 	if (status == NDIS_STATUS_SUCCESS)
 	{
 		RetrieveDriverConfiguration();

@@ -59,6 +59,7 @@ NDIS_STATUS ParaNdis6_ReceivePauseRestart(
 	ONPAUSECOMPLETEPROC Callback
 	);
 
+
 VOID ParaNdis6_OnInterruptRecoveryTimer(
 	PARANDIS_ADAPTER *pContext);
 

@@ -61,6 +61,7 @@ static BOOLEAN KeRegisterBugCheckReasonCallbackDummyProc(
     __in PUCHAR Component
     )
 {
+	CallbackRecord->State = 0;
 	return FALSE;
 }
 
