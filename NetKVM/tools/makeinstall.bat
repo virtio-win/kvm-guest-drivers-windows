@@ -2,7 +2,7 @@
 : Param2 - path to SYS file
 : Param3 - path to INF file
 : Param4 - version in x.x.x.x form
-: Param5 - Win7 | Vista | XP | 2K 
+: Param5 - Win8 | Win7 | Vista | XP | 2K 
 : Param6 - Path to coinstaller file (optional)
 
 if /i "%1"=="x86" goto makeinstall
@@ -12,9 +12,9 @@ echo wrong parameters (1)%1 (2)%2 (3)%3
 goto :eof
 
 :prepareinf
-::original inf %1, copy to %2
+::original inf %1, copy to %2, define OS %3
 echo processing %1
-cl /nologo -DINCLUDE_TEST_PARAMS /I. /EP %1 > %~nx1
+cl /nologo -DINCLUDE_TEST_PARAMS -D%3 /I. /EP %1 > %~nx1
 echo cleaning INF file...
 cscript /nologo tools\cleanemptystrings.vbs %~nx1 > %2\%~nx1
 del %~nx1
@@ -26,7 +26,7 @@ mkdir Install\%5\%1
 del /Q Install\%5\%1\*
 copy /Y %2 Install\%5\%1
 copy /Y %~dpn2.pdb Install\%5\%1
-call :prepareinf %3 Install\%5\%1
+call :prepareinf %3 Install\%5\%1 %5
 if exist %6 copy %6 Install\%5\%1
 if exist %7 copy %7 Install\%5\%1
 if not exist Install\NetKVMTemporaryCert.cer copy /Y "%~dp0\NetKVMTemporaryCert.cer" Install
