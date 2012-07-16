@@ -91,6 +91,9 @@
     <ClInclude Include="NetKVM-2012.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="wlh\ParaNdis6.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="wlh\Parandis6.rc">

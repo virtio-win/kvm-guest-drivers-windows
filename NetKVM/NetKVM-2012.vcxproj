@@ -121,6 +121,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <TargetName>NetKVM</TargetName>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
+    <CodeAnalysisRuleSet>NativeMinimumRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <ClCompile>
@@ -186,6 +188,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <AdditionalIncludeDirectories>VirtIO;Common</AdditionalIncludeDirectories>
+      <EnablePREfast>false</EnablePREfast>
     </ClCompile>
     <PreBuildEvent>
       <Command>call BuildAll.bat Prepare2012 $(DDKSpec) </Command>
@@ -225,6 +228,7 @@
     <ClInclude Include="VirtIO\VirtIO.h" />
     <ClInclude Include="VirtIO\virtio_pci.h" />
     <ClInclude Include="VirtIO\virtio_ring.h" />
+    <ClInclude Include="wlh\ParaNdis6.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="wlh\Parandis6.rc">
