@@ -40,6 +40,7 @@ typedef struct _tagNetBufferEntry
 #define NBLEFLAGS_NO_INDIRECT		0x0002
 #define NBLEFLAGS_TCP_CS			0x0004
 #define NBLEFLAGS_UDP_CS			0x0008
+#define NBLEFLAGS_IP_CS				0x0010
 
 typedef struct _tagNetBufferListEntry
 {
@@ -448,6 +449,7 @@ static NDIS_STATUS SetInterruptMessage(PARANDIS_ADAPTER *pContext, UINT queueInd
 		pMessage = &pContext->ulControlMessage;
 		break;
 	default:
+		val = (ULONG)-1;
 		break;
 	}
 
@@ -884,7 +886,7 @@ VOID ParaNdis6_ReturnNetBufferLists(
 		NET_BUFFER_LIST_NEXT_NBL(pTemp) = NULL;
 		NdisFreeNetBufferList(pTemp);
 		NdisAcquireSpinLock(&pContext->ReceiveLock);
-		ParaNdis_VirtIONetReuseRecvBuffer(pContext, pBuffersDescriptor);
+		pContext->ReuseBufferProc(pContext, pBuffersDescriptor);
 		NdisReleaseSpinLock(&pContext->ReceiveLock);
 	}
 }
@@ -1089,9 +1091,12 @@ VOID ParaNdis_PacketMapper(
 			UINT nCompleteBuffersToSkip = 0;
 			UINT nBytesSkipInFirstBuffer = NET_BUFFER_CURRENT_MDL_OFFSET(packet);
 			ULONG PriorityDataLong = pble->PriorityDataLong;
-			if (pble->mss || (pble->flags & (NBLEFLAGS_TCP_CS | NBLEFLAGS_UDP_CS)))
+			if (pble->mss || (pble->flags & (NBLEFLAGS_TCP_CS | NBLEFLAGS_UDP_CS | NBLEFLAGS_IP_CS)))
 			{
-				lengthGet = pble->tcpHeaderOffset + sizeof(TCPHeader);
+				// for IP CS only tcpHeaderOffset could be not set
+				lengthGet = (pble->tcpHeaderOffset) ?
+					(pble->tcpHeaderOffset + sizeof(TCPHeader)) :
+					(ETH_HEADER_SIZE + MAX_IPV4_HEADER_SIZE + sizeof(TCPHeader));
 			}
 			if (PriorityDataLong && !lengthGet)
 			{
@@ -1174,7 +1179,7 @@ VOID ParaNdis_PacketMapper(
 					tTcpIpPacketParsingResult packetReview;
 					NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO lso;
 					ULONG dummyTransferSize;
-					ULONG flags = pcrIpChecksum | pcrTcpChecksum | pcrFixIPChecksum | pcrFixPHChecksum;
+					ULONG flags = pcrIpChecksum | pcrFixIPChecksum | pcrTcpChecksum | pcrFixPHChecksum;
 					USHORT saveBuffers = nBuffersMapped;
 					PVOID pIpHeader = RtlOffsetToPointer(pBuffer, pContext->Offload.ipHeaderOffset);
 					nBuffersMapped = 0;
@@ -1183,7 +1188,7 @@ VOID ParaNdis_PacketMapper(
 						lengthGet - pContext->Offload.ipHeaderOffset,
 						flags,
 						__FUNCTION__);
-					if (packetReview.ipCheckSum == ppresCSOK || packetReview.fixedIpCS)
+					if (packetReview.xxpCheckSum == ppresPCSOK || packetReview.fixedXxpCS)
 					{
 						dummyTransferSize =	CalculateTotalOffloadSize(
 							pMapperResult->ulDataSize,
@@ -1218,7 +1223,8 @@ VOID ParaNdis_PacketMapper(
 						virtio_net_hdr_basic *pheader = pDesc->HeaderInfo.Virtual;
 						unsigned short addPriorityLen = PriorityDataLong ? ETH_PRIORITY_HEADER_SIZE : 0;
 						pheader->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
-						pheader->gso_type = VIRTIO_NET_HDR_GSO_TCPV4;
+						pheader->gso_type = packetReview.ipStatus == ppresIPV4 ?
+							VIRTIO_NET_HDR_GSO_TCPV4 : VIRTIO_NET_HDR_GSO_TCPV6;
 						pheader->hdr_len  = (USHORT)(packetReview.XxpIpHeaderSize + pContext->Offload.ipHeaderOffset) + addPriorityLen;
 						pheader->gso_size = (USHORT)pble->mss;
 						pheader->csum_start = (USHORT)pble->tcpHeaderOffset + addPriorityLen;
@@ -1226,7 +1232,16 @@ VOID ParaNdis_PacketMapper(
 						nBuffersMapped = saveBuffers;
 					}
 				}
-
+				else if (pble->flags & NBLEFLAGS_IP_CS)
+				{
+					PVOID pIpHeader = RtlOffsetToPointer(pBuffer, pContext->Offload.ipHeaderOffset);
+					ParaNdis_CheckSumVerify(
+						pIpHeader,
+						lengthGet - pContext->Offload.ipHeaderOffset,
+						pcrIpChecksum | pcrFixIPChecksum,
+						__FUNCTION__);
+				}
+				
 				if (PriorityDataLong && nBuffersMapped)
 				{
 					RtlMoveMemory(
@@ -1335,7 +1350,7 @@ static void CompleteBufferLists(
 		ParaNdis_DebugHistory(pContext, hopSendComplete, pTemp, 0, lRestToReturn, status);
 		pTemp = NET_BUFFER_LIST_NEXT_NBL(pTemp);
 	}
-	NdisMSendNetBufferListsComplete(pContext->MiniportHandle,
+	if (pNBL) NdisMSendNetBufferListsComplete(pContext->MiniportHandle,
 			pNBL,
 			IsDpc ? NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL : 0
 			);
@@ -1361,6 +1376,25 @@ static PNET_BUFFER_LIST GetTail(PNET_BUFFER_LIST pNBL)
 	return pNBL;
 }
 
+static NDIS_STATUS ExactSendFailureStatus(PARANDIS_ADAPTER *pContext)
+{
+	NDIS_STATUS status = NDIS_STATUS_FAILURE;
+	if (pContext->SendState != srsEnabled ) status = NDIS_STATUS_PAUSED;
+	if (!pContext->bConnected) status = NDIS_STATUS_MEDIA_DISCONNECTED;
+	if (pContext->bSurprizeRemoved) status = NDIS_STATUS_NOT_ACCEPTED;
+	// override NDIS_STATUS_PAUSED is there is a specific reason of implicit paused state
+	if (pContext->powerState != NdisDeviceStateD0) status = NDIS_STATUS_LOW_POWER_STATE;
+	if (pContext->bResetInProgress) status = NDIS_STATUS_RESET_IN_PROGRESS;
+	return status;
+}
+
+static BOOLEAN FORCEINLINE IsSendPossible(PARANDIS_ADAPTER *pContext)
+{
+	BOOLEAN b;
+	b =  !pContext->bSurprizeRemoved && pContext->bConnected && pContext->SendState == srsEnabled;
+	return b;
+}
+
 /*********************************************************************
 Prepares single NBL to be mapped and sent:
 Allocate per-NBL entry and save it in NBL->Scratch
@@ -1375,6 +1409,7 @@ static BOOLEAN PrepareSingleNBL(
 	BOOLEAN bOK = TRUE;
 	BOOLEAN bExpectedLSO = FALSE;
 	ULONG maxDataLength = 0;
+	ULONG ulFailParameter = 0;
 	const char *pFailReason = "Unknown";
 	NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO lso;
 	NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO checksumReq;
@@ -1454,11 +1489,7 @@ static BOOLEAN PrepareSingleNBL(
 	if (bOK)
 	{
 		if (maxDataLength > pContext->MaxPacketSize.nMaxFullSizeOS) bExpectedLSO = TRUE;
-		if (maxDataLength > 0xFFF0)
-		{
-			bOK = FALSE;
-			pFailReason = "too large packet";
-		}
+		checksumReq.Value = NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo);
 		lso.Value = NET_BUFFER_LIST_INFO(pNBL, TcpLargeSendNetBufferListInfo);
 		if (lso.Value)
 		{
@@ -1471,13 +1502,6 @@ static BOOLEAN PrepareSingleNBL(
 				pFailReason = "wrong LSO transmit type";
 			}
 
-			if (lso.LsoV2Transmit.Type == NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE &&
-				lso.LsoV2Transmit.IPVersion != NDIS_TCP_LARGE_SEND_OFFLOAD_IPv4)
-			{
-				bOK = FALSE;
-				pFailReason = "IPV6 LSO not supported";
-			}
-
 			if (bExpectedLSO &&
 				(!lso.LsoV2Transmit.MSS ||
 				!lso.LsoV2Transmit.TcpHeaderOffset
@@ -1486,15 +1510,33 @@ static BOOLEAN PrepareSingleNBL(
 				bOK = FALSE;
 				pFailReason = "wrong LSO parameters";
 			}
+
+			if (maxDataLength > (PARANDIS_MAX_LSO_SIZE + (ULONG)pble->tcpHeaderOffset) + MAX_TCP_HEADER_SIZE)
+			{
+				bOK = FALSE;
+				pFailReason = "too large packet";
+				ulFailParameter = maxDataLength;
+			}
+
 			if (!lso.LsoV2Transmit.MSS != !lso.LsoV1Transmit.TcpHeaderOffset)
 			{
 				bOK = FALSE;
 				pFailReason = "inconsistent LSO parameters";
 			}
-			if (!pContext->Offload.flags.fTxLso || !pContext->bOffloadEnabled)
+
+			if ((!pContext->Offload.flags.fTxLso || !pContext->bOffloadv4Enabled) &&
+				lso.LsoV2Transmit.IPVersion == NDIS_TCP_LARGE_SEND_OFFLOAD_IPv4)
 			{
 				bOK = FALSE;
-				pFailReason = "LSO request when LSO is off";
+				pFailReason = "LSO request when LSOv4 is off";
+			}
+
+			if (lso.LsoV2Transmit.Type == NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE &&
+				lso.LsoV2Transmit.IPVersion == NDIS_TCP_LARGE_SEND_OFFLOAD_IPv6 &&
+				(!pContext->Offload.flags.fTxLsov6 || !pContext->bOffloadv6Enabled))
+			{
+				bOK = FALSE;
+				pFailReason = "LSO request when LSOv6 is off";
 			}
 
 			// do it for both LsoV1 and LsoV2
@@ -1504,15 +1546,14 @@ static BOOLEAN PrepareSingleNBL(
 				NET_BUFFER_LIST_INFO(pNBL, TcpLargeSendNetBufferListInfo) = lso.Value;
 			}
 		}
-		else
+		else if (checksumReq.Transmit.IsIPv4)
 		{
 			// ignore unexpected CS requests while this passes WHQL
 			BOOLEAN bFailUnexpected = FALSE;
-			checksumReq.Value = NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo);
 			pble->tcpHeaderOffset = (USHORT)checksumReq.Transmit.TcpHeaderOffset;
 			if (checksumReq.Transmit.TcpChecksum)
 			{
-				if(pContext->Offload.flags.fTxTCPChecksum && pContext->bOffloadEnabled)
+				if(pContext->Offload.flags.fTxTCPChecksum && pContext->bOffloadv4Enabled)
 				{
 					pble->flags |= NBLEFLAGS_TCP_CS;
 				}
@@ -1531,7 +1572,7 @@ static BOOLEAN PrepareSingleNBL(
 			}
 			else if (checksumReq.Transmit.UdpChecksum)
 			{
-				if (pContext->Offload.flags.fTxUDPChecksum && pContext->bOffloadEnabled)
+				if (pContext->Offload.flags.fTxUDPChecksum && pContext->bOffloadv4Enabled)
 				{
 					pble->flags |= NBLEFLAGS_UDP_CS;
 				}
@@ -1548,11 +1589,74 @@ static BOOLEAN PrepareSingleNBL(
 					}
 				}
 			}
+			if (checksumReq.Transmit.IpHeaderChecksum)
+			{
+				if (pContext->Offload.flags.fTxIPChecksum && pContext->bOffloadv4Enabled)
+				{
+					pble->flags |= NBLEFLAGS_IP_CS;
+				}
+				else
+				{
+					if (bFailUnexpected)
+					{
+						bOK = FALSE;
+						pFailReason = "IP CS request when it is not supported";
+					}
+					else
+					{
+						DPrintf(0, ("[%s] IP CS request when it is not supported", __FUNCTION__));
+					}
+				}
+			}
+		}
+		else if (checksumReq.Transmit.IsIPv6)
+		{
+			// ignore unexpected CS requests while this passes WHQL
+			BOOLEAN bFailUnexpected = FALSE;
+			pble->tcpHeaderOffset = (USHORT)checksumReq.Transmit.TcpHeaderOffset;
+			if (checksumReq.Transmit.TcpChecksum)
+			{
+				if(pContext->Offload.flags.fTxTCPv6Checksum && pContext->bOffloadv6Enabled)
+				{
+					pble->flags |= NBLEFLAGS_TCP_CS;
+				}
+				else
+				{
+					if (bFailUnexpected)
+					{
+						bOK = FALSE;
+						pFailReason = "TCPv6 CS request when it is not supported";
+					}
+					else
+					{
+						DPrintf(0, ("[%s] TCPv6 CS request when it is not supported", __FUNCTION__));
+					}
+				}
+			}
+			else if (checksumReq.Transmit.UdpChecksum)
+			{
+				if (pContext->Offload.flags.fTxUDPv6Checksum && pContext->bOffloadv6Enabled)
+				{
+					pble->flags |= NBLEFLAGS_UDP_CS;
+				}
+				else
+				{
+					if (bFailUnexpected)
+					{
+						bOK = FALSE;
+						pFailReason = "UDPv6 CS request when it is not supported";
+					}
+					else
+					{
+						DPrintf(0, ("[%s] UDPv6 CS request when it is not supported", __FUNCTION__));
+					}
+				}
+			}
 		}
 	}
 	if (!bOK)
 	{
-		DPrintf(0, ("[%s] Failed to prepare NBL %p due to %s", __FUNCTION__, pNBL, pFailReason));
+		DPrintf(0, ("[%s] Failed to prepare NBL %p due to %s(info %d)", __FUNCTION__, pNBL, pFailReason, ulFailParameter));
 	}
 	else
 	{
@@ -1659,7 +1763,7 @@ VOID ParaNdis6_Send(
 		nextList = NET_BUFFER_LIST_NEXT_NBL(nextList);
 		NET_BUFFER_LIST_NEXT_NBL(temp) = NULL;
 
-		if (bOK && !pContext->bSurprizeRemoved && pContext->bConnected && pContext->SendState == srsEnabled)
+		if (bOK && IsSendPossible(pContext))
 		{
 			ParaNdis_DebugHistory(pContext, hopSendNBLRequest, temp, NUMBER_OF_PACKETS_IN_NBL(temp), 0, 0);
 			StartTransferSingleNBL(pContext, temp);
@@ -1667,9 +1771,7 @@ VOID ParaNdis6_Send(
 		else
 		{
 			NDIS_STATUS status = NDIS_STATUS_FAILURE;
-			if (pContext->SendState != srsEnabled) status = NDIS_STATUS_PAUSED;
-			if (!pContext->bConnected) status = NDIS_STATUS_MEDIA_DISCONNECTED;
-			if (pContext->bSurprizeRemoved) status = NDIS_STATUS_NOT_ACCEPTED;
+			status = ExactSendFailureStatus(pContext);
 			CompleteBufferLists(pContext, temp, status, IsDpc);
 		}
 	}
@@ -1928,8 +2030,11 @@ static FORCEINLINE void InitializeTransferParameters(tNetBufferEntry *pnbe, tTxO
 	{
 		pParams->flags |= pcrUdpChecksum;
 	}
+	if (pble->flags & NBLEFLAGS_IP_CS)
+	{
+		pParams->flags |= pcrIpChecksum;
+	}
 }
-
 
 /**********************************************************
 Implements NDIS6-specific processing of TX path
@@ -1952,11 +2057,10 @@ VOID ParaNdis_ProcessTx(PARANDIS_ADAPTER *pContext, BOOLEAN IsDpc)
 		// release some buffers
 		ParaNdis_VirtIONetReleaseTransmitBuffers(pContext);
 	}
-	if (!pContext->bConnected || pContext->SendState != srsEnabled)
+	if (!IsSendPossible(pContext))
 	{
 		pNBLFailNow = RemoveAllNonWaitingNBLs(pContext);
-		if (pContext->SendState != srsEnabled ) status = NDIS_STATUS_PAUSED;
-		if (!pContext->bConnected) status = NDIS_STATUS_MEDIA_DISCONNECTED;
+		status = ExactSendFailureStatus(pContext);
 		if (pNBLFailNow)
 		{
 			DPrintf(0, (__FUNCTION__ " Failing send"));
@@ -2182,7 +2286,7 @@ NDIS_STATUS ParaNdis6_SendPauseRestart(
 		ParaNdis_DebugHistory(pContext, hopInternalSendResume, NULL, 0, 0, 0);
 	}
 	NdisReleaseSpinLock(&pContext->SendLock);
-	if (pNBL) CompleteBufferLists(pContext, pNBL, NDIS_STATUS_PAUSED, FALSE);
+	if (pNBL) CompleteBufferLists(pContext, pNBL, ExactSendFailureStatus(pContext), FALSE);
 	return status;
 }
 

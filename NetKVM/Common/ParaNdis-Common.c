@@ -15,6 +15,9 @@
 #include "ParaNdis-Common.tmh"
 #endif
 
+static void ReuseReceiveBufferRegular(PARANDIS_ADAPTER *pContext, pIONetDescriptor pBuffersDescriptor);
+static void ReuseReceiveBufferPowerOff(PARANDIS_ADAPTER *pContext, pIONetDescriptor pBuffersDescriptor);
+
 // TODO: remove when the problem solved
 void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue);
 
@@ -94,6 +97,7 @@ typedef struct _tagConfigurationEntries
 	tConfigurationEntry OffloadTxChecksum;
 	tConfigurationEntry OffloadTxLSO;
 	tConfigurationEntry OffloadRxCS;
+	tConfigurationEntry OffloadGuestCS;
 	tConfigurationEntry UseSwTxChecksum;
 	tConfigurationEntry IPPacketsCheck;
 	tConfigurationEntry stdIpcsV4;
@@ -129,9 +133,10 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "PacketFilter",	1, 0, 1},
 	{ "Gather",			1, 0, 1},
 	{ "BatchReceive",	1, 0, 1},
-	{ "Offload.TxChecksum",	0, 0, 2},
-	{ "Offload.TxLSO",	0, 0, 1},
-	{ "Offload.RxCS",	0, 0, 3},
+	{ "Offload.TxChecksum",	0, 0, 31},
+	{ "Offload.TxLSO",	0, 0, 2},
+	{ "Offload.RxCS",	0, 0, 31},
+	{ "Offload.GuestCS", 1, 0, 1},
 	{ "UseSwTxChecksum", 0, 0, 1 },
 	{ "IPPacketsCheck",	0, 0, 3 },
 	{ "*IPChecksumOffloadIPv4",	3, 0, 3 },
@@ -184,7 +189,7 @@ static void	GetConfigurationEntry(NDIS_HANDLE cfg, tConfigurationEntry *pEntry)
 {
 	NDIS_STATUS status;
 	const char *statusName;
-	NDIS_STRING name;
+	NDIS_STRING name = {0};
 	PNDIS_CONFIGURATION_PARAMETER pParam = NULL;
 	NDIS_PARAMETER_TYPE ParameterType = NdisParameterInteger;
 	NdisInitializeString(&name, (PUCHAR)pEntry->Name);
@@ -216,15 +221,35 @@ static void	GetConfigurationEntry(NDIS_HANDLE cfg, tConfigurationEntry *pEntry)
 		statusName,
 		pEntry->Name,
 		pEntry->ulValue));
-	NdisFreeString(name);
+	if (name.Buffer) NdisFreeString(name);
 }
 
-static __inline void DisableLSOPermanently(PARANDIS_ADAPTER *pContext, LPCSTR procname, LPCSTR reason)
+static void DisableLSOv4Permanently(PARANDIS_ADAPTER *pContext, LPCSTR procname, LPCSTR reason)
 {
 	if (pContext->Offload.flagsValue & osbT4Lso)
 	{
 		DPrintf(0, ("[%s] Warning: %s", procname, reason));
 		pContext->Offload.flagsValue &= ~osbT4Lso;
+		ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
+	}
+}
+
+static void DisableLSOv6Permanently(PARANDIS_ADAPTER *pContext, LPCSTR procname, LPCSTR reason)
+{
+	if (pContext->Offload.flagsValue & osbT6Lso)
+	{
+		DPrintf(0, ("[%s] Warning: %s", procname, reason));
+		pContext->Offload.flagsValue &= ~osbT6Lso;
+		ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
+	}
+}
+
+static void DisableBothLSOPermanently(PARANDIS_ADAPTER *pContext, LPCSTR procname, LPCSTR reason)
+{
+	if (pContext->Offload.flagsValue & (osbT4Lso | osbT6Lso))
+	{
+		DPrintf(0, ("[%s] Warning: %s", procname, reason));
+		pContext->Offload.flagsValue &= ~(osbT6Lso | osbT4Lso);
 		ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
 	}
 }
@@ -262,6 +287,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxChecksum);
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxLSO);
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadRxCS);
+			GetConfigurationEntry(cfg, &pConfiguration->OffloadGuestCS);
 			GetConfigurationEntry(cfg, &pConfiguration->UseSwTxChecksum);
 			GetConfigurationEntry(cfg, &pConfiguration->IPPacketsCheck);
 			GetConfigurationEntry(cfg, &pConfiguration->stdIpcsV4);
@@ -299,16 +325,24 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->bUseScatterGather  = pConfiguration->ScatterGather.ulValue != 0;
 			pContext->bBatchReceive      = pConfiguration->BatchReceive.ulValue != 0;
 			pContext->bDoHardwareChecksum = pConfiguration->UseSwTxChecksum.ulValue == 0;
+			pContext->bDoGuestChecksumOnReceive = pConfiguration->OffloadGuestCS.ulValue != 0;
 			pContext->bDoIPCheckTx = pConfiguration->IPPacketsCheck.ulValue & 1;
 			pContext->bDoIPCheckRx = pConfiguration->IPPacketsCheck.ulValue & 2;
 			pContext->Offload.flagsValue = 0;
-			if (pConfiguration->OffloadTxChecksum.ulValue) pContext->Offload.flagsValue |= osbT4TcpChecksum | osbT4TcpOptionsChecksum;
-			if (pConfiguration->OffloadTxChecksum.ulValue > 1) pContext->Offload.flagsValue |= osbT4UdpChecksum;
+			// TX caps: 1 - TCP, 2 - UDP, 4 - IP, 8 - TCPv6, 16 - UDPv6
+			if (pConfiguration->OffloadTxChecksum.ulValue & 1) pContext->Offload.flagsValue |= osbT4TcpChecksum | osbT4TcpOptionsChecksum;
+			if (pConfiguration->OffloadTxChecksum.ulValue & 2) pContext->Offload.flagsValue |= osbT4UdpChecksum;
+			if (pConfiguration->OffloadTxChecksum.ulValue & 4) pContext->Offload.flagsValue |= osbT4IpChecksum | osbT4IpOptionsChecksum;
+			if (pConfiguration->OffloadTxChecksum.ulValue & 8) pContext->Offload.flagsValue |= osbT6TcpChecksum | osbT6TcpOptionsChecksum;
+			if (pConfiguration->OffloadTxChecksum.ulValue & 16) pContext->Offload.flagsValue |= osbT6UdpChecksum;
 			if (pConfiguration->OffloadTxLSO.ulValue) pContext->Offload.flagsValue |= osbT4Lso | osbT4LsoIp | osbT4LsoTcp;
-			// RX: 1 - TCP, 2 - TCP/UDP, 3 - all
-			if (pConfiguration->OffloadRxCS.ulValue) pContext->Offload.flagsValue |= osbT4RxTCPChecksum | osbT4RxTCPOptionsChecksum;
-			if (pConfiguration->OffloadRxCS.ulValue > 1) pContext->Offload.flagsValue |= osbT4RxUDPChecksum;
-			if (pConfiguration->OffloadRxCS.ulValue > 2) pContext->Offload.flagsValue |= osbT4RxIPChecksum | osbT4RxIPOptionsChecksum;
+			if (pConfiguration->OffloadTxLSO.ulValue > 1) pContext->Offload.flagsValue |= osbT6Lso | osbT6LsoTcpOptions;
+			// RX caps: 1 - TCP, 2 - UDP, 4 - IP, 8 - TCPv6, 16 - UDPv6
+			if (pConfiguration->OffloadRxCS.ulValue & 1) pContext->Offload.flagsValue |= osbT4RxTCPChecksum | osbT4RxTCPOptionsChecksum;
+			if (pConfiguration->OffloadRxCS.ulValue & 2) pContext->Offload.flagsValue |= osbT4RxUDPChecksum;
+			if (pConfiguration->OffloadRxCS.ulValue & 4) pContext->Offload.flagsValue |= osbT4RxIPChecksum | osbT4RxIPOptionsChecksum;
+			if (pConfiguration->OffloadRxCS.ulValue & 8) pContext->Offload.flagsValue |= osbT6RxTCPChecksum | osbT6RxTCPOptionsChecksum;
+			if (pConfiguration->OffloadRxCS.ulValue & 16) pContext->Offload.flagsValue |= osbT6RxUDPChecksum;
 			/* full packet size that can be configured as GSO for VIRTIO is short */
 			/* NDIS test fails sometimes fails on segments 50-60K */
 			pContext->Offload.maxPacketSize = PARANDIS_MAX_LSO_SIZE;
@@ -384,7 +418,22 @@ void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsF
 	pDest->fRxTCPChecksum = !!(*from & osbT4RxTCPChecksum);
 	pDest->fRxTCPOptions = !!(*from & osbT4RxTCPOptionsChecksum);
 	pDest->fRxUDPChecksum = !!(*from & osbT4RxUDPChecksum);
+
+	pDest->fTxTCPv6Checksum = !!(*from & osbT6TcpChecksum);
+	pDest->fTxTCPv6Options = !!(*from & osbT6TcpOptionsChecksum);
+	pDest->fTxUDPv6Checksum = !!(*from & osbT6UdpChecksum);
+	pDest->fTxIPv6Ext = !!(*from & osbT6IpExtChecksum);
+
+	pDest->fTxLsov6 = !!(*from & osbT6Lso);
+	pDest->fTxLsov6IP = !!(*from & osbT6LsoIpExt);
+	pDest->fTxLsov6TCP = !!(*from & osbT6LsoTcpOptions);
+
+	pDest->fRxTCPv6Checksum = !!(*from & osbT6RxTCPChecksum);
+	pDest->fRxTCPv6Options = !!(*from & osbT6RxTCPOptionsChecksum);
+	pDest->fRxUDPv6Checksum = !!(*from & osbT6RxUDPChecksum);
+	pDest->fRxIPv6Ext = !!(*from & osbT6RxIpExtChecksum);
 }
+
 /**********************************************************
 Enumerates adapter resources and fills the structure holding them
 Verifies that IO assigned and has correct size
@@ -693,12 +742,16 @@ NDIS_STATUS ParaNdis_InitializeContext(
 			DPrintf(0, ("[%s] Host does not support CSUM, disabling CS offload", __FUNCTION__) );
 			pContext->Offload.flagsValue &= ~dependentOptions;
 		}
-		dependentOptions = osbT4IpChecksum | osbT4IpOptionsChecksum;
-		if (pContext->Offload.flagsValue & dependentOptions)
-		{
-			DPrintf(0, ("[%s] Host does not support IPCS, disabling it", __FUNCTION__) );
-			pContext->Offload.flagsValue &= ~dependentOptions;
-		}
+	}
+
+	if (pContext->bDoGuestChecksumOnReceive && VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_GUEST_CSUM))
+	{
+		DPrintf(0, ("[%s] Enabling guest checksum", __FUNCTION__) );
+		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_NET_F_GUEST_CSUM);
+	}
+	else
+	{
+		pContext->bDoGuestChecksumOnReceive = FALSE;
 	}
 
 	// now, after we checked the capabilities, we can initialize current
@@ -706,12 +759,17 @@ NDIS_STATUS ParaNdis_InitializeContext(
 	ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
 	if (pContext->Offload.flags.fTxLso && !pContext->bUseScatterGather)
 	{
-		DisableLSOPermanently(pContext, __FUNCTION__, "SG is not active");
+		DisableBothLSOPermanently(pContext, __FUNCTION__, "SG is not active");
 	}
 	if (pContext->Offload.flags.fTxLso &&
 		!VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_HOST_TSO4))
 	{
-		DisableLSOPermanently(pContext, __FUNCTION__, "Host does not support TSO");
+		DisableLSOv4Permanently(pContext, __FUNCTION__, "Host does not support TSOv4");
+	}
+	if (pContext->Offload.flags.fTxLsov6 &&
+		!VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_HOST_TSO6))
+	{
+		DisableLSOv6Permanently(pContext, __FUNCTION__, "Host does not support TSOv6");
 	}
 	if (pContext->bUseIndirect)
 	{
@@ -736,6 +794,9 @@ NDIS_STATUS ParaNdis_InitializeContext(
 		pContext->bHasHardwareFilters = TRUE;
 	}
 
+	pContext->ReuseBufferProc = ReuseReceiveBufferRegular;
+
+	
 	NdisInitializeEvent(&pContext->ResetEvent);
 	DEBUG_EXIT_STATUS(0, status);
 	return status;
@@ -1027,7 +1088,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 				pContext->maxFreeHardwareBuffers * sizeof(pContext->sgTxGatherTable[0]));
 			if (!pContext->sgTxGatherTable)
 			{
-				DisableLSOPermanently(pContext, __FUNCTION__, "Can not allocate SG table");
+				DisableBothLSOPermanently(pContext, __FUNCTION__, "Can not allocate SG table");
 			}
 			status = NDIS_STATUS_SUCCESS;
 		}
@@ -1075,7 +1136,7 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
 	{
 		JustForCheckClearInterrupt(pContext, "start 3");
 		pContext->bEnableInterruptHandlingDPC = TRUE;
-		pContext->powerState = NetDeviceStateD0;
+		ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
 		VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 		JustForCheckClearInterrupt(pContext, "start 4");
 
@@ -1266,7 +1327,7 @@ BOOLEAN ParaNdis_OnInterrupt(
 		// ignore interrupts with invalid status bits
 		if (
 			status == VIRTIO_NET_INVALID_INTERRUPT_STATUS ||
-			pContext->powerState != NetDeviceStateD0
+			pContext->powerState != NdisDeviceStateD0
 			)
 			status = 0;
 		if (status)
@@ -1295,7 +1356,7 @@ BOOLEAN ParaNdis_OnInterrupt(
 
 
 /**********************************************************
-It is called from Rx processing routines.
+It is called from Rx processing routines in regular mode of operation.
 Returns received buffer back to VirtIO queue, inserting it to NetReceiveBuffers.
 If needed, signals end of RX pause operation
 
@@ -1305,10 +1366,8 @@ Parameters:
 	context
 	void *pDescriptor - pIONetDescriptor to return
 ***********************************************************/
-void ParaNdis_VirtIONetReuseRecvBuffer(PARANDIS_ADAPTER *pContext, void *pDescriptor)
+void ReuseReceiveBufferRegular(PARANDIS_ADAPTER *pContext, pIONetDescriptor pBuffersDescriptor)
 {
-	pIONetDescriptor pBuffersDescriptor = (pIONetDescriptor)pDescriptor;
-
 	DEBUG_ENTRY(4);
 
 	if(!pBuffersDescriptor)
@@ -1352,6 +1411,23 @@ void ParaNdis_VirtIONetReuseRecvBuffer(PARANDIS_ADAPTER *pContext, void *pDescri
 		VirtIONetFreeBufferDescriptor(pContext, pBuffersDescriptor);
 		pContext->NetMaxReceiveBuffers--;
 	}
+}
+
+/**********************************************************
+It is called from Rx processing routines between power off and power on in non-paused mode (Win8).
+Returns received buffer to NetReceiveBuffers. 
+All the buffers will be placed into Virtio queue during power-on procedure
+
+Must be called with &pContext->ReceiveLock acquired
+
+Parameters:
+	context
+	void *pDescriptor - pIONetDescriptor to return
+***********************************************************/
+static void ReuseReceiveBufferPowerOff(PARANDIS_ADAPTER *pContext, pIONetDescriptor pBuffersDescriptor)
+{
+	RemoveEntryList(&pBuffersDescriptor->listEntry);
+	InsertTailList(&pContext->NetReceiveBuffers, &pBuffersDescriptor->listEntry);
 }
 
 /**********************************************************
@@ -1406,7 +1482,7 @@ static ULONG FORCEINLINE QueryTcpHeaderOffset(PVOID packetData, ULONG ipHeaderOf
 		(PUCHAR)packetData + ipHeaderOffset,
 		ipPacketLength,
 		__FUNCTION__);
-	if (ppr.ipStatus == ppresIPV4 && ppr.xxpStatus == ppresXxpKnown)
+	if (ppr.xxpStatus == ppresXxpKnown)
 	{
 		res = ipHeaderOffset + ppr.ipHeaderSize;
 	}
@@ -1440,7 +1516,6 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 		Params->nofSGFragments == 0 ||			// theoretical case
 		!sg ||									// only copy available
 		Params->ulDataSize < ETH_MIN_PACKET_SIZE ||		// padding required
-		(Params->flags & pcrAnyChecksum) ||				// TCP checksumming required
 		((~Params->flags & pcrLSO) && nRequiredBuffers > pContext->maxFreeHardwareBuffers) // to many fragments and normal size of packet
 		)
 	{
@@ -1699,14 +1774,15 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 			FALSE);
 		result.size = CopierResult.size;
 		// did NDIS ask us to compute CS?
-		if ((flags & (pcrTcpChecksum | pcrUdpChecksum )) != 0)
+		if ((flags & (pcrTcpChecksum | pcrUdpChecksum | pcrIpChecksum)) != 0)
 		{
 			// we asked
 			tOffloadSettingsFlags f = pContext->Offload.flags;
 			PVOID ipPacket = RtlOffsetToPointer(
 				pBuffersDescriptor->DataInfo.Virtual, pContext->Offload.ipHeaderOffset + addPriorityLen);
 			ULONG ipPacketLength = CopierResult.size - pContext->Offload.ipHeaderOffset - addPriorityLen;
-			if (!pParams->tcpHeaderOffset)
+			if (!pParams->tcpHeaderOffset &&
+				(flags & (pcrTcpChecksum | pcrUdpChecksum)) )
 			{
 				pParams->tcpHeaderOffset = QueryTcpHeaderOffset(
 					pBuffersDescriptor->DataInfo.Virtual,
@@ -1720,22 +1796,33 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 
 			if (pContext->bDoHardwareChecksum)
 			{
-				// hardware offload
-				virtio_net_hdr_basic *pvnh = (virtio_net_hdr_basic *)pBuffersDescriptor->HeaderInfo.Virtual;
-				pvnh->csum_start = (USHORT)pParams->tcpHeaderOffset;
-				pvnh->csum_offset = (flags & pcrTcpChecksum) ? TCP_CHECKSUM_OFFSET : UDP_CHECKSUM_OFFSET;
-				pvnh->flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM;
+				if (flags & (pcrTcpChecksum | pcrUdpChecksum))
+				{
+					// hardware offload
+					virtio_net_hdr_basic *pvnh = (virtio_net_hdr_basic *)pBuffersDescriptor->HeaderInfo.Virtual;
+					pvnh->csum_start = (USHORT)pParams->tcpHeaderOffset;
+					pvnh->csum_offset = (flags & pcrTcpChecksum) ? TCP_CHECKSUM_OFFSET : UDP_CHECKSUM_OFFSET;
+					pvnh->flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM;
+				}
+				if (flags & (pcrIpChecksum))
+				{
+					ParaNdis_CheckSumVerify(
+						ipPacket,
+						ipPacketLength,
+						pcrIpChecksum | pcrFixIPChecksum,
+						__FUNCTION__);
+				}
 			}
 			else if (CopierResult.size > pContext->Offload.ipHeaderOffset)
 			{
+				ULONG csFlags = 0;
+				if (flags & pcrIpChecksum) csFlags |= pcrIpChecksum | pcrFixIPChecksum;
+				if (flags & (pcrTcpChecksum | pcrUdpChecksum)) csFlags |= pcrTcpChecksum | pcrUdpChecksum| pcrFixXxpChecksum;
 				// software offload
-				if (!f.fTxIPChecksum) flags &= ~pcrIpChecksum;
-				if (!f.fTxTCPChecksum) flags &= ~pcrTcpChecksum;
-				if (!f.fTxUDPChecksum) flags &= ~pcrUdpChecksum;
 				ParaNdis_CheckSumVerify(
 					ipPacket,
 					ipPacketLength,
-					flags | pcrFixIPChecksum | pcrFixXxpChecksum,
+					csFlags,
 					__FUNCTION__);
 			}
 			else
@@ -1925,7 +2012,7 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacket
 			}
 			if (!b)
 			{
-				ParaNdis_VirtIONetReuseRecvBuffer(pContext, pBuffersDescriptor);
+				pContext->ReuseBufferProc(pContext, pBuffersDescriptor);
 				//only possible reason for that is unexpected Vlan tag
 				//shall I count it as error?
 				pContext->Statistics.ifInErrors++;
@@ -1964,7 +2051,7 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacket
 		else
 		{
 			// reuse packet, there is no data or the RX is suppressed
-			ParaNdis_VirtIONetReuseRecvBuffer(pContext, pBuffersDescriptor);
+			pContext->ReuseBufferProc(pContext, pBuffersDescriptor);
 		}
 	}
 	ParaNdis_DebugHistory(pContext, hopReceiveStat, NULL, nRetrieved, nReported, pContext->NetNofReceiveBuffers);
@@ -1978,7 +2065,7 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacket
 	return nReported;
 }
 
-void ParaNdis_ReportLinkStatus(PARANDIS_ADAPTER *pContext)
+void ParaNdis_ReportLinkStatus(PARANDIS_ADAPTER *pContext, BOOLEAN bForce)
 {
 	BOOLEAN bConnected = TRUE;
 	if (pContext->bLinkDetectSupported)
@@ -1989,7 +2076,7 @@ void ParaNdis_ReportLinkStatus(PARANDIS_ADAPTER *pContext)
 		VirtIODeviceGet(&pContext->IODevice, offset, &linkStatus, sizeof(linkStatus));
 		bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
 	}
-	ParaNdis_IndicateConnect(pContext, bConnected, FALSE);
+	ParaNdis_IndicateConnect(pContext, bConnected, bForce);
 }
 
 
@@ -2031,7 +2118,7 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
 			ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)1, interruptSources, 0, 0);
 			if ((interruptSources & isControl) && pContext->bLinkDetectSupported)
 			{
-				ParaNdis_ReportLinkStatus(pContext);
+				ParaNdis_ReportLinkStatus(pContext, FALSE);
 			}
 			if (interruptSources & isTransmit)
 			{
@@ -2577,6 +2664,8 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_NET_F_MRG_RXBUF);
 	if (pContext->bDoPublishIndices)
 		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_F_PUBLISH_INDICES);
+	if (pContext->bDoGuestChecksumOnReceive)
+		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_NET_F_GUEST_CSUM);
 
 	VirtIODeviceRenewQueue(pContext->NetReceiveQueue);
 	VirtIODeviceRenewQueue(pContext->NetSendQueue);
@@ -2587,8 +2676,12 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 	ParaNdis_UpdateDeviceFilters(pContext);
 
 	InitializeListHead(&TempList);
+	
 	/* submit all the receive buffers */
 	NdisAcquireSpinLock(&pContext->ReceiveLock);
+	
+	pContext->ReuseBufferProc = ReuseReceiveBufferRegular;
+	
 	while (!IsListEmpty(&pContext->NetReceiveBuffers))
 	{
 		pIONetDescriptor pBufferDescriptor =
@@ -2612,14 +2705,20 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 			pContext->NetMaxReceiveBuffers--;
 		}
 	}
-	pContext->powerState = NetDeviceStateD0;
+	ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
 	pContext->bEnableInterruptHandlingDPC = TRUE;
 	VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 	pContext->NetReceiveQueue->vq_ops->kick(pContext->NetReceiveQueue);
+	
 	NdisReleaseSpinLock(&pContext->ReceiveLock);
 
+	// if bFastSuspendInProcess is set by Win8 power-off procedure,
+	// the ParaNdis_Resume enables Tx and RX
+	// otherwise it does not do anything in Vista+ (Tx and RX are enabled after power-on by Restart)
 	ParaNdis_Resume(pContext);
-	ParaNdis_ReportLinkStatus(pContext);
+	pContext->bFastSuspendInProcess = FALSE;
+	
+	ParaNdis_ReportLinkStatus(pContext, TRUE);
 	ParaNdis_DebugHistory(pContext, hopPowerOn, NULL, 0, 0, 0);
 }
 
@@ -2627,12 +2726,21 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
 {
 	DEBUG_ENTRY(0);
 	ParaNdis_DebugHistory(pContext, hopPowerOff, NULL, 1, 0, 0);
-	/* stop processing of interrupts, DPC and Send operations */
-	ParaNdis_IndicateConnect(pContext, FALSE, FALSE);
-	VirtIODeviceRemoveStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
-	// TODO: Synchronize with IRQ
+
+	// if bFastSuspendInProcess is set by Win8 power-off procedure
+	// the ParaNdis_Suspend does fast Rx stop without waiting (=>srsPausing, if there are some RX packets in Ndis)
+	pContext->bFastSuspendInProcess = pContext->bNoPauseOnSuspend && pContext->ReceiveState == srsEnabled;
 	ParaNdis_Suspend(pContext);
-	pContext->powerState = NetDeviceStateD3;
+	VirtIODeviceRemoveStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+	
+	if (pContext->bFastSuspendInProcess)
+	{
+		NdisAcquireSpinLock(&pContext->ReceiveLock);
+		pContext->ReuseBufferProc = ReuseReceiveBufferPowerOff;
+		NdisReleaseSpinLock(&pContext->ReceiveLock);
+	}
+	
+	ParaNdis_SetPowerState(pContext, NdisDeviceStateD3);
 
 	PreventDPCServicing(pContext);
 
@@ -2683,52 +2791,105 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG 
 	tChecksumCheckResult res, resIp;
 	PVOID pIpHeader = RtlOffsetToPointer(pRxPacket, ETH_HEADER_SIZE);
 	tTcpIpPacketParsingResult ppr;
+	ULONG flagsToCalculate = 0;
 	res.value = 0;
 	resIp.value = 0;
-	if (f.fRxIPChecksum || f.fRxTCPChecksum || f.fRxUDPChecksum)
+
+	//VIRTIO_NET_HDR_F_NEEDS_CSUM - we need to calculate TCP/UDP CS
+	//VIRTIO_NET_HDR_F_DATA_VALID - host tells us TCP/UDP CS is OK
+
+	if (f.fRxIPChecksum) flagsToCalculate |= pcrIpChecksum; // check only
+
+	if (virtioFlags & VIRTIO_NET_HDR_F_DATA_VALID)
 	{
-		//VIRTIO_NET_HDR_F_NEEDS_CSUM - do nothing
-		//VIRTIO_NET_HDR_F_DATA_VALID - host tell us CS is OK
-		if (pContext->bDoIPCheckRx)
+		//flagsToCalculate &= ~(pcrFixXxpChecksum | pcrTcpChecksum | pcrUdpChecksum);
+	}
+	else if (virtioFlags & VIRTIO_NET_HDR_F_NEEDS_CSUM)
+	{
+		flagsToCalculate |= pcrFixXxpChecksum | pcrTcpChecksum | pcrUdpChecksum;
+	}
+	else if (f.fRxTCPChecksum || f.fRxUDPChecksum || f.fRxTCPv6Checksum || f.fRxUDPv6Checksum)
+	{
+		if (f.fRxTCPChecksum) flagsToCalculate |= pcrTcpV4Checksum;
+		if (f.fRxUDPChecksum) flagsToCalculate |= pcrUdpV4Checksum;
+		if (f.fRxTCPv6Checksum) flagsToCalculate |= pcrTcpV6Checksum;
+		if (f.fRxUDPv6Checksum) flagsToCalculate |= pcrUdpV6Checksum;
+	}
+
+	ppr = ParaNdis_CheckSumVerify(pIpHeader, len - ETH_HEADER_SIZE, flagsToCalculate, __FUNCTION__);
+
+	if (virtioFlags & VIRTIO_NET_HDR_F_DATA_VALID)
+	{
+		pContext->extraStatistics.framesRxCSHwOK++;
+		ppr.xxpCheckSum = ppresCSOK;
+	}
+
+	if (ppr.ipStatus == ppresIPV4 && !ppr.IsFragment)
+	{
+		if (f.fRxIPChecksum)
 		{
-			ppr = ParaNdis_CheckSumVerify(pIpHeader, len - ETH_HEADER_SIZE, pcrAnyChecksum, __FUNCTION__);
-			if (ppr.ipStatus == ppresIPV4 && !ppr.IsFragment)
+			res.flags.IpOK =  ppr.ipCheckSum == ppresCSOK;
+			res.flags.IpFailed = ppr.ipCheckSum == ppresCSBad;
+		}
+		if (f.fRxTCPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsTCP)
+		{
+			res.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+			res.flags.TcpFailed = !res.flags.TcpOK;
+		}
+		if (f.fRxUDPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsUDP)
+		{
+			res.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+			res.flags.UdpFailed = !res.flags.UdpOK;
+		}
+	}
+	else if (ppr.ipStatus == ppresIPV6)
+	{
+		if (f.fRxTCPv6Checksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsTCP)
+		{
+			res.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+			res.flags.TcpFailed = !res.flags.TcpOK;
+		}
+		if (f.fRxUDPv6Checksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsUDP)
+		{
+			res.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+			res.flags.UdpFailed = !res.flags.UdpOK;
+		}
+	}
+
+	if (pContext->bDoIPCheckRx &&
+		(f.fRxIPChecksum || f.fRxTCPChecksum || f.fRxUDPChecksum || f.fRxTCPv6Checksum || f.fRxUDPv6Checksum))
+	{
+		ppr = ParaNdis_CheckSumVerify(pIpHeader, len - ETH_HEADER_SIZE, pcrAnyChecksum, __FUNCTION__"(2)");
+		if (ppr.ipStatus == ppresIPV4 && !ppr.IsFragment)
+		{
+			resIp.flags.IpOK = !!f.fRxIPChecksum && ppr.ipCheckSum == ppresCSOK;
+			resIp.flags.IpFailed = !!f.fRxIPChecksum && ppr.ipCheckSum == ppresCSBad;
+			if (f.fRxTCPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsTCP)
 			{
-				resIp.flags.IpOK = !!f.fRxIPChecksum && ppr.ipCheckSum == ppresCSOK;
-				resIp.flags.IpFailed = !!f.fRxIPChecksum && ppr.ipCheckSum == ppresCSBad;
-				if (f.fRxTCPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsTCP)
-				{
-					resIp.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK;
-					resIp.flags.TcpFailed = ppr.xxpCheckSum == ppresCSBad;
-				}
-				if (f.fRxUDPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsUDP)
-				{
-					resIp.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK;
-					resIp.flags.UdpFailed = ppr.xxpCheckSum == ppresCSBad;
-				}
+				resIp.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK;
+				resIp.flags.TcpFailed = ppr.xxpCheckSum == ppresCSBad;
+			}
+			if (f.fRxUDPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsUDP)
+			{
+				resIp.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK;
+				resIp.flags.UdpFailed = ppr.xxpCheckSum == ppresCSBad;
+			}
+		}
+		else if (ppr.ipStatus == ppresIPV6)
+		{
+			if (f.fRxTCPv6Checksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsTCP)
+			{
+				resIp.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK;
+				resIp.flags.TcpFailed = ppr.xxpCheckSum == ppresCSBad;
+			}
+			if (f.fRxUDPv6Checksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsUDP)
+			{
+				resIp.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK;
+				resIp.flags.UdpFailed = ppr.xxpCheckSum == ppresCSBad;
 			}
 		}
 
-		if (virtioFlags & VIRTIO_NET_HDR_F_DATA_VALID)
-		{
-			ppr = ParaNdis_ReviewIPPacket(pIpHeader, len - ETH_HEADER_SIZE, __FUNCTION__);
-			if (ppr.ipStatus != ppresIPV4 || ppr.IsFragment)
-				virtioFlags &= VIRTIO_NET_HDR_F_DATA_VALID;
-			else if (ppr.xxpStatus != ppresXxpKnown)
-			{
-				f.fRxTCPChecksum = 0;
-				f.fRxUDPChecksum = 0;
-			}
-			else if (ppr.TcpUdp == ppresIsTCP)
-				f.fRxUDPChecksum = 0;
-			else if (ppr.TcpUdp == ppresIsUDP)
-				f.fRxTCPChecksum = 0;
-			pContext->extraStatistics.framesRxCSHwOK++;
-			res.flags.IpOK = !!f.fRxIPChecksum;
-			res.flags.TcpOK = !!f.fRxTCPChecksum;
-			res.flags.UdpOK = !!f.fRxUDPChecksum;
-		}
-		if (pContext->bDoIPCheckRx && res.value != resIp.value)
+		if (res.value != resIp.value)
 		{
 			// if HW did not set some bits that IP checker set, it is a mistake:
 			// or GOOD CS is not labeled, or BAD checksum is not labeled
@@ -2740,10 +2901,11 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG 
 				pContext->extraStatistics.framesRxCSHwMissedGood++;
 			if (diff.value)
 			{
-				DPrintf(1, ("[%s] real %X <> %X", __FUNCTION__, resIp.value, res.value));
+				DPrintf(0, ("[%s] real %X <> %X (virtio %X)", __FUNCTION__, resIp.value, res.value, virtioFlags));
 			}
 			res.value = resIp.value;
 		}
 	}
+
 	return res;
 }

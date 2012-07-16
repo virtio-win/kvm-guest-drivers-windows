@@ -68,20 +68,6 @@ typedef struct _tagTCPHeader {
 }TCPHeader;
 
 
-// IP Header RFC 791
-typedef struct _tagIPHeader {
-    UCHAR		ip_verlen;             // length in 32-bit units(low nibble), version (high nibble)
-    UCHAR		ip_tos;                // Type of service
-    USHORT		ip_length;             // Total length
-    USHORT		ip_id;                 // Identification
-    USHORT		ip_offset;             // fragment offset and flags
-    UCHAR		ip_ttl;                // Time to live
-    UCHAR		ip_protocol;           // Protocol
-    USHORT		ip_xsum;               // Header checksum
-    ULONG		ip_src;                // Source IP address
-    ULONG		ip_dest;               // Destination IP address
-} IPHeader;
-
 // UDP Header RFC 768
 typedef struct _tagUDPHeader {
     USHORT		udp_src;				// Source port
@@ -94,6 +80,7 @@ typedef struct _tagUDPHeader {
 
 #define TCP_CHECKSUM_OFFSET		16
 #define UDP_CHECKSUM_OFFSET		6
-#define MAX_IP_HEADER_SIZE		60
+#define MAX_IPV4_HEADER_SIZE	60
+#define MAX_TCP_HEADER_SIZE		60
 
 #endif

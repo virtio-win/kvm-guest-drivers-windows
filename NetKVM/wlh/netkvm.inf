@@ -61,8 +61,6 @@ HKR, Ndi\Interfaces,              LowerRange,          0, "ethernet"
 
 [Parameters]
 #define INCLUDE_PARAMS
-#define DEFAULT_CONNECT_RATE	"10000"
-#define DEFAULT_TX_CHECKSUM		"2"
 #include "Common\common.inf.h"
 #undef INCLUDE_PARAMS
                                                      
@@ -100,6 +98,7 @@ netkvm.sys  = 1,,
 kvmnet6.CopyFiles = 12
 
 [Strings]
+;<Dense>
 RedHat = "Red Hat Inc."                      
 kvmnet6.DeviceDesc        = "Red Hat VirtIO Ethernet Adapter"
 kvmnet6.Service.DispName    = "Red Hat VirtIO Ethernet Adapter Service"
