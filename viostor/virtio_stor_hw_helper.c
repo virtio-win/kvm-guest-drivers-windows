@@ -197,7 +197,7 @@ RhelShutDown(
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     VirtIODeviceReset(&adaptExt->vdev);
-	ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_GUEST_FEATURES), 0);
+    ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_GUEST_FEATURES), 0);
     if (adaptExt->vq) {
        adaptExt->vq->vq_ops->shutdown(adaptExt->vq);
        VirtIODeviceDeleteQueue(adaptExt->vq, NULL);

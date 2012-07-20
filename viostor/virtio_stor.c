@@ -137,7 +137,7 @@ DriverEntry(
     UCHAR devId[4]  = {'1', '0', '0', '1'};
 #endif
 
-    InitializeDebugPrints(DriverObject, RegistryPath);
+    InitializeDebugPrints((PDRIVER_OBJECT)DriverObject, (PUNICODE_STRING)RegistryPath);
 
     RhelDbgPrint(TRACE_LEVEL_ERROR, ("Viostor driver started...built on %s %s\n", __DATE__, __TIME__));
     IsCrashDumpMode = FALSE;
@@ -314,8 +314,8 @@ VirtIoFindAdapter(
         return SP_RETURN_ERROR;
     }
 
-	VirtIODeviceInitialize(&adaptExt->vdev, deviceBase, sizeof(adaptExt->vdev));
-	adaptExt->msix_enabled = FALSE;
+    VirtIODeviceInitialize(&adaptExt->vdev, deviceBase, sizeof(adaptExt->vdev));
+    adaptExt->msix_enabled = FALSE;
 
 #ifdef MSI_SUPPORTED
     pci_cfg_len = StorPortGetBusData (DeviceExtension,
@@ -383,7 +383,7 @@ VirtIoFindAdapter(
     ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WCACHE) ? TRUE : FALSE;
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_WCACHE = %d\n", ConfigInfo->CachesData));
 
-	VirtIODeviceQueryQueueAllocation(&adaptExt->vdev, 0, &pageNum, &allocationSize);
+    VirtIODeviceQueryQueueAllocation(&adaptExt->vdev, 0, &pageNum, &allocationSize);
 
     if(adaptExt->dump_mode) {
         ConfigInfo->NumberOfPhysicalBreaks = 8;
@@ -553,7 +553,7 @@ VirtIoHwInitialize(
 
     if (ret)
     {
-		VirtIODeviceAddStatus(&adaptExt->vdev, VIRTIO_CONFIG_S_DRIVER_OK);
+        VirtIODeviceAddStatus(&adaptExt->vdev, VIRTIO_CONFIG_S_DRIVER_OK);
     }
 
     return ret;
@@ -702,10 +702,10 @@ VirtIoInterrupt(
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s (%d)\n", __FUNCTION__, KeGetCurrentIrql()));
-    intReason = VirtIODeviceISR(DeviceExtension);
+    intReason = VirtIODeviceISR((VirtIODevice*)DeviceExtension);
     if ( intReason == 1) {
         isInterruptServiced = TRUE;
-        while((vbr = adaptExt->vq->vq_ops->get_buf(adaptExt->vq, &len)) != NULL) {
+        while((vbr = (pblk_req)adaptExt->vq->vq_ops->get_buf(adaptExt->vq, &len)) != NULL) {
            Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
            if (Srb) {
               switch (vbr->status) {
@@ -871,7 +871,7 @@ VirtIoBuildIo(
 
     srbExt->vbr.out_hdr.sector = RhelGetLba(DeviceExtension, cdb);
     srbExt->vbr.out_hdr.ioprio = 0;
-    srbExt->vbr.req            = (struct request *)Srb;
+    srbExt->vbr.req            = (PVOID)Srb;
 
     if (Srb->SrbFlags & SRB_FLAGS_DATA_OUT) {
         srbExt->vbr.out_hdr.type = VIRTIO_BLK_T_OUT;
@@ -917,7 +917,7 @@ VirtIoMSInterruptRoutine (
        return TRUE;
     }
 
-    while((vbr = adaptExt->vq->vq_ops->get_buf(adaptExt->vq, &len)) != NULL) {
+    while((vbr = (pblk_req)adaptExt->vq->vq_ops->get_buf(adaptExt->vq, &len)) != NULL) {
         Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
         if (Srb) {
            switch (vbr->status) {
@@ -1093,7 +1093,7 @@ RhelScsiGetModeSense(
            return SrbStatus;
         }
 
-        header = Srb->DataBuffer;
+        header = (PMODE_PARAMETER_HEADER)Srb->DataBuffer;
 
         memset(header, 0, sizeof(MODE_PARAMETER_HEADER));
         header->DeviceSpecificParameter = MODE_DSP_FUA_SUPPORTED;
@@ -1130,7 +1130,7 @@ RhelScsiGetModeSense(
            return SrbStatus;
         }
 
-        header = Srb->DataBuffer;
+        header = (PMODE_PARAMETER_HEADER)Srb->DataBuffer;
         memset(header, 0, sizeof(MODE_PARAMETER_HEADER));
         header->DeviceSpecificParameter = MODE_DSP_FUA_SUPPORTED;
 
