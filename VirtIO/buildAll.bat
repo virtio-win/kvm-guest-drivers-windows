@@ -106,13 +106,13 @@ goto continue
 
 
 :BuildWin8
-reg query "HKLM\Software\Microsoft\Windows Kits\WDK" /v WDKProductVersion > nul
+reg query "HKLM\Software\Wow6432Node\Microsoft\Windows Kits\WDK" /v WDKProductVersion > nul
 if %ERRORLEVEL% EQU 0 goto wdk8ok
 echo ERROR building Win8 drivers: Win8 WDK is not installed
 cd .
 goto :eof
 :wdk8ok
-reg query HKLM\Software\Microsoft\VisualStudio\11.0 /v InstallDir > nul
+reg query HKLM\Software\Wow6432Node\Microsoft\VisualStudio\11.0 /v InstallDir > nul
 if %ERRORLEVEL% EQU 0 goto ws11ok
 echo ERROR building Win8 drivers: VS11 is not installed
 cd .

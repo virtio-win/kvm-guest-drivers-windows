@@ -173,13 +173,13 @@ if not exist wxp\objfre_wnet_amd64\amd64\netkvm.sys goto :eof
 goto continue
 
 :BuildUsing2012
-reg query "HKLM\Software\Microsoft\Windows Kits\WDK" /v WDKProductVersion > nul
+reg query "HKLM\Software\Wow6432Node\Microsoft\Windows Kits\WDK" /v WDKProductVersion > nul
 if %ERRORLEVEL% EQU 0 goto BuildUsing2012_WDKOK
 echo ERROR building Win8 drivers: Win8 WDK is not installed
 cd .
 goto :eof
 :BuildUsing2012_WDKOK
-reg query HKLM\Software\Microsoft\VisualStudio\11.0 /v InstallDir > nul
+reg query HKLM\Software\Wow6432Node\Microsoft\VisualStudio\11.0 /v InstallDir > nul
 if %ERRORLEVEL% EQU 0 goto BuildUsing2012_VS11OK
 echo ERROR building Win8 drivers: VS11 is not installed
 cd .
