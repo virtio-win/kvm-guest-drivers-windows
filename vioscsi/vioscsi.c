@@ -90,7 +90,7 @@ DriverEntry(
     HW_INITIALIZATION_DATA hwInitData;
     ULONG                  initResult;
 
-    InitializeDebugPrints(DriverObject, RegistryPath);
+    InitializeDebugPrints((PDRIVER_OBJECT)DriverObject, (PUNICODE_STRING)RegistryPath);
 
     RhelDbgPrint(TRACE_LEVEL_ERROR, ("Vioscsi driver started...built on %s %s\n", __DATE__, __TIME__));
     IsCrashDumpMode = FALSE;
@@ -189,7 +189,7 @@ ENTER_FN();
     }
     ConfigInfo->MaximumTransferLength       = 0x00FFFFFF;
 
-    VirtIODeviceReset(DeviceExtension);
+    VirtIODeviceReset(&adaptExt->vdev);
     StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)0);
 
     if (adaptExt->dump_mode) {
@@ -288,7 +288,7 @@ VioScsiHwInitialize(
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PVOID              ptr      = adaptExt->uncachedExtensionVa;
 
-    adaptExt->vq[0] = FindVirtualQueue(DeviceExtension, 0, 0);
+    adaptExt->vq[0] = FindVirtualQueue(adaptExt, 0, 0);
     if (!adaptExt->vq[0]) {
         StorPortLogError(DeviceExtension,
                          NULL,
@@ -302,7 +302,7 @@ VioScsiHwInitialize(
         return FALSE;
     }
 
-    adaptExt->vq[1] = FindVirtualQueue(DeviceExtension, 1, 0);
+    adaptExt->vq[1] = FindVirtualQueue(adaptExt, 1, 0);
 
     if (!adaptExt->vq[1]) {
         StorPortLogError(DeviceExtension,
@@ -317,7 +317,7 @@ VioScsiHwInitialize(
         return FALSE;
     }
 
-    adaptExt->vq[2] = FindVirtualQueue(DeviceExtension, 2, 0);
+    adaptExt->vq[2] = FindVirtualQueue(adaptExt, 2, 0);
 
     if (!adaptExt->vq[2]) {
         StorPortLogError(DeviceExtension,
@@ -357,7 +357,7 @@ VioScsiInterrupt(
     IN PVOID DeviceExtension
     )
 {
-    VirtIOSCSICmd       *cmd;
+    PVirtIOSCSICmd      cmd;
     unsigned int        len;
     PADAPTER_EXTENSION  adaptExt;
     BOOLEAN             isInterruptServiced = FALSE;
@@ -367,11 +367,11 @@ VioScsiInterrupt(
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s (%d)\n", __FUNCTION__, KeGetCurrentIrql()));
-    intReason = VirtIODeviceISR(DeviceExtension);
+    intReason = VirtIODeviceISR(&adaptExt->vdev);
 
     if ( intReason == 1) {
         isInterruptServiced = TRUE;
-        while((cmd = adaptExt->vq[2]->vq_ops->get_buf(adaptExt->vq[2], &len)) != NULL) {
+        while((cmd = (PVirtIOSCSICmd)adaptExt->vq[2]->vq_ops->get_buf(adaptExt->vq[2], &len)) != NULL) {
            VirtIOSCSICmdResp   *resp;
            Srb     = (PSCSI_REQUEST_BLOCK)cmd->sc;
            resp    = &cmd->resp.cmd;
@@ -433,7 +433,7 @@ VioScsiInterrupt(
            CompleteRequest(DeviceExtension, Srb);
         }
         if (adaptExt->tmf_infly) {
-           while((cmd = adaptExt->vq[0]->vq_ops->get_buf(adaptExt->vq[0], &len)) != NULL) {
+           while((cmd = (PVirtIOSCSICmd)adaptExt->vq[0]->vq_ops->get_buf(adaptExt->vq[0], &len)) != NULL) {
               VirtIOSCSICtrlTMFResp *resp;
               Srb = (PSCSI_REQUEST_BLOCK)cmd->sc;
               ASSERT(Srb == &adaptExt->tmf_cmd.Srb);
@@ -513,7 +513,7 @@ ENTER_FN();
     }
     case ScsiRestartAdapter: {
         RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("ScsiRestartAdapter\n"));
-        VirtIODeviceReset(DeviceExtension);
+        VirtIODeviceReset(&adaptExt->vdev);
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)0);
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
         adaptExt->vq[0] = NULL;
