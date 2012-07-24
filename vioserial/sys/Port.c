@@ -42,12 +42,12 @@ VIOSerialFindPortById(
         VIOSERIAL_PORT           port;
         WDFDEVICE                hChild;
 
-        WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &port.Header);
-
         WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(
                                  &port.Header,
                                  sizeof(port)
                                  );
+        WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &port.Header);
+
         status = WdfChildListRetrieveNextDevice(
                                  list,
                                  &iterator,
@@ -146,12 +146,12 @@ VIOSerialRemovePort(
         VIOSERIAL_PORT           vport;
         WDFDEVICE                hChild;
 
-        WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &vport.Header);
-
         WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(
                                  &vport.Header,
                                  sizeof(vport)
                                  );
+        WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &vport.Header);
+
         status = WdfChildListRetrieveNextDevice(
                                  list,
                                  &iterator,
@@ -242,12 +242,12 @@ VIOSerialRenewAllPorts(
         VIOSERIAL_PORT           vport;
         WDFDEVICE                hChild;
 
-        WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &vport.Header);
-
         WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(
                                  &vport.Header,
                                  sizeof(vport)
                                  );
+        WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &vport.Header);
+
         status = WdfChildListRetrieveNextDevice(
                                  list,
                                  &iterator,
@@ -306,12 +306,12 @@ VIOSerialShutdownAllPorts(
         VIOSERIAL_PORT           vport;
         WDFDEVICE                hChild;
 
-        WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &vport.Header);
-
         WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(
                                  &vport.Header,
                                  sizeof(vport)
                                  );
+        WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &vport.Header);
+
         status = WdfChildListRetrieveNextDevice(
                                  list,
                                  &iterator,
@@ -603,7 +603,7 @@ VIOSerialDeviceListCreatePdo(
 
         status = RtlUnicodeStringPrintf(
                                  &buffer,
-                                 L"%04d",
+                                 L"%04u",
                                  pport->PortId
                                  );
         if (!NT_SUCCESS(status))
@@ -621,7 +621,7 @@ VIOSerialDeviceListCreatePdo(
 
         status = RtlUnicodeStringPrintf(
                                  &buffer,
-                                 L"%02d",
+                                 L"%02u",
                                  pport->PortId
                                  );
         if (!NT_SUCCESS(status))
@@ -932,8 +932,15 @@ VIOSerialPortRead(
 		else
 		{
 			ASSERT (pdoData->port->PendingReadRequest == NULL);
-			WdfRequestMarkCancelableEx(Request, VIOSerialRequestCancel);
-			pdoData->port->PendingReadRequest = Request;
+			status = WdfRequestMarkCancelableEx(Request, VIOSerialRequestCancel);
+			if (!NT_SUCCESS(status))
+			{
+				WdfRequestComplete(Request, status);
+			}
+			else
+			{
+				pdoData->port->PendingReadRequest = Request;
+			}
 		}
     }
 	else
@@ -1514,13 +1521,17 @@ VIOSerialEvtChildListIdentificationDescriptionCleanup(
                               VIOSERIAL_PORT,
                               Header);
 
-    if (pDesc->NameString.Buffer)
+	// only for code analyzer; IdentificationDescription erroneously defined as "out"
+	IdentificationDescription->IdentificationDescriptionSize = sizeof(*pDesc);
+	
+	if (pDesc->NameString.Buffer)
     {
        ExFreePoolWithTag(pDesc->NameString.Buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
        pDesc->NameString.Buffer = NULL;
        pDesc->NameString.Length = 0;
        pDesc->NameString.MaximumLength = 0;
     }
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
 }
 

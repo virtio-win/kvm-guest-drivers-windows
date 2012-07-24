@@ -98,6 +98,11 @@ EVT_WDF_OBJECT_CONTEXT_CLEANUP EvtDriverContextCleanup;
 EVT_WDF_DRIVER_DEVICE_ADD BalloonDeviceAdd;
 EVT_WDF_DEVICE_FILE_CREATE BalloonEvtDeviceFileCreate;
 EVT_WDF_FILE_CLOSE BalloonEvtFileClose;
+EVT_WDF_INTERRUPT_ISR				BalloonInterruptIsr;
+EVT_WDF_INTERRUPT_DPC				BalloonInterruptDpc;
+EVT_WDF_INTERRUPT_ENABLE			BalloonInterruptEnable;
+EVT_WDF_INTERRUPT_DISABLE			BalloonInterruptDisable;
+EVT_WDF_WORKITEM					FillLeakWorkItem;
 
 VOID
 BalloonInterruptDpc(
@@ -114,13 +119,13 @@ BalloonInterruptIsr(
 NTSTATUS
 BalloonInterruptEnable(
     IN WDFINTERRUPT WdfInterrupt,
-    IN WDFOBJECT    WdfDevice
+    IN WDFDEVICE    WdfDevice
     );
 
 NTSTATUS
 BalloonInterruptDisable(
     IN WDFINTERRUPT WdfInterrupt,
-    IN WDFOBJECT    WdfDevice
+    IN WDFDEVICE    WdfDevice
     );
 
 NTSTATUS

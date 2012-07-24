@@ -68,10 +68,11 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
 
 VOID
 VIOSerialEvtDriverContextCleanup(
-    IN WDFDRIVER Driver
+    IN WDFOBJECT obj
     )
 {
-    PDRIVER_OBJECT  drvObj = WdfDriverWdmGetDriverObject( Driver );
+    WDFDRIVER Driver = (WDFDRIVER)obj;
+	PDRIVER_OBJECT  drvObj = WdfDriverWdmGetDriverObject( Driver );
     PAGED_CODE ();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);

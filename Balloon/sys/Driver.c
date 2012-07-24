@@ -129,10 +129,11 @@ NTSTATUS DriverEntry(
 
 VOID
 EvtDriverContextCleanup(
-    IN WDFDRIVER Driver
+    IN WDFOBJECT _o
     )
 {
-    PDRIVER_CONTEXT drvCxt = GetDriverContext( Driver );
+    WDFDRIVER Driver = (WDFDRIVER)_o;
+	PDRIVER_CONTEXT drvCxt = GetDriverContext( Driver );
     PDRIVER_OBJECT  drvObj = WdfDriverWdmGetDriverObject( Driver );
     PAGED_CODE ();
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s\n", __FUNCTION__);
