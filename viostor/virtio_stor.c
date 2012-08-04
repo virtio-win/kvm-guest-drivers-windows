@@ -379,8 +379,11 @@ VirtIoFindAdapter(
         WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_PFN, (USHORT)0);
     }
 
-	adaptExt->features = ReadVirtIODeviceRegister(adaptExt->vdev.addr + VIRTIO_PCI_HOST_FEATURES);
+    adaptExt->features = ReadVirtIODeviceRegister(adaptExt->vdev.addr + VIRTIO_PCI_HOST_FEATURES);
     ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WCACHE) ? TRUE : FALSE;
+    if (ConfigInfo->CachesData) {
+        VirtIODeviceEnableGuestFeature(&adaptExt->vdev, VIRTIO_BLK_F_WCACHE);
+    }
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_WCACHE = %d\n", ConfigInfo->CachesData));
 
     VirtIODeviceQueryQueueAllocation(&adaptExt->vdev, 0, &pageNum, &allocationSize);
