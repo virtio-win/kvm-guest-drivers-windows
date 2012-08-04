@@ -127,7 +127,7 @@ static int vring_add_buf(struct virtqueue *_vq,
 			 )
 {
 	struct vring_virtqueue *vq = to_vvq(_vq);
-	unsigned int i, avail, head, prev;
+	unsigned int i, avail, head, prev = 0;
 
 	if(data == NULL) {
 		DPrintf(0, ("%s: data is NULL!\n",  __FUNCTION__) );
