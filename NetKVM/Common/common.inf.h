@@ -24,14 +24,17 @@
 #define DEFAULT_CONNECT_RATE	"1001"
 #define DEFAULT_TX_CHECKSUM		"0" 
 #define DEFAULT_RX_CHECKSUM		"0"
+#define DEFAULT_PUBLISHINDICES  "0"
 #elif TARGETOS < 62
 #define DEFAULT_CONNECT_RATE	"10000"
 #define DEFAULT_TX_CHECKSUM		"27"
 #define DEFAULT_RX_CHECKSUM		"0"
+#define DEFAULT_PUBLISHINDICES  "1"
 #else
 #define DEFAULT_CONNECT_RATE	"10000"
 #define DEFAULT_TX_CHECKSUM		"31"
 #define DEFAULT_RX_CHECKSUM		"31"
+#define DEFAULT_PUBLISHINDICES  "1"
 #endif
 
 
@@ -114,7 +117,7 @@ HKR, Ndi\Params\MergeableBuf\enum,	"1",		0,			%Enable%
 HKR, Ndi\Params\MergeableBuf\enum,	"0",		0,			%Disable%
 
 HKR, Ndi\Params\PublishIndices,		ParamDesc,	0,			%PublishIndices%
-HKR, Ndi\Params\PublishIndices,		Default,	0,			"1"
+HKR, Ndi\Params\PublishIndices,		Default,	0,			DEFAULT_PUBLISHINDICES
 HKR, Ndi\Params\PublishIndices,		type,		0,			"enum"
 HKR, Ndi\Params\PublishIndices\enum,	"1",		0,			%Enable%
 HKR, Ndi\Params\PublishIndices\enum,	"0",		0,			%Disable%
