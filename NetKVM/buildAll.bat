@@ -38,7 +38,8 @@ set _DRIVER_ISO_NAME=Install-%_MINORVERSION_%%_MAJORVERSION_%.iso
 if not "%1"=="" goto parameters_here
 echo no parameters specified, rebuild all
 call clean.bat
-call "%0" Win8 Win8_64 Vista Vista64 XP XP64 Win7 Win7_64
+rem call "%0" Win8 Win8_64 Vista Vista64 XP XP64 Win7 Win7_64
+call "%0" Vista Vista64 XP XP64 Win7 Win7_64
 call :PackInstall
 goto :eof
 :parameters_here
