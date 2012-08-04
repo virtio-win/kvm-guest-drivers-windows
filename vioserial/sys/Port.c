@@ -731,6 +731,7 @@ VIOSerialDeviceListCreatePdo(
                                  WdfIoQueueDispatchSequential);
 
         queueConfig.EvtIoRead   =  VIOSerialPortRead;
+        queueConfig.EvtIoStop   =  VIOSerialPortIoStop;
         status = WdfIoQueueCreate(hChild,
                                  &queueConfig,
                                  WDF_NO_OBJECT_ATTRIBUTES,
@@ -1535,3 +1536,29 @@ VIOSerialEvtChildListIdentificationDescriptionCleanup(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
 }
 
+VOID
+VIOSerialPortIoStop(
+    IN WDFQUEUE   Queue,
+    IN WDFREQUEST Request,
+    IN ULONG      ActionFlags
+    )
+{
+    PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
+    PVIOSERIAL_PORT    pport = pdoData->port;
+
+    ASSERT(pport->PendingReadRequest == Request);
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "-->%s\n", __FUNCTION__);
+
+    WdfSpinLockAcquire(pport->InBufLock);
+    if (ActionFlags &  WdfRequestStopActionSuspend ) {
+        WdfRequestStopAcknowledge(Request, FALSE);
+    } else if(ActionFlags &  WdfRequestStopActionPurge) {
+        if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
+        {
+           pport->PendingReadRequest = NULL;
+           WdfRequestCompleteWithInformation(Request , STATUS_CANCELLED, 0L);
+        }
+    }
+    WdfSpinLockRelease(pport->InBufLock);
+    return;
+}
