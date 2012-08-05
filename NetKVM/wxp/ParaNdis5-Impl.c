@@ -492,7 +492,6 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 					pPriority + ETH_PRIORITY_HEADER_SIZE,
 					length - ETH_PRIORITY_HEADER_OFFSET - ETH_PRIORITY_HEADER_SIZE);
 				length -= ETH_PRIORITY_HEADER_SIZE;
-				*pLength = length;
 				if (length > pContext->MaxPacketSize.nMaxFullSizeOS)
 				{
 					DPrintf(0, ("[%s] Can not indicate up packet of %d", __FUNCTION__, length));
@@ -510,6 +509,7 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 			tChecksumCheckResult csRes;
 			NDIS_PER_PACKET_INFO_FROM_PACKET(Packet, Ieee8021QInfo) = qInfo.Value;
 			NDIS_SET_PACKET_STATUS(Packet, STATUS_SUCCESS);
+			ParaNdis_PadPacketReceived(dataBuffer, &length);
 			NdisAdjustBufferLength(pBuffer, length);
 			NdisChainBufferAtFront(Packet, pBuffer);
 			NdisQueryPacket(Packet, NULL, NULL, NULL, &uTotalLength);
@@ -538,6 +538,7 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 					1);
 			}
 		}
+		*pLength = length;
 	}
 	if (!pBuffer)
 	{

@@ -1515,7 +1515,6 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 	if (!pContext->bUseScatterGather ||			// only copy available
 		Params->nofSGFragments == 0 ||			// theoretical case
 		!sg ||									// only copy available
-		Params->ulDataSize < ETH_MIN_PACKET_SIZE ||		// padding required
 		((~Params->flags & pcrLSO) && nRequiredBuffers > pContext->maxFreeHardwareBuffers) // to many fragments and normal size of packet
 		)
 	{
@@ -1759,9 +1758,7 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 	}
 	if(result.error == cpeOK)
 	{
-		unsigned short addPriorityLen = (pParams->flags & pcrPriorityTag) ? ETH_PRIORITY_HEADER_SIZE : 0;
 		pBuffersDescriptor = (pIONetDescriptor)RemoveHeadList(&pContext->NetFreeSendBuffers);
-
 		NdisZeroMemory(pBuffersDescriptor->HeaderInfo.Virtual, pBuffersDescriptor->HeaderInfo.size);
 		sg[0].physAddr = pBuffersDescriptor->HeaderInfo.Physical;
 		sg[0].ulSize = pBuffersDescriptor->HeaderInfo.size;
@@ -1772,11 +1769,12 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 			pBuffersDescriptor->DataInfo.size,
 			pParams->ReferenceValue,
 			FALSE);
-		result.size = CopierResult.size;
+		sg[1].ulSize = result.size = CopierResult.size;
 		// did NDIS ask us to compute CS?
 		if ((flags & (pcrTcpChecksum | pcrUdpChecksum | pcrIpChecksum)) != 0)
 		{
 			// we asked
+			unsigned short addPriorityLen = (pParams->flags & pcrPriorityTag) ? ETH_PRIORITY_HEADER_SIZE : 0;
 			tOffloadSettingsFlags f = pContext->Offload.flags;
 			PVOID ipPacket = RtlOffsetToPointer(
 				pBuffersDescriptor->DataInfo.Virtual, pContext->Offload.ipHeaderOffset + addPriorityLen);
@@ -1836,13 +1834,6 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 		if (result.size)
 		{
 			eInspectedPacketType packetType;
-			if (result.size < (ETH_MIN_PACKET_SIZE + (ULONG)addPriorityLen))
-			{
-				ULONG padding = ETH_MIN_PACKET_SIZE + addPriorityLen - result.size;
-				PVOID dest  = (PUCHAR)pBuffersDescriptor->DataInfo.Virtual + result.size;
-				NdisZeroMemory(dest, padding);
-				result.size += padding;
-			}
 			packetType = QueryPacketType(pBuffersDescriptor->DataInfo.Virtual);
 			DebugDumpPacket("sending", pBuffersDescriptor->DataInfo.Virtual, 3);
 
@@ -1850,7 +1841,6 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 			pContext->nofFreeHardwareBuffers -= nRequiredHardwareBuffers;
 			if (pContext->minFreeHardwareBuffers > pContext->nofFreeHardwareBuffers)
 				pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
-			sg[1].ulSize = result.size;
 			if (0 > pContext->NetSendQueue->vq_ops->add_buf(
 				pContext->NetSendQueue,
 				sg,
@@ -1952,6 +1942,29 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PVOID address, UINT len
 		pContext->extraStatistics.framesFilteredOut++;
 	}
 	return b;
+}
+
+void
+ParaNdis_PadPacketReceived(PVOID pDataBuffer, PULONG pLength)
+{
+	// Ethernet standard declares minimal possible packet size
+	// Packets smaller than that must be padded before transfer
+	// Ethernet HW pads packets on transmit, however in our case
+	// some packets do not travel over Ethernet but being routed
+	// guest-to-guest by virtual switch.
+	// In this case padding is not performed and we may
+	// receive packet smaller than minimal allowed size. This is not
+	// a problem for real life scenarios however WHQL/HCK contains
+	// tests that check padding of received packets.
+	// To make these tests happy we have to pad small packets on receive
+
+	//NOTE: This function assumes that VLAN header has been already stripped out
+
+	if(*pLength < ETH_MIN_PACKET_SIZE)
+	{
+		RtlZeroMemory(RtlOffsetToPointer(pDataBuffer, *pLength), ETH_MIN_PACKET_SIZE - *pLength);
+		*pLength = ETH_MIN_PACKET_SIZE;
+	}
 }
 
 /**********************************************************
