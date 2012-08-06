@@ -3,7 +3,7 @@
 set SYS_FILE_NAME=balloon
 set APP_FILE_NAME=blnsvr
 
-for %%A in (Win7 Wnet Wlh WXp) do for %%B in (32 64) do call :%%A_%%B
+for %%A in (Win7 Wnet Wlh WXp Win8) do for %%B in (32 64) do call :%%A_%%B
 set SYS_FILE_NAME=
 set APP_FILE_NAME=
 goto :eof 
@@ -100,3 +100,22 @@ goto :eof
 :WXP_64
 goto :eof
 
+:Win8_32
+setlocal
+set BUILD_OS=Win8
+set BUILD_ARC=x86
+call :buildsys %BUILD_OS% %BUILD_ARC%
+copy /y Install\Win7\x86\%APP_FILE_NAME%.* Install\Win8\x86
+endlocal
+rem pause
+goto :eof
+
+:Win8_64
+setlocal
+set BUILD_OS=Win8
+set BUILD_ARC=x64
+call :buildsys %BUILD_OS% %BUILD_ARC%
+copy /y Install\Win7\amd64\%APP_FILE_NAME%.* Install\Win8\amd64
+endlocal
+rem pause
+goto :eof

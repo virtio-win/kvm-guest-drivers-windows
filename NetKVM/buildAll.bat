@@ -1,3 +1,4 @@
+@echo off
 :
 : Set global parameters: 
 : Build tools (DDK) - only tested is 6000 (XP/Vista)
@@ -17,7 +18,13 @@ setlocal
 
 if "%DDKVER%"=="" set DDKVER=7600.16385.0
 
-if "%PSDK_INC_PATH%" NEQ "" goto :sdk_set
+IF NOT DEFINED PSDK_INC_PATH (
+SET PSDK_INC_PATH_NO_QUOTES=
+) ELSE (
+SET PSDK_INC_PATH_NO_QUOTES=%PSDK_INC_PATH:"=%
+)
+
+if NOT "%PSDK_INC_PATH_NO_QUOTES%" == "" goto sdk_set
 pushd CoInstaller
 call setbuildenv.bat
 popd
@@ -173,22 +180,8 @@ if not exist wxp\objfre_wnet_amd64\amd64\netkvm.sys goto :eof
 goto continue
 
 :BuildUsing2012
-reg query "HKLM\Software\Microsoft\Windows Kits\WDK" /v WDKProductVersion > nul
-if %ERRORLEVEL% EQU 0 goto BuildUsing2012_WDKOK
-echo ERROR building Win8 drivers: Win8 WDK is not installed
-cd .
+call ..\tools\callVisualStudio.bat 11 NetKVM-2012.vcxproj /Rebuild "%~1" /Out %2
 goto :eof
-:BuildUsing2012_WDKOK
-reg query HKLM\Software\Microsoft\VisualStudio\11.0 /v InstallDir > nul
-if %ERRORLEVEL% EQU 0 goto BuildUsing2012_VS11OK
-echo ERROR building Win8 drivers: VS11 is not installed
-cd .
-goto :eof
-:BuildUsing2012_VS11OK
-cscript ..\tools\callVisuaStudio.vbs 11 NetKVM-2012.vcxproj /Rebuild "%~1" /Out %2
-if %ERRORLEVEL% GEQ 1 echo VS2011 Build of "%~1" FAILED
-goto :eof
-
 
 :Win8
 :: building regular old-style coinstaller for Win8
@@ -203,9 +196,7 @@ endlocal
 if not exist CoInstaller\objfre_win7_x86\i386\netkvmco.dll goto :eof
 if exist Install\win8\x86 rmdir Install\win8\x86 /s /q
 call :BuildUsing2012 "Win8 Release|Win32" buildfre_win8_x86.log
-if %ERRORLEVEL% EQU 0 goto continue
-goto :eof
-
+goto continue
 
 :Win8_64
 :: building regular old-style coinstaller for Win8
@@ -220,9 +211,7 @@ endlocal
 if not exist CoInstaller\objfre_win7_amd64\amd64\netkvmco.dll goto :eof
 if exist Install\win8\amd64 rmdir Install\win8\amd64 /s /q
 call :BuildUsing2012 "Win8 Release|x64" buildfre_win8_amd64.log
-if %ERRORLEVEL% EQU 0 goto continue
-goto :eof
-
+goto continue
 
 ::
 :: This part of the batch called from Win8 environment

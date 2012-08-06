@@ -12,6 +12,9 @@ goto :eof
 :set_sdk_path
 set __sdk_path__="C:\Program Files\Microsoft SDKs\Windows\v6.0A"
 if not exist %__sdk_path__% set __sdk_path__="C:\Program Files\Microsoft SDKs\Windows\v7.0A"
+if not exist %__sdk_path__% set __sdk_path__="C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A"
+if not exist %__sdk_path__% set __sdk_path__="C:\Program Files\Windows Kits\8.0"
+if not exist %__sdk_path__% set __sdk_path__="C:\Program Files (x86)\Windows Kits\8.0"
 if NOT "%SDK_PATH%"=="" set __sdk_path__="%SDK_PATH%"
 goto :eof
 
