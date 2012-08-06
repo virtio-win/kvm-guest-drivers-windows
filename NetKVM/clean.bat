@@ -18,6 +18,7 @@ for /d %%d in  (wxp\objfre*) do call :rmdir %%d
 for /d %%d in  (common\objfre*) do call :rmdir %%d
 call :rmdir Install
 call :rmdir win7
+call :rmdir 2012Build
 call :rmdir wlh\objfre_wlh_x86
 call :rmdir wlh\objfre_wlh_amd64
 call :rmdir wlh\objfre_win7_amd64
