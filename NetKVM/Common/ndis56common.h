@@ -854,5 +854,6 @@ void ParaNdis_CheckSumCalculate(PVOID buffer, ULONG size, ULONG flags);
 tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(PVOID buffer, ULONG size, ULONG flags, LPCSTR caller);
 tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, LPCSTR caller);
 
+void ParaNdis_PadPacketReceived(PVOID pDataBuffer, PULONG pLength);
 
 #endif

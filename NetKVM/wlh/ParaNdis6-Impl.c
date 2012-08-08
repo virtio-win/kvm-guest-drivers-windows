@@ -753,7 +753,6 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 						pPriority + ETH_PRIORITY_HEADER_SIZE,
 						length - ETH_PRIORITY_HEADER_OFFSET - ETH_PRIORITY_HEADER_SIZE);
 					length -= ETH_PRIORITY_HEADER_SIZE;
-					*pLength = length;
 					if (length > pContext->MaxPacketSize.nMaxFullSizeOS)
 					{
 						DPrintf(0, ("[%s] Can not indicate up packet of %d", __FUNCTION__, length));
@@ -769,6 +768,7 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 		}
 		if (pMDL)
 		{
+			ParaNdis_PadPacketReceived(dataBuffer, &length);
 			NdisAdjustMdlLength(pMDL, length);
 			pNBL = NdisAllocateNetBufferAndNetBufferList(
 				pContext->BufferListsPool,
@@ -778,6 +778,8 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 				0,
 				length);
 		}
+		*pLength = length;
+
 		if (pNBL)
 		{
 			PVOID headerBuffer = pContext->bUseMergedBuffers ? pBuffersDesc->DataInfo.Virtual:pBuffersDesc->HeaderInfo.Virtual;
