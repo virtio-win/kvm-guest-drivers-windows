@@ -1,0 +1,127 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Vista-Indirect|Win32">
+      <Configuration>Vista-Indirect</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Vista-Indirect|x64">
+      <Configuration>Vista-Indirect</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Vista|Win32">
+      <Configuration>Vista</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Vista|x64">
+      <Configuration>Vista</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="XP|Win32">
+      <Configuration>XP</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="XP|x64">
+      <Configuration>XP</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{CFC475A6-0770-4F62-B66C-26320BBEF4C3}</ProjectGuid>
+    <Keyword>MakeFileProj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Vista|Win32'">
+    <ConfigurationType>Makefile</ConfigurationType>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista-Indirect|Win32'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='XP|Win32'">
+    <ConfigurationType>Makefile</ConfigurationType>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Vista|x64'">
+    <ConfigurationType>Makefile</ConfigurationType>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista-Indirect|x64'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='XP|x64'">
+    <ConfigurationType>Makefile</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Vista|Win32'">
+    <Import Project="ide\vista.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Vista-Indirect|Win32'" Label="PropertySheets">
+    <Import Project="ide\vista.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Vista|x64'">
+    <Import Project="ide\vista.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Vista-Indirect|x64'" Label="PropertySheets">
+    <Import Project="ide\vista.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='XP|Win32'">
+    <Import Project="ide\xp.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='XP|x64'">
+    <Import Project="ide\xp.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista|Win32'">
+    <NMakePreprocessorDefinitions>
+    </NMakePreprocessorDefinitions>
+    <NMakeBuildCommandLine>call buildOne.bat Wlh x86</NMakeBuildCommandLine>
+    <NMakeIncludeSearchPath>..\..\VirtIO;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista-Indirect|Win32'">
+    <NMakePreprocessorDefinitions>USE_STORPORT=1;MSI_SUPPORTED=1;INDIRECT_SUPPORTED=1</NMakePreprocessorDefinitions>
+    <NMakeBuildCommandLine>call buildAll.bat Wlh 32</NMakeBuildCommandLine>
+    <NMakeIncludeSearchPath>..\..\VirtIO;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista-Indirect|x64'">
+    <NMakePreprocessorDefinitions>USE_STORPORT=1;MSI_SUPPORTED=1;INDIRECT_SUPPORTED=1;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+    <NMakeIncludeSearchPath>..\..\VirtIO;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='XP|Win32'">
+    <NMakeIncludeSearchPath>..\..\VirtIO;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista|x64'">
+    <NMakeIncludeSearchPath>..\..\VirtIO;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='XP|x64'">
+    <NMakeIncludeSearchPath>..\..\VirtIO;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <None Include="buildOne.bat" />
+    <None Include="cleanAll.bat" />
+    <None Include="makefile.inc" />
+    <None Include="packOne.bat" />
+    <None Include="readme.txt" />
+    <None Include="sources" />
+    <None Include="vioser.inx" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Buffer.c" />
+    <ClCompile Include="Control.c" />
+    <ClCompile Include="Device.c" />
+    <ClCompile Include="Driver.c" />
+    <ClCompile Include="IsrDpc.c" />
+    <ClCompile Include="Port.c" />
+    <ClCompile Include="utils.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="precomp.h" />
+    <ClInclude Include="public.h" />
+    <ClInclude Include="trace.h" />
+    <ClInclude Include="vioser.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
