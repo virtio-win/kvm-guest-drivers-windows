@@ -62,7 +62,7 @@ BalloonDeviceAdd(
 
     UNREFERENCED_PARAMETER(Driver);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+    PAGED_CODE();
 
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpPowerCallbacks);
 
@@ -563,7 +563,7 @@ BalloonInterruptDpc(
 NTSTATUS
 BalloonInterruptEnable(
     IN WDFINTERRUPT WdfInterrupt,
-    IN WDFOBJECT    WdfDevice
+    IN WDFDEVICE    WdfDevice
     )
 {
     PDEVICE_CONTEXT     devCtx = NULL;
@@ -580,7 +580,7 @@ BalloonInterruptEnable(
 NTSTATUS
 BalloonInterruptDisable(
     IN WDFINTERRUPT WdfInterrupt,
-    IN WDFOBJECT    WdfDevice
+    IN WDFDEVICE    WdfDevice
     )
 {
     PDEVICE_CONTEXT     devCtx = NULL;

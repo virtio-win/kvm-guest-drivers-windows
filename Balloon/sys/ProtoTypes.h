@@ -96,13 +96,13 @@ BalloonInterruptIsr(
 NTSTATUS
 BalloonInterruptEnable(
     IN WDFINTERRUPT WdfInterrupt,
-    IN WDFOBJECT    WdfDevice
+    IN WDFDEVICE    WdfDevice
     );
 
 NTSTATUS
 BalloonInterruptDisable(
     IN WDFINTERRUPT WdfInterrupt,
-    IN WDFOBJECT    WdfDevice
+    IN WDFDEVICE    WdfDevice
     );
 
 NTSTATUS
