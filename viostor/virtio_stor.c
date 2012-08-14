@@ -137,7 +137,7 @@ DriverEntry(
     UCHAR devId[4]  = {'1', '0', '0', '1'};
 #endif
 
-    InitializeDebugPrints(DriverObject, RegistryPath);
+    InitializeDebugPrints((PDRIVER_OBJECT)DriverObject, (PUNICODE_STRING)RegistryPath);
 
     RhelDbgPrint(TRACE_LEVEL_ERROR, ("Viostor driver started...built on %s %s\n", __DATE__, __TIME__));
     IsCrashDumpMode = FALSE;
@@ -314,8 +314,8 @@ VirtIoFindAdapter(
         return SP_RETURN_ERROR;
     }
 
-	VirtIODeviceInitialize(&adaptExt->vdev, deviceBase, sizeof(adaptExt->vdev));
-	adaptExt->msix_enabled = FALSE;
+    VirtIODeviceInitialize(&adaptExt->vdev, deviceBase, sizeof(adaptExt->vdev));
+    adaptExt->msix_enabled = FALSE;
 
 #ifdef MSI_SUPPORTED
     pci_cfg_len = StorPortGetBusData (DeviceExtension,
@@ -379,11 +379,14 @@ VirtIoFindAdapter(
         WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_PFN, (USHORT)0);
     }
 
-	adaptExt->features = ReadVirtIODeviceRegister(adaptExt->vdev.addr + VIRTIO_PCI_HOST_FEATURES);
+    adaptExt->features = ReadVirtIODeviceRegister(adaptExt->vdev.addr + VIRTIO_PCI_HOST_FEATURES);
     ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WCACHE) ? TRUE : FALSE;
+    if (ConfigInfo->CachesData) {
+        VirtIODeviceEnableGuestFeature(&adaptExt->vdev, VIRTIO_BLK_F_WCACHE);
+    }
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_WCACHE = %d\n", ConfigInfo->CachesData));
 
-	VirtIODeviceQueryQueueAllocation(&adaptExt->vdev, 0, &pageNum, &allocationSize);
+    VirtIODeviceQueryQueueAllocation(&adaptExt->vdev, 0, &pageNum, &allocationSize);
 
     if(adaptExt->dump_mode) {
         ConfigInfo->NumberOfPhysicalBreaks = 8;
@@ -553,7 +556,7 @@ VirtIoHwInitialize(
 
     if (ret)
     {
-		VirtIODeviceAddStatus(&adaptExt->vdev, VIRTIO_CONFIG_S_DRIVER_OK);
+        VirtIODeviceAddStatus(&adaptExt->vdev, VIRTIO_CONFIG_S_DRIVER_OK);
     }
 
     return ret;
@@ -586,11 +589,11 @@ VirtIoStartIo(
         }
         case SRB_FUNCTION_FLUSH:
         case SRB_FUNCTION_SHUTDOWN: {
-            Srb->SrbStatus = SRB_STATUS_SUCCESS;
+            Srb->SrbStatus = SRB_STATUS_PENDING;
             Srb->ScsiStatus = SCSISTAT_GOOD;
-            CompleteSRB(DeviceExtension, Srb);
-            if (adaptExt->flush_state == FlushIdle) {
-                adaptExt->flush_state = FlushRequested;
+            if (!RhelDoFlush(DeviceExtension, Srb)) {
+                Srb->SrbStatus = SRB_STATUS_ERROR;
+                CompleteSRB(DeviceExtension, Srb);
             }
             return TRUE;
         }
@@ -662,11 +665,11 @@ VirtIoStartIo(
         }
         case SCSIOP_SYNCHRONIZE_CACHE:
         case SCSIOP_SYNCHRONIZE_CACHE16: {
-            Srb->SrbStatus = SRB_STATUS_SUCCESS;
+            Srb->SrbStatus = SRB_STATUS_PENDING;
             Srb->ScsiStatus = SCSISTAT_GOOD;
-            CompleteSRB(DeviceExtension, Srb);
-            if (adaptExt->flush_state == FlushIdle) {
-                adaptExt->flush_state = FlushRequested;
+            if (!RhelDoFlush(DeviceExtension, Srb)) {
+                Srb->SrbStatus = SRB_STATUS_ERROR;
+                CompleteSRB(DeviceExtension, Srb);
             }
             return TRUE;
         }
@@ -702,10 +705,10 @@ VirtIoInterrupt(
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s (%d)\n", __FUNCTION__, KeGetCurrentIrql()));
-    intReason = VirtIODeviceISR(DeviceExtension);
+    intReason = VirtIODeviceISR((VirtIODevice*)DeviceExtension);
     if ( intReason == 1) {
         isInterruptServiced = TRUE;
-        while((vbr = adaptExt->vq->vq_ops->get_buf(adaptExt->vq, &len)) != NULL) {
+        while((vbr = (pblk_req)adaptExt->vq->vq_ops->get_buf(adaptExt->vq, &len)) != NULL) {
            Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
            if (Srb) {
               switch (vbr->status) {
@@ -721,9 +724,8 @@ VirtIoInterrupt(
                  break;
               }
            }
-           if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH &&
-              adaptExt->flush_state == FlushInflight) {
-              adaptExt->flush_state = FlushIdle;
+           if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
+              CompleteSRB(DeviceExtension, Srb);
            } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
               adaptExt->sn_ok = TRUE;
            } else {
@@ -872,7 +874,7 @@ VirtIoBuildIo(
 
     srbExt->vbr.out_hdr.sector = RhelGetLba(DeviceExtension, cdb);
     srbExt->vbr.out_hdr.ioprio = 0;
-    srbExt->vbr.req            = (struct request *)Srb;
+    srbExt->vbr.req            = (PVOID)Srb;
 
     if (Srb->SrbFlags & SRB_FLAGS_DATA_OUT) {
         srbExt->vbr.out_hdr.type = VIRTIO_BLK_T_OUT;
@@ -918,7 +920,7 @@ VirtIoMSInterruptRoutine (
        return TRUE;
     }
 
-    while((vbr = adaptExt->vq->vq_ops->get_buf(adaptExt->vq, &len)) != NULL) {
+    while((vbr = (pblk_req)adaptExt->vq->vq_ops->get_buf(adaptExt->vq, &len)) != NULL) {
         Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
         if (Srb) {
            switch (vbr->status) {
@@ -934,9 +936,8 @@ VirtIoMSInterruptRoutine (
               break;
            }
         }
-        if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH &&
-            adaptExt->flush_state == FlushInflight) {
-            adaptExt->flush_state = FlushIdle;
+        if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
+            CompleteSRB(DeviceExtension, Srb);
         } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
             adaptExt->sn_ok = TRUE;
         } else {
@@ -1095,7 +1096,7 @@ RhelScsiGetModeSense(
            return SrbStatus;
         }
 
-        header = Srb->DataBuffer;
+        header = (PMODE_PARAMETER_HEADER)Srb->DataBuffer;
 
         memset(header, 0, sizeof(MODE_PARAMETER_HEADER));
         header->DeviceSpecificParameter = MODE_DSP_FUA_SUPPORTED;
@@ -1132,7 +1133,7 @@ RhelScsiGetModeSense(
            return SrbStatus;
         }
 
-        header = Srb->DataBuffer;
+        header = (PMODE_PARAMETER_HEADER)Srb->DataBuffer;
         memset(header, 0, sizeof(MODE_PARAMETER_HEADER));
         header->DeviceSpecificParameter = MODE_DSP_FUA_SUPPORTED;
 
@@ -1290,10 +1291,6 @@ CompleteDPC(
                          Srb->TargetId,
                          Srb->Lun);
     }
-    if (adaptExt->flush_state == FlushRequested) {
-        adaptExt->flush_state = FlushInflight;
-        RhelDoFlush(DeviceExtension);
-    }
 #endif
 }
 #ifdef USE_STORPORT
@@ -1367,10 +1364,6 @@ CompleteDpcRoutine(
 #ifdef MSI_SUPPORTED
     }
 #endif
-    if (adaptExt->flush_state == FlushRequested) {
-        adaptExt->flush_state = FlushInflight;
-        RhelDoFlush(Context);
-    }
     return;
 }
 #endif

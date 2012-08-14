@@ -18,8 +18,8 @@
 
 #if (INDIRECT_SUPPORTED)
 #define SET_VA_PA() { ULONG len; va = adaptExt->indirect ? srbExt->desc : NULL; \
-					pa = va ? ScsiPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0; \
-					}
+                      pa = va ? ScsiPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0; \
+                    }
 #else
 #define SET_VA_PA()	va = NULL; pa = 0;
 #endif
@@ -32,21 +32,30 @@ SynchronizedFlushRoutine(
     )
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    UNREFERENCED_PARAMETER( Context );
+    PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
+    PRHEL_SRB_EXTENSION srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
+    ULONG               fragLen;
+    PVOID               va;
+    ULONGLONG           pa;
 
-    adaptExt->vbr.out_hdr.type   = VIRTIO_BLK_T_FLUSH;
-    adaptExt->vbr.out_hdr.sector = 0;
-    adaptExt->vbr.out_hdr.ioprio = 0;
+    SET_VA_PA();
 
-    adaptExt->vbr.sg[0].physAddr = MmGetPhysicalAddress(&adaptExt->vbr.out_hdr);
-    adaptExt->vbr.sg[0].ulSize   = sizeof(adaptExt->vbr.out_hdr);
-    adaptExt->vbr.sg[1].physAddr = MmGetPhysicalAddress(&adaptExt->vbr.status);
-    adaptExt->vbr.sg[1].ulSize   = sizeof(adaptExt->vbr.status);
+    srbExt->vbr.out_hdr.sector = 0;
+    srbExt->vbr.out_hdr.ioprio = 0;
+    srbExt->vbr.req            = (struct request *)Srb;
+    srbExt->vbr.out_hdr.type   = VIRTIO_BLK_T_FLUSH;
+    srbExt->out                = 1;
+    srbExt->in                 = 1;
+
+    srbExt->vbr.sg[0].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
+    srbExt->vbr.sg[0].ulSize   = sizeof(srbExt->vbr.out_hdr);
+    srbExt->vbr.sg[1].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
+    srbExt->vbr.sg[1].ulSize   = sizeof(srbExt->vbr.status);
 
     if (adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
-                     &adaptExt->vbr.sg[0],
-                     1, 1,
-                     &adaptExt->vbr, NULL, 0) >= 0) {
+                     &srbExt->vbr.sg[0],
+                     srbExt->out, srbExt->in,
+                     &srbExt->vbr, va, pa) >= 0) {
         adaptExt->vq->vq_ops->kick(adaptExt->vq);
         return TRUE;
     }
@@ -56,18 +65,20 @@ SynchronizedFlushRoutine(
 #ifdef USE_STORPORT
 BOOLEAN
 RhelDoFlush(
-    PVOID DeviceExtension
+    PVOID DeviceExtension,
+    PSCSI_REQUEST_BLOCK Srb
     )
 {
-    return StorPortSynchronizeAccess(DeviceExtension, SynchronizedFlushRoutine, NULL);
+    return StorPortSynchronizeAccess(DeviceExtension, SynchronizedFlushRoutine, Srb);
 }
 #else
 BOOLEAN
 RhelDoFlush(
-    PVOID DeviceExtension
+    PVOID DeviceExtension,
+    PSCSI_REQUEST_BLOCK Srb
     )
 {
-    return SynchronizedFlushRoutine(DeviceExtension, NULL);
+    return SynchronizedFlushRoutine(DeviceExtension, Srb);
 }
 #endif
 
@@ -186,7 +197,7 @@ RhelShutDown(
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     VirtIODeviceReset(&adaptExt->vdev);
-	ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_GUEST_FEATURES), 0);
+    ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_GUEST_FEATURES), 0);
     if (adaptExt->vq) {
        adaptExt->vq->vq_ops->shutdown(adaptExt->vq);
        VirtIODeviceDeleteQueue(adaptExt->vq, NULL);

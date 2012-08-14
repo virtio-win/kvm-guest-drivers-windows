@@ -58,4 +58,3 @@ void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
 {
     ScsiPortWritePortUshort((PUSHORT)(ulRegister),(USHORT)(wValue));
 }
-
