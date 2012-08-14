@@ -43,4 +43,3 @@
 #include "2012-defines.h"
 #endif
 #include "common.ver"
-#include "ballog.rc"

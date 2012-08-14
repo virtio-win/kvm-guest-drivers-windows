@@ -57,12 +57,13 @@ BOOL CService::InitService()
     DWORD id;
 
     m_thHandle = CreateThread(
-                              NULL,
-                              0,
-                              (LPTHREAD_START_ROUTINE) ServiceThread,
-                              (LPVOID)this,
-                              0,
-                              &id);
+                             NULL,
+                             0,
+                             (LPTHREAD_START_ROUTINE) ServiceThread,
+                             (LPVOID)this,
+                             0,
+                             &id
+                             );
 
     if (m_thHandle == NULL) {
         PrintMessage("Cannot create thread");
@@ -202,21 +203,25 @@ void CService::ServiceCtrlHandler(DWORD controlCode)
     {
         case SERVICE_CONTROL_STOP:
             currentState = SERVICE_STOP_PENDING;
-            SendStatusToSCM(SERVICE_STOP_PENDING,
-                            NO_ERROR,
-                            0,
-                            1,
-                            5000);
+            SendStatusToSCM(
+                             SERVICE_STOP_PENDING,
+                             NO_ERROR,
+                             0,
+                             1,
+                             5000
+                             );
             StopService();
             return;
 
         case SERVICE_CONTROL_PAUSE:
             if (m_bRunningService && !m_bPauseService) {
-                SendStatusToSCM(SERVICE_PAUSE_PENDING,
-                                NO_ERROR,
-                                0,
-                                1,
-                                1000);
+                SendStatusToSCM(
+                             SERVICE_PAUSE_PENDING,
+                             NO_ERROR,
+                             0,
+                             1,
+                             1000
+                             );
 
                 PauseService();
                 currentState = SERVICE_PAUSED;
@@ -225,11 +230,13 @@ void CService::ServiceCtrlHandler(DWORD controlCode)
 
         case SERVICE_CONTROL_CONTINUE:
             if (m_bRunningService && m_bPauseService) {
-                SendStatusToSCM(SERVICE_CONTINUE_PENDING,
-                                NO_ERROR,
-                                0,
-                                1,
-                                1000);
+                SendStatusToSCM(
+                             SERVICE_CONTINUE_PENDING,
+                             NO_ERROR,
+                             0,
+                             1,
+                             1000
+                             );
 
                 ResumeService();
                 currentState = SERVICE_RUNNING;

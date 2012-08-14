@@ -8,12 +8,11 @@ EVT_WDF_IO_QUEUE_IO_WRITE BalloonIoWrite;
 
 NTSTATUS
 BalloonQueueInitialize(
-    WDFDEVICE Device
+    IN WDFDEVICE Device
     )
 {
     NTSTATUS               status = STATUS_SUCCESS;
     WDF_IO_QUEUE_CONFIG    queueConfig = {0};
-    PDEVICE_CONTEXT        devCtx = NULL;
 
     PAGED_CODE();
 
@@ -30,9 +29,9 @@ BalloonQueueInitialize(
                  WDF_NO_HANDLE
                  );
 
-    if( !NT_SUCCESS(status) ) {
+    if(!NT_SUCCESS(status))
+    {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfIoQueueCreate failed 0x%08x\n", status);
-        return status;
     }
     return status;
 }
@@ -46,12 +45,13 @@ BalloonIoWrite(
 {
     PVOID                  buffer = NULL;
     size_t                 buffSize;
-    PDRIVER_CONTEXT        drvCtx = NULL;
+    PDEVICE_CONTEXT        devCtx = NULL;
     NTSTATUS               status = STATUS_SUCCESS;
-    WDFDRIVER              drv;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "BalloonIoWrite Called! Queue 0x%p, Request 0x%p Length %d\n",
              Queue,Request,Length);
+
+    devCtx = GetDeviceContext(WdfIoQueueGetDevice(Queue));
 
     if( Length < sizeof(BALLOON_STAT)) {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "BalloonIoWrite Buffer Length too small %d, expected is %d\n",
@@ -68,8 +68,6 @@ BalloonIoWrite(
         return;
     }
 
-    drv = WdfGetDriver();
-    drvCtx = GetDriverContext( drv );
     Length = min(buffSize, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR);
 #if 0
     {
@@ -81,7 +79,7 @@ BalloonIoWrite(
         }
     }
 #endif
-    RtlCopyMemory(drvCtx->MemStats, buffer, Length);
+    RtlCopyMemory(devCtx->MemStats, buffer, Length);
     WdfRequestCompleteWithInformation(Request, status, Length);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "WdfRequestCompleteWithInformation Called! Queue 0x%p, Request 0x%p Length %d Status 0x%08x\n",
              Queue,Request,Length, status);
