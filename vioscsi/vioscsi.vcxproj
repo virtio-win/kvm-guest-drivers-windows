@@ -33,7 +33,7 @@
     <IntDir Condition="'$(Platform)' == 'Win32'">objfre_win8_x86\i386\</IntDir>
     <IntDir Condition="'$(Platform)' != 'Win32'">objfre_win8_amd64\amd64\</IntDir>
     <OutDir Condition="'$(Platform)' == 'Win32'">objfre_win8_x86\i386\</OutDir>
-    <OutDir Condition="'$(Platform)' != 'Win32'">objfre_win8_amd64\amd64</OutDir>
+    <OutDir Condition="'$(Platform)' != 'Win32'">objfre_win8_amd64\amd64\</OutDir>
     <DebuggerFlavor Condition="'$(PlatformToolset)' == 'WindowsKernelModeDriver8.0'">DbgengKernelDebugger</DebuggerFlavor>
     <DebuggerFlavor Condition="'$(PlatformToolset)' == 'WindowsUserModeDriver8.0'">DbgengRemoteDebugger</DebuggerFlavor>
     <SampleGuid>{194D77B8-08A6-410A-9EA4-EC4467273630}</SampleGuid>
@@ -155,6 +155,4 @@
     <ResourceCompile Include="vioscsi.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <Import Condition="'$(Platform)'!='arm'" Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
-  <Import Condition="'$(Platform)'!='arm'" Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
 </Project>
