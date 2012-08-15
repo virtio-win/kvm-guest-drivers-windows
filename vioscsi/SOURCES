@@ -1,0 +1,45 @@
+TARGETNAME=vioscsi
+TARGETTYPE=MINIPORT
+
+TARGETLIBS=$(SDK_LIB_PATH)\storport.lib ..\VirtIO\$(O)\virtiolib.lib
+
+INF_NAME=vioscsi
+NTTARGETFILE0=$(OBJ_PATH)\$(O)\$(INF_NAME).inf
+PASS0_BINPLACE=$(NTTARGETFILE0)
+
+SOURCES= vioscsi.c \
+         utils.c \
+         helper.c \
+         vioscsi.rc \
+         virtio_pci.c
+
+MAJORCOMP=ntos
+
+TARGETLIBS=$(TARGETLIBS) \
+         $(SDK_LIB_PATH)\ntoskrnl.lib\
+         $(SDK_LIB_PATH)\bufferoverflowk.lib\
+         $(SDK_LIB_PATH)\wdm.lib
+
+INCLUDES = $(INCLUDES);..\VirtIO;
+
+BUFFER_OVERFLOW_CHECKS=1
+MSC_WARNING_LEVEL=/W3 /WX
+
+#C_DEFINES = -DINDIRECT_SUPPORTED=1 $(C_DEFINES)
+
+#ENABLE_EVENT_TRACING=1
+#
+
+
+# select one or none of those
+#ENABLE_COM_DEBUG=1
+#ENABLE_PRINT_DEBUG=1
+
+!IFDEF ENABLE_COM_DEBUG
+C_DEFINES = $(C_DEFINES) -DCOM_DEBUG
+!ENDIF
+
+!IFDEF ENABLE_PRINT_DEBUG
+C_DEFINES = $(C_DEFINES) -DPRINT_DEBUG
+!ENDIF
+
