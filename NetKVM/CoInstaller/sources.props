@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <TARGETNAME Condition="'$(OVERRIDE_TARGETNAME)'!='true'">netkvmco</TARGETNAME>
+    <TARGETTYPE Condition="'$(OVERRIDE_TARGETTYPE)'!='true'">DYNLINK</TARGETTYPE>
+    <USE_MSVCRT Condition="'$(OVERRIDE_USE_MSVCRT)'!='true'">1</USE_MSVCRT>
+    <MSC_WARNING_LEVEL Condition="'$(OVERRIDE_MSC_WARNING_LEVEL)'!='true'">/W4 /WX</MSC_WARNING_LEVEL>
+    <C_DEFINES Condition="'$(OVERRIDE_C_DEFINES)'!='true'">$(C_DEFINES)  /D_UNICODE /DUNICODE /DNETCO_EXPORTS</C_DEFINES>
+    <DLLENTRY Condition="'$(OVERRIDE_DLLENTRY)'!='true'">_DllMainCRTStartup</DLLENTRY>
+    <DLLDEF Condition="'$(OVERRIDE_DLLDEF)'!='true'" />
+    <INCLUDES Condition="'$(OVERRIDE_INCLUDES)'!='true'">$(PSDK_INC_PATH);$(MFC_INC_PATH);$(INCLUDES);</INCLUDES>
+    <PRECOMPILED_INCLUDE Condition="'$(OVERRIDE_PRECOMPILED_INCLUDE)'!='true'">stdafx.h</PRECOMPILED_INCLUDE>
+    <PRECOMPILED_CXX Condition="'$(OVERRIDE_PRECOMPILED_CXX)'!='true'">1</PRECOMPILED_CXX>
+    <USE_STL Condition="'$(OVERRIDE_USE_STL)'!='true'">1</USE_STL>
+    <STL_VER Condition="'$(OVERRIDE_STL_VER)'!='true'">70</STL_VER>
+    <USE_NATIVE_EH Condition="'$(OVERRIDE_USE_NATIVE_EH)'!='true'">1</USE_NATIVE_EH>
+    <USER_C_FLAGS Condition="'$(OVERRIDE_USER_C_FLAGS)'!='true'">$(USER_C_FLAGS) /nologo</USER_C_FLAGS>
+    <SOURCES Condition="'$(OVERRIDE_SOURCES)'!='true'">netco.rc                             Exception.cpp                        NetKVMAux.cpp                        NetKVMnetsh.cpp                      RegAccess.cpp                        RegParam.cpp                         tstrings.cpp                         netkvmco.c                      \</SOURCES>
+    <TARGETLIBS Condition="'$(OVERRIDE_TARGETLIBS)'!='true'">$(PSDK_LIB_PATH)\Netsh.lib              $(PSDK_LIB_PATH)\x64\Netsh.lib          $(SDK_LIB_PATH)\Setupapi.lib            $(SDK_LIB_PATH)\advapi32.lib            $(SDK_LIB_PATH)\kernel32.lib</TARGETLIBS>
+  </PropertyGroup>
+</Project>

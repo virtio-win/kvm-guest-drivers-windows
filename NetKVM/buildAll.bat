@@ -180,35 +180,22 @@ if not exist wxp\objfre_wnet_amd64\amd64\netkvm.sys goto :eof
 goto continue
 
 :BuildUsing2012
+setlocal
+set PSDK_INC_PATH=
+set PSDK_LIB_PATH=
+call ..\tools\callVisualStudio.bat 11 CoInstaller\netkvmco.vcxproj /Rebuild "%~1" /Out %2
 call ..\tools\callVisualStudio.bat 11 NetKVM-2012.vcxproj /Rebuild "%~1" /Out %2
+endlocal
 goto :eof
 
 :Win8
-:: building regular old-style coinstaller for Win8
 set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Win7 no_oacr
-popd
-call :preparebuild CoInstaller
-build -cZg
-endlocal
-if not exist CoInstaller\objfre_win7_x86\i386\netkvmco.dll goto :eof
 if exist Install\win8\x86 rmdir Install\win8\x86 /s /q
 call :BuildUsing2012 "Win8 Release|Win32" buildfre_win8_x86.log
 goto continue
 
 :Win8_64
-:: building regular old-style coinstaller for Win8
 set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre %X64ENV% Win7 no_oacr
-popd
-call :preparebuild CoInstaller
-build -cZg
-endlocal
-if not exist CoInstaller\objfre_win7_amd64\amd64\netkvmco.dll goto :eof
 if exist Install\win8\amd64 rmdir Install\win8\amd64 /s /q
 call :BuildUsing2012 "Win8 Release|x64" buildfre_win8_amd64.log
 goto continue
@@ -263,8 +250,8 @@ echo Finalize2012: (1) %1 (2) %2 (3) %3
 call :set2012OS-%1
 call :preparebuild
 set _BUILDARCH=%2
-set _COINSTBIN=CoInstaller\objfre_win7_amd64\amd64\netkvmco.dll
-if /i "%2"=="x86" set _COINSTBIN=CoInstaller\objfre_win7_x86\i386\netkvmco.dll 
+set _COINSTBIN=CoInstaller\%OSName%Release\x86\netkvmco.dll
+if /i "%2"=="amd64" set _COINSTBIN=CoInstaller\%OSName%Release\x64\netkvmco.dll
 if exist "%~3netkvm.sys" call tools\makeinstall %2 "%~3netkvm.sys" wlh\netkvm.inf %_VERSION_% %OSName% %_COINSTBIN% CoInstaller\readme.doc
 del NetKVM-2012.h
 goto :eof
