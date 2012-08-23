@@ -1450,7 +1450,7 @@ UINT ParaNdis_VirtIONetReleaseTransmitBuffers(
 
 	DEBUG_ENTRY(4);
 
-	while(pBufferDescriptor = pContext->NetSendQueue->vq_ops->get_buf(pContext->NetSendQueue, &len))
+	while(NULL != (pBufferDescriptor = pContext->NetSendQueue->vq_ops->get_buf(pContext->NetSendQueue, &len)))
 	{
 		RemoveEntryList(&pBufferDescriptor->listEntry);
 		pContext->nofFreeTxDescriptors++;

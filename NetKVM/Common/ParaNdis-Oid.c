@@ -681,7 +681,6 @@ NDIS_STATUS ParaNdis_OnSetLookahead(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 NDIS_STATUS ParaNdis_OnSetVlanId(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
 	NDIS_STATUS status = NDIS_STATUS_NOT_SUPPORTED;
-	ULONG oldVlan = pContext->VlanId;
 	if (IsVlanSupported(pContext))
 	{
 		status = ParaNdis_OidSetCopy(pOid, &pContext->VlanId, sizeof(pContext->VlanId));

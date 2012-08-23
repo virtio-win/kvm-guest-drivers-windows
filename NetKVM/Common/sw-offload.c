@@ -110,7 +110,6 @@ static __inline USHORT CheckSumCalculator(ULONG val, PVOID buffer, ULONG len)
 *******************************************/
 static __inline VOID CalculateIpChecksum(IPv4Header *pIpHeader)
 {
-	ULONG xSum = 0;
 	ULONG len = IP_HEADER_LENGTH(pIpHeader);
 
 	pIpHeader->ip_xsum = 0;
@@ -165,8 +164,8 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
 	tTcpIpPacketParsingResult res;
 	UCHAR  ver_len = pIpHeader->v4.ip_verlen;
 	UCHAR  ip_version = (ver_len & 0xF0) >> 4;
-	USHORT ipHeaderSize;
-	USHORT fullLength;
+	USHORT ipHeaderSize = 0;
+	USHORT fullLength = 0;
 	res.value = 0;
 	
 	if (ip_version == 4)

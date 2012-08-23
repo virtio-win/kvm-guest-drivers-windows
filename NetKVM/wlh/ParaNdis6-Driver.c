@@ -16,6 +16,28 @@
 
 #if NDIS_SUPPORT_NDIS6
 
+NDIS_TIMER_FUNCTION ConnectTimerCallback;
+NDIS_TIMER_FUNCTION InterruptRecoveryTimerCallback;
+NDIS_IO_WORKITEM_FUNCTION OnResetWorkItem;
+MINIPORT_ADD_DEVICE ParaNdis6_AddDevice;
+MINIPORT_REMOVE_DEVICE ParaNdis6_RemoveDevice;
+MINIPORT_INITIALIZE ParaNdis6_Initialize;
+MINIPORT_HALT ParaNdis6_Halt;
+MINIPORT_UNLOAD ParaNdis6_Unload;
+MINIPORT_PAUSE ParaNdis6_Pause;
+MINIPORT_RESTART ParaNdis6_Restart;
+MINIPORT_CHECK_FOR_HANG ParaNdis6_CheckForHang;
+MINIPORT_RESET ParaNdis6_Reset;
+MINIPORT_SHUTDOWN ParaNdis6_AdapterShutdown;
+MINIPORT_DEVICE_PNP_EVENT_NOTIFY ParaNdis6_DevicePnPEvent;
+SET_OPTIONS ParaNdis6_SetOptions;
+MINIPORT_SEND_NET_BUFFER_LISTS ParaNdis6_SendNetBufferLists;
+#if NDIS_SUPPORT_NDIS61
+MINIPORT_DIRECT_OID_REQUEST ParaNdis6x_DirectOidRequest;
+MINIPORT_CANCEL_DIRECT_OID_REQUEST ParaNdis6x_CancelDirectOidRequest;
+#endif
+
+
 //#define NO_VISTA_POWER_MANAGEMENT
 
 //by default printouts from resource filtering are invisible
@@ -569,7 +591,6 @@ static BOOLEAN ParaNdis6_CheckForHang(
 ***********************************************************/
 static void OnSendPauseCompleteOnReset(PARANDIS_ADAPTER *pContext)
 {
-	NDIS_STATUS  status;
 	DEBUG_ENTRY(0);
 	NdisSetEvent(&pContext->ResetEvent);
 }
@@ -579,7 +600,6 @@ static void OnSendPauseCompleteOnReset(PARANDIS_ADAPTER *pContext)
 ***********************************************************/
 static void OnReceivePauseCompleteOnReset(PARANDIS_ADAPTER *pContext)
 {
-	NDIS_STATUS  status;
 	DEBUG_ENTRY(0);
 	NdisSetEvent(&pContext->ResetEvent);
 }
@@ -611,24 +631,27 @@ VOID ParaNdis_Suspend(PARANDIS_ADAPTER *pContext)
 
 static void OnResetWorkItem(PVOID  WorkItemContext, NDIS_HANDLE  NdisIoWorkItemHandle)
 {
-	tGeneralWorkItem *pwi = (tGeneralWorkItem *)WorkItemContext;
-	PARANDIS_ADAPTER *pContext = pwi->pContext;
-	BOOLEAN bSendActive, bReceiveActive;
-	DEBUG_ENTRY(0);
-	bSendActive = pContext->SendState == srsEnabled;
-	bReceiveActive = pContext->ReceiveState == srsEnabled;
-	pContext->bResetInProgress = TRUE;
-	ParaNdis_Suspend(pContext);
-	ParaNdis_PowerOff(pContext);
-	ParaNdis_PowerOn(pContext);
-	if (bSendActive) ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
-	if (bReceiveActive) ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
-	pContext->bResetInProgress = FALSE;
+	if (WorkItemContext)
+	{
+		tGeneralWorkItem *pwi = (tGeneralWorkItem *)WorkItemContext;
+		PARANDIS_ADAPTER *pContext = pwi->pContext;
+		BOOLEAN bSendActive, bReceiveActive;
+		DEBUG_ENTRY(0);
+		bSendActive = pContext->SendState == srsEnabled;
+		bReceiveActive = pContext->ReceiveState == srsEnabled;
+		pContext->bResetInProgress = TRUE;
+		ParaNdis_Suspend(pContext);
+		ParaNdis_PowerOff(pContext);
+		ParaNdis_PowerOn(pContext);
+		if (bSendActive) ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
+		if (bReceiveActive) ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
+		pContext->bResetInProgress = FALSE;
 
-	NdisFreeMemory(pwi, 0, 0);
-	NdisFreeIoWorkItem(NdisIoWorkItemHandle);
-	ParaNdis_DebugHistory(pContext, hopSysReset, NULL, 0, NDIS_STATUS_SUCCESS, 0);
-	NdisMResetComplete(pContext->MiniportHandle, NDIS_STATUS_SUCCESS, TRUE);
+		NdisFreeMemory(pwi, 0, 0);
+		NdisFreeIoWorkItem(NdisIoWorkItemHandle);
+		ParaNdis_DebugHistory(pContext, hopSysReset, NULL, 0, NDIS_STATUS_SUCCESS, 0);
+		NdisMResetComplete(pContext->MiniportHandle, NDIS_STATUS_SUCCESS, TRUE);
+	}
 }
 
 
@@ -647,6 +670,7 @@ static NDIS_STATUS ParaNdis6_Reset(
 	NDIS_HANDLE hwo;
 	tGeneralWorkItem *pwi;
 	DEBUG_ENTRY(0);
+	*pAddressingReset = TRUE;
 	ParaNdis_DebugHistory(pContext, hopSysReset, NULL, 1, 0, 0);
 	hwo = NdisAllocateIoWorkItem(pContext->MiniportHandle);
 	pwi = ParaNdis_AllocateMemory(pContext, sizeof(tGeneralWorkItem));
@@ -1001,7 +1025,7 @@ static void RetrieveDriverConfiguration()
 	status = NdisOpenConfigurationEx(&co, &cfg);
 	if (status == NDIS_STATUS_SUCCESS)
 	{
-		NDIS_STRING paramsName;
+		NDIS_STRING paramsName = {0};
 		NdisInitializeString(&paramsName, (PUCHAR)"Parameters");
 		NdisOpenConfigurationKeyByName(&status, cfg, &paramsName, &params);
 		if (status == NDIS_STATUS_SUCCESS)
@@ -1011,6 +1035,7 @@ static void RetrieveDriverConfiguration()
 			NdisCloseConfiguration(params);
 		}
 		NdisCloseConfiguration(cfg);
+		if (paramsName.Buffer) NdisFreeString(paramsName);
 	}
 }
 

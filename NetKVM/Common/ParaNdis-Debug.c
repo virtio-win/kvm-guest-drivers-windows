@@ -83,12 +83,12 @@ KBUGCHECK_REASON_CALLBACK_RECORD CallbackRecord;
 //common case, except Win2K
 static void DebugPrint(const char *fmt, ...)
 {
-	NTSTATUS status;
 	va_list list;
 	va_start(list, fmt);
 	PrintProcedure(DPFLTR_DEFAULT_ID, 9 | DPFLTR_MASK, fmt, list);
 #if defined(VIRTIO_DBG_USE_IOPORT)
 	{
+		NTSTATUS status;
 		// use this way of output only for DISPATCH_LEVEL,
 		// higher requires more protection
 		if (KeGetCurrentIrql() <= DISPATCH_LEVEL)
