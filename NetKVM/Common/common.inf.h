@@ -10,7 +10,7 @@
 #define TARGETOS 50
 #endif
 
-#if TARGETOS >= 61 
+#if TARGETOS >= 60
 #define _LsoV2IPv4
 #define _LsoV2IPv6
 #define _IPChecksumOffload
@@ -25,7 +25,7 @@
 #define DEFAULT_TX_CHECKSUM		"0" 
 #define DEFAULT_RX_CHECKSUM		"0"
 #define DEFAULT_PUBLISHINDICES  "0"
-#elif TARGETOS < 62
+#elif TARGETOS < 60
 #define DEFAULT_CONNECT_RATE	"10000"
 #define DEFAULT_TX_CHECKSUM		"27"
 #define DEFAULT_RX_CHECKSUM		"0"
