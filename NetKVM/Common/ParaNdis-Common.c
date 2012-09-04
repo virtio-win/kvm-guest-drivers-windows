@@ -993,6 +993,8 @@ static int PrepareReceiveBuffers(PARANDIS_ADAPTER *pContext)
 	pContext->NetMaxReceiveBuffers = pContext->NetNofReceiveBuffers;
 	DPrintf(0, ("[%s] MaxReceiveBuffers %d\n", __FUNCTION__, pContext->NetMaxReceiveBuffers) );
 
+	pContext->NetReceiveQueue->vq_ops->kick(pContext->NetReceiveQueue);
+
 	return nRet;
 }
 
@@ -1139,9 +1141,7 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
 		ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
 		VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 		JustForCheckClearInterrupt(pContext, "start 4");
-
 		ParaNdis_UpdateDeviceFilters(pContext);
-		pContext->NetReceiveQueue->vq_ops->kick(pContext->NetReceiveQueue);
 	}
 	DEBUG_EXIT_STATUS(0, status);
 	return status;
@@ -2718,10 +2718,10 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 			pContext->NetMaxReceiveBuffers--;
 		}
 	}
+	pContext->NetReceiveQueue->vq_ops->kick(pContext->NetReceiveQueue);
 	ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
 	pContext->bEnableInterruptHandlingDPC = TRUE;
 	VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
-	pContext->NetReceiveQueue->vq_ops->kick(pContext->NetReceiveQueue);
 	
 	NdisReleaseSpinLock(&pContext->ReceiveLock);
 
