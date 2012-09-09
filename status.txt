@@ -1,6 +1,6 @@
 Date    09 Sep 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
-tag     mm56
+tag     mm57
 
 Fixed bugs:
 BZ #838008 added Port1FunctionNumber directive to the INF file for Win8/2012
