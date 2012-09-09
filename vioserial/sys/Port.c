@@ -9,7 +9,7 @@
 EVT_WDF_WORKITEM VIOSerialPortPortReadyWork;
 EVT_WDF_WORKITEM VIOSerialPortSymbolicNameWork;
 EVT_WDF_WORKITEM VIOSerialPortPnpNotifyWork;
-EVT_WDF_REQUEST_CANCEL VIOSerialRequestCancel;
+EVT_WDF_REQUEST_CANCEL VIOSerialPortRequestCancel;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, VIOSerialDeviceListCreatePdo)
@@ -99,6 +99,7 @@ VIOSerialAddPort(
     port.InBuf = NULL;
     port.HostConnected = port.GuestConnected = FALSE;
     port.OutVqFull = FALSE;
+    port.Removed = FALSE;
 
     port.BusDevice = Device;
 
@@ -146,6 +147,7 @@ VIOSerialRemovePort(
         WDF_CHILD_RETRIEVE_INFO  childInfo;
         VIOSERIAL_PORT           vport;
         WDFDEVICE                hChild;
+        PRAWPDO_VIOSERIAL_PORT   rawPdo = NULL;
 
         WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(
                                  &vport.Header,
@@ -178,6 +180,8 @@ VIOSerialRemovePort(
               status = STATUS_INVALID_PARAMETER;
               break;
            }
+           rawPdo = RawPdoSerialPortGetData(hChild);
+           rawPdo->port->Removed = TRUE;
            WdfIoQueuePurge(port->ReadQueue,
                                  WDF_NO_EVENT_CALLBACK,
                                  WDF_NO_CONTEXT);
@@ -189,10 +193,6 @@ VIOSerialRemovePort(
                                  WDF_NO_CONTEXT);
            VIOSerialEnableDisableInterruptQueue(GetInQueue(&vport), FALSE);
 
-           if(vport.GuestConnected)
-           {
-              VIOSerialSendCtrlMsg(vport.BusDevice, vport.PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
-           }
            WdfSpinLockAcquire(vport.InBufLock);
            VIOSerialDiscardPortDataLocked(&vport);
            WdfSpinLockRelease(vport.InBufLock);
@@ -346,10 +346,12 @@ VIOSerialShutdownAllPorts(
                                  WDF_NO_CONTEXT);
         VIOSerialEnableDisableInterruptQueue(GetInQueue(&vport), FALSE);
 
-        if(vport.GuestConnected)
+        if(!vport.Removed && vport.GuestConnected)
         {
            VIOSerialSendCtrlMsg(vport.BusDevice, vport.PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
+           vport.GuestConnected = FALSE;
         }
+        vport.Removed = TRUE;
 
         WdfSpinLockAcquire(vport.InBufLock);
         VIOSerialDiscardPortDataLocked(&vport);
@@ -398,21 +400,6 @@ VIOSerialDiscardPortDataLocked(
     UINT ret = 0;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
-
-    if( port->PendingReadRequest )
-    {
-        WDFREQUEST request = NULL;
-        status = WdfRequestUnmarkCancelable(port->PendingReadRequest);
-        if (status != STATUS_CANCELLED)
-        {
-            request= port->PendingReadRequest;
-            port->PendingReadRequest = NULL;
-        }
-
-        if( request )
-            WdfRequestCompleteWithInformation(request , STATUS_CANCELLED, 0L);
-    }
-    status = STATUS_SUCCESS;
 
     vq = GetInQueue(port);
 
@@ -936,7 +923,7 @@ VIOSerialPortRead(
 		else
 		{
 			ASSERT (pdoData->port->PendingReadRequest == NULL);
-			status = WdfRequestMarkCancelableEx(Request, VIOSerialRequestCancel);
+			status = WdfRequestMarkCancelableEx(Request, VIOSerialPortRequestCancel);
 			if (!NT_SUCCESS(status))
 			{
 				WdfRequestComplete(Request, status);
@@ -947,19 +934,19 @@ VIOSerialPortRead(
 			}
 		}
     }
-	else
-	{
-		length = (ULONG)VIOSerialFillReadBufLocked(pdoData->port, systemBuffer, length);
-		if (length)
-		{
-			WdfRequestCompleteWithInformation(Request, status, (ULONG_PTR)length);
-		}
-		else
-		{
-			WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
-		}
-	}
-	WdfSpinLockRelease(pdoData->port->InBufLock);
+    else
+    {
+        length = (ULONG)VIOSerialFillReadBufLocked(pdoData->port, systemBuffer, length);
+        if (length)
+        {
+           WdfRequestCompleteWithInformation(Request, status, (ULONG_PTR)length);
+        }
+        else
+        {
+           WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
+        }
+    }
+    WdfSpinLockRelease(pdoData->port->InBufLock);
     
 	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ,"<-- %s\n", __FUNCTION__);
     return;
@@ -1023,7 +1010,7 @@ VIOSerialPortWrite(
 
 
 VOID
-VIOSerialRequestCancel(
+VIOSerialPortRequestCancel(
     IN WDFREQUEST Request
     )
 {
@@ -1091,7 +1078,7 @@ VIOSerialPortDeviceControl(
            }
            if (length < sizeof (VIRTIO_PORT_INFO) + name_size)
            {
-              status = STATUS_BUFFER_OVERFLOW;
+              status = STATUS_BUFFER_TOO_SMALL;
               TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
                             "Buffer too small. get = %d, expected = %d\n", length, sizeof (VIRTIO_PORT_INFO) + name_size);
               length = sizeof (VIRTIO_PORT_INFO) + name_size;
@@ -1174,10 +1161,13 @@ VIOSerialPortClose(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "--> %s\n", __FUNCTION__);
 
-    VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
+    if (!pdoData->port->Removed && pdoData->port->GuestConnected)
+    {
+        VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
+    }
+    pdoData->port->GuestConnected = FALSE;
 
     WdfSpinLockAcquire(pdoData->port->InBufLock);
-    pdoData->port->GuestConnected = FALSE;
     VIOSerialDiscardPortDataLocked(pdoData->port);
     WdfSpinLockRelease(pdoData->port->InBufLock);
 
@@ -1400,7 +1390,6 @@ VIOSerialPortPnpNotifyWork(
             notification->NameBufferOffset = -1;
             notification->Event = GUID_VIOSERIAL_PORT_CHANGE_STATUS;
             RtlCopyMemory(notification->CustomDataBuffer, &portStatus, sizeof(VIRTIO_PORT_STATUS_CHANGE));
-            //FIXME
             if(WdfDeviceGetDevicePnpState(pport->Device) == WdfDevStatePnpStarted)
             {
                status = IoReportTargetDeviceChangeAsynchronous(
@@ -1475,6 +1464,7 @@ VIOSerialEvtChildListIdentificationDescriptionDuplicate(
     dst->OutVqFull = src->OutVqFull;
     dst->HostConnected = src->HostConnected;
     dst->GuestConnected = src->GuestConnected;
+    dst->Removed = src->Removed;
 
     dst->ReadQueue = src->ReadQueue;
     dst->PendingReadRequest = src->PendingReadRequest;
@@ -1553,9 +1543,12 @@ VIOSerialPortIoStop(
     TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "-->%s\n", __FUNCTION__);
 
     WdfSpinLockAcquire(pport->InBufLock);
-    if (ActionFlags &  WdfRequestStopActionSuspend ) {
+    if (ActionFlags &  WdfRequestStopActionSuspend )
+    {
         WdfRequestStopAcknowledge(Request, FALSE);
-    } else if(ActionFlags &  WdfRequestStopActionPurge) {
+    }
+    else if(ActionFlags &  WdfRequestStopActionPurge)
+    {
         if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
         {
            pport->PendingReadRequest = NULL;

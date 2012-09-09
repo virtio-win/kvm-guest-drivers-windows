@@ -134,6 +134,7 @@ typedef struct _tagVioSerialPort
     BOOLEAN             HostConnected;
     BOOLEAN             GuestConnected;
 
+    BOOLEAN             Removed;
     WDFQUEUE            ReadQueue;
     WDFREQUEST          PendingReadRequest;
 
