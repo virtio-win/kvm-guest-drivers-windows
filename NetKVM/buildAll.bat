@@ -253,7 +253,7 @@ set _BUILDARCH=%2
 set _COINSTBIN=CoInstaller\%OSName%Release\x86\netkvmco.dll
 if /i "%2"=="amd64" set _COINSTBIN=CoInstaller\%OSName%Release\x64\netkvmco.dll
 if exist "%~3netkvm.sys" call tools\makeinstall %2 "%~3netkvm.sys" wlh\netkvm.inf %_VERSION_% %OSName% %_COINSTBIN% CoInstaller\readme.doc
-del NetKVM-2012.h
+rem del NetKVM-2012.h
 goto :eof
 
 :: (End)

@@ -18,6 +18,21 @@
 
 #if NDIS_SUPPORT_NDIS6
 
+
+MINIPORT_DISABLE_INTERRUPT MiniportDisableInterruptEx;
+MINIPORT_ENABLE_INTERRUPT MiniportEnableInterruptEx;
+MINIPORT_INTERRUPT_DPC MiniportInterruptDPC;
+MINIPORT_ISR MiniportInterrupt;
+MINIPORT_ENABLE_MESSAGE_INTERRUPT MiniportEnableMSIInterrupt;
+MINIPORT_DISABLE_MESSAGE_INTERRUPT MiniportDisableMSIInterrupt;
+MINIPORT_MESSAGE_INTERRUPT MiniportMSIInterrupt;
+MINIPORT_MESSAGE_INTERRUPT_DPC MiniportMSIInterruptDpc;
+MINIPORT_PROCESS_SG_LIST ProcessSGListHandler;
+MINIPORT_ALLOCATE_SHARED_MEM_COMPLETE SharedMemAllocateCompleteHandler;
+#if NDIS_SUPPORT_NDIS620
+MINIPORT_SYNCHRONIZE_INTERRUPT MiniportSyncRecoveryProcedure;
+#endif
+
 static VOID ProcessSGListHandler(IN PDEVICE_OBJECT  pDO, IN PVOID  Reserved, IN PSCATTER_GATHER_LIST  pSGL, IN PVOID  Context);
 
 typedef struct _tagNBLDigest
@@ -181,6 +196,12 @@ VOID ParaNdis_FreePhysicalMemory(
 		pAddresses->Physical);
 }
 
+#if (NDIS_SUPPORT_NDIS620)
+typedef MINIPORT_SYNCHRONIZE_INTERRUPT_HANDLER NDIS_SYNC_PROC_TYPE;
+#else
+typedef PVOID NDIS_SYNC_PROC_TYPE;
+#endif
+
 BOOLEAN ParaNdis_SynchronizeWithInterrupt(
 	PARANDIS_ADAPTER *pContext,
 	ULONG messageId,
@@ -188,9 +209,11 @@ BOOLEAN ParaNdis_SynchronizeWithInterrupt(
 	ULONG parameter)
 {
 	tSynchronizedContext SyncContext;
+	NDIS_SYNC_PROC_TYPE syncProc;
+	*(PVOID *)&syncProc = procedure;
 	SyncContext.pContext  = pContext;
 	SyncContext.Parameter = parameter;
-	return NdisMSynchronizeWithInterruptEx(pContext->InterruptHandle, messageId, procedure, &SyncContext);
+	return NdisMSynchronizeWithInterruptEx(pContext->InterruptHandle, messageId, syncProc, &SyncContext);
 }
 
 /**********************************************************
@@ -269,6 +292,7 @@ static BOOLEAN MiniportMSIInterrupt(
 	ULONG interruptSource = MessageToInterruptSource(pContext, MessageId);
 	b = ParaNdis_OnInterrupt(pContext, QueueDefaultInterruptDpc, interruptSource);
 	pContext->ulIrqReceived += b;
+	*TargetProcessors = 0;
 	return b;
 }
 
@@ -278,10 +302,10 @@ Parameters:
 	PVOID  MiniportInterruptContext (Adapter context)
 ***********************************************************/
 static VOID MiniportInterruptDPC(
-    IN PVOID  MiniportInterruptContext,
+    IN NDIS_HANDLE  MiniportInterruptContext,
     IN PVOID  MiniportDpcContext,
-    IN PULONG  ReceiveThrottleParameters, // On earlier ndis then 6.2 - this field is reserved
-    IN PULONG  NdisReserved2
+    IN PVOID                   ReceiveThrottleParameters,
+    IN PVOID                   NdisReserved2
     )
 {
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
@@ -331,8 +355,13 @@ static VOID MiniportMSIInterruptDpc(
     IN PVOID  MiniportInterruptContext,
     IN ULONG  MessageId,
     IN PVOID  MiniportDpcContext,
-    IN PULONG  ReceiveThrottleParameters, // On earlier ndis then 6.2 - this field is reserved
-    IN PULONG  NdisReserved2
+#if NDIS_SUPPORT_NDIS620
+    IN PVOID                   ReceiveThrottleParameters,
+    IN PVOID                   NdisReserved2
+#else
+    IN PULONG                  NdisReserved1,
+    IN PULONG                  NdisReserved2
+#endif
     )
 {
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
@@ -1180,7 +1209,7 @@ VOID ParaNdis_PacketMapper(
 				{
 					tTcpIpPacketParsingResult packetReview;
 					NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO lso;
-					ULONG dummyTransferSize;
+					ULONG dummyTransferSize = 0;
 					ULONG flags = pcrIpChecksum | pcrFixIPChecksum | pcrTcpChecksum | pcrFixPHChecksum;
 					USHORT saveBuffers = nBuffersMapped;
 					PVOID pIpHeader = RtlOffsetToPointer(pBuffer, pContext->Offload.ipHeaderOffset);
@@ -1337,7 +1366,7 @@ static void CompleteBufferLists(
 {
 	tNBLDigest Digest;
 	BOOLEAN bPassive = !IsDpc && (KeGetCurrentIrql() < DISPATCH_LEVEL);
-	KIRQL irql;
+	KIRQL irql = 0;
 	PNET_BUFFER_LIST pTemp = pNBL;
 	DEBUG_ENTRY(4);
 	ParseNBL(pNBL, &Digest);
@@ -1690,7 +1719,7 @@ static void StartTransferSingleNBL(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST 
 {
 	tNetBufferListEntry *pble = (tNetBufferListEntry *)pNBL->Scratch;
 	LIST_ENTRY list;
-	KIRQL irql;
+	KIRQL irql = 0;
 	BOOLEAN bPassive = KeGetCurrentIrql() < DISPATCH_LEVEL;
 	DPrintf(4, ("[%s] NBL %p(pble %p)", __FUNCTION__, pNBL, pble));
 	InitializeListHead(&list);
@@ -1997,7 +2026,7 @@ static void	PrintMDLChain(PNET_BUFFER netBuffer, PSCATTER_GATHER_LIST pSGList)
 */
 static FORCEINLINE void InitializeTransferParameters(tNetBufferEntry *pnbe, tTxOperationParameters *pParams)
 {
-	UCHAR protocol = (UCHAR)NET_BUFFER_LIST_INFO(pnbe->nbl, NetBufferListProtocolId);
+	UCHAR protocol = (UCHAR)(ULONG_PTR)NET_BUFFER_LIST_INFO(pnbe->nbl, NetBufferListProtocolId);
 	tNetBufferListEntry *pble = (tNetBufferListEntry *)pnbe->nbl->Scratch;
 	pParams->ReferenceValue = pnbe;
 	pParams->packet = pnbe->netBuffer;

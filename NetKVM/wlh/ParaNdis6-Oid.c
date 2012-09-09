@@ -20,6 +20,8 @@
 #include "ParaNdis6-Oid.tmh"
 #endif
 
+NDIS_IO_WORKITEM_FUNCTION OnSetPowerWorkItem;
+
 #define OIDENTRY(oid, el, xfl, xokl, flags) \
 { oid, el, xfl, xokl, flags, NULL }
 #define OIDENTRYPROC(oid, el, xfl, xokl, flags, setproc) \
@@ -462,31 +464,34 @@ VOID ParaNdis6_OidCancelRequest(
 
 static void OnSetPowerWorkItem(PVOID  WorkItemContext, NDIS_HANDLE  NdisIoWorkItemHandle)
 {
-	tPowerWorkItem *pwi = (tPowerWorkItem *)WorkItemContext;
-	PARANDIS_ADAPTER *pContext = pwi->pContext;
-	PNDIS_OID_REQUEST pRequest = (PNDIS_OID_REQUEST)pwi->request;
-	NDIS_STATUS status = NDIS_STATUS_SUCCESS;
-#ifdef DEBUG_TIMING
-	LARGE_INTEGER TickCount;
-	LARGE_INTEGER SysTime;
-
-	KeQueryTickCount(&TickCount);
-	NdisGetCurrentSystemTime(&SysTime);
-	DPrintf(0, ("\n%s>> CPU #%d, perf-counter %I64d, tick count %I64d, NDIS_sys_time %I64d\n", __FUNCTION__, KeGetCurrentProcessorNumber(), KeQueryPerformanceCounter(NULL).QuadPart,TickCount.QuadPart, SysTime.QuadPart));
-#endif
-
-	if (pwi->state == NetDeviceStateD0)
+	if (WorkItemContext)
 	{
-		ParaNdis_PowerOn(pContext);
+		tPowerWorkItem *pwi = (tPowerWorkItem *)WorkItemContext;
+		PARANDIS_ADAPTER *pContext = pwi->pContext;
+		PNDIS_OID_REQUEST pRequest = (PNDIS_OID_REQUEST)pwi->request;
+		NDIS_STATUS status = NDIS_STATUS_SUCCESS;
+	#ifdef DEBUG_TIMING
+		LARGE_INTEGER TickCount;
+		LARGE_INTEGER SysTime;
+
+		KeQueryTickCount(&TickCount);
+		NdisGetCurrentSystemTime(&SysTime);
+		DPrintf(0, ("\n%s>> CPU #%d, perf-counter %I64d, tick count %I64d, NDIS_sys_time %I64d\n", __FUNCTION__, KeGetCurrentProcessorNumber(), KeQueryPerformanceCounter(NULL).QuadPart,TickCount.QuadPart, SysTime.QuadPart));
+	#endif
+
+		if (pwi->state == NetDeviceStateD0)
+		{
+			ParaNdis_PowerOn(pContext);
+		}
+		else
+		{
+			ParaNdis_PowerOff(pContext);
+		}
+		NdisFreeMemory(pwi, 0, 0);
+		NdisFreeIoWorkItem(NdisIoWorkItemHandle);
+		ParaNdis_DebugHistory(pContext, hopOidRequest, NULL, pRequest->DATA.SET_INFORMATION.Oid, status, 2);
+		NdisMOidRequestComplete(pContext->MiniportHandle, pRequest, status);
 	}
-	else
-	{
-		ParaNdis_PowerOff(pContext);
-	}
-	NdisFreeMemory(pwi, 0, 0);
-	NdisFreeIoWorkItem(NdisIoWorkItemHandle);
-	ParaNdis_DebugHistory(pContext, hopOidRequest, NULL, pRequest->DATA.SET_INFORMATION.Oid, status, 2);
-	NdisMOidRequestComplete(pContext->MiniportHandle, pRequest, status);
 }
 
 

@@ -28,6 +28,7 @@ NDIS_STATUS ParaNdis6_GetRegistrationOffloadInfo(
 
 void ParaNdis6_ApplyOffloadPersistentConfiguration(PARANDIS_ADAPTER *pContext);
 
+MINIPORT_OID_REQUEST ParaNdis6_OidRequest;
 NDIS_STATUS ParaNdis6_OidRequest(
 	NDIS_HANDLE miniportAdapterContext,
 	PNDIS_OID_REQUEST  pNdisRequest);
@@ -37,11 +38,12 @@ VOID ParaNdis6_Send(
 	PNET_BUFFER_LIST pNBL,
 	BOOLEAN IsDpc);
 
+MINIPORT_CANCEL_SEND ParaNdis6_CancelSendNetBufferLists;
 VOID ParaNdis6_CancelSendNetBufferLists(
 	NDIS_HANDLE  miniportAdapterContext,
 	PVOID pCancelId);
 
-
+MINIPORT_RETURN_NET_BUFFER_LISTS ParaNdis6_ReturnNetBufferLists;
 VOID ParaNdis6_ReturnNetBufferLists(
 	NDIS_HANDLE miniportAdapterContext,
 	PNET_BUFFER_LIST pNBL, ULONG returnFlags);
@@ -67,6 +69,7 @@ VOID ParaNdis6_OnInterruptRecoveryTimer(
 /* returns number of buffers that have been sent */
 UINT ParaNdis6_CopyDataFromSingleNBL(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST pNBL);
 
+MINIPORT_CANCEL_OID_REQUEST ParaNdis6_OidCancelRequest;
 VOID ParaNdis6_OidCancelRequest(
 		NDIS_HANDLE hMiniportAdapterContext,
 		PVOID pRequestId);
