@@ -37,6 +37,7 @@ HKR, "Interrupt Management\Affinity Policy", DevicePriority, 0x00010001, 2
 
 
 [kvmnet6.ndi]
+;<Dense>
 Characteristics = 0x84 ; NCF_PHYSICAL  | NCF_HAS_UI
 BusType		= 5 ; PCI
 AddReg          = kvmnet6.Reg, Parameters
@@ -44,7 +45,10 @@ CopyFiles       = kvmnet6.CopyFiles
 *IfType         = 6	
 *MediaType      = 0		; NdisMedium802_3
 *PhysicalMediaType = 0		; NdisPhysicalMediumUnspecified 
-
+#if defined(Win8)
+Port1FunctionNumber = 0
+#endif
+;<Sparse>
 
 [kvmnet6.ndi.Services]
 AddService      = netkvm, 2, kvmnet6.Service, kvmnet6.EventLog

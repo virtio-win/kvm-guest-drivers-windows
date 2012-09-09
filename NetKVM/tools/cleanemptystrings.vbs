@@ -33,6 +33,12 @@ Dense = 1
 tempLine = ""
 End If
 
+If (InStr(1, tempLine,";<Sparse>") = 1) Then
+Dense = 0
+tempLine = ""
+End If
+
+
 If Len(tempLine) > 0 Or (LineIsEmpty = 0 And Dense = 0) Then
 
 strLineBuffer = strLineBuffer &	tempLine & " " & vbCrLf
