@@ -42,10 +42,8 @@ BalloonInit(
     IN WDFOBJECT    WdfDevice
             )
 {
-
     NTSTATUS            status = STATUS_SUCCESS;
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
-    VIO_SG              sg;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonInit\n");
 
@@ -56,15 +54,29 @@ BalloonInit(
 
     do
     {
-        devCtx->InfVirtQueue = FindVirtualQueue(&devCtx->VDevice, 0);
-        if (NULL == devCtx->InfVirtQueue)
+        if (!devCtx->InfVirtQueue)
+        {
+           devCtx->InfVirtQueue = FindVirtualQueue(&devCtx->VDevice, 0);
+        }
+        else
+        {
+           VirtIODeviceRenewQueue(devCtx->InfVirtQueue);
+        }
+        if (!devCtx->InfVirtQueue)
         {
            status = STATUS_INSUFFICIENT_RESOURCES;
            break;
         }
 
-        devCtx->DefVirtQueue = FindVirtualQueue(&devCtx->VDevice, 1);
-        if (NULL == devCtx->DefVirtQueue)
+        if (!devCtx->DefVirtQueue)
+        {
+           devCtx->DefVirtQueue = FindVirtualQueue(&devCtx->VDevice, 1);
+        }
+        else
+        {
+           VirtIODeviceRenewQueue(devCtx->DefVirtQueue);
+        }
+        if (!devCtx->DefVirtQueue)
         {
            status = STATUS_INSUFFICIENT_RESOURCES;
            break;
@@ -72,19 +84,33 @@ BalloonInit(
 
         if(VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
         {
+           BOOLEAN bNeedBuffer = FALSE;
            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> VIRTIO_BALLOON_F_STATS_VQ\n");
-		devCtx->StatVirtQueue = FindVirtualQueue(&devCtx->VDevice, 2);
-           if(NULL == devCtx->StatVirtQueue)
+           
+           if(!devCtx->StatVirtQueue)
+           {
+              devCtx->StatVirtQueue = FindVirtualQueue(&devCtx->VDevice, 2);
+              bNeedBuffer = TRUE;
+           }
+           else
+           {
+              VirtIODeviceRenewQueue(devCtx->StatVirtQueue);
+           }
+           if(!devCtx->StatVirtQueue)
            {
               status = STATUS_INSUFFICIENT_RESOURCES;
               break;
            }
-           sg.physAddr = MmGetPhysicalAddress(devCtx->MemStats);
-           sg.ulSize = sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR;
-
-           if(devCtx->StatVirtQueue->vq_ops->add_buf(devCtx->StatVirtQueue, &sg, 1, 0, devCtx, NULL, 0) < 0)
+           if (bNeedBuffer)
            {
-              TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> %s :: Cannot add buffer\n", __FUNCTION__);
+              VIO_SG  sg;
+              sg.physAddr = MmGetPhysicalAddress(devCtx->MemStats);
+              sg.ulSize = sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR;
+
+              if(devCtx->StatVirtQueue->vq_ops->add_buf(devCtx->StatVirtQueue, &sg, 1, 0, devCtx, NULL, 0) < 0)
+              {
+                 TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> %s :: Cannot add buffer\n", __FUNCTION__);
+              }
            }
            devCtx->StatVirtQueue->vq_ops->kick(devCtx->StatVirtQueue);
 
@@ -95,9 +121,12 @@ BalloonInit(
         }
     } while(FALSE);
 
-    if(NT_SUCCESS(status)) {
+    if(NT_SUCCESS(status))
+    {
         VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_DRIVER_OK);
-    } else {
+    }
+    else
+    {
         VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_FAILED);
     }
 
@@ -183,7 +212,6 @@ BalloonLeak(
     IN size_t num
     )
 {
-    size_t              i;
     PPAGE_LIST_ENTRY    pPageListEntry;
     PMDL                pPageMdl;
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
@@ -192,20 +220,7 @@ BalloonLeak(
 
     num = min(num, PAGE_SIZE/sizeof(PFN_NUMBER));
 
-    pPageListEntry = (PPAGE_LIST_ENTRY)&(devCtx->PageListHead).Next;
-
     for (devCtx->num_pfns = 0; devCtx->num_pfns < num; devCtx->num_pfns++)
-    {
-        if (pPageListEntry == NULL)
-        {
-            TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "PopEntryList=NULL\n");
-            break;
-        }
-        devCtx->pfns_table[devCtx->num_pfns] = pPageListEntry->PagePfn;
-        pPageListEntry = (PPAGE_LIST_ENTRY)pPageListEntry->SingleListEntry.Next;
-    }
-
-    for (i = 0; i < devCtx->num_pfns; i++)
     {
 
         pPageListEntry = (PPAGE_LIST_ENTRY)PopEntryList(&devCtx->PageListHead);
@@ -215,8 +230,8 @@ BalloonLeak(
            TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "PopEntryList=NULL\n");
            break;
         }
-        devCtx->num_pages--;
 
+        devCtx->pfns_table[devCtx->num_pfns] = pPageListEntry->PagePfn;
         pPageMdl = pPageListEntry->PageMdl;
         MmFreePagesFromMdl(pPageMdl);
         ExFreePool(pPageMdl);
@@ -225,6 +240,7 @@ BalloonLeak(
                                 &devCtx->LookAsideList,
                                 pPageListEntry
                                 );
+        devCtx->num_pages--;
     }
 
     BalloonTellHost(WdfDevice, devCtx->DefVirtQueue);
@@ -270,7 +286,8 @@ BalloonTellHost(
 
 VOID
 BalloonTerm(
-    IN WDFOBJECT    WdfDevice
+    IN WDFOBJECT    WdfDevice,
+    IN BOOLEAN      bFinal
     )
 {
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
@@ -283,29 +300,40 @@ BalloonTerm(
     if(devCtx->DefVirtQueue)
     {
         devCtx->DefVirtQueue->vq_ops->shutdown(devCtx->DefVirtQueue);
-        VirtIODeviceDeleteQueue(devCtx->DefVirtQueue, &p);
-		MmFreeContiguousMemory(p);
-		devCtx->DefVirtQueue = NULL;
+        if (bFinal)
+        {
+           VirtIODeviceDeleteQueue(devCtx->DefVirtQueue, &p);
+           MmFreeContiguousMemory(p);
+           devCtx->DefVirtQueue = NULL;
+        }
     }
 
     if(devCtx->InfVirtQueue)
     {
         devCtx->InfVirtQueue->vq_ops->shutdown(devCtx->InfVirtQueue);
-        VirtIODeviceDeleteQueue(devCtx->InfVirtQueue, &p);
-		MmFreeContiguousMemory(p);
-		devCtx->InfVirtQueue = NULL;
+        if (bFinal)
+        {
+           VirtIODeviceDeleteQueue(devCtx->InfVirtQueue, &p);
+           MmFreeContiguousMemory(p);
+           devCtx->InfVirtQueue = NULL;
+        }
     }
 
     if(devCtx->StatVirtQueue)
     {
         devCtx->StatVirtQueue->vq_ops->shutdown(devCtx->StatVirtQueue);
-        VirtIODeviceDeleteQueue(devCtx->StatVirtQueue, &p);
-		MmFreeContiguousMemory(p);
-		devCtx->StatVirtQueue = NULL;
+        if (bFinal)
+        {
+           VirtIODeviceDeleteQueue(devCtx->StatVirtQueue, &p);
+           MmFreeContiguousMemory(p);
+           devCtx->StatVirtQueue = NULL;
+        }
     }
 
-    VirtIODeviceReset(&devCtx->VDevice);
-
+    if (bFinal)
+    {
+       VirtIODeviceReset(&devCtx->VDevice);
+    }
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- BalloonTerm\n");
 }
 
