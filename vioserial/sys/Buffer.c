@@ -177,7 +177,7 @@ VIOSerialFillReadBufLocked(
         status = VIOSerialAddInBuf(GetInQueue(port), buf);
         if (!NT_SUCCESS(status))
         {
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "%s::%d  VIOSerialAddInBuf failed\n", __FUNCTION__, __LINE__);
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "%s::%d  VIOSerialAddInBuf failed\n", __FUNCTION__, __LINE__);
         }
     }
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
@@ -210,6 +210,7 @@ VIOSerialAddInBuf(
 
     if(0 > vq->vq_ops->add_buf(vq, &sg, 0, 1, buf, NULL, 0))
     {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "<-- %s cannot add_buf\n", __FUNCTION__);
         status = STATUS_INSUFFICIENT_RESOURCES;
     }
 

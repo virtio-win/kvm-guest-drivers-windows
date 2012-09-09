@@ -112,6 +112,7 @@ VIOSerialAddPort(
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
            "The description is already present in the list, the serial number is not unique.\n");
+        return;
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
@@ -268,6 +269,10 @@ VIOSerialRenewAllPorts(
         }
 
         VIOSerialEnableDisableInterruptQueue(GetInQueue(&vport), TRUE);
+
+        WdfIoQueueStart(vport.ReadQueue);
+        WdfIoQueueStart(vport.WriteQueue);
+        WdfIoQueueStart(vport.IoctlQueue);
 
         if(vport.GuestConnected)
         {
@@ -433,7 +438,7 @@ VIOSerialDiscardPortDataLocked(
     port->InBuf = NULL;
     if (ret > 0)
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s::%d Error adding %u buffers back to queue\n",
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "%s::%d Error adding %u buffers back to queue\n",
                       __FUNCTION__, __LINE__, ret);
     }
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
@@ -530,8 +535,6 @@ VIOSerialDeviceListCreatePdo(
     WDF_WORKITEM_CONFIG             workitemConfig;
     WDFWORKITEM                     hWorkItem;
     PRAWPDO_VIOSERIAL_PORT          pdoData = NULL;
-
-    WDF_TIMER_CONFIG                Config;
 
     DECLARE_CONST_UNICODE_STRING(deviceId, PORT_DEVICE_ID );
     DECLARE_CONST_UNICODE_STRING(deviceLocation, L"RedHat VIOSerial Port" );
