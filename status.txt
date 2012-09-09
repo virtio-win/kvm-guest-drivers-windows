@@ -1,3 +1,28 @@
+Date    09 Sep 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm56
+
+Fixed bugs:
+BZ #838008 added Port1FunctionNumber directive to the INF file for Win8/2012
+BZ #834175 - Enabled support for required RX checksum and IP TX checksum on Win7/2008R2/2008
+BZ #841544 and BZ #807967 No IP after several restarts and after S3
+BZ #843325 - [virtio-win][balloon]Guest memory can not continue evicting after enable balloon driver
+BZ #831570 - [virtio-win][balloon]windows7 guest crash when disable/enable virtIO balloon device during 
+             enlarging/evicting memory.
+BZ #839143 - [virtio-win][balloon]windows2003 guest balloon size restore the original 
+             value after reboot guest.
+BZ #803633 - [virtio-win][balloon]balloon does not work after s3 or s4.
+BZ #843325 - [virtio-win][balloon]Guest memory can not continue evicting after enable balloon driver.
+BZ #837324 - viostor reports support for FUA, but does not implement it.
+
+BZ #806223 - [virtio-win][serial] guest BSOD when doing s3 while virtio-serial in use.
+BZ #714908 - [virtio-win][serial] virtio-serial is disfunctiona after S3
+BZ #814896 - [virtio-win][serial] virtio-serial does not work after s4 in win7-32/64 bit guests
+BZ #823818 - [virtio-win][compatibilty]Guest freeze After terminating the virtserialport receiving 
+             side in the host
+BZ #819412 - [virtio-win][serial]qemu complains "Unexpected port id 1 for device virtio-serial0.0"
+             when hotunplug serial while RHEV-Agent service running in the guest
+
 Date    08 Aug 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm55
