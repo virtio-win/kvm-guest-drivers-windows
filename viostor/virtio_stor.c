@@ -725,7 +725,10 @@ VirtIoInterrupt(
               }
            }
            if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
-              CompleteSRB(DeviceExtension, Srb);
+              if (Srb)
+              {
+                 CompleteSRB(DeviceExtension, Srb);
+              }
            } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
               adaptExt->sn_ok = TRUE;
            } else {
@@ -937,7 +940,10 @@ VirtIoMSInterruptRoutine (
            }
         }
         if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
-            CompleteSRB(DeviceExtension, Srb);
+              if (Srb)
+              {
+                 CompleteSRB(DeviceExtension, Srb);
+              }
         } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
             adaptExt->sn_ok = TRUE;
         } else {
@@ -1306,6 +1312,7 @@ CompleteDpcRoutine(
     STOR_LOCK_HANDLE  LockHandle;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)Context;
 
+    BOOLEAN bNeedFlush = FALSE;
 #ifdef MSI_SUPPORTED
     ULONG MessageID = PtrToUlong(SystemArgument1);
     ULONG OldIrql;
@@ -1325,9 +1332,11 @@ CompleteDpcRoutine(
         PSCSI_REQUEST_BLOCK Srb;
         PRHEL_SRB_EXTENSION srbExt;
         pblk_req vbr;
+        PCDB cdb;
         vbr  = (pblk_req) RemoveHeadList(&adaptExt->complete_list);
         Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
         srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
+        cdb = (PCDB)&Srb->Cdb[0];
 #ifdef MSI_SUPPORTED
         if(adaptExt->msix_vectors) {
            StorPortReleaseMSISpinLock (Context, MessageID, OldIrql);
@@ -1340,6 +1349,11 @@ CompleteDpcRoutine(
         if (Srb->DataTransferLength > srbExt->Xfer) {
            Srb->DataTransferLength = srbExt->Xfer;
            Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
+        }
+        if (srbExt->vbr.out_hdr.type == VIRTIO_BLK_T_OUT &&
+           cdb->CDB16.ForceUnitAccess)
+        {
+           bNeedFlush = TRUE;
         }
         ScsiPortNotification(RequestComplete,
                          Context,
@@ -1364,6 +1378,10 @@ CompleteDpcRoutine(
 #ifdef MSI_SUPPORTED
     }
 #endif
+    if (bNeedFlush)
+    {
+        RhelDoFlush(Context, NULL);
+    }
     return;
 }
 #endif

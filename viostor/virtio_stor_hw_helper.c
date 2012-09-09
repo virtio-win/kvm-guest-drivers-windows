@@ -32,30 +32,45 @@ SynchronizedFlushRoutine(
     )
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
-    PRHEL_SRB_EXTENSION srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
     ULONG               fragLen;
     PVOID               va;
     ULONGLONG           pa;
+    pblk_req            vbr;
 
-    SET_VA_PA();
 
-    srbExt->vbr.out_hdr.sector = 0;
-    srbExt->vbr.out_hdr.ioprio = 0;
-    srbExt->vbr.req            = (struct request *)Srb;
-    srbExt->vbr.out_hdr.type   = VIRTIO_BLK_T_FLUSH;
-    srbExt->out                = 1;
-    srbExt->in                 = 1;
-
-    srbExt->vbr.sg[0].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
-    srbExt->vbr.sg[0].ulSize   = sizeof(srbExt->vbr.out_hdr);
-    srbExt->vbr.sg[1].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
-    srbExt->vbr.sg[1].ulSize   = sizeof(srbExt->vbr.status);
+    if (Context)
+    {
+        PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
+        PRHEL_SRB_EXTENSION srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
+        SET_VA_PA();
+        vbr                 = &srbExt->vbr;
+        vbr->req            = (struct request *)Srb;
+        srbExt->out         = 1;
+        srbExt->in          = 1;
+        vbr->sg[0].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &vbr->out_hdr, &fragLen);
+        vbr->sg[0].ulSize   = sizeof(vbr->out_hdr);
+        vbr->sg[1].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &vbr->status, &fragLen);
+        vbr->sg[1].ulSize   = sizeof(vbr->status);
+    }
+    else
+    {   
+        vbr = &adaptExt->vbr;
+        vbr->req = NULL;
+        va = NULL; 
+        pa = 0;
+        vbr->sg[0].physAddr = MmGetPhysicalAddress(&vbr->out_hdr);
+        vbr->sg[0].ulSize   = sizeof(vbr->out_hdr);
+        vbr->sg[1].physAddr = MmGetPhysicalAddress(&vbr->status);
+        vbr->sg[1].ulSize   = sizeof(vbr->status);
+    } 
+    vbr->out_hdr.sector = 0;
+    vbr->out_hdr.ioprio = 0;
+    vbr->out_hdr.type   = VIRTIO_BLK_T_FLUSH;
 
     if (adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
-                     &srbExt->vbr.sg[0],
-                     srbExt->out, srbExt->in,
-                     &srbExt->vbr, va, pa) >= 0) {
+                     vbr->sg,
+                     1, 1,
+                     vbr, va, pa) >= 0) {
         adaptExt->vq->vq_ops->kick(adaptExt->vq);
         return TRUE;
     }
