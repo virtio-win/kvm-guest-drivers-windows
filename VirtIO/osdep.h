@@ -31,11 +31,6 @@
 #define bool int
 #endif
 
-/* There is no KeMemoryBarrier in Win2K !!!! */
-#ifndef KeMemoryBarrier
-#define KeMemoryBarrier()
-#endif
-
 #define mb()   KeMemoryBarrier()
 #define rmb()  KeMemoryBarrier()
 #define wmb()  KeMemoryBarrier()
