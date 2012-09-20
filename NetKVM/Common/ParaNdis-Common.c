@@ -1047,7 +1047,8 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 			pContext->ReceiveQueueRing.Physical,
 			pContext->ReceiveQueueRing.Virtual,
 			pContext->ReceiveQueueRing.size,
-			NULL);
+			NULL,
+			pContext->bDoPublishIndices);
 	}
 	if (pContext->SendQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->SendQueueRing))
 	{
@@ -1057,7 +1058,8 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 			pContext->SendQueueRing.Physical,
 			pContext->SendQueueRing.Virtual,
 			pContext->SendQueueRing.size,
-			NULL);
+			NULL,
+			pContext->bDoPublishIndices);
 	}
 	if (pContext->ControlQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ControlQueueRing))
 	{
@@ -1067,7 +1069,8 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 			pContext->ControlQueueRing.Physical,
 			pContext->ControlQueueRing.Virtual,
 			pContext->ControlQueueRing.size,
-			NULL);
+			NULL,
+			pContext->bDoPublishIndices);
 	}
 
 	if (pContext->NetReceiveQueue && pContext->NetSendQueue)

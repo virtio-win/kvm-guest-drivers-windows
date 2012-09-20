@@ -36,6 +36,9 @@ struct vring_virtqueue
 	/* Other side has made a mess, don't try any more. */
 	bool broken;
 
+	/* Whether to use published indices mechanism */
+	bool use_published_indices;
+
 	/* Number of free buffers */
 	unsigned int num_free;
 	/* Head of free buffer list. */
@@ -55,7 +58,8 @@ static void initialize_virtqueue(struct vring_virtqueue *vq,
 							VirtIODevice * pVirtIODevice,
 							void *pages,
 							void (*notify)(struct virtqueue *),
-							unsigned int index
+							unsigned int index,
+							bool use_published_indices
 							);
 
 
@@ -201,11 +205,19 @@ add_head:
 
 	/* Put entry in available array (but don't update avail->idx until they
 	* do sync).  FIXME: avoid modulus here? */
-	avail = (vq->vring.avail->idx + vq->num_added++) % vq->vring.num;
+
+	avail = vq->vring.avail->idx % vq->vring.num;
+
 	DPrintf(6, ("%s >>> avail %d vq->vring.avail->idx = %d, vq->num_added = %d vq->vring.num = %d\n", __FUNCTION__, avail, vq->vring.avail->idx, vq->num_added, vq->vring.num));
 	vq->vring.avail->ring[avail] = (u16) head;
 
 	DPrintf(6, ("Added buffer head %i to %p\n", head, vq) );
+
+	//Flush ring changes before index advancement
+	mb();
+
+	vq->vring.avail->idx++;
+	vq->num_added++;
 
 	return vq->num_free;
 }
@@ -218,37 +230,41 @@ static void vring_kick_always(struct virtqueue *_vq)
 	 * new available array entries. */
 	wmb();
 
-	vq->vring.avail->idx += (u16) vq->num_added;
 	DPrintf(4, ("%s>>> vq->vring.avail->idx %d\n", __FUNCTION__, vq->vring.avail->idx));
 	vq->num_added = 0;
 
 	/* Need to update avail index before checking if we should notify */
 	mb();
 
-//	if (!(vq->vring.used->flags & VRING_USED_F_NO_NOTIFY))
-		/* Prod other side to tell it about changes. */
-	// Always kick the ring
 	vq->notify(&vq->vq);
 }
 
 static void vring_kick(struct virtqueue *_vq)
 {
+	u16 prev_avail_idx;
 	struct vring_virtqueue *vq = to_vvq(_vq);
 
 	/* Descriptors and available array need to be set before we expose the
 	 * new available array entries. */
 	mb();
 
-	vq->vring.avail->idx += (u16) vq->num_added;
+	prev_avail_idx = vq->vring.avail->idx - (u16) vq->num_added;
 	DPrintf(4, ("%s>>> vq->vring.avail->idx %d\n", __FUNCTION__, vq->vring.avail->idx));
 	vq->num_added = 0;
 
 	/* Need to update avail index before checking if we should notify */
 	mb();
 
-	if (!(vq->vring.used->flags & VRING_USED_F_NO_NOTIFY))
-		/* Prod other side to tell it about changes. */
-		vq->notify(&vq->vq);
+	if(vq->use_published_indices) {
+		if(vring_need_event(vring_last_avail(&vq->vring),
+			                vq->vring.avail->idx,
+							prev_avail_idx))
+			vq->notify(&vq->vq);
+	} else {
+		if (!(vq->vring.used->flags & VRING_USED_F_NO_NOTIFY))
+			/* Prod other side to tell it about changes. */
+			vq->notify(&vq->vq);
+	}
 }
 
 static void detach_buf(struct vring_virtqueue *vq, unsigned int head)
@@ -295,10 +311,11 @@ static void vring_shutdown(struct virtqueue *_vq)
 	unsigned int index = vq->vq.ulIndex;
 	void *pages = vq->vring.desc;
 	VirtIODevice * pVirtIODevice = vq->vq.vdev;
+	bool use_published_indices = vq->use_published_indices;
 	void (*notify)(struct virtqueue *) = vq->notify;
 
 	memset(pages, 0, vring_size(num,PAGE_SIZE));
-	initialize_virtqueue(vq, num, pVirtIODevice, pages, notify, index);
+	initialize_virtqueue(vq, num, pVirtIODevice, pages, notify, index, use_published_indices);
 }
 
 static bool more_used(const struct vring_virtqueue *vq)
@@ -380,7 +397,8 @@ void initialize_virtqueue(struct vring_virtqueue *vq,
 							VirtIODevice * pVirtIODevice,
 							void *pages,
 							void (*notify)(struct virtqueue *),
-							unsigned int index)
+							unsigned int index,
+							bool use_published_indices)
 {
 	unsigned int i = num;
 	memset(vq, 0, sizeof(*vq) + sizeof(void *)*num);
@@ -393,6 +411,7 @@ void initialize_virtqueue(struct vring_virtqueue *vq,
 	vq->vq.ulIndex = index;
 	vring_last_used(&vq->vring) = 0;
 	vq->num_added = 0;
+	vq->use_published_indices = use_published_indices;
 
 	/* No callback?  Tell other side not to bother us. */
 	// TBD
@@ -411,7 +430,8 @@ struct virtqueue *vring_new_virtqueue(unsigned int num,
 									  void *pages,
 									  void (*notify)(struct virtqueue *),
 									  void *control,
-									  unsigned int index
+									  unsigned int index,
+									  BOOLEAN use_published_indices
 									  )
 {
 	struct vring_virtqueue *vq;
@@ -428,7 +448,7 @@ struct virtqueue *vring_new_virtqueue(unsigned int num,
 	if (!vq)
 		return NULL;
 
-	initialize_virtqueue(vq, num, pVirtIODevice, pages, notify, index);
+	initialize_virtqueue(vq, num, pVirtIODevice, pages, notify, index, use_published_indices);
 
 	return &vq->vq;
 }
