@@ -1,3 +1,17 @@
+Date    23 Sep 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm58
+
+Fixed bugs:
+BZ 713130 - event index performance in virtio
+    and vhost-net. Event indexes handling fixed (including correct kick logic).
+Bug 858687 - virtio_serialport changes the order of the data
+    guest->host using 32bit Windows XP guest
+
+New features:
+Win8 NetKvm driver.
+
+
 Date    09 Sep 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm57
