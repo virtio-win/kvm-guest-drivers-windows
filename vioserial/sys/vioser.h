@@ -46,7 +46,7 @@ EVT_WDF_INTERRUPT_DISABLE                       VIOSerialInterruptDisable;
 #define VIRTIO_CONSOLE_PORT_OPEN        6
 #define VIRTIO_CONSOLE_PORT_NAME        7
 
-#define RETRY_THRESHOLD                 10
+#define RETRY_THRESHOLD                 400
 
 #pragma pack (push)
 #pragma pack (1)

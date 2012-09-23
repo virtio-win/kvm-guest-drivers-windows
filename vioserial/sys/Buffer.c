@@ -75,7 +75,10 @@ VIOSerialSendBuffers(
 
            ret = vq->vq_ops->add_buf(vq, &sg, 1, 0, ptr, NULL, 0);
            if (ret < 0)
+           {
+              TraceEvents(TRACE_LEVEL_FATAL, DBG_WRITE, "<--%s::%d\n", __FUNCTION__, __LINE__);
               break;
+           }
            ptr = (PVOID)((LONG_PTR)ptr + sg.ulSize);
            len -= sg.ulSize;
            sent += sg.ulSize;
@@ -83,10 +86,10 @@ VIOSerialSendBuffers(
         } while ((ret >= 0) && (len > 0));
 
         vq->vq_ops->kick(vq);
-        port->OutVqFull = (ret < 0);
-        if (!nonblock && sent)
+        port->OutVqFull = (sent > 0);
+
+        if (!nonblock && port->OutVqFull)
         {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "<-> %s !nonblock\n", __FUNCTION__);
            while(elements && retries < RETRY_THRESHOLD)
            {
               if(vq->vq_ops->get_buf(vq, &dummy))
@@ -96,19 +99,18 @@ VIOSerialSendBuffers(
               }
               else
               {
-                 KeStallExecutionProcessor(100);
+                 KeStallExecutionProcessor(50);
                  retries++;
               }
            }
            if (retries == RETRY_THRESHOLD)
            {
-              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "<-> %s retries = %d\n", __FUNCTION__, retries);
+              TraceEvents(TRACE_LEVEL_FATAL, DBG_WRITE, "<-> %s retries = %d\n", __FUNCTION__, retries);
               break;
            }
         }
     }
     WdfSpinLockRelease(port->OutVqLock);
-    TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return sent;
 }
 

@@ -48,8 +48,12 @@ VIOSerialSendCtrlMsg(
         vq->vq_ops->kick(vq);
         while(!vq->vq_ops->get_buf(vq, &len))
         {
-           KeStallExecutionProcessor(100);
-           if(++cnt == RETRY_THRESHOLD) break;
+           KeStallExecutionProcessor(50);
+           if(++cnt > RETRY_THRESHOLD)
+           {
+              TraceEvents(TRACE_LEVEL_FATAL, DBG_PNP, "<-> %s retries = %d\n", __FUNCTION__, cnt);
+              break;
+           }
         }
     }
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s cnt = %d\n", __FUNCTION__, cnt);

@@ -975,13 +975,14 @@ VIOSerialPortWrite(
     {
         status = STATUS_INVALID_BUFFER_SIZE;
         WdfRequestComplete(Request, status);
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "<--%s::%d\n", __FUNCTION__, __LINE__);
+        TraceEvents(TRACE_LEVEL_FATAL, DBG_WRITE, "<--%s::%d complet with status %d\n", __FUNCTION__, __LINE__, status);
         return;
     }
     status = WdfRequestRetrieveInputBuffer(Request, Length, &systemBuffer, &length);
     if (!NT_SUCCESS(status))
     {
         WdfRequestComplete(Request, status);
+        TraceEvents(TRACE_LEVEL_FATAL, DBG_WRITE, "<--%s::%d complet with status %d\n", __FUNCTION__, __LINE__, status);
         return;
     }
     nonBlock = FALSE;
@@ -991,7 +992,7 @@ VIOSerialPortWrite(
         {
            status = STATUS_INSUFFICIENT_RESOURCES;
            WdfRequestComplete(Request, status);
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "<--%s::%d\n", __FUNCTION__, __LINE__);
+           TraceEvents(TRACE_LEVEL_FATAL, DBG_WRITE, "<--%s::%d complet with status %d\n", __FUNCTION__, __LINE__, status);
            return;
         }
     }
@@ -1003,6 +1004,7 @@ VIOSerialPortWrite(
     else
     {
         status = STATUS_INSUFFICIENT_RESOURCES;
+        TraceEvents(TRACE_LEVEL_FATAL, DBG_WRITE, "<--%s::%d complet with status %d\n", __FUNCTION__, __LINE__, status);
         WdfRequestComplete(Request, status);
     }
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE,"<-- %s\n", __FUNCTION__);
