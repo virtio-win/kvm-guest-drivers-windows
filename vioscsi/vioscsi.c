@@ -259,7 +259,7 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
         PHYSICAL_ADDRESS pa = StorPortGetPhysicalAddress(adaptExt, NULL, ptr, &len);
         if (pa.QuadPart)
         {
-           vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, ptr, len, NULL);
+           vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, ptr, len, NULL, FALSE);
         }
 
         if (vq && vector)

@@ -295,7 +295,8 @@ struct virtqueue *VirtIODevicePrepareQueue(
 					PHYSICAL_ADDRESS pa,
 					void *va,
 					unsigned long size,
-					void *ownerContext)
+					void *ownerContext,
+					BOOLEAN usePublishedIndices)
 {
 	struct virtqueue *vq = NULL;
 	ULONG sizeNeeded, num;
@@ -319,7 +320,8 @@ struct virtqueue *VirtIODevicePrepareQueue(
 							 info->queue,
 							 vp_notify,
 							 (char *)va + ringSize,
-							 index);
+							 index,
+							 usePublishedIndices);
 		if (vq)
 		{
 			DPrintf(0, ("[%s] queue phys.address %08lx:%08lx, pfn %lx\n", __FUNCTION__, pa.HighPart, pa.LowPart, pageNum));

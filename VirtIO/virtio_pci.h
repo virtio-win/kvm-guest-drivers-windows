@@ -138,7 +138,8 @@ struct virtqueue *VirtIODevicePrepareQueue(
 					PHYSICAL_ADDRESS pa,
 					void *va,
 					unsigned long size,
-					void *ownerContext);
+					void *ownerContext,
+					BOOLEAN usePublishedIndices);
 void VirtIODeviceDeleteQueue(struct virtqueue *vq, /* optional*/ void **pOwnerContext);
 u32  VirtIODeviceGetQueueSize(struct virtqueue *vq);
 void VirtIODeviceRenewQueue(struct virtqueue *vq);

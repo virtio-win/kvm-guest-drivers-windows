@@ -99,7 +99,7 @@ struct vring {
  */
 
 #define vring_last_used(vr) ((vr)->avail->ring[(vr)->num])
-#define vring_last_avail(vr) (*(__u16 *)&(vr)->used->ring[(vr)->num])
+#define vring_last_avail(vr) (*(u16 *)&(vr)->used->ring[(vr)->num])
 
 static void vring_init(struct vring *vr, unsigned int num, void *p,
 			      unsigned long pagesize)
@@ -119,13 +119,18 @@ static  unsigned vring_size(unsigned int num, unsigned long pagesize)
 		+ sizeof(u16) * 3 + sizeof(struct vring_used_elem) * num;
 }
 
+static __inline int vring_need_event(u16 event_idx, u16 new_idx, u16 old)
+{
+	return (u16)(new_idx - event_idx - 1) < (u16)(new_idx - old);
+}
+
 struct virtqueue *vring_new_virtqueue(unsigned int num,
 				      VirtIODevice * pVirtIODevice,
 				      void *pages,
 				      void (*notify)(struct virtqueue *vq),
 					  void *control,
-					  unsigned int index
-					  );
+					  unsigned int index,
+					  BOOLEAN use_published_indices);
 
 void* vring_detach_unused_buf(struct virtqueue *_vq);
 

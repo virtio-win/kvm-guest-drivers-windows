@@ -436,7 +436,7 @@ void SimulationPrepare()
 		if (p)
 		{
 			PHYSICAL_ADDRESS phys = MmGetPhysicalAddress(p);
-			TxQ = VirtIODevicePrepareQueue(Host.dev, TX_QUEUE_NUMBER, phys, p, allocSize, p);
+			TxQ = VirtIODevicePrepareQueue(Host.dev, TX_QUEUE_NUMBER, phys, p, allocSize, p, FALSE);
 		}
 	}
 

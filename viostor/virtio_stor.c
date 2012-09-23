@@ -457,7 +457,7 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
 		ULONG len;
 		PHYSICAL_ADDRESS pa = ScsiPortGetPhysicalAddress(adaptExt, NULL, adaptExt->uncachedExtensionVa, &len);
 		if (pa.QuadPart)
-			vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, adaptExt->uncachedExtensionVa, len, NULL);
+			vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, adaptExt->uncachedExtensionVa, len, NULL, FALSE);
 	}
 
 	if (vq && vector)
