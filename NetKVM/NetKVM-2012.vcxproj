@@ -133,7 +133,7 @@
       <Command>call BuildAll.bat Prepare2012 $(DDKSpec) </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>call BuildAll.bat Finalize2012 $(DDKSpec) $(InfArch) "$(OutDir)"</Command>
+      <Command>call BuildAll.bat Finalize2012 $(DDKSpec) $(InfArch) "$(TargetDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
@@ -145,7 +145,7 @@
       <Command>call BuildAll.bat Prepare2012 $(DDKSpec) </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>call BuildAll.bat Finalize2012 $(DDKSpec) $(InfArch) "$(OutDir)"</Command>
+      <Command>call BuildAll.bat Finalize2012 $(DDKSpec) $(InfArch) "$(TargetDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
@@ -169,7 +169,7 @@
       <Command>call BuildAll.bat Prepare2012 $(DDKSpec) </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>call BuildAll.bat Finalize2012 $(DDKSpec) $(InfArch) "$(OutDir)"</Command>
+      <Command>call BuildAll.bat Finalize2012 $(DDKSpec) $(InfArch) "$(TargetDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
@@ -181,7 +181,7 @@
       <Command>call BuildAll.bat Prepare2012 $(DDKSpec) </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>call BuildAll.bat Finalize2012 $(DDKSpec) $(InfArch) "$(OutDir)"</Command>
+      <Command>call BuildAll.bat Finalize2012 $(DDKSpec) $(InfArch) "$(TargetDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
@@ -194,7 +194,7 @@
       <Command>call BuildAll.bat Prepare2012 $(DDKSpec) </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>call BuildAll.bat Finalize2012 $(DDKSpec) $(InfArch) "$(OutDir)"</Command>
+      <Command>call BuildAll.bat Finalize2012 $(DDKSpec) $(InfArch) "$(TargetDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
