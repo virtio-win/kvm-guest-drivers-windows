@@ -184,7 +184,7 @@ BalloonFill(
             break;
         }
 
-        pNewPageListEntry = ExAllocateFromNPagedLookasideList(&devCtx->LookAsideList);
+        pNewPageListEntry = (PPAGE_LIST_ENTRY)ExAllocateFromNPagedLookasideList(&devCtx->LookAsideList);
         if (pNewPageListEntry == NULL)
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "List Entry Allocation Failed!!!\n");
@@ -344,8 +344,6 @@ BalloonMemStats(
 {
     VIO_SG              sg;
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
-    WDFREQUEST request;
-    NTSTATUS  status;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 

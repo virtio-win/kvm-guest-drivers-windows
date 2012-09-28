@@ -132,7 +132,7 @@ BalloonDeviceAdd(
                       0
                       );
 
-    devCtx->pfns_table =
+    devCtx->pfns_table = (PPFN_NUMBER)
               ExAllocatePoolWithTag(
                       NonPagedPool,
                       PAGE_SIZE,
@@ -146,7 +146,7 @@ BalloonDeviceAdd(
         return status;
     }
 
-    devCtx->MemStats =
+    devCtx->MemStats = (PBALLOON_STAT)
               ExAllocatePoolWithTag(
                       NonPagedPool,
                       sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR,
@@ -393,7 +393,6 @@ BalloonCloseWorkerThread(
 {
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(Device);
     NTSTATUS            status = STATUS_SUCCESS;
-    OBJECT_ATTRIBUTES   oa;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
@@ -424,9 +423,9 @@ BalloonEvtDeviceD0Entry(
     IN  WDF_POWER_DEVICE_STATE PreviousState
     )
 {
-    PDEVICE_CONTEXT     devCtx = GetDeviceContext(Device);
     NTSTATUS            status = STATUS_SUCCESS;
 
+    UNREFERENCED_PARAMETER(PreviousState);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
     status = BalloonInit(Device);
@@ -453,8 +452,6 @@ BalloonEvtDeviceD0Exit(
     IN  WDF_POWER_DEVICE_STATE TargetState
     )
 {
-    PDEVICE_CONTEXT       devCtx = GetDeviceContext(Device);
-    NTSTATUS              status = STATUS_SUCCESS;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
 
@@ -472,7 +469,6 @@ BalloonEvtDeviceD0ExitPreInterruptsDisabled(
     )
 {
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(Device);
-    NTSTATUS              status = STATUS_SUCCESS;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
 
@@ -523,7 +519,6 @@ BalloonInterruptDpc(
     unsigned int          len;
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(WdfDevice);
 
-    BOOLEAN               bStatUpdate = FALSE;
     BOOLEAN               bHostAck = FALSE;
     UNREFERENCED_PARAMETER( WdfInterrupt );
 
@@ -634,11 +629,11 @@ BalloonEvtFileClose (
 
     if(VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
     {
-	ULONG ulValue = 0;
+        ULONG ulValue = 0;
 
-	ulValue = ReadVirtIODeviceRegister(devCtx->VDevice.addr + VIRTIO_PCI_GUEST_FEATURES);
-	ulValue	&= ~(1 << VIRTIO_BALLOON_F_STATS_VQ);
-	WriteVirtIODeviceRegister(devCtx->VDevice.addr + VIRTIO_PCI_GUEST_FEATURES, ulValue);
+        ulValue = ReadVirtIODeviceRegister(devCtx->VDevice.addr + VIRTIO_PCI_GUEST_FEATURES);
+        ulValue	&= ~(1 << VIRTIO_BALLOON_F_STATS_VQ);
+        WriteVirtIODeviceRegister(devCtx->VDevice.addr + VIRTIO_PCI_GUEST_FEATURES, ulValue);
         devCtx->bServiceConnected = FALSE;
     }
     return;
@@ -675,9 +670,8 @@ BalloonRoutine(
     WDFOBJECT Device  =  (WDFOBJECT)pContext;
     PDEVICE_CONTEXT                 devCtx = GetDeviceContext(Device);
 
-    NTSTATUS                        status = STATUS_SUCCESS;
-    LARGE_INTEGER                   Timeout = {0};
-    BOOLEAN                         Opened = FALSE;
+    NTSTATUS            status = STATUS_SUCCESS;
+    LARGE_INTEGER       Timeout = {0};
     LONGLONG            diff;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Balloon thread started....\n");

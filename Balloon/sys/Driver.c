@@ -34,6 +34,9 @@ NTSTATUS DriverEntry(
     WDFDRIVER              driver;
     WDF_OBJECT_ATTRIBUTES  attrib;
 
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
+#endif
     WPP_INIT_TRACING( DriverObject, RegistryPath );
 
     TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "Balloon driver, built on %s %s\n",
@@ -67,6 +70,7 @@ EvtDriverContextCleanup(
     IN WDFDRIVER Driver
     )
 {
+    UNREFERENCED_PARAMETER(Driver);
     PAGED_CODE ();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s\n", __FUNCTION__);
