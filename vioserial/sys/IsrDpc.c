@@ -13,6 +13,8 @@ VIOSerialInterruptIsr(
     ULONG          ret;
     PPORTS_DEVICE  pContext = GetPortsDevice(WdfInterruptGetDevice(Interrupt));
 
+    UNREFERENCED_PARAMETER(MessageID);
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
     if((ret = VirtIODeviceISR(pContext->pIODevice)) > 0)
     {
@@ -29,8 +31,7 @@ VIOSerialInterruptDpc(
     IN WDFINTERRUPT Interrupt,
     IN WDFOBJECT AssociatedObject)
 {
-    UINT             len, i;
-    PVOID            buf;
+    UINT             i;
     PPORTS_DEVICE    pContext;
     PVIOSERIAL_PORT  port;
     WDFDEVICE        Device;
@@ -41,6 +42,8 @@ VIOSerialInterruptDpc(
     PUCHAR           systemBuffer;
     size_t           Length;
     WDFREQUEST       request;
+
+    UNREFERENCED_PARAMETER(AssociatedObject);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
 
@@ -58,7 +61,6 @@ VIOSerialInterruptDpc(
         port = VIOSerialFindPortById(Device, i);
         if (port)
         {
-           struct virtqueue    *out_vq = GetOutQueue(port);
            WdfSpinLockAcquire(port->InBufLock);
            if (!port->InBuf)
            {
@@ -105,7 +107,6 @@ VIOSerialEnableDisableInterrupt(
     PPORTS_DEVICE pContext,
     IN BOOLEAN bEnable)
 {
-    unsigned int i;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s enable = %d\n", __FUNCTION__, bEnable);
 
@@ -130,6 +131,8 @@ VIOSerialInterruptEnable(
     IN WDFINTERRUPT Interrupt,
     IN WDFDEVICE AssociatedDevice)
 {
+    UNREFERENCED_PARAMETER(AssociatedDevice);
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
     VIOSerialEnableDisableInterrupt(
                                  GetPortsDevice(WdfInterruptGetDevice(Interrupt)),
@@ -144,6 +147,8 @@ VIOSerialInterruptDisable(
     IN WDFINTERRUPT Interrupt,
     IN WDFDEVICE AssociatedDevice)
 {
+    UNREFERENCED_PARAMETER(AssociatedDevice);
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
     VIOSerialEnableDisableInterrupt(
                                  GetPortsDevice(WdfInterruptGetDevice(Interrupt)),

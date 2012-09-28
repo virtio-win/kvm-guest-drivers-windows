@@ -1,6 +1,7 @@
 #include "precomp.h"
 #include "vioser.h"
 #include "public.h"
+#include <wdmsec.h>
 
 #if defined(EVENT_TRACING)
 #include "Port.tmh"
@@ -128,7 +129,6 @@ VIOSerialRemovePort(
 )
 {
     PPORT_BUFFER    buf;
-    PPORTS_DEVICE   pContext = GetPortsDevice(Device);
     NTSTATUS        status = STATUS_SUCCESS;
     WDFCHILDLIST    list;
     WDF_CHILD_LIST_ITERATOR     iterator;
@@ -140,7 +140,6 @@ VIOSerialRemovePort(
                                  WdfRetrievePresentChildren );
 
     WdfChildListBeginIteration(list, &iterator);
-
 
     for (;;)
     {
@@ -199,7 +198,7 @@ VIOSerialRemovePort(
            WdfSpinLockAcquire(vport.OutVqLock);
            VIOSerialReclaimConsumedBuffers(&vport);
            WdfSpinLockRelease(vport.OutVqLock);
-           while (buf = VirtIODeviceDetachUnusedBuf(GetInQueue(&vport)))
+           while (buf = (PPORT_BUFFER)VirtIODeviceDetachUnusedBuf(GetInQueue(&vport)))
            {
               VIOSerialFreeBuffer(buf);
            }
@@ -291,11 +290,9 @@ VIOSerialShutdownAllPorts(
 )
 {
     PPORT_BUFFER    buf;
-    PPORTS_DEVICE   pContext = GetPortsDevice(Device);
     NTSTATUS        status = STATUS_SUCCESS;
     WDFCHILDLIST    list;
     WDF_CHILD_LIST_ITERATOR     iterator;
-    UINT            nr_ports, i;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s\n", __FUNCTION__);
 
@@ -360,7 +357,7 @@ VIOSerialShutdownAllPorts(
         WdfSpinLockAcquire(vport.OutVqLock);
         VIOSerialReclaimConsumedBuffers(&vport);
         WdfSpinLockRelease(vport.OutVqLock);
-        while (buf = VirtIODeviceDetachUnusedBuf(GetInQueue(&vport)))
+        while (buf = (PPORT_BUFFER)VirtIODeviceDetachUnusedBuf(GetInQueue(&vport)))
         {
            VIOSerialFreeBuffer(buf);
         }
@@ -375,9 +372,6 @@ VIOSerialInitPortConsole(
     IN PVIOSERIAL_PORT port
 )
 {
-    PPORT_BUFFER    buf;
-    PPORTS_DEVICE   pContext = GetPortsDevice(port->BusDevice);
-
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     port->GuestConnected = TRUE;
@@ -395,7 +389,6 @@ VIOSerialDiscardPortDataLocked(
     struct virtqueue *vq;
     PPORT_BUFFER buf = NULL;
     UINT len;
-    PPORTS_DEVICE pContext = GetPortsDevice(port->BusDevice);
     NTSTATUS  status = STATUS_SUCCESS;
     UINT ret = 0;
 
@@ -409,7 +402,7 @@ VIOSerialDiscardPortDataLocked(
     }
     else if (vq)
     {
-        buf = vq->vq_ops->get_buf(vq, &len);
+        buf = (PPORT_BUFFER)vq->vq_ops->get_buf(vq, &len);
     }
 
     while (buf)
@@ -420,7 +413,7 @@ VIOSerialDiscardPortDataLocked(
            ++ret;
            VIOSerialFreeBuffer(buf);
         }
-        buf = vq->vq_ops->get_buf(vq, &len);
+        buf = (PPORT_BUFFER)vq->vq_ops->get_buf(vq, &len);
     }
     port->InBuf = NULL;
     if (ret > 0)
@@ -444,7 +437,7 @@ VIOSerialPortHasDataLocked(
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
         return TRUE;
     }
-    port->InBuf = VIOSerialGetInBuf(port);
+    port->InBuf = (PPORT_BUFFER)VIOSerialGetInBuf(port);
     if (port->InBuf)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s::%d\n", __FUNCTION__, __LINE__);
@@ -528,6 +521,7 @@ VIOSerialDeviceListCreatePdo(
 
     DECLARE_UNICODE_STRING_SIZE(buffer, DEVICE_DESC_LENGTH);
 
+    UNREFERENCED_PARAMETER(DeviceList);
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
@@ -896,9 +890,9 @@ VIOSerialPortRead(
     )
 {
     PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
-    SIZE_T             length;
+    size_t             length;
     NTSTATUS           status;
-    PUCHAR             systemBuffer;
+    PVOID              systemBuffer;
     BOOLEAN            nonBlock;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "-->%s\n", __FUNCTION__);
@@ -963,8 +957,8 @@ VIOSerialPortWrite(
 
     PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
     NTSTATUS           status = STATUS_SUCCESS;
-    SIZE_T             length;
-    PUCHAR             systemBuffer;
+    size_t             length;
+    PVOID              systemBuffer;
     PVIOSERIAL_PORT    pport = pdoData->port;
     BOOLEAN            nonBlock;
     PAGED_CODE();
@@ -1066,7 +1060,7 @@ VIOSerialPortDeviceControl(
 
         case IOCTL_GET_INFORMATION:
         {
-           status = WdfRequestRetrieveOutputBuffer(Request, sizeof(VIRTIO_PORT_INFO), &pport_info, &length);
+           status = WdfRequestRetrieveOutputBuffer(Request, sizeof(VIRTIO_PORT_INFO), (PVOID*)&pport_info, &length);
            if (!NT_SUCCESS(status))
            {
               TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
@@ -1379,7 +1373,8 @@ VIOSerialPortPnpNotifyWork(
 
     if (NT_SUCCESS(status))
     {
-        notification = ExAllocatePoolWithTag(NonPagedPool,
+        notification = (PTARGET_DEVICE_CUSTOM_NOTIFICATION)
+                       ExAllocatePoolWithTag(NonPagedPool,
                                  requiredSize,
                                  VIOSERIAL_DRIVER_MEMORY_TAG);
 
@@ -1420,8 +1415,6 @@ VIOSerialEvtChildListIdentificationDescriptionDuplicate(
     )
 {
     PVIOSERIAL_PORT src, dst;
-    size_t safeMultResult;
-    NTSTATUS status;
 
     UNREFERENCED_PARAMETER(DeviceList);
 

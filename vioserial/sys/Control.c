@@ -103,7 +103,6 @@ VIOSerialHandleCtrlMsg(
 {
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
     PVIRTIO_CONSOLE_CONTROL cpkt;
-    UINT name_size;
     PVIOSERIAL_PORT port;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);

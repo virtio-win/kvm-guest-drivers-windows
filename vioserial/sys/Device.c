@@ -175,29 +175,31 @@ VIOSerialEvtDevicePrepareHardware(
 {
     int nListSize = 0;
     PCM_PARTIAL_RESOURCE_DESCRIPTOR pResDescriptor;
-	WDF_INTERRUPT_INFO interruptInfo;
+    WDF_INTERRUPT_INFO interruptInfo;
     int i = 0;
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
     bool bPortFound = FALSE;
     NTSTATUS status = STATUS_SUCCESS;
     UINT nr_ports, max_queues, size_to_allocate;
+
+    UNREFERENCED_PARAMETER(ResourcesRaw);
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<--> %s\n", __FUNCTION__);
 
     max_queues = 64; // 2 for each of max 32 ports
-	size_to_allocate = VirtIODeviceSizeRequired((USHORT)max_queues);
+    size_to_allocate = VirtIODeviceSizeRequired((USHORT)max_queues);
 
-	pContext->pIODevice = (VirtIODevice *)ExAllocatePoolWithTag(
+    pContext->pIODevice = (VirtIODevice *)ExAllocatePoolWithTag(
                                  NonPagedPool,
                                  size_to_allocate,
                                  VIOSERIAL_DRIVER_MEMORY_TAG);
-	if (NULL == pContext->pIODevice)
-	{
-		return STATUS_INSUFFICIENT_RESOURCES;
-	}
+    if (NULL == pContext->pIODevice)
+    {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
-	nListSize = WdfCmResourceListGetCount(ResourcesTranslated);
+    nListSize = WdfCmResourceListGetCount(ResourcesTranslated);
 
     for (i = 0; i < nListSize; i++)
     {
@@ -248,7 +250,7 @@ VIOSerialEvtDevicePrepareHardware(
     WdfInterruptGetInfo(pContext->WdfInterrupt, &interruptInfo);
 
     VirtIODeviceInitialize(pContext->pIODevice, (ULONG_PTR)pContext->pPortBase, size_to_allocate);
-	VirtIODeviceSetMSIXUsed(pContext->pIODevice, interruptInfo.MessageSignaled);
+    VirtIODeviceSetMSIXUsed(pContext->pIODevice, interruptInfo.MessageSignaled);
 
     VirtIODeviceReset(pContext->pIODevice);
 
@@ -331,8 +333,8 @@ VIOSerialEvtDeviceReleaseHardware(
     IN WDFCMRESLIST ResourcesTranslated)
 {
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
-    UNREFERENCED_PARAMETER(ResourcesTranslated);
 
+    UNREFERENCED_PARAMETER(ResourcesTranslated);
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
@@ -412,8 +414,6 @@ VIOSerialInitAllQueues(
     NTSTATUS               status = STATUS_SUCCESS;
     PPORTS_DEVICE          pContext = GetPortsDevice(Device);
     UINT                   nr_ports, i, j;
-    struct virtqueue       *in_vq, *out_vq;
-    WDF_OBJECT_ATTRIBUTES  attributes;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
