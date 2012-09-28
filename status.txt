@@ -1,3 +1,10 @@
+Date    28 Sep 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm59
+
+New features:
+Balloon and vioserial Win8 drivers.
+
 Date    23 Sep 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm58
