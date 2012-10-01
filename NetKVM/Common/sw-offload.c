@@ -18,20 +18,6 @@
 // till IP header size is 8 bit
 #define MAX_SUPPORTED_IPV6_HEADERS	(256 - 4)
 
-// IP Header RFC 791
-typedef struct _tagIPv4Header {
-    UCHAR		ip_verlen;             // length in 32-bit units(low nibble), version (high nibble)
-    UCHAR		ip_tos;                // Type of service
-    USHORT		ip_length;             // Total length
-    USHORT		ip_id;                 // Identification
-    USHORT		ip_offset;             // fragment offset and flags
-    UCHAR		ip_ttl;                // Time to live
-    UCHAR		ip_protocol;           // Protocol
-    USHORT		ip_xsum;               // Header checksum
-    ULONG		ip_src;                // Source IP address
-    ULONG		ip_dest;               // Destination IP address
-} IPv4Header;
-
 typedef ULONG IPV6_ADDRESS[4];
 
 // IPv6 Header RFC 2460 (40 bytes)
@@ -83,11 +69,6 @@ typedef struct _tagIPv6PseudoHeader {
 #define PROTOCOL_TCP					6
 #define PROTOCOL_UDP					17
 
-
-static __inline USHORT swap_short(USHORT us)
-{
-	return (us << 8) | (us >> 8);
-}
 
 #define IP_HEADER_LENGTH(pHeader)  (((pHeader)->ip_verlen & 0x0F) << 2)
 #define TCP_HEADER_LENGTH(pHeader) ((pHeader->tcp_flags & 0xF0) >> 2)
@@ -176,6 +157,11 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
 			ip_version, ipHeaderSize, pIpHeader->v4.ip_protocol, fullLength));
 		res.ipStatus = (ipHeaderSize >= sizeof(IPv4Header)) ? ppresIPV4 : ppresNotIP;
 		if (len < ipHeaderSize) res.ipCheckSum = ppresIPTooShort;
+		if (fullLength) {}
+		else
+		{
+			DPrintf(2, ("ip v.%d, iplen %d", ip_version, fullLength));
+		}
 	}
 	else if (ip_version == 6)
 	{

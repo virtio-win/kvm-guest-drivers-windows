@@ -55,6 +55,20 @@ typedef enum _tag_eInspectedPacketType
 	iptInvalid
 }eInspectedPacketType;
 
+// IP Header RFC 791
+typedef struct _tagIPv4Header {
+    UCHAR		ip_verlen;             // length in 32-bit units(low nibble), version (high nibble)
+    UCHAR		ip_tos;                // Type of service
+    USHORT		ip_length;             // Total length
+    USHORT		ip_id;                 // Identification
+    USHORT		ip_offset;             // fragment offset and flags
+    UCHAR		ip_ttl;                // Time to live
+    UCHAR		ip_protocol;           // Protocol
+    USHORT		ip_xsum;               // Header checksum
+    ULONG		ip_src;                // Source IP address
+    ULONG		ip_dest;               // Destination IP address
+} IPv4Header;
+
 // TCP header RFC 793
 typedef struct _tagTCPHeader {
     USHORT		tcp_src;                // Source port
@@ -82,5 +96,11 @@ typedef struct _tagUDPHeader {
 #define UDP_CHECKSUM_OFFSET		6
 #define MAX_IPV4_HEADER_SIZE	60
 #define MAX_TCP_HEADER_SIZE		60
+
+static __inline USHORT swap_short(USHORT us)
+{
+	return (us << 8) | (us >> 8);
+}
+
 
 #endif

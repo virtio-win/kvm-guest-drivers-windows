@@ -1087,6 +1087,18 @@ static FORCEINLINE ULONG CalculateTotalOffloadSize(
 	return ul;
 }
 
+static void __inline PopulateIPPacketLength(PVOID pIpHeader, PNET_BUFFER packet, ULONG ipHeaderOffset)
+{
+	IPv4Header *pHeader = (IPv4Header *)pIpHeader;
+	if ((pHeader->ip_verlen & 0xF0) == 0x40)
+	{
+		if (!pHeader->ip_length) {
+			pHeader->ip_length = swap_short((USHORT)(NET_BUFFER_DATA_LENGTH(packet) - ipHeaderOffset));
+		}
+	}
+}
+
+
 /*
 	Fills array @buffers with SG data for transmission.
 	If needed, copies part of data into data buffer @pDesc
@@ -1214,6 +1226,7 @@ VOID ParaNdis_PacketMapper(
 					USHORT saveBuffers = nBuffersMapped;
 					PVOID pIpHeader = RtlOffsetToPointer(pBuffer, pContext->Offload.ipHeaderOffset);
 					nBuffersMapped = 0;
+					PopulateIPPacketLength(pIpHeader, packet, pContext->Offload.ipHeaderOffset);
 					packetReview = ParaNdis_CheckSumVerify(
 						pIpHeader,
 						lengthGet - pContext->Offload.ipHeaderOffset,
