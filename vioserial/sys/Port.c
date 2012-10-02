@@ -290,6 +290,7 @@ VIOSerialShutdownAllPorts(
 )
 {
     PPORT_BUFFER    buf;
+    PPORTS_DEVICE   pContext = GetPortsDevice(Device);
     NTSTATUS        status = STATUS_SUCCESS;
     WDFCHILDLIST    list;
     WDF_CHILD_LIST_ITERATOR     iterator;
@@ -364,6 +365,10 @@ VIOSerialShutdownAllPorts(
     }
     WdfChildListEndIteration(list, &iterator);
     WdfChildListUpdateAllChildDescriptionsAsPresent(list);
+    while (buf = (PPORT_BUFFER)VirtIODeviceDetachUnusedBuf(pContext->c_ivq))
+    {
+       VIOSerialFreeBuffer(buf);
+    }
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
 }
 
