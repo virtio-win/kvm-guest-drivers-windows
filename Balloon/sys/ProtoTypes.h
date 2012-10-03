@@ -64,6 +64,7 @@ typedef struct _DEVICE_CONTEXT {
     ULONG                   num_pfns;
     PPFN_NUMBER             pfns_table;
     NPAGED_LOOKASIDE_LIST   LookAsideList;
+    BOOLEAN                 bListInitialized;
     SINGLE_LIST_ENTRY       PageListHead;
     PBALLOON_STAT           MemStats;
 

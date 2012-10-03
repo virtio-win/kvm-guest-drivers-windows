@@ -131,7 +131,7 @@ BalloonDeviceAdd(
                       BALLOON_MGMT_POOL_TAG,
                       0
                       );
-
+    devCtx->bListInitialized = TRUE;
     devCtx->pfns_table = (PPFN_NUMBER)
               ExAllocatePoolWithTag(
                       NonPagedPool,
@@ -208,7 +208,11 @@ BalloonEvtDeviceContextCleanup(
     }
 #endif // (WINVER >= 0x0501)
 
-    ExDeleteNPagedLookasideList(&devCtx->LookAsideList);
+    if(devCtx->bListInitialized)
+    {
+        ExDeleteNPagedLookasideList(&devCtx->LookAsideList);
+        devCtx->bListInitialized = FALSE;
+    }
     if(devCtx->pfns_table)
     {
         ExFreePoolWithTag(
