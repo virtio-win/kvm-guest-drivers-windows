@@ -48,8 +48,12 @@ VIOSerialSendCtrlMsg(
         vq->vq_ops->kick(vq);
         while(!vq->vq_ops->get_buf(vq, &len))
         {
-           KeStallExecutionProcessor(100);
-           if(++cnt == RETRY_THRESHOLD) break;
+           KeStallExecutionProcessor(50);
+           if(++cnt > RETRY_THRESHOLD)
+           {
+              TraceEvents(TRACE_LEVEL_FATAL, DBG_PNP, "<-> %s retries = %d\n", __FUNCTION__, cnt);
+              break;
+           }
         }
     }
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s cnt = %d\n", __FUNCTION__, cnt);
@@ -83,7 +87,7 @@ VIOSerialCtrlWorkHandler(
         status = VIOSerialAddInBuf(vq, buf);
         if (!NT_SUCCESS(status))
         {
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s::%d Error adding buffer to queue\n", __FUNCTION__, __LINE__);
+           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "%s::%d Error adding buffer to queue\n", __FUNCTION__, __LINE__);
            VIOSerialFreeBuffer(buf);
         }
     }
@@ -99,7 +103,6 @@ VIOSerialHandleCtrlMsg(
 {
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
     PVIRTIO_CONSOLE_CONTROL cpkt;
-    UINT name_size;
     PVIOSERIAL_PORT port;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);

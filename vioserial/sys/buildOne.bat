@@ -9,7 +9,7 @@ if "%_RHEL_RELEASE_VERSION_%"=="" set _RHEL_RELEASE_VERSION_=61
 
 if /i "%1"=="prepare" goto %1
 if /i "%1"=="finalize" goto %1
-if /i "%1"=="win8" goto %1_%2
+if /i "%1"=="Win8" goto %1_%2
 set DDKBUILDENV=
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %2 fre %1 no_oacr
@@ -37,7 +37,7 @@ call :BuildWin8 "Win8 Release|x64" buildfre_win8_amd64.log
 goto :eof
 
 :BuildWin8
-call ..\..\tools\callVisualStudio.bat 11 win8\win8.vcxproj /Rebuild "%~1" /Out %2
+call ..\..\tools\callVisualStudio.bat 11 vioser.vcxproj /Rebuild "%~1" /Out %2
 goto :eof
 
 :prepare_version
@@ -67,8 +67,8 @@ goto :eof
 :finalize
 echo finalizing build (%2 %3)
 rem del 2012-defines.h 
-pushd ..
-call packOne %2 %3 vioser
-popd
+rem pushd ..
+rem call packOne.bat %2 %3 vioser
+rem popd
 goto :eof
 

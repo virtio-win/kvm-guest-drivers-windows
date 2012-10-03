@@ -98,12 +98,12 @@ static void DebugPrintFunc(const char *format, ...)
 
 static void DebugPrintFuncWPP(const char *format, ...)
 {
-	// TODO later, if needed
+    UNREFERENCED_PARAMETER(format);
 }
 
 static void NoDebugPrintFunc(const char *format, ...)
 {
-
+    UNREFERENCED_PARAMETER(format);
 }
 
 
@@ -111,20 +111,22 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regi
 {
     //TODO - Read nDebugLevel and bDebugPrint from the registry
 #if defined(EVENT_TRACING)
-	VirtioDebugPrintProc = DebugPrintFuncWPP;
+    VirtioDebugPrintProc = DebugPrintFuncWPP;
 #elif defined(PRINT_DEBUG)
-	VirtioDebugPrintProc = DebugPrintFunc;
+    VirtioDebugPrintProc = DebugPrintFunc;
 #elif defined(COM_DEBUG)
-	VirtioDebugPrintProc = DebugPrintFuncSerial;
+    VirtioDebugPrintProc = DebugPrintFuncSerial;
 #else
-	VirtioDebugPrintProc = NoDebugPrintFunc;
+    VirtioDebugPrintProc = NoDebugPrintFunc;
 #endif
-	driverDebugLevel = TRACE_LEVEL_INFORMATION;
-	driverDebugFlags = 0xffffffff;
+    driverDebugFlags = 0xffffffff;
+
+    UNREFERENCED_PARAMETER(DriverObject);
+    UNREFERENCED_PARAMETER(RegistryPath);
 
     bDebugPrint = 1;
-	driverDebugLevel = TRACE_LEVEL_VERBOSE;
-    virtioDebugLevel = 4;
+    driverDebugLevel = TRACE_LEVEL_FATAL;
+    virtioDebugLevel = -1;
 }
 
 tDebugPrintFunc VirtioDebugPrintProc;

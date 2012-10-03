@@ -38,6 +38,10 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
     WDF_DRIVER_CONFIG      config;
     WDF_OBJECT_ATTRIBUTES  attributes;
 
+
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
+#endif
     WPP_INIT_TRACING(DriverObject, RegistryPath);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
@@ -68,15 +72,13 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
 
 VOID
 VIOSerialEvtDriverContextCleanup(
-    IN WDFOBJECT obj
+    IN WDFDRIVER Driver
     )
 {
-    WDFDRIVER Driver = (WDFDRIVER)obj;
-	PDRIVER_OBJECT  drvObj = WdfDriverWdmGetDriverObject( Driver );
     PAGED_CODE ();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
 
-    WPP_CLEANUP( drvObj);
+    WPP_CLEANUP( WdfDriverWdmGetDriverObject(Driver) );
 }
 

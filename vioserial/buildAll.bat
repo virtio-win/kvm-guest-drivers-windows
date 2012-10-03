@@ -105,7 +105,9 @@ setlocal
 set BUILD_OS=Win8
 set BUILD_ARC=x86
 call :buildsys %BUILD_OS% %BUILD_ARC%
-copy /y Install\Win7\x86\%APP_FILE_NAME%.* Install\Win8\x86
+call :packsys %BUILD_OS% %BUILD_ARC%
+rem copy /y Install\Win7\x86\%APP_FILE_NAME%.* Install\Win8\x86
+rem call :buildpack %BUILD_OS% %BUILD_ARC%
 endlocal
 rem pause
 goto :eof
@@ -115,7 +117,9 @@ setlocal
 set BUILD_OS=Win8
 set BUILD_ARC=x64
 call :buildsys %BUILD_OS% %BUILD_ARC%
-copy /y Install\Win7\amd64\%APP_FILE_NAME%.* Install\Win8\amd64
+call :packsys %BUILD_OS% %BUILD_ARC%
+rem call :buildsys %BUILD_OS% %BUILD_ARC%
+rem copy /y Install\Win7\amd64\%APP_FILE_NAME%.* Install\Win8\amd64
 endlocal
 rem pause
 goto :eof
