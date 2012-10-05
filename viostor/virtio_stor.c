@@ -451,30 +451,36 @@ VirtIoPassiveInitializeRoutine (
 
 static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG index, ULONG vector)
 {
-	struct virtqueue *vq = NULL;
-	if (adaptExt->uncachedExtensionVa)
-	{
-		ULONG len;
-		PHYSICAL_ADDRESS pa = ScsiPortGetPhysicalAddress(adaptExt, NULL, adaptExt->uncachedExtensionVa, &len);
-		if (pa.QuadPart)
-			vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, adaptExt->uncachedExtensionVa, len, NULL, FALSE);
-	}
+    struct virtqueue *vq = NULL;
+    if (adaptExt->uncachedExtensionVa)
+    {
+        ULONG len;
+        PHYSICAL_ADDRESS pa = ScsiPortGetPhysicalAddress(adaptExt, NULL, adaptExt->uncachedExtensionVa, &len);
+        if (pa.QuadPart)
+            vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, adaptExt->uncachedExtensionVa, len, NULL, FALSE);
+    }
 
-	if (vq && vector)
-	{
-		unsigned res;
-		ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR),(USHORT)vector);
-		res = ScsiPortReadPortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR));
-		RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> VIRTIO_MSI_QUEUE_VECTOR vector = %d, res = 0x%x\n", __FUNCTION__, vector, res));
-		if(res == VIRTIO_MSI_NO_VECTOR) {
-			VirtIODeviceDeleteQueue(vq, NULL);
-			vq = NULL;
-			RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot create vq vector\n", __FUNCTION__));
-			return NULL;
-		}
-	}
+    if (!vq) return NULL;
 
-	return vq;
+    if (vector)
+    {
+        unsigned res;
+        ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR),(USHORT)vector);
+        res = ScsiPortReadPortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> VIRTIO_MSI_QUEUE_VECTOR vector = %d, res = 0x%x\n", __FUNCTION__, vector, res));
+        if(res == VIRTIO_MSI_NO_VECTOR) {
+            VirtIODeviceDeleteQueue(vq, NULL);
+            vq = NULL;
+            RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot create vq vector\n", __FUNCTION__));
+            return NULL;
+        }
+        ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_CONFIG_VECTOR),(USHORT)0);
+        res = ScsiPortReadPortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_CONFIG_VECTOR));
+           if (res != 0) {
+               RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot set config vector\n", __FUNCTION__));
+           }
+    }
+    return vq;
 }
 
 BOOLEAN
@@ -493,6 +499,7 @@ VirtIoHwInitialize(
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
+    adaptExt->msix_vectors = 0;
 #ifdef MSI_SUPPORTED
     while(StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageId = %x\n", msi_info.MessageId));
@@ -540,7 +547,7 @@ VirtIoHwInitialize(
     ScsiPortMoveMemory(&adaptExt->inquiry_data.ProductRevisionLevel, "0001", sizeof("0001"));
     ScsiPortMoveMemory(&adaptExt->inquiry_data.VendorSpecific, "0001", sizeof("0001"));
 
-    if(!adaptExt->dump_mode)
+    if(!adaptExt->dump_mode && !adaptExt->sn_ok)
     {
         RhelGetSerialNumber(DeviceExtension);
     }
