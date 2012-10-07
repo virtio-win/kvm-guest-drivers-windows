@@ -457,7 +457,9 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
         ULONG len;
         PHYSICAL_ADDRESS pa = ScsiPortGetPhysicalAddress(adaptExt, NULL, adaptExt->uncachedExtensionVa, &len);
         if (pa.QuadPart)
+        {
             vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, adaptExt->uncachedExtensionVa, len, NULL, FALSE);
+        }
     }
 
     if (!vq) return NULL;
@@ -468,7 +470,8 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
         ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR),(USHORT)vector);
         res = ScsiPortReadPortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR));
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> VIRTIO_MSI_QUEUE_VECTOR vector = %d, res = 0x%x\n", __FUNCTION__, vector, res));
-        if(res == VIRTIO_MSI_NO_VECTOR) {
+        if(res == VIRTIO_MSI_NO_VECTOR)
+        {
             VirtIODeviceDeleteQueue(vq, NULL);
             vq = NULL;
             RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot create vq vector\n", __FUNCTION__));
@@ -476,9 +479,10 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
         }
         ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_CONFIG_VECTOR),(USHORT)0);
         res = ScsiPortReadPortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_CONFIG_VECTOR));
-           if (res != 0) {
-               RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot set config vector\n", __FUNCTION__));
-           }
+        if (res != 0)
+        {
+            RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot set config vector\n", __FUNCTION__));
+        }
     }
     return vq;
 }
@@ -596,6 +600,11 @@ VirtIoStartIo(
         }
         case SRB_FUNCTION_FLUSH:
         case SRB_FUNCTION_SHUTDOWN: {
+            if(adaptExt->flush_in_fly) {
+               Srb->SrbStatus = SRB_STATUS_SUCCESS;
+               CompleteSRB(DeviceExtension, Srb);
+               return TRUE;
+            }
             Srb->SrbStatus = SRB_STATUS_PENDING;
             Srb->ScsiStatus = SCSISTAT_GOOD;
             if (!RhelDoFlush(DeviceExtension, Srb)) {
@@ -672,6 +681,11 @@ VirtIoStartIo(
         }
         case SCSIOP_SYNCHRONIZE_CACHE:
         case SCSIOP_SYNCHRONIZE_CACHE16: {
+            if(adaptExt->flush_in_fly) {
+               Srb->SrbStatus = SRB_STATUS_SUCCESS;
+               CompleteSRB(DeviceExtension, Srb);
+               return TRUE;
+            }
             Srb->SrbStatus = SRB_STATUS_PENDING;
             Srb->ScsiStatus = SCSISTAT_GOOD;
             if (!RhelDoFlush(DeviceExtension, Srb)) {
@@ -736,6 +750,7 @@ VirtIoInterrupt(
               {
                  CompleteSRB(DeviceExtension, Srb);
               }
+              adaptExt->flush_in_fly = FALSE;  
            } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
               adaptExt->sn_ok = TRUE;
            } else {
@@ -806,7 +821,7 @@ VirtIoAdapterControl(
     case ScsiRestartAdapter: {
         RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("ScsiRestartAdapter\n"));
         VirtIODeviceReset(&adaptExt->vdev);
-		WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_SEL, (USHORT)0);
+        WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_SEL, (USHORT)0);
         WriteVirtIODeviceRegister(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_PFN,(USHORT)0);
         adaptExt->vq = NULL;
 
@@ -947,10 +962,11 @@ VirtIoMSInterruptRoutine (
            }
         }
         if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
-              if (Srb)
-              {
-                 CompleteSRB(DeviceExtension, Srb);
-              }
+            if (Srb)
+            {
+               CompleteSRB(DeviceExtension, Srb);
+            }
+            adaptExt->flush_in_fly = FALSE;
         } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
             adaptExt->sn_ok = TRUE;
         } else {
