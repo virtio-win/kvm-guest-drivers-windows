@@ -18,15 +18,6 @@
 #include "device.tmh"
 #endif
 
-EVT_WDF_DEVICE_CONTEXT_CLEANUP                 BalloonEvtDeviceContextCleanup;
-EVT_WDF_DEVICE_PREPARE_HARDWARE                BalloonEvtDevicePrepareHardware;
-EVT_WDF_DEVICE_RELEASE_HARDWARE                BalloonEvtDeviceReleaseHardware;
-EVT_WDF_DEVICE_D0_ENTRY                        BalloonEvtDeviceD0Entry;
-EVT_WDF_DEVICE_D0_EXIT                         BalloonEvtDeviceD0Exit;
-EVT_WDF_DEVICE_D0_EXIT_PRE_INTERRUPTS_DISABLED BalloonEvtDeviceD0ExitPreInterruptsDisabled;
-EVT_WDF_DEVICE_FILE_CREATE                     BalloonEvtDeviceFileCreate;
-EVT_WDF_FILE_CLOSE                             BalloonEvtFileClose;
-
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, BalloonEvtDeviceContextCleanup)
 #pragma alloc_text(PAGE, BalloonEvtDevicePrepareHardware)
@@ -36,6 +27,7 @@ EVT_WDF_FILE_CLOSE                             BalloonEvtFileClose;
 #pragma alloc_text(PAGE, BalloonDeviceAdd)
 #pragma alloc_text(PAGE, BalloonEvtDeviceFileCreate)
 #pragma alloc_text(PAGE, BalloonEvtFileClose)
+#pragma alloc_text(PAGE, BalloonCloseWorkerThread)
 #endif
 
 #if (WINVER >= 0x0501)
@@ -58,6 +50,7 @@ BalloonDeviceAdd(
     WDF_PNPPOWER_EVENT_CALLBACKS pnpPowerCallbacks;
 
     UNREFERENCED_PARAMETER(Driver);
+    PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
@@ -192,10 +185,10 @@ BalloonDeviceAdd(
 
 VOID
 BalloonEvtDeviceContextCleanup(
-    IN WDFDEVICE  Device
+    IN WDFOBJECT  Device
     )
 {
-    PDEVICE_CONTEXT     devCtx = GetDeviceContext(Device);
+    PDEVICE_CONTEXT     devCtx = GetDeviceContext((WDFDEVICE)Device);
 
     PAGED_CODE();
 

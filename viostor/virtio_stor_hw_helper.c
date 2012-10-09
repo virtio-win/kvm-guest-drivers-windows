@@ -48,7 +48,7 @@ SynchronizedFlushRoutine(
             RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s <---> Flush already in fly!!!\n", __FUNCTION__));
         }
         vbr                 = &srbExt->vbr;
-        vbr->req            = (struct request *)Srb;
+        vbr->req            = (PVOID)Srb;
         srbExt->out         = 1;
         srbExt->in          = 1;
         vbr->sg[0].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &vbr->out_hdr, &fragLen);

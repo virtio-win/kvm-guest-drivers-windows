@@ -18,6 +18,19 @@
 
 BOOLEAN IsCrashDumpMode;
 
+sp_DRIVER_INITIALIZE DriverEntry;
+HW_INITIALIZE        VirtIoHwInitialize;
+HW_STARTIO           VirtIoStartIo;
+HW_FIND_ADAPTER      VirtIoFindAdapter;
+HW_RESET_BUS         VirtIoResetBus;
+HW_ADAPTER_CONTROL   VirtIoAdapterControl;
+HW_INTERRUPT         VirtIoInterrupt;
+#ifdef USE_STORPORT
+HW_BUILDIO           VirtIoBuildIo;
+HW_DPC_ROUTINE       CompleteDpcRoutine;
+HW_MESSAGE_SIGNALED_INTERRUPT_ROUTINE VirtIoMSInterruptRoutine;
+HW_PASSIVE_INITIALIZE_ROUTINE         VirtIoPassiveInitializeRoutine;
+#endif
 extern int vring_add_buf_stor(
     IN struct virtqueue *_vq,
     IN struct VirtIOBufferDescriptor sg[],
@@ -265,6 +278,7 @@ VirtIoFindAdapter(
         return SP_RETURN_NOT_FOUND;
     }
 
+#ifndef USE_STORPORT
     if (!ScsiPortValidateRange(DeviceExtension,
                                            ConfigInfo->AdapterInterfaceType,
                                            ConfigInfo->SystemIoBusNumber,
@@ -287,6 +301,7 @@ VirtIoFindAdapter(
         return SP_RETURN_ERROR;
     }
 
+#endif
 
     ConfigInfo->NumberOfBuses               = 1;
     ConfigInfo->MaximumNumberOfTargets      = 1;
@@ -373,8 +388,8 @@ VirtIoFindAdapter(
     }
 #endif
 
-	VirtIODeviceReset(&adaptExt->vdev);
-	WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_SEL, (USHORT)0);
+    VirtIODeviceReset(&adaptExt->vdev);
+    WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_SEL, (USHORT)0);
     if (adaptExt->dump_mode) {
         WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_PFN, (USHORT)0);
     }

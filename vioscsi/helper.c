@@ -237,27 +237,6 @@ ENTER_FN();
         return FALSE;
     }
 
-    if (!StorPortValidateRange(DeviceExtension,
-                                           ConfigInfo->AdapterInterfaceType,
-                                           ConfigInfo->SystemIoBusNumber,
-                                           accessRange->RangeStart,
-                                           accessRange->RangeLength,
-                                           (BOOLEAN)!accessRange->RangeInMemory)) {
-
-        StorPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
-
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Range validation failed %x for %x bytes\n",
-                   (*ConfigInfo->AccessRanges)[0].RangeStart.LowPart,
-                   (*ConfigInfo->AccessRanges)[0].RangeLength));
-
-        return FALSE;
-    }
     adaptExt->device_base = (ULONG_PTR)StorPortGetDeviceBase(DeviceExtension,
                                            ConfigInfo->AdapterInterfaceType,
                                            ConfigInfo->SystemIoBusNumber,

@@ -19,6 +19,15 @@
 ULONG   RhelDbgLevel = TRACE_LEVEL_ERROR;
 BOOLEAN IsCrashDumpMode;
 
+sp_DRIVER_INITIALIZE DriverEntry;
+HW_INITIALIZE        VioScsiHwInitialize;
+HW_BUILDIO           VioScsiBuildIo;
+HW_STARTIO           VioScsiStartIo;
+HW_FIND_ADAPTER      VioScsiFindAdapter;
+HW_RESET_BUS         VioScsiResetBus;
+HW_ADAPTER_CONTROL   VioScsiAdapterControl;
+HW_INTERRUPT         VioScsiInterrupt;
+
 BOOLEAN
 VioScsiHwInitialize(
     IN PVOID DeviceExtension
@@ -158,6 +167,7 @@ VioScsiFindAdapter(
     UNREFERENCED_PARAMETER( Again );
 
 ENTER_FN();
+
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     memset(adaptExt, 0, sizeof(ADAPTER_EXTENSION));
 
@@ -275,7 +285,7 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
               RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot create vq vector\n", __FUNCTION__));
               return NULL;
            }
-	}
+        }
     }
     return vq;
 }

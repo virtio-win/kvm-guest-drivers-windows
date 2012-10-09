@@ -18,9 +18,6 @@
 #include "Driver.tmh"
 #endif
 
-DRIVER_INITIALIZE DriverEntry;
-EVT_WDF_OBJECT_CONTEXT_CLEANUP EvtDriverContextCleanup;
-
 #pragma alloc_text(INIT, DriverEntry)
 #pragma alloc_text(PAGE, EvtDriverContextCleanup)
 
@@ -67,7 +64,7 @@ NTSTATUS DriverEntry(
 
 VOID
 EvtDriverContextCleanup(
-    IN WDFDRIVER Driver
+    IN WDFOBJECT Driver
     )
 {
     UNREFERENCED_PARAMETER(Driver);
@@ -75,7 +72,7 @@ EvtDriverContextCleanup(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s\n", __FUNCTION__);
 
-    WPP_CLEANUP(WdfDriverWdmGetDriverObject( Driver ));
+    WPP_CLEANUP(WdfDriverWdmGetDriverObject( (WDFDRIVER)Driver ));
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 }

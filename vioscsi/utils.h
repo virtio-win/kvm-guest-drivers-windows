@@ -32,6 +32,11 @@
 #define EXIT_ERR()
 #endif
 
+void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath);
+
+extern int nViostorDebugLevel;
+
+#if DBG
 int
 _cdecl
 _vsnprintf(
@@ -40,15 +45,14 @@ _vsnprintf(
     const char *fmt,
     va_list args
     );
-
 #define vsnprintf _vsnprintf
 
-
-void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath);
-
-extern int nViostorDebugLevel;
-
-#define RhelDbgPrint(level, line) if ((!bDebugPrint) || level > nViostorDebugLevel) {} else VirtioDebugPrintProc line
+#define RhelDbgPrint(level, line) \
+    if ((!bDebugPrint) || level > nViostorDebugLevel) {} \
+    else VirtioDebugPrintProc line
+#else
+#define RhelDbgPrint(level, line) 
+#endif
 
 char *DbgGetScsiOpStr(PSCSI_REQUEST_BLOCK Srb);
 
