@@ -1,3 +1,11 @@
+Date    10 Oct 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm62
+
+Fixed bugs:
+Bug 864841 - [virtio-win] device driver for win2008 missed in virtio-win-prewhql-0.1-40 (edit) 
+
+
 Date    09 Oct 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm61
