@@ -19,6 +19,7 @@
 ULONG   RhelDbgLevel = TRACE_LEVEL_ERROR;
 BOOLEAN IsCrashDumpMode;
 
+#ifdef USE_STORPORT
 sp_DRIVER_INITIALIZE DriverEntry;
 HW_INITIALIZE        VioScsiHwInitialize;
 HW_BUILDIO           VioScsiBuildIo;
@@ -27,6 +28,7 @@ HW_FIND_ADAPTER      VioScsiFindAdapter;
 HW_RESET_BUS         VioScsiResetBus;
 HW_ADAPTER_CONTROL   VioScsiAdapterControl;
 HW_INTERRUPT         VioScsiInterrupt;
+#endif
 
 BOOLEAN
 VioScsiHwInitialize(

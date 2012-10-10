@@ -18,6 +18,7 @@
 
 BOOLEAN IsCrashDumpMode;
 
+#if (NTDDI_VERSION > NTDDI_WIN7)
 sp_DRIVER_INITIALIZE DriverEntry;
 HW_INITIALIZE        VirtIoHwInitialize;
 HW_STARTIO           VirtIoStartIo;
@@ -25,12 +26,12 @@ HW_FIND_ADAPTER      VirtIoFindAdapter;
 HW_RESET_BUS         VirtIoResetBus;
 HW_ADAPTER_CONTROL   VirtIoAdapterControl;
 HW_INTERRUPT         VirtIoInterrupt;
-#ifdef USE_STORPORT
 HW_BUILDIO           VirtIoBuildIo;
 HW_DPC_ROUTINE       CompleteDpcRoutine;
 HW_MESSAGE_SIGNALED_INTERRUPT_ROUTINE VirtIoMSInterruptRoutine;
 HW_PASSIVE_INITIALIZE_ROUTINE         VirtIoPassiveInitializeRoutine;
 #endif
+
 extern int vring_add_buf_stor(
     IN struct virtqueue *_vq,
     IN struct VirtIOBufferDescriptor sg[],
@@ -420,7 +421,7 @@ VirtIoFindAdapter(
         adaptExt->queue_depth = pageNum;
     }
 #else
-	adaptExt->indirect = 0;
+    adaptExt->indirect = 0;
 #endif
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("breaks_number = %x  queue_depth = %x\n",
                 ConfigInfo->NumberOfPhysicalBreaks,
@@ -768,7 +769,7 @@ VirtIoInterrupt(
               adaptExt->flush_in_fly = FALSE;  
            } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
               adaptExt->sn_ok = TRUE;
-           } else {
+           } else if (Srb) {
               CompleteDPC(DeviceExtension, vbr, 0);
            }
         }
@@ -984,7 +985,7 @@ VirtIoMSInterruptRoutine (
             adaptExt->flush_in_fly = FALSE;
         } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
             adaptExt->sn_ok = TRUE;
-        } else {
+        } else if (Srb) {
             CompleteDPC(DeviceExtension, vbr, MessageID);
         }
         isInterruptServiced = TRUE;
