@@ -135,6 +135,13 @@ CompleteDPC(
     IN ULONG  MessageID
     );
 
+VOID
+LogError(
+    IN PVOID HwDeviceExtension,
+    IN ULONG ErrorCode,
+    IN ULONG UniqueId
+    );
+
 
 ULONG
 DriverEntry(
@@ -268,13 +275,9 @@ VirtIoFindAdapter(
                 accessRange->RangeLength));
 
     if ( accessRange->RangeLength < IO_PORT_LENGTH) {
-        ScsiPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
+        LogError(DeviceExtension,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Wrong access range %x bytes\n", accessRange->RangeLength));
         return SP_RETURN_NOT_FOUND;
     }
@@ -287,13 +290,9 @@ VirtIoFindAdapter(
                                            accessRange->RangeLength,
                                            (BOOLEAN)!accessRange->RangeInMemory)) {
 
-        ScsiPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
+        LogError(DeviceExtension,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
 
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Range validation failed %x for %x bytes\n",
                    (*ConfigInfo->AccessRanges)[0].RangeStart.LowPart,
@@ -316,13 +315,9 @@ VirtIoFindAdapter(
                                            (BOOLEAN)!accessRange->RangeInMemory);
 
     if (deviceBase == (ULONG_PTR)NULL) {
-        ScsiPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
+        LogError(DeviceExtension,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
 
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Couldn't map %x for %x bytes\n",
                    (*ConfigInfo->AccessRanges)[0].RangeStart.LowPart,
@@ -429,13 +424,9 @@ VirtIoFindAdapter(
 
     adaptExt->uncachedExtensionVa = ScsiPortGetUncachedExtension(DeviceExtension, ConfigInfo, allocationSize);
     if (!adaptExt->uncachedExtensionVa) {
-        ScsiPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
+        LogError(DeviceExtension,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
 
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Couldn't get uncached extension\n"));
         return SP_RETURN_ERROR;
@@ -540,13 +531,9 @@ VirtIoHwInitialize(
         adaptExt->vq = FindVirtualQueue(adaptExt, 0, 0);
     }
     if (!adaptExt->vq) {
-        ScsiPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
+        LogError(DeviceExtension,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
 
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Cannot find snd virtual queue\n"));
         return ret;
@@ -1424,3 +1411,35 @@ CompleteDpcRoutine(
     return;
 }
 #endif
+
+VOID
+LogError(
+    IN PVOID DeviceExtension,
+    IN ULONG ErrorCode,
+    IN ULONG UniqueId
+    )
+{
+#ifdef USE_STORPORT
+    STOR_LOG_EVENT_DETAILS logEvent;
+    memset( &logEvent, 0, sizeof(logEvent) );
+    logEvent.InterfaceRevision         = STOR_CURRENT_LOG_INTERFACE_REVISION;
+    logEvent.Size                      = sizeof(logEvent);
+    logEvent.EventAssociation          = StorEventAdapterAssociation;
+    logEvent.StorportSpecificErrorCode = TRUE;
+    logEvent.ErrorCode                 = ErrorCode;
+    logEvent.DumpDataSize              = sizeof(UniqueId);
+    logEvent.DumpData                  = &UniqueId;
+
+    StorPortLogSystemEvent( DeviceExtension, &logEvent, NULL );
+
+#else
+    ScsiPortLogError(DeviceExtension,
+                         NULL,
+                         0,
+                         0,
+                         0,
+                         ErrorCode,
+                         UniqueId);
+
+#endif
+}

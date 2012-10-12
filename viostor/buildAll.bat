@@ -49,6 +49,16 @@ call ..\tools\callVisualStudio.bat 11 viostor.vcxproj /Rebuild "%~1" /Out %2
 del  viostor-2012.h
 goto :eof
 
+:StaticDriverVerifier2012
+call "C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\vcvarsall.bat" %2
+msbuild.exe viostor.vcxproj /t:clean /p:Configuration="%~1" /P:Platform=%2 
+msbuild.exe viostor.vcxproj /t:sdv /p:inputs="/clean" /p:Configuration="%~1" /P:platform=%2
+
+msbuild.exe viostor.vcxproj /p:Configuration="%~1" /P:Platform=%2 /P:RunCodeAnalysisOnce=True
+msbuild.exe viostor.vcxproj /t:sdv /p:inputs="/devenv /check" /p:Configuration="%~1" /P:platform=%2
+msbuild.exe viostor.vcxproj /t:dvl /p:Configuration="%~1" /P:platform=%2
+goto :eof
+
 :WIN8_32
 setlocal
 set BUILD_OS=Win8

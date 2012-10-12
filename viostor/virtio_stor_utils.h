@@ -37,7 +37,6 @@ _vsnprintf(
     );
 #define vsnprintf _vsnprintf
 
-
 void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath);
 
 extern int nViostorDebugLevel;
