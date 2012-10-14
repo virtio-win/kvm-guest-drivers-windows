@@ -65,7 +65,7 @@ static void NoDebugPrintFunc(const char *format, ...)
 {
 
 }
-void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath)
+void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath)
 {
     //TBD - Read nDebugLevel and bDebugPrint from the registry
     bDebugPrint = 1;
@@ -85,7 +85,7 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regi
 
 tDebugPrintFunc VirtioDebugPrintProc;
 
-char *DbgGetScsiOpStr(PSCSI_REQUEST_BLOCK Srb)
+char *DbgGetScsiOpStr(IN PSCSI_REQUEST_BLOCK Srb)
 {
     PCDB pCdb = (PCDB)Srb->Cdb;
     UCHAR scsiOp = pCdb->CDB6GENERIC.OperationCode;

@@ -75,6 +75,7 @@ set BUILD_OS=Win8
 set BUILD_ARC=x64
 if exist Install\win8\amd64 rmdir Install\win8\amd64 /s /q
 call :BuildUsing2012 "Win8 Release|x64" buildfre_win8_amd64.log
+call :StaticDriverVerifier2012 "Win8 Release" %BUILD_ARC%
 call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
 endlocal
 goto :eof

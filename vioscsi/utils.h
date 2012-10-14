@@ -32,7 +32,7 @@
 #define EXIT_ERR()
 #endif
 
-void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath);
+void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath);
 
 extern int nViostorDebugLevel;
 

@@ -49,7 +49,6 @@ del /Q .\Install\%INST_OS%\%INST_ARC%\%FILE_NAME%.*
 copy /Y %SYS_PATH_AND_NAME% .\Install\%INST_OS%\%INST_ARC%
 copy /Y %PDB_PATH_AND_NAME% .\Install\%INST_OS%\%INST_ARC%
 copy /Y %INF_PATH_AND_NAME% .\Install\%INST_OS%\%INST_ARC%\%SYS_NAME%.inf
-if /i "%CREATE_DVL%"=="TRUE" copy /Y %DVL_PATH_AND_NAME% .\Install\%INST_OS%\%INST_ARC%\
 
 :create_cat
 echo "Setting OS mask for:" %1 %2
@@ -75,10 +74,9 @@ goto run_inf2cat
 
 :create_win8
 setlocal
-set CREATE_DVL=
 if /i "%2"=="x86" set _OSMASK_=8_X86
 if /i "%2"=="x64" set _OSMASK_=8_X64,Server8_X64
-if /i "%2"=="x64" set CREATE_DVL=TRUE
+if /i "%2"=="x64" copy /Y %DVL_PATH_AND_NAME% .\Install\%INST_OS%\%INST_ARC%\
 call "C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\vcvarsall.bat" %INST_ARC%
 goto run_inf2cat
 
@@ -100,7 +98,6 @@ set SYS_PATH_AND_NAME=
 set PDB_PATH_AND_NAME=
 set INF_PATH_AND_NAME=
 set DVL_PATH_AND_NAME=
-set CREATE_DVL=
 set DDKVER=
 set BUILDROOT=
 endlocal

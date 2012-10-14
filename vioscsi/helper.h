@@ -27,13 +27,13 @@
 BOOLEAN
 SendSRB(
     IN PVOID DeviceExtension,
-    PSCSI_REQUEST_BLOCK Srb
+    IN PSCSI_REQUEST_BLOCK Srb
     );
 
 BOOLEAN
 SendTMF(
     IN PVOID DeviceExtension,
-    PSCSI_REQUEST_BLOCK Srb
+    IN PSCSI_REQUEST_BLOCK Srb
     );
 
 VOID
@@ -54,7 +54,14 @@ GetScsiConfig(
 BOOLEAN
 InitHW(
     IN PVOID DeviceExtension, 
-    PPORT_CONFIGURATION_INFORMATION ConfigInfo
+    IN PPORT_CONFIGURATION_INFORMATION ConfigInfo
+    );
+
+VOID
+LogError(
+    IN PVOID HwDeviceExtension,
+    IN ULONG ErrorCode,
+    IN ULONG UniqueId
     );
 
 #endif ___HELPER_H___

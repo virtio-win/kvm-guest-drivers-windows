@@ -222,9 +222,5 @@ typedef struct vring_desc_alias
 };
 
 
-BOOLEAN
-VioScsiInterrupt(
-    IN PVOID DeviceExtension
-    );
 
 #endif ___VIOSCSI__H__

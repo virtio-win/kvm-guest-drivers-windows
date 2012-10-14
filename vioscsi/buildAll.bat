@@ -45,6 +45,15 @@ call ..\tools\callVisualStudio.bat 11 vioscsi.vcxproj /Rebuild "%~1" /Out %2
 del vioscsi-2012.h
 goto :eof
 
+:StaticDriverVerifier2012
+call "C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\vcvarsall.bat" %2
+msbuild.exe vioscsi.vcxproj /t:clean /p:Configuration="%~1" /P:Platform=%2 
+msbuild.exe vioscsi.vcxproj /t:sdv /p:inputs="/clean" /p:Configuration="%~1" /P:platform=%2
+msbuild.exe vioscsi.vcxproj /p:Configuration="%~1" /P:Platform=%2 /P:RunCodeAnalysisOnce=True
+msbuild.exe vioscsi.vcxproj /t:sdv /p:inputs="/devenv /check" /p:Configuration="%~1" /P:platform=%2
+msbuild.exe vioscsi.vcxproj /t:dvl /p:Configuration="%~1" /P:platform=%2
+goto :eof
+
 :WIN8_32
 setlocal
 set BUILD_OS=Win8
@@ -71,6 +80,7 @@ set INF2CAT_PATH=
 
 if exist Install\win8\amd64 rmdir Install\win8\amd64 /s /q
 call :BuildUsing2012 "Win8 Release|x64" buildfre_win8_amd64.log
+call :StaticDriverVerifier2012 "Win8 Release" %BUILD_ARC%
 call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
 endlocal
 goto :eof

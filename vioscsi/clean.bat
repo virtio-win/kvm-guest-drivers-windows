@@ -16,6 +16,7 @@ rmdir /S /Q objfre_wnet_x86
 rmdir /S /Q objfre_wnet_amd64
 rmdir /S /Q objfre_win8_x86
 rmdir /S /Q objfre_win8_amd64
+rmdir /S /Q .\sdv
 
 del /F *.log *.wrn *.err
 
