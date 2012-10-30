@@ -126,7 +126,6 @@ typedef struct _ADAPTER_EXTENSION {
     BOOLEAN               rescan_geometry;
     UCHAR                 rescan_cnt;
     blk_req               vbr;
-    BOOLEAN               flush_in_fly;
     BOOLEAN               indirect;
 #ifdef USE_STORPORT
     LIST_ENTRY            complete_list;

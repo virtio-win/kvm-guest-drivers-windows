@@ -32,60 +32,33 @@ SynchronizedFlushRoutine(
     )
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
+    PRHEL_SRB_EXTENSION srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
     ULONG               fragLen;
     PVOID               va;
     ULONGLONG           pa;
-    pblk_req            vbr;
 
+    SET_VA_PA();
 
-    if (Context)
-    {
-        PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
-        PRHEL_SRB_EXTENSION srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
-        SET_VA_PA();
-        if(adaptExt->flush_in_fly == TRUE)
-        {
-            RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s <---> Flush already in fly!!!\n", __FUNCTION__));
-        }
-        vbr                 = &srbExt->vbr;
-        vbr->req            = (PVOID)Srb;
-        srbExt->out         = 1;
-        srbExt->in          = 1;
-        vbr->sg[0].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &vbr->out_hdr, &fragLen);
-        vbr->sg[0].ulSize   = sizeof(vbr->out_hdr);
-        vbr->sg[1].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &vbr->status, &fragLen);
-        vbr->sg[1].ulSize   = sizeof(vbr->status);
-    }
-    else
-    {   
-        if(adaptExt->flush_in_fly == TRUE)
-        {
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s <---> vbr already in use!!!\n", __FUNCTION__));
-            return TRUE;
-        }
-        vbr = &adaptExt->vbr;
-        vbr->req = NULL;
-        va = NULL; 
-        pa = 0;
-        vbr->sg[0].physAddr = MmGetPhysicalAddress(&vbr->out_hdr);
-        vbr->sg[0].ulSize   = sizeof(vbr->out_hdr);
-        vbr->sg[1].physAddr = MmGetPhysicalAddress(&vbr->status);
-        vbr->sg[1].ulSize   = sizeof(vbr->status);
-        adaptExt->flush_in_fly = TRUE;
-    } 
-    vbr->out_hdr.sector = 0;
-    vbr->out_hdr.ioprio = 0;
-    vbr->out_hdr.type   = VIRTIO_BLK_T_FLUSH;
+    srbExt->vbr.out_hdr.sector = 0;
+    srbExt->vbr.out_hdr.ioprio = 0;
+    srbExt->vbr.req            = (struct request *)Srb;
+    srbExt->vbr.out_hdr.type   = VIRTIO_BLK_T_FLUSH;
+    srbExt->out                = 1;
+    srbExt->in                 = 1;
+
+    srbExt->vbr.sg[0].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
+    srbExt->vbr.sg[0].ulSize   = sizeof(srbExt->vbr.out_hdr);
+    srbExt->vbr.sg[1].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
+    srbExt->vbr.sg[1].ulSize   = sizeof(srbExt->vbr.status);
 
     if (adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
-                     vbr->sg,
-                     1, 1,
-                     vbr, va, pa) >= 0) {
+                     &srbExt->vbr.sg[0],
+                     srbExt->out, srbExt->in,
+                     &srbExt->vbr, va, pa) >= 0) {
         adaptExt->vq->vq_ops->kick(adaptExt->vq);
         return TRUE;
     }
-    RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s <---> add_buf Failed!!!\n", __FUNCTION__));
-    adaptExt->flush_in_fly = FALSE;
     return FALSE;
 }
 
@@ -132,7 +105,6 @@ SynchronizedReadWriteRoutine(
         adaptExt->vq->vq_ops->kick(adaptExt->vq);
         return TRUE;
     }
-    RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s <---> add_buf Failed!!!\n", __FUNCTION__));
     StorPortBusy(DeviceExtension, 5);
     return FALSE;
 }
@@ -292,11 +264,6 @@ RhelGetSerialNumber(
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if(adaptExt->flush_in_fly == TRUE)
-    {
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s <---> vbr already in use!!!\n", __FUNCTION__));
-        return;
-    }
     adaptExt->vbr.out_hdr.type = VIRTIO_BLK_T_GET_ID | VIRTIO_BLK_T_IN;
     adaptExt->vbr.out_hdr.sector = 0;
     adaptExt->vbr.out_hdr.ioprio = 0;
@@ -313,12 +280,7 @@ RhelGetSerialNumber(
                      1, 2,
                      &adaptExt->vbr, NULL, 0) >= 0) {
         adaptExt->vq->vq_ops->kick(adaptExt->vq);
-        adaptExt->flush_in_fly = TRUE;
-        return;
     }
-
-    RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s <---> add_buf failed!!!\n", __FUNCTION__));
-    adaptExt->flush_in_fly = FALSE;
 }
 
 VOID
