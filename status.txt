@@ -1,3 +1,12 @@
+Date    30 Oct 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm63
+
+Fixed bugs:
+[vioser] BZ840911 - move VIRTIO_CONSOLE_PORT_OPEN control message to
+    VIOSerialEvtDeviceD0ExitPreInterruptsDisabled callback
+[viostor] revert FUA patch Bug 837324 - viostor reports support for FUA, but does not implement it.
+
 Date    10 Oct 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm62
