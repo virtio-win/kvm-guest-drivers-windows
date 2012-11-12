@@ -102,17 +102,21 @@ static void DebugPrintFunc(const char *format, ...)
 static void DebugPrintFuncWPP(const char *format, ...)
 {
     // TODO later, if needed
+    UNREFERENCED_PARAMETER(format);
 }
 
 static void NoDebugPrintFunc(const char *format, ...)
 {
 
+    UNREFERENCED_PARAMETER(format);
 }
 
 
 void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath)
 {
     //TBD - Read nDebugLevel and bDebugPrint from the registry
+    UNREFERENCED_PARAMETER(DriverObject);
+    UNREFERENCED_PARAMETER(RegistryPath);
     bDebugPrint = 1;
     virtioDebugLevel = 0;
 #if defined(EVENT_TRACING)

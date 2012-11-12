@@ -208,7 +208,7 @@ EXIT_FN();
 BOOLEAN
 InitHW(
     IN PVOID DeviceExtension, 
-    PPORT_CONFIGURATION_INFORMATION ConfigInfo
+    IN PPORT_CONFIGURATION_INFORMATION ConfigInfo
     )
 {
     PACCESS_RANGE      accessRange;
@@ -226,38 +226,13 @@ ENTER_FN();
                 accessRange->RangeLength));
 
     if ( accessRange->RangeLength < IO_PORT_LENGTH) {
-        StorPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
+        LogError(DeviceExtension,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Wrong access range %x bytes\n", accessRange->RangeLength));
         return FALSE;
     }
 
-    if (!StorPortValidateRange(DeviceExtension,
-                                           ConfigInfo->AdapterInterfaceType,
-                                           ConfigInfo->SystemIoBusNumber,
-                                           accessRange->RangeStart,
-                                           accessRange->RangeLength,
-                                           (BOOLEAN)!accessRange->RangeInMemory)) {
-
-        StorPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
-
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Range validation failed %x for %x bytes\n",
-                   (*ConfigInfo->AccessRanges)[0].RangeStart.LowPart,
-                   (*ConfigInfo->AccessRanges)[0].RangeLength));
-
-        return FALSE;
-    }
     adaptExt->device_base = (ULONG_PTR)StorPortGetDeviceBase(DeviceExtension,
                                            ConfigInfo->AdapterInterfaceType,
                                            ConfigInfo->SystemIoBusNumber,
@@ -266,13 +241,9 @@ ENTER_FN();
                                            (BOOLEAN)!accessRange->RangeInMemory);
 
     if (adaptExt->device_base == (ULONG_PTR)NULL) {
-        StorPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
+        LogError(DeviceExtension,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
 
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Couldn't map %x for %x bytes\n",
                    (*ConfigInfo->AccessRanges)[0].RangeStart.LowPart,

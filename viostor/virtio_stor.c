@@ -18,6 +18,20 @@
 
 BOOLEAN IsCrashDumpMode;
 
+#if (NTDDI_VERSION > NTDDI_WIN7)
+sp_DRIVER_INITIALIZE DriverEntry;
+HW_INITIALIZE        VirtIoHwInitialize;
+HW_STARTIO           VirtIoStartIo;
+HW_FIND_ADAPTER      VirtIoFindAdapter;
+HW_RESET_BUS         VirtIoResetBus;
+HW_ADAPTER_CONTROL   VirtIoAdapterControl;
+HW_INTERRUPT         VirtIoInterrupt;
+HW_BUILDIO           VirtIoBuildIo;
+HW_DPC_ROUTINE       CompleteDpcRoutine;
+HW_MESSAGE_SIGNALED_INTERRUPT_ROUTINE VirtIoMSInterruptRoutine;
+HW_PASSIVE_INITIALIZE_ROUTINE         VirtIoPassiveInitializeRoutine;
+#endif
+
 extern int vring_add_buf_stor(
     IN struct virtqueue *_vq,
     IN struct VirtIOBufferDescriptor sg[],
@@ -119,6 +133,13 @@ CompleteDPC(
     IN PVOID DeviceExtension,
     IN pblk_req vbr,
     IN ULONG  MessageID
+    );
+
+VOID
+LogError(
+    IN PVOID HwDeviceExtension,
+    IN ULONG ErrorCode,
+    IN ULONG UniqueId
     );
 
 
@@ -254,17 +275,14 @@ VirtIoFindAdapter(
                 accessRange->RangeLength));
 
     if ( accessRange->RangeLength < IO_PORT_LENGTH) {
-        ScsiPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
+        LogError(DeviceExtension,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Wrong access range %x bytes\n", accessRange->RangeLength));
         return SP_RETURN_NOT_FOUND;
     }
 
+#ifndef USE_STORPORT
     if (!ScsiPortValidateRange(DeviceExtension,
                                            ConfigInfo->AdapterInterfaceType,
                                            ConfigInfo->SystemIoBusNumber,
@@ -272,13 +290,9 @@ VirtIoFindAdapter(
                                            accessRange->RangeLength,
                                            (BOOLEAN)!accessRange->RangeInMemory)) {
 
-        ScsiPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
+        LogError(DeviceExtension,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
 
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Range validation failed %x for %x bytes\n",
                    (*ConfigInfo->AccessRanges)[0].RangeStart.LowPart,
@@ -287,6 +301,7 @@ VirtIoFindAdapter(
         return SP_RETURN_ERROR;
     }
 
+#endif
 
     ConfigInfo->NumberOfBuses               = 1;
     ConfigInfo->MaximumNumberOfTargets      = 1;
@@ -300,13 +315,9 @@ VirtIoFindAdapter(
                                            (BOOLEAN)!accessRange->RangeInMemory);
 
     if (deviceBase == (ULONG_PTR)NULL) {
-        ScsiPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
+        LogError(DeviceExtension,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
 
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Couldn't map %x for %x bytes\n",
                    (*ConfigInfo->AccessRanges)[0].RangeStart.LowPart,
@@ -373,8 +384,8 @@ VirtIoFindAdapter(
     }
 #endif
 
-	VirtIODeviceReset(&adaptExt->vdev);
-	WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_SEL, (USHORT)0);
+    VirtIODeviceReset(&adaptExt->vdev);
+    WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_SEL, (USHORT)0);
     if (adaptExt->dump_mode) {
         WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_PFN, (USHORT)0);
     }
@@ -405,7 +416,7 @@ VirtIoFindAdapter(
         adaptExt->queue_depth = pageNum;
     }
 #else
-	adaptExt->indirect = 0;
+    adaptExt->indirect = 0;
 #endif
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("breaks_number = %x  queue_depth = %x\n",
                 ConfigInfo->NumberOfPhysicalBreaks,
@@ -413,13 +424,9 @@ VirtIoFindAdapter(
 
     adaptExt->uncachedExtensionVa = ScsiPortGetUncachedExtension(DeviceExtension, ConfigInfo, allocationSize);
     if (!adaptExt->uncachedExtensionVa) {
-        ScsiPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
+        LogError(DeviceExtension,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
 
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Couldn't get uncached extension\n"));
         return SP_RETURN_ERROR;
@@ -451,30 +458,40 @@ VirtIoPassiveInitializeRoutine (
 
 static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG index, ULONG vector)
 {
-	struct virtqueue *vq = NULL;
-	if (adaptExt->uncachedExtensionVa)
-	{
-		ULONG len;
-		PHYSICAL_ADDRESS pa = ScsiPortGetPhysicalAddress(adaptExt, NULL, adaptExt->uncachedExtensionVa, &len);
-		if (pa.QuadPart)
-			vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, adaptExt->uncachedExtensionVa, len, NULL, FALSE);
-	}
+    struct virtqueue *vq = NULL;
+    if (adaptExt->uncachedExtensionVa)
+    {
+        ULONG len;
+        PHYSICAL_ADDRESS pa = ScsiPortGetPhysicalAddress(adaptExt, NULL, adaptExt->uncachedExtensionVa, &len);
+        if (pa.QuadPart)
+        {
+            vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, adaptExt->uncachedExtensionVa, len, NULL, FALSE);
+        }
+    }
 
-	if (vq && vector)
-	{
-		unsigned res;
-		ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR),(USHORT)vector);
-		res = ScsiPortReadPortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR));
-		RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> VIRTIO_MSI_QUEUE_VECTOR vector = %d, res = 0x%x\n", __FUNCTION__, vector, res));
-		if(res == VIRTIO_MSI_NO_VECTOR) {
-			VirtIODeviceDeleteQueue(vq, NULL);
-			vq = NULL;
-			RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot create vq vector\n", __FUNCTION__));
-			return NULL;
-		}
-	}
+    if (!vq) return NULL;
 
-	return vq;
+    if (vector)
+    {
+        unsigned res;
+        ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR),(USHORT)vector);
+        res = ScsiPortReadPortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> VIRTIO_MSI_QUEUE_VECTOR vector = %d, res = 0x%x\n", __FUNCTION__, vector, res));
+        if(res == VIRTIO_MSI_NO_VECTOR)
+        {
+            VirtIODeviceDeleteQueue(vq, NULL);
+            vq = NULL;
+            RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot create vq vector\n", __FUNCTION__));
+            return NULL;
+        }
+        ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_CONFIG_VECTOR),(USHORT)0);
+        res = ScsiPortReadPortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_CONFIG_VECTOR));
+        if (res != 0)
+        {
+            RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot set config vector\n", __FUNCTION__));
+        }
+    }
+    return vq;
 }
 
 BOOLEAN
@@ -493,6 +510,7 @@ VirtIoHwInitialize(
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
+    adaptExt->msix_vectors = 0;
 #ifdef MSI_SUPPORTED
     while(StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageId = %x\n", msi_info.MessageId));
@@ -513,13 +531,9 @@ VirtIoHwInitialize(
         adaptExt->vq = FindVirtualQueue(adaptExt, 0, 0);
     }
     if (!adaptExt->vq) {
-        ScsiPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
+        LogError(DeviceExtension,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
 
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Cannot find snd virtual queue\n"));
         return ret;
@@ -540,7 +554,7 @@ VirtIoHwInitialize(
     ScsiPortMoveMemory(&adaptExt->inquiry_data.ProductRevisionLevel, "0001", sizeof("0001"));
     ScsiPortMoveMemory(&adaptExt->inquiry_data.VendorSpecific, "0001", sizeof("0001"));
 
-    if(!adaptExt->dump_mode)
+    if(!adaptExt->dump_mode && !adaptExt->sn_ok)
     {
         RhelGetSerialNumber(DeviceExtension);
     }
@@ -728,7 +742,7 @@ VirtIoInterrupt(
               CompleteSRB(DeviceExtension, Srb);
            } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
               adaptExt->sn_ok = TRUE;
-           } else {
+           } else if (Srb) {
               CompleteDPC(DeviceExtension, vbr, 0);
            }
         }
@@ -796,7 +810,7 @@ VirtIoAdapterControl(
     case ScsiRestartAdapter: {
         RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("ScsiRestartAdapter\n"));
         VirtIODeviceReset(&adaptExt->vdev);
-		WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_SEL, (USHORT)0);
+        WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_SEL, (USHORT)0);
         WriteVirtIODeviceRegister(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_PFN,(USHORT)0);
         adaptExt->vq = NULL;
 
@@ -940,7 +954,7 @@ VirtIoMSInterruptRoutine (
             CompleteSRB(DeviceExtension, Srb);
         } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
             adaptExt->sn_ok = TRUE;
-        } else {
+        } else if (Srb) {
             CompleteDPC(DeviceExtension, vbr, MessageID);
         }
         isInterruptServiced = TRUE;
@@ -1367,3 +1381,35 @@ CompleteDpcRoutine(
     return;
 }
 #endif
+
+VOID
+LogError(
+    IN PVOID DeviceExtension,
+    IN ULONG ErrorCode,
+    IN ULONG UniqueId
+    )
+{
+#ifdef USE_STORPORT
+    STOR_LOG_EVENT_DETAILS logEvent;
+    memset( &logEvent, 0, sizeof(logEvent) );
+    logEvent.InterfaceRevision         = STOR_CURRENT_LOG_INTERFACE_REVISION;
+    logEvent.Size                      = sizeof(logEvent);
+    logEvent.EventAssociation          = StorEventAdapterAssociation;
+    logEvent.StorportSpecificErrorCode = TRUE;
+    logEvent.ErrorCode                 = ErrorCode;
+    logEvent.DumpDataSize              = sizeof(UniqueId);
+    logEvent.DumpData                  = &UniqueId;
+
+    StorPortLogSystemEvent( DeviceExtension, &logEvent, NULL );
+
+#else
+    ScsiPortLogError(DeviceExtension,
+                         NULL,
+                         0,
+                         0,
+                         0,
+                         ErrorCode,
+                         UniqueId);
+
+#endif
+}

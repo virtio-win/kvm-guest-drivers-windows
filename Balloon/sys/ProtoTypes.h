@@ -64,6 +64,7 @@ typedef struct _DEVICE_CONTEXT {
     ULONG                   num_pfns;
     PPFN_NUMBER             pfns_table;
     NPAGED_LOOKASIDE_LIST   LookAsideList;
+    BOOLEAN                 bListInitialized;
     SINGLE_LIST_ENTRY       PageListHead;
     PBALLOON_STAT           MemStats;
 
@@ -80,6 +81,22 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 #define BALLOON_MGMT_POOL_TAG 'mtlB'
 
 EVT_WDF_DRIVER_DEVICE_ADD BalloonDeviceAdd;
+KSTART_ROUTINE            BalloonRoutine;
+DRIVER_INITIALIZE DriverEntry;
+EVT_WDF_OBJECT_CONTEXT_CLEANUP EvtDriverContextCleanup;
+EVT_WDF_DEVICE_CONTEXT_CLEANUP                 BalloonEvtDeviceContextCleanup;
+EVT_WDF_DEVICE_PREPARE_HARDWARE                BalloonEvtDevicePrepareHardware;
+EVT_WDF_DEVICE_RELEASE_HARDWARE                BalloonEvtDeviceReleaseHardware;
+EVT_WDF_DEVICE_D0_ENTRY                        BalloonEvtDeviceD0Entry;
+EVT_WDF_DEVICE_D0_EXIT                         BalloonEvtDeviceD0Exit;
+EVT_WDF_DEVICE_D0_EXIT_PRE_INTERRUPTS_DISABLED BalloonEvtDeviceD0ExitPreInterruptsDisabled;
+EVT_WDF_DEVICE_FILE_CREATE                     BalloonEvtDeviceFileCreate;
+EVT_WDF_FILE_CLOSE                             BalloonEvtFileClose;
+EVT_WDF_INTERRUPT_ISR                          BalloonInterruptIsr;
+EVT_WDF_INTERRUPT_DPC                          BalloonInterruptDpc;
+EVT_WDF_INTERRUPT_ENABLE                       BalloonInterruptEnable;
+EVT_WDF_INTERRUPT_DISABLE                      BalloonInterruptDisable;
+
 
 VOID
 BalloonInterruptDpc(
@@ -112,7 +129,8 @@ BalloonInit(
 
 VOID
 BalloonTerm(
-    IN WDFOBJECT    WdfDevice
+    IN WDFOBJECT    WdfDevice,
+    IN BOOLEAN      bFinal
     );
 
 VOID
@@ -188,6 +206,11 @@ BalloonGetSize(
 NTSTATUS
 BalloonQueueInitialize(
     IN WDFDEVICE hDevice
+    );
+
+NTSTATUS
+BalloonCloseWorkerThread(
+    IN WDFDEVICE  Device
     );
 
 VOID

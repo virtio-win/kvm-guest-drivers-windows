@@ -107,6 +107,8 @@
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">_X86_=1;i386=1;STD_CALL;USE_STORPORT=1;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">_X86_=1;i386=1;STD_CALL;USE_STORPORT=1;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">_WIN64;_AMD64_;AMD64;USE_STORPORT=1;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">4603;4627;4986;4987;4996;6001;6387;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">4603;4627;4986;4987;4996;6001;6387;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">..\VirtIO\objfre_win8_amd64\amd64\</AdditionalLibraryDirectories>
@@ -117,6 +119,8 @@
     <Inf>
       <EnableVerbose Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">false</EnableVerbose>
       <Architecture Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">x86</Architecture>
+      <KmdfVersionNumber Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" />
+      <UmdfVersionNumber Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" />
     </Inf>
     <PostBuildEvent>
       <Command Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">move objfre_win8_x86\i386\WinLH.inf objfre_win8_x86\i386\viostor.inf</Command>
@@ -132,6 +136,7 @@
     </Inf>
     <Inf>
       <UmdfVersionNumber Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" />
+      <EnableVerbose Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">false</EnableVerbose>
     </Inf>
   </ItemDefinitionGroup>
   <ItemGroup>

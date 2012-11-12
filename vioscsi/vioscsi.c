@@ -19,6 +19,17 @@
 ULONG   RhelDbgLevel = TRACE_LEVEL_ERROR;
 BOOLEAN IsCrashDumpMode;
 
+#if (NTDDI_VERSION > NTDDI_WIN7)
+sp_DRIVER_INITIALIZE DriverEntry;
+HW_INITIALIZE        VioScsiHwInitialize;
+HW_BUILDIO           VioScsiBuildIo;
+HW_STARTIO           VioScsiStartIo;
+HW_FIND_ADAPTER      VioScsiFindAdapter;
+HW_RESET_BUS         VioScsiResetBus;
+HW_ADAPTER_CONTROL   VioScsiAdapterControl;
+HW_INTERRUPT         VioScsiInterrupt;
+#endif
+
 BOOLEAN
 VioScsiHwInitialize(
     IN PVOID DeviceExtension
@@ -43,7 +54,7 @@ VioScsiFindAdapter(
     IN PVOID BusInformation,
     IN PCHAR ArgumentString,
     IN OUT PPORT_CONFIGURATION_INFORMATION ConfigInfo,
-    OUT PBOOLEAN Again
+    IN PBOOLEAN Again
     );
 
 BOOLEAN
@@ -78,6 +89,10 @@ FORCEINLINE
 CompleteRequest(
     IN PVOID DeviceExtension,
     IN PSCSI_REQUEST_BLOCK Srb
+    );
+BOOLEAN
+VioScsiInterrupt(
+    IN PVOID DeviceExtension
     );
 
 ULONG
@@ -143,7 +158,7 @@ VioScsiFindAdapter(
     IN PVOID BusInformation,
     IN PCHAR ArgumentString,
     IN OUT PPORT_CONFIGURATION_INFORMATION ConfigInfo,
-    OUT PBOOLEAN Again
+    IN PBOOLEAN Again
     )
 {
     PADAPTER_EXTENSION adaptExt;
@@ -158,6 +173,7 @@ VioScsiFindAdapter(
     UNREFERENCED_PARAMETER( Again );
 
 ENTER_FN();
+
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     memset(adaptExt, 0, sizeof(ADAPTER_EXTENSION));
 
@@ -233,13 +249,9 @@ ENTER_FN();
 
     adaptExt->uncachedExtensionVa = StorPortGetUncachedExtension(DeviceExtension, ConfigInfo, allocationSize);
     if (!adaptExt->uncachedExtensionVa) {
-        StorPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
+        LogError(DeviceExtension,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
 
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Couldn't get uncached extension\n"));
         return SP_RETURN_ERROR;
@@ -275,7 +287,7 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
               RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot create vq vector\n", __FUNCTION__));
               return NULL;
            }
-	}
+        }
     }
     return vq;
 }
@@ -290,14 +302,6 @@ VioScsiHwInitialize(
 
     adaptExt->vq[0] = FindVirtualQueue(adaptExt, 0, 0);
     if (!adaptExt->vq[0]) {
-        StorPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
-
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Cannot find virtual queue 0\n"));
         return FALSE;
     }
@@ -305,14 +309,6 @@ VioScsiHwInitialize(
     adaptExt->vq[1] = FindVirtualQueue(adaptExt, 1, 0);
 
     if (!adaptExt->vq[1]) {
-        StorPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
-
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Cannot find virtual queue 1\n"));
         return FALSE;
     }
@@ -320,14 +316,6 @@ VioScsiHwInitialize(
     adaptExt->vq[2] = FindVirtualQueue(adaptExt, 2, 0);
 
     if (!adaptExt->vq[2]) {
-        StorPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         SP_INTERNAL_ADAPTER_ERROR,
-                         __LINE__);
-
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Cannot find virtual queue 2\n"));
         return FALSE;
     }
@@ -344,7 +332,12 @@ VioScsiStartIo(
 {
 ENTER_FN();
     if (PreProcessRequest(DeviceExtension, Srb) ||
-       !SendSRB(DeviceExtension, Srb)) {
+        !SendSRB(DeviceExtension, Srb))
+    {
+        if(Srb->SrbStatus == SRB_STATUS_PENDING)
+        {
+           Srb->SrbStatus = SRB_STATUS_ERROR;
+        }
         CompleteRequest(DeviceExtension, Srb);
     }
 EXIT_FN();
@@ -690,4 +683,24 @@ ENTER_FN();
                          DeviceExtension,
                          Srb);
 EXIT_FN();
+}
+
+VOID
+LogError(
+    IN PVOID DeviceExtension,
+    IN ULONG ErrorCode,
+    IN ULONG UniqueId
+    )
+{
+    STOR_LOG_EVENT_DETAILS logEvent;
+    memset( &logEvent, 0, sizeof(logEvent) );
+    logEvent.InterfaceRevision         = STOR_CURRENT_LOG_INTERFACE_REVISION;
+    logEvent.Size                      = sizeof(logEvent);
+    logEvent.EventAssociation          = StorEventAdapterAssociation;
+    logEvent.StorportSpecificErrorCode = TRUE;
+    logEvent.ErrorCode                 = ErrorCode;
+    logEvent.DumpDataSize              = sizeof(UniqueId);
+    logEvent.DumpData                  = &UniqueId;
+
+    StorPortLogSystemEvent( DeviceExtension, &logEvent, NULL );
 }

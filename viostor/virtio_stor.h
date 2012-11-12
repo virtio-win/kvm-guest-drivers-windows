@@ -101,10 +101,10 @@ typedef struct virtio_blk_outhdr {
 
 typedef struct virtio_blk_req {
     LIST_ENTRY list_entry;
-    struct request *req;
+    PVOID      req;
     blk_outhdr out_hdr;
-    u8     status;
-    VIO_SG sg[VIRTIO_MAX_SG];
+    u8         status;
+    VIO_SG     sg[VIRTIO_MAX_SG];
 }blk_req, *pblk_req;
 
 typedef struct _ADAPTER_EXTENSION {
