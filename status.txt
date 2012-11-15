@@ -1,3 +1,11 @@
+Date    15 Nov 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm64
+
+Fixed bugs:
+
+BZ 873128:  Job of Ethernet - NDISTest6.0 - 2c_receivepackets failed with WLK for win2k8/win7/win2k8-R2. Miniport must indicate LINK DOWN on reset start, at least when it indicates LINK UP on reset completion
+
 Date    30 Oct 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm63
