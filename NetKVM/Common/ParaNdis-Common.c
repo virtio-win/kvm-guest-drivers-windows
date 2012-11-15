@@ -2743,6 +2743,8 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
 	DEBUG_ENTRY(0);
 	ParaNdis_DebugHistory(pContext, hopPowerOff, NULL, 1, 0, 0);
 
+	ParaNdis_IndicateConnect(pContext, FALSE, FALSE);
+
 	// if bFastSuspendInProcess is set by Win8 power-off procedure
 	// the ParaNdis_Suspend does fast Rx stop without waiting (=>srsPausing, if there are some RX packets in Ndis)
 	pContext->bFastSuspendInProcess = pContext->bNoPauseOnSuspend && pContext->ReceiveState == srsEnabled;
