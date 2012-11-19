@@ -91,10 +91,8 @@ static __inline USHORT CheckSumCalculator(ULONG val, PVOID buffer, ULONG len)
 *******************************************/
 static __inline VOID CalculateIpChecksum(IPv4Header *pIpHeader)
 {
-	ULONG len = IP_HEADER_LENGTH(pIpHeader);
-
 	pIpHeader->ip_xsum = 0;
-	pIpHeader->ip_xsum = CheckSumCalculator(0, pIpHeader, len);
+	pIpHeader->ip_xsum = CheckSumCalculator(0, pIpHeader, IP_HEADER_LENGTH(pIpHeader));
 }
 
 static __inline tTcpIpPacketParsingResult
@@ -219,7 +217,7 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
 					bParsingDone = TRUE;
 					break;
 			}
-			if (bParsingDone) 
+			if (bParsingDone)
 				break;
 		}
 		if (ipHeaderSize <= MAX_SUPPORTED_IPV6_HEADERS)
@@ -535,32 +533,42 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(PVOID buffer, ULONG size, ULON
 	{
 		if (flags & pcrIpChecksum)
 			res = VerifyIpChecksum(buffer, res, (flags & pcrFixIPChecksum) != 0);
-		if (res.xxpStatus == ppresXxpKnown
-			&& res.TcpUdp == ppresIsTCP
-			&& (flags & pcrTcpV4Checksum))
+		if(res.xxpStatus == ppresXxpKnown)
 		{
-			res = VerifyTcpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixTcpV4Checksum));
-		}
-		if (res.xxpStatus == ppresXxpKnown
-			&& res.TcpUdp == ppresIsUDP
-			&& (flags & pcrUdpV4Checksum))
-		{
-			res = VerifyUdpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixUdpV4Checksum));
+			if (res.TcpUdp == ppresIsTCP) /* TCP */
+			{
+				if(flags & pcrTcpV4Checksum)
+				{
+					res = VerifyTcpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixTcpV4Checksum));
+				}
+			}
+			else /* UDP */
+			{
+				if (flags & pcrUdpV4Checksum)
+				{
+					res = VerifyUdpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixUdpV4Checksum));
+				}
+			}
 		}
 	}
 	else if (res.ipStatus == ppresIPV6)
 	{
-		if (res.xxpStatus == ppresXxpKnown
-			&& res.TcpUdp == ppresIsTCP
-			&& (flags & pcrTcpV6Checksum))
+		if(res.xxpStatus == ppresXxpKnown)
 		{
-			res = VerifyTcpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixTcpV6Checksum));
-		}
-		if (res.xxpStatus == ppresXxpKnown
-			&& res.TcpUdp == ppresIsUDP
-			&& (flags & pcrUdpV6Checksum))
-		{
-			res = VerifyUdpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixUdpV6Checksum));
+			if (res.TcpUdp == ppresIsTCP) /* TCP */
+			{
+				if(flags & pcrTcpV6Checksum)
+				{
+					res = VerifyTcpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixTcpV6Checksum));
+				}
+			}
+			else /* UDP */
+			{
+				if (flags & pcrUdpV6Checksum)
+				{
+					res = VerifyUdpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixUdpV6Checksum));
+				}
+			}
 		}
 	}
 	PrintOutParsingResult(res, 1, caller);
