@@ -636,7 +636,12 @@ VIOSerialEvtDeviceD0ExitPreInterruptsDisabled(
 
     WdfChildListEndIteration(portList, &portIterator);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s: %d\n",
+    if (status == STATUS_NO_MORE_ENTRIES)
+    {
+        status = STATUS_SUCCESS;
+    }
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s: 0x%x\n",
         __FUNCTION__, status);
 
     return status;
