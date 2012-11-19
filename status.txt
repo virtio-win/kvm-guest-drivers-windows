@@ -1,3 +1,12 @@
+Date    19 Nov 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm65
+
+Fixed bugs:
+
+BZ 873971:  vioserial] Fixed EvtDeviceD0ExitPreInterruptsDisabled return value.
+
+
 Date    15 Nov 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm64
