@@ -36,6 +36,7 @@ static NTSTATUS VIOSerialShutDownAllQueues(IN WDFOBJECT WdfDevice, IN BOOLEAN bF
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceD0Exit)
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceD0ExitPreInterruptsDisabled)
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceD0EntryPostInterruptsEnabled)
+
 #endif
 
 static UINT gDeviceCount = 0;
