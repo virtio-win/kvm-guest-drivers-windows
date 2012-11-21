@@ -2818,20 +2818,19 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG 
 
 	if (f.fRxIPChecksum) flagsToCalculate |= pcrIpChecksum; // check only
 
-	if (virtioFlags & VIRTIO_NET_HDR_F_DATA_VALID)
+	if (!(virtioFlags & VIRTIO_NET_HDR_F_DATA_VALID))
 	{
-		//flagsToCalculate &= ~(pcrFixXxpChecksum | pcrTcpChecksum | pcrUdpChecksum);
-	}
-	else if (virtioFlags & VIRTIO_NET_HDR_F_NEEDS_CSUM)
-	{
-		flagsToCalculate |= pcrFixXxpChecksum | pcrTcpChecksum | pcrUdpChecksum;
-	}
-	else if (f.fRxTCPChecksum || f.fRxUDPChecksum || f.fRxTCPv6Checksum || f.fRxUDPv6Checksum)
-	{
-		if (f.fRxTCPChecksum) flagsToCalculate |= pcrTcpV4Checksum;
-		if (f.fRxUDPChecksum) flagsToCalculate |= pcrUdpV4Checksum;
-		if (f.fRxTCPv6Checksum) flagsToCalculate |= pcrTcpV6Checksum;
-		if (f.fRxUDPv6Checksum) flagsToCalculate |= pcrUdpV6Checksum;
+		if (virtioFlags & VIRTIO_NET_HDR_F_NEEDS_CSUM)
+		{
+			flagsToCalculate |= pcrFixXxpChecksum | pcrTcpChecksum | pcrUdpChecksum;
+		}
+		else
+		{
+			if (f.fRxTCPChecksum) flagsToCalculate |= pcrTcpV4Checksum;
+			if (f.fRxUDPChecksum) flagsToCalculate |= pcrUdpV4Checksum;
+			if (f.fRxTCPv6Checksum) flagsToCalculate |= pcrTcpV6Checksum;
+			if (f.fRxUDPv6Checksum) flagsToCalculate |= pcrUdpV6Checksum;
+		}
 	}
 
 	ppr = ParaNdis_CheckSumVerify(pIpHeader, len - ETH_HEADER_SIZE, flagsToCalculate, __FUNCTION__);
@@ -2849,28 +2848,46 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG 
 			res.flags.IpOK =  ppr.ipCheckSum == ppresCSOK;
 			res.flags.IpFailed = ppr.ipCheckSum == ppresCSBad;
 		}
-		if (f.fRxTCPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsTCP)
+		if(ppr.xxpStatus == ppresXxpKnown)
 		{
-			res.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
-			res.flags.TcpFailed = !res.flags.TcpOK;
-		}
-		if (f.fRxUDPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsUDP)
-		{
-			res.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
-			res.flags.UdpFailed = !res.flags.UdpOK;
+			if(ppr.TcpUdp == ppresIsTCP) /* TCP */
+			{
+				if (f.fRxTCPChecksum)
+				{
+					res.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+					res.flags.TcpFailed = !res.flags.TcpOK;
+				}
+			}
+			else /* UDP */
+			{
+				if (f.fRxUDPChecksum)
+				{
+					res.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+					res.flags.UdpFailed = !res.flags.UdpOK;
+				}
+			}
 		}
 	}
 	else if (ppr.ipStatus == ppresIPV6)
 	{
-		if (f.fRxTCPv6Checksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsTCP)
+		if(ppr.xxpStatus == ppresXxpKnown)
 		{
-			res.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
-			res.flags.TcpFailed = !res.flags.TcpOK;
-		}
-		if (f.fRxUDPv6Checksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsUDP)
-		{
-			res.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
-			res.flags.UdpFailed = !res.flags.UdpOK;
+			if(ppr.TcpUdp == ppresIsTCP) /* TCP */
+			{
+				if (f.fRxTCPv6Checksum)
+				{
+					res.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+					res.flags.TcpFailed = !res.flags.TcpOK;
+				}
+			}
+			else /* UDP */
+			{
+				if (f.fRxUDPv6Checksum)
+				{
+					res.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+					res.flags.UdpFailed = !res.flags.UdpOK;
+				}
+			}
 		}
 	}
 
