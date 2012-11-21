@@ -1,3 +1,15 @@
+Date    21 Nov 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm66
+
+Fixed bugs:
+
+BZ 826596 - RX data path optimizations
+BZ 826596 partial fix - guest checksumming
+    synchronized with RX checksumming.
+BZ 876061 -  windows 2003 can not generate dump file when hitting BSOD
+BZ 876504 - [whql][wlk][block] viostor driver for win2k3 does not support s4
+
 Date    19 Nov 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm65
