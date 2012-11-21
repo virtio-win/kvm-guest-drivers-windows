@@ -1389,7 +1389,7 @@ LogError(
     IN ULONG UniqueId
     )
 {
-#ifdef USE_STORPORT
+#if (NTDDI_VERSION > NTDDI_WIN7)
     STOR_LOG_EVENT_DETAILS logEvent;
     memset( &logEvent, 0, sizeof(logEvent) );
     logEvent.InterfaceRevision         = STOR_CURRENT_LOG_INTERFACE_REVISION;
@@ -1399,9 +1399,7 @@ LogError(
     logEvent.ErrorCode                 = ErrorCode;
     logEvent.DumpDataSize              = sizeof(UniqueId);
     logEvent.DumpData                  = &UniqueId;
-
     StorPortLogSystemEvent( DeviceExtension, &logEvent, NULL );
-
 #else
     ScsiPortLogError(DeviceExtension,
                          NULL,
