@@ -136,7 +136,7 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "Offload.TxChecksum",	0, 0, 31},
 	{ "Offload.TxLSO",	0, 0, 2},
 	{ "Offload.RxCS",	0, 0, 31},
-	{ "Offload.GuestCS", 1, 0, 1},
+	{ "Offload.GuestCS", 0, 0, 1},
 	{ "UseSwTxChecksum", 0, 0, 1 },
 	{ "IPPacketsCheck",	0, 0, 3 },
 	{ "*IPChecksumOffloadIPv4",	3, 0, 3 },

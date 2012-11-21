@@ -247,7 +247,7 @@ HKR, Ndi\Params\Gather\enum,		"1",		0,			%Enable%
 HKR, Ndi\Params\Gather\enum,		"0",		0,			%Disable%
 
 HKR, Ndi\Params\Offload.GuestCS,	ParamDesc,	0,			%GuestCS%
-HKR, Ndi\Params\Offload.GuestCS,	Default,	0,			"1"
+HKR, Ndi\Params\Offload.GuestCS,	Default,	0,			DEFAULT_RX_CHECKSUM
 HKR, Ndi\Params\Offload.GuestCS,	type,		0,			"enum"
 HKR, Ndi\Params\Offload.GuestCS\enum,"1",		0,			%Enable%
 HKR, Ndi\Params\Offload.GuestCS\enum,"0",		0,			%Disable%
