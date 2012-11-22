@@ -1408,6 +1408,5 @@ LogError(
                          0,
                          ErrorCode,
                          UniqueId);
-
 #endif
 }
