@@ -1,3 +1,13 @@
+Date    27 Nov 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm67
+
+Fixed bugs:
+
+BZ 840911 - don't send VIRTIO_CONSOLE_PORT_OPEN
+    control message from VIOSerialShutdownAllPorts.
+BZ 879143 - [whql][wlk][scsi] scsi driver for win2k3 does not support s4
+
 Date    21 Nov 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm66
