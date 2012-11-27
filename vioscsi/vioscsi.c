@@ -704,7 +704,7 @@ LogError(
     logEvent.DumpData                  = &UniqueId;
     StorPortLogSystemEvent( DeviceExtension, &logEvent, NULL );
 #else
-    ScsiPortLogError(DeviceExtension,
+    StorPortLogError(DeviceExtension,
                          NULL,
                          0,
                          0,
