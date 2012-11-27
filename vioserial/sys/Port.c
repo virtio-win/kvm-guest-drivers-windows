@@ -342,8 +342,14 @@ VIOSerialShutdownAllPorts(
         WdfIoQueuePurge(vport.IoctlQueue,
                                  WDF_NO_EVENT_CALLBACK,
                                  WDF_NO_CONTEXT);
-
         VIOSerialEnableDisableInterruptQueue(GetInQueue(&vport), FALSE);
+
+        if(!vport.Removed && vport.GuestConnected)
+        {
+           VIOSerialSendCtrlMsg(vport.BusDevice, vport.PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
+           vport.GuestConnected = FALSE;
+        }
+        vport.Removed = TRUE;
 
         WdfSpinLockAcquire(vport.InBufLock);
         VIOSerialDiscardPortDataLocked(&vport);

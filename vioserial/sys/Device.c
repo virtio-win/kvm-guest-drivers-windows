@@ -21,7 +21,6 @@ EVT_WDF_DEVICE_PREPARE_HARDWARE     VIOSerialEvtDevicePrepareHardware;
 EVT_WDF_DEVICE_RELEASE_HARDWARE     VIOSerialEvtDeviceReleaseHardware;
 EVT_WDF_DEVICE_D0_ENTRY             VIOSerialEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT              VIOSerialEvtDeviceD0Exit;
-EVT_WDF_DEVICE_D0_EXIT_PRE_INTERRUPTS_DISABLED VIOSerialEvtDeviceD0ExitPreInterruptsDisabled;
 EVT_WDF_DEVICE_D0_ENTRY_POST_INTERRUPTS_ENABLED VIOSerialEvtDeviceD0EntryPostInterruptsEnabled;
 
 
@@ -34,7 +33,6 @@ static NTSTATUS VIOSerialShutDownAllQueues(IN WDFOBJECT WdfDevice, IN BOOLEAN bF
 #pragma alloc_text (PAGE, VIOSerialEvtDevicePrepareHardware)
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceReleaseHardware)
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceD0Exit)
-#pragma alloc_text (PAGE, VIOSerialEvtDeviceD0ExitPreInterruptsDisabled)
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceD0EntryPostInterruptsEnabled)
 
 #endif
@@ -105,7 +103,6 @@ VIOSerialEvtDeviceAdd(
     PnpPowerCallbacks.EvtDeviceReleaseHardware = VIOSerialEvtDeviceReleaseHardware;
     PnpPowerCallbacks.EvtDeviceD0Entry         = VIOSerialEvtDeviceD0Entry;
     PnpPowerCallbacks.EvtDeviceD0Exit          = VIOSerialEvtDeviceD0Exit;
-    PnpPowerCallbacks.EvtDeviceD0ExitPreInterruptsDisabled = VIOSerialEvtDeviceD0ExitPreInterruptsDisabled;
     PnpPowerCallbacks.EvtDeviceD0EntryPostInterruptsEnabled = VIOSerialEvtDeviceD0EntryPostInterruptsEnabled;
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &PnpPowerCallbacks);
 
@@ -586,61 +583,6 @@ VIOSerialEvtDeviceD0Exit(
     return STATUS_SUCCESS;
 }
 
-NTSTATUS
-VIOSerialEvtDeviceD0ExitPreInterruptsDisabled(
-    IN WDFDEVICE WdfDevice,
-    IN WDF_POWER_DEVICE_STATE TargetState
-    )
-{
-    NTSTATUS status = STATUS_SUCCESS;
-    WDFCHILDLIST portList;
-    WDF_CHILD_LIST_ITERATOR portIterator;
-
-    UNREFERENCED_PARAMETER(TargetState);
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
-
-    PAGED_CODE();
-
-    portList = WdfFdoGetDefaultChildList(WdfDevice);
-    WDF_CHILD_LIST_ITERATOR_INIT(&portIterator, WdfRetrievePresentChildren);
-
-    WdfChildListBeginIteration(portList, &portIterator);
-
-    for (;;)
-    {
-        WDF_CHILD_RETRIEVE_INFO childInfo;
-        WDFDEVICE hChild;
-        VIOSERIAL_PORT port;
-
-        WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(
-            &port.Header, sizeof(port));
-        WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &port.Header);
-
-        status = WdfChildListRetrieveNextDevice(portList, &portIterator,
-            &hChild, &childInfo);
-        if (!NT_SUCCESS(status) || (status == STATUS_NO_MORE_ENTRIES))
-        {
-            break;
-        }
-        ASSERT(childInfo.Status == WdfChildListRetrieveDeviceSuccess);
-
-        if (port.GuestConnected && !port.Removed)
-        {
-            VIOSerialSendCtrlMsg(port.BusDevice, port.PortId,
-                VIRTIO_CONSOLE_PORT_OPEN, 0);
-            port.GuestConnected = FALSE;
-        }
-        port.Removed = TRUE;
-    }
-
-    WdfChildListEndIteration(portList, &portIterator);
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s: %d\n",
-        __FUNCTION__, status);
-
-    return status;
-}
 
 NTSTATUS
 VIOSerialEvtDeviceD0EntryPostInterruptsEnabled(
