@@ -1,3 +1,11 @@
+Date    29 Nov 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm69
+
+Fixed bugs:
+
+BZ 878291 - fixed a whql test failed in "support for D3 power state"
+
 Date    27 Nov 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm67
