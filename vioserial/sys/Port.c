@@ -346,7 +346,7 @@ VIOSerialShutdownAllPorts(
 
         if(!vport.Removed && vport.GuestConnected)
         {
-//           VIOSerialSendCtrlMsg(vport.BusDevice, vport.PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
+           VIOSerialSendCtrlMsg(vport.BusDevice, vport.PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
            vport.GuestConnected = FALSE;
         }
         vport.Removed = TRUE;
