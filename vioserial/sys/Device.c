@@ -581,7 +581,7 @@ VIOSerialEvtDeviceD0Exit(
     PAGED_CODE();
 
     VIOSerialShutdownAllPorts(Device);
-    VIOSerialShutDownAllQueues(Device, (TargetState == WdfPowerDeviceD3Final));
+    VIOSerialShutDownAllQueues(Device, TRUE);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
