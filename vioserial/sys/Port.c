@@ -1336,7 +1336,7 @@ VIOSerialPortSymbolicNameWork(
            if (!NT_SUCCESS(status))
            {
               TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                "WdfDeviceCreateSymbolicLink %ws failed 0x%x\n", status, &symbolicLinkName);
+                "WdfDeviceCreateSymbolicLink %ws failed 0x%x\n", &symbolicLinkName, status);
               break;
            }
         }
