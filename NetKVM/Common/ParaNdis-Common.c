@@ -1355,6 +1355,12 @@ BOOLEAN ParaNdis_OnInterrupt(
 	}
 	else
 	{
+		struct virtqueue* _vq = ParaNdis_GetQueueForInterrupt(pContext, knownInterruptSources);
+
+		/* If interrupts for this queue disabled do nothing */
+		if((_vq != NULL) && !ParaNDIS_IsQueueInterruptEnabled(_vq))
+			return TRUE;
+
 		b = TRUE;
 		*pRunDpc = TRUE;
 		NdisGetCurrentSystemTime(&pContext->LastInterruptTimeStamp);
@@ -1553,6 +1559,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 	}
 	else if (pContext->nofFreeHardwareBuffers < nRequiredBuffers || !pContext->nofFreeTxDescriptors)
 	{
+		pContext->NetSendQueue->vq_ops->delay_interrupt(pContext->NetSendQueue);
 		result.error = cpeNoBuffer;
 	}
 	else if (Params->offloalMss && bUseCopy)

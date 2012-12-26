@@ -90,6 +90,10 @@ struct virtqueue_ops {
 	void (*shutdown)(struct virtqueue *vq);
 
 	void (*enable_interrupt)(struct virtqueue *vq, bool enable);
+
+	void (*delay_interrupt)(struct virtqueue *vq);
+
+	BOOLEAN (*is_interrupt_enabled)(struct virtqueue *vq);
 };
 
 #endif /* _LINUX_VIRTIO_H */
