@@ -39,9 +39,11 @@ EXTERN_C BOOLEAN TxRestart(void);
 
 EXTERN_C BOOLEAN RxRestart(void);
 
-EXTERN_C void TxEnableInterrupt(BOOLEAN bEnable);
+EXTERN_C void TxEnableInterrupt();
+EXTERN_C void TxDisableInterrupt();
 
-EXTERN_C void RxEnableInterrupt(BOOLEAN bEnable);
+EXTERN_C void RxEnableInterrupt();
+EXTERN_C void RxDisableInterrupt();
 
 EXTERN_C void RxReceivePacket(UCHAR fill);
 

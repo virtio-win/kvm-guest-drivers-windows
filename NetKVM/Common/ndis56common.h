@@ -565,8 +565,11 @@ NDIS_STATUS ParaNdis_SetMulticastList(
 
 VOID ParaNdis_VirtIOEnableIrqSynchronized(
 	PARANDIS_ADAPTER *pContext,
-	ULONG interruptSource,
-	BOOLEAN b);
+	ULONG interruptSource);
+
+VOID ParaNdis_VirtIODisableIrqSynchronized(
+	PARANDIS_ADAPTER *pContext,
+	ULONG interruptSource);
 
 static __inline struct virtqueue *
 ParaNdis_GetQueueForInterrupt(PARANDIS_ADAPTER *pContext, ULONG interruptSource)

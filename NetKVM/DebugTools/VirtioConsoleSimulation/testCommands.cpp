@@ -835,22 +835,22 @@ bool tScriptState::ExecuteCommand(tCommand& cmd)
 			break;
 		case cmdTxEnableInterrupt:
 			{
-				TxEnableInterrupt(TRUE);
+				TxEnableInterrupt();
 			}
 			break;
 		case cmdTxDisableInterrupt:
 			{
-				TxEnableInterrupt(FALSE);
+				TxDisableInterrupt();
 			}
 			break;
 		case cmdRxEnableInterrupt:
 			{
-				RxEnableInterrupt(TRUE);
+				RxEnableInterrupt();
 			}
 			break;
 		case cmdRxDisableInterrupt:
 			{
-				RxEnableInterrupt(FALSE);
+				RxDisableInterrupt();
 			}
 			break;
 		case cmdRxGet:

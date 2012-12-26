@@ -103,26 +103,39 @@ VIOSerialInterruptDpc(
 
 static
 VOID
-VIOSerialEnableDisableInterrupt(
-    PPORTS_DEVICE pContext,
-    IN BOOLEAN bEnable)
+VIOSerialEnableInterrupt(PPORTS_DEVICE pContext)
 {
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s enable = %d\n", __FUNCTION__, bEnable);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s enable\n", __FUNCTION__);
 
     if(!pContext)
         return;
 
     if(pContext->c_ivq)
     {
-        pContext->c_ivq->vq_ops->enable_interrupt(pContext->c_ivq, bEnable);
-        if(bEnable)
-        {
-           pContext->c_ivq->vq_ops->kick(pContext->c_ivq);
-        }
+        pContext->c_ivq->vq_ops->enable_interrupt(pContext->c_ivq);
+        pContext->c_ivq->vq_ops->kick(pContext->c_ivq);
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s enable = %d\n", __FUNCTION__, bEnable);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s enable\n", __FUNCTION__);
+}
+
+static
+VOID
+VIOSerialDisableInterrupt(PPORTS_DEVICE pContext)
+{
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s disable\n", __FUNCTION__);
+
+    if(!pContext)
+        return;
+
+    if(pContext->c_ivq)
+    {
+        pContext->c_ivq->vq_ops->disable_interrupt(pContext->c_ivq);
+    }
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s disable\n", __FUNCTION__);
 }
 
 
@@ -134,9 +147,7 @@ VIOSerialInterruptEnable(
     UNREFERENCED_PARAMETER(AssociatedDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
-    VIOSerialEnableDisableInterrupt(
-                                 GetPortsDevice(WdfInterruptGetDevice(Interrupt)),
-                                 TRUE);
+    VIOSerialEnableInterrupt(GetPortsDevice(WdfInterruptGetDevice(Interrupt)));
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
@@ -150,27 +161,35 @@ VIOSerialInterruptDisable(
     UNREFERENCED_PARAMETER(AssociatedDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
-    VIOSerialEnableDisableInterrupt(
-                                 GetPortsDevice(WdfInterruptGetDevice(Interrupt)),
-                                 FALSE);
+    VIOSerialDisableInterrupt(GetPortsDevice(WdfInterruptGetDevice(Interrupt)));
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 
 VOID
-VIOSerialEnableDisableInterruptQueue(
-    IN struct virtqueue *vq,
-    IN BOOLEAN bEnable)
+VIOSerialEnableInterruptQueue(IN struct virtqueue *vq)
 {
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s enable = %d\n", __FUNCTION__, bEnable);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s enable\n", __FUNCTION__);
 
     if(!vq)
         return;
 
-    vq->vq_ops->enable_interrupt(vq, bEnable);
-    if(bEnable)
-    {
-        vq->vq_ops->kick(vq);
-    }
+    vq->vq_ops->enable_interrupt(vq);
+    vq->vq_ops->kick(vq);
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
 }
+
+VOID
+VIOSerialDisableInterruptQueue(IN struct virtqueue *vq)
+{
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s disable\n", __FUNCTION__);
+
+    if(!vq)
+        return;
+
+    vq->vq_ops->disable_interrupt(vq);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
+}
+

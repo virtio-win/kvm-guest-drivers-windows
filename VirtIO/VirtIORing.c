@@ -299,17 +299,21 @@ static void detach_buf(struct vring_virtqueue *vq, unsigned int head)
 	vq->num_free++;
 }
 
-static void vring_enable_interrupts(struct virtqueue *_vq, bool enable)
+static void vring_enable_interrupts(struct virtqueue *_vq)
 {
 	struct vring_virtqueue *vq = to_vvq(_vq);
 
-	if(enable)
-	{
-		vq->vring.avail->flags &= ~VRING_AVAIL_F_NO_INTERRUPT;
-		*vq->vring.vring_last_used_ptr = vq->last_used_idx;
-	}
-	else
-		vq->vring.avail->flags |= VRING_AVAIL_F_NO_INTERRUPT;
+	vq->vring.avail->flags &= ~VRING_AVAIL_F_NO_INTERRUPT;
+	*vq->vring.vring_last_used_ptr = vq->last_used_idx;
+
+	mb();
+}
+
+static void vring_disable_interrupts(struct virtqueue *_vq)
+{
+	struct vring_virtqueue *vq = to_vvq(_vq);
+
+	vq->vring.avail->flags |= VRING_AVAIL_F_NO_INTERRUPT;
 
 	mb();
 }
@@ -400,10 +404,10 @@ static bool vring_restart(struct virtqueue *_vq)
 
 	/* We optimistically turn back on interrupts, then check if there was
 	 * more to do. */
-	vring_enable_interrupts(_vq, TRUE);
+	vring_enable_interrupts(_vq);
 
 	if (more_used(vq)) {
-		vring_enable_interrupts(_vq, FALSE);
+		vring_disable_interrupts(_vq);
 		return 0;
 	}
 
@@ -417,8 +421,9 @@ static struct virtqueue_ops vring_vq_ops = { vring_add_buf,
 											 vring_restart,
 											 vring_shutdown,
 											 vring_enable_interrupts,
-											 vring_delay_interrupts,
-											 vring_is_interrupt_enabled};
+											 vring_disable_interrupts,
+											 vring_is_interrupt_enabled,
+											 vring_delay_interrupts};
 
 void initialize_virtqueue(struct vring_virtqueue *vq,
 							unsigned int num,

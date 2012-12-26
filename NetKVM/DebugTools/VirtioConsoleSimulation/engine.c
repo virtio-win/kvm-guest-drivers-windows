@@ -564,14 +564,24 @@ BOOLEAN RxRestart(void)
 	return RxQ->vq_ops->restart(RxQ);
 }
 
-void TxEnableInterrupt(BOOLEAN bEnable)
+void TxEnableInterrupt()
 {
-	TxQ->vq_ops->enable_interrupt(TxQ, bEnable);
+	TxQ->vq_ops->enable_interrupt(TxQ);
 }
 
-void RxEnableInterrupt(BOOLEAN bEnable)
+void TxDisableInterrupt()
 {
-	RxQ->vq_ops->enable_interrupt(RxQ, bEnable);
+	TxQ->vq_ops->disable_interrupt(TxQ);
+}
+
+void RxEnableInterrupt()
+{
+	RxQ->vq_ops->enable_interrupt(RxQ);
+}
+
+void RxDisableInterrupt()
+{
+	RxQ->vq_ops->disable_interrupt(RxQ);
 }
 
 EXTERN_C void RxReceivePacket(UCHAR fill)

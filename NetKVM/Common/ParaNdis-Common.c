@@ -1347,7 +1347,7 @@ BOOLEAN ParaNdis_OnInterrupt(
 			*pRunDpc = TRUE;
 			b = TRUE;
 			NdisGetCurrentSystemTime(&pContext->LastInterruptTimeStamp);
-			ParaNdis_VirtIOEnableIrqSynchronized(pContext, isAny, FALSE);
+			ParaNdis_VirtIODisableIrqSynchronized(pContext, isAny);
 			status = (status & 2) ? isControl : 0;
 			status |= isReceive | isTransmit;
 			InterlockedOr(&pContext->InterruptStatus, (LONG)status);
@@ -1365,7 +1365,7 @@ BOOLEAN ParaNdis_OnInterrupt(
 		*pRunDpc = TRUE;
 		NdisGetCurrentSystemTime(&pContext->LastInterruptTimeStamp);
 		InterlockedOr(&pContext->InterruptStatus, (LONG)knownInterruptSources);
-		ParaNdis_VirtIOEnableIrqSynchronized(pContext, knownInterruptSources, FALSE);
+		ParaNdis_VirtIODisableIrqSynchronized(pContext, knownInterruptSources);
 		status = knownInterruptSources;
 	}
 	DPrintf(5, ("[%s](src%X)=>st%X", __FUNCTION__, knownInterruptSources, status));
@@ -2452,13 +2452,22 @@ Parameters:
 	interruptSource - isReceive, isTransmit
 	b - 1/0 enable/disable
 ***********************************************************/
-VOID ParaNdis_VirtIOEnableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource, BOOLEAN b)
+VOID ParaNdis_VirtIOEnableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
 {
 	if (interruptSource & isTransmit)
-		pContext->NetSendQueue->vq_ops->enable_interrupt(pContext->NetSendQueue, b);
+		pContext->NetSendQueue->vq_ops->enable_interrupt(pContext->NetSendQueue);
 	if (interruptSource & isReceive)
-		pContext->NetReceiveQueue->vq_ops->enable_interrupt(pContext->NetReceiveQueue, b);
-	ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, b, 0);
+		pContext->NetReceiveQueue->vq_ops->enable_interrupt(pContext->NetReceiveQueue);
+	ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, TRUE, 0);
+}
+
+VOID ParaNdis_VirtIODisableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
+{
+	if (interruptSource & isTransmit)
+		pContext->NetSendQueue->vq_ops->disable_interrupt(pContext->NetSendQueue);
+	if (interruptSource & isReceive)
+		pContext->NetReceiveQueue->vq_ops->disable_interrupt(pContext->NetReceiveQueue);
+	ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, FALSE, 0);
 }
 
 /**********************************************************

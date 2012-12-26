@@ -166,14 +166,14 @@ EnableInterrupt(
     PDEVICE_CONTEXT devCtx = (PDEVICE_CONTEXT)Context;
     UNREFERENCED_PARAMETER(WdfInterrupt);
 
-    devCtx->InfVirtQueue->vq_ops->enable_interrupt(devCtx->InfVirtQueue, TRUE);
+    devCtx->InfVirtQueue->vq_ops->enable_interrupt(devCtx->InfVirtQueue);
     devCtx->InfVirtQueue->vq_ops->kick(devCtx->InfVirtQueue);
-    devCtx->DefVirtQueue->vq_ops->enable_interrupt(devCtx->DefVirtQueue, TRUE);
+    devCtx->DefVirtQueue->vq_ops->enable_interrupt(devCtx->DefVirtQueue);
     devCtx->DefVirtQueue->vq_ops->kick(devCtx->DefVirtQueue);
 
     if (devCtx->StatVirtQueue)
     {
-       devCtx->StatVirtQueue->vq_ops->enable_interrupt(devCtx->StatVirtQueue, TRUE);
+       devCtx->StatVirtQueue->vq_ops->enable_interrupt(devCtx->StatVirtQueue);
        devCtx->StatVirtQueue->vq_ops->kick(devCtx->StatVirtQueue);
     }
 }
@@ -184,11 +184,11 @@ DisableInterrupt(
     IN PDEVICE_CONTEXT devCtx
     )
 {
-    devCtx->InfVirtQueue->vq_ops->enable_interrupt(devCtx->InfVirtQueue, FALSE);
-    devCtx->DefVirtQueue->vq_ops->enable_interrupt(devCtx->DefVirtQueue, FALSE);
+    devCtx->InfVirtQueue->vq_ops->disable_interrupt(devCtx->InfVirtQueue);
+    devCtx->DefVirtQueue->vq_ops->disable_interrupt(devCtx->DefVirtQueue);
     if (devCtx->StatVirtQueue)
     {
-       devCtx->StatVirtQueue->vq_ops->enable_interrupt(devCtx->StatVirtQueue, FALSE);
+       devCtx->StatVirtQueue->vq_ops->disable_interrupt(devCtx->StatVirtQueue);
     }
 }
 
