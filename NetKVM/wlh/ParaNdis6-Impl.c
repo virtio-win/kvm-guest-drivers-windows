@@ -224,7 +224,7 @@ Parameters:
 static VOID MiniportDisableInterruptEx(IN PVOID MiniportInterruptContext)
 {
 	DEBUG_ENTRY(0);
-	ParaNdis_VirtIOEnableIrqSynchronized((PARANDIS_ADAPTER *)MiniportInterruptContext, isAny, FALSE);
+	ParaNdis_VirtIODisableIrqSynchronized((PARANDIS_ADAPTER *)MiniportInterruptContext, isAny);
 }
 
 /**********************************************************
@@ -235,7 +235,7 @@ Parameters:
 static VOID MiniportEnableInterruptEx(IN PVOID MiniportInterruptContext)
 {
 	DEBUG_ENTRY(0);
-	ParaNdis_VirtIOEnableIrqSynchronized((PARANDIS_ADAPTER *)MiniportInterruptContext, isAny, TRUE);
+	ParaNdis_VirtIOEnableIrqSynchronized((PARANDIS_ADAPTER *)MiniportInterruptContext, isAny);
 }
 
 /**********************************************************
@@ -419,7 +419,7 @@ static VOID MiniportDisableMSIInterrupt(
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
 	ULONG interruptSource = MessageToInterruptSource(pContext, MessageId);
 	DPrintf(0, ("[%s] (Message %d)", __FUNCTION__, MessageId));
-	ParaNdis_VirtIOEnableIrqSynchronized(pContext, interruptSource, FALSE);
+	ParaNdis_VirtIODisableIrqSynchronized(pContext, interruptSource);
 }
 
 static VOID MiniportEnableMSIInterrupt(
@@ -430,7 +430,7 @@ static VOID MiniportEnableMSIInterrupt(
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
 	ULONG interruptSource = MessageToInterruptSource(pContext, MessageId);
 	DPrintf(0, ("[%s] (Message %d)", __FUNCTION__, MessageId));
-	ParaNdis_VirtIOEnableIrqSynchronized(pContext, interruptSource, TRUE);
+	ParaNdis_VirtIOEnableIrqSynchronized(pContext, interruptSource);
 }
 
 

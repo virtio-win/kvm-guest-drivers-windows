@@ -190,7 +190,7 @@ VIOSerialRemovePort(
            WdfIoQueuePurge(port->IoctlQueue,
                                  WDF_NO_EVENT_CALLBACK,
                                  WDF_NO_CONTEXT);
-           VIOSerialEnableDisableInterruptQueue(GetInQueue(&vport), FALSE);
+           VIOSerialDisableInterruptQueue(GetInQueue(&vport));
 
            WdfSpinLockAcquire(vport.InBufLock);
            VIOSerialDiscardPortDataLocked(&vport);
@@ -267,7 +267,7 @@ VIOSerialRenewAllPorts(
            break;
         }
 
-        VIOSerialEnableDisableInterruptQueue(GetInQueue(&vport), TRUE);
+        VIOSerialEnableInterruptQueue(GetInQueue(&vport));
 
         WdfIoQueueStart(vport.ReadQueue);
         WdfIoQueueStart(vport.WriteQueue);
@@ -343,7 +343,7 @@ VIOSerialShutdownAllPorts(
                                  WDF_NO_EVENT_CALLBACK,
                                  WDF_NO_CONTEXT);
 
-        VIOSerialEnableDisableInterruptQueue(GetInQueue(&vport), FALSE);
+        VIOSerialDisableInterruptQueue(GetInQueue(&vport));
 
         WdfSpinLockAcquire(vport.InBufLock);
         VIOSerialDiscardPortDataLocked(&vport);
@@ -831,7 +831,7 @@ VIOSerialDeviceListCreatePdo(
            break;
         }
 
-        VIOSerialEnableDisableInterruptQueue(GetInQueue(pport), TRUE);
+        VIOSerialEnableInterruptQueue(GetInQueue(pport));
 
         // schedule a workitem to send PORT_READY, hopefully runs __after__ this function returns.
         WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
@@ -1147,6 +1147,7 @@ VIOSerialPortCreate(
         VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->PortId,
             VIRTIO_CONSOLE_PORT_OPEN, 1);
     }
+
     WdfRequestComplete(Request, status);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,

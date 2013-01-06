@@ -268,13 +268,11 @@ VIOSerialWillWriteBlock(
     IN PVIOSERIAL_PORT port
 );
 
+VOID
+VIOSerialEnableInterruptQueue(IN struct virtqueue *vq);
 
 VOID
-VIOSerialEnableDisableInterruptQueue(
-    IN struct virtqueue *vq,
-    IN BOOLEAN bEnable
-);
-
+VIOSerialDisableInterruptQueue(IN struct virtqueue *vq);
 
 EVT_WDF_CHILD_LIST_CREATE_DEVICE VIOSerialDeviceListCreatePdo;
 EVT_WDF_CHILD_LIST_IDENTIFICATION_DESCRIPTION_COMPARE VIOSerialEvtChildListIdentificationDescriptionCompare;

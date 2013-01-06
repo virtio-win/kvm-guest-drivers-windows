@@ -565,8 +565,28 @@ NDIS_STATUS ParaNdis_SetMulticastList(
 
 VOID ParaNdis_VirtIOEnableIrqSynchronized(
 	PARANDIS_ADAPTER *pContext,
-	ULONG interruptSource,
-	BOOLEAN b);
+	ULONG interruptSource);
+
+VOID ParaNdis_VirtIODisableIrqSynchronized(
+	PARANDIS_ADAPTER *pContext,
+	ULONG interruptSource);
+
+static __inline struct virtqueue *
+ParaNdis_GetQueueForInterrupt(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
+{
+	if (interruptSource & isTransmit)
+		return pContext->NetSendQueue;
+	if (interruptSource & isReceive)
+		return pContext->NetReceiveQueue;
+
+	return NULL;
+}
+
+static __inline BOOLEAN
+ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq)
+{
+	return _vq->vq_ops->is_interrupt_enabled(_vq);
+}
 
 VOID ParaNdis_OnPnPEvent(
 	PARANDIS_ADAPTER *pContext,

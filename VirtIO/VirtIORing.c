@@ -45,6 +45,8 @@ struct vring_virtqueue
 	unsigned int free_head;
 	/* Number we've added since last sync. */
 	unsigned int num_added;
+	/* Last used index */
+	u16 last_used_idx;
 
 	/* How to notify other side. FIXME: commonalize hcalls! */
 	void (*notify)(struct virtqueue *vq);
@@ -120,6 +122,16 @@ vring_add_indirect(
     return head;
 }
 
+static void vring_delay_interrupts(struct virtqueue *_vq)
+{
+	struct vring_virtqueue *vq = to_vvq(_vq);
+	u16 buffs_num_before_interrupt = (vq->vring.avail->idx - vq->last_used_idx) * 3 / 4;
+
+	*vq->vring.vring_last_used_ptr = vq->vring.used->idx +
+									buffs_num_before_interrupt;
+
+	mb();
+}
 
 static int vring_add_buf(struct virtqueue *_vq,
 			 struct VirtIOBufferDescriptor sg[],
@@ -287,16 +299,29 @@ static void detach_buf(struct vring_virtqueue *vq, unsigned int head)
 	vq->num_free++;
 }
 
-static void vring_enable_interrupts(struct virtqueue *_vq, bool enable)
+static void vring_enable_interrupts(struct virtqueue *_vq)
 {
 	struct vring_virtqueue *vq = to_vvq(_vq);
 
-	if(enable)
-		vq->vring.avail->flags &= ~VRING_AVAIL_F_NO_INTERRUPT;
-	else
-		vq->vring.avail->flags |= VRING_AVAIL_F_NO_INTERRUPT;
+	vq->vring.avail->flags &= ~VRING_AVAIL_F_NO_INTERRUPT;
+	*vq->vring.vring_last_used_ptr = vq->last_used_idx;
 
 	mb();
+}
+
+static void vring_disable_interrupts(struct virtqueue *_vq)
+{
+	struct vring_virtqueue *vq = to_vvq(_vq);
+
+	vq->vring.avail->flags |= VRING_AVAIL_F_NO_INTERRUPT;
+
+	mb();
+}
+
+static BOOLEAN vring_is_interrupt_enabled(struct virtqueue *_vq)
+{
+	struct vring_virtqueue *vq = to_vvq(_vq);
+	return (vq->vring.avail->flags & VRING_AVAIL_F_NO_INTERRUPT) ? FALSE : TRUE;
 }
 
 /*
@@ -320,7 +345,7 @@ static void vring_shutdown(struct virtqueue *_vq)
 
 static bool more_used(const struct vring_virtqueue *vq)
 {
-    return vring_last_used(&vq->vring) != vq->vring.used->idx;
+	return vq->last_used_idx != vq->vring.used->idx;
 }
 
 static void *vring_get_buf(struct virtqueue *_vq, unsigned int *len)
@@ -332,7 +357,7 @@ static void *vring_get_buf(struct virtqueue *_vq, unsigned int *len)
 
 	if (!more_used(vq)) {
 		DPrintf(4, ("No more buffers in queue: last_used_idx %d vring.used->idx %d\n",
-			vring_last_used(&vq->vring),
+			vq->last_used_idx,
 			vq->vring.used->idx));
 		return NULL;
 	}
@@ -340,7 +365,7 @@ static void *vring_get_buf(struct virtqueue *_vq, unsigned int *len)
 	/* Only get used array entries after they have been exposed by host. */
 	rmb();
 
-	u = &vq->vring.used->ring[vring_last_used(&vq->vring) % vq->vring.num];
+	u = &vq->vring.used->ring[vq->last_used_idx % vq->vring.num];
 	i = u->id;
 	*len = u->len;
 
@@ -359,7 +384,13 @@ static void *vring_get_buf(struct virtqueue *_vq, unsigned int *len)
 	/* detach_buf clears data, so grab it now. */
 	ret = vq->data[i];
 	detach_buf(vq, i);
-    vring_last_used(&vq->vring)++;
+	++vq->last_used_idx;
+
+	if (!(vq->vring.avail->flags & VRING_AVAIL_F_NO_INTERRUPT)) {
+		*vq->vring.vring_last_used_ptr = vq->last_used_idx;
+		mb();
+	}
+
 	return ret;
 }
 
@@ -373,10 +404,10 @@ static bool vring_restart(struct virtqueue *_vq)
 
 	/* We optimistically turn back on interrupts, then check if there was
 	 * more to do. */
-	vq->vring.avail->flags &= ~VRING_AVAIL_F_NO_INTERRUPT;
-	mb();
+	vring_enable_interrupts(_vq);
+
 	if (more_used(vq)) {
-		vq->vring.avail->flags |= VRING_AVAIL_F_NO_INTERRUPT;
+		vring_disable_interrupts(_vq);
 		return 0;
 	}
 
@@ -389,8 +420,10 @@ static struct virtqueue_ops vring_vq_ops = { vring_add_buf,
 											 vring_get_buf,
 											 vring_restart,
 											 vring_shutdown,
-											 vring_enable_interrupts};
-
+											 vring_enable_interrupts,
+											 vring_disable_interrupts,
+											 vring_is_interrupt_enabled,
+											 vring_delay_interrupts};
 
 void initialize_virtqueue(struct vring_virtqueue *vq,
 							unsigned int num,
@@ -409,7 +442,7 @@ void initialize_virtqueue(struct vring_virtqueue *vq,
 	vq->notify = notify;
 	vq->broken = 0;
 	vq->vq.ulIndex = index;
-	vring_last_used(&vq->vring) = 0;
+	*vq->vring.vring_last_used_ptr = vq->last_used_idx = 0;
 	vq->num_added = 0;
 	vq->use_published_indices = use_published_indices;
 

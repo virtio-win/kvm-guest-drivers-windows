@@ -594,6 +594,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 	NDIS_STATUS status = NDIS_STATUS_SUCCESS;
 	PUCHAR pNewMacAddress = NULL;
 	USHORT linkStatus = 0;
+
 	DEBUG_ENTRY(0);
 	/* read first PCI IO bar*/
 	//ulIOAddress = ReadPCIConfiguration(miniportAdapterHandle, 0x10);
@@ -644,11 +645,13 @@ NDIS_STATUS ParaNdis_InitializeContext(
 		DumpVirtIOFeatures(&pContext->IODevice);
 		JustForCheckClearInterrupt(pContext, "init 3");
 		pContext->bLinkDetectSupported = 0 != VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_STATUS);
+
 		if(pContext->bLinkDetectSupported) {
 			VirtIODeviceGet(&pContext->IODevice, sizeof(pContext->CurrentMacAddress), &linkStatus, sizeof(linkStatus));
 			pContext->bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
 			DPrintf(0, ("[%s] Link status on driver startup: %d", __FUNCTION__, pContext->bConnected));
 		}
+
 		pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_basic);
 		if (!pContext->bUseMergedBuffers && VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_MRG_RXBUF))
 		{
@@ -1344,7 +1347,7 @@ BOOLEAN ParaNdis_OnInterrupt(
 			*pRunDpc = TRUE;
 			b = TRUE;
 			NdisGetCurrentSystemTime(&pContext->LastInterruptTimeStamp);
-			ParaNdis_VirtIOEnableIrqSynchronized(pContext, isAny, FALSE);
+			ParaNdis_VirtIODisableIrqSynchronized(pContext, isAny);
 			status = (status & 2) ? isControl : 0;
 			status |= isReceive | isTransmit;
 			InterlockedOr(&pContext->InterruptStatus, (LONG)status);
@@ -1352,11 +1355,17 @@ BOOLEAN ParaNdis_OnInterrupt(
 	}
 	else
 	{
+		struct virtqueue* _vq = ParaNdis_GetQueueForInterrupt(pContext, knownInterruptSources);
+
+		/* If interrupts for this queue disabled do nothing */
+		if((_vq != NULL) && !ParaNDIS_IsQueueInterruptEnabled(_vq))
+			return TRUE;
+
 		b = TRUE;
 		*pRunDpc = TRUE;
 		NdisGetCurrentSystemTime(&pContext->LastInterruptTimeStamp);
 		InterlockedOr(&pContext->InterruptStatus, (LONG)knownInterruptSources);
-		ParaNdis_VirtIOEnableIrqSynchronized(pContext, knownInterruptSources, FALSE);
+		ParaNdis_VirtIODisableIrqSynchronized(pContext, knownInterruptSources);
 		status = knownInterruptSources;
 	}
 	DPrintf(5, ("[%s](src%X)=>st%X", __FUNCTION__, knownInterruptSources, status));
@@ -1550,6 +1559,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 	}
 	else if (pContext->nofFreeHardwareBuffers < nRequiredBuffers || !pContext->nofFreeTxDescriptors)
 	{
+		pContext->NetSendQueue->vq_ops->delay_interrupt(pContext->NetSendQueue);
 		result.error = cpeNoBuffer;
 	}
 	else if (Params->offloalMss && bUseCopy)
@@ -2442,13 +2452,22 @@ Parameters:
 	interruptSource - isReceive, isTransmit
 	b - 1/0 enable/disable
 ***********************************************************/
-VOID ParaNdis_VirtIOEnableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource, BOOLEAN b)
+VOID ParaNdis_VirtIOEnableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
 {
 	if (interruptSource & isTransmit)
-		pContext->NetSendQueue->vq_ops->enable_interrupt(pContext->NetSendQueue, b);
+		pContext->NetSendQueue->vq_ops->enable_interrupt(pContext->NetSendQueue);
 	if (interruptSource & isReceive)
-		pContext->NetReceiveQueue->vq_ops->enable_interrupt(pContext->NetReceiveQueue, b);
-	ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, b, 0);
+		pContext->NetReceiveQueue->vq_ops->enable_interrupt(pContext->NetReceiveQueue);
+	ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, TRUE, 0);
+}
+
+VOID ParaNdis_VirtIODisableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
+{
+	if (interruptSource & isTransmit)
+		pContext->NetSendQueue->vq_ops->disable_interrupt(pContext->NetSendQueue);
+	if (interruptSource & isReceive)
+		pContext->NetReceiveQueue->vq_ops->disable_interrupt(pContext->NetReceiveQueue);
+	ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, FALSE, 0);
 }
 
 /**********************************************************
