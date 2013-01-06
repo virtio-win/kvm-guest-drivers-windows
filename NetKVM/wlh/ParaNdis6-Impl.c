@@ -33,7 +33,8 @@ MINIPORT_ALLOCATE_SHARED_MEM_COMPLETE SharedMemAllocateCompleteHandler;
 MINIPORT_SYNCHRONIZE_INTERRUPT MiniportSyncRecoveryProcedure;
 #endif
 
-static VOID ProcessSGListHandler(IN PDEVICE_OBJECT  pDO, IN PVOID  Reserved, IN PSCATTER_GATHER_LIST  pSGL, IN PVOID  Context);
+static MINIPORT_PROCESS_SG_LIST ProcessSGListHandler;
+static VOID ProcessSGListHandlerEx(IN PDEVICE_OBJECT  pDO, IN PVOID  Reserved, IN PSCATTER_GATHER_LIST  pSGL, IN PVOID  Context);
 
 typedef struct _tagNBLDigest
 {
@@ -1762,12 +1763,12 @@ static void StartTransferSingleNBL(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST 
 			if (status != NDIS_STATUS_SUCCESS)
 			{
 				((tNetBufferListEntry *)pnbe->nbl->Scratch)->flags |= NBLEFLAGS_FAILED;
-				ProcessSGListHandler(NULL, NULL, NULL, pnbe);
+				ProcessSGListHandlerEx(NULL, NULL, NULL, pnbe);
 			}
 		}
 		else
 		{
-			ProcessSGListHandler(NULL, NULL, NULL, pnbe);
+			ProcessSGListHandlerEx(NULL, NULL, NULL, pnbe);
 		}
 		if (bPassive) KeLowerIrql(irql);
 	}
@@ -1856,6 +1857,20 @@ VOID ParaNdis_OnTransmitBufferReleased(PARANDIS_ADAPTER *pContext, IONetDescript
 		ParaNdis_DebugHistory(pContext, hopBufferSent, NULL, 0, pContext->nofFreeHardwareBuffers, pContext->nofFreeTxDescriptors);
 		DPrintf(0, ("[%s] ERROR: Send Entry (NBE) not set!", __FUNCTION__));
 	}
+}
+
+/**********************************************************
+We want to use ProcessSGListHandler internaly as well.
+It should be wrapped to pass static driver verifier.
+***********************************************************/
+VOID ProcessSGListHandlerEx(
+    IN PDEVICE_OBJECT  pDO,
+    IN PVOID  Reserved,
+    IN PSCATTER_GATHER_LIST  pSGL,
+    IN PVOID  Context
+    )
+{
+	ProcessSGListHandler(pDO, Reserved, pSGL, Context);
 }
 
 /**********************************************************
