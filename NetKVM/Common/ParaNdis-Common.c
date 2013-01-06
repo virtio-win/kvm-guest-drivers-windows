@@ -593,6 +593,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 {
 	NDIS_STATUS status = NDIS_STATUS_SUCCESS;
 	PUCHAR pNewMacAddress = NULL;
+	USHORT linkStatus = 0;
 	DEBUG_ENTRY(0);
 	/* read first PCI IO bar*/
 	//ulIOAddress = ReadPCIConfiguration(miniportAdapterHandle, 0x10);
@@ -643,6 +644,11 @@ NDIS_STATUS ParaNdis_InitializeContext(
 		DumpVirtIOFeatures(&pContext->IODevice);
 		JustForCheckClearInterrupt(pContext, "init 3");
 		pContext->bLinkDetectSupported = 0 != VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_STATUS);
+		if(pContext->bLinkDetectSupported) {
+			VirtIODeviceGet(&pContext->IODevice, sizeof(pContext->CurrentMacAddress), &linkStatus, sizeof(linkStatus));
+			pContext->bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
+			DPrintf(0, ("[%s] Link status on driver startup: %d", __FUNCTION__, pContext->bConnected));
+		}
 		pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_basic);
 		if (!pContext->bUseMergedBuffers && VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_MRG_RXBUF))
 		{
