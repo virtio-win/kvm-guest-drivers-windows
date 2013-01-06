@@ -1,3 +1,14 @@
+Date    6 Jan 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm70
+
+Fixed bugs:
+
+BZ #713130 - further optimization
+BZ #8823795 BSOD occurs during transferring data from guest to host
+    during S3/S4.
+BZ #883913 - read link status on driver startup.
+
 Date    29 Nov 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm69
