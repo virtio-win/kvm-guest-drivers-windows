@@ -1121,30 +1121,36 @@ VIOSerialPortCreate(
 
     UNREFERENCED_PARAMETER(FileObject);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,"%s Port id = %d\n", __FUNCTION__, pdoData->port->PortId);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
+        "%s Port id = %d\n", __FUNCTION__, pdoData->port->PortId);
 
-    WdfSpinLockAcquire(pdoData->port->InBufLock);
-    if (pdoData->port->GuestConnected == TRUE)
+    if (pdoData->port->Removed)
     {
-        WdfSpinLockRelease(pdoData->port->InBufLock);
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,"Guest already connected Port id = %d\n", pdoData->port->PortId);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
+            "Connect request on removed port id %d\n", pdoData->port->PortId);
+        status = STATUS_OBJECT_NO_LONGER_EXISTS;
+    }
+    else if (pdoData->port->GuestConnected == TRUE)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
+            "Guest already connected to port id %d\n", pdoData->port->PortId);
         status = STATUS_OBJECT_NAME_EXISTS;
     }
     else
     {
         pdoData->port->GuestConnected = TRUE;
-        WdfSpinLockRelease(pdoData->port->InBufLock);
 
         WdfSpinLockAcquire(pdoData->port->OutVqLock);
         VIOSerialReclaimConsumedBuffers(pdoData->port);
         WdfSpinLockRelease(pdoData->port->OutVqLock);
 
-        VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 1);
+        VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->PortId,
+            VIRTIO_CONSOLE_PORT_OPEN, 1);
     }
     WdfRequestComplete(Request, status);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
-    return;
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
+        "<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -1152,13 +1158,16 @@ VIOSerialPortClose(
     IN WDFFILEOBJECT FileObject
     )
 {
-    PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfFileObjectGetDevice(FileObject));
+    PRAWPDO_VIOSERIAL_PORT pdoData = RawPdoSerialPortGetData(
+        WdfFileObjectGetDevice(FileObject));
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
+        "--> %s\n", __FUNCTION__);
 
     if (!pdoData->port->Removed && pdoData->port->GuestConnected)
     {
-        VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
+        VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->PortId,
+            VIRTIO_CONSOLE_PORT_OPEN, 0);
     }
     pdoData->port->GuestConnected = FALSE;
 
@@ -1170,8 +1179,8 @@ VIOSerialPortClose(
     VIOSerialReclaimConsumedBuffers(pdoData->port);
     WdfSpinLockRelease(pdoData->port->OutVqLock);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
-    return;
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
+        "<-- %s\n", __FUNCTION__);
 }
 
 VOID

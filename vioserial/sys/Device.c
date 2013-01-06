@@ -612,6 +612,7 @@ VIOSerialEvtDeviceD0ExitPreInterruptsDisabled(
         WDF_CHILD_RETRIEVE_INFO childInfo;
         WDFDEVICE hChild;
         VIOSERIAL_PORT port;
+        PRAWPDO_VIOSERIAL_PORT pdoData;
 
         WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(
             &port.Header, sizeof(port));
@@ -625,13 +626,15 @@ VIOSerialEvtDeviceD0ExitPreInterruptsDisabled(
         }
         ASSERT(childInfo.Status == WdfChildListRetrieveDeviceSuccess);
 
-        if (port.GuestConnected && !port.Removed)
+        pdoData = RawPdoSerialPortGetData(hChild);
+
+        if (pdoData->port->GuestConnected && !pdoData->port->Removed)
         {
-            VIOSerialSendCtrlMsg(port.BusDevice, port.PortId,
+            VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->PortId,
                 VIRTIO_CONSOLE_PORT_OPEN, 0);
-            port.GuestConnected = FALSE;
+            pdoData->port->GuestConnected = FALSE;
         }
-        port.Removed = TRUE;
+        pdoData->port->Removed = TRUE;
     }
 
     WdfChildListEndIteration(portList, &portIterator);
