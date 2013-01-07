@@ -497,8 +497,8 @@ typedef struct _tagCopyPacketResult
 
 typedef struct _tagSynchronizedContext
 {
-	PARANDIS_ADAPTER *pContext;
-	ULONG			 Parameter;
+	PARANDIS_ADAPTER	*pContext;
+	PVOID				Parameter;
 }tSynchronizedContext;
 
 typedef BOOLEAN (*tSynchronizedProcedure)(tSynchronizedContext *context);
@@ -742,7 +742,7 @@ BOOLEAN ParaNdis_SynchronizeWithInterrupt(
 	PARANDIS_ADAPTER *pContext,
 	ULONG messageId,
 	tSynchronizedProcedure procedure,
-	ULONG parameter);
+	PVOID parameter);
 
 VOID ParaNdis_Suspend(
 	PARANDIS_ADAPTER *pContext);
