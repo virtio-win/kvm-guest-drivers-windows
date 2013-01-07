@@ -256,7 +256,7 @@ static BOOLEAN MiniportInterrupt(
 {
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
 	BOOLEAN b;
-	b = ParaNdis_OnInterrupt(pContext, QueueDefaultInterruptDpc, isAny);
+	b = ParaNdis_OnLegacyInterrupt(pContext, QueueDefaultInterruptDpc);
 	*TargetProcessors = 0;
 	pContext->ulIrqReceived += b;
 	return b;
@@ -291,7 +291,7 @@ static BOOLEAN MiniportMSIInterrupt(
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
 	BOOLEAN b;
 	ULONG interruptSource = MessageToInterruptSource(pContext, MessageId);
-	b = ParaNdis_OnInterrupt(pContext, QueueDefaultInterruptDpc, interruptSource);
+	b = ParaNdis_OnQueuedInterrupt(pContext, QueueDefaultInterruptDpc, interruptSource);
 	pContext->ulIrqReceived += b;
 	*TargetProcessors = 0;
 	return b;
@@ -2410,7 +2410,7 @@ static UCHAR MiniportSyncRecoveryProcedure(PVOID  SynchronizeContext)
 	}
 	else
 	{
-		b = ParaNdis_OnInterrupt(pContext, &b, isAny);
+		b = ParaNdis_OnLegacyInterrupt(pContext, &b);
 		if (b)
 		{
 			// we read the interrupt, in any case run the DRC

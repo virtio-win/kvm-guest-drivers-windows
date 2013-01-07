@@ -1326,50 +1326,59 @@ Return value:
 	TRUE, if it is our interrupt
 	sets *pRunDpc to TRUE if the DPC should be fired
 ***********************************************************/
-BOOLEAN ParaNdis_OnInterrupt(
+BOOLEAN ParaNdis_OnLegacyInterrupt(
 	PARANDIS_ADAPTER *pContext,
-	OUT BOOLEAN *pRunDpc,
-	ULONG knownInterruptSources)
+	OUT BOOLEAN *pRunDpc)
 {
 	ULONG status;
-	BOOLEAN b = FALSE;
-	if (knownInterruptSources == isAny)
+
+	if(pContext->powerState == NdisDeviceStateD0)
 	{
 		status = VirtIODeviceISR(&pContext->IODevice);
+
 		// ignore interrupts with invalid status bits
-		if (
-			status == VIRTIO_NET_INVALID_INTERRUPT_STATUS ||
-			pContext->powerState != NdisDeviceStateD0
-			)
-			status = 0;
-		if (status)
+		if (status != VIRTIO_NET_INVALID_INTERRUPT_STATUS)
 		{
 			*pRunDpc = TRUE;
-			b = TRUE;
-			NdisGetCurrentSystemTime(&pContext->LastInterruptTimeStamp);
+			PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
 			ParaNdis_VirtIODisableIrqSynchronized(pContext, isAny);
-			status = (status & 2) ? isControl : 0;
-			status |= isReceive | isTransmit;
-			InterlockedOr(&pContext->InterruptStatus, (LONG)status);
+			InterlockedOr(&pContext->InterruptStatus,
+				(LONG) ((status & isControl) | isReceive | isTransmit));
+		}
+		else
+		{
+			*pRunDpc = FALSE;
 		}
 	}
 	else
 	{
-		struct virtqueue* _vq = ParaNdis_GetQueueForInterrupt(pContext, knownInterruptSources);
+		*pRunDpc = FALSE;
+	}
 
-		/* If interrupts for this queue disabled do nothing */
-		if((_vq != NULL) && !ParaNDIS_IsQueueInterruptEnabled(_vq))
-			return TRUE;
+	return *pRunDpc;
+}
 
-		b = TRUE;
-		*pRunDpc = TRUE;
-		NdisGetCurrentSystemTime(&pContext->LastInterruptTimeStamp);
+BOOLEAN ParaNdis_OnQueuedInterrupt(
+	PARANDIS_ADAPTER *pContext,
+	OUT BOOLEAN *pRunDpc,
+	ULONG knownInterruptSources)
+{
+	struct virtqueue* _vq = ParaNdis_GetQueueForInterrupt(pContext, knownInterruptSources);
+
+	/* If interrupts for this queue disabled do nothing */
+	if((_vq != NULL) && !ParaNDIS_IsQueueInterruptEnabled(_vq))
+	{
+		*pRunDpc = FALSE;
+	}
+	else
+	{
+		PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
 		InterlockedOr(&pContext->InterruptStatus, (LONG)knownInterruptSources);
 		ParaNdis_VirtIODisableIrqSynchronized(pContext, knownInterruptSources);
-		status = knownInterruptSources;
+		*pRunDpc = TRUE;
 	}
-	DPrintf(5, ("[%s](src%X)=>st%X", __FUNCTION__, knownInterruptSources, status));
-	return b;
+
+	return *pRunDpc;
 }
 
 
