@@ -43,6 +43,8 @@
  * a read-and-acknowledge. */
 #define VIRTIO_PCI_ISR			19
 
+/* The bit of the ISR which indicates a device configuration change. */
+#define VIRTIO_PCI_ISR_CONFIG           0x2
 /* MSI-X registers: only enabled if MSI-X is enabled. */
 /* A 16-bit vector for configuration changes. */
 #define VIRTIO_MSI_CONFIG_VECTOR        20

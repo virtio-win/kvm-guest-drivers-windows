@@ -291,7 +291,7 @@ static UINT FillDataOnBugCheck()
 		if (!p) continue;
 		pSave->nofPacketsToComplete = p->NetTxPacketsToReturn;
 		pSave->nofReadyTxBuffers = p->nofFreeHardwareBuffers;
-		pSave->LastInterruptTimeStamp = p->LastInterruptTimeStamp;
+		pSave->LastInterruptTimeStamp.QuadPart = PARADNIS_GET_LAST_INTERRUPT_TIMESTAMP(p);
 		pSave->LastTxCompletionTimeStamp = p->LastTxCompletionTimeStamp;
 		ParaNdis_CallOnBugCheck(p);
 		++n;

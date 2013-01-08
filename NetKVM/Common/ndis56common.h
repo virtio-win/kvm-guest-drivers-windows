@@ -112,10 +112,10 @@
 
 typedef enum _tagInterruptSource
 {
-	isReceive  = 0x01,
-	isTransmit = 0x02,
-	isControl  = 0x04,
-	isUnknown  = 0x08,
+	isControl  = VIRTIO_PCI_ISR_CONFIG,
+	isReceive  = 0x10,
+	isTransmit = 0x20,
+	isUnknown  = 0x40,
 	isBothTransmitReceive = isReceive | isTransmit,
 	isAny      = isReceive | isTransmit | isControl | isUnknown,
 	isDisable  = 0x80
@@ -337,7 +337,9 @@ typedef struct _tagPARANDIS_ADAPTER
 	PVOID					pIoPortOffset;
 	VirtIODevice			IODevice;
 	LARGE_INTEGER			LastTxCompletionTimeStamp;
+#ifdef PARANDIS_DEBUG_INTERRUPTS
 	LARGE_INTEGER			LastInterruptTimeStamp;
+#endif
 	BOOLEAN					bConnected;
 	BOOLEAN					bEnableInterruptHandlingDPC;
 	BOOLEAN					bEnableInterruptChecking;
@@ -594,7 +596,11 @@ VOID ParaNdis_OnPnPEvent(
 	PVOID	pInfo,
 	ULONG	ulSize);
 
-BOOLEAN ParaNdis_OnInterrupt(
+BOOLEAN ParaNdis_OnLegacyInterrupt(
+	PARANDIS_ADAPTER *pContext,
+	BOOLEAN *pRunDpc);
+
+BOOLEAN ParaNdis_OnQueuedInterrupt(
 	PARANDIS_ADAPTER *pContext,
 	BOOLEAN *pRunDpc,
 	ULONG knownInterruptSources);

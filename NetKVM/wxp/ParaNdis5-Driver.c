@@ -352,7 +352,7 @@ static VOID ParaNdis5_MiniportISR(OUT PBOOLEAN InterruptRecognized,
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportAdapterContext;
 	BOOLEAN b;
 	*QueueMiniportHandleInterrupt = FALSE;
-	b = ParaNdis_OnInterrupt(pContext, QueueMiniportHandleInterrupt, isAny);
+	b = ParaNdis_OnLegacyInterrupt(pContext, QueueMiniportHandleInterrupt);
 	*InterruptRecognized = b;
 	DEBUG_EXIT_STATUS(7, (ULONG)b);
 }
