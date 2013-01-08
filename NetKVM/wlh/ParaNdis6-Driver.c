@@ -254,6 +254,9 @@ static NDIS_STATUS ParaNdis6_Initialize(
 			sizeof(PARANDIS_ADAPTER),
 			PARANDIS_MEMORY_TAG,
 			NormalPoolPriority);
+	/* This call is for Static Driver Verifier only - has no real functionality*/
+	__sdv_save_adapter_context(pContext);
+
 	if (!pContext)
 	{
 		DPrintf(0, ("[%s] ERROR: Memory allocation failed!", __FUNCTION__));

@@ -236,7 +236,7 @@ static void _VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned ind
 	*pNumEntries = 0;
 	*pAllocationSize = 0;
 
-	if (index < vp_dev->maxQueues && sizeof(struct vring_desc) == SIZE_OF_SINGLE_INDIRECT_DESC)
+	if (index < vp_dev->maxQueues)
 	{
 		// Select the queue we're interested in
 		WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_SEL, (u16) index);
