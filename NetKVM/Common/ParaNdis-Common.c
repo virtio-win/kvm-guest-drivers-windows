@@ -1331,9 +1331,11 @@ BOOLEAN ParaNdis_OnLegacyInterrupt(
 	OUT BOOLEAN *pRunDpc)
 {
 	ULONG status;
+
 	if(pContext->powerState == NdisDeviceStateD0)
 	{
 		status = VirtIODeviceISR(&pContext->IODevice);
+
 		// ignore interrupts with invalid status bits
 		if (status != VIRTIO_NET_INVALID_INTERRUPT_STATUS)
 		{
@@ -1375,6 +1377,7 @@ BOOLEAN ParaNdis_OnQueuedInterrupt(
 		ParaNdis_VirtIODisableIrqSynchronized(pContext, knownInterruptSources);
 		*pRunDpc = TRUE;
 	}
+
 	return *pRunDpc;
 }
 
@@ -2117,21 +2120,13 @@ void ParaNdis_ReportLinkStatus(PARANDIS_ADAPTER *pContext, BOOLEAN bForce)
 	ParaNdis_IndicateConnect(pContext, bConnected, bForce);
 }
 
-
 static BOOLEAN RestartQueueSynchronously(tSynchronizedContext *SyncContext)
 {
-	PARANDIS_ADAPTER *pContext = SyncContext->pContext;
-	BOOLEAN b = 0;
-	if (SyncContext->Parameter & isReceive)
-	{
-		b = !pContext->NetReceiveQueue->vq_ops->restart(pContext->NetReceiveQueue);
-	}
-	if (SyncContext->Parameter & isTransmit)
-	{
-		b = !pContext->NetSendQueue->vq_ops->restart(pContext->NetSendQueue);
-	}
-	ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x20, SyncContext->Parameter, !b, 0);
-	return b;
+	struct virtqueue * _vq = (struct virtqueue *) SyncContext->Parameter;
+	bool res = _vq->vq_ops->restart(_vq);
+
+	ParaNdis_DebugHistory(SyncContext->pContext, hopDPC, (PVOID)SyncContext->Parameter, 0x20, res, 0);
+	return !res;
 }
 /**********************************************************
 DPC implementation, common for both NDIS
@@ -2175,7 +2170,7 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
 						InterlockedDecrement(&pContext->dpcReceiveActive);
 						NdisAcquireSpinLock(&pContext->ReceiveLock);
 						nRestartResult = ParaNdis_SynchronizeWithInterrupt(
-							pContext, pContext->ulRxMessage, RestartQueueSynchronously, isReceive);
+							pContext, pContext->ulRxMessage, RestartQueueSynchronously, pContext->NetReceiveQueue);
 						ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)3, nRestartResult, 0, 0);
 						NdisReleaseSpinLock(&pContext->ReceiveLock);
 						DPrintf(nRestartResult ? 2 : 6, ("[%s] queue restarted%s", __FUNCTION__, nRestartResult ? "(Rerun)" : "(Done)"));
@@ -2203,7 +2198,7 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
 						{
 							NdisAcquireSpinLock(&pContext->ReceiveLock);
 							nRestartResult = ParaNdis_SynchronizeWithInterrupt(
-								pContext, pContext->ulRxMessage, RestartQueueSynchronously, isReceive);
+								pContext, pContext->ulRxMessage, RestartQueueSynchronously, pContext->NetReceiveQueue);
 							ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)5, nRestartResult, 0, 0);
 							NdisReleaseSpinLock(&pContext->ReceiveLock);
 						}
@@ -2218,7 +2213,7 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
 			if (interruptSources & isTransmit)
 			{
 				NdisAcquireSpinLock(&pContext->SendLock);
-				if (ParaNdis_SynchronizeWithInterrupt(pContext, pContext->ulTxMessage, RestartQueueSynchronously, isTransmit))
+				if (ParaNdis_SynchronizeWithInterrupt(pContext, pContext->ulTxMessage, RestartQueueSynchronously, pContext->NetSendQueue))
 					stillRequiresProcessing |= isTransmit;
 				NdisReleaseSpinLock(&pContext->SendLock);
 			}

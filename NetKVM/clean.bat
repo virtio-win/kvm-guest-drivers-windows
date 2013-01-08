@@ -23,7 +23,12 @@ call :rmdir wlh\objfre_wlh_x86
 call :rmdir wlh\objfre_wlh_amd64
 call :rmdir wlh\objfre_win7_amd64
 call :rmdir wlh\objfre_win7_x86
-call :rmfiles dirs wlh\makefile wlh\BuildLog.htm wxp\makefile wxp\BuildLog.htm common\makefile VirtIO\makefile
+call :rmdir VistaRelease
+call :rmdir VistaDebug
+call :rmdir Win8Release
+call :rmdir Win8Debug
+call :rmdir x64
+call :rmfiles dirs wlh\makefile wlh\BuildLog.htm wxp\makefile wxp\BuildLog.htm common\makefile VirtIO\makefile NetKVM-2012.h
 for %%f in (VirtIO\*.c VirtIO\*.h *.log *.wrn) do call :rmfiles %%f
 
 

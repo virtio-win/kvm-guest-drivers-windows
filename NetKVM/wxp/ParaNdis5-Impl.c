@@ -1439,7 +1439,7 @@ BOOLEAN ParaNdis_SynchronizeWithInterrupt(
 	PARANDIS_ADAPTER *pContext,
 	ULONG messageId,
 	tSynchronizedProcedure procedure,
-	ULONG parameter)
+	PVOID parameter)
 {
 	tSynchronizedContext SyncContext;
 	SyncContext.pContext  = pContext;

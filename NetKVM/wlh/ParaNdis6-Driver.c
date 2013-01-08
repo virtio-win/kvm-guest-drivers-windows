@@ -15,7 +15,6 @@
 #include "ParaNdis-Oid.h"
 
 #if NDIS_SUPPORT_NDIS6
-
 NDIS_TIMER_FUNCTION ConnectTimerCallback;
 NDIS_TIMER_FUNCTION InterruptRecoveryTimerCallback;
 NDIS_IO_WORKITEM_FUNCTION OnResetWorkItem;
@@ -254,6 +253,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
 			sizeof(PARANDIS_ADAPTER),
 			PARANDIS_MEMORY_TAG,
 			NormalPoolPriority);
+
 	/* This call is for Static Driver Verifier only - has no real functionality*/
 	__sdv_save_adapter_context(pContext);
 
