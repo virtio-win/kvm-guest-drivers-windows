@@ -1,4 +1,4 @@
-Date    6 Jan 2013
+Date    8 Jan 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm70
 
@@ -8,6 +8,7 @@ BZ #713130 - further optimization
 BZ #8823795 BSOD occurs during transferring data from guest to host
     during S3/S4.
 BZ #883913 - read link status on driver startup.
+BZ #878442 - Interrupt handlers refactored, Interrupt timestamping made debug only feature
 
 Date    29 Nov 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
