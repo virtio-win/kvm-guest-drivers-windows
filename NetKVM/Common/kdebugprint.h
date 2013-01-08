@@ -39,7 +39,9 @@ void _LogOutString(int level, const char *s);
 #define WPP_INIT_TRACING(a,b)
 #define WPP_CLEANUP(a)
 
-#define DPrintf(Level, Fmt) { if ((Level) > nDebugLevel || !bDebugPrint ) {} else { pDebugPrint Fmt; } }
+#define MAX_DEBUG_LEVEL 1
+
+#define DPrintf(Level, Fmt) { if ( (Level) > MAX_DEBUG_LEVEL || (Level) > nDebugLevel || !bDebugPrint ) {} else { pDebugPrint Fmt; } }
 
 #define DPrintfBypass(Level, Fmt) DPrintf(Level, Fmt)
 

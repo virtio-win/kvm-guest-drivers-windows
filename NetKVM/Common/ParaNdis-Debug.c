@@ -19,7 +19,7 @@
 #include "ParaNdis-Debug.tmh"
 #endif
 
-int nDebugLevel = 2;
+int nDebugLevel = 1;
 int bDebugPrint = 1;
 
 static NDIS_SPIN_LOCK CrashLock;
