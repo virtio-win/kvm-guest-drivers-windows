@@ -1,6 +1,6 @@
 @echo off
 
-if "%DDKVER%"=="" set DDKVER=7600.16385.0
+if "%DDKVER%"=="" set DDKVER=7600.16385.1
 set BUILDROOT=C:\WINDDK\%DDKVER%
 
 if "%_BUILD_MAJOR_VERSION_%"=="" set _BUILD_MAJOR_VERSION_=101

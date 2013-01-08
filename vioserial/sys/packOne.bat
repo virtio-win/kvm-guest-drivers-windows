@@ -19,7 +19,7 @@ rem echo wrong parameters (1)%1 (2)%2 (3)%3
 goto :eof
 
 :makeinstall
-if "%DDKVER%"=="" set DDKVER=7600.16385.0
+if "%DDKVER%"=="" set DDKVER=7600.16385.1
 set BUILDROOT=C:\WINDDK\%DDKVER%
 
 set INST_OS=%1
