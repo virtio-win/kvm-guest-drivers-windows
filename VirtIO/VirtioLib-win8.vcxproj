@@ -33,8 +33,8 @@
     <SolutionDir Condition="'$(SolutionDir)'==''">$(ProjectDir)</SolutionDir>
     <IntDir Condition="'$(Platform)' == 'Win32'">objfre_win8_x86\i386\</IntDir>
     <IntDir Condition="'$(Platform)' != 'Win32'">objfre_win8_amd64\amd64\</IntDir>
-    <OutDir Condition="'$(SolutionDir)' != '' AND '$(Platform)' == 'Win32'">objfre_win8_x86\i386\</OutDir>
-    <OutDir Condition="'$(SolutionDir)' != '' AND '$(Platform)' != 'Win32'">objfre_win8_amd64\amd64\</OutDir>
+    <OutDir Condition="'$(Platform)' == 'Win32'">objfre_win8_x86\i386\</OutDir>
+    <OutDir Condition="'$(Platform)' != 'Win32'">objfre_win8_amd64\amd64\</OutDir>
     <OutDir Condition="'$(SolutionDir)' == ''">$(IntDir)</OutDir>
   </PropertyGroup>
   <PropertyGroup Label="Globals">
