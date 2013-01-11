@@ -115,6 +115,7 @@
       <Architecture Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">x86</Architecture>
       <KmdfVersionNumber Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" />
       <UmdfVersionNumber Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" />
+      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">$(STAMPINF_VERSION)</TimeStamp>
     </Inf>
     <PostBuildEvent>
       <Command Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
@@ -129,10 +130,10 @@
       </Command>
     </PostBuildEvent>
     <Inf>
+      <EnableVerbose Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">false</EnableVerbose>
       <KmdfVersionNumber Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" />
-    </Inf>
-    <Inf>
       <UmdfVersionNumber Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" />
+      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">$(STAMPINF_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemGroup>

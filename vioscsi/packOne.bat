@@ -61,11 +61,13 @@ rem if /i "%1"=="wxp" goto create_xp
 goto error_inf2cat
 
 :create_vista
+setlocal
 if /i "%2"=="x86" set _OSMASK_=Vista_X86,Server2008_X86,7_X86
 if /i "%2"=="x64" set _OSMASK_=Vista_X64,Server2008_X64,7_X64,Server2008R2_X64
 goto run_inf2cat
 
 :create_wnet
+setlocal
 if /i "%2"=="x86" set _OSMASK_=Server2003_X86
 if /i "%2"=="x64" set _OSMASK_=Server2003_X64
 goto run_inf2cat
@@ -77,9 +79,12 @@ rem goto run_inf2cat
 
 :create_win8
 setlocal
+if not exist %DVL_PATH_AND_NAME% goto do_the_job
+if /i "%2"=="x64" copy /Y %DVL_PATH_AND_NAME% .\Install\%INST_OS%\%INST_ARC%\
+goto after_inf2cat
+:do_the_job
 if /i "%2"=="x86" set _OSMASK_=8_X86
 if /i "%2"=="x64" set _OSMASK_=8_X64,Server8_X64
-rem if /i "%2"=="x64" copy /Y %DVL_PATH_AND_NAME% .\Install\%INST_OS%\%INST_ARC%\
 call "C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\vcvarsall.bat" %INST_ARC%
 goto run_inf2cat
 

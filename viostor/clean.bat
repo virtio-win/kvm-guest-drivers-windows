@@ -13,6 +13,8 @@ rmdir /S /Q objfre_win8_x86
 rmdir /S /Q objfre_win8_amd64
 rmdir /S /Q .\sdv
 
-del /F *.log *.wrn *.err
-
+del /F *.log *.wrn *.err *.sdf
+del viostor-2012.h
+del viostor.dvl.xml
+del sdv-map.h
 
