@@ -1,152 +1,135 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Win8 Debug|Win32">
-      <Configuration>Win8 Debug</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Win8 Release|Win32">
       <Configuration>Win8 Release</Configuration>
       <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8 Debug|x64">
-      <Configuration>Win8 Debug</Configuration>
-      <Platform>x64</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win8 Release|x64">
       <Configuration>Win8 Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{1530C86E-90C0-4270-B3A2-0FB90152CA48}</ProjectGuid>
+    <TemplateGuid>{dd38f7fc-d7bd-488b-9242-7d8754cde80d}</TemplateGuid>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <MinimumVisualStudioVersion>11.0</MinimumVisualStudioVersion>
+    <Configuration>Win8 Debug</Configuration>
+    <Platform Condition="'$(Platform)' == ''">Win32</Platform>
+  </PropertyGroup>
+  <PropertyGroup Label="Globals">
+    <RootNamespace>vioscsi</RootNamespace>
+    <VCTargetsPath Condition="'$(VCTargetsPath11)' != '' and '$(VisualStudioVersion)' == '11.0'">$(VCTargetsPath11)</VCTargetsPath>
+  </PropertyGroup>
   <PropertyGroup Label="PropertySheets">
-    <DriverType>Miniport</DriverType>
     <PlatformToolset>WindowsKernelModeDriver8.0</PlatformToolset>
     <ConfigurationType>Driver</ConfigurationType>
-  </PropertyGroup>
-  <PropertyGroup Label="Globals">
-    <VCTargetsPath Condition="'$(VCTargetsPath11)' != '' and '$(VisualStudioVersion)' == '11.0'">$(VCTargetsPath11)</VCTargetsPath>
-    <Configuration>Win8 beta Debug</Configuration>
-    <Platform Condition="'$(Platform)' == ''">Win32</Platform>
-    <ConfigurationName>$(Configuration.Replace(' ',''))</ConfigurationName>
-    <ProjectDir Condition=" '$(ProjectDir)' == '' ">$(MSBuildProjectDirectory)\</ProjectDir>
-    <SolutionDir Condition="'$(SolutionDir)'==''">$(ProjectDir)</SolutionDir>
-    <IntDir Condition="'$(Platform)' == 'Win32'">objfre_win8_x86\i386\</IntDir>
-    <IntDir Condition="'$(Platform)' != 'Win32'">objfre_win8_amd64\amd64\</IntDir>
-    <OutDir Condition="'$(Platform)' == 'Win32'">objfre_win8_x86\i386\</OutDir>
-    <OutDir Condition="'$(Platform)' != 'Win32'">objfre_win8_amd64\amd64\</OutDir>
-    <DebuggerFlavor Condition="'$(PlatformToolset)' == 'WindowsKernelModeDriver8.0'">DbgengKernelDebugger</DebuggerFlavor>
-    <DebuggerFlavor Condition="'$(PlatformToolset)' == 'WindowsUserModeDriver8.0'">DbgengRemoteDebugger</DebuggerFlavor>
-    <SampleGuid>{194D77B8-08A6-410A-9EA4-EC4467273630}</SampleGuid>
+    <DriverType>Miniport</DriverType>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Label="Globals">
-    <ProjectGuid>{DC80809E-4FE6-4D32-988C-AF449F532E84}</ProjectGuid>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
-    <TargetVersion>Win8</TargetVersion>
-    <UseDebugLibraries>True</UseDebugLibraries>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-    <TargetVersion>Win8</TargetVersion>
-    <UseDebugLibraries>False</UseDebugLibraries>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" Label="Configuration">
+    <TargetVersion>Windows8</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
   </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
-    <TargetVersion>Win8</TargetVersion>
-    <UseDebugLibraries>True</UseDebugLibraries>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-    <TargetVersion>Win8</TargetVersion>
-    <UseDebugLibraries>False</UseDebugLibraries>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" Label="Configuration">
+    <TargetVersion>Windows8</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" />
+  <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" />
-  </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" />
-  </ImportGroup>
-  <PropertyGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
+    <OutDir>objfre_win8_x86\i386\</OutDir>
+    <IntDir>objfre_win8_x86\i386\</IntDir>
     <TargetName>vioscsi</TargetName>
   </PropertyGroup>
-  <ItemDefinitionGroup>
+  <PropertyGroup>
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+    <TargetName>vioscsi</TargetName>
+    <OutDir>objfre_win8_amd64\amd64\</OutDir>
+    <IntDir>objfre_win8_amd64\amd64\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <ClCompile>
-      <AdditionalOptions>%(AdditionalOptions)  /Ob1</AdditionalOptions>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..\VirtIO</AdditionalIncludeDirectories>
-      <ExceptionHandling>
-      </ExceptionHandling>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\VirtIO</AdditionalIncludeDirectories>
     </ClCompile>
-    <ResourceCompile>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..\inc</AdditionalIncludeDirectories>
-    </ResourceCompile>
-    <Midl>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..\inc</AdditionalIncludeDirectories>
-    </Midl>
-    <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
-    </Link>
-    <Inf2Cat>
-    </Inf2Cat>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">_X86_=1;i386=1;STD_CALL;INDIRECT_SUPPORTED=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">_X86_=1;i386=1;STD_CALL;INDIRECT_SUPPORTED=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">_WIN64;_AMD64_;AMD64;INDIRECT_SUPPORTED=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">4603;4627;4986;4987;4996;6387;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">4603;4627;4986;4987;4996;6387;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <PreprocessorDefinitions>_X86_=1;i386=1;STD_CALL;INDIRECT_SUPPORTED=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">..\VirtIO\objfre_win8_amd64\amd64\</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_x86\i386\</AdditionalLibraryDirectories>
     </Link>
-    <Link>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">..\VirtIO\objfre_win8_x86\i386\</AdditionalLibraryDirectories>
-    </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(SDK_INC_PATH);%(AdditionalIncludeDirectories);..\Inc\</AdditionalIncludeDirectories>
+    </ResourceCompile>
     <Inf>
-      <EnableVerbose Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">false</EnableVerbose>
-      <Architecture Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">x86</Architecture>
-      <KmdfVersionNumber Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" />
-      <UmdfVersionNumber Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" />
-      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">$(STAMPINF_VERSION)</TimeStamp>
+      <DriverVersionSectionName>
+      </DriverVersionSectionName>
     </Inf>
-    <PostBuildEvent>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-      </Command>
-    </PostBuildEvent>
-    <PostBuildEvent>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
-      </Command>
-    </PostBuildEvent>
-    <PostBuildEvent>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-      </Command>
-    </PostBuildEvent>
     <Inf>
-      <EnableVerbose Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">false</EnableVerbose>
-      <KmdfVersionNumber Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" />
-      <UmdfVersionNumber Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" />
-      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">$(STAMPINF_VERSION)</TimeStamp>
+      <KmdfVersionNumber />
+    </Inf>
+    <Inf>
+      <UmdfVersionNumber />
+      <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
+    </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\VirtIO</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;INDIRECT_SUPPORTED=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_amd64\amd64\</AdditionalLibraryDirectories>
+    </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(SDK_INC_PATH);%(AdditionalIncludeDirectories);..\Inc\</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Inf>
+      <DriverVersionSectionName>
+      </DriverVersionSectionName>
+    </Inf>
+    <Inf>
+      <KmdfVersionNumber />
+    </Inf>
+    <Inf>
+      <UmdfVersionNumber />
+      <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <Inf Exclude="@(Inf)" Include="*.inf" />
-    <FilesToPackage Include="$(TargetPath)" />
     <Inf Include="vioscsi.inx" />
   </ItemGroup>
   <ItemGroup>
-    <None Exclude="@(None)" Include="*.txt;*.htm;*.html" />
-    <None Exclude="@(None)" Include="*.ico;*.cur;*.bmp;*.dlg;*.rct;*.gif;*.jpg;*.jpeg;*.wav;*.jpe;*.tiff;*.tif;*.png;*.rc2" />
+    <FilesToPackage Include="$(TargetPath)" />
+    <FilesToPackage Include="@(Inf->'%(CopyOutput)')" Condition="'@(Inf)'!=''" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Exclude="@(ClInclude)" Include="*.h;*.hpp;*.hxx;*.hm;*.inl;*.xsd" />
+    <ClInclude Include="helper.h" />
+    <ClInclude Include="utils.h" />
+    <ClInclude Include="vioscsi.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="vioscsi.rc" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="helper.c" />
@@ -154,8 +137,7 @@
     <ClCompile Include="vioscsi.c" />
     <ClCompile Include="virtio_pci.c" />
   </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="vioscsi.rc" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
 </Project>
