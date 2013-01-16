@@ -17,9 +17,6 @@ popd
 
 call :prepare_version
 set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_% 
-if exist ..\..\Tools\xdate.exe ..\..\Tools\xdate.exe -u > timestamp.txt
-if exist timestamp.txt set /p STAMPINF_DATE= < timestamp.txt
-del timestamp.txt    
 
 build -cZg
 
@@ -36,7 +33,19 @@ call :BuildWin8 "Win8 Release|x64" buildfre_win8_amd64.log
 goto :eof
 
 :BuildWin8
+setlocal
+if "%_NT_TARGET_VERSION%"=="" set _NT_TARGET_VERSION=0x602
+if "%_BUILD_MAJOR_VERSION_%"=="" set _BUILD_MAJOR_VERSION_=101
+if "%_BUILD_MINOR_VERSION_%"=="" set _BUILD_MINOR_VERSION_=58000
+if "%_RHEL_RELEASE_VERSION_%"=="" set _RHEL_RELEASE_VERSION_=61
+
+set _MAJORVERSION_=%_BUILD_MAJOR_VERSION_%
+set _MINORVERSION_=%_BUILD_MINOR_VERSION_%
+set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% & 255)"
+set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
+set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_%
 call ..\..\tools\callVisualStudio.bat 11 balloon.vcxproj /Rebuild "%~1" /Out %2
+endlocal
 goto :eof
 
 :prepare_version

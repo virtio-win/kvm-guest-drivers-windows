@@ -81,6 +81,9 @@
     <PreBuildEvent>
       <Command Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">BuildOne.bat prepare Win8 $(InfArch)</Command>
     </PreBuildEvent>
+    <Inf>
+      <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
+    </Inf>
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
