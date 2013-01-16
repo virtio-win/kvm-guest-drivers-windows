@@ -1,3 +1,14 @@
+Date    16 Jan 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm71
+
+Fixed bugs:
+
+BZ #759019 - Fix vring_detach_unused_buf function.
+BZ #833671 - Fixed memory leaks on device's surprise removal.
+
+also [balloon/vioserial]fix inf version for Win8.
+
 Date    8 Jan 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm70
