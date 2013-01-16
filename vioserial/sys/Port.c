@@ -11,11 +11,13 @@ EVT_WDF_WORKITEM VIOSerialPortPortReadyWork;
 EVT_WDF_WORKITEM VIOSerialPortSymbolicNameWork;
 EVT_WDF_WORKITEM VIOSerialPortPnpNotifyWork;
 EVT_WDF_REQUEST_CANCEL VIOSerialPortRequestCancel;
+EVT_WDF_DEVICE_D0_EXIT VIOSerialPortEvtDeviceD0Exit;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, VIOSerialDeviceListCreatePdo)
 #pragma alloc_text(PAGE, VIOSerialPortWrite)
 #pragma alloc_text(PAGE, VIOSerialPortDeviceControl)
+#pragma alloc_text(PAGE, VIOSerialPortEvtDeviceD0Exit)
 #endif
 
 PVIOSERIAL_PORT
@@ -327,12 +329,6 @@ VIOSerialShutdownAllPorts(
         }
         ASSERT(childInfo.Status == WdfChildListRetrieveDeviceSuccess);
 
-        if (status == STATUS_NO_SUCH_DEVICE)
-        {
-           status = STATUS_INVALID_PARAMETER;
-           break;
-        }
-
         WdfIoQueuePurge(vport.ReadQueue,
                                  WDF_NO_EVENT_CALLBACK,
                                  WDF_NO_CONTEXT);
@@ -358,7 +354,7 @@ VIOSerialShutdownAllPorts(
         }
     }
     WdfChildListEndIteration(list, &iterator);
-    WdfChildListUpdateAllChildDescriptionsAsPresent(list);
+
     while (buf = (PPORT_BUFFER)VirtIODeviceDetachUnusedBuf(pContext->c_ivq))
     {
        VIOSerialFreeBuffer(buf);
@@ -503,6 +499,7 @@ VIOSerialDeviceListCreatePdo(
     WDFDEVICE                       hChild = NULL;
 
     WDF_OBJECT_ATTRIBUTES           attributes;
+    WDF_PNPPOWER_EVENT_CALLBACKS    PnpPowerCallbacks;
     WDF_DEVICE_PNP_CAPABILITIES     pnpCaps;
     WDF_DEVICE_STATE                deviceState;
     WDF_IO_QUEUE_CONFIG             queueConfig;
@@ -660,6 +657,10 @@ VIOSerialDeviceListCreatePdo(
                                  &fileConfig,
                                  WDF_NO_OBJECT_ATTRIBUTES
                                  );
+
+        WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&PnpPowerCallbacks);
+        PnpPowerCallbacks.EvtDeviceD0Exit = VIOSerialPortEvtDeviceD0Exit;
+        WdfDeviceInitSetPnpPowerEventCallbacks(ChildInit, &PnpPowerCallbacks);
 
         WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, RAWPDO_VIOSERIAL_PORT);
         attributes.SynchronizationScope = WdfSynchronizationScopeDevice;
@@ -1561,4 +1562,24 @@ VIOSerialPortIoStop(
     }
     WdfSpinLockRelease(pport->InBufLock);
     return;
+}
+
+NTSTATUS
+VIOSerialPortEvtDeviceD0Exit(
+    IN  WDFDEVICE Device,
+    IN  WDF_POWER_DEVICE_STATE TargetState
+    )
+{
+    PVIOSERIAL_PORT Port = RawPdoSerialPortGetData(Device)->port;
+    UNREFERENCED_PARAMETER(TargetState);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+
+    PAGED_CODE();
+
+    VIOSerialRemovePort(Port->BusDevice, Port);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
+
+    return STATUS_SUCCESS;
 }
