@@ -490,12 +490,14 @@ void* vring_detach_unused_buf(struct virtqueue *_vq)
 {
 	struct vring_virtqueue *vq = to_vvq(_vq);
 	unsigned int i;
-        void *buf;
+	void *buf;
+
 	for (i = 0; i < vq->vring.num; i++) {
 		if (!vq->data[i])
 			continue;
 		buf = vq->data[i];
 		detach_buf(vq, i);
+		vq->vring.avail->idx--;
 		return buf;
 	}
 	return NULL;
