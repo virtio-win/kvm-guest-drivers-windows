@@ -210,6 +210,7 @@ typedef struct _ADAPTER_EXTENSION {
 
     TMF_COMMAND           tmf_cmd;
     BOOLEAN               tmf_infly;
+    ULONG                 in_fly;
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
 typedef struct vring_desc_alias

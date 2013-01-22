@@ -41,11 +41,14 @@ ENTER_FN();
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
-        adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
+        if(++adaptExt->in_fly < 3) {
+           adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
+        }
         return TRUE;
     }
     Srb->SrbStatus = SRB_STATUS_BUSY;
-    StorPortBusy(DeviceExtension, adaptExt->queue_depth);
+    StorPortBusy(DeviceExtension, 2);
+    adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
 EXIT_ERR();
     return FALSE;
 }

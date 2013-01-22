@@ -185,6 +185,7 @@ ENTER_FN();
     ConfigInfo->Dma32BitAddresses           = TRUE;
     ConfigInfo->Dma64BitAddresses           = TRUE;
     ConfigInfo->WmiDataProvider             = FALSE;
+    ConfigInfo->AlignmentMask               = 0x3;
     ConfigInfo->MapBuffers                  = STOR_MAP_NON_READ_WRITE_BUFFERS;
     ConfigInfo->SynchronizationModel        = StorSynchronizeFullDuplex;
 
@@ -423,7 +424,11 @@ VioScsiInterrupt(
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
+           --adaptExt->in_fly; 
            CompleteRequest(DeviceExtension, Srb);
+        }
+        if (adaptExt->in_fly > 0) {
+           adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
         }
         if (adaptExt->tmf_infly) {
            while((cmd = (PVirtIOSCSICmd)adaptExt->vq[0]->vq_ops->get_buf(adaptExt->vq[0], &len)) != NULL) {
