@@ -1,3 +1,10 @@
+Date    22 Jan 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm72
+
+experiental:
+viostor/vioscsi - some performance improvements.
+
 Date    16 Jan 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm71
