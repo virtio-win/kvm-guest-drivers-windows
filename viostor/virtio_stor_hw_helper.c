@@ -56,9 +56,19 @@ SynchronizedFlushRoutine(
                      &srbExt->vbr.sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->vbr, va, pa) >= 0) {
-        adaptExt->vq->vq_ops->kick(adaptExt->vq);
+#ifdef USE_STORPORT
+        if(++adaptExt->in_fly < 3) {
+#endif
+           adaptExt->vq->vq_ops->kick(adaptExt->vq);
+#ifdef USE_STORPORT
+        }
+#endif
         return TRUE;
     }
+    adaptExt->vq->vq_ops->kick(adaptExt->vq);
+#ifdef USE_STORPORT
+    StorPortBusy(DeviceExtension, 2);
+#endif
     return FALSE;
 }
 
@@ -102,10 +112,17 @@ SynchronizedReadWriteRoutine(
                      srbExt->out, srbExt->in,
                      &srbExt->vbr, va, pa) >= 0){
         InsertTailList(&adaptExt->list_head, &srbExt->vbr.list_entry);
-        adaptExt->vq->vq_ops->kick(adaptExt->vq);
+#ifdef USE_STORPORT
+        if(++adaptExt->in_fly < 3) {
+#endif
+           adaptExt->vq->vq_ops->kick(adaptExt->vq);
+#ifdef USE_STORPORT
+        }
+#endif
         return TRUE;
     }
-    StorPortBusy(DeviceExtension, 5);
+    adaptExt->vq->vq_ops->kick(adaptExt->vq);
+    StorPortBusy(DeviceExtension, 2);
     return FALSE;
 }
 

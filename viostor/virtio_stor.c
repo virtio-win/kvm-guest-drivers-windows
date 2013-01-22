@@ -254,6 +254,7 @@ VirtIoFindAdapter(
     ConfigInfo->Dma32BitAddresses      = TRUE;
     ConfigInfo->Dma64BitAddresses      = TRUE;
     ConfigInfo->WmiDataProvider        = FALSE;
+    ConfigInfo->AlignmentMask          = 0x3;
 #ifdef USE_STORPORT
     ConfigInfo->MapBuffers             = STOR_MAP_NON_READ_WRITE_BUFFERS;
     ConfigInfo->SynchronizationModel   = StorSynchronizeFullDuplex;
@@ -326,6 +327,7 @@ VirtIoFindAdapter(
     }
 
     VirtIODeviceInitialize(&adaptExt->vdev, deviceBase, sizeof(adaptExt->vdev));
+    VirtIODeviceAddStatus(&adaptExt->vdev, VIRTIO_CONFIG_S_DRIVER);
     adaptExt->msix_enabled = FALSE;
 
 #ifdef MSI_SUPPORTED
@@ -385,6 +387,7 @@ VirtIoFindAdapter(
 #endif
 
     VirtIODeviceReset(&adaptExt->vdev);
+    VirtIODeviceAddStatus(&adaptExt->vdev, VIRTIO_CONFIG_S_ACKNOWLEDGE);
     WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_SEL, (USHORT)0);
     if (adaptExt->dump_mode) {
         WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_PFN, (USHORT)0);
@@ -536,6 +539,7 @@ VirtIoHwInitialize(
                 __LINE__);
 
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Cannot find snd virtual queue\n"));
+        VirtIODeviceAddStatus(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
         return ret;
     }
 
@@ -568,9 +572,10 @@ VirtIoHwInitialize(
     }
 #endif
 
-    if (ret)
-    {
+    if (ret) {
         VirtIODeviceAddStatus(&adaptExt->vdev, VIRTIO_CONFIG_S_DRIVER_OK);
+    } else {
+        VirtIODeviceAddStatus(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
     }
 
     return ret;
@@ -739,10 +744,16 @@ VirtIoInterrupt(
               }
            }
            if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
+#ifdef USE_STORPORT
+              --adaptExt->in_fly;
+#endif
               CompleteSRB(DeviceExtension, Srb);
            } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
               adaptExt->sn_ok = TRUE;
            } else if (Srb) {
+#ifdef USE_STORPORT
+              --adaptExt->in_fly;
+#endif
               CompleteDPC(DeviceExtension, vbr, 0);
            }
         }
@@ -752,6 +763,11 @@ VirtIoInterrupt(
         ScsiPortNotification( BusChangeDetected, DeviceExtension, 0);
         isInterruptServiced = TRUE;
     }
+#ifdef USE_STORPORT
+    if (adaptExt->in_fly > 0) {
+        adaptExt->vq->vq_ops->kick(adaptExt->vq);
+    }
+#endif
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s isInterruptServiced = %d\n", __FUNCTION__, isInterruptServiced));
     return isInterruptServiced;
 }
@@ -951,13 +967,18 @@ VirtIoMSInterruptRoutine (
            }
         }
         if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
+            --adaptExt->in_fly;
             CompleteSRB(DeviceExtension, Srb);
         } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
             adaptExt->sn_ok = TRUE;
         } else if (Srb) {
+            --adaptExt->in_fly;
             CompleteDPC(DeviceExtension, vbr, MessageID);
         }
         isInterruptServiced = TRUE;
+    }
+    if (adaptExt->in_fly > 0) {
+        adaptExt->vq->vq_ops->kick(adaptExt->vq);
     }
     return isInterruptServiced;
 }
