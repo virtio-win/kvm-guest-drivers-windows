@@ -927,11 +927,13 @@ static void InitializeTransferParameters(tTxOperationParameters *pParams, tSendE
 	pParams->flags = flags;
 }
 
-VOID ParaNdis_ProcessTx(
+BOOLEAN ParaNdis_ProcessTx(
 	PARANDIS_ADAPTER *pContext,
-	BOOLEAN IsDpc)
+	BOOLEAN IsDpc,
+	BOOLEAN IsInterrupt)
 {
 	LIST_ENTRY DoneList;
+	BOOLEAN bDoKick = FALSE;
 	UINT nBuffersSent = 0, nBytesSent = 0;
 	BOOLEAN	bDataAvailable = FALSE;
 	tSendEntry *pEntry;
@@ -999,11 +1001,18 @@ VOID ParaNdis_ProcessTx(
 
 	if (nBuffersSent)
 	{
+		if(IsInterrupt)
+		{
+			bDoKick = TRUE;
+		}
+		else
+		{
 #ifdef PARANDIS_TEST_TX_KICK_ALWAYS
-		pContext->NetSendQueue->vq_ops->kick_always(pContext->NetSendQueue);
+			pContext->NetSendQueue->vq_ops->kick_always(pContext->NetSendQueue);
 #else
-		pContext->NetSendQueue->vq_ops->kick(pContext->NetSendQueue);
+			pContext->NetSendQueue->vq_ops->kick(pContext->NetSendQueue);
 #endif
+		}
 		DPrintf(2, ("[%s] sent down %d p.(%d b.)", __FUNCTION__, nBuffersSent, nBytesSent));
 	}
 	else if (bDataAvailable)
@@ -1042,6 +1051,8 @@ VOID ParaNdis_ProcessTx(
 		NdisFreeMemory(pEntry, 0, 0);
 	}
 	if (CallbackToCall) CallbackToCall(pContext);
+
+	return bDoKick;
 }
 
 /**********************************************************
@@ -1262,7 +1273,7 @@ VOID ParaNdis5_SendPackets(IN NDIS_HANDLE MiniportAdapterContext,
 			DPrintf(1, ("[%s] packet of %d rejected", __FUNCTION__, uPacketLength));
 		}
 	}
-	ParaNdis_ProcessTx(pContext, FALSE);
+	ParaNdis_ProcessTx(pContext, FALSE, FALSE);
 }
 
 /**********************************************************

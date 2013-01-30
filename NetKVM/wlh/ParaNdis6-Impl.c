@@ -1933,7 +1933,7 @@ VOID ProcessSGListHandler(
 			}
 			NdisReleaseSpinLock(&pContext->SendLock);
 			// start sending. we are on DPC
-			ParaNdis_ProcessTx(pContext, TRUE);
+			ParaNdis_ProcessTx(pContext, TRUE, FALSE);
 		}
 		else
 		{
@@ -2102,11 +2102,12 @@ Parameters:
 	BOOLEAN IsDpc				NDIS wants it
 	BOOLEAN bFromInterrupt		FALSE when called during Send operation
 ***********************************************************/
-VOID ParaNdis_ProcessTx(PARANDIS_ADAPTER *pContext, BOOLEAN IsDpc)
+BOOLEAN ParaNdis_ProcessTx(PARANDIS_ADAPTER *pContext, BOOLEAN IsDpc, BOOLEAN IsInterrupt)
 {
 	PNET_BUFFER_LIST pNBLFailNow = NULL, pNBLReturnNow = NULL;
 	ONPAUSECOMPLETEPROC CallbackToCall = NULL;
 	NDIS_STATUS status = NDIS_STATUS_FAILURE;
+	BOOLEAN bDoKick = FALSE;
 
 	NdisAcquireSpinLock(&pContext->SendLock);
 	ParaNdis_DebugHistory(pContext, hopTxProcess, NULL, 1, pContext->nofFreeHardwareBuffers, pContext->nofFreeTxDescriptors);
@@ -2223,11 +2224,18 @@ VOID ParaNdis_ProcessTx(PARANDIS_ADAPTER *pContext, BOOLEAN IsDpc)
 		pContext->SendTail = GetTail(pContext->SendHead);
 		if (nBuffersSent)
 		{
+			if(IsInterrupt)
+			{
+				bDoKick = TRUE;
+			}
+			else
+			{
 #ifdef PARANDIS_TEST_TX_KICK_ALWAYS
-			pContext->NetSendQueue->vq_ops->kick_always(pContext->NetSendQueue);
+				pContext->NetSendQueue->vq_ops->kick_always(pContext->NetSendQueue);
 #else
-			pContext->NetSendQueue->vq_ops->kick(pContext->NetSendQueue);
+				pContext->NetSendQueue->vq_ops->kick(pContext->NetSendQueue);
 #endif
+			}
 			DPrintf(2, ("[%s] sent down %d p.(%d b.)", __FUNCTION__, nBuffersSent, nBytesSent));
 		}
 	}
@@ -2289,6 +2297,8 @@ VOID ParaNdis_ProcessTx(PARANDIS_ADAPTER *pContext, BOOLEAN IsDpc)
 		ParaNdis_DebugHistory(pContext, hopInternalSendPause, NULL, 0, 0, 0);
 		CallbackToCall(pContext);
 	}
+
+	return bDoKick;
 }
 
 /**********************************************************
