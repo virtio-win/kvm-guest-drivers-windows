@@ -730,9 +730,10 @@ tCopyPacketResult ParaNdis_PacketCopier(
 	PVOID refValue,
 	BOOLEAN bPreview);
 
-VOID ParaNdis_ProcessTx(
+BOOLEAN ParaNdis_ProcessTx(
 	PARANDIS_ADAPTER *pContext,
-	BOOLEAN IsDpc);
+	BOOLEAN IsDpc,
+	BOOLEAN IsInterrupt);
 
 BOOLEAN ParaNdis_SetTimer(
 	NDIS_HANDLE timer,

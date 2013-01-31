@@ -2146,6 +2146,8 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
 		InterlockedIncrement(&pContext->counterDPCInside);
 		if (pContext->bEnableInterruptHandlingDPC)
 		{
+			BOOLEAN bDoKick = FALSE;
+
 			InterlockedExchange(&pContext->bDPCInactive, 0);
 			interruptSources = InterlockedExchange(&pContext->InterruptStatus, 0);
 			ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)1, interruptSources, 0, 0);
@@ -2155,7 +2157,7 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
 			}
 			if (interruptSources & isTransmit)
 			{
-				ParaNdis_ProcessTx(pContext, TRUE);
+				bDoKick = ParaNdis_ProcessTx(pContext, TRUE, TRUE);
 			}
 			if (interruptSources & isReceive)
 			{
@@ -2215,6 +2217,14 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
 				NdisAcquireSpinLock(&pContext->SendLock);
 				if (ParaNdis_SynchronizeWithInterrupt(pContext, pContext->ulTxMessage, RestartQueueSynchronously, pContext->NetSendQueue))
 					stillRequiresProcessing |= isTransmit;
+				if(bDoKick)
+				{
+#ifdef PARANDIS_TEST_TX_KICK_ALWAYS
+					pContext->NetSendQueue->vq_ops->kick_always(pContext->NetSendQueue);
+#else
+					pContext->NetSendQueue->vq_ops->kick(pContext->NetSendQueue);
+#endif
+				}
 				NdisReleaseSpinLock(&pContext->SendLock);
 			}
 		}
