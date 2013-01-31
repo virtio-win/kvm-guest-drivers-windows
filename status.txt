@@ -1,9 +1,11 @@
-Date    22 Jan 2013
+Date    31 Jan 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
-tag     mm72
+tag     mm73
 
-experiental:
-viostor/vioscsi - some performance improvements.
+Fixed bugs:
+
+BZ #902150 - Fix guest failure to add port after resume from s3/s4.
+BZ #904028 - Windows 2012 got BSOD while running job 1091NDISTest 6.0 - [1 Machine] - 1c_Mini6Send on HCK.
 
 Date    16 Jan 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
