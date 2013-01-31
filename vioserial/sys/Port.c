@@ -11,13 +11,14 @@ EVT_WDF_WORKITEM VIOSerialPortPortReadyWork;
 EVT_WDF_WORKITEM VIOSerialPortSymbolicNameWork;
 EVT_WDF_WORKITEM VIOSerialPortPnpNotifyWork;
 EVT_WDF_REQUEST_CANCEL VIOSerialPortRequestCancel;
+EVT_WDF_DEVICE_D0_EXIT_PRE_INTERRUPTS_DISABLED VIOSerialPortEvtDeviceD0ExitPreInterruptsDisabled;
 EVT_WDF_DEVICE_D0_EXIT VIOSerialPortEvtDeviceD0Exit;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, VIOSerialDeviceListCreatePdo)
 #pragma alloc_text(PAGE, VIOSerialPortWrite)
 #pragma alloc_text(PAGE, VIOSerialPortDeviceControl)
-#pragma alloc_text(PAGE, VIOSerialPortEvtDeviceD0Exit)
+#pragma alloc_text(PAGE, VIOSerialPortEvtDeviceD0ExitPreInterruptsDisabled)
 #endif
 
 PVIOSERIAL_PORT
@@ -127,91 +128,27 @@ VIOSerialAddPort(
 VOID
 VIOSerialRemovePort(
     IN WDFDEVICE Device,
-    IN PVIOSERIAL_PORT port
+    IN PVIOSERIAL_PORT Port
 )
 {
-    PPORT_BUFFER    buf;
-    NTSTATUS        status = STATUS_SUCCESS;
-    WDFCHILDLIST    list;
-    WDF_CHILD_LIST_ITERATOR     iterator;
+    WDFCHILDLIST PortList;
+    NTSTATUS status;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s  port = %d\n", __FUNCTION__, port->PortId);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
+        "--> %s DeviceId: %d PortId: %d\n",
+        __FUNCTION__, Port->DeviceId, Port->PortId);
 
-    list = WdfFdoGetDefaultChildList(Device);
-    WDF_CHILD_LIST_ITERATOR_INIT(&iterator,
-                                 WdfRetrievePresentChildren );
+    PortList = WdfFdoGetDefaultChildList(Device);
 
-    WdfChildListBeginIteration(list, &iterator);
+    status = WdfChildListUpdateChildDescriptionAsMissing(PortList,
+        &Port->Header);
 
-    for (;;)
+    if (status == STATUS_NO_SUCH_DEVICE)
     {
-        WDF_CHILD_RETRIEVE_INFO  childInfo;
-        VIOSERIAL_PORT           vport;
-        WDFDEVICE                hChild;
-        PRAWPDO_VIOSERIAL_PORT   rawPdo = NULL;
-
-        WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(
-                                 &vport.Header,
-                                 sizeof(vport)
-                                 );
-        WDF_CHILD_RETRIEVE_INFO_INIT(&childInfo, &vport.Header);
-
-        status = WdfChildListRetrieveNextDevice(
-                                 list,
-                                 &iterator,
-                                 &hChild,
-                                 &childInfo
-                                 );
-        if (!NT_SUCCESS(status) || status == STATUS_NO_MORE_ENTRIES)
-        {
-            break;
-        }
-        ASSERT(childInfo.Status == WdfChildListRetrieveDeviceSuccess);
-
-        if ((vport.PortId == port->PortId) &&
-            (vport.DeviceId == port->DeviceId))
-        {
-           status = WdfChildListUpdateChildDescriptionAsMissing(
-                                 list,
-                                 &vport.Header
-                                 );
-
-           if (status == STATUS_NO_SUCH_DEVICE)
-           {
-              status = STATUS_INVALID_PARAMETER;
-              break;
-           }
-           rawPdo = RawPdoSerialPortGetData(hChild);
-           rawPdo->port->Removed = TRUE;
-           WdfIoQueuePurge(port->ReadQueue,
-                                 WDF_NO_EVENT_CALLBACK,
-                                 WDF_NO_CONTEXT);
-           WdfIoQueuePurge(port->WriteQueue,
-                                 WDF_NO_EVENT_CALLBACK,
-                                 WDF_NO_CONTEXT);
-           WdfIoQueuePurge(port->IoctlQueue,
-                                 WDF_NO_EVENT_CALLBACK,
-                                 WDF_NO_CONTEXT);
-           VIOSerialDisableInterruptQueue(GetInQueue(&vport));
-
-           WdfSpinLockAcquire(vport.InBufLock);
-           VIOSerialDiscardPortDataLocked(&vport);
-           WdfSpinLockRelease(vport.InBufLock);
-           WdfSpinLockAcquire(vport.OutVqLock);
-           VIOSerialReclaimConsumedBuffers(&vport);
-           WdfSpinLockRelease(vport.OutVqLock);
-           while (buf = (PPORT_BUFFER)VirtIODeviceDetachUnusedBuf(GetInQueue(&vport)))
-           {
-              VIOSerialFreeBuffer(buf);
-           }
-        }
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+            "A device which does not exist was specified.\n", status);
     }
-    WdfChildListEndIteration(list, &iterator);
 
-    if (status != STATUS_NO_MORE_ENTRIES)
-    {
-        ASSERT(0);
-    }
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 }
 
@@ -659,6 +596,7 @@ VIOSerialDeviceListCreatePdo(
                                  );
 
         WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&PnpPowerCallbacks);
+        PnpPowerCallbacks.EvtDeviceD0ExitPreInterruptsDisabled = VIOSerialPortEvtDeviceD0ExitPreInterruptsDisabled;
         PnpPowerCallbacks.EvtDeviceD0Exit = VIOSerialPortEvtDeviceD0Exit;
         WdfDeviceInitSetPnpPowerEventCallbacks(ChildInit, &PnpPowerCallbacks);
 
@@ -1565,19 +1503,63 @@ VIOSerialPortIoStop(
 }
 
 NTSTATUS
+VIOSerialPortEvtDeviceD0ExitPreInterruptsDisabled(
+    IN WDFDEVICE Device,
+    IN WDF_POWER_DEVICE_STATE TargetState
+    )
+{
+    PVIOSERIAL_PORT Port = RawPdoSerialPortGetData(Device)->port;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+
+    PAGED_CODE();
+
+    if (Port->GuestConnected && !Port->Removed)
+    {
+        VIOSerialSendCtrlMsg(Port->BusDevice, Port->PortId,
+            VIRTIO_CONSOLE_PORT_OPEN, 0);
+
+        Port->GuestConnected = FALSE;
+    }
+
+    Port->Removed = (TargetState == WdfPowerDeviceD3Final);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
 VIOSerialPortEvtDeviceD0Exit(
     IN  WDFDEVICE Device,
     IN  WDF_POWER_DEVICE_STATE TargetState
     )
 {
     PVIOSERIAL_PORT Port = RawPdoSerialPortGetData(Device)->port;
+    PPORT_BUFFER buf;
+
     UNREFERENCED_PARAMETER(TargetState);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
-    PAGED_CODE();
+    WdfIoQueuePurge(Port->ReadQueue, WDF_NO_EVENT_CALLBACK, WDF_NO_CONTEXT);
+    WdfIoQueuePurge(Port->WriteQueue, WDF_NO_EVENT_CALLBACK, WDF_NO_CONTEXT);
+    WdfIoQueuePurge(Port->IoctlQueue, WDF_NO_EVENT_CALLBACK, WDF_NO_CONTEXT);
 
-    VIOSerialRemovePort(Port->BusDevice, Port);
+    VIOSerialDisableInterruptQueue(GetInQueue(Port));
+
+    WdfSpinLockAcquire(Port->InBufLock);
+    VIOSerialDiscardPortDataLocked(Port);
+    WdfSpinLockRelease(Port->InBufLock);
+
+    WdfSpinLockAcquire(Port->OutVqLock);
+    VIOSerialReclaimConsumedBuffers(Port);
+    WdfSpinLockRelease(Port->OutVqLock);
+
+    while (buf = (PPORT_BUFFER)VirtIODeviceDetachUnusedBuf(GetInQueue(Port)))
+    {
+        VIOSerialFreeBuffer(buf);
+    }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
 
