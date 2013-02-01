@@ -62,6 +62,10 @@
 #error "Something is wrong with our versioning"
 #endif
 
+#if NDIS_SUPPORT_NDIS630
+#define PARANDIS_SUPPORT_RSS 1
+#endif
+
 //define to see when the status register is unreadable(see ParaNdis_ResetVirtIONetDevice)
 //#define VIRTIO_RESET_VERIFY
 
@@ -326,6 +330,35 @@ typedef struct _tagIONetDescriptor {
 
 typedef void (*tReuseReceiveBufferProc)(void *pContext, pIONetDescriptor pDescriptor);
 
+#if PARANDIS_SUPPORT_RSS
+
+typedef struct _tagPARANDIS_RSS_PARAMS
+{
+	BOOLEAN IsRSSEnabled;
+	BOOLEAN IsHashingEnabled;
+
+	ULONG  HashInformation;
+
+	CCHAR  HashSecretKey[NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2];
+	USHORT HashSecretKeySize;
+
+	PROCESSOR_NUMBER IndirectionTable[NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2 / sizeof(PROCESSOR_NUMBER)];
+	USHORT           IndirectionTableSize;
+
+	GROUP_AFFINITY ProcessorMasks[NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2 / sizeof(PROCESSOR_NUMBER)];
+	ULONG          NumberOfProcessorMasks;
+
+	USHORT BaseCpuNumber;
+} PARANDIS_RSS_PARAMS;
+
+typedef struct _tagRSS_HASH_KEY_PARAMETERS
+{
+	NDIS_RECEIVE_HASH_PARAMETERS		ReceiveHashParameters;
+	CCHAR								HashSecretKey[NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2];
+} RSS_HASH_KEY_PARAMETERS;
+
+#endif
+
 typedef struct _tagPARANDIS_ADAPTER
 {
 	NDIS_HANDLE				DriverHandle;
@@ -473,6 +506,14 @@ typedef struct _tagPARANDIS_ADAPTER
 	NDIS_OFFLOAD				ReportedOffloadConfiguration;
 	BOOLEAN						bOffloadv4Enabled;
 	BOOLEAN						bOffloadv6Enabled;
+
+#if PARANDIS_SUPPORT_RSS
+	BOOLEAN						bRSSOffloadSupported;
+	NDIS_RECEIVE_SCALE_CAPABILITIES	RSSCapabilities;
+	PARANDIS_RSS_PARAMS			RSSParameters;
+	ULONG						RSSMaxQueuesNumber;
+#endif
+
 #else
 // Vista -
 	NDIS_MINIPORT_INTERRUPT		Interrupt;

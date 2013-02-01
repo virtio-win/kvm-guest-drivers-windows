@@ -115,6 +115,10 @@ typedef struct _tagConfigurationEntries
 	tConfigurationEntry MTU;
 	tConfigurationEntry NumberOfHandledRXPackersInDPC;
 	tConfigurationEntry Indirect;
+#if PARANDIS_SUPPORT_RSS
+	tConfigurationEntry RSSOffloadSupported;
+	tConfigurationEntry NumRSSQueues;
+#endif
 }tConfigurationEntries;
 
 static const tConfigurationEntries defaultConfiguration =
@@ -154,6 +158,10 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "MTU", 1500, 500, 65500},
 	{ "NumberOfHandledRXPackersInDPC", MAX_RX_LOOPS, 1, 10000},
 	{ "Indirect", 0, 0, 2},
+#if PARANDIS_SUPPORT_RSS
+	{ "*RSS", 1, 0, 1},
+	{ "*NumRssQueues", 8, 1, 16},
+#endif
 };
 
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
@@ -305,6 +313,10 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			GetConfigurationEntry(cfg, &pConfiguration->MTU);
 			GetConfigurationEntry(cfg, &pConfiguration->NumberOfHandledRXPackersInDPC);
 			GetConfigurationEntry(cfg, &pConfiguration->Indirect);
+#if PARANDIS_SUPPORT_RSS
+			GetConfigurationEntry(cfg, &pConfiguration->RSSOffloadSupported);
+			GetConfigurationEntry(cfg, &pConfiguration->NumRSSQueues);
+#endif
 
 	#if !defined(WPP_EVENT_TRACING)
 			bDebugPrint = pConfiguration->isLogEnabled.ulValue;
@@ -360,6 +372,10 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->bDoPublishIndices = pConfiguration->PublishIndices.ulValue != 0;
 			pContext->MaxPacketSize.nMaxDataSize = pConfiguration->MTU.ulValue;
 			pContext->bUseIndirect = pConfiguration->Indirect.ulValue != 0;
+#if PARANDIS_SUPPORT_RSS
+			pContext->bRSSOffloadSupported = pConfiguration->RSSOffloadSupported.ulValue ? TRUE : FALSE;
+			pContext->RSSMaxQueuesNumber = pConfiguration->NumRSSQueues.ulValue;
+#endif
 			if (!pContext->bDoSupportPriority)
 				pContext->ulPriorityVlanSetting = 0;
 			// if Vlan not supported

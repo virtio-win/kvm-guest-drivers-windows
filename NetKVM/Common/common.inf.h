@@ -10,6 +10,14 @@
 #define TARGETOS 50
 #endif
 
+#if defined(INCLUDE_CONFIG)
+
+#if TARGETOS >= 62
+#define PARANDIS_SUPPORT_RSS 1
+#endif
+
+#endif
+
 #if TARGETOS >= 60
 #define _LsoV2IPv4
 #define _LsoV2IPv6

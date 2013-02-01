@@ -59,6 +59,178 @@ static NDIS_STATUS OnSetOffloadParameters(PARANDIS_ADAPTER *pContext, tOidDesc *
 static NDIS_STATUS OnSetOffloadEncapsulation(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 static NDIS_STATUS OnSetLinkParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 
+#if PARANDIS_SUPPORT_RSS
+
+static void InitRSSParameters(PARANDIS_ADAPTER *pContext)
+{
+	NdisZeroMemory(&pContext->RSSParameters, sizeof(pContext->RSSParameters));
+	pContext->RSSParameters.HashInformation = 0;
+}
+
+static void InitRSSCapabilities(PARANDIS_ADAPTER *pContext)
+{
+	pContext->RSSCapabilities.Header.Type = NDIS_OBJECT_TYPE_RSS_CAPABILITIES;
+	pContext->RSSCapabilities.Header.Revision = NDIS_RECEIVE_SCALE_CAPABILITIES_REVISION_2;
+	pContext->RSSCapabilities.Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_2;
+	pContext->RSSCapabilities.CapabilitiesFlags =	NDIS_RSS_CAPS_MESSAGE_SIGNALED_INTERRUPTS |
+													NDIS_RSS_CAPS_CLASSIFICATION_AT_ISR |
+													NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4 |
+													NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6 |
+													NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6_EX |
+													NdisHashFunctionToeplitz;
+	pContext->RSSCapabilities.NumberOfInterruptMessages = 1;
+	pContext->RSSCapabilities.NumberOfReceiveQueues = pContext->RSSMaxQueuesNumber;
+	pContext->RSSCapabilities.NumberOfIndirectionTableEntries = ARRAYSIZE(pContext->RSSParameters.IndirectionTable);
+}
+
+NDIS_RECEIVE_SCALE_CAPABILITIES* ParaNdis6_CreateRSSConfiguration(PARANDIS_ADAPTER *pContext)
+{
+	if(pContext->bRSSOffloadSupported)
+	{
+		InitRSSParameters(pContext);
+		InitRSSCapabilities(pContext);
+		return &pContext->RSSCapabilities;
+	}
+
+	return NULL;
+}
+
+static BOOLEAN IsValidHashInfo(ULONG HashInformation)
+{
+#define HASH_FLAGS_COMBINATION(Type, Flags) ( ((Type) & (Flags)) && !((Type) & ~(Flags)) )
+
+	ULONG ulHashType = NDIS_RSS_HASH_TYPE_FROM_HASH_INFO(HashInformation);
+	ULONG ulHashFunction = NDIS_RSS_HASH_FUNC_FROM_HASH_INFO(HashInformation);
+
+	if (HashInformation == 0)
+		return TRUE;
+
+	if (HASH_FLAGS_COMBINATION(ulHashType, NDIS_HASH_IPV4 | NDIS_HASH_TCP_IPV4 |
+										   NDIS_HASH_IPV6 | NDIS_HASH_TCP_IPV6 |
+										   NDIS_HASH_IPV6_EX | NDIS_HASH_TCP_IPV6_EX))
+		return ulHashFunction == NdisHashFunctionToeplitz;
+
+	return FALSE;
+}
+
+static NDIS_STATUS OnSetReceiveScaleParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
+{
+	ULONG ProcessorMasksSize;
+	NDIS_RECEIVE_SCALE_PARAMETERS *pParams = (NDIS_RECEIVE_SCALE_PARAMETERS*) pOid->InformationBuffer;
+
+	if (!pContext->bRSSOffloadSupported)
+		return NDIS_STATUS_NOT_ACCEPTED;
+
+	*pOid->pBytesRead = 0;
+
+	if (pOid->InformationBufferLength < sizeof(NDIS_RECEIVE_SCALE_PARAMETERS))
+		return NDIS_STATUS_INVALID_LENGTH;
+
+	if (!(pParams->Flags & NDIS_RSS_PARAM_FLAG_HASH_INFO_UNCHANGED) &&
+		!IsValidHashInfo(pParams->HashInformation))
+		return NDIS_STATUS_INVALID_PARAMETER;
+
+	if (!(pParams->Flags & NDIS_RSS_PARAM_FLAG_ITABLE_UNCHANGED) &&
+		( (pParams->IndirectionTableSize > sizeof(pContext->RSSParameters.IndirectionTable)) ||
+		  (pOid->InformationBufferLength < (pParams->IndirectionTableOffset + pParams->IndirectionTableSize)) )
+		)
+		return NDIS_STATUS_INVALID_LENGTH;
+
+	if (!(pParams->Flags & NDIS_RSS_PARAM_FLAG_HASH_KEY_UNCHANGED) &&
+		( (pParams->HashSecretKeySize > sizeof(pContext->RSSParameters.HashSecretKey)) ||
+		  (pOid->InformationBufferLength < (pParams->HashSecretKeyOffset + pParams->HashSecretKeySize)) )
+		)
+			return NDIS_STATUS_INVALID_LENGTH;
+
+	ProcessorMasksSize = pParams->NumberOfProcessorMasks * pParams->ProcessorMasksEntrySize;
+	if ((pParams->ProcessorMasksEntrySize != sizeof(pContext->RSSParameters.ProcessorMasks[0])) ||
+		(ProcessorMasksSize > sizeof(pContext->RSSParameters.ProcessorMasks)) ||
+		(pOid->InformationBufferLength < pParams->ProcessorMasksOffset + ProcessorMasksSize))
+		return NDIS_STATUS_INVALID_LENGTH;
+
+	if(pParams->Flags & NDIS_RSS_PARAM_FLAG_DISABLE_RSS || (pParams->HashInformation == 0))
+	{
+		pContext->RSSParameters.IsRSSEnabled = FALSE;
+	}
+	else
+	{
+		if (!(pParams->Flags & NDIS_RSS_PARAM_FLAG_BASE_CPU_UNCHANGED))
+			pContext->RSSParameters.BaseCpuNumber = pParams->BaseCpuNumber;
+
+		if (!(pParams->Flags & NDIS_RSS_PARAM_FLAG_HASH_INFO_UNCHANGED))
+			pContext->RSSParameters.HashInformation = pParams->HashInformation;
+
+		if (!(pParams->Flags & NDIS_RSS_PARAM_FLAG_ITABLE_UNCHANGED))
+		{
+			pContext->RSSParameters.IndirectionTableSize = pParams->IndirectionTableSize;
+			NdisMoveMemory(pContext->RSSParameters.IndirectionTable, (char*)pParams + pParams->IndirectionTableOffset, pParams->IndirectionTableSize);
+			*pOid->pBytesRead += pParams->IndirectionTableSize;
+			//TODO: Apply indirection table changes
+		}
+
+		if (!(pParams->Flags & NDIS_RSS_PARAM_FLAG_HASH_KEY_UNCHANGED))
+		{
+			pContext->RSSParameters.HashSecretKeySize = pParams->HashSecretKeySize;
+			NdisMoveMemory(pContext->RSSParameters.HashSecretKey, (char*)pParams + pParams->HashSecretKeyOffset, pParams->HashSecretKeySize);
+			*pOid->pBytesRead += pParams->HashSecretKeySize;
+			//TODO: Apply hash secret key changes
+		}
+
+		pContext->RSSParameters.NumberOfProcessorMasks = pParams->NumberOfProcessorMasks;
+		NdisMoveMemory(pContext->RSSParameters.ProcessorMasks, (char*)pParams + pParams->ProcessorMasksOffset, ProcessorMasksSize);
+		*pOid->pBytesRead += ProcessorMasksSize;
+
+		pContext->RSSParameters.IsRSSEnabled = TRUE;
+	}
+
+	*pOid->pBytesRead += sizeof(NDIS_RECEIVE_SCALE_PARAMETERS);
+	return NDIS_STATUS_SUCCESS;
+}
+
+static NDIS_STATUS OnSetReceiveHash(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
+{
+	NDIS_RECEIVE_HASH_PARAMETERS *pParams = (NDIS_RECEIVE_HASH_PARAMETERS*)pOid->InformationBuffer;
+
+	if (!pContext->bRSSOffloadSupported)
+		return NDIS_STATUS_NOT_ACCEPTED;
+
+	if (pOid->InformationBufferLength < sizeof(NDIS_RECEIVE_HASH_PARAMETERS))
+		return NDIS_STATUS_INVALID_LENGTH;
+
+	*pOid->pBytesRead += sizeof(NDIS_RECEIVE_HASH_PARAMETERS);
+
+	pContext->RSSParameters.IsHashingEnabled = (pParams->Flags & NDIS_RECEIVE_HASH_FLAG_ENABLE_HASH) ? TRUE : FALSE;
+
+	if (!(pParams->Flags & NDIS_RECEIVE_HASH_FLAG_HASH_INFO_UNCHANGED) &&
+		!IsValidHashInfo(pParams->HashInformation))
+		return NDIS_STATUS_INVALID_PARAMETER;
+
+	if ( (!(pParams->Flags & NDIS_RECEIVE_HASH_FLAG_HASH_KEY_UNCHANGED)) &&
+		 ( (pParams->HashSecretKeySize > NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2) ||
+		   (pOid->InformationBufferLength < (pParams->HashSecretKeyOffset + pParams->HashSecretKeySize)) )
+		)
+		return NDIS_STATUS_INVALID_LENGTH;
+
+	if (!(pParams->Flags & NDIS_RECEIVE_HASH_FLAG_HASH_INFO_UNCHANGED))
+	{
+		pContext->RSSParameters.HashInformation = pParams->HashInformation;
+		if(pParams->HashInformation == 0)
+			pContext->RSSParameters.IsHashingEnabled = FALSE;
+	}
+
+	if (!(pParams->Flags & NDIS_RECEIVE_HASH_FLAG_HASH_KEY_UNCHANGED))
+	{
+		pContext->RSSParameters.HashSecretKeySize = pParams->HashSecretKeySize;
+		NdisMoveMemory(pContext->RSSParameters.HashSecretKey, (char*)pParams + pParams->HashSecretKeyOffset, pParams->HashSecretKeySize);
+		*pOid->pBytesRead += pParams->HashSecretKeySize;
+		//TODO: Apply hash key changes
+	}
+
+	return NDIS_STATUS_SUCCESS;
+}
+
+#endif
+
 /**********************************************************
 Structure defining how to support each OID
 ***********************************************************/
@@ -149,6 +321,12 @@ OIDENTRY(OID_IP4_OFFLOAD_STATS,					4,4,4, 0),
 OIDENTRY(OID_IP6_OFFLOAD_STATS,					4,4,4, 0),
 OIDENTRYPROC(OID_TCP_OFFLOAD_PARAMETERS,		0,0,0, ohfSet | ohfSetMoreOK, OnSetOffloadParameters),
 OIDENTRYPROC(OID_OFFLOAD_ENCAPSULATION,			0,0,0, ohfQuerySet, OnSetOffloadEncapsulation),
+
+#if PARANDIS_SUPPORT_RSS
+	OIDENTRYPROC(OID_GEN_RECEIVE_SCALE_PARAMETERS,	0,0,0, ohfSet | ohfSetMoreOK, OnSetReceiveScaleParameters),
+	OIDENTRYPROC(OID_GEN_RECEIVE_HASH,				0,0,0, ohfQuerySet | ohfSetMoreOK, OnSetReceiveHash),
+#endif
+
 #if NDIS_SUPPORT_NDIS620
 // here should be NDIS 6.20 specific OIDs (mostly power management related)
 // OID_PM_CURRENT_CAPABILITIES - not requred, supported by NDIS
@@ -211,7 +389,11 @@ static NDIS_OID SupportedOids[] =
 		OID_GEN_RCV_OK,
 		OID_GEN_VLAN_ID,
 		OID_OFFLOAD_ENCAPSULATION,
-		OID_TCP_OFFLOAD_PARAMETERS
+		OID_TCP_OFFLOAD_PARAMETERS,
+#if PARANDIS_SUPPORT_RSS
+		OID_GEN_RECEIVE_SCALE_PARAMETERS,
+		OID_GEN_RECEIVE_HASH
+#endif
 };
 
 
@@ -311,6 +493,9 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 		NDIS_LINK_SPEED							LinkSpeed;
 		NDIS_INTERRUPT_MODERATION_PARAMETERS	InterruptModeration;
 		NDIS_LINK_PARAMETERS					LinkParameters;
+#if PARANDIS_SUPPORT_RSS
+		RSS_HASH_KEY_PARAMETERS					RSSHashKeyParameters;
+#endif
 	} u;
 	NDIS_STATUS  status = NDIS_STATUS_SUCCESS;
 	PVOID pInfo  = NULL;
@@ -351,6 +536,25 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 			pInfo = &u.InterruptModeration;
 			ulSize = sizeof(u.InterruptModeration);
 			break;
+#if PARANDIS_SUPPORT_RSS
+		case OID_GEN_RECEIVE_HASH:
+			NdisZeroMemory(&u.RSSHashKeyParameters, sizeof(u.RSSHashKeyParameters));
+			u.RSSHashKeyParameters.ReceiveHashParameters.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+			u.RSSHashKeyParameters.ReceiveHashParameters.Header.Revision = NDIS_RECEIVE_HASH_PARAMETERS_REVISION_1;
+			u.RSSHashKeyParameters.ReceiveHashParameters.Header.Size  = NDIS_SIZEOF_RECEIVE_HASH_PARAMETERS_REVISION_1;
+			u.RSSHashKeyParameters.ReceiveHashParameters.HashInformation = pContext->RSSParameters.HashInformation;
+
+			if(pContext->RSSParameters.IsHashingEnabled)
+				u.RSSHashKeyParameters.ReceiveHashParameters.Flags = NDIS_RECEIVE_HASH_FLAG_ENABLE_HASH;
+
+			u.RSSHashKeyParameters.ReceiveHashParameters.HashSecretKeySize = pContext->RSSParameters.HashSecretKeySize;
+			NdisMoveMemory(u.RSSHashKeyParameters.HashSecretKey, pContext->RSSParameters.HashSecretKey, u.RSSHashKeyParameters.ReceiveHashParameters.HashSecretKeySize);
+			u.RSSHashKeyParameters.ReceiveHashParameters.HashSecretKeyOffset = FIELD_OFFSET(RSS_HASH_KEY_PARAMETERS, HashSecretKey);
+
+			pInfo = &u.RSSHashKeyParameters.ReceiveHashParameters;
+			ulSize = sizeof(u.RSSHashKeyParameters.ReceiveHashParameters) + u.RSSHashKeyParameters.ReceiveHashParameters.HashSecretKeySize;
+			break;
+#endif
 		default:
 			return ParaNdis_OidQueryCommon(pContext, pOid);
 	}

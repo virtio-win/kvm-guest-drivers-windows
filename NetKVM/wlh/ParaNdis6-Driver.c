@@ -371,7 +371,11 @@ static NDIS_STATUS ParaNdis6_Initialize(
 		miniportAttributes.GeneralAttributes.SupportedPacketFilters = PARANDIS_PACKET_FILTERS;
 		miniportAttributes.GeneralAttributes.MaxMulticastListSize = PARANDIS_MULTICAST_LIST_SIZE;
 		miniportAttributes.GeneralAttributes.MacAddressLength =		ETH_LENGTH_OF_ADDRESS;
-		miniportAttributes.GeneralAttributes.RecvScaleCapabilities = NULL;
+
+#if PARANDIS_SUPPORT_RSS
+		miniportAttributes.GeneralAttributes.RecvScaleCapabilities = ParaNdis6_CreateRSSConfiguration(pContext);
+#endif
+
 		miniportAttributes.GeneralAttributes.AccessType = NET_IF_ACCESS_BROADCAST;
 		miniportAttributes.GeneralAttributes.DirectionType = NET_IF_DIRECTION_SENDRECEIVE;
 		miniportAttributes.GeneralAttributes.IfType = IF_TYPE_ETHERNET_CSMACD;
