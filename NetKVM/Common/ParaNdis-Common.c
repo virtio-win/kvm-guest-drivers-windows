@@ -469,7 +469,7 @@ static BOOLEAN GetAdapterResources(PNDIS_RESOURCE_LIST RList, tAdapterResources 
 				pResources->Vector, pResources->Level, (ULONG)pResources->Affinity, pResources->InterruptFlags));
 		}
 	}
-	return pResources->ulIOAddress && pResources->Vector && pResources->IOLength >= 32;
+	return pResources->ulIOAddress && pResources->Vector;
 }
 
 static void DumpVirtIOFeatures(VirtIODevice *pIO)
