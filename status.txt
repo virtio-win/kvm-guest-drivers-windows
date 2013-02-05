@@ -1,3 +1,12 @@
+Date    6 Feb 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm74
+
+Fixed bugs:
+
+[NetKVM] BZ#904028 - Fixing casting error with event indices calculation.
+[NetKVM] BZ#907160 - Do not test IOSpace size.
+
 Date    31 Jan 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm73
