@@ -125,7 +125,7 @@ vring_add_indirect(
 static void vring_delay_interrupts(struct virtqueue *_vq)
 {
 	struct vring_virtqueue *vq = to_vvq(_vq);
-	u16 buffs_num_before_interrupt = (vq->vring.avail->idx - vq->last_used_idx) * 3 / 4;
+	u16 buffs_num_before_interrupt = ((u16) (vq->vring.avail->idx - vq->last_used_idx)) * 3 / 4;
 
 	*vq->vring.vring_last_used_ptr = vq->vring.used->idx +
 									buffs_num_before_interrupt;
