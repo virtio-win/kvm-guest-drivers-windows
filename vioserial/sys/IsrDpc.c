@@ -10,20 +10,27 @@ VIOSerialInterruptIsr(
     IN WDFINTERRUPT Interrupt,
     IN ULONG MessageID)
 {
-    ULONG          ret;
-    PPORTS_DEVICE  pContext = GetPortsDevice(WdfInterruptGetDevice(Interrupt));
-
-    UNREFERENCED_PARAMETER(MessageID);
+    PPORTS_DEVICE pContext = GetPortsDevice(WdfInterruptGetDevice(Interrupt));
+    BOOLEAN serviced;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
-    if((ret = VirtIODeviceISR(pContext->pIODevice)) > 0)
+
+    // Schedule a DPC if the device is using message-signaled interrupts, or
+    // if the device ISR status is enabled.
+    if (MessageID || VirtIODeviceISR(pContext->pIODevice))
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "Got ISR - it is ours %d!\n", ret);
         WdfInterruptQueueDpcForIsr(Interrupt);
-        return TRUE;
+        serviced = TRUE;
     }
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "WRONG ISR!\n");
-    return FALSE;
+    else
+    {
+        serviced = FALSE;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT,
+        "<-- %s Serviced: %d\n", __FUNCTION__, serviced);
+
+    return serviced;
 }
 
 VOID
@@ -31,73 +38,110 @@ VIOSerialInterruptDpc(
     IN WDFINTERRUPT Interrupt,
     IN WDFOBJECT AssociatedObject)
 {
-    UINT             i;
-    PPORTS_DEVICE    pContext;
-    PVIOSERIAL_PORT  port;
-    WDFDEVICE        Device;
+    WDFDEVICE Device = WdfInterruptGetDevice(Interrupt);
+    PPORTS_DEVICE Context = GetPortsDevice(Device);
+    WDF_INTERRUPT_INFO info;
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
 
-    ULONG            information;
-    NTSTATUS         status;
-    PUCHAR           systemBuffer;
-    size_t           Length;
-    WDFREQUEST       request;
+    VIOSerialCtrlWorkHandler(Device);
+
+    WDF_INTERRUPT_INFO_INIT(&info);
+    WdfInterruptGetInfo(Context->QueuesInterrupt, &info);
+
+    // Using the queues' DPC if only one interrupt is availble.
+    if (info.Vector == 0)
+    {
+        VIOSerialQueuesInterruptDpc(Interrupt, AssociatedObject);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
+}
+
+VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt,
+                                 IN WDFOBJECT AssociatedObject)
+{
+    NTSTATUS status;
+    WDFCHILDLIST PortList;
+    WDFDEVICE Device;
+    WDF_CHILD_LIST_ITERATOR iterator;
+    WDF_CHILD_RETRIEVE_INFO PortInfo;
+    VIOSERIAL_PORT VirtPort;
+    VIOSERIAL_PORT *Port;
 
     UNREFERENCED_PARAMETER(AssociatedObject);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
 
-    if(!Interrupt)
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_DPC, "Got NULL interrupt object DPC!\n");
-        return;
-    }
-    Device = WdfInterruptGetDevice(Interrupt);
-    pContext = GetPortsDevice(Device);
+    PortList = WdfFdoGetDefaultChildList(WdfInterruptGetDevice(Interrupt));
+    WDF_CHILD_LIST_ITERATOR_INIT(&iterator, WdfRetrievePresentChildren);
 
-    VIOSerialCtrlWorkHandler(Device);
-    for (i = 0; i < pContext->consoleConfig.max_nr_ports; ++i)
+    WdfChildListBeginIteration(PortList, &iterator);
+    for (;;)
     {
-        port = VIOSerialFindPortById(Device, i);
-        if (port)
+        WDF_CHILD_RETRIEVE_INFO_INIT(&PortInfo, &VirtPort.Header);
+        WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(&VirtPort.Header,
+            sizeof(VirtPort));
+
+        status = WdfChildListRetrieveNextDevice(PortList, &iterator, &Device,
+            &PortInfo);
+
+        if (!NT_SUCCESS(status) || status == STATUS_NO_MORE_ENTRIES)
         {
-           WdfSpinLockAcquire(port->InBufLock);
-           if (!port->InBuf)
-           {
-              port->InBuf = VIOSerialGetInBuf(port);
-              TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "%s::%d  port->InBuf = %p\n", __FUNCTION__, __LINE__, port->InBuf);
-           }
-           if (!port->GuestConnected)
-           {
-              VIOSerialDiscardPortDataLocked(port);
-           }
-
-           if (port->InBuf)
-           {
-              if (port->PendingReadRequest)
-              {
-                 request = port->PendingReadRequest;
-                 status = WdfRequestUnmarkCancelable(request);
-                 if (status != STATUS_CANCELLED)
-                 {
-                    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,"Got available read request\n");
-                    status = WdfRequestRetrieveOutputBuffer(request, 0, &systemBuffer, &Length);
-                    if (NT_SUCCESS(status))
-                    {
-                       port->PendingReadRequest = NULL;
-                       information = (ULONG)VIOSerialFillReadBufLocked(port, systemBuffer, Length);
-                       WdfRequestCompleteWithInformation(request, STATUS_SUCCESS, information);
-                    }
-                 }
-                 else
-                 {
-                    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "Request = %p was cancelled\n", request);
-                 }
-              }
-           }
-           WdfSpinLockRelease(port->InBufLock);
+            break;
         }
+
+        Port = RawPdoSerialPortGetData(Device)->port;
+
+        WdfSpinLockAcquire(Port->InBufLock);
+        if (!Port->InBuf)
+        {
+            Port->InBuf = (PPORT_BUFFER)VIOSerialGetInBuf(Port);
+        }
+
+        if (!Port->GuestConnected)
+        {
+            VIOSerialDiscardPortDataLocked(Port);
+        }
+
+        if (Port->InBuf && Port->PendingReadRequest)
+        {
+            WDFREQUEST Request;
+
+            Request = Port->PendingReadRequest;
+            status = WdfRequestUnmarkCancelable(Request);
+            if (status != STATUS_CANCELLED)
+            {
+                PVOID Buffer;
+                size_t Length;
+
+                status = WdfRequestRetrieveOutputBuffer(Request, 0, &Buffer, &Length);
+                if (NT_SUCCESS(status))
+                {
+                    ULONG Read;
+
+                    Port->PendingReadRequest = NULL;
+                    Read = (ULONG)VIOSerialFillReadBufLocked(Port, Buffer, Length);
+                    WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS,
+                        Read);
+                }
+                else
+                {
+                    TraceEvents(TRACE_LEVEL_ERROR, DBG_DPC,
+                        "Failed to retrieve output buffer (Status: %x Request: %p).\n",
+                        status, Request);
+                }
+            }
+            else
+            {
+                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
+                    "Request %p was cancelled.\n", Request);
+            }
+        }
+        WdfSpinLockRelease(Port->InBufLock);
     }
+    WdfChildListEndIteration(PortList, &iterator);
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
 }
 
