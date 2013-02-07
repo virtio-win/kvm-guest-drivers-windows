@@ -327,6 +327,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
 	if (status == NDIS_STATUS_SUCCESS)
 	{
+		ULONG i;
 		NDIS_PNP_CAPABILITIES power60Caps;
 #if NDIS_SUPPORT_NDIS620
 		NDIS_PM_CAPABILITIES power620Caps;
@@ -373,8 +374,36 @@ static NDIS_STATUS ParaNdis6_Initialize(
 		miniportAttributes.GeneralAttributes.MacAddressLength =		ETH_LENGTH_OF_ADDRESS;
 
 #if PARANDIS_SUPPORT_RSS
-		miniportAttributes.GeneralAttributes.RecvScaleCapabilities = ParaNdis6_CreateRSSConfiguration(pContext);
+		if(pContext->bRSSOffloadSupported)
+		{
+			miniportAttributes.GeneralAttributes.RecvScaleCapabilities =
+				ParaNdis6_RSSCreateConfiguration(
+												&pContext->RSSParameters,
+												&pContext->RSSCapabilities,
+												pContext->RSSMaxQueuesNumber);
+			pContext->bRSSInitialized = TRUE;
+		}
 #endif
+
+		for(i = 0; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
+		{
+			NdisAllocateSpinLock(&pContext->ReceiveQueues[i].Lock);
+			InitializeListHead(&pContext->ReceiveQueues[i].BuffersList);
+
+			pContext->ReceiveQueues[i].BatchReceiveArray =
+				ParaNdis_AllocateMemory(pContext, sizeof(*pContext->ReceiveQueues[i].BatchReceiveArray)*pContext->NetMaxReceiveBuffers);
+			if(!pContext->ReceiveQueues[i].BatchReceiveArray)
+			{
+				pContext->ReceiveQueues[i].BatchReceiveArray = &pContext->ReceiveQueues[i].BatchReceiveEmergencyItem;
+				pContext->ReceiveQueues[i].BatchReceiveArraySize = 1;
+			}
+			else
+			{
+				pContext->ReceiveQueues[i].BatchReceiveArraySize = pContext->NetMaxReceiveBuffers;
+			}
+		}
+
+		pContext->ReceiveQueuesInitialized = TRUE;
 
 		miniportAttributes.GeneralAttributes.AccessType = NET_IF_ACCESS_BROADCAST;
 		miniportAttributes.GeneralAttributes.DirectionType = NET_IF_DIRECTION_SENDRECEIVE;

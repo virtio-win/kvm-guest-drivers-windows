@@ -31,7 +31,15 @@ typedef struct _ETH_HEADER
 	UCHAR	SrcAddr[ETH_LENGTH_OF_ADDRESS];
 	USHORT	EthType;
 } ETH_HEADER, *PETH_HEADER;
+
+typedef struct _VLAN_HEADER
+{
+	USHORT	TCI;
+	USHORT	EthType;
+} VLAN_HEADER, *PVLAN_HEADER;
 #include <poppack.h>
+
+typedef ULONG IPV6_ADDRESS[4];
 
 #define ETH_HEADER_SIZE						(sizeof(ETH_HEADER))
 #define ETH_MIN_PACKET_SIZE					60
@@ -68,6 +76,24 @@ typedef struct _tagIPv4Header {
     ULONG		ip_src;                // Source IP address
     ULONG		ip_dest;               // Destination IP address
 } IPv4Header;
+
+// IPv6 Header RFC 2460 (40 bytes)
+typedef struct _tagIPv6Header {
+    UCHAR    ip6_ver_tc;            // traffic class(low nibble), version (high nibble)
+    UCHAR    ip6_tc_fl;             // traffic class(high nibble), flow label
+    USHORT   ip6_fl;                // flow label, the rest
+    USHORT   ip6_payload_len;       // length of following headers and payload
+    UCHAR    ip6_next_header;       // next header type
+    UCHAR    ip6_hoplimit;          // hop limit
+    IPV6_ADDRESS ip6_src_address;
+    IPV6_ADDRESS ip6_dst_address;
+} IPv6Header;
+
+typedef union
+{
+	IPv6Header v6;
+	IPv4Header v4;
+} IPHeader;
 
 // TCP header RFC 793
 typedef struct _tagTCPHeader {

@@ -297,6 +297,21 @@ static BOOLEAN MiniportMSIInterrupt(
 	return b;
 }
 
+#if NDIS_SUPPORT_NDIS620
+
+static __inline
+VOID GetAffinityForCurrentCpu(PGROUP_AFFINITY pAffinity)
+{
+	PROCESSOR_NUMBER ProcNum;
+	KeGetCurrentProcessorNumberEx(&ProcNum);
+
+	pAffinity->Group = ProcNum.Group;
+	pAffinity->Mask = 1;
+	pAffinity->Mask <<= ProcNum.Number;
+}
+
+#endif
+
 /**********************************************************
 NDIS-required procedure for DPC handling
 Parameters:
@@ -332,7 +347,12 @@ static VOID MiniportInterruptDPC(
 		if(requiresProcessing & isTransmit)
 			bSpawnNextDpc = TRUE;
 		if (bSpawnNextDpc)
-			NdisMQueueDpc(pContext->InterruptHandle, 0, 1 << KeGetCurrentProcessorNumber(), pContext);
+		{
+			GROUP_AFFINITY Affinity;
+			GetAffinityForCurrentCpu(&Affinity);
+
+			NdisMQueueDpcEx(pContext->InterruptHandle, 0, &Affinity, MiniportDpcContext);
+		}
 	}
 #else /* NDIS 6.0*/
 	DEBUG_ENTRY(5);
@@ -341,7 +361,7 @@ static VOID MiniportInterruptDPC(
 	{
 		DPrintf(4, ("[%s] Queued additional DPC for %d", __FUNCTION__, 	requiresProcessing));
 		InterlockedOr(&pContext->InterruptStatus, requiresProcessing);
-		NdisMQueueDpc(pContext->InterruptHandle, 0, 1 << KeGetCurrentProcessorNumber(), pContext);
+		NdisMQueueDpc(pContext->InterruptHandle, 0, 1 << KeGetCurrentProcessorNumber(), MiniportDpcContext);
 	}
 #endif /* NDIS_SUPPORT_NDIS620 */
 }
@@ -396,10 +416,12 @@ static VOID MiniportMSIInterruptDpc(
 
 		if (bSpawnNextDpc)
 		{
-			DPrintf(4, ("[%s] Queued additional DPC for %d", __FUNCTION__, interruptSource));
-			NdisMQueueDpc(pContext->InterruptHandle, MessageId, 1 << KeGetCurrentProcessorNumber(), pContext);
+			GROUP_AFFINITY Affinity;
+			GetAffinityForCurrentCpu(&Affinity);
+
+			NdisMQueueDpcEx(pContext->InterruptHandle, MessageId, &Affinity, MiniportDpcContext);
 		}
-    }
+	}
 #else
 	DPrintf(5, ("[%s] (Message %d, source %d)", __FUNCTION__, MessageId, interruptSource));
 	interruptSource = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
@@ -407,7 +429,7 @@ static VOID MiniportMSIInterruptDpc(
 	{
 		DPrintf(4, ("[%s] Queued additional DPC for %d", __FUNCTION__, interruptSource));
 		InterlockedOr(&pContext->InterruptStatus, interruptSource);
-		NdisMQueueDpc(pContext->InterruptHandle, MessageId, 1 << KeGetCurrentProcessorNumber(), pContext);
+		NdisMQueueDpc(pContext->InterruptHandle, MessageId, 1 << KeGetCurrentProcessorNumber(), MiniportDpcContext);
 	}
 #endif
 }
@@ -729,6 +751,18 @@ void ParaNdis_UnbindBufferFromPacket(
 	NdisFreeMdl(pBufferDesc->pHolder);
 }
 
+static __inline
+void NBLSetRSSInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_PACKET_INFO PacketInfo)
+{
+#if PARANDIS_SUPPORT_RSS
+	if(pContext->RSSParameters.RSSMode != PARANDIS_RSS_DISABLED)
+	{
+		NET_BUFFER_LIST_SET_HASH_TYPE    (pNBL, PacketInfo->RSSHash.Type);
+		NET_BUFFER_LIST_SET_HASH_FUNCTION(pNBL, PacketInfo->RSSHash.Function);
+		NET_BUFFER_LIST_SET_HASH_VALUE   (pNBL, PacketInfo->RSSHash.Value);
+	}
+#endif
+}
 /**********************************************************
 NDIS6 implementation of packet indication
 
@@ -747,7 +781,6 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 	PARANDIS_ADAPTER *pContext,
 	PVOID dataBuffer,
 	PULONG pLength,
-	BOOLEAN bPrepareOnly,
 	pIONetDescriptor pBuffersDesc)
 {
 	PMDL pMDL = pBuffersDesc->pHolder;
@@ -817,6 +850,8 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 			tChecksumCheckResult csRes;
 			pNBL->SourceHandle = pContext->MiniportHandle;
 			NET_BUFFER_LIST_INFO(pNBL, Ieee8021QNetBufferListInfo) = qInfo.Value;
+			NBLSetRSSInfo(pContext, pNBL, &pBuffersDesc->PacketInfo);
+
 			if (qInfo.Value)
 			{
 				DPrintf(1, ("Found priority tag %p", qInfo.Value));
@@ -849,13 +884,6 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 				ParaNdis_DebugHistory(pContext, hopPacketReceived, pNBL, length, (ULONG)(ULONG_PTR)qInfo.Value, packetReview.value);
 			}
 #endif
-			if (!bPrepareOnly)
-			{
-				DPrintf(1, ("  Reporting NBL of %d bytes of pBuffersDescriptor %p",
-					length, pBuffersDesc));
-				NdisMIndicateReceiveNetBufferLists(
-					pContext->MiniportHandle, pNBL, 0, 1, 0);
-			}
 		}
 	}
 	if (!pNBL)

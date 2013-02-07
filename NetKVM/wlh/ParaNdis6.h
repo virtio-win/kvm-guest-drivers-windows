@@ -28,10 +28,6 @@ NDIS_STATUS ParaNdis6_GetRegistrationOffloadInfo(
 
 void ParaNdis6_ApplyOffloadPersistentConfiguration(PARANDIS_ADAPTER *pContext);
 
-#if PARANDIS_SUPPORT_RSS
-NDIS_RECEIVE_SCALE_CAPABILITIES* ParaNdis6_CreateRSSConfiguration(PARANDIS_ADAPTER *pContext);
-#endif
-
 MINIPORT_OID_REQUEST ParaNdis6_OidRequest;
 NDIS_STATUS ParaNdis6_OidRequest(
 	NDIS_HANDLE miniportAdapterContext,

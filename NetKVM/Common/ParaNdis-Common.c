@@ -93,7 +93,6 @@ typedef struct _tagConfigurationEntries
 	tConfigurationEntry LogStatistics;
 	tConfigurationEntry PacketFiltering;
 	tConfigurationEntry ScatterGather;
-	tConfigurationEntry BatchReceive;
 	tConfigurationEntry OffloadTxChecksum;
 	tConfigurationEntry OffloadTxLSO;
 	tConfigurationEntry OffloadRxCS;
@@ -136,7 +135,6 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "LogStatistics",	0, 0, 10000},
 	{ "PacketFilter",	1, 0, 1},
 	{ "Gather",			1, 0, 1},
-	{ "BatchReceive",	1, 0, 1},
 	{ "Offload.TxChecksum",	0, 0, 31},
 	{ "Offload.TxLSO",	0, 0, 2},
 	{ "Offload.RxCS",	0, 0, 31},
@@ -160,7 +158,7 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "Indirect", 0, 0, 2},
 #if PARANDIS_SUPPORT_RSS
 	{ "*RSS", 1, 0, 1},
-	{ "*NumRssQueues", 8, 1, 16},
+	{ "*NumRssQueues", 8, 1, PARANDIS_RSS_MAX_RECEIVE_QUEUES},
 #endif
 };
 
@@ -291,7 +289,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			GetConfigurationEntry(cfg, &pConfiguration->LogStatistics);
 			GetConfigurationEntry(cfg, &pConfiguration->PacketFiltering);
 			GetConfigurationEntry(cfg, &pConfiguration->ScatterGather);
-			GetConfigurationEntry(cfg, &pConfiguration->BatchReceive);
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxChecksum);
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadTxLSO);
 			GetConfigurationEntry(cfg, &pConfiguration->OffloadRxCS);
@@ -335,7 +332,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->ulFormalLinkSpeed *= 1000000;
 			pContext->bDoHwPacketFiltering = pConfiguration->PacketFiltering.ulValue != 0;
 			pContext->bUseScatterGather  = pConfiguration->ScatterGather.ulValue != 0;
-			pContext->bBatchReceive      = pConfiguration->BatchReceive.ulValue != 0;
 			pContext->bDoHardwareChecksum = pConfiguration->UseSwTxChecksum.ulValue == 0;
 			pContext->bDoGuestChecksumOnReceive = pConfiguration->OffloadGuestCS.ulValue != 0;
 			pContext->bDoIPCheckTx = pConfiguration->IPPacketsCheck.ulValue & 1;
@@ -374,7 +370,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->bUseIndirect = pConfiguration->Indirect.ulValue != 0;
 #if PARANDIS_SUPPORT_RSS
 			pContext->bRSSOffloadSupported = pConfiguration->RSSOffloadSupported.ulValue ? TRUE : FALSE;
-			pContext->RSSMaxQueuesNumber = pConfiguration->NumRSSQueues.ulValue;
+			pContext->RSSMaxQueuesNumber = (CCHAR) pConfiguration->NumRSSQueues.ulValue;
 #endif
 			if (!pContext->bDoSupportPriority)
 				pContext->ulPriorityVlanSetting = 0;
@@ -1310,6 +1306,25 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 	}
 #endif
 
+	if (pContext->ReceiveQueuesInitialized)
+	{
+		ULONG i;
+
+		for(i = 0; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
+		{
+			NdisFreeSpinLock(&pContext->ReceiveQueues[i].Lock);
+			if(pContext->ReceiveQueues[i].BatchReceiveArray != &pContext->ReceiveQueues[i].BatchReceiveEmergencyItem)
+				NdisFreeMemory(pContext->ReceiveQueues[i].BatchReceiveArray, 0, 0);
+		}
+	}
+
+#if PARANDIS_SUPPORT_RSS
+	if (pContext->bRSSInitialized)
+	{
+		ParaNdis6_RSSCleanupConfiguration(&pContext->RSSParameters);
+	}
+#endif
+
 	if (pContext->AdapterResources.ulIOAddress)
 	{
 		NdisMDeregisterIoPortRange(
@@ -2010,115 +2025,25 @@ ParaNdis_PadPacketReceived(PVOID pDataBuffer, PULONG pLength)
 	}
 }
 
-/**********************************************************
-Manages RX path, calling NDIS-specific procedure for packet indication
-Parameters:
-	context
-***********************************************************/
-static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndicate)
+static __inline
+BOOLEAN PerformPacketAnalyzis(
+#if PARANDIS_SUPPORT_RSS
+							PPARANDIS_RSS_PARAMS RSSParameters,
+#endif
+							PNET_PACKET_INFO PacketInfo,
+							PVOID DataBuffer,
+							ULONG DataLength)
 {
-	pIONetDescriptor pBuffersDescriptor;
-	UINT len, headerSize = pContext->nVirtioHeaderSize;
-	eInspectedPacketType packetType = iptInvalid;
-	UINT nReceived = 0, nRetrieved = 0, nReported = 0;
-	tPacketIndicationType	*pBatchOfPackets;
-	UINT					maxPacketsInBatch = pContext->NetMaxReceiveBuffers;
-	pBatchOfPackets = pContext->bBatchReceive ?
-		ParaNdis_AllocateMemory(pContext, maxPacketsInBatch * sizeof(tPacketIndicationType)) : NULL;
-	NdisAcquireSpinLock(&pContext->ReceiveLock);
-	while ((nReported < ulMaxPacketsToIndicate) && NULL != (pBuffersDescriptor = pContext->NetReceiveQueue->vq_ops->get_buf(pContext->NetReceiveQueue, &len)))
-	{
-		PVOID pDataBuffer = RtlOffsetToPointer(pBuffersDescriptor->DataInfo.Virtual, pContext->bUseMergedBuffers ? pContext->nVirtioHeaderSize : 0);
-		RemoveEntryList(&pBuffersDescriptor->listEntry);
-		InsertTailList(&pContext->NetReceiveBuffersWaiting, &pBuffersDescriptor->listEntry);
-		pContext->NetNofReceiveBuffers--;
-		nRetrieved++;
-		DPrintf(2, ("[%s] retrieved header+%d b.", __FUNCTION__, len - headerSize));
-		DebugDumpPacket("receive", pDataBuffer, 3);
+	if(!ParaNdis_AnalyzeReceivedPacket(DataBuffer, DataLength, PacketInfo))
+		return FALSE;
 
-		if( !pContext->bSurprizeRemoved &&
-			ShallPassPacket(pContext, pDataBuffer, len - headerSize, &packetType) &&
-			pContext->ReceiveState == srsEnabled &&
-			pContext->bConnected)
-		{
-			BOOLEAN b = FALSE;
-			ULONG length = len - headerSize;
-			if (!pBatchOfPackets)
-			{
-				NdisReleaseSpinLock(&pContext->ReceiveLock);
-				b = NULL != ParaNdis_IndicateReceivedPacket(
-					pContext,
-					pDataBuffer,
-					&length,
-					FALSE,
-					pBuffersDescriptor);
-				NdisAcquireSpinLock(&pContext->ReceiveLock);
-			}
-			else
-			{
-				tPacketIndicationType packet;
-				packet = ParaNdis_IndicateReceivedPacket(
-					pContext,
-					pDataBuffer,
-					&length,
-					TRUE,
-					pBuffersDescriptor);
-				b = packet != NULL;
-				if (b) pBatchOfPackets[nReceived] = packet;
-			}
-			if (!b)
-			{
-				pContext->ReuseBufferProc(pContext, pBuffersDescriptor);
-				//only possible reason for that is unexpected Vlan tag
-				//shall I count it as error?
-				pContext->Statistics.ifInErrors++;
-				pContext->Statistics.ifInDiscards++;
-			}
-			else
-			{
-				nReceived++;
-				nReported++;
-				pContext->Statistics.ifHCInOctets += length;
-				switch(packetType)
-				{
-					case iptBroadcast:
-						pContext->Statistics.ifHCInBroadcastPkts++;
-						pContext->Statistics.ifHCInBroadcastOctets += length;
-						break;
-					case iptMilticast:
-						pContext->Statistics.ifHCInMulticastPkts++;
-						pContext->Statistics.ifHCInMulticastOctets += length;
-						break;
-					default:
-						pContext->Statistics.ifHCInUcastPkts++;
-						pContext->Statistics.ifHCInUcastOctets += length;
-						break;
-				}
-				if (pBatchOfPackets && nReceived == maxPacketsInBatch)
-				{
-					DPrintf(1, ("[%s] received %d buffers of max %d", __FUNCTION__, nReceived, ulMaxPacketsToIndicate));
-					NdisReleaseSpinLock(&pContext->ReceiveLock);
-					ParaNdis_IndicateReceivedBatch(pContext, pBatchOfPackets, nReceived);
-					NdisAcquireSpinLock(&pContext->ReceiveLock);
-					nReceived = 0;
-				}
-			}
-		}
-		else
-		{
-			// reuse packet, there is no data or the RX is suppressed
-			pContext->ReuseBufferProc(pContext, pBuffersDescriptor);
-		}
-	}
-	ParaNdis_DebugHistory(pContext, hopReceiveStat, NULL, nRetrieved, nReported, pContext->NetNofReceiveBuffers);
-	NdisReleaseSpinLock(&pContext->ReceiveLock);
-	if (nReceived && pBatchOfPackets)
+#if PARANDIS_SUPPORT_RSS
+	if(RSSParameters->RSSMode != PARANDIS_RSS_DISABLED)
 	{
-		DPrintf(1, ("[%s]%d: received %d buffers of max %d", __FUNCTION__, KeGetCurrentProcessorNumber(), nReceived, ulMaxPacketsToIndicate));
-		ParaNdis_IndicateReceivedBatch(pContext, pBatchOfPackets, nReceived);
+		ParaNdis6_RSSAnalyzeReceivedPacket(RSSParameters, DataBuffer, DataLength, PacketInfo);
 	}
-	if (pBatchOfPackets) NdisFreeMemory(pBatchOfPackets, 0, 0);
-	return nReported;
+#endif
+	return TRUE;
 }
 
 void ParaNdis_ReportLinkStatus(PARANDIS_ADAPTER *pContext, BOOLEAN bForce)
@@ -2143,110 +2068,321 @@ static BOOLEAN RestartQueueSynchronously(tSynchronizedContext *SyncContext)
 	ParaNdis_DebugHistory(SyncContext->pContext, hopDPC, (PVOID)SyncContext->Parameter, 0x20, res, 0);
 	return !res;
 }
-/**********************************************************
-DPC implementation, common for both NDIS
-Parameters:
-	context
-***********************************************************/
+
+static __inline
+VOID ProcessorNumberToGroupAffinity(PGROUP_AFFINITY Affinity, const PPROCESSOR_NUMBER Processor)
+{
+	Affinity->Group = Processor->Group;
+	Affinity->Mask = 1;
+	Affinity->Mask <<= Processor->Number;
+}
+
+static __inline
+CCHAR GetScalingDataForPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacketInfo, PPROCESSOR_NUMBER pTargetProcessor)
+{
+#if PARANDIS_SUPPORT_RSS
+	return ParaNdis6_RSSGetScalingDataForPacket(&pContext->RSSParameters, pPacketInfo, pTargetProcessor);
+#else
+	return PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
+#endif
+}
+
+static __inline
+CCHAR GetReceiveQueueForCurrentCPU(PARANDIS_ADAPTER *pContext)
+{
+#if PARANDIS_SUPPORT_RSS
+	return ParaNdis6_RSSGetCurrentCpuReceiveQueue(&pContext->RSSParameters);
+#else
+	return PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
+#endif
+}
+
+static __inline
+VOID QueueRSSDpc(PARANDIS_ADAPTER *pContext, PGROUP_AFFINITY pTargetAffinity)
+{
+#if PARANDIS_SUPPORT_RSS
+	NdisMQueueDpcEx(pContext->InterruptHandle, pContext->ulRxMessage, pTargetAffinity, NULL);
+#else
+	ASSERT(FALSE);
+#endif
+}
+
+static __inline
+VOID ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pIONetDescriptor pBuffer)
+{
+	NdisInterlockedInsertTailList(	&pQueue->BuffersList,
+									&pBuffer->ReceiveQueueListEntry,
+									&pQueue->Lock);
+}
+
+static __inline
+pIONetDescriptor ReceiveQueueGetBuffer(PPARANDIS_RECEIVE_QUEUE pQueue)
+{
+	PLIST_ENTRY pListEntry = NdisInterlockedRemoveHeadList(&pQueue->BuffersList, &pQueue->Lock);
+	return pListEntry ? CONTAINING_RECORD(pListEntry, IONetDescriptor, ReceiveQueueListEntry) : NULL;
+}
+
+static __inline
+BOOLEAN ReceiveQueueHasBuffers(PPARANDIS_RECEIVE_QUEUE pQueue)
+{
+	BOOLEAN res;
+
+	NdisAcquireSpinLock(&pQueue->Lock);
+	res = !IsListEmpty(&pQueue->BuffersList);
+	NdisReleaseSpinLock(&pQueue->Lock);
+
+	return res;
+}
+
+static VOID ProcessRxRing(PARANDIS_ADAPTER *pContext, CCHAR nCurrCpuReceiveQueue)
+{
+	pIONetDescriptor pBufferDescriptor;
+	unsigned int nFullLength;
+
+	NdisAcquireSpinLock(&pContext->ReceiveLock);
+
+	while (NULL != (pBufferDescriptor = pContext->NetReceiveQueue->vq_ops->get_buf(pContext->NetReceiveQueue, &nFullLength)))
+	{
+		CCHAR nTargetReceiveQueueNum;
+		GROUP_AFFINITY TargetAffinity;
+		PROCESSOR_NUMBER TargetProcessor;
+
+		RemoveEntryList(&pBufferDescriptor->listEntry);
+		InsertTailList(&pContext->NetReceiveBuffersWaiting, &pBufferDescriptor->listEntry);
+		pContext->NetNofReceiveBuffers--;
+
+		if(!PerformPacketAnalyzis(
+#if PARANDIS_SUPPORT_RSS
+								&pContext->RSSParameters,
+#endif
+								&pBufferDescriptor->PacketInfo,
+								RtlOffsetToPointer(pBufferDescriptor->DataInfo.Virtual, pContext->bUseMergedBuffers ? pContext->nVirtioHeaderSize : 0),
+								nFullLength - pContext->nVirtioHeaderSize))
+		{
+			pContext->ReuseBufferProc(pContext, pBufferDescriptor);
+			pContext->Statistics.ifInErrors++;
+			pContext->Statistics.ifInDiscards++;
+			continue;
+		}
+
+		nTargetReceiveQueueNum = GetScalingDataForPacket(
+															pContext,
+															&pBufferDescriptor->PacketInfo,
+															&TargetProcessor);
+
+		ReceiveQueueAddBuffer(&pContext->ReceiveQueues[nTargetReceiveQueueNum], pBufferDescriptor);
+		ProcessorNumberToGroupAffinity(&TargetAffinity, &TargetProcessor);
+
+		if ((nTargetReceiveQueueNum != PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED) &&
+			(nTargetReceiveQueueNum != nCurrCpuReceiveQueue))
+			QueueRSSDpc(pContext, &TargetAffinity);
+	}
+
+	NdisReleaseSpinLock(&pContext->ReceiveLock);
+}
+
+static VOID
+UpdateReceiveStatistics(PPARANDIS_ADAPTER pContext,
+						eInspectedPacketType ePacketType,
+						ULONG nDataLength,
+						BOOLEAN fStatus)
+{
+	if(fStatus)
+	{
+		pContext->Statistics.ifHCInOctets += nDataLength;
+		switch(ePacketType)
+		{
+		case iptBroadcast:
+			pContext->Statistics.ifHCInBroadcastPkts++;
+			pContext->Statistics.ifHCInBroadcastOctets += nDataLength;
+			break;
+		case iptMilticast:
+			pContext->Statistics.ifHCInMulticastPkts++;
+			pContext->Statistics.ifHCInMulticastOctets += nDataLength;
+			break;
+		default:
+			pContext->Statistics.ifHCInUcastPkts++;
+			pContext->Statistics.ifHCInUcastOctets += nDataLength;
+			break;
+		}
+	}
+	else
+	{
+		pContext->Statistics.ifInErrors++;
+		pContext->Statistics.ifInDiscards++;
+	}
+}
+
+static BOOLEAN ProcessReceiveQueue(
+									PARANDIS_ADAPTER *pContext,
+									PULONG pnPacketsToIndicateLeft,
+									CCHAR nQueueIndex)
+{
+	UINT nReceived = 0;
+	pIONetDescriptor pBufferDescriptor;
+	PPARANDIS_RECEIVE_QUEUE pTargetReceiveQueue = &pContext->ReceiveQueues[nQueueIndex];
+
+	if(NdisInterlockedIncrement(&pTargetReceiveQueue->ActiveProcessorsCount) == 1)
+	{
+		while( (*pnPacketsToIndicateLeft > 0) &&
+			   (NULL != (pBufferDescriptor = ReceiveQueueGetBuffer(pTargetReceiveQueue))) )
+		{
+			eInspectedPacketType packetType = iptInvalid;
+			PVOID pDataBuffer = pBufferDescriptor->PacketInfo.dataBuffer;
+			ULONG nDataLength = pBufferDescriptor->PacketInfo.dataLength;
+
+			if( !pContext->bSurprizeRemoved &&
+				pContext->ReceiveState == srsEnabled &&
+				pContext->bConnected &&
+				ShallPassPacket(pContext, pDataBuffer, nDataLength, &packetType))
+			{
+				tPacketIndicationType packet;
+
+				packet = ParaNdis_IndicateReceivedPacket(
+					pContext,
+					pDataBuffer,
+					&nDataLength,
+					pBufferDescriptor);
+
+				if(packet != NULL)
+				{
+					UpdateReceiveStatistics(pContext, packetType, nDataLength, TRUE);
+					pTargetReceiveQueue->BatchReceiveArray[nReceived] = packet;
+
+					nReceived++;
+					(*pnPacketsToIndicateLeft)--;
+
+					if (nReceived == pTargetReceiveQueue->BatchReceiveArraySize)
+					{
+						ParaNdis_IndicateReceivedBatch(pContext, pTargetReceiveQueue->BatchReceiveArray, nReceived);
+						nReceived = 0;
+					}
+				}
+				else
+				{
+					UpdateReceiveStatistics(pContext, packetType, nDataLength, FALSE);
+					NdisAcquireSpinLock(&pContext->ReceiveLock);
+					pContext->ReuseBufferProc(pContext, pBufferDescriptor);
+					NdisReleaseSpinLock(&pContext->ReceiveLock);
+				}
+			}
+			else
+			{
+				NdisAcquireSpinLock(&pContext->ReceiveLock);
+				pContext->ReuseBufferProc(pContext, pBufferDescriptor);
+				NdisReleaseSpinLock(&pContext->ReceiveLock);
+			}
+		}
+
+		if(nReceived > 0)
+		{
+			ParaNdis_IndicateReceivedBatch(pContext, pTargetReceiveQueue->BatchReceiveArray, nReceived);
+		}
+	}
+
+	NdisInterlockedDecrement(&pTargetReceiveQueue->ActiveProcessorsCount);
+	return ReceiveQueueHasBuffers(pTargetReceiveQueue);
+}
+
+static
+BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG nPacketsToIndicate, BOOLEAN fIsReceiveInterrupt)
+{
+	BOOLEAN res = FALSE;
+	BOOLEAN bMoreDataInRing;
+
+	CCHAR CurrCpuReceiveQueue = GetReceiveQueueForCurrentCPU(pContext);
+
+	do
+	{
+		ProcessRxRing(pContext, CurrCpuReceiveQueue);
+
+		res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED);
+
+		if(CurrCpuReceiveQueue != PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED)
+		{
+			res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, CurrCpuReceiveQueue);
+		}
+
+		bMoreDataInRing = ParaNdis_SynchronizeWithInterrupt(pContext,
+															pContext->ulRxMessage,
+															RestartQueueSynchronously,
+															pContext->NetReceiveQueue);
+	} while(bMoreDataInRing);
+
+	return res;
+}
+
 ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndicate)
 {
 	ULONG stillRequiresProcessing = 0;
 	ULONG interruptSources;
-	UINT uIndicatedRXPackets = 0;
 	UINT numOfPacketsToIndicate = min(ulMaxPacketsToIndicate, pContext->uNumberOfHandledRXPacketsInDPC);
 
 	DEBUG_ENTRY(5);
 	if (pContext->bEnableInterruptHandlingDPC)
 	{
+		BOOLEAN bDoKick = FALSE;
+
 		InterlockedIncrement(&pContext->counterDPCInside);
-		if (pContext->bEnableInterruptHandlingDPC)
+		InterlockedExchange(&pContext->bDPCInactive, 0);
+		interruptSources = InterlockedExchange(&pContext->InterruptStatus, 0);
+
+		if (RxDPCWorkBody(	pContext,
+							numOfPacketsToIndicate,
+							interruptSources & isReceive ? TRUE : FALSE))
+			stillRequiresProcessing |= isReceive;
+
+		ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)1, interruptSources, 0, 0);
+		if ((interruptSources & isControl) && pContext->bLinkDetectSupported)
 		{
-			BOOLEAN bDoKick = FALSE;
-
-			InterlockedExchange(&pContext->bDPCInactive, 0);
-			interruptSources = InterlockedExchange(&pContext->InterruptStatus, 0);
-			ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)1, interruptSources, 0, 0);
-			if ((interruptSources & isControl) && pContext->bLinkDetectSupported)
-			{
-				ParaNdis_ReportLinkStatus(pContext, FALSE);
-			}
-			if (interruptSources & isTransmit)
-			{
-				bDoKick = ParaNdis_ProcessTx(pContext, TRUE, TRUE);
-			}
-			if (interruptSources & isReceive)
-			{
-				int nRestartResult = 0;
-
-				do
-				{
-					LONG rxActive = InterlockedIncrement(&pContext->dpcReceiveActive);
-					if (rxActive == 1)
-					{
-						uIndicatedRXPackets += ParaNdis_ProcessRxPath(pContext, numOfPacketsToIndicate - uIndicatedRXPackets);
-						InterlockedDecrement(&pContext->dpcReceiveActive);
-						NdisAcquireSpinLock(&pContext->ReceiveLock);
-						nRestartResult = ParaNdis_SynchronizeWithInterrupt(
-							pContext, pContext->ulRxMessage, RestartQueueSynchronously, pContext->NetReceiveQueue);
-						ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)3, nRestartResult, 0, 0);
-						NdisReleaseSpinLock(&pContext->ReceiveLock);
-						DPrintf(nRestartResult ? 2 : 6, ("[%s] queue restarted%s", __FUNCTION__, nRestartResult ? "(Rerun)" : "(Done)"));
-
-						if (uIndicatedRXPackets < numOfPacketsToIndicate)
-						{
-
-						}
-						else if (uIndicatedRXPackets == numOfPacketsToIndicate)
-						{
-							DPrintf(1, ("[%s] Breaking Rx loop after %d indications", __FUNCTION__, uIndicatedRXPackets));
-							ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)4, nRestartResult, 0, 0);
-							break;
-						}
-						else
-						{
-							DPrintf(0, ("[%s] Glitch found: %d allowed, %d indicated", __FUNCTION__, numOfPacketsToIndicate, uIndicatedRXPackets));
-							ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)6, nRestartResult, 0, 0);
-						}
-					}
-					else
-					{
-						InterlockedDecrement(&pContext->dpcReceiveActive);
-						if (!nRestartResult)
-						{
-							NdisAcquireSpinLock(&pContext->ReceiveLock);
-							nRestartResult = ParaNdis_SynchronizeWithInterrupt(
-								pContext, pContext->ulRxMessage, RestartQueueSynchronously, pContext->NetReceiveQueue);
-							ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)5, nRestartResult, 0, 0);
-							NdisReleaseSpinLock(&pContext->ReceiveLock);
-						}
-						DPrintf(1, ("[%s] Skip Rx processing no.%d", __FUNCTION__, rxActive));
-						break;
-					}
-				} while (nRestartResult);
-
-				if (nRestartResult) stillRequiresProcessing |= isReceive;
-			}
-
-			if (interruptSources & isTransmit)
-			{
-				NdisAcquireSpinLock(&pContext->SendLock);
-				if (ParaNdis_SynchronizeWithInterrupt(pContext, pContext->ulTxMessage, RestartQueueSynchronously, pContext->NetSendQueue))
-					stillRequiresProcessing |= isTransmit;
-				if(bDoKick)
-				{
-#ifdef PARANDIS_TEST_TX_KICK_ALWAYS
-					pContext->NetSendQueue->vq_ops->kick_always(pContext->NetSendQueue);
-#else
-					pContext->NetSendQueue->vq_ops->kick(pContext->NetSendQueue);
-#endif
-				}
-				NdisReleaseSpinLock(&pContext->SendLock);
-			}
+			ParaNdis_ReportLinkStatus(pContext, FALSE);
 		}
+		if (interruptSources & isTransmit)
+		{
+			bDoKick = ParaNdis_ProcessTx(pContext, TRUE, TRUE);
+
+			NdisAcquireSpinLock(&pContext->SendLock);
+			if (ParaNdis_SynchronizeWithInterrupt(pContext, pContext->ulTxMessage, RestartQueueSynchronously, pContext->NetSendQueue))
+				stillRequiresProcessing |= isTransmit;
+			if(bDoKick)
+			{
+#ifdef PARANDIS_TEST_TX_KICK_ALWAYS
+				pContext->NetSendQueue->vq_ops->kick_always(pContext->NetSendQueue);
+#else
+				pContext->NetSendQueue->vq_ops->kick(pContext->NetSendQueue);
+#endif
+			}
+			NdisReleaseSpinLock(&pContext->SendLock);
+		}
+
 		InterlockedDecrement(&pContext->counterDPCInside);
 		ParaNdis_DebugHistory(pContext, hopDPC, NULL, stillRequiresProcessing, pContext->nofFreeHardwareBuffers, pContext->nofFreeTxDescriptors);
 	}
 	return stillRequiresProcessing;
+}
+
+VOID ParaNdis_ResetRxClassification(PARANDIS_ADAPTER *pContext)
+{
+	ULONG i;
+	PPARANDIS_RECEIVE_QUEUE pUnclassified = &pContext->ReceiveQueues[PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED];
+
+	NdisAcquireSpinLock(&pUnclassified->Lock);
+
+	for(i = PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED + 1; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
+	{
+		PPARANDIS_RECEIVE_QUEUE pCurrQueue = &pContext->ReceiveQueues[i];
+		NdisAcquireSpinLock(&pCurrQueue->Lock);
+
+		while(!IsListEmpty(&pCurrQueue->BuffersList))
+		{
+			PLIST_ENTRY pListEntry = RemoveHeadList(&pCurrQueue->BuffersList);
+			InsertTailList(&pUnclassified->BuffersList, pListEntry);
+		}
+
+		NdisReleaseSpinLock(&pCurrQueue->Lock);
+	}
+
+	NdisReleaseSpinLock(&pUnclassified->Lock);
 }
 
 /**********************************************************

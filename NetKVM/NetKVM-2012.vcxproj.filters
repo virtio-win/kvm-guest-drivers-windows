@@ -48,6 +48,9 @@
     <ClCompile Include="VirtIO\VirtIORing.c">
       <Filter>Virtio-Clone</Filter>
     </ClCompile>
+    <ClCompile Include="wlh\ParaNdis6-RSS.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="buildAll.bat">
@@ -92,6 +95,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="wlh\ParaNdis6.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\ParaNdis-RSS.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
