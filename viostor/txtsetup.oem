@@ -40,30 +40,20 @@ inf    = d5, vioscsi.inf
 catalog= d5, vioscsi.cat
 
 [HardwareIds.scsi.WXP32]
-id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00000000", "viostor"
-id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00020000", "viostor"
-id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4", "viostor"
+id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4&REV_00", "viostor"
 
 [HardwareIds.scsi.WNET32]
-id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00000000", "viostor"
-id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00020000", "viostor"
-id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4", "viostor"
+id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4&REV_00", "viostor"
 
 
 [HardwareIds.scsi.WNET32_SCSI]
-id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00000000", "vioscsi"
-id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00080000", "vioscsi"
-id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4", "vioscsi"
+id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4&REV_00", "vioscsi"
 
 [HardwareIds.scsi.WNET64]
-id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00000000", "viostor"
-id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00020000", "viostor"
-id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4", "viostor"
+id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4&REV_00", "viostor"
 
 [HardwareIds.scsi.WNET64_SCSI]
-id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00000000", "vioscsi"
-id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00080000", "vioscsi"
-id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4", "vioscsi"
+id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4&REV_00", "vioscsi"
 
 [Config.WXP32]
 value = Parameters\PnpInterface,5,REG_DWORD,1

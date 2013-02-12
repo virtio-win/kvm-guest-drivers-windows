@@ -21,7 +21,7 @@ DriverPackageDisplayName = %kvmnet5.DeviceDesc%
 %RedHat% = RedHat
 
 [RedHat]
-%kvmnet5.DeviceDesc%    = kvmnet5.ndi, PCI\VEN_1AF4&DEV_1000&SUBSYS_00011AF4
+%kvmnet5.DeviceDesc%    = kvmnet5.ndi, PCI\VEN_1AF4&DEV_1000&SUBSYS_00011AF4&REV_00
 
 
 [kvmnet5.ndi]

@@ -35,12 +35,12 @@ vioser.sys  = 1,,
 ;
 ; Hw Id is PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4
 ;
-%VirtioSerial.DeviceDesc%=VirtioSerial_Device, PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4
+%VirtioSerial.DeviceDesc%=VirtioSerial_Device, PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4&REV_00
 
 ; Decorated model section take precedence over undecorated 
 ; ones on XP and later.
 [VirtioSerial.NT$ARCH$]
-%VirtioSerial.DeviceDesc%=VirtioSerial_Device, PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4
+%VirtioSerial.DeviceDesc%=VirtioSerial_Device, PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4&REV_00
 %VirtioPort.DeviceDesc%=VirtioPort_Device, {6FDE7547-1B65-48ae-B628-80BE62016026}\VIOSerialPort
 
 [VirtioSerial_Device.NT]

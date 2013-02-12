@@ -34,9 +34,7 @@ viostor_Files_Driver = 12
 %RHEL%   = RHEL,NT$ARCH$
 
 [RHEL.NT$ARCH$]
-%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_00000000
-%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_00020000
-%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4
+%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4&REV_00
 
 ;
 ; General installation section
