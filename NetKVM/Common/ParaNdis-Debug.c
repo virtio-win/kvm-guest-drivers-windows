@@ -287,7 +287,7 @@ static UINT FillDataOnBugCheck()
 	for (i = 0; i < MAX_CONTEXTS; ++i)
 	{
 		tBugCheckPerNicDataContent *pSave = &BugCheckData.StaticData.PerNicData[i];
-		PARANDIS_ADAPTER *p = (PARANDIS_ADAPTER *)pSave->Context;
+		PARANDIS_ADAPTER *p = (PARANDIS_ADAPTER *)(UINT_PTR)pSave->Context;
 		if (!p) continue;
 		pSave->nofPacketsToComplete = p->NetTxPacketsToReturn;
 		pSave->nofReadyTxBuffers = p->nofFreeHardwareBuffers;

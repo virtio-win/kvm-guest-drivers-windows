@@ -82,7 +82,7 @@ vring_add_indirect(
 	struct vring_virtqueue *vq = to_vvq(_vq);
     struct vring_desc *desc = (struct vring_desc *)va;
     unsigned head;
-    unsigned int i;
+    unsigned short i;
 
     if (!phys) {
         return -1;
@@ -433,7 +433,7 @@ void initialize_virtqueue(struct vring_virtqueue *vq,
 							unsigned int index,
 							bool use_published_indices)
 {
-	unsigned int i = num;
+	unsigned short i = (unsigned short) num;
 	memset(vq, 0, sizeof(*vq) + sizeof(void *)*num);
 
 	vring_init(&vq->vring, num, pages, PAGE_SIZE);
