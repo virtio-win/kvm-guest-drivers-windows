@@ -46,7 +46,7 @@ CopyFiles       = kvmnet6.CopyFiles
 *MediaType      = 0		; NdisMedium802_3
 *PhysicalMediaType = 0		; NdisPhysicalMediumUnspecified 
 #if defined(Win8)
-Port1FunctionNumber = 0
+Port1DeviceNumber = 0
 #endif
 ;<Sparse>
 
