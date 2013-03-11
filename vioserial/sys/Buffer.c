@@ -5,6 +5,9 @@
 #include "Buffer.tmh"
 #endif
 
+// Number of ring descriptors that fits into one page.
+#define INDIRECT_DESCRIPTORS 256
+
 PPORT_BUFFER
 VIOSerialAllocateBuffer(
     IN size_t buf_size
@@ -44,74 +47,72 @@ VIOSerialAllocateBuffer(
     return buf;
 }
 
-SSIZE_T
-VIOSerialSendBuffers(
-    IN PVIOSERIAL_PORT port,
-    IN PVOID buf,
-    IN SIZE_T count,
-    IN BOOLEAN nonblock
-)
+size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port,
+                            IN PVOID Buffer,
+                            IN size_t Length)
 {
-    UINT dummy;
-    SSIZE_T ret;
-    struct VirtIOBufferDescriptor sg;
-    struct virtqueue *vq = GetOutQueue(port);
-    PVOID ptr = buf;
-    SIZE_T len = count;
-    SIZE_T sent = 0;
-    UINT elements = 0;
-    UINT retries = 0;
-    TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "--> %s buf = %p, length = %d\n", __FUNCTION__, buf, (int)count);
+    PHYSICAL_ADDRESS HighestAcceptable;
+    PVOID InDirectBuffer;
+    struct virtqueue *vq = GetOutQueue(Port);
+    struct VirtIOBufferDescriptor sg[INDIRECT_DESCRIPTORS];
+    int ret;
 
-    WdfSpinLockAcquire(port->OutVqLock);
-    VIOSerialReclaimConsumedBuffers(port);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,
+        "--> %s Buffer: %p Length: %d\n", __FUNCTION__, Buffer, Length);
 
-    while (len && vq)
+    if (BYTES_TO_PAGES(Length) > INDIRECT_DESCRIPTORS)
     {
-        do
-        {
-           sg.physAddr = MmGetPhysicalAddress(ptr);
-           sg.ulSize = min(PAGE_SIZE, (unsigned long)len);
-
-           ret = vq->vq_ops->add_buf(vq, &sg, 1, 0, ptr, NULL, 0);
-           if (ret < 0)
-           {
-              TraceEvents(TRACE_LEVEL_FATAL, DBG_WRITE, "<--%s::%d\n", __FUNCTION__, __LINE__);
-              break;
-           }
-           ptr = (PVOID)((LONG_PTR)ptr + sg.ulSize);
-           len -= sg.ulSize;
-           sent += sg.ulSize;
-           elements++;
-        } while ((ret >= 0) && (len > 0));
-
-        vq->vq_ops->kick(vq);
-        port->OutVqFull = (sent > 0);
-
-        if (!nonblock && port->OutVqFull)
-        {
-           while(elements && retries < RETRY_THRESHOLD)
-           {
-              if(vq->vq_ops->get_buf(vq, &dummy))
-              {
-                 elements--;
-                 retries = 0;
-              }
-              else
-              {
-                 KeStallExecutionProcessor(50);
-                 retries++;
-              }
-           }
-           if (retries == RETRY_THRESHOLD)
-           {
-              TraceEvents(TRACE_LEVEL_FATAL, DBG_WRITE, "<-> %s retries = %d\n", __FUNCTION__, retries);
-              break;
-           }
-        }
+        return 0;
     }
-    WdfSpinLockRelease(port->OutVqLock);
-    return sent;
+
+    HighestAcceptable.QuadPart = 0xFFFFFFFFFF;
+    InDirectBuffer = MmAllocateContiguousMemory(PAGE_SIZE, HighestAcceptable);
+    if (InDirectBuffer)
+    {
+        PVOID buffer = Buffer;
+        size_t length = Length;
+        int i = 0;
+
+        while (length > 0)
+        {
+            sg[i].physAddr = MmGetPhysicalAddress(buffer);
+            sg[i].ulSize = min(length, PAGE_SIZE);
+
+            buffer = (PVOID)((LONG_PTR)buffer + sg[i].ulSize);
+            length -= sg[i].ulSize;
+            i += 1;
+        }
+
+        WdfSpinLockAcquire(Port->OutVqLock);
+        VIOSerialReclaimConsumedBuffers(Port);
+        ret = vq->vq_ops->add_buf(vq, sg, i, 0, Buffer,
+            InDirectBuffer, MmGetPhysicalAddress(InDirectBuffer).QuadPart);
+        vq->vq_ops->kick(vq);
+
+        if (ret < 0)
+        {
+            Length = 0;
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
+                "Error adding buffer to queue (ret = %d)\n", ret);
+        }
+        else if (ret == 0)
+        {
+            Port->OutVqFull = TRUE;
+        }
+
+        WdfSpinLockRelease(Port->OutVqLock);
+        MmFreeContiguousMemory(InDirectBuffer);
+    }
+    else
+    {
+        Length = 0;
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
+            "Error allocating contiguous memory.\n");
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+
+    return Length;
 }
 
 VOID

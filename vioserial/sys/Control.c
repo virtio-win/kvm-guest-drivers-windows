@@ -164,6 +164,13 @@ VIOSerialHandleCtrlMsg(
               {
                  VIOSerialPortPnpNotify(Device, port, Connected);
               }
+
+              // Someone is listening. Trigger a check to see if we have
+              // something waiting to be told.
+              if (port->HostConnected)
+              {
+                  WdfInterruptQueueDpcForIsr(pContext->QueuesInterrupt);
+              }
            }
            else
            {
