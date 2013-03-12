@@ -7,6 +7,10 @@
 ;
 ;-------------------------------------------------------------------------------
 
+#define INCLUDE_CONFIG
+#include "Common\common.inf.h"
+#undef INCLUDE_CONFIG
+
 [version]
 Signature   = "$Windows NT$"
 Class       = Net
@@ -46,7 +50,7 @@ CopyFiles       = kvmnet6.CopyFiles
 *MediaType      = 0		; NdisMedium802_3
 *PhysicalMediaType = 0		; NdisPhysicalMediumUnspecified 
 #if defined(Win8)
-Port1FunctionNumber = 0
+Port1DeviceNumber = 0
 #endif
 ;<Sparse>
 
@@ -62,6 +66,25 @@ HKR,    ,                         BusNumber,           0, "0"
 HKR, Ndi,                         Service,             0, "netkvm"
 HKR, Ndi\Interfaces,              UpperRange,          0, "ndis5"
 HKR, Ndi\Interfaces,              LowerRange,          0, "ethernet"
+
+#if PARANDIS_SUPPORT_RSS
+
+HKR, Ndi\params\*RSS,             ParamDesc,           0, "RSS"
+HKR, Ndi\params\*RSS,             Type,                0, "enum"
+HKR, Ndi\params\*RSS,             Value,               0, "1"
+HKR, Ndi\params\*RSS,             Default,             0, "1"
+HKR, Ndi\params\*RSS,             Optional,            0, "0"
+HKR, Ndi\params\*RSS\enum,        "0",                 0, "Disabled"
+HKR, Ndi\params\*RSS\enum,        "1",                 0, "Enabled"
+
+HKR, Ndi\params\*NumRssQueues,			ParamDesc,  0,          "Max number of RSS queues to use"
+HKR, Ndi\params\*NumRssQueues,			type,       0,          "int"
+HKR, Ndi\params\*NumRssQueues,			default,    0,          "8"
+HKR, Ndi\params\*NumRssQueues,			min,        0,          "1"
+HKR, Ndi\params\*NumRssQueues,			max,        0,          "16"
+HKR, Ndi\params\*NumRssQueues,			step,       0,          "1"
+
+#endif
 
 [Parameters]
 #define INCLUDE_PARAMS
