@@ -1522,7 +1522,7 @@ VIOSerialPortEvtDeviceD0ExitPreInterruptsDisabled(
         Port->GuestConnected = FALSE;
     }
 
-    Port->Removed = (TargetState == WdfPowerDeviceD3Final);
+    Port->Removed = (TargetState >= WdfPowerDeviceD3);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 
