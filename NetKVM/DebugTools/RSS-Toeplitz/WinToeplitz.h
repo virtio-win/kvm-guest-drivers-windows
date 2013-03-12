@@ -15,8 +15,15 @@ typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 typedef unsigned long uint32_t;
 
-EXTERN_C void toeplitzw_initialize(uint8_t *key, int keysize);
-EXTERN_C uint32_t toeplitzw_hash(const uint8_t *vector, int len);
+typedef struct _tagHASH_CALC_SG_BUF_ENTRY
+{
+	PBYTE chunkPtr;
+	ULONG chunkLen;
+} HASH_CALC_SG_BUF_ENTRY, *PHASH_CALC_SG_BUF_ENTRY;
 
+EXTERN_C void toeplitzw_initialize(uint8_t *key, int keysize);
+EXTERN_C UINT32 ToeplitsHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, UINT8 *fullKey);
+
+EXTERN_C uint8_t workingkey[];
 
 #endif

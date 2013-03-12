@@ -59,6 +59,52 @@ static NDIS_STATUS OnSetOffloadParameters(PARANDIS_ADAPTER *pContext, tOidDesc *
 static NDIS_STATUS OnSetOffloadEncapsulation(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 static NDIS_STATUS OnSetLinkParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 
+#if PARANDIS_SUPPORT_RSS
+
+static NDIS_STATUS RSSSetParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
+{
+	NDIS_STATUS status;
+
+	if (!pContext->bRSSOffloadSupported)
+		return NDIS_STATUS_NOT_SUPPORTED;
+
+	NdisAcquireSpinLock(&pContext->ReceiveLock);
+
+	status = ParaNdis6_RSSSetParameters(&pContext->RSSParameters,
+										(NDIS_RECEIVE_SCALE_PARAMETERS*) pOid->InformationBuffer,
+										pOid->InformationBufferLength,
+										pOid->pBytesRead,
+										pContext->MiniportHandle);
+	ParaNdis_ResetRxClassification(pContext);
+
+	NdisReleaseSpinLock(&pContext->ReceiveLock);
+
+	return status;
+}
+
+static NDIS_STATUS RSSSetReceiveHash(	PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
+{
+	NDIS_STATUS status;
+
+	if (!pContext->bRSSOffloadSupported)
+		return NDIS_STATUS_NOT_SUPPORTED;
+
+	NdisAcquireSpinLock(&pContext->ReceiveLock);
+
+	status = ParaNdis6_RSSSetReceiveHash(	&pContext->RSSParameters,
+										(NDIS_RECEIVE_HASH_PARAMETERS*) pOid->InformationBuffer,
+										pOid->InformationBufferLength,
+										pOid->pBytesRead);
+
+	ParaNdis_ResetRxClassification(pContext);
+
+	NdisReleaseSpinLock(&pContext->ReceiveLock);
+
+	return status;
+}
+
+#endif
+
 /**********************************************************
 Structure defining how to support each OID
 ***********************************************************/
@@ -149,6 +195,12 @@ OIDENTRY(OID_IP4_OFFLOAD_STATS,					4,4,4, 0),
 OIDENTRY(OID_IP6_OFFLOAD_STATS,					4,4,4, 0),
 OIDENTRYPROC(OID_TCP_OFFLOAD_PARAMETERS,		0,0,0, ohfSet | ohfSetMoreOK, OnSetOffloadParameters),
 OIDENTRYPROC(OID_OFFLOAD_ENCAPSULATION,			0,0,0, ohfQuerySet, OnSetOffloadEncapsulation),
+
+#if PARANDIS_SUPPORT_RSS
+	OIDENTRYPROC(OID_GEN_RECEIVE_SCALE_PARAMETERS,	0,0,0, ohfSet | ohfSetMoreOK, RSSSetParameters),
+	OIDENTRYPROC(OID_GEN_RECEIVE_HASH,				0,0,0, ohfQuerySet | ohfSetMoreOK, RSSSetReceiveHash),
+#endif
+
 #if NDIS_SUPPORT_NDIS620
 // here should be NDIS 6.20 specific OIDs (mostly power management related)
 // OID_PM_CURRENT_CAPABILITIES - not requred, supported by NDIS
@@ -211,7 +263,11 @@ static NDIS_OID SupportedOids[] =
 		OID_GEN_RCV_OK,
 		OID_GEN_VLAN_ID,
 		OID_OFFLOAD_ENCAPSULATION,
-		OID_TCP_OFFLOAD_PARAMETERS
+		OID_TCP_OFFLOAD_PARAMETERS,
+#if PARANDIS_SUPPORT_RSS
+		OID_GEN_RECEIVE_SCALE_PARAMETERS,
+		OID_GEN_RECEIVE_HASH
+#endif
 };
 
 
@@ -311,6 +367,9 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 		NDIS_LINK_SPEED							LinkSpeed;
 		NDIS_INTERRUPT_MODERATION_PARAMETERS	InterruptModeration;
 		NDIS_LINK_PARAMETERS					LinkParameters;
+#if PARANDIS_SUPPORT_RSS
+		RSS_HASH_KEY_PARAMETERS					RSSHashKeyParameters;
+#endif
 	} u;
 	NDIS_STATUS  status = NDIS_STATUS_SUCCESS;
 	PVOID pInfo  = NULL;
@@ -351,6 +410,12 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 			pInfo = &u.InterruptModeration;
 			ulSize = sizeof(u.InterruptModeration);
 			break;
+#if PARANDIS_SUPPORT_RSS
+		case OID_GEN_RECEIVE_HASH:
+			pInfo = &u.RSSHashKeyParameters;
+			ulSize = ParaNdis6_QueryReceiveHash(&pContext->RSSParameters, pInfo);
+			break;
+#endif
 		default:
 			return ParaNdis_OidQueryCommon(pContext, pOid);
 	}

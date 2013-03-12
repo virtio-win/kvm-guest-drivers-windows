@@ -213,6 +213,7 @@
     <ClCompile Include="wlh\ParaNdis6-Driver.c" />
     <ClCompile Include="wlh\ParaNdis6-Impl.c" />
     <ClCompile Include="wlh\ParaNdis6-Oid.c" />
+    <ClCompile Include="wlh\ParaNdis6-RSS.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="buildAll.bat" />
@@ -225,6 +226,7 @@
     <ClInclude Include="Common\kdebugprint.h" />
     <ClInclude Include="Common\ndis56common.h" />
     <ClInclude Include="Common\osdep.h" />
+    <ClInclude Include="Common\ParaNdis-RSS.h" />
     <ClInclude Include="Common\quverp.h" />
     <ClInclude Include="NetKVM-2012.h" />
     <ClInclude Include="VirtIO\VirtIO.h" />

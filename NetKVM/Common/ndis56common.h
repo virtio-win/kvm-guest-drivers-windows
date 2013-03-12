@@ -39,6 +39,11 @@
 
 
 #include <ndis.h>
+
+#if NDIS_SUPPORT_NDIS630
+#define PARANDIS_SUPPORT_RSS 1
+#endif
+
 #include "osdep.h"
 #include "kdebugprint.h"
 #include "ethernetutils.h"
@@ -46,6 +51,7 @@
 #include "VirtIO.h"
 #include "IONetDescriptor.h"
 #include "DebugData.h"
+#include "ParaNdis-RSS.h"
 
 // those stuff defined in NDIS
 //NDIS_MINIPORT_MAJOR_VERSION
@@ -315,16 +321,65 @@ typedef struct _tagMulticastData
 	UCHAR					MulticastList[ETH_LENGTH_OF_ADDRESS * PARANDIS_MULTICAST_LIST_SIZE];
 }tMulticastData;
 
+typedef struct _tagNET_PACKET_INFO
+{
+	struct
+	{
+		BOOLEAN hasVlanHeader : 1;
+		BOOLEAN isIP4         : 1;
+		BOOLEAN isIP6         : 1;
+		BOOLEAN isTCP         : 1;
+		BOOLEAN isUDP         : 1;
+		BOOLEAN isFragment    : 1;
+	};
+
+	struct
+	{
+		UINT32 UserPriority : 3;
+		UINT32 VlanId       : 12;
+	} Vlan;
+
+#if PARANDIS_SUPPORT_RSS
+	struct
+	{
+		ULONG Value;
+		ULONG Type;
+		ULONG Function;
+	} RSSHash;
+#endif
+
+	ULONG L2HdrLen;
+	ULONG L3HdrLen;
+	ULONG ip6HomeAddrOffset;
+	ULONG ip6DestAddrOffset;
+	PVOID dataBuffer;
+	ULONG dataLength;
+} NET_PACKET_INFO, *PNET_PACKET_INFO;
+
 typedef struct _tagIONetDescriptor {
 	LIST_ENTRY listEntry;
+	LIST_ENTRY ReceiveQueueListEntry;
 	tCompletePhysicalAddress HeaderInfo;
 	tCompletePhysicalAddress DataInfo;
 	tPacketHolderType pHolder;
 	PVOID ReferenceValue;
 	UINT  nofUsedBuffers;
+	NET_PACKET_INFO PacketInfo;
 } IONetDescriptor, * pIONetDescriptor;
 
 typedef void (*tReuseReceiveBufferProc)(void *pContext, pIONetDescriptor pDescriptor);
+
+typedef struct _tagPARANDIS_RECEIVE_QUEUE
+{
+	NDIS_SPIN_LOCK			Lock;
+	LIST_ENTRY				BuffersList;
+
+	tPacketIndicationType	*BatchReceiveArray;
+	ULONG					BatchReceiveArraySize;
+	tPacketIndicationType	BatchReceiveEmergencyItem;
+
+	LONG					ActiveProcessorsCount;
+} PARANDIS_RECEIVE_QUEUE, *PPARANDIS_RECEIVE_QUEUE;
 
 typedef struct _tagPARANDIS_ADAPTER
 {
@@ -347,7 +402,6 @@ typedef struct _tagPARANDIS_ADAPTER
 	BOOLEAN					bDoSupportPriority;
 	BOOLEAN					bDoHwPacketFiltering;
 	BOOLEAN					bUseScatterGather;
-	BOOLEAN					bBatchReceive;
 	BOOLEAN					bLinkDetectSupported;
 	BOOLEAN					bDoHardwareChecksum;
 	BOOLEAN					bDoGuestChecksumOnReceive;
@@ -367,7 +421,7 @@ typedef struct _tagPARANDIS_ADAPTER
 	tMulticastData			MulticastData;
 	UINT					uNumberOfHandledRXPacketsInDPC;
 	NDIS_DEVICE_POWER_STATE powerState;
-	LONG					dpcReceiveActive;
+	LONG					nPendingDPCs;
 	LONG 					counterDPCInside;
 	LONG 					bDPCInactive;
 	LONG					InterruptStatus;
@@ -458,6 +512,11 @@ typedef struct _tagPARANDIS_ADAPTER
 	ULONG						ulTxMessage;
 	ULONG						ulControlMessage;
 
+	PARANDIS_RECEIVE_QUEUE		ReceiveQueues[PARANDIS_RSS_MAX_RECEIVE_QUEUES + 1];
+	BOOLEAN						ReceiveQueuesInitialized;
+#define PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED (0)
+#define PARANDIS_FIRST_RSS_RECEIVE_QUEUE    (1)
+
 #if NDIS_SUPPORT_NDIS6
 // Vista +
 	PIO_INTERRUPT_MESSAGE_INFO	pMSIXInfoTable;
@@ -473,6 +532,15 @@ typedef struct _tagPARANDIS_ADAPTER
 	NDIS_OFFLOAD				ReportedOffloadConfiguration;
 	BOOLEAN						bOffloadv4Enabled;
 	BOOLEAN						bOffloadv6Enabled;
+
+#if PARANDIS_SUPPORT_RSS
+	BOOLEAN						bRSSOffloadSupported;
+	BOOLEAN						bRSSInitialized;
+	NDIS_RECEIVE_SCALE_CAPABILITIES	RSSCapabilities;
+	PARANDIS_RSS_PARAMS			RSSParameters;
+	CCHAR						RSSMaxQueuesNumber;
+#endif
+
 #else
 // Vista -
 	NDIS_MINIPORT_INTERRUPT		Interrupt;
@@ -555,8 +623,11 @@ UINT ParaNdis_VirtIONetReleaseTransmitBuffers(
 	PARANDIS_ADAPTER *pContext);
 
 ULONG ParaNdis_DPCWorkBody(
-  PARANDIS_ADAPTER *pContext,
-  ULONG ulMaxPacketsToIndicate);
+	PARANDIS_ADAPTER *pContext,
+	ULONG ulMaxPacketsToIndicate);
+
+VOID ParaNdis_ResetRxClassification(
+	PARANDIS_ADAPTER *pContext);
 
 NDIS_STATUS ParaNdis_SetMulticastList(
 	PARANDIS_ADAPTER *pContext,
@@ -706,7 +777,6 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 	PARANDIS_ADAPTER *pContext,
 	PVOID dataBuffer,
 	PULONG pLength,
-	BOOLEAN bPrepareOnly,
 	pIONetDescriptor pBufferDesc);
 
 VOID ParaNdis_IndicateReceivedBatch(
@@ -882,5 +952,6 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(PVOID buffer, ULONG size, ULON
 tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, LPCSTR caller);
 
 void ParaNdis_PadPacketReceived(PVOID pDataBuffer, PULONG pLength);
+BOOLEAN ParaNdis_AnalyzeReceivedPacket(PVOID dataBuffer, ULONG dataLength, PNET_PACKET_INFO packetInfo);
 
 #endif

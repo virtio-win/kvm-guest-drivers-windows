@@ -18,26 +18,6 @@
 // till IP header size is 8 bit
 #define MAX_SUPPORTED_IPV6_HEADERS	(256 - 4)
 
-typedef ULONG IPV6_ADDRESS[4];
-
-// IPv6 Header RFC 2460 (40 bytes)
-typedef struct _tagIPv6Header {
-    UCHAR		ip6_ver_tc;            // traffic class(low nibble), version (high nibble)
-    UCHAR		ip6_tc_fl;             // traffic class(high nibble), flow label
-    USHORT		ip6_fl;                // flow label, the rest
-    USHORT		ip6_payload_len;       // length of following headers and payload
-    UCHAR		ip6_next_header;       // next header type
-    UCHAR		ip6_hoplimit;          // hop limit
-    IPV6_ADDRESS ip6_src_address;    // 
-    IPV6_ADDRESS ip6_dst_address;    // 
-} IPv6Header;
-
-typedef union
-{
-	IPv6Header v6;
-	IPv4Header v4;
-} IPHeader;
-
 // IPv6 Header RFC 2460 (n*8 bytes)
 typedef struct _tagIPv6ExtHeader {
     UCHAR		ip6ext_next_header;     // next header type
@@ -65,15 +45,55 @@ typedef struct _tagIPv6PseudoHeader {
 	UCHAR        ipph_protocol;				// TCP/UDP
 }tIPv6PseudoHeader;
 
+// IP v6 extension header option
+typedef struct _tagIP6_EXT_HDR_OPTION
+{
+	UCHAR Type;
+	UCHAR Length;
+} IP6_EXT_HDR_OPTION, *PIP6_EXT_HDR_OPTION;
+
+#define IP6_EXT_HDR_OPTION_PAD1			(0)
+#define IP6_EXT_HDR_OPTION_HOME_ADDR	(201)
+
+// IP v6 routing header
+typedef struct _tagIP6_TYPE2_ROUTING_HEADER
+{
+	UCHAR			NextHdr;
+	UCHAR			HdrLen;
+	UCHAR			RoutingType;
+	UCHAR			SegmentsLeft;
+	ULONG			Reserved;
+	IPV6_ADDRESS	Address;
+} IP6_TYPE2_ROUTING_HEADER, *PIP6_TYPE2_ROUTING_HEADER;
 
 #define PROTOCOL_TCP					6
 #define PROTOCOL_UDP					17
 
+#define IP_HEADER_LENGTH(pHeader)       (((pHeader)->ip_verlen & 0x0F) << 2)
+#define IP_HEADER_VERSION(pHeader)      (((pHeader)->ip_verlen & 0xF0) >> 4)
+#define IP_HEADER_IS_FRAGMENT(pHeader)  (((pHeader)->ip_offset & ~0xC0) != 0)
 
-#define IP_HEADER_LENGTH(pHeader)  (((pHeader)->ip_verlen & 0x0F) << 2)
+#define IP6_HEADER_VERSION(pHeader)     (((pHeader)->ip6_ver_tc & 0xF0) >> 4)
+
 #define TCP_HEADER_LENGTH(pHeader) ((pHeader->tcp_flags & 0xF0) >> 2)
 
+#define ETH_GET_VLAN_HDR(ethHdr)        ((PVLAN_HEADER) RtlOffsetToPointer(ethHdr, ETH_PRIORITY_HEADER_OFFSET))
+#define VLAN_GET_USER_PRIORITY(vlanHdr) ( (((PUCHAR)(vlanHdr))[2] & 0xE0) >> 5 )
+#define VLAN_GET_VLAN_ID(vlanHdr)       (((USHORT)( (((PUCHAR)(vlanHdr))[2] & 0x0F) >> 5 )) | ( ((PUCHAR)(vlanHdr))[3] ))
 
+#define ETH_PROTO_IP4 (0x0800)
+#define ETH_PROTO_IP6 (0x86DD)
+
+#define IP6_HDR_HOP_BY_HOP        (0)
+#define IP6_HDR_ROUTING           (43)
+#define IP6_HDR_FRAGMENT          (44)
+#define IP6_HDR_ESP               (50)
+#define IP6_HDR_AUTHENTICATION    (51)
+#define IP6_HDR_NONE              (59)
+#define IP6_HDR_DESTINATON        (60)
+#define IP6_HDR_MOBILITY          (135)
+
+#define IP6_EXT_HDR_GRANULARITY   (8)
 
 static __inline USHORT CheckSumCalculator(ULONG val, PVOID buffer, ULONG len)
 {
@@ -616,4 +636,280 @@ tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, LPCS
 	tTcpIpPacketParsingResult res = QualifyIpPacket(buffer, size);
 	PrintOutParsingResult(res, 1, caller);
 	return res;
+}
+
+static __inline
+VOID AnalyzeL3Proto(
+	USHORT L3Proto,
+	PNET_PACKET_INFO packetInfo)
+{
+	packetInfo->isIP4 = (L3Proto == RtlUshortByteSwap(ETH_PROTO_IP4));
+	packetInfo->isIP6 = (L3Proto == RtlUshortByteSwap(ETH_PROTO_IP6));
+}
+
+static
+BOOLEAN AnalyzeL2Hdr(
+	PNET_PACKET_INFO packetInfo)
+{
+	PETH_HEADER dataBuffer = (PETH_HEADER) packetInfo->dataBuffer;
+
+	if (packetInfo->dataLength < ETH_HEADER_SIZE)
+		return FALSE;
+
+	if(ETH_HAS_PRIO_HEADER(dataBuffer))
+	{
+		PVLAN_HEADER vlanHdr = ETH_GET_VLAN_HDR(dataBuffer);
+
+		if(packetInfo->dataLength < ETH_HEADER_SIZE + ETH_PRIORITY_HEADER_SIZE)
+			return FALSE;
+
+		packetInfo->hasVlanHeader     = TRUE;
+		packetInfo->Vlan.UserPriority = VLAN_GET_USER_PRIORITY(vlanHdr);
+		packetInfo->Vlan.VlanId       = VLAN_GET_VLAN_ID(vlanHdr);
+		packetInfo->L2HdrLen          = ETH_HEADER_SIZE + ETH_PRIORITY_HEADER_SIZE;
+		AnalyzeL3Proto(vlanHdr->EthType, packetInfo);
+	}
+	else
+	{
+		packetInfo->L2HdrLen = ETH_HEADER_SIZE;
+		AnalyzeL3Proto(dataBuffer->EthType, packetInfo);
+	}
+	return TRUE;
+}
+
+static __inline
+BOOLEAN SkipIP6ExtensionHeader(
+	IPv6Header *ip6Hdr,
+	ULONG dataLength,
+	PULONG ip6HdrLength,
+	PUCHAR nextHdr)
+{
+	IPv6ExtHeader* ip6ExtHdr;
+
+	if (*ip6HdrLength + sizeof(*ip6ExtHdr) > dataLength)
+		return FALSE;
+
+	ip6ExtHdr = (IPv6ExtHeader *)RtlOffsetToPointer(ip6Hdr, *ip6HdrLength);
+	*nextHdr = ip6ExtHdr->ip6ext_next_header;
+	*ip6HdrLength += (ip6ExtHdr->ip6ext_hdr_len + 1) * IP6_EXT_HDR_GRANULARITY;
+	return TRUE;
+}
+
+static
+BOOLEAN AnalyzeIP6RoutingExtension(
+	PIP6_TYPE2_ROUTING_HEADER routingHdr,
+	ULONG dataLength,
+	IPV6_ADDRESS **destAddr)
+{
+	if(dataLength < sizeof(*routingHdr))
+		return FALSE;
+	if(routingHdr->RoutingType == 2)
+	{
+		if((dataLength != sizeof(*routingHdr)) || (routingHdr->SegmentsLeft != 1))
+			return FALSE;
+
+		*destAddr = &routingHdr->Address;
+	}
+	else *destAddr = NULL;
+
+	return TRUE;
+}
+
+static
+BOOLEAN AnalyzeIP6DestinationExtension(
+	PVOID destHdr,
+	ULONG dataLength,
+	IPV6_ADDRESS **homeAddr)
+{
+	while(dataLength != 0)
+	{
+		PIP6_EXT_HDR_OPTION optHdr = (PIP6_EXT_HDR_OPTION) destHdr;
+		ULONG optionLen;
+
+		switch(optHdr->Type)
+		{
+		case IP6_EXT_HDR_OPTION_HOME_ADDR:
+			if(dataLength < sizeof(IP6_EXT_HDR_OPTION))
+				return FALSE;
+
+			optionLen = optHdr->Length + sizeof(IP6_EXT_HDR_OPTION);
+			if(optHdr->Length != sizeof(IPV6_ADDRESS))
+				return FALSE;
+
+			*homeAddr = (IPV6_ADDRESS*) RtlOffsetToPointer(optHdr, sizeof(IP6_EXT_HDR_OPTION));
+			break;
+
+		case IP6_EXT_HDR_OPTION_PAD1:
+			optionLen = RTL_SIZEOF_THROUGH_FIELD(IP6_EXT_HDR_OPTION, Type);
+			break;
+
+		default:
+			if(dataLength < sizeof(IP6_EXT_HDR_OPTION))
+				return FALSE;
+
+			optionLen = optHdr->Length + sizeof(IP6_EXT_HDR_OPTION);
+			break;
+		}
+
+		destHdr = RtlOffsetToPointer(destHdr, optionLen);
+		if(dataLength < optionLen)
+			return FALSE;
+
+		dataLength -= optionLen;
+	}
+
+	return TRUE;
+}
+
+static
+BOOLEAN AnalyzeIP6Hdr(
+	IPv6Header *ip6Hdr,
+	ULONG dataLength,
+	PULONG ip6HdrLength,
+	PUCHAR nextHdr,
+	PULONG homeAddrOffset,
+	PULONG destAddrOffset)
+{
+	*homeAddrOffset = 0;
+	*destAddrOffset = 0;
+
+	*ip6HdrLength = sizeof(*ip6Hdr);
+	if(dataLength < *ip6HdrLength)
+		return FALSE;
+
+	*nextHdr = ip6Hdr->ip6_next_header;
+	for(;;)
+	{
+		switch (*nextHdr)
+		{
+		default:
+		case IP6_HDR_NONE:
+		case PROTOCOL_TCP:
+		case PROTOCOL_UDP:
+		case IP6_HDR_FRAGMENT:
+			return TRUE;
+		case IP6_HDR_DESTINATON:
+			{
+				IPV6_ADDRESS *homeAddr = NULL;
+				ULONG destHdrOffset = *ip6HdrLength;
+				if(!SkipIP6ExtensionHeader(ip6Hdr, dataLength, ip6HdrLength, nextHdr))
+					return FALSE;
+
+				if(!AnalyzeIP6DestinationExtension(RtlOffsetToPointer(ip6Hdr, destHdrOffset),
+					*ip6HdrLength - destHdrOffset, &homeAddr))
+					return FALSE;
+
+				*homeAddrOffset = homeAddr ? RtlPointerToOffset(ip6Hdr, homeAddr) : 0;
+			}
+			break;
+		case IP6_HDR_ROUTING:
+			{
+				IPV6_ADDRESS *destAddr = NULL;
+				ULONG routingHdrOffset = *ip6HdrLength;
+
+				if(!SkipIP6ExtensionHeader(ip6Hdr, dataLength, ip6HdrLength, nextHdr))
+					return FALSE;
+
+				if(!AnalyzeIP6RoutingExtension((PIP6_TYPE2_ROUTING_HEADER) RtlOffsetToPointer(ip6Hdr, routingHdrOffset),
+					*ip6HdrLength - routingHdrOffset, &destAddr))
+					return FALSE;
+
+				*destAddrOffset = destAddr ? RtlPointerToOffset(ip6Hdr, destAddr) : 0;
+			}
+			break;
+		case IP6_HDR_HOP_BY_HOP:
+		case IP6_HDR_ESP:
+		case IP6_HDR_AUTHENTICATION:
+		case IP6_HDR_MOBILITY:
+			if(!SkipIP6ExtensionHeader(ip6Hdr, dataLength, ip6HdrLength, nextHdr))
+				return FALSE;
+
+			break;
+		}
+	}
+}
+
+static __inline
+VOID AnalyzeL4Proto(
+	UCHAR l4Protocol,
+	PNET_PACKET_INFO packetInfo)
+{
+	packetInfo->isTCP = (l4Protocol == PROTOCOL_TCP);
+	packetInfo->isUDP = (l4Protocol == PROTOCOL_UDP);
+}
+
+static
+BOOLEAN AnalyzeL3Hdr(
+	PNET_PACKET_INFO packetInfo)
+{
+	if(packetInfo->isIP4)
+	{
+		IPv4Header *ip4Hdr = (IPv4Header *) RtlOffsetToPointer(packetInfo->dataBuffer, packetInfo->L2HdrLen);
+
+		if(packetInfo->dataLength < packetInfo->L2HdrLen + sizeof(*ip4Hdr))
+			return FALSE;
+
+		packetInfo->L3HdrLen = IP_HEADER_LENGTH(ip4Hdr);
+		if ((packetInfo->L3HdrLen < sizeof(*ip4Hdr)) ||
+			(packetInfo->dataLength < packetInfo->L2HdrLen + packetInfo->L3HdrLen))
+			return FALSE;
+
+		if(IP_HEADER_VERSION(ip4Hdr) != 4)
+			return FALSE;
+
+		packetInfo->isFragment = IP_HEADER_IS_FRAGMENT(ip4Hdr);
+
+		if(!packetInfo->isFragment)
+		{
+			AnalyzeL4Proto(ip4Hdr->ip_protocol, packetInfo);
+		}
+	}
+	else if(packetInfo->isIP6)
+	{
+		ULONG homeAddrOffset, destAddrOffset;
+		UCHAR l4Proto;
+
+		IPv6Header *ip6Hdr = (IPv6Header *) RtlOffsetToPointer(packetInfo->dataBuffer, packetInfo->L2HdrLen);
+
+		if(IP6_HEADER_VERSION(ip6Hdr) != 6)
+			return FALSE;
+
+		if(!AnalyzeIP6Hdr(ip6Hdr, packetInfo->dataLength - packetInfo->L2HdrLen,
+			&packetInfo->L3HdrLen, &l4Proto, &homeAddrOffset, &destAddrOffset))
+			return FALSE;
+
+		if (packetInfo->L3HdrLen > MAX_SUPPORTED_IPV6_HEADERS)
+			return FALSE;
+
+		packetInfo->ip6HomeAddrOffset = (homeAddrOffset) ? packetInfo->L2HdrLen + homeAddrOffset : 0;
+		packetInfo->ip6DestAddrOffset = (destAddrOffset) ? packetInfo->L2HdrLen + destAddrOffset : 0;
+
+		packetInfo->isFragment = (l4Proto == IP6_HDR_FRAGMENT);
+
+		if(!packetInfo->isFragment)
+		{
+			AnalyzeL4Proto(l4Proto, packetInfo);
+		}
+	}
+
+	return TRUE;
+}
+
+BOOLEAN ParaNdis_AnalyzeReceivedPacket(
+	PVOID dataBuffer,
+	ULONG dataLength,
+	PNET_PACKET_INFO packetInfo)
+{
+	NdisZeroMemory(packetInfo, sizeof(*packetInfo));
+
+	packetInfo->dataBuffer = dataBuffer;
+	packetInfo->dataLength = dataLength;
+
+	if(!AnalyzeL2Hdr(packetInfo))
+		return FALSE;
+
+	if (!AnalyzeL3Hdr(packetInfo))
+		return FALSE;
+
+	return TRUE;
 }

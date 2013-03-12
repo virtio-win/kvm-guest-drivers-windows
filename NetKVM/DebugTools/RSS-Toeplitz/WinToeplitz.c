@@ -1,8 +1,7 @@
 #include "stdafx.h"
 #include "winToeplitz.h"
 
-
-static uint8_t workingkey[WTEP_MAX_KEY_SIZE];
+uint8_t workingkey[WTEP_MAX_KEY_SIZE];
 
 void toeplitzw_initialize(uint8_t *key, int keysize)
 {
@@ -10,33 +9,41 @@ void toeplitzw_initialize(uint8_t *key, int keysize)
 	memcpy(workingkey, key, keysize);
 }
 
+#define RtlUlongByteSwap(ul) _byteswap_ulong(ul)
+
 // Little Endian version ONLY
-uint32_t toeplitzw_hash(const uint8_t *vector, int len)
+UINT32 ToeplitsHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, UINT8 *fullKey)
 {
-	uint32_t next, res = 0;
-	union { uint8_t bytes[4]; uint32_t l;} key;
-	int byte, bit;
-	key.bytes[0] = workingkey[3];
-	key.bytes[1] = workingkey[2];
-	key.bytes[2] = workingkey[1];
-	key.bytes[3] = workingkey[0];
-	for (byte = 0; byte < len; byte++)
+#define TOEPLITZ_MAX_BIT_NUM (7)
+#define TOEPLITZ_BYTE_HAS_BIT(byte, bit) ((byte) & (1 << (TOEPLITZ_MAX_BIT_NUM - (bit))))
+#define TOEPLITZ_BYTE_BIT_STATE(byte, bit) (((byte) >> (TOEPLITZ_MAX_BIT_NUM - (bit))) & 1)
+
+	UINT32 firstKeyWord, res = 0;
+	UINT byte, bit;
+	PHASH_CALC_SG_BUF_ENTRY sgEntry;
+	UINT8 *next_key_byte = fullKey + sizeof(firstKeyWord);
+	firstKeyWord = RtlUlongByteSwap(*(UINT32*)fullKey);
+
+	for(sgEntry = sgBuff; sgEntry < sgBuff + sgEntriesNum; ++sgEntry)
 	{
-		next = *(workingkey + byte + 4);
-		for (bit = 0; bit < 8; bit++)
+		for (byte = 0; byte < sgEntry->chunkLen; ++byte)
 		{
-			uint8_t vecb;
-			vecb = (vector[byte] & (1 << (7 - bit))) ? 1 : 0;
-			if (vecb)
+			for (bit = 0; bit <= TOEPLITZ_MAX_BIT_NUM; ++bit)
 			{
-				res ^= key.l;
+				if (TOEPLITZ_BYTE_HAS_BIT(sgEntry->chunkPtr[byte], bit))
+				{
+					res ^= firstKeyWord;
+				}
+				firstKeyWord = (firstKeyWord << 1) | TOEPLITZ_BYTE_BIT_STATE(*next_key_byte, bit);
 			}
-			key.l = key.l << 1;
-			key.l |= (next & 0x80) ? 1 : 0;
-			next = next << 1;
+			++next_key_byte;
 		}
 	}
 	return res;
+
+#undef TOEPLITZ_BYTE_HAS_BIT
+#undef TOEPLITZ_BYTE_BIT_STATE
+#undef TOEPLITZ_MAX_BIT_NUM
 }
 
 

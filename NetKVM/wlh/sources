@@ -14,7 +14,7 @@ TARGETLIBS=  \
             ..\VirtIO\$O\virtiolib.lib
             
 
-SOURCES =	ParaNdis6-Driver.c ParaNdis6-Oid.c ParaNdis6-Impl.c Parandis6.rc
+SOURCES = ParaNdis6-Driver.c ParaNdis6-Oid.c ParaNdis6-Impl.c Parandis6.rc ParaNdis6-RSS.c
 
 
 !include "..\Common\common.mak"

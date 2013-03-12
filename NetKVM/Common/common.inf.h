@@ -10,6 +10,14 @@
 #define TARGETOS 50
 #endif
 
+#if defined(INCLUDE_CONFIG)
+
+#if TARGETOS >= 62
+#define PARANDIS_SUPPORT_RSS 1
+#endif
+
+#endif
+
 #if TARGETOS >= 60
 #define _LsoV2IPv4
 #define _LsoV2IPv6
@@ -268,12 +276,6 @@ HKR, Ndi\Params\PacketFilter,		type,		0,			"enum"
 HKR, Ndi\Params\PacketFilter\enum,	"1",		0,			%Enable%
 HKR, Ndi\Params\PacketFilter\enum,	"0",		0,			%Disable%
 
-HKR, Ndi\Params\BatchReceive,		ParamDesc,	0,			%BatchReceive%
-HKR, Ndi\Params\BatchReceive,		Default,	0,			"1"
-HKR, Ndi\Params\BatchReceive,		type,		0,			"enum"
-HKR, Ndi\Params\BatchReceive\enum,	"1",		0,			%Enable%
-HKR, Ndi\Params\BatchReceive\enum,	"0",		0,			%Disable%
-
 HKR, Ndi\Params\Promiscuous,		ParamDesc,	0,			%Promiscuous%
 HKR, Ndi\Params\Promiscuous,		Default,	0,			"0"
 HKR, Ndi\Params\Promiscuous,		type,		0,			"enum"
@@ -323,7 +325,6 @@ Gather = "TestOnly.Scatter-Gather"
 GuestCS = "TestOnly.GuestChecksum"
 InterruptRecovery = "TestOnly.InterruptRecovery"
 PacketFilter = "TestOnly.HwPacketFilter"
-BatchReceive = "TestOnly.BatchReceive"
 Promiscuous = "TestOnly.Promiscuous"
 IPPacketsCheck = "TestOnly.AnalyzeIPPackets"
 NumberOfHandledRXPackersInDPC = "TestOnly.RXThrottle"
