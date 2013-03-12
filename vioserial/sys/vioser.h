@@ -20,6 +20,7 @@ EVT_WDF_DRIVER_DEVICE_ADD VIOSerialEvtDeviceAdd;
 
 EVT_WDF_INTERRUPT_ISR                           VIOSerialInterruptIsr;
 EVT_WDF_INTERRUPT_DPC                           VIOSerialInterruptDpc;
+EVT_WDF_INTERRUPT_DPC                           VIOSerialQueuesInterruptDpc;
 EVT_WDF_INTERRUPT_ENABLE                        VIOSerialInterruptEnable;
 EVT_WDF_INTERRUPT_DISABLE                       VIOSerialInterruptDisable;
 
@@ -82,6 +83,7 @@ typedef struct _tagPortDevice
     bool                bPortMapped;
 
     WDFINTERRUPT        WdfInterrupt;
+    WDFINTERRUPT        QueuesInterrupt;
 
     int                 isHostMultiport;
 
