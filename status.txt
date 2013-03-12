@@ -1,3 +1,17 @@
+Date    12 Mar 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm75
+
+Fixed bugs:
+
+[virtio-serial] BZ#806223: Fixed a bsod when changing state to s3.
+[netkvm/vioserial/viostor/vioscsi] BZ#908725 - virtio win inf does
+    not specify revision ID,
+
+New features:
+[NetKVM] RSS implemented
+
+
 Date    6 Feb 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm74
