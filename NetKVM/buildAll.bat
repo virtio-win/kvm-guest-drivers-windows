@@ -152,31 +152,19 @@ if not exist CoInstaller\objfre_wlh_amd64\amd64\netkvmco.dll goto :eof
 goto continue
 
 :XP
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WXP no_oacr
+pushd NDIS5
+call buildall.bat XP
 popd
-call :preparebuild Common wxp VirtIO
-build -cZg
-
-if exist wxp\objfre_wxp_x86\i386\netkvm.sys call tools\makeinstall x86 wxp\objfre_wxp_x86\i386\netkvm.sys wxp\netkvm.inf %_VERSION_% XP
-endlocal
-if not exist wxp\objfre_wxp_x86\i386\netkvm.sys goto :eof
+if %ERRORLEVEL% NEQ 0 exit /B %ERRORLEVEL%
+xcopy /S /I /Y NDIS5\Install\XP\x86 Install\XP\x86
 goto continue
 
 :XP64
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WNET no_oacr
+pushd NDIS5
+call buildall.bat XP64
 popd
-call :preparebuild Common wxp VirtIO
-build -cZg
-
-if exist wxp\objfre_wnet_amd64\amd64\netkvm.sys call tools\makeinstall amd64 wxp\objfre_wnet_amd64\amd64\netkvm.sys wxp\netkvm.inf %_VERSION_% XP
-endlocal
-if not exist wxp\objfre_wnet_amd64\amd64\netkvm.sys goto :eof
+if %ERRORLEVEL% NEQ 0 exit /B %ERRORLEVEL%
+xcopy /S /I /Y NDIS5\Install\XP\amd64 Install\XP\amd64
 goto continue
 
 :BuildUsing2012

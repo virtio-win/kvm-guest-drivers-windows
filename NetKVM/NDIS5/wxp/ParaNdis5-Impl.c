@@ -453,6 +453,7 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 	PARANDIS_ADAPTER *pContext,
 	PVOID dataBuffer,
 	PULONG pLength,
+	BOOLEAN bPrepareOnly,
 	pIONetDescriptor pBuffersDesc)
 {
 	BOOLEAN b = FALSE;
@@ -529,6 +530,13 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 			}
 
 			DPrintf(4, ("[%s] buffer %p(%d b.)", __FUNCTION__, pBuffersDesc, length));
+			if (!bPrepareOnly)
+			{
+				NdisMIndicateReceivePacket(
+					pContext->MiniportHandle,
+					&Packet,
+					1);
+			}
 		}
 		*pLength = length;
 	}
