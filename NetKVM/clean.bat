@@ -1,4 +1,5 @@
 @echo off
+
 goto start
 :rmdir
 if exist "%~1" rmdir "%~1" /s /q
@@ -14,7 +15,6 @@ goto rmfiles
 for /d %%d in  (VirtIO\fre*) do call :rmdir %%d
 for /d %%d in  (VirtIO\obj*) do call :rmdir %%d
 for /d %%d in  (wlh\objfre*) do call :rmdir %%d
-for /d %%d in  (wxp\objfre*) do call :rmdir %%d
 for /d %%d in  (common\objfre*) do call :rmdir %%d
 call :rmdir Install
 call :rmdir win7
@@ -28,11 +28,13 @@ call :rmdir VistaDebug
 call :rmdir Win8Release
 call :rmdir Win8Debug
 call :rmdir x64
-call :rmfiles dirs wlh\makefile wlh\BuildLog.htm wxp\makefile wxp\BuildLog.htm common\makefile VirtIO\makefile NetKVM-2012.h
+call :rmfiles dirs wlh\makefile wlh\BuildLog.htm common\makefile VirtIO\makefile NetKVM-2012.h
 for %%f in (VirtIO\*.c VirtIO\*.h *.log *.wrn) do call :rmfiles %%f
-
 
 pushd CoInstaller
 call clean.bat
 popd
 
+pushd NDIS5
+call clean.bat
+popd
