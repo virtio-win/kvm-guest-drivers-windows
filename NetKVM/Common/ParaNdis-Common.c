@@ -11,10 +11,6 @@
 **********************************************************************/
 #include "ndis56common.h"
 
-#ifdef WPP_EVENT_TRACING
-#include "ParaNdis-Common.tmh"
-#endif
-
 static void ReuseReceiveBufferRegular(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBuffersDescriptor);
 static void ReuseReceiveBufferPowerOff(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBuffersDescriptor);
 
@@ -35,6 +31,9 @@ void FORCEINLINE DebugDumpPacket(LPCSTR prefix, PVOID header, int level)
 #else
 void FORCEINLINE DebugDumpPacket(LPCSTR prefix, PVOID header, int level)
 {
+    UNREFERENCED_PARAMETER(prefix);
+    UNREFERENCED_PARAMETER(header);
+    UNREFERENCED_PARAMETER(level);
 }
 #endif
 
@@ -178,21 +177,6 @@ static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
 	pContext->ulCurrentVlansFilterSet = 0;
 	pContext->u32GuestFeatures = 0;
 	VirtIODeviceWriteGuestFeatures(&pContext->IODevice, pContext->u32GuestFeatures);
-
-#ifdef VIRTIO_RESET_VERIFY
-	if (1)
-	{
-		u8 devStatus;
-		devStatus = ReadVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_STATUS);
-		if (devStatus)
-		{
-			DPrintf(0, ("[%s] Device status is still %02X", __FUNCTION__, (ULONG)devStatus));
-			VirtIODeviceReset(&pContext->IODevice);
-			devStatus = ReadVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_STATUS);
-			DPrintf(0, ("[%s] Device status on retry %02X", __FUNCTION__, (ULONG)devStatus));
-		}
-	}
-#endif
 }
 
 /**********************************************************
@@ -329,10 +313,8 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			GetConfigurationEntry(cfg, &pConfiguration->RSCIPv6Supported);
 #endif
 
-	#if !defined(WPP_EVENT_TRACING)
 			bDebugPrint = pConfiguration->isLogEnabled.ulValue;
-			nDebugLevel = pConfiguration->debugLevel.ulValue;
-	#endif
+			virtioDebugLevel = pConfiguration->debugLevel.ulValue;
 			// ignoring promiscuous setting, nothing to do with it
 			pContext->maxFreeTxDescriptors = pConfiguration->TxCapacity.ulValue;
 			pContext->NetMaxReceiveBuffers = pConfiguration->RxCapacity.ulValue;
@@ -393,9 +375,10 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			if (!pContext->bDoSupportPriority)
 				pContext->ulPriorityVlanSetting = 0;
 			// if Vlan not supported
-			if (!IsVlanSupported(pContext))
+			if (!IsVlanSupported(pContext)) {
 				pContext->VlanId = 0;
-			if (1)
+			}
+
 			{
 				NDIS_STATUS status;
 				PVOID p;
@@ -631,6 +614,8 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
 	{
 		pContext->RSC.bIPv6Enabled = FALSE;
 	}
+#else
+    UNREFERENCED_PARAMETER(pContext);
 #endif
 }
 
@@ -2031,7 +2016,7 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 	return result;
 }
 
-static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacketInfo, eInspectedPacketType *pType)
+static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacketInfo)
 {
 	ULONG i;
 
@@ -2103,7 +2088,7 @@ BOOLEAN PerformPacketAnalyzis(
 #if PARANDIS_SUPPORT_RSS
 	if(RSSParameters->RSSMode != PARANDIS_RSS_DISABLED)
 	{
-		ParaNdis6_RSSAnalyzeReceivedPacket(RSSParameters, HeadersBuffer, DataLength, PacketInfo);
+		ParaNdis6_RSSAnalyzeReceivedPacket(RSSParameters, HeadersBuffer, PacketInfo);
 	}
 #endif
 	return TRUE;
@@ -2146,6 +2131,10 @@ CCHAR GetScalingDataForPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPack
 #if PARANDIS_SUPPORT_RSS
 	return ParaNdis6_RSSGetScalingDataForPacket(&pContext->RSSParameters, pPacketInfo, pTargetProcessor);
 #else
+    UNREFERENCED_PARAMETER(pContext);
+    UNREFERENCED_PARAMETER(pPacketInfo);
+    UNREFERENCED_PARAMETER(pTargetProcessor);
+
 	return PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
 #endif
 }
@@ -2156,6 +2145,8 @@ CCHAR GetReceiveQueueForCurrentCPU(PARANDIS_ADAPTER *pContext)
 #if PARANDIS_SUPPORT_RSS
 	return ParaNdis6_RSSGetCurrentCpuReceiveQueue(&pContext->RSSParameters);
 #else
+    UNREFERENCED_PARAMETER(pContext);
+
 	return PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
 #endif
 }
@@ -2166,6 +2157,9 @@ VOID QueueRSSDpc(PARANDIS_ADAPTER *pContext, PGROUP_AFFINITY pTargetAffinity)
 #if PARANDIS_SUPPORT_RSS
 	NdisMQueueDpcEx(pContext->InterruptHandle, pContext->ulRxMessage, pTargetAffinity, NULL);
 #else
+    UNREFERENCED_PARAMETER(pContext);
+    UNREFERENCED_PARAMETER(pTargetAffinity);
+
 	ASSERT(FALSE);
 #endif
 }
@@ -2296,7 +2290,7 @@ static BOOLEAN ProcessReceiveQueue(
 			if( !pContext->bSurprizeRemoved &&
 				pContext->ReceiveState == srsEnabled &&
 				pContext->bConnected &&
-				ShallPassPacket(pContext, pPacketInfo, &packetType))
+				ShallPassPacket(pContext, pPacketInfo))
 			{
 				tPacketIndicationType packet = ParaNdis_PrepareReceivedPacket(pContext, pBufferDescriptor);
 				if(packet != NULL)
@@ -2341,7 +2335,7 @@ static BOOLEAN ProcessReceiveQueue(
 }
 
 static
-BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG nPacketsToIndicate, BOOLEAN fIsReceiveInterrupt)
+BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG nPacketsToIndicate)
 {
 	BOOLEAN res = FALSE;
 	BOOLEAN bMoreDataInRing;
@@ -2384,9 +2378,10 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
 		interruptSources = InterlockedExchange(&pContext->InterruptStatus, 0);
 
 		if (RxDPCWorkBody(	pContext,
-							numOfPacketsToIndicate,
-							interruptSources & isReceive ? TRUE : FALSE))
+							numOfPacketsToIndicate))
+		{
 			stillRequiresProcessing |= isReceive;
+		}
 
 		ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)1, interruptSources, 0, 0);
 		if ((interruptSources & isControl) && pContext->bLinkDetectSupported)
@@ -2702,6 +2697,10 @@ VOID ParaNdis_OnPnPEvent(
 	ULONG	ulSize)
 {
 	const char *pName = "";
+
+    UNREFERENCED_PARAMETER(pInfo);
+    UNREFERENCED_PARAMETER(ulSize);
+
 	DEBUG_ENTRY(0);
 #undef MAKECASE
 #define	MAKECASE(x) case (x): pName = #x; break;
@@ -3053,7 +3052,6 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
 {
 	tOffloadSettingsFlags f = pContext->Offload.flags;
 	tChecksumCheckResult res, resIp;
-	PVOID pIpHeader = RtlOffsetToPointer(pPacketPages[0].Virtual, ulDataOffset + ETH_HEADER_SIZE);
 	tTcpIpPacketParsingResult ppr;
 	ULONG flagsToCalculate = 0;
 	res.value = 0;

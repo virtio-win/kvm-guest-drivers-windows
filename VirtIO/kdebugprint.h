@@ -6,13 +6,15 @@
 #ifndef _K_DEBUG_PRINT_H
 #define _K_DEBUG_PRINT_H
 
-
 extern int virtioDebugLevel;
 extern int bDebugPrint;
 typedef void (*tDebugPrintFunc)(const char *format, ...);
 extern tDebugPrintFunc VirtioDebugPrintProc;
 
 #define DPrintf(Level, Fmt) if ((!bDebugPrint) || Level > virtioDebugLevel) {} else VirtioDebugPrintProc Fmt
+
+#define DEBUG_ENTRY(level)  DPrintf(level, ("[%s]=>\n", __FUNCTION__))
+#define DEBUG_EXIT_STATUS(level, status) DPrintf(level, ("[%s]<=0x%X\n", __FUNCTION__, (status)))
 
 #endif
 #endif

@@ -11,10 +11,6 @@
 **********************************************************************/
 #include "ndis56common.h"
 
-#ifdef WPP_EVENT_TRACING
-#include "sw-offload.tmh"
-#endif
-
 // till IP header size is 8 bit
 #define MAX_SUPPORTED_IPV6_HEADERS	(256 - 4)
 

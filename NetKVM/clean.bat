@@ -12,24 +12,17 @@ shift
 goto rmfiles
 
 :start
-for /d %%d in  (VirtIO\fre*) do call :rmdir %%d
-for /d %%d in  (VirtIO\obj*) do call :rmdir %%d
-for /d %%d in  (wlh\objfre*) do call :rmdir %%d
-for /d %%d in  (common\objfre*) do call :rmdir %%d
 call :rmdir Install
-call :rmdir win7
-call :rmdir 2012Build
-call :rmdir wlh\objfre_wlh_x86
-call :rmdir wlh\objfre_wlh_amd64
-call :rmdir wlh\objfre_win7_amd64
-call :rmdir wlh\objfre_win7_x86
-call :rmdir VistaRelease
-call :rmdir VistaDebug
-call :rmdir Win8Release
-call :rmdir Win8Debug
+call :rmdir Install_Debug
+call :rmdir "NetKVM Package\VistaRelease"
+call :rmdir "NetKVM Package\VistaDebug"
+call :rmdir "NetKVM Package\Win8Release"
+call :rmdir "NetKVM Package\Win8Debug"
+call :rmdir "NetKVM Package\Win7Release"
+call :rmdir "NetKVM Package\Win7Debug"
+call :rmdir "NetKVM Package\x64"
 call :rmdir x64
-call :rmfiles dirs wlh\makefile wlh\BuildLog.htm common\makefile VirtIO\makefile NetKVM-2012.h
-for %%f in (VirtIO\*.c VirtIO\*.h *.log *.wrn) do call :rmfiles %%f
+call :rmdir x86
 
 pushd CoInstaller
 call clean.bat

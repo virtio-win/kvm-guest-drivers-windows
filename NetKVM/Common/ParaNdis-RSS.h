@@ -79,7 +79,6 @@ struct _tagNET_PACKET_INFO;
 VOID ParaNdis6_RSSAnalyzeReceivedPacket(
 	PARANDIS_RSS_PARAMS *RSSParameters,
 	PVOID dataBuffer,
-	ULONG dataLength,
 	struct _tagNET_PACKET_INFO *packetInfo);
 
 CCHAR ParaNdis6_RSSGetScalingDataForPacket(

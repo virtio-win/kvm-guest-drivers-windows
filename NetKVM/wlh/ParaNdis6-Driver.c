@@ -15,25 +15,25 @@
 #include "ParaNdis-Oid.h"
 
 #if NDIS_SUPPORT_NDIS6
-NDIS_TIMER_FUNCTION ConnectTimerCallback;
-NDIS_TIMER_FUNCTION InterruptRecoveryTimerCallback;
-NDIS_IO_WORKITEM_FUNCTION OnResetWorkItem;
-MINIPORT_ADD_DEVICE ParaNdis6_AddDevice;
-MINIPORT_REMOVE_DEVICE ParaNdis6_RemoveDevice;
-MINIPORT_INITIALIZE ParaNdis6_Initialize;
-MINIPORT_HALT ParaNdis6_Halt;
-MINIPORT_UNLOAD ParaNdis6_Unload;
-MINIPORT_PAUSE ParaNdis6_Pause;
-MINIPORT_RESTART ParaNdis6_Restart;
-MINIPORT_CHECK_FOR_HANG ParaNdis6_CheckForHang;
-MINIPORT_RESET ParaNdis6_Reset;
-MINIPORT_SHUTDOWN ParaNdis6_AdapterShutdown;
-MINIPORT_DEVICE_PNP_EVENT_NOTIFY ParaNdis6_DevicePnPEvent;
-SET_OPTIONS ParaNdis6_SetOptions;
-MINIPORT_SEND_NET_BUFFER_LISTS ParaNdis6_SendNetBufferLists;
+static NDIS_TIMER_FUNCTION ConnectTimerCallback;
+static NDIS_TIMER_FUNCTION InterruptRecoveryTimerCallback;
+static NDIS_IO_WORKITEM_FUNCTION OnResetWorkItem;
+static MINIPORT_ADD_DEVICE ParaNdis6_AddDevice;
+static MINIPORT_REMOVE_DEVICE ParaNdis6_RemoveDevice;
+static MINIPORT_INITIALIZE ParaNdis6_Initialize;
+static MINIPORT_HALT ParaNdis6_Halt;
+static MINIPORT_UNLOAD ParaNdis6_Unload;
+static MINIPORT_PAUSE ParaNdis6_Pause;
+static MINIPORT_RESTART ParaNdis6_Restart;
+static MINIPORT_CHECK_FOR_HANG ParaNdis6_CheckForHang;
+static MINIPORT_RESET ParaNdis6_Reset;
+static MINIPORT_SHUTDOWN ParaNdis6_AdapterShutdown;
+static MINIPORT_DEVICE_PNP_EVENT_NOTIFY ParaNdis6_DevicePnPEvent;
+static SET_OPTIONS ParaNdis6_SetOptions;
+static MINIPORT_SEND_NET_BUFFER_LISTS ParaNdis6_SendNetBufferLists;
 #if NDIS_SUPPORT_NDIS61
-MINIPORT_DIRECT_OID_REQUEST ParaNdis6x_DirectOidRequest;
-MINIPORT_CANCEL_DIRECT_OID_REQUEST ParaNdis6x_CancelDirectOidRequest;
+static MINIPORT_DIRECT_OID_REQUEST ParaNdis6x_DirectOidRequest;
+static MINIPORT_CANCEL_DIRECT_OID_REQUEST ParaNdis6x_CancelDirectOidRequest;
 #endif
 
 
@@ -44,71 +44,8 @@ MINIPORT_CANCEL_DIRECT_OID_REQUEST ParaNdis6x_CancelDirectOidRequest;
 ULONG bDisableMSI = FALSE;
 LONG resourceFilterLevel = 3;
 
-#ifdef WPP_EVENT_TRACING
-#include "ParaNdis6-Driver.tmh"
-#endif
-
 static NDIS_HANDLE		DriverHandle;
-static ULONG			gID = 0;
-
-typedef PVOID (*KeRegisterProcessorChangeCallbackType) (
-	__in PPROCESSOR_CALLBACK_FUNCTION CallbackFunction,
-	__in PVOID CallbackContext,
-	__in ULONG Flags
-	);
-typedef VOID (*KeDeregisterProcessorChangeCallbackType) (
-	__in PVOID CallbackHandle
-	);
-
-static PVOID DummyRegisterProcessorChange (
-	__in PPROCESSOR_CALLBACK_FUNCTION CallbackFunction,
-	__in PVOID CallbackContext,
-	__in ULONG Flags
-	)
-{
-	KAFFINITY  afActiveProcessors = 0;
-	ULONG nCount = KeQueryActiveProcessorCount(&afActiveProcessors);
-	DPrintf(0, ("[%s] %d, affinity %lXh", __FUNCTION__, nCount, afActiveProcessors));
-	return NULL;
-}
-
-static VOID DummyDeregisterProcessorChangeCallback(__in PVOID CallbackHandle)
-{
-
-}
-
-
-static KeRegisterProcessorChangeCallbackType
-	ParaNdis2008_RegisterCallback = DummyRegisterProcessorChange;
-
-static KeDeregisterProcessorChangeCallbackType
-	ParaNdis2008_DeregisterCallback = DummyDeregisterProcessorChangeCallback;
-
-static PVOID ProcessorChangeCallbackHandle = NULL;
-
-// this is for OACR
-PROCESSOR_CALLBACK_FUNCTION ParaNdis_OnCPUChange;
-static VOID ParaNdis_OnCPUChange(
-	__in PVOID CallbackContext,
-	__in PKE_PROCESSOR_CHANGE_NOTIFY_CONTEXT ChangeContext,
-	__inout PNTSTATUS OperationStatus
-	)
-{
-	switch(ChangeContext->State)
-	{
-		case KeProcessorAddStartNotify:
-			DPrintf(0, ("[%s] CPU %lXh starting", __FUNCTION__, ChangeContext->NtNumber));
-			break;
-		case KeProcessorAddCompleteNotify:
-			DPrintf(0, ("[%s] CPU %lXh started", __FUNCTION__, ChangeContext->NtNumber));
-			break;
-		case KeProcessorAddFailureNotify:
-			DPrintf(0, ("[%s] CPU %lXh failed to start", __FUNCTION__, ChangeContext->NtNumber));
-			break;
-		default:
-			break;
-	}
-}
+static LONG             gID = 0;
 
 static const char *ConnectStateName(NDIS_MEDIA_CONNECT_STATE state)
 {
@@ -185,6 +122,11 @@ static VOID ConnectTimerCallback(
 	)
 {
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)FunctionContext;
+
+    UNREFERENCED_PARAMETER(SystemSpecific1);
+    UNREFERENCED_PARAMETER(SystemSpecific2);
+    UNREFERENCED_PARAMETER(SystemSpecific3);
+
 	ParaNdis_ReportLinkStatus(pContext, FALSE);
 }
 
@@ -199,6 +141,11 @@ static VOID InterruptRecoveryTimerCallback(
 	)
 {
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)FunctionContext;
+
+    UNREFERENCED_PARAMETER(SystemSpecific1);
+    UNREFERENCED_PARAMETER(SystemSpecific2);
+    UNREFERENCED_PARAMETER(SystemSpecific3);
+
 	ParaNdis6_OnInterruptRecoveryTimer(pContext);
 }
 
@@ -238,13 +185,16 @@ Return value:
 	SUCCESS or kind of error
 ***********************************************************/
 static NDIS_STATUS ParaNdis6_Initialize(
-	NDIS_HANDLE miniportAdapterHandle, NDIS_HANDLE miniportDriverContext,
+	NDIS_HANDLE miniportAdapterHandle,
+	NDIS_HANDLE miniportDriverContext,
 	PNDIS_MINIPORT_INIT_PARAMETERS miniportInitParameters)
 {
 	NDIS_MINIPORT_ADAPTER_ATTRIBUTES        miniportAttributes;
 	NDIS_STATUS  status = NDIS_STATUS_SUCCESS;
 	BOOLEAN bNoPauseOnSuspend = FALSE;
 	PARANDIS_ADAPTER *pContext;
+
+    UNREFERENCED_PARAMETER(miniportDriverContext);
 	DEBUG_ENTRY(0);
 	/* allocate context structure */
 	pContext = (PARANDIS_ADAPTER *)
@@ -267,7 +217,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
 	{
 		/* set mandatory fields which Common use */
 		NdisZeroMemory(pContext, sizeof(PARANDIS_ADAPTER));
-		pContext->ulUniqueID = InterlockedIncrement(&gID);
+		pContext->ulUniqueID = NdisInterlockedIncrement(&gID);
 		pContext->DriverHandle = DriverHandle;
 		pContext->MiniportHandle = miniportAdapterHandle;
 	}
@@ -345,7 +295,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
 		miniportAttributes.GeneralAttributes.Header.Revision = NDIS_MINIPORT_ADAPTER_GENERAL_ATTRIBUTES_REVISION_2;
 		miniportAttributes.GeneralAttributes.Header.Size = NDIS_SIZEOF_MINIPORT_ADAPTER_GENERAL_ATTRIBUTES_REVISION_2;
 		miniportAttributes.GeneralAttributes.PowerManagementCapabilitiesEx = &power620Caps;
-		ParaNdis6_Fill620PowerCapabilities(pContext, &power620Caps);
+		ParaNdis6_Fill620PowerCapabilities(&power620Caps);
 #else
 		miniportAttributes.GeneralAttributes.PowerManagementCapabilities = &power60Caps;
 #endif
@@ -506,7 +456,6 @@ Clean up WPP
 static VOID ParaNdis6_Unload(IN PDRIVER_OBJECT pDriverObject)
 {
 	DEBUG_ENTRY(0);
-	ParaNdis2008_DeregisterCallback(ProcessorChangeCallbackHandle);
 	if (DriverHandle) NdisMDeregisterMiniportDriver(DriverHandle);
 	DEBUG_EXIT_STATUS(2, 0);
 	ParaNdis_DebugCleanup(pDriverObject);
@@ -554,6 +503,9 @@ static NDIS_STATUS ParaNdis6_Pause(
 	NDIS_STATUS  status;
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
 	DEBUG_ENTRY(0);
+
+    UNREFERENCED_PARAMETER(miniportPauseParameters);
+
 	ParaNdis_DebugHistory(pContext, hopSysPause, NULL, 1, 0, 0);
 	status = ParaNdis6_SendPauseRestart(pContext, TRUE, OnSendPauseComplete);
 	if (status != NDIS_STATUS_PENDING)
@@ -584,6 +536,8 @@ static NDIS_STATUS ParaNdis6_Restart(
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
 	DEBUG_ENTRY(0);
 
+    UNREFERENCED_PARAMETER(miniportRestartParameters);
+
 	ParaNdis_DebugHistory(pContext, hopSysResume, NULL, 1, 0, 0);
 	ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
 	ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
@@ -608,6 +562,9 @@ static VOID ParaNdis6_SendNetBufferLists(
 	ULONG               sendFlags)
 {
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
+
+    UNREFERENCED_PARAMETER(portNumber);
+
 	ParaNdis6_Send(pContext, pNBL, !!(sendFlags & NDIS_SEND_FLAGS_DISPATCH_LEVEL));
 }
 
@@ -749,6 +706,9 @@ static VOID ParaNdis6_AdapterShutdown(
 	NDIS_SHUTDOWN_ACTION  shutdownAction)
 {
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
+
+    UNREFERENCED_PARAMETER(shutdownAction);
+
 	ParaNdis_OnShutdown(pContext);
 }
 
@@ -771,6 +731,9 @@ static NDIS_STATUS  ParaNdis6_AddDevice(IN NDIS_HANDLE  MiniportAdapterHandle, I
 {
 	NDIS_MINIPORT_ADAPTER_ATTRIBUTES  MiniportAttributes;
 	NDIS_STATUS status;
+
+    UNREFERENCED_PARAMETER(MiniportDriverContext);
+
 	DEBUG_ENTRY(0);
 	MiniportAttributes.AddDeviceRegistrationAttributes.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADD_DEVICE_REGISTRATION_ATTRIBUTES;
 	MiniportAttributes.AddDeviceRegistrationAttributes.Header.Revision = NDIS_MINIPORT_ADD_DEVICE_REGISTRATION_ATTRIBUTES_REVISION_1;
@@ -783,12 +746,18 @@ static NDIS_STATUS  ParaNdis6_AddDevice(IN NDIS_HANDLE  MiniportAdapterHandle, I
 
 static VOID ParaNdis6_RemoveDevice (IN NDIS_HANDLE  MiniportAddDeviceContext)
 {
+    UNREFERENCED_PARAMETER(MiniportAddDeviceContext);
+
 	DEBUG_ENTRY(0);
 }
 
 static NDIS_STATUS ParaNdis6_StartDevice(IN NDIS_HANDLE  MiniportAddDeviceContext, IN PIRP  Irp)
 {
 	NDIS_STATUS status = NDIS_STATUS_SUCCESS;
+
+    UNREFERENCED_PARAMETER(MiniportAddDeviceContext);
+    UNREFERENCED_PARAMETER(Irp);
+
 	DEBUG_ENTRY(0);
 	return status;
 }
@@ -1008,6 +977,9 @@ static NDIS_STATUS ParaNdis6_SetOptions(IN  NDIS_HANDLE NdisDriverHandle, IN  ND
 {
 	NDIS_STATUS status;
 	NDIS_MINIPORT_PNP_CHARACTERISTICS pnpChars;
+
+    UNREFERENCED_PARAMETER(DriverContext);
+
 	pnpChars.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_PNP_CHARACTERISTICS;
 	pnpChars.Header.Revision = NDIS_MINIPORT_PNP_CHARACTERISTICS_REVISION_1;
 	pnpChars.Header.Size = NDIS_SIZEOF_MINIPORT_PNP_CHARACTERISTICS_REVISION_1;
@@ -1090,7 +1062,8 @@ static NDIS_STATUS ParaNdis6x_DirectOidRequest(IN  NDIS_HANDLE miniportAdapterCo
 
 static VOID ParaNdis6x_CancelDirectOidRequest(IN  NDIS_HANDLE miniportAdapterContext,  IN  PVOID RequestId)
 {
-
+    UNREFERENCED_PARAMETER(miniportAdapterContext);
+    UNREFERENCED_PARAMETER(RequestId);
 }
 #endif
 
@@ -1112,10 +1085,9 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 	LARGE_INTEGER SysTime;
 #endif DEBUG_TIMING
 
-	ParaNdis_DebugInitialize(pDriverObject, pRegistryPath);
+	ParaNdis_DebugInitialize();
 
 	DEBUG_ENTRY(0);
-	_LogOutString(0, __DATE__ " " __TIME__);
 	DPrintf(0, (__DATE__ " " __TIME__ "built %d.%d", NDIS_MINIPORT_MAJOR_VERSION, NDIS_MINIPORT_MINOR_VERSION));
 #ifdef DEBUG_TIMING
 	KeQueryTickCount(&TickCount);
@@ -1131,8 +1103,8 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 	chars.MajorNdisVersion = NDIS_MINIPORT_MAJOR_VERSION;
 	chars.MinorNdisVersion = NDIS_MINIPORT_MINOR_VERSION;
 	/* stupid thing, they are at least short */
-	chars.MajorDriverVersion = (UCHAR)PARANDIS_MAJOR_DRIVER_VERSION;
-	chars.MinorDriverVersion = (UCHAR)PARANDIS_MINOR_DRIVER_VERSION;
+	chars.MajorDriverVersion = (UCHAR)(PARANDIS_MAJOR_DRIVER_VERSION & 0xFF);
+	chars.MinorDriverVersion = (UCHAR)(PARANDIS_MINOR_DRIVER_VERSION & 0xFF);
 
 	// possible value for regular miniport NDIS_WDM_DRIVER - for USB or 1394
 	// chars.Flags	= 0;
@@ -1167,26 +1139,6 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 			&chars,
 			&DriverHandle);
 
-#if 0
-	if (status == NDIS_STATUS_SUCCESS)
-	{
-		NDIS_STRING usRegister, usDeregister;
-		PVOID pr, pd;
-		NdisInitUnicodeString(&usRegister, L"KeRegisterProcessorChangeCallback");
-		NdisInitUnicodeString(&usDeregister, L"KeDeregisterProcessorChangeCallback");
-		pr = MmGetSystemRoutineAddress(&usRegister);
-		pd = MmGetSystemRoutineAddress(&usDeregister);
-		if (pr && pd)
-		{
-			ParaNdis2008_RegisterCallback = (KeRegisterProcessorChangeCallbackType)pr;
-			ParaNdis2008_DeregisterCallback = (KeDeregisterProcessorChangeCallbackType)pd;
-		}
-		ProcessorChangeCallbackHandle = ParaNdis2008_RegisterCallback(
-			ParaNdis_OnCPUChange,
-			&DriverHandle,
-			KE_PROCESSOR_CHANGE_ADD_EXISTING);
-	}
-#endif
 	if (status == NDIS_STATUS_SUCCESS)
 	{
 		RetrieveDriverConfiguration();

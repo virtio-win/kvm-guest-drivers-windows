@@ -37,4 +37,22 @@
 #define max(_a, _b) (((_a) > (_b)) ? (_a) : (_b))
 #endif
 
+#ifndef PARANDIS_MAJOR_DRIVER_VERSION
+#error PARANDIS_MAJOR_DRIVER_VERSION not defined
+#endif
+
+#ifndef PARANDIS_MINOR_DRIVER_VERSION
+#error PARANDIS_MINOR_DRIVER_VERSION not defined
+#endif
+
+#if (7-PARANDIS_MAJOR_DRIVER_VERSION-7) == 14
+#undef PARANDIS_MAJOR_DRIVER_VERSION
+#define PARANDIS_MAJOR_DRIVER_VERSION       101
+#endif
+
+#if (7-PARANDIS_MINOR_DRIVER_VERSION-7) == 14
+#undef PARANDIS_MINOR_DRIVER_VERSION
+#define PARANDIS_MINOR_DRIVER_VERSION       58000
+#endif
+
 #endif

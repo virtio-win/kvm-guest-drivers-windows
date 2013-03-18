@@ -351,13 +351,13 @@ NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_RSS_PARAMS *RSSParameters,
 
 typedef struct _tagHASH_CALC_SG_BUF_ENTRY
 {
-	PUCHAR chunkPtr;
+	PCHAR chunkPtr;
 	ULONG  chunkLen;
 } HASH_CALC_SG_BUF_ENTRY, *PHASH_CALC_SG_BUF_ENTRY;
 
 // Little Endian version ONLY
 static
-UINT32 ToeplitsHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, UINT8 *fullKey)
+UINT32 ToeplitsHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, PCCHAR fullKey)
 {
 #define TOEPLITZ_MAX_BIT_NUM (7)
 #define TOEPLITZ_BYTE_HAS_BIT(byte, bit) ((byte) & (1 << (TOEPLITZ_MAX_BIT_NUM - (bit))))
@@ -366,7 +366,7 @@ UINT32 ToeplitsHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, UINT
 	UINT32 firstKeyWord, res = 0;
 	UINT byte, bit;
 	PHASH_CALC_SG_BUF_ENTRY sgEntry;
-	UINT8 *next_key_byte = fullKey + sizeof(firstKeyWord);
+	PCCHAR next_key_byte = fullKey + sizeof(firstKeyWord);
 	firstKeyWord = RtlUlongByteSwap(*(UINT32*)fullKey);
 
 	for(sgEntry = sgBuff; sgEntry < sgBuff + sgEntriesNum; ++sgEntry)
@@ -417,7 +417,6 @@ static
 VOID RSSCalcHash(
 				PARANDIS_RSS_PARAMS *RSSParameters,
 				PVOID dataBuffer,
-				ULONG dataLength,
 				PNET_PACKET_INFO packetInfo)
 {
 	HASH_CALC_SG_BUF_ENTRY sgBuff[3];
@@ -435,7 +434,7 @@ VOID RSSCalcHash(
 			sgBuff[1].chunkPtr = RtlOffsetToPointer(pTCPHeader, FIELD_OFFSET(TCPHeader, tcp_src));
 			sgBuff[1].chunkLen = RTL_FIELD_SIZE(TCPHeader, tcp_src) + RTL_FIELD_SIZE(TCPHeader, tcp_dest);
 
-			packetInfo->RSSHash.Value = ToeplitsHash(sgBuff, 2, RSSParameters->ActiveHashingSettings.HashSecretKey);
+			packetInfo->RSSHash.Value = ToeplitsHash(sgBuff, 2, &RSSParameters->ActiveHashingSettings.HashSecretKey[0]);
 			packetInfo->RSSHash.Type = NDIS_HASH_TCP_IPV4;
 			packetInfo->RSSHash.Function = NdisHashFunctionToeplitz;
 			return;
@@ -461,9 +460,9 @@ VOID RSSCalcHash(
 				IPv6Header *pIpHeader =  (IPv6Header *) RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen);
 				TCPHeader  *pTCPHeader = (TCPHeader *) RtlOffsetToPointer(pIpHeader, packetInfo->L3HdrLen);
 
-				sgBuff[0].chunkPtr = (PUCHAR) GetIP6SrcAddrForHash(dataBuffer, packetInfo, hashTypes);
+				sgBuff[0].chunkPtr = (PCHAR) GetIP6SrcAddrForHash(dataBuffer, packetInfo, hashTypes);
 				sgBuff[0].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_src_address);
-				sgBuff[1].chunkPtr = (PUCHAR) GetIP6DstAddrForHash(dataBuffer, packetInfo, hashTypes);
+				sgBuff[1].chunkPtr = (PCHAR) GetIP6DstAddrForHash(dataBuffer, packetInfo, hashTypes);
 				sgBuff[1].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_dst_address);
 				sgBuff[2].chunkPtr = RtlOffsetToPointer(pTCPHeader, FIELD_OFFSET(TCPHeader, tcp_src));
 				sgBuff[2].chunkLen = RTL_FIELD_SIZE(TCPHeader, tcp_src) + RTL_FIELD_SIZE(TCPHeader, tcp_dest);
@@ -477,9 +476,9 @@ VOID RSSCalcHash(
 
 		if(hashTypes & (NDIS_HASH_IPV6 | NDIS_HASH_IPV6_EX))
 		{
-			sgBuff[0].chunkPtr = (PUCHAR) GetIP6SrcAddrForHash(dataBuffer, packetInfo, hashTypes);
+			sgBuff[0].chunkPtr = (PCHAR) GetIP6SrcAddrForHash(dataBuffer, packetInfo, hashTypes);
 			sgBuff[0].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_src_address);
-			sgBuff[1].chunkPtr = (PUCHAR) GetIP6DstAddrForHash(dataBuffer, packetInfo, hashTypes);
+			sgBuff[1].chunkPtr = (PCHAR) GetIP6DstAddrForHash(dataBuffer, packetInfo, hashTypes);
 			sgBuff[1].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_dst_address);
 
 			packetInfo->RSSHash.Value = ToeplitsHash(sgBuff, 2, RSSParameters->ActiveHashingSettings.HashSecretKey);
@@ -510,13 +509,12 @@ VOID RSSCalcHash(
 VOID ParaNdis6_RSSAnalyzeReceivedPacket(
 	PARANDIS_RSS_PARAMS *RSSParameters,
 	PVOID dataBuffer,
-	ULONG dataLength,
 	PNET_PACKET_INFO packetInfo)
 {
 	NdisDprAcquireSpinLock(&RSSParameters->RSSSettingsLock);
 	if(RSSParameters->RSSMode != PARANDIS_RSS_DISABLED)
 	{
-		RSSCalcHash(RSSParameters, dataBuffer, dataLength, packetInfo);
+		RSSCalcHash(RSSParameters, dataBuffer, packetInfo);
 	}
 	NdisDprReleaseSpinLock(&RSSParameters->RSSSettingsLock);
 }

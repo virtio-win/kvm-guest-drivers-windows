@@ -12,11 +12,6 @@ goto rmfiles
 
 :start
 
-for /d %%d in  (objfre*) do call :rmdir %%d
-call :rmdir "Debug unicode"
-call :rmdir "Release unicode"
-call :rmdir "Debug MBCS"
-call :rmdir "Release MBCS"
 call :rmdir x64
 call :rmdir VistaDebug
 call :rmdir VistaRelease
@@ -24,5 +19,3 @@ call :rmdir Win7Debug
 call :rmdir Win7Release
 call :rmdir Win8Debug
 call :rmdir Win8Release 
-
-call :rmfiles BuildLog.htm makefile

@@ -86,7 +86,7 @@ static NDIS_STATUS ParaNdis5_Initialize(OUT PNDIS_STATUS OpenErrorStatus,
 		PVOID pResourceList = &status;
 		UINT  uSize = 0;
 		NdisZeroMemory(pContext, sizeof(PARANDIS_ADAPTER));
-		pContext->ulUniqueID = InterlockedIncrement(&gID);
+		pContext->ulUniqueID = NdisInterlockedIncrement(&gID);
 		pContext->DriverHandle = DriverHandle;
 		pContext->MiniportHandle = MiniportAdapterHandle;
 		pContext->WrapperConfigurationHandle = WrapperConfigurationContext;

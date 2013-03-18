@@ -4,6 +4,8 @@
 #define TARGETOS 61
 #elif defined(Vista) || defined(vista) || defined(VISTA)
 #define TARGETOS 60
+#elif defined(Wlh) || defined(wlh) || defined(WLH)
+#define TARGETOS 60
 #elif defined(XP) || defined(xp)
 #define TARGETOS 51
 #else
