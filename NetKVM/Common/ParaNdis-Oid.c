@@ -232,7 +232,12 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 		SETINFO(Medium, NdisMedium802_3);
 		break;
 	case OID_GEN_MAXIMUM_LOOKAHEAD:
-		SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOS);
+		SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOsRx);
+		break;
+	case OID_GEN_CURRENT_LOOKAHEAD:
+		if (!pContext->DummyLookAhead) pContext->DummyLookAhead = pContext->MaxPacketSize.nMaxFullSizeOsRx;
+		pInfo  = &pContext->DummyLookAhead;
+		ulSize = sizeof(pContext->DummyLookAhead);
 		break;
 	case OID_GEN_MAXIMUM_FRAME_SIZE:
 		SETINFO(ul, pContext->MaxPacketSize.nMaxDataSize);
@@ -241,9 +246,11 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 		SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOS * pContext->nofFreeTxDescriptors);
 		break;
 	case OID_GEN_RECEIVE_BUFFER_SPACE:
-		SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOS * pContext->NetMaxReceiveBuffers);
+		SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOsRx * pContext->NetMaxReceiveBuffers);
 		break;
 	case OID_GEN_RECEIVE_BLOCK_SIZE:
+		SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOsRx);
+		break;
 	case OID_GEN_TRANSMIT_BLOCK_SIZE:
 	case OID_GEN_MAXIMUM_TOTAL_SIZE:
 		SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOS);
@@ -390,11 +397,6 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 		if (!IsVlanSupported(pContext))
 			status = NDIS_STATUS_NOT_SUPPORTED;
 		break;
-	case OID_GEN_CURRENT_LOOKAHEAD:
-		if (!pContext->DummyLookAhead) pContext->DummyLookAhead = pContext->MaxPacketSize.nMaxFullSizeOS;
-		pInfo  = &pContext->DummyLookAhead;
-		ulSize = sizeof(pContext->DummyLookAhead);
-		break;
 	case OID_PNP_ENABLE_WAKE_UP:
 		SETINFO(ul, pContext->ulEnableWakeup);
 		break;
@@ -505,6 +507,9 @@ const char *ParaNdis_OidName(NDIS_OID oid)
 #if PARANDIS_SUPPORT_RSS
 	MAKECASE(OID_GEN_RECEIVE_SCALE_PARAMETERS)
 	MAKECASE(OID_GEN_RECEIVE_HASH)
+#endif
+#if PARANDIS_SUPPORT_RSC
+	MAKECASE(OID_TCP_RSC_STATISTICS)
 #endif
 	MAKECASE(OID_TCP_OFFLOAD_PARAMETERS)
 	MAKECASE(OID_OFFLOAD_ENCAPSULATION)

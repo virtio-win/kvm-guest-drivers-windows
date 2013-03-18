@@ -193,12 +193,15 @@ OIDENTRYPROC(OID_GEN_INTERRUPT_MODERATION,		2,4,4, ohfQueryStat | ohfSet, OnSetI
 OIDENTRYPROC(OID_GEN_LINK_PARAMETERS,			2,0,4, ohfSet, OnSetLinkParameters),
 OIDENTRY(OID_IP4_OFFLOAD_STATS,					4,4,4, 0),
 OIDENTRY(OID_IP6_OFFLOAD_STATS,					4,4,4, 0),
-OIDENTRYPROC(OID_TCP_OFFLOAD_PARAMETERS,		0,0,0, ohfSet | ohfSetMoreOK, OnSetOffloadParameters),
+OIDENTRYPROC(OID_TCP_OFFLOAD_PARAMETERS,		0,0,0, ohfSet | ohfSetMoreOK | ohfSetLessOK, OnSetOffloadParameters),
 OIDENTRYPROC(OID_OFFLOAD_ENCAPSULATION,			0,0,0, ohfQuerySet, OnSetOffloadEncapsulation),
 
 #if PARANDIS_SUPPORT_RSS
 	OIDENTRYPROC(OID_GEN_RECEIVE_SCALE_PARAMETERS,	0,0,0, ohfSet | ohfSetMoreOK, RSSSetParameters),
 	OIDENTRYPROC(OID_GEN_RECEIVE_HASH,				0,0,0, ohfQuerySet | ohfSetMoreOK, RSSSetReceiveHash),
+#endif
+#if PARANDIS_SUPPORT_RSC
+	OIDENTRY(OID_TCP_RSC_STATISTICS,			3,4,4, ohfQueryStat		),
 #endif
 
 #if NDIS_SUPPORT_NDIS620
@@ -266,7 +269,10 @@ static NDIS_OID SupportedOids[] =
 		OID_TCP_OFFLOAD_PARAMETERS,
 #if PARANDIS_SUPPORT_RSS
 		OID_GEN_RECEIVE_SCALE_PARAMETERS,
-		OID_GEN_RECEIVE_HASH
+		OID_GEN_RECEIVE_HASH,
+#endif
+#if PARANDIS_SUPPORT_RSC
+		OID_TCP_RSC_STATISTICS
 #endif
 };
 
@@ -370,6 +376,9 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 #if PARANDIS_SUPPORT_RSS
 		RSS_HASH_KEY_PARAMETERS					RSSHashKeyParameters;
 #endif
+#if PARANDIS_SUPPORT_RSC
+		NDIS_RSC_STATISTICS_INFO				RSCStatistics;
+#endif
 	} u;
 	NDIS_STATUS  status = NDIS_STATUS_SUCCESS;
 	PVOID pInfo  = NULL;
@@ -414,6 +423,20 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 		case OID_GEN_RECEIVE_HASH:
 			pInfo = &u.RSSHashKeyParameters;
 			ulSize = ParaNdis6_QueryReceiveHash(&pContext->RSSParameters, pInfo);
+			break;
+#endif
+#if PARANDIS_SUPPORT_RSC
+		case OID_TCP_RSC_STATISTICS:
+			u.RSCStatistics.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+			u.RSCStatistics.Header.Revision = NDIS_RSC_STATISTICS_REVISION_1;
+			u.RSCStatistics.Header.Size = NDIS_SIZEOF_RSC_STATISTICS_REVISION_1;
+			u.RSCStatistics.CoalescedOctets = pContext->RSC.Statistics.CoalescedOctets.QuadPart;
+			u.RSCStatistics.CoalescedPkts = pContext->RSC.Statistics.CoalescedPkts.QuadPart;
+			u.RSCStatistics.CoalesceEvents = pContext->RSC.Statistics.CoalesceEvents.QuadPart;
+			u.RSCStatistics.Aborts = 0;
+
+			pInfo = &u.RSCStatistics;
+			ulSize = sizeof(u.RSCStatistics);
 			break;
 #endif
 		default:
@@ -632,8 +655,13 @@ static void FillOffloadStructure(NDIS_OFFLOAD *po, tOffloadSettingsFlags f)
 	NDIS_TCP_LARGE_SEND_OFFLOAD_V2 *plso2 = &po->LsoV2;
 	NdisZeroMemory(po, sizeof(*po));
 	po->Header.Type = NDIS_OBJECT_TYPE_OFFLOAD;
+#if (NDIS_SUPPORT_NDIS630)
+	po->Header.Revision = NDIS_OFFLOAD_REVISION_3;
+	po->Header.Size = NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_3;
+#else
 	po->Header.Revision = NDIS_OFFLOAD_REVISION_1;
 	po->Header.Size = NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_1;
+#endif
 	pcso->IPv4Transmit.Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
 	pcso->IPv4Transmit.IpChecksum = OFFLOAD_FEATURE_SUPPORT(f.fTxIPChecksum);
 	pcso->IPv4Transmit.IpOptionsSupported = OFFLOAD_FEATURE_SUPPORT(f.fTxIPOptions);
@@ -680,6 +708,10 @@ void ParaNdis6_FillOffloadConfiguration(PARANDIS_ADAPTER *pContext)
 {
 	NDIS_OFFLOAD *po = &pContext->ReportedOffloadConfiguration;
 	FillOffloadStructure(po, pContext->Offload.flags);
+#if PARANDIS_SUPPORT_RSC
+	po->Rsc.IPv4.Enabled = pContext->RSC.bIPv4Enabled;
+	po->Rsc.IPv6.Enabled = pContext->RSC.bIPv6Enabled;
+#endif
 }
 
 void ParaNdis6_FillOffloadCapabilities(PARANDIS_ADAPTER *pContext)
@@ -688,6 +720,10 @@ void ParaNdis6_FillOffloadCapabilities(PARANDIS_ADAPTER *pContext)
 	NDIS_OFFLOAD *po = &pContext->ReportedOffloadCapabilities;
 	ParaNdis_ResetOffloadSettings(pContext, &f, NULL);
 	FillOffloadStructure(po, f);
+#if PARANDIS_SUPPORT_RSC
+	po->Rsc.IPv4.Enabled = pContext->RSC.bIPv4SupportedHW;
+	po->Rsc.IPv6.Enabled = pContext->RSC.bIPv6SupportedHW;
+#endif
 }
 
 #if 0
@@ -793,7 +829,7 @@ static const char *MakeOffloadParameterString(UCHAR val)
 	return "OUT OF RANGE";
 }
 
-static void SendStatusIndication(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
+static void SendOffloadStatusIndication(PARANDIS_ADAPTER *pContext)
 {
 	NDIS_STATUS_INDICATION	indication;
 	PNDIS_OID_REQUEST pRequest = NULL;
@@ -886,7 +922,6 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
 	NDIS_OFFLOAD_PARAMETERS *pop, tOidDesc *pOid)
 {
 	BOOLEAN bFailed = FALSE;
-	NDIS_STATUS status = NDIS_STATUS_SUCCESS;
 	tOffloadSettingsFlags fSupported;
 	tOffloadSettingsFlags fPresent = pContext->Offload.flags;
 	tOffloadSettingsFlags *pf = &fPresent;
@@ -981,39 +1016,71 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
 
 	DPrintf(0, ("[%s] Result: LSO: v4 %d, v6 %d", __FUNCTION__, pf->fTxLso, pf->fTxLsov6));
 	DPrintf(0, ("[%s] Final: the request %saccepted", __FUNCTION__, bFailed ? "NOT " : ""));
+
 	if (bFailed && pOid)
-	{
-		status = NDIS_STATUS_INVALID_PARAMETER;
-	}
-	else
-	{
-		// at initialization time due to absense of pOid
-		// we initialize the ReportedOffloadConfiguration
-		// according to our capabilities
-		pContext->Offload.flags = fPresent;
-		ParaNdis6_FillOffloadConfiguration(pContext);
-		if (pOid)
-		{
-			DumpOffloadStructure(&pContext->ReportedOffloadConfiguration, "Updated");
-			SendStatusIndication(pContext, pOid);
-		}
-	}
-	return status;
+		return NDIS_STATUS_INVALID_PARAMETER;
+
+	// at initialization time due to absence of pOid
+	// we initialize the ReportedOffloadConfiguration
+	// according to our capabilities
+	pContext->Offload.flags = fPresent;
+	ParaNdis6_FillOffloadConfiguration(pContext);
+
+	return NDIS_STATUS_SUCCESS;
+}
+
+static
+NDIS_STATUS OnSetRSCParameters(PPARANDIS_ADAPTER pContext, tOidDesc *pOid, PNDIS_OFFLOAD_PARAMETERS op)
+{
+#if PARANDIS_SUPPORT_RSC
+	if(op->Header.Revision != NDIS_OFFLOAD_PARAMETERS_REVISION_3)
+		return NDIS_STATUS_SUCCESS;
+
+	if((op->RscIPv4 != NDIS_OFFLOAD_PARAMETERS_NO_CHANGE) &&
+		(!pContext->RSC.bIPv4SupportedSW || !pContext->RSC.bIPv4SupportedHW))
+		return NDIS_STATUS_NOT_SUPPORTED;
+
+	if((op->RscIPv6 != NDIS_OFFLOAD_PARAMETERS_NO_CHANGE) &&
+		(!pContext->RSC.bIPv6SupportedSW || !pContext->RSC.bIPv6SupportedHW))
+		return NDIS_STATUS_NOT_SUPPORTED;
+
+	if(op->RscIPv4 != NDIS_OFFLOAD_PARAMETERS_NO_CHANGE)
+		pContext->RSC.bIPv4Enabled = (op->RscIPv4 == NDIS_OFFLOAD_PARAMETERS_RSC_ENABLED);
+
+	if(op->RscIPv6 != NDIS_OFFLOAD_PARAMETERS_NO_CHANGE)
+		pContext->RSC.bIPv6Enabled = (op->RscIPv6 == NDIS_OFFLOAD_PARAMETERS_RSC_ENABLED);
+
+#endif
+	return STATUS_SUCCESS;
 }
 
 NDIS_STATUS OnSetOffloadParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
 	NDIS_STATUS status;
-	NDIS_OFFLOAD_PARAMETERS op;
-	ULONG usedSize = sizeof(op);
-	if (usedSize > NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_1)
-		usedSize = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_1;
-	status = ParaNdis_OidSetCopy(pOid, &op, usedSize);
-	if (status == NDIS_STATUS_SUCCESS)
-	{
-		status = ApplyOffloadConfiguration(pContext, &op, pOid);
-	}
-	return status;
+	NDIS_OFFLOAD_PARAMETERS op = {0};
+
+	if(pOid->InformationBufferLength < NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_1)
+		return NDIS_STATUS_BUFFER_TOO_SHORT;
+
+	status = ParaNdis_OidSetCopy(pOid, &op, sizeof(op));
+
+	if(status != NDIS_STATUS_SUCCESS)
+		return status;
+
+	status = OnSetRSCParameters(pContext, pOid, &op);
+
+	if(status != NDIS_STATUS_SUCCESS)
+		return status;
+
+	status = ApplyOffloadConfiguration(pContext, &op, pOid);
+
+	if(status != NDIS_STATUS_SUCCESS)
+		return status;
+
+	DumpOffloadStructure(&pContext->ReportedOffloadConfiguration, "Updated");
+	SendOffloadStatusIndication(pContext);
+
+	return NDIS_STATUS_SUCCESS;
 }
 
 void ParaNdis6_ApplyOffloadPersistentConfiguration(PARANDIS_ADAPTER *pContext)

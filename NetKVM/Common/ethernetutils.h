@@ -122,6 +122,7 @@ typedef struct _tagUDPHeader {
 #define UDP_CHECKSUM_OFFSET		6
 #define MAX_IPV4_HEADER_SIZE	60
 #define MAX_TCP_HEADER_SIZE		60
+#define MAX_IP4_DATAGRAM_SIZE	65535
 
 static __inline USHORT swap_short(USHORT us)
 {

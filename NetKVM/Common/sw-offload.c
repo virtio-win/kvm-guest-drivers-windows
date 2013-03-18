@@ -79,7 +79,7 @@ typedef struct _tagIP6_TYPE2_ROUTING_HEADER
 
 #define ETH_GET_VLAN_HDR(ethHdr)        ((PVLAN_HEADER) RtlOffsetToPointer(ethHdr, ETH_PRIORITY_HEADER_OFFSET))
 #define VLAN_GET_USER_PRIORITY(vlanHdr) ( (((PUCHAR)(vlanHdr))[2] & 0xE0) >> 5 )
-#define VLAN_GET_VLAN_ID(vlanHdr)       (((USHORT)( (((PUCHAR)(vlanHdr))[2] & 0x0F) >> 5 )) | ( ((PUCHAR)(vlanHdr))[3] ))
+#define VLAN_GET_VLAN_ID(vlanHdr)       ( ((USHORT) (((PUCHAR)(vlanHdr))[2] & 0x0F) << 8) | ( ((PUCHAR)(vlanHdr))[3] ) )
 
 #define ETH_PROTO_IP4 (0x0800)
 #define ETH_PROTO_IP6 (0x86DD)
@@ -95,14 +95,55 @@ typedef struct _tagIP6_TYPE2_ROUTING_HEADER
 
 #define IP6_EXT_HDR_GRANULARITY   (8)
 
-static __inline USHORT CheckSumCalculator(ULONG val, PVOID buffer, ULONG len)
+static UINT32 RawCheckSumCalculator(PVOID buffer, ULONG len)
 {
+	UINT32 val = 0;
 	PUSHORT pus = (PUSHORT)buffer;
 	ULONG count = len >> 1;
 	while (count--) val += *pus++;
 	if (len & 1) val += (USHORT)*(PUCHAR)pus;
+	return val;
+}
+
+static __inline USHORT RawCheckSumFinalize(UINT32 val)
+{
 	val = (((val >> 16) | (val << 16)) + val) >> 16;
 	return (USHORT)~val;
+}
+
+static __inline USHORT CheckSumCalculatorFlat(PVOID buffer, ULONG len)
+{
+	return RawCheckSumFinalize(RawCheckSumCalculator(buffer, len));
+}
+
+static __inline USHORT CheckSumCalculator(tCompletePhysicalAddress *pDataPages, ULONG ulStartOffset, ULONG len)
+{
+	tCompletePhysicalAddress *pCurrentPage = &pDataPages[0];
+	ULONG ulCurrPageOffset = 0;
+	UINT32 u32RawCSum = 0;
+
+	while(ulStartOffset > 0)
+	{
+		ulCurrPageOffset = min(pCurrentPage->size, ulStartOffset);
+
+		if(ulCurrPageOffset < ulStartOffset)
+			pCurrentPage++;
+
+		ulStartOffset -= ulCurrPageOffset;
+	}
+
+	while(len > 0)
+	{
+		PVOID pCurrentPageDataStart = RtlOffsetToPointer(pCurrentPage->Virtual, ulCurrPageOffset);
+		ULONG ulCurrentPageDataLength = min(len, pCurrentPage->size - ulCurrPageOffset);
+
+		u32RawCSum += RawCheckSumCalculator(pCurrentPageDataStart, ulCurrentPageDataLength);
+		pCurrentPage++;
+		ulCurrPageOffset = 0;
+		len -= ulCurrentPageDataLength;
+	}
+
+	return RawCheckSumFinalize(u32RawCSum);
 }
 
 
@@ -112,7 +153,7 @@ static __inline USHORT CheckSumCalculator(ULONG val, PVOID buffer, ULONG len)
 static __inline VOID CalculateIpChecksum(IPv4Header *pIpHeader)
 {
 	pIpHeader->ip_xsum = 0;
-	pIpHeader->ip_xsum = CheckSumCalculator(0, pIpHeader, IP_HEADER_LENGTH(pIpHeader));
+	pIpHeader->ip_xsum = CheckSumCalculatorFlat(pIpHeader, IP_HEADER_LENGTH(pIpHeader));
 }
 
 static __inline tTcpIpPacketParsingResult
@@ -304,7 +345,7 @@ static __inline USHORT CalculateIpv4PseudoHeaderChecksum(IPv4Header *pIpHeader, 
 	ipph.ipph_zero = 0;
 	ipph.ipph_protocol = pIpHeader->ip_protocol;
 	ipph.ipph_length = swap_short(headerAndPayloadLen);
-	checksum = CheckSumCalculator(0, &ipph, sizeof(ipph));
+	checksum = CheckSumCalculatorFlat(&ipph, sizeof(ipph));
 	return ~checksum;
 }
 
@@ -324,7 +365,7 @@ static __inline USHORT CalculateIpv6PseudoHeaderChecksum(IPv6Header *pIpHeader, 
 	ipph.z1 = ipph.z2 = ipph.z3 = 0;
 	ipph.ipph_protocol = pIpHeader->ip6_next_header;
 	ipph.ipph_length = swap_short(headerAndPayloadLen);
-	checksum = CheckSumCalculator(0, &ipph, sizeof(ipph));
+	checksum = CheckSumCalculatorFlat(&ipph, sizeof(ipph));
 	return ~checksum;
 }
 
@@ -368,18 +409,18 @@ VerifyIpChecksum(
 Calculates UDP checksum, assuming the checksum field
 is initialized with pseudoheader checksum
 **********************************************/
-static VOID CalculateUdpChecksumGivenPseudoCS(UDPHeader *pUdpHeader, ULONG udpLength)
+static __inline VOID CalculateUdpChecksumGivenPseudoCS(UDPHeader *pUdpHeader, tCompletePhysicalAddress *pDataPages, ULONG ulStartOffset, ULONG udpLength)
 {
-	pUdpHeader->udp_xsum = CheckSumCalculator(0, pUdpHeader, udpLength);
+	pUdpHeader->udp_xsum = CheckSumCalculator(pDataPages, ulStartOffset, udpLength);
 }
 
 /*********************************************
 Calculates TCP checksum, assuming the checksum field
 is initialized with pseudoheader checksum
 **********************************************/
-static __inline VOID CalculateTcpChecksumGivenPseudoCS(TCPHeader *pTcpHeader, ULONG tcpLength)
+static __inline VOID CalculateTcpChecksumGivenPseudoCS(TCPHeader *pTcpHeader, tCompletePhysicalAddress *pDataPages, ULONG ulStartOffset, ULONG tcpLength)
 {
-	pTcpHeader->tcp_xsum = CheckSumCalculator(0, pTcpHeader, tcpLength);
+	pTcpHeader->tcp_xsum = CheckSumCalculator(pDataPages, ulStartOffset, tcpLength);
 }
 
 /************************************************
@@ -389,14 +430,20 @@ TcpPseudoOK if valid pseudo CS was found
 TcpOK if valid TCP checksum was found
 ************************************************/
 static __inline tTcpIpPacketParsingResult
-VerifyTcpChecksum( IPHeader *pIpHeader, ULONG len, tTcpIpPacketParsingResult known, ULONG whatToFix)
+VerifyTcpChecksum(
+				tCompletePhysicalAddress *pDataPages,
+				ULONG ulDataLength,
+				ULONG ulStartOffset,
+				tTcpIpPacketParsingResult known,
+				ULONG whatToFix)
 {
 	USHORT  phcs;
 	tTcpIpPacketParsingResult res = known;
+	IPHeader *pIpHeader = (IPHeader *)RtlOffsetToPointer(pDataPages[0].Virtual, ulStartOffset);
 	TCPHeader *pTcpHeader = (TCPHeader *)RtlOffsetToPointer(pIpHeader, res.ipHeaderSize);
 	USHORT saved = pTcpHeader->tcp_xsum;
 	USHORT xxpHeaderAndPayloadLen = GetXxpHeaderAndPayloadLen(pIpHeader, res);
-	if (len >= res.ipHeaderSize)
+	if (ulDataLength >= res.ipHeaderSize)
 	{
 		phcs = CalculateIpPseudoHeaderChecksum(pIpHeader, res, xxpHeaderAndPayloadLen);
 		res.xxpCheckSum = (saved == phcs) ?  ppresPCSOK : ppresCSBad;
@@ -404,7 +451,7 @@ VerifyTcpChecksum( IPHeader *pIpHeader, ULONG len, tTcpIpPacketParsingResult kno
 		{
 			if (whatToFix & pcrFixPHChecksum)
 			{
-				if (len >= (ULONG)(res.ipHeaderSize + sizeof(*pTcpHeader)))
+				if (ulDataLength >= (ULONG)(res.ipHeaderSize + sizeof(*pTcpHeader)))
 				{
 					pTcpHeader->tcp_xsum = phcs;
 					res.fixedXxpCS = res.xxpCheckSum != ppresPCSOK;
@@ -416,7 +463,7 @@ VerifyTcpChecksum( IPHeader *pIpHeader, ULONG len, tTcpIpPacketParsingResult kno
 			{
 				//USHORT ipFullLength = swap_short(pIpHeader->v4.ip_length);
 				pTcpHeader->tcp_xsum = phcs;
-				CalculateTcpChecksumGivenPseudoCS(pTcpHeader, xxpHeaderAndPayloadLen);
+				CalculateTcpChecksumGivenPseudoCS(pTcpHeader, pDataPages, ulStartOffset + res.ipHeaderSize, xxpHeaderAndPayloadLen);
 				if (saved == pTcpHeader->tcp_xsum)
 					res.xxpCheckSum = ppresCSOK;
 
@@ -436,7 +483,7 @@ VerifyTcpChecksum( IPHeader *pIpHeader, ULONG len, tTcpIpPacketParsingResult kno
 			// we have correct PHCS and we do not need to fix anything
 			// there is a very small chance that it is also good TCP CS
 			// in such rare case we give a priority to TCP CS
-			CalculateTcpChecksumGivenPseudoCS(pTcpHeader, xxpHeaderAndPayloadLen);
+			CalculateTcpChecksumGivenPseudoCS(pTcpHeader, pDataPages, ulStartOffset + res.ipHeaderSize, xxpHeaderAndPayloadLen);
 			if (saved == pTcpHeader->tcp_xsum)
 				res.xxpCheckSum = ppresCSOK;
 			pTcpHeader->tcp_xsum = saved;
@@ -454,20 +501,26 @@ UdpPseudoOK if valid pseudo CS was found
 UdpOK if valid UDP checksum was found
 ************************************************/
 static __inline tTcpIpPacketParsingResult
-VerifyUdpChecksum( IPHeader *pIpHeader, ULONG len, tTcpIpPacketParsingResult known, ULONG whatToFix)
+VerifyUdpChecksum(
+				tCompletePhysicalAddress *pDataPages,
+				ULONG ulDataLength,
+				ULONG ulStartOffset,
+				tTcpIpPacketParsingResult known,
+				ULONG whatToFix)
 {
 	USHORT  phcs;
 	tTcpIpPacketParsingResult res = known;
+	IPHeader *pIpHeader = (IPHeader *)RtlOffsetToPointer(pDataPages[0].Virtual, ulStartOffset);
 	UDPHeader *pUdpHeader = (UDPHeader *)RtlOffsetToPointer(pIpHeader, res.ipHeaderSize);
 	USHORT saved = pUdpHeader->udp_xsum;
 	USHORT xxpHeaderAndPayloadLen = GetXxpHeaderAndPayloadLen(pIpHeader, res);
-	if (len >= res.ipHeaderSize)
+	if (ulDataLength >= res.ipHeaderSize)
 	{
 		phcs = CalculateIpPseudoHeaderChecksum(pIpHeader, res, xxpHeaderAndPayloadLen);
 		res.xxpCheckSum = (saved == phcs) ?  ppresPCSOK : ppresCSBad;
 		if (whatToFix & pcrFixPHChecksum)
 		{
-			if (len >= (ULONG)(res.ipHeaderSize + sizeof(UDPHeader)))
+			if (ulDataLength >= (ULONG)(res.ipHeaderSize + sizeof(UDPHeader)))
 			{
 				pUdpHeader->udp_xsum = phcs;
 				res.fixedXxpCS = res.xxpCheckSum != ppresPCSOK;
@@ -480,7 +533,7 @@ VerifyUdpChecksum( IPHeader *pIpHeader, ULONG len, tTcpIpPacketParsingResult kno
 			if (res.xxpFull)
 			{
 				pUdpHeader->udp_xsum = phcs;
-				CalculateUdpChecksumGivenPseudoCS(pUdpHeader, xxpHeaderAndPayloadLen);
+				CalculateUdpChecksumGivenPseudoCS(pUdpHeader, pDataPages, ulStartOffset + res.ipHeaderSize, xxpHeaderAndPayloadLen);
 				if (saved == pUdpHeader->udp_xsum)
 					res.xxpCheckSum = ppresCSOK;
 
@@ -498,7 +551,7 @@ VerifyUdpChecksum( IPHeader *pIpHeader, ULONG len, tTcpIpPacketParsingResult kno
 			// we have correct PHCS and we do not need to fix anything
 			// there is a very small chance that it is also good UDP CS
 			// in such rare case we give a priority to UDP CS
-			CalculateUdpChecksumGivenPseudoCS(pUdpHeader, xxpHeaderAndPayloadLen);
+			CalculateUdpChecksumGivenPseudoCS(pUdpHeader, pDataPages, ulStartOffset + res.ipHeaderSize, xxpHeaderAndPayloadLen);
 			if (saved == pUdpHeader->udp_xsum)
 				res.xxpCheckSum = ppresCSOK;
 			pUdpHeader->udp_xsum = saved;
@@ -546,27 +599,34 @@ static __inline VOID PrintOutParsingResult(
 		res.fixedXxpCS ? "(fixed)" : ""));
 }
 
-tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(PVOID buffer, ULONG size, ULONG flags, LPCSTR caller)
+tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(
+												tCompletePhysicalAddress *pDataPages,
+												ULONG ulDataLength,
+												ULONG ulStartOffset,
+												ULONG flags,
+												LPCSTR caller)
 {
-	tTcpIpPacketParsingResult res = QualifyIpPacket(buffer, size);
+	IPHeader *pIpHeader = (IPHeader *) RtlOffsetToPointer(pDataPages[0].Virtual, ulStartOffset);
+
+	tTcpIpPacketParsingResult res = QualifyIpPacket(pIpHeader, ulDataLength);
 	if (res.ipStatus == ppresIPV4)
 	{
 		if (flags & pcrIpChecksum)
-			res = VerifyIpChecksum(buffer, res, (flags & pcrFixIPChecksum) != 0);
+			res = VerifyIpChecksum(&pIpHeader->v4, res, (flags & pcrFixIPChecksum) != 0);
 		if(res.xxpStatus == ppresXxpKnown)
 		{
 			if (res.TcpUdp == ppresIsTCP) /* TCP */
 			{
 				if(flags & pcrTcpV4Checksum)
 				{
-					res = VerifyTcpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixTcpV4Checksum));
+					res = VerifyTcpChecksum(pDataPages, ulDataLength, ulStartOffset, res, flags & (pcrFixPHChecksum | pcrFixTcpV4Checksum));
 				}
 			}
 			else /* UDP */
 			{
 				if (flags & pcrUdpV4Checksum)
 				{
-					res = VerifyUdpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixUdpV4Checksum));
+					res = VerifyUdpChecksum(pDataPages, ulDataLength, ulStartOffset, res, flags & (pcrFixPHChecksum | pcrFixUdpV4Checksum));
 				}
 			}
 		}
@@ -579,56 +639,20 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(PVOID buffer, ULONG size, ULON
 			{
 				if(flags & pcrTcpV6Checksum)
 				{
-					res = VerifyTcpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixTcpV6Checksum));
+					res = VerifyTcpChecksum(pDataPages, ulDataLength, ulStartOffset, res, flags & (pcrFixPHChecksum | pcrFixTcpV6Checksum));
 				}
 			}
 			else /* UDP */
 			{
 				if (flags & pcrUdpV6Checksum)
 				{
-					res = VerifyUdpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixUdpV6Checksum));
+					res = VerifyUdpChecksum(pDataPages, ulDataLength, ulStartOffset, res, flags & (pcrFixPHChecksum | pcrFixUdpV6Checksum));
 				}
 			}
 		}
 	}
 	PrintOutParsingResult(res, 1, caller);
 	return res;
-}
-
-
-void ParaNdis_CheckSumCalculate(PVOID buffer, ULONG size, ULONG flags)
-{
-	tTcpIpPacketParsingResult res = QualifyIpPacket(buffer, size);
-	if (res.ipStatus == ppresIPV4 && (flags & pcrIpChecksum))
-	{
-		res = VerifyIpChecksum(buffer, res, (flags & pcrFixIPChecksum) != 0);
-	}
-	if (res.xxpStatus == ppresXxpKnown && res.TcpUdp == ppresIsTCP && (flags & pcrTcpChecksum))
-	{
-		if (flags & (pcrFixPHChecksum | pcrFixXxpChecksum))
-			res = VerifyTcpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixXxpChecksum));
-		else
-		{
-			IPv4Header *pIpHeader = buffer;
-			UCHAR  ver_len = pIpHeader->ip_verlen;
-			USHORT ipHeaderSize = (ver_len & 0xF) << 2;
-			TCPHeader *pTcpHeader = (TCPHeader *)RtlOffsetToPointer(pIpHeader, ipHeaderSize);
-			CalculateTcpChecksumGivenPseudoCS(pTcpHeader, size - ipHeaderSize);
-		}
-	}
-	if (res.xxpStatus == ppresXxpKnown && res.TcpUdp == ppresIsUDP && (flags & pcrUdpChecksum))
-	{
-		if (flags & (pcrFixPHChecksum | pcrFixXxpChecksum))
-			res = VerifyUdpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixXxpChecksum));
-		else
-		{
-			IPv4Header *pIpHeader = buffer;
-			UCHAR  ver_len = pIpHeader->ip_verlen;
-			USHORT ipHeaderSize = (ver_len & 0xF) << 2;
-			UDPHeader *pUdpHeader = (UDPHeader *)RtlOffsetToPointer(pIpHeader, ipHeaderSize);
-			CalculateUdpChecksumGivenPseudoCS(pUdpHeader, size - ipHeaderSize);
-		}
-	}
 }
 
 tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, LPCSTR caller)
@@ -651,10 +675,25 @@ static
 BOOLEAN AnalyzeL2Hdr(
 	PNET_PACKET_INFO packetInfo)
 {
-	PETH_HEADER dataBuffer = (PETH_HEADER) packetInfo->dataBuffer;
+	PETH_HEADER dataBuffer = (PETH_HEADER) packetInfo->headersBuffer;
 
 	if (packetInfo->dataLength < ETH_HEADER_SIZE)
 		return FALSE;
+
+	packetInfo->ethDestAddr = dataBuffer->DstAddr;
+
+	if (ETH_IS_BROADCAST(dataBuffer))
+	{
+		packetInfo->isBroadcast = TRUE;
+	}
+	else if (ETH_IS_MULTICAST(dataBuffer))
+	{
+		packetInfo->isMulticast = TRUE;
+	}
+	else
+	{
+		packetInfo->isUnicast = TRUE;
+	}
 
 	if(ETH_HAS_PRIO_HEADER(dataBuffer))
 	{
@@ -844,7 +883,7 @@ BOOLEAN AnalyzeL3Hdr(
 {
 	if(packetInfo->isIP4)
 	{
-		IPv4Header *ip4Hdr = (IPv4Header *) RtlOffsetToPointer(packetInfo->dataBuffer, packetInfo->L2HdrLen);
+		IPv4Header *ip4Hdr = (IPv4Header *) RtlOffsetToPointer(packetInfo->headersBuffer, packetInfo->L2HdrLen);
 
 		if(packetInfo->dataLength < packetInfo->L2HdrLen + sizeof(*ip4Hdr))
 			return FALSE;
@@ -869,7 +908,7 @@ BOOLEAN AnalyzeL3Hdr(
 		ULONG homeAddrOffset, destAddrOffset;
 		UCHAR l4Proto;
 
-		IPv6Header *ip6Hdr = (IPv6Header *) RtlOffsetToPointer(packetInfo->dataBuffer, packetInfo->L2HdrLen);
+		IPv6Header *ip6Hdr = (IPv6Header *) RtlOffsetToPointer(packetInfo->headersBuffer, packetInfo->L2HdrLen);
 
 		if(IP6_HEADER_VERSION(ip6Hdr) != 6)
 			return FALSE;
@@ -896,13 +935,13 @@ BOOLEAN AnalyzeL3Hdr(
 }
 
 BOOLEAN ParaNdis_AnalyzeReceivedPacket(
-	PVOID dataBuffer,
+	PVOID headersBuffer,
 	ULONG dataLength,
 	PNET_PACKET_INFO packetInfo)
 {
 	NdisZeroMemory(packetInfo, sizeof(*packetInfo));
 
-	packetInfo->dataBuffer = dataBuffer;
+	packetInfo->headersBuffer = headersBuffer;
 	packetInfo->dataLength = dataLength;
 
 	if(!AnalyzeL2Hdr(packetInfo))
@@ -912,4 +951,50 @@ BOOLEAN ParaNdis_AnalyzeReceivedPacket(
 		return FALSE;
 
 	return TRUE;
+}
+
+ULONG ParaNdis_StripVlanHeaderMoveHead(PNET_PACKET_INFO packetInfo)
+{
+	PUINT32 pData = (PUINT32) packetInfo->headersBuffer;
+
+	ASSERT(packetInfo->hasVlanHeader);
+	ASSERT(packetInfo->L2HdrLen == ETH_HEADER_SIZE + ETH_PRIORITY_HEADER_SIZE);
+
+	pData[3] = pData[2];
+	pData[2] = pData[1];
+	pData[1] = pData[0];
+
+	packetInfo->headersBuffer = RtlOffsetToPointer(packetInfo->headersBuffer, ETH_PRIORITY_HEADER_SIZE);
+	packetInfo->dataLength -= ETH_PRIORITY_HEADER_SIZE;
+	packetInfo->L2HdrLen = ETH_HEADER_SIZE;
+
+	packetInfo->ethDestAddr = (PUCHAR) RtlOffsetToPointer(packetInfo->ethDestAddr, ETH_PRIORITY_HEADER_SIZE);
+	packetInfo->ip6DestAddrOffset -= ETH_PRIORITY_HEADER_SIZE;
+	packetInfo->ip6HomeAddrOffset -= ETH_PRIORITY_HEADER_SIZE;
+
+	return ETH_PRIORITY_HEADER_SIZE;
+};
+
+VOID ParaNdis_PadPacketToMinimalLength(PNET_PACKET_INFO packetInfo)
+{
+	// Ethernet standard declares minimal possible packet size
+	// Packets smaller than that must be padded before transfer
+	// Ethernet HW pads packets on transmit, however in our case
+	// some packets do not travel over Ethernet but being routed
+	// guest-to-guest by virtual switch.
+	// In this case padding is not performed and we may
+	// receive packet smaller than minimal allowed size. This is not
+	// a problem for real life scenarios however WHQL/HCK contains
+	// tests that check padding of received packets.
+	// To make these tests happy we have to pad small packets on receive
+
+	//NOTE: This function assumes that VLAN header has been already stripped out
+
+	if(packetInfo->dataLength < ETH_MIN_PACKET_SIZE)
+	{
+		RtlZeroMemory(
+						RtlOffsetToPointer(packetInfo->headersBuffer, packetInfo->dataLength),
+						ETH_MIN_PACKET_SIZE - packetInfo->dataLength);
+		packetInfo->dataLength = ETH_MIN_PACKET_SIZE;
+	}
 }
