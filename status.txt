@@ -1,3 +1,16 @@
+Date    18 Mar 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm76
+
+Fixed bugs:
+[NetKVM] BZ#922530 Code split for NDIS5 and NDIS6
+NetKVM] BZ#921200 - Do not write to VIRTIO_PCI_ISR for
+    debug purposes in production code.
+
+[virtio-serial] BZ#806223: Fixed a bsod when changing state to s3.
+[netkvm/vioserial/viostor/vioscsi] BZ#908725 - virtio win inf does
+    not s
+
 Date    12 Mar 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm75
