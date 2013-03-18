@@ -2434,7 +2434,9 @@ static BOOLEAN CheckRunningDpc(PARANDIS_ADAPTER *pContext)
 		{
 			DPrintf(0, ("[%s] - Suspicious Tx inactivity (%d)!", __FUNCTION__, pContext->nofFreeHardwareBuffers));
 			//bReportHang = TRUE;
+#ifdef DBG_USE_VIRTIO_PCI_ISR_FOR_HOST_REPORT
 			WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 0);
+#endif
 		}
 	}
 	NdisReleaseSpinLock(&pContext->SendLock);
@@ -2986,7 +2988,9 @@ void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext)
 {
 	if (pContext->AdapterResources.ulIOAddress)
 	{
+#ifdef DBG_USE_VIRTIO_PCI_ISR_FOR_HOST_REPORT
 		WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 1);
+#endif
 	}
 }
 
