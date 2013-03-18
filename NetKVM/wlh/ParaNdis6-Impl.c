@@ -166,7 +166,7 @@ BOOLEAN ParaNdis_InitialAllocatePhysicalMemory(
 	NdisMAllocateSharedMemory(
 		pContext->MiniportHandle,
 		pAddresses->size,
-		(BOOLEAN)pAddresses->IsCached,
+		TRUE,
 		&pAddresses->Virtual,
 		&pAddresses->Physical);
 	return pAddresses->Virtual != NULL;
@@ -192,7 +192,7 @@ VOID ParaNdis_FreePhysicalMemory(
 	NdisMFreeSharedMemory(
 		pContext->MiniportHandle,
 		pAddresses->size,
-		(BOOLEAN)pAddresses->IsCached,
+		TRUE,
 		pAddresses->Virtual,
 		pAddresses->Physical);
 }
@@ -707,52 +707,67 @@ VOID ParaNdis_FinalizeCleanup(PARANDIS_ADAPTER *pContext)
 	}
 }
 
-static FORCEINLINE ULONG MaxMDLDataSize(PARANDIS_ADAPTER *pContext, pIONetDescriptor pBufferDesc)
+BOOLEAN ParaNdis_BindRxBufferToPacket(
+	PARANDIS_ADAPTER *pContext,
+	pRxNetDescriptor p)
 {
-	ULONG size  = pBufferDesc->DataInfo.size;
-	if (pContext->bUseMergedBuffers) size -= pContext->nVirtioHeaderSize;
-	return size;
+	ULONG i;
+	PMDL *NextMdlLinkage = &p->Holder;
+
+	for(i = PARANDIS_FIRST_RX_DATA_PAGE; i < p->PagesAllocated; i++)
+	{
+		*NextMdlLinkage = NdisAllocateMdl(pContext->MiniportHandle, p->PhysicalPages[i].Virtual, PAGE_SIZE);
+		if(*NextMdlLinkage == NULL) goto error_exit;
+
+		NextMdlLinkage = &(NDIS_MDL_LINKAGE(*NextMdlLinkage));
+	}
+	*NextMdlLinkage = NULL;
+
+	return TRUE;
+
+error_exit:
+
+	ParaNdis_UnbindRxBufferFromPacket(pContext, p);
+	return FALSE;
 }
 
-/**********************************************************
-NDIS6-specific procedure for binding RX buffer to MDL
-Parameters:
-	context
-	pIONetDescriptor pBuffersDesc	VirtIO buffer descriptor
-
-Return value:
-	TRUE, if bound successfully
-	FALSE, if no buffer or packet can be allocated
-***********************************************************/
-BOOLEAN ParaNdis_BindBufferToPacket(
+void ParaNdis_UnbindRxBufferFromPacket(
 	PARANDIS_ADAPTER *pContext,
-	pIONetDescriptor pBufferDesc)
+	pRxNetDescriptor p)
 {
-	PMDL pMDL;
-	PVOID pData = RtlOffsetToPointer(pBufferDesc->DataInfo.Virtual,
-		pContext->bUseMergedBuffers ? pContext->nVirtioHeaderSize : 0);
-	pMDL = NdisAllocateMdl(pContext->MiniportHandle, pData, MaxMDLDataSize(pContext, pBufferDesc));
-	pBufferDesc->pHolder = pMDL;
-	return pMDL != NULL;
+	PMDL NextMdlLinkage = p->Holder;
+
+	while(NextMdlLinkage != NULL)
+	{
+		PMDL pThisMDL = NextMdlLinkage;
+		NextMdlLinkage = NDIS_MDL_LINKAGE(pThisMDL);
+
+		NdisAdjustMdlLength(pThisMDL, PAGE_SIZE);
+		NdisFreeMdl(pThisMDL);
+	}
 }
 
-/**********************************************************
-NDIS5-specific procedure for unbinding previously bound MDL
-from it's RX buffer
-Parameters:
-	context
-	pIONetDescriptor pBuffersDesc	VirtIO buffer descriptor
-***********************************************************/
-void ParaNdis_UnbindBufferFromPacket(
+static
+void ParaNdis_AdjustRxBufferHolderLength(
 	PARANDIS_ADAPTER *pContext,
-	pIONetDescriptor pBufferDesc)
+	pRxNetDescriptor p,
+	ULONG ulDataOffset)
 {
-	NdisAdjustMdlLength(pBufferDesc->pHolder, MaxMDLDataSize(pContext, pBufferDesc));
-	NdisFreeMdl(pBufferDesc->pHolder);
+	PMDL NextMdlLinkage = p->Holder;
+	ULONG ulBytesLeft = p->PacketInfo.dataLength + ulDataOffset;
+
+	while(NextMdlLinkage != NULL)
+	{
+		ULONG ulThisMdlBytes = min(PAGE_SIZE, ulBytesLeft);
+		NdisAdjustMdlLength(NextMdlLinkage, ulThisMdlBytes);
+		ulBytesLeft -= ulThisMdlBytes;
+		NextMdlLinkage = NDIS_MDL_LINKAGE(NextMdlLinkage);
+	}
+	ASSERT(ulBytesLeft == 0);
 }
 
 static __inline
-void NBLSetRSSInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_PACKET_INFO PacketInfo)
+VOID NBLSetRSSInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_PACKET_INFO PacketInfo)
 {
 #if PARANDIS_SUPPORT_RSS
 	if(pContext->RSSParameters.RSSMode != PARANDIS_RSS_DISABLED)
@@ -765,7 +780,7 @@ void NBLSetRSSInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_PACKE
 }
 
 static __inline
-BOOLEAN NBLSet8021QInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_PACKET_INFO pPacketInfo)
+VOID NBLSet8021QInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_PACKET_INFO pPacketInfo)
 {
 	NDIS_NET_BUFFER_LIST_8021Q_INFO qInfo;
 	qInfo.Value = NULL;
@@ -776,11 +791,36 @@ BOOLEAN NBLSet8021QInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_
 	if (IsVlanSupported(pContext))
 		qInfo.TagHeader.VlanId = pPacketInfo->Vlan.VlanId;
 
-	NET_BUFFER_LIST_INFO(pNBL, Ieee8021QNetBufferListInfo) = qInfo.Value;
+	if(qInfo.Value != NULL)
+		pContext->extraStatistics.framesRxPriority++;
 
-	return qInfo.Value != NULL;
+	NET_BUFFER_LIST_INFO(pNBL, Ieee8021QNetBufferListInfo) = qInfo.Value;
 }
 
+#if PARANDIS_SUPPORT_RSC
+static __inline
+VOID NBLSetRSCInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_PACKET_INFO PacketInfo)
+{
+	NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
+	ULONG ulSegCount;
+
+	qCSInfo.Value = NULL;
+	qCSInfo.Receive.IpChecksumSucceeded = TRUE;
+	qCSInfo.Receive.IpChecksumValueInvalid = TRUE;
+	qCSInfo.Receive.TcpChecksumSucceeded = TRUE;
+	qCSInfo.Receive.TcpChecksumValueInvalid = TRUE;
+	NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
+
+	// We have no data to form this statistics, following is a simulation
+	ulSegCount = PacketInfo->dataLength / pContext->MaxPacketSize.nMaxDataSize + 1;
+	NET_BUFFER_LIST_COALESCED_SEG_COUNT(pNBL) = (USHORT) ulSegCount;
+	NET_BUFFER_LIST_DUP_ACK_COUNT(pNBL) = 0;
+
+	NdisInterlockedAddLargeStatistic(&pContext->RSC.Statistics.CoalescedOctets, PacketInfo->dataLength);
+	NdisInterlockedAddLargeStatistic(&pContext->RSC.Statistics.CoalesceEvents, 1);
+	NdisInterlockedAddLargeStatistic(&pContext->RSC.Statistics.CoalescedPkts, ulSegCount);
+}
+#endif
 
 /**********************************************************
 NDIS6 implementation of packet indication
@@ -796,9 +836,9 @@ If priority header is in the packet. it will be removed and *pLength decreased
 ***********************************************************/
 tPacketIndicationType ParaNdis_PrepareReceivedPacket(
 	PARANDIS_ADAPTER *pContext,
-	pIONetDescriptor pBuffersDesc)
+	pRxNetDescriptor pBuffersDesc)
 {
-	PMDL pMDL = pBuffersDesc->pHolder;
+	PMDL pMDL = pBuffersDesc->Holder;
 	PNET_BUFFER_LIST pNBL = NULL;
 
 	if (pMDL)
@@ -808,46 +848,56 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
 
 		if (pContext->ulPriorityVlanSetting && pPacketInfo->hasVlanHeader)
 		{
-			nBytesStripped = ParaNdis_StripVlanHeader(pPacketInfo);
+			nBytesStripped = ParaNdis_StripVlanHeaderMoveHead(pPacketInfo);
 		}
 
 		ParaNdis_PadPacketToMinimalLength(pPacketInfo);
-		NdisAdjustMdlLength(pMDL, pPacketInfo->dataLength + nBytesStripped);
+		ParaNdis_AdjustRxBufferHolderLength(pContext, pBuffersDesc, nBytesStripped);
 		pNBL = NdisAllocateNetBufferAndNetBufferList(pContext->BufferListsPool, 0, 0, pMDL, nBytesStripped, pPacketInfo->dataLength);
 
 		if (pNBL)
 		{
-			PVOID headerBuffer = pContext->bUseMergedBuffers ? pBuffersDesc->DataInfo.Virtual:pBuffersDesc->HeaderInfo.Virtual;
-			virtio_net_hdr_basic *pHeader = (virtio_net_hdr_basic *)headerBuffer;
+			virtio_net_hdr_basic *pHeader = (virtio_net_hdr_basic *) pBuffersDesc->PhysicalPages[0].Virtual;
 			tChecksumCheckResult csRes;
 			pNBL->SourceHandle = pContext->MiniportHandle;
 			NBLSetRSSInfo(pContext, pNBL, pPacketInfo);
-
-			if (NBLSet8021QInfo(pContext, pNBL, pPacketInfo))
-			{
-				pContext->extraStatistics.framesRxPriority++;
-			}
+			NBLSet8021QInfo(pContext, pNBL, pPacketInfo);
 
 			pNBL->MiniportReserved[0] = pBuffersDesc;
-			csRes = ParaNdis_CheckRxChecksum(pContext, pHeader->flags, pPacketInfo->dataBuffer, pPacketInfo->dataLength);
-			if (csRes.value)
+
+#if PARANDIS_SUPPORT_RSC
+			if(pHeader->gso_type != VIRTIO_NET_HDR_GSO_NONE)
 			{
-				NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
-				qCSInfo.Value = NULL;
-				qCSInfo.Receive.IpChecksumFailed = csRes.flags.IpFailed;
-				qCSInfo.Receive.IpChecksumSucceeded = csRes.flags.IpOK;
-				qCSInfo.Receive.TcpChecksumFailed = csRes.flags.TcpFailed;
-				qCSInfo.Receive.TcpChecksumSucceeded = csRes.flags.TcpOK;
-				qCSInfo.Receive.UdpChecksumFailed = csRes.flags.UdpFailed;
-				qCSInfo.Receive.UdpChecksumSucceeded = csRes.flags.UdpOK;
-				NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
-				DPrintf(1, ("Reporting CS %X->%X", csRes.value, (ULONG)(ULONG_PTR)qCSInfo.Value));
+				NBLSetRSCInfo(pContext, pNBL, pPacketInfo);
+			}
+			else
+#endif
+			{
+				csRes = ParaNdis_CheckRxChecksum(
+					pContext,
+					pHeader->flags,
+					&pBuffersDesc->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE],
+					pPacketInfo->dataLength,
+					nBytesStripped);
+				if (csRes.value)
+				{
+					NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
+					qCSInfo.Value = NULL;
+					qCSInfo.Receive.IpChecksumFailed = csRes.flags.IpFailed;
+					qCSInfo.Receive.IpChecksumSucceeded = csRes.flags.IpOK;
+					qCSInfo.Receive.TcpChecksumFailed = csRes.flags.TcpFailed;
+					qCSInfo.Receive.TcpChecksumSucceeded = csRes.flags.TcpOK;
+					qCSInfo.Receive.UdpChecksumFailed = csRes.flags.UdpFailed;
+					qCSInfo.Receive.UdpChecksumSucceeded = csRes.flags.UdpOK;
+					NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
+					DPrintf(1, ("Reporting CS %X->%X", csRes.value, (ULONG)(ULONG_PTR)qCSInfo.Value));
+				}
 			}
 			pNBL->Status = NDIS_STATUS_SUCCESS;
 #if defined(ENABLE_HISTORY_LOG)
 			{
 				tTcpIpPacketParsingResult packetReview = ParaNdis_CheckSumVerify(
-					RtlOffsetToPointer(pPacketInfo->dataBuffer, ETH_HEADER_SIZE),
+					RtlOffsetToPointer(pPacketInfo->headersBuffer, ETH_HEADER_SIZE),
 					pPacketInfo->dataLength,
 					pcrIpChecksum | pcrTcpChecksum | pcrUdpChecksum,
 					__FUNCTION__
@@ -906,7 +956,7 @@ VOID ParaNdis6_ReturnNetBufferLists(
 	while (pNBL)
 	{
 		PNET_BUFFER_LIST pTemp = pNBL;
-		pIONetDescriptor pBuffersDescriptor = (pIONetDescriptor)pNBL->MiniportReserved[0];
+		pRxNetDescriptor pBuffersDescriptor = (pRxNetDescriptor)pNBL->MiniportReserved[0];
 		DPrintf(3, ("  Returned NBL of pBuffersDescriptor %p!", pBuffersDescriptor));
 		pNBL = NET_BUFFER_LIST_NEXT_NBL(pNBL);
 		NET_BUFFER_LIST_NEXT_NBL(pTemp) = NULL;
@@ -1112,7 +1162,7 @@ VOID ParaNdis_PacketMapper(
 	tPacketType packet,
 	PVOID ReferenceValue,
 	struct VirtIOBufferDescriptor *buffers,
-	pIONetDescriptor pDesc,
+	pTxNetDescriptor pDesc,
 	tMapperResult *pMapperResult
 	)
 {
@@ -1222,7 +1272,7 @@ VOID ParaNdis_PacketMapper(
 					PVOID pIpHeader = RtlOffsetToPointer(pBuffer, pContext->Offload.ipHeaderOffset);
 					nBuffersMapped = 0;
 					PopulateIPPacketLength(pIpHeader, packet, pContext->Offload.ipHeaderOffset);
-					packetReview = ParaNdis_CheckSumVerify(
+					packetReview = ParaNdis_CheckSumVerifyFlat(
 						pIpHeader,
 						lengthGet - pContext->Offload.ipHeaderOffset,
 						flags,
@@ -1274,7 +1324,7 @@ VOID ParaNdis_PacketMapper(
 				else if (pble->flags & NBLEFLAGS_IP_CS)
 				{
 					PVOID pIpHeader = RtlOffsetToPointer(pBuffer, pContext->Offload.ipHeaderOffset);
-					ParaNdis_CheckSumVerify(
+					ParaNdis_CheckSumVerifyFlat(
 						pIpHeader,
 						lengthGet - pContext->Offload.ipHeaderOffset,
 						pcrIpChecksum | pcrFixIPChecksum,
@@ -1708,7 +1758,7 @@ static BOOLEAN PrepareSingleNBL(
 				ULONG len = NET_BUFFER_DATA_LENGTH(pB);
 				VOID *pcopy = ParaNdis_AllocateMemory(pContext, len);
 				ParaNdis_PacketCopier(pB, pcopy, len, NULL, TRUE);
-				res = ParaNdis_CheckSumVerify(
+				res = ParaNdis_CheckSumVerifyFlat(
 					RtlOffsetToPointer(pcopy, ETH_HEADER_SIZE),
 					len,
 					pcrAnyChecksum/* | pcrFixAnyChecksum*/,
@@ -1838,7 +1888,7 @@ static void OnNetBufferEntryCompleted(tNetBufferEntry *pnbe)
 	Callback on finished Tx descriptor
 	called with SendLock held
 ***********************************************************/
-VOID ParaNdis_OnTransmitBufferReleased(PARANDIS_ADAPTER *pContext, IONetDescriptor *pDesc)
+VOID ParaNdis_OnTransmitBufferReleased(PARANDIS_ADAPTER *pContext, pTxNetDescriptor pDesc)
 {
 	tNetBufferEntry *pnbe = pDesc->ReferenceValue;
 	pDesc->ReferenceValue = NULL;

@@ -42,6 +42,7 @@
 
 #if NDIS_SUPPORT_NDIS630
 #define PARANDIS_SUPPORT_RSS 1
+#define PARANDIS_SUPPORT_RSC 1
 #endif
 
 #include "osdep.h"
@@ -303,16 +304,18 @@ typedef struct _tagMaxPacketSize
 	UINT nMaxDataSize;
 	UINT nMaxFullSizeOS;
 	UINT nMaxFullSizeHwTx;
-	UINT nMaxFullSizeHwRx;
+	UINT nMaxDataSizeHwRx;
+	UINT nMaxFullSizeOsRx;
 }tMaxPacketSize;
+
+#define MAX_HW_RX_PACKET_SIZE (MAX_IP4_DATAGRAM_SIZE + ETH_HEADER_SIZE + ETH_PRIORITY_HEADER_SIZE)
+#define MAX_OS_RX_PACKET_SIZE (MAX_IP4_DATAGRAM_SIZE + ETH_HEADER_SIZE)
 
 typedef struct _tagCompletePhysicalAddress
 {
 	PHYSICAL_ADDRESS	Physical;
 	PVOID				Virtual;
 	ULONG				size;
-	ULONG				IsCached		: 1;
-	ULONG				IsTX			: 1;
 } tCompletePhysicalAddress;
 
 typedef struct _tagMulticastData
@@ -358,22 +361,33 @@ typedef struct _tagNET_PACKET_INFO
 
 	PUCHAR ethDestAddr;
 
-	PVOID dataBuffer;
+	PVOID headersBuffer;
 	ULONG dataLength;
 } NET_PACKET_INFO, *PNET_PACKET_INFO;
 
-typedef struct _tagIONetDescriptor {
+typedef struct _tagNetDescriptor {
 	LIST_ENTRY listEntry;
-	LIST_ENTRY ReceiveQueueListEntry;
 	tCompletePhysicalAddress HeaderInfo;
 	tCompletePhysicalAddress DataInfo;
-	tPacketHolderType pHolder;
 	PVOID ReferenceValue;
 	UINT  nofUsedBuffers;
-	NET_PACKET_INFO PacketInfo;
-} IONetDescriptor, * pIONetDescriptor;
+} TxNetDescriptor, *pTxNetDescriptor;
 
-typedef void (*tReuseReceiveBufferProc)(void *pContext, pIONetDescriptor pDescriptor);
+typedef struct _tagRxNetDescriptor {
+	LIST_ENTRY listEntry;
+	LIST_ENTRY ReceiveQueueListEntry;
+
+#define PARANDIS_FIRST_RX_DATA_PAGE   (1)
+	struct VirtIOBufferDescriptor *BufferSGArray;
+	tCompletePhysicalAddress      *PhysicalPages;
+	ULONG                          PagesAllocated;
+	tCompletePhysicalAddress       IndirectArea;
+	tPacketHolderType              Holder;
+
+	NET_PACKET_INFO PacketInfo;
+} RxNetDescriptor, *pRxNetDescriptor;
+
+typedef void (*tReuseReceiveBufferProc)(void *pContext, pRxNetDescriptor pDescriptor);
 
 typedef struct _tagPARANDIS_RECEIVE_QUEUE
 {
@@ -545,6 +559,22 @@ typedef struct _tagPARANDIS_ADAPTER
 	NDIS_RECEIVE_SCALE_CAPABILITIES	RSSCapabilities;
 	PARANDIS_RSS_PARAMS			RSSParameters;
 	CCHAR						RSSMaxQueuesNumber;
+#endif
+
+#if PARANDIS_SUPPORT_RSC
+	struct {
+		BOOLEAN						bIPv4SupportedSW;
+		BOOLEAN						bIPv6SupportedSW;
+		BOOLEAN						bIPv4SupportedHW;
+		BOOLEAN						bIPv6SupportedHW;
+		BOOLEAN						bIPv4Enabled;
+		BOOLEAN						bIPv6Enabled;
+		struct {
+			LARGE_INTEGER			CoalescedPkts;
+			LARGE_INTEGER			CoalescedOctets;
+			LARGE_INTEGER			CoalesceEvents;
+		}							Statistics;
+	} RSC;
 #endif
 
 #else
@@ -758,7 +788,12 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 
 void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsFlags *pDest, PULONG from);
 
-tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG virtioFlags, PVOID pRxPacket, ULONG len);
+tChecksumCheckResult ParaNdis_CheckRxChecksum(
+											PARANDIS_ADAPTER *pContext,
+											ULONG virtioFlags,
+											tCompletePhysicalAddress *pPacketPages,
+											ULONG ulPacketLength,
+											ULONG ulDataOffset);
 
 void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext);
 
@@ -781,7 +816,7 @@ NDIS_HANDLE ParaNdis_OpenNICConfiguration(
 
 tPacketIndicationType ParaNdis_PrepareReceivedPacket(
 	PARANDIS_ADAPTER *pContext,
-	pIONetDescriptor pBufferDesc);
+	pRxNetDescriptor pBufferDesc);
 
 VOID ParaNdis_IndicateReceivedBatch(
 	PARANDIS_ADAPTER *pContext,
@@ -793,7 +828,7 @@ VOID ParaNdis_PacketMapper(
 	tPacketType packet,
 	PVOID Reference,
 	struct VirtIOBufferDescriptor *buffers,
-	pIONetDescriptor pDesc,
+	pTxNetDescriptor pDesc,
 	tMapperResult *pMapperResult
 	);
 
@@ -827,7 +862,7 @@ VOID ParaNdis_Resume(
 
 VOID ParaNdis_OnTransmitBufferReleased(
 	PARANDIS_ADAPTER *pContext,
-	IONetDescriptor *pDesc);
+	pTxNetDescriptor pDesc);
 
 
 typedef VOID (*tOnAdditionalPhysicalMemoryAllocated)(
@@ -857,13 +892,13 @@ VOID ParaNdis_FreePhysicalMemory(
 	PARANDIS_ADAPTER *pContext,
 	tCompletePhysicalAddress *pAddresses);
 
-BOOLEAN ParaNdis_BindBufferToPacket(
+BOOLEAN ParaNdis_BindRxBufferToPacket(
 	PARANDIS_ADAPTER *pContext,
-	pIONetDescriptor pBufferDesc);
+	pRxNetDescriptor p);
 
-void ParaNdis_UnbindBufferFromPacket(
+void ParaNdis_UnbindRxBufferFromPacket(
 	PARANDIS_ADAPTER *pContext,
-	pIONetDescriptor pBufferDesc);
+	pRxNetDescriptor p);
 
 void ParaNdis_IndicateConnect(
 	PARANDIS_ADAPTER *pContext,
@@ -951,11 +986,30 @@ typedef enum _tagPacketOffloadRequest
 }tPacketOffloadRequest;
 
 // sw offload
-void ParaNdis_CheckSumCalculate(PVOID buffer, ULONG size, ULONG flags);
-tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(PVOID buffer, ULONG size, ULONG flags, LPCSTR caller);
+
+tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(
+												tCompletePhysicalAddress *pDataPages,
+												ULONG ulDataLength,
+												ULONG ulStartOffset,
+												ULONG flags,
+												LPCSTR caller);
+
+static __inline
+tTcpIpPacketParsingResult ParaNdis_CheckSumVerifyFlat(
+												PVOID pBuffer,
+												ULONG ulDataLength,
+												ULONG flags,
+												LPCSTR caller)
+{
+	tCompletePhysicalAddress SGBuffer;
+	SGBuffer.Virtual = pBuffer;
+	SGBuffer.size = ulDataLength;
+	return ParaNdis_CheckSumVerify(&SGBuffer, ulDataLength, 0, flags, caller);
+}
+
 tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, LPCSTR caller);
 
-BOOLEAN ParaNdis_AnalyzeReceivedPacket(PVOID dataBuffer, ULONG dataLength, PNET_PACKET_INFO packetInfo);
+BOOLEAN ParaNdis_AnalyzeReceivedPacket(PVOID headersBuffer, ULONG dataLength, PNET_PACKET_INFO packetInfo);
 ULONG ParaNdis_StripVlanHeaderMoveHead(PNET_PACKET_INFO packetInfo);
 VOID ParaNdis_PadPacketToMinimalLength(PNET_PACKET_INFO packetInfo);
 
