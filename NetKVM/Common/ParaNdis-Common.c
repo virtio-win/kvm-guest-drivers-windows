@@ -1963,66 +1963,61 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
 	return result;
 }
 
-static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PVOID address, UINT len, eInspectedPacketType *pType)
+static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacketInfo, eInspectedPacketType *pType)
 {
-	ULONG b;
-	if (len <= sizeof(ETH_HEADER)) return FALSE;
-	if (len > pContext->MaxPacketSize.nMaxFullSizeHwRx) return FALSE;
-	if (len > pContext->MaxPacketSize.nMaxFullSizeOS && !ETH_HAS_PRIO_HEADER(address)) return FALSE;
-	*pType = QueryPacketType(address);
-	if (pContext->PacketFilter & NDIS_PACKET_TYPE_PROMISCUOUS)	return TRUE;
+	ULONG i;
 
-	switch(*pType)
+	if (pPacketInfo->dataLength > pContext->MaxPacketSize.nMaxFullSizeHwRx)
+		return FALSE;
+
+	if (pPacketInfo->dataLength > pContext->MaxPacketSize.nMaxFullSizeOS && !pPacketInfo->hasVlanHeader)
+		return FALSE;
+
+	if (IsVlanSupported(pContext) && pPacketInfo->hasVlanHeader)
 	{
-		case iptBroadcast:
-			b = pContext->PacketFilter & NDIS_PACKET_TYPE_BROADCAST;
-			break;
-		case iptMilticast:
-			b = pContext->PacketFilter & NDIS_PACKET_TYPE_ALL_MULTICAST;
-			if (!b && (pContext->PacketFilter & NDIS_PACKET_TYPE_MULTICAST))
-			{
-				UINT i, n = pContext->MulticastData.nofMulticastEntries * ETH_LENGTH_OF_ADDRESS;
-				b = 1;
-				for (i = 0; b && i < n; i += ETH_LENGTH_OF_ADDRESS)
-				{
-					ETH_COMPARE_NETWORK_ADDRESSES((PUCHAR)address, &pContext->MulticastData.MulticastList[i], &b)
-				}
-				b = !b;
-			}
-			break;
-		default:
-			ETH_COMPARE_NETWORK_ADDRESSES((PUCHAR)address, pContext->CurrentMacAddress, &b);
-			b = !b && (pContext->PacketFilter & NDIS_PACKET_TYPE_DIRECTED);
-			break;
+		if (pContext->VlanId && pContext->VlanId != pPacketInfo->Vlan.VlanId)
+		{
+			return FALSE;
+		}
 	}
-	if (!b)
+
+	if (pContext->PacketFilter & NDIS_PACKET_TYPE_PROMISCUOUS)
+		return TRUE;
+
+	if(pPacketInfo->isUnicast)
 	{
-		pContext->extraStatistics.framesFilteredOut++;
+		ULONG Res;
+
+		if(!(pContext->PacketFilter & NDIS_PACKET_TYPE_DIRECTED))
+			return FALSE;
+
+		ETH_COMPARE_NETWORK_ADDRESSES_EQ(pPacketInfo->ethDestAddr, pContext->CurrentMacAddress, &Res);
+		return !Res;
 	}
-	return b;
-}
 
-void
-ParaNdis_PadPacketReceived(PVOID pDataBuffer, PULONG pLength)
-{
-	// Ethernet standard declares minimal possible packet size
-	// Packets smaller than that must be padded before transfer
-	// Ethernet HW pads packets on transmit, however in our case
-	// some packets do not travel over Ethernet but being routed
-	// guest-to-guest by virtual switch.
-	// In this case padding is not performed and we may
-	// receive packet smaller than minimal allowed size. This is not
-	// a problem for real life scenarios however WHQL/HCK contains
-	// tests that check padding of received packets.
-	// To make these tests happy we have to pad small packets on receive
+	if(pPacketInfo->isBroadcast)
+		return (pContext->PacketFilter & NDIS_PACKET_TYPE_BROADCAST);
 
-	//NOTE: This function assumes that VLAN header has been already stripped out
+	// Multi-cast
 
-	if(*pLength < ETH_MIN_PACKET_SIZE)
+	if(pContext->PacketFilter & NDIS_PACKET_TYPE_ALL_MULTICAST)
+		return TRUE;
+
+	if(!(pContext->PacketFilter & NDIS_PACKET_TYPE_MULTICAST))
+		return FALSE;
+
+	for (i = 0; i < pContext->MulticastData.nofMulticastEntries; i++)
 	{
-		RtlZeroMemory(RtlOffsetToPointer(pDataBuffer, *pLength), ETH_MIN_PACKET_SIZE - *pLength);
-		*pLength = ETH_MIN_PACKET_SIZE;
+		ULONG Res;
+		PUCHAR CurrMcastAddr = &pContext->MulticastData.MulticastList[i*ETH_LENGTH_OF_ADDRESS];
+
+		ETH_COMPARE_NETWORK_ADDRESSES_EQ(pPacketInfo->ethDestAddr, CurrMcastAddr, &Res);
+
+		if(!Res)
+			return TRUE;
 	}
+
+	return FALSE;
 }
 
 static __inline
@@ -2228,25 +2223,17 @@ static BOOLEAN ProcessReceiveQueue(
 			   (NULL != (pBufferDescriptor = ReceiveQueueGetBuffer(pTargetReceiveQueue))) )
 		{
 			eInspectedPacketType packetType = iptInvalid;
-			PVOID pDataBuffer = pBufferDescriptor->PacketInfo.dataBuffer;
-			ULONG nDataLength = pBufferDescriptor->PacketInfo.dataLength;
+			PNET_PACKET_INFO pPacketInfo = &pBufferDescriptor->PacketInfo;
 
 			if( !pContext->bSurprizeRemoved &&
 				pContext->ReceiveState == srsEnabled &&
 				pContext->bConnected &&
-				ShallPassPacket(pContext, pDataBuffer, nDataLength, &packetType))
+				ShallPassPacket(pContext, pPacketInfo, &packetType))
 			{
-				tPacketIndicationType packet;
-
-				packet = ParaNdis_IndicateReceivedPacket(
-					pContext,
-					pDataBuffer,
-					&nDataLength,
-					pBufferDescriptor);
-
+				tPacketIndicationType packet = ParaNdis_PrepareReceivedPacket(pContext, pBufferDescriptor);
 				if(packet != NULL)
 				{
-					UpdateReceiveStatistics(pContext, packetType, nDataLength, TRUE);
+					UpdateReceiveStatistics(pContext, packetType, pPacketInfo->dataLength, TRUE);
 					pTargetReceiveQueue->BatchReceiveArray[nReceived] = packet;
 
 					nReceived++;
@@ -2260,7 +2247,7 @@ static BOOLEAN ProcessReceiveQueue(
 				}
 				else
 				{
-					UpdateReceiveStatistics(pContext, packetType, nDataLength, FALSE);
+					UpdateReceiveStatistics(pContext, packetType, pPacketInfo->dataLength, FALSE);
 					NdisAcquireSpinLock(&pContext->ReceiveLock);
 					pContext->ReuseBufferProc(pContext, pBufferDescriptor);
 					NdisReleaseSpinLock(&pContext->ReceiveLock);
@@ -2268,6 +2255,7 @@ static BOOLEAN ProcessReceiveQueue(
 			}
 			else
 			{
+				pContext->extraStatistics.framesFilteredOut++;
 				NdisAcquireSpinLock(&pContext->ReceiveLock);
 				pContext->ReuseBufferProc(pContext, pBufferDescriptor);
 				NdisReleaseSpinLock(&pContext->ReceiveLock);

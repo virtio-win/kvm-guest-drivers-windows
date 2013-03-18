@@ -325,6 +325,9 @@ typedef struct _tagNET_PACKET_INFO
 {
 	struct
 	{
+		BOOLEAN isBroadcast   : 1;
+		BOOLEAN isMulticast   : 1;
+		BOOLEAN isUnicast     : 1;
 		BOOLEAN hasVlanHeader : 1;
 		BOOLEAN isIP4         : 1;
 		BOOLEAN isIP6         : 1;
@@ -352,6 +355,9 @@ typedef struct _tagNET_PACKET_INFO
 	ULONG L3HdrLen;
 	ULONG ip6HomeAddrOffset;
 	ULONG ip6DestAddrOffset;
+
+	PUCHAR ethDestAddr;
+
 	PVOID dataBuffer;
 	ULONG dataLength;
 } NET_PACKET_INFO, *PNET_PACKET_INFO;
@@ -773,10 +779,8 @@ VOID ParaNdis_FinalizeCleanup(
 NDIS_HANDLE ParaNdis_OpenNICConfiguration(
 	PARANDIS_ADAPTER *pContext);
 
-tPacketIndicationType ParaNdis_IndicateReceivedPacket(
+tPacketIndicationType ParaNdis_PrepareReceivedPacket(
 	PARANDIS_ADAPTER *pContext,
-	PVOID dataBuffer,
-	PULONG pLength,
 	pIONetDescriptor pBufferDesc);
 
 VOID ParaNdis_IndicateReceivedBatch(
@@ -951,7 +955,8 @@ void ParaNdis_CheckSumCalculate(PVOID buffer, ULONG size, ULONG flags);
 tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(PVOID buffer, ULONG size, ULONG flags, LPCSTR caller);
 tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, LPCSTR caller);
 
-void ParaNdis_PadPacketReceived(PVOID pDataBuffer, PULONG pLength);
 BOOLEAN ParaNdis_AnalyzeReceivedPacket(PVOID dataBuffer, ULONG dataLength, PNET_PACKET_INFO packetInfo);
+ULONG ParaNdis_StripVlanHeaderMoveHead(PNET_PACKET_INFO packetInfo);
+VOID ParaNdis_PadPacketToMinimalLength(PNET_PACKET_INFO packetInfo);
 
 #endif

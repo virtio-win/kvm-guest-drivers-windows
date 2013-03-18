@@ -763,85 +763,57 @@ void NBLSetRSSInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_PACKE
 	}
 #endif
 }
+
+static __inline
+BOOLEAN NBLSet8021QInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_PACKET_INFO pPacketInfo)
+{
+	NDIS_NET_BUFFER_LIST_8021Q_INFO qInfo;
+	qInfo.Value = NULL;
+
+	if (IsPrioritySupported(pContext))
+		qInfo.TagHeader.UserPriority = pPacketInfo->Vlan.UserPriority;
+
+	if (IsVlanSupported(pContext))
+		qInfo.TagHeader.VlanId = pPacketInfo->Vlan.VlanId;
+
+	NET_BUFFER_LIST_INFO(pNBL, Ieee8021QNetBufferListInfo) = qInfo.Value;
+
+	return qInfo.Value != NULL;
+}
+
+
 /**********************************************************
 NDIS6 implementation of packet indication
 
 Parameters:
 	context
 	PVOID pBuffersDescriptor - VirtIO buffer descriptor of data buffer
-	PVOID pData  - data buffer to pass to network stack
-	PULONG pLength - size of received packet.
 	BOOLEAN bPrepareOnly - only return NBL for further indication in batch
 Return value:
 	TRUE  is packet indicated
 	FALSE if not (in this case, the descriptor should be freed now)
 If priority header is in the packet. it will be removed and *pLength decreased
 ***********************************************************/
-tPacketIndicationType ParaNdis_IndicateReceivedPacket(
+tPacketIndicationType ParaNdis_PrepareReceivedPacket(
 	PARANDIS_ADAPTER *pContext,
-	PVOID dataBuffer,
-	PULONG pLength,
 	pIONetDescriptor pBuffersDesc)
 {
 	PMDL pMDL = pBuffersDesc->pHolder;
-	ULONG length = *pLength;
 	PNET_BUFFER_LIST pNBL = NULL;
 
 	if (pMDL)
 	{
-		NDIS_NET_BUFFER_LIST_8021Q_INFO qInfo;
-		qInfo.Value = NULL;
-		if ((pContext->ulPriorityVlanSetting && length > (ETH_HEADER_SIZE + ETH_PRIORITY_HEADER_SIZE)) ||
-			length > pContext->MaxPacketSize.nMaxFullSizeOS)
+		ULONG nBytesStripped = 0;
+		PNET_PACKET_INFO pPacketInfo = &pBuffersDesc->PacketInfo;
+
+		if (pContext->ulPriorityVlanSetting && pPacketInfo->hasVlanHeader)
 		{
-			PUCHAR pPriority = (PUCHAR)dataBuffer + ETH_PRIORITY_HEADER_OFFSET;
-			if (ETH_HAS_PRIO_HEADER(dataBuffer))
-			{
-				if (IsPrioritySupported(pContext))
-					qInfo.TagHeader.UserPriority = (pPriority[2] & 0xE0) >> 5;
-				if (IsVlanSupported(pContext))
-				{
-					qInfo.TagHeader.VlanId = (((USHORT)(pPriority[2] & 0x0F)) << 8) | pPriority[3];
-					if (pContext->VlanId && pContext->VlanId != qInfo.TagHeader.VlanId)
-					{
-						DPrintf(0, ("[%s] Failing unexpected VlanID %d", __FUNCTION__, qInfo.TagHeader.VlanId));
-						pContext->extraStatistics.framesFilteredOut++;
-						pMDL = NULL;
-					}
-				}
-				if (1)
-				{
-					RtlMoveMemory(
-						pPriority,
-						pPriority + ETH_PRIORITY_HEADER_SIZE,
-						length - ETH_PRIORITY_HEADER_OFFSET - ETH_PRIORITY_HEADER_SIZE);
-					length -= ETH_PRIORITY_HEADER_SIZE;
-					if (length > pContext->MaxPacketSize.nMaxFullSizeOS)
-					{
-						DPrintf(0, ("[%s] Can not indicate up packet of %d", __FUNCTION__, length));
-						pMDL = NULL;
-					}
-				}
-				else
-				{
-					// todo: avoid data copy.
-					// use 2 MDL: 1 for ethernet header, 1 for data
-				}
-			}
+			nBytesStripped = ParaNdis_StripVlanHeader(pPacketInfo);
 		}
-		if (pMDL)
-		{
-			ParaNdis_PadPacketReceived(dataBuffer, &length);
-			NdisAdjustMdlLength(pMDL, length);
-			pNBL = NdisAllocateNetBufferAndNetBufferList(
-				pContext->BufferListsPool,
-				0,
-				0,
-				pMDL,
-				0,
-				length);
-		}
-		*pLength = length;
+
+		ParaNdis_PadPacketToMinimalLength(pPacketInfo);
+		NdisAdjustMdlLength(pMDL, pPacketInfo->dataLength + nBytesStripped);
+		pNBL = NdisAllocateNetBufferAndNetBufferList(pContext->BufferListsPool, 0, 0, pMDL, nBytesStripped, pPacketInfo->dataLength);
 
 		if (pNBL)
 		{
@@ -849,16 +821,15 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 			virtio_net_hdr_basic *pHeader = (virtio_net_hdr_basic *)headerBuffer;
 			tChecksumCheckResult csRes;
 			pNBL->SourceHandle = pContext->MiniportHandle;
-			NET_BUFFER_LIST_INFO(pNBL, Ieee8021QNetBufferListInfo) = qInfo.Value;
-			NBLSetRSSInfo(pContext, pNBL, &pBuffersDesc->PacketInfo);
+			NBLSetRSSInfo(pContext, pNBL, pPacketInfo);
 
-			if (qInfo.Value)
+			if (NBLSet8021QInfo(pContext, pNBL, pPacketInfo))
 			{
-				DPrintf(1, ("Found priority tag %p", qInfo.Value));
 				pContext->extraStatistics.framesRxPriority++;
 			}
+
 			pNBL->MiniportReserved[0] = pBuffersDesc;
-			csRes = ParaNdis_CheckRxChecksum(pContext, pHeader->flags, dataBuffer, length);
+			csRes = ParaNdis_CheckRxChecksum(pContext, pHeader->flags, pPacketInfo->dataBuffer, pPacketInfo->dataLength);
 			if (csRes.value)
 			{
 				NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
@@ -876,20 +847,15 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
 #if defined(ENABLE_HISTORY_LOG)
 			{
 				tTcpIpPacketParsingResult packetReview = ParaNdis_CheckSumVerify(
-					RtlOffsetToPointer(dataBuffer, ETH_HEADER_SIZE),
-					length,
+					RtlOffsetToPointer(pPacketInfo->dataBuffer, ETH_HEADER_SIZE),
+					pPacketInfo->dataLength,
 					pcrIpChecksum | pcrTcpChecksum | pcrUdpChecksum,
 					__FUNCTION__
 					);
-				ParaNdis_DebugHistory(pContext, hopPacketReceived, pNBL, length, (ULONG)(ULONG_PTR)qInfo.Value, packetReview.value);
+				ParaNdis_DebugHistory(pContext, hopPacketReceived, pNBL, pPacketInfo->dataLength, (ULONG)(ULONG_PTR)qInfo.Value, packetReview.value);
 			}
 #endif
 		}
-	}
-	if (!pNBL)
-	{
-		DPrintf(0, ("[%s] Error: cannot indicate packet for desc.%p(%d b.)", __FUNCTION__,
-			pBuffersDesc, length));
 	}
 	return pNBL;
 }

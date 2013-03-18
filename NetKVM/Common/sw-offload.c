@@ -79,7 +79,7 @@ typedef struct _tagIP6_TYPE2_ROUTING_HEADER
 
 #define ETH_GET_VLAN_HDR(ethHdr)        ((PVLAN_HEADER) RtlOffsetToPointer(ethHdr, ETH_PRIORITY_HEADER_OFFSET))
 #define VLAN_GET_USER_PRIORITY(vlanHdr) ( (((PUCHAR)(vlanHdr))[2] & 0xE0) >> 5 )
-#define VLAN_GET_VLAN_ID(vlanHdr)       (((USHORT)( (((PUCHAR)(vlanHdr))[2] & 0x0F) >> 5 )) | ( ((PUCHAR)(vlanHdr))[3] ))
+#define VLAN_GET_VLAN_ID(vlanHdr)       ( ((USHORT) (((PUCHAR)(vlanHdr))[2] & 0x0F) << 8) | ( ((PUCHAR)(vlanHdr))[3] ) )
 
 #define ETH_PROTO_IP4 (0x0800)
 #define ETH_PROTO_IP6 (0x86DD)
@@ -656,6 +656,21 @@ BOOLEAN AnalyzeL2Hdr(
 	if (packetInfo->dataLength < ETH_HEADER_SIZE)
 		return FALSE;
 
+	packetInfo->ethDestAddr = dataBuffer->DstAddr;
+
+	if (ETH_IS_BROADCAST(dataBuffer))
+	{
+		packetInfo->isBroadcast = TRUE;
+	}
+	else if (ETH_IS_MULTICAST(dataBuffer))
+	{
+		packetInfo->isMulticast = TRUE;
+	}
+	else
+	{
+		packetInfo->isUnicast = TRUE;
+	}
+
 	if(ETH_HAS_PRIO_HEADER(dataBuffer))
 	{
 		PVLAN_HEADER vlanHdr = ETH_GET_VLAN_HDR(dataBuffer);
@@ -912,4 +927,50 @@ BOOLEAN ParaNdis_AnalyzeReceivedPacket(
 		return FALSE;
 
 	return TRUE;
+}
+
+ULONG ParaNdis_StripVlanHeaderMoveHead(PNET_PACKET_INFO packetInfo)
+{
+	PUINT32 pData = (PUINT32) packetInfo->dataBuffer;
+
+	ASSERT(packetInfo->hasVlanHeader);
+	ASSERT(packetInfo->L2HdrLen == ETH_HEADER_SIZE + ETH_PRIORITY_HEADER_SIZE);
+
+	pData[3] = pData[2];
+	pData[2] = pData[1];
+	pData[1] = pData[0];
+
+	packetInfo->dataBuffer = RtlOffsetToPointer(packetInfo->dataBuffer, ETH_PRIORITY_HEADER_SIZE);
+	packetInfo->dataLength -= ETH_PRIORITY_HEADER_SIZE;
+	packetInfo->L2HdrLen = ETH_HEADER_SIZE;
+
+	packetInfo->ethDestAddr = (PUCHAR) RtlOffsetToPointer(packetInfo->ethDestAddr, ETH_PRIORITY_HEADER_SIZE);
+	packetInfo->ip6DestAddrOffset -= ETH_PRIORITY_HEADER_SIZE;
+	packetInfo->ip6HomeAddrOffset -= ETH_PRIORITY_HEADER_SIZE;
+
+	return ETH_PRIORITY_HEADER_SIZE;
+};
+
+VOID ParaNdis_PadPacketToMinimalLength(PNET_PACKET_INFO packetInfo)
+{
+	// Ethernet standard declares minimal possible packet size
+	// Packets smaller than that must be padded before transfer
+	// Ethernet HW pads packets on transmit, however in our case
+	// some packets do not travel over Ethernet but being routed
+	// guest-to-guest by virtual switch.
+	// In this case padding is not performed and we may
+	// receive packet smaller than minimal allowed size. This is not
+	// a problem for real life scenarios however WHQL/HCK contains
+	// tests that check padding of received packets.
+	// To make these tests happy we have to pad small packets on receive
+
+	//NOTE: This function assumes that VLAN header has been already stripped out
+
+	if(packetInfo->dataLength < ETH_MIN_PACKET_SIZE)
+	{
+		RtlZeroMemory(
+						RtlOffsetToPointer(packetInfo->dataBuffer, packetInfo->dataLength),
+						ETH_MIN_PACKET_SIZE - packetInfo->dataLength);
+		packetInfo->dataLength = ETH_MIN_PACKET_SIZE;
+	}
 }
