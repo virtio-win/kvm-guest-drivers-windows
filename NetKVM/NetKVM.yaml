@@ -238,10 +238,10 @@ DebugFiles:
 LogFiles:
 	- 	OS: WindowsXP 
 		Arch: x86
-		Log: buildfre_wxp_x86.log
+		Log: NDIS5\buildfre_wxp_x86.log
 	- 	OS: Windows2003 
 		Arch: x64
-		Log: buildfre_wnet_amd64.log
+		Log: NDIS5\buildfre_wnet_amd64.log
 	- 	OS: WindowsVista 
 		Arch: x86
 		log: buildfre_wlh_x86.log
@@ -258,10 +258,10 @@ LogFiles:
 ErrorFiles:
 	- 	OS: WindowsXP 
 		Arch: x86
-		Log: buildfre_wxp_x86.err
+		Log: NDIS5\buildfre_wxp_x86.err
 	- 	OS: Windows2003 
 		Arch: x64
-		Log: buildfre_wnet_amd64.err
+		Log: NDIS5\buildfre_wnet_amd64.err
 	- 	OS: WindowsVista 
 		Arch: x86
 		log: buildfre_wlh_x86.err
@@ -278,10 +278,10 @@ ErrorFiles:
 WarningFiles:
 	- 	OS: WindowsXP 
 		Arch: x86
-		Log: buildfre_wxp_x86.wrn
+		Log: NDIS5\buildfre_wxp_x86.wrn
 	- 	OS: Windows2003 
 		Arch: x64
-		Log: buildfre_wnet_amd64.wrn
+		Log: NDIS5\buildfre_wnet_amd64.wrn
 	- 	OS: WindowsVista 
 		Arch: x86
 		log: buildfre_wlh_x86.wrn
