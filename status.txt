@@ -1,5 +1,13 @@
 Date    18 Mar 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm77
+
+Fixed bugs:
+[NetKVM] BZ#904808 Initlal RSC implementation
+
+
+Date    18 Mar 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm76
 
 Fixed bugs:
