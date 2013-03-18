@@ -71,7 +71,6 @@ HKR, Ndi\Interfaces,              LowerRange,          0, "ethernet"
 
 HKR, Ndi\params\*RSS,             ParamDesc,           0, "RSS"
 HKR, Ndi\params\*RSS,             Type,                0, "enum"
-HKR, Ndi\params\*RSS,             Value,               0, "1"
 HKR, Ndi\params\*RSS,             Default,             0, "1"
 HKR, Ndi\params\*RSS,             Optional,            0, "0"
 HKR, Ndi\params\*RSS\enum,        "0",                 0, "Disabled"
