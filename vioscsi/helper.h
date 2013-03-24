@@ -64,4 +64,16 @@ LogError(
     IN ULONG UniqueId
     );
 
+BOOLEAN
+KickEvent(
+    IN PVOID DeviceExtension,
+    IN PVirtIOSCSIEventNode event 
+    );
+
+BOOLEAN
+SynchronizedKickEventRoutine(
+    IN PVOID DeviceExtension,
+    IN PVOID Context
+    );
+    
 #endif ___HELPER_H___

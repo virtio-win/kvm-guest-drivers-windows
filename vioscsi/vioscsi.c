@@ -227,6 +227,8 @@ ENTER_FN();
     allocationSize += ROUND_TO_PAGES(Size);
     adaptExt->offset[3] = adaptExt->offset[2] + ROUND_TO_PAGES(Size);
     allocationSize += ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
+    adaptExt->offset[4] = adaptExt->offset[3] + ROUND_TO_PAGES(Size);
+    allocationSize += ROUND_TO_PAGES(sizeof(VirtIOSCSIEventNode) * 8);
 
 #if (INDIRECT_SUPPORTED)
     if(!adaptExt->dump_mode) {
@@ -254,7 +256,7 @@ ENTER_FN();
                 SP_INTERNAL_ADAPTER_ERROR,
                 __LINE__);
 
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Couldn't get uncached extension\n"));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Can't get uncached extension\n"));
         return SP_RETURN_ERROR;
     }
 
@@ -300,6 +302,7 @@ VioScsiHwInitialize(
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PVOID              ptr      = adaptExt->uncachedExtensionVa;
+    ULONG              i;
 
     adaptExt->vq[0] = FindVirtualQueue(adaptExt, 0, 0);
     if (!adaptExt->vq[0]) {
@@ -321,7 +324,23 @@ VioScsiHwInitialize(
         return FALSE;
     }
     adaptExt->tmf_cmd.SrbExtension = (PSRB_EXTENSION)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset[3]);
-    StorPortWritePortUchar(DeviceExtension, (PUCHAR)(adaptExt->device_base + VIRTIO_PCI_STATUS),(UCHAR)VIRTIO_CONFIG_S_DRIVER_OK);
+    adaptExt->events = (PVirtIOSCSIEventNode)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset[4]);
+
+    if (!adaptExt->dump_mode && CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_HOTPLUG)) {
+        PVirtIOSCSIEventNode events = adaptExt->events;
+        for (i = 0; i < 8; i++) {
+           if (!KickEvent(DeviceExtension, (PVOID)(&events[i]))) {
+                RhelDbgPrint(TRACE_LEVEL_FATAL, ("Can't add event %d\n", i));
+           }
+        }
+    }
+
+    StorPortWritePortUshort(DeviceExtension,
+           (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES),
+           (USHORT)((1 << VIRTIO_SCSI_F_HOTPLUG) | (1 << VIRTIO_SCSI_F_CHANGE)));
+    StorPortWritePortUchar(DeviceExtension,
+           (PUCHAR)(adaptExt->device_base + VIRTIO_PCI_STATUS),
+           (UCHAR)VIRTIO_CONFIG_S_DRIVER_OK);
     return TRUE;
 }
 
@@ -352,12 +371,14 @@ VioScsiInterrupt(
     )
 {
     PVirtIOSCSICmd      cmd;
+    PVirtIOSCSIEventNode evtNode;
     unsigned int        len;
     PADAPTER_EXTENSION  adaptExt;
     BOOLEAN             isInterruptServiced = FALSE;
     PSCSI_REQUEST_BLOCK Srb;
     PSRB_EXTENSION      srbExt;
     ULONG               intReason = 0;
+
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s (%d)\n", __FUNCTION__, KeGetCurrentIrql()));
@@ -376,44 +397,44 @@ VioScsiInterrupt(
               Srb->SrbStatus = SRB_STATUS_SUCCESS;
               break;
            case VIRTIO_SCSI_S_UNDERRUN:
-              RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_UNDERRUN\n"));
+              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_UNDERRUN\n"));
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
               break;
            case VIRTIO_SCSI_S_ABORTED:
-              RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_ABORTED\n"));
+              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_ABORTED\n"));
               Srb->SrbStatus = SRB_STATUS_ABORTED;
               break;
            case VIRTIO_SCSI_S_BAD_TARGET:
-              RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_BAD_TARGET\n"));
+              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_BAD_TARGET\n"));
               Srb->SrbStatus = SRB_STATUS_INVALID_TARGET_ID;
               break;
            case VIRTIO_SCSI_S_RESET:
-              RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_RESET\n"));
+              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_RESET\n"));
               Srb->SrbStatus = SRB_STATUS_BUS_RESET;
               break;
            case VIRTIO_SCSI_S_BUSY:
-              RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_BUSY\n"));
+              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_BUSY\n"));
               Srb->SrbStatus = SRB_STATUS_BUSY;
               break;
            case VIRTIO_SCSI_S_TRANSPORT_FAILURE:
-              RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_TRANSPORT_FAILURE\n"));
+              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_TRANSPORT_FAILURE\n"));
               Srb->SrbStatus = SRB_STATUS_ERROR;
               break;
            case VIRTIO_SCSI_S_TARGET_FAILURE:
-              RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_TARGET_FAILURE\n"));
+              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_TARGET_FAILURE\n"));
               Srb->SrbStatus = SRB_STATUS_ERROR;
               break;
            case VIRTIO_SCSI_S_NEXUS_FAILURE:
-              RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_NEXUS_FAILURE\n"));
+              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_NEXUS_FAILURE\n"));
               Srb->SrbStatus = SRB_STATUS_ERROR;
               break;
            case VIRTIO_SCSI_S_FAILURE:
-              RhelDbgPrint(TRACE_LEVEL_ERROR, ("VIRTIO_SCSI_S_FAILURE\n"));
+              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_FAILURE\n"));
               Srb->SrbStatus = SRB_STATUS_ERROR;
               break;
            default:
               Srb->SrbStatus = SRB_STATUS_ERROR;
-              RhelDbgPrint(TRACE_LEVEL_ERROR, ("Unknown response %d\n", resp->response));
+              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Unknown response %d\n", resp->response));
               break;
            }
            if (Srb->DataBuffer) {
@@ -449,9 +470,23 @@ VioScsiInterrupt(
            }
            adaptExt->tmf_infly = FALSE;
         }
-    } else if (intReason == 3) {
-        StorPortNotification( BusChangeDetected, DeviceExtension, 0);
-        isInterruptServiced = TRUE;
+        while((evtNode = (PVirtIOSCSIEventNode)adaptExt->vq[1]->vq_ops->get_buf(adaptExt->vq[1], &len)) != NULL) {
+           PVirtIOSCSIEvent evt = &evtNode->event;
+           switch (evt->event) {
+           case VIRTIO_SCSI_T_NO_EVENT:
+              break;
+           case VIRTIO_SCSI_T_TRANSPORT_RESET:
+              //FIXME   
+              break;
+           case VIRTIO_SCSI_T_PARAM_CHANGE:
+              StorPortNotification( BusChangeDetected, DeviceExtension, 0);
+              break;
+           default:
+              RhelDbgPrint(TRACE_LEVEL_ERROR, ("Unsupport virtio scsi event %x\n", evt->event));
+              break;
+           }
+           SynchronizedKickEventRoutine(DeviceExtension, evtNode);  
+        }
     }
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s isInterruptServiced = %d\n", __FUNCTION__, isInterruptServiced));
     return isInterruptServiced;

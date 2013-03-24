@@ -37,6 +37,11 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define SECTOR_SIZE             512
 #define IO_PORT_LENGTH          0x40
 
+/* Feature Bits */
+#define VIRTIO_SCSI_F_INOUT                    0
+#define VIRTIO_SCSI_F_HOTPLUG                  1
+#define VIRTIO_SCSI_F_CHANGE                   2
+
 /* Response codes */
 #define VIRTIO_SCSI_S_OK                       0
 #define VIRTIO_SCSI_S_UNDERRUN                 1
@@ -72,6 +77,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_SCSI_T_NO_EVENT                 0
 #define VIRTIO_SCSI_T_TRANSPORT_RESET          1
 #define VIRTIO_SCSI_T_ASYNC_NOTIFY             2
+#define VIRTIO_SCSI_T_PARAM_CHANGE             3
 
 #define VIRTIO_SCSI_S_SIMPLE                   0
 #define VIRTIO_SCSI_S_ORDERED                  1
@@ -88,7 +94,7 @@ typedef struct {
 	u8 prio;
 	u8 crn;
 	u8 cdb[VIRTIO_SCSI_CDB_SIZE];
-} VirtIOSCSICmdReq;
+} VirtIOSCSICmdReq, * PVirtIOSCSICmdReq;
 #pragma pack()
 
 
@@ -101,7 +107,7 @@ typedef struct {
 	u8 status;		/* Command completion status */
 	u8 response;		/* Response values */
 	u8 sense[VIRTIO_SCSI_SENSE_SIZE];
-} VirtIOSCSICmdResp;
+} VirtIOSCSICmdResp, * PVirtIOSCSICmdResp;
 #pragma pack()
 
 /* Task Management Request */
@@ -111,13 +117,13 @@ typedef struct {
 	u32 subtype;
 	u8 lun[8];
 	u64 tag;
-} VirtIOSCSICtrlTMFReq;
+} VirtIOSCSICtrlTMFReq, * PVirtIOSCSICtrlTMFReq;
 #pragma pack()
 
 #pragma pack(1)
 typedef struct {
 	u8 response;
-} VirtIOSCSICtrlTMFResp;
+} VirtIOSCSICtrlTMFResp, * PVirtIOSCSICtrlTMFResp;
 #pragma pack()
 
 /* Asynchronous notification query/subscription */
@@ -126,14 +132,14 @@ typedef struct {
 	u32 type;
 	u8 lun[8];
 	u32 event_requested;
-} VirtIOSCSICtrlANReq;
+} VirtIOSCSICtrlANReq, *PVirtIOSCSICtrlANReq;
 #pragma pack()
 
 #pragma pack(1)
 typedef struct {
 	u32 event_actual;
 	u8 response;
-} VirtIOSCSICtrlANResp;
+} VirtIOSCSICtrlANResp, * PVirtIOSCSICtrlANResp;
 #pragma pack()
 
 #pragma pack(1)
@@ -141,7 +147,7 @@ typedef struct {
 	u32 event;
 	u8 lun[8];
 	u32 reason;
-} VirtIOSCSIEvent;
+} VirtIOSCSIEvent, * PVirtIOSCSIEvent;
 #pragma pack()
 
 #pragma pack(1)
@@ -156,7 +162,7 @@ typedef struct {
 	u16 max_channel;
 	u16 max_target;
 	u32 max_lun;
-} VirtIOSCSIConfig;
+} VirtIOSCSIConfig, * PVirtIOSCSIConfig;
 #pragma pack()
 
 #pragma pack(1)
@@ -174,28 +180,39 @@ typedef struct {
         VirtIOSCSICtrlANResp  an;
         VirtIOSCSIEvent       event;
     } resp;
-} VirtIOSCSICmd,* PVirtIOSCSICmd;
+} VirtIOSCSICmd, * PVirtIOSCSICmd;
 #pragma pack()
 
+#pragma pack(1)
+typedef struct {
+    PVOID           adapter;
+    VirtIOSCSIEvent event;
+    VIO_SG          sg;	
+} VirtIOSCSIEventNode, * PVirtIOSCSIEventNode;
+#pragma pack()
+
+#pragma pack(1)
 typedef struct _SRB_EXTENSION {
     ULONG                 out;
     ULONG                 in;
     ULONG                 Xfer;
     VirtIOSCSICmd         cmd;
     VIO_SG                sg[128];
-}SRB_EXTENSION, *PSRB_EXTENSION;
+}SRB_EXTENSION, * PSRB_EXTENSION;
+#pragma pack()
 
+#pragma pack(1)
 typedef struct {
     SCSI_REQUEST_BLOCK    Srb;
     PSRB_EXTENSION        SrbExtension;
-}TMF_COMMAND, *PTMF_COMMAND;
-
+}TMF_COMMAND, * PTMF_COMMAND;
+#pragma pack()
 
 typedef struct _ADAPTER_EXTENSION {
     VirtIODevice          vdev;
     PVOID                 uncachedExtensionVa;
     struct virtqueue *    vq[3];
-    ULONG                 offset[4];
+    ULONG                 offset[5];
     ULONG_PTR             device_base;
     VirtIOSCSIConfig      scsi_config;
 
@@ -211,7 +228,9 @@ typedef struct _ADAPTER_EXTENSION {
     TMF_COMMAND           tmf_cmd;
     BOOLEAN               tmf_infly;
     ULONG                 in_fly;
-}ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
+
+    PVirtIOSCSIEventNode  events;
+}ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
 
 typedef struct vring_desc_alias
 {
@@ -221,7 +240,5 @@ typedef struct vring_desc_alias
         UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
     }u;
 };
-
-
 
 #endif ___VIOSCSI__H__
