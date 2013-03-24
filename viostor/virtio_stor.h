@@ -124,7 +124,6 @@ typedef struct _ADAPTER_EXTENSION {
     CHAR                  sn[BLOCK_SERIAL_STRLEN];
     BOOLEAN               sn_ok;
     BOOLEAN               rescan_geometry;
-    UCHAR                 rescan_cnt;
     blk_req               vbr;
     BOOLEAN               indirect;
 #ifdef USE_STORPORT
