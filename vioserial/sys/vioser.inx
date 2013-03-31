@@ -17,12 +17,15 @@ DriverPackageDisplayName = %VirtioSerial.DeviceDesc%
 
 [DestinationDirs]
 DefaultDestDir = 12
+VirtioSerial_Device_CoInstaller_CopyFiles = 11
+
 
 [SourceDisksNames]
 1 = %DiskId1%,,,""
 
 [SourceDisksFiles]
 vioser.sys  = 1,,
+WdfCoInstaller01011.dll=1 ; make sure the number matches with SourceDisksNames
 
 ;*****************************************
 ; vioser  Install Section
