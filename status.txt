@@ -1,3 +1,15 @@
+Date    31 Mar 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm78
+
+Fixed bugs:
+
+    BZ#927577 - [WHQL][serial]Job named Device Driver INF
+    Verification Test (Certification) failed on win8/win2k3/win2k8/ platform
+    BZ#922530 - code separation for NDIS5 and NDIS 6.x:
+    adjust NetKCM.yaml to point to correct build log for NDIS5.1
+
+
 Date    18 Mar 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm77
