@@ -72,6 +72,8 @@ typedef struct _DEVICE_CONTEXT {
     PKTHREAD                Thread;
     BOOLEAN                 bShutDown;
 
+    u32                     HostFeatures;
+    u32                     GuestFeatures;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
