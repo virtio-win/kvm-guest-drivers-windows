@@ -176,7 +176,9 @@ static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
 	DPrintf(0, ("[%s] Done", __FUNCTION__));
 	/* reset all the features in the device */
 	pContext->ulCurrentVlansFilterSet = 0;
-	WriteVirtIODeviceRegister(pContext->IODevice.addr + VIRTIO_PCI_GUEST_FEATURES, 0);
+	pContext->u32GuestFeatures = 0;
+	VirtIODeviceWriteGuestFeatures(&pContext->IODevice, pContext->u32GuestFeatures);
+
 #ifdef VIRTIO_RESET_VERIFY
 	if (1)
 	{
@@ -500,7 +502,7 @@ static BOOLEAN GetAdapterResources(PNDIS_RESOURCE_LIST RList, tAdapterResources 
 	return pResources->ulIOAddress && pResources->Vector;
 }
 
-static void DumpVirtIOFeatures(VirtIODevice *pIO)
+static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
 {
 	const struct {	ULONG bitmask; 	const PCHAR Name; } Features[] =
 	{
@@ -529,7 +531,7 @@ static void DumpVirtIOFeatures(VirtIODevice *pIO)
 	UINT i;
 	for (i = 0; i < sizeof(Features)/sizeof(Features[0]); ++i)
 	{
-		if (VirtIODeviceGetHostFeature(pIO, Features[i].bitmask))
+		if (VirtIOIsFeatureEnabled(pContext->u32HostFeatures, Features[i].bitmask))
 		{
 			DPrintf(0, ("VirtIO Host Feature %s", Features[i].Name));
 		}
@@ -604,12 +606,12 @@ static
 VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
 {
 #if PARANDIS_SUPPORT_RSC
-	pContext->RSC.bIPv4SupportedHW = VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_GUEST_TSO4) ? TRUE : FALSE;
+	pContext->RSC.bIPv4SupportedHW = VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_GUEST_TSO4);
 	if (pContext->RSC.bIPv4SupportedSW && pContext->RSC.bIPv4SupportedHW)
 	{
 		DPrintf(0, ("[%s] Enabling guest TSO4", __FUNCTION__) );
-		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_NET_F_GUEST_CSUM);
-		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_NET_F_GUEST_TSO4);
+		VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_GUEST_CSUM);
+		VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_GUEST_TSO4);
 		pContext->RSC.bIPv4Enabled = TRUE;
 	}
 	else
@@ -617,12 +619,12 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
 		pContext->RSC.bIPv4Enabled = FALSE;
 	}
 
-	pContext->RSC.bIPv6SupportedHW = VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_GUEST_TSO6) ? TRUE : FALSE;
+	pContext->RSC.bIPv6SupportedHW = VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_GUEST_TSO6);
 	if (pContext->RSC.bIPv6SupportedSW && pContext->RSC.bIPv6SupportedHW)
 	{
 		DPrintf(0, ("[%s] Enabling guest TSO6", __FUNCTION__) );
-		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_NET_F_GUEST_CSUM);
-		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_NET_F_GUEST_TSO6);
+		VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_GUEST_CSUM);
+		VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_GUEST_TSO6);
 		pContext->RSC.bIPv6Enabled = TRUE;
 	}
 	else
@@ -707,31 +709,33 @@ NDIS_STATUS ParaNdis_InitializeContext(
 		VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
 		JustForCheckClearInterrupt(pContext, "init 2");
 		VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER);
-		DumpVirtIOFeatures(&pContext->IODevice);
+		pContext->u32HostFeatures = VirtIODeviceReadHostFeatures(&pContext->IODevice);
+		DumpVirtIOFeatures(pContext);
 		JustForCheckClearInterrupt(pContext, "init 3");
-		pContext->bLinkDetectSupported = 0 != VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_STATUS);
 
+		pContext->bLinkDetectSupported = VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_STATUS);
 		if(pContext->bLinkDetectSupported) {
 			VirtIODeviceGet(&pContext->IODevice, sizeof(pContext->CurrentMacAddress), &linkStatus, sizeof(linkStatus));
 			pContext->bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
+			VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_STATUS);
 			DPrintf(0, ("[%s] Link status on driver startup: %d", __FUNCTION__, pContext->bConnected));
 		}
 
 		pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_basic);
-		if (!pContext->bUseMergedBuffers && VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_MRG_RXBUF))
+		if (!pContext->bUseMergedBuffers && VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_MRG_RXBUF))
 		{
 			DPrintf(0, ("[%s] Not using mergeable buffers", __FUNCTION__));
 		}
 		else
 		{
-			pContext->bUseMergedBuffers = VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_MRG_RXBUF) != 0;
+			pContext->bUseMergedBuffers = VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_MRG_RXBUF) != 0;
 			if (pContext->bUseMergedBuffers)
 			{
 				pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_ext);
-				VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_NET_F_MRG_RXBUF);
+				VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_MRG_RXBUF);
 			}
 		}
-		if (VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_MAC))
+		if (VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_MAC))
 		{
 			VirtIODeviceGet(
 				&pContext->IODevice,
@@ -749,6 +753,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 					pContext->PermanentMacAddress[5]));
 				NdisZeroMemory(pContext->PermanentMacAddress, sizeof(pContext->PermanentMacAddress));
 			}
+			VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_MAC);
 		}
 
 		if (ETH_IS_EMPTY(pContext->PermanentMacAddress))
@@ -787,10 +792,10 @@ NDIS_STATUS ParaNdis_InitializeContext(
 				pContext->CurrentMacAddress[5]));
 		}
 		if (pContext->bDoPublishIndices)
-			pContext->bDoPublishIndices = VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_F_PUBLISH_INDICES) != 0;
-		if (pContext->bDoPublishIndices && VirtIODeviceHasFeature(VIRTIO_F_PUBLISH_INDICES))
+			pContext->bDoPublishIndices = VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_F_PUBLISH_INDICES);
+		if (pContext->bDoPublishIndices)
 		{
-			VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_F_PUBLISH_INDICES);
+			VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_F_PUBLISH_INDICES);
 		}
 		else
 		{
@@ -810,7 +815,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
  	{
 		ULONG dependentOptions;
 		dependentOptions = osbT4TcpChecksum | osbT4UdpChecksum | osbT4TcpOptionsChecksum;
-		if (!VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_CSUM) &&
+		if (!VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_CSUM) &&
 			(pContext->Offload.flagsValue & dependentOptions))
 		{
 			DPrintf(0, ("[%s] Host does not support CSUM, disabling CS offload", __FUNCTION__) );
@@ -818,10 +823,10 @@ NDIS_STATUS ParaNdis_InitializeContext(
 		}
 	}
 
-	if (pContext->bDoGuestChecksumOnReceive && VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_GUEST_CSUM))
+	if (pContext->bDoGuestChecksumOnReceive && VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_GUEST_CSUM))
 	{
 		DPrintf(0, ("[%s] Enabling guest checksum", __FUNCTION__) );
-		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_NET_F_GUEST_CSUM);
+		VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_GUEST_CSUM);
 	}
 	else
 	{
@@ -837,20 +842,35 @@ NDIS_STATUS ParaNdis_InitializeContext(
 	{
 		DisableBothLSOPermanently(pContext, __FUNCTION__, "SG is not active");
 	}
-	if (pContext->Offload.flags.fTxLso &&
-		!VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_HOST_TSO4))
+
+	if (pContext->Offload.flags.fTxLso)
 	{
-		DisableLSOv4Permanently(pContext, __FUNCTION__, "Host does not support TSOv4");
+		if(VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_HOST_TSO4))
+		{
+			VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_HOST_TSO4);
+		}
+		else
+		{
+			DisableLSOv4Permanently(pContext, __FUNCTION__, "Host does not support TSOv4");
+		}
 	}
-	if (pContext->Offload.flags.fTxLsov6 &&
-		!VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_HOST_TSO6))
+
+	if (pContext->Offload.flags.fTxLsov6)
 	{
-		DisableLSOv6Permanently(pContext, __FUNCTION__, "Host does not support TSOv6");
+		if(VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_HOST_TSO6))
+		{
+			VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_HOST_TSO6);
+		}
+		else
+		{
+			DisableLSOv6Permanently(pContext, __FUNCTION__, "Host does not support TSOv6");
+		}
 	}
+
 	if (pContext->bUseIndirect)
 	{
 		const char *reason = "";
-		if (!VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_F_INDIRECT))
+		if (!VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_F_INDIRECT))
 		{
 			pContext->bUseIndirect = FALSE;
 			reason = "Host support";
@@ -860,19 +880,24 @@ NDIS_STATUS ParaNdis_InitializeContext(
 			pContext->bUseIndirect = FALSE;
 			reason = "SG";
 		}
+		else
+		{
+			VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_F_INDIRECT);
+		}
 		DPrintf(0, ("[%s] %sable indirect Tx(!%s)", __FUNCTION__, pContext->bUseIndirect ? "En" : "Dis", reason) );
 	}
 
-	if (VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_CTRL_RX_EXTRA) &&
+	if (VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_CTRL_RX_EXTRA) &&
 		pContext->bDoHwPacketFiltering)
 	{
 		DPrintf(0, ("[%s] Using hardware packet filtering", __FUNCTION__));
+		VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_CTRL_RX_EXTRA);
 		pContext->bHasHardwareFilters = TRUE;
 	}
 
 	pContext->ReuseBufferProc = ReuseReceiveBufferRegular;
 
-	
+	VirtIODeviceWriteGuestFeatures(&pContext->IODevice, pContext->u32GuestFeatures);
 	NdisInitializeEvent(&pContext->ResetEvent);
 	DEBUG_EXIT_STATUS(0, status);
 	return status;
@@ -2884,20 +2909,14 @@ VOID ParaNdis_UpdateDeviceFilters(PARANDIS_ADAPTER *pContext)
 VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 {
 	LIST_ENTRY TempList;
-	int Dummy;
 	DEBUG_ENTRY(0);
 	ParaNdis_DebugHistory(pContext, hopPowerOn, NULL, 1, 0, 0);
 	ParaNdis_ResetVirtIONetDevice(pContext);
 	VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE | VIRTIO_CONFIG_S_DRIVER);
 	/* GetHostFeature must be called with any mask once upon device initialization:
 	 otherwise the device will not work properly */
-	Dummy = VirtIODeviceGetHostFeature(&pContext->IODevice, VIRTIO_NET_F_MAC);
-	if (pContext->bUseMergedBuffers)
-		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_NET_F_MRG_RXBUF);
-	if (pContext->bDoPublishIndices)
-		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_F_PUBLISH_INDICES);
-	if (pContext->bDoGuestChecksumOnReceive)
-		VirtIODeviceEnableGuestFeature(&pContext->IODevice, VIRTIO_NET_F_GUEST_CSUM);
+	VirtIODeviceReadHostFeatures(&pContext->IODevice);
+	VirtIODeviceWriteGuestFeatures(&pContext->IODevice, pContext->u32GuestFeatures);
 
 	VirtIODeviceRenewQueue(pContext->NetReceiveQueue);
 	VirtIODeviceRenewQueue(pContext->NetSendQueue);

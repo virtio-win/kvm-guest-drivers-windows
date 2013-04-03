@@ -103,12 +103,6 @@ bool VirtIODeviceEnableGuestFeature(VirtIODevice * pVirtIODevice, unsigned uFeat
 	return !!(ulValue & (1 << uFeature));
 }
 
-bool VirtIODeviceHasFeature(unsigned uFeature)
-{
-	if (uFeature == VIRTIO_F_PUBLISH_INDICES) return TRUE;
-	return FALSE;
-}
-
 /////////////////////////////////////////////////////////////////////////////////////
 //
 // Reset device
