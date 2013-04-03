@@ -196,6 +196,8 @@ VIOSerialEvtDevicePrepareHardware(
     UINT nr_ports, max_queues, size_to_allocate;
     BOOLEAN MessageSignaled = FALSE;
     USHORT Interrupts = 0;
+    u32 u32HostFeatures;
+    u32 u32GuestFeatures = 0;
 
     UNREFERENCED_PARAMETER(ResourcesRaw);
     PAGED_CODE();
@@ -286,10 +288,13 @@ VIOSerialEvtDevicePrepareHardware(
         MessageSignaled, Interrupts);
 
     pContext->consoleConfig.max_nr_ports = 1;
-    if(pContext->isHostMultiport = VirtIODeviceGetHostFeature(pContext->pIODevice, VIRTIO_CONSOLE_F_MULTIPORT))
+
+    u32HostFeatures = VirtIODeviceReadHostFeatures(pContext->pIODevice);
+
+    if(pContext->isHostMultiport = VirtIOIsFeatureEnabled(u32HostFeatures, VIRTIO_CONSOLE_F_MULTIPORT))
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "We have multiport host\n");
-        VirtIODeviceEnableGuestFeature(pContext->pIODevice, VIRTIO_CONSOLE_F_MULTIPORT);
+        VirtIOFeatureEnable(u32GuestFeatures, VIRTIO_CONSOLE_F_MULTIPORT);
         VirtIODeviceGet(pContext->pIODevice,
                                  FIELD_OFFSET(CONSOLE_CONFIG, max_nr_ports),
                                  &pContext->consoleConfig.max_nr_ports,
@@ -303,6 +308,7 @@ VIOSerialEvtDevicePrepareHardware(
                                 "VirtIOConsoleConfig->max_nr_ports limited to %d\n", pContext->consoleConfig.max_nr_ports);
         }
     }
+    VirtIODeviceWriteGuestFeatures(pContext->pIODevice, u32GuestFeatures);
 
     if(pContext->isHostMultiport)
     {
