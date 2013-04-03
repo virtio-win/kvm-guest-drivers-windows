@@ -81,30 +81,6 @@ void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice)
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
-// Get\Set features
-//
-/////////////////////////////////////////////////////////////////////////////////////
-bool VirtIODeviceGetHostFeature(VirtIODevice * pVirtIODevice, unsigned uFeature)
-{
-	DPrintf(4, ("%s\n", __FUNCTION__));
-
-	return !!(ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_HOST_FEATURES) & (1 << uFeature));
-}
-
-bool VirtIODeviceEnableGuestFeature(VirtIODevice * pVirtIODevice, unsigned uFeature)
-{
-	ULONG ulValue = 0;
-	DPrintf(4, ("%s\n", __FUNCTION__));
-
-	ulValue = ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_GUEST_FEATURES);
-	ulValue	|= (1 << uFeature);
-	WriteVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_GUEST_FEATURES, ulValue);
-
-	return !!(ulValue & (1 << uFeature));
-}
-
-/////////////////////////////////////////////////////////////////////////////////////
-//
 // Reset device
 //
 /////////////////////////////////////////////////////////////////////////////////////
