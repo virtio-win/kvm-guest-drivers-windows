@@ -19,13 +19,11 @@ DriverPackageDisplayName = %VirtioSerial.DeviceDesc%
 DefaultDestDir = 12
 VirtioSerial_Device_CoInstaller_CopyFiles = 11
 
+[SourceDisksFiles]
+vioser.sys  = 1,,
 
 [SourceDisksNames]
 1 = %DiskId1%,,,""
-
-[SourceDisksFiles]
-vioser.sys  = 1,,
-WdfCoInstaller01011.dll=1 ; make sure the number matches with SourceDisksNames
 
 ;*****************************************
 ; vioser  Install Section
@@ -58,9 +56,11 @@ HKR,Interrupt Management\MessageSignaledInterruptProperties,,0x00000010
 HKR,Interrupt Management\MessageSignaledInterruptProperties,MSISupported,0x00010001,1
 HKR,Interrupt Management\MessageSignaledInterruptProperties,MessageNumberLimit,0x00010001,2
 
+[VirtioPort_Device.NT]
+CopyFiles=Drivers_Dir
+
 [Drivers_Dir]
 vioser.sys
-
 
 ;-------------- Service installation
 [VirtioPort_Device.NT.Services]
@@ -82,9 +82,6 @@ LoadOrderGroup = Extended Base
 
 ;--- VirtioSerial_Device Coinstaller installation ------
 ;
-
-[DestinationDirs]
-VirtioSerial_Device_CoInstaller_CopyFiles = 11
 
 [VirtioSerial_Device.NT.CoInstallers]
 AddReg=VirtioSerial_Device_CoInstaller_AddReg
