@@ -216,6 +216,7 @@ VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt,
 
         Request = NULL;
         WdfSpinLockAcquire(Port->OutVqLock);
+        VIOSerialReclaimConsumedBuffers(Port);
         if (Port->PendingWriteRequest)
         {
             Request = Port->PendingWriteRequest;

@@ -189,7 +189,8 @@ size_t
 VIOSerialSendBuffers(
     IN PVIOSERIAL_PORT Port,
     IN PVOID Buffer,
-    IN size_t Length
+    IN size_t Length,
+    IN WDFREQUEST Request
 );
 
 SSIZE_T
