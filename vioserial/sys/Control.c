@@ -169,7 +169,17 @@ VIOSerialHandleCtrlMsg(
               // something waiting to be told.
               if (port->HostConnected)
               {
-                  WdfInterruptQueueDpcForIsr(pContext->QueuesInterrupt);
+                  WDF_INTERRUPT_INFO info;
+                  WDFINTERRUPT *interrupt;
+
+                  WDF_INTERRUPT_INFO_INIT(&info);
+                  WdfInterruptGetInfo(pContext->QueuesInterrupt, &info);
+
+                  // Check if MSI is enabled and notify the right interrupt.
+                  interrupt = (info.Vector == 0) ? &pContext->WdfInterrupt :
+                      &pContext->QueuesInterrupt;
+
+                  WdfInterruptQueueDpcForIsr(*interrupt);
               }
            }
            else
