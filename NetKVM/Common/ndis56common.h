@@ -452,7 +452,6 @@ typedef struct _tagPARANDIS_ADAPTER
     ULONGLONG               ulFormalLinkSpeed;
     ULONG                   ulEnableWakeup;
     tMaxPacketSize          MaxPacketSize;
-    ULONG                   nEnableDPCChecker;
     ULONG                   ulUniqueID;
     UCHAR                   PermanentMacAddress[ETH_LENGTH_OF_ADDRESS];
     UCHAR                   CurrentMacAddress[ETH_LENGTH_OF_ADDRESS];
