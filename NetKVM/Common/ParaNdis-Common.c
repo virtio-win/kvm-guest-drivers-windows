@@ -105,7 +105,6 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry stdLsoV2ip6;
     tConfigurationEntry PriorityVlanTagging;
     tConfigurationEntry VlanId;
-    tConfigurationEntry UseMergeableBuffers;
     tConfigurationEntry PublishIndices;
     tConfigurationEntry MTU;
     tConfigurationEntry NumberOfHandledRXPackersInDPC;
@@ -146,7 +145,6 @@ static const tConfigurationEntries defaultConfiguration =
     { "*LsoV2IPv6", 1, 0, 1 },
     { "*PriorityVLANTag", 3, 0, 3},
     { "VlanId", 0, 0, MAX_VLAN_ID},
-    { "MergeableBuf", 1, 0, 1},
     { "PublishIndices", 1, 0, 1},
     { "MTU", 1500, 500, 65500},
     { "NumberOfHandledRXPackersInDPC", MAX_RX_LOOPS, 1, 10000},
@@ -286,7 +284,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             GetConfigurationEntry(cfg, &pConfiguration->stdLsoV2ip6);
             GetConfigurationEntry(cfg, &pConfiguration->PriorityVlanTagging);
             GetConfigurationEntry(cfg, &pConfiguration->VlanId);
-            GetConfigurationEntry(cfg, &pConfiguration->UseMergeableBuffers);
             GetConfigurationEntry(cfg, &pConfiguration->PublishIndices);
             GetConfigurationEntry(cfg, &pConfiguration->MTU);
             GetConfigurationEntry(cfg, &pConfiguration->NumberOfHandledRXPackersInDPC);
@@ -342,7 +339,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             pContext->InitialOffloadParameters.LsoV2IPv6 = (UCHAR)pConfiguration->stdLsoV2ip6.ulValue;
             pContext->ulPriorityVlanSetting = pConfiguration->PriorityVlanTagging.ulValue;
             pContext->VlanId = pConfiguration->VlanId.ulValue & 0xfff;
-            pContext->bUseMergedBuffers = pConfiguration->UseMergeableBuffers.ulValue != 0;
             pContext->bDoPublishIndices = pConfiguration->PublishIndices.ulValue != 0;
             pContext->MaxPacketSize.nMaxDataSize = pConfiguration->MTU.ulValue;
 #if PARANDIS_SUPPORT_RSS
@@ -688,20 +684,17 @@ NDIS_STATUS ParaNdis_InitializeContext(
             DPrintf(0, ("[%s] Link status on driver startup: %d", __FUNCTION__, pContext->bConnected));
         }
 
-        pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_basic);
-        if (!pContext->bUseMergedBuffers && VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_MRG_RXBUF))
+        pContext->bUseMergedBuffers = VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_MRG_RXBUF) != 0;
+        if (pContext->bUseMergedBuffers)
         {
-            DPrintf(0, ("[%s] Not using mergeable buffers", __FUNCTION__));
+            pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_ext);
+            VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_MRG_RXBUF);
         }
         else
         {
-            pContext->bUseMergedBuffers = VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_MRG_RXBUF) != 0;
-            if (pContext->bUseMergedBuffers)
-            {
-                pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_ext);
-                VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_MRG_RXBUF);
-            }
+            pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_basic);
         }
+
         if (VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_MAC))
         {
             VirtIODeviceGet(

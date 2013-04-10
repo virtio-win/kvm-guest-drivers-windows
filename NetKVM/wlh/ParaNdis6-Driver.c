@@ -331,6 +331,11 @@ static NDIS_STATUS ParaNdis6_Initialize(
             }
     }
 
+    if (pContext && status == NDIS_STATUS_SUCCESS)
+    {
+        ParaNdis_DebugRegisterMiniport(pContext, TRUE);
+    }
+
     DEBUG_EXIT_STATUS(status ? 0 : 2, status);
     return status;
 }
