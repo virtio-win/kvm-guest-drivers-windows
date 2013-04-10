@@ -79,7 +79,6 @@ typedef struct _tagConfigurationEntry
 
 typedef struct _tagConfigurationEntries
 {
-    tConfigurationEntry isPromiscuous;
     tConfigurationEntry PrioritySupport;
     tConfigurationEntry ConnectRate;
     tConfigurationEntry isLogEnabled;
@@ -122,7 +121,6 @@ typedef struct _tagConfigurationEntries
 
 static const tConfigurationEntries defaultConfiguration =
 {
-    { "Promiscuous",    0,  0,  1 },
     { "Priority",       0,  0,  1 },
     { "ConnectRate",    100,10,10000 },
     { "DoLog",          1,  0,  1 },
@@ -267,7 +265,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             GetConfigurationEntry(cfg, &pConfiguration->debugLevel);
             GetConfigurationEntry(cfg, &pConfiguration->ConnectRate);
             GetConfigurationEntry(cfg, &pConfiguration->PrioritySupport);
-            GetConfigurationEntry(cfg, &pConfiguration->isPromiscuous);
             GetConfigurationEntry(cfg, &pConfiguration->TxCapacity);
             GetConfigurationEntry(cfg, &pConfiguration->RxCapacity);
             GetConfigurationEntry(cfg, &pConfiguration->LogStatistics);
@@ -304,7 +301,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 
             bDebugPrint = pConfiguration->isLogEnabled.ulValue;
             virtioDebugLevel = pConfiguration->debugLevel.ulValue;
-            // ignoring promiscuous setting, nothing to do with it
             pContext->maxFreeTxDescriptors = pConfiguration->TxCapacity.ulValue;
             pContext->NetMaxReceiveBuffers = pConfiguration->RxCapacity.ulValue;
             pContext->Limits.nPrintDiagnostic = pConfiguration->LogStatistics.ulValue;
