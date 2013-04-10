@@ -242,12 +242,6 @@ HKR, Ndi\Params\Offload.GuestCS,    type,       0,          "enum"
 HKR, Ndi\Params\Offload.GuestCS\enum,"1",       0,          %Enable%
 HKR, Ndi\Params\Offload.GuestCS\enum,"0",       0,          %Disable%
 
-HKR, Ndi\Params\InterruptRecovery,  ParamDesc,  0,          %InterruptRecovery%
-HKR, Ndi\Params\InterruptRecovery,  Default,    0,          "1"
-HKR, Ndi\Params\InterruptRecovery,  type,       0,          "enum"
-HKR, Ndi\Params\InterruptRecovery\enum,         "1",        0,  %Enable%
-HKR, Ndi\Params\InterruptRecovery\enum,         "0",        0,  %Disable%
-
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       ParamDesc,  0,          %NumberOfHandledRXPackersInDPC%
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       type,       0,          "long"
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       default,    0,          "1000"
@@ -305,7 +299,6 @@ LogStatistics = "Logging.Statistics(sec)"
 #if defined(INCLUDE_TEST_PARAMS)
 Gather = "TestOnly.Scatter-Gather"
 GuestCS = "TestOnly.GuestChecksum"
-InterruptRecovery = "TestOnly.InterruptRecovery"
 PacketFilter = "TestOnly.HwPacketFilter"
 Promiscuous = "TestOnly.Promiscuous"
 IPPacketsCheck = "TestOnly.AnalyzeIPPackets"

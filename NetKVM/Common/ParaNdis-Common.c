@@ -87,7 +87,6 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry dpcChecker;
     tConfigurationEntry TxCapacity;
     tConfigurationEntry RxCapacity;
-    tConfigurationEntry InterruptRecovery;
     tConfigurationEntry LogStatistics;
     tConfigurationEntry PacketFiltering;
     tConfigurationEntry ScatterGather;
@@ -130,7 +129,6 @@ static const tConfigurationEntries defaultConfiguration =
     { "DebugLevel",     2,  0,  8 },
     { "TxCapacity",     1024,   16, 1024 },
     { "RxCapacity",     256, 32, 1024 },
-    { "InterruptRecovery",  0, 0, 1},
     { "LogStatistics",  0, 0, 10000},
     { "PacketFilter",   1, 0, 1},
     { "Gather",         1, 0, 1},
@@ -272,7 +270,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             GetConfigurationEntry(cfg, &pConfiguration->isPromiscuous);
             GetConfigurationEntry(cfg, &pConfiguration->TxCapacity);
             GetConfigurationEntry(cfg, &pConfiguration->RxCapacity);
-            GetConfigurationEntry(cfg, &pConfiguration->InterruptRecovery);
             GetConfigurationEntry(cfg, &pConfiguration->LogStatistics);
             GetConfigurationEntry(cfg, &pConfiguration->PacketFiltering);
             GetConfigurationEntry(cfg, &pConfiguration->ScatterGather);
@@ -310,7 +307,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             // ignoring promiscuous setting, nothing to do with it
             pContext->maxFreeTxDescriptors = pConfiguration->TxCapacity.ulValue;
             pContext->NetMaxReceiveBuffers = pConfiguration->RxCapacity.ulValue;
-            pContext->bDoInterruptRecovery = pConfiguration->InterruptRecovery.ulValue != 0;
             pContext->Limits.nPrintDiagnostic = pConfiguration->LogStatistics.ulValue;
             pContext->uNumberOfHandledRXPacketsInDPC = pConfiguration->NumberOfHandledRXPackersInDPC.ulValue;
             pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;

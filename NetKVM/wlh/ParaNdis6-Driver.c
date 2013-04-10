@@ -15,7 +15,6 @@
 #include "ParaNdis-Oid.h"
 
 #if NDIS_SUPPORT_NDIS6
-static NDIS_TIMER_FUNCTION InterruptRecoveryTimerCallback;
 static NDIS_IO_WORKITEM_FUNCTION OnResetWorkItem;
 static MINIPORT_ADD_DEVICE ParaNdis6_AddDevice;
 static MINIPORT_REMOVE_DEVICE ParaNdis6_RemoveDevice;
@@ -107,51 +106,10 @@ VOID ParaNdis_SetPowerState(PARANDIS_ADAPTER *pContext, NDIS_DEVICE_POWER_STATE 
     pContext->powerState = newState;
 
     if (prev == NetDeviceStateD0 && newState == NetDeviceStateD3)
+    {
         PostLinkState(pContext, MediaConnectStateUnknown);
+    }
 }
-
-/**********************************************************
-This is timer procedure for Interrupt recovery timer
-***********************************************************/
-static VOID InterruptRecoveryTimerCallback(
-    IN PVOID  SystemSpecific1,
-    IN PVOID  FunctionContext,
-    IN PVOID  SystemSpecific2,
-    IN PVOID  SystemSpecific3
-    )
-{
-    PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)FunctionContext;
-
-    UNREFERENCED_PARAMETER(SystemSpecific1);
-    UNREFERENCED_PARAMETER(SystemSpecific2);
-    UNREFERENCED_PARAMETER(SystemSpecific3);
-
-    ParaNdis6_OnInterruptRecoveryTimer(pContext);
-}
-
-
-/**********************************************************
-Parameters:
-
-Return value:
-***********************************************************/
-static NDIS_STATUS CreateTimers(PARANDIS_ADAPTER *pContext)
-{
-    NDIS_STATUS status;
-    NDIS_TIMER_CHARACTERISTICS tch;
-    DEBUG_ENTRY(4);
-    tch.Header.Type = NDIS_OBJECT_TYPE_TIMER_CHARACTERISTICS;
-    tch.Header.Revision = NDIS_TIMER_CHARACTERISTICS_REVISION_1;
-    tch.Header.Size = NDIS_SIZEOF_TIMER_CHARACTERISTICS_REVISION_1;
-    tch.AllocationTag = PARANDIS_MEMORY_TAG;
-    tch.FunctionContext = pContext;
-    tch.TimerFunction = InterruptRecoveryTimerCallback;
-    status = NdisAllocateTimerObject(pContext->MiniportHandle, &tch, &pContext->InterruptRecoveryTimer);
-
-    DEBUG_EXIT_STATUS(2, status);
-    return status;
-}
-
 
 /**********************************************************
 Required NDIS handler
@@ -239,16 +197,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
             DPrintf(0, ("[%s] ERROR: ParaNdis6_InitializeContext failed (%X)!", __FUNCTION__, status));
         }
         pContext->bNoPauseOnSuspend = bNoPauseOnSuspend; 
-    }
-
-    if (status == NDIS_STATUS_SUCCESS)
-    {
-        /* create timers if we'll use them */
-        status = CreateTimers(pContext);
-        if (status != NDIS_STATUS_SUCCESS)
-        {
-            DPrintf(0, ("[%s] ERROR: CreateTimers failed(%X)!", __FUNCTION__, status));
-        }
     }
 
     if (status == NDIS_STATUS_SUCCESS)
@@ -383,15 +331,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
             }
     }
 
-    if (pContext && status == NDIS_STATUS_SUCCESS)
-    {
-        ParaNdis_DebugRegisterMiniport(pContext, TRUE);
-        if (pContext->bDoInterruptRecovery)
-        {
-            //200 mSec for first shot of recovery circuit
-            ParaNdis_SetTimer(pContext->InterruptRecoveryTimer, 200);
-        }
-    }
     DEBUG_EXIT_STATUS(status ? 0 : 2, status);
     return status;
 }
@@ -406,11 +345,6 @@ static VOID ParaNdis6_Halt(NDIS_HANDLE miniportAdapterContext, NDIS_HALT_ACTION 
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, hopHalt, NULL, 1, haltAction, 0);
-    if (pContext->InterruptRecoveryTimer)
-    {
-        NdisCancelTimerObject(pContext->InterruptRecoveryTimer);
-        NdisFreeTimerObject(pContext->InterruptRecoveryTimer);
-    }
     ParaNdis_CleanupContext(pContext);
     ParaNdis_DebugHistory(pContext, hopHalt, NULL, 0, 0, 0);
     ParaNdis_DebugRegisterMiniport(pContext, FALSE);
