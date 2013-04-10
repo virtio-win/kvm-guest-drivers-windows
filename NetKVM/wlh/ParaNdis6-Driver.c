@@ -15,7 +15,6 @@
 #include "ParaNdis-Oid.h"
 
 #if NDIS_SUPPORT_NDIS6
-static NDIS_TIMER_FUNCTION ConnectTimerCallback;
 static NDIS_TIMER_FUNCTION InterruptRecoveryTimerCallback;
 static NDIS_IO_WORKITEM_FUNCTION OnResetWorkItem;
 static MINIPORT_ADD_DEVICE ParaNdis6_AddDevice;
@@ -112,25 +111,6 @@ VOID ParaNdis_SetPowerState(PARANDIS_ADAPTER *pContext, NDIS_DEVICE_POWER_STATE 
 }
 
 /**********************************************************
-This is timer procedure for timer connect indication, if used
-***********************************************************/
-static VOID ConnectTimerCallback(
-    IN PVOID  SystemSpecific1,
-    IN PVOID  FunctionContext,
-    IN PVOID  SystemSpecific2,
-    IN PVOID  SystemSpecific3
-    )
-{
-    PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)FunctionContext;
-
-    UNREFERENCED_PARAMETER(SystemSpecific1);
-    UNREFERENCED_PARAMETER(SystemSpecific2);
-    UNREFERENCED_PARAMETER(SystemSpecific3);
-
-    ParaNdis_ReportLinkStatus(pContext, FALSE);
-}
-
-/**********************************************************
 This is timer procedure for Interrupt recovery timer
 ***********************************************************/
 static VOID InterruptRecoveryTimerCallback(
@@ -165,13 +145,9 @@ static NDIS_STATUS CreateTimers(PARANDIS_ADAPTER *pContext)
     tch.Header.Size = NDIS_SIZEOF_TIMER_CHARACTERISTICS_REVISION_1;
     tch.AllocationTag = PARANDIS_MEMORY_TAG;
     tch.FunctionContext = pContext;
-    tch.TimerFunction = ConnectTimerCallback;
-    status = NdisAllocateTimerObject(pContext->MiniportHandle, &tch, &pContext->ConnectTimer);
-    if (status == NDIS_STATUS_SUCCESS)
-    {
-        tch.TimerFunction = InterruptRecoveryTimerCallback;
-        status = NdisAllocateTimerObject(pContext->MiniportHandle, &tch, &pContext->InterruptRecoveryTimer);
-    }
+    tch.TimerFunction = InterruptRecoveryTimerCallback;
+    status = NdisAllocateTimerObject(pContext->MiniportHandle, &tch, &pContext->InterruptRecoveryTimer);
+
     DEBUG_EXIT_STATUS(2, status);
     return status;
 }
@@ -410,8 +386,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
     if (pContext && status == NDIS_STATUS_SUCCESS)
     {
         ParaNdis_DebugRegisterMiniport(pContext, TRUE);
-        if (pContext->ulMilliesToConnect)
-            ParaNdis_SetTimer(pContext->ConnectTimer, pContext->ulMilliesToConnect);
         if (pContext->bDoInterruptRecovery)
         {
             //200 mSec for first shot of recovery circuit
@@ -436,11 +410,6 @@ static VOID ParaNdis6_Halt(NDIS_HANDLE miniportAdapterContext, NDIS_HALT_ACTION 
     {
         NdisCancelTimerObject(pContext->InterruptRecoveryTimer);
         NdisFreeTimerObject(pContext->InterruptRecoveryTimer);
-    }
-    if (pContext->ConnectTimer)
-    {
-        NdisCancelTimerObject(pContext->ConnectTimer);
-        NdisFreeTimerObject(pContext->ConnectTimer);
     }
     ParaNdis_CleanupContext(pContext);
     ParaNdis_DebugHistory(pContext, hopHalt, NULL, 0, 0, 0);
@@ -541,10 +510,8 @@ static NDIS_STATUS ParaNdis6_Restart(
     ParaNdis_DebugHistory(pContext, hopSysResume, NULL, 1, 0, 0);
     ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
     ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
-    if (!pContext->ulMilliesToConnect)
-    {
-        ParaNdis_ReportLinkStatus(pContext, FALSE);
-    }
+    ParaNdis_ReportLinkStatus(pContext, FALSE);
+
     ParaNdis_DebugHistory(pContext, hopSysResume, NULL, 0, 0, 0);
     DEBUG_EXIT_STATUS(2, status);
     return status;

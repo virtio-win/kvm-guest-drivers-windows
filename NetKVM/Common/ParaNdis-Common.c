@@ -84,7 +84,6 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry ConnectRate;
     tConfigurationEntry isLogEnabled;
     tConfigurationEntry debugLevel;
-    tConfigurationEntry connectTimer;
     tConfigurationEntry dpcChecker;
     tConfigurationEntry TxCapacity;
     tConfigurationEntry RxCapacity;
@@ -129,7 +128,6 @@ static const tConfigurationEntries defaultConfiguration =
     { "ConnectRate",    100,10,10000 },
     { "DoLog",          1,  0,  1 },
     { "DebugLevel",     2,  0,  8 },
-    { "ConnectTimer",   0,  0,  300000 },
     { "TxCapacity",     1024,   16, 1024 },
     { "RxCapacity",     256, 32, 1024 },
     { "InterruptRecovery",  0, 0, 1},
@@ -274,7 +272,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             GetConfigurationEntry(cfg, &pConfiguration->isPromiscuous);
             GetConfigurationEntry(cfg, &pConfiguration->TxCapacity);
             GetConfigurationEntry(cfg, &pConfiguration->RxCapacity);
-            GetConfigurationEntry(cfg, &pConfiguration->connectTimer);
             GetConfigurationEntry(cfg, &pConfiguration->InterruptRecovery);
             GetConfigurationEntry(cfg, &pConfiguration->LogStatistics);
             GetConfigurationEntry(cfg, &pConfiguration->PacketFiltering);
@@ -313,7 +310,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             // ignoring promiscuous setting, nothing to do with it
             pContext->maxFreeTxDescriptors = pConfiguration->TxCapacity.ulValue;
             pContext->NetMaxReceiveBuffers = pConfiguration->RxCapacity.ulValue;
-            pContext->ulMilliesToConnect = pConfiguration->connectTimer.ulValue;
             pContext->bDoInterruptRecovery = pConfiguration->InterruptRecovery.ulValue != 0;
             pContext->Limits.nPrintDiagnostic = pConfiguration->LogStatistics.ulValue;
             pContext->uNumberOfHandledRXPacketsInDPC = pConfiguration->NumberOfHandledRXPackersInDPC.ulValue;
