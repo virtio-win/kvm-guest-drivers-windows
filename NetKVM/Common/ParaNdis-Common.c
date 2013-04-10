@@ -112,7 +112,6 @@ typedef struct _tagConfigurationEntries
 	tConfigurationEntry PublishIndices;
 	tConfigurationEntry MTU;
 	tConfigurationEntry NumberOfHandledRXPackersInDPC;
-	tConfigurationEntry Indirect;
 #if PARANDIS_SUPPORT_RSS
 	tConfigurationEntry RSSOffloadSupported;
 	tConfigurationEntry NumRSSQueues;
@@ -158,7 +157,6 @@ static const tConfigurationEntries defaultConfiguration =
 	{ "PublishIndices", 1, 0, 1},
 	{ "MTU", 1500, 500, 65500},
 	{ "NumberOfHandledRXPackersInDPC", MAX_RX_LOOPS, 1, 10000},
-	{ "Indirect", 0, 0, 2},
 #if PARANDIS_SUPPORT_RSS
 	{ "*RSS", 1, 0, 1},
 	{ "*NumRssQueues", 8, 1, PARANDIS_RSS_MAX_RECEIVE_QUEUES},
@@ -303,7 +301,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			GetConfigurationEntry(cfg, &pConfiguration->PublishIndices);
 			GetConfigurationEntry(cfg, &pConfiguration->MTU);
 			GetConfigurationEntry(cfg, &pConfiguration->NumberOfHandledRXPackersInDPC);
-			GetConfigurationEntry(cfg, &pConfiguration->Indirect);
 #if PARANDIS_SUPPORT_RSS
 			GetConfigurationEntry(cfg, &pConfiguration->RSSOffloadSupported);
 			GetConfigurationEntry(cfg, &pConfiguration->NumRSSQueues);
@@ -363,7 +360,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
 			pContext->bUseMergedBuffers = pConfiguration->UseMergeableBuffers.ulValue != 0;
 			pContext->bDoPublishIndices = pConfiguration->PublishIndices.ulValue != 0;
 			pContext->MaxPacketSize.nMaxDataSize = pConfiguration->MTU.ulValue;
-			pContext->bUseIndirect = pConfiguration->Indirect.ulValue != 0;
 #if PARANDIS_SUPPORT_RSS
 			pContext->bRSSOffloadSupported = pConfiguration->RSSOffloadSupported.ulValue ? TRUE : FALSE;
 			pContext->RSSMaxQueuesNumber = (CCHAR) pConfiguration->NumRSSQueues.ulValue;
@@ -640,6 +636,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 	NDIS_STATUS status = NDIS_STATUS_SUCCESS;
 	PUCHAR pNewMacAddress = NULL;
 	USHORT linkStatus = 0;
+	const char *reason = "";
 
 	DEBUG_ENTRY(0);
 	/* read first PCI IO bar*/
@@ -857,25 +854,21 @@ NDIS_STATUS ParaNdis_InitializeContext(
 		}
 	}
 
-	if (pContext->bUseIndirect)
+	if (!VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_F_INDIRECT))
 	{
-		const char *reason = "";
-		if (!VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_F_INDIRECT))
-		{
-			pContext->bUseIndirect = FALSE;
-			reason = "Host support";
-		}
-		else if (!pContext->bUseScatterGather)
-		{
-			pContext->bUseIndirect = FALSE;
-			reason = "SG";
-		}
-		else
-		{
-			VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_F_INDIRECT);
-		}
-		DPrintf(0, ("[%s] %sable indirect Tx(!%s)", __FUNCTION__, pContext->bUseIndirect ? "En" : "Dis", reason) );
+		pContext->bUseIndirect = FALSE;
+		reason = "Host support";
 	}
+	else if (!pContext->bUseScatterGather)
+	{
+		pContext->bUseIndirect = FALSE;
+		reason = "SG";
+	}
+	else
+	{
+		VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_F_INDIRECT);
+	}
+	DPrintf(0, ("[%s] %sable indirect Tx(!%s)", __FUNCTION__, pContext->bUseIndirect ? "En" : "Dis", reason) );
 
 	if (VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_CTRL_RX_EXTRA) &&
 		pContext->bDoHwPacketFiltering)
@@ -1052,8 +1045,8 @@ static BOOLEAN AddRxBufferToQueue(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p
 		0,
 		pBufferDescriptor->PagesAllocated,
 		pBufferDescriptor,
-		pBufferDescriptor->IndirectArea.Virtual,
-		pBufferDescriptor->IndirectArea.Physical.QuadPart);
+		pContext->bUseIndirect ? pBufferDescriptor->IndirectArea.Virtual           : NULL,
+		pContext->bUseIndirect ? pBufferDescriptor->IndirectArea.Physical.QuadPart : 0);
 }
 
 

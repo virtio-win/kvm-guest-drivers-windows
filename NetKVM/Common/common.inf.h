@@ -134,13 +134,6 @@ HKR, Ndi\params\NetworkAddress,		ParamDesc,  0,          %NetworkAddress%
 HKR, Ndi\params\NetworkAddress,		type,       0,          "edit"
 HKR, Ndi\params\NetworkAddress,		Optional,   0,          "1"
 
-HKR, Ndi\Params\Indirect,			ParamDesc,	0,			%Indirect%
-HKR, Ndi\Params\Indirect,			Default,	0,			"0"
-HKR, Ndi\Params\Indirect,			type,		0,			"enum"
-HKR, Ndi\Params\Indirect\enum,		"0",		0,			%Disable%
-HKR, Ndi\Params\Indirect\enum,		"1",		0,			%Enable%
-HKR, Ndi\Params\Indirect\enum,		"2",		0,			%Enable*%
-
 HKR, Ndi\Params\OffLoad.TxChecksum,	ParamDesc,	0,			%OffLoad.TxChecksum%
 HKR, Ndi\Params\OffLoad.TxChecksum,	Default,	0,			DEFAULT_TX_CHECKSUM
 HKR, Ndi\Params\OffLoad.TxChecksum,	type,		0,			"enum"
@@ -311,7 +304,6 @@ Priority = "Init.Do802.1PQ"
 MergeableBuf = "Init.UseMergedBuffers"
 PublishIndices = "Init.UsePublishEvents"
 MTU = "Init.MTUSize"
-Indirect = "Init.IndirectTx"
 TxCapacity = "Init.MaxTxBuffers"
 RxCapacity = "Init.MaxRxBuffers"
 Offload.TxChecksum = "Offload.Tx.Checksum"
