@@ -62,11 +62,11 @@ void _LogOutString(int level, const char *s);
 #define WPP_CONTROL_GUIDS \
     WPP_DEFINE_CONTROL_GUID(NetKVM, (05F77115,E57E,49bf,90DF,C0E6B6478E5F),  \
         WPP_DEFINE_BIT(TRACE_DEBUG)\
-									)
+                                    )
 
 
 #define WPP_LEVEL_ENABLED(LEVEL) \
-	(nDebugLevel >= (LEVEL))
+    (nDebugLevel >= (LEVEL))
 
 #define WPP_LEVEL_LOGGER(LEVEL)      (WPP_CONTROL(WPP_BIT_ ## TRACE_DEBUG).Logger),
 
@@ -77,7 +77,7 @@ void _LogOutString(int level, const char *s);
 #define DPrintfBypass(Level, Fmt)
 #endif
 
-#define WPP_PRIVATE_ENABLE_CALLBACK		WppEnableCallback
+#define WPP_PRIVATE_ENABLE_CALLBACK     WppEnableCallback
 
 extern VOID WppEnableCallback(
     __in LPCGUID Guid,

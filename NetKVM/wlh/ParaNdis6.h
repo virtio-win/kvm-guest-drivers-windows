@@ -23,47 +23,47 @@ VOID ParaNdis6_GetSupportedOid(NDIS_MINIPORT_ADAPTER_GENERAL_ATTRIBUTES *pGenAtt
 ULONG ParaNdis6_GetSupportedStatisticsFlags();
 
 NDIS_STATUS ParaNdis6_GetRegistrationOffloadInfo(
-		PARANDIS_ADAPTER *pContext,
-		NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES *pAttributes);
+        PARANDIS_ADAPTER *pContext,
+        NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES *pAttributes);
 
 void ParaNdis6_ApplyOffloadPersistentConfiguration(PARANDIS_ADAPTER *pContext);
 
 MINIPORT_OID_REQUEST ParaNdis6_OidRequest;
 NDIS_STATUS ParaNdis6_OidRequest(
-	NDIS_HANDLE miniportAdapterContext,
-	PNDIS_OID_REQUEST  pNdisRequest);
+    NDIS_HANDLE miniportAdapterContext,
+    PNDIS_OID_REQUEST  pNdisRequest);
 
 VOID ParaNdis6_Send(
-	PARANDIS_ADAPTER *pContext,
-	PNET_BUFFER_LIST pNBL,
-	BOOLEAN IsDpc);
+    PARANDIS_ADAPTER *pContext,
+    PNET_BUFFER_LIST pNBL,
+    BOOLEAN IsDpc);
 
 MINIPORT_CANCEL_SEND ParaNdis6_CancelSendNetBufferLists;
 VOID ParaNdis6_CancelSendNetBufferLists(
-	NDIS_HANDLE  miniportAdapterContext,
-	PVOID pCancelId);
+    NDIS_HANDLE  miniportAdapterContext,
+    PVOID pCancelId);
 
 MINIPORT_RETURN_NET_BUFFER_LISTS ParaNdis6_ReturnNetBufferLists;
 VOID ParaNdis6_ReturnNetBufferLists(
-	NDIS_HANDLE miniportAdapterContext,
-	PNET_BUFFER_LIST pNBL, ULONG returnFlags);
+    NDIS_HANDLE miniportAdapterContext,
+    PNET_BUFFER_LIST pNBL, ULONG returnFlags);
 
 
 NDIS_STATUS ParaNdis6_SendPauseRestart(
-	PARANDIS_ADAPTER *pContext,
-	BOOLEAN bPause,
-	ONPAUSECOMPLETEPROC Callback
-	);
+    PARANDIS_ADAPTER *pContext,
+    BOOLEAN bPause,
+    ONPAUSECOMPLETEPROC Callback
+    );
 
 NDIS_STATUS ParaNdis6_ReceivePauseRestart(
-	PARANDIS_ADAPTER *pContext,
-	BOOLEAN bPause,
-	ONPAUSECOMPLETEPROC Callback
-	);
+    PARANDIS_ADAPTER *pContext,
+    BOOLEAN bPause,
+    ONPAUSECOMPLETEPROC Callback
+    );
 
 
 VOID ParaNdis6_OnInterruptRecoveryTimer(
-	PARANDIS_ADAPTER *pContext);
+    PARANDIS_ADAPTER *pContext);
 
 
 /* returns number of buffers that have been sent */
@@ -71,21 +71,21 @@ UINT ParaNdis6_CopyDataFromSingleNBL(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIS
 
 MINIPORT_CANCEL_OID_REQUEST ParaNdis6_OidCancelRequest;
 VOID ParaNdis6_OidCancelRequest(
-		NDIS_HANDLE hMiniportAdapterContext,
-		PVOID pRequestId);
+        NDIS_HANDLE hMiniportAdapterContext,
+        PVOID pRequestId);
 
 typedef struct _tagPowerWorkItem
 {
-	NDIS_HANDLE					WorkItem;
-	PPARANDIS_ADAPTER			pContext;
-	NDIS_DEVICE_POWER_STATE		state;
-	PNDIS_OID_REQUEST			request;
+    NDIS_HANDLE                 WorkItem;
+    PPARANDIS_ADAPTER           pContext;
+    NDIS_DEVICE_POWER_STATE     state;
+    PNDIS_OID_REQUEST           request;
 }tPowerWorkItem;
 
 typedef struct _tagGeneralWorkItem
 {
-	NDIS_HANDLE					WorkItem;
-	PPARANDIS_ADAPTER			pContext;
+    NDIS_HANDLE                 WorkItem;
+    PPARANDIS_ADAPTER           pContext;
 }tGeneralWorkItem;
 
 

@@ -26,12 +26,12 @@ DriverPackageDisplayName = %kvmnet5.DeviceDesc%
 
 [kvmnet5.ndi]
 Characteristics = 0x84 ; NCF_PHYSICAL | NCF_HAS_UI
-BusType		= 5 ; PCI
+BusType     = 5 ; PCI
 AddReg          = kvmnet5.Reg, Parameters
 CopyFiles       = kvmnet5.CopyFiles
-*IfType         = 6	
-*MediaType      = 0		; NdisMedium802_3
-*PhysicalMediaType = 0		; NdisPhysicalMediumUnspecified 
+*IfType         = 6
+*MediaType      = 0     ; NdisMedium802_3
+*PhysicalMediaType = 0      ; NdisPhysicalMediumUnspecified
 
 
 [kvmnet5.ndi.Services]

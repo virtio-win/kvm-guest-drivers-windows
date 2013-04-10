@@ -19,7 +19,7 @@
 #endif
 
 #define PRINT_SEPARATOR "-------------------------------------"
-#define DEBUG_SYMBOLS_IF	IDebugSymbols3
+#define DEBUG_SYMBOLS_IF    IDebugSymbols3
 
 FILE *outf = stdout;
 
@@ -33,81 +33,81 @@ FILE *outf = stdout;
 
 CString ErrorToString(HRESULT hr)
 {
-	CString s;
-	LPTSTR lpMessageBuffer;
-	if (FormatMessage(
-	  FORMAT_MESSAGE_ALLOCATE_BUFFER |
-	  FORMAT_MESSAGE_FROM_SYSTEM,
-	  NULL,
-	  hr,
-	  MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), //The user default language
-	  (LPTSTR) &lpMessageBuffer,
-	  0,
-	  NULL ))
-	{
-	  s = lpMessageBuffer;
-	  LocalFree(lpMessageBuffer);
-	}
-	else
-	{
-		s.Format("[Error %lu]", hr);
-	}
-	return s;
+    CString s;
+    LPTSTR lpMessageBuffer;
+    if (FormatMessage(
+      FORMAT_MESSAGE_ALLOCATE_BUFFER |
+      FORMAT_MESSAGE_FROM_SYSTEM,
+      NULL,
+      hr,
+      MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), //The user default language
+      (LPTSTR) &lpMessageBuffer,
+      0,
+      NULL ))
+    {
+      s = lpMessageBuffer;
+      LocalFree(lpMessageBuffer);
+    }
+    else
+    {
+        s.Format("[Error %lu]", hr);
+    }
+    return s;
 }
 
 static const LPCSTR OpNames[] = {
-	"PowerOff             ",
-	"PowerOn              ",
-	"SysPause             ",
-	"SysResume            ",
-	"InternalSendPause    ",
-	"InternalReceivePause ",
-	"InternalSendResume   ",
-	"InternalReceiveResume",
-	"SysReset             ",
-	"Halt                 ",
-	"ConnectIndication    ",
-	"DPC                  ",
-	"Send                 ",
-	"SendNBLRequest       ",
-	"SendPacketRequest    ",
-	"SendPacketMapped     ",
-	"SubmittedPacket      ",
-	"BufferSent           ",
-	"BufferReceivedStat   ",
-	"BufferReturned       ",
-	"SendComplete         ",
-	"TxProcess            ",
-	"PacketReceived       ",
-	"OidRequest           ",
-	"PnpEvent             ",
+    "PowerOff             ",
+    "PowerOn              ",
+    "SysPause             ",
+    "SysResume            ",
+    "InternalSendPause    ",
+    "InternalReceivePause ",
+    "InternalSendResume   ",
+    "InternalReceiveResume",
+    "SysReset             ",
+    "Halt                 ",
+    "ConnectIndication    ",
+    "DPC                  ",
+    "Send                 ",
+    "SendNBLRequest       ",
+    "SendPacketRequest    ",
+    "SendPacketMapped     ",
+    "SubmittedPacket      ",
+    "BufferSent           ",
+    "BufferReceivedStat   ",
+    "BufferReturned       ",
+    "SendComplete         ",
+    "TxProcess            ",
+    "PacketReceived       ",
+    "OidRequest           ",
+    "PnpEvent             ",
 };
 
 static CString HistoryOperationName(ULONG op)
 {
-	CString s;
-	if (op < sizeof(OpNames)/ sizeof(OpNames[0]))
-		s = OpNames[op];
-	else
-		s.Format("##%d", op);
-	return s;
+    CString s;
+    if (op < sizeof(OpNames)/ sizeof(OpNames[0]))
+        s = OpNames[op];
+    else
+        s.Format("##%d", op);
+    return s;
 }
 
 typedef struct _tagNamedFlag
 {
-	ULONG64 flag;
-	LPCSTR  name;
+    ULONG64 flag;
+    LPCSTR  name;
 }tNamedFlag;
 
 typedef struct _tagNamedValue
 {
-	ULONG64 value;
-	LPCSTR  name;
+    ULONG64 value;
+    LPCSTR  name;
 }tNamedValue;
 
-#define STRINGER(x)		#x
+#define STRINGER(x)     #x
 #define VALUE(v) { v, STRINGER(##v) }
-#define ENDTABLE	{ 0, NULL }
+#define ENDTABLE    { 0, NULL }
 
 const tNamedValue SessionStatusValues[] =
 {
@@ -269,107 +269,107 @@ ENDTABLE
 
 typedef struct _tagModule
 {
-	LPCSTR	name;
-	ULONG64 Base;
-	ULONG   index;
+    LPCSTR  name;
+    ULONG64 Base;
+    ULONG   index;
 }tModule;
 
 class tDumpParser : public DebugBaseEventCallbacks, public IDebugOutputCallbacks
 {
 public:
-	tDumpParser() : refCount(0), Client(NULL), Control(NULL), DataSpaces(NULL), DebugSymbols(NULL)
-	{
-		HRESULT hr;
-		bEnableOutput = FALSE;
-		hr = DebugCreate(__uuidof(IDebugClient), (void **)&Client);
-		if (Client) hr = Client->QueryInterface(__uuidof(IDebugControl2), (void **)&Control);
-		if (Client) hr = Client->QueryInterface(__uuidof(IDebugDataSpaces3), (void **)&DataSpaces);
-		if (Client) hr = Client->QueryInterface(__uuidof(DEBUG_SYMBOLS_IF), (void **)&DebugSymbols);
-	}
-	~tDumpParser()
-	{
-		ULONG ul = 0;
-		if (DebugSymbols) DebugSymbols->Release();
-		if (Control) Control->Release();
-		if (DataSpaces) DataSpaces->Release();
-		if (Client) ul = Client->Release();
-		PRINT("finished (%d)", ul);
-	}
-	BOOL LoadFile(TCHAR *filename)
-	{
-		HRESULT hr = S_FALSE;
-		if (Client && Control && DataSpaces)
-		{
-			hr = Client->SetEventCallbacks(this);
-			if (S_OK == hr) hr = Client->SetOutputCallbacks(this);
-			DebugSymbols->AddSymbolOptions(SYMOPT_DEBUG);
-			//DebugSymbols->RemoveSymbolOptions(SYMOPT_DEFERRED_LOADS);
-			DebugSymbols->AppendSymbolPath(".");
-		}
-		else
-		{
-			CString sMessage = TEXT("Error: Not all required interaces are up\n");
-			if (!Client) sMessage += TEXT("Client interface is not initialized\n");
-			if (!Control) sMessage += TEXT("Control interface is not initialized\n");
-			if (!DataSpaces) sMessage += TEXT("Data interface is not initialized\n");
-			PRINT("%s", sMessage.GetBuffer());
-		}
-		if (hr == S_OK)
-		{
-			hr = Client->OpenDumpFile(filename);
-		}
-		if (hr == S_OK) Control->WaitForEvent(0, INFINITE);
-		return hr == S_OK;
-	}
-	void ProcessDumpFile();
-	void FindOurTaggedCrashData(BOOL bWithSymbols);
-	BOOL CheckLoadedSymbols(tModule *pModule);
-	void ProcessSymbols(tModule *pModule);
-	void ParseCrashData(tBugCheckStaticDataHeader *ph, ULONG64 databuffer, ULONG bytesRead, BOOL bWithSymbols);
-	typedef enum _tageSystemProperty {
-		espSymbolPath,
-		espSystemVersion,
-		espSystemTime,
-	} eSystemProperty;
-	CString GetProperty(eSystemProperty Prop);
+    tDumpParser() : refCount(0), Client(NULL), Control(NULL), DataSpaces(NULL), DebugSymbols(NULL)
+    {
+        HRESULT hr;
+        bEnableOutput = FALSE;
+        hr = DebugCreate(__uuidof(IDebugClient), (void **)&Client);
+        if (Client) hr = Client->QueryInterface(__uuidof(IDebugControl2), (void **)&Control);
+        if (Client) hr = Client->QueryInterface(__uuidof(IDebugDataSpaces3), (void **)&DataSpaces);
+        if (Client) hr = Client->QueryInterface(__uuidof(DEBUG_SYMBOLS_IF), (void **)&DebugSymbols);
+    }
+    ~tDumpParser()
+    {
+        ULONG ul = 0;
+        if (DebugSymbols) DebugSymbols->Release();
+        if (Control) Control->Release();
+        if (DataSpaces) DataSpaces->Release();
+        if (Client) ul = Client->Release();
+        PRINT("finished (%d)", ul);
+    }
+    BOOL LoadFile(TCHAR *filename)
+    {
+        HRESULT hr = S_FALSE;
+        if (Client && Control && DataSpaces)
+        {
+            hr = Client->SetEventCallbacks(this);
+            if (S_OK == hr) hr = Client->SetOutputCallbacks(this);
+            DebugSymbols->AddSymbolOptions(SYMOPT_DEBUG);
+            //DebugSymbols->RemoveSymbolOptions(SYMOPT_DEFERRED_LOADS);
+            DebugSymbols->AppendSymbolPath(".");
+        }
+        else
+        {
+            CString sMessage = TEXT("Error: Not all required interaces are up\n");
+            if (!Client) sMessage += TEXT("Client interface is not initialized\n");
+            if (!Control) sMessage += TEXT("Control interface is not initialized\n");
+            if (!DataSpaces) sMessage += TEXT("Data interface is not initialized\n");
+            PRINT("%s", sMessage.GetBuffer());
+        }
+        if (hr == S_OK)
+        {
+            hr = Client->OpenDumpFile(filename);
+        }
+        if (hr == S_OK) Control->WaitForEvent(0, INFINITE);
+        return hr == S_OK;
+    }
+    void ProcessDumpFile();
+    void FindOurTaggedCrashData(BOOL bWithSymbols);
+    BOOL CheckLoadedSymbols(tModule *pModule);
+    void ProcessSymbols(tModule *pModule);
+    void ParseCrashData(tBugCheckStaticDataHeader *ph, ULONG64 databuffer, ULONG bytesRead, BOOL bWithSymbols);
+    typedef enum _tageSystemProperty {
+        espSymbolPath,
+        espSystemVersion,
+        espSystemTime,
+    } eSystemProperty;
+    CString GetProperty(eSystemProperty Prop);
 protected:
-	CString Parse(ULONG64 val, const tNamedValue *pt)
-	{
-		CString s;
-		while (pt->name) { if (pt->value == val) { s = pt->name; break; } pt++; }
-		if (s.IsEmpty()) s.Format(TEXT("Unknown value 0x%I64X"), val);
-		return s;
-	}
+    CString Parse(ULONG64 val, const tNamedValue *pt)
+    {
+        CString s;
+        while (pt->name) { if (pt->value == val) { s = pt->name; break; } pt++; }
+        if (s.IsEmpty()) s.Format(TEXT("Unknown value 0x%I64X"), val);
+        return s;
+    }
 
-	CString Parse(ULONG64 val, const tNamedFlag *pt)
-	{
-		CString s;
-		while (pt->name && val)
-		{
-			if ((pt->flag & val) == pt->flag)
-			{
-				val &= ~pt->flag;
-				if (!s.IsEmpty()) s += ' ';
-				s += pt->name;
-			}
-			pt++;
-		}
-		if (val)
-		{
-			CString sv;
-			sv.Format(TEXT("0x%X"), val);
-			if (!s.IsEmpty()) s += ' ';
-			s += sv;
-		}
-		return s;
-	}
+    CString Parse(ULONG64 val, const tNamedFlag *pt)
+    {
+        CString s;
+        while (pt->name && val)
+        {
+            if ((pt->flag & val) == pt->flag)
+            {
+                val &= ~pt->flag;
+                if (!s.IsEmpty()) s += ' ';
+                s += pt->name;
+            }
+            pt++;
+        }
+        if (val)
+        {
+            CString sv;
+            sv.Format(TEXT("0x%X"), val);
+            if (!s.IsEmpty()) s += ' ';
+            s += sv;
+        }
+        return s;
+    }
 protected:
     STDMETHOD_(ULONG, AddRef)(
         THIS
-		) { return ++refCount; }
+        ) { return ++refCount; }
     STDMETHOD_(ULONG, Release)(
         THIS
-		) { return --refCount; }
+        ) { return --refCount; }
    STDMETHOD(QueryInterface)(
         THIS_
         __in REFIID InterfaceId,
@@ -383,18 +383,18 @@ protected:
             *Interface = (IDebugEventCallbacks *)this;
         }
         else if (IsEqualIID(InterfaceId, __uuidof(IDebugOutputCallbacks)))
-		{
+        {
             *Interface = (IDebugOutputCallbacks *)this;
-		}
-		if (*Interface) AddRef();
-		return (*Interface) ? S_OK : E_NOINTERFACE;
+        }
+        if (*Interface) AddRef();
+        return (*Interface) ? S_OK : E_NOINTERFACE;
    }
     STDMETHOD(GetInterestMask)(
         THIS_
         __out PULONG Mask
-		)
-	{
-		*Mask =
+        )
+    {
+        *Mask =
 DEBUG_EVENT_BREAKPOINT              |
 DEBUG_EVENT_EXCEPTION               |
 DEBUG_EVENT_LOAD_MODULE             |
@@ -404,23 +404,23 @@ DEBUG_EVENT_SESSION_STATUS          |
 DEBUG_EVENT_CHANGE_DEBUGGEE_STATE   |
 DEBUG_EVENT_CHANGE_ENGINE_STATE     |
 DEBUG_EVENT_CHANGE_SYMBOL_STATE     ;
-		return S_OK;
-	}
+        return S_OK;
+    }
     STDMETHOD(Breakpoint)(
         THIS_
         __in PDEBUG_BREAKPOINT Bp
         )
-	{
-		PRINT("");
-		return DEBUG_STATUS_BREAK;
-	}
+    {
+        PRINT("");
+        return DEBUG_STATUS_BREAK;
+    }
     STDMETHOD(Exception)(
         THIS_
         __in PEXCEPTION_RECORD64 Exception,
         __in ULONG FirstChance
         )
     {
-		PRINT("");
+        PRINT("");
         return DEBUG_STATUS_NO_CHANGE;
     }
 
@@ -435,8 +435,8 @@ DEBUG_EVENT_CHANGE_SYMBOL_STATE     ;
         __in ULONG TimeDateStamp
         )
     {
-		PRINT("%s", ImageName);
-		return DEBUG_STATUS_NO_CHANGE;
+        PRINT("%s", ImageName);
+        return DEBUG_STATUS_NO_CHANGE;
     }
     STDMETHOD(UnloadModule)(
         THIS_
@@ -444,7 +444,7 @@ DEBUG_EVENT_CHANGE_SYMBOL_STATE     ;
         __in ULONG64 BaseOffset
         )
     {
-		PRINT("%s", ImageBaseName);
+        PRINT("%s", ImageBaseName);
         return DEBUG_STATUS_NO_CHANGE;
     }
     STDMETHOD(SystemError)(
@@ -453,7 +453,7 @@ DEBUG_EVENT_CHANGE_SYMBOL_STATE     ;
         __in ULONG Level
         )
     {
-		PRINT("%s");
+        PRINT("%s");
         return DEBUG_STATUS_NO_CHANGE;
     }
     STDMETHOD(SessionStatus)(
@@ -461,8 +461,8 @@ DEBUG_EVENT_CHANGE_SYMBOL_STATE     ;
         __in ULONG Status
         )
     {
-		CString s = Parse(Status, SessionStatusValues);
-		PRINT("%s", s.GetBuffer());
+        CString s = Parse(Status, SessionStatusValues);
+        PRINT("%s", s.GetBuffer());
         return DEBUG_STATUS_NO_CHANGE;
     }
     STDMETHOD(ChangeDebuggeeState)(
@@ -471,11 +471,11 @@ DEBUG_EVENT_CHANGE_SYMBOL_STATE     ;
         __in ULONG64 Argument
         )
     {
-		CString sf = Parse(Flags, DebuggeeStateValues);
-		CString sarg;
-		if (Flags == DEBUG_CDS_DATA) sarg = Parse(Argument, DebuggeeStateArgValues);
-		else sarg.Format(TEXT("0x%I64X"), Argument);
-		PRINT("%s(%s)", sf.GetBuffer(), sarg.GetBuffer());
+        CString sf = Parse(Flags, DebuggeeStateValues);
+        CString sarg;
+        if (Flags == DEBUG_CDS_DATA) sarg = Parse(Argument, DebuggeeStateArgValues);
+        else sarg.Format(TEXT("0x%I64X"), Argument);
+        PRINT("%s(%s)", sf.GetBuffer(), sarg.GetBuffer());
         return DEBUG_STATUS_NO_CHANGE;
         return S_OK;
     }
@@ -485,23 +485,23 @@ DEBUG_EVENT_CHANGE_SYMBOL_STATE     ;
         __in ULONG64 Argument
         )
     {
-		CString s = Parse(Flags, EngineStateFlags);
-		CString sArg;
-		if (Flags == DEBUG_CES_EXECUTION_STATUS)
-		{
-			CString sWait = Parse(Argument & ~DEBUG_STATUS_MASK, EngineExecutionStatusFlags);
-			sArg = Parse(Argument & DEBUG_STATUS_MASK, EngineExecutionStatus);
-			sArg += ' ';
-			sArg += sWait;
-		}
-		else
-			sArg.Format(TEXT("arg 0x%I64X"), Argument);
-		PRINT("%s(%s)", s.GetBuffer(), sArg.GetBuffer());
-		if (Flags == DEBUG_CES_EXECUTION_STATUS && (Argument & DEBUG_STATUS_MASK) == DEBUG_STATUS_BREAK
-			&& !(Argument & ~DEBUG_STATUS_MASK))
-		{
-			ProcessDumpFile();
-		}
+        CString s = Parse(Flags, EngineStateFlags);
+        CString sArg;
+        if (Flags == DEBUG_CES_EXECUTION_STATUS)
+        {
+            CString sWait = Parse(Argument & ~DEBUG_STATUS_MASK, EngineExecutionStatusFlags);
+            sArg = Parse(Argument & DEBUG_STATUS_MASK, EngineExecutionStatus);
+            sArg += ' ';
+            sArg += sWait;
+        }
+        else
+            sArg.Format(TEXT("arg 0x%I64X"), Argument);
+        PRINT("%s(%s)", s.GetBuffer(), sArg.GetBuffer());
+        if (Flags == DEBUG_CES_EXECUTION_STATUS && (Argument & DEBUG_STATUS_MASK) == DEBUG_STATUS_BREAK
+            && !(Argument & ~DEBUG_STATUS_MASK))
+        {
+            ProcessDumpFile();
+        }
         return S_OK;
     }
     STDMETHOD(ChangeSymbolState)(
@@ -510,29 +510,29 @@ DEBUG_EVENT_CHANGE_SYMBOL_STATE     ;
         __in ULONG64 Argument
         )
     {
-		CString s = Parse(Flags, SymbolStateFlags);
-		PRINT("%s(arg 0x%I64X)", s.GetBuffer(), Argument);
-		return S_OK;
+        CString s = Parse(Flags, SymbolStateFlags);
+        PRINT("%s(arg 0x%I64X)", s.GetBuffer(), Argument);
+        return S_OK;
     }
    // IDebugOutputCallbacks.
-	STDMETHOD(Output)(
+    STDMETHOD(Output)(
         THIS_
         __in ULONG Mask,
         __in PCSTR Text
         )
-	{
-		if (bEnableOutput)
-		{
-			PRINT("%s", Text);
-		}
-		return S_OK;
-	}
-	ULONG refCount;
-	IDebugClient  *Client;
-	IDebugControl2 *Control;
-	IDebugDataSpaces3 *DataSpaces;
-	DEBUG_SYMBOLS_IF *DebugSymbols;
-	BOOL bEnableOutput;
+    {
+        if (bEnableOutput)
+        {
+            PRINT("%s", Text);
+        }
+        return S_OK;
+    }
+    ULONG refCount;
+    IDebugClient  *Client;
+    IDebugControl2 *Control;
+    IDebugDataSpaces3 *DataSpaces;
+    DEBUG_SYMBOLS_IF *DebugSymbols;
+    BOOL bEnableOutput;
 };
 
 #define CHECK_INTERFACE(xf) { \
@@ -543,304 +543,304 @@ if (p) p->Release(); }
 
 static void ParseHistoryEntry(LONGLONG basetime, tBugCheckHistoryDataEntry *phist, LONG Index)
 {
-	if (!phist)
-	{
-		PRINT("Op                    Ctx           Time    Params");
-	}
-	else if (phist[Index].Context)
-	{
-		LONGLONG diffInt = (basetime - phist[Index].TimeStamp.QuadPart) / 10;
-		CString sOp = HistoryOperationName(phist[Index].operation);
+    if (!phist)
+    {
+        PRINT("Op                    Ctx           Time    Params");
+    }
+    else if (phist[Index].Context)
+    {
+        LONGLONG diffInt = (basetime - phist[Index].TimeStamp.QuadPart) / 10;
+        CString sOp = HistoryOperationName(phist[Index].operation);
 
 #if (PARANDIS_DEBUG_HISTORY_DATA_VERSION == 0)
-		PRINT("%s %I64X [-%09I64d] x%08X x%08X x%08X %I64X", sOp.GetBuffer(), phist[Index].Context, diffInt, phist[Index].lParam2, phist[Index].lParam3, phist[Index].lParam4, phist[Index].pParam1 );
+        PRINT("%s %I64X [-%09I64d] x%08X x%08X x%08X %I64X", sOp.GetBuffer(), phist[Index].Context, diffInt, phist[Index].lParam2, phist[Index].lParam3, phist[Index].lParam4, phist[Index].pParam1 );
 #elif (PARANDIS_DEBUG_HISTORY_DATA_VERSION == 1)
-		PRINT("CPU[%d] IRQL[%d] %s %I64X [-%09I64d] x%08X x%08X x%08X %I64X", phist[Index].uProcessor, phist[Index].uIRQL, sOp.GetBuffer(), phist[Index].Context, diffInt, phist[Index].lParam2, phist[Index].lParam3, phist[Index].lParam4, phist[Index].pParam1 );
+        PRINT("CPU[%d] IRQL[%d] %s %I64X [-%09I64d] x%08X x%08X x%08X %I64X", phist[Index].uProcessor, phist[Index].uIRQL, sOp.GetBuffer(), phist[Index].Context, diffInt, phist[Index].lParam2, phist[Index].lParam3, phist[Index].lParam4, phist[Index].pParam1 );
 #endif
-	}
+    }
 }
 
 void tDumpParser::ParseCrashData(tBugCheckStaticDataHeader *ph, ULONG64 databuffer, ULONG bytesRead, BOOL bWithSymbols)
 {
-	UINT i;
-	for (i = 0; i < ph->ulMaxContexts; ++i)
-	{
-		tBugCheckPerNicDataContent_V0 *pndc = (tBugCheckPerNicDataContent_V0 *)(ph->PerNicData - databuffer + (PUCHAR)ph);
-		pndc += i;
-		if (pndc->Context)
-		{
-			LONGLONG diffInt = (ph->qCrashTime.QuadPart - pndc->LastInterruptTimeStamp.QuadPart) / 10;
-			LONGLONG diffTx  = (ph->qCrashTime.QuadPart - pndc->LastTxCompletionTimeStamp.QuadPart) / 10;
-			PRINT(PRINT_SEPARATOR);
-			PRINT("Context %I64X:", pndc->Context);
-			PRINT("\tLastInterrupt %I64d us before crash", diffInt);
-			PRINT("\tLast Tx complete %I64d us before crash", diffTx);
-			PRINT("\tWaiting %d packets, %d free buffers", pndc->nofPacketsToComplete, pndc->nofReadyTxBuffers);
-			PRINT(PRINT_SEPARATOR);
-		}
-	}
-	tBugCheckStaticDataContent_V0 *pd = (tBugCheckStaticDataContent_V0 *)(ph->DataArea - databuffer + (PUCHAR)ph);
-	tBugCheckHistoryDataEntry *phist = (tBugCheckHistoryDataEntry *)(pd->HistoryData - databuffer + (PUCHAR)ph);
-	PRINT(PRINT_SEPARATOR);
-	if (pd->SizeOfHistory > 2)
-	{
-		PRINT("History: version %d, %d entries of %d, current at %d", pd->HistoryDataVersion, pd->SizeOfHistory,  pd->SizeOfHistoryEntry, pd->CurrentHistoryIndex);
-		LONG Index = pd->CurrentHistoryIndex % pd->SizeOfHistory;
-		LONG EndIndex = Index;
-		ParseHistoryEntry(NULL, NULL, 0);
-		for (; Index < (LONG)pd->SizeOfHistory; Index++)
-		{
-			ParseHistoryEntry(ph->qCrashTime.QuadPart, phist, Index);
-		}
-		for (Index = 0; Index < EndIndex; Index++)
-		{
-			ParseHistoryEntry(ph->qCrashTime.QuadPart, phist, Index);
-		}
-	}
-	else
-	{
-		PRINT("History records are not available");
-	}
-	PRINT(PRINT_SEPARATOR);
+    UINT i;
+    for (i = 0; i < ph->ulMaxContexts; ++i)
+    {
+        tBugCheckPerNicDataContent_V0 *pndc = (tBugCheckPerNicDataContent_V0 *)(ph->PerNicData - databuffer + (PUCHAR)ph);
+        pndc += i;
+        if (pndc->Context)
+        {
+            LONGLONG diffInt = (ph->qCrashTime.QuadPart - pndc->LastInterruptTimeStamp.QuadPart) / 10;
+            LONGLONG diffTx  = (ph->qCrashTime.QuadPart - pndc->LastTxCompletionTimeStamp.QuadPart) / 10;
+            PRINT(PRINT_SEPARATOR);
+            PRINT("Context %I64X:", pndc->Context);
+            PRINT("\tLastInterrupt %I64d us before crash", diffInt);
+            PRINT("\tLast Tx complete %I64d us before crash", diffTx);
+            PRINT("\tWaiting %d packets, %d free buffers", pndc->nofPacketsToComplete, pndc->nofReadyTxBuffers);
+            PRINT(PRINT_SEPARATOR);
+        }
+    }
+    tBugCheckStaticDataContent_V0 *pd = (tBugCheckStaticDataContent_V0 *)(ph->DataArea - databuffer + (PUCHAR)ph);
+    tBugCheckHistoryDataEntry *phist = (tBugCheckHistoryDataEntry *)(pd->HistoryData - databuffer + (PUCHAR)ph);
+    PRINT(PRINT_SEPARATOR);
+    if (pd->SizeOfHistory > 2)
+    {
+        PRINT("History: version %d, %d entries of %d, current at %d", pd->HistoryDataVersion, pd->SizeOfHistory,  pd->SizeOfHistoryEntry, pd->CurrentHistoryIndex);
+        LONG Index = pd->CurrentHistoryIndex % pd->SizeOfHistory;
+        LONG EndIndex = Index;
+        ParseHistoryEntry(NULL, NULL, 0);
+        for (; Index < (LONG)pd->SizeOfHistory; Index++)
+        {
+            ParseHistoryEntry(ph->qCrashTime.QuadPart, phist, Index);
+        }
+        for (Index = 0; Index < EndIndex; Index++)
+        {
+            ParseHistoryEntry(ph->qCrashTime.QuadPart, phist, Index);
+        }
+    }
+    else
+    {
+        PRINT("History records are not available");
+    }
+    PRINT(PRINT_SEPARATOR);
 }
 
 
 
 void tDumpParser::FindOurTaggedCrashData(BOOL bWithSymbols)
 {
-	ULONG64 h;
-	if (S_OK == DataSpaces->StartEnumTagged(&h))
-	{
-		UCHAR ourBuffer[16];
-		ULONG size;
-		GUID  guid;
-		while (S_OK == DataSpaces->GetNextTagged(h, &guid, &size))
-		{
-			WCHAR string[64];
-			StringFromGUID2(guid, string, sizeof(string)/sizeof(string[0]));
-			//PRINT("Found %S(size %d)", string, size);
-			if (IsEqualGUID(ParaNdis_CrashGuid, guid))
-			{
-				PRINT("Found NetKVM GUID");
-				if (S_OK == DataSpaces->ReadTagged(&guid,  0, ourBuffer, size, &size))
-				{
-					if (size >= sizeof(tBugCheckDataLocation))
-					{
-						tBugCheckDataLocation *bcdl = (tBugCheckDataLocation *)ourBuffer;
-						PRINT("Found NetKVM data at %I64X, size %d", bcdl->Address, bcdl->Size);
-						ULONG bufferSize= (ULONG)bcdl->Size;
-						ULONG bytesRead;
-						PVOID databuffer = malloc(bufferSize);
-						if (databuffer)
-						{
-							if (S_OK == DataSpaces->ReadVirtual(bcdl->Address, databuffer, bufferSize, &bytesRead))
-							{
-								tBugCheckStaticDataHeader *ph = (tBugCheckStaticDataHeader *)databuffer;
-								PRINT("Retrieved %d bytes of data", bytesRead);
-								if (bytesRead >= sizeof(tBugCheckStaticDataHeader))
-								{
-									PRINT("Versions: status data %d, pre-NIC data %d, ptr size %d, %d contexts, crash time %I64X",
-										ph->StaticDataVersion, ph->PerNicDataVersion, ph->SizeOfPointer, ph->ulMaxContexts, ph->qCrashTime);
-									PRINT("Per-NIC data at %I64X, Static data at %I64X(%d bytes)", ph->PerNicData, ph->DataArea, ph->DataAreaSize);
-									ParseCrashData(ph, bcdl->Address, bytesRead, bWithSymbols);
-								}
-							}
-							free(databuffer);
-						}
-					}
-				}
-				break;
-			}
-		}
-		DataSpaces->EndEnumTagged(h);
+    ULONG64 h;
+    if (S_OK == DataSpaces->StartEnumTagged(&h))
+    {
+        UCHAR ourBuffer[16];
+        ULONG size;
+        GUID  guid;
+        while (S_OK == DataSpaces->GetNextTagged(h, &guid, &size))
+        {
+            WCHAR string[64];
+            StringFromGUID2(guid, string, sizeof(string)/sizeof(string[0]));
+            //PRINT("Found %S(size %d)", string, size);
+            if (IsEqualGUID(ParaNdis_CrashGuid, guid))
+            {
+                PRINT("Found NetKVM GUID");
+                if (S_OK == DataSpaces->ReadTagged(&guid,  0, ourBuffer, size, &size))
+                {
+                    if (size >= sizeof(tBugCheckDataLocation))
+                    {
+                        tBugCheckDataLocation *bcdl = (tBugCheckDataLocation *)ourBuffer;
+                        PRINT("Found NetKVM data at %I64X, size %d", bcdl->Address, bcdl->Size);
+                        ULONG bufferSize= (ULONG)bcdl->Size;
+                        ULONG bytesRead;
+                        PVOID databuffer = malloc(bufferSize);
+                        if (databuffer)
+                        {
+                            if (S_OK == DataSpaces->ReadVirtual(bcdl->Address, databuffer, bufferSize, &bytesRead))
+                            {
+                                tBugCheckStaticDataHeader *ph = (tBugCheckStaticDataHeader *)databuffer;
+                                PRINT("Retrieved %d bytes of data", bytesRead);
+                                if (bytesRead >= sizeof(tBugCheckStaticDataHeader))
+                                {
+                                    PRINT("Versions: status data %d, pre-NIC data %d, ptr size %d, %d contexts, crash time %I64X",
+                                        ph->StaticDataVersion, ph->PerNicDataVersion, ph->SizeOfPointer, ph->ulMaxContexts, ph->qCrashTime);
+                                    PRINT("Per-NIC data at %I64X, Static data at %I64X(%d bytes)", ph->PerNicData, ph->DataArea, ph->DataAreaSize);
+                                    ParseCrashData(ph, bcdl->Address, bytesRead, bWithSymbols);
+                                }
+                            }
+                            free(databuffer);
+                        }
+                    }
+                }
+                break;
+            }
+        }
+        DataSpaces->EndEnumTagged(h);
 
-	}
+    }
 }
 
 static BOOL GetModuleName(ULONG Which, ULONG64 Base, DEBUG_SYMBOLS_IF *DebugSymbols, CString& s)
 {
-	HRESULT hr;
-	ULONG bufsize = 1024;
-	char *buf = (char *)malloc(bufsize);
-	*buf = 0;
-	hr = DebugSymbols->GetModuleNameString(
-		Which,
-		DEBUG_ANY_ID,
-		Base,
-		buf,
-		bufsize,
-		NULL);
-	s = buf;
-	free(buf);
-	return S_OK == hr;
+    HRESULT hr;
+    ULONG bufsize = 1024;
+    char *buf = (char *)malloc(bufsize);
+    *buf = 0;
+    hr = DebugSymbols->GetModuleNameString(
+        Which,
+        DEBUG_ANY_ID,
+        Base,
+        buf,
+        bufsize,
+        NULL);
+    s = buf;
+    free(buf);
+    return S_OK == hr;
 }
 
 static BOOL TryMatchingSymbols(DEBUG_SYMBOLS_IF *DebugSymbols, PCSTR name, BOOL bPrintAll = FALSE)
 {
-	UINT n = 0;
-	CString s;
-	s.Format("%s!*", name);
-	ULONG64 matchHandle;
-	if (S_OK == DebugSymbols->StartSymbolMatch(s.GetBuffer(), &matchHandle))
-	{
-		ULONG size = 1024;
-		char *buf = (char *)malloc(size);
-		*buf = 0;
-		while (S_OK == DebugSymbols->GetNextSymbolMatch(
-				matchHandle, buf, size, NULL, NULL))
-		{
-			n++;
-			if (!bPrintAll) break;
-			PRINT("%s", buf);
-		}
-		DebugSymbols->EndSymbolMatch(matchHandle);
-		free(buf);
-	}
-	return n != 0;
+    UINT n = 0;
+    CString s;
+    s.Format("%s!*", name);
+    ULONG64 matchHandle;
+    if (S_OK == DebugSymbols->StartSymbolMatch(s.GetBuffer(), &matchHandle))
+    {
+        ULONG size = 1024;
+        char *buf = (char *)malloc(size);
+        *buf = 0;
+        while (S_OK == DebugSymbols->GetNextSymbolMatch(
+                matchHandle, buf, size, NULL, NULL))
+        {
+            n++;
+            if (!bPrintAll) break;
+            PRINT("%s", buf);
+        }
+        DebugSymbols->EndSymbolMatch(matchHandle);
+        free(buf);
+    }
+    return n != 0;
 }
 
 BOOL tDumpParser::CheckLoadedSymbols(tModule *pModule)
 {
-	BOOL bLoaded = FALSE;
-	ULONG bufferSize = 2048, bufferUsage;
-	UNREFERENCED_PARAMETER(bufferUsage);
-	char *buffer = (char *)malloc(bufferSize);
-	DEBUG_MODULE_PARAMETERS ModuleParams;
-	HRESULT hr = DebugSymbols->GetModuleByModuleName(pModule->name, 0, &pModule->index, &pModule->Base);
-	if (S_OK == hr)
-	{
-		CString s;
-		PRINT("Found %s at %I64X", pModule->name, pModule->Base);
-		if (GetModuleName(DEBUG_MODNAME_MODULE, pModule->Base, DebugSymbols, s))
-			PRINT("\tModule Name:%s", s.GetBuffer());
-		if (GetModuleName(DEBUG_MODNAME_IMAGE, pModule->Base, DebugSymbols, s))
-			PRINT("\tImage Name:%s", s.GetBuffer());
-		if (GetModuleName(DEBUG_MODNAME_SYMBOL_FILE, pModule->Base, DebugSymbols, s))
-			PRINT("\tSymbol file:%s", s.GetBuffer());
+    BOOL bLoaded = FALSE;
+    ULONG bufferSize = 2048, bufferUsage;
+    UNREFERENCED_PARAMETER(bufferUsage);
+    char *buffer = (char *)malloc(bufferSize);
+    DEBUG_MODULE_PARAMETERS ModuleParams;
+    HRESULT hr = DebugSymbols->GetModuleByModuleName(pModule->name, 0, &pModule->index, &pModule->Base);
+    if (S_OK == hr)
+    {
+        CString s;
+        PRINT("Found %s at %I64X", pModule->name, pModule->Base);
+        if (GetModuleName(DEBUG_MODNAME_MODULE, pModule->Base, DebugSymbols, s))
+            PRINT("\tModule Name:%s", s.GetBuffer());
+        if (GetModuleName(DEBUG_MODNAME_IMAGE, pModule->Base, DebugSymbols, s))
+            PRINT("\tImage Name:%s", s.GetBuffer());
+        if (GetModuleName(DEBUG_MODNAME_SYMBOL_FILE, pModule->Base, DebugSymbols, s))
+            PRINT("\tSymbol file:%s", s.GetBuffer());
 
-		bLoaded = 0 != TryMatchingSymbols(DebugSymbols, pModule->name);
-		PRINT("Symbols for %s %sLOADED", pModule->name, bLoaded ? "" : "NOT ");
+        bLoaded = 0 != TryMatchingSymbols(DebugSymbols, pModule->name);
+        PRINT("Symbols for %s %sLOADED", pModule->name, bLoaded ? "" : "NOT ");
 
-		if (S_OK == DebugSymbols->GetModuleParameters(1, &pModule->Base, 0, &ModuleParams))
-		{
-			CString sSymbolType = Parse(ModuleParams.SymbolType, SymbolTypeValues);
-			CString sFlags = Parse(ModuleParams.Flags, ModuleFlags);
-			PRINT("Symbol Type %s, Flags %s", sSymbolType.GetBuffer(), sFlags.GetBuffer());
-			// timestamp from 1.1.1970
-			__time32_t timestamp = ModuleParams.TimeDateStamp;
-			tm *timer = _gmtime32(&timestamp);
-			strftime(buffer, bufferSize, "%d %b %Y %H:%M:%S UTC", timer);
-			//PRINT("Checksum: %X", ModuleParams.Checksum);
-			PRINT("Time Stamp: %s(%X)", buffer, ModuleParams.TimeDateStamp);
-		}
-	}
-	free(buffer);
-	return bLoaded;
+        if (S_OK == DebugSymbols->GetModuleParameters(1, &pModule->Base, 0, &ModuleParams))
+        {
+            CString sSymbolType = Parse(ModuleParams.SymbolType, SymbolTypeValues);
+            CString sFlags = Parse(ModuleParams.Flags, ModuleFlags);
+            PRINT("Symbol Type %s, Flags %s", sSymbolType.GetBuffer(), sFlags.GetBuffer());
+            // timestamp from 1.1.1970
+            __time32_t timestamp = ModuleParams.TimeDateStamp;
+            tm *timer = _gmtime32(&timestamp);
+            strftime(buffer, bufferSize, "%d %b %Y %H:%M:%S UTC", timer);
+            //PRINT("Checksum: %X", ModuleParams.Checksum);
+            PRINT("Time Stamp: %s(%X)", buffer, ModuleParams.TimeDateStamp);
+        }
+    }
+    free(buffer);
+    return bLoaded;
 }
 
 void tDumpParser::ProcessDumpFile()
 {
-	ULONG SymbolOptions;
-	BOOL  bSymbols;
-	CString s;
-	tModule module;
-	module.name = "netkvm";
-	if (S_OK == DebugSymbols->GetSymbolOptions(&SymbolOptions))
-	{
-		s = Parse(SymbolOptions, SymbolOptionsFlags);
-		PRINT("Symbol options %s", s.GetBuffer());
-	}
+    ULONG SymbolOptions;
+    BOOL  bSymbols;
+    CString s;
+    tModule module;
+    module.name = "netkvm";
+    if (S_OK == DebugSymbols->GetSymbolOptions(&SymbolOptions))
+    {
+        s = Parse(SymbolOptions, SymbolOptionsFlags);
+        PRINT("Symbol options %s", s.GetBuffer());
+    }
 
-	s = GetProperty(espSymbolPath);
-	PRINT("Symbol path:%s", s.GetBuffer());
-	s = GetProperty(espSystemVersion);
-	PRINT("System version:%s", s.GetBuffer());
-	s = GetProperty(espSystemTime);
-	PRINT("Crash time:%s", s.GetBuffer());
-	bSymbols = CheckLoadedSymbols(&module);
-	FindOurTaggedCrashData(bSymbols);
+    s = GetProperty(espSymbolPath);
+    PRINT("Symbol path:%s", s.GetBuffer());
+    s = GetProperty(espSystemVersion);
+    PRINT("System version:%s", s.GetBuffer());
+    s = GetProperty(espSystemTime);
+    PRINT("Crash time:%s", s.GetBuffer());
+    bSymbols = CheckLoadedSymbols(&module);
+    FindOurTaggedCrashData(bSymbols);
 }
 
 CString tDumpParser::GetProperty(eSystemProperty Prop)
 {
-	CString s;
-	switch (Prop)
-	{
-		case espSymbolPath:
-			if (DebugSymbols)
-			{
-				ULONG maxlen = 1024, len;
-				char *buf = (char *)malloc(maxlen);
-				*buf = 0;
-				DebugSymbols->GetSymbolPath(buf, maxlen, &len);
-				s = buf;
-				free(buf);
-			}
-			break;
-		case espSystemVersion:
-			if (Control)
-			{
-				ULONG platform, major, minor, sp, buildsize = 128, buildused, procs = 0;
-				char *buf = (char *)malloc(buildsize);
-				*buf = 0;
-				BOOL Is64 = Control->IsPointer64Bit() == S_OK;
-				CString sSP;
-				Control->GetNumberProcessors(&procs);
-				Control->GetSystemVersion(&platform, &major, &minor, NULL, 0, NULL, &sp, buf, buildsize, &buildused);
-				if (sp) sSP.Format("(SP%d.%d)", sp >> 8, sp & 0xff);
-				s.Format("(%X)%d%s%s,%s,%d CPU",
-					major, minor, sSP.GetBuffer(), Is64 ? "(64-bit)" : "", buf, procs);
-				free(buf);
-			}
-			break;
-		case espSystemTime:
-			if (Control)
-			{
-				ULONG ulSecondSince1970 = 0, ulUpTime = 0;
-				Control->GetCurrentTimeDate(&ulSecondSince1970);
-				Control->GetCurrentSystemUpTime(&ulUpTime);
-				s = "Unknown";
-				if (ulSecondSince1970)
-				{
-					char buffer[256] = {0};
-					ULONG days, hours, min, sec, rem;
-					days = ulUpTime / (60*60*24);
-					rem = ulUpTime - days * 60*60*24;
-					hours = rem / (60*60);
-					rem = rem - hours * 60 * 60;
-					min = rem / 60;
-					rem = rem - min * 60;
-					sec = rem;
-					__time32_t timestamp = ulSecondSince1970;
-					tm *timer = _localtime32(&timestamp);
-					strftime(buffer, sizeof(buffer), "%b %d %H:%M:%S %Y(Local)", timer);
-					s.Format("%s (Up time %d:%d:%d:%d)", buffer, days, hours, min, sec);
-				}
-			}
-		default:
-			break;
-	}
-	return s;
+    CString s;
+    switch (Prop)
+    {
+        case espSymbolPath:
+            if (DebugSymbols)
+            {
+                ULONG maxlen = 1024, len;
+                char *buf = (char *)malloc(maxlen);
+                *buf = 0;
+                DebugSymbols->GetSymbolPath(buf, maxlen, &len);
+                s = buf;
+                free(buf);
+            }
+            break;
+        case espSystemVersion:
+            if (Control)
+            {
+                ULONG platform, major, minor, sp, buildsize = 128, buildused, procs = 0;
+                char *buf = (char *)malloc(buildsize);
+                *buf = 0;
+                BOOL Is64 = Control->IsPointer64Bit() == S_OK;
+                CString sSP;
+                Control->GetNumberProcessors(&procs);
+                Control->GetSystemVersion(&platform, &major, &minor, NULL, 0, NULL, &sp, buf, buildsize, &buildused);
+                if (sp) sSP.Format("(SP%d.%d)", sp >> 8, sp & 0xff);
+                s.Format("(%X)%d%s%s,%s,%d CPU",
+                    major, minor, sSP.GetBuffer(), Is64 ? "(64-bit)" : "", buf, procs);
+                free(buf);
+            }
+            break;
+        case espSystemTime:
+            if (Control)
+            {
+                ULONG ulSecondSince1970 = 0, ulUpTime = 0;
+                Control->GetCurrentTimeDate(&ulSecondSince1970);
+                Control->GetCurrentSystemUpTime(&ulUpTime);
+                s = "Unknown";
+                if (ulSecondSince1970)
+                {
+                    char buffer[256] = {0};
+                    ULONG days, hours, min, sec, rem;
+                    days = ulUpTime / (60*60*24);
+                    rem = ulUpTime - days * 60*60*24;
+                    hours = rem / (60*60);
+                    rem = rem - hours * 60 * 60;
+                    min = rem / 60;
+                    rem = rem - min * 60;
+                    sec = rem;
+                    __time32_t timestamp = ulSecondSince1970;
+                    tm *timer = _localtime32(&timestamp);
+                    strftime(buffer, sizeof(buffer), "%b %d %H:%M:%S %Y(Local)", timer);
+                    s.Format("%s (Up time %d:%d:%d:%d)", buffer, days, hours, min, sec);
+                }
+            }
+        default:
+            break;
+    }
+    return s;
 }
 
 int ParseDumpFile(int argc, TCHAR* argv[])
 {
-	if (argc == 2)
-	{
-		CString s = argv[1];
-		s += ".txt";
-		FILE *f = fopen(s.GetBuffer(), "w+t");
-		if (f) outf = f;
-		tDumpParser Parser;
+    if (argc == 2)
+    {
+        CString s = argv[1];
+        s += ".txt";
+        FILE *f = fopen(s.GetBuffer(), "w+t");
+        if (f) outf = f;
+        tDumpParser Parser;
 #ifdef UNDER_DEBUGGING
-		fputs("UNDER_DEBUGGING, the output is redirected to debugger", f);
+        fputs("UNDER_DEBUGGING, the output is redirected to debugger", f);
 #endif
-		if (!Parser.LoadFile(argv[1])) PRINT("Failed to load dump file %s", argv[1]);
-		if (f) fclose(f);
-	}
-	else
-	{
-		PRINT("%s", SessionStatusValues[0].name);
-	}
-	return 0;
+        if (!Parser.LoadFile(argv[1])) PRINT("Failed to load dump file %s", argv[1]);
+        if (f) fclose(f);
+    }
+    else
+    {
+        PRINT("%s", SessionStatusValues[0].name);
+    }
+    return 0;
 }

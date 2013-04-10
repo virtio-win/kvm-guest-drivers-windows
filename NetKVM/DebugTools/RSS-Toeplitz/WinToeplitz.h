@@ -9,7 +9,7 @@
 #endif
 #endif
 
-#define WTEP_MAX_KEY_SIZE	40
+#define WTEP_MAX_KEY_SIZE   40
 
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
@@ -17,8 +17,8 @@ typedef unsigned long uint32_t;
 
 typedef struct _tagHASH_CALC_SG_BUF_ENTRY
 {
-	PBYTE chunkPtr;
-	ULONG chunkLen;
+    PBYTE chunkPtr;
+    ULONG chunkLen;
 } HASH_CALC_SG_BUF_ENTRY, *PHASH_CALC_SG_BUF_ENTRY;
 
 EXTERN_C void toeplitzw_initialize(uint8_t *key, int keysize);

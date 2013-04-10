@@ -4,8 +4,8 @@
 #include <Windows.h>
 #include <stdio.h>
 
-#define PAGE_SIZE		0x1000
-#define PAGE_SHIFT		12
+#define PAGE_SIZE       0x1000
+#define PAGE_SHIFT      12
 
 #ifdef __cplusplus
 #else
