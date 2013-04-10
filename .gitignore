@@ -13,7 +13,4 @@
 *.opensdf
 objfre*
 Install
-NetKVM/VirtIO/
-!NetKVM/VirtIO/sources
-NetKVM/dirs
-NetKVM/*/makefile
+NetKVM/Install_Debug
