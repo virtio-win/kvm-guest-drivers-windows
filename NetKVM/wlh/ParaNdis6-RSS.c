@@ -50,8 +50,13 @@ static VOID CleanupRSSParameters(PARANDIS_RSS_PARAMS *RSSParameters)
 static VOID InitRSSCapabilities(NDIS_RECEIVE_SCALE_CAPABILITIES *RSSCapabilities, ULONG RSSReceiveQueuesNumber)
 {
     RSSCapabilities->Header.Type = NDIS_OBJECT_TYPE_RSS_CAPABILITIES;
+#if (NDIS_SUPPORT_NDIS630)
     RSSCapabilities->Header.Revision = NDIS_RECEIVE_SCALE_CAPABILITIES_REVISION_2;
     RSSCapabilities->Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_2;
+#else
+    RSSCapabilities->Header.Revision = NDIS_RECEIVE_SCALE_CAPABILITIES_REVISION_1;
+    RSSCapabilities->Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_1;
+#endif
     RSSCapabilities->CapabilitiesFlags =    NDIS_RSS_CAPS_MESSAGE_SIGNALED_INTERRUPTS |
                                         NDIS_RSS_CAPS_CLASSIFICATION_AT_ISR |
                                         NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4 |
@@ -60,7 +65,9 @@ static VOID InitRSSCapabilities(NDIS_RECEIVE_SCALE_CAPABILITIES *RSSCapabilities
                                         NdisHashFunctionToeplitz;
     RSSCapabilities->NumberOfInterruptMessages = 1;
     RSSCapabilities->NumberOfReceiveQueues = RSSReceiveQueuesNumber;
+#if (NDIS_SUPPORT_NDIS630)
     RSSCapabilities->NumberOfIndirectionTableEntries = NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2 / sizeof(PROCESSOR_NUMBER);
+#endif
 }
 
 NDIS_RECEIVE_SCALE_CAPABILITIES* ParaNdis6_RSSCreateConfiguration(PARANDIS_RSS_PARAMS *RSSParameters,

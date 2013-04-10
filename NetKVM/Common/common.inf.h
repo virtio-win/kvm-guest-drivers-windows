@@ -15,8 +15,11 @@
 #if defined(INCLUDE_CONFIG)
 
 #if TARGETOS >= 62
-#define PARANDIS_SUPPORT_RSS 1
 #define PARANDIS_SUPPORT_RSC 1
+#endif
+
+#if TARGETOS >= 61
+#define PARANDIS_SUPPORT_RSS 1
 #endif
 
 #endif
