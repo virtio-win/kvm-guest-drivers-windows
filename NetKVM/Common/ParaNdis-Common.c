@@ -2793,7 +2793,7 @@ static BOOLEAN SendControlMessage(
 			}
 			else if (*(virtio_net_ctrl_ack *)(pBase + offset) != VIRTIO_NET_OK)
 			{
-				DPrintf(0, ("%s - ERROR: error %d returned", __FUNCTION__, *(virtio_net_ctrl_ack *)(pBase + offset)));
+				DPrintf(0, ("%s - ERROR: error %d returned for class %d", __FUNCTION__, *(virtio_net_ctrl_ack *)(pBase + offset), cls));
 			}
 			else
 			{
@@ -2842,7 +2842,11 @@ static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)
 	uCast.header.entries = 1;
 	NdisMoveMemory(uCast.addr, pContext->CurrentMacAddress, sizeof(uCast.addr));
 	SendControlMessage(pContext, VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_TABLE_SET,
-		&uCast, sizeof(uCast), &pContext->MulticastData, sizeof(pContext->MulticastData), 2);
+						&uCast,
+						sizeof(uCast),
+						&pContext->MulticastData,
+						sizeof(pContext->MulticastData.nofMulticastEntries) + pContext->MulticastData.nofMulticastEntries * ETH_LENGTH_OF_ADDRESS,
+						2);
 }
 
 static VOID SetSingleVlanFilter(PARANDIS_ADAPTER *pContext, ULONG vlanId, BOOLEAN bOn, int levelIfOK)
