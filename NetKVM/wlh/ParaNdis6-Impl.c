@@ -1743,27 +1743,7 @@ static BOOLEAN PrepareSingleNBL(
     {
         DPrintf(0, ("[%s] Failed to prepare NBL %p due to %s(info %d)", __FUNCTION__, pNBL, pFailReason, ulFailParameter));
     }
-    else
-    {
-        if (pContext->bDoIPCheckTx)
-        {
-            pB = NET_BUFFER_LIST_FIRST_NB(pNBL);
-            while (pB)
-            {
-                tTcpIpPacketParsingResult res;
-                ULONG len = NET_BUFFER_DATA_LENGTH(pB);
-                VOID *pcopy = ParaNdis_AllocateMemory(pContext, len);
-                ParaNdis_PacketCopier(pB, pcopy, len, NULL, TRUE);
-                res = ParaNdis_CheckSumVerifyFlat(
-                    RtlOffsetToPointer(pcopy, ETH_HEADER_SIZE),
-                    len,
-                    pcrAnyChecksum/* | pcrFixAnyChecksum*/,
-                    __FUNCTION__);
-                NdisFreeMemory(pcopy, 0, 0);
-                pB = NET_BUFFER_NEXT_NB(pB);
-            }
-        }
-    }
+
     return bOK;
 }
 
