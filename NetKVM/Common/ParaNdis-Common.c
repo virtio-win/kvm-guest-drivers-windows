@@ -86,7 +86,6 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry TxCapacity;
     tConfigurationEntry RxCapacity;
     tConfigurationEntry LogStatistics;
-    tConfigurationEntry ScatterGather;
     tConfigurationEntry OffloadTxChecksum;
     tConfigurationEntry OffloadTxLSO;
     tConfigurationEntry OffloadRxCS;
@@ -124,7 +123,6 @@ static const tConfigurationEntries defaultConfiguration =
     { "TxCapacity",     1024,   16, 1024 },
     { "RxCapacity",     256, 32, 1024 },
     { "LogStatistics",  0, 0, 10000},
-    { "Gather",         1, 0, 1},
     { "Offload.TxChecksum", 0, 0, 31},
     { "Offload.TxLSO",  0, 0, 2},
     { "Offload.RxCS",   0, 0, 31},
@@ -261,7 +259,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             GetConfigurationEntry(cfg, &pConfiguration->TxCapacity);
             GetConfigurationEntry(cfg, &pConfiguration->RxCapacity);
             GetConfigurationEntry(cfg, &pConfiguration->LogStatistics);
-            GetConfigurationEntry(cfg, &pConfiguration->ScatterGather);
             GetConfigurationEntry(cfg, &pConfiguration->OffloadTxChecksum);
             GetConfigurationEntry(cfg, &pConfiguration->OffloadTxLSO);
             GetConfigurationEntry(cfg, &pConfiguration->OffloadRxCS);
@@ -298,7 +295,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;
             pContext->ulFormalLinkSpeed  = pConfiguration->ConnectRate.ulValue;
             pContext->ulFormalLinkSpeed *= 1000000;
-            pContext->bUseScatterGather  = pConfiguration->ScatterGather.ulValue != 0;
             pContext->bDoHardwareChecksum = pConfiguration->UseSwTxChecksum.ulValue == 0;
             pContext->bDoIPCheckTx = pConfiguration->IPPacketsCheck.ulValue & 1;
             pContext->bDoIPCheckRx = pConfiguration->IPPacketsCheck.ulValue & 2;
@@ -785,10 +781,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
     // now, after we checked the capabilities, we can initialize current
     // configuration of offload tasks
     ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
-    if (pContext->Offload.flags.fTxLso && !pContext->bUseScatterGather)
-    {
-        DisableBothLSOPermanently(pContext, __FUNCTION__, "SG is not active");
-    }
 
     if (pContext->Offload.flags.fTxLso)
     {
@@ -819,16 +811,12 @@ NDIS_STATUS ParaNdis_InitializeContext(
         pContext->bUseIndirect = FALSE;
         reason = "Host support";
     }
-    else if (!pContext->bUseScatterGather)
-    {
-        pContext->bUseIndirect = FALSE;
-        reason = "SG";
-    }
     else
     {
+        pContext->bUseIndirect = TRUE;
         VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_F_INDIRECT);
     }
-    DPrintf(0, ("[%s] %sable indirect Tx(!%s)", __FUNCTION__, pContext->bUseIndirect ? "En" : "Dis", reason) );
+    DPrintf(0, ("[%s] %sable indirect buffers (!%s)", __FUNCTION__, pContext->bUseIndirect ? "En" : "Dis", reason) );
 
     if (VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_CTRL_RX_EXTRA))
     {
@@ -1579,8 +1567,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 
     result.size = 0;
     result.error = cpeOK;
-    if (!pContext->bUseScatterGather ||         // only copy available
-        Params->nofSGFragments == 0 ||          // theoretical case
+    if (Params->nofSGFragments == 0 ||          // theoretical case
         !sg ||                                  // only copy available
         ((~Params->flags & pcrLSO) && nRequiredBuffers > pContext->maxFreeHardwareBuffers) // to many fragments and normal size of packet
         )

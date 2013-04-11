@@ -1791,25 +1791,20 @@ static void StartTransferSingleNBL(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST 
         NdisInterlockedInsertTailList(&pContext->WaitingMapping, &pnbe->list, &pContext->SendLock);
 
         if (bPassive) irql = KeRaiseIrqlToDpcLevel();
-        if (pContext->bUseScatterGather)
+
+        status = NdisMAllocateNetBufferSGList(
+            pnbe->pContext->DmaHandle,
+            pnbe->netBuffer,
+            pnbe,
+            NDIS_SG_LIST_WRITE_TO_DEVICE,
+            NULL,
+            0);
+        if (status != NDIS_STATUS_SUCCESS)
         {
-            status = NdisMAllocateNetBufferSGList(
-                pnbe->pContext->DmaHandle,
-                pnbe->netBuffer,
-                pnbe,
-                NDIS_SG_LIST_WRITE_TO_DEVICE,
-                NULL,
-                0);
-            if (status != NDIS_STATUS_SUCCESS)
-            {
-                ((tNetBufferListEntry *)pnbe->nbl->Scratch)->flags |= NBLEFLAGS_FAILED;
-                ProcessSGListHandlerEx(NULL, NULL, NULL, pnbe);
-            }
-        }
-        else
-        {
+            ((tNetBufferListEntry *)pnbe->nbl->Scratch)->flags |= NBLEFLAGS_FAILED;
             ProcessSGListHandlerEx(NULL, NULL, NULL, pnbe);
         }
+
         if (bPassive) KeLowerIrql(irql);
     }
 }
