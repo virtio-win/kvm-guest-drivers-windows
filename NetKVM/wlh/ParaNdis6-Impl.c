@@ -314,7 +314,7 @@ static VOID MiniportInterruptDPC(
     if(requiresProcessing)
     {
         BOOLEAN bSpawnNextDpc = FALSE;
-        DPrintf(4, ("[%s] Queued additional DPC for %d", __FUNCTION__,  requiresProcessing));
+        DPrintf(4, ("[%s] Queued additional DPC for %d\n", __FUNCTION__,  requiresProcessing));
         InterlockedOr(&pContext->InterruptStatus, requiresProcessing);
         if(requiresProcessing & isReceive)
         {
@@ -340,7 +340,7 @@ static VOID MiniportInterruptDPC(
     requiresProcessing = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
     if (requiresProcessing)
     {
-        DPrintf(4, ("[%s] Queued additional DPC for %d", __FUNCTION__,  requiresProcessing));
+        DPrintf(4, ("[%s] Queued additional DPC for %d\n", __FUNCTION__,  requiresProcessing));
         InterlockedOr(&pContext->InterruptStatus, requiresProcessing);
         NdisMQueueDpc(pContext->InterruptHandle, 0, 1 << KeGetCurrentProcessorNumber(), MiniportDpcContext);
     }
@@ -375,7 +375,7 @@ static VOID MiniportMSIInterruptDpc(
     BOOLEAN bSpawnNextDpc = FALSE;
     PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters = (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
 
-    DPrintf(5, ("[%s] (Message %d, source %d)", __FUNCTION__, MessageId, interruptSource));
+    DPrintf(5, ("[%s] (Message %d, source %d)\n", __FUNCTION__, MessageId, interruptSource));
 
     RxThrottleParameters->MoreNblsPending = 0;
     interruptSource = ParaNdis_DPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
@@ -388,7 +388,7 @@ static VOID MiniportMSIInterruptDpc(
             if (NDIS_INDICATE_ALL_NBLS != RxThrottleParameters->MaxNblsToIndicate)
             {
                 RxThrottleParameters->MoreNblsPending = 1;
-                DPrintf(3, ("[%s] Requested additional RX DPC", __FUNCTION__));
+                DPrintf(3, ("[%s] Requested additional RX DPC\n", __FUNCTION__));
             }
             else
                 bSpawnNextDpc = TRUE;
@@ -408,11 +408,11 @@ static VOID MiniportMSIInterruptDpc(
 #else
     UNREFERENCED_PARAMETER(NdisReserved1);
 
-    DPrintf(5, ("[%s] (Message %d, source %d)", __FUNCTION__, MessageId, interruptSource));
+    DPrintf(5, ("[%s] (Message %d, source %d)\n", __FUNCTION__, MessageId, interruptSource));
     interruptSource = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
     if (interruptSource)
     {
-        DPrintf(4, ("[%s] Queued additional DPC for %d", __FUNCTION__, interruptSource));
+        DPrintf(4, ("[%s] Queued additional DPC for %d\n", __FUNCTION__, interruptSource));
         InterlockedOr(&pContext->InterruptStatus, interruptSource);
         NdisMQueueDpc(pContext->InterruptHandle, MessageId, 1 << KeGetCurrentProcessorNumber(), MiniportDpcContext);
     }
@@ -428,7 +428,7 @@ static VOID MiniportDisableMSIInterrupt(
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
     ULONG interruptSource = MessageToInterruptSource(pContext, MessageId);
-    DPrintf(0, ("[%s] (Message %d)", __FUNCTION__, MessageId));
+    DPrintf(0, ("[%s] (Message %d)\n", __FUNCTION__, MessageId));
     ParaNdis_VirtIODisableIrqSynchronized(pContext, interruptSource);
 }
 
@@ -439,7 +439,7 @@ static VOID MiniportEnableMSIInterrupt(
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
     ULONG interruptSource = MessageToInterruptSource(pContext, MessageId);
-    DPrintf(0, ("[%s] (Message %d)", __FUNCTION__, MessageId));
+    DPrintf(0, ("[%s] (Message %d)\n", __FUNCTION__, MessageId));
     ParaNdis_VirtIOEnableIrqSynchronized(pContext, interruptSource);
 }
 
@@ -498,7 +498,7 @@ static NDIS_STATUS SetInterruptMessage(PARANDIS_ADAPTER *pContext, UINT queueInd
 
     if (val != messageIndex)
     {
-        DPrintf(0, ("[%s] ERROR: Wrong MSI-X message for q%d(w%X,r%X)!", __FUNCTION__, queueIndex, messageIndex, val));
+        DPrintf(0, ("[%s] ERROR: Wrong MSI-X message for q%d(w%X,r%X)!\n", __FUNCTION__, queueIndex, messageIndex, val));
         status = NDIS_STATUS_DEVICE_FAILED;
     }
     if (pMessage) *pMessage = messageIndex;
@@ -513,11 +513,11 @@ static NDIS_STATUS ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
     if (pTable && pTable->MessageCount)
     {
         status = NDIS_STATUS_SUCCESS;
-        DPrintf(0, ("[%s] Using MSIX interrupts (%d messages, irql %d)",
+        DPrintf(0, ("[%s] Using MSIX interrupts (%d messages, irql %d)\n",
             __FUNCTION__, pTable->MessageCount, pTable->UnifiedIrql));
         for (i = 0; i < pContext->pMSIXInfoTable->MessageCount; ++i)
         {
-            DPrintf(0, ("[%s] MSIX message%d=%08X=>%I64X",
+            DPrintf(0, ("[%s] MSIX message%d=%08X=>%I64X\n",
                 __FUNCTION__, i,
                 pTable->MessageInfo[i].MessageData,
                 pTable->MessageInfo[i].MessageAddress));
@@ -529,9 +529,9 @@ static NDIS_STATUS ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
     }
     if (status == NDIS_STATUS_SUCCESS)
     {
-        DPrintf(0, ("[%s] Using message %d for RX queue", __FUNCTION__, pContext->ulRxMessage));
-        DPrintf(0, ("[%s] Using message %d for TX queue", __FUNCTION__, pContext->ulTxMessage));
-        DPrintf(0, ("[%s] Using message %d for controls", __FUNCTION__, pContext->ulControlMessage));
+        DPrintf(0, ("[%s] Using message %d for RX queue\n", __FUNCTION__, pContext->ulRxMessage));
+        DPrintf(0, ("[%s] Using message %d for TX queue\n", __FUNCTION__, pContext->ulTxMessage));
+        DPrintf(0, ("[%s] Using message %d for controls\n", __FUNCTION__, pContext->ulControlMessage));
     }
     return status;
 }
@@ -551,24 +551,24 @@ static void DebugParseOffloadBits()
     while (val)
     {
         info.Value = (PVOID)(ULONG_PTR)val;
-        if (info.Receive.IpChecksumFailed) DPrintf(level, ("W.%X=IPCS failed", val));
-        if (info.Receive.IpChecksumSucceeded) DPrintf(level, ("W.%X=IPCS OK", val));
-        if (info.Receive.TcpChecksumFailed) DPrintf(level, ("W.%X=TCPCS failed", val));
-        if (info.Receive.TcpChecksumSucceeded) DPrintf(level, ("W.%X=TCPCS OK", val));
-        if (info.Receive.UdpChecksumFailed) DPrintf(level, ("W.%X=UDPCS failed", val));
-        if (info.Receive.UdpChecksumSucceeded) DPrintf(level, ("W.%X=UDPCS OK", val));
+        if (info.Receive.IpChecksumFailed) DPrintf(level, ("W.%X=IPCS failed\n", val));
+        if (info.Receive.IpChecksumSucceeded) DPrintf(level, ("W.%X=IPCS OK\n", val));
+        if (info.Receive.TcpChecksumFailed) DPrintf(level, ("W.%X=TCPCS failed\n", val));
+        if (info.Receive.TcpChecksumSucceeded) DPrintf(level, ("W.%X=TCPCS OK\n", val));
+        if (info.Receive.UdpChecksumFailed) DPrintf(level, ("W.%X=UDPCS failed\n", val));
+        if (info.Receive.UdpChecksumSucceeded) DPrintf(level, ("W.%X=UDPCS OK\n", val));
         val = val << 1;
     }
     val = 1;
     while (val)
     {
         res.value = val;
-        if (res.flags.IpFailed) DPrintf(level, ("C.%X=IPCS failed", val));
-        if (res.flags.IpOK) DPrintf(level, ("C.%X=IPCS OK", val));
-        if (res.flags.TcpFailed) DPrintf(level, ("C.%X=TCPCS failed", val));
-        if (res.flags.TcpOK) DPrintf(level, ("C.%X=TCPCS OK", val));
-        if (res.flags.UdpFailed) DPrintf(level, ("C.%X=UDPCS failed", val));
-        if (res.flags.UdpOK) DPrintf(level, ("C.%X=UDPCS OK", val));
+        if (res.flags.IpFailed) DPrintf(level, ("C.%X=IPCS failed\n", val));
+        if (res.flags.IpOK) DPrintf(level, ("C.%X=IPCS OK\n", val));
+        if (res.flags.TcpFailed) DPrintf(level, ("C.%X=TCPCS failed\n", val));
+        if (res.flags.TcpOK) DPrintf(level, ("C.%X=TCPCS OK\n", val));
+        if (res.flags.UdpFailed) DPrintf(level, ("C.%X=UDPCS failed\n", val));
+        if (res.flags.UdpOK) DPrintf(level, ("C.%X=UDPCS OK\n", val));
         val = val << 1;
     }
 }
@@ -642,11 +642,11 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
         status = NdisMRegisterScatterGatherDma(pContext->MiniportHandle, &sgDesc, &pContext->DmaHandle);
         if (status != NDIS_STATUS_SUCCESS)
         {
-            DPrintf(0, ("[%s] ERROR: NdisMRegisterScatterGatherDma failed (%X)!", __FUNCTION__, status));
+            DPrintf(0, ("[%s] ERROR: NdisMRegisterScatterGatherDma failed (%X)!\n", __FUNCTION__, status));
         }
         else
         {
-            DPrintf(0, ("[%s] SG recommended size %d", __FUNCTION__, sgDesc.ScatterGatherListSize));
+            DPrintf(0, ("[%s] SG recommended size %d\n", __FUNCTION__, sgDesc.ScatterGatherListSize));
         }
     }
 
@@ -659,7 +659,7 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
         }
         else if (pContext->bUsingMSIX)
         {
-            DPrintf(0, ("[%s] ERROR: Interrupt type %d, message table %p",
+            DPrintf(0, ("[%s] ERROR: Interrupt type %d, message table %p\n",
                 __FUNCTION__, mic.InterruptType, mic.MessageInfoTable));
             status = NDIS_STATUS_RESOURCE_CONFLICT;
         }
@@ -882,7 +882,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
                     qCSInfo.Receive.UdpChecksumFailed = csRes.flags.UdpFailed;
                     qCSInfo.Receive.UdpChecksumSucceeded = csRes.flags.UdpOK;
                     NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
-                    DPrintf(1, ("Reporting CS %X->%X", csRes.value, (ULONG)(ULONG_PTR)qCSInfo.Value));
+                    DPrintf(1, ("Reporting CS %X->%X\n", csRes.value, (ULONG)(ULONG_PTR)qCSInfo.Value));
                 }
             }
             pNBL->Status = NDIS_STATUS_SUCCESS;
@@ -953,7 +953,7 @@ VOID ParaNdis6_ReturnNetBufferLists(
     {
         PNET_BUFFER_LIST pTemp = pNBL;
         pRxNetDescriptor pBuffersDescriptor = (pRxNetDescriptor)pNBL->MiniportReserved[0];
-        DPrintf(3, ("  Returned NBL of pBuffersDescriptor %p!", pBuffersDescriptor));
+        DPrintf(3, ("  Returned NBL of pBuffersDescriptor %p!\n", pBuffersDescriptor));
         pNBL = NET_BUFFER_LIST_NEXT_NBL(pNBL);
         NET_BUFFER_LIST_NEXT_NBL(pTemp) = NULL;
         NdisFreeNetBufferList(pTemp);
@@ -1090,7 +1090,7 @@ static FORCEINLINE ULONG CalculateTotalOffloadSize(
     {
         ul = packetSize - allHeaders;
     }
-    DPrintf(1, ("[%s]%s %d/%d, headers %d)", __FUNCTION__, !ul ? "ERROR:" : "", ul, mss, allHeaders));
+    DPrintf(1, ("[%s]%s %d/%d, headers %d)\n", __FUNCTION__, !ul ? "ERROR:" : "", ul, mss, allHeaders));
 #else
     UINT  calculationType = 3;
     if (tcpipHeaders && (mss + allHeaders) <= maxPacketSize)
@@ -1122,7 +1122,7 @@ static FORCEINLINE ULONG CalculateTotalOffloadSize(
                 break;
         }
     }
-    DPrintf(1, ("[%s:%d]%s %d/%d, headers %d)",
+    DPrintf(1, ("[%s:%d]%s %d/%d, headers %d)\n",
         __FUNCTION__, calculationType, !ul ? "ERROR:" : "", ul, mss, allHeaders));
 #endif
     return ul;
@@ -1192,7 +1192,7 @@ VOID ParaNdis_PacketMapper(
                 for (i = 0; i < pSGList->NumberOfElements; ++i)
                 {
                     len += pSGList->Elements[i].Length - nBytesSkipInFirstBuffer;
-                    DPrintf(3, ("[%s] buffer %d of %d->%d",
+                    DPrintf(3, ("[%s] buffer %d of %d->%d\n",
                         __FUNCTION__, nCompleteBuffersToSkip, pSGElements[i].Length, len));
                     if (len > lengthGet)
                     {
@@ -1211,7 +1211,7 @@ VOID ParaNdis_PacketMapper(
 
             if (lengthPut > pDesc->DataInfo.size)
             {
-                DPrintf(0, ("[%s] ERROR: can not substitute %d bytes, sending as is", __FUNCTION__, lengthPut));
+                DPrintf(0, ("[%s] ERROR: can not substitute %d bytes, sending as is\n", __FUNCTION__, lengthPut));
                 nCompleteBuffersToSkip = 0;
                 lengthPut = lengthGet = 0;
                 nBytesSkipInFirstBuffer = NET_BUFFER_CURRENT_MDL_OFFSET(packet);
@@ -1227,7 +1227,7 @@ VOID ParaNdis_PacketMapper(
                 nBuffersMapped = (USHORT)(pSGList->NumberOfElements - nCompleteBuffersToSkip + 1);
                 pSGElements += nCompleteBuffersToSkip;
                 buffers++;
-                DPrintf(1, ("[%s] (%d bufs) skip %d buffers + %d bytes",
+                DPrintf(1, ("[%s] (%d bufs) skip %d buffers + %d bytes\n",
                     __FUNCTION__, pSGList->NumberOfElements, nCompleteBuffersToSkip, nBytesSkipInFirstBuffer));
             }
             else
@@ -1241,7 +1241,7 @@ VOID ParaNdis_PacketMapper(
                 {
                     buffers->physAddr.QuadPart = pSGElements->Address.QuadPart + nBytesSkipInFirstBuffer;
                     buffers->ulSize   = pSGElements->Length - nBytesSkipInFirstBuffer;
-                    DPrintf(2, ("[%s] using HW buffer %d of %d-%d", __FUNCTION__, i, pSGElements->Length, nBytesSkipInFirstBuffer));
+                    DPrintf(2, ("[%s] using HW buffer %d of %d-%d\n", __FUNCTION__, i, pSGElements->Length, nBytesSkipInFirstBuffer));
                     nBytesSkipInFirstBuffer = 0;
                 }
                 else
@@ -1283,7 +1283,7 @@ VOID ParaNdis_PacketMapper(
                             packetReview);
                         if (packetReview.xxpStatus == ppresXxpIncomplete)
                         {
-                            DPrintf(0, ("[%s] CHECK: IPHO %d, TCPHO %d, IPHS %d, XXPHS %d", __FUNCTION__,
+                            DPrintf(0, ("[%s] CHECK: IPHO %d, TCPHO %d, IPHS %d, XXPHS %d\n", __FUNCTION__,
                                 pContext->Offload.ipHeaderOffset,
                                 pble->tcpHeaderOffset,
                                 packetReview.ipHeaderSize,
@@ -1294,7 +1294,7 @@ VOID ParaNdis_PacketMapper(
                     }
                     else
                     {
-                        DPrintf(0, ("[%s] ERROR locating IP header in %d bytes(IP header of %d)", __FUNCTION__,
+                        DPrintf(0, ("[%s] ERROR locating IP header in %d bytes(IP header of %d)\n", __FUNCTION__,
                             lengthGet, packetReview.ipHeaderSize));
                     }
                     lso.Value = NET_BUFFER_LIST_INFO(pnbe->nbl, TcpLargeSendNetBufferListInfo);
@@ -1338,13 +1338,13 @@ VOID ParaNdis_PacketMapper(
                         RtlOffsetToPointer(pBuffer, ETH_PRIORITY_HEADER_OFFSET),
                         &PriorityDataLong,
                         sizeof(ETH_PRIORITY_HEADER_SIZE));
-                    DPrintf(1, ("[%s] Populated priority value %lX", __FUNCTION__, PriorityDataLong));
+                    DPrintf(1, ("[%s] Populated priority value %lX\n", __FUNCTION__, PriorityDataLong));
                 }
             }
         }
         else
         {
-            DPrintf(0, ("[%s] ERROR: packet (nbe %p) is not mapped!", __FUNCTION__, pnbe));
+            DPrintf(0, ("[%s] ERROR: packet (nbe %p) is not mapped!\n", __FUNCTION__, pnbe));
         }
     }
     else
@@ -1424,7 +1424,7 @@ static void CompleteBufferLists(
     PNET_BUFFER_LIST pTemp = pNBL;
     DEBUG_ENTRY(4);
     ParseNBL(pNBL, &Digest);
-    DPrintf(2, ("[%s] L%d, B%d, b%d with (%08lX)", __FUNCTION__, Digest.nLists, Digest.nBuffers, Digest.nBytes, status));
+    DPrintf(2, ("[%s] L%d, B%d, b%d with (%08lX)\n", __FUNCTION__, Digest.nLists, Digest.nBuffers, Digest.nBytes, status));
     while (pTemp)
     {
         LONG lRestToReturn = NdisInterlockedDecrement(&pContext->NetTxPacketsToReturn);
@@ -1501,7 +1501,7 @@ static BOOLEAN PrepareSingleNBL(
     PNET_BUFFER pB = NET_BUFFER_LIST_FIRST_NB(pNBL);
     tNetBufferListEntry *pble = ParaNdis_AllocateMemory(pContext, sizeof(*pble));
     pNBL->Scratch = pble;
-    DPrintf(4, ("[%s] NBL %p, NBLE %p", __FUNCTION__, pNBL, pble));
+    DPrintf(4, ("[%s] NBL %p, NBLE %p\n", __FUNCTION__, pNBL, pble));
     if (pble)
     {
         NDIS_NET_BUFFER_LIST_8021Q_INFO priorityInfo;
@@ -1514,7 +1514,7 @@ static BOOLEAN PrepareSingleNBL(
         if (priorityInfo.TagHeader.CanonicalFormatId || !IsValidVlanId(pContext, priorityInfo.TagHeader.VlanId))
         {
             bOK = FALSE;
-            DPrintf(0, ("[%s] Discarded invalid priority tag %p", __FUNCTION__, priorityInfo.Value));
+            DPrintf(0, ("[%s] Discarded invalid priority tag %p\n", __FUNCTION__, priorityInfo.Value));
         }
         else if (priorityInfo.Value)
         {
@@ -1527,7 +1527,7 @@ static BOOLEAN PrepareSingleNBL(
             if (priorityInfo.Value)
             {
                 SetPriorityData(pble->PriorityData, priorityInfo.TagHeader.UserPriority, priorityInfo.TagHeader.VlanId);
-                DPrintf(1, ("[%s] Populated priority tag %p", __FUNCTION__, priorityInfo.Value));
+                DPrintf(1, ("[%s] Populated priority tag %p\n", __FUNCTION__, priorityInfo.Value));
             }
         }
     }
@@ -1547,7 +1547,7 @@ static BOOLEAN PrepareSingleNBL(
     {
         ULONG dataLength = NET_BUFFER_DATA_LENGTH(pB);
         tNetBufferEntry *pnbe = (tNetBufferEntry *)ParaNdis_AllocateMemory(pContext, sizeof(*pnbe));
-        DPrintf(4, ("[%s] NBE %p(nb %p)", __FUNCTION__, pnbe, pB));
+        DPrintf(4, ("[%s] NBE %p(nb %p)\n", __FUNCTION__, pnbe, pB));
         if (pnbe)
         {
             NdisZeroMemory(pnbe, sizeof(*pnbe));
@@ -1651,7 +1651,7 @@ static BOOLEAN PrepareSingleNBL(
                     }
                     else
                     {
-                        DPrintf(0, ("[%s] TCP CS request when it is not supported", __FUNCTION__));
+                        DPrintf(0, ("[%s] TCP CS request when it is not supported\n", __FUNCTION__));
                     }
                 }
             }
@@ -1670,7 +1670,7 @@ static BOOLEAN PrepareSingleNBL(
                     }
                     else
                     {
-                        DPrintf(0, ("[%s] UDP CS request when it is not supported", __FUNCTION__));
+                        DPrintf(0, ("[%s] UDP CS request when it is not supported\n", __FUNCTION__));
                     }
                 }
             }
@@ -1689,7 +1689,7 @@ static BOOLEAN PrepareSingleNBL(
                     }
                     else
                     {
-                        DPrintf(0, ("[%s] IP CS request when it is not supported", __FUNCTION__));
+                        DPrintf(0, ("[%s] IP CS request when it is not supported\n", __FUNCTION__));
                     }
                 }
             }
@@ -1714,7 +1714,7 @@ static BOOLEAN PrepareSingleNBL(
                     }
                     else
                     {
-                        DPrintf(0, ("[%s] TCPv6 CS request when it is not supported", __FUNCTION__));
+                        DPrintf(0, ("[%s] TCPv6 CS request when it is not supported\n", __FUNCTION__));
                     }
                 }
             }
@@ -1733,7 +1733,7 @@ static BOOLEAN PrepareSingleNBL(
                     }
                     else
                     {
-                        DPrintf(0, ("[%s] UDPv6 CS request when it is not supported", __FUNCTION__));
+                        DPrintf(0, ("[%s] UDPv6 CS request when it is not supported\n", __FUNCTION__));
                     }
                 }
             }
@@ -1741,7 +1741,7 @@ static BOOLEAN PrepareSingleNBL(
     }
     if (!bOK)
     {
-        DPrintf(0, ("[%s] Failed to prepare NBL %p due to %s(info %d)", __FUNCTION__, pNBL, pFailReason, ulFailParameter));
+        DPrintf(0, ("[%s] Failed to prepare NBL %p due to %s(info %d)\n", __FUNCTION__, pNBL, pFailReason, ulFailParameter));
     }
 
     return bOK;
@@ -1755,7 +1755,7 @@ static void StartTransferSingleNBL(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST 
     LIST_ENTRY list;
     KIRQL irql = 0;
     BOOLEAN bPassive = KeGetCurrentIrql() < DISPATCH_LEVEL;
-    DPrintf(4, ("[%s] NBL %p(pble %p)", __FUNCTION__, pNBL, pble));
+    DPrintf(4, ("[%s] NBL %p(pble %p)\n", __FUNCTION__, pNBL, pble));
     InitializeListHead(&list);
     while (!IsListEmpty(&pble->bufferEntries))
     {
@@ -1766,7 +1766,7 @@ static void StartTransferSingleNBL(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST 
     {
         NDIS_STATUS status;
         tNetBufferEntry *pnbe = (tNetBufferEntry *)RemoveHeadList(&list);
-        DPrintf(4, ("[%s] mapping entry %p", __FUNCTION__, pnbe));
+        DPrintf(4, ("[%s] mapping entry %p\n", __FUNCTION__, pnbe));
         //ParaNdis_DebugHistory(pContext, hopSendPacketRequest, pNBL, 0, 0, status);
         NdisInterlockedInsertTailList(&pContext->WaitingMapping, &pnbe->list, &pContext->SendLock);
 
@@ -1805,7 +1805,7 @@ VOID ParaNdis6_Send(
     PNET_BUFFER_LIST nextList;
     /* calculate nofLists, nofBuffer and nofBytes for logging */
     ParseNBL(pNBL, &Digest);
-    DPrintf(1, (" Send request L%d, B%d, b%d", Digest.nLists, Digest.nBuffers, Digest.nBytes));
+    DPrintf(1, (" Send request L%d, B%d, b%d\n", Digest.nLists, Digest.nBuffers, Digest.nBytes));
     ParaNdis_DebugHistory(pContext, hopSend, pNBL, Digest.nLists, Digest.nBuffers, Digest.nBytes);
 
     for (i = 0; i < Digest.nLists; ++i)
@@ -1845,7 +1845,7 @@ static void OnNetBufferEntryCompleted(tNetBufferEntry *pnbe)
     tNetBufferListEntry *pble = (tNetBufferListEntry *)pnbe->nbl->Scratch;
     pble->nBuffersDone++;
     pble->nBuffersWaiting--;
-    DPrintf(3, ("[%s] pble %p, nbe %p", __FUNCTION__, pble, pnbe));
+    DPrintf(3, ("[%s] pble %p, nbe %p\n", __FUNCTION__, pble, pnbe));
     ParaNdis_DebugHistory(pnbe->pContext, hopBufferSent, pble->nbl, pble->nBuffersDone,
         pnbe->pContext->nofFreeHardwareBuffers, pnbe->pContext->nofFreeTxDescriptors);
     if (pnbe->pSGList)
@@ -1870,7 +1870,7 @@ VOID ParaNdis_OnTransmitBufferReleased(PARANDIS_ADAPTER *pContext, pTxNetDescrip
     else
     {
         ParaNdis_DebugHistory(pContext, hopBufferSent, NULL, 0, pContext->nofFreeHardwareBuffers, pContext->nofFreeTxDescriptors);
-        DPrintf(0, ("[%s] ERROR: Send Entry (NBE) not set!", __FUNCTION__));
+        DPrintf(0, ("[%s] ERROR: Send Entry (NBE) not set!\n", __FUNCTION__));
     }
 }
 
@@ -1920,7 +1920,7 @@ VOID ProcessSGListHandler(
 
     pnbe->pSGList = pSGL;
     DoneCounter = InterlockedIncrement(&pble->nBuffersMapped);
-    DPrintf(3, ("[%s] mapped %d of %d(%d)", __FUNCTION__,
+    DPrintf(3, ("[%s] mapped %d of %d(%d)\n", __FUNCTION__,
         pble->nBuffersMapped,
         pble->nBuffers,
         NdisQueryNetBufferPhysicalCount(pnbe->netBuffer)));
@@ -1935,7 +1935,7 @@ VOID ProcessSGListHandler(
             //check consistency: only both head and tail could be NULL
             if (pContext->SendHead && !pContext->SendTail)
             {
-                DPrintf(0, ("[%s] ERROR: SendTail not found!", __FUNCTION__));
+                DPrintf(0, ("[%s] ERROR: SendTail not found!\n", __FUNCTION__));
                 pContext->SendTail = GetTail(pContext->SendHead);
             }
 
@@ -2042,7 +2042,7 @@ static void PrintMDLChain(PNET_BUFFER netBuffer, PSCATTER_GATHER_LIST pSGList)
     ULONG nToCopy = NET_BUFFER_DATA_LENGTH(netBuffer);
     PMDL  pMDL = NET_BUFFER_FIRST_MDL(netBuffer);
     UINT i;
-    DPrintf(0, ("Packet %p, current MDL %p, curMDLOffset %d, nToCopy %d",
+    DPrintf(0, ("Packet %p, current MDL %p, curMDLOffset %d, nToCopy %d\n",
         netBuffer, NET_BUFFER_CURRENT_MDL(netBuffer),
         NET_BUFFER_CURRENT_MDL_OFFSET(netBuffer),
         nToCopy));
@@ -2051,7 +2051,7 @@ static void PrintMDLChain(PNET_BUFFER netBuffer, PSCATTER_GATHER_LIST pSGList)
         ULONG len;
         PVOID addr;
         NdisQueryMdl(pMDL, &addr, &len, NormalPagePriority);
-        DPrintf(0, ("MDL %p, offset %d, len %d", pMDL, ulOffset, len));
+        DPrintf(0, ("MDL %p, offset %d, len %d\n", pMDL, ulOffset, len));
         if (ulOffset < len)
         {
             len -= ulOffset;
@@ -2065,7 +2065,7 @@ static void PrintMDLChain(PNET_BUFFER netBuffer, PSCATTER_GATHER_LIST pSGList)
     for (i = 0; i < pSGList->NumberOfElements; ++i)
     {
         PHYSICAL_ADDRESS ph = pSGList->Elements[i].Address;
-        DPrintf(0, ("HW buffer[%d]=%d@%08lX:%08lX",
+        DPrintf(0, ("HW buffer[%d]=%d@%08lX:%08lX\n",
         i, pSGList->Elements[i].Length, ph.HighPart, ph.LowPart));
     }
 }
@@ -2153,12 +2153,12 @@ BOOLEAN ParaNdis_ProcessTx(PARANDIS_ADAPTER *pContext, BOOLEAN IsDpc, BOOLEAN Is
         while (pCurrent)
         {
             BOOLEAN bCanSend;
-            DPrintf(3, ("[%s] NBL %p", __FUNCTION__, pCurrent));
+            DPrintf(3, ("[%s] NBL %p\n", __FUNCTION__, pCurrent));
             /* remove next NBL from the head of the list */
             pContext->SendHead = NET_BUFFER_LIST_NEXT_NBL(pCurrent);
             NET_BUFFER_LIST_NEXT_NBL(pCurrent) = NULL;
             /* can we send it now? */
-            //DPrintf(3, (__FUNCTION__ " To send %d buffers(%d b.), max %d", nBuffers, ulMaxSize, ETH_MAX_PACKET_SIZE));
+            //DPrintf(3, (__FUNCTION__ " To send %d buffers(%d b.), max %d\n", nBuffers, ulMaxSize, ETH_MAX_PACKET_SIZE));
             bCanSend = pContext->nofFreeTxDescriptors != 0;
             if (bCanSend)
             {
@@ -2169,7 +2169,7 @@ BOOLEAN ParaNdis_ProcessTx(PARANDIS_ADAPTER *pContext, BOOLEAN IsDpc, BOOLEAN Is
                     tTxOperationParameters Params;
                     tNetBufferEntry *pnbe = (tNetBufferEntry *)RemoveHeadList(&pble->bufferEntries);
                     InitializeTransferParameters(pnbe, &Params);
-                    DPrintf(3, ("[%s] Sending pble %p, nbe %p", __FUNCTION__, pble, pnbe));
+                    DPrintf(3, ("[%s] Sending pble %p, nbe %p\n", __FUNCTION__, pble, pnbe));
                     result = ParaNdis_DoSubmitPacket(pContext, &Params);
                     switch (result.error)
                     {
@@ -2236,7 +2236,7 @@ BOOLEAN ParaNdis_ProcessTx(PARANDIS_ADAPTER *pContext, BOOLEAN IsDpc, BOOLEAN Is
                 pContext->SendHead = pCurrent;
                 /* stop processing, there is nothing to do */
                 pCurrent = NULL;
-                DPrintf(1, ("[%s] No free TX buffers, waiting...", __FUNCTION__));
+                DPrintf(1, ("[%s] No free TX buffers, waiting...\n", __FUNCTION__));
             }
         }
         pContext->SendTail = GetTail(pContext->SendHead);
@@ -2254,7 +2254,7 @@ BOOLEAN ParaNdis_ProcessTx(PARANDIS_ADAPTER *pContext, BOOLEAN IsDpc, BOOLEAN Is
                 pContext->NetSendQueue->vq_ops->kick(pContext->NetSendQueue);
 #endif
             }
-            DPrintf(2, ("[%s] sent down %d p.(%d b.)", __FUNCTION__, nBuffersSent, nBytesSent));
+            DPrintf(2, ("[%s] sent down %d p.(%d b.)\n", __FUNCTION__, nBuffersSent, nBytesSent));
         }
     }
 
