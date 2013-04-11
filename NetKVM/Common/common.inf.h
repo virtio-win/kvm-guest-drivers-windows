@@ -224,12 +224,6 @@ HKR, Ndi\Params\Gather,             type,       0,          "enum"
 HKR, Ndi\Params\Gather\enum,        "1",        0,          %Enable%
 HKR, Ndi\Params\Gather\enum,        "0",        0,          %Disable%
 
-HKR, Ndi\Params\Offload.GuestCS,    ParamDesc,  0,          %GuestCS%
-HKR, Ndi\Params\Offload.GuestCS,    Default,    0,          DEFAULT_RX_CHECKSUM
-HKR, Ndi\Params\Offload.GuestCS,    type,       0,          "enum"
-HKR, Ndi\Params\Offload.GuestCS\enum,"1",       0,          %Enable%
-HKR, Ndi\Params\Offload.GuestCS\enum,"0",       0,          %Disable%
-
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       ParamDesc,  0,          %NumberOfHandledRXPackersInDPC%
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       type,       0,          "long"
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       default,    0,          "1000"
@@ -267,16 +261,15 @@ Offload.RxCS = "Offload.Rx.Checksum"
 EnableLogging = "Logging.Enable"
 DebugLevel = "Logging.Level"
 LogStatistics = "Logging.Statistics(sec)"
-
-#if defined(INCLUDE_TEST_PARAMS)
-Gather = "TestOnly.Scatter-Gather"
-GuestCS = "TestOnly.GuestChecksum"
-IPPacketsCheck = "TestOnly.AnalyzeIPPackets"
-NumberOfHandledRXPackersInDPC = "TestOnly.RXThrottle"
-UseSwTxChecksum = "TestOnly.UseSwTxChecksum"
 Tx = "Tx Enabled";
 Rx = "Rx Enabled";
 TxRx = "Rx & Tx Enabled";
+
+#if defined(INCLUDE_TEST_PARAMS)
+Gather = "TestOnly.Scatter-Gather"
+IPPacketsCheck = "TestOnly.AnalyzeIPPackets"
+NumberOfHandledRXPackersInDPC = "TestOnly.RXThrottle"
+UseSwTxChecksum = "TestOnly.UseSwTxChecksum"
 #endif
 
 #if defined(_LsoV2IPv4)
