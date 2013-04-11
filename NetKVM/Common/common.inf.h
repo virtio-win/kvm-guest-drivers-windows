@@ -121,12 +121,6 @@ HKR, Ndi\Params\RxCapacity\enum,    "256",      0,          %String_256%
 HKR, Ndi\Params\RxCapacity\enum,    "512",      0,          %String_512%
 HKR, Ndi\Params\RxCapacity\enum,    "1024",     0,          %String_1024%
 
-HKR, Ndi\Params\PublishIndices,     ParamDesc,  0,          %PublishIndices%
-HKR, Ndi\Params\PublishIndices,     Default,    0,          "1"
-HKR, Ndi\Params\PublishIndices,     type,       0,          "enum"
-HKR, Ndi\Params\PublishIndices\enum,    "1",        0,          %Enable%
-HKR, Ndi\Params\PublishIndices\enum,    "0",        0,          %Disable%
-
 HKR, Ndi\params\NetworkAddress,     ParamDesc,  0,          %NetworkAddress%
 HKR, Ndi\params\NetworkAddress,     type,       0,          "edit"
 HKR, Ndi\params\NetworkAddress,     Optional,   0,          "1"
@@ -264,7 +258,6 @@ HKR, Ndi\Params\UseSwTxChecksum\enum,   "0",    0,          %Disable%
 NetworkAddress = "Assign MAC"
 ConnectRate = "Init.ConnectionRate(Mb)"
 Priority = "Init.Do802.1PQ"
-PublishIndices = "Init.UsePublishEvents"
 MTU = "Init.MTUSize"
 TxCapacity = "Init.MaxTxBuffers"
 RxCapacity = "Init.MaxRxBuffers"
