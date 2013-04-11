@@ -1224,9 +1224,9 @@ NDIS_STATUS OnSetLinkParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     if (status == NDIS_STATUS_SUCCESS)
     {
         status = NDIS_STATUS_NOT_ACCEPTED;
-        DPrintf(0, ("[%s] requested:", __FUNCTION__));
-        DPrintf(0, ("Tx speed 0x%X, Rx speed 0x%X", params.XmitLinkSpeed, params.RcvLinkSpeed));
-        DPrintf(0, ("Duplex %d, PauseFn %d, AutoNeg 0x%X",
+        DPrintf(0, ("[%s] requested:\n", __FUNCTION__));
+        DPrintf(0, ("Tx speed 0x%X, Rx speed 0x%X\n", params.XmitLinkSpeed, params.RcvLinkSpeed));
+        DPrintf(0, ("Duplex %d, PauseFn %d, AutoNeg 0x%X\n",
             params.MediaDuplexState, params.PauseFunctions, params.AutoNegotiationFlags));
     }
     return status;

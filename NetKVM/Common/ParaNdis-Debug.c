@@ -138,7 +138,7 @@ void ParaNdis_DebugInitialize()
         BugCheckDeregisterCallback = (KeDeregisterBugCheckReasonCallbackType)pd;
     }
     res = BugCheckRegisterCallback(&CallbackRecord, ParaNdis_OnBugCheck, KbCallbackSecondaryDumpData, (const PUCHAR)"NetKvm");
-    DPrintf(0, ("[%s] Crash callback %sregistered", __FUNCTION__, res ? "" : "NOT "));
+    DPrintf(0, ("[%s] Crash callback %sregistered\n", __FUNCTION__, res ? "" : "NOT "));
 }
 #pragma warning (pop)
 
@@ -254,16 +254,16 @@ VOID ParaNdis_OnBugCheck(
                 pDump->OutBufferLength = dumpSize;
                 bNative = FALSE;
             }
-            DPrintf(0, ("[%s] system buffer of %d, saving data for %d NIC", __FUNCTION__,pDump->InBufferLength, nSaved));
-            DPrintf(0, ("[%s] using %s buffer", __FUNCTION__, bNative ? "native" : "own"));
+            DPrintf(0, ("[%s] system buffer of %d, saving data for %d NIC\n", __FUNCTION__,pDump->InBufferLength, nSaved));
+            DPrintf(0, ("[%s] using %s buffer\n", __FUNCTION__, bNative ? "native" : "own"));
         }
         else if (pDump->OutBuffer == pDump->InBuffer)
         {
             RtlCopyMemory(&pDump->Guid, &ParaNdis_CrashGuid, sizeof(pDump->Guid));
             RtlCopyMemory(pDump->InBuffer, &BugCheckData.Location, dumpSize);
             pDump->OutBufferLength = dumpSize;
-            DPrintf(0, ("[%s] written %d to %p", __FUNCTION__, (ULONG)BugCheckData.Location.Size, (UINT_PTR)BugCheckData.Location.Address ));
-            DPrintf(0, ("[%s] dump data (%d) at %p", __FUNCTION__, pDump->OutBufferLength, pDump->OutBuffer));
+            DPrintf(0, ("[%s] written %d to %p\n", __FUNCTION__, (ULONG)BugCheckData.Location.Size, (UINT_PTR)BugCheckData.Location.Address ));
+            DPrintf(0, ("[%s] dump data (%d) at %p\n", __FUNCTION__, pDump->OutBufferLength, pDump->OutBuffer));
         }
     }
 }
