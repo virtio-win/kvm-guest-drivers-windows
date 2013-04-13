@@ -415,6 +415,8 @@ typedef struct _tagPARANDIS_ADAPTER
 #ifdef PARANDIS_DEBUG_INTERRUPTS
 	LARGE_INTEGER			LastInterruptTimeStamp;
 #endif
+	u32						u32HostFeatures;
+	u32						u32GuestFeatures;
 	BOOLEAN					bConnected;
 	BOOLEAN					bEnableInterruptHandlingDPC;
 	BOOLEAN					bEnableInterruptChecking;

@@ -120,8 +120,18 @@ void VirtIODeviceSetMSIXUsed(VirtIODevice * pVirtIODevice, bool used);
 void VirtIODeviceReset(VirtIODevice * pVirtIODevice);
 void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice);
 bool VirtIODeviceGetHostFeature(VirtIODevice * pVirtIODevice, unsigned uFeature);
+
+#define VirtIODeviceReadHostFeatures(pVirtIODevice) \
+    ReadVirtIODeviceRegister((pVirtIODevice)->addr + VIRTIO_PCI_HOST_FEATURES)
+
+#define VirtIODeviceWriteGuestFeatures(pVirtIODevice, u32Features) \
+    WriteVirtIODeviceRegister((pVirtIODevice)->addr + VIRTIO_PCI_GUEST_FEATURES, (u32Features))
+
+#define VirtIOIsFeatureEnabled(FeaturesList, Feature)	(!!((FeaturesList) & (1 << (Feature))))
+#define VirtIOFeatureEnable(FeaturesList, Feature)		((FeaturesList) |= (1 << (Feature)))
+#define VirtIOFeatureDisable(FeaturesList, Feature)		((FeaturesList) &= ~(1 << (Feature)))
+
 bool VirtIODeviceEnableGuestFeature(VirtIODevice * pVirtIODevice, unsigned uFeature);
-bool VirtIODeviceHasFeature(unsigned uFeature);
 void VirtIODeviceGet(VirtIODevice * pVirtIODevice,
 					 unsigned offset,
 					 void *buf,
