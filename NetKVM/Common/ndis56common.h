@@ -99,6 +99,8 @@
 #define VIRTIO_NET_F_CTRL_VLAN  19      /* Control channel VLAN filtering */
 #define VIRTIO_NET_F_CTRL_RX_EXTRA 20   /* Extra RX mode control support */
 
+#define VIRTIO_NET_F_CTRL_MAC_ADDR   23 /* Set MAC address */
+
 #define VIRTIO_NET_S_LINK_UP    1       /* Link is up */
 
 #define VIRTIO_NET_INVALID_INTERRUPT_STATUS     0xFF
@@ -437,6 +439,8 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bNoPauseOnSuspend;
     BOOLEAN                 bFastSuspendInProcess;
     BOOLEAN                 bResetInProgress;
+    BOOLEAN                 bCtrlMACAddrSupported;
+    BOOLEAN                 bCfgMACAddrSupported;
     ULONG                   ulCurrentVlansFilterSet;
     tMulticastData          MulticastData;
     UINT                    uNumberOfHandledRXPacketsInDPC;

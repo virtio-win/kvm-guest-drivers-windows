@@ -284,14 +284,10 @@ static NDIS_STATUS ParaNdis6_Initialize(
         miniportAttributes.GeneralAttributes.IfType = IF_TYPE_ETHERNET_CSMACD;
         miniportAttributes.GeneralAttributes.IfConnectorPresent = TRUE;
         miniportAttributes.GeneralAttributes.ConnectionType = NET_IF_CONNECTION_DEDICATED;
-        NdisMoveMemory(
-            miniportAttributes.GeneralAttributes.PermanentMacAddress,
-            pContext->PermanentMacAddress,
-            ETH_LENGTH_OF_ADDRESS);
-        NdisMoveMemory(
-            miniportAttributes.GeneralAttributes.CurrentMacAddress,
-            pContext->CurrentMacAddress,
-            ETH_LENGTH_OF_ADDRESS);
+
+        ETH_COPY_NETWORK_ADDRESS(miniportAttributes.GeneralAttributes.PermanentMacAddress, pContext->PermanentMacAddress);
+        ETH_COPY_NETWORK_ADDRESS(miniportAttributes.GeneralAttributes.CurrentMacAddress, pContext->CurrentMacAddress);
+
         ParaNdis6_GetSupportedOid(&miniportAttributes.GeneralAttributes);
         /* update also SupportedStatistics in ready to use statistics block */
         pContext->Statistics.SupportedStatistics = ParaNdis6_GetSupportedStatisticsFlags();
