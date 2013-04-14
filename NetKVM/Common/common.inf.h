@@ -243,12 +243,6 @@ HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       min,        0,          "1"
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       max,        0,          "10000"
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       step,       0,          "1"
 
-HKR, Ndi\Params\PacketFilter,       ParamDesc,  0,          %PacketFilter%
-HKR, Ndi\Params\PacketFilter,       Default,    0,          "1"
-HKR, Ndi\Params\PacketFilter,       type,       0,          "enum"
-HKR, Ndi\Params\PacketFilter\enum,  "1",        0,          %Enable%
-HKR, Ndi\Params\PacketFilter\enum,  "0",        0,          %Disable%
-
 HKR, Ndi\Params\IPPacketsCheck,     ParamDesc,  0,          %IPPacketsCheck%
 HKR, Ndi\Params\IPPacketsCheck,     Default,    0,          "0"
 HKR, Ndi\Params\IPPacketsCheck,     type,       0,          "enum"
@@ -284,7 +278,6 @@ LogStatistics = "Logging.Statistics(sec)"
 #if defined(INCLUDE_TEST_PARAMS)
 Gather = "TestOnly.Scatter-Gather"
 GuestCS = "TestOnly.GuestChecksum"
-PacketFilter = "TestOnly.HwPacketFilter"
 IPPacketsCheck = "TestOnly.AnalyzeIPPackets"
 NumberOfHandledRXPackersInDPC = "TestOnly.RXThrottle"
 UseSwTxChecksum = "TestOnly.UseSwTxChecksum"

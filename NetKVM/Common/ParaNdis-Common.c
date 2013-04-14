@@ -87,7 +87,6 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry TxCapacity;
     tConfigurationEntry RxCapacity;
     tConfigurationEntry LogStatistics;
-    tConfigurationEntry PacketFiltering;
     tConfigurationEntry ScatterGather;
     tConfigurationEntry OffloadTxChecksum;
     tConfigurationEntry OffloadTxLSO;
@@ -127,7 +126,6 @@ static const tConfigurationEntries defaultConfiguration =
     { "TxCapacity",     1024,   16, 1024 },
     { "RxCapacity",     256, 32, 1024 },
     { "LogStatistics",  0, 0, 10000},
-    { "PacketFilter",   1, 0, 1},
     { "Gather",         1, 0, 1},
     { "Offload.TxChecksum", 0, 0, 31},
     { "Offload.TxLSO",  0, 0, 2},
@@ -266,7 +264,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             GetConfigurationEntry(cfg, &pConfiguration->TxCapacity);
             GetConfigurationEntry(cfg, &pConfiguration->RxCapacity);
             GetConfigurationEntry(cfg, &pConfiguration->LogStatistics);
-            GetConfigurationEntry(cfg, &pConfiguration->PacketFiltering);
             GetConfigurationEntry(cfg, &pConfiguration->ScatterGather);
             GetConfigurationEntry(cfg, &pConfiguration->OffloadTxChecksum);
             GetConfigurationEntry(cfg, &pConfiguration->OffloadTxLSO);
@@ -305,7 +302,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;
             pContext->ulFormalLinkSpeed  = pConfiguration->ConnectRate.ulValue;
             pContext->ulFormalLinkSpeed *= 1000000;
-            pContext->bDoHwPacketFiltering = pConfiguration->PacketFiltering.ulValue != 0;
             pContext->bUseScatterGather  = pConfiguration->ScatterGather.ulValue != 0;
             pContext->bDoHardwareChecksum = pConfiguration->UseSwTxChecksum.ulValue == 0;
             pContext->bDoGuestChecksumOnReceive = pConfiguration->OffloadGuestCS.ulValue != 0;
@@ -848,12 +844,15 @@ NDIS_STATUS ParaNdis_InitializeContext(
     }
     DPrintf(0, ("[%s] %sable indirect Tx(!%s)", __FUNCTION__, pContext->bUseIndirect ? "En" : "Dis", reason) );
 
-    if (VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_CTRL_RX_EXTRA) &&
-        pContext->bDoHwPacketFiltering)
+    if (VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_CTRL_RX_EXTRA))
     {
-        DPrintf(0, ("[%s] Using hardware packet filtering", __FUNCTION__));
+        DPrintf(0, ("[%s] Using host packet filtering", __FUNCTION__));
         VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_CTRL_RX_EXTRA);
         pContext->bHasHardwareFilters = TRUE;
+    }
+    else
+    {
+        pContext->bHasHardwareFilters = FALSE;
     }
 
     pContext->ReuseBufferProc = ReuseReceiveBufferRegular;
