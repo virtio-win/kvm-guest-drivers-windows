@@ -600,11 +600,13 @@ BalloonEvtDeviceFileCreate (
 
     devCtx = GetDeviceContext(WdfDevice);
 
-    if(VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
+    if(VirtIOIsFeatureEnabled(devCtx->HostFeatures, VIRTIO_BALLOON_F_STATS_VQ))
     {
-        VirtIODeviceEnableGuestFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ);
+        VirtIOFeatureEnable(devCtx->GuestFeatures, VIRTIO_BALLOON_F_STATS_VQ);
         devCtx->bServiceConnected = TRUE;
     }
+    VirtIODeviceWriteGuestFeatures(&devCtx->VDevice, devCtx->GuestFeatures);
+
     WdfRequestComplete(Request, STATUS_SUCCESS);
 
     return;
@@ -624,13 +626,10 @@ BalloonEvtFileClose (
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s\n", __FUNCTION__);
 
-    if(VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
+    if(VirtIOIsFeatureEnabled(devCtx->GuestFeatures, VIRTIO_BALLOON_F_STATS_VQ))
     {
-        ULONG ulValue = 0;
-
-        ulValue = ReadVirtIODeviceRegister(devCtx->VDevice.addr + VIRTIO_PCI_GUEST_FEATURES);
-        ulValue	&= ~(1 << VIRTIO_BALLOON_F_STATS_VQ);
-        WriteVirtIODeviceRegister(devCtx->VDevice.addr + VIRTIO_PCI_GUEST_FEATURES, ulValue);
+        VirtIOFeatureDisable(devCtx->GuestFeatures, VIRTIO_BALLOON_F_STATS_VQ);
+        VirtIODeviceWriteGuestFeatures(&devCtx->VDevice, devCtx->GuestFeatures);
         devCtx->bServiceConnected = FALSE;
     }
     return;

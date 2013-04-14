@@ -82,7 +82,10 @@ BalloonInit(
            break;
         }
 
-        if(VirtIODeviceGetHostFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ))
+        devCtx->GuestFeatures = 0;
+        devCtx->HostFeatures = VirtIODeviceReadHostFeatures(&devCtx->VDevice);
+
+        if(VirtIOIsFeatureEnabled(devCtx->HostFeatures, VIRTIO_BALLOON_F_STATS_VQ))
         {
            BOOLEAN bNeedBuffer = FALSE;
            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> VIRTIO_BALLOON_F_STATS_VQ\n");
@@ -116,10 +119,12 @@ BalloonInit(
 
            if(devCtx->bServiceConnected)
            {
-              VirtIODeviceEnableGuestFeature(&devCtx->VDevice, VIRTIO_BALLOON_F_STATS_VQ);
+              VirtIOFeatureEnable(devCtx->GuestFeatures, VIRTIO_BALLOON_F_STATS_VQ);
            }
         }
     } while(FALSE);
+
+    VirtIODeviceWriteGuestFeatures(&devCtx->VDevice, devCtx->GuestFeatures);
 
     if(NT_SUCCESS(status))
     {
