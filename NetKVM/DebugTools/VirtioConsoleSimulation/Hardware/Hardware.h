@@ -22,14 +22,14 @@ bool hwReadDeviceData(void *pHw, ULONG reg, BYTE *pval);
 bool hwWriteDeviceData(void *pHw, ULONG reg, BYTE val);
 
 
-#define RXQ_INTERRUPT_VECTOR	1
-#define TXQ_INTERRUPT_VECTOR	2
-#define CTL_INTERRUPT_VECTOR	4
-#define AUX_INTERRUPT_VECTOR	8
+#define RXQ_INTERRUPT_VECTOR    1
+#define TXQ_INTERRUPT_VECTOR    2
+#define CTL_INTERRUPT_VECTOR    4
+#define AUX_INTERRUPT_VECTOR    8
 
-#define RX_QUEUE_NUMBER			0
-#define TX_QUEUE_NUMBER			1
-#define CTL_QUEUE_NUMBER		2
-#define AUX_QUEUE_NUMBER		22
+#define RX_QUEUE_NUMBER         0
+#define TX_QUEUE_NUMBER         1
+#define CTL_QUEUE_NUMBER        2
+#define AUX_QUEUE_NUMBER        22
 
 #endif

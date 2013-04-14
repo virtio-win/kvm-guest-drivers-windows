@@ -29,19 +29,19 @@ using namespace std;
 
 int _tmain(int argc, TCHAR* argv[], TCHAR* envp[])
 {
-	int nRetCode = 0;
+    int nRetCode = 0;
 
-	// initialize MFC and print and error on failure
-	if (!AfxWinInit(::GetModuleHandle(NULL), NULL, ::GetCommandLine(), 0))
-	{
-		// TODO: change error code to suit your needs
-		_tprintf(_T("Fatal Error: MFC initialization failed\n"));
-		nRetCode = 1;
-	}
-	else
-	{
-		nRetCode = ParseDumpFile(argc, argv);
-	}
+    // initialize MFC and print and error on failure
+    if (!AfxWinInit(::GetModuleHandle(NULL), NULL, ::GetCommandLine(), 0))
+    {
+        // TODO: change error code to suit your needs
+        _tprintf(_T("Fatal Error: MFC initialization failed\n"));
+        nRetCode = 1;
+    }
+    else
+    {
+        nRetCode = ParseDumpFile(argc, argv);
+    }
 
-	return nRetCode;
+    return nRetCode;
 }

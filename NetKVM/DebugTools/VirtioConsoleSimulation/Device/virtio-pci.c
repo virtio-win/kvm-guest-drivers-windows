@@ -299,13 +299,13 @@ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
 
     switch (addr) {
     case VIRTIO_PCI_GUEST_FEATURES:
-	/* Guest does not negotiate properly?  We have to assume nothing. */
-	if (val & (1 << VIRTIO_F_BAD_FEATURE)) {
-	    if (vdev->bad_features)
-		val = proxy->host_features & vdev->bad_features(vdev);
-	    else
-		val = 0;
-	}
+    /* Guest does not negotiate properly?  We have to assume nothing. */
+    if (val & (1 << VIRTIO_F_BAD_FEATURE)) {
+        if (vdev->bad_features)
+        val = proxy->host_features & vdev->bad_features(vdev);
+        else
+        val = 0;
+    }
         if (vdev->set_features)
             vdev->set_features(vdev, val);
         vdev->guest_features = val;
@@ -636,7 +636,7 @@ static int virtio_pci_set_guest_notifiers(void *opaque, bool assign)
     /* Must unset mask notifier while guest notifier
      * is still assigned */
     if (!assign) {
-	    r = msix_unset_mask_notifier(&proxy->pci_dev);
+        r = msix_unset_mask_notifier(&proxy->pci_dev);
             assert(r >= 0);
     }
 

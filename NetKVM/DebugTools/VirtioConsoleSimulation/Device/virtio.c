@@ -679,12 +679,12 @@ void virtio_irq(VirtQueue *vq)
  * should we trigger an event? */
 static inline int vring_need_event(uint16_t event, uint16_t new, uint16_t old)
 {
-	/* Note: Xen has similar logic for notification hold-off
-	 * in include/xen/interface/io/ring.h with req_event and req_prod
-	 * corresponding to event_idx + 1 and new respectively.
-	 * Note also that req_event and req_prod in Xen start at 1,
-	 * event indexes in virtio start at 0. */
-	return (uint16_t)(new - event - 1) < (uint16_t)(new - old);
+    /* Note: Xen has similar logic for notification hold-off
+     * in include/xen/interface/io/ring.h with req_event and req_prod
+     * corresponding to event_idx + 1 and new respectively.
+     * Note also that req_event and req_prod in Xen start at 1,
+     * event indexes in virtio start at 0. */
+    return (uint16_t)(new - event - 1) < (uint16_t)(new - old);
 }
 
 static bool vring_notify(VirtIODevice *vdev, VirtQueue *vq)
@@ -816,7 +816,7 @@ int virtio_load(VirtIODevice *vdev, QEMUFile *f)
                          "inconsistent with Host index 0x%x",
                          i, vdev->vq[i].last_avail_idx);
                 return -1;
-	}
+    }
         if (vdev->binding->load_queue) {
             ret = vdev->binding->load_queue(vdev->binding_opaque, i, f);
             if (ret)
@@ -934,7 +934,7 @@ target_phys_addr_t virtio_queue_get_used_size(VirtIODevice *vdev, int n)
 target_phys_addr_t virtio_queue_get_ring_size(VirtIODevice *vdev, int n)
 {
     return vdev->vq[n].vring.used - vdev->vq[n].vring.desc +
-	    virtio_queue_get_used_size(vdev, n);
+        virtio_queue_get_used_size(vdev, n);
 }
 
 uint16_t virtio_queue_get_last_avail_idx(VirtIODevice *vdev, int n)

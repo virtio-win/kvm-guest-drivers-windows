@@ -33,7 +33,7 @@ AddReg          = kvmnet6.EnableMSI
 [kvmnet6.EnableMSI]
 ;HKR, "Interrupt Management",, 0x00000010
 ;HKR, "Interrupt Management\MessageSignaledInterruptProperties",, 0x00000010
-HKR, "Interrupt Management\MessageSignaledInterruptProperties",	MSISupported, 0x00010001, 1
+HKR, "Interrupt Management\MessageSignaledInterruptProperties", MSISupported, 0x00010001, 1
 HKR, "Interrupt Management\MessageSignaledInterruptProperties", MessageNumberLimit, 0x00010001, 4
 ;HKR, "Interrupt Management\Affinity Policy",, 0x00000010
 HKR, "Interrupt Management\Affinity Policy", DevicePolicy, 0x00010001, 0
@@ -43,12 +43,12 @@ HKR, "Interrupt Management\Affinity Policy", DevicePriority, 0x00010001, 2
 [kvmnet6.ndi]
 ;<Dense>
 Characteristics = 0x84 ; NCF_PHYSICAL  | NCF_HAS_UI
-BusType		= 5 ; PCI
+BusType     = 5 ; PCI
 AddReg          = kvmnet6.Reg, Parameters
 CopyFiles       = kvmnet6.CopyFiles
-*IfType         = 6	
-*MediaType      = 0		; NdisMedium802_3
-*PhysicalMediaType = 0		; NdisPhysicalMediumUnspecified 
+*IfType         = 6
+*MediaType      = 0     ; NdisMedium802_3
+*PhysicalMediaType = 0      ; NdisPhysicalMediumUnspecified
 #if defined(Win8)
 Port1DeviceNumber = 0
 #endif
@@ -76,12 +76,12 @@ HKR, Ndi\params\*RSS,             Optional,            0, "0"
 HKR, Ndi\params\*RSS\enum,        "0",                 0, "Disabled"
 HKR, Ndi\params\*RSS\enum,        "1",                 0, "Enabled"
 
-HKR, Ndi\params\*NumRssQueues,			ParamDesc,  0,          "Max number of RSS queues to use"
-HKR, Ndi\params\*NumRssQueues,			type,       0,          "int"
-HKR, Ndi\params\*NumRssQueues,			default,    0,          "8"
-HKR, Ndi\params\*NumRssQueues,			min,        0,          "1"
-HKR, Ndi\params\*NumRssQueues,			max,        0,          "16"
-HKR, Ndi\params\*NumRssQueues,			step,       0,          "1"
+HKR, Ndi\params\*NumRssQueues,          ParamDesc,  0,          "Max number of RSS queues to use"
+HKR, Ndi\params\*NumRssQueues,          type,       0,          "int"
+HKR, Ndi\params\*NumRssQueues,          default,    0,          "8"
+HKR, Ndi\params\*NumRssQueues,          min,        0,          "1"
+HKR, Ndi\params\*NumRssQueues,          max,        0,          "16"
+HKR, Ndi\params\*NumRssQueues,          step,       0,          "1"
 
 #endif
 

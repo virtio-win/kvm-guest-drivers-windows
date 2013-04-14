@@ -52,7 +52,7 @@
  * at the end of the used ring. Guest should ignore the used->flags field. */
 #define VIRTIO_RING_F_EVENT_IDX         29
 /* A guest should never accept this.  It implies negotiation is broken. */
-#define VIRTIO_F_BAD_FEATURE		30
+#define VIRTIO_F_BAD_FEATURE        30
 
 /* from Linux's linux/virtio_ring.h */
 
@@ -202,10 +202,10 @@ void virtio_serial_exit(VirtIODevice *vdev);
 void virtio_balloon_exit(VirtIODevice *vdev);
 
 #define DEFINE_VIRTIO_COMMON_FEATURES(_state, _field) \
-	DEFINE_PROP_BIT("indirect_desc", _state, _field, \
-			VIRTIO_RING_F_INDIRECT_DESC, true), \
-	DEFINE_PROP_BIT("event_idx", _state, _field, \
-			VIRTIO_RING_F_EVENT_IDX, true)
+    DEFINE_PROP_BIT("indirect_desc", _state, _field, \
+            VIRTIO_RING_F_INDIRECT_DESC, true), \
+    DEFINE_PROP_BIT("event_idx", _state, _field, \
+            VIRTIO_RING_F_EVENT_IDX, true)
 
 target_phys_addr_t virtio_queue_get_desc_addr(VirtIODevice *vdev, int n);
 target_phys_addr_t virtio_queue_get_avail_addr(VirtIODevice *vdev, int n);

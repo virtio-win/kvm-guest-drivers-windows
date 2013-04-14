@@ -4,7 +4,7 @@
 
 typedef struct DeviceState
 {
-	uint32_t reserved;
+    uint32_t reserved;
 }DeviceState;
 
 #endif

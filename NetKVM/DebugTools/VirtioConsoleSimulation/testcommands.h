@@ -14,11 +14,11 @@ EXTERN_C BOOLEAN bMSIXUsed;
 
 #define LogTestFlow(format, ...) DoPrint("[test]" format, __VA_ARGS__)
 
-EXTERN_C void	FailCase(const char* format, ...);
+EXTERN_C void   FailCase(const char* format, ...);
 
-EXTERN_C void	SimulationPrepare();
+EXTERN_C void   SimulationPrepare();
 
-EXTERN_C void	SimulationFinish();
+EXTERN_C void   SimulationFinish();
 
 // schedules the TX buffer for transmit
 // if can't schedule, fail
@@ -73,12 +73,12 @@ BOOLEAN KeepTxPackets();
 
 typedef enum _tScriptEvent
 {
-	escriptEvtPreprocessOK,
-	escriptEvtPreprocessFail,
-	escriptEvtPreprocessStep,
-	escriptEvtProcessStep,
-	escriptEvtProcessOK,
-	escriptEvtProcessFail,
+    escriptEvtPreprocessOK,
+    escriptEvtPreprocessFail,
+    escriptEvtPreprocessStep,
+    escriptEvtProcessStep,
+    escriptEvtProcessOK,
+    escriptEvtProcessFail,
 }tScriptEvent;
 
 typedef void (*tScriptCallback)(PVOID ref, tScriptEvent evt, const char *format, ...);

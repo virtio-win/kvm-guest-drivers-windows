@@ -19,25 +19,25 @@
  * specify GSO or CSUM features, you can simply ignore the header. */
 typedef struct _tagvirtio_net_hdr
 {
-#define VIRTIO_NET_HDR_F_NEEDS_CSUM	1	// Use csum_start, csum_offset
-#define VIRTIO_NET_HDR_F_DATA_VALID	2	// Host checked checksum, no need to recheck
-	u8 flags;
-#define VIRTIO_NET_HDR_GSO_NONE		0	// Not a GSO frame
-#define VIRTIO_NET_HDR_GSO_TCPV4	1	// GSO frame, IPv4 TCP (TSO)
-#define VIRTIO_NET_HDR_GSO_UDP		3	// GSO frame, IPv4 UDP (UFO)
-#define VIRTIO_NET_HDR_GSO_TCPV6	4	// GSO frame, IPv6 TCP
-#define VIRTIO_NET_HDR_GSO_ECN		0x80	// TCP has ECN set
-	u8 gso_type;
-	u16 hdr_len;						// Ethernet + IP + tcp/udp hdrs
-	u16 gso_size;						// Bytes to append to gso_hdr_len per frame
-	u16 csum_start;						// Position to start checksumming from
-	u16 csum_offset;					// Offset after that to place checksum
+#define VIRTIO_NET_HDR_F_NEEDS_CSUM 1   // Use csum_start, csum_offset
+#define VIRTIO_NET_HDR_F_DATA_VALID 2   // Host checked checksum, no need to recheck
+    u8 flags;
+#define VIRTIO_NET_HDR_GSO_NONE     0   // Not a GSO frame
+#define VIRTIO_NET_HDR_GSO_TCPV4    1   // GSO frame, IPv4 TCP (TSO)
+#define VIRTIO_NET_HDR_GSO_UDP      3   // GSO frame, IPv4 UDP (UFO)
+#define VIRTIO_NET_HDR_GSO_TCPV6    4   // GSO frame, IPv6 TCP
+#define VIRTIO_NET_HDR_GSO_ECN      0x80    // TCP has ECN set
+    u8 gso_type;
+    u16 hdr_len;                        // Ethernet + IP + tcp/udp hdrs
+    u16 gso_size;                       // Bytes to append to gso_hdr_len per frame
+    u16 csum_start;                     // Position to start checksumming from
+    u16 csum_offset;                    // Offset after that to place checksum
 }virtio_net_hdr_basic;
 
 typedef struct _tagvirtio_net_hdr_ext
 {
-	virtio_net_hdr_basic BasicHeader;
-	u16 nBuffers;
+    virtio_net_hdr_basic BasicHeader;
+    u16 nBuffers;
 }virtio_net_hdr_ext;
 
 /*
@@ -87,7 +87,7 @@ typedef u8 virtio_net_ctrl_ack;
  * This functionality is present if the VIRTIO_NET_F_CTRL_RX feature
  * is available.
  */
-#define ETH_ALEN	6
+#define ETH_ALEN    6
 
 struct virtio_net_ctrl_mac {
     u32 entries;

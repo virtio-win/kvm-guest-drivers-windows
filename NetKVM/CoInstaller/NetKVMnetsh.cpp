@@ -1206,7 +1206,7 @@ BOOL NETCO_API __stdcall DllMain(__in  HINSTANCE hinstDLL,
                                  __in  DWORD fdwReason,
                                  __in  LPVOID lpvReserved)
 {
-	UNREFERENCED_PARAMETER(lpvReserved);
+    UNREFERENCED_PARAMETER(lpvReserved);
 
     NETCO_DEBUG_PRINT(TEXT("DllMain(") << fdwReason << TEXT(") called"));
 
