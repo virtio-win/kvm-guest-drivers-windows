@@ -24,7 +24,7 @@ void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue);
 void FORCEINLINE DebugDumpPacket(LPCSTR prefix, PVOID header, int level)
 {
     PUCHAR peth = (PUCHAR)header;
-    DPrintf(level, ("[%s] %02X%02X%02X%02X%02X%02X => %02X%02X%02X%02X%02X%02X", prefix,
+    DPrintf(level, ("[%s] %02X%02X%02X%02X%02X%02X => %02X%02X%02X%02X%02X%02X\n", prefix,
         peth[6], peth[7], peth[8], peth[9], peth[10], peth[11],
         peth[0], peth[1], peth[2], peth[3], peth[4], peth[5]));
 }
@@ -152,7 +152,7 @@ static const tConfigurationEntries defaultConfiguration =
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
 {
     VirtIODeviceReset(&pContext->IODevice);
-    DPrintf(0, ("[%s] Done", __FUNCTION__));
+    DPrintf(0, ("[%s] Done\n", __FUNCTION__));
     /* reset all the features in the device */
     pContext->ulCurrentVlansFilterSet = 0;
     pContext->u32GuestFeatures = 0;
@@ -196,7 +196,7 @@ static void GetConfigurationEntry(NDIS_HANDLE cfg, tConfigurationEntry *pEntry)
     {
         statusName = "nothing";
     }
-    DPrintf(2, ("[%s] %s read for %s - 0x%x",
+    DPrintf(2, ("[%s] %s read for %s - 0x%x\n",
         __FUNCTION__,
         statusName,
         pEntry->Name,
@@ -218,7 +218,7 @@ static void DisableLSOv6Permanently(PARANDIS_ADAPTER *pContext, LPCSTR procname,
 {
     if (pContext->Offload.flagsValue & osbT6Lso)
     {
-        DPrintf(0, ("[%s] Warning: %s", procname, reason));
+        DPrintf(0, ("[%s] Warning: %s\n", procname, reason));
         pContext->Offload.flagsValue &= ~osbT6Lso;
         ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
     }
@@ -228,7 +228,7 @@ static void DisableBothLSOPermanently(PARANDIS_ADAPTER *pContext, LPCSTR procnam
 {
     if (pContext->Offload.flagsValue & (osbT4Lso | osbT6Lso))
     {
-        DPrintf(0, ("[%s] Warning: %s", procname, reason));
+        DPrintf(0, ("[%s] Warning: %s\n", procname, reason));
         pContext->Offload.flagsValue &= ~(osbT6Lso | osbT4Lso);
         ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
     }
@@ -351,16 +351,16 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
                     }
                     else
                     {
-                        DPrintf(0, ("[%s] MAC address present, but some problem also...", __FUNCTION__));
+                        DPrintf(0, ("[%s] MAC address present, but some problem also...\n", __FUNCTION__));
                     }
                 }
                 else if (len && len != sizeof(pContext->CurrentMacAddress))
                 {
-                    DPrintf(0, ("[%s] MAC address has wrong length of %d", __FUNCTION__, len));
+                    DPrintf(0, ("[%s] MAC address has wrong length of %d\n", __FUNCTION__, len));
                 }
                 else
                 {
-                    DPrintf(4, ("[%s] Nothing read for MAC, error %X", __FUNCTION__, status));
+                    DPrintf(4, ("[%s] Nothing read for MAC, error %X\n", __FUNCTION__, status));
                 }
             }
             NdisCloseConfiguration(cfg);
@@ -426,7 +426,7 @@ static BOOLEAN GetAdapterResources(PNDIS_RESOURCE_LIST RList, tAdapterResources 
         {
             PHYSICAL_ADDRESS Start = RList->PartialDescriptors[i].u.Port.Start;
             ULONG len = RList->PartialDescriptors[i].u.Port.Length;
-            DPrintf(0, ("Found IO ports at %08lX(%d)", Start.LowPart, len));
+            DPrintf(0, ("Found IO ports at %08lX(%d)\n", Start.LowPart, len));
             pResources->ulIOAddress = Start.LowPart;
             pResources->IOLength = len;
         }
@@ -436,7 +436,7 @@ static BOOLEAN GetAdapterResources(PNDIS_RESOURCE_LIST RList, tAdapterResources 
             pResources->Level = RList->PartialDescriptors[i].u.Interrupt.Level;
             pResources->Affinity = RList->PartialDescriptors[i].u.Interrupt.Affinity;
             pResources->InterruptFlags = RList->PartialDescriptors[i].Flags;
-            DPrintf(0, ("Found Interrupt vector %d, level %d, affinity %X, flags %X",
+            DPrintf(0, ("Found Interrupt vector %d, level %d, affinity %X, flags %X\n",
                 pResources->Vector, pResources->Level, (ULONG)pResources->Affinity, pResources->InterruptFlags));
         }
     }
@@ -474,7 +474,7 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
     {
         if (VirtIOIsFeatureEnabled(pContext->u32HostFeatures, Features[i].bitmask))
         {
-            DPrintf(0, ("VirtIO Host Feature %s", Features[i].Name));
+            DPrintf(0, ("VirtIO Host Feature %s\n", Features[i].Name));
         }
     }
 }
@@ -493,11 +493,11 @@ static void PrintStatistics(PARANDIS_ADAPTER *pContext)
         pContext->Statistics.ifHCInMulticastPkts +
         pContext->Statistics.ifHCInUcastPkts;
 
-    DPrintf(0, ("[Diag!%X] RX buffers at VIRTIO %d of %d",
+    DPrintf(0, ("[Diag!%X] RX buffers at VIRTIO %d of %d\n",
         pContext->CurrentMacAddress[5],
         pContext->NetNofReceiveBuffers,
         pContext->NetMaxReceiveBuffers));
-    DPrintf(0, ("[Diag!] TX desc available %d/%d, buf %d/min. %d",
+    DPrintf(0, ("[Diag!] TX desc available %d/%d, buf %d/min. %d\n",
         pContext->nofFreeTxDescriptors,
         pContext->maxFreeTxDescriptors,
         pContext->nofFreeHardwareBuffers,
@@ -505,22 +505,22 @@ static void PrintStatistics(PARANDIS_ADAPTER *pContext)
     pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
     if (pContext->NetTxPacketsToReturn)
     {
-        DPrintf(0, ("[Diag!] TX packets to return %d", pContext->NetTxPacketsToReturn));
+        DPrintf(0, ("[Diag!] TX packets to return %d\n", pContext->NetTxPacketsToReturn));
     }
-    DPrintf(0, ("[Diag!] Bytes transmitted %I64u, received %I64u",
+    DPrintf(0, ("[Diag!] Bytes transmitted %I64u, received %I64u\n",
         pContext->Statistics.ifHCOutOctets,
         pContext->Statistics.ifHCInOctets));
-    DPrintf(0, ("[Diag!] Tx frames %I64u, CSO %d, LSO %d, indirect %d",
+    DPrintf(0, ("[Diag!] Tx frames %I64u, CSO %d, LSO %d, indirect %d\n",
         totalTxFrames,
         pContext->extraStatistics.framesCSOffload,
         pContext->extraStatistics.framesLSO,
         pContext->extraStatistics.framesIndirect));
-    DPrintf(0, ("[Diag!] Rx frames %I64u, Rx.Pri %d, RxHwCS.OK %d, FiltOut %d",
+    DPrintf(0, ("[Diag!] Rx frames %I64u, Rx.Pri %d, RxHwCS.OK %d, FiltOut %d\n",
         totalRxFrames, pContext->extraStatistics.framesRxPriority,
         pContext->extraStatistics.framesRxCSHwOK, pContext->extraStatistics.framesFilteredOut));
     if (pContext->extraStatistics.framesRxCSHwMissedBad || pContext->extraStatistics.framesRxCSHwMissedGood)
     {
-        DPrintf(0, ("[Diag!] RxHwCS mistakes: missed bad %d, missed good %d",
+        DPrintf(0, ("[Diag!] RxHwCS mistakes: missed bad %d, missed good %d\n",
             pContext->extraStatistics.framesRxCSHwMissedBad, pContext->extraStatistics.framesRxCSHwMissedGood));
     }
 }
@@ -532,7 +532,7 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
     pContext->RSC.bIPv4SupportedHW = VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_GUEST_TSO4);
     if (pContext->RSC.bIPv4SupportedSW && pContext->RSC.bIPv4SupportedHW)
     {
-        DPrintf(0, ("[%s] Enabling guest TSO4", __FUNCTION__) );
+        DPrintf(0, ("[%s] Enabling guest TSO4\n", __FUNCTION__) );
         VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_GUEST_CSUM);
         VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_GUEST_TSO4);
         pContext->RSC.bIPv4Enabled = TRUE;
@@ -545,7 +545,7 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
     pContext->RSC.bIPv6SupportedHW = VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_GUEST_TSO6);
     if (pContext->RSC.bIPv6SupportedSW && pContext->RSC.bIPv6SupportedHW)
     {
-        DPrintf(0, ("[%s] Enabling guest TSO6", __FUNCTION__) );
+        DPrintf(0, ("[%s] Enabling guest TSO6\n", __FUNCTION__) );
         VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_GUEST_CSUM);
         VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_GUEST_TSO6);
         pContext->RSC.bIPv6Enabled = TRUE;
@@ -591,12 +591,12 @@ NDIS_STATUS ParaNdis_InitializeContext(
     {
         if (ParaNdis_ValidateMacAddress(pNewMacAddress, TRUE))
         {
-            DPrintf(0, ("[%s] WARNING: MAC address reloaded", __FUNCTION__));
+            DPrintf(0, ("[%s] WARNING: MAC address reloaded\n", __FUNCTION__));
             NdisMoveMemory(pContext->CurrentMacAddress, pNewMacAddress, sizeof(pContext->CurrentMacAddress));
         }
         else
         {
-            DPrintf(0, ("[%s] WARNING: Invalid MAC address ignored", __FUNCTION__));
+            DPrintf(0, ("[%s] WARNING: Invalid MAC address ignored\n", __FUNCTION__));
         }
         NdisFreeMemory(pNewMacAddress, 0, 0);
     }
@@ -623,7 +623,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
     {
         if (pContext->AdapterResources.InterruptFlags & CM_RESOURCE_INTERRUPT_MESSAGE)
         {
-            DPrintf(0, ("[%s] Message interrupt assigned", __FUNCTION__));
+            DPrintf(0, ("[%s] Message interrupt assigned\n", __FUNCTION__));
             pContext->bUsingMSIX = TRUE;
         }
 
@@ -640,7 +640,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
             VirtIODeviceGet(&pContext->IODevice, sizeof(pContext->CurrentMacAddress), &linkStatus, sizeof(linkStatus));
             pContext->bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
             VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_STATUS);
-            DPrintf(0, ("[%s] Link status on driver startup: %d", __FUNCTION__, pContext->bConnected));
+            DPrintf(0, ("[%s] Link status on driver startup: %d\n", __FUNCTION__, pContext->bConnected));
         }
 
         pContext->bUseMergedBuffers = VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_MRG_RXBUF) != 0;
@@ -663,7 +663,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
                 ETH_LENGTH_OF_ADDRESS);
             if (!ParaNdis_ValidateMacAddress(pContext->PermanentMacAddress, FALSE))
             {
-                DPrintf(0,("Invalid device MAC ignored(%02x-%02x-%02x-%02x-%02x-%02x)",
+                DPrintf(0,("Invalid device MAC ignored(%02x-%02x-%02x-%02x-%02x-%02x)\n",
                     pContext->PermanentMacAddress[0],
                     pContext->PermanentMacAddress[1],
                     pContext->PermanentMacAddress[2],
@@ -677,7 +677,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
         if (ETH_IS_EMPTY(pContext->PermanentMacAddress))
         {
-            DPrintf(0, ("No device MAC present, use default"));
+            DPrintf(0, ("No device MAC present, use default\n"));
             pContext->PermanentMacAddress[0] = 0x02;
             pContext->PermanentMacAddress[1] = 0x50;
             pContext->PermanentMacAddress[2] = 0xF2;
@@ -685,7 +685,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
             pContext->PermanentMacAddress[4] = 0x01;
             pContext->PermanentMacAddress[5] = 0x80 | (UCHAR)(pContext->ulUniqueID & 0xFF);
         }
-        DPrintf(0,("Device MAC = %02x-%02x-%02x-%02x-%02x-%02x",
+        DPrintf(0,("Device MAC = %02x-%02x-%02x-%02x-%02x-%02x\n",
             pContext->PermanentMacAddress[0],
             pContext->PermanentMacAddress[1],
             pContext->PermanentMacAddress[2],
@@ -702,7 +702,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
         }
         else
         {
-            DPrintf(0,("Current MAC = %02x-%02x-%02x-%02x-%02x-%02x",
+            DPrintf(0,("Current MAC = %02x-%02x-%02x-%02x-%02x-%02x\n",
                 pContext->CurrentMacAddress[0],
                 pContext->CurrentMacAddress[1],
                 pContext->CurrentMacAddress[2],
@@ -719,7 +719,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
     }
     else
     {
-        DPrintf(0, ("[%s] Error: Incomplete resources", __FUNCTION__));
+        DPrintf(0, ("[%s] Error: Incomplete resources\n", __FUNCTION__));
         /* avoid deregistering if failed */
         pContext->AdapterResources.ulIOAddress = 0;
         status = NDIS_STATUS_RESOURCE_CONFLICT;
@@ -733,14 +733,14 @@ NDIS_STATUS ParaNdis_InitializeContext(
         if (!VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_CSUM) &&
             (pContext->Offload.flagsValue & dependentOptions))
         {
-            DPrintf(0, ("[%s] Host does not support CSUM, disabling CS offload", __FUNCTION__) );
+            DPrintf(0, ("[%s] Host does not support CSUM, disabling CS offload\n", __FUNCTION__) );
             pContext->Offload.flagsValue &= ~dependentOptions;
         }
     }
 
     if (VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_GUEST_CSUM))
     {
-        DPrintf(0, ("[%s] Enabling guest checksum", __FUNCTION__) );
+        DPrintf(0, ("[%s] Enabling guest checksum\n", __FUNCTION__) );
         VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_GUEST_CSUM);
     }
 
@@ -763,7 +763,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
         }
         else
         {
-            DisableLSOv4Permanently(pContext, __FUNCTION__, "Host does not support TSOv4");
+            DisableLSOv4Permanently(pContext, __FUNCTION__, "Host does not support TSOv4\n");
         }
     }
 
@@ -789,11 +789,11 @@ NDIS_STATUS ParaNdis_InitializeContext(
         pContext->bUseIndirect = TRUE;
         VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_F_INDIRECT);
     }
-    DPrintf(0, ("[%s] %sable indirect buffers (!%s)", __FUNCTION__, pContext->bUseIndirect ? "En" : "Dis", reason) );
+    DPrintf(0, ("[%s] %sable indirect buffers (!%s)\n", __FUNCTION__, pContext->bUseIndirect ? "En" : "Dis", reason) );
 
     if (VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_CTRL_RX_EXTRA))
     {
-        DPrintf(0, ("[%s] Using host packet filtering", __FUNCTION__));
+        DPrintf(0, ("[%s] Using host packet filtering\n", __FUNCTION__));
         VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_CTRL_RX_EXTRA);
         pContext->bHasHardwareFilters = TRUE;
     }
@@ -870,7 +870,7 @@ static pTxNetDescriptor CreateTxDescriptorOnInit(
             if (b1) ParaNdis_FreePhysicalMemory(pContext, &p->HeaderInfo);
             if (b2) ParaNdis_FreePhysicalMemory(pContext, &p->DataInfo);
             NdisFreeMemory(p, 0, 0);
-            DPrintf(0, ("[INITPHYS](TX) Failed to allocate memory block"));
+            DPrintf(0, ("[INITPHYS](TX) Failed to allocate memory block\n"));
             return NULL;
         }
     }
@@ -957,7 +957,7 @@ static void PrepareTransmitBuffers(PARANDIS_ADAPTER *pContext)
     pContext->maxFreeTxDescriptors = pContext->nofFreeTxDescriptors;
     pContext->nofFreeHardwareBuffers = pContext->nofFreeTxDescriptors * 2;
     pContext->maxFreeHardwareBuffers = pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
-    DPrintf(0, ("[%s] available %d Tx descriptors, %d hw buffers",
+    DPrintf(0, ("[%s] available %d Tx descriptors, %d hw buffers\n",
         __FUNCTION__, pContext->nofFreeTxDescriptors, pContext->nofFreeHardwareBuffers));
 }
 
@@ -1174,7 +1174,7 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
         NdisReleaseSpinLock(&pContext->ReceiveLock);
         if (b)
         {
-            DPrintf(0, ("[%s] There are waiting buffers", __FUNCTION__));
+            DPrintf(0, ("[%s] There are waiting buffers\n", __FUNCTION__));
             PrintStatistics(pContext);
             NdisMSleep(5000000);
         }
@@ -1219,7 +1219,7 @@ static void PreventDPCServicing(PARANDIS_ADAPTER *pContext)
         InterlockedDecrement(&pContext->counterDPCInside);
         if (inside > 1)
         {
-            DPrintf(0, ("[%s] waiting!", __FUNCTION__));
+            DPrintf(0, ("[%s] waiting!\n", __FUNCTION__));
             NdisMSleep(20000);
         }
     } while (inside > 1);
@@ -1401,7 +1401,7 @@ void ReuseReceiveBufferRegular(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBuf
 
         if (pContext->NetNofReceiveBuffers > pContext->NetMaxReceiveBuffers)
         {
-            DPrintf(0, (" Error: NetNofReceiveBuffers > NetMaxReceiveBuffers(%d>%d)",
+            DPrintf(0, (" Error: NetNofReceiveBuffers > NetMaxReceiveBuffers(%d>%d)\n",
                 pContext->NetNofReceiveBuffers, pContext->NetMaxReceiveBuffers));
         }
 
@@ -1425,7 +1425,7 @@ void ReuseReceiveBufferRegular(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBuf
     }
     else
     {
-        DPrintf(0, ("FAILED TO REUSE THE BUFFER!!!!"));
+        DPrintf(0, ("FAILED TO REUSE THE BUFFER!!!!\n"));
         FreeRxBufferDescriptor(pContext, pBuffersDescriptor);
         pContext->NetMaxReceiveBuffers--;
     }
@@ -1474,12 +1474,12 @@ UINT ParaNdis_VirtIONetReleaseTransmitBuffers(
         pContext->nofFreeTxDescriptors++;
         if (!pBufferDescriptor->nofUsedBuffers)
         {
-            DPrintf(0, ("[%s] ERROR: nofUsedBuffers not set!", __FUNCTION__));
+            DPrintf(0, ("[%s] ERROR: nofUsedBuffers not set!\n", __FUNCTION__));
         }
         pContext->nofFreeHardwareBuffers += pBufferDescriptor->nofUsedBuffers;
         ParaNdis_OnTransmitBufferReleased(pContext, pBufferDescriptor);
         InsertTailList(&pContext->NetFreeSendBuffers, &pBufferDescriptor->listEntry);
-        DPrintf(3, ("[%s] Free Tx: desc %d, buff %d", __FUNCTION__, pContext->nofFreeTxDescriptors, pContext->nofFreeHardwareBuffers));
+        DPrintf(3, ("[%s] Free Tx: desc %d, buff %d\n", __FUNCTION__, pContext->nofFreeTxDescriptors, pContext->nofFreeHardwareBuffers));
         pBufferDescriptor->nofUsedBuffers = 0;
         ++i;
     }
@@ -1506,7 +1506,7 @@ static ULONG FORCEINLINE QueryTcpHeaderOffset(PVOID packetData, ULONG ipHeaderOf
     }
     else
     {
-        DPrintf(0, ("[%s] ERROR: NOT a TCP or UDP packet - expected troubles!", __FUNCTION__));
+        DPrintf(0, ("[%s] ERROR: NOT a TCP or UDP packet - expected troubles!\n", __FUNCTION__));
         res = 0;
     }
     return res;
@@ -1553,7 +1553,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
     {
         // LSO and too many buffers, impossible to send
         result.error = cpeTooLarge;
-        DPrintf(0, ("[%s] ERROR: too many fragments(%d required, %d max.avail)!", __FUNCTION__,
+        DPrintf(0, ("[%s] ERROR: too many fragments(%d required, %d max.avail)!\n", __FUNCTION__,
             nRequiredBuffers, pContext->maxFreeHardwareBuffers));
     }
     else if (pContext->nofFreeHardwareBuffers < nRequiredBuffers || !pContext->nofFreeTxDescriptors)
@@ -1564,7 +1564,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
     else if (Params->offloalMss && bUseCopy)
     {
         result.error = cpeInternalError;
-        DPrintf(0, ("[%s] ERROR: expecting SG for TSO! (%d buffers, %d bytes)", __FUNCTION__,
+        DPrintf(0, ("[%s] ERROR: expecting SG for TSO! (%d buffers, %d bytes)\n", __FUNCTION__,
             Params->nofSGFragments, Params->ulDataSize));
     }
     else if (bUseCopy)
@@ -1609,7 +1609,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
                 else
                 {
                     result.error = cpeNoIndirect;
-                    DPrintf(0, ("[%s] Unexpected ERROR of placement!", __FUNCTION__));
+                    DPrintf(0, ("[%s] Unexpected ERROR of placement!\n", __FUNCTION__));
                 }
             }
             if (result.error == cpeOK)
@@ -1677,7 +1677,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
                         pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
                     pBuffersDescriptor->ReferenceValue = Params->ReferenceValue;
                     result.size = Params->ulDataSize;
-                    DPrintf(2, ("[%s] Submitted %d buffers (%d bytes), avail %d desc, %d bufs",
+                    DPrintf(2, ("[%s] Submitted %d buffers (%d bytes), avail %d desc, %d bufs\n",
                         __FUNCTION__, nMappedBuffers, result.size,
                         pContext->nofFreeTxDescriptors, pContext->nofFreeHardwareBuffers
                     ));
@@ -1685,13 +1685,13 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
                 else
                 {
                     result.error = cpeInternalError;
-                    DPrintf(0, ("[%s] Unexpected ERROR adding buffer to TX engine!..", __FUNCTION__));
+                    DPrintf(0, ("[%s] Unexpected ERROR adding buffer to TX engine!..\n", __FUNCTION__));
                 }
             }
         }
         else
         {
-            DPrintf(0, ("[%s] Unexpected ERROR: packet not mapped!", __FUNCTION__));
+            DPrintf(0, ("[%s] Unexpected ERROR: packet not mapped\n!", __FUNCTION__));
             result.error = cpeInternalError;
         }
 
@@ -1842,7 +1842,7 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
             }
             else
             {
-                DPrintf(0, ("[%s] ERROR: Invalid buffer size for offload!", __FUNCTION__));
+                DPrintf(0, ("[%s] ERROR: Invalid buffer size for offload!\n", __FUNCTION__));
                 result.size = 0;
                 result.error = cpeInternalError;
             }
@@ -1872,11 +1872,11 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
                 pContext->nofFreeHardwareBuffers += nRequiredHardwareBuffers;
                 result.error = cpeInternalError;
                 result.size  = 0;
-                DPrintf(0, ("[%s] Unexpected ERROR adding buffer to TX engine!..", __FUNCTION__));
+                DPrintf(0, ("[%s] Unexpected ERROR adding buffer to TX engine!..\n", __FUNCTION__));
             }
             else
             {
-                DPrintf(2, ("[%s] Submitted %d buffers (%d bytes), avail %d desc, %d bufs",
+                DPrintf(2, ("[%s] Submitted %d buffers (%d bytes), avail %d desc, %d bufs\n",
                     __FUNCTION__, nRequiredHardwareBuffers, result.size,
                     pContext->nofFreeTxDescriptors, pContext->nofFreeHardwareBuffers
                 ));
@@ -1911,7 +1911,7 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
         }
         else
         {
-            DPrintf(0, ("[%s] Unexpected ERROR in copying packet data! Continue...", __FUNCTION__));
+            DPrintf(0, ("[%s] Unexpected ERROR in copying packet data! Continue...\n", __FUNCTION__));
             InsertTailList(&pContext->NetFreeSendBuffers, &pBuffersDescriptor->listEntry);
             pContext->nofFreeTxDescriptors++;
             // the buffer is not copied and the callback will not be called
@@ -2368,7 +2368,7 @@ static BOOLEAN CheckRunningDpc(PARANDIS_ADAPTER *pContext)
     {
         if (pContext->nDetectedStoppedTx++ > 1)
         {
-            DPrintf(0, ("[%s] - Suspicious Tx inactivity (%d)!", __FUNCTION__, pContext->nofFreeHardwareBuffers));
+            DPrintf(0, ("[%s] - Suspicious Tx inactivity (%d)!\n", __FUNCTION__, pContext->nofFreeHardwareBuffers));
             //bReportHang = TRUE;
 #ifdef DBG_USE_VIRTIO_PCI_ISR_FOR_HOST_REPORT
             WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 0);
@@ -2437,13 +2437,13 @@ u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
 
     NdisRawReadPortUlong(ulRegister, &ulValue);
 
-    DPrintf(6, ("[%s]R[%x]=%x", __FUNCTION__, (ULONG)ulRegister, ulValue) );
+    DPrintf(6, ("[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, ulValue) );
     return ulValue;
 }
 
 void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
 {
-    DPrintf(6, ("[%s]R[%x]=%x", __FUNCTION__, (ULONG)ulRegister, ulValue) );
+    DPrintf(6, ("[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, ulValue) );
 
     NdisRawWritePortUlong(ulRegister, ulValue);
 }
@@ -2454,14 +2454,14 @@ u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
 
     NdisRawReadPortUchar(ulRegister, &bValue);
 
-    DPrintf(6, ("[%s]R[%x]=%x", __FUNCTION__, (ULONG)ulRegister, bValue) );
+    DPrintf(6, ("[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, bValue) );
 
     return bValue;
 }
 
 void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
 {
-    DPrintf(6, ("[%s]R[%x]=%x", __FUNCTION__, (ULONG)ulRegister, bValue) );
+    DPrintf(6, ("[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, bValue) );
 
     NdisRawWritePortUchar(ulRegister, bValue);
 }
@@ -2536,7 +2536,7 @@ NDIS_STATUS ParaNdis_SetMulticastList(
         if (length)
             NdisMoveMemory(pContext->MulticastData.MulticastList, Buffer, length);
         pContext->MulticastData.nofMulticastEntries = length / ETH_LENGTH_OF_ADDRESS;
-        DPrintf(1, ("[%s] New multicast list of %d bytes", __FUNCTION__, length));
+        DPrintf(1, ("[%s] New multicast list of %d bytes\n", __FUNCTION__, length));
         *pBytesRead = length;
         status = NDIS_STATUS_SUCCESS;
     }
@@ -2603,7 +2603,7 @@ VOID ParaNdis_OnPnPEvent(
             break;
     }
     ParaNdis_DebugHistory(pContext, hopPnpEvent, NULL, pEvent, 0, 0);
-    DPrintf(0, ("[%s] (%s)", __FUNCTION__, pName));
+    DPrintf(0, ("[%s] (%s)\n", __FUNCTION__, pName));
     if (pEvent == NdisDevicePnPEventSurpriseRemoved)
     {
         // on simulated surprise removal (under PnpTest) we need to reset the device
@@ -2676,31 +2676,31 @@ static BOOLEAN SendControlMessage(
             p = pContext->NetControlQueue->vq_ops->get_buf(pContext->NetControlQueue, &len);
             if (!p)
             {
-                DPrintf(0, ("%s - ERROR: get_buf failed", __FUNCTION__));
+                DPrintf(0, ("%s - ERROR: get_buf failed\n", __FUNCTION__));
             }
             else if (len != sizeof(virtio_net_ctrl_ack))
             {
-                DPrintf(0, ("%s - ERROR: wrong len %d", __FUNCTION__, len));
+                DPrintf(0, ("%s - ERROR: wrong len %d\n", __FUNCTION__, len));
             }
             else if (*(virtio_net_ctrl_ack *)(pBase + offset) != VIRTIO_NET_OK)
             {
-                DPrintf(0, ("%s - ERROR: error %d returned for class %d", __FUNCTION__, *(virtio_net_ctrl_ack *)(pBase + offset), cls));
+                DPrintf(0, ("%s - ERROR: error %d returned for class %d\n", __FUNCTION__, *(virtio_net_ctrl_ack *)(pBase + offset), cls));
             }
             else
             {
                 // everything is OK
-                DPrintf(levelIfOK, ("%s OK(%d.%d,buffers of %d and %d) ", __FUNCTION__, cls, cmd, size1, size2));
+                DPrintf(levelIfOK, ("%s OK(%d.%d,buffers of %d and %d) \n", __FUNCTION__, cls, cmd, size1, size2));
                 bOK = TRUE;
             }
         }
         else
         {
-            DPrintf(0, ("%s - ERROR: add_buf failed", __FUNCTION__));
+            DPrintf(0, ("%s - ERROR: add_buf failed\n", __FUNCTION__));
         }
     }
     else
     {
-        DPrintf(0, ("%s (buffer %d,%d) - ERROR: message too LARGE", __FUNCTION__, size1, size2));
+        DPrintf(0, ("%s (buffer %d,%d) - ERROR: message too LARGE\n", __FUNCTION__, size1, size2));
     }
     NdisReleaseSpinLock(&pContext->ReceiveLock);
     return bOK;
@@ -2842,7 +2842,7 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
         }
         else
         {
-            DPrintf(0, ("FAILED TO REUSE THE BUFFER!!!!"));
+            DPrintf(0, ("FAILED TO REUSE THE BUFFER!!!!\n"));
             FreeRxBufferDescriptor(pContext, pBufferDescriptor);
             pContext->NetMaxReceiveBuffers--;
         }
@@ -2911,12 +2911,6 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
 
     pContext->NetControlQueue->vq_ops->shutdown(pContext->NetControlQueue);
 
-    /*
-    DPrintf(0, ("WARNING: deleting queues!!!!!!!!!"));
-    VirtIODeviceDeleteVirtualQueue(pContext->NetSendQueue);
-    VirtIODeviceDeleteVirtualQueue(pContext->NetReceiveQueue);
-    pContext->NetSendQueue = pContext->NetReceiveQueue = NULL;
-    */
     ParaNdis_ResetVirtIONetDevice(pContext);
     ParaNdis_DebugHistory(pContext, hopPowerOff, NULL, 0, 0, 0);
 }
