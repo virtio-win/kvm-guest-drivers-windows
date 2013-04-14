@@ -37,12 +37,15 @@ struct vring_desc
 	u16 next;
 };
 
+#pragma warning (push)
+#pragma warning (disable:4200)
 struct vring_avail
 {
 	u16 flags;
 	u16 idx;
 	u16 ring[];
 };
+#pragma warning (pop)
 
 /* u32 is used here for ids for padding reasons. */
 struct vring_used_elem
@@ -53,12 +56,15 @@ struct vring_used_elem
 	u32 len;
 };
 
+#pragma warning (push)
+#pragma warning (disable:4200)
 struct vring_used
 {
 	u16 flags;
 	u16 idx;
 	struct vring_used_elem ring[];
 };
+#pragma warning (pop)
 
 struct vring {
 	unsigned int num;

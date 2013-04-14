@@ -11,10 +11,6 @@
 **********************************************************************/
 #include "ParaNdis-Oid.h"
 
-#ifdef WPP_EVENT_TRACING
-#include "ParaNdis-Oid.tmh"
-#endif
-
 static const char VendorName[] = "Red Hat";
 
 static UCHAR FORCEINLINE hexdigit(UCHAR nibble)
@@ -541,7 +537,7 @@ MAKECASE(OID_TCP_TASK_IPSEC_OFFLOAD_V2_UPDATE_SA)
 				UCHAR nibble = (UCHAR)((oid >> (28 - i * 4)) & 0xf);
 				buffer[i] = hexdigit(nibble);
 			}
-			return buffer;
+			return (const char *)buffer;
 		}
 	}
 }
@@ -587,7 +583,7 @@ NDIS_STATUS ParaNdis_OnOidSetNetworkAddresses(PARANDIS_ADAPTER *pContext, tOidDe
 					}
 				}
 				DPrintf(0,("address %d, type %d, len %d (%s)",
-					i, pna->AddressType, pna->AddressLength, TempString ? TempString : "do not know"));
+					i, pna->AddressType, pna->AddressLength, TempString ? TempString : (const PUCHAR)"do not know"));
 				if (TempString) NdisFreeMemory(TempString, 0, 0);
 			}
 			p += sizeof(NETWORK_ADDRESS) - 1;
@@ -631,6 +627,9 @@ NDIS_STATUS ParaNdis_OnAddWakeupPattern(PARANDIS_ADAPTER *pContext, tOidDesc *pO
 	NDIS_STATUS status;
 	PNDIS_PM_PACKET_PATTERN pPmPattern = (PNDIS_PM_PACKET_PATTERN) pOid->InformationBuffer;
 	ULONG ulValidSize = pOid->InformationBufferLength;
+
+    UNREFERENCED_PARAMETER(pContext);
+
 	status = ValidateWakeupPattern(pPmPattern, &ulValidSize);
 	if (status == NDIS_STATUS_SUCCESS)
 	{
@@ -653,6 +652,9 @@ NDIS_STATUS ParaNdis_OnRemoveWakeupPattern(PARANDIS_ADAPTER *pContext, tOidDesc 
 	NDIS_STATUS status;
 	PNDIS_PM_PACKET_PATTERN pPmPattern = (PNDIS_PM_PACKET_PATTERN) pOid->InformationBuffer;
 	ULONG ulValidSize = pOid->InformationBufferLength;
+
+    UNREFERENCED_PARAMETER(pContext);
+
 	status = ValidateWakeupPattern(pPmPattern, &ulValidSize);
 	if (status == NDIS_STATUS_SUCCESS)
 	{

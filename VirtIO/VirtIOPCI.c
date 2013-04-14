@@ -24,9 +24,6 @@
 #include "VirtIOPCI.tmh"
 #endif
 
-
-
-
 /////////////////////////////////////////////////////////////////////////////////////
 //
 // VirtIODeviceInitialize - initializes the device structure
@@ -196,6 +193,9 @@ static ULONG align(ULONG ul, ULONG size)
 static BOOLEAN checkpa(ULONGLONG addr, ULONG align)
 {
 	BOOLEAN b;
+
+    UNREFERENCED_PARAMETER(align);
+
 	b = (((addr >> PAGE_SHIFT) & 0xffffffff) << PAGE_SHIFT) == addr;
 	return b;
 }

@@ -80,7 +80,7 @@ typedef struct _tVirtIOPerQueueInfo
 typedef struct TypeVirtIODevice
 {
 	ULONG_PTR addr;
-	ULONG msix_used         : 1;
+	bool msix_used;
 	ULONG maxQueues;
 	tVirtIOPerQueueInfo info[MAX_QUEUES_PER_DEVICE_DEFAULT];
 	/* do not add any members after info struct, it is extensible */

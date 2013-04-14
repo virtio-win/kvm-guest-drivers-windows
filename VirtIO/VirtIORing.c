@@ -26,6 +26,8 @@
 #include "VirtIORing.tmh"
 #endif
 
+#pragma warning (push)
+#pragma warning (disable:4200)
 struct vring_virtqueue
 {
 	struct virtqueue vq;
@@ -54,6 +56,7 @@ struct vring_virtqueue
 	/* Tokens for callbacks. */
 	void *data[];
 };
+#pragma warning(pop)
 
 static void initialize_virtqueue(struct vring_virtqueue *vq,
 							unsigned int num,

@@ -16,30 +16,12 @@
 
 #if NDIS_SUPPORT_NDIS6
 
-#ifdef WPP_EVENT_TRACING
-#include "ParaNdis6-Oid.tmh"
-#endif
-
-NDIS_IO_WORKITEM_FUNCTION OnSetPowerWorkItem;
+static NDIS_IO_WORKITEM_FUNCTION OnSetPowerWorkItem;
 
 #define OIDENTRY(oid, el, xfl, xokl, flags) \
 { oid, el, xfl, xokl, flags, NULL }
 #define OIDENTRYPROC(oid, el, xfl, xokl, flags, setproc) \
 { oid, el, xfl, xokl, flags, setproc }
-
-/**********************************************************
-Template for OID SET procedure
-Parameters:
-	context
-	tOidDesc *pOid		descriptor of OID request
-Return value:
-	whatever
-***********************************************************/
-static NDIS_STATUS tbd(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
-{
-	DEBUG_ENTRY(0);
-	return 	NDIS_STATUS_INVALID_OID;
-}
 
 /**********************************************************
 Just fail the request for unsupported OID
@@ -51,6 +33,9 @@ Return value:
 ***********************************************************/
 static NDIS_STATUS OnSetInterruptModeration(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
+    UNREFERENCED_PARAMETER(pContext);
+    UNREFERENCED_PARAMETER(pOid);
+
 	return 	NDIS_STATUS_INVALID_DATA;
 }
 
@@ -547,7 +532,8 @@ VOID ParaNdis6_OidCancelRequest(
 		NDIS_HANDLE hMiniportAdapterContext,
 		PVOID pRequestId)
 {
-
+    UNREFERENCED_PARAMETER(hMiniportAdapterContext);
+    UNREFERENCED_PARAMETER(pRequestId);
 }
 
 static void OnSetPowerWorkItem(PVOID  WorkItemContext, NDIS_HANDLE  NdisIoWorkItemHandle)
@@ -1032,6 +1018,8 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
 static
 NDIS_STATUS OnSetRSCParameters(PPARANDIS_ADAPTER pContext, tOidDesc *pOid, PNDIS_OFFLOAD_PARAMETERS op)
 {
+    UNREFERENCED_PARAMETER(pOid);
+
 #if PARANDIS_SUPPORT_RSC
 	if(op->Header.Revision != NDIS_OFFLOAD_PARAMETERS_REVISION_3)
 		return NDIS_STATUS_SUCCESS;
@@ -1049,8 +1037,10 @@ NDIS_STATUS OnSetRSCParameters(PPARANDIS_ADAPTER pContext, tOidDesc *pOid, PNDIS
 
 	if(op->RscIPv6 != NDIS_OFFLOAD_PARAMETERS_NO_CHANGE)
 		pContext->RSC.bIPv6Enabled = (op->RscIPv6 == NDIS_OFFLOAD_PARAMETERS_RSC_ENABLED);
-
-#endif
+#else
+    UNREFERENCED_PARAMETER(pContext);
+    UNREFERENCED_PARAMETER(op);
+#endif /* PARANDIS_SUPPORT_RSC */
 	return STATUS_SUCCESS;
 }
 
@@ -1189,7 +1179,7 @@ NDIS_STATUS ParaNdis6_GetRegistrationOffloadInfo(
 
 #if NDIS_SUPPORT_NDIS620
 
-void ParaNdis6_Fill620PowerCapabilities(PARANDIS_ADAPTER *pContext, PNDIS_PM_CAPABILITIES pPower620Caps)
+void ParaNdis6_Fill620PowerCapabilities(PNDIS_PM_CAPABILITIES pPower620Caps)
 {
 	NdisZeroMemory(pPower620Caps, sizeof(*pPower620Caps));
 	pPower620Caps->Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
@@ -1227,6 +1217,9 @@ NDIS_STATUS OnSetLinkParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
 	NDIS_LINK_PARAMETERS params;
 	NDIS_STATUS status;
+
+    UNREFERENCED_PARAMETER(pContext);
+
 	status = ParaNdis_OidSetCopy(pOid, &params, sizeof(params));
 	if (status == NDIS_STATUS_SUCCESS)
 	{

@@ -56,7 +56,7 @@ void VirtIODeviceInitialize(VirtIODevice * pVirtIODevice, ULONG_PTR addr, ULONG 
 
 void VirtIODeviceSetMSIXUsed(VirtIODevice * pVirtIODevice, bool used)
 {
-	pVirtIODevice->msix_used = used != 0;
+	pVirtIODevice->msix_used = used;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////

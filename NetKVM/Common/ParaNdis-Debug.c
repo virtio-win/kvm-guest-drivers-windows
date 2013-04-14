@@ -13,13 +13,7 @@
 #include "stdarg.h"
 #include "ntstrsafe.h"
 
-//#define OVERRIDE_DEBUG_BREAK
-
-#ifdef WPP_EVENT_TRACING
-#include "ParaNdis-Debug.tmh"
-#endif
-
-int nDebugLevel = 1;
+int virtioDebugLevel = 0;
 int bDebugPrint = 1;
 
 static NDIS_SPIN_LOCK CrashLock;
@@ -52,6 +46,11 @@ static ULONG DummyPrintProcedure(
     __in va_list arglist
     )
 {
+    UNREFERENCED_PARAMETER(ComponentId);
+    UNREFERENCED_PARAMETER(Level);
+    UNREFERENCED_PARAMETER(Format);
+    UNREFERENCED_PARAMETER(arglist);
+
 	return 0;
 }
 static BOOLEAN KeRegisterBugCheckReasonCallbackDummyProc(
@@ -61,6 +60,10 @@ static BOOLEAN KeRegisterBugCheckReasonCallbackDummyProc(
     __in PUCHAR Component
     )
 {
+    UNREFERENCED_PARAMETER(CallbackRoutine);
+    UNREFERENCED_PARAMETER(Reason);
+    UNREFERENCED_PARAMETER(Component);
+
 	CallbackRecord->State = 0;
 	return FALSE;
 }
@@ -69,6 +72,7 @@ BOOLEAN KeDeregisterBugCheckReasonCallbackDummyProc(
     __inout PKBUGCHECK_REASON_CALLBACK_RECORD CallbackRecord
     )
 {
+    UNREFERENCED_PARAMETER(CallbackRecord);
 	return FALSE;
 }
 
@@ -77,11 +81,7 @@ static KeRegisterBugCheckReasonCallbackType BugCheckRegisterCallback = KeRegiste
 static KeDeregisterBugCheckReasonCallbackType BugCheckDeregisterCallback = KeDeregisterBugCheckReasonCallbackDummyProc;
 KBUGCHECK_REASON_CALLBACK_RECORD CallbackRecord;
 
-#if !defined(WPP_EVENT_TRACING) || defined(WPP_USE_BYPASS)
-#if defined(DPFLTR_MASK)
-
-//common case, except Win2K
-static void DebugPrint(const char *fmt, ...)
+static void NetKVMDebugPrint(const char *fmt, ...)
 {
 	va_list list;
 	va_start(list, fmt);
@@ -112,65 +112,15 @@ static void DebugPrint(const char *fmt, ...)
 #endif
 }
 
-DEBUGPRINTFUNC pDebugPrint = DebugPrint;
+tDebugPrintFunc VirtioDebugPrintProc = NetKVMDebugPrint;
 
-#else //DPFLTR_MASK
-#pragma message("DebugPrint for Win2K")
-
-DEBUGPRINTFUNC pDebugPrint = DbgPrint;
-
-#endif //DPFLTR_MASK
-#endif //!defined(WPP_EVENT_TRACING) || defined(WPP_USE_BYPASS)
-
-
-
-void _LogOutEntry(int level, const char *s)
-{
-	DPrintf(level, ("[%s]=>", s));
-}
-
-void _LogOutExitValue(int level, const char *s, ULONG value)
-{
-	DPrintf(level, ("[%s]<=0x%X", s, value));
-}
-
-void _LogOutString(int level, const char *s)
-{
-	DPrintf(level, ("[%s]", s));
-}
-
-VOID WppEnableCallback(
-    __in LPCGUID Guid,
-    __in __int64 Logger,
-    __in BOOLEAN Enable,
-    __in ULONG Flags,
-    __in UCHAR Level)
-{
-#if WPP_USE_BYPASS
-	DPrintfBypass(0, ("[%s] %s, flags %X, level %d",
-		__FUNCTION__, Enable ? "enabled" : "disabled",
-		Flags, (ULONG)Level));
-#endif
-	nDebugLevel = Level;
-	bDebugPrint = Enable;
-}
-
-
-#ifdef OVERRIDE_DEBUG_BREAK
-static PUCHAR pDbgBreakPoint;
-static UCHAR DbgBreakPointChunk[5];
-static void AnotherDbgBreak()
-{
-	DPrintf(0, ("Somebody tried to break into the debugger!"));
-}
-#endif
-
-void ParaNdis_DebugInitialize(PVOID DriverObject,PVOID RegistryPath)
+#pragma warning (push)
+#pragma warning (disable:4055)
+void ParaNdis_DebugInitialize()
 {
 	NDIS_STRING usRegister, usDeregister, usPrint;
 	PVOID pr, pd;
-	BOOLEAN res;
-	WPP_INIT_TRACING(DriverObject, RegistryPath);
+    BOOLEAN res;
 
 	NdisAllocateSpinLock(&CrashLock);
 	KeInitializeCallbackRecord(&CallbackRecord);
@@ -187,40 +137,16 @@ void ParaNdis_DebugInitialize(PVOID DriverObject,PVOID RegistryPath)
 		BugCheckRegisterCallback = (KeRegisterBugCheckReasonCallbackType)pr;
 		BugCheckDeregisterCallback = (KeDeregisterBugCheckReasonCallbackType)pd;
 	}
-	res = BugCheckRegisterCallback(&CallbackRecord, ParaNdis_OnBugCheck, KbCallbackSecondaryDumpData, "NetKvm");
+	res = BugCheckRegisterCallback(&CallbackRecord, ParaNdis_OnBugCheck, KbCallbackSecondaryDumpData, (const PUCHAR)"NetKvm");
 	DPrintf(0, ("[%s] Crash callback %sregistered", __FUNCTION__, res ? "" : "NOT "));
-
-#ifdef OVERRIDE_DEBUG_BREAK
-	if (sizeof(PVOID) == sizeof(ULONG))
-	{
-		UCHAR replace[5] = {0xe9,0,0,0,0};
-		ULONG replacement;
-		NDIS_STRING usDbgBreakPointName;
-		NdisInitUnicodeString(&usDbgBreakPointName, L"DbgBreakPoint");
-		pDbgBreakPoint = (PUCHAR)MmGetSystemRoutineAddress(&usDbgBreakPointName);
-		if (pDbgBreakPoint)
-		{
-			DPrintf(0, ("Replacing original BP handler at %p", pDbgBreakPoint));
-			replacement = RtlPointerToOffset(pDbgBreakPoint + 5, AnotherDbgBreak);
-			RtlCopyMemory(replace + 1, &replacement, sizeof(replacement));
-			RtlCopyMemory(DbgBreakPointChunk, pDbgBreakPoint, sizeof(DbgBreakPointChunk));
-			RtlCopyMemory(pDbgBreakPoint, replace, sizeof(replace));
-		}
-	}
-#endif
 }
+#pragma warning (pop)
 
 void ParaNdis_DebugCleanup(PDRIVER_OBJECT  pDriverObject)
 {
-#ifdef OVERRIDE_DEBUG_BREAK
-	if (sizeof(PVOID) == sizeof(ULONG) && pDbgBreakPoint)
-	{
-		DPrintf(0, ("Restoring original BP handler at %p", pDbgBreakPoint));
-		RtlCopyMemory(pDbgBreakPoint, DbgBreakPointChunk, sizeof(DbgBreakPointChunk));
-	}
-#endif
+    UNREFERENCED_PARAMETER(pDriverObject);
+
 	BugCheckDeregisterCallback(&CallbackRecord);
-	WPP_CLEANUP(pDriverObject);
 }
 
 
@@ -307,6 +233,9 @@ VOID ParaNdis_OnBugCheck(
     )
 {
 	KBUGCHECK_SECONDARY_DUMP_DATA *pDump = (KBUGCHECK_SECONDARY_DUMP_DATA *)ReasonSpecificData;
+
+    UNREFERENCED_PARAMETER(Record);
+
 	if (KbCallbackSecondaryDumpData == Reason && ReasonSpecificDataLength >= sizeof(*pDump))
 	{
 		ULONG dumpSize = sizeof(BugCheckData.Location);

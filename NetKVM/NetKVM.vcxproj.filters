@@ -5,107 +5,87 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
-    <Filter Include="Source Files\XP">
-      <UniqueIdentifier>{9208dfeb-7c49-495d-9ce4-7b5a872a87c3}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Vista">
-      <UniqueIdentifier>{9d165bcb-e22e-485e-8436-d1d964ab6c09}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Common">
-      <UniqueIdentifier>{b059429e-d522-4bf0-96dd-765639e978e4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\VirtIO-Clone">
-      <UniqueIdentifier>{7e1115f5-3fcc-44bc-8450-b95c2d42af0c}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files">
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
     <Filter Include="Resource Files">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav</Extensions>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Build">
-      <UniqueIdentifier>{69f6a014-4f55-4cb8-a6df-86f027313984}</UniqueIdentifier>
+    <Filter Include="Driver Files">
+      <UniqueIdentifier>{8E41214B-6785-4CFE-B992-037D68949A14}</UniqueIdentifier>
+      <Extensions>inf;inv;inx;mof;mc;</Extensions>
     </Filter>
-    <Filter Include="Common Headers">
-      <UniqueIdentifier>{d6952161-5a45-48bc-920f-959c5e6c448a}</UniqueIdentifier>
+    <Filter Include="Source Files\Common">
+      <UniqueIdentifier>{ca32e5e0-297c-4b50-8a4d-0b123c87a178}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\wlh">
+      <UniqueIdentifier>{9737b6c6-5b6b-465e-b94d-1477157cd469}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Common">
+      <UniqueIdentifier>{3364a55e-f027-49db-a290-54b76534eaee}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\wlh">
+      <UniqueIdentifier>{05312e94-3f32-463e-ab29-b7266ff6cca6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Tools">
+      <UniqueIdentifier>{62ffa1a1-ac09-40c0-bd36-539458b73cf4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VirtIO">
+      <UniqueIdentifier>{b326e840-5f73-44d7-b10b-2430c692be26}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <None Include="wxp\netkvm.inf">
-      <Filter>Source Files\XP</Filter>
-    </None>
-    <None Include="wxp\netkvm2k.inf">
-      <Filter>Source Files\XP</Filter>
-    </None>
-    <None Include="wxp\sources">
-      <Filter>Source Files\XP</Filter>
-    </None>
-    <None Include="wlh\netkvm.inf">
-      <Filter>Source Files\Vista</Filter>
-    </None>
-    <None Include="wlh\sources">
-      <Filter>Source Files\Vista</Filter>
-    </None>
-    <None Include="Common\common.mak">
-      <Filter>Source Files\Common</Filter>
-    </None>
-    <None Include="Common\sources">
-      <Filter>Source Files\Common</Filter>
-    </None>
-    <None Include="VirtIO\sources">
-      <Filter>Source Files\VirtIO-Clone</Filter>
-    </None>
-    <None Include="buildAll.bat">
-      <Filter>Build</Filter>
-    </None>
-    <None Include="clean.bat">
-      <Filter>Build</Filter>
-    </None>
-    <None Include="tools\makeinstall.bat">
-      <Filter>Build</Filter>
-    </None>
-    <None Include="tools\signing.cmd">
-      <Filter>Build</Filter>
-    </None>
-    <None Include="CoInstaller\setbuildenv.bat">
-      <Filter>Build</Filter>
-    </None>
-    <None Include="Common\common.inf.h">
-      <Filter>Source Files\Common</Filter>
-    </None>
-    <None Include="tools\cleanemptystrings.vbs">
-      <Filter>Build</Filter>
-    </None>
+    <Inf Include="wlh\netkvm.inf">
+      <Filter>Driver Files</Filter>
+    </Inf>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="wxp\parandis.rc">
-      <Filter>Source Files\XP</Filter>
-    </ResourceCompile>
-    <ResourceCompile Include="wlh\Parandis6.rc">
-      <Filter>Source Files\Vista</Filter>
-    </ResourceCompile>
+    <ClInclude Include="Common\common.inf.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\DebugData.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\ethernetutils.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\IONetDescriptor.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\kdebugprint.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\ndis56common.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\osdep.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\ParaNdis-Oid.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\ParaNdis-RSS.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\quverp.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="wlh\ParaNdis6.h">
+      <Filter>Header Files\wlh</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VirtIO\VirtIO.h">
+      <Filter>VirtIO</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VirtIO\virtio_pci.h">
+      <Filter>VirtIO</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VirtIO\virtio_ring.h">
+      <Filter>VirtIO</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="wxp\ParaNdis5-Driver.c">
-      <Filter>Source Files\XP</Filter>
-    </ClCompile>
-    <ClCompile Include="wxp\ParaNdis5-Impl.c">
-      <Filter>Source Files\XP</Filter>
-    </ClCompile>
-    <ClCompile Include="wxp\ParaNdis5-Oid.c">
-      <Filter>Source Files\XP</Filter>
-    </ClCompile>
-    <ClCompile Include="wlh\ParaNdis6-Driver.c">
-      <Filter>Source Files\Vista</Filter>
-    </ClCompile>
-    <ClCompile Include="wlh\ParaNdis6-Impl.c">
-      <Filter>Source Files\Vista</Filter>
-    </ClCompile>
-    <ClCompile Include="wlh\ParaNdis6-Oid.c">
-      <Filter>Source Files\Vista</Filter>
-    </ClCompile>
     <ClCompile Include="Common\ParaNdis-Common.c">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
@@ -118,52 +98,56 @@
     <ClCompile Include="Common\sw-offload.c">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="VirtIO\VirtIOPCI.c">
-      <Filter>Source Files\VirtIO-Clone</Filter>
+    <ClCompile Include="wlh\ParaNdis6-Driver.c">
+      <Filter>Source Files\wlh</Filter>
     </ClCompile>
-    <ClCompile Include="VirtIO\VirtIORing.c">
-      <Filter>Source Files\VirtIO-Clone</Filter>
+    <ClCompile Include="wlh\ParaNdis6-Impl.c">
+      <Filter>Source Files\wlh</Filter>
+    </ClCompile>
+    <ClCompile Include="wlh\ParaNdis6-Oid.c">
+      <Filter>Source Files\wlh</Filter>
+    </ClCompile>
+    <ClCompile Include="wlh\ParaNdis6-RSS.c">
+      <Filter>Source Files\wlh</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VirtIO\VirtIOPCI.c">
+      <Filter>VirtIO</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VirtIO\VirtIORing.c">
+      <Filter>VirtIO</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="wxp\ParaNdis5.h">
-      <Filter>Source Files\XP</Filter>
-    </ClInclude>
-    <ClInclude Include="wlh\ParaNdis6.h">
-      <Filter>Source Files\Vista</Filter>
-    </ClInclude>
-    <ClInclude Include="VirtIO\VirtIO.h">
-      <Filter>Source Files\VirtIO-Clone</Filter>
-    </ClInclude>
-    <ClInclude Include="VirtIO\virtio_pci.h">
-      <Filter>Source Files\VirtIO-Clone</Filter>
-    </ClInclude>
-    <ClInclude Include="VirtIO\virtio_ring.h">
-      <Filter>Source Files\VirtIO-Clone</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\DebugData.h">
-      <Filter>Common Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\ethernetutils.h">
-      <Filter>Common Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\IONetDescriptor.h">
-      <Filter>Common Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\kdebugprint.h">
-      <Filter>Common Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\ndis56common.h">
-      <Filter>Common Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\osdep.h">
-      <Filter>Common Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\ParaNdis-Oid.h">
-      <Filter>Common Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\quverp.h">
-      <Filter>Common Headers</Filter>
-    </ClInclude>
+    <ResourceCompile Include="wlh\Parandis6.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="tools\cleanemptystrings.vbs">
+      <Filter>Tools</Filter>
+    </None>
+    <None Include="tools\InstallCertificate.bat">
+      <Filter>Tools</Filter>
+    </None>
+    <None Include="tools\makecdimage.cmd">
+      <Filter>Tools</Filter>
+    </None>
+    <None Include="tools\makeinstall.bat">
+      <Filter>Tools</Filter>
+    </None>
+    <None Include="tools\NetKVMTemporaryCert.cer">
+      <Filter>Tools</Filter>
+    </None>
+    <None Include="tools\NetKVMTemporaryCert.pfx">
+      <Filter>Tools</Filter>
+    </None>
+    <None Include="tools\signing.cmd">
+      <Filter>Tools</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="tools\README.TXT">
+      <Filter>Tools</Filter>
+    </Text>
   </ItemGroup>
 </Project>

@@ -9,28 +9,21 @@
  * the COPYING file in the top-level directory.
  *
 **********************************************************************/
-
-
 #include "ParaNdis6.h"
-#ifdef WPP_EVENT_TRACING
-#include "ParaNdis6-Impl.tmh"
-#endif
 
 #if NDIS_SUPPORT_NDIS6
-
-
-MINIPORT_DISABLE_INTERRUPT MiniportDisableInterruptEx;
-MINIPORT_ENABLE_INTERRUPT MiniportEnableInterruptEx;
-MINIPORT_INTERRUPT_DPC MiniportInterruptDPC;
-MINIPORT_ISR MiniportInterrupt;
-MINIPORT_ENABLE_MESSAGE_INTERRUPT MiniportEnableMSIInterrupt;
-MINIPORT_DISABLE_MESSAGE_INTERRUPT MiniportDisableMSIInterrupt;
-MINIPORT_MESSAGE_INTERRUPT MiniportMSIInterrupt;
-MINIPORT_MESSAGE_INTERRUPT_DPC MiniportMSIInterruptDpc;
-MINIPORT_PROCESS_SG_LIST ProcessSGListHandler;
-MINIPORT_ALLOCATE_SHARED_MEM_COMPLETE SharedMemAllocateCompleteHandler;
+static MINIPORT_DISABLE_INTERRUPT MiniportDisableInterruptEx;
+static MINIPORT_ENABLE_INTERRUPT MiniportEnableInterruptEx;
+static MINIPORT_INTERRUPT_DPC MiniportInterruptDPC;
+static MINIPORT_ISR MiniportInterrupt;
+static MINIPORT_ENABLE_MESSAGE_INTERRUPT MiniportEnableMSIInterrupt;
+static MINIPORT_DISABLE_MESSAGE_INTERRUPT MiniportDisableMSIInterrupt;
+static MINIPORT_MESSAGE_INTERRUPT MiniportMSIInterrupt;
+static MINIPORT_MESSAGE_INTERRUPT_DPC MiniportMSIInterruptDpc;
+static MINIPORT_PROCESS_SG_LIST ProcessSGListHandler;
+static MINIPORT_ALLOCATE_SHARED_MEM_COMPLETE SharedMemAllocateCompleteHandler;
 #if NDIS_SUPPORT_NDIS620
-MINIPORT_SYNCHRONIZE_INTERRUPT MiniportSyncRecoveryProcedure;
+static MINIPORT_SYNCHRONIZE_INTERRUPT MiniportSyncRecoveryProcedure;
 #endif
 
 static MINIPORT_PROCESS_SG_LIST ProcessSGListHandler;
@@ -203,6 +196,7 @@ typedef MINIPORT_SYNCHRONIZE_INTERRUPT_HANDLER NDIS_SYNC_PROC_TYPE;
 typedef PVOID NDIS_SYNC_PROC_TYPE;
 #endif
 
+
 BOOLEAN ParaNdis_SynchronizeWithInterrupt(
 	PARANDIS_ADAPTER *pContext,
 	ULONG messageId,
@@ -211,7 +205,10 @@ BOOLEAN ParaNdis_SynchronizeWithInterrupt(
 {
 	tSynchronizedContext SyncContext;
 	NDIS_SYNC_PROC_TYPE syncProc;
-	*(PVOID *)&syncProc = procedure;
+#pragma warning (push)
+#pragma warning (disable:4152)
+	syncProc = procedure;
+#pragma warning (pop)
 	SyncContext.pContext  = pContext;
 	SyncContext.Parameter = parameter;
 	return NdisMSynchronizeWithInterruptEx(pContext->InterruptHandle, messageId, syncProc, &SyncContext);
@@ -356,6 +353,8 @@ static VOID MiniportInterruptDPC(
 	}
 #else /* NDIS 6.0*/
 	DEBUG_ENTRY(5);
+    UNREFERENCED_PARAMETER(ReceiveThrottleParameters);
+
 	requiresProcessing = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
 	if (requiresProcessing)
 	{
@@ -364,6 +363,8 @@ static VOID MiniportInterruptDPC(
 		NdisMQueueDpc(pContext->InterruptHandle, 0, 1 << KeGetCurrentProcessorNumber(), MiniportDpcContext);
 	}
 #endif /* NDIS_SUPPORT_NDIS620 */
+
+    UNREFERENCED_PARAMETER(NdisReserved2);
 }
 
 /**********************************************************
@@ -423,6 +424,8 @@ static VOID MiniportMSIInterruptDpc(
 		}
 	}
 #else
+    UNREFERENCED_PARAMETER(NdisReserved1);
+
 	DPrintf(5, ("[%s] (Message %d, source %d)", __FUNCTION__, MessageId, interruptSource));
 	interruptSource = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
 	if (interruptSource)
@@ -432,6 +435,8 @@ static VOID MiniportMSIInterruptDpc(
 		NdisMQueueDpc(pContext->InterruptHandle, MessageId, 1 << KeGetCurrentProcessorNumber(), MiniportDpcContext);
 	}
 #endif
+
+    UNREFERENCED_PARAMETER(NdisReserved2);
 }
 
 static VOID MiniportDisableMSIInterrupt(
@@ -471,7 +476,11 @@ static VOID SharedMemAllocateCompleteHandler(
 	IN PVOID  Context
 	)
 {
-
+    UNREFERENCED_PARAMETER(MiniportAdapterContext);
+    UNREFERENCED_PARAMETER(VirtualAddress);
+    UNREFERENCED_PARAMETER(PhysicalAddress);
+    UNREFERENCED_PARAMETER(Length);
+    UNREFERENCED_PARAMETER(Context);
 }
 
 static NDIS_STATUS SetInterruptMessage(PARANDIS_ADAPTER *pContext, UINT queueIndex)
@@ -727,12 +736,11 @@ BOOLEAN ParaNdis_BindRxBufferToPacket(
 
 error_exit:
 
-	ParaNdis_UnbindRxBufferFromPacket(pContext, p);
+	ParaNdis_UnbindRxBufferFromPacket(p);
 	return FALSE;
 }
 
 void ParaNdis_UnbindRxBufferFromPacket(
-	PARANDIS_ADAPTER *pContext,
 	pRxNetDescriptor p)
 {
 	PMDL NextMdlLinkage = p->Holder;
@@ -749,7 +757,6 @@ void ParaNdis_UnbindRxBufferFromPacket(
 
 static
 void ParaNdis_AdjustRxBufferHolderLength(
-	PARANDIS_ADAPTER *pContext,
 	pRxNetDescriptor p,
 	ULONG ulDataOffset)
 {
@@ -776,6 +783,10 @@ VOID NBLSetRSSInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_PACKE
 		NET_BUFFER_LIST_SET_HASH_FUNCTION(pNBL, PacketInfo->RSSHash.Function);
 		NET_BUFFER_LIST_SET_HASH_VALUE   (pNBL, PacketInfo->RSSHash.Value);
 	}
+#else
+    UNREFERENCED_PARAMETER(pContext);
+    UNREFERENCED_PARAMETER(pNBL);
+    UNREFERENCED_PARAMETER(PacketInfo);
 #endif
 }
 
@@ -852,7 +863,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
 		}
 
 		ParaNdis_PadPacketToMinimalLength(pPacketInfo);
-		ParaNdis_AdjustRxBufferHolderLength(pContext, pBuffersDesc, nBytesStripped);
+		ParaNdis_AdjustRxBufferHolderLength(pBuffersDesc, nBytesStripped);
 		pNBL = NdisAllocateNetBufferAndNetBufferList(pContext->BufferListsPool, 0, 0, pMDL, nBytesStripped, pPacketInfo->dataLength);
 
 		if (pNBL)
@@ -949,9 +960,13 @@ all the received NBLs back to our pool
 ***********************************************************/
 VOID ParaNdis6_ReturnNetBufferLists(
 	NDIS_HANDLE miniportAdapterContext,
-	PNET_BUFFER_LIST pNBL, ULONG returnFlags)
+	PNET_BUFFER_LIST pNBL,
+    ULONG returnFlags)
 {
 	PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
+
+    UNREFERENCED_PARAMETER(returnFlags);
+
 	DEBUG_ENTRY(5);
 	while (pNBL)
 	{
@@ -1937,6 +1952,9 @@ VOID ProcessSGListHandler(
 	LONG DoneCounter;
 	tNetBufferListEntry *pble = (tNetBufferListEntry *)pNBL->Scratch;
 
+    UNREFERENCED_PARAMETER(pDO);
+    UNREFERENCED_PARAMETER(Reserved);
+
 	NdisAcquireSpinLock(&pContext->SendLock);
 	// remove the netbuffer entry from WaitingMapping list
 	RemoveEntryList(&pnbe->list);
@@ -2481,11 +2499,15 @@ static UCHAR MiniportSyncRecoveryProcedure(PVOID  SynchronizeContext)
 VOID ParaNdis6_OnInterruptRecoveryTimer(PARANDIS_ADAPTER *pContext)
 {
 	UCHAR val;
+#pragma warning (push)
+#pragma warning (disable:4152)
 	val = NdisMSynchronizeWithInterruptEx(
 		pContext->InterruptHandle,
 		0,
 		MiniportSyncRecoveryProcedure,
 		pContext);
+#pragma warning (pop)
+
 	if (val & VISTA_RECOVERY_RUN_DPC)
 	{
 		InterlockedOr(&pContext->InterruptStatus, isAny);

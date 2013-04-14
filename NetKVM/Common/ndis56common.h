@@ -69,12 +69,6 @@
 #error "Something is wrong with our versioning"
 #endif
 
-//define to see when the status register is unreadable(see ParaNdis_ResetVirtIONetDevice)
-//#define VIRTIO_RESET_VERIFY
-
-//define to if hardware raise interrupt on error (see ParaNdis_DPCWorkBody)
-//#define VIRTIO_SIGNAL_ERROR
-
 // define if qemu supports logging to static IO port for synchronization
 // of driver output with qemu printouts; in this case define the port number
 // #define VIRTIO_DBG_USE_IOPORT	0x99
@@ -185,30 +179,30 @@ typedef enum _tagOffloadSettingsBit
 
 typedef struct _tagOffloadSettingsFlags
 {
-	ULONG fTxIPChecksum		: 1;
-	ULONG fTxTCPChecksum	: 1;
-	ULONG fTxUDPChecksum	: 1;
-	ULONG fTxTCPOptions		: 1;
-	ULONG fTxIPOptions		: 1;
-	ULONG fTxLso			: 1;
-	ULONG fTxLsoIP			: 1;
-	ULONG fTxLsoTCP			: 1;
-	ULONG fRxIPChecksum		: 1;
-	ULONG fRxTCPChecksum	: 1;
-	ULONG fRxUDPChecksum	: 1;
-	ULONG fRxTCPOptions		: 1;
-	ULONG fRxIPOptions		: 1;
-	ULONG fTxTCPv6Checksum	: 1;
-	ULONG fTxUDPv6Checksum	: 1;
-	ULONG fTxTCPv6Options	: 1;
-	ULONG fTxIPv6Ext		: 1;
-	ULONG fTxLsov6			: 1;
-	ULONG fTxLsov6IP		: 1;
-	ULONG fTxLsov6TCP		: 1;
-	ULONG fRxTCPv6Checksum	: 1;
-	ULONG fRxUDPv6Checksum	: 1;
-	ULONG fRxTCPv6Options	: 1;
-	ULONG fRxIPv6Ext		: 1;
+    int fTxIPChecksum       : 1;
+    int fTxTCPChecksum      : 1;
+    int fTxUDPChecksum      : 1;
+    int fTxTCPOptions       : 1;
+    int fTxIPOptions        : 1;
+    int fTxLso              : 1;
+    int fTxLsoIP            : 1;
+    int fTxLsoTCP           : 1;
+    int fRxIPChecksum       : 1;
+    int fRxTCPChecksum      : 1;
+    int fRxUDPChecksum      : 1;
+    int fRxTCPOptions       : 1;
+    int fRxIPOptions        : 1;
+    int fTxTCPv6Checksum    : 1;
+    int fTxUDPv6Checksum    : 1;
+    int fTxTCPv6Options     : 1;
+    int fTxIPv6Ext          : 1;
+    int fTxLsov6            : 1;
+    int fTxLsov6IP          : 1;
+    int fTxLsov6TCP         : 1;
+    int fRxTCPv6Checksum	: 1;
+    int fRxUDPv6Checksum	: 1;
+    int fRxTCPv6Options     : 1;
+    int fRxIPv6Ext          : 1;
 }tOffloadSettingsFlags;
 
 
@@ -222,22 +216,25 @@ typedef struct _tagOffloadSettings
 	ULONG maxPacketSize;
 }tOffloadSettings;
 
+#pragma warning (push)
+#pragma warning (disable:4201)
 typedef struct _tagChecksumCheckResult
 {
 	union
 	{
 		struct
 		{
-			ULONG   TcpFailed		:1;
-			ULONG   UdpFailed		:1;
-			ULONG   IpFailed		:1;
-			ULONG   TcpOK			:1;
-			ULONG   UdpOK			:1;
-			ULONG   IpOK			:1;
+			int   TcpFailed		:1;
+			int   UdpFailed		:1;
+			int   IpFailed		:1;
+			int   TcpOK			:1;
+			int   UdpOK			:1;
+			int   IpOK			:1;
 		} flags;
-		ULONG value;
+		int value;
 	};
 }tChecksumCheckResult;
+#pragma warning (pop)
 
 /*
 for simplicity, we use for NDIS5 the same statistics as native NDIS6 uses
@@ -324,19 +321,21 @@ typedef struct _tagMulticastData
 	UCHAR					MulticastList[ETH_LENGTH_OF_ADDRESS * PARANDIS_MULTICAST_LIST_SIZE];
 }tMulticastData;
 
+#pragma warning (push)
+#pragma warning (disable:4201)
 typedef struct _tagNET_PACKET_INFO
 {
 	struct
 	{
-		BOOLEAN isBroadcast   : 1;
-		BOOLEAN isMulticast   : 1;
-		BOOLEAN isUnicast     : 1;
-		BOOLEAN hasVlanHeader : 1;
-		BOOLEAN isIP4         : 1;
-		BOOLEAN isIP6         : 1;
-		BOOLEAN isTCP         : 1;
-		BOOLEAN isUDP         : 1;
-		BOOLEAN isFragment    : 1;
+		int isBroadcast   : 1;
+		int isMulticast   : 1;
+		int isUnicast     : 1;
+		int hasVlanHeader : 1;
+		int isIP4         : 1;
+		int isIP6         : 1;
+		int isTCP         : 1;
+		int isUDP         : 1;
+		int isFragment    : 1;
 	};
 
 	struct
@@ -364,6 +363,7 @@ typedef struct _tagNET_PACKET_INFO
 	PVOID headersBuffer;
 	ULONG dataLength;
 } NET_PACKET_INFO, *PNET_PACKET_INFO;
+#pragma warning (pop)
 
 typedef struct _tagNetDescriptor {
 	LIST_ENTRY listEntry;
@@ -732,7 +732,7 @@ VOID ParaNdis_PowerOff(
 	PARANDIS_ADAPTER *pContext
 );
 
-void ParaNdis_DebugInitialize(PVOID DriverObject,PVOID RegistryPath);
+void ParaNdis_DebugInitialize();
 void ParaNdis_DebugCleanup(PDRIVER_OBJECT  pDriverObject);
 void ParaNdis_DebugRegisterMiniport(PARANDIS_ADAPTER *pContext, BOOLEAN bRegister);
 
@@ -748,7 +748,12 @@ void FORCEINLINE ParaNdis_DebugHistory(
 	ULONG lParam3,
 	ULONG lParam4)
 {
-
+    UNREFERENCED_PARAMETER(pContext);
+    UNREFERENCED_PARAMETER(op);
+    UNREFERENCED_PARAMETER(pParam1);
+    UNREFERENCED_PARAMETER(lParam2);
+    UNREFERENCED_PARAMETER(lParam3);
+    UNREFERENCED_PARAMETER(lParam4);
 }
 
 #else
@@ -899,7 +904,6 @@ BOOLEAN ParaNdis_BindRxBufferToPacket(
 	pRxNetDescriptor p);
 
 void ParaNdis_UnbindRxBufferFromPacket(
-	PARANDIS_ADAPTER *pContext,
 	pRxNetDescriptor p);
 
 void ParaNdis_IndicateConnect(
@@ -940,29 +944,33 @@ typedef enum _tagppResult
 	ppresIsUDP         = 1,
 }ppResult;
 
+#pragma warning (push)
+#pragma warning (disable:4201) //nonstandard extension used : nameless struct/union
+#pragma warning (disable:4214) //nonstandard extension used : bit field types other than int
 typedef union _tagTcpIpPacketParsingResult
 {
 	struct {
 		/* 0 - not tested, 1 - not IP, 2 - IPV4, 3 - IPV6 */
-		ULONG ipStatus			: 2;
+		ULONG ipStatus        : 2;
 		/* 0 - not tested, 1 - n/a, 2 - CS, 3 - bad */
-		ULONG ipCheckSum		: 2;
+		ULONG ipCheckSum      : 2;
 		/* 0 - not tested, 1 - PCS, 2 - CS, 3 - bad */
-		ULONG xxpCheckSum		: 2;
+		ULONG xxpCheckSum     : 2;
 		/* 0 - not tested, 1 - other, 2 - known(contains basic TCP or UDP header), 3 - known incomplete */
-		ULONG xxpStatus			: 2;
+		ULONG xxpStatus       : 2;
 		/* 1 - contains complete payload */
-		ULONG xxpFull			: 1;
-		ULONG TcpUdp			: 1;
-		ULONG fixedIpCS			: 1;
-		ULONG fixedXxpCS		: 1;
-		ULONG IsFragment		: 1;
-		ULONG reserved			: 3;
-		ULONG ipHeaderSize		: 8;
-		ULONG XxpIpHeaderSize	: 8;
+		ULONG xxpFull         : 1;
+		ULONG TcpUdp          : 1;
+		ULONG fixedIpCS       : 1;
+		ULONG fixedXxpCS      : 1;
+		ULONG IsFragment      : 1;
+		ULONG reserved        : 3;
+		ULONG ipHeaderSize    : 8;
+		ULONG XxpIpHeaderSize : 8;
 	};
 	ULONG value;
 }tTcpIpPacketParsingResult;
+#pragma warning(pop)
 
 typedef enum _tagPacketOffloadRequest
 {
