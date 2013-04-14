@@ -90,7 +90,6 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry OffloadTxChecksum;
     tConfigurationEntry OffloadTxLSO;
     tConfigurationEntry OffloadRxCS;
-    tConfigurationEntry OffloadGuestCS;
     tConfigurationEntry UseSwTxChecksum;
     tConfigurationEntry IPPacketsCheck;
     tConfigurationEntry stdIpcsV4;
@@ -129,7 +128,6 @@ static const tConfigurationEntries defaultConfiguration =
     { "Offload.TxChecksum", 0, 0, 31},
     { "Offload.TxLSO",  0, 0, 2},
     { "Offload.RxCS",   0, 0, 31},
-    { "Offload.GuestCS", 0, 0, 1},
     { "UseSwTxChecksum", 0, 0, 1 },
     { "IPPacketsCheck", 0, 0, 3 },
     { "*IPChecksumOffloadIPv4", 3, 0, 3 },
@@ -267,7 +265,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             GetConfigurationEntry(cfg, &pConfiguration->OffloadTxChecksum);
             GetConfigurationEntry(cfg, &pConfiguration->OffloadTxLSO);
             GetConfigurationEntry(cfg, &pConfiguration->OffloadRxCS);
-            GetConfigurationEntry(cfg, &pConfiguration->OffloadGuestCS);
             GetConfigurationEntry(cfg, &pConfiguration->UseSwTxChecksum);
             GetConfigurationEntry(cfg, &pConfiguration->IPPacketsCheck);
             GetConfigurationEntry(cfg, &pConfiguration->stdIpcsV4);
@@ -303,7 +300,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             pContext->ulFormalLinkSpeed *= 1000000;
             pContext->bUseScatterGather  = pConfiguration->ScatterGather.ulValue != 0;
             pContext->bDoHardwareChecksum = pConfiguration->UseSwTxChecksum.ulValue == 0;
-            pContext->bDoGuestChecksumOnReceive = pConfiguration->OffloadGuestCS.ulValue != 0;
             pContext->bDoIPCheckTx = pConfiguration->IPPacketsCheck.ulValue & 1;
             pContext->bDoIPCheckRx = pConfiguration->IPPacketsCheck.ulValue & 2;
             pContext->Offload.flagsValue = 0;
@@ -773,14 +769,10 @@ NDIS_STATUS ParaNdis_InitializeContext(
         }
     }
 
-    if (pContext->bDoGuestChecksumOnReceive && VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_GUEST_CSUM))
+    if (VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_GUEST_CSUM))
     {
         DPrintf(0, ("[%s] Enabling guest checksum", __FUNCTION__) );
         VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_GUEST_CSUM);
-    }
-    else
-    {
-        pContext->bDoGuestChecksumOnReceive = FALSE;
     }
 
     if (VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_CTRL_VQ))
