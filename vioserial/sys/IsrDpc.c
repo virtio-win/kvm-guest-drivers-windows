@@ -64,6 +64,7 @@ VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt,
     NTSTATUS status;
     WDFCHILDLIST PortList;
     WDFDEVICE Device;
+    WDFREQUEST Request;
     WDF_CHILD_LIST_ITERATOR iterator;
     WDF_CHILD_RETRIEVE_INFO PortInfo;
     VIOSERIAL_PORT VirtPort;
@@ -106,8 +107,6 @@ VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt,
 
         if (Port->InBuf && Port->PendingReadRequest)
         {
-            WDFREQUEST Request;
-
             Request = Port->PendingReadRequest;
             status = WdfRequestUnmarkCancelable(Request);
             if (status != STATUS_CANCELLED)
@@ -139,6 +138,30 @@ VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt,
             }
         }
         WdfSpinLockRelease(Port->InBufLock);
+
+        Request = NULL;
+        WdfSpinLockAcquire(Port->OutVqLock);
+        if (Port->PendingWriteRequest)
+        {
+            Request = Port->PendingWriteRequest;
+            Port->PendingWriteRequest = NULL;
+        }
+        WdfSpinLockRelease(Port->OutVqLock);
+
+        if (Request)
+        {
+            status = WdfRequestUnmarkCancelable(Request);
+            if (status != STATUS_CANCELLED)
+            {
+                VIOSerialPortWrite(WdfRequestGetIoQueue(Request), Request,
+                    GetWriteRequestContext(Request)->Length);
+            }
+            else
+            {
+                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
+                    "Request %p was cancelled.\n", Request);
+            }
+        }
     }
     WdfChildListEndIteration(PortList, &iterator);
 

@@ -10,7 +10,8 @@
 EVT_WDF_WORKITEM VIOSerialPortPortReadyWork;
 EVT_WDF_WORKITEM VIOSerialPortSymbolicNameWork;
 EVT_WDF_WORKITEM VIOSerialPortPnpNotifyWork;
-EVT_WDF_REQUEST_CANCEL VIOSerialPortRequestCancel;
+EVT_WDF_REQUEST_CANCEL VIOSerialPortReadRequestCancel;
+EVT_WDF_REQUEST_CANCEL VIOSerialPortWriteRequestCancel;
 EVT_WDF_DEVICE_D0_EXIT_PRE_INTERRUPTS_DISABLED VIOSerialPortEvtDeviceD0ExitPreInterruptsDisabled;
 EVT_WDF_DEVICE_D0_EXIT VIOSerialPortEvtDeviceD0Exit;
 
@@ -679,15 +680,13 @@ VIOSerialDeviceListCreatePdo(
            break;
         }
 
-        WDF_IO_QUEUE_CONFIG_INIT(&queueConfig,
-                                 WdfIoQueueDispatchSequential);
+        WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchSequential);
+        queueConfig.AllowZeroLengthRequests = WdfFalse;
+        queueConfig.EvtIoWrite = VIOSerialPortWrite;
 
-        queueConfig.EvtIoWrite  =  VIOSerialPortWrite;
-        status = WdfIoQueueCreate(hChild,
-                                 &queueConfig,
-                                 WDF_NO_OBJECT_ATTRIBUTES,
-                                 &pport->WriteQueue
-                                 );
+        status = WdfIoQueueCreate(hChild, &queueConfig,
+            WDF_NO_OBJECT_ATTRIBUTES, &pport->WriteQueue);
+
         if (!NT_SUCCESS(status))
         {
            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
@@ -855,7 +854,8 @@ VIOSerialPortRead(
 		else
 		{
 			ASSERT (pdoData->port->PendingReadRequest == NULL);
-			status = WdfRequestMarkCancelableEx(Request, VIOSerialPortRequestCancel);
+			status = WdfRequestMarkCancelableEx(Request,
+				VIOSerialPortReadRequestCancel);
 			if (!NT_SUCCESS(status))
 			{
 				WdfRequestComplete(Request, status);
@@ -884,67 +884,95 @@ VIOSerialPortRead(
     return;
 }
 
-
-VOID
-VIOSerialPortWrite(
-    IN WDFQUEUE   Queue,
-    IN WDFREQUEST Request,
-    IN size_t     Length
-    )
+VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
+                        IN WDFREQUEST Request,
+                        IN size_t Length)
 {
+    NTSTATUS status;
+    PVOID InBuf;
+    size_t Sent;
+    PVIOSERIAL_PORT Port;
+    BOOLEAN NonBlock;
 
-    PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
-    NTSTATUS           status = STATUS_SUCCESS;
-    size_t             length;
-    PVOID              systemBuffer;
-    PVIOSERIAL_PORT    pport = pdoData->port;
-    BOOLEAN            nonBlock;
-    PAGED_CODE();
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s Length: %d\n",
+        __FUNCTION__, Length);
 
-    TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "-->%s length = %d\n", __FUNCTION__, Length);
-
-    if (Length == 0)
-    {
-        status = STATUS_INVALID_BUFFER_SIZE;
-        WdfRequestComplete(Request, status);
-        TraceEvents(TRACE_LEVEL_FATAL, DBG_WRITE, "<--%s::%d complet with status %d\n", __FUNCTION__, __LINE__, status);
-        return;
-    }
-    status = WdfRequestRetrieveInputBuffer(Request, Length, &systemBuffer, &length);
+    status = WdfRequestRetrieveInputBuffer(Request, Length, &InBuf, NULL);
     if (!NT_SUCCESS(status))
     {
         WdfRequestComplete(Request, status);
-        TraceEvents(TRACE_LEVEL_FATAL, DBG_WRITE, "<--%s::%d complet with status %d\n", __FUNCTION__, __LINE__, status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
+            "Failed to retrieve input buffer: %x\n", status);
         return;
     }
-    nonBlock = FALSE;
-    if (VIOSerialWillWriteBlock(pport))
+
+    Port = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue))->port;
+    NonBlock = !(WdfFileObjectGetFlags(
+        WdfRequestGetFileObject(Request)) & FO_SYNCHRONOUS_IO);
+
+    if (VIOSerialWillWriteBlock(Port))
     {
-        if (nonBlock)
+        if (NonBlock)
         {
-           status = STATUS_INSUFFICIENT_RESOURCES;
-           WdfRequestComplete(Request, status);
-           TraceEvents(TRACE_LEVEL_FATAL, DBG_WRITE, "<--%s::%d complet with status %d\n", __FUNCTION__, __LINE__, status);
-           return;
+            WdfRequestComplete(Request, STATUS_CANT_WAIT);
         }
-    }
-    length = VIOSerialSendBuffers(pport, systemBuffer, length, nonBlock);
-    if (length > 0)
-    {
-        WdfRequestCompleteWithInformation( Request, status, length);
+        else
+        {
+            PWRITE_REQUEST_CONTEXT Context = GetWriteRequestContext(Request);
+
+            if (Context == NULL)
+            {
+                WDF_OBJECT_ATTRIBUTES attributes;
+
+                WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes,
+                    WRITE_REQUEST_CONTEXT);
+
+                status = WdfObjectAllocateContext(Request, &attributes,
+                    (PVOID*)&Context);
+
+                if (!NT_SUCCESS(status))
+                {
+                    WdfRequestComplete(Request, status);
+                }
+            }
+
+            if (Context != NULL)
+            {
+                status = WdfRequestMarkCancelableEx(Request,
+                    VIOSerialPortWriteRequestCancel);
+
+                if (NT_SUCCESS(status))
+                {
+                    Context->Length = Length;
+                    WdfSpinLockAcquire(Port->OutVqLock);
+                    Port->PendingWriteRequest = Request;
+                    WdfSpinLockRelease(Port->OutVqLock);
+                }
+                else
+                {
+                    WdfRequestComplete(Request, status);
+                }
+            }
+        }
     }
     else
     {
-        status = STATUS_INSUFFICIENT_RESOURCES;
-        TraceEvents(TRACE_LEVEL_FATAL, DBG_WRITE, "<--%s::%d complet with status %d\n", __FUNCTION__, __LINE__, status);
-        WdfRequestComplete(Request, status);
+        Sent = VIOSerialSendBuffers(Port, InBuf, Length);
+        if (Sent > 0)
+        {
+            WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, Sent);
+        }
+        else
+        {
+            WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
+        }
     }
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE,"<-- %s\n", __FUNCTION__);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,"<-- %s\n", __FUNCTION__);
 }
 
-
 VOID
-VIOSerialPortRequestCancel(
+VIOSerialPortReadRequestCancel(
     IN WDFREQUEST Request
     )
 {
@@ -970,6 +998,30 @@ VIOSerialPortRequestCancel(
     return;
 }
 
+VOID VIOSerialPortWriteRequestCancel(IN WDFREQUEST Request)
+{
+    BOOLEAN cancel = FALSE;
+    PVIOSERIAL_PORT Port = RawPdoSerialPortGetData(
+        WdfIoQueueGetDevice(WdfRequestGetIoQueue(Request)))->port;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s Request: 0x%p\n",
+        __FUNCTION__, Request);
+
+    WdfSpinLockAcquire(Port->OutVqLock);
+    if (Port->PendingWriteRequest)
+    {
+        Port->PendingWriteRequest = NULL;
+        cancel = TRUE;
+    }
+    WdfSpinLockRelease(Port->OutVqLock);
+
+    if (cancel)
+    {
+        WdfRequestCompleteWithInformation(Request, STATUS_CANCELLED, 0L);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,"<-- %s\n", __FUNCTION__);
+}
 
 VOID
 VIOSerialPortDeviceControl(

@@ -139,6 +139,7 @@ typedef struct _tagVioSerialPort
     BOOLEAN             Removed;
     WDFQUEUE            ReadQueue;
     WDFREQUEST          PendingReadRequest;
+    WDFREQUEST          PendingWriteRequest;
 
     WDFQUEUE            WriteQueue;
     WDFQUEUE            IoctlQueue;
@@ -161,6 +162,11 @@ typedef struct _tagTransactionContext {
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(TRANSACTION_CONTEXT, RawPdoSerialPortGetTransactionContext)
 
+typedef struct _WRITE_REQUEST_CONTEXT {
+    size_t Length;
+} WRITE_REQUEST_CONTEXT, *PWRITE_REQUEST_CONTEXT;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(WRITE_REQUEST_CONTEXT, GetWriteRequestContext)
 
 NTSTATUS
 VIOSerialFillQueue(
@@ -179,12 +185,11 @@ VIOSerialReclaimConsumedBuffers(
     IN PVIOSERIAL_PORT port
 );
 
-SSIZE_T
+size_t
 VIOSerialSendBuffers(
-    IN PVIOSERIAL_PORT port,
-    IN PVOID buf,
-    IN SIZE_T count,
-    IN BOOLEAN nonblock
+    IN PVIOSERIAL_PORT Port,
+    IN PVOID Buffer,
+    IN size_t Length
 );
 
 SSIZE_T
