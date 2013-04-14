@@ -17,7 +17,7 @@
 
 setlocal
 
-if "%DDKVER%"=="" set DDKVER=7600.16385.0
+if "%DDKVER%"=="" set DDKVER=7600.16385.1
 set BUILDROOT=C:\WINDDK\%DDKVER%
 set X64ENV=x64
 if "%DDKVER%"=="6000" set X64ENV=amd64
