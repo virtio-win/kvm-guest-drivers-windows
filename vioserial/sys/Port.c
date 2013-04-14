@@ -207,6 +207,8 @@ VIOSerialRenewAllPorts(
            break;
         }
 
+        RawPdoSerialPortGetData(hChild)->port->Removed = FALSE;
+
         VIOSerialEnableInterruptQueue(GetInQueue(&vport));
 
         WdfIoQueueStart(vport.ReadQueue);
