@@ -83,7 +83,6 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry ConnectRate;
     tConfigurationEntry isLogEnabled;
     tConfigurationEntry debugLevel;
-    tConfigurationEntry dpcChecker;
     tConfigurationEntry TxCapacity;
     tConfigurationEntry RxCapacity;
     tConfigurationEntry LogStatistics;
