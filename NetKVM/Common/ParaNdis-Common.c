@@ -480,24 +480,6 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
 }
 
 /**********************************************************
-    Only for test. Prints out if the interrupt line is ON
-Parameters:
-Return value:
-***********************************************************/
-static void JustForCheckClearInterrupt(PARANDIS_ADAPTER *pContext, const char *Label)
-{
-    if (pContext->bEnableInterruptChecking)
-    {
-        ULONG ulActive;
-        ulActive = VirtIODeviceISR(&pContext->IODevice);
-        if (ulActive)
-        {
-            DPrintf(0,("WARNING: Interrupt Line %d(%s)!", ulActive, Label));
-        }
-    }
-}
-
-/**********************************************************
 Prints out statistics
 ***********************************************************/
 static void PrintStatistics(PARANDIS_ADAPTER *pContext)
@@ -647,15 +629,11 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
         VirtIODeviceInitialize(&pContext->IODevice, pContext->AdapterResources.ulIOAddress, sizeof(pContext->IODevice));
         VirtIODeviceSetMSIXUsed(&pContext->IODevice, pContext->bUsingMSIX);
-        JustForCheckClearInterrupt(pContext, "init 0");
         ParaNdis_ResetVirtIONetDevice(pContext);
-        JustForCheckClearInterrupt(pContext, "init 1");
         VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
-        JustForCheckClearInterrupt(pContext, "init 2");
         VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER);
         pContext->u32HostFeatures = VirtIODeviceReadHostFeatures(&pContext->IODevice);
         DumpVirtIOFeatures(pContext);
-        JustForCheckClearInterrupt(pContext, "init 3");
 
         pContext->bLinkDetectSupported = VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_STATUS);
         if(pContext->bLinkDetectSupported) {
@@ -1169,11 +1147,9 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
 
     if (status == NDIS_STATUS_SUCCESS)
     {
-        JustForCheckClearInterrupt(pContext, "start 3");
         pContext->bEnableInterruptHandlingDPC = TRUE;
         ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
         VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
-        JustForCheckClearInterrupt(pContext, "start 4");
     }
     DEBUG_EXIT_STATUS(0, status);
     return status;
@@ -1260,13 +1236,7 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     /* disable any interrupt generation */
     if (pContext->IODevice.addr)
     {
-        //int nActive;
-        //nActive = VirtIODeviceISR(&pContext->IODevice);
         VirtIODeviceRemoveStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
-        JustForCheckClearInterrupt(pContext, "exit 1");
-        //nActive += VirtIODeviceISR(&pContext->IODevice);
-        //nActive += VirtIODeviceISR(&pContext->IODevice);
-        //DPrintf(0, ("cleanup %d", nActive));
     }
 
     PreventDPCServicing(pContext);
@@ -1278,9 +1248,7 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 
     if (pContext->IODevice.addr)
     {
-        JustForCheckClearInterrupt(pContext, "exit 2");
         ParaNdis_ResetVirtIONetDevice(pContext);
-        JustForCheckClearInterrupt(pContext, "exit 3");
     }
     VirtIONetRelease(pContext);
 
