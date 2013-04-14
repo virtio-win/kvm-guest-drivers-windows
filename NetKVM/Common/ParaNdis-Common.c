@@ -334,7 +334,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             pContext->InitialOffloadParameters.LsoV2IPv6 = (UCHAR)pConfiguration->stdLsoV2ip6.ulValue;
             pContext->ulPriorityVlanSetting = pConfiguration->PriorityVlanTagging.ulValue;
             pContext->VlanId = pConfiguration->VlanId.ulValue & 0xfff;
-            pContext->bDoPublishIndices = pConfiguration->PublishIndices.ulValue != 0;
             pContext->MaxPacketSize.nMaxDataSize = pConfiguration->MTU.ulValue;
 #if PARANDIS_SUPPORT_RSS
             pContext->bRSSOffloadSupported = pConfiguration->RSSOffloadSupported.ulValue ? TRUE : FALSE;
@@ -746,15 +745,11 @@ NDIS_STATUS ParaNdis_InitializeContext(
                 pContext->CurrentMacAddress[4],
                 pContext->CurrentMacAddress[5]));
         }
-        if (pContext->bDoPublishIndices)
-            pContext->bDoPublishIndices = VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_F_PUBLISH_INDICES);
+
+        pContext->bDoPublishIndices = VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_F_PUBLISH_INDICES);
         if (pContext->bDoPublishIndices)
         {
             VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_F_PUBLISH_INDICES);
-        }
-        else
-        {
-            pContext->bDoPublishIndices = FALSE;
         }
     }
     else
