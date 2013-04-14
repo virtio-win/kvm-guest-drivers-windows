@@ -460,7 +460,6 @@ typedef struct _tagPARANDIS_ADAPTER
     UCHAR                   CurrentMacAddress[ETH_LENGTH_OF_ADDRESS];
     ULONG                   PacketFilter;
     ULONG                   DummyLookAhead;
-    ULONG                   ulMilliesToConnect;
     ULONG                   nDetectedStoppedTx;
     ULONG                   nDetectedInactivity;
     ULONG                   nVirtioHeaderSize;
@@ -549,7 +548,6 @@ typedef struct _tagPARANDIS_ADAPTER
     PNET_BUFFER_LIST            SendWaitingList;
     LIST_ENTRY                  WaitingMapping;
     NDIS_HANDLE                 DmaHandle;
-    NDIS_HANDLE                 ConnectTimer;
     NDIS_HANDLE                 InterruptRecoveryTimer;
     ULONG                       ulIrqReceived;
     NDIS_OFFLOAD                ReportedOffloadCapabilities;
@@ -590,7 +588,6 @@ typedef struct _tagPARANDIS_ADAPTER
     LIST_ENTRY                  SendQueue;
     LIST_ENTRY                  TxWaitingList;
     NDIS_EVENT                  HaltEvent;
-    NDIS_TIMER                  ConnectTimer;
     NDIS_TIMER                  DPCPostProcessTimer;
     BOOLEAN                     bDmaInitialized;
 #endif
