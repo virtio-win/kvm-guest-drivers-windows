@@ -227,7 +227,7 @@ ENTER_FN();
     allocationSize += ROUND_TO_PAGES(Size);
     adaptExt->offset[3] = adaptExt->offset[2] + ROUND_TO_PAGES(Size);
     allocationSize += ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
-    adaptExt->offset[4] = adaptExt->offset[3] + ROUND_TO_PAGES(Size);
+    adaptExt->offset[4] = adaptExt->offset[3] + ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
     allocationSize += ROUND_TO_PAGES(sizeof(VirtIOSCSIEventNode) * 8);
 
 #if (INDIRECT_SUPPORTED)
