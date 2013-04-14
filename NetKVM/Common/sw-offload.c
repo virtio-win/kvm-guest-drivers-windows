@@ -170,7 +170,7 @@ ProcessTCPHeader(tTcpIpPacketParsingResult _res, PVOID pIpHeader, ULONG len, USH
     }
     else
     {
-        DPrintf(2, ("tcp: %d < min headers %d", len, tcpipDataAt));
+        DPrintf(2, ("tcp: %d < min headers %d\n", len, tcpipDataAt));
     }
     return res;
 }
@@ -189,7 +189,7 @@ ProcessUDPHeader(tTcpIpPacketParsingResult _res, PVOID pIpHeader, ULONG len, USH
         USHORT datagramLength = swap_short(pUdpHeader->udp_length);
         res.xxpStatus = ppresXxpKnown;
         // may be full or not, but the datagram length is known
-        DPrintf(2, ("udp: len %d, datagramLength %d", len, datagramLength));
+        DPrintf(2, ("udp: len %d, datagramLength %d\n", len, datagramLength));
     }
     return res;
 }
@@ -208,14 +208,14 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
     {
         ipHeaderSize = (ver_len & 0xF) << 2;
         fullLength = swap_short(pIpHeader->v4.ip_length);
-        DPrintf(3, ("ip_version %d, ipHeaderSize %d, protocol %d, iplen %d",
+        DPrintf(3, ("ip_version %d, ipHeaderSize %d, protocol %d, iplen %d\n",
             ip_version, ipHeaderSize, pIpHeader->v4.ip_protocol, fullLength));
         res.ipStatus = (ipHeaderSize >= sizeof(IPv4Header)) ? ppresIPV4 : ppresNotIP;
         if (len < ipHeaderSize) res.ipCheckSum = ppresIPTooShort;
         if (fullLength) {}
         else
         {
-            DPrintf(2, ("ip v.%d, iplen %d", ip_version, fullLength));
+            DPrintf(2, ("ip v.%d, iplen %d\n", ip_version, fullLength));
         }
     }
     else if (ip_version == 6)
@@ -263,7 +263,7 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
                     }
                     else
                     {
-                        DPrintf(0, ("[%s] ERROR: Break in the middle of ext. headers(len %d, hdr > %d)", __FUNCTION__, len, ipHeaderSize));
+                        DPrintf(0, ("[%s] ERROR: Break in the middle of ext. headers(len %d, hdr > %d)\n", __FUNCTION__, len, ipHeaderSize));
                         res.ipStatus = ppresNotIP;
                         bParsingDone = TRUE;
                     }
@@ -279,13 +279,13 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
         }
         if (ipHeaderSize <= MAX_SUPPORTED_IPV6_HEADERS)
         {
-            DPrintf(3, ("ip_version %d, ipHeaderSize %d, protocol %d, iplen %d",
+            DPrintf(3, ("ip_version %d, ipHeaderSize %d, protocol %d, iplen %d\n",
                 ip_version, ipHeaderSize, nextHeader, fullLength));
             res.ipHeaderSize = ipHeaderSize;
         }
         else
         {
-            DPrintf(0, ("[%s] ERROR: IP chain is too large (%d)", __FUNCTION__, ipHeaderSize));
+            DPrintf(0, ("[%s] ERROR: IP chain is too large (%d)\n", __FUNCTION__, ipHeaderSize));
             res.ipStatus = ppresNotIP;
         }
     }
@@ -587,7 +587,7 @@ static __inline VOID PrintOutParsingResult(
     int level,
     LPCSTR procname)
 {
-    DPrintf(level, ("[%s] %s packet IPCS %s%s, checksum %s%s", procname,
+    DPrintf(level, ("[%s] %s packet IPCS %s%s, checksum %s%s\n", procname,
         GetPacketCase(res),
         GetIPCSCase(res),
         res.fixedIpCS ? "(fixed)" : "",
