@@ -41,8 +41,11 @@
 #include <ndis.h>
 
 #if NDIS_SUPPORT_NDIS630
-#define PARANDIS_SUPPORT_RSS 1
 #define PARANDIS_SUPPORT_RSC 1
+#endif
+
+#if NDIS_SUPPORT_NDIS620
+#define PARANDIS_SUPPORT_RSS 1
 #endif
 
 #include "osdep.h"
