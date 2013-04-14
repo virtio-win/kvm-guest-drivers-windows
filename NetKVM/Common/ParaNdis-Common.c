@@ -90,7 +90,6 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry OffloadTxLSO;
     tConfigurationEntry OffloadRxCS;
     tConfigurationEntry UseSwTxChecksum;
-    tConfigurationEntry IPPacketsCheck;
     tConfigurationEntry stdIpcsV4;
     tConfigurationEntry stdTcpcsV4;
     tConfigurationEntry stdTcpcsV6;
@@ -127,7 +126,6 @@ static const tConfigurationEntries defaultConfiguration =
     { "Offload.TxLSO",  0, 0, 2},
     { "Offload.RxCS",   0, 0, 31},
     { "UseSwTxChecksum", 0, 0, 1 },
-    { "IPPacketsCheck", 0, 0, 3 },
     { "*IPChecksumOffloadIPv4", 3, 0, 3 },
     { "*TCPChecksumOffloadIPv4",3, 0, 3 },
     { "*TCPChecksumOffloadIPv6",3, 0, 3 },
@@ -263,7 +261,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             GetConfigurationEntry(cfg, &pConfiguration->OffloadTxLSO);
             GetConfigurationEntry(cfg, &pConfiguration->OffloadRxCS);
             GetConfigurationEntry(cfg, &pConfiguration->UseSwTxChecksum);
-            GetConfigurationEntry(cfg, &pConfiguration->IPPacketsCheck);
             GetConfigurationEntry(cfg, &pConfiguration->stdIpcsV4);
             GetConfigurationEntry(cfg, &pConfiguration->stdTcpcsV4);
             GetConfigurationEntry(cfg, &pConfiguration->stdTcpcsV6);
@@ -296,8 +293,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             pContext->ulFormalLinkSpeed  = pConfiguration->ConnectRate.ulValue;
             pContext->ulFormalLinkSpeed *= 1000000;
             pContext->bDoHardwareChecksum = pConfiguration->UseSwTxChecksum.ulValue == 0;
-            pContext->bDoIPCheckTx = pConfiguration->IPPacketsCheck.ulValue & 1;
-            pContext->bDoIPCheckRx = pConfiguration->IPPacketsCheck.ulValue & 2;
             pContext->Offload.flagsValue = 0;
             // TX caps: 1 - TCP, 2 - UDP, 4 - IP, 8 - TCPv6, 16 - UDPv6
             if (pConfiguration->OffloadTxChecksum.ulValue & 1) pContext->Offload.flagsValue |= osbT4TcpChecksum | osbT4TcpOptionsChecksum;
@@ -3057,57 +3052,6 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
                     res.flags.UdpFailed = !res.flags.UdpOK;
                 }
             }
-        }
-    }
-
-    if (pContext->bDoIPCheckRx &&
-        (f.fRxIPChecksum || f.fRxTCPChecksum || f.fRxUDPChecksum || f.fRxTCPv6Checksum || f.fRxUDPv6Checksum))
-    {
-        ppr = ParaNdis_CheckSumVerify(pPacketPages, ulPacketLength - ETH_HEADER_SIZE, ulDataOffset + ETH_HEADER_SIZE, pcrAnyChecksum, __FUNCTION__"(2)");
-        if (ppr.ipStatus == ppresIPV4 && !ppr.IsFragment)
-        {
-            resIp.flags.IpOK = !!f.fRxIPChecksum && ppr.ipCheckSum == ppresCSOK;
-            resIp.flags.IpFailed = !!f.fRxIPChecksum && ppr.ipCheckSum == ppresCSBad;
-            if (f.fRxTCPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsTCP)
-            {
-                resIp.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK;
-                resIp.flags.TcpFailed = ppr.xxpCheckSum == ppresCSBad;
-            }
-            if (f.fRxUDPChecksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsUDP)
-            {
-                resIp.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK;
-                resIp.flags.UdpFailed = ppr.xxpCheckSum == ppresCSBad;
-            }
-        }
-        else if (ppr.ipStatus == ppresIPV6)
-        {
-            if (f.fRxTCPv6Checksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsTCP)
-            {
-                resIp.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK;
-                resIp.flags.TcpFailed = ppr.xxpCheckSum == ppresCSBad;
-            }
-            if (f.fRxUDPv6Checksum && ppr.xxpStatus == ppresXxpKnown && ppr.TcpUdp == ppresIsUDP)
-            {
-                resIp.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK;
-                resIp.flags.UdpFailed = ppr.xxpCheckSum == ppresCSBad;
-            }
-        }
-
-        if (res.value != resIp.value)
-        {
-            // if HW did not set some bits that IP checker set, it is a mistake:
-            // or GOOD CS is not labeled, or BAD checksum is not labeled
-            tChecksumCheckResult diff;
-            diff.value = resIp.value & ~res.value;
-            if (diff.flags.IpFailed || diff.flags.TcpFailed || diff.flags.UdpFailed)
-                pContext->extraStatistics.framesRxCSHwMissedBad++;
-            if (diff.flags.IpOK || diff.flags.TcpOK || diff.flags.UdpOK)
-                pContext->extraStatistics.framesRxCSHwMissedGood++;
-            if (diff.value)
-            {
-                DPrintf(0, ("[%s] real %X <> %X (virtio %X)", __FUNCTION__, resIp.value, res.value, virtioFlags));
-            }
-            res.value = resIp.value;
         }
     }
 

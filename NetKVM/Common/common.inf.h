@@ -225,14 +225,6 @@ HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       min,        0,          "1"
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       max,        0,          "10000"
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       step,       0,          "1"
 
-HKR, Ndi\Params\IPPacketsCheck,     ParamDesc,  0,          %IPPacketsCheck%
-HKR, Ndi\Params\IPPacketsCheck,     Default,    0,          "0"
-HKR, Ndi\Params\IPPacketsCheck,     type,       0,          "enum"
-HKR, Ndi\Params\IPPacketsCheck\enum,"0",        0,          %Disable%
-HKR, Ndi\Params\IPPacketsCheck\enum,"1",        0,          %Tx%
-HKR, Ndi\Params\IPPacketsCheck\enum,"2",        0,          %Rx%
-HKR, Ndi\Params\IPPacketsCheck\enum,"3",        0,          %TxRx%
-
 HKR, Ndi\Params\UseSwTxChecksum,    ParamDesc,  0,          %UseSwTxChecksum%
 HKR, Ndi\Params\UseSwTxChecksum,    Default,    0,          "0"
 HKR, Ndi\Params\UseSwTxChecksum,    type,       0,          "enum"
@@ -260,8 +252,6 @@ Rx = "Rx Enabled";
 TxRx = "Rx & Tx Enabled";
 
 #if defined(INCLUDE_TEST_PARAMS)
-
-IPPacketsCheck = "TestOnly.AnalyzeIPPackets"
 NumberOfHandledRXPackersInDPC = "TestOnly.RXThrottle"
 UseSwTxChecksum = "TestOnly.UseSwTxChecksum"
 #endif
