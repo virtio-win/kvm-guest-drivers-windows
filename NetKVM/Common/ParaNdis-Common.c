@@ -833,6 +833,11 @@ NDIS_STATUS ParaNdis_InitializeContext(
 		pContext->bDoGuestChecksumOnReceive = FALSE;
 	}
 
+	if (VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_CTRL_VQ))
+	{
+		VirtIOFeatureEnable(pContext->u32GuestFeatures, VIRTIO_NET_F_CTRL_VQ);
+	}
+
 	InitializeRSCState(pContext);
 
 	// now, after we checked the capabilities, we can initialize current
@@ -1139,7 +1144,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 	// We work with two virtqueues, 0 - receive and 1 - send.
 	VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 0, &size, &pContext->ReceiveQueueRing.size);
 	VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 1, &size, &pContext->SendQueueRing.size);
-	VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 1, &size, &pContext->ControlQueueRing.size);
+	VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 2, &size, &pContext->ControlQueueRing.size);
 	if (pContext->ReceiveQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ReceiveQueueRing))
 	{
 		pContext->NetReceiveQueue = VirtIODevicePrepareQueue(
@@ -1245,7 +1250,6 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
 		ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
 		VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 		JustForCheckClearInterrupt(pContext, "start 4");
-		ParaNdis_UpdateDeviceFilters(pContext);
 	}
 	DEBUG_EXIT_STATUS(0, status);
 	return status;
