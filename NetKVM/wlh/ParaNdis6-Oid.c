@@ -456,7 +456,7 @@ NDIS_STATUS ParaNdis6_OidRequest(
     _oid.ulToDoFlags = Rules.Flags;
 
     ParaNdis_DebugHistory(pContext, hopOidRequest, NULL, pNdisRequest->DATA.SET_INFORMATION.Oid, pNdisRequest->RequestType, 1);
-    DPrintf(Rules.nEntryLevel, ("[%s] OID type %d, id 0x%X(%s) of %d", __FUNCTION__,
+    DPrintf(Rules.nEntryLevel, ("[%s] OID type %d, id 0x%X(%s) of %d\n", __FUNCTION__,
                 pNdisRequest->RequestType,
                 pNdisRequest->DATA.SET_INFORMATION.Oid,
                 Rules.name,
@@ -502,12 +502,12 @@ NDIS_STATUS ParaNdis6_OidRequest(
                 }
                 else
                 {
-                    DPrintf(0, ("Error: Inconsistent OIDDB, oid %s", Rules.name));
+                    DPrintf(0, ("Error: Inconsistent OIDDB, oid %s\n", Rules.name));
                 }
             }
             break;
         default:
-            DPrintf(Rules.nExitFailLevel, ("Error: Unsupported OID type %d, id 0x%X(%s)",
+            DPrintf(Rules.nExitFailLevel, ("Error: Unsupported OID type %d, id 0x%X(%s)\n",
                 pNdisRequest->RequestType, Rules.oid, Rules.name));
             status = NDIS_STATUS_NOT_SUPPORTED;
             break;
@@ -516,7 +516,7 @@ NDIS_STATUS ParaNdis6_OidRequest(
     if (status != NDIS_STATUS_PENDING)
     {
         DPrintf(((status != NDIS_STATUS_SUCCESS) ? Rules.nExitFailLevel : Rules.nExitOKLevel),
-            ("[%s] OID type %d, id 0x%X(%s) (%X)", __FUNCTION__,
+            ("[%s] OID type %d, id 0x%X(%s) (%X)\n", __FUNCTION__,
             pNdisRequest->RequestType, Rules.oid, Rules.name, status));
     }
     return status;
@@ -615,21 +615,21 @@ static void DumpOffloadStructure(NDIS_OFFLOAD *po, LPCSTR message)
 {
     int level = 1;
     ULONG *pul;
-    DPrintf(level, ("[%s](%s)", __FUNCTION__, message));
+    DPrintf(level, ("[%s](%s)\n", __FUNCTION__, message));
     pul = (ULONG *)&po->Checksum.IPv4Transmit;
-    DPrintf(level, ("CSV4TX:(%d,%d)", pul[0], pul[1]));
+    DPrintf(level, ("CSV4TX:(%d,%d)\n", pul[0], pul[1]));
     pul = (ULONG *)&po->Checksum.IPv4Receive;
-    DPrintf(level, ("CSV4RX:(%d,%d)", pul[0], pul[1]));
+    DPrintf(level, ("CSV4RX:(%d,%d)\n", pul[0], pul[1]));
     pul = (ULONG *)&po->Checksum.IPv6Transmit;
-    DPrintf(level, ("CSV6TX:(%d,%d)", pul[0], pul[1], pul[2], pul[3], pul[4]));
+    DPrintf(level, ("CSV6TX:(%d,%d)\n", pul[0], pul[1], pul[2], pul[3], pul[4]));
     pul = (ULONG *)&po->Checksum.IPv6Receive;
-    DPrintf(level, ("CSV6RX:(%d,%d)", pul[0], pul[1], pul[2], pul[3], pul[4]));
+    DPrintf(level, ("CSV6RX:(%d,%d)\n", pul[0], pul[1], pul[2], pul[3], pul[4]));
     pul = (ULONG *)&po->LsoV1;
-    DPrintf(level, ("LSOV1 :(%d,%d,%d,%d)", pul[0], pul[1], pul[2], pul[3]));
+    DPrintf(level, ("LSOV1 :(%d,%d,%d,%d)\n", pul[0], pul[1], pul[2], pul[3]));
     pul = (ULONG *)&po->LsoV2.IPv4;
-    DPrintf(level, ("LSO4V2:(%d,%d,%d)", pul[0], pul[1], pul[2]));
+    DPrintf(level, ("LSO4V2:(%d,%d,%d)\n", pul[0], pul[1], pul[2]));
     pul = (ULONG *)&po->LsoV2.IPv6;
-    DPrintf(level, ("LSO6V2:(%d,%d,%d,%d)", pul[0], pul[1], pul[2], pul[3]));
+    DPrintf(level, ("LSO6V2:(%d,%d,%d,%d)\n", pul[0], pul[1], pul[2], pul[3]));
 }
 
 #define OFFLOAD_FEATURE_SUPPORT(flag) (flag) ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED
@@ -851,7 +851,7 @@ static ULONG SetOffloadField(
 {
     if (!*pbFailed)
     {
-        DPrintf(0, ("[%s] IN %s %s: current=%d Supported %s Requested %s",
+        DPrintf(0, ("[%s] IN %s %s: current=%d Supported %s Requested %s\n",
                 __FUNCTION__, name, isTx? "TX" : "RX", current,
                 MakeTxRxString(isSupportedTx, isSupportedRx),
                 MakeOffloadParameterString(TxRxValue)));
@@ -899,7 +899,7 @@ static ULONG SetOffloadField(
             break;
         }
 
-        DPrintf(0, ("[%s] OUT %s %s: new=%d (%saccepted)", __FUNCTION__, name, isTx? "TX" : "RX", current, *pbFailed ? "NOT " : ""));
+        DPrintf(0, ("[%s] OUT %s %s: new=%d (%saccepted)\n", __FUNCTION__, name, isTx? "TX" : "RX", current, *pbFailed ? "NOT " : ""));
     }
     return current;
 }
@@ -912,7 +912,7 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
     tOffloadSettingsFlags fPresent = pContext->Offload.flags;
     tOffloadSettingsFlags *pf = &fPresent;
 
-    DPrintf(0, ("[%s] Requested: V4:IPCS=%s,TCPCS=%s,UDPCS=%s V6:TCPCS=%s,UDPCS=%s",
+    DPrintf(0, ("[%s] Requested: V4:IPCS=%s,TCPCS=%s,UDPCS=%s V6:TCPCS=%s,UDPCS=%s\n",
                 __FUNCTION__,
                 MakeOffloadParameterString(pop->IPv4Checksum),
                 MakeOffloadParameterString(pop->TCPIPv4Checksum),
@@ -961,7 +961,7 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
         fSupported.fRxUDPv6Checksum, pop->UDPIPv6Checksum, &bFailed);
 
 
-    DPrintf(0, ("[%s] Result: TCPv4:%s,UDPv4:%s,IPCS:%s TCPv6:%s,UDPv6:%s", __FUNCTION__,
+    DPrintf(0, ("[%s] Result: TCPv4:%s,UDPv4:%s,IPCS:%s TCPv6:%s,UDPv6:%s\n", __FUNCTION__,
         MakeTxRxString(pf->fTxTCPChecksum, pf->fRxTCPChecksum),
         MakeTxRxString(pf->fTxUDPChecksum, pf->fRxUDPChecksum),
         MakeTxRxString(pf->fTxIPChecksum, pf->fRxIPChecksum),
@@ -1000,8 +1000,8 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
         bFailed = TRUE;
     }
 
-    DPrintf(0, ("[%s] Result: LSO: v4 %d, v6 %d", __FUNCTION__, pf->fTxLso, pf->fTxLsov6));
-    DPrintf(0, ("[%s] Final: the request %saccepted", __FUNCTION__, bFailed ? "NOT " : ""));
+    DPrintf(0, ("[%s] Result: LSO: v4 %d, v6 %d\n", __FUNCTION__, pf->fTxLso, pf->fTxLsov6));
+    DPrintf(0, ("[%s] Final: the request %saccepted\n", __FUNCTION__, bFailed ? "NOT " : ""));
 
     if (bFailed && pOid)
         return NDIS_STATUS_INVALID_PARAMETER;
@@ -1101,7 +1101,7 @@ NDIS_STATUS OnSetOffloadEncapsulation(PARANDIS_ADAPTER *pContext, tOidDesc *pOid
     {
         ULONG *pul = (ULONG *)&encaps;
         status = NDIS_STATUS_INVALID_PARAMETER;
-        DPrintf(1, ("[%s] %08lX, %08lX, %08lX, %08lX, %08lX, %08lX, %08lX", __FUNCTION__,
+        DPrintf(1, ("[%s] %08lX, %08lX, %08lX, %08lX, %08lX, %08lX, %08lX\n", __FUNCTION__,
                 pul[0],pul[1],pul[2],pul[3],pul[4],pul[5],pul[6]));
         if (encaps.Header.Size == sizeof(encaps) &&
             encaps.Header.Revision == NDIS_OFFLOAD_ENCAPSULATION_REVISION_1 &&
@@ -1110,11 +1110,11 @@ NDIS_STATUS OnSetOffloadEncapsulation(PARANDIS_ADAPTER *pContext, tOidDesc *pOid
             (encaps.IPv6.Enabled != NDIS_OFFLOAD_SET_ON || (encaps.IPv6.EncapsulationType & NDIS_ENCAPSULATION_IEEE_802_3))
             )
          {
-            DPrintf(0, ("[%s] V4 types 0x%lX, header %d, enabled %d", __FUNCTION__,
+            DPrintf(0, ("[%s] V4 types 0x%lX, header %d, enabled %d\n", __FUNCTION__,
                 encaps.IPv4.EncapsulationType,
                 encaps.IPv4.HeaderSize,
                 encaps.IPv4.Enabled));
-            DPrintf(0, ("[%s] V6 types 0x%lX, header %d, enabled %d", __FUNCTION__,
+            DPrintf(0, ("[%s] V6 types 0x%lX, header %d, enabled %d\n", __FUNCTION__,
                 encaps.IPv6.EncapsulationType,
                 encaps.IPv6.HeaderSize,
                 encaps.IPv6.Enabled));
