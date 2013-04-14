@@ -255,12 +255,6 @@ HKR, Ndi\Params\PacketFilter,       type,       0,          "enum"
 HKR, Ndi\Params\PacketFilter\enum,  "1",        0,          %Enable%
 HKR, Ndi\Params\PacketFilter\enum,  "0",        0,          %Disable%
 
-HKR, Ndi\Params\Promiscuous,        ParamDesc,  0,          %Promiscuous%
-HKR, Ndi\Params\Promiscuous,        Default,    0,          "0"
-HKR, Ndi\Params\Promiscuous,        type,       0,          "enum"
-HKR, Ndi\Params\Promiscuous\enum,   "1",        0,          %Enable%
-HKR, Ndi\Params\Promiscuous\enum,   "0",        0,          %Disable%
-
 HKR, Ndi\Params\IPPacketsCheck,     ParamDesc,  0,          %IPPacketsCheck%
 HKR, Ndi\Params\IPPacketsCheck,     Default,    0,          "0"
 HKR, Ndi\Params\IPPacketsCheck,     type,       0,          "enum"
@@ -275,8 +269,6 @@ HKR, Ndi\Params\UseSwTxChecksum,    type,       0,          "enum"
 HKR, Ndi\Params\UseSwTxChecksum\enum,   "1",    0,          %Enable%
 HKR, Ndi\Params\UseSwTxChecksum\enum,   "0",    0,          %Disable%
 #endif
-
-
 
 #endif
 
@@ -300,7 +292,6 @@ LogStatistics = "Logging.Statistics(sec)"
 Gather = "TestOnly.Scatter-Gather"
 GuestCS = "TestOnly.GuestChecksum"
 PacketFilter = "TestOnly.HwPacketFilter"
-Promiscuous = "TestOnly.Promiscuous"
 IPPacketsCheck = "TestOnly.AnalyzeIPPackets"
 NumberOfHandledRXPackersInDPC = "TestOnly.RXThrottle"
 UseSwTxChecksum = "TestOnly.UseSwTxChecksum"
