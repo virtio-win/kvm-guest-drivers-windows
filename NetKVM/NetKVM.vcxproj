@@ -589,7 +589,6 @@
     <ClInclude Include="Common\DebugData.h" />
     <ClInclude Include="Common\ethernetutils.h" />
     <ClInclude Include="Common\IONetDescriptor.h" />
-    <ClInclude Include="Common\kdebugprint.h" />
     <ClInclude Include="Common\ndis56common.h" />
     <ClInclude Include="Common\osdep.h" />
     <ClInclude Include="Common\ParaNdis-Oid.h" />
