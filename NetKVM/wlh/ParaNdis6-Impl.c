@@ -125,24 +125,6 @@ NDIS_HANDLE ParaNdis_OpenNICConfiguration(PARANDIS_ADAPTER *pContext)
 }
 
 /**********************************************************
-NDIS6 implementation of setting timer
-Parameters:
-NDIS_HANDLE timer   - previously created timer
-LONG millies        - timeout in miilies
-Return value:
-    TRUE if the times was already set, then it is cancelled and set again
-***********************************************************/
-BOOLEAN ParaNdis_SetTimer(NDIS_HANDLE timer, LONG millies)
-{
-    LARGE_INTEGER  DueTime;
-    BOOLEAN b;
-    DueTime.QuadPart = (-10000) * millies;
-    b = NdisSetTimerObject(timer, DueTime, 0, NULL);
-    return b;
-}
-
-
-/**********************************************************
 NDIS6 implementation of shared memory allocation
 Parameters:
     context
@@ -674,7 +656,6 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
         {
             pContext->pMSIXInfoTable = mic.MessageInfoTable;
             status = ConfigureMSIXVectors(pContext);
-            //pContext->bDoInterruptRecovery = FALSE;
         }
         else if (pContext->bUsingMSIX)
         {
@@ -2493,33 +2474,6 @@ static UCHAR MiniportSyncRecoveryProcedure(PVOID  SynchronizeContext)
         }
     }
     return val;
-}
-
-
-VOID ParaNdis6_OnInterruptRecoveryTimer(PARANDIS_ADAPTER *pContext)
-{
-    UCHAR val;
-#pragma warning (push)
-#pragma warning (disable:4152)
-    val = NdisMSynchronizeWithInterruptEx(
-        pContext->InterruptHandle,
-        0,
-        MiniportSyncRecoveryProcedure,
-        pContext);
-#pragma warning (pop)
-
-    if (val & VISTA_RECOVERY_RUN_DPC)
-    {
-        InterlockedOr(&pContext->InterruptStatus, isAny);
-        ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
-    }
-    if (~val & VISTA_RECOVERY_CANCEL_TIMER)
-        ParaNdis_SetTimer(pContext->InterruptRecoveryTimer, 15);
-    else
-    {
-        DPrintf(0, ("[%s] Cancelled", __FUNCTION__));
-    }
-    DEBUG_EXIT_STATUS(5, val);
 }
 
 #endif // NDIS_SUPPORT_NDIS6

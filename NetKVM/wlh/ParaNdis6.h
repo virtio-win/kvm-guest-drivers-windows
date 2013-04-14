@@ -61,11 +61,6 @@ NDIS_STATUS ParaNdis6_ReceivePauseRestart(
     ONPAUSECOMPLETEPROC Callback
     );
 
-
-VOID ParaNdis6_OnInterruptRecoveryTimer(
-    PARANDIS_ADAPTER *pContext);
-
-
 /* returns number of buffers that have been sent */
 UINT ParaNdis6_CopyDataFromSingleNBL(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST pNBL);
 

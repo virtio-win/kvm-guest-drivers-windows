@@ -423,7 +423,6 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bConnected;
     BOOLEAN                 bEnableInterruptHandlingDPC;
     BOOLEAN                 bEnableInterruptChecking;
-    BOOLEAN                 bDoInterruptRecovery;
     BOOLEAN                 bDoSupportPriority;
     BOOLEAN                 bDoHwPacketFiltering;
     BOOLEAN                 bUseScatterGather;
@@ -548,7 +547,6 @@ typedef struct _tagPARANDIS_ADAPTER
     PNET_BUFFER_LIST            SendWaitingList;
     LIST_ENTRY                  WaitingMapping;
     NDIS_HANDLE                 DmaHandle;
-    NDIS_HANDLE                 InterruptRecoveryTimer;
     ULONG                       ulIrqReceived;
     NDIS_OFFLOAD                ReportedOffloadCapabilities;
     NDIS_OFFLOAD                ReportedOffloadConfiguration;
@@ -849,10 +847,6 @@ BOOLEAN ParaNdis_ProcessTx(
     PARANDIS_ADAPTER *pContext,
     BOOLEAN IsDpc,
     BOOLEAN IsInterrupt);
-
-BOOLEAN ParaNdis_SetTimer(
-    NDIS_HANDLE timer,
-    LONG millies);
 
 BOOLEAN ParaNdis_SynchronizeWithInterrupt(
     PARANDIS_ADAPTER *pContext,
