@@ -218,12 +218,6 @@ HKR, Ndi\Params\*UDPChecksumOffloadIPv6\enum,   "0",    0,      %Disable%
 #endif
 
 #if defined(INCLUDE_TEST_PARAMS)
-HKR, Ndi\Params\Gather,             ParamDesc,  0,          %Gather%
-HKR, Ndi\Params\Gather,             Default,    0,          "1"
-HKR, Ndi\Params\Gather,             type,       0,          "enum"
-HKR, Ndi\Params\Gather\enum,        "1",        0,          %Enable%
-HKR, Ndi\Params\Gather\enum,        "0",        0,          %Disable%
-
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       ParamDesc,  0,          %NumberOfHandledRXPackersInDPC%
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       type,       0,          "long"
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       default,    0,          "1000"
@@ -266,7 +260,7 @@ Rx = "Rx Enabled";
 TxRx = "Rx & Tx Enabled";
 
 #if defined(INCLUDE_TEST_PARAMS)
-Gather = "TestOnly.Scatter-Gather"
+
 IPPacketsCheck = "TestOnly.AnalyzeIPPackets"
 NumberOfHandledRXPackersInDPC = "TestOnly.RXThrottle"
 UseSwTxChecksum = "TestOnly.UseSwTxChecksum"
