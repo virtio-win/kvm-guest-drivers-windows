@@ -895,9 +895,12 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
     size_t Sent;
     PVIOSERIAL_PORT Port;
     BOOLEAN NonBlock;
+    PWRITE_REQUEST_CONTEXT Context;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s Length: %d\n",
         __FUNCTION__, Length);
+
+    PAGED_CODE();
 
     status = WdfRequestRetrieveInputBuffer(Request, Length, &InBuf, NULL);
     if (!NT_SUCCESS(status))
@@ -912,40 +915,42 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
     NonBlock = !(WdfFileObjectGetFlags(
         WdfRequestGetFileObject(Request)) & FO_SYNCHRONOUS_IO);
 
-    if (VIOSerialWillWriteBlock(Port))
+    Context = GetWriteRequestContext(Request);
+    if (Context == NULL)
     {
-        if (NonBlock)
+        WDF_OBJECT_ATTRIBUTES attributes;
+
+        WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes,
+            WRITE_REQUEST_CONTEXT);
+
+        status = WdfObjectAllocateContext(Request, &attributes,
+            (PVOID*)&Context);
+
+        if (!NT_SUCCESS(status))
         {
-            WdfRequestComplete(Request, STATUS_CANT_WAIT);
+            WdfRequestComplete(Request, status);
         }
-        else
+    }
+
+    if (Context != NULL)
+    {
+        Context->Length = Length;
+
+        if (VIOSerialWillWriteBlock(Port))
         {
-            PWRITE_REQUEST_CONTEXT Context = GetWriteRequestContext(Request);
-
-            if (Context == NULL)
+            if (NonBlock)
             {
-                WDF_OBJECT_ATTRIBUTES attributes;
-
-                WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes,
-                    WRITE_REQUEST_CONTEXT);
-
-                status = WdfObjectAllocateContext(Request, &attributes,
-                    (PVOID*)&Context);
-
-                if (!NT_SUCCESS(status))
-                {
-                    WdfRequestComplete(Request, status);
-                }
+                WdfRequestComplete(Request, STATUS_CANT_WAIT);
             }
-
-            if (Context != NULL)
+            else
             {
                 status = WdfRequestMarkCancelableEx(Request,
                     VIOSerialPortWriteRequestCancel);
 
+                TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,"XXX WdfRequestMarkCancelableEx %d\n", status);
+
                 if (NT_SUCCESS(status))
                 {
-                    Context->Length = Length;
                     WdfSpinLockAcquire(Port->OutVqLock);
                     Port->PendingWriteRequest = Request;
                     WdfSpinLockRelease(Port->OutVqLock);
@@ -956,17 +961,13 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
                 }
             }
         }
-    }
-    else
-    {
-        Sent = VIOSerialSendBuffers(Port, InBuf, Length);
-        if (Sent > 0)
-        {
-            WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, Sent);
-        }
         else
         {
-            WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
+            Sent = VIOSerialSendBuffers(Port, InBuf, Length, Request);
+            if (Sent <= 0)
+            {
+                WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
+            }
         }
     }
 

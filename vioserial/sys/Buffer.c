@@ -5,8 +5,8 @@
 #include "Buffer.tmh"
 #endif
 
-// Number of ring descriptors that fits into one page.
-#define INDIRECT_DESCRIPTORS 256
+// Number of descriptors that queue contains.
+#define QUEUE_DESCRIPTORS 128
 
 PPORT_BUFFER
 VIOSerialAllocateBuffer(
@@ -49,66 +49,54 @@ VIOSerialAllocateBuffer(
 
 size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port,
                             IN PVOID Buffer,
-                            IN size_t Length)
+                            IN size_t Length,
+                            IN WDFREQUEST Request)
 {
-    PHYSICAL_ADDRESS HighestAcceptable;
-    PVOID InDirectBuffer;
     struct virtqueue *vq = GetOutQueue(Port);
-    struct VirtIOBufferDescriptor sg[INDIRECT_DESCRIPTORS];
+    struct VirtIOBufferDescriptor sg[QUEUE_DESCRIPTORS];
+    PVOID buffer = Buffer;
+    size_t length = Length;
+    int out = 0;
     int ret;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,
         "--> %s Buffer: %p Length: %d\n", __FUNCTION__, Buffer, Length);
 
-    if (BYTES_TO_PAGES(Length) > INDIRECT_DESCRIPTORS)
+    if (BYTES_TO_PAGES(Length) > QUEUE_DESCRIPTORS)
     {
         return 0;
     }
 
-    HighestAcceptable.QuadPart = 0xFFFFFFFFFF;
-    InDirectBuffer = MmAllocateContiguousMemory(PAGE_SIZE, HighestAcceptable);
-    if (InDirectBuffer)
+    while (length > 0)
     {
-        PVOID buffer = Buffer;
-        size_t length = Length;
-        int i = 0;
+        sg[out].physAddr = MmGetPhysicalAddress(buffer);
+        sg[out].ulSize = min(length, PAGE_SIZE);
 
-        while (length > 0)
-        {
-            sg[i].physAddr = MmGetPhysicalAddress(buffer);
-            sg[i].ulSize = min(length, PAGE_SIZE);
+        buffer = (PVOID)((LONG_PTR)buffer + sg[out].ulSize);
+        length -= sg[out].ulSize;
+        out += 1;
+    }
 
-            buffer = (PVOID)((LONG_PTR)buffer + sg[i].ulSize);
-            length -= sg[i].ulSize;
-            i += 1;
-        }
+    WdfSpinLockAcquire(Port->OutVqLock);
 
-        WdfSpinLockAcquire(Port->OutVqLock);
-        VIOSerialReclaimConsumedBuffers(Port);
-        ret = vq->vq_ops->add_buf(vq, sg, i, 0, Buffer,
-            InDirectBuffer, MmGetPhysicalAddress(InDirectBuffer).QuadPart);
-        vq->vq_ops->kick(vq);
+    ret = vq->vq_ops->add_buf(vq, sg, out, 0, Request, NULL, 0);
+    vq->vq_ops->kick(vq);
 
-        if (ret < 0)
-        {
-            Length = 0;
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
-                "Error adding buffer to queue (ret = %d)\n", ret);
-        }
-        else if (ret == 0)
-        {
-            Port->OutVqFull = TRUE;
-        }
+    if (ret >= 0)
+    {
+        // Add a reference because the request is send to the virt queue.
+        WdfObjectReference(Request);
 
-        WdfSpinLockRelease(Port->OutVqLock);
-        MmFreeContiguousMemory(InDirectBuffer);
+        Port->OutVqFull = (ret == 0);
     }
     else
     {
         Length = 0;
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
-            "Error allocating contiguous memory.\n");
+            "Error adding buffer to queue (ret = %d)\n", ret);
     }
+
+    WdfSpinLockRelease(Port->OutVqLock);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 
@@ -131,23 +119,31 @@ VIOSerialFreeBuffer(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
 }
 
-VOID
-VIOSerialReclaimConsumedBuffers(
-    IN PVIOSERIAL_PORT port
-)
+VOID VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 {
-    PVOID buf;
+    WDFREQUEST request;
     UINT len;
-    struct virtqueue *vq = GetOutQueue(port);
+    struct virtqueue *vq = GetOutQueue(Port);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
 
-    while (vq && (buf = vq->vq_ops->get_buf(vq, &len)) != NULL)
+    if (vq)
     {
-        KeStallExecutionProcessor(100);
-        port->OutVqFull = FALSE;
+        while ((request = (WDFREQUEST)vq->vq_ops->get_buf(vq, &len)) != NULL)
+        {
+            // Removed the reference after the request was pulled out from the
+            // virt queue.
+            WdfObjectDereference(request);
+
+            WdfRequestCompleteWithInformation(request, STATUS_SUCCESS,
+                GetWriteRequestContext(request)->Length);
+
+            Port->OutVqFull = FALSE;
+        }
     }
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s port->OutVqFull = %d\n", __FUNCTION__, port->OutVqFull);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s Full: %d\n",
+        __FUNCTION__, Port->OutVqFull);
 }
 
 // this procedure must be called with port InBuf spinlock held
