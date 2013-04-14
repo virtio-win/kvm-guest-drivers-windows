@@ -130,7 +130,6 @@ static const tConfigurationEntries defaultConfiguration =
     { "DoLog",          1,  0,  1 },
     { "DebugLevel",     2,  0,  8 },
     { "ConnectTimer",   0,  0,  300000 },
-    { "DpcCheck",       0,  0,  2 },
     { "TxCapacity",     1024,   16, 1024 },
     { "RxCapacity",     256, 32, 1024 },
     { "InterruptRecovery",  0, 0, 1},
@@ -276,7 +275,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             GetConfigurationEntry(cfg, &pConfiguration->TxCapacity);
             GetConfigurationEntry(cfg, &pConfiguration->RxCapacity);
             GetConfigurationEntry(cfg, &pConfiguration->connectTimer);
-            GetConfigurationEntry(cfg, &pConfiguration->dpcChecker);
             GetConfigurationEntry(cfg, &pConfiguration->InterruptRecovery);
             GetConfigurationEntry(cfg, &pConfiguration->LogStatistics);
             GetConfigurationEntry(cfg, &pConfiguration->PacketFiltering);
@@ -316,7 +314,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
             pContext->maxFreeTxDescriptors = pConfiguration->TxCapacity.ulValue;
             pContext->NetMaxReceiveBuffers = pConfiguration->RxCapacity.ulValue;
             pContext->ulMilliesToConnect = pConfiguration->connectTimer.ulValue;
-            pContext->nEnableDPCChecker = pConfiguration->dpcChecker.ulValue;
             pContext->bDoInterruptRecovery = pConfiguration->InterruptRecovery.ulValue != 0;
             pContext->Limits.nPrintDiagnostic = pConfiguration->LogStatistics.ulValue;
             pContext->uNumberOfHandledRXPacketsInDPC = pConfiguration->NumberOfHandledRXPackersInDPC.ulValue;
@@ -2444,27 +2441,6 @@ static BOOLEAN CheckRunningDpc(PARANDIS_ADAPTER *pContext)
     if (bStopped)
     {
         pContext->nDetectedInactivity++;
-        if (pContext->nEnableDPCChecker)
-        {
-            if (pContext->NetTxPacketsToReturn)
-            {
-                DPrintf(0, ("[%s] - NO ACTIVITY!", __FUNCTION__));
-                if (!pContext->Limits.nPrintDiagnostic) PrintStatistics(pContext);
-                if (pContext->nEnableDPCChecker > 1)
-                {
-                    int isrStatus1, isrStatus2;
-                    isrStatus1 = VirtIODeviceISR(&pContext->IODevice);
-                    isrStatus2 = VirtIODeviceISR(&pContext->IODevice);
-                    if (isrStatus1 || isrStatus2)
-                    {
-                        DPrintf(0, ("WARNING: Interrupt status %d=>%d", isrStatus1, isrStatus2));
-                    }
-                }
-                // simulateDPC
-                InterlockedOr(&pContext->InterruptStatus, isAny);
-                ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
-            }
-        }
     }
     else
     {
@@ -2499,7 +2475,6 @@ static BOOLEAN CheckRunningDpc(PARANDIS_ADAPTER *pContext)
         pContext->Counters.nRxInactivity++;
         if (pContext->Counters.nRxInactivity >= 10)
         {
-//#define CRASH_ON_NO_RX
 #if defined(CRASH_ON_NO_RX)
             ONPAUSECOMPLETEPROC proc = (ONPAUSECOMPLETEPROC)(PVOID)1;
             proc(pContext);

@@ -234,13 +234,6 @@ HKR, Ndi\params\ConnectTimer,       min,        0,          "0"
 HKR, Ndi\params\ConnectTimer,       max,        0,          "300000"
 HKR, Ndi\params\ConnectTimer,       step,       0,          "50"
 
-HKR, Ndi\Params\DpcCheck,           ParamDesc,  0,          %DPCCheck%
-HKR, Ndi\Params\DpcCheck,           Default,    0,          "0"
-HKR, Ndi\Params\DpcCheck,           type,       0,          "enum"
-HKR, Ndi\Params\DpcCheck\enum,      "1",        0,          %Enable%
-HKR, Ndi\Params\DpcCheck\enum,      "0",        0,          %Disable%
-HKR, Ndi\Params\DpcCheck\enum,      "2",        0,          %Enable*%
-
 HKR, Ndi\Params\Gather,             ParamDesc,  0,          %Gather%
 HKR, Ndi\Params\Gather,             Default,    0,          "1"
 HKR, Ndi\Params\Gather,             type,       0,          "enum"
@@ -315,7 +308,6 @@ LogStatistics = "Logging.Statistics(sec)"
 
 #if defined(INCLUDE_TEST_PARAMS)
 ConnectAfter = "TestOnly.DelayConnect(ms)"
-DPCCheck = "TestOnly.DPCChecking"
 Gather = "TestOnly.Scatter-Gather"
 GuestCS = "TestOnly.GuestChecksum"
 InterruptRecovery = "TestOnly.InterruptRecovery"
