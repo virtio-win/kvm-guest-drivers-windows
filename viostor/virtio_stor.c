@@ -396,7 +396,10 @@ VirtIoFindAdapter(
     adaptExt->features = ReadVirtIODeviceRegister(adaptExt->vdev.addr + VIRTIO_PCI_HOST_FEATURES);
     ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WCACHE) ? TRUE : FALSE;
     if (ConfigInfo->CachesData) {
-        VirtIODeviceEnableGuestFeature(&adaptExt->vdev, VIRTIO_BLK_F_WCACHE);
+        u32 GuestFeatures = 0;
+        VirtIOFeatureEnable(GuestFeatures, VIRTIO_BLK_F_WCACHE);
+
+        VirtIODeviceWriteGuestFeatures(&adaptExt->vdev, GuestFeatures);
     }
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_WCACHE = %d\n", ConfigInfo->CachesData));
 
