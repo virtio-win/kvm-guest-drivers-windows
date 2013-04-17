@@ -376,6 +376,18 @@ static __inline USHORT CalculateIpPseudoHeaderChecksum(IPHeader *pIpHeader,
     return 0;
 }
 
+static __inline BOOLEAN
+CompareNetCheckSumOnEndSystem(USHORT computedChecksum, USHORT arrivedChecksum)
+{
+    //According to RFC 1624 sec. 3
+    //Checksum verification mechanism should treat 0xFFFF
+    //checksum value from received packet as 0x0000
+    if(arrivedChecksum == 0xFFFF)
+        arrivedChecksum = 0;
+
+    return computedChecksum == arrivedChecksum;
+}
+
 /******************************************
   Calculates IP header checksum calculator
   it can be already calculated
@@ -392,7 +404,7 @@ VerifyIpChecksum(
     {
         USHORT saved = pIpHeader->ip_xsum;
         CalculateIpChecksum(pIpHeader);
-        res.ipCheckSum = (pIpHeader->ip_xsum == saved) ? ppresCSOK : ppresCSBad;
+        res.ipCheckSum = CompareNetCheckSumOnEndSystem(pIpHeader->ip_xsum, saved) ? ppresCSOK : ppresCSBad;
         if (!bFix)
             pIpHeader->ip_xsum = saved;
         else
@@ -442,7 +454,7 @@ VerifyTcpChecksum(
     if (ulDataLength >= res.ipHeaderSize)
     {
         phcs = CalculateIpPseudoHeaderChecksum(pIpHeader, res, xxpHeaderAndPayloadLen);
-        res.xxpCheckSum = (saved == phcs) ?  ppresPCSOK : ppresCSBad;
+        res.xxpCheckSum = CompareNetCheckSumOnEndSystem(phcs, saved) ?  ppresPCSOK : ppresCSBad;
         if (res.xxpCheckSum != ppresPCSOK || whatToFix)
         {
             if (whatToFix & pcrFixPHChecksum)
@@ -460,7 +472,7 @@ VerifyTcpChecksum(
                 //USHORT ipFullLength = swap_short(pIpHeader->v4.ip_length);
                 pTcpHeader->tcp_xsum = phcs;
                 CalculateTcpChecksumGivenPseudoCS(pTcpHeader, pDataPages, ulStartOffset + res.ipHeaderSize, xxpHeaderAndPayloadLen);
-                if (saved == pTcpHeader->tcp_xsum)
+                if (CompareNetCheckSumOnEndSystem(pTcpHeader->tcp_xsum, saved))
                     res.xxpCheckSum = ppresCSOK;
 
                 if (!(whatToFix & pcrFixXxpChecksum))
@@ -480,7 +492,7 @@ VerifyTcpChecksum(
             // there is a very small chance that it is also good TCP CS
             // in such rare case we give a priority to TCP CS
             CalculateTcpChecksumGivenPseudoCS(pTcpHeader, pDataPages, ulStartOffset + res.ipHeaderSize, xxpHeaderAndPayloadLen);
-            if (saved == pTcpHeader->tcp_xsum)
+            if (CompareNetCheckSumOnEndSystem(pTcpHeader->tcp_xsum, saved))
                 res.xxpCheckSum = ppresCSOK;
             pTcpHeader->tcp_xsum = saved;
         }
@@ -513,7 +525,7 @@ VerifyUdpChecksum(
     if (ulDataLength >= res.ipHeaderSize)
     {
         phcs = CalculateIpPseudoHeaderChecksum(pIpHeader, res, xxpHeaderAndPayloadLen);
-        res.xxpCheckSum = (saved == phcs) ?  ppresPCSOK : ppresCSBad;
+        res.xxpCheckSum = CompareNetCheckSumOnEndSystem(phcs, saved) ?  ppresPCSOK : ppresCSBad;
         if (whatToFix & pcrFixPHChecksum)
         {
             if (ulDataLength >= (ULONG)(res.ipHeaderSize + sizeof(UDPHeader)))
@@ -530,7 +542,7 @@ VerifyUdpChecksum(
             {
                 pUdpHeader->udp_xsum = phcs;
                 CalculateUdpChecksumGivenPseudoCS(pUdpHeader, pDataPages, ulStartOffset + res.ipHeaderSize, xxpHeaderAndPayloadLen);
-                if (saved == pUdpHeader->udp_xsum)
+                if (CompareNetCheckSumOnEndSystem(pUdpHeader->udp_xsum, saved))
                     res.xxpCheckSum = ppresCSOK;
 
                 if (!(whatToFix & pcrFixXxpChecksum))
@@ -548,7 +560,7 @@ VerifyUdpChecksum(
             // there is a very small chance that it is also good UDP CS
             // in such rare case we give a priority to UDP CS
             CalculateUdpChecksumGivenPseudoCS(pUdpHeader, pDataPages, ulStartOffset + res.ipHeaderSize, xxpHeaderAndPayloadLen);
-            if (saved == pUdpHeader->udp_xsum)
+            if (CompareNetCheckSumOnEndSystem(pUdpHeader->udp_xsum, saved))
                 res.xxpCheckSum = ppresCSOK;
             pUdpHeader->udp_xsum = saved;
         }
