@@ -1,3 +1,8 @@
+call "C:\Program Files (x86)\Microsoft Visual Studio 11.0\Common7\Tools\VsDevCmd.bat"
+cd .\tools
+call InstallCertificate.bat
+cd ..
+
 :: Build Windows 8
 setlocal
 call tools\set_version.bat 0x0620
