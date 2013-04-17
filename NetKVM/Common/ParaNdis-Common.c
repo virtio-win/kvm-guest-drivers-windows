@@ -13,6 +13,7 @@
 
 static void ReuseReceiveBufferRegular(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBuffersDescriptor);
 static void ReuseReceiveBufferPowerOff(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBuffersDescriptor);
+static VOID ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext);
 
 // TODO: remove when the problem solved
 void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue);
@@ -240,7 +241,7 @@ Parameters:
     context
     PUCHAR *ppNewMACAddress - pointer to hold MAC address if configured from host
 ***********************************************************/
-static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAddress)
+static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddress)
 {
     NDIS_HANDLE cfg;
     tConfigurationEntries *pConfiguration = ParaNdis_AllocateMemory(pContext, sizeof(tConfigurationEntries));
@@ -342,19 +343,11 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR *ppNewMACAdd
                 PVOID p;
                 UINT  len = 0;
                 NdisReadNetworkAddress(&status, &p, &len, cfg);
-                if (status == NDIS_STATUS_SUCCESS && len == sizeof(pContext->CurrentMacAddress))
+                if (status == NDIS_STATUS_SUCCESS && len == ETH_LENGTH_OF_ADDRESS)
                 {
-                    *ppNewMACAddress = ParaNdis_AllocateMemory(pContext, sizeof(pContext->CurrentMacAddress));
-                    if (*ppNewMACAddress)
-                    {
-                        NdisMoveMemory(*ppNewMACAddress, p, len);
-                    }
-                    else
-                    {
-                        DPrintf(0, ("[%s] MAC address present, but some problem also...\n", __FUNCTION__));
-                    }
+                    NdisMoveMemory(pNewMACAddress, p, len);
                 }
-                else if (len && len != sizeof(pContext->CurrentMacAddress))
+                else if (len && len != ETH_LENGTH_OF_ADDRESS)
                 {
                     DPrintf(0, ("[%s] MAC address has wrong length of %d\n", __FUNCTION__, len));
                 }
@@ -466,6 +459,7 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
         {VIRTIO_NET_F_CTRL_RX, "VIRTIO_NET_F_CTRL_RX"},
         {VIRTIO_NET_F_CTRL_VLAN, "VIRTIO_NET_F_CTRL_VLAN"},
         {VIRTIO_NET_F_CTRL_RX_EXTRA, "VIRTIO_NET_F_CTRL_RX_EXTRA"},
+        {VIRTIO_NET_F_CTRL_MAC_ADDR, "VIRTIO_NET_F_CTRL_MAC_ADDR"},
         {VIRTIO_F_INDIRECT, "VIRTIO_F_INDIRECT"},
         {VIRTIO_F_PUBLISH_INDICES, "VIRTIO_F_PUBLISH_INDICES"},
     };
@@ -570,6 +564,79 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
 #endif
 }
 
+static __inline void
+DumpMac(int dbg_level, const char* header_str, UCHAR* mac)
+{
+    DPrintf(dbg_level,("%s: %02x-%02x-%02x-%02x-%02x-%02x\n",
+        header_str, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]));
+
+}
+
+static __inline void
+SetDeviceMAC(PPARANDIS_ADAPTER pContext, PUCHAR pDeviceMAC)
+{
+    if(pContext->bCfgMACAddrSupported && !pContext->bCtrlMACAddrSupported)
+    {
+        VirtIODeviceSet(&pContext->IODevice, 0, pDeviceMAC, ETH_LENGTH_OF_ADDRESS);
+    }
+}
+
+static void
+InitializeMAC(PPARANDIS_ADAPTER pContext, PUCHAR pCurrentMAC)
+{
+    //Acknowledge related features
+    pContext->bCfgMACAddrSupported = AckFeature(pContext, VIRTIO_NET_F_MAC);
+    pContext->bCtrlMACAddrSupported = AckFeature(pContext, VIRTIO_NET_F_CTRL_MAC_ADDR);
+
+    //Read and validate permanent MAC address
+    if (pContext->bCfgMACAddrSupported)
+    {
+        VirtIODeviceGet(&pContext->IODevice, 0, &pContext->PermanentMacAddress, ETH_LENGTH_OF_ADDRESS);
+        if (!ParaNdis_ValidateMacAddress(pContext->PermanentMacAddress, FALSE))
+        {
+            DumpMac(0, "Invalid device MAC ignored", pContext->PermanentMacAddress);
+            NdisZeroMemory(pContext->PermanentMacAddress, sizeof(pContext->PermanentMacAddress));
+        }
+    }
+
+    if (ETH_IS_EMPTY(pContext->PermanentMacAddress))
+    {
+        pContext->PermanentMacAddress[0] = 0x02;
+        pContext->PermanentMacAddress[1] = 0x50;
+        pContext->PermanentMacAddress[2] = 0xF2;
+        pContext->PermanentMacAddress[3] = 0x00;
+        pContext->PermanentMacAddress[4] = 0x01;
+        pContext->PermanentMacAddress[5] = 0x80 | (UCHAR)(pContext->ulUniqueID & 0xFF);
+        DumpMac(0, "No device MAC present, use default", pContext->PermanentMacAddress);
+    }
+    DumpMac(0, "Permanent device MAC", pContext->PermanentMacAddress);
+
+    //Read and validate configured MAC address
+    if (ParaNdis_ValidateMacAddress(pCurrentMAC, TRUE))
+    {
+        DPrintf(0, ("[%s] MAC address from configuration used\n", __FUNCTION__));
+        ETH_COPY_NETWORK_ADDRESS(pContext->CurrentMacAddress, pCurrentMAC);
+    }
+    else
+    {
+        DPrintf(0, ("No valid MAC configured\n", __FUNCTION__));
+        ETH_COPY_NETWORK_ADDRESS(pContext->CurrentMacAddress, pContext->PermanentMacAddress);
+    }
+
+    //If control channel message for MAC address configuration is not supported
+    //  Configure device with actual MAC address via configurations space
+    //Else actual MAC address will be configured later via control queue
+    SetDeviceMAC(pContext, pContext->CurrentMacAddress);
+
+    DumpMac(0, "Actual MAC", pContext->CurrentMacAddress);
+}
+
+static __inline void
+RestoreMAC(PPARANDIS_ADAPTER pContext)
+{
+    SetDeviceMAC(pContext, pContext->PermanentMacAddress);
+}
+
 /**********************************************************
 Initializes the context structure
 Major variables, received from NDIS on initialization, must be be set before this call
@@ -589,27 +656,12 @@ NDIS_STATUS ParaNdis_InitializeContext(
     PNDIS_RESOURCE_LIST pResourceList)
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
-    PUCHAR pNewMacAddress = NULL;
     USHORT linkStatus = 0;
+    UCHAR CurrentMAC[ETH_LENGTH_OF_ADDRESS] = {0};
 
     DEBUG_ENTRY(0);
-    /* read first PCI IO bar*/
-    //ulIOAddress = ReadPCIConfiguration(miniportAdapterHandle, 0x10);
-    /* check this is IO and assigned */
-    ReadNicConfiguration(pContext, &pNewMacAddress);
-    if (pNewMacAddress)
-    {
-        if (ParaNdis_ValidateMacAddress(pNewMacAddress, TRUE))
-        {
-            DPrintf(0, ("[%s] WARNING: MAC address reloaded\n", __FUNCTION__));
-            NdisMoveMemory(pContext->CurrentMacAddress, pNewMacAddress, sizeof(pContext->CurrentMacAddress));
-        }
-        else
-        {
-            DPrintf(0, ("[%s] WARNING: Invalid MAC address ignored\n", __FUNCTION__));
-        }
-        NdisFreeMemory(pNewMacAddress, 0, 0);
-    }
+
+    ReadNicConfiguration(pContext, CurrentMAC);
 
     pContext->MaxPacketSize.nMaxFullSizeOS = pContext->MaxPacketSize.nMaxDataSize + ETH_HEADER_SIZE;
     pContext->MaxPacketSize.nMaxFullSizeHwTx = pContext->MaxPacketSize.nMaxFullSizeOS;
@@ -647,66 +699,15 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
         pContext->bLinkDetectSupported = AckFeature(pContext, VIRTIO_NET_F_STATUS);
         if(pContext->bLinkDetectSupported) {
-            VirtIODeviceGet(&pContext->IODevice, sizeof(pContext->CurrentMacAddress), &linkStatus, sizeof(linkStatus));
+            VirtIODeviceGet(&pContext->IODevice, ETH_LENGTH_OF_ADDRESS, &linkStatus, sizeof(linkStatus));
             pContext->bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
             DPrintf(0, ("[%s] Link status on driver startup: %d\n", __FUNCTION__, pContext->bConnected));
         }
 
+        InitializeMAC(pContext, CurrentMAC);
+
         pContext->bUseMergedBuffers = AckFeature(pContext, VIRTIO_NET_F_MRG_RXBUF);
         pContext->nVirtioHeaderSize = (pContext->bUseMergedBuffers) ? sizeof(virtio_net_hdr_ext) : sizeof(virtio_net_hdr_basic);
-
-        if (AckFeature(pContext, VIRTIO_NET_F_MAC))
-        {
-            VirtIODeviceGet(&pContext->IODevice, 0, &pContext->PermanentMacAddress, ETH_LENGTH_OF_ADDRESS);
-            if (!ParaNdis_ValidateMacAddress(pContext->PermanentMacAddress, FALSE))
-            {
-                DPrintf(0,("Invalid device MAC ignored(%02x-%02x-%02x-%02x-%02x-%02x)\n",
-                    pContext->PermanentMacAddress[0],
-                    pContext->PermanentMacAddress[1],
-                    pContext->PermanentMacAddress[2],
-                    pContext->PermanentMacAddress[3],
-                    pContext->PermanentMacAddress[4],
-                    pContext->PermanentMacAddress[5]));
-                NdisZeroMemory(pContext->PermanentMacAddress, sizeof(pContext->PermanentMacAddress));
-            }
-        }
-
-        if (ETH_IS_EMPTY(pContext->PermanentMacAddress))
-        {
-            DPrintf(0, ("No device MAC present, use default\n"));
-            pContext->PermanentMacAddress[0] = 0x02;
-            pContext->PermanentMacAddress[1] = 0x50;
-            pContext->PermanentMacAddress[2] = 0xF2;
-            pContext->PermanentMacAddress[3] = 0x00;
-            pContext->PermanentMacAddress[4] = 0x01;
-            pContext->PermanentMacAddress[5] = 0x80 | (UCHAR)(pContext->ulUniqueID & 0xFF);
-        }
-        DPrintf(0,("Device MAC = %02x-%02x-%02x-%02x-%02x-%02x\n",
-            pContext->PermanentMacAddress[0],
-            pContext->PermanentMacAddress[1],
-            pContext->PermanentMacAddress[2],
-            pContext->PermanentMacAddress[3],
-            pContext->PermanentMacAddress[4],
-            pContext->PermanentMacAddress[5]));
-
-        if (ETH_IS_EMPTY(pContext->CurrentMacAddress))
-        {
-            NdisMoveMemory(
-                &pContext->CurrentMacAddress,
-                &pContext->PermanentMacAddress,
-                ETH_LENGTH_OF_ADDRESS);
-        }
-        else
-        {
-            DPrintf(0,("Current MAC = %02x-%02x-%02x-%02x-%02x-%02x\n",
-                pContext->CurrentMacAddress[0],
-                pContext->CurrentMacAddress[1],
-                pContext->CurrentMacAddress[2],
-                pContext->CurrentMacAddress[3],
-                pContext->CurrentMacAddress[4],
-                pContext->CurrentMacAddress[5]));
-        }
-
         pContext->bDoPublishIndices = AckFeature(pContext, VIRTIO_F_PUBLISH_INDICES);
     }
     else
@@ -1043,6 +1044,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         {
             DPrintf(0, ("[%s] The Control vQueue does not work!\n", __FUNCTION__) );
             pContext->bHasHardwareFilters = FALSE;
+            pContext->bCtrlMACAddrSupported = FALSE;
         }
         if (pContext->nofFreeTxDescriptors &&
             pContext->NetMaxReceiveBuffers &&
@@ -1101,6 +1103,7 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
         pContext->bEnableInterruptHandlingDPC = TRUE;
         ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
         VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+        ParaNdis_UpdateMAC(pContext);
     }
     DEBUG_EXIT_STATUS(0, status);
     return status;
@@ -1130,6 +1133,8 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
             NdisMSleep(5000000);
         }
     }while (b);
+
+    RestoreMAC(pContext);
 
     if(pContext->NetSendQueue)
         pContext->NetSendQueue->vq_ops->shutdown(pContext->NetSendQueue);
@@ -1957,9 +1962,7 @@ void ParaNdis_ReportLinkStatus(PARANDIS_ADAPTER *pContext, BOOLEAN bForce)
     if (pContext->bLinkDetectSupported)
     {
         USHORT linkStatus = 0;
-        USHORT offset = sizeof(pContext->CurrentMacAddress);
-        // link changed
-        VirtIODeviceGet(&pContext->IODevice, offset, &linkStatus, sizeof(linkStatus));
+        VirtIODeviceGet(&pContext->IODevice, ETH_LENGTH_OF_ADDRESS, &linkStatus, sizeof(linkStatus));
         bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
     }
     ParaNdis_IndicateConnect(pContext, bConnected, bForce);
@@ -2682,7 +2685,7 @@ static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)
         UCHAR addr[ETH_LENGTH_OF_ADDRESS];
     } uCast;
     uCast.header.entries = 1;
-    NdisMoveMemory(uCast.addr, pContext->CurrentMacAddress, sizeof(uCast.addr));
+    ETH_COPY_NETWORK_ADDRESS(uCast.addr, pContext->CurrentMacAddress);
     SendControlMessage(pContext, VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_TABLE_SET,
                         &uCast,
                         sizeof(uCast),
@@ -2748,6 +2751,18 @@ VOID ParaNdis_UpdateDeviceFilters(PARANDIS_ADAPTER *pContext)
     }
 }
 
+static VOID
+ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext)
+{
+    if (pContext->bCtrlMACAddrSupported)
+    {
+        SendControlMessage(pContext, VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_ADDR_SET,
+                           pContext->CurrentMacAddress,
+                           ETH_LENGTH_OF_ADDRESS,
+                           NULL, 0, 4);
+    }
+}
+
 VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 {
     LIST_ENTRY TempList;
@@ -2767,6 +2782,7 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     ParaNdis_RestoreDeviceConfigurationAfterReset(pContext);
 
     ParaNdis_UpdateDeviceFilters(pContext);
+    ParaNdis_UpdateMAC(pContext);
 
     InitializeListHead(&TempList);
     

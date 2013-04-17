@@ -96,6 +96,8 @@ struct virtio_net_ctrl_mac {
 };
 #define VIRTIO_NET_CTRL_MAC                  1
   #define VIRTIO_NET_CTRL_MAC_TABLE_SET        0
+  #define VIRTIO_NET_CTRL_MAC_ADDR_SET         1
+
 
 /*
  * Control VLAN filtering
