@@ -1,3 +1,23 @@
+Date    17 Apr 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm79
+
+Fixed bugs:
+
+Bz#927577 Job named Device Driver INF Verification Test. Second attempt
+Bz#823818 rewrote the driver's write function.
+Bz#902150 driver was unusable after sleep/suspend.
+BZ#950623 - Remove DPCChecker and related parameter from INF. Very old code testing for pending interrupt in case of hanged transfer. Not 	only it is not relevant for newer OSes (MSI is used), but also if such case even exist - it should be fixed in QEMU.
+BZ#950617 Enable RSS for Windows 2008 R2 as well
+BZ#950509 - remote kdebugprint.h file from the project.
+BZ#951020 - Do not check VIRTIO_PCI_ISR when not needed.
+BZ#951070 - Fix debug printouts
+Bz#823818 - resend write request using a work item.
+BZ#951070 - Fix debug printouts
+Bz#946992 - [vrtio-win][virtio-scsi]update win8.64 guest's driver with virtio-win-prewhql-0.1-58 caused guest BSOD
+BZ#904934 - Configure MAC via control queue - refactoring
+
+
 Date    31 Mar 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm78
