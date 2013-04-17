@@ -1,9 +1,14 @@
 *.ncb
+*.suo
+*.vcproj.*
 *.wrn
 *.log
 *.err
+*.pfx
+*.cer
 *.bak
 *.user
+*.sln
 *.sdf
 *.opensdf
 objfre*
