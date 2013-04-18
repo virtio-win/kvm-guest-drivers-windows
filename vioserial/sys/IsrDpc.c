@@ -77,6 +77,8 @@ VOID WriteRequestReSubmitWorkItem(IN WDFWORKITEM WorkItem)
         }
     }
 
+    WdfObjectDelete(WorkItem);
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
 }
 
