@@ -1206,6 +1206,8 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     {
         ParaNdis_ResetVirtIONetDevice(pContext);
     }
+
+    ParaNdis_SetPowerState(pContext, NdisDeviceStateD3);
     VirtIONetRelease(pContext);
 
     ParaNdis_FinalizeCleanup(pContext);
@@ -1277,32 +1279,21 @@ BOOLEAN ParaNdis_OnLegacyInterrupt(
     PARANDIS_ADAPTER *pContext,
     OUT BOOLEAN *pRunDpc)
 {
-    ULONG status;
+    ULONG status = VirtIODeviceISR(&pContext->IODevice);
 
-    if(pContext->powerState == NdisDeviceStateD0)
-    {
-        status = VirtIODeviceISR(&pContext->IODevice);
-
-        // ignore interrupts with invalid status bits
-        if (status != VIRTIO_NET_INVALID_INTERRUPT_STATUS)
-        {
-            *pRunDpc = TRUE;
-            PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
-            ParaNdis_VirtIODisableIrqSynchronized(pContext, isAny);
-            InterlockedOr(&pContext->InterruptStatus,
-                (LONG) ((status & isControl) | isReceive | isTransmit));
-        }
-        else
-        {
-            *pRunDpc = FALSE;
-        }
-    }
-    else
+    if((status == 0)                                   ||
+       (status == VIRTIO_NET_INVALID_INTERRUPT_STATUS) ||
+       (pContext->powerState != NdisDeviceStateD0))
     {
         *pRunDpc = FALSE;
+        return FALSE;
     }
 
-    return *pRunDpc;
+    PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
+    ParaNdis_VirtIODisableIrqSynchronized(pContext, isAny);
+    InterlockedOr(&pContext->InterruptStatus, (LONG) ((status & isControl) | isReceive | isTransmit));
+    *pRunDpc = TRUE;
+    return TRUE;
 }
 
 BOOLEAN ParaNdis_OnQueuedInterrupt(
