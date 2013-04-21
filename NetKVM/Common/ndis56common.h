@@ -604,7 +604,7 @@ typedef struct _tagSynchronizedContext
     PVOID               Parameter;
 }tSynchronizedContext;
 
-typedef BOOLEAN (*tSynchronizedProcedure)(tSynchronizedContext *context);
+typedef BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) (*tSynchronizedProcedure)(tSynchronizedContext *context);
 
 /**********************************************************
 LAZZY release procedure returns buffers to VirtIO
