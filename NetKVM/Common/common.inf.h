@@ -224,12 +224,6 @@ HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       default,    0,          "10
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       min,        0,          "1"
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       max,        0,          "10000"
 HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       step,       0,          "1"
-
-HKR, Ndi\Params\UseSwTxChecksum,    ParamDesc,  0,          %UseSwTxChecksum%
-HKR, Ndi\Params\UseSwTxChecksum,    Default,    0,          "0"
-HKR, Ndi\Params\UseSwTxChecksum,    type,       0,          "enum"
-HKR, Ndi\Params\UseSwTxChecksum\enum,   "1",    0,          %Enable%
-HKR, Ndi\Params\UseSwTxChecksum\enum,   "0",    0,          %Disable%
 #endif
 
 #endif
@@ -253,7 +247,6 @@ TxRx = "Rx & Tx Enabled";
 
 #if defined(INCLUDE_TEST_PARAMS)
 NumberOfHandledRXPackersInDPC = "TestOnly.RXThrottle"
-UseSwTxChecksum = "TestOnly.UseSwTxChecksum"
 #endif
 
 #if defined(_LsoV2IPv4)

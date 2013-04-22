@@ -427,7 +427,6 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bEnableInterruptChecking;
     BOOLEAN                 bDoSupportPriority;
     BOOLEAN                 bLinkDetectSupported;
-    BOOLEAN                 bDoHardwareChecksum;
     BOOLEAN                 bGuestChecksumSupported;
     BOOLEAN                 bUseMergedBuffers;
     BOOLEAN                 bDoPublishIndices;
