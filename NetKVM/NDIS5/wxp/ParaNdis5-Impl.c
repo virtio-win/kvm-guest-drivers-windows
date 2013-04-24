@@ -1242,6 +1242,9 @@ VOID ParaNdis5_SendPackets(IN NDIS_HANDLE MiniportAdapterContext,
     InitializeListHead(&DoneList);
     DPrintf(3, ("[%s] %d packets", __FUNCTION__, NumberOfPackets));
     ParaNdis_DebugHistory(pContext, hopSend, NULL, 1, NumberOfPackets, 0);
+
+    NdisAcquireSpinLock(&pContext->SendLock);
+
     for (i = 0; i < NumberOfPackets; ++i)
     {
         UINT uPacketLength = 0;
@@ -1261,7 +1264,7 @@ VOID ParaNdis5_SendPackets(IN NDIS_HANDLE MiniportAdapterContext,
                 UINT nFragments = 0;
                 GET_NUMBER_OF_SG_ELEMENTS(PacketArray[i], &nFragments);
                 ParaNdis_DebugHistory(pContext, hopSendPacketMapped, PacketArray[i], 0, nFragments, 0);
-                NdisInterlockedInsertTailList(&pContext->SendQueue, &pse->list, &pContext->SendLock);
+                InsertTailList(&pContext->SendQueue, &pse->list);
             }
         }
         else
@@ -1273,6 +1276,9 @@ VOID ParaNdis5_SendPackets(IN NDIS_HANDLE MiniportAdapterContext,
             DPrintf(1, ("[%s] packet of %d rejected", __FUNCTION__, uPacketLength));
         }
     }
+
+    NdisReleaseSpinLock(&pContext->SendLock);
+
     ParaNdis_ProcessTx(pContext, FALSE, FALSE);
 }
 
