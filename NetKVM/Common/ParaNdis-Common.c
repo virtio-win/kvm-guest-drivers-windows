@@ -154,8 +154,6 @@ static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
     DPrintf(0, ("[%s] Done\n", __FUNCTION__));
     /* reset all the features in the device */
     pContext->ulCurrentVlansFilterSet = 0;
-    pContext->u32GuestFeatures = 0;
-    VirtIODeviceWriteGuestFeatures(&pContext->IODevice, pContext->u32GuestFeatures);
 }
 
 /**********************************************************
