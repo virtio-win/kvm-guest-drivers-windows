@@ -2710,7 +2710,9 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 
     VirtIODeviceRenewQueue(pContext->NetReceiveQueue);
     VirtIODeviceRenewQueue(pContext->NetSendQueue);
-    VirtIODeviceRenewQueue(pContext->NetControlQueue);
+
+    if(pContext->NetControlQueue)
+        VirtIODeviceRenewQueue(pContext->NetControlQueue);
 
     ParaNdis_RestoreDeviceConfigurationAfterReset(pContext);
 
@@ -2809,7 +2811,8 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     pContext->NetReceiveQueue->vq_ops->shutdown(pContext->NetReceiveQueue);
     NdisReleaseSpinLock(&pContext->ReceiveLock);
 
-    pContext->NetControlQueue->vq_ops->shutdown(pContext->NetControlQueue);
+    if(pContext->NetControlQueue)
+        pContext->NetControlQueue->vq_ops->shutdown(pContext->NetControlQueue);
 
     ParaNdis_ResetVirtIONetDevice(pContext);
     ParaNdis_DebugHistory(pContext, hopPowerOff, NULL, 0, 0, 0);
