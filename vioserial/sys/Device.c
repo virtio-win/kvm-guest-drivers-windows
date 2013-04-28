@@ -197,7 +197,7 @@ VIOSerialEvtDevicePrepareHardware(
     BOOLEAN MessageSignaled = FALSE;
     USHORT Interrupts = 0;
     u32 u32HostFeatures;
-    u32 u32GuestFeatures = VIRTIO_F_INDIRECT;
+    u32 u32GuestFeatures = 0;
 
     UNREFERENCED_PARAMETER(ResourcesRaw);
     PAGED_CODE();
