@@ -2032,35 +2032,37 @@ static VOID ProcessRxRing(PARANDIS_ADAPTER *pContext, CCHAR nCurrCpuReceiveQueue
 }
 
 static VOID
-UpdateReceiveStatistics(PPARANDIS_ADAPTER pContext,
-                        eInspectedPacketType ePacketType,
-                        ULONG nDataLength,
-                        BOOLEAN fStatus)
+UpdateReceiveSuccessStatistics(PPARANDIS_ADAPTER pContext,
+                               PNET_PACKET_INFO pPacketInfo)
 {
-    if(fStatus)
+    pContext->Statistics.ifHCInOctets += pPacketInfo->dataLength;
+
+    if(pPacketInfo->isUnicast)
     {
-        pContext->Statistics.ifHCInOctets += nDataLength;
-        switch(ePacketType)
-        {
-        case iptBroadcast:
-            pContext->Statistics.ifHCInBroadcastPkts++;
-            pContext->Statistics.ifHCInBroadcastOctets += nDataLength;
-            break;
-        case iptMilticast:
-            pContext->Statistics.ifHCInMulticastPkts++;
-            pContext->Statistics.ifHCInMulticastOctets += nDataLength;
-            break;
-        default:
-            pContext->Statistics.ifHCInUcastPkts++;
-            pContext->Statistics.ifHCInUcastOctets += nDataLength;
-            break;
-        }
+        pContext->Statistics.ifHCInUcastPkts++;
+        pContext->Statistics.ifHCInUcastOctets += pPacketInfo->dataLength;
+    }
+    else if (pPacketInfo->isBroadcast)
+    {
+        pContext->Statistics.ifHCInBroadcastPkts++;
+        pContext->Statistics.ifHCInBroadcastOctets += pPacketInfo->dataLength;
+    }
+    else if (pPacketInfo->isMulticast)
+    {
+        pContext->Statistics.ifHCInMulticastPkts++;
+        pContext->Statistics.ifHCInMulticastOctets += pPacketInfo->dataLength;
     }
     else
     {
-        pContext->Statistics.ifInErrors++;
-        pContext->Statistics.ifInDiscards++;
+        ASSERT(FALSE);
     }
+}
+
+static __inline VOID
+UpdateReceiveFailStatistics(PPARANDIS_ADAPTER pContext)
+{
+    pContext->Statistics.ifInErrors++;
+    pContext->Statistics.ifInDiscards++;
 }
 
 static BOOLEAN ProcessReceiveQueue(
@@ -2077,7 +2079,6 @@ static BOOLEAN ProcessReceiveQueue(
         while( (*pnPacketsToIndicateLeft > 0) &&
                (NULL != (pBufferDescriptor = ReceiveQueueGetBuffer(pTargetReceiveQueue))) )
         {
-            eInspectedPacketType packetType = iptInvalid;
             PNET_PACKET_INFO pPacketInfo = &pBufferDescriptor->PacketInfo;
 
             if( !pContext->bSurprizeRemoved &&
@@ -2088,7 +2089,7 @@ static BOOLEAN ProcessReceiveQueue(
                 tPacketIndicationType packet = ParaNdis_PrepareReceivedPacket(pContext, pBufferDescriptor);
                 if(packet != NULL)
                 {
-                    UpdateReceiveStatistics(pContext, packetType, pPacketInfo->dataLength, TRUE);
+                    UpdateReceiveSuccessStatistics(pContext, pPacketInfo);
                     pTargetReceiveQueue->BatchReceiveArray[nReceived] = packet;
 
                     nReceived++;
@@ -2102,7 +2103,7 @@ static BOOLEAN ProcessReceiveQueue(
                 }
                 else
                 {
-                    UpdateReceiveStatistics(pContext, packetType, pPacketInfo->dataLength, FALSE);
+                    UpdateReceiveFailStatistics(pContext);
                     NdisAcquireSpinLock(&pContext->ReceiveLock);
                     pContext->ReuseBufferProc(pContext, pBufferDescriptor);
                     NdisReleaseSpinLock(&pContext->ReceiveLock);
