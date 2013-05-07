@@ -31,7 +31,7 @@ SynchronizedSRBRoutine(
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
-    PSRB_EXTENSION      srbExt        = (PSRB_EXTENSION)Srb->SrbExtension;
+    PSRB_EXTENSION      srbExt   = (PSRB_EXTENSION)Srb->SrbExtension;
     PVOID               va;
     ULONGLONG           pa;
 
@@ -41,11 +41,14 @@ ENTER_FN();
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
-        adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
+        if(++adaptExt->in_fly < 3) {
+           adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
+        }
         return TRUE;
     }
     Srb->SrbStatus = SRB_STATUS_BUSY;
-    StorPortBusy(DeviceExtension, adaptExt->queue_depth);
+    StorPortBusy(DeviceExtension, 2);
+    adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
 EXIT_ERR();
     return FALSE;
 }
@@ -256,4 +259,47 @@ ENTER_FN();
 
 EXIT_FN();
     return TRUE;
+}
+
+BOOLEAN
+SynchronizedKickEventRoutine(
+    IN PVOID DeviceExtension,
+    IN PVOID Context
+    )
+{
+    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    PVirtIOSCSIEventNode eventNode   = (PVirtIOSCSIEventNode) Context;
+    PVOID               va;
+    ULONGLONG           pa;
+
+ENTER_FN();
+    SET_VA_PA();
+    if (adaptExt->vq[1]->vq_ops->add_buf(adaptExt->vq[1],
+                     &eventNode->sg,
+                     0, 1,
+                     eventNode, va, pa) >= 0){
+        adaptExt->vq[1]->vq_ops->kick(adaptExt->vq[1]);
+        return TRUE;
+    }
+EXIT_ERR();
+    return FALSE;
+}
+
+
+BOOLEAN
+KickEvent(
+    IN PVOID DeviceExtension,
+    IN PVirtIOSCSIEventNode EventNode 
+    )
+{
+    PADAPTER_EXTENSION adaptExt;
+    ULONG              fragLen;
+
+ENTER_FN();
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    memset((PVOID)EventNode, 0, sizeof(VirtIOSCSIEventNode));
+    EventNode->sg.physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &EventNode->event, &fragLen);
+    EventNode->sg.ulSize   = sizeof(VirtIOSCSIEvent);
+    return SynchronizedKickEventRoutine(DeviceExtension, (PVOID)EventNode);
+EXIT_FN();
 }

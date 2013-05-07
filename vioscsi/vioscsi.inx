@@ -34,9 +34,7 @@ vioscsi_Files_Driver = 12
 %RHEL%   = RHEL,NT$ARCH$
 
 [RHEL.NT$ARCH$]
-%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1004&SUBSYS_00000000
-%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1004&SUBSYS_00080000
-%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4
+%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4&REV_00
 
 ;
 ; General installation section

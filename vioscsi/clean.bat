@@ -19,5 +19,8 @@ rmdir /S /Q objfre_win8_amd64
 rmdir /S /Q .\sdv
 
 del /F *.log *.wrn *.err
+del vioscsi-2012.h
+del vioscsi.dvl.xml
+del sdv-map.h
 
 
