@@ -254,6 +254,7 @@ VirtIoFindAdapter(
     ConfigInfo->Dma32BitAddresses      = TRUE;
     ConfigInfo->Dma64BitAddresses      = TRUE;
     ConfigInfo->WmiDataProvider        = FALSE;
+    ConfigInfo->AlignmentMask          = 0x3;
 #ifdef USE_STORPORT
     ConfigInfo->MapBuffers             = STOR_MAP_NON_READ_WRITE_BUFFERS;
     ConfigInfo->SynchronizationModel   = StorSynchronizeFullDuplex;
@@ -326,6 +327,7 @@ VirtIoFindAdapter(
     }
 
     VirtIODeviceInitialize(&adaptExt->vdev, deviceBase, sizeof(adaptExt->vdev));
+    VirtIODeviceAddStatus(&adaptExt->vdev, VIRTIO_CONFIG_S_DRIVER);
     adaptExt->msix_enabled = FALSE;
 
 #ifdef MSI_SUPPORTED
@@ -385,6 +387,7 @@ VirtIoFindAdapter(
 #endif
 
     VirtIODeviceReset(&adaptExt->vdev);
+    VirtIODeviceAddStatus(&adaptExt->vdev, VIRTIO_CONFIG_S_ACKNOWLEDGE);
     WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_SEL, (USHORT)0);
     if (adaptExt->dump_mode) {
         WriteVirtIODeviceWord(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_PFN, (USHORT)0);
@@ -539,6 +542,7 @@ VirtIoHwInitialize(
                 __LINE__);
 
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Cannot find snd virtual queue\n"));
+        VirtIODeviceAddStatus(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
         return ret;
     }
 
@@ -571,9 +575,10 @@ VirtIoHwInitialize(
     }
 #endif
 
-    if (ret)
-    {
+    if (ret) {
         VirtIODeviceAddStatus(&adaptExt->vdev, VIRTIO_CONFIG_S_DRIVER_OK);
+    } else {
+        VirtIODeviceAddStatus(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
     }
 
     return ret;
@@ -742,19 +747,29 @@ VirtIoInterrupt(
               }
            }
            if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
+#ifdef USE_STORPORT
+              --adaptExt->in_fly;
+#endif
               CompleteSRB(DeviceExtension, Srb);
            } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
               adaptExt->sn_ok = TRUE;
            } else if (Srb) {
+#ifdef USE_STORPORT
+              --adaptExt->in_fly;
+#endif
               CompleteDPC(DeviceExtension, vbr, 0);
            }
         }
     } else if (intReason == 3) {
         adaptExt->rescan_geometry = TRUE;
-        adaptExt->rescan_cnt++;
         ScsiPortNotification( BusChangeDetected, DeviceExtension, 0);
         isInterruptServiced = TRUE;
     }
+#ifdef USE_STORPORT
+    if (adaptExt->in_fly > 0) {
+        adaptExt->vq->vq_ops->kick(adaptExt->vq);
+    }
+#endif
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s isInterruptServiced = %d\n", __FUNCTION__, isInterruptServiced));
     return isInterruptServiced;
 }
@@ -932,7 +947,6 @@ VirtIoMSInterruptRoutine (
 
     if (MessageID == 0) {
        adaptExt->rescan_geometry = TRUE;
-       adaptExt->rescan_cnt++;
        StorPortNotification( BusChangeDetected, DeviceExtension, 0);
        return TRUE;
     }
@@ -954,13 +968,18 @@ VirtIoMSInterruptRoutine (
            }
         }
         if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
+            --adaptExt->in_fly;
             CompleteSRB(DeviceExtension, Srb);
         } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
             adaptExt->sn_ok = TRUE;
         } else if (Srb) {
+            --adaptExt->in_fly;
             CompleteDPC(DeviceExtension, vbr, MessageID);
         }
         isInterruptServiced = TRUE;
+    }
+    if (adaptExt->in_fly > 0) {
+        adaptExt->vq->vq_ops->kick(adaptExt->vq);
     }
     return isInterruptServiced;
 }
@@ -987,8 +1006,10 @@ RhelScsiGetInquiryData(
     dataLen = Srb->DataTransferLength;
 
     if (adaptExt->rescan_geometry) {
+        PSENSE_DATA senseBuffer = (PSENSE_DATA) Srb->SenseInfoBuffer;
         RhelGetDiskGeometry(DeviceExtension);
         adaptExt->rescan_geometry = FALSE;
+        senseBuffer->SenseKey = SCSI_SENSE_UNIT_ATTENTION;
     }
 
     SrbStatus = SRB_STATUS_SUCCESS;
@@ -1032,7 +1053,7 @@ RhelScsiGetInquiryData(
         IdentificationPage = (PVPD_IDENTIFICATION_PAGE)Srb->DataBuffer;
         memset(IdentificationPage, 0, sizeof(VPD_IDENTIFICATION_PAGE));
         IdentificationPage->PageCode = VPD_DEVICE_IDENTIFIERS;
-        IdentificationPage->PageLength = sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + 11;
+        IdentificationPage->PageLength = sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + 8;
 
         IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
         memset(IdentificationDescr, 0, sizeof(VPD_IDENTIFICATION_DESCRIPTOR));
@@ -1047,9 +1068,6 @@ RhelScsiGetInquiryData(
         IdentificationDescr->Identifier[5] = '0';
         IdentificationDescr->Identifier[6] = '0';
         IdentificationDescr->Identifier[7] = '1';
-        IdentificationDescr->Identifier[8] = '_';
-        IdentificationDescr->Identifier[9] = '0' + (adaptExt->rescan_cnt / 10);
-        IdentificationDescr->Identifier[10] = '0' + (adaptExt->rescan_cnt % 10);
 
         Srb->DataTransferLength = sizeof(VPD_IDENTIFICATION_PAGE) +
                                  IdentificationPage->PageLength;
@@ -1392,7 +1410,7 @@ LogError(
     IN ULONG UniqueId
     )
 {
-#ifdef USE_STORPORT
+#if (NTDDI_VERSION > NTDDI_WIN7)
     STOR_LOG_EVENT_DETAILS logEvent;
     memset( &logEvent, 0, sizeof(logEvent) );
     logEvent.InterfaceRevision         = STOR_CURRENT_LOG_INTERFACE_REVISION;
@@ -1402,9 +1420,7 @@ LogError(
     logEvent.ErrorCode                 = ErrorCode;
     logEvent.DumpDataSize              = sizeof(UniqueId);
     logEvent.DumpData                  = &UniqueId;
-
     StorPortLogSystemEvent( DeviceExtension, &logEvent, NULL );
-
 #else
     ScsiPortLogError(DeviceExtension,
                          NULL,
@@ -1413,6 +1429,5 @@ LogError(
                          0,
                          ErrorCode,
                          UniqueId);
-
 #endif
 }

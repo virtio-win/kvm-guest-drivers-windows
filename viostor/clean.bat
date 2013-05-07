@@ -11,11 +11,10 @@ rmdir /S /Q objfre_win7_x86
 rmdir /S /Q objfre_win7_amd64
 rmdir /S /Q objfre_win8_x86
 rmdir /S /Q objfre_win8_amd64
-rmdir /S /Q Win8Release
-rmdir /S /Q Win8Debug
-rmdir /S /Q x64
 rmdir /S /Q .\sdv
 
-del /F *.log *.wrn *.err
-
+del /F *.log *.wrn *.err *.sdf
+del viostor-2012.h
+del viostor.dvl.xml
+del sdv-map.h
 
