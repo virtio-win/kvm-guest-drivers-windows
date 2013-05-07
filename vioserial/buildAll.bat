@@ -4,6 +4,7 @@ set SYS_FILE_NAME=vioser
 set APP_FILE_NAME=vioser-test
 
 for %%A in (Win7 Wnet Wlh WXp Win8) do for %%B in (32 64) do call :%%A_%%B
+
 set SYS_FILE_NAME=
 set APP_FILE_NAME=
 goto :eof 

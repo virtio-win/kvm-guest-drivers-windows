@@ -17,12 +17,13 @@ DriverPackageDisplayName = %VirtioSerial.DeviceDesc%
 
 [DestinationDirs]
 DefaultDestDir = 12
-
-[SourceDisksNames]
-1 = %DiskId1%,,,""
+VirtioSerial_Device_CoInstaller_CopyFiles = 11
 
 [SourceDisksFiles]
 vioser.sys  = 1,,
+
+[SourceDisksNames]
+1 = %DiskId1%,,,""
 
 ;*****************************************
 ; vioser  Install Section
@@ -35,12 +36,12 @@ vioser.sys  = 1,,
 ;
 ; Hw Id is PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4
 ;
-%VirtioSerial.DeviceDesc%=VirtioSerial_Device, PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4
+%VirtioSerial.DeviceDesc%=VirtioSerial_Device, PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4&REV_00
 
 ; Decorated model section take precedence over undecorated 
 ; ones on XP and later.
 [VirtioSerial.NT$ARCH$]
-%VirtioSerial.DeviceDesc%=VirtioSerial_Device, PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4
+%VirtioSerial.DeviceDesc%=VirtioSerial_Device, PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4&REV_00
 %VirtioPort.DeviceDesc%=VirtioPort_Device, {6FDE7547-1B65-48ae-B628-80BE62016026}\VIOSerialPort
 
 [VirtioSerial_Device.NT]
@@ -55,9 +56,11 @@ HKR,Interrupt Management\MessageSignaledInterruptProperties,,0x00000010
 HKR,Interrupt Management\MessageSignaledInterruptProperties,MSISupported,0x00010001,1
 HKR,Interrupt Management\MessageSignaledInterruptProperties,MessageNumberLimit,0x00010001,2
 
+[VirtioPort_Device.NT]
+CopyFiles=Drivers_Dir
+
 [Drivers_Dir]
 vioser.sys
-
 
 ;-------------- Service installation
 [VirtioPort_Device.NT.Services]
@@ -79,9 +82,6 @@ LoadOrderGroup = Extended Base
 
 ;--- VirtioSerial_Device Coinstaller installation ------
 ;
-
-[DestinationDirs]
-VirtioSerial_Device_CoInstaller_CopyFiles = 11
 
 [VirtioSerial_Device.NT.CoInstallers]
 AddReg=VirtioSerial_Device_CoInstaller_AddReg
