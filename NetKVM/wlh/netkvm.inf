@@ -17,7 +17,7 @@ Class       = Net
 CatalogFile = netkvm.cat
 ClassGUID   = {4d36e972-e325-11ce-bfc1-08002be10318}
 Provider    = %RedHat%
-DriverVer   = 03/15/2010,1.0.0.0
+DriverVer   = 03/15/2013,1.0.0.0
 DriverPackageType = PlugAndPlay
 DriverPackageDisplayName = %kvmnet6.DeviceDesc%
 
@@ -25,7 +25,7 @@ DriverPackageDisplayName = %kvmnet6.DeviceDesc%
 %RedHat% = RedHat, NT$ARCH$
 
 [RedHat.NT$ARCH$]
-%kvmnet6.DeviceDesc%    = kvmnet6.ndi, PCI\VEN_1AF4&DEV_1000&SUBSYS_00011AF4
+%kvmnet6.DeviceDesc%    = kvmnet6.ndi, PCI\VEN_1AF4&DEV_1000&SUBSYS_00011AF4&REV_00
 
 [kvmnet6.ndi.hw]
 AddReg          = kvmnet6.EnableMSI

@@ -1,0 +1,655 @@
+Date    17 Apr 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm79
+
+Fixed bugs:
+
+Bz#927577 Job named Device Driver INF Verification Test. Second attempt
+Bz#823818 rewrote the driver's write function.
+Bz#902150 driver was unusable after sleep/suspend.
+BZ#950623 - Remove DPCChecker and related parameter from INF. Very old code testing for pending interrupt in case of hanged transfer. Not 	only it is not relevant for newer OSes (MSI is used), but also if such case even exist - it should be fixed in QEMU.
+BZ#950617 Enable RSS for Windows 2008 R2 as well
+BZ#950509 - remote kdebugprint.h file from the project.
+BZ#951020 - Do not check VIRTIO_PCI_ISR when not needed.
+BZ#951070 - Fix debug printouts
+Bz#823818 - resend write request using a work item.
+BZ#951070 - Fix debug printouts
+Bz#946992 - [vrtio-win][virtio-scsi]update win8.64 guest's driver with virtio-win-prewhql-0.1-58 caused guest BSOD
+BZ#904934 - Configure MAC via control queue - refactoring
+
+
+Date    31 Mar 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm78
+
+Fixed bugs:
+
+    BZ#927577 - [WHQL][serial]Job named Device Driver INF
+    Verification Test (Certification) failed on win8/win2k3/win2k8/ platform
+    BZ#922530 - code separation for NDIS5 and NDIS 6.x:
+    adjust NetKCM.yaml to point to correct build log for NDIS5.1
+
+
+Date    18 Mar 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm77
+
+Fixed bugs:
+[NetKVM] BZ#904808 Initlal RSC implementation
+
+
+Date    18 Mar 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm76
+
+Fixed bugs:
+[NetKVM] BZ#922530 Code split for NDIS5 and NDIS6
+NetKVM] BZ#921200 - Do not write to VIRTIO_PCI_ISR for
+    debug purposes in production code.
+
+[virtio-serial] BZ#806223: Fixed a bsod when changing state to s3.
+[netkvm/vioserial/viostor/vioscsi] BZ#908725 - virtio win inf does
+    not s
+
+Date    12 Mar 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm75
+
+Fixed bugs:
+
+[virtio-serial] BZ#806223: Fixed a bsod when changing state to s3.
+[netkvm/vioserial/viostor/vioscsi] BZ#908725 - virtio win inf does
+    not specify revision ID,
+
+New features:
+[NetKVM] RSS implemented
+
+
+Date    6 Feb 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm74
+
+Fixed bugs:
+
+[NetKVM] BZ#904028 - Fixing casting error with event indices calculation.
+[NetKVM] BZ#907160 - Do not test IOSpace size.
+
+Date    31 Jan 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm73
+
+Fixed bugs:
+
+BZ #902150 - Fix guest failure to add port after resume from s3/s4.
+BZ #904028 - Windows 2012 got BSOD while running job 1091NDISTest 6.0 - [1 Machine] - 1c_Mini6Send on HCK.
+
+Date    16 Jan 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm71
+
+Fixed bugs:
+
+BZ #759019 - Fix vring_detach_unused_buf function.
+BZ #833671 - Fixed memory leaks on device's surprise removal.
+
+also [balloon/vioserial]fix inf version for Win8.
+
+Date    8 Jan 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm70
+
+Fixed bugs:
+
+BZ #713130 - further optimization
+BZ #8823795 BSOD occurs during transferring data from guest to host
+    during S3/S4.
+BZ #883913 - read link status on driver startup.
+BZ #878442 - Interrupt handlers refactored, Interrupt timestamping made debug only feature
+
+Date    29 Nov 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm69
+
+Fixed bugs:
+
+BZ 878291 - fixed a whql test failed in "support for D3 power state"
+
+Date    27 Nov 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm67
+
+Fixed bugs:
+
+BZ 840911 - don't send VIRTIO_CONSOLE_PORT_OPEN
+    control message from VIOSerialShutdownAllPorts.
+BZ 879143 - [whql][wlk][scsi] scsi driver for win2k3 does not support s4
+
+Date    21 Nov 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm66
+
+Fixed bugs:
+
+BZ 826596 - RX data path optimizations
+BZ 826596 partial fix - guest checksumming
+    synchronized with RX checksumming.
+BZ 876061 -  windows 2003 can not generate dump file when hitting BSOD
+BZ 876504 - [whql][wlk][block] viostor driver for win2k3 does not support s4
+
+Date    19 Nov 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm65
+
+Fixed bugs:
+
+BZ 873971:  vioserial] Fixed EvtDeviceD0ExitPreInterruptsDisabled return value.
+
+
+Date    15 Nov 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm64
+
+Fixed bugs:
+
+BZ 873128:  Job of Ethernet - NDISTest6.0 - 2c_receivepackets failed with WLK for win2k8/win7/win2k8-R2. Miniport must indicate LINK DOWN on reset start, at least when it indicates LINK UP on reset completion
+
+Date    30 Oct 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm63
+
+Fixed bugs:
+[vioser] BZ840911 - move VIRTIO_CONSOLE_PORT_OPEN control message to
+    VIOSerialEvtDeviceD0ExitPreInterruptsDisabled callback
+[viostor] revert FUA patch Bug 837324 - viostor reports support for FUA, but does not implement it.
+
+Date    10 Oct 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm62
+
+Fixed bugs:
+Bug 864841 - [virtio-win] device driver for win2008 missed in virtio-win-prewhql-0.1-40 (edit) 
+
+
+Date    09 Oct 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm61
+
+Fixed bugs:
+Bug 837758 - Disable virtio serial driver from device
+    manager hit BSOD After send data from host and guest.
+Bug 842961 [Job Id 1710]BSOD occurs dueing running
+    "WDF Fault injection Logo Testing" job.
+Bug 824814 - [virtio-win][viostor]Online enlarging data
+    image size does not work.
+Bug 855826 - [virtio-win][block]guest BSOD after upgrading
+    virtio-win to build 35 with upstream qemu-kvm.
+
+Date    01 Oct 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm60
+
+Fixed bugs:
+[NetKVM] BZ #859882 - Fixing performance with current checksum offload settings. If Windows send 
+	an IP packet with 0 pachet lenth in offload scenarios - the driver will populate the 
+	length field with packet field.
+
+
+Date    28 Sep 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm59
+
+New features:
+Balloon and vioserial Win8 drivers.
+
+Date    23 Sep 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm58
+
+Fixed bugs:
+BZ 713130 - event index performance in virtio
+    and vhost-net. Event indexes handling fixed (including correct kick logic).
+Bug 858687 - virtio_serialport changes the order of the data
+    guest->host using 32bit Windows XP guest
+
+New features:
+Win8 NetKvm driver.
+
+
+Date    09 Sep 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm57
+
+Fixed bugs:
+BZ #838008 added Port1FunctionNumber directive to the INF file for Win8/2012
+BZ #834175 - Enabled support for required RX checksum and IP TX checksum on Win7/2008R2/2008
+BZ #841544 and BZ #807967 No IP after several restarts and after S3
+BZ #843325 - [virtio-win][balloon]Guest memory can not continue evicting after enable balloon driver
+BZ #831570 - [virtio-win][balloon]windows7 guest crash when disable/enable virtIO balloon device during 
+             enlarging/evicting memory.
+BZ #839143 - [virtio-win][balloon]windows2003 guest balloon size restore the original 
+             value after reboot guest.
+BZ #803633 - [virtio-win][balloon]balloon does not work after s3 or s4.
+BZ #843325 - [virtio-win][balloon]Guest memory can not continue evicting after enable balloon driver.
+BZ #837324 - viostor reports support for FUA, but does not implement it.
+
+BZ #806223 - [virtio-win][serial] guest BSOD when doing s3 while virtio-serial in use.
+BZ #714908 - [virtio-win][serial] virtio-serial is disfunctiona after S3
+BZ #814896 - [virtio-win][serial] virtio-serial does not work after s4 in win7-32/64 bit guests
+BZ #823818 - [virtio-win][compatibilty]Guest freeze After terminating the virtserialport receiving 
+             side in the host
+BZ #819412 - [virtio-win][serial]qemu complains "Unexpected port id 1 for device virtio-serial0.0"
+             when hotunplug serial while RHEV-Agent service running in the guest
+
+Date    08 Aug 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm55
+
+Fixed bugs:
+BZ #838010 Fixing static code analysis tools
+    errors for Balloon.
+BZ:834179 - Reverting previos fix and aplying correct
+    padding on RX path that is needed due to guest to guest transfer of small
+    packets.
+
+Review build system scripts and continue adaptation
+    to Windows 8 and build server on Windows 2008R2.
+
+Date    04 Aug 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm54
+
+Fixed bugs:
+BZ:826596 PublishIndices feature is set to disabled by default on
+    Windows XP and Windows 2003 until further investigation is made on QEMU side
+    why it causes performance degradation with legacy PCI interrupts.
+Bz:837321 Report guest FLUSH (WCE) feature  
+Bug 819457 - windows 2k8r2sp1 guests hang after running over
+    10 days in a stressed host
+
+Bug 823818 - [virtio-win][compatibilty]Guest freeze After terminating
+    the virtserialport receiving side in the host
+Bug 840932 - BSOD in RHEV 3 on Windows 7 guest, Bugcheck code 0x9F
+
+Date    20 July 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm53
+
+Experemental - Win8 support for VirtIO, NetKvm, viostor, and vioscsi progects.
+
+
+Date    3 July 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm52
+
+Fixed bugs:
+
+Bug 800752 - Fixing syncronyzation between DPC and Read.
+
+Date    13 June 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm51
+
+Fixed bugs:
+
+Bug 828275 - Implement and test control queue in virtio-simulator environment.
+Bug 828275 - Initial implementation of RX filtering using QEMU
+
+Bug 768795 - BSOD when excercising Balloon Driver
+Bug 816452 - Uninstall balloon driver from Device Manager leads to BSOD after changing balloon 
+             value in monitor.
+Bug 803633 - balloon does not work after s3 or s4
+Bug 799864 - user cannot distinguish the difference between viostor and vioscsi because of listing 
+             the two drivers together at the same time in Device Manager
+
+Date    21 May 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm50
+
+Fixed bugs:
+
+Bug 815295 - [NetKvm] Adding ability to handle DPC rx throttling from OS. With this fix glitch 
+free test for Windows 7 will pass
+
+Date    21 April 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm49
+
+Fixed bugs:
+Bug 808654 - [NetKvm] Fix the start of checksum calculation in case on vlan\priority tags usage
+
+
+Date    14 April 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm48
+
+Fixed bugs:
+Bug 811161 - [virtio-win][viostor]Guest BSOD during S3 with virtio disk.
+Bug 803950 - [virtio-win][balloon] Guest BOSD when evict memory and suspend(s4) guest at the same time.
+
+Date    08 April 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm47
+
+Fixed bugs:
+Bug 810694 - viostor fails with DRIVER_IRQL_NOT_LESS_OR_EQUAL BOSD under heavy random write load 
+Bug 806223 - [virtio-win][serial] guest BOSD when doing s3 while virtio-serial in use
+Bug 803950 - [virtio-win][balloon] Guest BOSD when evict memory and suspend(s4) guest at the same time
+Bug 803633 - balloon does not work after s3
+Bug 750773 - qemu-kvm hang while booting a win7 32 bit VM with the qxl and virtio-serial drivers installed 
+
+
+Date    18 March 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm46
+
+Fixed bugs:
+Bug 799248 - [netkvm]Add a space between "RedHat" in netkvm,sys Product name
+Bug 713643 - backport checksum optimization for virtio_net
+Bug 770499 - Press 'i' cause vioser-test stop working
+Bug 799264 - WHQL][Block]BSOD happened in job "CHOAS-Concurrent Hardware And OS Test"
+Bug 799190 - [WHQL][Block]Job "Sleep Stress with IO" and Common Scenario Stress with IO" 
+             stopped with prompt error on win2k8-R2/win2k8/win7.
+Bug 799182 - [WHQL][Block]Job of "Sleep Stress with IO" and Common Scenario Stress with IO" 
+             always failed on winxp/win2k3 for invalid block address.
+
+
+Date    20 February 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm45
+
+Fixed bugs:
+Bug 790305 - [virtio-scsi] BSOD occurs when install virtio scsi driver in windows guest
+
+New features:
+Unified virtio library.
+
+Date    13 February 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm44
+
+Fixed bugs:
+Bug 771390 - Win 7 (32-bit) guest "quitting" with latest VirtIO block drivers - virtio: 
+             trying to map MMIO memory - PART 2 - fix this problem for scsiport part (WXP).
+
+New features:
+virtio scsi passthrough device driver.          
+
+Date    23 January 2012
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm43
+
+Fixed bugs:
+Bug 752743 - Windows guest stopped with EIO when trying to initialize readonly disk.
+Bug 771390 - Win 7 (32-bit) guest "quitting" with latest VirtIO block drivers - virtio: trying to map MMIO memory
+Bug 768981 - guest BSOD when boot a win7-64 guest with 232 virtio disks(enable multifunction=on)
+
+Date    14 December 2011
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm42
+
+Fixed bugs:
+Bug 713130 - event index support in virtio and vhost-net
+Bug 713643 - backport checksum optimization for virtio_net
+Bug 753723 - Backport serial number support for virtio-blk devices
+Bug 714908 - virtio-serial is disfunctional after S3
+
+Date    24 November 2011
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm41
+
+Fixed bugs:
+BZ744729 - Fixing copyright and file description strings in version info
+BZ744730 Fix language in version info to neutral
+
+New features:
+[NetKVM]
+Build Win7 target (needed for NDIS6.2 support)
+Enable to set external SDK path
+Implement event index support in virtio library and NetKVM driver
+RX IP checksum offload
+
+
+Date	21 September 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm40
+
+[NetKVM] Change PM capabilities to report NdisDeviceStateUnspecified for different wake up capabilities
+
+Date	12 September 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm39
+
+discard read request watchdog timer and return to original read requests handling.
+
+Date	10 August 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm38
+
+Bug 727034 [WHQL][viostor]winxpsp3 32 bit guest exited with "virtio: trying to map MMIO memory" error
+
+Date	25 July 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm37
+
+Fixed bugs:
+Bug 721355 - unable to shut down win guest gracefully 
+
+
+Date	16 July 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm36
+
+Fixed bugs:
+Bug 720540 - [WHQL][viostor] Failed to install viostor dirver on Windows XP 
+and Windows 2k3 32/64 bits (edit)  
+
+New features:
+- [NetKvm] Number of handled RX packets handled during DPC are
+configured through INF file and advanced tab in device
+manager.
+- rhel6.2 version numbering.
+
+
+
+Date	09 July 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm35
+
+Fixed bugs: 
+Bug 702258 - Virtio-Serial issue with IC116 windows Guest tools - vm stuck on reboot 
+Bug 677219 - [RFE] Include support for online resizing of storage and network block devices 
+Bug 689366 - (virtio serial) Guest aborted when transferring data from guest to host
+
+Date	04 April 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm34
+
+Workaround for:
+Bug 693041 - [WHQL] Virtio block job of "Sleep Stress With IO" 
+for win2k8-32 fails with BSOD on build of virtio-win-prewhql-0.1-9 
+
+Date	30 March 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm33
+
+Fixed bugs:
+Turn MSISupported flag off. Workaround for #669597 & #691192  
+Bug 691192 - RHEV-Block: Workaround for bug #669597 - (virtio-win) BSOD when upgrade virtio 
+block driver from version of 1.1.16 to 1.1.17 
+ 
+Bug 669597 - (virtio-win-1.1.17) Upgrade fails with BSOD when upgrade virtio block driver from 
+version of 1.1.16 to 1.1.17 on windows 
+
+New features:
+New version numbering scheme.
+
+Date	25 March 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm32
+
+Fixed bugs:
+Bug 690713 - [WHQL] Virtio block job "Embedded Signature Verification" fails on virtio-win-prewhql-0.1-7
+
+New features:
+NetKvmConfig documentation.
+
+Date	21 March 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm31
+
+Fixed bugs:
+Bug 688839 - Failed to boot windows guest with 30 virtio serial ports (Got BSOD 0XD1)
+
+Date	13 March 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm30
+
+Fixed bugs:
+Bug 670713 - (virtio-win-1.1.17)Virtio serial driver always causes windows BSOD when install or run whql jobs.
+
+Date	24 February 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm29
+
+New features:
+NetKvm CoInstaller
+
+Fixed bugs:
+Bug 630830 - Nic stops receiving under netperf test. 
+
+
+Date	21 February 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm28
+
+Fixed bugs:
+ 
+Bug 670713 - (virtio-win-1.1.17)Virtio serial driver always causes windows BSOD when install or run whql jobs.
+
+Date	14 February 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm27
+
+Fixed bugs:
+ 
+Bug 669597 - (virtio-win-1.1.17)Upgrade fails with BSOD when upgrade virtio block driver 
+             from version of 1.1.16 to 1.1.17 on windows 
+Bug 616685 - balloon:window guest can not keep memory change after guest restart 
+Bug 621834 - Poor write I/O performance of virtio-win driver 
+
+Date	20 January 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm26
+
+Fixed bugs:
+ 
+Bug 669276 - [WHQL]Windows fails to do S4/S3 with virtio-win-1.1.17
+Bug 669633 - [WHQL]Job of "DPWDK-HotReplace-Device Test-Verify driver support for D3 power state" 
+             fails with getting BSOD 
+Bug 669314 - (virtio-win-1.1.17) Can not generate crash dump file after BSOD of Windows guests
+Bug 669316 - [WHQL] BSOD occurs when running "CHAOS-Concurrent Hardware And OS test"  
+
+
+Date	7 January 2011
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm25
+
+Fixed bugs:
+ 
+Bug 617000 - feature request: virtio-serial windows driver has a write size limitation that should be lifted
+Bug 625036 - For virtio-blk driver MSISupported should be turned on by default on VISTA and higher,
+Bug 637713 - fail to attach virtio serial port to guest when use same nr for different virtio serial pci
+
+New features:
+Indirect buffers support for viostor driver.
+
+
+Date	20 September 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm24
+
+Fixed bugs:
+Bug 634536 - BSOD after hot-unplug a virtio-serial port.
+Bug 635506   [WHQL] Win2k8-32 quest always got BSOD (0x93) buring balloon testing.
+
+
+Date	16 September 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm23
+
+Fixed bugs:
+Bug 610787 - [balloon] evict windows guest free memory does not work.
+
+Date	09 September 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm22
+
+Fixed bugs:
+Bug 626333 - [WHQL] Win2k8-R2 got BSOD during virtio-serial run sleep stress with IO and common
+scenario stress with IO (finale fix. vioserial will be able to pass WHQL test while running with
+child devices (ports)).
+Bug 630536 - Crash when running on Windows XP SMP
+
+
+Date	30 August 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm21
+
+Fixed bugs:
+Bug 610787 - balloon evict windows guest free memory does not work
+Bug 626333 - [WHQL] Win2k8-R2 got BSOD during virtio-serial run sleep stress with IO and common
+scenario stress with IO (partial fix. vioserial should be able to pass WHQL test while running w/o
+child devices (ports)).
+
+
+Date	17 August 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm20
+
+Fixed bugs:
+Bug 603015 - fix for WHQL LSO test problem on MSI mashine
+Bug 613949 - [WHQL] Win2k8-R2 guest got BSOD when running virtio-serial Plug and Play Driver Test
+Bug 614722 - [WHQL] Win2k8-R2 got BSOD during virtio-serial run simpleIOStress test (Error code 0x1E)
+
+New features:
+None
+
+Date	10 August 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm19
+Fixed bugs:
+Bug 616398 - virtio-serial installation problems
+
+
+Date	02 August 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm18
+
+Fixed bugs:
+615205  BSOD happens when doing hibernation for windows guest with virtio blk
+
+New features:
+None
+
+Date	28 July 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm17
+
+Fixed bugs:
+616814  vioserial driver fails to recognize HostConnected with spicevmc
+
+New features:
+Reverting published indexes
+
+Date	13 July 2010
+repo	git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag	mm16
+
+Fixed bugs:
+607555  winxp with virtio block BSOD at the first reboot of installation
+607557  Failed to install windows guests using virtio-win-1.1.5-0.vfd
+609831  Windows 7 guest installed in RHEL5 BSODs on shutdown when booted in RHEL6
+609838  XP installed under RHEL55 has missing sys files on 2nd reboot under RHEL6
+
+New features:
+None
