@@ -69,14 +69,14 @@ HKR, Ndi\Interfaces,              LowerRange,          0, "ethernet"
 
 #if PARANDIS_SUPPORT_RSS
 
-HKR, Ndi\params\*RSS,             ParamDesc,           0, "RSS"
+HKR, Ndi\params\*RSS,             ParamDesc,           0, "Receive Side Scaling"
 HKR, Ndi\params\*RSS,             Type,                0, "enum"
 HKR, Ndi\params\*RSS,             Default,             0, "1"
 HKR, Ndi\params\*RSS,             Optional,            0, "0"
 HKR, Ndi\params\*RSS\enum,        "0",                 0, "Disabled"
 HKR, Ndi\params\*RSS\enum,        "1",                 0, "Enabled"
 
-HKR, Ndi\params\*NumRssQueues,          ParamDesc,  0,          "Max number of RSS queues to use"
+HKR, Ndi\params\*NumRssQueues,          ParamDesc,  0,          "Maximum Number of RSS Queues"
 HKR, Ndi\params\*NumRssQueues,          type,       0,          "int"
 HKR, Ndi\params\*NumRssQueues,          default,    0,          "8"
 HKR, Ndi\params\*NumRssQueues,          min,        0,          "1"
