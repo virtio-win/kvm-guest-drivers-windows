@@ -541,15 +541,25 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
     if(pContext->RSC.bIPv4SupportedSW)
     {
         pContext->RSC.bIPv4Enabled =
+            pContext->RSC.bIPv4SupportedHW =
+                AckFeature(pContext, VIRTIO_NET_F_GUEST_TSO4);
+    }
+    else
+    {
         pContext->RSC.bIPv4SupportedHW =
-            AckFeature(pContext, VIRTIO_NET_F_GUEST_TSO4);
+            VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_GUEST_TSO4);
     }
 
     if(pContext->RSC.bIPv6SupportedSW)
     {
         pContext->RSC.bIPv6Enabled =
             pContext->RSC.bIPv6SupportedHW =
-            AckFeature(pContext, VIRTIO_NET_F_GUEST_TSO6);
+                AckFeature(pContext, VIRTIO_NET_F_GUEST_TSO6);
+    }
+    else
+    {
+        pContext->RSC.bIPv6SupportedHW =
+            VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_GUEST_TSO6);
     }
 
     DPrintf(0, ("[%s] Guest TSO state: IP4=%d, IP6=%d\n", __FUNCTION__, pContext->RSC.bIPv4Enabled, pContext->RSC.bIPv6Enabled) );

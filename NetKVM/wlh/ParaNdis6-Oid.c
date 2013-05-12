@@ -628,6 +628,9 @@ static void DumpOffloadStructure(NDIS_OFFLOAD *po, LPCSTR message)
     DPrintf(level, ("LSO4V2:(%d,%d,%d)\n", pul[0], pul[1], pul[2]));
     pul = (ULONG *)&po->LsoV2.IPv6;
     DPrintf(level, ("LSO6V2:(%d,%d,%d,%d)\n", pul[0], pul[1], pul[2], pul[3]));
+#ifdef PARANDIS_SUPPORT_RSC
+    DPrintf(level, ("RSC:(v4: %d, v6: %d)\n", po->Rsc.IPv4, po->Rsc.IPv6));
+#endif
 }
 
 #define OFFLOAD_FEATURE_SUPPORT(flag) (flag) ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED
@@ -693,8 +696,8 @@ void ParaNdis6_FillOffloadConfiguration(PARANDIS_ADAPTER *pContext)
     NDIS_OFFLOAD *po = &pContext->ReportedOffloadConfiguration;
     FillOffloadStructure(po, pContext->Offload.flags);
 #if PARANDIS_SUPPORT_RSC
-    po->Rsc.IPv4.Enabled = pContext->RSC.bIPv4Enabled;
-    po->Rsc.IPv6.Enabled = pContext->RSC.bIPv6Enabled;
+    po->Rsc.IPv4.Enabled = (pContext->RSC.bIPv4SupportedSW && pContext->RSC.bIPv4SupportedHW);
+    po->Rsc.IPv6.Enabled = (pContext->RSC.bIPv6SupportedSW && pContext->RSC.bIPv6SupportedHW);
 #endif
 }
 
