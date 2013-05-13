@@ -119,6 +119,12 @@ typedef struct _tagPortBuffer
     size_t              offset;
 } PORT_BUFFER, * PPORT_BUFFER;
 
+typedef struct _WriteBufferEntry
+{
+    SINGLE_LIST_ENTRY ListEntry;
+    PVOID Buffer;
+} WRITE_BUFFER_ENTRY, *PWRITE_BUFFER_ENTRY;
+
 typedef struct _tagVioSerialPort
 {
     WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER Header;
@@ -141,6 +147,10 @@ typedef struct _tagVioSerialPort
     WDFREQUEST          PendingReadRequest;
     WDFREQUEST          PendingWriteRequest;
 
+    // Hold a list of allocated buffers which were written to the virt queue
+    // and was not returned yet.
+    SINGLE_LIST_ENTRY   WriteBuffersList;
+
     WDFQUEUE            WriteQueue;
     WDFQUEUE            IoctlQueue;
 } VIOSERIAL_PORT, *PVIOSERIAL_PORT;
@@ -155,18 +165,6 @@ typedef struct _tagRawPdoVioSerialPort
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(RAWPDO_VIOSERIAL_PORT, RawPdoSerialPortGetData)
 
-
-typedef struct _tagTransactionContext {
-    WDFREQUEST     Request;
-} TRANSACTION_CONTEXT, * PTRANSACTION_CONTEXT;
-
-WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(TRANSACTION_CONTEXT, RawPdoSerialPortGetTransactionContext)
-
-typedef struct _WRITE_REQUEST_CONTEXT {
-    size_t Length;
-} WRITE_REQUEST_CONTEXT, *PWRITE_REQUEST_CONTEXT;
-
-WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(WRITE_REQUEST_CONTEXT, GetWriteRequestContext)
 
 NTSTATUS
 VIOSerialFillQueue(
@@ -189,8 +187,7 @@ size_t
 VIOSerialSendBuffers(
     IN PVIOSERIAL_PORT Port,
     IN PVOID Buffer,
-    IN size_t Length,
-    IN WDFREQUEST Request
+    IN size_t Length
 );
 
 SSIZE_T
