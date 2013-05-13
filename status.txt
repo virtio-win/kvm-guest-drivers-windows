@@ -1,3 +1,20 @@
+Date    13 May 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm81
+
+Fixed bugs:
+
+BZ#956882 Crash in OID_GEN_NETWORK_LAYER_ADDRESSES handler - NDIS6
+BZ#958755 BZ#958751 Broken RX statistics fixed
+BZ#958715 RSS\RSC related failures in NDISTest6.5-Standardizedkeywords - RSS fixes
+BZ#950633 Checksum verification fixed
+BZ#912926 BSOD on Sleep and PNP test in NDIS5 drivers
+BZ #889410 - TestOnly.UseSwTxChecksum parameter is removed
+BZ#956290 Race condition on surprise removal in XP/2003 driver
+BZ#957505 QEMU assertion on exit from S4 fixed
+BZ#957507 Crash on unload when control queue... 
+
+
 Date    17 Apr 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm79
