@@ -49,8 +49,7 @@ VIOSerialAllocateBuffer(
 
 size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port,
                             IN PVOID Buffer,
-                            IN size_t Length,
-                            IN WDFREQUEST Request)
+                            IN size_t Length)
 {
     struct virtqueue *vq = GetOutQueue(Port);
     struct VirtIOBufferDescriptor sg[QUEUE_DESCRIPTORS];
@@ -79,14 +78,11 @@ size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port,
 
     WdfSpinLockAcquire(Port->OutVqLock);
 
-    ret = vq->vq_ops->add_buf(vq, sg, out, 0, Request, NULL, 0);
+    ret = vq->vq_ops->add_buf(vq, sg, out, 0, Buffer, NULL, 0);
     vq->vq_ops->kick(vq);
 
     if (ret >= 0)
     {
-        // Add a reference because the request is send to the virt queue.
-        WdfObjectReference(Request);
-
         Port->OutVqFull = (ret == 0);
     }
     else
@@ -122,6 +118,8 @@ VIOSerialFreeBuffer(
 VOID VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 {
     WDFREQUEST request;
+    PSINGLE_LIST_ENTRY iter;
+    PVOID buffer;
     UINT len;
     struct virtqueue *vq = GetOutQueue(Port);
 
@@ -129,14 +127,43 @@ VOID VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 
     if (vq)
     {
-        while ((request = (WDFREQUEST)vq->vq_ops->get_buf(vq, &len)) != NULL)
+        while ((buffer = vq->vq_ops->get_buf(vq, &len)) != NULL)
         {
-            // Removed the reference after the request was pulled out from the
-            // virt queue.
-            WdfObjectDereference(request);
+            if (Port->PendingWriteRequest != NULL)
+            {
+                request = Port->PendingWriteRequest;
+                Port->PendingWriteRequest = NULL;
 
-            WdfRequestCompleteWithInformation(request, STATUS_SUCCESS,
-                GetWriteRequestContext(request)->Length);
+                if (WdfRequestUnmarkCancelable(request) != STATUS_CANCELLED)
+                {
+                    WdfRequestCompleteWithInformation(request, STATUS_SUCCESS,
+                        (size_t)WdfRequestGetInformation(request));
+                }
+                else
+                {
+                    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING,
+                        "Request %p was cancelled.\n", request);
+                }
+            }
+
+            iter = &Port->WriteBuffersList;
+            while (iter->Next != NULL)
+            {
+                PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter->Next,
+                    WRITE_BUFFER_ENTRY, ListEntry);
+
+                if (buffer == entry->Buffer)
+                {
+                    iter->Next = entry->ListEntry.Next;
+
+                    ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
+                    ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);
+                }
+                else
+                {
+                    iter = iter->Next;
+                }
+            };
 
             Port->OutVqFull = FALSE;
         }

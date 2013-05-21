@@ -468,7 +468,7 @@ VIOSerialDeviceListCreatePdo(
                                  );
 
     WdfDeviceInitSetDeviceType(ChildInit, FILE_DEVICE_SERIAL_PORT);
-    WdfDeviceInitSetIoType(ChildInit, WdfDeviceIoBuffered);
+    WdfDeviceInitSetIoType(ChildInit, WdfDeviceIoDirect);
 
     do
     {
@@ -892,83 +892,89 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
 {
     NTSTATUS status;
     PVOID InBuf;
-    size_t Sent;
+    PVOID buffer;
     PVIOSERIAL_PORT Port;
-    BOOLEAN NonBlock;
-    PWRITE_REQUEST_CONTEXT Context;
+    PWRITE_BUFFER_ENTRY entry;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s Length: %d\n",
-        __FUNCTION__, Length);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,
+        "--> %s Request: %p Length: %d\n", __FUNCTION__, Request, Length);
 
     PAGED_CODE();
 
     status = WdfRequestRetrieveInputBuffer(Request, Length, &InBuf, NULL);
     if (!NT_SUCCESS(status))
     {
-        WdfRequestComplete(Request, status);
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
             "Failed to retrieve input buffer: %x\n", status);
+        WdfRequestComplete(Request, status);
         return;
     }
 
     Port = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue))->port;
-    NonBlock = !(WdfFileObjectGetFlags(
-        WdfRequestGetFileObject(Request)) & FO_SYNCHRONOUS_IO);
 
-    Context = GetWriteRequestContext(Request);
-    if (Context == NULL)
+    if (VIOSerialWillWriteBlock(Port))
     {
-        WDF_OBJECT_ATTRIBUTES attributes;
-
-        WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes,
-            WRITE_REQUEST_CONTEXT);
-
-        status = WdfObjectAllocateContext(Request, &attributes,
-            (PVOID*)&Context);
-
-        if (!NT_SUCCESS(status))
-        {
-            WdfRequestComplete(Request, status);
-        }
+        WdfRequestComplete(Request, STATUS_CANT_WAIT);
+        return;
     }
 
-    if (Context != NULL)
+    status = WdfRequestMarkCancelableEx(Request,
+        VIOSerialPortWriteRequestCancel);
+
+    if (!NT_SUCCESS(status))
     {
-        Context->Length = Length;
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
+            "Failed to mark request as cancelable: %x\n", status);
+        WdfRequestComplete(Request, status);
+        return;
+    }
 
-        if (VIOSerialWillWriteBlock(Port))
-        {
-            if (NonBlock)
-            {
-                WdfRequestComplete(Request, STATUS_CANT_WAIT);
-            }
-            else
-            {
-                status = WdfRequestMarkCancelableEx(Request,
-                    VIOSerialPortWriteRequestCancel);
+    buffer = ExAllocatePoolWithTag(NonPagedPool, Length,
+        VIOSERIAL_DRIVER_MEMORY_TAG);
 
-                TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,"XXX WdfRequestMarkCancelableEx %d\n", status);
+    if (buffer == NULL)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Failed to allocate.\n");
+        WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
+        return;
+    }
 
-                if (NT_SUCCESS(status))
-                {
-                    WdfSpinLockAcquire(Port->OutVqLock);
-                    Port->PendingWriteRequest = Request;
-                    WdfSpinLockRelease(Port->OutVqLock);
-                }
-                else
-                {
-                    WdfRequestComplete(Request, status);
-                }
-            }
-        }
-        else
-        {
-            Sent = VIOSerialSendBuffers(Port, InBuf, Length, Request);
-            if (Sent <= 0)
-            {
-                WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
-            }
-        }
+    entry = (PWRITE_BUFFER_ENTRY)ExAllocatePoolWithTag(NonPagedPool,
+        sizeof(WRITE_BUFFER_ENTRY), VIOSERIAL_DRIVER_MEMORY_TAG);
+
+    if (entry == NULL)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
+            "Failed to allocate write buffer entry.\n");
+        ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
+        WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
+        return;
+    }
+
+    RtlCopyMemory(buffer, InBuf, Length);
+    WdfRequestSetInformation(Request, (ULONG_PTR)Length);
+
+    entry->Buffer = buffer;
+    PushEntryList(&Port->WriteBuffersList, &entry->ListEntry);
+
+    Port->PendingWriteRequest = Request;
+
+    if (VIOSerialSendBuffers(Port, buffer, Length) <= 0)
+    {
+        PSINGLE_LIST_ENTRY removed;
+
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
+            "Failed to send user's buffer.\n");
+
+        ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
+        
+        removed = PopEntryList(&Port->WriteBuffersList);
+        NT_ASSERT(entry == CONTAINING_RECORD(removed, WRITE_BUFFER_ENTRY, ListEntry));
+        ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);        
+        
+        Port->PendingWriteRequest = NULL;
+        WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
+        return;
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,"<-- %s\n", __FUNCTION__);
@@ -1010,20 +1016,18 @@ VOID VIOSerialPortWriteRequestCancel(IN WDFREQUEST Request)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s Request: 0x%p\n",
         __FUNCTION__, Request);
 
-    WdfSpinLockAcquire(Port->OutVqLock);
     if (Port->PendingWriteRequest)
     {
         Port->PendingWriteRequest = NULL;
         cancel = TRUE;
     }
-    WdfSpinLockRelease(Port->OutVqLock);
 
     if (cancel)
     {
         WdfRequestCompleteWithInformation(Request, STATUS_CANCELLED, 0L);
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,"<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -1466,6 +1470,7 @@ VIOSerialEvtChildListIdentificationDescriptionDuplicate(
 
     dst->ReadQueue = src->ReadQueue;
     dst->PendingReadRequest = src->PendingReadRequest;
+    dst->PendingWriteRequest = src->PendingWriteRequest;
     dst->WriteQueue = src->WriteQueue;
     dst->IoctlQueue = src->IoctlQueue;
 
@@ -1592,6 +1597,7 @@ VIOSerialPortEvtDeviceD0Exit(
 {
     PVIOSERIAL_PORT Port = RawPdoSerialPortGetData(Device)->port;
     PPORT_BUFFER buf;
+    PSINGLE_LIST_ENTRY iter;
 
     UNREFERENCED_PARAMETER(TargetState);
 
@@ -1615,6 +1621,18 @@ VIOSerialPortEvtDeviceD0Exit(
     {
         VIOSerialFreeBuffer(buf);
     }
+
+    iter = PopEntryList(&Port->WriteBuffersList);
+    while (iter != NULL)
+    {
+        PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter,
+            WRITE_BUFFER_ENTRY, ListEntry);
+
+        ExFreePoolWithTag(entry->Buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
+        ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);
+        
+        iter = PopEntryList(&Port->WriteBuffersList);
+    };
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
 
