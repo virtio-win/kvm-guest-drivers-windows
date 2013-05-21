@@ -1,3 +1,12 @@
+Date    21 May 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm82
+
+Fixed bugs:
+
+bz#953812 add a cancel support to write requests.
+
+
 Date    13 May 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm81
