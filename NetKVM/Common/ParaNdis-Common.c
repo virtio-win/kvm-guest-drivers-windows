@@ -2043,23 +2043,24 @@ static VOID ProcessRxRing(PARANDIS_ADAPTER *pContext, CCHAR nCurrCpuReceiveQueue
 
 static VOID
 UpdateReceiveSuccessStatistics(PPARANDIS_ADAPTER pContext,
-                               PNET_PACKET_INFO pPacketInfo)
+                               PNET_PACKET_INFO pPacketInfo,
+                               UINT nCoalescedSegmentsCount)
 {
     pContext->Statistics.ifHCInOctets += pPacketInfo->dataLength;
 
     if(pPacketInfo->isUnicast)
     {
-        pContext->Statistics.ifHCInUcastPkts++;
+        pContext->Statistics.ifHCInUcastPkts += nCoalescedSegmentsCount;
         pContext->Statistics.ifHCInUcastOctets += pPacketInfo->dataLength;
     }
     else if (pPacketInfo->isBroadcast)
     {
-        pContext->Statistics.ifHCInBroadcastPkts++;
+        pContext->Statistics.ifHCInBroadcastPkts += nCoalescedSegmentsCount;
         pContext->Statistics.ifHCInBroadcastOctets += pPacketInfo->dataLength;
     }
     else if (pPacketInfo->isMulticast)
     {
-        pContext->Statistics.ifHCInMulticastPkts++;
+        pContext->Statistics.ifHCInMulticastPkts += nCoalescedSegmentsCount;
         pContext->Statistics.ifHCInMulticastOctets += pPacketInfo->dataLength;
     }
     else
@@ -2069,10 +2070,10 @@ UpdateReceiveSuccessStatistics(PPARANDIS_ADAPTER pContext,
 }
 
 static __inline VOID
-UpdateReceiveFailStatistics(PPARANDIS_ADAPTER pContext)
+UpdateReceiveFailStatistics(PPARANDIS_ADAPTER pContext, UINT nCoalescedSegmentsCount)
 {
     pContext->Statistics.ifInErrors++;
-    pContext->Statistics.ifInDiscards++;
+    pContext->Statistics.ifInDiscards += nCoalescedSegmentsCount;
 }
 
 static BOOLEAN ProcessReceiveQueue(
@@ -2096,10 +2097,11 @@ static BOOLEAN ProcessReceiveQueue(
                 pContext->bConnected &&
                 ShallPassPacket(pContext, pPacketInfo))
             {
-                tPacketIndicationType packet = ParaNdis_PrepareReceivedPacket(pContext, pBufferDescriptor);
+                UINT nCoalescedSegmentsCount;
+                tPacketIndicationType packet = ParaNdis_PrepareReceivedPacket(pContext, pBufferDescriptor, &nCoalescedSegmentsCount);
                 if(packet != NULL)
                 {
-                    UpdateReceiveSuccessStatistics(pContext, pPacketInfo);
+                    UpdateReceiveSuccessStatistics(pContext, pPacketInfo, nCoalescedSegmentsCount);
                     pTargetReceiveQueue->BatchReceiveArray[nReceived] = packet;
 
                     nReceived++;
@@ -2113,7 +2115,7 @@ static BOOLEAN ProcessReceiveQueue(
                 }
                 else
                 {
-                    UpdateReceiveFailStatistics(pContext);
+                    UpdateReceiveFailStatistics(pContext, nCoalescedSegmentsCount);
                     NdisAcquireSpinLock(&pContext->ReceiveLock);
                     pContext->ReuseBufferProc(pContext, pBufferDescriptor);
                     NdisReleaseSpinLock(&pContext->ReceiveLock);

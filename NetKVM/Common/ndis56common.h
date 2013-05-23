@@ -360,6 +360,7 @@ typedef struct _tagNET_PACKET_INFO
 
     ULONG L2HdrLen;
     ULONG L3HdrLen;
+    ULONG L2PayloadLen;
     ULONG ip6HomeAddrOffset;
     ULONG ip6DestAddrOffset;
 
@@ -819,7 +820,8 @@ NDIS_HANDLE ParaNdis_OpenNICConfiguration(
 
 tPacketIndicationType ParaNdis_PrepareReceivedPacket(
     PARANDIS_ADAPTER *pContext,
-    pRxNetDescriptor pBufferDesc);
+    pRxNetDescriptor pBufferDesc,
+    PUINT            pnCoalescedSegmentsCount);
 
 VOID ParaNdis_IndicateReceivedBatch(
     PARANDIS_ADAPTER *pContext,

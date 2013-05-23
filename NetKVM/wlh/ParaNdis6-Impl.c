@@ -791,10 +791,18 @@ VOID NBLSet8021QInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_PAC
 
 #if PARANDIS_SUPPORT_RSC
 static __inline
-VOID NBLSetRSCInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_PACKET_INFO PacketInfo)
+UINT PktGetTCPCoalescedSegmentsCount(PNET_PACKET_INFO PacketInfo, UINT nMaxTCPPayloadSize)
+{
+    // We have no corresponding data, following is a simulation
+    return PacketInfo->L2PayloadLen / nMaxTCPPayloadSize +
+        !!(PacketInfo->L2PayloadLen % nMaxTCPPayloadSize);
+}
+
+static __inline
+VOID NBLSetRSCInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL,
+                   PNET_PACKET_INFO PacketInfo, UINT nCoalescedSegments)
 {
     NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
-    ULONG ulSegCount;
 
     qCSInfo.Value = NULL;
     qCSInfo.Receive.IpChecksumSucceeded = TRUE;
@@ -803,14 +811,12 @@ VOID NBLSetRSCInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_PACKE
     qCSInfo.Receive.TcpChecksumValueInvalid = TRUE;
     NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
 
-    // We have no data to form this statistics, following is a simulation
-    ulSegCount = PacketInfo->dataLength / pContext->MaxPacketSize.nMaxDataSize + 1;
-    NET_BUFFER_LIST_COALESCED_SEG_COUNT(pNBL) = (USHORT) ulSegCount;
+    NET_BUFFER_LIST_COALESCED_SEG_COUNT(pNBL) = (USHORT) nCoalescedSegments;
     NET_BUFFER_LIST_DUP_ACK_COUNT(pNBL) = 0;
 
-    NdisInterlockedAddLargeStatistic(&pContext->RSC.Statistics.CoalescedOctets, PacketInfo->dataLength);
+    NdisInterlockedAddLargeStatistic(&pContext->RSC.Statistics.CoalescedOctets, PacketInfo->L2PayloadLen);
     NdisInterlockedAddLargeStatistic(&pContext->RSC.Statistics.CoalesceEvents, 1);
-    NdisInterlockedAddLargeStatistic(&pContext->RSC.Statistics.CoalescedPkts, ulSegCount);
+    NdisInterlockedAddLargeStatistic(&pContext->RSC.Statistics.CoalescedPkts, nCoalescedSegments);
 }
 #endif
 
@@ -828,10 +834,12 @@ If priority header is in the packet. it will be removed and *pLength decreased
 ***********************************************************/
 tPacketIndicationType ParaNdis_PrepareReceivedPacket(
     PARANDIS_ADAPTER *pContext,
-    pRxNetDescriptor pBuffersDesc)
+    pRxNetDescriptor pBuffersDesc,
+    PUINT            pnCoalescedSegmentsCount)
 {
     PMDL pMDL = pBuffersDesc->Holder;
     PNET_BUFFER_LIST pNBL = NULL;
+    *pnCoalescedSegmentsCount = 1;
 
     if (pMDL)
     {
@@ -860,7 +868,8 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
 #if PARANDIS_SUPPORT_RSC
             if(pHeader->gso_type != VIRTIO_NET_HDR_GSO_NONE)
             {
-                NBLSetRSCInfo(pContext, pNBL, pPacketInfo);
+                *pnCoalescedSegmentsCount = PktGetTCPCoalescedSegmentsCount(pPacketInfo, pContext->MaxPacketSize.nMaxDataSize);
+                NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount);
             }
             else
 #endif

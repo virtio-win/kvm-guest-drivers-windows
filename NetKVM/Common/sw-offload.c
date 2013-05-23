@@ -721,6 +721,9 @@ BOOLEAN AnalyzeL2Hdr(
         packetInfo->L2HdrLen = ETH_HEADER_SIZE;
         AnalyzeL3Proto(dataBuffer->EthType, packetInfo);
     }
+
+    packetInfo->L2PayloadLen = packetInfo->dataLength - packetInfo->L2HdrLen;
+
     return TRUE;
 }
 
@@ -921,7 +924,7 @@ BOOLEAN AnalyzeL3Hdr(
         if(IP6_HEADER_VERSION(ip6Hdr) != 6)
             return FALSE;
 
-        if(!AnalyzeIP6Hdr(ip6Hdr, packetInfo->dataLength - packetInfo->L2HdrLen,
+        if(!AnalyzeIP6Hdr(ip6Hdr, packetInfo->L2PayloadLen,
             &packetInfo->L3HdrLen, &l4Proto, &homeAddrOffset, &destAddrOffset))
             return FALSE;
 
