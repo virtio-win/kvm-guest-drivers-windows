@@ -1,3 +1,11 @@
+Date    27 May 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm83
+
+Fixed bugs:
+
+BZ#958737 NDISTest 6.5 - E2EPerf job(1110) failed on win 2012 due to performance issue
+
 Date    21 May 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm82
