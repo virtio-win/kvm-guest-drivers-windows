@@ -141,6 +141,7 @@
     <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
     <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <TargetName>netkvm</TargetName>
   </PropertyGroup>
   <PropertyGroup>
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
@@ -149,44 +150,55 @@
     <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
     <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <TargetName>netkvm</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
     <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
     <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <TargetName>netkvm</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
     <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <TargetName>netkvm</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
     <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
     <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <TargetName>netkvm</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
     <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <TargetName>netkvm</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <TargetName>netkvm</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <TargetName>netkvm</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <TargetName>netkvm</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <TargetName>netkvm</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <TargetName>netkvm</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <TargetName>netkvm</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
     <ClCompile>
