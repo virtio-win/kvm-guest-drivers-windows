@@ -636,13 +636,22 @@ VIOSerialEvtDeviceD0Exit(
     IN  WDF_POWER_DEVICE_STATE TargetState
     )
 {
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+    PPORTS_DEVICE pContext = GetPortsDevice(Device);
+    PPORT_BUFFER buf;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s\n", __FUNCTION__);
 
     PAGED_CODE();
 
-    VIOSerialShutdownAllPorts(Device);
+    while (buf = (PPORT_BUFFER)VirtIODeviceDetachUnusedBuf(pContext->c_ivq))
+    {
+        VIOSerialFreeBuffer(buf);
+    }
+
     VIOSerialShutDownAllQueues(Device, TRUE);
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
+
     return STATUS_SUCCESS;
 }
 
