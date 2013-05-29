@@ -409,18 +409,7 @@ VIOSerialDeviceListCreatePdo(
            break;
         }
 
-        status = RtlUnicodeStringPrintf(
-                                 &buffer,
-                                 L"%04u",
-                                 pport->PortId
-                                 );
-        if (!NT_SUCCESS(status))
-        {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "RtlUnicodeStringPrintf failed - 0x%x\n", status);
-           break;
-        }
-
-        status = WdfPdoInitAddHardwareID(ChildInit, &buffer);
+        status = WdfPdoInitAddHardwareID(ChildInit, &deviceId);
         if (!NT_SUCCESS(status))
         {
            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfPdoInitAddHardwareID failed - 0x%x\n", status);
