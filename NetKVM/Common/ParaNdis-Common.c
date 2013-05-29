@@ -1181,6 +1181,13 @@ static void PreventDPCServicing(PARANDIS_ADAPTER *pContext)
     } while (inside > 1);
 }
 
+static BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) ParaNdis_RemoveDriverOKStatus(tSynchronizedContext *SyncContext)
+{
+    VirtIODeviceRemoveStatus((VirtIODevice * )SyncContext->Parameter, VIRTIO_CONFIG_S_DRIVER_OK);
+    return TRUE;
+}
+
+
 /**********************************************************
 Frees all the resources allocated when the context initialized,
     calling also version-dependent part
@@ -1192,7 +1199,10 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     /* disable any interrupt generation */
     if (pContext->IODevice.addr)
     {
-        VirtIODeviceRemoveStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+        ParaNdis_SynchronizeWithInterrupt(pContext,
+                                          pContext->ulRxMessage,
+                                          ParaNdis_RemoveDriverOKStatus,
+                                          &pContext->IODevice);
     }
 
     PreventDPCServicing(pContext);
@@ -2790,7 +2800,11 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     // the ParaNdis_Suspend does fast Rx stop without waiting (=>srsPausing, if there are some RX packets in Ndis)
     pContext->bFastSuspendInProcess = pContext->bNoPauseOnSuspend && pContext->ReceiveState == srsEnabled;
     ParaNdis_Suspend(pContext);
-    VirtIODeviceRemoveStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+
+    ParaNdis_SynchronizeWithInterrupt(pContext,
+        pContext->ulRxMessage,
+        ParaNdis_RemoveDriverOKStatus,
+        &pContext->IODevice);
     
     if (pContext->bFastSuspendInProcess)
     {
