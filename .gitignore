@@ -11,6 +11,9 @@
 *.sln
 *.sdf
 *.opensdf
-objfre*
+*objchk_*
+*objfre_*
+*Win?Debug*
+*Win?Release*
 Install
 NetKVM/Install_Debug
