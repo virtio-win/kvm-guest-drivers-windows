@@ -7,11 +7,11 @@
 #include "Port.tmh"
 #endif
 
-EVT_WDF_WORKITEM VIOSerialPortPortReadyWork;
 EVT_WDF_WORKITEM VIOSerialPortSymbolicNameWork;
 EVT_WDF_WORKITEM VIOSerialPortPnpNotifyWork;
 EVT_WDF_REQUEST_CANCEL VIOSerialPortReadRequestCancel;
 EVT_WDF_REQUEST_CANCEL VIOSerialPortWriteRequestCancel;
+EVT_WDF_DEVICE_D0_ENTRY VIOSerialPortEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT_PRE_INTERRUPTS_DISABLED VIOSerialPortEvtDeviceD0ExitPreInterruptsDisabled;
 EVT_WDF_DEVICE_D0_EXIT VIOSerialPortEvtDeviceD0Exit;
 
@@ -19,6 +19,7 @@ EVT_WDF_DEVICE_D0_EXIT VIOSerialPortEvtDeviceD0Exit;
 #pragma alloc_text(PAGE, VIOSerialDeviceListCreatePdo)
 #pragma alloc_text(PAGE, VIOSerialPortWrite)
 #pragma alloc_text(PAGE, VIOSerialPortDeviceControl)
+#pragma alloc_text(PAGE, VIOSerialPortEvtDeviceD0Entry)
 #pragma alloc_text(PAGE, VIOSerialPortEvtDeviceD0ExitPreInterruptsDisabled)
 #endif
 
@@ -199,15 +200,6 @@ VIOSerialRenewAllPorts(
             break;
         }
         ASSERT(childInfo.Status == WdfChildListRetrieveDeviceSuccess);
-        vport.InBuf = NULL;
-        status = VIOSerialFillQueue(GetInQueue(&vport), vport.InBufLock);
-        if(!NT_SUCCESS(status))
-        {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"%s::%d  Error allocating inbufs\n", __FUNCTION__, __LINE__);
-           break;
-        }
-
-        RawPdoSerialPortGetData(hChild)->port->Removed = FALSE;
 
         VIOSerialEnableInterruptQueue(GetInQueue(&vport));
 
@@ -404,28 +396,6 @@ VIOSerialWillWriteBlock(
     return ret;
 }
 
-VOID
-VIOSerialPortPortReadyWork(
-    IN WDFWORKITEM  WorkItem
-    )
-{
-    PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WorkItem);
-    PVIOSERIAL_PORT         pport = pdoData->port;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s\n", __FUNCTION__);
-    if(!VIOSerialFindPortById(pport->BusDevice, pport->PortId))
-    {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s re-enqueue work item for id=%d\n",
-        __FUNCTION__, pport->PortId);
-        WdfWorkItemEnqueue(WorkItem);
-        return;
-    }
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s sending PORT_READY for id=%d\n",
-        __FUNCTION__, pport->PortId);
-    VIOSerialSendCtrlMsg(pport->BusDevice, pport->PortId, VIRTIO_CONSOLE_PORT_READY, 1);
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
-}
-
 NTSTATUS
 VIOSerialDeviceListCreatePdo(
     IN WDFCHILDLIST DeviceList,
@@ -445,12 +415,6 @@ VIOSerialDeviceListCreatePdo(
     WDF_IO_QUEUE_CONFIG             queueConfig;
     PRAWPDO_VIOSERIAL_PORT          rawPdo = NULL;
     WDF_FILEOBJECT_CONFIG           fileConfig;
-    PPORTS_DEVICE                   pContext = NULL;
-
-    // Work item to send PORT_READY when successfull
-    WDF_WORKITEM_CONFIG             workitemConfig;
-    WDFWORKITEM                     hWorkItem;
-    PRAWPDO_VIOSERIAL_PORT          pdoData = NULL;
 
     DECLARE_CONST_UNICODE_STRING(deviceId, PORT_DEVICE_ID );
     DECLARE_CONST_UNICODE_STRING(deviceLocation, L"RedHat VIOSerial Port" );
@@ -599,6 +563,7 @@ VIOSerialDeviceListCreatePdo(
                                  );
 
         WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&PnpPowerCallbacks);
+        PnpPowerCallbacks.EvtDeviceD0Entry = VIOSerialPortEvtDeviceD0Entry;
         PnpPowerCallbacks.EvtDeviceD0ExitPreInterruptsDisabled = VIOSerialPortEvtDeviceD0ExitPreInterruptsDisabled;
         PnpPowerCallbacks.EvtDeviceD0Exit = VIOSerialPortEvtDeviceD0Exit;
         WdfDeviceInitSetPnpPowerEventCallbacks(ChildInit, &PnpPowerCallbacks);
@@ -762,52 +727,7 @@ VIOSerialDeviceListCreatePdo(
            break;
         }
 
-        pContext = GetPortsDevice(pport->BusDevice);
-
-        status = VIOSerialFillQueue(GetInQueue(pport), pport->InBufLock);
-        if(!NT_SUCCESS(status))
-        {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"%s::%d  Error allocating inbufs\n", __FUNCTION__, __LINE__);
-           break;
-        }
-
         VIOSerialEnableInterruptQueue(GetInQueue(pport));
-
-        // schedule a workitem to send PORT_READY, hopefully runs __after__ this function returns.
-        WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-        WDF_OBJECT_ATTRIBUTES_SET_CONTEXT_TYPE(&attributes, RAWPDO_VIOSERIAL_PORT);
-        attributes.ParentObject = hChild;
-        WDF_WORKITEM_CONFIG_INIT(&workitemConfig, VIOSerialPortPortReadyWork);
-
-        status = WdfWorkItemCreate( &workitemConfig,
-                                 &attributes,
-                                 &hWorkItem);
-
-        if (!NT_SUCCESS(status))
-        {
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
-                "%s WdfWorkItemCreate failed with status = 0x%08x\n",
-                __FUNCTION__, status);
-        }
-        else
-        {
-            pdoData = RawPdoSerialPortGetData(hWorkItem);
-            pdoData->port = pport;
-            WdfWorkItemEnqueue(hWorkItem);
-        }
-
-        WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-        attributes.ParentObject = hChild;
-        status = WdfSpinLockCreate(
-                                &attributes,
-                                &pport->OutVqLock
-                                );
-        if (!NT_SUCCESS(status))
-        {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                "WdfSpinLockCreate failed 0x%x\n", status);
-           break;
-        }
 
     } while (0);
 
@@ -817,7 +737,7 @@ VIOSerialDeviceListCreatePdo(
         VIOSerialSendCtrlMsg(pport->BusDevice, pport->PortId, VIRTIO_CONSOLE_PORT_READY, 0);
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--%s status 0x%x\n", __FUNCTION__, status);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s status 0x%x\n", __FUNCTION__, status);
     return status;
 }
 
@@ -1562,6 +1482,35 @@ VIOSerialPortIoStop(
     return;
 }
 
+NTSTATUS VIOSerialPortEvtDeviceD0Entry(
+    IN WDFDEVICE Device,
+    IN WDF_POWER_DEVICE_STATE PreviousState)
+{
+    PVIOSERIAL_PORT port = RawPdoSerialPortGetData(Device)->port;
+    NTSTATUS status;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+
+    PAGED_CODE();
+
+    status = VIOSerialFillQueue(GetInQueue(port), port->InBufLock);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+            "Error allocating input queue's buffers.\n");
+        return status;
+    }
+
+    VIOSerialSendCtrlMsg(port->BusDevice, port->PortId,
+        VIRTIO_CONSOLE_PORT_READY, 1);
+
+    port->Removed = FALSE;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
+
+    return status;
+}
+
 NTSTATUS
 VIOSerialPortEvtDeviceD0ExitPreInterruptsDisabled(
     IN WDFDEVICE Device,
@@ -1611,6 +1560,7 @@ VIOSerialPortEvtDeviceD0Exit(
 
     WdfSpinLockAcquire(Port->InBufLock);
     VIOSerialDiscardPortDataLocked(Port);
+    Port->InBuf = NULL;
     WdfSpinLockRelease(Port->InBufLock);
 
     WdfSpinLockAcquire(Port->OutVqLock);
@@ -1630,7 +1580,7 @@ VIOSerialPortEvtDeviceD0Exit(
 
         ExFreePoolWithTag(entry->Buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
         ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);
-        
+
         iter = PopEntryList(&Port->WriteBuffersList);
     };
 
