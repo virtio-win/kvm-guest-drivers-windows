@@ -1487,11 +1487,17 @@ NTSTATUS VIOSerialPortEvtDeviceD0Entry(
     IN WDF_POWER_DEVICE_STATE PreviousState)
 {
     PVIOSERIAL_PORT port = RawPdoSerialPortGetData(Device)->port;
+    PPORTS_DEVICE pCtx = GetPortsDevice(port->BusDevice);
     NTSTATUS status;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     PAGED_CODE();
+
+    if ((pCtx->in_vqs == NULL) || (pCtx->in_vqs[port->PortId] == NULL))
+    {
+        return STATUS_NOT_FOUND;
+    }
 
     status = VIOSerialFillQueue(GetInQueue(port), port->InBufLock);
     if (!NT_SUCCESS(status))

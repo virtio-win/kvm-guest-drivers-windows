@@ -501,6 +501,11 @@ VIOSerialInitAllQueues(
         }
     }
 
+    if (pContext->isHostMultiport && (pContext->c_ovq == NULL))
+    {
+        status = STATUS_NOT_FOUND;
+    }
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return status;
 }
@@ -599,7 +604,9 @@ VIOSerialEvtDeviceD0Entry(
     IN  WDF_POWER_DEVICE_STATE PreviousState
     )
 {
-    PPORTS_DEVICE	pContext = GetPortsDevice(Device);
+    NTSTATUS status = STATUS_SUCCESS;
+    PPORTS_DEVICE pContext = GetPortsDevice(Device);
+
     UNREFERENCED_PARAMETER(PreviousState);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
@@ -611,12 +618,16 @@ VIOSerialEvtDeviceD0Entry(
     }
     else
     {
-        VIOSerialInitAllQueues(Device);
-        VIOSerialRenewAllPorts(Device);
+        status = VIOSerialInitAllQueues(Device);
+        if (NT_SUCCESS(status))
+        {
+            VIOSerialRenewAllPorts(Device);
+        }
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
-    return STATUS_SUCCESS;
+
+    return status;
 }
 
 NTSTATUS
