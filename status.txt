@@ -1,3 +1,13 @@
+Date    3 Jun 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm84
+
+Fixed bugs:
+
+BZ#967698 make sure the interrupts are disabled before cleaning up internal virtio structures
+bz#966809 Fix BSOD after resuming from hibernation.
+bz#951481 Implement an DeviceD0Entry callback.
+
 Date    27 May 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm83
