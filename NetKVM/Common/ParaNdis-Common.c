@@ -1103,6 +1103,7 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
         pContext->bEnableInterruptHandlingDPC = TRUE;
         ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
         VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+        pContext->bDeviceInitialized = TRUE;
         ParaNdis_UpdateMAC(pContext);
     }
     DEBUG_EXIT_STATUS(0, status);
@@ -1199,10 +1200,14 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     /* disable any interrupt generation */
     if (pContext->IODevice.addr)
     {
-        ParaNdis_SynchronizeWithInterrupt(pContext,
-                                          pContext->ulRxMessage,
-                                          ParaNdis_RemoveDriverOKStatus,
-                                          &pContext->IODevice);
+        if(pContext->bDeviceInitialized) {
+            ParaNdis_SynchronizeWithInterrupt(pContext,
+                                              pContext->ulRxMessage,
+                                              ParaNdis_RemoveDriverOKStatus,
+                                              &pContext->IODevice);
+
+            pContext->bDeviceInitialized = FALSE;
+        }
     }
 
     PreventDPCServicing(pContext);

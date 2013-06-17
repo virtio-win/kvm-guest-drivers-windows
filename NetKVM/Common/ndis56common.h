@@ -552,6 +552,7 @@ typedef struct _tagPARANDIS_ADAPTER
     NDIS_OFFLOAD                ReportedOffloadConfiguration;
     BOOLEAN                     bOffloadv4Enabled;
     BOOLEAN                     bOffloadv6Enabled;
+    BOOLEAN                     bDeviceInitialized;
 
 #if PARANDIS_SUPPORT_RSS
     BOOLEAN                     bRSSOffloadSupported;
