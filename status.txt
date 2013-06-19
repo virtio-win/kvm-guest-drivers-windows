@@ -1,3 +1,11 @@
+Date    19 Jun 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm85
+
+Fixed bugs:
+
+BZ#972310 - in case if the interrupt and the device was not initiali
+
 Date    3 Jun 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm84
