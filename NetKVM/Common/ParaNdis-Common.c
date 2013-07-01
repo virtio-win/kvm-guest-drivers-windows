@@ -562,7 +562,11 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
             VirtIOIsFeatureEnabled(pContext->u32HostFeatures, VIRTIO_NET_F_GUEST_TSO6);
     }
 
-    DPrintf(0, ("[%s] Guest TSO state: IP4=%d, IP6=%d\n", __FUNCTION__, pContext->RSC.bIPv4Enabled, pContext->RSC.bIPv6Enabled) );
+    pContext->RSC.bHasDynamicConfig = (pContext->RSC.bIPv4Enabled || pContext->RSC.bIPv6Enabled) &&
+                                      AckFeature(pContext, VIRTIO_NET_F_CTRL_GUEST_OFFLOADS);
+
+    DPrintf(0, ("[%s] Guest TSO state: IP4=%d, IP6=%d, Dynamic=%d\n", __FUNCTION__,
+        pContext->RSC.bIPv4Enabled, pContext->RSC.bIPv6Enabled, pContext->RSC.bHasDynamicConfig) );
 #else
     UNREFERENCED_PARAMETER(pContext);
 #endif
@@ -2721,6 +2725,18 @@ ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext)
                            pContext->CurrentMacAddress,
                            ETH_LENGTH_OF_ADDRESS,
                            NULL, 0, 4);
+    }
+}
+
+VOID
+ParaNdis_UpdateGuestOffloads(PARANDIS_ADAPTER *pContext, UINT64 Offloads)
+{
+    if (pContext->RSC.bHasDynamicConfig)
+    {
+        SendControlMessage(pContext, VIRTIO_NET_F_CTRL_GUEST_OFFLOADS, VIRTIO_NET_CTRL_GUEST_OFFLOADS_SET,
+                           &Offloads,
+                           sizeof(Offloads),
+                           NULL, 0, 2);
     }
 }
 

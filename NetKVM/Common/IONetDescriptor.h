@@ -112,6 +112,14 @@ struct virtio_net_ctrl_mac {
   #define VIRTIO_NET_CTRL_VLAN_ADD             0
   #define VIRTIO_NET_CTRL_VLAN_DEL             1
 
+/*
+ * Control network offloads
+ *
+ * Dynamic offloads are available with the
+ * VIRTIO_NET_F_CTRL_GUEST_OFFLOADS feature bit.
+ */
+#define VIRTIO_NET_CTRL_GUEST_OFFLOADS       5
+  #define VIRTIO_NET_CTRL_GUEST_OFFLOADS_SET   0
 
 #pragma pack (pop)
 

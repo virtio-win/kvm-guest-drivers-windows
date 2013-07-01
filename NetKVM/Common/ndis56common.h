@@ -82,6 +82,8 @@
 /* The feature bitmap for virtio net */
 #define VIRTIO_NET_F_CSUM   0   /* Host handles pkts w/ partial csum */
 #define VIRTIO_NET_F_GUEST_CSUM 1   /* Guest handles pkts w/ partial csum */
+#define VIRTIO_NET_F_CTRL_GUEST_OFFLOADS 2 /* Control channel offload
+                                         * configuration support */
 #define VIRTIO_NET_F_MAC    5   /* Host has given MAC address. */
 #define VIRTIO_NET_F_GSO    6   /* Host handles pkts w/ any GSO type */
 #define VIRTIO_NET_F_GUEST_TSO4 7   /* Guest can handle TSOv4 in. */
@@ -570,6 +572,7 @@ typedef struct _tagPARANDIS_ADAPTER
         BOOLEAN                     bIPv6SupportedHW;
         BOOLEAN                     bIPv4Enabled;
         BOOLEAN                     bIPv6Enabled;
+        BOOLEAN                     bHasDynamicConfig;
         struct {
             LARGE_INTEGER           CoalescedPkts;
             LARGE_INTEGER           CoalescedOctets;
@@ -728,6 +731,11 @@ VOID ParaNdis_PowerOn(
 
 VOID ParaNdis_PowerOff(
     PARANDIS_ADAPTER *pContext
+);
+
+VOID ParaNdis_UpdateGuestOffloads(
+    PARANDIS_ADAPTER *pContext,
+    UINT64 Offloads
 );
 
 void ParaNdis_DebugInitialize();
