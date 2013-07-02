@@ -84,6 +84,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_SCSI_S_HEAD                     2
 #define VIRTIO_SCSI_S_ACA                      3
 
+#define VIRTIO_RING_F_INDIRECT_DESC            28
 
 /* SCSI command request, followed by data-out */
 #pragma pack(1)
@@ -191,6 +192,15 @@ typedef struct {
 } VirtIOSCSIEventNode, * PVirtIOSCSIEventNode;
 #pragma pack()
 
+typedef struct vring_desc_alias
+{
+    union
+    {
+        ULONGLONG data[2];
+        UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
+    }u;
+};
+
 #pragma pack(1)
 typedef struct _SRB_EXTENSION {
     ULONG                 out;
@@ -198,6 +208,9 @@ typedef struct _SRB_EXTENSION {
     ULONG                 Xfer;
     VirtIOSCSICmd         cmd;
     VIO_SG                sg[128];
+#if INDIRECT_SUPPORTED
+    struct vring_desc_alias     desc[VIRTIO_MAX_SG];
+#endif
 }SRB_EXTENSION, * PSRB_EXTENSION;
 #pragma pack()
 
@@ -231,14 +244,5 @@ typedef struct _ADAPTER_EXTENSION {
 
     PVirtIOSCSIEventNode  events;
 }ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
-
-typedef struct vring_desc_alias
-{
-    union
-    {
-        ULONGLONG data[2];
-        UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
-    }u;
-};
 
 #endif ___VIOSCSI__H__
