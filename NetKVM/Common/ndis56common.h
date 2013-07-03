@@ -733,10 +733,12 @@ VOID ParaNdis_PowerOff(
     PARANDIS_ADAPTER *pContext
 );
 
+#if PARANDIS_SUPPORT_RSC
 VOID ParaNdis_UpdateGuestOffloads(
     PARANDIS_ADAPTER *pContext,
     UINT64 Offloads
 );
+#endif
 
 void ParaNdis_DebugInitialize();
 void ParaNdis_DebugCleanup(PDRIVER_OBJECT  pDriverObject);

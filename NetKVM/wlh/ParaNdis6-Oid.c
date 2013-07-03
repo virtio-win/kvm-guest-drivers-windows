@@ -1017,13 +1017,11 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
 }
 
 static
-NDIS_STATUS OnSetRSCParameters(PPARANDIS_ADAPTER pContext, tOidDesc *pOid, PNDIS_OFFLOAD_PARAMETERS op)
+NDIS_STATUS OnSetRSCParameters(PPARANDIS_ADAPTER pContext, PNDIS_OFFLOAD_PARAMETERS op)
 {
+#if PARANDIS_SUPPORT_RSC
     UINT64 GuestOffloads;
 
-    UNREFERENCED_PARAMETER(pOid);
-
-#if PARANDIS_SUPPORT_RSC
     if(op->Header.Revision != NDIS_OFFLOAD_PARAMETERS_REVISION_3)
         return NDIS_STATUS_SUCCESS;
 
@@ -1050,6 +1048,7 @@ NDIS_STATUS OnSetRSCParameters(PPARANDIS_ADAPTER pContext, tOidDesc *pOid, PNDIS
     UNREFERENCED_PARAMETER(pContext);
     UNREFERENCED_PARAMETER(op);
 #endif /* PARANDIS_SUPPORT_RSC */
+
     return STATUS_SUCCESS;
 }
 
@@ -1066,7 +1065,7 @@ NDIS_STATUS OnSetOffloadParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     if(status != NDIS_STATUS_SUCCESS)
         return status;
 
-    status = OnSetRSCParameters(pContext, pOid, &op);
+    status = OnSetRSCParameters(pContext, &op);
 
     if(status != NDIS_STATUS_SUCCESS)
         return status;

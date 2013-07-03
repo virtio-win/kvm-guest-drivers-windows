@@ -2728,6 +2728,7 @@ ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext)
     }
 }
 
+#if PARANDIS_SUPPORT_RSC
 VOID
 ParaNdis_UpdateGuestOffloads(PARANDIS_ADAPTER *pContext, UINT64 Offloads)
 {
@@ -2739,6 +2740,7 @@ ParaNdis_UpdateGuestOffloads(PARANDIS_ADAPTER *pContext, UINT64 Offloads)
                            NULL, 0, 2);
     }
 }
+#endif
 
 VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 {
