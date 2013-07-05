@@ -52,7 +52,7 @@ static const char *ConnectStateName(NDIS_MEDIA_CONNECT_STATE state)
     return "Unknown";
 }
 
-static void PostLinkState(PARANDIS_ADAPTER *pContext, NDIS_MEDIA_CONNECT_STATE connectState)
+static VOID PostLinkState(PARANDIS_ADAPTER *pContext, NDIS_MEDIA_CONNECT_STATE connectState)
 {
     NDIS_STATUS_INDICATION  indication;
     NDIS_LINK_STATE         state;
@@ -82,33 +82,26 @@ static void PostLinkState(PARANDIS_ADAPTER *pContext, NDIS_MEDIA_CONNECT_STATE c
     NdisMIndicateStatusEx(pContext->MiniportHandle , &indication);
 }
 
-/**********************************************************
-Produces connect indication to NDIS
-Parameters:
-    context
-    BOOLEAN bConnected      - 1/0 connect/disconnect
-***********************************************************/
-void ParaNdis_IndicateConnect(PARANDIS_ADAPTER *pContext, BOOLEAN bConnected, BOOLEAN bForce)
+VOID ParaNdis_SetLinkState(PARANDIS_ADAPTER *pContext, NDIS_MEDIA_CONNECT_STATE LinkState)
 {
-    NDIS_MEDIA_CONNECT_STATE connectState = bConnected ? MediaConnectStateConnected : MediaConnectStateDisconnected;
     DEBUG_ENTRY(3);
 
-    if (bConnected != pContext->bConnected || bForce)
+    if (LinkState != pContext->fCurrentLinkState)
     {
-        pContext->bConnected = bConnected;
-        PostLinkState(pContext, connectState);
+        pContext->fCurrentLinkState = LinkState;
+        PostLinkState(pContext, LinkState);
     }
+}
+
+VOID ParaNdis_SynchronizeLinkState(PARANDIS_ADAPTER *pContext)
+{
+    ParaNdis_SetLinkState(pContext, pContext->bConnected ? MediaConnectStateConnected
+                                                         : MediaConnectStateDisconnected);
 }
 
 VOID ParaNdis_SetPowerState(PARANDIS_ADAPTER *pContext, NDIS_DEVICE_POWER_STATE newState)
 {
-    NDIS_DEVICE_POWER_STATE prev = pContext->powerState;
     pContext->powerState = newState;
-
-    if (prev == NetDeviceStateD0 && newState == NetDeviceStateD3)
-    {
-        PostLinkState(pContext, MediaConnectStateUnknown);
-    }
 }
 
 /**********************************************************
@@ -445,7 +438,6 @@ static NDIS_STATUS ParaNdis6_Restart(
     ParaNdis_DebugHistory(pContext, hopSysResume, NULL, 1, 0, 0);
     ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
     ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
-    ParaNdis_ReportLinkStatus(pContext, FALSE);
 
     ParaNdis_DebugHistory(pContext, hopSysResume, NULL, 0, 0, 0);
     DEBUG_EXIT_STATUS(2, status);

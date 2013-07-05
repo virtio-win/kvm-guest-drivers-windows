@@ -426,6 +426,7 @@ typedef struct _tagPARANDIS_ADAPTER
     u32                     u32HostFeatures;
     u32                     u32GuestFeatures;
     BOOLEAN                 bConnected;
+    NDIS_MEDIA_CONNECT_STATE fCurrentLinkState;
     BOOLEAN                 bEnableInterruptHandlingDPC;
     BOOLEAN                 bEnableInterruptChecking;
     BOOLEAN                 bDoSupportPriority;
@@ -721,10 +722,6 @@ VOID ParaNdis_OnShutdown(
 BOOLEAN ParaNdis_CheckForHang(
     PARANDIS_ADAPTER *pContext);
 
-VOID ParaNdis_ReportLinkStatus(
-    PARANDIS_ADAPTER *pContext,
-    BOOLEAN bForce);
-
 VOID ParaNdis_PowerOn(
     PARANDIS_ADAPTER *pContext
 );
@@ -911,11 +908,6 @@ BOOLEAN ParaNdis_BindRxBufferToPacket(
 void ParaNdis_UnbindRxBufferFromPacket(
     pRxNetDescriptor p);
 
-void ParaNdis_IndicateConnect(
-    PARANDIS_ADAPTER *pContext,
-    BOOLEAN bConnected,
-    BOOLEAN bForce);
-
 void ParaNdis_RestoreDeviceConfigurationAfterReset(
     PARANDIS_ADAPTER *pContext);
 
@@ -929,6 +921,12 @@ VOID ParaNdis_SetPowerState(
     PARANDIS_ADAPTER *pContext,
     NDIS_DEVICE_POWER_STATE newState);
 
+VOID ParaNdis_SynchronizeLinkState(
+    PARANDIS_ADAPTER *pContext);
+
+VOID ParaNdis_SetLinkState(
+    PARANDIS_ADAPTER *pContext,
+    NDIS_MEDIA_CONNECT_STATE LinkState);
 
 #endif //-OFFLOAD_UNIT_TEST
 

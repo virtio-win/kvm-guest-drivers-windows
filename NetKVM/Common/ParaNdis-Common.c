@@ -672,6 +672,9 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
     ReadNicConfiguration(pContext, CurrentMAC);
 
+    pContext->fCurrentLinkState = MediaConnectStateUnknown;
+    pContext->powerState = NetDeviceStateUnspecified;
+
     pContext->MaxPacketSize.nMaxFullSizeOS = pContext->MaxPacketSize.nMaxDataSize + ETH_HEADER_SIZE;
     pContext->MaxPacketSize.nMaxFullSizeHwTx = pContext->MaxPacketSize.nMaxFullSizeOS;
 #if PARANDIS_SUPPORT_RSC
@@ -1070,6 +1073,20 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     return status;
 }
 
+static void ReadLinkState(PARANDIS_ADAPTER *pContext)
+{
+    if (pContext->bLinkDetectSupported)
+    {
+        USHORT linkStatus = 0;
+        VirtIODeviceGet(&pContext->IODevice, ETH_LENGTH_OF_ADDRESS, &linkStatus, sizeof(linkStatus));
+        pContext->bConnected = !!(linkStatus & VIRTIO_NET_S_LINK_UP);
+    }
+    else
+    {
+        pContext->bConnected = TRUE;
+    }
+}
+
 /**********************************************************
 Finishes initialization of context structure, calling also version dependent part
 If this procedure failed, ParaNdis_CleanupContext must be called
@@ -1104,8 +1121,10 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
 
     if (status == NDIS_STATUS_SUCCESS)
     {
+        ReadLinkState(pContext);
         pContext->bEnableInterruptHandlingDPC = TRUE;
         ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
+        ParaNdis_SynchronizeLinkState(pContext);
         VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
         pContext->bDeviceInitialized = TRUE;
         ParaNdis_UpdateMAC(pContext);
@@ -1227,6 +1246,7 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     }
 
     ParaNdis_SetPowerState(pContext, NdisDeviceStateD3);
+    ParaNdis_SetLinkState(pContext, MediaConnectStateUnknown);
     VirtIONetRelease(pContext);
 
     ParaNdis_FinalizeCleanup(pContext);
@@ -1918,18 +1938,6 @@ BOOLEAN PerformPacketAnalyzis(
     return TRUE;
 }
 
-void ParaNdis_ReportLinkStatus(PARANDIS_ADAPTER *pContext, BOOLEAN bForce)
-{
-    BOOLEAN bConnected = TRUE;
-    if (pContext->bLinkDetectSupported)
-    {
-        USHORT linkStatus = 0;
-        VirtIODeviceGet(&pContext->IODevice, ETH_LENGTH_OF_ADDRESS, &linkStatus, sizeof(linkStatus));
-        bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
-    }
-    ParaNdis_IndicateConnect(pContext, bConnected, bForce);
-}
-
 static BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) RestartQueueSynchronously(tSynchronizedContext *SyncContext)
 {
     struct virtqueue * _vq = (struct virtqueue *) SyncContext->Parameter;
@@ -2211,7 +2219,8 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
         ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)1, interruptSources, 0, 0);
         if ((interruptSources & isControl) && pContext->bLinkDetectSupported)
         {
-            ParaNdis_ReportLinkStatus(pContext, FALSE);
+            ReadLinkState(pContext);
+            ParaNdis_SynchronizeLinkState(pContext);
         }
         if (interruptSources & isTransmit)
         {
@@ -2796,7 +2805,9 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
         }
     }
     pContext->NetReceiveQueue->vq_ops->kick(pContext->NetReceiveQueue);
+    ReadLinkState(pContext);
     ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
+    ParaNdis_SynchronizeLinkState(pContext);
     pContext->bEnableInterruptHandlingDPC = TRUE;
     VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
     
@@ -2807,8 +2818,7 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     // otherwise it does not do anything in Vista+ (Tx and RX are enabled after power-on by Restart)
     ParaNdis_Resume(pContext);
     pContext->bFastSuspendInProcess = FALSE;
-    
-    ParaNdis_ReportLinkStatus(pContext, TRUE);
+
     ParaNdis_DebugHistory(pContext, hopPowerOn, NULL, 0, 0, 0);
 }
 
@@ -2817,7 +2827,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, hopPowerOff, NULL, 1, 0, 0);
 
-    ParaNdis_IndicateConnect(pContext, FALSE, FALSE);
+    pContext->bConnected = FALSE;
 
     // if bFastSuspendInProcess is set by Win8 power-off procedure
     // the ParaNdis_Suspend does fast Rx stop without waiting (=>srsPausing, if there are some RX packets in Ndis)
@@ -2837,6 +2847,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     }
     
     ParaNdis_SetPowerState(pContext, NdisDeviceStateD3);
+    ParaNdis_SetLinkState(pContext, MediaConnectStateUnknown);
 
     PreventDPCServicing(pContext);
 
