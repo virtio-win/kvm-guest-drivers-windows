@@ -286,10 +286,6 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             SETINFO(ul, options);
         }
         break;
-    case OID_GEN_MEDIA_CONNECT_STATUS:
-        SETINFO(ul, pContext->bConnected ? NdisMediaStateConnected : NdisMediaStateDisconnected);
-        //NdisMediaStateConnected:
-        break;
     case OID_GEN_MAXIMUM_SEND_PACKETS:
         // NDIS ignores it for deserialized drivers
         SETINFO(ul,pContext->nofFreeTxDescriptors);
@@ -438,7 +434,6 @@ const char *ParaNdis_OidName(NDIS_OID oid)
     MAKECASE(OID_GEN_MAXIMUM_TOTAL_SIZE)
     MAKECASE(OID_GEN_PROTOCOL_OPTIONS)
     MAKECASE(OID_GEN_MAC_OPTIONS)
-    MAKECASE(OID_GEN_MEDIA_CONNECT_STATUS)
     MAKECASE(OID_GEN_MAXIMUM_SEND_PACKETS)
     MAKECASE(OID_GEN_VENDOR_DRIVER_VERSION)
     MAKECASE(OID_GEN_SUPPORTED_GUIDS)
