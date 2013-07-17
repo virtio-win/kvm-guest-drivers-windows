@@ -60,7 +60,6 @@ char *DbgGetScsiOpStr(PSCSI_REQUEST_BLOCK Srb);
 ///////////////////
 // DEBUG SUPPORT //
 ///////////////////
-extern ULONG RhelDbgLevel;
 
 #ifndef TRACE_LEVEL_INFORMATION
 #define TRACE_LEVEL_NONE        0   // Tracing is not on

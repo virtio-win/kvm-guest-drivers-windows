@@ -255,7 +255,6 @@ ENTER_FN();
     }
 
     VirtIODeviceInitialize(&adaptExt->vdev, adaptExt->device_base, sizeof(adaptExt->vdev));
-    adaptExt->msix_enabled = FALSE;
 
 EXIT_FN();
     return TRUE;
