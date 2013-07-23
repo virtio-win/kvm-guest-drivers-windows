@@ -807,7 +807,6 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
         
         Port->PendingWriteRequest = NULL;
         WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
-        return;
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,"<-- %s\n", __FUNCTION__);

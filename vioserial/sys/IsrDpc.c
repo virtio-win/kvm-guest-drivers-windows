@@ -5,77 +5,6 @@
 #include "IsrDpc.tmh"
 #endif
 
-EVT_WDF_WORKITEM WriteRequestReSubmitWorkItem;
-
-typedef struct _RESUBMIT_REQUEST_CONTEXT {
-    PVIOSERIAL_PORT Port;
-    WDFREQUEST Request;
-} RESUBMIT_REQUEST_CONTEXT, *PRESUBMIT_REQUEST_CONTEXT;
-
-WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(RESUBMIT_REQUEST_CONTEXT,
-                                   GetReSubmitRequestContext)
-
-VOID ReSubmitWriteRequest(IN VIOSERIAL_PORT *Port, IN WDFREQUEST Request)
-{
-    WDF_OBJECT_ATTRIBUTES attributes;
-    WDF_WORKITEM_CONFIG config;
-    WDFWORKITEM workitem;
-    NTSTATUS status;
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
-
-    if (WdfRequestUnmarkCancelable(Request) == STATUS_CANCELLED)
-    {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
-            "Request %p was cancelled.\n", Request);
-        return;
-    }
-
-    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes,
-        RESUBMIT_REQUEST_CONTEXT);
-    attributes.ParentObject = Port->Device;
-
-    WDF_WORKITEM_CONFIG_INIT(&config, WriteRequestReSubmitWorkItem);
-
-    status = WdfWorkItemCreate(&config, &attributes, &workitem);
-    if (NT_SUCCESS(status))
-    {
-        RESUBMIT_REQUEST_CONTEXT *context;
-        context = GetReSubmitRequestContext(workitem);
-        context->Port = Port;
-        context->Request = Request;
-
-        WdfWorkItemEnqueue(workitem);
-    }
-    else
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_DPC,
-            "Failed to create write request work item (0x%08x)\n", status);
-    }
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
-}
-
-VOID WriteRequestReSubmitWorkItem(IN WDFWORKITEM WorkItem)
-{
-    RESUBMIT_REQUEST_CONTEXT *context;
-    PVIOSERIAL_PORT port;
-    WDFREQUEST request;
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
-
-    context = GetReSubmitRequestContext(WorkItem);
-    port = context->Port;
-    request = context->Request;
-
-    VIOSerialPortWrite(WdfRequestGetIoQueue(request), request,
-        (size_t)WdfRequestGetInformation(request));
-
-    WdfObjectDelete(WorkItem);
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
-}
-
 BOOLEAN
 VIOSerialInterruptIsr(
     IN WDFINTERRUPT Interrupt,
@@ -212,13 +141,6 @@ VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt,
         WdfSpinLockAcquire(Port->OutVqLock);
         VIOSerialReclaimConsumedBuffers(Port);
         WdfSpinLockRelease(Port->OutVqLock);
-
-        if (Port->PendingWriteRequest)
-        {
-            WDFREQUEST request = Port->PendingWriteRequest;
-            Port->PendingWriteRequest = NULL;
-            ReSubmitWriteRequest(Port, request);
-        }
     }
     WdfChildListEndIteration(PortList, &iterator);
 
