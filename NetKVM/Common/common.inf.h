@@ -35,7 +35,7 @@
 #endif
 
 #if TARGETOS <= 51
-#define DEFAULT_CONNECT_RATE    "1001"
+#define DEFAULT_CONNECT_RATE    "1000"
 #define DEFAULT_TX_CHECKSUM     "0" 
 #define DEFAULT_RX_CHECKSUM     "0"
 #elif TARGETOS < 60
@@ -55,7 +55,7 @@ HKR, Ndi\Params\ConnectRate,        Default,    0,          DEFAULT_CONNECT_RATE
 HKR, Ndi\Params\ConnectRate,        type,       0,          "enum"
 HKR, Ndi\Params\ConnectRate\enum,   "10",       0,          %10M%
 HKR, Ndi\Params\ConnectRate\enum,   "100",      0,          %100M%
-HKR, Ndi\Params\ConnectRate\enum,   "1001",     0,          %1G%
+HKR, Ndi\Params\ConnectRate\enum,   "1000",     0,          %1G%
 HKR, Ndi\Params\ConnectRate\enum,   "10000",    0,          %10G%
 
 HKR, Ndi\Params\Priority,           ParamDesc,  0,          %Priority%
