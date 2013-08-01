@@ -43,6 +43,7 @@ VIOSerialSendCtrlMsg(
     sg.physAddr = MmGetPhysicalAddress(&cpkt);
     sg.ulSize = sizeof(cpkt);
 
+    WdfSpinLockAcquire(pContext->CVqLock);
     if(0 <= vq->vq_ops->add_buf(vq, &sg, 1, 0, &cpkt, NULL, 0))
     {
         vq->vq_ops->kick(vq);
@@ -56,6 +57,8 @@ VIOSerialSendCtrlMsg(
            }
         }
     }
+    WdfSpinLockRelease(pContext->CVqLock);
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s cnt = %d\n", __FUNCTION__, cnt);
 }
 
