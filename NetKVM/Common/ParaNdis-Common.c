@@ -1087,6 +1087,26 @@ static void ReadLinkState(PARANDIS_ADAPTER *pContext)
     }
 }
 
+static BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) ParaNdis_RemoveDriverOKStatus(tSynchronizedContext *SyncContext)
+{
+    PPARANDIS_ADAPTER pContext = (PPARANDIS_ADAPTER) SyncContext->Parameter;
+    VirtIODeviceRemoveStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+
+    KeMemoryBarrier();
+
+    pContext->bDeviceInitialized = FALSE;
+    return TRUE;
+}
+
+static VOID ParaNdis_AddDriverOKStatus(PPARANDIS_ADAPTER pContext)
+{
+    pContext->bDeviceInitialized = TRUE;
+
+    KeMemoryBarrier();
+
+    VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+}
+
 /**********************************************************
 Finishes initialization of context structure, calling also version dependent part
 If this procedure failed, ParaNdis_CleanupContext must be called
@@ -1125,8 +1145,7 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
         pContext->bEnableInterruptHandlingDPC = TRUE;
         ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
         ParaNdis_SynchronizeLinkState(pContext);
-        VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
-        pContext->bDeviceInitialized = TRUE;
+        ParaNdis_AddDriverOKStatus(pContext);
         ParaNdis_UpdateMAC(pContext);
     }
     DEBUG_EXIT_STATUS(0, status);
@@ -1205,13 +1224,6 @@ static void PreventDPCServicing(PARANDIS_ADAPTER *pContext)
     } while (inside > 1);
 }
 
-static BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) ParaNdis_RemoveDriverOKStatus(tSynchronizedContext *SyncContext)
-{
-    VirtIODeviceRemoveStatus((VirtIODevice * )SyncContext->Parameter, VIRTIO_CONFIG_S_DRIVER_OK);
-    return TRUE;
-}
-
-
 /**********************************************************
 Frees all the resources allocated when the context initialized,
     calling also version-dependent part
@@ -1227,9 +1239,7 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
             ParaNdis_SynchronizeWithInterrupt(pContext,
                                               pContext->ulRxMessage,
                                               ParaNdis_RemoveDriverOKStatus,
-                                              &pContext->IODevice);
-
-            pContext->bDeviceInitialized = FALSE;
+                                              pContext);
         }
     }
 
@@ -1321,14 +1331,19 @@ BOOLEAN ParaNdis_OnLegacyInterrupt(
     ULONG status = VirtIODeviceISR(&pContext->IODevice);
 
     if((status == 0)                                   ||
-       (status == VIRTIO_NET_INVALID_INTERRUPT_STATUS) ||
-       (pContext->powerState != NdisDeviceStateD0))
+       (status == VIRTIO_NET_INVALID_INTERRUPT_STATUS))
     {
         *pRunDpc = FALSE;
         return FALSE;
     }
 
     PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
+
+    if(!pContext->bDeviceInitialized) {
+        *pRunDpc = FALSE;
+        return TRUE;
+    }
+
     ParaNdis_VirtIODisableIrqSynchronized(pContext, isAny);
     InterlockedOr(&pContext->InterruptStatus, (LONG) ((status & isControl) | isReceive | isTransmit));
     *pRunDpc = TRUE;
@@ -1342,8 +1357,8 @@ BOOLEAN ParaNdis_OnQueuedInterrupt(
 {
     struct virtqueue* _vq = ParaNdis_GetQueueForInterrupt(pContext, knownInterruptSources);
 
-    /* If interrupts for this queue disabled do nothing */
-    if((_vq != NULL) && !ParaNDIS_IsQueueInterruptEnabled(_vq))
+    /* If interrupts for this queue (or globally) disabled do nothing */
+    if( ((_vq != NULL) && !ParaNDIS_IsQueueInterruptEnabled(_vq)) || !pContext->bDeviceInitialized )
     {
         *pRunDpc = FALSE;
     }
@@ -1355,7 +1370,7 @@ BOOLEAN ParaNdis_OnQueuedInterrupt(
         *pRunDpc = TRUE;
     }
 
-    return *pRunDpc;
+    return TRUE;
 }
 
 
@@ -2809,8 +2824,8 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
     ParaNdis_SynchronizeLinkState(pContext);
     pContext->bEnableInterruptHandlingDPC = TRUE;
-    VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
-    
+    ParaNdis_AddDriverOKStatus(pContext);
+
     NdisReleaseSpinLock(&pContext->ReceiveLock);
 
     // if bFastSuspendInProcess is set by Win8 power-off procedure,
@@ -2837,7 +2852,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     ParaNdis_SynchronizeWithInterrupt(pContext,
         pContext->ulRxMessage,
         ParaNdis_RemoveDriverOKStatus,
-        &pContext->IODevice);
+        pContext);
     
     if (pContext->bFastSuspendInProcess)
     {
