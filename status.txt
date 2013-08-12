@@ -1,3 +1,13 @@
+Date    12 Aug 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm87
+
+Fixed bugs:
+
+BZ#988302 fixing calling conventions and project definitions for 32bit OSes in 
+BZ#993614 Windows 8 32 bit crashes during HCK MPE test (BSOD D1)
+BZ#858687 add a spin lock to the control queue.
+
 Date    30 Jul 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm86
