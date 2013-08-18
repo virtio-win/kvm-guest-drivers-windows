@@ -1059,7 +1059,7 @@ RhelScsiGetInquiryData(
         memset(IdentificationDescr, 0, sizeof(VPD_IDENTIFICATION_DESCRIPTOR));
         IdentificationDescr->CodeSet = VpdCodeSetBinary;
         IdentificationDescr->IdentifierType = VpdIdentifierTypeEUI64;
-        IdentificationDescr->IdentifierLength = 11;
+        IdentificationDescr->IdentifierLength = 8;
         IdentificationDescr->Identifier[0] = '1';
         IdentificationDescr->Identifier[1] = 'A';
         IdentificationDescr->Identifier[2] = 'F';
