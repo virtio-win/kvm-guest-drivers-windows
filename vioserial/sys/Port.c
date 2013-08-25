@@ -140,6 +140,8 @@ VIOSerialRemovePort(
         "--> %s DeviceId: %d PortId: %d\n",
         __FUNCTION__, Port->DeviceId, Port->PortId);
 
+    Port->Removed = TRUE;
+
     PortList = WdfFdoGetDefaultChildList(Device);
 
     status = WdfChildListUpdateChildDescriptionAsMissing(PortList,
@@ -360,33 +362,6 @@ VIOSerialDeviceListCreatePdo(
 
     do
     {
-        status = RtlUnicodeStringPrintf(
-                                 &buffer,
-                                 L"%ws%vport%up%u",
-                                 L"\\Device\\",
-                                 pport->DeviceId,
-                                 pport->PortId
-                                 );
-
-        if (!NT_SUCCESS(status))
-        {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                                 "RtlUnicodeStringPrintf failed 0x%x\n", status
-                                 );
-           break;
-        }
-
-        status = WdfDeviceInitAssignName(ChildInit,&buffer);
-        if (!NT_SUCCESS(status))
-        {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                                 "WdfDeviceInitAssignName failed %ws 0x%x\n",
-                                 status,
-                                 buffer
-                                 );
-           break;
-        }
-
         WdfDeviceInitSetExclusive(ChildInit, TRUE);
         status = WdfPdoInitAssignRawDevice(ChildInit, &GUID_DEVCLASS_PORT_DEVICE);
         if (!NT_SUCCESS(status))
