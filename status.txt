@@ -1,3 +1,13 @@
+Date    27 Aug 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm88
+
+Fixed bugs:
+
+Bz#957328 add/del device failed if guest was reading from port.
+Bz#996983 - Windows NT 6.x BSOD with virtio SCSI driver  since version 0.1.59
+
+
 Date    12 Aug 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm87
