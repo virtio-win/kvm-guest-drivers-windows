@@ -529,7 +529,8 @@ VioScsiInterrupt(
 
            switch (resp->response) {
            case VIRTIO_SCSI_S_OK:
-              Srb->SrbStatus = SRB_STATUS_SUCCESS;
+              Srb->ScsiStatus = resp->status;
+              Srb->SrbStatus = (Srb->ScsiStatus == SUCCESS) ? SRB_STATUS_SUCCESS : SRB_STATUS_ERROR;
               break;
            case VIRTIO_SCSI_S_UNDERRUN:
               RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_UNDERRUN\n"));
@@ -709,7 +710,8 @@ VioScsiMSInterrupt (
            switch (resp->response)
            {
            case VIRTIO_SCSI_S_OK:
-              Srb->SrbStatus = SRB_STATUS_SUCCESS;
+              Srb->ScsiStatus = resp->status;
+              Srb->SrbStatus = (Srb->ScsiStatus == SUCCESS) ? SRB_STATUS_SUCCESS : SRB_STATUS_ERROR;
               break;
            case VIRTIO_SCSI_S_UNDERRUN:
               RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_UNDERRUN\n"));
