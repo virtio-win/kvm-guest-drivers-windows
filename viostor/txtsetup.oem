@@ -9,7 +9,7 @@ d5 = "OEM DISK (SCSI) Win2003/64-bit",\disk1,\amd64\Win2003
 SCSI = WXP32
 
 [scsi]
-WXP32  = "Red Hat VirtIO SCSI Disk Device WinXP/32-bit"
+WXP32  = "Red Hat VirtIO BLOCK Disk Device WinXP/32-bit"
 WNET32 = "Red Hat VirtIO BLOCK Disk Device Win2003/32-bit"
 WNET64 = "Red Hat VirtIO BLOCK Disk Device Win2003/64-bit"
 WNET32_SCSI = "Red Hat VirtIO SCSI Disk Device Win2003/32-bit"
