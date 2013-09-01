@@ -83,19 +83,20 @@ DWORD WINAPI CService::ServiceThread(LPDWORD lParam)
 void CService::Run()
 {
     BALLOON_STAT stat[VIRTIO_BALLOON_S_NR];
-    BOOL res;
-
+    DWORD mSec;
     while (1) {
+        mSec = 2000;
         memset(stat, -1, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR);
         if (m_pMemStat->GetStatus(stat)) {
            EnterCriticalSection(&m_scWrite);
-           res = m_pDev->Write(stat, VIRTIO_BALLOON_S_NR);
-           LeaveCriticalSection(&m_scWrite);
-           if (res &&
-              (WaitForSingleObject(m_evWakeUp, 1000) == WAIT_OBJECT_0)) {
-              ResetEvent(m_evWakeUp);
-              break;
+           if (m_pDev->Write(stat, VIRTIO_BALLOON_S_NR)) {
+              mSec = 1000;
            }
+           LeaveCriticalSection(&m_scWrite);
+        }
+        if (WaitForSingleObject(m_evWakeUp, mSec) == WAIT_OBJECT_0) {
+           ResetEvent(m_evWakeUp);
+           break;
         }
     }
 }
