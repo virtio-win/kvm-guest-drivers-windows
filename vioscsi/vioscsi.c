@@ -530,7 +530,7 @@ VioScsiInterrupt(
            switch (resp->response) {
            case VIRTIO_SCSI_S_OK:
               Srb->ScsiStatus = resp->status;
-              Srb->SrbStatus = (Srb->ScsiStatus == SUCCESS) ? SRB_STATUS_SUCCESS : SRB_STATUS_ERROR;
+              Srb->SrbStatus = (Srb->ScsiStatus == SCSISTAT_GOOD) ? SRB_STATUS_SUCCESS : SRB_STATUS_ERROR;
               break;
            case VIRTIO_SCSI_S_UNDERRUN:
               RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_UNDERRUN\n"));
@@ -573,11 +573,20 @@ VioScsiInterrupt(
               RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Unknown response %d\n", resp->response));
               break;
            }
-           if (Srb->DataBuffer) {
-              memcpy(Srb->DataBuffer, resp->sense,
-              min(resp->sense_len, Srb->DataTransferLength));
-           }
-           if (srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) {
+           if (Srb->SrbStatus != SRB_STATUS_SUCCESS)
+           {
+              PSENSE_DATA pSense = (PSENSE_DATA) Srb->SenseInfoBuffer;
+              if (Srb->SenseInfoBufferLength >= FIELD_OFFSET(SENSE_DATA, CommandSpecificInformation)) {
+                 memcpy(Srb->SenseInfoBuffer, resp->sense,
+                 min(resp->sense_len, Srb->SenseInfoBufferLength));
+                 if (Srb->SrbStatus == SRB_STATUS_ERROR) {
+                     Srb->SrbStatus |= SRB_STATUS_AUTOSENSE_VALID;
+                 }
+              }
+              Srb->DataTransferLength = 0;
+           } 
+           else if (srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) 
+           {
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
@@ -711,7 +720,7 @@ VioScsiMSInterrupt (
            {
            case VIRTIO_SCSI_S_OK:
               Srb->ScsiStatus = resp->status;
-              Srb->SrbStatus = (Srb->ScsiStatus == SUCCESS) ? SRB_STATUS_SUCCESS : SRB_STATUS_ERROR;
+              Srb->SrbStatus = (Srb->ScsiStatus == SCSISTAT_GOOD) ? SRB_STATUS_SUCCESS : SRB_STATUS_ERROR;
               break;
            case VIRTIO_SCSI_S_UNDERRUN:
               RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_UNDERRUN\n"));
@@ -754,9 +763,22 @@ VioScsiMSInterrupt (
               RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Unknown response %d\n", resp->response));
               break;
            }
-           if (Srb->DataBuffer) {
-              memcpy(Srb->DataBuffer, resp->sense,
-              min(resp->sense_len, Srb->DataTransferLength));
+           if (Srb->SrbStatus != SRB_STATUS_SUCCESS)
+           {
+              PSENSE_DATA pSense = (PSENSE_DATA) Srb->SenseInfoBuffer;
+              if (Srb->SenseInfoBufferLength >= FIELD_OFFSET(SENSE_DATA, CommandSpecificInformation)) {
+                 memcpy(Srb->SenseInfoBuffer, resp->sense,
+                 min(resp->sense_len, Srb->SenseInfoBufferLength));
+                 if (Srb->SrbStatus == SRB_STATUS_ERROR) {
+                     Srb->SrbStatus |= SRB_STATUS_AUTOSENSE_VALID;
+                 }
+              }
+              Srb->DataTransferLength = 0;
+           } 
+           else if (srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) 
+           {
+              Srb->DataTransferLength = srbExt->Xfer;
+              Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
            if (srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) {
               Srb->DataTransferLength = srbExt->Xfer;
@@ -882,9 +904,8 @@ ENTER_FN();
         (Srb->TargetId >= adaptExt->scsi_config.max_target) ||
         (Srb->Lun >= adaptExt->scsi_config.max_lun) ) {
         Srb->SrbStatus = SRB_STATUS_NO_DEVICE;
-        StorPortNotification(RequestComplete,
-                             DeviceExtension,
-                             Srb);
+        CompleteRequest(DeviceExtension,
+                        Srb);
         return FALSE;
     }
 
@@ -902,7 +923,7 @@ ENTER_FN();
     cmd->req.cmd.task_attr = VIRTIO_SCSI_S_SIMPLE;
     cmd->req.cmd.prio = 0;
     cmd->req.cmd.crn = 0;
-    memcpy(cmd->req.cmd.cdb, cdb, Srb->CdbLength);
+    memcpy(cmd->req.cmd.cdb, cdb, min(VIRTIO_SCSI_CDB_SIZE, Srb->CdbLength));
 
     sgElement = 0;
     srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->req.cmd, &fragLen);
