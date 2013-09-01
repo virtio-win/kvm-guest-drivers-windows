@@ -3,7 +3,7 @@
 set SYS_FILE_NAME=vioscsi
 
 if "%1_%2" neq "_" goto %1_%2
-for %%A in (Win8 Win7 Wnet Wlh) do for %%B in (32 64) do call :%%A_%%B
+for %%A in (Win8 Win7 Wlh) do for %%B in (32 64) do call :%%A_%%B
 set SYS_FILE_NAME=
 goto :eof 
 
@@ -129,22 +129,5 @@ set BUILD_ARC=x86
 call :buildpack %BUILD_OS% %BUILD_ARC%
 endlocal
 goto :eof
-
-:WNET_64
-setlocal
-set BUILD_OS=Wnet
-set BUILD_ARC=x64
-call :buildpack %BUILD_OS% %BUILD_ARC%
-endlocal
-goto :eof
-
-:WNET_32
-setlocal
-set BUILD_OS=Wnet
-set BUILD_ARC=x86
-call :buildpack %BUILD_OS% %BUILD_ARC%
-endlocal
-goto :eof
-
 
 :eof
