@@ -1,5 +1,5 @@
 @echo off
-: Param1 - Win8 | Win7 | Wlh | Wnet | XP
+: Param1 - Win8 | Win7 | Wlh
 : Param2 - x86|x64
 : Param3 - sys name
  
@@ -8,8 +8,6 @@ if "%2"=="x64" set %%2=amd64
 if /i "%1"=="Win8" goto :checkarch
 if /i "%1"=="Win7" goto :checkarch
 if /i "%1"=="Wlh" goto :checkarch
-if /i "%1"=="Wnet" goto :checkarch
-if /i "%1"=="WXp" goto :checkarch
 goto :printerr
 :checkarch
 if /i "%2"=="x86" goto :makeinstall
@@ -56,8 +54,6 @@ echo "Setting OS mask for:" %1 %2
 if /i "%1"=="win8" goto create_win8
 if /i "%1"=="wlh" goto create_vista
 if /i "%1"=="win7" goto create_vista
-if /i "%1"=="wnet" goto create_wnet
-rem if /i "%1"=="wxp" goto create_xp
 goto error_inf2cat
 
 :create_vista
@@ -65,17 +61,6 @@ setlocal
 if /i "%2"=="x86" set _OSMASK_=Vista_X86,Server2008_X86,7_X86
 if /i "%2"=="x64" set _OSMASK_=Vista_X64,Server2008_X64,7_X64,Server2008R2_X64
 goto run_inf2cat
-
-:create_wnet
-setlocal
-if /i "%2"=="x86" set _OSMASK_=Server2003_X86
-if /i "%2"=="x64" set _OSMASK_=Server2003_X64
-goto run_inf2cat
-
-rem :create_xp
-rem if /i "%2"=="x86" set _OSMASK_=XP_X86
-rem if /i "%2"=="x64" set _OSMASK_=XP_X64
-rem goto run_inf2cat
 
 :create_win8
 setlocal
