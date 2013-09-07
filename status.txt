@@ -1,3 +1,17 @@
+Date    8 Sep 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm89
+
+Fixed bugs:
+
+Bug 1003158 - vioscsi.sys doesn't return scsi status codes correctly to guest OS
+Bug 1001981 - [virito-win][scsi]Remove scsi support for win2k3
+Bug 1000158 - blnsrv.exe is pegged at 100% cpu in windows guests
+Bug 908610 - [virtio-win][vfd] change "VirtIO SCSI Disk Device winxp/32-bit" to "VirtIO BL
+Bug 1001616 - win7-64 guest bsod while enter s3/s4 state with virtio scsi
+Bug 1002073 - Disable RSC support in the driver
+
+
 Date    27 Aug 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm88
