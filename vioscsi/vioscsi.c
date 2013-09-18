@@ -27,7 +27,7 @@ HW_FIND_ADAPTER      VioScsiFindAdapter;
 HW_RESET_BUS         VioScsiResetBus;
 HW_ADAPTER_CONTROL   VioScsiAdapterControl;
 HW_INTERRUPT         VioScsiInterrupt;
-#ifdef MSI_SUPPORTED
+#if (MSI_SUPPORTED == 1)
 HW_MESSAGE_SIGNALED_INTERRUPT_ROUTINE VioScsiMSInterrupt;
 #endif
 #endif
@@ -98,7 +98,7 @@ VioScsiInterrupt(
     IN PVOID DeviceExtension
     );
 
-#ifdef MSI_SUPPORTED    
+#if (MSI_SUPPORTED == 1)
 BOOLEAN
 VioScsiMSInterrupt(
     IN PVOID  DeviceExtension,
@@ -178,7 +178,7 @@ VioScsiFindAdapter(
     ULONG              dummy;
     ULONG              Size;
 
-#ifdef MSI_SUPPORTED
+#if (MSI_SUPPORTED == 1)
     PPCI_COMMON_CONFIG pPciConf = NULL;
     UCHAR              pci_cfg_buf[256];
     ULONG              pci_cfg_len;
@@ -205,7 +205,7 @@ ENTER_FN();
     ConfigInfo->AlignmentMask               = 0x3;
     ConfigInfo->MapBuffers                  = STOR_MAP_NON_READ_WRITE_BUFFERS;
     ConfigInfo->SynchronizationModel        = StorSynchronizeFullDuplex;
-#ifdef MSI_SUPPORTED
+#if (MSI_SUPPORTED == 1)
     ConfigInfo->HwMSInterruptRoutine        = VioScsiMSInterrupt;
     ConfigInfo->InterruptSynchronizationMode=InterruptSynchronizePerMessage;
 #endif
@@ -214,7 +214,7 @@ ENTER_FN();
         return SP_RETURN_NOT_FOUND;
     }
 
-#ifdef MSI_SUPPORTED
+#if (MSI_SUPPORTED == 1)
     pci_cfg_len = StorPortGetBusData (DeviceExtension,
                                            PCIConfiguration,
                                            ConfigInfo->SystemIoBusNumber,
@@ -226,7 +226,6 @@ ENTER_FN();
         UCHAR CapOffset;
         PPCI_MSIX_CAPABILITY pMsixCapOffset;
 
-RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s %d\n", __FUNCTION__, 1));
         pPciConf = (PPCI_COMMON_CONFIG)pci_cfg_buf;
         if ( (pPciConf->Status & PCI_STATUS_CAPABILITIES_LIST) == 0)
         {
@@ -234,18 +233,14 @@ RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s %d\n", __FUNCTION__, 1));
         }
         else
         {
-RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s %d\n", __FUNCTION__, 2));
            if ( (pPciConf->HeaderType & (~PCI_MULTIFUNCTION)) == PCI_DEVICE_TYPE )
            {
-RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s %d\n", __FUNCTION__, 3));
               CapOffset = pPciConf->u.type0.CapabilitiesPtr;
               while (CapOffset != 0)
               {
-RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s %d\n", __FUNCTION__, 4));
                  pMsixCapOffset = (PPCI_MSIX_CAPABILITY)(pci_cfg_buf + CapOffset);
                  if ( pMsixCapOffset->Header.CapabilityID == PCI_CAPABILITY_ID_MSIX )
                  {
-RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s %d\n", __FUNCTION__, 5));
                     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageControl.TableSize = %d\n", pMsixCapOffset->MessageControl.TableSize));
                     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageControl.FunctionMask = %d\n", pMsixCapOffset->MessageControl.FunctionMask));
                     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageControl.MSIXEnable = %d\n", pMsixCapOffset->MessageControl.MSIXEnable));
@@ -257,7 +252,6 @@ RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s %d\n", __FUNCTION__, 5));
                  }
                  else
                  {
-RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s %d\n", __FUNCTION__, 6));
                     CapOffset = pMsixCapOffset->Header.Next;
                     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("CapabilityID = %x, Next CapOffset = %x\n", pMsixCapOffset->Header.CapabilityID, CapOffset));
                  }
@@ -317,7 +311,7 @@ RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s %d\n", __FUNCTION__, 6));
     adaptExt->offset[4] = adaptExt->offset[3] + ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
     allocationSize += ROUND_TO_PAGES(sizeof(VirtIOSCSIEventNode) * 8);
 
-#if (INDIRECT_SUPPORTED)
+#if (INDIRECT_SUPPORTED == 1)
     if(!adaptExt->dump_mode) {
         adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
     }
@@ -332,8 +326,6 @@ RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s %d\n", __FUNCTION__, 6));
     }
 
     adaptExt->msix_enabled = FALSE;
-
-
 
     RhelDbgPrint(TRACE_LEVEL_ERROR, ("breaks_number = %x  queue_depth = %x\n",
                 ConfigInfo->NumberOfPhysicalBreaks,
@@ -386,7 +378,7 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
            }
            StorPortWritePortUshort(adaptExt, (PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_CONFIG_VECTOR),(USHORT)vector);
            res = StorPortReadPortUshort(adaptExt, (PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_CONFIG_VECTOR));
-           if (res != 0)
+           if (res != vector)
            {
               VirtIODeviceDeleteQueue(vq, NULL);
               vq = NULL;
@@ -407,13 +399,13 @@ VioScsiHwInitialize(
     PVOID              ptr      = adaptExt->uncachedExtensionVa;
     ULONG              i;
 
-#ifdef MSI_SUPPORTED
+#if (MSI_SUPPORTED == 1)
     MESSAGE_INTERRUPT_INFORMATION msi_info;
 #endif
     
 ENTER_FN();
     adaptExt->msix_vectors = 0;
-#ifdef MSI_SUPPORTED
+#if (MSI_SUPPORTED == 1)
     while(StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageId = %x\n", msi_info.MessageId));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageData = %x\n", msi_info.MessageData));
@@ -637,7 +629,7 @@ VioScsiInterrupt(
     return isInterruptServiced;
 }
 
-#ifdef MSI_SUPPORTED
+#if (MSI_SUPPORTED == 1)
 BOOLEAN
 VioScsiMSInterrupt (
     IN PVOID  DeviceExtension,
