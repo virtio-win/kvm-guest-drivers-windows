@@ -2668,16 +2668,10 @@ static VOID ParaNdis_DeviceFiltersUpdateRxMode(PARANDIS_ADAPTER *pContext)
 
 static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)
 {
-    struct
-    {
-        struct virtio_net_ctrl_mac header;
-        UCHAR addr[ETH_LENGTH_OF_ADDRESS];
-    } uCast;
-    uCast.header.entries = 1;
-    ETH_COPY_NETWORK_ADDRESS(uCast.addr, pContext->CurrentMacAddress);
+    u32 u32UniCastEntries = 0;
     SendControlMessage(pContext, VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_TABLE_SET,
-                        &uCast,
-                        sizeof(uCast),
+                        &u32UniCastEntries,
+                        sizeof(u32UniCastEntries),
                         &pContext->MulticastData,
                         sizeof(pContext->MulticastData.nofMulticastEntries) + pContext->MulticastData.nofMulticastEntries * ETH_LENGTH_OF_ADDRESS,
                         2);
