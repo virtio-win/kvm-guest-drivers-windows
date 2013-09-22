@@ -123,7 +123,6 @@ typedef struct _ADAPTER_EXTENSION {
     ULONG                 features;
     CHAR                  sn[BLOCK_SERIAL_STRLEN];
     BOOLEAN               sn_ok;
-    BOOLEAN               rescan_geometry;
     blk_req               vbr;
     BOOLEAN               indirect;
 #ifdef USE_STORPORT
