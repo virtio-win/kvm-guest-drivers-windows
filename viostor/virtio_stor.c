@@ -761,8 +761,7 @@ VirtIoInterrupt(
            }
         }
     } else if (intReason == 3) {
-        adaptExt->rescan_geometry = TRUE;
-        ScsiPortNotification( BusChangeDetected, DeviceExtension, 0);
+        RhelGetDiskGeometry(DeviceExtension);
         isInterruptServiced = TRUE;
     }
 #ifdef USE_STORPORT
@@ -946,9 +945,8 @@ VirtIoMSInterruptRoutine (
                  ("<--->%s : MessageID 0x%x\n", __FUNCTION__, MessageID));
 
     if (MessageID == 0) {
-       adaptExt->rescan_geometry = TRUE;
-       StorPortNotification( BusChangeDetected, DeviceExtension, 0);
-       return TRUE;
+        RhelGetDiskGeometry(DeviceExtension);
+        return TRUE;
     }
 
     while((vbr = (pblk_req)adaptExt->vq->vq_ops->get_buf(adaptExt->vq, &len)) != NULL) {
@@ -1004,13 +1002,6 @@ RhelScsiGetInquiryData(
 
     InquiryData = (PINQUIRYDATA)Srb->DataBuffer;
     dataLen = Srb->DataTransferLength;
-
-    if (adaptExt->rescan_geometry) {
-        PSENSE_DATA senseBuffer = (PSENSE_DATA) Srb->SenseInfoBuffer;
-        RhelGetDiskGeometry(DeviceExtension);
-        adaptExt->rescan_geometry = FALSE;
-        senseBuffer->SenseKey = SCSI_SENSE_UNIT_ATTENTION;
-    }
 
     SrbStatus = SRB_STATUS_SUCCESS;
     if((cdb->CDB6INQUIRY3.PageCode != VPD_SUPPORTED_PAGES) &&
