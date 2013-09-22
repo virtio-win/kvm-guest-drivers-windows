@@ -2855,6 +2855,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
         NdisReleaseSpinLock(&pContext->ReceiveLock);
     }
     
+    ParaNdis_SetLinkState(pContext, MediaConnectStateDisconnected);
     ParaNdis_SetPowerState(pContext, NdisDeviceStateD3);
     ParaNdis_SetLinkState(pContext, MediaConnectStateUnknown);
 
