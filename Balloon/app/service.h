@@ -38,6 +38,7 @@ private:
     HANDLE m_thHandle;
     BOOL   m_bPauseService;
     BOOL   m_bRunningService;
+    DWORD  m_Status;
     CRITICAL_SECTION m_scWrite;
     CMemStat* m_pMemStat;
     CDevice* m_pDev;

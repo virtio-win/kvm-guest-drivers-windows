@@ -11,6 +11,7 @@ CService::CService()
     m_StatusHandle = NULL;
     m_pMemStat = NULL;
     m_pDev = NULL;
+    m_Status = SERVICE_STOPPED;
 }
 
 CService::~CService()
@@ -23,6 +24,7 @@ CService::~CService()
     m_StatusHandle = NULL;
     m_pMemStat = NULL;
     m_pDev = NULL;
+    m_Status = SERVICE_STOPPED;
 }
 
 void __stdcall CService::HandlerThunk(CService* service, DWORD ctlcode)
@@ -70,6 +72,7 @@ BOOL CService::InitService()
         return FALSE;
     }
     m_bRunningService = TRUE;
+    m_Status = SERVICE_RUNNING;
     return TRUE;
 }
 
@@ -140,6 +143,7 @@ void CService::ResumeService()
 {
     m_bPauseService = FALSE;
     ResumeThread(m_thHandle);
+    m_Status = SERVICE_RUNNING;
 }
 
 void CService::PauseService()
@@ -152,6 +156,7 @@ void CService::PauseService()
         m_bPauseService = TRUE;
         SuspendThread(m_thHandle);
         LeaveCriticalSection(&m_scWrite);
+        m_Status = SERVICE_PAUSED;
     }
 }
 
@@ -167,6 +172,7 @@ void CService::StopService()
         EnterCriticalSection(&m_scWrite);
         m_bRunningService = FALSE;
         LeaveCriticalSection(&m_scWrite);
+        m_Status = SERVICE_STOPPED;
     }
     SetEvent(m_evTerminate);
 }
@@ -198,14 +204,12 @@ void CService::terminate(DWORD error)
 
 void CService::ServiceCtrlHandler(DWORD controlCode)
 {
-    DWORD currentState = 0;
-
     switch(controlCode)
     {
         case SERVICE_CONTROL_STOP:
-            currentState = SERVICE_STOP_PENDING;
+            m_Status = SERVICE_STOP_PENDING;
             SendStatusToSCM(
-                             SERVICE_STOP_PENDING,
+                             m_Status,
                              NO_ERROR,
                              0,
                              1,
@@ -216,8 +220,9 @@ void CService::ServiceCtrlHandler(DWORD controlCode)
 
         case SERVICE_CONTROL_PAUSE:
             if (m_bRunningService && !m_bPauseService) {
+                m_Status = SERVICE_PAUSE_PENDING;
                 SendStatusToSCM(
-                             SERVICE_PAUSE_PENDING,
+                             m_Status,
                              NO_ERROR,
                              0,
                              1,
@@ -225,22 +230,20 @@ void CService::ServiceCtrlHandler(DWORD controlCode)
                              );
 
                 PauseService();
-                currentState = SERVICE_PAUSED;
             }
             break;
 
         case SERVICE_CONTROL_CONTINUE:
             if (m_bRunningService && m_bPauseService) {
+                m_Status = SERVICE_CONTINUE_PENDING;
                 SendStatusToSCM(
-                             SERVICE_CONTINUE_PENDING,
+                             m_Status,
                              NO_ERROR,
                              0,
                              1,
                              1000
                              );
-
                 ResumeService();
-                currentState = SERVICE_RUNNING;
             }
             break;
 
@@ -253,7 +256,7 @@ void CService::ServiceCtrlHandler(DWORD controlCode)
         default:
             break;
     }
-    SendStatusToSCM(currentState, NO_ERROR, 0, 0, 0);
+    SendStatusToSCM(m_Status, NO_ERROR, 0, 0, 0);
 }
 
 DWORD CService::ServiceHandleDeviceChange(DWORD evtype, _DEV_BROADCAST_HEADER* dbhdr)
