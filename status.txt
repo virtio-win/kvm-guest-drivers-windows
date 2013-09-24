@@ -1,3 +1,19 @@
+Date    24 Sep 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm91
+
+Fixed bugs:
+
+Bug 1003442 - 2c_receivepackets on win2k8 fixed
+Bug 990007  - Include the .inf file to downloadable place
+    for windows guest to accept the pci serial device
+Bug 1010687 - 2c_recvmulticast failed on WLK
+Bug 926947  - online resizing doesn't work on system virtio-blk disk
+Bug 927619  - BLNSVR service stops with event 7016 : the balloonservice
+    has reported an invalid current state 0
+Bug 994377  - virtio-win-prewhql-66 scsi driver could not be installed on all platform
+
+
 Date    8 Sep 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm89
