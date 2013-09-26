@@ -2855,7 +2855,12 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
         NdisReleaseSpinLock(&pContext->ReceiveLock);
     }
     
+#if !NDIS_SUPPORT_NDIS620
+    // WLK tests for Windows 2008 require media disconnect indication
+    // on power off. HCK tests for newer versions require media state unknown
+    // indication only and fail on disconnect indication
     ParaNdis_SetLinkState(pContext, MediaConnectStateDisconnected);
+#endif
     ParaNdis_SetPowerState(pContext, NdisDeviceStateD3);
     ParaNdis_SetLinkState(pContext, MediaConnectStateUnknown);
 
