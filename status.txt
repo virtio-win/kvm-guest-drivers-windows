@@ -1,3 +1,11 @@
+Date    26 Sep 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm92
+
+Fixed bugs:
+
+Bug 1012200 PM_PowerStateTransition fails on Win8
+
 Date    24 Sep 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm91
