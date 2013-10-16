@@ -18,7 +18,4 @@ cd vioserial
 call buildall.bat
 cd ..
 
-cd pciserial
-call buildall.bat
-cd ..
 
