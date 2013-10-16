@@ -19,7 +19,3 @@ cd vioserial
 call cleanall.bat
 cd ..
 
-cd pciserial
-call clean.bat
-cd ..
-
