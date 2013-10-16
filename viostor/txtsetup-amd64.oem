@@ -1,0 +1,20 @@
+[Disks]
+d1 = "OEM DISK (SCSI) Win2003/64-bit",\disk1,\amd64\Win2003
+
+[Defaults]
+SCSI = WNET64
+
+[scsi]
+WNET64 = "Red Hat VirtIO BLOCK Disk Device Win2003/64-bit"
+
+[Files.scsi.WNET64]
+driver = d1, viostor.sys, viostor
+inf    = d1, viostor.inf
+catalog= d1, viostor.cat
+
+[HardwareIds.scsi.WNET64]
+id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4&REV_00", "viostor"
+
+[Config.WNET64]
+value = Parameters\PnpInterface,5,REG_DWORD,1
+
