@@ -577,13 +577,16 @@ VioScsiInterrupt(
               }
               Srb->DataTransferLength = 0;
            } 
-           else if (srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) 
+           else if (srbExt && srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) 
            {
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
            --adaptExt->in_fly; 
-           CompleteRequest(DeviceExtension, Srb);
+//           CompleteRequest(DeviceExtension, Srb);
+           StorPortNotification(RequestComplete,
+                         DeviceExtension,
+                         Srb);
         }
         if (adaptExt->in_fly > 0) {
            adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
@@ -772,12 +775,15 @@ VioScsiMSInterrupt (
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
-           if (srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) {
+           if (srbExt && srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) {
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
            --adaptExt->in_fly; 
-           CompleteRequest(DeviceExtension, Srb);
+//           CompleteRequest(DeviceExtension, Srb);
+           StorPortNotification(RequestComplete,
+                         DeviceExtension,
+                         Srb);
 
            if (adaptExt->in_fly > 0)
            {
@@ -896,8 +902,9 @@ ENTER_FN();
         (Srb->TargetId >= adaptExt->scsi_config.max_target) ||
         (Srb->Lun >= adaptExt->scsi_config.max_lun) ) {
         Srb->SrbStatus = SRB_STATUS_NO_DEVICE;
-        CompleteRequest(DeviceExtension,
-                        Srb);
+        StorPortNotification(RequestComplete,
+                             DeviceExtension,
+                             Srb);
         return FALSE;
     }
 
