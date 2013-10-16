@@ -1,3 +1,18 @@
+Date    16 Oct 2013
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm93
+
+Fixed bugs:
+
+Bug 1017529 - BSOD occurs when do I/O test on virtio
+    scsi driver.
+Bug 908610 - change "VirtIO SCSI Disk Device winxp/32-bit"
+    to "VirtIO BLOCK Disk Device Winxp/32-bit" in txtsetup.oem
+Bug 1013443 - Win7-64 guest installation with virtio-scsi BSOD
+
+New features:
+Move pciserial.inf to a separate directory while building drivers
+
 Date    26 Sep 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm92
