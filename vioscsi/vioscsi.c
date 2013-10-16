@@ -320,7 +320,7 @@ ENTER_FN();
 #endif
 
     if(adaptExt->indirect) {
-        adaptExt->queue_depth = pageNum;
+        adaptExt->queue_depth = max(2, (pageNum / 4));
     } else {
         adaptExt->queue_depth = pageNum / ConfigInfo->NumberOfPhysicalBreaks - 1;
     }
