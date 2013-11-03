@@ -615,8 +615,6 @@ VIOSerialDeviceListCreatePdo(
            break;
         }
 
-        VIOSerialEnableInterruptQueue(GetInQueue(pport));
-
     } while (0);
 
     if (!NT_SUCCESS(status))
@@ -1398,6 +1396,8 @@ NTSTATUS VIOSerialPortEvtDeviceD0Entry(
         VIRTIO_CONSOLE_PORT_READY, 1);
 
     port->Removed = FALSE;
+
+    VIOSerialEnableInterruptQueue(GetInQueue(port));
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 
