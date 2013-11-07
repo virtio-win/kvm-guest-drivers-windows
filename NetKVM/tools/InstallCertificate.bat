@@ -1,2 +1,2 @@
-certmgr.exe -add NetKVMTemporaryCert.cer -s -r localMachine root 
-certmgr.exe -add NetKVMTemporaryCert.cer -s -r localMachine trustedpublisher
+rem certmgr.exe -add NetKVMTemporaryCert.cer -s -r localMachine root 
+rem certmgr.exe -add NetKVMTemporaryCert.cer -s -r localMachine trustedpublisher
