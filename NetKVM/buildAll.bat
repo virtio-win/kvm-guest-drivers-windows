@@ -11,17 +11,17 @@ call ..\tools\callVisualStudio.bat 11 netkvm.sln /Rebuild "Win8 Release|x64"
 endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
 
-setlocal
-call tools\set_version.bat 0x0620
-call ..\tools\callVisualStudio.bat 11 netkvm.sln /Rebuild "Win8 Debug|Win32"
-endlocal
-if %ERRORLEVEL% NEQ 0 goto :eof
+rem setlocal
+rem call tools\set_version.bat 0x0620
+rem call ..\tools\callVisualStudio.bat 11 netkvm.sln /Rebuild "Win8 Debug|Win32"
+rem endlocal
+rem if %ERRORLEVEL% NEQ 0 goto :eof
 
-setlocal
-call tools\set_version.bat 0x0620
-call ..\tools\callVisualStudio.bat 11 netkvm.sln /Rebuild "Win8 Debug|x64"
-endlocal
-if %ERRORLEVEL% NEQ 0 goto :eof
+rem setlocal
+rem call tools\set_version.bat 0x0620
+rem call ..\tools\callVisualStudio.bat 11 netkvm.sln /Rebuild "Win8 Debug|x64"
+rem endlocal
+rem if %ERRORLEVEL% NEQ 0 goto :eof
 
 :: Build Windows 7
 setlocal
@@ -36,18 +36,17 @@ call ..\tools\callVisualStudio.bat 11 netkvm.sln /Rebuild "Win7 Release|x64"
 endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
 
-setlocal
-call tools\set_version.bat 0x0610
-call ..\tools\callVisualStudio.bat 11 netkvm.sln /Rebuild "Win7 Debug|Win32"
-endlocal
-if %ERRORLEVEL% NEQ 0 goto :eof
+rem setlocal
+rem call tools\set_version.bat 0x0610
+rem call ..\tools\callVisualStudio.bat 11 netkvm.sln /Rebuild "Win7 Debug|Win32"
+rem endlocal
+rem if %ERRORLEVEL% NEQ 0 goto :eof
 
-setlocal
-call tools\set_version.bat 0x0610
-call ..\tools\callVisualStudio.bat 11 netkvm.sln /Rebuild "Win7 Debug|x64"
-endlocal
-if %ERRORLEVEL% NEQ 0 goto :eof
-
+rem setlocal
+rem call tools\set_version.bat 0x0610
+rem call ..\tools\callVisualStudio.bat 11 netkvm.sln /Rebuild "Win7 Debug|x64"
+rem endlocal
+rem if %ERRORLEVEL% NEQ 0 goto :eof
 
 :: Build Windows Vista
 setlocal
@@ -62,17 +61,17 @@ call ..\tools\callVisualStudio.bat 11 netkvm.sln /Rebuild "Vista Release|x64"
 endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
 
-setlocal
-call tools\set_version.bat 0x0600
-call ..\tools\callVisualStudio.bat 11 netkvm.sln /Rebuild "Vista Debug|Win32"
-endlocal
-if %ERRORLEVEL% NEQ 0 goto :eof
+rem setlocal
+rem call tools\set_version.bat 0x0600
+rem call ..\tools\callVisualStudio.bat 11 netkvm.sln /Rebuild "Vista Debug|Win32"
+rem endlocal
+rem if %ERRORLEVEL% NEQ 0 goto :eof
 
-setlocal
-call tools\set_version.bat 0x0600
-call ..\tools\callVisualStudio.bat 11 netkvm.sln /Rebuild "Vista Debug|x64"
-endlocal
-if %ERRORLEVEL% NEQ 0 goto :eof
+rem setlocal
+rem call tools\set_version.bat 0x0600
+rem call ..\tools\callVisualStudio.bat 11 netkvm.sln /Rebuild "Vista Debug|x64"
+rem endlocal
+rem if %ERRORLEVEL% NEQ 0 goto :eof
 
 :: XP
 pushd NDIS5
