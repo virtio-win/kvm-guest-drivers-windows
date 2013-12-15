@@ -123,6 +123,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
     UNREFERENCED_PARAMETER(miniportDriverContext);
     DEBUG_ENTRY(0);
+#pragma warning( suppress: 28197)
     /* allocate context structure */
     pContext = (PARANDIS_ADAPTER *)
         NdisAllocateMemoryWithTagPriority(
