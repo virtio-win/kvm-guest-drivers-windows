@@ -205,14 +205,6 @@ VIOSerialRenewAllPorts(
 
         VIOSerialEnableInterruptQueue(GetInQueue(&vport));
 
-        WdfIoQueueStart(vport.ReadQueue);
-        WdfIoQueueStart(vport.WriteQueue);
-        WdfIoQueueStart(vport.IoctlQueue);
-
-        if(vport.GuestConnected)
-        {
-           VIOSerialSendCtrlMsg(vport.BusDevice, vport.PortId, VIRTIO_CONSOLE_PORT_OPEN, 1);
-        }
     }
     WdfChildListEndIteration(list, &iterator);
     WdfChildListUpdateAllChildDescriptionsAsPresent(list);
@@ -1391,6 +1383,12 @@ NTSTATUS VIOSerialPortEvtDeviceD0Entry(
     VIOSerialSendCtrlMsg(port->BusDevice, port->PortId,
         VIRTIO_CONSOLE_PORT_READY, 1);
 
+    if (port->GuestConnected)
+    {
+        VIOSerialSendCtrlMsg(port->BusDevice, port->PortId,
+            VIRTIO_CONSOLE_PORT_OPEN, 1);
+    }
+
     port->Removed = FALSE;
 
     VIOSerialEnableInterruptQueue(GetInQueue(port));
@@ -1412,15 +1410,6 @@ VIOSerialPortEvtDeviceD0ExitPreInterruptsDisabled(
 
     PAGED_CODE();
 
-    if (Port->GuestConnected && !Port->Removed)
-    {
-        VIOSerialSendCtrlMsg(Port->BusDevice, Port->PortId,
-            VIRTIO_CONSOLE_PORT_OPEN, 0);
-
-        Port->GuestConnected = FALSE;
-    }
-
-    Port->Removed = (TargetState >= WdfPowerDeviceD3);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 
@@ -1437,13 +1426,10 @@ VIOSerialPortEvtDeviceD0Exit(
     PPORT_BUFFER buf;
     PSINGLE_LIST_ENTRY iter;
 
-    UNREFERENCED_PARAMETER(TargetState);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s TargetState: %d\n",
+        __FUNCTION__, TargetState);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
-
-    WdfIoQueuePurge(Port->ReadQueue, WDF_NO_EVENT_CALLBACK, WDF_NO_CONTEXT);
-    WdfIoQueuePurge(Port->WriteQueue, WDF_NO_EVENT_CALLBACK, WDF_NO_CONTEXT);
-    WdfIoQueuePurge(Port->IoctlQueue, WDF_NO_EVENT_CALLBACK, WDF_NO_CONTEXT);
+    Port->Removed = TRUE;
 
     VIOSerialDisableInterruptQueue(GetInQueue(Port));
 
