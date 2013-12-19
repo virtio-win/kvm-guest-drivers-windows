@@ -614,9 +614,9 @@ VIOSerialEvtDeviceD0Entry(
     else
     {
         status = VIOSerialInitAllQueues(Device);
-        if (NT_SUCCESS(status))
+        if (NT_SUCCESS(status) && pContext->isHostMultiport)
         {
-            VIOSerialRenewAllPorts(Device);
+            VIOSerialFillQueue(pContext->c_ivq, pContext->CVqLock);
         }
     }
 
