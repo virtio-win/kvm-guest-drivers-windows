@@ -25,7 +25,7 @@ EVT_WDF_DEVICE_D0_ENTRY_POST_INTERRUPTS_ENABLED VIOSerialEvtDeviceD0EntryPostInt
 
 static NTSTATUS VIOSerialInitInterruptHandling(IN WDFDEVICE hDevice);
 static NTSTATUS VIOSerialInitAllQueues(IN WDFOBJECT hDevice);
-static NTSTATUS VIOSerialShutDownAllQueues(IN WDFOBJECT WdfDevice, IN BOOLEAN bFinal);
+static VOID VIOSerialShutDownAllQueues(IN WDFOBJECT WdfDevice);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSerialEvtDeviceAdd)
@@ -510,58 +510,53 @@ VIOSerialInitAllQueues(
     return status;
 }
 
-static void DeleteQueue(struct virtqueue **ppq, BOOLEAN bFinal)
+static void DeleteQueue(struct virtqueue **ppq)
 {
     PVOID p;
     struct virtqueue *pq = *ppq;
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+
     if (pq)
     {
-        pq->vq_ops->shutdown(pq);
-        if (bFinal)
-        {
-           VirtIODeviceDeleteQueue(pq, &p);
-           *ppq = NULL;
-           MmFreeContiguousMemory(p);
-        }
+        VirtIODeviceDeleteQueue(pq, &p);
+        *ppq = NULL;
+        MmFreeContiguousMemory(p);
     }
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
 }
 
-NTSTATUS
-VIOSerialShutDownAllQueues(
-    IN WDFOBJECT WdfDevice,
-    IN BOOLEAN   bFinal)
+VOID VIOSerialShutDownAllQueues(IN WDFOBJECT WdfDevice)
 {
-    NTSTATUS		status = STATUS_SUCCESS;
-    PPORTS_DEVICE	pContext = GetPortsDevice(WdfDevice);
-    UINT                nr_ports, i;
+    PPORTS_DEVICE pContext = GetPortsDevice(WdfDevice);
+    UINT nr_ports, i;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
     VirtIODeviceRemoveStatus(pContext->pIODevice , VIRTIO_CONFIG_S_DRIVER_OK);
 
-    if(pContext->isHostMultiport)
+    if (pContext->isHostMultiport)
     {
-        DeleteQueue(&pContext->c_ivq, bFinal);
-        DeleteQueue(&pContext->c_ovq, bFinal);
+        DeleteQueue(&pContext->c_ivq);
+        DeleteQueue(&pContext->c_ovq);
     }
 
     nr_ports = pContext->consoleConfig.max_nr_ports;
-    for(i = 0; i < nr_ports; i++ )
+    for (i = 0; i < nr_ports; i++)
     {
-        if(pContext->in_vqs && pContext->in_vqs[i])
+        if (pContext->in_vqs && pContext->in_vqs[i])
         {
-            DeleteQueue(&(pContext->in_vqs[i]), bFinal);
+            DeleteQueue(&(pContext->in_vqs[i]));
         }
 
-        if(pContext->out_vqs && pContext->out_vqs[i])
+        if (pContext->out_vqs && pContext->out_vqs[i])
         {
-            DeleteQueue(&(pContext->out_vqs[i]), bFinal);
+            DeleteQueue(&(pContext->out_vqs[i]));
         }
     }
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
-    return status;
 }
 
 NTSTATUS
@@ -639,7 +634,8 @@ VIOSerialEvtDeviceD0Exit(
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
     PPORT_BUFFER buf;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s TargetState: %d\n",
+        __FUNCTION__, TargetState);
 
     PAGED_CODE();
 
@@ -648,7 +644,7 @@ VIOSerialEvtDeviceD0Exit(
         VIOSerialFreeBuffer(buf);
     }
 
-    VIOSerialShutDownAllQueues(Device, TRUE);
+    VIOSerialShutDownAllQueues(Device);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 
