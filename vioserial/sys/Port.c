@@ -232,7 +232,6 @@ VIOSerialInitPortConsole(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
 }
 
-
 // this procedure must be called with port InBuf spinlock held
 VOID
 VIOSerialDiscardPortDataLocked(
@@ -1337,25 +1336,23 @@ VIOSerialEvtChildListIdentificationDescriptionCleanup(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
 }
 
-VOID
-VIOSerialPortIoStop(
-    IN WDFQUEUE   Queue,
-    IN WDFREQUEST Request,
-    IN ULONG      ActionFlags
-    )
+VOID VIOSerialPortIoStop(IN WDFQUEUE Queue,
+                         IN WDFREQUEST Request,
+                         IN ULONG ActionFlags)
 {
-    PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
-    PVIOSERIAL_PORT    pport = pdoData->port;
+    PRAWPDO_VIOSERIAL_PORT pdoData = RawPdoSerialPortGetData(
+        WdfIoQueueGetDevice(Queue));
+    PVIOSERIAL_PORT pport = pdoData->port;
 
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "--> %s\n", __FUNCTION__);
     ASSERT(pport->PendingReadRequest == Request);
-    TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "-->%s\n", __FUNCTION__);
 
     WdfSpinLockAcquire(pport->InBufLock);
-    if (ActionFlags &  WdfRequestStopActionSuspend )
+    if (ActionFlags & WdfRequestStopActionSuspend)
     {
         WdfRequestStopAcknowledge(Request, FALSE);
     }
-    else if(ActionFlags &  WdfRequestStopActionPurge)
+    else if (ActionFlags & WdfRequestStopActionPurge)
     {
         if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
         {
@@ -1364,7 +1361,6 @@ VIOSerialPortIoStop(
         }
     }
     WdfSpinLockRelease(pport->InBufLock);
-    return;
 }
 
 NTSTATUS VIOSerialPortEvtDeviceD0Entry(
