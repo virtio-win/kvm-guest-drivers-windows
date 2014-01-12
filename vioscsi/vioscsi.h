@@ -79,6 +79,11 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_SCSI_T_ASYNC_NOTIFY             2
 #define VIRTIO_SCSI_T_PARAM_CHANGE             3
 
+/* Reasons of transport reset event */
+#define VIRTIO_SCSI_EVT_RESET_HARD             0
+#define VIRTIO_SCSI_EVT_RESET_RESCAN           1
+#define VIRTIO_SCSI_EVT_RESET_REMOVED          2
+
 #define VIRTIO_SCSI_S_SIMPLE                   0
 #define VIRTIO_SCSI_S_ORDERED                  1
 #define VIRTIO_SCSI_S_HEAD                     2
@@ -272,5 +277,9 @@ typedef struct {
 } PCI_MSIX_CAPABILITY, *PPCI_MSIX_CAPABILITY;
 #endif
 #endif
+
+#define SPC3_SCSI_SENSEQ_PARAMETERS_CHANGED                 0x0
+#define SPC3_SCSI_SENSEQ_MODE_PARAMETERS_CHANGED            0x01
+#define SPC3_SCSI_SENSEQ_CAPACITY_DATA_HAS_CHANGED          0x09
 
 #endif ___VIOSCSI__H__

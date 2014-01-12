@@ -98,6 +98,18 @@ VioScsiInterrupt(
     IN PVOID DeviceExtension
     );
 
+VOID 
+TransportReset(
+    IN PVOID DeviceExtension,
+    IN PVirtIOSCSIEvent evt
+    );
+
+VOID
+ParamChange(
+    IN PVOID DeviceExtension,
+    IN PVirtIOSCSIEvent evt
+    );
+
 #if (MSI_SUPPORTED == 1)
 BOOLEAN
 VioScsiMSInterrupt(
@@ -616,10 +628,10 @@ VioScsiInterrupt(
            case VIRTIO_SCSI_T_NO_EVENT:
               break;
            case VIRTIO_SCSI_T_TRANSPORT_RESET:
-              //FIXME   
+              TransportReset(DeviceExtension, evt);
               break;
            case VIRTIO_SCSI_T_PARAM_CHANGE:
-              StorPortNotification( BusChangeDetected, DeviceExtension, 0);
+              ParamChange(DeviceExtension, evt);
               break;
            default:
               RhelDbgPrint(TRACE_LEVEL_ERROR, ("Unsupport virtio scsi event %x\n", evt->event));
@@ -689,10 +701,10 @@ VioScsiMSInterrupt (
            case VIRTIO_SCSI_T_NO_EVENT:
               break;
            case VIRTIO_SCSI_T_TRANSPORT_RESET:
-              //FIXME   
+              TransportReset(DeviceExtension, evt);
               break;
            case VIRTIO_SCSI_T_PARAM_CHANGE:
-              StorPortNotification( BusChangeDetected, DeviceExtension, 0);
+              ParamChange(DeviceExtension, evt);
               break;
            default:
               RhelDbgPrint(TRACE_LEVEL_ERROR, ("Unsupport virtio scsi event %x\n", evt->event));
@@ -780,7 +792,6 @@ VioScsiMSInterrupt (
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
            --adaptExt->in_fly; 
-//           CompleteRequest(DeviceExtension, Srb);
            StorPortNotification(RequestComplete,
                          DeviceExtension,
                          Srb);
@@ -1060,4 +1071,46 @@ LogError(
                          ErrorCode,
                          UniqueId);
 #endif
+}
+
+VOID 
+TransportReset(
+    IN PVOID DeviceExtension,
+    IN PVirtIOSCSIEvent evt
+    )
+{
+    UCHAR TargetId = evt->lun[1];
+    UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
+
+    switch (evt->reason)
+    {
+        case VIRTIO_SCSI_EVT_RESET_RESCAN:
+           StorPortNotification( BusChangeDetected, DeviceExtension, 0);
+           break;
+        case VIRTIO_SCSI_EVT_RESET_REMOVED:
+           StorPortNotification( BusChangeDetected, DeviceExtension, 0);
+           break;
+        default:
+           RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<-->Unsupport virtio scsi event reason 0x%x\n", evt->reason));
+    }
+}
+
+VOID
+ParamChange(
+    IN PVOID DeviceExtension,
+    IN PVirtIOSCSIEvent evt
+    )
+{
+    UCHAR TargetId = evt->lun[1];
+    UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
+    UCHAR AdditionalSenseCode = (UCHAR)(evt->reason & 255);
+    UCHAR AdditionalSenseCodeQualifier = (UCHAR)(evt->reason >> 8);
+
+    if (AdditionalSenseCode == SCSI_ADSENSE_PARAMETERS_CHANGED && 
+       (AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_PARAMETERS_CHANGED || 
+        AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_MODE_PARAMETERS_CHANGED || 
+        AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_CAPACITY_DATA_HAS_CHANGED))
+    {
+        StorPortNotification( BusChangeDetected, DeviceExtension, 0);
+    }
 }
