@@ -29,7 +29,7 @@ DefaultDestDir = 12
 1 = %DiskId1%,,,""
 
 [SourceDisksFiles]
-BALLOON.sys  = 1,,
+balloon.sys  = 1,,
 
 ;*****************************************
 ; BALLOON  Install Section
@@ -55,7 +55,7 @@ BALLOON.sys  = 1,,
 CopyFiles=Drivers_Dir
 
 [Drivers_Dir]
-BALLOON.sys
+balloon.sys
 
 
 ;-------------- Service installation
@@ -68,7 +68,7 @@ DisplayName    = %BALLOON.SVCDESC%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START 
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %12%\BALLOON.sys
+ServiceBinary  = %12%\balloon.sys
 LoadOrderGroup = Extended Base
 
 ; -------------- BALLOON driver eventlog install sections
@@ -76,7 +76,7 @@ LoadOrderGroup = Extended Base
 AddReg = BALLOON_Logging_Inst_AddReg
 
 [BALLOON_Logging_Inst_AddReg]
-HKR,,EventMessageFile,0x00020000,"%%SystemRoot%%\System32\IoLogMsg.dll;%%SystemRoot%%\System32\drivers\BALLOON.sys"
+HKR,,EventMessageFile,0x00020000,"%%SystemRoot%%\System32\IoLogMsg.dll;%%SystemRoot%%\System32\drivers\balloon.sys"
 HKR,,TypesSupported,0x00010001,7
 
 ;--- BALLOON_Device Coinstaller installation ------
