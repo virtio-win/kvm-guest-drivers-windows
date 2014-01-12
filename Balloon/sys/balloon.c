@@ -144,71 +144,81 @@ BalloonFill(
     IN WDFOBJECT WdfDevice,
     IN size_t num)
 {
-    PMDL                pPageMdl;
-    PHYSICAL_ADDRESS    LowAddress;
-    PHYSICAL_ADDRESS    HighAddress;
-    PPAGE_LIST_ENTRY    pNewPageListEntry;
-    PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
-    ULONG               pages_per_request = PAGE_SIZE/sizeof(PFN_NUMBER);
+    PDEVICE_CONTEXT ctx = GetDeviceContext(WdfDevice);
+    PHYSICAL_ADDRESS LowAddress;
+    PHYSICAL_ADDRESS HighAddress;
+    PHYSICAL_ADDRESS SkipBytes;
+    PPAGE_LIST_ENTRY pNewPageListEntry;
+    PMDL pPageMdl;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+
+    ctx->num_pfns = 0;
+
+    if (IsLowMemory(WdfDevice))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
+            "Low memory. Allocated pages: %d\n", ctx->num_pages);
+        return;
+    }
+
+    num = min(num, PAGE_SIZE / sizeof(PFN_NUMBER));
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS,
+        "Inflate balloon with %d pages.\n", num);
 
     LowAddress.QuadPart = 0;
     HighAddress.QuadPart = (ULONGLONG)-1;
+    SkipBytes.QuadPart = 0;
 
-    num = min(num, pages_per_request);
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> BalloonFill num = %d\n", num);
+#if (NTDDI_VERSION < NTDDI_WS03SP1)
+    pPageMdl = MmAllocatePagesForMdl(LowAddress, HighAddress, SkipBytes,
+        num * PAGE_SIZE);
+#else
+    pPageMdl = MmAllocatePagesForMdlEx(LowAddress, HighAddress, SkipBytes,
+        num * PAGE_SIZE, MmNonCached, MM_DONT_ZERO_ALLOCATION);
+#endif
 
-    for (devCtx->num_pfns = 0; devCtx->num_pfns < num; devCtx->num_pfns++)
+    if (pPageMdl == NULL)
     {
-        if(IsLowMemory(WdfDevice))
-        {
-           TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
-                "LowMemoryCondition event was set to signaled,allocations stops, BalPageCount=%d\n", devCtx->num_pages);
-           break;
-        }
-        pPageMdl = MmAllocatePagesForMdl(
-                                        LowAddress,
-                                        HighAddress,
-                                        LowAddress,
-                                        PAGE_SIZE
-                                        );
-        if (pPageMdl == NULL)
-        {
-            TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
-                 "Balloon MDL Page Allocation Failed!!!, BalPageCount=%d\n", devCtx->num_pages);
-            break;
-        }
-
-        if (MmGetMdlByteCount(pPageMdl) != PAGE_SIZE)
-        {
-            TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
-                 "Balloon MDL Page Allocation < PAGE_SIZE =%d, Failed!!!, BalPageCount=%d\n",MmGetMdlByteCount(pPageMdl), devCtx->num_pages);
-            MmFreePagesFromMdl(pPageMdl);
-            ExFreePool(pPageMdl);
-            break;
-        }
-
-        pNewPageListEntry = (PPAGE_LIST_ENTRY)ExAllocateFromNPagedLookasideList(&devCtx->LookAsideList);
-        if (pNewPageListEntry == NULL)
-        {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "List Entry Allocation Failed!!!\n");
-            MmFreePagesFromMdl(pPageMdl);
-            ExFreePool(pPageMdl);
-            break;
-        }
-
-        pNewPageListEntry->PageMdl = pPageMdl;
-        pNewPageListEntry->PagePfn = devCtx->pfns_table[devCtx->num_pfns] = *MmGetMdlPfnArray(pPageMdl);
-
-        PushEntryList(&devCtx->PageListHead, &(pNewPageListEntry->SingleListEntry));
-        devCtx->num_pages++;
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
+            "Failed to allocate pages.\n");
+        return;
     }
 
-    if (devCtx->num_pfns > 0)
+    if (MmGetMdlByteCount(pPageMdl) != (num * PAGE_SIZE))
     {
-        BalloonTellHost(WdfDevice, devCtx->InfVirtQueue);
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
+            "Not all requested memory was allocated (%d/%d).\n",
+            MmGetMdlByteCount(pPageMdl), num * PAGE_SIZE);
+        MmFreePagesFromMdl(pPageMdl);
+        ExFreePool(pPageMdl);
+        return;
     }
+
+    pNewPageListEntry = (PPAGE_LIST_ENTRY)ExAllocateFromNPagedLookasideList(
+        &ctx->LookAsideList);
+
+    if (pNewPageListEntry == NULL)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
+            "Failed to allocate list entry.\n");
+        MmFreePagesFromMdl(pPageMdl);
+        ExFreePool(pPageMdl);
+        return;
+    }
+
+    pNewPageListEntry->PageMdl = pPageMdl;
+    PushEntryList(&ctx->PageListHead, &(pNewPageListEntry->SingleListEntry));
+
+    ctx->num_pfns = num;
+    ctx->num_pages += ctx->num_pfns;
+
+    RtlCopyMemory(ctx->pfns_table, MmGetMdlPfnArray(pPageMdl),
+        ctx->num_pfns * sizeof(PFN_NUMBER));
+
+    BalloonTellHost(WdfDevice, ctx->InfVirtQueue);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -217,38 +227,38 @@ BalloonLeak(
     IN size_t num
     )
 {
-    PPAGE_LIST_ENTRY    pPageListEntry;
-    PMDL                pPageMdl;
-    PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
+    PDEVICE_CONTEXT ctx = GetDeviceContext(WdfDevice);
+    PPAGE_LIST_ENTRY pPageListEntry;
+    PMDL pPageMdl;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    num = min(num, PAGE_SIZE/sizeof(PFN_NUMBER));
-
-    for (devCtx->num_pfns = 0; devCtx->num_pfns < num; devCtx->num_pfns++)
+    pPageListEntry = (PPAGE_LIST_ENTRY)PopEntryList(&ctx->PageListHead);
+    if (pPageListEntry == NULL)
     {
-
-        pPageListEntry = (PPAGE_LIST_ENTRY)PopEntryList(&devCtx->PageListHead);
-
-        if (pPageListEntry == NULL)
-        {
-           TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "PopEntryList=NULL\n");
-           break;
-        }
-
-        devCtx->pfns_table[devCtx->num_pfns] = pPageListEntry->PagePfn;
-        pPageMdl = pPageListEntry->PageMdl;
-        MmFreePagesFromMdl(pPageMdl);
-        ExFreePool(pPageMdl);
-
-        ExFreeToNPagedLookasideList(
-                                &devCtx->LookAsideList,
-                                pPageListEntry
-                                );
-        devCtx->num_pages--;
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "No list entries.\n");
+        return;
     }
 
-    BalloonTellHost(WdfDevice, devCtx->DefVirtQueue);
+    pPageMdl = pPageListEntry->PageMdl;
+
+    num = MmGetMdlByteCount(pPageMdl) / PAGE_SIZE;
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS,
+        "Deflate balloon with %d pages.\n", num);
+
+    ctx->num_pfns = num;
+    ctx->num_pages -= ctx->num_pfns;
+
+    RtlCopyMemory(ctx->pfns_table, MmGetMdlPfnArray(pPageMdl),
+        ctx->num_pfns * sizeof(PFN_NUMBER));
+
+    MmFreePagesFromMdl(pPageMdl);
+    ExFreePool(pPageMdl);
+    ExFreeToNPagedLookasideList(&ctx->LookAsideList, pPageListEntry);
+
+    BalloonTellHost(WdfDevice, ctx->InfVirtQueue);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
 
 VOID

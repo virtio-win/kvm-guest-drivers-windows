@@ -42,7 +42,6 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 typedef struct {
     SINGLE_LIST_ENTRY       SingleListEntry;
     PMDL                    PageMdl;
-    PFN_NUMBER              PagePfn;
 } PAGE_LIST_ENTRY, *PPAGE_LIST_ENTRY;
 
 typedef struct _DEVICE_CONTEXT {
@@ -77,8 +76,6 @@ typedef struct _DEVICE_CONTEXT {
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
-
-#define arraysize(p) (sizeof(p)/sizeof((p)[0]))
 
 #define BALLOON_MGMT_POOL_TAG 'mtlB'
 
