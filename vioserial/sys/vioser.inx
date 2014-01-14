@@ -14,6 +14,7 @@ DriverVer=02/22/2010,6.0.1000.10000
 CatalogFile=vioser.cat
 DriverPackageType = PlugAndPlay
 DriverPackageDisplayName = %VirtioSerial.DeviceDesc%
+PnpLockdown = 0
 
 [DestinationDirs]
 DefaultDestDir = 12
@@ -70,8 +71,6 @@ ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %12%\vioser.sys
-LoadOrderGroup = Extended Base
-
 
 ;--- VirtioSerial_Device Coinstaller installation ------
 ;
