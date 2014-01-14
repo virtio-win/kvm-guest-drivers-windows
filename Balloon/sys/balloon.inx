@@ -21,6 +21,7 @@ DriverVer=05/19/2008,6.0.6000.16386
 CatalogFile=Balloon.cat
 DriverPackageType = PlugAndPlay
 DriverPackageDisplayName = %BALLOON.DeviceDesc%
+PnpLockdown = 0
 
 [DestinationDirs]
 DefaultDestDir = 12
@@ -69,7 +70,6 @@ ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START 
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %12%\balloon.sys
-LoadOrderGroup = Extended Base
 
 ; -------------- BALLOON driver eventlog install sections
 [BALLOON_Logging_Inst]
