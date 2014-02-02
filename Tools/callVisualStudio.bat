@@ -1,6 +1,6 @@
 @echo off
 
-call %~dp0\checkWin8Tools.bat
+call %~dp0\checkWin8Tools.bat %1
 
 for /f "tokens=*" %%a in ( 
 'cscript.exe /nologo "%~dp0\getVisualStudioCmdLine.vbs" %*'
