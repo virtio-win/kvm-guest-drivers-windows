@@ -47,7 +47,7 @@ set _MINORVERSION_=%_BUILD_MINOR_VERSION_%
 set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% & 255)"
 set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
 set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_%
-call ..\..\tools\callVisualStudio.bat 11 balloon.vcxproj /Rebuild "%~1" /Out %2
+call ..\..\tools\callVisualStudio.bat 12 balloon.vcxproj /Rebuild "%~1" /Out %2
 endlocal
 goto :eof
 
