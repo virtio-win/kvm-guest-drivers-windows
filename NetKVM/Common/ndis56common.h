@@ -14,7 +14,6 @@
 #define PARANDIS_56_COMMON_H
 
 //#define PARANDIS_TEST_TX_KICK_ALWAYS
-
 #if defined(OFFLOAD_UNIT_TEST)
 #include <windows.h>
 #include <stdio.h>
@@ -52,6 +51,10 @@
 #include "IONetDescriptor.h"
 #include "DebugData.h"
 #include "ParaNdis-RSS.h"
+
+#if !defined(_Function_class_)
+#define _Function_class_(x)
+#endif
 
 // those stuff defined in NDIS
 //NDIS_MINIPORT_MAJOR_VERSION
