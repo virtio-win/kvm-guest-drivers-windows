@@ -892,6 +892,8 @@ static NDIS_STATUS ReadGlobalConfigurationEntry(NDIS_HANDLE cfg, const char *_na
     const char *statusName;
     NDIS_PARAMETER_TYPE ParameterType = NdisParameterInteger;
     NdisInitializeString(&name, (PUCHAR)_name);
+#pragma warning(push)
+#pragma warning(disable:6102)
     NdisReadConfiguration(
         &status,
         &pParam,
@@ -907,6 +909,7 @@ static NDIS_STATUS ReadGlobalConfigurationEntry(NDIS_HANDLE cfg, const char *_na
     {
         statusName = "nothing";
     }
+#pragma warning(pop)
     DPrintf(2, ("[%s] %s read for %s - 0x%x\n", __FUNCTION__, statusName, _name, *pValue));
     if (name.Buffer) NdisFreeString(name);
     return status;
@@ -927,6 +930,8 @@ static void RetrieveDriverConfiguration()
     if (status == NDIS_STATUS_SUCCESS)
     {
         NDIS_STRING paramsName = {0};
+#pragma warning(push)
+#pragma warning(disable:6102)
         NdisInitializeString(&paramsName, (PUCHAR)"Parameters");
         NdisOpenConfigurationKeyByName(&status, cfg, &paramsName, &params);
         if (status == NDIS_STATUS_SUCCESS)
@@ -935,6 +940,7 @@ static void RetrieveDriverConfiguration()
             ReadGlobalConfigurationEntry(params, "EarlyDebug", (PULONG)&resourceFilterLevel);
             NdisCloseConfiguration(params);
         }
+#pragma warning(pop)
         NdisCloseConfiguration(cfg);
         if (paramsName.Buffer) NdisFreeString(paramsName);
     }

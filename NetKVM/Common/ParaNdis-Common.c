@@ -170,6 +170,8 @@ static void GetConfigurationEntry(NDIS_HANDLE cfg, tConfigurationEntry *pEntry)
     PNDIS_CONFIGURATION_PARAMETER pParam = NULL;
     NDIS_PARAMETER_TYPE ParameterType = NdisParameterInteger;
     NdisInitializeString(&name, (PUCHAR)pEntry->Name);
+#pragma warning(push)
+#pragma warning(disable:6102)
     NdisReadConfiguration(
         &status,
         &pParam,
@@ -193,6 +195,7 @@ static void GetConfigurationEntry(NDIS_HANDLE cfg, tConfigurationEntry *pEntry)
     {
         statusName = "nothing";
     }
+#pragma warning(pop)
     DPrintf(2, ("[%s] %s read for %s - 0x%x\n",
         __FUNCTION__,
         statusName,
@@ -336,6 +339,8 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
                 NDIS_STATUS status;
                 PVOID p;
                 UINT  len = 0;
+#pragma warning(push)
+#pragma warning(disable:6102)
                 NdisReadNetworkAddress(&status, &p, &len, cfg);
                 if (status == NDIS_STATUS_SUCCESS && len == ETH_LENGTH_OF_ADDRESS)
                 {
@@ -349,6 +354,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
                 {
                     DPrintf(4, ("[%s] Nothing read for MAC, error %X\n", __FUNCTION__, status));
                 }
+#pragma warning(pop)
             }
             NdisCloseConfiguration(cfg);
         }
