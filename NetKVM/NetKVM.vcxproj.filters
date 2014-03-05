@@ -95,9 +95,6 @@
     <ClCompile Include="Common\sw-offload.c">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="wlh\ParaNdis6-Driver.c">
-      <Filter>Source Files\wlh</Filter>
-    </ClCompile>
     <ClCompile Include="wlh\ParaNdis6-Impl.c">
       <Filter>Source Files\wlh</Filter>
     </ClCompile>
@@ -112,6 +109,9 @@
     </ClCompile>
     <ClCompile Include="..\VirtIO\VirtIORing.c">
       <Filter>VirtIO</Filter>
+    </ClCompile>
+    <ClCompile Include="wlh\ParaNdis6-Driver.c">
+      <Filter>Source Files\wlh</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

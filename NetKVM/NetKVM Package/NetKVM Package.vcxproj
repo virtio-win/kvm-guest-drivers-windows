@@ -1,6 +1,14 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Vista Release|Win32">
+      <Configuration>Vista Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Vista Release|x64">
+      <Configuration>Vista Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Win8.1 Debug|Win32">
       <Configuration>Win8.1 Debug</Configuration>
       <Platform>Win32</Platform>
@@ -98,6 +106,11 @@
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'" Label="Configuration">
+    <TargetVersion>Windows7</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
+  </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'">
     <TargetVersion>WindowsV6.3</TargetVersion>
     <UseDebugLibraries>true</UseDebugLibraries>
@@ -128,6 +141,11 @@
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'" Label="Configuration">
+    <TargetVersion>Windows7</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
@@ -154,6 +172,11 @@
     <PackageDir>$(OutDir)</PackageDir>
     <TargetName>NetKVMTemporaryCert</TargetName>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
+    <OutDir>$(SolutionDir)\Install\Vista\$(PlatformTarget)\</OutDir>
+    <PackageDir>$(OutDir)</PackageDir>
+    <TargetName>NetKVMTemporaryCert</TargetName>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
     <OutDir>$(SolutionDir)\Install\$(DDKSpec)\$(PlatformTarget)\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>
@@ -166,6 +189,11 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <OutDir>$(SolutionDir)\Install\$(DDKSpec)\amd64\</OutDir>
+    <PackageDir>$(OutDir)</PackageDir>
+    <TargetName>NetKVMTemporaryCert</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
+    <OutDir>$(SolutionDir)\Install\Vista\amd64\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>
     <TargetName>NetKVMTemporaryCert</TargetName>
   </PropertyGroup>
@@ -263,6 +291,20 @@
       <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <Inf>
+      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+    </Inf>
+    <Inf2Cat>
+      <AdditionalOptions>
+      </AdditionalOptions>
+      <WindowsVersionList>Vista_x86</WindowsVersionList>
+    </Inf2Cat>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
     <PreBuildEvent>
       <Command>
@@ -334,6 +376,18 @@
     <Inf>
       <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
     </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <Inf>
+      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+    </Inf>
+    <Inf2Cat>
+      <WindowsVersionList>Vista_x64</WindowsVersionList>
+    </Inf2Cat>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <PreBuildEvent>

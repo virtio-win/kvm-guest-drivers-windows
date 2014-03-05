@@ -36,8 +36,10 @@
 #define RtlPointerToOffset(Base,Pointer)  ((ULONG)(((PCHAR)(Pointer))-((PCHAR)(Base))))
 #endif
 
-
+#pragma warning (push)
+#pragma warning (disable:4201)
 #include <ndis.h>
+#pragma warning (pop)
 
 #if NDIS_SUPPORT_NDIS620
 #define PARANDIS_SUPPORT_RSS 1

@@ -1,7 +1,10 @@
 #ifndef PARANDIS_RSS_H
 #define PARANDIS_RSS_H
 
+#pragma warning (push)
+#pragma warning (disable:4201)
 #include <ndis.h>
+#pragma warning (pop)
 
 #if PARANDIS_SUPPORT_RSS
 

@@ -13,7 +13,10 @@
 #ifndef __OS_DEP_H
 #define __OS_DEP_H
 
+#pragma warning (push)
+#pragma warning (disable:4201)
 #include <ndis.h>
+#pragma warning (pop)
 
 #define u8 unsigned char
 #define u16 unsigned short
