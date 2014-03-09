@@ -1,0 +1,9 @@
+
+LIBRARY "viorngum"
+
+EXPORTS
+
+	GetRngInterface
+
+	RegisterProvider
+	UnregisterProvider
