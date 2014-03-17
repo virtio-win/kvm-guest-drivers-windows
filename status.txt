@@ -1,3 +1,17 @@
+Date    17 Mar 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm95
+
+Fixed bugs:
+
+Bug 954183 Suppress false-positive SDV warning
+Bug 954183 Tools: Added SDVTOOL script.
+Bug 888694 serial: related to bz#888694: qga fails after resume from s3.
+Bug 868240 serial & balloon fix hck warnings on driver inf test
+Bug 921891 balloon improve ballooning's performance.
+Bug 954183 NetKvm Driver pass static code analysis tools. Using out parameter 
+           of the function without testing the retur
+
 Date    16 Oct 2013
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm93
