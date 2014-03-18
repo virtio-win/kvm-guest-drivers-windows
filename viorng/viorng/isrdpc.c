@@ -130,7 +130,7 @@ VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
 
             if (NT_SUCCESS(status))
             {
-                length = min(length, bufferLen);
+                length = min(length, (unsigned)bufferLen);
                 RtlCopyMemory(buffer, entry->Buffer, length);
 
                 TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC,

@@ -65,7 +65,7 @@ static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context,
     WdfObjectReference(entry->Request);
 
     sg.physAddr = MmGetPhysicalAddress(entry->Buffer);
-    sg.ulSize = length;
+    sg.ulSize = (unsigned)length;
 
     WdfSpinLockAcquire(Context->VirtQueueLock);
 
