@@ -48,12 +48,12 @@
 #define VER_LANGNEUTRAL
 
 #ifndef _NT_TARGET_MAJ
-//#include "2012-defines.h"
+#include "2012-defines.h"
 #endif
 
-#define VER_PRODUCTBUILD            1
-#define VER_PRODUCTBUILD_QFE        0
-#define VER_PRODUCTMAJORVERSION     1
-#define VER_PRODUCTMINORVERSION     0
+#define VER_PRODUCTBUILD                _MAJORVERSION_
+#define VER_PRODUCTBUILD_QFE            _MINORVERSION_
+#define VER_PRODUCTMAJORVERSION         _NT_TARGET_MAJ
+#define VER_PRODUCTMINORVERSION         _NT_TARGET_MIN
 
 #include "common.ver"

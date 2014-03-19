@@ -14,8 +14,10 @@ cd Balloon
 call cleanall.bat
 cd ..
 
-
 cd vioserial
 call cleanall.bat
 cd ..
 
+cd viorng
+call clean.bat
+cd ..

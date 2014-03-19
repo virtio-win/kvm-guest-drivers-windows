@@ -18,4 +18,6 @@ cd vioserial
 call buildall.bat
 cd ..
 
-
+cd viorng
+call buildall.bat
+cd ..
