@@ -5,6 +5,7 @@ call :rmdir Install_Debug
 call :cleandir
 
 pushd cng\um
+call :rmfiles 2012-defines.h
 call :cleandir
 popd
 
