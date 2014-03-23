@@ -103,12 +103,20 @@
     <OutDir>$(SolutionDir)$(Platform)\$(ConfigurationName)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
-    <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
-    <OutDir>$(SolutionDir)$(Platform)\$(ConfigurationName)\</OutDir>
+    <IntDir>objfre_win7_x86\i386\</IntDir>
+    <OutDir>objfre_win7_x86\i386\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-    <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
-    <OutDir>$(SolutionDir)$(Platform)\$(ConfigurationName)\</OutDir>
+    <IntDir>objfre_win8_x86\i386\</IntDir>
+    <OutDir>objfre_win8_x86\i386\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
+    <OutDir>objfre_win7_amd64\amd64\</OutDir>
+    <IntDir>objfre_win7_amd64\amd64\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+    <OutDir>objfre_win8_amd64\amd64\</OutDir>
+    <IntDir>objfre_win8_amd64\amd64\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
@@ -134,39 +142,64 @@
       <WppTraceFunction Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
       </WppTraceFunction>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">KERNEL_MODE_CNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">Level4</WarningLevel>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
       </AdditionalLibraryDirectories>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">$(OutDir)\VirtioLib.lib;;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">%(AdditionalDependencies);virtiolib.lib</AdditionalDependencies>
     </Link>
     <Link>
       <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
       </AdditionalLibraryDirectories>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">$(OutDir)\VirtioLib.lib;;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">%(AdditionalDependencies);virtiolib.lib</AdditionalDependencies>
     </Link>
     <Link>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
-      </AdditionalLibraryDirectories>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">$(OutDir)\VirtioLib.lib;;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">..\..\VirtIO\objfre_win7_x86\i386\</AdditionalLibraryDirectories>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">%(AdditionalDependencies);virtiolib.lib</AdditionalDependencies>
     </Link>
     <Link>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-      </AdditionalLibraryDirectories>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">$(OutDir)\VirtioLib.lib;;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">..\..\VirtIO\objfre_win8_x86\i386\</AdditionalLibraryDirectories>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">%(AdditionalDependencies);virtiolib.lib</AdditionalDependencies>
     </Link>
     <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">$(OutDir)\VirtioLib.lib;;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">%(AdditionalDependencies);virtiolib.lib</AdditionalDependencies>
     </Link>
     <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">$(OutDir)\VirtioLib.lib;;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">%(AdditionalDependencies);virtiolib.lib</AdditionalDependencies>
     </Link>
     <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">$(OutDir)\VirtioLib.lib;;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">%(AdditionalDependencies);virtiolib.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">..\..\VirtIO\objfre_win8_amd64\amd64\</AdditionalLibraryDirectories>
     </Link>
     <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">$(OutDir)\VirtioLib.lib;;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">%(AdditionalDependencies);virtiolib.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">..\..\VirtIO\objfre_win8_amd64\amd64\</AdditionalLibraryDirectories>
     </Link>
+    <Inf>
+      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">$(STAMPINF_VERSION)</TimeStamp>
+    </Inf>
+    <Inf>
+      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">$(STAMPINF_VERSION)</TimeStamp>
+    </Inf>
+    <Inf>
+      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">$(STAMPINF_VERSION)</TimeStamp>
+    </Inf>
+    <Inf>
+      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">$(STAMPINF_VERSION)</TimeStamp>
+    </Inf>
+    <Inf>
+      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">$(STAMPINF_VERSION)</TimeStamp>
+    </Inf>
+    <Inf>
+      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">$(STAMPINF_VERSION)</TimeStamp>
+    </Inf>
+    <Inf>
+      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">$(STAMPINF_VERSION)</TimeStamp>
+    </Inf>
+    <Inf>
+      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">$(STAMPINF_VERSION)</TimeStamp>
+    </Inf>
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />

@@ -172,9 +172,6 @@
     <FilesToPackage Include="@(Inf->'%(CopyOutput)')" Condition="'@(Inf)'!=''" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\VirtIO\VirtioLib.vcxproj">
-      <Project>{d5a7ea0f-efab-4fe4-9d16-17f409359fbc}</Project>
-    </ProjectReference>
     <ProjectReference Include="..\viorng\viorng.vcxproj">
       <Project>{ef874d69-710d-4b5d-afda-4a3e912b5838}</Project>
     </ProjectReference>
