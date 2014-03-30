@@ -4,6 +4,7 @@ Class           = System
 ClassGuid       = {4d36e97d-e325-11ce-bfc1-08002be10318}
 Provider        = %RedHatMfg%
 CatalogFile     = viorng.cat
+PnpLockdown     = 1
 DriverVer       = 02/20/2013,1.0.0.0
 
 [DestinationDirs]
