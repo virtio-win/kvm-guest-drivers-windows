@@ -185,7 +185,6 @@ VOID VirtRngEvtDeviceContextCleanup(IN WDFOBJECT DeviceObject)
         PREAD_BUFFER_ENTRY entry = CONTAINING_RECORD(iter,
             READ_BUFFER_ENTRY, ListEntry);
 
-        WdfObjectDereference(entry->Request);
         ExFreePoolWithTag(entry->Buffer, VIRT_RNG_MEMORY_TAG);
         ExFreePoolWithTag(entry, VIRT_RNG_MEMORY_TAG);
 

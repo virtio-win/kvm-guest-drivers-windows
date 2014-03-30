@@ -62,12 +62,15 @@ static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context,
     }
 
     entry->Request = Request;
-    WdfObjectReference(entry->Request);
 
     sg.physAddr = MmGetPhysicalAddress(entry->Buffer);
     sg.ulSize = (unsigned)length;
 
     WdfSpinLockAcquire(Context->VirtQueueLock);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
+        "Push %p Request: %p Buffer: %p",
+        entry, entry->Request, entry->Buffer);
 
     PushEntryList(&Context->ReadBuffersList, &entry->ListEntry);
 
@@ -77,13 +80,16 @@ static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context,
         PSINGLE_LIST_ENTRY removed;
 
         TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
-            "Failed to add buffer to virt queue.\n");
+            "Failed to add buffer to virt queue.");
+
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
+            "Pop %p Request: %p Buffer: %p",
+            entry, entry->Request, entry->Buffer);
 
         removed = PopEntryList(&Context->ReadBuffersList);
         NT_ASSERT(entry == CONTAINING_RECORD(
             removed, READ_BUFFER_ENTRY, ListEntry));
 
-        WdfObjectDereference(entry->Request);
         ExFreePoolWithTag(entry->Buffer, VIRT_RNG_MEMORY_TAG);
         ExFreePoolWithTag(entry, VIRT_RNG_MEMORY_TAG);
 
@@ -169,10 +175,38 @@ VOID VirtRngEvtIoStop(IN WDFQUEUE Queue,
 
 VOID VirtRngEvtRequestCancel(IN WDFREQUEST Request)
 {
+    PDEVICE_CONTEXT context = GetDeviceContext(WdfIoQueueGetDevice(
+        WdfRequestGetIoQueue(Request)));
+    PSINGLE_LIST_ENTRY iter;
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
-        "--> %!FUNC! Request: %p", Request);
+        "--> %!FUNC! Cancelled Request: %p", Request);
+
+    WdfSpinLockAcquire(context->VirtQueueLock);
 
     WdfRequestComplete(Request, STATUS_CANCELLED);
+
+    iter = &context->ReadBuffersList;
+    while (iter->Next != NULL)
+    {
+        PREAD_BUFFER_ENTRY entry = CONTAINING_RECORD(iter->Next,
+            READ_BUFFER_ENTRY, ListEntry);
+
+        if (Request == entry->Request)
+        {
+            TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
+                "Clear entry %p request.", entry);
+
+            entry->Request = NULL;
+            break;
+        }
+        else
+        {
+            iter = iter->Next;
+        }
+    };
+
+    WdfSpinLockRelease(context->VirtQueueLock);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %!FUNC!");
 }

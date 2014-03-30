@@ -95,6 +95,11 @@ VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
     PDEVICE_CONTEXT context = GetDeviceContext(
         WdfInterruptGetDevice(Interrupt));
     struct virtqueue *vq = context->VirtQueue;
+    PREAD_BUFFER_ENTRY entry;
+    PSINGLE_LIST_ENTRY iter;
+    NTSTATUS status;
+    PVOID buffer;
+    size_t bufferLen;
     unsigned int length;
 
     UNREFERENCED_PARAMETER(AssociatedObject);
@@ -104,28 +109,54 @@ VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
 
     for (;;)
     {
-        PREAD_BUFFER_ENTRY entry;
-        WDFREQUEST request;
-        PSINGLE_LIST_ENTRY iter;
-
         WdfSpinLockAcquire(context->VirtQueueLock);
-        entry = (PREAD_BUFFER_ENTRY)vq->vq_ops->get_buf(vq, &length);
-        WdfSpinLockRelease(context->VirtQueueLock);
 
+        entry = (PREAD_BUFFER_ENTRY)vq->vq_ops->get_buf(vq, &length);
         if (entry == NULL)
         {
+            WdfSpinLockRelease(context->VirtQueueLock);
             break;
         }
 
-        request = entry->Request;
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
+            "Got %p Request: %p Buffer: %p",
+            entry, entry->Request, entry->Buffer);
 
-        if (WdfRequestUnmarkCancelable(request) != STATUS_CANCELLED)
+        iter = &context->ReadBuffersList;
+        while (iter->Next != NULL)
         {
-            NTSTATUS status;
-            PVOID buffer;
-            size_t bufferLen = 0;
+            PREAD_BUFFER_ENTRY current = CONTAINING_RECORD(iter->Next,
+                READ_BUFFER_ENTRY, ListEntry);
 
-            status = WdfRequestRetrieveOutputBuffer(request, length,
+            if (entry == current)
+            {
+                TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
+                    "Delete %p Request: %p Buffer: %p",
+                    entry, entry->Request, entry->Buffer);
+
+                iter->Next = current->ListEntry.Next;
+                break;
+            }
+            else
+            {
+                iter = iter->Next;
+            }
+        };
+
+        if ((entry->Request == NULL) ||
+            (WdfRequestUnmarkCancelable(entry->Request) == STATUS_CANCELLED))
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
+                "Ignoring a canceled read request: %p", entry->Request);
+
+            entry->Request = NULL;
+        }
+
+        WdfSpinLockRelease(context->VirtQueueLock);
+
+        if (entry->Request != NULL)
+        {
+            status = WdfRequestRetrieveOutputBuffer(entry->Request, length,
                 &buffer, &bufferLen);
 
             if (NT_SUCCESS(status))
@@ -134,47 +165,21 @@ VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
                 RtlCopyMemory(buffer, entry->Buffer, length);
 
                 TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC,
-                    "Complete Request: %p Length: %d", request, length);
+                    "Complete Request: %p Length: %d", entry->Request, length);
 
-                WdfRequestCompleteWithInformation(request, STATUS_SUCCESS,
-                    (ULONG_PTR)length);
+                WdfRequestCompleteWithInformation(entry->Request,
+                    STATUS_SUCCESS, (ULONG_PTR)length);
             }
             else
             {
                 TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
                     "WdfRequestRetrieveOutputBuffer failed: %!STATUS!", status);
-                WdfRequestComplete(request, status);
+                WdfRequestComplete(entry->Request, status);
             }
         }
-        else
-        {
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
-                "Ignoring a canceled read request: %p", request);
-        }
 
-        WdfSpinLockAcquire(context->VirtQueueLock);
-        iter = &context->ReadBuffersList;
-        while (iter->Next != NULL)
-        {
-            PREAD_BUFFER_ENTRY entry = CONTAINING_RECORD(iter->Next,
-                READ_BUFFER_ENTRY, ListEntry);
-
-            if (iter == &entry->ListEntry)
-            {
-                iter->Next = entry->ListEntry.Next;
-
-                WdfObjectDereference(entry->Request);
-                ExFreePoolWithTag(entry->Buffer, VIRT_RNG_MEMORY_TAG);
-                ExFreePoolWithTag(entry, VIRT_RNG_MEMORY_TAG);
-
-                break;
-            }
-            else
-            {
-                iter = iter->Next;
-            }
-        };
-        WdfSpinLockRelease(context->VirtQueueLock);
+        ExFreePoolWithTag(entry->Buffer, VIRT_RNG_MEMORY_TAG);
+        ExFreePoolWithTag(entry, VIRT_RNG_MEMORY_TAG);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %!FUNC!");
