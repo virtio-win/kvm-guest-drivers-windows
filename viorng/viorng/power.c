@@ -72,7 +72,6 @@ static VOID DeleteQueue(struct virtqueue **pvq)
     {
         PVOID p;
 
-        vq->vq_ops->shutdown(vq);
         VirtIODeviceDeleteQueue(vq, &p);
         *pvq = NULL;
         MmFreeContiguousMemory(p);
