@@ -127,15 +127,17 @@ VOID VirtRngEvtIoRead(IN WDFQUEUE Queue,
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
             "WdfRequestMarkCancelableEx failed: %!STATUS!", status);
-        WdfRequestComplete(Request, STATUS_CANCELLED);
+        WdfRequestComplete(Request, status);
+        return;
     }
 
     status = VirtQueueAddBuffer(context, Request, Length);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
-            "VirtQueueAddBuffer failed: %!STATUS!", status);
-        WdfRequestComplete(Request, status);
+        if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
+        {
+            WdfRequestComplete(Request, status);
+        }
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %!FUNC!");
