@@ -21,7 +21,7 @@ DriverVer=05/19/2008,6.0.6000.16386
 CatalogFile=Balloon.cat
 DriverPackageType = PlugAndPlay
 DriverPackageDisplayName = %BALLOON.DeviceDesc%
-PnpLockdown = 0
+PnpLockdown = 1
 
 [DestinationDirs]
 DefaultDestDir = 12
