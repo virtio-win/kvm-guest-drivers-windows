@@ -14,6 +14,10 @@ call :rmfiles 2012-defines.h
 call :cleandir
 popd
 
+pushd virtiolib
+call :cleandir
+popd
+
 pushd "VirtRNG Package"
 call :cleandir
 popd
