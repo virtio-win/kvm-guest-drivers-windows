@@ -1,3 +1,12 @@
+Date    1 Apr 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm97
+
+Fixed bugs:
+
+Bug 868240 fix hck warnings on driver inf test
+Bug 1079929 rng: fix a failed "df - fuzz misc api" whql test.
+
 Date    23 Mar 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm96
