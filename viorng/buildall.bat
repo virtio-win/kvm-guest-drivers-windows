@@ -25,17 +25,29 @@ if "%1"=="Win8" set _NT_TARGET_VERSION=0x620
 set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + ((%_NT_TARGET_VERSION% & 255) >> 4)"
 goto :eof
 
+:set_out_filename
+if "%1"=="Vista" set OS=wlh
+if "%1"=="Wlh" set OS=wlh
+if "%1"=="Win7" set OS=win7
+if "%1"=="Win8" set OS=win8
+if "%2"=="Win32" set PLAT=x86
+if "%2"=="x64" set PLAT=amd64
+set OUT_FILENAME=buildfre_%OS%_%PLAT%.log
+goto :eof
+
 :build_driver
 call :set_windows_version %1
 set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_%
 call :create_version_file "viorng\2012-defines.h"
-call ..\tools\callVisualStudio.bat 11 viorng.sln /Rebuild "%1 Release|%2"
+call :set_out_filename %1 %2
+call ..\tools\callVisualStudio.bat 11 viorng.sln /Rebuild "%1 Release|%2" /Out %OUT_FILENAME%
 goto :eof
 
 :build_um_proivder
 call :set_windows_version %1
 call :create_version_file "cng\um\2012-defines.h"
-call ..\tools\callVisualStudio.bat 11 viorngum.sln /Rebuild "Release|%2"
+call :set_out_filename %1 %2
+call ..\tools\callVisualStudio.bat 11 viorngum.sln /Rebuild "Release|%2" /Out %OUT_FILENAME%
 set DEST=%2
 if "%DEST%"=="Win32" set DEST=x86
 copy "%2\Release\viorngum.dll" "Install\%1\%DEST%\"

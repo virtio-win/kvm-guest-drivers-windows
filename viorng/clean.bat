@@ -2,6 +2,7 @@
 
 call :rmdir Install
 call :rmdir Install_Debug
+call :rmfiles *.log
 call :cleandir
 
 pushd cng\um
