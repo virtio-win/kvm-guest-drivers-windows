@@ -108,7 +108,6 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ModuleDefinitionFile>viorngum.def</ModuleDefinitionFile>
-      <AdditionalOptions>/integritycheck %(AdditionalOptions)</AdditionalOptions>
       <AdditionalDependencies>bcrypt.lib;setupapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\Microsoft CNG Development Kit\Lib\$(PlatformTarget);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
@@ -127,7 +126,6 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ModuleDefinitionFile>viorngum.def</ModuleDefinitionFile>
-      <AdditionalOptions>/integritycheck %(AdditionalOptions)</AdditionalOptions>
       <AdditionalDependencies>bcrypt.lib;setupapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\Microsoft CNG Development Kit\Lib\$(PlatformTarget);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
@@ -150,7 +148,6 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <ModuleDefinitionFile>viorngum.def</ModuleDefinitionFile>
-      <AdditionalOptions>/integritycheck %(AdditionalOptions)</AdditionalOptions>
       <AdditionalDependencies>bcrypt.lib;setupapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\Microsoft CNG Development Kit\Lib\$(PlatformTarget);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
@@ -173,7 +170,6 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <ModuleDefinitionFile>viorngum.def</ModuleDefinitionFile>
-      <AdditionalOptions>/integritycheck %(AdditionalOptions)</AdditionalOptions>
       <AdditionalDependencies>bcrypt.lib;setupapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\Microsoft CNG Development Kit\Lib\$(PlatformTarget);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
