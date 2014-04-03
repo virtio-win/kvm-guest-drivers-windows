@@ -256,7 +256,7 @@ BalloonLeak(
     ExFreePool(pPageMdl);
     ExFreeToNPagedLookasideList(&ctx->LookAsideList, pPageListEntry);
 
-    BalloonTellHost(WdfDevice, ctx->InfVirtQueue);
+    BalloonTellHost(WdfDevice, ctx->DefVirtQueue);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
