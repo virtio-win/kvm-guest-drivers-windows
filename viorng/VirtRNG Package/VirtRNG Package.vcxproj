@@ -125,57 +125,57 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
-    <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(PlatformTarget)\</OutDir>
+    <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(InfArch)\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>
     <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
-    <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(PlatformTarget)\</OutDir>
+    <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(InfArch)\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>
     <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
-    <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(PlatformTarget)\</OutDir>
+    <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(InfArch)\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>
     <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
-    <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(PlatformTarget)\</OutDir>
+    <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(InfArch)\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>
     <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
-    <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(PlatformTarget)\</OutDir>
+    <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(InfArch)\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>
     <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-    <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(PlatformTarget)\</OutDir>
+    <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(InfArch)\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>
     <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
-    <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(PlatformTarget)\</OutDir>
+    <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(InfArch)\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
-    <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(PlatformTarget)\</OutDir>
+    <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(InfArch)\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
-    <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(PlatformTarget)\</OutDir>
+    <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(InfArch)\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
-    <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(PlatformTarget)\</OutDir>
+    <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(InfArch)\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
-    <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(PlatformTarget)\</OutDir>
+    <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(InfArch)\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-    <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(PlatformTarget)\</OutDir>
+    <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(InfArch)\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>
   </PropertyGroup>
   <PropertyGroup>
