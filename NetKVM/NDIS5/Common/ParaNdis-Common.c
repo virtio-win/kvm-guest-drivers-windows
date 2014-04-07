@@ -1018,9 +1018,17 @@ static void DeleteQueue(PARANDIS_ADAPTER *pContext, struct virtqueue **ppq, tCom
 // called on PASSIVE upon unsuccessful Init or upon Halt
 static void DeleteNetQueues(PARANDIS_ADAPTER *pContext)
 {
-    DeleteQueue(pContext, &pContext->NetControlQueue, &pContext->ControlQueueRing);
-    DeleteQueue(pContext, &pContext->NetSendQueue, &pContext->SendQueueRing);
-    DeleteQueue(pContext, &pContext->NetReceiveQueue, &pContext->ReceiveQueueRing);
+    if (pContext->NetControlQueue) {
+        DeleteQueue(pContext, &pContext->NetControlQueue, &pContext->ControlQueueRing);
+    }
+
+    if (pContext->NetSendQueue) {
+        DeleteQueue(pContext, &pContext->NetSendQueue, &pContext->SendQueueRing);
+    }
+
+    if (pContext->NetReceiveQueue) {
+        DeleteQueue(pContext, &pContext->NetReceiveQueue, &pContext->ReceiveQueueRing);
+    }
 }
 
 
@@ -2714,7 +2722,10 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 
     VirtIODeviceRenewQueue(pContext->NetReceiveQueue);
     VirtIODeviceRenewQueue(pContext->NetSendQueue);
-    VirtIODeviceRenewQueue(pContext->NetControlQueue);
+
+    if (pContext->NetControlQueue) {
+        VirtIODeviceRenewQueue(pContext->NetControlQueue);
+    }
 
     ParaNdis_RestoreDeviceConfigurationAfterReset(pContext);
 
@@ -2811,8 +2822,9 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     NdisAcquireSpinLock(&pContext->ReceiveLock);
     pContext->NetReceiveQueue->vq_ops->shutdown(pContext->NetReceiveQueue);
     NdisReleaseSpinLock(&pContext->ReceiveLock);
-
-    pContext->NetControlQueue->vq_ops->shutdown(pContext->NetControlQueue);
+    if (pContext->NetControlQueue) {
+        pContext->NetControlQueue->vq_ops->shutdown(pContext->NetControlQueue);
+    }
 
     /*
     DPrintf(0, ("WARNING: deleting queues!!!!!!!!!"));
