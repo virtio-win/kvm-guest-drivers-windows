@@ -1,3 +1,14 @@
+Date    9 Apr 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm99
+
+Fixed bugs:
+
+Bug 1080320: balloon. fix bsod which occurred on various scenarios.
+Bug 1083810: virtio-rng. output directory for 64-bit builds goes to amd64.
+Bug 1080731: virtio-rng. fix a provider registration error.
+
+
 Date    2 Apr 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm98
