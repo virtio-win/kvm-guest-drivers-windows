@@ -92,7 +92,7 @@ BOOL CMemStat::Init()
 
 BOOL  CMemStat::GetStatus(PBALLOON_STAT pStat)
 {
-    MEMORYSTATUS stat = {sizeof(stat)};
+    MEMORYSTATUSEX statex = {sizeof(statex)};
     CComPtr< IEnumWbemClassObject > enumerator;
     CComPtr< IWbemClassObject > memory;
     ULONG retcnt;
@@ -193,14 +193,14 @@ BOOL  CMemStat::GetStatus(PBALLOON_STAT pStat)
         pStat[idx].val = (long)var_val;
         idx++;
 
-        GlobalMemoryStatus(&stat);
+        GlobalMemoryStatusEx(&statex);
 
         pStat[idx].tag = VIRTIO_BALLOON_S_MEMFREE;
-        pStat[idx].val = stat.dwAvailPhys;
+        pStat[idx].val = statex.ullAvailPhys;
         idx++;
 
         pStat[idx].tag = VIRTIO_BALLOON_S_MEMTOT;
-        pStat[idx].val = stat.dwTotalPhys;
+        pStat[idx].val = statex.ullTotalPhys;
     }
     return TRUE;
 }
