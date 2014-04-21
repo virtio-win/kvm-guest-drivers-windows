@@ -260,13 +260,12 @@ ENTER_FN();
                     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageTable = %p\n", pMsixCapOffset->MessageTable));
                     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("PBATable = %d\n", pMsixCapOffset->PBATable));
                     adaptExt->msix_enabled = (pMsixCapOffset->MessageControl.MSIXEnable == 1);
-                    break;
                  }
                  else
                  {
-                    CapOffset = pMsixCapOffset->Header.Next;
                     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("CapabilityID = %x, Next CapOffset = %x\n", pMsixCapOffset->Header.CapabilityID, CapOffset));
                  }
+                 CapOffset = pMsixCapOffset->Header.Next;
               }
               RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("msix_enabled = %d\n", adaptExt->msix_enabled));
               VirtIODeviceSetMSIXUsed(&adaptExt->vdev, adaptExt->msix_enabled);
@@ -337,12 +336,10 @@ ENTER_FN();
         adaptExt->queue_depth = pageNum / ConfigInfo->NumberOfPhysicalBreaks - 1;
     }
 
-    adaptExt->msix_enabled = FALSE;
 
     RhelDbgPrint(TRACE_LEVEL_ERROR, ("breaks_number = %x  queue_depth = %x\n",
                 ConfigInfo->NumberOfPhysicalBreaks,
                 adaptExt->queue_depth));
-
 
     adaptExt->uncachedExtensionVa = StorPortGetUncachedExtension(DeviceExtension, ConfigInfo, allocationSize);
     if (!adaptExt->uncachedExtensionVa) {
@@ -594,8 +591,7 @@ VioScsiInterrupt(
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
-           --adaptExt->in_fly; 
-//           CompleteRequest(DeviceExtension, Srb);
+         --adaptExt->in_fly; 
            StorPortNotification(RequestComplete,
                          DeviceExtension,
                          Srb);
