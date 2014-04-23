@@ -1,3 +1,19 @@
+Date    23 Apr 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm100
+
+Fixed bugs:
+
+Bug 1077566 [vioscsi] enable MSI as a default interrupt mode for virtio-scsi.
+Bug 1080319 [balloon] win8.1-32 could use 3G memory in one guest but stat-total-memory only shows 2G
+
+Fixed in build script:
+Bug 1083805 [virtio-win][virtio-rng]WDFCoinstaller01001.dll is redhat signed
+
+New features:
+
+Disable RSC for the release build.
+
 Date    9 Apr 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm99
