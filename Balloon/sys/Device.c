@@ -25,7 +25,6 @@
 #pragma alloc_text(PAGE, BalloonEvtDeviceD0Exit)
 #pragma alloc_text(PAGE, BalloonEvtDeviceD0ExitPreInterruptsDisabled)
 #pragma alloc_text(PAGE, BalloonDeviceAdd)
-#pragma alloc_text(PAGE, BalloonEvtDeviceFileCreate)
 #pragma alloc_text(PAGE, BalloonEvtFileClose)
 #pragma alloc_text(PAGE, BalloonCloseWorkerThread)
 #endif
@@ -66,7 +65,7 @@ BalloonDeviceAdd(
 
     WDF_FILEOBJECT_CONFIG_INIT(
                             &fileConfig,
-                            BalloonEvtDeviceFileCreate,
+                            WDF_NO_EVENT_CALLBACK,
                             BalloonEvtFileClose,
                             WDF_NO_EVENT_CALLBACK
                             );
@@ -584,55 +583,19 @@ BalloonInterruptDisable(
 }
 
 VOID
-BalloonEvtDeviceFileCreate (
-    IN WDFDEVICE WdfDevice,
-    IN WDFREQUEST Request,
-    IN WDFFILEOBJECT FileObject
-    )
-{
-    PDEVICE_CONTEXT     devCtx = NULL;
-
-    UNREFERENCED_PARAMETER(FileObject);
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s\n", __FUNCTION__);
-
-    PAGED_CODE ();
-
-    devCtx = GetDeviceContext(WdfDevice);
-
-    if(VirtIOIsFeatureEnabled(devCtx->HostFeatures, VIRTIO_BALLOON_F_STATS_VQ))
-    {
-        VirtIOFeatureEnable(devCtx->GuestFeatures, VIRTIO_BALLOON_F_STATS_VQ);
-        devCtx->bServiceConnected = TRUE;
-    }
-    VirtIODeviceWriteGuestFeatures(&devCtx->VDevice, devCtx->GuestFeatures);
-
-    WdfRequestComplete(Request, STATUS_SUCCESS);
-
-    return;
-}
-
-
-VOID
 BalloonEvtFileClose (
     IN WDFFILEOBJECT    FileObject
     )
 {
-    PDEVICE_CONTEXT     devCtx = NULL;
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(
+        WdfFileObjectGetDevice(FileObject));
 
-    PAGED_CODE ();
+    PAGED_CODE();
 
-    devCtx = GetDeviceContext(WdfFileObjectGetDevice(FileObject));
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-> %s\n", __FUNCTION__);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s\n", __FUNCTION__);
-
-    if(VirtIOIsFeatureEnabled(devCtx->GuestFeatures, VIRTIO_BALLOON_F_STATS_VQ))
-    {
-        VirtIOFeatureDisable(devCtx->GuestFeatures, VIRTIO_BALLOON_F_STATS_VQ);
-        VirtIODeviceWriteGuestFeatures(&devCtx->VDevice, devCtx->GuestFeatures);
-        devCtx->bServiceConnected = FALSE;
-    }
-    return;
+    RtlFillMemory(devCtx->MemStats,
+        sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
 }
 
 VOID

@@ -44,6 +44,8 @@ BalloonInit(
 {
     NTSTATUS            status = STATUS_SUCCESS;
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
+    u32 hostFeatures;
+    u32 guestFeatures;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonInit\n");
 
@@ -82,10 +84,10 @@ BalloonInit(
            break;
         }
 
-        devCtx->GuestFeatures = 0;
-        devCtx->HostFeatures = VirtIODeviceReadHostFeatures(&devCtx->VDevice);
+        guestFeatures = 0;
+        hostFeatures = VirtIODeviceReadHostFeatures(&devCtx->VDevice);
 
-        if(VirtIOIsFeatureEnabled(devCtx->HostFeatures, VIRTIO_BALLOON_F_STATS_VQ))
+        if(VirtIOIsFeatureEnabled(hostFeatures, VIRTIO_BALLOON_F_STATS_VQ))
         {
            BOOLEAN bNeedBuffer = FALSE;
            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> VIRTIO_BALLOON_F_STATS_VQ\n");
@@ -117,14 +119,11 @@ BalloonInit(
            }
            devCtx->StatVirtQueue->vq_ops->kick(devCtx->StatVirtQueue);
 
-           if(devCtx->bServiceConnected)
-           {
-              VirtIOFeatureEnable(devCtx->GuestFeatures, VIRTIO_BALLOON_F_STATS_VQ);
-           }
+           VirtIOFeatureEnable(guestFeatures, VIRTIO_BALLOON_F_STATS_VQ);
         }
     } while(FALSE);
 
-    VirtIODeviceWriteGuestFeatures(&devCtx->VDevice, devCtx->GuestFeatures);
+    VirtIODeviceWriteGuestFeatures(&devCtx->VDevice, guestFeatures);
 
     if(NT_SUCCESS(status))
     {

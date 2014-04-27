@@ -55,7 +55,6 @@ typedef struct _DEVICE_CONTEXT {
     PVIOQUEUE               InfVirtQueue;
     PVIOQUEUE               DefVirtQueue;
     PVIOQUEUE               StatVirtQueue;
-    BOOLEAN                 bServiceConnected;
 
     KEVENT                  HostAckEvent;
 
@@ -71,8 +70,6 @@ typedef struct _DEVICE_CONTEXT {
     PKTHREAD                Thread;
     BOOLEAN                 bShutDown;
 
-    u32                     HostFeatures;
-    u32                     GuestFeatures;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
@@ -89,7 +86,6 @@ EVT_WDF_DEVICE_RELEASE_HARDWARE                BalloonEvtDeviceReleaseHardware;
 EVT_WDF_DEVICE_D0_ENTRY                        BalloonEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT                         BalloonEvtDeviceD0Exit;
 EVT_WDF_DEVICE_D0_EXIT_PRE_INTERRUPTS_DISABLED BalloonEvtDeviceD0ExitPreInterruptsDisabled;
-EVT_WDF_DEVICE_FILE_CREATE                     BalloonEvtDeviceFileCreate;
 EVT_WDF_FILE_CLOSE                             BalloonEvtFileClose;
 EVT_WDF_INTERRUPT_ISR                          BalloonInterruptIsr;
 EVT_WDF_INTERRUPT_DPC                          BalloonInterruptDpc;
