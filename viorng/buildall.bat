@@ -50,6 +50,7 @@ call :set_out_filename %1 %2
 call ..\tools\callVisualStudio.bat 11 viorngum.sln /Rebuild "Release|%2" /Out %OUT_FILENAME%
 set DEST=%2
 if "%DEST%"=="Win32" set DEST=x86
+if "%DEST%"=="x64" set DEST=amd64
 copy "%2\Release\viorngum.dll" "Install\%1\%DEST%\"
 goto :eof
 
