@@ -1,3 +1,13 @@
+Date    29 Apr 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm101
+
+Fixed bugs:
+
+Bug 1092348 viorng fix no viorngum.dll in amd64 folder.
+Bug 1080320 balloon: memory stats remains after service was closed.
+
+
 Date    23 Apr 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm100
