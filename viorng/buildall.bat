@@ -10,8 +10,9 @@ set _MAJORVERSION_=%_BUILD_MAJOR_VERSION_%
 set _MINORVERSION_=%_BUILD_MINOR_VERSION_%
 set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
 
-for %%O in (Vista Win7 Win8) do for %%P in (Win32 x64) do call :build_driver %%O %%P
-for %%O in (Wlh Win7 Win8) do for %%P in (Win32 x64) do call :build_um_proivder %%O %%P
+for %%O in (Win7 Win8) do for %%P in (Win32 x64) do call :build_driver %%O %%P
+for %%P in (Win32 x64) do call :build_vista_driver Vista %%P
+for %%O in (Vista Win7 Win8) do for %%P in (Win32 x64) do call :build_um_proivder %%O %%P
 
 endlocal
 
@@ -46,11 +47,38 @@ if exist WdfCoinstaller01011.dll rename WdfCoinstaller01011.dll WdfCoInstaller01
 popd
 goto :eof
 
-:build_driver
+:prebuild_driver
 call :set_windows_version %1
-set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_%
 call :create_version_file "viorng\2012-defines.h"
 call :set_out_filename %1 %2
+set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_%
+goto :eof
+
+:build_vista_driver
+call :prebuild_driver %1 %2
+if "%DDKVER%"=="" set DDKVER=7600.16385.1
+set DDKBUILDENV=
+set BUILDROOT=C:\WINDDK\%DDKVER%
+pushd %BUILDROOT%
+set DDKENV=%2
+if "%DDKENV%"=="Win32" set DDKENV=x86
+call bin\setenv.bat %BUILDROOT% %DDKENV% fre %OS% no_oacr
+popd
+build -cZg
+set ARCH=amd64
+if "%2"=="Win32" set ARCH=i386
+set SRC_DIR=.\viorng\objfre_%OS%_%PLAT%\%ARCH%
+set DST_DIR=.\Install\%OS%\%PLAT%
+mkdir %DST_DIR%
+copy %BUILDROOT%\redist\wdf\%PLAT%\WdfCoInstaller01009.dll %DST_DIR%
+for %%E in (inf pdb sys) do copy %SRC_DIR%\viorng.%%E %DST_DIR%
+if /i "%2"=="Win32" set OS_SYS=Vista_X86,Server2008_X86
+if /i "%2"=="x64" set OS_SYS=Vista_X64,Server2008_X64
+inf2cat /driver:%DST_DIR% /os:%OS_SYS%
+goto :eof
+
+:build_driver
+call :prebuild_driver %1 %2
 call ..\tools\callVisualStudio.bat 11 viorng.sln /Rebuild "%1 Release|%2" /Out %OUT_FILENAME%
 call :fix_wdfcoinstaller_name %1 %2
 goto :eof
@@ -60,10 +88,7 @@ call :set_windows_version %1
 call :create_version_file "cng\um\2012-defines.h"
 call :set_out_filename %1 %2
 call ..\tools\callVisualStudio.bat 11 viorngum.sln /Rebuild "Release|%2" /Out %OUT_FILENAME%
-set DEST=%2
-if "%DEST%"=="Win32" set DEST=x86
-if "%DEST%"=="x64" set DEST=amd64
-copy "%2\Release\viorngum.dll" "Install\%1\%DEST%\"
+copy "%2\Release\viorngum.dll" "Install\%OS%\%PLAT%\"
 goto :eof
 
 :create_version_file
