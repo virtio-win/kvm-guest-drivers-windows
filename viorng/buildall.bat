@@ -25,14 +25,25 @@ if "%1"=="Win8" set _NT_TARGET_VERSION=0x620
 set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + ((%_NT_TARGET_VERSION% & 255) >> 4)"
 goto :eof
 
-:set_out_filename
+:set_os_and_platform
 if "%1"=="Vista" set OS=wlh
 if "%1"=="Wlh" set OS=wlh
 if "%1"=="Win7" set OS=win7
 if "%1"=="Win8" set OS=win8
 if "%2"=="Win32" set PLAT=x86
 if "%2"=="x64" set PLAT=amd64
+goto :eof
+
+:set_out_filename
+call :set_os_and_platform %1 %2
 set OUT_FILENAME=buildfre_%OS%_%PLAT%.log
+goto :eof
+
+:fix_wdfcoinstaller_name
+call :set_os_and_platform %1 %2
+pushd Install\%OS%\%PLAT%\
+if exist WdfCoinstaller01011.dll rename WdfCoinstaller01011.dll WdfCoInstaller01011.dll
+popd
 goto :eof
 
 :build_driver
@@ -41,6 +52,7 @@ set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VER
 call :create_version_file "viorng\2012-defines.h"
 call :set_out_filename %1 %2
 call ..\tools\callVisualStudio.bat 11 viorng.sln /Rebuild "%1 Release|%2" /Out %OUT_FILENAME%
+call :fix_wdfcoinstaller_name %1 %2
 goto :eof
 
 :build_um_proivder
