@@ -76,18 +76,25 @@ SynchronizedFlushRoutine(
 BOOLEAN
 RhelDoFlush(
     PVOID DeviceExtension,
-    PSCSI_REQUEST_BLOCK Srb
+    PSCSI_REQUEST_BLOCK Srb,
+    BOOLEAN sync
     )
 {
-    return StorPortSynchronizeAccess(DeviceExtension, SynchronizedFlushRoutine, Srb);
+    if (sync) {
+       return StorPortSynchronizeAccess(DeviceExtension, SynchronizedFlushRoutine, Srb);
+    } else {
+       return SynchronizedFlushRoutine(DeviceExtension, Srb);
+    }
 }
 #else
 BOOLEAN
 RhelDoFlush(
     PVOID DeviceExtension,
-    PSCSI_REQUEST_BLOCK Srb
+    PSCSI_REQUEST_BLOCK Srb,
+    BOOLEAN sync
     )
 {
+    UNREFERENCED_PARAMETER(sync);
     return SynchronizedFlushRoutine(DeviceExtension, Srb);
 }
 #endif

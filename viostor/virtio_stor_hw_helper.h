@@ -40,7 +40,8 @@ RhelDoReadWrite(
 BOOLEAN
 RhelDoFlush(
     IN PVOID DeviceExtension,
-    PSCSI_REQUEST_BLOCK Srb
+    PSCSI_REQUEST_BLOCK Srb,
+    IN BOOLEAN sync
     );
 
 VOID

@@ -613,7 +613,7 @@ VirtIoStartIo(
         case SRB_FUNCTION_SHUTDOWN: {
             Srb->SrbStatus = SRB_STATUS_PENDING;
             Srb->ScsiStatus = SCSISTAT_GOOD;
-            if (!RhelDoFlush(DeviceExtension, Srb)) {
+            if (!RhelDoFlush(DeviceExtension, Srb, TRUE)) {
                 Srb->SrbStatus = SRB_STATUS_ERROR;
                 CompleteSRB(DeviceExtension, Srb);
             }
@@ -689,7 +689,7 @@ VirtIoStartIo(
         case SCSIOP_SYNCHRONIZE_CACHE16: {
             Srb->SrbStatus = SRB_STATUS_PENDING;
             Srb->ScsiStatus = SCSISTAT_GOOD;
-            if (!RhelDoFlush(DeviceExtension, Srb)) {
+            if (!RhelDoFlush(DeviceExtension, Srb, TRUE)) {
                 Srb->SrbStatus = SRB_STATUS_ERROR;
                 CompleteSRB(DeviceExtension, Srb);
             }
@@ -724,6 +724,8 @@ VirtIoInterrupt(
     BOOLEAN             isInterruptServiced = FALSE;
     PSCSI_REQUEST_BLOCK Srb;
     ULONG               intReason = 0;
+    PRHEL_SRB_EXTENSION srbExt;
+
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s (%d)\n", __FUNCTION__, KeGetCurrentIrql()));
@@ -757,7 +759,20 @@ VirtIoInterrupt(
 #ifdef USE_STORPORT
               --adaptExt->in_fly;
 #endif
-              CompleteDPC(DeviceExtension, vbr, 0);
+              srbExt = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
+              if (srbExt->fua) {
+                  RemoveEntryList(&vbr->list_entry);
+                  Srb->SrbStatus = SRB_STATUS_PENDING;
+                  Srb->ScsiStatus = SCSISTAT_GOOD;
+                  if (!RhelDoFlush(DeviceExtension, Srb, FALSE)) {
+                      Srb->SrbStatus = SRB_STATUS_ERROR;
+                      CompleteSRB(DeviceExtension, Srb);
+                  } else {
+                      srbExt->fua = FALSE;
+                  }
+              } else {
+                  CompleteDPC(DeviceExtension, vbr, 0);
+              }
            }
         }
     } else if (intReason == 3) {
@@ -906,6 +921,7 @@ VirtIoBuildIo(
     srbExt->vbr.out_hdr.sector = RhelGetLba(DeviceExtension, cdb);
     srbExt->vbr.out_hdr.ioprio = 0;
     srbExt->vbr.req            = (PVOID)Srb;
+    srbExt->fua                = (cdb->CDB10.ForceUnitAccess == 1);
 
     if (Srb->SrbFlags & SRB_FLAGS_DATA_OUT) {
         srbExt->vbr.out_hdr.type = VIRTIO_BLK_T_OUT;
@@ -938,6 +954,7 @@ VirtIoMSInterruptRoutine (
     PADAPTER_EXTENSION  adaptExt;
     PSCSI_REQUEST_BLOCK Srb;
     BOOLEAN             isInterruptServiced = FALSE;
+    PRHEL_SRB_EXTENSION srbExt;
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
@@ -972,7 +989,21 @@ VirtIoMSInterruptRoutine (
             adaptExt->sn_ok = TRUE;
         } else if (Srb) {
             --adaptExt->in_fly;
-            CompleteDPC(DeviceExtension, vbr, MessageID);
+
+            srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
+            if (srbExt->fua == TRUE) {
+               RemoveEntryList(&vbr->list_entry);
+               Srb->SrbStatus = SRB_STATUS_PENDING;
+               Srb->ScsiStatus = SCSISTAT_GOOD;
+               if (!RhelDoFlush(DeviceExtension, Srb, FALSE)) {
+                    Srb->SrbStatus = SRB_STATUS_ERROR;
+                    CompleteSRB(DeviceExtension, Srb);
+                } else {
+                    srbExt->fua = FALSE;
+                }
+            } else {
+                CompleteDPC(DeviceExtension, vbr, MessageID);
+            }
         }
         isInterruptServiced = TRUE;
     }
