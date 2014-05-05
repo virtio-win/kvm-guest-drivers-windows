@@ -1,3 +1,15 @@
+Date    5 May 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm102
+
+Fixed bugs:
+
+Bug 1090832  [viorng] fix the wdfcoinstaller file name.
+Bug 837324   [viostor] viostor reports support for FUA, but does not implement it.
+
+New features:
+Switch to VS2013 build system.
+
 Date    29 Apr 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm101
