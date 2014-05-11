@@ -21,25 +21,6 @@ void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue);
 //#define ROUNDSIZE(sz) ((sz + 15) & ~15)
 #define MAX_VLAN_ID     4095
 
-#if 0
-void FORCEINLINE DebugDumpPacket(LPCSTR prefix, PVOID header, int level)
-{
-    PUCHAR peth = (PUCHAR)header;
-    DPrintf(level, ("[%s] %02X%02X%02X%02X%02X%02X => %02X%02X%02X%02X%02X%02X\n", prefix,
-        peth[6], peth[7], peth[8], peth[9], peth[10], peth[11],
-        peth[0], peth[1], peth[2], peth[3], peth[4], peth[5]));
-}
-#else
-void FORCEINLINE DebugDumpPacket(LPCSTR prefix, PVOID header, int level)
-{
-    UNREFERENCED_PARAMETER(prefix);
-    UNREFERENCED_PARAMETER(header);
-    UNREFERENCED_PARAMETER(level);
-}
-#endif
-
-
-
 /**********************************************************
 Validates MAC address
 Valid MAC address is not broadcast, not multicast, not empty
@@ -59,15 +40,6 @@ BOOLEAN ParaNdis_ValidateMacAddress(PUCHAR pcMacAddress, BOOLEAN bLocal)
     bMulticast = !bBroadcast && ETH_IS_MULTICAST(pcMacAddress);
     bEmpty = ETH_IS_EMPTY(pcMacAddress);
     return !bBroadcast && !bEmpty && !bMulticast && (!bLocal || bLA);
-}
-
-static eInspectedPacketType QueryPacketType(PVOID data)
-{
-    if (ETH_IS_BROADCAST(data))
-        return iptBroadcast;
-    if (ETH_IS_MULTICAST(data))
-        return iptMilticast;
-    return iptUnicast;
 }
 
 typedef struct _tagConfigurationEntry
@@ -224,16 +196,6 @@ static void DisableLSOv6Permanently(PARANDIS_ADAPTER *pContext, LPCSTR procname,
     }
 }
 
-static void DisableBothLSOPermanently(PARANDIS_ADAPTER *pContext, LPCSTR procname, LPCSTR reason)
-{
-    if (pContext->Offload.flagsValue & (osbT4Lso | osbT6Lso))
-    {
-        DPrintf(0, ("[%s] Warning: %s\n", procname, reason));
-        pContext->Offload.flagsValue &= ~(osbT6Lso | osbT4Lso);
-        ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
-    }
-}
-
 /**********************************************************
 Loads NIC parameters from adapter registry key
 Parameters:
@@ -243,7 +205,7 @@ Parameters:
 static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddress)
 {
     NDIS_HANDLE cfg;
-    tConfigurationEntries *pConfiguration = ParaNdis_AllocateMemory(pContext, sizeof(tConfigurationEntries));
+    tConfigurationEntries *pConfiguration = (tConfigurationEntries *) ParaNdis_AllocateMemory(pContext, sizeof(tConfigurationEntries));
     if (pConfiguration)
     {
         *pConfiguration = defaultConfiguration;
@@ -438,7 +400,7 @@ static BOOLEAN GetAdapterResources(PNDIS_RESOURCE_LIST RList, tAdapterResources 
 
 static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
 {
-    const struct {  ULONG bitmask;  const PCHAR Name; } Features[] =
+    static const struct {  ULONG bitmask;  PCHAR Name; } Features[] =
     {
 
         {VIRTIO_NET_F_CSUM, "VIRTIO_NET_F_CSUM" },
@@ -502,15 +464,13 @@ static void PrintStatistics(PARANDIS_ADAPTER *pContext)
         pContext->CurrentMacAddress[5],
         pContext->NetNofReceiveBuffers,
         pContext->NetMaxReceiveBuffers));
-    DPrintf(0, ("[Diag!] TX desc available %d/%d, buf %d/min. %d\n",
-        pContext->nofFreeTxDescriptors,
+    DPrintf(0, ("[Diag!] TX desc available %d/%d, buf %d\n",
+        pContext->TXPath.GetFreeTXDescriptors(),
         pContext->maxFreeTxDescriptors,
-        pContext->nofFreeHardwareBuffers,
-        pContext->minFreeHardwareBuffers));
-    pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
-    if (pContext->NetTxPacketsToReturn)
+        pContext->TXPath.GetFreeHWBuffers()));
+    if (pContext->TXPath.GetTXPacketsToReturn())
     {
-        DPrintf(0, ("[Diag!] TX packets to return %d\n", pContext->NetTxPacketsToReturn));
+        DPrintf(0, ("[Diag!] TX packets to return %d\n", pContext->TXPath.GetTXPacketsToReturn()));
     }
     DPrintf(0, ("[Diag!] Bytes transmitted %I64u, received %I64u\n",
         pContext->Statistics.ifHCOutOctets,
@@ -679,7 +639,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
     ReadNicConfiguration(pContext, CurrentMAC);
 
     pContext->fCurrentLinkState = MediaConnectStateUnknown;
-    pContext->powerState = NetDeviceStateUnspecified;
+    pContext->powerState = NdisDeviceStateUnspecified;
 
     pContext->MaxPacketSize.nMaxFullSizeOS = pContext->MaxPacketSize.nMaxDataSize + ETH_HEADER_SIZE;
     pContext->MaxPacketSize.nMaxFullSizeHwTx = pContext->MaxPacketSize.nMaxFullSizeOS;
@@ -708,7 +668,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
         }
 
         VirtIODeviceInitialize(&pContext->IODevice, pContext->AdapterResources.ulIOAddress, sizeof(pContext->IODevice));
-        VirtIODeviceSetMSIXUsed(&pContext->IODevice, pContext->bUsingMSIX);
+        VirtIODeviceSetMSIXUsed(&pContext->IODevice, pContext->bUsingMSIX ? true : false);
         ParaNdis_ResetVirtIONetDevice(pContext);
         VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
         VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER);
@@ -788,15 +748,6 @@ static void FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescriptor 
     NdisFreeMemory(p, 0, 0);
 }
 
-static void FreeTxBufferDescriptor(PARANDIS_ADAPTER *pContext, pTxNetDescriptor pBufferDescriptor)
-{
-    if (pBufferDescriptor->DataInfo.Virtual)
-        ParaNdis_FreePhysicalMemory(pContext, &pBufferDescriptor->DataInfo);
-    if (pBufferDescriptor->HeaderInfo.Virtual)
-        ParaNdis_FreePhysicalMemory(pContext, &pBufferDescriptor->HeaderInfo);
-    NdisFreeMemory(pBufferDescriptor, 0, 0);
-}
-
 static void FreeRxDescriptorsFromList(PARANDIS_ADAPTER *pContext, PLIST_ENTRY pListRoot)
 {
     while(!IsListEmpty(pListRoot))
@@ -804,42 +755,6 @@ static void FreeRxDescriptorsFromList(PARANDIS_ADAPTER *pContext, PLIST_ENTRY pL
         pRxNetDescriptor pBufferDescriptor = (pRxNetDescriptor)RemoveHeadList(pListRoot);
         FreeRxBufferDescriptor(pContext, pBufferDescriptor);
     }
-}
-
-static void FreeTxDescriptorsFromList(PARANDIS_ADAPTER *pContext, PLIST_ENTRY pListRoot)
-{
-    while(!IsListEmpty(pListRoot))
-    {
-        pTxNetDescriptor pBufferDescriptor = (pTxNetDescriptor)RemoveHeadList(pListRoot);
-        FreeTxBufferDescriptor(pContext, pBufferDescriptor);
-    }
-}
-
-static pTxNetDescriptor CreateTxDescriptorOnInit(
-    PARANDIS_ADAPTER *pContext,
-    ULONG size1,
-    ULONG size2)
-{
-    pTxNetDescriptor p = (pTxNetDescriptor)ParaNdis_AllocateMemory(pContext, sizeof(*p));
-    if (p)
-    {
-        BOOLEAN b1 = FALSE, b2 = FALSE;
-        NdisZeroMemory(p, sizeof(*p));
-        p->HeaderInfo.size = size1;
-        p->DataInfo.size = size2;
-        p->nofUsedBuffers = 0;
-        b1 = ParaNdis_InitialAllocatePhysicalMemory(pContext, &p->HeaderInfo);
-        if (b1) b2 = ParaNdis_InitialAllocatePhysicalMemory(pContext, &p->DataInfo);
-        if (!b1 || !b2)
-        {
-            if (b1) ParaNdis_FreePhysicalMemory(pContext, &p->HeaderInfo);
-            if (b2) ParaNdis_FreePhysicalMemory(pContext, &p->DataInfo);
-            NdisFreeMemory(p, 0, 0);
-            DPrintf(0, ("[INITPHYS](TX) Failed to allocate memory block\n"));
-            return NULL;
-        }
-    }
-    return p;
 }
 
 static pRxNetDescriptor CreateRxDescriptorOnInit(
@@ -890,40 +805,6 @@ static pRxNetDescriptor CreateRxDescriptorOnInit(
 error_exit:
     FreeRxBufferDescriptor(pContext, p);
     return NULL;
-}
-
-/**********************************************************
-Allocates TX buffers according to startup setting (pContext->maxFreeTxDescriptors as got from registry)
-Buffers are chained in NetFreeSendBuffers
-Parameters:
-    context
-***********************************************************/
-static void PrepareTransmitBuffers(PARANDIS_ADAPTER *pContext)
-{
-    UINT nBuffers, nMaxBuffers;
-    DEBUG_ENTRY(4);
-    nMaxBuffers = VirtIODeviceGetQueueSize(pContext->NetSendQueue) / 2;
-    if (nMaxBuffers > pContext->maxFreeTxDescriptors) nMaxBuffers = pContext->maxFreeTxDescriptors;
-
-    for (nBuffers = 0; nBuffers < nMaxBuffers; ++nBuffers)
-    {
-        pTxNetDescriptor pBuffersDescriptor =
-            CreateTxDescriptorOnInit(
-                pContext,
-                pContext->nVirtioHeaderSize,
-                pContext->MaxPacketSize.nMaxFullSizeHwTx);
-        if (!pBuffersDescriptor) break;
-
-        NdisZeroMemory(pBuffersDescriptor->HeaderInfo.Virtual, pBuffersDescriptor->HeaderInfo.size);
-        InsertTailList(&pContext->NetFreeSendBuffers, &pBuffersDescriptor->listEntry);
-        pContext->nofFreeTxDescriptors++;
-    }
-
-    pContext->maxFreeTxDescriptors = pContext->nofFreeTxDescriptors;
-    pContext->nofFreeHardwareBuffers = pContext->nofFreeTxDescriptors * 2;
-    pContext->maxFreeHardwareBuffers = pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
-    DPrintf(0, ("[%s] available %d Tx descriptors, %d hw buffers\n",
-        __FUNCTION__, pContext->nofFreeTxDescriptors, pContext->nofFreeHardwareBuffers));
 }
 
 static BOOLEAN AddRxBufferToQueue(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBufferDescriptor)
@@ -987,7 +868,6 @@ static void DeleteQueue(PARANDIS_ADAPTER *pContext, struct virtqueue **ppq, tCom
 static void DeleteNetQueues(PARANDIS_ADAPTER *pContext)
 {
     DeleteQueue(pContext, &pContext->NetControlQueue, &pContext->ControlQueueRing);
-    DeleteQueue(pContext, &pContext->NetSendQueue, &pContext->SendQueueRing);
     DeleteQueue(pContext, &pContext->NetReceiveQueue, &pContext->ReceiveQueueRing);
 }
 
@@ -1008,9 +888,17 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 
     pContext->ControlData.size = 512;
 
+    new (&pContext->TXPath, PLACEMENT_NEW) CParaNdisTX(pContext, 1);
+    pContext->bTXPathAllocated = TRUE;
+
+    if(!pContext->TXPath.Create())
+    {
+        return status;
+    }
+    pContext->bTXPathCreated = TRUE;
+
     // We work with two virtqueues, 0 - receive and 1 - send.
     VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 0, &size, &pContext->ReceiveQueueRing.size);
-    VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 1, &size, &pContext->SendQueueRing.size);
     VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 2, &size, &pContext->ControlQueueRing.size);
     if (pContext->ReceiveQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ReceiveQueueRing))
     {
@@ -1020,17 +908,6 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
             pContext->ReceiveQueueRing.Physical,
             pContext->ReceiveQueueRing.Virtual,
             pContext->ReceiveQueueRing.size,
-            NULL,
-            pContext->bDoPublishIndices);
-    }
-    if (pContext->SendQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->SendQueueRing))
-    {
-        pContext->NetSendQueue = VirtIODevicePrepareQueue(
-            &pContext->IODevice,
-            1,
-            pContext->SendQueueRing.Physical,
-            pContext->SendQueueRing.Virtual,
-            pContext->SendQueueRing.size,
             NULL,
             pContext->bDoPublishIndices);
     }
@@ -1046,9 +923,8 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
             pContext->bDoPublishIndices);
     }
 
-    if (pContext->NetReceiveQueue && pContext->NetSendQueue)
+    if (pContext->NetReceiveQueue)
     {
-        PrepareTransmitBuffers(pContext);
         PrepareReceiveBuffers(pContext);
 
         if (pContext->NetControlQueue)
@@ -1059,16 +935,8 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
             pContext->bHasHardwareFilters = FALSE;
             pContext->bCtrlMACAddrSupported = FALSE;
         }
-        if (pContext->nofFreeTxDescriptors &&
-            pContext->NetMaxReceiveBuffers &&
-            pContext->maxFreeHardwareBuffers)
+        if (pContext->NetMaxReceiveBuffers)
         {
-            pContext->sgTxGatherTable = ParaNdis_AllocateMemory(pContext,
-                pContext->maxFreeHardwareBuffers * sizeof(pContext->sgTxGatherTable[0]));
-            if (!pContext->sgTxGatherTable)
-            {
-                DisableBothLSOPermanently(pContext, __FUNCTION__, "Can not allocate SG table");
-            }
             status = NDIS_STATUS_SUCCESS;
         }
     }
@@ -1126,15 +994,10 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     DEBUG_ENTRY(0);
 
-    NdisAllocateSpinLock(&pContext->SendLock);
-#if !defined(UNIFY_LOCKS)
     NdisAllocateSpinLock(&pContext->ReceiveLock);
-#endif
 
     InitializeListHead(&pContext->NetReceiveBuffers);
     InitializeListHead(&pContext->NetReceiveBuffersWaiting);
-    InitializeListHead(&pContext->NetSendBuffersInUse);
-    InitializeListHead(&pContext->NetFreeSendBuffers);
 
     status = ParaNdis_FinishSpecificInitialization(pContext);
 
@@ -1185,8 +1048,8 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 
     RestoreMAC(pContext);
 
-    if(pContext->NetSendQueue)
-        pContext->NetSendQueue->vq_ops->shutdown(pContext->NetSendQueue);
+    if(pContext->bTXPathCreated)
+        pContext->TXPath.Shutdown();
     if(pContext->NetReceiveQueue)
         pContext->NetReceiveQueue->vq_ops->shutdown(pContext->NetReceiveQueue);
     if(pContext->NetControlQueue)
@@ -1197,20 +1060,10 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
     /* this can be freed, queue shut down */
     FreeRxDescriptorsFromList(pContext, &pContext->NetReceiveBuffers);
 
-    /* this can be freed, queue shut down */
-    FreeTxDescriptorsFromList(pContext, &pContext->NetSendBuffersInUse);
-
-    /* this can be freed, send disabled */
-    FreeTxDescriptorsFromList(pContext, &pContext->NetFreeSendBuffers);
-
     if (pContext->ControlData.Virtual)
         ParaNdis_FreePhysicalMemory(pContext, &pContext->ControlData);
 
     PrintStatistics(pContext);
-    if (pContext->sgTxGatherTable)
-    {
-        NdisFreeMemory(pContext->sgTxGatherTable, 0, 0);
-    }
 }
 
 
@@ -1267,17 +1120,10 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 
     ParaNdis_FinalizeCleanup(pContext);
 
-    if (pContext->SendLock.SpinLock)
-    {
-        NdisFreeSpinLock(&pContext->SendLock);
-    }
-
-#if !defined(UNIFY_LOCKS)
     if (pContext->ReceiveLock.SpinLock)
     {
         NdisFreeSpinLock(&pContext->ReceiveLock);
     }
-#endif
 
     if (pContext->ReceiveQueuesInitialized)
     {
@@ -1297,6 +1143,11 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
         ParaNdis6_RSSCleanupConfiguration(&pContext->RSSParameters);
     }
 #endif
+
+    if (pContext->bTXPathAllocated)
+    {
+        pContext->TXPath.~CParaNdisTX();
+    }
 
     if (pContext->AdapterResources.ulIOAddress)
     {
@@ -1361,10 +1212,8 @@ BOOLEAN ParaNdis_OnQueuedInterrupt(
     OUT BOOLEAN *pRunDpc,
     ULONG knownInterruptSources)
 {
-    struct virtqueue* _vq = ParaNdis_GetQueueForInterrupt(pContext, knownInterruptSources);
-
     /* If interrupts for this queue (or globally) disabled do nothing */
-    if( ((_vq != NULL) && !ParaNDIS_IsQueueInterruptEnabled(_vq)) || !pContext->bDeviceInitialized )
+    if( !ParaNdis_IsInterruptSourceEnabled(pContext, knownInterruptSources) || !pContext->bDeviceInitialized )
     {
         *pRunDpc = FALSE;
     }
@@ -1453,432 +1302,6 @@ static void ReuseReceiveBufferPowerOff(PARANDIS_ADAPTER *pContext, pRxNetDescrip
 {
     RemoveEntryList(&pBuffersDescriptor->listEntry);
     InsertTailList(&pContext->NetReceiveBuffers, &pBuffersDescriptor->listEntry);
-}
-
-/**********************************************************
-It is called from Tx processing routines
-Gets all the fininshed buffer from VirtIO TX path and
-returns them to NetFreeSendBuffers
-
-Must be called with &pContext->SendLock acquired
-
-Parameters:
-    context
-Return value:
-    (for reference) number of TX buffers returned
-***********************************************************/
-UINT ParaNdis_VirtIONetReleaseTransmitBuffers(
-    PARANDIS_ADAPTER *pContext)
-{
-    UINT len, i = 0;
-    pTxNetDescriptor pBufferDescriptor;
-
-    DEBUG_ENTRY(4);
-
-    while(NULL != (pBufferDescriptor = pContext->NetSendQueue->vq_ops->get_buf(pContext->NetSendQueue, &len)))
-    {
-        RemoveEntryList(&pBufferDescriptor->listEntry);
-        pContext->nofFreeTxDescriptors++;
-        if (!pBufferDescriptor->nofUsedBuffers)
-        {
-            DPrintf(0, ("[%s] ERROR: nofUsedBuffers not set!\n", __FUNCTION__));
-        }
-        pContext->nofFreeHardwareBuffers += pBufferDescriptor->nofUsedBuffers;
-        ParaNdis_OnTransmitBufferReleased(pContext, pBufferDescriptor);
-        InsertTailList(&pContext->NetFreeSendBuffers, &pBufferDescriptor->listEntry);
-        DPrintf(3, ("[%s] Free Tx: desc %d, buff %d\n", __FUNCTION__, pContext->nofFreeTxDescriptors, pContext->nofFreeHardwareBuffers));
-        pBufferDescriptor->nofUsedBuffers = 0;
-        ++i;
-    }
-    if (i)
-    {
-        NdisGetCurrentSystemTime(&pContext->LastTxCompletionTimeStamp);
-        pContext->bDoKickOnNoBuffer = TRUE;
-        pContext->nDetectedStoppedTx = 0;
-    }
-    DEBUG_EXIT_STATUS((i ? 3 : 5), i);
-    return i;
-}
-
-static ULONG FORCEINLINE QueryTcpHeaderOffset(PVOID packetData, ULONG ipHeaderOffset, ULONG ipPacketLength)
-{
-    ULONG res;
-    tTcpIpPacketParsingResult ppr = ParaNdis_ReviewIPPacket(
-        (PUCHAR)packetData + ipHeaderOffset,
-        ipPacketLength,
-        __FUNCTION__);
-    if (ppr.xxpStatus == ppresXxpKnown)
-    {
-        res = ipHeaderOffset + ppr.ipHeaderSize;
-    }
-    else
-    {
-        DPrintf(0, ("[%s] ERROR: NOT a TCP or UDP packet - expected troubles!\n", __FUNCTION__));
-        res = 0;
-    }
-    return res;
-}
-
-
-/*********************************************************
-Called with from ProcessTx routine with TxLock held
-Uses pContext->sgTxGatherTable
-***********************************************************/
-tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperationParameters *Params)
-{
-    tCopyPacketResult result;
-    tMapperResult mapResult = {0,0,0};
-    // populating priority tag or LSO MAY require additional SG element
-    UINT nRequiredBuffers;
-    BOOLEAN bUseCopy = FALSE;
-    struct VirtIOBufferDescriptor *sg = pContext->sgTxGatherTable;
-
-    nRequiredBuffers = Params->nofSGFragments + 1 + ((Params->flags & (pcrPriorityTag | pcrLSO)) ? 1 : 0);
-
-    result.size = 0;
-    result.error = cpeOK;
-    if (Params->nofSGFragments == 0 ||          // theoretical case
-        !sg ||                                  // only copy available
-        ((~Params->flags & pcrLSO) && nRequiredBuffers > pContext->maxFreeHardwareBuffers) // to many fragments and normal size of packet
-        )
-    {
-        nRequiredBuffers = 2;
-        bUseCopy = TRUE;
-    }
-    else if (pContext->bUseIndirect && !(Params->flags & pcrNoIndirect))
-    {
-        nRequiredBuffers = 1;
-    }
-
-    // I do not think this will help, but at least we can try freeing some buffers right now
-    if (pContext->nofFreeHardwareBuffers < nRequiredBuffers || !pContext->nofFreeTxDescriptors)
-    {
-        ParaNdis_VirtIONetReleaseTransmitBuffers(pContext);
-    }
-
-    if (nRequiredBuffers > pContext->maxFreeHardwareBuffers)
-    {
-        // LSO and too many buffers, impossible to send
-        result.error = cpeTooLarge;
-        DPrintf(0, ("[%s] ERROR: too many fragments(%d required, %d max.avail)!\n", __FUNCTION__,
-            nRequiredBuffers, pContext->maxFreeHardwareBuffers));
-    }
-    else if (pContext->nofFreeHardwareBuffers < nRequiredBuffers || !pContext->nofFreeTxDescriptors)
-    {
-        pContext->NetSendQueue->vq_ops->delay_interrupt(pContext->NetSendQueue);
-        result.error = cpeNoBuffer;
-    }
-    else if (Params->offloalMss && bUseCopy)
-    {
-        result.error = cpeInternalError;
-        DPrintf(0, ("[%s] ERROR: expecting SG for TSO! (%d buffers, %d bytes)\n", __FUNCTION__,
-            Params->nofSGFragments, Params->ulDataSize));
-    }
-    else if (bUseCopy)
-    {
-        result = ParaNdis_DoCopyPacketData(pContext, Params);
-    }
-    else
-    {
-        UINT nMappedBuffers;
-        ULONGLONG paOfIndirectArea = 0;
-        PVOID vaOfIndirectArea = NULL;
-        pTxNetDescriptor pBuffersDescriptor = (pTxNetDescriptor)RemoveHeadList(&pContext->NetFreeSendBuffers);
-        pContext->nofFreeTxDescriptors--;
-        NdisZeroMemory(pBuffersDescriptor->HeaderInfo.Virtual, pBuffersDescriptor->HeaderInfo.size);
-        sg[0].physAddr = pBuffersDescriptor->HeaderInfo.Physical;
-        sg[0].ulSize = pBuffersDescriptor->HeaderInfo.size;
-        ParaNdis_PacketMapper(
-            pContext,
-            Params->packet,
-            Params->ReferenceValue,
-            sg + 1,
-            pBuffersDescriptor,
-            &mapResult);
-        nMappedBuffers = mapResult.usBuffersMapped;
-        if (nMappedBuffers)
-        {
-            nMappedBuffers++;
-            if (pContext->bUseIndirect && !(Params->flags & pcrNoIndirect))
-            {
-                ULONG space1 = (mapResult.usBufferSpaceUsed + 7) & ~7;
-                ULONG space2 = nMappedBuffers * SIZE_OF_SINGLE_INDIRECT_DESC;
-                if (pBuffersDescriptor->DataInfo.size >= (space1 + space2))
-                {
-                    vaOfIndirectArea = RtlOffsetToPointer(pBuffersDescriptor->DataInfo.Virtual, space1);
-                    paOfIndirectArea = pBuffersDescriptor->DataInfo.Physical.QuadPart + space1;
-                    pContext->extraStatistics.framesIndirect++;
-                }
-                else if (nMappedBuffers <= pContext->nofFreeHardwareBuffers)
-                {
-                    // send as is, no indirect
-                }
-                else
-                {
-                    result.error = cpeNoIndirect;
-                    DPrintf(0, ("[%s] Unexpected ERROR of placement!\n", __FUNCTION__));
-                }
-            }
-            if (result.error == cpeOK)
-            {
-                if (Params->flags & (pcrTcpChecksum | pcrUdpChecksum))
-                {
-                    unsigned short addPriorityLen = (Params->flags & pcrPriorityTag) ? ETH_PRIORITY_HEADER_SIZE : 0;
-
-                    virtio_net_hdr_basic *pheader = pBuffersDescriptor->HeaderInfo.Virtual;
-                    pheader->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
-                    if (!Params->tcpHeaderOffset)
-                    {
-                        Params->tcpHeaderOffset = QueryTcpHeaderOffset(
-                            pBuffersDescriptor->DataInfo.Virtual,
-                            pContext->Offload.ipHeaderOffset + addPriorityLen,
-                            mapResult.usBufferSpaceUsed - pContext->Offload.ipHeaderOffset - addPriorityLen);
-                    }
-                    else
-                    {
-                        Params->tcpHeaderOffset += addPriorityLen;
-                    }
-                    pheader->csum_start = (USHORT)Params->tcpHeaderOffset;
-                    pheader->csum_offset = (Params->flags & pcrTcpChecksum) ? TCP_CHECKSUM_OFFSET : UDP_CHECKSUM_OFFSET;
-                }
-
-                if (0 <= pContext->NetSendQueue->vq_ops->add_buf(
-                    pContext->NetSendQueue,
-                    sg,
-                    nMappedBuffers,
-                    0,
-                    pBuffersDescriptor,
-                    vaOfIndirectArea,
-                    paOfIndirectArea))
-                {
-                    pBuffersDescriptor->nofUsedBuffers = nMappedBuffers;
-                    pContext->nofFreeHardwareBuffers -= nMappedBuffers;
-                    if (pContext->minFreeHardwareBuffers > pContext->nofFreeHardwareBuffers)
-                        pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
-                    pBuffersDescriptor->ReferenceValue = Params->ReferenceValue;
-                    result.size = Params->ulDataSize;
-                    DPrintf(2, ("[%s] Submitted %d buffers (%d bytes), avail %d desc, %d bufs\n",
-                        __FUNCTION__, nMappedBuffers, result.size,
-                        pContext->nofFreeTxDescriptors, pContext->nofFreeHardwareBuffers
-                    ));
-                }
-                else
-                {
-                    result.error = cpeInternalError;
-                    DPrintf(0, ("[%s] Unexpected ERROR adding buffer to TX engine!..\n", __FUNCTION__));
-                }
-            }
-        }
-        else
-        {
-            DPrintf(0, ("[%s] Unexpected ERROR: packet not mapped\n!", __FUNCTION__));
-            result.error = cpeInternalError;
-        }
-
-        if (result.error == cpeOK)
-        {
-            UCHAR ethernetHeader[sizeof(ETH_HEADER)];
-            eInspectedPacketType packetType;
-            /* get the ethernet header for review */
-            ParaNdis_PacketCopier(Params->packet, ethernetHeader, sizeof(ethernetHeader), Params->ReferenceValue, TRUE);
-            packetType = QueryPacketType(ethernetHeader);
-            DebugDumpPacket("sending", ethernetHeader, 3);
-            InsertTailList(&pContext->NetSendBuffersInUse, &pBuffersDescriptor->listEntry);
-            pContext->Statistics.ifHCOutOctets += result.size;
-            switch (packetType)
-            {
-                case iptBroadcast:
-                    pContext->Statistics.ifHCOutBroadcastOctets += result.size;
-                    pContext->Statistics.ifHCOutBroadcastPkts++;
-                    break;
-                case iptMilticast:
-                    pContext->Statistics.ifHCOutMulticastOctets += result.size;
-                    pContext->Statistics.ifHCOutMulticastPkts++;
-                    break;
-                default:
-                    pContext->Statistics.ifHCOutUcastOctets += result.size;
-                    pContext->Statistics.ifHCOutUcastPkts++;
-                    break;
-            }
-
-            if (Params->flags & pcrLSO)
-                pContext->extraStatistics.framesLSO++;
-        }
-        else
-        {
-            pContext->nofFreeTxDescriptors++;
-            InsertHeadList(&pContext->NetFreeSendBuffers, &pBuffersDescriptor->listEntry);
-        }
-    }
-    if (result.error == cpeNoBuffer && pContext->bDoKickOnNoBuffer)
-    {
-        pContext->NetSendQueue->vq_ops->kick_always(pContext->NetSendQueue);
-        pContext->bDoKickOnNoBuffer = FALSE;
-    }
-    if (result.error == cpeOK)
-    {
-        if (Params->flags & (pcrTcpChecksum | pcrUdpChecksum))
-            pContext->extraStatistics.framesCSOffload++;
-    }
-    return result;
-}
-
-
-/**********************************************************
-It is called from Tx processing routines
-Prepares the VirtIO buffer and copies to it the data from provided packet
-
-Must be called with &pContext->SendLock acquired
-
-Parameters:
-    context
-    tPacketType packet          specific type is NDIS dependent
-    tCopyPacketDataFunction     PacketCopier procedure for NDIS-specific type of packet
-Return value:
-    (for reference) number of TX buffers returned
-***********************************************************/
-tCopyPacketResult ParaNdis_DoCopyPacketData(
-    PARANDIS_ADAPTER *pContext,
-    tTxOperationParameters *pParams)
-{
-    tCopyPacketResult result;
-    tCopyPacketResult CopierResult;
-    struct VirtIOBufferDescriptor sg[2];
-    pTxNetDescriptor pBuffersDescriptor = NULL;
-    ULONG flags = pParams->flags;
-    UINT nRequiredHardwareBuffers = 2;
-    result.size  = 0;
-    result.error = cpeOK;
-    if (pContext->nofFreeHardwareBuffers < nRequiredHardwareBuffers ||
-        IsListEmpty(&pContext->NetFreeSendBuffers))
-    {
-        result.error = cpeNoBuffer;
-    }
-    if(result.error == cpeOK)
-    {
-        pBuffersDescriptor = (pTxNetDescriptor)RemoveHeadList(&pContext->NetFreeSendBuffers);
-        NdisZeroMemory(pBuffersDescriptor->HeaderInfo.Virtual, pBuffersDescriptor->HeaderInfo.size);
-        sg[0].physAddr = pBuffersDescriptor->HeaderInfo.Physical;
-        sg[0].ulSize = pBuffersDescriptor->HeaderInfo.size;
-        sg[1].physAddr = pBuffersDescriptor->DataInfo.Physical;
-        CopierResult = ParaNdis_PacketCopier(
-            pParams->packet,
-            pBuffersDescriptor->DataInfo.Virtual,
-            pBuffersDescriptor->DataInfo.size,
-            pParams->ReferenceValue,
-            FALSE);
-        sg[1].ulSize = result.size = CopierResult.size;
-        // did NDIS ask us to compute CS?
-        if ((flags & (pcrTcpChecksum | pcrUdpChecksum | pcrIpChecksum)) != 0)
-        {
-            // we asked
-            unsigned short addPriorityLen = (pParams->flags & pcrPriorityTag) ? ETH_PRIORITY_HEADER_SIZE : 0;
-            PVOID ipPacket = RtlOffsetToPointer(
-                pBuffersDescriptor->DataInfo.Virtual, pContext->Offload.ipHeaderOffset + addPriorityLen);
-            ULONG ipPacketLength = CopierResult.size - pContext->Offload.ipHeaderOffset - addPriorityLen;
-            if (!pParams->tcpHeaderOffset &&
-                (flags & (pcrTcpChecksum | pcrUdpChecksum)) )
-            {
-                pParams->tcpHeaderOffset = QueryTcpHeaderOffset(
-                    pBuffersDescriptor->DataInfo.Virtual,
-                    pContext->Offload.ipHeaderOffset + addPriorityLen,
-                    ipPacketLength);
-            }
-            else
-            {
-                pParams->tcpHeaderOffset += addPriorityLen;
-            }
-
-            if (flags & (pcrTcpChecksum | pcrUdpChecksum))
-            {
-                // hardware offload
-                virtio_net_hdr_basic *pvnh = (virtio_net_hdr_basic *)pBuffersDescriptor->HeaderInfo.Virtual;
-                pvnh->csum_start = (USHORT)pParams->tcpHeaderOffset;
-                pvnh->csum_offset = (flags & pcrTcpChecksum) ? TCP_CHECKSUM_OFFSET : UDP_CHECKSUM_OFFSET;
-                pvnh->flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM;
-            }
-            if (flags & (pcrIpChecksum))
-            {
-                ParaNdis_CheckSumVerifyFlat(
-                    ipPacket,
-                    ipPacketLength,
-                    pcrIpChecksum | pcrFixIPChecksum,
-                    __FUNCTION__);
-            }
-        }
-        pContext->nofFreeTxDescriptors--;
-        if (result.size)
-        {
-            eInspectedPacketType packetType;
-            packetType = QueryPacketType(pBuffersDescriptor->DataInfo.Virtual);
-            DebugDumpPacket("sending", pBuffersDescriptor->DataInfo.Virtual, 3);
-
-            pBuffersDescriptor->nofUsedBuffers = nRequiredHardwareBuffers;
-            pContext->nofFreeHardwareBuffers -= nRequiredHardwareBuffers;
-            if (pContext->minFreeHardwareBuffers > pContext->nofFreeHardwareBuffers)
-                pContext->minFreeHardwareBuffers = pContext->nofFreeHardwareBuffers;
-            if (0 > pContext->NetSendQueue->vq_ops->add_buf(
-                pContext->NetSendQueue,
-                sg,
-                2,
-                0,
-                pBuffersDescriptor,
-                NULL,
-                0
-                ))
-            {
-                pBuffersDescriptor->nofUsedBuffers = 0;
-                pContext->nofFreeHardwareBuffers += nRequiredHardwareBuffers;
-                result.error = cpeInternalError;
-                result.size  = 0;
-                DPrintf(0, ("[%s] Unexpected ERROR adding buffer to TX engine!..\n", __FUNCTION__));
-            }
-            else
-            {
-                DPrintf(2, ("[%s] Submitted %d buffers (%d bytes), avail %d desc, %d bufs\n",
-                    __FUNCTION__, nRequiredHardwareBuffers, result.size,
-                    pContext->nofFreeTxDescriptors, pContext->nofFreeHardwareBuffers
-                ));
-            }
-            if (result.error != cpeOK)
-            {
-                InsertTailList(&pContext->NetFreeSendBuffers, &pBuffersDescriptor->listEntry);
-                pContext->nofFreeTxDescriptors++;
-            }
-            else
-            {
-                ULONG reportedSize = pParams->ulDataSize;
-                pBuffersDescriptor->ReferenceValue = pParams->ReferenceValue;
-                InsertTailList(&pContext->NetSendBuffersInUse, &pBuffersDescriptor->listEntry);
-                pContext->Statistics.ifHCOutOctets += reportedSize;
-                switch (packetType)
-                {
-                    case iptBroadcast:
-                        pContext->Statistics.ifHCOutBroadcastOctets += reportedSize;
-                        pContext->Statistics.ifHCOutBroadcastPkts++;
-                        break;
-                    case iptMilticast:
-                        pContext->Statistics.ifHCOutMulticastOctets += reportedSize;
-                        pContext->Statistics.ifHCOutMulticastPkts++;
-                        break;
-                    default:
-                        pContext->Statistics.ifHCOutUcastOctets += reportedSize;
-                        pContext->Statistics.ifHCOutUcastPkts++;
-                        break;
-                }
-            }
-        }
-        else
-        {
-            DPrintf(0, ("[%s] Unexpected ERROR in copying packet data! Continue...\n", __FUNCTION__));
-            InsertTailList(&pContext->NetFreeSendBuffers, &pBuffersDescriptor->listEntry);
-            pContext->nofFreeTxDescriptors++;
-            // the buffer is not copied and the callback will not be called
-            result.error = cpeInternalError;
-        }
-    }
-
-    return result;
 }
 
 static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacketInfo)
@@ -2049,7 +1472,7 @@ static VOID ProcessRxRing(PARANDIS_ADAPTER *pContext, CCHAR nCurrCpuReceiveQueue
 
     NdisAcquireSpinLock(&pContext->ReceiveLock);
 
-    while (NULL != (pBufferDescriptor = pContext->NetReceiveQueue->vq_ops->get_buf(pContext->NetReceiveQueue, &nFullLength)))
+    while (NULL != (pBufferDescriptor = (pRxNetDescriptor) pContext->NetReceiveQueue->vq_ops->get_buf(pContext->NetReceiveQueue, &nFullLength)))
     {
         CCHAR nTargetReceiveQueueNum;
         GROUP_AFFINITY TargetAffinity;
@@ -2225,7 +1648,7 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
     DEBUG_ENTRY(5);
     if (pContext->bEnableInterruptHandlingDPC)
     {
-        BOOLEAN bDoKick = FALSE;
+        bool bDoKick = false;
 
         InterlockedIncrement(&pContext->counterDPCInside);
         InterlockedExchange(&pContext->bDPCInactive, 0);
@@ -2245,24 +1668,14 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
         }
         if (interruptSources & isTransmit)
         {
-            bDoKick = ParaNdis_ProcessTx(pContext, TRUE, TRUE);
-
-            NdisAcquireSpinLock(&pContext->SendLock);
-            if (ParaNdis_SynchronizeWithInterrupt(pContext, pContext->ulTxMessage, RestartQueueSynchronously, pContext->NetSendQueue))
-                stillRequiresProcessing |= isTransmit;
-            if(bDoKick)
+            bDoKick = pContext->TXPath.DoPendingTasks(true);
+            if(pContext->TXPath.RestartQueue(bDoKick))
             {
-#ifdef PARANDIS_TEST_TX_KICK_ALWAYS
-                pContext->NetSendQueue->vq_ops->kick_always(pContext->NetSendQueue);
-#else
-                pContext->NetSendQueue->vq_ops->kick(pContext->NetSendQueue);
-#endif
+                stillRequiresProcessing |= isTransmit;
             }
-            NdisReleaseSpinLock(&pContext->SendLock);
         }
 
         InterlockedDecrement(&pContext->counterDPCInside);
-        ParaNdis_DebugHistory(pContext, hopDPC, NULL, stillRequiresProcessing, pContext->nofFreeHardwareBuffers, pContext->nofFreeTxDescriptors);
     }
     return stillRequiresProcessing;
 }
@@ -2312,20 +1725,17 @@ static BOOLEAN CheckRunningDpc(PARANDIS_ADAPTER *pContext)
         pContext->nDetectedInactivity = 0;
     }
 
-    NdisAcquireSpinLock(&pContext->SendLock);
-    if (pContext->nofFreeHardwareBuffers != pContext->maxFreeHardwareBuffers)
+    if (pContext->TXPath.HasHWBuffersIsUse())
     {
         if (pContext->nDetectedStoppedTx++ > 1)
         {
-            DPrintf(0, ("[%s] - Suspicious Tx inactivity (%d)!\n", __FUNCTION__, pContext->nofFreeHardwareBuffers));
+            DPrintf(0, ("[%s] - Suspicious Tx inactivity (%d)!\n", __FUNCTION__, pContext->TXPath.GetFreeHWBuffers()));
             //bReportHang = TRUE;
 #ifdef DBG_USE_VIRTIO_PCI_ISR_FOR_HOST_REPORT
             WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 0);
 #endif
         }
     }
-    NdisReleaseSpinLock(&pContext->SendLock);
-
 
     if (pContext->Limits.nPrintDiagnostic &&
         ++pContext->Counters.nPrintDiagnostic >= pContext->Limits.nPrintDiagnostic)
@@ -2503,7 +1913,7 @@ Parameters:
 VOID ParaNdis_VirtIOEnableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
 {
     if (interruptSource & isTransmit)
-        pContext->NetSendQueue->vq_ops->enable_interrupt(pContext->NetSendQueue);
+        pContext->TXPath.EnableInterrupts();
     if (interruptSource & isReceive)
         pContext->NetReceiveQueue->vq_ops->enable_interrupt(pContext->NetReceiveQueue);
     ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, TRUE, 0);
@@ -2512,7 +1922,7 @@ VOID ParaNdis_VirtIOEnableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG inte
 VOID ParaNdis_VirtIODisableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
 {
     if (interruptSource & isTransmit)
-        pContext->NetSendQueue->vq_ops->disable_interrupt(pContext->NetSendQueue);
+        pContext->TXPath.DisableInterrupts();
     if (interruptSource & isReceive)
         pContext->NetReceiveQueue->vq_ops->disable_interrupt(pContext->NetReceiveQueue);
     ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, FALSE, 0);
@@ -2779,7 +2189,7 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     VirtIODeviceWriteGuestFeatures(&pContext->IODevice, pContext->u32GuestFeatures);
 
     VirtIODeviceRenewQueue(pContext->NetReceiveQueue);
-    VirtIODeviceRenewQueue(pContext->NetSendQueue);
+    pContext->TXPath.Renew();
 
     if(pContext->NetControlQueue)
         VirtIODeviceRenewQueue(pContext->NetControlQueue);
@@ -2877,17 +2287,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
         all the transmit buffers move to list of free buffers
     ********************************************************************/
 
-    NdisAcquireSpinLock(&pContext->SendLock);
-    pContext->NetSendQueue->vq_ops->shutdown(pContext->NetSendQueue);
-    while (!IsListEmpty(&pContext->NetSendBuffersInUse))
-    {
-        pTxNetDescriptor pBufferDescriptor =
-            (pTxNetDescriptor)RemoveHeadList(&pContext->NetSendBuffersInUse);
-        InsertTailList(&pContext->NetFreeSendBuffers, &pBufferDescriptor->listEntry);
-        pContext->nofFreeTxDescriptors++;
-        pContext->nofFreeHardwareBuffers += pBufferDescriptor->nofUsedBuffers;
-    }
-    NdisReleaseSpinLock(&pContext->SendLock);
+    pContext->TXPath.Shutdown();
 
     NdisAcquireSpinLock(&pContext->ReceiveLock);
     pContext->NetReceiveQueue->vq_ops->shutdown(pContext->NetReceiveQueue);

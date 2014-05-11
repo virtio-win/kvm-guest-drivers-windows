@@ -136,11 +136,11 @@ BOOLEAN AllocateCPUMappingArray(NDIS_HANDLE NdisHandle, PPARANDIS_SCALING_SETTIN
 {
     ULONG i;
     ULONG CPUNumber = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
-    PCHAR NewCPUMappingArray = NdisAllocateMemoryWithTagPriority(
-                                                                NdisHandle,
-                                                                sizeof(CCHAR) * CPUNumber,
-                                                                PARANDIS_MEMORY_TAG,
-                                                                NormalPoolPriority);
+    PCHAR NewCPUMappingArray = (PCHAR) NdisAllocateMemoryWithTagPriority(
+                                                                            NdisHandle,
+                                                                            sizeof(CCHAR) * CPUNumber,
+                                                                            PARANDIS_MEMORY_TAG,
+                                                                            NormalPoolPriority);
 
     if(!NewCPUMappingArray)
         return FALSE;

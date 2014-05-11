@@ -10,8 +10,12 @@
  *
 **********************************************************************/
 #include "ndis56common.h"
+
+extern "C"
+{
 #include "stdarg.h"
 #include "ntstrsafe.h"
+}
 
 int virtioDebugLevel = 0;
 int bDebugPrint = 1;
@@ -215,8 +219,8 @@ static UINT FillDataOnBugCheck()
         tBugCheckPerNicDataContent *pSave = &BugCheckData.StaticData.PerNicData[i];
         PARANDIS_ADAPTER *p = (PARANDIS_ADAPTER *)(UINT_PTR)pSave->Context;
         if (!p) continue;
-        pSave->nofPacketsToComplete = p->NetTxPacketsToReturn;
-        pSave->nofReadyTxBuffers = p->nofFreeHardwareBuffers;
+        pSave->nofPacketsToComplete = p->TXPath.GetTXPacketsToReturn();
+        pSave->nofReadyTxBuffers = p->TXPath.GetFreeHWBuffers();
         pSave->LastInterruptTimeStamp.QuadPart = PARADNIS_GET_LAST_INTERRUPT_TIMESTAMP(p);
         pSave->LastTxCompletionTimeStamp = p->LastTxCompletionTimeStamp;
         ParaNdis_CallOnBugCheck(p);

@@ -12,7 +12,6 @@
 #ifndef PARA_NDIS6_H
 #define PARA_NDIS6_H
 
-#undef __cplusplus
 #pragma warning (disable: 4201 4214 4115 4127) // disable annoying warnings in NDIS
 
 #include "ndis56common.h"
@@ -32,11 +31,6 @@ MINIPORT_OID_REQUEST ParaNdis6_OidRequest;
 NDIS_STATUS ParaNdis6_OidRequest(
     NDIS_HANDLE miniportAdapterContext,
     PNDIS_OID_REQUEST  pNdisRequest);
-
-VOID ParaNdis6_Send(
-    PARANDIS_ADAPTER *pContext,
-    PNET_BUFFER_LIST pNBL,
-    BOOLEAN IsDpc);
 
 MINIPORT_CANCEL_SEND ParaNdis6_CancelSendNetBufferLists;
 VOID ParaNdis6_CancelSendNetBufferLists(

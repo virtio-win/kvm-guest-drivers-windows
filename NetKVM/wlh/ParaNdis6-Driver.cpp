@@ -14,25 +14,28 @@
 #include "ParaNdis6.h"
 #include "ParaNdis-Oid.h"
 
+extern "C"
+{
 #if NDIS_SUPPORT_NDIS6
-static NDIS_IO_WORKITEM_FUNCTION OnResetWorkItem;
-static MINIPORT_ADD_DEVICE ParaNdis6_AddDevice;
-static MINIPORT_REMOVE_DEVICE ParaNdis6_RemoveDevice;
-static MINIPORT_INITIALIZE ParaNdis6_Initialize;
-static MINIPORT_HALT ParaNdis6_Halt;
-static MINIPORT_UNLOAD ParaNdis6_Unload;
-static MINIPORT_PAUSE ParaNdis6_Pause;
-static MINIPORT_RESTART ParaNdis6_Restart;
-static MINIPORT_CHECK_FOR_HANG ParaNdis6_CheckForHang;
-static MINIPORT_RESET ParaNdis6_Reset;
-static MINIPORT_SHUTDOWN ParaNdis6_AdapterShutdown;
-static MINIPORT_DEVICE_PNP_EVENT_NOTIFY ParaNdis6_DevicePnPEvent;
-static SET_OPTIONS ParaNdis6_SetOptions;
-static MINIPORT_SEND_NET_BUFFER_LISTS ParaNdis6_SendNetBufferLists;
+    static NDIS_IO_WORKITEM_FUNCTION OnResetWorkItem;
+    static MINIPORT_ADD_DEVICE ParaNdis6_AddDevice;
+    static MINIPORT_REMOVE_DEVICE ParaNdis6_RemoveDevice;
+    static MINIPORT_INITIALIZE ParaNdis6_Initialize;
+    static MINIPORT_HALT ParaNdis6_Halt;
+    static MINIPORT_UNLOAD ParaNdis6_Unload;
+    static MINIPORT_PAUSE ParaNdis6_Pause;
+    static MINIPORT_RESTART ParaNdis6_Restart;
+    static MINIPORT_CHECK_FOR_HANG ParaNdis6_CheckForHang;
+    static MINIPORT_RESET ParaNdis6_Reset;
+    static MINIPORT_SHUTDOWN ParaNdis6_AdapterShutdown;
+    static MINIPORT_DEVICE_PNP_EVENT_NOTIFY ParaNdis6_DevicePnPEvent;
+    static SET_OPTIONS ParaNdis6_SetOptions;
+    static MINIPORT_SEND_NET_BUFFER_LISTS ParaNdis6_SendNetBufferLists;
 #if NDIS_SUPPORT_NDIS61
-static MINIPORT_DIRECT_OID_REQUEST ParaNdis6x_DirectOidRequest;
-static MINIPORT_CANCEL_DIRECT_OID_REQUEST ParaNdis6x_CancelDirectOidRequest;
+    static MINIPORT_DIRECT_OID_REQUEST ParaNdis6x_DirectOidRequest;
+    static MINIPORT_CANCEL_DIRECT_OID_REQUEST ParaNdis6x_CancelDirectOidRequest;
 #endif
+}
 
 
 //#define NO_VISTA_POWER_MANAGEMENT
@@ -116,7 +119,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
     NDIS_HANDLE miniportDriverContext,
     PNDIS_MINIPORT_INIT_PARAMETERS miniportInitParameters)
 {
-    NDIS_MINIPORT_ADAPTER_ATTRIBUTES        miniportAttributes;
+    NDIS_MINIPORT_ADAPTER_ATTRIBUTES        miniportAttributes = {};
     NDIS_STATUS  status = NDIS_STATUS_SUCCESS;
     BOOLEAN bNoPauseOnSuspend = FALSE;
     PARANDIS_ADAPTER *pContext;
@@ -259,7 +262,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
             InitializeListHead(&pContext->ReceiveQueues[i].BuffersList);
 
             pContext->ReceiveQueues[i].BatchReceiveArray =
-                ParaNdis_AllocateMemory(pContext, sizeof(*pContext->ReceiveQueues[i].BatchReceiveArray)*pContext->NetMaxReceiveBuffers);
+                (tPacketIndicationType *)ParaNdis_AllocateMemory(pContext, sizeof(*pContext->ReceiveQueues[i].BatchReceiveArray)*pContext->NetMaxReceiveBuffers);
             if(!pContext->ReceiveQueues[i].BatchReceiveArray)
             {
                 pContext->ReceiveQueues[i].BatchReceiveArray = &pContext->ReceiveQueues[i].BatchReceiveEmergencyItem;
@@ -362,10 +365,11 @@ static VOID ParaNdis6_Unload(IN PDRIVER_OBJECT pDriverObject)
 /**********************************************************
     callback from asynchronous RECEIVE PAUSE
 ***********************************************************/
-static void OnReceivePauseComplete(PARANDIS_ADAPTER *pContext)
+static void OnReceivePauseComplete(void *ctx)
 {
     DEBUG_ENTRY(0);
     // pause exit
+    PPARANDIS_ADAPTER pContext = (PPARANDIS_ADAPTER) ctx;
     ParaNdis_DebugHistory(pContext, hopSysPause, NULL, 0, 0, 0);
     NdisMPauseComplete(pContext->MiniportHandle);
 }
@@ -373,9 +377,10 @@ static void OnReceivePauseComplete(PARANDIS_ADAPTER *pContext)
 /**********************************************************
     callback from asynchronous SEND PAUSE
 ***********************************************************/
-static void OnSendPauseComplete(PARANDIS_ADAPTER *pContext)
+static void OnSendPauseComplete(void *ctx)
 {
-    NDIS_STATUS  status;
+    PPARANDIS_ADAPTER pContext = (PPARANDIS_ADAPTER) ctx;
+    NDIS_STATUS status;
     DEBUG_ENTRY(0);
     status = ParaNdis6_ReceivePauseRestart(pContext, TRUE, OnReceivePauseComplete);
     if (status != NDIS_STATUS_PENDING)
@@ -454,13 +459,11 @@ static VOID ParaNdis6_SendNetBufferLists(
     NDIS_HANDLE miniportAdapterContext,
     PNET_BUFFER_LIST    pNBL,
     NDIS_PORT_NUMBER    portNumber,
-    ULONG               sendFlags)
+    ULONG               /* sendFlags */)
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
-
     UNREFERENCED_PARAMETER(portNumber);
-
-    ParaNdis6_Send(pContext, pNBL, !!(sendFlags & NDIS_SEND_FLAGS_DISPATCH_LEVEL));
+    pContext->TXPath.Send(pNBL);
 }
 
 /**********************************************************
@@ -477,18 +480,20 @@ static BOOLEAN ParaNdis6_CheckForHang(
 /**********************************************************
     callback from asynchronous SEND PAUSE on reset
 ***********************************************************/
-static void OnSendPauseCompleteOnReset(PARANDIS_ADAPTER *pContext)
+static void OnSendPauseCompleteOnReset(void *ctx)
 {
     DEBUG_ENTRY(0);
+    PPARANDIS_ADAPTER pContext = (PPARANDIS_ADAPTER) ctx;
     NdisSetEvent(&pContext->ResetEvent);
 }
 
 /**********************************************************
     callback from asynchronous RECEIVE PAUSE on reset
 ***********************************************************/
-static void OnReceivePauseCompleteOnReset(PARANDIS_ADAPTER *pContext)
+static void OnReceivePauseCompleteOnReset(void *ctx)
 {
     DEBUG_ENTRY(0);
+    PPARANDIS_ADAPTER pContext = (PPARANDIS_ADAPTER) ctx;
     NdisSetEvent(&pContext->ResetEvent);
 }
 
@@ -561,7 +566,7 @@ static NDIS_STATUS ParaNdis6_Reset(
     *pAddressingReset = TRUE;
     ParaNdis_DebugHistory(pContext, hopSysReset, NULL, 1, 0, 0);
     hwo = NdisAllocateIoWorkItem(pContext->MiniportHandle);
-    pwi = ParaNdis_AllocateMemory(pContext, sizeof(tGeneralWorkItem));
+    pwi = (tGeneralWorkItem *)ParaNdis_AllocateMemory(pContext, sizeof(tGeneralWorkItem));
     if (pwi && hwo)
     {
         pwi->pContext = pContext;
@@ -888,7 +893,7 @@ static NDIS_STATUS ReadGlobalConfigurationEntry(NDIS_HANDLE cfg, const char *_na
 {
     NDIS_STATUS status;
     PNDIS_CONFIGURATION_PARAMETER pParam = NULL;
-    NDIS_STRING name = {0};
+    NDIS_STRING name = {};
     const char *statusName;
     NDIS_PARAMETER_TYPE ParameterType = NdisParameterInteger;
     NdisInitializeString(&name, (PUCHAR)_name);
@@ -929,9 +934,7 @@ static void RetrieveDriverConfiguration()
     status = NdisOpenConfigurationEx(&co, &cfg);
     if (status == NDIS_STATUS_SUCCESS)
     {
-        NDIS_STRING paramsName = {0};
-#pragma warning(push)
-#pragma warning(disable:6102)
+        NDIS_STRING paramsName = {};
         NdisInitializeString(&paramsName, (PUCHAR)"Parameters");
         NdisOpenConfigurationKeyByName(&status, cfg, &paramsName, &params);
         if (status == NDIS_STATUS_SUCCESS)
@@ -940,7 +943,6 @@ static void RetrieveDriverConfiguration()
             ReadGlobalConfigurationEntry(params, "EarlyDebug", (PULONG)&resourceFilterLevel);
             NdisCloseConfiguration(params);
         }
-#pragma warning(pop)
         NdisCloseConfiguration(cfg);
         if (paramsName.Buffer) NdisFreeString(paramsName);
     }
@@ -974,7 +976,12 @@ Return value:
     status of driver registration
 ***********************************************************/
 // this is for OACR
+
+extern "C"
+{
 DRIVER_INITIALIZE DriverEntry;
+}
+
 NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath)
 {
     NDIS_STATUS                             status = NDIS_STATUS_FAILURE;

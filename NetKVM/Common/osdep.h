@@ -23,10 +23,6 @@
 #define u32 unsigned long
 #define u64 ULONGLONG
 
-#ifndef bool
-#define bool int
-#endif
-
 #define mb()   KeMemoryBarrier()
 #define rmb()  KeMemoryBarrier()
 #define wmb()  KeMemoryBarrier()

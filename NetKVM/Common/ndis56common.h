@@ -36,27 +36,43 @@
 #define RtlPointerToOffset(Base,Pointer)  ((ULONG)(((PCHAR)(Pointer))-((PCHAR)(Base))))
 #endif
 
-#pragma warning (push)
-#pragma warning (disable:4201)
-#include <ndis.h>
-#pragma warning (pop)
+extern "C"
+{
+#include "osdep.h"
+
+#if NDIS_SUPPORT_NDIS630
+#define PARANDIS_SUPPORT_RSC 1
+#endif
 
 #if NDIS_SUPPORT_NDIS620
 #define PARANDIS_SUPPORT_RSS 1
 #endif
 
-#include "osdep.h"
+#if !NDIS_SUPPORT_NDIS620
+    static VOID FORCEINLINE NdisFreeMemoryWithTagPriority(
+        IN  NDIS_HANDLE             NdisHandle,
+        IN  PVOID                   VirtualAddress,
+        IN  ULONG                   Tag)
+    {
+        UNREFERENCED_PARAMETER(NdisHandle);
+        NdisFreeMemoryWithTag(VirtualAddress, Tag);
+    }
+#endif
+
 #include "kdebugprint.h"
 #include "ethernetutils.h"
 #include "virtio_pci.h"
 #include "VirtIO.h"
 #include "IONetDescriptor.h"
 #include "DebugData.h"
-#include "ParaNdis-RSS.h"
+}
 
 #if !defined(_Function_class_)
 #define _Function_class_(x)
 #endif
+
+#include "ParaNdis-RSS.h"
+#include "ParaNdis-TX.h"
 
 // those stuff defined in NDIS
 //NDIS_MINIPORT_MAJOR_VERSION
@@ -294,8 +310,6 @@ typedef PNET_BUFFER_LIST    tPacketIndicationType;
 
 #endif  //!NDIS_SUPPORT_NDIS6
 
-//#define UNIFY_LOCKS
-
 typedef struct _tagOurCounters
 {
     UINT nReusedRxBuffers;
@@ -374,14 +388,6 @@ typedef struct _tagNET_PACKET_INFO
 } NET_PACKET_INFO, *PNET_PACKET_INFO;
 #pragma warning (pop)
 
-typedef struct _tagNetDescriptor {
-    LIST_ENTRY listEntry;
-    tCompletePhysicalAddress HeaderInfo;
-    tCompletePhysicalAddress DataInfo;
-    PVOID ReferenceValue;
-    UINT  nofUsedBuffers;
-} TxNetDescriptor, *pTxNetDescriptor;
-
 typedef struct _tagRxNetDescriptor {
     LIST_ENTRY listEntry;
     LIST_ENTRY ReceiveQueueListEntry;
@@ -396,7 +402,7 @@ typedef struct _tagRxNetDescriptor {
     NET_PACKET_INFO PacketInfo;
 } RxNetDescriptor, *pRxNetDescriptor;
 
-typedef void (*tReuseReceiveBufferProc)(void *pContext, pRxNetDescriptor pDescriptor);
+typedef void (*tReuseReceiveBufferProc)(PPARANDIS_ADAPTER pContext, pRxNetDescriptor pDescriptor);
 
 typedef struct _tagPARANDIS_RECEIVE_QUEUE
 {
@@ -435,7 +441,6 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bGuestChecksumSupported;
     BOOLEAN                 bUseMergedBuffers;
     BOOLEAN                 bDoPublishIndices;
-    BOOLEAN                 bDoKickOnNoBuffer;
     BOOLEAN                 bSurprizeRemoved;
     BOOLEAN                 bUsingMSIX;
     BOOLEAN                 bUseIndirect;
@@ -467,16 +472,7 @@ typedef struct _tagPARANDIS_ADAPTER
     ULONG                   nDetectedInactivity;
     ULONG                   nVirtioHeaderSize;
     /* send part */
-#if !defined(UNIFY_LOCKS)
-    NDIS_SPIN_LOCK          SendLock;
     NDIS_SPIN_LOCK          ReceiveLock;
-#else
-    union
-    {
-    NDIS_SPIN_LOCK          SendLock;
-    NDIS_SPIN_LOCK          ReceiveLock;
-    };
-#endif
     NDIS_STATISTICS_INFO    Statistics;
     struct
     {
@@ -502,32 +498,15 @@ typedef struct _tagPARANDIS_ADAPTER
     tCompletePhysicalAddress ControlData;
     struct virtqueue *      NetReceiveQueue;
     tCompletePhysicalAddress ReceiveQueueRing;
-    struct virtqueue *      NetSendQueue;
-    tCompletePhysicalAddress SendQueueRing;
     /* list of Rx buffers available for data (under VIRTIO management) */
     LIST_ENTRY              NetReceiveBuffers;
     UINT                    NetNofReceiveBuffers;
     /* list of Rx buffers waiting for return (under NDIS management) */
     LIST_ENTRY              NetReceiveBuffersWaiting;
-    /* list of Tx buffers in process (under VIRTIO management) */
-    LIST_ENTRY              NetSendBuffersInUse;
-    /* list of Tx buffers ready for data (under MINIPORT management) */
-    LIST_ENTRY              NetFreeSendBuffers;
-    /* current number of free Tx descriptors */
-    UINT                    nofFreeTxDescriptors;
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
     UINT                    maxFreeTxDescriptors;
-    /* current number of free Tx buffers, which can be submitted */
-    UINT                    nofFreeHardwareBuffers;
-    /* maximal number of free Tx buffers, which can be used by SG */
-    UINT                    maxFreeHardwareBuffers;
-    /* minimal number of free Tx buffers */
-    UINT                    minFreeHardwareBuffers;
-    /* current number of Tx packets (or lists) to return */
-    LONG                    NetTxPacketsToReturn;
     /* total of Rx buffer in turnaround */
     UINT                    NetMaxReceiveBuffers;
-    struct VirtIOBufferDescriptor *sgTxGatherTable;
     UINT                    nPnpEventIndex;
     NDIS_DEVICE_PNP_EVENT   PnpEvents[16];
     tOffloadSettings        Offload;
@@ -535,6 +514,7 @@ typedef struct _tagPARANDIS_ADAPTER
     // we keep these members common for XP and Vista
     // for XP and non-MSI case of Vista they are set to zero
     ULONG                       ulRxMessage;
+    //TODO: Move to TXPath structures
     ULONG                       ulTxMessage;
     ULONG                       ulControlMessage;
 
@@ -543,13 +523,13 @@ typedef struct _tagPARANDIS_ADAPTER
 #define PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED (0)
 #define PARANDIS_FIRST_RSS_RECEIVE_QUEUE    (1)
 
+    CParaNdisTX TXPath;
+    BOOLEAN bTXPathAllocated;
+    BOOLEAN bTXPathCreated;
+
 #if NDIS_SUPPORT_NDIS6
 // Vista +
     PIO_INTERRUPT_MESSAGE_INFO  pMSIXInfoTable;
-    PNET_BUFFER_LIST            SendHead;
-    PNET_BUFFER_LIST            SendTail;
-    PNET_BUFFER_LIST            SendWaitingList;
-    LIST_ENTRY                  WaitingMapping;
     NDIS_HANDLE                 DmaHandle;
     ULONG                       ulIrqReceived;
     NDIS_OFFLOAD                ReportedOffloadCapabilities;
@@ -589,20 +569,14 @@ typedef struct _tagPARANDIS_ADAPTER
     NDIS_HANDLE                 PacketPool;
     NDIS_HANDLE                 BuffersPool;
     NDIS_HANDLE                 WrapperConfigurationHandle;
-    LIST_ENTRY                  SendQueue;
-    LIST_ENTRY                  TxWaitingList;
     NDIS_EVENT                  HaltEvent;
     NDIS_TIMER                  DPCPostProcessTimer;
     BOOLEAN                     bDmaInitialized;
 #endif
-}PARANDIS_ADAPTER, *PPARANDIS_ADAPTER;
 
-typedef enum { cpeOK, cpeNoBuffer, cpeInternalError, cpeTooLarge, cpeNoIndirect } tCopyPacketError;
-typedef struct _tagCopyPacketResult
-{
-    ULONG       size;
-    tCopyPacketError error;
-}tCopyPacketResult;
+    _tagPARANDIS_ADAPTER(const _tagPARANDIS_ADAPTER&) = delete;
+    _tagPARANDIS_ADAPTER& operator= (const _tagPARANDIS_ADAPTER&) = delete;
+}PARANDIS_ADAPTER, *PPARANDIS_ADAPTER;
 
 typedef struct _tagSynchronizedContext
 {
@@ -611,24 +585,6 @@ typedef struct _tagSynchronizedContext
 }tSynchronizedContext;
 
 typedef BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) (*tSynchronizedProcedure)(tSynchronizedContext *context);
-
-/**********************************************************
-LAZZY release procedure returns buffers to VirtIO
-only where there are no free buffers available
-
-NON-LAZZY release releases transmit buffers from VirtIO
-library every time there is something to release
-***********************************************************/
-//#define LAZZY_TX_RELEASE
-
-BOOLEAN FORCEINLINE IsTimeToReleaseTx(PARANDIS_ADAPTER *pContext)
-{
-#ifndef LAZZY_TX_RELEASE
-    return pContext->nofFreeTxDescriptors < pContext->maxFreeTxDescriptors;
-#else
-    return pContext->nofFreeTxDescriptors == 0;
-#endif
-}
 
 BOOLEAN FORCEINLINE IsValidVlanId(PARANDIS_ADAPTER *pContext, ULONG VlanID)
 {
@@ -659,10 +615,6 @@ NDIS_STATUS ParaNdis_FinishInitialization(
 VOID ParaNdis_CleanupContext(
     PARANDIS_ADAPTER *pContext);
 
-
-UINT ParaNdis_VirtIONetReleaseTransmitBuffers(
-    PARANDIS_ADAPTER *pContext);
-
 ULONG ParaNdis_DPCWorkBody(
     PARANDIS_ADAPTER *pContext,
     ULONG ulMaxPacketsToIndicate);
@@ -685,21 +637,21 @@ VOID ParaNdis_VirtIODisableIrqSynchronized(
     PARANDIS_ADAPTER *pContext,
     ULONG interruptSource);
 
-static __inline struct virtqueue *
-ParaNdis_GetQueueForInterrupt(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
-{
-    if (interruptSource & isTransmit)
-        return pContext->NetSendQueue;
-    if (interruptSource & isReceive)
-        return pContext->NetReceiveQueue;
-
-    return NULL;
-}
-
 static __inline BOOLEAN
 ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq)
 {
     return _vq->vq_ops->is_interrupt_enabled(_vq);
+}
+
+static __inline BOOLEAN
+ParaNdis_IsInterruptSourceEnabled(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
+{
+    if (interruptSource & isTransmit)
+        return (BOOLEAN) pContext->TXPath.IsInterruptEnabled();
+    if (interruptSource & isReceive)
+        return ParaNDIS_IsQueueInterruptEnabled(pContext->NetReceiveQueue);
+
+    return TRUE;
 }
 
 VOID ParaNdis_OnPnPEvent(
@@ -774,31 +726,6 @@ void ParaNdis_DebugHistory(
 
 #endif
 
-typedef struct _tagTxOperationParameters
-{
-    tPacketType     packet;
-    PVOID           ReferenceValue;
-    UINT            nofSGFragments;
-    ULONG           ulDataSize;
-    ULONG           offloalMss;
-    ULONG           tcpHeaderOffset;
-    ULONG           flags;      //see tPacketOffloadRequest
-}tTxOperationParameters;
-
-tCopyPacketResult ParaNdis_DoCopyPacketData(
-    PARANDIS_ADAPTER *pContext,
-    tTxOperationParameters *pParams);
-
-typedef struct _tagMapperResult
-{
-    USHORT  usBuffersMapped;
-    USHORT  usBufferSpaceUsed;
-    ULONG   ulDataSize;
-}tMapperResult;
-
-
-tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperationParameters *Params);
-
 void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsFlags *pDest, PULONG from);
 
 tChecksumCheckResult ParaNdis_CheckRxChecksum(
@@ -816,6 +743,10 @@ Procedures to implement for NDIS specific implementation
 
 PVOID ParaNdis_AllocateMemory(
     PARANDIS_ADAPTER *pContext,
+    ULONG ulRequiredSize);
+
+PVOID ParaNdis_AllocateMemoryRaw(
+    NDIS_HANDLE MiniportHandle,
     ULONG ulRequiredSize);
 
 NDIS_STATUS ParaNdis_FinishSpecificInitialization(
@@ -837,27 +768,6 @@ VOID ParaNdis_IndicateReceivedBatch(
     tPacketIndicationType *pBatch,
     ULONG nofPackets);
 
-VOID ParaNdis_PacketMapper(
-    PARANDIS_ADAPTER *pContext,
-    tPacketType packet,
-    PVOID Reference,
-    struct VirtIOBufferDescriptor *buffers,
-    pTxNetDescriptor pDesc,
-    tMapperResult *pMapperResult
-    );
-
-tCopyPacketResult ParaNdis_PacketCopier(
-    tPacketType packet,
-    PVOID dest,
-    ULONG maxSize,
-    PVOID refValue,
-    BOOLEAN bPreview);
-
-BOOLEAN ParaNdis_ProcessTx(
-    PARANDIS_ADAPTER *pContext,
-    BOOLEAN IsDpc,
-    BOOLEAN IsInterrupt);
-
 BOOLEAN ParaNdis_SynchronizeWithInterrupt(
     PARANDIS_ADAPTER *pContext,
     ULONG messageId,
@@ -869,11 +779,6 @@ VOID ParaNdis_Suspend(
 
 VOID ParaNdis_Resume(
     PARANDIS_ADAPTER *pContext);
-
-VOID ParaNdis_OnTransmitBufferReleased(
-    PARANDIS_ADAPTER *pContext,
-    pTxNetDescriptor pDesc);
-
 
 typedef VOID (*tOnAdditionalPhysicalMemoryAllocated)(
     PARANDIS_ADAPTER *pContext,
@@ -1026,5 +931,7 @@ tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, LPCS
 BOOLEAN ParaNdis_AnalyzeReceivedPacket(PVOID headersBuffer, ULONG dataLength, PNET_PACKET_INFO packetInfo);
 ULONG ParaNdis_StripVlanHeaderMoveHead(PNET_PACKET_INFO packetInfo);
 VOID ParaNdis_PadPacketToMinimalLength(PNET_PACKET_INFO packetInfo);
+BOOLEAN ParaNdis_IsSendPossible(PARANDIS_ADAPTER *pContext);
+NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext);
 
 #endif

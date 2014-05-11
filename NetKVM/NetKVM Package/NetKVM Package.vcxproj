@@ -202,6 +202,11 @@
     <PackageDir>$(OutDir)</PackageDir>
     <TargetName>NetKVMTemporaryCert</TargetName>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
+    <OutDir>$(SolutionDir)\Install\$(DDKSpec)\amd64\</OutDir>
+    <PackageDir>$(OutDir)</PackageDir>
+    <TargetName>NetKVMTemporaryCert</TargetName>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <OutDir>$(SolutionDir)\Install\$(DDKSpec)\amd64\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>

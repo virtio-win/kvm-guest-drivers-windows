@@ -403,7 +403,7 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 #if PARANDIS_SUPPORT_RSS
         case OID_GEN_RECEIVE_HASH:
             pInfo = &u.RSSHashKeyParameters;
-            ulSize = ParaNdis6_QueryReceiveHash(&pContext->RSSParameters, pInfo);
+            ulSize = ParaNdis6_QueryReceiveHash(&pContext->RSSParameters, &u.RSSHashKeyParameters);
             break;
 #endif
 #if PARANDIS_SUPPORT_RSC
@@ -587,14 +587,14 @@ NDIS_STATUS ParaNdis_OnSetPower(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     if (status == NDIS_STATUS_SUCCESS)
     {
         NDIS_HANDLE hwo = NdisAllocateIoWorkItem(pContext->MiniportHandle);
-        tPowerWorkItem *pwi = ParaNdis_AllocateMemory(pContext, sizeof(tPowerWorkItem));
+        tPowerWorkItem *pwi = (tPowerWorkItem *) ParaNdis_AllocateMemory(pContext, sizeof(tPowerWorkItem));
         status = NDIS_STATUS_FAILURE;
         if (pwi && hwo)
         {
             pwi->pContext = pContext;
             pwi->state    = newState;
             pwi->WorkItem = hwo;
-            pwi->request  = pOid->Reserved;
+            pwi->request = (PNDIS_OID_REQUEST)pOid->Reserved;
             NdisQueueIoWorkItem(hwo, OnSetPowerWorkItem, pwi);
             status = NDIS_STATUS_PENDING;
         }

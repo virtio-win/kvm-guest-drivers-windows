@@ -239,7 +239,7 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
         SETINFO(ul, pContext->MaxPacketSize.nMaxDataSize);
         break;
     case OID_GEN_TRANSMIT_BUFFER_SPACE:
-        SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOS * pContext->nofFreeTxDescriptors);
+        SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOS * pContext->TXPath.GetFreeTXDescriptors());
         break;
     case OID_GEN_RECEIVE_BUFFER_SPACE:
         SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOsRx * pContext->NetMaxReceiveBuffers);
@@ -254,7 +254,7 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     case OID_GEN_TRANSMIT_QUEUE_LENGTH:
         // TODO: this is not completely correct, but only if
         // the TX queue is not full
-        SETINFO(ul, pContext->maxFreeTxDescriptors - pContext->nofFreeTxDescriptors);
+        SETINFO(ul, pContext->maxFreeTxDescriptors - pContext->TXPath.GetFreeTXDescriptors());
         break;
     case OID_GEN_VENDOR_ID:
         SETINFO(ul, 0x00ffffff);
@@ -287,8 +287,10 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
         }
         break;
     case OID_GEN_MAXIMUM_SEND_PACKETS:
-        // NDIS ignores it for deserialized drivers
-        SETINFO(ul,pContext->nofFreeTxDescriptors);
+        // This OID is obsolete according to the documentation
+        // but HCK test suite fails if driver doesn't support it
+        // HCK test that fails: 1c_OidsDeviceIoControl
+        SETINFO(ul, pContext->TXPath.GetFreeTXDescriptors());
         break;
     case OID_802_3_PERMANENT_ADDRESS:
         pInfo = pContext->PermanentMacAddress;
