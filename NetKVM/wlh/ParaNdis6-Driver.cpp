@@ -936,8 +936,12 @@ static void RetrieveDriverConfiguration()
     {
         NDIS_STRING paramsName = {};
         NdisInitializeString(&paramsName, (PUCHAR)"Parameters");
+
+#pragma warning(push)
+#pragma warning(disable:6102) // Using <param> from failed function call at line...
         NdisOpenConfigurationKeyByName(&status, cfg, &paramsName, &params);
         if (status == NDIS_STATUS_SUCCESS)
+#pragma warning(pop)
         {
             ReadGlobalConfigurationEntry(params, "DisableMSI", &bDisableMSI);
             ReadGlobalConfigurationEntry(params, "EarlyDebug", (PULONG)&resourceFilterLevel);
