@@ -75,3 +75,4 @@ popd
 if %ERRORLEVEL% NEQ 0 goto :eof
 xcopy /S /I /Y NDIS5\Install\XP\amd64 Install\XP\amd64
 
+call create_dvl_log.cmd
