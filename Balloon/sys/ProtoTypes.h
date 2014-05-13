@@ -124,8 +124,7 @@ BalloonInit(
 
 VOID
 BalloonTerm(
-    IN WDFOBJECT    WdfDevice,
-    IN BOOLEAN      bFinal
+    IN WDFOBJECT    WdfDevice
     );
 
 VOID

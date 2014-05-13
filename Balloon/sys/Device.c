@@ -453,7 +453,7 @@ BalloonEvtDeviceD0Exit(
 
     PAGED_CODE();
 
-    BalloonTerm(Device, (TargetState == WdfPowerDeviceD3Final));
+    BalloonTerm(Device);
 
     return STATUS_SUCCESS;
 }
