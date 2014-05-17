@@ -79,7 +79,7 @@ goto :eof
 
 :build_driver
 call :prebuild_driver %1 %2
-call ..\tools\callVisualStudio.bat 11 viorng.sln /Rebuild "%1 Release|%2" /Out %OUT_FILENAME%
+call ..\tools\callVisualStudio.bat 12 viorng.sln /Rebuild "%1 Release|%2" /Out %OUT_FILENAME%
 call :fix_wdfcoinstaller_name %1 %2
 goto :eof
 
@@ -87,7 +87,7 @@ goto :eof
 call :set_windows_version %1
 call :create_version_file "cng\um\2012-defines.h"
 call :set_out_filename %1 %2
-call ..\tools\callVisualStudio.bat 11 viorngum.sln /Rebuild "Release|%2" /Out %OUT_FILENAME%
+call ..\tools\callVisualStudio.bat 12 viorngum.sln /Rebuild "Release|%2" /Out %OUT_FILENAME%
 copy "%2\Release\viorngum.dll" "Install\%OS%\%PLAT%\"
 goto :eof
 
