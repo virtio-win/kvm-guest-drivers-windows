@@ -71,6 +71,12 @@ static void initialize_virtqueue(struct vring_virtqueue *vq,
 //#define to_vvq(_vq) container_of(_vq, struct vring_virtqueue, vq)
 #define to_vvq(_vq) (struct vring_virtqueue *)_vq
 
+unsigned long
+VirtIODeviceIndirectPageCapacity()
+{
+    return PAGE_SIZE / sizeof(struct vring_desc);
+}
+
 static
 int
 vring_add_indirect(

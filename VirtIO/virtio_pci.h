@@ -156,6 +156,7 @@ u32  VirtIODeviceGetQueueSize(struct virtqueue *vq);
 void VirtIODeviceRenewQueue(struct virtqueue *vq);
 void* VirtIODeviceDetachUnusedBuf(struct virtqueue *vq);
 
+unsigned long VirtIODeviceIndirectPageCapacity();
 
 /////////////////////////////////////////////////////////////////////////////////////
 //

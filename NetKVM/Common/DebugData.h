@@ -101,7 +101,6 @@ typedef struct _tagBugCheckPerNicDataContent_V0
     UINT64              Context;
     LARGE_INTEGER       LastInterruptTimeStamp;
     LARGE_INTEGER       LastTxCompletionTimeStamp;
-    ULONG               nofPacketsToComplete;
     ULONG               nofReadyTxBuffers;
 }tBugCheckPerNicDataContent_V0;
 
@@ -156,7 +155,6 @@ typedef struct _tagBugCheckPerNicDataContent_V1
     UINT64              Context;
     LARGE_INTEGER       LastInterruptTimeStamp;
     LARGE_INTEGER       LastTxCompletionTimeStamp;
-    ULONG               nofPacketsToComplete;
     ULONG               nofReadyTxBuffers;
 }tBugCheckPerNicDataContent_V1;
 

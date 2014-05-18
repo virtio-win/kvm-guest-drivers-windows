@@ -470,10 +470,6 @@ static void PrintStatistics(PARANDIS_ADAPTER *pContext)
         pContext->TXPath.GetFreeTXDescriptors(),
         pContext->maxFreeTxDescriptors,
         pContext->TXPath.GetFreeHWBuffers()));
-    if (pContext->TXPath.GetTXPacketsToReturn())
-    {
-        DPrintf(0, ("[Diag!] TX packets to return %d\n", pContext->TXPath.GetTXPacketsToReturn()));
-    }
     DPrintf(0, ("[Diag!] Bytes transmitted %I64u, received %I64u\n",
         pContext->Statistics.ifHCOutOctets,
         pContext->Statistics.ifHCInOctets));

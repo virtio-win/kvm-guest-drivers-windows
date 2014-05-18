@@ -24,6 +24,8 @@
 #define ETH_HAS_PRIO_HEADER(Address) \
     (((PUCHAR)(Address))[12] == ((UCHAR)0x81) && ((PUCHAR)(Address))[13] == ((UCHAR)0x00))
 
+#define PRIO_HEADER_ETH_TYPE (0x8100)
+
 #include <pshpack1.h>
 typedef struct _ETH_HEADER
 {
@@ -46,22 +48,7 @@ typedef ULONG IPV6_ADDRESS[4];
 #define ETH_PRIORITY_HEADER_OFFSET          12
 #define ETH_PRIORITY_HEADER_SIZE            4
 
-
-static void FORCEINLINE SetPriorityData(UCHAR *pDest, ULONG priority, ULONG VlanID)
-{
-    pDest[0] = 0x81;
-    pDest[2] = (UCHAR)(priority << 5);
-    pDest[2] |= (UCHAR)(VlanID >> 8);
-    pDest[3] |= (UCHAR)VlanID;
-}
-
-typedef enum _tag_eInspectedPacketType
-{
-    iptUnicast,
-    iptBroadcast,
-    iptMilticast,
-    iptInvalid
-}eInspectedPacketType;
+#define TCP_HEADER_LENGTH(Header) ((Header->tcp_flags & 0xF0) >> 2)
 
 // IP Header RFC 791
 typedef struct _tagIPv4Header {

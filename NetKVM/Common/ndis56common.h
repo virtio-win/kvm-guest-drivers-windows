@@ -72,6 +72,9 @@ extern "C"
 #endif
 
 #include "ParaNdis-RSS.h"
+
+typedef union _tagTcpIpPacketParsingResult tTcpIpPacketParsingResult;
+
 #include "ParaNdis-TX.h"
 
 // those stuff defined in NDIS

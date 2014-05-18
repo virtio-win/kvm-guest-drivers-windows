@@ -45,8 +45,8 @@ public:
     { return m_LsoInfo.LsoV2Transmit.MSS; }
     ULONG TCPHeaderOffset()
     { return IsLSO() ? LsoTcpHeaderOffset() : CsoTcpHeaderOffset(); }
-    ULONG PriorityDataPacked()
-    { return m_PriorityDataLong; }
+    UINT16 TCI()
+    { return m_TCI; }
     bool IsLSO()
     { return (m_LsoInfo.Value != nullptr); }
     bool IsTcpCSO()
@@ -55,9 +55,7 @@ public:
     { return m_CsoInfo.Transmit.UdpChecksum; }
     bool IsIPHdrCSO()
     { return m_CsoInfo.Transmit.IpHeaderChecksum; }
-
-    //TODO: Temporary
-    void IncrementLSOv1TransferSize(ULONG ChunkSize)
+    void UpdateLSOTxStats(ULONG ChunkSize)
     {
         if (m_LsoInfo.LsoV1TransmitComplete.Type == NDIS_TCP_LARGE_SEND_OFFLOAD_V1_TYPE)
         {
@@ -65,10 +63,9 @@ public:
         }
     }
 
-protected:
-    virtual void OnLastReferenceGone();
-
 private:
+    virtual void OnLastReferenceGone() override;
+
     static void Destroy(CNBL *ptr, NDIS_HANDLE MiniportHandle)
     { CNBLAllocator::Destroy(ptr, MiniportHandle); }
 
@@ -109,14 +106,10 @@ private:
     ULONG m_MaxDataLength = 0;
     ULONG m_TransferSize = 0;
 
+    UINT16 m_TCI = 0;
+
     NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO m_LsoInfo;
     NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO m_CsoInfo;
-
-    union
-    {
-        ULONG m_PriorityDataLong = 0;
-        UCHAR m_PriorityData[ETH_PRIORITY_HEADER_SIZE];
-    };
 
     CNBL(const CNBL&) = delete;
     CNBL& operator= (const CNBL&) = delete;
@@ -135,32 +128,21 @@ public:
 
     ~CNB();
 
-    bool IsValid()
+    bool IsValid() const
     { return (GetDataLength() != 0); }
 
-    ULONG GetDataLength()
+    ULONG GetDataLength() const
     { return NET_BUFFER_DATA_LENGTH(m_NB); }
 
     bool ScheduleBuildSGListForTx();
 
     void MappingDone(PSCATTER_GATHER_LIST SGL);
 
-    CNBL *GetParentNBL()
+    CNBL *GetParentNBL() const
     { return m_ParentNBL; }
 
-    ULONG GetSGLLength()
+    ULONG GetSGLLength() const
     { return m_SGL->NumberOfElements; }
-
-    //TODO: Temporary
-    PSCATTER_GATHER_LIST GetSGL()
-    { return m_SGL; }
-
-    //TODO: Temporary
-    PNET_BUFFER GetInternalObject()
-    { return m_NB; }
-
-    //TODO: Temporary, needs review
-    tCopyPacketResult CNB::PacketCopier(PVOID dest, ULONG maxSize, BOOLEAN bPreview);
 
     //TODO: Needs review
     void SendComplete()
@@ -168,9 +150,19 @@ public:
         m_ParentNBL->NBComplete();
     }
 
-    void ProcessWaitingList();
-
+    bool BindToDescriptor(CTXDescriptor &Descriptor);
 private:
+    bool Copy(PVOID Dst, ULONG Length) const;
+    bool CopyHeaders(PVOID Destination, ULONG MaxSize, ULONG &HeadersLength, ULONG &L4HeaderOffset) const;
+    void BuildPriorityHeader(PETH_HEADER EthHeader, PVLAN_HEADER VlanHeader) const;
+    void PrepareOffloads(virtio_net_hdr_basic *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength, ULONG L4HeaderOffset) const;
+    void SetupLSO(virtio_net_hdr_basic *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const;
+    USHORT QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const;
+    void DoIPHdrCSO(PVOID EthHeaders, ULONG HeadersLength) const;
+    void SetupCSO(virtio_net_hdr_basic *VirtioHeader, ULONG L4HeaderOffset) const;
+    bool FillDescriptorSGList(CTXDescriptor &Descriptor, ULONG DataOffset) const;
+    bool MapDataToVirtioSGL(CTXDescriptor &Descriptor, ULONG Offset) const;
+    void PopulateIPLength(IPv4Header *IpHeader, USHORT IpLength) const;
 
     PNET_BUFFER m_NB;
     CNBL *m_ParentNBL;
@@ -257,10 +249,6 @@ public:
     ULONG GetFreeHWBuffers()
     { return m_VirtQueue.GetFreeHWBuffers(); }
 
-    //TODO: Needs review/temporary?
-    ULONG GetTXPacketsToReturn()
-    { return m_NetTxPacketsToReturn; }
-
     //TODO: Needs review
     bool DoPendingTasks(bool IsInterrupt);
 
@@ -268,10 +256,6 @@ private:
 
     //TODO: Needs review
     bool SendMapped(bool IsInterrupt, PNET_BUFFER_LIST &NBLFailNow);
-
-    //TODO: This function makes intermediate parameters copying that is redundant
-    //To be dropped in favor of direct CNBL interface acess
-    void InitializeTransferParameters(CNB *NB, tTxOperationParameters *pParams);
 
     PNET_BUFFER_LIST ProcessWaitingList();
     PNET_BUFFER_LIST BuildCancelList(PVOID CancelId);
@@ -284,7 +268,6 @@ private:
     void PushMappedNBL(CNBL *NBLHolder) { m_SendList.Push(NBLHolder); }
 
     PPARANDIS_ADAPTER m_Context;
-    CNdisRefCounter m_NetTxPacketsToReturn;
     CNdisSpinLock m_Lock;
     CNdisList<CNBL, CRawAccess, CNonCountingObject> m_SendList;
     CNdisList<CNBL, CRawAccess, CNonCountingObject> m_WaitingList;

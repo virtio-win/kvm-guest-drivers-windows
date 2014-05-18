@@ -13,40 +13,127 @@ extern "C"
 #include "ParaNdis-Util.h"
 
 class CNB;
-class CTXDescriptor;
 typedef struct _tagPARANDIS_ADAPTER *PPARANDIS_ADAPTER;
 
-//TODO: requires review, temporary?
-typedef enum { cpeOK, cpeNoBuffer, cpeInternalError, cpeTooLarge, cpeNoIndirect } tCopyPacketError;
-typedef struct _tagCopyPacketResult
+typedef enum
 {
-    ULONG       size;
-    tCopyPacketError error;
-}tCopyPacketResult;
+    SUBMIT_SUCCESS = 0,
+    SUBMIT_PACKET_TOO_LARGE,
+    SUBMIT_NO_PLACE_IN_QUEUE,
+    SUBMIT_FAILURE
+} SubmitTxPacketResult;
 
-//TODO: requires review, temporary?
-typedef struct _tagTxOperationParameters
+class CTXHeaders
 {
-    CNB            *NB;
-    UINT            nofSGFragments;
-    ULONG           ulDataSize;
-    ULONG           offloalMss;
-    ULONG           tcpHeaderOffset;
-    ULONG           flags;      //see tPacketOffloadRequest
-}tTxOperationParameters;
+public:
+    CTXHeaders(NDIS_HANDLE DrvHandle, ULONG VirtioHdrSize)
+        : m_HeadersBuffer(DrvHandle)
+        , m_VirtioHdrSize(VirtioHdrSize)
+    {}
 
-//TODO: requires review, temporary?
-typedef struct _tagMapperResult
+    bool Allocate();
+
+    virtio_net_hdr_basic *VirtioHeader() const
+    { return static_cast<virtio_net_hdr_basic*>(m_VirtioHeaderVA); }
+    ULONG VirtioHeaderLength() const
+    { return m_VirtioHdrSize; }
+    PETH_HEADER EthHeader() const
+    { return static_cast<PETH_HEADER>(m_EthHeaderVA); }
+    PVLAN_HEADER VlanHeader() const
+    { return static_cast<PVLAN_HEADER>(m_VlanHeaderVA); }
+    PVOID IPHeaders() const
+    { return m_IPHeadersVA; }
+    PVOID EthHeadersAreaVA() const
+    { return m_EthHeaderVA; }
+
+    ULONG MaxEthHeadersSize() const
+    { return m_MaxEthHeadersSize; }
+    ULONG IpHeadersSize() const
+    { return m_MaxEthHeadersSize - ETH_HEADER_SIZE; }
+
+    PHYSICAL_ADDRESS VirtioHeaderPA() const
+    { return m_VirtioHeaderPA; }
+    PHYSICAL_ADDRESS EthHeaderPA() const
+    { return m_EthHeaderPA; }
+    PHYSICAL_ADDRESS VlanHeaderPA() const
+    { return m_VlanHeaderPA; }
+    PHYSICAL_ADDRESS IPHeadersPA() const
+    { return m_IPHeadersPA; }
+
+private:
+    CNdisSharedMemory m_HeadersBuffer;
+    ULONG m_VirtioHdrSize;
+
+    PVOID m_VlanHeaderVA = nullptr;
+    PVOID m_VirtioHeaderVA = nullptr;
+    PVOID m_EthHeaderVA = nullptr;
+    PVOID m_IPHeadersVA = nullptr;
+
+    PHYSICAL_ADDRESS m_VlanHeaderPA = PHYSICAL_ADDRESS();
+    PHYSICAL_ADDRESS m_VirtioHeaderPA = PHYSICAL_ADDRESS();
+    PHYSICAL_ADDRESS m_EthHeaderPA = PHYSICAL_ADDRESS();
+    PHYSICAL_ADDRESS m_IPHeadersPA = PHYSICAL_ADDRESS();
+
+    ULONG m_MaxEthHeadersSize;
+
+    CTXHeaders(const CTXHeaders&) = delete;
+    CTXHeaders& operator= (const CTXHeaders&) = delete;
+};
+
+class CTXDescriptor : public CNdisAllocatable<CTXDescriptor, 'DTHR'>
 {
-    USHORT  usBuffersMapped;
-    USHORT  usBufferSpaceUsed;
-    ULONG   ulDataSize;
-}tMapperResult;
+public:
+    CTXDescriptor(NDIS_HANDLE DrvHandle,
+                  ULONG VirtioHeaderSize,
+                  struct VirtIOBufferDescriptor *VirtioSGL,
+                  ULONG VirtioSGLSize,
+                  bool Indirect)
+        : m_Headers(DrvHandle, VirtioHeaderSize)
+        , m_IndirectArea(DrvHandle)
+        , m_VirtioSGL(VirtioSGL)
+        , m_VirtioSGLSize(VirtioSGLSize)
+        , m_Indirect(Indirect)
+    {}
+
+    bool Create()
+    { return m_Headers.Allocate() && (!m_Indirect || m_IndirectArea.Allocate(PAGE_SIZE)); }
+
+    SubmitTxPacketResult Enqueue(struct virtqueue *VirtQueue, ULONG TotalDescriptors, ULONG FreeDescriptors);
+
+    CTXHeaders &HeadersAreaAccessor()
+    { return m_Headers; }
+    ULONG GetUsedBuffersNum()
+    { return m_UsedBuffersNum; }
+    void SetNB(CNB *NB)
+    { m_NB = NB; }
+    CNB* GetNB()
+    { return m_NB; }
+
+    bool AddDataChunk(const PHYSICAL_ADDRESS &PA, ULONG Length);
+    bool SetupHeaders(ULONG ParsedHeadersLength);
+
+private:
+    CTXHeaders m_Headers;
+    CNdisSharedMemory m_IndirectArea;
+    bool m_Indirect;
+
+    struct VirtIOBufferDescriptor *m_VirtioSGL;
+    ULONG m_VirtioSGLSize;
+    ULONG m_CurrVirtioSGLEntry;
+
+    ULONG m_UsedBuffersNum = 0;
+    CNB *m_NB = nullptr;
+
+    CTXDescriptor(const CTXDescriptor&) = delete;
+    CTXDescriptor& operator= (const CTXDescriptor&) = delete;
+
+    DECLARE_CNDISLIST_ENTRY(CTXDescriptor);
+};
 
 class CVirtQueue
 {
 public:
-    ULONG GetSize()
+    ULONG GetRingSize()
     { return VirtIODeviceGetQueueSize(m_VirtQueue); }
 
     void Renew();
@@ -96,12 +183,10 @@ public:
                  bool UsePublishedIndices,
                  ULONG MaxBuffers,
                  ULONG HeaderSize,
-                 ULONG DataSize,
                  PPARANDIS_ADAPTER Context)
         : CVirtQueue(Index, IODevice, DrvHandle, UsePublishedIndices)
         , m_MaxBuffers(MaxBuffers)
         , m_HeaderSize(HeaderSize)
-        , m_DataSize(DataSize)
         , m_Context(Context)
     { }
 
@@ -109,18 +194,7 @@ public:
 
     bool Create();
 
-    //TODO: Temporary, needs review
-    tCopyPacketResult DoCopyPacketData(tTxOperationParameters *pParams);
-    //TODO: Temporary Requires review
-    VOID PacketMapper(
-        CNB *NB,
-        struct VirtIOBufferDescriptor *buffers,
-        CTXDescriptor &TXDescriptor,
-        tMapperResult *pMapperResult
-        );
-
-    //TODO: Temporary: needs review
-    tCopyPacketResult DoSubmitPacket(tTxOperationParameters *Params);
+    SubmitTxPacketResult SubmitPacket(CNB &NB);
 
     //TODO: Temporary, needs review
     UINT VirtIONetReleaseTransmitBuffers();
@@ -180,7 +254,9 @@ private:
     void FreeBuffers();
     ULONG m_MaxBuffers;
     ULONG m_HeaderSize;
-    ULONG m_DataSize;
+
+    void KickQueueOnOverflow();
+    void UpdateTXStats(const CNB &NB, CTXDescriptor &Descriptor);
 
     CNdisList<CTXDescriptor, CRawAccess, CCountingObject> m_Descriptors;
     CNdisList<CTXDescriptor, CRawAccess, CNonCountingObject> m_DescriptorsInUse;
@@ -192,6 +268,7 @@ private:
     bool m_DoKickOnNoBuffer = false;
 
     struct VirtIOBufferDescriptor *m_SGTable = nullptr;
+    ULONG m_SGTableCapacity = 0;
 
     //TODO Temporary, must go way
     PPARANDIS_ADAPTER m_Context;

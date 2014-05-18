@@ -15,10 +15,10 @@ CNBL::~CNBL()
     CDpcIrqlRaiser OnDpc;
 
     m_MappedBuffers.ForEachDetached([this](CNB *NB)
-                                        { CNB::Destroy(NB, m_Context->MiniportHandle); });
+                                    { CNB::Destroy(NB, m_Context->MiniportHandle); });
 
     m_Buffers.ForEachDetached([this](CNB *NB)
-                                  { CNB::Destroy(NB, m_Context->MiniportHandle); });
+                              { CNB::Destroy(NB, m_Context->MiniportHandle); });
 
     if(m_NBL)
     {
@@ -54,7 +54,7 @@ bool CNBL::ParsePriority()
             priorityInfo.TagHeader.VlanId = 0;
         if (priorityInfo.Value)
         {
-            SetPriorityData(m_PriorityData, priorityInfo.TagHeader.UserPriority, priorityInfo.TagHeader.VlanId);
+            m_TCI = static_cast<UINT16>(priorityInfo.TagHeader.UserPriority << 13 | priorityInfo.TagHeader.VlanId);
             DPrintf(1, ("[%s] Populated priority tag %p\n", __FUNCTION__, priorityInfo.Value));
         }
     }
@@ -260,7 +260,6 @@ CParaNdisTX::CParaNdisTX(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
                   m_Context->bDoPublishIndices ? true : false,
                   m_Context->maxFreeTxDescriptors,
                   m_Context->nVirtioHeaderSize,
-                  m_Context->MaxPacketSize.nMaxFullSizeHwTx,
                   m_Context)
 { }
 
@@ -270,8 +269,6 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
 
     for(auto currNBL = NBL; currNBL != nullptr; currNBL = nextNBL)
     {
-        m_NetTxPacketsToReturn.AddRef();
-
         nextNBL = NET_BUFFER_LIST_NEXT_NBL(currNBL);
         NET_BUFFER_LIST_NEXT_NBL(currNBL) = nullptr;
 
@@ -281,7 +278,6 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
         {
             CNBL OnStack(currNBL, m_Context, *this);
             OnStack.SetStatus(NDIS_STATUS_RESOURCES);
-            m_NetTxPacketsToReturn.Release();
             DPrintf(0, ("ERROR: Failed to allocate CNBL instance\n"));
             continue;
         }
@@ -295,7 +291,6 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
         {
             NBLHolder->SetStatus(ParaNdis_ExactSendFailureStatus(m_Context));
             NBLHolder->Release();
-            m_NetTxPacketsToReturn.Release();
         }
     }
 }
@@ -313,7 +308,6 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
     {
         NBLHolder->SetStatus(NDIS_STATUS_FAILURE);
         NBLHolder->Release();
-        m_NetTxPacketsToReturn.Release();
     }
 }
 
@@ -365,45 +359,6 @@ PNET_BUFFER_LIST CNBL::DetachInternalObject()
     auto Res = m_NBL;
     m_NBL = nullptr;
     return Res;
-}
-
-//TODO: This function makes intermediate parameters copying that is redundant
-//To be dropped in favor of direct CNBL interface acess
-void CParaNdisTX::InitializeTransferParameters(CNB *NB, tTxOperationParameters *pParams)
-{
-    auto NBL = NB->GetParentNBL();
-
-    pParams->NB = NB;
-    pParams->ulDataSize = NB->GetDataLength();
-    pParams->offloalMss = NBL->MSS();
-    pParams->tcpHeaderOffset = NBL->TCPHeaderOffset();
-    pParams->flags = NBL->IsLSO() ? pcrLSO : 0;
-    /*
-    NdisQueryNetBufferPhysicalCount(pnbe->netBuffer)
-    may give wrong number of fragment, bigger due to current offset
-    */
-    pParams->nofSGFragments = NB->GetSGLLength();
-    //if (pnbe->pSGList) PrintMDLChain(pParams->packet, pnbe->pSGList);
-    if (NBL->ProtocolID() == NDIS_PROTOCOL_ID_TCP_IP)
-    {
-        pParams->flags |= pcrIsIP;
-    }
-    if (NBL->PriorityDataPacked())
-    {
-        pParams->flags |= pcrPriorityTag;
-    }
-    if (NBL->IsTcpCSO())
-    {
-        pParams->flags |= pcrTcpChecksum;
-    }
-    if (NBL->IsUdpCSO())
-    {
-        pParams->flags |= pcrUdpChecksum;
-    }
-    if (NBL->IsIPHdrCSO())
-    {
-        pParams->flags |= pcrIpChecksum;
-    }
 }
 
 PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList()
@@ -537,23 +492,20 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, PNET_BUFFER_LIST &NBLFailNow)
             if (NBLHolder->HaveMappedBuffers())
             {
                 auto NBHolder = NBLHolder->PopMappedNB();
-                tTxOperationParameters Params;
-                InitializeTransferParameters(NBHolder, &Params);
-                auto result = m_VirtQueue.DoSubmitPacket(&Params);
+                auto result = m_VirtQueue.SubmitPacket(*NBHolder);
 
-                switch (result.error)
+                switch (result)
                 {
-                case cpeNoBuffer:
-                case cpeNoIndirect:
+                case SUBMIT_NO_PLACE_IN_QUEUE:
                     NBLHolder->PushMappedNB(NBHolder);
                     PushMappedNBL(NBLHolder);
                     HaveBuffers = false;
                     // break the loop, allow to kick and free some buffers
                     break;
 
-                case cpeInternalError:
-                case cpeOK:
-                case cpeTooLarge:
+                case SUBMIT_FAILURE:
+                case SUBMIT_SUCCESS:
+                case SUBMIT_PACKET_TOO_LARGE:
                     // if this NBL finished?
                     if (!NBLHolder->HaveMappedBuffers())
                     {
@@ -565,7 +517,7 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, PNET_BUFFER_LIST &NBLFailNow)
                         PushMappedNBL(NBLHolder);
                     }
 
-                    if (result.error == cpeOK)
+                    if (result == SUBMIT_SUCCESS)
                     {
                         SentOutSomeBuffers = true;
                     }
@@ -671,59 +623,227 @@ bool CNB::ScheduleBuildSGListForTx()
                                         NDIS_SG_LIST_WRITE_TO_DEVICE, nullptr, 0) == NDIS_STATUS_SUCCESS;
 }
 
-//TODO: Temporary, needs review
-tCopyPacketResult CNB::PacketCopier(PVOID dest, ULONG maxSize, BOOLEAN bPreview)
+void CNB::PopulateIPLength(IPv4Header *IpHeader, USHORT IpLength) const
 {
-    tCopyPacketResult result;
-    ULONG PriorityDataLong = 0;
-    ULONG nCopied = 0;
-    ULONG ulOffset = NET_BUFFER_CURRENT_MDL_OFFSET(m_NB);
-    ULONG nToCopy = NET_BUFFER_DATA_LENGTH(m_NB);
-    PMDL  pMDL = NET_BUFFER_CURRENT_MDL(m_NB);
-    result.error = cpeOK;
-    if (!bPreview) PriorityDataLong = m_ParentNBL->PriorityDataPacked();
-    if (nToCopy > maxSize) nToCopy = bPreview ? maxSize : 0;
-
-    while (pMDL && nToCopy)
+    if ((IpHeader->ip_verlen & 0xF0) == 0x40)
     {
-        ULONG len;
-        PVOID addr;
-        NdisQueryMdl(pMDL, &addr, &len, NormalPagePriority);
-        if (addr && len)
-        {
-            // total to copy from this MDL
-            len -= ulOffset;
-            if (len > nToCopy) len = nToCopy;
-            nToCopy -= len;
-            if ((PriorityDataLong & 0xFFFF) &&
-                nCopied < ETH_PRIORITY_HEADER_OFFSET &&
-                (nCopied + len) >= ETH_PRIORITY_HEADER_OFFSET)
-            {
-                ULONG nCopyNow = ETH_PRIORITY_HEADER_OFFSET - nCopied;
-                NdisMoveMemory(dest, (PCHAR)addr + ulOffset, nCopyNow);
-                dest = (PCHAR)dest + nCopyNow;
-                addr = (PCHAR)addr + nCopyNow;
-                NdisMoveMemory(dest, &PriorityDataLong, ETH_PRIORITY_HEADER_SIZE);
-                nCopied += ETH_PRIORITY_HEADER_SIZE;
-                dest = (PCHAR)dest + ETH_PRIORITY_HEADER_SIZE;
-                nCopyNow = len - nCopyNow;
-                if (nCopyNow) NdisMoveMemory(dest, (PCHAR)addr + ulOffset, nCopyNow);
-                dest = (PCHAR)dest + nCopyNow;
-                ulOffset = 0;
-                nCopied += len;
-            }
-            else
-            {
-                NdisMoveMemory(dest, (PCHAR)addr + ulOffset, len);
-                dest = (PCHAR)dest + len;
-                ulOffset = 0;
-                nCopied += len;
-            }
+        if (!IpHeader->ip_length) {
+            IpHeader->ip_length = swap_short(IpLength);
         }
-        pMDL = pMDL->Next;
+    }
+}
+
+void CNB::SetupLSO(virtio_net_hdr_basic *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const
+{
+    PopulateIPLength(reinterpret_cast<IPv4Header*>(IpHeader), static_cast<USHORT>(EthPayloadLength));
+
+    tTcpIpPacketParsingResult packetReview;
+    packetReview = ParaNdis_CheckSumVerifyFlat(reinterpret_cast<IPv4Header*>(IpHeader), EthPayloadLength,
+                                               pcrIpChecksum | pcrFixIPChecksum | pcrTcpChecksum | pcrFixPHChecksum,
+                                               __FUNCTION__);
+
+    if (packetReview.xxpCheckSum == ppresPCSOK || packetReview.fixedXxpCS)
+    {
+        auto IpHeaderOffset = m_Context->Offload.ipHeaderOffset;
+        auto VHeader = static_cast<virtio_net_hdr_basic*>(VirtioHeader);
+        auto PriorityHdrLen = (m_ParentNBL->TCI() != 0) ? ETH_PRIORITY_HEADER_SIZE : 0;
+
+        VHeader->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
+        VHeader->gso_type = packetReview.ipStatus == ppresIPV4 ? VIRTIO_NET_HDR_GSO_TCPV4 : VIRTIO_NET_HDR_GSO_TCPV6;
+        VHeader->hdr_len = (USHORT)(packetReview.XxpIpHeaderSize + IpHeaderOffset + PriorityHdrLen);
+        VHeader->gso_size = (USHORT)m_ParentNBL->MSS();
+        VHeader->csum_start = (USHORT)(m_ParentNBL->TCPHeaderOffset() + PriorityHdrLen);
+        VHeader->csum_offset = TCP_CHECKSUM_OFFSET;
+    }
+}
+
+USHORT CNB::QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const
+{
+    USHORT Res;
+    auto ppr = ParaNdis_ReviewIPPacket(RtlOffsetToPointer(PacketData, IpHeaderOffset),
+                                       GetDataLength(), __FUNCTION__);
+    if (ppr.ipStatus != ppresNotIP)
+    {
+        Res = static_cast<USHORT>(IpHeaderOffset + ppr.ipHeaderSize);
+    }
+    else
+    {
+        DPrintf(0, ("[%s] ERROR: NOT an IP packet - expected troubles!\n", __FUNCTION__));
+        Res = 0;
+    }
+    return Res;
+}
+
+void CNB::SetupCSO(virtio_net_hdr_basic *VirtioHeader, ULONG L4HeaderOffset) const
+{
+    u16 PriorityHdrLen = m_ParentNBL->TCI() ? ETH_PRIORITY_HEADER_SIZE : 0;
+
+    VirtioHeader->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
+    VirtioHeader->csum_start = static_cast<u16>(L4HeaderOffset) + PriorityHdrLen;
+    VirtioHeader->csum_offset = m_ParentNBL->IsTcpCSO() ? TCP_CHECKSUM_OFFSET : UDP_CHECKSUM_OFFSET;
+}
+
+void CNB::DoIPHdrCSO(PVOID IpHeader, ULONG EthPayloadLength) const
+{
+    ParaNdis_CheckSumVerifyFlat(IpHeader,
+                                EthPayloadLength,
+                                pcrIpChecksum | pcrFixIPChecksum,
+                                __FUNCTION__);
+}
+
+bool CNB::FillDescriptorSGList(CTXDescriptor &Descriptor, ULONG ParsedHeadersLength) const
+{
+    return Descriptor.SetupHeaders(ParsedHeadersLength) &&
+           MapDataToVirtioSGL(Descriptor, ParsedHeadersLength + NET_BUFFER_DATA_OFFSET(m_NB));
+}
+
+bool CNB::MapDataToVirtioSGL(CTXDescriptor &Descriptor, ULONG Offset) const
+{
+    for (ULONG i = 0; i < m_SGL->NumberOfElements; i++)
+    {
+        if (Offset < m_SGL->Elements[i].Length)
+        {
+            PHYSICAL_ADDRESS PA;
+            PA.QuadPart = m_SGL->Elements[i].Address.QuadPart + Offset;
+
+            if (!Descriptor.AddDataChunk(PA, m_SGL->Elements[i].Length - Offset))
+            {
+                return false;
+            }
+
+            Offset = 0;
+        }
+        else
+        {
+            Offset -= m_SGL->Elements[i].Length;
+        }
     }
 
-    DEBUG_EXIT_STATUS(4, nCopied);
-    result.size = nCopied;
-    return result;
+    return true;
+}
+
+bool CNB::CopyHeaders(PVOID Destination, ULONG MaxSize, ULONG &HeadersLength, ULONG &L4HeaderOffset) const
+{
+    HeadersLength = 0;
+    L4HeaderOffset = 0;
+
+    if (m_ParentNBL->IsLSO() || m_ParentNBL->IsTcpCSO())
+    {
+        L4HeaderOffset = m_ParentNBL->TCPHeaderOffset();
+        HeadersLength = L4HeaderOffset + sizeof(TCPHeader);
+        Copy(Destination, HeadersLength);
+    }
+    else if (m_ParentNBL->IsUdpCSO())
+    {
+        Copy(Destination, MaxSize);
+        L4HeaderOffset = QueryL4HeaderOffset(Destination, m_Context->Offload.ipHeaderOffset);
+        HeadersLength = L4HeaderOffset + sizeof(UDPHeader);
+    }
+    else if (m_ParentNBL->IsIPHdrCSO())
+    {
+        Copy(Destination, MaxSize);
+        HeadersLength = QueryL4HeaderOffset(Destination, m_Context->Offload.ipHeaderOffset);
+        L4HeaderOffset = HeadersLength;
+    }
+    else
+    {
+        HeadersLength = ETH_HEADER_SIZE;
+        Copy(Destination, HeadersLength);
+    }
+
+    return (HeadersLength <= MaxSize);
+}
+
+void CNB::BuildPriorityHeader(PETH_HEADER EthHeader, PVLAN_HEADER VlanHeader) const
+{
+    VlanHeader->TCI = RtlUshortByteSwap(m_ParentNBL->TCI());
+
+    if (VlanHeader->TCI != 0)
+    {
+        VlanHeader->EthType = EthHeader->EthType;
+        EthHeader->EthType = RtlUshortByteSwap(PRIO_HEADER_ETH_TYPE);
+    }
+}
+
+void CNB::PrepareOffloads(virtio_net_hdr_basic *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength, ULONG L4HeaderOffset) const
+{
+    *VirtioHeader = {};
+
+    if (m_ParentNBL->IsLSO())
+    {
+        SetupLSO(VirtioHeader, IpHeader, EthPayloadLength);
+    }
+    else if (m_ParentNBL->IsTcpCSO() || m_ParentNBL->IsUdpCSO())
+    {
+        SetupCSO(VirtioHeader, L4HeaderOffset);
+    }
+
+    if (m_ParentNBL->IsIPHdrCSO())
+    {
+        DoIPHdrCSO(IpHeader, EthPayloadLength);
+    }
+}
+
+bool CNB::BindToDescriptor(CTXDescriptor &Descriptor)
+{
+    if (m_SGL == nullptr)
+    {
+        return false;
+    }
+
+    Descriptor.SetNB(this);
+
+    auto &HeadersArea = Descriptor.HeadersAreaAccessor();
+    auto EthHeaders = HeadersArea.EthHeadersAreaVA();
+    ULONG HeadersLength;
+    ULONG L4HeaderOffset;
+
+    if (!CopyHeaders(EthHeaders, HeadersArea.MaxEthHeadersSize(), HeadersLength, L4HeaderOffset))
+    {
+        return false;
+    }
+
+    BuildPriorityHeader(HeadersArea.EthHeader(), HeadersArea.VlanHeader());
+    PrepareOffloads(HeadersArea.VirtioHeader(),
+                    HeadersArea.IPHeaders(),
+                    GetDataLength() - m_Context->Offload.ipHeaderOffset,
+                    L4HeaderOffset);
+
+    return FillDescriptorSGList(Descriptor, HeadersLength);
+}
+
+bool CNB::Copy(PVOID Dst, ULONG Length) const
+{
+    ULONG CurrOffset = NET_BUFFER_CURRENT_MDL_OFFSET(m_NB);
+    ULONG Copied = 0;
+
+    for (PMDL CurrMDL = NET_BUFFER_CURRENT_MDL(m_NB);
+         CurrMDL != nullptr && Copied < Length;
+         CurrMDL = CurrMDL->Next)
+    {
+        ULONG CurrLen;
+        PVOID CurrAddr;
+
+#if NDIS_SUPPORT_NDIS620
+        NdisQueryMdl(CurrMDL, &CurrAddr, &CurrLen, LowPagePriority | MdlMappingNoExecute);
+#else
+        NdisQueryMdl(CurrMDL, &CurrAddr, &CurrLen, LowPagePriority);
+#endif
+
+        if (CurrAddr == nullptr)
+        {
+            break;
+        }
+
+        CurrLen = min(CurrLen - CurrOffset, Length - Copied);
+
+        NdisMoveMemory(RtlOffsetToPointer(Dst, Copied),
+                       RtlOffsetToPointer(CurrAddr, CurrOffset),
+                       CurrLen);
+
+        Copied += CurrLen;
+        CurrOffset = 0;
+    }
+
+    return (Copied == Length);
 }
