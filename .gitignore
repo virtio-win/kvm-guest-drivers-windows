@@ -15,5 +15,9 @@
 *objfre_*
 *Win?Debug*
 *Win?Release*
+*Win?.?Debug*
+*Win?.?Release*
+*VistaDebug*
+*VistaRelease*
 Install
 NetKVM/Install_Debug
