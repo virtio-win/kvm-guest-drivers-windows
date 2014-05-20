@@ -11,7 +11,6 @@
 **********************************************************************/
 #include "ParaNdis6.h"
 
-#if NDIS_SUPPORT_NDIS6
 static MINIPORT_DISABLE_INTERRUPT MiniportDisableInterruptEx;
 static MINIPORT_ENABLE_INTERRUPT MiniportEnableInterruptEx;
 static MINIPORT_INTERRUPT_DPC MiniportInterruptDPC;
@@ -1069,5 +1068,3 @@ VOID ParaNdis6_CancelSendNetBufferLists(
     DEBUG_ENTRY(0);
     pContext->TXPath.CancelNBLs(pCancelId);
 }
-
-#endif // NDIS_SUPPORT_NDIS6

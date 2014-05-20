@@ -260,55 +260,8 @@ typedef struct _tagChecksumCheckResult
 }tChecksumCheckResult;
 #pragma warning (pop)
 
-/*
-for simplicity, we use for NDIS5 the same statistics as native NDIS6 uses
-*/
-#if !NDIS_SUPPORT_NDIS6
-typedef struct _tagNdisStatustics
-{
-    ULONG64                     ifHCInOctets;
-    ULONG64                     ifHCInUcastPkts;
-    ULONG64                     ifHCInUcastOctets;
-    ULONG64                     ifHCInMulticastPkts;
-    ULONG64                     ifHCInMulticastOctets;
-    ULONG64                     ifHCInBroadcastPkts;
-    ULONG64                     ifHCInBroadcastOctets;
-    ULONG64                     ifInDiscards;
-    ULONG64                     ifInErrors;
-    ULONG64                     ifHCOutOctets;
-    ULONG64                     ifHCOutUcastPkts;
-    ULONG64                     ifHCOutUcastOctets;
-    ULONG64                     ifHCOutMulticastPkts;
-    ULONG64                     ifHCOutMulticastOctets;
-    ULONG64                     ifHCOutBroadcastPkts;
-    ULONG64                     ifHCOutBroadcastOctets;
-    ULONG64                     ifOutDiscards;
-    ULONG64                     ifOutErrors;
-}NDIS_STATISTICS_INFO;
-
-typedef PNDIS_PACKET tPacketType;
-typedef PNDIS_PACKET tPacketHolderType;
-typedef PNDIS_PACKET tPacketIndicationType;
-
-typedef struct _tagNdisOffloadParams
-{
-    UCHAR   IPv4Checksum;
-    UCHAR   TCPIPv4Checksum;
-    UCHAR   UDPIPv4Checksum;
-    UCHAR   LsoV1;
-    UCHAR   LsoV2IPv4;
-    UCHAR   TCPIPv6Checksum;
-    UCHAR   UDPIPv6Checksum;
-    UCHAR   LsoV2IPv6;
-}NDIS_OFFLOAD_PARAMETERS;
-
-#else // NDIS_SUPPORT_NDIS6
-
-typedef PNET_BUFFER         tPacketType;
 typedef PMDL                tPacketHolderType;
 typedef PNET_BUFFER_LIST    tPacketIndicationType;
-
-#endif  //!NDIS_SUPPORT_NDIS6
 
 typedef struct _tagOurCounters
 {
@@ -527,8 +480,6 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN bTXPathAllocated;
     BOOLEAN bTXPathCreated;
 
-#if NDIS_SUPPORT_NDIS6
-// Vista +
     PIO_INTERRUPT_MESSAGE_INFO  pMSIXInfoTable;
     NDIS_HANDLE                 DmaHandle;
     ULONG                       ulIrqReceived;
@@ -561,17 +512,6 @@ typedef struct _tagPARANDIS_ADAPTER
             LARGE_INTEGER           CoalesceEvents;
         }                           Statistics;
     } RSC;
-#endif
-
-#else
-// Vista -
-    NDIS_MINIPORT_INTERRUPT     Interrupt;
-    NDIS_HANDLE                 PacketPool;
-    NDIS_HANDLE                 BuffersPool;
-    NDIS_HANDLE                 WrapperConfigurationHandle;
-    NDIS_EVENT                  HaltEvent;
-    NDIS_TIMER                  DPCPostProcessTimer;
-    BOOLEAN                     bDmaInitialized;
 #endif
 
     _tagPARANDIS_ADAPTER(const _tagPARANDIS_ADAPTER&) = delete;

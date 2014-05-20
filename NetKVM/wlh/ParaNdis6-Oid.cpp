@@ -14,8 +14,6 @@
 #include "ParaNdis-Oid.h"
 #include "ParaNdis6.h"
 
-#if NDIS_SUPPORT_NDIS6
-
 static NDIS_IO_WORKITEM_FUNCTION OnSetPowerWorkItem;
 
 #define OIDENTRY(oid, el, xfl, xokl, flags) \
@@ -1237,5 +1235,3 @@ NDIS_STATUS OnSetLinkParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     }
     return status;
 }
-
-#endif //NDIS6_MINIPORT

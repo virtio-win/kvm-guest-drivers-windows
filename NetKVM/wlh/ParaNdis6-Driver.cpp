@@ -16,7 +16,6 @@
 
 extern "C"
 {
-#if NDIS_SUPPORT_NDIS6
     static NDIS_IO_WORKITEM_FUNCTION OnResetWorkItem;
     static MINIPORT_ADD_DEVICE ParaNdis6_AddDevice;
     static MINIPORT_REMOVE_DEVICE ParaNdis6_RemoveDevice;
@@ -1056,5 +1055,3 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
     DEBUG_EXIT_STATUS(status ? 0 : 4, status);
     return status;
 }
-
-#endif //NDIS_SUPPORT_NDIS6
