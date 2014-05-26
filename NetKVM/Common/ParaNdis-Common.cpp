@@ -15,6 +15,8 @@ static void ReuseReceiveBufferRegular(PARANDIS_ADAPTER *pContext, pRxNetDescript
 static void ReuseReceiveBufferPowerOff(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBuffersDescriptor);
 static VOID ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext);
 
+static __inline pRxNetDescriptor ReceiveQueueGetBuffer(PPARANDIS_RECEIVE_QUEUE pQueue);
+
 // TODO: remove when the problem solved
 void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue);
 
@@ -1030,9 +1032,19 @@ Return value:
 static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 {
     BOOLEAN b;
+    ULONG i;
     DEBUG_ENTRY(0);
 
     /* list NetReceiveBuffersWaiting must be free */
+
+    for (i = 0; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
+    {
+	pRxNetDescriptor pBufferDescriptor;
+
+	while (NULL != (pBufferDescriptor = ReceiveQueueGetBuffer(pContext->ReceiveQueues + i)))
+	    ReuseReceiveBufferPowerOff(pContext, pBufferDescriptor);
+    }
+
     do
     {
         NdisAcquireSpinLock(&pContext->ReceiveLock);
