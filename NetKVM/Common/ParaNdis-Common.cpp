@@ -1083,6 +1083,7 @@ static void PreventDPCServicing(PARANDIS_ADAPTER *pContext)
 {
     LONG inside;;
     pContext->bEnableInterruptHandlingDPC = FALSE;
+    KeMemoryBarrier();
     do
     {
         inside = InterlockedIncrement(&pContext->counterDPCInside);
@@ -1658,11 +1659,13 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
     UINT numOfPacketsToIndicate = min(ulMaxPacketsToIndicate, pContext->uNumberOfHandledRXPacketsInDPC);
 
     DEBUG_ENTRY(5);
+
+    InterlockedIncrement(&pContext->counterDPCInside);
+
     if (pContext->bEnableInterruptHandlingDPC)
     {
         bool bDoKick = false;
 
-        InterlockedIncrement(&pContext->counterDPCInside);
         InterlockedExchange(&pContext->bDPCInactive, 0);
         interruptSources = InterlockedExchange(&pContext->InterruptStatus, 0);
 
@@ -1686,9 +1689,9 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
                 stillRequiresProcessing |= isTransmit;
             }
         }
-
-        InterlockedDecrement(&pContext->counterDPCInside);
     }
+    InterlockedDecrement(&pContext->counterDPCInside);
+
     return stillRequiresProcessing;
 }
 
