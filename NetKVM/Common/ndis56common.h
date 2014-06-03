@@ -55,7 +55,8 @@ extern "C"
         IN  ULONG                   Tag)
     {
         UNREFERENCED_PARAMETER(NdisHandle);
-        NdisFreeMemoryWithTag(VirtualAddress, Tag);
+        UNREFERENCED_PARAMETER(Tag);
+        NdisFreeMemory(VirtualAddress, 0, 0);
     }
 #endif
 
