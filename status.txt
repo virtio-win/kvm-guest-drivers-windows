@@ -1,3 +1,11 @@
+Date    04 Jun 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm106
+
+Fixed bugs:
+
+BZ 1103100 - Fix WDK library linkage with Windows Vista\Windows Server 2008 build.
+
 Date    28 May 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm105
