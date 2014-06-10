@@ -4,7 +4,7 @@
 bool CVirtQueue::AllocateQueueMemory()
 {
     ULONG NumEntries, AllocationSize;
-    VirtIODeviceQueryQueueAllocation(&m_IODevice, m_Index, &NumEntries, &AllocationSize);
+    VirtIODeviceQueryQueueAllocation(m_IODevice, m_Index, &NumEntries, &AllocationSize);
     return (AllocationSize != 0) ? m_SharedMemory.Allocate(AllocationSize) : false;
 }
 
@@ -18,13 +18,23 @@ void CVirtQueue::Renew()
     WriteVirtIODeviceRegister(virtioDev->addr + VIRTIO_PCI_QUEUE_PFN, pageNum);
 }
 
-bool CVirtQueue::Create()
+bool CVirtQueue::Create(UINT Index,
+	VirtIODevice *IODevice,
+	NDIS_HANDLE DrvHandle,
+	bool UsePublishedIndices)
 {
+    m_DrvHandle = DrvHandle;
+    m_Index = Index;
+    m_IODevice = IODevice;
+    if (!m_SharedMemory.Create(DrvHandle))
+        return false;
+    m_UsePublishedIndices = UsePublishedIndices;
+
     ASSERT(m_VirtQueue == nullptr);
 
     if(AllocateQueueMemory())
     {
-        m_VirtQueue = VirtIODevicePrepareQueue(&m_IODevice,
+        m_VirtQueue = VirtIODevicePrepareQueue(m_IODevice,
                                                m_Index,
                                                m_SharedMemory.GetPA(),
                                                m_SharedMemory.GetVA(),
@@ -50,17 +60,17 @@ bool CTXVirtQueue::PrepareBuffers()
 
     for (m_TotalDescriptors = 0; m_TotalDescriptors < NumBuffers; m_TotalDescriptors++)
     {
-        auto TXDescr = new (m_Context->MiniportHandle) CTXDescriptor(m_DrvHandle,
-                                                                     m_HeaderSize,
-                                                                     m_SGTable,
-                                                                     m_SGTableCapacity,
-                                                                     m_Context->bUseIndirect ? true : false);
+        auto TXDescr = new (m_Context->MiniportHandle) CTXDescriptor();
         if (TXDescr == nullptr)
         {
             break;
         }
 
-        if (!TXDescr->Create())
+        if (!TXDescr->Create(m_DrvHandle,
+            m_HeaderSize,
+            m_SGTable,
+            m_SGTableCapacity,
+            m_Context->bUseIndirect ? true : false))
         {
             CTXDescriptor::Destroy(TXDescr, m_Context->MiniportHandle);
             break;
@@ -83,8 +93,18 @@ void CTXVirtQueue::FreeBuffers()
     m_TotalDescriptors = m_FreeHWBuffers = 0;
 }
 
-bool CTXVirtQueue::Create()
+bool CTXVirtQueue::Create(UINT Index,
+	VirtIODevice *IODevice,
+	NDIS_HANDLE DrvHandle,
+	bool UsePublishedIndices,
+	ULONG MaxBuffers,
+	ULONG HeaderSize,
+	PPARANDIS_ADAPTER Context)
 {
+    m_MaxBuffers = MaxBuffers;
+    m_HeaderSize = HeaderSize;
+    m_Context = Context;
+
     m_SGTableCapacity = m_Context->bUseIndirect ? VirtIODeviceIndirectPageCapacity() : GetRingSize();
 
     auto SGBuffer = ParaNdis_AllocateMemoryRaw(m_DrvHandle, m_SGTableCapacity * sizeof(m_SGTable[0]));
@@ -95,7 +115,7 @@ bool CTXVirtQueue::Create()
         return false;
     }
 
-    return CVirtQueue::Create() && PrepareBuffers();
+    return CVirtQueue::Create(Index, IODevice, DrvHandle, UsePublishedIndices) && PrepareBuffers();
 }
 
 CTXVirtQueue::~CTXVirtQueue()

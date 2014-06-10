@@ -252,16 +252,20 @@ void CNBL::OnLastReferenceGone()
     Destroy(this, m_Context->MiniportHandle);
 }
 
-CParaNdisTX::CParaNdisTX(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
-    : m_Context(Context)
-    , m_VirtQueue(DeviceQueueIndex,
-                  m_Context->IODevice,
-                  m_Context->MiniportHandle,
-                  m_Context->bDoPublishIndices ? true : false,
-                  m_Context->maxFreeTxDescriptors,
-                  m_Context->nVirtioHeaderSize,
-                  m_Context)
+CParaNdisTX::CParaNdisTX()
 { }
+
+bool CParaNdisTX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
+{
+	m_Context = Context;
+	return m_VirtQueue.Create(DeviceQueueIndex,
+		&m_Context->IODevice,
+		m_Context->MiniportHandle,
+		m_Context->bDoPublishIndices ? true : false,
+		m_Context->maxFreeTxDescriptors,
+		m_Context->nVirtioHeaderSize,
+		m_Context);
+}
 
 void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
 {

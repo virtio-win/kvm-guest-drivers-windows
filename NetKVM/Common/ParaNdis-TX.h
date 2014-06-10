@@ -180,10 +180,9 @@ typedef struct _tagSynchronizedContext tSynchronizedContext;
 class CParaNdisTX : public CNdisAllocatable<CParaNdisTX, 'XTHR'>
 {
 public:
-    CParaNdisTX(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex);
+    CParaNdisTX();
 
-    bool Create()
-    { return m_VirtQueue.Create(); }
+    bool Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex);
 
     void Send(PNET_BUFFER_LIST pNBL);
 

@@ -26,10 +26,14 @@ typedef enum
 class CTXHeaders
 {
 public:
-    CTXHeaders(NDIS_HANDLE DrvHandle, ULONG VirtioHdrSize)
-        : m_HeadersBuffer(DrvHandle)
-        , m_VirtioHdrSize(VirtioHdrSize)
+    CTXHeaders()
     {}
+
+    bool Create(NDIS_HANDLE DrvHandle, ULONG VirtioHdrSize) 
+    {
+        m_VirtioHdrSize = VirtioHdrSize;
+        return m_HeadersBuffer.Create(DrvHandle);
+    }
 
     bool Allocate();
 
@@ -83,20 +87,25 @@ private:
 class CTXDescriptor : public CNdisAllocatable<CTXDescriptor, 'DTHR'>
 {
 public:
-    CTXDescriptor(NDIS_HANDLE DrvHandle,
+    CTXDescriptor()
+    {}
+
+    bool Create(NDIS_HANDLE DrvHandle,
                   ULONG VirtioHeaderSize,
                   struct VirtIOBufferDescriptor *VirtioSGL,
                   ULONG VirtioSGLSize,
                   bool Indirect)
-        : m_Headers(DrvHandle, VirtioHeaderSize)
-        , m_IndirectArea(DrvHandle)
-        , m_VirtioSGL(VirtioSGL)
-        , m_VirtioSGLSize(VirtioSGLSize)
-        , m_Indirect(Indirect)
-    {}
-
-    bool Create()
-    { return m_Headers.Allocate() && (!m_Indirect || m_IndirectArea.Allocate(PAGE_SIZE)); }
+    { 
+		if (!m_Headers.Create(DrvHandle, VirtioHeaderSize))
+			return false;
+		if (!m_IndirectArea.Create(DrvHandle))
+			return false;
+		m_VirtioSGL = VirtioSGL;
+		m_VirtioSGLSize = VirtioSGLSize;
+		m_Indirect = Indirect;
+		
+		return m_Headers.Allocate() && (!m_Indirect || m_IndirectArea.Allocate(PAGE_SIZE));
+    }
 
     SubmitTxPacketResult Enqueue(struct virtqueue *VirtQueue, ULONG TotalDescriptors, ULONG FreeDescriptors);
 
@@ -139,29 +148,29 @@ public:
     void Renew();
 
 protected:
-    CVirtQueue(UINT Index,
-               VirtIODevice &IODevice,
-               NDIS_HANDLE DrvHandle,
-               bool UsePublishedIndices)
-        : m_DrvHandle(DrvHandle)
-        , m_Index(Index)
-        , m_IODevice(IODevice)
-        , m_SharedMemory(DrvHandle)
-        , m_UsePublishedIndices(UsePublishedIndices)
+    CVirtQueue()
+        : m_DrvHandle(NULL)
+        , m_Index(0xFFFFFFFF)
+        , m_IODevice(NULL)
+        , m_UsePublishedIndices(false)
     {}
 
     virtual ~CVirtQueue()
     { Delete(); }
 
-    bool Create();
-    const NDIS_HANDLE m_DrvHandle;
+    bool Create(UINT Index,
+        VirtIODevice *IODevice,
+        NDIS_HANDLE DrvHandle,
+        bool UsePublishedIndices);
+
+    NDIS_HANDLE m_DrvHandle;
 
 private:
     bool AllocateQueueMemory();
     void Delete();
 
     UINT m_Index;
-    VirtIODevice &m_IODevice;
+    VirtIODevice *m_IODevice;
 
     CNdisSharedMemory m_SharedMemory;
     bool m_UsePublishedIndices;
@@ -177,22 +186,18 @@ protected:
 class CTXVirtQueue : public CVirtQueue
 {
 public:
-    CTXVirtQueue(UINT Index,
-                 VirtIODevice &IODevice,
-                 NDIS_HANDLE DrvHandle,
-                 bool UsePublishedIndices,
-                 ULONG MaxBuffers,
-                 ULONG HeaderSize,
-                 PPARANDIS_ADAPTER Context)
-        : CVirtQueue(Index, IODevice, DrvHandle, UsePublishedIndices)
-        , m_MaxBuffers(MaxBuffers)
-        , m_HeaderSize(HeaderSize)
-        , m_Context(Context)
+    CTXVirtQueue()
     { }
 
     virtual ~CTXVirtQueue();
 
-    bool Create();
+    bool Create(UINT Index,
+        VirtIODevice *IODevice,
+        NDIS_HANDLE DrvHandle,
+        bool UsePublishedIndices,
+        ULONG MaxBuffers,
+        ULONG HeaderSize,
+        PPARANDIS_ADAPTER Context);
 
     SubmitTxPacketResult SubmitPacket(CNB &NB);
 

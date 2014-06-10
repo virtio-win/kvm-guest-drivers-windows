@@ -295,9 +295,16 @@ private:
 class CNdisSharedMemory
 {
 public:
-    explicit CNdisSharedMemory(NDIS_HANDLE DrvHandle)
-        : m_DrvHandle(DrvHandle)
+    explicit CNdisSharedMemory()
+        : m_DrvHandle(NULL)
     {}
+
+    bool Create(NDIS_HANDLE DrvHandle)
+    {
+        m_DrvHandle = DrvHandle;
+        return true;
+    }
+		
     ~CNdisSharedMemory();
     bool Allocate(ULONG Size, bool IsCached = true);
 
