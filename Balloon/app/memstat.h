@@ -12,11 +12,21 @@ public:
     CMemStat();
     ~CMemStat();
     BOOL Init();
-    BOOL GetStatus(PBALLOON_STAT pstat);
+    BOOL Update();
+
+    PVOID GetBuffer() {
+        return m_Stats;
+    }
+
+    size_t GetSize() {
+        return sizeof(m_Stats);
+    }
+
 private:
     BOOL initialized;
     CComPtr< IWbemLocator > locator;
     CComPtr< IWbemServices > service;
+    BALLOON_STAT m_Stats[VIRTIO_BALLOON_S_NR];
 };
 
 #endif

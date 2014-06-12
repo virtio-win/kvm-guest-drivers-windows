@@ -1,29 +1,15 @@
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <tchar.h>
 
 #include "utils.h"
 #include "service.h"
 
 LPWSTR ServiceName = L"BalloonService";
+LPWSTR DisplayName = L"Balloon Service";
+
 CService srvc;
-
-void __stdcall Handler(DWORD ctlcode)
-{
-    CService::HandlerThunk(&srvc, ctlcode);
-}
-
-void __stdcall ServiceMain(DWORD argc, TCHAR* argv[])
-{
-    srvc.m_StatusHandle = RegisterServiceCtrlHandler(argv[0], (LPHANDLER_FUNCTION) Handler);
-    CService::ServiceMainThunk(&srvc, argc, argv);
-}
-
-SERVICE_TABLE_ENTRY serviceTable[] =
-{
-    { ServiceName, (LPSERVICE_MAIN_FUNCTION) ServiceMain},
-    { NULL, NULL}
-};
 
 void __stdcall HandlerEx(DWORD ctlcode, DWORD evtype, PVOID evdata, PVOID context)
 {
@@ -59,10 +45,6 @@ wmain(
            ServiceRun();
         } else if (_tcsicmp(L"-s", argv[1]) == 0) {
            ServiceControl(SERVICE_CONTROL_STOP);
-        } else if (_tcsicmp(L"-p", argv[1]) == 0) {
-           ServiceControl(SERVICE_CONTROL_PAUSE);
-        } else if (_tcsicmp(L"-c", argv[1]) == 0) {
-           ServiceControl(SERVICE_CONTROL_CONTINUE);
         } else if (_tcsicmp(L"status", argv[1]) == 0) {
            SC_HANDLE scm, service;
            scm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);

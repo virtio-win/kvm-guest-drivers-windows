@@ -3,6 +3,8 @@
 #include "strsafe.h"
 
 extern LPWSTR ServiceName;
+extern LPWSTR DisplayName;
+
 extern CService srvc;
 
 static struct ErrEntry {
@@ -69,8 +71,6 @@ void ShowUsage()
     printf("blnsvr -u\tUninstall service\n");
     printf("blnsvr -r\tRun service\n");
     printf("blnsvr -s\tStop service\n");
-    printf("blnsvr -p\tPause service\n");
-    printf("blnsvr -c\tResume service\n");
     printf("blnsvr status\tCurrent status\n");
     printf("\n");
 }
@@ -100,7 +100,7 @@ BOOL InstallService()
     newService = CreateService(
                              scm,
                              ServiceName,
-                             ServiceName,
+                             DisplayName,
                              SERVICE_ALL_ACCESS,
                              SERVICE_WIN32_OWN_PROCESS,
                              SERVICE_AUTO_START,
@@ -263,12 +263,6 @@ BOOL ServiceControl(int ctrl)
     if (ctrl == SERVICE_CONTROL_STOP) {
         printf("Service is stopping...\n");
         res = ControlService(service, SERVICE_CONTROL_STOP, &status);
-    } else if (ctrl == SERVICE_CONTROL_PAUSE) {
-        printf("Service is pausing...\n");
-        res = ControlService(service, SERVICE_CONTROL_PAUSE, &status);
-    } else if (ctrl == SERVICE_CONTROL_CONTINUE) {
-        printf("Service is resuming...\n");
-        res = ControlService(service, SERVICE_CONTROL_CONTINUE, &status);
     }
 
     if (!res) {

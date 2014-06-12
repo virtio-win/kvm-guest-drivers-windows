@@ -6,6 +6,7 @@ CMemStat::CMemStat()
     initialized = FALSE;
     locator = NULL;
     service = NULL;
+    memset(m_Stats, -1, sizeof(m_Stats));
 }
 
 CMemStat::~CMemStat()
@@ -90,7 +91,7 @@ BOOL CMemStat::Init()
     return TRUE;
 }
 
-BOOL  CMemStat::GetStatus(PBALLOON_STAT pStat)
+BOOL CMemStat::Update()
 {
     MEMORYSTATUSEX statex = {sizeof(statex)};
     CComPtr< IEnumWbemClassObject > enumerator;
@@ -99,10 +100,6 @@ BOOL  CMemStat::GetStatus(PBALLOON_STAT pStat)
     _variant_t var_val;
     HRESULT status  = S_OK;
     UINT idx = 0;
-    if(!pStat) {
-        PrintMessage("Invalid pointer");
-        return FALSE;
-    }
 
     status = service->ExecQuery(
                              L"WQL",
@@ -141,8 +138,8 @@ BOOL  CMemStat::GetStatus(PBALLOON_STAT pStat)
             PrintMessage("Cannot get PagesInputPerSec");
             var_val.vt =  -1;
         }
-        pStat[idx].tag = VIRTIO_BALLOON_S_SWAP_IN;
-        pStat[idx].val = (long)var_val;
+        m_Stats[idx].tag = VIRTIO_BALLOON_S_SWAP_IN;
+        m_Stats[idx].val = (long)var_val;
         idx++;
 
         status = memory->Get( 
@@ -157,8 +154,8 @@ BOOL  CMemStat::GetStatus(PBALLOON_STAT pStat)
             PrintMessage("Cannot get PagesOutputPerSec");
             var_val.vt =  -1;
         }
-        pStat[idx].tag = VIRTIO_BALLOON_S_SWAP_OUT;
-        pStat[idx].val = (long)var_val;
+        m_Stats[idx].tag = VIRTIO_BALLOON_S_SWAP_OUT;
+        m_Stats[idx].val = (long)var_val;
         idx++;
 
         status = memory->Get( 
@@ -173,8 +170,8 @@ BOOL  CMemStat::GetStatus(PBALLOON_STAT pStat)
             PrintMessage("Cannot get PageReadsPerSec");
             var_val.vt =  -1;
         }
-        pStat[idx].tag = VIRTIO_BALLOON_S_MAJFLT;
-        pStat[idx].val = (long)var_val;
+        m_Stats[idx].tag = VIRTIO_BALLOON_S_MAJFLT;
+        m_Stats[idx].val = (long)var_val;
         idx++;
 
         status = memory->Get( 
@@ -189,18 +186,18 @@ BOOL  CMemStat::GetStatus(PBALLOON_STAT pStat)
             PrintMessage("Cannot get PageFaultsPerSec");
             var_val.vt =  -1;
         }
-        pStat[idx].tag = VIRTIO_BALLOON_S_MINFLT;
-        pStat[idx].val = (long)var_val;
+        m_Stats[idx].tag = VIRTIO_BALLOON_S_MINFLT;
+        m_Stats[idx].val = (long)var_val;
         idx++;
 
         GlobalMemoryStatusEx(&statex);
 
-        pStat[idx].tag = VIRTIO_BALLOON_S_MEMFREE;
-        pStat[idx].val = statex.ullAvailPhys;
+        m_Stats[idx].tag = VIRTIO_BALLOON_S_MEMFREE;
+        m_Stats[idx].val = statex.ullAvailPhys;
         idx++;
 
-        pStat[idx].tag = VIRTIO_BALLOON_S_MEMTOT;
-        pStat[idx].val = statex.ullTotalPhys;
+        m_Stats[idx].tag = VIRTIO_BALLOON_S_MEMTOT;
+        m_Stats[idx].val = statex.ullTotalPhys;
     }
     return TRUE;
 }
