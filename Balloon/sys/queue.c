@@ -1,6 +1,7 @@
 #include "precomp.h"
 
 EVT_WDF_IO_QUEUE_IO_WRITE BalloonIoWrite;
+EVT_WDF_REQUEST_CANCEL BalloonEvtRequestCancel;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, BalloonQueueInitialize)
@@ -68,19 +69,55 @@ BalloonIoWrite(
         return;
     }
 
-    Length = min(buffSize, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR);
-#if 0
+    if (devCtx->HandleWriteRequest)
     {
-        size_t i;
-        PBALLOON_STAT stat = (PBALLOON_STAT)buffer;
-        for (i = 0; i < Length / sizeof(BALLOON_STAT); ++i)
+        Length = min(buffSize, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR);
+#if 0
         {
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "tag = %d, val = %08I64X\n\n", stat[i].tag, stat[i].val);
+            size_t i;
+            PBALLOON_STAT stat = (PBALLOON_STAT)buffer;
+            for (i = 0; i < Length / sizeof(BALLOON_STAT); ++i)
+            {
+                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS,
+                    "tag = %d, val = %08I64X\n\n", stat[i].tag, stat[i].val);
+            }
         }
-    }
 #endif
-    RtlCopyMemory(devCtx->MemStats, buffer, Length);
-    WdfRequestCompleteWithInformation(Request, status, Length);
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "WdfRequestCompleteWithInformation Called! Queue 0x%p, Request 0x%p Length %d Status 0x%08x\n",
-             Queue,Request,Length, status);
+        RtlCopyMemory(devCtx->MemStats, buffer, Length);
+        WdfRequestCompleteWithInformation(Request, status, Length);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "WdfRequestCompleteWithInformation Called! Queue 0x%p, Request 0x%p Length %d Status 0x%08x\n",
+            Queue, Request, Length, status);
+        BalloonMemStats(WdfIoQueueGetDevice(Queue));
+
+        devCtx->HandleWriteRequest = FALSE;
+    }
+    else
+    {
+        status = WdfRequestMarkCancelableEx(Request, BalloonEvtRequestCancel);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
+                "WdfRequestMarkCancelableEx failed: 0x%08x\n", status);
+            WdfRequestCompleteWithInformation(Request, status, 0L);
+            return;
+        }
+
+        devCtx->PendingWriteRequest = Request;
+    }
+}
+
+VOID BalloonEvtRequestCancel(IN WDFREQUEST Request)
+{
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(WdfIoQueueGetDevice(
+        WdfRequestGetIoQueue(Request)));
+    PSINGLE_LIST_ENTRY iter;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
+        "--> BalloonEvtRequestCancel Cancelled Request: %p\n", Request);
+
+    NT_ASSERT(devCtx->PendingWriteRequest == Request);
+    devCtx->PendingWriteRequest = NULL;
+    WdfRequestComplete(Request, STATUS_CANCELLED);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- BalloonEvtRequestCancel\n");
 }

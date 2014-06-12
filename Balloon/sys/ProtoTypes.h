@@ -46,6 +46,7 @@ typedef struct {
 
 typedef struct _DEVICE_CONTEXT {
     WDFINTERRUPT            WdfInterrupt;
+    WDFREQUEST              PendingWriteRequest;
     PUCHAR                  PortBase;
     ULONG                   PortCount;
     BOOLEAN                 PortMapped;
@@ -69,6 +70,7 @@ typedef struct _DEVICE_CONTEXT {
     KEVENT                  WakeUpThread;
     PKTHREAD                Thread;
     BOOLEAN                 bShutDown;
+    BOOLEAN                 HandleWriteRequest;
 
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 

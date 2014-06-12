@@ -534,17 +534,29 @@ BalloonInterruptDpc(
         KeSetEvent (&devCtx->HostAckEvent, IO_NO_INCREMENT, FALSE);
     }
 
-    if(devCtx->StatVirtQueue &&
-       devCtx->StatVirtQueue->vq_ops->get_buf(devCtx->StatVirtQueue, &len)) {
-       BalloonMemStats(WdfDevice);
+    if (devCtx->StatVirtQueue &&
+        devCtx->StatVirtQueue->vq_ops->get_buf(devCtx->StatVirtQueue, &len))
+    {
+        WDFREQUEST request = devCtx->PendingWriteRequest;
+
+        if ((request != NULL) &&
+            (WdfRequestUnmarkCancelable(request) != STATUS_CANCELLED))
+        {
+            PVOID buffer;
+            size_t length = 0;
+
+            devCtx->HandleWriteRequest = TRUE;
+            devCtx->PendingWriteRequest = NULL;
+
+            WdfRequestRetrieveInputBuffer(request, 0, &buffer, &length);
+            WdfRequestCompleteWithInformation(request, STATUS_SUCCESS, length);
+        }
     }
 
     if(devCtx->Thread)
     {
        KeSetEvent(&devCtx->WakeUpThread, 0, FALSE);
     }
-
-    return;
 }
 
 NTSTATUS
