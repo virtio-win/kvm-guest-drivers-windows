@@ -539,13 +539,14 @@ BalloonInterruptDpc(
     {
         WDFREQUEST request = devCtx->PendingWriteRequest;
 
+        devCtx->HandleWriteRequest = TRUE;
+
         if ((request != NULL) &&
             (WdfRequestUnmarkCancelable(request) != STATUS_CANCELLED))
         {
             PVOID buffer;
             size_t length = 0;
 
-            devCtx->HandleWriteRequest = TRUE;
             devCtx->PendingWriteRequest = NULL;
 
             WdfRequestRetrieveInputBuffer(request, 0, &buffer, &length);
