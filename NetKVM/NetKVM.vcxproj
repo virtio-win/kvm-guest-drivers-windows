@@ -492,6 +492,7 @@
       <AdditionalDependencies>ndis.lib;ntoskrnl.lib;BufferOverflowK.lib;hal.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:\WinDDK\7600.16385.1\lib\wlh\i386</AdditionalLibraryDirectories>
       <Version>6.0</Version>
+      <MinimumRequiredVersion>6.0</MinimumRequiredVersion>
     </Link>
     <DriverSign>
       <AdditionalOptions>
@@ -845,6 +846,7 @@
       <AdditionalDependencies>ndis.lib;ntoskrnl.lib;BufferOverflowK.lib</AdditionalDependencies>
       <Version>6.0</Version>
       <AdditionalLibraryDirectories>C:\WinDDK\7600.16385.1\lib\wlh\amd64</AdditionalLibraryDirectories>
+      <MinimumRequiredVersion>6.0</MinimumRequiredVersion>
     </Link>
     <DriverSign>
       <AdditionalOptions>
