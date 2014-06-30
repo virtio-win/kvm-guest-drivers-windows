@@ -101,6 +101,10 @@ bool CTXVirtQueue::Create(UINT Index,
 	ULONG HeaderSize,
 	PPARANDIS_ADAPTER Context)
 {
+    if (!CVirtQueue::Create(Index, IODevice, DrvHandle, UsePublishedIndices)) {
+        return false;
+    }
+
     m_MaxBuffers = MaxBuffers;
     m_HeaderSize = HeaderSize;
     m_Context = Context;
@@ -115,7 +119,7 @@ bool CTXVirtQueue::Create(UINT Index,
         return false;
     }
 
-    return CVirtQueue::Create(Index, IODevice, DrvHandle, UsePublishedIndices) && PrepareBuffers();
+    return PrepareBuffers();
 }
 
 CTXVirtQueue::~CTXVirtQueue()
