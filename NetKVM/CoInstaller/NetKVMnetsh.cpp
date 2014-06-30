@@ -197,6 +197,10 @@ static bool _NetKVMGetKnownDevices(GUID *pguidDevClassPtr, vector<_NetKVMDeviceI
                 ResDevInfo.strDeviceID           = szDeviceId;
                 ResDevInfo.strDeviceDescription  = _NetKVMQueryDeviceString(*phDeviceInfo, &CurrDeviceInfo, SPDRP_DEVICEDESC);
                 ResDevInfo.strDeviceFriendlyName = _NetKVMQueryDeviceString(*phDeviceInfo, &CurrDeviceInfo, SPDRP_FRIENDLYNAME);
+                if (ResDevInfo.strDeviceFriendlyName.length() == 0)
+                {
+                    ResDevInfo.strDeviceFriendlyName = ResDevInfo.strDeviceDescription;
+                }
                 ResDevInfo.strLocationInfo = _NetKVMQueryDeviceString(*phDeviceInfo, &CurrDeviceInfo, SPDRP_LOCATION_INFORMATION);
                 ResDevInfo.dwDeviceNumber = _NetKVMQueryDeviceDWORD(*phDeviceInfo, &CurrDeviceInfo, SPDRP_UI_NUMBER);
                 ResDevInfo.DevInfoData = CurrDeviceInfo;
