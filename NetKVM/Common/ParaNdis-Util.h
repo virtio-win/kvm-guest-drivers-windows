@@ -327,3 +327,142 @@ bool __inline ParaNdis_IsPassive()
 {
     return (KeGetCurrentIrql() < DISPATCH_LEVEL);
 }
+
+#if NDIS_SUPPORT_NDIS620
+#define RW_LOCK_62
+#elif NDIS_SUPPORT_NDIS6
+#define RW_LOCK_60
+#elif
+#error  Read/Write lock not supported by NDIS before 6.0
+#endif
+
+class CNdisRWLockState 
+{
+private:
+#ifdef RW_LOCK_60
+    LOCK_STATE m_state;
+#endif
+#ifdef RW_LOCK_62
+    LOCK_STATE_EX m_state;
+#endif
+    friend class CNdisRWLock;
+};
+
+class CNdisRWLock : public CNdisAllocatable < CNdisRWLock, 'RWLK'> 
+{
+public:
+#ifdef RW_LOCK_60
+    bool Create(NDIS_HANDLE) 
+    {
+        NdisInitializeReadWriteLock(&m_lock);
+        return true;
+    }
+#endif
+#ifdef RW_LOCK_62
+    CNdisRWLock() : m_pLock(nullptr) {}
+    bool Create(NDIS_HANDLE miniportHandle);
+#endif
+
+    ~CNdisRWLock() 
+    {
+#ifdef RW_LOCK_62
+        if (m_pLock != nullptr)
+            NdisFreeRWLock(m_pLock);
+#endif
+    }
+
+    void acquireRead(CNdisRWLockState &lockState)
+    {
+#ifdef RW_LOCK_60
+        NdisAcquireReadWriteLock(&m_lock, 0, &lockState.m_state);
+#endif
+#ifdef RW_LOCK_62
+        NdisAcquireRWLockRead(m_pLock, &lockState.m_state, 0);
+#endif
+    }
+
+    void acquireWrite(CNdisRWLockState &lockState)
+    {
+#ifdef RW_LOCK_60
+        NdisAcquireReadWriteLock(&m_lock, 1, &lockState.m_state);
+#endif
+#ifdef RW_LOCK_62
+        NdisAcquireRWLockWrite(m_pLock, &lockState.m_state, 0);
+#endif
+    }
+
+    void release(CNdisRWLockState &lockState)
+    {
+#ifdef RW_LOCK_60
+        NdisReleaseReadWriteLock(&m_lock, &lockState.m_state);
+#endif
+#ifdef RW_LOCK_62
+        NdisReleaseRWLock(m_pLock, &lockState.m_state);
+#endif
+    }
+
+    void acquireReadDpr(CNdisRWLockState &lockState)
+    {
+        ASSERTMSG("Unexpected IRQL level", KeGetCurrentIrql() == DISPATCH_LEVEL);
+
+#ifdef RW_LOCK_60
+        NdisDprAcquireReadWriteLock(&m_lock, 0, &lockState.m_state);
+#endif
+#ifdef RW_LOCK_62
+        NdisAcquireRWLockRead(m_pLock, &lockState.m_state, NDIS_RWL_AT_DISPATCH_LEVEL);
+#endif
+    }
+
+    void acquireWriteDpr(CNdisRWLockState &lockState)
+    {
+        ASSERTMSG("Unexpected IRQL level", KeGetCurrentIrql() == DISPATCH_LEVEL);
+#ifdef RW_LOCK_60
+        NdisDprAcquireReadWriteLock(&m_lock, 1, &lockState.m_state);
+#endif
+#ifdef RW_LOCK_62
+        NdisAcquireRWLockWrite(m_pLock, &lockState.m_state, NDIS_RWL_AT_DISPATCH_LEVEL);
+#endif
+    }
+
+    void releaseDpr(CNdisRWLockState &lockState)
+    {
+        ASSERTMSG("Unexpected IRQL level", KeGetCurrentIrql() == DISPATCH_LEVEL);
+#ifdef RW_LOCK_60
+        NdisDprReleaseReadWriteLock(&m_lock, &lockState.m_state);
+#endif
+#ifdef RW_LOCK_62
+        NdisReleaseRWLock(m_pLock, &lockState.m_state);
+#endif
+    }
+
+private:
+#ifdef RW_LOCK_60
+    NDIS_RW_LOCK m_lock;
+#endif
+#ifdef RW_LOCK_62
+    PNDIS_RW_LOCK_EX m_pLock;
+#endif
+};
+
+template <void (CNdisRWLock::*Acquire)(CNdisRWLockState&), void (CNdisRWLock::*Release)(CNdisRWLockState&)>   class CNdisAutoRWLock 
+{
+public:
+    CNdisAutoRWLock(CNdisRWLock &_lock) : lock(_lock)
+    {
+        (lock.*Acquire)(lockState);
+    }
+
+    ~CNdisAutoRWLock() 
+    {
+        (lock.*Release)(lockState);
+    }
+private:
+    CNdisRWLock &lock;
+    CNdisRWLockState lockState;
+    CNdisAutoRWLock &operator=(const CNdisAutoRWLock &) {}
+};
+
+typedef CNdisAutoRWLock<&CNdisRWLock::acquireRead, &CNdisRWLock::release> CNdisPassiveReadAutoLock;
+typedef CNdisAutoRWLock<&CNdisRWLock::acquireReadDpr, &CNdisRWLock::releaseDpr> CNdisDispatchReadAutoLock;
+typedef CNdisAutoRWLock<&CNdisRWLock::acquireWrite, &CNdisRWLock::release> CNdisPassiveWriteAutoLock;
+typedef CNdisAutoRWLock<&CNdisRWLock::acquireWriteDpr, &CNdisRWLock::releaseDpr> CNdisDispatchWriteAutoLock;

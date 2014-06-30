@@ -48,3 +48,10 @@ void __CRTDECL operator delete[](void *) throw()
 {
     ASSERT(FALSE);
 }
+
+#ifdef RW_LOCK_62
+bool CNdisRWLock::Create(NDIS_HANDLE miniportHandle) {
+    m_pLock = NdisAllocateRWLock(miniportHandle);
+    return m_pLock != 0;
+}
+#endif
