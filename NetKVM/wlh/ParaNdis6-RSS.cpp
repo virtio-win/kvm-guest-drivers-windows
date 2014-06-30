@@ -7,7 +7,7 @@ static VOID ApplySettings(PPARANDIS_RSS_PARAMS RSSParameters,
         PARANDIS_HASHING_SETTINGS *ReceiveHashingSettings,
         PARANDIS_SCALING_SETTINGS *ReceiveScalingSettings)
 {
-    NdisAcquireSpinLock(&RSSParameters->RSSSettingsLock);
+    CNdisPassiveWriteAutoLock autoLock(RSSParameters->rwLock);
 
     RSSParameters->RSSMode = NewRSSMode;
 
@@ -25,14 +25,11 @@ static VOID ApplySettings(PPARANDIS_RSS_PARAMS RSSParameters,
             ReceiveScalingSettings->CPUIndexMapping = NULL;
         }
     }
-
-    NdisReleaseSpinLock(&RSSParameters->RSSSettingsLock);
 }
 
 static VOID InitRSSParameters(PARANDIS_RSS_PARAMS *RSSParameters, CCHAR RSSReceiveQueuesNumber)
 {
     NdisZeroMemory(RSSParameters, sizeof(*RSSParameters));
-    NdisAllocateSpinLock(&RSSParameters->RSSSettingsLock);
     RSSParameters->ReceiveQueuesNumber = RSSReceiveQueuesNumber;
 }
 
@@ -44,7 +41,6 @@ static VOID CleanupRSSParameters(PARANDIS_RSS_PARAMS *RSSParameters)
     if(RSSParameters->RSSScalingSettings.CPUIndexMapping != NULL)
         NdisFreeMemory(RSSParameters->RSSScalingSettings.CPUIndexMapping, 0, 0);
 
-    NdisFreeSpinLock(&RSSParameters->RSSSettingsLock);
 }
 
 static VOID InitRSSCapabilities(NDIS_RECEIVE_SCALE_CAPABILITIES *RSSCapabilities, ULONG RSSReceiveQueuesNumber)
@@ -194,6 +190,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_RSS_PARAMS *RSSParameters,
 {
     ULONG ProcessorMasksSize;
     ULONG IndirectionTableEntries;
+    CNdisPassiveWriteAutoLock autoLock(RSSParameters->rwLock);
 
     *ParamsBytesRead = 0;
 
@@ -276,6 +273,8 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_RSS_PARAMS *RSSParameters,
 ULONG ParaNdis6_QueryReceiveHash(const PARANDIS_RSS_PARAMS *RSSParameters,
                                  RSS_HASH_KEY_PARAMETERS *RSSHashKeyParameters)
 {
+    CNdisPassiveReadAutoLock autoLock(RSSParameters->rwLock);
+
     NdisZeroMemory(RSSHashKeyParameters, sizeof(*RSSHashKeyParameters));
     RSSHashKeyParameters->ReceiveHashParameters.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
     RSSHashKeyParameters->ReceiveHashParameters.Header.Revision = NDIS_RECEIVE_HASH_PARAMETERS_REVISION_1;
@@ -301,6 +300,8 @@ NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_RSS_PARAMS *RSSParameters,
                                         UINT ParamsLength,
                                         PUINT ParamsBytesRead)
 {
+    CNdisPassiveWriteAutoLock autoLock(RSSParameters->rwLock);
+
     if (ParamsLength < sizeof(NDIS_RECEIVE_HASH_PARAMETERS))
         return NDIS_STATUS_INVALID_LENGTH;
 
@@ -421,7 +422,7 @@ IPV6_ADDRESS* GetIP6DstAddrForHash(
 }
 
 static
-VOID RSSCalcHash(
+VOID RSSCalcHash_Unsafe(
                 PARANDIS_RSS_PARAMS *RSSParameters,
                 PVOID dataBuffer,
                 PNET_PACKET_INFO packetInfo)
@@ -518,12 +519,12 @@ VOID ParaNdis6_RSSAnalyzeReceivedPacket(
     PVOID dataBuffer,
     PNET_PACKET_INFO packetInfo)
 {
-    NdisDprAcquireSpinLock(&RSSParameters->RSSSettingsLock);
+    CNdisDispatchReadAutoLock autoLock(RSSParameters->rwLock);
+
     if(RSSParameters->RSSMode != PARANDIS_RSS_DISABLED)
     {
-        RSSCalcHash(RSSParameters, dataBuffer, packetInfo);
+        RSSCalcHash_Unsafe(RSSParameters, dataBuffer, packetInfo);
     }
-    NdisDprReleaseSpinLock(&RSSParameters->RSSSettingsLock);
 }
 
 CCHAR ParaNdis6_RSSGetScalingDataForPacket(
@@ -532,8 +533,7 @@ CCHAR ParaNdis6_RSSGetScalingDataForPacket(
     PPROCESSOR_NUMBER targetProcessor)
 {
     CCHAR targetQueue;
-
-    NdisDprAcquireSpinLock(&RSSParameters->RSSSettingsLock);
+    CNdisDispatchReadAutoLock autoLock(RSSParameters->rwLock);
 
     if((RSSParameters->RSSMode != PARANDIS_RSS_FULL) || (packetInfo->RSSHash.Type == 0))
     {
@@ -546,16 +546,13 @@ CCHAR ParaNdis6_RSSGetScalingDataForPacket(
         targetQueue = RSSParameters->ActiveRSSScalingSettings.QueueIndirectionTable[indirectionIndex];
     }
 
-    NdisDprReleaseSpinLock(&RSSParameters->RSSSettingsLock);
-
     return targetQueue;
 }
 
 CCHAR ParaNdis6_RSSGetCurrentCpuReceiveQueue(PARANDIS_RSS_PARAMS *RSSParameters)
 {
     CCHAR res;
-
-    NdisDprAcquireSpinLock(&RSSParameters->RSSSettingsLock);
+    CNdisDispatchReadAutoLock autoLock(RSSParameters->rwLock);
 
     if(RSSParameters->RSSMode != PARANDIS_RSS_FULL)
     {
@@ -565,8 +562,6 @@ CCHAR ParaNdis6_RSSGetCurrentCpuReceiveQueue(PARANDIS_RSS_PARAMS *RSSParameters)
     {
         res = FindReceiveQueueForCurrentCpu(&RSSParameters->ActiveRSSScalingSettings);
     }
-
-    NdisDprReleaseSpinLock(&RSSParameters->RSSSettingsLock);
 
     return res;
 }

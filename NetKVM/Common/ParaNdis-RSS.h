@@ -9,6 +9,8 @@ extern "C"
 #pragma warning (pop)
 }
 
+#include "ParaNdis-Util.h"
+
 #if PARANDIS_SUPPORT_RSS
 
 #define PARANDIS_RSS_MAX_RECEIVE_QUEUES (16)
@@ -52,7 +54,7 @@ typedef struct _tagPARANDIS_RSS_PARAMS
     PARANDIS_HASHING_SETTINGS ActiveHashingSettings;
     PARANDIS_SCALING_SETTINGS ActiveRSSScalingSettings;
 
-    NDIS_SPIN_LOCK            RSSSettingsLock;
+    mutable CNdisRWLock                 rwLock;
 } PARANDIS_RSS_PARAMS, *PPARANDIS_RSS_PARAMS;
 
 typedef struct _tagRSS_HASH_KEY_PARAMETERS
