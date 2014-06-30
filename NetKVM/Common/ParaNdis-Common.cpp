@@ -725,7 +725,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
     pContext->bHasHardwareFilters = AckFeature(pContext, VIRTIO_NET_F_CTRL_RX_EXTRA);
 
-    pContext->ReuseBufferProc = ReuseReceiveBufferRegular;
+    InterlockedExchangePointer((PVOID *)(&pContext->ReuseBufferProc), ReuseReceiveBufferRegular);
 
     VirtIODeviceWriteGuestFeatures(&pContext->IODevice, pContext->u32GuestFeatures);
     NdisInitializeEvent(&pContext->ResetEvent);
@@ -2219,7 +2219,7 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     /* submit all the receive buffers */
     NdisAcquireSpinLock(&pContext->ReceiveLock);
     
-    pContext->ReuseBufferProc = ReuseReceiveBufferRegular;
+    InterlockedExchangePointer((PVOID *)&pContext->ReuseBufferProc, ReuseReceiveBufferRegular);
     
     while (!IsListEmpty(&pContext->NetReceiveBuffers))
     {
@@ -2281,9 +2281,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     
     if (pContext->bFastSuspendInProcess)
     {
-        NdisAcquireSpinLock(&pContext->ReceiveLock);
-        pContext->ReuseBufferProc = ReuseReceiveBufferPowerOff;
-        NdisReleaseSpinLock(&pContext->ReceiveLock);
+        InterlockedExchangePointer((PVOID *)&pContext->ReuseBufferProc, ReuseReceiveBufferPowerOff);
     }
     
 #if !NDIS_SUPPORT_NDIS620
