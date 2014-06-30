@@ -252,6 +252,12 @@ static NDIS_STATUS ParaNdis6_Initialize(
                                                 &pContext->RSSCapabilities,
                                                 pContext->RSSMaxQueuesNumber);
             pContext->bRSSInitialized = TRUE;
+            new (&pContext->RSSParameters.rwLock, PLACEMENT_NEW) CNdisRWLock();
+            if (!pContext->RSSParameters.rwLock.Create(pContext->MiniportHandle)) 
+            {
+                DPrintf(0, ("RSS RW lock allocation failed\n"));
+                status = NDIS_STATUS_RESOURCES;
+            }
         }
 #endif
 
@@ -296,7 +302,13 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
     if (pContext && status != NDIS_STATUS_SUCCESS && status != NDIS_STATUS_PENDING)
     {
-        // no need to cleanup
+#if PARANDIS_SUPPORT_RSS
+        if (pContext->bRSSInitialized)
+        {
+            pContext->RSSParameters.rwLock.~CNdisRWLock();
+        }
+#endif
+
         NdisFreeMemory(pContext, 0, 0);
         pContext = NULL;
     }

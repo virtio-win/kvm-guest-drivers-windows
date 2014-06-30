@@ -1152,6 +1152,11 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     {
         ParaNdis6_RSSCleanupConfiguration(&pContext->RSSParameters);
     }
+
+    if (pContext->bRSSInitialized)
+    {
+        pContext->RSSParameters.rwLock.~CNdisRWLock();
+    }
 #endif
 
     if (pContext->bTXPathAllocated)
