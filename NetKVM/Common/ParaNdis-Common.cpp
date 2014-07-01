@@ -887,7 +887,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     pContext->ControlData.size = 512;
 
     new (&pContext->TXPath, PLACEMENT_NEW) CParaNdisTX();
-		
+
     pContext->bTXPathAllocated = TRUE;
 
     if (!pContext->TXPath.Create(pContext, 1))

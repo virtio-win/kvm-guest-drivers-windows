@@ -304,7 +304,7 @@ public:
         m_DrvHandle = DrvHandle;
         return true;
     }
-		
+
     ~CNdisSharedMemory();
     bool Allocate(ULONG Size, bool IsCached = true);
 
