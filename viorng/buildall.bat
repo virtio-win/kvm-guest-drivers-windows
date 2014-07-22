@@ -43,7 +43,7 @@ goto :eof
 :fix_wdfcoinstaller_name
 call :set_os_and_platform %1 %2
 pushd Install\%OS%\%PLAT%\
-if exist WdfCoinstaller01011.dll rename WdfCoinstaller01011.dll WdfCoInstaller01011.dll
+for %%V in (01009 01011) do if exist WdfCoinstaller%%V.dll rename WdfCoinstaller%%V.dll WdfCoInstaller%%V.dll
 popd
 goto :eof
 
