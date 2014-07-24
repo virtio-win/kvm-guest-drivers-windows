@@ -21,7 +21,7 @@
                       pa = va ? ScsiPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0; \
                     }
 #else
-#define SET_VA_PA()	va = NULL; pa = 0;
+#define SET_VA_PA()    va = NULL; pa = 0;
 #endif
 
 
@@ -48,24 +48,24 @@ SynchronizedFlushRoutine(
     srbExt->in                 = 1;
 
     srbExt->vbr.sg[0].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
-    srbExt->vbr.sg[0].ulSize   = sizeof(srbExt->vbr.out_hdr);
+    srbExt->vbr.sg[0].length   = sizeof(srbExt->vbr.out_hdr);
     srbExt->vbr.sg[1].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
-    srbExt->vbr.sg[1].ulSize   = sizeof(srbExt->vbr.status);
+    srbExt->vbr.sg[1].length   = sizeof(srbExt->vbr.status);
 
-    if (adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
+    if (virtqueue_add_buf(adaptExt->vq,
                      &srbExt->vbr.sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->vbr, va, pa) >= 0) {
 #ifdef USE_STORPORT
         if(++adaptExt->in_fly < 3) {
 #endif
-           adaptExt->vq->vq_ops->kick(adaptExt->vq);
+           virtqueue_kick(adaptExt->vq);
 #ifdef USE_STORPORT
         }
 #endif
         return TRUE;
     }
-    adaptExt->vq->vq_ops->kick(adaptExt->vq);
+    virtqueue_kick(adaptExt->vq);
 #ifdef USE_STORPORT
     StorPortBusy(DeviceExtension, 2);
 #endif
@@ -114,7 +114,7 @@ SynchronizedReadWriteRoutine(
 
     SET_VA_PA();
 
-    if (adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
+    if (virtqueue_add_buf(adaptExt->vq,
                      &srbExt->vbr.sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->vbr, va, pa) >= 0){
@@ -122,13 +122,13 @@ SynchronizedReadWriteRoutine(
 #ifdef USE_STORPORT
         if(++adaptExt->in_fly < 3) {
 #endif
-           adaptExt->vq->vq_ops->kick(adaptExt->vq);
+           virtqueue_kick(adaptExt->vq);
 #ifdef USE_STORPORT
         }
 #endif
         return TRUE;
     }
-    adaptExt->vq->vq_ops->kick(adaptExt->vq);
+    virtqueue_kick(adaptExt->vq);
     StorPortBusy(DeviceExtension, 2);
     return FALSE;
 }
@@ -167,7 +167,7 @@ RhelDoReadWrite(PVOID DeviceExtension,
     sgMaxElements = MAX_PHYS_SEGMENTS + 1;
     for (i = 0, sgElement = 1; (i < sgMaxElements) && BytesLeft; i++, sgElement++) {
         srbExt->vbr.sg[sgElement].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, Srb, DataBuffer, &fragLen);
-        srbExt->vbr.sg[sgElement].ulSize   = fragLen;
+        srbExt->vbr.sg[sgElement].length   = fragLen;
         srbExt->Xfer += fragLen;
         BytesLeft -= fragLen;
         DataBuffer = (PVOID)((ULONG_PTR)DataBuffer + fragLen);
@@ -188,23 +188,23 @@ RhelDoReadWrite(PVOID DeviceExtension,
     }
 
     srbExt->vbr.sg[0].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
-    srbExt->vbr.sg[0].ulSize = sizeof(srbExt->vbr.out_hdr);
+    srbExt->vbr.sg[0].length = sizeof(srbExt->vbr.out_hdr);
 
     srbExt->vbr.sg[sgElement].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
-    srbExt->vbr.sg[sgElement].ulSize = sizeof(srbExt->vbr.status);
+    srbExt->vbr.sg[sgElement].length = sizeof(srbExt->vbr.status);
 
     SET_VA_PA();
-    num_free = adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
+    num_free = virtqueue_add_buf(adaptExt->vq,
                                       &srbExt->vbr.sg[0],
                                       srbExt->out, srbExt->in,
                                       &srbExt->vbr, va, pa);
 
     if ( num_free >= 0) {
         InsertTailList(&adaptExt->list_head, &srbExt->vbr.list_entry);
-        adaptExt->vq->vq_ops->kick(adaptExt->vq);
+        virtqueue_kick(adaptExt->vq);
         srbExt->call_next = FALSE;
-		if(!adaptExt->indirect && num_free < VIRTIO_MAX_SG) {
-			srbExt->call_next = TRUE;
+        if(!adaptExt->indirect && num_free < VIRTIO_MAX_SG) {
+            srbExt->call_next = TRUE;
         } else {
            ScsiPortNotification(NextLuRequest, DeviceExtension, Srb->PathId, Srb->TargetId, Srb->Lun);
         }
@@ -223,7 +223,7 @@ RhelShutDown(
     VirtIODeviceReset(&adaptExt->vdev);
     ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_GUEST_FEATURES), 0);
     if (adaptExt->vq) {
-       adaptExt->vq->vq_ops->shutdown(adaptExt->vq);
+       virtqueue_shutdown(adaptExt->vq);
        VirtIODeviceDeleteQueue(adaptExt->vq, NULL);
        adaptExt->vq = NULL;
     }
@@ -293,17 +293,17 @@ RhelGetSerialNumber(
     adaptExt->vbr.out_hdr.ioprio = 0;
 
     adaptExt->vbr.sg[0].physAddr = MmGetPhysicalAddress(&adaptExt->vbr.out_hdr);
-    adaptExt->vbr.sg[0].ulSize   = sizeof(adaptExt->vbr.out_hdr);
+    adaptExt->vbr.sg[0].length   = sizeof(adaptExt->vbr.out_hdr);
     adaptExt->vbr.sg[1].physAddr = MmGetPhysicalAddress(&adaptExt->sn);
-    adaptExt->vbr.sg[1].ulSize   = sizeof(adaptExt->sn);
+    adaptExt->vbr.sg[1].length   = sizeof(adaptExt->sn);
     adaptExt->vbr.sg[2].physAddr = MmGetPhysicalAddress(&adaptExt->vbr.status);
-    adaptExt->vbr.sg[2].ulSize   = sizeof(adaptExt->vbr.status);
+    adaptExt->vbr.sg[2].length   = sizeof(adaptExt->vbr.status);
 
-    if (adaptExt->vq->vq_ops->add_buf(adaptExt->vq,
+    if (virtqueue_add_buf(adaptExt->vq,
                      &adaptExt->vbr.sg[0],
                      1, 2,
                      &adaptExt->vbr, NULL, 0) >= 0) {
-        adaptExt->vq->vq_ops->kick(adaptExt->vq);
+        virtqueue_kick(adaptExt->vq);
     }
 }
 
@@ -336,7 +336,7 @@ RhelGetDiskGeometry(
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SEG_MAX)) {
-		VirtIODeviceGet(&adaptExt->vdev, FIELD_OFFSET(blk_config, seg_max),
+        VirtIODeviceGet(&adaptExt->vdev, FIELD_OFFSET(blk_config, seg_max),
                       &v, sizeof(v));
         adaptExt->info.seg_max = v;
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_SEG_MAX = %d\n", adaptExt->info.seg_max));

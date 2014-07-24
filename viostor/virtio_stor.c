@@ -732,7 +732,7 @@ VirtIoInterrupt(
     intReason = VirtIODeviceISR((VirtIODevice*)DeviceExtension);
     if ( intReason == 1) {
         isInterruptServiced = TRUE;
-        while((vbr = (pblk_req)adaptExt->vq->vq_ops->get_buf(adaptExt->vq, &len)) != NULL) {
+        while((vbr = (pblk_req)virtqueue_get_buf(adaptExt->vq, &len)) != NULL) {
            Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
            if (Srb) {
               switch (vbr->status) {
@@ -781,7 +781,7 @@ VirtIoInterrupt(
     }
 #ifdef USE_STORPORT
     if (adaptExt->in_fly > 0) {
-        adaptExt->vq->vq_ops->kick(adaptExt->vq);
+        virtqueue_kick(adaptExt->vq);
     }
 #endif
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s isInterruptServiced = %d\n", __FUNCTION__, isInterruptServiced));
@@ -914,7 +914,7 @@ VirtIoBuildIo(
     srbExt->Xfer = 0;
     for (i = 0, sgElement = 1; i < sgMaxElements; i++, sgElement++) {
         srbExt->vbr.sg[sgElement].physAddr = sgList->List[i].PhysicalAddress;
-        srbExt->vbr.sg[sgElement].ulSize   = sgList->List[i].Length;
+        srbExt->vbr.sg[sgElement].length   = sgList->List[i].Length;
         srbExt->Xfer += sgList->List[i].Length;
     }
 
@@ -934,10 +934,10 @@ VirtIoBuildIo(
     }
 
     srbExt->vbr.sg[0].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &dummy);
-    srbExt->vbr.sg[0].ulSize = sizeof(srbExt->vbr.out_hdr);
+    srbExt->vbr.sg[0].length = sizeof(srbExt->vbr.out_hdr);
 
     srbExt->vbr.sg[sgElement].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &dummy);
-    srbExt->vbr.sg[sgElement].ulSize = sizeof(srbExt->vbr.status);
+    srbExt->vbr.sg[sgElement].length = sizeof(srbExt->vbr.status);
 
     return TRUE;
 }
@@ -966,7 +966,7 @@ VirtIoMSInterruptRoutine (
         return TRUE;
     }
 
-    while((vbr = (pblk_req)adaptExt->vq->vq_ops->get_buf(adaptExt->vq, &len)) != NULL) {
+    while((vbr = (pblk_req)virtqueue_get_buf(adaptExt->vq, &len)) != NULL) {
         Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
         if (Srb) {
            switch (vbr->status) {
@@ -1008,7 +1008,7 @@ VirtIoMSInterruptRoutine (
         isInterruptServiced = TRUE;
     }
     if (adaptExt->in_fly > 0) {
-        adaptExt->vq->vq_ops->kick(adaptExt->vq);
+        virtqueue_kick(adaptExt->vq);
     }
     return isInterruptServiced;
 }

@@ -20,11 +20,11 @@
 #include "trace.h"
 
 /* The ID for virtio_balloon */
-#define VIRTIO_ID_BALLOON	5
+#define VIRTIO_ID_BALLOON    5
 
 /* The feature bitmap for virtio balloon */
-#define VIRTIO_BALLOON_F_MUST_TELL_HOST	0 /* Tell before reclaiming pages */
-#define VIRTIO_BALLOON_F_STATS_VQ	1 /* Memory status virtqueue */
+#define VIRTIO_BALLOON_F_MUST_TELL_HOST    0 /* Tell before reclaiming pages */
+#define VIRTIO_BALLOON_F_STATS_VQ    1 /* Memory status virtqueue */
 
 typedef struct _VIRTIO_BALLOON_CONFIG
 {
@@ -162,15 +162,15 @@ EnableInterrupt(
     PDEVICE_CONTEXT devCtx = (PDEVICE_CONTEXT)Context;
     UNREFERENCED_PARAMETER(WdfInterrupt);
 
-    devCtx->InfVirtQueue->vq_ops->enable_interrupt(devCtx->InfVirtQueue);
-    devCtx->InfVirtQueue->vq_ops->kick(devCtx->InfVirtQueue);
-    devCtx->DefVirtQueue->vq_ops->enable_interrupt(devCtx->DefVirtQueue);
-    devCtx->DefVirtQueue->vq_ops->kick(devCtx->DefVirtQueue);
+    virtqueue_enable_cb(devCtx->InfVirtQueue);
+    virtqueue_kick(devCtx->InfVirtQueue);
+    virtqueue_enable_cb(devCtx->DefVirtQueue);
+    virtqueue_kick(devCtx->DefVirtQueue);
 
     if (devCtx->StatVirtQueue)
     {
-       devCtx->StatVirtQueue->vq_ops->enable_interrupt(devCtx->StatVirtQueue);
-       devCtx->StatVirtQueue->vq_ops->kick(devCtx->StatVirtQueue);
+       virtqueue_enable_cb(devCtx->StatVirtQueue);
+       virtqueue_kick(devCtx->StatVirtQueue);
     }
 }
 
@@ -180,11 +180,11 @@ DisableInterrupt(
     IN PDEVICE_CONTEXT devCtx
     )
 {
-    devCtx->InfVirtQueue->vq_ops->disable_interrupt(devCtx->InfVirtQueue);
-    devCtx->DefVirtQueue->vq_ops->disable_interrupt(devCtx->DefVirtQueue);
+    virtqueue_disable_cb(devCtx->InfVirtQueue);
+    virtqueue_disable_cb(devCtx->DefVirtQueue);
     if (devCtx->StatVirtQueue)
     {
-       devCtx->StatVirtQueue->vq_ops->disable_interrupt(devCtx->StatVirtQueue);
+        virtqueue_disable_cb(devCtx->StatVirtQueue);
     }
 }
 

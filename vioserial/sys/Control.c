@@ -41,13 +41,13 @@ VIOSerialSendCtrlMsg(
     cpkt.value = value;
 
     sg.physAddr = MmGetPhysicalAddress(&cpkt);
-    sg.ulSize = sizeof(cpkt);
+    sg.length = sizeof(cpkt);
 
     WdfSpinLockAcquire(pContext->CVqLock);
-    if(0 <= vq->vq_ops->add_buf(vq, &sg, 1, 0, &cpkt, NULL, 0))
+    if(0 <= virtqueue_add_buf(vq, &sg, 1, 0, &cpkt, NULL, 0))
     {
-        vq->vq_ops->kick(vq);
-        while(!vq->vq_ops->get_buf(vq, &len))
+        virtqueue_kick(vq);
+        while(!virtqueue_get_buf(vq, &len))
         {
            KeStallExecutionProcessor(50);
            if(++cnt > RETRY_THRESHOLD)
@@ -79,7 +79,7 @@ VIOSerialCtrlWorkHandler(
     ASSERT(vq);
 
     WdfSpinLockAcquire(pContext->CVqLock);
-    while ((buf = vq->vq_ops->get_buf(vq, &len)))
+    while ((buf = virtqueue_get_buf(vq, &len)))
     {
         WdfSpinLockRelease(pContext->CVqLock);
         buf->len = len;
