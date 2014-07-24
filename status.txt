@@ -1,3 +1,94 @@
+Date    04 Jun 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm106
+
+Fixed bugs:
+
+BZ 1103100 - Fix WDK library linkage with Windows Vista\Windows Server 2008 build.
+
+Date    28 May 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm105
+
+Fixed bugs:
+
+Bug 1096505 [netkvm] packet submission refactoring
+Bug 1100308 [netkvm] Fixing DPC suspend flag race condition
+Bug 1054640 [netkvm] On cotext destruction, return to the unused queue buffers,
+                     retained in per-processor queue but not submitted to the upper layer
+
+
+Date    26 May 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm104
+
+Fixed bugs:
+
+BZ 1098876 - post build step is failing and INF is not built correctly
+
+
+Date    13 May 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm103
+
+Fixed bugs:
+
+BZ 1096505 [netkvm] Separate transmit path data from device context
+BZ 895834  [netkvm] Create netkvm.dvl.xml log as part of the build process
+
+New features:
+NetKvm multi queue.
+
+Date    5 May 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm102
+
+Fixed bugs:
+
+Bug 1090832  [viorng] fix the wdfcoinstaller file name.
+Bug 837324   [viostor] viostor reports support for FUA, but does not implement it.
+
+New features:
+Switch to VS2013 build system.
+
+Date    29 Apr 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm101
+
+Fixed bugs:
+
+Bug 1092348 viorng fix no viorngum.dll in amd64 folder.
+Bug 1080320 balloon: memory stats remains after service was closed.
+
+
+Date    23 Apr 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm100
+
+Fixed bugs:
+
+Bug 1077566 [vioscsi] enable MSI as a default interrupt mode for virtio-scsi.
+Bug 1080319 [balloon] win8.1-32 could use 3G memory in one guest but stat-total-memory only shows 2G
+
+Fixed in build script:
+Bug 1083805 [virtio-win][virtio-rng]WDFCoinstaller01001.dll is redhat signed
+
+New features:
+
+Disable RSC for the release build.
+
+Date    9 Apr 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm99
+
+Fixed bugs:
+
+Bug 1080320: balloon. fix bsod which occurred on various scenarios.
+Bug 1083810: virtio-rng. output directory for 64-bit builds goes to amd64.
+Bug 1080731: virtio-rng. fix a provider registration error.
+Bug 1083873: NetKvm  BSOD due to access to uninitialized control queue during power down 
+             event on Windows XP and Windows Server 2003.
+
 Date    2 Apr 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm98
