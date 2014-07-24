@@ -34,7 +34,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_BLK_F_SIZE_MAX   1       /* Indicates maximum segment size */
 #define VIRTIO_BLK_F_SEG_MAX    2       /* Indicates maximum # of segments */
 #define VIRTIO_BLK_F_GEOMETRY   4       /* Legacy geometry available  */
-#define VIRTIO_BLK_F_RO	        5       /* Disk is read-only */
+#define VIRTIO_BLK_F_RO         5       /* Disk is read-only */
 #define VIRTIO_BLK_F_BLK_SIZE   6       /* Block size of disk is available*/
 #define VIRTIO_BLK_F_SCSI       7       /* Supports scsi command passthru */
 #define VIRTIO_BLK_F_WCACHE     9       /* write cache enabled */
@@ -48,7 +48,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_BLK_T_FLUSH      4
 #define VIRTIO_BLK_T_GET_ID     8
 
-#define VIRTIO_BLK_S_OK	        0
+#define VIRTIO_BLK_S_OK         0
 #define VIRTIO_BLK_S_IOERR      1
 #define VIRTIO_BLK_S_UNSUPP     2
 
@@ -65,7 +65,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define MAX_PHYS_SEGMENTS       16
 #endif
 
-#define VIRTIO_MAX_SG	        (3+MAX_PHYS_SEGMENTS)
+#define VIRTIO_MAX_SG           (3+MAX_PHYS_SEGMENTS)
 
 #pragma pack(1)
 typedef struct virtio_blk_config {

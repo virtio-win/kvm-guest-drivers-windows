@@ -4,6 +4,7 @@
 : Param3 - sys name
  
 if "%2"=="x64" set %%2=amd64
+if "%_BuildType%"=="" set _BuildType=fre
 
 if /i "%1"=="Win8" goto :checkarch
 if /i "%1"=="Win7" goto :checkarch
@@ -36,9 +37,9 @@ set INST_ARC=amd64
 set INST_EXT=amd64
 
 :startcopy
-set SYS_PATH_AND_NAME=objfre_%INST_OS%_%INST_ARC%\%INST_EXT%\%SYS_NAME%.sys
-set PDB_PATH_AND_NAME=objfre_%INST_OS%_%INST_ARC%\%INST_EXT%\%SYS_NAME%.pdb
-set INF_PATH_AND_NAME=objfre_%INST_OS%_%INST_ARC%\%INST_EXT%\%SYS_NAME%.inf
+set SYS_PATH_AND_NAME=obj%_BuildType%_%INST_OS%_%INST_ARC%\%INST_EXT%\%SYS_NAME%.sys
+set PDB_PATH_AND_NAME=obj%_BuildType%_%INST_OS%_%INST_ARC%\%INST_EXT%\%SYS_NAME%.pdb
+set INF_PATH_AND_NAME=obj%_BuildType%_%INST_OS%_%INST_ARC%\%INST_EXT%\%SYS_NAME%.inf
 set DVL_PATH_AND_NAME=%SYS_NAME%.DVL.xml
 
 rem echo makeinstall %1 %2 %3

@@ -69,17 +69,17 @@ size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port,
     while (length > 0)
     {
         sg[out].physAddr = MmGetPhysicalAddress(buffer);
-        sg[out].ulSize = min(length, PAGE_SIZE);
+        sg[out].length = min(length, PAGE_SIZE);
 
-        buffer = (PVOID)((LONG_PTR)buffer + sg[out].ulSize);
-        length -= sg[out].ulSize;
+        buffer = (PVOID)((LONG_PTR)buffer + sg[out].length);
+        length -= sg[out].length;
         out += 1;
     }
 
     WdfSpinLockAcquire(Port->OutVqLock);
 
-    ret = vq->vq_ops->add_buf(vq, sg, out, 0, Buffer, NULL, 0);
-    vq->vq_ops->kick(vq);
+    ret = virtqueue_add_buf(vq, sg, out, 0, Buffer, NULL, 0);
+    virtqueue_kick(vq);
 
     if (ret >= 0)
     {
@@ -127,7 +127,7 @@ VOID VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 
     if (vq)
     {
-        while ((buffer = vq->vq_ops->get_buf(vq, &len)) != NULL)
+        while ((buffer = virtqueue_get_buf(vq, &len)) != NULL)
         {
             if (Port->PendingWriteRequest != NULL)
             {
@@ -232,15 +232,15 @@ VIOSerialAddInBuf(
     }
 
     sg.physAddr = buf->pa_buf;
-    sg.ulSize = buf->size;
+    sg.length = buf->size;
 
-    if(0 > vq->vq_ops->add_buf(vq, &sg, 0, 1, buf, NULL, 0))
+    if(0 > virtqueue_add_buf(vq, &sg, 0, 1, buf, NULL, 0))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "<-- %s cannot add_buf\n", __FUNCTION__);
         status = STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    vq->vq_ops->kick(vq);
+    virtqueue_kick(vq);
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
     return status;
 }
@@ -259,7 +259,7 @@ VIOSerialGetInBuf(
 
     if (vq)
     {
-        buf = vq->vq_ops->get_buf(vq, &len);
+        buf = virtqueue_get_buf(vq, &len);
         if (buf)
         {
            buf->len = len;

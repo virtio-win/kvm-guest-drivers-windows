@@ -98,7 +98,7 @@ VioScsiInterrupt(
     IN PVOID DeviceExtension
     );
 
-VOID 
+VOID
 TransportReset(
     IN PVOID DeviceExtension,
     IN PVirtIOSCSIEvent evt
@@ -207,7 +207,7 @@ ENTER_FN();
     memset(adaptExt, 0, sizeof(ADAPTER_EXTENSION));
 
     adaptExt->dump_mode  = IsCrashDumpMode;
-    
+
     ConfigInfo->Master                      = TRUE;
     ConfigInfo->ScatterGather               = TRUE;
     ConfigInfo->DmaWidth                    = Width32Bits;
@@ -385,9 +385,10 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
         ULONG len;
         PVOID  ptr = (PVOID)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset[index]);
         PHYSICAL_ADDRESS pa = StorPortGetPhysicalAddress(adaptExt, NULL, ptr, &len);
+		BOOLEAN useEventIndex = CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX);
         if (pa.QuadPart)
         {
-           vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, ptr, len, NULL, FALSE);
+           vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, ptr, len, NULL, useEventIndex);
         }
 
         if (vq == NULL)
@@ -494,9 +495,9 @@ ENTER_FN();
           }
       }
 
-      StorPortWritePortUshort(DeviceExtension,
-             (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES),
-             (USHORT)((1 << VIRTIO_SCSI_F_HOTPLUG) | (1 << VIRTIO_SCSI_F_CHANGE)));
+      StorPortWritePortUlong(DeviceExtension,
+             (PULONG)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES),
+			 (ULONG)((1 << VIRTIO_SCSI_F_HOTPLUG) | (1 << VIRTIO_SCSI_F_CHANGE) | (1 << VIRTIO_RING_F_EVENT_IDX)));
       StorPortWritePortUchar(DeviceExtension,
              (PUCHAR)(adaptExt->device_base + VIRTIO_PCI_STATUS),
              (UCHAR)VIRTIO_CONFIG_S_DRIVER_OK);
@@ -553,7 +554,7 @@ VioScsiInterrupt(
 
     if ( intReason == 1) {
         isInterruptServiced = TRUE;
-        while((cmd = (PVirtIOSCSICmd)adaptExt->vq[2]->vq_ops->get_buf(adaptExt->vq[2], &len)) != NULL) {
+        while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[2], &len)) != NULL) {
            VirtIOSCSICmdResp   *resp;
            Srb     = (PSCSI_REQUEST_BLOCK)cmd->sc;
            resp    = &cmd->resp.cmd;
@@ -617,7 +618,7 @@ VioScsiInterrupt(
               }
               Srb->DataTransferLength = 0;
            }
-           else if (srbExt && srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) 
+           else if (srbExt && srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer)
            {
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
@@ -626,7 +627,7 @@ VioScsiInterrupt(
            CompleteRequest(DeviceExtension, Srb);
         }
         if (adaptExt->tmf_infly) {
-           while((cmd = (PVirtIOSCSICmd)adaptExt->vq[0]->vq_ops->get_buf(adaptExt->vq[0], &len)) != NULL) {
+           while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[0], &len)) != NULL) {
               VirtIOSCSICtrlTMFResp *resp;
               Srb = (PSCSI_REQUEST_BLOCK)cmd->sc;
               ASSERT(Srb == &adaptExt->tmf_cmd.Srb);
@@ -644,7 +645,7 @@ VioScsiInterrupt(
            }
            adaptExt->tmf_infly = FALSE;
         }
-        while((evtNode = (PVirtIOSCSIEventNode)adaptExt->vq[1]->vq_ops->get_buf(adaptExt->vq[1], &len)) != NULL) {
+        while((evtNode = (PVirtIOSCSIEventNode)virtqueue_get_buf(adaptExt->vq[1], &len)) != NULL) {
            PVirtIOSCSIEvent evt = &evtNode->event;
            switch (evt->event) {
            case VIRTIO_SCSI_T_NO_EVENT:
@@ -659,7 +660,7 @@ VioScsiInterrupt(
               RhelDbgPrint(TRACE_LEVEL_ERROR, ("Unsupport virtio scsi event %x\n", evt->event));
               break;
            }
-           SynchronizedKickEventRoutine(DeviceExtension, evtNode);  
+           SynchronizedKickEventRoutine(DeviceExtension, evtNode);
         }
     }
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s isInterruptServiced = %d\n", __FUNCTION__, isInterruptServiced));
@@ -695,7 +696,7 @@ VioScsiMSInterrupt (
     {
         if (adaptExt->tmf_infly)
         {
-           while((cmd = (PVirtIOSCSICmd)adaptExt->vq[0]->vq_ops->get_buf(adaptExt->vq[0], &len)) != NULL)
+           while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[0], &len)) != NULL)
            {
               VirtIOSCSICtrlTMFResp *resp;
               Srb = (PSCSI_REQUEST_BLOCK)cmd->sc;
@@ -717,7 +718,7 @@ VioScsiMSInterrupt (
         return TRUE;
     }
     if (MessageID == 2) {
-        while((evtNode = (PVirtIOSCSIEventNode)adaptExt->vq[1]->vq_ops->get_buf(adaptExt->vq[1], &len)) != NULL) {
+        while((evtNode = (PVirtIOSCSIEventNode)virtqueue_get_buf(adaptExt->vq[1], &len)) != NULL) {
            PVirtIOSCSIEvent evt = &evtNode->event;
            switch (evt->event) {
            case VIRTIO_SCSI_T_NO_EVENT:
@@ -732,13 +733,13 @@ VioScsiMSInterrupt (
               RhelDbgPrint(TRACE_LEVEL_ERROR, ("Unsupport virtio scsi event %x\n", evt->event));
               break;
            }
-           SynchronizedKickEventRoutine(DeviceExtension, evtNode);  
+           SynchronizedKickEventRoutine(DeviceExtension, evtNode);
         }
         return TRUE;
     }
     if (MessageID == 3)
     {
-        while((cmd = (PVirtIOSCSICmd)adaptExt->vq[2]->vq_ops->get_buf(adaptExt->vq[2], &len)) != NULL)
+        while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[2], &len)) != NULL)
         {
            VirtIOSCSICmdResp   *resp;
            Srb     = (PSCSI_REQUEST_BLOCK)cmd->sc;
@@ -803,8 +804,8 @@ VioScsiMSInterrupt (
                  }
               }
               Srb->DataTransferLength = 0;
-           } 
-           else if (srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) 
+           }
+           else if (srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer)
            {
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
@@ -813,7 +814,7 @@ VioScsiMSInterrupt (
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
-           --adaptExt->in_fly; 
+           --adaptExt->in_fly;
            CompleteRequest(DeviceExtension, Srb);
         }
         return TRUE;
@@ -952,7 +953,7 @@ ENTER_FN();
 
     sgElement = 0;
     srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->req.cmd, &fragLen);
-    srbExt->sg[sgElement].ulSize   = sizeof(cmd->req.cmd);
+    srbExt->sg[sgElement].length   = sizeof(cmd->req.cmd);
     sgElement++;
 
     sgList = StorPortGetScatterGatherList(DeviceExtension, Srb);
@@ -963,14 +964,14 @@ ENTER_FN();
         if((Srb->SrbFlags & SRB_FLAGS_DATA_OUT) == SRB_FLAGS_DATA_OUT) {
             for (i = 0; i < sgMaxElements; i++, sgElement++) {
                 srbExt->sg[sgElement].physAddr = sgList->List[i].PhysicalAddress;
-                srbExt->sg[sgElement].ulSize   = sgList->List[i].Length;
+                srbExt->sg[sgElement].length = sgList->List[i].Length;
                 srbExt->Xfer += sgList->List[i].Length;
             }
         }
     }
     srbExt->out = sgElement;
     srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->resp.cmd, &fragLen);
-    srbExt->sg[sgElement].ulSize   = sizeof(cmd->resp.cmd);
+    srbExt->sg[sgElement].length = sizeof(cmd->resp.cmd);
     sgElement++;
     if (sgList)
     {
@@ -979,7 +980,7 @@ ENTER_FN();
         if((Srb->SrbFlags & SRB_FLAGS_DATA_OUT) != SRB_FLAGS_DATA_OUT) {
             for (i = 0; i < sgMaxElements; i++, sgElement++) {
                 srbExt->sg[sgElement].physAddr = sgList->List[i].PhysicalAddress;
-                srbExt->sg[sgElement].ulSize   = sgList->List[i].Length;
+                srbExt->sg[sgElement].length = sgList->List[i].Length;
                 srbExt->Xfer += sgList->List[i].Length;
             }
         }
@@ -1092,7 +1093,7 @@ LogError(
 #endif
 }
 
-VOID 
+VOID
 TransportReset(
     IN PVOID DeviceExtension,
     IN PVirtIOSCSIEvent evt

@@ -103,12 +103,12 @@ BalloonInit(
            }
 
            sg.physAddr = MmGetPhysicalAddress(devCtx->MemStats);
-           sg.ulSize = sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR;
+           sg.length = sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR;
 
-           if (devCtx->StatVirtQueue->vq_ops->add_buf(
+           if (virtqueue_add_buf(
                    devCtx->StatVirtQueue, &sg, 1, 0, devCtx, NULL, 0) >= 0)
            {
-               devCtx->StatVirtQueue->vq_ops->kick(devCtx->StatVirtQueue);
+               virtqueue_kick(devCtx->StatVirtQueue);
                VirtIOFeatureEnable(guestFeatures, VIRTIO_BALLOON_F_STATS_VQ);
            }
            else
@@ -270,14 +270,14 @@ BalloonTellHost(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     sg.physAddr = MmGetPhysicalAddress(devCtx->pfns_table);
-    sg.ulSize = sizeof(devCtx->pfns_table[0]) * devCtx->num_pfns;
+    sg.length = sizeof(devCtx->pfns_table[0]) * devCtx->num_pfns;
 
-    if(vq->vq_ops->add_buf(vq, &sg, 1, 0, devCtx, NULL, 0) < 0)
+    if (virtqueue_add_buf(vq, &sg, 1, 0, devCtx, NULL, 0) < 0)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> %s :: Cannot add buffer\n", __FUNCTION__);
         return;
     }
-    vq->vq_ops->kick(vq);
+    virtqueue_kick(vq);
 
     timeout.QuadPart = Int32x32To64(1000, -10000);
     status = KeWaitForSingleObject (
@@ -326,13 +326,13 @@ BalloonMemStats(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     sg.physAddr = MmGetPhysicalAddress(devCtx->MemStats);
-    sg.ulSize = sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR;
+    sg.length = sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR;
 
-    if(devCtx->StatVirtQueue->vq_ops->add_buf(devCtx->StatVirtQueue, &sg, 1, 0, devCtx, NULL, 0) < 0)
+    if (virtqueue_add_buf(devCtx->StatVirtQueue, &sg, 1, 0, devCtx, NULL, 0) < 0)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> %s :: Cannot add buffer\n", __FUNCTION__);
     }
 
-    devCtx->StatVirtQueue->vq_ops->kick(devCtx->StatVirtQueue);
+    virtqueue_kick(devCtx->StatVirtQueue);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }

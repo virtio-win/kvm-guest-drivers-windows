@@ -35,8 +35,8 @@ NTSTATUS VirtRngEvtInterruptEnable(IN WDFINTERRUPT Interrupt,
         "--> %!FUNC! Interrupt: %p Device: %p",
         Interrupt, AssociatedDevice);
 
-    context->VirtQueue->vq_ops->enable_interrupt(context->VirtQueue);
-    context->VirtQueue->vq_ops->kick(context->VirtQueue);
+    virtqueue_enable_cb(context->VirtQueue);
+    virtqueue_kick(context->VirtQueue);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-- %!FUNC!");
 
@@ -53,7 +53,7 @@ NTSTATUS VirtRngEvtInterruptDisable(IN WDFINTERRUPT Interrupt,
         "--> %!FUNC! Interrupt: %p Device: %p",
         Interrupt, AssociatedDevice);
 
-    context->VirtQueue->vq_ops->disable_interrupt(context->VirtQueue);
+    virtqueue_disable_cb(context->VirtQueue);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-- %!FUNC!");
 
@@ -111,7 +111,7 @@ VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
     {
         WdfSpinLockAcquire(context->VirtQueueLock);
 
-        entry = (PREAD_BUFFER_ENTRY)vq->vq_ops->get_buf(vq, &length);
+        entry = (PREAD_BUFFER_ENTRY)virtqueue_get_buf(vq, &length);
         if (entry == NULL)
         {
             WdfSpinLockRelease(context->VirtQueueLock);

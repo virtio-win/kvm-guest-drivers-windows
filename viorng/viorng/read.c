@@ -64,7 +64,7 @@ static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context,
     entry->Request = Request;
 
     sg.physAddr = MmGetPhysicalAddress(entry->Buffer);
-    sg.ulSize = (unsigned)length;
+    sg.length = (unsigned)length;
 
     WdfSpinLockAcquire(Context->VirtQueueLock);
 
@@ -74,7 +74,7 @@ static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context,
 
     PushEntryList(&Context->ReadBuffersList, &entry->ListEntry);
 
-    ret = vq->vq_ops->add_buf(vq, &sg, 0, 1, entry, NULL, 0);
+    ret = virtqueue_add_buf(vq, &sg, 0, 1, entry, NULL, 0);
     if (ret < 0)
     {
         PSINGLE_LIST_ENTRY removed;
@@ -100,7 +100,7 @@ static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context,
 
     WdfSpinLockRelease(Context->VirtQueueLock);
 
-    vq->vq_ops->kick(vq);
+    virtqueue_kick(vq);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %!FUNC!");
 

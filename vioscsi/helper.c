@@ -37,16 +37,16 @@ SynchronizedSRBRoutine(
 
 ENTER_FN();
     SET_VA_PA();
-    if (adaptExt->vq[2]->vq_ops->add_buf(adaptExt->vq[2],
+    if (virtqueue_add_buf(adaptExt->vq[2],
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
-        adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
+        virtqueue_kick(adaptExt->vq[2]);
         return TRUE;
     }
     Srb->SrbStatus = SRB_STATUS_BUSY;
     StorPortBusy(DeviceExtension, 2);
-    adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
+    virtqueue_kick(adaptExt->vq[2]);
 EXIT_ERR();
     return FALSE;
 }
@@ -76,11 +76,11 @@ SynchronizedTMFRoutine(
 
 ENTER_FN();
     SET_VA_PA();
-    if (adaptExt->vq[0]->vq_ops->add_buf(adaptExt->vq[0],
+    if (virtqueue_add_buf(adaptExt->vq[0],
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
-        adaptExt->vq[0]->vq_ops->kick(adaptExt->vq[0]);
+        virtqueue_kick(adaptExt->vq[0]);
         return TRUE;
     }
     Srb->SrbStatus = SRB_STATUS_BUSY;
@@ -129,11 +129,11 @@ ENTER_FN();
 
     sgElement = 0;
     srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->req.tmf, &fragLen);
-    srbExt->sg[sgElement].ulSize   = sizeof(cmd->req.tmf);
+    srbExt->sg[sgElement].length   = sizeof(cmd->req.tmf);
     sgElement++;
     srbExt->out = sgElement;
     srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->resp.tmf, &fragLen);
-    srbExt->sg[sgElement].ulSize   = sizeof(cmd->resp.tmf);
+    srbExt->sg[sgElement].length = sizeof(cmd->resp.tmf);
     sgElement++;
     srbExt->in = sgElement - srbExt->out;
     StorPortPause(DeviceExtension, 60);
@@ -155,17 +155,17 @@ ENTER_FN();
     VirtIODeviceReset(&adaptExt->vdev);
     StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), 0);
     if (adaptExt->vq[0]) {
-       adaptExt->vq[0]->vq_ops->shutdown(adaptExt->vq[0]);
+       virtqueue_shutdown(adaptExt->vq[0]);
        VirtIODeviceDeleteQueue(adaptExt->vq[0], NULL);
        adaptExt->vq[0] = NULL;
     }
     if (adaptExt->vq[1]) {
-       adaptExt->vq[1]->vq_ops->shutdown(adaptExt->vq[1]);
+       virtqueue_shutdown(adaptExt->vq[1]);
        VirtIODeviceDeleteQueue(adaptExt->vq[1], NULL);
        adaptExt->vq[1] = NULL;
     }
     if (adaptExt->vq[2]) {
-       adaptExt->vq[2]->vq_ops->shutdown(adaptExt->vq[2]);
+       virtqueue_shutdown(adaptExt->vq[2]);
        VirtIODeviceDeleteQueue(adaptExt->vq[2], NULL);
        adaptExt->vq[2] = NULL;
     }
@@ -270,11 +270,11 @@ SynchronizedKickEventRoutine(
     ULONGLONG           pa = 0;
 
 ENTER_FN();
-    if (adaptExt->vq[1]->vq_ops->add_buf(adaptExt->vq[1],
+    if (virtqueue_add_buf(adaptExt->vq[1],
                      &eventNode->sg,
                      0, 1,
                      eventNode, va, pa) >= 0){
-        adaptExt->vq[1]->vq_ops->kick(adaptExt->vq[1]);
+        virtqueue_kick(adaptExt->vq[1]);
         return TRUE;
     }
 EXIT_ERR();
@@ -295,7 +295,7 @@ ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     memset((PVOID)EventNode, 0, sizeof(VirtIOSCSIEventNode));
     EventNode->sg.physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &EventNode->event, &fragLen);
-    EventNode->sg.ulSize   = sizeof(VirtIOSCSIEvent);
+    EventNode->sg.length   = sizeof(VirtIOSCSIEvent);
     return SynchronizedKickEventRoutine(DeviceExtension, (PVOID)EventNode);
 EXIT_FN();
 }
