@@ -106,5 +106,5 @@ call :BuildWin8 "Win8 Release|x64" buildfre_win8_amd64.log
 goto continue
 
 :BuildWin8
-call ..\tools\callVisualStudio.bat 12 VirtioLib-win8.vcxproj /Rebuild "%~1" /Out %2
+call ..\tools\callVisualStudio.bat 11 VirtioLib-win8.vcxproj /Rebuild "%~1" /Out %2
 goto :eof

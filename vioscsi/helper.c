@@ -41,9 +41,7 @@ ENTER_FN();
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
-        if(++adaptExt->in_fly < 3) {
-           adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
-        }
+        adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
         return TRUE;
     }
     Srb->SrbStatus = SRB_STATUS_BUSY;

@@ -26,7 +26,7 @@
  * @vq_ops: the operations for this virtqueue (see below).
  * @ulIndex: queue number defined by the device.
  */
-struct virtqueue
+typedef struct virtqueue
 {
     VirtIODevice *vdev;
     struct virtqueue_ops *vq_ops;
@@ -35,7 +35,7 @@ struct virtqueue
 };
 
 
-struct VirtIOBufferDescriptor
+typedef struct VirtIOBufferDescriptor
 {
     PHYSICAL_ADDRESS physAddr;
     unsigned long ulSize;
