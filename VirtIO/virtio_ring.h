@@ -31,6 +31,8 @@
 #define VIRTIO_RING_F_EVENT_IDX        29
 
 
+#pragma warning (push)
+#pragma warning (disable:4200)
 #pragma pack (push)
 #pragma pack (1)
 
@@ -76,6 +78,7 @@ struct vring {
     struct vring_used *used;
 };
 #pragma pack (pop)
+#pragma warning (pop)
 
 /* The standard layout for the ring is a continuous chunk of memory which looks
 * like this.  We assume num is a power of 2.

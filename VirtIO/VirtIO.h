@@ -23,7 +23,8 @@
 #define virtio_device VirtIODevice
 #define scatterlist VirtIOBufferDescriptor
 
-typedef struct VirtIOBufferDescriptor {
+typedef struct TypeVirtIODevice VirtIODevice;
+struct VirtIOBufferDescriptor {
     PHYSICAL_ADDRESS physAddr;
     ULONG length;
 };
@@ -77,6 +78,8 @@ bool virtqueue_enable_cb_delayed(struct virtqueue *vq);
 void *virtqueue_detach_unused_buf(struct virtqueue *vq);
 
 unsigned int virtqueue_get_vring_size(struct virtqueue *vq);
+
+BOOLEAN virtqueue_is_interrupt_enabled(struct virtqueue *_vq);
 
 void virtqueue_shutdown(struct virtqueue *_vq);
 

@@ -112,14 +112,14 @@ static int vring_add_indirect(struct vring_virtqueue *vq,
         desc[i].flags = VRING_DESC_F_NEXT;
         desc[i].addr = sg_phys(sg);
         desc[i].len = sg->length;
-        desc[i].next = i+1;
+        desc[i].next = (u16) i+1;
         sg++;
     }
     for (; i < (out + in); i++) {
         desc[i].flags = VRING_DESC_F_NEXT|VRING_DESC_F_WRITE;
         desc[i].addr = sg_phys(sg);
         desc[i].len = sg->length;
-        desc[i].next = i+1;
+		desc[i].next = (u16) i + 1;
         sg++;
     }
 
@@ -164,7 +164,7 @@ int virtqueue_add_buf(struct virtqueue *_vq,
                       ULONGLONG phys_indirect)
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
-    unsigned int i, avail, prev;
+    unsigned int i, avail, prev = 0;
     unsigned int head;
 
     START_USE(vq);
@@ -282,7 +282,7 @@ bool virtqueue_kick_prepare(struct virtqueue *_vq)
      * event. */
     virtio_mb(vq);
 
-    old = vq->vring.avail->idx - vq->num_added;
+	old = (u16) (vq->vring.avail->idx - vq->num_added);
     new = vq->vring.avail->idx;
     vq->num_added = 0;
 
@@ -414,7 +414,7 @@ void virtqueue_disable_cb(struct virtqueue *_vq)
     vq->vring.avail->flags |= VRING_AVAIL_F_NO_INTERRUPT;
 }
 
-static BOOLEAN vring_is_interrupt_enabled(struct virtqueue *_vq)
+BOOLEAN virtqueue_is_interrupt_enabled(struct virtqueue *_vq)
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
     return (vq->vring.avail->flags & VRING_AVAIL_F_NO_INTERRUPT) ? FALSE : TRUE;
@@ -609,7 +609,6 @@ struct virtqueue *vring_new_virtqueue(unsigned int index,
                                       const char *name)
 {
     struct vring_virtqueue *vq;
-    unsigned int i;
 
     /* We assume num is a power of 2. */
     if (num & (num - 1)) {
