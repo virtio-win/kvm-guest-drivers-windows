@@ -342,5 +342,5 @@ u32 VirtIODeviceGetQueueSize(struct virtqueue *vq)
 
 u32 VirtIODeviceIndirectPageCapacity()
 {
-	return PAGE_SIZE / sizeof(struct vring_desc);
+    return PAGE_SIZE / sizeof(struct vring_desc);
 }

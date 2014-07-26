@@ -119,7 +119,7 @@ static int vring_add_indirect(struct vring_virtqueue *vq,
         desc[i].flags = VRING_DESC_F_NEXT|VRING_DESC_F_WRITE;
         desc[i].addr = sg_phys(sg);
         desc[i].len = sg->length;
-		desc[i].next = (u16) i + 1;
+        desc[i].next = (u16) i + 1;
         sg++;
     }
 
@@ -282,7 +282,7 @@ bool virtqueue_kick_prepare(struct virtqueue *_vq)
      * event. */
     virtio_mb(vq);
 
-	old = (u16) (vq->vring.avail->idx - vq->num_added);
+    old = (u16) (vq->vring.avail->idx - vq->num_added);
     new = vq->vring.avail->idx;
     vq->num_added = 0;
 
