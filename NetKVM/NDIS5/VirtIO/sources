@@ -1,0 +1,15 @@
+TARGETNAME=virtiolib
+TARGETTYPE=DRIVER_LIBRARY
+TARGETPATH=obj
+
+MSC_WARNING_LEVEL=/W3 /WX
+SOURCES=VirtIOPCI.c  \
+        VirtIORing.c
+
+
+
+#for NETKVM project until full merge
+!message VirtIO build for NETKVM
+INCLUDES=..\Common
+!include "..\Common\common.mak"
+
