@@ -584,7 +584,7 @@ VOID ParaNdis_VirtIODisableIrqSynchronized(
 static __inline BOOLEAN
 ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq)
 {
-    return _vq->vq_ops->is_interrupt_enabled(_vq);
+    return virtqueue_is_interrupt_enabled(_vq);
 }
 
 static __inline BOOLEAN

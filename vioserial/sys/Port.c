@@ -188,7 +188,7 @@ VIOSerialDiscardPortDataLocked(
     }
     else if (vq)
     {
-        buf = (PPORT_BUFFER)vq->vq_ops->get_buf(vq, &len);
+    buf = (PPORT_BUFFER)virtqueue_get_buf(vq, &len);
     }
 
     while (buf)
@@ -199,7 +199,7 @@ VIOSerialDiscardPortDataLocked(
            ++ret;
            VIOSerialFreeBuffer(buf);
         }
-        buf = (PPORT_BUFFER)vq->vq_ops->get_buf(vq, &len);
+    buf = (PPORT_BUFFER)virtqueue_get_buf(vq, &len);
     }
     port->InBuf = NULL;
     if (ret > 0)
@@ -619,7 +619,7 @@ VIOSerialPortRead(
         }
     }
     WdfSpinLockRelease(pdoData->port->InBufLock);
-    
+
 	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ,"<-- %s\n", __FUNCTION__);
     return;
 }
@@ -705,11 +705,11 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
             "Failed to send user's buffer.\n");
 
         ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
-        
+
         removed = PopEntryList(&Port->WriteBuffersList);
         NT_ASSERT(entry == CONTAINING_RECORD(removed, WRITE_BUFFER_ENTRY, ListEntry));
-        ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);        
-        
+        ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);
+
         Port->PendingWriteRequest = NULL;
         WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
     }
@@ -1257,7 +1257,7 @@ VIOSerialEvtChildListIdentificationDescriptionCleanup(
 
 	// only for code analyzer; IdentificationDescription erroneously defined as "out"
 	IdentificationDescription->IdentificationDescriptionSize = sizeof(*pDesc);
-	
+
 	if (pDesc->NameString.Buffer)
     {
        ExFreePoolWithTag(pDesc->NameString.Buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
@@ -1365,7 +1365,7 @@ VIOSerialPortEvtDeviceD0Exit(
     VIOSerialReclaimConsumedBuffers(Port);
     WdfSpinLockRelease(Port->OutVqLock);
 
-    while (buf = (PPORT_BUFFER)VirtIODeviceDetachUnusedBuf(GetInQueue(Port)))
+    while (buf = (PPORT_BUFFER)virtqueue_detach_unused_buf(GetInQueue(Port)))
     {
         VIOSerialFreeBuffer(buf);
     }

@@ -159,8 +159,8 @@ VIOSerialEnableInterrupt(PPORTS_DEVICE pContext)
 
     if(pContext->c_ivq)
     {
-        pContext->c_ivq->vq_ops->enable_interrupt(pContext->c_ivq);
-        pContext->c_ivq->vq_ops->kick(pContext->c_ivq);
+        virtqueue_enable_cb(pContext->c_ivq);
+        virtqueue_kick(pContext->c_ivq);
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s enable\n", __FUNCTION__);
@@ -178,7 +178,7 @@ VIOSerialDisableInterrupt(PPORTS_DEVICE pContext)
 
     if(pContext->c_ivq)
     {
-        pContext->c_ivq->vq_ops->disable_interrupt(pContext->c_ivq);
+        virtqueue_disable_cb(pContext->c_ivq);
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s disable\n", __FUNCTION__);
@@ -220,8 +220,8 @@ VIOSerialEnableInterruptQueue(IN struct virtqueue *vq)
     if(!vq)
         return;
 
-    vq->vq_ops->enable_interrupt(vq);
-    vq->vq_ops->kick(vq);
+    virtqueue_enable_cb(vq);
+    virtqueue_kick(vq);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
 }
@@ -234,7 +234,7 @@ VIOSerialDisableInterruptQueue(IN struct virtqueue *vq)
     if(!vq)
         return;
 
-    vq->vq_ops->disable_interrupt(vq);
+    virtqueue_disable_cb(vq);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
 }

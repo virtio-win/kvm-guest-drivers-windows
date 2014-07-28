@@ -158,7 +158,7 @@ BalloonDeviceAdd(
                       SynchronizationEvent,
                       FALSE
                       );
-                      
+
 #if (WINVER >= 0x0501)
     devCtx->evLowMem = IoCreateNotificationEvent(
                                (PUNICODE_STRING )&evLowMemString,
@@ -520,11 +520,11 @@ BalloonInterruptDpc(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "--> %s\n", __FUNCTION__);
 
-    if (devCtx->InfVirtQueue->vq_ops->get_buf(devCtx->InfVirtQueue, &len))
+    if (virtqueue_get_buf(devCtx->InfVirtQueue, &len))
     {
         bHostAck = TRUE;
     }
-    if (devCtx->DefVirtQueue->vq_ops->get_buf(devCtx->DefVirtQueue, &len))
+    if (virtqueue_get_buf(devCtx->DefVirtQueue, &len))
     {
         bHostAck = TRUE;
     }
@@ -535,7 +535,7 @@ BalloonInterruptDpc(
     }
 
     if (devCtx->StatVirtQueue &&
-        devCtx->StatVirtQueue->vq_ops->get_buf(devCtx->StatVirtQueue, &len))
+        virtqueue_get_buf(devCtx->StatVirtQueue, &len))
     {
         WDFREQUEST request = devCtx->PendingWriteRequest;
 

@@ -1,6 +1,7 @@
 @echo off
 
 if "%DDKVER%"=="" set DDKVER=7600.16385.1
+if "%_BuildType%"=="" set _BuildType=fre
 set BUILDROOT=C:\WINDDK\%DDKVER%
 
 if "%_BUILD_MAJOR_VERSION_%"=="" set _BUILD_MAJOR_VERSION_=101
@@ -9,7 +10,7 @@ if "%_RHEL_RELEASE_VERSION_%"=="" set _RHEL_RELEASE_VERSION_=61
 
 set DDKBUILDENV=
 pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %2 fre %1 no_oacr
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %2 %_BuildType% %1 no_oacr
 popd
 
 set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% & 255)"

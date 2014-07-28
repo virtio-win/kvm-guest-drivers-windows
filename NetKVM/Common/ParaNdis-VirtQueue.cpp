@@ -11,7 +11,7 @@ bool CVirtQueue::AllocateQueueMemory()
 void CVirtQueue::Renew()
 {
     auto virtioDev = m_VirtQueue->vdev;
-    auto info = &virtioDev->info[m_VirtQueue->ulIndex];
+    auto info = &virtioDev->info[m_VirtQueue->index];
     auto pageNum = static_cast<ULONG>(info->phys.QuadPart >> PAGE_SHIFT);
     DPrintf(0, ("[%s] devaddr %p, queue %d, pfn %x\n", __FUNCTION__, virtioDev->addr, info->queue_index, pageNum));
     WriteVirtIODeviceWord(virtioDev->addr + VIRTIO_PCI_QUEUE_SEL, static_cast<UINT16>(info->queue_index));
@@ -19,9 +19,9 @@ void CVirtQueue::Renew()
 }
 
 bool CVirtQueue::Create(UINT Index,
-	VirtIODevice *IODevice,
-	NDIS_HANDLE DrvHandle,
-	bool UsePublishedIndices)
+    VirtIODevice *IODevice,
+    NDIS_HANDLE DrvHandle,
+    bool UsePublishedIndices)
 {
     m_DrvHandle = DrvHandle;
     m_Index = Index;
@@ -94,12 +94,12 @@ void CTXVirtQueue::FreeBuffers()
 }
 
 bool CTXVirtQueue::Create(UINT Index,
-	VirtIODevice *IODevice,
-	NDIS_HANDLE DrvHandle,
-	bool UsePublishedIndices,
-	ULONG MaxBuffers,
-	ULONG HeaderSize,
-	PPARANDIS_ADAPTER Context)
+    VirtIODevice *IODevice,
+    NDIS_HANDLE DrvHandle,
+    bool UsePublishedIndices,
+    ULONG MaxBuffers,
+    ULONG HeaderSize,
+    PPARANDIS_ADAPTER Context)
 {
     if (!CVirtQueue::Create(Index, IODevice, DrvHandle, UsePublishedIndices)) {
         return false;
@@ -134,11 +134,11 @@ CTXVirtQueue::~CTXVirtQueue()
 
 void CTXVirtQueue::KickQueueOnOverflow()
 {
-    m_VirtQueue->vq_ops->delay_interrupt(m_VirtQueue);
+    virtqueue_enable_cb_delayed(m_VirtQueue);
 
     if (m_DoKickOnNoBuffer)
     {
-        m_VirtQueue->vq_ops->kick_always(m_VirtQueue);
+        virtqueue_notify(m_VirtQueue);
         m_DoKickOnNoBuffer = false;
     }
 }
@@ -235,7 +235,7 @@ UINT CTXVirtQueue::VirtIONetReleaseTransmitBuffers()
 
     DEBUG_ENTRY(4);
 
-    while(NULL != (TXDescriptor = (CTXDescriptor *) m_VirtQueue->vq_ops->get_buf(m_VirtQueue, &len)))
+    while(NULL != (TXDescriptor = (CTXDescriptor *) virtqueue_get_buf(m_VirtQueue, &len)))
     {
         m_DescriptorsInUse.Remove(TXDescriptor);
         if (!TXDescriptor->GetUsedBuffersNum())
@@ -277,7 +277,7 @@ void CTXVirtQueue::OnTransmitBufferReleased(CTXDescriptor *TXDescriptor)
 
 void CTXVirtQueue::Shutdown()
 {
-    m_VirtQueue->vq_ops->shutdown(m_VirtQueue);
+    virtqueue_shutdown(m_VirtQueue);
 
     m_DescriptorsInUse.ForEachDetached([this](CTXDescriptor *TXDescriptor)
                                            {
@@ -300,13 +300,13 @@ SubmitTxPacketResult CTXDescriptor::Enqueue(struct virtqueue *VirtQueue, ULONG T
         return SUBMIT_NO_PLACE_IN_QUEUE;
     }
 
-    if (0 <= VirtQueue->vq_ops->add_buf(VirtQueue,
-                                        m_VirtioSGL,
-                                        m_CurrVirtioSGLEntry,
-                                        0,
-                                        this,
-                                        m_IndirectArea.GetVA(),
-                                        m_IndirectArea.GetPA().QuadPart))
+    if (0 <= virtqueue_add_buf(VirtQueue,
+                               m_VirtioSGL,
+                               m_CurrVirtioSGLEntry,
+                               0,
+                               this,
+                               m_IndirectArea.GetVA(),
+                               m_IndirectArea.GetPA().QuadPart))
     {
         return SUBMIT_SUCCESS;
     }
@@ -319,7 +319,7 @@ bool CTXDescriptor::AddDataChunk(const PHYSICAL_ADDRESS &PA, ULONG Length)
     if (m_CurrVirtioSGLEntry < m_VirtioSGLSize)
     {
         m_VirtioSGL[m_CurrVirtioSGLEntry].physAddr = PA;
-        m_VirtioSGL[m_CurrVirtioSGLEntry].ulSize = Length;
+        m_VirtioSGL[m_CurrVirtioSGLEntry].length = Length;
         m_CurrVirtioSGLEntry++;
 
         return true;

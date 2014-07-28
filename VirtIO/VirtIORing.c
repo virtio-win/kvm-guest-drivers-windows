@@ -26,6 +26,13 @@
 #include "VirtIORing.tmh"
 #endif
 
+#define START_USE(vq)
+#define END_USE(vq)
+#define virtio_mb(vq) mb()
+#define virtio_wmb(vq) wmb()
+#define virtio_rmb(vq) rmb()
+#define BAD_RING(vq, e) DPrintf(0, e)
+
 #pragma warning (push)
 #pragma warning (disable:4200)
 struct vring_virtqueue
@@ -35,80 +42,84 @@ struct vring_virtqueue
     /* Actual memory layout for this queue */
     struct vring vring;
 
+    /* Can we use weak barriers? */
+    // bool weak_barriers;
+
     /* Other side has made a mess, don't try any more. */
     bool broken;
 
-    /* Whether to use published indices mechanism */
-    bool use_published_indices;
+    /* Host supports indirect buffers */
+    // bool indirect;
 
-    /* Number of free buffers */
-    unsigned int num_free;
+    /* Host publishes avail event idx */
+    bool event;
+
     /* Head of free buffer list. */
     unsigned int free_head;
     /* Number we've added since last sync. */
     unsigned int num_added;
-    /* Last used index */
+
+    /* Last used index we've seen. */
     u16 last_used_idx;
 
     /* How to notify other side. FIXME: commonalize hcalls! */
     void (*notify)(struct virtqueue *vq);
+
+#ifdef DEBUG
+    /* They're supposed to lock for us. */
+    unsigned int in_use;
+
+    /* Figure out if their kicks are too delayed. */
+    bool last_add_time_valid;
+    ktime_t last_add_time;
+#endif
 
     /* Tokens for callbacks. */
     void *data[];
 };
 #pragma warning(pop)
 
-static void initialize_virtqueue(struct vring_virtqueue *vq,
-                            unsigned int num,
-                            VirtIODevice * pVirtIODevice,
-                            void *pages,
-                            void (*notify)(struct virtqueue *),
-                            unsigned int index,
-                            bool use_published_indices
-                            );
+static void initialize_virtqueue(struct vring_virtqueue* vq,
+                                 unsigned int index,
+                                 unsigned int num,
+                                 unsigned int vring_align,
+                                 virtio_device *vdev,
+                                 bool event,
+                                 void *pages,
+                                 void (*notify)(struct virtqueue *),
+                                 // void (*callback)(struct virtqueue *),
+                                 const char *name);
 
 
 //#define to_vvq(_vq) container_of(_vq, struct vring_virtqueue, vq)
 #define to_vvq(_vq) (struct vring_virtqueue *)_vq
+#define sg_phys(sg) sg->physAddr.QuadPart
 
-unsigned long
-VirtIODeviceIndirectPageCapacity()
+/* Set up an indirect table of descriptors and add it to the queue. */
+static int vring_add_indirect(struct vring_virtqueue *vq,
+                             struct scatterlist sg[],
+                             unsigned int out,
+                             unsigned int in,
+                             PVOID va,
+                             ULONGLONG phys)
 {
-    return PAGE_SIZE / sizeof(struct vring_desc);
-}
-
-static
-int
-vring_add_indirect(
-    IN struct virtqueue *_vq,
-    IN struct VirtIOBufferDescriptor sg[],
-    IN unsigned int out,
-    IN unsigned int in,
-    IN PVOID va,
-    IN ULONGLONG phys
-    )
-{
-    struct vring_virtqueue *vq = to_vvq(_vq);
     struct vring_desc *desc = (struct vring_desc *)va;
     unsigned head;
-    unsigned short i;
+    unsigned int i;
 
-    if (!phys) {
-        return -1;
-    }
     /* Transfer entries from the sg list into the indirect page */
     for (i = 0; i < out; i++) {
         desc[i].flags = VRING_DESC_F_NEXT;
-        desc[i].addr = sg->physAddr.QuadPart;
-        desc[i].len = sg->ulSize;
-        desc[i].next = i+1;
+        desc[i].addr = sg_phys(sg);
+        desc[i].len = sg->length;
+        desc[i].next = (u16) i+1;
         sg++;
     }
     for (; i < (out + in); i++) {
         desc[i].flags = VRING_DESC_F_NEXT|VRING_DESC_F_WRITE;
-        desc[i].addr = sg->physAddr.QuadPart;
-        desc[i].len = sg->ulSize;
-        desc[i].next = i+1;
+        desc[i].addr = sg_phys(sg);
+        desc[i].len = sg->length;
+        desc[i].next = (u16) i + 1;
         sg++;
     }
 
@@ -117,7 +128,7 @@ vring_add_indirect(
     desc[i-1].next = 0;
 
     /* We're about to use a buffer */
-    vq->num_free--;
+    vq->vq.num_free--;
 
     /* Use a single buffer which doesn't continue */
     head = vq->free_head;
@@ -131,86 +142,89 @@ vring_add_indirect(
     return head;
 }
 
-static void vring_delay_interrupts(struct virtqueue *_vq)
+/**
+ * virtqueue_add_buf - expose buffer to other end
+ * @vq: the struct virtqueue we're talking about.
+ * @sg: the description of the buffer(s).
+ * @out_num: the number of sg readable by other side
+ * @in_num: the number of sg which are writable (after readable ones)
+ * @data: the token identifying the buffer.
+ *
+ * Caller must ensure we don't call this with other virtqueue operations
+ * at the same time (except where noted).
+ *
+ * Returns zero or a negative error (ie. ENOSPC, ENOMEM).
+ */
+int virtqueue_add_buf(struct virtqueue *_vq,
+                      struct scatterlist sg[],
+                      unsigned int out,
+                      unsigned int in,
+                      void *data,
+                      void *va_indirect,
+                      ULONGLONG phys_indirect)
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
-    u16 buffs_num_before_interrupt = ((u16) (vq->vring.avail->idx - vq->last_used_idx)) * 3 / 4;
+    unsigned int i, avail, prev = 0;
+    unsigned int head;
 
-    *vq->vring.vring_last_used_ptr = vq->vring.used->idx +
-                                    buffs_num_before_interrupt;
+    START_USE(vq);
 
-    mb();
-}
+    BUG_ON(data == NULL);
 
-static int vring_add_buf(struct virtqueue *_vq,
-             struct VirtIOBufferDescriptor sg[],
-             unsigned int out,
-             unsigned int in,
-             void *data,
-             void *va_indirect,
-             ULONGLONG phys_indirect
-             )
-{
-    struct vring_virtqueue *vq = to_vvq(_vq);
-    unsigned int i, avail, head, prev = 0;
-
-    if(data == NULL) {
-        DPrintf(0, ("%s: data is NULL!\n",  __FUNCTION__) );
-        return -1;
-    }
-
-    if (va_indirect)
+#ifdef DEBUG
     {
-        int ret = vring_add_indirect(_vq, sg, out, in, va_indirect, phys_indirect);
-        if (ret >= 0)
+        ktime_t now = ktime_get();
+
+        /* No kick or get, with .1 second between?  Warn. */
+        if (vq->last_add_time_valid)
+            WARN_ON(ktime_to_ms(ktime_sub(now, vq->last_add_time))
+                        > 100);
+        vq->last_add_time = now;
+        vq->last_add_time_valid = true;
+    }
+#endif
+
+    /* If the host supports indirect descriptor tables, and we have multiple
+     * buffers, then go indirect. FIXME: tune this threshold */
+    if (va_indirect && (out + in) > 1 && vq->vq.num_free) {
+        int ret = vring_add_indirect(vq, sg, out, in, va_indirect, phys_indirect);
+        if (likely(ret >= 0))
         {
             head = (unsigned int)ret;
             goto add_head;
         }
-        else
-        {
-            DPrintf(0, ("%s: no physical storage provided!\n",  __FUNCTION__) );
-            return -1;
-        }
     }
 
-    if(out + in > vq->vring.num) {
-        DPrintf(0, ("%s: out + in > vq->vring.num!\n",  __FUNCTION__) );
-        return -1;
-    }
+    BUG_ON(out + in > vq->vring.num);
+    BUG_ON(out + in == 0);
 
-    if(out + in == 0) {
-        DPrintf(0, ("%s: out + in == 0!\n",  __FUNCTION__) );
-        return -1;
-    }
-
-    if (vq->num_free < out + in) {
+    if (vq->vq.num_free < out + in) {
         DPrintf(0, ("Can't add buf len %i - avail = %i\n",
-             out + in, vq->num_free) );
-        /*
-        notify the host immediately if we are out of
-        descriptors in tx ring
-        */
+             out + in, vq->vq.num_free) );
+        /* FIXME: for historical reasons, we force a notify here if
+         * there are outgoing parts to the buffer.  Presumably the
+         * host should service the ring ASAP. */
         if (out)
             vq->notify(&vq->vq);
-        return -1;
+        END_USE(vq);
+        return -ENOSPC;
     }
 
     /* We're about to use some buffers from the free list. */
-    vq->num_free -= out + in;
+    vq->vq.num_free -= out + in;
 
     head = vq->free_head;
     for (i = vq->free_head; out; i = vq->vring.desc[i].next, out--) {
         vq->vring.desc[i].flags = VRING_DESC_F_NEXT;
-        vq->vring.desc[i].addr = sg->physAddr.QuadPart;
-        vq->vring.desc[i].len = sg->ulSize;
+        vq->vring.desc[i].addr = sg_phys(sg);
+        vq->vring.desc[i].len = sg->length;
         prev = i;
         sg++;
     }
     for (; in; i = vq->vring.desc[i].next, in--) {
         vq->vring.desc[i].flags = VRING_DESC_F_NEXT|VRING_DESC_F_WRITE;
-        vq->vring.desc[i].addr = sg->physAddr.QuadPart;
-        vq->vring.desc[i].len = sg->ulSize;
+        vq->vring.desc[i].addr = sg_phys(sg);
+        vq->vring.desc[i].len = sg->length;
         prev = i;
         sg++;
     }
@@ -225,67 +239,99 @@ add_head:
     vq->data[head] = data;
 
     /* Put entry in available array (but don't update avail->idx until they
-    * do sync).  FIXME: avoid modulus here? */
-
-    avail = vq->vring.avail->idx % vq->vring.num;
-
-    DPrintf(6, ("%s >>> avail %d vq->vring.avail->idx = %d, vq->num_added = %d vq->vring.num = %d\n", __FUNCTION__, avail, vq->vring.avail->idx, vq->num_added, vq->vring.num));
+     * do sync). */
+    avail = (vq->vring.avail->idx & (vq->vring.num-1));
     vq->vring.avail->ring[avail] = (u16) head;
 
-    DPrintf(6, ("Added buffer head %i to %p\n", head, vq) );
-
-    //Flush ring changes before index advancement
-    mb();
-
+    /* Descriptors and available array need to be set before we expose the
+     * new available array entries. */
+    virtio_wmb(vq);
     vq->vring.avail->idx++;
     vq->num_added++;
 
-    return vq->num_free;
+    /* This is very unlikely, but theoretically possible.  Kick
+     * just in case. */
+    if (unlikely(vq->num_added == (1 << 16) - 1))
+        virtqueue_kick(_vq);
+
+    DPrintf(6, ("Added buffer head %i to %p\n", head, vq) );
+    END_USE(vq);
+
+    return 0;
 }
 
-static void vring_kick_always(struct virtqueue *_vq)
+/**
+ * virtqueue_kick_prepare - first half of split virtqueue_kick call.
+ * @vq: the struct virtqueue
+ *
+ * Instead of virtqueue_kick(), you can do:
+ *    if (virtqueue_kick_prepare(vq))
+ *        virtqueue_notify(vq);
+ *
+ * This is sometimes useful because the virtqueue_kick_prepare() needs
+ * to be serialized, but the actual virtqueue_notify() call does not.
+ */
+bool virtqueue_kick_prepare(struct virtqueue *_vq)
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
+    u16 new, old;
+    bool needs_kick;
 
-    /* Descriptors and available array need to be set before we expose the
-     * new available array entries. */
-    wmb();
+    START_USE(vq);
+    /* We need to expose available array entries before checking avail
+     * event. */
+    virtio_mb(vq);
 
-    DPrintf(4, ("%s>>> vq->vring.avail->idx %d\n", __FUNCTION__, vq->vring.avail->idx));
+    old = (u16) (vq->vring.avail->idx - vq->num_added);
+    new = vq->vring.avail->idx;
     vq->num_added = 0;
 
-    /* Need to update avail index before checking if we should notify */
-    mb();
-
-    vq->notify(&vq->vq);
-}
-
-static void vring_kick(struct virtqueue *_vq)
-{
-    u16 prev_avail_idx;
-    struct vring_virtqueue *vq = to_vvq(_vq);
-
-    /* Descriptors and available array need to be set before we expose the
-     * new available array entries. */
-    mb();
-
-    prev_avail_idx = vq->vring.avail->idx - (u16) vq->num_added;
-    DPrintf(4, ("%s>>> vq->vring.avail->idx %d\n", __FUNCTION__, vq->vring.avail->idx));
-    vq->num_added = 0;
-
-    /* Need to update avail index before checking if we should notify */
-    mb();
-
-    if(vq->use_published_indices) {
-        if(vring_need_event(vring_last_avail(&vq->vring),
-                            vq->vring.avail->idx,
-                            prev_avail_idx))
-            vq->notify(&vq->vq);
-    } else {
-        if (!(vq->vring.used->flags & VRING_USED_F_NO_NOTIFY))
-            /* Prod other side to tell it about changes. */
-            vq->notify(&vq->vq);
+#ifdef DEBUG
+    if (vq->last_add_time_valid) {
+        WARN_ON(ktime_to_ms(ktime_sub(ktime_get(),
+                          vq->last_add_time)) > 100);
     }
+    vq->last_add_time_valid = false;
+#endif
+
+    if (vq->event) {
+        needs_kick = vring_need_event(vring_avail_event(&vq->vring),
+                          new, old);
+    } else {
+        needs_kick = !(vq->vring.used->flags & VRING_USED_F_NO_NOTIFY);
+    }
+    END_USE(vq);
+    return needs_kick;
+}
+
+/**
+ * virtqueue_notify - second half of split virtqueue_kick call.
+ * @vq: the struct virtqueue
+ *
+ * This does not need to be serialized.
+ */
+void virtqueue_notify(struct virtqueue *_vq)
+{
+    struct vring_virtqueue *vq = to_vvq(_vq);
+
+    /* Prod other side to tell it about changes. */
+    vq->notify(_vq);
+}
+
+/**
+ * virtqueue_kick - update after add_buf
+ * @vq: the struct virtqueue
+ *
+ * After one or more virtqueue_add_buf calls, invoke this to kick
+ * the other side.
+ *
+ * Caller must ensure we don't call this with other virtqueue
+ * operations at the same time (except where noted).
+ */
+void virtqueue_kick(struct virtqueue *vq)
+{
+    if (virtqueue_kick_prepare(vq))
+        virtqueue_notify(vq);
 }
 
 static void detach_buf(struct vring_virtqueue *vq, unsigned int head)
@@ -297,37 +343,78 @@ static void detach_buf(struct vring_virtqueue *vq, unsigned int head)
 
     /* Put back on free list: find end */
     i = head;
+
+    /* Free the indirect table */
+    /*if (vq->vring.desc[i].flags & VRING_DESC_F_INDIRECT)
+        kfree(phys_to_virt(vq->vring.desc[i].addr));*/
+
     while (vq->vring.desc[i].flags & VRING_DESC_F_NEXT) {
         i = vq->vring.desc[i].next;
-        vq->num_free++;
+        vq->vq.num_free++;
     }
 
     vq->vring.desc[i].next = (u16) vq->free_head;
     vq->free_head = head;
     /* Plus final descriptor */
-    vq->num_free++;
+    vq->vq.num_free++;
 }
 
-static void vring_enable_interrupts(struct virtqueue *_vq)
+static inline bool more_used(const struct vring_virtqueue *vq)
+{
+    return vq->last_used_idx != vq->vring.used->idx;
+}
+
+/**
+ * virtqueue_enable_cb - restart callbacks after disable_cb.
+ * @vq: the struct virtqueue we're talking about.
+ *
+ * This re-enables callbacks; it returns "false" if there are pending
+ * buffers in the queue, to detect a possible race between the driver
+ * checking for more work, and enabling callbacks.
+ *
+ * Caller must ensure we don't call this with other virtqueue
+ * operations at the same time (except where noted).
+ */
+bool virtqueue_enable_cb(struct virtqueue *_vq)
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
 
-    vq->vring.avail->flags &= ~VRING_AVAIL_F_NO_INTERRUPT;
-    *vq->vring.vring_last_used_ptr = vq->last_used_idx;
+    START_USE(vq);
 
-    mb();
+    /* We optimistically turn back on interrupts, then check if there was
+     * more to do. */
+    /* Depending on the VIRTIO_RING_F_EVENT_IDX feature, we need to
+     * either clear the flags bit or point the event index at the next
+     * entry. Always do both to keep code simple. */
+    vq->vring.avail->flags &= ~VRING_AVAIL_F_NO_INTERRUPT;
+    vring_used_event(&vq->vring) = vq->last_used_idx;
+    virtio_mb(vq);
+    if (unlikely(more_used(vq))) {
+        END_USE(vq);
+        return false;
+    }
+
+    END_USE(vq);
+    return true;
 }
 
-static void vring_disable_interrupts(struct virtqueue *_vq)
+/**
+ * virtqueue_disable_cb - disable callbacks
+ * @vq: the struct virtqueue we're talking about.
+ *
+ * Note that this is not necessarily synchronous, hence unreliable and only
+ * useful as an optimization.
+ *
+ * Unlike other operations, this need not be serialized.
+ */
+void virtqueue_disable_cb(struct virtqueue *_vq)
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
 
     vq->vring.avail->flags |= VRING_AVAIL_F_NO_INTERRUPT;
-
-    mb();
 }
 
-static BOOLEAN vring_is_interrupt_enabled(struct virtqueue *_vq)
+BOOLEAN virtqueue_is_interrupt_enabled(struct virtqueue *_vq)
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
     return (vq->vring.avail->flags & VRING_AVAIL_F_NO_INTERRUPT) ? FALSE : TRUE;
@@ -338,122 +425,163 @@ static BOOLEAN vring_is_interrupt_enabled(struct virtqueue *_vq)
  upon initialization (for proper power management)
 */
 /* FIXME: We need to tell other side about removal, to synchronize. */
-static void vring_shutdown(struct virtqueue *_vq)
+void virtqueue_shutdown(struct virtqueue *_vq)
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
     unsigned int num = vq->vring.num;
-    unsigned int index = vq->vq.ulIndex;
+    unsigned int index = vq->vq.index;
     void *pages = vq->vring.desc;
-    VirtIODevice * pVirtIODevice = vq->vq.vdev;
-    bool use_published_indices = vq->use_published_indices;
+    virtio_device *vdev = vq->vq.vdev;
+    bool event = vq->event;
     void (*notify)(struct virtqueue *) = vq->notify;
+    const char* name = vq->vq.name;
 
     memset(pages, 0, vring_size(num,PAGE_SIZE));
-    initialize_virtqueue(vq, num, pVirtIODevice, pages, notify, index, use_published_indices);
+    initialize_virtqueue(vq, index, num, PAGE_SIZE, vdev, event, pages, notify, name);
 }
 
-static bool more_used(const struct vring_virtqueue *vq)
-{
-    return vq->last_used_idx != vq->vring.used->idx;
-}
-
-static void *vring_get_buf(struct virtqueue *_vq, unsigned int *len)
+/**
+ * virtqueue_get_buf - get the next used buffer
+ * @vq: the struct virtqueue we're talking about.
+ * @len: the length written into the buffer
+ *
+ * If the driver wrote data into the buffer, @len will be set to the
+ * amount written.  This means you don't need to clear the buffer
+ * beforehand to ensure there's no data leakage in the case of short
+ * writes.
+ *
+ * Caller must ensure we don't call this with other virtqueue
+ * operations at the same time (except where noted).
+ *
+ * Returns NULL if there are no used buffers, or the "data" token
+ * handed to virtqueue_add_buf().
+ */
+void *virtqueue_get_buf(struct virtqueue *_vq, unsigned int *len)
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
     void *ret;
-    struct vring_used_elem *u;
     unsigned int i;
+    u16 last_used;
+
+    START_USE(vq);
+
+    if (unlikely(vq->broken)) {
+        END_USE(vq);
+        return NULL;
+    }
 
     if (!more_used(vq)) {
-        DPrintf(4, ("No more buffers in queue: last_used_idx %d vring.used->idx %d\n",
-            vq->last_used_idx,
-            vq->vring.used->idx));
+        DPrintf(6, ("No more buffers in queue\n") );
+        END_USE(vq);
         return NULL;
     }
 
     /* Only get used array entries after they have been exposed by host. */
-    rmb();
+    virtio_rmb(vq);
 
-    u = &vq->vring.used->ring[vq->last_used_idx % vq->vring.num];
-    i = u->id;
-    *len = u->len;
+    last_used = (vq->last_used_idx & (vq->vring.num - 1));
+    i = vq->vring.used->ring[last_used].id;
+    *len = vq->vring.used->ring[last_used].len;
 
-
-    DPrintf(4, ("%s>>> id %d, len %d\n", __FUNCTION__, i, *len) );
-
-    if (i >= vq->vring.num) {
-        DPrintf(0, ("id %u out of range\n", i) );
+    if (unlikely(i >= vq->vring.num)) {
+        BAD_RING(vq, ("id %u out of range\n", i) );
         return NULL;
     }
-    if (!vq->data[i]) {
-        DPrintf(0, ("id %u is not a head!\n", i) );
+    if (unlikely(!vq->data[i])) {
+        BAD_RING(vq, ("id %u is not a head!\n", i) );
         return NULL;
     }
 
     /* detach_buf clears data, so grab it now. */
     ret = vq->data[i];
     detach_buf(vq, i);
-    ++vq->last_used_idx;
-
+    vq->last_used_idx++;
+    /* If we expect an interrupt for the next entry, tell host
+     * by writing event index and flush out the write before
+     * the read in the next get_buf call. */
     if (!(vq->vring.avail->flags & VRING_AVAIL_F_NO_INTERRUPT)) {
-        *vq->vring.vring_last_used_ptr = vq->last_used_idx;
-        mb();
+        vring_used_event(&vq->vring) = vq->last_used_idx;
+        virtio_mb(vq);
     }
 
+#ifdef DEBUG
+    vq->last_add_time_valid = false;
+#endif
+
+    END_USE(vq);
     return ret;
 }
 
-static bool vring_restart(struct virtqueue *_vq)
+/**
+ * virtqueue_enable_cb_delayed - restart callbacks after disable_cb.
+ * @vq: the struct virtqueue we're talking about.
+ *
+ * This re-enables callbacks but hints to the other side to delay
+ * interrupts until most of the available buffers have been processed;
+ * it returns "false" if there are many pending buffers in the queue,
+ * to detect a possible race between the driver checking for more work,
+ * and enabling callbacks.
+ *
+ * Caller must ensure we don't call this with other virtqueue
+ * operations at the same time (except where noted).
+ */
+bool virtqueue_enable_cb_delayed(struct virtqueue *_vq)
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
+    u16 bufs;
 
-    DPrintf(6, ("%s\n", __FUNCTION__) );
-
-    //BUG_ON(!(vq->vring.avail->flags & VRING_AVAIL_F_NO_INTERRUPT));
+    START_USE(vq);
 
     /* We optimistically turn back on interrupts, then check if there was
      * more to do. */
-    vring_enable_interrupts(_vq);
-
-    if (more_used(vq)) {
-        vring_disable_interrupts(_vq);
-        return 0;
+    /* Depending on the VIRTIO_RING_F_USED_EVENT_IDX feature, we need to
+     * either clear the flags bit or point the event index at the next
+     * entry. Always do both to keep code simple. */
+    vq->vring.avail->flags &= ~VRING_AVAIL_F_NO_INTERRUPT;
+    /* TODO: tune this threshold */
+    bufs = (u16)(vq->vring.avail->idx - vq->last_used_idx) * 3 / 4;
+    vring_used_event(&vq->vring) = vq->last_used_idx + bufs;
+    virtio_mb(vq);
+    if (unlikely((u16)(vq->vring.used->idx - vq->last_used_idx) > bufs)) {
+        END_USE(vq);
+        return false;
     }
 
-    return 1;
+    END_USE(vq);
+    return true;
 }
 
-static struct virtqueue_ops vring_vq_ops = { vring_add_buf,
-                                             vring_kick,
-                                             vring_kick_always,
-                                             vring_get_buf,
-                                             vring_restart,
-                                             vring_shutdown,
-                                             vring_enable_interrupts,
-                                             vring_disable_interrupts,
-                                             vring_is_interrupt_enabled,
-                                             vring_delay_interrupts};
 
-void initialize_virtqueue(struct vring_virtqueue *vq,
-                            unsigned int num,
-                            VirtIODevice * pVirtIODevice,
-                            void *pages,
-                            void (*notify)(struct virtqueue *),
-                            unsigned int index,
-                            bool use_published_indices)
+void initialize_virtqueue(struct vring_virtqueue* vq,
+                          unsigned int index,
+                          unsigned int num,
+                          unsigned int vring_align,
+                          virtio_device *vdev,
+                          bool event,
+                          void *pages,
+                          void (*notify)(struct virtqueue *),
+                          // void (*callback)(struct virtqueue *),
+                          const char *name)
 {
     unsigned short i = (unsigned short) num;
     memset(vq, 0, sizeof(*vq) + sizeof(void *)*num);
 
-    vring_init(&vq->vring, num, pages, PAGE_SIZE);
-    vq->vq.vdev = pVirtIODevice;
-    vq->vq.vq_ops = &vring_vq_ops;
+    vring_init(&vq->vring, num, pages, vring_align);
+    vq->vq.vdev = vdev;
+    vq->vq.name = name;
     vq->notify = notify;
+    // vq->callback = callback;
+    //vq->weak_barriers = weak_barriers;
     vq->broken = 0;
-    vq->vq.ulIndex = index;
-    *vq->vring.vring_last_used_ptr = vq->last_used_idx = 0;
+    vq->vq.index = index;
+    vq->last_used_idx = 0;
     vq->num_added = 0;
-    vq->use_published_indices = use_published_indices;
+#ifdef DEBUG
+    vq->in_use = 0;
+    vq->last_add_time_valid = 0;
+#endif
+    //vq->indirect = virtio_has_feature(vdev, VIRTIO_RING_F_INDIRECT_DESC);
+    vq->event = event; // virtio_has_feature(vdev, VIRTIO_RING_F_EVENT_IDX);
 
     /* No callback?  Tell other side not to bother us. */
     // TBD
@@ -461,24 +589,26 @@ void initialize_virtqueue(struct vring_virtqueue *vq,
     //  vq->vring.avail->flags |= VRING_AVAIL_F_NO_INTERRUPT;
 
     /* Put everything in free lists. */
-    vq->num_free = num;
+    vq->vq.num_free = num;
     vq->free_head = 0;
-    for (i = 0; i < num-1; i++)
+    for (i = 0; i < num-1; i++) {
         vq->vring.desc[i].next = i+1;
+        vq->data[i] = NULL;
+    }
+    vq->data[i] = NULL;
 }
 
-struct virtqueue *vring_new_virtqueue(unsigned int num,
-                                      VirtIODevice * pVirtIODevice,
+struct virtqueue *vring_new_virtqueue(unsigned int index,
+                                      unsigned int num,
+                                      unsigned int vring_align,
+                                      virtio_device *vdev,
+                                      bool event,
                                       void *pages,
                                       void (*notify)(struct virtqueue *),
                                       void *control,
-                                      unsigned int index,
-                                      BOOLEAN use_published_indices
-                                      )
+                                      const char *name)
 {
     struct vring_virtqueue *vq;
-
-    DPrintf(0, ("Creating new virtqueue>>> size %d, pages %p\n", num, pages) );
 
     /* We assume num is a power of 2. */
     if (num & (num - 1)) {
@@ -490,29 +620,60 @@ struct virtqueue *vring_new_virtqueue(unsigned int num,
     if (!vq)
         return NULL;
 
-    initialize_virtqueue(vq, num, pVirtIODevice, pages, notify, index, use_published_indices);
+    initialize_virtqueue(vq, index, num, vring_align, vdev, event, pages, notify, name);
 
     return &vq->vq;
 }
 
-void* vring_detach_unused_buf(struct virtqueue *_vq)
+/**
+ * virtqueue_detach_unused_buf - detach first unused buffer
+ * @vq: the struct virtqueue we're talking about.
+ *
+ * Returns NULL or the "data" token handed to virtqueue_add_buf().
+ * This is not valid on an active queue; it is useful only for device
+ * shutdown.
+ */
+void *virtqueue_detach_unused_buf(struct virtqueue *_vq)
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
     unsigned int i;
     void *buf;
 
+    START_USE(vq);
+
     for (i = 0; i < vq->vring.num; i++) {
         if (!vq->data[i])
             continue;
+        /* detach_buf clears data, so grab it now. */
         buf = vq->data[i];
         detach_buf(vq, i);
         vq->vring.avail->idx--;
+        END_USE(vq);
         return buf;
     }
+    /* That should have freed everything. */
+    BUG_ON(vq->vq.num_free != vq->vring.num);
+
+    END_USE(vq);
     return NULL;
 }
 
 unsigned int vring_control_block_size()
 {
     return sizeof(struct vring_virtqueue);
+}
+
+/**
+ * virtqueue_get_vring_size - return the size of the virtqueue's vring
+ * @vq: the struct virtqueue containing the vring of interest.
+ *
+ * Returns the size of the vring.  This is mainly used for boasting to
+ * userspace.  Unlike other operations, this need not be serialized.
+ */
+unsigned int virtqueue_get_vring_size(struct virtqueue *_vq)
+{
+
+    struct vring_virtqueue *vq = to_vvq(_vq);
+
+    return vq->vring.num;
 }

@@ -214,15 +214,15 @@ public:
     void Kick()
     {
 #ifdef PARANDIS_TEST_TX_KICK_ALWAYS
-        m_VirtQueue->vq_ops->kick_always(m_VirtQueue);
+		virtqueue_notify(m_VirtQueue);
 #else
-        m_VirtQueue->vq_ops->kick(m_VirtQueue);
+		virtqueue_kick(m_VirtQueue);
 #endif
     }
 
     //TODO: Needs review / temporary
     bool Restart()
-    { return m_VirtQueue->vq_ops->restart(m_VirtQueue); }
+    { return virtqueue_enable_cb(m_VirtQueue); }
 
     bool HasPacketsInHW()
     { return !m_DescriptorsInUse.IsEmpty(); }
@@ -236,15 +236,15 @@ public:
 
     //TODO: Needs review/temporary?
     void EnableInterrupts()
-    { m_VirtQueue->vq_ops->enable_interrupt(m_VirtQueue); }
+    { virtqueue_enable_cb(m_VirtQueue); }
 
     //TODO: Needs review/temporary?
     void DisableInterrupts()
-    { m_VirtQueue->vq_ops->disable_interrupt(m_VirtQueue); }
+    { virtqueue_disable_cb(m_VirtQueue); }
 
     //TODO: Needs review/temporary?
     bool IsInterruptEnabled()
-    { return m_VirtQueue->vq_ops->is_interrupt_enabled(m_VirtQueue) ? true : false; }
+    { return virtqueue_is_interrupt_enabled(m_VirtQueue) ? true : false; }
 
     //TODO: Needs review/temporary?
     ULONG GetFreeTXDescriptors()
