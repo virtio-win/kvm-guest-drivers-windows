@@ -67,11 +67,30 @@ static void NoDebugPrintFunc(const char *format, ...)
 }
 void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath)
 {
-    //TBD - Read nDebugLevel and bDebugPrint from the registry
-    bDebugPrint = 1;
-    virtioDebugLevel = 0;
-    nViostorDebugLevel = TRACE_LEVEL_ERROR;
-
+#ifdef ENABLE_TRACE
+    USHORT nFromLen = RegistryPath->Length;
+    WCHAR wszRegistryPath[TEMP_BUFFER_SIZE];
+    RTL_QUERY_REGISTRY_TABLE QueryTable[3];
+    NTSTATUS status;
+    nViostorDebugLevel = 0;
+    if (RegistryPath->Length + sizeof(WCHAR) <= sizeof(wszRegistryPath)) {
+        RtlCopyMemory(wszRegistryPath, RegistryPath->Buffer, nFromLen);
+        RtlZeroMemory(wszRegistryPath + nFromLen, sizeof(WCHAR));
+        RtlZeroMemory(QueryTable, sizeof(QueryTable));
+        QueryTable[0].Name = L"Parameters";
+        QueryTable[0].Flags = RTL_QUERY_REGISTRY_SUBKEY;
+        QueryTable[0].EntryContext = NULL;
+        QueryTable[1].Name = L"DebugLevel";
+        QueryTable[1].Flags = RTL_QUERY_REGISTRY_DIRECT;
+        QueryTable[1].EntryContext = &nViostorDebugLevel;
+        status = RtlQueryRegistryValues(RTL_REGISTRY_ABSOLUTE,
+                                        wszRegistryPath, QueryTable, NULL, NULL);
+    }
+#else
+    nViostorDebugLevel = 0;
+#endif
+    virtioDebugLevel = nViostorDebugLevel;
+    bDebugPrint = (nViostorDebugLevel != 0);
 #if defined(EVENT_TRACING)
     VirtioDebugPrintProc = DebugPrintFuncWPP;
 #elif defined(PRINT_DEBUG)
