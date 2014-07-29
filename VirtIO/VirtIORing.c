@@ -71,6 +71,7 @@ static void initialize_virtqueue(struct vring_virtqueue *vq,
 //#define to_vvq(_vq) container_of(_vq, struct vring_virtqueue, vq)
 #define to_vvq(_vq) (struct vring_virtqueue *)_vq
 
+
 unsigned long
 VirtIODeviceIndirectPageCapacity()
 {
@@ -251,7 +252,7 @@ static void vring_kick_always(struct virtqueue *_vq)
      * new available array entries. */
     wmb();
 
-    DPrintf(4, ("%s>>> vq->vring.avail->idx %d\n", __FUNCTION__, vq->vring.avail->idx));
+    DPrintf(5, ("%s>>> vq->vring.avail->idx %d\n", __FUNCTION__, vq->vring.avail->idx));
     vq->num_added = 0;
 
     /* Need to update avail index before checking if we should notify */
@@ -270,7 +271,7 @@ static void vring_kick(struct virtqueue *_vq)
     mb();
 
     prev_avail_idx = vq->vring.avail->idx - (u16) vq->num_added;
-    DPrintf(4, ("%s>>> vq->vring.avail->idx %d\n", __FUNCTION__, vq->vring.avail->idx));
+    DPrintf(5, ("%s>>> vq->vring.avail->idx %d\n", __FUNCTION__, vq->vring.avail->idx));
     vq->num_added = 0;
 
     /* Need to update avail index before checking if we should notify */
@@ -365,7 +366,7 @@ static void *vring_get_buf(struct virtqueue *_vq, unsigned int *len)
     unsigned int i;
 
     if (!more_used(vq)) {
-        DPrintf(4, ("No more buffers in queue: last_used_idx %d vring.used->idx %d\n",
+        DPrintf(5, ("No more buffers in queue: last_used_idx %d vring.used->idx %d\n",
             vq->last_used_idx,
             vq->vring.used->idx));
         return NULL;
@@ -379,7 +380,7 @@ static void *vring_get_buf(struct virtqueue *_vq, unsigned int *len)
     *len = u->len;
 
 
-    DPrintf(4, ("%s>>> id %d, len %d\n", __FUNCTION__, i, *len) );
+    DPrintf(5, ("%s>>> id %d, len %d\n", __FUNCTION__, i, *len) );
 
     if (i >= vq->vring.num) {
         DPrintf(0, ("id %u out of range\n", i) );

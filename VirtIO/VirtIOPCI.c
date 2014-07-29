@@ -63,7 +63,7 @@ void VirtIODeviceSetMSIXUsed(VirtIODevice * pVirtIODevice, bool used)
 /////////////////////////////////////////////////////////////////////////////////////
 void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice)
 {
-    DPrintf(4, ("%s\n", __FUNCTION__));
+    DPrintf(5, ("%s\n", __FUNCTION__));
 
     DPrintf(0, ("[VIRTIO_PCI_HOST_FEATURES] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_HOST_FEATURES)));
     DPrintf(0, ("[VIRTIO_PCI_GUEST_FEATURES] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_GUEST_FEATURES)));
@@ -134,7 +134,7 @@ void VirtIODeviceGet(VirtIODevice * pVirtIODevice,
     u8 *ptr = buf;
     unsigned i;
 
-    DPrintf(4, ("%s\n", __FUNCTION__));
+    DPrintf(5, ("%s\n", __FUNCTION__));
 
     for (i = 0; i < len; i++)
         ptr[i] = ReadVirtIODeviceByte(ioaddr + i);
@@ -149,7 +149,7 @@ void VirtIODeviceSet(VirtIODevice * pVirtIODevice,
     const u8 *ptr = buf;
     unsigned i;
 
-    DPrintf(4, ("%s\n", __FUNCTION__));
+    DPrintf(5, ("%s\n", __FUNCTION__));
 
     for (i = 0; i < len; i++)
         WriteVirtIODeviceByte(ioaddr + i, ptr[i]);
@@ -160,7 +160,7 @@ static void vp_notify(struct virtqueue *vq)
 {
     VirtIODevice *vp_dev = vq->vdev;
 
-    DPrintf(4, ("%s>> queue %d\n", __FUNCTION__, vq->ulIndex));
+    DPrintf(5, ("%s>> queue %d\n", __FUNCTION__, vq->ulIndex));
 
     // we write the queue's selector into the notification register to
     // * signal the other end
@@ -312,10 +312,11 @@ void VirtIODeviceDeleteQueue(struct virtqueue *vq, void **pOwnerContext)
     VirtIODevice *vp_dev = vq->vdev;
     tVirtIOPerQueueInfo *info = &vp_dev->info[vq->ulIndex];
 
-    DPrintf(4, ("%s, index %d\n", __FUNCTION__, vq->ulIndex));
+    DPrintf(5, ("%s, index %d\n", __FUNCTION__, vq->ulIndex));
 
     // Select and deactivate the queue
     WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_SEL, (u16) info->queue_index);
+    DPrintf(0, ("%s, queue %d pfn 0x0\n", __FUNCTION__, vq->ulIndex));
     WriteVirtIODeviceRegister(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN, 0);
     if (pOwnerContext) *pOwnerContext = info->pOwnerContext;
 }
