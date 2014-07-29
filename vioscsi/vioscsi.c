@@ -330,13 +330,9 @@ ENTER_FN();
     adaptExt->indirect = 0;
 #endif
 
-    if(adaptExt->indirect) {
-        adaptExt->queue_depth = max(2, (pageNum / 4));
-    } else {
-        adaptExt->queue_depth = pageNum / ConfigInfo->NumberOfPhysicalBreaks - 1;
-    }
-
-
+    // The windows device queue must be between 20 and 254 for
+    // StorPortSetDeviceQueueDepth to succeed.
+    adaptExt->queue_depth = min(254, max(20, (pageNum / 4)));
     RhelDbgPrint(TRACE_LEVEL_ERROR, ("breaks_number = %x  queue_depth = %x\n",
                 ConfigInfo->NumberOfPhysicalBreaks,
                 adaptExt->queue_depth));
@@ -585,16 +581,14 @@ VioScsiInterrupt(
                  }
               }
               Srb->DataTransferLength = 0;
-           } 
+           }
            else if (srbExt && srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) 
            {
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
-         --adaptExt->in_fly; 
-           StorPortNotification(RequestComplete,
-                         DeviceExtension,
-                         Srb);
+         --adaptExt->in_fly;
+           CompleteRequest(DeviceExtension, Srb);
         }
         if (adaptExt->in_fly > 0) {
            adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
@@ -788,9 +782,7 @@ VioScsiMSInterrupt (
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
            --adaptExt->in_fly; 
-           StorPortNotification(RequestComplete,
-                         DeviceExtension,
-                         Srb);
+           CompleteRequest(DeviceExtension, Srb);
 
            if (adaptExt->in_fly > 0)
            {
@@ -916,7 +908,7 @@ ENTER_FN();
     }
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<-->%s (%d::%d::%d)\n", DbgGetScsiOpStr(Srb), Srb->PathId, Srb->TargetId, Srb->Lun));
-    
+
     memset(srbExt, 0, sizeof(*srbExt));
 
     cmd = &srbExt->cmd;
@@ -1015,9 +1007,13 @@ ENTER_FN();
     {
         case SCSIOP_READ_CAPACITY:
         case SCSIOP_READ_CAPACITY16:
-           StorPortSetDeviceQueueDepth( DeviceExtension, Srb->PathId,
+           if (!StorPortSetDeviceQueueDepth( DeviceExtension, Srb->PathId,
                                      Srb->TargetId, Srb->Lun,
-                                     adaptExt->queue_depth);
+                                     adaptExt->queue_depth)) {
+              RhelDbgPrint(TRACE_LEVEL_ERROR, ("StorPortSetDeviceQueueDepth(%p, %x) failed.\n",
+                          DeviceExtension,
+                          adaptExt->queue_depth));
+           }
            break;
         default:
            break;
