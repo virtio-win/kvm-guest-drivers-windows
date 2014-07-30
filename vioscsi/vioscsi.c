@@ -98,7 +98,7 @@ VioScsiInterrupt(
     IN PVOID DeviceExtension
     );
 
-VOID 
+VOID
 TransportReset(
     IN PVOID DeviceExtension,
     IN PVirtIOSCSIEvent evt
@@ -618,7 +618,7 @@ VioScsiInterrupt(
               }
               Srb->DataTransferLength = 0;
            }
-           else if (srbExt && srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) 
+           else if (srbExt && srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer)
            {
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
@@ -660,7 +660,7 @@ VioScsiInterrupt(
               RhelDbgPrint(TRACE_LEVEL_ERROR, ("Unsupport virtio scsi event %x\n", evt->event));
               break;
            }
-           SynchronizedKickEventRoutine(DeviceExtension, evtNode);  
+           SynchronizedKickEventRoutine(DeviceExtension, evtNode);
         }
     }
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s isInterruptServiced = %d\n", __FUNCTION__, isInterruptServiced));
@@ -733,7 +733,7 @@ VioScsiMSInterrupt (
               RhelDbgPrint(TRACE_LEVEL_ERROR, ("Unsupport virtio scsi event %x\n", evt->event));
               break;
            }
-           SynchronizedKickEventRoutine(DeviceExtension, evtNode);  
+           SynchronizedKickEventRoutine(DeviceExtension, evtNode);
         }
         return TRUE;
     }
@@ -804,8 +804,8 @@ VioScsiMSInterrupt (
                  }
               }
               Srb->DataTransferLength = 0;
-           } 
-           else if (srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) 
+           }
+           else if (srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer)
            {
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
@@ -814,7 +814,7 @@ VioScsiMSInterrupt (
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
-           --adaptExt->in_fly; 
+           --adaptExt->in_fly;
            CompleteRequest(DeviceExtension, Srb);
         }
         return TRUE;
@@ -1093,7 +1093,7 @@ LogError(
 #endif
 }
 
-VOID 
+VOID
 TransportReset(
     IN PVOID DeviceExtension,
     IN PVirtIOSCSIEvent evt
