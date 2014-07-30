@@ -37,7 +37,7 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
 extern int nViostorDebugLevel;
 
 #ifdef DBG
-#define ENABLE_TRACE
+#define ENABLE_TRACE 1
 #endif
 
 #ifdef ENABLE_TRACE
