@@ -639,7 +639,7 @@ VIOSerialEvtDeviceD0Exit(
 
     PAGED_CODE();
 
-    while (buf = (PPORT_BUFFER)VirtIODeviceDetachUnusedBuf(pContext->c_ivq))
+    while (buf = (PPORT_BUFFER)virtqueue_detach_unused_buf(pContext->c_ivq))
     {
         VIOSerialFreeBuffer(buf);
     }
