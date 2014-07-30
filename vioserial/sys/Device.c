@@ -46,7 +46,7 @@ VIOSerialInitInterruptHandling(
 {
     WDF_OBJECT_ATTRIBUTES        attributes;
     WDF_INTERRUPT_CONFIG         interruptConfig;
-    PPORTS_DEVICE	         pContext = GetPortsDevice(hDevice);
+    PPORTS_DEVICE                pContext = GetPortsDevice(hDevice);
     NTSTATUS                     status = STATUS_SUCCESS;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
@@ -404,27 +404,27 @@ VIOSerialEvtDeviceReleaseHardware(
 
 static struct virtqueue * FindVirtualQueue(VirtIODevice *dev, ULONG index, USHORT vector)
 {
-	struct virtqueue *pq = NULL;
-	PVOID p;
-	ULONG size, allocSize;
-	VirtIODeviceQueryQueueAllocation(dev, index, &size, &allocSize);
-	if (allocSize)
-	{
-		PHYSICAL_ADDRESS HighestAcceptable;
-		HighestAcceptable.QuadPart = 0xFFFFFFFFFF;
-		p = MmAllocateContiguousMemory(allocSize, HighestAcceptable);
-		if (p)
-		{
-			pq = VirtIODevicePrepareQueue(dev, index, MmGetPhysicalAddress(p), p, allocSize, p, FALSE);
+    struct virtqueue *pq = NULL;
+    PVOID p;
+    ULONG size, allocSize;
+    VirtIODeviceQueryQueueAllocation(dev, index, &size, &allocSize);
+    if (allocSize)
+    {
+        PHYSICAL_ADDRESS HighestAcceptable;
+        HighestAcceptable.QuadPart = 0xFFFFFFFFFF;
+        p = MmAllocateContiguousMemory(allocSize, HighestAcceptable);
+        if (p)
+        {
+            pq = VirtIODevicePrepareQueue(dev, index, MmGetPhysicalAddress(p), p, allocSize, p, FALSE);
 
             if (vector != VIRTIO_MSI_NO_VECTOR)
             {
                 WriteVirtIODeviceWord(dev->addr + VIRTIO_MSI_QUEUE_VECTOR, vector);
                 vector = ReadVirtIODeviceWord(dev->addr + VIRTIO_MSI_QUEUE_VECTOR);
             }
-		}
-	}
-	return pq;
+        }
+    }
+    return pq;
 }
 
 #if 0
@@ -657,7 +657,7 @@ VIOSerialEvtDeviceD0EntryPostInterruptsEnabled(
     IN  WDF_POWER_DEVICE_STATE PreviousState
     )
 {
-    PPORTS_DEVICE	pContext = GetPortsDevice(WdfDevice);
+    PPORTS_DEVICE    pContext = GetPortsDevice(WdfDevice);
     UNREFERENCED_PARAMETER(PreviousState);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);

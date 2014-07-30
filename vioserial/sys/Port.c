@@ -708,7 +708,7 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
 
         removed = PopEntryList(&Port->WriteBuffersList);
         NT_ASSERT(entry == CONTAINING_RECORD(removed, WRITE_BUFFER_ENTRY, ListEntry));
-        ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);        
+        ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);
 
         Port->PendingWriteRequest = NULL;
         WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
