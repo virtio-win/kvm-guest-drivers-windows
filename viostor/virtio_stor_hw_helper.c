@@ -21,7 +21,7 @@
                       pa = va ? ScsiPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0; \
                     }
 #else
-#define SET_VA_PA()	va = NULL; pa = 0;
+#define SET_VA_PA()    va = NULL; pa = 0;
 #endif
 
 
@@ -203,8 +203,8 @@ RhelDoReadWrite(PVOID DeviceExtension,
         InsertTailList(&adaptExt->list_head, &srbExt->vbr.list_entry);
         virtqueue_kick(adaptExt->vq);
         srbExt->call_next = FALSE;
-		if(!adaptExt->indirect && num_free < VIRTIO_MAX_SG) {
-			srbExt->call_next = TRUE;
+        if(!adaptExt->indirect && num_free < VIRTIO_MAX_SG) {
+            srbExt->call_next = TRUE;
         } else {
            ScsiPortNotification(NextLuRequest, DeviceExtension, Srb->PathId, Srb->TargetId, Srb->Lun);
         }
@@ -336,7 +336,7 @@ RhelGetDiskGeometry(
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SEG_MAX)) {
-		VirtIODeviceGet(&adaptExt->vdev, FIELD_OFFSET(blk_config, seg_max),
+        VirtIODeviceGet(&adaptExt->vdev, FIELD_OFFSET(blk_config, seg_max),
                       &v, sizeof(v));
         adaptExt->info.seg_max = v;
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_SEG_MAX = %d\n", adaptExt->info.seg_max));
