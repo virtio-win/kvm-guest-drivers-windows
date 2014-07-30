@@ -95,16 +95,16 @@ public:
                   struct VirtIOBufferDescriptor *VirtioSGL,
                   ULONG VirtioSGLSize,
                   bool Indirect)
-    { 
-		if (!m_Headers.Create(DrvHandle, VirtioHeaderSize))
-			return false;
-		if (!m_IndirectArea.Create(DrvHandle))
-			return false;
-		m_VirtioSGL = VirtioSGL;
-		m_VirtioSGLSize = VirtioSGLSize;
-		m_Indirect = Indirect;
+    {
+        if (!m_Headers.Create(DrvHandle, VirtioHeaderSize))
+            return false;
+        if (!m_IndirectArea.Create(DrvHandle))
+            return false;
+        m_VirtioSGL = VirtioSGL;
+        m_VirtioSGLSize = VirtioSGLSize;
+        m_Indirect = Indirect;
 
-		return m_Headers.Allocate() && (!m_Indirect || m_IndirectArea.Allocate(PAGE_SIZE));
+        return m_Headers.Allocate() && (!m_Indirect || m_IndirectArea.Allocate(PAGE_SIZE));
     }
 
     SubmitTxPacketResult Enqueue(struct virtqueue *VirtQueue, ULONG TotalDescriptors, ULONG FreeDescriptors);

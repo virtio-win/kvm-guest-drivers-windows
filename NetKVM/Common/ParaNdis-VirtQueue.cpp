@@ -19,9 +19,9 @@ void CVirtQueue::Renew()
 }
 
 bool CVirtQueue::Create(UINT Index,
-	VirtIODevice *IODevice,
-	NDIS_HANDLE DrvHandle,
-	bool UsePublishedIndices)
+    VirtIODevice *IODevice,
+    NDIS_HANDLE DrvHandle,
+    bool UsePublishedIndices)
 {
     m_DrvHandle = DrvHandle;
     m_Index = Index;
@@ -94,12 +94,12 @@ void CTXVirtQueue::FreeBuffers()
 }
 
 bool CTXVirtQueue::Create(UINT Index,
-	VirtIODevice *IODevice,
-	NDIS_HANDLE DrvHandle,
-	bool UsePublishedIndices,
-	ULONG MaxBuffers,
-	ULONG HeaderSize,
-	PPARANDIS_ADAPTER Context)
+    VirtIODevice *IODevice,
+    NDIS_HANDLE DrvHandle,
+    bool UsePublishedIndices,
+    ULONG MaxBuffers,
+    ULONG HeaderSize,
+    PPARANDIS_ADAPTER Context)
 {
     if (!CVirtQueue::Create(Index, IODevice, DrvHandle, UsePublishedIndices)) {
         return false;

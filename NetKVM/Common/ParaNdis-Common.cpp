@@ -1036,10 +1036,10 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 
     for (i = 0; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
     {
-	pRxNetDescriptor pBufferDescriptor;
+        pRxNetDescriptor pBufferDescriptor;
 
-	while (NULL != (pBufferDescriptor = ReceiveQueueGetBuffer(pContext->ReceiveQueues + i)))
-	    ReuseReceiveBufferPowerOff(pContext, pBufferDescriptor);
+        while (NULL != (pBufferDescriptor = ReceiveQueueGetBuffer(pContext->ReceiveQueues + i)))
+            ReuseReceiveBufferPowerOff(pContext, pBufferDescriptor);
     }
 
     do
