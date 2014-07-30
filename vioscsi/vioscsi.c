@@ -207,7 +207,7 @@ ENTER_FN();
     memset(adaptExt, 0, sizeof(ADAPTER_EXTENSION));
 
     adaptExt->dump_mode  = IsCrashDumpMode;
-    
+
     ConfigInfo->Master                      = TRUE;
     ConfigInfo->ScatterGather               = TRUE;
     ConfigInfo->DmaWidth                    = Width32Bits;
@@ -385,9 +385,10 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
         ULONG len;
         PVOID  ptr = (PVOID)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset[index]);
         PHYSICAL_ADDRESS pa = StorPortGetPhysicalAddress(adaptExt, NULL, ptr, &len);
+        BOOLEAN useEventIndex = CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX);
         if (pa.QuadPart)
         {
-           vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, ptr, len, NULL, FALSE);
+           vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, ptr, len, NULL, useEventIndex);
         }
 
         if (vq == NULL)
@@ -494,9 +495,9 @@ ENTER_FN();
           }
       }
 
-      StorPortWritePortUshort(DeviceExtension,
-             (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES),
-             (USHORT)((1 << VIRTIO_SCSI_F_HOTPLUG) | (1 << VIRTIO_SCSI_F_CHANGE)));
+      StorPortWritePortUlong(DeviceExtension,
+             (PULONG)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES),
+			 (ULONG)((1 << VIRTIO_SCSI_F_HOTPLUG) | (1 << VIRTIO_SCSI_F_CHANGE) | (1 << VIRTIO_RING_F_EVENT_IDX)));
       StorPortWritePortUchar(DeviceExtension,
              (PUCHAR)(adaptExt->device_base + VIRTIO_PCI_STATUS),
              (UCHAR)VIRTIO_CONFIG_S_DRIVER_OK);
