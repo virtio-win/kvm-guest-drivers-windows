@@ -553,7 +553,7 @@ VioScsiInterrupt(
 
     if ( intReason == 1) {
         isInterruptServiced = TRUE;
-        while((cmd = (PVirtIOSCSICmd)adaptExt->vq[2]->vq_ops->get_buf(adaptExt->vq[2], &len)) != NULL) {
+        while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[2], &len)) != NULL) {
            VirtIOSCSICmdResp   *resp;
            Srb     = (PSCSI_REQUEST_BLOCK)cmd->sc;
            resp    = &cmd->resp.cmd;
@@ -626,7 +626,7 @@ VioScsiInterrupt(
            CompleteRequest(DeviceExtension, Srb);
         }
         if (adaptExt->tmf_infly) {
-           while((cmd = (PVirtIOSCSICmd)adaptExt->vq[0]->vq_ops->get_buf(adaptExt->vq[0], &len)) != NULL) {
+           while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[0], &len)) != NULL) {
               VirtIOSCSICtrlTMFResp *resp;
               Srb = (PSCSI_REQUEST_BLOCK)cmd->sc;
               ASSERT(Srb == &adaptExt->tmf_cmd.Srb);
@@ -644,7 +644,7 @@ VioScsiInterrupt(
            }
            adaptExt->tmf_infly = FALSE;
         }
-        while((evtNode = (PVirtIOSCSIEventNode)adaptExt->vq[1]->vq_ops->get_buf(adaptExt->vq[1], &len)) != NULL) {
+        while((evtNode = (PVirtIOSCSIEventNode)virtqueue_get_buf(adaptExt->vq[1], &len)) != NULL) {
            PVirtIOSCSIEvent evt = &evtNode->event;
            switch (evt->event) {
            case VIRTIO_SCSI_T_NO_EVENT:
@@ -695,7 +695,7 @@ VioScsiMSInterrupt (
     {
         if (adaptExt->tmf_infly)
         {
-           while((cmd = (PVirtIOSCSICmd)adaptExt->vq[0]->vq_ops->get_buf(adaptExt->vq[0], &len)) != NULL)
+           while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[0], &len)) != NULL)
            {
               VirtIOSCSICtrlTMFResp *resp;
               Srb = (PSCSI_REQUEST_BLOCK)cmd->sc;
@@ -717,7 +717,7 @@ VioScsiMSInterrupt (
         return TRUE;
     }
     if (MessageID == 2) {
-        while((evtNode = (PVirtIOSCSIEventNode)adaptExt->vq[1]->vq_ops->get_buf(adaptExt->vq[1], &len)) != NULL) {
+        while((evtNode = (PVirtIOSCSIEventNode)virtqueue_get_buf(adaptExt->vq[1], &len)) != NULL) {
            PVirtIOSCSIEvent evt = &evtNode->event;
            switch (evt->event) {
            case VIRTIO_SCSI_T_NO_EVENT:
@@ -738,7 +738,7 @@ VioScsiMSInterrupt (
     }
     if (MessageID == 3)
     {
-        while((cmd = (PVirtIOSCSICmd)adaptExt->vq[2]->vq_ops->get_buf(adaptExt->vq[2], &len)) != NULL)
+        while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[2], &len)) != NULL)
         {
            VirtIOSCSICmdResp   *resp;
            Srb     = (PSCSI_REQUEST_BLOCK)cmd->sc;
@@ -952,7 +952,7 @@ ENTER_FN();
 
     sgElement = 0;
     srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->req.cmd, &fragLen);
-    srbExt->sg[sgElement].ulSize   = sizeof(cmd->req.cmd);
+    srbExt->sg[sgElement].length   = sizeof(cmd->req.cmd);
     sgElement++;
 
     sgList = StorPortGetScatterGatherList(DeviceExtension, Srb);
@@ -963,14 +963,14 @@ ENTER_FN();
         if((Srb->SrbFlags & SRB_FLAGS_DATA_OUT) == SRB_FLAGS_DATA_OUT) {
             for (i = 0; i < sgMaxElements; i++, sgElement++) {
                 srbExt->sg[sgElement].physAddr = sgList->List[i].PhysicalAddress;
-                srbExt->sg[sgElement].ulSize   = sgList->List[i].Length;
+                srbExt->sg[sgElement].length = sgList->List[i].Length;
                 srbExt->Xfer += sgList->List[i].Length;
             }
         }
     }
     srbExt->out = sgElement;
     srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->resp.cmd, &fragLen);
-    srbExt->sg[sgElement].ulSize   = sizeof(cmd->resp.cmd);
+    srbExt->sg[sgElement].length = sizeof(cmd->resp.cmd);
     sgElement++;
     if (sgList)
     {
@@ -979,7 +979,7 @@ ENTER_FN();
         if((Srb->SrbFlags & SRB_FLAGS_DATA_OUT) != SRB_FLAGS_DATA_OUT) {
             for (i = 0; i < sgMaxElements; i++, sgElement++) {
                 srbExt->sg[sgElement].physAddr = sgList->List[i].PhysicalAddress;
-                srbExt->sg[sgElement].ulSize   = sgList->List[i].Length;
+                srbExt->sg[sgElement].length = sgList->List[i].Length;
                 srbExt->Xfer += sgList->List[i].Length;
             }
         }
