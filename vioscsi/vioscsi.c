@@ -625,9 +625,6 @@ VioScsiInterrupt(
          --adaptExt->in_fly;
            CompleteRequest(DeviceExtension, Srb);
         }
-        if (adaptExt->in_fly > 0) {
-           adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
-        }
         if (adaptExt->tmf_infly) {
            while((cmd = (PVirtIOSCSICmd)adaptExt->vq[0]->vq_ops->get_buf(adaptExt->vq[0], &len)) != NULL) {
               VirtIOSCSICtrlTMFResp *resp;
@@ -818,11 +815,6 @@ VioScsiMSInterrupt (
            }
            --adaptExt->in_fly; 
            CompleteRequest(DeviceExtension, Srb);
-
-           if (adaptExt->in_fly > 0)
-           {
-               adaptExt->vq[2]->vq_ops->kick(adaptExt->vq[2]);
-           }
         }
         return TRUE;
     }
