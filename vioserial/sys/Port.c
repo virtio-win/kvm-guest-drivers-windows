@@ -188,7 +188,7 @@ VIOSerialDiscardPortDataLocked(
     }
     else if (vq)
     {
-        buf = ((PPORT_BUFFER)virtqueue_get_buf(vq, &len);
+        buf = (PPORT_BUFFER)virtqueue_get_buf(vq, &len);
     }
 
     while (buf)
@@ -199,7 +199,7 @@ VIOSerialDiscardPortDataLocked(
            ++ret;
            VIOSerialFreeBuffer(buf);
         }
-        buf = ((PPORT_BUFFER)virtqueue_get_buf(vq, &len);
+        buf = (PPORT_BUFFER)virtqueue_get_buf(vq, &len);
     }
     port->InBuf = NULL;
     if (ret > 0)
