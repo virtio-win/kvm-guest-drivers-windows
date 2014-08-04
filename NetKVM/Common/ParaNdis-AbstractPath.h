@@ -1,6 +1,5 @@
 #pragma once
 #include "ParaNdis-VirtQueue.h"
-#include "ndis56common.h"
 
 class CParaNdisAbstractPath
 {
@@ -54,9 +53,10 @@ public:
         return m_VirtQueue.IsInterruptEnabled();
     }
 
+    bool Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex);
+
 protected:
     PPARANDIS_ADAPTER m_Context;
-
     CNdisSpinLock m_Lock;
 
     VQ m_VirtQueue;

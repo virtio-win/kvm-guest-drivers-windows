@@ -21,6 +21,8 @@ void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue);
 //#define ROUNDSIZE(sz) ((sz + 15) & ~15)
 #define MAX_VLAN_ID     4095
 
+#define ABSTRACT_PATHES_TAG 'APVR'
+
 /**********************************************************
 Validates MAC address
 Valid MAC address is not broadcast, not multicast, not empty
@@ -466,11 +468,12 @@ static void PrintStatistics(PARANDIS_ADAPTER *pContext)
         pContext->CurrentMacAddress[5],
         pContext->RXPath.m_NetNofReceiveBuffers,
         pContext->NetMaxReceiveBuffers));
-#endif
+
     DPrintf(0, ("[Diag!] TX desc available %d/%d, buf %d\n",
         pContext->TXPath.GetFreeTXDescriptors(),
         pContext->maxFreeTxDescriptors,
         pContext->TXPath.GetFreeHWBuffers()));
+#endif
     DPrintf(0, ("[Diag!] Bytes transmitted %I64u, received %I64u\n",
         pContext->Statistics.ifHCOutOctets,
         pContext->Statistics.ifHCInOctets));
@@ -776,18 +779,29 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     NDIS_STATUS status = NDIS_STATUS_RESOURCES;
     DEBUG_ENTRY(0);
 
-    new (&pContext->TXPath, PLACEMENT_NEW) CParaNdisTX();
-    pContext->bTXPathAllocated = TRUE;
-    if (!pContext->TXPath.Create(pContext, 1))
+    pContext->TXPath = new (pContext->MiniportHandle) CParaNdisTX[1];
+    if (pContext->TXPath == nullptr)
     {
+        DPrintf(0, ("%s: CParaNdisTX allocation failed\n", __FUNCTION__));
+        return status;
+    }
+
+    if (!pContext->TXPath[0].Create(pContext, 1))
+    {
+        DPrintf(0, ("%s: CParaNdisTX creation failed\n", __FUNCTION__));
         return status;
     }
     pContext->bTXPathCreated = TRUE;
 
-    new (&pContext->RXPath, PLACEMENT_NEW) CParaNdisRX();
-    pContext->bRXPathAllocated = TRUE;
-    if (!pContext->RXPath.Create(pContext, 0))
+    pContext->RXPath = new (pContext->MiniportHandle) CParaNdisRX[1];
+    if (pContext->RXPath == nullptr)
     {
+        DPrintf(0, ("%s: CParaNdisRX allocation failed\n", __FUNCTION__));
+        return status;
+    }
+    if (!pContext->RXPath[0].Create(pContext, 0))
+    {
+        DPrintf(0, ("%s: CParaNdisRX creation failed\n", __FUNCTION__));
         return status;
     }
     pContext->bRXPathCreated = TRUE;
@@ -803,6 +817,21 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     else
     {
         pContext->bCXPathCreated = TRUE;
+    }
+
+    pContext->uNPathes = pContext->bCXPathCreated ? 3 : 2;
+    pContext->vPathes = (CParaNdisAbstractPath **)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, (UINT)sizeof(CParaNdisAbstractPath *) * pContext->uNPathes, ABSTRACT_PATHES_TAG, NormalPoolPriority);
+    if (pContext->vPathes == NULL)
+    {
+        DPrintf(0, ("[%s] Abstract Pathes allocation failed\n", __FUNCTION__));
+        return status;
+    }
+
+    pContext->vPathes[0] = pContext->RXPath;
+    pContext->vPathes[1] = pContext->TXPath;
+    if (pContext->bCXPathCreated)
+    {
+        pContext->vPathes[2] = &pContext->CXPath;
     }
 
     status = NDIS_STATUS_SUCCESS;
@@ -862,6 +891,7 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
     if (status == NDIS_STATUS_SUCCESS)
     {
         status = ParaNdis_VirtIONetInit(pContext);
+        DPrintf(0, ("[%s] ParaNdis_VirtIONetInit passed, status = %d\n", __FUNCTION__, status));
     }
 
     pContext->Limits.nReusedRxBuffers = pContext->NetMaxReceiveBuffers / 4 + 1;
@@ -918,14 +948,14 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
     RestoreMAC(pContext);
 
     if(pContext->bTXPathCreated)
-        pContext->TXPath.Shutdown();
+        pContext->TXPath[0].Shutdown();
     if (pContext->bRXPathCreated)
-        pContext->RXPath.Shutdown();
+        pContext->RXPath[0].Shutdown();
     if(pContext->bCXPathCreated)
         pContext->CXPath.Shutdown();
 
     /* this can be freed, queue shut down */
-    pContext->RXPath.FreeRxDescriptorsFromList();
+    pContext->RXPath[0].FreeRxDescriptorsFromList();
 
     PrintStatistics(pContext);
 }
@@ -1009,16 +1039,16 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     }
 #endif
 
-    if (pContext->bTXPathAllocated)
+    if (pContext->TXPath != nullptr)
     {
-        pContext->TXPath.~CParaNdisTX();
-        pContext->bTXPathAllocated = false;
+        delete[] pContext->TXPath;
+        pContext->TXPath = nullptr;
     }
 
-    if (pContext->bRXPathAllocated)
+    if (pContext->RXPath != nullptr)
     {
-        pContext->RXPath.~CParaNdisRX();
-        pContext->bRXPathAllocated = false;
+        delete [] pContext->RXPath;
+        pContext->RXPath = nullptr;
     }
 
     if (pContext->bCXPathAllocated)
@@ -1027,14 +1057,10 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
         pContext->bCXPathAllocated = false;
     }
 
-    if (pContext->bRXPathAllocated)
+    if (pContext->vPathes != NULL)
     {
-        pContext->RXPath.~CParaNdisRX();
-    }
-
-    if (pContext->bCXPathAllocated)
-    {
-        pContext->CXPath.~CParaNdisCX();
+        NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->vPathes, ABSTRACT_PATHES_TAG);
+        pContext->vPathes = nullptr;
     }
 
     if (pContext->AdapterResources.ulIOAddress)
@@ -1267,7 +1293,7 @@ BOOLEAN ReceiveQueueHasBuffers(PPARANDIS_RECEIVE_QUEUE pQueue)
 
 static VOID ProcessRxRing(PARANDIS_ADAPTER *pContext, CCHAR nCurrCpuReceiveQueue)
 {
-    pContext->RXPath.ProcessRxRing(nCurrCpuReceiveQueue);
+    pContext->RXPath[0].ProcessRxRing(nCurrCpuReceiveQueue);
 }
 
 static VOID
@@ -1384,7 +1410,7 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG nPacketsToIndicate)
             res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, CurrCpuReceiveQueue);
         }
 
-        bMoreDataInRing = pContext->RXPath.RestartQueue();
+        bMoreDataInRing = pContext->RXPath[0].RestartQueue();
     } while(bMoreDataInRing);
 
     return res;
@@ -1421,8 +1447,8 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
         }
         if (interruptSources & isTransmit)
         {
-            bDoKick = pContext->TXPath.DoPendingTasks(true);
-            if(pContext->TXPath.RestartQueue(bDoKick))
+            bDoKick = pContext->TXPath[0].DoPendingTasks(true);
+            if(pContext->TXPath[0].RestartQueue(bDoKick))
             {
                 stillRequiresProcessing |= isTransmit;
             }
@@ -1478,11 +1504,11 @@ static BOOLEAN CheckRunningDpc(PARANDIS_ADAPTER *pContext)
         pContext->nDetectedInactivity = 0;
     }
 
-    if (pContext->TXPath.HasHWBuffersIsUse())
+    if (pContext->TXPath[0].HasHWBuffersIsUse())
     {
         if (pContext->nDetectedStoppedTx++ > 1)
         {
-            DPrintf(0, ("[%s] - Suspicious Tx inactivity (%d)!\n", __FUNCTION__, pContext->TXPath.GetFreeHWBuffers()));
+            DPrintf(0, ("[%s] - Suspicious Tx inactivity (%d)!\n", __FUNCTION__, pContext->TXPath[0].GetFreeHWBuffers()));
             //bReportHang = TRUE;
 #ifdef DBG_USE_VIRTIO_PCI_ISR_FOR_HOST_REPORT
             WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 0);
@@ -1666,18 +1692,18 @@ Parameters:
 VOID ParaNdis_VirtIOEnableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
 {
     if (interruptSource & isTransmit)
-        pContext->TXPath.EnableInterrupts();
+        pContext->TXPath[0].EnableInterrupts();
     if (interruptSource & isReceive)
-        pContext->RXPath.EnableInterrupts();
+        pContext->RXPath[0].EnableInterrupts();
     ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, TRUE, 0);
 }
 
 VOID ParaNdis_VirtIODisableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
 {
     if (interruptSource & isTransmit)
-        pContext->TXPath.DisableInterrupts();
+        pContext->TXPath[0].DisableInterrupts();
     if (interruptSource & isReceive)
-        pContext->RXPath.DisableInterrupts();
+        pContext->RXPath[0].DisableInterrupts();
     ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, FALSE, 0);
 }
 
@@ -1848,8 +1874,8 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     VirtIODeviceReadHostFeatures(&pContext->IODevice);
     VirtIODeviceWriteGuestFeatures(&pContext->IODevice, pContext->u32GuestFeatures);
 
-    pContext->RXPath.Renew();
-    pContext->TXPath.Renew();
+    pContext->RXPath[0].Renew();
+    pContext->TXPath[0].Renew();
     pContext->CXPath.Renew();
 
     ParaNdis_RestoreDeviceConfigurationAfterReset(pContext);
@@ -1859,7 +1885,7 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 
     InterlockedExchange(&pContext->ReuseBufferRegular, TRUE);
 
-    pContext->RXPath.PopulateQueue();
+    pContext->RXPath[0].PopulateQueue();
 
     ReadLinkState(pContext);
     ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
@@ -1914,8 +1940,8 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
         all the transmit buffers move to list of free buffers
     ********************************************************************/
 
-    pContext->TXPath.Shutdown();
-    pContext->RXPath.Shutdown();
+    pContext->TXPath[0].Shutdown();
+    pContext->RXPath[0].Shutdown();
     pContext->CXPath.Shutdown();
 
     ParaNdis_ResetVirtIONetDevice(pContext);

@@ -1034,7 +1034,7 @@ NDIS_STATUS ParaNdis6_SendPauseRestart(
             pContext->SendState = srsPausing;
             pContext->SendPauseCompletionProc = Callback;
 
-            if (pContext->TXPath.Pause())
+            if (pContext->TXPath[0].Pause())
             {
                 pContext->SendState = srsDisabled;
             }
@@ -1068,5 +1068,5 @@ VOID ParaNdis6_CancelSendNetBufferLists(
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
 
     DEBUG_ENTRY(0);
-    pContext->TXPath.CancelNBLs(pCancelId);
+    pContext->TXPath[0].CancelNBLs(pCancelId);
 }

@@ -480,17 +480,18 @@ typedef struct _tagPARANDIS_ADAPTER
 #define PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED (0)
 #define PARANDIS_FIRST_RSS_RECEIVE_QUEUE    (1)
 
-    CParaNdisTX TXPath;
-    BOOLEAN bTXPathAllocated;
+    CParaNdisTX *TXPath;
     BOOLEAN bTXPathCreated;
 
-    CParaNdisRX RXPath;
-    BOOLEAN bRXPathAllocated;
+    CParaNdisRX *RXPath;
     BOOLEAN bRXPathCreated;
 
     CParaNdisCX CXPath;
     BOOLEAN bCXPathAllocated;
     BOOLEAN bCXPathCreated;
+
+    CParaNdisAbstractPath **vPathes;
+    UINT                  uNPathes;
 
     PIO_INTERRUPT_MESSAGE_INFO  pMSIXInfoTable;
     NDIS_HANDLE                 DmaHandle;
@@ -638,9 +639,9 @@ static __inline BOOLEAN
 ParaNdis_IsInterruptSourceEnabled(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
 {
     if (interruptSource & isTransmit)
-        return (BOOLEAN)pContext->TXPath.IsInterruptEnabled();
+        return (BOOLEAN)pContext->TXPath[0].IsInterruptEnabled();
     if (interruptSource & isReceive)
-        return (BOOLEAN)pContext->RXPath.IsInterruptEnabled();
+        return (BOOLEAN)pContext->RXPath[0].IsInterruptEnabled();
 
     return TRUE;
 }

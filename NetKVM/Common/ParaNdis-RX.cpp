@@ -277,7 +277,6 @@ BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) CParaNdisRX::RestartQue
     return !res;
 }
 
-
 BOOLEAN CParaNdisRX::RestartQueue()
 {
     return ParaNdis_SynchronizeWithInterrupt(m_Context,

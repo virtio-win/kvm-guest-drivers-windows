@@ -258,6 +258,7 @@ CParaNdisTX::CParaNdisTX()
 bool CParaNdisTX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 {
     m_Context = Context;
+
     return m_VirtQueue.Create(DeviceQueueIndex,
         &m_Context->IODevice,
         m_Context->MiniportHandle,
