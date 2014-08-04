@@ -153,17 +153,6 @@ static __inline BOOLEAN ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq)
 
 #define PARANDIS_UNLIMITED_PACKETS_TO_INDICATE  (~0ul)
 
-typedef enum _tagInterruptSource
-{
-    isControl  = VIRTIO_PCI_ISR_CONFIG,
-    isReceive  = 0x10,
-    isTransmit = 0x20,
-    isUnknown  = 0x40,
-    isBothTransmitReceive = isReceive | isTransmit,
-    isAny      = isReceive | isTransmit | isControl | isUnknown,
-    isDisable  = 0x80
-}tInterruptSource;
-
 static const ULONG PARANDIS_PACKET_FILTERS =
     NDIS_PACKET_TYPE_DIRECTED |
     NDIS_PACKET_TYPE_MULTICAST |
@@ -423,7 +412,6 @@ typedef struct _tagPARANDIS_ADAPTER
     LONG                    nPendingDPCs;
     LONG                    counterDPCInside;
     LONG                    bDPCInactive;
-    LONG                    InterruptStatus;
     ULONG                   ulPriorityVlanSetting;
     ULONG                   VlanId;
     ULONGLONG               ulFormalLinkSpeed;
@@ -565,7 +553,7 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(
 VOID ParaNdis_CleanupContext(
     PARANDIS_ADAPTER *pContext);
 
-ULONG ParaNdis_DPCWorkBody(
+bool ParaNdis_DPCWorkBody(
     PARANDIS_ADAPTER *pContext,
     ULONG ulMaxPacketsToIndicate);
 
@@ -632,16 +620,36 @@ ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq)
     return virtqueue_is_interrupt_enabled(_vq);
 }
 
-static __inline BOOLEAN
-ParaNdis_IsInterruptSourceEnabled(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
-{
-    if (interruptSource & isTransmit)
-        return (BOOLEAN)pContext->TXPath[0].IsInterruptEnabled();
-    if (interruptSource & isReceive)
-        return (BOOLEAN)pContext->RXPath[0].IsInterruptEnabled();
 
-    return TRUE;
-}
+void ParaNdis_FreeRxBufferDescriptor(
+    PARANDIS_ADAPTER *pContext,
+    pRxNetDescriptor p);
+
+BOOLEAN ParaNdis_PerformPacketAnalyzis(
+#if PARANDIS_SUPPORT_RSS
+    PPARANDIS_RSS_PARAMS RSSParameters,
+#endif
+    PNET_PACKET_INFO PacketInfo,
+    PVOID HeadersBuffer,
+    ULONG DataLength);
+
+CCHAR ParaNdis_GetScalingDataForPacket(
+    PARANDIS_ADAPTER *pContext,
+    PNET_PACKET_INFO pPacketInfo,
+    PPROCESSOR_NUMBER pTargetProcessor);
+
+VOID ParaNdis_ReceiveQueueAddBuffer(
+    PPARANDIS_RECEIVE_QUEUE pQueue,
+    pRxNetDescriptor pBuffer);
+
+VOID ParaNdis_ProcessorNumberToGroupAffinity(
+    PGROUP_AFFINITY Affinity,
+    const PPROCESSOR_NUMBER Processor);
+
+VOID ParaNdis_QueueRSSDpc(
+    PARANDIS_ADAPTER *pContext,
+    ULONG MessageIndex,
+    PGROUP_AFFINITY pTargetAffinity);
 
 VOID ParaNdis_OnPnPEvent(
     PARANDIS_ADAPTER *pContext,

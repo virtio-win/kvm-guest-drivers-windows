@@ -821,6 +821,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     }
 
     pContext->uNPathes = pContext->bCXPathCreated ? 3 : 2;
+
     pContext->vPathes = (CParaNdisAbstractPath **)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, (UINT)sizeof(CParaNdisAbstractPath *) * pContext->uNPathes, ABSTRACT_PATHES_TAG, NormalPoolPriority);
     if (pContext->vPathes == NULL)
     {
@@ -854,15 +855,13 @@ static void ReadLinkState(PARANDIS_ADAPTER *pContext)
     }
 }
 
-static BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) ParaNdis_RemoveDriverOKStatus(tSynchronizedContext *SyncContext)
+static void ParaNdis_RemoveDriverOKStatus(PPARANDIS_ADAPTER pContext )
 {
-    PPARANDIS_ADAPTER pContext = (PPARANDIS_ADAPTER) SyncContext->Parameter;
     VirtIODeviceRemoveStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 
     KeMemoryBarrier();
 
     pContext->bDeviceInitialized = FALSE;
-    return TRUE;
 }
 
 static VOID ParaNdis_AddDriverOKStatus(PPARANDIS_ADAPTER pContext)
@@ -998,11 +997,9 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     /* disable any interrupt generation */
     if (pContext->IODevice.addr)
     {
-        if(pContext->bDeviceInitialized) {
-            ParaNdis_SynchronizeWithInterrupt(pContext,
-                                              pContext->RXPath[0].getMessageIndex(),
-                                              ParaNdis_RemoveDriverOKStatus,
-                                              pContext);
+        if (pContext->bDeviceInitialized)
+        {
+            ParaNdis_RemoveDriverOKStatus(pContext);
         }
     }
 
@@ -1093,62 +1090,6 @@ VOID ParaNdis_OnShutdown(PARANDIS_ADAPTER *pContext)
 {
     DEBUG_ENTRY(0); // this is only for kdbg :)
     ParaNdis_ResetVirtIONetDevice(pContext);
-}
-
-/**********************************************************
-Handles hardware interrupt
-Parameters:
-    context
-    ULONG knownInterruptSources - bitmask of
-Return value:
-    TRUE, if it is our interrupt
-    sets *pRunDpc to TRUE if the DPC should be fired
-***********************************************************/
-BOOLEAN ParaNdis_OnLegacyInterrupt(
-    PARANDIS_ADAPTER *pContext,
-    OUT BOOLEAN *pRunDpc)
-{
-    ULONG status = VirtIODeviceISR(&pContext->IODevice);
-
-    if((status == 0)                                   ||
-       (status == VIRTIO_NET_INVALID_INTERRUPT_STATUS))
-    {
-        *pRunDpc = FALSE;
-        return FALSE;
-    }
-
-    PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
-
-    if(!pContext->bDeviceInitialized) {
-        *pRunDpc = FALSE;
-        return TRUE;
-    }
-
-    ParaNdis_VirtIODisableIrqSynchronized(pContext, isAny);
-    InterlockedOr(&pContext->InterruptStatus, (LONG) ((status & isControl) | isReceive | isTransmit));
-    *pRunDpc = TRUE;
-    return TRUE;
-}
-
-BOOLEAN ParaNdis_OnQueuedInterrupt(
-    PARANDIS_ADAPTER *pContext,
-    OUT BOOLEAN *pRunDpc,
-    ULONG knownInterruptSources)
-{
-    /* If interrupts for this queue (or globally) disabled do nothing */
-    if( !ParaNdis_IsInterruptSourceEnabled(pContext, knownInterruptSources) || !pContext->bDeviceInitialized )
-    {
-        *pRunDpc = FALSE;
-    }
-    else
-    {
-        PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
-        InterlockedOr(&pContext->InterruptStatus, (LONG)knownInterruptSources);
-        ParaNdis_VirtIODisableIrqSynchronized(pContext, knownInterruptSources);
-        *pRunDpc = TRUE;
-    }
-
-    return TRUE;
 }
 
 static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacketInfo)
@@ -1261,12 +1202,13 @@ CCHAR GetReceiveQueueForCurrentCPU(PARANDIS_ADAPTER *pContext)
 #endif
 }
 
-VOID ParaNdis_QueueRSSDpc(PARANDIS_ADAPTER *pContext, PGROUP_AFFINITY pTargetAffinity)
+VOID ParaNdis_QueueRSSDpc(PARANDIS_ADAPTER *pContext, ULONG MessageIndex, PGROUP_AFFINITY pTargetAffinity)
 {
 #if PARANDIS_SUPPORT_RSS
-    NdisMQueueDpcEx(pContext->InterruptHandle, pContext->RXPath[0].getMessageIndex(), pTargetAffinity, NULL);
+    NdisMQueueDpcEx(pContext->InterruptHandle, MessageIndex, pTargetAffinity, NULL);
 #else
     UNREFERENCED_PARAMETER(pContext);
+    UNREFERENCED_PARAMETER(MessageIndex);
     UNREFERENCED_PARAMETER(pTargetAffinity);
 
     ASSERT(FALSE);
@@ -1425,10 +1367,9 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG nPacketsToIndicate)
     return res;
 }
 
-ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndicate)
+bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndicate)
 {
-    ULONG stillRequiresProcessing = 0;
-    ULONG interruptSources;
+    bool stillRequiresProcessing = false;
     UINT numOfPacketsToIndicate = min(ulMaxPacketsToIndicate, pContext->uNumberOfHandledRXPacketsInDPC);
 
     DEBUG_ENTRY(5);
@@ -1440,26 +1381,25 @@ ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndic
         bool bDoKick = false;
 
         InterlockedExchange(&pContext->bDPCInactive, 0);
-        interruptSources = InterlockedExchange(&pContext->InterruptStatus, 0);
 
-        if (RxDPCWorkBody(  pContext,
-                            numOfPacketsToIndicate))
+        if (RxDPCWorkBody(pContext, numOfPacketsToIndicate))
         {
-            stillRequiresProcessing |= isReceive;
+            stillRequiresProcessing = true;
         }
 
-        ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)1, interruptSources, 0, 0);
-        if ((interruptSources & isControl) && pContext->bLinkDetectSupported)
+        if (pContext->CXPath.WasInterruptReported() && pContext->bLinkDetectSupported)
         {
             ReadLinkState(pContext);
             ParaNdis_SynchronizeLinkState(pContext);
+            pContext->CXPath.ClearInterruptReport();
         }
-        if (interruptSources & isTransmit)
+
+        if (!stillRequiresProcessing)
         {
             bDoKick = pContext->TXPath[0].DoPendingTasks(true);
             if(pContext->TXPath[0].RestartQueue(bDoKick))
             {
-                stillRequiresProcessing |= isTransmit;
+                stillRequiresProcessing = true;
             }
         }
     }
@@ -1691,32 +1631,6 @@ NDIS_STATUS ParaNdis_SetMulticastList(
 }
 
 /**********************************************************
-Callable from synchronized routine or interrupt handler
-to enable or disable Rx and/or Tx interrupt generation
-Parameters:
-    context
-    interruptSource - isReceive, isTransmit
-    b - 1/0 enable/disable
-***********************************************************/
-VOID ParaNdis_VirtIOEnableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
-{
-    if (interruptSource & isTransmit)
-        pContext->TXPath[0].EnableInterrupts();
-    if (interruptSource & isReceive)
-        pContext->RXPath[0].EnableInterrupts();
-    ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, TRUE, 0);
-}
-
-VOID ParaNdis_VirtIODisableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
-{
-    if (interruptSource & isTransmit)
-        pContext->TXPath[0].DisableInterrupts();
-    if (interruptSource & isReceive)
-        pContext->RXPath[0].DisableInterrupts();
-    ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, FALSE, 0);
-}
-
-/**********************************************************
 Common handler of PnP events
 Parameters:
 Return value:
@@ -1923,10 +1837,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     pContext->bFastSuspendInProcess = pContext->bNoPauseOnSuspend && pContext->ReceiveState == srsEnabled;
     ParaNdis_Suspend(pContext);
 
-    ParaNdis_SynchronizeWithInterrupt(pContext,
-        pContext->RXPath[0].getMessageIndex(),
-        ParaNdis_RemoveDriverOKStatus,
-        pContext);
+    ParaNdis_RemoveDriverOKStatus(pContext);
     
     if (pContext->bFastSuspendInProcess)
     {

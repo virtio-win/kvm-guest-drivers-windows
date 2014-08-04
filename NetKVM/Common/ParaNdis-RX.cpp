@@ -233,7 +233,9 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 
         if ((nTargetReceiveQueueNum != PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED) &&
             (nTargetReceiveQueueNum != nCurrCpuReceiveQueue))
-            ParaNdis_QueueRSSDpc(m_Context, &TargetAffinity);
+        {
+            ParaNdis_QueueRSSDpc(m_Context, m_messageIndex, &TargetAffinity);
+        }
     }
 }
 

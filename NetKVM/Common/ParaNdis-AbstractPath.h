@@ -28,18 +28,33 @@ public:
 
     NDIS_STATUS SetupMessageIndex(u16 queueCardinal);
 
-private:
-    bool m_interruptReported = false;
+    /* TODO - Path classes should inherit from CVirtQueue*/
+    virtual void DisableInterrupts()
+    {
+        m_pVirtQueue->DisableInterrupts();
+    }
+
+    void EnableInterrupts()
+    {
+        m_pVirtQueue->EnableInterrupts();
+    }
+
 protected:
     PPARANDIS_ADAPTER m_Context;
+    CVirtQueue *m_pVirtQueue;
 
     u16 m_messageIndex = (u16)-1;
     u16 m_queueIndex = (u16)-1;
+    bool m_interruptReported;
 };
 
 
 template <class VQ> class CParaNdisTemplatePath : public CParaNdisAbstractPath {
 public:
+    CParaNdisTemplatePath() {
+        m_pVirtQueue = &m_VirtQueue;
+    }
+
     void Renew()
     {
         m_VirtQueue.Renew();

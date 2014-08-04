@@ -152,7 +152,13 @@ Parameters:
 static VOID MiniportDisableInterruptEx(IN PVOID MiniportInterruptContext)
 {
     DEBUG_ENTRY(0);
-    ParaNdis_VirtIODisableIrqSynchronized((PARANDIS_ADAPTER *)MiniportInterruptContext, isAny);
+    PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
+
+    /* TODO - make sure that interrups are not reenabled by the DPC callback*/
+    for (UINT i = 0; i < pContext->uNPathes; i++)
+    {
+        pContext->vPathes[i]->DisableInterrupts();
+    }
 }
 
 /**********************************************************
@@ -163,7 +169,13 @@ Parameters:
 static VOID MiniportEnableInterruptEx(IN PVOID MiniportInterruptContext)
 {
     DEBUG_ENTRY(0);
-    ParaNdis_VirtIOEnableIrqSynchronized((PARANDIS_ADAPTER *)MiniportInterruptContext, isAny);
+    PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
+
+    /* TODO - make sure that interrups are not reenabled by the DPC callback*/
+    for (UINT i = 0; i < pContext->uNPathes; i++)
+    {
+        pContext->vPathes[i]->EnableInterrupts();
+    }
 }
 
 /**********************************************************
@@ -182,20 +194,33 @@ static BOOLEAN MiniportInterrupt(
     )
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
-    BOOLEAN b;
-    b = ParaNdis_OnLegacyInterrupt(pContext, QueueDefaultInterruptDpc);
-    *TargetProcessors = 0;
-    pContext->ulIrqReceived += b;
-    return b;
-}
+    ULONG status = VirtIODeviceISR(&pContext->IODevice);
 
-static ULONG MessageToInterruptSource(PARANDIS_ADAPTER *pContext, ULONG  MessageId)
-{
-    ULONG interruptSource = 0;
-    if (MessageId == pContext->RXPath[0].getMessageIndex()) interruptSource |= isReceive;
-    if (MessageId == pContext->TXPath[0].getMessageIndex()) interruptSource |= isTransmit;
-    if (MessageId == pContext->CXPath.getMessageIndex()) interruptSource |= isControl;
-    return interruptSource;
+    *TargetProcessors = 0;
+
+    if((status == 0) ||
+       (status == VIRTIO_NET_INVALID_INTERRUPT_STATUS))
+    {
+        *QueueDefaultInterruptDpc = FALSE;
+        return FALSE;
+    }
+
+    PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
+
+    if(!pContext->bDeviceInitialized) {
+        *QueueDefaultInterruptDpc = FALSE;
+        return TRUE;
+    }
+
+    for (UINT i = 0; i < pContext->uNPathes; i++)
+    {
+        pContext->vPathes[i]->DisableInterrupts();
+    }
+
+    *QueueDefaultInterruptDpc = TRUE;
+    pContext->ulIrqReceived += 1;
+
+    return true;
 }
 
 /**********************************************************
@@ -216,12 +241,23 @@ static BOOLEAN MiniportMSIInterrupt(
     )
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
-    BOOLEAN b;
-    ULONG interruptSource = MessageToInterruptSource(pContext, MessageId);
-    b = ParaNdis_OnQueuedInterrupt(pContext, QueueDefaultInterruptDpc, interruptSource);
-    pContext->ulIrqReceived += b;
+
+    PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
+
     *TargetProcessors = 0;
-    return b;
+
+    if (!pContext->bDeviceInitialized) {
+        *QueueDefaultInterruptDpc = FALSE;
+        return TRUE;
+    }
+
+    CParaNdisAbstractPath *path = pContext->vPathes[MessageId];
+    path->DisableInterrupts();
+
+    *QueueDefaultInterruptDpc = TRUE;
+
+    pContext->ulIrqReceived += 1;
+    return true;
 }
 
 #if NDIS_SUPPORT_NDIS620
@@ -252,44 +288,28 @@ static VOID MiniportInterruptDPC(
     )
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
-    ULONG requiresProcessing;
+    bool requiresDPCRescheduling;
 
 #if NDIS_SUPPORT_NDIS620
     PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters = (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
     DEBUG_ENTRY(5);
     RxThrottleParameters->MoreNblsPending = 0;
-    requiresProcessing = ParaNdis_DPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
-    if(requiresProcessing)
-    {
-        BOOLEAN bSpawnNextDpc = FALSE;
-        DPrintf(4, ("[%s] Queued additional DPC for %d\n", __FUNCTION__,  requiresProcessing));
-        InterlockedOr(&pContext->InterruptStatus, requiresProcessing);
-        if(requiresProcessing & isReceive)
-        {
-            if (NDIS_INDICATE_ALL_NBLS != RxThrottleParameters->MaxNblsToIndicate)
-                RxThrottleParameters->MoreNblsPending = 1;
-            else
-                bSpawnNextDpc = TRUE;
-        }
-        if(requiresProcessing & isTransmit)
-            bSpawnNextDpc = TRUE;
-        if (bSpawnNextDpc)
+    requiresDPCRescheduling = ParaNdis_DPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
+    if (requiresDPCRescheduling)
         {
             GROUP_AFFINITY Affinity;
             GetAffinityForCurrentCpu(&Affinity);
 
             NdisMQueueDpcEx(pContext->InterruptHandle, 0, &Affinity, MiniportDpcContext);
         }
-    }
 #else /* NDIS 6.0*/
     DEBUG_ENTRY(5);
     UNREFERENCED_PARAMETER(ReceiveThrottleParameters);
 
-    requiresProcessing = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
-    if (requiresProcessing)
+    requiresDPCRescheduling = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
+    if (requiresDPCRescheduling)
     {
-        DPrintf(4, ("[%s] Queued additional DPC for %d\n", __FUNCTION__,  requiresProcessing));
-        InterlockedOr(&pContext->InterruptStatus, requiresProcessing);
+        DPrintf(4, ("[%s] Queued additional DPC for %d\n", __FUNCTION__,  requiresDPCRescheduling));
         NdisMQueueDpc(pContext->InterruptHandle, 0, 1 << KeGetCurrentProcessorNumber(), MiniportDpcContext);
     }
 #endif /* NDIS_SUPPORT_NDIS620 */
@@ -317,51 +337,27 @@ static VOID MiniportMSIInterruptDpc(
     )
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
-    ULONG interruptSource = MessageToInterruptSource(pContext, MessageId);
+    bool requireDPCRescheduling;
 
 #if NDIS_SUPPORT_NDIS620
-    BOOLEAN bSpawnNextDpc = FALSE;
     PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters = (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
 
-    DPrintf(5, ("[%s] (Message %d, source %d)\n", __FUNCTION__, MessageId, interruptSource));
-
     RxThrottleParameters->MoreNblsPending = 0;
-    interruptSource = ParaNdis_DPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
+    requireDPCRescheduling = ParaNdis_DPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
 
-    if (interruptSource)
-    {
-        InterlockedOr(&pContext->InterruptStatus, interruptSource);
-        if (interruptSource & isReceive)
-        {
-            if (NDIS_INDICATE_ALL_NBLS != RxThrottleParameters->MaxNblsToIndicate)
-            {
-                RxThrottleParameters->MoreNblsPending = 1;
-                DPrintf(3, ("[%s] Requested additional RX DPC\n", __FUNCTION__));
-            }
-            else
-                bSpawnNextDpc = TRUE;
-        }
-
-        if (interruptSource & isTransmit)
-            bSpawnNextDpc = TRUE;
-
-        if (bSpawnNextDpc)
+    if (requireDPCRescheduling)
         {
             GROUP_AFFINITY Affinity;
             GetAffinityForCurrentCpu(&Affinity);
 
             NdisMQueueDpcEx(pContext->InterruptHandle, MessageId, &Affinity, MiniportDpcContext);
         }
-    }
 #else
     UNREFERENCED_PARAMETER(NdisReserved1);
 
-    DPrintf(5, ("[%s] (Message %d, source %d)\n", __FUNCTION__, MessageId, interruptSource));
-    interruptSource = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
-    if (interruptSource)
+    requireDPCRescheduling = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
+    if (requireDPCRescheduling)
     {
-        DPrintf(4, ("[%s] Queued additional DPC for %d\n", __FUNCTION__, interruptSource));
-        InterlockedOr(&pContext->InterruptStatus, interruptSource);
         NdisMQueueDpc(pContext->InterruptHandle, MessageId, 1 << KeGetCurrentProcessorNumber(), MiniportDpcContext);
     }
 #endif
@@ -375,9 +371,11 @@ static VOID MiniportDisableMSIInterrupt(
     )
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
-    ULONG interruptSource = MessageToInterruptSource(pContext, MessageId);
-    DPrintf(0, ("[%s] (Message %d)\n", __FUNCTION__, MessageId));
-    ParaNdis_VirtIODisableIrqSynchronized(pContext, interruptSource);
+    /* TODO - How we prevent DPC procedure from re-enabling interrupt? */
+    if (MessageId >= pContext->uNPathes)
+        return;
+
+    pContext->vPathes[MessageId]->DisableInterrupts();
 }
 
 static VOID MiniportEnableMSIInterrupt(
@@ -386,9 +384,10 @@ static VOID MiniportEnableMSIInterrupt(
     )
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
-    ULONG interruptSource = MessageToInterruptSource(pContext, MessageId);
-    DPrintf(0, ("[%s] (Message %d)\n", __FUNCTION__, MessageId));
-    ParaNdis_VirtIOEnableIrqSynchronized(pContext, interruptSource);
+    if (MessageId >= pContext->uNPathes)
+        return;
+
+    pContext->vPathes[MessageId]->EnableInterrupts();
 }
 
 
