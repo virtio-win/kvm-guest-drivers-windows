@@ -178,7 +178,7 @@ private:
 
 typedef struct _tagSynchronizedContext tSynchronizedContext;
 
-class CParaNdisTX : public CParaNdisAbstractPath<CTXVirtQueue>, public CNdisAllocatable<CParaNdisTX, 'XTHR'>
+class CParaNdisTX : public CParaNdisTemplatePath<CTXVirtQueue>, public CNdisAllocatable<CParaNdisTX, 'XTHR'>
 {
 public:
     CParaNdisTX();

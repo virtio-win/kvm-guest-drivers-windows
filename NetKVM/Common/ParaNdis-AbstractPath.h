@@ -2,7 +2,29 @@
 #include "ParaNdis-VirtQueue.h"
 #include "ndis56common.h"
 
-template <class VQ> class CParaNdisAbstractPath {
+class CParaNdisAbstractPath
+{
+public:
+    bool WasInterruptReported() 
+    {
+        return m_interruptReported;
+    }
+
+    void ClearInterruptReport()
+    {
+        m_interruptReported = false;
+    }
+
+    void ReportInterrupt() {
+        m_interruptReported = true;
+    }
+
+private:
+    bool m_interruptReported = false;
+};
+
+
+template <class VQ> class CParaNdisTemplatePath : public CParaNdisAbstractPath {
 public:
     void Renew()
     {

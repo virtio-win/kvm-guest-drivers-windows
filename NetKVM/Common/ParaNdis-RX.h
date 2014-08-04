@@ -2,7 +2,7 @@
 #include "ParaNdis-AbstractPath.h"
 #include "ndis56common.h"
 
-class CParaNdisRX : public CParaNdisAbstractPath<CVirtQueue>, public CNdisAllocatable < CParaNdisRX, 'XRHR' > {
+class CParaNdisRX : public CParaNdisTemplatePath<CVirtQueue>, public CNdisAllocatable < CParaNdisRX, 'XRHR' > {
 public:
     CParaNdisRX();
     ~CParaNdisRX();
