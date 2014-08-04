@@ -916,7 +916,7 @@ VOID ParaNdis6_ReturnNetBufferLists(
         pNBL = NET_BUFFER_LIST_NEXT_NBL(pNBL);
         NET_BUFFER_LIST_NEXT_NBL(pTemp) = NULL;
         NdisFreeNetBufferList(pTemp);
-        pContext->RXPath.ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBuffersDescriptor);
+        pBuffersDescriptor->Queue->ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBuffersDescriptor);
     }
 }
 

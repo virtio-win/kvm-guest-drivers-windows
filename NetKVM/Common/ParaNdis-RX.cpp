@@ -40,6 +40,8 @@ int CParaNdisRX::PrepareReceiveBuffers()
         pRxNetDescriptor pBuffersDescriptor = CreateRxDescriptorOnInit();
         if (!pBuffersDescriptor) break;
 
+        pBuffersDescriptor->Queue = this;
+
         if (!AddRxBufferToQueue(pBuffersDescriptor))
         {
             ParaNdis_FreeRxBufferDescriptor(m_Context, pBuffersDescriptor);
@@ -108,9 +110,10 @@ error_exit:
     return NULL;
 }
 
+/* TODO - make it method in pRXNetDescriptor */
 BOOLEAN CParaNdisRX::AddRxBufferToQueue(pRxNetDescriptor pBufferDescriptor)
 {
-    return 0 <= m_VirtQueue.AddBuf(
+    return 0 <= pBufferDescriptor->Queue->m_VirtQueue.AddBuf(
         pBufferDescriptor->BufferSGArray,
         0,
         pBufferDescriptor->PagesAllocated,
@@ -212,7 +215,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 
         if (!packetAnalyzisRC)
         {
-            m_Context->RXPath.ReuseReceiveBuffer(m_Context->ReuseBufferRegular, pBufferDescriptor);
+            pBufferDescriptor->Queue->ReuseReceiveBuffer(m_Context->ReuseBufferRegular, pBufferDescriptor);
             m_Context->Statistics.ifInErrors++;
             m_Context->Statistics.ifInDiscards++;
             continue;

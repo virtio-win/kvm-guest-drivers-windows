@@ -365,6 +365,8 @@ struct _tagRxNetDescriptor {
     tPacketHolderType              Holder;
 
     NET_PACKET_INFO PacketInfo;
+
+    CParaNdisRX*                   Queue;
 };
 
 typedef struct _tagPARANDIS_RECEIVE_QUEUE

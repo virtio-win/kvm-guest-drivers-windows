@@ -899,7 +899,7 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 
         while (NULL != (pBufferDescriptor = ReceiveQueueGetBuffer(pContext->ReceiveQueues + i)))
         {
-            pContext->RXPath.ReuseReceiveBuffer(FALSE, pBufferDescriptor);
+            pBufferDescriptor->Queue->ReuseReceiveBuffer(FALSE, pBufferDescriptor);
         }
     }
 
@@ -1012,6 +1012,19 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     if (pContext->bTXPathAllocated)
     {
         pContext->TXPath.~CParaNdisTX();
+        pContext->bTXPathAllocated = false;
+    }
+
+    if (pContext->bRXPathAllocated)
+    {
+        pContext->RXPath.~CParaNdisRX();
+        pContext->bRXPathAllocated = false;
+    }
+
+    if (pContext->bCXPathAllocated)
+    {
+        pContext->CXPath.~CParaNdisCX();
+        pContext->bCXPathAllocated = false;
     }
 
     if (pContext->bRXPathAllocated)
@@ -1332,13 +1345,13 @@ static BOOLEAN ProcessReceiveQueue(
                 else
                 {
                     UpdateReceiveFailStatistics(pContext, nCoalescedSegmentsCount);
-                    pContext->RXPath.ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBufferDescriptor);
+                    pBufferDescriptor->Queue->ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBufferDescriptor);
                 }
             }
             else
             {
                 pContext->extraStatistics.framesFilteredOut++;
-                pContext->RXPath.ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBufferDescriptor);
+                pBufferDescriptor->Queue->ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBufferDescriptor);
             }
         }
 
