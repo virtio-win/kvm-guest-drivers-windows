@@ -21,9 +21,6 @@ public:
         virtqueue_shutdown(m_NetReceiveQueue);
     }
 
-    BOOLEAN UpstreamPacketsPending() {
-        return m_upstreamPacketPending != 0;
-    }
     void FreeRxDescriptorsFromList();
 
     void ReuseReceiveBuffer(LONG regular, pRxNetDescriptor pBuffersDescriptor)
@@ -65,8 +62,6 @@ private:
     /* list of Rx buffers available for data (under VIRTIO management) */
     LIST_ENTRY              m_NetReceiveBuffers;
     UINT                    m_NetNofReceiveBuffers;
-
-    CNdisRefCounter         m_upstreamPacketPending;
 
     UINT m_nReusedRxBuffersCounter, m_nReusedRxBuffersLimit;
 

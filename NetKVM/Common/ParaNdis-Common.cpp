@@ -930,7 +930,7 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 
     do
     {
-        b = pContext->RXPath.UpstreamPacketsPending();
+        b = pContext->m_upstreamPacketPending != 0;
 
         if (b)
         {

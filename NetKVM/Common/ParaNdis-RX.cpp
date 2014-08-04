@@ -160,7 +160,7 @@ void CParaNdisRX::ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor)
 
     CLockedContext<CNdisSpinLock> autoLock(m_Lock);
 
-    m_upstreamPacketPending.Release();
+    m_Context->m_upstreamPacketPending.Release();
 
     if (AddRxBufferToQueue(pBuffersDescriptor))
     {
@@ -180,7 +180,7 @@ void CParaNdisRX::ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor)
         }
 
         /* TODO - Context ReceiveState should take into account all queues */
-        if (m_upstreamPacketPending == 0)
+        if (m_Context->m_upstreamPacketPending == 0)
         {
             if (m_Context->ReceiveState == srsPausing || m_Context->ReceivePauseCompletionProc)
             {
@@ -203,7 +203,7 @@ void CParaNdisRX::ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor)
 
 void CParaNdisRX::ReuseReceiveBufferPowerOff(pRxNetDescriptor)
 {
-    m_upstreamPacketPending.Release();
+    m_Context->m_upstreamPacketPending.Release();
 }
 
 VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
@@ -219,7 +219,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
         GROUP_AFFINITY TargetAffinity;
         PROCESSOR_NUMBER TargetProcessor;
 
-        m_upstreamPacketPending.AddRef();
+        m_Context->m_upstreamPacketPending.AddRef();
         m_NetNofReceiveBuffers--;
 
         BOOLEAN packetAnalyzisRC;

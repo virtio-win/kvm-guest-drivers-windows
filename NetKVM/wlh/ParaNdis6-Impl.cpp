@@ -945,7 +945,7 @@ NDIS_STATUS ParaNdis6_ReceivePauseRestart(
     if (bPause)
     {
         ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 1, 0, 0);
-        if (pContext->RXPath.UpstreamPacketsPending())
+        if (pContext->m_upstreamPacketPending != 0)
         {
             pContext->ReceiveState = srsPausing;
             pContext->ReceivePauseCompletionProc = Callback;

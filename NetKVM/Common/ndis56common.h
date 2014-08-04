@@ -453,6 +453,9 @@ typedef struct _tagPARANDIS_ADAPTER
     tSendReceiveState       ReceiveState;
     ONPAUSECOMPLETEPROC     SendPauseCompletionProc;
     ONPAUSECOMPLETEPROC     ReceivePauseCompletionProc;
+
+    CNdisRefCounter         m_upstreamPacketPending;
+
     LONG                    ReuseBufferRegular;
     /* Net part - management of buffers and queues of QEMU */
     NDIS_SPIN_LOCK          ControlQueueLock;
