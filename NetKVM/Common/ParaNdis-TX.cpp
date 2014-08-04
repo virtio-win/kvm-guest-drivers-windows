@@ -258,6 +258,7 @@ CParaNdisTX::CParaNdisTX()
 bool CParaNdisTX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 {
     m_Context = Context;
+    m_queueIndex = (u16)DeviceQueueIndex;
 
     return m_VirtQueue.Create(DeviceQueueIndex,
         &m_Context->IODevice,

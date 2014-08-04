@@ -18,8 +18,21 @@ public:
         m_interruptReported = true;
     }
 
+    UINT getMessageIndex() {
+        return m_messageIndex;
+    }
+
+    UINT getQueueIndex() {
+        return m_queueIndex;
+    }
+
 private:
     bool m_interruptReported = false;
+protected:
+    PPARANDIS_ADAPTER m_Context;
+
+    u16 m_messageIndex = (u16)-1;
+    u16 m_queueIndex = (u16)-1;
 };
 
 
@@ -53,10 +66,7 @@ public:
         return m_VirtQueue.IsInterruptEnabled();
     }
 
-    bool Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex);
-
 protected:
-    PPARANDIS_ADAPTER m_Context;
     CNdisSpinLock m_Lock;
 
     VQ m_VirtQueue;

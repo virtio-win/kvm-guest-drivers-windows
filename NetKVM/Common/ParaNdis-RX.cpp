@@ -12,6 +12,7 @@ CParaNdisRX::~CParaNdisRX()
 bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 {
     m_Context = Context;
+    m_queueIndex = (u16)DeviceQueueIndex;
 
     if (!m_VirtQueue.Create(DeviceQueueIndex,
         &m_Context->IODevice,
