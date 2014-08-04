@@ -76,7 +76,20 @@ extern "C"
 
 typedef union _tagTcpIpPacketParsingResult tTcpIpPacketParsingResult;
 
+typedef struct _tagCompletePhysicalAddress
+{
+    PHYSICAL_ADDRESS    Physical;
+    PVOID               Virtual;
+    ULONG               size;
+} tCompletePhysicalAddress;
+
+struct _tagRxNetDescriptor;
+typedef struct _tagRxNetDescriptor  RxNetDescriptor, *pRxNetDescriptor;
+
+static __inline BOOLEAN ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq);
+
 #include "ParaNdis-TX.h"
+#include "ParaNdis-RX.h"
 
 // those stuff defined in NDIS
 //NDIS_MINIPORT_MAJOR_VERSION
@@ -287,12 +300,6 @@ typedef struct _tagMaxPacketSize
 #define MAX_HW_RX_PACKET_SIZE (MAX_IP4_DATAGRAM_SIZE + ETH_HEADER_SIZE + ETH_PRIORITY_HEADER_SIZE)
 #define MAX_OS_RX_PACKET_SIZE (MAX_IP4_DATAGRAM_SIZE + ETH_HEADER_SIZE)
 
-typedef struct _tagCompletePhysicalAddress
-{
-    PHYSICAL_ADDRESS    Physical;
-    PVOID               Virtual;
-    ULONG               size;
-} tCompletePhysicalAddress;
 
 typedef struct _tagMulticastData
 {
@@ -345,7 +352,7 @@ typedef struct _tagNET_PACKET_INFO
 } NET_PACKET_INFO, *PNET_PACKET_INFO;
 #pragma warning (pop)
 
-typedef struct _tagRxNetDescriptor {
+struct _tagRxNetDescriptor {
     LIST_ENTRY listEntry;
     LIST_ENTRY ReceiveQueueListEntry;
 
@@ -357,9 +364,7 @@ typedef struct _tagRxNetDescriptor {
     tPacketHolderType              Holder;
 
     NET_PACKET_INFO PacketInfo;
-} RxNetDescriptor, *pRxNetDescriptor;
-
-typedef void (*tReuseReceiveBufferProc)(PPARANDIS_ADAPTER pContext, pRxNetDescriptor pDescriptor);
+};
 
 typedef struct _tagPARANDIS_RECEIVE_QUEUE
 {
@@ -430,7 +435,6 @@ typedef struct _tagPARANDIS_ADAPTER
     ULONG                   nDetectedInactivity;
     ULONG                   nVirtioHeaderSize;
     /* send part */
-    NDIS_SPIN_LOCK          ReceiveLock;
     NDIS_STATISTICS_INFO    Statistics;
     struct
     {
@@ -449,18 +453,12 @@ typedef struct _tagPARANDIS_ADAPTER
     tSendReceiveState       ReceiveState;
     ONPAUSECOMPLETEPROC     SendPauseCompletionProc;
     ONPAUSECOMPLETEPROC     ReceivePauseCompletionProc;
-    tReuseReceiveBufferProc ReuseBufferProc;
+    LONG                    ReuseBufferRegular;
     /* Net part - management of buffers and queues of QEMU */
+    NDIS_SPIN_LOCK          ControlQueueLock;
     struct virtqueue *      NetControlQueue;
     tCompletePhysicalAddress ControlQueueRing;
     tCompletePhysicalAddress ControlData;
-    struct virtqueue *      NetReceiveQueue;
-    tCompletePhysicalAddress ReceiveQueueRing;
-    /* list of Rx buffers available for data (under VIRTIO management) */
-    LIST_ENTRY              NetReceiveBuffers;
-    UINT                    NetNofReceiveBuffers;
-    /* list of Rx buffers waiting for return (under NDIS management) */
-    LIST_ENTRY              NetReceiveBuffersWaiting;
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
     UINT                    maxFreeTxDescriptors;
     /* total of Rx buffer in turnaround */
@@ -484,6 +482,10 @@ typedef struct _tagPARANDIS_ADAPTER
     CParaNdisTX TXPath;
     BOOLEAN bTXPathAllocated;
     BOOLEAN bTXPathCreated;
+
+    CParaNdisRX RXPath;
+    BOOLEAN bRXPathAllocated;
+    BOOLEAN bRXPathCreated;
 
     PIO_INTERRUPT_MESSAGE_INFO  pMSIXInfoTable;
     NDIS_HANDLE                 DmaHandle;
@@ -582,6 +584,45 @@ VOID ParaNdis_VirtIODisableIrqSynchronized(
     PARANDIS_ADAPTER *pContext,
     ULONG interruptSource);
 
+void ParaNdis_DeleteQueue(
+    PARANDIS_ADAPTER *pContext, 
+    struct virtqueue **ppq,
+    tCompletePhysicalAddress *ppa);
+
+void ParaNdis_FreeRxBufferDescriptor(
+    PARANDIS_ADAPTER *pContext,
+    pRxNetDescriptor p);
+
+BOOLEAN ParaNdis_PerformPacketAnalyzis(
+#if PARANDIS_SUPPORT_RSS
+    PPARANDIS_RSS_PARAMS RSSParameters,
+#endif
+    PNET_PACKET_INFO PacketInfo,
+    PVOID HeadersBuffer,
+    ULONG DataLength);
+
+CCHAR ParaNdis_GetScalingDataForPacket(
+    PARANDIS_ADAPTER *pContext,
+    PNET_PACKET_INFO pPacketInfo,
+    PPROCESSOR_NUMBER pTargetProcessor);
+
+VOID ParaNdis_ReceiveQueueAddBuffer(
+    PPARANDIS_RECEIVE_QUEUE pQueue,
+    pRxNetDescriptor pBuffer);
+
+VOID ParaNdis_ProcessorNumberToGroupAffinity(
+    PGROUP_AFFINITY Affinity,
+    const PPROCESSOR_NUMBER Processor);
+
+VOID ParaNdis_QueueRSSDpc(
+    PARANDIS_ADAPTER *pContext,
+    PGROUP_AFFINITY pTargetAffinity);
+
+
+
+
+
+
 static __inline BOOLEAN
 ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq)
 {
@@ -592,9 +633,9 @@ static __inline BOOLEAN
 ParaNdis_IsInterruptSourceEnabled(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
 {
     if (interruptSource & isTransmit)
-        return (BOOLEAN) pContext->TXPath.IsInterruptEnabled();
+        return (BOOLEAN)pContext->TXPath.IsInterruptEnabled();
     if (interruptSource & isReceive)
-        return ParaNDIS_IsQueueInterruptEnabled(pContext->NetReceiveQueue);
+        return (BOOLEAN)pContext->RXPath.IsInterruptEnabled();
 
     return TRUE;
 }

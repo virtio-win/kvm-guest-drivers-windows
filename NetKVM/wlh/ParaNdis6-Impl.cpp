@@ -916,9 +916,7 @@ VOID ParaNdis6_ReturnNetBufferLists(
         pNBL = NET_BUFFER_LIST_NEXT_NBL(pNBL);
         NET_BUFFER_LIST_NEXT_NBL(pTemp) = NULL;
         NdisFreeNetBufferList(pTemp);
-        NdisAcquireSpinLock(&pContext->ReceiveLock);
-        pContext->ReuseBufferProc(pContext, pBuffersDescriptor);
-        NdisReleaseSpinLock(&pContext->ReceiveLock);
+        pContext->RXPath.ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBuffersDescriptor);
     }
 }
 
@@ -942,11 +940,12 @@ NDIS_STATUS ParaNdis6_ReceivePauseRestart(
     )
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
-    NdisAcquireSpinLock(&pContext->ReceiveLock);
+
+    /* TODO - the function was guarded with ReceiveLock - is there any reason? */
     if (bPause)
     {
         ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 1, 0, 0);
-        if (!IsListEmpty(&pContext->NetReceiveBuffersWaiting))
+        if (pContext->RXPath.UpstreamPacketsPending())
         {
             pContext->ReceiveState = srsPausing;
             pContext->ReceivePauseCompletionProc = Callback;
@@ -963,7 +962,6 @@ NDIS_STATUS ParaNdis6_ReceivePauseRestart(
         ParaNdis_DebugHistory(pContext, hopInternalReceiveResume, NULL, 0, 0, 0);
         pContext->ReceiveState = srsEnabled;
     }
-    NdisReleaseSpinLock(&pContext->ReceiveLock);
     return status;
 }
 

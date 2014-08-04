@@ -954,6 +954,7 @@
     <ClInclude Include="Common\osdep.h" />
     <ClInclude Include="Common\ParaNdis-Oid.h" />
     <ClInclude Include="Common\ParaNdis-RSS.h" />
+    <ClInclude Include="Common\ParaNdis-RX.h" />
     <ClInclude Include="Common\ParaNdis-TX.h" />
     <ClInclude Include="Common\ParaNdis-VirtQueue.h" />
     <ClInclude Include="Common\ParaNdis-Util.h" />
@@ -966,6 +967,7 @@
     <ClCompile Include="Common\ParaNdis-Common.cpp" />
     <ClCompile Include="Common\ParaNdis-Debug.cpp" />
     <ClCompile Include="Common\ParaNdis-Oid.cpp" />
+    <ClCompile Include="Common\ParaNdis-RX.cpp" />
     <ClCompile Include="Common\ParaNdis-TX.cpp" />
     <ClCompile Include="Common\ParaNdis-VirtQueue.cpp" />
     <ClCompile Include="Common\ParaNdis-Util.cpp" />

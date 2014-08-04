@@ -11,8 +11,6 @@
 **********************************************************************/
 #include "ndis56common.h"
 
-static void ReuseReceiveBufferRegular(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBuffersDescriptor);
-static void ReuseReceiveBufferPowerOff(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBuffersDescriptor);
 static VOID ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext);
 
 static __inline pRxNetDescriptor ReceiveQueueGetBuffer(PPARANDIS_RECEIVE_QUEUE pQueue);
@@ -463,10 +461,12 @@ static void PrintStatistics(PARANDIS_ADAPTER *pContext)
         pContext->Statistics.ifHCInMulticastPkts +
         pContext->Statistics.ifHCInUcastPkts;
 
+#if 0 /* TODO - setup accessor functions*/
     DPrintf(0, ("[Diag!%X] RX buffers at VIRTIO %d of %d\n",
         pContext->CurrentMacAddress[5],
-        pContext->NetNofReceiveBuffers,
+        pContext->RXPath.m_NetNofReceiveBuffers,
         pContext->NetMaxReceiveBuffers));
+#endif
     DPrintf(0, ("[Diag!] TX desc available %d/%d, buf %d\n",
         pContext->TXPath.GetFreeTXDescriptors(),
         pContext->maxFreeTxDescriptors,
@@ -727,7 +727,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
     pContext->bHasHardwareFilters = AckFeature(pContext, VIRTIO_NET_F_CTRL_RX_EXTRA);
 
-    InterlockedExchangePointer((PVOID *)(&pContext->ReuseBufferProc), ReuseReceiveBufferRegular);
+    InterlockedExchange(&pContext->ReuseBufferRegular, TRUE);
 
     VirtIODeviceWriteGuestFeatures(&pContext->IODevice, pContext->u32GuestFeatures);
     NdisInitializeEvent(&pContext->ResetEvent);
@@ -735,7 +735,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
     return status;
 }
 
-static void FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p)
+void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p)
 {
     ULONG i;
     for(i = 0; i < p->PagesAllocated; i++)
@@ -748,115 +748,14 @@ static void FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescriptor 
     NdisFreeMemory(p, 0, 0);
 }
 
-static void FreeRxDescriptorsFromList(PARANDIS_ADAPTER *pContext, PLIST_ENTRY pListRoot)
-{
-    while(!IsListEmpty(pListRoot))
-    {
-        pRxNetDescriptor pBufferDescriptor = (pRxNetDescriptor)RemoveHeadList(pListRoot);
-        FreeRxBufferDescriptor(pContext, pBufferDescriptor);
-    }
-}
-
-static pRxNetDescriptor CreateRxDescriptorOnInit(
-    PARANDIS_ADAPTER *pContext)
-{
-    //For RX packets we allocate following pages
-    //  1 page for virtio header and indirect buffers array
-    //  X pages needed to fit maximal length buffer of data
-    //  The assumption is virtio header and indirect buffers array fit 1 page
-    ULONG ulNumPages = pContext->MaxPacketSize.nMaxDataSizeHwRx / PAGE_SIZE + 2;
-
-    pRxNetDescriptor p = (pRxNetDescriptor)ParaNdis_AllocateMemory(pContext, sizeof(*p));
-    if(p == NULL) return NULL;
-
-    NdisZeroMemory(p, sizeof(*p));
-
-    p->BufferSGArray = (struct VirtIOBufferDescriptor *)
-        ParaNdis_AllocateMemory(pContext, sizeof(*p->BufferSGArray) * ulNumPages);
-    if(p->BufferSGArray == NULL) goto error_exit;
-
-    p->PhysicalPages = (tCompletePhysicalAddress *)
-        ParaNdis_AllocateMemory(pContext, sizeof(*p->PhysicalPages) * ulNumPages);
-    if(p->PhysicalPages == NULL) goto error_exit;
-
-    for(p->PagesAllocated = 0; p->PagesAllocated < ulNumPages; p->PagesAllocated++)
-    {
-        p->PhysicalPages[p->PagesAllocated].size = PAGE_SIZE;
-        if(!ParaNdis_InitialAllocatePhysicalMemory(pContext, &p->PhysicalPages[p->PagesAllocated]))
-            goto error_exit;
-
-        p->BufferSGArray[p->PagesAllocated].physAddr = p->PhysicalPages[p->PagesAllocated].Physical;
-        p->BufferSGArray[p->PagesAllocated].length = PAGE_SIZE;
-    }
-
-    //First page is for virtio header, size needs to be adjusted correspondingly
-    p->BufferSGArray[0].length = pContext->nVirtioHeaderSize;
-
-    //Pre-cache indirect area addresses
-    p->IndirectArea.Physical.QuadPart = p->PhysicalPages[0].Physical.QuadPart + pContext->nVirtioHeaderSize;
-    p->IndirectArea.Virtual = RtlOffsetToPointer(p->PhysicalPages[0].Virtual, pContext->nVirtioHeaderSize);
-    p->IndirectArea.size = PAGE_SIZE - pContext->nVirtioHeaderSize;
-
-    if (!ParaNdis_BindRxBufferToPacket(pContext, p))
-        goto error_exit;
-
-    return p;
-
-error_exit:
-    FreeRxBufferDescriptor(pContext, p);
-    return NULL;
-}
-
-static BOOLEAN AddRxBufferToQueue(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBufferDescriptor)
-{
-    return 0 <= virtqueue_add_buf(
-        pContext->NetReceiveQueue,
-        pBufferDescriptor->BufferSGArray,
-        0,
-        pBufferDescriptor->PagesAllocated,
-        pBufferDescriptor,
-        pContext->bUseIndirect ? pBufferDescriptor->IndirectArea.Virtual           : NULL,
-        pContext->bUseIndirect ? pBufferDescriptor->IndirectArea.Physical.QuadPart : 0);
-}
-
-
 /**********************************************************
 Allocates maximum RX buffers for incoming packets
 Buffers are chained in NetReceiveBuffers
 Parameters:
     context
 ***********************************************************/
-static int PrepareReceiveBuffers(PARANDIS_ADAPTER *pContext)
-{
-    int nRet = 0;
-    UINT i;
-    DEBUG_ENTRY(4);
 
-    for (i = 0; i < pContext->NetMaxReceiveBuffers; ++i)
-    {
-        pRxNetDescriptor pBuffersDescriptor = CreateRxDescriptorOnInit(pContext);
-        if (!pBuffersDescriptor) break;
-
-        if (!AddRxBufferToQueue(pContext, pBuffersDescriptor))
-        {
-            FreeRxBufferDescriptor(pContext, pBuffersDescriptor);
-            break;
-        }
-
-        InsertTailList(&pContext->NetReceiveBuffers, &pBuffersDescriptor->listEntry);
-
-        pContext->NetNofReceiveBuffers++;
-    }
-
-    pContext->NetMaxReceiveBuffers = pContext->NetNofReceiveBuffers;
-    DPrintf(0, ("[%s] MaxReceiveBuffers %d\n", __FUNCTION__, pContext->NetMaxReceiveBuffers) );
-
-    virtqueue_kick(pContext->NetReceiveQueue);
-
-    return nRet;
-}
-
-static void DeleteQueue(PARANDIS_ADAPTER *pContext, struct virtqueue **ppq, tCompletePhysicalAddress *ppa)
+void ParaNdis_DeleteQueue(PARANDIS_ADAPTER *pContext, struct virtqueue **ppq, tCompletePhysicalAddress *ppa)
 {
     if (*ppq) VirtIODeviceDeleteQueue(*ppq, NULL);
     *ppq = NULL;
@@ -867,8 +766,7 @@ static void DeleteQueue(PARANDIS_ADAPTER *pContext, struct virtqueue **ppq, tCom
 // called on PASSIVE upon unsuccessful Init or upon Halt
 static void DeleteNetQueues(PARANDIS_ADAPTER *pContext)
 {
-    DeleteQueue(pContext, &pContext->NetControlQueue, &pContext->ControlQueueRing);
-    DeleteQueue(pContext, &pContext->NetReceiveQueue, &pContext->ReceiveQueueRing);
+    ParaNdis_DeleteQueue(pContext, &pContext->NetControlQueue, &pContext->ControlQueueRing);
 }
 
 
@@ -898,20 +796,16 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     }
     pContext->bTXPathCreated = TRUE;
 
-    // We work with two virtqueues, 0 - receive and 1 - send.
-    VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 0, &size, &pContext->ReceiveQueueRing.size);
-    VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 2, &size, &pContext->ControlQueueRing.size);
-    if (pContext->ReceiveQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ReceiveQueueRing))
+    new (&pContext->RXPath, PLACEMENT_NEW) CParaNdisRX();
+    pContext->bRXPathAllocated = TRUE;
+    if (!pContext->RXPath.Create(pContext, 0))
     {
-        pContext->NetReceiveQueue = VirtIODevicePrepareQueue(
-            &pContext->IODevice,
-            0,
-            pContext->ReceiveQueueRing.Physical,
-            pContext->ReceiveQueueRing.Virtual,
-            pContext->ReceiveQueueRing.size,
-            NULL,
-            pContext->bDoPublishIndices);
+        return status;
     }
+    pContext->bRXPathCreated = TRUE;
+
+    // We work with two virtqueues, 0 - receive and 1 - send.
+    VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 2, &size, &pContext->ControlQueueRing.size);
     if (pContext->ControlQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ControlQueueRing))
     {
         pContext->NetControlQueue = VirtIODevicePrepareQueue(
@@ -924,27 +818,18 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
             pContext->bDoPublishIndices);
     }
 
-    if (pContext->NetReceiveQueue)
-    {
-        PrepareReceiveBuffers(pContext);
+    if (pContext->NetControlQueue)
+        ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ControlData);
 
-        if (pContext->NetControlQueue)
-            ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ControlData);
-        if (!pContext->NetControlQueue || !pContext->ControlData.Virtual)
-        {
-            DPrintf(0, ("[%s] The Control vQueue does not work!\n", __FUNCTION__) );
-            pContext->bHasHardwareFilters = FALSE;
-            pContext->bCtrlMACAddrSupported = FALSE;
-        }
-        if (pContext->NetMaxReceiveBuffers)
-        {
-            status = NDIS_STATUS_SUCCESS;
-        }
-    }
-    else
+    if (!pContext->NetControlQueue || !pContext->ControlData.Virtual)
     {
-        DeleteNetQueues(pContext);
+        DPrintf(0, ("[%s] The Control vQueue does not work!\n", __FUNCTION__) );
+        pContext->bHasHardwareFilters = FALSE;
+        pContext->bCtrlMACAddrSupported = FALSE;
     }
+
+    status = NDIS_STATUS_SUCCESS;
+
     return status;
 }
 
@@ -995,10 +880,7 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     DEBUG_ENTRY(0);
 
-    NdisAllocateSpinLock(&pContext->ReceiveLock);
-
-    InitializeListHead(&pContext->NetReceiveBuffers);
-    InitializeListHead(&pContext->NetReceiveBuffersWaiting);
+    NdisAllocateSpinLock(&pContext->ControlQueueLock);
 
     status = ParaNdis_FinishSpecificInitialization(pContext);
 
@@ -1041,35 +923,34 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
         pRxNetDescriptor pBufferDescriptor;
 
         while (NULL != (pBufferDescriptor = ReceiveQueueGetBuffer(pContext->ReceiveQueues + i)))
-            ReuseReceiveBufferPowerOff(pContext, pBufferDescriptor);
+            pContext->RXPath.ReuseReceiveBuffer(FALSE, pBufferDescriptor);
     }
 
     do
     {
-        NdisAcquireSpinLock(&pContext->ReceiveLock);
-        b = !IsListEmpty(&pContext->NetReceiveBuffersWaiting);
-        NdisReleaseSpinLock(&pContext->ReceiveLock);
+        b = pContext->RXPath.UpstreamPacketsPending();
+
         if (b)
         {
             DPrintf(0, ("[%s] There are waiting buffers\n", __FUNCTION__));
             PrintStatistics(pContext);
             NdisMSleep(5000000);
         }
-    }while (b);
+    } while (b);
 
     RestoreMAC(pContext);
 
     if(pContext->bTXPathCreated)
         pContext->TXPath.Shutdown();
-    if(pContext->NetReceiveQueue)
-        virtqueue_shutdown(pContext->NetReceiveQueue);
+    if (pContext->bRXPathCreated)
+        pContext->RXPath.Shutdown();
     if(pContext->NetControlQueue)
         virtqueue_shutdown(pContext->NetControlQueue);
 
     DeleteNetQueues(pContext);
 
     /* this can be freed, queue shut down */
-    FreeRxDescriptorsFromList(pContext, &pContext->NetReceiveBuffers);
+    pContext->RXPath.FreeRxDescriptorsFromList();
 
     if (pContext->ControlData.Virtual)
         ParaNdis_FreePhysicalMemory(pContext, &pContext->ControlData);
@@ -1132,9 +1013,9 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 
     ParaNdis_FinalizeCleanup(pContext);
 
-    if (pContext->ReceiveLock.SpinLock)
+    if (pContext->ControlQueueLock.SpinLock)
     {
-        NdisFreeSpinLock(&pContext->ReceiveLock);
+        NdisFreeSpinLock(&pContext->ControlQueueLock);
     }
 
     if (pContext->ReceiveQueuesInitialized)
@@ -1164,6 +1045,11 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     if (pContext->bTXPathAllocated)
     {
         pContext->TXPath.~CParaNdisTX();
+    }
+
+    if (pContext->bRXPathAllocated)
+    {
+        pContext->RXPath.~CParaNdisRX();
     }
 
     if (pContext->AdapterResources.ulIOAddress)
@@ -1245,82 +1131,6 @@ BOOLEAN ParaNdis_OnQueuedInterrupt(
     return TRUE;
 }
 
-
-/**********************************************************
-It is called from Rx processing routines in regular mode of operation.
-Returns received buffer back to VirtIO queue, inserting it to NetReceiveBuffers.
-If needed, signals end of RX pause operation
-
-Must be called with &pContext->ReceiveLock acquired
-
-Parameters:
-    context
-    void *pDescriptor - pIONetDescriptor to return
-***********************************************************/
-void ReuseReceiveBufferRegular(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBuffersDescriptor)
-{
-    DEBUG_ENTRY(4);
-
-    if(!pBuffersDescriptor)
-        return;
-
-    RemoveEntryList(&pBuffersDescriptor->listEntry);
-
-    if(AddRxBufferToQueue(pContext, pBuffersDescriptor))
-    {
-        InsertTailList(&pContext->NetReceiveBuffers, &pBuffersDescriptor->listEntry);
-
-        pContext->NetNofReceiveBuffers++;
-
-        if (pContext->NetNofReceiveBuffers > pContext->NetMaxReceiveBuffers)
-        {
-            DPrintf(0, (" Error: NetNofReceiveBuffers > NetMaxReceiveBuffers(%d>%d)\n",
-                pContext->NetNofReceiveBuffers, pContext->NetMaxReceiveBuffers));
-        }
-
-        if (++pContext->Counters.nReusedRxBuffers >= pContext->Limits.nReusedRxBuffers)
-        {
-            pContext->Counters.nReusedRxBuffers = 0;
-            virtqueue_notify(pContext->NetReceiveQueue);
-        }
-
-        if (IsListEmpty(&pContext->NetReceiveBuffersWaiting))
-        {
-            if (pContext->ReceiveState == srsPausing || pContext->ReceivePauseCompletionProc)
-            {
-                ONPAUSECOMPLETEPROC callback = pContext->ReceivePauseCompletionProc;
-                pContext->ReceiveState = srsDisabled;
-                pContext->ReceivePauseCompletionProc = NULL;
-                ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 0, 0, 0);
-                if (callback) callback(pContext);
-            }
-        }
-    }
-    else
-    {
-        DPrintf(0, ("FAILED TO REUSE THE BUFFER!!!!\n"));
-        FreeRxBufferDescriptor(pContext, pBuffersDescriptor);
-        pContext->NetMaxReceiveBuffers--;
-    }
-}
-
-/**********************************************************
-It is called from Rx processing routines between power off and power on in non-paused mode (Win8).
-Returns received buffer to NetReceiveBuffers. 
-All the buffers will be placed into Virtio queue during power-on procedure
-
-Must be called with &pContext->ReceiveLock acquired
-
-Parameters:
-    context
-    void *pDescriptor - pIONetDescriptor to return
-***********************************************************/
-static void ReuseReceiveBufferPowerOff(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBuffersDescriptor)
-{
-    RemoveEntryList(&pBuffersDescriptor->listEntry);
-    InsertTailList(&pContext->NetReceiveBuffers, &pBuffersDescriptor->listEntry);
-}
-
 static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacketInfo)
 {
     ULONG i;
@@ -1378,8 +1188,7 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacke
     return FALSE;
 }
 
-static __inline
-BOOLEAN PerformPacketAnalyzis(
+BOOLEAN ParaNdis_PerformPacketAnalyzis(
 #if PARANDIS_SUPPORT_RSS
                             PPARANDIS_RSS_PARAMS RSSParameters,
 #endif
@@ -1399,25 +1208,15 @@ BOOLEAN PerformPacketAnalyzis(
     return TRUE;
 }
 
-static BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) RestartQueueSynchronously(tSynchronizedContext *SyncContext)
-{
-    struct virtqueue * _vq = (struct virtqueue *) SyncContext->Parameter;
-    bool res = virtqueue_enable_cb(_vq);
-
-    ParaNdis_DebugHistory(SyncContext->pContext, hopDPC, (PVOID)SyncContext->Parameter, 0x20, res, 0);
-    return !res;
-}
-
-static __inline
-VOID ProcessorNumberToGroupAffinity(PGROUP_AFFINITY Affinity, const PPROCESSOR_NUMBER Processor)
+VOID ParaNdis_ProcessorNumberToGroupAffinity(PGROUP_AFFINITY Affinity, const PPROCESSOR_NUMBER Processor)
 {
     Affinity->Group = Processor->Group;
     Affinity->Mask = 1;
     Affinity->Mask <<= Processor->Number;
 }
 
-static __inline
-CCHAR GetScalingDataForPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacketInfo, PPROCESSOR_NUMBER pTargetProcessor)
+
+CCHAR ParaNdis_GetScalingDataForPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacketInfo, PPROCESSOR_NUMBER pTargetProcessor)
 {
 #if PARANDIS_SUPPORT_RSS
     return ParaNdis6_RSSGetScalingDataForPacket(&pContext->RSSParameters, pPacketInfo, pTargetProcessor);
@@ -1442,8 +1241,7 @@ CCHAR GetReceiveQueueForCurrentCPU(PARANDIS_ADAPTER *pContext)
 #endif
 }
 
-static __inline
-VOID QueueRSSDpc(PARANDIS_ADAPTER *pContext, PGROUP_AFFINITY pTargetAffinity)
+VOID ParaNdis_QueueRSSDpc(PARANDIS_ADAPTER *pContext, PGROUP_AFFINITY pTargetAffinity)
 {
 #if PARANDIS_SUPPORT_RSS
     NdisMQueueDpcEx(pContext->InterruptHandle, pContext->ulRxMessage, pTargetAffinity, NULL);
@@ -1455,8 +1253,8 @@ VOID QueueRSSDpc(PARANDIS_ADAPTER *pContext, PGROUP_AFFINITY pTargetAffinity)
 #endif
 }
 
-static __inline
-VOID ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescriptor pBuffer)
+
+VOID ParaNdis_ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescriptor pBuffer)
 {
     NdisInterlockedInsertTailList(  &pQueue->BuffersList,
                                     &pBuffer->ReceiveQueueListEntry,
@@ -1484,49 +1282,7 @@ BOOLEAN ReceiveQueueHasBuffers(PPARANDIS_RECEIVE_QUEUE pQueue)
 
 static VOID ProcessRxRing(PARANDIS_ADAPTER *pContext, CCHAR nCurrCpuReceiveQueue)
 {
-    pRxNetDescriptor pBufferDescriptor;
-    unsigned int nFullLength;
-
-    NdisAcquireSpinLock(&pContext->ReceiveLock);
-
-    while (NULL != (pBufferDescriptor = (pRxNetDescriptor) virtqueue_get_buf(pContext->NetReceiveQueue, &nFullLength)))
-    {
-        CCHAR nTargetReceiveQueueNum;
-        GROUP_AFFINITY TargetAffinity;
-        PROCESSOR_NUMBER TargetProcessor;
-
-        RemoveEntryList(&pBufferDescriptor->listEntry);
-        InsertTailList(&pContext->NetReceiveBuffersWaiting, &pBufferDescriptor->listEntry);
-        pContext->NetNofReceiveBuffers--;
-
-        if(!PerformPacketAnalyzis(
-#if PARANDIS_SUPPORT_RSS
-                                &pContext->RSSParameters,
-#endif
-                                &pBufferDescriptor->PacketInfo,
-                                pBufferDescriptor->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE].Virtual,
-                                nFullLength - pContext->nVirtioHeaderSize))
-        {
-            pContext->ReuseBufferProc(pContext, pBufferDescriptor);
-            pContext->Statistics.ifInErrors++;
-            pContext->Statistics.ifInDiscards++;
-            continue;
-        }
-
-        nTargetReceiveQueueNum = GetScalingDataForPacket(
-                                                            pContext,
-                                                            &pBufferDescriptor->PacketInfo,
-                                                            &TargetProcessor);
-
-        ReceiveQueueAddBuffer(&pContext->ReceiveQueues[nTargetReceiveQueueNum], pBufferDescriptor);
-        ProcessorNumberToGroupAffinity(&TargetAffinity, &TargetProcessor);
-
-        if ((nTargetReceiveQueueNum != PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED) &&
-            (nTargetReceiveQueueNum != nCurrCpuReceiveQueue))
-            QueueRSSDpc(pContext, &TargetAffinity);
-    }
-
-    NdisReleaseSpinLock(&pContext->ReceiveLock);
+    pContext->RXPath.ProcessRxRing(nCurrCpuReceiveQueue);
 }
 
 static VOID
@@ -1604,17 +1360,13 @@ static BOOLEAN ProcessReceiveQueue(
                 else
                 {
                     UpdateReceiveFailStatistics(pContext, nCoalescedSegmentsCount);
-                    NdisAcquireSpinLock(&pContext->ReceiveLock);
-                    pContext->ReuseBufferProc(pContext, pBufferDescriptor);
-                    NdisReleaseSpinLock(&pContext->ReceiveLock);
+                    pContext->RXPath.ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBufferDescriptor);
                 }
             }
             else
             {
                 pContext->extraStatistics.framesFilteredOut++;
-                NdisAcquireSpinLock(&pContext->ReceiveLock);
-                pContext->ReuseBufferProc(pContext, pBufferDescriptor);
-                NdisReleaseSpinLock(&pContext->ReceiveLock);
+                pContext->RXPath.ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBufferDescriptor);
             }
         }
 
@@ -1647,10 +1399,7 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG nPacketsToIndicate)
             res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, CurrCpuReceiveQueue);
         }
 
-        bMoreDataInRing = ParaNdis_SynchronizeWithInterrupt(pContext,
-                                                            pContext->ulRxMessage,
-                                                            RestartQueueSynchronously,
-                                                            pContext->NetReceiveQueue);
+        bMoreDataInRing = pContext->RXPath.RestartQueue();
     } while(bMoreDataInRing);
 
     return res;
@@ -1934,7 +1683,7 @@ VOID ParaNdis_VirtIOEnableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG inte
     if (interruptSource & isTransmit)
         pContext->TXPath.EnableInterrupts();
     if (interruptSource & isReceive)
-        virtqueue_enable_cb(pContext->NetReceiveQueue);
+        pContext->RXPath.EnableInterrupts();
     ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, TRUE, 0);
 }
 
@@ -1943,7 +1692,7 @@ VOID ParaNdis_VirtIODisableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG int
     if (interruptSource & isTransmit)
         pContext->TXPath.DisableInterrupts();
     if (interruptSource & isReceive)
-        virtqueue_disable_cb(pContext->NetReceiveQueue);
+        pContext->RXPath.DisableInterrupts();
     ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, FALSE, 0);
 }
 
@@ -2004,7 +1753,7 @@ static BOOLEAN SendControlMessage(
     )
 {
     BOOLEAN bOK = FALSE;
-    NdisAcquireSpinLock(&pContext->ReceiveLock);
+    NdisAcquireSpinLock(&pContext->ControlQueueLock);
     if (pContext->ControlData.Virtual && pContext->ControlData.size > (size1 + size2 + 16))
     {
         struct VirtIOBufferDescriptor sg[4];
@@ -2078,7 +1827,7 @@ static BOOLEAN SendControlMessage(
     {
         DPrintf(0, ("%s (buffer %d,%d) - ERROR: message too LARGE\n", __FUNCTION__, size1, size2));
     }
-    NdisReleaseSpinLock(&pContext->ReceiveLock);
+    NdisReleaseSpinLock(&pContext->ControlQueueLock);
     return bOK;
 }
 
@@ -2195,7 +1944,6 @@ ParaNdis_UpdateGuestOffloads(PARANDIS_ADAPTER *pContext, UINT64 Offloads)
 
 VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 {
-    LIST_ENTRY TempList;
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, hopPowerOn, NULL, 1, 0, 0);
     ParaNdis_ResetVirtIONetDevice(pContext);
@@ -2205,7 +1953,7 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     VirtIODeviceReadHostFeatures(&pContext->IODevice);
     VirtIODeviceWriteGuestFeatures(&pContext->IODevice, pContext->u32GuestFeatures);
 
-    VirtIODeviceRenewQueue(pContext->NetReceiveQueue);
+    pContext->RXPath.Renew();
     pContext->TXPath.Renew();
 
     if(pContext->NetControlQueue)
@@ -2216,44 +1964,16 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     ParaNdis_UpdateDeviceFilters(pContext);
     ParaNdis_UpdateMAC(pContext);
 
-    InitializeListHead(&TempList);
     
-    /* submit all the receive buffers */
-    NdisAcquireSpinLock(&pContext->ReceiveLock);
+    InterlockedExchange(&pContext->ReuseBufferRegular, TRUE);
     
-    InterlockedExchangePointer((PVOID *)&pContext->ReuseBufferProc, ReuseReceiveBufferRegular);
-    
-    while (!IsListEmpty(&pContext->NetReceiveBuffers))
-    {
-        pRxNetDescriptor pBufferDescriptor =
-            (pRxNetDescriptor)RemoveHeadList(&pContext->NetReceiveBuffers);
-        InsertTailList(&TempList, &pBufferDescriptor->listEntry);
-    }
-    pContext->NetNofReceiveBuffers = 0;
-    while (!IsListEmpty(&TempList))
-    {
-        pRxNetDescriptor pBufferDescriptor =
-            (pRxNetDescriptor)RemoveHeadList(&TempList);
-        if (AddRxBufferToQueue(pContext, pBufferDescriptor))
-        {
-            InsertTailList(&pContext->NetReceiveBuffers, &pBufferDescriptor->listEntry);
-            pContext->NetNofReceiveBuffers++;
-        }
-        else
-        {
-            DPrintf(0, ("FAILED TO REUSE THE BUFFER!!!!\n"));
-            FreeRxBufferDescriptor(pContext, pBufferDescriptor);
-            pContext->NetMaxReceiveBuffers--;
-        }
-    }
-    virtqueue_kick(pContext->NetReceiveQueue);
+    pContext->RXPath.PopulateQueue();
+
     ReadLinkState(pContext);
     ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
     ParaNdis_SynchronizeLinkState(pContext);
     pContext->bEnableInterruptHandlingDPC = TRUE;
     ParaNdis_AddDriverOKStatus(pContext);
-
-    NdisReleaseSpinLock(&pContext->ReceiveLock);
 
     // if bFastSuspendInProcess is set by Win8 power-off procedure,
     // the ParaNdis_Resume enables Tx and RX
@@ -2283,7 +2003,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     
     if (pContext->bFastSuspendInProcess)
     {
-        InterlockedExchangePointer((PVOID *)&pContext->ReuseBufferProc, ReuseReceiveBufferPowerOff);
+        InterlockedExchange(&pContext->ReuseBufferRegular, FALSE);
     }
     
 #if !NDIS_SUPPORT_NDIS620
@@ -2303,10 +2023,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     ********************************************************************/
 
     pContext->TXPath.Shutdown();
-
-    NdisAcquireSpinLock(&pContext->ReceiveLock);
-    virtqueue_shutdown(pContext->NetReceiveQueue);
-    NdisReleaseSpinLock(&pContext->ReceiveLock);
+    pContext->RXPath.Shutdown();
 
     if(pContext->NetControlQueue)
         virtqueue_shutdown(pContext->NetControlQueue);

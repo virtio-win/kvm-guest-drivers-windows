@@ -51,16 +51,12 @@ static NDIS_STATUS RSSSetParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     if (!pContext->bRSSOffloadSupported)
         return NDIS_STATUS_NOT_SUPPORTED;
 
-    NdisAcquireSpinLock(&pContext->ReceiveLock);
-
     status = ParaNdis6_RSSSetParameters(&pContext->RSSParameters,
                                         (NDIS_RECEIVE_SCALE_PARAMETERS*) pOid->InformationBuffer,
                                         pOid->InformationBufferLength,
                                         pOid->pBytesRead,
                                         pContext->MiniportHandle);
     ParaNdis_ResetRxClassification(pContext);
-
-    NdisReleaseSpinLock(&pContext->ReceiveLock);
 
     return status;
 }
@@ -72,16 +68,12 @@ static NDIS_STATUS RSSSetReceiveHash(   PARANDIS_ADAPTER *pContext, tOidDesc *pO
     if (!pContext->bRSSOffloadSupported)
         return NDIS_STATUS_NOT_SUPPORTED;
 
-    NdisAcquireSpinLock(&pContext->ReceiveLock);
-
     status = ParaNdis6_RSSSetReceiveHash(   &pContext->RSSParameters,
                                         (NDIS_RECEIVE_HASH_PARAMETERS*) pOid->InformationBuffer,
                                         pOid->InformationBufferLength,
                                         pOid->pBytesRead);
 
     ParaNdis_ResetRxClassification(pContext);
-
-    NdisReleaseSpinLock(&pContext->ReceiveLock);
 
     return status;
 }
