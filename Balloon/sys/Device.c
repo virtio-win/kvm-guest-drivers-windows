@@ -609,6 +609,7 @@ BalloonEvtFileClose (
 
     RtlFillMemory(devCtx->MemStats,
         sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
+    BalloonMemStats(WdfFileObjectGetDevice(FileObject));
 }
 
 VOID

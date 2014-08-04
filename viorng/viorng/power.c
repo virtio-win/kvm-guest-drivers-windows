@@ -190,6 +190,7 @@ NTSTATUS VirtRngEvtDeviceReleaseHardware(IN WDFDEVICE Device,
 NTSTATUS VirtRngEvtDeviceD0Entry(IN WDFDEVICE Device,
                                  IN WDF_POWER_DEVICE_STATE PreviousState)
 {
+    NTSTATUS status = STATUS_SUCCESS;
     PDEVICE_CONTEXT context = GetDeviceContext(Device);
     WDF_INTERRUPT_INFO info;
     USHORT vector;
@@ -206,11 +207,19 @@ NTSTATUS VirtRngEvtDeviceD0Entry(IN WDFDEVICE Device,
     vector = info.MessageSignaled ? 0 : VIRTIO_MSI_NO_VECTOR;
 
     context->VirtQueue = FindVirtualQueue(&context->VirtDevice, 0, vector);
-    VirtIODeviceAddStatus(&context->VirtDevice, VIRTIO_CONFIG_S_DRIVER_OK);
+    if (context->VirtQueue)
+    {
+        VirtIODeviceAddStatus(&context->VirtDevice, VIRTIO_CONFIG_S_DRIVER_OK);
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to find queue!");
+        status = STATUS_NOT_FOUND;
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "<-- %!FUNC!");
 
-    return STATUS_SUCCESS;
+    return status;
 }
 
 NTSTATUS VirtRngEvtDeviceD0Exit(IN WDFDEVICE Device,

@@ -1,3 +1,31 @@
+Date    29 Jul 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm108
+
+Fixed bugs:
+
+BZ 1066808: balloon fix old stats rema
+BZ 1081436: viorng  fix bsod after resuming
+BZ 1116573: viorng  use wdf 1.9 for old
+BZ  950611: NetKvm  Disable RSC until host suppor
+
+
+Date    08 Jul 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm107
+
+Fixed bugs:
+
+BZ 1096505: NetKVM Cosmetic fixs - tab removed with spaces
+BZ 1112712: NetKVM Initialize CVirtQueue first before making internal calculati
+BZ 1051886: NetKVM  Fix linker options for Vista\Windows Server 2008.
+BZ 1109027: NetKVM  Fix empty friendly name if only one adapter is present
+BZ 1082999: Balloon add device events handling.
+
+New Features:
+
+new inverted-call write-to-device method.
+
 Date    04 Jun 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm106
