@@ -923,7 +923,9 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
         pRxNetDescriptor pBufferDescriptor;
 
         while (NULL != (pBufferDescriptor = ReceiveQueueGetBuffer(pContext->ReceiveQueues + i)))
+        {
             pContext->RXPath.ReuseReceiveBuffer(FALSE, pBufferDescriptor);
+        }
     }
 
     do
@@ -961,7 +963,7 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 
 static void PreventDPCServicing(PARANDIS_ADAPTER *pContext)
 {
-    LONG inside;;
+    LONG inside;
     pContext->bEnableInterruptHandlingDPC = FALSE;
     KeMemoryBarrier();
     do
@@ -1964,9 +1966,8 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     ParaNdis_UpdateDeviceFilters(pContext);
     ParaNdis_UpdateMAC(pContext);
 
-    
     InterlockedExchange(&pContext->ReuseBufferRegular, TRUE);
-    
+
     pContext->RXPath.PopulateQueue();
 
     ReadLinkState(pContext);

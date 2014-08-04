@@ -17,9 +17,8 @@ public:
     }
 
     void Shutdown() {
-        NdisAcquireSpinLock(&m_Lock);
+        CLockedContext<CNdisSpinLock> autoLock(m_Lock);
         virtqueue_shutdown(m_NetReceiveQueue);
-        NdisReleaseSpinLock(&m_Lock);
     }
 
     BOOLEAN UpstreamPacketsPending() {
@@ -71,10 +70,11 @@ private:
 
     UINT m_nReusedRxBuffersCounter, m_nReusedRxBuffersLimit;
 
-    NDIS_SPIN_LOCK          m_Lock;
+    CNdisSpinLock            m_Lock;
 
     void ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor);
     void ReuseReceiveBufferPowerOff(pRxNetDescriptor pBuffersDescriptor);
+
 private:
     int PrepareReceiveBuffers();
     pRxNetDescriptor CreateRxDescriptorOnInit();

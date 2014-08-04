@@ -941,7 +941,7 @@ NDIS_STATUS ParaNdis6_ReceivePauseRestart(
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
 
-    /* TODO - the function was guarded with ReceiveLock - is there any reason? */
+    /* TODO - access to ReceiveState and ReceivePauseCompletionProc have to be synchronized*/
     if (bPause)
     {
         ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 1, 0, 0);

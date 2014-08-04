@@ -3,17 +3,11 @@
 CParaNdisRX::CParaNdisRX() : m_nReusedRxBuffersCounter(0), m_NetNofReceiveBuffers(0)
 {
     InitializeListHead(&m_NetReceiveBuffers);
-    m_Lock.SpinLock = 0;
 }
 
 CParaNdisRX::~CParaNdisRX()
 {
     ParaNdis_DeleteQueue(m_Context, &m_NetReceiveQueue, &m_ReceiveQueueRing);
-
-    if (m_Lock.SpinLock)
-    {
-        NdisFreeSpinLock(&m_Lock);
-    }
 }
 
 bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
@@ -51,9 +45,6 @@ bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
         return false;
     }
     PrepareReceiveBuffers();
-
-    NdisAllocateSpinLock(&m_Lock);
-
 
     return true;
 }
@@ -167,7 +158,7 @@ void CParaNdisRX::ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor)
     if (!pBuffersDescriptor)
         return;
 
-    NdisAcquireSpinLock(&m_Lock);
+    CLockedContext<CNdisSpinLock> autoLock(m_Lock);
 
     m_upstreamPacketPending.Release();
 
@@ -208,8 +199,6 @@ void CParaNdisRX::ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor)
         ParaNdis_FreeRxBufferDescriptor(m_Context, pBuffersDescriptor);
         m_Context->NetMaxReceiveBuffers--;
     }
-
-    NdisReleaseSpinLock(&m_Lock);
 }
 
 void CParaNdisRX::ReuseReceiveBufferPowerOff(pRxNetDescriptor)
@@ -222,7 +211,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
     pRxNetDescriptor pBufferDescriptor;
     unsigned int nFullLength;
 
-    NdisAcquireSpinLock(&m_Lock);
+    CLockedContext<CNdisSpinLock> autoLock(m_Lock);
 
     while (NULL != (pBufferDescriptor = (pRxNetDescriptor)virtqueue_get_buf(m_NetReceiveQueue, &nFullLength)))
     {
@@ -264,8 +253,6 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
             (nTargetReceiveQueueNum != nCurrCpuReceiveQueue))
             ParaNdis_QueueRSSDpc(m_Context, &TargetAffinity);
     }
-
-    NdisReleaseSpinLock(&m_Lock);
 }
 
 void CParaNdisRX::PopulateQueue()
