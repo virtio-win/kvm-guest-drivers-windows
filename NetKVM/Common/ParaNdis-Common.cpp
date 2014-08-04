@@ -799,6 +799,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         DPrintf(0, ("%s: CParaNdisRX allocation failed\n", __FUNCTION__));
         return status;
     }
+
     if (!pContext->RXPath[0].Create(pContext, 0))
     {
         DPrintf(0, ("%s: CParaNdisRX creation failed\n", __FUNCTION__));
@@ -887,6 +888,8 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
     DEBUG_ENTRY(0);
 
     status = ParaNdis_FinishSpecificInitialization(pContext);
+    DPrintf(0, ("[%s] ParaNdis_FinishSpecificInitialization passed, status = %d\n", __FUNCTION__, status));
+
 
     if (status == NDIS_STATUS_SUCCESS)
     {
@@ -997,7 +1000,7 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     {
         if(pContext->bDeviceInitialized) {
             ParaNdis_SynchronizeWithInterrupt(pContext,
-                                              pContext->ulRxMessage,
+                                              pContext->RXPath[0].getMessageIndex(),
                                               ParaNdis_RemoveDriverOKStatus,
                                               pContext);
         }
@@ -1261,7 +1264,7 @@ CCHAR GetReceiveQueueForCurrentCPU(PARANDIS_ADAPTER *pContext)
 VOID ParaNdis_QueueRSSDpc(PARANDIS_ADAPTER *pContext, PGROUP_AFFINITY pTargetAffinity)
 {
 #if PARANDIS_SUPPORT_RSS
-    NdisMQueueDpcEx(pContext->InterruptHandle, pContext->ulRxMessage, pTargetAffinity, NULL);
+    NdisMQueueDpcEx(pContext->InterruptHandle, pContext->RXPath[0].getMessageIndex(), pTargetAffinity, NULL);
 #else
     UNREFERENCED_PARAMETER(pContext);
     UNREFERENCED_PARAMETER(pTargetAffinity);
@@ -1921,7 +1924,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     ParaNdis_Suspend(pContext);
 
     ParaNdis_SynchronizeWithInterrupt(pContext,
-        pContext->ulRxMessage,
+        pContext->RXPath[0].getMessageIndex(),
         ParaNdis_RemoveDriverOKStatus,
         pContext);
     

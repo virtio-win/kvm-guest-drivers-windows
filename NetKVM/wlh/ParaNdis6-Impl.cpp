@@ -192,9 +192,9 @@ static BOOLEAN MiniportInterrupt(
 static ULONG MessageToInterruptSource(PARANDIS_ADAPTER *pContext, ULONG  MessageId)
 {
     ULONG interruptSource = 0;
-    if (MessageId == pContext->ulRxMessage) interruptSource |= isReceive;
-    if (MessageId == pContext->ulTxMessage) interruptSource |= isTransmit;
-    if (MessageId == pContext->ulControlMessage) interruptSource |= isControl;
+    if (MessageId == pContext->RXPath[0].getMessageIndex()) interruptSource |= isReceive;
+    if (MessageId == pContext->TXPath[0].getMessageIndex()) interruptSource |= isTransmit;
+    if (MessageId == pContext->CXPath.getMessageIndex()) interruptSource |= isControl;
     return interruptSource;
 }
 
@@ -413,46 +413,6 @@ static VOID SharedMemAllocateCompleteHandler(
     UNREFERENCED_PARAMETER(Context);
 }
 
-static NDIS_STATUS SetInterruptMessage(PARANDIS_ADAPTER *pContext, UINT queueIndex)
-{
-    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
-    ULONG val;
-    ULONG  messageIndex = queueIndex < pContext->pMSIXInfoTable->MessageCount ?
-        queueIndex : (pContext->pMSIXInfoTable->MessageCount - 1);
-    PULONG pMessage = NULL;
-    switch (queueIndex)
-    {
-    case 0: // Rx queue interrupt:
-        WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_QUEUE_SEL, (u16)queueIndex);
-        WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_QUEUE_VECTOR, (u16)messageIndex);
-        val = ReadVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_QUEUE_VECTOR);
-        pMessage = &pContext->ulRxMessage;
-        break;
-    case 1: // Tx queue interrupt:
-        WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_PCI_QUEUE_SEL, (u16)queueIndex);
-        WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_QUEUE_VECTOR, (u16)messageIndex);
-        val = ReadVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_QUEUE_VECTOR);
-        pMessage = &pContext->ulTxMessage;
-        break;
-    case 2: // config interrupt
-        WriteVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_CONFIG_VECTOR, (u16)messageIndex);
-        val = ReadVirtIODeviceWord(pContext->IODevice.addr + VIRTIO_MSI_CONFIG_VECTOR);
-        pMessage = &pContext->ulControlMessage;
-        break;
-    default:
-        val = (ULONG)-1;
-        break;
-    }
-
-    if (val != messageIndex)
-    {
-        DPrintf(0, ("[%s] ERROR: Wrong MSI-X message for q%d(w%X,r%X)!\n", __FUNCTION__, queueIndex, messageIndex, val));
-        status = NDIS_STATUS_DEVICE_FAILED;
-    }
-    if (pMessage) *pMessage = messageIndex;
-    return status;
-}
-
 NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_RESOURCES;
@@ -470,10 +430,6 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
                 pTable->MessageInfo[i].MessageData,
                 pTable->MessageInfo[i].MessageAddress));
         }
-        for (i = 0; i < 3 && status == NDIS_STATUS_SUCCESS; ++i)
-        {
-            status = SetInterruptMessage(pContext, i);
-        }
 
         for (u16 j = 0; j < pContext->uNPathes && status == NDIS_STATUS_SUCCESS; ++j)
         {
@@ -481,15 +437,12 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
         }
 
     }
+
     if (status == NDIS_STATUS_SUCCESS)
     {
-        DPrintf(0, ("[%s] Using message %d/%u for RX queue\n", __FUNCTION__, pContext->ulRxMessage, pContext->RXPath[0].getMessageIndex()));
-        DPrintf(0, ("[%s] Using message %d/%u for TX queue\n", __FUNCTION__, pContext->ulTxMessage, pContext->TXPath[0].getMessageIndex()));
-        DPrintf(0, ("[%s] Using message %d/%u for controls\n", __FUNCTION__, pContext->ulControlMessage, pContext->CXPath.getMessageIndex()));
-
-        ASSERTMSG("Message mismatch", pContext->ulRxMessage == pContext->RXPath[0].getMessageIndex());
-        ASSERTMSG("Message mismatch", pContext->ulTxMessage == pContext->TXPath[0].getMessageIndex());
-        ASSERTMSG("Message mismatch", pContext->ulControlMessage == pContext->CXPath.getMessageIndex());
+        DPrintf(0, ("[%s] Using message %u for RX queue\n", __FUNCTION__, pContext->RXPath[0].getMessageIndex()));
+        DPrintf(0, ("[%s] Using message %u for TX queue\n", __FUNCTION__, pContext->TXPath[0].getMessageIndex()));
+        DPrintf(0, ("[%s] Using message %u for controls\n", __FUNCTION__, pContext->CXPath.getMessageIndex()));
     }
     DEBUG_EXIT_STATUS(2, status);
     return status;

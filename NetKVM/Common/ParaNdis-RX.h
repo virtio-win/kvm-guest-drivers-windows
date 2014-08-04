@@ -1,6 +1,6 @@
 #include "ParaNdis-VirtQueue.h"
-#include "ParaNdis-AbstractPath.h"
 #include "ndis56common.h"
+#include "ParaNdis-AbstractPath.h"
 
 class CParaNdisRX : public CParaNdisTemplatePath<CVirtQueue>, public CNdisAllocatable < CParaNdisRX, 'XRHR' > {
 public:

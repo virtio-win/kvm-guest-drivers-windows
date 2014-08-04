@@ -12,7 +12,6 @@ CParaNdisCX::~CParaNdisCX()
 bool CParaNdisCX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 {
     m_Context = Context;
-    m_queueIndex = (u16)DeviceQueueIndex;
 
     if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, &m_ControlData))
     {

@@ -154,7 +154,9 @@ public:
     {}
 
     virtual ~CVirtQueue()
-    { Delete(); }
+    {
+        Delete();
+    }
 
     bool Create(UINT Index,
         VirtIODevice *IODevice,
@@ -268,9 +270,6 @@ public:
     { return !m_DescriptorsInUse.IsEmpty(); }
 
     //TODO: Needs review
-    void Shutdown();
-
-    //TODO: Needs review
     bool HasHWBuffersIsUse()
     { return m_FreeHWBuffers != m_TotalHWBuffers; }
 
@@ -293,6 +292,9 @@ public:
     //TODO: Needs review/temporary?
     ULONG GetFreeHWBuffers()
     { return m_FreeHWBuffers; }
+
+    //TODO: Needs review
+    void Shutdown();
 
 private:
     bool PrepareBuffers();

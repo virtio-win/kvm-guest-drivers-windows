@@ -468,12 +468,6 @@ typedef struct _tagPARANDIS_ADAPTER
     NDIS_DEVICE_PNP_EVENT   PnpEvents[16];
     tOffloadSettings        Offload;
     NDIS_OFFLOAD_PARAMETERS InitialOffloadParameters;
-    // we keep these members common for XP and Vista
-    // for XP and non-MSI case of Vista they are set to zero
-    ULONG                       ulRxMessage;
-    //TODO: Move to TXPath structures
-    ULONG                       ulTxMessage;
-    ULONG                       ulControlMessage;
 
     PARANDIS_RECEIVE_QUEUE      ReceiveQueues[PARANDIS_RSS_MAX_RECEIVE_QUEUES + 1];
     BOOLEAN                     ReceiveQueuesInitialized;

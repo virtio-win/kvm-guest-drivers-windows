@@ -201,6 +201,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
         PROCESSOR_NUMBER TargetProcessor;
 
         m_Context->m_upstreamPacketPending.AddRef();
+
         m_NetNofReceiveBuffers--;
 
         BOOLEAN packetAnalyzisRC;
@@ -281,7 +282,7 @@ BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) CParaNdisRX::RestartQue
 BOOLEAN CParaNdisRX::RestartQueue()
 {
     return ParaNdis_SynchronizeWithInterrupt(m_Context,
-        m_Context->ulRxMessage,
+        m_messageIndex,
         RestartQueueSynchronously,
         &m_VirtQueue);
 }
