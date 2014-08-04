@@ -894,6 +894,12 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
         DPrintf(0, ("[%s] ParaNdis_VirtIONetInit passed, status = %d\n", __FUNCTION__, status));
     }
 
+    if (status == NDIS_STATUS_SUCCESS)
+    {
+        status = ParaNdis_ConfigureMSIXVectors(pContext);
+        DPrintf(0, ("[%s] ParaNdis_VirtIONetInit passed, status = %d\n", __FUNCTION__, status));
+    }
+
     pContext->Limits.nReusedRxBuffers = pContext->NetMaxReceiveBuffers / 4 + 1;
 
     if (status == NDIS_STATUS_SUCCESS)
@@ -1884,7 +1890,7 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     ParaNdis_UpdateMAC(pContext);
 
     InterlockedExchange(&pContext->ReuseBufferRegular, TRUE);
-
+    
     pContext->RXPath[0].PopulateQueue();
 
     ReadLinkState(pContext);

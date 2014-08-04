@@ -26,6 +26,8 @@ public:
         return m_queueIndex;
     }
 
+    NDIS_STATUS SetupMessageIndex(u16 queueCardinal);
+
 private:
     bool m_interruptReported = false;
 protected:

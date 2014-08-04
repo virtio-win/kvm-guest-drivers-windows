@@ -565,6 +565,9 @@ NDIS_STATUS ParaNdis_InitializeContext(
 NDIS_STATUS ParaNdis_FinishInitialization(
     PARANDIS_ADAPTER *pContext);
 
+NDIS_STATUS ParaNdis_ConfigureMSIXVectors(
+    PARANDIS_ADAPTER *pContext);
+
 VOID ParaNdis_CleanupContext(
     PARANDIS_ADAPTER *pContext);
 

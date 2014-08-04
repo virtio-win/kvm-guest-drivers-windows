@@ -453,7 +453,7 @@ static NDIS_STATUS SetInterruptMessage(PARANDIS_ADAPTER *pContext, UINT queueInd
     return status;
 }
 
-static NDIS_STATUS ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
+NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_RESOURCES;
     UINT i;
@@ -474,20 +474,31 @@ static NDIS_STATUS ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
         {
             status = SetInterruptMessage(pContext, i);
         }
+
+        for (u16 j = 0; j < pContext->uNPathes && status == NDIS_STATUS_SUCCESS; ++j)
+        {
+            status = pContext->vPathes[j]->SetupMessageIndex(j);
+        }
+
     }
     if (status == NDIS_STATUS_SUCCESS)
     {
-        DPrintf(0, ("[%s] Using message %d for RX queue\n", __FUNCTION__, pContext->ulRxMessage));
-        DPrintf(0, ("[%s] Using message %d for TX queue\n", __FUNCTION__, pContext->ulTxMessage));
-        DPrintf(0, ("[%s] Using message %d for controls\n", __FUNCTION__, pContext->ulControlMessage));
+        DPrintf(0, ("[%s] Using message %d/%u for RX queue\n", __FUNCTION__, pContext->ulRxMessage, pContext->RXPath[0].getMessageIndex()));
+        DPrintf(0, ("[%s] Using message %d/%u for TX queue\n", __FUNCTION__, pContext->ulTxMessage, pContext->TXPath[0].getMessageIndex()));
+        DPrintf(0, ("[%s] Using message %d/%u for controls\n", __FUNCTION__, pContext->ulControlMessage, pContext->CXPath.getMessageIndex()));
+
+        ASSERTMSG("Message mismatch", pContext->ulRxMessage == pContext->RXPath[0].getMessageIndex());
+        ASSERTMSG("Message mismatch", pContext->ulTxMessage == pContext->TXPath[0].getMessageIndex());
+        ASSERTMSG("Message mismatch", pContext->ulControlMessage == pContext->CXPath.getMessageIndex());
     }
+    DEBUG_EXIT_STATUS(2, status);
     return status;
 }
 
 void ParaNdis_RestoreDeviceConfigurationAfterReset(
     PARANDIS_ADAPTER *pContext)
 {
-    ConfigureMSIXVectors(pContext);
+    ParaNdis_ConfigureMSIXVectors(pContext);
 }
 
 static void DebugParseOffloadBits()
@@ -601,7 +612,6 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
         if (NDIS_CONNECT_MESSAGE_BASED == mic.InterruptType)
         {
             pContext->pMSIXInfoTable = mic.MessageInfoTable;
-            status = ConfigureMSIXVectors(pContext);
         }
         else if (pContext->bUsingMSIX)
         {
