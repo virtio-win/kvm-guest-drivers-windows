@@ -1,4 +1,5 @@
 #include "ParaNdis-VirtQueue.h"
+#include "ParaNdis-AbstractPath.h"
 
 class CNB;
 class CParaNdisTX;
@@ -177,7 +178,7 @@ private:
 
 typedef struct _tagSynchronizedContext tSynchronizedContext;
 
-class CParaNdisTX : public CNdisAllocatable<CParaNdisTX, 'XTHR'>
+class CParaNdisTX : public CParaNdisAbstractPath<CTXVirtQueue>, public CNdisAllocatable<CParaNdisTX, 'XTHR'>
 {
 public:
     CParaNdisTX();
@@ -266,9 +267,6 @@ private:
     CNBL *PopMappedNBL() { return m_SendList.Pop(); }
     void PushMappedNBL(CNBL *NBLHolder) { m_SendList.Push(NBLHolder); }
 
-    PPARANDIS_ADAPTER m_Context;
-    CNdisSpinLock m_Lock;
     CNdisList<CNBL, CRawAccess, CNonCountingObject> m_SendList;
     CNdisList<CNBL, CRawAccess, CNonCountingObject> m_WaitingList;
-    CTXVirtQueue m_VirtQueue;
 };
