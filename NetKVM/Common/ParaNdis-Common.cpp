@@ -763,13 +763,6 @@ void ParaNdis_DeleteQueue(PARANDIS_ADAPTER *pContext, struct virtqueue **ppq, tC
     RtlZeroMemory(ppa, sizeof(*ppa));
 }
 
-// called on PASSIVE upon unsuccessful Init or upon Halt
-static void DeleteNetQueues(PARANDIS_ADAPTER *pContext)
-{
-    ParaNdis_DeleteQueue(pContext, &pContext->NetControlQueue, &pContext->ControlQueueRing);
-}
-
-
 /**********************************************************
 Initializes VirtIO buffering and related stuff:
 Allocates RX and TX queues and buffers
@@ -781,15 +774,10 @@ Return value:
 static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_RESOURCES;
-    ULONG size;
     DEBUG_ENTRY(0);
 
-    pContext->ControlData.size = 512;
-
     new (&pContext->TXPath, PLACEMENT_NEW) CParaNdisTX();
-
     pContext->bTXPathAllocated = TRUE;
-
     if (!pContext->TXPath.Create(pContext, 1))
     {
         return status;
@@ -804,28 +792,17 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     }
     pContext->bRXPathCreated = TRUE;
 
-    // We work with two virtqueues, 0 - receive and 1 - send.
-    VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 2, &size, &pContext->ControlQueueRing.size);
-    if (pContext->ControlQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ControlQueueRing))
+    new (&pContext->CXPath, PLACEMENT_NEW) CParaNdisCX();
+    pContext->bCXPathAllocated = TRUE;
+    if (!pContext->CXPath.Create(pContext, 2))
     {
-        pContext->NetControlQueue = VirtIODevicePrepareQueue(
-            &pContext->IODevice,
-            2,
-            pContext->ControlQueueRing.Physical,
-            pContext->ControlQueueRing.Virtual,
-            pContext->ControlQueueRing.size,
-            NULL,
-            pContext->bDoPublishIndices);
-    }
-
-    if (pContext->NetControlQueue)
-        ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ControlData);
-
-    if (!pContext->NetControlQueue || !pContext->ControlData.Virtual)
-    {
-        DPrintf(0, ("[%s] The Control vQueue does not work!\n", __FUNCTION__) );
+        DPrintf(0, ("[%s] The Control vQueue does not work!\n", __FUNCTION__));
         pContext->bHasHardwareFilters = FALSE;
         pContext->bCtrlMACAddrSupported = FALSE;
+    }
+    else
+    {
+        pContext->bCXPathCreated = TRUE;
     }
 
     status = NDIS_STATUS_SUCCESS;
@@ -879,8 +856,6 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     DEBUG_ENTRY(0);
-
-    NdisAllocateSpinLock(&pContext->ControlQueueLock);
 
     status = ParaNdis_FinishSpecificInitialization(pContext);
 
@@ -946,16 +921,11 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
         pContext->TXPath.Shutdown();
     if (pContext->bRXPathCreated)
         pContext->RXPath.Shutdown();
-    if(pContext->NetControlQueue)
-        virtqueue_shutdown(pContext->NetControlQueue);
-
-    DeleteNetQueues(pContext);
+    if(pContext->bCXPathCreated)
+        pContext->CXPath.Shutdown();
 
     /* this can be freed, queue shut down */
     pContext->RXPath.FreeRxDescriptorsFromList();
-
-    if (pContext->ControlData.Virtual)
-        ParaNdis_FreePhysicalMemory(pContext, &pContext->ControlData);
 
     PrintStatistics(pContext);
 }
@@ -1015,11 +985,6 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 
     ParaNdis_FinalizeCleanup(pContext);
 
-    if (pContext->ControlQueueLock.SpinLock)
-    {
-        NdisFreeSpinLock(&pContext->ControlQueueLock);
-    }
-
     if (pContext->ReceiveQueuesInitialized)
     {
         ULONG i;
@@ -1052,6 +1017,11 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     if (pContext->bRXPathAllocated)
     {
         pContext->RXPath.~CParaNdisRX();
+    }
+
+    if (pContext->bCXPathAllocated)
+    {
+        pContext->CXPath.~CParaNdisCX();
     }
 
     if (pContext->AdapterResources.ulIOAddress)
@@ -1743,117 +1713,27 @@ VOID ParaNdis_OnPnPEvent(
         pContext->nPnpEventIndex = 0;
 }
 
-static BOOLEAN SendControlMessage(
-    PARANDIS_ADAPTER *pContext,
-    UCHAR cls,
-    UCHAR cmd,
-    PVOID buffer1,
-    ULONG size1,
-    PVOID buffer2,
-    ULONG size2,
-    int levelIfOK
-    )
-{
-    BOOLEAN bOK = FALSE;
-    NdisAcquireSpinLock(&pContext->ControlQueueLock);
-    if (pContext->ControlData.Virtual && pContext->ControlData.size > (size1 + size2 + 16))
-    {
-        struct VirtIOBufferDescriptor sg[4];
-        PUCHAR pBase = (PUCHAR)pContext->ControlData.Virtual;
-        PHYSICAL_ADDRESS phBase = pContext->ControlData.Physical;
-        ULONG offset = 0;
-        UINT nOut = 1;
-
-        ((virtio_net_ctrl_hdr *)pBase)->class_of_command = cls;
-        ((virtio_net_ctrl_hdr *)pBase)->cmd = cmd;
-        sg[0].physAddr = phBase;
-        sg[0].length = sizeof(virtio_net_ctrl_hdr);
-        offset += sg[0].length;
-        offset = (offset + 3) & ~3;
-        if (size1)
-        {
-            NdisMoveMemory(pBase + offset, buffer1, size1);
-            sg[nOut].physAddr = phBase;
-            sg[nOut].physAddr.QuadPart += offset;
-            sg[nOut].length = size1;
-            offset += size1;
-            offset = (offset + 3) & ~3;
-            nOut++;
-        }
-        if (size2)
-        {
-            NdisMoveMemory(pBase + offset, buffer2, size2);
-            sg[nOut].physAddr = phBase;
-            sg[nOut].physAddr.QuadPart += offset;
-            sg[nOut].length = size2;
-            offset += size2;
-            offset = (offset + 3) & ~3;
-            nOut++;
-        }
-        sg[nOut].physAddr = phBase;
-        sg[nOut].physAddr.QuadPart += offset;
-        sg[nOut].length = sizeof(virtio_net_ctrl_ack);
-        *(virtio_net_ctrl_ack *)(pBase + offset) = VIRTIO_NET_ERR;
-
-        if (0 <= virtqueue_add_buf(pContext->NetControlQueue, sg, nOut, 1, (PVOID)1, NULL, 0))
-        {
-            UINT len;
-            void *p;
-            virtqueue_notify(pContext->NetControlQueue);
-            p = virtqueue_get_buf(pContext->NetControlQueue, &len);
-            if (!p)
-            {
-                DPrintf(0, ("%s - ERROR: get_buf failed\n", __FUNCTION__));
-            }
-            else if (len != sizeof(virtio_net_ctrl_ack))
-            {
-                DPrintf(0, ("%s - ERROR: wrong len %d\n", __FUNCTION__, len));
-            }
-            else if (*(virtio_net_ctrl_ack *)(pBase + offset) != VIRTIO_NET_OK)
-            {
-                DPrintf(0, ("%s - ERROR: error %d returned for class %d\n", __FUNCTION__, *(virtio_net_ctrl_ack *)(pBase + offset), cls));
-            }
-            else
-            {
-                // everything is OK
-                DPrintf(levelIfOK, ("%s OK(%d.%d,buffers of %d and %d) \n", __FUNCTION__, cls, cmd, size1, size2));
-                bOK = TRUE;
-            }
-        }
-        else
-        {
-            DPrintf(0, ("%s - ERROR: add_buf failed\n", __FUNCTION__));
-        }
-    }
-    else
-    {
-        DPrintf(0, ("%s (buffer %d,%d) - ERROR: message too LARGE\n", __FUNCTION__, size1, size2));
-    }
-    NdisReleaseSpinLock(&pContext->ControlQueueLock);
-    return bOK;
-}
-
 static VOID ParaNdis_DeviceFiltersUpdateRxMode(PARANDIS_ADAPTER *pContext)
 {
     u8 val;
     ULONG f = pContext->PacketFilter;
     val = (f & NDIS_PACKET_TYPE_ALL_MULTICAST) ? 1 : 0;
-    SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_ALLMULTI, &val, sizeof(val), NULL, 0, 2);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_ALLMULTI, &val, sizeof(val), NULL, 0, 2);
     //SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_ALLUNI, &val, sizeof(val), NULL, 0, 2);
     val = (f & (NDIS_PACKET_TYPE_MULTICAST | NDIS_PACKET_TYPE_ALL_MULTICAST)) ? 0 : 1;
-    SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOMULTI, &val, sizeof(val), NULL, 0, 2);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOMULTI, &val, sizeof(val), NULL, 0, 2);
     val = (f & NDIS_PACKET_TYPE_DIRECTED) ? 0 : 1;
-    SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOUNI, &val, sizeof(val), NULL, 0, 2);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOUNI, &val, sizeof(val), NULL, 0, 2);
     val = (f & NDIS_PACKET_TYPE_BROADCAST) ? 0 : 1;
-    SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOBCAST, &val, sizeof(val), NULL, 0, 2);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOBCAST, &val, sizeof(val), NULL, 0, 2);
     val = (f & NDIS_PACKET_TYPE_PROMISCUOUS) ? 1 : 0;
-    SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_PROMISC, &val, sizeof(val), NULL, 0, 2);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_PROMISC, &val, sizeof(val), NULL, 0, 2);
 }
 
 static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)
 {
     u32 u32UniCastEntries = 0;
-    SendControlMessage(pContext, VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_TABLE_SET,
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_TABLE_SET,
                         &u32UniCastEntries,
                         sizeof(u32UniCastEntries),
                         &pContext->MulticastData,
@@ -1865,7 +1745,7 @@ static VOID SetSingleVlanFilter(PARANDIS_ADAPTER *pContext, ULONG vlanId, BOOLEA
 {
     u16 val = vlanId & 0xfff;
     UCHAR cmd = bOn ? VIRTIO_NET_CTRL_VLAN_ADD : VIRTIO_NET_CTRL_VLAN_DEL;
-    SendControlMessage(pContext, VIRTIO_NET_CTRL_VLAN, cmd, &val, sizeof(val), NULL, 0, levelIfOK);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_VLAN, cmd, &val, sizeof(val), NULL, 0, levelIfOK);
 }
 
 static VOID SetAllVlanFilters(PARANDIS_ADAPTER *pContext, BOOLEAN bOn)
@@ -1923,7 +1803,7 @@ ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext)
 {
     if (pContext->bCtrlMACAddrSupported)
     {
-        SendControlMessage(pContext, VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_ADDR_SET,
+        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_ADDR_SET,
                            pContext->CurrentMacAddress,
                            ETH_LENGTH_OF_ADDRESS,
                            NULL, 0, 4);
@@ -1936,7 +1816,7 @@ ParaNdis_UpdateGuestOffloads(PARANDIS_ADAPTER *pContext, UINT64 Offloads)
 {
     if (pContext->RSC.bHasDynamicConfig)
     {
-        SendControlMessage(pContext, VIRTIO_NET_CTRL_GUEST_OFFLOADS, VIRTIO_NET_CTRL_GUEST_OFFLOADS_SET,
+        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_GUEST_OFFLOADS, VIRTIO_NET_CTRL_GUEST_OFFLOADS_SET,
                            &Offloads,
                            sizeof(Offloads),
                            NULL, 0, 2);
@@ -1957,9 +1837,7 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 
     pContext->RXPath.Renew();
     pContext->TXPath.Renew();
-
-    if(pContext->NetControlQueue)
-        VirtIODeviceRenewQueue(pContext->NetControlQueue);
+    pContext->CXPath.Renew();
 
     ParaNdis_RestoreDeviceConfigurationAfterReset(pContext);
 
@@ -2025,9 +1903,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
 
     pContext->TXPath.Shutdown();
     pContext->RXPath.Shutdown();
-
-    if(pContext->NetControlQueue)
-        virtqueue_shutdown(pContext->NetControlQueue);
+    pContext->CXPath.Shutdown();
 
     ParaNdis_ResetVirtIONetDevice(pContext);
     ParaNdis_DebugHistory(pContext, hopPowerOff, NULL, 0, 0, 0);

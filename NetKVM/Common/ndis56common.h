@@ -90,6 +90,7 @@ static __inline BOOLEAN ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq)
 
 #include "ParaNdis-TX.h"
 #include "ParaNdis-RX.h"
+#include "ParaNdis-CX.h"
 
 // those stuff defined in NDIS
 //NDIS_MINIPORT_MAJOR_VERSION
@@ -457,11 +458,6 @@ typedef struct _tagPARANDIS_ADAPTER
     CNdisRefCounter         m_upstreamPacketPending;
 
     LONG                    ReuseBufferRegular;
-    /* Net part - management of buffers and queues of QEMU */
-    NDIS_SPIN_LOCK          ControlQueueLock;
-    struct virtqueue *      NetControlQueue;
-    tCompletePhysicalAddress ControlQueueRing;
-    tCompletePhysicalAddress ControlData;
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
     UINT                    maxFreeTxDescriptors;
     /* total of Rx buffer in turnaround */
@@ -489,6 +485,10 @@ typedef struct _tagPARANDIS_ADAPTER
     CParaNdisRX RXPath;
     BOOLEAN bRXPathAllocated;
     BOOLEAN bRXPathCreated;
+
+    CParaNdisCX CXPath;
+    BOOLEAN bCXPathAllocated;
+    BOOLEAN bCXPathCreated;
 
     PIO_INTERRUPT_MESSAGE_INFO  pMSIXInfoTable;
     NDIS_HANDLE                 DmaHandle;

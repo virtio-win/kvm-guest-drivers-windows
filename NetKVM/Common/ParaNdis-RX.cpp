@@ -142,8 +142,6 @@ BOOLEAN CParaNdisRX::AddRxBufferToQueue(pRxNetDescriptor pBufferDescriptor)
 
 void CParaNdisRX::FreeRxDescriptorsFromList()
 {
-    ASSERT(m_upstreamPacketPending == 0);
-
     while (!IsListEmpty(&m_NetReceiveBuffers))
     {
         pRxNetDescriptor pBufferDescriptor = (pRxNetDescriptor)RemoveHeadList(&m_NetReceiveBuffers);
@@ -179,7 +177,7 @@ void CParaNdisRX::ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor)
             virtqueue_kick(m_NetReceiveQueue);
         }
 
-        /* TODO - Context ReceiveState should take into account all queues */
+        /* TODO -  the callback dispatch should be performed as a context method */
         if (m_Context->m_upstreamPacketPending == 0)
         {
             if (m_Context->ReceiveState == srsPausing || m_Context->ReceivePauseCompletionProc)

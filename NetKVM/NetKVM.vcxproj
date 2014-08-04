@@ -952,6 +952,7 @@
     <ClInclude Include="Common\IONetDescriptor.h" />
     <ClInclude Include="Common\ndis56common.h" />
     <ClInclude Include="Common\osdep.h" />
+    <ClInclude Include="Common\ParaNdis-CX.h" />
     <ClInclude Include="Common\ParaNdis-Oid.h" />
     <ClInclude Include="Common\ParaNdis-RSS.h" />
     <ClInclude Include="Common\ParaNdis-RX.h" />
@@ -965,6 +966,7 @@
     <ClCompile Include="..\VirtIO\VirtIOPCI.c" />
     <ClCompile Include="..\VirtIO\VirtIORing.c" />
     <ClCompile Include="Common\ParaNdis-Common.cpp" />
+    <ClCompile Include="Common\ParaNdis-CX.cpp" />
     <ClCompile Include="Common\ParaNdis-Debug.cpp" />
     <ClCompile Include="Common\ParaNdis-Oid.cpp" />
     <ClCompile Include="Common\ParaNdis-RX.cpp" />

@@ -93,6 +93,9 @@
     <ClInclude Include="Common\ParaNdis-RX.h">
       <Filter>Header Files\Common</Filter>
     </ClInclude>
+    <ClInclude Include="Common\ParaNdis-CX.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\VirtIO\VirtIOPCI.c">
@@ -135,6 +138,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Common\ParaNdis-RX.cpp">
+      <Filter>Source Files\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="Common\ParaNdis-CX.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
   </ItemGroup>
