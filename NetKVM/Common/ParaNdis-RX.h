@@ -1,7 +1,8 @@
 #include "ParaNdis-VirtQueue.h"
+#include "ParaNdis-AbstractPath.h"
 #include "ndis56common.h"
 
-class CParaNdisRX : public CNdisAllocatable < CParaNdisRX, 'XRHR' > {
+class CParaNdisRX : public CParaNdisAbstractPath<CVirtQueue>, public CNdisAllocatable < CParaNdisRX, 'XRHR' > {
 public:
     CParaNdisRX();
     ~CParaNdisRX();
@@ -13,12 +14,12 @@ public:
     void PopulateQueue();
 
     void Renew() {
-        VirtIODeviceRenewQueue(m_NetReceiveQueue);
+        m_VirtQueue.Renew();
     }
 
     void Shutdown() {
         CLockedContext<CNdisSpinLock> autoLock(m_Lock);
-        virtqueue_shutdown(m_NetReceiveQueue);
+        m_VirtQueue.Shutdown();
     }
 
     void FreeRxDescriptorsFromList();
@@ -38,34 +39,27 @@ public:
     VOID ProcessRxRing(CCHAR nCurrCpuReceiveQueue);
 
     void EnableInterrupts() {
-        virtqueue_enable_cb(m_NetReceiveQueue);
+        m_VirtQueue.EnableInterrupts();
     }
 
     //TODO: Needs review/temporary?
     void DisableInterrupts() {
-        virtqueue_disable_cb(m_NetReceiveQueue);
+        m_VirtQueue.DisableInterrupts();
     }
 
     BOOLEAN RestartQueue();
 
     BOOLEAN IsInterruptEnabled() {
-        return ParaNDIS_IsQueueInterruptEnabled(m_NetReceiveQueue);
+        return m_VirtQueue.IsInterruptEnabled();
     }
 
 
 private:
-    PPARANDIS_ADAPTER m_Context;
-
-
-    struct virtqueue *       m_NetReceiveQueue;
-    tCompletePhysicalAddress m_ReceiveQueueRing;
     /* list of Rx buffers available for data (under VIRTIO management) */
     LIST_ENTRY              m_NetReceiveBuffers;
     UINT                    m_NetNofReceiveBuffers;
 
     UINT m_nReusedRxBuffersCounter, m_nReusedRxBuffersLimit;
-
-    CNdisSpinLock            m_Lock;
 
     void ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor);
     void ReuseReceiveBufferPowerOff(pRxNetDescriptor pBuffersDescriptor);

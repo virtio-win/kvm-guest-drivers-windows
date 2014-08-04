@@ -7,43 +7,11 @@ CParaNdisCX::CParaNdisCX()
 
 CParaNdisCX::~CParaNdisCX()
 {
-    ParaNdis_DeleteQueue(m_Context, &m_VirtQueue, &m_VirtQueueRing);
 }
 
 bool CParaNdisCX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 {
-    ULONG size;
-
     m_Context = Context;
-
-    VirtIODeviceQueryQueueAllocation(&m_Context->IODevice, DeviceQueueIndex, &size, &m_VirtQueueRing.size);
-    if (!m_VirtQueueRing.size)
-    {
-        DPrintf(0, ("CParaNdisCX::Create - VirtIODeviceQueryQueueAllocation failed for %u\n", DeviceQueueIndex));
-        return false;
-    }
-
-    if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, &m_VirtQueueRing))
-    {
-        DPrintf(0, ("CParaNdisCX::Create - ParaNdis_InitialAllocatePhysicalMemory failed for %u\n", DeviceQueueIndex));
-        return false;
-    }
-
-    m_VirtQueue = VirtIODevicePrepareQueue(
-        &m_Context->IODevice,
-        DeviceQueueIndex,
-        m_VirtQueueRing.Physical,
-        m_VirtQueueRing.Virtual,
-        m_VirtQueueRing.size,
-        NULL,
-        m_Context->bDoPublishIndices);
-
-    if (m_VirtQueue == nullptr)
-    {
-        DPrintf(0, ("CParaNdisCX::Create - VirtIODevicePrepareQueue failed for %u\n",
-            DeviceQueueIndex));
-        return false;
-    }
 
     if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, &m_ControlData))
     {
@@ -51,7 +19,11 @@ bool CParaNdisCX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
             DeviceQueueIndex));
         return false;
     }
-    return true;
+
+    return m_VirtQueue.Create(DeviceQueueIndex,
+        &m_Context->IODevice,
+        m_Context->MiniportHandle,
+        m_Context->bDoPublishIndices ? true : false);
 }
 
 BOOLEAN CParaNdisCX::SendControlMessage(
@@ -106,14 +78,14 @@ BOOLEAN CParaNdisCX::SendControlMessage(
         sg[nOut].length = sizeof(virtio_net_ctrl_ack);
         *(virtio_net_ctrl_ack *)(pBase + offset) = VIRTIO_NET_ERR;
 
-        if (0 <= virtqueue_add_buf(m_VirtQueue, sg, nOut, 1, (PVOID)1, NULL, 0))
+        if (0 <= m_VirtQueue.AddBuf(sg, nOut, 1, (PVOID)1, NULL, 0))
         {
             UINT len;
             void *p;
             /* Control messages are processed synchronously in QEMU, so upon kick_buf return, the response message
               has been already inserted in the queue */
-            virtqueue_kick(m_VirtQueue);
-            p = virtqueue_get_buf(m_VirtQueue, &len);
+            m_VirtQueue.KickAlways();
+            p = m_VirtQueue.GetBuf(&len);
             if (!p)
             {
                 DPrintf(0, ("%s - ERROR: get_buf failed\n", __FUNCTION__));

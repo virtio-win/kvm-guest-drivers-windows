@@ -54,6 +54,11 @@ void CVirtQueue::Delete()
     }
 }
 
+void CVirtQueue::Shutdown()
+{
+    virtqueue_shutdown(m_VirtQueue);
+}
+
 bool CTXVirtQueue::PrepareBuffers()
 {
     auto NumBuffers = min(m_MaxBuffers, GetRingSize());

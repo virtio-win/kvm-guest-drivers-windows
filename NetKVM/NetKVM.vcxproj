@@ -952,6 +952,7 @@
     <ClInclude Include="Common\IONetDescriptor.h" />
     <ClInclude Include="Common\ndis56common.h" />
     <ClInclude Include="Common\osdep.h" />
+    <ClInclude Include="Common\ParaNdis-AbstractPath.h" />
     <ClInclude Include="Common\ParaNdis-CX.h" />
     <ClInclude Include="Common\ParaNdis-Oid.h" />
     <ClInclude Include="Common\ParaNdis-RSS.h" />

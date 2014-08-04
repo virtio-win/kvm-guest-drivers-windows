@@ -146,12 +146,6 @@ private:
 class CVirtQueue
 {
 public:
-    ULONG GetRingSize()
-    { return VirtIODeviceGetQueueSize(m_VirtQueue); }
-
-    void Renew();
-
-protected:
     CVirtQueue()
         : m_DrvHandle(NULL)
         , m_Index(0xFFFFFFFF)
@@ -167,6 +161,48 @@ protected:
         NDIS_HANDLE DrvHandle,
         bool UsePublishedIndices);
 
+    ULONG GetRingSize()
+    { return VirtIODeviceGetQueueSize(m_VirtQueue); }
+
+    void Renew();
+
+    void Shutdown();
+
+    int AddBuf(struct VirtIOBufferDescriptor sg[],
+        unsigned int out_num,
+        unsigned int in_num,
+        void *data,
+        void *va_indirect,
+        ULONGLONG phys_indirect)
+    { return virtqueue_add_buf(m_VirtQueue, sg, out_num, in_num, data, 
+          va_indirect, phys_indirect); }
+
+    void KickAlways()
+    { virtqueue_kick(m_VirtQueue); }
+
+    void* GetBuf(unsigned int *len)
+    { return virtqueue_get_buf(m_VirtQueue, len); }
+
+    //TODO: Needs review / temporary
+    void Kick()
+    { virtqueue_kick(m_VirtQueue); }
+
+    bool Restart()
+    { return virtqueue_enable_cb(m_VirtQueue); }
+
+    //TODO: Needs review/temporary?
+    void EnableInterrupts()
+    { virtqueue_enable_cb(m_VirtQueue); }
+
+    //TODO: Needs review/temporary?
+    void DisableInterrupts()
+    { virtqueue_disable_cb(m_VirtQueue); }
+
+    //TODO: Needs review/temporary?
+    bool IsInterruptEnabled()
+    { return virtqueue_is_interrupt_enabled(m_VirtQueue) ? true : false; }
+
+protected:
     NDIS_HANDLE m_DrvHandle;
 
 private:

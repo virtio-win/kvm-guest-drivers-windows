@@ -7,43 +7,23 @@ CParaNdisRX::CParaNdisRX() : m_nReusedRxBuffersCounter(0), m_NetNofReceiveBuffer
 
 CParaNdisRX::~CParaNdisRX()
 {
-    ParaNdis_DeleteQueue(m_Context, &m_NetReceiveQueue, &m_ReceiveQueueRing);
 }
 
 bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 {
-    ULONG size;
-
     m_Context = Context;
+
+    if (!m_VirtQueue.Create(DeviceQueueIndex,
+        &m_Context->IODevice,
+        m_Context->MiniportHandle,
+        m_Context->bDoPublishIndices ? true : false))
+    {
+        DPrintf(0, ("CParaNdisRX::Create - virtqueue creation failed\n"));
+        return false;
+    }
 
     m_nReusedRxBuffersLimit = m_Context->NetMaxReceiveBuffers / 4 + 1;
 
-    VirtIODeviceQueryQueueAllocation(&m_Context->IODevice, DeviceQueueIndex, &size, &m_ReceiveQueueRing.size);
-    if (m_ReceiveQueueRing.size == 0)
-    {
-        DPrintf(0, ("CParaNdisRX::Create: VirtIODeviceQueryQueueAllocation failed\n"));
-        return false;
-    }
-
-    if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, &m_ReceiveQueueRing))
-    {
-        DPrintf(0, ("CParaNdisRX::Create: ParaNdis_InitialAllocatePhysicalMemory failed\n"));
-        return 0;
-    }
-
-    m_NetReceiveQueue = VirtIODevicePrepareQueue(
-            &m_Context->IODevice,
-            DeviceQueueIndex,
-            m_ReceiveQueueRing.Physical,
-            m_ReceiveQueueRing.Virtual,
-            m_ReceiveQueueRing.size,
-            NULL,
-            m_Context->bDoPublishIndices);
-    if (m_NetReceiveQueue == NULL)
-    {
-        DPrintf(0, ("CParaNdisRX::Create: VirtIODevicePrepareQueue failed\n"));
-        return false;
-    }
     PrepareReceiveBuffers();
 
     return true;
@@ -74,7 +54,7 @@ int CParaNdisRX::PrepareReceiveBuffers()
     m_Context->NetMaxReceiveBuffers = m_NetNofReceiveBuffers;
     DPrintf(0, ("[%s] MaxReceiveBuffers %d\n", __FUNCTION__, m_Context->NetMaxReceiveBuffers));
 
-    virtqueue_kick(m_NetReceiveQueue);
+    m_VirtQueue.Kick();
 
     return nRet;
 }
@@ -130,8 +110,7 @@ error_exit:
 
 BOOLEAN CParaNdisRX::AddRxBufferToQueue(pRxNetDescriptor pBufferDescriptor)
 {
-    return 0 <= virtqueue_add_buf(
-        m_Context->RXPath.m_NetReceiveQueue,
+    return 0 <= m_VirtQueue.AddBuf(
         pBufferDescriptor->BufferSGArray,
         0,
         pBufferDescriptor->PagesAllocated,
@@ -174,7 +153,7 @@ void CParaNdisRX::ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor)
         if (++m_nReusedRxBuffersCounter >= m_nReusedRxBuffersLimit)
         {
             m_nReusedRxBuffersCounter = 0;
-            virtqueue_kick(m_NetReceiveQueue);
+            m_VirtQueue.KickAlways();
         }
 
         /* TODO -  the callback dispatch should be performed as a context method */
@@ -211,7 +190,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 
     CLockedContext<CNdisSpinLock> autoLock(m_Lock);
 
-    while (NULL != (pBufferDescriptor = (pRxNetDescriptor)virtqueue_get_buf(m_NetReceiveQueue, &nFullLength)))
+    while (NULL != (pBufferDescriptor = (pRxNetDescriptor)m_VirtQueue.GetBuf(&nFullLength)))
     {
         CCHAR nTargetReceiveQueueNum;
         GROUP_AFFINITY TargetAffinity;
@@ -283,13 +262,13 @@ void CParaNdisRX::PopulateQueue()
             m_Context->NetMaxReceiveBuffers--;
         }
     }
-    virtqueue_kick(m_NetReceiveQueue);
+    m_VirtQueue.Kick();
 }
 
 BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) CParaNdisRX::RestartQueueSynchronously(tSynchronizedContext *ctx)
 {
-    struct virtqueue * _vq = (struct virtqueue *) ctx->Parameter;
-    bool res = virtqueue_enable_cb(_vq);
+    CVirtQueue *queue = (CVirtQueue *) ctx->Parameter;
+    bool res = queue->Restart();
 
     ParaNdis_DebugHistory(ctx->pContext, hopDPC, (PVOID)ctx->Parameter, 0x20, res, 0);
     return !res;
@@ -301,5 +280,5 @@ BOOLEAN CParaNdisRX::RestartQueue()
     return ParaNdis_SynchronizeWithInterrupt(m_Context,
         m_Context->ulRxMessage,
         RestartQueueSynchronously,
-        m_NetReceiveQueue);
+        &m_VirtQueue);
 }
