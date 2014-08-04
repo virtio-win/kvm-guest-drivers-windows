@@ -260,7 +260,7 @@ UINT CTXVirtQueue::VirtIONetReleaseTransmitBuffers()
         m_DoKickOnNoBuffer = true;
         m_Context->nDetectedStoppedTx = 0;
     }
-    DEBUG_EXIT_STATUS((i ? 3 : 5), i);
+    DPrintf((i ? 3 : 5), ("[%s] returning i = %d\n", __FUNCTION__, i)); 
     return i;
 }
 
