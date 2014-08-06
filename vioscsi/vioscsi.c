@@ -431,11 +431,15 @@ VioScsiHwInitialize(
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PVOID              ptr      = adaptExt->uncachedExtensionVa;
     ULONG              i;
+    ULONG              guestFeatures = (1ul << VIRTIO_SCSI_F_HOTPLUG) | (1ul << VIRTIO_SCSI_F_CHANGE);
 
 #if (MSI_SUPPORTED == 1)
     MESSAGE_INTERRUPT_INFORMATION msi_info;
 #endif
 ENTER_FN();
+    if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX)) {
+        guestFeatures |= (1ul << VIRTIO_RING_F_EVENT_IDX);
+    }
     if (adaptExt->vq[0] == NULL) {
       adaptExt->msix_vectors = 0;
   #if (MSI_SUPPORTED == 1)
@@ -496,8 +500,7 @@ ENTER_FN();
       }
 
       StorPortWritePortUlong(DeviceExtension,
-             (PULONG)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES),
-			 (ULONG)((1 << VIRTIO_SCSI_F_HOTPLUG) | (1 << VIRTIO_SCSI_F_CHANGE) | (1 << VIRTIO_RING_F_EVENT_IDX)));
+             (PULONG)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), guestFeatures);
       StorPortWritePortUchar(DeviceExtension,
              (PUCHAR)(adaptExt->device_base + VIRTIO_PCI_STATUS),
              (UCHAR)VIRTIO_CONFIG_S_DRIVER_OK);
