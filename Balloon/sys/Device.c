@@ -429,6 +429,7 @@ BalloonEvtDeviceD0Entry(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
            "BalloonInit failed with status 0x%08x\n", status);
+        BalloonTerm(Device);
         return status;
     }
 
