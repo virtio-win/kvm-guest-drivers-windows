@@ -1,4 +1,4 @@
-rem @echo off
+@echo off
 
 set SYS_FILE_NAME=vioscsi
 
@@ -45,7 +45,7 @@ set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% 
 set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
 call :create2012H  > vioscsi-2012.h
 set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_% 
-call ..\tools\callVisualStudio.bat 12 vioscsi.vcxproj /Rebuild "%~1" /Out %2
+call ..\tools\callVisualStudio.bat 11 vioscsi.vcxproj /Rebuild "%~1" /Out %2
 endlocal
 goto :eof
 
@@ -62,7 +62,7 @@ set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% 
 set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
 
 set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_% 
-call "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" %2
+call "C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\vcvarsall.bat" %2
 msbuild.exe vioscsi.vcxproj /t:clean /p:Configuration="%~1" /P:Platform=%2 
 msbuild.exe vioscsi.vcxproj /t:sdv /p:inputs="/clean" /p:Configuration="%~1" /P:platform=%2
 msbuild.exe vioscsi.vcxproj /p:Configuration="%~1" /P:Platform=%2 /P:RunCodeAnalysisOnce=True
