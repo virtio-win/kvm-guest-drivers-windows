@@ -297,12 +297,36 @@ ENTER_FN();
     VirtIODeviceReset(&adaptExt->vdev);
 
     if (adaptExt->dump_mode) {
+        // In dump mode, StorPortGetUncachedExtension can't fails if queues have more than 256 descriptors
+        #define MAX_DUMP_MODE_QUEUE_NUM 256
+
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)0);
         StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
+        adaptExt->original_queue_num[0] = StorPortReadPortUshort(adaptExt, (PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_NUM));
+        if (adaptExt->original_queue_num[0] > MAX_DUMP_MODE_QUEUE_NUM) {
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("Virtual queue 0 num descriptors reduced in dump mode.\n"));
+            StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM), MAX_DUMP_MODE_QUEUE_NUM);
+        } else {
+            adaptExt->original_queue_num[0] = 0;
+        }
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)1);
         StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
+        adaptExt->original_queue_num[1] = StorPortReadPortUshort(adaptExt, (PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_NUM));
+        if (adaptExt->original_queue_num[1] > MAX_DUMP_MODE_QUEUE_NUM) {
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("Virtual queue 1 num descriptors reduced in dump mode.\n"));
+            StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM), MAX_DUMP_MODE_QUEUE_NUM);
+        } else {
+            adaptExt->original_queue_num[1] = 0;
+        }
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)2);
         StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
+        adaptExt->original_queue_num[2] = StorPortReadPortUshort(adaptExt, (PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_NUM));
+        if (adaptExt->original_queue_num[2] > MAX_DUMP_MODE_QUEUE_NUM) {
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("Virtual queue 2 num descriptors reduced in dump mode.\n"));
+            StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM), MAX_DUMP_MODE_QUEUE_NUM);
+        } else {
+            adaptExt->original_queue_num[2] = 0;
+        }
     }
 
     adaptExt->features = StorPortReadPortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
