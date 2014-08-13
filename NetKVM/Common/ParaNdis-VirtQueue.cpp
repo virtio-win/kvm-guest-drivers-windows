@@ -70,7 +70,8 @@ bool CTXVirtQueue::PrepareBuffers()
             m_HeaderSize,
             m_SGTable,
             m_SGTableCapacity,
-            m_Context->bUseIndirect ? true : false))
+            m_Context->bUseIndirect ? true : false,
+            m_Context->bAnyLaypout ? true : false))
         {
             CTXDescriptor::Destroy(TXDescr, m_Context->MiniportHandle);
             break;
@@ -334,8 +335,17 @@ bool CTXDescriptor::SetupHeaders(ULONG ParsedHeadersLength)
 
     if (m_Headers.VlanHeader()->TCI == 0)
     {
-        return AddDataChunk(m_Headers.VirtioHeaderPA(), m_Headers.VirtioHeaderLength() +
-                                                        ParsedHeadersLength);
+        if (m_AnyLayout)
+        {
+            return AddDataChunk(m_Headers.VirtioHeaderPA(), m_Headers.VirtioHeaderLength() +
+                                ParsedHeadersLength);
+        }
+        else
+        {
+            return AddDataChunk(m_Headers.VirtioHeaderPA(), m_Headers.VirtioHeaderLength()) &&
+                   AddDataChunk(m_Headers.EthHeaderPA(), ParsedHeadersLength);
+        }
+
     }
     else
     {

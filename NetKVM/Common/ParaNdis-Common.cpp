@@ -425,6 +425,7 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
         {VIRTIO_NET_F_CTRL_RX_EXTRA, "VIRTIO_NET_F_CTRL_RX_EXTRA"},
         {VIRTIO_NET_F_CTRL_MAC_ADDR, "VIRTIO_NET_F_CTRL_MAC_ADDR"},
         {VIRTIO_F_INDIRECT, "VIRTIO_F_INDIRECT"},
+        {VIRTIO_F_ANY_LAYOUT, "VIRTIO_F_ANY_LAYOUT"},
         { VIRTIO_RING_F_EVENT_IDX, "VIRTIO_RING_F_EVENT_IDX" },
     };
     UINT i;
@@ -722,6 +723,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
     }
 
     pContext->bUseIndirect = AckFeature(pContext, VIRTIO_F_INDIRECT);
+    pContext->bAnyLaypout = AckFeature(pContext, VIRTIO_F_ANY_LAYOUT);
 
     pContext->bHasHardwareFilters = AckFeature(pContext, VIRTIO_NET_F_CTRL_RX_EXTRA);
 

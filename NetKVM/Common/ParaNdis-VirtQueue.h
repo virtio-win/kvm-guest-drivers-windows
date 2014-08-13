@@ -94,7 +94,8 @@ public:
                   ULONG VirtioHeaderSize,
                   struct VirtIOBufferDescriptor *VirtioSGL,
                   ULONG VirtioSGLSize,
-                  bool Indirect)
+                  bool Indirect,
+                  bool AnyLayout)
     {
         if (!m_Headers.Create(DrvHandle, VirtioHeaderSize))
             return false;
@@ -103,6 +104,8 @@ public:
         m_VirtioSGL = VirtioSGL;
         m_VirtioSGLSize = VirtioSGLSize;
         m_Indirect = Indirect;
+        m_AnyLayout = AnyLayout;
+
 
         return m_Headers.Allocate() && (!m_Indirect || m_IndirectArea.Allocate(PAGE_SIZE));
     }
@@ -125,6 +128,7 @@ private:
     CTXHeaders m_Headers;
     CNdisSharedMemory m_IndirectArea;
     bool m_Indirect;
+    bool m_AnyLayout;
 
     struct VirtIOBufferDescriptor *m_VirtioSGL;
     ULONG m_VirtioSGLSize;
