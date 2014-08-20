@@ -41,7 +41,9 @@ ENTER_FN();
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
-        virtqueue_kick(adaptExt->vq[2]);
+        if(++adaptExt->in_fly < 3) {
+            virtqueue_kick(adaptExt->vq[2]);
+        }
         return TRUE;
     }
     Srb->SrbStatus = SRB_STATUS_BUSY;

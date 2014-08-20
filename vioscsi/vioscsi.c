@@ -653,6 +653,9 @@ VioScsiInterrupt(
          --adaptExt->in_fly;
            CompleteRequest(DeviceExtension, Srb);
         }
+        if (adaptExt->in_fly > 0) {
+           virtqueue_kick(adaptExt->vq[2]);
+        }
         if (adaptExt->tmf_infly) {
            while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[0], &len)) != NULL) {
               VirtIOSCSICtrlTMFResp *resp;
@@ -843,6 +846,11 @@ VioScsiMSInterrupt (
            }
            --adaptExt->in_fly;
            CompleteRequest(DeviceExtension, Srb);
+
+           if (adaptExt->in_fly > 0)
+           {
+               virtqueue_kick(adaptExt->vq[2]);
+           }
         }
         return TRUE;
     }
