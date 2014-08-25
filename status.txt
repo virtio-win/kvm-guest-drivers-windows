@@ -1,3 +1,13 @@
+Date    25 Aug 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm110
+
+BZ 1130853: Balloon fix bsod on several pnp whql tests.
+BZ 1121933: Balloon NetKvm check for VIRTIO_F_ANY_LAYOUT feature before using optim
+BZ 1113910: fix bsod when hotplug device in a loop (w/ verifier).
+BZ 922014: pcoserial Add build procedure for pciserial INF.
+
+
 Date    4 Aug 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm109
