@@ -48,10 +48,30 @@ public:
         m_pVirtQueue->EnableInterrupts();
     }
 
+    ULONG getCPUIndex()
+    {
+#if NDIS_SUPPORT_NDIS620
+        PROCESSOR_NUMBER procNumber;
+
+        procNumber.Group = DPCAffinity.Group;
+        ULONG number = ParaNdis_GetIndexFromAffinity(DPCAffinity.Mask);
+        if (number == INVALID_PROCESSOR_INDEX)
+        {
+            return INVALID_PROCESSOR_INDEX;
+        }
+
+        procNumber.Number = (UCHAR)number;
+
+        return KeGetProcessorIndexFromNumber(&procNumber);
+#else
+        return ParaNdis_GetIndexFromAffinity(DPCTargetProcessor);
+#endif
+    }
+
 #if NDIS_SUPPORT_NDIS620
     GROUP_AFFINITY DPCAffinity;
 #else
-    ULONG DPCTargetProcessor = 0;
+    KAFFINITY DPCTargetProcessor = 0;
 #endif
 
 protected:

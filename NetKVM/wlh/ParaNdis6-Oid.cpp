@@ -57,6 +57,20 @@ static NDIS_STATUS RSSSetParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
                                         pOid->pBytesRead,
                                         pContext->MiniportHandle);
     ParaNdis_ResetRxClassification(pContext);
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        DPrintf(0, ("[%s] - RSS parameters setting failed\n", __FUNCTION__));
+    }
+
+    if (status == NDIS_STATUS_SUCCESS)
+    {
+        status = ParaNdis_SetupRSSQueueMap(pContext);
+    }
+
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        DPrintf(0, ("[%s] - RSS to queue mapping setup failed\n", __FUNCTION__));
+    }
 
     return status;
 }

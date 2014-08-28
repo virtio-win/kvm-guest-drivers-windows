@@ -482,6 +482,9 @@ typedef struct _tagPARANDIS_ADAPTER
     CPUPathesBundle             *pPathBundles;
     UINT                        nPathBundles;
 
+    CPUPathesBundle            **RSS2QueueMap;
+    USHORT                      RSS2QueueLength;
+
     PIO_INTERRUPT_MESSAGE_INFO  pMSIXInfoTable;
     NDIS_HANDLE                 DmaHandle;
     ULONG                       ulIrqReceived;
@@ -603,6 +606,8 @@ CCHAR ParaNdis_GetScalingDataForPacket(
     PARANDIS_ADAPTER *pContext,
     PNET_PACKET_INFO pPacketInfo,
     PPROCESSOR_NUMBER pTargetProcessor);
+
+NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext);
 
 VOID ParaNdis_ReceiveQueueAddBuffer(
     PPARANDIS_RECEIVE_QUEUE pQueue,

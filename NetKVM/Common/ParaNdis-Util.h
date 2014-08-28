@@ -466,3 +466,8 @@ typedef CNdisAutoRWLock<&CNdisRWLock::acquireRead, &CNdisRWLock::release> CNdisP
 typedef CNdisAutoRWLock<&CNdisRWLock::acquireReadDpr, &CNdisRWLock::releaseDpr> CNdisDispatchReadAutoLock;
 typedef CNdisAutoRWLock<&CNdisRWLock::acquireWrite, &CNdisRWLock::release> CNdisPassiveWriteAutoLock;
 typedef CNdisAutoRWLock<&CNdisRWLock::acquireWriteDpr, &CNdisRWLock::releaseDpr> CNdisDispatchWriteAutoLock;
+
+/* The conversion function returns index of the single raised bit in the affinity mask or INVALID_PROCESSOR_INDEX
+  if more than one bit is raised */
+
+ULONG ParaNdis_GetIndexFromAffinity(KAFFINITY affinity);

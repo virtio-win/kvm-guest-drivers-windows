@@ -849,6 +849,120 @@ static NDIS_STATUS SetupDPCTarget(PARANDIS_ADAPTER *pContext)
 #endif
 }
 
+NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
+{
+    USHORT rssIndex, bundleIndex;
+    ULONG cpuIndex;
+    ULONG rssTableSize = pContext->RSSParameters.RSSScalingSettings.IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
+
+    rssIndex = 0;
+    bundleIndex = 0;
+    ULONG *cpuIndexTable;
+    ULONG cpuNumbers;
+
+    cpuNumbers = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
+
+    cpuIndexTable = (ULONG *)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, cpuNumbers * sizeof(*cpuIndexTable),
+        PARANDIS_MEMORY_TAG, NormalPoolPriority);
+    if (cpuIndexTable == nullptr)
+    {
+        DPrintf(0, ("[%s] cpu index table allocation failed\n"));
+        return NDIS_STATUS_RESOURCES;
+    }
+
+    for (cpuIndex = 0; cpuIndex < cpuNumbers; ++cpuIndex)
+    {
+        cpuIndexTable[cpuIndex] = INVALID_PROCESSOR_INDEX;
+    }
+
+    for (bundleIndex = 0; bundleIndex < pContext->nPathBundles; ++bundleIndex)
+    {
+        ULONG cpuIndex = pContext->pPathBundles[bundleIndex].rxPath.getCPUIndex();
+        if (cpuIndex == INVALID_PROCESSOR_INDEX)
+        {
+            DPrintf(0, ("[%s]  Invalid CPU index for path %u\n", __FUNCTION__, bundleIndex));
+            NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
+            return NDIS_STATUS_SOFT_ERRORS;
+        }
+        else if (cpuIndex >= cpuNumbers)
+        {
+            DPrintf(0, ("[%s]  CPU index %lu exceeds CPU range %lu\n", __FUNCTION__, cpuIndex, cpuNumbers));
+            NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
+            return NDIS_STATUS_SOFT_ERRORS;
+        }
+        else
+        {
+            cpuIndexTable[cpuIndex] = bundleIndex;
+        }
+    }
+
+    DPrintf(0, ("[%s] Entering, RSS table size = %lu, # of path bundles = %u. RSS2QueueLength = %u, RSS2QueueMap =0x%p\n",
+        __FUNCTION__, rssTableSize, pContext->nPathBundles,
+        pContext->RSS2QueueLength, pContext->RSS2QueueMap));
+
+    if (pContext->RSS2QueueLength && pContext->RSS2QueueLength < rssTableSize)
+    {
+        DPrintf(0, ("[%s] Freeing RSS2Queue Map\n", __FUNCTION__));
+        NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->RSS2QueueMap, PARANDIS_MEMORY_TAG);
+        pContext->RSS2QueueLength = 0;
+    }
+
+    if (!pContext->RSS2QueueLength)
+    {
+        pContext->RSS2QueueLength = USHORT(rssTableSize);
+        pContext->RSS2QueueMap = (CPUPathesBundle **)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, rssTableSize * sizeof(*pContext->RSS2QueueMap),
+            PARANDIS_MEMORY_TAG, NormalPoolPriority);
+        if (pContext->RSS2QueueMap == nullptr)
+        {
+            DPrintf(0, ("[%s] - Allocating RSS to queue mapping failed\n", __FUNCTION__));
+            NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
+            return NDIS_STATUS_RESOURCES;
+        }
+
+        NdisZeroMemory(pContext->RSS2QueueMap, sizeof(*pContext->RSS2QueueMap) * pContext->RSS2QueueLength);
+    }
+
+    for (rssIndex = 0; rssIndex < rssTableSize; rssIndex++)
+    {
+       pContext->RSS2QueueMap[rssIndex] = pContext->pPathBundles;
+    }
+
+    for (rssIndex = 0; rssIndex < rssTableSize; rssIndex++)
+    {
+        DPrintf(3, ("[%s] filling the relationship, rssIndex = %u, bundleIndex = %u\n", __FUNCTION__, rssIndex, bundleIndex));
+        ParaNdis_ProcessorNumberToGroupAffinity(
+            &pContext->pPathBundles[bundleIndex].txPath.DPCAffinity,
+            pContext->RSSParameters.RSSScalingSettings.IndirectionTable + rssIndex);
+
+        DPrintf(3, ("[%s] RSS proc number %u/%u, bundle affinity %u/%u\n", __FUNCTION__,
+            pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Group,
+            pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Number,
+            pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Group,
+            pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Mask));
+
+        cpuIndex = NdisProcessorNumberToIndex(pContext->RSSParameters.RSSScalingSettings.IndirectionTable [rssIndex]);
+
+        if (cpuIndex == INVALID_PROCESSOR_INDEX)
+        {
+            DPrintf(0, ("[%s]  Invalid CPU index for path %u\n", __FUNCTION__, bundleIndex));
+            NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
+            return NDIS_STATUS_SOFT_ERRORS;
+        }
+        else if (cpuIndex >= cpuNumbers)
+        {
+            DPrintf(0, ("[%s]  CPU index %lu exceeds CPU range %lu\n", __FUNCTION__, cpuIndex, cpuNumbers));
+            NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
+            return NDIS_STATUS_SOFT_ERRORS;
+        }
+        else
+        {
+            pContext->RSS2QueueMap[rssIndex] = pContext->pPathBundles + cpuIndexTable[cpuIndex];
+        }
+    }
+
+    NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
+    return NDIS_STATUS_SUCCESS;
+}
 /**********************************************************
 Initializes VirtIO buffering and related stuff:
 Allocates RX and TX queues and buffers
@@ -1175,6 +1289,13 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     {
         delete[] pContext->pPathBundles;
         pContext->pPathBundles = nullptr;
+    }
+
+    if (pContext->RSS2QueueMap)
+    {
+        NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->RSS2QueueMap, PARANDIS_MEMORY_TAG);
+        pContext->RSS2QueueMap = nullptr;
+        pContext->RSS2QueueLength = 0;
     }
 
     if (pContext->IODevice)

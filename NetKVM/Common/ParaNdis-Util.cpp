@@ -55,3 +55,39 @@ bool CNdisRWLock::Create(NDIS_HANDLE miniportHandle) {
     return m_pLock != 0;
 }
 #endif
+
+
+ULONG ParaNdis_GetIndexFromAffinity(KAFFINITY affinity)
+{
+    int shift = 0;
+
+    while (shift < sizeof(affinity) * 8)
+    {
+        switch (affinity & 0xff)
+        {
+        case 0:
+            break;
+        case 0x01:
+            return shift ;
+        case 0x02:
+            return shift + 1;
+        case 0x04:
+            return shift + 2;
+        case 0x08:
+            return shift + 3;
+        case 0x10:
+            return shift + 4;
+        case 0x20:
+            return shift + 5;
+        case 0x40:
+            return shift + 6;
+        case 0x80:
+            return shift + 7;
+        default:
+            return INVALID_PROCESSOR_INDEX;
+        }
+        affinity >>= 8;
+        shift += 8;
+    }
+    return INVALID_PROCESSOR_INDEX;
+}

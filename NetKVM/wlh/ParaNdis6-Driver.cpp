@@ -488,7 +488,21 @@ static VOID ParaNdis6_SendNetBufferLists(
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     UNREFERENCED_PARAMETER(portNumber);
+#ifdef PARANDIS_SUPPORT_RSS
+    if (pContext->RSS2QueueMap != nullptr)
+    {
+        ULONG RSSHashValue = NET_BUFFER_LIST_GET_HASH_VALUE(pNBL);
+        ULONG indirectionIndex = RSSHashValue & (pContext->RSSParameters.ActiveRSSScalingSettings.RSSHashMask);
+
+        pContext->RSS2QueueMap[indirectionIndex]->txPath.Send(pNBL);
+    }
+    else
+    {
     pContext->pPathBundles[0].txPath.Send(pNBL);
+}
+#else
+    pContext->pPathBundles[0].txPath.Send(pNBL);
+#endif
 }
 
 /**********************************************************
