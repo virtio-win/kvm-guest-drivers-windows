@@ -27,7 +27,11 @@ bool CVirtQueue::Create(UINT Index,
     m_Index = Index;
     m_IODevice = IODevice;
     if (!m_SharedMemory.Create(DrvHandle))
+    {
+        DPrintf(0, ("[%s] - shared memory creation failed\n", __FUNCTION__));
         return false;
+    }
+
     m_UsePublishedIndices = UsePublishedIndices;
 
     ASSERT(m_VirtQueue == nullptr);
@@ -41,6 +45,14 @@ bool CVirtQueue::Create(UINT Index,
                                                m_SharedMemory.GetSize(),
                                                nullptr,
                                                static_cast<BOOLEAN>(m_UsePublishedIndices));
+        if (m_VirtQueue == nullptr)
+        {
+            DPrintf(0, ("[%s] - queue preparation failed for index %u\n", __FUNCTION__, Index));
+        }
+    }
+    else
+    {
+        DPrintf(0, ("[%s] - queue memory allocation failed\n", __FUNCTION__, Index));
     }
 
     return m_VirtQueue != nullptr;

@@ -595,10 +595,13 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
     {
         status = NDIS_STATUS_RESOURCES;
     }
+
     if (status == NDIS_STATUS_SUCCESS)
     {
         status = NdisMRegisterInterruptEx(pContext->MiniportHandle, pContext, &mic, &pContext->InterruptHandle);
     }
+
+    DPrintf(0, ("[%s] MSIX message count = %u\n", __FUNCTION__, mic.MessageInfoTable->MessageCount));
 
     if (status == NDIS_STATUS_SUCCESS)
     {
