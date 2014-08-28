@@ -4,6 +4,15 @@
 class CParaNdisAbstractPath
 {
 public:
+#if NDIS_SUPPORT_NDIS620
+    CParaNdisAbstractPath()
+    {
+        memset(&DPCAffinity, 0, sizeof(DPCAffinity));
+    }
+#else
+    CParaNdisAbstractPath() : DPCTargetProcessor(0) {}
+#endif
+
     bool WasInterruptReported() 
     {
         return m_interruptReported;
@@ -38,6 +47,12 @@ public:
     {
         m_pVirtQueue->EnableInterrupts();
     }
+
+#if NDIS_SUPPORT_NDIS620
+    GROUP_AFFINITY DPCAffinity;
+#else
+    ULONG DPCTargetProcessor = 0;
+#endif
 
 protected:
     PPARANDIS_ADAPTER m_Context;
