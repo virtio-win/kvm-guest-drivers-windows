@@ -979,6 +979,17 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
         DPrintf(0, ("[%s] SetupDPCTarget passed, status = %d\n", __FUNCTION__, status));
     }
 
+    if (status == NDIS_STATUS_SUCCESS && pContext->nPathBundles > 1)
+    {
+        u16 nPathes = u16(pContext->nPathBundles);
+        BOOLEAN sendSuccess = pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_VQ_PAIR_SET, &nPathes, sizeof(nPathes), NULL, 0, 2);
+        if (!sendSuccess)
+        {
+            DPrintf(0, ("[%s] - Send MQ control message failed\n", __FUNCTION__));
+            status = NDIS_STATUS_DEVICE_FAILED;
+        }
+    }
+
     pContext->Limits.nReusedRxBuffers = pContext->NetMaxReceiveBuffers / 4 + 1;
 
     if (status == NDIS_STATUS_SUCCESS)
