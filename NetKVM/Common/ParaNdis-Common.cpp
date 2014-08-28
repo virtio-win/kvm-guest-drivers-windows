@@ -806,6 +806,36 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
 #endif
 }
 
+static NDIS_STATUS SetupDPCTarget(PARANDIS_ADAPTER *pContext)
+{
+#if NDIS_SUPPORT_NDIS620
+    if (pContext->nPathBundles == 1)
+        return NDIS_STATUS_SUCCESS;
+
+    ULONG i;
+    NDIS_STATUS status;
+    PROCESSOR_NUMBER procNumber;
+
+    for (i = 0; i < pContext->nPathBundles; i++)
+    {
+        status = KeGetProcessorNumberFromIndex(i, &procNumber);
+        if (status != NDIS_STATUS_SUCCESS)
+        {
+            DPrintf(0, ("[%s] - KeGetProcessorNumberFromIndex failed for index %lu - %d\n", __FUNCTION__, i, status));
+            return status;
+        }
+        ParaNdis_ProcessorNumberToGroupAffinity(&pContext->pPathBundles[i].rxPath.DPCAffinity, &procNumber);
+        pContext->pPathBundles[i].txPath.DPCAffinity = pContext->pPathBundles[i].rxPath.DPCAffinity;
+    }
+
+    pContext->CXPath.DPCAffinity = pContext->pPathBundles[0].rxPath.DPCAffinity;
+
+    return NDIS_STATUS_SUCCESS;
+#else
+#error not yet defined
+#endif
+}
+
 /**********************************************************
 Initializes VirtIO buffering and related stuff:
 Allocates RX and TX queues and buffers
@@ -928,6 +958,12 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
     {
         status = ParaNdis_ConfigureMSIXVectors(pContext);
         DPrintf(0, ("[%s] ParaNdis_VirtIONetInit passed, status = %d\n", __FUNCTION__, status));
+    }
+
+    if (status == NDIS_STATUS_SUCCESS)
+    {
+        status = SetupDPCTarget(pContext);
+        DPrintf(0, ("[%s] SetupDPCTarget passed, status = %d\n", __FUNCTION__, status));
     }
 
     pContext->Limits.nReusedRxBuffers = pContext->NetMaxReceiveBuffers / 4 + 1;
