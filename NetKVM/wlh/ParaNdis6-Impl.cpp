@@ -291,7 +291,21 @@ static BOOLEAN MiniportMSIInterrupt(
     path->DisableInterrupts();
     path->ReportInterrupt();
 
+
+#if NDIS_SUPPORT_NDIS620
+    if (path->DPCAffinity.Mask)
+    {
+        NdisMQueueDpcEx(pContext->InterruptHandle, MessageId, &path->DPCAffinity, NULL);
+        *QueueDefaultInterruptDpc = FALSE;
+    }
+    else
+    {
+        *QueueDefaultInterruptDpc = TRUE;
+    }
+#else
+    /* TODO - set TaretProcessors */
     *QueueDefaultInterruptDpc = TRUE;
+#endif
 
     pContext->ulIrqReceived += 1;
     return true;
