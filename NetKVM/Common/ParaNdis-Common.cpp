@@ -777,6 +777,35 @@ void ParaNdis_DeleteQueue(PARANDIS_ADAPTER *pContext, struct virtqueue **ppq, tC
     RtlZeroMemory(ppa, sizeof(*ppa));
 }
 
+static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
+{
+    if (!pContext->bUsingMSIX)
+    {
+        DPrintf(0, ("[%s] No MSIX, using 1 queue\n", __FUNCTION__));
+        return 1;
+    }
+
+#if NDIS_SUPPORT_NDIS620
+    ULONG lnProcessors = NdisGroupActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+    ULONG lnMSIs = pContext->pMSIXInfoTable->MessageCount - 1; /* RX/TX pairs + control queue*/
+
+    DPrintf(0, ("[%s] %lu CPUs reported\n", __FUNCTION__, lnProcessors));
+    DPrintf(0, ("[%s] %lu MSIs, %lu queues\n", __FUNCTION__, pContext->pMSIXInfoTable->MessageCount, lnMSIs));
+
+    USHORT nMSIs = USHORT(lnMSIs & 0xFFFF);
+    USHORT nProcessors = USHORT(lnProcessors & 0xFFFF);
+
+    USHORT nBundles = (pContext->nHardwareQueues < nProcessors) ? pContext->nHardwareQueues : nProcessors;
+    nBundles = (nMSIs < nBundles) ? nMSIs : nBundles;
+
+    DPrintf(0, ("[%s] # of path bundles = %u\n", __FUNCTION__, nBundles));
+
+    return nBundles;
+#else
+#error not yet implemented
+#endif
+}
+
 /**********************************************************
 Initializes VirtIO buffering and related stuff:
 Allocates RX and TX queues and buffers
@@ -789,6 +818,9 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_RESOURCES;
     DEBUG_ENTRY(0);
+    UINT i;
+
+    pContext->nPathBundles = DetermineQueueNumber(pContext);
 
     new (&pContext->CXPath, PLACEMENT_NEW) CParaNdisCX();
     pContext->bCXPathAllocated = TRUE;
@@ -803,8 +835,6 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         pContext->bCXPathCreated = TRUE;
     }
 
-    pContext->nPathBundles = 1;
-
     pContext->pPathBundles = new (pContext->MiniportHandle)CPUPathesBundle[pContext->nPathBundles];
     if (pContext->pPathBundles == nullptr)
     {
@@ -812,19 +842,22 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         return status;
     }
 
-    if (!pContext->pPathBundles[0].rxPath.Create(pContext, 0))
+    for (i = 0; i < pContext->nPathBundles; i++)
     {
-        DPrintf(0, ("%s: CParaNdisRX creation failed\n", __FUNCTION__));
-        return status;
-    }
-    pContext->pPathBundles[0].rxCreated = true;
+        if (!pContext->pPathBundles[i].rxPath.Create(pContext, i * 2))
+        {
+            DPrintf(0, ("%s: CParaNdisRX creation failed\n", __FUNCTION__));
+            return status;
+        }
+        pContext->pPathBundles[i].rxCreated = true;
 
-    if (!pContext->pPathBundles[0].txPath.Create(pContext, 1))
-    {
-        DPrintf(0, ("%s: CParaNdisTX creation failed\n", __FUNCTION__));
-        return status;
+        if (!pContext->pPathBundles[i].txPath.Create(pContext, i * 2 + 1))
+        {
+            DPrintf(0, ("%s: CParaNdisTX creation failed\n", __FUNCTION__));
+            return status;
+        }
+        pContext->pPathBundles[i].txCreated = true;
     }
-    pContext->pPathBundles[0].txCreated = true;
 
     if (pContext->bCXPathCreated)
     {
