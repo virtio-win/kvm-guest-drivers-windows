@@ -921,7 +921,15 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
     ULONG nRemoved = 0;
     UINT nInterrupts = 0;
     PIO_RESOURCE_REQUIREMENTS_LIST newPrrl = NULL;
-    ULONG QueueNumber = NdisGroupActiveProcessorCount(ALL_PROCESSOR_GROUPS) + 1;
+    ULONG QueueNumber;
+#if NDIS_SUPPORT_NDIS620    
+    QueueNumber = NdisGroupActiveProcessorCount(ALL_PROCESSOR_GROUPS) + 1;
+#elif NDIS_SUPPORT_NDIS6
+    QueueNumber = NdisSystemProcessorCount();
+#else
+    QueueNumber = 0; /* Don't create MSI resource descriptors*/
+#endif
+
 
     if (QueueNumber > 2048)
         QueueNumber = 2048;

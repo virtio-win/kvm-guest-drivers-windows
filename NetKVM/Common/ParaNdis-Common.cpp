@@ -777,6 +777,7 @@ void ParaNdis_DeleteQueue(PARANDIS_ADAPTER *pContext, struct virtqueue **ppq, tC
     RtlZeroMemory(ppa, sizeof(*ppa));
 }
 
+#if PARANDIS_SUPPORT_RSS
 static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
 {
     if (!pContext->bUsingMSIX)
@@ -785,7 +786,6 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
         return 1;
     }
 
-#if NDIS_SUPPORT_NDIS620
     if (pContext->bMultiQueue)
     {
         DPrintf(0, ("[%s] Number of hardware queues = %d\n", __FUNCTION__, pContext->nHardwareQueues));
@@ -796,7 +796,15 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
         return 1;
     }
 
-    ULONG lnProcessors = NdisGroupActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+    ULONG lnProcessors;
+#if NDIS_SUPPORT_NDIS620
+    lnProcessors = NdisGroupActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+#elif NDIS_SUPPORT_NDIS6
+    lnProcessors = NdisSystemProcessorCount();
+#else
+    lnProcessors = 1;
+#endif
+
     ULONG lnMSIs = pContext->pMSIXInfoTable->MessageCount - 1; /* RX/TX pairs + control queue*/
 
     DPrintf(0, ("[%s] %lu CPUs reported\n", __FUNCTION__, lnProcessors));
@@ -814,23 +822,28 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
     DPrintf(0, ("[%s] # of path bundles = %u\n", __FUNCTION__, nBundles));
 
     return nBundles;
-#else
-#error not yet implemented
-#endif
 }
+#else
+static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *)
+{
+    return 1;
+}
+#endif
 
 static NDIS_STATUS SetupDPCTarget(PARANDIS_ADAPTER *pContext)
 {
-#if NDIS_SUPPORT_NDIS620
     if (pContext->nPathBundles == 1)
         return NDIS_STATUS_SUCCESS;
 
     ULONG i;
+#if NDIS_SUPPORT_NDIS620
     NDIS_STATUS status;
     PROCESSOR_NUMBER procNumber;
+#endif
 
     for (i = 0; i < pContext->nPathBundles; i++)
     {
+#if NDIS_SUPPORT_NDIS620
         status = KeGetProcessorNumberFromIndex(i, &procNumber);
         if (status != NDIS_STATUS_SUCCESS)
         {
@@ -839,16 +852,25 @@ static NDIS_STATUS SetupDPCTarget(PARANDIS_ADAPTER *pContext)
         }
         ParaNdis_ProcessorNumberToGroupAffinity(&pContext->pPathBundles[i].rxPath.DPCAffinity, &procNumber);
         pContext->pPathBundles[i].txPath.DPCAffinity = pContext->pPathBundles[i].rxPath.DPCAffinity;
+#elif NDIS_SUPPORT_NDIS6
+        pContext->pPathBundles[i].rxPath.DPCTargetProcessor = 1 << i;
+        pContext->pPathBundles[i].txPath.DPCTargetProcessor = pContext->pPathBundles[i].rxPath.DPCTargetProcessor;
+#else
+#error not supported
+#endif
     }
 
+#if NDIS_SUPPORT_NDIS620
     pContext->CXPath.DPCAffinity = pContext->pPathBundles[0].rxPath.DPCAffinity;
-
-    return NDIS_STATUS_SUCCESS;
+#elif NDIS_SUPPORT_NDIS6
+    pContext->CXPath.DPCTargetProcessor = pContext->pPathBundles[0].rxPath.DPCTargetProcessor;
 #else
 #error not yet defined
 #endif
+    return NDIS_STATUS_SUCCESS;
 }
 
+#if PARANDIS_SUPPORT_RSS
 NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
 {
     USHORT rssIndex, bundleIndex;
@@ -963,6 +985,8 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
     NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
     return NDIS_STATUS_SUCCESS;
 }
+#endif
+
 /**********************************************************
 Initializes VirtIO buffering and related stuff:
 Allocates RX and TX queues and buffers

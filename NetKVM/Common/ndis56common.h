@@ -607,7 +607,9 @@ CCHAR ParaNdis_GetScalingDataForPacket(
     PNET_PACKET_INFO pPacketInfo,
     PPROCESSOR_NUMBER pTargetProcessor);
 
+#if PARANDIS_SUPPORT_RSS
 NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext);
+#endif
 
 VOID ParaNdis_ReceiveQueueAddBuffer(
     PPARANDIS_RECEIVE_QUEUE pQueue,
