@@ -145,6 +145,7 @@ struct CPUPathesBundle : public CNdisAllocatable<CPUPathesBundle, 'CPPB'> {
 #define VIRTIO_NET_F_CTRL_RX    18      /* Control channel RX mode support */
 #define VIRTIO_NET_F_CTRL_VLAN  19      /* Control channel VLAN filtering */
 #define VIRTIO_NET_F_CTRL_RX_EXTRA 20   /* Extra RX mode control support */
+#define VIRTIO_NET_F_CTRL_MQ    22
 
 #define VIRTIO_NET_F_CTRL_MAC_ADDR   23 /* Set MAC address */
 
@@ -415,6 +416,8 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bResetInProgress;
     BOOLEAN                 bCtrlMACAddrSupported;
     BOOLEAN                 bCfgMACAddrSupported;
+    BOOLEAN                 bMultiQueue;
+    USHORT                  nHardwareQueues;
     ULONG                   ulCurrentVlansFilterSet;
     tMulticastData          MulticastData;
     UINT                    uNumberOfHandledRXPacketsInDPC;

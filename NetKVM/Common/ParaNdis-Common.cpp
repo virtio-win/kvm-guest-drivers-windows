@@ -698,6 +698,17 @@ NDIS_STATUS ParaNdis_InitializeContext(
         status = NDIS_STATUS_RESOURCE_CONFLICT;
     }
 
+    pContext->bMultiQueue = AckFeature(pContext, VIRTIO_NET_F_CTRL_MQ);
+    if (pContext->bMultiQueue)
+    {
+        VirtIODeviceGet(&pContext->IODevice, ETH_LENGTH_OF_ADDRESS + sizeof(USHORT), &pContext->nHardwareQueues,
+            sizeof(pContext->nHardwareQueues));
+    }
+    else
+    {
+        pContext->nHardwareQueues = 1;
+    }
+
     dependentOptions = osbT4TcpChecksum | osbT4UdpChecksum | osbT4TcpOptionsChecksum;
 
     if((pContext->Offload.flagsValue & dependentOptions) && !AckFeature(pContext, VIRTIO_NET_F_CSUM))
@@ -781,7 +792,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 
     new (&pContext->CXPath, PLACEMENT_NEW) CParaNdisCX();
     pContext->bCXPathAllocated = TRUE;
-    if (!pContext->CXPath.Create(pContext, 2))
+    if (!pContext->CXPath.Create(pContext, 2 * pContext->nHardwareQueues))
     {
         DPrintf(0, ("[%s] The Control vQueue does not work!\n", __FUNCTION__));
         pContext->bHasHardwareFilters = FALSE;
