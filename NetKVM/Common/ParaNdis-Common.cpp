@@ -979,6 +979,11 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     USHORT nVirtIOQueues = pContext->nHardwareQueues * 2 + 2;
 
     pContext->nPathBundles = DetermineQueueNumber(pContext);
+    if (pContext->nPathBundles == 0)
+    {
+        DPrintf(0, ("[%s] - no I/O pathes\n", __FUNCTION__));
+        return NDIS_STATUS_RESOURCES;
+    }
 
     if (nVirtIOQueues > pContext->IODevice->maxQueues)
     {
