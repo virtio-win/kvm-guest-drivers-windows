@@ -805,6 +805,9 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
     USHORT nMSIs = USHORT(lnMSIs & 0xFFFF);
     USHORT nProcessors = USHORT(lnProcessors & 0xFFFF);
 
+    DPrintf(0, ("[%s] %u CPUs reported\n", __FUNCTION__, nProcessors));
+    DPrintf(0, ("[%s] %lu MSIs, %u queues\n", __FUNCTION__, pContext->pMSIXInfoTable->MessageCount, nMSIs));
+
     USHORT nBundles = (pContext->nHardwareQueues < nProcessors) ? pContext->nHardwareQueues : nProcessors;
     nBundles = (nMSIs < nBundles) ? nMSIs : nBundles;
 
@@ -1443,7 +1446,25 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
 
     InterlockedIncrement(&pContext->counterDPCInside);
 
-    CPUPathesBundle *pathBundle = pContext->pPathBundles;
+    CPUPathesBundle *pathBundle = nullptr;
+
+    if (pContext->nPathBundles == 1)
+    {
+        pathBundle = pContext->pPathBundles;
+    }
+    else
+    {
+        ULONG procNumber = KeGetCurrentProcessorNumber();
+        if (procNumber < pContext->nPathBundles)
+        {
+            pathBundle = pContext->pPathBundles + procNumber;
+        }
+    }
+
+    if (pathBundle == nullptr)
+    {
+        return false;
+    }
 
     if (pContext->bEnableInterruptHandlingDPC)
     {
