@@ -219,7 +219,13 @@ static UINT FillDataOnBugCheck()
         tBugCheckPerNicDataContent *pSave = &BugCheckData.StaticData.PerNicData[i];
         PARANDIS_ADAPTER *p = (PARANDIS_ADAPTER *)(UINT_PTR)pSave->Context;
         if (!p) continue;
-        pSave->nofReadyTxBuffers = p->TXPath[0].GetFreeHWBuffers();
+
+        pSave->nofReadyTxBuffers = 0;
+        for (UINT j = 0; j < p->nPathBundles; j++)
+        {
+            pSave->nofReadyTxBuffers += p->pPathBundles[j].txPath.GetFreeHWBuffers();
+        }
+
         pSave->LastInterruptTimeStamp.QuadPart = PARADNIS_GET_LAST_INTERRUPT_TIMESTAMP(p);
         pSave->LastTxCompletionTimeStamp = p->LastTxCompletionTimeStamp;
         ParaNdis_CallOnBugCheck(p);

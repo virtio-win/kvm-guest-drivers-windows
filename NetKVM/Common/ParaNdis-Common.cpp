@@ -779,34 +779,6 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     NDIS_STATUS status = NDIS_STATUS_RESOURCES;
     DEBUG_ENTRY(0);
 
-    pContext->TXPath = new (pContext->MiniportHandle) CParaNdisTX[1];
-    if (pContext->TXPath == nullptr)
-    {
-        DPrintf(0, ("%s: CParaNdisTX allocation failed\n", __FUNCTION__));
-        return status;
-    }
-
-    if (!pContext->TXPath[0].Create(pContext, 1))
-    {
-        DPrintf(0, ("%s: CParaNdisTX creation failed\n", __FUNCTION__));
-        return status;
-    }
-    pContext->bTXPathCreated = TRUE;
-
-    pContext->RXPath = new (pContext->MiniportHandle) CParaNdisRX[1];
-    if (pContext->RXPath == nullptr)
-    {
-        DPrintf(0, ("%s: CParaNdisRX allocation failed\n", __FUNCTION__));
-        return status;
-    }
-
-    if (!pContext->RXPath[0].Create(pContext, 0))
-    {
-        DPrintf(0, ("%s: CParaNdisRX creation failed\n", __FUNCTION__));
-        return status;
-    }
-    pContext->bRXPathCreated = TRUE;
-
     new (&pContext->CXPath, PLACEMENT_NEW) CParaNdisCX();
     pContext->bCXPathAllocated = TRUE;
     if (!pContext->CXPath.Create(pContext, 2))
@@ -820,20 +792,32 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         pContext->bCXPathCreated = TRUE;
     }
 
-    pContext->uNPathes = pContext->bCXPathCreated ? 3 : 2;
+    pContext->nPathBundles = 1;
 
-    pContext->vPathes = (CParaNdisAbstractPath **)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, (UINT)sizeof(CParaNdisAbstractPath *) * pContext->uNPathes, ABSTRACT_PATHES_TAG, NormalPoolPriority);
-    if (pContext->vPathes == NULL)
+    pContext->pPathBundles = new (pContext->MiniportHandle)CPUPathesBundle[pContext->nPathBundles];
+    if (pContext->pPathBundles == nullptr)
     {
-        DPrintf(0, ("[%s] Abstract Pathes allocation failed\n", __FUNCTION__));
+        DPrintf(0, ("[%s] Path bundles allocation failed\n", __FUNCTION__));
         return status;
     }
 
-    pContext->vPathes[0] = pContext->RXPath;
-    pContext->vPathes[1] = pContext->TXPath;
+    if (!pContext->pPathBundles[0].rxPath.Create(pContext, 0))
+    {
+        DPrintf(0, ("%s: CParaNdisRX creation failed\n", __FUNCTION__));
+        return status;
+    }
+    pContext->pPathBundles[0].rxCreated = true;
+
+    if (!pContext->pPathBundles[0].txPath.Create(pContext, 1))
+    {
+        DPrintf(0, ("%s: CParaNdisTX creation failed\n", __FUNCTION__));
+        return status;
+    }
+    pContext->pPathBundles[0].txCreated = true;
+
     if (pContext->bCXPathCreated)
     {
-        pContext->vPathes[2] = &pContext->CXPath;
+        pContext->pPathBundles[0].cxPath = &pContext->CXPath;
     }
 
     status = NDIS_STATUS_SUCCESS;
@@ -955,19 +939,29 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 
     RestoreMAC(pContext);
 
-    if(pContext->bTXPathCreated)
-        pContext->TXPath[0].Shutdown();
-    if (pContext->bRXPathCreated)
-        pContext->RXPath[0].Shutdown();
-    if(pContext->bCXPathCreated)
-        pContext->CXPath.Shutdown();
+    for (i = 0; i < pContext->nPathBundles; i++)
+    {
+        if (pContext->pPathBundles[i].txCreated)
+        {
+            pContext->pPathBundles[i].txPath.Shutdown();
+        }
 
-    /* this can be freed, queue shut down */
-    pContext->RXPath[0].FreeRxDescriptorsFromList();
+        /* this can be freed, queue shut down */
+        pContext->pPathBundles[i].rxPath.FreeRxDescriptorsFromList();
+
+        if (pContext->pPathBundles[i].rxCreated)
+        {
+            pContext->pPathBundles[i].rxPath.Shutdown();
+        }
+    }
+
+    if (pContext->bCXPathCreated)
+    {
+        pContext->CXPath.Shutdown();
+    }
 
     PrintStatistics(pContext);
 }
-
 
 static void PreventDPCServicing(PARANDIS_ADAPTER *pContext)
 {
@@ -1045,28 +1039,16 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     }
 #endif
 
-    if (pContext->TXPath != nullptr)
-    {
-        delete[] pContext->TXPath;
-        pContext->TXPath = nullptr;
-    }
-
-    if (pContext->RXPath != nullptr)
-    {
-        delete [] pContext->RXPath;
-        pContext->RXPath = nullptr;
-    }
-
     if (pContext->bCXPathAllocated)
     {
         pContext->CXPath.~CParaNdisCX();
         pContext->bCXPathAllocated = false;
     }
 
-    if (pContext->vPathes != NULL)
+    if (pContext->pPathBundles != NULL)
     {
-        NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->vPathes, ABSTRACT_PATHES_TAG);
-        pContext->vPathes = nullptr;
+        delete[] pContext->pPathBundles;
+        pContext->pPathBundles = nullptr;
     }
 
     if (pContext->AdapterResources.ulIOAddress)
@@ -1242,11 +1224,6 @@ BOOLEAN ReceiveQueueHasBuffers(PPARANDIS_RECEIVE_QUEUE pQueue)
     return res;
 }
 
-static VOID ProcessRxRing(PARANDIS_ADAPTER *pContext, CCHAR nCurrCpuReceiveQueue)
-{
-    pContext->RXPath[0].ProcessRxRing(nCurrCpuReceiveQueue);
-}
-
 static VOID
 UpdateReceiveSuccessStatistics(PPARANDIS_ADAPTER pContext,
                                PNET_PACKET_INFO pPacketInfo,
@@ -1343,7 +1320,7 @@ static BOOLEAN ProcessReceiveQueue(
 }
 
 static
-BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG nPacketsToIndicate)
+BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, ULONG nPacketsToIndicate)
 {
     BOOLEAN res = FALSE;
     BOOLEAN bMoreDataInRing;
@@ -1352,7 +1329,7 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG nPacketsToIndicate)
 
     do
     {
-        ProcessRxRing(pContext, CurrCpuReceiveQueue);
+        pathBundle->rxPath.ProcessRxRing(CurrCpuReceiveQueue);
 
         res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED);
 
@@ -1361,7 +1338,7 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG nPacketsToIndicate)
             res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, CurrCpuReceiveQueue);
         }
 
-        bMoreDataInRing = pContext->RXPath[0].RestartQueue();
+        bMoreDataInRing = pathBundle->rxPath.RestartQueue();
     } while(bMoreDataInRing);
 
     return res;
@@ -1376,13 +1353,15 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
 
     InterlockedIncrement(&pContext->counterDPCInside);
 
+    CPUPathesBundle *pathBundle = pContext->pPathBundles;
+
     if (pContext->bEnableInterruptHandlingDPC)
     {
         bool bDoKick = false;
 
         InterlockedExchange(&pContext->bDPCInactive, 0);
 
-        if (RxDPCWorkBody(pContext, numOfPacketsToIndicate))
+        if (RxDPCWorkBody(pContext, pathBundle, numOfPacketsToIndicate))
         {
             stillRequiresProcessing = true;
         }
@@ -1396,8 +1375,8 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
 
         if (!stillRequiresProcessing)
         {
-            bDoKick = pContext->TXPath[0].DoPendingTasks(true);
-            if(pContext->TXPath[0].RestartQueue(bDoKick))
+            bDoKick = pathBundle->txPath.DoPendingTasks(true);
+            if (pathBundle->txPath.RestartQueue(bDoKick))
             {
                 stillRequiresProcessing = true;
             }
@@ -1453,15 +1432,19 @@ static BOOLEAN CheckRunningDpc(PARANDIS_ADAPTER *pContext)
         pContext->nDetectedInactivity = 0;
     }
 
-    if (pContext->TXPath[0].HasHWBuffersIsUse())
+    for (UINT i = 0; i < pContext->nPathBundles; i++)
     {
-        if (pContext->nDetectedStoppedTx++ > 1)
+        if (pContext->pPathBundles[i].txPath.HasHWBuffersIsUse())
         {
-            DPrintf(0, ("[%s] - Suspicious Tx inactivity (%d)!\n", __FUNCTION__, pContext->TXPath[0].GetFreeHWBuffers()));
-            //bReportHang = TRUE;
+            if (pContext->nDetectedStoppedTx++ > 1)
+            {
+                DPrintf(0, ("[%s] - Suspicious Tx inactivity (%d)!\n", __FUNCTION__, pContext->pPathBundles[i].txPath.GetFreeHWBuffers()));
+                //bReportHang = TRUE;
 #ifdef DBG_USE_VIRTIO_PCI_ISR_FOR_HOST_REPORT
-            WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 0);
+                WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 0);
 #endif
+                break;
+            }
         }
     }
 
@@ -1788,6 +1771,8 @@ ParaNdis_UpdateGuestOffloads(PARANDIS_ADAPTER *pContext, UINT64 Offloads)
 
 VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 {
+    UINT i;
+
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, hopPowerOn, NULL, 1, 0, 0);
     ParaNdis_ResetVirtIONetDevice(pContext);
@@ -1797,9 +1782,15 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     VirtIODeviceReadHostFeatures(&pContext->IODevice);
     VirtIODeviceWriteGuestFeatures(&pContext->IODevice, pContext->u32GuestFeatures);
 
-    pContext->RXPath[0].Renew();
-    pContext->TXPath[0].Renew();
-    pContext->CXPath.Renew();
+    for (i = 0; i < pContext->nPathBundles; i++)
+    {
+        pContext->pPathBundles[i].txPath.Renew();
+        pContext->pPathBundles[i].rxPath.Renew();
+    }
+    if (pContext->bCXPathCreated)
+    {
+        pContext->CXPath.Renew();
+    }
 
     ParaNdis_RestoreDeviceConfigurationAfterReset(pContext);
 
@@ -1808,7 +1799,10 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 
     InterlockedExchange(&pContext->ReuseBufferRegular, TRUE);
     
-    pContext->RXPath[0].PopulateQueue();
+    for (i = 0; i < pContext->nPathBundles; i++)
+    {
+        pContext->pPathBundles[i].rxPath.PopulateQueue();
+    }
 
     ReadLinkState(pContext);
     ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
@@ -1860,9 +1854,16 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
         all the transmit buffers move to list of free buffers
     ********************************************************************/
 
-    pContext->TXPath[0].Shutdown();
-    pContext->RXPath[0].Shutdown();
-    pContext->CXPath.Shutdown();
+    for (UINT i = 0; i < pContext->nPathBundles; i++)
+    {
+        pContext->pPathBundles[i].txPath.Shutdown();
+        pContext->pPathBundles[i].rxPath.Shutdown();
+    }
+
+    if (pContext->bCXPathCreated)
+    {
+        pContext->CXPath.Shutdown();
+    }
 
     ParaNdis_ResetVirtIONetDevice(pContext);
     ParaNdis_DebugHistory(pContext, hopPowerOff, NULL, 0, 0, 0);

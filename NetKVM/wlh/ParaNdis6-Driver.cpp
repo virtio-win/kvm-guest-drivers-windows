@@ -474,7 +474,7 @@ static VOID ParaNdis6_SendNetBufferLists(
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     UNREFERENCED_PARAMETER(portNumber);
-    pContext->TXPath[0].Send(pNBL);
+    pContext->pPathBundles[0].txPath.Send(pNBL);
 }
 
 /**********************************************************

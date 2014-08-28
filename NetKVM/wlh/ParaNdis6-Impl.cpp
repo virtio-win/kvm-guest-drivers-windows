@@ -155,9 +155,14 @@ static VOID MiniportDisableInterruptEx(IN PVOID MiniportInterruptContext)
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
 
     /* TODO - make sure that interrups are not reenabled by the DPC callback*/
-    for (UINT i = 0; i < pContext->uNPathes; i++)
+    for (UINT i = 0; i < pContext->nPathBundles; i++)
     {
-        pContext->vPathes[i]->DisableInterrupts();
+        pContext->pPathBundles[i].txPath.DisableInterrupts();
+        pContext->pPathBundles[i].rxPath.DisableInterrupts();
+    }
+    if (pContext->bCXPathCreated)
+    {
+        pContext->CXPath.DisableInterrupts();
     }
 }
 
@@ -171,10 +176,14 @@ static VOID MiniportEnableInterruptEx(IN PVOID MiniportInterruptContext)
     DEBUG_ENTRY(0);
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
 
-    /* TODO - make sure that interrups are not reenabled by the DPC callback*/
-    for (UINT i = 0; i < pContext->uNPathes; i++)
+    for (UINT i = 0; i < pContext->nPathBundles; i++)
     {
-        pContext->vPathes[i]->EnableInterrupts();
+        pContext->pPathBundles[i].txPath.EnableInterrupts();
+        pContext->pPathBundles[i].rxPath.EnableInterrupts();
+    }
+    if (pContext->bCXPathCreated)
+    {
+        pContext->CXPath.EnableInterrupts();
     }
 }
 
@@ -212,15 +221,41 @@ static BOOLEAN MiniportInterrupt(
         return TRUE;
     }
 
-    for (UINT i = 0; i < pContext->uNPathes; i++)
+    for (UINT i = 0; i < pContext->nPathBundles; i++)
     {
-        pContext->vPathes[i]->DisableInterrupts();
+        pContext->pPathBundles[i].txPath.DisableInterrupts();
+        pContext->pPathBundles[i].rxPath.DisableInterrupts();
     }
-
+    if (pContext->bCXPathCreated)
+    {
+        pContext->CXPath.DisableInterrupts();
+    }
+    
     *QueueDefaultInterruptDpc = TRUE;
     pContext->ulIrqReceived += 1;
 
     return true;
+}
+
+static CParaNdisAbstractPath *GetPathByMessageId(PARANDIS_ADAPTER *pContext, ULONG MessageId)
+{
+    CParaNdisAbstractPath *path = NULL;
+
+    UINT bundleId = MessageId / 2;
+    if (bundleId >= pContext->nPathBundles)
+    {
+        path = &pContext->CXPath;
+    }
+    else if (bundleId % 2)
+    {
+        path = &(pContext->pPathBundles[bundleId].txPath);
+    }
+    else
+    {
+        path = &(pContext->pPathBundles[bundleId].rxPath);
+    }
+
+    return path;
 }
 
 /**********************************************************
@@ -251,8 +286,10 @@ static BOOLEAN MiniportMSIInterrupt(
         return TRUE;
     }
 
-    CParaNdisAbstractPath *path = pContext->vPathes[MessageId];
+    CParaNdisAbstractPath *path = GetPathByMessageId(pContext, MessageId);
+
     path->DisableInterrupts();
+    path->ReportInterrupt();
 
     *QueueDefaultInterruptDpc = TRUE;
 
@@ -372,10 +409,9 @@ static VOID MiniportDisableMSIInterrupt(
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
     /* TODO - How we prevent DPC procedure from re-enabling interrupt? */
-    if (MessageId >= pContext->uNPathes)
-        return;
 
-    pContext->vPathes[MessageId]->DisableInterrupts();
+    CParaNdisAbstractPath *path = GetPathByMessageId(pContext, MessageId);
+    path->DisableInterrupts();
 }
 
 static VOID MiniportEnableMSIInterrupt(
@@ -384,10 +420,8 @@ static VOID MiniportEnableMSIInterrupt(
     )
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
-    if (MessageId >= pContext->uNPathes)
-        return;
-
-    pContext->vPathes[MessageId]->EnableInterrupts();
+    CParaNdisAbstractPath *path = GetPathByMessageId(pContext, MessageId);
+    path->EnableInterrupts();
 }
 
 
@@ -430,18 +464,30 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
                 pTable->MessageInfo[i].MessageAddress));
         }
 
-        for (u16 j = 0; j < pContext->uNPathes && status == NDIS_STATUS_SUCCESS; ++j)
+        for (UINT j = 0; j < pContext->nPathBundles && status == NDIS_STATUS_SUCCESS; ++j)
         {
-            status = pContext->vPathes[j]->SetupMessageIndex(j);
+            status = pContext->pPathBundles[j].rxPath.SetupMessageIndex(u16(j));
+            status = pContext->pPathBundles[j].txPath.SetupMessageIndex(u16(j));
         }
 
+        if (pContext->bCXPathCreated)
+        {
+            pContext->CXPath.SetupMessageIndex(u16(pContext->nPathBundles));
+        }
     }
 
     if (status == NDIS_STATUS_SUCCESS)
     {
-        DPrintf(0, ("[%s] Using message %u for RX queue\n", __FUNCTION__, pContext->RXPath[0].getMessageIndex()));
-        DPrintf(0, ("[%s] Using message %u for TX queue\n", __FUNCTION__, pContext->TXPath[0].getMessageIndex()));
-        DPrintf(0, ("[%s] Using message %u for controls\n", __FUNCTION__, pContext->CXPath.getMessageIndex()));
+        DPrintf(0, ("[%s] Using message %u for RX queue 0\n", __FUNCTION__, pContext->pPathBundles[0].rxPath.getMessageIndex()));
+        DPrintf(0, ("[%s] Using message %u for TX queue 0\n", __FUNCTION__, pContext->pPathBundles[0].txPath.getMessageIndex()));
+        if (pContext->bCXPathCreated)
+        {
+            DPrintf(0, ("[%s] Using message %u for controls\n", __FUNCTION__, pContext->CXPath.getMessageIndex()));
+        }
+        else
+        {
+            DPrintf(0, ("[%s] - No control path\n", __FUNCTION__));
+        }
     }
     DEBUG_EXIT_STATUS(2, status);
     return status;
@@ -996,13 +1042,16 @@ NDIS_STATUS ParaNdis6_SendPauseRestart(
             pContext->SendState = srsPausing;
             pContext->SendPauseCompletionProc = Callback;
 
-            if (pContext->TXPath[0].Pause())
+            for (UINT i = 0; i < pContext->nPathBundles; i++)
+            {
+                if (!pContext->pPathBundles[i].txPath.Pause())
+                {
+                    status = NDIS_STATUS_PENDING;
+                }
+            }
+            if (status == NDIS_STATUS_SUCCESS)
             {
                 pContext->SendState = srsDisabled;
-            }
-            else
-            {
-                status = NDIS_STATUS_PENDING;
             }
         }
         if (status == NDIS_STATUS_SUCCESS)
@@ -1030,5 +1079,8 @@ VOID ParaNdis6_CancelSendNetBufferLists(
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
 
     DEBUG_ENTRY(0);
-    pContext->TXPath[0].CancelNBLs(pCancelId);
+    for (UINT i = 0; i < pContext->nPathBundles; i++)
+    {
+        pContext->pPathBundles[i].txPath.CancelNBLs(pCancelId);
+    }
 }

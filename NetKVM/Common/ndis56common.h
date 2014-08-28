@@ -92,6 +92,16 @@ static __inline BOOLEAN ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq)
 #include "ParaNdis-RX.h"
 #include "ParaNdis-CX.h"
 
+struct CPUPathesBundle : public CNdisAllocatable<CPUPathesBundle, 'CPPB'> {
+    CParaNdisRX rxPath;
+    bool        rxCreated = false;
+
+    CParaNdisTX txPath;
+    bool        txCreated = false;
+
+    CParaNdisCX *cxPath = NULL;
+} ;
+
 // those stuff defined in NDIS
 //NDIS_MINIPORT_MAJOR_VERSION
 //NDIS_MINIPORT_MINOR_VERSION
@@ -462,18 +472,12 @@ typedef struct _tagPARANDIS_ADAPTER
 #define PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED (0)
 #define PARANDIS_FIRST_RSS_RECEIVE_QUEUE    (1)
 
-    CParaNdisTX *TXPath;
-    BOOLEAN bTXPathCreated;
-
-    CParaNdisRX *RXPath;
-    BOOLEAN bRXPathCreated;
-
     CParaNdisCX CXPath;
     BOOLEAN bCXPathAllocated;
     BOOLEAN bCXPathCreated;
 
-    CParaNdisAbstractPath **vPathes;
-    UINT                  uNPathes;
+    CPUPathesBundle             *pPathBundles;
+    UINT                        nPathBundles;
 
     PIO_INTERRUPT_MESSAGE_INFO  pMSIXInfoTable;
     NDIS_HANDLE                 DmaHandle;
