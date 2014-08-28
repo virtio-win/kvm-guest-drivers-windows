@@ -182,6 +182,20 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
     if (status == NDIS_STATUS_SUCCESS)
     {
+        pContext->IODevice = (VirtIODevice *)NdisAllocateMemoryWithTagPriority(
+            miniportAdapterHandle,
+            sizeof(VirtIODevice),
+            PARANDIS_MEMORY_TAG,
+            NormalPoolPriority);
+    }
+    if (!pContext->IODevice)
+    {
+        DPrintf(0, ("[%s] ERROR: IODevice memory allocation failed!\n", __FUNCTION__));
+        status = NDIS_STATUS_RESOURCES;
+    }
+
+    if (status == NDIS_STATUS_SUCCESS)
+    {
         /* prepare statistics struct for further reports */
         pContext->Statistics.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
         pContext->Statistics.Header.Revision = NDIS_STATISTICS_INFO_REVISION_1;

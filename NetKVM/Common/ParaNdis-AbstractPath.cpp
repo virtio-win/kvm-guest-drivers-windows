@@ -5,9 +5,9 @@ NDIS_STATUS CParaNdisAbstractPath::SetupMessageIndex(u16 queueCardinal)
 {
     u16 val;
 
-    WriteVirtIODeviceWord(m_Context->IODevice.addr + VIRTIO_PCI_QUEUE_SEL, (u16)queueCardinal);
-    WriteVirtIODeviceWord(m_Context->IODevice.addr + VIRTIO_MSI_QUEUE_VECTOR, (u16)queueCardinal);
-    val = ReadVirtIODeviceWord(m_Context->IODevice.addr + VIRTIO_MSI_QUEUE_VECTOR);
+    WriteVirtIODeviceWord(m_Context->IODevice->addr + VIRTIO_PCI_QUEUE_SEL, (u16)queueCardinal);
+    WriteVirtIODeviceWord(m_Context->IODevice->addr + VIRTIO_MSI_QUEUE_VECTOR, (u16)queueCardinal);
+    val = ReadVirtIODeviceWord(m_Context->IODevice->addr + VIRTIO_MSI_QUEUE_VECTOR);
     if (val != queueCardinal)
     {
         DPrintf(0, ("[%s] - read/write mismatch, %u vs %u\n", val, queueCardinal));

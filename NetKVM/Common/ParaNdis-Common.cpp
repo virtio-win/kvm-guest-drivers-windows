@@ -124,7 +124,7 @@ static const tConfigurationEntries defaultConfiguration =
 
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
 {
-    VirtIODeviceReset(&pContext->IODevice);
+    VirtIODeviceReset(pContext->IODevice);
     DPrintf(0, ("[%s] Done\n", __FUNCTION__));
     /* reset all the features in the device */
     pContext->ulCurrentVlansFilterSet = 0;
@@ -553,7 +553,7 @@ SetDeviceMAC(PPARANDIS_ADAPTER pContext, PUCHAR pDeviceMAC)
 {
     if(pContext->bCfgMACAddrSupported && !pContext->bCtrlMACAddrSupported)
     {
-        VirtIODeviceSet(&pContext->IODevice, 0, pDeviceMAC, ETH_LENGTH_OF_ADDRESS);
+        VirtIODeviceSet(pContext->IODevice, 0, pDeviceMAC, ETH_LENGTH_OF_ADDRESS);
     }
 }
 
@@ -567,7 +567,7 @@ InitializeMAC(PPARANDIS_ADAPTER pContext, PUCHAR pCurrentMAC)
     //Read and validate permanent MAC address
     if (pContext->bCfgMACAddrSupported)
     {
-        VirtIODeviceGet(&pContext->IODevice, 0, &pContext->PermanentMacAddress, ETH_LENGTH_OF_ADDRESS);
+        VirtIODeviceGet(pContext->IODevice, 0, &pContext->PermanentMacAddress, ETH_LENGTH_OF_ADDRESS);
         if (!ParaNdis_ValidateMacAddress(pContext->PermanentMacAddress, FALSE))
         {
             DumpMac(0, "Invalid device MAC ignored", pContext->PermanentMacAddress);
@@ -669,17 +669,17 @@ NDIS_STATUS ParaNdis_InitializeContext(
             pContext->bUsingMSIX = TRUE;
         }
 
-        VirtIODeviceInitialize(&pContext->IODevice, pContext->AdapterResources.ulIOAddress, sizeof(pContext->IODevice));
-        VirtIODeviceSetMSIXUsed(&pContext->IODevice, pContext->bUsingMSIX ? true : false);
+        VirtIODeviceInitialize(pContext->IODevice, pContext->AdapterResources.ulIOAddress, sizeof(*pContext->IODevice));
+        VirtIODeviceSetMSIXUsed(pContext->IODevice, pContext->bUsingMSIX ? true : false);
         ParaNdis_ResetVirtIONetDevice(pContext);
-        VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
-        VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER);
-        pContext->u32HostFeatures = VirtIODeviceReadHostFeatures(&pContext->IODevice);
+        VirtIODeviceAddStatus(pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
+        VirtIODeviceAddStatus(pContext->IODevice, VIRTIO_CONFIG_S_DRIVER);
+        pContext->u32HostFeatures = VirtIODeviceReadHostFeatures(pContext->IODevice);
         DumpVirtIOFeatures(pContext);
 
         pContext->bLinkDetectSupported = AckFeature(pContext, VIRTIO_NET_F_STATUS);
         if(pContext->bLinkDetectSupported) {
-            VirtIODeviceGet(&pContext->IODevice, ETH_LENGTH_OF_ADDRESS, &linkStatus, sizeof(linkStatus));
+            VirtIODeviceGet(pContext->IODevice, ETH_LENGTH_OF_ADDRESS, &linkStatus, sizeof(linkStatus));
             pContext->bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
             DPrintf(0, ("[%s] Link status on driver startup: %d\n", __FUNCTION__, pContext->bConnected));
         }
@@ -701,7 +701,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
     pContext->bMultiQueue = AckFeature(pContext, VIRTIO_NET_F_CTRL_MQ);
     if (pContext->bMultiQueue)
     {
-        VirtIODeviceGet(&pContext->IODevice, ETH_LENGTH_OF_ADDRESS + sizeof(USHORT), &pContext->nHardwareQueues,
+        VirtIODeviceGet(pContext->IODevice, ETH_LENGTH_OF_ADDRESS + sizeof(USHORT), &pContext->nHardwareQueues,
             sizeof(pContext->nHardwareQueues));
     }
     else
@@ -743,7 +743,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
     InterlockedExchange(&pContext->ReuseBufferRegular, TRUE);
 
-    VirtIODeviceWriteGuestFeatures(&pContext->IODevice, pContext->u32GuestFeatures);
+    VirtIODeviceWriteGuestFeatures(pContext->IODevice, pContext->u32GuestFeatures);
     NdisInitializeEvent(&pContext->ResetEvent);
     DEBUG_EXIT_STATUS(0, status);
     return status;
@@ -862,8 +862,30 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     NDIS_STATUS status = NDIS_STATUS_RESOURCES;
     DEBUG_ENTRY(0);
     UINT i;
+    USHORT nVirtIOQueues = pContext->nHardwareQueues * 2 + 2;
 
     pContext->nPathBundles = DetermineQueueNumber(pContext);
+
+    if (nVirtIOQueues > pContext->IODevice->maxQueues)
+    {
+        ULONG IODeviceSize = VirtIODeviceSizeRequired(nVirtIOQueues);
+
+        NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->IODevice, PARANDIS_MEMORY_TAG);
+        pContext->IODevice = (VirtIODevice *)NdisAllocateMemoryWithTagPriority(
+            pContext->MiniportHandle,
+            IODeviceSize,
+            PARANDIS_MEMORY_TAG,
+            NormalPoolPriority);
+        if (pContext->IODevice == nullptr)
+        {
+            DPrintf(0, ("[%s] - IODevice allocation failed\n", __FUNCTION__));
+            return NDIS_STATUS_RESOURCES;
+        }
+
+        VirtIODeviceInitialize(pContext->IODevice, pContext->AdapterResources.ulIOAddress, IODeviceSize);
+        VirtIODeviceSetMSIXUsed(pContext->IODevice, pContext->bUsingMSIX ? true : false);
+        DPrintf(0, ("[%s] %u queues' slots reallocated for size %lu\n", __FUNCTION__, pContext->IODevice->maxQueues, IODeviceSize));
+    }
 
     new (&pContext->CXPath, PLACEMENT_NEW) CParaNdisCX();
     pContext->bCXPathAllocated = TRUE;
@@ -917,7 +939,7 @@ static void ReadLinkState(PARANDIS_ADAPTER *pContext)
     if (pContext->bLinkDetectSupported)
     {
         USHORT linkStatus = 0;
-        VirtIODeviceGet(&pContext->IODevice, ETH_LENGTH_OF_ADDRESS, &linkStatus, sizeof(linkStatus));
+        VirtIODeviceGet(pContext->IODevice, ETH_LENGTH_OF_ADDRESS, &linkStatus, sizeof(linkStatus));
         pContext->bConnected = !!(linkStatus & VIRTIO_NET_S_LINK_UP);
     }
     else
@@ -928,7 +950,7 @@ static void ReadLinkState(PARANDIS_ADAPTER *pContext)
 
 static void ParaNdis_RemoveDriverOKStatus(PPARANDIS_ADAPTER pContext )
 {
-    VirtIODeviceRemoveStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+    VirtIODeviceRemoveStatus(pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 
     KeMemoryBarrier();
 
@@ -941,7 +963,7 @@ static VOID ParaNdis_AddDriverOKStatus(PPARANDIS_ADAPTER pContext)
 
     KeMemoryBarrier();
 
-    VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+    VirtIODeviceAddStatus(pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 }
 
 /**********************************************************
@@ -1093,7 +1115,7 @@ Parameters:
 VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 {
     /* disable any interrupt generation */
-    if (pContext->IODevice.addr)
+    if (pContext->IODevice->addr)
     {
         if (pContext->bDeviceInitialized)
         {
@@ -1108,7 +1130,7 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     free all the buffers and their descriptors
     *****************************************/
 
-    if (pContext->IODevice.addr)
+    if (pContext->IODevice->addr)
     {
         ParaNdis_ResetVirtIONetDevice(pContext);
     }
@@ -1153,6 +1175,12 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     {
         delete[] pContext->pPathBundles;
         pContext->pPathBundles = nullptr;
+    }
+
+    if (pContext->IODevice)
+    {
+        NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->IODevice, PARANDIS_MEMORY_TAG);
+        pContext->IODevice = nullptr;
     }
 
     if (pContext->AdapterResources.ulIOAddress)
@@ -1563,7 +1591,7 @@ static BOOLEAN CheckRunningDpc(PARANDIS_ADAPTER *pContext)
                 DPrintf(0, ("[%s] - Suspicious Tx inactivity (%d)!\n", __FUNCTION__, pContext->pPathBundles[i].txPath.GetFreeHWBuffers()));
                 //bReportHang = TRUE;
 #ifdef DBG_USE_VIRTIO_PCI_ISR_FOR_HOST_REPORT
-                WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 0);
+                WriteVirtIODeviceByte(pContext->IODevice->addr + VIRTIO_PCI_ISR, 0);
 #endif
                 break;
             }
@@ -1898,11 +1926,11 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, hopPowerOn, NULL, 1, 0, 0);
     ParaNdis_ResetVirtIONetDevice(pContext);
-    VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE | VIRTIO_CONFIG_S_DRIVER);
+    VirtIODeviceAddStatus(pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE | VIRTIO_CONFIG_S_DRIVER);
     /* GetHostFeature must be called with any mask once upon device initialization:
      otherwise the device will not work properly */
-    VirtIODeviceReadHostFeatures(&pContext->IODevice);
-    VirtIODeviceWriteGuestFeatures(&pContext->IODevice, pContext->u32GuestFeatures);
+    VirtIODeviceReadHostFeatures(pContext->IODevice);
+    VirtIODeviceWriteGuestFeatures(pContext->IODevice, pContext->u32GuestFeatures);
 
     for (i = 0; i < pContext->nPathBundles; i++)
     {
@@ -1996,7 +2024,7 @@ void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext)
     if (pContext->AdapterResources.ulIOAddress)
     {
 #ifdef DBG_USE_VIRTIO_PCI_ISR_FOR_HOST_REPORT
-        WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 1);
+        WriteVirtIODeviceByte(pContext->IODevice->addr + VIRTIO_PCI_ISR, 1);
 #endif
     }
 }

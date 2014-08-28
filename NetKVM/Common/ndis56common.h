@@ -390,7 +390,7 @@ typedef struct _tagPARANDIS_ADAPTER
     NDIS_EVENT              ResetEvent;
     tAdapterResources       AdapterResources;
     PVOID                   pIoPortOffset;
-    VirtIODevice            IODevice;
+    VirtIODevice            *IODevice;
     LARGE_INTEGER           LastTxCompletionTimeStamp;
 #ifdef PARANDIS_DEBUG_INTERRUPTS
     LARGE_INTEGER           LastInterruptTimeStamp;
