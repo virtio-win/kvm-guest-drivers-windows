@@ -492,8 +492,11 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
 
     if (status == NDIS_STATUS_SUCCESS)
     {
-        DPrintf(0, ("[%s] Using message %u for RX queue 0\n", __FUNCTION__, pContext->pPathBundles[0].rxPath.getMessageIndex()));
-        DPrintf(0, ("[%s] Using message %u for TX queue 0\n", __FUNCTION__, pContext->pPathBundles[0].txPath.getMessageIndex()));
+        for (UINT j = 0; j < pContext->nPathBundles && status == NDIS_STATUS_SUCCESS; ++j)
+        {
+            DPrintf(0, ("[%s] Using messages %u/%u for RX/TX queue %u\n", __FUNCTION__, pContext->pPathBundles[j].rxPath.getMessageIndex(),
+                pContext->pPathBundles[j].rxPath.getMessageIndex(), j));
+        }
         if (pContext->bCXPathCreated)
         {
             DPrintf(0, ("[%s] Using message %u for controls\n", __FUNCTION__, pContext->CXPath.getMessageIndex()));

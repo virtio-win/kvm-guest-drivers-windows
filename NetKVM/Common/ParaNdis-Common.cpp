@@ -786,6 +786,16 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
     }
 
 #if NDIS_SUPPORT_NDIS620
+    if (pContext->bMultiQueue)
+    {
+        DPrintf(0, ("[%s] Number of hardware queues = %d\n", __FUNCTION__, pContext->nHardwareQueues));
+    }
+    else
+    {
+        DPrintf(0, ("[%s] - CTRL_MQ not acked, # bindles set to 1\n", __FUNCTION__));
+        return 1;
+    }
+
     ULONG lnProcessors = NdisGroupActiveProcessorCount(ALL_PROCESSOR_GROUPS);
     ULONG lnMSIs = pContext->pMSIXInfoTable->MessageCount - 1; /* RX/TX pairs + control queue*/
 
