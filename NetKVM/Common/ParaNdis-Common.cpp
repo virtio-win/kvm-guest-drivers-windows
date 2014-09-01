@@ -853,7 +853,7 @@ static NDIS_STATUS SetupDPCTarget(PARANDIS_ADAPTER *pContext)
         ParaNdis_ProcessorNumberToGroupAffinity(&pContext->pPathBundles[i].rxPath.DPCAffinity, &procNumber);
         pContext->pPathBundles[i].txPath.DPCAffinity = pContext->pPathBundles[i].rxPath.DPCAffinity;
 #elif NDIS_SUPPORT_NDIS6
-        pContext->pPathBundles[i].rxPath.DPCTargetProcessor = 1 << i;
+        pContext->pPathBundles[i].rxPath.DPCTargetProcessor = 1i64 << i;
         pContext->pPathBundles[i].txPath.DPCTargetProcessor = pContext->pPathBundles[i].rxPath.DPCTargetProcessor;
 #else
 #error not supported
@@ -899,7 +899,7 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
 
     for (bundleIndex = 0; bundleIndex < pContext->nPathBundles; ++bundleIndex)
     {
-        ULONG cpuIndex = pContext->pPathBundles[bundleIndex].rxPath.getCPUIndex();
+        cpuIndex = pContext->pPathBundles[bundleIndex].rxPath.getCPUIndex();
         if (cpuIndex == INVALID_PROCESSOR_INDEX)
         {
             DPrintf(0, ("[%s]  Invalid CPU index for path %u\n", __FUNCTION__, bundleIndex));

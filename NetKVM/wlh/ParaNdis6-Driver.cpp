@@ -186,6 +186,8 @@ static NDIS_STATUS ParaNdis6_Initialize(
         }
     }
 
+#pragma warning(push)
+#pragma warning(disable:28197)
     if (status == NDIS_STATUS_SUCCESS)
     {
         pContext->IODevice = (VirtIODevice *)NdisAllocateMemoryWithTagPriority(
@@ -194,6 +196,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
             PARANDIS_MEMORY_TAG,
             NormalPoolPriority);
     }
+#pragma warning(pop)
     if (!pContext->IODevice)
     {
         DPrintf(0, ("[%s] ERROR: IODevice memory allocation failed!\n", __FUNCTION__));
@@ -889,11 +892,19 @@ static void SetupInterrruptAffinity(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
                 desc->u.Interrupt.AffinityPolicy = IrqPolicySpecifiedProcessors;
 #if defined(NT_PROCESSOR_GROUPS)
                 PROCESSOR_NUMBER procNumber;
+                NDIS_STATUS status;
 
-                KeGetProcessorNumberFromIndex(procIndex, &procNumber);
-                desc->Flags |= CM_RESOURCE_INTERRUPT_POLICY_INCLUDED;
-                desc->u.Interrupt.Group = procNumber.Group;
-                desc->u.Interrupt.TargetedProcessors = 1i64 << procNumber.Number;
+                status = KeGetProcessorNumberFromIndex(procIndex, &procNumber);
+                if (status == STATUS_SUCCESS)
+                {
+                    desc->Flags |= CM_RESOURCE_INTERRUPT_POLICY_INCLUDED;
+                    desc->u.Interrupt.Group = procNumber.Group;
+                    desc->u.Interrupt.TargetedProcessors = 1i64 << procNumber.Number;
+                }
+                else
+                {
+                    DPrintf(0, ("[%s] - can't convert index %u into processor number\n", __FUNCTION__, procIndex));
+                }
 #else
                 desc->u.Interrupt.TargetedProcessors = 1i64 << procIndex;
 #endif

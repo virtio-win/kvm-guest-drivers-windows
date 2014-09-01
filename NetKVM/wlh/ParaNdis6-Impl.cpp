@@ -303,7 +303,7 @@ static BOOLEAN MiniportMSIInterrupt(
         *QueueDefaultInterruptDpc = TRUE;
     }
 #else
-    *TargetProcessors = path->DPCTargetProcessor;
+    *TargetProcessors = (ULONG)path->DPCTargetProcessor;
     *QueueDefaultInterruptDpc = TRUE;
 #endif
 
