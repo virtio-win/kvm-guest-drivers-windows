@@ -1,8 +1,16 @@
 #pragma once
 
-extern "C"
-{
+extern "C" {
 #include <ndis.h>
+#include <sal.h>
+
+#if NTDDI_VERSION > NTDDI_VISTA
+#include <concurrencysal.h>
+#else
+#define _Requires_lock_held_(lock)
+#define _Acquires_shared_lock_(lock)
+#define _Acquires_exclusive_lock_(lock)
+#endif
 }
 
 typedef enum
@@ -371,6 +379,7 @@ public:
 #endif
     }
 
+    _Acquires_shared_lock_(m_pLock)
     void acquireRead(CNdisRWLockState &lockState)
     {
 #ifdef RW_LOCK_60
@@ -381,6 +390,7 @@ public:
 #endif
     }
 
+    _Acquires_exclusive_lock_(m_pLock)
     void acquireWrite(CNdisRWLockState &lockState)
     {
 #ifdef RW_LOCK_60
@@ -391,6 +401,7 @@ public:
 #endif
     }
 
+    _Requires_lock_held_(this->m_pLock)
     void release(CNdisRWLockState &lockState)
     {
 #ifdef RW_LOCK_60
@@ -401,6 +412,7 @@ public:
 #endif
     }
 
+    _Acquires_shared_lock_(this->m_pLock)
     void acquireReadDpr(CNdisRWLockState &lockState)
     {
         ASSERTMSG("Unexpected IRQL level", KeGetCurrentIrql() == DISPATCH_LEVEL);
@@ -413,6 +425,7 @@ public:
 #endif
     }
 
+    _Acquires_exclusive_lock_(this->m_pLock)
     void acquireWriteDpr(CNdisRWLockState &lockState)
     {
         ASSERTMSG("Unexpected IRQL level", KeGetCurrentIrql() == DISPATCH_LEVEL);
@@ -424,6 +437,7 @@ public:
 #endif
     }
 
+    _Requires_lock_held_(m_pLock)
     void releaseDpr(CNdisRWLockState &lockState)
     {
         ASSERTMSG("Unexpected IRQL level", KeGetCurrentIrql() == DISPATCH_LEVEL);
