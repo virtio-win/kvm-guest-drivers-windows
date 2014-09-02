@@ -892,10 +892,7 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
         return NDIS_STATUS_RESOURCES;
     }
 
-    for (cpuIndex = 0; cpuIndex < cpuNumbers; ++cpuIndex)
-    {
-        cpuIndexTable[cpuIndex] = INVALID_PROCESSOR_INDEX;
-    }
+    NdisZeroMemory(cpuIndexTable, sizeof(*cpuIndexTable) * cpuNumbers);
 
     for (bundleIndex = 0; bundleIndex < pContext->nPathBundles; ++bundleIndex)
     {
