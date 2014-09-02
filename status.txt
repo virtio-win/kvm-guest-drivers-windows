@@ -1,6 +1,18 @@
+Date    02 Sep 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm111
+
+Fixed bugs:
+
+BZ 1136023: NetKVM fix for do { } while(0) in macro under Visual C++
+BZ 1096505: NetKVM Implement multiqueue support in Windows guest driver
+BZ 954183:  NetKVM SAL annotations
+
 Date    25 Aug 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm110
+
+Fixed bugs:
 
 BZ 1130853: Balloon fix bsod on several pnp whql tests.
 BZ 1121933: Balloon NetKvm check for VIRTIO_F_ANY_LAYOUT feature before using optim
