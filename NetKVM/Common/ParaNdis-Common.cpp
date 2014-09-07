@@ -1212,12 +1212,12 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
             pContext->pPathBundles[i].txPath.Shutdown();
         }
 
-        /* this can be freed, queue shut down */
-        pContext->pPathBundles[i].rxPath.FreeRxDescriptorsFromList();
-
         if (pContext->pPathBundles[i].rxCreated)
         {
             pContext->pPathBundles[i].rxPath.Shutdown();
+
+            /* this can be freed, queue shut down */
+            pContext->pPathBundles[i].rxPath.FreeRxDescriptorsFromList();
         }
     }
 
