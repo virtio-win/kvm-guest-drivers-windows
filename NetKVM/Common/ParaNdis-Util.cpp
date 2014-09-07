@@ -42,11 +42,17 @@ CNdisSharedMemory::~CNdisSharedMemory()
 void __CRTDECL operator delete(void *) throw()
 {
     ASSERT(FALSE);
+#ifdef DBG
+    KeBugCheck(100);
+#endif
 }
 
 void __CRTDECL operator delete[](void *) throw()
 {
     ASSERT(FALSE);
+#ifdef DBG
+    KeBugCheck(100);
+#endif
 }
 
 #ifdef RW_LOCK_62

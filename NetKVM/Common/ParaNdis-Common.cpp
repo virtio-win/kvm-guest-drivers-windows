@@ -1040,7 +1040,8 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         pContext->bCXPathCreated = TRUE;
     }
 
-    pContext->pPathBundles = new (pContext->MiniportHandle)CPUPathesBundle[pContext->nPathBundles];
+    pContext->pPathBundles = (CPUPathesBundle *)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, pContext->nPathBundles * sizeof(*pContext->pPathBundles),
+        PARANDIS_MEMORY_TAG, NormalPoolPriority);
     if (pContext->pPathBundles == nullptr)
     {
         DPrintf(0, ("[%s] Path bundles allocation failed\n", __FUNCTION__));
@@ -1049,6 +1050,8 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 
     for (i = 0; i < pContext->nPathBundles; i++)
     {
+        new (pContext->pPathBundles + i, PLACEMENT_NEW) CPUPathesBundle();
+
         if (!pContext->pPathBundles[i].rxPath.Create(pContext, i * 2))
         {
             DPrintf(0, ("%s: CParaNdisRX creation failed\n", __FUNCTION__));
@@ -1313,7 +1316,13 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 
     if (pContext->pPathBundles != NULL)
     {
-        delete[] pContext->pPathBundles;
+        USHORT i;
+
+        for (i = 0; i < pContext->nPathBundles; i++)
+        {
+            pContext->pPathBundles[i].~CPUPathesBundle();
+        }
+        NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->pPathBundles, PARANDIS_MEMORY_TAG);
         pContext->pPathBundles = nullptr;
     }
 
