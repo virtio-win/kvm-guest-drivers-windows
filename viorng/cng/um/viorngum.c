@@ -24,7 +24,6 @@
 
 #define STRICT
 #include <windows.h>
-#include <bcrypt.h>
 #include <initguid.h>
 #include <setupapi.h>
 #include <tchar.h>
@@ -33,30 +32,8 @@
 
 #include "viorngum.h"
 
-#define VIRTRNG_IMAGE_NAME L"viorngum.dll"
-
 DEFINE_GUID(GUID_DEVINTERFACE_VIRT_RNG,
     0x2489fc19, 0xd0fd, 0x4950, 0x83, 0x86, 0xf3, 0xda, 0x3f, 0xa8, 0x5, 0x8);
-
-PWSTR VirtRngAlgorithmNames[1] = {
-    BCRYPT_RNG_ALGORITHM
-};
-
-CRYPT_INTERFACE_REG VirtRngInterface = {
-    BCRYPT_RNG_INTERFACE, CRYPT_LOCAL, 1, VirtRngAlgorithmNames
-};
-
-PCRYPT_INTERFACE_REG VirtRngInterfaces[1] = {
-    &VirtRngInterface
-};
-
-CRYPT_IMAGE_REG VirtRngImage = {
-    VIRTRNG_IMAGE_NAME, 1, VirtRngInterfaces
-};
-
-CRYPT_PROVIDER_REG VirtRngProvider = {
-    0, NULL, &VirtRngImage, NULL
-};
 
 BCRYPT_RNG_FUNCTION_TABLE RngFunctionTable =
 {
@@ -70,17 +47,6 @@ BCRYPT_RNG_FUNCTION_TABLE RngFunctionTable =
     VirtRngCloseAlgorithmProvider,
     VirtRngGenRandom
 };
-
-static void ReportError(const wchar_t *format, ...)
-{
-    WCHAR err[0x1000];
-    va_list list;
-
-    va_start(list, format);
-    vswprintf(err, sizeof(err), format, list);
-
-    MessageBox(HWND_DESKTOP, err, VIRTRNG_PROVIDER_NAME, MB_ICONERROR|MB_OK);
-}
 
 static NTSTATUS ReadRngFromDevice(IN HANDLE Device,
                                   IN LPOVERLAPPED Overlapped,
@@ -105,58 +71,6 @@ static NTSTATUS ReadRngFromDevice(IN HANDLE Device,
     else
     {
         status = STATUS_UNSUCCESSFUL;
-    }
-
-    return status;
-}
-
-NTSTATUS WINAPI RegisterProvider(BOOLEAN KernelMode)
-{
-    NTSTATUS status;
-
-    UNREFERENCED_PARAMETER(KernelMode);
-
-    status = BCryptRegisterProvider(VIRTRNG_PROVIDER_NAME, 0,
-        &VirtRngProvider);
-
-    if (!NT_SUCCESS(status))
-    {
-        ReportError(L"Failed to register as a CNG provider.\n"
-            L"Error code: 0x%08x.", status);
-        return status;
-    }
-
-    status = BCryptAddContextFunctionProvider(CRYPT_LOCAL, NULL,
-        BCRYPT_RNG_INTERFACE, BCRYPT_RNG_ALGORITHM, VIRTRNG_PROVIDER_NAME,
-        CRYPT_PRIORITY_BOTTOM);
-
-    if (!NT_SUCCESS(status))
-    {
-        ReportError(L"Failed to add cryptographic function.\n"
-            L"Error code: 0x%08x.", status);
-    }
-
-    return status;
-}
-
-NTSTATUS WINAPI UnregisterProvider()
-{
-    NTSTATUS status;
-
-    status = BCryptRemoveContextFunctionProvider(CRYPT_LOCAL, NULL,
-        BCRYPT_RNG_INTERFACE, BCRYPT_RNG_ALGORITHM, VIRTRNG_PROVIDER_NAME);
-
-    if (!NT_SUCCESS(status))
-    {
-        ReportError(L"Failed to remove cryptographic function.\n"
-            L"Error code: 0x%08x.", status);
-    }
-
-    status = BCryptUnregisterProvider(VIRTRNG_PROVIDER_NAME);
-    if (!NT_SUCCESS(status))
-    {
-        ReportError(L"Failed to unregister as a CNG provider.\n"
-            L"Error code: 0x%08x.", status);
     }
 
     return status;

@@ -22,8 +22,6 @@
  *
  */
 
-#define VIRTRNG_PROVIDER_NAME L"QEMU VirtIO RNG Provider"
-
 #ifndef NT_SUCCESS
 #define NT_SUCCESS(status) (status >= 0)
 #endif
