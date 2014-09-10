@@ -43,7 +43,10 @@ void __CRTDECL operator delete(void *) throw()
 {
     ASSERT(FALSE);
 #ifdef DBG
+#pragma warning (push)
+#pragma warning (disable:28159)
     KeBugCheck(100);
+#pragma warning (pop)
 #endif
 }
 
@@ -51,7 +54,10 @@ void __CRTDECL operator delete[](void *) throw()
 {
     ASSERT(FALSE);
 #ifdef DBG
+#pragma warning (push)
+#pragma warning (disable:28159)
     KeBugCheck(100);
+#pragma warning (pop)
 #endif
 }
 
