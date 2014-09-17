@@ -1,3 +1,16 @@
+Date    17 Sep 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm112
+
+Fixed bugs:
+
+BZ 1139509: ALL Should use Uniformed string in Manufacturer fields on all drivers
+BZ 1136606: NetKVM testing MessageInfoTable for nullness in debug printout
+BZ 1119966: NetKVM Unconditionally initialize RSSParameters lock
+BZ 1096505: NETKVM disabling warning for KeBugCheck for debug build
+BZ 1091867: RNG initial import of the viorng coinstaller.
+
+
 Date    02 Sep 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm111
