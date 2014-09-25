@@ -453,6 +453,7 @@ VioScsiHwInitialize(
     )
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    PVOID              ptr      = adaptExt->uncachedExtensionVa;
     ULONG              i;
     ULONG              guestFeatures = (1ul << VIRTIO_SCSI_F_HOTPLUG) | (1ul << VIRTIO_SCSI_F_CHANGE);
 
@@ -634,6 +635,7 @@ VioScsiInterrupt(
            }
            if (Srb->SrbStatus != SRB_STATUS_SUCCESS)
            {
+              PSENSE_DATA pSense = (PSENSE_DATA) Srb->SenseInfoBuffer;
               if (Srb->SenseInfoBufferLength >= FIELD_OFFSET(SENSE_DATA, CommandSpecificInformation)) {
                  memcpy(Srb->SenseInfoBuffer, resp->sense,
                  min(resp->sense_len, Srb->SenseInfoBufferLength));
@@ -1124,6 +1126,9 @@ TransportReset(
     IN PVirtIOSCSIEvent evt
     )
 {
+    UCHAR TargetId = evt->lun[1];
+    UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
+
     switch (evt->reason)
     {
         case VIRTIO_SCSI_EVT_RESET_RESCAN:
@@ -1145,10 +1150,12 @@ ParamChange(
     IN PVirtIOSCSIEvent evt
     )
 {
+    UCHAR TargetId = evt->lun[1];
+    UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
     UCHAR AdditionalSenseCode = (UCHAR)(evt->reason & 255);
     UCHAR AdditionalSenseCodeQualifier = (UCHAR)(evt->reason >> 8);
 
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Param change target: %d lun:%d reason:%d)\n", evt->lun[1], (evt->lun[2] << 8) | evt->lun[3], evt->reason));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Param change target: %d lun:%d reason:%d)\n", TargetId, Lun, evt->reason));
     if (AdditionalSenseCode == SCSI_ADSENSE_PARAMETERS_CHANGED &&
        (AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_PARAMETERS_CHANGED ||
         AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_MODE_PARAMETERS_CHANGED ||

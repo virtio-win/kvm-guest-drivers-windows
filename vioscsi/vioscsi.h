@@ -197,14 +197,14 @@ typedef struct {
 } VirtIOSCSIEventNode, * PVirtIOSCSIEventNode;
 #pragma pack()
 
-typedef struct
+typedef struct vring_desc_alias
 {
     union
     {
         ULONGLONG data[2];
         UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
     }u;
-} vring_desc_alias;
+};
 
 #pragma pack(1)
 typedef struct _SRB_EXTENSION {
@@ -214,7 +214,7 @@ typedef struct _SRB_EXTENSION {
     VirtIOSCSICmd         cmd;
     VIO_SG                sg[128];
 #if (INDIRECT_SUPPORTED == 1)
-    vring_desc_alias     desc[VIRTIO_MAX_SG];
+    struct vring_desc_alias     desc[VIRTIO_MAX_SG];
 #endif
 }SRB_EXTENSION, * PSRB_EXTENSION;
 #pragma pack()
@@ -284,4 +284,4 @@ typedef struct {
 #define SPC3_SCSI_SENSEQ_MODE_PARAMETERS_CHANGED            0x01
 #define SPC3_SCSI_SENSEQ_CAPACITY_DATA_HAS_CHANGED          0x09
 
-#endif // ___VIOSCSI__H__
+#endif ___VIOSCSI__H__
