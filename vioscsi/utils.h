@@ -79,5 +79,5 @@ char *DbgGetScsiOpStr(PSCSI_REQUEST_BLOCK Srb);
 #endif // TRACE_LEVEL_INFORMATION
 
 
-#endif ___UTILS_H___
+#endif // ___UTILS_H___
 
