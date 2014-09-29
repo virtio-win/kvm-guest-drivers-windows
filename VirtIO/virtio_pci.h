@@ -85,6 +85,7 @@ typedef struct TypeVirtIODevice
     tVirtIOPerQueueInfo info[MAX_QUEUES_PER_DEVICE_DEFAULT];
     /* do not add any members after info struct, it is extensible */
 } VirtIODevice;
+#define VIRTIO_DEVICE_DEFINED
 
 
 /***************************************************
@@ -142,7 +143,7 @@ ULONG VirtIODeviceISR(VirtIODevice * pVirtIODevice);
 void VirtIODeviceAddStatus(VirtIODevice * pVirtIODevice, u8 status);
 void VirtIODeviceRemoveStatus(VirtIODevice * pVirtIODevice, u8 status);
 
-void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, unsigned long *pNumEntries, unsigned long *pAllocationSize);
+void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, ULONG *pNumEntries, ULONG *pAllocationSize);
 struct virtqueue *VirtIODevicePrepareQueue(
                     VirtIODevice *vp_dev,
                     unsigned index,

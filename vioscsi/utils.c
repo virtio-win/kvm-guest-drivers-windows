@@ -56,10 +56,12 @@ static void DebugPrintFunc(const char *format, ...)
 }
 #endif
 
+#if defined(EVENT_TRACING)
 static void DebugPrintFuncWPP(const char *format, ...)
 {
 // TODO later, if needed
 }
+#endif
 
 static void NoDebugPrintFunc(const char *format, ...)
 {

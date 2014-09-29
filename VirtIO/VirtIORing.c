@@ -17,7 +17,7 @@
  *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 #include "osdep.h"
-#include "VirtIO_PCI.h"
+#include "virtio_pci.h"
 #include "VirtIO.h"
 #include "kdebugprint.h"
 #include "virtio_ring.h"
