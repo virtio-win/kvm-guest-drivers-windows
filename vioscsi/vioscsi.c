@@ -454,7 +454,7 @@ VioScsiHwInitialize(
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     ULONG              i;
-    ULONG              guestFeatures = (1ul << VIRTIO_SCSI_F_HOTPLUG) | (1ul << VIRTIO_SCSI_F_CHANGE);
+    ULONG              guestFeatures = 0;
 
 #if (MSI_SUPPORTED == 1)
     MESSAGE_INTERRUPT_INFORMATION msi_info;
@@ -463,6 +463,13 @@ ENTER_FN();
     if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX)) {
         guestFeatures |= (1ul << VIRTIO_RING_F_EVENT_IDX);
     }
+    if (CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_CHANGE)) {
+        guestFeatures |= (1ul << VIRTIO_SCSI_F_CHANGE);
+    }
+    if (CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_HOTPLUG)) {
+        guestFeatures |= (1ul << VIRTIO_SCSI_F_HOTPLUG);
+    }
+
     if (adaptExt->vq[0] == NULL) {
       adaptExt->msix_vectors = 0;
   #if (MSI_SUPPORTED == 1)
