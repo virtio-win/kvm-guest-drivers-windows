@@ -10,7 +10,9 @@
  *
 **********************************************************************/
 #include "utils.h"
+#ifdef ENABLE_TRACE
 #include <ntstrsafe.h>
+#endif
 
 int virtioDebugLevel;
 int bDebugPrint;
