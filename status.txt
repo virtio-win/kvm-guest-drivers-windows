@@ -1,3 +1,12 @@
+Date    30 Sep 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm113
+
+Fixed bugs:
+
+BZ 1123288: NetKvm Freeing shared memory on control queue destruction
+BZ 1091867: RNG fix 64-bit coinstaller build.
+
 Date    17 Sep 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm112
