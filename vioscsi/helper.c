@@ -41,7 +41,9 @@ ENTER_FN();
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
-        virtqueue_kick(adaptExt->vq[2]);
+        if(++adaptExt->in_fly < 3) {
+            virtqueue_kick(adaptExt->vq[2]);
+        }
         return TRUE;
     }
     Srb->SrbStatus = SRB_STATUS_BUSY;
@@ -157,16 +159,25 @@ ENTER_FN();
     if (adaptExt->vq[0]) {
        virtqueue_shutdown(adaptExt->vq[0]);
        VirtIODeviceDeleteQueue(adaptExt->vq[0], NULL);
+       if (adaptExt->dump_mode && adaptExt->original_queue_num[0] != 0) {
+           StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM), adaptExt->original_queue_num[0]);
+       }
        adaptExt->vq[0] = NULL;
     }
     if (adaptExt->vq[1]) {
        virtqueue_shutdown(adaptExt->vq[1]);
        VirtIODeviceDeleteQueue(adaptExt->vq[1], NULL);
+       if (adaptExt->dump_mode && adaptExt->original_queue_num[1] != 0) {
+           StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM), adaptExt->original_queue_num[1]);
+       }
        adaptExt->vq[1] = NULL;
     }
     if (adaptExt->vq[2]) {
        virtqueue_shutdown(adaptExt->vq[2]);
        VirtIODeviceDeleteQueue(adaptExt->vq[2], NULL);
+       if (adaptExt->dump_mode && adaptExt->original_queue_num[2] != 0) {
+           StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM), adaptExt->original_queue_num[2]);
+       }
        adaptExt->vq[2] = NULL;
     }
 EXIT_FN();
