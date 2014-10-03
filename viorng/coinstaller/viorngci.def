@@ -1,0 +1,9 @@
+
+LIBRARY "viorngci"
+
+EXPORTS
+
+	VirtRngCoInstaller
+
+	RegisterProvider
+	UnregisterProvider

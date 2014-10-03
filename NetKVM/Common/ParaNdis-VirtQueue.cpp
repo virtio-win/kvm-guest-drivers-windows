@@ -27,7 +27,11 @@ bool CVirtQueue::Create(UINT Index,
     m_Index = Index;
     m_IODevice = IODevice;
     if (!m_SharedMemory.Create(DrvHandle))
+    {
+        DPrintf(0, ("[%s] - shared memory creation failed\n", __FUNCTION__));
         return false;
+    }
+
     m_UsePublishedIndices = UsePublishedIndices;
 
     ASSERT(m_VirtQueue == nullptr);
@@ -41,6 +45,14 @@ bool CVirtQueue::Create(UINT Index,
                                                m_SharedMemory.GetSize(),
                                                nullptr,
                                                static_cast<BOOLEAN>(m_UsePublishedIndices));
+        if (m_VirtQueue == nullptr)
+        {
+            DPrintf(0, ("[%s] - queue preparation failed for index %u\n", __FUNCTION__, Index));
+        }
+    }
+    else
+    {
+        DPrintf(0, ("[%s] - queue memory allocation failed\n", __FUNCTION__, Index));
     }
 
     return m_VirtQueue != nullptr;
@@ -52,6 +64,11 @@ void CVirtQueue::Delete()
     {
         VirtIODeviceDeleteQueue(m_VirtQueue, nullptr);
     }
+}
+
+void CVirtQueue::Shutdown()
+{
+    virtqueue_shutdown(m_VirtQueue);
 }
 
 bool CTXVirtQueue::PrepareBuffers()
@@ -70,7 +87,8 @@ bool CTXVirtQueue::PrepareBuffers()
             m_HeaderSize,
             m_SGTable,
             m_SGTableCapacity,
-            m_Context->bUseIndirect ? true : false))
+            m_Context->bUseIndirect ? true : false,
+            m_Context->bAnyLaypout ? true : false))
         {
             CTXDescriptor::Destroy(TXDescr, m_Context->MiniportHandle);
             break;
@@ -254,7 +272,7 @@ UINT CTXVirtQueue::VirtIONetReleaseTransmitBuffers()
         m_DoKickOnNoBuffer = true;
         m_Context->nDetectedStoppedTx = 0;
     }
-    DEBUG_EXIT_STATUS((i ? 3 : 5), i);
+    DPrintf((i ? 3 : 5), ("[%s] returning i = %d\n", __FUNCTION__, i)); 
     return i;
 }
 
@@ -334,8 +352,17 @@ bool CTXDescriptor::SetupHeaders(ULONG ParsedHeadersLength)
 
     if (m_Headers.VlanHeader()->TCI == 0)
     {
-        return AddDataChunk(m_Headers.VirtioHeaderPA(), m_Headers.VirtioHeaderLength() +
-                                                        ParsedHeadersLength);
+        if (m_AnyLayout)
+        {
+            return AddDataChunk(m_Headers.VirtioHeaderPA(), m_Headers.VirtioHeaderLength() +
+                                ParsedHeadersLength);
+        }
+        else
+        {
+            return AddDataChunk(m_Headers.VirtioHeaderPA(), m_Headers.VirtioHeaderLength()) &&
+                   AddDataChunk(m_Headers.EthHeaderPA(), ParsedHeadersLength);
+        }
+
     }
     else
     {

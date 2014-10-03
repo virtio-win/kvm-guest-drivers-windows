@@ -952,8 +952,11 @@
     <ClInclude Include="Common\IONetDescriptor.h" />
     <ClInclude Include="Common\ndis56common.h" />
     <ClInclude Include="Common\osdep.h" />
+    <ClInclude Include="Common\ParaNdis-AbstractPath.h" />
+    <ClInclude Include="Common\ParaNdis-CX.h" />
     <ClInclude Include="Common\ParaNdis-Oid.h" />
     <ClInclude Include="Common\ParaNdis-RSS.h" />
+    <ClInclude Include="Common\ParaNdis-RX.h" />
     <ClInclude Include="Common\ParaNdis-TX.h" />
     <ClInclude Include="Common\ParaNdis-VirtQueue.h" />
     <ClInclude Include="Common\ParaNdis-Util.h" />
@@ -963,9 +966,12 @@
   <ItemGroup>
     <ClCompile Include="..\VirtIO\VirtIOPCI.c" />
     <ClCompile Include="..\VirtIO\VirtIORing.c" />
+    <ClCompile Include="Common\ParaNdis-AbstractPath.cpp" />
     <ClCompile Include="Common\ParaNdis-Common.cpp" />
+    <ClCompile Include="Common\ParaNdis-CX.cpp" />
     <ClCompile Include="Common\ParaNdis-Debug.cpp" />
     <ClCompile Include="Common\ParaNdis-Oid.cpp" />
+    <ClCompile Include="Common\ParaNdis-RX.cpp" />
     <ClCompile Include="Common\ParaNdis-TX.cpp" />
     <ClCompile Include="Common\ParaNdis-VirtQueue.cpp" />
     <ClCompile Include="Common\ParaNdis-Util.cpp" />

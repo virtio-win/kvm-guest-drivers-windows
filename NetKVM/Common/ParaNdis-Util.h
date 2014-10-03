@@ -1,8 +1,16 @@
 #pragma once
 
-extern "C"
-{
+extern "C" {
 #include <ndis.h>
+#include <sal.h>
+
+#if NTDDI_VERSION > NTDDI_VISTA
+#include <concurrencysal.h>
+#else
+#define _Requires_lock_held_(lock)
+#define _Acquires_shared_lock_(lock)
+#define _Acquires_exclusive_lock_(lock)
+#endif
 }
 
 typedef enum
@@ -17,13 +25,8 @@ public:
     void* operator new(size_t /* size */, void *ptr, parandis_placement placement) throw()
         { UNREFERENCED_PARAMETER(placement); return ptr; }
 
-    void* operator new[](size_t /* size */, void *ptr, parandis_placement placement) throw()
-        { UNREFERENCED_PARAMETER(placement); return ptr; }
 
     void* operator new(size_t Size, NDIS_HANDLE MiniportHandle) throw()
-        { return NdisAllocateMemoryWithTagPriority(MiniportHandle, (UINT) Size, Tag, NormalPoolPriority); }
-
-    void* operator new[](size_t Size, NDIS_HANDLE MiniportHandle) throw()
         { return NdisAllocateMemoryWithTagPriority(MiniportHandle, (UINT) Size, Tag, NormalPoolPriority); }
 
     static void Destroy(T *ptr, NDIS_HANDLE MiniportHandle)
@@ -35,6 +38,23 @@ public:
 protected:
     CNdisAllocatable() {};
     ~CNdisAllocatable() {};
+
+    /* Objects's array can't be freed by NdisFreeMemoryWithTagPriority, as C++ array constructor uses the
+    * first several bytes for array length. Array  destructor can't get additional argument, so passing
+    * NDIS_HANDLE to the array destructor is impossible. Therefore, the array constructors and destructor
+    * are declared private and object arrays has be created and destroyed in two steps - construction by
+    * allocating array memory with NdisAllocateMemoryWithTagPriority and then in-place constructing the
+    * objects and destructing in the reverse order. */
+    void* operator new[](size_t /* size */, void *ptr, parandis_placement placement) throw() = delete;
+
+    void* operator new[](size_t Size, NDIS_HANDLE MiniportHandle) throw() = delete;
+    void* operator new[](size_t Size) throw() = delete;
+    void operator delete[](void *) = delete;
+
+private:
+    /* The delete operator can't be disabled like array constructors and destructors, as default destructor
+    * and default constructor depend on the delete operator availability */
+    void operator delete(void *) {}
 };
 
 class CNdisSpinLock
@@ -371,6 +391,7 @@ public:
 #endif
     }
 
+    _Acquires_shared_lock_(m_pLock)
     void acquireRead(CNdisRWLockState &lockState)
     {
 #ifdef RW_LOCK_60
@@ -381,6 +402,7 @@ public:
 #endif
     }
 
+    _Acquires_exclusive_lock_(m_pLock)
     void acquireWrite(CNdisRWLockState &lockState)
     {
 #ifdef RW_LOCK_60
@@ -391,6 +413,7 @@ public:
 #endif
     }
 
+    _Requires_lock_held_(this->m_pLock)
     void release(CNdisRWLockState &lockState)
     {
 #ifdef RW_LOCK_60
@@ -401,6 +424,7 @@ public:
 #endif
     }
 
+    _Acquires_shared_lock_(this->m_pLock)
     void acquireReadDpr(CNdisRWLockState &lockState)
     {
         ASSERTMSG("Unexpected IRQL level", KeGetCurrentIrql() == DISPATCH_LEVEL);
@@ -413,6 +437,7 @@ public:
 #endif
     }
 
+    _Acquires_exclusive_lock_(this->m_pLock)
     void acquireWriteDpr(CNdisRWLockState &lockState)
     {
         ASSERTMSG("Unexpected IRQL level", KeGetCurrentIrql() == DISPATCH_LEVEL);
@@ -424,6 +449,7 @@ public:
 #endif
     }
 
+    _Requires_lock_held_(m_pLock)
     void releaseDpr(CNdisRWLockState &lockState)
     {
         ASSERTMSG("Unexpected IRQL level", KeGetCurrentIrql() == DISPATCH_LEVEL);
@@ -466,3 +492,8 @@ typedef CNdisAutoRWLock<&CNdisRWLock::acquireRead, &CNdisRWLock::release> CNdisP
 typedef CNdisAutoRWLock<&CNdisRWLock::acquireReadDpr, &CNdisRWLock::releaseDpr> CNdisDispatchReadAutoLock;
 typedef CNdisAutoRWLock<&CNdisRWLock::acquireWrite, &CNdisRWLock::release> CNdisPassiveWriteAutoLock;
 typedef CNdisAutoRWLock<&CNdisRWLock::acquireWriteDpr, &CNdisRWLock::releaseDpr> CNdisDispatchWriteAutoLock;
+
+/* The conversion function returns index of the single raised bit in the affinity mask or INVALID_PROCESSOR_INDEX
+  if more than one bit is raised */
+
+ULONG ParaNdis_GetIndexFromAffinity(KAFFINITY affinity);

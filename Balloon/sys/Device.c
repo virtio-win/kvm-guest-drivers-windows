@@ -159,12 +159,6 @@ BalloonDeviceAdd(
                       FALSE
                       );
 
-#if (WINVER >= 0x0501)
-    devCtx->evLowMem = IoCreateNotificationEvent(
-                               (PUNICODE_STRING )&evLowMemString,
-                               &devCtx->hLowMem);
-#endif // (WINVER >= 0x0501)
-
     status = BalloonQueueInitialize(device);
     if(!NT_SUCCESS(status))
     {
@@ -192,13 +186,6 @@ BalloonEvtDeviceContextCleanup(
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
-#if (WINVER >= 0x0501)
-    if(devCtx->evLowMem)
-    {
-        ZwClose(devCtx->hLowMem);
-        devCtx->evLowMem = NULL;
-    }
-#endif // (WINVER >= 0x0501)
 
     if(devCtx->bListInitialized)
     {
@@ -420,6 +407,9 @@ BalloonEvtDeviceD0Entry(
     )
 {
     NTSTATUS            status = STATUS_SUCCESS;
+#if (WINVER >= 0x0501)
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
+#endif // (WINVER >= 0x0501)
 
     UNREFERENCED_PARAMETER(PreviousState);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
@@ -429,6 +419,7 @@ BalloonEvtDeviceD0Entry(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
            "BalloonInit failed with status 0x%08x\n", status);
+        BalloonTerm(Device);
         return status;
     }
 
@@ -439,6 +430,11 @@ BalloonEvtDeviceD0Entry(
            "BalloonCreateWorkerThread failed with status 0x%08x\n", status);
     } 
 
+#if (WINVER >= 0x0501)
+    devCtx->evLowMem = IoCreateNotificationEvent(
+        (PUNICODE_STRING)&evLowMemString, &devCtx->hLowMem);
+#endif // (WINVER >= 0x0501)
+
     return status;
 }
 
@@ -448,10 +444,21 @@ BalloonEvtDeviceD0Exit(
     IN  WDF_POWER_DEVICE_STATE TargetState
     )
 {
+#if (WINVER >= 0x0501)
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
+#endif // (WINVER >= 0x0501)
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
 
     PAGED_CODE();
+
+#if (WINVER >= 0x0501)
+    if (devCtx->evLowMem)
+    {
+        ZwClose(devCtx->hLowMem);
+        devCtx->evLowMem = NULL;
+    }
+#endif // (WINVER >= 0x0501)
 
     BalloonTerm(Device);
 
@@ -544,13 +551,18 @@ BalloonInterruptDpc(
         if ((request != NULL) &&
             (WdfRequestUnmarkCancelable(request) != STATUS_CANCELLED))
         {
+            NTSTATUS status;
             PVOID buffer;
             size_t length = 0;
 
             devCtx->PendingWriteRequest = NULL;
 
-            WdfRequestRetrieveInputBuffer(request, 0, &buffer, &length);
-            WdfRequestCompleteWithInformation(request, STATUS_SUCCESS, length);
+            status = WdfRequestRetrieveInputBuffer(request, 0, &buffer, &length);
+            if (!NT_SUCCESS(status))
+            {
+                length = 0;
+            }
+            WdfRequestCompleteWithInformation(request, status, length);
         }
     }
 
@@ -609,6 +621,11 @@ BalloonEvtFileClose (
 
     RtlFillMemory(devCtx->MemStats,
         sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
+
+    if (devCtx->StatVirtQueue)
+    {
+        BalloonMemStats(WdfFileObjectGetDevice(FileObject));
+    }
 }
 
 VOID

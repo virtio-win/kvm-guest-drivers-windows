@@ -48,7 +48,6 @@ HKR,Interrupt Management\MessageSignaledInterruptProperties,MessageNumberLimit,0
 [VirtRng_Device.NT.Services]
 AddService = VirtRng,0x00000002,VirtRng_Service_Install
 
-; -------------- KMDFDriver1 driver install sections
 [VirtRng_Service_Install]
 DisplayName    = %VirtRng.Service%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
@@ -57,25 +56,45 @@ ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %12%\viorng.sys
 LoadOrderGroup = Extended Base
 
-; ----------------
-; WDF Installation
-; ----------------
+; -------------------------
+; RNG Provider Installation
+; -------------------------
 
 [DestinationDirs]
-VirtRng_Device_CoInstaller_CopyFiles = 11
+VirtRng_Provider_CopyFiles = 11
+
+[VirtRng_Device.NT]
+CopyFiles=VirtRng_Provider_CopyFiles
+
+[VirtRng_Provider_CopyFiles]
+viorngum.dll
+
+[SourceDisksFiles]
+viorngum.dll=1
+
+; -------------------------------------
+; WDF & Device CoInstaller Installation
+; -------------------------------------
+
+[DestinationDirs]
+VirtRng_Wdf_CoInstaller_CopyFiles = 11
 
 [VirtRng_Device.NT.CoInstallers]
-AddReg=VirtRng_Device_CoInstaller_AddReg
-CopyFiles=VirtRng_Device_CoInstaller_CopyFiles
+AddReg=VirtRng_Wdf_CoInstaller_AddReg
+CopyFiles=VirtRng_Wdf_CoInstaller_CopyFiles
 
-[VirtRng_Device_CoInstaller_AddReg]
-HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+[VirtRng_Wdf_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, \
+	"WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller", \
+	"viorngci.dll,VirtRngCoInstaller"
 
-[VirtRng_Device_CoInstaller_CopyFiles]
+[VirtRng_Wdf_CoInstaller_CopyFiles]
 WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+viorngci.dll
 
 [SourceDisksFiles]
 WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
+viorngci.dll=1
 
 [VirtRng_Device.NT.Wdf]
 KmdfService = VirtRng, VirtRng_wdfsect
@@ -84,7 +103,7 @@ KmdfService = VirtRng, VirtRng_wdfsect
 KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
-RedHatMfg           = "Red Hat Inc."
+RedHatMfg           = "Red Hat, Inc."
 DiskName            = "VirtIO RNG Installation Disk"
 VirtRng.DeviceDesc  = "VirtIO RNG Device"
 VirtRng.Service     = "VirtIO RNG Service"

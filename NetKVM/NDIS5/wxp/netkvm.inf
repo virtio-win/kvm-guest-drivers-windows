@@ -81,7 +81,7 @@ netkvm.sys  = 1,,
 kvmnet5.CopyFiles = 12
 
 [Strings]
-RedHat            = "Red Hat Inc."                      
+RedHat            = "Red Hat, Inc."
 kvmnet5.DeviceDesc   = "Red Hat VirtIO Ethernet Adapter"
 kvmnet5.Service.DispName  = "Red Hat VirtIO Ethernet Adapter Service"
 DiskId1 = "Red Hat VirtIO Ethernet Adapter Driver Disk #1"

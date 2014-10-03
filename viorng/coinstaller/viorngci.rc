@@ -27,9 +27,9 @@
 
 #define VER_FILETYPE                VFT_DRV
 #define VER_FILESUBTYPE             VFT2_DRV_SYSTEM
-#define VER_FILEDESCRIPTION_STR     "Red Hat VirtIO RNG Driver"
-#define VER_INTERNALNAME_STR        "viorng.sys"
-#define VER_ORIGINALFILENAME_STR    "viorng.sys"
+#define VER_FILEDESCRIPTION_STR     "Red Hat VirtIO RNG CoInstaller"
+#define VER_INTERNALNAME_STR        "viorngci.dll"
+#define VER_ORIGINALFILENAME_STR    "viorngci.dll"
 
 #undef  VER_PRODUCTBUILD
 #undef  VER_PRODUCTBUILD_QFE
@@ -43,7 +43,7 @@
 #define VER_COMPANYNAME_STR         "Red Hat Inc."
 
 #undef  VER_PRODUCTNAME_STR
-#define VER_PRODUCTNAME_STR         "Red Hat VirtIO RNG Device"
+#define VER_PRODUCTNAME_STR         "Red Hat VirtIO RNG CoInstaller"
 
 #define VER_LANGNEUTRAL
 
