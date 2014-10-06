@@ -15,10 +15,10 @@
  *
  */
 #include "osdep.h"
-#include "VirtIO_PCI.h"
+#include "virtio_pci.h"
 #include "VirtIO.h"
 #include "kdebugprint.h"
-#include "VirtIO_Ring.h"
+#include "virtio_ring.h"
 
 #ifdef WPP_EVENT_TRACING
 #include "VirtIOPCI.tmh"
@@ -200,7 +200,7 @@ static BOOLEAN checkpa(ULONGLONG addr, ULONG align)
     return b;
 }
 
-static void _VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, unsigned long *pNumEntries, unsigned long *pAllocationSize)
+static void _VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, ULONG *pNumEntries, ULONG *pAllocationSize)
 {
     u16 num;
     *pNumEntries = 0;
@@ -236,16 +236,12 @@ static void _VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned ind
     }
 }
 
-void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, unsigned long *pNumEntries, unsigned long *pAllocationSize)
+void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, ULONG *pNumEntries, ULONG *pAllocationSize)
 {
     _VirtIODeviceQueryQueueAllocation(vp_dev, index, pNumEntries, pAllocationSize);
     if (*pAllocationSize)
     {
         DPrintf(0, ("%s: queue %d requires 0x%x for %d entries\n", __FUNCTION__, index, *pAllocationSize, *pNumEntries) );
-    }
-    else
-    {
-        DPrintf(0, ("%s: queue %d allocation failed\n", __FUNCTION__, index));
     }
 }
 
@@ -303,10 +299,6 @@ struct virtqueue *VirtIODevicePrepareQueue(
             DPrintf(0, ("[%s] queue phys.address %08lx:%08lx, pfn %lx\n", __FUNCTION__, pa.HighPart, pa.LowPart, pageNum));
             WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_SEL, (u16) index);
             WriteVirtIODeviceRegister(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN, pageNum);
-        }
-        else
-        {
-            DPrintf(0, ("[%s] vring_new_virtqueue failed\n", __FUNCTION__));
         }
     }
     else

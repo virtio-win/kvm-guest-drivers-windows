@@ -17,7 +17,7 @@
  *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 #include "osdep.h"
-#include "VirtIO_PCI.h"
+#include "virtio_pci.h"
 #include "VirtIO.h"
 #include "kdebugprint.h"
 #include "virtio_ring.h"
@@ -28,21 +28,13 @@
 
 #ifdef DEBUG
 #define START_USE(_vq)                                          \
-__pragma(warning(push))                                          \
-__pragma(warning(disable:4127))                                 \
-    do {                                                        \
-        if ((_vq)->in_use)                                      \
+    if ((_vq)->in_use) {                                        \
             DPrintf(0, ("%s:in_use = %i\n",                     \
                            (_vq)->vq.name, (_vq)->in_use));     \
         (_vq)->in_use = __LINE__;                               \
-    } while (0) \
-__pragma(warning(pop))
-
+    }
 #define END_USE(_vq) \
-__pragma(warning(push))                                          \
-__pragma(warning(disable:4127))                                 \
-        do { BUG_ON(!(_vq)->in_use); (_vq)->in_use = 0; } while(0) \
-__pragma(warning(pop))
+    BUG_ON(!(_vq)->in_use); (_vq)->in_use = 0;
 #else
 #define START_USE(vq)
 #define END_USE(vq)
