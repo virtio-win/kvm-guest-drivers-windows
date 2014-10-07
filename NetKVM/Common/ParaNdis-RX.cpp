@@ -139,8 +139,6 @@ void CParaNdisRX::ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor)
     if (!pBuffersDescriptor)
         return;
 
-    CLockedContext<CNdisSpinLock> autoLock(m_Lock);
-
     m_Context->m_upstreamPacketPending.Release();
 
     if (AddRxBufferToQueue(pBuffersDescriptor))
@@ -217,7 +215,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 
         if (!packetAnalyzisRC)
         {
-            pBufferDescriptor->Queue->ReuseReceiveBuffer(m_Context->ReuseBufferRegular, pBufferDescriptor);
+            pBufferDescriptor->Queue->ReuseReceiveBufferNoLock(m_Context->ReuseBufferRegular, pBufferDescriptor);
             m_Context->Statistics.ifInErrors++;
             m_Context->Statistics.ifInDiscards++;
             continue;
