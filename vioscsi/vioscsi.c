@@ -297,12 +297,36 @@ ENTER_FN();
     VirtIODeviceReset(&adaptExt->vdev);
 
     if (adaptExt->dump_mode) {
+        // In dump mode, StorPortGetUncachedExtension can't fails if queues have more than 256 descriptors
+        #define MAX_DUMP_MODE_QUEUE_NUM 256
+
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)0);
-        StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
+        StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
+        adaptExt->original_queue_num[0] = StorPortReadPortUshort(adaptExt, (PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_NUM));
+        if (adaptExt->original_queue_num[0] > MAX_DUMP_MODE_QUEUE_NUM) {
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("Virtual queue 0 num descriptors reduced in dump mode.\n"));
+            StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM), MAX_DUMP_MODE_QUEUE_NUM);
+        } else {
+            adaptExt->original_queue_num[0] = 0;
+        }
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)1);
-        StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
+        StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
+        adaptExt->original_queue_num[1] = StorPortReadPortUshort(adaptExt, (PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_NUM));
+        if (adaptExt->original_queue_num[1] > MAX_DUMP_MODE_QUEUE_NUM) {
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("Virtual queue 1 num descriptors reduced in dump mode.\n"));
+            StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM), MAX_DUMP_MODE_QUEUE_NUM);
+        } else {
+            adaptExt->original_queue_num[1] = 0;
+        }
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)2);
-        StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
+        StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
+        adaptExt->original_queue_num[2] = StorPortReadPortUshort(adaptExt, (PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_NUM));
+        if (adaptExt->original_queue_num[2] > MAX_DUMP_MODE_QUEUE_NUM) {
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("Virtual queue 2 num descriptors reduced in dump mode.\n"));
+            StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM), MAX_DUMP_MODE_QUEUE_NUM);
+        } else {
+            adaptExt->original_queue_num[2] = 0;
+        }
     }
 
     adaptExt->features = StorPortReadPortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
@@ -429,13 +453,23 @@ VioScsiHwInitialize(
     )
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    PVOID              ptr      = adaptExt->uncachedExtensionVa;
     ULONG              i;
+    ULONG              guestFeatures = 0;
 
 #if (MSI_SUPPORTED == 1)
     MESSAGE_INTERRUPT_INFORMATION msi_info;
 #endif
 ENTER_FN();
+    if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX)) {
+        guestFeatures |= (1ul << VIRTIO_RING_F_EVENT_IDX);
+    }
+    if (CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_CHANGE)) {
+        guestFeatures |= (1ul << VIRTIO_SCSI_F_CHANGE);
+    }
+    if (CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_HOTPLUG)) {
+        guestFeatures |= (1ul << VIRTIO_SCSI_F_HOTPLUG);
+    }
+
     if (adaptExt->vq[0] == NULL) {
       adaptExt->msix_vectors = 0;
   #if (MSI_SUPPORTED == 1)
@@ -608,7 +642,6 @@ VioScsiInterrupt(
            }
            if (Srb->SrbStatus != SRB_STATUS_SUCCESS)
            {
-              PSENSE_DATA pSense = (PSENSE_DATA) Srb->SenseInfoBuffer;
               if (Srb->SenseInfoBufferLength >= FIELD_OFFSET(SENSE_DATA, CommandSpecificInformation)) {
                  memcpy(Srb->SenseInfoBuffer, resp->sense,
                  min(resp->sense_len, Srb->SenseInfoBufferLength));
@@ -1099,9 +1132,6 @@ TransportReset(
     IN PVirtIOSCSIEvent evt
     )
 {
-    UCHAR TargetId = evt->lun[1];
-    UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
-
     switch (evt->reason)
     {
         case VIRTIO_SCSI_EVT_RESET_RESCAN:
@@ -1123,12 +1153,10 @@ ParamChange(
     IN PVirtIOSCSIEvent evt
     )
 {
-    UCHAR TargetId = evt->lun[1];
-    UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
     UCHAR AdditionalSenseCode = (UCHAR)(evt->reason & 255);
     UCHAR AdditionalSenseCodeQualifier = (UCHAR)(evt->reason >> 8);
 
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Param change target: %d lun:%d reason:%d)\n", TargetId, Lun, evt->reason));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Param change target: %d lun:%d reason:%d)\n", evt->lun[1], (evt->lun[2] << 8) | evt->lun[3], evt->reason));
     if (AdditionalSenseCode == SCSI_ADSENSE_PARAMETERS_CHANGED &&
        (AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_PARAMETERS_CHANGED ||
         AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_MODE_PARAMETERS_CHANGED ||
