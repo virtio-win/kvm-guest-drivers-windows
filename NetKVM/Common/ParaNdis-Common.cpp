@@ -11,8 +11,6 @@
 **********************************************************************/
 #include "ndis56common.h"
 
-static void ReuseReceiveBufferRegular(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBuffersDescriptor);
-static void ReuseReceiveBufferPowerOff(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBuffersDescriptor);
 static VOID ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext);
 
 static __inline pRxNetDescriptor ReceiveQueueGetBuffer(PPARANDIS_RECEIVE_QUEUE pQueue);
@@ -22,6 +20,8 @@ void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue);
 
 //#define ROUNDSIZE(sz) ((sz + 15) & ~15)
 #define MAX_VLAN_ID     4095
+
+#define ABSTRACT_PATHES_TAG 'APVR'
 
 /**********************************************************
 Validates MAC address
@@ -124,7 +124,7 @@ static const tConfigurationEntries defaultConfiguration =
 
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
 {
-    VirtIODeviceReset(&pContext->IODevice);
+    VirtIODeviceReset(pContext->IODevice);
     DPrintf(0, ("[%s] Done\n", __FUNCTION__));
     /* reset all the features in the device */
     pContext->ulCurrentVlansFilterSet = 0;
@@ -425,6 +425,7 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
         {VIRTIO_NET_F_CTRL_RX_EXTRA, "VIRTIO_NET_F_CTRL_RX_EXTRA"},
         {VIRTIO_NET_F_CTRL_MAC_ADDR, "VIRTIO_NET_F_CTRL_MAC_ADDR"},
         {VIRTIO_F_INDIRECT, "VIRTIO_F_INDIRECT"},
+        {VIRTIO_F_ANY_LAYOUT, "VIRTIO_F_ANY_LAYOUT"},
         { VIRTIO_RING_F_EVENT_IDX, "VIRTIO_RING_F_EVENT_IDX" },
     };
     UINT i;
@@ -462,14 +463,17 @@ static void PrintStatistics(PARANDIS_ADAPTER *pContext)
         pContext->Statistics.ifHCInMulticastPkts +
         pContext->Statistics.ifHCInUcastPkts;
 
+#if 0 /* TODO - setup accessor functions*/
     DPrintf(0, ("[Diag!%X] RX buffers at VIRTIO %d of %d\n",
         pContext->CurrentMacAddress[5],
-        pContext->NetNofReceiveBuffers,
+        pContext->RXPath.m_NetNofReceiveBuffers,
         pContext->NetMaxReceiveBuffers));
+
     DPrintf(0, ("[Diag!] TX desc available %d/%d, buf %d\n",
         pContext->TXPath.GetFreeTXDescriptors(),
         pContext->maxFreeTxDescriptors,
         pContext->TXPath.GetFreeHWBuffers()));
+#endif
     DPrintf(0, ("[Diag!] Bytes transmitted %I64u, received %I64u\n",
         pContext->Statistics.ifHCOutOctets,
         pContext->Statistics.ifHCInOctets));
@@ -549,7 +553,7 @@ SetDeviceMAC(PPARANDIS_ADAPTER pContext, PUCHAR pDeviceMAC)
 {
     if(pContext->bCfgMACAddrSupported && !pContext->bCtrlMACAddrSupported)
     {
-        VirtIODeviceSet(&pContext->IODevice, 0, pDeviceMAC, ETH_LENGTH_OF_ADDRESS);
+        VirtIODeviceSet(pContext->IODevice, 0, pDeviceMAC, ETH_LENGTH_OF_ADDRESS);
     }
 }
 
@@ -563,7 +567,7 @@ InitializeMAC(PPARANDIS_ADAPTER pContext, PUCHAR pCurrentMAC)
     //Read and validate permanent MAC address
     if (pContext->bCfgMACAddrSupported)
     {
-        VirtIODeviceGet(&pContext->IODevice, 0, &pContext->PermanentMacAddress, ETH_LENGTH_OF_ADDRESS);
+        VirtIODeviceGet(pContext->IODevice, 0, &pContext->PermanentMacAddress, ETH_LENGTH_OF_ADDRESS);
         if (!ParaNdis_ValidateMacAddress(pContext->PermanentMacAddress, FALSE))
         {
             DumpMac(0, "Invalid device MAC ignored", pContext->PermanentMacAddress);
@@ -665,17 +669,17 @@ NDIS_STATUS ParaNdis_InitializeContext(
             pContext->bUsingMSIX = TRUE;
         }
 
-        VirtIODeviceInitialize(&pContext->IODevice, pContext->AdapterResources.ulIOAddress, sizeof(pContext->IODevice));
-        VirtIODeviceSetMSIXUsed(&pContext->IODevice, pContext->bUsingMSIX ? true : false);
+        VirtIODeviceInitialize(pContext->IODevice, pContext->AdapterResources.ulIOAddress, sizeof(*pContext->IODevice));
+        VirtIODeviceSetMSIXUsed(pContext->IODevice, pContext->bUsingMSIX ? true : false);
         ParaNdis_ResetVirtIONetDevice(pContext);
-        VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
-        VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER);
-        pContext->u32HostFeatures = VirtIODeviceReadHostFeatures(&pContext->IODevice);
+        VirtIODeviceAddStatus(pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
+        VirtIODeviceAddStatus(pContext->IODevice, VIRTIO_CONFIG_S_DRIVER);
+        pContext->u32HostFeatures = VirtIODeviceReadHostFeatures(pContext->IODevice);
         DumpVirtIOFeatures(pContext);
 
         pContext->bLinkDetectSupported = AckFeature(pContext, VIRTIO_NET_F_STATUS);
         if(pContext->bLinkDetectSupported) {
-            VirtIODeviceGet(&pContext->IODevice, ETH_LENGTH_OF_ADDRESS, &linkStatus, sizeof(linkStatus));
+            VirtIODeviceGet(pContext->IODevice, ETH_LENGTH_OF_ADDRESS, &linkStatus, sizeof(linkStatus));
             pContext->bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
             DPrintf(0, ("[%s] Link status on driver startup: %d\n", __FUNCTION__, pContext->bConnected));
         }
@@ -692,6 +696,17 @@ NDIS_STATUS ParaNdis_InitializeContext(
         /* avoid deregistering if failed */
         pContext->AdapterResources.ulIOAddress = 0;
         status = NDIS_STATUS_RESOURCE_CONFLICT;
+    }
+
+    pContext->bMultiQueue = AckFeature(pContext, VIRTIO_NET_F_CTRL_MQ);
+    if (pContext->bMultiQueue)
+    {
+        VirtIODeviceGet(pContext->IODevice, ETH_LENGTH_OF_ADDRESS + sizeof(USHORT), &pContext->nHardwareQueues,
+            sizeof(pContext->nHardwareQueues));
+    }
+    else
+    {
+        pContext->nHardwareQueues = 1;
     }
 
     dependentOptions = osbT4TcpChecksum | osbT4UdpChecksum | osbT4TcpOptionsChecksum;
@@ -722,18 +737,19 @@ NDIS_STATUS ParaNdis_InitializeContext(
     }
 
     pContext->bUseIndirect = AckFeature(pContext, VIRTIO_F_INDIRECT);
+    pContext->bAnyLaypout = AckFeature(pContext, VIRTIO_F_ANY_LAYOUT);
 
     pContext->bHasHardwareFilters = AckFeature(pContext, VIRTIO_NET_F_CTRL_RX_EXTRA);
 
-    InterlockedExchangePointer((PVOID *)(&pContext->ReuseBufferProc), ReuseReceiveBufferRegular);
+    InterlockedExchange(&pContext->ReuseBufferRegular, TRUE);
 
-    VirtIODeviceWriteGuestFeatures(&pContext->IODevice, pContext->u32GuestFeatures);
+    VirtIODeviceWriteGuestFeatures(pContext->IODevice, pContext->u32GuestFeatures);
     NdisInitializeEvent(&pContext->ResetEvent);
     DEBUG_EXIT_STATUS(0, status);
     return status;
 }
 
-static void FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p)
+void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p)
 {
     ULONG i;
     for(i = 0; i < p->PagesAllocated; i++)
@@ -746,115 +762,14 @@ static void FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescriptor 
     NdisFreeMemory(p, 0, 0);
 }
 
-static void FreeRxDescriptorsFromList(PARANDIS_ADAPTER *pContext, PLIST_ENTRY pListRoot)
-{
-    while(!IsListEmpty(pListRoot))
-    {
-        pRxNetDescriptor pBufferDescriptor = (pRxNetDescriptor)RemoveHeadList(pListRoot);
-        FreeRxBufferDescriptor(pContext, pBufferDescriptor);
-    }
-}
-
-static pRxNetDescriptor CreateRxDescriptorOnInit(
-    PARANDIS_ADAPTER *pContext)
-{
-    //For RX packets we allocate following pages
-    //  1 page for virtio header and indirect buffers array
-    //  X pages needed to fit maximal length buffer of data
-    //  The assumption is virtio header and indirect buffers array fit 1 page
-    ULONG ulNumPages = pContext->MaxPacketSize.nMaxDataSizeHwRx / PAGE_SIZE + 2;
-
-    pRxNetDescriptor p = (pRxNetDescriptor)ParaNdis_AllocateMemory(pContext, sizeof(*p));
-    if(p == NULL) return NULL;
-
-    NdisZeroMemory(p, sizeof(*p));
-
-    p->BufferSGArray = (struct VirtIOBufferDescriptor *)
-        ParaNdis_AllocateMemory(pContext, sizeof(*p->BufferSGArray) * ulNumPages);
-    if(p->BufferSGArray == NULL) goto error_exit;
-
-    p->PhysicalPages = (tCompletePhysicalAddress *)
-        ParaNdis_AllocateMemory(pContext, sizeof(*p->PhysicalPages) * ulNumPages);
-    if(p->PhysicalPages == NULL) goto error_exit;
-
-    for(p->PagesAllocated = 0; p->PagesAllocated < ulNumPages; p->PagesAllocated++)
-    {
-        p->PhysicalPages[p->PagesAllocated].size = PAGE_SIZE;
-        if(!ParaNdis_InitialAllocatePhysicalMemory(pContext, &p->PhysicalPages[p->PagesAllocated]))
-            goto error_exit;
-
-        p->BufferSGArray[p->PagesAllocated].physAddr = p->PhysicalPages[p->PagesAllocated].Physical;
-        p->BufferSGArray[p->PagesAllocated].length = PAGE_SIZE;
-    }
-
-    //First page is for virtio header, size needs to be adjusted correspondingly
-    p->BufferSGArray[0].length = pContext->nVirtioHeaderSize;
-
-    //Pre-cache indirect area addresses
-    p->IndirectArea.Physical.QuadPart = p->PhysicalPages[0].Physical.QuadPart + pContext->nVirtioHeaderSize;
-    p->IndirectArea.Virtual = RtlOffsetToPointer(p->PhysicalPages[0].Virtual, pContext->nVirtioHeaderSize);
-    p->IndirectArea.size = PAGE_SIZE - pContext->nVirtioHeaderSize;
-
-    if (!ParaNdis_BindRxBufferToPacket(pContext, p))
-        goto error_exit;
-
-    return p;
-
-error_exit:
-    FreeRxBufferDescriptor(pContext, p);
-    return NULL;
-}
-
-static BOOLEAN AddRxBufferToQueue(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBufferDescriptor)
-{
-    return 0 <= virtqueue_add_buf(
-        pContext->NetReceiveQueue,
-        pBufferDescriptor->BufferSGArray,
-        0,
-        pBufferDescriptor->PagesAllocated,
-        pBufferDescriptor,
-        pContext->bUseIndirect ? pBufferDescriptor->IndirectArea.Virtual           : NULL,
-        pContext->bUseIndirect ? pBufferDescriptor->IndirectArea.Physical.QuadPart : 0);
-}
-
-
 /**********************************************************
 Allocates maximum RX buffers for incoming packets
 Buffers are chained in NetReceiveBuffers
 Parameters:
     context
 ***********************************************************/
-static int PrepareReceiveBuffers(PARANDIS_ADAPTER *pContext)
-{
-    int nRet = 0;
-    UINT i;
-    DEBUG_ENTRY(4);
 
-    for (i = 0; i < pContext->NetMaxReceiveBuffers; ++i)
-    {
-        pRxNetDescriptor pBuffersDescriptor = CreateRxDescriptorOnInit(pContext);
-        if (!pBuffersDescriptor) break;
-
-        if (!AddRxBufferToQueue(pContext, pBuffersDescriptor))
-        {
-            FreeRxBufferDescriptor(pContext, pBuffersDescriptor);
-            break;
-        }
-
-        InsertTailList(&pContext->NetReceiveBuffers, &pBuffersDescriptor->listEntry);
-
-        pContext->NetNofReceiveBuffers++;
-    }
-
-    pContext->NetMaxReceiveBuffers = pContext->NetNofReceiveBuffers;
-    DPrintf(0, ("[%s] MaxReceiveBuffers %d\n", __FUNCTION__, pContext->NetMaxReceiveBuffers) );
-
-    virtqueue_kick(pContext->NetReceiveQueue);
-
-    return nRet;
-}
-
-static void DeleteQueue(PARANDIS_ADAPTER *pContext, struct virtqueue **ppq, tCompletePhysicalAddress *ppa)
+void ParaNdis_DeleteQueue(PARANDIS_ADAPTER *pContext, struct virtqueue **ppq, tCompletePhysicalAddress *ppa)
 {
     if (*ppq) VirtIODeviceDeleteQueue(*ppq, NULL);
     *ppq = NULL;
@@ -862,13 +777,212 @@ static void DeleteQueue(PARANDIS_ADAPTER *pContext, struct virtqueue **ppq, tCom
     RtlZeroMemory(ppa, sizeof(*ppa));
 }
 
-// called on PASSIVE upon unsuccessful Init or upon Halt
-static void DeleteNetQueues(PARANDIS_ADAPTER *pContext)
+#if PARANDIS_SUPPORT_RSS
+static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
 {
-    DeleteQueue(pContext, &pContext->NetControlQueue, &pContext->ControlQueueRing);
-    DeleteQueue(pContext, &pContext->NetReceiveQueue, &pContext->ReceiveQueueRing);
+    if (!pContext->bUsingMSIX)
+    {
+        DPrintf(0, ("[%s] No MSIX, using 1 queue\n", __FUNCTION__));
+        return 1;
+    }
+
+    if (pContext->bMultiQueue)
+    {
+        DPrintf(0, ("[%s] Number of hardware queues = %d\n", __FUNCTION__, pContext->nHardwareQueues));
+    }
+    else
+    {
+        DPrintf(0, ("[%s] - CTRL_MQ not acked, # bindles set to 1\n", __FUNCTION__));
+        return 1;
+    }
+
+    ULONG lnProcessors;
+#if NDIS_SUPPORT_NDIS620
+    lnProcessors = NdisGroupActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+#elif NDIS_SUPPORT_NDIS6
+    lnProcessors = NdisSystemProcessorCount();
+#else
+    lnProcessors = 1;
+#endif
+
+    ULONG lnMSIs = pContext->pMSIXInfoTable->MessageCount - 1; /* RX/TX pairs + control queue*/
+
+    DPrintf(0, ("[%s] %lu CPUs reported\n", __FUNCTION__, lnProcessors));
+    DPrintf(0, ("[%s] %lu MSIs, %lu queues\n", __FUNCTION__, pContext->pMSIXInfoTable->MessageCount, lnMSIs));
+
+    USHORT nMSIs = USHORT(lnMSIs & 0xFFFF);
+    USHORT nProcessors = USHORT(lnProcessors & 0xFFFF);
+
+    DPrintf(0, ("[%s] %u CPUs reported\n", __FUNCTION__, nProcessors));
+    DPrintf(0, ("[%s] %lu MSIs, %u queues\n", __FUNCTION__, pContext->pMSIXInfoTable->MessageCount, nMSIs));
+
+    USHORT nBundles = (pContext->nHardwareQueues < nProcessors) ? pContext->nHardwareQueues : nProcessors;
+    nBundles = (nMSIs < nBundles) ? nMSIs : nBundles;
+
+    DPrintf(0, ("[%s] # of path bundles = %u\n", __FUNCTION__, nBundles));
+
+    return nBundles;
+}
+#else
+static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *)
+{
+    return 1;
+}
+#endif
+
+static NDIS_STATUS SetupDPCTarget(PARANDIS_ADAPTER *pContext)
+{
+    if (pContext->nPathBundles == 1)
+        return NDIS_STATUS_SUCCESS;
+
+    ULONG i;
+#if NDIS_SUPPORT_NDIS620
+    NDIS_STATUS status;
+    PROCESSOR_NUMBER procNumber;
+#endif
+
+    for (i = 0; i < pContext->nPathBundles; i++)
+    {
+#if NDIS_SUPPORT_NDIS620
+        status = KeGetProcessorNumberFromIndex(i, &procNumber);
+        if (status != NDIS_STATUS_SUCCESS)
+        {
+            DPrintf(0, ("[%s] - KeGetProcessorNumberFromIndex failed for index %lu - %d\n", __FUNCTION__, i, status));
+            return status;
+        }
+        ParaNdis_ProcessorNumberToGroupAffinity(&pContext->pPathBundles[i].rxPath.DPCAffinity, &procNumber);
+        pContext->pPathBundles[i].txPath.DPCAffinity = pContext->pPathBundles[i].rxPath.DPCAffinity;
+#elif NDIS_SUPPORT_NDIS6
+        pContext->pPathBundles[i].rxPath.DPCTargetProcessor = 1i64 << i;
+        pContext->pPathBundles[i].txPath.DPCTargetProcessor = pContext->pPathBundles[i].rxPath.DPCTargetProcessor;
+#else
+#error not supported
+#endif
+    }
+
+#if NDIS_SUPPORT_NDIS620
+    pContext->CXPath.DPCAffinity = pContext->pPathBundles[0].rxPath.DPCAffinity;
+#elif NDIS_SUPPORT_NDIS6
+    pContext->CXPath.DPCTargetProcessor = pContext->pPathBundles[0].rxPath.DPCTargetProcessor;
+#else
+#error not yet defined
+#endif
+    return NDIS_STATUS_SUCCESS;
 }
 
+#if PARANDIS_SUPPORT_RSS
+NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
+{
+    USHORT rssIndex, bundleIndex;
+    ULONG cpuIndex;
+    ULONG rssTableSize = pContext->RSSParameters.RSSScalingSettings.IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
+
+    rssIndex = 0;
+    bundleIndex = 0;
+    ULONG *cpuIndexTable;
+    ULONG cpuNumbers;
+
+    cpuNumbers = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
+
+    cpuIndexTable = (ULONG *)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, cpuNumbers * sizeof(*cpuIndexTable),
+        PARANDIS_MEMORY_TAG, NormalPoolPriority);
+    if (cpuIndexTable == nullptr)
+    {
+        DPrintf(0, ("[%s] cpu index table allocation failed\n"));
+        return NDIS_STATUS_RESOURCES;
+    }
+
+    NdisZeroMemory(cpuIndexTable, sizeof(*cpuIndexTable) * cpuNumbers);
+
+    for (bundleIndex = 0; bundleIndex < pContext->nPathBundles; ++bundleIndex)
+    {
+        cpuIndex = pContext->pPathBundles[bundleIndex].rxPath.getCPUIndex();
+        if (cpuIndex == INVALID_PROCESSOR_INDEX)
+        {
+            DPrintf(0, ("[%s]  Invalid CPU index for path %u\n", __FUNCTION__, bundleIndex));
+            NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
+            return NDIS_STATUS_SOFT_ERRORS;
+        }
+        else if (cpuIndex >= cpuNumbers)
+        {
+            DPrintf(0, ("[%s]  CPU index %lu exceeds CPU range %lu\n", __FUNCTION__, cpuIndex, cpuNumbers));
+            NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
+            return NDIS_STATUS_SOFT_ERRORS;
+        }
+        else
+        {
+            cpuIndexTable[cpuIndex] = bundleIndex;
+        }
+    }
+
+    DPrintf(0, ("[%s] Entering, RSS table size = %lu, # of path bundles = %u. RSS2QueueLength = %u, RSS2QueueMap =0x%p\n",
+        __FUNCTION__, rssTableSize, pContext->nPathBundles,
+        pContext->RSS2QueueLength, pContext->RSS2QueueMap));
+
+    if (pContext->RSS2QueueLength && pContext->RSS2QueueLength < rssTableSize)
+    {
+        DPrintf(0, ("[%s] Freeing RSS2Queue Map\n", __FUNCTION__));
+        NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->RSS2QueueMap, PARANDIS_MEMORY_TAG);
+        pContext->RSS2QueueLength = 0;
+    }
+
+    if (!pContext->RSS2QueueLength)
+    {
+        pContext->RSS2QueueLength = USHORT(rssTableSize);
+        pContext->RSS2QueueMap = (CPUPathesBundle **)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, rssTableSize * sizeof(*pContext->RSS2QueueMap),
+            PARANDIS_MEMORY_TAG, NormalPoolPriority);
+        if (pContext->RSS2QueueMap == nullptr)
+        {
+            DPrintf(0, ("[%s] - Allocating RSS to queue mapping failed\n", __FUNCTION__));
+            NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
+            return NDIS_STATUS_RESOURCES;
+        }
+
+        NdisZeroMemory(pContext->RSS2QueueMap, sizeof(*pContext->RSS2QueueMap) * pContext->RSS2QueueLength);
+    }
+
+    for (rssIndex = 0; rssIndex < rssTableSize; rssIndex++)
+    {
+       pContext->RSS2QueueMap[rssIndex] = pContext->pPathBundles;
+    }
+
+    for (rssIndex = 0; rssIndex < rssTableSize; rssIndex++)
+    {
+        DPrintf(3, ("[%s] filling the relationship, rssIndex = %u, bundleIndex = %u\n", __FUNCTION__, rssIndex, bundleIndex));
+        ParaNdis_ProcessorNumberToGroupAffinity(
+            &pContext->pPathBundles[bundleIndex].txPath.DPCAffinity,
+            pContext->RSSParameters.RSSScalingSettings.IndirectionTable + rssIndex);
+
+        DPrintf(3, ("[%s] RSS proc number %u/%u, bundle affinity %u/%u\n", __FUNCTION__,
+            pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Group,
+            pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Number,
+            pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Group,
+            pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Mask));
+
+        cpuIndex = NdisProcessorNumberToIndex(pContext->RSSParameters.RSSScalingSettings.IndirectionTable [rssIndex]);
+
+        if (cpuIndex == INVALID_PROCESSOR_INDEX)
+        {
+            DPrintf(0, ("[%s]  Invalid CPU index for path %u\n", __FUNCTION__, bundleIndex));
+            NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
+            return NDIS_STATUS_SOFT_ERRORS;
+        }
+        else if (cpuIndex >= cpuNumbers)
+        {
+            DPrintf(0, ("[%s]  CPU index %lu exceeds CPU range %lu\n", __FUNCTION__, cpuIndex, cpuNumbers));
+            NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
+            return NDIS_STATUS_SOFT_ERRORS;
+        }
+        else
+        {
+            pContext->RSS2QueueMap[rssIndex] = pContext->pPathBundles + cpuIndexTable[cpuIndex];
+        }
+    }
+
+    NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
+    return NDIS_STATUS_SUCCESS;
+}
+#endif
 
 /**********************************************************
 Initializes VirtIO buffering and related stuff:
@@ -881,68 +995,85 @@ Return value:
 static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_RESOURCES;
-    ULONG size;
     DEBUG_ENTRY(0);
+    UINT i;
+    USHORT nVirtIOQueues = pContext->nHardwareQueues * 2 + 2;
 
-    pContext->ControlData.size = 512;
-
-    new (&pContext->TXPath, PLACEMENT_NEW) CParaNdisTX();
-
-    pContext->bTXPathAllocated = TRUE;
-
-    if (!pContext->TXPath.Create(pContext, 1))
+    pContext->nPathBundles = DetermineQueueNumber(pContext);
+    if (pContext->nPathBundles == 0)
     {
-        return status;
-    }
-    pContext->bTXPathCreated = TRUE;
-
-    // We work with two virtqueues, 0 - receive and 1 - send.
-    VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 0, &size, &pContext->ReceiveQueueRing.size);
-    VirtIODeviceQueryQueueAllocation(&pContext->IODevice, 2, &size, &pContext->ControlQueueRing.size);
-    if (pContext->ReceiveQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ReceiveQueueRing))
-    {
-        pContext->NetReceiveQueue = VirtIODevicePrepareQueue(
-            &pContext->IODevice,
-            0,
-            pContext->ReceiveQueueRing.Physical,
-            pContext->ReceiveQueueRing.Virtual,
-            pContext->ReceiveQueueRing.size,
-            NULL,
-            pContext->bDoPublishIndices);
-    }
-    if (pContext->ControlQueueRing.size && ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ControlQueueRing))
-    {
-        pContext->NetControlQueue = VirtIODevicePrepareQueue(
-            &pContext->IODevice,
-            2,
-            pContext->ControlQueueRing.Physical,
-            pContext->ControlQueueRing.Virtual,
-            pContext->ControlQueueRing.size,
-            NULL,
-            pContext->bDoPublishIndices);
+        DPrintf(0, ("[%s] - no I/O pathes\n", __FUNCTION__));
+        return NDIS_STATUS_RESOURCES;
     }
 
-    if (pContext->NetReceiveQueue)
+    if (nVirtIOQueues > pContext->IODevice->maxQueues)
     {
-        PrepareReceiveBuffers(pContext);
+        ULONG IODeviceSize = VirtIODeviceSizeRequired(nVirtIOQueues);
 
-        if (pContext->NetControlQueue)
-            ParaNdis_InitialAllocatePhysicalMemory(pContext, &pContext->ControlData);
-        if (!pContext->NetControlQueue || !pContext->ControlData.Virtual)
+        NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->IODevice, PARANDIS_MEMORY_TAG);
+        pContext->IODevice = (VirtIODevice *)NdisAllocateMemoryWithTagPriority(
+            pContext->MiniportHandle,
+            IODeviceSize,
+            PARANDIS_MEMORY_TAG,
+            NormalPoolPriority);
+        if (pContext->IODevice == nullptr)
         {
-            DPrintf(0, ("[%s] The Control vQueue does not work!\n", __FUNCTION__) );
-            pContext->bHasHardwareFilters = FALSE;
-            pContext->bCtrlMACAddrSupported = FALSE;
+            DPrintf(0, ("[%s] - IODevice allocation failed\n", __FUNCTION__));
+            return NDIS_STATUS_RESOURCES;
         }
-        if (pContext->NetMaxReceiveBuffers)
-        {
-            status = NDIS_STATUS_SUCCESS;
-        }
+
+        VirtIODeviceInitialize(pContext->IODevice, pContext->AdapterResources.ulIOAddress, IODeviceSize);
+        VirtIODeviceSetMSIXUsed(pContext->IODevice, pContext->bUsingMSIX ? true : false);
+        DPrintf(0, ("[%s] %u queues' slots reallocated for size %lu\n", __FUNCTION__, pContext->IODevice->maxQueues, IODeviceSize));
+    }
+
+    new (&pContext->CXPath, PLACEMENT_NEW) CParaNdisCX();
+    pContext->bCXPathAllocated = TRUE;
+    if (!pContext->CXPath.Create(pContext, 2 * pContext->nHardwareQueues))
+    {
+        DPrintf(0, ("[%s] The Control vQueue does not work!\n", __FUNCTION__));
+        pContext->bHasHardwareFilters = FALSE;
+        pContext->bCtrlMACAddrSupported = FALSE;
     }
     else
     {
-        DeleteNetQueues(pContext);
+        pContext->bCXPathCreated = TRUE;
     }
+
+    pContext->pPathBundles = (CPUPathesBundle *)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, pContext->nPathBundles * sizeof(*pContext->pPathBundles),
+        PARANDIS_MEMORY_TAG, NormalPoolPriority);
+    if (pContext->pPathBundles == nullptr)
+    {
+        DPrintf(0, ("[%s] Path bundles allocation failed\n", __FUNCTION__));
+        return status;
+    }
+
+    for (i = 0; i < pContext->nPathBundles; i++)
+    {
+        new (pContext->pPathBundles + i, PLACEMENT_NEW) CPUPathesBundle();
+
+        if (!pContext->pPathBundles[i].rxPath.Create(pContext, i * 2))
+        {
+            DPrintf(0, ("%s: CParaNdisRX creation failed\n", __FUNCTION__));
+            return status;
+        }
+        pContext->pPathBundles[i].rxCreated = true;
+
+        if (!pContext->pPathBundles[i].txPath.Create(pContext, i * 2 + 1))
+        {
+            DPrintf(0, ("%s: CParaNdisTX creation failed\n", __FUNCTION__));
+            return status;
+        }
+        pContext->pPathBundles[i].txCreated = true;
+    }
+
+    if (pContext->bCXPathCreated)
+    {
+        pContext->pPathBundles[0].cxPath = &pContext->CXPath;
+    }
+
+    status = NDIS_STATUS_SUCCESS;
+
     return status;
 }
 
@@ -951,7 +1082,7 @@ static void ReadLinkState(PARANDIS_ADAPTER *pContext)
     if (pContext->bLinkDetectSupported)
     {
         USHORT linkStatus = 0;
-        VirtIODeviceGet(&pContext->IODevice, ETH_LENGTH_OF_ADDRESS, &linkStatus, sizeof(linkStatus));
+        VirtIODeviceGet(pContext->IODevice, ETH_LENGTH_OF_ADDRESS, &linkStatus, sizeof(linkStatus));
         pContext->bConnected = !!(linkStatus & VIRTIO_NET_S_LINK_UP);
     }
     else
@@ -960,15 +1091,13 @@ static void ReadLinkState(PARANDIS_ADAPTER *pContext)
     }
 }
 
-static BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) ParaNdis_RemoveDriverOKStatus(tSynchronizedContext *SyncContext)
+static void ParaNdis_RemoveDriverOKStatus(PPARANDIS_ADAPTER pContext )
 {
-    PPARANDIS_ADAPTER pContext = (PPARANDIS_ADAPTER) SyncContext->Parameter;
-    VirtIODeviceRemoveStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+    VirtIODeviceRemoveStatus(pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 
     KeMemoryBarrier();
 
     pContext->bDeviceInitialized = FALSE;
-    return TRUE;
 }
 
 static VOID ParaNdis_AddDriverOKStatus(PPARANDIS_ADAPTER pContext)
@@ -977,7 +1106,7 @@ static VOID ParaNdis_AddDriverOKStatus(PPARANDIS_ADAPTER pContext)
 
     KeMemoryBarrier();
 
-    VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
+    VirtIODeviceAddStatus(pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 }
 
 /**********************************************************
@@ -993,16 +1122,37 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     DEBUG_ENTRY(0);
 
-    NdisAllocateSpinLock(&pContext->ReceiveLock);
-
-    InitializeListHead(&pContext->NetReceiveBuffers);
-    InitializeListHead(&pContext->NetReceiveBuffersWaiting);
-
     status = ParaNdis_FinishSpecificInitialization(pContext);
+    DPrintf(0, ("[%s] ParaNdis_FinishSpecificInitialization passed, status = %d\n", __FUNCTION__, status));
+
 
     if (status == NDIS_STATUS_SUCCESS)
     {
         status = ParaNdis_VirtIONetInit(pContext);
+        DPrintf(0, ("[%s] ParaNdis_VirtIONetInit passed, status = %d\n", __FUNCTION__, status));
+    }
+
+    if (status == NDIS_STATUS_SUCCESS)
+    {
+        status = ParaNdis_ConfigureMSIXVectors(pContext);
+        DPrintf(0, ("[%s] ParaNdis_VirtIONetInit passed, status = %d\n", __FUNCTION__, status));
+    }
+
+    if (status == NDIS_STATUS_SUCCESS)
+    {
+        status = SetupDPCTarget(pContext);
+        DPrintf(0, ("[%s] SetupDPCTarget passed, status = %d\n", __FUNCTION__, status));
+    }
+
+    if (status == NDIS_STATUS_SUCCESS && pContext->nPathBundles > 1)
+    {
+        u16 nPathes = u16(pContext->nPathBundles);
+        BOOLEAN sendSuccess = pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_VQ_PAIR_SET, &nPathes, sizeof(nPathes), NULL, 0, 2);
+        if (!sendSuccess)
+        {
+            DPrintf(0, ("[%s] - Send MQ control message failed\n", __FUNCTION__));
+            status = NDIS_STATUS_DEVICE_FAILED;
+        }
     }
 
     pContext->Limits.nReusedRxBuffers = pContext->NetMaxReceiveBuffers / 4 + 1;
@@ -1039,46 +1189,52 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
         pRxNetDescriptor pBufferDescriptor;
 
         while (NULL != (pBufferDescriptor = ReceiveQueueGetBuffer(pContext->ReceiveQueues + i)))
-            ReuseReceiveBufferPowerOff(pContext, pBufferDescriptor);
+        {
+            pBufferDescriptor->Queue->ReuseReceiveBuffer(FALSE, pBufferDescriptor);
+        }
     }
 
     do
     {
-        NdisAcquireSpinLock(&pContext->ReceiveLock);
-        b = !IsListEmpty(&pContext->NetReceiveBuffersWaiting);
-        NdisReleaseSpinLock(&pContext->ReceiveLock);
+        b = pContext->m_upstreamPacketPending != 0;
+
         if (b)
         {
             DPrintf(0, ("[%s] There are waiting buffers\n", __FUNCTION__));
             PrintStatistics(pContext);
             NdisMSleep(5000000);
         }
-    }while (b);
+    } while (b);
 
     RestoreMAC(pContext);
 
-    if(pContext->bTXPathCreated)
-        pContext->TXPath.Shutdown();
-    if(pContext->NetReceiveQueue)
-        virtqueue_shutdown(pContext->NetReceiveQueue);
-    if(pContext->NetControlQueue)
-        virtqueue_shutdown(pContext->NetControlQueue);
+    for (i = 0; i < pContext->nPathBundles; i++)
+    {
+        if (pContext->pPathBundles[i].txCreated)
+        {
+            pContext->pPathBundles[i].txPath.Shutdown();
+        }
 
-    DeleteNetQueues(pContext);
+        if (pContext->pPathBundles[i].rxCreated)
+        {
+            pContext->pPathBundles[i].rxPath.Shutdown();
 
-    /* this can be freed, queue shut down */
-    FreeRxDescriptorsFromList(pContext, &pContext->NetReceiveBuffers);
+            /* this can be freed, queue shut down */
+            pContext->pPathBundles[i].rxPath.FreeRxDescriptorsFromList();
+        }
+    }
 
-    if (pContext->ControlData.Virtual)
-        ParaNdis_FreePhysicalMemory(pContext, &pContext->ControlData);
+    if (pContext->bCXPathCreated)
+    {
+        pContext->CXPath.Shutdown();
+    }
 
     PrintStatistics(pContext);
 }
 
-
 static void PreventDPCServicing(PARANDIS_ADAPTER *pContext)
 {
-    LONG inside;;
+    LONG inside;
     pContext->bEnableInterruptHandlingDPC = FALSE;
     KeMemoryBarrier();
     do
@@ -1102,13 +1258,11 @@ Parameters:
 VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 {
     /* disable any interrupt generation */
-    if (pContext->IODevice.addr)
+    if (pContext->IODevice->addr)
     {
-        if(pContext->bDeviceInitialized) {
-            ParaNdis_SynchronizeWithInterrupt(pContext,
-                                              pContext->ulRxMessage,
-                                              ParaNdis_RemoveDriverOKStatus,
-                                              pContext);
+        if (pContext->bDeviceInitialized)
+        {
+            ParaNdis_RemoveDriverOKStatus(pContext);
         }
     }
 
@@ -1119,7 +1273,7 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     free all the buffers and their descriptors
     *****************************************/
 
-    if (pContext->IODevice.addr)
+    if (pContext->IODevice->addr)
     {
         ParaNdis_ResetVirtIONetDevice(pContext);
     }
@@ -1129,11 +1283,6 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     VirtIONetRelease(pContext);
 
     ParaNdis_FinalizeCleanup(pContext);
-
-    if (pContext->ReceiveLock.SpinLock)
-    {
-        NdisFreeSpinLock(&pContext->ReceiveLock);
-    }
 
     if (pContext->ReceiveQueuesInitialized)
     {
@@ -1153,15 +1302,38 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
         ParaNdis6_RSSCleanupConfiguration(&pContext->RSSParameters);
     }
 
-    if (pContext->bRSSInitialized)
-    {
-        pContext->RSSParameters.rwLock.~CNdisRWLock();
-    }
+    pContext->RSSParameters.rwLock.~CNdisRWLock();
 #endif
 
-    if (pContext->bTXPathAllocated)
+    if (pContext->bCXPathAllocated)
     {
-        pContext->TXPath.~CParaNdisTX();
+        pContext->CXPath.~CParaNdisCX();
+        pContext->bCXPathAllocated = false;
+    }
+
+    if (pContext->pPathBundles != NULL)
+    {
+        USHORT i;
+
+        for (i = 0; i < pContext->nPathBundles; i++)
+        {
+            pContext->pPathBundles[i].~CPUPathesBundle();
+        }
+        NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->pPathBundles, PARANDIS_MEMORY_TAG);
+        pContext->pPathBundles = nullptr;
+    }
+
+    if (pContext->RSS2QueueMap)
+    {
+        NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->RSS2QueueMap, PARANDIS_MEMORY_TAG);
+        pContext->RSS2QueueMap = nullptr;
+        pContext->RSS2QueueLength = 0;
+    }
+
+    if (pContext->IODevice)
+    {
+        NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->IODevice, PARANDIS_MEMORY_TAG);
+        pContext->IODevice = nullptr;
     }
 
     if (pContext->AdapterResources.ulIOAddress)
@@ -1185,138 +1357,6 @@ VOID ParaNdis_OnShutdown(PARANDIS_ADAPTER *pContext)
 {
     DEBUG_ENTRY(0); // this is only for kdbg :)
     ParaNdis_ResetVirtIONetDevice(pContext);
-}
-
-/**********************************************************
-Handles hardware interrupt
-Parameters:
-    context
-    ULONG knownInterruptSources - bitmask of
-Return value:
-    TRUE, if it is our interrupt
-    sets *pRunDpc to TRUE if the DPC should be fired
-***********************************************************/
-BOOLEAN ParaNdis_OnLegacyInterrupt(
-    PARANDIS_ADAPTER *pContext,
-    OUT BOOLEAN *pRunDpc)
-{
-    ULONG status = VirtIODeviceISR(&pContext->IODevice);
-
-    if((status == 0)                                   ||
-       (status == VIRTIO_NET_INVALID_INTERRUPT_STATUS))
-    {
-        *pRunDpc = FALSE;
-        return FALSE;
-    }
-
-    PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
-
-    if(!pContext->bDeviceInitialized) {
-        *pRunDpc = FALSE;
-        return TRUE;
-    }
-
-    ParaNdis_VirtIODisableIrqSynchronized(pContext, isAny);
-    InterlockedOr(&pContext->InterruptStatus, (LONG) ((status & isControl) | isReceive | isTransmit));
-    *pRunDpc = TRUE;
-    return TRUE;
-}
-
-BOOLEAN ParaNdis_OnQueuedInterrupt(
-    PARANDIS_ADAPTER *pContext,
-    OUT BOOLEAN *pRunDpc,
-    ULONG knownInterruptSources)
-{
-    /* If interrupts for this queue (or globally) disabled do nothing */
-    if( !ParaNdis_IsInterruptSourceEnabled(pContext, knownInterruptSources) || !pContext->bDeviceInitialized )
-    {
-        *pRunDpc = FALSE;
-    }
-    else
-    {
-        PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
-        InterlockedOr(&pContext->InterruptStatus, (LONG)knownInterruptSources);
-        ParaNdis_VirtIODisableIrqSynchronized(pContext, knownInterruptSources);
-        *pRunDpc = TRUE;
-    }
-
-    return TRUE;
-}
-
-
-/**********************************************************
-It is called from Rx processing routines in regular mode of operation.
-Returns received buffer back to VirtIO queue, inserting it to NetReceiveBuffers.
-If needed, signals end of RX pause operation
-
-Must be called with &pContext->ReceiveLock acquired
-
-Parameters:
-    context
-    void *pDescriptor - pIONetDescriptor to return
-***********************************************************/
-void ReuseReceiveBufferRegular(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBuffersDescriptor)
-{
-    DEBUG_ENTRY(4);
-
-    if(!pBuffersDescriptor)
-        return;
-
-    RemoveEntryList(&pBuffersDescriptor->listEntry);
-
-    if(AddRxBufferToQueue(pContext, pBuffersDescriptor))
-    {
-        InsertTailList(&pContext->NetReceiveBuffers, &pBuffersDescriptor->listEntry);
-
-        pContext->NetNofReceiveBuffers++;
-
-        if (pContext->NetNofReceiveBuffers > pContext->NetMaxReceiveBuffers)
-        {
-            DPrintf(0, (" Error: NetNofReceiveBuffers > NetMaxReceiveBuffers(%d>%d)\n",
-                pContext->NetNofReceiveBuffers, pContext->NetMaxReceiveBuffers));
-        }
-
-        if (++pContext->Counters.nReusedRxBuffers >= pContext->Limits.nReusedRxBuffers)
-        {
-            pContext->Counters.nReusedRxBuffers = 0;
-            virtqueue_notify(pContext->NetReceiveQueue);
-        }
-
-        if (IsListEmpty(&pContext->NetReceiveBuffersWaiting))
-        {
-            if (pContext->ReceiveState == srsPausing || pContext->ReceivePauseCompletionProc)
-            {
-                ONPAUSECOMPLETEPROC callback = pContext->ReceivePauseCompletionProc;
-                pContext->ReceiveState = srsDisabled;
-                pContext->ReceivePauseCompletionProc = NULL;
-                ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 0, 0, 0);
-                if (callback) callback(pContext);
-            }
-        }
-    }
-    else
-    {
-        DPrintf(0, ("FAILED TO REUSE THE BUFFER!!!!\n"));
-        FreeRxBufferDescriptor(pContext, pBuffersDescriptor);
-        pContext->NetMaxReceiveBuffers--;
-    }
-}
-
-/**********************************************************
-It is called from Rx processing routines between power off and power on in non-paused mode (Win8).
-Returns received buffer to NetReceiveBuffers. 
-All the buffers will be placed into Virtio queue during power-on procedure
-
-Must be called with &pContext->ReceiveLock acquired
-
-Parameters:
-    context
-    void *pDescriptor - pIONetDescriptor to return
-***********************************************************/
-static void ReuseReceiveBufferPowerOff(PARANDIS_ADAPTER *pContext, pRxNetDescriptor pBuffersDescriptor)
-{
-    RemoveEntryList(&pBuffersDescriptor->listEntry);
-    InsertTailList(&pContext->NetReceiveBuffers, &pBuffersDescriptor->listEntry);
 }
 
 static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacketInfo)
@@ -1376,8 +1416,7 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacke
     return FALSE;
 }
 
-static __inline
-BOOLEAN PerformPacketAnalyzis(
+BOOLEAN ParaNdis_PerformPacketAnalyzis(
 #if PARANDIS_SUPPORT_RSS
                             PPARANDIS_RSS_PARAMS RSSParameters,
 #endif
@@ -1397,25 +1436,15 @@ BOOLEAN PerformPacketAnalyzis(
     return TRUE;
 }
 
-static BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) RestartQueueSynchronously(tSynchronizedContext *SyncContext)
-{
-    struct virtqueue * _vq = (struct virtqueue *) SyncContext->Parameter;
-    bool res = virtqueue_enable_cb(_vq);
-
-    ParaNdis_DebugHistory(SyncContext->pContext, hopDPC, (PVOID)SyncContext->Parameter, 0x20, res, 0);
-    return !res;
-}
-
-static __inline
-VOID ProcessorNumberToGroupAffinity(PGROUP_AFFINITY Affinity, const PPROCESSOR_NUMBER Processor)
+VOID ParaNdis_ProcessorNumberToGroupAffinity(PGROUP_AFFINITY Affinity, const PPROCESSOR_NUMBER Processor)
 {
     Affinity->Group = Processor->Group;
     Affinity->Mask = 1;
     Affinity->Mask <<= Processor->Number;
 }
 
-static __inline
-CCHAR GetScalingDataForPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacketInfo, PPROCESSOR_NUMBER pTargetProcessor)
+
+CCHAR ParaNdis_GetScalingDataForPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacketInfo, PPROCESSOR_NUMBER pTargetProcessor)
 {
 #if PARANDIS_SUPPORT_RSS
     return ParaNdis6_RSSGetScalingDataForPacket(&pContext->RSSParameters, pPacketInfo, pTargetProcessor);
@@ -1440,21 +1469,21 @@ CCHAR GetReceiveQueueForCurrentCPU(PARANDIS_ADAPTER *pContext)
 #endif
 }
 
-static __inline
-VOID QueueRSSDpc(PARANDIS_ADAPTER *pContext, PGROUP_AFFINITY pTargetAffinity)
+VOID ParaNdis_QueueRSSDpc(PARANDIS_ADAPTER *pContext, ULONG MessageIndex, PGROUP_AFFINITY pTargetAffinity)
 {
 #if PARANDIS_SUPPORT_RSS
-    NdisMQueueDpcEx(pContext->InterruptHandle, pContext->ulRxMessage, pTargetAffinity, NULL);
+    NdisMQueueDpcEx(pContext->InterruptHandle, MessageIndex, pTargetAffinity, NULL);
 #else
     UNREFERENCED_PARAMETER(pContext);
+    UNREFERENCED_PARAMETER(MessageIndex);
     UNREFERENCED_PARAMETER(pTargetAffinity);
 
     ASSERT(FALSE);
 #endif
 }
 
-static __inline
-VOID ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescriptor pBuffer)
+
+VOID ParaNdis_ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescriptor pBuffer)
 {
     NdisInterlockedInsertTailList(  &pQueue->BuffersList,
                                     &pBuffer->ReceiveQueueListEntry,
@@ -1478,53 +1507,6 @@ BOOLEAN ReceiveQueueHasBuffers(PPARANDIS_RECEIVE_QUEUE pQueue)
     NdisReleaseSpinLock(&pQueue->Lock);
 
     return res;
-}
-
-static VOID ProcessRxRing(PARANDIS_ADAPTER *pContext, CCHAR nCurrCpuReceiveQueue)
-{
-    pRxNetDescriptor pBufferDescriptor;
-    unsigned int nFullLength;
-
-    NdisAcquireSpinLock(&pContext->ReceiveLock);
-
-    while (NULL != (pBufferDescriptor = (pRxNetDescriptor) virtqueue_get_buf(pContext->NetReceiveQueue, &nFullLength)))
-    {
-        CCHAR nTargetReceiveQueueNum;
-        GROUP_AFFINITY TargetAffinity;
-        PROCESSOR_NUMBER TargetProcessor;
-
-        RemoveEntryList(&pBufferDescriptor->listEntry);
-        InsertTailList(&pContext->NetReceiveBuffersWaiting, &pBufferDescriptor->listEntry);
-        pContext->NetNofReceiveBuffers--;
-
-        if(!PerformPacketAnalyzis(
-#if PARANDIS_SUPPORT_RSS
-                                &pContext->RSSParameters,
-#endif
-                                &pBufferDescriptor->PacketInfo,
-                                pBufferDescriptor->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE].Virtual,
-                                nFullLength - pContext->nVirtioHeaderSize))
-        {
-            pContext->ReuseBufferProc(pContext, pBufferDescriptor);
-            pContext->Statistics.ifInErrors++;
-            pContext->Statistics.ifInDiscards++;
-            continue;
-        }
-
-        nTargetReceiveQueueNum = GetScalingDataForPacket(
-                                                            pContext,
-                                                            &pBufferDescriptor->PacketInfo,
-                                                            &TargetProcessor);
-
-        ReceiveQueueAddBuffer(&pContext->ReceiveQueues[nTargetReceiveQueueNum], pBufferDescriptor);
-        ProcessorNumberToGroupAffinity(&TargetAffinity, &TargetProcessor);
-
-        if ((nTargetReceiveQueueNum != PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED) &&
-            (nTargetReceiveQueueNum != nCurrCpuReceiveQueue))
-            QueueRSSDpc(pContext, &TargetAffinity);
-    }
-
-    NdisReleaseSpinLock(&pContext->ReceiveLock);
 }
 
 static VOID
@@ -1602,17 +1584,13 @@ static BOOLEAN ProcessReceiveQueue(
                 else
                 {
                     UpdateReceiveFailStatistics(pContext, nCoalescedSegmentsCount);
-                    NdisAcquireSpinLock(&pContext->ReceiveLock);
-                    pContext->ReuseBufferProc(pContext, pBufferDescriptor);
-                    NdisReleaseSpinLock(&pContext->ReceiveLock);
+                    pBufferDescriptor->Queue->ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBufferDescriptor);
                 }
             }
             else
             {
                 pContext->extraStatistics.framesFilteredOut++;
-                NdisAcquireSpinLock(&pContext->ReceiveLock);
-                pContext->ReuseBufferProc(pContext, pBufferDescriptor);
-                NdisReleaseSpinLock(&pContext->ReceiveLock);
+                pBufferDescriptor->Queue->ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBufferDescriptor);
             }
         }
 
@@ -1627,7 +1605,7 @@ static BOOLEAN ProcessReceiveQueue(
 }
 
 static
-BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG nPacketsToIndicate)
+BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, ULONG nPacketsToIndicate)
 {
     BOOLEAN res = FALSE;
     BOOLEAN bMoreDataInRing;
@@ -1636,7 +1614,7 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG nPacketsToIndicate)
 
     do
     {
-        ProcessRxRing(pContext, CurrCpuReceiveQueue);
+        pathBundle->rxPath.ProcessRxRing(CurrCpuReceiveQueue);
 
         res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED);
 
@@ -1645,50 +1623,65 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG nPacketsToIndicate)
             res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, CurrCpuReceiveQueue);
         }
 
-        bMoreDataInRing = ParaNdis_SynchronizeWithInterrupt(pContext,
-                                                            pContext->ulRxMessage,
-                                                            RestartQueueSynchronously,
-                                                            pContext->NetReceiveQueue);
+        bMoreDataInRing = pathBundle->rxPath.RestartQueue();
     } while(bMoreDataInRing);
 
     return res;
 }
 
-ULONG ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndicate)
+bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndicate)
 {
-    ULONG stillRequiresProcessing = 0;
-    ULONG interruptSources;
+    bool stillRequiresProcessing = false;
     UINT numOfPacketsToIndicate = min(ulMaxPacketsToIndicate, pContext->uNumberOfHandledRXPacketsInDPC);
 
     DEBUG_ENTRY(5);
 
     InterlockedIncrement(&pContext->counterDPCInside);
 
+    CPUPathesBundle *pathBundle = nullptr;
+
+    if (pContext->nPathBundles == 1)
+    {
+        pathBundle = pContext->pPathBundles;
+    }
+    else
+    {
+        ULONG procNumber = KeGetCurrentProcessorNumber();
+        if (procNumber < pContext->nPathBundles)
+        {
+            pathBundle = pContext->pPathBundles + procNumber;
+        }
+    }
+
+    if (pathBundle == nullptr)
+    {
+        return false;
+    }
+
     if (pContext->bEnableInterruptHandlingDPC)
     {
         bool bDoKick = false;
 
         InterlockedExchange(&pContext->bDPCInactive, 0);
-        interruptSources = InterlockedExchange(&pContext->InterruptStatus, 0);
 
-        if (RxDPCWorkBody(  pContext,
-                            numOfPacketsToIndicate))
+        if (RxDPCWorkBody(pContext, pathBundle, numOfPacketsToIndicate))
         {
-            stillRequiresProcessing |= isReceive;
+            stillRequiresProcessing = true;
         }
 
-        ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)1, interruptSources, 0, 0);
-        if ((interruptSources & isControl) && pContext->bLinkDetectSupported)
+        if (pContext->CXPath.WasInterruptReported() && pContext->bLinkDetectSupported)
         {
             ReadLinkState(pContext);
             ParaNdis_SynchronizeLinkState(pContext);
+            pContext->CXPath.ClearInterruptReport();
         }
-        if (interruptSources & isTransmit)
+
+        if (!stillRequiresProcessing)
         {
-            bDoKick = pContext->TXPath.DoPendingTasks(true);
-            if(pContext->TXPath.RestartQueue(bDoKick))
+            bDoKick = pathBundle->txPath.DoPendingTasks(true);
+            if (pathBundle->txPath.RestartQueue(bDoKick))
             {
-                stillRequiresProcessing |= isTransmit;
+                stillRequiresProcessing = true;
             }
         }
     }
@@ -1742,15 +1735,19 @@ static BOOLEAN CheckRunningDpc(PARANDIS_ADAPTER *pContext)
         pContext->nDetectedInactivity = 0;
     }
 
-    if (pContext->TXPath.HasHWBuffersIsUse())
+    for (UINT i = 0; i < pContext->nPathBundles; i++)
     {
-        if (pContext->nDetectedStoppedTx++ > 1)
+        if (pContext->pPathBundles[i].txPath.HasHWBuffersIsUse())
         {
-            DPrintf(0, ("[%s] - Suspicious Tx inactivity (%d)!\n", __FUNCTION__, pContext->TXPath.GetFreeHWBuffers()));
-            //bReportHang = TRUE;
+            if (pContext->nDetectedStoppedTx++ > 1)
+            {
+                DPrintf(0, ("[%s] - Suspicious Tx inactivity (%d)!\n", __FUNCTION__, pContext->pPathBundles[i].txPath.GetFreeHWBuffers()));
+                //bReportHang = TRUE;
 #ifdef DBG_USE_VIRTIO_PCI_ISR_FOR_HOST_REPORT
-            WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 0);
+                WriteVirtIODeviceByte(pContext->IODevice->addr + VIRTIO_PCI_ISR, 0);
 #endif
+                break;
+            }
         }
     }
 
@@ -1920,32 +1917,6 @@ NDIS_STATUS ParaNdis_SetMulticastList(
 }
 
 /**********************************************************
-Callable from synchronized routine or interrupt handler
-to enable or disable Rx and/or Tx interrupt generation
-Parameters:
-    context
-    interruptSource - isReceive, isTransmit
-    b - 1/0 enable/disable
-***********************************************************/
-VOID ParaNdis_VirtIOEnableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
-{
-    if (interruptSource & isTransmit)
-        pContext->TXPath.EnableInterrupts();
-    if (interruptSource & isReceive)
-        virtqueue_enable_cb(pContext->NetReceiveQueue);
-    ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, TRUE, 0);
-}
-
-VOID ParaNdis_VirtIODisableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
-{
-    if (interruptSource & isTransmit)
-        pContext->TXPath.DisableInterrupts();
-    if (interruptSource & isReceive)
-        virtqueue_disable_cb(pContext->NetReceiveQueue);
-    ParaNdis_DebugHistory(pContext, hopDPC, (PVOID)0x10, interruptSource, FALSE, 0);
-}
-
-/**********************************************************
 Common handler of PnP events
 Parameters:
 Return value:
@@ -1990,117 +1961,27 @@ VOID ParaNdis_OnPnPEvent(
         pContext->nPnpEventIndex = 0;
 }
 
-static BOOLEAN SendControlMessage(
-    PARANDIS_ADAPTER *pContext,
-    UCHAR cls,
-    UCHAR cmd,
-    PVOID buffer1,
-    ULONG size1,
-    PVOID buffer2,
-    ULONG size2,
-    int levelIfOK
-    )
-{
-    BOOLEAN bOK = FALSE;
-    NdisAcquireSpinLock(&pContext->ReceiveLock);
-    if (pContext->ControlData.Virtual && pContext->ControlData.size > (size1 + size2 + 16))
-    {
-        struct VirtIOBufferDescriptor sg[4];
-        PUCHAR pBase = (PUCHAR)pContext->ControlData.Virtual;
-        PHYSICAL_ADDRESS phBase = pContext->ControlData.Physical;
-        ULONG offset = 0;
-        UINT nOut = 1;
-
-        ((virtio_net_ctrl_hdr *)pBase)->class_of_command = cls;
-        ((virtio_net_ctrl_hdr *)pBase)->cmd = cmd;
-        sg[0].physAddr = phBase;
-        sg[0].length = sizeof(virtio_net_ctrl_hdr);
-        offset += sg[0].length;
-        offset = (offset + 3) & ~3;
-        if (size1)
-        {
-            NdisMoveMemory(pBase + offset, buffer1, size1);
-            sg[nOut].physAddr = phBase;
-            sg[nOut].physAddr.QuadPart += offset;
-            sg[nOut].length = size1;
-            offset += size1;
-            offset = (offset + 3) & ~3;
-            nOut++;
-        }
-        if (size2)
-        {
-            NdisMoveMemory(pBase + offset, buffer2, size2);
-            sg[nOut].physAddr = phBase;
-            sg[nOut].physAddr.QuadPart += offset;
-            sg[nOut].length = size2;
-            offset += size2;
-            offset = (offset + 3) & ~3;
-            nOut++;
-        }
-        sg[nOut].physAddr = phBase;
-        sg[nOut].physAddr.QuadPart += offset;
-        sg[nOut].length = sizeof(virtio_net_ctrl_ack);
-        *(virtio_net_ctrl_ack *)(pBase + offset) = VIRTIO_NET_ERR;
-
-        if (0 <= virtqueue_add_buf(pContext->NetControlQueue, sg, nOut, 1, (PVOID)1, NULL, 0))
-        {
-            UINT len;
-            void *p;
-            virtqueue_notify(pContext->NetControlQueue);
-            p = virtqueue_get_buf(pContext->NetControlQueue, &len);
-            if (!p)
-            {
-                DPrintf(0, ("%s - ERROR: get_buf failed\n", __FUNCTION__));
-            }
-            else if (len != sizeof(virtio_net_ctrl_ack))
-            {
-                DPrintf(0, ("%s - ERROR: wrong len %d\n", __FUNCTION__, len));
-            }
-            else if (*(virtio_net_ctrl_ack *)(pBase + offset) != VIRTIO_NET_OK)
-            {
-                DPrintf(0, ("%s - ERROR: error %d returned for class %d\n", __FUNCTION__, *(virtio_net_ctrl_ack *)(pBase + offset), cls));
-            }
-            else
-            {
-                // everything is OK
-                DPrintf(levelIfOK, ("%s OK(%d.%d,buffers of %d and %d) \n", __FUNCTION__, cls, cmd, size1, size2));
-                bOK = TRUE;
-            }
-        }
-        else
-        {
-            DPrintf(0, ("%s - ERROR: add_buf failed\n", __FUNCTION__));
-        }
-    }
-    else
-    {
-        DPrintf(0, ("%s (buffer %d,%d) - ERROR: message too LARGE\n", __FUNCTION__, size1, size2));
-    }
-    NdisReleaseSpinLock(&pContext->ReceiveLock);
-    return bOK;
-}
-
 static VOID ParaNdis_DeviceFiltersUpdateRxMode(PARANDIS_ADAPTER *pContext)
 {
     u8 val;
     ULONG f = pContext->PacketFilter;
     val = (f & NDIS_PACKET_TYPE_ALL_MULTICAST) ? 1 : 0;
-    SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_ALLMULTI, &val, sizeof(val), NULL, 0, 2);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_ALLMULTI, &val, sizeof(val), NULL, 0, 2);
     //SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_ALLUNI, &val, sizeof(val), NULL, 0, 2);
     val = (f & (NDIS_PACKET_TYPE_MULTICAST | NDIS_PACKET_TYPE_ALL_MULTICAST)) ? 0 : 1;
-    SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOMULTI, &val, sizeof(val), NULL, 0, 2);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOMULTI, &val, sizeof(val), NULL, 0, 2);
     val = (f & NDIS_PACKET_TYPE_DIRECTED) ? 0 : 1;
-    SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOUNI, &val, sizeof(val), NULL, 0, 2);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOUNI, &val, sizeof(val), NULL, 0, 2);
     val = (f & NDIS_PACKET_TYPE_BROADCAST) ? 0 : 1;
-    SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOBCAST, &val, sizeof(val), NULL, 0, 2);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOBCAST, &val, sizeof(val), NULL, 0, 2);
     val = (f & NDIS_PACKET_TYPE_PROMISCUOUS) ? 1 : 0;
-    SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_PROMISC, &val, sizeof(val), NULL, 0, 2);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_PROMISC, &val, sizeof(val), NULL, 0, 2);
 }
 
 static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)
 {
     u32 u32UniCastEntries = 0;
-    SendControlMessage(pContext, VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_TABLE_SET,
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_TABLE_SET,
                         &u32UniCastEntries,
                         sizeof(u32UniCastEntries),
                         &pContext->MulticastData,
@@ -2112,7 +1993,7 @@ static VOID SetSingleVlanFilter(PARANDIS_ADAPTER *pContext, ULONG vlanId, BOOLEA
 {
     u16 val = vlanId & 0xfff;
     UCHAR cmd = bOn ? VIRTIO_NET_CTRL_VLAN_ADD : VIRTIO_NET_CTRL_VLAN_DEL;
-    SendControlMessage(pContext, VIRTIO_NET_CTRL_VLAN, cmd, &val, sizeof(val), NULL, 0, levelIfOK);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_VLAN, cmd, &val, sizeof(val), NULL, 0, levelIfOK);
 }
 
 static VOID SetAllVlanFilters(PARANDIS_ADAPTER *pContext, BOOLEAN bOn)
@@ -2170,7 +2051,7 @@ ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext)
 {
     if (pContext->bCtrlMACAddrSupported)
     {
-        SendControlMessage(pContext, VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_ADDR_SET,
+        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_ADDR_SET,
                            pContext->CurrentMacAddress,
                            ETH_LENGTH_OF_ADDRESS,
                            NULL, 0, 4);
@@ -2183,7 +2064,7 @@ ParaNdis_UpdateGuestOffloads(PARANDIS_ADAPTER *pContext, UINT64 Offloads)
 {
     if (pContext->RSC.bHasDynamicConfig)
     {
-        SendControlMessage(pContext, VIRTIO_NET_CTRL_GUEST_OFFLOADS, VIRTIO_NET_CTRL_GUEST_OFFLOADS_SET,
+        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_GUEST_OFFLOADS, VIRTIO_NET_CTRL_GUEST_OFFLOADS_SET,
                            &Offloads,
                            sizeof(Offloads),
                            NULL, 0, 2);
@@ -2193,65 +2074,44 @@ ParaNdis_UpdateGuestOffloads(PARANDIS_ADAPTER *pContext, UINT64 Offloads)
 
 VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 {
-    LIST_ENTRY TempList;
+    UINT i;
+
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, hopPowerOn, NULL, 1, 0, 0);
     ParaNdis_ResetVirtIONetDevice(pContext);
-    VirtIODeviceAddStatus(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE | VIRTIO_CONFIG_S_DRIVER);
+    VirtIODeviceAddStatus(pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE | VIRTIO_CONFIG_S_DRIVER);
     /* GetHostFeature must be called with any mask once upon device initialization:
      otherwise the device will not work properly */
-    VirtIODeviceReadHostFeatures(&pContext->IODevice);
-    VirtIODeviceWriteGuestFeatures(&pContext->IODevice, pContext->u32GuestFeatures);
+    VirtIODeviceReadHostFeatures(pContext->IODevice);
+    VirtIODeviceWriteGuestFeatures(pContext->IODevice, pContext->u32GuestFeatures);
 
-    VirtIODeviceRenewQueue(pContext->NetReceiveQueue);
-    pContext->TXPath.Renew();
-
-    if(pContext->NetControlQueue)
-        VirtIODeviceRenewQueue(pContext->NetControlQueue);
+    for (i = 0; i < pContext->nPathBundles; i++)
+    {
+        pContext->pPathBundles[i].txPath.Renew();
+        pContext->pPathBundles[i].rxPath.Renew();
+    }
+    if (pContext->bCXPathCreated)
+    {
+        pContext->CXPath.Renew();
+    }
 
     ParaNdis_RestoreDeviceConfigurationAfterReset(pContext);
 
     ParaNdis_UpdateDeviceFilters(pContext);
     ParaNdis_UpdateMAC(pContext);
 
-    InitializeListHead(&TempList);
+    InterlockedExchange(&pContext->ReuseBufferRegular, TRUE);
     
-    /* submit all the receive buffers */
-    NdisAcquireSpinLock(&pContext->ReceiveLock);
-    
-    InterlockedExchangePointer((PVOID *)&pContext->ReuseBufferProc, ReuseReceiveBufferRegular);
-    
-    while (!IsListEmpty(&pContext->NetReceiveBuffers))
+    for (i = 0; i < pContext->nPathBundles; i++)
     {
-        pRxNetDescriptor pBufferDescriptor =
-            (pRxNetDescriptor)RemoveHeadList(&pContext->NetReceiveBuffers);
-        InsertTailList(&TempList, &pBufferDescriptor->listEntry);
+        pContext->pPathBundles[i].rxPath.PopulateQueue();
     }
-    pContext->NetNofReceiveBuffers = 0;
-    while (!IsListEmpty(&TempList))
-    {
-        pRxNetDescriptor pBufferDescriptor =
-            (pRxNetDescriptor)RemoveHeadList(&TempList);
-        if (AddRxBufferToQueue(pContext, pBufferDescriptor))
-        {
-            InsertTailList(&pContext->NetReceiveBuffers, &pBufferDescriptor->listEntry);
-            pContext->NetNofReceiveBuffers++;
-        }
-        else
-        {
-            DPrintf(0, ("FAILED TO REUSE THE BUFFER!!!!\n"));
-            FreeRxBufferDescriptor(pContext, pBufferDescriptor);
-            pContext->NetMaxReceiveBuffers--;
-        }
-    }
-    virtqueue_kick(pContext->NetReceiveQueue);
+
     ReadLinkState(pContext);
     ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
     ParaNdis_SynchronizeLinkState(pContext);
     pContext->bEnableInterruptHandlingDPC = TRUE;
     ParaNdis_AddDriverOKStatus(pContext);
-
-    NdisReleaseSpinLock(&pContext->ReceiveLock);
 
     // if bFastSuspendInProcess is set by Win8 power-off procedure,
     // the ParaNdis_Resume enables Tx and RX
@@ -2274,14 +2134,11 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     pContext->bFastSuspendInProcess = pContext->bNoPauseOnSuspend && pContext->ReceiveState == srsEnabled;
     ParaNdis_Suspend(pContext);
 
-    ParaNdis_SynchronizeWithInterrupt(pContext,
-        pContext->ulRxMessage,
-        ParaNdis_RemoveDriverOKStatus,
-        pContext);
+    ParaNdis_RemoveDriverOKStatus(pContext);
     
     if (pContext->bFastSuspendInProcess)
     {
-        InterlockedExchangePointer((PVOID *)&pContext->ReuseBufferProc, ReuseReceiveBufferPowerOff);
+        InterlockedExchange(&pContext->ReuseBufferRegular, FALSE);
     }
     
 #if !NDIS_SUPPORT_NDIS620
@@ -2300,14 +2157,16 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
         all the transmit buffers move to list of free buffers
     ********************************************************************/
 
-    pContext->TXPath.Shutdown();
+    for (UINT i = 0; i < pContext->nPathBundles; i++)
+    {
+        pContext->pPathBundles[i].txPath.Shutdown();
+        pContext->pPathBundles[i].rxPath.Shutdown();
+    }
 
-    NdisAcquireSpinLock(&pContext->ReceiveLock);
-    virtqueue_shutdown(pContext->NetReceiveQueue);
-    NdisReleaseSpinLock(&pContext->ReceiveLock);
-
-    if(pContext->NetControlQueue)
-        virtqueue_shutdown(pContext->NetControlQueue);
+    if (pContext->bCXPathCreated)
+    {
+        pContext->CXPath.Shutdown();
+    }
 
     ParaNdis_ResetVirtIONetDevice(pContext);
     ParaNdis_DebugHistory(pContext, hopPowerOff, NULL, 0, 0, 0);
@@ -2318,7 +2177,7 @@ void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext)
     if (pContext->AdapterResources.ulIOAddress)
     {
 #ifdef DBG_USE_VIRTIO_PCI_ISR_FOR_HOST_REPORT
-        WriteVirtIODeviceByte(pContext->IODevice.addr + VIRTIO_PCI_ISR, 1);
+        WriteVirtIODeviceByte(pContext->IODevice->addr + VIRTIO_PCI_ISR, 1);
 #endif
     }
 }

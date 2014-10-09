@@ -13,6 +13,7 @@
 /* We've given up on this device. */
 #define VIRTIO_CONFIG_S_FAILED              0x80
 /* virtio library features bits */
+#define VIRTIO_F_ANY_LAYOUT                 27
 #define VIRTIO_F_INDIRECT                   28
 #define VIRTIO_RING_F_EVENT_IDX             29
 

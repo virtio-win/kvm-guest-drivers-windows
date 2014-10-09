@@ -258,8 +258,10 @@ CParaNdisTX::CParaNdisTX()
 bool CParaNdisTX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 {
     m_Context = Context;
+    m_queueIndex = (u16)DeviceQueueIndex;
+
     return m_VirtQueue.Create(DeviceQueueIndex,
-        &m_Context->IODevice,
+        m_Context->IODevice,
         m_Context->MiniportHandle,
         m_Context->bDoPublishIndices ? true : false,
         m_Context->maxFreeTxDescriptors,
@@ -462,7 +464,7 @@ bool CParaNdisTX::RestartQueue(bool DoKick)
 {
     TSpinLocker LockedContext(m_Lock);
     auto res = ParaNdis_SynchronizeWithInterrupt(m_Context,
-                                                 m_Context->ulTxMessage,
+                                                 m_messageIndex,
                                                  CParaNdisTX::RestartQueueSynchronously,
                                                  this) ? true : false;
 

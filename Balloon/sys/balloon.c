@@ -60,7 +60,7 @@ BalloonInit(
     NTSTATUS            status = STATUS_SUCCESS;
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
     u32 hostFeatures;
-    u32 guestFeatures;
+    u32 guestFeatures = 0;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonInit\n");
 
@@ -85,7 +85,6 @@ BalloonInit(
            break;
         }
 
-        guestFeatures = 0;
         hostFeatures = VirtIODeviceReadHostFeatures(&devCtx->VDevice);
 
         if (VirtIOIsFeatureEnabled(hostFeatures, VIRTIO_BALLOON_F_STATS_VQ))

@@ -5,7 +5,6 @@
 
 : Use Windows 7 DDK
 if "%DDKVER%"=="" set DDKVER=7600.16385.1
-if "%_BuildType%"=="" set _BuildType=fre
 
 : By default DDK is installed under C:\WINDDK, but it can be installed in different location
 if "%DDKISNTALLROOT%"=="" set DDKISNTALLROOT=C:\WINDDK\
@@ -31,7 +30,7 @@ goto nextparam
 set DDKBUILDENV=
 setlocal
 pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %_BuildType% Wlh
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Wlh
 popd
 build -cZg
 endlocal
@@ -41,7 +40,7 @@ goto continue
 set DDKBUILDENV=
 setlocal
 pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% %_BuildType% WIN7
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WIN7
 popd
 build -cZg
 endlocal
@@ -52,7 +51,7 @@ goto continue
 set DDKBUILDENV=
 setlocal
 pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %_BuildType% WIN7
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WIN7
 popd
 build -cZg
 endlocal
@@ -62,7 +61,7 @@ goto continue
 set DDKBUILDENV=
 setlocal
 pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% %_BuildType% Wlh
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre Wlh
 popd
 build -cZg
 endlocal
@@ -72,7 +71,7 @@ goto continue
 set DDKBUILDENV=
 setlocal
 pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %_BuildType% WNET
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WNET
 popd
 build -cZg
 endlocal
@@ -82,7 +81,7 @@ goto continue
 set DDKBUILDENV=
 setlocal
 pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% %_BuildType% WNET
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WNET
 popd
 build -cZg
 endlocal
@@ -92,7 +91,7 @@ goto continue
 set DDKBUILDENV=
 setlocal
 pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %_BuildType% WXP
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WXP
 popd
 build -cZg
 endlocal

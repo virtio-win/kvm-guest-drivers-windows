@@ -48,7 +48,7 @@
 #define VER_LANGNEUTRAL
 
 #ifndef _NT_TARGET_MAJ
-#include "2012-defines.h"
+#include "..\2012-defines.h"
 #endif
 
 #define VER_PRODUCTBUILD                _MAJORVERSION_

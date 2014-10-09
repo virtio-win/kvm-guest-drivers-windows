@@ -31,7 +31,7 @@ vioser.sys  = 1,,
 ;*****************************************
 
 [Manufacturer]
-%RedHatMfg%=VirtioSerial,NT$ARCH$
+%REDHAT%=VirtioSerial,NT$ARCH$
 
 [VirtioSerial]
 ;
@@ -95,8 +95,7 @@ KmdfService =  VirtioSerial, VirtioSerial_wdfsect
 KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
-REDHAT = "Red Hat Inc."
-RedHatMfg = "VirtIO-Serial communication device"
+REDHAT = "Red Hat, Inc."
 DiskId1 = "VirtIO-Serial Installation Disk #1"
 VirtioSerial.DeviceDesc = "VirtIO-Serial Driver"
 VirtioSerial.ServiceDesc = "VirtIO-Serial Service"

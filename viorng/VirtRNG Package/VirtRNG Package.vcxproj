@@ -198,40 +198,111 @@
     <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Debug\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Debug\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
     <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Release\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Release\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
     <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Debug\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Debug\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
     <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Release\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Release\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
     <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Debug\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Debug\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
     <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\$(IntDir)\viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
+    <FilesToPackage Include="..\$(Platform)\Release\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\$(IntDir)\viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
+    <FilesToPackage Include="..\$(Platform)\Release\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\$(IntDir)\viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\$(IntDir)\viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
+    <FilesToPackage Include="..\$(Platform)\Debug\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Debug\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Release\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Release\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Debug\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Debug\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Release\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Release\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
     <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Debug\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Debug\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
     <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="@(Inf->'%(CopyOutput)')" Condition="'@(Inf)'!=''" />
+    <FilesToPackage Include="..\$(Platform)\Release\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(Platform)\Release\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\viorng\viorng.vcxproj">

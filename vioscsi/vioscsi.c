@@ -331,7 +331,7 @@ ENTER_FN();
 
     adaptExt->features = StorPortReadPortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
 
-    if (adaptExt->uncachedExtensionVa == NULL) {
+    if (adaptExt->uncachedExtensionVa == NULL && !adaptExt->dump_mode) {
         allocationSize = 0;
         adaptExt->offset[0] = 0;
         VirtIODeviceQueryQueueAllocation(&adaptExt->vdev, 0, &pageNum, &Size);
@@ -530,7 +530,8 @@ ENTER_FN();
       }
 
       StorPortWritePortUlong(DeviceExtension,
-             (PULONG)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), guestFeatures);
+             (PULONG)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES),
+			 (ULONG)((1 << VIRTIO_SCSI_F_HOTPLUG) | (1 << VIRTIO_SCSI_F_CHANGE) | (1 << VIRTIO_RING_F_EVENT_IDX)));
       StorPortWritePortUchar(DeviceExtension,
              (PUCHAR)(adaptExt->device_base + VIRTIO_PCI_STATUS),
              (UCHAR)VIRTIO_CONFIG_S_DRIVER_OK);
@@ -911,11 +912,11 @@ ENTER_FN();
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("ScsiRestartAdapter\n"));
         VirtIODeviceReset(&adaptExt->vdev);
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)0);
-        StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
+        StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)1);
-        StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
+        StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)2);
-        StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
+        StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
         adaptExt->vq[0] = NULL;
         adaptExt->vq[1] = NULL;
         adaptExt->vq[2] = NULL;

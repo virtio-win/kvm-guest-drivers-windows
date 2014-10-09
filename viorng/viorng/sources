@@ -1,0 +1,34 @@
+TARGETNAME = viorng
+TARGETTYPE = DRIVER
+
+TARGET_DESTINATION = wdf
+
+KMDF_VERSION_MAJOR = 1
+
+MSC_WARNING_LEVEL = /W4 /WX
+
+ENABLE_EVENT_TRACING = 1
+
+INF_NAME = viorng
+NTTARGETFILE0 = $(OBJ_PATH)\$(O)\$(INF_NAME).inf
+
+TARGETLIBS = $(TARGETLIBS) \
+	..\..\VirtIO\$(O)\virtiolib.lib
+
+INCLUDES = $(INCLUDES);..\..\VirtIO;
+
+SOURCES = \
+	isrdpc.c  \
+	power.c  \
+	read.c  \
+	viorng.c    \
+	virtio.c  \
+	viorng.rc
+
+!IFDEF ENABLE_EVENT_TRACING
+C_DEFINES = $(C_DEFINES) -DEVENT_TRACING
+RUN_WPP= $(SOURCES)                             \
+         -km                                    \
+         -func:TraceEvents(LEVEL,FLAGS,MSG,...) \
+         -gen:{km-WdfDefault.tpl}*.tmh       
+!ENDIF

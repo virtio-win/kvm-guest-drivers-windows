@@ -94,7 +94,8 @@ public:
                   ULONG VirtioHeaderSize,
                   struct VirtIOBufferDescriptor *VirtioSGL,
                   ULONG VirtioSGLSize,
-                  bool Indirect)
+                  bool Indirect,
+                  bool AnyLayout)
     {
         if (!m_Headers.Create(DrvHandle, VirtioHeaderSize))
             return false;
@@ -103,6 +104,8 @@ public:
         m_VirtioSGL = VirtioSGL;
         m_VirtioSGLSize = VirtioSGLSize;
         m_Indirect = Indirect;
+        m_AnyLayout = AnyLayout;
+
 
         return m_Headers.Allocate() && (!m_Indirect || m_IndirectArea.Allocate(PAGE_SIZE));
     }
@@ -125,6 +128,7 @@ private:
     CTXHeaders m_Headers;
     CNdisSharedMemory m_IndirectArea;
     bool m_Indirect;
+    bool m_AnyLayout;
 
     struct VirtIOBufferDescriptor *m_VirtioSGL;
     ULONG m_VirtioSGLSize;
@@ -142,12 +146,6 @@ private:
 class CVirtQueue
 {
 public:
-    ULONG GetRingSize()
-    { return VirtIODeviceGetQueueSize(m_VirtQueue); }
-
-    void Renew();
-
-protected:
     CVirtQueue()
         : m_DrvHandle(NULL)
         , m_Index(0xFFFFFFFF)
@@ -156,13 +154,57 @@ protected:
     {}
 
     virtual ~CVirtQueue()
-    { Delete(); }
+    {
+        Delete();
+    }
 
     bool Create(UINT Index,
         VirtIODevice *IODevice,
         NDIS_HANDLE DrvHandle,
         bool UsePublishedIndices);
 
+    ULONG GetRingSize()
+    { return VirtIODeviceGetQueueSize(m_VirtQueue); }
+
+    void Renew();
+
+    void Shutdown();
+
+    int AddBuf(struct VirtIOBufferDescriptor sg[],
+        unsigned int out_num,
+        unsigned int in_num,
+        void *data,
+        void *va_indirect,
+        ULONGLONG phys_indirect)
+    { return virtqueue_add_buf(m_VirtQueue, sg, out_num, in_num, data, 
+          va_indirect, phys_indirect); }
+
+    void KickAlways()
+    { virtqueue_kick(m_VirtQueue); }
+
+    void* GetBuf(unsigned int *len)
+    { return virtqueue_get_buf(m_VirtQueue, len); }
+
+    //TODO: Needs review / temporary
+    void Kick()
+    { virtqueue_kick(m_VirtQueue); }
+
+    bool Restart()
+    { return virtqueue_enable_cb(m_VirtQueue); }
+
+    //TODO: Needs review/temporary?
+    void EnableInterrupts()
+    { virtqueue_enable_cb(m_VirtQueue); }
+
+    //TODO: Needs review/temporary?
+    void DisableInterrupts()
+    { virtqueue_disable_cb(m_VirtQueue); }
+
+    //TODO: Needs review/temporary?
+    bool IsInterruptEnabled()
+    { return virtqueue_is_interrupt_enabled(m_VirtQueue) ? true : false; }
+
+protected:
     NDIS_HANDLE m_DrvHandle;
 
 private:
@@ -228,9 +270,6 @@ public:
     { return !m_DescriptorsInUse.IsEmpty(); }
 
     //TODO: Needs review
-    void Shutdown();
-
-    //TODO: Needs review
     bool HasHWBuffersIsUse()
     { return m_FreeHWBuffers != m_TotalHWBuffers; }
 
@@ -253,6 +292,9 @@ public:
     //TODO: Needs review/temporary?
     ULONG GetFreeHWBuffers()
     { return m_FreeHWBuffers; }
+
+    //TODO: Needs review
+    void Shutdown();
 
 private:
     bool PrepareBuffers();

@@ -28,13 +28,21 @@
 
 #ifdef DEBUG
 #define START_USE(_vq)                                          \
-    if ((_vq)->in_use) {                                        \
+__pragma(warning(push))                                          \
+__pragma(warning(disable:4127))                                 \
+    do {                                                        \
+        if ((_vq)->in_use)                                      \
             DPrintf(0, ("%s:in_use = %i\n",                     \
                            (_vq)->vq.name, (_vq)->in_use));     \
         (_vq)->in_use = __LINE__;                               \
-    }
+    } while (0) \
+__pragma(warning(pop))
+
 #define END_USE(_vq) \
-    BUG_ON(!(_vq)->in_use); (_vq)->in_use = 0;
+__pragma(warning(push))                                          \
+__pragma(warning(disable:4127))                                 \
+        do { BUG_ON(!(_vq)->in_use); (_vq)->in_use = 0; } while(0) \
+__pragma(warning(pop))
 #else
 #define START_USE(vq)
 #define END_USE(vq)

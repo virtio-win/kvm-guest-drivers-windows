@@ -12,7 +12,6 @@ set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
 
 for %%O in (Win7 Win8) do for %%P in (Win32 x64) do call :build_driver %%O %%P
 for %%P in (Win32 x64) do call :build_vista_driver Vista %%P
-for %%O in (Vista Win7 Win8) do for %%P in (Win32 x64) do call :build_um_proivder %%O %%P
 
 endlocal
 
@@ -43,13 +42,13 @@ goto :eof
 :fix_wdfcoinstaller_name
 call :set_os_and_platform %1 %2
 pushd Install\%OS%\%PLAT%\
-if exist WdfCoinstaller01011.dll rename WdfCoinstaller01011.dll WdfCoInstaller01011.dll
+for %%V in (01009 01011) do if exist WdfCoinstaller%%V.dll rename WdfCoinstaller%%V.dll WdfCoInstaller%%V.dll
 popd
 goto :eof
 
 :prebuild_driver
 call :set_windows_version %1
-call :create_version_file "viorng\2012-defines.h"
+call :create_version_file "2012-defines.h"
 call :set_out_filename %1 %2
 set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_%
 goto :eof
@@ -64,6 +63,9 @@ set DDKENV=%2
 if "%DDKENV%"=="Win32" set DDKENV=x86
 call bin\setenv.bat %BUILDROOT% %DDKENV% fre %OS% no_oacr
 popd
+pushd ..\VirtIO
+build -cZg
+popd
 build -cZg
 set ARCH=amd64
 if "%2"=="Win32" set ARCH=i386
@@ -71,6 +73,8 @@ set SRC_DIR=.\viorng\objfre_%OS%_%PLAT%\%ARCH%
 set DST_DIR=.\Install\%OS%\%PLAT%
 mkdir %DST_DIR%
 copy %BUILDROOT%\redist\wdf\%PLAT%\WdfCoInstaller01009.dll %DST_DIR%
+call :build_um_provider Vista %2
+call :build_co_installer Vista %2
 for %%E in (inf pdb sys) do copy %SRC_DIR%\viorng.%%E %DST_DIR%
 if /i "%2"=="Win32" set OS_SYS=Vista_X86,Server2008_X86
 if /i "%2"=="x64" set OS_SYS=Vista_X64,Server2008_X64
@@ -83,12 +87,18 @@ call ..\tools\callVisualStudio.bat 12 viorng.sln /Rebuild "%1 Release|%2" /Out %
 call :fix_wdfcoinstaller_name %1 %2
 goto :eof
 
-:build_um_proivder
+:build_um_provider
 call :set_windows_version %1
-call :create_version_file "cng\um\2012-defines.h"
 call :set_out_filename %1 %2
-call ..\tools\callVisualStudio.bat 12 viorngum.sln /Rebuild "Release|%2" /Out %OUT_FILENAME%
-copy "%2\Release\viorngum.dll" "Install\%OS%\%PLAT%\"
+call ..\tools\callVisualStudio.bat 12 cng\um\viorngum.vcxproj /Rebuild "Release|%2" /Out %OUT_FILENAME%
+copy "cng\um\%2\Release\viorngum.dll" "Install\%OS%\%PLAT%\"
+goto :eof
+
+:build_co_installer
+call :set_windows_version %1
+call :set_out_filename %1 %2
+call ..\tools\callVisualStudio.bat 12 coinstaller\viorngci.vcxproj /Rebuild "Release|%2" /Out %OUT_FILENAME%
+copy "coinstaller\%2\Release\viorngci.dll" "Install\%OS%\%PLAT%\"
 goto :eof
 
 :create_version_file

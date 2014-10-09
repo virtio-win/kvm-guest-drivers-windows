@@ -5,5 +5,3 @@ EXPORTS
 
 	GetRngInterface
 
-	RegisterProvider
-	UnregisterProvider

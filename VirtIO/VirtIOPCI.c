@@ -243,6 +243,10 @@ void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, ULON
     {
         DPrintf(0, ("%s: queue %d requires 0x%x for %d entries\n", __FUNCTION__, index, *pAllocationSize, *pNumEntries) );
     }
+    else
+    {
+        DPrintf(0, ("%s: queue %d allocation failed\n", __FUNCTION__, index));
+    }
 }
 
 static void AlignPointers(PHYSICAL_ADDRESS *ppa, void **pva, unsigned long *pSize)
@@ -299,6 +303,10 @@ struct virtqueue *VirtIODevicePrepareQueue(
             DPrintf(0, ("[%s] queue phys.address %08lx:%08lx, pfn %lx\n", __FUNCTION__, pa.HighPart, pa.LowPart, pageNum));
             WriteVirtIODeviceWord(vp_dev->addr + VIRTIO_PCI_QUEUE_SEL, (u16) index);
             WriteVirtIODeviceRegister(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN, pageNum);
+        }
+        else
+        {
+            DPrintf(0, ("[%s] vring_new_virtqueue failed\n", __FUNCTION__));
         }
     }
     else

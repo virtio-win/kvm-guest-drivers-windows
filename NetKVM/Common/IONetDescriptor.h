@@ -112,6 +112,9 @@ struct virtio_net_ctrl_mac {
   #define VIRTIO_NET_CTRL_VLAN_ADD             0
   #define VIRTIO_NET_CTRL_VLAN_DEL             1
 
+#define VIRTIO_NET_CTRL_MQ                   4
+  #define VIRTIO_NET_CTRL_MQ_VQ_PAIR_SET       0
+
 /*
  * Control network offloads
  *

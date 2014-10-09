@@ -3,15 +3,19 @@
 call :rmdir Install
 call :rmdir Install_Debug
 call :rmfiles *.log
+call :rmfiles *.err
+call :rmfiles 2012-defines.h
 call :cleandir
 
 pushd cng\um
-call :rmfiles 2012-defines.h
+call :cleandir
+popd
+
+pushd coinstaller
 call :cleandir
 popd
 
 pushd viorng
-call :rmfiles 2012-defines.h
 call :cleandir
 for /D %%D IN (objchk_*) do call call :rmdir %%D
 for /D %%D IN (objfre_*) do call call :rmdir %%D
