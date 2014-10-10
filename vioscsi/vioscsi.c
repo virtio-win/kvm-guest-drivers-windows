@@ -331,7 +331,7 @@ ENTER_FN();
 
     adaptExt->features = StorPortReadPortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
 
-    if (adaptExt->uncachedExtensionVa == NULL && !adaptExt->dump_mode) {
+    if (adaptExt->uncachedExtensionVa == NULL) {
         allocationSize = 0;
         adaptExt->offset[0] = 0;
         VirtIODeviceQueryQueueAllocation(&adaptExt->vdev, 0, &pageNum, &Size);
@@ -531,7 +531,7 @@ ENTER_FN();
 
       StorPortWritePortUlong(DeviceExtension,
              (PULONG)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES),
-			 (ULONG)((1 << VIRTIO_SCSI_F_HOTPLUG) | (1 << VIRTIO_SCSI_F_CHANGE) | (1 << VIRTIO_RING_F_EVENT_IDX)));
+             guestFeatures);
       StorPortWritePortUchar(DeviceExtension,
              (PUCHAR)(adaptExt->device_base + VIRTIO_PCI_STATUS),
              (UCHAR)VIRTIO_CONFIG_S_DRIVER_OK);
