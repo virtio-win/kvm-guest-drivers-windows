@@ -51,7 +51,7 @@ public:
     ULONG getCPUIndex()
     {
 #if NDIS_SUPPORT_NDIS620
-        PROCESSOR_NUMBER procNumber;
+        PROCESSOR_NUMBER procNumber = {0};
 
         procNumber.Group = DPCAffinity.Group;
         ULONG number = ParaNdis_GetIndexFromAffinity(DPCAffinity.Mask);
