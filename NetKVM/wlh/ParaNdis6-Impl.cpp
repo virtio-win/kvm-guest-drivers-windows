@@ -477,16 +477,15 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
                 pTable->MessageInfo[i].MessageData,
                 pTable->MessageInfo[i].MessageAddress));
         }
-
         for (UINT j = 0; j < pContext->nPathBundles && status == NDIS_STATUS_SUCCESS; ++j)
         {
-            status = pContext->pPathBundles[j].rxPath.SetupMessageIndex(u16(j));
-            status = pContext->pPathBundles[j].txPath.SetupMessageIndex(u16(j));
+            status = pContext->pPathBundles[j].rxPath.SetupMessageIndex(u16((2 * j) % pTable->MessageCount));
+            status = pContext->pPathBundles[j].txPath.SetupMessageIndex(u16((2 * j + 1) % pTable->MessageCount));
         }
 
         if (pContext->bCXPathCreated)
         {
-            pContext->CXPath.SetupMessageIndex(u16(pContext->nPathBundles));
+            pContext->CXPath.SetupMessageIndex(u16((2 * pContext->nPathBundles) % pTable->MessageCount));
         }
     }
 
@@ -495,7 +494,7 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
         for (UINT j = 0; j < pContext->nPathBundles && status == NDIS_STATUS_SUCCESS; ++j)
         {
             DPrintf(0, ("[%s] Using messages %u/%u for RX/TX queue %u\n", __FUNCTION__, pContext->pPathBundles[j].rxPath.getMessageIndex(),
-                pContext->pPathBundles[j].rxPath.getMessageIndex(), j));
+                pContext->pPathBundles[j].txPath.getMessageIndex(), j));
         }
         if (pContext->bCXPathCreated)
         {
