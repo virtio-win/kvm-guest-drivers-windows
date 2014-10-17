@@ -3,10 +3,15 @@
 CParaNdisCX::CParaNdisCX()
 {
     m_ControlData.size = 512;
+    m_ControlData.Virtual = nullptr;
 }
 
 CParaNdisCX::~CParaNdisCX()
 {
+    if (m_ControlData.Virtual != nullptr)
+    {
+        ParaNdis_FreePhysicalMemory(m_Context, &m_ControlData);
+    }
 }
 
 bool CParaNdisCX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
@@ -18,6 +23,7 @@ bool CParaNdisCX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     {
         DPrintf(0, ("CParaNdisCX::Create - ParaNdis_InitialAllocatePhysicalMemory failed for %u\n",
             DeviceQueueIndex));
+        m_ControlData.Virtual = nullptr;
         return false;
     }
 

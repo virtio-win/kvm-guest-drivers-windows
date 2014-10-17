@@ -26,6 +26,13 @@ public:
 
     void ReuseReceiveBuffer(LONG regular, pRxNetDescriptor pBuffersDescriptor)
     {
+        CLockedContext<CNdisSpinLock> autoLock(m_Lock);
+
+        ReuseReceiveBufferNoLock(regular, pBuffersDescriptor);
+    }
+
+    void ReuseReceiveBufferNoLock(LONG regular, pRxNetDescriptor pBuffersDescriptor)
+    {
         if (regular)
         {
             ReuseReceiveBufferRegular(pBuffersDescriptor);
