@@ -477,7 +477,6 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
                 pTable->MessageInfo[i].MessageData,
                 pTable->MessageInfo[i].MessageAddress));
         }
-
         for (UINT j = 0; j < pContext->nPathBundles && status == NDIS_STATUS_SUCCESS; ++j)
         {
             status = pContext->pPathBundles[j].rxPath.SetupMessageIndex(2 * u16(j) + 1);
