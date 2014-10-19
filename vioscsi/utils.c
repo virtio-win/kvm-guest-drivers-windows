@@ -19,7 +19,7 @@ int nViostorDebugLevel;
 #if defined(COM_DEBUG)
 
 #define RHEL_DEBUG_PORT     ((PUCHAR)0x3F8)
-#define TEMP_BUFFER_SIZE	256
+#define TEMP_BUFFER_SIZE    256
 
 static void DebugPrintFuncSerial(const char *format, ...)
 {
@@ -68,23 +68,27 @@ static void NoDebugPrintFunc(const char *format, ...)
 void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath)
 {
 #ifdef ENABLE_TRACE
-    USHORT nFromLen = RegistryPath->Length;
-    WCHAR wszRegistryPath[TEMP_BUFFER_SIZE];
-    RTL_QUERY_REGISTRY_TABLE QueryTable[3];
-    NTSTATUS status;
-    nViostorDebugLevel = 0;
-    if (RegistryPath->Length + sizeof(WCHAR) <= sizeof(wszRegistryPath)) {
-        RtlCopyMemory(wszRegistryPath, RegistryPath->Buffer, nFromLen);
-        RtlZeroMemory(wszRegistryPath + nFromLen, sizeof(WCHAR));
-        RtlZeroMemory(QueryTable, sizeof(QueryTable));
-        QueryTable[0].Name = L"Parameters";
-        QueryTable[0].Flags = RTL_QUERY_REGISTRY_SUBKEY;
-        QueryTable[0].EntryContext = NULL;
-        QueryTable[1].Name = L"DebugLevel";
-        QueryTable[1].Flags = RTL_QUERY_REGISTRY_DIRECT;
-        QueryTable[1].EntryContext = &nViostorDebugLevel;
-        status = RtlQueryRegistryValues(RTL_REGISTRY_ABSOLUTE,
-                                        wszRegistryPath, QueryTable, NULL, NULL);
+    if (RegistryPath != NULL) {
+        USHORT nFromLen = RegistryPath->Length;
+        WCHAR wszRegistryPath[TEMP_BUFFER_SIZE];
+        RTL_QUERY_REGISTRY_TABLE QueryTable[3];
+        NTSTATUS status;
+        nViostorDebugLevel = 0;
+        if (RegistryPath->Length + sizeof(WCHAR) <= sizeof(wszRegistryPath)) {
+            RtlCopyMemory(wszRegistryPath, RegistryPath->Buffer, nFromLen);
+            RtlZeroMemory(wszRegistryPath + nFromLen, sizeof(WCHAR));
+            RtlZeroMemory(QueryTable, sizeof(QueryTable));
+            QueryTable[0].Name = L"Parameters";
+            QueryTable[0].Flags = RTL_QUERY_REGISTRY_SUBKEY;
+            QueryTable[0].EntryContext = NULL;
+            QueryTable[1].Name = L"DebugLevel";
+            QueryTable[1].Flags = RTL_QUERY_REGISTRY_DIRECT;
+            QueryTable[1].EntryContext = &nViostorDebugLevel;
+            status = RtlQueryRegistryValues(RTL_REGISTRY_ABSOLUTE,
+                                            wszRegistryPath, QueryTable, NULL, NULL);
+        }
+    } else {
+        nViostorDebugLevel = 4;
     }
 #else
     nViostorDebugLevel = 0;

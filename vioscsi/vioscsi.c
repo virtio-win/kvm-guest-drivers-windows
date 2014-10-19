@@ -297,17 +297,41 @@ ENTER_FN();
     VirtIODeviceReset(&adaptExt->vdev);
 
     if (adaptExt->dump_mode) {
+        // In dump mode, StorPortGetUncachedExtension can't fails if queues have more than 256 descriptors
+        #define MAX_DUMP_MODE_QUEUE_NUM 256
+
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)0);
-        StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
+        StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
+        adaptExt->original_queue_num[0] = StorPortReadPortUshort(adaptExt, (PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_NUM));
+        if (adaptExt->original_queue_num[0] > MAX_DUMP_MODE_QUEUE_NUM) {
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("Virtual queue 0 num descriptors reduced in dump mode.\n"));
+            StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM), MAX_DUMP_MODE_QUEUE_NUM);
+        } else {
+            adaptExt->original_queue_num[0] = 0;
+        }
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)1);
-        StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
+        StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
+        adaptExt->original_queue_num[1] = StorPortReadPortUshort(adaptExt, (PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_NUM));
+        if (adaptExt->original_queue_num[1] > MAX_DUMP_MODE_QUEUE_NUM) {
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("Virtual queue 1 num descriptors reduced in dump mode.\n"));
+            StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM), MAX_DUMP_MODE_QUEUE_NUM);
+        } else {
+            adaptExt->original_queue_num[1] = 0;
+        }
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)2);
-        StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
+        StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
+        adaptExt->original_queue_num[2] = StorPortReadPortUshort(adaptExt, (PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_NUM));
+        if (adaptExt->original_queue_num[2] > MAX_DUMP_MODE_QUEUE_NUM) {
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("Virtual queue 2 num descriptors reduced in dump mode.\n"));
+            StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM), MAX_DUMP_MODE_QUEUE_NUM);
+        } else {
+            adaptExt->original_queue_num[2] = 0;
+        }
     }
 
     adaptExt->features = StorPortReadPortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
 
-    if (adaptExt->uncachedExtensionVa == NULL && !adaptExt->dump_mode) {
+    if (adaptExt->uncachedExtensionVa == NULL) {
         allocationSize = 0;
         adaptExt->offset[0] = 0;
         VirtIODeviceQueryQueueAllocation(&adaptExt->vdev, 0, &pageNum, &Size);
@@ -431,11 +455,15 @@ VioScsiHwInitialize(
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PVOID              ptr      = adaptExt->uncachedExtensionVa;
     ULONG              i;
+    ULONG              guestFeatures = (1ul << VIRTIO_SCSI_F_HOTPLUG) | (1ul << VIRTIO_SCSI_F_CHANGE);
 
 #if (MSI_SUPPORTED == 1)
     MESSAGE_INTERRUPT_INFORMATION msi_info;
 #endif
 ENTER_FN();
+    if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX)) {
+        guestFeatures |= (1ul << VIRTIO_RING_F_EVENT_IDX);
+    }
     if (adaptExt->vq[0] == NULL) {
       adaptExt->msix_vectors = 0;
   #if (MSI_SUPPORTED == 1)
@@ -496,8 +524,7 @@ ENTER_FN();
       }
 
       StorPortWritePortUlong(DeviceExtension,
-             (PULONG)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES),
-			 (ULONG)((1 << VIRTIO_SCSI_F_HOTPLUG) | (1 << VIRTIO_SCSI_F_CHANGE) | (1 << VIRTIO_RING_F_EVENT_IDX)));
+             (PULONG)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), guestFeatures);
       StorPortWritePortUchar(DeviceExtension,
              (PUCHAR)(adaptExt->device_base + VIRTIO_PCI_STATUS),
              (UCHAR)VIRTIO_CONFIG_S_DRIVER_OK);
@@ -879,11 +906,11 @@ ENTER_FN();
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("ScsiRestartAdapter\n"));
         VirtIODeviceReset(&adaptExt->vdev);
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)0);
-        StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
+        StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)1);
-        StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
+        StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
         StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)2);
-        StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN),(USHORT)0);
+        StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
         adaptExt->vq[0] = NULL;
         adaptExt->vq[1] = NULL;
         adaptExt->vq[2] = NULL;
