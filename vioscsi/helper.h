@@ -67,7 +67,7 @@ LogError(
 BOOLEAN
 KickEvent(
     IN PVOID DeviceExtension,
-    IN PVirtIOSCSIEventNode event 
+    IN PVirtIOSCSIEventNode event
     );
 
 BOOLEAN
@@ -76,4 +76,4 @@ SynchronizedKickEventRoutine(
     IN PVOID Context
     );
     
-#endif ___HELPER_H___
+#endif // ___HELPER_H___

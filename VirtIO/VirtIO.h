@@ -24,7 +24,9 @@
 #define virtio_device VirtIODevice
 #define scatterlist VirtIOBufferDescriptor
 
+#ifndef VIRTIO_DEVICE_DEFINED
 typedef struct TypeVirtIODevice VirtIODevice;
+#endif
 struct VirtIOBufferDescriptor {
     PHYSICAL_ADDRESS physAddr;
     ULONG length;

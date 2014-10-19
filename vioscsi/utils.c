@@ -10,7 +10,9 @@
  *
 **********************************************************************/
 #include "utils.h"
+#ifdef ENABLE_TRACE
 #include <ntstrsafe.h>
+#endif
 
 int virtioDebugLevel;
 int bDebugPrint;
@@ -56,10 +58,12 @@ static void DebugPrintFunc(const char *format, ...)
 }
 #endif
 
+#if defined(EVENT_TRACING)
 static void DebugPrintFuncWPP(const char *format, ...)
 {
 // TODO later, if needed
 }
+#endif
 
 static void NoDebugPrintFunc(const char *format, ...)
 {
