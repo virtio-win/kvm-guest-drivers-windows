@@ -32,7 +32,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define MAX_PHYS_SEGMENTS       16
 #endif
 
-#define VIRTIO_MAX_SG	        (3+MAX_PHYS_SEGMENTS)
+#define VIRTIO_MAX_SG            (3+MAX_PHYS_SEGMENTS)
 
 #define SECTOR_SIZE             512
 #define IO_PORT_LENGTH          0x40
@@ -94,12 +94,12 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 /* SCSI command request, followed by data-out */
 #pragma pack(1)
 typedef struct {
-	u8 lun[8];		/* Logical Unit Number */
-	u64 tag;		/* Command identifier */
-	u8 task_attr;		/* Task attribute */
-	u8 prio;
-	u8 crn;
-	u8 cdb[VIRTIO_SCSI_CDB_SIZE];
+    u8 lun[8];        /* Logical Unit Number */
+    u64 tag;          /* Command identifier */
+    u8 task_attr;     /* Task attribute */
+    u8 prio;
+    u8 crn;
+    u8 cdb[VIRTIO_SCSI_CDB_SIZE];
 } VirtIOSCSICmdReq, * PVirtIOSCSICmdReq;
 #pragma pack()
 
@@ -107,67 +107,67 @@ typedef struct {
 /* Response, followed by sense data and data-in */
 #pragma pack(1)
 typedef struct {
-	u32 sense_len;		/* Sense data length */
-	u32 resid;		/* Residual bytes in data buffer */
-	u16 status_qualifier;	/* Status qualifier */
-	u8 status;		/* Command completion status */
-	u8 response;		/* Response values */
-	u8 sense[VIRTIO_SCSI_SENSE_SIZE];
+    u32 sense_len;        /* Sense data length */
+    u32 resid;            /* Residual bytes in data buffer */
+    u16 status_qualifier; /* Status qualifier */
+    u8 status;            /* Command completion status */
+    u8 response;          /* Response values */
+    u8 sense[VIRTIO_SCSI_SENSE_SIZE];
 } VirtIOSCSICmdResp, * PVirtIOSCSICmdResp;
 #pragma pack()
 
 /* Task Management Request */
 #pragma pack(1)
 typedef struct {
-	u32 type;
-	u32 subtype;
-	u8 lun[8];
-	u64 tag;
+    u32 type;
+    u32 subtype;
+    u8 lun[8];
+    u64 tag;
 } VirtIOSCSICtrlTMFReq, * PVirtIOSCSICtrlTMFReq;
 #pragma pack()
 
 #pragma pack(1)
 typedef struct {
-	u8 response;
+    u8 response;
 } VirtIOSCSICtrlTMFResp, * PVirtIOSCSICtrlTMFResp;
 #pragma pack()
 
 /* Asynchronous notification query/subscription */
 #pragma pack(1)
 typedef struct {
-	u32 type;
-	u8 lun[8];
-	u32 event_requested;
+    u32 type;
+    u8 lun[8];
+    u32 event_requested;
 } VirtIOSCSICtrlANReq, *PVirtIOSCSICtrlANReq;
 #pragma pack()
 
 #pragma pack(1)
 typedef struct {
-	u32 event_actual;
-	u8 response;
+    u32 event_actual;
+    u8 response;
 } VirtIOSCSICtrlANResp, * PVirtIOSCSICtrlANResp;
 #pragma pack()
 
 #pragma pack(1)
 typedef struct {
-	u32 event;
-	u8 lun[8];
-	u32 reason;
+    u32 event;
+    u8 lun[8];
+    u32 reason;
 } VirtIOSCSIEvent, * PVirtIOSCSIEvent;
 #pragma pack()
 
 #pragma pack(1)
 typedef struct {
-	u32 num_queues;
-	u32 seg_max;
-	u32 max_sectors;
-	u32 cmd_per_lun;
-	u32 event_info_size;
-	u32 sense_size;
-	u32 cdb_size;
-	u16 max_channel;
-	u16 max_target;
-	u32 max_lun;
+    u32 num_queues;
+    u32 seg_max;
+    u32 max_sectors;
+    u32 cmd_per_lun;
+    u32 event_info_size;
+    u32 sense_size;
+    u32 cdb_size;
+    u16 max_channel;
+    u16 max_target;
+    u32 max_lun;
 } VirtIOSCSIConfig, * PVirtIOSCSIConfig;
 #pragma pack()
 
@@ -193,7 +193,7 @@ typedef struct {
 typedef struct {
     PVOID           adapter;
     VirtIOSCSIEvent event;
-    VIO_SG          sg;	
+    VIO_SG          sg;
 } VirtIOSCSIEventNode, * PVirtIOSCSIEventNode;
 #pragma pack()
 
@@ -246,6 +246,8 @@ typedef struct _ADAPTER_EXTENSION {
     TMF_COMMAND           tmf_cmd;
     BOOLEAN               tmf_infly;
     ULONG                 in_fly;
+
+    USHORT                original_queue_num[4];  // last element used as pad.
 
     PVirtIOSCSIEventNode  events;
 }ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
