@@ -246,13 +246,13 @@ static CParaNdisAbstractPath *GetPathByMessageId(PARANDIS_ADAPTER *pContext, ULO
     {
         path = &pContext->CXPath;
     }
-    else if (bundleId % 2)
+    else if (MessageId % 2)
     {
-        path = &(pContext->pPathBundles[bundleId].txPath);
+        path = &(pContext->pPathBundles[bundleId].rxPath);
     }
     else
     {
-        path = &(pContext->pPathBundles[bundleId].rxPath);
+        path = &(pContext->pPathBundles[bundleId].txPath);
     }
 
     return path;
@@ -480,13 +480,13 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
 
         for (UINT j = 0; j < pContext->nPathBundles && status == NDIS_STATUS_SUCCESS; ++j)
         {
-            status = pContext->pPathBundles[j].rxPath.SetupMessageIndex(u16(j));
-            status = pContext->pPathBundles[j].txPath.SetupMessageIndex(u16(j));
+            status = pContext->pPathBundles[j].rxPath.SetupMessageIndex(2 * u16(j) + 1);
+            status = pContext->pPathBundles[j].txPath.SetupMessageIndex(2 * u16(j));
         }
 
         if (pContext->bCXPathCreated)
         {
-            pContext->CXPath.SetupMessageIndex(u16(pContext->nPathBundles));
+            pContext->CXPath.SetupMessageIndex(2 * u16(pContext->nPathBundles));
         }
     }
 
@@ -495,7 +495,7 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
         for (UINT j = 0; j < pContext->nPathBundles && status == NDIS_STATUS_SUCCESS; ++j)
         {
             DPrintf(0, ("[%s] Using messages %u/%u for RX/TX queue %u\n", __FUNCTION__, pContext->pPathBundles[j].rxPath.getMessageIndex(),
-                pContext->pPathBundles[j].rxPath.getMessageIndex(), j));
+                pContext->pPathBundles[j].txPath.getMessageIndex(), j));
         }
         if (pContext->bCXPathCreated)
         {

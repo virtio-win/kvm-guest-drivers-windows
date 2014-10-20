@@ -805,7 +805,7 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
     lnProcessors = 1;
 #endif
 
-    ULONG lnMSIs = pContext->pMSIXInfoTable->MessageCount - 1; /* RX/TX pairs + control queue*/
+    ULONG lnMSIs = (pContext->pMSIXInfoTable->MessageCount - 1) / 2; /* RX/TX pairs + control queue*/
 
     DPrintf(0, ("[%s] %lu CPUs reported\n", __FUNCTION__, lnProcessors));
     DPrintf(0, ("[%s] %lu MSIs, %lu queues\n", __FUNCTION__, pContext->pMSIXInfoTable->MessageCount, lnMSIs));
