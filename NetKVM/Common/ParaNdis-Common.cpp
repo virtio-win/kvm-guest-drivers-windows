@@ -1955,6 +1955,14 @@ VOID ParaNdis_OnPnPEvent(
         // to prevent any access of device queues to memory buffers
         pContext->bSurprizeRemoved = TRUE;
         ParaNdis_ResetVirtIONetDevice(pContext);
+        {
+            UINT i;
+
+            for (i = 0; i < pContext->nPathBundles; i++)
+            {
+                pContext->pPathBundles[i].txPath.Pause();
+            }
+        }
     }
     pContext->PnpEvents[pContext->nPnpEventIndex++] = pEvent;
     if (pContext->nPnpEventIndex > sizeof(pContext->PnpEvents)/sizeof(pContext->PnpEvents[0]))
