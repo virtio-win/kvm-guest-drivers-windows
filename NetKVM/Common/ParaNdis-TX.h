@@ -255,7 +255,7 @@ public:
 private:
 
     //TODO: Needs review
-    bool SendMapped(bool IsInterrupt, PNET_BUFFER_LIST &NBLFailNow);
+    bool SendMapped(PNET_BUFFER_LIST &NBLFailNow);
 
     PNET_BUFFER_LIST ProcessWaitingList();
     PNET_BUFFER_LIST BuildCancelList(PVOID CancelId);
