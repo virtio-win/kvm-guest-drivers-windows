@@ -832,9 +832,6 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *)
 
 static NDIS_STATUS SetupDPCTarget(PARANDIS_ADAPTER *pContext)
 {
-    if (pContext->nPathBundles == 1)
-        return NDIS_STATUS_SUCCESS;
-
     ULONG i;
 #if NDIS_SUPPORT_NDIS620
     NDIS_STATUS status;
