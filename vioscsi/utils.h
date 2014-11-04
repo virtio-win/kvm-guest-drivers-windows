@@ -18,7 +18,9 @@
 #include <storport.h>
 #include <stdarg.h>
 #include "kdebugprint.h"
+#if defined(EVENT_TRACING)
 #include "evntrace.h"
+#endif
 
 #define CHECKBIT(value, nbit) (((value) & (1 << (nbit))) != 0)
 
@@ -79,5 +81,5 @@ char *DbgGetScsiOpStr(PSCSI_REQUEST_BLOCK Srb);
 #endif // TRACE_LEVEL_INFORMATION
 
 
-#endif ___UTILS_H___
+#endif // ___UTILS_H___
 
