@@ -330,9 +330,15 @@ ENTER_FN();
     adaptExt->indirect = 0;
 #endif
 
+    if(adaptExt->indirect) {
     // The windows device queue must be between 20 and 254 for
     // StorPortSetDeviceQueueDepth to succeed.
-    adaptExt->queue_depth = min(254, max(20, (pageNum / 4)));
+        adaptExt->queue_depth = min(254, max(20, (pageNum / 4)));
+    } else {
+        adaptExt->queue_depth = pageNum / ConfigInfo->NumberOfPhysicalBreaks - 1;
+    }
+
+
     RhelDbgPrint(TRACE_LEVEL_ERROR, ("breaks_number = %x  queue_depth = %x\n",
                 ConfigInfo->NumberOfPhysicalBreaks,
                 adaptExt->queue_depth));
@@ -404,12 +410,24 @@ VioScsiHwInitialize(
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PVOID              ptr      = adaptExt->uncachedExtensionVa;
     ULONG              i;
-
+    ULONG              guestFeatures = 0;
 #if (MSI_SUPPORTED == 1)
     MESSAGE_INTERRUPT_INFORMATION msi_info;
 #endif
     
 ENTER_FN();
+    if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX)) {
+        guestFeatures |= (1ul << VIRTIO_RING_F_EVENT_IDX);
+    }
+    if (CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_CHANGE)) {
+        guestFeatures |= (1ul << VIRTIO_SCSI_F_CHANGE);
+    }
+    if (CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_HOTPLUG)) {
+        guestFeatures |= (1ul << VIRTIO_SCSI_F_HOTPLUG);
+    }
+    StorPortWritePortUlong(DeviceExtension,
+             (PULONG)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), guestFeatures);
+
     adaptExt->msix_vectors = 0;
 #if (MSI_SUPPORTED == 1)
     while(StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS) {
@@ -468,9 +486,6 @@ ENTER_FN();
         }
     }
 
-    StorPortWritePortUshort(DeviceExtension,
-           (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES),
-           (USHORT)((1 << VIRTIO_SCSI_F_HOTPLUG) | (1 << VIRTIO_SCSI_F_CHANGE)));
     StorPortWritePortUchar(DeviceExtension,
            (PUCHAR)(adaptExt->device_base + VIRTIO_PCI_STATUS),
            (UCHAR)VIRTIO_CONFIG_S_DRIVER_OK);
