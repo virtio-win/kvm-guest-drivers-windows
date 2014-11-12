@@ -605,7 +605,6 @@ VioScsiInterrupt(
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
-         --adaptExt->in_fly;
            CompleteRequest(DeviceExtension, Srb);
         }
         if (adaptExt->tmf_infly) {
@@ -796,7 +795,6 @@ VioScsiMSInterrupt (
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
-           --adaptExt->in_fly;
            CompleteRequest(DeviceExtension, Srb);
         }
         return TRUE;
