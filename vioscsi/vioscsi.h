@@ -91,6 +91,11 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define VIRTIO_RING_F_INDIRECT_DESC            28
 
+#define VIRTIO_SCSI_CONTROL_QUEUE              0
+#define VIRTIO_SCSI_EVENTS_QUEUE               1
+#define VIRTIO_SCSI_REQUEST_QUEUE_0            2
+#define VIRTIO_SCSI_QUEUE_LAST                 3
+
 /* SCSI command request, followed by data-out */
 #pragma pack(1)
 typedef struct {
@@ -229,8 +234,10 @@ typedef struct {
 typedef struct _ADAPTER_EXTENSION {
     VirtIODevice          vdev;
     PVOID                 uncachedExtensionVa;
-    struct virtqueue *    vq[3];
-    ULONG                 offset[5];
+    ULONG                 allocationSize;
+
+    struct virtqueue *    vq[VIRTIO_SCSI_QUEUE_LAST];
+    ULONG                 offset;
     ULONG_PTR             device_base;
     VirtIOSCSIConfig      scsi_config;
 
