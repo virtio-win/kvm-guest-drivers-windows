@@ -37,16 +37,16 @@ SynchronizedSRBRoutine(
 
 ENTER_FN();
     SET_VA_PA();
-    if (virtqueue_add_buf(adaptExt->vq[2],
+    if (virtqueue_add_buf(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0],
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
-        virtqueue_kick(adaptExt->vq[2]);
+        virtqueue_kick(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0]);
         return TRUE;
     }
     Srb->SrbStatus = SRB_STATUS_BUSY;
     StorPortBusy(DeviceExtension, 2);
-    virtqueue_kick(adaptExt->vq[2]);
+    virtqueue_kick(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0]);
 EXIT_ERR();
     return FALSE;
 }
@@ -76,11 +76,11 @@ SynchronizedTMFRoutine(
 
 ENTER_FN();
     SET_VA_PA();
-    if (virtqueue_add_buf(adaptExt->vq[0],
+    if (virtqueue_add_buf(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE],
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
-        virtqueue_kick(adaptExt->vq[0]);
+        virtqueue_kick(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE]);
         return TRUE;
     }
     Srb->SrbStatus = SRB_STATUS_BUSY;
@@ -150,24 +150,17 @@ ShutDown(
     IN PVOID DeviceExtension
     )
 {
+    ULONG index;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 ENTER_FN();
     VirtIODeviceReset(&adaptExt->vdev);
     StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), 0);
-    if (adaptExt->vq[0]) {
-       virtqueue_shutdown(adaptExt->vq[0]);
-       VirtIODeviceDeleteQueue(adaptExt->vq[0], NULL);
-       adaptExt->vq[0] = NULL;
-    }
-    if (adaptExt->vq[1]) {
-       virtqueue_shutdown(adaptExt->vq[1]);
-       VirtIODeviceDeleteQueue(adaptExt->vq[1], NULL);
-       adaptExt->vq[1] = NULL;
-    }
-    if (adaptExt->vq[2]) {
-       virtqueue_shutdown(adaptExt->vq[2]);
-       VirtIODeviceDeleteQueue(adaptExt->vq[2], NULL);
-       adaptExt->vq[2] = NULL;
+    for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < VIRTIO_SCSI_QUEUE_LAST; ++index) {
+        if (adaptExt->vq[index]) {
+            virtqueue_shutdown(adaptExt->vq[index]);
+            VirtIODeviceDeleteQueue(adaptExt->vq[index], NULL);
+            adaptExt->vq[index] = NULL;
+        }
     }
 EXIT_FN();
 }
@@ -270,11 +263,11 @@ SynchronizedKickEventRoutine(
     ULONGLONG           pa = 0;
 
 ENTER_FN();
-    if (virtqueue_add_buf(adaptExt->vq[1],
+    if (virtqueue_add_buf(adaptExt->vq[VIRTIO_SCSI_EVENTS_QUEUE],
                      &eventNode->sg,
                      0, 1,
                      eventNode, va, pa) >= 0){
-        virtqueue_kick(adaptExt->vq[1]);
+        virtqueue_kick(adaptExt->vq[VIRTIO_SCSI_EVENTS_QUEUE]);
         return TRUE;
     }
 EXIT_ERR();
