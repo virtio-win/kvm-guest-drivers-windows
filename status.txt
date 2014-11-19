@@ -1,3 +1,12 @@
+Date    19 Nov 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm114
+
+Fixed bugs:
+
+BZ 1156259: Win7-64 guest BSOD(0x000000A0) when doing s4 
+
+
 Date    30 Sep 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm113
