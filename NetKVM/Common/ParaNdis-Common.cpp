@@ -876,16 +876,16 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
 
     rssIndex = 0;
     bundleIndex = 0;
-    ULONG *cpuIndexTable;
+    USHORT *cpuIndexTable;
     ULONG cpuNumbers;
 
     cpuNumbers = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
 
-    cpuIndexTable = (ULONG *)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, cpuNumbers * sizeof(*cpuIndexTable),
+    cpuIndexTable = (USHORT *)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, cpuNumbers * sizeof(*cpuIndexTable),
         PARANDIS_MEMORY_TAG, NormalPoolPriority);
     if (cpuIndexTable == nullptr)
     {
-        DPrintf(0, ("[%s] cpu index table allocation failed\n"));
+        DPrintf(0, ("[%s] cpu index table allocation failed\n", __FUNCTION__));
         return NDIS_STATUS_RESOURCES;
     }
 
@@ -945,35 +945,17 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
 
     for (rssIndex = 0; rssIndex < rssTableSize; rssIndex++)
     {
-        DPrintf(3, ("[%s] filling the relationship, rssIndex = %u, bundleIndex = %u\n", __FUNCTION__, rssIndex, bundleIndex));
-        ParaNdis_ProcessorNumberToGroupAffinity(
-            &pContext->pPathBundles[bundleIndex].txPath.DPCAffinity,
-            pContext->RSSParameters.RSSScalingSettings.IndirectionTable + rssIndex);
+        cpuIndex = NdisProcessorNumberToIndex(pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex]);
+        bundleIndex = cpuIndexTable[cpuIndex];
 
+        DPrintf(3, ("[%s] filling the relationship, rssIndex = %u, bundleIndex = %u\n", __FUNCTION__, rssIndex, bundleIndex));
         DPrintf(3, ("[%s] RSS proc number %u/%u, bundle affinity %u/%u\n", __FUNCTION__,
             pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Group,
             pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Number,
             pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Group,
             pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Mask));
 
-        cpuIndex = NdisProcessorNumberToIndex(pContext->RSSParameters.RSSScalingSettings.IndirectionTable [rssIndex]);
-
-        if (cpuIndex == INVALID_PROCESSOR_INDEX)
-        {
-            DPrintf(0, ("[%s]  Invalid CPU index for path %u\n", __FUNCTION__, bundleIndex));
-            NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
-            return NDIS_STATUS_SOFT_ERRORS;
-        }
-        else if (cpuIndex >= cpuNumbers)
-        {
-            DPrintf(0, ("[%s]  CPU index %lu exceeds CPU range %lu\n", __FUNCTION__, cpuIndex, cpuNumbers));
-            NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
-            return NDIS_STATUS_SOFT_ERRORS;
-        }
-        else
-        {
-            pContext->RSS2QueueMap[rssIndex] = pContext->pPathBundles + cpuIndexTable[cpuIndex];
-        }
+        pContext->RSS2QueueMap[rssIndex] = pContext->pPathBundles + bundleIndex;
     }
 
     NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
