@@ -101,7 +101,7 @@ NTSTATUS WINAPI RegisterProvider(BOOLEAN KernelMode)
 
     UNREFERENCED_PARAMETER(KernelMode);
 
-    status = BCryptRegisterProvider(VIRTRNG_PROVIDER_NAME, 0,
+    status = BCryptRegisterProvider(VIRTRNG_PROVIDER_NAME, CRYPT_OVERWRITE,
         &VirtRngProvider);
 
     if (!NT_SUCCESS(status))
@@ -156,7 +156,7 @@ NTSTATUS WINAPI UnregisterProvider()
             "Failed to unregister as a CNG provider.");
     }
 
-    return status;
+    return STATUS_SUCCESS;
 }
 
 DWORD CALLBACK VirtRngCoInstaller(IN DI_FUNCTION InstallFunction,
