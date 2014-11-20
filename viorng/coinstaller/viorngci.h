@@ -28,3 +28,6 @@
 #define NT_SUCCESS(status) (status >= 0)
 #endif
 
+#ifndef STATUS_SUCCESS
+#define STATUS_SUCCESS ((NTSTATUS)0x00000000L)
+#endif
