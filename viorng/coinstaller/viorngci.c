@@ -56,17 +56,6 @@ CRYPT_PROVIDER_REG VirtRngProvider = {
 
 typedef ULONG (WINAPI* RtlNtStatusToDosErrorFunc)(IN NTSTATUS status);
 
-static void ReportError(const wchar_t *format, ...)
-{
-    WCHAR err[0x1000];
-    va_list list;
-
-    va_start(list, format);
-    vswprintf(err, sizeof(err), format, list);
-
-    MessageBox(HWND_DESKTOP, err, VIRTRNG_PROVIDER_NAME, MB_ICONERROR|MB_OK);
-}
-
 static DWORD ToDosError(NTSTATUS status)
 {
     DWORD error = NO_ERROR;
@@ -86,13 +75,21 @@ static DWORD ToDosError(NTSTATUS status)
         else
         {
             error = GetLastError();
-            ReportError(L"Function not found.\nError code: 0x%08x.", error);
+            SetupWriteTextLogError(SetupGetThreadLogToken(),
+                TXTLOG_INSTALLER,
+                TXTLOG_ERROR,
+                error,
+                "RtlNtStatusToDosError function not found.");
         }
     }
     else
     {
         error = GetLastError();
-        ReportError(L"Failed to load ntdll.dll.\nError code: 0x%08x.", error);
+        SetupWriteTextLogError(SetupGetThreadLogToken(),
+            TXTLOG_INSTALLER,
+            TXTLOG_ERROR,
+            error,
+            "Failed to load ntdll.dll.");
     }
 
     return error;
@@ -109,8 +106,11 @@ NTSTATUS WINAPI RegisterProvider(BOOLEAN KernelMode)
 
     if (!NT_SUCCESS(status))
     {
-        ReportError(L"Failed to register as a CNG provider.\n"
-            L"Error code: 0x%08x.", status);
+        SetupWriteTextLogError(SetupGetThreadLogToken(),
+            TXTLOG_INSTALLER,
+            TXTLOG_ERROR,
+            ToDosError(status),
+            "Failed to register as a CNG provider.");
         return status;
     }
 
@@ -120,8 +120,11 @@ NTSTATUS WINAPI RegisterProvider(BOOLEAN KernelMode)
 
     if (!NT_SUCCESS(status))
     {
-        ReportError(L"Failed to add cryptographic function.\n"
-            L"Error code: 0x%08x.", status);
+        SetupWriteTextLogError(SetupGetThreadLogToken(),
+            TXTLOG_INSTALLER,
+            TXTLOG_ERROR,
+            ToDosError(status),
+            "Failed to add cryptographic function.");
     }
 
     return status;
@@ -136,15 +139,21 @@ NTSTATUS WINAPI UnregisterProvider()
 
     if (!NT_SUCCESS(status))
     {
-        ReportError(L"Failed to remove cryptographic function.\n"
-            L"Error code: 0x%08x.", status);
+        SetupWriteTextLogError(SetupGetThreadLogToken(),
+            TXTLOG_INSTALLER,
+            TXTLOG_WARNING,
+            ToDosError(status),
+            "Failed to remove cryptographic function.");
     }
 
     status = BCryptUnregisterProvider(VIRTRNG_PROVIDER_NAME);
     if (!NT_SUCCESS(status))
     {
-        ReportError(L"Failed to unregister as a CNG provider.\n"
-            L"Error code: 0x%08x.", status);
+        SetupWriteTextLogError(SetupGetThreadLogToken(),
+            TXTLOG_INSTALLER,
+            TXTLOG_WARNING,
+            ToDosError(status),
+            "Failed to unregister as a CNG provider.");
     }
 
     return status;
