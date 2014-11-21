@@ -299,7 +299,7 @@ ENTER_FN();
     if (adaptExt->dump_mode) {
         for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < VIRTIO_SCSI_QUEUE_LAST; ++index) {
             StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)index);
-            StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (USHORT)0);
+            StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
         }
     }
 
@@ -861,7 +861,7 @@ ENTER_FN();
         VirtIODeviceReset(&adaptExt->vdev);
         for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < VIRTIO_SCSI_QUEUE_LAST; ++index) {
             StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)index);
-            StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (USHORT)0);
+            StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
             adaptExt->vq[index] = NULL;
         }
 
