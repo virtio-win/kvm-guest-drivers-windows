@@ -447,6 +447,7 @@ ENTER_FN();
 
     adaptExt->msix_vectors = 0;
     adaptExt->offset = 0;
+    num = VIRTIO_SCSI_QUEUE_LAST;
 #if (MSI_SUPPORTED == 1)
     while(StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageId = %x\n", msi_info.MessageId));
@@ -458,7 +459,6 @@ ENTER_FN();
         ++adaptExt->msix_vectors;
     }
 
-    num = VIRTIO_SCSI_QUEUE_LAST;//min((adaptExt->msix_vectors + 1), VIRTIO_SCSI_QUEUE_LAST);
     if (!adaptExt->dump_mode && adaptExt->msix_vectors > 1) {
         for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < num; ++index) {
             adaptExt->vq[index] = FindVirtualQueue(adaptExt, index, index+1);
