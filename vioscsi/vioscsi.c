@@ -331,12 +331,12 @@ ENTER_FN();
     adaptExt->indirect = 0;
 #endif
 
-    if(adaptExt->indirect) {
     // The windows device queue must be between 20 and 254 for
     // StorPortSetDeviceQueueDepth to succeed.
+    if(adaptExt->indirect) {
         adaptExt->queue_depth = min(254, max(20, (pageNum / 4)));
     } else {
-        adaptExt->queue_depth = pageNum / ConfigInfo->NumberOfPhysicalBreaks - 1;
+        adaptExt->queue_depth = min(254, pageNum / ConfigInfo->NumberOfPhysicalBreaks - 1);
     }
 
     RhelDbgPrint(TRACE_LEVEL_ERROR, ("breaks_number = %x  queue_depth = %x\n",
