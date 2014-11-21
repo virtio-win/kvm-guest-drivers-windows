@@ -186,7 +186,6 @@ VioScsiFindAdapter(
 {
     PADAPTER_EXTENSION adaptExt;
     ULONG              pageNum;
-    ULONG              dummy;
     ULONG              Size;
     int                index;
 
