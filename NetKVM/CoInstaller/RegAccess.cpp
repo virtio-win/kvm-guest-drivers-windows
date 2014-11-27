@@ -311,7 +311,7 @@ BOOL neTKVMRegAccess::WriteString(LPCTSTR lpzValueName,
                        &hkWriteKeyHandle,
                        &dwDisposition) == ERROR_SUCCESS)
     {
-        DWORD dwBuffSize = (DWORD)_tcslen(lpzValue) * sizeof(lpzValue[0]) + 1;
+        DWORD dwBuffSize = ((DWORD)_tcslen(lpzValue) + 1) * sizeof(lpzValue[0]);
         if (RegSetValueEx(hkWriteKeyHandle,
                           lpzValueName,
                           0,
