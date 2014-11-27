@@ -495,10 +495,17 @@ static VOID ParaNdis6_SendNetBufferLists(
 #ifdef PARANDIS_SUPPORT_RSS
     if (pContext->RSS2QueueMap != nullptr)
     {
-        ULONG RSSHashValue = NET_BUFFER_LIST_GET_HASH_VALUE(pNBL);
-        ULONG indirectionIndex = RSSHashValue & (pContext->RSSParameters.ActiveRSSScalingSettings.RSSHashMask);
+        while (pNBL)
+        {
+            ULONG RSSHashValue = NET_BUFFER_LIST_GET_HASH_VALUE(pNBL);
+            ULONG indirectionIndex = RSSHashValue & (pContext->RSSParameters.ActiveRSSScalingSettings.RSSHashMask);
 
-        pContext->RSS2QueueMap[indirectionIndex]->txPath.Send(pNBL);
+            PNET_BUFFER_LIST nextNBL = NET_BUFFER_LIST_NEXT_NBL(pNBL);
+            NET_BUFFER_LIST_NEXT_NBL(pNBL) = NULL;
+
+            pContext->RSS2QueueMap[indirectionIndex]->txPath.Send(pNBL);
+            pNBL = nextNBL;
+        }
     }
     else
     {
