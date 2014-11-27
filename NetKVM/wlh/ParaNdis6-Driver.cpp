@@ -502,8 +502,8 @@ static VOID ParaNdis6_SendNetBufferLists(
     }
     else
     {
-    pContext->pPathBundles[0].txPath.Send(pNBL);
-}
+        pContext->pPathBundles[0].txPath.Send(pNBL);
+    }
 #else
     pContext->pPathBundles[0].txPath.Send(pNBL);
 #endif
