@@ -121,6 +121,7 @@ void CService::ServiceCtrlHandler(DWORD controlCode)
     switch(controlCode)
     {
         case SERVICE_CONTROL_STOP:
+        case SERVICE_CONTROL_SHUTDOWN:
             m_Status = SERVICE_STOP_PENDING;
             SendStatusToSCM(
                              m_Status,
@@ -134,9 +135,6 @@ void CService::ServiceCtrlHandler(DWORD controlCode)
 
         case SERVICE_CONTROL_INTERROGATE:
             break;
-
-        case SERVICE_CONTROL_SHUTDOWN:
-            return;
 
         default:
             break;
