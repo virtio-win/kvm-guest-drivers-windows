@@ -24,7 +24,7 @@ viorng.sys = 1,,
 %RedHatMfg% = RedHat,NT$ARCH$
 
 [RedHat.NT$ARCH$]
-%VirtRng.DeviceDesc% = VirtRng_Device, PCI\VEN_1AF4&DEV_1005
+%VirtRng.DeviceDesc% = VirtRng_Device, PCI\VEN_1AF4&DEV_1005&SUBSYS_00041AF4&REV_00
 
 [VirtRng_Device.NT]
 CopyFiles = VirtRng_CopyFiles
