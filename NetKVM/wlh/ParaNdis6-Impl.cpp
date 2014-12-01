@@ -898,30 +898,6 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
     return pNBL;
 }
 
-VOID ParaNdis_IndicateReceivedBatch(
-    PARANDIS_ADAPTER *pContext,
-    tPacketIndicationType *pBatch,
-    ULONG nofPackets)
-{
-    ULONG i;
-    PNET_BUFFER_LIST pPrev = pBatch[0];
-    NET_BUFFER_LIST_NEXT_NBL(pPrev) = NULL;
-    for (i = 1; i < nofPackets; ++i)
-    {
-        PNET_BUFFER_LIST pNBL = pBatch[i];
-        NET_BUFFER_LIST_NEXT_NBL(pPrev) = pNBL;
-        NET_BUFFER_LIST_NEXT_NBL(pNBL)  = NULL;
-        pPrev = pNBL;
-    }
-    NdisMIndicateReceiveNetBufferLists(
-        pContext->MiniportHandle,
-        pBatch[0],
-        0,
-        nofPackets,
-        0);
-
-}
-
 
 /**********************************************************
 NDIS procedure of returning us buffer of previously indicated packets
