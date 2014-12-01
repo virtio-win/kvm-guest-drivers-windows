@@ -1523,8 +1523,7 @@ UpdateReceiveFailStatistics(PPARANDIS_ADAPTER pContext, UINT nCoalescedSegmentsC
     pContext->Statistics.ifInDiscards += nCoalescedSegmentsCount;
 }
 
-static BOOLEAN ProcessReceiveQueue(
-                                    PARANDIS_ADAPTER *pContext,
+static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
                                     PULONG pnPacketsToIndicateLeft,
                                     CCHAR nQueueIndex)
 {
