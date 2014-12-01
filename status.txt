@@ -1,3 +1,15 @@
+Date    01 Dec 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm115
+
+Fixed bugs:
+
+BZ 1151912: RNG fix whql failure due to registeration error.
+BZ 1154419: NetKVM  Memory corruption in RSS->queue mapping.
+
+RNG: replaced message box with setup api logging.
+NetKvmCo: fix setting string registry keys.
+
 Date    19 Nov 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm114
