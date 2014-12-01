@@ -1270,8 +1270,6 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
         for(i = 0; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
         {
             NdisFreeSpinLock(&pContext->ReceiveQueues[i].Lock);
-            if(pContext->ReceiveQueues[i].BatchReceiveArray != &pContext->ReceiveQueues[i].BatchReceiveEmergencyItem)
-                NdisFreeMemory(pContext->ReceiveQueues[i].BatchReceiveArray, 0, 0);
         }
     }
 
@@ -1527,9 +1525,11 @@ static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
                                     PULONG pnPacketsToIndicateLeft,
                                     CCHAR nQueueIndex)
 {
-    UINT nReceived = 0;
+    
     pRxNetDescriptor pBufferDescriptor;
     PPARANDIS_RECEIVE_QUEUE pTargetReceiveQueue = &pContext->ReceiveQueues[nQueueIndex];
+    PNET_BUFFER_LIST listsToIndicate = nullptr, indicateTail = nullptr;
+    ULONG nListsToIndicate = 0;
 
     if(NdisInterlockedIncrement(&pTargetReceiveQueue->ActiveProcessorsCount) == 1)
     {
@@ -1544,26 +1544,29 @@ static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
                 ShallPassPacket(pContext, pPacketInfo))
             {
                 UINT nCoalescedSegmentsCount;
-                tPacketIndicationType packet = ParaNdis_PrepareReceivedPacket(pContext, pBufferDescriptor, &nCoalescedSegmentsCount);
+                PNET_BUFFER_LIST packet = ParaNdis_PrepareReceivedPacket(pContext, pBufferDescriptor, &nCoalescedSegmentsCount);
                 if(packet != NULL)
                 {
                     UpdateReceiveSuccessStatistics(pContext, pPacketInfo, nCoalescedSegmentsCount);
-                    pTargetReceiveQueue->BatchReceiveArray[nReceived] = packet;
-
-                    nReceived++;
-                    (*pnPacketsToIndicateLeft)--;
-
-                    if (nReceived == pTargetReceiveQueue->BatchReceiveArraySize)
+                    if (listsToIndicate == nullptr)
                     {
-                        ParaNdis_IndicateReceivedBatch(pContext, pTargetReceiveQueue->BatchReceiveArray, nReceived);
-                        nReceived = 0;
+                        listsToIndicate = indicateTail = packet;
                     }
+                    else
+                    {
+                        NET_BUFFER_LIST_NEXT_NBL(indicateTail) = packet;
+                        indicateTail = packet;
+                    }
+
+                    NET_BUFFER_LIST_NEXT_NBL(indicateTail) = NULL;
+                    (*pnPacketsToIndicateLeft)--;
                 }
                 else
                 {
                     UpdateReceiveFailStatistics(pContext, nCoalescedSegmentsCount);
                     pBufferDescriptor->Queue->ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBufferDescriptor);
                 }
+                nListsToIndicate++;
             }
             else
             {
@@ -1572,9 +1575,13 @@ static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
             }
         }
 
-        if(nReceived > 0)
+        if (listsToIndicate)
         {
-            ParaNdis_IndicateReceivedBatch(pContext, pTargetReceiveQueue->BatchReceiveArray, nReceived);
+            NdisMIndicateReceiveNetBufferLists(pContext->MiniportHandle,
+                listsToIndicate,
+                0,
+                nListsToIndicate,
+                0);
         }
     }
 

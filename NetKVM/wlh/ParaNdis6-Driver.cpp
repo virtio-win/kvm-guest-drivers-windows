@@ -289,18 +289,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
         {
             NdisAllocateSpinLock(&pContext->ReceiveQueues[i].Lock);
             InitializeListHead(&pContext->ReceiveQueues[i].BuffersList);
-
-            pContext->ReceiveQueues[i].BatchReceiveArray =
-                (tPacketIndicationType *)ParaNdis_AllocateMemory(pContext, sizeof(*pContext->ReceiveQueues[i].BatchReceiveArray)*pContext->NetMaxReceiveBuffers);
-            if(!pContext->ReceiveQueues[i].BatchReceiveArray)
-            {
-                pContext->ReceiveQueues[i].BatchReceiveArray = &pContext->ReceiveQueues[i].BatchReceiveEmergencyItem;
-                pContext->ReceiveQueues[i].BatchReceiveArraySize = 1;
-            }
-            else
-            {
-                pContext->ReceiveQueues[i].BatchReceiveArraySize = pContext->NetMaxReceiveBuffers;
-            }
         }
 
         pContext->ReceiveQueuesInitialized = TRUE;

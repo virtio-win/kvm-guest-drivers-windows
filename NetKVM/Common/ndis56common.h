@@ -374,10 +374,6 @@ typedef struct _tagPARANDIS_RECEIVE_QUEUE
     NDIS_SPIN_LOCK          Lock;
     LIST_ENTRY              BuffersList;
 
-    tPacketIndicationType   *BatchReceiveArray;
-    ULONG                   BatchReceiveArraySize;
-    tPacketIndicationType   BatchReceiveEmergencyItem;
-
     LONG                    ActiveProcessorsCount;
 } PARANDIS_RECEIVE_QUEUE, *PPARANDIS_RECEIVE_QUEUE;
 
@@ -773,11 +769,6 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
     PARANDIS_ADAPTER *pContext,
     pRxNetDescriptor pBufferDesc,
     PUINT            pnCoalescedSegmentsCount);
-
-VOID ParaNdis_IndicateReceivedBatch(
-    PARANDIS_ADAPTER *pContext,
-    tPacketIndicationType *pBatch,
-    ULONG nofPackets);
 
 BOOLEAN ParaNdis_SynchronizeWithInterrupt(
     PARANDIS_ADAPTER *pContext,
