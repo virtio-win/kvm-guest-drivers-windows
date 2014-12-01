@@ -91,7 +91,7 @@ HKR, Ndi\params\LogStatistics,      step,       0,          "1"
 HKR, Ndi\params\MTU,                ParamDesc,  0,          %MTU%
 HKR, Ndi\params\MTU,                type,       0,          "long"
 HKR, Ndi\params\MTU,                default,    0,          "1500"
-HKR, Ndi\params\MTU,                min,        0,          "500"
+HKR, Ndi\params\MTU,                min,        0,          "576"
 HKR, Ndi\params\MTU,                max,        0,          "65500"
 HKR, Ndi\params\MTU,                step,       0,          "1"
 
