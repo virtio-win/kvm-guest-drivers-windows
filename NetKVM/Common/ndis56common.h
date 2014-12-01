@@ -454,6 +454,7 @@ typedef struct _tagPARANDIS_ADAPTER
     ONPAUSECOMPLETEPROC     SendPauseCompletionProc;
     ONPAUSECOMPLETEPROC     ReceivePauseCompletionProc;
 
+    CNdisRWLock             m_PauseLock;
     CNdisRefCounter         m_upstreamPacketPending;
 
     LONG                    ReuseBufferRegular;

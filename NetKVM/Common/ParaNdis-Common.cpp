@@ -1273,6 +1273,8 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
         }
     }
 
+    pContext->m_PauseLock.~CNdisRWLock();
+
 #if PARANDIS_SUPPORT_RSS
     if (pContext->bRSSInitialized)
     {
@@ -1523,13 +1525,14 @@ UpdateReceiveFailStatistics(PPARANDIS_ADAPTER pContext, UINT nCoalescedSegmentsC
 
 static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
                                     PULONG pnPacketsToIndicateLeft,
-                                    CCHAR nQueueIndex)
+                                    CCHAR nQueueIndex,
+                                    PNET_BUFFER_LIST *indicate,
+                                    PNET_BUFFER_LIST *indicateTail,
+                                    ULONG *nIndicate)
 {
     
     pRxNetDescriptor pBufferDescriptor;
     PPARANDIS_RECEIVE_QUEUE pTargetReceiveQueue = &pContext->ReceiveQueues[nQueueIndex];
-    PNET_BUFFER_LIST listsToIndicate = nullptr, indicateTail = nullptr;
-    ULONG nListsToIndicate = 0;
 
     if(NdisInterlockedIncrement(&pTargetReceiveQueue->ActiveProcessorsCount) == 1)
     {
@@ -1548,25 +1551,25 @@ static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
                 if(packet != NULL)
                 {
                     UpdateReceiveSuccessStatistics(pContext, pPacketInfo, nCoalescedSegmentsCount);
-                    if (listsToIndicate == nullptr)
+                    if (*indicate == nullptr)
                     {
-                        listsToIndicate = indicateTail = packet;
+                        *indicate = *indicateTail = packet;
                     }
                     else
                     {
-                        NET_BUFFER_LIST_NEXT_NBL(indicateTail) = packet;
-                        indicateTail = packet;
+                        NET_BUFFER_LIST_NEXT_NBL(*indicateTail) = packet;
+                        *indicateTail = packet;
                     }
 
-                    NET_BUFFER_LIST_NEXT_NBL(indicateTail) = NULL;
+                    NET_BUFFER_LIST_NEXT_NBL(*indicateTail) = NULL;
                     (*pnPacketsToIndicateLeft)--;
+                    (*nIndicate)++;
                 }
                 else
                 {
                     UpdateReceiveFailStatistics(pContext, nCoalescedSegmentsCount);
                     pBufferDescriptor->Queue->ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBufferDescriptor);
                 }
-                nListsToIndicate++;
             }
             else
             {
@@ -1574,16 +1577,7 @@ static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
                 pBufferDescriptor->Queue->ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBufferDescriptor);
             }
         }
-
-        if (listsToIndicate)
-        {
-            NdisMIndicateReceiveNetBufferLists(pContext->MiniportHandle,
-                listsToIndicate,
-                0,
-                nListsToIndicate,
-                0);
-        }
-    }
+     }
 
     NdisInterlockedDecrement(&pTargetReceiveQueue->ActiveProcessorsCount);
     return ReceiveQueueHasBuffers(pTargetReceiveQueue);
@@ -1595,21 +1589,43 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
     BOOLEAN res = FALSE;
     BOOLEAN bMoreDataInRing;
 
+    PNET_BUFFER_LIST indicate, indicateTail;
+    ULONG nIndicate;
+
     CCHAR CurrCpuReceiveQueue = GetReceiveQueueForCurrentCPU(pContext);
 
     do
     {
-        pathBundle->rxPath.ProcessRxRing(CurrCpuReceiveQueue);
+        indicate = nullptr;
+        indicateTail = nullptr;
+        nIndicate = 0;
 
-        res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED);
-
-        if(CurrCpuReceiveQueue != PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED)
         {
-            res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, CurrCpuReceiveQueue);
+            CNdisDispatchReadAutoLock tLock(pContext->m_PauseLock);
+
+            pathBundle->rxPath.ProcessRxRing(CurrCpuReceiveQueue);
+
+            res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED,
+                &indicate, &indicateTail, &nIndicate);
+
+            if(CurrCpuReceiveQueue != PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED)
+            {
+                res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, CurrCpuReceiveQueue,
+                    &indicate, &indicateTail, &nIndicate);
+            }
+
+            bMoreDataInRing = pathBundle->rxPath.RestartQueue();
         }
 
-        bMoreDataInRing = pathBundle->rxPath.RestartQueue();
-    } while(bMoreDataInRing);
+        if (nIndicate)
+        {
+            NdisMIndicateReceiveNetBufferLists(pContext->MiniportHandle,
+                indicate,
+                0,
+                nIndicate,
+                0);
+        }
+    } while (bMoreDataInRing);
 
     return res;
 }

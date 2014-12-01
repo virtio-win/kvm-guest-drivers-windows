@@ -954,9 +954,10 @@ NDIS_STATUS ParaNdis6_ReceivePauseRestart(
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
 
-    /* TODO - access to ReceiveState and ReceivePauseCompletionProc have to be synchronized*/
     if (bPause)
     {
+        CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
+
         ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 1, 0, 0);
         if (pContext->m_upstreamPacketPending != 0)
         {
@@ -1044,8 +1045,12 @@ NDIS_STATUS ParaNdis6_SendPauseRestart(
         ParaNdis_DebugHistory(pContext, hopInternalSendPause, NULL, 1, 0, 0);
         if (pContext->SendState == srsEnabled)
         {
-            pContext->SendState = srsPausing;
-            pContext->SendPauseCompletionProc = Callback;
+            {
+                CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
+
+                pContext->SendState = srsPausing;
+                pContext->SendPauseCompletionProc = Callback;
+            }
 
             for (UINT i = 0; i < pContext->nPathBundles; i++)
             {
@@ -1054,6 +1059,7 @@ NDIS_STATUS ParaNdis6_SendPauseRestart(
                     status = NDIS_STATUS_PENDING;
                 }
             }
+
             if (status == NDIS_STATUS_SUCCESS)
             {
                 pContext->SendState = srsDisabled;

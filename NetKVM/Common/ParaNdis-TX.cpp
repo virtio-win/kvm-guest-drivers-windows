@@ -568,12 +568,15 @@ bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
                     m_VirtQueue.ProcessTXCompletions();
                     bDoKick = SendMapped(pNBLFailNow);
                     pNBLReturnNow = ProcessWaitingList();
-
-                    if (!m_VirtQueue.HasPacketsInHW() && m_Context->SendState == srsPausing)
                     {
-                        CallbackToCall = m_Context->SendPauseCompletionProc;
-                        m_Context->SendPauseCompletionProc = nullptr;
-                        m_Context->SendState = srsDisabled;
+                        CNdisPassiveWriteAutoLock tLock(m_Context->m_PauseLock);
+
+                        if (!m_VirtQueue.HasPacketsInHW() && m_Context->SendState == srsPausing)
+                        {
+                            CallbackToCall = m_Context->SendPauseCompletionProc;
+                            m_Context->SendPauseCompletionProc = nullptr;
+                            m_Context->SendState = srsDisabled;
+                        }
                     }
                  });
 
