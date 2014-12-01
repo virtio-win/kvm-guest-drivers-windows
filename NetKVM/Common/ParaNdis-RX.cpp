@@ -159,17 +159,21 @@ void CParaNdisRX::ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor)
         }
 
         /* TODO -  the callback dispatch should be performed as a context method */
-        if (m_Context->m_upstreamPacketPending == 0)
+        ONPAUSECOMPLETEPROC callback = nullptr;
+
         {
-            if (m_Context->ReceiveState == srsPausing || m_Context->ReceivePauseCompletionProc)
+            CNdisPassiveWriteAutoLock tLock(m_Context->m_PauseLock);
+
+            if (m_Context->m_upstreamPacketPending == 0 && (m_Context->ReceiveState == srsPausing || m_Context->ReceivePauseCompletionProc))
             {
-                ONPAUSECOMPLETEPROC callback = m_Context->ReceivePauseCompletionProc;
+                callback = m_Context->ReceivePauseCompletionProc;
                 m_Context->ReceiveState = srsDisabled;
                 m_Context->ReceivePauseCompletionProc = NULL;
                 ParaNdis_DebugHistory(m_Context, hopInternalReceivePause, NULL, 0, 0, 0);
-                if (callback) callback(m_Context);
             }
         }
+
+        if (callback) callback(m_Context);
     }
     else
     {

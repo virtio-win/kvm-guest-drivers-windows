@@ -160,6 +160,15 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
     if (status == NDIS_STATUS_SUCCESS)
     {
+        new (&pContext->m_PauseLock, PLACEMENT_NEW) CNdisRWLock();
+        if (!pContext->m_PauseLock.Create(pContext->MiniportHandle))
+        {
+            status = NDIS_STATUS_RESOURCES;
+        }
+    }
+
+    if (status == NDIS_STATUS_SUCCESS)
+    {
         NdisZeroMemory(&miniportAttributes, sizeof(miniportAttributes));
         miniportAttributes.RegistrationAttributes.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES;
         miniportAttributes.RegistrationAttributes.Header.Revision = NDIS_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES_REVISION_1;
