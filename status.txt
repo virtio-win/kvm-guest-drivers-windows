@@ -1,3 +1,13 @@
+Date    04 Dec 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm116
+
+Fixed bugs:
+
+BZ 1168483 NetKVM: Setting minimal MTU value to 576
+BZ 1167231: balloon: stop service on shutdown notification.
+BZ 1158013: RNG: fix device's hardware id
+
 Date    01 Dec 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm115
