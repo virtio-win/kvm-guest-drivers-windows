@@ -157,23 +157,6 @@ void CParaNdisRX::ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor)
             m_nReusedRxBuffersCounter = 0;
             m_VirtQueue.KickAlways();
         }
-
-        /* TODO -  the callback dispatch should be performed as a context method */
-        ONPAUSECOMPLETEPROC callback = nullptr;
-
-        {
-            CNdisPassiveWriteAutoLock tLock(m_Context->m_PauseLock);
-
-            if (m_Context->m_upstreamPacketPending == 0 && (m_Context->ReceiveState == srsPausing || m_Context->ReceivePauseCompletionProc))
-            {
-                callback = m_Context->ReceivePauseCompletionProc;
-                m_Context->ReceiveState = srsDisabled;
-                m_Context->ReceivePauseCompletionProc = NULL;
-                ParaNdis_DebugHistory(m_Context, hopInternalReceivePause, NULL, 0, 0, 0);
-            }
-        }
-
-        if (callback) callback(m_Context);
     }
     else
     {

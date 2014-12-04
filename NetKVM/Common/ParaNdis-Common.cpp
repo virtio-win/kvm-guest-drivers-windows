@@ -1469,6 +1469,26 @@ VOID ParaNdis_ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescri
                                     &pQueue->Lock);
 }
 
+VOID ParaMdis_TestPausing(PARANDIS_ADAPTER *pContext)
+{
+    ONPAUSECOMPLETEPROC callback = nullptr;
+
+    if (pContext->m_upstreamPacketPending == 0)
+    {
+        CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
+
+        if (pContext->m_upstreamPacketPending == 0 && (pContext->ReceiveState == srsPausing || pContext->ReceivePauseCompletionProc))
+        {
+            callback = pContext->ReceivePauseCompletionProc;
+            pContext->ReceiveState = srsDisabled;
+            pContext->ReceivePauseCompletionProc = NULL;
+            ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 0, 0, 0);
+        }
+    }
+
+    if (callback) callback(pContext);
+}
+
 static __inline
 pRxNetDescriptor ReceiveQueueGetBuffer(PPARANDIS_RECEIVE_QUEUE pQueue)
 {
@@ -1625,6 +1645,9 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
                 nIndicate,
                 0);
         }
+
+        ParaMdis_TestPausing(pContext);
+
     } while (bMoreDataInRing);
 
     return res;

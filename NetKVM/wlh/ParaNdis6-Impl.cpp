@@ -931,6 +931,7 @@ VOID ParaNdis6_ReturnNetBufferLists(
         NdisFreeNetBufferList(pTemp);
         pBuffersDescriptor->Queue->ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBuffersDescriptor);
     }
+    ParaMdis_TestPausing(pContext);
 }
 
 /**********************************************************
