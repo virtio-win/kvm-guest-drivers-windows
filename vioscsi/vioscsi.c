@@ -187,8 +187,8 @@ VioScsiFindAdapter(
     PADAPTER_EXTENSION adaptExt;
     ULONG              pageNum;
     ULONG              Size;
-    int                index;
-
+    ULONG              index;
+    ULONG              num_cpus;
 #if (MSI_SUPPORTED == 1)
     PPCI_COMMON_CONFIG pPciConf = NULL;
     UCHAR              pci_cfg_buf[256];
@@ -295,8 +295,29 @@ ENTER_FN();
 
     VirtIODeviceReset(&adaptExt->vdev);
 
+    num_cpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
+    adaptExt->num_queues = adaptExt->scsi_config.num_queues;
+    memset(adaptExt->cpu_to_vq_map, (UCHAR)VIRTIO_SCSI_REQUEST_QUEUE_0, MAX_CPU);
+    if (adaptExt->dump_mode || !adaptExt->msix_enabled)
+    {
+        adaptExt->num_queues = 1;
+    }
+    else if (adaptExt->num_queues < num_cpus)
+    {
+//FIXME
+        adaptExt->num_queues = 1;
+    }
+    else
+    {
+//FIXME
+        adaptExt->num_queues = num_cpus;
+    }
+
+
+    RhelDbgPrint(TRACE_LEVEL_ERROR, ("Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus));
+
     if (adaptExt->dump_mode) {
-        for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < VIRTIO_SCSI_QUEUE_LAST; ++index) {
+        for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
             StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)index);
             StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
         }
@@ -307,7 +328,7 @@ ENTER_FN();
     adaptExt->allocationSize = PAGE_SIZE;
     adaptExt->offset = 0;
 
-    for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < VIRTIO_SCSI_QUEUE_LAST; ++index) {
+    for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
         VirtIODeviceQueryQueueAllocation(&adaptExt->vdev, index, &pageNum, &Size);
         if (Size == 0) {
             LogError(DeviceExtension,
@@ -426,7 +447,6 @@ VioScsiHwInitialize(
     ULONG              i;
     ULONG              guestFeatures = 0;
     ULONG              index;
-    ULONG              num;
 
 #if (MSI_SUPPORTED == 1)
     MESSAGE_INTERRUPT_INFORMATION msi_info;
@@ -447,7 +467,7 @@ ENTER_FN();
 
     adaptExt->msix_vectors = 0;
     adaptExt->offset = 0;
-    num = VIRTIO_SCSI_QUEUE_LAST;
+
 #if (MSI_SUPPORTED == 1)
     while(StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageId = %x\n", msi_info.MessageId));
@@ -459,14 +479,26 @@ ENTER_FN();
         ++adaptExt->msix_vectors;
     }
 
-    if (!adaptExt->dump_mode && adaptExt->msix_vectors > 1) {
-        for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < num; ++index) {
-            adaptExt->vq[index] = FindVirtualQueue(adaptExt, index, index+1);
-        }
+    if (adaptExt->num_queues > 1 &&
+        ((adaptExt->num_queues + 3) < adaptExt->msix_vectors)) {
+        //FIXME
+        adaptExt->num_queues = 1;
     }
 
+    if (!adaptExt->dump_mode &&
+        (adaptExt->msix_vectors >= adaptExt->num_queues + 3)) {
+        for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
+            adaptExt->vq[index] = FindVirtualQueue(adaptExt, index, index + 1);
+              if ((adaptExt->num_queues > 1) &&
+                  (index >= VIRTIO_SCSI_REQUEST_QUEUE_0)) {
+                  adaptExt->cpu_to_vq_map[index - VIRTIO_SCSI_REQUEST_QUEUE_0] = (UCHAR)index;
+              }
+        }
+    }
+#else
+    adaptExt->num_queues = 1;
 #endif
-    for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < num; ++index) {
+    for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
         if (!adaptExt->vq[index]) {
             adaptExt->vq[index] = FindVirtualQueue(adaptExt, index, 0);
         }
@@ -719,14 +751,30 @@ VioScsiMSInterrupt (
         }
         return TRUE;
     }
-    if (MessageID == 3)
+    if (MessageID > 2)
     {
-        while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0], &len)) != NULL)
+        ULONG msg = MessageID - 3;
+        PROCESSOR_NUMBER ProcNumber;
+        ULONG processor = KeGetCurrentProcessorNumberEx(&ProcNumber);
+
+        while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + msg], &len)) != NULL)
         {
            VirtIOSCSICmdResp   *resp;
            Srb     = (PSCSI_REQUEST_BLOCK)cmd->sc;
            resp    = &cmd->resp.cmd;
            srbExt  = (PSRB_EXTENSION)Srb->SrbExtension;
+
+           if ((adaptExt->num_queues > 1) &&
+               (ProcNumber.Group != srbExt->procNum.Group ||
+               ProcNumber.Number != srbExt->procNum.Number))
+           {
+               ULONG tmp;
+               RhelDbgPrint(TRACE_LEVEL_ERROR, ("Srb %p issued on %d::%d received on %d::%d MessgeId %d Queue %d\n",
+                   Srb, srbExt->procNum.Group, srbExt->procNum.Number, ProcNumber.Group, ProcNumber.Number, MessageID, VIRTIO_SCSI_REQUEST_QUEUE_0 + msg));
+               tmp = adaptExt->cpu_to_vq_map[ProcNumber.Number];
+               adaptExt->cpu_to_vq_map[ProcNumber.Number] = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
+               adaptExt->cpu_to_vq_map[srbExt->procNum.Number] = (UCHAR)tmp;
+           }
 
            switch (resp->response)
            {
@@ -861,7 +909,7 @@ ENTER_FN();
         ULONG index;
         RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("ScsiRestartAdapter\n"));
         VirtIODeviceReset(&adaptExt->vdev);
-        for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < VIRTIO_SCSI_QUEUE_LAST; ++index) {
+        for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
             StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)index);
             StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
             adaptExt->vq[index] = NULL;
@@ -918,6 +966,7 @@ ENTER_FN();
 
     memset(srbExt, 0, sizeof(*srbExt));
 
+    StorPortGetCurrentProcessorNumber(DeviceExtension, &srbExt->procNum);
     cmd = &srbExt->cmd;
     cmd->sc = Srb;
     cmd->req.cmd.lun[0] = 1;
