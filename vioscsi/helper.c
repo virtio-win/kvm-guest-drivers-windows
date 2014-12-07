@@ -34,19 +34,24 @@ SynchronizedSRBRoutine(
     PSRB_EXTENSION      srbExt   = (PSRB_EXTENSION)Srb->SrbExtension;
     PVOID               va;
     ULONGLONG           pa;
+    ULONG               QueueNumber;
 
 ENTER_FN();
     SET_VA_PA();
-    if (virtqueue_add_buf(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0],
+    QueueNumber = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
+    RhelDbgPrint(TRACE_LEVEL_ERROR, ("Srb %p issued on %d::%d QueueNumber %d\n",
+                 Srb, srbExt->procNum.Group, srbExt->procNum.Number, QueueNumber));
+
+    if (virtqueue_add_buf(adaptExt->vq[QueueNumber],
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
-        virtqueue_kick(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0]);
+        virtqueue_kick(adaptExt->vq[QueueNumber]);
         return TRUE;
     }
     Srb->SrbStatus = SRB_STATUS_BUSY;
     StorPortBusy(DeviceExtension, 2);
-    virtqueue_kick(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0]);
+    virtqueue_kick(adaptExt->vq[QueueNumber]);
 EXIT_ERR();
     return FALSE;
 }
@@ -155,7 +160,7 @@ ShutDown(
 ENTER_FN();
     VirtIODeviceReset(&adaptExt->vdev);
     StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), 0);
-    for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < VIRTIO_SCSI_QUEUE_LAST; ++index) {
+    for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
         if (adaptExt->vq[index]) {
             virtqueue_shutdown(adaptExt->vq[index]);
             VirtIODeviceDeleteQueue(adaptExt->vq[index], NULL);

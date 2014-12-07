@@ -36,6 +36,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define SECTOR_SIZE             512
 #define IO_PORT_LENGTH          0x40
+#define MAX_CPU                 256
 
 /* Feature Bits */
 #define VIRTIO_SCSI_F_INOUT                    0
@@ -94,7 +95,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_SCSI_CONTROL_QUEUE              0
 #define VIRTIO_SCSI_EVENTS_QUEUE               1
 #define VIRTIO_SCSI_REQUEST_QUEUE_0            2
-#define VIRTIO_SCSI_QUEUE_LAST                 3
+#define VIRTIO_SCSI_QUEUE_LAST                 VIRTIO_SCSI_REQUEST_QUEUE_0 + MAX_CPU
 
 /* SCSI command request, followed by data-out */
 #pragma pack(1)
@@ -221,6 +222,7 @@ typedef struct _SRB_EXTENSION {
 #if (INDIRECT_SUPPORTED == 1)
     struct vring_desc_alias     desc[VIRTIO_MAX_SG];
 #endif
+    PROCESSOR_NUMBER      procNum;
 }SRB_EXTENSION, * PSRB_EXTENSION;
 #pragma pack()
 
@@ -254,6 +256,10 @@ typedef struct _ADAPTER_EXTENSION {
     BOOLEAN               tmf_infly;
 
     PVirtIOSCSIEventNode  events;
+
+    ULONG                 num_queues;
+    UCHAR                 cpu_to_vq_map[MAX_CPU];
+
 }ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
 
 #if (MSI_SUPPORTED == 1)
