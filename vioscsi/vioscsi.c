@@ -477,8 +477,9 @@ ENTER_FN();
         ++adaptExt->msix_vectors;
     }
 
+    RhelDbgPrint(TRACE_LEVEL_ERROR, ("Queues %d msix_vectors %d\n", adaptExt->num_queues, adaptExt->msix_vectors));
     if (adaptExt->num_queues > 1 &&
-        ((adaptExt->num_queues + 3) < adaptExt->msix_vectors)) {
+        ((adaptExt->num_queues + 3) > adaptExt->msix_vectors)) {
         //FIXME
         adaptExt->num_queues = 1;
     }
