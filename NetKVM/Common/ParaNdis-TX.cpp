@@ -462,6 +462,7 @@ BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) CParaNdisTX::RestartQue
 //TODO: Requires review
 bool CParaNdisTX::RestartQueue(bool DoKick)
 {
+    TSpinLocker LockedContext(m_Lock);
     auto res = ParaNdis_SynchronizeWithInterrupt(m_Context,
                                                  m_messageIndex,
                                                  CParaNdisTX::RestartQueueSynchronously,
@@ -475,7 +476,7 @@ bool CParaNdisTX::RestartQueue(bool DoKick)
     return res;
 }
 
-bool CParaNdisTX::SendMapped(PNET_BUFFER_LIST &NBLFailNow)
+bool CParaNdisTX::SendMapped(bool IsInterrupt, PNET_BUFFER_LIST &NBLFailNow)
 {
     if(!ParaNdis_IsSendPossible(m_Context))
     {
@@ -549,7 +550,14 @@ bool CParaNdisTX::SendMapped(PNET_BUFFER_LIST &NBLFailNow)
         if (SentOutSomeBuffers)
         {
             DPrintf(2, ("[%s] sent down\n", __FUNCTION__, SentOutSomeBuffers));
-            return true;
+            if (IsInterrupt)
+            {
+                return true;
+            }
+            else
+            {
+                m_VirtQueue.Kick();
+            }
         }
     }
 
@@ -566,7 +574,7 @@ bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
     DoWithTXLock([&] ()
                  {
                     m_VirtQueue.ProcessTXCompletions();
-                    bDoKick = SendMapped(pNBLFailNow);
+                    bDoKick = SendMapped(IsInterrupt, pNBLFailNow);
                     pNBLReturnNow = ProcessWaitingList();
                     {
                         CNdisPassiveWriteAutoLock tLock(m_Context->m_PauseLock);
@@ -595,12 +603,6 @@ bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
     if (CallbackToCall != nullptr)
     {
         CallbackToCall(m_Context);
-    }
-
-    if (bDoKick && !IsInterrupt)
-    {
-        Kick();
-        bDoKick = false;
     }
 
     return bDoKick;
