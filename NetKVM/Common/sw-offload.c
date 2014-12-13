@@ -158,19 +158,21 @@ ProcessTCPHeader(tTcpIpPacketParsingResult _res, PVOID pIpHeader, ULONG len, USH
     ULONG tcpipDataAt;
     tTcpIpPacketParsingResult res = _res;
     tcpipDataAt = ipHeaderSize + sizeof(TCPHeader);
-    res.xxpStatus = ppresXxpIncomplete;
     res.TcpUdp = ppresIsTCP;
 
     if (len >= tcpipDataAt)
     {
         TCPHeader *pTcpHeader = (TCPHeader *)RtlOffsetToPointer(pIpHeader, ipHeaderSize);
         res.xxpStatus = ppresXxpKnown;
+        res.xxpFull = TRUE;
         tcpipDataAt = ipHeaderSize + TCP_HEADER_LENGTH(pTcpHeader);
         res.XxpIpHeaderSize = tcpipDataAt;
     }
     else
     {
         DPrintf(2, ("tcp: %d < min headers %d\n", len, tcpipDataAt));
+        res.xxpFull = FALSE;
+        res.xxpStatus = ppresXxpIncomplete;
     }
     return res;
 }
@@ -180,7 +182,6 @@ ProcessUDPHeader(tTcpIpPacketParsingResult _res, PVOID pIpHeader, ULONG len, USH
 {
     tTcpIpPacketParsingResult res = _res;
     ULONG udpDataStart = ipHeaderSize + sizeof(UDPHeader);
-    res.xxpStatus = ppresXxpIncomplete;
     res.TcpUdp = ppresIsUDP;
     res.XxpIpHeaderSize = udpDataStart;
     if (len >= udpDataStart)
@@ -188,45 +189,94 @@ ProcessUDPHeader(tTcpIpPacketParsingResult _res, PVOID pIpHeader, ULONG len, USH
         UDPHeader *pUdpHeader = (UDPHeader *)RtlOffsetToPointer(pIpHeader, ipHeaderSize);
         USHORT datagramLength = swap_short(pUdpHeader->udp_length);
         res.xxpStatus = ppresXxpKnown;
+        res.xxpFull = TRUE;
         // may be full or not, but the datagram length is known
         DPrintf(2, ("udp: len %d, datagramLength %d\n", len, datagramLength));
+    }
+    else
+    {
+        DPrintf(2, ("[%s] udp packet too short\n", __FUNCTION__));
+        res.xxpFull = FALSE;
+        res.xxpStatus = ppresXxpIncomplete;
     }
     return res;
 }
 
 static __inline tTcpIpPacketParsingResult
-QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
+QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
 {
     tTcpIpPacketParsingResult res;
-    UCHAR  ver_len = pIpHeader->v4.ip_verlen;
-    UCHAR  ip_version = (ver_len & 0xF0) >> 4;
+    UCHAR  ver_len;
+    UCHAR  ip_version;
     USHORT ipHeaderSize = 0;
     USHORT fullLength = 0;
     res.value = 0;
-    
+
+    if (len < 4)
+    {
+        DPrintf(2, ("[%s] packet is not IP as length is less than 4\n", __FUNCTION__));
+        res.ipStatus = ppresNotIP;
+        return res;
+    }
+
+    ver_len = pIpHeader->v4.ip_verlen;
+    ip_version = (ver_len & 0xF0) >> 4;
+
     if (ip_version == 4)
     {
+        if (len < sizeof(IPv4Header))
+        {
+            DPrintf(2, ("[%s] packet is not IP4 as length %d is less than ip4 header\n", __FUNCTION__, len));
+            res.ipStatus = ppresNotIP;
+            return res;
+        }
         ipHeaderSize = (ver_len & 0xF) << 2;
         fullLength = swap_short(pIpHeader->v4.ip_length);
-        DPrintf(3, ("ip_version %d, ipHeaderSize %d, protocol %d, iplen %d\n",
-            ip_version, ipHeaderSize, pIpHeader->v4.ip_protocol, fullLength));
+        DPrintf(3, ("ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload length %d\n",
+            ip_version, ipHeaderSize, pIpHeader->v4.ip_protocol, fullLength, len));
+
         res.ipStatus = (ipHeaderSize >= sizeof(IPv4Header)) ? ppresIPV4 : ppresNotIP;
-        if (len < ipHeaderSize) res.ipCheckSum = ppresIPTooShort;
-        if (fullLength) {}
-        else
+        if (res.ipStatus == ppresNotIP)
         {
-            DPrintf(2, ("ip v.%d, iplen %d\n", ip_version, fullLength));
+            DPrintf(2, ("[%s] packet is not IP4 as ip header size %d is less than ip4 header\n", __FUNCTION__, ipHeaderSize));
+            return res;
+        }
+
+        if (ipHeaderSize >= fullLength || (verifyLength && (len < fullLength)))
+        {
+            DPrintf(2, ("[%s] - truncated packet - ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload length %d, verify = %s\n", __FUNCTION__,
+                ip_version, ipHeaderSize, pIpHeader->v4.ip_protocol, fullLength, len, (verifyLength ? "true" : "false")));
+            res.ipCheckSum = ppresIPTooShort;
+            return res;
         }
     }
     else if (ip_version == 6)
     {
-        UCHAR nextHeader = pIpHeader->v6.ip6_next_header;
+        UCHAR nextHeader;
         BOOLEAN bParsingDone = FALSE;
+
+        if (len < sizeof(IPv6Header))
+        {
+            res.ipStatus = ppresNotIP;
+            DPrintf(2, ("[%s] - ipV6 packet with length %d is shorter than IPv6 header\n", __FUNCTION__, len));
+            return res;
+        }
+
+        nextHeader = pIpHeader->v6.ip6_next_header;
         ipHeaderSize = sizeof(pIpHeader->v6);
         res.ipStatus = ppresIPV6;
         res.ipCheckSum = ppresCSOK;
         fullLength = swap_short(pIpHeader->v6.ip6_payload_len);
         fullLength += ipHeaderSize;
+
+        if (verifyLength && (len < fullLength))
+        {
+            DPrintf(2, ("[%s] - ipV6 packet with length %d is shorter than full length %d, veridyLength = %s\n", __FUNCTION__, len,
+                fullLength + sizeof(IPv6Header), (verifyLength ? "true" : "false")));
+            res.ipStatus = ppresNotIP;
+            return res;
+        }
+
         while (nextHeader != 59)
         {
             IPv6ExtHeader *pExt;
@@ -293,7 +343,7 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
     if (res.ipStatus == ppresIPV4)
     {
         res.ipHeaderSize = ipHeaderSize;
-        res.xxpFull = len >= fullLength ? 1 : 0;
+
         // bit "more fragments" or fragment offset mean the packet is fragmented
         res.IsFragment = (pIpHeader->v4.ip_offset & ~0xC0) != 0;
         switch (pIpHeader->v4.ip_protocol)
@@ -309,6 +359,7 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
             }
             break;
         default:
+            DPrintf(2, ("[%s] - packet is neither TCP not UDP\n", __FUNCTION__));
             res.xxpStatus = ppresXxpOther;
             break;
         }
@@ -612,11 +663,16 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(
                                                 ULONG ulDataLength,
                                                 ULONG ulStartOffset,
                                                 ULONG flags,
-                                                LPCSTR caller)
+                                                BOOLEAN verifyLength,
+                                                LPCSTR caller
+                                               )
 {
     IPHeader *pIpHeader = (IPHeader *) RtlOffsetToPointer(pDataPages[0].Virtual, ulStartOffset);
 
-    tTcpIpPacketParsingResult res = QualifyIpPacket(pIpHeader, ulDataLength);
+    tTcpIpPacketParsingResult res = QualifyIpPacket(pIpHeader, ulDataLength, verifyLength);
+    if (res.ipStatus == ppresNotIP || res.ipCheckSum == ppresIPTooShort)
+        return res;
+
     if (res.ipStatus == ppresIPV4)
     {
         if (flags & pcrIpChecksum)
@@ -663,9 +719,9 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(
     return res;
 }
 
-tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, LPCSTR caller)
+tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, BOOLEAN verifyLength, LPCSTR caller)
 {
-    tTcpIpPacketParsingResult res = QualifyIpPacket(buffer, size);
+    tTcpIpPacketParsingResult res = QualifyIpPacket(buffer, size, verifyLength);
     PrintOutParsingResult(res, 1, caller);
     return res;
 }

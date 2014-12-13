@@ -1500,12 +1500,12 @@ UINT ParaNdis_VirtIONetReleaseTransmitBuffers(
     return i;
 }
 
-static ULONG FORCEINLINE QueryTcpHeaderOffset(PVOID packetData, ULONG ipHeaderOffset, ULONG ipPacketLength)
+static ULONG FORCEINLINE QueryTcpHeaderOffset(PVOID packetData, ULONG ipHeaderOffset, ULONG ipPacketLength, BOOLEAN verifyLength)
 {
     ULONG res;
     tTcpIpPacketParsingResult ppr = ParaNdis_ReviewIPPacket(
         (PUCHAR)packetData + ipHeaderOffset,
-        ipPacketLength,
+        ipPacketLength, verifyLength,
         __FUNCTION__);
     if (ppr.xxpStatus == ppresXxpKnown)
     {
@@ -1632,7 +1632,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
                         Params->tcpHeaderOffset = QueryTcpHeaderOffset(
                             pBuffersDescriptor->DataInfo.Virtual,
                             pContext->Offload.ipHeaderOffset + addPriorityLen,
-                            mapResult.usBufferSpaceUsed - pContext->Offload.ipHeaderOffset - addPriorityLen);
+                            mapResult.usBufferSpaceUsed - pContext->Offload.ipHeaderOffset - addPriorityLen, FALSE);
                     }
                     else
                     {
@@ -1782,7 +1782,7 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
                 pParams->tcpHeaderOffset = QueryTcpHeaderOffset(
                     pBuffersDescriptor->DataInfo.Virtual,
                     pContext->Offload.ipHeaderOffset + addPriorityLen,
-                    ipPacketLength);
+                    ipPacketLength, FALSE);
             }
             else
             {
@@ -1803,6 +1803,7 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
                     ipPacket,
                     ipPacketLength,
                     pcrIpChecksum | pcrFixIPChecksum,
+                    FALSE,
                     __FUNCTION__);
             }
         }
@@ -2915,14 +2916,14 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
                                             ULONG virtioFlags,
                                             tCompletePhysicalAddress *pPacketPages,
                                             ULONG ulPacketLength,
-                                            ULONG ulDataOffset)
+                                            ULONG ulDataOffset,
+                                            BOOLEAN verifyLength)
 {
     tOffloadSettingsFlags f = pContext->Offload.flags;
-    tChecksumCheckResult res, resIp;
+    tChecksumCheckResult res;
     tTcpIpPacketParsingResult ppr;
     ULONG flagsToCalculate = 0;
     res.value = 0;
-    resIp.value = 0;
 
     //VIRTIO_NET_HDR_F_NEEDS_CSUM - we need to calculate TCP/UDP CS
     //VIRTIO_NET_HDR_F_DATA_VALID - host tells us TCP/UDP CS is OK
@@ -2944,7 +2945,13 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
         }
     }
 
-    ppr = ParaNdis_CheckSumVerify(pPacketPages, ulPacketLength - ETH_HEADER_SIZE, ulDataOffset + ETH_HEADER_SIZE, flagsToCalculate, __FUNCTION__);
+    ppr = ParaNdis_CheckSumVerify(pPacketPages, ulPacketLength - ETH_HEADER_SIZE, ulDataOffset + ETH_HEADER_SIZE, flagsToCalculate, verifyLength, __FUNCTION__);
+    if (ppr.ipCheckSum == ppresIPTooShort || ppr.xxpStatus == ppresXxpIncomplete)
+    {
+        res.flags.IpOK = FALSE;
+        res.flags.IpFailed = TRUE;
+        return res;
+    }
 
     if (virtioFlags & VIRTIO_NET_HDR_F_DATA_VALID)
     {

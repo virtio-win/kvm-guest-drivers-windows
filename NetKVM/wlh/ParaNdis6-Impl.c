@@ -879,7 +879,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
                     pHeader->flags,
                     &pBuffersDesc->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE],
                     pPacketInfo->dataLength,
-                    nBytesStripped);
+                    nBytesStripped, TRUE);
                 if (csRes.value)
                 {
                     NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
@@ -901,6 +901,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
                     RtlOffsetToPointer(pPacketInfo->headersBuffer, ETH_HEADER_SIZE),
                     pPacketInfo->dataLength,
                     pcrIpChecksum | pcrTcpChecksum | pcrUdpChecksum,
+                    TRUE,
                     __FUNCTION__
                     );
                 ParaNdis_DebugHistory(pContext, hopPacketReceived, pNBL, pPacketInfo->dataLength, (ULONG)(ULONG_PTR)qInfo.Value, packetReview.value);
@@ -1281,6 +1282,7 @@ VOID ParaNdis_PacketMapper(
                         pIpHeader,
                         lengthGet - pContext->Offload.ipHeaderOffset,
                         flags,
+                        FALSE,
                         __FUNCTION__);
                     if (packetReview.xxpCheckSum == ppresPCSOK || packetReview.fixedXxpCS)
                     {
@@ -1333,6 +1335,7 @@ VOID ParaNdis_PacketMapper(
                         pIpHeader,
                         lengthGet - pContext->Offload.ipHeaderOffset,
                         pcrIpChecksum | pcrFixIPChecksum,
+                        FALSE,
                         __FUNCTION__);
                 }
                 
