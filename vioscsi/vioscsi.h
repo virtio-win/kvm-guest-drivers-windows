@@ -236,6 +236,8 @@ typedef struct {
 
 typedef struct _ADAPTER_EXTENSION {
     VirtIODevice          vdev;
+    VirtIODevice*         pvdev;
+
     PVOID                 uncachedExtensionVa;
     ULONG                 allocationSize;
 
