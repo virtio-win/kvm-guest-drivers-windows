@@ -158,7 +158,7 @@ ShutDown(
     ULONG index;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 ENTER_FN();
-    VirtIODeviceReset(&adaptExt->vdev);
+    VirtIODeviceReset(adaptExt->pvdev);
     StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), 0);
     for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
         if (adaptExt->vq[index]) {
@@ -180,25 +180,25 @@ ENTER_FN();
 
     adaptExt->features = StorPortReadPortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
 
-    VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, seg_max),
+    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, seg_max),
                       &adaptExt->scsi_config.seg_max, sizeof(adaptExt->scsi_config.seg_max));
-    VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, num_queues),
+    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, num_queues),
                       &adaptExt->scsi_config.num_queues, sizeof(adaptExt->scsi_config.num_queues));
-    VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_sectors),
+    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, max_sectors),
                       &adaptExt->scsi_config.max_sectors, sizeof(adaptExt->scsi_config.max_sectors));
-    VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, cmd_per_lun),
+    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, cmd_per_lun),
                       &adaptExt->scsi_config.cmd_per_lun, sizeof(adaptExt->scsi_config.cmd_per_lun));
-    VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, event_info_size),
+    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, event_info_size),
                       &adaptExt->scsi_config.event_info_size, sizeof(adaptExt->scsi_config.event_info_size));
-    VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, sense_size),
+    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, sense_size),
                       &adaptExt->scsi_config.sense_size, sizeof(adaptExt->scsi_config.sense_size));
-    VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, cdb_size),
+    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, cdb_size),
                       &adaptExt->scsi_config.cdb_size, sizeof(adaptExt->scsi_config.cdb_size));
-    VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_channel),
+    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, max_channel),
                       &adaptExt->scsi_config.max_channel, sizeof(adaptExt->scsi_config.max_channel));
-    VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_target),
+    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, max_target),
                       &adaptExt->scsi_config.max_target, sizeof(adaptExt->scsi_config.max_target));
-    VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_lun),
+    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, max_lun),
                       &adaptExt->scsi_config.max_lun, sizeof(adaptExt->scsi_config.max_lun));
 
 EXIT_FN();
@@ -250,7 +250,8 @@ ENTER_FN();
         return FALSE;
     }
 
-    VirtIODeviceInitialize(&adaptExt->vdev, adaptExt->device_base, sizeof(adaptExt->vdev));
+    adaptExt->pvdev = &adaptExt->vdev;
+    VirtIODeviceInitialize(adaptExt->pvdev, adaptExt->device_base, sizeof(VirtIODevice));
 
 EXIT_FN();
     return TRUE;
