@@ -866,7 +866,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
                     pHeader->flags,
                     &pBuffersDesc->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE],
                     pPacketInfo->dataLength,
-                    nBytesStripped);
+                    nBytesStripped, TRUE);
                 if (csRes.value)
                 {
                     NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;

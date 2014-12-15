@@ -2219,7 +2219,8 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
                                             ULONG virtioFlags,
                                             tCompletePhysicalAddress *pPacketPages,
                                             ULONG ulPacketLength,
-                                            ULONG ulDataOffset)
+                                            ULONG ulDataOffset,
+                                            BOOLEAN verifyLength)
 {
     tOffloadSettingsFlags f = pContext->Offload.flags;
     tChecksumCheckResult res;
@@ -2247,7 +2248,8 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
         }
     }
 
-    ppr = ParaNdis_CheckSumVerify(pPacketPages, ulPacketLength - ETH_HEADER_SIZE, ulDataOffset + ETH_HEADER_SIZE, flagsToCalculate, __FUNCTION__);
+    ppr = ParaNdis_CheckSumVerify(pPacketPages, ulPacketLength - ETH_HEADER_SIZE, ulDataOffset + ETH_HEADER_SIZE, flagsToCalculate,
+        verifyLength, __FUNCTION__);
 
     if (ppr.ipCheckSum == ppresIPTooShort || ppr.xxpStatus == ppresXxpIncomplete)
     {

@@ -744,7 +744,8 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
                                             ULONG virtioFlags,
                                             tCompletePhysicalAddress *pPacketPages,
                                             ULONG ulPacketLength,
-                                            ULONG ulDataOffset);
+                                            ULONG ulDataOffset,
+                                            BOOLEAN verifyLength);
 
 void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext);
 
@@ -917,6 +918,7 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(
                                                 ULONG ulDataLength,
                                                 ULONG ulStartOffset,
                                                 ULONG flags,
+                                                BOOLEAN verifyLength,
                                                 LPCSTR caller);
 
 static __inline
@@ -924,15 +926,16 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerifyFlat(
                                                 PVOID pBuffer,
                                                 ULONG ulDataLength,
                                                 ULONG flags,
+                                                BOOLEAN verifyLength,
                                                 LPCSTR caller)
 {
     tCompletePhysicalAddress SGBuffer;
     SGBuffer.Virtual = pBuffer;
     SGBuffer.size = ulDataLength;
-    return ParaNdis_CheckSumVerify(&SGBuffer, ulDataLength, 0, flags, caller);
+    return ParaNdis_CheckSumVerify(&SGBuffer, ulDataLength, 0, flags, verifyLength, caller);
 }
 
-tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, LPCSTR caller);
+tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, BOOLEAN verityLength, LPCSTR caller);
 
 BOOLEAN ParaNdis_AnalyzeReceivedPacket(PVOID headersBuffer, ULONG dataLength, PNET_PACKET_INFO packetInfo);
 ULONG ParaNdis_StripVlanHeaderMoveHead(PNET_PACKET_INFO packetInfo);

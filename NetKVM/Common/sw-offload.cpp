@@ -200,7 +200,7 @@ ProcessUDPHeader(tTcpIpPacketParsingResult _res, PVOID pIpHeader, ULONG len, USH
 }
 
 static __inline tTcpIpPacketParsingResult
-QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
+QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
 {
     tTcpIpPacketParsingResult res;
     res.value = 0;
@@ -235,10 +235,10 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
             return res;
         }
 
-        if (ipHeaderSize >= fullLength || len < fullLength)
+        if (ipHeaderSize >= fullLength || ( verifyLength && len < fullLength))
         {
-            DPrintf(2, ("[%s] - truncated packet - ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload length %d\n", __FUNCTION__,
-                ip_version, ipHeaderSize, pIpHeader->v4.ip_protocol, fullLength, len));
+            DPrintf(2, ("[%s] - truncated packet - ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload length %d, verify = %s\n", __FUNCTION__,
+                ip_version, ipHeaderSize, pIpHeader->v4.ip_protocol, fullLength, len, (verifyLength ? "true" : "false")));
             res.ipCheckSum = ppresIPTooShort;
             return res;
         }
@@ -258,7 +258,8 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
         res.ipCheckSum = ppresCSOK;
         fullLength = swap_short(pIpHeader->v6.ip6_payload_len);
         fullLength += ipHeaderSize;
-        if (len < fullLength)
+
+        if (verifyLength && (len < fullLength))
         {
             res.ipStatus = ppresNotIP;
             return res;
@@ -648,11 +649,12 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(
                                                 ULONG ulDataLength,
                                                 ULONG ulStartOffset,
                                                 ULONG flags,
+                                                BOOLEAN verifyLength,
                                                 LPCSTR caller)
 {
     IPHeader *pIpHeader = (IPHeader *) RtlOffsetToPointer(pDataPages[0].Virtual, ulStartOffset);
 
-    tTcpIpPacketParsingResult res = QualifyIpPacket(pIpHeader, ulDataLength);
+    tTcpIpPacketParsingResult res = QualifyIpPacket(pIpHeader, ulDataLength, verifyLength);
     if (res.ipStatus == ppresNotIP || res.ipCheckSum == ppresIPTooShort)
         return res;
 
@@ -702,9 +704,9 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(
     return res;
 }
 
-tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, LPCSTR caller)
+tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, BOOLEAN verifyLength, LPCSTR caller)
 {
-    tTcpIpPacketParsingResult res = QualifyIpPacket((IPHeader *) buffer, size);
+    tTcpIpPacketParsingResult res = QualifyIpPacket((IPHeader *) buffer, size, verifyLength);
     PrintOutParsingResult(res, 1, caller);
     return res;
 }
