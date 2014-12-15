@@ -237,7 +237,7 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
 
         if (ipHeaderSize >= fullLength || len < fullLength)
         {
-            DPrintf(2, ("[%s] - truncated packet - ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload length %d\n",
+            DPrintf(2, ("[%s] - truncated packet - ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload length %d\n", __FUNCTION__,
                 ip_version, ipHeaderSize, pIpHeader->v4.ip_protocol, fullLength, len));
             res.ipCheckSum = ppresIPTooShort;
             return res;
@@ -245,6 +245,12 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
     }
     else if (ip_version == 6)
     {
+        if (len < sizeof(IPv6Header))
+        {
+            res.ipStatus = ppresNotIP;
+            return res;
+        }
+
         UCHAR nextHeader = pIpHeader->v6.ip6_next_header;
         BOOLEAN bParsingDone = FALSE;
         ipHeaderSize = sizeof(pIpHeader->v6);
@@ -252,6 +258,11 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
         res.ipCheckSum = ppresCSOK;
         fullLength = swap_short(pIpHeader->v6.ip6_payload_len);
         fullLength += ipHeaderSize;
+        if (len < fullLength)
+        {
+            res.ipStatus = ppresNotIP;
+            return res;
+        }
         while (nextHeader != 59)
         {
             IPv6ExtHeader *pExt;
