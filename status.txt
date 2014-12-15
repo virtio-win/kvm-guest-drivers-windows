@@ -1,3 +1,12 @@
+Date    15 Dec 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm117
+
+Fixed bugs:
+
+Bug 1172091 [netkvm] crash on malformed packet.
+
+
 Date    23 Apr 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm100
