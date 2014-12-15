@@ -649,6 +649,7 @@ void CNB::SetupLSO(virtio_net_hdr_basic *VirtioHeader, PVOID IpHeader, ULONG Eth
     tTcpIpPacketParsingResult packetReview;
     packetReview = ParaNdis_CheckSumVerifyFlat(reinterpret_cast<IPv4Header*>(IpHeader), EthPayloadLength,
                                                pcrIpChecksum | pcrFixIPChecksum | pcrTcpChecksum | pcrFixPHChecksum,
+                                               FALSE,
                                                __FUNCTION__);
 
     if (packetReview.xxpCheckSum == ppresPCSOK || packetReview.fixedXxpCS)
@@ -670,7 +671,7 @@ USHORT CNB::QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const
 {
     USHORT Res;
     auto ppr = ParaNdis_ReviewIPPacket(RtlOffsetToPointer(PacketData, IpHeaderOffset),
-                                       GetDataLength(), __FUNCTION__);
+                                       GetDataLength(), FALSE, __FUNCTION__);
     if (ppr.ipStatus != ppresNotIP)
     {
         Res = static_cast<USHORT>(IpHeaderOffset + ppr.ipHeaderSize);
@@ -696,7 +697,7 @@ void CNB::DoIPHdrCSO(PVOID IpHeader, ULONG EthPayloadLength) const
 {
     ParaNdis_CheckSumVerifyFlat(IpHeader,
                                 EthPayloadLength,
-                                pcrIpChecksum | pcrFixIPChecksum,
+                                pcrIpChecksum | pcrFixIPChecksum, FALSE,
                                 __FUNCTION__);
 }
 
