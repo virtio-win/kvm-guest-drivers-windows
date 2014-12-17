@@ -1501,12 +1501,14 @@ UINT ParaNdis_VirtIONetReleaseTransmitBuffers(
     return i;
 }
 
-static ULONG FORCEINLINE QueryTcpHeaderOffset(PVOID packetData, ULONG ipHeaderOffset, ULONG ipPacketLength)
+static ULONG FORCEINLINE QueryTcpHeaderOffset(PVOID packetData, ULONG ipHeaderOffset, ULONG ipPacketLength,
+    BOOLEAN verifyLength)
 {
     ULONG res;
     tTcpIpPacketParsingResult ppr = ParaNdis_ReviewIPPacket(
         (PUCHAR)packetData + ipHeaderOffset,
         ipPacketLength,
+	verifyLength,
         __FUNCTION__);
     if (ppr.xxpStatus == ppresXxpKnown)
     {
@@ -1635,7 +1637,8 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
                             Params->tcpHeaderOffset = QueryTcpHeaderOffset(
                                 pBuffersDescriptor->DataInfo.Virtual,
                                 pContext->Offload.ipHeaderOffset + addPriorityLen,
-                                mapResult.usBufferSpaceUsed - pContext->Offload.ipHeaderOffset - addPriorityLen);
+                                mapResult.usBufferSpaceUsed - pContext->Offload.ipHeaderOffset - addPriorityLen, 
+				FALSE);
                         }
                         else
                         {
@@ -1659,6 +1662,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
                                 RtlOffsetToPointer(pCopy, pContext->Offload.ipHeaderOffset + addPriorityLen),
                                 Params->ulDataSize - pContext->Offload.ipHeaderOffset - addPriorityLen,
                                 pcrAnyChecksum | pcrFixXxpChecksum,
+				FALSE,
                                 __FUNCTION__);
                             // data portion in aside buffer contains complete IP+TCP header
                             // rewrite copy of original buffer by one new with calculated data
@@ -1812,7 +1816,7 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
                 pParams->tcpHeaderOffset = QueryTcpHeaderOffset(
                     pBuffersDescriptor->DataInfo.Virtual,
                     pContext->Offload.ipHeaderOffset + addPriorityLen,
-                    ipPacketLength);
+                    ipPacketLength, FALSE);
             }
             else
             {
@@ -1835,6 +1839,7 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
                         ipPacket,
                         ipPacketLength,
                         pcrIpChecksum | pcrFixIPChecksum,
+			FALSE,
                         __FUNCTION__);
                 }
             }
@@ -1848,6 +1853,7 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
                     ipPacket,
                     ipPacketLength,
                     csFlags,
+		    FALSE,
                     __FUNCTION__);
             }
             else
@@ -2846,7 +2852,7 @@ void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext)
     }
 }
 
-tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG virtioFlags, PVOID pRxPacket, ULONG len)
+tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG virtioFlags, PVOID pRxPacket, ULONG len, BOOLEAN verifyLength)
 {
     tOffloadSettingsFlags f = pContext->Offload.flags;
     tChecksumCheckResult res, resIp;
@@ -2876,7 +2882,13 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG 
         }
     }
 
-    ppr = ParaNdis_CheckSumVerify(pIpHeader, len - ETH_HEADER_SIZE, flagsToCalculate, __FUNCTION__);
+    ppr = ParaNdis_CheckSumVerify(pIpHeader, len - ETH_HEADER_SIZE, flagsToCalculate, verifyLength, __FUNCTION__);
+    if (ppr.ipCheckSum == ppresIPTooShort || ppr.xxpStatus == ppresXxpIncomplete)
+    {
+        res.flags.IpOK = FALSE;
+        res.flags.IpFailed = TRUE;
+        return res;
+    }
 
     if (virtioFlags & VIRTIO_NET_HDR_F_DATA_VALID)
     {
@@ -2937,7 +2949,7 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG 
     if (pContext->bDoIPCheckRx &&
         (f.fRxIPChecksum || f.fRxTCPChecksum || f.fRxUDPChecksum || f.fRxTCPv6Checksum || f.fRxUDPv6Checksum))
     {
-        ppr = ParaNdis_CheckSumVerify(pIpHeader, len - ETH_HEADER_SIZE, pcrAnyChecksum, __FUNCTION__"(2)");
+        ppr = ParaNdis_CheckSumVerify(pIpHeader, len - ETH_HEADER_SIZE, pcrAnyChecksum, TRUE, __FUNCTION__"(2)");
         if (ppr.ipStatus == ppresIPV4 && !ppr.IsFragment)
         {
             resIp.flags.IpOK = !!f.fRxIPChecksum && ppr.ipCheckSum == ppresCSOK;

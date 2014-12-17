@@ -681,7 +681,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
 
 void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsFlags *pDest, PULONG from);
 
-tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG virtioFlags, PVOID pRxPacket, ULONG len);
+tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext, ULONG virtioFlags, PVOID pRxPacket, ULONG len, BOOLEAN verifyLength);
 
 void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext);
 
@@ -877,9 +877,10 @@ typedef enum _tagPacketOffloadRequest
 }tPacketOffloadRequest;
 
 // sw offload
-void ParaNdis_CheckSumCalculate(PVOID buffer, ULONG size, ULONG flags);
-tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(PVOID buffer, ULONG size, ULONG flags, LPCSTR caller);
-tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, LPCSTR caller);
+void ParaNdis_CheckSumCalculate(PVOID buffer, ULONG size, ULONG flags, BOOLEAN verifyLength);
+tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(PVOID buffer, ULONG size, ULONG flags, BOOLEAN verifyLength,
+    LPCSTR caller);
+tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, BOOLEAN verifyLength, LPCSTR caller);
 
 void ParaNdis_PadPacketReceived(PVOID pDataBuffer, PULONG pLength);
 

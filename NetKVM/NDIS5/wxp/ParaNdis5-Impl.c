@@ -514,7 +514,7 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
             NdisChainBufferAtFront(Packet, pBuffer);
             NdisQueryPacket(Packet, NULL, NULL, NULL, &uTotalLength);
             *REF_MINIPORT(Packet) = pBuffersDesc;
-            csRes = ParaNdis_CheckRxChecksum(pContext, pHeader->flags, dataBuffer, length);
+            csRes = ParaNdis_CheckRxChecksum(pContext, pHeader->flags, dataBuffer, length, TRUE);
             if (csRes.value)
             {
                 NDIS_TCP_IP_CHECKSUM_PACKET_INFO qCSInfo;
@@ -831,6 +831,7 @@ VOID ParaNdis_PacketMapper(
                     pIpHeader,
                     lengthGet - pContext->Offload.ipHeaderOffset,
                     flags,
+		    FALSE,
                     __FUNCTION__);
                 /* uncomment to verify */
                 /*
@@ -874,6 +875,7 @@ VOID ParaNdis_PacketMapper(
                     pIpHeader,
                     lengthGet - pContext->Offload.ipHeaderOffset,
                     pcrIpChecksum | pcrFixIPChecksum,
+		    FALSE,
                     __FUNCTION__);
             }
 
@@ -1206,6 +1208,7 @@ static __inline tSendEntry * PrepareSendEntry(PARANDIS_ADAPTER *pContext, PNDIS_
                 RtlOffsetToPointer(pcopy, pContext->Offload.ipHeaderOffset),
                 len,
                 pcrAnyChecksum/* | pcrFixAnyChecksum*/,
+		FALSE,
                 __FUNCTION__);
             /*
             if (res.xxpStatus == ppresXxpKnown)
