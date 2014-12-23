@@ -295,7 +295,11 @@ ENTER_FN();
 
     VirtIODeviceReset(adaptExt->pvdev);
 
+#if (NTDDI_VERSION >= NTDDI_WIN7)
     num_cpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
+#else
+    num_cpus = KeQueryActiveProcessorCount(NULL);
+#endif
     adaptExt->num_queues = adaptExt->scsi_config.num_queues;
     memset(adaptExt->cpu_to_vq_map, (UCHAR)VIRTIO_SCSI_REQUEST_QUEUE_0, MAX_CPU);
     if (adaptExt->dump_mode || !adaptExt->msix_enabled)
@@ -492,7 +496,7 @@ ENTER_FN();
         if (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0 > MAX_QUEUES_PER_DEVICE_DEFAULT)
         {
             ULONG_PTR ptr = ((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset);
-            SIZE_T size = ROUND_TO_PAGES(VirtIODeviceSizeRequired((USHORT)(adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0)));
+            ULONG size = ROUND_TO_PAGES(VirtIODeviceSizeRequired((USHORT)(adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0)));
             adaptExt->offset += size;
             memcpy((PVOID)ptr, (PVOID)adaptExt->pvdev, sizeof(VirtIODevice));
             adaptExt->pvdev = (VirtIODevice*)ptr;
@@ -767,9 +771,13 @@ VioScsiMSInterrupt (
     if (MessageID > 2)
     {
         ULONG msg = MessageID - 3;
+
+#if (NTDDI_VERSION >= NTDDI_WIN7)
         PROCESSOR_NUMBER ProcNumber;
         ULONG processor = KeGetCurrentProcessorNumberEx(&ProcNumber);
-
+#else
+        ULONG processor = KeGetCurrentProcessorNumber();
+#endif
         while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + msg], &len)) != NULL)
         {
            VirtIOSCSICmdResp   *resp;
@@ -778,14 +786,25 @@ VioScsiMSInterrupt (
            srbExt  = (PSRB_EXTENSION)Srb->SrbExtension;
 
            if ((adaptExt->num_queues > 1) &&
+#if (NTDDI_VERSION >= NTDDI_WIN7)
                (ProcNumber.Group != srbExt->procNum.Group ||
-               ProcNumber.Number != srbExt->procNum.Number))
+               ProcNumber.Number != srbExt->procNum.Number)
+#else
+               processor != srbExt->procNum.Number
+#endif
+               )
            {
                ULONG tmp;
                RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Srb %p issued on %d::%d received on %d::%d MessgeId %d Queue %d\n",
                    Srb, srbExt->procNum.Group, srbExt->procNum.Number, ProcNumber.Group, ProcNumber.Number, MessageID, VIRTIO_SCSI_REQUEST_QUEUE_0 + msg));
+
+#if (NTDDI_VERSION >= NTDDI_WIN7)
                tmp = adaptExt->cpu_to_vq_map[ProcNumber.Number];
                adaptExt->cpu_to_vq_map[ProcNumber.Number] = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
+#else
+               tmp = adaptExt->cpu_to_vq_map[processor];
+               adaptExt->cpu_to_vq_map[processor] = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
+#endif
                adaptExt->cpu_to_vq_map[srbExt->procNum.Number] = (UCHAR)tmp;
            }
 
