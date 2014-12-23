@@ -35,17 +35,28 @@ SynchronizedSRBRoutine(
     PVOID               va;
     ULONGLONG           pa;
     ULONG               QueueNumber;
-
+    ULONG               OldIrql;
+    ULONG               MessageId;
+    BOOLEAN             kick = FALSE;
 ENTER_FN();
     SET_VA_PA();
     QueueNumber = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
     RhelDbgPrint(TRACE_LEVEL_ERROR, ("Srb %p issued on %d::%d QueueNumber %d\n",
                  Srb, srbExt->procNum.Group, srbExt->procNum.Number, QueueNumber));
-
+    if (adaptExt->num_queues > 1) {
+        MessageId = QueueNumber + 1;
+        StorPortAcquireMSISpinLock(DeviceExtension, MessageId, &OldIrql);
+    }
     if (virtqueue_add_buf(adaptExt->vq[QueueNumber],
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
+        kick = TRUE;
+    }
+    if (adaptExt->num_queues > 1) {
+        StorPortReleaseMSISpinLock(DeviceExtension, MessageId, OldIrql);
+    }
+    if (kick == TRUE) {
         virtqueue_kick(adaptExt->vq[QueueNumber]);
         return TRUE;
     }
@@ -63,24 +74,12 @@ SendSRB(
     )
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    ENTER_FN();
-    if (Srb)
-    {
-        (VOID)StorPortSynchronizeAccess(DeviceExtension, SynchronizedSRBRoutine, (PVOID)Srb);
+ENTER_FN();
+    if (adaptExt->num_queues > 1) {
+        return SynchronizedSRBRoutine(DeviceExtension, (PVOID)Srb);
     }
-    else
-    {
-        while (!IsListEmpty(&adaptExt->list_head)) {
-            PSCSI_REQUEST_BLOCK sc;
-            PSRB_EXTENSION srbExt;
-            srbExt = (PSRB_EXTENSION)RemoveHeadList(&adaptExt->list_head);
-            sc = srbExt->cmd.sc;
-            if (!SynchronizedSRBRoutine(DeviceExtension, (PVOID)sc))
-            {
-                InsertHeadList(&adaptExt->list_head, RemoveTailList(&adaptExt->list_head));
-                return;
-            }
-        }
+    else {
+        return StorPortSynchronizeAccess(DeviceExtension, SynchronizedSRBRoutine, (PVOID)Srb);
     }
 EXIT_FN();
 }
