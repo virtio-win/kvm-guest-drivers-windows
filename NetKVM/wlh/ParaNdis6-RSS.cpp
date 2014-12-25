@@ -535,9 +535,23 @@ CCHAR ParaNdis6_RSSGetScalingDataForPacket(
     CCHAR targetQueue;
     CNdisDispatchReadAutoLock autoLock(RSSParameters->rwLock);
 
-    if((RSSParameters->RSSMode != PARANDIS_RSS_FULL) || (packetInfo->RSSHash.Type == 0))
+    if(RSSParameters->RSSMode != PARANDIS_RSS_FULL) 
     {
         targetQueue = PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
+    }
+    else if (packetInfo->RSSHash.Type == 0)
+    {
+        /* In the RSS mode, unclassified packets are dispatched to the first queue, in order to preserve the order.
+           Hopefully, there are few unclassfied packets */
+        if (RSSParameters->ActiveRSSScalingSettings.IndirectionTableSize)
+        {
+            *targetProcessor = RSSParameters->ActiveRSSScalingSettings.IndirectionTable[PARANDIS_FIRST_RSS_RECEIVE_QUEUE];
+            targetQueue = RSSParameters->ActiveRSSScalingSettings.QueueIndirectionTable[PARANDIS_FIRST_RSS_RECEIVE_QUEUE];
+        }
+        else
+        {
+            targetQueue = PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
+        }
     }
     else
     {
