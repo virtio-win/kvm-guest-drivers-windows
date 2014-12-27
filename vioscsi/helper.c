@@ -23,21 +23,21 @@
 #define SET_VA_PA()   va = NULL; pa = 0;
 #endif
 
-BOOLEAN
-SynchronizedSRBRoutine(
+VOID
+SendSRB(
     IN PVOID DeviceExtension,
-    IN PVOID Context
+    IN PSCSI_REQUEST_BLOCK Srb
     )
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
     PSRB_EXTENSION      srbExt   = (PSRB_EXTENSION)Srb->SrbExtension;
-    PVOID               va;
-    ULONGLONG           pa;
-    ULONG               QueueNumber;
-    ULONG               OldIrql;
-    ULONG               MessageId;
+    PVOID               va = NULL;
+    ULONGLONG           pa = 0;
+    ULONG               QueueNumber = 0;
+    ULONG               OldIrql = 0;
+    ULONG               MessageId = 0;
     BOOLEAN             kick = FALSE;
+    STOR_LOCK_HANDLE    LockHandle = { 0 };
 ENTER_FN();
     SET_VA_PA();
     QueueNumber = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
@@ -47,39 +47,26 @@ ENTER_FN();
         MessageId = QueueNumber + 1;
         StorPortAcquireMSISpinLock(DeviceExtension, MessageId, &OldIrql);
     }
+    else {
+        StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, &LockHandle);
+    }
     if (virtqueue_add_buf(adaptExt->vq[QueueNumber],
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
         kick = TRUE;
     }
+    else {
+//FIXME
+    }
     if (adaptExt->num_queues > 1) {
         StorPortReleaseMSISpinLock(DeviceExtension, MessageId, OldIrql);
     }
+    else {
+        StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
+    }
     if (kick == TRUE) {
         virtqueue_kick(adaptExt->vq[QueueNumber]);
-        return TRUE;
-    }
-    Srb->SrbStatus = SRB_STATUS_BUSY;
-    StorPortBusy(DeviceExtension, 2);
-    virtqueue_kick(adaptExt->vq[QueueNumber]);
-EXIT_ERR();
-    return FALSE;
-}
-
-BOOLEAN
-SendSRB(
-    IN PVOID DeviceExtension,
-    IN PSCSI_REQUEST_BLOCK Srb
-    )
-{
-    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-ENTER_FN();
-    if (adaptExt->num_queues > 1) {
-        return SynchronizedSRBRoutine(DeviceExtension, (PVOID)Srb);
-    }
-    else {
-        return StorPortSynchronizeAccess(DeviceExtension, SynchronizedSRBRoutine, (PVOID)Srb);
     }
 EXIT_FN();
 }

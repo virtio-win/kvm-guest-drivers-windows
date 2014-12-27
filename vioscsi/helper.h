@@ -24,7 +24,7 @@
 #include "virtio_pci.h"
 #include "vioscsi.h"
 
-BOOLEAN
+VOID
 SendSRB(
     IN PVOID DeviceExtension,
     IN PSCSI_REQUEST_BLOCK Srb

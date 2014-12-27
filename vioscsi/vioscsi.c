@@ -552,14 +552,13 @@ VioScsiStartIo(
     )
 {
 ENTER_FN();
-    if (PreProcessRequest(DeviceExtension, Srb) ||
-        !SendSRB(DeviceExtension, Srb))
+    if (PreProcessRequest(DeviceExtension, Srb))
     {
-        if(Srb->SrbStatus == SRB_STATUS_PENDING)
-        {
-           Srb->SrbStatus = SRB_STATUS_ERROR;
-        }
         CompleteRequest(DeviceExtension, Srb);
+    }
+    else
+    {
+        SendSRB(DeviceExtension, Srb);
     }
 EXIT_FN();
     return TRUE;
