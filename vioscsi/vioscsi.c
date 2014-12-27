@@ -447,7 +447,6 @@ VioScsiHwInitialize(
     )
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    PVOID              ptr      = adaptExt->uncachedExtensionVa;
     ULONG              i;
     ULONG              guestFeatures = 0;
     ULONG              index;
