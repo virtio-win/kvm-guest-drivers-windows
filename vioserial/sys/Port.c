@@ -711,7 +711,12 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
         ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);
 
         Port->PendingWriteRequest = NULL;
-        WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
+
+        if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
+        {
+            WdfRequestComplete(Request, Port->Removed ?
+                STATUS_INVALID_DEVICE_STATE : STATUS_INSUFFICIENT_RESOURCES);
+        }
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,"<-- %s\n", __FUNCTION__);
