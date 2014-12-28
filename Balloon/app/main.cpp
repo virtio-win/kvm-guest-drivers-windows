@@ -18,7 +18,8 @@ void __stdcall HandlerEx(DWORD ctlcode, DWORD evtype, PVOID evdata, PVOID contex
 
 void __stdcall ServiceMainEx(DWORD argc, TCHAR* argv[])
 {
-    srvc.m_StatusHandle = RegisterServiceCtrlHandlerEx(argv[0], (LPHANDLER_FUNCTION_EX) HandlerEx, (PVOID) &srvc);
+    srvc.m_StatusHandle = RegisterServiceCtrlHandlerEx(ServiceName,
+        (LPHANDLER_FUNCTION_EX)HandlerEx, (PVOID)&srvc);
     CService::ServiceMainThunk(&srvc, argc, argv);
 }
 
