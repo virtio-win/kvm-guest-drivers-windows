@@ -11,13 +11,17 @@ VIOSerialInterruptIsr(
     IN ULONG MessageID)
 {
     PPORTS_DEVICE pContext = GetPortsDevice(WdfInterruptGetDevice(Interrupt));
+    WDF_INTERRUPT_INFO info;
     BOOLEAN serviced;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
 
+    WDF_INTERRUPT_INFO_INIT(&info);
+    WdfInterruptGetInfo(Interrupt, &info);
+
     // Schedule a DPC if the device is using message-signaled interrupts, or
     // if the device ISR status is enabled.
-    if (MessageID || VirtIODeviceISR(pContext->pIODevice))
+    if (info.MessageSignaled || VirtIODeviceISR(pContext->pIODevice))
     {
         WdfInterruptQueueDpcForIsr(Interrupt);
         serviced = TRUE;
@@ -49,7 +53,7 @@ VIOSerialInterruptDpc(
     WDF_INTERRUPT_INFO_INIT(&info);
     WdfInterruptGetInfo(Context->QueuesInterrupt, &info);
 
-    // Using the queues' DPC if only one interrupt is availble.
+    // Using the queues' DPC if only one interrupt is available.
     if (info.Vector == 0)
     {
         VIOSerialQueuesInterruptDpc(Interrupt, AssociatedObject);
