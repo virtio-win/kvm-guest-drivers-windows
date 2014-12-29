@@ -27,6 +27,8 @@ HW_FIND_ADAPTER      VioScsiFindAdapter;
 HW_RESET_BUS         VioScsiResetBus;
 HW_ADAPTER_CONTROL   VioScsiAdapterControl;
 HW_INTERRUPT         VioScsiInterrupt;
+HW_DPC_ROUTINE       VioScsiCompleteDpcRoutine;
+HW_PASSIVE_INITIALIZE_ROUTINE         VioScsiIoPassiveInitializeRoutine;
 #if (MSI_SUPPORTED == 1)
 HW_MESSAGE_SIGNALED_INTERRUPT_ROUTINE VioScsiMSInterrupt;
 #endif
@@ -92,6 +94,15 @@ CompleteRequest(
     IN PVOID DeviceExtension,
     IN PSCSI_REQUEST_BLOCK Srb
     );
+
+VOID
+FORCEINLINE
+CompleteDPC(
+    IN PVOID DeviceExtension,
+    IN PSCSI_REQUEST_BLOCK Srb,
+    IN ULONG index,
+    IN ULONG MessageID
+);
 
 BOOLEAN
 VioScsiInterrupt(
@@ -350,6 +361,7 @@ ENTER_FN();
     }
     adaptExt->allocationSize += ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
     adaptExt->allocationSize += ROUND_TO_PAGES(sizeof(VirtIOSCSIEventNode) * 8);
+    adaptExt->allocationSize += ROUND_TO_PAGES(sizeof(STOR_DPC) * adaptExt->num_queues);
 
 #if (INDIRECT_SUPPORTED == 1)
     if(!adaptExt->dump_mode) {
@@ -383,6 +395,27 @@ ENTER_FN();
 
     return SP_RETURN_FOUND;
 }
+
+BOOLEAN
+VioScsiPassiveInitializeRoutine(
+    IN PVOID DeviceExtension
+)
+{
+    ULONG index;
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+ENTER_FN();
+
+    for (index = 0; index < adaptExt->num_queues; ++index) {
+        StorPortInitializeDpc(DeviceExtension,
+            &adaptExt->dpc[index],
+            VioScsiCompleteDpcRoutine);
+        InitializeListHead(&adaptExt->srb_list[index]);
+    }
+    adaptExt->dpc_ok = TRUE;
+EXIT_FN();
+    return TRUE;
+}
+
 
 static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG index, ULONG vector)
 {
@@ -527,6 +560,8 @@ ENTER_FN();
     adaptExt->offset += ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
     adaptExt->events = (PVirtIOSCSIEventNode)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset);
     adaptExt->offset += ROUND_TO_PAGES(sizeof(VirtIOSCSIEventNode)* 8);
+    adaptExt->dpc = (PSTOR_DPC)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset);
+    adaptExt->offset += ROUND_TO_PAGES(sizeof(STOR_DPC) * adaptExt->num_queues);
 
     if (!adaptExt->dump_mode && CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_HOTPLUG)) {
         PVirtIOSCSIEventNode events = adaptExt->events;
@@ -534,6 +569,12 @@ ENTER_FN();
            if (!KickEvent(DeviceExtension, (PVOID)(&events[i]))) {
                 RhelDbgPrint(TRACE_LEVEL_FATAL, ("Can't add event %d\n", i));
            }
+        }
+    }
+    if (!adaptExt->dump_mode && !adaptExt->dpc_ok)
+    {
+        if (!StorPortEnablePassiveInitialization(DeviceExtension, VioScsiPassiveInitializeRoutine)) {
+            return FALSE;
         }
     }
 
@@ -653,7 +694,7 @@ VioScsiInterrupt(
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
-           CompleteRequest(DeviceExtension, Srb);
+           CompleteDPC(DeviceExtension, Srb, 0, 0);
         }
         if (adaptExt->tmf_infly) {
            while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE], &len)) != NULL) {
@@ -783,6 +824,9 @@ VioScsiMSInterrupt (
            resp    = &cmd->resp.cmd;
            srbExt  = (PSRB_EXTENSION)Srb->SrbExtension;
 
+#if (NTDDI_VERSION >= NTDDI_WIN7)
+           CHECK_CPU(Srb);
+#endif
            if ((adaptExt->num_queues > 1) &&
 #if (NTDDI_VERSION >= NTDDI_WIN7)
                (ProcNumber.Group != srbExt->procNum.Group ||
@@ -874,7 +918,11 @@ VioScsiMSInterrupt (
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
-           CompleteRequest(DeviceExtension, Srb);
+#if (NTDDI_VERSION >= NTDDI_WIN7)
+           CompleteDPC(DeviceExtension, Srb, ProcNumber.Number, MessageID);
+#else
+           CompleteDPC(DeviceExtension, Srb, processor, MessageID);
+#endif
         }
         return TRUE;
     }
@@ -994,7 +1042,7 @@ ENTER_FN();
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<-->%s (%d::%d::%d)\n", DbgGetScsiOpStr(Srb), Srb->PathId, Srb->TargetId, Srb->Lun));
 
     memset(srbExt, 0, sizeof(*srbExt));
-
+    srbExt->Srb = Srb;
     StorPortGetCurrentProcessorNumber(DeviceExtension, &srbExt->procNum);
     cmd = &srbExt->cmd;
     cmd->sc = Srb;
@@ -1046,6 +1094,88 @@ ENTER_FN();
 
 EXIT_FN();
     return TRUE;
+}
+
+VOID
+FORCEINLINE
+CompleteDPC(
+    IN PVOID DeviceExtension,
+    IN PSCSI_REQUEST_BLOCK Srb,
+    IN ULONG index,
+    IN ULONG MessageID
+)
+{
+    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    PSRB_EXTENSION        srbExt;
+ENTER_FN();
+    srbExt   = (PSRB_EXTENSION)Srb->SrbExtension;
+
+    if (!adaptExt->dump_mode && adaptExt->dpc_ok && MessageID > 0) {
+        InsertTailList(&adaptExt->srb_list[index], &srbExt->list_entry);
+        StorPortIssueDpc(DeviceExtension,
+            &adaptExt->dpc[index],
+            ULongToPtr(MessageID),
+            ULongToPtr(index));
+        return;
+    }
+    CompleteRequest(DeviceExtension, Srb);
+EXIT_FN();
+}
+
+VOID
+VioScsiCompleteDpcRoutine(
+    IN PSTOR_DPC  Dpc,
+    IN PVOID Context,
+    IN PVOID SystemArgument1,
+    IN PVOID SystemArgument2
+    )
+{
+    PADAPTER_EXTENSION adaptExt;
+    ULONG MessageId;
+    ULONG index;
+    ULONG OldIrql;
+    STOR_LOCK_HANDLE    LockHandle = { 0 };
+
+ENTER_FN();
+    adaptExt = (PADAPTER_EXTENSION)Context;
+    MessageId = PtrToUlong(SystemArgument1);
+    index = PtrToUlong(SystemArgument2);
+
+    if (adaptExt->num_queues > 1) {
+        StorPortAcquireMSISpinLock(Context, MessageId, &OldIrql);
+    }
+    else {
+        StorPortAcquireSpinLock(Context, InterruptLock, NULL, &LockHandle);
+    }
+    while (!IsListEmpty(&adaptExt->srb_list[index])) {
+        PSCSI_REQUEST_BLOCK Srb;
+        PSRB_EXTENSION srbExt;
+        srbExt = (PSRB_EXTENSION)RemoveHeadList(&adaptExt->srb_list[index]);
+        Srb = (PSCSI_REQUEST_BLOCK)srbExt->Srb;
+#if (NTDDI_VERSION >= NTDDI_WIN7)
+        CHECK_CPU(Srb);
+#endif
+        if (adaptExt->num_queues > 1) {
+            StorPortReleaseMSISpinLock(Context, MessageId, OldIrql);
+        }
+        else {
+            StorPortReleaseSpinLock(Context, &LockHandle);
+        }
+        CompleteRequest(Context, Srb);
+        if (adaptExt->num_queues > 1) {
+            StorPortAcquireMSISpinLock(Context, MessageId, &OldIrql);
+        }
+        else {
+            StorPortAcquireSpinLock(Context, InterruptLock, NULL, &LockHandle);
+        }
+    }
+    if (adaptExt->num_queues > 1) {
+        StorPortReleaseMSISpinLock(Context, MessageId, OldIrql);
+    }
+    else {
+        StorPortReleaseSpinLock(Context, &LockHandle);
+    }
+EXIT_FN();
 }
 
 BOOLEAN
