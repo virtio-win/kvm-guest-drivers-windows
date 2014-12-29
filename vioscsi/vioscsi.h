@@ -215,6 +215,7 @@ typedef struct vring_desc_alias
 #pragma pack(1)
 typedef struct _SRB_EXTENSION {
     LIST_ENTRY            list_entry;
+    PSCSI_REQUEST_BLOCK   Srb;
     ULONG                 out;
     ULONG                 in;
     ULONG                 Xfer;
@@ -263,6 +264,10 @@ typedef struct _ADAPTER_EXTENSION {
 
     ULONG                 num_queues;
     UCHAR                 cpu_to_vq_map[MAX_CPU];
+
+    BOOLEAN               dpc_ok;
+    PSTOR_DPC             dpc;
+    LIST_ENTRY            srb_list[MAX_CPU];
 
 }ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
 
