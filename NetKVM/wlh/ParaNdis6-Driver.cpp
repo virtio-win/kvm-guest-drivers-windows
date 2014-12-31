@@ -935,6 +935,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
     UINT nInterrupts = 0;
     PIO_RESOURCE_REQUIREMENTS_LIST newPrrl = NULL;
     ULONG QueueNumber;
+    BOOLEAN MSIResourceListed = FALSE;
 #if NDIS_SUPPORT_NDIS620    
     QueueNumber = NdisGroupActiveProcessorCount(ALL_PROCESSOR_GROUPS) * 2 + 1;
 #elif NDIS_SUPPORT_NDIS6
@@ -992,6 +993,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
                                 pd->Option, pd->ShareDisposition));
                             if (pd->Flags & CM_RESOURCE_INTERRUPT_MESSAGE)
                             {
+                                MSIResourceListed = TRUE;
                                 bRemove = bRemoveMSIResources;
                             }
                             else
@@ -1011,7 +1013,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
                     pd = (IO_RESOURCE_DESCRIPTOR *)RtlOffsetToPointer(prrl, offset);
                 }
 
-                if (!bRemoveMSIResources)
+                if (!bRemoveMSIResources && MSIResourceListed)
                 {
                     while (nInterrupts < QueueNumber)
                     {
