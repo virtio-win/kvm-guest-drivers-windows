@@ -948,7 +948,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
     if (QueueNumber > 2048)
         QueueNumber = 2048;
 
-    DPrintf(resourceFilterLevel, ("[%s]%s\n", __FUNCTION__, bRemoveMSIResources ? "(Remove MSI resources...)" : ""));
+    DPrintf(resourceFilterLevel, ("[%s]%s\n", __FUNCTION__, bRemoveMSIResources ? "(Remove MSI resources...)" : "(Don't remove MSI resources)"));
 
     newPrrl = (PIO_RESOURCE_REQUIREMENTS_LIST)NdisAllocateMemoryWithTagPriority(
             MiniportAddDeviceContext,
@@ -1012,6 +1012,9 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
                     offset += sizeof(*pd);
                     pd = (IO_RESOURCE_DESCRIPTOR *)RtlOffsetToPointer(prrl, offset);
                 }
+
+                DPrintf(resourceFilterLevel, ("[%s] MSI resources %s listed\n", __FUNCTION__, MSIResourceListed ? "" : "not"));
+
 
                 if (!bRemoveMSIResources && MSIResourceListed)
                 {
