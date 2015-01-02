@@ -582,31 +582,35 @@ ENTER_FN();
 
             status = StorPortInitializePerfOpts(DeviceExtension, TRUE, &perfData);
 
-            RhelDbgPrint(TRACE_LEVEL_FATAL, ("Perf Flags = 0x%x\n", perfData.Flags));
+            RhelDbgPrint(TRACE_LEVEL_FATAL, ("Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
+                perfData.Version, perfData.Flags, perfData.ConcurrentChannels, perfData.FirstRedirectionMessageNumber, perfData.LastRedirectionMessageNumber));
             if (status == STOR_STATUS_SUCCESS) {
-                memset((PCHAR)&perfData, 0, sizeof(PERF_CONFIGURATION_DATA));
-                perfData.Version = STOR_PERF_VERSION;
-                perfData.Size = sizeof(PERF_CONFIGURATION_DATA);
-                if (CHECKBIT(perfData.Flags, STOR_PERF_DPC_REDIRECTION)) {
+                if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION)) {
 //                    adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION;
                 }
-                if (CHECKBIT(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS)) {
+                if (CHECKFLAG(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS)) {
                     adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS;
-                    perfData.ConcurrentChannels = adaptExt->num_queues ;
+                    perfData.ConcurrentChannels = adaptExt->num_queues;
                 }
-                if (CHECKBIT(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES)) {
+                if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES)) {
 //                    adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
 //                    perfData.FirstRedirectionMessageNumber = 2;
 //                    perfData.LastRedirectionMessageNumber = 256;
                 }
-                if (CHECKBIT(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
+                if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
 //                    adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO;
                 }
                 perfData.Flags = adaptExt->perfFlags;
+                RhelDbgPrint(TRACE_LEVEL_FATAL, ("Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
+                    perfData.Version, perfData.Flags, perfData.ConcurrentChannels, perfData.FirstRedirectionMessageNumber, perfData.LastRedirectionMessageNumber));
                 status = StorPortInitializePerfOpts(DeviceExtension, FALSE, &perfData);
                 if (status != STOR_STATUS_SUCCESS) {
                     perfData.Flags = 0;
                     RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s StorPortInitializePerfOpts FALSE status = 0x%x\n", __FUNCTION__, status));
+                }
+                else {
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
+                        perfData.Version, perfData.Flags, perfData.ConcurrentChannels, perfData.FirstRedirectionMessageNumber, perfData.LastRedirectionMessageNumber));
                 }
             }
             else {
