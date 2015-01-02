@@ -38,14 +38,18 @@ SendSRB(
     ULONG               MessageId = 0;
     BOOLEAN             kick = FALSE;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
+    ULONG               status = STOR_STATUS_SUCCESS;
 ENTER_FN();
     SET_VA_PA();
     QueueNumber = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
-    RhelDbgPrint(TRACE_LEVEL_ERROR, ("Srb %p issued on %d::%d QueueNumber %d\n",
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Srb %p issued on %d::%d QueueNumber %d\n",
                  Srb, srbExt->procNum.Group, srbExt->procNum.Number, QueueNumber));
     if (adaptExt->num_queues > 1) {
         MessageId = QueueNumber + 1;
-        StorPortAcquireMSISpinLock(DeviceExtension, MessageId, &OldIrql);
+        status = StorPortAcquireMSISpinLock(DeviceExtension, MessageId, &OldIrql);
+        if (status != STOR_STATUS_SUCCESS) {
+            RhelDbgPrint(TRACE_LEVEL_ERROR, ("% StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
+        }
     }
     else {
         StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, &LockHandle);
@@ -60,7 +64,10 @@ ENTER_FN();
 //FIXME
     }
     if (adaptExt->num_queues > 1) {
-        StorPortReleaseMSISpinLock(DeviceExtension, MessageId, OldIrql);
+        status = StorPortReleaseMSISpinLock(DeviceExtension, MessageId, OldIrql);
+        if (status != STOR_STATUS_SUCCESS) {
+            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortReleaseMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
+        }
     }
     else {
         StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
