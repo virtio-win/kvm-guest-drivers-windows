@@ -263,6 +263,7 @@ typedef struct _ADAPTER_EXTENSION {
 
     ULONG                 num_queues;
     UCHAR                 cpu_to_vq_map[MAX_CPU];
+    ULONG                 perfFlags;
 
     BOOLEAN               dpc_ok;
     PSTOR_DPC             dpc;

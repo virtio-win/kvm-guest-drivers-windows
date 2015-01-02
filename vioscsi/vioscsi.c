@@ -485,7 +485,9 @@ VioScsiHwInitialize(
     ULONG              index;
 
 #if (MSI_SUPPORTED == 1)
-    MESSAGE_INTERRUPT_INFORMATION msi_info;
+    PERF_CONFIGURATION_DATA perfData = { 0 };
+    ULONG              status = STOR_STATUS_SUCCESS;
+    MESSAGE_INTERRUPT_INFORMATION msi_info = { 0 };
 #endif
     
 ENTER_FN();
@@ -571,9 +573,47 @@ ENTER_FN();
            }
         }
     }
-    if (!adaptExt->dump_mode && !adaptExt->dpc_ok)
+    if (!adaptExt->dump_mode)
     {
-        if (!StorPortEnablePassiveInitialization(DeviceExtension, VioScsiPassiveInitializeRoutine)) {
+        if (adaptExt->num_queues > 1) {
+            adaptExt->perfFlags = 0;
+            perfData.Version = STOR_PERF_VERSION;
+            perfData.Size = sizeof(PERF_CONFIGURATION_DATA);
+
+            status = StorPortInitializePerfOpts(DeviceExtension, TRUE, &perfData);
+
+            RhelDbgPrint(TRACE_LEVEL_FATAL, ("Perf Flags = 0x%x\n", perfData.Flags));
+            if (status == STOR_STATUS_SUCCESS) {
+                memset((PCHAR)&perfData, 0, sizeof(PERF_CONFIGURATION_DATA));
+                perfData.Version = STOR_PERF_VERSION;
+                perfData.Size = sizeof(PERF_CONFIGURATION_DATA);
+                if (CHECKBIT(perfData.Flags, STOR_PERF_DPC_REDIRECTION)) {
+//                    adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION;
+                }
+                if (CHECKBIT(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS)) {
+                    adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS;
+                    perfData.ConcurrentChannels = adaptExt->num_queues ;
+                }
+                if (CHECKBIT(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES)) {
+//                    adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
+//                    perfData.FirstRedirectionMessageNumber = 2;
+//                    perfData.LastRedirectionMessageNumber = 256;
+                }
+                if (CHECKBIT(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
+//                    adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO;
+                }
+                perfData.Flags = adaptExt->perfFlags;
+                status = StorPortInitializePerfOpts(DeviceExtension, FALSE, &perfData);
+                if (status != STOR_STATUS_SUCCESS) {
+                    perfData.Flags = 0;
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s StorPortInitializePerfOpts FALSE status = 0x%x\n", __FUNCTION__, status));
+                }
+            }
+            else {
+                RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s StorPortInitializePerfOpts TRUE status = 0x%x\n", __FUNCTION__, status));
+            }
+        }
+        if (!adaptExt->dpc_ok && !StorPortEnablePassiveInitialization(DeviceExtension, VioScsiPassiveInitializeRoutine)) {
             return FALSE;
         }
     }
@@ -1135,6 +1175,7 @@ VioScsiCompleteDpcRoutine(
     ULONG index;
     ULONG OldIrql;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
+    ULONG status = STOR_STATUS_SUCCESS;
 
 ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)Context;
@@ -1142,7 +1183,10 @@ ENTER_FN();
     index = PtrToUlong(SystemArgument2);
 
     if (adaptExt->num_queues > 1) {
-        StorPortAcquireMSISpinLock(Context, MessageId, &OldIrql);
+        status = StorPortAcquireMSISpinLock(Context, MessageId, &OldIrql);
+        if (status != STOR_STATUS_SUCCESS) {
+            RhelDbgPrint(TRACE_LEVEL_ERROR, ("% StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
+        }
     }
     else {
         StorPortAcquireSpinLock(Context, InterruptLock, NULL, &LockHandle);
@@ -1156,21 +1200,31 @@ ENTER_FN();
         CHECK_CPU(Srb);
 #endif
         if (adaptExt->num_queues > 1) {
-            StorPortReleaseMSISpinLock(Context, MessageId, OldIrql);
+            status = StorPortReleaseMSISpinLock(Context, MessageId, OldIrql);
+            if (status != STOR_STATUS_SUCCESS) {
+                RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortReleaseMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
+            }
+
         }
         else {
             StorPortReleaseSpinLock(Context, &LockHandle);
         }
         CompleteRequest(Context, Srb);
         if (adaptExt->num_queues > 1) {
-            StorPortAcquireMSISpinLock(Context, MessageId, &OldIrql);
+            status = StorPortAcquireMSISpinLock(Context, MessageId, &OldIrql);
+            if (status != STOR_STATUS_SUCCESS) {
+                RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
+            }
         }
         else {
             StorPortAcquireSpinLock(Context, InterruptLock, NULL, &LockHandle);
         }
     }
     if (adaptExt->num_queues > 1) {
-        StorPortReleaseMSISpinLock(Context, MessageId, OldIrql);
+        status = StorPortReleaseMSISpinLock(Context, MessageId, OldIrql);
+        if (status != STOR_STATUS_SUCCESS) {
+            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortReleaseMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
+        }
     }
     else {
         StorPortReleaseSpinLock(Context, &LockHandle);
