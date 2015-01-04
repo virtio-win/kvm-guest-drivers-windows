@@ -97,6 +97,13 @@ CompleteRequest(
 
 VOID
 FORCEINLINE
+DispatchQueue(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID
+    );
+
+VOID
+FORCEINLINE
 CompleteDPC(
     IN PVOID DeviceExtension,
     IN PSCSI_REQUEST_BLOCK Srb,
@@ -586,19 +593,19 @@ ENTER_FN();
                 perfData.Version, perfData.Flags, perfData.ConcurrentChannels, perfData.FirstRedirectionMessageNumber, perfData.LastRedirectionMessageNumber));
             if (status == STOR_STATUS_SUCCESS) {
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION)) {
-//                    adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION;
+                    adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION;
                 }
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS)) {
                     adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS;
                     perfData.ConcurrentChannels = adaptExt->num_queues;
                 }
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES)) {
-//                    adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
-//                    perfData.FirstRedirectionMessageNumber = 2;
-//                    perfData.LastRedirectionMessageNumber = 256;
+                    adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
+                    perfData.FirstRedirectionMessageNumber = 2;
+                    perfData.LastRedirectionMessageNumber = 256;
                 }
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
-//                    adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO;
+                    adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO;
                 }
                 perfData.Flags = adaptExt->perfFlags;
                 RhelDbgPrint(TRACE_LEVEL_FATAL, ("Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
@@ -853,121 +860,7 @@ VioScsiMSInterrupt (
     }
     if (MessageID > 2)
     {
-        ULONG msg = MessageID - 3;
-
-#if (NTDDI_VERSION >= NTDDI_WIN7)
-        PROCESSOR_NUMBER ProcNumber;
-        ULONG processor = KeGetCurrentProcessorNumberEx(&ProcNumber);
-#else
-        ULONG processor = KeGetCurrentProcessorNumber();
-#endif
-        while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + msg], &len)) != NULL)
-        {
-           VirtIOSCSICmdResp   *resp;
-           Srb     = (PSCSI_REQUEST_BLOCK)cmd->sc;
-           resp    = &cmd->resp.cmd;
-           srbExt  = (PSRB_EXTENSION)Srb->SrbExtension;
-
-#if (NTDDI_VERSION >= NTDDI_WIN7)
-           CHECK_CPU(Srb);
-#endif
-           if ((adaptExt->num_queues > 1) &&
-#if (NTDDI_VERSION >= NTDDI_WIN7)
-               (ProcNumber.Group != srbExt->procNum.Group ||
-               ProcNumber.Number != srbExt->procNum.Number)
-#else
-               processor != srbExt->procNum.Number
-#endif
-               )
-           {
-               ULONG tmp;
-               RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Srb %p issued on %d::%d received on %d::%d MessgeId %d Queue %d\n",
-                   Srb, srbExt->procNum.Group, srbExt->procNum.Number, ProcNumber.Group, ProcNumber.Number, MessageID, VIRTIO_SCSI_REQUEST_QUEUE_0 + msg));
-
-#if (NTDDI_VERSION >= NTDDI_WIN7)
-               tmp = adaptExt->cpu_to_vq_map[ProcNumber.Number];
-               adaptExt->cpu_to_vq_map[ProcNumber.Number] = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
-#else
-               tmp = adaptExt->cpu_to_vq_map[processor];
-               adaptExt->cpu_to_vq_map[processor] = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
-#endif
-               adaptExt->cpu_to_vq_map[srbExt->procNum.Number] = (UCHAR)tmp;
-           }
-
-           switch (resp->response)
-           {
-           case VIRTIO_SCSI_S_OK:
-              Srb->ScsiStatus = resp->status;
-              Srb->SrbStatus = (Srb->ScsiStatus == SCSISTAT_GOOD) ? SRB_STATUS_SUCCESS : SRB_STATUS_ERROR;
-              break;
-           case VIRTIO_SCSI_S_UNDERRUN:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_UNDERRUN\n"));
-              Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
-              break;
-           case VIRTIO_SCSI_S_ABORTED:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_ABORTED\n"));
-              Srb->SrbStatus = SRB_STATUS_ABORTED;
-              break;
-           case VIRTIO_SCSI_S_BAD_TARGET:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_BAD_TARGET\n"));
-              Srb->SrbStatus = SRB_STATUS_INVALID_TARGET_ID;
-              break;
-           case VIRTIO_SCSI_S_RESET:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_RESET\n"));
-              Srb->SrbStatus = SRB_STATUS_BUS_RESET;
-              break;
-           case VIRTIO_SCSI_S_BUSY:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_BUSY\n"));
-              Srb->SrbStatus = SRB_STATUS_BUSY;
-              break;
-           case VIRTIO_SCSI_S_TRANSPORT_FAILURE:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_TRANSPORT_FAILURE\n"));
-              Srb->SrbStatus = SRB_STATUS_ERROR;
-              break;
-           case VIRTIO_SCSI_S_TARGET_FAILURE:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_TARGET_FAILURE\n"));
-              Srb->SrbStatus = SRB_STATUS_ERROR;
-              break;
-           case VIRTIO_SCSI_S_NEXUS_FAILURE:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_NEXUS_FAILURE\n"));
-              Srb->SrbStatus = SRB_STATUS_ERROR;
-              break;
-           case VIRTIO_SCSI_S_FAILURE:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_FAILURE\n"));
-              Srb->SrbStatus = SRB_STATUS_ERROR;
-              break;
-           default:
-              Srb->SrbStatus = SRB_STATUS_ERROR;
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Unknown response %d\n", resp->response));
-              break;
-           }
-           if (Srb->SrbStatus != SRB_STATUS_SUCCESS)
-           {
-              PSENSE_DATA pSense = (PSENSE_DATA) Srb->SenseInfoBuffer;
-              if (Srb->SenseInfoBufferLength >= FIELD_OFFSET(SENSE_DATA, CommandSpecificInformation)) {
-                 memcpy(Srb->SenseInfoBuffer, resp->sense,
-                 min(resp->sense_len, Srb->SenseInfoBufferLength));
-                 if (Srb->SrbStatus == SRB_STATUS_ERROR) {
-                     Srb->SrbStatus |= SRB_STATUS_AUTOSENSE_VALID;
-                 }
-              }
-              Srb->DataTransferLength = 0;
-           }
-           else if (srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer)
-           {
-              Srb->DataTransferLength = srbExt->Xfer;
-              Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
-           }
-           if (srbExt && srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) {
-              Srb->DataTransferLength = srbExt->Xfer;
-              Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
-           }
-#if (NTDDI_VERSION >= NTDDI_WIN7)
-           CompleteDPC(DeviceExtension, Srb, ProcNumber.Number, MessageID);
-#else
-           CompleteDPC(DeviceExtension, Srb, processor, MessageID);
-#endif
-        }
+        DispatchQueue(DeviceExtension, MessageID);
         return TRUE;
     }
     return FALSE;
@@ -1140,6 +1033,164 @@ EXIT_FN();
     return TRUE;
 }
 
+
+VOID
+FORCEINLINE
+DispatchQueue(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID
+)
+{
+    PADAPTER_EXTENSION  adaptExt;
+#if (NTDDI_VERSION >= NTDDI_WIN7)
+    PROCESSOR_NUMBER ProcNumber;
+    ULONG processor = KeGetCurrentProcessorNumberEx(&ProcNumber);
+    ULONG cpu = ProcNumber.Number;
+#else
+    ULONG cpu = KeGetCurrentProcessorNumber();
+#endif
+
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    if (!adaptExt->dump_mode && adaptExt->dpc_ok && MessageID > 0) {
+        StorPortIssueDpc(DeviceExtension,
+            &adaptExt->dpc[cpu],
+            ULongToPtr(MessageID),
+            ULongToPtr(cpu));
+        return;
+    }
+    ProcessQueue(DeviceExtension, MessageID, FALSE);
+EXIT_FN();
+
+}
+
+VOID
+FORCEINLINE
+ProcessQueue(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN BOOLEAN dpc
+)
+{
+    PVirtIOSCSICmd      cmd;
+    unsigned int        len;
+    PADAPTER_EXTENSION  adaptExt;
+    PSCSI_REQUEST_BLOCK Srb;
+    PSRB_EXTENSION      srbExt;
+    ULONG               msg = MessageID - 3;
+
+#if (NTDDI_VERSION >= NTDDI_WIN7)
+        PROCESSOR_NUMBER ProcNumber;
+        ULONG processor = KeGetCurrentProcessorNumberEx(&ProcNumber);
+#else
+        ULONG processor = KeGetCurrentProcessorNumber();
+#endif
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + msg], &len)) != NULL)
+    {
+        VirtIOSCSICmdResp   *resp;
+        Srb = (PSCSI_REQUEST_BLOCK)cmd->sc;
+        resp = &cmd->resp.cmd;
+        srbExt = (PSRB_EXTENSION)Srb->SrbExtension;
+
+#if (NTDDI_VERSION >= NTDDI_WIN7)
+        CHECK_CPU(Srb);
+#endif
+        if ((adaptExt->num_queues > 1) &&
+#if (NTDDI_VERSION >= NTDDI_WIN7)
+            (ProcNumber.Group != srbExt->procNum.Group ||
+            ProcNumber.Number != srbExt->procNum.Number)
+#else
+            processor != srbExt->procNum.Number
+#endif
+            )
+        {
+            ULONG tmp;
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Srb %p issued on %d::%d received on %d::%d MessgeId %d Queue %d\n",
+                Srb, srbExt->procNum.Group, srbExt->procNum.Number, ProcNumber.Group, ProcNumber.Number, MessageID, VIRTIO_SCSI_REQUEST_QUEUE_0 + msg));
+
+#if (NTDDI_VERSION >= NTDDI_WIN7)
+            tmp = adaptExt->cpu_to_vq_map[ProcNumber.Number];
+            adaptExt->cpu_to_vq_map[ProcNumber.Number] = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
+#else
+            tmp = adaptExt->cpu_to_vq_map[processor];
+            adaptExt->cpu_to_vq_map[processor] = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
+#endif
+            adaptExt->cpu_to_vq_map[srbExt->procNum.Number] = (UCHAR)tmp;
+        }
+
+        switch (resp->response)
+        {
+        case VIRTIO_SCSI_S_OK:
+            Srb->ScsiStatus = resp->status;
+            Srb->SrbStatus = (Srb->ScsiStatus == SCSISTAT_GOOD) ? SRB_STATUS_SUCCESS : SRB_STATUS_ERROR;
+            break;
+        case VIRTIO_SCSI_S_UNDERRUN:
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_UNDERRUN\n"));
+            Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
+            break;
+        case VIRTIO_SCSI_S_ABORTED:
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_ABORTED\n"));
+            Srb->SrbStatus = SRB_STATUS_ABORTED;
+            break;
+        case VIRTIO_SCSI_S_BAD_TARGET:
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_BAD_TARGET\n"));
+            Srb->SrbStatus = SRB_STATUS_INVALID_TARGET_ID;
+            break;
+        case VIRTIO_SCSI_S_RESET:
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_RESET\n"));
+            Srb->SrbStatus = SRB_STATUS_BUS_RESET;
+            break;
+        case VIRTIO_SCSI_S_BUSY:
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_BUSY\n"));
+            Srb->SrbStatus = SRB_STATUS_BUSY;
+            break;
+        case VIRTIO_SCSI_S_TRANSPORT_FAILURE:
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_TRANSPORT_FAILURE\n"));
+            Srb->SrbStatus = SRB_STATUS_ERROR;
+            break;
+        case VIRTIO_SCSI_S_TARGET_FAILURE:
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_TARGET_FAILURE\n"));
+            Srb->SrbStatus = SRB_STATUS_ERROR;
+            break;
+        case VIRTIO_SCSI_S_NEXUS_FAILURE:
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_NEXUS_FAILURE\n"));
+            Srb->SrbStatus = SRB_STATUS_ERROR;
+            break;
+        case VIRTIO_SCSI_S_FAILURE:
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_FAILURE\n"));
+            Srb->SrbStatus = SRB_STATUS_ERROR;
+            break;
+        default:
+            Srb->SrbStatus = SRB_STATUS_ERROR;
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Unknown response %d\n", resp->response));
+            break;
+        }
+        if (Srb->SrbStatus != SRB_STATUS_SUCCESS)
+        {
+            PSENSE_DATA pSense = (PSENSE_DATA)Srb->SenseInfoBuffer;
+            if (Srb->SenseInfoBufferLength >= FIELD_OFFSET(SENSE_DATA, CommandSpecificInformation)) {
+                memcpy(Srb->SenseInfoBuffer, resp->sense,
+                    min(resp->sense_len, Srb->SenseInfoBufferLength));
+                if (Srb->SrbStatus == SRB_STATUS_ERROR) {
+                    Srb->SrbStatus |= SRB_STATUS_AUTOSENSE_VALID;
+                }
+            }
+            Srb->DataTransferLength = 0;
+        }
+        else if (srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer)
+        {
+            Srb->DataTransferLength = srbExt->Xfer;
+            Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
+        }
+        if (srbExt && srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) {
+            Srb->DataTransferLength = srbExt->Xfer;
+            Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
+        }
+        CompleteRequest(DeviceExtension, Srb);
+    }
+}
+
 VOID
 FORCEINLINE
 CompleteDPC(
@@ -1166,6 +1217,23 @@ ENTER_FN();
 EXIT_FN();
 }
 
+#if 1
+VOID
+VioScsiCompleteDpcRoutine(
+    IN PSTOR_DPC  Dpc,
+    IN PVOID Context,
+    IN PVOID SystemArgument1,
+    IN PVOID SystemArgument2
+    )
+{
+    ULONG MessageId;
+
+ENTER_FN();
+    MessageId = PtrToUlong(SystemArgument1);
+    ProcessQueue(Context, MessageId, TRUE);
+EXIT_FN();
+}
+#else
 VOID
 VioScsiCompleteDpcRoutine(
     IN PSTOR_DPC  Dpc,
@@ -1235,6 +1303,7 @@ ENTER_FN();
     }
 EXIT_FN();
 }
+#endif
 
 BOOLEAN
 FORCEINLINE

@@ -39,14 +39,28 @@ SendSRB(
     BOOLEAN             kick = FALSE;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
+//    STARTIO_PERFORMANCE_PARAMETERS perfParam = { 0 };
 ENTER_FN();
     SET_VA_PA();
     QueueNumber = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Srb %p issued on %d::%d QueueNumber %d\n",
                  Srb, srbExt->procNum.Group, srbExt->procNum.Number, QueueNumber));
+
+//    perfParam.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
+//    status = StorPortGetStartIoPerfParams(DeviceExtension, Srb, &perfParam);
+//    if (status != STOR_STATUS_SUCCESS) {
+//        RhelDbgPrint(TRACE_LEVEL_ERROR, ("% StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
+//    }
+//    else if (perfParam.MessageNumber || perfParam.ChannelNumber) {
+//        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Srb %p issued on %d::%d QueueNumber %d Perf.Version %d, Perf.MessageNumber %d Perf.ChannelNumber %d\n",
+//            Srb, srbExt->procNum.Group, srbExt->procNum.Number, QueueNumber, perfParam.Version, perfParam.MessageNumber, perfParam.ChannelNumber));
+//    }
     if (adaptExt->num_queues > 1) {
         MessageId = QueueNumber + 1;
-        status = StorPortAcquireMSISpinLock(DeviceExtension, MessageId, &OldIrql);
+        if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
+            ProcessQueue(DeviceExtension, MessageId, FALSE);
+        }
+//        status = StorPortAcquireMSISpinLock(DeviceExtension, MessageId, &OldIrql);
         if (status != STOR_STATUS_SUCCESS) {
             RhelDbgPrint(TRACE_LEVEL_ERROR, ("% StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
         }
@@ -64,7 +78,7 @@ ENTER_FN();
 //FIXME
     }
     if (adaptExt->num_queues > 1) {
-        status = StorPortReleaseMSISpinLock(DeviceExtension, MessageId, OldIrql);
+//        status = StorPortReleaseMSISpinLock(DeviceExtension, MessageId, OldIrql);
         if (status != STOR_STATUS_SUCCESS) {
             RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortReleaseMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
         }

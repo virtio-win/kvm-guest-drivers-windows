@@ -84,4 +84,12 @@ VioScsiCompleteDpcRoutine(
     IN PVOID SystemArgument2
 );
 
+VOID
+FORCEINLINE
+ProcessQueue(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN BOOLEAN dpc
+    );
+
 #endif ___HELPER_H___
