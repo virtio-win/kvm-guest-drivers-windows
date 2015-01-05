@@ -1,6 +1,7 @@
 #include "precomp.h"
 
 EVT_WDF_IO_QUEUE_IO_WRITE BalloonIoWrite;
+EVT_WDF_IO_QUEUE_IO_STOP BalloonIoStop;
 EVT_WDF_REQUEST_CANCEL BalloonEvtRequestCancel;
 
 #ifdef ALLOC_PRAGMA
@@ -17,11 +18,10 @@ BalloonQueueInitialize(
 
     PAGED_CODE();
 
-    WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(
-                 &queueConfig,
-                 WdfIoQueueDispatchSequential);
-
-    queueConfig.EvtIoWrite  = BalloonIoWrite;
+    WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(&queueConfig,
+        WdfIoQueueDispatchSequential);
+    queueConfig.EvtIoWrite = BalloonIoWrite;
+    queueConfig.EvtIoStop = BalloonIoStop;
 
     status = WdfIoQueueCreate(
                  Device,
@@ -104,6 +104,30 @@ BalloonIoWrite(
 
         devCtx->PendingWriteRequest = Request;
     }
+}
+
+VOID BalloonIoStop(IN WDFQUEUE Queue,
+                   IN WDFREQUEST Request,
+                   IN ULONG ActionFlags)
+{
+    UNREFERENCED_PARAMETER(Queue);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
+        "--> %!FUNC! Request: %p", Request);
+
+    if (ActionFlags & WdfRequestStopActionSuspend)
+    {
+        WdfRequestStopAcknowledge(Request, FALSE);
+    }
+    else if (ActionFlags & WdfRequestStopActionPurge)
+    {
+        if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
+        {
+            WdfRequestComplete(Request, STATUS_CANCELLED);
+        }
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %!FUNC!");
 }
 
 VOID BalloonEvtRequestCancel(IN WDFREQUEST Request)
