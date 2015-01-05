@@ -218,29 +218,6 @@ public:
         return m_VirtQueue.HasHWBuffersIsUse();
     }
 
-    //TODO: Needs review/temporary!!!
-    void Shutdown()
-    {
-        TSpinLocker LockedContext(m_Lock);
-        m_VirtQueue.Shutdown();
-    }
-
-    //TODO: Needs review/temporary?
-    void EnableInterrupts()
-    { m_VirtQueue.EnableInterrupts(); }
-
-    //TODO: Needs review/temporary?
-    void DisableInterrupts()
-    { m_VirtQueue.DisableInterrupts(); }
-
-    //TODO: Needs review/temporary?
-    bool IsInterruptEnabled()
-    { return m_VirtQueue.IsInterruptEnabled(); }
-
-    //TODO: Needs review/Temporary?
-    void Renew()
-    { m_VirtQueue.Renew(); }
-
     //TODO: Needs review/temporary?
     ULONG GetFreeTXDescriptors()
     { return m_VirtQueue.GetFreeTXDescriptors(); }
