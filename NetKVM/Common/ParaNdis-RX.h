@@ -13,15 +13,6 @@ public:
 
     void PopulateQueue();
 
-    void Renew() {
-        m_VirtQueue.Renew();
-    }
-
-    void Shutdown() {
-        CLockedContext<CNdisSpinLock> autoLock(m_Lock);
-        m_VirtQueue.Shutdown();
-    }
-
     void FreeRxDescriptorsFromList();
 
     void ReuseReceiveBuffer(LONG regular, pRxNetDescriptor pBuffersDescriptor)
@@ -45,21 +36,7 @@ public:
 
     VOID ProcessRxRing(CCHAR nCurrCpuReceiveQueue);
 
-    void EnableInterrupts() {
-        m_VirtQueue.EnableInterrupts();
-    }
-
-    //TODO: Needs review/temporary?
-    void DisableInterrupts() {
-        m_VirtQueue.DisableInterrupts();
-    }
-
     BOOLEAN RestartQueue();
-
-    BOOLEAN IsInterruptEnabled() {
-        return m_VirtQueue.IsInterruptEnabled();
-    }
-
 
 private:
     /* list of Rx buffers available for data (under VIRTIO management) */
