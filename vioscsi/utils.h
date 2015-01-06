@@ -21,6 +21,8 @@
 #include "evntrace.h"
 
 #define CHECKBIT(value, nbit) (((value) & (1 << (nbit))) != 0)
+#define CHECKFLAG(value, flag) (!!(value & (flag)))
+#define SETFLAG(value, flag) (value |= (flag))
 
 #if 0
 #define ENTER_FN() RhelDbgPrint(TRACE_LEVEL_VERBOSE, (("--> %s.\n"),__FUNCTION__))
