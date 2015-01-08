@@ -1,3 +1,21 @@
+Date    08 Jan 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm119
+
+Fixed bugs:
+
+BZ 1142737: interface status is '2', but expect status is '7' after set_link NIC off
+BZ 1177063: Balloon fixed bsod on s3/s4 when service was running.
+BZ 1159754: Nic device doesn't work when guest is running in IRQ mode 
+BZ 1067249: Balloon fix a regression caused by f542c3f1.
+
+BZ 1154419: NetKVM NetKVM fails HCK test for 2008R2, single CPU
+BZ 1169718: NetKVM Checking the length only on read
+
+BZ 1173323: NetKVM iperf stalls the NetKVM driver
+BZ 1154420: NetKVM ParaNdis6_SendNetBufferList
+BZ 1147239: NetKVM NetKVM with 2012R2 fails the HCK tests
+
 Date    04 Dec 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm116
