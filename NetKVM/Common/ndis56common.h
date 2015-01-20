@@ -41,7 +41,7 @@ extern "C"
 #include "osdep.h"
 
 #if NDIS_SUPPORT_NDIS630
-#define PARANDIS_SUPPORT_RSC 0 // Disable RSC support until support on the host side is ready
+#define PARANDIS_SUPPORT_RSC 1
 #endif
 
 #if NDIS_SUPPORT_NDIS620
