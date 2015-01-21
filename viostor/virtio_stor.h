@@ -125,6 +125,7 @@ typedef struct _ADAPTER_EXTENSION {
     BOOLEAN               sn_ok;
     blk_req               vbr;
     BOOLEAN               indirect;
+    ULONGLONG             lastLBA;
 #ifdef USE_STORPORT
     LIST_ENTRY            complete_list;
     STOR_DPC              completion_dpc;

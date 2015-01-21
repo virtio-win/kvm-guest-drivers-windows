@@ -876,6 +876,8 @@ VirtIoBuildIo(
     PADAPTER_EXTENSION    adaptExt;
     PRHEL_SRB_EXTENSION   srbExt;
     PSTOR_SCATTER_GATHER_LIST sgList;
+    ULONGLONG             lba;
+    ULONG                 blocks;
 
     cdb      = (PCDB)&Srb->Cdb[0];
     srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
@@ -909,6 +911,19 @@ VirtIoBuildIo(
         }
     }
 
+    lba = RhelGetLba(DeviceExtension, cdb);
+    blocks = (Srb->DataTransferLength + adaptExt->info.blk_size - 1) / adaptExt->info.blk_size;
+    if ((lba + blocks) > adaptExt->lastLBA) {
+        PSENSE_DATA senseBuffer = (PSENSE_DATA)Srb->SenseInfoBuffer;
+        Srb->SrbStatus = SRB_STATUS_ERROR | SRB_STATUS_AUTOSENSE_VALID;
+        Srb->ScsiStatus = SCSISTAT_GOOD;
+        senseBuffer->SenseKey = SCSI_SENSE_ILLEGAL_REQUEST;
+        senseBuffer->AdditionalSenseCode = SCSI_ADSENSE_ILLEGAL_BLOCK;
+        senseBuffer->AdditionalSenseCodeQualifier = 0;
+        CompleteSRB(DeviceExtension, Srb);
+        return FALSE;
+    }
+
     sgList = StorPortGetScatterGatherList(DeviceExtension, Srb);
     sgMaxElements = min((MAX_PHYS_SEGMENTS + 1), sgList->NumberOfElements);
     srbExt->Xfer = 0;
@@ -918,7 +933,7 @@ VirtIoBuildIo(
         srbExt->Xfer += sgList->List[i].Length;
     }
 
-    srbExt->vbr.out_hdr.sector = RhelGetLba(DeviceExtension, cdb);
+    srbExt->vbr.out_hdr.sector = lba;
     srbExt->vbr.out_hdr.ioprio = 0;
     srbExt->vbr.req            = (PVOID)Srb;
     srbExt->fua                = (cdb->CDB10.ForceUnitAccess == 1);
@@ -1266,6 +1281,7 @@ RhelScsiGetCapacity(
 
     blocksize = adaptExt->info.blk_size;
     lastLBA = adaptExt->info.capacity / (blocksize / SECTOR_SIZE) - 1;
+    adaptExt->lastLBA = lastLBA;
 
     if (Srb->DataTransferLength == sizeof(READ_CAPACITY_DATA)) {
         if (lastLBA > 0xFFFFFFFF) {
