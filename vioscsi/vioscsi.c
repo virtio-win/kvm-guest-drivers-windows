@@ -649,7 +649,7 @@ ENTER_FN();
     }
     else
     {
-        SendSRB(DeviceExtension, Srb);
+        return SendSRB(DeviceExtension, Srb);
     }
 EXIT_FN();
     return TRUE;
