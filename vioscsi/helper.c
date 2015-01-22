@@ -23,7 +23,7 @@
 #define SET_VA_PA()   va = NULL; pa = 0;
 #endif
 
-VOID
+BOOLEAN
 SendSRB(
     IN PVOID DeviceExtension,
     IN PSCSI_REQUEST_BLOCK Srb
@@ -75,6 +75,7 @@ ENTER_FN();
         kick = TRUE;
     }
     else {
+        RhelDbgPrint(TRACE_LEVEL_WARNING, ("%s Cant add packet to queue.\n", __FUNCTION__));
 //FIXME
     }
     if (adaptExt->num_queues > 1) {
@@ -89,6 +90,7 @@ ENTER_FN();
     if (kick == TRUE) {
         virtqueue_kick(adaptExt->vq[QueueNumber]);
     }
+    return kick;
 EXIT_FN();
 }
 
