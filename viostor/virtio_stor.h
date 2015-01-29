@@ -130,7 +130,6 @@ typedef struct _ADAPTER_EXTENSION {
     LIST_ENTRY            complete_list;
     STOR_DPC              completion_dpc;
     BOOLEAN               dpc_ok;
-    ULONG                 in_fly;
 #endif
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 

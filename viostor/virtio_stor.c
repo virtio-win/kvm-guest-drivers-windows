@@ -395,12 +395,6 @@ VirtIoFindAdapter(
 
     adaptExt->features = ReadVirtIODeviceRegister(adaptExt->vdev.addr + VIRTIO_PCI_HOST_FEATURES);
     ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WCACHE) ? TRUE : FALSE;
-    if (ConfigInfo->CachesData) {
-        u32 GuestFeatures = 0;
-        VirtIOFeatureEnable(GuestFeatures, VIRTIO_BLK_F_WCACHE);
-
-        VirtIODeviceWriteGuestFeatures(&adaptExt->vdev, GuestFeatures);
-    }
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_WCACHE = %d\n", ConfigInfo->CachesData));
 
     VirtIODeviceQueryQueueAllocation(&adaptExt->vdev, 0, &pageNum, &allocationSize);
@@ -468,10 +462,11 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
     if (adaptExt->uncachedExtensionVa)
     {
         ULONG len;
+        BOOLEAN useEventIndex = CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX);
         PHYSICAL_ADDRESS pa = ScsiPortGetPhysicalAddress(adaptExt, NULL, adaptExt->uncachedExtensionVa, &len);
         if (pa.QuadPart)
         {
-            vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, adaptExt->uncachedExtensionVa, len, NULL, FALSE);
+            vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, adaptExt->uncachedExtensionVa, len, NULL, useEventIndex);
         }
     }
 
@@ -508,6 +503,8 @@ VirtIoHwInitialize(
 
     PADAPTER_EXTENSION adaptExt;
     BOOLEAN            ret = FALSE;
+    ULONG              guestFeatures = 0;
+
 #ifdef MSI_SUPPORTED
     MESSAGE_INTERRUPT_INFORMATION msi_info;
 #endif
@@ -518,6 +515,41 @@ VirtIoHwInitialize(
 
     adaptExt->msix_vectors = 0;
 #ifdef MSI_SUPPORTED
+
+    if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX)) {
+        guestFeatures |= (1ul << VIRTIO_RING_F_EVENT_IDX);
+    }
+
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WCACHE)) {
+        guestFeatures |= (1ul << VIRTIO_BLK_F_WCACHE);
+    }
+
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BARRIER)) {
+        guestFeatures |= (1ul << VIRTIO_BLK_F_BARRIER);
+    }
+
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_RO)) {
+        guestFeatures |= (1ul << VIRTIO_BLK_F_RO);
+    }
+
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SIZE_MAX)) {
+        guestFeatures |= (1ul << VIRTIO_BLK_F_SIZE_MAX);
+    }
+
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SEG_MAX)) {
+        guestFeatures |= (1ul << VIRTIO_BLK_F_WCACHE);
+    }
+
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BLK_SIZE)) {
+        guestFeatures |= (1ul << VIRTIO_BLK_F_BLK_SIZE);
+    }
+
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_GEOMETRY)) {
+        guestFeatures |= (1ul << VIRTIO_BLK_F_GEOMETRY);
+    }
+
+    ScsiPortWritePortUlong((PULONG)(adaptExt->vdev.addr + VIRTIO_PCI_GUEST_FEATURES), guestFeatures);
+
     while(StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageId = %x\n", msi_info.MessageId));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageData = %x\n", msi_info.MessageData));
@@ -749,16 +781,10 @@ VirtIoInterrupt(
               }
            }
            if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
-#ifdef USE_STORPORT
-              --adaptExt->in_fly;
-#endif
               CompleteSRB(DeviceExtension, Srb);
            } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
               adaptExt->sn_ok = TRUE;
            } else if (Srb) {
-#ifdef USE_STORPORT
-              --adaptExt->in_fly;
-#endif
               srbExt = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
               if (srbExt->fua) {
                   RemoveEntryList(&vbr->list_entry);
@@ -779,11 +805,6 @@ VirtIoInterrupt(
         RhelGetDiskGeometry(DeviceExtension);
         isInterruptServiced = TRUE;
     }
-#ifdef USE_STORPORT
-    if (adaptExt->in_fly > 0) {
-        virtqueue_kick(adaptExt->vq);
-    }
-#endif
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s isInterruptServiced = %d\n", __FUNCTION__, isInterruptServiced));
     return isInterruptServiced;
 }
@@ -998,13 +1019,10 @@ VirtIoMSInterruptRoutine (
            }
         }
         if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
-            --adaptExt->in_fly;
             CompleteSRB(DeviceExtension, Srb);
         } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
             adaptExt->sn_ok = TRUE;
         } else if (Srb) {
-            --adaptExt->in_fly;
-
             srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
             if (srbExt->fua == TRUE) {
                RemoveEntryList(&vbr->list_entry);
@@ -1021,9 +1039,6 @@ VirtIoMSInterruptRoutine (
             }
         }
         isInterruptServiced = TRUE;
-    }
-    if (adaptExt->in_fly > 0) {
-        virtqueue_kick(adaptExt->vq);
     }
     return isInterruptServiced;
 }
