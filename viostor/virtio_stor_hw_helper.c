@@ -56,13 +56,7 @@ SynchronizedFlushRoutine(
                      &srbExt->vbr.sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->vbr, va, pa) >= 0) {
-#ifdef USE_STORPORT
-        if(++adaptExt->in_fly < 3) {
-#endif
            virtqueue_kick(adaptExt->vq);
-#ifdef USE_STORPORT
-        }
-#endif
         return TRUE;
     }
     virtqueue_kick(adaptExt->vq);
@@ -119,13 +113,7 @@ SynchronizedReadWriteRoutine(
                      srbExt->out, srbExt->in,
                      &srbExt->vbr, va, pa) >= 0){
         InsertTailList(&adaptExt->list_head, &srbExt->vbr.list_entry);
-#ifdef USE_STORPORT
-        if(++adaptExt->in_fly < 3) {
-#endif
            virtqueue_kick(adaptExt->vq);
-#ifdef USE_STORPORT
-        }
-#endif
         return TRUE;
     }
     virtqueue_kick(adaptExt->vq);
