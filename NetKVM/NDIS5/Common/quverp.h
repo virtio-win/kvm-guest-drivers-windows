@@ -33,9 +33,9 @@
 #ifdef VER_PRODUCTNAME_STR
 #undef VER_PRODUCTNAME_STR
 #endif
-#define VER_COMPANYNAME_STR             "Red Hat Inc."
+#define VER_COMPANYNAME_STR             "Red Hat, Inc."
 #define VER_LEGALTRADEMARKS_STR         ""
-#define VER_LEGALCOPYRIGHT_STR          "Copyright (C) 2008 Red Hat Inc."
+#define VER_LEGALCOPYRIGHT_STR          "Copyright (C) 2008-2015 Red Hat Inc."
 
 #ifndef _NT_TARGET_MAJ
 #include "NetKVM-2012.h"
