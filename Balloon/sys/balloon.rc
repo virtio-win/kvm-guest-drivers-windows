@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2009  Red Hat, Inc.
+ * Copyright (c) 2009-2015  Red Hat, Inc.
  *
  * File: balloon.rc
  *
@@ -24,10 +24,10 @@
 #undef  VER_PRODUCTMINORVERSION
 
 #undef  VER_LEGALCOPYRIGHT_STR
-#define VER_LEGALCOPYRIGHT_STR      "Copyright (C) 2009 Red Hat Inc."
+#define VER_LEGALCOPYRIGHT_STR      "Copyright (C) 2009-2015 Red Hat, Inc."
 
 #undef  VER_COMPANYNAME_STR
-#define VER_COMPANYNAME_STR         "Red Hat Inc."
+#define VER_COMPANYNAME_STR         "Red Hat, Inc."
 
 #undef  VER_PRODUCTNAME_STR
 #define VER_PRODUCTNAME_STR         "Red Hat VirtIO Balloon controller"
