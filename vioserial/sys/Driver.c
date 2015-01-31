@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2010  Red Hat, Inc.
+ * Copyright (c) 2010-2015 Red Hat, Inc.
  *
  * File: VIOSerialDriver.c
  *
