@@ -1,6 +1,6 @@
 @ Echo off
 REM -----------------------------------------------------------------------
-REM  Copyright (c) 2010  Red Hat, Inc.
+REM  Copyright (c) 2010-2015  Red Hat, Inc.
 REM
 REM  File: SDVTOOL.bat
 REM
