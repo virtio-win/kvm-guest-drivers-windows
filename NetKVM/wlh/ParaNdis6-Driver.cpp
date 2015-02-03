@@ -392,36 +392,6 @@ static VOID ParaNdis6_Unload(IN PDRIVER_OBJECT pDriverObject)
 }
 
 /**********************************************************
-    callback from asynchronous RECEIVE PAUSE
-***********************************************************/
-static void OnReceivePauseComplete(void *ctx)
-{
-    DEBUG_ENTRY(0);
-    // pause exit
-    PPARANDIS_ADAPTER pContext = (PPARANDIS_ADAPTER) ctx;
-    ParaNdis_DebugHistory(pContext, hopSysPause, NULL, 0, 0, 0);
-    NdisMPauseComplete(pContext->MiniportHandle);
-}
-
-/**********************************************************
-    callback from asynchronous SEND PAUSE
-***********************************************************/
-static void OnSendPauseComplete(void *ctx)
-{
-    PPARANDIS_ADAPTER pContext = (PPARANDIS_ADAPTER) ctx;
-    NDIS_STATUS status;
-    DEBUG_ENTRY(0);
-    status = ParaNdis6_ReceivePauseRestart(pContext, TRUE, OnReceivePauseComplete);
-    if (status != NDIS_STATUS_PENDING)
-    {
-        // pause exit
-        ParaNdis_DebugHistory(pContext, hopSysPause, NULL, 0, 0, 0);
-        NdisMPauseComplete(pContext->MiniportHandle);
-    }
-}
-
-
-/**********************************************************
 Required NDIS handler
 called at IRQL = PASSIVE_LEVEL
 Must pause RX and TX
@@ -439,10 +409,10 @@ static NDIS_STATUS ParaNdis6_Pause(
     UNREFERENCED_PARAMETER(miniportPauseParameters);
 
     ParaNdis_DebugHistory(pContext, hopSysPause, NULL, 1, 0, 0);
-    status = ParaNdis6_SendPauseRestart(pContext, TRUE, OnSendPauseComplete);
+    status = ParaNdis6_SendPauseRestart(pContext, TRUE);
     if (status != NDIS_STATUS_PENDING)
     {
-        status = ParaNdis6_ReceivePauseRestart(pContext, TRUE, OnReceivePauseComplete);
+        status = ParaNdis6_ReceivePauseRestart(pContext, TRUE);
     }
     DEBUG_EXIT_STATUS(0, status);
     if (status == STATUS_SUCCESS)
@@ -471,8 +441,8 @@ static NDIS_STATUS ParaNdis6_Restart(
     UNREFERENCED_PARAMETER(miniportRestartParameters);
 
     ParaNdis_DebugHistory(pContext, hopSysResume, NULL, 1, 0, 0);
-    ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
-    ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
+    ParaNdis6_SendPauseRestart(pContext, FALSE);
+    ParaNdis6_ReceivePauseRestart(pContext, FALSE);
 
     ParaNdis_DebugHistory(pContext, hopSysResume, NULL, 0, 0, 0);
     DEBUG_EXIT_STATUS(2, status);
@@ -526,32 +496,11 @@ static BOOLEAN ParaNdis6_CheckForHang(
     return ParaNdis_CheckForHang(pContext);
 }
 
-
-/**********************************************************
-    callback from asynchronous SEND PAUSE on reset
-***********************************************************/
-static void OnSendPauseCompleteOnReset(void *ctx)
-{
-    DEBUG_ENTRY(0);
-    PPARANDIS_ADAPTER pContext = (PPARANDIS_ADAPTER) ctx;
-    NdisSetEvent(&pContext->ResetEvent);
-}
-
-/**********************************************************
-    callback from asynchronous RECEIVE PAUSE on reset
-***********************************************************/
-static void OnReceivePauseCompleteOnReset(void *ctx)
-{
-    DEBUG_ENTRY(0);
-    PPARANDIS_ADAPTER pContext = (PPARANDIS_ADAPTER) ctx;
-    NdisSetEvent(&pContext->ResetEvent);
-}
-
 VOID ParaNdis_Suspend(PARANDIS_ADAPTER *pContext)
 {
     DPrintf(0, ("[%s]%s\n", __FUNCTION__, pContext->bFastSuspendInProcess ? "(Fast)" : ""));
     NdisResetEvent(&pContext->ResetEvent);
-    if (NDIS_STATUS_PENDING != ParaNdis6_SendPauseRestart(pContext, TRUE, OnSendPauseCompleteOnReset))
+    if (NDIS_STATUS_PENDING != ParaNdis6_SendPauseRestart(pContext, TRUE))
     {
         NdisSetEvent(&pContext->ResetEvent);
     }
@@ -559,7 +508,7 @@ VOID ParaNdis_Suspend(PARANDIS_ADAPTER *pContext)
     if (!pContext->bFastSuspendInProcess)
     {
         NdisResetEvent(&pContext->ResetEvent);
-        if (NDIS_STATUS_PENDING != ParaNdis6_ReceivePauseRestart(pContext, TRUE, OnReceivePauseCompleteOnReset))
+        if (NDIS_STATUS_PENDING != ParaNdis6_ReceivePauseRestart(pContext, TRUE))
         {
             NdisSetEvent(&pContext->ResetEvent);
         }
@@ -567,7 +516,7 @@ VOID ParaNdis_Suspend(PARANDIS_ADAPTER *pContext)
     }
     else
     {
-        ParaNdis6_ReceivePauseRestart(pContext, TRUE, NULL);
+        ParaNdis6_ReceivePauseRestart(pContext, TRUE);
     }
     DEBUG_EXIT_STATUS(0, 0);
 }
@@ -585,8 +534,8 @@ static void OnResetWorkItem(PVOID  WorkItemContext, NDIS_HANDLE  NdisIoWorkItemH
         ParaNdis_Suspend(pContext);
         ParaNdis_PowerOff(pContext);
         ParaNdis_PowerOn(pContext);
-        if (bSendRecieveActive) ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
-        if (bSendRecieveActive) ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
+        if (bSendRecieveActive) ParaNdis6_SendPauseRestart(pContext, FALSE);
+        if (bSendRecieveActive) ParaNdis6_ReceivePauseRestart(pContext, FALSE);
         pContext->bResetInProgress = FALSE;
 
         NdisFreeMemory(pwi, 0, 0);
@@ -638,8 +587,8 @@ VOID ParaNdis_Resume(PARANDIS_ADAPTER *pContext)
     DPrintf(0, ("[%s] %s\n", __FUNCTION__, pContext->bFastSuspendInProcess ? " Resuming TX and RX" : "(nothing to do)"));
     if (pContext->bFastSuspendInProcess)
     {
-        ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
-        ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
+        ParaNdis6_SendPauseRestart(pContext, FALSE);
+        ParaNdis6_ReceivePauseRestart(pContext, FALSE);
     }
 }
 

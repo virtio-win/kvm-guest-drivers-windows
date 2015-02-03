@@ -566,7 +566,6 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, PNET_BUFFER_LIST &NBLFailNow)
 
 bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
 {
-    ONPAUSECOMPLETEPROC CallbackToCall = nullptr;
     PNET_BUFFER_LIST pNBLFailNow = nullptr;
     PNET_BUFFER_LIST pNBLReturnNow = nullptr;
     bool bDoKick = false;
@@ -581,8 +580,6 @@ bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
 
                         if (!m_VirtQueue.HasPacketsInHW() && SRS_IN_TRANSITION_TO_DISABLE(m_Context->SendReceiveState))
                         {
-                            CallbackToCall = m_Context->SendPauseCompletionProc;
-                            m_Context->SendPauseCompletionProc = nullptr;
                             m_Context->SendReceiveState = srsDisabled;
                         }
                     }
@@ -598,11 +595,6 @@ bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
     {
         NdisMSendNetBufferListsComplete(m_Context->MiniportHandle, pNBLReturnNow,
                                         NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL);
-    }
-
-    if (CallbackToCall != nullptr)
-    {
-        CallbackToCall(m_Context);
     }
 
     return bDoKick;

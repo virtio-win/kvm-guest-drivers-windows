@@ -171,9 +171,6 @@ static const ULONG PARANDIS_PACKET_FILTERS =
     NDIS_PACKET_TYPE_PROMISCUOUS |
     NDIS_PACKET_TYPE_ALL_MULTICAST;
 
-typedef VOID (*ONPAUSECOMPLETEPROC)(VOID *);
-
-
 typedef enum _tagSendReceiveState
 {
     srsDisabled = 0,        // initial state
@@ -454,8 +451,6 @@ typedef struct _tagPARANDIS_ADAPTER
     tOurCounters            Counters;
     tOurCounters            Limits;
     tSendReceiveState       SendReceiveState;
-    ONPAUSECOMPLETEPROC     SendPauseCompletionProc;
-    ONPAUSECOMPLETEPROC     ReceivePauseCompletionProc;
 
     CNdisRWLock             m_PauseLock;
     CNdisRefCounter         m_packetPending;
