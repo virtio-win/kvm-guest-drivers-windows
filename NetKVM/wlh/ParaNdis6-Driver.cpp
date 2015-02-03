@@ -410,13 +410,12 @@ static NDIS_STATUS ParaNdis6_Pause(
 
     ParaNdis_DebugHistory(pContext, hopSysPause, NULL, 1, 0, 0);
     ParaNdis6_SendReceivePause(pContext);
-
     {
         CNdisPassiveWriteAutoLock(pContext->m_PauseLock);
 
         if (pContext->m_packetPending == 0)
         {
-            DPrintf(0, ("[%s] - No pending packets, pause succes", __FUNCTION__));
+            DPrintf(0, ("[%s] - No pending packets, pause immediate success", __FUNCTION__));
             pContext->SendReceiveState = srsDisabled;
             status = STATUS_SUCCESS;
         }
@@ -516,7 +515,6 @@ VOID ParaNdis_Suspend(PARANDIS_ADAPTER *pContext)
     NdisResetEvent(&pContext->ResetEvent);
 
     ParaNdis6_SendReceivePause(pContext);
-
     {
         CNdisPassiveWriteAutoLock(pContext->m_PauseLock);
 

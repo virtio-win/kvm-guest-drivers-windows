@@ -139,8 +139,6 @@ void CParaNdisRX::ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor)
     if (!pBuffersDescriptor)
         return;
 
-    m_Context->m_packetPending.Release();
-
     if (AddRxBufferToQueue(pBuffersDescriptor))
     {
         m_NetNofReceiveBuffers++;
@@ -169,7 +167,6 @@ void CParaNdisRX::ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor)
 
 void CParaNdisRX::ReuseReceiveBufferPowerOff(pRxNetDescriptor)
 {
-    m_Context->m_packetPending.Release();
 }
 
 VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
@@ -184,8 +181,6 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
         CCHAR nTargetReceiveQueueNum;
         GROUP_AFFINITY TargetAffinity;
         PROCESSOR_NUMBER TargetProcessor;
-
-        m_Context->m_packetPending.AddRef();
 
         m_NetNofReceiveBuffers--;
 
