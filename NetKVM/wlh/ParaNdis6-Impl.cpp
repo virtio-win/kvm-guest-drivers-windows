@@ -949,8 +949,7 @@ Return value:
 ***********************************************************/
 NDIS_STATUS ParaNdis6_ReceivePauseRestart(
     PARANDIS_ADAPTER *pContext,
-    BOOLEAN bPause,
-    ONPAUSECOMPLETEPROC Callback
+    BOOLEAN bPause
     )
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
@@ -963,7 +962,6 @@ NDIS_STATUS ParaNdis6_ReceivePauseRestart(
         if (pContext->m_packetPending != 0)
         {
             pContext->SendReceiveState = srsPausing;
-            pContext->ReceivePauseCompletionProc = Callback;
             status = NDIS_STATUS_PENDING;
         }
         else
@@ -1035,8 +1033,7 @@ Return value:
 ***********************************************************/
 NDIS_STATUS ParaNdis6_SendPauseRestart(
     PARANDIS_ADAPTER *pContext,
-    BOOLEAN bPause,
-    ONPAUSECOMPLETEPROC Callback
+    BOOLEAN bPause
 )
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
@@ -1050,7 +1047,6 @@ NDIS_STATUS ParaNdis6_SendPauseRestart(
                 CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
 
                 pContext->SendReceiveState = srsPausing;
-                pContext->SendPauseCompletionProc = Callback;
             }
 
             for (UINT i = 0; i < pContext->nPathBundles; i++)

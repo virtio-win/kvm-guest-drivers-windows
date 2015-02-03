@@ -1478,22 +1478,16 @@ VOID ParaNdis_ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescri
 
 VOID ParaNdis_TestPausing(PARANDIS_ADAPTER *pContext)
 {
-    ONPAUSECOMPLETEPROC callback = nullptr;
-
     if (pContext->m_packetPending == 0)
     {
         CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
 
-        if (pContext->m_packetPending == 0 && (SRS_IN_TRANSITION_TO_DISABLE(pContext->SendReceiveState) || pContext->ReceivePauseCompletionProc))
+        if (pContext->m_packetPending == 0 && (SRS_IN_TRANSITION_TO_DISABLE(pContext->SendReceiveState)))
         {
-            callback = pContext->ReceivePauseCompletionProc;
             pContext->SendReceiveState = srsDisabled;
-            pContext->ReceivePauseCompletionProc = NULL;
             ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 0, 0, 0);
         }
     }
-
-    if (callback) callback(pContext);
 }
 
 static __inline

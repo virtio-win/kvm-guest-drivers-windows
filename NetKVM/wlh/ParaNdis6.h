@@ -45,14 +45,12 @@ VOID ParaNdis6_ReturnNetBufferLists(
 
 NDIS_STATUS ParaNdis6_SendPauseRestart(
     PARANDIS_ADAPTER *pContext,
-    BOOLEAN bPause,
-    ONPAUSECOMPLETEPROC Callback
+    BOOLEAN bPause
     );
 
 NDIS_STATUS ParaNdis6_ReceivePauseRestart(
     PARANDIS_ADAPTER *pContext,
-    BOOLEAN bPause,
-    ONPAUSECOMPLETEPROC Callback
+    BOOLEAN bPause
     );
 
 /* returns number of buffers that have been sent */
