@@ -610,6 +610,11 @@ VOID ParaNdis_ReceiveQueueAddBuffer(
     PPARANDIS_RECEIVE_QUEUE pQueue,
     pRxNetDescriptor pBuffer);
 
+VOID ParaNdis_DecreasePending(
+    PARANDIS_ADAPTER *pContext,
+    PNET_BUFFER_LIST NBL,
+    LPCSTR caller);
+
 VOID ParaNdis_TestPausing(
     PARANDIS_ADAPTER *pContext);
 
