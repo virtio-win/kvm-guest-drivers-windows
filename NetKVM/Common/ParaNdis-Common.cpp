@@ -1182,7 +1182,7 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 
     do
     {
-        b = pContext->m_upstreamPacketPending != 0;
+        b = pContext->m_packetPending != 0;
 
         if (b)
         {
@@ -1480,11 +1480,11 @@ VOID ParaMdis_TestPausing(PARANDIS_ADAPTER *pContext)
 {
     ONPAUSECOMPLETEPROC callback = nullptr;
 
-    if (pContext->m_upstreamPacketPending == 0)
+    if (pContext->m_packetPending == 0)
     {
         CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
 
-        if (pContext->m_upstreamPacketPending == 0 && (pContext->ReceiveState == srsPausing || pContext->ReceivePauseCompletionProc))
+        if (pContext->m_packetPending == 0 && (pContext->ReceiveState == srsPausing || pContext->ReceivePauseCompletionProc))
         {
             callback = pContext->ReceivePauseCompletionProc;
             pContext->ReceiveState = srsDisabled;

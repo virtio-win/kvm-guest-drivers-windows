@@ -455,7 +455,7 @@ typedef struct _tagPARANDIS_ADAPTER
     ONPAUSECOMPLETEPROC     ReceivePauseCompletionProc;
 
     CNdisRWLock             m_PauseLock;
-    CNdisRefCounter         m_upstreamPacketPending;
+    CNdisRefCounter         m_packetPending;
 
     LONG                    ReuseBufferRegular;
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
