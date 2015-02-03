@@ -612,7 +612,7 @@ VOID ParaNdis_ReceiveQueueAddBuffer(
     PPARANDIS_RECEIVE_QUEUE pQueue,
     pRxNetDescriptor pBuffer);
 
-VOID ParaMdis_TestPausing(
+VOID ParaNdis_TestPausing(
     PARANDIS_ADAPTER *pContext);
 
 VOID ParaNdis_ProcessorNumberToGroupAffinity(
