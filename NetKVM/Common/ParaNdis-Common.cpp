@@ -1530,6 +1530,26 @@ VOID ParaNdis_TestPausing(PARANDIS_ADAPTER *pContext)
     }
 }
 
+VOID ParaNdis_DecreasePending(
+    PARANDIS_ADAPTER *pContext,
+    PNET_BUFFER_LIST NBL,
+    LPCSTR)
+{
+
+    while (NBL)
+    {
+        PNET_BUFFER NB = NET_BUFFER_LIST_FIRST_NB(NBL);
+
+        while (NB) {
+            pContext->m_packetPending.Release();
+            NB = NET_BUFFER_NEXT_NB(NB);
+        }
+        NBL = NET_BUFFER_LIST_NEXT_NBL(NBL);
+    }
+
+    ParaNdis_TestPausing(pContext);
+}
+
 static __inline
 pRxNetDescriptor ReceiveQueueGetBuffer(PPARANDIS_RECEIVE_QUEUE pQueue)
 {
