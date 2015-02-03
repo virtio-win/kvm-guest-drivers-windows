@@ -930,6 +930,7 @@ VOID ParaNdis6_ReturnNetBufferLists(
         NET_BUFFER_LIST_NEXT_NBL(pTemp) = NULL;
         NdisFreeNetBufferList(pTemp);
         pBuffersDescriptor->Queue->ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBuffersDescriptor);
+        pContext->m_packetPending.Release();
     }
     ParaNdis_TestPausing(pContext);
 }

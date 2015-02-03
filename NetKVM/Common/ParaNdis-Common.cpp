@@ -1243,6 +1243,7 @@ Parameters:
 ***********************************************************/
 VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 {
+    pContext->SendReceiveState = srsHalting;
     /* disable any interrupt generation */
     if (pContext->IODevice->addr)
     {
@@ -1696,6 +1697,7 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
             }
 
             bMoreDataInRing = pathBundle->rxPath.RestartQueue();
+            pContext->m_packetPending.AddRef(nIndicate);
         }
 
         if (nIndicate)
@@ -1706,9 +1708,6 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
                 nIndicate,
                 0);
         }
-
-        ParaNdis_TestPausing(pContext);
-
     } while (bMoreDataInRing);
 
     return res;
