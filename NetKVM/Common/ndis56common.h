@@ -177,9 +177,13 @@ typedef VOID (*ONPAUSECOMPLETEPROC)(VOID *);
 typedef enum _tagSendReceiveState
 {
     srsDisabled = 0,        // initial state
-    srsPausing,
-    srsEnabled
+    srsEnabled = 0x1,
+    srsPausing = 0x10,
+    srcResetting = 0x30,
+    srsHalting = 0x20
 } tSendReceiveState;
+
+#define SRS_IN_TRANSITION_TO_DISABLE(s) ((s) & 0xf0)
 
 typedef struct _tagAdapterResources
 {
