@@ -1484,10 +1484,10 @@ VOID ParaNdis_TestPausing(PARANDIS_ADAPTER *pContext)
     {
         CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
 
-        if (pContext->m_packetPending == 0 && (pContext->ReceiveState == srsPausing || pContext->ReceivePauseCompletionProc))
+        if (pContext->m_packetPending == 0 && (SRS_IN_TRANSITION_TO_DISABLE(pContext->SendReceiveState) || pContext->ReceivePauseCompletionProc))
         {
             callback = pContext->ReceivePauseCompletionProc;
-            pContext->ReceiveState = srsDisabled;
+            pContext->SendReceiveState = srsDisabled;
             pContext->ReceivePauseCompletionProc = NULL;
             ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 0, 0, 0);
         }
@@ -1569,7 +1569,7 @@ static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
             PNET_PACKET_INFO pPacketInfo = &pBufferDescriptor->PacketInfo;
 
             if( !pContext->bSurprizeRemoved &&
-                pContext->ReceiveState == srsEnabled &&
+                pContext->SendReceiveState == srsEnabled &&
                 pContext->bConnected &&
                 ShallPassPacket(pContext, pPacketInfo))
             {
@@ -2170,7 +2170,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
 
     // if bFastSuspendInProcess is set by Win8 power-off procedure
     // the ParaNdis_Suspend does fast Rx stop without waiting (=>srsPausing, if there are some RX packets in Ndis)
-    pContext->bFastSuspendInProcess = pContext->bNoPauseOnSuspend && pContext->ReceiveState == srsEnabled;
+    pContext->bFastSuspendInProcess = pContext->bNoPauseOnSuspend && pContext->SendReceiveState == srsEnabled;
     ParaNdis_Suspend(pContext);
 
     ParaNdis_RemoveDriverOKStatus(pContext);

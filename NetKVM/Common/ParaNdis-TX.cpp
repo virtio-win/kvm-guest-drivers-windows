@@ -579,11 +579,11 @@ bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
                     {
                         CNdisPassiveWriteAutoLock tLock(m_Context->m_PauseLock);
 
-                        if (!m_VirtQueue.HasPacketsInHW() && m_Context->SendState == srsPausing)
+                        if (!m_VirtQueue.HasPacketsInHW() && SRS_IN_TRANSITION_TO_DISABLE(m_Context->SendReceiveState))
                         {
                             CallbackToCall = m_Context->SendPauseCompletionProc;
                             m_Context->SendPauseCompletionProc = nullptr;
-                            m_Context->SendState = srsDisabled;
+                            m_Context->SendReceiveState = srsDisabled;
                         }
                     }
                  });
