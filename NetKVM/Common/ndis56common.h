@@ -453,8 +453,7 @@ typedef struct _tagPARANDIS_ADAPTER
     } extraStatistics;
     tOurCounters            Counters;
     tOurCounters            Limits;
-    tSendReceiveState       SendState;
-    tSendReceiveState       ReceiveState;
+    tSendReceiveState       SendReceiveState;
     ONPAUSECOMPLETEPROC     SendPauseCompletionProc;
     ONPAUSECOMPLETEPROC     ReceivePauseCompletionProc;
 

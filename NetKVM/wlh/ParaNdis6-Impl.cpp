@@ -962,20 +962,20 @@ NDIS_STATUS ParaNdis6_ReceivePauseRestart(
         ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 1, 0, 0);
         if (pContext->m_packetPending != 0)
         {
-            pContext->ReceiveState = srsPausing;
+            pContext->SendReceiveState = srsPausing;
             pContext->ReceivePauseCompletionProc = Callback;
             status = NDIS_STATUS_PENDING;
         }
         else
         {
             ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 0, 0, 0);
-            pContext->ReceiveState = srsDisabled;
+            pContext->SendReceiveState = srsDisabled;
         }
     }
     else
     {
         ParaNdis_DebugHistory(pContext, hopInternalReceiveResume, NULL, 0, 0, 0);
-        pContext->ReceiveState = srsEnabled;
+        pContext->SendReceiveState = srsEnabled;
     }
     return status;
 }
@@ -983,7 +983,7 @@ NDIS_STATUS ParaNdis6_ReceivePauseRestart(
 NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_FAILURE;
-    if (pContext->SendState != srsEnabled ) status = NDIS_STATUS_PAUSED;
+    if (pContext->SendReceiveState != srsEnabled ) status = NDIS_STATUS_PAUSED;
     if (!pContext->bConnected) status = NDIS_STATUS_MEDIA_DISCONNECTED;
     if (pContext->bSurprizeRemoved) status = NDIS_STATUS_NOT_ACCEPTED;
     // override NDIS_STATUS_PAUSED is there is a specific reason of implicit paused state
@@ -995,7 +995,7 @@ NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext)
 BOOLEAN ParaNdis_IsSendPossible(PARANDIS_ADAPTER *pContext)
 {
     BOOLEAN b;
-    b =  !pContext->bSurprizeRemoved && pContext->bConnected && pContext->SendState == srsEnabled;
+    b =  !pContext->bSurprizeRemoved && pContext->bConnected && pContext->SendReceiveState == srsEnabled;
     return b;
 }
 
@@ -1044,12 +1044,12 @@ NDIS_STATUS ParaNdis6_SendPauseRestart(
     if (bPause)
     {
         ParaNdis_DebugHistory(pContext, hopInternalSendPause, NULL, 1, 0, 0);
-        if (pContext->SendState == srsEnabled)
+        if (pContext->SendReceiveState == srsEnabled)
         {
             {
                 CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
 
-                pContext->SendState = srsPausing;
+                pContext->SendReceiveState = srsPausing;
                 pContext->SendPauseCompletionProc = Callback;
             }
 
@@ -1063,7 +1063,7 @@ NDIS_STATUS ParaNdis6_SendPauseRestart(
 
             if (status == NDIS_STATUS_SUCCESS)
             {
-                pContext->SendState = srsDisabled;
+                pContext->SendReceiveState = srsDisabled;
             }
         }
         if (status == NDIS_STATUS_SUCCESS)
@@ -1073,7 +1073,7 @@ NDIS_STATUS ParaNdis6_SendPauseRestart(
     }
     else
     {
-        pContext->SendState = srsEnabled;
+        pContext->SendReceiveState = srsEnabled;
         ParaNdis_DebugHistory(pContext, hopInternalSendResume, NULL, 0, 0, 0);
     }
     return status;

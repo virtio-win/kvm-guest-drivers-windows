@@ -578,16 +578,15 @@ static void OnResetWorkItem(PVOID  WorkItemContext, NDIS_HANDLE  NdisIoWorkItemH
     {
         tGeneralWorkItem *pwi = (tGeneralWorkItem *)WorkItemContext;
         PARANDIS_ADAPTER *pContext = pwi->pContext;
-        BOOLEAN bSendActive, bReceiveActive;
+        BOOLEAN bSendRecieveActive;
         DEBUG_ENTRY(0);
-        bSendActive = pContext->SendState == srsEnabled;
-        bReceiveActive = pContext->ReceiveState == srsEnabled;
+        bSendRecieveActive = pContext->SendReceiveState == srsEnabled;
         pContext->bResetInProgress = TRUE;
         ParaNdis_Suspend(pContext);
         ParaNdis_PowerOff(pContext);
         ParaNdis_PowerOn(pContext);
-        if (bSendActive) ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
-        if (bReceiveActive) ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
+        if (bSendRecieveActive) ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
+        if (bSendRecieveActive) ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
         pContext->bResetInProgress = FALSE;
 
         NdisFreeMemory(pwi, 0, 0);
