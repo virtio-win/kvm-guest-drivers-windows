@@ -1476,7 +1476,7 @@ VOID ParaNdis_ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescri
                                     &pQueue->Lock);
 }
 
-VOID ParaMdis_TestPausing(PARANDIS_ADAPTER *pContext)
+VOID ParaNdis_TestPausing(PARANDIS_ADAPTER *pContext)
 {
     ONPAUSECOMPLETEPROC callback = nullptr;
 
@@ -1653,7 +1653,7 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
                 0);
         }
 
-        ParaMdis_TestPausing(pContext);
+        ParaNdis_TestPausing(pContext);
 
     } while (bMoreDataInRing);
 
