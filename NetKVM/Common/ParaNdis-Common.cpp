@@ -1478,14 +1478,54 @@ VOID ParaNdis_ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescri
 
 VOID ParaNdis_TestPausing(PARANDIS_ADAPTER *pContext)
 {
+    BOOLEAN bPendingWaitOver = FALSE;
+    tSendReceiveState state = srsDisabled;
+
     if (pContext->m_packetPending == 0)
     {
-        CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
-
-        if (pContext->m_packetPending == 0 && (SRS_IN_TRANSITION_TO_DISABLE(pContext->SendReceiveState)))
         {
-            pContext->SendReceiveState = srsDisabled;
-            ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 0, 0, 0);
+            CNdisPassiveReadAutoLock tLock(pContext->m_PauseLock);
+
+            if (pContext->m_packetPending == 0 && SRS_IN_TRANSITION_TO_DISABLE(pContext->SendReceiveState))
+            {
+                bPendingWaitOver = TRUE;
+                DPrintf(0, ("[%s] In transition, state = 0x%x\n", __FUNCTION__, pContext->SendReceiveState));
+            }
+        }
+        if (bPendingWaitOver)
+        {
+            bPendingWaitOver = FALSE;
+            {
+                CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
+                if (pContext->m_packetPending == 0 && SRS_IN_TRANSITION_TO_DISABLE(pContext->SendReceiveState))
+                {
+                    DPrintf(0, ("[%s] Setting state to disabled\n", __FUNCTION__));
+                    state = pContext->SendReceiveState;
+                    pContext->SendReceiveState = srsDisabled;
+                    bPendingWaitOver = TRUE;
+                }
+            }
+
+            if (bPendingWaitOver)
+            {
+                DPrintf(0, ("[%s] Pending packet exhausted, state = 0x%x\n", __FUNCTION__, state));
+
+                ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 0, 0, 0);
+                switch (state)
+                {
+                case srsPausing:
+                    DPrintf(0, ("[%s] Pause complete\n", __FUNCTION__));
+                    NdisMPauseComplete(pContext->MiniportHandle);
+                    break;
+                case srcResetting:
+                    DPrintf(0, ("[%s] Halt complete, setting the event\n", __FUNCTION__));
+                    NdisSetEvent(&pContext->ResetEvent);
+                    break;
+                default:
+                    DPrintf(0, ("[%s] Do nothing\n", __FUNCTION__));
+                    break;
+                }
+            }
         }
     }
 }
