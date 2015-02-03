@@ -402,18 +402,32 @@ static NDIS_STATUS ParaNdis6_Pause(
         NDIS_HANDLE                         miniportAdapterContext,
         PNDIS_MINIPORT_PAUSE_PARAMETERS     miniportPauseParameters)
 {
-    NDIS_STATUS  status;
+    NDIS_STATUS  status = STATUS_SUCCESS;
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     DEBUG_ENTRY(0);
 
     UNREFERENCED_PARAMETER(miniportPauseParameters);
 
     ParaNdis_DebugHistory(pContext, hopSysPause, NULL, 1, 0, 0);
-    status = ParaNdis6_SendPauseRestart(pContext, TRUE);
-    if (status != NDIS_STATUS_PENDING)
+    ParaNdis6_SendReceivePause(pContext);
+
     {
-        status = ParaNdis6_ReceivePauseRestart(pContext, TRUE);
+        CNdisPassiveWriteAutoLock(pContext->m_PauseLock);
+
+        if (pContext->m_packetPending == 0)
+        {
+            DPrintf(0, ("[%s] - No pending packets, pause succes", __FUNCTION__));
+            pContext->SendReceiveState = srsDisabled;
+            status = STATUS_SUCCESS;
+        }
+        else
+        {
+            DPrintf(0, ("[%s] - Pending packets, pause pending", __FUNCTION__));
+            pContext->SendReceiveState = srsPausing;
+            status = STATUS_PENDING;
+        }
     }
+
     DEBUG_EXIT_STATUS(0, status);
     if (status == STATUS_SUCCESS)
     {
@@ -441,8 +455,8 @@ static NDIS_STATUS ParaNdis6_Restart(
     UNREFERENCED_PARAMETER(miniportRestartParameters);
 
     ParaNdis_DebugHistory(pContext, hopSysResume, NULL, 1, 0, 0);
-    ParaNdis6_SendPauseRestart(pContext, FALSE);
-    ParaNdis6_ReceivePauseRestart(pContext, FALSE);
+
+    pContext->SendReceiveState = srsEnabled;
 
     ParaNdis_DebugHistory(pContext, hopSysResume, NULL, 0, 0, 0);
     DEBUG_EXIT_STATUS(2, status);
@@ -500,24 +514,25 @@ VOID ParaNdis_Suspend(PARANDIS_ADAPTER *pContext)
 {
     DPrintf(0, ("[%s]%s\n", __FUNCTION__, pContext->bFastSuspendInProcess ? "(Fast)" : ""));
     NdisResetEvent(&pContext->ResetEvent);
-    if (NDIS_STATUS_PENDING != ParaNdis6_SendPauseRestart(pContext, TRUE))
+
+    ParaNdis6_SendReceivePause(pContext);
+
     {
-        NdisSetEvent(&pContext->ResetEvent);
-    }
-    NdisWaitEvent(&pContext->ResetEvent, 0);
-    if (!pContext->bFastSuspendInProcess)
-    {
-        NdisResetEvent(&pContext->ResetEvent);
-        if (NDIS_STATUS_PENDING != ParaNdis6_ReceivePauseRestart(pContext, TRUE))
+        CNdisPassiveWriteAutoLock(pContext->m_PauseLock);
+
+        if (pContext->m_packetPending == 0)
         {
             NdisSetEvent(&pContext->ResetEvent);
+            pContext->SendReceiveState = srsDisabled;
         }
-        NdisWaitEvent(&pContext->ResetEvent, 0);
+        else
+        {
+            pContext->SendReceiveState = srcResetting;
+        }
     }
-    else
-    {
-        ParaNdis6_ReceivePauseRestart(pContext, TRUE);
-    }
+
+    NdisWaitEvent(&pContext->ResetEvent, 0);
+
     DEBUG_EXIT_STATUS(0, 0);
 }
 
@@ -527,16 +542,16 @@ static void OnResetWorkItem(PVOID  WorkItemContext, NDIS_HANDLE  NdisIoWorkItemH
     {
         tGeneralWorkItem *pwi = (tGeneralWorkItem *)WorkItemContext;
         PARANDIS_ADAPTER *pContext = pwi->pContext;
-        BOOLEAN bSendRecieveActive;
+        BOOLEAN bSendReceiveEnabled = pContext->SendReceiveState == srsEnabled;
         DEBUG_ENTRY(0);
-        bSendRecieveActive = pContext->SendReceiveState == srsEnabled;
         pContext->bResetInProgress = TRUE;
         ParaNdis_Suspend(pContext);
         ParaNdis_PowerOff(pContext);
         ParaNdis_PowerOn(pContext);
-        if (bSendRecieveActive) ParaNdis6_SendPauseRestart(pContext, FALSE);
-        if (bSendRecieveActive) ParaNdis6_ReceivePauseRestart(pContext, FALSE);
         pContext->bResetInProgress = FALSE;
+
+        if (bSendReceiveEnabled)
+            pContext->SendReceiveState = srsEnabled;
 
         NdisFreeMemory(pwi, 0, 0);
         NdisFreeIoWorkItem(NdisIoWorkItemHandle);
@@ -587,8 +602,7 @@ VOID ParaNdis_Resume(PARANDIS_ADAPTER *pContext)
     DPrintf(0, ("[%s] %s\n", __FUNCTION__, pContext->bFastSuspendInProcess ? " Resuming TX and RX" : "(nothing to do)"));
     if (pContext->bFastSuspendInProcess)
     {
-        ParaNdis6_SendPauseRestart(pContext, FALSE);
-        ParaNdis6_ReceivePauseRestart(pContext, FALSE);
+        pContext->SendReceiveState = srsEnabled;
     }
 }
 
