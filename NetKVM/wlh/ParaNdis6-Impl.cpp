@@ -960,7 +960,7 @@ NDIS_STATUS ParaNdis6_ReceivePauseRestart(
         CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
 
         ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 1, 0, 0);
-        if (pContext->m_upstreamPacketPending != 0)
+        if (pContext->m_packetPending != 0)
         {
             pContext->ReceiveState = srsPausing;
             pContext->ReceivePauseCompletionProc = Callback;
