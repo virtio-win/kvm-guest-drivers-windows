@@ -1,0 +1,45 @@
+TARGETNAME=pvpanic
+TARGETTYPE=DRIVER
+
+TARGET_DESTINATION=wdf
+
+KMDF_VERSION_MAJOR=1
+
+MSC_WARNING_LEVEL=-W4 -WX
+
+INCLUDES = $(INCLUDES);
+
+TARGETLIBS=$(TARGETLIBS) \
+	$(DDK_LIB_PATH)\ntstrsafe.lib
+
+SOURCES= \
+	pvpanic.c \
+	power.c \
+	bugcheck.c \
+	pvpanic.rc
+
+INF_NAME=pvpanic
+
+NTTARGETFILES=$(OBJ_PATH)\$(O)\$(INF_NAME).inf
+
+ENABLE_EVENT_TRACING=1
+
+!IFDEF ENABLE_EVENT_TRACING
+
+C_DEFINES = $(C_DEFINES) -DEVENT_TRACING
+
+#
+# Generate WPP tracing code
+# $(SOURCES)   -- run software preprocessor on files listed in SOURCES
+# -km          -- use kernel mode
+# -func        -- define function we'll use for tracing
+#                 This would map all TraceEvents calls to 
+#                 DoTraceMessage.
+#
+RUN_WPP= $(SOURCES) \
+         -km \
+         -func:TraceEvents(LEVEL,FLAGS,MSG,...) \
+         -func:Hexdump((LEVEL,FLAGS,MSG,...)) \
+         -gen:{km-WdfDefault.tpl}*.tmh
+
+!ENDIF

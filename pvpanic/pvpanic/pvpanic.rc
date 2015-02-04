@@ -1,0 +1,62 @@
+/*
+ * Copyright (C) 2015 Red Hat, Inc.
+ *
+ * This software is licensed under the GNU General Public License,
+ * version 2 (GPLv2) (see COPYING for details), subject to the following
+ * clarification.
+ *
+ * With respect to binaries built using the Microsoft(R) Windows Driver
+ * Kit (WDK), GPLv2 does not extend to any code contained in or derived
+ * from the WDK ("WDK Code"). As to WDK Code, by using or distributing
+ * such binaries you agree to be bound by the Microsoft Software License
+ * Terms for the WDK. All WDK Code is considered by the GPLv2 licensors
+ * to qualify for the special exception stated in section 3 of GPLv2
+ * (commonly known as the system library exception).
+ *
+ * There is NO WARRANTY for this software, express or implied,
+ * including the implied warranties of NON-INFRINGEMENT, TITLE,
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * Refer to the LICENSE file for full details of the license.
+ *
+ * Written By: Gal Hammer <ghammer@redhat.com>
+ *
+ */
+
+#include <windows.h>
+
+#include <windows.h>
+#include <ntverp.h>
+
+#define VER_FILETYPE                VFT_DRV
+#define VER_FILESUBTYPE             VFT2_DRV_SYSTEM
+#define VER_FILEDESCRIPTION_STR     "Red Hat PVPanic Driver"
+#define VER_INTERNALNAME_STR        "pvpanic.sys"
+#define VER_ORIGINALFILENAME_STR    "pvpanic.sys"
+
+#undef  VER_PRODUCTBUILD
+#undef  VER_PRODUCTBUILD_QFE
+#undef  VER_PRODUCTMAJORVERSION
+#undef  VER_PRODUCTMINORVERSION
+
+#undef  VER_LEGALCOPYRIGHT_STR
+#define VER_LEGALCOPYRIGHT_STR      "Copyright (C) 2015 Red Hat Inc."
+
+#undef  VER_COMPANYNAME_STR
+#define VER_COMPANYNAME_STR         "Red Hat Inc."
+
+#undef  VER_PRODUCTNAME_STR
+#define VER_PRODUCTNAME_STR         "QEMU PVPanic Device"
+
+#define VER_LANGNEUTRAL
+
+#ifndef _NT_TARGET_MAJ
+#include "..\2012-defines.h"
+#endif
+
+#define VER_PRODUCTBUILD                _MAJORVERSION_
+#define VER_PRODUCTBUILD_QFE            _MINORVERSION_
+#define VER_PRODUCTMAJORVERSION         _NT_TARGET_MAJ
+#define VER_PRODUCTMINORVERSION         _NT_TARGET_MIN
+
+#include "common.ver"
