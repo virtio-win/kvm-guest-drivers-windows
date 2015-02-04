@@ -1,0 +1,81 @@
+
+[Version]
+Signature       = "$WINDOWS NT$"
+Class           = System
+ClassGuid       = {4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider        = %RedHatMfg%
+CatalogFile     = pvpanic.cat
+PnpLockdown     = 1
+DriverVer       = 02/20/2015,1.0.0.0
+
+[DestinationDirs]
+DefaultDestDir = 12
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+pvpanic.sys = 1,,
+
+; ---------------
+; Install Section
+; ---------------
+
+[Manufacturer]
+%RedHatMfg% = RedHat,NT$ARCH$
+
+[RedHat.NT$ARCH$]
+%PVPanic.DeviceDesc% = PVPanic_Device, ACPI\QEMU0001
+
+[PVPanic_Device.NT]
+CopyFiles = PVPanic_CopyFiles
+
+[PVPanic_CopyFiles]
+pvpanic.sys
+
+; --------------------
+; Service Installation
+; --------------------
+
+[PVPanic_Device.NT.Services]
+AddService = PVPanic,0x00000002,PVPanic_Service_Install
+
+[PVPanic_Service_Install]
+DisplayName    = %PVPanic.Service%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\pvpanic.sys
+LoadOrderGroup = Extended Base
+
+; ----------------
+; WDF Installation
+; ----------------
+
+[DestinationDirs]
+PVPanic_Device_CoInstaller_CopyFiles = 11
+
+[PVPanic_Device.NT.CoInstallers]
+AddReg=PVPanic_Device_CoInstaller_AddReg
+CopyFiles=PVPanic_Device_CoInstaller_CopyFiles
+
+[PVPanic_Device_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[PVPanic_Device_CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[SourceDisksFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
+
+[PVPanic_Device.NT.Wdf]
+KmdfService = PVPanic, PVPanic_wdfsect
+
+[PVPanic_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[Strings]
+RedHatMfg           = "Red Hat, Inc."
+DiskName            = "QEMU PVPanic Installation Disk"
+PVPanic.DeviceDesc  = "QEMU PVPanic Device"
+PVPanic.Service     = "QEMU PVPanic Service"
