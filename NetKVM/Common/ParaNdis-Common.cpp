@@ -685,7 +685,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
         }
 
         InitializeMAC(pContext, CurrentMAC);
-
         pContext->bUseMergedBuffers = AckFeature(pContext, VIRTIO_NET_F_MRG_RXBUF);
         pContext->nVirtioHeaderSize = (pContext->bUseMergedBuffers) ? sizeof(virtio_net_hdr_ext) : sizeof(virtio_net_hdr_basic);
         pContext->bDoPublishIndices = AckFeature(pContext, VIRTIO_RING_F_EVENT_IDX);
@@ -751,12 +750,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
 void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p)
 {
-    ULONG i;
-    for(i = 0; i < p->PagesAllocated; i++)
-    {
-        ParaNdis_FreePhysicalMemory(pContext, &p->PhysicalPages[i]);
-    }
-
+    UNREFERENCED_PARAMETER(pContext);
     if(p->BufferSGArray) NdisFreeMemory(p->BufferSGArray, 0, 0);
     if(p->PhysicalPages) NdisFreeMemory(p->PhysicalPages, 0, 0);
     NdisFreeMemory(p, 0, 0);
