@@ -326,6 +326,10 @@ static NDIS_STATUS ParaNdis6_Initialize(
 #if PARANDIS_SUPPORT_RSS
         pContext->RSSParameters.rwLock.~CNdisRWLock();
 #endif
+        pContext->m_PauseLock.~CNdisRWLock();
+
+        if (pContext->IODevice != nullptr)
+            NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->IODevice, PARANDIS_MEMORY_TAG);
 
         NdisFreeMemory(pContext, 0, 0);
         pContext = NULL;
