@@ -26,11 +26,7 @@ public:
     {
         if (regular)
         {
-            ReuseReceiveBufferRegular(pBuffersDescriptor);
-        }
-        else
-        {
-            ReuseReceiveBufferPowerOff(pBuffersDescriptor);
+            ReuseReceiveBuffer(pBuffersDescriptor);
         }
     }
 
@@ -45,8 +41,7 @@ private:
 
     UINT m_nReusedRxBuffersCounter, m_nReusedRxBuffersLimit;
 
-    void ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor);
-    void ReuseReceiveBufferPowerOff(pRxNetDescriptor pBuffersDescriptor);
+    void ReuseReceiveBuffer(pRxNetDescriptor pBuffersDescriptor);
 
 private:
     int PrepareReceiveBuffers();

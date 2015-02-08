@@ -132,7 +132,7 @@ void CParaNdisRX::FreeRxDescriptorsFromList()
     }
 }
 
-void CParaNdisRX::ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor)
+void CParaNdisRX::ReuseReceiveBuffer(pRxNetDescriptor pBuffersDescriptor)
 {
     DEBUG_ENTRY(4);
 
@@ -163,10 +163,6 @@ void CParaNdisRX::ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor)
         ParaNdis_FreeRxBufferDescriptor(m_Context, pBuffersDescriptor);
         m_Context->NetMaxReceiveBuffers--;
     }
-}
-
-void CParaNdisRX::ReuseReceiveBufferPowerOff(pRxNetDescriptor)
-{
 }
 
 VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
