@@ -331,6 +331,16 @@ static NDIS_STATUS ParaNdis6_Initialize(
         if (pContext->IODevice != nullptr)
             NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->IODevice, PARANDIS_MEMORY_TAG);
 
+        if (pContext->ReceiveQueuesInitialized)
+        {
+            ULONG i;
+
+            for (i = 0; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
+            {
+                NdisFreeSpinLock(&pContext->ReceiveQueues[i].Lock);
+            }
+        }
+
         NdisFreeMemory(pContext, 0, 0);
         pContext = NULL;
     }
