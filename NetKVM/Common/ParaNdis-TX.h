@@ -229,6 +229,11 @@ public:
     //TODO: Needs review
     bool DoPendingTasks(bool IsInterrupt);
 
+    bool QueueHasPacketInHW()
+    {
+        return m_VirtQueue.HasPacketsInHW();
+    }
+
 private:
 
     //TODO: Needs review

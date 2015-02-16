@@ -579,7 +579,9 @@ bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
                     {
                         CNdisPassiveWriteAutoLock tLock(m_Context->m_PauseLock);
 
-                        if (!m_VirtQueue.HasPacketsInHW() && m_Context->SendState == srsPausing)
+                        NdisDprAcquireSpinLock(&m_Context->m_CompletionLock);
+
+                        if (m_Context->SendState == srsPausing && !ParaNdis_HasPacketsInHW(m_Context))
                         {
                             CallbackToCall = m_Context->SendPauseCompletionProc;
                             m_Context->SendPauseCompletionProc = nullptr;
@@ -599,6 +601,8 @@ bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
         NdisMSendNetBufferListsComplete(m_Context->MiniportHandle, pNBLReturnNow,
                                         NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL);
     }
+
+    NdisDprReleaseSpinLock(&m_Context->m_CompletionLock);
 
     if (CallbackToCall != nullptr)
     {
