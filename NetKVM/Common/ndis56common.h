@@ -171,16 +171,15 @@ static const ULONG PARANDIS_PACKET_FILTERS =
     NDIS_PACKET_TYPE_PROMISCUOUS |
     NDIS_PACKET_TYPE_ALL_MULTICAST;
 
+typedef VOID (*ONPAUSECOMPLETEPROC)(VOID *);
+
+
 typedef enum _tagSendReceiveState
 {
     srsDisabled = 0,        // initial state
-    srsEnabled = 0x1,
-    srsPausing = 0x10,
-    srcResetting = 0x30,
-    srsHalting = 0x20
+    srsPausing,
+    srsEnabled
 } tSendReceiveState;
-
-#define SRS_IN_TRANSITION_TO_DISABLE(s) ((s) & 0xf0)
 
 typedef struct _tagAdapterResources
 {
@@ -450,10 +449,13 @@ typedef struct _tagPARANDIS_ADAPTER
     } extraStatistics;
     tOurCounters            Counters;
     tOurCounters            Limits;
-    tSendReceiveState       SendReceiveState;
+    tSendReceiveState       SendState;
+    tSendReceiveState       ReceiveState;
+    ONPAUSECOMPLETEPROC     SendPauseCompletionProc;
+    ONPAUSECOMPLETEPROC     ReceivePauseCompletionProc;
 
     CNdisRWLock             m_PauseLock;
-    CNdisRefCounter         m_packetPending;
+    CNdisRefCounter         m_upstreamPacketPending;
 
     LONG                    ReuseBufferRegular;
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
@@ -609,11 +611,6 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext);
 VOID ParaNdis_ReceiveQueueAddBuffer(
     PPARANDIS_RECEIVE_QUEUE pQueue,
     pRxNetDescriptor pBuffer);
-
-VOID ParaNdis_DecreasePending(
-    PARANDIS_ADAPTER *pContext,
-    PNET_BUFFER_LIST NBL,
-    LPCSTR caller);
 
 VOID ParaNdis_TestPausing(
     PARANDIS_ADAPTER *pContext);

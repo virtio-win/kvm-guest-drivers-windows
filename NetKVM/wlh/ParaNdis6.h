@@ -43,9 +43,17 @@ VOID ParaNdis6_ReturnNetBufferLists(
     PNET_BUFFER_LIST pNBL, ULONG returnFlags);
 
 
-NDIS_STATUS ParaNdis6_SendReceivePause(
-    PARANDIS_ADAPTER *pContext
-);
+NDIS_STATUS ParaNdis6_SendPauseRestart(
+    PARANDIS_ADAPTER *pContext,
+    BOOLEAN bPause,
+    ONPAUSECOMPLETEPROC Callback
+    );
+
+NDIS_STATUS ParaNdis6_ReceivePauseRestart(
+    PARANDIS_ADAPTER *pContext,
+    BOOLEAN bPause,
+    ONPAUSECOMPLETEPROC Callback
+    );
 
 /* returns number of buffers that have been sent */
 UINT ParaNdis6_CopyDataFromSingleNBL(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST pNBL);

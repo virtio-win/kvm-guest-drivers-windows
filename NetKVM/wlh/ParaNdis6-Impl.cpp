@@ -930,15 +930,60 @@ VOID ParaNdis6_ReturnNetBufferLists(
         NET_BUFFER_LIST_NEXT_NBL(pTemp) = NULL;
         NdisFreeNetBufferList(pTemp);
         pBuffersDescriptor->Queue->ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBuffersDescriptor);
-        pContext->m_packetPending.Release();
     }
     ParaNdis_TestPausing(pContext);
+}
+
+/**********************************************************
+Pauses of restarts RX activity.
+Restart is immediate, pause may be delayed until
+NDIS returns all the indicated NBL
+
+Parameters:
+    context
+    bPause 1/0 - pause or restart
+    ONPAUSECOMPLETEPROC Callback to be called when PAUSE finished
+Return value:
+    SUCCESS if finished synchronously
+    PENDING if not, then callback will be called
+***********************************************************/
+NDIS_STATUS ParaNdis6_ReceivePauseRestart(
+    PARANDIS_ADAPTER *pContext,
+    BOOLEAN bPause,
+    ONPAUSECOMPLETEPROC Callback
+    )
+{
+    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
+
+    if (bPause)
+    {
+        CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
+
+        ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 1, 0, 0);
+        if (pContext->m_upstreamPacketPending != 0)
+        {
+            pContext->ReceiveState = srsPausing;
+            pContext->ReceivePauseCompletionProc = Callback;
+            status = NDIS_STATUS_PENDING;
+        }
+        else
+        {
+            ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 0, 0, 0);
+            pContext->ReceiveState = srsDisabled;
+        }
+    }
+    else
+    {
+        ParaNdis_DebugHistory(pContext, hopInternalReceiveResume, NULL, 0, 0, 0);
+        pContext->ReceiveState = srsEnabled;
+    }
+    return status;
 }
 
 NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_FAILURE;
-    if (pContext->SendReceiveState != srsEnabled ) status = NDIS_STATUS_PAUSED;
+    if (pContext->SendState != srsEnabled ) status = NDIS_STATUS_PAUSED;
     if (!pContext->bConnected) status = NDIS_STATUS_MEDIA_DISCONNECTED;
     if (pContext->bSurprizeRemoved) status = NDIS_STATUS_NOT_ACCEPTED;
     // override NDIS_STATUS_PAUSED is there is a specific reason of implicit paused state
@@ -950,7 +995,7 @@ NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext)
 BOOLEAN ParaNdis_IsSendPossible(PARANDIS_ADAPTER *pContext)
 {
     BOOLEAN b;
-    b =  !pContext->bSurprizeRemoved && pContext->bConnected && pContext->SendReceiveState == srsEnabled;
+    b =  !pContext->bSurprizeRemoved && pContext->bConnected && pContext->SendState == srsEnabled;
     return b;
 }
 
@@ -982,31 +1027,54 @@ we return all the NBLs to NDIS
 
 Parameters:
     context
+    bPause 1/0 - pause or restart
+    ONPAUSECOMPLETEPROC Callback to be called when PAUSE finished
 Return value:
     SUCCESS if finished synchronously
     PENDING if not, then callback will be called later
 ***********************************************************/
-NDIS_STATUS ParaNdis6_SendReceivePause(
-    PARANDIS_ADAPTER *pContext
+NDIS_STATUS ParaNdis6_SendPauseRestart(
+    PARANDIS_ADAPTER *pContext,
+    BOOLEAN bPause,
+    ONPAUSECOMPLETEPROC Callback
 )
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     DEBUG_ENTRY(4);
-
-    ParaNdis_DebugHistory(pContext, hopInternalSendPause, NULL, 1, 0, 0);
-    if (pContext->SendReceiveState == srsEnabled)
+    if (bPause)
     {
-        for (UINT i = 0; i < pContext->nPathBundles; i++)
+        ParaNdis_DebugHistory(pContext, hopInternalSendPause, NULL, 1, 0, 0);
+        if (pContext->SendState == srsEnabled)
         {
-            pContext->pPathBundles[i].txPath.Pause();
             {
-                status = NDIS_STATUS_PENDING;
+                CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
+
+                pContext->SendState = srsPausing;
+                pContext->SendPauseCompletionProc = Callback;
+            }
+
+            for (UINT i = 0; i < pContext->nPathBundles; i++)
+            {
+                if (!pContext->pPathBundles[i].txPath.Pause())
+                {
+                    status = NDIS_STATUS_PENDING;
+                }
+            }
+
+            if (status == NDIS_STATUS_SUCCESS)
+            {
+                pContext->SendState = srsDisabled;
             }
         }
+        if (status == NDIS_STATUS_SUCCESS)
+        {
+            ParaNdis_DebugHistory(pContext, hopInternalSendPause, NULL, 0, 0, 0);
+        }
     }
-    if (status == NDIS_STATUS_SUCCESS)
+    else
     {
-        ParaNdis_DebugHistory(pContext, hopInternalSendPause, NULL, 0, 0, 0);
+        pContext->SendState = srsEnabled;
+        ParaNdis_DebugHistory(pContext, hopInternalSendResume, NULL, 0, 0, 0);
     }
     return status;
 }

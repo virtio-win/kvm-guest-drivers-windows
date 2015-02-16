@@ -1182,7 +1182,7 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 
     do
     {
-        b = pContext->m_packetPending != 0;
+        b = pContext->m_upstreamPacketPending != 0;
 
         if (b)
         {
@@ -1243,7 +1243,6 @@ Parameters:
 ***********************************************************/
 VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 {
-    pContext->SendReceiveState = srsHalting;
     /* disable any interrupt generation */
     if (pContext->IODevice->addr)
     {
@@ -1479,76 +1478,22 @@ VOID ParaNdis_ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescri
 
 VOID ParaNdis_TestPausing(PARANDIS_ADAPTER *pContext)
 {
-    BOOLEAN bPendingWaitOver = FALSE;
-    tSendReceiveState state = srsDisabled;
+    ONPAUSECOMPLETEPROC callback = nullptr;
 
-    if (pContext->m_packetPending == 0)
+    if (pContext->m_upstreamPacketPending == 0)
     {
+        CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
+
+        if (pContext->m_upstreamPacketPending == 0 && (pContext->ReceiveState == srsPausing || pContext->ReceivePauseCompletionProc))
         {
-            CNdisPassiveReadAutoLock tLock(pContext->m_PauseLock);
-
-            if (pContext->m_packetPending == 0 && SRS_IN_TRANSITION_TO_DISABLE(pContext->SendReceiveState))
-            {
-                bPendingWaitOver = TRUE;
-                DPrintf(0, ("[%s] In transition, state = 0x%x\n", __FUNCTION__, pContext->SendReceiveState));
-            }
-        }
-        if (bPendingWaitOver)
-        {
-            bPendingWaitOver = FALSE;
-            {
-                CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
-                if (pContext->m_packetPending == 0 && SRS_IN_TRANSITION_TO_DISABLE(pContext->SendReceiveState))
-                {
-                    DPrintf(0, ("[%s] Setting state to disabled\n", __FUNCTION__));
-                    state = pContext->SendReceiveState;
-                    pContext->SendReceiveState = srsDisabled;
-                    bPendingWaitOver = TRUE;
-                }
-            }
-
-            if (bPendingWaitOver)
-            {
-                DPrintf(0, ("[%s] Pending packet exhausted, state = 0x%x\n", __FUNCTION__, state));
-
-                ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 0, 0, 0);
-                switch (state)
-                {
-                case srsPausing:
-                    DPrintf(0, ("[%s] Pause complete\n", __FUNCTION__));
-                    NdisMPauseComplete(pContext->MiniportHandle);
-                    break;
-                case srcResetting:
-                    DPrintf(0, ("[%s] Halt complete, setting the event\n", __FUNCTION__));
-                    NdisSetEvent(&pContext->ResetEvent);
-                    break;
-                default:
-                    DPrintf(0, ("[%s] Do nothing\n", __FUNCTION__));
-                    break;
-                }
-            }
+            callback = pContext->ReceivePauseCompletionProc;
+            pContext->ReceiveState = srsDisabled;
+            pContext->ReceivePauseCompletionProc = NULL;
+            ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 0, 0, 0);
         }
     }
-}
 
-VOID ParaNdis_DecreasePending(
-    PARANDIS_ADAPTER *pContext,
-    PNET_BUFFER_LIST NBL,
-    LPCSTR)
-{
-
-    while (NBL)
-    {
-        PNET_BUFFER NB = NET_BUFFER_LIST_FIRST_NB(NBL);
-
-        while (NB) {
-            pContext->m_packetPending.Release();
-            NB = NET_BUFFER_NEXT_NB(NB);
-        }
-        NBL = NET_BUFFER_LIST_NEXT_NBL(NBL);
-    }
-
-    ParaNdis_TestPausing(pContext);
+    if (callback) callback(pContext);
 }
 
 static __inline
@@ -1624,7 +1569,7 @@ static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
             PNET_PACKET_INFO pPacketInfo = &pBufferDescriptor->PacketInfo;
 
             if( !pContext->bSurprizeRemoved &&
-                pContext->SendReceiveState == srsEnabled &&
+                pContext->ReceiveState == srsEnabled &&
                 pContext->bConnected &&
                 ShallPassPacket(pContext, pPacketInfo))
             {
@@ -1697,7 +1642,6 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
             }
 
             bMoreDataInRing = pathBundle->rxPath.RestartQueue();
-            pContext->m_packetPending.AddRef(nIndicate);
         }
 
         if (nIndicate)
@@ -1708,6 +1652,9 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
                 nIndicate,
                 0);
         }
+
+        ParaNdis_TestPausing(pContext);
+
     } while (bMoreDataInRing);
 
     return res;
@@ -2223,7 +2170,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
 
     // if bFastSuspendInProcess is set by Win8 power-off procedure
     // the ParaNdis_Suspend does fast Rx stop without waiting (=>srsPausing, if there are some RX packets in Ndis)
-    pContext->bFastSuspendInProcess = pContext->bNoPauseOnSuspend && pContext->SendReceiveState == srsEnabled;
+    pContext->bFastSuspendInProcess = pContext->bNoPauseOnSuspend && pContext->ReceiveState == srsEnabled;
     ParaNdis_Suspend(pContext);
 
     ParaNdis_RemoveDriverOKStatus(pContext);
