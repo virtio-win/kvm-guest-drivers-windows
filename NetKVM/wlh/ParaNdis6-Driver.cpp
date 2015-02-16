@@ -160,6 +160,9 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
     if (status == NDIS_STATUS_SUCCESS)
     {
+        NdisAllocateSpinLock(&pContext->m_CompletionLock);
+        pContext->m_CompletionLockCreated = true;
+
         new (&pContext->m_PauseLock, PLACEMENT_NEW) CNdisRWLock();
         if (!pContext->m_PauseLock.Create(pContext->MiniportHandle))
         {
@@ -326,6 +329,11 @@ static NDIS_STATUS ParaNdis6_Initialize(
 #if PARANDIS_SUPPORT_RSS
         pContext->RSSParameters.rwLock.~CNdisRWLock();
 #endif
+        if (pContext->m_CompletionLockCreated)
+        {
+            NdisFreeSpinLock(&pContext->m_CompletionLock);
+        }
+
         pContext->m_PauseLock.~CNdisRWLock();
 
         if (pContext->IODevice != nullptr)

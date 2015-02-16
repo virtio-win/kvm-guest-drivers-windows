@@ -455,6 +455,9 @@ typedef struct _tagPARANDIS_ADAPTER
     ONPAUSECOMPLETEPROC     ReceivePauseCompletionProc;
 
     CNdisRWLock             m_PauseLock;
+    NDIS_SPIN_LOCK          m_CompletionLock;
+    bool                    m_CompletionLockCreated;
+
     CNdisRefCounter         m_upstreamPacketPending;
 
     LONG                    ReuseBufferRegular;
@@ -613,6 +616,9 @@ VOID ParaNdis_ReceiveQueueAddBuffer(
     pRxNetDescriptor pBuffer);
 
 VOID ParaNdis_TestPausing(
+    PARANDIS_ADAPTER *pContext);
+
+bool ParaNdis_HasPacketsInHW(
     PARANDIS_ADAPTER *pContext);
 
 VOID ParaNdis_ProcessorNumberToGroupAffinity(
