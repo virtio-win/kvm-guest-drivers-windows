@@ -33,8 +33,7 @@ private:
 
     UINT m_nReusedRxBuffersCounter, m_nReusedRxBuffersLimit;
 
-    void ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor);
-    void ReuseReceiveBufferPowerOff(pRxNetDescriptor pBuffersDescriptor);
+    bool m_Reinsert = true;
 
     void ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor);
 private:

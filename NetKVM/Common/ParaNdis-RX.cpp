@@ -56,6 +56,7 @@ int CParaNdisRX::PrepareReceiveBuffers()
     /* TODO - NetMaxReceiveBuffers should take into account all queues */
     m_Context->NetMaxReceiveBuffers = m_NetNofReceiveBuffers;
     DPrintf(0, ("[%s] MaxReceiveBuffers %d\n", __FUNCTION__, m_Context->NetMaxReceiveBuffers));
+    m_Reinsert = true;
 
     m_VirtQueue.Kick();
 
@@ -141,8 +142,15 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
 
     m_Context->m_upstreamPacketPending.Release();
 
-    if (AddRxBufferToQueue(pBuffersDescriptor))
+    if (!m_Reinsert)
     {
+        InsertTailList(&m_NetReceiveBuffers, &pBuffersDescriptor->listEntry);
+        m_NetNofReceiveBuffers++;
+        return;
+    } 
+    else if (AddRxBufferToQueue(pBuffersDescriptor))
+    {
+        InsertTailList(&m_NetReceiveBuffers, &pBuffersDescriptor->listEntry);
         m_NetNofReceiveBuffers++;
 
         if (m_NetNofReceiveBuffers > m_Context->NetMaxReceiveBuffers)
@@ -167,11 +175,6 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
     }
 }
 
-void CParaNdisRX::ReuseReceiveBufferPowerOff(pRxNetDescriptor)
-{
-    m_Context->m_upstreamPacketPending.Release();
-}
-
 VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 {
     pRxNetDescriptor pBufferDescriptor;
@@ -186,7 +189,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
         PROCESSOR_NUMBER TargetProcessor;
 
         m_Context->m_upstreamPacketPending.AddRef();
-
+        RemoveEntryList(&pBufferDescriptor->listEntry);
         m_NetNofReceiveBuffers--;
 
         BOOLEAN packetAnalyzisRC;
@@ -227,6 +230,8 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 void CParaNdisRX::PopulateQueue()
 {
     LIST_ENTRY TempList;
+    CLockedContext<CNdisSpinLock> autoLock(m_Lock);
+
 
     InitializeListHead(&TempList);
 
@@ -254,6 +259,8 @@ void CParaNdisRX::PopulateQueue()
             m_Context->NetMaxReceiveBuffers--;
         }
     }
+    m_Reinsert = true;
+
     m_VirtQueue.Kick();
 }
 
