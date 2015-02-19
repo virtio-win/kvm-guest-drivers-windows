@@ -132,7 +132,7 @@ void CParaNdisRX::FreeRxDescriptorsFromList()
     }
 }
 
-void CParaNdisRX::ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor)
+void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
 {
     DEBUG_ENTRY(4);
 
@@ -202,7 +202,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 
         if (!packetAnalyzisRC)
         {
-            pBufferDescriptor->Queue->ReuseReceiveBufferNoLock(m_Context->ReuseBufferRegular, pBufferDescriptor);
+            pBufferDescriptor->Queue->ReuseReceiveBufferNoLock(pBufferDescriptor);
             m_Context->Statistics.ifInErrors++;
             m_Context->Statistics.ifInDiscards++;
             continue;

@@ -741,8 +741,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
     pContext->bHasHardwareFilters = AckFeature(pContext, VIRTIO_NET_F_CTRL_RX_EXTRA);
 
-    InterlockedExchange(&pContext->ReuseBufferRegular, TRUE);
-
     VirtIODeviceWriteGuestFeatures(pContext->IODevice, pContext->u32GuestFeatures);
     NdisInitializeEvent(&pContext->ResetEvent);
     DEBUG_EXIT_STATUS(0, status);
@@ -1176,7 +1174,7 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 
         while (NULL != (pBufferDescriptor = ReceiveQueueGetBuffer(pContext->ReceiveQueues + i)))
         {
-            pBufferDescriptor->Queue->ReuseReceiveBuffer(FALSE, pBufferDescriptor);
+            pBufferDescriptor->Queue->ReuseReceiveBuffer(pBufferDescriptor);
         }
     }
 
@@ -1599,13 +1597,13 @@ static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
                 else
                 {
                     UpdateReceiveFailStatistics(pContext, nCoalescedSegmentsCount);
-                    pBufferDescriptor->Queue->ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBufferDescriptor);
+                    pBufferDescriptor->Queue->ReuseReceiveBuffer(pBufferDescriptor);
                 }
             }
             else
             {
                 pContext->extraStatistics.framesFilteredOut++;
-                pBufferDescriptor->Queue->ReuseReceiveBuffer(pContext->ReuseBufferRegular, pBufferDescriptor);
+                pBufferDescriptor->Queue->ReuseReceiveBuffer(pBufferDescriptor);
             }
         }
      }
@@ -2143,8 +2141,6 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     ParaNdis_UpdateDeviceFilters(pContext);
     ParaNdis_UpdateMAC(pContext);
 
-    InterlockedExchange(&pContext->ReuseBufferRegular, TRUE);
-    
     for (i = 0; i < pContext->nPathBundles; i++)
     {
         pContext->pPathBundles[i].rxPath.PopulateQueue();
@@ -2178,11 +2174,6 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     ParaNdis_Suspend(pContext);
 
     ParaNdis_RemoveDriverOKStatus(pContext);
-    
-    if (pContext->bFastSuspendInProcess)
-    {
-        InterlockedExchange(&pContext->ReuseBufferRegular, FALSE);
-    }
     
 #if !NDIS_SUPPORT_NDIS620
     // WLK tests for Windows 2008 require media disconnect indication

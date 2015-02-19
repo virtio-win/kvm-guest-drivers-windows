@@ -460,7 +460,6 @@ typedef struct _tagPARANDIS_ADAPTER
 
     CNdisRefCounter         m_upstreamPacketPending;
 
-    LONG                    ReuseBufferRegular;
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
     UINT                    maxFreeTxDescriptors;
     /* total of Rx buffer in turnaround */

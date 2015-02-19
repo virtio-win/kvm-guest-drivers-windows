@@ -15,23 +15,11 @@ public:
 
     void FreeRxDescriptorsFromList();
 
-    void ReuseReceiveBuffer(LONG regular, pRxNetDescriptor pBuffersDescriptor)
+    void ReuseReceiveBuffer(pRxNetDescriptor pBuffersDescriptor)
     {
         CLockedContext<CNdisSpinLock> autoLock(m_Lock);
 
-        ReuseReceiveBufferNoLock(regular, pBuffersDescriptor);
-    }
-
-    void ReuseReceiveBufferNoLock(LONG regular, pRxNetDescriptor pBuffersDescriptor)
-    {
-        if (regular)
-        {
-            ReuseReceiveBufferRegular(pBuffersDescriptor);
-        }
-        else
-        {
-            ReuseReceiveBufferPowerOff(pBuffersDescriptor);
-        }
+        ReuseReceiveBufferNoLock(pBuffersDescriptor);
     }
 
     VOID ProcessRxRing(CCHAR nCurrCpuReceiveQueue);
@@ -48,6 +36,7 @@ private:
     void ReuseReceiveBufferRegular(pRxNetDescriptor pBuffersDescriptor);
     void ReuseReceiveBufferPowerOff(pRxNetDescriptor pBuffersDescriptor);
 
+    void ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor);
 private:
     int PrepareReceiveBuffers();
     pRxNetDescriptor CreateRxDescriptorOnInit();
