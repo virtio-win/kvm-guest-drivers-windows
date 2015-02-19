@@ -26,6 +26,14 @@ public:
 
     BOOLEAN RestartQueue();
 
+    void Shutdown()
+    {
+        CLockedContext<CNdisSpinLock> autoLock(m_Lock);
+
+        m_VirtQueue.Shutdown();
+        m_Reinsert = false;
+    }
+
 private:
     /* list of Rx buffers available for data (under VIRTIO management) */
     LIST_ENTRY              m_NetReceiveBuffers;
