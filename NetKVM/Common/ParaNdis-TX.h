@@ -138,6 +138,7 @@ public:
     bool ScheduleBuildSGListForTx();
 
     void MappingDone(PSCATTER_GATHER_LIST SGL);
+    void ReleaseResources();
 
     CNBL *GetParentNBL() const
     { return m_ParentNBL; }

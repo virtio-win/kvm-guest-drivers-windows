@@ -352,6 +352,10 @@ void CNBL::CompleteMappedBuffers()
 
 PNET_BUFFER_LIST CNBL::DetachInternalObject()
 {
+    m_MappedBuffers.ForEach([this](CNB *NB)
+    {
+        NB->ReleaseResources();
+    });
 
     // do it for both LsoV1 and LsoV2
     if (IsLSO())
@@ -625,6 +629,15 @@ CNB::~CNB()
     if(m_SGL != nullptr)
     {
         NdisMFreeNetBufferSGList(m_Context->DmaHandle, m_SGL, m_NB);
+    }
+}
+
+void CNB::ReleaseResources()
+{
+    if (m_SGL != nullptr)
+    {
+        NdisMFreeNetBufferSGList(m_Context->DmaHandle, m_SGL, m_NB);
+        m_SGL = nullptr;
     }
 }
 
