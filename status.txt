@@ -1,3 +1,19 @@
+Date    2 March 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm121
+
+Fixed bugs:
+
+BZ 1188790 NetKVM: Freeing SG list on detaching internal object: it is illegal to free SG list after TX packets acknowledgment
+BZ 1136602 NetKVM: Free spinlocks on failure
+BZ 1183423 [common] - Change the copyright on all the Windows drivers to 2015
+BZ 1184430 [viostor] - enable event index feature in Windows virtio-blk driver
+BZ 1067225 [viostor] - Windows guest performing out-of-bounds accesses on virtio device
+
+New Features:
+
+Add a test wrapper for iperf
+
 Date    13 Jan 2015
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm120
