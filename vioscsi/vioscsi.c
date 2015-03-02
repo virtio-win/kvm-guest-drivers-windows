@@ -429,17 +429,17 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
     struct virtqueue *vq = NULL;
     if (adaptExt->uncachedExtensionVa)
     {
-        ULONG len;
+        ULONG len = 0;
         PVOID  ptr = (PVOID)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset);
         PHYSICAL_ADDRESS pa = StorPortGetPhysicalAddress(adaptExt, NULL, ptr, &len);
         BOOLEAN useEventIndex = CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX);
         if (pa.QuadPart)
         {
-           ULONG Size;
-           ULONG dummy;
+           ULONG Size = 0;
+           ULONG dummy = 0;
            VirtIODeviceQueryQueueAllocation(adaptExt->pvdev, index, &dummy, &Size);
            ASSERT((adaptExt->offset + Size) < adaptExt->allocationSize);
-           vq = VirtIODevicePrepareQueue(adaptExt->pvdev, index, pa, ptr, len, NULL, useEventIndex);
+           vq = VirtIODevicePrepareQueue(adaptExt->pvdev, index, pa, ptr, Size, NULL, useEventIndex);
            if (vq == NULL)
            {
                RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> cannot create virtual queue index = %d vector = % pa = %08I64X\n", __FUNCTION__, index, vector, pa.QuadPart));
@@ -456,7 +456,7 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
         }
         if (vector)
         {
-           unsigned res;
+           unsigned res = VIRTIO_MSI_NO_VECTOR;
            StorPortWritePortUshort(adaptExt, (PUSHORT)(adaptExt->pvdev->addr + VIRTIO_MSI_QUEUE_VECTOR),(USHORT)vector);
            res = StorPortReadPortUshort(adaptExt, (PUSHORT)(adaptExt->pvdev->addr + VIRTIO_MSI_QUEUE_VECTOR));
            RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> VIRTIO_MSI_QUEUE_VECTOR vector = %d, res = 0x%x\n", __FUNCTION__, vector, res));
