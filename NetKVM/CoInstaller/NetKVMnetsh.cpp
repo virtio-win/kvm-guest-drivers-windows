@@ -87,18 +87,20 @@ tstring _NetKVMQueryDeviceString(HDEVINFO hDeviceSet, PSP_DEVINFO_DATA DeviceInf
             NETCO_DEBUG_PRINT(TEXT("SetupDiGetDeviceRegistryProperty failed with code ") << dwErr);
             return tstring();
         }
-        if(REG_SZ != dwDataType)
-        {
-            delete [] szDeviceString;
-            NETCO_DEBUG_PRINT(TEXT("SetupDiGetDeviceRegistryProperty(string) returned incorrect data type ") << dwDataType);
-            return tstring();
-        }
         /* According to SetupDiGetDeviceRegistryProperty, the RequiredSize output parameter (&dwSize) is set
           to the required size of PropertyBuffer (szDeviceString) parameter. The static analyzer indicates
           error when the output paramter from failed function, so the warnings is suppressed */
 #pragma warning(suppress: 6102)
         szDeviceString = new TCHAR[(dwSize/sizeof(TCHAR))+1];
     }
+    if (REG_SZ != dwDataType)
+    {
+#pragma warning(suppress: 6102)
+        delete[] szDeviceString;
+        NETCO_DEBUG_PRINT(TEXT("SetupDiGetDeviceRegistryProperty(string) returned incorrect data type ") << dwDataType);
+        return tstring();
+    }
+
 #pragma warning(suppress: 6102)
 #pragma warning(suppress: 6011)
     szDeviceString[dwSize/sizeof(TCHAR)] = TEXT('\0');
@@ -118,11 +120,11 @@ DWORD _NetKVMQueryDeviceDWORD(HDEVINFO hDeviceSet, PSP_DEVINFO_DATA DeviceInfoDa
         {
             return 0;
         }
-        if(REG_DWORD != dwDataType)
-        {
-            NETCO_DEBUG_PRINT(TEXT("SetupDiGetDeviceRegistryProperty(DWORD) returned incorrect data type ") << REG_DWORD);
-            return 0;
-        }
+    }
+    if (REG_DWORD != dwDataType)
+    {
+        NETCO_DEBUG_PRINT(TEXT("SetupDiGetDeviceRegistryProperty(DWORD) returned incorrect data type ") << REG_DWORD);
+        return 0;
     }
 #pragma warning(suppress: 6102)
     return dwDeviceDword;
