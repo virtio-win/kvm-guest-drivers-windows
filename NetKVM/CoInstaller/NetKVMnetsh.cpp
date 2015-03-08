@@ -76,11 +76,7 @@ tstring _NetKVMQueryDeviceString(HDEVINFO hDeviceSet, PSP_DEVINFO_DATA DeviceInf
         &dwDataType, (PBYTE)szDeviceString, dwSize, &dwSize))
     {
         DWORD dwErr = GetLastError();
-        if(ERROR_INVALID_DATA == dwErr)
-        {
-            delete [] szDeviceString;
-            return tstring();
-        }
+
         if(ERROR_INSUFFICIENT_BUFFER != dwErr)
         {
             delete [] szDeviceString;
@@ -115,11 +111,7 @@ DWORD _NetKVMQueryDeviceDWORD(HDEVINFO hDeviceSet, PSP_DEVINFO_DATA DeviceInfoDa
     if(!SetupDiGetDeviceRegistryProperty(hDeviceSet, DeviceInfoData, dwPropertyID,
         &dwDataType, (PBYTE)&dwDeviceDword, sizeof(dwDeviceDword), NULL))
     {
-        DWORD dwErr = GetLastError();
-        if(ERROR_INVALID_DATA == dwErr)
-        {
-            return 0;
-        }
+        return 0;
     }
     if (REG_DWORD != dwDataType)
     {
