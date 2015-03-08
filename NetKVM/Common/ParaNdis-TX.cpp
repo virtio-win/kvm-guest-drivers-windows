@@ -606,6 +606,7 @@ bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
                                         NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL);
     }
 
+#pragma warning(suppress: 26110)
     NdisDprReleaseSpinLock(&m_Context->m_CompletionLock);
 
     if (CallbackToCall != nullptr)
