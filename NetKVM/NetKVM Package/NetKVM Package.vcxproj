@@ -248,7 +248,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>61$(STAMPINF_RHEL_VERSION)" "</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|Win32'">
@@ -257,7 +257,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>63$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
@@ -266,7 +266,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
@@ -275,7 +275,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>60$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
@@ -284,7 +284,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
@@ -293,7 +293,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
@@ -301,9 +301,6 @@
       <Command>
       </Command>
     </PreBuildEvent>
-    <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
-    </Inf>
     <Inf2Cat>
       <AdditionalOptions>
       </AdditionalOptions>
@@ -316,7 +313,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>63$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
@@ -325,7 +322,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
@@ -334,7 +331,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>60$(STAMPINF_RHEL_VERSION)" "</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'">
@@ -343,7 +340,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>63$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
@@ -352,7 +349,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
@@ -361,7 +358,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>60$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
@@ -370,7 +367,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
@@ -379,7 +376,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
@@ -387,9 +384,6 @@
       <Command>
       </Command>
     </PreBuildEvent>
-    <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
-    </Inf>
     <Inf2Cat>
       <WindowsVersionList>Vista_x64</WindowsVersionList>
     </Inf2Cat>
@@ -400,7 +394,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>63$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
@@ -409,7 +403,7 @@
       </Command>
     </PreBuildEvent>
     <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemGroup>
