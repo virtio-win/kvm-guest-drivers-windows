@@ -80,7 +80,7 @@
 
 #define VER_COMPANYNAME_STR             "Red Hat Inc."
 #define VER_LEGALTRADEMARKS_STR         ""
-#define VER_LEGALCOPYRIGHT_STR          "Copyright (C) 2008 Red Hat Inc."
+#define VER_LEGALCOPYRIGHT_STR          "Copyright (C) 2008-2015 Red Hat Inc."
 
 #define VER_PRODUCTBUILD                PARANDIS_MAJOR_DRIVER_VERSION
 #define VER_PRODUCTBUILD_QFE            PARANDIS_MINOR_DRIVER_VERSION
