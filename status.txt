@@ -1,3 +1,14 @@
+Date    10 March 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm122
+
+Fixed bugs:
+
+BZ 1195920 virtio-scsi - Windows 2012 R2 using virtio-scsi driver with Direct LUNs causes BSODs
+BZ 1183423 NetKVM - Change the copyright on all the Windows drivers to 2015. Missed part
+BZ 954183  NetKVM - Static driver verifier fails with NetKVM
+
+
 Date    2 March 2015
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm121
