@@ -34,31 +34,50 @@ SynchronizedSRBRoutine(
     PSRB_EXTENSION      srbExt   = (PSRB_EXTENSION)Srb->SrbExtension;
     PVOID               va;
     ULONGLONG           pa;
-
+    BOOLEAN             ret = FALSE;
 ENTER_FN();
     SET_VA_PA();
     if (virtqueue_add_buf(adaptExt->vq[2],
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
-        virtqueue_kick(adaptExt->vq[2]);
-        return TRUE;
+        ret = TRUE;
     }
-    Srb->SrbStatus = SRB_STATUS_BUSY;
-    StorPortBusy(DeviceExtension, 2);
+    else
+    {
+        InsertTailList(&adaptExt->list_head, &srbExt->list_entry);
+    }
     virtqueue_kick(adaptExt->vq[2]);
-EXIT_ERR();
-    return FALSE;
+EXIT_FN();
+    return ret;
 }
 
-BOOLEAN
+VOID
 SendSRB(
     IN PVOID DeviceExtension,
     IN PSCSI_REQUEST_BLOCK Srb
     )
 {
-ENTER_FN();
-    return StorPortSynchronizeAccess(DeviceExtension, SynchronizedSRBRoutine, (PVOID)Srb);
+    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ENTER_FN();
+    if (Srb)
+    {
+        (VOID)StorPortSynchronizeAccess(DeviceExtension, SynchronizedSRBRoutine, (PVOID)Srb);
+    }
+    else
+    {
+        while (!IsListEmpty(&adaptExt->list_head)) {
+            PSCSI_REQUEST_BLOCK sc;
+            PSRB_EXTENSION srbExt;
+            srbExt = (PSRB_EXTENSION)RemoveHeadList(&adaptExt->list_head);
+            sc = srbExt->cmd.sc;
+            if (!SynchronizedSRBRoutine(DeviceExtension, (PVOID)sc))
+            {
+                InsertHeadList(&adaptExt->list_head, RemoveTailList(&adaptExt->list_head));
+                return;
+            }
+        }
+    }
 EXIT_FN();
 }
 
@@ -150,8 +169,13 @@ ShutDown(
     IN PVOID DeviceExtension
     )
 {
+    USHORT cnt = 0;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 ENTER_FN();
+    while (!IsListEmpty(&adaptExt->list_head) && cnt < 100) {
+        StorPortStallExecution(999);
+        cnt++;
+    }
     VirtIODeviceReset(&adaptExt->vdev);
     StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), 0);
     if (adaptExt->vq[0]) {

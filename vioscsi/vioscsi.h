@@ -208,6 +208,7 @@ typedef struct vring_desc_alias
 
 #pragma pack(1)
 typedef struct _SRB_EXTENSION {
+    LIST_ENTRY            list_entry;
     ULONG                 out;
     ULONG                 in;
     ULONG                 Xfer;
@@ -245,10 +246,8 @@ typedef struct _ADAPTER_EXTENSION {
 
     TMF_COMMAND           tmf_cmd;
     BOOLEAN               tmf_infly;
-    ULONG                 in_fly;
 
-    USHORT                original_queue_num[4];  // last element used as pad.
-
+    LIST_ENTRY            list_head;
     PVirtIOSCSIEventNode  events;
 }ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
 

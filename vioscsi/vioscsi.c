@@ -333,7 +333,7 @@ ENTER_FN();
     if(adaptExt->indirect) {
     // The windows device queue must be between 20 and 254 for
     // StorPortSetDeviceQueueDepth to succeed.
-        adaptExt->queue_depth = min(254, max(20, (pageNum / 4)));
+        adaptExt->queue_depth = min(254, max(20, (pageNum / 2)));
     } else {
         adaptExt->queue_depth = pageNum / ConfigInfo->NumberOfPhysicalBreaks - 1;
     }
@@ -352,6 +352,8 @@ ENTER_FN();
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Can't get uncached extension\n"));
         return SP_RETURN_ERROR;
     }
+
+    InitializeListHead(&adaptExt->list_head);
 
     return SP_RETURN_FOUND;
 }
@@ -500,14 +502,13 @@ VioScsiStartIo(
     )
 {
 ENTER_FN();
-    if (PreProcessRequest(DeviceExtension, Srb) ||
-        !SendSRB(DeviceExtension, Srb))
+    if (PreProcessRequest(DeviceExtension, Srb))
     {
-        if(Srb->SrbStatus == SRB_STATUS_PENDING)
-        {
-           Srb->SrbStatus = SRB_STATUS_ERROR;
-        }
         CompleteRequest(DeviceExtension, Srb);
+    }
+    else
+    {
+        SendSRB(DeviceExtension, Srb);
     }
 EXIT_FN();
     return TRUE;
@@ -603,8 +604,8 @@ VioScsiInterrupt(
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
-         --adaptExt->in_fly;
            CompleteRequest(DeviceExtension, Srb);
+           SendSRB(DeviceExtension, NULL);
         }
         if (adaptExt->tmf_infly) {
            while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[0], &len)) != NULL) {
@@ -794,8 +795,8 @@ VioScsiMSInterrupt (
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
-           --adaptExt->in_fly;
            CompleteRequest(DeviceExtension, Srb);
+           SendSRB(DeviceExtension, NULL);
         }
         return TRUE;
     }
