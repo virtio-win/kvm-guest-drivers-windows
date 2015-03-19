@@ -185,6 +185,10 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
         GROUP_AFFINITY TargetAffinity;
         PROCESSOR_NUMBER TargetProcessor;
 
+        /* The counter m_rxPacketsOutsideRing is increased when the packet is removed from ring; it is decreased
+        in CParaNdisRX::ReuseReceiveBuffer either in case of error or when NDIS calls ParaNdis6_ReturnNetBufferLists
+        indicating the return of a receive buffer under miniport driver ownership */
+
         m_Context->m_rxPacketsOutsideRing.AddRef();
         RemoveEntryList(&pBufferDescriptor->listEntry);
         m_NetNofReceiveBuffers--;
