@@ -137,7 +137,7 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
 {
     DEBUG_ENTRY(4);
 
-    m_Context->m_upstreamPacketPending.Release();
+    m_Context->m_rxPacketsOutsideRing.Release();
 
     if (!m_Reinsert)
     {
@@ -185,7 +185,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
         GROUP_AFFINITY TargetAffinity;
         PROCESSOR_NUMBER TargetProcessor;
 
-        m_Context->m_upstreamPacketPending.AddRef();
+        m_Context->m_rxPacketsOutsideRing.AddRef();
         RemoveEntryList(&pBufferDescriptor->listEntry);
         m_NetNofReceiveBuffers--;
 
