@@ -137,9 +137,6 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
 {
     DEBUG_ENTRY(4);
 
-    if (!pBuffersDescriptor)
-        return;
-
     m_Context->m_upstreamPacketPending.Release();
 
     if (!m_Reinsert)
