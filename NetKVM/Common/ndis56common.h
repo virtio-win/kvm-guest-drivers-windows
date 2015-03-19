@@ -458,7 +458,7 @@ typedef struct _tagPARANDIS_ADAPTER
     NDIS_SPIN_LOCK          m_CompletionLock;
     bool                    m_CompletionLockCreated;
 
-    CNdisRefCounter         m_upstreamPacketPending;
+    CNdisRefCounter         m_rxPacketsOutsideRing;
 
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
     UINT                    maxFreeTxDescriptors;
