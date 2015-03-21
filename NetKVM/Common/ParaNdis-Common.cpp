@@ -1632,7 +1632,13 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
         {
             CNdisDispatchReadAutoLock tLock(pContext->m_PauseLock);
 
-            pathBundle->rxPath.ProcessRxRing(CurrCpuReceiveQueue);
+            /* pathBundle is passed from ParaNdis_DPCWorkBody and may be NULL
+            if case DPC handler is scheduled by RSS to the CPU with
+            associated queues */
+            if (pathBundle != nullptr)
+            {
+                pathBundle->rxPath.ProcessRxRing(CurrCpuReceiveQueue);
+            }
 
             res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED,
                 &indicate, &indicateTail, &nIndicate);
@@ -1643,7 +1649,14 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
                     &indicate, &indicateTail, &nIndicate);
             }
 
-            bMoreDataInRing = pathBundle->rxPath.RestartQueue();
+            if (pathBundle != nullptr)
+            {
+                bMoreDataInRing = pathBundle->rxPath.RestartQueue();
+            }
+            else
+            {
+                bMoreDataInRing = FALSE;
+            }
         }
 
         if (nIndicate)
@@ -1685,11 +1698,8 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
             pathBundle = pContext->pPathBundles + procNumber;
         }
     }
-
-    if (pathBundle == nullptr)
-    {
-        return false;
-    }
+    /* When DPC is scheduled for RSS processing, it may be assigned to CPU that has no
+    correspondent path, so pathBundle may remain null. */
 
     if (pContext->bEnableInterruptHandlingDPC)
     {
@@ -1709,7 +1719,7 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
             pContext->CXPath.ClearInterruptReport();
         }
 
-        if (!stillRequiresProcessing)
+        if (!stillRequiresProcessing && pathBundle != nullptr)
         {
             bDoKick = pathBundle->txPath.DoPendingTasks(true);
             if (pathBundle->txPath.RestartQueue(bDoKick))
