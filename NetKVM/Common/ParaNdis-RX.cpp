@@ -222,13 +222,19 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
             &pBufferDescriptor->PacketInfo,
             &TargetProcessor);
 
-        ParaNdis_ReceiveQueueAddBuffer(&m_Context->ReceiveQueues[nTargetReceiveQueueNum], pBufferDescriptor);
-        ParaNdis_ProcessorNumberToGroupAffinity(&TargetAffinity, &TargetProcessor);
-
-        if ((nTargetReceiveQueueNum != PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED) &&
-            (nTargetReceiveQueueNum != nCurrCpuReceiveQueue))
+        if (nTargetReceiveQueueNum == PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED)
         {
-            ParaNdis_QueueRSSDpc(m_Context, m_messageIndex, &TargetAffinity);
+            ParaNdis_ReceiveQueueAddBuffer(&m_UnclassifiedPacketsQueue, pBufferDescriptor);
+        }
+        else
+        {
+            ParaNdis_ReceiveQueueAddBuffer(&m_Context->ReceiveQueues[nTargetReceiveQueueNum], pBufferDescriptor);
+
+            if (nTargetReceiveQueueNum != nCurrCpuReceiveQueue)
+            {
+                ParaNdis_ProcessorNumberToGroupAffinity(&TargetAffinity, &TargetProcessor);
+                ParaNdis_QueueRSSDpc(m_Context, m_messageIndex, &TargetAffinity);
+            }
         }
     }
 }
