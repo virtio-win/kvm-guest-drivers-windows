@@ -222,7 +222,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
             &pBufferDescriptor->PacketInfo,
             &TargetProcessor);
 
-        if (nTargetReceiveQueueNum == PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED)
+        if (nTargetReceiveQueueNum == PARANDIS_RECEIVE_UNCLASSIFIED_PACKET)
         {
             ParaNdis_ReceiveQueueAddBuffer(&m_UnclassifiedPacketsQueue, pBufferDescriptor);
         }

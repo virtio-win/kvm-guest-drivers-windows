@@ -1451,7 +1451,7 @@ CCHAR ParaNdis_GetScalingDataForPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_I
     UNREFERENCED_PARAMETER(pPacketInfo);
     UNREFERENCED_PARAMETER(pTargetProcessor);
 
-    return PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
+    return PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
 #endif
 }
 
@@ -1463,7 +1463,7 @@ CCHAR GetReceiveQueueForCurrentCPU(PARANDIS_ADAPTER *pContext)
 #else
     UNREFERENCED_PARAMETER(pContext);
 
-    return PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
+    return PARANDIS_RECEIVE_NO_QUEUE;
 #endif
 }
 
@@ -1655,7 +1655,7 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
                     &indicate, &indicateTail, &nIndicate);
             }
 
-            if(CurrCpuReceiveQueue != PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED)
+            if (CurrCpuReceiveQueue != PARANDIS_RECEIVE_NO_QUEUE)
             {
                 res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pContext->ReceiveQueues[CurrCpuReceiveQueue],
                     &indicate, &indicateTail, &nIndicate);
