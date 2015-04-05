@@ -1554,14 +1554,13 @@ UpdateReceiveFailStatistics(PPARANDIS_ADAPTER pContext, UINT nCoalescedSegmentsC
 
 static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
                                     PULONG pnPacketsToIndicateLeft,
-                                    CCHAR nQueueIndex,
+                                    PPARANDIS_RECEIVE_QUEUE pTargetReceiveQueue,
                                     PNET_BUFFER_LIST *indicate,
                                     PNET_BUFFER_LIST *indicateTail,
                                     ULONG *nIndicate)
 {
     
     pRxNetDescriptor pBufferDescriptor;
-    PPARANDIS_RECEIVE_QUEUE pTargetReceiveQueue = &pContext->ReceiveQueues[nQueueIndex];
 
     if(NdisInterlockedIncrement(&pTargetReceiveQueue->ActiveProcessorsCount) == 1)
     {
@@ -1640,12 +1639,12 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
                 pathBundle->rxPath.ProcessRxRing(CurrCpuReceiveQueue);
             }
 
-            res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED,
+            res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pContext->ReceiveQueues[PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED],
                 &indicate, &indicateTail, &nIndicate);
 
             if(CurrCpuReceiveQueue != PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED)
             {
-                res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, CurrCpuReceiveQueue,
+                res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pContext->ReceiveQueues[CurrCpuReceiveQueue],
                     &indicate, &indicateTail, &nIndicate);
             }
 
