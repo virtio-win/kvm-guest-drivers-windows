@@ -88,6 +88,14 @@ typedef struct _tagRxNetDescriptor  RxNetDescriptor, *pRxNetDescriptor;
 
 static __inline BOOLEAN ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq);
 
+typedef struct _tagPARANDIS_RECEIVE_QUEUE
+{
+    NDIS_SPIN_LOCK          Lock;
+    LIST_ENTRY              BuffersList;
+
+    LONG                    ActiveProcessorsCount;
+} PARANDIS_RECEIVE_QUEUE, *PPARANDIS_RECEIVE_QUEUE;
+
 #include "ParaNdis-TX.h"
 #include "ParaNdis-RX.h"
 #include "ParaNdis-CX.h"
@@ -368,14 +376,6 @@ struct _tagRxNetDescriptor {
 
     CParaNdisRX*                   Queue;
 };
-
-typedef struct _tagPARANDIS_RECEIVE_QUEUE
-{
-    NDIS_SPIN_LOCK          Lock;
-    LIST_ENTRY              BuffersList;
-
-    LONG                    ActiveProcessorsCount;
-} PARANDIS_RECEIVE_QUEUE, *PPARANDIS_RECEIVE_QUEUE;
 
 typedef struct _tagPARANDIS_ADAPTER
 {

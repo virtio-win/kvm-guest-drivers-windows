@@ -34,6 +34,8 @@ public:
         m_Reinsert = false;
     }
 
+    PARANDIS_RECEIVE_QUEUE &UnclassifiedPacketsQueue() { return m_UnclassifiedPacketsQueue;  }
+
 private:
     /* list of Rx buffers available for data (under VIRTIO management) */
     LIST_ENTRY              m_NetReceiveBuffers;
@@ -42,6 +44,8 @@ private:
     UINT m_nReusedRxBuffersCounter, m_nReusedRxBuffersLimit;
 
     bool m_Reinsert = true;
+
+    PARANDIS_RECEIVE_QUEUE m_UnclassifiedPacketsQueue;
 
     void ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor);
 private:

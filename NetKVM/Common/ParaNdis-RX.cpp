@@ -3,10 +3,15 @@
 CParaNdisRX::CParaNdisRX() : m_nReusedRxBuffersCounter(0), m_NetNofReceiveBuffers(0)
 {
     InitializeListHead(&m_NetReceiveBuffers);
+
+    NdisAllocateSpinLock(&m_UnclassifiedPacketsQueue.Lock);
+    InitializeListHead(&m_UnclassifiedPacketsQueue.BuffersList);
+    m_UnclassifiedPacketsQueue.ActiveProcessorsCount = 0;
 }
 
 CParaNdisRX::~CParaNdisRX()
 {
+    NdisFreeSpinLock(&m_UnclassifiedPacketsQueue.Lock);
 }
 
 bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
