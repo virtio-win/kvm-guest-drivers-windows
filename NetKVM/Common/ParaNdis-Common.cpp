@@ -1178,6 +1178,16 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
         }
     }
 
+    for (i = 0; i < pContext->nPathBundles; i++)
+    {
+        pRxNetDescriptor pBufferDescriptor;
+
+        while (NULL != (pBufferDescriptor = ReceiveQueueGetBuffer(&pContext->pPathBundles[i].rxPath.UnclassifiedPacketsQueue())))
+        {
+            pBufferDescriptor->Queue->ReuseReceiveBuffer(pBufferDescriptor);
+        }
+    }
+
     do
     {
         b = pContext->m_rxPacketsOutsideRing != 0;
@@ -1639,8 +1649,11 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
                 pathBundle->rxPath.ProcessRxRing(CurrCpuReceiveQueue);
             }
 
-            res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pContext->ReceiveQueues[PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED],
-                &indicate, &indicateTail, &nIndicate);
+            if (pathBundle != nullptr)
+            {
+                res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pathBundle->rxPath.UnclassifiedPacketsQueue(),
+                    &indicate, &indicateTail, &nIndicate);
+            }
 
             if(CurrCpuReceiveQueue != PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED)
             {
@@ -1735,11 +1748,8 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
 VOID ParaNdis_ResetRxClassification(PARANDIS_ADAPTER *pContext)
 {
     ULONG i;
-    PPARANDIS_RECEIVE_QUEUE pUnclassified = &pContext->ReceiveQueues[PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED];
 
-    NdisAcquireSpinLock(&pUnclassified->Lock);
-
-    for(i = PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED + 1; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
+    for(i = PARANDIS_FIRST_RSS_RECEIVE_QUEUE; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
     {
         PPARANDIS_RECEIVE_QUEUE pCurrQueue = &pContext->ReceiveQueues[i];
         NdisAcquireSpinLock(&pCurrQueue->Lock);
@@ -1747,13 +1757,12 @@ VOID ParaNdis_ResetRxClassification(PARANDIS_ADAPTER *pContext)
         while(!IsListEmpty(&pCurrQueue->BuffersList))
         {
             PLIST_ENTRY pListEntry = RemoveHeadList(&pCurrQueue->BuffersList);
-            InsertTailList(&pUnclassified->BuffersList, pListEntry);
+            pRxNetDescriptor pBufferDescriptor = CONTAINING_RECORD(pListEntry, RxNetDescriptor, ReceiveQueueListEntry);
+            ParaNdis_ReceiveQueueAddBuffer(&pBufferDescriptor->Queue->UnclassifiedPacketsQueue(), pBufferDescriptor);
         }
 
         NdisReleaseSpinLock(&pCurrQueue->Lock);
     }
-
-    NdisReleaseSpinLock(&pUnclassified->Lock);
 }
 
 /**********************************************************
