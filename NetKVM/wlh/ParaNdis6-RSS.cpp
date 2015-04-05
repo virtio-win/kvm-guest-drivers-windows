@@ -129,7 +129,7 @@ CCHAR FindReceiveQueueForCurrentCpu(PPARANDIS_SCALING_SETTINGS RSSScalingSetting
     ASSERT(CurrProcIdx != INVALID_PROCESSOR_INDEX);
 
     if(CurrProcIdx >= RSSScalingSettings->CPUIndexMappingSize)
-        return PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
+        return PARANDIS_RECEIVE_NO_QUEUE;
 
     return RSSScalingSettings->CPUIndexMapping[CurrProcIdx];
 }
@@ -153,7 +153,7 @@ BOOLEAN AllocateCPUMappingArray(NDIS_HANDLE NdisHandle, PPARANDIS_SCALING_SETTIN
 
     for(i = 0; i < CPUNumber; i++)
     {
-        RSSScalingSettings->CPUIndexMapping[i] = PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
+        RSSScalingSettings->CPUIndexMapping[i] = PARANDIS_RECEIVE_NO_QUEUE;
     }
 
     return TRUE;
@@ -177,7 +177,7 @@ VOID FillCPUMappingArray(
 
         if(CurrProcIdx != INVALID_PROCESSOR_INDEX)
         {
-            if (RSSScalingSettings->CPUIndexMapping[CurrProcIdx] == PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED)
+            if (RSSScalingSettings->CPUIndexMapping[CurrProcIdx] == PARANDIS_RECEIVE_NO_QUEUE)
             {
                 if (ReceiveQueue == PARANDIS_FIRST_RSS_RECEIVE_QUEUE)
                     RSSScalingSettings->FirstQueueIndirectionIndex = i;
@@ -193,7 +193,7 @@ VOID FillCPUMappingArray(
         }
         else
         {
-            RSSScalingSettings->QueueIndirectionTable[i] = PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
+            RSSScalingSettings->QueueIndirectionTable[i] = PARANDIS_RECEIVE_NO_QUEUE;
         }
     }
 
@@ -205,7 +205,7 @@ VOID FillCPUMappingArray(
 
     for (i = 0; i < RSSScalingSettings->IndirectionTableSize / sizeof(PROCESSOR_NUMBER); i++)
     {
-        if (RSSScalingSettings->QueueIndirectionTable[i] == PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED)
+        if (RSSScalingSettings->QueueIndirectionTable[i] == PARANDIS_RECEIVE_NO_QUEUE)
         {
             /* If some hash values remains unassigned after the first pass, either because
             mapping processor number to index failed or there are not enough queues,
@@ -584,27 +584,25 @@ CCHAR ParaNdis6_RSSGetScalingDataForPacket(
     if (RSSParameters->RSSMode != PARANDIS_RSS_FULL || 
         RSSParameters->ActiveRSSScalingSettings.FirstQueueIndirectionIndex == INVALID_INDIRECTION_INDEX)
     {
-        targetQueue = PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
+        targetQueue = PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
     }
     else if (packetInfo->RSSHash.Type == 0)
     {
-        /* In the RSS mode, unclassified packets are dispatched to the first queue, in order to preserve the order.
-           Hopefully, there are few unclassfied packets */
-        if (RSSParameters->ActiveRSSScalingSettings.IndirectionTableSize)
-        {
-            *targetProcessor = RSSParameters->ActiveRSSScalingSettings.IndirectionTable[RSSParameters->ActiveRSSScalingSettings.FirstQueueIndirectionIndex];
-            targetQueue = RSSParameters->ActiveRSSScalingSettings.QueueIndirectionTable[RSSParameters->ActiveRSSScalingSettings.FirstQueueIndirectionIndex];
-        }
-        else
-        {
-            targetQueue = PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
-        }
+        targetQueue = PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
     }
     else
     {
         ULONG indirectionIndex = packetInfo->RSSHash.Value & RSSParameters->ActiveRSSScalingSettings.RSSHashMask;
-        *targetProcessor = RSSParameters->ActiveRSSScalingSettings.IndirectionTable[indirectionIndex];
+
         targetQueue = RSSParameters->ActiveRSSScalingSettings.QueueIndirectionTable[indirectionIndex];
+        if (targetQueue == PARANDIS_RECEIVE_NO_QUEUE)
+        {
+            targetQueue = PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
+        }
+        else
+        {
+            *targetProcessor = RSSParameters->ActiveRSSScalingSettings.IndirectionTable[indirectionIndex];
+        }
     }
 
     return targetQueue;
@@ -617,7 +615,7 @@ CCHAR ParaNdis6_RSSGetCurrentCpuReceiveQueue(PARANDIS_RSS_PARAMS *RSSParameters)
 
     if(RSSParameters->RSSMode != PARANDIS_RSS_FULL)
     {
-        res = PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
+        res = PARANDIS_RECEIVE_NO_QUEUE;
     }
     else
     {
