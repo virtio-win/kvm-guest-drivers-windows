@@ -2339,3 +2339,8 @@ bool ParaNdis_HasPacketsInHW(PARANDIS_ADAPTER *pContext)
     }
     return false;
 }
+
+void ParaNdis_PrintCharArray(int DebugPrintLevel, const CCHAR *data, size_t length)
+{
+    ParaNdis_PrintTable<80, 10>(DebugPrintLevel, data, length, "%d", [](const CCHAR *p) {  return *p; });
+}
