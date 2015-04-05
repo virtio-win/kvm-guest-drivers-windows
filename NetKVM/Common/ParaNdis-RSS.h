@@ -29,6 +29,9 @@ typedef struct _tagPARANDIS_HASHING_SETTINGS
     USHORT HashSecretKeySize;
 } PARANDIS_HASHING_SETTINGS;
 
+
+#define INVALID_INDIRECTION_INDEX (-1)
+
 typedef struct _tagPARANDIS_SCALING_SETTINGS
 {
     PROCESSOR_NUMBER IndirectionTable[NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2 / sizeof(PROCESSOR_NUMBER)];
@@ -39,6 +42,8 @@ typedef struct _tagPARANDIS_SCALING_SETTINGS
 
     PCHAR          CPUIndexMapping;
     ULONG          CPUIndexMappingSize;
+
+    LONG           FirstQueueIndirectionIndex;
 } PARANDIS_SCALING_SETTINGS, *PPARANDIS_SCALING_SETTINGS;
 
 typedef struct _tagPARANDIS_RSS_PARAMS
