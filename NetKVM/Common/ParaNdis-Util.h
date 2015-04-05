@@ -3,6 +3,7 @@
 extern "C" {
 #include <ndis.h>
 #include <sal.h>
+#include <Ntstrsafe.h>
 
 #if NTDDI_VERSION > NTDDI_VISTA
 #include <concurrencysal.h>
@@ -497,3 +498,44 @@ typedef CNdisAutoRWLock<&CNdisRWLock::acquireWriteDpr, &CNdisRWLock::releaseDpr>
   if more than one bit is raised */
 
 ULONG ParaNdis_GetIndexFromAffinity(KAFFINITY affinity);
+
+template <size_t PrintWidth, size_t ColumnWidth, typename TTable, typename... AccessorsFuncs>
+void ParaNdis_PrintTable(int DebugPrintLevel, TTable table, size_t Size, LPCSTR Format, AccessorsFuncs... Accessors)
+{
+    CHAR Line[PrintWidth + 1];
+    CHAR *LinePos, *End;
+    NTSTATUS Res;
+
+    CHAR FullFormat[32] = "%d: ";
+
+    if (RtlStringCbCatA(FullFormat, sizeof(FullFormat), Format) != STATUS_SUCCESS)
+    {
+        DPrintf(0, ("[%s] - format concatenation failed for %s\n", __FUNCTION__, Format));
+        return;
+    }
+
+    size_t  i = 0;
+    memset(Line, ' ', sizeof(Line));
+    Line[PrintWidth] = 0;
+    LinePos = Line;
+
+    while (i < Size)
+    {
+        for (size_t j = 0; j < PrintWidth / ColumnWidth && i < Size; j++, i++)
+        {
+            Res = RtlStringCbPrintfExA(LinePos, ColumnWidth, &End, NULL, STRSAFE_FILL_ON_FAILURE | ' ',
+                FullFormat, i, Accessors(table + i)...);
+            if (Res == STATUS_SUCCESS)
+                *End = ' ';
+            LinePos += ColumnWidth;
+
+        }
+        DPrintf(DebugPrintLevel, ("%s", Line));
+        memset(Line, ' ', sizeof(Line));
+        Line[PrintWidth] = 0;
+        LinePos = Line;
+    }
+}
+
+void ParaNdis_PrintCharArray(int DebugPrintLevel, const CCHAR *data, size_t length);
+

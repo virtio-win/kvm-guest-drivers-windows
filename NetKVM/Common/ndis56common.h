@@ -948,4 +948,5 @@ VOID ParaNdis_PadPacketToMinimalLength(PNET_PACKET_INFO packetInfo);
 BOOLEAN ParaNdis_IsSendPossible(PARANDIS_ADAPTER *pContext);
 NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext);
 
+void ParaNdis_PrintIndirectionTable(const NDIS_RECEIVE_SCALE_PARAMETERS* Params);
 #endif
