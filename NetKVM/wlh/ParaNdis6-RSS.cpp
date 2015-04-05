@@ -160,6 +160,8 @@ VOID FillCPUMappingArray(
     ULONG i;
     CCHAR ReceiveQueue = PARANDIS_FIRST_RSS_RECEIVE_QUEUE;
 
+    RSSScalingSettings->FirstQueueIndirectionIndex = INVALID_INDIRECTION_INDEX;
+
     for (i = 0; i < RSSScalingSettings->IndirectionTableSize/sizeof(PROCESSOR_NUMBER); i++)
     {
         PPROCESSOR_NUMBER ProcNum = &RSSScalingSettings->IndirectionTable[i];
@@ -167,17 +169,41 @@ VOID FillCPUMappingArray(
 
         if(CurrProcIdx != INVALID_PROCESSOR_INDEX)
         {
-            if(RSSScalingSettings->CPUIndexMapping[CurrProcIdx] == PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED)
-                RSSScalingSettings->CPUIndexMapping[CurrProcIdx] = ReceiveQueue++;
+            if (RSSScalingSettings->CPUIndexMapping[CurrProcIdx] == PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED)
+            {
+                if (ReceiveQueue == PARANDIS_FIRST_RSS_RECEIVE_QUEUE)
+                    RSSScalingSettings->FirstQueueIndirectionIndex = i;
+
+                if (ReceiveQueue != ReceiveQueuesNumber)
+                {
+                    RSSScalingSettings->CPUIndexMapping[CurrProcIdx] = ReceiveQueue++;
+                }
+            }
 
             RSSScalingSettings->QueueIndirectionTable[i] = RSSScalingSettings->CPUIndexMapping[CurrProcIdx];
 
-            if(ReceiveQueue == ReceiveQueuesNumber)
-                ReceiveQueue = PARANDIS_FIRST_RSS_RECEIVE_QUEUE;
         }
         else
         {
             RSSScalingSettings->QueueIndirectionTable[i] = PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
+        }
+    }
+
+    if (RSSScalingSettings->FirstQueueIndirectionIndex == INVALID_INDIRECTION_INDEX)
+    {
+        DPrintf(0, ("[%s] - CPU <-> queue assignment failed!", __FUNCTION__));
+        return;
+    }
+
+    for (i = 0; i < RSSScalingSettings->IndirectionTableSize / sizeof(PROCESSOR_NUMBER); i++)
+    {
+        if (RSSScalingSettings->QueueIndirectionTable[i] == PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED)
+        {
+            /* If some hash values remains unassigned after the first pass, either because
+            mapping processor number to index failed or there are not enough queues,
+            reassign the hash values to the first queue*/
+            RSSScalingSettings->QueueIndirectionTable[i] = PARANDIS_FIRST_RSS_RECEIVE_QUEUE;
+            RSSScalingSettings->IndirectionTable[i] = RSSScalingSettings->IndirectionTable[RSSScalingSettings->FirstQueueIndirectionIndex];
         }
     }
 }
@@ -535,7 +561,8 @@ CCHAR ParaNdis6_RSSGetScalingDataForPacket(
     CCHAR targetQueue;
     CNdisDispatchReadAutoLock autoLock(RSSParameters->rwLock);
 
-    if(RSSParameters->RSSMode != PARANDIS_RSS_FULL) 
+    if (RSSParameters->RSSMode != PARANDIS_RSS_FULL || 
+        RSSParameters->ActiveRSSScalingSettings.FirstQueueIndirectionIndex == INVALID_INDIRECTION_INDEX)
     {
         targetQueue = PARANDIS_RECEIVE_QUEUE_UNCLASSIFIED;
     }
@@ -545,8 +572,8 @@ CCHAR ParaNdis6_RSSGetScalingDataForPacket(
            Hopefully, there are few unclassfied packets */
         if (RSSParameters->ActiveRSSScalingSettings.IndirectionTableSize)
         {
-            *targetProcessor = RSSParameters->ActiveRSSScalingSettings.IndirectionTable[PARANDIS_FIRST_RSS_RECEIVE_QUEUE];
-            targetQueue = RSSParameters->ActiveRSSScalingSettings.QueueIndirectionTable[PARANDIS_FIRST_RSS_RECEIVE_QUEUE];
+            *targetProcessor = RSSParameters->ActiveRSSScalingSettings.IndirectionTable[RSSParameters->ActiveRSSScalingSettings.FirstQueueIndirectionIndex];
+            targetQueue = RSSParameters->ActiveRSSScalingSettings.QueueIndirectionTable[RSSParameters->ActiveRSSScalingSettings.FirstQueueIndirectionIndex];
         }
         else
         {
