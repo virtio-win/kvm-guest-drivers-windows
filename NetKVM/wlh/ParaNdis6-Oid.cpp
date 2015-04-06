@@ -13,6 +13,7 @@
 
 #include "ParaNdis-Oid.h"
 #include "ParaNdis6.h"
+#include <sal.h>
 
 static NDIS_IO_WORKITEM_FUNCTION OnSetPowerWorkItem;
 
@@ -475,6 +476,7 @@ NDIS_STATUS ParaNdis6_OidRequest(
                 status = NDIS_STATUS_NOT_SUPPORTED;
                 break;
             }
+            __fallthrough;
         case NdisRequestQueryInformation:
             if (Rules.Flags & ohfQuery)
             {
@@ -898,6 +900,7 @@ static ULONG SetOffloadField(
             }
             break;
         case NDIS_OFFLOAD_PARAMETERS_NO_CHANGE:
+            __fallthrough;
         default:
             break;
         }

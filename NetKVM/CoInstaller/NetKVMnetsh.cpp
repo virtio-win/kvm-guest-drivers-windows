@@ -3,6 +3,7 @@
 #include "RegAccess.h"
 #include "NetKVMAux.h"
 #include "RegParam.h"
+#include <sal.h>
 
 //This is NetSH Helper GUID {D9C599C4-8DCF-4a6a-93AA-A16FE6D5125C}
 static const GUID NETKVM_HELPER_GUID =
@@ -620,6 +621,7 @@ DWORD WINAPI _NetKVMShowParamInfoCmdHandler (__in   PWCHAR  /*pwszMachine*/,
                     return ERROR_INVALID_PARAMETER;
                 }
             }
+            __fallthrough;
         default:
             NETCO_DEBUG_PRINT(TEXT("PreprocessCommand returned: ") << dwPreprocessResult);
             return dwPreprocessResult;
@@ -701,6 +703,7 @@ DWORD WINAPI _NetKVMGetParamCmdHandler (__in   PWCHAR  /*pwszMachine*/,
                     return ERROR_INVALID_PARAMETER;
                 }
             }
+            __fallthrough;
         default:
             NETCO_DEBUG_PRINT(TEXT("PreprocessCommand returned: ") << dwPreprocessResult);
             return dwPreprocessResult;
@@ -782,6 +785,7 @@ DWORD WINAPI _NetKVMSetParamCmdHandler (__in   PWCHAR  /*pwszMachine*/,
                     return ERROR_INVALID_PARAMETER;
                 }
             }
+            __fallthrough;
         default:
             NETCO_DEBUG_PRINT(TEXT("PreprocessCommand returned: ") << dwPreprocessResult);
             return dwPreprocessResult;
@@ -859,6 +863,7 @@ DWORD WINAPI _NetKVMShowParamsCmdHandler(__in   PWCHAR  /*pwszMachine*/,
                     return ERROR_INVALID_PARAMETER;
                 }
             }
+            __fallthrough;
         default:
             NETCO_DEBUG_PRINT(TEXT("PreprocessCommand returned: ") << dwPreprocessResult);
             return dwPreprocessResult;
@@ -935,6 +940,7 @@ DWORD WINAPI _NetKVMRestartDeviceCmdHandler(__in   PWCHAR  /*pwszMachine*/,
                         break;
                     default:
                         PrintMessageFromModule(g_hinstThisDLL, IDS_FAIL);
+                        break;
                     }
                     tcout << endl;
                     return dwError;
@@ -944,6 +950,7 @@ DWORD WINAPI _NetKVMRestartDeviceCmdHandler(__in   PWCHAR  /*pwszMachine*/,
                     return ERROR_INVALID_PARAMETER;
                 }
             }
+            __fallthrough;
         default:
             NETCO_DEBUG_PRINT(TEXT("PreprocessCommand returned: ") << dwPreprocessResult);
             return dwPreprocessResult;

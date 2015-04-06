@@ -1,4 +1,5 @@
 #include "ndis56common.h"
+#include <sal.h>
 
 CNBL::CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath)
     : m_NBL(NBL)
@@ -514,7 +515,9 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, PNET_BUFFER_LIST &NBLFailNow)
                     break;
 
                 case SUBMIT_FAILURE:
+                    __fallthrough;
                 case SUBMIT_SUCCESS:
+                    __fallthrough;
                 case SUBMIT_PACKET_TOO_LARGE:
                     // if this NBL finished?
                     if (!NBLHolder->HaveMappedBuffers())
