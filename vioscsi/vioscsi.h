@@ -267,8 +267,6 @@ typedef struct _ADAPTER_EXTENSION {
 
     BOOLEAN               dpc_ok;
     PSTOR_DPC             dpc;
-    LIST_ENTRY            srb_list[MAX_CPU];
-
 }ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
 
 #if (MSI_SUPPORTED == 1)

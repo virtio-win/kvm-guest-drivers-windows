@@ -335,7 +335,7 @@ ENTER_FN();
         adaptExt->num_queues = num_cpus;
     }
 
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus));
+    RhelDbgPrint(TRACE_LEVEL_FATAL, ("Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus));
 
     if (adaptExt->dump_mode) {
         for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
@@ -391,6 +391,7 @@ ENTER_FN();
                 adaptExt->queue_depth));
 
     adaptExt->uncachedExtensionVa = StorPortGetUncachedExtension(DeviceExtension, ConfigInfo, adaptExt->allocationSize);
+    RhelDbgPrint(TRACE_LEVEL_FATAL, ("StorPortGetUncachedExtension uncachedExtensionVa = %p allocation size = %d\n", adaptExt->uncachedExtensionVa, adaptExt->allocationSize));
     if (!adaptExt->uncachedExtensionVa) {
         LogError(DeviceExtension,
                 SP_INTERNAL_ADAPTER_ERROR,
@@ -399,6 +400,8 @@ ENTER_FN();
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Can't get uncached extension allocation size = %d\n", adaptExt->allocationSize));
         return SP_RETURN_ERROR;
     }
+    adaptExt->uncachedExtensionVa = (PVOID)(((ULONG_PTR)(adaptExt->uncachedExtensionVa) + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1));
+    RhelDbgPrint(TRACE_LEVEL_FATAL, ("StorPortGetUncachedExtension uncachedExtensionVa = %p allocation size = %d\n", adaptExt->uncachedExtensionVa, adaptExt->allocationSize));
 EXIT_FN();
     return SP_RETURN_FOUND;
 }
@@ -416,7 +419,6 @@ ENTER_FN();
         StorPortInitializeDpc(DeviceExtension,
             &adaptExt->dpc[index],
             VioScsiCompleteDpcRoutine);
-        InitializeListHead(&adaptExt->srb_list[index]);
     }
     adaptExt->dpc_ok = TRUE;
 EXIT_FN();
@@ -442,7 +444,8 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
            vq = VirtIODevicePrepareQueue(adaptExt->pvdev, index, pa, ptr, Size, NULL, useEventIndex);
            if (vq == NULL)
            {
-               RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> cannot create virtual queue index = %d vector = % pa = %08I64X\n", __FUNCTION__, index, vector, pa.QuadPart));
+               RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> cannot create virtual queue index = %d vector = %d ptr= %p pa = %08I64X Size = %x uncachedExtensionVa = %p offset = %x\n",
+                    __FUNCTION__, index, vector, ptr, pa.QuadPart, Size, adaptExt->uncachedExtensionVa, adaptExt->offset));
                return NULL;
            }
            adaptExt->offset += ROUND_TO_PAGES(Size);
@@ -582,8 +585,7 @@ ENTER_FN();
     }
     if (!adaptExt->dump_mode)
     {
-        if (adaptExt->num_queues > 1) {
-            adaptExt->perfFlags = 0;
+        if ((adaptExt->num_queues > 1) && (adaptExt->perfFlags == 0)) {
             perfData.Version = STOR_PERF_VERSION;
             perfData.Size = sizeof(PERF_CONFIGURATION_DATA);
 
@@ -599,11 +601,13 @@ ENTER_FN();
                     adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS;
                     perfData.ConcurrentChannels = adaptExt->num_queues;
                 }
+#if 0
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES)) {
                     adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
                     perfData.FirstRedirectionMessageNumber = 2;
                     perfData.LastRedirectionMessageNumber = 256;
                 }
+#endif
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
                     adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO;
                 }
@@ -612,7 +616,7 @@ ENTER_FN();
                     perfData.Version, perfData.Flags, perfData.ConcurrentChannels, perfData.FirstRedirectionMessageNumber, perfData.LastRedirectionMessageNumber));
                 status = StorPortInitializePerfOpts(DeviceExtension, FALSE, &perfData);
                 if (status != STOR_STATUS_SUCCESS) {
-                    perfData.Flags = 0;
+                    adaptExt->perfFlags = 0;
                     RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s StorPortInitializePerfOpts FALSE status = 0x%x\n", __FUNCTION__, status));
                 }
                 else {
@@ -1208,7 +1212,6 @@ ENTER_FN();
     srbExt   = (PSRB_EXTENSION)Srb->SrbExtension;
 
     if (!adaptExt->dump_mode && adaptExt->dpc_ok && MessageID > 0) {
-        InsertTailList(&adaptExt->srb_list[index], &srbExt->list_entry);
         StorPortIssueDpc(DeviceExtension,
             &adaptExt->dpc[index],
             ULongToPtr(MessageID),
@@ -1219,7 +1222,6 @@ ENTER_FN();
 EXIT_FN();
 }
 
-#if 1
 VOID
 VioScsiCompleteDpcRoutine(
     IN PSTOR_DPC  Dpc,
@@ -1235,77 +1237,6 @@ ENTER_FN();
     ProcessQueue(Context, MessageId, TRUE);
 EXIT_FN();
 }
-#else
-VOID
-VioScsiCompleteDpcRoutine(
-    IN PSTOR_DPC  Dpc,
-    IN PVOID Context,
-    IN PVOID SystemArgument1,
-    IN PVOID SystemArgument2
-    )
-{
-    PADAPTER_EXTENSION adaptExt;
-    ULONG MessageId;
-    ULONG index;
-    ULONG OldIrql;
-    STOR_LOCK_HANDLE    LockHandle = { 0 };
-    ULONG status = STOR_STATUS_SUCCESS;
-
-ENTER_FN();
-    adaptExt = (PADAPTER_EXTENSION)Context;
-    MessageId = PtrToUlong(SystemArgument1);
-    index = PtrToUlong(SystemArgument2);
-
-    if (adaptExt->num_queues > 1) {
-        status = StorPortAcquireMSISpinLock(Context, MessageId, &OldIrql);
-        if (status != STOR_STATUS_SUCCESS) {
-            RhelDbgPrint(TRACE_LEVEL_ERROR, ("% StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
-        }
-    }
-    else {
-        StorPortAcquireSpinLock(Context, InterruptLock, NULL, &LockHandle);
-    }
-    while (!IsListEmpty(&adaptExt->srb_list[index])) {
-        PSCSI_REQUEST_BLOCK Srb;
-        PSRB_EXTENSION srbExt;
-        srbExt = (PSRB_EXTENSION)RemoveHeadList(&adaptExt->srb_list[index]);
-        Srb = (PSCSI_REQUEST_BLOCK)srbExt->Srb;
-#if (NTDDI_VERSION >= NTDDI_WIN7)
-        CHECK_CPU(Srb);
-#endif
-        if (adaptExt->num_queues > 1) {
-            status = StorPortReleaseMSISpinLock(Context, MessageId, OldIrql);
-            if (status != STOR_STATUS_SUCCESS) {
-                RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortReleaseMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
-            }
-
-        }
-        else {
-            StorPortReleaseSpinLock(Context, &LockHandle);
-        }
-        CompleteRequest(Context, Srb);
-        if (adaptExt->num_queues > 1) {
-            status = StorPortAcquireMSISpinLock(Context, MessageId, &OldIrql);
-            if (status != STOR_STATUS_SUCCESS) {
-                RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
-            }
-        }
-        else {
-            StorPortAcquireSpinLock(Context, InterruptLock, NULL, &LockHandle);
-        }
-    }
-    if (adaptExt->num_queues > 1) {
-        status = StorPortReleaseMSISpinLock(Context, MessageId, OldIrql);
-        if (status != STOR_STATUS_SUCCESS) {
-            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortReleaseMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
-        }
-    }
-    else {
-        StorPortReleaseSpinLock(Context, &LockHandle);
-    }
-EXIT_FN();
-}
-#endif
 
 BOOLEAN
 FORCEINLINE
