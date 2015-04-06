@@ -42,7 +42,6 @@ SendSRB(
 //    STARTIO_PERFORMANCE_PARAMETERS perfParam = { 0 };
 ENTER_FN();
     SET_VA_PA();
-    QueueNumber = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Srb %p issued on %d::%d QueueNumber %d\n",
                  Srb, srbExt->procNum.Group, srbExt->procNum.Number, QueueNumber));
 
@@ -56,16 +55,18 @@ ENTER_FN();
 //            Srb, srbExt->procNum.Group, srbExt->procNum.Number, QueueNumber, perfParam.Version, perfParam.MessageNumber, perfParam.ChannelNumber));
 //    }
     if (adaptExt->num_queues > 1) {
+        QueueNumber = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
         MessageId = QueueNumber + 1;
         if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
             ProcessQueue(DeviceExtension, MessageId, FALSE);
         }
 //        status = StorPortAcquireMSISpinLock(DeviceExtension, MessageId, &OldIrql);
         if (status != STOR_STATUS_SUCCESS) {
-            RhelDbgPrint(TRACE_LEVEL_ERROR, ("% StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
+            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
         }
     }
     else {
+        QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
         StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, &LockHandle);
     }
     if (virtqueue_add_buf(adaptExt->vq[QueueNumber],

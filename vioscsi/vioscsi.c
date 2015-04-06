@@ -399,9 +399,7 @@ ENTER_FN();
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Can't get uncached extension allocation size = %d\n", adaptExt->allocationSize));
         return SP_RETURN_ERROR;
     }
-
-    InitializeListHead(&adaptExt->list_head);
-
+EXIT_FN();
     return SP_RETURN_FOUND;
 }
 
@@ -626,7 +624,7 @@ ENTER_FN();
                 RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s StorPortInitializePerfOpts TRUE status = 0x%x\n", __FUNCTION__, status));
             }
         }
-        if (!adaptExt->dpc_ok && !StorPortEnablePassiveInitialization(DeviceExtension, VioScsiPassiveInitializeRoutine)) {
+        if ((adaptExt->num_queues > 1) && !adaptExt->dpc_ok && !StorPortEnablePassiveInitialization(DeviceExtension, VioScsiPassiveInitializeRoutine)) {
             return FALSE;
         }
     }
@@ -1051,18 +1049,19 @@ DispatchQueue(
 #else
     ULONG cpu = KeGetCurrentProcessorNumber();
 #endif
+ENTER_FN();
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    if (!adaptExt->dump_mode && adaptExt->dpc_ok && MessageID > 0) {
+    if ((adaptExt->num_queues > 1) && adaptExt->dpc_ok && MessageID > 0) {
         StorPortIssueDpc(DeviceExtension,
             &adaptExt->dpc[cpu],
             ULongToPtr(MessageID),
             ULongToPtr(cpu));
+EXIT_FN();
         return;
     }
     ProcessQueue(DeviceExtension, MessageID, FALSE);
 EXIT_FN();
-
 }
 
 VOID
@@ -1087,7 +1086,7 @@ ProcessQueue(
         ULONG processor = KeGetCurrentProcessorNumber();
 #endif
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-
+ENTER_FN();
     while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + msg], &len)) != NULL)
     {
         VirtIOSCSICmdResp   *resp;
@@ -1191,6 +1190,7 @@ ProcessQueue(
         }
         CompleteRequest(DeviceExtension, Srb);
     }
+EXIT_FN();
 }
 
 VOID
