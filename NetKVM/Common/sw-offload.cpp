@@ -10,6 +10,7 @@
  *
 **********************************************************************/
 #include "ndis56common.h"
+#include <sal.h>
 
 // till IP header size is 8 bit
 #define MAX_SUPPORTED_IPV6_HEADERS  (256 - 4)
@@ -285,11 +286,17 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
                     break;
                     //existing extended headers
                 case 0:
+                    __fallthrough;
                 case 60:
+                    __fallthrough;
                 case 43:
+                    __fallthrough;
                 case 44:
+                    __fallthrough;
                 case 51:
+                    __fallthrough;
                 case 50:
+                    __fallthrough;
                 case 135:
                     if (len >= ((ULONG)ipHeaderSize + 8))
                     {
@@ -875,8 +882,11 @@ BOOLEAN AnalyzeIP6Hdr(
         {
         default:
         case IP6_HDR_NONE:
+            __fallthrough;
         case PROTOCOL_TCP:
+            __fallthrough;
         case PROTOCOL_UDP:
+            __fallthrough;
         case IP6_HDR_FRAGMENT:
             return TRUE;
         case IP6_HDR_DESTINATON:
@@ -909,8 +919,11 @@ BOOLEAN AnalyzeIP6Hdr(
             }
             break;
         case IP6_HDR_HOP_BY_HOP:
+            __fallthrough;
         case IP6_HDR_ESP:
+            __fallthrough;
         case IP6_HDR_AUTHENTICATION:
+            __fallthrough;
         case IP6_HDR_MOBILITY:
             if(!SkipIP6ExtensionHeader(ip6Hdr, dataLength, ip6HdrLength, nextHdr))
                 return FALSE;

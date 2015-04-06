@@ -14,6 +14,7 @@
 #ifdef WPP_EVENT_TRACING
 #include "sw-offload.tmh"
 #endif
+#include <sal.h>
 
 // till IP header size is 8 bit
 #define MAX_SUPPORTED_IPV6_HEADERS  (256 - 4)
@@ -191,11 +192,17 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len)
                     break;
                     //existing extended headers
                 case 0:
+                    __fallthrough;
                 case 60:
+                    __fallthrough;
                 case 43:
+                    __fallthrough;
                 case 44:
+                    __fallthrough;
                 case 51:
+                    __fallthrough;
                 case 50:
+                    __fallthrough;
                 case 135:
                     if (len >= ((ULONG)ipHeaderSize + 8))
                     {
