@@ -1,3 +1,16 @@
+Date    12 Apr 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm123
+
+Fixed bugs:
+
+BZ 1210166 vioscsi - Add multiqueue support to Windows virtio-scsi driver.
+BZ 996479  pvpanic - RFE:pvpanic driver for windows guest
+BZ 954183  NetKVM - Static driver verifier fails with NetKVM
+BZ 1190960 NetKVM - job failed due to "Received some net buffer lists out of order" w/ 4 queues 
+BZ 1190968 NetKVM - job "NDISTest 6.0 - [1 Machine] - 1c_Mini6RSSOids" last for hours and never stop w/ 4 queues
+
+
 Date    10 March 2015
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm122
