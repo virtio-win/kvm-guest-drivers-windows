@@ -934,7 +934,7 @@ VirtIoBuildIo(
 
     lba = RhelGetLba(DeviceExtension, cdb);
     blocks = (Srb->DataTransferLength + adaptExt->info.blk_size - 1) / adaptExt->info.blk_size;
-    if ((lba + blocks) > adaptExt->lastLBA) {
+    if ((lba + blocks - 1) > adaptExt->lastLBA) {
         PSENSE_DATA senseBuffer = (PSENSE_DATA)Srb->SenseInfoBuffer;
         Srb->SrbStatus = SRB_STATUS_ERROR | SRB_STATUS_AUTOSENSE_VALID;
         Srb->ScsiStatus = SCSISTAT_GOOD;
