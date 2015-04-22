@@ -2266,6 +2266,7 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
     if (ppr.ipCheckSum == ppresIPTooShort || ppr.xxpStatus == ppresXxpIncomplete)
     {
         res.flags.IpOK = FALSE;
+        #pragma warning(suppress: 4463)
         res.flags.IpFailed = TRUE;
         return res;
     }

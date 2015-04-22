@@ -39,7 +39,10 @@ public:
     bool IsSendDone();
 
     UCHAR ProtocolID()
-    { return reinterpret_cast<UCHAR>(NET_BUFFER_LIST_INFO(m_NBL, NetBufferListProtocolId)); }
+    {
+        #pragma warning(suppress: 4302)
+        return reinterpret_cast<UCHAR>(NET_BUFFER_LIST_INFO(m_NBL, NetBufferListProtocolId));
+    }
     bool MatchCancelID(PVOID ID)
     { return NDIS_GET_NET_BUFFER_LIST_CANCEL_ID(m_NBL) == ID; }
     ULONG MSS()
