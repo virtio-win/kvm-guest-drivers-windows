@@ -934,15 +934,17 @@ VirtIoBuildIo(
 
     lba = RhelGetLba(DeviceExtension, cdb);
     blocks = (Srb->DataTransferLength + adaptExt->info.blk_size - 1) / adaptExt->info.blk_size;
-    if ((lba + blocks) > adaptExt->lastLBA) {
-        PSENSE_DATA senseBuffer = (PSENSE_DATA)Srb->SenseInfoBuffer;
-        Srb->SrbStatus = SRB_STATUS_ERROR | SRB_STATUS_AUTOSENSE_VALID;
-        Srb->ScsiStatus = SCSISTAT_GOOD;
-        senseBuffer->SenseKey = SCSI_SENSE_ILLEGAL_REQUEST;
-        senseBuffer->AdditionalSenseCode = SCSI_ADSENSE_ILLEGAL_BLOCK;
-        senseBuffer->AdditionalSenseCodeQualifier = 0;
+    if (lba > adaptExt->lastLBA) {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Out-of-boundaries lba = %llu lastLBA = %llu\n", lba, adaptExt->lastLBA));
+        Srb->SrbStatus = SRB_STATUS_BAD_SRB_BLOCK_LENGTH;
         CompleteSRB(DeviceExtension, Srb);
         return FALSE;
+    }
+    if ((lba + blocks) > adaptExt->lastLBA) {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Out-of-boundaries lba = %llu lastLBA = %llu blocks (old) = %lu\n", lba, adaptExt->lastLBA, blocks));
+        blocks = (ULONG)(adaptExt->lastLBA - lba);
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Out-of-boundaries lba = %llu lastLBA = %llu blocks (new) = %lu\n", lba, adaptExt->lastLBA, blocks));
+        Srb->DataTransferLength = (ULONG)(blocks * adaptExt->info.blk_size);
     }
 
     sgList = StorPortGetScatterGatherList(DeviceExtension, Srb);
