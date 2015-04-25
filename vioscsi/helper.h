@@ -85,7 +85,6 @@ VioScsiCompleteDpcRoutine(
 );
 
 VOID
-FORCEINLINE
 ProcessQueue(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
