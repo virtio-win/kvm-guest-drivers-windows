@@ -254,17 +254,18 @@ ENTER_FN();
     {
         UCHAR CapOffset;
         PPCI_MSIX_CAPABILITY pMsixCapOffset;
-
+		PPCI_COMMON_HEADER   pPciComHeader;
         pPciConf = (PPCI_COMMON_CONFIG)pci_cfg_buf;
-        if ( (pPciConf->Status & PCI_STATUS_CAPABILITIES_LIST) == 0)
+		pPciComHeader = (PPCI_COMMON_HEADER)pci_cfg_buf;
+        if ( (pPciComHeader->Status & PCI_STATUS_CAPABILITIES_LIST) == 0)
         {
            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("NO CAPABILITIES_LIST\n"));
         }
         else
         {
-           if ( (pPciConf->HeaderType & (~PCI_MULTIFUNCTION)) == PCI_DEVICE_TYPE )
+           if ( (pPciComHeader->HeaderType & (~PCI_MULTIFUNCTION)) == PCI_DEVICE_TYPE )
            {
-              CapOffset = pPciConf->u.type0.CapabilitiesPtr;
+              CapOffset = pPciComHeader->u.type0.CapabilitiesPtr;
               while (CapOffset != 0)
               {
                  pMsixCapOffset = (PPCI_MSIX_CAPABILITY)(pci_cfg_buf + CapOffset);
@@ -991,7 +992,7 @@ ENTER_FN();
     cmd->req.cmd.lun[1] = Srb->TargetId;
     cmd->req.cmd.lun[2] = 0;
     cmd->req.cmd.lun[3] = Srb->Lun;
-    cmd->req.cmd.tag = (unsigned long)Srb;
+    cmd->req.cmd.tag = (ULONG_PTR)(Srb);
     cmd->req.cmd.task_attr = VIRTIO_SCSI_S_SIMPLE;
     cmd->req.cmd.prio = 0;
     cmd->req.cmd.crn = 0;
@@ -1069,7 +1070,6 @@ EXIT_FN();
 }
 
 VOID
-FORCEINLINE
 ProcessQueue(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
@@ -1320,6 +1320,7 @@ LogError(
 {
 #if (NTDDI_VERSION > NTDDI_WIN7)
     STOR_LOG_EVENT_DETAILS logEvent;
+    ULONG sz = 0;
     memset( &logEvent, 0, sizeof(logEvent) );
     logEvent.InterfaceRevision         = STOR_CURRENT_LOG_INTERFACE_REVISION;
     logEvent.Size                      = sizeof(logEvent);
@@ -1328,7 +1329,7 @@ LogError(
     logEvent.ErrorCode                 = ErrorCode;
     logEvent.DumpDataSize              = sizeof(UniqueId);
     logEvent.DumpData                  = &UniqueId;
-    StorPortLogSystemEvent( DeviceExtension, &logEvent, NULL );
+    StorPortLogSystemEvent( DeviceExtension, &logEvent, &sz );
 #else
     StorPortLogError(DeviceExtension,
                          NULL,
