@@ -341,17 +341,18 @@ VirtIoFindAdapter(
     {
         UCHAR CapOffset;
         PPCI_MSIX_CAPABILITY pMsixCapOffset;
-
+        PPCI_COMMON_HEADER   pPciComHeader;
+        pPciComHeader = (PPCI_COMMON_HEADER)pci_cfg_buf;
         pPciConf = (PPCI_COMMON_CONFIG)pci_cfg_buf;
-        if ( (pPciConf->Status & PCI_STATUS_CAPABILITIES_LIST) == 0)
+        if ( (pPciComHeader->Status & PCI_STATUS_CAPABILITIES_LIST) == 0)
         {
            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("NO CAPABILITIES_LIST\n"));
         }
         else
         {
-           if ( (pPciConf->HeaderType & (~PCI_MULTIFUNCTION)) == PCI_DEVICE_TYPE )
+           if ( (pPciComHeader->HeaderType & (~PCI_MULTIFUNCTION)) == PCI_DEVICE_TYPE )
            {
-              CapOffset = pPciConf->u.type0.CapabilitiesPtr;
+              CapOffset = pPciComHeader->u.type0.CapabilitiesPtr;
               while (CapOffset != 0)
               {
                  pMsixCapOffset = (PPCI_MSIX_CAPABILITY)(pci_cfg_buf + CapOffset);
