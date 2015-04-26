@@ -303,8 +303,8 @@ ENTER_FN();
     GetScsiConfig(DeviceExtension);
 
     ConfigInfo->NumberOfBuses               = 1;
-    ConfigInfo->MaximumNumberOfTargets      = (UCHAR)adaptExt->scsi_config.max_target;
-    ConfigInfo->MaximumNumberOfLogicalUnits = (UCHAR)adaptExt->scsi_config.max_lun;
+    ConfigInfo->MaximumNumberOfTargets      = min((UCHAR)adaptExt->scsi_config.max_target, 255/*SCSI_MAXIMUM_TARGETS_PER_BUS*/);
+    ConfigInfo->MaximumNumberOfLogicalUnits = min((UCHAR)adaptExt->scsi_config.max_lun, SCSI_MAXIMUM_LUNS_PER_TARGET);
     if(adaptExt->dump_mode) {
         ConfigInfo->NumberOfPhysicalBreaks  = 8;
     } else {
