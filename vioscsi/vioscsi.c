@@ -254,9 +254,9 @@ ENTER_FN();
     {
         UCHAR CapOffset;
         PPCI_MSIX_CAPABILITY pMsixCapOffset;
-		PPCI_COMMON_HEADER   pPciComHeader;
+        PPCI_COMMON_HEADER   pPciComHeader;
         pPciConf = (PPCI_COMMON_CONFIG)pci_cfg_buf;
-		pPciComHeader = (PPCI_COMMON_HEADER)pci_cfg_buf;
+        pPciComHeader = (PPCI_COMMON_HEADER)pci_cfg_buf;
         if ( (pPciComHeader->Status & PCI_STATUS_CAPABILITIES_LIST) == 0)
         {
            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("NO CAPABILITIES_LIST\n"));
