@@ -469,11 +469,13 @@ typedef struct _tagPARANDIS_ADAPTER
     tOffloadSettings        Offload;
     NDIS_OFFLOAD_PARAMETERS InitialOffloadParameters;
 
+#ifdef PARANDIS_SUPPORT_RSS
     PARANDIS_RECEIVE_QUEUE      ReceiveQueues[PARANDIS_RSS_MAX_RECEIVE_QUEUES];
     BOOLEAN                     ReceiveQueuesInitialized;
+#define PARANDIS_FIRST_RSS_RECEIVE_QUEUE    (0)
+#endif
 #define PARANDIS_RECEIVE_UNCLASSIFIED_PACKET (-1)
 #define PARANDIS_RECEIVE_NO_QUEUE  (-2)
-#define PARANDIS_FIRST_RSS_RECEIVE_QUEUE    (0)
 
     CParaNdisCX CXPath;
     BOOLEAN bCXPathAllocated;
