@@ -569,8 +569,10 @@ bool ParaNdis_DPCWorkBody(
     PARANDIS_ADAPTER *pContext,
     ULONG ulMaxPacketsToIndicate);
 
+#ifdef PARANDIS_SUPPORT_RSS
 VOID ParaNdis_ResetRxClassification(
     PARANDIS_ADAPTER *pContext);
+#endif
 
 NDIS_STATUS ParaNdis_SetMulticastList(
     PARANDIS_ADAPTER *pContext,
