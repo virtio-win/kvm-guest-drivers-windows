@@ -182,14 +182,14 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
     pRxNetDescriptor pBufferDescriptor;
     unsigned int nFullLength;
 
+#ifndef PARANDIS_SUPPORT_RSS
+    UNREFERENCED_PARAMETER(nCurrCpuReceiveQueue);
+#endif
+
     CLockedContext<CNdisSpinLock> autoLock(m_Lock);
 
     while (NULL != (pBufferDescriptor = (pRxNetDescriptor)m_VirtQueue.GetBuf(&nFullLength)))
     {
-        CCHAR nTargetReceiveQueueNum;
-        GROUP_AFFINITY TargetAffinity;
-        PROCESSOR_NUMBER TargetProcessor;
-
         /* The counter m_rxPacketsOutsideRing is increased when the packet is removed from ring; it is decreased
         in CParaNdisRX::ReuseReceiveBuffer either in case of error or when NDIS calls ParaNdis6_ReturnNetBufferLists
         indicating the return of a receive buffer under miniport driver ownership */
@@ -217,6 +217,11 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
             continue;
         }
 
+#ifdef PARANDIS_SUPPORT_RSS
+        CCHAR nTargetReceiveQueueNum;
+        GROUP_AFFINITY TargetAffinity;
+        PROCESSOR_NUMBER TargetProcessor;
+
         nTargetReceiveQueueNum = ParaNdis_GetScalingDataForPacket(
             m_Context,
             &pBufferDescriptor->PacketInfo,
@@ -236,6 +241,9 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
                 ParaNdis_QueueRSSDpc(m_Context, m_messageIndex, &TargetAffinity);
             }
         }
+#else
+       ParaNdis_ReceiveQueueAddBuffer(&m_UnclassifiedPacketsQueue, pBufferDescriptor);
+#endif
     }
 }
 
