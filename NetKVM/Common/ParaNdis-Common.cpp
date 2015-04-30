@@ -1168,6 +1168,7 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 
     /* list NetReceiveBuffersWaiting must be free */
 
+#ifdef PARANDIS_SUPPORT_RSS
     for (i = 0; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
     {
         pRxNetDescriptor pBufferDescriptor;
@@ -1177,6 +1178,7 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
             pBufferDescriptor->Queue->ReuseReceiveBuffer(pBufferDescriptor);
         }
     }
+#endif
 
     for (i = 0; i < pContext->nPathBundles; i++)
     {
@@ -1278,6 +1280,7 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 
     ParaNdis_FinalizeCleanup(pContext);
 
+#ifdef PARANDIS_SUPPORT_RSS
     if (pContext->ReceiveQueuesInitialized)
     {
         ULONG i;
@@ -1287,6 +1290,7 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
             NdisFreeSpinLock(&pContext->ReceiveQueues[i].Lock);
         }
     }
+#endif
 
     pContext->m_PauseLock.~CNdisRWLock();
     if (pContext->m_CompletionLockCreated)
@@ -1655,11 +1659,13 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
                     &indicate, &indicateTail, &nIndicate);
             }
 
+#ifdef PARANDIS_SUPPORT_RSS
             if (CurrCpuReceiveQueue != PARANDIS_RECEIVE_NO_QUEUE)
             {
                 res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pContext->ReceiveQueues[CurrCpuReceiveQueue],
                     &indicate, &indicateTail, &nIndicate);
             }
+#endif
 
             if (pathBundle != nullptr)
             {
