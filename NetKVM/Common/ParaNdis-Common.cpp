@@ -1751,6 +1751,7 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
     return stillRequiresProcessing;
 }
 
+#ifdef PARANDIS_SUPPORT_RSS
 VOID ParaNdis_ResetRxClassification(PARANDIS_ADAPTER *pContext)
 {
     ULONG i;
@@ -1770,6 +1771,7 @@ VOID ParaNdis_ResetRxClassification(PARANDIS_ADAPTER *pContext)
         NdisReleaseSpinLock(&pCurrQueue->Lock);
     }
 }
+#endif
 
 /**********************************************************
 Periodically called procedure, checking dpc activity
