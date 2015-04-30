@@ -232,7 +232,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
     if (status == NDIS_STATUS_SUCCESS)
     {
-        ULONG i;
         NDIS_PNP_CAPABILITIES power60Caps;
 #if NDIS_SUPPORT_NDIS620
         NDIS_PM_CAPABILITIES power620Caps;
@@ -295,15 +294,15 @@ static NDIS_STATUS ParaNdis6_Initialize(
             DPrintf(0, ("RSS RW lock allocation failed\n"));
             status = NDIS_STATUS_RESOURCES;
         }
-#endif
 
-        for(i = 0; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
+        for(ULONG i = 0; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
         {
             NdisAllocateSpinLock(&pContext->ReceiveQueues[i].Lock);
             InitializeListHead(&pContext->ReceiveQueues[i].BuffersList);
         }
 
         pContext->ReceiveQueuesInitialized = TRUE;
+#endif
 
         miniportAttributes.GeneralAttributes.AccessType = NET_IF_ACCESS_BROADCAST;
         miniportAttributes.GeneralAttributes.DirectionType = NET_IF_DIRECTION_SENDRECEIVE;
@@ -328,6 +327,16 @@ static NDIS_STATUS ParaNdis6_Initialize(
     {
 #if PARANDIS_SUPPORT_RSS
         pContext->RSSParameters.rwLock.~CNdisRWLock();
+
+        if (pContext->ReceiveQueuesInitialized)
+        {
+            ULONG i;
+
+            for (i = 0; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
+            {
+                NdisFreeSpinLock(&pContext->ReceiveQueues[i].Lock);
+            }
+        }
 #endif
         if (pContext->m_CompletionLockCreated)
         {
@@ -339,15 +348,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
         if (pContext->IODevice != nullptr)
             NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->IODevice, PARANDIS_MEMORY_TAG);
 
-        if (pContext->ReceiveQueuesInitialized)
-        {
-            ULONG i;
-
-            for (i = 0; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
-            {
-                NdisFreeSpinLock(&pContext->ReceiveQueues[i].Lock);
-            }
-        }
 
         NdisFreeMemory(pContext, 0, 0);
         pContext = NULL;
