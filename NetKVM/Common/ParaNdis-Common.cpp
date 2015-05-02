@@ -1625,6 +1625,30 @@ static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
     return ReceiveQueueHasBuffers(pTargetReceiveQueue);
 }
 
+
+/* DPC throttling implementation. 
+
+The main loop of the function RxDPCWorkBody finishes under light traffic
+when there are no more packets in the virtqueue receive queue. Under the
+heavy traffic, the situation is more complicated: the ready-to process packets
+are fetched from the virtqueue's receive queue, indicated toward the OS upper
+layer in the ProcessReceiveQueue and, depending on the relative speed of
+a virtual NIC and guest OS, may be returned by the upper layer to the driver 
+with ParaNdis6_ReturnNetBufferLists and reinserted into the virtqueue for
+reading. 
+
+Under these conditions, the RxDPCWorkBody's loop terminates because
+ProcessReceiveQueue is limited by the nPacketsToIndicate parameter, accepting
+the configuration value for DPC throttling. ProcessReceiveQueue decreases
+the nPacketsToIndicate's value each time the packet is indicated toward the
+OS's upper layer and stops indicating when nPacketsToIndicate drops to zero.
+
+When nPacketsToIndicate reaches zero, the loop operates in the following way:
+ProcessRxRing fetches the ready-to-process packet from virtqueue and places
+them into receiving queues, but the packets are not indicated by
+ProcessReceiveQueue; OS has no packets to be reinserted into the virtuqeue,
+virtqueue eventually becomes empty and RxDPCWorkBody's loop exits  */
+
 static
 BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, ULONG nPacketsToIndicate)
 {
