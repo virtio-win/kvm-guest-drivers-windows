@@ -3,7 +3,6 @@
 #include "RegAccess.h"
 #include "NetKVMAux.h"
 #include "RegParam.h"
-#include <sal.h>
 
 //This is NetSH Helper GUID {D9C599C4-8DCF-4a6a-93AA-A16FE6D5125C}
 static const GUID NETKVM_HELPER_GUID =

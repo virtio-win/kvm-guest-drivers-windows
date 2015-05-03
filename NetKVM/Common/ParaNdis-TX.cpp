@@ -1,5 +1,4 @@
 #include "ndis56common.h"
-#include <sal.h>
 
 CNBL::CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath)
     : m_NBL(NBL)

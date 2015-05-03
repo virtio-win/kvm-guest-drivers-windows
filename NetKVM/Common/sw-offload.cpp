@@ -10,7 +10,6 @@
  *
 **********************************************************************/
 #include "ndis56common.h"
-#include <sal.h>
 
 // till IP header size is 8 bit
 #define MAX_SUPPORTED_IPV6_HEADERS  (256 - 4)

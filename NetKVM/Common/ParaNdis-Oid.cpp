@@ -10,7 +10,6 @@
  *
 **********************************************************************/
 #include "ParaNdis-Oid.h"
-#include <sal.h>
 
 static const char VendorName[] = "Red Hat";
 

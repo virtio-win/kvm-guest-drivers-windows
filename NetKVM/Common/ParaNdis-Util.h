@@ -2,12 +2,10 @@
 
 extern "C" {
 #include <ndis.h>
-#include <sal.h>
 #include <Ntstrsafe.h>
 
-#if NTDDI_VERSION > NTDDI_VISTA
-#include <concurrencysal.h>
-#else
+
+#if NTDDI_VERSION <= NTDDI_VISTA
 #define _Requires_lock_held_(lock)
 #define _Acquires_shared_lock_(lock)
 #define _Acquires_exclusive_lock_(lock)

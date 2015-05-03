@@ -13,7 +13,6 @@
 
 #include "ParaNdis-Oid.h"
 #include "ParaNdis6.h"
-#include <sal.h>
 
 static NDIS_IO_WORKITEM_FUNCTION OnSetPowerWorkItem;
 
