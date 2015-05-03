@@ -1,6 +1,5 @@
 #include "ndis56common.h"
 #include "ParaNdis-VirtQueue.h"
-#include <sal.h>
 
 bool CVirtQueue::AllocateQueueMemory()
 {
