@@ -1,13 +1,7 @@
 #ifndef PARANDIS_RSS_H
 #define PARANDIS_RSS_H
 
-extern "C"
-{
-#pragma warning (push)
-#pragma warning (disable:4201)
-#include <ndis.h>
-#pragma warning (pop)
-}
+#include "osdep.h"
 
 #include "ParaNdis-Util.h"
 
