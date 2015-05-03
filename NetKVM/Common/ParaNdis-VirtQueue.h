@@ -3,7 +3,6 @@
 extern "C"
 {
 
-#include <ndis.h>
 #include "osdep.h"
 #include "virtio_pci.h"
 #include "VirtIO.h"
