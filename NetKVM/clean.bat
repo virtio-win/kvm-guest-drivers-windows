@@ -23,6 +23,12 @@ call :rmdir "NetKVM Package\Win7Debug"
 call :rmdir "NetKVM Package\x64"
 call :rmdir x64
 call :rmdir x86
+del build.err
+del build.log
+del buildfre_*.log
+del buildchk_*.log
+del msbuild.log
+del netkvm.DVL.XML
 call clean_dvl_log.cmd
 
 pushd CoInstaller
