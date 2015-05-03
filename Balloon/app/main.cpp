@@ -11,15 +11,17 @@ LPWSTR DisplayName = L"Balloon Service";
 
 CService srvc;
 
-void __stdcall HandlerEx(DWORD ctlcode, DWORD evtype, PVOID evdata, PVOID context)
+DWORD WINAPI HandlerEx(DWORD ctlcode, DWORD evtype, PVOID evdata, PVOID context)
 {
-    CService::HandlerExThunk((CService*) context, ctlcode, evtype, evdata);
+    CService *service = static_cast<CService*>(context);
+
+    return CService::HandlerExThunk(service, ctlcode, evtype, evdata);
 }
 
 void __stdcall ServiceMainEx(DWORD argc, TCHAR* argv[])
 {
-    srvc.m_StatusHandle = RegisterServiceCtrlHandlerEx(ServiceName,
-        (LPHANDLER_FUNCTION_EX)HandlerEx, (PVOID)&srvc);
+    srvc.m_StatusHandle = RegisterServiceCtrlHandlerEx(ServiceName, HandlerEx,
+        &srvc);
     CService::ServiceMainThunk(&srvc, argc, argv);
 }
 
