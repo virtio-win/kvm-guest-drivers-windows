@@ -3,13 +3,13 @@ setlocal
 call tools\set_version.bat
 call ..\tools\callVisualStudio.bat 12 netkvm.sln /Rebuild "Win8 Release|Win32" /Out buildfre_win8_x86.log
 endlocal
-rem if %ERRORLEVEL% NEQ 0 goto :eof
+if %ERRORLEVEL% NEQ 0 goto :eof
 
 setlocal
 call tools\set_version.bat 0x0620
 call ..\tools\callVisualStudio.bat 12 netkvm.sln /Rebuild "Win8 Release|x64" /Out buildfre_win8_amd64.log
 endlocal
-rem if %ERRORLEVEL% NEQ 0 goto :eof
+if %ERRORLEVEL% NEQ 0 goto :eof
 
 rem setlocal
 rem call tools\set_version.bat
@@ -28,13 +28,13 @@ setlocal
 call tools\set_version.bat
 call ..\tools\callVisualStudio.bat 12 netkvm.sln /Rebuild "Win7 Release|Win32" /Out buildfre_win7_x86.log
 endlocal
-rem if %ERRORLEVEL% NEQ 0 goto :eof
+if %ERRORLEVEL% NEQ 0 goto :eof
 
 setlocal
 call tools\set_version.bat
 call ..\tools\callVisualStudio.bat 12 netkvm.sln /Rebuild "Win7 Release|x64" /Out buildfre_win7_amd64.log
 endlocal
-rem if %ERRORLEVEL% NEQ 0 goto :eof
+if %ERRORLEVEL% NEQ 0 goto :eof
 
 rem setlocal
 rem call tools\set_version.bat
@@ -53,13 +53,13 @@ setlocal
 call tools\set_version.bat
 call ..\tools\callVisualStudio.bat 12 netkvm.sln /Rebuild "Vista Release|Win32" /Out buildfre_wlh_x86.log
 endlocal
-rem if %ERRORLEVEL% NEQ 0 goto :eof
+if %ERRORLEVEL% NEQ 0 goto :eof
 
 setlocal
 call tools\set_version.bat
 call ..\tools\callVisualStudio.bat 12 netkvm.sln /Rebuild "Vista Release|x64" /Out buildfre_wlh_amd64.log
 endlocal
-rem if %ERRORLEVEL% NEQ 0 goto :eof
+if %ERRORLEVEL% NEQ 0 goto :eof
 
 :: XP
 pushd NDIS5
