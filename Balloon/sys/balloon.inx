@@ -39,16 +39,6 @@ balloon.sys  = 1,,
 [Manufacturer]
 %RHEL%=Standard,NT$ARCH$
 
-; Following section is meant for Windows 2000 as it 
-; cannot parse decorated model sections
-[Standard]
-;
-; Hw Id is PCI\VEN_1AF4&DEV_1002
-;
-%BALLOON.DeviceDesc%=BALLOON_Device, PCI\VEN_1AF4&DEV_1002&SUBSYS_00051AF4&REV_00
-
-; Decorated model section take precedence over undecorated 
-; ones on XP and later.
 [Standard.NT$ARCH$]
 %BALLOON.DeviceDesc%=BALLOON_Device, PCI\VEN_1AF4&DEV_1002&SUBSYS_00051AF4&REV_00
 
