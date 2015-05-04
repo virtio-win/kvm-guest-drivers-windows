@@ -448,6 +448,8 @@ BalloonEvtDeviceD0Exit(
     PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
 #endif // (WINVER >= 0x0501)
 
+    UNREFERENCED_PARAMETER(TargetState);
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
 
     PAGED_CODE();
@@ -665,7 +667,7 @@ BalloonRoutine(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Balloon thread started....\n");
 
-    while(TRUE)
+    for (;;)
     {
         Timeout.QuadPart = Int32x32To64(10000, -10000);
         status = KeWaitForSingleObject(&devCtx->WakeUpThread, Executive,

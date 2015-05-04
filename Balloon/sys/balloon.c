@@ -116,6 +116,7 @@ BalloonInit(
                    "Failed to add buffer to stats queue.\n");
            }
         }
+#pragma warning(suppress: 4127)
     } while(FALSE);
 
     VirtIODeviceWriteGuestFeatures(&devCtx->VDevice, guestFeatures);
@@ -204,7 +205,7 @@ BalloonFill(
     pNewPageListEntry->PageMdl = pPageMdl;
     PushEntryList(&ctx->PageListHead, &(pNewPageListEntry->SingleListEntry));
 
-    ctx->num_pfns = num;
+    ctx->num_pfns = (ULONG)num;
     ctx->num_pages += ctx->num_pfns;
 
     RtlCopyMemory(ctx->pfns_table, MmGetMdlPfnArray(pPageMdl),
@@ -240,7 +241,7 @@ BalloonLeak(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS,
         "Deflate balloon with %d pages.\n", num);
 
-    ctx->num_pfns = num;
+    ctx->num_pfns = (ULONG)num;
     ctx->num_pages -= ctx->num_pfns;
 
     RtlCopyMemory(ctx->pfns_table, MmGetMdlPfnArray(pPageMdl),
@@ -299,7 +300,6 @@ BalloonTerm(
     )
 {
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
-    PVOID p;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonTerm\n");
 
