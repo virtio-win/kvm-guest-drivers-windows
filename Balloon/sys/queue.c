@@ -134,7 +134,6 @@ VOID BalloonEvtRequestCancel(IN WDFREQUEST Request)
 {
     PDEVICE_CONTEXT devCtx = GetDeviceContext(WdfIoQueueGetDevice(
         WdfRequestGetIoQueue(Request)));
-    PSINGLE_LIST_ENTRY iter;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
         "--> BalloonEvtRequestCancel Cancelled Request: %p\n", Request);
