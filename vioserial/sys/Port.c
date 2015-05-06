@@ -912,20 +912,23 @@ VIOSerialPortClose(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
         "--> %s\n", __FUNCTION__);
 
-    if (!pdoData->port->Removed && pdoData->port->GuestConnected)
+    if (!pdoData->port->Removed)
     {
-        VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->PortId,
-            VIRTIO_CONSOLE_PORT_OPEN, 0);
+        if (pdoData->port->GuestConnected) {
+            VIOSerialSendCtrlMsg(pdoData->port->BusDevice,
+                pdoData->port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
+        }
+
+        WdfSpinLockAcquire(pdoData->port->InBufLock);
+        VIOSerialDiscardPortDataLocked(pdoData->port);
+        WdfSpinLockRelease(pdoData->port->InBufLock);
+
+        WdfSpinLockAcquire(pdoData->port->OutVqLock);
+        VIOSerialReclaimConsumedBuffers(pdoData->port);
+        WdfSpinLockRelease(pdoData->port->OutVqLock);
     }
+
     pdoData->port->GuestConnected = FALSE;
-
-    WdfSpinLockAcquire(pdoData->port->InBufLock);
-    VIOSerialDiscardPortDataLocked(pdoData->port);
-    WdfSpinLockRelease(pdoData->port->InBufLock);
-
-    WdfSpinLockAcquire(pdoData->port->OutVqLock);
-    VIOSerialReclaimConsumedBuffers(pdoData->port);
-    WdfSpinLockRelease(pdoData->port->OutVqLock);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
         "<-- %s\n", __FUNCTION__);
