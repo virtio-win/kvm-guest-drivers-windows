@@ -92,10 +92,8 @@ ENTER_FN();
 
     MessageId = QueueNumber + 1;
     Lock(DeviceExtension, MessageId, &LockHandle, &OldIrql);
-    if (adaptExt->num_queues > 1) {
-        if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
-            ProcessQueue(DeviceExtension, MessageId, FALSE);
-        }
+    if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
+        ProcessQueue(DeviceExtension, MessageId, FALSE);
     }
     if (virtqueue_add_buf(adaptExt->vq[QueueNumber],
                      &srbExt->sg[0],
