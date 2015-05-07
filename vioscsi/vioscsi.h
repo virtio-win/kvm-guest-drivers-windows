@@ -259,6 +259,8 @@ typedef struct _ADAPTER_EXTENSION {
     TMF_COMMAND           tmf_cmd;
     BOOLEAN               tmf_infly;
 
+    USHORT                original_queue_num[4];  // last element used as pad.
+
     PVirtIOSCSIEventNode  events;
 
     ULONG                 num_queues;

@@ -329,9 +329,18 @@ ENTER_FN();
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus));
 
     if (adaptExt->dump_mode) {
+        // In dump mode, StorPortGetUncachedExtension fails if queues have more than 256 descriptors
+        #define MAX_DUMP_MODE_QUEUE_NUM 256
         for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
             StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_SEL), (USHORT)index);
             StorPortWritePortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_QUEUE_PFN), (ULONG)0);
+            adaptExt->original_queue_num[index] = StorPortReadPortUshort(adaptExt, (PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_QUEUE_NUM));
+            if (adaptExt->original_queue_num[index] > MAX_DUMP_MODE_QUEUE_NUM) {
+                RhelDbgPrint(TRACE_LEVEL_WARNING, ("Virtual queue 1 num descriptors reduced in dump mode.\n"));
+                StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM), MAX_DUMP_MODE_QUEUE_NUM);
+            } else {
+                adaptExt->original_queue_num[index] = 0;
+            }
         }
     }
 

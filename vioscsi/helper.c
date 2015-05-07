@@ -212,6 +212,9 @@ ENTER_FN();
         if (adaptExt->vq[index]) {
             virtqueue_shutdown(adaptExt->vq[index]);
             VirtIODeviceDeleteQueue(adaptExt->vq[index], NULL);
+            if (adaptExt->dump_mode && adaptExt->original_queue_num[index] != 0) {
+                 StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_QUEUE_NUM), adaptExt->original_queue_num[index]);
+            }
             adaptExt->vq[index] = NULL;
         }
     }
