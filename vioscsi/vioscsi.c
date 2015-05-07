@@ -681,44 +681,44 @@ VioScsiInterrupt(
               Srb->SrbStatus = (Srb->ScsiStatus == SCSISTAT_GOOD) ? SRB_STATUS_SUCCESS : SRB_STATUS_ERROR;
               break;
            case VIRTIO_SCSI_S_UNDERRUN:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_UNDERRUN\n"));
+              RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_UNDERRUN\n"));
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
               break;
            case VIRTIO_SCSI_S_ABORTED:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_ABORTED\n"));
+              RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_ABORTED\n"));
               Srb->SrbStatus = SRB_STATUS_ABORTED;
               break;
            case VIRTIO_SCSI_S_BAD_TARGET:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_BAD_TARGET\n"));
+              RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_BAD_TARGET\n"));
               Srb->SrbStatus = SRB_STATUS_INVALID_TARGET_ID;
               break;
            case VIRTIO_SCSI_S_RESET:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_RESET\n"));
+              RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_RESET\n"));
               Srb->SrbStatus = SRB_STATUS_BUS_RESET;
               break;
            case VIRTIO_SCSI_S_BUSY:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_BUSY\n"));
+              RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_BUSY\n"));
               Srb->SrbStatus = SRB_STATUS_BUSY;
               break;
            case VIRTIO_SCSI_S_TRANSPORT_FAILURE:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_TRANSPORT_FAILURE\n"));
+              RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_TRANSPORT_FAILURE\n"));
               Srb->SrbStatus = SRB_STATUS_ERROR;
               break;
            case VIRTIO_SCSI_S_TARGET_FAILURE:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_TARGET_FAILURE\n"));
+              RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_TARGET_FAILURE\n"));
               Srb->SrbStatus = SRB_STATUS_ERROR;
               break;
            case VIRTIO_SCSI_S_NEXUS_FAILURE:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_NEXUS_FAILURE\n"));
+              RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_NEXUS_FAILURE\n"));
               Srb->SrbStatus = SRB_STATUS_ERROR;
               break;
            case VIRTIO_SCSI_S_FAILURE:
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_FAILURE\n"));
+              RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_FAILURE\n"));
               Srb->SrbStatus = SRB_STATUS_ERROR;
               break;
            default:
               Srb->SrbStatus = SRB_STATUS_ERROR;
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Unknown response %d\n", resp->response));
+              RhelDbgPrint(TRACE_LEVEL_WARNING, ("Unknown response %d\n", resp->response));
               break;
            }
            if (Srb->SrbStatus != SRB_STATUS_SUCCESS)
@@ -1126,44 +1126,44 @@ ProcessQueue(
             Srb->SrbStatus = (Srb->ScsiStatus == SCSISTAT_GOOD) ? SRB_STATUS_SUCCESS : SRB_STATUS_ERROR;
             break;
         case VIRTIO_SCSI_S_UNDERRUN:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_UNDERRUN\n"));
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_UNDERRUN\n"));
             Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
             break;
         case VIRTIO_SCSI_S_ABORTED:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_ABORTED\n"));
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_ABORTED\n"));
             Srb->SrbStatus = SRB_STATUS_ABORTED;
             break;
         case VIRTIO_SCSI_S_BAD_TARGET:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_BAD_TARGET\n"));
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_BAD_TARGET\n"));
             Srb->SrbStatus = SRB_STATUS_INVALID_TARGET_ID;
             break;
         case VIRTIO_SCSI_S_RESET:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_RESET\n"));
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_RESET\n"));
             Srb->SrbStatus = SRB_STATUS_BUS_RESET;
             break;
         case VIRTIO_SCSI_S_BUSY:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_BUSY\n"));
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_BUSY\n"));
             Srb->SrbStatus = SRB_STATUS_BUSY;
             break;
         case VIRTIO_SCSI_S_TRANSPORT_FAILURE:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_TRANSPORT_FAILURE\n"));
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_TRANSPORT_FAILURE\n"));
             Srb->SrbStatus = SRB_STATUS_ERROR;
             break;
         case VIRTIO_SCSI_S_TARGET_FAILURE:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_TARGET_FAILURE\n"));
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_TARGET_FAILURE\n"));
             Srb->SrbStatus = SRB_STATUS_ERROR;
             break;
         case VIRTIO_SCSI_S_NEXUS_FAILURE:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_NEXUS_FAILURE\n"));
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_NEXUS_FAILURE\n"));
             Srb->SrbStatus = SRB_STATUS_ERROR;
             break;
         case VIRTIO_SCSI_S_FAILURE:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_SCSI_S_FAILURE\n"));
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("VIRTIO_SCSI_S_FAILURE\n"));
             Srb->SrbStatus = SRB_STATUS_ERROR;
             break;
         default:
             Srb->SrbStatus = SRB_STATUS_ERROR;
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Unknown response %d\n", resp->response));
+            RhelDbgPrint(TRACE_LEVEL_WARNING, ("Unknown response %d\n", resp->response));
             break;
         }
         if (Srb->SrbStatus != SRB_STATUS_SUCCESS)
