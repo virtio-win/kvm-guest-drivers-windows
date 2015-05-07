@@ -416,7 +416,6 @@ ENTER_FN();
         StorPortInitializeDpc(DeviceExtension,
             &adaptExt->dpc[index],
             VioScsiCompleteDpcRoutine);
-        InitializeListHead(&adaptExt->srb_list[index]);
     }
     adaptExt->dpc_ok = TRUE;
 EXIT_FN();
@@ -1050,12 +1049,13 @@ DispatchQueue(
 )
 {
     PADAPTER_EXTENSION  adaptExt;
+    ULONG cpu;
 #if (NTDDI_VERSION >= NTDDI_WIN7)
     PROCESSOR_NUMBER ProcNumber;
-    ULONG processor = KeGetCurrentProcessorNumberEx(&ProcNumber);
-    ULONG cpu = ProcNumber.Number;
+    KeGetCurrentProcessorNumberEx(&ProcNumber);
+    cpu = ProcNumber.Number;
 #else
-    ULONG cpu = KeGetCurrentProcessorNumber();
+    cpu = KeGetCurrentProcessorNumber();
 #endif
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
@@ -1094,7 +1094,7 @@ ProcessQueue(
 
 #if (NTDDI_VERSION >= NTDDI_WIN7)
         PROCESSOR_NUMBER ProcNumber;
-        ULONG processor = KeGetCurrentProcessorNumberEx(&ProcNumber);
+        KeGetCurrentProcessorNumberEx(&ProcNumber);
 #else
         ULONG processor = KeGetCurrentProcessorNumber();
 #endif
@@ -1191,7 +1191,6 @@ ProcessQueue(
         }
         else if (Srb->SrbStatus != SRB_STATUS_SUCCESS)
         {
-            PSENSE_DATA pSense = (PSENSE_DATA)Srb->SenseInfoBuffer;
             if (Srb->SenseInfoBufferLength >= FIELD_OFFSET(SENSE_DATA, CommandSpecificInformation)) {
                 memcpy(Srb->SenseInfoBuffer, resp->sense,
                     min(resp->sense_len, Srb->SenseInfoBufferLength));
@@ -1337,9 +1336,6 @@ TransportReset(
     IN PVirtIOSCSIEvent evt
     )
 {
-    UCHAR TargetId = evt->lun[1];
-    UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
-
     switch (evt->reason)
     {
         case VIRTIO_SCSI_EVT_RESET_RESCAN:
@@ -1359,8 +1355,6 @@ ParamChange(
     IN PVirtIOSCSIEvent evt
     )
 {
-    UCHAR TargetId = evt->lun[1];
-    UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
     UCHAR AdditionalSenseCode = (UCHAR)(evt->reason & 255);
     UCHAR AdditionalSenseCodeQualifier = (UCHAR)(evt->reason >> 8);
 
