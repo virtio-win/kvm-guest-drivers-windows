@@ -102,15 +102,6 @@ DispatchQueue(
     IN ULONG MessageID
     );
 
-VOID
-FORCEINLINE
-CompleteDPC(
-    IN PVOID DeviceExtension,
-    IN PSCSI_REQUEST_BLOCK Srb,
-    IN ULONG index,
-    IN ULONG MessageID
-);
-
 BOOLEAN
 VioScsiInterrupt(
     IN PVOID DeviceExtension
@@ -583,6 +574,7 @@ ENTER_FN();
     if (!adaptExt->dump_mode)
     {
         if (adaptExt->num_queues > 1) {
+#if (MSI_SUPPORTED == 1)
             adaptExt->perfFlags = 0;
             perfData.Version = STOR_PERF_VERSION;
             perfData.Size = sizeof(PERF_CONFIGURATION_DATA);
@@ -623,6 +615,7 @@ ENTER_FN();
             else {
                 RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s StorPortInitializePerfOpts TRUE status = 0x%x\n", __FUNCTION__, status));
             }
+#endif
         }
         if (!adaptExt->dpc_ok && !StorPortEnablePassiveInitialization(DeviceExtension, VioScsiPassiveInitializeRoutine)) {
             return FALSE;
@@ -730,7 +723,6 @@ VioScsiInterrupt(
            }
            if (Srb->SrbStatus != SRB_STATUS_SUCCESS)
            {
-              PSENSE_DATA pSense = (PSENSE_DATA) Srb->SenseInfoBuffer;
               if (Srb->SenseInfoBufferLength >= FIELD_OFFSET(SENSE_DATA, CommandSpecificInformation)) {
                  memcpy(Srb->SenseInfoBuffer, resp->sense,
                  min(resp->sense_len, Srb->SenseInfoBufferLength));
@@ -745,7 +737,7 @@ VioScsiInterrupt(
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
-           CompleteDPC(DeviceExtension, Srb, 0, 0);
+           CompleteRequest(DeviceExtension, Srb);
         }
         if (adaptExt->tmf_infly) {
            while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE], &len)) != NULL) {
@@ -1051,7 +1043,11 @@ DispatchQueue(
 #endif
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    if (adaptExt->num_queues == 1) {
+        cpu = 0;
+    }
     if (!adaptExt->dump_mode && adaptExt->dpc_ok && MessageID > 0) {
+        // FIXME: This will fail with cpu hot plug.
         StorPortIssueDpc(DeviceExtension,
             &adaptExt->dpc[cpu],
             ULongToPtr(MessageID),
@@ -1077,6 +1073,8 @@ ProcessQueue(
     PSCSI_REQUEST_BLOCK Srb;
     PSRB_EXTENSION      srbExt;
     ULONG               msg = MessageID - 3;
+    ULONG               OldIrql = 0;
+    STOR_LOCK_HANDLE    LockHandle = { 0 };
 
 #if (NTDDI_VERSION >= NTDDI_WIN7)
         PROCESSOR_NUMBER ProcNumber;
@@ -1085,7 +1083,9 @@ ProcessQueue(
         ULONG processor = KeGetCurrentProcessorNumber();
 #endif
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-
+    if (dpc) {
+        Lock(DeviceExtension, MessageID, &LockHandle, &OldIrql);
+    }
     while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + msg], &len)) != NULL)
     {
         VirtIOSCSICmdResp   *resp;
@@ -1189,35 +1189,11 @@ ProcessQueue(
         }
         CompleteRequest(DeviceExtension, Srb);
     }
-}
-
-VOID
-FORCEINLINE
-CompleteDPC(
-    IN PVOID DeviceExtension,
-    IN PSCSI_REQUEST_BLOCK Srb,
-    IN ULONG index,
-    IN ULONG MessageID
-)
-{
-    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    PSRB_EXTENSION        srbExt;
-ENTER_FN();
-    srbExt   = (PSRB_EXTENSION)Srb->SrbExtension;
-
-    if (!adaptExt->dump_mode && adaptExt->dpc_ok && MessageID > 0) {
-        InsertTailList(&adaptExt->srb_list[index], &srbExt->list_entry);
-        StorPortIssueDpc(DeviceExtension,
-            &adaptExt->dpc[index],
-            ULongToPtr(MessageID),
-            ULongToPtr(index));
-        return;
+    if (dpc) {
+        Unlock(DeviceExtension, MessageID, &LockHandle, OldIrql);
     }
-    CompleteRequest(DeviceExtension, Srb);
-EXIT_FN();
 }
 
-#if 1
 VOID
 VioScsiCompleteDpcRoutine(
     IN PSTOR_DPC  Dpc,
@@ -1233,77 +1209,6 @@ ENTER_FN();
     ProcessQueue(Context, MessageId, TRUE);
 EXIT_FN();
 }
-#else
-VOID
-VioScsiCompleteDpcRoutine(
-    IN PSTOR_DPC  Dpc,
-    IN PVOID Context,
-    IN PVOID SystemArgument1,
-    IN PVOID SystemArgument2
-    )
-{
-    PADAPTER_EXTENSION adaptExt;
-    ULONG MessageId;
-    ULONG index;
-    ULONG OldIrql;
-    STOR_LOCK_HANDLE    LockHandle = { 0 };
-    ULONG status = STOR_STATUS_SUCCESS;
-
-ENTER_FN();
-    adaptExt = (PADAPTER_EXTENSION)Context;
-    MessageId = PtrToUlong(SystemArgument1);
-    index = PtrToUlong(SystemArgument2);
-
-    if (adaptExt->num_queues > 1) {
-        status = StorPortAcquireMSISpinLock(Context, MessageId, &OldIrql);
-        if (status != STOR_STATUS_SUCCESS) {
-            RhelDbgPrint(TRACE_LEVEL_ERROR, ("% StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
-        }
-    }
-    else {
-        StorPortAcquireSpinLock(Context, InterruptLock, NULL, &LockHandle);
-    }
-    while (!IsListEmpty(&adaptExt->srb_list[index])) {
-        PSCSI_REQUEST_BLOCK Srb;
-        PSRB_EXTENSION srbExt;
-        srbExt = (PSRB_EXTENSION)RemoveHeadList(&adaptExt->srb_list[index]);
-        Srb = (PSCSI_REQUEST_BLOCK)srbExt->Srb;
-#if (NTDDI_VERSION >= NTDDI_WIN7)
-        CHECK_CPU(Srb);
-#endif
-        if (adaptExt->num_queues > 1) {
-            status = StorPortReleaseMSISpinLock(Context, MessageId, OldIrql);
-            if (status != STOR_STATUS_SUCCESS) {
-                RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortReleaseMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
-            }
-
-        }
-        else {
-            StorPortReleaseSpinLock(Context, &LockHandle);
-        }
-        CompleteRequest(Context, Srb);
-        if (adaptExt->num_queues > 1) {
-            status = StorPortAcquireMSISpinLock(Context, MessageId, &OldIrql);
-            if (status != STOR_STATUS_SUCCESS) {
-                RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
-            }
-        }
-        else {
-            StorPortAcquireSpinLock(Context, InterruptLock, NULL, &LockHandle);
-        }
-    }
-    if (adaptExt->num_queues > 1) {
-        status = StorPortReleaseMSISpinLock(Context, MessageId, OldIrql);
-        if (status != STOR_STATUS_SUCCESS) {
-            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortReleaseMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
-        }
-    }
-    else {
-        StorPortReleaseSpinLock(Context, &LockHandle);
-    }
-EXIT_FN();
-}
-#endif
 
 BOOLEAN
 FORCEINLINE

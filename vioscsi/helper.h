@@ -67,7 +67,7 @@ LogError(
 BOOLEAN
 KickEvent(
     IN PVOID DeviceExtension,
-    IN PVirtIOSCSIEventNode event 
+    IN PVirtIOSCSIEventNode event
     );
 
 BOOLEAN
@@ -85,11 +85,26 @@ VioScsiCompleteDpcRoutine(
 );
 
 VOID
-FORCEINLINE
 ProcessQueue(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
     IN BOOLEAN dpc
     );
 
-#endif ___HELPER_H___
+VOID
+Lock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    OUT PSTOR_LOCK_HANDLE LockHandle,
+    OUT ULONG* OldIrql
+    );
+
+VOID
+Unlock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN PSTOR_LOCK_HANDLE LockHandle,
+    IN ULONG OldIrql
+    );
+
+#endif // ___HELPER_H___
