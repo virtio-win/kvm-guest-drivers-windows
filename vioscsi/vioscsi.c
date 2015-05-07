@@ -721,7 +721,14 @@ VioScsiInterrupt(
               RhelDbgPrint(TRACE_LEVEL_WARNING, ("Unknown response %d\n", resp->response));
               break;
            }
-           if (Srb->SrbStatus != SRB_STATUS_SUCCESS)
+           if (Srb->SrbStatus == SRB_STATUS_SUCCESS &&
+               resp->resid &&
+               Srb->DataTransferLength > resp->resid)
+           {
+               Srb->DataTransferLength -= resp->resid;
+               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
+           }
+           else if (Srb->SrbStatus != SRB_STATUS_SUCCESS)
            {
               if (Srb->SenseInfoBufferLength >= FIELD_OFFSET(SENSE_DATA, CommandSpecificInformation)) {
                  memcpy(Srb->SenseInfoBuffer, resp->sense,
@@ -1166,7 +1173,14 @@ ProcessQueue(
             RhelDbgPrint(TRACE_LEVEL_WARNING, ("Unknown response %d\n", resp->response));
             break;
         }
-        if (Srb->SrbStatus != SRB_STATUS_SUCCESS)
+        if (Srb->SrbStatus == SRB_STATUS_SUCCESS &&
+            resp->resid &&
+            Srb->DataTransferLength > resp->resid)
+        {
+            Srb->DataTransferLength -= resp->resid;
+            Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
+        }
+        else if (Srb->SrbStatus != SRB_STATUS_SUCCESS)
         {
             PSENSE_DATA pSense = (PSENSE_DATA)Srb->SenseInfoBuffer;
             if (Srb->SenseInfoBufferLength >= FIELD_OFFSET(SENSE_DATA, CommandSpecificInformation)) {
@@ -1180,10 +1194,6 @@ ProcessQueue(
         }
         else if (srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer)
         {
-            Srb->DataTransferLength = srbExt->Xfer;
-            Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
-        }
-        if (srbExt && srbExt->Xfer && Srb->DataTransferLength > srbExt->Xfer) {
             Srb->DataTransferLength = srbExt->Xfer;
             Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
         }
