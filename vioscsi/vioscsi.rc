@@ -46,4 +46,4 @@
 
 #include "common.ver"
 
-
+MofResource MOFDATA perf.bmf

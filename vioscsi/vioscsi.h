@@ -16,6 +16,7 @@
 
 #include <ntddk.h>
 #include <storport.h>
+#include <scsiwmi.h>
 
 #include "osdep.h"
 #include "virtio_pci.h"
@@ -234,6 +235,25 @@ typedef struct {
 }TMF_COMMAND, * PTMF_COMMAND;
 #pragma pack()
 
+#ifdef ENABLE_WMI
+// Note: the members in these stat structs must be in the same
+// order as in the MOF file.
+typedef struct {
+    ULONGLONG TotalRequests;
+    ULONGLONG CompletedRequests;
+    ULONGLONG TotalKicks;
+    ULONGLONG SkippedKicks;
+    ULONGLONG TotalInterrupts;
+    ULONGLONG QueueFullEvents;
+} VIRTQUEUE_STATISTICS, *PVIRTQUEUE_STATISTICS;
+
+typedef struct {
+    ULONGLONG TotalRequests;
+    ULONGLONG CompletedRequests;
+} TARGET_STATISTICS, *PTARGET_STATISTICS;
+#define MAX_LUN 256
+#endif
+
 typedef struct _ADAPTER_EXTENSION {
     VirtIODevice          vdev;
     VirtIODevice*         pvdev;
@@ -268,7 +288,34 @@ typedef struct _ADAPTER_EXTENSION {
 
     BOOLEAN               dpc_ok;
     PSTOR_DPC             dpc;
+
+#ifdef ENABLE_WMI
+    SCSI_WMILIB_CONTEXT   WmiLibContext;
+    SCSI_WMILIB_CONTEXT   PdoWmiLibContext;
+    VIRTQUEUE_STATISTICS  QueueStats[MAX_CPU];
+    TARGET_STATISTICS     TargetStats[MAX_LUN];
+    ULONG                 MaxTarget;
+#if (NTDDI_VERSION < NTDDI_WIN8)
+    USHORT                PortNumber;
+#endif
+#endif
+
 }ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
+
+#ifdef ENABLE_WMI
+typedef struct {
+    USHORT Length;
+    WCHAR Buffer[256];
+} WMIString, *PWMIString;
+
+VOID
+WmiInitializeContext(IN PADAPTER_EXTENSION AdapterExtension);
+
+BOOLEAN
+WmiSrb(
+    IN     PADAPTER_EXTENSION          AdapterExtension,
+    IN OUT PSCSI_WMI_REQUEST_BLOCK     Srb);
+#endif
 
 #if (MSI_SUPPORTED == 1)
 #ifndef PCIX_TABLE_POINTER

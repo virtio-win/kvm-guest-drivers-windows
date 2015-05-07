@@ -15,10 +15,10 @@
  *
  */
 #include "osdep.h"
-#include "VirtIO_PCI.h"
+#include "virtio_pci.h"
 #include "VirtIO.h"
 #include "kdebugprint.h"
-#include "VirtIO_Ring.h"
+#include "virtio_ring.h"
 
 #ifdef WPP_EVENT_TRACING
 #include "VirtIOPCI.tmh"
@@ -205,7 +205,7 @@ static BOOLEAN checkpa(ULONGLONG addr, ULONG align)
     return b;
 }
 
-static void _VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, unsigned long *pNumEntries, unsigned long *pAllocationSize)
+static void _VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, ULONG *pNumEntries, ULONG *pAllocationSize)
 {
     u16 num;
     *pNumEntries = 0;
@@ -241,7 +241,7 @@ static void _VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned ind
     }
 }
 
-void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, unsigned long *pNumEntries, unsigned long *pAllocationSize)
+void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, ULONG *pNumEntries, ULONG *pAllocationSize)
 {
     _VirtIODeviceQueryQueueAllocation(vp_dev, index, pNumEntries, pAllocationSize);
     if (*pAllocationSize)

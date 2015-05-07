@@ -183,6 +183,12 @@ DriverEntry(
 
 }
 
+#ifdef ENABLE_WMI
+#if (NTDDI_VERSION < NTDDI_WIN8)
+ULONG PortNumber = 0;
+#endif
+#endif
+
 ULONG
 VioScsiFindAdapter(
     IN PVOID DeviceExtension,
@@ -203,7 +209,11 @@ VioScsiFindAdapter(
     UCHAR              pci_cfg_buf[256];
     ULONG              pci_cfg_len;
 #endif
-
+#ifdef ENABLE_WMI
+#if (NTDDI_VERSION >= NTDDI_WIN8)
+    STOR_ADDR_BTL8     stor_addr = {0};
+#endif
+#endif
     UNREFERENCED_PARAMETER( HwContext );
     UNREFERENCED_PARAMETER( BusInformation );
     UNREFERENCED_PARAMETER( ArgumentString );
@@ -221,13 +231,21 @@ ENTER_FN();
     ConfigInfo->DmaWidth                    = Width32Bits;
     ConfigInfo->Dma32BitAddresses           = TRUE;
     ConfigInfo->Dma64BitAddresses           = TRUE;
-    ConfigInfo->WmiDataProvider             = FALSE;
     ConfigInfo->AlignmentMask               = 0x3;
     ConfigInfo->MapBuffers                  = STOR_MAP_NON_READ_WRITE_BUFFERS;
     ConfigInfo->SynchronizationModel        = StorSynchronizeFullDuplex;
 #if (MSI_SUPPORTED == 1)
     ConfigInfo->HwMSInterruptRoutine        = VioScsiMSInterrupt;
     ConfigInfo->InterruptSynchronizationMode=InterruptSynchronizePerMessage;
+#endif
+#ifdef ENABLE_WMI
+    ConfigInfo->WmiDataProvider = TRUE;
+    WmiInitializeContext(adaptExt);
+#if (NTDDI_VERSION < NTDDI_WIN8)
+    adaptExt->PortNumber = (USHORT) InterlockedIncrement(&PortNumber);
+#endif
+#else
+    ConfigInfo->WmiDataProvider = FALSE;
 #endif
     if (!InitHW(DeviceExtension, ConfigInfo)) {
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("Cannot initialize HardWare\n"));
@@ -495,7 +513,7 @@ VioScsiHwInitialize(
     ULONG              status = STOR_STATUS_SUCCESS;
     MESSAGE_INTERRUPT_INFORMATION msi_info = { 0 };
 #endif
-    
+
 ENTER_FN();
     if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX)) {
         guestFeatures |= (1ul << VIRTIO_RING_F_EVENT_IDX);
@@ -506,6 +524,7 @@ ENTER_FN();
     if (CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_HOTPLUG)) {
         guestFeatures |= (1ul << VIRTIO_SCSI_F_HOTPLUG);
     }
+
     StorPortWritePortUlong(DeviceExtension,
              (PULONG)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), guestFeatures);
 
@@ -867,6 +886,9 @@ VioScsiMSInterrupt (
     }
     if (MessageID > 2)
     {
+#ifdef ENABLE_WMI
+        adaptExt->QueueStats[MessageID - 3].TotalInterrupts++;
+#endif
         DispatchQueue(DeviceExtension, MessageID);
         return TRUE;
     }
@@ -1108,6 +1130,10 @@ ProcessQueue(
         Srb = (PSCSI_REQUEST_BLOCK)cmd->sc;
         resp = &cmd->resp.cmd;
         srbExt = (PSRB_EXTENSION)Srb->SrbExtension;
+#ifdef ENABLE_WMI
+        adaptExt->QueueStats[msg].CompletedRequests++;
+        adaptExt->TargetStats[Srb->TargetId].CompletedRequests++;
+#endif
 
 #if (NTDDI_VERSION >= NTDDI_WIN7)
         CHECK_CPU(Srb);
@@ -1248,6 +1274,10 @@ ENTER_FN();
             Srb->SrbStatus = SRB_STATUS_SUCCESS;
             return TRUE;
         }
+#ifdef ENABLE_WMI
+        case SRB_FUNCTION_WMI:
+            return WmiSrb(adaptExt, (PSCSI_WMI_REQUEST_BLOCK)Srb);
+#endif
     }
 EXIT_FN();
     return FALSE;
@@ -1262,6 +1292,9 @@ PostProcessRequest(
     PCDB                  cdb;
     PADAPTER_EXTENSION    adaptExt;
     PSRB_EXTENSION        srbExt;
+#ifdef ENABLE_WMI
+    ULONG                 target;
+#endif
 
 ENTER_FN();
     cdb      = (PCDB)&Srb->Cdb[0];
@@ -1279,6 +1312,14 @@ ENTER_FN();
                           DeviceExtension,
                           adaptExt->queue_depth));
            }
+#ifdef ENABLE_WMI
+           // Update adaptExt->MaxLun with interlocked operations.
+           // There is a chance that another thread will collide with this and we will have
+           // to iterate again, but it's very small.
+           while ((target = adaptExt->MaxTarget) < (ULONG)Srb->TargetId + 1) {
+               InterlockedCompareExchange(&adaptExt->MaxTarget, Srb->TargetId + 1, target);
+           }
+#endif
            break;
         default:
            break;
@@ -1358,9 +1399,9 @@ ParamChange(
     UCHAR AdditionalSenseCode = (UCHAR)(evt->reason & 255);
     UCHAR AdditionalSenseCodeQualifier = (UCHAR)(evt->reason >> 8);
 
-    if (AdditionalSenseCode == SCSI_ADSENSE_PARAMETERS_CHANGED && 
-       (AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_PARAMETERS_CHANGED || 
-        AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_MODE_PARAMETERS_CHANGED || 
+    if (AdditionalSenseCode == SCSI_ADSENSE_PARAMETERS_CHANGED &&
+       (AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_PARAMETERS_CHANGED ||
+        AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_MODE_PARAMETERS_CHANGED ||
         AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_CAPACITY_DATA_HAS_CHANGED))
     {
         StorPortNotification( BusChangeDetected, DeviceExtension, 0);

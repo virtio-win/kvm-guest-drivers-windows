@@ -1,0 +1,26 @@
+#pragma autorecover
+#pragma namespace("\\\\.\\Root\\WMI")
+
+[Dynamic,Provider("WMIProv"),WMI,Locale("MS\\0x409"),DisplayName("VirtioScsi Queue"):amended,guid("{B95EE2E4-83E2-4810-880E-004FD3B52FBC}"),PerfDetail(100),HiPerf,cpp_quote("//\n// This class exposes virtqueue statistics.\n//\n// This class must be registered with dynamic instance names using\n// a specific format: \n//\n//       queue_#.\n//\n")] 
+class VirtQueue_Statistics : Win32_PerfRawData
+{
+  [read,key] String InstanceName;
+  [read] boolean Active;
+  [WmiDataId(1),DisplayName("Total Requests"):amended, PerfDefault,CounterType(272696576),DefaultScale(0),PerfDetail(100),read] uint64 TotalRequests;
+  [WmiDataId(2),DisplayName("In Flight Requests"):amended,PerfDefault,CounterType(65792),DefaultScale(0),PerfDetail(100),read] uint64 InFlightRequests;
+  [WmiDataId(3),DisplayName("Total Kicks"):amended,PerfDefault,CounterType(272696576),DefaultScale(0),PerfDetail(100),read] uint64 TotalKicks;
+  [WmiDataId(4),DisplayName("Skipped Kicks"):amended,PerfDefault,CounterType(272696576),DefaultScale(0),PerfDetail(100),read] uint64 SkippedKicks;
+  [WmiDataId(5),DisplayName("Total Interrupts"):amended,PerfDefault,CounterType(272696576),DefaultScale(0),PerfDetail(100),read] uint64 TotalInterrupts;
+  [WmiDataId(6),DisplayName("Last Used Index"):amended,PerfDefault,CounterType(65536),DefaultScale(0),PerfDetail(100),read] uint32 LastUsedIdx;
+  [WmiDataId(7),DisplayName("Used Index"):amended,PerfDefault,CounterType(65536),DefaultScale(0),PerfDetail(100),read] uint32 UsedIdx;
+  [WmiDataId(8),DisplayName("Queue Full Events"):amended,PerfDefault,CounterType(65792),DefaultScale(0),PerfDetail(100),read] uint64 QueueFullEvents;
+};
+
+[Dynamic,Provider("WMIProv"),WMI,Locale("MS\\0x409"),DisplayName("VirtioScsi Target"):amended,guid("{D6FCF357-3C8F-422E-90A5-B5CEDE42D254}"),PerfDetail(100),HiPerf,cpp_quote("//\n// This class exposes lun statistics.\n//\n// This class must be registered with dynamic instance names using\n// a specific format: \n//\n//       lun_#.\n//\n")] 
+class Target_Statistics : Win32_PerfRawData
+{
+  [read,key] String InstanceName;
+  [read] boolean Active;
+  [WmiDataId(1),DisplayName("Total Requests"):amended,PerfDefault,CounterType(272696576),DefaultScale(0),PerfDetail(100),read] uint64 TotalRequests;
+  [WmiDataId(2),DisplayName("In Flight Requests"):amended,PerfDefault,CounterType(65792),DefaultScale(0),PerfDetail(100),read] uint64 InFlightRequests;
+};

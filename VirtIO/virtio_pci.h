@@ -85,6 +85,7 @@ typedef struct TypeVirtIODevice
     tVirtIOPerQueueInfo info[MAX_QUEUES_PER_DEVICE_DEFAULT];
     /* do not add any members after info struct, it is extensible */
 } VirtIODevice;
+#define VIRTIO_DEVICE_DEFINED
 
 
 /***************************************************
@@ -92,8 +93,7 @@ shall be used only if VirtIODevice device storage is allocated
 dynamically to provide support for more than 8 (MAX_QUEUES_PER_DEVICE_DEFAULT) queues.
 return size in bytes to allocate for VirtIODevice structure.
 ***************************************************/
-ULONG __inline VirtIODeviceSizeRequired(USHORT maxNumberOfQueues)
-{
+static inline ULONG VirtIODeviceSizeRequired(USHORT maxNumberOfQueues) {
     ULONG size = sizeof(VirtIODevice);
     if (maxNumberOfQueues > MAX_QUEUES_PER_DEVICE_DEFAULT)
     {
@@ -144,7 +144,7 @@ void VirtIODeviceRemoveStatus(VirtIODevice * pVirtIODevice, u8 status);
 
 void VirtIODeviceConfigVector(VirtIODevice * pVirtIODevice, u16 configVector);
 
-void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, unsigned long *pNumEntries, unsigned long *pAllocationSize);
+void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, ULONG *pNumEntries, ULONG *pAllocationSize);
 struct virtqueue *VirtIODevicePrepareQueue(
                     VirtIODevice *vp_dev,
                     unsigned index,

@@ -113,9 +113,9 @@ static inline void vring_init(struct vring *vr, unsigned int num, void *p,
     unsigned long align)
 {
     vr->num = num;
-    vr->desc = p;
-    vr->avail = (void *) ((__u8 *)p + num*sizeof(struct vring_desc));
-    vr->used = (void *)(((ULONG_PTR)&vr->avail->ring[num] + sizeof(__u16)
+    vr->desc = (struct vring_desc *)p;
+    vr->avail = (struct vring_avail *) ((__u8 *)p + num*sizeof(struct vring_desc));
+    vr->used = (struct vring_used *)(((ULONG_PTR)&vr->avail->ring[num] + sizeof(__u16)
         + align - 1) & ~((ULONG_PTR)align - 1));
 }
 

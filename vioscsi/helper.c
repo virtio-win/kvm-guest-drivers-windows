@@ -101,15 +101,30 @@ ENTER_FN();
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
+#ifdef ENABLE_WMI
+        adaptExt->QueueStats[QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0].TotalRequests++;
+        adaptExt->TargetStats[Srb->TargetId].TotalRequests++;
+#endif
         result = TRUE;
         notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
     }
     else {
+#ifdef ENABLE_WMI
+        adaptExt->QueueStats[QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0].QueueFullEvents++;
+#endif
         RhelDbgPrint(TRACE_LEVEL_WARNING, ("%s Cant add packet to queue.\n", __FUNCTION__));
     }
     Unlock(DeviceExtension, MessageId, &LockHandle, OldIrql);
     if (notify) {
         virtqueue_notify(adaptExt->vq[QueueNumber]);
+#ifdef ENABLE_WMI
+        adaptExt->QueueStats[QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0].TotalKicks++;
+#endif
+    }
+    else {
+#ifdef ENABLE_WMI
+        adaptExt->QueueStats[QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0].SkippedKicks++;
+#endif
     }
     return result;
 EXIT_FN();

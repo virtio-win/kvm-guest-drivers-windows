@@ -17,6 +17,9 @@
       <UniqueIdentifier>{8E41214B-6785-4CFE-B992-037D68949A14}</UniqueIdentifier>
       <Extensions>inf;inv;inx;mof;mc;</Extensions>
     </Filter>
+    <Filter Include="VirtIo">
+      <UniqueIdentifier>{bde5e1bc-70bf-4883-ad75-1a7549cae2f2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="vioscsi.inx">
@@ -32,6 +35,15 @@
     </ClInclude>
     <ClInclude Include="vioscsi.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VirtIO\VirtIO.h">
+      <Filter>VirtIo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VirtIO\virtio_pci.h">
+      <Filter>VirtIo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VirtIO\virtio_ring.h">
+      <Filter>VirtIo</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -52,5 +64,19 @@
     <ClCompile Include="virtio_pci.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\VirtIO\VirtIOPCI.c">
+      <Filter>VirtIo</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VirtIO\VirtIORing.c">
+      <Filter>VirtIo</Filter>
+    </ClCompile>
+    <ClCompile Include="wmi.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Mofcomp Include="perf.mof">
+      <Filter>Driver Files</Filter>
+    </Mofcomp>
   </ItemGroup>
 </Project>

@@ -17,7 +17,7 @@
  *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 #include "osdep.h"
-#include "VirtIO_PCI.h"
+#include "virtio_pci.h"
 #include "VirtIO.h"
 #include "kdebugprint.h"
 #include "virtio_ring.h"
@@ -439,6 +439,15 @@ BOOLEAN virtqueue_is_interrupt_enabled(struct virtqueue *_vq)
     return (vq->vring.avail->flags & VRING_AVAIL_F_NO_INTERRUPT) ? FALSE : TRUE;
 }
 
+u16 virtqueue_get_last_used_idx(struct virtqueue *_vq) {
+    struct vring_virtqueue *vq = to_vvq(_vq);
+    return vq->last_used_idx;
+}
+
+u16 virtqueue_get_used_idx(struct virtqueue *_vq) {
+    struct vring_virtqueue *vq = to_vvq(_vq);
+    return vq->vring.used->idx;
+}
 /*
  changed: vring_shutdown brings the queue to initial state, as it was
  upon initialization (for proper power management)

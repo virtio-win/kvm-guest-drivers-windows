@@ -1,6 +1,30 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Win7 Debug|Win32">
+      <Configuration>Win7 Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win7 Debug|x64">
+      <Configuration>Win7 Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win7 Release|Win32">
+      <Configuration>Win7 Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win7 Release|x64">
+      <Configuration>Win7 Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8 Debug|Win32">
+      <Configuration>Win8 Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8 Debug|x64">
+      <Configuration>Win8 Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Win8.1 Release|Win32">
       <Configuration>Win8.1 Release</Configuration>
       <Platform>Win32</Platform>
@@ -48,6 +72,24 @@
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'" Label="Configuration">
+    <TargetVersion>Windows7</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+    <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'" Label="Configuration">
+    <TargetVersion>Windows8</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+    <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'" Label="Configuration">
+    <TargetVersion>Windows7</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+    <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
+  </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <TargetVersion>WindowsV6.3</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -57,6 +99,24 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" Label="Configuration">
     <TargetVersion>Windows8</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+    <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'" Label="Configuration">
+    <TargetVersion>Windows7</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+    <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'" Label="Configuration">
+    <TargetVersion>Windows8</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+    <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'" Label="Configuration">
+    <TargetVersion>Windows7</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
   </PropertyGroup>
@@ -77,6 +137,21 @@
     <IntDir>objfre_win8_x86\i386\</IntDir>
     <TargetName>vioscsi</TargetName>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
+    <OutDir>objfre_win7_x86\i386\</OutDir>
+    <IntDir>objfre_win7_x86\i386\</IntDir>
+    <TargetName>vioscsi</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
+    <OutDir>objchk_win8_x86\i386\</OutDir>
+    <IntDir>objchk_win8_x86\i386\</IntDir>
+    <TargetName>vioscsi</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
+    <OutDir>objchk_win7_x86\i386\</OutDir>
+    <IntDir>objchk_win7_x86\i386\</IntDir>
+    <TargetName>vioscsi</TargetName>
+  </PropertyGroup>
   <PropertyGroup>
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
   </PropertyGroup>
@@ -90,7 +165,28 @@
     <OutDir>objfre_win8_amd64\amd64\</OutDir>
     <IntDir>objfre_win8_amd64\amd64\</IntDir>
     <CodeAnalysisRuleSet>..\..\..\..\..\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <RunCodeAnalysis>true</RunCodeAnalysis>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
+    <TargetName>vioscsi</TargetName>
+    <OutDir>objfre_win7_amd64\amd64\</OutDir>
+    <IntDir>objfre_win7_amd64\amd64\</IntDir>
+    <CodeAnalysisRuleSet>..\..\..\..\..\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
+    <TargetName>vioscsi</TargetName>
+    <OutDir>objchk_win8_amd64\amd64\</OutDir>
+    <IntDir>objchk_win8_amd64\amd64\</IntDir>
+    <CodeAnalysisRuleSet>..\..\..\..\..\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+    <TargetName>vioscsi</TargetName>
+    <OutDir>objchk_win7_amd64\amd64\</OutDir>
+    <IntDir>objchk_win7_amd64\amd64\</IntDir>
+    <CodeAnalysisRuleSet>..\..\..\..\..\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
     <ClCompile>
@@ -102,13 +198,28 @@
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\VirtIO</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\VirtIO</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\VirtIO</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\VirtIO</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>_X86_=1;i386=1;STD_CALL;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\scsiwmi.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_x86\i386\</AdditionalLibraryDirectories>
     </Link>
     <ResourceCompile>
@@ -134,22 +245,110 @@
       <PreprocessorDefinitions>_X86_=1;i386=1;STD_CALL;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\scsiwmi.lib;$(DDK_LIB_PATH)\wdm.lib;</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_x86\i386\</AdditionalLibraryDirectories>
     </Link>
     <ResourceCompile>
       <AdditionalIncludeDirectories>$(SDK_INC_PATH);%(AdditionalIncludeDirectories);..\Inc\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_NT_TARGET_MAJ=61;_NT_TARGET_MIN=0;_MAJORVERSION_=101;_MINORVERSION_=58000;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
     <Inf>
       <DriverVersionSectionName>
       </DriverVersionSectionName>
     </Inf>
     <Inf>
-      <KmdfVersionNumber />
+      <KmdfVersionNumber>$(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)</KmdfVersionNumber>
     </Inf>
     <Inf>
-      <UmdfVersionNumber />
-      <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
+      <UmdfVersionNumber>$(UMDF_VERSION_MAJOR).$(UMDF_VERSION_MINOR).0</UmdfVersionNumber>
+      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <SpecifyDriverVerDirectiveVersion>true</SpecifyDriverVerDirectiveVersion>
+      <SpecifyDriverVerDirectiveDate>true</SpecifyDriverVerDirectiveDate>
+    </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>_X86_=1;i386=1;STD_CALL;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\scsiwmi.lib;$(DDK_LIB_PATH)\wdm.lib;</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_x86\i386\</AdditionalLibraryDirectories>
+    </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(SDK_INC_PATH);%(AdditionalIncludeDirectories);..\Inc\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_NT_TARGET_MAJ=61;_NT_TARGET_MIN=0;_MAJORVERSION_=101;_MINORVERSION_=58000;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Inf>
+      <DriverVersionSectionName>
+      </DriverVersionSectionName>
+    </Inf>
+    <Inf>
+      <KmdfVersionNumber>$(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)</KmdfVersionNumber>
+    </Inf>
+    <Inf>
+      <UmdfVersionNumber>$(UMDF_VERSION_MAJOR).$(UMDF_VERSION_MINOR).0</UmdfVersionNumber>
+      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <SpecifyDriverVerDirectiveVersion>true</SpecifyDriverVerDirectiveVersion>
+      <SpecifyDriverVerDirectiveDate>true</SpecifyDriverVerDirectiveDate>
+    </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>_X86_=1;i386=1;STD_CALL;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Optimization>Disabled</Optimization>
+      <FavorSizeOrSpeed>Neither</FavorSizeOrSpeed>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\scsiwmi.lib;$(DDK_LIB_PATH)\wdm.lib;</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_x86\i386\</AdditionalLibraryDirectories>
+    </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(SDK_INC_PATH);%(AdditionalIncludeDirectories);..\Inc\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_NT_TARGET_MAJ=61;_NT_TARGET_MIN=0;_MAJORVERSION_=101;_MINORVERSION_=58000;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Inf>
+      <DriverVersionSectionName>
+      </DriverVersionSectionName>
+    </Inf>
+    <Inf>
+      <KmdfVersionNumber>$(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)</KmdfVersionNumber>
+    </Inf>
+    <Inf>
+      <UmdfVersionNumber>$(UMDF_VERSION_MAJOR).$(UMDF_VERSION_MINOR).0</UmdfVersionNumber>
+      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <SpecifyDriverVerDirectiveVersion>true</SpecifyDriverVerDirectiveVersion>
+      <SpecifyDriverVerDirectiveDate>true</SpecifyDriverVerDirectiveDate>
+    </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>_X86_=1;i386=1;STD_CALL;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Optimization>Disabled</Optimization>
+      <FavorSizeOrSpeed>Neither</FavorSizeOrSpeed>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\scsiwmi.lib;$(DDK_LIB_PATH)\wdm.lib;</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_x86\i386\</AdditionalLibraryDirectories>
+    </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(SDK_INC_PATH);%(AdditionalIncludeDirectories);..\Inc\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_NT_TARGET_MAJ=61;_NT_TARGET_MIN=0;_MAJORVERSION_=101;_MINORVERSION_=58000;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Inf>
+      <DriverVersionSectionName>
+      </DriverVersionSectionName>
+    </Inf>
+    <Inf>
+      <KmdfVersionNumber>$(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)</KmdfVersionNumber>
+    </Inf>
+    <Inf>
+      <UmdfVersionNumber>$(UMDF_VERSION_MAJOR).$(UMDF_VERSION_MINOR).0</UmdfVersionNumber>
+      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+      <SpecifyDriverVerDirectiveVersion>true</SpecifyDriverVerDirectiveVersion>
+      <SpecifyDriverVerDirectiveDate>true</SpecifyDriverVerDirectiveDate>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
@@ -162,13 +361,28 @@
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\VirtIO</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\VirtIO</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\VirtIO</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\VirtIO</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=1;COM_DEBUG=1;ENABLE_WMI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\scsiwmi.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_amd64\amd64\</AdditionalLibraryDirectories>
     </Link>
     <ResourceCompile>
@@ -191,26 +405,109 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <EnablePREfast>true</EnablePREfast>
+      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=1;COM_DEBUG=1;ENABLE_WMI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <EnablePREfast>false</EnablePREfast>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\scsiwmi.lib;$(DDK_LIB_PATH)\wdm.lib;</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_amd64\amd64\</AdditionalLibraryDirectories>
     </Link>
     <ResourceCompile>
       <AdditionalIncludeDirectories>$(SDK_INC_PATH);%(AdditionalIncludeDirectories);..\Inc\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_NT_TARGET_MAJ=61;_NT_TARGET_MIN=0;_MAJORVERSION_=101;_MINORVERSION_=58000;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
     <Inf>
       <DriverVersionSectionName>
       </DriverVersionSectionName>
     </Inf>
     <Inf>
-      <KmdfVersionNumber />
+      <KmdfVersionNumber>$(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)</KmdfVersionNumber>
     </Inf>
     <Inf>
-      <UmdfVersionNumber />
-      <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
+      <UmdfVersionNumber>$(UMDF_VERSION_MAJOR).$(UMDF_VERSION_MINOR).0</UmdfVersionNumber>
+      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+    </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=1;COM_DEBUG=1;ENABLE_WMI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <EnablePREfast>false</EnablePREfast>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\scsiwmi.lib;$(DDK_LIB_PATH)\wdm.lib;</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_amd64\amd64\</AdditionalLibraryDirectories>
+    </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(SDK_INC_PATH);%(AdditionalIncludeDirectories);..\Inc\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_NT_TARGET_MAJ=61;_NT_TARGET_MIN=0;_MAJORVERSION_=101;_MINORVERSION_=58000;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Inf>
+      <DriverVersionSectionName>
+      </DriverVersionSectionName>
+    </Inf>
+    <Inf>
+      <KmdfVersionNumber>$(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)</KmdfVersionNumber>
+    </Inf>
+    <Inf>
+      <UmdfVersionNumber>$(UMDF_VERSION_MAJOR).$(UMDF_VERSION_MINOR).0</UmdfVersionNumber>
+      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+    </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=1;COM_DEBUG=1;ENABLE_WMI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <EnablePREfast>false</EnablePREfast>
+      <Optimization>Disabled</Optimization>
+      <FavorSizeOrSpeed>Neither</FavorSizeOrSpeed>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\scsiwmi.lib;$(DDK_LIB_PATH)\wdm.lib;</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_amd64\amd64\</AdditionalLibraryDirectories>
+    </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(SDK_INC_PATH);%(AdditionalIncludeDirectories);..\Inc\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_NT_TARGET_MAJ=61;_NT_TARGET_MIN=0;_MAJORVERSION_=101;_MINORVERSION_=58000;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Inf>
+      <DriverVersionSectionName>
+      </DriverVersionSectionName>
+    </Inf>
+    <Inf>
+      <KmdfVersionNumber>$(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)</KmdfVersionNumber>
+    </Inf>
+    <Inf>
+      <UmdfVersionNumber>$(UMDF_VERSION_MAJOR).$(UMDF_VERSION_MINOR).0</UmdfVersionNumber>
+      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
+    </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=1;COM_DEBUG=1;ENABLE_WMI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <EnablePREfast>false</EnablePREfast>
+      <Optimization>Disabled</Optimization>
+      <FavorSizeOrSpeed>Neither</FavorSizeOrSpeed>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\scsiwmi.lib;$(DDK_LIB_PATH)\wdm.lib;</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_amd64\amd64\</AdditionalLibraryDirectories>
+    </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(SDK_INC_PATH);%(AdditionalIncludeDirectories);..\Inc\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_NT_TARGET_MAJ=61;_NT_TARGET_MIN=0;_MAJORVERSION_=101;_MINORVERSION_=58000;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Inf>
+      <DriverVersionSectionName>
+      </DriverVersionSectionName>
+    </Inf>
+    <Inf>
+      <KmdfVersionNumber>$(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)</KmdfVersionNumber>
+    </Inf>
+    <Inf>
+      <UmdfVersionNumber>$(UMDF_VERSION_MAJOR).$(UMDF_VERSION_MINOR).0</UmdfVersionNumber>
+      <TimeStamp>$(STAMPINF_VERSION)" "</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -221,6 +518,9 @@
     <FilesToPackage Include="@(Inf->'%(CopyOutput)')" Condition="'@(Inf)'!=''" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\VirtIO\VirtIO.h" />
+    <ClInclude Include="..\VirtIO\virtio_pci.h" />
+    <ClInclude Include="..\VirtIO\virtio_ring.h" />
     <ClInclude Include="helper.h" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="vioscsi.h" />
@@ -229,10 +529,45 @@
     <ResourceCompile Include="vioscsi.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\VirtIO\VirtIOPCI.c" />
+    <ClCompile Include="..\VirtIO\VirtIORing.c" />
     <ClCompile Include="helper.c" />
     <ClCompile Include="utils.c" />
     <ClCompile Include="vioscsi.c" />
     <ClCompile Include="virtio_pci.c" />
+    <ClCompile Include="wmi.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <Mofcomp Include="perf.mof">
+      <AutoRecover Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">true</AutoRecover>
+      <AutoRecover Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">true</AutoRecover>
+      <WmiSyntaxCheck Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">true</WmiSyntaxCheck>
+      <WmiSyntaxCheck Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">true</WmiSyntaxCheck>
+      <AutoRecover Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">true</AutoRecover>
+      <WmiSyntaxCheck Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">true</WmiSyntaxCheck>
+      <AutoRecover Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">true</AutoRecover>
+      <AutoRecover Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">true</AutoRecover>
+      <WmiSyntaxCheck Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">true</WmiSyntaxCheck>
+      <WmiSyntaxCheck Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">true</WmiSyntaxCheck>
+      <AutoRecover Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">true</AutoRecover>
+      <AutoRecover Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">true</AutoRecover>
+      <WmiSyntaxCheck Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">true</WmiSyntaxCheck>
+      <WmiSyntaxCheck Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">true</WmiSyntaxCheck>
+      <AutoRecover Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">true</AutoRecover>
+      <WmiSyntaxCheck Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">true</WmiSyntaxCheck>
+      <AutoRecover Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">true</AutoRecover>
+      <AutoRecover Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">true</AutoRecover>
+      <WmiSyntaxCheck Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">true</WmiSyntaxCheck>
+      <WmiSyntaxCheck Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">true</WmiSyntaxCheck>
+    </Mofcomp>
+    <Wmimofck Include=".\$(IntDir)\perf.bmf">
+      <GenerateStructureDefinitionsForMethodParameters>true</GenerateStructureDefinitionsForMethodParameters>
+      <HeaderOutputFile>.\$(IntDir)\wmidata.h</HeaderOutputFile>
+      <VBScriptTestOutputFile>.\$(IntDir)\wmisamp.vbs</VBScriptTestOutputFile>
+      <HexdumpOutputFile>.\$(IntDir)\wmisamp.x</HexdumpOutputFile>
+      <HtmlOutputDirectory>.\$(IntDir)\htm</HtmlOutputDirectory>
+      <HtmlUIOutputDirectory>true</HtmlUIOutputDirectory>
+    </Wmimofck>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

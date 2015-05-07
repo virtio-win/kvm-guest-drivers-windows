@@ -37,14 +37,16 @@
 #define unlikely(x) x
 
 #define ENOSPC 1
-#define BUG_ON(a)
+#define BUG_ON(a) NT_ASSERT(!(a))
 #define WARN_ON(a)
 
-#ifndef bool
+#ifndef __cplusplus
 #define bool int
 #define false FALSE
 #define true TRUE
+#ifndef INLINE_DEFINED
 #define inline __forceinline
+#endif
 #endif
 
 #ifdef DBG
