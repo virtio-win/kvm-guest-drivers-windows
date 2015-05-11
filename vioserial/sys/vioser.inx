@@ -33,7 +33,7 @@ vioser.sys  = 1,,
 [Manufacturer]
 %REDHAT%=VirtioSerial,NT$ARCH$
 
-[VirtioSerial]
+[VirtioSerial.NT$ARCH$]
 ;
 ; Hw Id is PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4
 ;
