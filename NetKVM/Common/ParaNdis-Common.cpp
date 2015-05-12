@@ -34,7 +34,7 @@ Parameters:
 Return value:
     TRUE if valid
 ***********************************************************/
-BOOLEAN ParaNdis_ValidateMacAddress(PUCHAR pcMacAddress, BOOLEAN bLocal)
+static BOOLEAN ParaNdis_ValidateMacAddress(PUCHAR pcMacAddress, BOOLEAN bLocal)
 {
     BOOLEAN bLA = FALSE, bEmpty, bBroadcast, bMulticast = FALSE;
     bBroadcast = ETH_IS_BROADCAST(pcMacAddress);
