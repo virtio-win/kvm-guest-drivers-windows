@@ -1,3 +1,4 @@
+#pragma once
 #include "ParaNdis-VirtQueue.h"
 #include "ParaNdis-AbstractPath.h"
 
