@@ -548,10 +548,6 @@ BOOLEAN FORCEINLINE IsPrioritySupported(PARANDIS_ADAPTER *pContext)
     return pContext->ulPriorityVlanSetting & 1;
 }
 
-BOOLEAN ParaNdis_ValidateMacAddress(
-    PUCHAR pcMacAddress,
-    BOOLEAN bLocal);
-
 NDIS_STATUS ParaNdis_InitializeContext(
     PARANDIS_ADAPTER *pContext,
     PNDIS_RESOURCE_LIST ResourceList);
