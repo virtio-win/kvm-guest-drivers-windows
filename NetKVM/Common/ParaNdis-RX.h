@@ -1,6 +1,5 @@
 #pragma once
 #include "ParaNdis-VirtQueue.h"
-#include "ndis56common.h"
 #include "ParaNdis-AbstractPath.h"
 
 class CParaNdisRX : public CParaNdisTemplatePath<CVirtQueue>, public CNdisAllocatable < CParaNdisRX, 'XRHR' > {
