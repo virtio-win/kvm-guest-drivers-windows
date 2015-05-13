@@ -538,7 +538,7 @@ VirtIoHwInitialize(
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SEG_MAX)) {
-        guestFeatures |= (1ul << VIRTIO_BLK_F_WCACHE);
+        guestFeatures |= (1ul << VIRTIO_BLK_F_SEG_MAX);
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BLK_SIZE)) {
