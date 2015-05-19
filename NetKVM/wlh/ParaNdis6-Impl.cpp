@@ -844,7 +844,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
 
         if (pNBL)
         {
-            virtio_net_hdr_basic *pHeader = (virtio_net_hdr_basic *) pBuffersDesc->PhysicalPages[0].Virtual;
+            virtio_net_hdr_v1 *pHeader = (virtio_net_hdr_v1 *) pBuffersDesc->PhysicalPages[0].Virtual;
             tChecksumCheckResult csRes;
             pNBL->SourceHandle = pContext->MiniportHandle;
             NBLSetRSSInfo(pContext, pNBL, pPacketInfo);

@@ -1,4 +1,5 @@
 #include "ndis56common.h"
+#include "virtio_net.h"
 
 CParaNdisCX::CParaNdisCX()
 {

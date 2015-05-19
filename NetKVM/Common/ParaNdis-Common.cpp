@@ -10,6 +10,7 @@
  *
 **********************************************************************/
 #include "ndis56common.h"
+#include "virtio_net.h"
 
 static VOID ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext);
 
@@ -687,7 +688,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
         InitializeMAC(pContext, CurrentMAC);
 
         pContext->bUseMergedBuffers = AckFeature(pContext, VIRTIO_NET_F_MRG_RXBUF);
-        pContext->nVirtioHeaderSize = (pContext->bUseMergedBuffers) ? sizeof(virtio_net_hdr_ext) : sizeof(virtio_net_hdr_basic);
+        pContext->nVirtioHeaderSize = (pContext->bUseMergedBuffers) ? sizeof(virtio_net_hdr_mrg_rxbuf) : sizeof(virtio_net_hdr_v1);
         pContext->bDoPublishIndices = AckFeature(pContext, VIRTIO_RING_F_EVENT_IDX);
     }
     else
@@ -698,7 +699,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
         status = NDIS_STATUS_RESOURCE_CONFLICT;
     }
 
-    pContext->bMultiQueue = AckFeature(pContext, VIRTIO_NET_F_CTRL_MQ);
+    pContext->bMultiQueue = AckFeature(pContext, VIRTIO_NET_F_MQ);
     if (pContext->bMultiQueue)
     {
         VirtIODeviceGet(pContext->IODevice, ETH_LENGTH_OF_ADDRESS + sizeof(USHORT), &pContext->nHardwareQueues,
@@ -1131,7 +1132,7 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
     if (status == NDIS_STATUS_SUCCESS && pContext->nPathBundles > 1)
     {
         u16 nPathes = u16(pContext->nPathBundles);
-        BOOLEAN sendSuccess = pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_VQ_PAIR_SET, &nPathes, sizeof(nPathes), NULL, 0, 2);
+        BOOLEAN sendSuccess = pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET, &nPathes, sizeof(nPathes), NULL, 0, 2);
         if (!sendSuccess)
         {
             DPrintf(0, ("[%s] - Send MQ control message failed\n", __FUNCTION__));
@@ -2057,16 +2058,16 @@ static VOID ParaNdis_DeviceFiltersUpdateRxMode(PARANDIS_ADAPTER *pContext)
     u8 val;
     ULONG f = pContext->PacketFilter;
     val = (f & NDIS_PACKET_TYPE_ALL_MULTICAST) ? 1 : 0;
-    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_ALLMULTI, &val, sizeof(val), NULL, 0, 2);
-    //SendControlMessage(pContext, VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_ALLUNI, &val, sizeof(val), NULL, 0, 2);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_ALLMULTI, &val, sizeof(val), NULL, 0, 2);
+    //SendControlMessage(pContext, VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_ALLUNI, &val, sizeof(val), NULL, 0, 2);
     val = (f & (NDIS_PACKET_TYPE_MULTICAST | NDIS_PACKET_TYPE_ALL_MULTICAST)) ? 0 : 1;
-    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOMULTI, &val, sizeof(val), NULL, 0, 2);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_NOMULTI, &val, sizeof(val), NULL, 0, 2);
     val = (f & NDIS_PACKET_TYPE_DIRECTED) ? 0 : 1;
-    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOUNI, &val, sizeof(val), NULL, 0, 2);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_NOUNI, &val, sizeof(val), NULL, 0, 2);
     val = (f & NDIS_PACKET_TYPE_BROADCAST) ? 0 : 1;
-    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_NOBCAST, &val, sizeof(val), NULL, 0, 2);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_NOBCAST, &val, sizeof(val), NULL, 0, 2);
     val = (f & NDIS_PACKET_TYPE_PROMISCUOUS) ? 1 : 0;
-    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX_MODE, VIRTIO_NET_CTRL_RX_MODE_PROMISC, &val, sizeof(val), NULL, 0, 2);
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_PROMISC, &val, sizeof(val), NULL, 0, 2);
 }
 
 static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)

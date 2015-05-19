@@ -10,6 +10,7 @@ extern "C"
 }
 
 #include "ParaNdis-Util.h"
+#include "virtio_net.h"
 
 class CNB;
 typedef struct _tagPARANDIS_ADAPTER *PPARANDIS_ADAPTER;
@@ -36,8 +37,8 @@ public:
 
     bool Allocate();
 
-    virtio_net_hdr_basic *VirtioHeader() const
-    { return static_cast<virtio_net_hdr_basic*>(m_VirtioHeaderVA); }
+    virtio_net_hdr_v1 *VirtioHeader() const
+    { return static_cast<virtio_net_hdr_v1*>(m_VirtioHeaderVA); }
     ULONG VirtioHeaderLength() const
     { return m_VirtioHdrSize; }
     PETH_HEADER EthHeader() const
