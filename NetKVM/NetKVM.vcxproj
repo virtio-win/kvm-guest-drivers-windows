@@ -940,7 +940,6 @@
     <ClInclude Include="Common\common.inf.h" />
     <ClInclude Include="Common\DebugData.h" />
     <ClInclude Include="Common\ethernetutils.h" />
-    <ClInclude Include="Common\IONetDescriptor.h" />
     <ClInclude Include="Common\ndis56common.h" />
     <ClInclude Include="Common\osdep.h" />
     <ClInclude Include="Common\ParaNdis-AbstractPath.h" />
@@ -952,6 +951,7 @@
     <ClInclude Include="Common\ParaNdis-VirtQueue.h" />
     <ClInclude Include="Common\ParaNdis-Util.h" />
     <ClInclude Include="Common\quverp.h" />
+    <ClInclude Include="Common\virtio_net.h" />
     <ClInclude Include="wlh\ParaNdis6.h" />
   </ItemGroup>
   <ItemGroup>

@@ -64,7 +64,6 @@ extern "C"
 #include "ethernetutils.h"
 #include "virtio_pci.h"
 #include "VirtIO.h"
-#include "IONetDescriptor.h"
 #include "DebugData.h"
 }
 
@@ -132,39 +131,11 @@ struct CPUPathesBundle : public CNdisAllocatable<CPUPathesBundle, 'CPPB'> {
 // to be set to real limit later
 #define MAX_RX_LOOPS    1000
 
-/* The feature bitmap for virtio net */
-#define VIRTIO_NET_F_CSUM   0   /* Host handles pkts w/ partial csum */
-#define VIRTIO_NET_F_GUEST_CSUM 1   /* Guest handles pkts w/ partial csum */
-#define VIRTIO_NET_F_CTRL_GUEST_OFFLOADS 2 /* Control channel offload
-                                         * configuration support */
-#define VIRTIO_NET_F_MAC    5   /* Host has given MAC address. */
-#define VIRTIO_NET_F_GSO    6   /* Host handles pkts w/ any GSO type */
-#define VIRTIO_NET_F_GUEST_TSO4 7   /* Guest can handle TSOv4 in. */
-#define VIRTIO_NET_F_GUEST_TSO6 8   /* Guest can handle TSOv6 in. */
-#define VIRTIO_NET_F_GUEST_ECN  9   /* Guest can handle TSO[6] w/ ECN in. */
-#define VIRTIO_NET_F_GUEST_UFO  10  /* Guest can handle UFO in. */
-#define VIRTIO_NET_F_HOST_TSO4  11  /* Host can handle TSOv4 in. */
-#define VIRTIO_NET_F_HOST_TSO6  12  /* Host can handle TSOv6 in. */
-#define VIRTIO_NET_F_HOST_ECN   13  /* Host can handle TSO[6] w/ ECN in. */
-#define VIRTIO_NET_F_HOST_UFO   14  /* Host can handle UFO in. */
-#define VIRTIO_NET_F_MRG_RXBUF  15  /* Host can handle merged Rx buffers and requires bigger header for that. */
-#define VIRTIO_NET_F_STATUS     16
-#define VIRTIO_NET_F_CTRL_VQ    17      /* Control channel available */
-#define VIRTIO_NET_F_CTRL_RX    18      /* Control channel RX mode support */
-#define VIRTIO_NET_F_CTRL_VLAN  19      /* Control channel VLAN filtering */
-#define VIRTIO_NET_F_CTRL_RX_EXTRA 20   /* Extra RX mode control support */
-#define VIRTIO_NET_F_CTRL_MQ    22
-
-#define VIRTIO_NET_F_CTRL_MAC_ADDR   23 /* Set MAC address */
-
-#define VIRTIO_NET_S_LINK_UP    1       /* Link is up */
-
 #define VIRTIO_NET_INVALID_INTERRUPT_STATUS     0xFF
 
 #define PARANDIS_MULTICAST_LIST_SIZE        32
 #define PARANDIS_MEMORY_TAG                 '5muQ'
 #define PARANDIS_FORMAL_LINK_SPEED          (pContext->ulFormalLinkSpeed)
-#define PARANDIS_MAXIMUM_TRANSMIT_SPEED     PARANDIS_FORMAL_LINK_SPEED
 #define PARANDIS_MAXIMUM_RECEIVE_SPEED      PARANDIS_FORMAL_LINK_SPEED
 #define PARANDIS_MIN_LSO_SEGMENTS           2
 // reported

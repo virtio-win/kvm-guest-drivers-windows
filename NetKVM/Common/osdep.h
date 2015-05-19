@@ -32,9 +32,15 @@
 #define _Acquires_exclusive_lock_(lock)
 #endif
 
+#define ETH_ALEN    6
+
+#define __u8 unsigned char
 #define u8 unsigned char
+#define __u16 unsigned short
+#define __virtio16 unsigned short
 #define u16 unsigned short
 #define u32 unsigned long
+#define __virtio32 unsigned long
 #define u64 ULONGLONG
 
 #define mb()   KeMemoryBarrier()

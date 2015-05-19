@@ -51,9 +51,6 @@
     <ClInclude Include="Common\ethernetutils.h">
       <Filter>Header Files\Common</Filter>
     </ClInclude>
-    <ClInclude Include="Common\IONetDescriptor.h">
-      <Filter>Header Files\Common</Filter>
-    </ClInclude>
     <ClInclude Include="Common\ndis56common.h">
       <Filter>Header Files\Common</Filter>
     </ClInclude>
@@ -97,6 +94,9 @@
       <Filter>Header Files\Common</Filter>
     </ClInclude>
     <ClInclude Include="Common\ParaNdis-AbstractPath.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\virtio_net.h">
       <Filter>Header Files\Common</Filter>
     </ClInclude>
   </ItemGroup>
