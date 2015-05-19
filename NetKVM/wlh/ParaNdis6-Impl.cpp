@@ -10,6 +10,7 @@
  *
 **********************************************************************/
 #include "ParaNdis6.h"
+#include "kdebugprint.h"
 
 static MINIPORT_DISABLE_INTERRUPT MiniportDisableInterruptEx;
 static MINIPORT_ENABLE_INTERRUPT MiniportEnableInterruptEx;

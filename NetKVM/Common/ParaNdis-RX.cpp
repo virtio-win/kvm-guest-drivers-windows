@@ -1,4 +1,5 @@
 #include "ndis56common.h"
+#include "kdebugprint.h"
 
 CParaNdisRX::CParaNdisRX() : m_nReusedRxBuffersCounter(0), m_NetNofReceiveBuffers(0)
 {

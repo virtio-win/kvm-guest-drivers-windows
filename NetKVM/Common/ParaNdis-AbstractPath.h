@@ -58,30 +58,7 @@ public:
         return m_pVirtQueue->IsInterruptEnabled();
     }
 
-    ULONG getCPUIndex()
-    {
-#if NDIS_SUPPORT_NDIS620
-        PROCESSOR_NUMBER procNumber = {0};
-
-        procNumber.Group = DPCAffinity.Group;
-        ULONG number = ParaNdis_GetIndexFromAffinity(DPCAffinity.Mask);
-        if (number == INVALID_PROCESSOR_INDEX)
-        {
-            DPrintf(0, ("[%s] : bad in-group processor index: mask 0x%lx\n", __FUNCTION__, (ULONG)DPCAffinity.Mask));
-            ASSERT(FALSE);
-            return INVALID_PROCESSOR_INDEX;
-        }
-
-        procNumber.Number = (UCHAR)number;
-        procNumber.Reserved = 0;
-
-        ULONG procIndex = KeGetProcessorIndexFromNumber(&procNumber);
-        ASSERTMSG("Bad processor Index", procIndex != INVALID_PROCESSOR_INDEX);
-        return procIndex;
-#else
-        return ParaNdis_GetIndexFromAffinity(DPCTargetProcessor);
-#endif
-    }
+    ULONG getCPUIndex();
 
 #if NDIS_SUPPORT_NDIS620
     GROUP_AFFINITY DPCAffinity;
