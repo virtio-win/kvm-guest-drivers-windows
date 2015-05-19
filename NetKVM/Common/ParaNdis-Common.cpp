@@ -11,6 +11,7 @@
 **********************************************************************/
 #include "ndis56common.h"
 #include "virtio_net.h"
+#include "kdebugprint.h"
 
 static VOID ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext);
 

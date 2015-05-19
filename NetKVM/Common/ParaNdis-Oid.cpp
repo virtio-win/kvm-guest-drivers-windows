@@ -10,6 +10,7 @@
  *
 **********************************************************************/
 #include "ParaNdis-Oid.h"
+#include "kdebugprint.h"
 
 static const char VendorName[] = "Red Hat";
 

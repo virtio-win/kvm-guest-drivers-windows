@@ -1,4 +1,5 @@
 #include "ndis56common.h"
+#include "kdebugprint.h"
 
 #if PARANDIS_SUPPORT_RSS
 

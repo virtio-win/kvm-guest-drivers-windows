@@ -19,6 +19,7 @@ sdkddkver.h before ntddk.h cause compilation failure in wdm.h and ntddk.h */
 
 #include "ParaNdis6.h"
 #include "ParaNdis-Oid.h"
+#include "kdebugprint.h"
 
 extern "C"
 {

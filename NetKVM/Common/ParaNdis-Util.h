@@ -4,6 +4,8 @@ extern "C" {
 #include "osdep.h"
 }
 
+#include "kdebugprint.h"
+
 typedef enum
 {
     PLACEMENT_NEW
@@ -526,6 +528,5 @@ void ParaNdis_PrintTable(int DebugPrintLevel, TTable table, size_t Size, LPCSTR 
         LinePos = Line;
     }
 }
-
 void ParaNdis_PrintCharArray(int DebugPrintLevel, const CCHAR *data, size_t length);
 

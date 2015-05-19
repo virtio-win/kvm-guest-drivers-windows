@@ -10,6 +10,7 @@
  *
 **********************************************************************/
 #include "ndis56common.h"
+#include "kdebugprint.h"
 
 // till IP header size is 8 bit
 #define MAX_SUPPORTED_IPV6_HEADERS  (256 - 4)

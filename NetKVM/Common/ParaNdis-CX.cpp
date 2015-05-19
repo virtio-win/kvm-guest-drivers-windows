@@ -1,5 +1,6 @@
 #include "ndis56common.h"
 #include "virtio_net.h"
+#include "kdebugprint.h"
 
 CParaNdisCX::CParaNdisCX()
 {
