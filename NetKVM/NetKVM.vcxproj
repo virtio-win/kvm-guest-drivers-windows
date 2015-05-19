@@ -950,6 +950,8 @@
     <ClInclude Include="Common\ParaNdis-TX.h" />
     <ClInclude Include="Common\ParaNdis-VirtQueue.h" />
     <ClInclude Include="Common\ParaNdis-Util.h" />
+    <ClInclude Include="Common\ParaNdis_Debug.h" />
+    <ClInclude Include="Common\ParaNdis_DebugHistory.h" />
     <ClInclude Include="Common\quverp.h" />
     <ClInclude Include="Common\virtio_net.h" />
     <ClInclude Include="wlh\ParaNdis6.h" />

@@ -14,6 +14,7 @@
 #include "ParaNdis-Oid.h"
 #include "ParaNdis6.h"
 #include "kdebugprint.h"
+#include "ParaNdis_DebugHistory.h"
 
 static NDIS_IO_WORKITEM_FUNCTION OnSetPowerWorkItem;
 
