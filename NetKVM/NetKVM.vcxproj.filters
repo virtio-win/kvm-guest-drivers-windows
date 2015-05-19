@@ -99,6 +99,12 @@
     <ClInclude Include="Common\virtio_net.h">
       <Filter>Header Files\Common</Filter>
     </ClInclude>
+    <ClInclude Include="Common\ParaNdis_DebugHistory.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\ParaNdis_Debug.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\VirtIO\VirtIOPCI.c">
