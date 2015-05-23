@@ -13,6 +13,7 @@ rmdir /S /Q objfre_win7_amd64
 rmdir /S /Q objfre_win8_x86
 rmdir /S /Q objfre_win8_amd64
 rmdir /S /Q .\sdv
+rmdir /S /Q .\sdv.temp
 
 del /F *.log *.wrn *.err
 del vioscsi-2012.h

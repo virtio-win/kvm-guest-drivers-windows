@@ -16,6 +16,7 @@
 
 #include <ntddk.h>
 #include <storport.h>
+#include "scsiwmi.h"
 
 #include "osdep.h"
 #include "virtio_pci.h"
@@ -267,6 +268,8 @@ typedef struct _ADAPTER_EXTENSION {
 
     BOOLEAN               dpc_ok;
     PSTOR_DPC             dpc;
+
+    SCSI_WMILIB_CONTEXT   WmiLibContext;
 }ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
 
 #if (MSI_SUPPORTED == 1)
