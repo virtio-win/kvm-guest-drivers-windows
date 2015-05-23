@@ -108,7 +108,7 @@
       <PreprocessorDefinitions>_X86_=1;i386=1;STD_CALL;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\scsiwmi.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_x86\i386\</AdditionalLibraryDirectories>
     </Link>
     <ResourceCompile>
@@ -134,7 +134,7 @@
       <PreprocessorDefinitions>_X86_=1;i386=1;STD_CALL;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\scsiwmi.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_x86\i386\</AdditionalLibraryDirectories>
     </Link>
     <ResourceCompile>
@@ -168,7 +168,7 @@
       <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;INDIRECT_SUPPORTED=1;MSI_SUPPORTED=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\scsiwmi.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_amd64\amd64\</AdditionalLibraryDirectories>
     </Link>
     <ResourceCompile>
@@ -195,7 +195,7 @@
       <EnablePREfast>true</EnablePREfast>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\storport.lib;$(DDK_LIB_PATH)\scsiwmi.lib;$(DDK_LIB_PATH)\wdm.lib;virtiolib.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\VirtIO\objfre_win8_amd64\amd64\</AdditionalLibraryDirectories>
     </Link>
     <ResourceCompile>
@@ -233,6 +233,9 @@
     <ClCompile Include="utils.c" />
     <ClCompile Include="vioscsi.c" />
     <ClCompile Include="virtio_pci.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <Mofcomp Include="vioscsi.mof" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

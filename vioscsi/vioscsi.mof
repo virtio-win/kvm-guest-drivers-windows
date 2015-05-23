@@ -1,0 +1,23 @@
+[
+    Dynamic, Provider("WMIProv"),
+    WMI,
+    Description ("VirtIO SCSI Extended Information"),
+    guid ("{5CDAC4F6-3D46-44E2-8DEE-01606E11E265}"),
+    HeaderName("VioScsiExtendedInfo"),
+    GuidName1("VioScsiWmi_ExtendedInfo_Guid"),
+    WmiExpense(0)
+]
+class VioScsiExtendedInfoGuid
+{
+    [read,key] String InstanceName;
+    [read] boolean Active;
+
+    [read, WmiDataId(1), WmiVersion(1)] uint32 QueueDepth;
+    [read, WmiDataId(2), WmiVersion(1)] uint8  QueuesCount;
+    [read, WmiDataId(3), WmiVersion(1)] boolean Indirect;
+    [read, WmiDataId(4), WmiVersion(1)] boolean EventIndex;
+    [read, WmiDataId(5), WmiVersion(1)] boolean DpcRedirection;
+    [read, WmiDataId(6), WmiVersion(1)] boolean ConcurentChannels;
+    [read, WmiDataId(7), WmiVersion(1)] boolean InterruptMsgRanges;
+    [read, WmiDataId(8), WmiVersion(1)] boolean CompletionDuringStartIo;
+};

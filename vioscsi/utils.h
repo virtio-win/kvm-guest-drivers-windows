@@ -77,7 +77,8 @@ char *DbgGetScsiOpStr(PSCSI_REQUEST_BLOCK Srb);
 
 #ifndef TRACE_LEVEL_INFORMATION
 #define TRACE_LEVEL_NONE        0   // Tracing is not on
-#define TRACE_LEVEL_FATAL       1   // Abnormal exit or termination
+#define TRACE_LEVEL_CRITICAL    1   // Abnormal exit or termination
+#define TRACE_LEVEL_FATAL       1   // Deprecated name for Abnormal exit or termination
 #define TRACE_LEVEL_ERROR       2   // Severe errors that need logging
 #define TRACE_LEVEL_WARNING     3   // Warnings such as allocation failure
 #define TRACE_LEVEL_INFORMATION 4   // Includes non-error cases(e.g.,Entry-Exit)
