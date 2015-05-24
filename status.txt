@@ -1,3 +1,20 @@
+Date    24 May 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm124
+
+Fixed bugs:
+
+BZ 1214568 vioscsi Add WMI facility to check the virito-scsi mq enabled
+BZ 1172920 vioser  bsod on shutdown after device was unplugged
+BZ 954183  NetKVM  Clean-up SDV run results during clean.bat execution
+BZ 1067249 balloon device can't be removed when service is running
+BZ 1190960 NetKVM  [mq]job failed due to "Received some net buffer lists out of order" w/ 4 queues
+BZ 1067225 viostor Windows guest performing out-of-bounds accesses on virtio device
+BZ 1195487 viostor Windows guest performing out-of-bounds accesses on virtio device
+
+New features:
+Fixed VS2015 compilation warnings.
+
 Date    12 Apr 2015
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm123
