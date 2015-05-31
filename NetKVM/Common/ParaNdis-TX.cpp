@@ -583,15 +583,18 @@ bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
                     bDoKick = SendMapped(IsInterrupt, pNBLFailNow);
                     pNBLReturnNow = ProcessWaitingList();
                     {
-                        CNdisPassiveWriteAutoLock tLock(m_Context->m_PauseLock);
-
                         NdisDprAcquireSpinLock(&m_Context->m_CompletionLock);
 
-                        if (m_Context->SendState == srsPausing && !ParaNdis_HasPacketsInHW(m_Context))
+                        if (m_Context->SendState == srsPausing)
                         {
-                            CallbackToCall = m_Context->SendPauseCompletionProc;
-                            m_Context->SendPauseCompletionProc = nullptr;
-                            m_Context->SendState = srsDisabled;
+                            CNdisPassiveWriteAutoLock tLock(m_Context->m_PauseLock);
+
+                            if (m_Context->SendState == srsPausing && !ParaNdis_HasPacketsInHW(m_Context))
+                            {
+                                CallbackToCall = m_Context->SendPauseCompletionProc;
+                                m_Context->SendPauseCompletionProc = nullptr;
+                                m_Context->SendState = srsDisabled;
+                            }
                         }
                     }
                  });

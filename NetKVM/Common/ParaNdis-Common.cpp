@@ -1496,7 +1496,7 @@ VOID ParaNdis_TestPausing(PARANDIS_ADAPTER *pContext)
 {
     ONPAUSECOMPLETEPROC callback = nullptr;
 
-    if (pContext->m_rxPacketsOutsideRing == 0)
+    if (pContext->m_rxPacketsOutsideRing == 0 && pContext->ReceiveState == srsPausing)
     {
         CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
 
