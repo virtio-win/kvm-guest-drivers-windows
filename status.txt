@@ -1,3 +1,13 @@
+Date    03 Jun 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm125
+
+Fixed bugs:
+
+BZ 1223426 NetKVM Fix for performance degradation with multi-queue
+BZ 1227164 viostor/vioscsi is not digital signed by Redhat
+
+
 Date    24 May 2015
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm124
