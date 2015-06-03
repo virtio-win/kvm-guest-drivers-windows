@@ -66,7 +66,7 @@ goto run_inf2cat
 setlocal
 if not exist %DVL_PATH_AND_NAME% goto do_the_job
 if /i "%2"=="x64" copy /Y %DVL_PATH_AND_NAME% .\Install\%INST_OS%\%INST_ARC%\
-goto after_inf2cat
+rem goto after_inf2cat
 :do_the_job
 if /i "%2"=="x86" set _OSMASK_=8_X86
 if /i "%2"=="x64" set _OSMASK_=8_X64,Server8_X64
@@ -78,7 +78,7 @@ echo "Error setting OS mask for inf2cat"
 goto after_inf2cat
 
 :run_inf2cat
-inf2cat /driver:Install\%INST_OS%\%INST_ARC% /os:%_OSMASK_%
+inf2cat /driver:.\Install\%INST_OS%\%INST_ARC% /os:%_OSMASK_%
 
 :after_inf2cat
 

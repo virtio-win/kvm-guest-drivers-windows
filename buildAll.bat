@@ -10,6 +10,10 @@ cd viostor
 call buildall.bat
 cd ..
 
+cd vioscsi
+call buildall.bat
+cd ..
+
 cd Balloon
 call buildall.bat
 cd ..
