@@ -75,7 +75,7 @@ goto :eof
 setlocal
 set BUILD_OS=Win8
 set BUILD_ARC=x86
-set INF2CAT_PATH=
+rem set INF2CAT_PATH=
 
 if exist Install\win8\x86 rmdir Install\win8\x86 /s /q
 call :BuildUsing2012 "Win8 Release|Win32" buildfre_win8_x86.log
@@ -87,7 +87,7 @@ goto :eof
 setlocal
 set BUILD_OS=Win8
 set BUILD_ARC=x64
-set INF2CAT_PATH=
+rem set INF2CAT_PATH=
 
 if exist Install\win8\amd64 rmdir Install\win8\amd64 /s /q
 call :BuildUsing2012 "Win8 Release|x64" buildfre_win8_amd64.log
