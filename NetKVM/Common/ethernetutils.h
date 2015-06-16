@@ -29,8 +29,8 @@
 #include <pshpack1.h>
 typedef struct _ETH_HEADER
 {
-    UCHAR   DstAddr[ETH_LENGTH_OF_ADDRESS];
-    UCHAR   SrcAddr[ETH_LENGTH_OF_ADDRESS];
+    UCHAR   DstAddr[ETH_ALEN];
+    UCHAR   SrcAddr[ETH_ALEN];
     USHORT  EthType;
 } ETH_HEADER, *PETH_HEADER;
 
