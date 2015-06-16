@@ -18,7 +18,6 @@
 #include <windows.h>
 #include <stdio.h>
 
-#define ETH_LENGTH_OF_ADDRESS       6
 #define DoPrint(fmt, ...) printf(fmt##"\n", __VA_ARGS__)
 #define DPrintf(a,b) DoPrint b
 #define RtlOffsetToPointer(B,O)  ((PCHAR)( ((PCHAR)(B)) + ((ULONG_PTR)(O))  ))
@@ -284,7 +283,7 @@ typedef struct _tagMaxPacketSize
 typedef struct _tagMulticastData
 {
     ULONG                   nofMulticastEntries;
-    UCHAR                   MulticastList[ETH_LENGTH_OF_ADDRESS * PARANDIS_MULTICAST_LIST_SIZE];
+    UCHAR                   MulticastList[ETH_ALEN * PARANDIS_MULTICAST_LIST_SIZE];
 }tMulticastData;
 
 #pragma warning (push)
@@ -398,8 +397,8 @@ typedef struct _tagPARANDIS_ADAPTER
     ULONG                   ulEnableWakeup;
     tMaxPacketSize          MaxPacketSize;
     ULONG                   ulUniqueID;
-    UCHAR                   PermanentMacAddress[ETH_LENGTH_OF_ADDRESS];
-    UCHAR                   CurrentMacAddress[ETH_LENGTH_OF_ADDRESS];
+    UCHAR                   PermanentMacAddress[ETH_ALEN];
+    UCHAR                   CurrentMacAddress[ETH_ALEN];
     ULONG                   PacketFilter;
     ULONG                   DummyLookAhead;
     ULONG                   nDetectedStoppedTx;

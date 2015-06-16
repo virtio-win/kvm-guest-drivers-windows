@@ -309,11 +309,11 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
 #pragma warning(push)
 #pragma warning(disable:6102)
                 NdisReadNetworkAddress(&status, &p, &len, cfg);
-                if (status == NDIS_STATUS_SUCCESS && len == ETH_LENGTH_OF_ADDRESS)
+                if (status == NDIS_STATUS_SUCCESS && len == ETH_ALEN)
                 {
                     NdisMoveMemory(pNewMACAddress, p, len);
                 }
-                else if (len && len != ETH_LENGTH_OF_ADDRESS)
+                else if (len && len != ETH_ALEN)
                 {
                     DPrintf(0, ("[%s] MAC address has wrong length of %d\n", __FUNCTION__, len));
                 }
@@ -556,7 +556,7 @@ SetDeviceMAC(PPARANDIS_ADAPTER pContext, PUCHAR pDeviceMAC)
 {
     if(pContext->bCfgMACAddrSupported && !pContext->bCtrlMACAddrSupported)
     {
-        VirtIODeviceSet(pContext->IODevice, 0, pDeviceMAC, ETH_LENGTH_OF_ADDRESS);
+        VirtIODeviceSet(pContext->IODevice, 0, pDeviceMAC, ETH_ALEN);
     }
 }
 
@@ -570,7 +570,7 @@ InitializeMAC(PPARANDIS_ADAPTER pContext, PUCHAR pCurrentMAC)
     //Read and validate permanent MAC address
     if (pContext->bCfgMACAddrSupported)
     {
-        VirtIODeviceGet(pContext->IODevice, 0, &pContext->PermanentMacAddress, ETH_LENGTH_OF_ADDRESS);
+        VirtIODeviceGet(pContext->IODevice, 0, &pContext->PermanentMacAddress, ETH_ALEN);
         if (!ParaNdis_ValidateMacAddress(pContext->PermanentMacAddress, FALSE))
         {
             DumpMac(0, "Invalid device MAC ignored", pContext->PermanentMacAddress);
@@ -636,7 +636,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     USHORT linkStatus = 0;
-    UCHAR CurrentMAC[ETH_LENGTH_OF_ADDRESS] = {0};
+    UCHAR CurrentMAC[ETH_ALEN] = {0};
     ULONG dependentOptions;
 
     DEBUG_ENTRY(0);
@@ -682,7 +682,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
         pContext->bLinkDetectSupported = AckFeature(pContext, VIRTIO_NET_F_STATUS);
         if(pContext->bLinkDetectSupported) {
-            VirtIODeviceGet(pContext->IODevice, ETH_LENGTH_OF_ADDRESS, &linkStatus, sizeof(linkStatus));
+            VirtIODeviceGet(pContext->IODevice, ETH_ALEN, &linkStatus, sizeof(linkStatus));
             pContext->bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
             DPrintf(0, ("[%s] Link status on driver startup: %d\n", __FUNCTION__, pContext->bConnected));
         }
@@ -704,7 +704,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
     pContext->bMultiQueue = AckFeature(pContext, VIRTIO_NET_F_MQ);
     if (pContext->bMultiQueue)
     {
-        VirtIODeviceGet(pContext->IODevice, ETH_LENGTH_OF_ADDRESS + sizeof(USHORT), &pContext->nHardwareQueues,
+        VirtIODeviceGet(pContext->IODevice, ETH_ALEN + sizeof(USHORT), &pContext->nHardwareQueues,
             sizeof(pContext->nHardwareQueues));
     }
     else
@@ -1069,7 +1069,7 @@ static void ReadLinkState(PARANDIS_ADAPTER *pContext)
     if (pContext->bLinkDetectSupported)
     {
         USHORT linkStatus = 0;
-        VirtIODeviceGet(pContext->IODevice, ETH_LENGTH_OF_ADDRESS, &linkStatus, sizeof(linkStatus));
+        VirtIODeviceGet(pContext->IODevice, ETH_ALEN, &linkStatus, sizeof(linkStatus));
         pContext->bConnected = !!(linkStatus & VIRTIO_NET_S_LINK_UP);
     }
     else
@@ -1410,7 +1410,7 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacke
     for (i = 0; i < pContext->MulticastData.nofMulticastEntries; i++)
     {
         ULONG Res;
-        PUCHAR CurrMcastAddr = &pContext->MulticastData.MulticastList[i*ETH_LENGTH_OF_ADDRESS];
+        PUCHAR CurrMcastAddr = &pContext->MulticastData.MulticastList[i*ETH_ALEN];
 
         ETH_COMPARE_NETWORK_ADDRESSES_EQ(pPacketInfo->ethDestAddr, CurrMcastAddr, &Res);
 
@@ -1984,17 +1984,17 @@ NDIS_STATUS ParaNdis_SetMulticastList(
         status = NDIS_STATUS_MULTICAST_FULL;
         *pBytesNeeded = sizeof(pContext->MulticastData.MulticastList);
     }
-    else if (length % ETH_LENGTH_OF_ADDRESS)
+    else if (length % ETH_ALEN)
     {
         status = NDIS_STATUS_INVALID_LENGTH;
-        *pBytesNeeded = (length / ETH_LENGTH_OF_ADDRESS) * ETH_LENGTH_OF_ADDRESS;
+        *pBytesNeeded = (length / ETH_ALEN) * ETH_ALEN;
     }
     else
     {
         NdisZeroMemory(pContext->MulticastData.MulticastList, sizeof(pContext->MulticastData.MulticastList));
         if (length)
             NdisMoveMemory(pContext->MulticastData.MulticastList, Buffer, length);
-        pContext->MulticastData.nofMulticastEntries = length / ETH_LENGTH_OF_ADDRESS;
+        pContext->MulticastData.nofMulticastEntries = length / ETH_ALEN;
         DPrintf(1, ("[%s] New multicast list of %d bytes\n", __FUNCTION__, length));
         *pBytesRead = length;
         status = NDIS_STATUS_SUCCESS;
@@ -2079,7 +2079,7 @@ static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)
                         &u32UniCastEntries,
                         sizeof(u32UniCastEntries),
                         &pContext->MulticastData,
-                        sizeof(pContext->MulticastData.nofMulticastEntries) + pContext->MulticastData.nofMulticastEntries * ETH_LENGTH_OF_ADDRESS,
+                        sizeof(pContext->MulticastData.nofMulticastEntries) + pContext->MulticastData.nofMulticastEntries * ETH_ALEN,
                         2);
 }
 
@@ -2147,7 +2147,7 @@ ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext)
     {
         pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_ADDR_SET,
                            pContext->CurrentMacAddress,
-                           ETH_LENGTH_OF_ADDRESS,
+                           ETH_ALEN,
                            NULL, 0, 4);
     }
 }

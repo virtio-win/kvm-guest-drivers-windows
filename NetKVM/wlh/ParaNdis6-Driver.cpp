@@ -278,7 +278,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
             miniportAttributes.GeneralAttributes.MacOptions |= NDIS_MAC_OPTION_8021Q_VLAN;
         miniportAttributes.GeneralAttributes.SupportedPacketFilters = PARANDIS_PACKET_FILTERS;
         miniportAttributes.GeneralAttributes.MaxMulticastListSize = PARANDIS_MULTICAST_LIST_SIZE;
-        miniportAttributes.GeneralAttributes.MacAddressLength =     ETH_LENGTH_OF_ADDRESS;
+        miniportAttributes.GeneralAttributes.MacAddressLength =     ETH_ALEN;
 
 #if PARANDIS_SUPPORT_RSS
         if (pContext->bRSSOffloadSupported)

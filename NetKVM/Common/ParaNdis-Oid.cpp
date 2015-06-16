@@ -413,7 +413,7 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
         break;
     case OID_802_3_MULTICAST_LIST:
         pInfo = pContext->MulticastData.MulticastList;
-        ulSize = pContext->MulticastData.nofMulticastEntries * ETH_LENGTH_OF_ADDRESS;
+        ulSize = pContext->MulticastData.nofMulticastEntries * ETH_ALEN;
         break;
     case OID_802_3_MAXIMUM_LIST_SIZE:
         SETINFO(ul, PARANDIS_MULTICAST_LIST_SIZE);
