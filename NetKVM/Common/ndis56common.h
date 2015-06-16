@@ -13,7 +13,6 @@
 #ifndef PARANDIS_56_COMMON_H
 #define PARANDIS_56_COMMON_H
 
-//#define PARANDIS_TEST_TX_KICK_ALWAYS
 #if defined(OFFLOAD_UNIT_TEST)
 #include <windows.h>
 #include <stdio.h>
