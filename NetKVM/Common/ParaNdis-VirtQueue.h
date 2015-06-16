@@ -255,11 +255,7 @@ public:
     //TODO: Needs review / temporary
     void Kick()
     {
-#ifdef PARANDIS_TEST_TX_KICK_ALWAYS
-        virtqueue_notify(m_VirtQueue);
-#else
         virtqueue_kick(m_VirtQueue);
-#endif
     }
 
     //TODO: Needs review / temporary
