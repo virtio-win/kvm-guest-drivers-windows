@@ -936,12 +936,14 @@ VirtIoBuildIo(
     lba = RhelGetLba(DeviceExtension, cdb);
     blocks = (Srb->DataTransferLength + adaptExt->info.blk_size - 1) / adaptExt->info.blk_size;
     if (lba > adaptExt->lastLBA) {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, ("SRB_STATUS_BAD_SRB_BLOCK_LENGTH lba = %llu lastLBA= %llu\n", lba, adaptExt->lastLBA));
         Srb->SrbStatus = SRB_STATUS_BAD_SRB_BLOCK_LENGTH;
         CompleteSRB(DeviceExtension, Srb);
         return FALSE;
     }
     if ((lba + blocks) > adaptExt->lastLBA) {
-        blocks = (ULONG)(adaptExt->lastLBA - lba);
+        blocks = (ULONG)(adaptExt->lastLBA + 1 - lba);
+        RhelDbgPrint(TRACE_LEVEL_ERROR, ("lba = %llu lastLBA= %llu blocks = %lu\n", lba, adaptExt->lastLBA, blocks));
         Srb->DataTransferLength = (ULONG)(blocks * adaptExt->info.blk_size);
     }
 
