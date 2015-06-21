@@ -29,3 +29,7 @@ cd ..
 cd pvpanic
 call buildall.bat
 cd ..
+
+cd packaging
+call buildall.bat
+cd ..
