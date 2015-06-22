@@ -59,7 +59,6 @@ extern "C"
 #endif
 
 #include "kdebugprint.h"
-#include "ethernetutils.h"
 #include "virtio_pci.h"
 #include "VirtIO.h"
 #include "DebugData.h"
