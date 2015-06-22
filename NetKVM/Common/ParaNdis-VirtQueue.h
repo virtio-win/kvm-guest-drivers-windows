@@ -7,6 +7,7 @@ extern "C"
 #include "virtio_pci.h"
 #include "VirtIO.h"
 
+#include "ethernetutils.h"
 }
 
 #include "ParaNdis-Util.h"
