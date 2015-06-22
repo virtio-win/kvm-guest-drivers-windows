@@ -23,4 +23,3 @@ public:
 protected:
     tCompletePhysicalAddress m_ControlData;
 };
-
