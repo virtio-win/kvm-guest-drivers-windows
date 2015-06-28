@@ -13,7 +13,7 @@
 #define _ETHERNET_UTILS_H
 
 // assuming <ndis.h> included
-
+#include <linux/if_ether.h>
 
 #define ETH_IS_LOCALLY_ADMINISTERED(Address) \
         (BOOLEAN)(((PUCHAR)(Address))[0] & ((UCHAR)0x02))
