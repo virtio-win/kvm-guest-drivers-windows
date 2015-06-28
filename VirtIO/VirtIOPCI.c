@@ -20,6 +20,7 @@
 #include "virtio.h"
 #include "kdebugprint.h"
 #include "VirtIO_Ring.h"
+#include "windows\virtio_ring_allocation.h"
 
 #ifdef WPP_EVENT_TRACING
 #include "VirtIOPCI.tmh"
