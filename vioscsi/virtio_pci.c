@@ -24,7 +24,6 @@
 **********************************************************************/
 #include "osdep.h"
 #include "VirtIO_PCI.h"
-#include "VirtIO.h"
 #include "utils.h"
 #include "vioscsi.h"
 

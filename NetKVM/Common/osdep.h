@@ -40,8 +40,10 @@
 #define __virtio16 unsigned short
 #define u16 unsigned short
 #define u32 unsigned long
+#define __u32 unsigned long
 #define __virtio32 unsigned long
 #define u64 ULONGLONG
+#define __u64 ULONGLONG
 
 #define mb()   KeMemoryBarrier()
 #define rmb()  KeMemoryBarrier()
