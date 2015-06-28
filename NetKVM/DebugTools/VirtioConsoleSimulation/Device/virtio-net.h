@@ -14,6 +14,7 @@
 #ifndef _QEMU_VIRTIO_NET_H
 #define _QEMU_VIRTIO_NET_H
 
+#include "virtio_config.h"
 #include "virtio.h"
 #include "net.h"
 #include "pci.h"

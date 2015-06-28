@@ -29,13 +29,16 @@
     <ClInclude Include="osdep.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="VirtIO.h">
+    <ClInclude Include="virtio_config.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="virtio_pci.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="virtio_ring.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="virtio.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

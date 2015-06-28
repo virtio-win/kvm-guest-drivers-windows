@@ -24,7 +24,9 @@
 
 #include "osdep.h"
 #include "virtio_pci.h"
-#include "VirtIO.h"
+#include "virtio_config.h"
+#include "virtio.h"
+#include "virtio_ring.h"
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 

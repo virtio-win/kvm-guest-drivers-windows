@@ -5,7 +5,7 @@ extern "C"
 
 #include "osdep.h"
 #include "virtio_pci.h"
-#include "VirtIO.h"
+#include "virtio.h"
 
 #include "ethernetutils.h"
 }

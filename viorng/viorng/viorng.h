@@ -52,6 +52,7 @@
 #include "virtio_pci.h"
 #pragma warning(pop)
 
+#include "virtio_config.h"
 #include "virtio.h"
 
 #define VIRT_RNG_MEMORY_TAG ((ULONG)'gnrV')

@@ -12,6 +12,7 @@
  */
 
 #include "iov.h"
+#include "virtio_config.h"
 #include "virtio.h"
 #include "net.h"
 #include "net/checksum.h"
