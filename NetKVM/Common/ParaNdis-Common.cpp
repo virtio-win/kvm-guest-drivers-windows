@@ -11,6 +11,7 @@
 **********************************************************************/
 #include "ndis56common.h"
 #include "virtio_net.h"
+#include "virtio_ring.h"
 #include "kdebugprint.h"
 #include "ParaNdis_DebugHistory.h"
 
@@ -427,7 +428,7 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
         {VIRTIO_NET_F_CTRL_VLAN, "VIRTIO_NET_F_CTRL_VLAN"},
         {VIRTIO_NET_F_CTRL_RX_EXTRA, "VIRTIO_NET_F_CTRL_RX_EXTRA"},
         {VIRTIO_NET_F_CTRL_MAC_ADDR, "VIRTIO_NET_F_CTRL_MAC_ADDR"},
-        {VIRTIO_F_INDIRECT, "VIRTIO_F_INDIRECT"},
+        {VIRTIO_RING_F_INDIRECT_DESC, "VIRTIO_RING_F_INDIRECT_DESC" },
         {VIRTIO_F_ANY_LAYOUT, "VIRTIO_F_ANY_LAYOUT"},
         { VIRTIO_RING_F_EVENT_IDX, "VIRTIO_RING_F_EVENT_IDX" },
     };
@@ -739,7 +740,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
         DisableLSOv6Permanently(pContext, __FUNCTION__, "Host does not support TSOv6");
     }
 
-    pContext->bUseIndirect = AckFeature(pContext, VIRTIO_F_INDIRECT);
+    pContext->bUseIndirect = AckFeature(pContext, VIRTIO_RING_F_INDIRECT_DESC);
     pContext->bAnyLaypout = AckFeature(pContext, VIRTIO_F_ANY_LAYOUT);
 
     pContext->bHasHardwareFilters = AckFeature(pContext, VIRTIO_NET_F_CTRL_RX_EXTRA);

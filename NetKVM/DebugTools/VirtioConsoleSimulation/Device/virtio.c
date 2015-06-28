@@ -15,6 +15,7 @@
 
 #include "trace.h"
 #include "qemu-error.h"
+#include "virtio_config.h"
 #include "virtio.h"
 
 /* The alignment to use between consumer and producer parts of vring.

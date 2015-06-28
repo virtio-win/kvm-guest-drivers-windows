@@ -53,7 +53,8 @@
   <ItemGroup>
     <ClInclude Include="..\..\VirtIO\kdebugprint.h" />
     <ClInclude Include="..\..\VirtIO\osdep.h" />
-    <ClInclude Include="..\..\VirtIO\VirtIO.h" />
+    <ClInclude Include="..\..\VirtIO\virtio_config.h" />
+    <ClInclude Include="..\..\VirtIO\virtio.h" />
     <ClInclude Include="..\..\VirtIO\virtio_pci.h" />
     <ClInclude Include="..\..\VirtIO\virtio_ring.h" />
   </ItemGroup>

@@ -21,7 +21,10 @@
     <ClInclude Include="..\..\VirtIO\osdep.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\VirtIO\VirtIO.h">
+    <ClInclude Include="..\..\VirtIO\virtio_config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\VirtIO\virtio.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\VirtIO\virtio_pci.h">

@@ -934,7 +934,8 @@
     <FilesToPackage Include="@(Inf->'%(CopyOutput)')" Condition="'@(Inf)'!=''" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\VirtIO\VirtIO.h" />
+    <ClInclude Include="..\VirtIO\virtio.h" />
+    <ClInclude Include="..\VirtIO\virtio_config.h" />
     <ClInclude Include="..\VirtIO\virtio_pci.h" />
     <ClInclude Include="..\VirtIO\virtio_ring.h" />
     <ClInclude Include="Common\common.inf.h" />

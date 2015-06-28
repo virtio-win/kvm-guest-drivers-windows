@@ -69,7 +69,7 @@
     <ClInclude Include="wlh\ParaNdis6.h">
       <Filter>Header Files\wlh</Filter>
     </ClInclude>
-    <ClInclude Include="..\VirtIO\VirtIO.h">
+    <ClInclude Include="..\VirtIO\virtio_config.h">
       <Filter>VirtIO</Filter>
     </ClInclude>
     <ClInclude Include="..\VirtIO\virtio_pci.h">
@@ -104,6 +104,9 @@
     </ClInclude>
     <ClInclude Include="Common\ParaNdis_Debug.h">
       <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VirtIO\virtio.h">
+      <Filter>VirtIO</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
