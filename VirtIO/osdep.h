@@ -26,13 +26,6 @@
 #define u16 unsigned short
 #define u32 unsigned long
 #define u64 ULONGLONG
-#define __u8 unsigned char
-#define __u16 unsigned short
-#define __u32 unsigned long
-#define __u64 ULONGLONG
-typedef __u16 __virtio16;
-typedef __u32 __virtio32;
-typedef __u64 __virtio64;
 
 #define ktime_t ULONGLONG
 #define ktime_get() KeQueryPerformanceCounter(NULL).QuadPart
