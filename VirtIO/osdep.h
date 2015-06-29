@@ -22,11 +22,6 @@
 
 #include <ntddk.h>
 
-#define u8 unsigned char
-#define u16 unsigned short
-#define u32 unsigned long
-#define u64 ULONGLONG
-
 #define ktime_t ULONGLONG
 #define ktime_get() KeQueryPerformanceCounter(NULL).QuadPart
 
