@@ -6,7 +6,9 @@
 
 #define __u8 unsigned char
 #define __u16 unsigned short
+#define __le16 unsigned short
 #define __u32 unsigned long
+#define __le32 unsigned long
 #define __u64 ULONGLONG
 
 #endif /* _LINUX_TYPES_H */
