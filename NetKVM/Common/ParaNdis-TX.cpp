@@ -656,19 +656,31 @@ bool CNB::ScheduleBuildSGListForTx()
                                         NDIS_SG_LIST_WRITE_TO_DEVICE, nullptr, 0) == NDIS_STATUS_SUCCESS;
 }
 
-void CNB::PopulateIPLength(IPv4Header *IpHeader, USHORT IpLength) const
+void CNB::PopulateIPLength(IPHeader *IpHeader, USHORT IpLength) const
 {
-    if ((IpHeader->ip_verlen & 0xF0) == 0x40)
+    if ((IpHeader->v4.ip_verlen & 0xF0) == 0x40)
     {
-        if (!IpHeader->ip_length) {
-            IpHeader->ip_length = swap_short(IpLength);
+        if (!IpHeader->v4.ip_length)
+        {
+            IpHeader->v4.ip_length = swap_short(IpLength);
         }
+    }
+    else if ((IpHeader->v6.ip6_ver_tc & 0xF0) == 0x60)
+    {
+        if (!IpHeader->v6.ip6_payload_len)
+        {
+            IpHeader->v6.ip6_payload_len = swap_short(IpLength - IPV6_HEADER_MIN_SIZE);
+        }
+    }
+    else
+    {
+        DPrintf(0, ("[%s] ERROR: Bad version of IP header!\n", __FUNCTION__));
     }
 }
 
 void CNB::SetupLSO(virtio_net_hdr_v1 *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const
 {
-    PopulateIPLength(reinterpret_cast<IPv4Header*>(IpHeader), static_cast<USHORT>(EthPayloadLength));
+    PopulateIPLength(reinterpret_cast<IPHeader*>(IpHeader), static_cast<USHORT>(EthPayloadLength));
 
     tTcpIpPacketParsingResult packetReview;
     packetReview = ParaNdis_CheckSumVerifyFlat(reinterpret_cast<IPv4Header*>(IpHeader), EthPayloadLength,

@@ -168,7 +168,7 @@ private:
     void SetupCSO(virtio_net_hdr_v1 *VirtioHeader, ULONG L4HeaderOffset) const;
     bool FillDescriptorSGList(CTXDescriptor &Descriptor, ULONG DataOffset) const;
     bool MapDataToVirtioSGL(CTXDescriptor &Descriptor, ULONG Offset) const;
-    void PopulateIPLength(IPv4Header *IpHeader, USHORT IpLength) const;
+    void PopulateIPLength(IPHeader *IpHeader, USHORT IpLength) const;
 
     PNET_BUFFER m_NB;
     CNBL *m_ParentNBL;

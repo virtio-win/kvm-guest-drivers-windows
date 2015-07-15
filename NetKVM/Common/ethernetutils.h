@@ -82,6 +82,8 @@ typedef union
     IPv4Header v4;
 } IPHeader;
 
+#define IPV6_HEADER_MIN_SIZE                (sizeof(IPv6Header))
+
 // TCP header RFC 793
 typedef struct _tagTCPHeader {
     USHORT      tcp_src;                // Source port
