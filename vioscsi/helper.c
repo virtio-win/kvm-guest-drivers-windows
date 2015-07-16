@@ -138,7 +138,7 @@ ENTER_FN();
         return TRUE;
     }
     ASSERT(adaptExt->tmf_infly == FALSE);
-
+    Srb->SrbExtension = srbExt;
     memset((PVOID)cmd, 0, sizeof(VirtIOSCSICmd));
     cmd->sc = Srb;
     cmd->req.tmf.lun[0] = 1;
