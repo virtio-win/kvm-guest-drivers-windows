@@ -1,3 +1,18 @@
+;/*++
+;
+;Copyright (c) 2014-2015 Red Hat Inc.
+;
+;Module Name:
+;    viorng.inf
+;
+;Abstract:
+;
+;Installation Notes:
+;    Using Devcon: Type "devcon install viorng.inf PCI\VEN_1AF4&DEV_1005&SUBSYS_00041AF4&REV_00" to install
+;
+;--*/
+
+
 [Version]
 Signature       = "$WINDOWS NT$"
 Class           = System
