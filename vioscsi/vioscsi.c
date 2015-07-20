@@ -1310,6 +1310,7 @@ ENTER_FN();
     switch (Srb->Function) {
         case SRB_FUNCTION_PNP:
         case SRB_FUNCTION_POWER:
+        case SRB_FUNCTION_RESET_BUS:
         case SRB_FUNCTION_RESET_DEVICE:
         case SRB_FUNCTION_RESET_LOGICAL_UNIT: {
             Srb->SrbStatus = SRB_STATUS_SUCCESS;
