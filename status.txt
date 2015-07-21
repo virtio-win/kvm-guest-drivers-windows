@@ -1,3 +1,16 @@
+Date    21 Jul 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm126
+
+Fixed bugs:
+
+BZ 1237024  NetKVM Fix payload length calculation in IPv6 header
+BZ 1183423  Change the copyright on all the Windows drivers to "2015" in virtio-win-prewhql build
+BZ 1243229  [virtio-win][scsi][windows 10]win10 and win2016 guests bsod with D1 when run job "Bus Reset Test"
+BZ 1217799  Distribute *.oem, LICENSE, COPYING in -prewhql build
+BZ 1228967  [virtio-win][whql][viostor]job "Flush Test" failed on all guests with build 105
+
+
 Date    03 Jun 2015
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm125
