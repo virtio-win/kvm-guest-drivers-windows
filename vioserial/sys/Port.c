@@ -663,17 +663,6 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
         return;
     }
 
-    status = WdfRequestMarkCancelableEx(Request,
-        VIOSerialPortWriteRequestCancel);
-
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
-            "Failed to mark request as cancelable: %x\n", status);
-        WdfRequestComplete(Request, status);
-        return;
-    }
-
     buffer = ExAllocatePoolWithTag(NonPagedPool, Length,
         VIOSERIAL_DRIVER_MEMORY_TAG);
 
@@ -693,6 +682,19 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
             "Failed to allocate write buffer entry.\n");
         ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
         WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
+        return;
+    }
+
+    status = WdfRequestMarkCancelableEx(Request,
+        VIOSerialPortWriteRequestCancel);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
+            "Failed to mark request as cancelable: %x\n", status);
+        ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);
+        ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
+        WdfRequestComplete(Request, status);
         return;
     }
 
@@ -717,10 +719,11 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
         NT_ASSERT(entry == CONTAINING_RECORD(removed, WRITE_BUFFER_ENTRY, ListEntry));
         ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);
 
-        Port->PendingWriteRequest = NULL;
-
-        if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
+        if ((Port->PendingWriteRequest != NULL) &&
+            (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED))
         {
+            Port->PendingWriteRequest = NULL;
+
             WdfRequestComplete(Request, Port->Removed ?
                 STATUS_INVALID_DEVICE_STATE : STATUS_INSUFFICIENT_RESOURCES);
         }
