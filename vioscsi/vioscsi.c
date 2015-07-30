@@ -261,6 +261,7 @@ VioScsiFindAdapter(
     ULONG              Size;
     ULONG              index;
     ULONG              num_cpus;
+    ULONG              max_cpus;
 #if (MSI_SUPPORTED == 1)
     PPCI_COMMON_CONFIG pPciConf = NULL;
     UCHAR              pci_cfg_buf[256];
@@ -373,8 +374,10 @@ ENTER_FN();
 
 #if (NTDDI_VERSION >= NTDDI_WIN7)
     num_cpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
+    max_cpus = KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS);
 #else
     num_cpus = KeQueryActiveProcessorCount(NULL);
+    max_cpus = KeQueryMaximumProcessorCount(NULL);
 #endif
     adaptExt->num_queues = adaptExt->scsi_config.num_queues;
     RtlFillMemory(adaptExt->cpu_to_vq_map, (UCHAR)VIRTIO_SCSI_REQUEST_QUEUE_0, MAX_CPU);
@@ -419,7 +422,7 @@ ENTER_FN();
         }
         adaptExt->allocationSize += ROUND_TO_PAGES(Size);
     }
-    adaptExt->allocationSize += (ROUND_TO_PAGES(Size) * (adaptExt->num_queues - 1));
+    adaptExt->allocationSize += (ROUND_TO_PAGES(Size) * max_cpus);
     if (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0 > MAX_QUEUES_PER_DEVICE_DEFAULT)
     {
         adaptExt->allocationSize += ROUND_TO_PAGES(VirtIODeviceSizeRequired((USHORT)(adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0)));
