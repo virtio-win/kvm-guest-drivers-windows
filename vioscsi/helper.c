@@ -141,7 +141,7 @@ ENTER_FN();
     }
     ASSERT(adaptExt->tmf_infly == FALSE);
     Srb->SrbExtension = srbExt;
-    memset((PVOID)cmd, 0, sizeof(VirtIOSCSICmd));
+    RtlZeroMemory((PVOID)cmd, sizeof(VirtIOSCSICmd));
     cmd->sc = Srb;
     cmd->req.tmf.lun[0] = 1;
     cmd->req.tmf.lun[1] = 0;
@@ -310,7 +310,7 @@ KickEvent(
 
 ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    memset((PVOID)EventNode, 0, sizeof(VirtIOSCSIEventNode));
+    RtlZeroMemory((PVOID)EventNode, sizeof(VirtIOSCSIEventNode));
     EventNode->sg.physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &EventNode->event, &fragLen);
     EventNode->sg.length   = sizeof(VirtIOSCSIEvent);
     return SynchronizedKickEventRoutine(DeviceExtension, (PVOID)EventNode);
