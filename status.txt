@@ -1,3 +1,14 @@
+Date    30 Jul 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm127
+
+Fixed bugs:
+
+BZ 1234751 [virtio-win][vioscsi]win2012R2 guest bsod(d1) when whql test DPWLK-HotAdd(1104) job
+BZ 1234741 [virtio-win][vioscsi]win2012 guest bsod(c9) when whql test DPWLK-HotAdd(1104) job
+BZ 1234507 vioserial crash due to completing a cancellable request
+
+
 Date    21 Jul 2015
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm126
