@@ -210,7 +210,7 @@ DriverEntry(
         IsCrashDumpMode = TRUE;
     }
 
-    memset(&hwInitData, 0, sizeof(HW_INITIALIZATION_DATA));
+    RtlZeroMemory(&hwInitData, sizeof(HW_INITIALIZATION_DATA));
 
     hwInitData.HwInitializationDataSize = sizeof(HW_INITIALIZATION_DATA);
 
@@ -275,7 +275,7 @@ VioScsiFindAdapter(
 ENTER_FN();
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    memset(adaptExt, 0, sizeof(ADAPTER_EXTENSION));
+    RtlZeroMemory(adaptExt, sizeof(ADAPTER_EXTENSION));
 
     adaptExt->dump_mode  = IsCrashDumpMode;
 
@@ -377,7 +377,7 @@ ENTER_FN();
     num_cpus = KeQueryActiveProcessorCount(NULL);
 #endif
     adaptExt->num_queues = adaptExt->scsi_config.num_queues;
-    memset(adaptExt->cpu_to_vq_map, (UCHAR)VIRTIO_SCSI_REQUEST_QUEUE_0, MAX_CPU);
+    RtlFillMemory(adaptExt->cpu_to_vq_map, (UCHAR)VIRTIO_SCSI_REQUEST_QUEUE_0, MAX_CPU);
     if (adaptExt->dump_mode || !adaptExt->msix_enabled)
     {
         adaptExt->num_queues = 1;
@@ -600,7 +600,7 @@ ENTER_FN();
             ULONG_PTR ptr = ((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset);
             ULONG size = ROUND_TO_PAGES(VirtIODeviceSizeRequired((USHORT)(adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0)));
             adaptExt->offset += size;
-            memcpy((PVOID)ptr, (PVOID)adaptExt->pvdev, sizeof(VirtIODevice));
+            RtlCopyMemory((PVOID)ptr, (PVOID)adaptExt->pvdev, sizeof(VirtIODevice));
             adaptExt->pvdev = (VirtIODevice*)ptr;
             VirtIODeviceInitialize(adaptExt->pvdev,  adaptExt->device_base, size);
         }
@@ -794,7 +794,7 @@ VioScsiInterrupt(
            {
               PSENSE_DATA pSense = (PSENSE_DATA) Srb->SenseInfoBuffer;
               if (Srb->SenseInfoBufferLength >= FIELD_OFFSET(SENSE_DATA, CommandSpecificInformation)) {
-                 memcpy(Srb->SenseInfoBuffer, resp->sense,
+                 RtlCopyMemory(Srb->SenseInfoBuffer, resp->sense,
                  min(resp->sense_len, Srb->SenseInfoBufferLength));
                  if (Srb->SrbStatus == SRB_STATUS_ERROR) {
                      Srb->SrbStatus |= SRB_STATUS_AUTOSENSE_VALID;
@@ -1040,7 +1040,7 @@ ENTER_FN();
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<-->%s (%d::%d::%d)\n", DbgGetScsiOpStr(Srb), Srb->PathId, Srb->TargetId, Srb->Lun));
 
-    memset(srbExt, 0, sizeof(*srbExt));
+    RtlZeroMemory(srbExt, sizeof(*srbExt));
     srbExt->Srb = Srb;
     StorPortGetCurrentProcessorNumber(DeviceExtension, &srbExt->procNum);
     cmd = &srbExt->cmd;
@@ -1053,7 +1053,7 @@ ENTER_FN();
     cmd->req.cmd.task_attr = VIRTIO_SCSI_S_SIMPLE;
     cmd->req.cmd.prio = 0;
     cmd->req.cmd.crn = 0;
-    memcpy(cmd->req.cmd.cdb, cdb, min(VIRTIO_SCSI_CDB_SIZE, Srb->CdbLength));
+    RtlCopyMemory(cmd->req.cmd.cdb, cdb, min(VIRTIO_SCSI_CDB_SIZE, Srb->CdbLength));
 
     sgElement = 0;
     srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->req.cmd, &fragLen);
@@ -1232,7 +1232,7 @@ ENTER_FN();
         {
             PSENSE_DATA pSense = (PSENSE_DATA)Srb->SenseInfoBuffer;
             if (Srb->SenseInfoBufferLength >= FIELD_OFFSET(SENSE_DATA, CommandSpecificInformation)) {
-                memcpy(Srb->SenseInfoBuffer, resp->sense,
+                RtlCopyMemory(Srb->SenseInfoBuffer, resp->sense,
                     min(resp->sense_len, Srb->SenseInfoBufferLength));
                 if (Srb->SrbStatus == SRB_STATUS_ERROR) {
                     Srb->SrbStatus |= SRB_STATUS_AUTOSENSE_VALID;
@@ -1382,7 +1382,7 @@ LogError(
 #if (NTDDI_VERSION > NTDDI_WIN7)
     STOR_LOG_EVENT_DETAILS logEvent;
     ULONG sz = 0;
-    memset( &logEvent, 0, sizeof(logEvent) );
+    RtlZeroMemory( &logEvent, sizeof(logEvent) );
     logEvent.InterfaceRevision         = STOR_CURRENT_LOG_INTERFACE_REVISION;
     logEvent.Size                      = sizeof(logEvent);
     logEvent.EventAssociation          = StorEventAdapterAssociation;
@@ -1597,7 +1597,7 @@ ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)Context;
     extInfo = (PVioScsiExtendedInfo)Buffer;
 
-    memset(Buffer, 0, numberOfBytes);
+    RtlZeroMemory(Buffer, numberOfBytes);
 
     extInfo->QueueDepth = (ULONG)adaptExt->queue_depth;
     extInfo->QueuesCount = (UCHAR)adaptExt->num_queues;
