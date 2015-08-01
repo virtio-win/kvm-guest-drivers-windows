@@ -377,7 +377,7 @@ ENTER_FN();
     max_cpus = KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS);
 #else
     num_cpus = KeQueryActiveProcessorCount(NULL);
-    max_cpus = KeQueryMaximumProcessorCount(NULL);
+    max_cpus = KeQueryMaximumProcessorCount();
 #endif
     adaptExt->num_queues = adaptExt->scsi_config.num_queues;
     RtlFillMemory(adaptExt->cpu_to_vq_map, (UCHAR)VIRTIO_SCSI_REQUEST_QUEUE_0, MAX_CPU);
