@@ -1,3 +1,16 @@
+;/*++
+;
+;Copyright (c) 2015 Red Hat Inc.
+;
+;Module Name:
+;    pvpanic.inf
+;
+;Abstract:
+;
+;Installation Notes:
+;    Using Devcon: Type "devcon install pvpanic.inf ACPI\QEMU0001" to install
+;
+;--*/
 
 [Version]
 Signature       = "$WINDOWS NT$"
