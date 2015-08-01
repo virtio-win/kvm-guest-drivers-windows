@@ -1,3 +1,14 @@
+Date    01 Aug 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm128
+
+Fixed bugs:
+
+
+BZ 1183423#c10 Change the copyright on all the Windows drivers to "2015" in virtio-win-prewhql build
+BZ 1248977 - [virtio-win][vioscsi] Cannot install vioscsi driver on win7-32&win2008-32 with build107
+
+
 Date    30 Jul 2015
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm127
