@@ -1,5 +1,5 @@
 @echo off
-: Param1 - Win7 | Wlh | Wnet | XP | Win8
+: Param1 - Win7 | Wlh | Wnet | XP | Win8 | Win10
 : Param2 - x86|x64
 : Param3 - file name
  
@@ -10,6 +10,7 @@ if /i "%1"=="Wlh" goto :checkarch
 if /i "%1"=="Wnet" goto :checkarch
 if /i "%1"=="WXp" goto :checkarch
 if /i "%1"=="Win8" goto :checkarch
+if /i "%1"=="Win10" goto :checkarch
 goto :printerr
 :checkarch
 if /i "%2"=="x86" goto :makeinstall
@@ -42,6 +43,7 @@ set PDB_PATH_AND_NAME=objfre_%INST_OS%_%INST_ARC%\%INST_EXT%\%FILE_NAME%.pdb
 set INF_PATH_AND_NAME=objfre_%INST_OS%_%INST_ARC%\%INST_EXT%\%FILE_NAME%.inf
 set WDF_PATH_AND_NAME=%BUILDROOT%\redist\wdf\%INST_ARC%\WdfCoInstaller01009.dll
 if /i "%1"=="win8" set WDF_PATH_AND_NAME="C:\Program Files (x86)\Windows Kits\8.1\Redist\wdf\%2\WdfCoInstaller01011.dll"
+if /i "%1"=="win10" set WDF_PATH_AND_NAME="C:\Program Files (x86)\Windows Kits\10\Redist\wdf\%2\WdfCoInstaller01011.dll"
 
 echo makeinstall %1 %2 %3
 mkdir ..\Install\%INST_OS%\%INST_ARC%
@@ -54,6 +56,7 @@ copy /Y %WDF_PATH_AND_NAME% ..\Install\%INST_OS%\%INST_ARC%
 :create_cat
 echo "Setting OS mask for:" %1 %2
 
+if /i "%1"=="win10" goto create_win10
 if /i "%1"=="win8" goto create_win8
 if /i "%1"=="wlh" goto create_vista
 if /i "%1"=="win7" goto create_vista
@@ -75,6 +78,12 @@ goto run_inf2cat
 if /i "%2"=="x86" set _OSMASK_=8_X86
 if /i "%2"=="x64" set _OSMASK_=8_X64,Server8_X64
 call "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" %INST_ARC%
+goto run_inf2cat
+
+:create_win10
+if /i "%2"=="x86" set _OSMASK_=10_X86
+if /i "%2"=="x64" set _OSMASK_=10_X64,Server10_X64
+call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %INST_ARC%
 goto run_inf2cat
 
 :error_inf2cat
