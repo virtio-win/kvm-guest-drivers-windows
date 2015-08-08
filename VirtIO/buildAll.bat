@@ -15,7 +15,8 @@ if "%DDKVER%"=="6000" set X64ENV=amd64
 if not "%1"=="" goto parameters_here
 echo no parameters specified, rebuild all
 call clean.bat
-call "%0" Win8 Win8_64 Win7 Win7_64 Vista Vista64 Win2003 Win200364 XP
+call "%0" Win10 Win10_64 
+rem Win8 Win8_64 Win7 Win7_64 Vista Vista64 Win2003 Win200364 XP
 goto :eof
 :parameters_here
 
@@ -107,4 +108,16 @@ goto continue
 
 :BuildWin8
 call ..\tools\callVisualStudio.bat 12 VirtioLib-win8.vcxproj /Rebuild "%~1" /Out %2
+goto :eof
+
+:Win10
+call :BuildWin10 "Win10 Release|x86" buildfre_win10_x86.log
+goto continue
+
+:Win10_64
+call :BuildWin10 "Win10 Release|x64" buildfre_win10_amd64.log
+goto continue
+
+:BuildWin10
+call ..\tools\callVisualStudio.bat 14 VirtioLib-win10.vcxproj /Rebuild "%~1" /Out %2
 goto :eof
