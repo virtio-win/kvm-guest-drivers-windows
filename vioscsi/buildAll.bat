@@ -3,7 +3,8 @@ rem @echo off
 set SYS_FILE_NAME=vioscsi
 
 if "%1_%2" neq "_" goto %1_%2
-for %%A in (Win8 Win7 Wlh) do for %%B in (32 64) do call :%%A_%%B
+rem for %%A in (Win10 Win8 Win7 Wlh) do for %%B in (32 64) do call :%%A_%%B
+for %%A in (Win10) do for %%B in (64) do call :%%A_%%B
 set SYS_FILE_NAME=
 goto :eof 
 
@@ -45,7 +46,7 @@ set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% 
 set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
 call :create2012H  > vioscsi-2012.h
 set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_% 
-call ..\tools\callVisualStudio.bat 12 vioscsi.vcxproj /Rebuild "%~1" /Out %2
+call ..\tools\callVisualStudio.bat 14 vioscsi.vcxproj /Rebuild "%~1" /Out %2
 endlocal
 goto :eof
 
@@ -62,12 +63,39 @@ set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% 
 set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
 
 set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_% 
-call "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" %2
+call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %2
 msbuild.exe vioscsi.vcxproj /t:clean /p:Configuration="%~1" /P:Platform=%2 
 msbuild.exe vioscsi.vcxproj /t:sdv /p:inputs="/clean" /p:Configuration="%~1" /P:platform=%2
 msbuild.exe vioscsi.vcxproj /p:Configuration="%~1" /P:Platform=%2 /P:RunCodeAnalysisOnce=True
 msbuild.exe vioscsi.vcxproj /t:sdv /p:inputs="/devenv /check" /p:Configuration="%~1" /P:platform=%2
 msbuild.exe vioscsi.vcxproj /t:dvl /p:Configuration="%~1" /P:platform=%2
+endlocal
+goto :eof
+
+:WIN10_32
+setlocal
+set BUILD_OS=Win10
+set BUILD_ARC=x86
+rem set INF2CAT_PATH=
+
+if exist Install\win10\x86 rmdir Install\win10\x86 /s /q
+call :BuildUsing2012 "Win10 Release|x86" buildfre_win10_x86.log
+call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
+endlocal
+goto :eof
+
+:WIN10_64
+setlocal
+set BUILD_OS=Win10
+set BUILD_ARC=x64
+rem set INF2CAT_PATH=
+
+if exist Install\win10\amd64 rmdir Install\win8\amd64 /s /q
+call :BuildUsing2012 "Win10 Release|x64" buildfre_win10_amd64.log
+call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
+call :StaticDriverVerifier2012 "Win10 Release" %BUILD_ARC%
+call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
+rmdir /S /Q .\sdv
 endlocal
 goto :eof
 
@@ -78,7 +106,7 @@ set BUILD_ARC=x86
 rem set INF2CAT_PATH=
 
 if exist Install\win8\x86 rmdir Install\win8\x86 /s /q
-call :BuildUsing2012 "Win8 Release|Win32" buildfre_win8_x86.log
+call :BuildUsing2012 "Win8 Release|x86" buildfre_win8_x86.log
 call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
 endlocal
 goto :eof
