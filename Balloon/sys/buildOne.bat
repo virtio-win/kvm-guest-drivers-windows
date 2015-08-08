@@ -10,6 +10,7 @@ if "%_RHEL_RELEASE_VERSION_%"=="" set _RHEL_RELEASE_VERSION_=61
 if /i "%1"=="prepare" goto %1
 if /i "%1"=="finalize" goto %1
 if /i "%1"=="Win8" goto %1_%2
+if /i "%1"=="Win10" goto %1_%2
 set DDKBUILDENV=
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %2 fre %1 no_oacr
@@ -35,6 +36,14 @@ goto :eof
 call :BuildWin8 "Win8 Release|x64" buildfre_win8_amd64.log
 goto :eof
 
+:Win10_x86
+call :BuildWin8 "Win10 Release|x86" buildfre_win10_x86.log
+goto :eof
+
+:Win10_x64
+call :BuildWin8 "Win10 Release|x64" buildfre_win10_amd64.log
+goto :eof
+
 :BuildWin8
 setlocal
 if "%_NT_TARGET_VERSION%"=="" set _NT_TARGET_VERSION=0x602
@@ -47,7 +56,7 @@ set _MINORVERSION_=%_BUILD_MINOR_VERSION_%
 set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% & 255)"
 set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
 set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_%
-call ..\..\tools\callVisualStudio.bat 12 balloon.vcxproj /Rebuild "%~1" /Out %2
+call ..\..\tools\callVisualStudio.bat 14 balloon.vcxproj /Rebuild "%~1" /Out %2
 endlocal
 goto :eof
 
