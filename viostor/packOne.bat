@@ -1,10 +1,11 @@
 @echo off
-: Param1 - Win8 | Win7 | Wlh | Wnet | XP
+: Param1 - Win10 | Win8 | Win7 | Wlh | Wnet | XP
 : Param2 - x86|x64
 : Param3 - sys name
  
 if "%2"=="x64" set %%2=amd64
 
+if /i "%1"=="Win10" goto :checkarch
 if /i "%1"=="Win8" goto :checkarch
 if /i "%1"=="Win7" goto :checkarch
 if /i "%1"=="Wlh" goto :checkarch
@@ -53,6 +54,7 @@ copy /Y %INF_PATH_AND_NAME% .\Install\%INST_OS%\%INST_ARC%\%SYS_NAME%.inf
 :create_cat
 echo "Setting OS mask for:" %1 %2
 
+if /i "%1"=="win10" goto create_win10
 if /i "%1"=="wlh" goto create_vista
 if /i "%1"=="win7" goto create_vista
 if /i "%1"=="win8" goto create_win8
@@ -83,6 +85,16 @@ if /i "%2"=="x64" set _OSMASK_=8_X64,Server8_X64
 call "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" %INST_ARC%
 goto run_inf2cat
 
+:create_win10
+setlocal
+if not exist %DVL_PATH_AND_NAME% goto do_the_job
+if /i "%2"=="x64" copy /Y %DVL_PATH_AND_NAME% .\Install\%INST_OS%\%INST_ARC%\
+rem goto after_inf2cat
+:do_the_job
+if /i "%2"=="x86" set _OSMASK_=10_X86
+if /i "%2"=="x64" set _OSMASK_=10_X64,Server10_X64
+call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %INST_ARC%
+goto run_inf2cat
 
 :error_inf2cat 
 echo "Error setting OS mask for inf2cat"
