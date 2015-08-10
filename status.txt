@@ -1,3 +1,11 @@
+Date    10 Aug 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm129
+
+Fixed bugs:
+
+Bz 1250854 [vioscsi]The job named crash dump failed on windows 2008 -32/64 platform
+
 Date    01 Aug 2015
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm128
