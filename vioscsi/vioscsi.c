@@ -205,9 +205,10 @@ DriverEntry(
     RhelDbgPrint(TRACE_LEVEL_FATAL, ("Vioscsi driver started...built on %s %s\n", __DATE__, __TIME__));
     IsCrashDumpMode = FALSE;
     if (RegistryPath == NULL) {
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                     ("DriverEntry: Crash dump mode\n"));
         IsCrashDumpMode = TRUE;
+//        virtioDebugLevel = 0xff;
+//        nViostorDebugLevel = TRACE_LEVEL_VERBOSE;
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("DriverEntry: Crash dump mode\n"));
     }
 
     RtlZeroMemory(&hwInitData, sizeof(HW_INITIALIZATION_DATA));
@@ -406,8 +407,7 @@ ENTER_FN();
     }
 
     adaptExt->features = StorPortReadPortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
-
-    adaptExt->allocationSize = PAGE_SIZE;
+    adaptExt->allocationSize = 0;
     adaptExt->offset = 0;
     Size = 0;
     for (index = VIRTIO_SCSI_CONTROL_QUEUE; index <= VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
@@ -422,14 +422,19 @@ ENTER_FN();
         }
         adaptExt->allocationSize += ROUND_TO_PAGES(Size);
     }
-    adaptExt->allocationSize += (ROUND_TO_PAGES(Size) * max_cpus);
+    if(!adaptExt->dump_mode) {
+        adaptExt->allocationSize += (ROUND_TO_PAGES(Size) * max_cpus);
+        adaptExt->allocationSize += ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
+        adaptExt->allocationSize += ROUND_TO_PAGES(sizeof(VirtIOSCSIEventNode) * 8);
+        adaptExt->allocationSize += ROUND_TO_PAGES(sizeof(STOR_DPC) * adaptExt->num_queues);
+    } else {
+        adaptExt->allocationSize += ROUND_TO_PAGES(Size);
+    }
     if (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0 > MAX_QUEUES_PER_DEVICE_DEFAULT)
     {
         adaptExt->allocationSize += ROUND_TO_PAGES(VirtIODeviceSizeRequired((USHORT)(adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0)));
     }
-    adaptExt->allocationSize += ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
-    adaptExt->allocationSize += ROUND_TO_PAGES(sizeof(VirtIOSCSIEventNode) * 8);
-    adaptExt->allocationSize += ROUND_TO_PAGES(sizeof(STOR_DPC) * adaptExt->num_queues);
+    adaptExt->allocationSize += PAGE_SIZE;
 
 #if (INDIRECT_SUPPORTED == 1)
     if(!adaptExt->dump_mode) {
@@ -1171,15 +1176,16 @@ ENTER_FN();
             )
         {
             ULONG tmp;
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Srb %p issued on %d::%d received on %d::%d MessgeId %d Queue %d\n",
-                Srb, srbExt->procNum.Group, srbExt->procNum.Number, ProcNumber.Group, ProcNumber.Number, MessageID, VIRTIO_SCSI_REQUEST_QUEUE_0 + msg));
-
 #if (NTDDI_VERSION >= NTDDI_WIN7)
             tmp = adaptExt->cpu_to_vq_map[ProcNumber.Number];
             adaptExt->cpu_to_vq_map[ProcNumber.Number] = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Srb %p issued on %d::%d received on %d::%d MessgeId %d Queue %d\n",
+                Srb, srbExt->procNum.Group, srbExt->procNum.Number, ProcNumber.Group, ProcNumber.Number, MessageID, VIRTIO_SCSI_REQUEST_QUEUE_0 + msg));
 #else
             tmp = adaptExt->cpu_to_vq_map[processor];
             adaptExt->cpu_to_vq_map[processor] = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Srb %p issued on %d::%d received on %d MessgeId %d Queue %d\n",
+                Srb, srbExt->procNum.Group, srbExt->procNum.Number, processor, MessageID, VIRTIO_SCSI_REQUEST_QUEUE_0 + msg));
 #endif
             adaptExt->cpu_to_vq_map[srbExt->procNum.Number] = (UCHAR)tmp;
         }
