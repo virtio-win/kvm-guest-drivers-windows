@@ -174,7 +174,8 @@
       <AdditionalLibraryDirectories>..\VirtIO\objfre_win10_x86\i386\</AdditionalLibraryDirectories>
     </Link>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>$(SDK_INC_PATH);%(AdditionalIncludeDirectories);..\Inc\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..\Inc\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
     <Inf>
       <DriverVersionSectionName>
@@ -188,7 +189,8 @@
       <UmdfVersionNumber>
       </UmdfVersionNumber>
       <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
-      <EnableVerbose>true</EnableVerbose>
+      <EnableVerbose>
+      </EnableVerbose>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
