@@ -3,7 +3,7 @@ rem @echo off
 set SYS_FILE_NAME=vioscsi
 
 if "%1_%2" neq "_" goto %1_%2
-rem for %%A in (Win10 Win8 Win7 Wlh) do for %%B in (32 64) do call :%%A_%%B
+rem for %%A in (Win7 Win8 Win10) do for %%B in (32 64) do call :%%A_%%B
 for %%A in (Win7 Win8 Win10) do for %%B in (32 64) do call :%%A_%%B
 set SYS_FILE_NAME=
 goto :eof 
@@ -72,11 +72,10 @@ msbuild.exe vioscsi.vcxproj /t:dvl /p:Configuration="%~1" /P:platform=%2
 endlocal
 goto :eof
 
-:WIN10_32
+:Win10_32
 setlocal
 set BUILD_OS=Win10
 set BUILD_ARC=x86
-rem set INF2CAT_PATH=
 
 if exist Install\win10\x86 rmdir Install\win10\x86 /s /q
 call :BuildUsingVS2015 "Win10 Release|x86" buildfre_win10_x86.log
@@ -84,11 +83,10 @@ call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
 endlocal
 goto :eof
 
-:WIN10_64
+:Win10_64
 setlocal
 set BUILD_OS=Win10
 set BUILD_ARC=x64
-rem set INF2CAT_PATH=
 
 if exist Install\win10\amd64 rmdir Install\win10\amd64 /s /q
 call :BuildUsingVS2015 "Win10 Release|x64" buildfre_win10_amd64.log
@@ -99,11 +97,10 @@ rmdir /S /Q .\sdv
 endlocal
 goto :eof
 
-:WIN8_32
+:Win8_32
 setlocal
 set BUILD_OS=Win8
 set BUILD_ARC=x86
-rem set INF2CAT_PATH=
 
 if exist Install\win8\x86 rmdir Install\win8\x86 /s /q
 call :BuildUsingVS2015 "Win8 Release|x86" buildfre_win8_x86.log
@@ -111,11 +108,10 @@ call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
 endlocal
 goto :eof
 
-:WIN8_64
+:Win8_64
 setlocal
 set BUILD_OS=Win8
 set BUILD_ARC=x64
-rem set INF2CAT_PATH=
 
 if exist Install\win8\amd64 rmdir Install\win8\amd64 /s /q
 call :BuildUsingVS2015 "Win8 Release|x64" buildfre_win8_amd64.log
@@ -126,27 +122,10 @@ rmdir /S /Q .\sdv
 endlocal
 goto :eof
 
-:WLH_64
-setlocal
-set BUILD_OS=Wlh
-set BUILD_ARC=x64
-call :buildpack %BUILD_OS% %BUILD_ARC%
-endlocal
-goto :eof
-
-:WLH_32
-setlocal
-set BUILD_OS=Wlh
-set BUILD_ARC=x86
-call :buildpack %BUILD_OS% %BUILD_ARC%
-endlocal
-goto :eof
-
-:WIN7_32
+:Win7_32
 setlocal
 set BUILD_OS=Win7
 set BUILD_ARC=x86
-rem set INF2CAT_PATH=
 
 if exist Install\win7\x86 rmdir Install\win7\x86 /s /q
 call :BuildUsingVS2015 "Win7 Release|x86" buildfre_win7_x86.log
@@ -154,11 +133,10 @@ call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
 endlocal
 goto :eof
 
-:WIN7_64
+:Win7_64
 setlocal
 set BUILD_OS=Win7
 set BUILD_ARC=x64
-rem set INF2CAT_PATH=
 
 if exist Install\win7\amd64 rmdir Install\win7\amd64 /s /q
 call :BuildUsingVS2015 "Win7 Release|x64" buildfre_win7_amd64.log
