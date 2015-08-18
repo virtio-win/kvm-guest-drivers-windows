@@ -4,7 +4,7 @@ set SYS_FILE_NAME=viostor
 
 if "%1_%2" neq "_" goto %1_%2
 rem for %%A in (Win8 Win7 Wnet Wlh WXp) do for %%B in (32 64) do call :%%A_%%B
-for %%A in (Win10) do for %%B in (32 64) do call :%%A_%%B
+for %%A in (Win7 Win8 Win10) do for %%B in (32 64) do call :%%A_%%B
 set SYS_FILE_NAME=
 goto :eof 
 
@@ -70,6 +70,30 @@ msbuild.exe viostor.vcxproj /t:sdv /p:inputs="/devenv /check" /p:Configuration="
 msbuild.exe viostor.vcxproj /t:dvl /p:Configuration="%~1" /P:platform=%2
 goto :eof
 
+:WIN7_32
+setlocal
+set BUILD_OS=Win7
+set BUILD_ARC=x86
+set INF2CAT_PATH=
+
+if exist Install\win7\x86 rmdir Install\win7\x86 /s /q
+call :BuildUsing2012 "Win7 Release|x86" buildfre_win7_x86.log
+call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
+endlocal
+goto :eof
+
+:WIN7_64
+setlocal
+set BUILD_OS=Win7
+set BUILD_ARC=x64
+set INF2CAT_PATH=
+
+if exist Install\win7\amd64 rmdir Install\win7\amd64 /s /q
+call :BuildUsing2012 "Win7 Release|x64" buildfre_win7_amd64.log
+call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
+endlocal
+goto :eof
+
 :WIN8_32
 setlocal
 set BUILD_OS=Win8
@@ -77,7 +101,7 @@ set BUILD_ARC=x86
 set INF2CAT_PATH=
 
 if exist Install\win8\x86 rmdir Install\win8\x86 /s /q
-call :BuildUsing2012 "Win8 Release|Win32" buildfre_win8_x86.log
+call :BuildUsing2012 "Win8 Release|x86" buildfre_win8_x86.log
 call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
 endlocal
 goto :eof
@@ -122,22 +146,6 @@ call :StaticDriverVerifier2012 "Win10 Release" %BUILD_ARC%
 call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
 endlocal
 rmdir /S /Q .\sdv
-goto :eof
-
-:WIN7_32
-setlocal
-set BUILD_OS=Win7
-set BUILD_ARC=x86
-call :buildpack %BUILD_OS% %BUILD_ARC%
-endlocal
-goto :eof
-
-:WIN7_64
-setlocal
-set BUILD_OS=Win7
-set BUILD_ARC=x64
-call :buildpack %BUILD_OS% %BUILD_ARC%
-endlocal
 goto :eof
 
 :WLH_32

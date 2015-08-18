@@ -56,7 +56,7 @@ echo "Setting OS mask for:" %1 %2
 
 if /i "%1"=="win10" goto create_win10
 if /i "%1"=="wlh" goto create_vista
-if /i "%1"=="win7" goto create_vista
+if /i "%1"=="win7" goto create_win7
 if /i "%1"=="win8" goto create_win8
 if /i "%1"=="wnet" goto create_xp
 if /i "%1"=="wxp" goto create_xp
@@ -70,8 +70,15 @@ goto run_inf2cat
 
 :create_vista
 setlocal
-if /i "%2"=="x86" set _OSMASK_=Vista_X86,Server2008_X86,7_X86
-if /i "%2"=="x64" set _OSMASK_=Vista_X64,Server2008_X64,7_X64,Server2008R2_X64
+if /i "%2"=="x86" set _OSMASK_=Vista_X86,Server2008_X86
+if /i "%2"=="x64" set _OSMASK_=Vista_X64,Server2008_X64
+goto run_inf2cat
+
+:create_win7
+setlocal
+if /i "%2"=="x86" set _OSMASK_=7_X86
+if /i "%2"=="x64" set _OSMASK_=7_X64,Server2008R2_X64
+call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %INST_ARC%
 goto run_inf2cat
 
 :create_win8
@@ -82,7 +89,7 @@ rem goto after_inf2cat
 :do_the_job
 if /i "%2"=="x86" set _OSMASK_=8_X86
 if /i "%2"=="x64" set _OSMASK_=8_X64,Server8_X64
-call "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" %INST_ARC%
+call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %INST_ARC%
 goto run_inf2cat
 
 :create_win10
@@ -105,7 +112,6 @@ goto after_inf2cat
 inf2cat /driver:Install\%INST_OS%\%INST_ARC% /os:%_OSMASK_%
 
 :after_inf2cat
-
 set INST_OS=
 set INST_ARC=
 set SYS_NAME=
