@@ -37,7 +37,7 @@
   <PropertyGroup Label="Globals">
     <RootNamespace>viostor</RootNamespace>
     <VCTargetsPath Condition="'$(VCTargetsPath11)' != '' and '$(VisualStudioVersion)' == '11.0'">$(VCTargetsPath11)</VCTargetsPath>
-    <WindowsTargetPlatformVersion>10.0.10075.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.10240.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <PropertyGroup Label="PropertySheets">
     <ConfigurationType>Driver</ConfigurationType>
