@@ -2,6 +2,8 @@
 #include "service.h"
 #include "strsafe.h"
 
+#pragma warning(disable:4996)
+
 extern LPWSTR ServiceName;
 extern LPWSTR DisplayName;
 
@@ -301,11 +303,11 @@ BOOL GetConfiguration()
         ErrorHandler("QueryServiceConfig", GetLastError());
     }
 
-    printf("Service name:\t%s\n", buffer->lpDisplayName);
+    printf("Service name:\t%S\n", buffer->lpDisplayName);
     printf("Service type:\t%d\n", buffer->dwServiceType);
     printf("Start type:\t%d\n",buffer->dwStartType);
-    printf("Start name:\t%s\n",buffer->lpServiceStartName);
-    printf("Path:\t\t%s\n",buffer->lpBinaryPathName);
+    printf("Start name:\t%S\n",buffer->lpServiceStartName);
+    printf("Path:\t\t%S\n",buffer->lpBinaryPathName);
 
     LocalFree(buffer);
 
