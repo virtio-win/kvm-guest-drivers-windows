@@ -30,56 +30,6 @@ goto %1
 shift
 goto nextparam
 
-:Vista
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WIN7
-popd
-build -cZg
-endlocal
-goto continue
-
-:Vista64
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre Wlh
-popd
-build -cZg
-endlocal
-goto continue
-
-:Win2003
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WNET
-popd
-build -cZg
-endlocal
-goto continue
-
-:Win200364
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WNET
-popd
-build -cZg
-endlocal
-goto continue
-
-:XP
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WXP
-popd
-build -cZg
-endlocal
-goto continue
-
 :Win7_32
 call :BuildVS2015 "Win7 Release|x86" buildfre_win7_x86.log
 goto continue
