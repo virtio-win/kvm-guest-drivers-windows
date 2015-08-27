@@ -35,7 +35,7 @@ call :BuildVS2015 "Win7 Release|x86" buildfre_win7_x86.log
 goto continue
 
 :Win7_64
-call :BuildVS2015 "Win7 Release|x64" buildfre_win7_x64.log
+call :BuildVS2015 "Win7 Release|x64" buildfre_win7_amd64.log
 goto continue
 
 :Win8_32
