@@ -69,7 +69,6 @@ echo #define _MINORVERSION_ %_BUILD_MINOR_VERSION_%
 goto :eof
 :prepare
 set _NT_TARGET_VERSION=0x0602
-call :prepare_version
 call :create2012H  > 2012-defines.h
 goto :eof
 :finalize
