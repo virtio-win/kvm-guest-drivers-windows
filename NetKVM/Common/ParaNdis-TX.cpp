@@ -678,7 +678,7 @@ void CNB::PopulateIPLength(IPHeader *IpHeader, USHORT IpLength) const
     }
 }
 
-void CNB::SetupLSO(virtio_net_hdr_v1 *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const
+void CNB::SetupLSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const
 {
     PopulateIPLength(reinterpret_cast<IPHeader*>(IpHeader), static_cast<USHORT>(EthPayloadLength));
 
@@ -691,7 +691,7 @@ void CNB::SetupLSO(virtio_net_hdr_v1 *VirtioHeader, PVOID IpHeader, ULONG EthPay
     if (packetReview.xxpCheckSum == ppresPCSOK || packetReview.fixedXxpCS)
     {
         auto IpHeaderOffset = m_Context->Offload.ipHeaderOffset;
-        auto VHeader = static_cast<virtio_net_hdr_v1*>(VirtioHeader);
+        auto VHeader = static_cast<virtio_net_hdr*>(VirtioHeader);
         auto PriorityHdrLen = (m_ParentNBL->TCI() != 0) ? ETH_PRIORITY_HEADER_SIZE : 0;
 
         VHeader->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
@@ -720,7 +720,7 @@ USHORT CNB::QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const
     return Res;
 }
 
-void CNB::SetupCSO(virtio_net_hdr_v1 *VirtioHeader, ULONG L4HeaderOffset) const
+void CNB::SetupCSO(virtio_net_hdr *VirtioHeader, ULONG L4HeaderOffset) const
 {
     u16 PriorityHdrLen = m_ParentNBL->TCI() ? ETH_PRIORITY_HEADER_SIZE : 0;
 
@@ -811,7 +811,7 @@ void CNB::BuildPriorityHeader(PETH_HEADER EthHeader, PVLAN_HEADER VlanHeader) co
     }
 }
 
-void CNB::PrepareOffloads(virtio_net_hdr_v1 *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength, ULONG L4HeaderOffset) const
+void CNB::PrepareOffloads(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength, ULONG L4HeaderOffset) const
 {
     *VirtioHeader = {};
 

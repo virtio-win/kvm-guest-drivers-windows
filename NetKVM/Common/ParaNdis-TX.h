@@ -161,11 +161,11 @@ private:
     bool Copy(PVOID Dst, ULONG Length) const;
     bool CopyHeaders(PVOID Destination, ULONG MaxSize, ULONG &HeadersLength, ULONG &L4HeaderOffset) const;
     void BuildPriorityHeader(PETH_HEADER EthHeader, PVLAN_HEADER VlanHeader) const;
-    void PrepareOffloads(virtio_net_hdr_v1 *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength, ULONG L4HeaderOffset) const;
-    void SetupLSO(virtio_net_hdr_v1 *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const;
+    void PrepareOffloads(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength, ULONG L4HeaderOffset) const;
+    void SetupLSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const;
     USHORT QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const;
     void DoIPHdrCSO(PVOID EthHeaders, ULONG HeadersLength) const;
-    void SetupCSO(virtio_net_hdr_v1 *VirtioHeader, ULONG L4HeaderOffset) const;
+    void SetupCSO(virtio_net_hdr *VirtioHeader, ULONG L4HeaderOffset) const;
     bool FillDescriptorSGList(CTXDescriptor &Descriptor, ULONG DataOffset) const;
     bool MapDataToVirtioSGL(CTXDescriptor &Descriptor, ULONG Offset) const;
     void PopulateIPLength(IPHeader *IpHeader, USHORT IpLength) const;
