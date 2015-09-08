@@ -36,7 +36,10 @@
 #define likely(x) x
 #define unlikely(x) x
 
-#define ENOSPC 1
+#ifndef ENOSPC
+#define ENOSPC 28
+#endif
+
 #define BUG_ON(a)
 #define WARN_ON(a)
 
