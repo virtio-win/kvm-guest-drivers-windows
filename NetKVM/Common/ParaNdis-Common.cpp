@@ -396,7 +396,7 @@ static BOOLEAN GetAdapterResources(PNDIS_RESOURCE_LIST RList, tAdapterResources 
             pResources->Level = RList->PartialDescriptors[i].u.Interrupt.Level;
             pResources->Affinity = RList->PartialDescriptors[i].u.Interrupt.Affinity;
             pResources->InterruptFlags = RList->PartialDescriptors[i].Flags;
-            DPrintf(0, ("Found Interrupt vector %d, level %d, affinity %X, flags %X\n",
+            DPrintf(0, ("Found Interrupt vector %d, level %d, affinity 0x%X, flags %X\n",
                 pResources->Vector, pResources->Level, (ULONG)pResources->Affinity, pResources->InterruptFlags));
         }
     }
