@@ -885,6 +885,10 @@ static void SetupInterrruptAffinity(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
 #else
                 desc->u.Interrupt.TargetedProcessors = 1i64 << procIndex;
 #endif
+                if (jx % 2 == 1)
+                {
+                    procIndex++;
+                }
             }
         }
         list = (PIO_RESOURCE_LIST)(list->Descriptors + list->Count);
