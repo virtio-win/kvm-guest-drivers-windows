@@ -602,7 +602,6 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
         status = NdisMRegisterInterruptEx(pContext->MiniportHandle, pContext, &mic, &pContext->InterruptHandle);
     }
 
-#ifdef DBG
     if (pContext->bUsingMSIX)
     {
         DPrintf(0, ("[%s] MSIX message table %savailable, count = %u\n", __FUNCTION__, (mic.MessageInfoTable == nullptr ? "not " : ""),
@@ -612,7 +611,6 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
     {
         DPrintf(0, ("[%s] Not using MSIX\n", __FUNCTION__));
     }
-#endif
 
     if (status == NDIS_STATUS_SUCCESS)
     {
