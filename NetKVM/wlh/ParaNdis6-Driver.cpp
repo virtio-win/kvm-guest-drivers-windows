@@ -987,25 +987,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
                     pd = (IO_RESOURCE_DESCRIPTOR *)RtlOffsetToPointer(prrl, offset);
                 }
 
-                DPrintf(resourceFilterLevel, ("[%s] MSI resources %s listed\n", __FUNCTION__, MSIResourceListed ? "" : "not"));
-
-
-                if (!bRemoveMSIResources && MSIResourceListed)
-                {
-                    while (nInterrupts < QueueNumber)
-                    {
-                        IO_RESOURCE_DESCRIPTOR ior;
-                        ior.Type = CmResourceTypeInterrupt;
-                        ior.Flags = CM_RESOURCE_INTERRUPT_LATCHED | CM_RESOURCE_INTERRUPT_MESSAGE | CM_RESOURCE_INTERRUPT_POLICY_INCLUDED;
-                        ior.Option = 0;
-                        ior.ShareDisposition = CmResourceShareDeviceExclusive;
-                        ior.u.Interrupt.MinimumVector = ior.u.Interrupt.MaximumVector = CM_RESOURCE_INTERRUPT_MESSAGE_TOKEN;
-                        ior.u.Interrupt.AffinityPolicy = IrqPolicyMachineDefault;
-                        ior.u.Interrupt.PriorityPolicy = IrqPriorityNormal;
-                        AddNewResourceDescriptor(&newRRLData, &ior);
-                        nInterrupts++;
-                    }
-                }
+                DPrintf(0, ("[%s] MSI resources %s listed\n", __FUNCTION__, MSIResourceListed ? "" : "not"));
 
                 FinalizeResourceList(&newRRLData);
                 p = pd;
