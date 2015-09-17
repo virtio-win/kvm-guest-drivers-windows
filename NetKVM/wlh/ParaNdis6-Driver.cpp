@@ -44,11 +44,7 @@ extern "C"
 
 
 //#define NO_VISTA_POWER_MANAGEMENT
-
-//by default printouts from resource filtering are invisible
-//change it to 2 or smaller to make it visible always
 ULONG bDisableMSI = FALSE;
-LONG resourceFilterLevel = 3;
 
 static NDIS_HANDLE      DriverHandle;
 static LONG             gID = 0;
@@ -819,73 +815,31 @@ static void AddNewResourceDescriptor(tRRLData *pData, PIO_RESOURCE_DESCRIPTOR pr
     }
 }
 
-#ifdef DBG
-static const char* CM_RESOURCE_TYPE2String(UCHAR rt)
-{
-    switch (rt)    
-    {
-         case CmResourceTypeNull: return "CmResourceTypeNull";
-         case CmResourceTypePort: return "CmResourceTypePort";
-         case CmResourceTypeInterrupt: return "CmResourceTypeInterrupt";
-         case CmResourceTypeMemory: return "CmResourceTypeMemory";
-         case CmResourceTypeDma: return "CmResourceTypeDma";
-         case CmResourceTypeDeviceSpecific: return "CmResourceTypeDeviceSpecific";
-         case CmResourceTypeBusNumber: return "CmResourceTypeBusNumber";
-         case CmResourceTypeMemoryLarge: return "CmResourceTypeMemoryLarge";
-         case CmResourceTypeConfigData: return "CmResourceTypeConfigData";
-         case CmResourceTypeDevicePrivate: return "CmResourceTypeDevicePrivate";
-         case CmResourceTypePcCardConfig: return "CmResourceTypePcCardConfig";
-         case CmResourceTypeMfCardConfig: return "CmResourceTypeMfCardConfig";
-         case CmResourceTypeConnection: return "CmResourceTypeConnection";
-         default: return "Unknown  CM_RESOURCE_TYPE";
-    }
-}
-
-static const char* IRQ_DEVICE_POLICY2String(IRQ_DEVICE_POLICY policy)
-{
-    switch (policy)
-    {
-    case IrqPolicyMachineDefault: return "IrqPolicyMachineDefault";
-    case IrqPolicyAllCloseProcessors: return "IrqPolicyAllCloseProcessors";
-    case IrqPolicyOneCloseProcessor: return "IrqPolicyOneCloseProcessor";
-    case IrqPolicyAllProcessorsInMachine: return "IrqPolicyAllProcessorsInMachine";
-    case IrqPolicySpecifiedProcessors: return "IrqPolicySpecifiedProcessors";
-    case IrqPolicySpreadMessagesAcrossAllProcessors: return "IrqPolicySpreadMessagesAcrossAllProcessors";
-    default: return "Unknownn policy";
-    }
-}
-
 static void PrintPRRL(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
 {
-    DPrintf(resourceFilterLevel, ("[%s] ListSize = %lu, AlternativeLists = %lu\n", __FUNCTION__, prrl->ListSize, prrl->AlternativeLists));
-
     PIO_RESOURCE_LIST list;
 
     list = prrl->List;
 
     for (ULONG ix = 0; ix < prrl->AlternativeLists; ++ix)
     {
-        DPrintf(resourceFilterLevel, ("  List # %ld, count %lu\n", __FUNCTION__, ix, list->Count));
+        DPrintf(0, ("[%s] List # %ld, count %lu\n", __FUNCTION__, ix, list->Count));
         for (ULONG jx = 0; jx < list->Count; ++jx)
         {
             PIO_RESOURCE_DESCRIPTOR desc;
 
             desc = list->Descriptors + jx;
 
-            DPrintf(resourceFilterLevel, ("    IRD %s, flags 0x%x, option 0x%x share 0x%x\n", CM_RESOURCE_TYPE2String(desc->Type), desc->Flags, desc->Option, desc->ShareDisposition));
             switch (desc->Type)
             {
-            case CmResourceTypeNull: 
-                break;
             case CmResourceTypePort:
-                DPrintf(resourceFilterLevel, ("      align 0x%lx, length %lu, min/max 0x%llx/0x%llx\n", desc->u.Port.Alignment, desc->u.Port.Length, desc->u.Port.MinimumAddress, desc->u.Port.MaximumAddress));
+                DPrintf(0, ("CmResourceTypePort, align 0x%lx, length %lu, min/max 0x%llx/0x%llx\n", desc->u.Port.Alignment, desc->u.Port.Length, desc->u.Port.MinimumAddress, desc->u.Port.MaximumAddress));
                 break;
             case CmResourceTypeInterrupt:
-                DPrintf(resourceFilterLevel, ("      max/min 0x%lx/0x%lx policy %s priority %d affinity 0x%llx\n", desc->u.Interrupt.MinimumVector, desc->u.Interrupt.MaximumVector, IRQ_DEVICE_POLICY2String(desc->u.Interrupt.AffinityPolicy),
-                    desc->u.Interrupt.PriorityPolicy, desc->u.Interrupt.TargetedProcessors));
+                DPrintf(0, ("CmResourceTypeInterrupt, max/min 0x%lx/0x%lx affinity 0x%llx\n", desc->u.Interrupt.MinimumVector, desc->u.Interrupt.MaximumVector, desc->u.Interrupt.TargetedProcessors));
                 break;
             case CmResourceTypeMemory:
-                DPrintf(resourceFilterLevel, ("      align %lu, length %lu, min 0x%llx, max 0x%llx\n", desc->u.Memory.Alignment, desc->u.Memory.Length, desc->u.Memory.MinimumAddress, desc->u.Memory.MaximumAddress));
+                DPrintf(0, ("CmResourceTypeMemory align %lu, length %lu, min 0x%llx, max 0x%llx\n", desc->u.Memory.Alignment, desc->u.Memory.Length, desc->u.Memory.MinimumAddress, desc->u.Memory.MaximumAddress));
                 break;
             default: 
                 break;
@@ -894,7 +848,6 @@ static void PrintPRRL(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
         list = (PIO_RESOURCE_LIST)(list->Descriptors + list->Count);
     }
 }
-#endif
 
 static void SetupInterrruptAffinity(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
 {
@@ -970,7 +923,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
     if (QueueNumber > 2048)
         QueueNumber = 2048;
 
-    DPrintf(resourceFilterLevel, ("[%s]%s\n", __FUNCTION__, bRemoveMSIResources ? "(Remove MSI resources...)" : "(Don't remove MSI resources)"));
+    DPrintf(0, ("[%s]%s\n", __FUNCTION__, bRemoveMSIResources ? "(Remove MSI resources...)" : "(Don't remove MSI resources)"));
 
     newPrrl = (PIO_RESOURCE_REQUIREMENTS_LIST)NdisAllocateMemoryWithTagPriority(
             MiniportAddDeviceContext,
@@ -983,7 +936,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
     {
         ULONG n, offset;
         PVOID p = &prrl->List[0];
-        DPrintf(resourceFilterLevel, ("[%s] %d bytes, %d lists\n", __FUNCTION__, prrl->ListSize, prrl->AlternativeLists));
+        DPrintf(0, ("[%s] %d bytes, %d lists\n", __FUNCTION__, prrl->ListSize, prrl->AlternativeLists));
         offset = RtlPointerToOffset(prrl, p);
         for (n = 0; n < prrl->AlternativeLists && offset < prrl->ListSize; ++n)
         {
@@ -992,7 +945,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
             if ((offset + sizeof(*pior)) < prrl->ListSize)
             {
                 IO_RESOURCE_DESCRIPTOR *pd = &pior->Descriptors[0];
-                DPrintf(resourceFilterLevel, ("[%s]+%d %d:%d descriptors follow\n", __FUNCTION__, offset, n, pior->Count));
+                DPrintf(0, ("[%s]+%d %d:%d descriptors follow\n", __FUNCTION__, offset, n, pior->Count));
                 offset += RtlPointerToOffset(p, pd);
                 AddNewResourceList(&newRRLData, pior);
                 for (nDesc = 0; nDesc < pior->Count; ++nDesc)
@@ -1000,18 +953,10 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
                     BOOLEAN bRemove = FALSE;
                     if ((offset + sizeof(*pd)) <= prrl->ListSize)
                     {
-#ifdef DBG
-                        DPrintf(resourceFilterLevel, ("[%s]+%d %d: type %d/%s, flags %X, option %X\n", __FUNCTION__, offset, nDesc, pd->Type, 
-                            CM_RESOURCE_TYPE2String(pd->Type), pd->Flags, pd->Option));
-#else
-                        DPrintf(resourceFilterLevel, ("[%s]+%d %d: type %d, flags %X, option %X\n", __FUNCTION__, offset, nDesc, pd->Type,
-                            pd->Flags, pd->Option));
-#endif
-
                         if (pd->Type == CmResourceTypeInterrupt)
                         {
                             nInterrupts++;
-                            DPrintf(0, ("[%s] min/max = %lx/%lx Option = 0x%lx, ShareDisposition = %u \n", __FUNCTION__, pd->u.Interrupt.MinimumVector, pd->u.Interrupt.MaximumVector,
+                            DPrintf(0, ("[%s] CmResourceTypeInterrupt, min/max = %lx/%lx Option = 0x%lx, ShareDisposition = %u \n", __FUNCTION__, pd->u.Interrupt.MinimumVector, pd->u.Interrupt.MaximumVector,
                                 pd->Option, pd->ShareDisposition));
                             if (pd->Flags & CM_RESOURCE_INTERRUPT_MESSAGE)
                             {
@@ -1086,19 +1031,15 @@ static NDIS_STATUS ParaNdis6_FilterResource(IN NDIS_HANDLE  MiniportAddDeviceCon
     DPrintf(0, ("[%s] entered\n", __FUNCTION__));
     PIO_RESOURCE_REQUIREMENTS_LIST prrl = (PIO_RESOURCE_REQUIREMENTS_LIST)(PVOID)Irp->IoStatus.Information;
 
-#ifdef DBG
     PrintPRRL(prrl);
-#endif
 
     PIO_RESOURCE_REQUIREMENTS_LIST newPrrl = ParseFilterResourceIrp(MiniportAddDeviceContext, prrl, BOOLEAN(bDisableMSI));
 
-        if (newPrrl)
-        {
-            Irp->IoStatus.Information = (ULONG_PTR)newPrrl;
-            NdisFreeMemory(prrl, 0, 0);
-#ifdef DBG
+    if (newPrrl)
+    {
+        Irp->IoStatus.Information = (ULONG_PTR)newPrrl;
+        NdisFreeMemory(prrl, 0, 0);
         PrintPRRL(newPrrl);
-#endif
     }
     else
     {
@@ -1189,7 +1130,6 @@ static void RetrieveDriverConfiguration()
 #pragma warning(pop)
         {
             ReadGlobalConfigurationEntry(params, "DisableMSI", &bDisableMSI);
-            ReadGlobalConfigurationEntry(params, "EarlyDebug", (PULONG)&resourceFilterLevel);
             NdisCloseConfiguration(params);
         }
         NdisCloseConfiguration(cfg);
