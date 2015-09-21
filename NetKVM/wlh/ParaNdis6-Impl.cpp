@@ -512,7 +512,10 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
 void ParaNdis_RestoreDeviceConfigurationAfterReset(
     PARANDIS_ADAPTER *pContext)
 {
-    ParaNdis_ConfigureMSIXVectors(pContext);
+    if (pContext->bUsingMSIX)
+    {
+        ParaNdis_ConfigureMSIXVectors(pContext);
+    }
 }
 
 static void DebugParseOffloadBits()
