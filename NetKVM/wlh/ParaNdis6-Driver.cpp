@@ -891,6 +891,11 @@ static void SetupInterrruptAffinity(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
                 if (jx % 2 == 1)
                 {
                     procIndex++;
+
+                    if (procIndex == ParaNdis_GetSystemCPUCount())
+                    {
+                        procIndex = 0;
+                    }
                 }
             }
         }
