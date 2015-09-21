@@ -489,9 +489,19 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
                         j));
         }
 
-        if (pContext->bCXPathCreated)
+        if (status == NDIS_STATUS_SUCCESS && pContext->bCXPathCreated && pContext->bControlQueueSupported)
         {
-            pContext->CXPath.SetupMessageIndex(2 * u16(pContext->nPathBundles));
+            /* We need own vector for control queue. If one is not available, fail the initialization */
+            if (pContext->nPathBundles * 2 > pTable->MessageCount - 1)
+            {
+                DPrintf(0, ("[%s] Not enough vectors for control queue!\n", __FUNCTION__));
+                status = NDIS_STATUS_RESOURCES;
+            }
+            else
+            {
+                status = pContext->CXPath.SetupMessageIndex(2 * u16(pContext->nPathBundles));
+                DPrintf(0, ("[%s] Using message %u for controls\n", __FUNCTION__, pContext->CXPath.getMessageIndex()));
+            }
         }
     }
 

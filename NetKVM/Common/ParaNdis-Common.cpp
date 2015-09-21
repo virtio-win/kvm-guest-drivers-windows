@@ -722,7 +722,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
     }
 
     pContext->bGuestChecksumSupported = AckFeature(pContext, VIRTIO_NET_F_GUEST_CSUM);
-    AckFeature(pContext, VIRTIO_NET_F_CTRL_VQ);
+    pContext->bControlQueueSupported = AckFeature(pContext, VIRTIO_NET_F_CTRL_VQ);
 
     InitializeRSCState(pContext);
 
@@ -998,15 +998,17 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 
     new (&pContext->CXPath, PLACEMENT_NEW) CParaNdisCX();
     pContext->bCXPathAllocated = TRUE;
-    if (!pContext->CXPath.Create(pContext, 2 * pContext->nHardwareQueues))
+    if (pContext->bControlQueueSupported && pContext->CXPath.Create(pContext, 2 * pContext->nHardwareQueues))
+    {
+        pContext->bCXPathCreated = TRUE;
+    }
+    else
     {
         DPrintf(0, ("[%s] The Control vQueue does not work!\n", __FUNCTION__));
         pContext->bHasHardwareFilters = FALSE;
         pContext->bCtrlMACAddrSupported = FALSE;
-    }
-    else
-    {
-        pContext->bCXPathCreated = TRUE;
+        pContext->bCXPathCreated = FALSE;
+
     }
 
     pContext->pPathBundles = (CPUPathesBundle *)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, pContext->nPathBundles * sizeof(*pContext->pPathBundles),
