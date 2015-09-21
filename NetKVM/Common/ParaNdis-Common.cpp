@@ -535,7 +535,8 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
     }
 
     pContext->RSC.bHasDynamicConfig = (pContext->RSC.bIPv4Enabled || pContext->RSC.bIPv6Enabled) &&
-                                      AckFeature(pContext, VIRTIO_NET_F_CTRL_GUEST_OFFLOADS);
+                                      pContext->bControlQueueSupported &&
+                                      AckFeature(pContext, VIRTIO_NET_CTRL_GUEST_OFFLOADS);
 
     DPrintf(0, ("[%s] Guest TSO state: IP4=%d, IP6=%d, Dynamic=%d\n", __FUNCTION__,
         pContext->RSC.bIPv4Enabled, pContext->RSC.bIPv6Enabled, pContext->RSC.bHasDynamicConfig) );
@@ -566,7 +567,7 @@ InitializeMAC(PPARANDIS_ADAPTER pContext, PUCHAR pCurrentMAC)
 {
     //Acknowledge related features
     pContext->bCfgMACAddrSupported = AckFeature(pContext, VIRTIO_NET_F_MAC);
-    pContext->bCtrlMACAddrSupported = AckFeature(pContext, VIRTIO_NET_F_CTRL_MAC_ADDR);
+    pContext->bCtrlMACAddrSupported = pContext->bControlQueueSupported && AckFeature(pContext, VIRTIO_NET_F_CTRL_MAC_ADDR);
 
     //Read and validate permanent MAC address
     if (pContext->bCfgMACAddrSupported)
@@ -701,8 +702,9 @@ NDIS_STATUS ParaNdis_InitializeContext(
         pContext->AdapterResources.ulIOAddress = 0;
         status = NDIS_STATUS_RESOURCE_CONFLICT;
     }
+    pContext->bControlQueueSupported = AckFeature(pContext, VIRTIO_NET_F_CTRL_VQ);
 
-    pContext->bMultiQueue = AckFeature(pContext, VIRTIO_NET_F_MQ);
+    pContext->bMultiQueue = pContext->bControlQueueSupported && AckFeature(pContext, VIRTIO_NET_F_MQ);
     if (pContext->bMultiQueue)
     {
         VirtIODeviceGet(pContext->IODevice, ETH_ALEN + sizeof(USHORT), &pContext->nHardwareQueues,
@@ -722,7 +724,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
     }
 
     pContext->bGuestChecksumSupported = AckFeature(pContext, VIRTIO_NET_F_GUEST_CSUM);
-    pContext->bControlQueueSupported = AckFeature(pContext, VIRTIO_NET_F_CTRL_VQ);
 
     InitializeRSCState(pContext);
 
@@ -743,7 +744,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
     pContext->bUseIndirect = AckFeature(pContext, VIRTIO_RING_F_INDIRECT_DESC);
     pContext->bAnyLaypout = AckFeature(pContext, VIRTIO_F_ANY_LAYOUT);
 
-    pContext->bHasHardwareFilters = AckFeature(pContext, VIRTIO_NET_F_CTRL_RX_EXTRA);
+    pContext->bHasHardwareFilters = pContext->bControlQueueSupported && AckFeature(pContext, VIRTIO_NET_F_CTRL_RX_EXTRA);
 
     VirtIODeviceWriteGuestFeatures(pContext->IODevice, pContext->u32GuestFeatures);
     NdisInitializeEvent(&pContext->ResetEvent);
