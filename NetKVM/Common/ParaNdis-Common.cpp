@@ -1019,10 +1019,6 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     else
     {
         pContext->bCXPathCreated = TRUE;
-        if (pContext->bUsingMSIX)
-        {
-            VirtIODeviceConfigVector(pContext->IODevice, 2 * pContext->nHardwareQueues);
-        }
     }
 
     pContext->pPathBundles = (CPUPathesBundle *)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, pContext->nPathBundles * sizeof(*pContext->pPathBundles),
