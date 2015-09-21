@@ -489,6 +489,8 @@ typedef CNdisAutoRWLock<&CNdisRWLock::acquireWriteDpr, &CNdisRWLock::releaseDpr>
 
 ULONG ParaNdis_GetIndexFromAffinity(KAFFINITY affinity);
 
+ULONG ParaNdis_GetSystemCPUCount();
+
 template <size_t PrintWidth, size_t ColumnWidth, typename TTable, typename... AccessorsFuncs>
 void ParaNdis_PrintTable(int DebugPrintLevel, TTable table, size_t Size, LPCSTR Format, AccessorsFuncs... Accessors)
 {
