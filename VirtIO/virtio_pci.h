@@ -142,8 +142,6 @@ ULONG VirtIODeviceISR(VirtIODevice * pVirtIODevice);
 void VirtIODeviceAddStatus(VirtIODevice * pVirtIODevice, u8 status);
 void VirtIODeviceRemoveStatus(VirtIODevice * pVirtIODevice, u8 status);
 
-void VirtIODeviceConfigVector(VirtIODevice * pVirtIODevice, u16 configVector);
-
 void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, unsigned long *pNumEntries, unsigned long *pAllocationSize);
 struct virtqueue *VirtIODevicePrepareQueue(
                     VirtIODevice *vp_dev,

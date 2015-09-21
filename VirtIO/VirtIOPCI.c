@@ -120,11 +120,6 @@ void VirtIODeviceRemoveStatus(VirtIODevice * pVirtIODevice, u8 status)
                           VirtIODeviceGetStatus(pVirtIODevice) & (~status));
 }
 
-void VirtIODeviceConfigVector(VirtIODevice * pVirtIODevice, u16 configVector)
-{
-    DPrintf(4, ("%s>>> %x\n", __FUNCTION__, configVector));
-    WriteVirtIODeviceWord(pVirtIODevice->addr + VIRTIO_MSI_CONFIG_VECTOR, configVector);
-}
 /////////////////////////////////////////////////////////////////////////////////////
 //
 // Get\Set device data
