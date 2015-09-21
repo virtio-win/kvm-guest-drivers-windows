@@ -797,28 +797,16 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
         return 1;
     }
 
-    ULONG lnProcessors;
-#if NDIS_SUPPORT_NDIS620
-    lnProcessors = NdisGroupActiveProcessorCount(ALL_PROCESSOR_GROUPS);
-#elif NDIS_SUPPORT_NDIS6
-    lnProcessors = NdisSystemProcessorCount();
-#else
-    lnProcessors = 1;
-#endif
+    USHORT nProcessors = USHORT(ParaNdis_GetSystemCPUCount() & 0xFFFF);
 
-    ULONG lnMSIs = (pContext->pMSIXInfoTable->MessageCount - 1) / 2; /* RX/TX pairs + control queue*/
+    /* In virtio the type of the queue index is "short", thus this type casting */
+    USHORT nBundles = USHORT(((pContext->pMSIXInfoTable->MessageCount - 1) / 2)  & 0xFFFF);
 
-    DPrintf(0, ("[%s] %lu CPUs reported\n", __FUNCTION__, lnProcessors));
-    DPrintf(0, ("[%s] %lu MSIs, %lu queues\n", __FUNCTION__, pContext->pMSIXInfoTable->MessageCount, lnMSIs));
+    DPrintf(0, ("[%s] %lu CPUs reported\n", __FUNCTION__, nProcessors));
+    DPrintf(0, ("[%s] %lu MSIs, %u queues' bundles\n", __FUNCTION__, pContext->pMSIXInfoTable->MessageCount, nBundles));
 
-    USHORT nMSIs = USHORT(lnMSIs & 0xFFFF);
-    USHORT nProcessors = USHORT(lnProcessors & 0xFFFF);
-
-    DPrintf(0, ("[%s] %u CPUs reported\n", __FUNCTION__, nProcessors));
-    DPrintf(0, ("[%s] %lu MSIs, %u queues\n", __FUNCTION__, pContext->pMSIXInfoTable->MessageCount, nMSIs));
-
-    USHORT nBundles = (pContext->nHardwareQueues < nProcessors) ? pContext->nHardwareQueues : nProcessors;
-    nBundles = (nMSIs < nBundles) ? nMSIs : nBundles;
+    USHORT nBundlesLimitByCPU = (pContext->nHardwareQueues < nProcessors) ? pContext->nHardwareQueues : nProcessors;
+    nBundles = (nBundles < nBundlesLimitByCPU) ? nBundles : nBundlesLimitByCPU;
 
     DPrintf(0, ("[%s] # of path bundles = %u\n", __FUNCTION__, nBundles));
 
