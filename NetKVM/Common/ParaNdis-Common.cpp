@@ -793,7 +793,7 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
     }
     else
     {
-        DPrintf(0, ("[%s] - CTRL_MQ not acked, # bindles set to 1\n", __FUNCTION__));
+        DPrintf(0, ("[%s] - CTRL_MQ not acked, # of bundles set to 1\n", __FUNCTION__));
         return 1;
     }
 
