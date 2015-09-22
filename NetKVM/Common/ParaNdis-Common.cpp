@@ -743,8 +743,12 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
     pContext->bUseIndirect = AckFeature(pContext, VIRTIO_RING_F_INDIRECT_DESC);
     pContext->bAnyLaypout = AckFeature(pContext, VIRTIO_F_ANY_LAYOUT);
-
-    pContext->bHasHardwareFilters = pContext->bControlQueueSupported && AckFeature(pContext, VIRTIO_NET_F_CTRL_RX_EXTRA);
+    if (pContext->bControlQueueSupported)
+    {
+        pContext->bCtrlRXFiltersSupported = AckFeature(pContext, VIRTIO_NET_F_CTRL_RX);
+        pContext->bCtrlRXExtraFiltersSupported = AckFeature(pContext, VIRTIO_NET_F_CTRL_RX_EXTRA);
+        pContext->bCtrlVLANFiltersSupported = AckFeature(pContext, VIRTIO_NET_F_CTRL_VLAN);
+    }
 
     VirtIODeviceWriteGuestFeatures(pContext->IODevice, pContext->u32GuestFeatures);
     NdisInitializeEvent(&pContext->ResetEvent);
@@ -1006,8 +1010,8 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     else
     {
         DPrintf(0, ("[%s] The Control vQueue does not work!\n", __FUNCTION__));
-        pContext->bHasHardwareFilters = FALSE;
-        pContext->bCtrlMACAddrSupported = FALSE;
+        pContext->bCtrlRXFiltersSupported = pContext->bCtrlRXExtraFiltersSupported = FALSE;
+        pContext->bCtrlMACAddrSupported = pContext->bCtrlVLANFiltersSupported = FALSE;
         pContext->bCXPathCreated = FALSE;
 
     }
@@ -2047,17 +2051,20 @@ static VOID ParaNdis_DeviceFiltersUpdateRxMode(PARANDIS_ADAPTER *pContext)
 {
     u8 val;
     ULONG f = pContext->PacketFilter;
-    val = (f & NDIS_PACKET_TYPE_ALL_MULTICAST) ? 1 : 0;
-    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_ALLMULTI, &val, sizeof(val), NULL, 0, 2);
-    //SendControlMessage(pContext, VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_ALLUNI, &val, sizeof(val), NULL, 0, 2);
-    val = (f & (NDIS_PACKET_TYPE_MULTICAST | NDIS_PACKET_TYPE_ALL_MULTICAST)) ? 0 : 1;
-    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_NOMULTI, &val, sizeof(val), NULL, 0, 2);
-    val = (f & NDIS_PACKET_TYPE_DIRECTED) ? 0 : 1;
-    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_NOUNI, &val, sizeof(val), NULL, 0, 2);
-    val = (f & NDIS_PACKET_TYPE_BROADCAST) ? 0 : 1;
-    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_NOBCAST, &val, sizeof(val), NULL, 0, 2);
     val = (f & NDIS_PACKET_TYPE_PROMISCUOUS) ? 1 : 0;
     pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_PROMISC, &val, sizeof(val), NULL, 0, 2);
+    val = (f & NDIS_PACKET_TYPE_ALL_MULTICAST) ? 1 : 0;
+    pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_ALLMULTI, &val, sizeof(val), NULL, 0, 2);
+
+    if (pContext->bCtrlRXExtraFiltersSupported)
+    {
+        val = (f & (NDIS_PACKET_TYPE_MULTICAST | NDIS_PACKET_TYPE_ALL_MULTICAST)) ? 0 : 1;
+        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_NOMULTI, &val, sizeof(val), NULL, 0, 2);
+        val = (f & NDIS_PACKET_TYPE_DIRECTED) ? 0 : 1;
+        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_NOUNI, &val, sizeof(val), NULL, 0, 2);
+        val = (f & NDIS_PACKET_TYPE_BROADCAST) ? 0 : 1;
+        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_NOBCAST, &val, sizeof(val), NULL, 0, 2);
+    }
 }
 
 static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)
@@ -2094,7 +2101,7 @@ static VOID SetAllVlanFilters(PARANDIS_ADAPTER *pContext, BOOLEAN bOn)
 */
 VOID ParaNdis_DeviceFiltersUpdateVlanId(PARANDIS_ADAPTER *pContext)
 {
-    if (pContext->bHasHardwareFilters)
+    if (pContext->bCtrlVLANFiltersSupported)
     {
         ULONG newFilterSet;
         if (IsVlanSupported(pContext))
@@ -2120,12 +2127,13 @@ VOID ParaNdis_DeviceFiltersUpdateVlanId(PARANDIS_ADAPTER *pContext)
 
 VOID ParaNdis_UpdateDeviceFilters(PARANDIS_ADAPTER *pContext)
 {
-    if (pContext->bHasHardwareFilters)
+    if (pContext->bCtrlRXFiltersSupported)
     {
         ParaNdis_DeviceFiltersUpdateRxMode(pContext);
         ParaNdis_DeviceFiltersUpdateAddresses(pContext);
-        ParaNdis_DeviceFiltersUpdateVlanId(pContext);
     }
+
+    ParaNdis_DeviceFiltersUpdateVlanId(pContext);
 }
 
 static VOID

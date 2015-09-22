@@ -375,7 +375,9 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bUsingMSIX;
     BOOLEAN                 bUseIndirect;
     BOOLEAN                 bAnyLaypout;
-    BOOLEAN                 bHasHardwareFilters;
+    BOOLEAN                 bCtrlRXFiltersSupported;
+    BOOLEAN                 bCtrlRXExtraFiltersSupported;
+    BOOLEAN                 bCtrlVLANFiltersSupported;
     BOOLEAN                 bNoPauseOnSuspend;
     BOOLEAN                 bFastSuspendInProcess;
     BOOLEAN                 bResetInProgress;
