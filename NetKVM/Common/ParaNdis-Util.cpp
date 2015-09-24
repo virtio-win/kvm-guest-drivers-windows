@@ -113,7 +113,7 @@ ULONG ParaNdis_GetSystemCPUCount()
 #elif NDIS_SUPPORT_NDIS6
     nProcessors = NdisSystemProcessorCount();
 #else
-    nProcessors = 1;
+#error not supported
 #endif
 
     return nProcessors;
