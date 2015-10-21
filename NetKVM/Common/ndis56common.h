@@ -372,7 +372,6 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bCtrlVLANFiltersSupported;
     BOOLEAN                 bNoPauseOnSuspend;
     BOOLEAN                 bFastSuspendInProcess;
-    BOOLEAN                 bResetInProgress;
     BOOLEAN                 bCtrlMACAddrSupported;
     BOOLEAN                 bCfgMACAddrSupported;
     BOOLEAN                 bMultiQueue;
