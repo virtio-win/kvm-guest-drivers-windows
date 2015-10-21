@@ -489,7 +489,7 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
                         j));
         }
 
-        if (status == NDIS_STATUS_SUCCESS && pContext->bCXPathCreated && pContext->bControlQueueSupported)
+        if (status == NDIS_STATUS_SUCCESS && pContext->bCXPathCreated)
         {
             /* We need own vector for control queue. If one is not available, fail the initialization */
             if (pContext->nPathBundles * 2 > pTable->MessageCount - 1)
