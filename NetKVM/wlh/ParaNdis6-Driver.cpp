@@ -25,7 +25,6 @@ sdkddkver.h before ntddk.h cause compilation failure in wdm.h and ntddk.h */
 
 extern "C"
 {
-    static NDIS_IO_WORKITEM_FUNCTION OnResetWorkItem;
     static MINIPORT_ADD_DEVICE ParaNdis6_AddDevice;
     static MINIPORT_REMOVE_DEVICE ParaNdis6_RemoveDevice;
     static MINIPORT_INITIALIZE ParaNdis6_Initialize;
@@ -592,32 +591,6 @@ VOID ParaNdis_Suspend(PARANDIS_ADAPTER *pContext)
     DEBUG_EXIT_STATUS(0, 0);
 }
 
-static void OnResetWorkItem(PVOID  WorkItemContext, NDIS_HANDLE  NdisIoWorkItemHandle)
-{
-    if (WorkItemContext)
-    {
-        tGeneralWorkItem *pwi = (tGeneralWorkItem *)WorkItemContext;
-        PARANDIS_ADAPTER *pContext = pwi->pContext;
-        BOOLEAN bSendActive, bReceiveActive;
-        DEBUG_ENTRY(0);
-        bSendActive = pContext->SendState == srsEnabled;
-        bReceiveActive = pContext->ReceiveState == srsEnabled;
-        pContext->bResetInProgress = TRUE;
-        ParaNdis_Suspend(pContext);
-        ParaNdis_PowerOff(pContext);
-        ParaNdis_PowerOn(pContext);
-        if (bSendActive) ParaNdis6_SendPauseRestart(pContext, FALSE, NULL);
-        if (bReceiveActive) ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
-        pContext->bResetInProgress = FALSE;
-
-        NdisFreeMemory(pwi, 0, 0);
-        NdisFreeIoWorkItem(NdisIoWorkItemHandle);
-        ParaNdis_DebugHistory(pContext, hopSysReset, NULL, 0, NDIS_STATUS_SUCCESS, 0);
-        NdisMResetComplete(pContext->MiniportHandle, NDIS_STATUS_SUCCESS, TRUE);
-    }
-}
-
-
 /**********************************************************
 Required NDIS handler for RESET operation
 Never happens under normal condition, only if
@@ -628,30 +601,9 @@ static NDIS_STATUS ParaNdis6_Reset(
         NDIS_HANDLE miniportAdapterContext,
         PBOOLEAN  pAddressingReset)
 {
-    NDIS_STATUS  status = NDIS_STATUS_FAILURE;
-    PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
-    NDIS_HANDLE hwo;
-    tGeneralWorkItem *pwi;
-    DEBUG_ENTRY(0);
-    *pAddressingReset = TRUE;
-    ParaNdis_DebugHistory(pContext, hopSysReset, NULL, 1, 0, 0);
-    hwo = NdisAllocateIoWorkItem(pContext->MiniportHandle);
-    pwi = (tGeneralWorkItem *)ParaNdis_AllocateMemory(pContext, sizeof(tGeneralWorkItem));
-    if (pwi && hwo)
-    {
-        pwi->pContext = pContext;
-        pwi->WorkItem = hwo;
-        NdisQueueIoWorkItem(hwo, OnResetWorkItem, pwi);
-        status = NDIS_STATUS_PENDING;
-    }
-    else
-    {
-        if (pwi) NdisFreeMemory(pwi, 0, 0);
-        if (hwo) NdisFreeIoWorkItem(hwo);
-        ParaNdis_DebugHistory(pContext, hopSysReset, NULL, 0, status, 0);
-    }
-    DEBUG_EXIT_STATUS(0, status);
-    return status;
+    UNREFERENCED_PARAMETER(miniportAdapterContext);
+    *pAddressingReset = FALSE;
+    return NDIS_STATUS_SUCCESS;
 }
 
 VOID ParaNdis_Resume(PARANDIS_ADAPTER *pContext)
