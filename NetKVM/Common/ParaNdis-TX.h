@@ -216,13 +216,6 @@ public:
     //TODO: Requires review
     static BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) RestartQueueSynchronously(tSynchronizedContext *ctx);
 
-    //TODO: Needs review/temporary!!!
-    bool HasHWBuffersIsUse()
-    {
-        TSpinLocker LockedContext(m_Lock);
-        return m_VirtQueue.HasHWBuffersIsUse();
-    }
-
     //TODO: Needs review/temporary?
     ULONG GetFreeTXDescriptors()
     { return m_VirtQueue.GetFreeTXDescriptors(); }

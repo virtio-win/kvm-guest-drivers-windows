@@ -257,14 +257,6 @@ typedef struct _tagChecksumCheckResult
 typedef PMDL                tPacketHolderType;
 typedef PNET_BUFFER_LIST    tPacketIndicationType;
 
-typedef struct _tagOurCounters
-{
-    UINT nReusedRxBuffers;
-    UINT nPrintDiagnostic;
-    ULONG64 prevIn;
-    UINT nRxInactivity;
-}tOurCounters;
-
 typedef struct _tagMaxPacketSize
 {
     UINT nMaxDataSize;
@@ -402,8 +394,6 @@ typedef struct _tagPARANDIS_ADAPTER
     UCHAR                   CurrentMacAddress[ETH_ALEN];
     ULONG                   PacketFilter;
     ULONG                   DummyLookAhead;
-    ULONG                   nDetectedStoppedTx;
-    ULONG                   nDetectedInactivity;
     ULONG                   nVirtioHeaderSize;
     /* send part */
     NDIS_STATISTICS_INFO    Statistics;
@@ -418,8 +408,6 @@ typedef struct _tagPARANDIS_ADAPTER
         ULONG framesRxCSHwMissedGood;
         ULONG framesFilteredOut;
     } extraStatistics;
-    tOurCounters            Counters;
-    tOurCounters            Limits;
     tSendReceiveState       SendState;
     tSendReceiveState       ReceiveState;
     ONPAUSECOMPLETEPROC     SendPauseCompletionProc;
@@ -658,9 +646,6 @@ BOOLEAN ParaNdis_OnQueuedInterrupt(
     ULONG knownInterruptSources);
 
 VOID ParaNdis_OnShutdown(
-    PARANDIS_ADAPTER *pContext);
-
-BOOLEAN ParaNdis_CheckForHang(
     PARANDIS_ADAPTER *pContext);
 
 VOID ParaNdis_PowerOn(

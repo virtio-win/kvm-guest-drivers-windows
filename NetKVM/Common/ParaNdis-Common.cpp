@@ -64,7 +64,6 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry debugLevel;
     tConfigurationEntry TxCapacity;
     tConfigurationEntry RxCapacity;
-    tConfigurationEntry LogStatistics;
     tConfigurationEntry OffloadTxChecksum;
     tConfigurationEntry OffloadTxLSO;
     tConfigurationEntry OffloadRxCS;
@@ -99,7 +98,6 @@ static const tConfigurationEntries defaultConfiguration =
     { "DebugLevel",     2,  0,  8 },
     { "TxCapacity",     1024,   16, 1024 },
     { "RxCapacity",     256, 32, 1024 },
-    { "LogStatistics",  0, 0, 10000},
     { "Offload.TxChecksum", 0, 0, 31},
     { "Offload.TxLSO",  0, 0, 2},
     { "Offload.RxCS",   0, 0, 31},
@@ -224,7 +222,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             GetConfigurationEntry(cfg, &pConfiguration->PrioritySupport);
             GetConfigurationEntry(cfg, &pConfiguration->TxCapacity);
             GetConfigurationEntry(cfg, &pConfiguration->RxCapacity);
-            GetConfigurationEntry(cfg, &pConfiguration->LogStatistics);
             GetConfigurationEntry(cfg, &pConfiguration->OffloadTxChecksum);
             GetConfigurationEntry(cfg, &pConfiguration->OffloadTxLSO);
             GetConfigurationEntry(cfg, &pConfiguration->OffloadRxCS);
@@ -254,7 +251,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             virtioDebugLevel = pConfiguration->debugLevel.ulValue;
             pContext->maxFreeTxDescriptors = pConfiguration->TxCapacity.ulValue;
             pContext->NetMaxReceiveBuffers = pConfiguration->RxCapacity.ulValue;
-            pContext->Limits.nPrintDiagnostic = pConfiguration->LogStatistics.ulValue;
             pContext->uNumberOfHandledRXPacketsInDPC = pConfiguration->NumberOfHandledRXPackersInDPC.ulValue;
             pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;
             pContext->ulFormalLinkSpeed  = pConfiguration->ConnectRate.ulValue;
@@ -1159,8 +1155,6 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
         DPrintf(0, ("[%s] SetupDPCTarget passed, status = %d\n", __FUNCTION__, status));
     }
 
-    pContext->Limits.nReusedRxBuffers = pContext->NetMaxReceiveBuffers / 4 + 1;
-
     if (status == NDIS_STATUS_SUCCESS)
     {
         ParaNdis_DeviceEnterD0(pContext);
@@ -1811,90 +1805,6 @@ VOID ParaNdis_ResetRxClassification(PARANDIS_ADAPTER *pContext)
     }
 }
 #endif
-
-/**********************************************************
-Periodically called procedure, checking dpc activity
-If DPC are not running, it does exactly the same that the DPC
-Parameters:
-    context
-***********************************************************/
-static BOOLEAN CheckRunningDpc(PARANDIS_ADAPTER *pContext)
-{
-    BOOLEAN bStopped;
-    BOOLEAN bReportHang = FALSE;
-    bStopped = 0 != InterlockedExchange(&pContext->bDPCInactive, TRUE);
-
-    if (bStopped)
-    {
-        pContext->nDetectedInactivity++;
-    }
-    else
-    {
-        pContext->nDetectedInactivity = 0;
-    }
-
-    for (UINT i = 0; i < pContext->nPathBundles; i++)
-    {
-        if (pContext->pPathBundles[i].txPath.HasHWBuffersIsUse())
-        {
-            if (pContext->nDetectedStoppedTx++ > 1)
-            {
-                DPrintf(0, ("[%s] - Suspicious Tx inactivity (%d)!\n", __FUNCTION__, pContext->pPathBundles[i].txPath.GetFreeHWBuffers()));
-                //bReportHang = TRUE;
-#ifdef DBG_USE_VIRTIO_PCI_ISR_FOR_HOST_REPORT
-                WriteVirtIODeviceByte(pContext->IODevice->addr + VIRTIO_PCI_ISR, 0);
-#endif
-                break;
-            }
-        }
-    }
-
-    if (pContext->Limits.nPrintDiagnostic &&
-        ++pContext->Counters.nPrintDiagnostic >= pContext->Limits.nPrintDiagnostic)
-    {
-        pContext->Counters.nPrintDiagnostic = 0;
-        // todo - collect more and put out optionally
-        PrintStatistics(pContext);
-    }
-
-    if (pContext->Statistics.ifHCInOctets == pContext->Counters.prevIn)
-    {
-        pContext->Counters.nRxInactivity++;
-        if (pContext->Counters.nRxInactivity >= 10)
-        {
-#if defined(CRASH_ON_NO_RX)
-            ONPAUSECOMPLETEPROC proc = (ONPAUSECOMPLETEPROC)(PVOID)1;
-            proc(pContext);
-#endif
-        }
-    }
-    else
-    {
-        pContext->Counters.nRxInactivity = 0;
-        pContext->Counters.prevIn = pContext->Statistics.ifHCInOctets;
-    }
-    return bReportHang;
-}
-
-/**********************************************************
-Common implementation of periodic poll
-Parameters:
-    context
-Return:
-    TRUE, if reset required
-***********************************************************/
-BOOLEAN ParaNdis_CheckForHang(PARANDIS_ADAPTER *pContext)
-{
-    static int nHangOn = 0;
-    BOOLEAN b = nHangOn >= 3 && nHangOn < 6;
-    DEBUG_ENTRY(3);
-    b |= CheckRunningDpc(pContext);
-    //uncomment to cause 3 consecutive resets
-    //nHangOn++;
-    DEBUG_EXIT_STATUS(b ? 0 : 6, b);
-    return b;
-}
-
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
