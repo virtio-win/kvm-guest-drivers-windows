@@ -1088,6 +1088,42 @@ static VOID ParaNdis_AddDriverOKStatus(PPARANDIS_ADAPTER pContext)
     VirtIODeviceAddStatus(pContext->IODevice, VIRTIO_CONFIG_S_DRIVER_OK);
 }
 
+NDIS_STATUS ParaNdis_DeviceConfigureMultiqQueue(PARANDIS_ADAPTER *pContext)
+{
+    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
+    DEBUG_ENTRY(0);
+
+    if (pContext->nPathBundles > 1)
+    {
+        u16 nPathes = u16(pContext->nPathBundles);
+        if (!pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET, &nPathes, sizeof(nPathes), NULL, 0, 2))
+        {
+            DPrintf(0, ("[%s] - Sending MQ control message failed\n", __FUNCTION__));
+            status = NDIS_STATUS_DEVICE_FAILED;
+        }
+    }
+
+    DEBUG_EXIT_STATUS(0, status);
+    return status;
+}
+
+NDIS_STATUS ParaNdis_DeviceEnterD0(PARANDIS_ADAPTER *pContext)
+{
+    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
+    DEBUG_ENTRY(0);
+
+    ReadLinkState(pContext);
+    pContext->bEnableInterruptHandlingDPC = TRUE;
+    ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
+    ParaNdis_SynchronizeLinkState(pContext);
+    ParaNdis_AddDriverOKStatus(pContext);
+    ParaNdis_DeviceConfigureMultiqQueue(pContext);
+    ParaNdis_UpdateMAC(pContext);
+
+    DEBUG_EXIT_STATUS(0, status);
+    return status;
+}
+
 /**********************************************************
 Finishes initialization of context structure, calling also version dependent part
 If this procedure failed, ParaNdis_CleanupContext must be called
@@ -1123,27 +1159,11 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
         DPrintf(0, ("[%s] SetupDPCTarget passed, status = %d\n", __FUNCTION__, status));
     }
 
-    if (status == NDIS_STATUS_SUCCESS && pContext->nPathBundles > 1)
-    {
-        u16 nPathes = u16(pContext->nPathBundles);
-        BOOLEAN sendSuccess = pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET, &nPathes, sizeof(nPathes), NULL, 0, 2);
-        if (!sendSuccess)
-        {
-            DPrintf(0, ("[%s] - Send MQ control message failed\n", __FUNCTION__));
-            status = NDIS_STATUS_DEVICE_FAILED;
-        }
-    }
-
     pContext->Limits.nReusedRxBuffers = pContext->NetMaxReceiveBuffers / 4 + 1;
 
     if (status == NDIS_STATUS_SUCCESS)
     {
-        ReadLinkState(pContext);
-        pContext->bEnableInterruptHandlingDPC = TRUE;
-        ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
-        ParaNdis_SynchronizeLinkState(pContext);
-        ParaNdis_AddDriverOKStatus(pContext);
-        ParaNdis_UpdateMAC(pContext);
+        ParaNdis_DeviceEnterD0(pContext);
     }
     DEBUG_EXIT_STATUS(0, status);
     return status;
@@ -2187,19 +2207,13 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 
     ParaNdis_RestoreDeviceConfigurationAfterReset(pContext);
 
-    ParaNdis_UpdateDeviceFilters(pContext);
-    ParaNdis_UpdateMAC(pContext);
-
     for (i = 0; i < pContext->nPathBundles; i++)
     {
         pContext->pPathBundles[i].rxPath.PopulateQueue();
     }
 
-    ReadLinkState(pContext);
-    ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
-    ParaNdis_SynchronizeLinkState(pContext);
-    pContext->bEnableInterruptHandlingDPC = TRUE;
-    ParaNdis_AddDriverOKStatus(pContext);
+    ParaNdis_DeviceEnterD0(pContext);
+    ParaNdis_UpdateDeviceFilters(pContext);
 
     // if bFastSuspendInProcess is set by Win8 power-off procedure,
     // the ParaNdis_Resume enables Tx and RX
