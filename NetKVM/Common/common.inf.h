@@ -81,13 +81,6 @@ HKR, Ndi\params\DebugLevel,         min,        0,          "0"
 HKR, Ndi\params\DebugLevel,         max,        0,          "8"
 HKR, Ndi\params\DebugLevel,         step,       0,          "1"
 
-HKR, Ndi\params\LogStatistics,      ParamDesc,  0,          %LogStatistics%
-HKR, Ndi\params\LogStatistics,      type,       0,          "int"
-HKR, Ndi\params\LogStatistics,      default,    0,          "0"
-HKR, Ndi\params\LogStatistics,      min,        0,          "0"
-HKR, Ndi\params\LogStatistics,      max,        0,          "10000"
-HKR, Ndi\params\LogStatistics,      step,       0,          "1"
-
 HKR, Ndi\params\MTU,                ParamDesc,  0,          %MTU%
 HKR, Ndi\params\MTU,                type,       0,          "long"
 HKR, Ndi\params\MTU,                default,    0,          "1500"
@@ -236,7 +229,6 @@ Offload.TxLSO = "Offload.Tx.LSO"
 Offload.RxCS = "Offload.Rx.Checksum"
 EnableLogging = "Logging.Enable"
 DebugLevel = "Logging.Level"
-LogStatistics = "Logging.Statistics(sec)"
 Tx = "Tx Enabled";
 Rx = "Rx Enabled";
 TxRx = "Rx & Tx Enabled";

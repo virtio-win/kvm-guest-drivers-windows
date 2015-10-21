@@ -273,7 +273,6 @@ UINT CTXVirtQueue::VirtIONetReleaseTransmitBuffers()
     {
         NdisGetCurrentSystemTime(&m_Context->LastTxCompletionTimeStamp);
         m_DoKickOnNoBuffer = true;
-        m_Context->nDetectedStoppedTx = 0;
     }
     DPrintf((i ? 3 : 5), ("[%s] returning i = %d\n", __FUNCTION__, i)); 
     return i;
