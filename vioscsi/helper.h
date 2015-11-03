@@ -91,4 +91,18 @@ ProcessQueue(
     IN BOOLEAN dpc
     );
 
+ULONG
+VioScsiAcquireSpinLock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN PSTOR_LOCK_HANDLE LockHandle
+    );
+
+ULONG
+VioScsiReleaseSpinLock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN PSTOR_LOCK_HANDLE LockHandle
+    );
+
 #endif ___HELPER_H___
