@@ -658,13 +658,11 @@ ENTER_FN();
                     adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS;
                     perfData.ConcurrentChannels = adaptExt->num_queues;
                 }
-#if 0
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES)) {
                     adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
-                    perfData.FirstRedirectionMessageNumber = 2;
-                    perfData.LastRedirectionMessageNumber = 256;
+                    perfData.FirstRedirectionMessageNumber = 3;
+                    perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber + adaptExt->num_queues - 1;
                 }
-#endif
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
                     adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO;
                 }
