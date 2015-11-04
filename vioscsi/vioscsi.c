@@ -107,15 +107,6 @@ DispatchQueue(
     IN ULONG MessageID
     );
 
-VOID
-FORCEINLINE
-CompleteDPC(
-    IN PVOID DeviceExtension,
-    IN PSCSI_REQUEST_BLOCK Srb,
-    IN ULONG index,
-    IN ULONG MessageID
-);
-
 BOOLEAN
 VioScsiInterrupt(
     IN PVOID DeviceExtension
@@ -815,7 +806,7 @@ VioScsiInterrupt(
               Srb->DataTransferLength = srbExt->Xfer;
               Srb->SrbStatus = SRB_STATUS_DATA_OVERRUN;
            }
-           CompleteDPC(DeviceExtension, Srb, 0, 0);
+           CompleteRequest(DeviceExtension, Srb);
         }
         if (adaptExt->tmf_infly) {
            while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE], &len)) != NULL) {
@@ -1112,6 +1103,7 @@ DispatchQueue(
 )
 {
     PADAPTER_EXTENSION  adaptExt;
+    ULONG queue;
 #if (NTDDI_VERSION >= NTDDI_WIN7)
     PROCESSOR_NUMBER ProcNumber;
     ULONG processor = KeGetCurrentProcessorNumberEx(&ProcNumber);
@@ -1122,9 +1114,14 @@ DispatchQueue(
 ENTER_FN();
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    if ((adaptExt->num_queues > 1) && adaptExt->dpc_ok && MessageID > 0) {
+    queue = MessageID - 3;
+    if (adaptExt->num_queues == 1) {
+        cpu = 0;
+    }
+    if (!adaptExt->dump_mode && adaptExt->dpc_ok && MessageID > 0) {
+        // FIXME: This will fail with cpu hot plug.
         StorPortIssueDpc(DeviceExtension,
-            &adaptExt->dpc[cpu],
+            &adaptExt->dpc[queue],
             ULongToPtr(MessageID),
             ULongToPtr(cpu));
 EXIT_FN();
@@ -1147,6 +1144,7 @@ ProcessQueue(
     PSCSI_REQUEST_BLOCK Srb;
     PSRB_EXTENSION      srbExt;
     ULONG               msg = MessageID - 3;
+    STOR_LOCK_HANDLE    LockHandle = { 0 };
 
 #if (NTDDI_VERSION >= NTDDI_WIN7)
         PROCESSOR_NUMBER ProcNumber;
@@ -1156,6 +1154,9 @@ ProcessQueue(
 #endif
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 ENTER_FN();
+    if (dpc) {
+        Lock(DeviceExtension, MessageID, &LockHandle);
+    }
     while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + msg], &len)) != NULL)
     {
         VirtIOSCSICmdResp   *resp;
@@ -1260,31 +1261,9 @@ ENTER_FN();
         }
         CompleteRequest(DeviceExtension, Srb);
     }
-EXIT_FN();
-}
-
-VOID
-FORCEINLINE
-CompleteDPC(
-    IN PVOID DeviceExtension,
-    IN PSCSI_REQUEST_BLOCK Srb,
-    IN ULONG index,
-    IN ULONG MessageID
-)
-{
-    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    PSRB_EXTENSION        srbExt;
-ENTER_FN();
-    srbExt   = (PSRB_EXTENSION)Srb->SrbExtension;
-
-    if (!adaptExt->dump_mode && adaptExt->dpc_ok && MessageID > 0) {
-        StorPortIssueDpc(DeviceExtension,
-            &adaptExt->dpc[index],
-            ULongToPtr(MessageID),
-            ULongToPtr(index));
-        return;
+    if (dpc) {
+        Unlock(DeviceExtension, MessageID, &LockHandle);
     }
-    CompleteRequest(DeviceExtension, Srb);
 EXIT_FN();
 }
 

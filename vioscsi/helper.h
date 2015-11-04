@@ -91,4 +91,17 @@ ProcessQueue(
     IN BOOLEAN dpc
     );
 
+VOID
+Lock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    OUT PSTOR_LOCK_HANDLE LockHandle
+    );
+
+VOID
+Unlock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN PSTOR_LOCK_HANDLE LockHandle
+    );
 #endif ___HELPER_H___

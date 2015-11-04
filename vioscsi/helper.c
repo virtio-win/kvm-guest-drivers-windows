@@ -23,6 +23,36 @@
 #define SET_VA_PA()   va = NULL; pa = 0;
 #endif
 
+VOID
+FORCEINLINE
+Lock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    OUT PSTOR_LOCK_HANDLE LockHandle
+    )
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    if (adaptExt->num_queues > 1) {
+        // Queue numbers start at 0, message ids at 1.
+        NT_ASSERT(MessageID > VIRTIO_SCSI_REQUEST_QUEUE_0);
+        StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[MessageID - VIRTIO_SCSI_REQUEST_QUEUE_0 - 1], LockHandle);
+    }
+    else {
+        StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, LockHandle);
+    }
+}
+
+VOID
+FORCEINLINE
+Unlock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN PSTOR_LOCK_HANDLE LockHandle
+    )
+{
+    StorPortReleaseSpinLock(DeviceExtension, LockHandle);
+}
+
 BOOLEAN
 SendSRB(
     IN PVOID DeviceExtension,
@@ -34,9 +64,9 @@ SendSRB(
     PVOID               va = NULL;
     ULONGLONG           pa = 0;
     ULONG               QueueNumber = 0;
-    ULONG               OldIrql = 0;
     ULONG               MessageId = 0;
-    BOOLEAN             kick = FALSE;
+    BOOLEAN             result = FALSE;
+    bool                notify = FALSE;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
 ENTER_FN();
@@ -44,44 +74,30 @@ ENTER_FN();
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Srb %p issued on %d::%d QueueNumber %d\n",
                  Srb, srbExt->procNum.Group, srbExt->procNum.Number, QueueNumber));
 
-    if (adaptExt->num_queues > 1) {
-        QueueNumber = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
-        MessageId = QueueNumber + 1;
-        if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
-            ProcessQueue(DeviceExtension, MessageId, FALSE);
-        }
-//        status = StorPortAcquireMSISpinLock(DeviceExtension, MessageId, &OldIrql);
-        if (status != STOR_STATUS_SUCCESS) {
-            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
-        }
+    QueueNumber = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
+    MessageId = QueueNumber + 1;
+    Lock(DeviceExtension, MessageId, &LockHandle);
+    if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
+        ProcessQueue(DeviceExtension, MessageId, FALSE);
     }
-    else {
-        QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
-        StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, &LockHandle);
+    if (status != STOR_STATUS_SUCCESS) {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
     }
     if (virtqueue_add_buf(adaptExt->vq[QueueNumber],
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
-        kick = TRUE;
+        result = TRUE;
+        notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
     }
     else {
         RhelDbgPrint(TRACE_LEVEL_WARNING, ("%s Cant add packet to queue.\n", __FUNCTION__));
-//FIXME
     }
-    if (adaptExt->num_queues > 1) {
-//        status = StorPortReleaseMSISpinLock(DeviceExtension, MessageId, OldIrql);
-        if (status != STOR_STATUS_SUCCESS) {
-            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortReleaseMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
-        }
+    Unlock(DeviceExtension, MessageId, &LockHandle);
+    if (notify) {
+        virtqueue_notify(adaptExt->vq[QueueNumber]);
     }
-    else {
-        StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
-    }
-    if (kick == TRUE) {
-        virtqueue_kick(adaptExt->vq[QueueNumber]);
-    }
-    return kick;
+    return result;
 EXIT_FN();
 }
 
