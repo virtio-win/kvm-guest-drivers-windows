@@ -56,11 +56,11 @@ Unlock(
 BOOLEAN
 SendSRB(
     IN PVOID DeviceExtension,
-    IN PSCSI_REQUEST_BLOCK Srb
+    IN PSRB_TYPE Srb
     )
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    PSRB_EXTENSION      srbExt   = (PSRB_EXTENSION)Srb->SrbExtension;
+    PSRB_EXTENSION      srbExt   = SRB_EXTENSION(Srb);
     PVOID               va = NULL;
     ULONGLONG           pa = 0;
     ULONG               QueueNumber = 0;
