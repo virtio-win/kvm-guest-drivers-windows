@@ -19,7 +19,7 @@ int nViostorDebugLevel;
 #if defined(COM_DEBUG)
 
 #define RHEL_DEBUG_PORT     ((PUCHAR)0x3F8)
-#define TEMP_BUFFER_SIZE	256
+#define TEMP_BUFFER_SIZE    256
 
 static void DebugPrintFuncSerial(const char *format, ...)
 {
@@ -87,7 +87,7 @@ tDebugPrintFunc VirtioDebugPrintProc;
 
 char *DbgGetScsiOpStr(IN PSCSI_REQUEST_BLOCK Srb)
 {
-    PCDB pCdb = (PCDB)Srb->Cdb;
+    PCDB pCdb = SRB_CDB(Srb);
     UCHAR scsiOp = pCdb->CDB6GENERIC.OperationCode;
     char *scsiOpStr = "?";
 

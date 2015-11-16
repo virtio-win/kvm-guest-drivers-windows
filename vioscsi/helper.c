@@ -26,11 +26,11 @@
 BOOLEAN
 SendSRB(
     IN PVOID DeviceExtension,
-    IN PSCSI_REQUEST_BLOCK Srb
+    IN PSRB_TYPE Srb
     )
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    PSRB_EXTENSION      srbExt   = (PSRB_EXTENSION)Srb->SrbExtension;
+    PSRB_EXTENSION      srbExt   = SRB_EXTENSION(Srb);
     PVOID               va = NULL;
     ULONGLONG           pa = 0;
     ULONG               QueueNumber = 0;
@@ -43,7 +43,7 @@ ENTER_FN();
     SET_VA_PA();
 
     if (adaptExt->num_queues > 1) {
-        QueueNumber = Srb->PathId + VIRTIO_SCSI_REQUEST_QUEUE_0;
+        QueueNumber = SRB_PATH_ID(Srb) + VIRTIO_SCSI_REQUEST_QUEUE_0;
         MessageId = QueueNumber + 1;
     }
     else {
@@ -69,7 +69,7 @@ ENTER_FN();
 
     if (adaptExt->num_queues > 1) {
         if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
-            ProcessQueue(DeviceExtension, MessageId, FALSE);
+//            ProcessQueue(DeviceExtension, MessageId, FALSE);
         }
     }
 EXIT_FN();
@@ -84,7 +84,7 @@ SynchronizedTMFRoutine(
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
-    PSRB_EXTENSION      srbExt        = (PSRB_EXTENSION)Srb->SrbExtension;
+    PSRB_EXTENSION      srbExt   = SRB_EXTENSION(Srb);
     PVOID               va;
     ULONGLONG           pa;
 
@@ -97,7 +97,7 @@ ENTER_FN();
         virtqueue_kick(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE]);
         return TRUE;
     }
-    Srb->SrbStatus = SRB_STATUS_BUSY;
+    SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUSY);
     StorPortBusy(DeviceExtension, adaptExt->queue_depth);
 EXIT_ERR();
     return FALSE;
