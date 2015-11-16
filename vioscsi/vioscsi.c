@@ -748,11 +748,7 @@ ENTER_FN();
     }
     else
     {
-<<<<<<< HEAD
-        SendSRB(DeviceExtension, Srb);
-=======
         return SendSRB(DeviceExtension, (PSRB_TYPE)Srb);
->>>>>>> c043e44... manually applied 36fe26fccad36e23caa57bb351d26b4ae3a5ab0b Author: Julius Rus <iuliur@google.com> Add support for win8 STORAGE_REQUEST_BLOCK.
     }
 EXIT_FN();
     return TRUE;
