@@ -43,7 +43,7 @@ ENTER_FN();
     SET_VA_PA();
 
     if (adaptExt->num_queues > 1) {
-        QueueNumber = SRB_PATH_ID(Srb) + VIRTIO_SCSI_REQUEST_QUEUE_0;
+        QueueNumber = adaptExt->cpu_to_vq_map[srbExt->cpu] + VIRTIO_SCSI_REQUEST_QUEUE_0;
         MessageId = QueueNumber + 1;
     }
     else {
