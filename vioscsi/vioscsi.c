@@ -697,10 +697,11 @@ ENTER_FN();
                         perfData.MessageTargets = adaptExt->pmsg_affinity;
                     }
                 }
+#if (NTDDI_VERSION > NTDDI_WIN7)
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION_CURRENT_CPU)) {
                     adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION_CURRENT_CPU;
                 }
-
+#endif
 #if 0
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
                     adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO;
