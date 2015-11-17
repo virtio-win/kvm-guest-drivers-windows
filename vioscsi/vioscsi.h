@@ -228,7 +228,7 @@ typedef struct _SRB_EXTENSION {
 #if (INDIRECT_SUPPORTED == 1)
     struct vring_desc_alias     desc[VIRTIO_MAX_SG];
 #endif
-//    UCHAR                 PathId;
+    UCHAR                 cpu;
 }SRB_EXTENSION, * PSRB_EXTENSION;
 #pragma pack()
 
