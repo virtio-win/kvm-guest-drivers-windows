@@ -93,7 +93,6 @@ SrbGetPnpInfo(_In_ PVOID Srb, ULONG* PnPFlags, ULONG* PnPAction) {
 #define SRB_SET_DATA_TRANSFER_LENGTH(Srb, Len) Srb->DataTransferLength = Len
 #endif
 
-
 BOOLEAN
 SendSRB(
     IN PVOID DeviceExtension,
