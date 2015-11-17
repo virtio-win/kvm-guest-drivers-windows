@@ -23,7 +23,7 @@
 #define SET_VA_PA()   va = NULL; pa = 0;
 #endif
 
-VOID
+BOOLEAN
 SendSRB(
     IN PVOID DeviceExtension,
     IN PSRB_TYPE Srb
@@ -57,10 +57,7 @@ ENTER_FN();
         kick = TRUE;
     }
     else {
-<<<<<<< HEAD
-=======
         RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s Can not add packet to queue.\n", __FUNCTION__));
->>>>>>> 4966f3f... [vioscsi] mq - get rid of cpu-to-queue map
 //FIXME
     }
 
@@ -69,15 +66,12 @@ ENTER_FN();
     if (kick == TRUE) {
         virtqueue_kick(adaptExt->vq[QueueNumber]);
     }
-<<<<<<< HEAD
-=======
 
     if (adaptExt->num_queues > 1) {
         if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
 //            ProcessQueue(DeviceExtension, MessageId, FALSE);
         }
     }
->>>>>>> 4966f3f... [vioscsi] mq - get rid of cpu-to-queue map
 EXIT_FN();
     return kick;
 }
