@@ -1,3 +1,22 @@
+Date    18 Nov 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm131
+
+Fixed bugs:
+
+
+BZ 1013336: NetKVM: BSoD occurs when running NDISTest6.5 -[2 Machine] - MPE_Ethernet job on windows 2012 (Win10)
+BZ 1273791: NetKVM: Do not touch control queue before status VIRTIO_CONFIG_S_DRIVER_OK is raised
+BZ 1270149: NetKVM: Check guest network link status of virtio nic with status=on failed (build 110)
+BZ 1263193: NetKVM: BSoD occurs when boot the win2012R2 guest with "-smp 64"(netkvm driver installed)
+BZ 1256626: NetKVM: windows guest(win7/win10) CTRL_VLAN=on/off does not support for virtio-net-pci
+
+New features:
+
+Some changes toward virtio 1.0 support.
+Redesigned cpu to vq mapping mechanism for vioscsi device driver.
+Added support for STORAGE_REQUEST_BLOCK handling for vioscsi device driver.
+
 Date    10 Aug 2015
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm129
