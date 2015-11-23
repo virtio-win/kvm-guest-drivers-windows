@@ -763,7 +763,7 @@ VirtIoInterrupt(
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s (%d)\n", __FUNCTION__, KeGetCurrentIrql()));
     intReason = VirtIODeviceISR((VirtIODevice*)DeviceExtension);
-    if ( intReason == 1) {
+    if ( intReason == 1 || adaptExt->dump_mode ) {
         isInterruptServiced = TRUE;
         while((vbr = (pblk_req)virtqueue_get_buf(adaptExt->vq, &len)) != NULL) {
            Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
