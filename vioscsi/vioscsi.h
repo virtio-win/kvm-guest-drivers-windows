@@ -183,7 +183,7 @@ typedef struct {
 
 #pragma pack(1)
 typedef struct {
-    PVOID sc;
+    PVOID srb;
     PVOID comp;
     union {
         VirtIOSCSICmdReq      cmd;
