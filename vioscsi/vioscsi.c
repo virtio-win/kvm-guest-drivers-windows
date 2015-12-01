@@ -771,7 +771,7 @@ EXIT_FN();
 
 FORCEINLINE
 void HandleResponse(PVOID DeviceExtension, PVirtIOSCSICmd cmd) {
-    PSRB_TYPE Srb = (PSRB_TYPE)(cmd->sc);
+    PSRB_TYPE Srb = (PSRB_TYPE)(cmd->srb);
     PSRB_EXTENSION srbExt = SRB_EXTENSION(Srb);
     VirtIOSCSICmdResp *resp = &cmd->resp.cmd;
     UCHAR senseInfoBufferLength = 0;
@@ -880,7 +880,7 @@ VioScsiInterrupt(
         if (adaptExt->tmf_infly) {
            while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE], &len)) != NULL) {
               VirtIOSCSICtrlTMFResp *resp;
-              Srb = (PSRB_TYPE)cmd->sc;
+              Srb = (PSRB_TYPE)cmd->srb;
               ASSERT(Srb == (PSRB_TYPE)&adaptExt->tmf_cmd.Srb);
               resp = &cmd->resp.tmf;
               switch(resp->response) {
@@ -950,7 +950,7 @@ VioScsiMSInterrupt (
            while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE], &len)) != NULL)
            {
               VirtIOSCSICtrlTMFResp *resp;
-              Srb = (PSRB_TYPE)(cmd->sc);
+              Srb = (PSRB_TYPE)(cmd->srb);
               ASSERT(Srb == (PSRB_TYPE)&adaptExt->tmf_cmd.Srb);
               resp = &cmd->resp.tmf;
               switch(resp->response) {
@@ -1124,7 +1124,7 @@ ENTER_FN();
     srbExt->Srb = Srb;
     srbExt->cpu = (UCHAR)cpu;
     cmd = &srbExt->cmd;
-    cmd->sc = Srb;
+    cmd->srb = (PVOID)Srb;
     cmd->req.cmd.lun[0] = 1;
     cmd->req.cmd.lun[1] = TargetId;
     cmd->req.cmd.lun[2] = 0;

@@ -134,7 +134,7 @@ ENTER_FN();
     ASSERT(adaptExt->tmf_infly == FALSE);
     Srb->SrbExtension = srbExt;
     RtlZeroMemory((PVOID)cmd, sizeof(VirtIOSCSICmd));
-    cmd->sc = Srb;
+    cmd->srb = (PVOID)Srb;
     cmd->req.tmf.lun[0] = 1;
     cmd->req.tmf.lun[1] = 0;
     cmd->req.tmf.lun[2] = 0;
