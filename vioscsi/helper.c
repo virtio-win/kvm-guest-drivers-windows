@@ -36,7 +36,8 @@ SendSRB(
     ULONG               QueueNumber = 0;
     ULONG               OldIrql = 0;
     ULONG               MessageId = 0;
-    BOOLEAN             kick = FALSE;
+    BOOLEAN             result = FALSE;
+    bool                notify = FALSE;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
 ENTER_FN();
@@ -54,17 +55,17 @@ ENTER_FN();
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
-        kick = TRUE;
+        result = TRUE;
+        notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
     }
     else {
         RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s Can not add packet to queue.\n", __FUNCTION__));
 //FIXME
     }
-
     VioScsiReleaseSpinLock(DeviceExtension, MessageId, &LockHandle);
 
-    if (kick == TRUE) {
-        virtqueue_kick(adaptExt->vq[QueueNumber]);
+    if (notify) {
+        virtqueue_notify(adaptExt->vq[QueueNumber]);
     }
 
     if (adaptExt->num_queues > 1) {
@@ -73,7 +74,7 @@ ENTER_FN();
         }
     }
 EXIT_FN();
-    return kick;
+    return result;
 }
 
 BOOLEAN
