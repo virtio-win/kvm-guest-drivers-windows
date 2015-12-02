@@ -161,17 +161,37 @@ ProcessQueue(
     );
 
 ULONG
-VioScsiAcquireSpinLock(
+FORCEINLINE
+VioScsiVQLock(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
     IN PSTOR_LOCK_HANDLE LockHandle
     );
 
 ULONG
-VioScsiReleaseSpinLock(
+FORCEINLINE
+VioScsiVQUnlock(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
     IN PSTOR_LOCK_HANDLE LockHandle
+    );
+
+VOID
+//FORCEINLINE
+VioScsiListLock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN PSTOR_LOCK_HANDLE LockHandle,
+    IN BOOLEAN dpc
+    );
+
+VOID
+//FORCEINLINE
+VioScsiListUnlock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN PSTOR_LOCK_HANDLE LockHandle,
+    IN BOOLEAN dpc
     );
 
 #endif ___HELPER_H___
