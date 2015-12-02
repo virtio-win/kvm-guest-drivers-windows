@@ -229,6 +229,7 @@ typedef struct _SRB_EXTENSION {
     struct vring_desc_alias     desc[VIRTIO_MAX_SG];
 #endif
     UCHAR                 cpu;
+    PVOID                 priv;
 }SRB_EXTENSION, * PSRB_EXTENSION;
 #pragma pack()
 
@@ -238,6 +239,12 @@ typedef struct {
     PSRB_EXTENSION        SrbExtension;
 }TMF_COMMAND, * PTMF_COMMAND;
 #pragma pack()
+
+typedef struct {
+    LIST_ENTRY    list;
+    KSPIN_LOCK    lock;
+}CMD_LIST, *PCMD_LIST;
+
 
 typedef struct _ADAPTER_EXTENSION {
     VirtIODevice          vdev;
@@ -267,6 +274,7 @@ typedef struct _ADAPTER_EXTENSION {
 
     ULONG                 num_queues;
     UCHAR                 cpu_to_vq_map[MAX_CPU];
+    CMD_LIST              cmd_list[MAX_CPU];
     ULONG                 perfFlags;
     PGROUP_AFFINITY       pmsg_affinity;
     BOOLEAN               dpc_ok;

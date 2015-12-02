@@ -50,7 +50,7 @@ ENTER_FN();
     else {
         QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
     }
-    VioScsiAcquireSpinLock(DeviceExtension, MessageId, &LockHandle);
+    VioScsiVQLock(DeviceExtension, MessageId, &LockHandle);
     if (virtqueue_add_buf(adaptExt->vq[QueueNumber],
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
@@ -62,7 +62,7 @@ ENTER_FN();
         RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s Can not add packet to queue.\n", __FUNCTION__));
 //FIXME
     }
-    VioScsiReleaseSpinLock(DeviceExtension, MessageId, &LockHandle);
+    VioScsiVQUnlock(DeviceExtension, MessageId, &LockHandle);
 
     if (notify) {
         virtqueue_notify(adaptExt->vq[QueueNumber]);
@@ -333,7 +333,8 @@ EXIT_FN();
 }
 
 ULONG
-VioScsiAcquireSpinLock(
+FORCEINLINE
+VioScsiVQLock(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
     IN PSTOR_LOCK_HANDLE LockHandle
@@ -345,12 +346,14 @@ VioScsiAcquireSpinLock(
 ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     if (adaptExt->num_queues > 1) {
-        ULONG oldIrql = 0;
-        status = StorPortAcquireMSISpinLock(DeviceExtension, MessageID, &oldIrql);
-        LockHandle->Context.OldIrql = (KIRQL)oldIrql;
-        if (status != STOR_STATUS_SUCCESS) {
-            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
-        }
+//        ULONG oldIrql = 0;
+//        status = StorPortAcquireMSISpinLock(DeviceExtension, MessageID, &oldIrql);
+//        LockHandle->Context.OldIrql = (KIRQL)oldIrql;
+//        if (status != STOR_STATUS_SUCCESS) {
+//            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
+//        }
+        NT_ASSERT(MessageID > VIRTIO_SCSI_REQUEST_QUEUE_0);
+        StorPortAcquireSpinLock(DeviceExtension, StartIoLock, &adaptExt->dpc[MessageID - VIRTIO_SCSI_REQUEST_QUEUE_0 - 1], LockHandle);
     }
     else {
         StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, LockHandle);
@@ -360,7 +363,8 @@ EXIT_FN();
 }
 
 ULONG
-VioScsiReleaseSpinLock(
+FORCEINLINE
+VioScsiVQUnlock(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
     IN PSTOR_LOCK_HANDLE LockHandle
@@ -371,15 +375,72 @@ VioScsiReleaseSpinLock(
 
 ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    if (adaptExt->num_queues > 1) {
-        status = StorPortReleaseMSISpinLock(DeviceExtension, MessageID, LockHandle->Context.OldIrql);
-        if (status != STOR_STATUS_SUCCESS) {
-            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
-        }
+//    if (adaptExt->num_queues > 1) {
+//        status = StorPortReleaseMSISpinLock(DeviceExtension, MessageID, LockHandle->Context.OldIrql);
+//        if (status != STOR_STATUS_SUCCESS) {
+//            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
+//        }
+//    }
+//    else {
+        StorPortReleaseSpinLock(DeviceExtension, LockHandle);
+//    }
+    return status;
+EXIT_FN();
+}
+
+VOID
+//FORCEINLINE
+VioScsiListLock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN PSTOR_LOCK_HANDLE LockHandle,
+    IN BOOLEAN dpc
+    )
+{
+    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    UCHAR               msg = (UCHAR)(MessageID - 3);
+#if !defined(_AMD64_)
+    ULONG               oldIrql = 0;
+#endif
+
+ENTER_FN();
+
+#if defined(_AMD64_)
+    KeAcquireInStackQueuedSpinLock(&adaptExt->cmd_list[msg].lock, &LockHandle);
+#else
+    if (!dpc) {
+       KeAcquireSpinLock(&adaptExt->cmd_list[msg].lock, &oldIrql);
+       LockHandle->Context.OldIrql = (KIRQL)oldIrql;
     }
     else {
-        StorPortReleaseSpinLock(DeviceExtension, LockHandle);
+       KeAcquireSpinLockAtDpcLevel(&adaptExt->cmd_list[msg].lock);
     }
-    return status;
+#endif
+
+EXIT_FN();
+}
+
+VOID
+//FORCEINLINE
+VioScsiListUnlock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN PSTOR_LOCK_HANDLE LockHandle,
+    IN BOOLEAN dpc
+    )
+{
+    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    UCHAR               msg = (UCHAR)(MessageID - 3);
+ENTER_FN();
+#if defined(_AMD64_)
+    KeReleaseInStackQueuedSpinLock(&LockHandle);
+#else
+    if (!dpc) {
+       KeReleaseSpinLock(&adaptExt->cmd_list[msg].lock, LockHandle->Context.OldIrql);
+    }
+    else {
+       KeReleaseSpinLockFromDpcLevel(&adaptExt->cmd_list[msg].lock);
+    }
+#endif
 EXIT_FN();
 }
