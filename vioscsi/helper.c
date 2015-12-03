@@ -63,7 +63,7 @@ ENTER_FN();
 //FIXME
     }
     VioScsiVQUnlock(DeviceExtension, MessageId, &LockHandle);
-
+RhelDbgPrint(TRACE_LEVEL_FATAL, ("--->%p\n", Srb));
     if (notify) {
         virtqueue_notify(adaptExt->vq[QueueNumber]);
     }
@@ -388,59 +388,3 @@ ENTER_FN();
 EXIT_FN();
 }
 
-VOID
-//FORCEINLINE
-VioScsiListLock(
-    IN PVOID DeviceExtension,
-    IN ULONG MessageID,
-    IN PSTOR_LOCK_HANDLE LockHandle,
-    IN BOOLEAN dpc
-    )
-{
-    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    UCHAR               msg = (UCHAR)(MessageID - 3);
-#if !defined(_AMD64_)
-    ULONG               oldIrql = 0;
-#endif
-
-ENTER_FN();
-
-#if defined(_AMD64_)
-    KeAcquireInStackQueuedSpinLock(&adaptExt->cmd_list[msg].lock, &LockHandle);
-#else
-    if (!dpc) {
-       KeAcquireSpinLock(&adaptExt->cmd_list[msg].lock, &oldIrql);
-       LockHandle->Context.OldIrql = (KIRQL)oldIrql;
-    }
-    else {
-       KeAcquireSpinLockAtDpcLevel(&adaptExt->cmd_list[msg].lock);
-    }
-#endif
-
-EXIT_FN();
-}
-
-VOID
-//FORCEINLINE
-VioScsiListUnlock(
-    IN PVOID DeviceExtension,
-    IN ULONG MessageID,
-    IN PSTOR_LOCK_HANDLE LockHandle,
-    IN BOOLEAN dpc
-    )
-{
-    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    UCHAR               msg = (UCHAR)(MessageID - 3);
-ENTER_FN();
-#if defined(_AMD64_)
-    KeReleaseInStackQueuedSpinLock(&LockHandle);
-#else
-    if (!dpc) {
-       KeReleaseSpinLock(&adaptExt->cmd_list[msg].lock, LockHandle->Context.OldIrql);
-    }
-    else {
-       KeReleaseSpinLockFromDpcLevel(&adaptExt->cmd_list[msg].lock);
-    }
-#endif
-EXIT_FN();
-}

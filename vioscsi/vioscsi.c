@@ -634,12 +634,15 @@ ENTER_FN();
         }
 
         for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
+            ULONG status = STOR_STATUS_SUCCESS;
             adaptExt->vq[index] = FindVirtualQueue(adaptExt, index, index + 1);
               if ((adaptExt->num_queues > 1) &&
                   (index >= VIRTIO_SCSI_REQUEST_QUEUE_0)) {
                   adaptExt->cpu_to_vq_map[index - VIRTIO_SCSI_REQUEST_QUEUE_0] = (UCHAR)index;
-                  InitializeListHead(&adaptExt->cmd_list[index - VIRTIO_SCSI_REQUEST_QUEUE_0].list);
-                  KeInitializeSpinLock(&adaptExt->cmd_list[index - VIRTIO_SCSI_REQUEST_QUEUE_0].lock);
+                  status = StorPortInitializeSListHead(DeviceExtension, &adaptExt->srb_list[index - VIRTIO_SCSI_REQUEST_QUEUE_0]); 
+                  if (status != STOR_STATUS_SUCCESS) {
+                     RhelDbgPrint(TRACE_LEVEL_FATAL, ("StorPortInitializeSListHead failed with status  0x%x\n", status));
+                  }
               }
         }
     }
@@ -748,7 +751,6 @@ ENTER_FN();
            (PUCHAR)(adaptExt->device_base + VIRTIO_PCI_STATUS),
            (UCHAR)VIRTIO_CONFIG_S_DRIVER_OK);
 EXIT_FN();
-RhelDbgPrint(TRACE_LEVEL_FATAL, ("done\n"));
     return TRUE;
 }
 
@@ -1228,16 +1230,17 @@ ENTER_FN();
 
         PSRB_TYPE Srb = (PSRB_TYPE)(cmd->srb);
         PSRB_EXTENSION srbExt = SRB_EXTENSION(Srb);
+        ULONG status = STOR_STATUS_SUCCESS;
+        PSTOR_SLIST_ENTRY Result = NULL;
         VioScsiVQUnlock(DeviceExtension, MessageID, &queueLock);
         srbExt->priv = (PVOID)cmd;
-        VioScsiListLock(DeviceExtension, MessageID, &listLock, TRUE);
-        InsertTailList(&adaptExt->cmd_list[msg].list, &srbExt->list_entry);
-        VioScsiListUnlock(DeviceExtension, MessageID, &listLock, TRUE);
+        status = StorPortInterlockedPushEntrySList(DeviceExtension, &adaptExt->srb_list[msg], &srbExt->list_entry, &Result);
+        if (status != STOR_STATUS_SUCCESS) {
+           RhelDbgPrint(TRACE_LEVEL_FATAL, ("StorPortInterlockedPushEntrySList failed with status 0x%x\n\n", status));
+        }
         cnt++;
-//        HandleResponse(DeviceExtension, cmd);
         VioScsiVQLock(DeviceExtension, MessageID, &queueLock);
     }
-RhelDbgPrint(TRACE_LEVEL_FATAL, ("cnt = %d\n", cnt));
     VioScsiVQUnlock(DeviceExtension, MessageID, &queueLock);
     if (cnt) {
        ULONG status = STOR_STATUS_SUCCESS;
@@ -1604,25 +1607,40 @@ VioScsiWorkItemCallback(
     ULONG msg = MessageId - 3;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
-
+    PSTOR_SLIST_ENTRY   listEntryRev, listEntry;//, next;
 ENTER_FN();
-RhelDbgPrint(TRACE_LEVEL_FATAL, ("Xru outside\n"));
-    VioScsiListLock(DeviceExtension, MessageId, &LockHandle, FALSE);
-    while (!IsListEmpty(&adaptExt->cmd_list[msg].list))
-    {
-        PVirtIOSCSICmd  cmd = NULL;
-        PSRB_TYPE Srb = NULL;
-        PSRB_EXTENSION srbExt = NULL;
-        srbExt = (PSRB_EXTENSION)RemoveHeadList(&adaptExt->cmd_list[msg].list);
-        VioScsiListUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
-        ASSERT(srExt);
-        Srb = (PSRB_TYPE)(srbExt->Srb);
-        cmd = (PVirtIOSCSICmd)srbExt->priv;
-        ASSERT(cmd);
-        HandleResponse(DeviceExtension, cmd);
-        VioScsiListLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+    status = StorPortInterlockedFlushSList(DeviceExtension, &adaptExt->srb_list[msg], &listEntryRev);
+    if ((status == STOR_STATUS_SUCCESS) && (listEntryRev != NULL)) {
+        listEntry = listEntryRev;
+        while(listEntry)
+        {
+            PVirtIOSCSICmd  cmd = NULL;
+            PSRB_TYPE Srb = NULL;
+            PSRB_EXTENSION srbExt = NULL;
+            PSTOR_SLIST_ENTRY next = listEntry->Next;
+            srbExt = CONTAINING_RECORD(listEntry,
+                        SRB_EXTENSION, list_entry);
+
+            ASSERT(srExt);
+            Srb = (PSRB_TYPE)(srbExt->Srb);
+            cmd = (PVirtIOSCSICmd)srbExt->priv;
+            ASSERT(cmd);
+            HandleResponse(DeviceExtension, cmd);
+RhelDbgPrint(TRACE_LEVEL_FATAL, ("<---%p\n", Srb));
+            listEntry = next;
+        }
     }
-    VioScsiListUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+    else if (status != STOR_STATUS_SUCCESS) {
+       RhelDbgPrint(TRACE_LEVEL_FATAL, ("StorPortInterlockedPushEntrySList failed with status 0x%x\n\n", status));
+    }
+
+//    listEntry = NULL;
+//    while (listEntryRev != NULL) {
+//        next = listEntryRev->Next;
+//        listEntryRev->Next = listEntry;
+//        listEntry = listEntryRev;
+//        listEntryRev = next;
+//    }
     status = StorPortFreeWorker(DeviceExtension, Worker);
     if (status != STOR_STATUS_SUCCESS) {
        RhelDbgPrint(TRACE_LEVEL_FATAL, ("StorPortFreeWorker failed with status 0x%x\n\n", status));
