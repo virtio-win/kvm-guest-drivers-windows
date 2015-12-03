@@ -218,7 +218,8 @@ typedef struct vring_desc_alias
 
 #pragma pack(1)
 typedef struct _SRB_EXTENSION {
-    LIST_ENTRY            list_entry;
+//    LIST_ENTRY            list_entry;
+    STOR_SLIST_ENTRY      list_entry;
     PSCSI_REQUEST_BLOCK   Srb;
     ULONG                 out;
     ULONG                 in;
@@ -239,12 +240,6 @@ typedef struct {
     PSRB_EXTENSION        SrbExtension;
 }TMF_COMMAND, * PTMF_COMMAND;
 #pragma pack()
-
-typedef struct {
-    LIST_ENTRY    list;
-    KSPIN_LOCK    lock;
-}CMD_LIST, *PCMD_LIST;
-
 
 typedef struct _ADAPTER_EXTENSION {
     VirtIODevice          vdev;
@@ -274,7 +269,7 @@ typedef struct _ADAPTER_EXTENSION {
 
     ULONG                 num_queues;
     UCHAR                 cpu_to_vq_map[MAX_CPU];
-    CMD_LIST              cmd_list[MAX_CPU];
+    STOR_SLIST_HEADER     srb_list[MAX_CPU];
     ULONG                 perfFlags;
     PGROUP_AFFINITY       pmsg_affinity;
     BOOLEAN               dpc_ok;
