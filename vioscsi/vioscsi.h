@@ -218,7 +218,6 @@ typedef struct vring_desc_alias
 
 #pragma pack(1)
 typedef struct _SRB_EXTENSION {
-//    LIST_ENTRY            list_entry;
     STOR_SLIST_ENTRY      list_entry;
     PSCSI_REQUEST_BLOCK   Srb;
     ULONG                 out;
