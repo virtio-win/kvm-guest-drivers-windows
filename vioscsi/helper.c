@@ -63,7 +63,6 @@ ENTER_FN();
 //FIXME
     }
     VioScsiVQUnlock(DeviceExtension, MessageId, &LockHandle);
-RhelDbgPrint(TRACE_LEVEL_FATAL, ("--->%p\n", Srb));
     if (notify) {
         virtqueue_notify(adaptExt->vq[QueueNumber]);
     }
@@ -332,7 +331,7 @@ ENTER_FN();
 EXIT_FN();
 }
 
-ULONG
+VOID
 FORCEINLINE
 VioScsiVQLock(
     IN PVOID DeviceExtension,
@@ -341,28 +340,19 @@ VioScsiVQLock(
     )
 {
     PADAPTER_EXTENSION  adaptExt;
-    ULONG               status = STOR_STATUS_SUCCESS;
-
 ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     if (adaptExt->num_queues > 1) {
-//        ULONG oldIrql = 0;
-//        status = StorPortAcquireMSISpinLock(DeviceExtension, MessageID, &oldIrql);
-//        LockHandle->Context.OldIrql = (KIRQL)oldIrql;
-//        if (status != STOR_STATUS_SUCCESS) {
-//            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
-//        }
         NT_ASSERT(MessageID > VIRTIO_SCSI_REQUEST_QUEUE_0);
         StorPortAcquireSpinLock(DeviceExtension, StartIoLock, &adaptExt->dpc[MessageID - VIRTIO_SCSI_REQUEST_QUEUE_0 - 1], LockHandle);
     }
     else {
         StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, LockHandle);
     }
-    return status;
 EXIT_FN();
 }
 
-ULONG
+VOID
 FORCEINLINE
 VioScsiVQUnlock(
     IN PVOID DeviceExtension,
@@ -370,21 +360,8 @@ VioScsiVQUnlock(
     IN PSTOR_LOCK_HANDLE LockHandle
     )
 {
-    PADAPTER_EXTENSION  adaptExt;
-    ULONG               status = STOR_STATUS_SUCCESS;
-
 ENTER_FN();
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-//    if (adaptExt->num_queues > 1) {
-//        status = StorPortReleaseMSISpinLock(DeviceExtension, MessageID, LockHandle->Context.OldIrql);
-//        if (status != STOR_STATUS_SUCCESS) {
-//            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
-//        }
-//    }
-//    else {
-        StorPortReleaseSpinLock(DeviceExtension, LockHandle);
-//    }
-    return status;
+    StorPortReleaseSpinLock(DeviceExtension, LockHandle);
 EXIT_FN();
 }
 
