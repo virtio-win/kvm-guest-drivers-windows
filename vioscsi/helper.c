@@ -69,7 +69,29 @@ ENTER_FN();
 
     if (adaptExt->num_queues > 1) {
         if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
-//            ProcessQueue(DeviceExtension, MessageId, FALSE);
+            ULONG msg = MessageId - 3;
+            ULONG status = STOR_STATUS_SUCCESS;
+            PSTOR_SLIST_ENTRY   listEntryRev, listEntry;
+            status = StorPortInterlockedFlushSList(DeviceExtension, &adaptExt->srb_list[msg], &listEntryRev);
+            if ((status == STOR_STATUS_SUCCESS) && (listEntryRev != NULL)) {
+                listEntry = listEntryRev;
+                while(listEntry)
+                {
+                    PVirtIOSCSICmd  cmd = NULL;
+                    PSRB_TYPE Srb = NULL;
+                    PSRB_EXTENSION srbExt = NULL;
+                    PSTOR_SLIST_ENTRY next = listEntry->Next;
+                    srbExt = CONTAINING_RECORD(listEntry,
+                                SRB_EXTENSION, list_entry);
+
+                    ASSERT(srExt);
+                    Srb = (PSRB_TYPE)(srbExt->Srb);
+                    cmd = (PVirtIOSCSICmd)srbExt->priv;
+                    ASSERT(cmd);
+                    HandleResponse(DeviceExtension, cmd);
+                    listEntry = next;
+                }
+            }
         }
     }
 EXIT_FN();
