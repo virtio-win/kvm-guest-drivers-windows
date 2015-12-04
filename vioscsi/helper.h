@@ -176,4 +176,10 @@ VioScsiVQUnlock(
     IN PSTOR_LOCK_HANDLE LockHandle
     );
 
+VOID
+FORCEINLINE
+HandleResponse(
+    IN PVOID DeviceExtension,
+    IN PVirtIOSCSICmd cmd
+    );
 #endif ___HELPER_H___

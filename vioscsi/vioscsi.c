@@ -707,7 +707,7 @@ ENTER_FN();
                 }
 #if (NTDDI_VERSION > NTDDI_WIN7)
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION_CURRENT_CPU)) {
-                    adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION_CURRENT_CPU;
+//                    adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION_CURRENT_CPU;
                 }
 #endif
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
@@ -773,8 +773,9 @@ EXIT_FN();
     return TRUE;
 }
 
+VOID
 FORCEINLINE
-void HandleResponse(PVOID DeviceExtension, PVirtIOSCSICmd cmd) {
+HandleResponse(PVOID DeviceExtension, PVirtIOSCSICmd cmd) {
     PSRB_TYPE Srb = (PSRB_TYPE)(cmd->srb);
     PSRB_EXTENSION srbExt = SRB_EXTENSION(Srb);
     VirtIOSCSICmdResp *resp = &cmd->resp.cmd;
@@ -1255,7 +1256,6 @@ ENTER_FN();
        if (status != STOR_STATUS_SUCCESS) {
           RhelDbgPrint(TRACE_LEVEL_FATAL, ("StorPortQueueWorkItem failed with status 0x%x\n\n", status));
 //FIXME
-          return;
        }
     }
 EXIT_FN();
@@ -1606,12 +1606,24 @@ VioScsiWorkItemCallback(
     ULONG status = STOR_STATUS_SUCCESS;
     ULONG msg = MessageId - 3;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    STOR_LOCK_HANDLE    LockHandle = { 0 };
+//    STOR_LOCK_HANDLE    LockHandle = { 0 };
     PSTOR_SLIST_ENTRY   listEntryRev, listEntry;//, next;
 ENTER_FN();
     status = StorPortInterlockedFlushSList(DeviceExtension, &adaptExt->srb_list[msg], &listEntryRev);
     if ((status == STOR_STATUS_SUCCESS) && (listEntryRev != NULL)) {
+        KAFFINITY old_affinity, new_affinity;
+        old_affinity = new_affinity = 0;
+#if 1
         listEntry = listEntryRev;
+#else
+        listEntry = NULL;
+        while (listEntryRev != NULL) {
+            next = listEntryRev->Next;
+            listEntryRev->Next = listEntry;
+            listEntry = listEntryRev;
+            listEntryRev = next;
+        }
+#endif
         while(listEntry)
         {
             PVirtIOSCSICmd  cmd = NULL;
@@ -1625,22 +1637,21 @@ ENTER_FN();
             Srb = (PSRB_TYPE)(srbExt->Srb);
             cmd = (PVirtIOSCSICmd)srbExt->priv;
             ASSERT(cmd);
+            if (new_affinity == 0) {
+                new_affinity = 1 << srbExt->cpu;
+                old_affinity = KeSetSystemAffinityThreadEx(new_affinity);
+            }
             HandleResponse(DeviceExtension, cmd);
-RhelDbgPrint(TRACE_LEVEL_FATAL, ("<---%p\n", Srb));
             listEntry = next;
+        }
+        if (old_affinity != 0) {
+            KeRevertToUserAffinityThreadEx(old_affinity);
         }
     }
     else if (status != STOR_STATUS_SUCCESS) {
        RhelDbgPrint(TRACE_LEVEL_FATAL, ("StorPortInterlockedPushEntrySList failed with status 0x%x\n\n", status));
     }
 
-//    listEntry = NULL;
-//    while (listEntryRev != NULL) {
-//        next = listEntryRev->Next;
-//        listEntryRev->Next = listEntry;
-//        listEntry = listEntryRev;
-//        listEntryRev = next;
-//    }
     status = StorPortFreeWorker(DeviceExtension, Worker);
     if (status != STOR_STATUS_SUCCESS) {
        RhelDbgPrint(TRACE_LEVEL_FATAL, ("StorPortFreeWorker failed with status 0x%x\n\n", status));
