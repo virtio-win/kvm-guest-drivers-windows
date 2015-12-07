@@ -160,7 +160,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>-kernel -d2epilogunwind %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Lib>
@@ -170,67 +170,67 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>/kernel /d1import_no_registry /d2AllowCompatibleILVersions /d2Zi+ %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>/kernel /homeparams %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>/kernel  /d1nodatetime %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>-kernel -d2epilogunwind %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>/kernel /d1import_no_registry /d2AllowCompatibleILVersions /d2Zi+ %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>/kernel /homeparams %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>/kernel /d1nodatetime %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>/kernel /d1import_no_registry /d2AllowCompatibleILVersions /d2Zi+ %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>/kernel /homeparams %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>/kernel /d1nodatetime %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>-kernel -d2epilogunwind %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>

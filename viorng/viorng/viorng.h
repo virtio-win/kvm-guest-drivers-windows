@@ -30,21 +30,7 @@
 
 #include "trace.h"
 
-#ifndef u8
-#define u8 UCHAR
-#endif
-
-#ifndef u16
-#define u16 USHORT
-#endif
-
-#ifndef u32
-#define u32 ULONG
-#endif
-
-#ifndef bool
-#define bool INT
-#endif
+#include "osdep.h"
 
 #pragma warning(push)
 // nonstandard extension used : bit field types other than int
