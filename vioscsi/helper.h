@@ -157,7 +157,7 @@ VOID
 ProcessQueue(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
-    IN BOOLEAN dpc
+    IN BOOLEAN isr
     );
 
 VOID
@@ -165,7 +165,8 @@ FORCEINLINE
 VioScsiVQLock(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
-    IN PSTOR_LOCK_HANDLE LockHandle
+    IN OUT PSTOR_LOCK_HANDLE LockHandle,
+    IN BOOLEAN isr
     );
 
 VOID
@@ -173,7 +174,8 @@ FORCEINLINE
 VioScsiVQUnlock(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
-    IN PSTOR_LOCK_HANDLE LockHandle
+    IN PSTOR_LOCK_HANDLE LockHandle,
+    IN BOOLEAN isr
     );
 
 VOID

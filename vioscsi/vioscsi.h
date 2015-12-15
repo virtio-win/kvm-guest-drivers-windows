@@ -218,7 +218,9 @@ typedef struct vring_desc_alias
 
 #pragma pack(1)
 typedef struct _SRB_EXTENSION {
+#if (NTDDI_VERSION > NTDDI_WIN7)
     STOR_SLIST_ENTRY      list_entry;
+#endif
     PSCSI_REQUEST_BLOCK   Srb;
     ULONG                 out;
     ULONG                 in;
@@ -268,7 +270,9 @@ typedef struct _ADAPTER_EXTENSION {
 
     ULONG                 num_queues;
     UCHAR                 cpu_to_vq_map[MAX_CPU];
+#if (NTDDI_VERSION > NTDDI_WIN7)
     STOR_SLIST_HEADER     srb_list[MAX_CPU];
+#endif
     ULONG                 perfFlags;
     PGROUP_AFFINITY       pmsg_affinity;
     BOOLEAN               dpc_ok;
