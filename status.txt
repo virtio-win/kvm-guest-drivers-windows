@@ -1,3 +1,17 @@
+Date    15 Dec 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm132
+
+Fixed bugs:
+
+BZ 1284769: [viostor] Windows XP installer stucks installing with virtio-drivers
+BZ 1245957: [viostor] [WHQL][viostor][data-plane]it could not generate dump file on WIN2008-32/64 via WLK while running Crash Dump job
+BZ 1289406: [vioser] Cannot install vioser driver successfully
+
+
+New features:
+Redesigned lock and unlock routines for vioscsi device driver.
+
 Date    18 Nov 2015
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm131
