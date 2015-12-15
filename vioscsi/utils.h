@@ -51,8 +51,8 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
 
 extern int nViostorDebugLevel;
 
-//#define DBG 1
-//#define COM_DEBUG 1
+#define DBG 1
+#define COM_DEBUG 1
 
 #if DBG
 int

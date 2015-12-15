@@ -40,9 +40,9 @@ typedef struct _VioScsiExtendedInfo
     #define VioScsiExtendedInfo_DpcRedirection_ID 5
 
     // 
-    BOOLEAN ConcurentChannels;
-    #define VioScsiExtendedInfo_ConcurentChannels_SIZE sizeof(BOOLEAN)
-    #define VioScsiExtendedInfo_ConcurentChannels_ID 6
+    BOOLEAN ConcurrentChannels;
+    #define VioScsiExtendedInfo_ConcurrentChannels_SIZE sizeof(BOOLEAN)
+    #define VioScsiExtendedInfo_ConcurrentChannels_ID 6
 
     // 
     BOOLEAN InterruptMsgRanges;
