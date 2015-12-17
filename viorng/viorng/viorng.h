@@ -30,21 +30,7 @@
 
 #include "trace.h"
 
-#ifndef u8
-#define u8 UCHAR
-#endif
-
-#ifndef u16
-#define u16 USHORT
-#endif
-
-#ifndef u32
-#define u32 ULONG
-#endif
-
-#ifndef bool
-#define bool INT
-#endif
+#include "osdep.h"
 
 #pragma warning(push)
 // nonstandard extension used : bit field types other than int
@@ -52,6 +38,7 @@
 #include "virtio_pci.h"
 #pragma warning(pop)
 
+#include "virtio_config.h"
 #include "virtio.h"
 
 #define VIRT_RNG_MEMORY_TAG ((ULONG)'gnrV')

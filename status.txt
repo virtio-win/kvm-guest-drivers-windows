@@ -1,3 +1,66 @@
+Date    15 Dec 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm132
+
+Fixed bugs:
+
+BZ 1284769: [viostor] Windows XP installer stucks installing with virtio-drivers
+BZ 1245957: [viostor] [WHQL][viostor][data-plane]it could not generate dump file on WIN2008-32/64 via WLK while running Crash Dump job
+BZ 1289406: [vioser] Cannot install vioser driver successfully
+
+
+New features:
+Redesigned lock and unlock routines for vioscsi device driver.
+
+Date    18 Nov 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm131
+
+Fixed bugs:
+
+
+BZ 1013336: NetKVM: BSoD occurs when running NDISTest6.5 -[2 Machine] - MPE_Ethernet job on windows 2012 (Win10)
+BZ 1273791: NetKVM: Do not touch control queue before status VIRTIO_CONFIG_S_DRIVER_OK is raised
+BZ 1270149: NetKVM: Check guest network link status of virtio nic with status=on failed (build 110)
+BZ 1263193: NetKVM: BSoD occurs when boot the win2012R2 guest with "-smp 64"(netkvm driver installed)
+BZ 1256626: NetKVM: windows guest(win7/win10) CTRL_VLAN=on/off does not support for virtio-net-pci
+
+New features:
+
+Some changes toward virtio 1.0 support.
+Redesigned cpu to vq mapping mechanism for vioscsi device driver.
+Added support for STORAGE_REQUEST_BLOCK handling for vioscsi device driver.
+
+Date    10 Aug 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm129
+
+Fixed bugs:
+
+Bz 1250854 [vioscsi]The job named crash dump failed on windows 2008 -32/64 platform
+
+Date    01 Aug 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm128
+
+Fixed bugs:
+
+
+BZ 1183423#c10 Change the copyright on all the Windows drivers to "2015" in virtio-win-prewhql build
+BZ 1248977 - [virtio-win][vioscsi] Cannot install vioscsi driver on win7-32&win2008-32 with build107
+
+
+Date    30 Jul 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm127
+
+Fixed bugs:
+
+BZ 1234751 [virtio-win][vioscsi]win2012R2 guest bsod(d1) when whql test DPWLK-HotAdd(1104) job
+BZ 1234741 [virtio-win][vioscsi]win2012 guest bsod(c9) when whql test DPWLK-HotAdd(1104) job
+BZ 1234507 vioserial crash due to completing a cancellable request
+
+
 Date    21 Jul 2015
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm126

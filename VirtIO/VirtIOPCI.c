@@ -16,9 +16,11 @@
  */
 #include "osdep.h"
 #include "VirtIO_PCI.h"
-#include "VirtIO.h"
+#include "virtio_config.h"
+#include "virtio.h"
 #include "kdebugprint.h"
 #include "VirtIO_Ring.h"
+#include "windows\virtio_ring_allocation.h"
 
 #ifdef WPP_EVENT_TRACING
 #include "VirtIOPCI.tmh"
@@ -120,11 +122,6 @@ void VirtIODeviceRemoveStatus(VirtIODevice * pVirtIODevice, u8 status)
                           VirtIODeviceGetStatus(pVirtIODevice) & (~status));
 }
 
-void VirtIODeviceConfigVector(VirtIODevice * pVirtIODevice, u16 configVector)
-{
-    DPrintf(4, ("%s>>> %x\n", __FUNCTION__, configVector));
-    WriteVirtIODeviceWord(pVirtIODevice->addr + VIRTIO_MSI_CONFIG_VECTOR, configVector);
-}
 /////////////////////////////////////////////////////////////////////////////////////
 //
 // Get\Set device data

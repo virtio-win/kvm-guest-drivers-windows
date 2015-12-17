@@ -17,7 +17,7 @@ class VioScsiExtendedInfoGuid
     [read, WmiDataId(3), WmiVersion(1)] boolean Indirect;
     [read, WmiDataId(4), WmiVersion(1)] boolean EventIndex;
     [read, WmiDataId(5), WmiVersion(1)] boolean DpcRedirection;
-    [read, WmiDataId(6), WmiVersion(1)] boolean ConcurentChannels;
+    [read, WmiDataId(6), WmiVersion(1)] boolean ConcurrentChannels;
     [read, WmiDataId(7), WmiVersion(1)] boolean InterruptMsgRanges;
     [read, WmiDataId(8), WmiVersion(1)] boolean CompletionDuringStartIo;
 };

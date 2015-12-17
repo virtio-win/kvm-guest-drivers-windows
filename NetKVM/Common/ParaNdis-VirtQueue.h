@@ -5,7 +5,7 @@ extern "C"
 
 #include "osdep.h"
 #include "virtio_pci.h"
-#include "VirtIO.h"
+#include "virtio.h"
 
 #include "ethernetutils.h"
 }
@@ -38,8 +38,8 @@ public:
 
     bool Allocate();
 
-    virtio_net_hdr_v1 *VirtioHeader() const
-    { return static_cast<virtio_net_hdr_v1*>(m_VirtioHeaderVA); }
+    virtio_net_hdr *VirtioHeader() const
+    { return static_cast<virtio_net_hdr*>(m_VirtioHeaderVA); }
     ULONG VirtioHeaderLength() const
     { return m_VirtioHdrSize; }
     PETH_HEADER EthHeader() const
@@ -265,10 +265,6 @@ public:
 
     bool HasPacketsInHW()
     { return !m_DescriptorsInUse.IsEmpty(); }
-
-    //TODO: Needs review
-    bool HasHWBuffersIsUse()
-    { return m_FreeHWBuffers != m_TotalHWBuffers; }
 
     //TODO: Needs review/temporary?
     void EnableInterrupts()

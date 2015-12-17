@@ -103,3 +103,18 @@ ULONG ParaNdis_GetIndexFromAffinity(KAFFINITY affinity)
     }
     return INVALID_PROCESSOR_INDEX;
 }
+
+ULONG ParaNdis_GetSystemCPUCount()
+{
+    ULONG nProcessors;
+
+#if NDIS_SUPPORT_NDIS620
+    nProcessors = NdisGroupActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+#elif NDIS_SUPPORT_NDIS6
+    nProcessors = NdisSystemProcessorCount();
+#else
+#error not supported
+#endif
+
+    return nProcessors;
+}

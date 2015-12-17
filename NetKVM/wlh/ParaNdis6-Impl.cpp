@@ -483,38 +483,39 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
         {
             status = pContext->pPathBundles[j].rxPath.SetupMessageIndex(2 * u16(j) + 1);
             status = pContext->pPathBundles[j].txPath.SetupMessageIndex(2 * u16(j));
+            DPrintf(0, ("[%s] Using messages %u/%u for RX/TX queue %u\n", __FUNCTION__,
+                        pContext->pPathBundles[j].rxPath.getMessageIndex(),
+                        pContext->pPathBundles[j].txPath.getMessageIndex(),
+                        j));
         }
 
-        if (pContext->bCXPathCreated)
+        if (status == NDIS_STATUS_SUCCESS && pContext->bCXPathCreated)
         {
-            pContext->CXPath.SetupMessageIndex(2 * u16(pContext->nPathBundles));
+            /* We need own vector for control queue. If one is not available, fail the initialization */
+            if (pContext->nPathBundles * 2 > pTable->MessageCount - 1)
+            {
+                DPrintf(0, ("[%s] Not enough vectors for control queue!\n", __FUNCTION__));
+                status = NDIS_STATUS_RESOURCES;
+            }
+            else
+            {
+                status = pContext->CXPath.SetupMessageIndex(2 * u16(pContext->nPathBundles));
+                DPrintf(0, ("[%s] Using message %u for controls\n", __FUNCTION__, pContext->CXPath.getMessageIndex()));
+            }
         }
     }
 
-    if (status == NDIS_STATUS_SUCCESS)
-    {
-        for (UINT j = 0; j < pContext->nPathBundles && status == NDIS_STATUS_SUCCESS; ++j)
-        {
-            DPrintf(0, ("[%s] Using messages %u/%u for RX/TX queue %u\n", __FUNCTION__, pContext->pPathBundles[j].rxPath.getMessageIndex(),
-                pContext->pPathBundles[j].txPath.getMessageIndex(), j));
-        }
-        if (pContext->bCXPathCreated)
-        {
-            DPrintf(0, ("[%s] Using message %u for controls\n", __FUNCTION__, pContext->CXPath.getMessageIndex()));
-        }
-        else
-        {
-            DPrintf(0, ("[%s] - No control path\n", __FUNCTION__));
-        }
-    }
-    DEBUG_EXIT_STATUS(2, status);
+    DEBUG_EXIT_STATUS(0, status);
     return status;
 }
 
 void ParaNdis_RestoreDeviceConfigurationAfterReset(
     PARANDIS_ADAPTER *pContext)
 {
-    ParaNdis_ConfigureMSIXVectors(pContext);
+    if (pContext->bUsingMSIX)
+    {
+        ParaNdis_ConfigureMSIXVectors(pContext);
+    }
 }
 
 static void DebugParseOffloadBits()
@@ -602,7 +603,6 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
         status = NdisMRegisterInterruptEx(pContext->MiniportHandle, pContext, &mic, &pContext->InterruptHandle);
     }
 
-#ifdef DBG
     if (pContext->bUsingMSIX)
     {
         DPrintf(0, ("[%s] MSIX message table %savailable, count = %u\n", __FUNCTION__, (mic.MessageInfoTable == nullptr ? "not " : ""),
@@ -612,7 +612,6 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
     {
         DPrintf(0, ("[%s] Not using MSIX\n", __FUNCTION__));
     }
-#endif
 
     if (status == NDIS_STATUS_SUCCESS)
     {
@@ -846,7 +845,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
 
         if (pNBL)
         {
-            virtio_net_hdr_v1 *pHeader = (virtio_net_hdr_v1 *) pBuffersDesc->PhysicalPages[0].Virtual;
+            virtio_net_hdr *pHeader = (virtio_net_hdr *) pBuffersDesc->PhysicalPages[0].Virtual;
             tChecksumCheckResult csRes;
             pNBL->SourceHandle = pContext->MiniportHandle;
             NBLSetRSSInfo(pContext, pNBL, pPacketInfo);
@@ -990,7 +989,6 @@ NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext)
     if (pContext->bSurprizeRemoved) status = NDIS_STATUS_NOT_ACCEPTED;
     // override NDIS_STATUS_PAUSED is there is a specific reason of implicit paused state
     if (pContext->powerState != NdisDeviceStateD0) status = NDIS_STATUS_LOW_POWER_STATE;
-    if (pContext->bResetInProgress) status = NDIS_STATUS_RESET_IN_PROGRESS;
     return status;
 }
 

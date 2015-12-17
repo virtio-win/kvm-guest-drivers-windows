@@ -40,10 +40,15 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="kdebugprint.h" />
+    <ClInclude Include="linux\types.h" />
+    <ClInclude Include="linux\virtio_ids.h" />
+    <ClInclude Include="linux\virtio_types.h" />
     <ClInclude Include="osdep.h" />
-    <ClInclude Include="VirtIO.h" />
+    <ClInclude Include="virtio.h" />
+    <ClInclude Include="virtio_config.h" />
     <ClInclude Include="virtio_pci.h" />
     <ClInclude Include="virtio_ring.h" />
+    <ClInclude Include="windows\virtio_ring_allocation.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{E16FC0F4-6AFF-4DA9-B556-BEB0F405857D}</ProjectGuid>

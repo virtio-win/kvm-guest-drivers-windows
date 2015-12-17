@@ -60,7 +60,7 @@ extern "C"
 
 #include "kdebugprint.h"
 #include "virtio_pci.h"
-#include "VirtIO.h"
+#include "virtio_config.h"
 #include "DebugData.h"
 }
 
@@ -257,14 +257,6 @@ typedef struct _tagChecksumCheckResult
 typedef PMDL                tPacketHolderType;
 typedef PNET_BUFFER_LIST    tPacketIndicationType;
 
-typedef struct _tagOurCounters
-{
-    UINT nReusedRxBuffers;
-    UINT nPrintDiagnostic;
-    ULONG64 prevIn;
-    UINT nRxInactivity;
-}tOurCounters;
-
 typedef struct _tagMaxPacketSize
 {
     UINT nMaxDataSize;
@@ -368,16 +360,18 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bDoSupportPriority;
     BOOLEAN                 bLinkDetectSupported;
     BOOLEAN                 bGuestChecksumSupported;
+    BOOLEAN                 bControlQueueSupported;
     BOOLEAN                 bUseMergedBuffers;
     BOOLEAN                 bDoPublishIndices;
     BOOLEAN                 bSurprizeRemoved;
     BOOLEAN                 bUsingMSIX;
     BOOLEAN                 bUseIndirect;
     BOOLEAN                 bAnyLaypout;
-    BOOLEAN                 bHasHardwareFilters;
+    BOOLEAN                 bCtrlRXFiltersSupported;
+    BOOLEAN                 bCtrlRXExtraFiltersSupported;
+    BOOLEAN                 bCtrlVLANFiltersSupported;
     BOOLEAN                 bNoPauseOnSuspend;
     BOOLEAN                 bFastSuspendInProcess;
-    BOOLEAN                 bResetInProgress;
     BOOLEAN                 bCtrlMACAddrSupported;
     BOOLEAN                 bCfgMACAddrSupported;
     BOOLEAN                 bMultiQueue;
@@ -399,8 +393,6 @@ typedef struct _tagPARANDIS_ADAPTER
     UCHAR                   CurrentMacAddress[ETH_ALEN];
     ULONG                   PacketFilter;
     ULONG                   DummyLookAhead;
-    ULONG                   nDetectedStoppedTx;
-    ULONG                   nDetectedInactivity;
     ULONG                   nVirtioHeaderSize;
     /* send part */
     NDIS_STATISTICS_INFO    Statistics;
@@ -415,8 +407,6 @@ typedef struct _tagPARANDIS_ADAPTER
         ULONG framesRxCSHwMissedGood;
         ULONG framesFilteredOut;
     } extraStatistics;
-    tOurCounters            Counters;
-    tOurCounters            Limits;
     tSendReceiveState       SendState;
     tSendReceiveState       ReceiveState;
     ONPAUSECOMPLETEPROC     SendPauseCompletionProc;
@@ -655,9 +645,6 @@ BOOLEAN ParaNdis_OnQueuedInterrupt(
     ULONG knownInterruptSources);
 
 VOID ParaNdis_OnShutdown(
-    PARANDIS_ADAPTER *pContext);
-
-BOOLEAN ParaNdis_CheckForHang(
     PARANDIS_ADAPTER *pContext);
 
 VOID ParaNdis_PowerOn(

@@ -23,24 +23,9 @@
 #include <wmilib.h>
 #include <ntintsafe.h>
 
-
-#ifndef u8
-#define u8 UCHAR
-#endif
-
-#ifndef u16
-#define u16 USHORT
-#endif
-
-#ifndef u32
-#define u32 ULONG
-#endif
-
-#ifndef bool
-#define bool INT
-#endif
-
+#include "osdep.h"
 #include "virtio_pci.h"
+#include "virtio_config.h"
 #include "virtio.h"
 
 #include "trace.h"

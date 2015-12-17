@@ -515,7 +515,6 @@ VirtIoHwInitialize(
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     adaptExt->msix_vectors = 0;
-#ifdef MSI_SUPPORTED
 
     if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX)) {
         guestFeatures |= (1ul << VIRTIO_RING_F_EVENT_IDX);
@@ -551,6 +550,7 @@ VirtIoHwInitialize(
 
     ScsiPortWritePortUlong((PULONG)(adaptExt->vdev.addr + VIRTIO_PCI_GUEST_FEATURES), guestFeatures);
 
+#ifdef MSI_SUPPORTED
     while(StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageId = %x\n", msi_info.MessageId));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageData = %x\n", msi_info.MessageData));
@@ -763,7 +763,7 @@ VirtIoInterrupt(
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s (%d)\n", __FUNCTION__, KeGetCurrentIrql()));
     intReason = VirtIODeviceISR((VirtIODevice*)DeviceExtension);
-    if ( intReason == 1) {
+    if ( intReason == 1 || adaptExt->dump_mode ) {
         isInterruptServiced = TRUE;
         while((vbr = (pblk_req)virtqueue_get_buf(adaptExt->vq, &len)) != NULL) {
            Srb = (PSCSI_REQUEST_BLOCK)vbr->req;
