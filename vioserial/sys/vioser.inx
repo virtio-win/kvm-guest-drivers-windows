@@ -96,6 +96,6 @@ KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
 REDHAT = "Red Hat, Inc."
-DiskId1 = "VirtIO-Serial Installation Disk #1"
-VirtioSerial.DeviceDesc = "VirtIO-Serial Driver"
-VirtioSerial.ServiceDesc = "VirtIO-Serial Service"
+DiskId1 = "VirtIO Serial Installation Disk #1"
+VirtioSerial.DeviceDesc = "VirtIO Serial Driver"
+VirtioSerial.ServiceDesc = "VirtIO Serial Service"
