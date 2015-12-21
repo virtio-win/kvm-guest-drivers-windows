@@ -9,25 +9,15 @@ GetInfoTest(
     __in CDevice *pDev
     )
 {
-    PVOID   buf = NULL;
+    BYTE    buf[512];
     PVIRTIO_PORT_INFO inf = NULL;
-    size_t  len;
+    size_t  len = sizeof(buf);
 
     if (!pDev) return FALSE;
 
-    len = sizeof(VIRTIO_PORT_INFO);
-    buf = GlobalAlloc(0, len);
-    if (!buf) return FALSE;
     if (!pDev->GetInfo(buf, &len))
     {
-        GlobalFree(buf);
-        buf = GlobalAlloc(0, len);
-        if (!buf) return FALSE;
-        if (!pDev->GetInfo(buf, &len))
-        {
-           GlobalFree(buf);
-           return FALSE;
-        }
+        return FALSE;
     }
 
     inf = (PVIRTIO_PORT_INFO)buf;
@@ -39,7 +29,6 @@ GetInfoTest(
     {
         printf("Id = %s\n", inf->Name);
     }
-    GlobalFree(buf);
     return TRUE;
 }
 
