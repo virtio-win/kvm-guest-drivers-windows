@@ -814,8 +814,7 @@ VIOSerialPortDeviceControl(
            {
               TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
                             "WdfRequestRetrieveInputBuffer failed 0x%x\n", status);
-              WdfRequestComplete(Request, status);
-              return;
+              break;
            }
            if (pdoData->port->NameString.Buffer)
            {
@@ -826,7 +825,6 @@ VIOSerialPortDeviceControl(
               status = STATUS_BUFFER_TOO_SMALL;
               TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
                             "Buffer too small. get = %d, expected = %d\n", length, sizeof (VIRTIO_PORT_INFO) + name_size);
-              length = sizeof (VIRTIO_PORT_INFO) + name_size;
               break;
            }
            RtlZeroMemory(pport_info, sizeof(VIRTIO_PORT_INFO));
@@ -855,7 +853,15 @@ VIOSerialPortDeviceControl(
            status = STATUS_INVALID_DEVICE_REQUEST;
            break;
     }
-    WdfRequestCompleteWithInformation(Request, status, length);
+
+    if (NT_SUCCESS(status))
+    {
+      WdfRequestCompleteWithInformation(Request, status, length);
+    }
+    else
+    {
+      WdfRequestComplete(Request, status);
+    }
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 }
 
