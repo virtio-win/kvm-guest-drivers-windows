@@ -245,11 +245,9 @@ BOOL CDevice::GetInfo(PVOID buf, size_t *size)
                              );
 
     if ( !res )
-    {   err = GetLastError();
-        if (err != ERROR_MORE_DATA)
-        {
-           printf("Ioctl failed with code %d\n", err );
-        }
+    {
+      err = GetLastError();
+      printf("Ioctl failed with code %d\n", err );
     }
     *size = ulReturnedLength;
     return res;
