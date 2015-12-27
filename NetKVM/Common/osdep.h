@@ -15,6 +15,7 @@
 
 #pragma warning (push)
 #pragma warning (disable:4201)
+#pragma warning (disable: 4091)
 #pragma warning (disable:28301)
 #pragma warning (disable:28252)
 #pragma warning (disable:28251)
