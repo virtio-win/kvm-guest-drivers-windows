@@ -67,6 +67,17 @@ void __CRTDECL operator delete(void *) throw()
 #endif
 }
 
+void __CRTDECL operator delete(void *, unsigned int) throw()
+{
+    ASSERT(FALSE);
+#ifdef DBG
+#pragma warning (push)
+#pragma warning (disable:28159)
+    KeBugCheck(100);
+#pragma warning (pop)
+#endif
+}
+
 void __CRTDECL operator delete[](void *) throw()
 {
     NETKVM_ASSERT(FALSE);
