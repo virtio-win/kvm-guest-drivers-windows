@@ -1,0 +1,436 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM">
+      <Configuration>Release</Configuration>
+      <Platform>ARM</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM64">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{29D5D8BA-071A-464F-89DF-C0B4EE99F141}</ProjectGuid>
+    <TemplateGuid>{dd38f7fc-d7bd-488b-9242-7d8754cde80d}</TemplateGuid>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
+    <Configuration>Debug</Configuration>
+    <Platform Condition="'$(Platform)' == ''">Win32</Platform>
+    <RootNamespace>NetKVM_Win10</RootNamespace>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'" Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'" Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
+    <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
+    <TargetName>netkvm</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
+    <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
+    <TargetName>netkvm</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
+    <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
+    <TargetName>netkvm</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
+    <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
+    <TargetName>netkvm</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
+    <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
+    <TargetName>netkvm</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
+    <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
+    <TargetName>netkvm</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
+    <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
+    <TargetName>netkvm</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
+    <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
+    <TargetName>netkvm</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>wlh;Common;..\Virtio;$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_ARM64_;ARM64;_USE_DECLSPECS_FOR_SAL=1;STD_CALL;%(PreprocessorDefinitions);NDIS60_MINIPORT=1;NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=0x0600;DRIVER_NT_TARGET_VERSION=60;_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000000;DRIVER_NT_TARGET_VERSION=0x60</PreprocessorDefinitions>
+      <ForcedIncludeFiles>warning.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_ARM64_=1;ARM64 =1;_USE_DECLSPECS_FOR_SAL=1;STD_CALL;%(PreprocessorDefinitions);PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);_RHEL_RELEASE_VERSION_=$(_RHEL_RELEASE_VERSION_);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(UM_IncludePath);%(AdditionalIncludeDirectories);Common</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib;$(DDK_LIB_PATH)ndis.lib</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>
+      </Message>
+    </PreBuildEvent>
+    <Inf>
+      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
+    </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>wlh;Common;..\Virtio;$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_ARM64_;ARM64;_USE_DECLSPECS_FOR_SAL=1;STD_CALL;%(PreprocessorDefinitions);NDIS60_MINIPORT=1;NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=0x0600;DRIVER_NT_TARGET_VERSION=60;_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000000;DRIVER_NT_TARGET_VERSION=0x60</PreprocessorDefinitions>
+      <ForcedIncludeFiles>warning.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_ARM64_=1;ARM64 =1;_USE_DECLSPECS_FOR_SAL=1;STD_CALL;%(PreprocessorDefinitions);PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);_RHEL_RELEASE_VERSION_=$(_RHEL_RELEASE_VERSION_);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(UM_IncludePath);%(AdditionalIncludeDirectories);Common</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib;$(DDK_LIB_PATH)ndis.lib</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>
+      </Message>
+    </PreBuildEvent>
+    <Inf>
+      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
+    </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>wlh;Common;..\Virtio;$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_X86_=1;i386=1;STD_CALL;%(PreprocessorDefinitions);NDIS60_MINIPORT=1;NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=0x0600;DRIVER_NT_TARGET_VERSION=60;_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000000;DRIVER_NT_TARGET_VERSION=0x60</PreprocessorDefinitions>
+      <ForcedIncludeFiles>warning.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_X86_=1;i386=1;STD_CALL;%(PreprocessorDefinitions);PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);_RHEL_RELEASE_VERSION_=$(_RHEL_RELEASE_VERSION_);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(UM_IncludePath);%(AdditionalIncludeDirectories);Common</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib;$(DDK_LIB_PATH)ndis.lib</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>
+      </Message>
+    </PreBuildEvent>
+    <Inf>
+      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
+    </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>wlh;Common;..\Virtio;$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_X86_=1;i386=1;STD_CALL;%(PreprocessorDefinitions);NDIS60_MINIPORT=1;NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=0x0600;DRIVER_NT_TARGET_VERSION=60;_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000000;DRIVER_NT_TARGET_VERSION=0x60</PreprocessorDefinitions>
+      <ForcedIncludeFiles>warning.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_X86_=1;i386=1;STD_CALL;%(PreprocessorDefinitions);PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);_RHEL_RELEASE_VERSION_=$(_RHEL_RELEASE_VERSION_);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(UM_IncludePath);%(AdditionalIncludeDirectories);Common</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib;$(DDK_LIB_PATH)ndis.lib</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>
+      </Message>
+    </PreBuildEvent>
+    <Inf>
+      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
+    </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>wlh;Common;..\Virtio;$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_ARM_;ARM;_USE_DECLSPECS_FOR_SAL=1;STD_CALL;%(PreprocessorDefinitions);NDIS60_MINIPORT=1;NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=0x0600;DRIVER_NT_TARGET_VERSION=60;_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000000;DRIVER_NT_TARGET_VERSION=0x60</PreprocessorDefinitions>
+      <ForcedIncludeFiles>warning.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_ARM_=1;ARM =1;_USE_DECLSPECS_FOR_SAL=1;STD_CALL;%(PreprocessorDefinitions);PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);_RHEL_RELEASE_VERSION_=$(_RHEL_RELEASE_VERSION_);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(UM_IncludePath);%(AdditionalIncludeDirectories);Common</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib;$(DDK_LIB_PATH)ndis.lib</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>
+      </Message>
+    </PreBuildEvent>
+    <Inf>
+      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
+    </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>wlh;Common;..\Virtio;$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_ARM_;ARM;_USE_DECLSPECS_FOR_SAL=1;STD_CALL;%(PreprocessorDefinitions);NDIS60_MINIPORT=1;NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=0x0600;DRIVER_NT_TARGET_VERSION=60;_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000000;DRIVER_NT_TARGET_VERSION=0x60</PreprocessorDefinitions>
+      <ForcedIncludeFiles>warning.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_ARM_=1;ARM =1;_USE_DECLSPECS_FOR_SAL=1;STD_CALL;%(PreprocessorDefinitions);PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);_RHEL_RELEASE_VERSION_=$(_RHEL_RELEASE_VERSION_);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(UM_IncludePath);%(AdditionalIncludeDirectories);Common</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib;$(DDK_LIB_PATH)ndis.lib</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>
+      </Message>
+    </PreBuildEvent>
+    <Inf>
+      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
+    </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>wlh;Common;..\Virtio;$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions);NDIS60_MINIPORT=1;NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=0x0600;DRIVER_NT_TARGET_VERSION=60;_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000000;DRIVER_NT_TARGET_VERSION=0x60</PreprocessorDefinitions>
+      <ForcedIncludeFiles>warning.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_WIN64;_AMD64_=1;AMD64;%(PreprocessorDefinitions);PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);_RHEL_RELEASE_VERSION_=$(_RHEL_RELEASE_VERSION_);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(UM_IncludePath);%(AdditionalIncludeDirectories);Common</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib;$(DDK_LIB_PATH)ndis.lib</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>
+      </Message>
+    </PreBuildEvent>
+    <Inf>
+      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
+    </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>wlh;Common;..\Virtio;$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions);NDIS60_MINIPORT=1;NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=0x0600;DRIVER_NT_TARGET_VERSION=60;_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000000;DRIVER_NT_TARGET_VERSION=0x60</PreprocessorDefinitions>
+      <ForcedIncludeFiles>warning.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_WIN64;_AMD64_=1;AMD64;%(PreprocessorDefinitions);PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);_RHEL_RELEASE_VERSION_=$(_RHEL_RELEASE_VERSION_);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(UM_IncludePath);%(AdditionalIncludeDirectories);Common</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib;$(DDK_LIB_PATH)ndis.lib</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>
+      </Message>
+    </PreBuildEvent>
+    <Inf>
+      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
+    </Inf>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <FilesToPackage Include="$(TargetPath)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\VirtIO\kdebugprint.h" />
+    <ClInclude Include="..\VirtIO\linux\types.h" />
+    <ClInclude Include="..\VirtIO\linux\virtio_ids.h" />
+    <ClInclude Include="..\VirtIO\linux\virtio_types.h" />
+    <ClInclude Include="..\VirtIO\osdep.h" />
+    <ClInclude Include="..\VirtIO\VirtIO.h" />
+    <ClInclude Include="..\VirtIO\virtio_config.h" />
+    <ClInclude Include="..\VirtIO\virtio_pci.h" />
+    <ClInclude Include="..\VirtIO\virtio_ring.h" />
+    <ClInclude Include="..\VirtIO\windows\virtio_ring_allocation.h" />
+    <ClInclude Include="Common\common.inf.h" />
+    <ClInclude Include="Common\DebugData.h" />
+    <ClInclude Include="Common\ethernetutils.h" />
+    <ClInclude Include="Common\ndis56common.h" />
+    <ClInclude Include="Common\osdep.h" />
+    <ClInclude Include="Common\ParaNdis-AbstractPath.h" />
+    <ClInclude Include="Common\ParaNdis-CX.h" />
+    <ClInclude Include="Common\ParaNdis-Oid.h" />
+    <ClInclude Include="Common\ParaNdis-RSS.h" />
+    <ClInclude Include="Common\ParaNdis-RX.h" />
+    <ClInclude Include="Common\ParaNdis-TX.h" />
+    <ClInclude Include="Common\ParaNdis-Util.h" />
+    <ClInclude Include="Common\ParaNdis-VirtQueue.h" />
+    <ClInclude Include="Common\ParaNdis_Debug.h" />
+    <ClInclude Include="Common\ParaNdis_DebugHistory.h" />
+    <ClInclude Include="Common\quverp.h" />
+    <ClInclude Include="Common\virtio_net.h" />
+    <ClInclude Include="wlh\ParaNdis6.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="wlh\Parandis6.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\VirtIO\VirtIOPCI.c" />
+    <ClCompile Include="..\VirtIO\VirtIORing.c" />
+    <ClCompile Include="Common\ParaNdis-AbstractPath.cpp" />
+    <ClCompile Include="Common\ParaNdis-Common.cpp" />
+    <ClCompile Include="Common\ParaNdis-CX.cpp" />
+    <ClCompile Include="Common\ParaNdis-Debug.cpp" />
+    <ClCompile Include="Common\ParaNdis-Oid.cpp" />
+    <ClCompile Include="Common\ParaNdis-RX.cpp" />
+    <ClCompile Include="Common\ParaNdis-TX.cpp" />
+    <ClCompile Include="Common\ParaNdis-Util.cpp" />
+    <ClCompile Include="Common\ParaNdis-VirtQueue.cpp" />
+    <ClCompile Include="Common\sw-offload.cpp" />
+    <ClCompile Include="wlh\ParaNdis6-Driver.cpp" />
+    <ClCompile Include="wlh\ParaNdis6-Impl.cpp" />
+    <ClCompile Include="wlh\ParaNdis6-Oid.cpp" />
+    <ClCompile Include="wlh\ParaNdis6-RSS.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="tools\cleanemptystrings.vbs" />
+    <None Include="tools\InstallCertificate.bat" />
+    <None Include="tools\make_inf.bat" />
+    <None Include="tools\NetKVMTemporaryCert.cer" />
+    <None Include="tools\NetKVMTemporaryCert.pfx" />
+    <None Include="tools\set_version.bat" />
+  </ItemGroup>
+  <ItemGroup>
+    <Inf Include="w10\netkvm.inf" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
