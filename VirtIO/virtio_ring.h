@@ -153,9 +153,12 @@ static inline void vring_init(struct vring *vr, unsigned int num, void *p,
 
 static inline unsigned vring_size(unsigned int num, unsigned long align)
 {
+#pragma warning (push)
+#pragma warning (disable:4319)
     return ((sizeof(struct vring_desc) * num + sizeof(__virtio16) * (3 + num)
         + align - 1) & ~(align - 1))
         + sizeof(__virtio16) * 3 + sizeof(struct vring_used_elem) * num;
+#pragma warning(pop)
 }
 
 /* The following is used with USED_EVENT_IDX and AVAIL_EVENT_IDX */
