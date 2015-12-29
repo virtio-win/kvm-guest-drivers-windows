@@ -6,6 +6,7 @@ SerialPort::SerialPort(wstring LinkName, PnPControl* ptr)
     Notify = NULL;
     NotificationPair.first = NULL;
     NotificationPair.second = NULL;
+    Reference = 0;
     Handle = CreateFile(Name.c_str(),
         GENERIC_WRITE | GENERIC_READ,
         0,
@@ -47,6 +48,14 @@ SerialPort::SerialPort(wstring LinkName, PnPControl* ptr)
 SerialPort::~SerialPort()
 {
     ClosePort();
+}
+void SerialPort::AddRef() {
+    InterlockedIncrement(&Reference);
+}
+void SerialPort::Release() {
+    if (InterlockedDecrement(&Reference) == 0) {
+      delete this;
+    }
 }
 BOOL SerialPort::OpenPort()
 {
