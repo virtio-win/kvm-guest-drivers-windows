@@ -374,17 +374,16 @@ PVOID PnPControl::OpenPortByName(const wchar_t* name)
 }
 PVOID PnPControl::OpenPortById(UINT id)
 {
-    if ((size_t)(id) > NumPorts())
-    {
-        return NULL;
-    }
     PVOID ret = NULL;
     EnterCriticalSection(&PortsCS);
-    Iterator it = Ports.begin();
-    advance(it, id);
-    if (((SerialPort*)(*it))->OpenPort() == TRUE)
+    if ((size_t)(id) < NumPorts())
     {
-        ret = *it;
+        Iterator it = Ports.begin();
+        advance(it, id);
+        if (((SerialPort*)(*it))->OpenPort() == TRUE)
+        {
+            ret = *it;
+        }
     }
     LeaveCriticalSection(&PortsCS);
     return ret;
@@ -433,14 +432,16 @@ VOID PnPControl::ClosePort(PVOID port)
 
 wchar_t* PnPControl::PortSymbolicName(int index)
 {
-    if ((size_t)(index) > NumPorts())
-    {
-        return NULL;
-    }
+    wchar_t* ret = NULL;
     EnterCriticalSection(&PortsCS);
-    Iterator it = Ports.begin();
-    advance(it, index);
-    return (wchar_t*)((*it)->SymbolicName.c_str());
+    if ((size_t)(index) < NumPorts())
+    {
+        Iterator it = Ports.begin();
+        advance(it, index);
+        ret = (wchar_t*)((*it)->SymbolicName.c_str());
+    }
+    LeaveCriticalSection(&PortsCS);
+    return ret;
 }
 
 VOID PnPControl::RegisterNotification(PVOID port, VIOSERIALNOTIFYCALLBACK pfn, PVOID ptr)
