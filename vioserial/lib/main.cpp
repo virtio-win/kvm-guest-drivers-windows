@@ -74,7 +74,7 @@ DLL_API VOID ClosePort ( PVOID port )
 DLL_API UINT NumPorts(void)
 {
     PnPControl* control = PnPControl::GetInstance();
-    UINT ret = control->NumPorts();
+    UINT ret = (UINT)control->NumPorts();
     PnPControl::CloseInstance();
     return ret;
 }
