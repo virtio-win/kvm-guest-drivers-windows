@@ -317,7 +317,9 @@ void PnPControl::AddPort(const wchar_t* name)
 {
     printf ("Add Port %ws\n", name);
     EnterCriticalSection(&PortsCS);
-    Ports.push_back(new SerialPort(name, this));
+    SerialPort* port = new SerialPort(name, this);
+    port->AddRef();
+    Ports.push_back(port);
     LeaveCriticalSection(&PortsCS);
 }
 
@@ -329,7 +331,7 @@ void PnPControl::RemovePort(wchar_t* name)
     {
         if (_wcsnicmp((*it)->Name.c_str(), name, (*it)->Name.size()) == 0)
         {
-            delete *it;
+            ((SerialPort*)(*it))->Release();
             Ports.remove(*it);
             break;
         }
@@ -362,9 +364,11 @@ PVOID PnPControl::OpenPortByName(const wchar_t* name)
     {
         if (_wcsnicmp((*it)->SymbolicName.c_str(), name, (*it)->Name.size()) == 0)
         {
-            if(((SerialPort*)(*it))->OpenPort() == TRUE)
+            SerialPort* port = (SerialPort*)(*it);
+            if (port->OpenPort() == TRUE)
             {
-                ret = *it;
+                port->AddRef();
+                ret = port;
                 break;
             }
         }
@@ -380,9 +384,11 @@ PVOID PnPControl::OpenPortById(UINT id)
     {
         Iterator it = Ports.begin();
         advance(it, id);
-        if (((SerialPort*)(*it))->OpenPort() == TRUE)
+        SerialPort* port = (SerialPort*)(*it);
+        if (port->OpenPort() == TRUE)
         {
-            ret = *it;
+            port->AddRef();
+            ret = port;
         }
     }
     LeaveCriticalSection(&PortsCS);
@@ -423,7 +429,9 @@ VOID PnPControl::ClosePort(PVOID port)
     {
         if (*it == port)
         {
-            ((SerialPort*)(*it))->ClosePort();
+            SerialPort* port = (SerialPort*)(*it);
+            port->ClosePort();
+            port->Release();
             break;
         }
     }

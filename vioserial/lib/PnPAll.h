@@ -143,9 +143,12 @@ private:
     BOOL GuestConnected;
     HDEVNOTIFY Notify;
     PnPControl* Control;
+    UINT Reference;
 public:
     SerialPort(wstring LinkName, PnPControl* ptr);
     virtual ~SerialPort();
+    void AddRef();
+    void Release();
     BOOL OpenPort();
     void ClosePort();
     BOOL ReadPort(PVOID buf, size_t *len);
