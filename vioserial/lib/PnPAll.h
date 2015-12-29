@@ -44,7 +44,8 @@ class PnPControl
         for(Iterator it = Controllers.begin(); it != Controllers.end(); it++)
             (*it)->handleEvent(*this);
     }
-    PnPControl() :  Thread(INVALID_HANDLE_VALUE), Notification(0, 0, 0)
+    PnPControl() :  Thread(INVALID_HANDLE_VALUE), Notification(0, 0, 0),
+      PortNotify(NULL), ControllerNotify(NULL)
     {
         IsRunningAsService();
         Init();
