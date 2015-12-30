@@ -816,35 +816,35 @@ VIOSerialPortDeviceControl(
                             "WdfRequestRetrieveInputBuffer failed 0x%x\n", status);
               break;
            }
-           if (pdoData->port->NameString.Buffer)
-           {
-              name_size = pdoData->port->NameString.MaximumLength;
-           }
-           if (length < sizeof (VIRTIO_PORT_INFO) + name_size)
-           {
-              status = STATUS_BUFFER_TOO_SMALL;
-              TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
-                            "Buffer too small. get = %d, expected = %d\n", length, sizeof (VIRTIO_PORT_INFO) + name_size);
-              break;
-           }
+
            RtlZeroMemory(pport_info, sizeof(VIRTIO_PORT_INFO));
            pport_info->Id = pdoData->port->PortId;
            pport_info->OutVqFull = pdoData->port->OutVqFull;
            pport_info->HostConnected = pdoData->port->HostConnected;
            pport_info->GuestConnected = pdoData->port->GuestConnected;
 
+           status = STATUS_SUCCESS;
            if (pdoData->port->NameString.Buffer)
            {
-              RtlZeroMemory(pport_info->Name, name_size);
-              status = RtlStringCbCopyA(pport_info->Name, name_size - 1, pdoData->port->NameString.Buffer);
-              if (!NT_SUCCESS(status))
+              name_size = pdoData->port->NameString.MaximumLength;
+              if (length < sizeof(VIRTIO_PORT_INFO) + name_size)
               {
-                 TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
-                            "RtlStringCbCopyA failed 0x%x\n", status);
-                 name_size = 0;
+                 status = STATUS_BUFFER_OVERFLOW;
+                 TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS,
+                               "Buffer too small. got = %d, expected = %d\n", length, sizeof (VIRTIO_PORT_INFO) + name_size);
+              }
+              else
+              {
+                 RtlZeroMemory(pport_info->Name, name_size);
+                 status = RtlStringCbCopyA(pport_info->Name, name_size - 1, pdoData->port->NameString.Buffer);
+                 if (!NT_SUCCESS(status))
+                 {
+                    TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
+                      "RtlStringCbCopyA failed 0x%x\n", status);
+                    name_size = 0;
+                 }
               }
            }
-           status = STATUS_SUCCESS;
            length =  sizeof (VIRTIO_PORT_INFO) + name_size;
            break;
         }
@@ -854,14 +854,7 @@ VIOSerialPortDeviceControl(
            break;
     }
 
-    if (NT_SUCCESS(status))
-    {
-      WdfRequestCompleteWithInformation(Request, status, length);
-    }
-    else
-    {
-      WdfRequestComplete(Request, status);
-    }
+    WdfRequestCompleteWithInformation(Request, status, length);
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 }
 
