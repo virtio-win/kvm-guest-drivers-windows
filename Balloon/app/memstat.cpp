@@ -93,6 +93,7 @@ BOOL CMemStat::Init()
 
 BOOL CMemStat::Update()
 {
+    SYSTEM_INFO sysinfo;
     MEMORYSTATUSEX statex = {sizeof(statex)};
     CComPtr< IEnumWbemClassObject > enumerator;
     CComPtr< IWbemClassObject > memory;
@@ -101,9 +102,11 @@ BOOL CMemStat::Update()
     HRESULT status  = S_OK;
     UINT idx = 0;
 
+    GetSystemInfo(&sysinfo);
+
     status = service->ExecQuery(
                              L"WQL",
-                             L"SELECT * FROM Win32_PerfFormattedData_PerfOS_Memory",
+                             L"SELECT * FROM Win32_PerfRawData_PerfOS_Memory",
                              WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
                              NULL,
                              &enumerator
@@ -139,7 +142,7 @@ BOOL CMemStat::Update()
             var_val.vt =  -1;
         }
         m_Stats[idx].tag = VIRTIO_BALLOON_S_SWAP_IN;
-        m_Stats[idx].val = (long)var_val;
+        m_Stats[idx].val = (__int64)var_val * sysinfo.dwPageSize;
         idx++;
 
         status = memory->Get( 
@@ -155,7 +158,7 @@ BOOL CMemStat::Update()
             var_val.vt =  -1;
         }
         m_Stats[idx].tag = VIRTIO_BALLOON_S_SWAP_OUT;
-        m_Stats[idx].val = (long)var_val;
+        m_Stats[idx].val = (__int64)var_val * sysinfo.dwPageSize;
         idx++;
 
         status = memory->Get( 
