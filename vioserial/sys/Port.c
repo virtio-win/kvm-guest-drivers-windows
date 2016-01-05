@@ -441,7 +441,7 @@ VIOSerialDeviceListCreatePdo(
                                  WdfIoQueueDispatchSequential);
 
         queueConfig.EvtIoRead   =  VIOSerialPortRead;
-        queueConfig.EvtIoStop   =  VIOSerialPortIoStop;
+        queueConfig.EvtIoStop   =  VIOSerialPortReadIoStop;
         status = WdfIoQueueCreate(hChild,
                                  &queueConfig,
                                  WDF_NO_OBJECT_ATTRIBUTES,
@@ -1275,9 +1275,9 @@ VIOSerialEvtChildListIdentificationDescriptionCleanup(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
 }
 
-VOID VIOSerialPortIoStop(IN WDFQUEUE Queue,
-                         IN WDFREQUEST Request,
-                         IN ULONG ActionFlags)
+VOID VIOSerialPortReadIoStop(IN WDFQUEUE Queue,
+                             IN WDFREQUEST Request,
+                             IN ULONG ActionFlags)
 {
     PRAWPDO_VIOSERIAL_PORT pdoData = RawPdoSerialPortGetData(
         WdfIoQueueGetDevice(Queue));
