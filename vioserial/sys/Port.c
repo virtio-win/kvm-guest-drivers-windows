@@ -470,6 +470,7 @@ VIOSerialDeviceListCreatePdo(
         WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchSequential);
         queueConfig.AllowZeroLengthRequests = WdfFalse;
         queueConfig.EvtIoWrite = VIOSerialPortWrite;
+        queueConfig.EvtIoStop = VIOSerialPortWriteIoStop;
 
         status = WdfIoQueueCreate(hChild, &queueConfig,
             WDF_NO_OBJECT_ATTRIBUTES, &pport->WriteQueue);
@@ -1300,6 +1301,34 @@ VOID VIOSerialPortReadIoStop(IN WDFQUEUE Queue,
         }
     }
     WdfSpinLockRelease(pport->InBufLock);
+}
+
+VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue,
+                              IN WDFREQUEST Request,
+                              IN ULONG ActionFlags)
+{
+   PRAWPDO_VIOSERIAL_PORT pdoData = RawPdoSerialPortGetData(
+      WdfIoQueueGetDevice(Queue));
+   PVIOSERIAL_PORT pport = pdoData->port;
+
+   TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+   WdfSpinLockAcquire(pport->OutVqLock);
+   if (ActionFlags & WdfRequestStopActionSuspend)
+   {
+      WdfRequestStopAcknowledge(Request, FALSE);
+   }
+   else if (ActionFlags & WdfRequestStopActionPurge)
+   {
+      if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
+      {
+         pport->PendingWriteRequest = NULL;
+         WdfRequestComplete(Request, STATUS_OBJECT_NO_LONGER_EXISTS);
+      }
+   }
+   WdfSpinLockRelease(pport->OutVqLock);
+
+   TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 }
 
 NTSTATUS VIOSerialPortEvtDeviceD0Entry(
