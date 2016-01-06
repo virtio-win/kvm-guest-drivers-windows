@@ -761,23 +761,19 @@ VIOSerialPortReadRequestCancel(
 
 VOID VIOSerialPortWriteRequestCancel(IN WDFREQUEST Request)
 {
-    BOOLEAN cancel = FALSE;
     PVIOSERIAL_PORT Port = RawPdoSerialPortGetData(
         WdfIoQueueGetDevice(WdfRequestGetIoQueue(Request)))->port;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s Request: 0x%p\n",
         __FUNCTION__, Request);
 
-    if (Port->PendingWriteRequest)
-    {
-        Port->PendingWriteRequest = NULL;
-        cancel = TRUE;
-    }
+    // synchronize with VIOSerialReclaimConsumedBuffers because the pending
+    // request is not guaranteed to be alive after we return from this callback
+    WdfSpinLockAcquire(Port->OutVqLock);
+    Port->PendingWriteRequest = NULL;
+    WdfSpinLockRelease(Port->OutVqLock);
 
-    if (cancel)
-    {
-        WdfRequestCompleteWithInformation(Request, STATUS_CANCELLED, 0L);
-    }
+    WdfRequestCompleteWithInformation(Request, STATUS_CANCELLED, 0L);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 }
