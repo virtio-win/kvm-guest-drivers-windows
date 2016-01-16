@@ -2642,7 +2642,7 @@ static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)
     uCast.header.entries = 1;
     NdisMoveMemory(uCast.addr, pContext->CurrentMacAddress, sizeof(uCast.addr));
     SendControlMessage(pContext, VIRTIO_NET_CTRL_MAC, VIRTIO_NET_CTRL_MAC_TABLE_SET,
-        &uCast, sizeof(uCast), &pContext->MulticastData, sizeof(pContext->MulticastData), 2);
+        &uCast, sizeof(uCast), &pContext->MulticastData,sizeof(pContext->MulticastData.nofMulticastEntries) + pContext->MulticastData.nofMulticastEntries * ETH_ALEN, 2);
 }
 
 static VOID SetSingleVlanFilter(PARANDIS_ADAPTER *pContext, ULONG vlanId, BOOLEAN bOn, int levelIfOK)
