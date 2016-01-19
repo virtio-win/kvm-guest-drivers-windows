@@ -568,14 +568,12 @@ VIOSerialPortRead(
     )
 {
     PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
+    PVIOSERIAL_PORT         pport = pdoData->port;
     size_t             length;
     NTSTATUS           status;
     PVOID              systemBuffer;
-    BOOLEAN            nonBlock;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "-->%s\n", __FUNCTION__);
-
-    nonBlock = ((WdfFileObjectGetFlags(WdfRequestGetFileObject(Request)) & FO_SYNCHRONOUS_IO) != FO_SYNCHRONOUS_IO);
 
     status = WdfRequestRetrieveOutputBuffer(Request, Length, &systemBuffer, &length);
     if (!NT_SUCCESS(status))
@@ -584,17 +582,17 @@ VIOSerialPortRead(
         return;
     }
 
-	WdfSpinLockAcquire(pdoData->port->InBufLock);
+	WdfSpinLockAcquire(pport->InBufLock);
 
-	if (!VIOSerialPortHasDataLocked(pdoData->port))
+	if (!VIOSerialPortHasDataLocked(pport))
     {
-        if (!pdoData->port->HostConnected)
+        if (!pport->HostConnected)
         {
            WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
         }
 		else
 		{
-			ASSERT (pdoData->port->PendingReadRequest == NULL);
+			ASSERT (pport->PendingReadRequest == NULL);
 			status = WdfRequestMarkCancelableEx(Request,
 				VIOSerialPortReadRequestCancel);
 			if (!NT_SUCCESS(status))
@@ -603,13 +601,13 @@ VIOSerialPortRead(
 			}
 			else
 			{
-				pdoData->port->PendingReadRequest = Request;
+				pport->PendingReadRequest = Request;
 			}
 		}
     }
     else
     {
-        length = (ULONG)VIOSerialFillReadBufLocked(pdoData->port, systemBuffer, length);
+        length = (ULONG)VIOSerialFillReadBufLocked(pport, systemBuffer, length);
         if (length)
         {
            WdfRequestCompleteWithInformation(Request, status, (ULONG_PTR)length);
@@ -619,10 +617,9 @@ VIOSerialPortRead(
            WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
         }
     }
-    WdfSpinLockRelease(pdoData->port->InBufLock);
+    WdfSpinLockRelease(pport->InBufLock);
 
 	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ,"<-- %s\n", __FUNCTION__);
-    return;
 }
 
 VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
