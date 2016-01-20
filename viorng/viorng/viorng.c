@@ -122,7 +122,9 @@ NTSTATUS VirtRngEvtDeviceAdd(IN WDFDRIVER Driver,
         return status;
     }
 
-    status = WdfSpinLockCreate(WDF_NO_OBJECT_ATTRIBUTES,
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    attributes.ParentObject = device;
+    status = WdfSpinLockCreate(&attributes,
         &context->VirtQueueLock);
 
     if (!NT_SUCCESS(status))
