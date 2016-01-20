@@ -32,12 +32,7 @@
 
 #include "osdep.h"
 
-#pragma warning(push)
-// nonstandard extension used : bit field types other than int
-#pragma warning(disable : 4214)
 #include "virtio_pci.h"
-#pragma warning(pop)
-
 #include "virtio_config.h"
 #include "virtio.h"
 
@@ -95,6 +90,5 @@ EVT_WDF_INTERRUPT_DPC VirtRngEvtInterruptDpc;
 EVT_WDF_INTERRUPT_ENABLE VirtRngEvtInterruptEnable;
 EVT_WDF_INTERRUPT_DISABLE VirtRngEvtInterruptDisable;
 
-EVT_WDF_IO_QUEUE_IO_INTERNAL_DEVICE_CONTROL VirtRngEvtIoInternalDeviceControl;
 EVT_WDF_IO_QUEUE_IO_READ VirtRngEvtIoRead;
 EVT_WDF_IO_QUEUE_IO_STOP VirtRngEvtIoStop;
