@@ -29,10 +29,8 @@
 #pragma alloc_text(PAGE, BalloonCloseWorkerThread)
 #endif
 
-#if (WINVER >= 0x0501)
 #define LOMEMEVENTNAME L"\\KernelObjects\\LowMemoryCondition"
 DECLARE_CONST_UNICODE_STRING(evLowMemString, LOMEMEVENTNAME);
-#endif // (WINVER >= 0x0501)
 
 
 NTSTATUS
@@ -407,9 +405,7 @@ BalloonEvtDeviceD0Entry(
     )
 {
     NTSTATUS            status = STATUS_SUCCESS;
-#if (WINVER >= 0x0501)
     PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
-#endif // (WINVER >= 0x0501)
 
     UNREFERENCED_PARAMETER(PreviousState);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
@@ -430,10 +426,8 @@ BalloonEvtDeviceD0Entry(
            "BalloonCreateWorkerThread failed with status 0x%08x\n", status);
     } 
 
-#if (WINVER >= 0x0501)
     devCtx->evLowMem = IoCreateNotificationEvent(
         (PUNICODE_STRING)&evLowMemString, &devCtx->hLowMem);
-#endif // (WINVER >= 0x0501)
 
     return status;
 }
@@ -444,9 +438,7 @@ BalloonEvtDeviceD0Exit(
     IN  WDF_POWER_DEVICE_STATE TargetState
     )
 {
-#if (WINVER >= 0x0501)
     PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
-#endif // (WINVER >= 0x0501)
 
     UNREFERENCED_PARAMETER(TargetState);
 
@@ -454,13 +446,11 @@ BalloonEvtDeviceD0Exit(
 
     PAGED_CODE();
 
-#if (WINVER >= 0x0501)
     if (devCtx->evLowMem)
     {
         ZwClose(devCtx->hLowMem);
         devCtx->evLowMem = NULL;
     }
-#endif // (WINVER >= 0x0501)
 
     BalloonTerm(Device);
 
@@ -662,16 +652,14 @@ BalloonRoutine(
     PDEVICE_CONTEXT                 devCtx = GetDeviceContext(Device);
 
     NTSTATUS            status = STATUS_SUCCESS;
-    LARGE_INTEGER       Timeout = {0};
     LONGLONG            diff;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Balloon thread started....\n");
 
     for (;;)
     {
-        Timeout.QuadPart = Int32x32To64(10000, -10000);
         status = KeWaitForSingleObject(&devCtx->WakeUpThread, Executive,
-                                       KernelMode, FALSE, &Timeout);
+                                       KernelMode, FALSE, NULL);
         if(STATUS_WAIT_0 == status)
         {
             if(devCtx->bShutDown)
