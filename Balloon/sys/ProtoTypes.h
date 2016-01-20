@@ -219,7 +219,6 @@ IsLowMemory(
     IN WDFOBJECT    WdfDevice
     )
 {
-#if (WINVER >= 0x0501)
     LARGE_INTEGER       TimeOut = {0};
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
 
@@ -232,7 +231,6 @@ IsLowMemory(
                                  FALSE,
                                  &TimeOut));
     }
-#endif // (WINVER >= 0x0501)
     return FALSE;
 }
 
