@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "NetKVM-VS2015", "NetKVM-VS2
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Vista Release|x64 = Vista Release|x64
+		Vista Release|x86 = Vista Release|x86
 		Win10 Debug|x64 = Win10 Debug|x64
 		Win10 Debug|x86 = Win10 Debug|x86
 		Win10 Release|x64 = Win10 Release|x64
@@ -19,6 +21,12 @@ Global
 		Win8.1 Release|x86 = Win8.1 Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.Vista Release|x64.ActiveCfg = Vista Release|x64
+		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.Vista Release|x64.Build.0 = Vista Release|x64
+		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.Vista Release|x64.Deploy.0 = Vista Release|x64
+		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.Vista Release|x86.ActiveCfg = Vista Release|Win32
+		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.Vista Release|x86.Build.0 = Vista Release|Win32
+		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.Vista Release|x86.Deploy.0 = Vista Release|Win32
 		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.Win10 Debug|x64.ActiveCfg = Win10 Debug|Win32
 		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.Win10 Debug|x64.Build.0 = Win10 Debug|Win32
 		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.Win10 Debug|x64.Deploy.0 = Win10 Debug|Win32

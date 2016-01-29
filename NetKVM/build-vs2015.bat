@@ -54,6 +54,9 @@ if %ERRORLEVEL% NEQ 0 goto :eof
 xcopy /S /I /Y NDIS5\Install\XP\amd64 Install\XP\amd64
 
 mkdir Install
+mkdir Install\Vista
+mkdir Install\Vista\x86
+mkdir Install\Vista\x64
 mkdir Install\Win7
 mkdir Install\Win7\x86
 mkdir Install\Win7\x64
@@ -66,6 +69,19 @@ mkdir Install\Win8.1\x64
 mkdir Install\Win10
 mkdir Install\Win10\x86
 mkdir Install\Win10\x64
+
+:: Copy Windows Vista binaries
+copy /y x86\VistaRelease\netkvm.pdb Install\Vista\x86\
+copy /y x86\VistaRelease\NetKVM-VS2015\netkvm.inf Install\Vista\x86\
+copy /y x86\VistaRelease\NetKVM-VS2015\netkvm.cat Install\Vista\x86\
+copy /y x86\VistaRelease\NetKVM-VS2015\netkvm.sys Install\Vista\x86\
+copy /y tools\NetKVMTemporaryCert.cer Install\Vista\x86\
+
+copy /y x64\VistaRelease\netkvm.pdb Install\Vista\x64\
+copy /y x64\VistaRelease\NetKVM-VS2015\netkvm.inf Install\Vista\x64\
+copy /y x64\VistaRelease\NetKVM-VS2015\netkvm.cat Install\Vista\x64\
+copy /y x64\VistaRelease\NetKVM-VS2015\netkvm.sys Install\Vista\x64\
+copy /y tools\NetKVMTemporaryCert.cer Install\Vista\x64\
 
 :: Copy Windows 7 binaries
 copy /y x86\Win7Release\netkvm.pdb Install\Win7\x86\
