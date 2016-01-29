@@ -45,6 +45,9 @@ mkdir Install\Win7\x64
 mkdir Install\Win8
 mkdir Install\Win8\x86
 mkdir Install\Win8\x64
+mkdir Install\Win8.1
+mkdir Install\Win8.1\x86
+mkdir Install\Win8.1\x64
 mkdir Install\Win10
 mkdir Install\Win10\x86
 mkdir Install\Win10\x64
@@ -74,6 +77,19 @@ copy /y x64\Win8Release\NetKVM-VS2015\netkvm.inf Install\Win8\x64\
 copy /y x64\Win8Release\NetKVM-VS2015\netkvm.cat Install\Win8\x64\
 copy /y x64\Win8Release\NetKVM-VS2015\netkvm.sys Install\Win8\x64\
 copy /y tools\NetKVMTemporaryCert.cer Install\Win8\x64\
+
+:: Copy Windows 8.1 binaries
+copy /y x86\Win8.1Release\netkvm.pdb Install\Win8.1\x86\
+copy /y x86\Win8.1Release\NetKVM-VS2015\netkvm.inf Install\Win8.1\x86\
+copy /y x86\Win8.1Release\NetKVM-VS2015\netkvm.cat Install\Win8.1\x86\
+copy /y x86\Win8.1Release\NetKVM-VS2015\netkvm.sys Install\Win8.1\x86\
+copy /y tools\NetKVMTemporaryCert.cer Install\Win8.1\x86\
+
+copy /y x64\Win8.1Release\netkvm.pdb Install\Win8.1\x64\
+copy /y x64\Win8.1Release\NetKVM-VS2015\netkvm.inf Install\Win8.1\x64\
+copy /y x64\Win8.1Release\NetKVM-VS2015\netkvm.cat Install\Win8.1\x64\
+copy /y x64\Win8.1Release\NetKVM-VS2015\netkvm.sys Install\Win8.1\x64\
+copy /y tools\NetKVMTemporaryCert.cer Install\Win8.1\x64\
 
 :: Copy Windows 10 binaries
 copy /y x86\Win10Release\netkvm.pdb Install\Win10\x86\
