@@ -1,3 +1,5 @@
+mkdir Install
+
 :: Build Windows 7
 setlocal
 call tools\set_version.bat
@@ -37,6 +39,19 @@ call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Win10 Release|
 endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
 
+:: XP
+pushd NDIS5
+call buildall.bat XP
+popd
+if %ERRORLEVEL% NEQ 0 goto :eof
+xcopy /S /I /Y NDIS5\Install\XP\x86 Install\XP\x86
+
+:: XP64
+pushd NDIS5
+call buildall.bat XP64
+popd
+if %ERRORLEVEL% NEQ 0 goto :eof
+xcopy /S /I /Y NDIS5\Install\XP\amd64 Install\XP\amd64
 
 mkdir Install
 mkdir Install\Win7
