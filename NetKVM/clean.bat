@@ -12,6 +12,7 @@ shift
 goto rmfiles
 
 :start
+call clean_dvl_log.cmd
 call :rmdir Install
 call :rmdir Install_Debug
 call :rmdir "NetKVM Package\VistaRelease"
@@ -29,7 +30,6 @@ del buildfre_*.log
 del buildchk_*.log
 del msbuild.log
 del netkvm.DVL.XML
-call clean_dvl_log.cmd
 
 pushd CoInstaller
 call clean.bat
