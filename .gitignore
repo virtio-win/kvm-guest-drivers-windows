@@ -14,6 +14,7 @@
 *.DVL.XML
 *2012-defines.h
 vioscsi/vioscsi-2012.h
+*.opendb
 *objchk_*
 *objfre_*
 *Win?Debug*
