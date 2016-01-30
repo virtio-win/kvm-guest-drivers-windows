@@ -180,3 +180,5 @@ copy /y x64\Win10Release\NetKVM-VS2015\netkvm.sys Install\Win10\amd64\
 copy /y tools\NetKVMTemporaryCert.cer Install\Win10\amd64\
 copy /y CoInstaller\Win10Release\x64\netkvmco.dll Install\Win10\amd64\
 copy /y CoInstaller\readme.doc Install\Win10\amd64\
+
+call create_dvl_log_vs2015.cmd
