@@ -30,6 +30,8 @@ del buildfre_*.log
 del buildchk_*.log
 del msbuild.log
 del netkvm.DVL.XML
+del SDV-default.xml
+del sdv-user.sdv
 
 pushd CoInstaller
 call clean.bat
