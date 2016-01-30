@@ -18,4 +18,8 @@ call :rmdir VistaRelease
 call :rmdir Win7Debug
 call :rmdir Win7Release
 call :rmdir Win8Debug
-call :rmdir Win8Release 
+call :rmdir Win8Release
+call :rmdir Win8.1Debug
+call :rmdir Win8.1Release
+call :rmdir Win10Release
+call :rmdir Win10Debug
