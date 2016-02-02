@@ -28,7 +28,6 @@ SOURCES=            \
         Driver.c    \
         Device.c    \
         Balloon.c   \
-        queue.c     \
         memstat.c   \
         utils.c 
 

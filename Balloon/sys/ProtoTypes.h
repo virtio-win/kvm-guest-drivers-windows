@@ -46,7 +46,8 @@ typedef struct {
 
 typedef struct _DEVICE_CONTEXT {
     WDFINTERRUPT            WdfInterrupt;
-    WDFREQUEST              PendingWriteRequest;
+    WDFWORKITEM             StatWorkItem;
+    LONG                    WorkCount;
     PUCHAR                  PortBase;
     ULONG                   PortCount;
     BOOLEAN                 PortMapped;
@@ -70,7 +71,6 @@ typedef struct _DEVICE_CONTEXT {
     KEVENT                  WakeUpThread;
     PKTHREAD                Thread;
     BOOLEAN                 bShutDown;
-    BOOLEAN                 HandleWriteRequest;
 
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
@@ -88,12 +88,11 @@ EVT_WDF_DEVICE_RELEASE_HARDWARE                BalloonEvtDeviceReleaseHardware;
 EVT_WDF_DEVICE_D0_ENTRY                        BalloonEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT                         BalloonEvtDeviceD0Exit;
 EVT_WDF_DEVICE_D0_EXIT_PRE_INTERRUPTS_DISABLED BalloonEvtDeviceD0ExitPreInterruptsDisabled;
-EVT_WDF_FILE_CLOSE                             BalloonEvtFileClose;
 EVT_WDF_INTERRUPT_ISR                          BalloonInterruptIsr;
 EVT_WDF_INTERRUPT_DPC                          BalloonInterruptDpc;
 EVT_WDF_INTERRUPT_ENABLE                       BalloonInterruptEnable;
 EVT_WDF_INTERRUPT_DISABLE                      BalloonInterruptDisable;
-
+EVT_WDF_WORKITEM                               StatWorkItemWorker;
 
 VOID
 BalloonInterruptDpc(
@@ -200,11 +199,6 @@ BalloonGetSize(
     );
 
 NTSTATUS
-BalloonQueueInitialize(
-    IN WDFDEVICE hDevice
-    );
-
-NTSTATUS
 BalloonCloseWorkerThread(
     IN WDFDEVICE  Device
     );
@@ -237,8 +231,8 @@ IsLowMemory(
 }
 
 NTSTATUS
-GatherKernelStats(
-    OUT BALLOON_STAT stats[VIRTIO_BALLOON_S_NR]
+StatInitializeWorkItem(
+    IN WDFDEVICE Device
     );
 
 #endif  // _PROTOTYPES_H_
