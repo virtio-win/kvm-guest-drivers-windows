@@ -1,0 +1,97 @@
+/**********************************************************************
+ * Copyright (c) 2016  Parallels IP Holdings GmbH
+ *
+ * File: memstat.c
+ *
+ * Author(s):
+ *   Alexey V. Kostyushko <aleksko@virtuozzo.com>
+ *
+ * Gathers memory statistics in kernel mode
+ *
+ * This work is licensed under the terms of the GNU GPL, version 2.  See
+ * the COPYING file in the top-level directory.
+ *
+ **********************************************************************/
+
+#include "precomp.h"
+#include "ntddkex.h"
+
+static __inline
+UINT64
+U32_2_S64(ULONG x)
+{
+    return ((UINT64)x);
+}
+
+static __inline
+VOID
+UpdateStat(PBALLOON_STAT stat, USHORT tag, UINT64 val)
+{
+    stat->tag = tag;
+    stat->val = val;
+}
+
+/*
+ * 32-bit page counters overflows at 16Tb.
+ * This applyes to PageReadCount, DirtyPageWriteCount and PageFaultCount.
+ * PageReadIoCount depends on workload and uses 64-256Kb in average, can be overflowed too.
+ *
+ * AvailablePages and NumberOfPhysicalPages are current values.
+ * Thus Windows implementation limit is 16Tb, but actual limit is lower, see
+ * https://msdn.microsoft.com/en-us/library/windows/desktop/aa366778(v=vs.85).aspx
+ * (4Tb max for Windows 2012 Datacenter Edition)
+ *
+ * We'll hardcoded PAGE_SHIFT to shl, instead of multiplication with basicInfo.PageSize.
+ */
+static BOOLEAN bBasicInfoWarning = FALSE;
+static BOOLEAN bPerfInfoWarning = FALSE;
+NTSTATUS GatherKernelStats(BALLOON_STAT stats[VIRTIO_BALLOON_S_NR])
+{
+    SYSTEM_BASIC_INFORMATION basicInfo;
+    SYSTEM_PERFORMANCE_INFORMATION perfInfo;
+    ULONG outLen = 0;
+    NTSTATUS ntStatus;
+    ULONG idx = 0;
+
+    RtlZeroMemory(&basicInfo,sizeof(basicInfo));
+    RtlZeroMemory(&perfInfo,sizeof(perfInfo));
+
+    ntStatus = ZwQuerySystemInformation(SystemBasicInformation, &basicInfo, sizeof(basicInfo), &outLen);
+    if(!NT_SUCCESS(ntStatus))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
+            "GatherKernelStats (SystemBasicInformation) failed 0x%08x (outLen=0x%x)\n", ntStatus, outLen);
+        return ntStatus;
+    }
+
+    if ((!bBasicInfoWarning)&&(outLen != sizeof(basicInfo))) {
+        bBasicInfoWarning = TRUE;
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
+            "GatherKernelStats (SystemBasicInformation) expected outLen=0x%08x returned with 0x%0x",
+            sizeof(basicInfo), outLen);
+    }
+
+    ntStatus = ZwQuerySystemInformation(SystemPerformanceInformation, &perfInfo, sizeof(perfInfo), &outLen);
+    if(!NT_SUCCESS(ntStatus))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
+            "GatherKernelStats (SystemPerformanceInformation) failed 0x%08x (outLen=0x%x)\n", ntStatus, outLen);
+        return ntStatus;
+    }
+
+    if ((!bPerfInfoWarning)&&(outLen != sizeof(perfInfo))) {
+        bPerfInfoWarning = TRUE;
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
+            "GatherKernelStats (SystemPerformanceInformation) expected outLen=0x%08x returned with 0x%0x",
+            sizeof(perfInfo), outLen);
+    }
+
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_SWAP_IN,  U32_2_S64(perfInfo.PageReadCount) << PAGE_SHIFT);
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_SWAP_OUT, U32_2_S64(perfInfo.DirtyPagesWriteCount) << PAGE_SHIFT);
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MAJFLT,   U32_2_S64(perfInfo.PageReadIoCount));
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MINFLT,   U32_2_S64(perfInfo.PageFaultCount));
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MEMFREE,  U32_2_S64(perfInfo.AvailablePages) << PAGE_SHIFT);
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MEMTOT,   U32_2_S64(basicInfo.NumberOfPhysicalPages) << PAGE_SHIFT);
+
+    return ntStatus;
+}
