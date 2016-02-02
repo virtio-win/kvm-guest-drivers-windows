@@ -36,6 +36,32 @@ UpdateStat(PBALLOON_STAT stat, USHORT tag, UINT64 val)
 }
 
 /*
+ * NB! Counters are supposed to be monotonically increasing.
+ * In case of multiple calls with the same value
+ * there will be no false overflow detection
+ */
+static __inline
+UINT64
+UpdateOverflowFreeCounter(PULARGE_INTEGER ofc, ULONG value)
+{
+    if (value < ofc->LowPart) {
+        ofc->HighPart++;
+    }
+    ofc->LowPart = value;
+    return ofc->QuadPart;
+}
+
+typedef enum _ULONG_COUNTER {
+    _PageReadCount = 0,
+    _DirtyPagesWriteCount,
+    _PageReadIoCount,
+    _PageFaultCount,
+    _LastCounter
+} ULONG_COUNTER;
+
+static ULARGE_INTEGER Counters[_LastCounter];
+
+/*
  * 32-bit page counters overflows at 16Tb.
  * This applyes to PageReadCount, DirtyPageWriteCount and PageFaultCount.
  * PageReadIoCount depends on workload and uses 64-256Kb in average, can be overflowed too.
@@ -90,12 +116,14 @@ NTSTATUS GatherKernelStats(BALLOON_STAT stats[VIRTIO_BALLOON_S_NR])
             sizeof(perfInfo), outLen);
     }
 
-    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_SWAP_IN,  U32_2_S64(perfInfo.PageReadCount) << PAGE_SHIFT);
-    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_SWAP_OUT, U32_2_S64(perfInfo.DirtyPagesWriteCount) << PAGE_SHIFT);
-    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MAJFLT,   U32_2_S64(perfInfo.PageReadIoCount));
-    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MINFLT,   U32_2_S64(perfInfo.PageFaultCount));
+    #define UpdateNoOverflow(x) UpdateOverflowFreeCounter(&Counters[_##x],perfInfo.##x)
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_SWAP_IN,  UpdateNoOverflow(PageReadCount) << PAGE_SHIFT);
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_SWAP_OUT, UpdateNoOverflow(DirtyPagesWriteCount) << PAGE_SHIFT);
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MAJFLT,   UpdateNoOverflow(PageReadIoCount));
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MINFLT,   UpdateNoOverflow(PageFaultCount));
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MEMFREE,  U32_2_S64(perfInfo.AvailablePages) << PAGE_SHIFT);
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MEMTOT,   U32_2_S64(basicInfo.NumberOfPhysicalPages) << PAGE_SHIFT);
+    #undef UpdateNoOverflow
 
     return ntStatus;
 }
@@ -107,6 +135,8 @@ NTSTATUS StatInitializeWorkItem(
     WDF_OBJECT_ATTRIBUTES   attributes;
     WDF_WORKITEM_CONFIG     workitemConfig;
     PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
+
+    RtlZeroMemory(Counters, sizeof(Counters));
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
     attributes.ParentObject = Device;
