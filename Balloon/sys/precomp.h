@@ -28,6 +28,6 @@
 #include "virtio_config.h"
 #include "virtio.h"
 
-#include "ProtoTypes.h"
 #include "public.h"
+#include "ProtoTypes.h"
 #include "trace.h"

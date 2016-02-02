@@ -124,6 +124,7 @@
     <Inf Include="balloon.inx" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ntddkex.h" />
     <ClInclude Include="precomp.h" />
     <ClInclude Include="ProtoTypes.h" />
     <ClInclude Include="public.h" />
@@ -136,6 +137,7 @@
     <ClCompile Include="balloon.c" />
     <ClCompile Include="Device.c" />
     <ClCompile Include="Driver.c" />
+    <ClCompile Include="memstat.c" />
     <ClCompile Include="queue.c" />
     <ClCompile Include="utils.c" />
   </ItemGroup>

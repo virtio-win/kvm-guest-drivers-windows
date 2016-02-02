@@ -74,12 +74,19 @@ BalloonIoWrite(
         Length = min(buffSize, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR);
 #if 0
         {
+            BALLOON_STAT stats[VIRTIO_BALLOON_S_NR];
+            NTSTATUS ntStatus = GatherKernelStats(stats);
             size_t i;
             PBALLOON_STAT stat = (PBALLOON_STAT)buffer;
             for (i = 0; i < Length / sizeof(BALLOON_STAT); ++i)
             {
                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS,
                     "tag = %d, val = %08I64X\n\n", stat[i].tag, stat[i].val);
+            }
+            for (i = 0; i < VIRTIO_BALLOON_S_NR; ++i)
+            {
+                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS,
+                    "st=%x newt = %d, newv = %08I64X \n\n", ntStatus, stats[i].tag, stats[i].val);
             }
         }
 #endif

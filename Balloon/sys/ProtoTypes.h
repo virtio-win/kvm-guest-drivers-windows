@@ -236,4 +236,9 @@ IsLowMemory(
     return FALSE;
 }
 
+NTSTATUS
+GatherKernelStats(
+    OUT BALLOON_STAT stats[VIRTIO_BALLOON_S_NR]
+    );
+
 #endif  // _PROTOTYPES_H_

@@ -29,6 +29,7 @@ SOURCES=            \
         Device.c    \
         Balloon.c   \
         queue.c     \
+        memstat.c   \
         utils.c 
 
 PRECOMPILED_INCLUDE=precomp.h
