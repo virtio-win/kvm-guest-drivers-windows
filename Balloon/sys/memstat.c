@@ -16,6 +16,10 @@
 #include "precomp.h"
 #include "ntddkex.h"
 
+#ifdef ALLOC_PRAGMA
+#pragma alloc_text (PAGE, StatInitializeWorkItem)
+#endif
+
 static __inline
 UINT64
 U32_2_S64(ULONG x)
@@ -94,4 +98,55 @@ NTSTATUS GatherKernelStats(BALLOON_STAT stats[VIRTIO_BALLOON_S_NR])
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MEMTOT,   U32_2_S64(basicInfo.NumberOfPhysicalPages) << PAGE_SHIFT);
 
     return ntStatus;
+}
+
+NTSTATUS StatInitializeWorkItem(
+    IN WDFDEVICE  Device
+    )
+{
+    WDF_OBJECT_ATTRIBUTES   attributes;
+    WDF_WORKITEM_CONFIG     workitemConfig;
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    attributes.ParentObject = Device;
+    WDF_WORKITEM_CONFIG_INIT(&workitemConfig, StatWorkItemWorker);
+    return WdfWorkItemCreate(&workitemConfig, &attributes, &devCtx->StatWorkItem);
+}
+
+/*
+ * Still use devCtx->MemStats cause it points to non-paged pool,
+ * for virtio/host that access stats via physical memory.
+ */
+VOID
+StatWorkItemWorker(
+    IN WDFWORKITEM  WorkItem
+    )
+{
+    WDFDEVICE       Device = WdfWorkItemGetParentObject(WorkItem);
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
+    NTSTATUS        status = STATUS_SUCCESS;
+
+    do
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS,
+            "StatWorkItemWorker Called! \n");
+        status = GatherKernelStats(devCtx->MemStats);
+        if (NT_SUCCESS(status))
+        {
+#if 0
+            size_t i;
+            for (i = 0; i < VIRTIO_BALLOON_S_NR; ++i)
+            {
+                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS,
+                    "st=%x tag = %d, value = %08I64X \n\n", status,
+                    devCtx->MemStats[i].tag, devCtx->MemStats[i].val);
+            }
+#endif
+        } else {
+            RtlFillMemory (devCtx->MemStats, sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
+        }
+        BalloonMemStats(Device);
+    } while(InterlockedDecrement(&devCtx->WorkCount));
+    return;
 }

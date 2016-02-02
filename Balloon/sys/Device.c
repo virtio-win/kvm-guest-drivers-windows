@@ -25,7 +25,6 @@
 #pragma alloc_text(PAGE, BalloonEvtDeviceD0Exit)
 #pragma alloc_text(PAGE, BalloonEvtDeviceD0ExitPreInterruptsDisabled)
 #pragma alloc_text(PAGE, BalloonDeviceAdd)
-#pragma alloc_text(PAGE, BalloonEvtFileClose)
 #pragma alloc_text(PAGE, BalloonCloseWorkerThread)
 #endif
 
@@ -42,7 +41,6 @@ BalloonDeviceAdd(
     WDFDEVICE                    device;
     PDEVICE_CONTEXT              devCtx = NULL;
     WDF_INTERRUPT_CONFIG         interruptConfig;
-    WDF_FILEOBJECT_CONFIG        fileConfig;
     WDF_OBJECT_ATTRIBUTES        attributes;
     WDF_PNPPOWER_EVENT_CALLBACKS pnpPowerCallbacks;
 
@@ -60,17 +58,6 @@ BalloonDeviceAdd(
     pnpPowerCallbacks.EvtDeviceD0ExitPreInterruptsDisabled = BalloonEvtDeviceD0ExitPreInterruptsDisabled;
 
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
-
-    WDF_FILEOBJECT_CONFIG_INIT(
-                            &fileConfig,
-                            WDF_NO_EVENT_CALLBACK,
-                            BalloonEvtFileClose,
-                            WDF_NO_EVENT_CALLBACK
-                            );
-
-    WdfDeviceInitSetFileObjectConfig(DeviceInit,
-                            &fileConfig,
-                            WDF_NO_OBJECT_ATTRIBUTES);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
     attributes.EvtCleanupCallback = BalloonEvtDeviceContextCleanup;
@@ -157,11 +144,11 @@ BalloonDeviceAdd(
                       FALSE
                       );
 
-    status = BalloonQueueInitialize(device);
+    status = StatInitializeWorkItem(device);
     if(!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-           "BalloonQueueInitialize failed with status 0x%08x\n", status);
+           "StatInitializeWorkItem failed with status 0x%08x\n", status);
         return status;
     }
 
@@ -198,6 +185,20 @@ BalloonEvtDeviceContextCleanup(
                    );
         devCtx->pfns_table = NULL;
     }
+
+    if (devCtx->StatWorkItem)
+    {
+        WdfWorkItemFlush(devCtx->StatWorkItem);
+        devCtx->StatWorkItem = NULL;
+    }
+
+    RtlFillMemory(devCtx->MemStats,
+        sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
+    if (devCtx->StatVirtQueue)
+    {
+        BalloonMemStats(Device);
+    }
+
     if(devCtx->MemStats)
     {
         ExFreePoolWithTag(
@@ -536,25 +537,22 @@ BalloonInterruptDpc(
     if (devCtx->StatVirtQueue &&
         virtqueue_get_buf(devCtx->StatVirtQueue, &len))
     {
-        WDFREQUEST request = devCtx->PendingWriteRequest;
-
-        devCtx->HandleWriteRequest = TRUE;
-
-        if ((request != NULL) &&
-            (WdfRequestUnmarkCancelable(request) != STATUS_CANCELLED))
+        /*
+         * According to MSDN 'Using Framework Work Items' article:
+         * Create one or more work items that your driver requeues as necessary.
+         * Subsequently, each time that the driver's EvtInterruptDpc callback
+         * function is called it must determine if the EvtWorkItem callback
+         * function has run. If the EvtWorkItem callback function has not run,
+         * the EvtInterruptDpc callback function does not call WdfWorkItemEnqueue,
+         * because the work item is still queued.
+         * A few drivers might need to call WdfWorkItemFlush to flush their work
+         * items from the work-item queue.
+         *
+         * For each dpc (i.e. interrupt) we'll push stats exactly that many times.
+         */
+        if (1==InterlockedIncrement(&devCtx->WorkCount))
         {
-            NTSTATUS status;
-            PVOID buffer;
-            size_t length = 0;
-
-            devCtx->PendingWriteRequest = NULL;
-
-            status = WdfRequestRetrieveInputBuffer(request, 0, &buffer, &length);
-            if (!NT_SUCCESS(status))
-            {
-                length = 0;
-            }
-            WdfRequestCompleteWithInformation(request, status, length);
+            WdfWorkItemEnqueue(devCtx->StatWorkItem);
         }
     }
 
@@ -597,27 +595,6 @@ BalloonInterruptDisable(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
-}
-
-VOID
-BalloonEvtFileClose (
-    IN WDFFILEOBJECT    FileObject
-    )
-{
-    PDEVICE_CONTEXT devCtx = GetDeviceContext(
-        WdfFileObjectGetDevice(FileObject));
-
-    PAGED_CODE();
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-> %s\n", __FUNCTION__);
-
-    RtlFillMemory(devCtx->MemStats,
-        sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
-
-    if (devCtx->StatVirtQueue)
-    {
-        BalloonMemStats(WdfFileObjectGetDevice(FileObject));
-    }
 }
 
 VOID
