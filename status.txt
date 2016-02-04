@@ -1,3 +1,20 @@
+Date    04 Feb 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm133
+
+Fixed bugs:
+
+
+BZ 1303510: [virtio-win] Change the copyright on all the Windows drivers to "2016" in virtio-win-prewhql build
+BZ 1122364: [vioserial] Complete pending write request on port removal
+BZ 1296099: [vioserial] Fix race in read cancellation logic
+BZ 1293249: [vioserial] Fix IOCTL_GET_INFORMATION,
+
+
+New Features:
+vioserial - add simple benchmarking tool
+balloon - fix memory statistics reporting
+
 Date    15 Dec 2015
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm132
