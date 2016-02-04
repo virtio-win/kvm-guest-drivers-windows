@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Red Hat, Inc.
+ * Copyright (C) 2015-2016 Red Hat, Inc.
  *
  * This software is licensed under the GNU General Public License,
  * version 2 (GPLv2) (see COPYING for details), subject to the following
@@ -40,7 +40,7 @@
 #undef  VER_PRODUCTMINORVERSION
 
 #undef  VER_LEGALCOPYRIGHT_STR
-#define VER_LEGALCOPYRIGHT_STR      "Copyright (C) 2015 Red Hat Inc."
+#define VER_LEGALCOPYRIGHT_STR      "Copyright (C) 2015-2016 Red Hat Inc."
 
 #undef  VER_COMPANYNAME_STR
 #define VER_COMPANYNAME_STR         "Red Hat Inc."
