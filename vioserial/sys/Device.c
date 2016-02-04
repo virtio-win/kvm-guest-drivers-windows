@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2010-2015  Red Hat, Inc.
+ * Copyright (c) 2010-2016  Red Hat, Inc.
  *
  * File: VIOSerialDevice.c
  *
