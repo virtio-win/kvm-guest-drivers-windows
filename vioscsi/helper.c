@@ -347,7 +347,7 @@ EXIT_FN();
 }
 
 VOID
-FORCEINLINE
+//FORCEINLINE
 VioScsiVQLock(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
@@ -390,7 +390,7 @@ EXIT_FN();
 }
 
 VOID
-FORCEINLINE
+//FORCEINLINE
 VioScsiVQUnlock(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
