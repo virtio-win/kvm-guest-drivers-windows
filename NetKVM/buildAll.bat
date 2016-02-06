@@ -1,17 +1,17 @@
 mkdir Install
 
 :: Build Windows Vista
-setlocal
-call tools\set_version.bat
-call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Vista Release|x86" /Out buildfre_win7_x86.log
-endlocal
-if %ERRORLEVEL% NEQ 0 goto :eof
+rem setlocal
+rem call tools\set_version.bat
+rem call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Vista Release|x86" /Out buildfre_win7_x86.log
+rem endlocal
+rem if %ERRORLEVEL% NEQ 0 goto :eof
 
-setlocal
-call tools\set_version.bat
-call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Vista Release|x64" /Out buildfre_win7_amd64.log
-endlocal
-if %ERRORLEVEL% NEQ 0 goto :eof
+rem setlocal
+rem call tools\set_version.bat
+rem call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Vista Release|x64" /Out buildfre_win7_amd64.log
+rem endlocal
+rem if %ERRORLEVEL% NEQ 0 goto :eof
 
 :: Build Windows 7
 setlocal
@@ -66,18 +66,18 @@ endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
 
 :: XP
-pushd NDIS5
-call buildall.bat XP
-popd
-if %ERRORLEVEL% NEQ 0 goto :eof
-xcopy /S /I /Y NDIS5\Install\XP\x86 Install\XP\x86
+rem pushd NDIS5
+rem call buildall.bat XP
+rem popd
+rem if %ERRORLEVEL% NEQ 0 goto :eof
+rem xcopy /S /I /Y NDIS5\Install\XP\x86 Install\XP\x86
 
 :: XP64
-pushd NDIS5
-call buildall.bat XP64
-popd
-if %ERRORLEVEL% NEQ 0 goto :eof
-xcopy /S /I /Y NDIS5\Install\XP\amd64 Install\XP\amd64
+rem pushd NDIS5
+rem call buildall.bat XP64
+rem popd
+rem if %ERRORLEVEL% NEQ 0 goto :eof
+rem xcopy /S /I /Y NDIS5\Install\XP\amd64 Install\XP\amd64
 
 mkdir Install
 mkdir Install\Vista
