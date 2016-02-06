@@ -161,7 +161,7 @@ ProcessQueue(
     );
 
 VOID
-FORCEINLINE
+//FORCEINLINE
 VioScsiVQLock(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
@@ -170,7 +170,7 @@ VioScsiVQLock(
     );
 
 VOID
-FORCEINLINE
+//FORCEINLINE
 VioScsiVQUnlock(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
@@ -179,7 +179,7 @@ VioScsiVQUnlock(
     );
 
 VOID
-FORCEINLINE
+//FORCEINLINE
 HandleResponse(
     IN PVOID DeviceExtension,
     IN PVirtIOSCSICmd cmd

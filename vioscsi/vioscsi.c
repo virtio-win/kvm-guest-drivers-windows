@@ -783,7 +783,7 @@ EXIT_FN();
 }
 
 VOID
-FORCEINLINE
+//FORCEINLINE
 HandleResponse(PVOID DeviceExtension, PVirtIOSCSICmd cmd) {
     PSRB_TYPE Srb = (PSRB_TYPE)(cmd->srb);
     PSRB_EXTENSION srbExt = SRB_EXTENSION(Srb);
