@@ -22,11 +22,11 @@
     <SignMode>TestSign</SignMode>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
-    <SignMode>TestSign</SignMode>
+    <SignMode>Off</SignMode>
     <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
-    <SignMode>TestSign</SignMode>
+    <SignMode>Off</SignMode>
     <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
     <EnableDeployment>False</EnableDeployment>
     <RemoveDriver>True</RemoveDriver>
@@ -43,13 +43,13 @@
     </ProductionCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-    <SignMode>TestSign</SignMode>
+    <SignMode>Off</SignMode>
     <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
     <TestCertificate>
     </TestCertificate>
-    <SignMode>Off</SignMode>
+    <SignMode>TestSign</SignMode>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
     <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
@@ -65,31 +65,31 @@
     <SignMode>TestSign</SignMode>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
-    <SignMode>TestSign</SignMode>
+    <SignMode>Off</SignMode>
     <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
-    <SignMode>TestSign</SignMode>
+    <SignMode>Off</SignMode>
     <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
     <ProductionCertificate>
     </ProductionCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-    <SignMode>TestSign</SignMode>
+    <SignMode>Off</SignMode>
     <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|Win32'">
     <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
-    <SignMode>TestSign</SignMode>
+    <SignMode>Off</SignMode>
     <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'">
     <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
-    <SignMode>TestSign</SignMode>
+    <SignMode>Off</SignMode>
     <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
   </PropertyGroup>
 </Project>

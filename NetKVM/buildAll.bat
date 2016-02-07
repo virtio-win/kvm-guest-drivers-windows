@@ -101,7 +101,7 @@ copy /y x86\VistaRelease\netkvm.pdb Install\Vista\x86\
 copy /y x86\VistaRelease\NetKVM-VS2015\netkvm.inf Install\Vista\x86\
 copy /y x86\VistaRelease\NetKVM-VS2015\netkvm.cat Install\Vista\x86\
 copy /y x86\VistaRelease\NetKVM-VS2015\netkvm.sys Install\Vista\x86\
-copy /y tools\NetKVMTemporaryCert.cer Install\Vista\x86\
+rem copy /y tools\NetKVMTemporaryCert.cer Install\Vista\x86\
 copy /y CoInstaller\VistaRelease\x86\netkvmco.dll Install\Vista\x86\
 copy /y CoInstaller\readme.doc Install\Vista\x86\
 
@@ -109,7 +109,7 @@ copy /y x64\VistaRelease\netkvm.pdb Install\Vista\amd64\
 copy /y x64\VistaRelease\NetKVM-VS2015\netkvm.inf Install\Vista\amd64\
 copy /y x64\VistaRelease\NetKVM-VS2015\netkvm.cat Install\Vista\amd64\
 copy /y x64\VistaRelease\NetKVM-VS2015\netkvm.sys Install\Vista\amd64\
-copy /y tools\NetKVMTemporaryCert.cer Install\Vista\amd64\
+rem copy /y tools\NetKVMTemporaryCert.cer Install\Vista\amd64\
 copy /y CoInstaller\VistaRelease\x64\netkvmco.dll Install\Vista\amd64\
 copy /y CoInstaller\readme.doc Install\Vista\amd64\
 
@@ -118,7 +118,7 @@ copy /y x86\Win7Release\netkvm.pdb Install\Win7\x86\
 copy /y x86\Win7Release\NetKVM-VS2015\netkvm.inf Install\Win7\x86\
 copy /y x86\Win7Release\NetKVM-VS2015\netkvm.cat Install\Win7\x86\
 copy /y x86\Win7Release\NetKVM-VS2015\netkvm.sys Install\Win7\x86\
-copy /y tools\NetKVMTemporaryCert.cer Install\Win7\x86\
+rem copy /y tools\NetKVMTemporaryCert.cer Install\Win7\x86\
 copy /y CoInstaller\Win7Release\x86\netkvmco.dll Install\Win7\x86\
 copy /y CoInstaller\readme.doc Install\Win7\x86\
 
@@ -126,7 +126,7 @@ copy /y x64\Win7Release\netkvm.pdb Install\Win7\amd64\
 copy /y x64\Win7Release\NetKVM-VS2015\netkvm.inf Install\Win7\amd64\
 copy /y x64\Win7Release\NetKVM-VS2015\netkvm.cat Install\Win7\amd64\
 copy /y x64\Win7Release\NetKVM-VS2015\netkvm.sys Install\Win7\amd64\
-copy /y tools\NetKVMTemporaryCert.cer Install\Win7\amd64\
+rem copy /y tools\NetKVMTemporaryCert.cer Install\Win7\amd64\
 copy /y CoInstaller\Win7Release\x64\netkvmco.dll Install\Win7\amd64\
 copy /y CoInstaller\readme.doc Install\Win7\amd64\
 
@@ -135,7 +135,7 @@ copy /y x86\Win8Release\netkvm.pdb Install\Win8\x86\
 copy /y x86\Win8Release\NetKVM-VS2015\netkvm.inf Install\Win8\x86\
 copy /y x86\Win8Release\NetKVM-VS2015\netkvm.cat Install\Win8\x86\
 copy /y x86\Win8Release\NetKVM-VS2015\netkvm.sys Install\Win8\x86\
-copy /y tools\NetKVMTemporaryCert.cer Install\Win8\x86\
+rem copy /y tools\NetKVMTemporaryCert.cer Install\Win8\x86\
 copy /y CoInstaller\Win8Release\x86\netkvmco.dll Install\Win8\x86\
 copy /y CoInstaller\readme.doc Install\Win8\x86\
 
@@ -143,7 +143,7 @@ copy /y x64\Win8Release\netkvm.pdb Install\Win8\amd64\
 copy /y x64\Win8Release\NetKVM-VS2015\netkvm.inf Install\Win8\amd64\
 copy /y x64\Win8Release\NetKVM-VS2015\netkvm.cat Install\Win8\amd64\
 copy /y x64\Win8Release\NetKVM-VS2015\netkvm.sys Install\Win8\amd64\
-copy /y tools\NetKVMTemporaryCert.cer Install\Win8\amd64\
+rem copy /y tools\NetKVMTemporaryCert.cer Install\Win8\amd64\
 copy /y CoInstaller\Win8Release\x64\netkvmco.dll Install\Win8\amd64\
 copy /y CoInstaller\readme.doc Install\Win8\amd64\
 
@@ -152,7 +152,7 @@ copy /y x86\Win8.1Release\netkvm.pdb Install\Win8.1\x86\
 copy /y x86\Win8.1Release\NetKVM-VS2015\netkvm.inf Install\Win8.1\x86\
 copy /y x86\Win8.1Release\NetKVM-VS2015\netkvm.cat Install\Win8.1\x86\
 copy /y x86\Win8.1Release\NetKVM-VS2015\netkvm.sys Install\Win8.1\x86\
-copy /y tools\NetKVMTemporaryCert.cer Install\Win8.1\x86\
+rem copy /y tools\NetKVMTemporaryCert.cer Install\Win8.1\x86\
 copy /y CoInstaller\Win8.1Release\x86\netkvmco.dll Install\Win8.1\x86\
 copy /y CoInstaller\readme.doc Install\Win8.1\x86\
 
@@ -160,7 +160,7 @@ copy /y x64\Win8.1Release\netkvm.pdb Install\Win8.1\amd64\
 copy /y x64\Win8.1Release\NetKVM-VS2015\netkvm.inf Install\Win8.1\amd64\
 copy /y x64\Win8.1Release\NetKVM-VS2015\netkvm.cat Install\Win8.1\amd64\
 copy /y x64\Win8.1Release\NetKVM-VS2015\netkvm.sys Install\Win8.1\amd64\
-copy /y tools\NetKVMTemporaryCert.cer Install\Win8.1\amd64\
+rem copy /y tools\NetKVMTemporaryCert.cer Install\Win8.1\amd64\
 copy /y CoInstaller\Win8.1Release\x64\netkvmco.dll Install\Win8.1\amd64\
 copy /y CoInstaller\readme.doc Install\Win8.1\amd64\
 
@@ -169,7 +169,7 @@ copy /y x86\Win10Release\netkvm.pdb Install\Win10\x86\
 copy /y x86\Win10Release\NetKVM-VS2015\netkvm.inf Install\Win10\x86\
 copy /y x86\Win10Release\NetKVM-VS2015\netkvm.cat Install\Win10\x86\
 copy /y x86\Win10Release\NetKVM-VS2015\netkvm.sys Install\Win10\x86\
-copy /y tools\NetKVMTemporaryCert.cer Install\Win10\x86\
+rem copy /y tools\NetKVMTemporaryCert.cer Install\Win10\x86\
 copy /y CoInstaller\Win10Release\x86\netkvmco.dll Install\Win10\x86\
 copy /y CoInstaller\readme.doc Install\Win10\x86\
 
@@ -177,7 +177,7 @@ copy /y x64\Win10Release\netkvm.pdb Install\Win10\amd64\
 copy /y x64\Win10Release\NetKVM-VS2015\netkvm.inf Install\Win10\amd64\
 copy /y x64\Win10Release\NetKVM-VS2015\netkvm.cat Install\Win10\amd64\
 copy /y x64\Win10Release\NetKVM-VS2015\netkvm.sys Install\Win10\amd64\
-copy /y tools\NetKVMTemporaryCert.cer Install\Win10\amd64\
+rem copy /y tools\NetKVMTemporaryCert.cer Install\Win10\amd64\
 copy /y CoInstaller\Win10Release\x64\netkvmco.dll Install\Win10\amd64\
 copy /y CoInstaller\readme.doc Install\Win10\amd64\
 
