@@ -240,6 +240,17 @@ typedef struct TypeVirtIODevice
     u8 *isr;
     u64 features;
 
+    /* virtio 1.0 specific fields begin */
+    struct virtio_pci_common_cfg *common;
+    unsigned char *device;
+    unsigned char *notify_base;
+    int notify_map_cap;
+    u32 notify_offset_multiplier;
+
+    size_t device_len;
+    size_t notify_len;
+    /* virtio 1.0 specific fields end */
+
     struct virtqueue *(*setup_vq)(struct TypeVirtIODevice *vp_dev,
                                   tVirtIOPerQueueInfo *info,
                                   unsigned idx,

@@ -24,6 +24,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="VirtIOPCIModern.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="VirtIOPCILegacy.c">
       <Filter>Source Files</Filter>
     </ClCompile>

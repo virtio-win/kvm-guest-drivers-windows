@@ -38,6 +38,9 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\VirtIO\VirtIOPCIModern.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\VirtIO\VirtIOPCILegacy.c">
       <Filter>Source Files</Filter>
     </ClCompile>

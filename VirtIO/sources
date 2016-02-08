@@ -7,6 +7,7 @@ MSC_WARNING_LEVEL=/W3 /WX
 INCLUDES=..\Kutils\CPUHypercall;..\Kutils\inc;..\Kutils\Kutils
 
 SOURCES=VirtIOPCILegacy.c  \
+        VirtIOPCIModern.c  \
         VirtIOPCICommon.c  \
         VirtIORing.c
         
