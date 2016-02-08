@@ -206,7 +206,28 @@ typedef struct _tVirtIOPerQueueInfo
     PHYSICAL_ADDRESS phys;
     /* owner per-queue context */
     void *pOwnerContext;
-}tVirtIOPerQueueInfo;
+} tVirtIOPerQueueInfo, virtio_pci_vq_info;
+
+typedef struct virtio_system_ops {
+    // memory management
+    void *(*alloc_contiguous_pages)(void *context, size_t size);
+    void (*free_contiguous_pages)(void *context, void *virt, size_t size);
+    ULONGLONG (*virt_to_phys)(void *context, void *address);
+    void *(*kmalloc)(void *context, size_t size);
+    void (*kfree)(void *context, void *addr);
+
+    // PCI config space access
+    int (*pci_read_config_byte)(void *context, int where, u8 *bVal);
+    int (*pci_read_config_word)(void *context, int where, u16 *wVal);
+    int (*pci_read_config_dword)(void *context, int where, u32 *dwVal);
+
+    // PCI resource handling
+    size_t (*pci_get_resource_len)(void *context, int bar);
+    u32 (*pci_get_resource_flags)(void *context, int bar);
+    u16 (*pci_get_msix_vector)(void *context, int queue);
+    void *(*pci_iomap_range)(void *context, int bar, size_t offset, size_t maxlen);
+    void (*pci_iounmap)(void *context, void *address);
+} VirtIOSystemOps;
 
 typedef struct TypeVirtIODevice
 {
@@ -214,7 +235,20 @@ typedef struct TypeVirtIODevice
     bool msix_used;
 
     const struct virtio_config_ops *config;
+    const struct virtio_system_ops *system;
+    void *DeviceContext;
+    u8 *isr;
     u64 features;
+
+    struct virtqueue *(*setup_vq)(struct TypeVirtIODevice *vp_dev,
+                                  tVirtIOPerQueueInfo *info,
+                                  unsigned idx,
+                                  void(*callback)(struct virtqueue *vq),
+                                  const char *name,
+                                  u16 msix_vec);
+    void(*del_vq)(virtio_pci_vq_info *info);
+
+    u16(*config_vector)(struct TypeVirtIODevice *vp_dev, u16 vector);
 
     ULONG maxQueues;
     tVirtIOPerQueueInfo info[MAX_QUEUES_PER_DEVICE_DEFAULT];
