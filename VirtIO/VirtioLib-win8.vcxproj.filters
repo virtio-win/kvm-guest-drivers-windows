@@ -24,6 +24,9 @@
     <ClCompile Include="VirtIOPCILegacy.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="VirtIOPCIModern.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="VirtIORing.c">
       <Filter>Source Files</Filter>
     </ClCompile>

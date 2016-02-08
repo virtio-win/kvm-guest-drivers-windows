@@ -75,4 +75,7 @@ int pci_find_next_capability(virtio_device *vdev, u8 pos, int cap);
 int virtio_pci_legacy_probe(virtio_pci_device *vp_dev);
 void virtio_pci_legacy_remove(virtio_pci_device *vp_dev);
 
+int virtio_pci_modern_probe(virtio_pci_device *vp_dev);
+void virtio_pci_modern_remove(virtio_pci_device *vp_dev);
+
 #endif

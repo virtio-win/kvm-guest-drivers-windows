@@ -60,6 +60,7 @@
   <ItemDefinitionGroup>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="VirtIOPCIModern.c" />
     <ClCompile Include="VirtIOPCILegacy.c" />
     <ClCompile Include="VirtIOPCICommon.c" />
     <ClCompile Include="VirtIORing.c" />

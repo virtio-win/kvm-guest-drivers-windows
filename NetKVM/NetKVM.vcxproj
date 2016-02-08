@@ -959,6 +959,7 @@
     <ClInclude Include="wlh\ParaNdis6.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\VirtIO\VirtIOPCIModern.c" />
     <ClCompile Include="..\VirtIO\VirtIOPCILegacy.c" />
     <ClCompile Include="..\VirtIO\VirtIOPCICommon.c" />
     <ClCompile Include="..\VirtIO\VirtIORing.c" />
