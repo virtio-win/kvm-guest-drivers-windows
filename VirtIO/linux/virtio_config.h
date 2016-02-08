@@ -44,10 +44,10 @@
 /* virtio library features bits */
 
 
-/* Some virtio feature bits (currently bits 28 through 32) are reserved for the
+/* Some virtio feature bits (currently bits 28 through 31) are reserved for the
  * transport being used (eg. virtio_ring), the rest are per-device feature
  * bits. */
-#define VIRTIO_TRANSPORT_F_START        28
+#define VIRTIO_TRANSPORT_F_START        22
 #define VIRTIO_TRANSPORT_F_END          33
 
 #ifndef VIRTIO_CONFIG_NO_LEGACY
