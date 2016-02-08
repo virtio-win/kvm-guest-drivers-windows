@@ -75,6 +75,9 @@
     <ClInclude Include="..\VirtIO\virtio_pci.h">
       <Filter>VirtIO</Filter>
     </ClInclude>
+    <ClInclude Include="..\VirtIO\virtio_pci_common.h">
+      <Filter>VirtIO</Filter>
+    </ClInclude>
     <ClInclude Include="..\VirtIO\virtio_ring.h">
       <Filter>VirtIO</Filter>
     </ClInclude>
@@ -111,6 +114,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\VirtIO\VirtIOPCILegacy.c">
+      <Filter>VirtIO</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VirtIO\VirtIOPCICommon.c">
       <Filter>VirtIO</Filter>
     </ClCompile>
     <ClCompile Include="..\VirtIO\VirtIORing.c">

@@ -937,6 +937,7 @@
     <ClInclude Include="..\VirtIO\virtio.h" />
     <ClInclude Include="..\VirtIO\virtio_config.h" />
     <ClInclude Include="..\VirtIO\virtio_pci.h" />
+    <ClInclude Include="..\VirtIO\virtio_pci_common.h" />
     <ClInclude Include="..\VirtIO\virtio_ring.h" />
     <ClInclude Include="Common\common.inf.h" />
     <ClInclude Include="Common\DebugData.h" />
@@ -959,6 +960,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\VirtIO\VirtIOPCILegacy.c" />
+    <ClCompile Include="..\VirtIO\VirtIOPCICommon.c" />
     <ClCompile Include="..\VirtIO\VirtIORing.c" />
     <ClCompile Include="Common\ParaNdis-AbstractPath.cpp" />
     <ClCompile Include="Common\ParaNdis-Common.cpp" />

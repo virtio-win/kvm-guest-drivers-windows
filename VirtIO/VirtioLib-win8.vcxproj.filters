@@ -27,6 +27,9 @@
     <ClCompile Include="VirtIORing.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="VirtIOPCICommon.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="kdebugprint.h">
@@ -64,6 +67,9 @@
     </ClInclude>
     <ClInclude Include="linux\virtio_byteorder.h">
       <Filter>Header Files\linux</Filter>
+    </ClInclude>
+    <ClInclude Include="virtio_pci_common.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

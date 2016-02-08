@@ -61,6 +61,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="VirtIOPCILegacy.c" />
+    <ClCompile Include="VirtIOPCICommon.c" />
     <ClCompile Include="VirtIORing.c" />
   </ItemGroup>
   <ItemGroup>
@@ -74,6 +75,7 @@
     <ClInclude Include="virtio_config.h" />
     <ClInclude Include="virtio_pci.h" />
     <ClInclude Include="virtio_ring.h" />
+    <ClInclude Include="virtio_pci_common.h" />
     <ClInclude Include="windows\virtio_ring_allocation.h" />
   </ItemGroup>
   <ItemGroup>

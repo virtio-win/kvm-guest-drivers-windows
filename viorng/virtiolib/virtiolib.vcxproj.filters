@@ -30,12 +30,18 @@
     <ClInclude Include="..\..\VirtIO\virtio_pci.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\VirtIO\virtio_pci_common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\VirtIO\virtio_ring.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\VirtIO\VirtIOPCILegacy.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\VirtIO\VirtIOPCICommon.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\VirtIO\VirtIORing.c">
