@@ -62,5 +62,8 @@
     <ClInclude Include="windows\virtio_ring_allocation.h">
       <Filter>Header Files\windows</Filter>
     </ClInclude>
+    <ClInclude Include="linux\virtio_byteorder.h">
+      <Filter>Header Files\linux</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
