@@ -35,7 +35,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\VirtIO\VirtIOPCI.c">
+    <ClCompile Include="..\..\VirtIO\VirtIOPCILegacy.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\VirtIO\VirtIORing.c">

@@ -59,7 +59,7 @@
     <ClInclude Include="..\..\VirtIO\virtio_ring.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\VirtIO\VirtIOPCI.c" />
+    <ClCompile Include="..\..\VirtIO\VirtIOPCILegacy.c" />
     <ClCompile Include="..\..\VirtIO\VirtIORing.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

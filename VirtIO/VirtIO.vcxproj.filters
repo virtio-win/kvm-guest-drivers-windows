@@ -24,7 +24,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="VirtIOPCI.c">
+    <ClCompile Include="VirtIOPCILegacy.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="VirtIORing.c">
