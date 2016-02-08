@@ -16,6 +16,12 @@
     <Filter Include="Build">
       <UniqueIdentifier>{2118a073-43d0-4c21-908f-2d1a01c30b63}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\linux">
+      <UniqueIdentifier>{09130a7d-e196-4108-a9e1-75753b1f7aa4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\windows">
+      <UniqueIdentifier>{0a45ce6d-eabb-45f0-84c1-b8dbee9fa8f9}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="VirtIOPCI.c">
@@ -40,6 +46,21 @@
     </ClInclude>
     <ClInclude Include="osdep.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="linux\types.h">
+      <Filter>Header Files\linux</Filter>
+    </ClInclude>
+    <ClInclude Include="linux\virtio_config.h">
+      <Filter>Header Files\linux</Filter>
+    </ClInclude>
+    <ClInclude Include="linux\virtio_ids.h">
+      <Filter>Header Files\linux</Filter>
+    </ClInclude>
+    <ClInclude Include="linux\virtio_types.h">
+      <Filter>Header Files\linux</Filter>
+    </ClInclude>
+    <ClInclude Include="windows\virtio_ring_allocation.h">
+      <Filter>Header Files\windows</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
