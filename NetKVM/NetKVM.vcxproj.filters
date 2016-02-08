@@ -116,6 +116,9 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\VirtIO\VirtIOPCIModern.c">
+      <Filter>VirtIO</Filter>
+    </ClCompile>
     <ClCompile Include="..\VirtIO\VirtIOPCILegacy.c">
       <Filter>VirtIO</Filter>
     </ClCompile>
