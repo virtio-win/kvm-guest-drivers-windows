@@ -27,6 +27,7 @@
     <ClInclude Include="linux\types.h" />
     <ClInclude Include="linux\virtio_ids.h" />
     <ClInclude Include="linux\virtio_types.h" />
+    <ClInclude Include="linux\virtio_config.h" />
     <ClInclude Include="osdep.h" />
     <ClInclude Include="virtio.h" />
     <ClInclude Include="virtio_config.h" />

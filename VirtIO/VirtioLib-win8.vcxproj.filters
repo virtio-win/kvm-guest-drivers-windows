@@ -56,6 +56,9 @@
     <ClInclude Include="linux\virtio_ids.h">
       <Filter>Header Files\linux</Filter>
     </ClInclude>
+    <ClInclude Include="linux\virtio_config.h">
+      <Filter>Header Files\linux</Filter>
+    </ClInclude>
     <ClInclude Include="windows\virtio_ring_allocation.h">
       <Filter>Header Files\windows</Filter>
     </ClInclude>
