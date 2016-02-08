@@ -6,6 +6,6 @@ TARGETPATH=obj
 MSC_WARNING_LEVEL=/W3 /WX
 INCLUDES=..\Kutils\CPUHypercall;..\Kutils\inc;..\Kutils\Kutils
 
-SOURCES=VirtIOPCI.c  \
+SOURCES=VirtIOPCILegacy.c  \
         VirtIORing.c
         

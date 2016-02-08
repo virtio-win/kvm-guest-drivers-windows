@@ -957,7 +957,7 @@
     <ClInclude Include="wlh\ParaNdis6.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\VirtIO\VirtIOPCI.c" />
+    <ClCompile Include="..\VirtIO\VirtIOPCILegacy.c" />
     <ClCompile Include="..\VirtIO\VirtIORing.c" />
     <ClCompile Include="Common\ParaNdis-AbstractPath.cpp" />
     <ClCompile Include="Common\ParaNdis-Common.cpp" />
