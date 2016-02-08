@@ -29,8 +29,16 @@
 #define unlikely(x) x
 
 #define ENOSPC 1
-#define BUG_ON(a)
+#define BUG_ON(a) ASSERT(!(a))
 #define WARN_ON(a)
+#define BUG() ASSERT(0)
+
+#if _MSC_VER >= 1600
+#define BUILD_BUG_ON(condition) \
+    static_assert(!(condition), "Compile-time assumption failed")
+#else
+#define BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))
+#endif
 
 #ifndef bool
 #define bool int
@@ -48,13 +56,62 @@
 #define wmb()  KeMemoryBarrier()
 #define smp_wmb() KeMemoryBarrier()
 
-#ifndef min
-#define min(_a, _b) (((_a) < (_b)) ? (_a) : (_b))
-#endif
+#define ENOENT           2      /* No such file or directory */
+#define ENOMEM          12      /* Out of Memory */
+#define EBUSY           16      /* Device or resource busy */
+#define ENODEV          19      /* No such device */
+#define EINVAL          22      /* Invalid argument */
+#define MAX_ERRNO       4095
 
-#ifndef max
-#define max(_a, _b) (((_a) > (_b)) ? (_a) : (_b))
-#endif
+#define BIT_ULL(nr) (1ULL << (nr))
+
+#define IS_ERR_VALUE(x) unlikely((x) >= (ULONG_PTR)-MAX_ERRNO)
+
+inline void *ERR_PTR(LONG_PTR error)
+{
+    return (void *)error;
+}
+inline LONG_PTR PTR_ERR(const void *ptr)
+{
+    return (LONG_PTR)ptr;
+}
+inline LONG_PTR IS_ERR(const void *ptr)
+{
+    return IS_ERR_VALUE((ULONG_PTR)ptr);
+}
+
+#define __force
+#define __iomem
+
+/* the Windows PAGE_ALIGN macro rounds down */
+#undef PAGE_ALIGN
+#define PAGE_ALIGN(addr) ROUND_TO_PAGES(addr)
+
+#define SMP_CACHE_BYTES 64
+#define __LITTLE_ENDIAN
+
+#define cpu_to_le16(x) (x)
+#define cpu_to_le32(x) (x)
+#define le16_to_cpu(x) (x)
+#define le32_to_cpu(x) (x)
+
+#define PCI_CAP_ID_VNDR PCI_CAPABILITY_ID_VENDOR_SPECIFIC
+#define IORESOURCE_IO           0x00000100      /* PCI/ISA I/O ports */
+#define IORESOURCE_MEM          0x00000200
+
+/* memory allocation flags */
+#define ___GFP_ZERO             0x8000u
+#define ___GFP_NOWARN           0x200u
+
+#define __GFP_NOWARN  ((__force gfp_t)___GFP_NOWARN)
+#define __GFP_ZERO    ((__force gfp_t)___GFP_ZERO)
+
+typedef enum {
+    GFP_KERNEL,
+    GFP_ATOMIC,
+    __GFP_HIGHMEM,
+    __GFP_HIGH
+} gfp_t;
 
 #endif
 #endif
