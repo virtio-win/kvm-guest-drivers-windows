@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="VirtIOPCI.c" />
+    <ClCompile Include="VirtIOPCILegacy.c" />
     <ClCompile Include="VirtIORing.c" />
   </ItemGroup>
   <ItemGroup>
