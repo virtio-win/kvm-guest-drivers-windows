@@ -44,7 +44,6 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <SignMode>Off</SignMode>
-    <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
     <TestCertificate>
@@ -57,8 +56,6 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <SignMode>Off</SignMode>
-    <TestCertificate>
-    </TestCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
     <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
@@ -66,30 +63,23 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <SignMode>Off</SignMode>
-    <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <SignMode>Off</SignMode>
-    <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
-    <ProductionCertificate>
-    </ProductionCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <SignMode>Off</SignMode>
-    <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|Win32'">
     <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
     <SignMode>Off</SignMode>
-    <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'">
     <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <SignMode>Off</SignMode>
-    <TestCertificate>$(SolutionDir)Tools\NetKVMTemporaryCert.pfx</TestCertificate>
   </PropertyGroup>
 </Project>
