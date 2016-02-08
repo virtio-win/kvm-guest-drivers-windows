@@ -455,9 +455,10 @@ void virtqueue_shutdown(struct virtqueue *_vq)
     bool event = vq->event;
     void (*notify)(struct virtqueue *) = vq->notify;
     const char* name = vq->vq.name;
+    unsigned int vring_align = vdev->addr ? PAGE_SIZE : SMP_CACHE_BYTES;
 
-    memset(pages, 0, vring_size(num,PAGE_SIZE));
-    initialize_virtqueue(vq, index, num, PAGE_SIZE, vdev, event, pages, notify, name);
+    memset(pages, 0, vring_size(num, vring_align));
+    initialize_virtqueue(vq, index, num, vring_align, vdev, event, pages, notify, name);
 }
 
 /**
@@ -683,6 +684,26 @@ unsigned int vring_control_block_size()
     return sizeof(struct vring_virtqueue);
 }
 
+/* Manipulates transport-specific feature bits. */
+void vring_transport_features(virtio_device *vdev)
+{
+    unsigned int i;
+
+    for (i = VIRTIO_TRANSPORT_F_START; i < VIRTIO_TRANSPORT_F_END; i++) {
+        switch (i) {
+        case VIRTIO_RING_F_INDIRECT_DESC:
+            break;
+        case VIRTIO_RING_F_EVENT_IDX:
+            break;
+        case VIRTIO_F_VERSION_1:
+            break;
+        default:
+            /* We don't understand this bit. */
+            __virtio_clear_bit(vdev, i);
+        }
+    }
+}
+
 /**
  * virtqueue_get_vring_size - return the size of the virtqueue's vring
  * @vq: the struct virtqueue containing the vring of interest.
@@ -696,4 +717,18 @@ unsigned int virtqueue_get_vring_size(struct virtqueue *_vq)
     struct vring_virtqueue *vq = to_vvq(_vq);
 
     return vq->vring.num;
+}
+
+void *virtqueue_get_avail(struct virtqueue *_vq)
+{
+    struct vring_virtqueue *vq = to_vvq(_vq);
+
+    return vq->vring.avail;
+}
+
+void *virtqueue_get_used(struct virtqueue *_vq)
+{
+    struct vring_virtqueue *vq = to_vvq(_vq);
+
+    return vq->vring.used;
 }
