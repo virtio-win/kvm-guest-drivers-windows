@@ -212,6 +212,10 @@ typedef struct TypeVirtIODevice
 {
     ULONG_PTR addr;
     bool msix_used;
+
+    const struct virtio_config_ops *config;
+    u64 features;
+
     ULONG maxQueues;
     tVirtIOPerQueueInfo info[MAX_QUEUES_PER_DEVICE_DEFAULT];
     /* do not add any members after info struct, it is extensible */
