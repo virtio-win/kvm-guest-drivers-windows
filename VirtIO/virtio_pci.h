@@ -337,6 +337,15 @@ void VirtIODeviceRenewQueue(struct virtqueue *vq);
 
 unsigned long VirtIODeviceIndirectPageCapacity();
 
+int virtio_device_initialize(VirtIODevice *pVirtIODevice,
+                             const VirtIOSystemOps *pSystemOps,
+                             PVOID DeviceContext,
+                             ULONG allocatedSize);
+void virtio_device_shutdown(VirtIODevice *pVirtIODevice);
+
+int virtio_finalize_features(VirtIODevice *vdev);
+u8 virtio_read_isr_status(VirtIODevice *vdev);
+
 /////////////////////////////////////////////////////////////////////////////////////
 //
 // IO space read\write functions

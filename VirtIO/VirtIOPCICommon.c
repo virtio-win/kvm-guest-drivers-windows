@@ -21,6 +21,7 @@
 #include "VirtIO_PCI.h"
 #include "virtio.h"
 #include "virtio_config.h"
+#include "kdebugprint.h"
 #include <stddef.h>
 
 #include "virtio_pci_common.h"
@@ -210,4 +211,76 @@ error_find:
 u8 virtio_read_isr_status(VirtIODevice *vdev)
 {
     return ioread8(vdev->isr);
+}
+
+static void add_status(virtio_device *dev, unsigned status)
+{
+    dev->config->set_status(dev, (u8)(dev->config->get_status(dev) | status));
+}
+
+static void register_virtio_device(virtio_device *dev)
+{
+    /* We always start by resetting the device, in case a previous
+     * driver messed it up.  This also tests that code path a little. */
+    dev->config->reset(dev);
+
+    /* Acknowledge that we've seen the device. */
+    add_status(dev, VIRTIO_CONFIG_S_ACKNOWLEDGE);
+}
+
+int virtio_finalize_features(VirtIODevice *dev)
+{
+    unsigned status;
+    int ret = dev->config->finalize_features(dev);
+
+    if (ret)
+        return ret;
+
+    if (!virtio_has_feature(dev, VIRTIO_F_VERSION_1))
+        return 0;
+
+    add_status(dev, VIRTIO_CONFIG_S_FEATURES_OK);
+    status = dev->config->get_status(dev);
+    if (!(status & VIRTIO_CONFIG_S_FEATURES_OK)) {
+        DPrintf(0, ("virtio: device refuses features: %x\n", status));
+        return -ENODEV;
+    }
+    return 0;
+}
+
+int virtio_device_initialize(VirtIODevice *pVirtIODevice,
+                             const VirtIOSystemOps *pSystemOps,
+                             PVOID DeviceContext,
+                             ULONG allocatedSize)
+{
+    int err;
+
+    memset(pVirtIODevice, 0, allocatedSize);
+    pVirtIODevice->DeviceContext = DeviceContext;
+    pVirtIODevice->system = pSystemOps;
+
+    ASSERT(allocatedSize > offsetof(VirtIODevice, info));
+    pVirtIODevice->maxQueues =
+        (allocatedSize - offsetof(VirtIODevice, info)) / sizeof(tVirtIOPerQueueInfo);
+
+    err = virtio_pci_modern_probe(pVirtIODevice);
+    if (err == -ENODEV) {
+        /* legacy virtio device */
+        err = virtio_pci_legacy_probe(pVirtIODevice);
+    }
+    if (!err) {
+        register_virtio_device(pVirtIODevice);
+    }
+
+    return err;
+}
+
+void virtio_device_shutdown(VirtIODevice *pVirtIODevice)
+{
+    if (pVirtIODevice->addr) {
+        virtio_pci_legacy_remove(pVirtIODevice);
+    }
+    else {
+        virtio_pci_modern_remove(pVirtIODevice);
+    }
 }
