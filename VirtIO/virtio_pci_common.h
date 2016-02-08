@@ -72,4 +72,7 @@ int vp_find_vqs(virtio_device *vdev, unsigned nvqs,
 int pci_find_capability(virtio_device *vdev, int cap);
 int pci_find_next_capability(virtio_device *vdev, u8 pos, int cap);
 
+int virtio_pci_legacy_probe(virtio_pci_device *vp_dev);
+void virtio_pci_legacy_remove(virtio_pci_device *vp_dev);
+
 #endif
