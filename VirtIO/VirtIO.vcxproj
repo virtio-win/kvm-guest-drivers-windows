@@ -65,10 +65,15 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="kdebugprint.h" />
+    <ClInclude Include="linux\types.h" />
+    <ClInclude Include="linux\virtio_config.h" />
+    <ClInclude Include="linux\virtio_ids.h" />
+    <ClInclude Include="linux\virtio_types.h" />
     <ClInclude Include="osdep.h" />
     <ClInclude Include="virtio_config.h" />
     <ClInclude Include="virtio_pci.h" />
     <ClInclude Include="virtio_ring.h" />
+    <ClInclude Include="windows\virtio_ring_allocation.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="buildAll.bat" />
