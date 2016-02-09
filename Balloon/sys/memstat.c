@@ -54,6 +54,7 @@ UpdateOverflowFreeCounter(PULARGE_INTEGER ofc, ULONG value)
 typedef enum _ULONG_COUNTER {
     _PageReadCount = 0,
     _DirtyPagesWriteCount,
+    _MappedPagesWriteCount,
     _PageReadIoCount,
     _PageFaultCount,
     _LastCounter
@@ -118,7 +119,8 @@ NTSTATUS GatherKernelStats(BALLOON_STAT stats[VIRTIO_BALLOON_S_NR])
 
     #define UpdateNoOverflow(x) UpdateOverflowFreeCounter(&Counters[_##x],perfInfo.##x)
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_SWAP_IN,  UpdateNoOverflow(PageReadCount) << PAGE_SHIFT);
-    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_SWAP_OUT, UpdateNoOverflow(DirtyPagesWriteCount) << PAGE_SHIFT);
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_SWAP_OUT,
+        (UpdateNoOverflow(DirtyPagesWriteCount) + UpdateNoOverflow(MappedPagesWriteCount)) << PAGE_SHIFT);
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MAJFLT,   UpdateNoOverflow(PageReadIoCount));
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MINFLT,   UpdateNoOverflow(PageFaultCount));
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MEMFREE,  U32_2_S64(perfInfo.AvailablePages) << PAGE_SHIFT);
