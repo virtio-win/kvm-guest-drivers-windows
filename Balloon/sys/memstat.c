@@ -55,8 +55,10 @@ typedef enum _ULONG_COUNTER {
     _PageReadCount = 0,
     _DirtyPagesWriteCount,
     _MappedPagesWriteCount,
-    _PageReadIoCount,
-    _PageFaultCount,
+    _CopyOnWriteCount,
+    _TransitionCount,
+    _CacheTransitionCount,
+    _DemandZeroCount,
     _LastCounter
 } ULONG_COUNTER;
 
@@ -83,6 +85,7 @@ NTSTATUS GatherKernelStats(BALLOON_STAT stats[VIRTIO_BALLOON_S_NR])
     ULONG outLen = 0;
     NTSTATUS ntStatus;
     ULONG idx = 0;
+    UINT64 SoftFaults;
 
     RtlZeroMemory(&basicInfo,sizeof(basicInfo));
     RtlZeroMemory(&perfInfo,sizeof(perfInfo));
@@ -121,8 +124,10 @@ NTSTATUS GatherKernelStats(BALLOON_STAT stats[VIRTIO_BALLOON_S_NR])
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_SWAP_IN,  UpdateNoOverflow(PageReadCount) << PAGE_SHIFT);
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_SWAP_OUT,
         (UpdateNoOverflow(DirtyPagesWriteCount) + UpdateNoOverflow(MappedPagesWriteCount)) << PAGE_SHIFT);
-    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MAJFLT,   UpdateNoOverflow(PageReadIoCount));
-    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MINFLT,   UpdateNoOverflow(PageFaultCount));
+    SoftFaults = UpdateNoOverflow(CopyOnWriteCount) + UpdateNoOverflow(TransitionCount) +
+                 UpdateNoOverflow(CacheTransitionCount) + UpdateNoOverflow(DemandZeroCount);
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MAJFLT,   UpdateNoOverflow(PageReadCount));
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MINFLT,   SoftFaults);
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MEMFREE,  U32_2_S64(perfInfo.AvailablePages) << PAGE_SHIFT);
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MEMTOT,   U32_2_S64(basicInfo.NumberOfPhysicalPages) << PAGE_SHIFT);
     #undef UpdateNoOverflow
