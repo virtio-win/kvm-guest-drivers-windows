@@ -21,10 +21,6 @@ for /D %%D IN (objchk_*) do call call :rmdir %%D
 for /D %%D IN (objfre_*) do call call :rmdir %%D
 popd
 
-pushd virtiolib
-call :cleandir
-popd
-
 pushd "VirtRNG Package"
 call :cleandir
 popd
