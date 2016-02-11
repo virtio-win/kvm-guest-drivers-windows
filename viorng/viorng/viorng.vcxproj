@@ -186,51 +186,51 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">$(OutDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">..\..\VirtIO\objchk_wlh_x86\i386</AdditionalLibraryDirectories>
     </Link>
     <Link>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">$(OutDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">..\..\VirtIO\objfre_wlh_x86\i386</AdditionalLibraryDirectories>
     </Link>
     <Link>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">$(OutDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">..\..\VirtIO\objchk_win7_x86\i386</AdditionalLibraryDirectories>
     </Link>
     <Link>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">$(OutDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">..\..\VirtIO\objfre_win7_x86\i386</AdditionalLibraryDirectories>
     </Link>
     <Link>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">virtiolib.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">$(OutDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">..\..\VirtIO\objchk_win8_x86\i386</AdditionalLibraryDirectories>
     </Link>
     <Link>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">virtiolib.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">$(OutDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">..\..\VirtIO\objfre_win8_x86\i386</AdditionalLibraryDirectories>
     </Link>
     <Link>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">virtiolib.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">$(OutDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">..\..\VirtIO\objchk_wlh_amd64\amd64</AdditionalLibraryDirectories>
     </Link>
     <Link>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">virtiolib.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">$(OutDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">..\..\VirtIO\objfre_wlh_amd64\amd64</AdditionalLibraryDirectories>
     </Link>
     <Link>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">virtiolib.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">$(OutDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">..\..\VirtIO\objchk_win7_amd64\amd64</AdditionalLibraryDirectories>
     </Link>
     <Link>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">virtiolib.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">$(OutDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">..\..\VirtIO\objfre_win7_amd64\amd64</AdditionalLibraryDirectories>
     </Link>
     <Link>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">virtiolib.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">$(OutDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">..\..\VirtIO\objchk_win8_amd64\amd64</AdditionalLibraryDirectories>
     </Link>
     <Link>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">virtiolib.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">$(OutDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">..\..\VirtIO\objfre_win8_amd64\amd64</AdditionalLibraryDirectories>
     </Link>
     <Inf>
       <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">$(STAMPINF_VERSION)</TimeStamp>
