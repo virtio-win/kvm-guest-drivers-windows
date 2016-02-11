@@ -12,7 +12,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viorng", "viorng\viorng.vcx
 		{5B7EA7DB-A573-48E0-86A0-70E044F78869} = {5B7EA7DB-A573-48E0-86A0-70E044F78869}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "virtiolib", "virtiolib\virtiolib.vcxproj", "{01D87C47-437A-4A16-8FD9-33FA5C99339E}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "virtiolib", "..\VirtIO\VirtioLib.vcxproj", "{01D87C47-437A-4A16-8FD9-33FA5C99339E}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viorngum", "cng\um\viorngum.vcxproj", "{E81CB0C6-F255-4A79-B972-8E49D15D957E}"
 EndProject
