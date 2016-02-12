@@ -64,7 +64,8 @@ if "%DDKENV%"=="Win32" set DDKENV=x86
 call bin\setenv.bat %BUILDROOT% %DDKENV% fre %OS% no_oacr
 popd
 pushd ..\VirtIO
-build -cZg
+if /i "%2"=="Win32" call buildAll.bat WLH_32
+if /i "%2"=="x64" call buildAll.bat WLH_64
 popd
 build -cZg
 set ARCH=amd64
