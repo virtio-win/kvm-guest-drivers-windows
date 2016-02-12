@@ -8,9 +8,6 @@ if "%DDKVER%"=="" set DDKVER=7600.16385.1
 
 : By default DDK is installed under C:\WINDDK, but it can be installed in different location
 if "%DDKISNTALLROOT%"=="" set DDKISNTALLROOT=C:\WINDDK\
-set BUILDROOT=%DDKISNTALLROOT%%DDKVER%
-set X64ENV=x64
-if "%DDKVER%"=="6000" set X64ENV=amd64
 
 if not "%1"=="" goto parameters_here
 echo no parameters specified, rebuild all
@@ -28,131 +25,52 @@ shift
 goto nextparam
 
 :WLH_32
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WLH
-popd
-build -cZg
-endlocal
+call :BuildProject "Vista Release|Win32" buildfre_wlh_x86.log
 goto continue
 
 :WLH_64
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WLH
-popd
-build -cZg
-endlocal
+call :BuildProject "Vista Release|x64" buildfre_wlh_amd64.log
 goto continue
 
 :WNet_32
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WNET
-popd
-build -cZg
-endlocal
+call :BuildProject "Win2k3 Release|Win32" buildfre_wnet_x86.log
 goto continue
 
 :WNet_64
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WNET
-popd
-build -cZg
-endlocal
+call :BuildProject "Win2k3 Release|x64" buildfre_wnet_amd64.log
 goto continue
 
 :WXp_32
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WXP
-popd
-build -cZg
-endlocal
+call :BuildProject "WinXP Release|Win32" buildfre_wxp_x86.log
 goto continue
 
 :WXp_64
 goto continue
 
 :Win7_32
-call :BuildVS2015 "Win7 Release|x86" buildfre_win7_x86.log
+call :BuildProject "Win7 Release|x86" buildfre_win7_x86.log
 goto continue
 
 :Win7_64
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WIN7
-popd
-build -cZg
-endlocal
+call :BuildProject "Win7 Release|x64" buildfre_win7_amd64.log
 goto continue
 
-
-:Vista
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WIN7
-popd
-build -cZg
-endlocal
-goto continue
-
-:Vista64
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre Wlh
-popd
-build -cZg
-endlocal
-goto continue
-
-:Win2003
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WNET
-popd
-build -cZg
-endlocal
-goto continue
-
-:Win200364
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WNET
-popd
-build -cZg
-endlocal
-goto continue
-
-:XP
-set DDKBUILDENV=
-setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WXP
-popd
-build -cZg
-endlocal
-goto continue
-
-:Win8
-call :BuildWin8 "Win8 Release|Win32" buildfre_win8_x86.log
+:Win8_32
+call :BuildProject "Win8 Release|x86" buildfre_win8_x86.log
 goto continue
 
 :Win8_64
-call :BuildWin8 "Win8 Release|x64" buildfre_win8_amd64.log
+call :BuildProject "Win8 Release|x64" buildfre_win8_amd64.log
 goto continue
 
-:BuildWin8
-call ..\tools\callVisualStudio.bat 12 VirtioLib-win8.vcxproj /Rebuild "%~1" /Out %2
+:Win10_32
+call :BuildProject "Win10 Release|x86" buildfre_win10_x86.log
+goto continue
+
+:Win10_64
+call :BuildProject "Win10 Release|x64" buildfre_win10_amd64.log
+goto continue
+
+:BuildProject
+call ..\tools\callVisualStudio.bat 14 VirtioLib.vcxproj /Rebuild "%~1" /Out %2
 goto :eof
