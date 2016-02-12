@@ -33,12 +33,8 @@
 #define WARN_ON(a)
 #define BUG() ASSERT(0)
 
-#if _MSC_VER >= 1600
 #define BUILD_BUG_ON(condition) \
     static_assert(!(condition), "Compile-time assumption failed")
-#else
-#define BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))
-#endif
 
 #ifndef bool
 #define bool int

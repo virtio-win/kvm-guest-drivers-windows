@@ -479,18 +479,18 @@ static int vp_finalize_features(virtio_device *vdev)
 }
 
 static const struct virtio_config_ops virtio_pci_config_ops = {
-    /*.get =*/ VirtIODeviceGet,
-    /*.set =*/ VirtIODeviceSet,
-    /*.generation =*/ NULL,
-    /*.get_status =*/ VirtIODeviceGetStatus,
-    /*.set_status =*/ VirtIODeviceSetStatus,
-    /*.reset =*/ VirtIODeviceReset,
-    /*.find_vqs =*/ vp_find_vqs,
-    /*.del_vqs =*/ vp_del_vqs,
-    /*.get_features =*/ vp_get_features,
-    /*.finalize_features =*/ vp_finalize_features,
-    /*.bus_name =*/ NULL,
-    /*.set_vq_affinity =*/ NULL,
+    .get = VirtIODeviceGet,
+    .set = VirtIODeviceSet,
+    .generation = NULL,
+    .get_status = VirtIODeviceGetStatus,
+    .set_status = VirtIODeviceSetStatus,
+    .reset = VirtIODeviceReset,
+    .find_vqs = vp_find_vqs,
+    .del_vqs = vp_del_vqs,
+    .get_features = vp_get_features,
+    .finalize_features = vp_finalize_features,
+    .bus_name = NULL,
+    .set_vq_affinity = NULL,
 };
 
 /* the PCI probing function */
