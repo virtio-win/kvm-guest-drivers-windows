@@ -12,6 +12,9 @@
 *.sdf
 *.opensdf
 *.opendb
+*.DVL.XML
+*2012-defines.h
+vioscsi/vioscsi-2012.h
 *objchk_*
 *objfre_*
 *Win?Debug*
