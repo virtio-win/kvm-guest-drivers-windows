@@ -115,6 +115,64 @@ VIOSerialFreeBuffer(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
 }
 
+VOID VIOSerialProcessInputBuffers(IN PVIOSERIAL_PORT Port)
+{
+    NTSTATUS status;
+    ULONG Read;
+    WDFREQUEST Request = NULL;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
+
+    WdfSpinLockAcquire(Port->InBufLock);
+    if (!Port->InBuf)
+    {
+        Port->InBuf = (PPORT_BUFFER)VIOSerialGetInBuf(Port);
+    }
+
+    if (!Port->GuestConnected)
+    {
+        VIOSerialDiscardPortDataLocked(Port);
+    }
+
+    if (Port->InBuf && Port->PendingReadRequest)
+    {
+        status = WdfRequestUnmarkCancelable(Port->PendingReadRequest);
+        if (status != STATUS_CANCELLED)
+        {
+            PVOID Buffer;
+            size_t Length;
+
+            status = WdfRequestRetrieveOutputBuffer(Port->PendingReadRequest, 0, &Buffer, &Length);
+            if (NT_SUCCESS(status))
+            {
+                Request = Port->PendingReadRequest;
+                Port->PendingReadRequest = NULL;
+                Read = (ULONG)VIOSerialFillReadBufLocked(Port, Buffer, Length);
+            }
+            else
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING,
+                    "Failed to retrieve output buffer (Status: %x Request: %p).\n",
+                    status, Request);
+            }
+        }
+        else
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING,
+                "Request %p was cancelled.\n", Request);
+        }
+    }
+    WdfSpinLockRelease(Port->InBufLock);
+
+    if (Request != NULL)
+    {
+        // no need to have the lock when completing the request
+        WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, Read);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
+}
+
 VOID VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 {
     WDFREQUEST request;

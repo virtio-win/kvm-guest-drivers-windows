@@ -179,6 +179,11 @@ VIOSerialAddInBuf(
 );
 
 VOID
+VIOSerialProcessInputBuffers(
+    IN PVIOSERIAL_PORT port
+);
+
+VOID
 VIOSerialReclaimConsumedBuffers(
     IN PVIOSERIAL_PORT port
 );

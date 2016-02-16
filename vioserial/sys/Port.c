@@ -568,14 +568,12 @@ VIOSerialPortRead(
     )
 {
     PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
+    PVIOSERIAL_PORT         pport = pdoData->port;
     size_t             length;
     NTSTATUS           status;
     PVOID              systemBuffer;
-    BOOLEAN            nonBlock;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "-->%s\n", __FUNCTION__);
-
-    nonBlock = ((WdfFileObjectGetFlags(WdfRequestGetFileObject(Request)) & FO_SYNCHRONOUS_IO) != FO_SYNCHRONOUS_IO);
 
     status = WdfRequestRetrieveOutputBuffer(Request, Length, &systemBuffer, &length);
     if (!NT_SUCCESS(status))
@@ -584,45 +582,50 @@ VIOSerialPortRead(
         return;
     }
 
-	WdfSpinLockAcquire(pdoData->port->InBufLock);
+	WdfSpinLockAcquire(pport->InBufLock);
 
-	if (!VIOSerialPortHasDataLocked(pdoData->port))
-    {
-        if (!pdoData->port->HostConnected)
-        {
-           WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
-        }
+	if (!VIOSerialPortHasDataLocked(pport))
+	{
+		if (!pport->HostConnected)
+		{
+			status = STATUS_INSUFFICIENT_RESOURCES;
+			length = 0;
+		}
 		else
 		{
-			ASSERT (pdoData->port->PendingReadRequest == NULL);
+			ASSERT (pport->PendingReadRequest == NULL);
 			status = WdfRequestMarkCancelableEx(Request,
 				VIOSerialPortReadRequestCancel);
 			if (!NT_SUCCESS(status))
 			{
-				WdfRequestComplete(Request, status);
+				length = 0;
 			}
 			else
 			{
-				pdoData->port->PendingReadRequest = Request;
+				pport->PendingReadRequest = Request;
+				Request = NULL;
 			}
 		}
     }
     else
     {
-        length = (ULONG)VIOSerialFillReadBufLocked(pdoData->port, systemBuffer, length);
-        if (length)
+        length = (ULONG)VIOSerialFillReadBufLocked(pport, systemBuffer, length);
+        if (!length)
         {
-           WdfRequestCompleteWithInformation(Request, status, (ULONG_PTR)length);
-        }
-        else
-        {
-           WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
+            status = STATUS_INSUFFICIENT_RESOURCES;
         }
     }
-    WdfSpinLockRelease(pdoData->port->InBufLock);
+
+    WdfSpinLockRelease(pport->InBufLock);
+
+    if (Request != NULL)
+    {
+        // we are completing the request right here, either because of
+        // an error or because data was available in the input buffer
+        WdfRequestCompleteWithInformation(Request, status, (ULONG_PTR)length);
+    }
 
 	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ,"<-- %s\n", __FUNCTION__);
-    return;
 }
 
 VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
