@@ -78,13 +78,13 @@
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(MSBuildProgramFiles32)\Microsoft CNG Development Kit\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(WindowsSdkDir)\Cryptographic Provider Development Kit\Include</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\Microsoft CNG Development Kit\Lib\$(PlatformTarget)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>bcrypt.lib;setupapi.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(WindowsSdkDir)\Cryptographic Provider Development Kit\Lib\win8\$(PlatformTarget)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>bcrypt_provider.lib;bcrypt.lib;setupapi.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>viorngci.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
@@ -93,13 +93,13 @@
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(MSBuildProgramFiles32)\Microsoft CNG Development Kit\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(WindowsSdkDir)\Cryptographic Provider Development Kit\Include</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\Microsoft CNG Development Kit\Lib\$(PlatformTarget)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>bcrypt.lib;setupapi.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(WindowsSdkDir)\Cryptographic Provider Development Kit\Lib\win8\$(PlatformTarget)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>bcrypt_provider.lib;bcrypt.lib;setupapi.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>viorngci.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
@@ -110,15 +110,15 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(MSBuildProgramFiles32)\Microsoft CNG Development Kit\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(WindowsSdkDir)\Cryptographic Provider Development Kit\Include</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\Microsoft CNG Development Kit\Lib\$(PlatformTarget)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>bcrypt.lib;setupapi.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(WindowsSdkDir)\Cryptographic Provider Development Kit\Lib\win8\$(PlatformTarget)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>bcrypt_provider.lib;bcrypt.lib;setupapi.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>viorngci.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
@@ -129,15 +129,15 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(MSBuildProgramFiles32)\Microsoft CNG Development Kit\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(WindowsSdkDir)\Cryptographic Provider Development Kit\Include</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\Microsoft CNG Development Kit\Lib\$(PlatformTarget)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>bcrypt.lib;setupapi.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(WindowsSdkDir)\Cryptographic Provider Development Kit\Lib\win8\$(PlatformTarget)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>bcrypt_provider.lib;bcrypt.lib;setupapi.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>viorngci.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
