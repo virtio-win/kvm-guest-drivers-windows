@@ -10,10 +10,21 @@ if "%_RHEL_RELEASE_VERSION_%"=="" set _RHEL_RELEASE_VERSION_=61
 if /i "%1"=="prepare" goto %1
 if /i "%1"=="finalize" goto %1
 if /i "%1"=="Win8" goto %1_%2
+if /i "%1"=="Win10" goto %1_%2
+
 set DDKBUILDENV=
 pushd %BUILDROOT%
 call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %2 fre %1 no_oacr
 popd
+
+call :prepare_version
+set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_% 
+
+build -cZg
+
+set DDKVER=
+set BUILDROOT=
+goto :eof
 
 call :prepare_version
 set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_% 
@@ -54,6 +65,7 @@ goto :eof
 :prepare_version
 set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% & 255)"
 goto :eof
+
 :create2012H
 echo #ifndef __DATE__ 
 echo #define __DATE__ "%DATE%"
