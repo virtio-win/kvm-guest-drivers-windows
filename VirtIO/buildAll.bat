@@ -15,7 +15,8 @@ if "%DDKVER%"=="6000" set X64ENV=amd64
 if not "%1"=="" goto parameters_here
 echo no parameters specified, rebuild all
 call clean.bat
-call "%0" Win8 Win8_64 Win7 Win7_64 Vista Vista64 Win2003 Win200364 XP
+for %%A in (WXp WNet WLH Win7 Win8 Win10) do for %%B in (32 64) do call :%%A_%%B
+
 goto :eof
 :parameters_here
 
@@ -26,14 +27,61 @@ goto %1
 shift
 goto nextparam
 
-:Win7
+:WLH_32
 set DDKBUILDENV=
 setlocal
 pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre Wlh
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WLH
 popd
 build -cZg
 endlocal
+goto continue
+
+:WLH_64
+set DDKBUILDENV=
+setlocal
+pushd %BUILDROOT%
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WLH
+popd
+build -cZg
+endlocal
+goto continue
+
+:WNet_32
+set DDKBUILDENV=
+setlocal
+pushd %BUILDROOT%
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WNET
+popd
+build -cZg
+endlocal
+goto continue
+
+:WNet_64
+set DDKBUILDENV=
+setlocal
+pushd %BUILDROOT%
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WNET
+popd
+build -cZg
+endlocal
+goto continue
+
+:WXp_32
+set DDKBUILDENV=
+setlocal
+pushd %BUILDROOT%
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WXP
+popd
+build -cZg
+endlocal
+goto continue
+
+:WXp_64
+goto continue
+
+:Win7_32
+call :BuildVS2015 "Win7 Release|x86" buildfre_win7_x86.log
 goto continue
 
 :Win7_64
