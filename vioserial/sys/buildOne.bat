@@ -3,17 +3,28 @@
 if "%DDKVER%"=="" set DDKVER=7600.16385.1
 set BUILDROOT=C:\WINDDK\%DDKVER%
 
-if "%_BUILD_MAJOR_VERSION_%"=="" set _BUILD_MAJOR_VERSION_=105
-if "%_BUILD_MINOR_VERSION_%"=="" set _BUILD_MINOR_VERSION_=109000
-if "%_RHEL_RELEASE_VERSION_%"=="" set _RHEL_RELEASE_VERSION_=72
+if "%_BUILD_MAJOR_VERSION_%"=="" set _BUILD_MAJOR_VERSION_=101
+if "%_BUILD_MINOR_VERSION_%"=="" set _BUILD_MINOR_VERSION_=58000
+if "%_RHEL_RELEASE_VERSION_%"=="" set _RHEL_RELEASE_VERSION_=61
 
 if /i "%1"=="prepare" goto %1
 if /i "%1"=="finalize" goto %1
 if /i "%1"=="Win7" goto %1_%2
 if /i "%1"=="Win8" goto %1_%2
 if /i "%1"=="Win10" goto %1_%2
+set DDKBUILDENV=
+pushd %BUILDROOT%
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %2 fre %1 no_oacr
+popd
 
-echo  Invalid OS version
+call :prepare_version
+
+set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_% 
+
+build -cZg
+
+set DDKVER=
+set BUILDROOT=
 goto :eof
 
 :Win7_x86
