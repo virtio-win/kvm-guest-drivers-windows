@@ -3,8 +3,7 @@
 set SYS_FILE_NAME=viostor
 
 if "%1_%2" neq "_" goto %1_%2
-rem for %%A in (Win8 Win7 Wnet Wlh WXp) do for %%B in (32 64) do call :%%A_%%B
-for %%A in (Win7 Win8 Win10) do for %%B in (32 64) do call :%%A_%%B
+for %%A in (Win8 Win7 Wnet Wlh WXp) do for %%B in (32 64) do call :%%A_%%B
 set SYS_FILE_NAME=
 goto :eof 
 
