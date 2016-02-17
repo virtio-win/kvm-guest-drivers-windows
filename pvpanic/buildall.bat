@@ -10,9 +10,8 @@ set _MAJORVERSION_=%_BUILD_MAJOR_VERSION_%
 set _MINORVERSION_=%_BUILD_MINOR_VERSION_%
 set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
 
-for %%O in (Win10) do for %%P in (Win32 x64) do call :build_driver %%O %%P
-rem for %%O in (Win7 Win8) do for %%P in (Win32 x64) do call :build_driver %%O %%P
-rem for %%P in (Win32 x64) do call :build_vista_driver Vista %%P
+for %%O in (Win7 Win8 Win10) do for %%P in (Win32 x64) do call :build_driver %%O %%P
+for %%P in (Win32 x64) do call :build_vista_driver Vista %%P
 
 endlocal
 
