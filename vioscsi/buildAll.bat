@@ -3,8 +3,7 @@ rem @echo off
 set SYS_FILE_NAME=vioscsi
 
 if "%1_%2" neq "_" goto %1_%2
-rem for %%A in (Win7 Win8 Win10) do for %%B in (32 64) do call :%%A_%%B
-for %%A in (Win7 Win8 Win10) do for %%B in (32 64) do call :%%A_%%B
+for %%A in (Wlh Win7 Win8 Win10) do for %%B in (32 64) do call :%%A_%%B
 set SYS_FILE_NAME=
 goto :eof 
 
@@ -141,6 +140,22 @@ set BUILD_ARC=x64
 if exist Install\win7\amd64 rmdir Install\win7\amd64 /s /q
 call :BuildUsingVS2015 "Win7 Release|x64" buildfre_win7_amd64.log
 call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
+endlocal
+goto :eof
+
+:WLH_64
+setlocal
+set BUILD_OS=Wlh
+set BUILD_ARC=x64
+call :buildpack %BUILD_OS% %BUILD_ARC%
+endlocal
+goto :eof
+
+:WLH_32
+setlocal
+set BUILD_OS=Wlh
+set BUILD_ARC=x86
+call :buildpack %BUILD_OS% %BUILD_ARC%
 endlocal
 goto :eof
 
