@@ -12,7 +12,18 @@ if /i "%1"=="finalize" goto %1
 if /i "%1"=="Win7" goto %1_%2
 if /i "%1"=="Win8" goto %1_%2
 if /i "%1"=="Win10" goto %1_%2
-echo error
+set DDKBUILDENV=
+pushd %BUILDROOT%
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %2 fre %1 no_oacr
+popd
+
+call :prepare_version
+set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_% 
+
+build -cZg
+
+set DDKVER=
+set BUILDROOT=
 goto :eof
 
 :Win7_x86
@@ -55,6 +66,10 @@ call ..\..\tools\callVisualStudio.bat 14 balloon.vcxproj /Rebuild "%~1" /Out %2
 endlocal
 goto :eof
 
+:prepare_version
+set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% & 255)"
+goto :eof
+
 :create2012H
 echo #ifndef __DATE__ 
 echo #define __DATE__ "%DATE%"
@@ -69,6 +84,7 @@ echo #define _MINORVERSION_ %_BUILD_MINOR_VERSION_%
 goto :eof
 :prepare
 set _NT_TARGET_VERSION=0x0602
+call :prepare_version
 call :create2012H  > 2012-defines.h
 goto :eof
 :finalize

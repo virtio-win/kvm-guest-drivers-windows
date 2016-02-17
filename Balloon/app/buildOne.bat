@@ -2,7 +2,19 @@
 if /i "%1"=="Win7" goto %1_%2
 if /i "%1"=="Win8" goto %1_%2
 if /i "%1"=="Win10" goto %1_%2
-echo error
+
+if "%DDKVER%"=="" set DDKVER=7600.16385.1
+set BUILDROOT=C:\WINDDK\%DDKVER%
+
+set DDKBUILDENV=
+pushd %BUILDROOT%
+call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %2 fre %1 no_oacr
+popd
+build -cZg
+
+set DDKVER=
+set BUILDROOT=
+
 goto :eof
 
 :Win7_x86
