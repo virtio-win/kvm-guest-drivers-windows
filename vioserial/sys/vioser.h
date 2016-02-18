@@ -193,7 +193,7 @@ VIOSerialProcessInputBuffers(
     IN PVIOSERIAL_PORT port
 );
 
-VOID
+BOOLEAN
 VIOSerialReclaimConsumedBuffers(
     IN PVIOSERIAL_PORT port
 );
