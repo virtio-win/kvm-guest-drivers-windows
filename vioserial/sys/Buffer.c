@@ -183,7 +183,8 @@ VOID VIOSerialProcessInputBuffers(IN PVIOSERIAL_PORT Port)
 BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 {
     WDFREQUEST request;
-    PSINGLE_LIST_ENTRY iter;
+    SINGLE_LIST_ENTRY ReclaimedList = { NULL };
+    PSINGLE_LIST_ENTRY iter, last = &ReclaimedList;
     PVOID buffer;
     UINT len;
     struct virtqueue *vq = GetOutQueue(Port);
@@ -208,22 +209,21 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
                     if (entry->Request != NULL)
                     {
                         request = entry->Request;
-                        if (WdfRequestUnmarkCancelable(request) != STATUS_CANCELLED)
-                        {
-                            WdfRequestCompleteWithInformation(request, STATUS_SUCCESS,
-                                (size_t)WdfRequestGetInformation(request));
-                        }
-                        else
+                        if (WdfRequestUnmarkCancelable(request) == STATUS_CANCELLED)
                         {
                             TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING,
                                 "Request %p was cancelled.\n", request);
+                            entry->Request = NULL;
                         }
                     }
 
+                    // remove from WriteBuffersList
                     iter->Next = entry->ListEntry.Next;
 
-                    ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
-                    WdfObjectDelete(entry->EntryHandle);
+                    // append to ReclaimedList
+                    last->Next = &entry->ListEntry;
+                    last = last->Next;
+                    last->Next = NULL;
                 }
                 else
                 {
@@ -237,6 +237,23 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
     ret = Port->OutVqFull;
 
     WdfSpinLockRelease(Port->OutVqLock);
+
+    // no need to hold the lock to complete requests and free buffers
+    while ((iter = PopEntryList(&ReclaimedList)) != NULL)
+    {
+        PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter,
+            WRITE_BUFFER_ENTRY, ListEntry);
+
+        request = entry->Request;
+        if (request != NULL)
+        {
+            WdfRequestCompleteWithInformation(request, STATUS_SUCCESS,
+                WdfRequestGetInformation(request));
+        }
+
+        ExFreePoolWithTag(entry->Buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
+        WdfObjectDelete(entry->EntryHandle);
+    };
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s Full: %d\n",
         __FUNCTION__, ret);
