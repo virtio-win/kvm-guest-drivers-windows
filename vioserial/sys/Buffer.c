@@ -180,15 +180,18 @@ VOID VIOSerialProcessInputBuffers(IN PVIOSERIAL_PORT Port)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
 }
 
-VOID VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
+BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 {
     WDFREQUEST request;
     PSINGLE_LIST_ENTRY iter;
     PVOID buffer;
     UINT len;
     struct virtqueue *vq = GetOutQueue(Port);
+    BOOLEAN ret;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
+
+    WdfSpinLockAcquire(Port->OutVqLock);
 
     if (vq)
     {
@@ -231,9 +234,14 @@ VOID VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
             Port->OutVqFull = FALSE;
         }
     }
+    ret = Port->OutVqFull;
+
+    WdfSpinLockRelease(Port->OutVqLock);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s Full: %d\n",
-        __FUNCTION__, Port->OutVqFull);
+        __FUNCTION__, ret);
+
+    return ret;
 }
 
 // this procedure must be called with port InBuf spinlock held

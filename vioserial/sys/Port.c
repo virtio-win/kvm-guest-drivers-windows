@@ -247,10 +247,7 @@ VIOSerialWillWriteBlock(
         return TRUE;
     }
 
-    WdfSpinLockAcquire(port->OutVqLock);
-    VIOSerialReclaimConsumedBuffers(port);
-    ret = port->OutVqFull;
-    WdfSpinLockRelease(port->OutVqLock);
+    ret = VIOSerialReclaimConsumedBuffers(port);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
     return ret;
 }
@@ -887,9 +884,7 @@ VIOSerialPortCreate(
     {
         pdoData->port->GuestConnected = TRUE;
 
-        WdfSpinLockAcquire(pdoData->port->OutVqLock);
         VIOSerialReclaimConsumedBuffers(pdoData->port);
-        WdfSpinLockRelease(pdoData->port->OutVqLock);
 
         VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->PortId,
             VIRTIO_CONSOLE_PORT_OPEN, 1);
@@ -923,9 +918,7 @@ VIOSerialPortClose(
         VIOSerialDiscardPortDataLocked(pdoData->port);
         WdfSpinLockRelease(pdoData->port->InBufLock);
 
-        WdfSpinLockAcquire(pdoData->port->OutVqLock);
         VIOSerialReclaimConsumedBuffers(pdoData->port);
-        WdfSpinLockRelease(pdoData->port->OutVqLock);
     }
 
     pdoData->port->GuestConnected = FALSE;
@@ -1412,9 +1405,7 @@ VIOSerialPortEvtDeviceD0Exit(
     Port->InBuf = NULL;
     WdfSpinLockRelease(Port->InBufLock);
 
-    WdfSpinLockAcquire(Port->OutVqLock);
     VIOSerialReclaimConsumedBuffers(Port);
-    WdfSpinLockRelease(Port->OutVqLock);
 
     while (buf = (PPORT_BUFFER)virtqueue_detach_unused_buf(GetInQueue(Port)))
     {
