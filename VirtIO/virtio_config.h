@@ -148,7 +148,7 @@ struct virtqueue *virtio_find_single_vq(virtio_device *vdev,
 
     err = vdev->config->find_vqs(vdev, 1, &vq, callbacks, names);
     if (err < 0)
-        return ERR_PTR(err);
+        return (struct virtqueue *)ERR_PTR(err);
     return vq;
 }
 
