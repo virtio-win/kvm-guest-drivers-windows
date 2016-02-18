@@ -108,10 +108,6 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
     <DriverType>WDM</DriverType>
-    <ClCompile>
-      <AdditionalOptions>/kernel %(AdditionalOptions)</AdditionalOptions>
-      <WarningLevel>Level3</WarningLevel>
-    </ClCompile>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="$(Configuration.EndsWith('Debug'))">
     <UseDebugLibraries>true</UseDebugLibraries>
@@ -251,6 +247,12 @@
     <OutDir>objfre_wxp_amd64\amd64\</OutDir>
     <IntDir>objfre_wxp_amd64\amd64\</IntDir>
   </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalOptions>/kernel %(AdditionalOptions)</AdditionalOptions>
+      <WarningLevel>Level3</WarningLevel>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v120_xp'">
     <ClCompile>
       <AdditionalIncludeDirectories>$(ProjectDir);$(LegacyDDKDir)\inc\ddk;$(LegacyDDKDir)\inc\crt;$(LegacyDDKDir)\inc\api;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>

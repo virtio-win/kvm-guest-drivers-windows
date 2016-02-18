@@ -213,9 +213,14 @@ u8 virtio_read_isr_status(VirtIODevice *vdev)
     return ioread8(vdev->isr);
 }
 
-static void add_status(virtio_device *dev, unsigned status)
+u8 virtio_get_status(VirtIODevice *vdev)
 {
-    dev->config->set_status(dev, (u8)(dev->config->get_status(dev) | status));
+    return vdev->config->get_status(vdev);
+}
+
+void virtio_add_status(VirtIODevice *vdev, u8 status)
+{
+    vdev->config->set_status(vdev, (u8)(vdev->config->get_status(vdev) | status));
 }
 
 static void register_virtio_device(virtio_device *dev)
@@ -225,7 +230,7 @@ static void register_virtio_device(virtio_device *dev)
     dev->config->reset(dev);
 
     /* Acknowledge that we've seen the device. */
-    add_status(dev, VIRTIO_CONFIG_S_ACKNOWLEDGE);
+    virtio_add_status(dev, VIRTIO_CONFIG_S_ACKNOWLEDGE);
 }
 
 int virtio_finalize_features(VirtIODevice *dev)
@@ -239,7 +244,7 @@ int virtio_finalize_features(VirtIODevice *dev)
     if (!virtio_has_feature(dev, VIRTIO_F_VERSION_1))
         return 0;
 
-    add_status(dev, VIRTIO_CONFIG_S_FEATURES_OK);
+    virtio_add_status(dev, VIRTIO_CONFIG_S_FEATURES_OK);
     status = dev->config->get_status(dev);
     if (!(status & VIRTIO_CONFIG_S_FEATURES_OK)) {
         DPrintf(0, ("virtio: device refuses features: %x\n", status));
@@ -272,6 +277,9 @@ int virtio_device_initialize(VirtIODevice *pVirtIODevice,
         register_virtio_device(pVirtIODevice);
     }
 
+    /* If we are here, we must have found a driver for the device */
+    virtio_add_status(pVirtIODevice, VIRTIO_CONFIG_S_DRIVER);
+
     return err;
 }
 
@@ -282,5 +290,25 @@ void virtio_device_shutdown(VirtIODevice *pVirtIODevice)
     }
     else {
         virtio_pci_modern_remove(pVirtIODevice);
+    }
+}
+
+NTSTATUS virtio_error_to_ntstatus(int error)
+{
+    switch (error) {
+        case 0:
+            return STATUS_SUCCESS;
+        case -ENOENT:
+            return STATUS_NOT_FOUND;
+        case -ENOMEM:
+            return STATUS_INSUFFICIENT_RESOURCES;
+        case -EBUSY:
+            return STATUS_DEVICE_BUSY;
+        case -ENODEV:
+            return STATUS_DEVICE_NOT_CONNECTED;
+        case -EINVAL:
+            return STATUS_INVALID_PARAMETER;
+        default:
+            return STATUS_UNSUCCESSFUL;
     }
 }
