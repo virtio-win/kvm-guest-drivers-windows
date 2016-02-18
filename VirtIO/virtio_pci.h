@@ -306,9 +306,9 @@ void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice);
 #define VirtIODeviceWriteGuestFeatures(pVirtIODevice, u32Features) \
     WriteVirtIODeviceRegister((pVirtIODevice)->addr + VIRTIO_PCI_GUEST_FEATURES, (u32Features))
 
-#define VirtIOIsFeatureEnabled(FeaturesList, Feature)   (!!((FeaturesList) & (1 << (Feature))))
-#define VirtIOFeatureEnable(FeaturesList, Feature)      ((FeaturesList) |= (1 << (Feature)))
-#define VirtIOFeatureDisable(FeaturesList, Feature)     ((FeaturesList) &= ~(1 << (Feature)))
+#define VirtIOIsFeatureEnabled(FeaturesList, Feature)   (!!((FeaturesList) & (1ULL << (Feature))))
+#define VirtIOFeatureEnable(FeaturesList, Feature)      ((FeaturesList) |= (1ULL << (Feature)))
+#define VirtIOFeatureDisable(FeaturesList, Feature)     ((FeaturesList) &= ~(1ULL << (Feature)))
 
 void VirtIODeviceGet(VirtIODevice * pVirtIODevice,
                      unsigned offset,
@@ -343,8 +343,15 @@ int virtio_device_initialize(VirtIODevice *pVirtIODevice,
                              ULONG allocatedSize);
 void virtio_device_shutdown(VirtIODevice *pVirtIODevice);
 
+u8 virtio_get_status(VirtIODevice *vdev);
+void virtio_add_status(VirtIODevice *vdev, u8 status);
+
 int virtio_finalize_features(VirtIODevice *vdev);
 u8 virtio_read_isr_status(VirtIODevice *vdev);
+
+NTSTATUS virtio_error_to_ntstatus(int error);
+
+void virtqueue_set_event_suppression(struct virtqueue *vq, bool enable);
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
