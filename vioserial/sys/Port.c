@@ -706,9 +706,8 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
     WdfRequestSetInformation(Request, (ULONG_PTR)Length);
 
     entry->Buffer = buffer;
+    entry->Request = Request;
     PushEntryList(&Port->WriteBuffersList, &entry->ListEntry);
-
-    Port->PendingWriteRequest = Request;
 
     if (VIOSerialSendBuffers(Port, buffer, Length) <= 0)
     {
@@ -723,11 +722,8 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
         NT_ASSERT(entry == CONTAINING_RECORD(removed, WRITE_BUFFER_ENTRY, ListEntry));
         ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);
 
-        if ((Port->PendingWriteRequest != NULL) &&
-            (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED))
+        if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
         {
-            Port->PendingWriteRequest = NULL;
-
             WdfRequestComplete(Request, Port->Removed ?
                 STATUS_INVALID_DEVICE_STATE : STATUS_INSUFFICIENT_RESOURCES);
         }
@@ -760,6 +756,7 @@ VOID VIOSerialPortWriteRequestCancel(IN WDFREQUEST Request)
 {
     PVIOSERIAL_PORT Port = RawPdoSerialPortGetData(
         WdfIoQueueGetDevice(WdfRequestGetIoQueue(Request)))->port;
+    PSINGLE_LIST_ENTRY iter;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s Request: 0x%p\n",
         __FUNCTION__, Request);
@@ -767,7 +764,16 @@ VOID VIOSerialPortWriteRequestCancel(IN WDFREQUEST Request)
     // synchronize with VIOSerialReclaimConsumedBuffers because the pending
     // request is not guaranteed to be alive after we return from this callback
     WdfSpinLockAcquire(Port->OutVqLock);
-    Port->PendingWriteRequest = NULL;
+    iter = &Port->WriteBuffersList;
+    while ((iter = iter->Next) != NULL)
+    {
+        PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
+        if (entry->Request == Request)
+        {
+            entry->Request = NULL;
+            break;
+        }
+    }
     WdfSpinLockRelease(Port->OutVqLock);
 
     WdfRequestCompleteWithInformation(Request, STATUS_CANCELLED, 0L);
@@ -1217,7 +1223,6 @@ VIOSerialEvtChildListIdentificationDescriptionDuplicate(
 
     dst->ReadQueue = src->ReadQueue;
     dst->PendingReadRequest = src->PendingReadRequest;
-    dst->PendingWriteRequest = src->PendingWriteRequest;
     dst->WriteQueue = src->WriteQueue;
     dst->IoctlQueue = src->IoctlQueue;
 
@@ -1325,7 +1330,16 @@ VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue,
    {
       if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
       {
-         pport->PendingWriteRequest = NULL;
+         PSINGLE_LIST_ENTRY iter = &pport->WriteBuffersList;
+         while ((iter = iter->Next) != NULL)
+         {
+            PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
+            if (entry->Request == Request)
+            {
+               entry->Request = NULL;
+               break;
+            }
+         }
          WdfRequestComplete(Request, STATUS_OBJECT_NO_LONGER_EXISTS);
       }
    }
