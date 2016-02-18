@@ -214,7 +214,7 @@ VOID VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
                     iter->Next = entry->ListEntry.Next;
 
                     ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
-                    ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);
+                    WdfObjectDelete(entry->EntryHandle);
                 }
                 else
                 {

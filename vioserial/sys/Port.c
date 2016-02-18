@@ -637,13 +637,17 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
     PVOID buffer;
     PVIOSERIAL_PORT Port;
     PWRITE_BUFFER_ENTRY entry;
+    WDFDEVICE Device;
+    PDRIVER_CONTEXT Context;
+    WDFMEMORY EntryHandle;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,
         "--> %s Request: %p Length: %d\n", __FUNCTION__, Request, Length);
 
     PAGED_CODE();
 
-    Port = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue))->port;
+    Device = WdfIoQueueGetDevice(Queue);
+    Port = RawPdoSerialPortGetData(Device)->port;
     if (Port->Removed)
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_WRITE,
@@ -677,13 +681,12 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
         return;
     }
 
-    entry = (PWRITE_BUFFER_ENTRY)ExAllocatePoolWithTag(NonPagedPool,
-        sizeof(WRITE_BUFFER_ENTRY), VIOSERIAL_DRIVER_MEMORY_TAG);
-
-    if (entry == NULL)
+    Context = GetDriverContext(WdfDeviceGetDriver(Device));
+    status = WdfMemoryCreateFromLookaside(Context->WriteBufferLookaside, &EntryHandle);
+    if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
-            "Failed to allocate write buffer entry.\n");
+            "Failed to allocate write buffer entry: %x.\n", status);
         ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
         WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
         return;
@@ -696,8 +699,8 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
             "Failed to mark request as cancelable: %x\n", status);
-        ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);
         ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
+        WdfObjectDelete(EntryHandle);
         WdfRequestComplete(Request, status);
         return;
     }
@@ -705,6 +708,8 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
     RtlCopyMemory(buffer, InBuf, Length);
     WdfRequestSetInformation(Request, (ULONG_PTR)Length);
 
+    entry = (PWRITE_BUFFER_ENTRY)WdfMemoryGetBuffer(EntryHandle, NULL);
+    entry->EntryHandle = EntryHandle;
     entry->Buffer = buffer;
     entry->Request = Request;
 
@@ -714,7 +719,7 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
             "Failed to send user's buffer.\n");
 
         ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
-        ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);
+        WdfObjectDelete(EntryHandle);
 
         if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
         {
@@ -1423,7 +1428,7 @@ VIOSerialPortEvtDeviceD0Exit(
             WRITE_BUFFER_ENTRY, ListEntry);
 
         ExFreePoolWithTag(entry->Buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
-        ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);
+        WdfObjectDelete(entry->EntryHandle);
 
         iter = PopEntryList(&Port->WriteBuffersList);
     };
