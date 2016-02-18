@@ -467,7 +467,7 @@ VIOSerialDeviceListCreatePdo(
            break;
         }
 
-        WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchSequential);
+        WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchParallel);
         queueConfig.AllowZeroLengthRequests = WdfFalse;
         queueConfig.EvtIoWrite = VIOSerialPortWrite;
         queueConfig.EvtIoStop = VIOSerialPortWriteIoStop;
@@ -707,19 +707,13 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
 
     entry->Buffer = buffer;
     entry->Request = Request;
-    PushEntryList(&Port->WriteBuffersList, &entry->ListEntry);
 
-    if (VIOSerialSendBuffers(Port, buffer, Length) <= 0)
+    if (VIOSerialSendBuffers(Port, entry, Length) <= 0)
     {
-        PSINGLE_LIST_ENTRY removed;
-
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
             "Failed to send user's buffer.\n");
 
         ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
-
-        removed = PopEntryList(&Port->WriteBuffersList);
-        NT_ASSERT(entry == CONTAINING_RECORD(removed, WRITE_BUFFER_ENTRY, ListEntry));
         ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);
 
         if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)

@@ -48,18 +48,18 @@ VIOSerialAllocateBuffer(
 }
 
 size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port,
-                            IN PVOID Buffer,
+                            IN PWRITE_BUFFER_ENTRY Entry,
                             IN size_t Length)
 {
     struct virtqueue *vq = GetOutQueue(Port);
     struct VirtIOBufferDescriptor sg[QUEUE_DESCRIPTORS];
-    PVOID buffer = Buffer;
+    PVOID buffer = Entry->Buffer;
     size_t length = Length;
     int out = 0;
     int ret;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,
-        "--> %s Buffer: %p Length: %d\n", __FUNCTION__, Buffer, Length);
+        "--> %s Buffer: %p Length: %d\n", __FUNCTION__, Entry->Buffer, Length);
 
     if (BYTES_TO_PAGES(Length) > QUEUE_DESCRIPTORS)
     {
@@ -78,15 +78,16 @@ size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port,
 
     WdfSpinLockAcquire(Port->OutVqLock);
 
-    ret = virtqueue_add_buf(vq, sg, out, 0, Buffer, NULL, 0);
+    ret = virtqueue_add_buf(vq, sg, out, 0, Entry->Buffer, NULL, 0);
     virtqueue_kick(vq);
 
     if (ret >= 0)
     {
-        Port->OutVqFull = (ret == 0);
+        PushEntryList(&Port->WriteBuffersList, &Entry->ListEntry);
     }
     else
     {
+        Port->OutVqFull = TRUE;
         Length = 0;
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
             "Error adding buffer to queue (ret = %d)\n", ret);
