@@ -191,7 +191,7 @@ VIOSerialReclaimConsumedBuffers(
 size_t
 VIOSerialSendBuffers(
     IN PVIOSERIAL_PORT Port,
-    IN PVOID Buffer,
+    IN PWRITE_BUFFER_ENTRY Entry,
     IN size_t Length
 );
 
