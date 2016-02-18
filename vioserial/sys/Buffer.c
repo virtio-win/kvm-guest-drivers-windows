@@ -187,23 +187,6 @@ VOID VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
     {
         while ((buffer = virtqueue_get_buf(vq, &len)) != NULL)
         {
-            if (Port->PendingWriteRequest != NULL)
-            {
-                request = Port->PendingWriteRequest;
-                Port->PendingWriteRequest = NULL;
-
-                if (WdfRequestUnmarkCancelable(request) != STATUS_CANCELLED)
-                {
-                    WdfRequestCompleteWithInformation(request, STATUS_SUCCESS,
-                        (size_t)WdfRequestGetInformation(request));
-                }
-                else
-                {
-                    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING,
-                        "Request %p was cancelled.\n", request);
-                }
-            }
-
             iter = &Port->WriteBuffersList;
             while (iter->Next != NULL)
             {
@@ -212,6 +195,21 @@ VOID VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 
                 if (buffer == entry->Buffer)
                 {
+                    if (entry->Request != NULL)
+                    {
+                        request = entry->Request;
+                        if (WdfRequestUnmarkCancelable(request) != STATUS_CANCELLED)
+                        {
+                            WdfRequestCompleteWithInformation(request, STATUS_SUCCESS,
+                                (size_t)WdfRequestGetInformation(request));
+                        }
+                        else
+                        {
+                            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING,
+                                "Request %p was cancelled.\n", request);
+                        }
+                    }
+
                     iter->Next = entry->ListEntry.Next;
 
                     ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);

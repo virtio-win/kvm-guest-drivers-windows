@@ -122,6 +122,7 @@ typedef struct _tagPortBuffer
 typedef struct _WriteBufferEntry
 {
     SINGLE_LIST_ENTRY ListEntry;
+    WDFREQUEST Request;
     PVOID Buffer;
 } WRITE_BUFFER_ENTRY, *PWRITE_BUFFER_ENTRY;
 
@@ -145,7 +146,6 @@ typedef struct _tagVioSerialPort
     BOOLEAN             Removed;
     WDFQUEUE            ReadQueue;
     WDFREQUEST          PendingReadRequest;
-    WDFREQUEST          PendingWriteRequest;
 
     // Hold a list of allocated buffers which were written to the virt queue
     // and was not returned yet.
