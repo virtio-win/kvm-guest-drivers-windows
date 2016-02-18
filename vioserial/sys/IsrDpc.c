@@ -101,9 +101,7 @@ VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt,
         VIOSerialProcessInputBuffers(Port);
 
         // handle the write queue
-        WdfSpinLockAcquire(Port->OutVqLock);
         VIOSerialReclaimConsumedBuffers(Port);
-        WdfSpinLockRelease(Port->OutVqLock);
     }
     WdfChildListEndIteration(PortList, &iterator);
 
