@@ -55,7 +55,7 @@ size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port,
     struct VirtIOBufferDescriptor sg[QUEUE_DESCRIPTORS];
     PVOID buffer = Entry->Buffer;
     size_t length = Length;
-    int out = 0;
+    int out = 0, prepared = 0;
     int ret;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,
@@ -79,10 +79,10 @@ size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port,
     WdfSpinLockAcquire(Port->OutVqLock);
 
     ret = virtqueue_add_buf(vq, sg, out, 0, Entry->Buffer, NULL, 0);
-    virtqueue_kick(vq);
 
     if (ret >= 0)
     {
+        prepared = virtqueue_kick_prepare(vq);
         PushEntryList(&Port->WriteBuffersList, &Entry->ListEntry);
     }
     else
@@ -94,6 +94,12 @@ size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port,
     }
 
     WdfSpinLockRelease(Port->OutVqLock);
+
+    if (prepared)
+    {
+        // notify can run without the lock held
+        virtqueue_notify(vq);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 
