@@ -122,6 +122,7 @@ typedef struct _tagPortBuffer
 typedef struct _WriteBufferEntry
 {
     SINGLE_LIST_ENTRY ListEntry;
+    WDFMEMORY EntryHandle;
     WDFREQUEST Request;
     PVOID Buffer;
 } WRITE_BUFFER_ENTRY, *PWRITE_BUFFER_ENTRY;
@@ -164,6 +165,15 @@ typedef struct _tagRawPdoVioSerialPort
 } RAWPDO_VIOSERIAL_PORT, *PRAWPDO_VIOSERIAL_PORT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(RAWPDO_VIOSERIAL_PORT, RawPdoSerialPortGetData)
+
+
+typedef struct _tagDriverContext
+{
+    // one global lookaside owned by the driver object
+    WDFLOOKASIDE WriteBufferLookaside;
+} DRIVER_CONTEXT, *PDRIVER_CONTEXT;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DRIVER_CONTEXT, GetDriverContext)
 
 
 NTSTATUS
