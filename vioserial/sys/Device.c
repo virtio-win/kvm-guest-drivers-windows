@@ -316,31 +316,6 @@ VIOSerialEvtDeviceReleaseHardware(
     return STATUS_SUCCESS;
 }
 
-static struct virtqueue * FindVirtualQueue(VirtIODevice *dev, ULONG index, USHORT vector)
-{
-    struct virtqueue *pq = NULL;
-    PVOID p;
-    ULONG size, allocSize;
-    VirtIODeviceQueryQueueAllocation(dev, index, &size, &allocSize);
-    if (allocSize)
-    {
-        PHYSICAL_ADDRESS HighestAcceptable;
-        HighestAcceptable.QuadPart = 0xFFFFFFFFFF;
-        p = MmAllocateContiguousMemory(allocSize, HighestAcceptable);
-        if (p)
-        {
-            pq = VirtIODevicePrepareQueue(dev, index, MmGetPhysicalAddress(p), p, allocSize, p, FALSE);
-
-            if (vector != VIRTIO_MSI_NO_VECTOR)
-            {
-                WriteVirtIODeviceWord(dev->addr + VIRTIO_MSI_QUEUE_VECTOR, vector);
-                vector = ReadVirtIODeviceWord(dev->addr + VIRTIO_MSI_QUEUE_VECTOR);
-            }
-        }
-    }
-    return pq;
-}
-
 #if 0
 void DumpQueues(WDFOBJECT Device)
 {
@@ -427,23 +402,6 @@ VIOSerialInitAllQueues(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return status;
-}
-
-static void DeleteQueue(struct virtqueue **ppq)
-{
-    PVOID p;
-    struct virtqueue *pq = *ppq;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
-
-    if (pq)
-    {
-        VirtIODeviceDeleteQueue(pq, &p);
-        *ppq = NULL;
-        MmFreeContiguousMemory(p);
-    }
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
 }
 
 VOID VIOSerialShutDownAllQueues(IN WDFOBJECT WdfDevice)
@@ -578,4 +536,3 @@ VIOSerialEvtDeviceD0EntryPostInterruptsEnabled(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
-
