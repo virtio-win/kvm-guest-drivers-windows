@@ -1,56 +1,68 @@
 @echo off
+setlocal
 
+if "%DDKINSTALLROOT%"=="" set DDKINSTALLROOT=C:\WINDDK\
 if "%DDKVER%"=="" set DDKVER=7600.16385.1
-set BUILDROOT=C:\WINDDK\%DDKVER%
 
 if "%_BUILD_MAJOR_VERSION_%"=="" set _BUILD_MAJOR_VERSION_=101
 if "%_BUILD_MINOR_VERSION_%"=="" set _BUILD_MINOR_VERSION_=58000
 if "%_RHEL_RELEASE_VERSION_%"=="" set _RHEL_RELEASE_VERSION_=61
 
 if /i "%1"=="prepare" goto %1
-if /i "%1"=="finalize" goto %1
-if /i "%1"=="Win8" goto %1_%2
-if /i "%1"=="Win10" goto %1_%2
-set DDKBUILDENV=
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %2 fre %1 no_oacr
-popd
 
-call :prepare_version
-
-set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_% 
-
-build -cZg
-
-set DDKVER=
-set BUILDROOT=
+call :%1_%2
 goto :eof
 
-set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_% 
-if exist ..\..\Tools\xdate.exe ..\..\Tools\xdate.exe -u > timestamp.txt
-if exist timestamp.txt set /p STAMPINF_DATE= < timestamp.txt
-del timestamp.txt    
+:Win7_x86
+call :BuildProject "Win7 Release|x86" buildfre_win7_x86.log
+goto :eof
 
-build -cZg
-
-set DDKVER=
-set BUILDROOT=
+:Win7_x64
+call :BuildProject "Win7 Release|x64" buildfre_win7_amd64.log
 goto :eof
 
 :Win8_x86
-call :BuildWin8 "Win8 Release|Win32" buildfre_win8_x86.log
+call :BuildProject "Win8 Release|x86" buildfre_win8_x86.log
 goto :eof
 
 :Win8_x64
-call :BuildWin8 "Win8 Release|x64" buildfre_win8_amd64.log
+call :BuildProject "Win8 Release|x64" buildfre_win8_amd64.log
 goto :eof
 
-:BuildWin8
+:Win10_x86
+call :BuildProject "Win10 Release|x86" buildfre_win10_x86.log
+goto :eof
+
+:Win10_x64
+call :BuildProject "Win10 Release|x64" buildfre_win10_amd64.log
+goto :eof
+
+:Wlh_x86
+call :BuildProject "Vista Release|Win32" buildfre_wlh_x86.log
+goto :eof
+
+:Wlh_x64
+call :BuildProject "Vista Release|x64" buildfre_wlh_amd64.log
+goto :eof
+
+:Wnet_x86
+call :BuildProject "Win2k3 Release|Win32" buildfre_wnet_x86.log
+goto :eof
+
+:Wnet_x64
+call :BuildProject "Win2k3 Release|x64" buildfre_wnet_amd64.log
+goto :eof
+
+:WXp_x86
+call :BuildProject "WinXP Release|Win32" buildfre_wxp_x86.log
+goto :eof
+
+:BuildProject
 setlocal
-if "%_NT_TARGET_VERSION%"=="" set _NT_TARGET_VERSION=0x602
-if "%_BUILD_MAJOR_VERSION_%"=="" set _BUILD_MAJOR_VERSION_=101
-if "%_BUILD_MINOR_VERSION_%"=="" set _BUILD_MINOR_VERSION_=58000
-if "%_RHEL_RELEASE_VERSION_%"=="" set _RHEL_RELEASE_VERSION_=61
+if "%_NT_TARGET_VERSION%"=="" set _NT_TARGET_VERSION=0x603
+if "%_BUILD_MAJOR_VERSION_%"=="" set _BUILD_MAJOR_VERSION_=105
+if "%_BUILD_MINOR_VERSION_%"=="" set _BUILD_MINOR_VERSION_=109000
+if "%_RHEL_RELEASE_VERSION_%"=="" set _RHEL_RELEASE_VERSION_=72
 
 set _MAJORVERSION_=%_BUILD_MAJOR_VERSION_%
 set _MINORVERSION_=%_BUILD_MINOR_VERSION_%
@@ -85,11 +97,4 @@ call :prepare_version
 call :create2012H  > 2012-defines.h
 goto :eof
 
-:finalize
-echo finalizing build (%2 %3)
-rem del 2012-defines.h 
-rem pushd ..
-rem call packOne.bat %2 %3 vioser
-rem popd
-goto :eof
 
