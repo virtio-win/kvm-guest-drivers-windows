@@ -28,6 +28,7 @@ EVT_WDF_INTERRUPT_DISABLE                       VIOSerialInterruptDisable;
 
 #define VIRTIO_SERIAL_MAX_PORTS 31
 #define VIRTIO_SERIAL_MAX_QUEUES_COUPLES (VIRTIO_SERIAL_MAX_PORTS + 1)
+#define VIRTIO_SERIAL_MAX_QUEUES (2 * VIRTIO_SERIAL_MAX_QUEUES_COUPLES)
 #define VIRTIO_SERIAL_CONTROL_PORT_INDEX 1
 
 #define VIRTIO_SERIAL_INVALID_INTERRUPT_STATUS 0xFF
@@ -75,12 +76,7 @@ typedef struct _tagVirtioConsoleControl {
 
 typedef struct _tagPortDevice
 {
-    VirtIODevice        *pIODevice;
-
-    PHYSICAL_ADDRESS    PortBasePA;
-    ULONG               uPortLength;
-    PVOID               pPortBase;
-    bool                bPortMapped;
+    VIRTIO_WDF_DRIVER   VDevice;
 
     WDFINTERRUPT        WdfInterrupt;
     WDFINTERRUPT        QueuesInterrupt;

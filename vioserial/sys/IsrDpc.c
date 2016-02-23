@@ -21,7 +21,7 @@ VIOSerialInterruptIsr(
 
     // Schedule a DPC if the device is using message-signaled interrupts, or
     // if the device ISR status is enabled.
-    if (info.MessageSignaled || VirtIODeviceISR(pContext->pIODevice))
+    if (info.MessageSignaled || VirtIOWdfGetISRStatus(&pContext->VDevice))
     {
         WdfInterruptQueueDpcForIsr(Interrupt);
         serviced = TRUE;
