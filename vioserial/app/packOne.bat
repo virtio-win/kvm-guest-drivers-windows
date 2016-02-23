@@ -1,10 +1,12 @@
 @echo off
-: Param1 - Win7 | Wlh | Wnet | XP
+setlocal
+: Param1 - Win8 | Win7 | Wlh | Wnet | XP
 : Param2 - x86|x64
 : Param3 - file name
  
 if "%2"=="x64" set %%2=amd64
 
+if /i "%1"=="Win8" goto :checkarch
 if /i "%1"=="Win7" goto :checkarch
 if /i "%1"=="Wlh" goto :checkarch
 if /i "%1"=="Wnet" goto :checkarch
@@ -42,11 +44,3 @@ mkdir ..\Install\%INST_OS%\%INST_ARC%
 del /Q ..\Install\%INST_OS%\%INST_ARC%\%FILE_NAME%.*
 copy /Y %EXE_PATH_AND_NAME% ..\Install\%INST_OS%\%INST_ARC%
 copy /Y %PDB_PATH_AND_NAME% ..\Install\%INST_OS%\%INST_ARC%
-
-set INST_OS=
-set INST_ARC=
-set FILE_NAME=
-set EXE_PATH_AND_NAME=
-set PDB_PATH_AND_NAME=
-
-
