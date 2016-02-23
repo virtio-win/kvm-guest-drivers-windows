@@ -215,6 +215,15 @@ VIOSerialEvtDevicePrepareHardware(
 
     u64HostFeatures = VirtIOWdfGetDeviceFeatures(&pContext->VDevice);
 
+    if (VirtIOIsFeatureEnabled(u64HostFeatures, VIRTIO_F_VERSION_1))
+    {
+        VirtIOFeatureEnable(u64GuestFeatures, VIRTIO_F_VERSION_1);
+    }
+    if (VirtIOIsFeatureEnabled(u64HostFeatures, VIRTIO_F_ANY_LAYOUT))
+    {
+        VirtIOFeatureEnable(u64GuestFeatures, VIRTIO_F_ANY_LAYOUT);
+    }
+
     if(pContext->isHostMultiport = VirtIOIsFeatureEnabled(u64HostFeatures, VIRTIO_CONSOLE_F_MULTIPORT))
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "We have multiport host\n");
