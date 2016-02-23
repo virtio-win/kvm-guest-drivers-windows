@@ -1,4 +1,5 @@
 @echo off
+setlocal
 : Param1 - Win7 | Wlh | Wnet | XP | Win8
 : Param2 - x86|x64
 : Param3 - file name
@@ -74,7 +75,6 @@ goto run_inf2cat
 :create_win8
 if /i "%2"=="x86" set _OSMASK_=8_X86
 if /i "%2"=="x64" set _OSMASK_=8_X64,Server8_X64
-call "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" %INST_ARC%
 goto run_inf2cat
 
 :error_inf2cat
@@ -82,18 +82,9 @@ echo "Error setting OS mask for inf2cat"
 goto after_inf2cat
 
 :run_inf2cat
+setlocal
+call "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" %INST_ARC%
 inf2cat /driver:..\Install\%INST_OS%\%INST_ARC% /os:%_OSMASK_%
 if exist ..\..\Tools\NetKVMTemporaryCert.pfx SignTool sign /f ..\..\Tools\NetKVMTemporaryCert.pfx ..\Install\%INST_OS%\%INST_ARC%\%FILE_NAME%.cat
-rem pause
+endlocal
 :after_cat2inf
-
-set INST_OS=
-set INST_ARC=
-set FILE_NAME=
-set SYS_PATH_AND_NAME=
-set PDB_PATH_AND_NAME=
-set INF_PATH_AND_NAME=
-set WDF_PATH_AND_NAME=
-set DDKVER=
-set BUILDROOT=
-
