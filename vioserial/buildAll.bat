@@ -37,8 +37,8 @@ goto :eof
 call :buildsys %1 %2
 call :buildapp %1 %2
 call :packsys %1 %2
-call :buildapp %1 %2
-call :packapp %1 %2
+rem call :buildapp %1 %2
+rem call :packapp %1 %2
 set BUILD_OS=
 set BUILD_ARC=
 goto :eof

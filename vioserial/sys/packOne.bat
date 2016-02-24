@@ -68,11 +68,13 @@ goto error_inf2cat
 :create_xp
 if /i "%2"=="x86" set _OSMASK_=XP_X86,Server2003_X86
 if /i "%2"=="x64" set _OSMASK_=XP_X64,Server2003_X64
+call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %INST_ARC%
 goto run_inf2cat
 
 :create_vista
 if /i "%2"=="x86" set _OSMASK_=Vista_X86,Server2008_X86,7_X86
 if /i "%2"=="x64" set _OSMASK_=Vista_X64,Server2008_X64,7_X64,Server2008R2_X64
+call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %INST_ARC%
 goto run_inf2cat
 
 :create_win7
