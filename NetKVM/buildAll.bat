@@ -1,17 +1,17 @@
 mkdir Install
 
 :: Build Windows Vista
-rem setlocal
-rem call tools\set_version.bat
-rem call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Vista Release|x86" /Out buildfre_win7_x86.log
-rem endlocal
-rem if %ERRORLEVEL% NEQ 0 goto :eof
+setlocal
+call tools\set_version.bat
+call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Vista Release|x86" /Out buildfre_win7_x86.log
+endlocal
+if %ERRORLEVEL% NEQ 0 goto :eof
 
-rem setlocal
-rem call tools\set_version.bat
-rem call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Vista Release|x64" /Out buildfre_win7_amd64.log
-rem endlocal
-rem if %ERRORLEVEL% NEQ 0 goto :eof
+setlocal
+call tools\set_version.bat
+call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Vista Release|x64" /Out buildfre_win7_amd64.log
+endlocal
+if %ERRORLEVEL% NEQ 0 goto :eof
 
 :: Build Windows 7
 setlocal
