@@ -73,6 +73,7 @@ copy %BUILDROOT%\redist\wdf\%PLAT%\WdfCoInstaller01009.dll %DST_DIR%
 for %%E in (inf pdb sys) do copy %SRC_DIR%\pvpanic.%%E %DST_DIR%
 if /i "%2"=="Win32" set OS_SYS=Vista_X86,Server2008_X86
 if /i "%2"=="x64" set OS_SYS=Vista_X64,Server2008_X64
+call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86_amd64
 inf2cat /driver:%DST_DIR% /os:%OS_SYS%
 goto :eof
 
