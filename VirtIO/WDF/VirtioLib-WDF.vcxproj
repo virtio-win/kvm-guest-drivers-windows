@@ -83,7 +83,7 @@
     <MinimumVisualStudioVersion>11.0</MinimumVisualStudioVersion>
     <Configuration>Win8 Release</Configuration>
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
-    <LegacyDDKDir>$(DDKISNTALLROOT)$(DDKVER)</LegacyDDKDir>
+    <LegacyDDKDir>$(DDKINSTALLROOT)$(DDKVER)</LegacyDDKDir>
     <LegacyDDKDir Condition="'$(LegacyDDKDir)' == ''">C:\WINDDK\7600.16385.1</LegacyDDKDir>
   </PropertyGroup>
   <PropertyGroup Label="Globals">

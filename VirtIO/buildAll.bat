@@ -7,7 +7,7 @@
 if "%DDKVER%"=="" set DDKVER=7600.16385.1
 
 : By default DDK is installed under C:\WINDDK, but it can be installed in different location
-if "%DDKISNTALLROOT%"=="" set DDKISNTALLROOT=C:\WINDDK\
+if "%DDKINSTALLROOT%"=="" set DDKINSTALLROOT=C:\WINDDK\
 
 if not "%1"=="" goto parameters_here
 echo no parameters specified, rebuild all
