@@ -4,6 +4,7 @@ set SYS_FILE_NAME=balloon
 set APP_FILE_NAME=blnsvr
 
 for %%A in (WXp Wnet Wlh Win7 Win8 Win10) do for %%B in (32 64) do call :%%A_%%B
+
 set SYS_FILE_NAME=
 set APP_FILE_NAME=
 goto :eof 

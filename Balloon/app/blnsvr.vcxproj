@@ -30,8 +30,8 @@
   <PropertyGroup Label="PropertySheets">
     <ConversionToolVersion>1.0</ConversionToolVersion>
     <BUILD_ALT_DIR>$(Configuration.Replace(' ',''))</BUILD_ALT_DIR>
-    <IntDir Condition="'$(Platform)'!='Win32'">$(BUILD_ALT_DIR)\$(Platform)\</IntDir>
-    <IntDir Condition="'$(Platform)'=='Win32'">$(BUILD_ALT_DIR)\x86\</IntDir>
+    <IntDir Condition="'$(Platform)'!='Win32'">$(BUILD_ALT_DIR)\amd64\</IntDir>
+    <IntDir Condition="'$(Platform)'=='Win32'">$(BUILD_ALT_DIR)\i386\</IntDir>
     <OutDir>$(IntDir)</OutDir>
   </PropertyGroup>
   <ImportGroup Label="PreConfiguration">

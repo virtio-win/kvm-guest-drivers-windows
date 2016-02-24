@@ -19,7 +19,7 @@ goto :eof
 
 :Win7_x86
 if exist "Release\%~2" goto :eof
-call :BuildWin8 "Release|Win32" buildfre_x86.log
+call :BuildWin8 "Release|x86" buildfre_x86.log
 goto :eof
 
 :Win7_x64
