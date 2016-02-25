@@ -86,11 +86,11 @@
     <UseDebugLibraries>false</UseDebugLibraries>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'" Label="Configuration">
-    <TargetVersion>Vista</TargetVersion>
+    <TargetVersion>Windows7</TargetVersion>
     <UseDebugLibraries>true</UseDebugLibraries>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'" Label="Configuration">
-    <TargetVersion>Vista</TargetVersion>
+    <TargetVersion>Windows7</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'" Label="Configuration">
@@ -110,11 +110,11 @@
     <UseDebugLibraries>false</UseDebugLibraries>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'" Label="Configuration">
-    <TargetVersion>Vista</TargetVersion>
+    <TargetVersion>Windows7</TargetVersion>
     <UseDebugLibraries>true</UseDebugLibraries>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'" Label="Configuration">
-    <TargetVersion>Vista</TargetVersion>
+    <TargetVersion>Windows7</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -125,58 +125,44 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
-    <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(InfArch)\</OutDir>
-    <PackageDir>$(OutDir)</PackageDir>
-    <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
+    <OutDir>$(SolutionDir)Install_Debug\wlh\$(InfArch)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
-    <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(InfArch)\</OutDir>
-    <PackageDir>$(OutDir)</PackageDir>
-    <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
+    <OutDir>$(SolutionDir)Install\wlh\$(InfArch)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
     <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(InfArch)\</OutDir>
-    <PackageDir>$(OutDir)</PackageDir>
-    <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
     <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(InfArch)\</OutDir>
-    <PackageDir>$(OutDir)</PackageDir>
-    <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
     <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(InfArch)\</OutDir>
-    <PackageDir>$(OutDir)</PackageDir>
-    <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(InfArch)\</OutDir>
-    <PackageDir>$(OutDir)</PackageDir>
-    <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
-    <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(InfArch)\</OutDir>
-    <PackageDir>$(OutDir)</PackageDir>
+    <OutDir>$(SolutionDir)Install_Debug\wlh\$(InfArch)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
-    <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(InfArch)\</OutDir>
-    <PackageDir>$(OutDir)</PackageDir>
+    <OutDir>$(SolutionDir)Install\wlh\$(InfArch)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
     <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(InfArch)\</OutDir>
-    <PackageDir>$(OutDir)</PackageDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(InfArch)\</OutDir>
-    <PackageDir>$(OutDir)</PackageDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
     <OutDir>$(SolutionDir)Install_Debug\$(DDKSpec)\$(InfArch)\</OutDir>
-    <PackageDir>$(OutDir)</PackageDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <OutDir>$(SolutionDir)Install\$(DDKSpec)\$(InfArch)\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup>
     <PackageDir>$(OutDir)</PackageDir>
+    <IntDir>$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup>
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
@@ -195,112 +181,19 @@
   <ItemDefinitionGroup>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
+    <FilesToPackage Include="..\$(IntDir)viorng.pdb">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Debug\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
+    <FilesToPackage Include="..\$(Platform)\Debug\viorngci.dll" Condition="$(Configuration.EndsWith('Debug'))">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Debug\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
+    <FilesToPackage Include="..\$(Platform)\Debug\viorngum.dll" Condition="$(Configuration.EndsWith('Debug'))">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
+    <FilesToPackage Include="..\$(Platform)\Release\viorngci.dll" Condition="$(Configuration.EndsWith('Release'))">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Release\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Release\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Debug\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Debug\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Release\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Release\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Debug\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Debug\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Release\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Release\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Debug\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Debug\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Release\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Release\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Debug\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Debug\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Release\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Release\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Debug\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Debug\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(IntDir)viorng.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Release\viorngci.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Release\viorngum.dll" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+    <FilesToPackage Include="..\$(Platform)\Release\viorngum.dll" Condition="$(Configuration.EndsWith('Release'))">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
   </ItemGroup>
