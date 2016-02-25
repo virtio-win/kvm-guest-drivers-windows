@@ -88,6 +88,7 @@ NTSTATUS VirtRngEvtDeviceD0Entry(IN WDFDEVICE Device,
     NTSTATUS status = STATUS_SUCCESS;
     PDEVICE_CONTEXT context = GetDeviceContext(Device);
     VIRTIO_WDF_QUEUE_PARAM param;
+    u64 u64HostFeatures, u64GuestFeatures = 0;
 
     UNREFERENCED_PARAMETER(PreviousState);
 
@@ -96,22 +97,36 @@ NTSTATUS VirtRngEvtDeviceD0Entry(IN WDFDEVICE Device,
 
     PAGED_CODE();
 
+    u64HostFeatures = VirtIOWdfGetDeviceFeatures(&context->VDevice);
+
+    if (VirtIOIsFeatureEnabled(u64HostFeatures, VIRTIO_F_VERSION_1))
+    {
+        VirtIOFeatureEnable(u64GuestFeatures, VIRTIO_F_VERSION_1);
+    }
+    if (VirtIOIsFeatureEnabled(u64HostFeatures, VIRTIO_F_ANY_LAYOUT))
+    {
+        VirtIOFeatureEnable(u64GuestFeatures, VIRTIO_F_ANY_LAYOUT);
+    }
+
+    status = VirtIOWdfSetDriverFeatures(&context->VDevice, u64GuestFeatures);
+    if (NT_SUCCESS(status))
     {
         param.bEnableInterruptSuppression = false;
         param.Interrupt = context->WdfInterrupt;
         param.szName = "requestq";
 
         status = VirtIOWdfInitQueues(&context->VDevice, 1, &context->VirtQueue, &param);
-        if (NT_SUCCESS(status))
-        {
-            VirtIOWdfSetDriverOK(&context->VDevice);
-        }
-        else
-        {
-            VirtIOWdfSetDriverFailed(&context->VDevice);
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-                "VirtIOWdfInitQueues failed with %x\n", status);
-        }
+    }
+
+    if (NT_SUCCESS(status))
+    {
+        VirtIOWdfSetDriverOK(&context->VDevice);
+    }
+    else
+    {
+        VirtIOWdfSetDriverFailed(&context->VDevice);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
+            "VirtIOWdfInitQueues failed with %x\n", status);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "<-- %!FUNC!");
