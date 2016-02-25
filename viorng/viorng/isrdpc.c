@@ -74,7 +74,7 @@ BOOLEAN VirtRngEvtInterruptIsr(IN WDFINTERRUPT Interrupt, IN ULONG MessageId)
     WdfInterruptGetInfo(context->WdfInterrupt, &info);
 
     if ((info.MessageSignaled && (MessageId == 0)) ||
-        VirtIODeviceISR(&context->VirtDevice))
+        VirtIOWdfGetISRStatus(&context->VDevice))
     {
         WdfInterruptQueueDpcForIsr(Interrupt);
         serviced = TRUE;
