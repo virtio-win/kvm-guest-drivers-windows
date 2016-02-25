@@ -27,6 +27,7 @@
 #include <ntddk.h>
 #include <wdf.h>
 #include <bcrypt.h>
+#include <wdmguid.h>
 
 #include "trace.h"
 
@@ -35,6 +36,7 @@
 #include "virtio_pci.h"
 #include "virtio_config.h"
 #include "virtio.h"
+#include "VirtIOWdf.h"
 
 #define VIRT_RNG_MEMORY_TAG ((ULONG)'gnrV')
 
@@ -52,13 +54,8 @@ typedef struct _ReadBufferEntry
 
 typedef struct _DEVICE_CONTEXT {
 
-    VirtIODevice        VirtDevice;
+    VIRTIO_WDF_DRIVER   VDevice;
     struct virtqueue    *VirtQueue;
-
-    // HW Resources
-    PVOID               IoBaseAddress;
-    ULONG               IoRange;
-    BOOLEAN             MappedPort;
 
     WDFINTERRUPT        WdfInterrupt;
     WDFSPINLOCK         VirtQueueLock;
