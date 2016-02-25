@@ -80,6 +80,7 @@ call :build_co_installer Vista %2
 for %%E in (inf pdb sys) do copy %SRC_DIR%\viorng.%%E %DST_DIR%
 if /i "%2"=="Win32" set OS_SYS=Vista_X86,Server2008_X86
 if /i "%2"=="x64" set OS_SYS=Vista_X64,Server2008_X64
+call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x64
 inf2cat /driver:%DST_DIR% /os:%OS_SYS%
 goto :eof
 
@@ -92,14 +93,14 @@ goto :eof
 :build_um_provider
 call :set_windows_version %1
 call :set_out_filename %1 %2
-call ..\tools\callVisualStudio.bat 12 cng\um\viorngum.vcxproj /Rebuild "Release|%2" /Out %OUT_FILENAME%
+call ..\tools\callVisualStudio.bat 14 cng\um\viorngum.vcxproj /Rebuild "Release|%2" /Out %OUT_FILENAME%
 copy "cng\um\%2\Release\viorngum.dll" "Install\%OS%\%PLAT%\"
 goto :eof
 
 :build_co_installer
 call :set_windows_version %1
 call :set_out_filename %1 %2
-call ..\tools\callVisualStudio.bat 12 coinstaller\viorngci.vcxproj /Rebuild "Release|%2" /Out %OUT_FILENAME%
+call ..\tools\callVisualStudio.bat 14 coinstaller\viorngci.vcxproj /Rebuild "Release|%2" /Out %OUT_FILENAME%
 copy "coinstaller\%2\Release\viorngci.dll" "Install\%OS%\%PLAT%\"
 goto :eof
 
