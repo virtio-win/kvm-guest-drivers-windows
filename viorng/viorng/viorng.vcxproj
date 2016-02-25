@@ -180,151 +180,121 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
-    <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
-    <OutDir>$(SolutionDir)$(Platform)\$(ConfigurationName)\</OutDir>
-  </PropertyGroup>
   <PropertyGroup>
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <TargetExt>.sys</TargetExt>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
-    <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
-    <OutDir>$(SolutionDir)$(Platform)\$(ConfigurationName)\</OutDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
-    <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
-    <OutDir>$(SolutionDir)$(Platform)\$(ConfigurationName)\</OutDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
-    <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
-    <OutDir>$(SolutionDir)$(Platform)\$(ConfigurationName)\</OutDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
-    <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
-    <OutDir>$(SolutionDir)$(Platform)\$(ConfigurationName)\</OutDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-    <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
-    <OutDir>$(SolutionDir)$(Platform)\$(ConfigurationName)\</OutDir>
+  <PropertyGroup>
+    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData Condition="'%(ClCompile. ScanConfigurationData)'  == ''">trace.h</WppScanConfigurationData>
       <WppKernelMode>true</WppKernelMode>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO;..\..\VirtIO\WDF</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions Condition="'$(Platform)'=='Win32'">_WINNT_;_X86_=1;i386=1;STD_CALL;%(PreprocessorDefinitions);POOL_NX_OPTIN=1</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Platform)'=='x64'">_WINNT_;_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions);POOL_NX_OPTIN=1</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">..\..\VirtIO\objchk_wlh_x86\i386</AdditionalLibraryDirectories>
-    </Link>
-    <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">..\..\VirtIO\objfre_wlh_x86\i386</AdditionalLibraryDirectories>
-    </Link>
-    <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">..\..\VirtIO\objchk_win7_x86\i386</AdditionalLibraryDirectories>
-    </Link>
-    <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">..\..\VirtIO\objfre_win7_x86\i386</AdditionalLibraryDirectories>
-    </Link>
-    <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">..\..\VirtIO\objchk_win8_x86\i386</AdditionalLibraryDirectories>
-    </Link>
-    <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">..\..\VirtIO\objfre_win8_x86\i386</AdditionalLibraryDirectories>
-    </Link>
-    <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">..\..\VirtIO\objchk_win10_x86\i386</AdditionalLibraryDirectories>
-    </Link>
-    <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">..\..\VirtIO\objfre_win10_x86\i386</AdditionalLibraryDirectories>
-    </Link>
-    <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">..\..\VirtIO\objchk_wlh_amd64\amd64</AdditionalLibraryDirectories>
-    </Link>
-    <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">..\..\VirtIO\objfre_wlh_amd64\amd64</AdditionalLibraryDirectories>
-    </Link>
-    <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">..\..\VirtIO\objfre_win7_amd64\amd64</AdditionalLibraryDirectories>
-    </Link>
-    <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">..\..\VirtIO\objfre_win7_amd64\amd64</AdditionalLibraryDirectories>
-    </Link>
-    <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">..\..\VirtIO\objchk_win8_amd64\amd64</AdditionalLibraryDirectories>
-    </Link>
-    <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">..\..\VirtIO\objfre_win8_amd64\amd64</AdditionalLibraryDirectories>
-    </Link>
-    <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">..\..\VirtIO\objchk_win10_amd64\amd64</AdditionalLibraryDirectories>
-    </Link>
-    <Link>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">virtiolib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">..\..\VirtIO\objfre_win10_amd64\amd64</AdditionalLibraryDirectories>
+      <AdditionalDependencies>virtiolib.lib;virtiolib_wdf.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">..\..\VirtIO\objchk_wlh_x86\i386;..\..\VirtIO\WDF\objchk_wlh_x86\i386</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">..\..\VirtIO\objfre_wlh_x86\i386;..\..\VirtIO\WDF\objfre_wlh_x86\i386</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">..\..\VirtIO\objchk_win7_x86\i386;..\..\VirtIO\WDF\objchk_win7_x86\i386</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">..\..\VirtIO\objfre_win7_x86\i386;..\..\VirtIO\WDF\objfre_win7_x86\i386</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">..\..\VirtIO\objchk_win8_x86\i386;..\..\VirtIO\WDF\objchk_win8_x86\i386</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">..\..\VirtIO\objfre_win8_x86\i386;..\..\VirtIO\WDF\objfre_win8_x86\i386</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">..\..\VirtIO\objchk_win10_x86\i386;..\..\VirtIO\WDF\objchk_win10_x86\i386</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">..\..\VirtIO\objfre_win10_x86\i386;..\..\VirtIO\WDF\objfre_win10_x86\i386</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">..\..\VirtIO\objchk_wlh_amd64\amd64;..\..\VirtIO\WDF\objchk_wlh_amd64\amd64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">..\..\VirtIO\objfre_wlh_amd64\amd64;..\..\VirtIO\WDF\objfre_wlh_amd64\amd64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">..\..\VirtIO\objchk_win7_amd64\amd64;..\..\VirtIO\WDF\objchk_win7_amd64\amd64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">..\..\VirtIO\objfre_win7_amd64\amd64;..\..\VirtIO\WDF\objfre_win7_amd64\amd64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">..\..\VirtIO\objchk_win8_amd64\amd64;..\..\VirtIO\WDF\objchk_win8_amd64\amd64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">..\..\VirtIO\objfre_win8_amd64\amd64;..\..\VirtIO\WDF\objfre_win8_amd64\amd64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">..\..\VirtIO\objchk_win10_amd64\amd64;..\..\VirtIO\WDF\objchk_win10_amd64\amd64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">..\..\VirtIO\objfre_win10_amd64\amd64;..\..\VirtIO\WDF\objfre_win10_amd64\amd64</AdditionalLibraryDirectories>
     </Link>
     <Inf>
-      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">$(STAMPINF_VERSION)</TimeStamp>
+      <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
     </Inf>
-    <Inf>
-      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
-    <Inf>
-      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
-    <Inf>
-      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
-    <Inf>
-      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
-    <Inf>
-      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
-    <Inf>
-      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
-    <Inf>
-      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
-    <Inf>
-      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
-    <Inf>
-      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
-    <Inf>
-      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
-    <Inf>
-      <TimeStamp Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v120_xp'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(LegacyDDKDir)\inc\ddk;$(LegacyDDKDir)\inc\crt;$(LegacyDDKDir)\inc\api;$(LegacyDDKDir)\inc\wdf\kmdf\1.9;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary />
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
+      <Optimization>Full</Optimization>
+      <StructMemberAlignment>8Bytes</StructMemberAlignment>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <StringPooling>true</StringPooling>
+      <ForceConformanceInForLoopScope>false</ForceConformanceInForLoopScope>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <ExceptionHandling />
+      <AdditionalOptions>/kernel %(AdditionalOptions)</AdditionalOptions>
+      <CallingConvention>StdCall</CallingConvention>
+      <DisableSpecificWarnings>4267;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <Driver>Driver</Driver>
+      <Version>6.1</Version>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <AdditionalLibraryDirectories Condition="'$(Platform)'=='Win32'">$(LegacyDDKDir)\lib\wdf\kmdf\i386\1.9;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Platform)'=='x64'">$(LegacyDDKDir)\lib\wdf\kmdf\amd64\1.9;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>BufferOverflowK.lib;wdfdriverentry.lib;wdfldr.lib;wdm.lib;ntoskrnl.lib;hal.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/kernel /osversion:6.1 %(AdditionalOptions)</AdditionalOptions>
+      <SubSystem>Native</SubSystem>
+      <EntryPointSymbol Condition="'$(Platform)'=='Win32'">FxDriverEntry@8</EntryPointSymbol>
+      <EntryPointSymbol Condition="'$(Platform)'=='x64'">FxDriverEntry</EntryPointSymbol>
+    </Link>
+    <Link Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
+      <AdditionalLibraryDirectories>$(LegacyDDKDir)\lib\wlh\i386;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <MinimumRequiredVersion>6.00</MinimumRequiredVersion>
+    </Link>
+    <Link Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
+      <AdditionalLibraryDirectories>$(LegacyDDKDir)\lib\wlh\amd64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <MinimumRequiredVersion>6.00</MinimumRequiredVersion>
+    </Link>
+    <Link Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
+      <AdditionalLibraryDirectories>$(LegacyDDKDir)\lib\wlh\i386;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <MinimumRequiredVersion>6.00</MinimumRequiredVersion>
+    </Link>
+    <Link Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
+      <AdditionalLibraryDirectories>$(LegacyDDKDir)\lib\wlh\amd64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <MinimumRequiredVersion>6.00</MinimumRequiredVersion>
+    </Link>
+    <PreBuildEvent>
+      <Command>
+        tracewpp isrdpc.c power.c read.c biorng.c virtio.c viorng.c -km -func:TraceEvents(LEVEL,FLAGS,MSG,...) -gen:{km-WdfDefault.tpl}*.tmh -cfgdir:$(LegacyDDKDir)\bin\WppConfig\Rev1
+      </Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command Condition="'$(Platform)'=='Win32'">
+        copy "$(LegacyDDKDir)\redist\wdf\x86\WdfCoInstaller01009.dll" "$(OutDir)"
+        copy viorng.inf "$(OutDir)\viorng.inf"
+        stampinf -f "$(OutDir)\viorng.inf" -a x86 -k 1.9
+      </Command>
+      <Command Condition="'$(Platform)'=='x64'">
+        copy "$(LegacyDDKDir)\redist\wdf\amd64\WdfCoInstaller01009.dll" "$(OutDir)"
+        copy viorng.inf "$(OutDir)\viorng.inf"
+        stampinf -f "$(OutDir)\viorng.inf" -a AMD64 -k 1.9
+      </Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Vista Release'">
+    <ClCompile>
+      <PreprocessorDefinitions>_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000100;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Vista Debug'">
+    <ClCompile>
+      <PreprocessorDefinitions>_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000100;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <Inf Include="viorng.inf" />
@@ -350,4 +320,24 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <Target Name="GetDriverProjectAttributes" Returns="@(DriverProjectAttributes)" >
+    <ItemGroup Condition="'$(PlatformToolset)'=='v120_xp'">
+      <DriverProjectAttributes Include="$(ProjectGuid)">
+        <DriverType>$(DriverType)</DriverType>
+        <PlatformToolset>$(PlatformToolset)</PlatformToolset>
+        <IsKernelModeToolset>$(IsKernelModeToolset)</IsKernelModeToolset>
+        <IsUserModeToolset>$(IsUserModeToolset)</IsUserModeToolset>
+        <ProjectPath>$(MSBuildProjectFullPath)</ProjectPath>
+      </DriverProjectAttributes>
+    </ItemGroup>
+  </Target>
+  <Target Name="GetPackageFiles" Returns="@(FullyQualifiedFilesToPackage)">
+    <ItemGroup Condition="'$(PlatformToolset)'=='v120_xp'">
+      <FilesToPackage Include="$(OutDir)\viorng.inf" />
+      <FilesToPackage Include="$(OutDir)\WdfCoInstaller01009.dll" />
+    </ItemGroup>
+    <ConvertToAbsolutePath Paths="@(FilesToPackage)">
+      <Output TaskParameter="AbsolutePaths" ItemName="FullyQualifiedFilesToPackage" />
+    </ConvertToAbsolutePath>
+  </Target>
 </Project>
