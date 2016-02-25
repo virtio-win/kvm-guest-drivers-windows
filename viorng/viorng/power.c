@@ -33,51 +33,6 @@
 #pragma alloc_text(PAGE, VirtRngEvtDeviceD0Exit)
 #endif
 
-static struct virtqueue* FindVirtualQueue(VirtIODevice *VirtDevice,
-                                          ULONG Index,
-                                          USHORT Vector)
-{
-    struct virtqueue *vq = NULL;
-    ULONG entries, size;
-
-    VirtIODeviceQueryQueueAllocation(VirtDevice, Index, &entries, &size);
-    if (size)
-    {
-        PHYSICAL_ADDRESS HighestAcceptable;
-        PVOID p;
-
-        HighestAcceptable.QuadPart = 0xFFFFFFFFFF;
-        p = MmAllocateContiguousMemory(size, HighestAcceptable);
-        if (p)
-        {
-            vq = VirtIODevicePrepareQueue(VirtDevice, Index,
-                MmGetPhysicalAddress(p), p, size, p, FALSE);
-        }
-    }
-
-    if (vq && (Vector != VIRTIO_MSI_NO_VECTOR))
-    {
-        WriteVirtIODeviceWord(VirtDevice->addr + VIRTIO_MSI_QUEUE_VECTOR, Vector);
-        Vector = ReadVirtIODeviceWord(VirtDevice->addr + VIRTIO_MSI_QUEUE_VECTOR);
-    }
-
-    return vq;
-}
-
-static VOID DeleteQueue(struct virtqueue **pvq)
-{
-    struct virtqueue *vq = *pvq;
-
-    if (vq)
-    {
-        PVOID p;
-
-        VirtIODeviceDeleteQueue(vq, &p);
-        *pvq = NULL;
-        MmFreeContiguousMemory(p);
-    }
-}
-
 NTSTATUS VirtRngEvtDevicePrepareHardware(IN WDFDEVICE Device,
                                          IN WDFCMRESLIST Resources,
                                          IN WDFCMRESLIST ResourcesTranslated)
@@ -157,7 +112,6 @@ NTSTATUS VirtRngEvtDeviceD0Entry(IN WDFDEVICE Device,
             TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
                 "VirtIOWdfInitQueues failed with %x\n", status);
         }
-
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "<-- %!FUNC!");
