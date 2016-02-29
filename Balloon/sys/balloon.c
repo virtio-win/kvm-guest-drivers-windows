@@ -281,6 +281,14 @@ BalloonTerm(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonTerm\n");
 
+    RtlFillMemory(devCtx->MemStats,
+        sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
+    if (devCtx->StatVirtQueue)
+    {
+        BalloonMemStats(WdfDevice);
+        devCtx->StatVirtQueue = NULL;
+    }
+
     VirtIOWdfDestroyQueues(&devCtx->VDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- BalloonTerm\n");

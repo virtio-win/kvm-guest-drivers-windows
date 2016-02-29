@@ -192,13 +192,6 @@ BalloonEvtDeviceContextCleanup(
         devCtx->StatWorkItem = NULL;
     }
 
-    RtlFillMemory(devCtx->MemStats,
-        sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
-    if (devCtx->StatVirtQueue)
-    {
-        BalloonMemStats(Device);
-    }
-
     if(devCtx->MemStats)
     {
         ExFreePoolWithTag(
