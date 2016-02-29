@@ -48,12 +48,9 @@ typedef struct _DEVICE_CONTEXT {
     WDFINTERRUPT            WdfInterrupt;
     WDFWORKITEM             StatWorkItem;
     LONG                    WorkCount;
-    PUCHAR                  PortBase;
-    ULONG                   PortCount;
-    BOOLEAN                 PortMapped;
     PKEVENT                 evLowMem;
     HANDLE                  hLowMem;
-    VIODEVICE               VDevice;
+    VIRTIO_WDF_DRIVER       VDevice;
     PVIOQUEUE               InfVirtQueue;
     PVIOQUEUE               DefVirtQueue;
     PVIOQUEUE               StatVirtQueue;
