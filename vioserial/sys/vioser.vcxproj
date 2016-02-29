@@ -226,6 +226,8 @@
       <Inf2CatAdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">"Server10_x64" %(Inf2CatAdditionalOptions)</Inf2CatAdditionalOptions>
     </ClCompile>
     <Link>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <AdditionalLibraryDirectories>..\..\VirtIO\$(OutDir);..\..\VirtIO\WDF\$(OutDir);$(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>virtiolib.lib;virtiolib_wdf.lib;ntstrsafe.lib;wdmsec.lib</AdditionalDependencies>
     </Link>
