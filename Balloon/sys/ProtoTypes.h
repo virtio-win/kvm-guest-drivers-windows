@@ -33,7 +33,6 @@ typedef struct _VIRTIO_BALLOON_CONFIG
 }VIRTIO_BALLOON_CONFIG, *PVIRTIO_BALLOON_CONFIG;
 
 
-typedef VirtIODevice VIODEVICE, *PVIODEVICE;
 typedef struct virtqueue VIOQUEUE, *PVIOQUEUE;
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 

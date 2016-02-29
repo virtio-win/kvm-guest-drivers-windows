@@ -18,40 +18,6 @@
 #include "balloon.tmh"
 #endif
 
-static PVIOQUEUE FindVirtualQueue(VIODEVICE *dev, ULONG index)
-{
-    PVIOQUEUE  pq = NULL;
-    PVOID p;
-    ULONG size, allocSize;
-    VirtIODeviceQueryQueueAllocation(dev, index, &size, &allocSize);
-    if (allocSize)
-    {
-        PHYSICAL_ADDRESS HighestAcceptable;
-        HighestAcceptable.QuadPart = 0xFFFFFFFFFF;
-        p = MmAllocateContiguousMemory(allocSize, HighestAcceptable);
-        if (p)
-        {
-            pq = VirtIODevicePrepareQueue(dev, index, MmGetPhysicalAddress(p), p, allocSize, p, FALSE);
-        }
-    }
-    return pq;
-}
-
-static void DeleteQueue(struct virtqueue **pvq)
-{
-    struct virtqueue *vq = *pvq;
-    PVOID p;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Deleting queue %p\n", vq);
-
-    if (vq != NULL)
-    {
-        VirtIODeviceDeleteQueue(vq, &p);
-        MmFreeContiguousMemory(p);
-        *pvq = NULL;
-    }
-}
-
 NTSTATUS
 BalloonInit(
     IN WDFOBJECT    WdfDevice
