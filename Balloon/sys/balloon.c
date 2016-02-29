@@ -59,75 +59,87 @@ BalloonInit(
 {
     NTSTATUS            status = STATUS_SUCCESS;
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
-    u32 hostFeatures;
-    u32 guestFeatures = 0;
+    u64 u64HostFeatures;
+    u64 u64GuestFeatures = 0;
+    bool notify_stat_queue = false;
+    VIRTIO_WDF_QUEUE_PARAM params[3];
+    PVIOQUEUE vqs[3];
+    ULONG nvqs;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonInit\n");
 
-    VirtIODeviceReset(&devCtx->VDevice);
+    params[0].bEnableInterruptSuppression = false;
+    params[0].Interrupt = devCtx->WdfInterrupt;
+    params[0].szName = "inflate";
 
-    VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
-    VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_DRIVER);
+    params[1].bEnableInterruptSuppression = false;
+    params[1].Interrupt = devCtx->WdfInterrupt;
+    params[1].szName = "deflate";
 
-    do
+    params[2].bEnableInterruptSuppression = false;
+    params[2].Interrupt = devCtx->WdfInterrupt;
+    params[2].szName = "stats";
+
+    u64HostFeatures = VirtIOWdfGetDeviceFeatures(&devCtx->VDevice);
+
+    // initialize 2 or 3 queues
+    nvqs = VirtIOIsFeatureEnabled(u64HostFeatures, VIRTIO_BALLOON_F_STATS_VQ) ? 3 : 2;
+    status = VirtIOWdfInitQueues(&devCtx->VDevice, nvqs, vqs, params);
+    if (NT_SUCCESS(status))
     {
-        devCtx->InfVirtQueue = FindVirtualQueue(&devCtx->VDevice, 0);
-        if (!devCtx->InfVirtQueue)
+        devCtx->InfVirtQueue = vqs[0];
+        devCtx->DefVirtQueue = vqs[1];
+
+        if (nvqs == 3)
         {
-           status = STATUS_INSUFFICIENT_RESOURCES;
-           break;
+            VIO_SG  sg;
+
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
+                "Enable stats feature.\n");
+
+            devCtx->StatVirtQueue = vqs[2];
+
+            sg.physAddr = MmGetPhysicalAddress(devCtx->MemStats);
+            sg.length = sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR;
+
+            if (virtqueue_add_buf(
+                    devCtx->StatVirtQueue, &sg, 1, 0, devCtx, NULL, 0) >= 0)
+            {
+                VirtIOFeatureEnable(u64GuestFeatures, VIRTIO_BALLOON_F_STATS_VQ);
+                notify_stat_queue = true;
+            }
+            else
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
+                    "Failed to add buffer to stats queue.\n");
+            }
         }
 
-        devCtx->DefVirtQueue = FindVirtualQueue(&devCtx->VDevice, 1);
-        if (!devCtx->DefVirtQueue)
+        status = VirtIOWdfSetDriverFeatures(&devCtx->VDevice, u64GuestFeatures);
+        if (NT_SUCCESS(status))
         {
-           status = STATUS_INSUFFICIENT_RESOURCES;
-           break;
+            VirtIOWdfSetDriverOK(&devCtx->VDevice);
         }
-
-        hostFeatures = VirtIODeviceReadHostFeatures(&devCtx->VDevice);
-
-        if (VirtIOIsFeatureEnabled(hostFeatures, VIRTIO_BALLOON_F_STATS_VQ))
+        else
         {
-           VIO_SG  sg;
-           
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
-               "Enable stats feature.\n");
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
+                "VirtIOWdfSetDriverFeatures failed with %x\n", status);
 
-           devCtx->StatVirtQueue = FindVirtualQueue(&devCtx->VDevice, 2);
-           if (!devCtx->StatVirtQueue)
-           {
-              status = STATUS_INSUFFICIENT_RESOURCES;
-              break;
-           }
-
-           sg.physAddr = MmGetPhysicalAddress(devCtx->MemStats);
-           sg.length = sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR;
-
-           if (virtqueue_add_buf(
-                   devCtx->StatVirtQueue, &sg, 1, 0, devCtx, NULL, 0) >= 0)
-           {
-               virtqueue_kick(devCtx->StatVirtQueue);
-               VirtIOFeatureEnable(guestFeatures, VIRTIO_BALLOON_F_STATS_VQ);
-           }
-           else
-           {
-               TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
-                   "Failed to add buffer to stats queue.\n");
-           }
+            VirtIOWdfDestroyQueues(&devCtx->VDevice);
+            VirtIOWdfSetDriverFailed(&devCtx->VDevice);
+            notify_stat_queue = false;
         }
-#pragma warning(suppress: 4127)
-    } while(FALSE);
-
-    VirtIODeviceWriteGuestFeatures(&devCtx->VDevice, guestFeatures);
-
-    if(NT_SUCCESS(status))
-    {
-        VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_DRIVER_OK);
     }
     else
     {
-        VirtIODeviceAddStatus(&devCtx->VDevice, VIRTIO_CONFIG_S_FAILED);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
+            "VirtIOWdfInitQueues failed with %x\n", status);
+    }
+
+    // notify the stat queue only after the virtual device has been fully initialized
+    if (notify_stat_queue)
+    {
+        virtqueue_kick(devCtx->StatVirtQueue);
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- BalloonInit\n");
@@ -303,13 +315,7 @@ BalloonTerm(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonTerm\n");
 
-    VirtIODeviceRemoveStatus(&devCtx->VDevice , VIRTIO_CONFIG_S_DRIVER_OK);
-
-    DeleteQueue(&devCtx->DefVirtQueue);
-    DeleteQueue(&devCtx->InfVirtQueue);
-    DeleteQueue(&devCtx->StatVirtQueue);
-
-    VirtIODeviceReset(&devCtx->VDevice);
+    VirtIOWdfDestroyQueues(&devCtx->VDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- BalloonTerm\n");
 }
