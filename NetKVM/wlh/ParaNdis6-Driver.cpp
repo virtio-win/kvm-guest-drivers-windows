@@ -133,7 +133,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
             NormalPoolPriority);
 
     /* This call is for Static Driver Verifier only - has no real functionality*/
-    __sdv_save_adapter_context(pContext);
+    __sdv_save_adapter_context((PVOID*)&pContext);
 
     if (!pContext)
     {
