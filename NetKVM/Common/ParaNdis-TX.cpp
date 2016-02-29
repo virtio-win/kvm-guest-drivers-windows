@@ -805,9 +805,9 @@ bool CNB::Copy(PVOID Dst, ULONG Length) const
         PVOID CurrAddr;
 
 #if NDIS_SUPPORT_NDIS620
-        NdisQueryMdl(CurrMDL, &CurrAddr, &CurrLen, LowPagePriority | MdlMappingNoExecute);
+        NdisQueryMdl(CurrMDL, &CurrAddr, &CurrLen, MM_PAGE_PRIORITY(LowPagePriority | MdlMappingNoExecute));
 #else
-        NdisQueryMdl(CurrMDL, &CurrAddr, &CurrLen, LowPagePriority);
+        NdisQueryMdl(CurrMDL, &CurrAddr, &CurrLen, MM_PAGE_PRIORITY(LowPagePriority));
 #endif
 
         if (CurrAddr == nullptr)
