@@ -217,14 +217,7 @@ BalloonEvtDevicePrepareHardware(
     )
 {
     NTSTATUS            status         = STATUS_SUCCESS;
-    BOOLEAN             foundPort      = FALSE;
-    PHYSICAL_ADDRESS    PortBasePA     = {0};
-    ULONG               PortLength     = 0;
-    ULONG               i;
-    WDF_INTERRUPT_INFO  interruptInfo;
     PDEVICE_CONTEXT     devCtx = NULL;
-
-    PCM_PARTIAL_RESOURCE_DESCRIPTOR  desc;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
@@ -234,68 +227,17 @@ BalloonEvtDevicePrepareHardware(
 
     devCtx = GetDeviceContext(Device);
 
-    for (i=0; i < WdfCmResourceListGetCount(ResourceListTranslated); i++) {
-
-        desc = WdfCmResourceListGetDescriptor( ResourceListTranslated, i );
-
-        if(!desc) {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                        "WdfResourceCmGetDescriptor failed\n");
-            return STATUS_DEVICE_CONFIGURATION_ERROR;
-        }
-
-        switch (desc->Type) {
-
-            case CmResourceTypePort:
-                if (!foundPort &&
-                     desc->u.Port.Length >= 0x20) {
-
-                    devCtx->PortMapped =
-                         (desc->Flags & CM_RESOURCE_PORT_IO) ? FALSE : TRUE;
-
-                    PortBasePA = desc->u.Port.Start;
-                    PortLength = desc->u.Port.Length;
-                    foundPort = TRUE;
-
-                    if (devCtx->PortMapped) {
-                         devCtx->PortBase =
-                             (PUCHAR) MmMapIoSpace( PortBasePA, PortLength, MmNonCached );
-
-                      if (!devCtx->PortBase) {
-                         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, " Unable to map port range %08I64X, length %d\n",
-                                        PortBasePA.QuadPart, PortLength);
-
-                         return STATUS_INSUFFICIENT_RESOURCES;
-                      }
-                      devCtx->PortCount = PortLength;
-
-                    } else {
-                         devCtx->PortBase  = (PUCHAR)(ULONG_PTR) PortBasePA.QuadPart;
-                         devCtx->PortCount = PortLength;
-                    }
-                }
-
-                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-> Port   Resource [%08I64X-%08I64X]\n",
-                            desc->u.Port.Start.QuadPart,
-                            desc->u.Port.Start.QuadPart +
-                            desc->u.Port.Length);
-                break;
-
-            default:
-                break;
-        }
+    status = VirtIOWdfInitialize(
+        &devCtx->VDevice,
+        Device,
+        ResourceListTranslated,
+        NULL,
+        BALLOON_MGMT_POOL_TAG,
+        3 /* nMaxQueues */);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "VirtIOWdfInitialize failed with %x\n", status);
     }
-
-    if (!foundPort) {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, " Missing resources\n");
-        return STATUS_DEVICE_CONFIGURATION_ERROR;
-    }
-
-    WDF_INTERRUPT_INFO_INIT(&interruptInfo);
-    WdfInterruptGetInfo(devCtx->WdfInterrupt, &interruptInfo);
-
-    VirtIODeviceInitialize(&devCtx->VDevice, (ULONG_PTR)devCtx->PortBase, sizeof(devCtx->VDevice));
-    VirtIODeviceSetMSIXUsed(&devCtx->VDevice, interruptInfo.MessageSignaled);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return status;
@@ -317,12 +259,7 @@ BalloonEvtDeviceReleaseHardware (
 
     devCtx = GetDeviceContext(Device);
 
-    if(devCtx->PortBase && devCtx->PortMapped)
-    {
-        MmUnmapIoSpace( devCtx->PortBase,  devCtx->PortCount );
-    }
-
-    devCtx->PortBase = NULL;
+    VirtIOWdfShutdown(&devCtx->VDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
@@ -497,7 +434,7 @@ BalloonInterruptIsr(
     Device = WdfInterruptGetDevice(WdfInterrupt);
     devCtx = GetDeviceContext(Device);
 
-    if(VirtIODeviceISR(&devCtx->VDevice) > 0)
+    if (VirtIOWdfGetISRStatus(&devCtx->VDevice) > 0)
     {
         WdfInterruptQueueDpcForIsr( WdfInterrupt );
         return TRUE;
@@ -628,7 +565,7 @@ BalloonSetSize(
 {
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(WdfDevice);
     u32 actual = (u32)num;
-    VirtIODeviceSet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, actual), &actual, sizeof(actual));
+    VirtIOWdfDeviceSet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, actual), &actual, sizeof(actual));
 }
 
 LONGLONG
@@ -639,7 +576,7 @@ BalloonGetSize(
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(WdfDevice);
 
     u32 v;
-    VirtIODeviceGet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, num_pages), &v, sizeof(v));
+    VirtIOWdfDeviceGet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, num_pages), &v, sizeof(v));
     return (LONGLONG)v - devCtx->num_pages;
 }
 

@@ -52,7 +52,7 @@ typedef struct _DEVICE_CONTEXT {
     BOOLEAN                 PortMapped;
     PKEVENT                 evLowMem;
     HANDLE                  hLowMem;
-    VIODEVICE               VDevice;
+    VIRTIO_WDF_DRIVER       VDevice;
     PVIOQUEUE               InfVirtQueue;
     PVIOQUEUE               DefVirtQueue;
     PVIOQUEUE               StatVirtQueue;
