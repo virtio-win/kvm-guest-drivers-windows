@@ -89,7 +89,7 @@
     <TargetName>vioscsi</TargetName>
     <OutDir>objfre_win8_amd64\amd64\</OutDir>
     <IntDir>objfre_win8_amd64\amd64\</IntDir>
-    <CodeAnalysisRuleSet>C:\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet>$(FrameworkSdkDir)\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <RunCodeAnalysis>true</RunCodeAnalysis>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
