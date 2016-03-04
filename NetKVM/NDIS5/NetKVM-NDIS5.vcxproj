@@ -82,13 +82,8 @@
     <ClInclude Include="Common\IONetDescriptor.h" />
     <ClInclude Include="Common\kdebugprint.h" />
     <ClInclude Include="Common\ndis56common.h" />
-    <ClInclude Include="Common\osdep.h" />
     <ClInclude Include="Common\ParaNdis-Oid.h" />
     <ClInclude Include="Common\quverp.h" />
-    <ClInclude Include="VirtIO\osdep.h" />
-    <ClInclude Include="VirtIO\VirtIO.h" />
-    <ClInclude Include="VirtIO\virtio_pci.h" />
-    <ClInclude Include="VirtIO\virtio_ring.h" />
     <ClInclude Include="wxp\ParaNdis5.h" />
   </ItemGroup>
   <ItemGroup>
@@ -96,14 +91,11 @@
     <ClCompile Include="Common\ParaNdis-Debug.c" />
     <ClCompile Include="Common\ParaNdis-Oid.c" />
     <ClCompile Include="Common\sw-offload.c" />
-    <ClCompile Include="VirtIO\VirtIOPCI.c" />
-    <ClCompile Include="VirtIO\VirtIORing.c" />
     <ClCompile Include="wxp\ParaNdis5-Driver.c" />
     <ClCompile Include="wxp\ParaNdis5-Impl.c" />
     <ClCompile Include="wxp\ParaNdis5-Oid.c" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="VirtIO\sources" />
     <None Include="wxp\netkvm.inf" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

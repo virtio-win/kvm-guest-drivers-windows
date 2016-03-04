@@ -43,7 +43,9 @@
 #include "kdebugprint.h"
 #include "ethernetutils.h"
 #include "virtio_pci.h"
+#include "virtio_config.h"
 #include "VirtIO.h"
+#include "virtio_ring.h"
 #include "IONetDescriptor.h"
 #include "DebugData.h"
 
@@ -74,6 +76,25 @@
 
 // to be set to real limit later
 #define MAX_RX_LOOPS    1000
+
+static inline bool VirtIODeviceGetHostFeature(VirtIODevice * pVirtIODevice, unsigned uFeature)
+{
+    DPrintf(4, ("%s\n", __FUNCTION__));
+
+    return !!(ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_HOST_FEATURES) & (1 << uFeature));
+}
+
+static inline bool VirtIODeviceEnableGuestFeature(VirtIODevice * pVirtIODevice, unsigned uFeature)
+{
+    ULONG ulValue = 0;
+    DPrintf(4, ("%s\n", __FUNCTION__));
+
+    ulValue = ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_GUEST_FEATURES);
+    ulValue |= (1 << uFeature);
+    WriteVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_GUEST_FEATURES, ulValue);
+
+    return !!(ulValue & (1 << uFeature));
+}
 
 /* The feature bitmap for virtio net */
 #define VIRTIO_NET_F_CSUM   0   /* Host handles pkts w/ partial csum */
@@ -587,7 +608,7 @@ ParaNdis_GetQueueForInterrupt(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
 static __inline BOOLEAN
 ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq)
 {
-    return _vq->vq_ops->is_interrupt_enabled(_vq);
+    return virtqueue_is_interrupt_enabled(_vq);
 }
 
 VOID ParaNdis_OnPnPEvent(

@@ -19,6 +19,7 @@
 #include "ParaNdis-Debug.tmh"
 #endif
 
+int virtioDebugLevel = 1;
 int nDebugLevel = 1;
 int bDebugPrint = 1;
 
@@ -113,11 +114,13 @@ static void DebugPrint(const char *fmt, ...)
 }
 
 DEBUGPRINTFUNC pDebugPrint = DebugPrint;
+DEBUGPRINTFUNC VirtioDebugPrintProc = DebugPrint;
 
 #else //DPFLTR_MASK
 #pragma message("DebugPrint for Win2K")
 
 DEBUGPRINTFUNC pDebugPrint = DbgPrint;
+DEBUGPRINTFUNC VirtioDebugPrintProc = DbgPrint;
 
 #endif //DPFLTR_MASK
 #endif //!defined(WPP_EVENT_TRACING) || defined(WPP_USE_BYPASS)

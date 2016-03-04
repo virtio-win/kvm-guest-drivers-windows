@@ -4,7 +4,7 @@ TARGETPATH=obj
 
 !include "common.mak"
 
-INCLUDES=.;..\VirtIO
+INCLUDES=.;..\..\..\VirtIO
 
 SOURCES =  $(SOURCES) ParaNdis-Common.c ParaNdis-Debug.c ParaNdis-Oid.c sw-offload.c
 
