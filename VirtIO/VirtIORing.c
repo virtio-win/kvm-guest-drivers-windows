@@ -354,6 +354,24 @@ void virtqueue_kick(struct virtqueue *vq)
         virtqueue_notify(vq);
 }
 
+/**
+ * virtqueue_kick_always - like virtqueue_kick but always notifies
+ * @vq: the struct virtqueue
+ */
+void virtqueue_kick_always(struct virtqueue *_vq)
+{
+    struct vring_virtqueue *vq = to_vvq(_vq);
+
+    START_USE(vq);
+    /* We need to expose available array entries before checking avail
+     * event. */
+    virtio_mb(vq);
+    vq->num_added = 0;
+    END_USE(vq);
+
+    virtqueue_notify(_vq);
+}
+
 static void detach_buf(struct vring_virtqueue *vq, unsigned int head)
 {
     unsigned int i;
