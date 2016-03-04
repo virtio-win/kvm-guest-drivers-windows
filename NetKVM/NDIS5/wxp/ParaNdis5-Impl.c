@@ -781,7 +781,7 @@ VOID ParaNdis_PacketMapper(
         {
             // we replace 1 or more HW buffers with one buffer preallocated for data
             buffers->physAddr = pDesc->DataInfo.Physical;
-            buffers->ulSize   = lengthPut;
+            buffers->length   = lengthPut;
             pMapperResult->usBufferSpaceUsed = (USHORT)lengthPut;
             pMapperResult->ulDataSize += lengthGet;
             pMapperResult->usBuffersMapped = (USHORT)(pSGList->NumberOfElements - nCompleteBuffersToSkip + 1);
@@ -800,16 +800,16 @@ VOID ParaNdis_PacketMapper(
             if (nBytesSkipInFirstBuffer)
             {
                 buffers->physAddr.QuadPart = pSGElements->Address.QuadPart + nBytesSkipInFirstBuffer;
-                buffers->ulSize   = pSGElements->Length - nBytesSkipInFirstBuffer;
+                buffers->length   = pSGElements->Length - nBytesSkipInFirstBuffer;
                 DPrintf(2, ("[%s] using HW buffer %d of %d-%d", __FUNCTION__, i, pSGElements->Length, nBytesSkipInFirstBuffer));
                 nBytesSkipInFirstBuffer = 0;
             }
             else
             {
                 buffers->physAddr = pSGElements->Address;
-                buffers->ulSize   = pSGElements->Length;
+                buffers->length   = pSGElements->Length;
             }
-            pMapperResult->ulDataSize += buffers->ulSize;
+            pMapperResult->ulDataSize += buffers->length;
             pSGElements++;
             buffers++;
         }
@@ -1008,9 +1008,9 @@ BOOLEAN ParaNdis_ProcessTx(
         else
         {
 #ifdef PARANDIS_TEST_TX_KICK_ALWAYS
-            pContext->NetSendQueue->vq_ops->kick_always(pContext->NetSendQueue);
+            virtqueue_kick_always(pContext->NetSendQueue);
 #else
-            pContext->NetSendQueue->vq_ops->kick(pContext->NetSendQueue);
+            virtqueue_kick(pContext->NetSendQueue);
 #endif
         }
         DPrintf(2, ("[%s] sent down %d p.(%d b.)", __FUNCTION__, nBuffersSent, nBytesSent));

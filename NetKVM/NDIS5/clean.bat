@@ -12,7 +12,6 @@ shift
 goto rmfiles
 
 :start
-for /d %%d in  (VirtIO\obj*) do call :rmdir %%d
 for /d %%d in  (wxp\objfre*) do call :rmdir %%d
 for /d %%d in  (common\objfre*) do call :rmdir %%d
 for /d %%d in  (wxp\objchk*) do call :rmdir %%d

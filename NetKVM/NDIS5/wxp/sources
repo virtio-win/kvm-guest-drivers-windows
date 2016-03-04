@@ -13,9 +13,9 @@ TARGETTYPE=DRIVER
 
 TARGETLIBS=$(DDK_LIB_PATH)\ndis.lib \
 	..\Common\$O\ndiscommon.lib	\
-	..\VirtIO\$O\virtiolib.lib
+	..\..\..\VirtIO\$O\virtiolib.lib
 
-INCLUDES=..\VirtIO;..\Common
+INCLUDES=..\..\..\VirtIO;..\Common
 
 SOURCES = $(SOURCES) ParaNdis5-Driver.c ParaNdis5-Impl.c ParaNdis5-Oid.c parandis.rc
 
