@@ -5,16 +5,32 @@
       <Configuration>WinXP Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="WinXP Debug|Win32">
+      <Configuration>WinXP Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="WinXP Release|x64">
       <Configuration>WinXP Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="WinXP Debug|x64">
+      <Configuration>WinXP Debug</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win2k3 Release|Win32">
       <Configuration>Win2k3 Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Win2k3 Debug|Win32">
+      <Configuration>Win2k3 Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Win2k3 Release|x64">
       <Configuration>Win2k3 Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win2k3 Debug|x64">
+      <Configuration>Win2k3 Debug</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Vista Release|Win32">
@@ -129,7 +145,15 @@
     <TargetVersion>Windows7</TargetVersion>
     <PlatformToolset>v120_xp</PlatformToolset>
   </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win2k3 Debug|Win32'">
+    <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>v120_xp</PlatformToolset>
+  </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='WinXP Release|Win32'">
+    <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>v120_xp</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='WinXP Debug|Win32'">
     <TargetVersion>Windows7</TargetVersion>
     <PlatformToolset>v120_xp</PlatformToolset>
   </PropertyGroup>
@@ -157,7 +181,15 @@
     <TargetVersion>Windows7</TargetVersion>
     <PlatformToolset>v120_xp</PlatformToolset>
   </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win2k3 Debug|x64'">
+    <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>v120_xp</PlatformToolset>
+  </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='WinXP Release|x64'">
+    <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>v120_xp</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='WinXP Debug|x64'">
     <TargetVersion>Windows7</TargetVersion>
     <PlatformToolset>v120_xp</PlatformToolset>
   </PropertyGroup>
@@ -192,9 +224,17 @@
     <OutDir>objfre_wnet_x86\i386\</OutDir>
     <IntDir>objfre_wnet_x86\i386\</IntDir>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Debug|Win32'">
+    <OutDir>objchk_wnet_x86\i386\</OutDir>
+    <IntDir>objchk_wnet_x86\i386\</IntDir>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Release|Win32'">
     <OutDir>objfre_wxp_x86\i386\</OutDir>
     <IntDir>objfre_wxp_x86\i386\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Debug|Win32'">
+    <OutDir>objchk_wxp_x86\i386\</OutDir>
+    <IntDir>objchk_wxp_x86\i386\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <OutDir>objfre_win8_amd64\amd64\</OutDir>
@@ -220,17 +260,28 @@
     <OutDir>objfre_wnet_amd64\amd64\</OutDir>
     <IntDir>objfre_wnet_amd64\amd64\</IntDir>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Debug|x64'">
+    <OutDir>objchk_wnet_amd64\amd64\</OutDir>
+    <IntDir>objchk_wnet_amd64\amd64\</IntDir>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Release|x64'">
     <OutDir>objfre_wxp_amd64\amd64\</OutDir>
     <IntDir>objfre_wxp_amd64\amd64\</IntDir>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Debug|x64'">
+    <OutDir>objchk_wxp_amd64\amd64\</OutDir>
+    <IntDir>objchk_wxp_amd64\amd64\</IntDir>
++  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v120_xp'">
     <ClCompile>
       <AdditionalIncludeDirectories>$(ProjectDir);$(LegacyDDKDir)\inc\ddk;$(LegacyDDKDir)\inc\crt;$(LegacyDDKDir)\inc\api;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary />
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
-      <Optimization>Full</Optimization>
+      <Optimization Condition="$(Configuration.EndsWith('Release'))">Full</Optimization>
+      <Optimization Condition="$(Configuration.EndsWith('Debug'))">Disabled</Optimization>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <StructMemberAlignment>8Bytes</StructMemberAlignment>
       <TreatWarningAsError>true</TreatWarningAsError>
       <StringPooling>true</StringPooling>
@@ -256,17 +307,17 @@
       <TargetMachine>MachineX64</TargetMachine>
     </Lib>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)'=='Vista Release'">
+  <ItemDefinitionGroup Condition="$(Configuration.StartsWith('Vista'))">
     <ClCompile>
       <PreprocessorDefinitions>_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000100;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)'=='Win2k3 Release'">
+  <ItemDefinitionGroup Condition="$(Configuration.StartsWith('Win2k3'))">
     <ClCompile>
       <PreprocessorDefinitions>_WIN32_WINNT=0x0502;WINVER=0x0502;NTDDI_VERSION=0x05020100;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)'=='WinXP Release'">
+  <ItemDefinitionGroup Condition="$(Configuration.StartsWith('WinXP'))">
     <ClCompile>
       <PreprocessorDefinitions>_WIN32_WINNT=0x0501;WINVER=0x0501;NTDDI_VERSION=0x05010200;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
