@@ -32,9 +32,6 @@
     <Filter Include="Tools">
       <UniqueIdentifier>{62ffa1a1-ac09-40c0-bd36-539458b73cf4}</UniqueIdentifier>
     </Filter>
-    <Filter Include="VirtIO">
-      <UniqueIdentifier>{b326e840-5f73-44d7-b10b-2430c692be26}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="wlh\netkvm.inf">
@@ -69,18 +66,6 @@
     <ClInclude Include="wlh\ParaNdis6.h">
       <Filter>Header Files\wlh</Filter>
     </ClInclude>
-    <ClInclude Include="..\VirtIO\virtio_config.h">
-      <Filter>VirtIO</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VirtIO\virtio_pci.h">
-      <Filter>VirtIO</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VirtIO\virtio_pci_common.h">
-      <Filter>VirtIO</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VirtIO\virtio_ring.h">
-      <Filter>VirtIO</Filter>
-    </ClInclude>
     <ClInclude Include="Common\ParaNdis-TX.h">
       <Filter>Header Files\Common</Filter>
     </ClInclude>
@@ -108,26 +93,8 @@
     <ClInclude Include="Common\ParaNdis_Debug.h">
       <Filter>Header Files\Common</Filter>
     </ClInclude>
-    <ClInclude Include="..\VirtIO\virtio.h">
-      <Filter>VirtIO</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\ParaNdis-SM.h">
-      <Filter>Source Files\Common</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\VirtIO\VirtIOPCIModern.c">
-      <Filter>VirtIO</Filter>
-    </ClCompile>
-    <ClCompile Include="..\VirtIO\VirtIOPCILegacy.c">
-      <Filter>VirtIO</Filter>
-    </ClCompile>
-    <ClCompile Include="..\VirtIO\VirtIOPCICommon.c">
-      <Filter>VirtIO</Filter>
-    </ClCompile>
-    <ClCompile Include="..\VirtIO\VirtIORing.c">
-      <Filter>VirtIO</Filter>
-    </ClCompile>
     <ClCompile Include="Common\ParaNdis-TX.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
