@@ -8,7 +8,8 @@
 ;Abstract:
 ;
 ;Installation Notes: 
-;    Using Devcon: Type "devcon install BALLOON.inf PCI\VEN_1AF4&DEV_1002&SUBSYS_00051AF4&REV_00" to install
+;    Using Devcon: Type "devcon install BALLOON.inf PCI\VEN_1AF4&DEV_1002&SUBSYS_00051AF4&REV_00" or
+;                       "devcon install BALLOON.inf PCI\VEN_1AF4&DEV_1045&SUBSYS_11001AF4&REV_01" to install
 ;
 ;--*/
 
@@ -41,6 +42,7 @@ balloon.sys  = 1,,
 
 [Standard.NT$ARCH$]
 %BALLOON.DeviceDesc%=BALLOON_Device, PCI\VEN_1AF4&DEV_1002&SUBSYS_00051AF4&REV_00
+%BALLOON.DeviceDesc%=BALLOON_Device, PCI\VEN_1AF4&DEV_1045&SUBSYS_11001AF4&REV_01
 
 [BALLOON_Device.NT]
 CopyFiles=Drivers_Dir
