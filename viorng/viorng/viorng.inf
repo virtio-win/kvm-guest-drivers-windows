@@ -8,10 +8,10 @@
 ;Abstract:
 ;
 ;Installation Notes:
-;    Using Devcon: Type "devcon install viorng.inf PCI\VEN_1AF4&DEV_1005&SUBSYS_00041AF4&REV_00" to install
+;    Using Devcon: Type "devcon install viorng.inf PCI\VEN_1AF4&DEV_1005&SUBSYS_00041AF4&REV_00" or
+;                       "devcon install viorng.inf PCI\VEN_1AF4&DEV_1044&SUBSYS_11001AF4&REV_01" to install
 ;
 ;--*/
-
 
 [Version]
 Signature       = "$WINDOWS NT$"
@@ -40,6 +40,7 @@ viorng.sys = 1,,
 
 [RedHat.NT$ARCH$]
 %VirtRng.DeviceDesc% = VirtRng_Device, PCI\VEN_1AF4&DEV_1005&SUBSYS_00041AF4&REV_00
+%VirtRng.DeviceDesc% = VirtRng_Device, PCI\VEN_1AF4&DEV_1044&SUBSYS_11001AF4&REV_01
 
 [VirtRng_Device.NT]
 CopyFiles = VirtRng_CopyFiles

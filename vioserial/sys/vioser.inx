@@ -1,9 +1,17 @@
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;/*++
 ;
-; Copyright (c) 2010-2016 Red Hat Inc.
+;Copyright (c) 2010-2016 Red Hat Inc.
 ;
+;Module Name:
+;    vioser.inf
 ;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Abstract:
+;
+;Installation Notes:
+;    Using Devcon: Type "devcon install vioser.inf PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4&REV_00" or
+;                       "devcon install vioser.inf PCI\VEN_1AF4&DEV_1043&SUBSYS_11001AF4&REV_01" to install
+;
+;--*/
 
 [Version]
 Signature="$WINDOWS NT$"
@@ -35,14 +43,11 @@ vioser.sys  = 1,,
 
 [VirtioSerial.NT$ARCH$]
 ;
-; Hw Id is PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4
+; Hw Ids are PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4&REV_00
+;            PCI\VEN_1AF4&DEV_1043&SUBSYS_11001AF4&REV_01
 ;
 %VirtioSerial.DeviceDesc%=VirtioSerial_Device, PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4&REV_00
-
-; Decorated model section take precedence over undecorated
-; ones on XP and later.
-[VirtioSerial.NT$ARCH$]
-%VirtioSerial.DeviceDesc%=VirtioSerial_Device, PCI\VEN_1AF4&DEV_1003&SUBSYS_00031AF4&REV_00
+%VirtioSerial.DeviceDesc%=VirtioSerial_Device, PCI\VEN_1AF4&DEV_1043&SUBSYS_11001AF4&REV_01
 
 [VirtioSerial_Device.NT]
 CopyFiles=Drivers_Dir
