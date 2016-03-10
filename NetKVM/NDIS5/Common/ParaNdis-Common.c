@@ -2509,9 +2509,6 @@ VOID ParaNdis_OnPnPEvent(
         MAKECASE(NdisDevicePnPEventQueryStopped)
         MAKECASE(NdisDevicePnPEventStopped)
         MAKECASE(NdisDevicePnPEventPowerProfileChanged)
-#if NDIS_SUPPORT_NDIS6
-        MAKECASE(NdisDevicePnPEventFilterListChanged)
-#endif // NDIS_SUPPORT_NDIS6
         default:
             break;
     }
