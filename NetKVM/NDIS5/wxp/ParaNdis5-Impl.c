@@ -1,7 +1,7 @@
 /**********************************************************************
  * Copyright (c) 2008-2016 Red Hat, Inc.
  *
- * File: ParaNdis-Impl.c
+ * File: ParaNdis5-Impl.c
  *
  * This file contains NDIS5.X Implementation of adapter driver procedures.
  *
@@ -11,8 +11,6 @@
 **********************************************************************/
 #include "ParaNdis5.h"
 
-
-#if defined(NDIS51_MINIPORT) || defined(NDIS50_MINIPORT)
 
 #ifdef WPP_EVENT_TRACING
 #include "ParaNdis5-Impl.tmh"
@@ -1463,5 +1461,3 @@ BOOLEAN ParaNdis_SynchronizeWithInterrupt(
     SyncContext.Parameter = parameter;
     return NdisMSynchronizeWithInterrupt(&pContext->Interrupt, procedure, &SyncContext);
 }
-
-#endif //defined(NDIS51_MINIPORT) || defined(NDIS50_MINIPORT)

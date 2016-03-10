@@ -1,7 +1,7 @@
 /**********************************************************************
  * Copyright (c) 2008-2016 Red Hat, Inc.
  *
- * File: ParaNdis6-Debug.c
+ * File: ParaNdis-Debug.c
  *
  * This file contains debug support procedures, common for NDIS5 and NDIS6
  *

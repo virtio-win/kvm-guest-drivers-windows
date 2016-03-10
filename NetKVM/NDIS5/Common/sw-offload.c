@@ -594,42 +594,6 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(PVOID buffer, ULONG size, ULON
     return res;
 }
 
-
-void ParaNdis_CheckSumCalculate(PVOID buffer, ULONG size, ULONG flags)
-{
-    tTcpIpPacketParsingResult res = QualifyIpPacket(buffer, size);
-    if (res.ipStatus == ppresIPV4 && (flags & pcrIpChecksum))
-    {
-        res = VerifyIpChecksum(buffer, res, (flags & pcrFixIPChecksum) != 0);
-    }
-    if (res.xxpStatus == ppresXxpKnown && res.TcpUdp == ppresIsTCP && (flags & pcrTcpChecksum))
-    {
-        if (flags & (pcrFixPHChecksum | pcrFixXxpChecksum))
-            res = VerifyTcpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixXxpChecksum));
-        else
-        {
-            IPv4Header *pIpHeader = buffer;
-            UCHAR  ver_len = pIpHeader->ip_verlen;
-            USHORT ipHeaderSize = (ver_len & 0xF) << 2;
-            TCPHeader *pTcpHeader = (TCPHeader *)RtlOffsetToPointer(pIpHeader, ipHeaderSize);
-            CalculateTcpChecksumGivenPseudoCS(pTcpHeader, size - ipHeaderSize);
-        }
-    }
-    if (res.xxpStatus == ppresXxpKnown && res.TcpUdp == ppresIsUDP && (flags & pcrUdpChecksum))
-    {
-        if (flags & (pcrFixPHChecksum | pcrFixXxpChecksum))
-            res = VerifyUdpChecksum(buffer, size, res, flags & (pcrFixPHChecksum | pcrFixXxpChecksum));
-        else
-        {
-            IPv4Header *pIpHeader = buffer;
-            UCHAR  ver_len = pIpHeader->ip_verlen;
-            USHORT ipHeaderSize = (ver_len & 0xF) << 2;
-            UDPHeader *pUdpHeader = (UDPHeader *)RtlOffsetToPointer(pIpHeader, ipHeaderSize);
-            CalculateUdpChecksumGivenPseudoCS(pUdpHeader, size - ipHeaderSize);
-        }
-    }
-}
-
 tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, LPCSTR caller)
 {
     tTcpIpPacketParsingResult res = QualifyIpPacket(buffer, size);

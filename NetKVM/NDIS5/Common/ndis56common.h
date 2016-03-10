@@ -256,7 +256,6 @@ typedef struct _tagChecksumCheckResult
 /*
 for simplicity, we use for NDIS5 the same statistics as native NDIS6 uses
 */
-#if !NDIS_SUPPORT_NDIS6
 typedef struct _tagNdisStatustics
 {
     ULONG64                     ifHCInOctets;
@@ -294,14 +293,6 @@ typedef struct _tagNdisOffloadParams
     UCHAR   UDPIPv6Checksum;
     UCHAR   LsoV2IPv6;
 }NDIS_OFFLOAD_PARAMETERS;
-
-#else // NDIS_SUPPORT_NDIS6
-
-typedef PNET_BUFFER         tPacketType;
-typedef PMDL                tPacketHolderType;
-typedef PNET_BUFFER_LIST    tPacketIndicationType;
-
-#endif  //!NDIS_SUPPORT_NDIS6
 
 //#define UNIFY_LOCKS
 
@@ -479,23 +470,6 @@ typedef struct _tagPARANDIS_ADAPTER
     ULONG                       ulTxMessage;
     ULONG                       ulControlMessage;
 
-#if NDIS_SUPPORT_NDIS6
-// Vista +
-    PIO_INTERRUPT_MESSAGE_INFO  pMSIXInfoTable;
-    PNET_BUFFER_LIST            SendHead;
-    PNET_BUFFER_LIST            SendTail;
-    PNET_BUFFER_LIST            SendWaitingList;
-    LIST_ENTRY                  WaitingMapping;
-    NDIS_HANDLE                 DmaHandle;
-    NDIS_HANDLE                 ConnectTimer;
-    NDIS_HANDLE                 InterruptRecoveryTimer;
-    ULONG                       ulIrqReceived;
-    NDIS_OFFLOAD                ReportedOffloadCapabilities;
-    NDIS_OFFLOAD                ReportedOffloadConfiguration;
-    BOOLEAN                     bOffloadv4Enabled;
-    BOOLEAN                     bOffloadv6Enabled;
-#else
-// Vista -
     NDIS_MINIPORT_INTERRUPT     Interrupt;
     NDIS_HANDLE                 PacketPool;
     NDIS_HANDLE                 BuffersPool;
@@ -506,7 +480,6 @@ typedef struct _tagPARANDIS_ADAPTER
     NDIS_TIMER                  ConnectTimer;
     NDIS_TIMER                  DPCPostProcessTimer;
     BOOLEAN                     bDmaInitialized;
-#endif
 }PARANDIS_ADAPTER, *PPARANDIS_ADAPTER;
 
 typedef enum { cpeOK, cpeNoBuffer, cpeInternalError, cpeTooLarge, cpeNoIndirect } tCopyPacketError;
@@ -898,7 +871,6 @@ typedef enum _tagPacketOffloadRequest
 }tPacketOffloadRequest;
 
 // sw offload
-void ParaNdis_CheckSumCalculate(PVOID buffer, ULONG size, ULONG flags);
 tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(PVOID buffer, ULONG size, ULONG flags, LPCSTR caller);
 tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, LPCSTR caller);
 

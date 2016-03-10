@@ -1,7 +1,7 @@
 /**********************************************************************
  * Copyright (c) 2008-2016 Red Hat, Inc.
  *
- * File: ParaNdis-Oid.c
+ * File: ParaNdis5-Oid.c
  *
  * This file contains NDIS5.X implementation of
  * OID-related adapter driver procedures
@@ -12,8 +12,6 @@
 **********************************************************************/
 #include "ParaNdis5.h"
 #include "ParaNdis-Oid.h"
-
-#if defined(NDIS51_MINIPORT) || defined(NDIS50_MINIPORT)
 
 #ifdef WPP_EVENT_TRACING
 #include "ParaNdis5-Oid.tmh"
@@ -769,6 +767,3 @@ NDIS_STATUS OnOidSetNdis5Offload(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     }
     return status;
 }
-
-
-#endif //defined(NDIS51_MINIPORT) || defined(NDIS50_MINIPORT)
