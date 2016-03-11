@@ -55,8 +55,9 @@
     <ProjectGuid>{EF30BBDE-57AE-48F8-BACD-3C3F8C45E64C}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>viosertest</RootNamespace>
+    <DDKINSTALLROOT Condition="'$(DDKINSTALLROOT)' == ''">C:\WINDDK\</DDKINSTALLROOT>
+    <DDKVER Condition="'$(DDKVER)' == ''">7600.16385.1</DDKVER>
     <LegacyDDKDir>$(DDKINSTALLROOT)$(DDKVER)</LegacyDDKDir>
-    <LegacyDDKDir Condition="'$(LegacyDDKDir)' == ''">C:\WINDDK\7600.16385.1</LegacyDDKDir>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
