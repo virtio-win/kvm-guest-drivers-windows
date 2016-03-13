@@ -26,8 +26,10 @@
 
 #include <ntddk.h>
 #include <wdf.h>
+#include <bcrypt.h>
 
 #include "trace.h"
+
 #include "osdep.h"
 
 #include "virtio_pci.h"
