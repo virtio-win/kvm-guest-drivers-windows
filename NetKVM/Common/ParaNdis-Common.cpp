@@ -19,13 +19,7 @@ static VOID ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext);
 
 static __inline pRxNetDescriptor ReceiveQueueGetBuffer(PPARANDIS_RECEIVE_QUEUE pQueue);
 
-// TODO: remove when the problem solved
-void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue);
-
-//#define ROUNDSIZE(sz) ((sz + 15) & ~15)
 #define MAX_VLAN_ID     4095
-
-#define ABSTRACT_PATHES_TAG 'APVR'
 
 /**********************************************************
 Validates MAC address

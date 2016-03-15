@@ -110,35 +110,16 @@ bool CNdisRWLock::Create(NDIS_HANDLE miniportHandle) {
 
 ULONG ParaNdis_GetIndexFromAffinity(KAFFINITY affinity)
 {
-    int shift = 0;
-
-    while (shift < sizeof(affinity) * 8)
+    DWORD index = 0;
+    BOOLEAN result;
+#ifdef _WIN64
+    result = BitScanForward64(&index, affinity);
+#else
+    result = BitScanForward(&index, affinity);
+#endif
+    if (result && ((KAFFINITY)1 << index) == affinity)
     {
-        switch (affinity & 0xff)
-        {
-        case 0:
-            break;
-        case 0x01:
-            return shift ;
-        case 0x02:
-            return shift + 1;
-        case 0x04:
-            return shift + 2;
-        case 0x08:
-            return shift + 3;
-        case 0x10:
-            return shift + 4;
-        case 0x20:
-            return shift + 5;
-        case 0x40:
-            return shift + 6;
-        case 0x80:
-            return shift + 7;
-        default:
-            return INVALID_PROCESSOR_INDEX;
-        }
-        affinity >>= 8;
-        shift += 8;
+        return index;
     }
     return INVALID_PROCESSOR_INDEX;
 }

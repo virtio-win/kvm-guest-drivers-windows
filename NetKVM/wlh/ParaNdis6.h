@@ -12,8 +12,6 @@
 #ifndef PARA_NDIS6_H
 #define PARA_NDIS6_H
 
-#pragma warning (disable: 4201 4214 4115 4127) // disable annoying warnings in NDIS
-
 #include "ndis56common.h"
 
 /* fills supported OID and statistics information */
