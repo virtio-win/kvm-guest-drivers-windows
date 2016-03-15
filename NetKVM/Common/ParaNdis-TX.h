@@ -38,7 +38,6 @@ public:
 
     UCHAR ProtocolID()
     {
-        #pragma warning(suppress: 4302)
         return reinterpret_cast<UCHAR>(NET_BUFFER_LIST_INFO(m_NBL, NetBufferListProtocolId));
     }
     bool MatchCancelID(PVOID ID)

@@ -188,12 +188,12 @@ static NDIS_STATUS ParaNdis6_Initialize(
             sizeof(VirtIODevice),
             PARANDIS_MEMORY_TAG,
             NormalPoolPriority);
-    }
 #pragma warning(pop)
-    if (!pContext->IODevice)
-    {
-        DPrintf(0, ("[%s] ERROR: IODevice memory allocation failed!\n", __FUNCTION__));
-        status = NDIS_STATUS_RESOURCES;
+        if (!pContext->IODevice)
+        {
+            DPrintf(0, ("[%s] ERROR: IODevice memory allocation failed!\n", __FUNCTION__));
+            status = NDIS_STATUS_RESOURCES;
+        }
     }
 
     if (status == NDIS_STATUS_SUCCESS)

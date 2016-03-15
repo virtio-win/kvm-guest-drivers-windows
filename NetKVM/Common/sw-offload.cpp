@@ -743,17 +743,14 @@ BOOLEAN AnalyzeL2Hdr(PNET_PACKET_INFO packetInfo)
 
     if (ETH_IS_BROADCAST(dataBuffer))
     {
-        #pragma warning(suppress: 4463)
         packetInfo->isBroadcast = TRUE;
     }
     else if (ETH_IS_MULTICAST(dataBuffer))
     {
-        #pragma warning(suppress: 4463)
         packetInfo->isMulticast = TRUE;
     }
     else
     {
-        #pragma warning(suppress: 4463)
         packetInfo->isUnicast = TRUE;
     }
 
@@ -764,7 +761,6 @@ BOOLEAN AnalyzeL2Hdr(PNET_PACKET_INFO packetInfo)
         if(packetInfo->dataLength < ETH_HEADER_SIZE + ETH_PRIORITY_HEADER_SIZE)
             return FALSE;
 
-        #pragma warning(suppress: 4463)
         packetInfo->hasVlanHeader     = TRUE;
         packetInfo->Vlan.UserPriority = VLAN_GET_USER_PRIORITY(vlanHdr);
         packetInfo->Vlan.VlanId       = VLAN_GET_VLAN_ID(vlanHdr);

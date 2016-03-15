@@ -235,8 +235,6 @@ typedef struct _tagOffloadSettings
     ULONG maxPacketSize;
 }tOffloadSettings;
 
-#pragma warning (push)
-#pragma warning (disable:4201)
 typedef struct _tagChecksumCheckResult
 {
     union
@@ -253,7 +251,6 @@ typedef struct _tagChecksumCheckResult
         int value;
     };
 }tChecksumCheckResult;
-#pragma warning (pop)
 
 typedef PMDL                tPacketHolderType;
 typedef PNET_BUFFER_LIST    tPacketIndicationType;
@@ -277,8 +274,6 @@ typedef struct _tagMulticastData
     UCHAR                   MulticastList[ETH_ALEN * PARANDIS_MULTICAST_LIST_SIZE];
 }tMulticastData;
 
-#pragma warning (push)
-#pragma warning (disable:4201)
 typedef struct _tagNET_PACKET_INFO
 {
     struct
@@ -320,7 +315,6 @@ typedef struct _tagNET_PACKET_INFO
     PVOID headersBuffer;
     ULONG dataLength;
 } NET_PACKET_INFO, *PNET_PACKET_INFO;
-#pragma warning (pop)
 
 struct _tagRxNetDescriptor {
     LIST_ENTRY listEntry;
@@ -750,9 +744,6 @@ typedef enum _tagppResult
     ppresIsUDP         = 1,
 }ppResult;
 
-#pragma warning (push)
-#pragma warning (disable:4201) //nonstandard extension used : nameless struct/union
-#pragma warning (disable:4214) //nonstandard extension used : bit field types other than int
 typedef union _tagTcpIpPacketParsingResult
 {
     struct {
@@ -776,7 +767,6 @@ typedef union _tagTcpIpPacketParsingResult
     };
     ULONG value;
 }tTcpIpPacketParsingResult;
-#pragma warning(pop)
 
 typedef enum _tagPacketOffloadRequest
 {

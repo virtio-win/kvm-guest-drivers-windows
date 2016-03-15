@@ -193,6 +193,7 @@
       <AdditionalIncludeDirectories>wlh;Common;..\Virtio;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions Condition="'$(Platform)'=='Win32'">%(PreprocessorDefinitions);_X86_=1;i386=1;STD_CALL;NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Platform)'=='x64'">%(PreprocessorDefinitions);_WIN64;_AMD64_;AMD64;NDIS60_MINIPORT=1;NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION)</PreprocessorDefinitions>
+      <DisableSpecificWarnings>4201;4214;4115;4127;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>$(SDK_INC_PATH);%(AdditionalIncludeDirectories);Common</AdditionalIncludeDirectories>
