@@ -1,0 +1,46 @@
+/**********************************************************************
+ * Copyright (c) 2016  Red Hat, Inc.
+ *
+ * File: vioinput.rc
+ *
+ * This file contains resource (version) definitions for vioinput driver.
+ *
+ * This work is licensed under the terms of the GNU GPL, version 2.  See
+ * the COPYING file in the top-level directory.
+ *
+**********************************************************************/
+#include <windows.h>
+#include <ntverp.h>
+
+#define VER_FILETYPE                VFT_DRV
+#define VER_FILESUBTYPE             VFT2_DRV_SYSTEM
+#define VER_FILEDESCRIPTION_STR     "Red Hat VirtIO Input driver"
+#define VER_INTERNALNAME_STR        "vioinput.sys"
+#define VER_ORIGINALFILENAME_STR    "vioinput.sys"
+
+#undef  VER_PRODUCTBUILD
+#undef  VER_PRODUCTBUILD_QFE
+#undef  VER_PRODUCTMAJORVERSION
+#undef  VER_PRODUCTMINORVERSION
+
+#undef  VER_LEGALCOPYRIGHT_STR
+#define VER_LEGALCOPYRIGHT_STR      "Copyright (C) 2016 Red Hat, Inc."
+
+#undef  VER_COMPANYNAME_STR
+#define VER_COMPANYNAME_STR         "Red Hat, Inc."
+
+#undef  VER_PRODUCTNAME_STR
+#define VER_PRODUCTNAME_STR         "Red Hat VirtIO Input controller"
+
+#define VER_LANGNEUTRAL
+
+#ifndef _NT_TARGET_MAJ
+#include "2012-defines.h"
+#endif
+#define VER_PRODUCTBUILD            _MAJORVERSION_
+#define VER_PRODUCTBUILD_QFE        _MINORVERSION_
+#define VER_PRODUCTMAJORVERSION     _NT_TARGET_MAJ
+#define VER_PRODUCTMINORVERSION     _NT_TARGET_MIN
+
+
+#include "common.ver"
