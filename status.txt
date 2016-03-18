@@ -1,3 +1,11 @@
+Date    18 Feb 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm135
+
+New Features:
+vioserial - code rework and cleanup
+general - switching signing back to SHA-1
+
 Date    04 Feb 2016
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm133
