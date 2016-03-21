@@ -31,6 +31,9 @@
     <ClInclude Include="vioinput.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Hid.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="vioinput.rc">
@@ -51,6 +54,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Hid.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Array.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

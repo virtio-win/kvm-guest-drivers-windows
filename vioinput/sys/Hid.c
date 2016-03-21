@@ -15,44 +15,12 @@
 
 #include "precomp.h"
 #include "vioinput.h"
+#include "Hid.h"
 
 #if defined(EVENT_TRACING)
 #include "Hid.tmh"
 #endif
 
-//
-// This is a hard-coded report descriptor for a simple 3-button mouse. Returned
-// by the mini driver in response to IOCTL_HID_GET_REPORT_DESCRIPTOR.
-//
-HID_REPORT_DESCRIPTOR G_DefaultReportDescriptor[] =
-{
-    0x05, 0x01, // USAGE_PAGE (Generic Desktop)
-    0x09, 0x02, // USAGE (Mouse)
-    0xa1, 0x01, // COLLECTION (Application)
-    0x09, 0x01, //   USAGE (Pointer)
-    0xa1, 0x00, //   COLLECTION (Physical)
-    0x05, 0x09, //     USAGE_PAGE (Button)
-    0x19, 0x01, //     USAGE_MINIMUM (Button 1)
-    0x29, 0x03, //     USAGE_MAXIMUM (Button 3)
-    0x15, 0x00, //     LOGICAL_MINIMUM (0)
-    0x25, 0x01, //     LOGICAL_MAXIMUM (1)
-    0x95, 0x03, //     REPORT_COUNT (3)
-    0x75, 0x01, //     REPORT_SIZE (1)
-    0x81, 0x02, //     INPUT (Data,Var,Abs)
-    0x95, 0x01, //     REPORT_COUNT (1)
-    0x75, 0x05, //     REPORT_SIZE (5)
-    0x81, 0x03, //     INPUT (Cnst,Var,Abs)
-    0x05, 0x01, //     USAGE_PAGE (Generic Desktop)
-    0x09, 0x30, //     USAGE (X)
-    0x09, 0x31, //     USAGE (Y)
-    0x15, 0x81, //     LOGICAL_MINIMUM (-127)
-    0x25, 0x7f, //     LOGICAL_MAXIMUM (127)
-    0x75, 0x08, //     REPORT_SIZE (8)
-    0x95, 0x02, //     REPORT_COUNT (2)
-    0x81, 0x06, //     INPUT (Data,Var,Rel)
-    0xc0,       //   END_COLLECTION
-    0xc0        // END_COLLECTION
-};
 
 //
 // This is a hard-coded HID descriptor for a simple 3-button mouse. Returned
@@ -66,9 +34,9 @@ HID_DESCRIPTOR G_DefaultHidDescriptor =
     0x0100, // hid spec release
     0x00,   // country code == Not Specified
     0x01,   // number of HID class descriptors
-    {                                       // DescriptorList[0]
-        0x22,                               // report descriptor type 0x22
-        sizeof(G_DefaultReportDescriptor)   // total length of report descriptor
+    {              // DescriptorList[0]
+        0x22,      // report descriptor type 0x22
+        0x0000     // total length of report descriptor
     }
 };
 
@@ -87,7 +55,7 @@ EvtIoDeviceControl(
     UNREFERENCED_PARAMETER(OutputBufferLength);
     UNREFERENCED_PARAMETER(InputBufferLength);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_IOCTLS,
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS,
                 "--> %s, code = %d\n", __FUNCTION__, IoControlCode);
 
     switch (IoControlCode)
@@ -97,10 +65,10 @@ EvtIoDeviceControl(
         //
         // Return the device's HID descriptor.
         //
-        ASSERT(G_DefaultHidDescriptor.bLength != 0);
+        ASSERT(pContext->HidDescriptor.bLength != 0);
         status = RequestCopyFromBuffer(Request,
-            &G_DefaultHidDescriptor,
-            G_DefaultHidDescriptor.bLength);
+            &pContext->HidDescriptor,
+            pContext->HidDescriptor.bLength);
         break;
 
     case IOCTL_HID_GET_DEVICE_ATTRIBUTES:
@@ -119,8 +87,8 @@ EvtIoDeviceControl(
         // Return the report descriptor for the HID device.
         //
         status = RequestCopyFromBuffer(Request,
-            &G_DefaultReportDescriptor,
-            G_DefaultHidDescriptor.DescriptorList[0].wReportLength);
+            pContext->HidReportDescriptor,
+            pContext->HidDescriptor.DescriptorList[0].wReportLength);
         break;
 
     case IOCTL_HID_READ_REPORT:
@@ -144,6 +112,8 @@ EvtIoDeviceControl(
         break;
 
     default:
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_IOCTLS,
+                    "Unrecognized IOCTL %d\n", IoControlCode);
         status = STATUS_NOT_IMPLEMENTED;
         break;
     }
@@ -153,7 +123,7 @@ EvtIoDeviceControl(
         WdfRequestComplete(Request, status);
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -163,7 +133,6 @@ ProcessInputEvent(
 {
     NTSTATUS status;
     WDFREQUEST request;
-    unsigned char bit;
 
     TraceEvents(
         TRACE_LEVEL_VERBOSE,
@@ -174,48 +143,209 @@ ProcessInputEvent(
         pEvent->code,
         pEvent->value);
 
-    switch (pEvent->type)
+    if (pEvent->type == EV_SYN)
     {
-    case EV_REL:
-        switch (pEvent->code)
-        {
-        case REL_X: pContext->HidReport.x_axis = (signed char)pEvent->value; break;
-        case REL_Y: pContext->HidReport.y_axis = (signed char)pEvent->value; break;
-        }
-        break;
-    case EV_KEY:
-        bit = 0;
-        switch (pEvent->code)
-        {
-        case BTN_LEFT: bit = 0x01; break;
-        case BTN_RIGHT: bit = 0x02; break;
-        case BTN_MIDDLE: bit = 0x04; break;
-        }
-        if (pEvent->value)
-            pContext->HidReport.buttons |= bit;
-        else
-            pContext->HidReport.buttons &= ~bit;
-        break;
-    case EV_SYN:
         // send the report up
         status = WdfIoQueueRetrieveNextRequest(pContext->HidQueue, &request);
         if (NT_SUCCESS(status))
         {
             status = RequestCopyFromBuffer(
                 request,
-                &pContext->HidReport,
-                sizeof(pContext->HidReport));
+                pContext->HidReport,
+                pContext->HidReportSize);
 
             WdfRequestComplete(request, status);
         }
-
-        // reset all rel fields
-        pContext->HidReport.x_axis = 0;
-        pContext->HidReport.y_axis = 0;
-        break;
     }
 
+    HIDMouseEventToReport(
+        &pContext->MouseDesc,
+        pEvent,
+        pContext->HidReport + pContext->MouseDesc.Common.cbHidReportOffset);
+
+    // TODO: keyboard, tablet, joystick, ...
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+}
+
+VOID HIDAppend1(PDYNAMIC_ARRAY pArray, UCHAR tag)
+{
+    DynamicArrayAppend(pArray, &tag, sizeof(tag));
+}
+
+VOID HIDAppend2(PDYNAMIC_ARRAY pArray, UCHAR tag, ULONG value)
+{
+    if (value < MAXUCHAR)
+    {
+        HIDAppend1(pArray, tag | 0x01);
+        DynamicArrayAppend(pArray, &value, 1);
+    }
+    else if (value < MAXUSHORT)
+    {
+        HIDAppend1(pArray, tag | 0x02);
+        DynamicArrayAppend(pArray, &value, 2);
+    }
+    else
+    {
+        HIDAppend1(pArray, tag | 0x03);
+        DynamicArrayAppend(pArray, &value, 4);
+    }
+}
+
+BOOLEAN DecodeNextBit(PUCHAR pBitmap, PUCHAR pValue)
+{
+    ULONG Index;
+    BOOLEAN bResult = BitScanForward(&Index, *pBitmap);
+    if (bResult)
+    {
+        *pValue = (unsigned char)Index;
+        *pBitmap &= ~(1 << Index);
+    }
+    return bResult;
+}
+
+static void DumpReportDescriptor(PHID_REPORT_DESCRIPTOR pDescriptor, SIZE_T cbSize)
+{
+    SIZE_T i = 0;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "HID report descriptor begin\n");
+    while (i < cbSize)
+    {
+        CHAR buffer[20];
+        switch (pDescriptor[i] & 0x03)
+        {
+        case 0x00:
+        {
+            sprintf_s(buffer, sizeof(buffer), "%02x", pDescriptor[i]);
+            i++;
+            break;
+        }
+        case 0x01:
+        {
+            sprintf_s(buffer, sizeof(buffer), "%02x %02x",
+                      pDescriptor[i], pDescriptor[i + 1]);
+            i += 2;
+            break;
+        }
+        case 0x02:
+        {
+            sprintf_s(buffer, sizeof(buffer), "%02x %02x %02x",
+                      pDescriptor[i], pDescriptor[i + 1], pDescriptor[i + 2]);
+            i += 3;
+            break;
+        }
+        case 0x03:
+        {
+            sprintf_s(buffer, sizeof(buffer), "%02x %02x %02x %02x %02x",
+                      pDescriptor[i], pDescriptor[i + 1], pDescriptor[i + 2],
+                      pDescriptor[i + 3], pDescriptor[i + 4]);
+            i += 5;
+            break;
+        }
+        }
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "%s\n", buffer);
+    }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "HID report descriptor end\n");
+}
+
+static u8 SelectInputConfig(PINPUT_DEVICE pContext, u8 cfgSelect, u8 cfgSubSel)
+{
+    u8 size = 0;
+
+    VirtIOWdfDeviceSet(
+        &pContext->VDevice, offsetof(struct virtio_input_config, select),
+        &cfgSelect, sizeof(cfgSelect));
+    VirtIOWdfDeviceSet(
+        &pContext->VDevice, offsetof(struct virtio_input_config, subsel),
+        &cfgSubSel, sizeof(cfgSubSel));
+
+    VirtIOWdfDeviceGet(
+        &pContext->VDevice, offsetof(struct virtio_input_config, size),
+        &size, sizeof(size));
+    return size;
+}
+
+NTSTATUS
+VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
+{
+    DYNAMIC_ARRAY ReportDescriptor = { NULL };
+    NTSTATUS status = STATUS_SUCCESS;
+    VIRTIO_INPUT_CFG_DATA KeyData, RelData;
+    SIZE_T cbReportDescriptor;
+    UCHAR i;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+
+    // key/button config
+    KeyData.size = SelectInputConfig(pContext, VIRTIO_INPUT_CFG_EV_BITS, EV_KEY);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got EV_KEY bits size %d\n", KeyData.size);
+    if (KeyData.size > 0)
+    {
+        for (i = 0; i < KeyData.size; i++)
+        {
+            VirtIOWdfDeviceGet(
+                &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
+                &KeyData.u.bitmap[i], 1);
+        }
+    }
+
+    // relative axis config
+    RelData.size = SelectInputConfig(pContext, VIRTIO_INPUT_CFG_EV_BITS, EV_REL);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got EV_REL bits size %d\n", RelData.size);
+    if (RelData.size > 0)
+    {
+        for (i = 0; i < RelData.size; i++)
+        {
+            VirtIOWdfDeviceGet(
+                &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
+                &RelData.u.bitmap[i], 1);
+        }
+    }
+
+    // if we have any relative axes, we'll expose a mouse device
+    if (RelData.size > 0)
+    {
+        pContext->MouseDesc.Common.cbHidReportOffset = pContext->HidReportSize;
+        status = HIDMouseBuildReportDescriptor(
+            &ReportDescriptor,
+            &pContext->MouseDesc,
+            &RelData,
+            &KeyData);
+        if (!NT_SUCCESS(status))
+        {
+            return status;
+        }
+        pContext->HidReportSize += pContext->MouseDesc.Common.cbHidReportSize;
+    }
+
+    // TODO: keyboard, tablet, joystick, ...
+
+    pContext->HidReport = (PUCHAR)ExAllocatePoolWithTag(
+        NonPagedPool,
+        pContext->HidReportSize,
+        VIOINPUT_DRIVER_MEMORY_TAG);
+    if (!pContext->HidReport)
+    {
+        DynamicArrayDestroy(&ReportDescriptor);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(pContext->HidReport, pContext->HidReportSize);
+
+    // initialize the HID descriptor
+    pContext->HidReportDescriptor = (PHID_REPORT_DESCRIPTOR)DynamicArrayGet(
+        &ReportDescriptor,
+        &cbReportDescriptor);
+    if (!pContext->HidReportDescriptor)
+    {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    pContext->HidDescriptor = G_DefaultHidDescriptor;
+    pContext->HidDescriptor.DescriptorList[0].wReportLength = (USHORT)cbReportDescriptor;
+
+    DumpReportDescriptor(pContext->HidReportDescriptor, cbReportDescriptor);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
+    return status;
 }
 
 NTSTATUS
@@ -228,7 +358,7 @@ RequestCopyFromBuffer(
     WDFMEMORY memory;
     size_t    outputBufferLength;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveOutputMemory(Request, &memory);
     if (!NT_SUCCESS(status))

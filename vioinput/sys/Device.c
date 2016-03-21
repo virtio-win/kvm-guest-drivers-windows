@@ -230,6 +230,10 @@ VIOInputEvtDevicePrepareHardware(
     }
     VirtIOWdfSetDriverFeatures(&pContext->VDevice, guestFeatures);
 
+    // Figure out what kind of input device this is and build a
+    // corresponding HID report descriptor.
+    status = VIOInputBuildReportDescriptor(pContext);
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return status;
 }
@@ -248,6 +252,18 @@ VIOInputEvtDeviceReleaseHardware(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     VirtIOWdfShutdown(&pContext->VDevice);
+
+    HIDMouseReleaseClass(&pContext->MouseDesc);
+    if (pContext->HidReport != NULL)
+    {
+        ExFreePoolWithTag(pContext->HidReport, VIOINPUT_DRIVER_MEMORY_TAG);
+        pContext->HidReport = NULL;
+    }
+    if (pContext->HidReportDescriptor != NULL)
+    {
+        ExFreePoolWithTag(pContext->HidReportDescriptor, VIOINPUT_DRIVER_MEMORY_TAG);
+        pContext->HidReportDescriptor = NULL;
+    }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
