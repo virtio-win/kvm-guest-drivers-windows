@@ -188,14 +188,14 @@
     <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <TargetName>netkvm</TargetName>
-    <CodeAnalysisRuleSet>..\..\..\..\..\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet>$(WindowsSdkDir)\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
     <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
     <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <TargetName>netkvm</TargetName>
-    <CodeAnalysisRuleSet>..\..\..\..\..\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet>$(WindowsSdkDir)\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
@@ -204,36 +204,36 @@
     <TargetName>netkvm</TargetName>
     <IncludePath>$(ProjectDir);C:\WinDDK\7600.16385.1\inc\ddk;C:\WinDDK\7600.16385.1\inc\crt;C:\WinDDK\7600.16385.1\inc\api</IncludePath>
     <LibraryPath>C:\WinDDK\7600.16385.1\lib\wlh\i386</LibraryPath>
-    <CodeAnalysisRuleSet>..\..\..\..\..\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet>$(WindowsSdkDir)\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
     <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
     <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <TargetName>netkvm</TargetName>
-    <CodeAnalysisRuleSet>..\..\..\..\..\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet>$(WindowsSdkDir)\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
     <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <TargetName>netkvm</TargetName>
-    <CodeAnalysisRuleSet>..\..\..\..\..\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet>$(WindowsSdkDir)\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'">
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <TargetName>netkvm</TargetName>
-    <CodeAnalysisRuleSet>..\..\..\..\..\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet>$(WindowsSdkDir)\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <TargetName>netkvm</TargetName>
-    <CodeAnalysisRuleSet>..\..\..\..\..\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet>$(WindowsSdkDir)\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <TargetName>netkvm</TargetName>
-    <CodeAnalysisRuleSet>..\..\..\..\..\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet>$(WindowsSdkDir)\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <RunCodeAnalysis>false</RunCodeAnalysis>
@@ -245,7 +245,7 @@
     <LibraryPath>C:\WinDDK\7600.16385.1\lib\wlh\amd64</LibraryPath>
     <IncludePath>$(ProjectDir);C:\WinDDK\7600.16385.1\inc\ddk;C:\WinDDK\7600.16385.1\inc\crt;C:\WinDDK\7600.16385.1\inc\api</IncludePath>
     <LibraryWPath />
-    <CodeAnalysisRuleSet>..\..\..\..\..\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet>$(WindowsSdkDir)\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <RunCodeAnalysis>false</RunCodeAnalysis>
@@ -254,7 +254,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <TargetName>netkvm</TargetName>
-    <CodeAnalysisRuleSet>..\..\..\..\..\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet>$(WindowsSdkDir)\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
     <ClCompile>
