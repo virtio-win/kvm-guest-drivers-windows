@@ -10,6 +10,10 @@ cd viostor
 call clean.bat
 cd ..
 
+cd vioscsi
+call clean.bat
+cd ..
+
 cd Balloon
 call cleanall.bat
 cd ..
@@ -19,5 +23,9 @@ call cleanall.bat
 cd ..
 
 cd viorng
+call clean.bat
+cd ..
+
+cd pvpanic
 call clean.bat
 cd ..
