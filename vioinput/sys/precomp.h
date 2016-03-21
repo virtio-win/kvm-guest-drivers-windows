@@ -23,6 +23,7 @@
 #include <wmilib.h>
 #include <ntintsafe.h>
 #include <hidport.h>
+#include <hidusage.h>
 
 #include "osdep.h"
 #include "virtio_pci.h"

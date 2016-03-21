@@ -150,6 +150,7 @@
     <Inf Include="vioinput.inx" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Hid.h" />
     <ClInclude Include="precomp.h" />
     <ClInclude Include="public.h" />
     <ClInclude Include="trace.h" />
@@ -159,9 +160,11 @@
     <ResourceCompile Include="vioinput.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Array.c" />
     <ClCompile Include="Device.c" />
     <ClCompile Include="Driver.c" />
     <ClCompile Include="Hid.c" />
+    <ClCompile Include="HidMouse.c" />
     <ClCompile Include="IsrDpc.c" />
     <ClCompile Include="utils.c" />
   </ItemGroup>

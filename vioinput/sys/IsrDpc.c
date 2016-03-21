@@ -89,7 +89,7 @@ VIOInputInterruptIsr(
     WDF_INTERRUPT_INFO info;
     BOOLEAN serviced;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
 
     WDF_INTERRUPT_INFO_INIT(&info);
     WdfInterruptGetInfo(Interrupt, &info);
@@ -106,7 +106,7 @@ VIOInputInterruptIsr(
         serviced = FALSE;
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
     return serviced;
 }
 
