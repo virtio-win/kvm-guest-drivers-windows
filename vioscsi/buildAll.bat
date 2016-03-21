@@ -1,4 +1,4 @@
-rem @echo off
+@echo off
 
 set SYS_FILE_NAME=vioscsi
 
@@ -92,6 +92,11 @@ rem set INF2CAT_PATH=
 if exist Install\win8\amd64 rmdir Install\win8\amd64 /s /q
 call :BuildUsing2012 "Win8 Release|x64" buildfre_win8_amd64.log
 call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
+if "%_BUILD_DISABLE_SDV%"=="" goto :DO_SDV
+endlocal
+goto :eof
+
+:DO_SDV
 call :StaticDriverVerifier2012 "Win8 Release" %BUILD_ARC%
 call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
 rmdir /S /Q .\sdv
