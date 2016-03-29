@@ -25,6 +25,7 @@
 #define HID_TAG_PHYSICAL_MAXIMUM   0x44
 #define HID_TAG_REPORT_SIZE        0x74
 #define HID_TAG_INPUT              0x80
+#define HID_TAG_REPORT_ID          0x84
 #define HID_TAG_OUTPUT             0x90
 #define HID_TAG_REPORT_COUNT       0x94
 #define HID_TAG_COLLECTION         0xa0
@@ -43,3 +44,6 @@
 #define HID_DATA_FLAG_NO_PREFERRED 0x20
 #define HID_DATA_FLAG_NULL_STATE   0x40
 #define HID_DATA_FLAG_VOLATILE     0x80
+
+#define HID_USAGE_LED_SYSTEM_SUSPEND           0x4C
+#define HID_USAGE_LED_EXTERNAL_POWER_CONNECTED 0x4D

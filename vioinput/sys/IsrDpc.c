@@ -33,6 +33,11 @@ VIOInputEnableInterrupt(PINPUT_DEVICE pContext)
         virtqueue_enable_cb(pContext->EventQ);
         virtqueue_kick(pContext->EventQ);
     }
+    if (pContext->StatusQ)
+    {
+        virtqueue_enable_cb(pContext->StatusQ);
+        virtqueue_kick(pContext->StatusQ);
+    }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s enable\n", __FUNCTION__);
 }
@@ -49,6 +54,10 @@ VIOInputDisableInterrupt(PINPUT_DEVICE pContext)
     if (pContext->EventQ)
     {
         virtqueue_disable_cb(pContext->EventQ);
+    }
+    if (pContext->StatusQ)
+    {
+        virtqueue_disable_cb(pContext->StatusQ);
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s disable\n", __FUNCTION__);
@@ -118,12 +127,12 @@ VIOInputQueuesInterruptDpc(
     WDFDEVICE Device = WdfInterruptGetDevice(Interrupt);
     PINPUT_DEVICE pContext = GetDeviceContext(Device);
     PVIRTIO_INPUT_EVENT pEvent;
+    PVIRTIO_INPUT_EVENT_WITH_REQUEST pEventReq;
     UINT len;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
 
     WdfSpinLockAcquire(pContext->EventQLock);
-
     while ((pEvent = virtqueue_get_buf(pContext->EventQ, &len)) != NULL)
     {
         // translate event to a HID report and complete a pending HID request
@@ -132,8 +141,21 @@ VIOInputQueuesInterruptDpc(
         // add the buffer back to the queue
         VIOInputAddInBuf(pContext->EventQ, pEvent);
     }
-
     WdfSpinLockRelease(pContext->EventQLock);
+
+    WdfSpinLockAcquire(pContext->StatusQLock);
+    while ((pEventReq = virtqueue_get_buf(pContext->StatusQ, &len)) != NULL)
+    {
+        // complete the pending request
+        if (pEventReq->Request != NULL)
+        {
+            WdfRequestComplete(pEventReq->Request, STATUS_SUCCESS);
+        }
+
+        // free the buffer
+        ExFreePoolWithTag(pEventReq, VIOINPUT_DRIVER_MEMORY_TAG);
+    }
+    WdfSpinLockRelease(pContext->StatusQLock);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
 }

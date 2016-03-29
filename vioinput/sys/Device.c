@@ -254,11 +254,8 @@ VIOInputEvtDeviceReleaseHardware(
     VirtIOWdfShutdown(&pContext->VDevice);
 
     HIDMouseReleaseClass(&pContext->MouseDesc);
-    if (pContext->HidReport != NULL)
-    {
-        ExFreePoolWithTag(pContext->HidReport, VIOINPUT_DRIVER_MEMORY_TAG);
-        pContext->HidReport = NULL;
-    }
+    HIDKeyboardReleaseClass(&pContext->KeyboardDesc);
+
     if (pContext->HidReportDescriptor != NULL)
     {
         ExFreePoolWithTag(pContext->HidReportDescriptor, VIOINPUT_DRIVER_MEMORY_TAG);
@@ -353,10 +350,11 @@ VIOInputFillQueue(
     return STATUS_SUCCESS;
 }
 
-NTSTATUS
-VIOInputAddInBuf(
+static NTSTATUS
+VIOInputAddBuf(
     IN struct virtqueue *vq,
-    IN PVIRTIO_INPUT_EVENT buf)
+    IN PVIRTIO_INPUT_EVENT buf,
+    IN BOOLEAN out)
 {
     NTSTATUS  status = STATUS_SUCCESS;
     struct VirtIOBufferDescriptor sg;
@@ -376,7 +374,7 @@ VIOInputAddInBuf(
     sg.physAddr = MmGetPhysicalAddress(buf);
     sg.length = sizeof(VIRTIO_INPUT_EVENT);
 
-    if (0 > virtqueue_add_buf(vq, &sg, 0, 1, buf, NULL, 0))
+    if (0 > virtqueue_add_buf(vq, &sg, (out ? 1 : 0), (out ? 0 : 1), buf, NULL, 0))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "<-- %s cannot add_buf\n", __FUNCTION__);
         status = STATUS_INSUFFICIENT_RESOURCES;
@@ -385,6 +383,22 @@ VIOInputAddInBuf(
     virtqueue_kick(vq);
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
     return status;
+}
+
+NTSTATUS
+VIOInputAddInBuf(
+    IN struct virtqueue *vq,
+    IN PVIRTIO_INPUT_EVENT buf)
+{
+    return VIOInputAddBuf(vq, buf, FALSE);
+}
+
+NTSTATUS
+VIOInputAddOutBuf(
+    IN struct virtqueue *vq,
+    IN PVIRTIO_INPUT_EVENT buf)
+{
+    return VIOInputAddBuf(vq, buf, TRUE);
 }
 
 NTSTATUS

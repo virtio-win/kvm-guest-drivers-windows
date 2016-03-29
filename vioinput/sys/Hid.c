@@ -23,11 +23,10 @@
 
 
 //
-// This is a hard-coded HID descriptor for a simple 3-button mouse. Returned
-// by the mini driver in response to IOCTL_HID_GET_DEVICE_DESCRIPTOR. The size
-// of report descriptor is currently the size of G_DefaultReportDescriptor.
+// HID descriptor based on this structure is returned by the mini driver in response
+// to IOCTL_HID_GET_DEVICE_DESCRIPTOR.
 //
-HID_DESCRIPTOR G_DefaultHidDescriptor =
+static const HID_DESCRIPTOR G_DefaultHidDescriptor =
 {
     0x09,   // length of HID descriptor
     0x21,   // descriptor type == HID  0x21
@@ -48,10 +47,13 @@ EvtIoDeviceControl(
     size_t     InputBufferLength,
     ULONG      IoControlCode)
 {
-    NTSTATUS      status;
-    BOOLEAN       completeRequest = TRUE;
-    WDFDEVICE     device = WdfIoQueueGetDevice(Queue);
-    PINPUT_DEVICE pContext = GetDeviceContext(device);
+    NTSTATUS        status;
+    BOOLEAN         completeRequest = TRUE;
+    WDFDEVICE       device = WdfIoQueueGetDevice(Queue);
+    PINPUT_DEVICE   pContext = GetDeviceContext(device);
+    ULONG           uReportSize;
+    HID_XFER_PACKET Packet;
+    WDF_REQUEST_PARAMETERS params;
     UNREFERENCED_PARAMETER(OutputBufferLength);
     UNREFERENCED_PARAMETER(InputBufferLength);
 
@@ -97,6 +99,7 @@ EvtIoDeviceControl(
         // Queue up a report request. We'll complete it when we actually
         // receive data from the device.
         //
+
         status = WdfRequestForwardToIoQueue(
             Request,
             pContext->HidQueue);
@@ -108,6 +111,35 @@ EvtIoDeviceControl(
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
                         "WdfRequestForwardToIoQueue failed with 0x%x\n", status);
+        }
+        break;
+
+    case IOCTL_HID_WRITE_REPORT:
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "IOCTL_HID_WRITE_REPORT\n");
+        //
+        // Write a report to the device, commonly used for controlling keyboard
+        // LEDs. We'll complete the request after the host processes all virtio
+        // buffers we add to the status queue.
+        //
+
+        WDF_REQUEST_PARAMETERS_INIT(&params);
+        WdfRequestGetParameters(Request, &params);
+
+        if (params.Parameters.DeviceIoControl.InputBufferLength < sizeof(HID_XFER_PACKET))
+        {
+            status = STATUS_BUFFER_TOO_SMALL;
+        }
+        else
+        {
+            RtlCopyMemory(&Packet, WdfRequestWdmGetIrp(Request)->UserBuffer,
+                          sizeof(HID_XFER_PACKET));
+            WdfRequestSetInformation(Request, Packet.reportBufferLen);
+
+            status = ProcessOutputReport(pContext, Request, &Packet);
+            if (NT_SUCCESS(status))
+            {
+                completeRequest = FALSE;
+            }
         }
         break;
 
@@ -126,14 +158,40 @@ EvtIoDeviceControl(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 }
 
+static VOID
+CompleteHIDQueueRequest(
+    PINPUT_DEVICE pContext,
+    PINPUT_CLASS_COMMON pClass)
+{
+    WDFREQUEST request;
+    NTSTATUS status;
+
+    if (!pClass->bDirty)
+    {
+        // nothing to do
+        return;
+    }
+
+    status = WdfIoQueueRetrieveNextRequest(pContext->HidQueue, &request);
+    if (NT_SUCCESS(status))
+    {
+        status = RequestCopyFromBuffer(
+            request,
+            pClass->pHidReport,
+            pClass->cbHidReportSize);
+        WdfRequestComplete(request, status);
+        if (NT_SUCCESS(status))
+        {
+            pClass->bDirty = FALSE;
+        }
+    }
+}
+
 VOID
 ProcessInputEvent(
     PINPUT_DEVICE pContext,
     PVIRTIO_INPUT_EVENT pEvent)
 {
-    NTSTATUS status;
-    WDFREQUEST request;
-
     TraceEvents(
         TRACE_LEVEL_VERBOSE,
         DBG_READ,
@@ -145,27 +203,53 @@ ProcessInputEvent(
 
     if (pEvent->type == EV_SYN)
     {
-        // send the report up
-        status = WdfIoQueueRetrieveNextRequest(pContext->HidQueue, &request);
-        if (NT_SUCCESS(status))
-        {
-            status = RequestCopyFromBuffer(
-                request,
-                pContext->HidReport,
-                pContext->HidReportSize);
-
-            WdfRequestComplete(request, status);
-        }
+        // send report(s) up
+        CompleteHIDQueueRequest(pContext, &pContext->MouseDesc.Common);
+        CompleteHIDQueueRequest(pContext, &pContext->KeyboardDesc.Common);
     }
 
-    HIDMouseEventToReport(
-        &pContext->MouseDesc,
-        pEvent,
-        pContext->HidReport + pContext->MouseDesc.Common.cbHidReportOffset);
+    if (pContext->MouseDesc.Common.cbHidReportSize > 0)
+    {
+        HIDMouseEventToReport(&pContext->MouseDesc, pEvent);
+    }
+    if (pContext->KeyboardDesc.Common.cbHidReportSize > 0)
+    {
+        HIDKeyboardEventToReport(&pContext->KeyboardDesc, pEvent);
+    }
 
-    // TODO: keyboard, tablet, joystick, ...
+    // TODO: tablet, joystick, ...
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+}
+
+NTSTATUS
+ProcessOutputReport(
+    PINPUT_DEVICE pContext,
+    WDFREQUEST Request,
+    PHID_XFER_PACKET pPacket)
+{
+    VIRTIO_INPUT_EVENT Event;
+    NTSTATUS status = STATUS_SUCCESS;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    if (pPacket->reportId == pContext->KeyboardDesc.Common.uReportID)
+    {
+        status = HIDKeyboardReportToEvent(
+            pContext,
+            &pContext->KeyboardDesc,
+            Request,
+            pPacket->reportBuffer,
+            pPacket->reportBufferLen);
+    }
+    else
+    {
+        // no other device class currently supports output reports
+        status = STATUS_NONE_MAPPED;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+    return status;
 }
 
 VOID HIDAppend1(PDYNAMIC_ARRAY pArray, UCHAR tag)
@@ -270,42 +354,36 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
 {
     DYNAMIC_ARRAY ReportDescriptor = { NULL };
     NTSTATUS status = STATUS_SUCCESS;
-    VIRTIO_INPUT_CFG_DATA KeyData, RelData;
+    VIRTIO_INPUT_CFG_DATA KeyData, RelData, LedData;
     SIZE_T cbReportDescriptor;
-    UCHAR i;
+    UCHAR i, uReportID = 0;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
     // key/button config
     KeyData.size = SelectInputConfig(pContext, VIRTIO_INPUT_CFG_EV_BITS, EV_KEY);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got EV_KEY bits size %d\n", KeyData.size);
-    if (KeyData.size > 0)
+    for (i = 0; i < KeyData.size; i++)
     {
-        for (i = 0; i < KeyData.size; i++)
-        {
-            VirtIOWdfDeviceGet(
-                &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
-                &KeyData.u.bitmap[i], 1);
-        }
+        VirtIOWdfDeviceGet(
+            &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
+            &KeyData.u.bitmap[i], 1);
     }
 
     // relative axis config
     RelData.size = SelectInputConfig(pContext, VIRTIO_INPUT_CFG_EV_BITS, EV_REL);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got EV_REL bits size %d\n", RelData.size);
-    if (RelData.size > 0)
+    for (i = 0; i < RelData.size; i++)
     {
-        for (i = 0; i < RelData.size; i++)
-        {
-            VirtIOWdfDeviceGet(
-                &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
-                &RelData.u.bitmap[i], 1);
-        }
+        VirtIOWdfDeviceGet(
+            &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
+            &RelData.u.bitmap[i], 1);
     }
 
     // if we have any relative axes, we'll expose a mouse device
     if (RelData.size > 0)
     {
-        pContext->MouseDesc.Common.cbHidReportOffset = pContext->HidReportSize;
+        pContext->MouseDesc.Common.uReportID = ++uReportID;
         status = HIDMouseBuildReportDescriptor(
             &ReportDescriptor,
             &pContext->MouseDesc,
@@ -315,21 +393,34 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
         {
             return status;
         }
-        pContext->HidReportSize += pContext->MouseDesc.Common.cbHidReportSize;
     }
 
-    // TODO: keyboard, tablet, joystick, ...
-
-    pContext->HidReport = (PUCHAR)ExAllocatePoolWithTag(
-        NonPagedPool,
-        pContext->HidReportSize,
-        VIOINPUT_DRIVER_MEMORY_TAG);
-    if (!pContext->HidReport)
+    // if we have any keys left, we'll expose a keyboard device
+    if (KeyData.size > 0)
     {
-        DynamicArrayDestroy(&ReportDescriptor);
-        return STATUS_INSUFFICIENT_RESOURCES;
+        // LED config
+        LedData.size = SelectInputConfig(pContext, VIRTIO_INPUT_CFG_EV_BITS, EV_LED);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got EV_LED bits size %d\n", LedData.size);
+        for (i = 0; i < LedData.size; i++)
+        {
+            VirtIOWdfDeviceGet(
+                &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
+                &LedData.u.bitmap[i], 1);
+        }
+
+        pContext->KeyboardDesc.Common.uReportID = ++uReportID;
+        status = HIDKeyboardBuildReportDescriptor(
+            &ReportDescriptor,
+            &pContext->KeyboardDesc,
+            &KeyData,
+            &LedData);
+        if (!NT_SUCCESS(status))
+        {
+            return status;
+        }
     }
-    RtlZeroMemory(pContext->HidReport, pContext->HidReportSize);
+
+    // TODO: tablet, joystick, ...
 
     // initialize the HID descriptor
     pContext->HidReportDescriptor = (PHID_REPORT_DESCRIPTOR)DynamicArrayGet(
@@ -337,12 +428,15 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
         &cbReportDescriptor);
     if (!pContext->HidReportDescriptor)
     {
-        return STATUS_INSUFFICIENT_RESOURCES;
+        status = STATUS_INSUFFICIENT_RESOURCES;
     }
-    pContext->HidDescriptor = G_DefaultHidDescriptor;
-    pContext->HidDescriptor.DescriptorList[0].wReportLength = (USHORT)cbReportDescriptor;
+    else
+    {
+        pContext->HidDescriptor = G_DefaultHidDescriptor;
+        pContext->HidDescriptor.DescriptorList[0].wReportLength = (USHORT)cbReportDescriptor;
 
-    DumpReportDescriptor(pContext->HidReportDescriptor, cbReportDescriptor);
+        DumpReportDescriptor(pContext->HidReportDescriptor, cbReportDescriptor);
+    }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return status;
