@@ -79,7 +79,7 @@ HIDMouseBuildReportDescriptor(
 {
     UCHAR i, uValue;
     ULONG uFeatureBitsUsed = 0;
-    SIZE_T cbFeatureBytes = 0;
+    SIZE_T cbFeatureBytes = 0, cbButtonBytes;
     DYNAMIC_ARRAY AxisMap = { NULL };
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
@@ -89,6 +89,8 @@ HIDMouseBuildReportDescriptor(
     HIDAppend2(pHidDesc, HID_TAG_COLLECTION, HID_COLLECTION_APPLICATION);
     HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_GENERIC_POINTER);
     HIDAppend2(pHidDesc, HID_TAG_COLLECTION, HID_COLLECTION_PHYSICAL);
+
+    HIDAppend2(pHidDesc, HID_TAG_REPORT_ID, pMouseDesc->Common.uReportID);
 
     for (i = 0; i < pButtons->size; i++)
     {
@@ -119,7 +121,8 @@ HIDMouseBuildReportDescriptor(
         pButtons->u.bitmap[i] = non_buttons;
     }
 
-    pMouseDesc->cbAxisOffset = (pMouseDesc->uNumOfButtons + 7) / 8;
+    cbButtonBytes = (pMouseDesc->uNumOfButtons + 7) / 8;
+    pMouseDesc->cbAxisOffset = HID_REPORT_DATA_OFFSET + cbButtonBytes;
     if (pMouseDesc->uNumOfButtons > 0)
     {
         // one bit per button as usual in a mouse device
@@ -133,9 +136,12 @@ HIDMouseBuildReportDescriptor(
         HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
 
         // pad to the nearest whole byte
-        HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, 0x01);
-        HIDAppend2(pHidDesc, HID_TAG_REPORT_SIZE, (ULONG)(pMouseDesc->cbAxisOffset * 8) - pMouseDesc->uNumOfButtons);
-        HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE | HID_DATA_FLAG_CONSTANT);
+        if (pMouseDesc->uNumOfButtons % 8)
+        {
+            HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, 0x01);
+            HIDAppend2(pHidDesc, HID_TAG_REPORT_SIZE, (ULONG)(cbButtonBytes * 8) - pMouseDesc->uNumOfButtons);
+            HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE | HID_DATA_FLAG_CONSTANT);
+        }
     }
 
     if (pAxes->size > 0)
@@ -251,12 +257,15 @@ HIDMouseBuildReportDescriptor(
     }
 
     // feature padding
-    cbFeatureBytes = (uFeatureBitsUsed + 7) / 8;
-    HIDAppend2(pHidDesc, HID_TAG_PHYSICAL_MINIMUM, 0x00);
-    HIDAppend2(pHidDesc, HID_TAG_PHYSICAL_MAXIMUM, 0x00);
-    HIDAppend2(pHidDesc, HID_TAG_REPORT_SIZE, (ULONG)(cbFeatureBytes * 8) - uFeatureBitsUsed);
-    HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, 0x01);
-    HIDAppend2(pHidDesc, HID_TAG_FEATURE, HID_DATA_FLAG_VARIABLE | HID_DATA_FLAG_CONSTANT);
+    if (uFeatureBitsUsed % 8)
+    {
+        cbFeatureBytes = (uFeatureBitsUsed + 7) / 8;
+        HIDAppend2(pHidDesc, HID_TAG_PHYSICAL_MINIMUM, 0x00);
+        HIDAppend2(pHidDesc, HID_TAG_PHYSICAL_MAXIMUM, 0x00);
+        HIDAppend2(pHidDesc, HID_TAG_REPORT_SIZE, (ULONG)(cbFeatureBytes * 8) - uFeatureBitsUsed);
+        HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, 0x01);
+        HIDAppend2(pHidDesc, HID_TAG_FEATURE, HID_DATA_FLAG_VARIABLE | HID_DATA_FLAG_CONSTANT);
+    }
 
     // close all collections
     HIDAppend1(pHidDesc, HID_TAG_END_COLLECTION);
@@ -276,6 +285,17 @@ HIDMouseBuildReportDescriptor(
         ((pMouseDesc->uFlags & CLASS_MOUSE_HAS_V_WHEEL) ? 1 : 0) +
         ((pMouseDesc->uFlags & CLASS_MOUSE_HAS_H_WHEEL) ? 1 : 0);
 
+    // allocate and initialize the mouse HID report
+    pMouseDesc->Common.pHidReport = (PUCHAR)ExAllocatePoolWithTag(
+        NonPagedPool,
+        pMouseDesc->Common.cbHidReportSize,
+        VIOINPUT_DRIVER_MEMORY_TAG);
+    if (pMouseDesc->Common.pHidReport == NULL)
+    {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(pMouseDesc->Common.pHidReport, pMouseDesc->Common.cbHidReportSize);
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
@@ -285,24 +305,32 @@ HIDMouseReleaseClass(
     PINPUT_CLASS_MOUSE pMouseDesc)
 {
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+
+    if (pMouseDesc->Common.pHidReport != NULL)
+    {
+        ExFreePoolWithTag(pMouseDesc->Common.pHidReport, VIOINPUT_DRIVER_MEMORY_TAG);
+        pMouseDesc->Common.pHidReport = NULL;
+    }
     if (pMouseDesc->pAxisMap != NULL)
     {
         ExFreePoolWithTag(pMouseDesc->pAxisMap, VIOINPUT_DRIVER_MEMORY_TAG);
         pMouseDesc->pAxisMap = NULL;
     }
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
 }
 
 VOID
 HIDMouseEventToReport(
     PINPUT_CLASS_MOUSE pMouseDesc,
-    PVIRTIO_INPUT_EVENT pEvent,
-    PUCHAR pReport)
+    PVIRTIO_INPUT_EVENT pEvent)
 {
+    PUCHAR pReport = pMouseDesc->Common.pHidReport;
     SIZE_T i;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "--> %s\n", __FUNCTION__);
 
+    pReport[HID_REPORT_ID_OFFSET] = pMouseDesc->Common.uReportID;
     switch (pEvent->type)
     {
     case EV_REL:
@@ -315,6 +343,7 @@ HIDMouseEventToReport(
                 if (pMap[0] == pEvent->code)
                 {
                     pReport[pMouseDesc->cbAxisOffset + pMap[1]] = (UCHAR)pEvent->value;
+                    pMouseDesc->Common.bDirty = TRUE;
                     break;
                 }
             }
@@ -329,6 +358,7 @@ HIDMouseEventToReport(
                 // increment/decrement the vertical wheel field
                 CHAR delta = (pEvent->code == BTN_GEAR_DOWN ? -1 : 1);
                 pReport[pMouseDesc->cbAxisOffset + pMouseDesc->uNumOfAxes] += delta;
+                pMouseDesc->Common.bDirty = TRUE;
             }
         }
         else if (pEvent->code >= BTN_MOUSE && pEvent->code < BTN_JOYSTICK)
@@ -340,12 +370,13 @@ HIDMouseEventToReport(
                 UCHAR uBit = 1 << (uButton % 8);
                 if (pEvent->value)
                 {
-                    pReport[uOffset] |= uBit;
+                    pReport[HID_REPORT_DATA_OFFSET + uOffset] |= uBit;
                 }
                 else
                 {
-                    pReport[uOffset] &= ~uBit;
+                    pReport[HID_REPORT_DATA_OFFSET + uOffset] &= ~uBit;
                 }
+                pMouseDesc->Common.bDirty = TRUE;
             }
         }
         break;

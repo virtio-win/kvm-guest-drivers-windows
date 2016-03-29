@@ -34,10 +34,18 @@ typedef UCHAR HID_REPORT_DESCRIPTOR, *PHID_REPORT_DESCRIPTOR;
 
 typedef struct _tagInputClassCommon
 {
-    // offset of this class's data in the HID report
-    SIZE_T cbHidReportOffset;
+// the first byte of a HID report is always report ID
+#define HID_REPORT_ID_OFFSET 0
+#define HID_REPORT_DATA_OFFSET 1
+
+    // this class's HID report
+    PUCHAR pHidReport;
     // size of this class's data in the HID report
     SIZE_T cbHidReportSize;
+    // report ID of this class
+    UCHAR uReportID;
+    // the HID report is dirty and should be sent up
+    BOOLEAN bDirty;
 } INPUT_CLASS_COMMON, *PINPUT_CLASS_COMMON;
 
 typedef struct _tagInputClassMouse
@@ -46,6 +54,8 @@ typedef struct _tagInputClassMouse
 
     // the mouse HID report is laid out as follows:
     // offset 0
+    // * report ID
+    // offset 1
     // * buttons; one bit per button followed by padding to the nearest whole byte
     // offset cbAxisOffset
     // * axes; one byte per axis, mapping in pAxisMap
@@ -70,6 +80,33 @@ typedef struct _tagInputClassMouse
     ULONG  uFlags;
 } INPUT_CLASS_MOUSE, *PINPUT_CLASS_MOUSE;
 
+typedef struct _tagInputClassKeyboard
+{
+    INPUT_CLASS_COMMON Common;
+
+#define HID_KEYBOARD_KEY_SLOTS 6
+    // the keyboard HID report is laid out as follows:
+    // offset 0
+    // * report ID
+    // offset 1
+    // * 8 modifiers; one bit per modifier
+    // offset 2
+    // * padding
+    // offset 3
+    // * key array of length HID_KEYBOARD_KEY_SLOTS; one byte per key
+
+    // bitmap of currently pressed keys
+    PUCHAR pKeysPressed;
+    // length of the pKeysPressed bitmap in bytes
+    SIZE_T cbKeysPressedLen;
+    // number of keys currently pressed
+    SIZE_T nKeysPressed;
+    // size of the output (host -> device) report
+    SIZE_T cbOutputReport;
+    // last seen output (host -> device) report
+    PUCHAR pLastOutputReport;
+} INPUT_CLASS_KEYBOARD, *PINPUT_CLASS_KEYBOARD;
+
 typedef struct _tagInputDevice
 {
     VIRTIO_WDF_DRIVER      VDevice;
@@ -89,10 +126,8 @@ typedef struct _tagInputDevice
     HID_DEVICE_ATTRIBUTES  HidDeviceAttributes;
     PHID_REPORT_DESCRIPTOR HidReportDescriptor;
 
-    PUCHAR                 HidReport;
-    SIZE_T                 HidReportSize;
-
     INPUT_CLASS_MOUSE      MouseDesc;
+    INPUT_CLASS_KEYBOARD   KeyboardDesc;
 } INPUT_DEVICE, *PINPUT_DEVICE;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(INPUT_DEVICE, GetDeviceContext)
@@ -166,10 +201,17 @@ typedef struct virtio_input_event
     unsigned long value;
 } VIRTIO_INPUT_EVENT, *PVIRTIO_INPUT_EVENT;
 
+typedef struct virtio_input_event_with_request
+{
+    VIRTIO_INPUT_EVENT Event;
+    WDFREQUEST Request;
+} VIRTIO_INPUT_EVENT_WITH_REQUEST, *PVIRTIO_INPUT_EVENT_WITH_REQUEST;
+
 // Event types
 #define EV_SYN        0x00
 #define EV_KEY        0x01
 #define EV_REL        0x02
+#define EV_LED        0x11
 
 // Button codes
 #define BTN_MOUSE     0x110
@@ -200,6 +242,19 @@ typedef struct virtio_input_event
 #define REL_WHEEL     0x08
 #define REL_MISC      0x09
 
+// LED codes
+#define LED_NUML      0x00
+#define LED_CAPSL     0x01
+#define LED_SCROLLL   0x02
+#define LED_COMPOSE   0x03
+#define LED_KANA      0x04
+#define LED_SLEEP     0x05
+#define LED_SUSPEND   0x06
+#define LED_MUTE      0x07
+#define LED_MISC      0x08
+#define LED_MAIL      0x09
+#define LED_CHARGING  0x0a
+
 NTSTATUS
 VIOInputFillQueue(
     IN struct virtqueue *vq,
@@ -208,6 +263,12 @@ VIOInputFillQueue(
 
 NTSTATUS
 VIOInputAddInBuf(
+    IN struct virtqueue *vq,
+    IN PVIRTIO_INPUT_EVENT buf
+);
+
+NTSTATUS
+VIOInputAddOutBuf(
     IN struct virtqueue *vq,
     IN PVIRTIO_INPUT_EVENT buf
 );
@@ -230,6 +291,13 @@ VOID
 ProcessInputEvent(
     PINPUT_DEVICE pContext,
     PVIRTIO_INPUT_EVENT pEvent
+);
+
+NTSTATUS
+ProcessOutputReport(
+    PINPUT_DEVICE pContext,
+    WDFREQUEST Request,
+    PHID_XFER_PACKET pPacket
 );
 
 NTSTATUS
@@ -290,14 +358,41 @@ HIDMouseBuildReportDescriptor(
     PVIRTIO_INPUT_CFG_DATA pButtons
 );
 
+NTSTATUS
+HIDKeyboardBuildReportDescriptor(
+    PDYNAMIC_ARRAY pHidDesc,
+    PINPUT_CLASS_KEYBOARD pKeyboardDesc,
+    PVIRTIO_INPUT_CFG_DATA pKeys,
+    PVIRTIO_INPUT_CFG_DATA pLeds
+);
+
 VOID
 HIDMouseReleaseClass(
     PINPUT_CLASS_MOUSE pMouseDesc
 );
 
 VOID
+HIDKeyboardReleaseClass(
+    PINPUT_CLASS_KEYBOARD pKeyboardDesc
+);
+
+VOID
 HIDMouseEventToReport(
     PINPUT_CLASS_MOUSE pMouseDesc,
-    PVIRTIO_INPUT_EVENT pEvent,
-    PUCHAR pReport
+    PVIRTIO_INPUT_EVENT pEvent
+);
+
+VOID
+HIDKeyboardEventToReport(
+    PINPUT_CLASS_KEYBOARD pKeyboardDesc,
+    PVIRTIO_INPUT_EVENT pEvent
+);
+
+NTSTATUS
+HIDKeyboardReportToEvent(
+    PINPUT_DEVICE pContext,
+    PINPUT_CLASS_KEYBOARD pKeyboardDesc,
+    WDFREQUEST Request,
+    PUCHAR pReport,
+    ULONG cbReport
 );
