@@ -232,14 +232,17 @@ HIDMouseBuildReportDescriptor(
             return STATUS_INSUFFICIENT_RESOURCES;
         }
 
-        // the range is -127 to 127 (one byte) on all axes
-        HIDAppend2(pHidDesc, HID_TAG_LOGICAL_MINIMUM, 0x81);
-        HIDAppend2(pHidDesc, HID_TAG_LOGICAL_MAXIMUM, 0x7f);
+        if (pMouseDesc->uNumOfAxes > 0)
+        {
+            // the range is -127 to 127 (one byte) on all axes
+            HIDAppend2(pHidDesc, HID_TAG_LOGICAL_MINIMUM, 0x81);
+            HIDAppend2(pHidDesc, HID_TAG_LOGICAL_MAXIMUM, 0x7f);
 
-        HIDAppend2(pHidDesc, HID_TAG_REPORT_SIZE, 0x08);
-        HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, pMouseDesc->uNumOfAxes);
+            HIDAppend2(pHidDesc, HID_TAG_REPORT_SIZE, 0x08);
+            HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, pMouseDesc->uNumOfAxes);
 
-        HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE | HID_DATA_FLAG_RELATIVE);
+            HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE | HID_DATA_FLAG_RELATIVE);
+        }
     }
 
     if (pMouseDesc->uFlags & CLASS_MOUSE_HAS_V_WHEEL)

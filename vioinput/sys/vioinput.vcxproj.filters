@@ -65,6 +65,12 @@
     <ClCompile Include="HidKeyboard.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="HidConsumer.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="KeyMap.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="vioinput.inx">

@@ -206,6 +206,7 @@ ProcessInputEvent(
         // send report(s) up
         CompleteHIDQueueRequest(pContext, &pContext->MouseDesc.Common);
         CompleteHIDQueueRequest(pContext, &pContext->KeyboardDesc.Common);
+        CompleteHIDQueueRequest(pContext, &pContext->ConsumerDesc.Common);
     }
 
     if (pContext->MouseDesc.Common.cbHidReportSize > 0)
@@ -215,6 +216,10 @@ ProcessInputEvent(
     if (pContext->KeyboardDesc.Common.cbHidReportSize > 0)
     {
         HIDKeyboardEventToReport(&pContext->KeyboardDesc, pEvent);
+    }
+    if (pContext->ConsumerDesc.Common.cbHidReportSize > 0)
+    {
+        HIDConsumerEventToReport(&pContext->ConsumerDesc, pEvent);
     }
 
     // TODO: tablet, joystick, ...
@@ -414,6 +419,20 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
             &pContext->KeyboardDesc,
             &KeyData,
             &LedData);
+        if (!NT_SUCCESS(status))
+        {
+            return status;
+        }
+    }
+
+    // if we still have any keys left, we'll check for a consumer device
+    if (KeyData.size > 0)
+    {
+        pContext->ConsumerDesc.Common.uReportID = ++uReportID;
+        status = HIDConsumerBuildReportDescriptor(
+            &ReportDescriptor,
+            &pContext->ConsumerDesc,
+            &KeyData);
         if (!NT_SUCCESS(status))
         {
             return status;
