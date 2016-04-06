@@ -164,9 +164,11 @@
     <ClCompile Include="Device.c" />
     <ClCompile Include="Driver.c" />
     <ClCompile Include="Hid.c" />
+    <ClCompile Include="HidConsumer.c" />
     <ClCompile Include="HidKeyboard.c" />
     <ClCompile Include="HidMouse.c" />
     <ClCompile Include="IsrDpc.c" />
+    <ClCompile Include="KeyMap.c" />
     <ClCompile Include="utils.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -107,6 +107,25 @@ typedef struct _tagInputClassKeyboard
     PUCHAR pLastOutputReport;
 } INPUT_CLASS_KEYBOARD, *PINPUT_CLASS_KEYBOARD;
 
+typedef struct _tagInputClassConsumer
+{
+    INPUT_CLASS_COMMON Common;
+
+    // the consumer HID report is laid out as follows:
+    // offset 0
+    // * report ID
+    // offset 1
+    // * consumer controls, one bit per control followed by padding
+    //   to the nearest whole byte
+
+    // number of controls supported by the HID report
+    ULONG  uNumOfControls;
+    // array of control bitmap indices indexed by EVDEV codes
+    PULONG pControlMap;
+    // length of the pControlMap array in bytes
+    SIZE_T cbControlMapLen;
+} INPUT_CLASS_CONSUMER, *PINPUT_CLASS_CONSUMER;
+
 typedef struct _tagInputDevice
 {
     VIRTIO_WDF_DRIVER      VDevice;
@@ -128,6 +147,7 @@ typedef struct _tagInputDevice
 
     INPUT_CLASS_MOUSE      MouseDesc;
     INPUT_CLASS_KEYBOARD   KeyboardDesc;
+    INPUT_CLASS_CONSUMER   ConsumerDesc;
 } INPUT_DEVICE, *PINPUT_DEVICE;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(INPUT_DEVICE, GetDeviceContext)
@@ -366,6 +386,13 @@ HIDKeyboardBuildReportDescriptor(
     PVIRTIO_INPUT_CFG_DATA pLeds
 );
 
+NTSTATUS
+HIDConsumerBuildReportDescriptor(
+    PDYNAMIC_ARRAY pHidDesc,
+    PINPUT_CLASS_CONSUMER pConsumerDesc,
+    PVIRTIO_INPUT_CFG_DATA pKeys
+);
+
 VOID
 HIDMouseReleaseClass(
     PINPUT_CLASS_MOUSE pMouseDesc
@@ -377,6 +404,11 @@ HIDKeyboardReleaseClass(
 );
 
 VOID
+HIDConsumerReleaseClass(
+    PINPUT_CLASS_CONSUMER pConsumerDesc
+);
+
+VOID
 HIDMouseEventToReport(
     PINPUT_CLASS_MOUSE pMouseDesc,
     PVIRTIO_INPUT_EVENT pEvent
@@ -385,6 +417,12 @@ HIDMouseEventToReport(
 VOID
 HIDKeyboardEventToReport(
     PINPUT_CLASS_KEYBOARD pKeyboardDesc,
+    PVIRTIO_INPUT_EVENT pEvent
+);
+
+VOID
+HIDConsumerEventToReport(
+    PINPUT_CLASS_CONSUMER pConsumerDesc,
     PVIRTIO_INPUT_EVENT pEvent
 );
 

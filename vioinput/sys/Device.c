@@ -255,6 +255,7 @@ VIOInputEvtDeviceReleaseHardware(
 
     HIDMouseReleaseClass(&pContext->MouseDesc);
     HIDKeyboardReleaseClass(&pContext->KeyboardDesc);
+    HIDConsumerReleaseClass(&pContext->ConsumerDesc);
 
     if (pContext->HidReportDescriptor != NULL)
     {
