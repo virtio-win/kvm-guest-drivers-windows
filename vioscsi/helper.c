@@ -45,11 +45,11 @@ ENTER_FN();
 
     if (adaptExt->num_queues > 1) {
         QueueNumber = adaptExt->cpu_to_vq_map[srbExt->cpu] + VIRTIO_SCSI_REQUEST_QUEUE_0;
-        MessageId = QueueNumber + 1;
     }
     else {
         QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
     }
+    MessageId = QueueNumber + 1;
     VioScsiVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (virtqueue_add_buf(adaptExt->vq[QueueNumber],
                      &srbExt->sg[0],
