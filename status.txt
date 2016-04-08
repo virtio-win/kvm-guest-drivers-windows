@@ -1,6 +1,9 @@
-Date    07 Apr 2016
+Date    08 Apr 2016
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm137
+
+Fixed bugs:
+Bug 1321903 [vioscsi]  Windows 10 Installer stuck at Getting files ready for installation with Virtio SCSI
 
 New Features:
 Trying out the new build system.
