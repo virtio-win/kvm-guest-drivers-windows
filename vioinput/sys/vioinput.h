@@ -15,6 +15,10 @@
 #pragma once
 #include "public.h"
 
+// If defined, will expose absolute axes as a tablet device only if they
+// don't come with mouse buttons.
+#define EXPOSE_ABS_AXES_WITH_BUTTONS_AS_MOUSE
+
 EVT_WDF_DRIVER_DEVICE_ADD VIOInputEvtDeviceAdd;
 
 EVT_WDF_INTERRUPT_ISR     VIOInputInterruptIsr;
@@ -59,7 +63,7 @@ typedef struct _tagInputClassMouse
     // * buttons; one bit per button followed by padding to the nearest whole byte
     // offset cbAxisOffset
     // * axes; one byte per axis, mapping in pAxisMap
-    // offset cbAxisOffset + cbNumOfAxes
+    // offset cbAxisOffset + cbAxisLen
     // * vertical wheel; one byte, if uFlags & CLASS_MOUSE_HAS_V_WHEEL
     // * horizontal wheel; one byte, if uFlags & CLASS_MOUSE_HAS_H_WHEEL
 
@@ -67,9 +71,9 @@ typedef struct _tagInputClassMouse
     ULONG  uNumOfButtons;
     // offset of axis data within the HID report
     SIZE_T cbAxisOffset;
-    // number of axes supported by the HID report
-    ULONG  uNumOfAxes;
-    // mapping from EVDEV axis codes to HID axis indices
+    // length of axis data
+    SIZE_T cbAxisLen;
+    // mapping from EVDEV axis codes to HID axis offsets
     PULONG pAxisMap;
     // flags
 #define CLASS_MOUSE_HAS_V_WHEEL         0x01
@@ -126,6 +130,26 @@ typedef struct _tagInputClassConsumer
     SIZE_T cbControlMapLen;
 } INPUT_CLASS_CONSUMER, *PINPUT_CLASS_CONSUMER;
 
+typedef struct _tagInputClassTablet
+{
+    INPUT_CLASS_COMMON Common;
+
+    // the tablet HID report is laid out as follows:
+    // offset 0
+    // * report ID
+    // offset 1
+    // * switches and flags
+    // ** bit 0 tip switch
+    // ** bit 1 in range
+    // ** bit 2 barrel switch
+    // ** bits 3-7 padding
+    // offset 2
+    // * X axis, 2 bytes, absolute
+    // offset 4
+    // * Y axis, 2 bytes, absolute
+
+} INPUT_CLASS_TABLET, *PINPUT_CLASS_TABLET;
+
 typedef struct _tagInputDevice
 {
     VIRTIO_WDF_DRIVER      VDevice;
@@ -148,6 +172,7 @@ typedef struct _tagInputDevice
     INPUT_CLASS_MOUSE      MouseDesc;
     INPUT_CLASS_KEYBOARD   KeyboardDesc;
     INPUT_CLASS_CONSUMER   ConsumerDesc;
+    INPUT_CLASS_TABLET     TabletDesc;
 } INPUT_DEVICE, *PINPUT_DEVICE;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(INPUT_DEVICE, GetDeviceContext)
@@ -231,6 +256,7 @@ typedef struct virtio_input_event_with_request
 #define EV_SYN        0x00
 #define EV_KEY        0x01
 #define EV_REL        0x02
+#define EV_ABS        0x03
 #define EV_LED        0x11
 
 // Button codes
@@ -245,6 +271,9 @@ typedef struct virtio_input_event_with_request
 #define BTN_TASK      0x117
 
 #define BTN_JOYSTICK  0x120
+
+#define BTN_TOUCH     0x14a
+#define BTN_STYLUS    0x14b
 
 #define BTN_WHEEL     0x150
 #define BTN_GEAR_DOWN 0x150
@@ -261,6 +290,19 @@ typedef struct virtio_input_event_with_request
 #define REL_DIAL      0x07
 #define REL_WHEEL     0x08
 #define REL_MISC      0x09
+
+// Absolute axis codes
+#define ABS_X         0x00
+#define ABS_Y         0x01
+#define ABS_Z         0x02
+#define ABS_RX        0x03
+#define ABS_RY        0x04
+#define ABS_RZ        0x05
+#define ABS_THROTTLE  0x06
+#define ABS_RUDDER    0x07
+#define ABS_WHEEL     0x08
+#define ABS_GAS       0x09
+#define ABS_BRAKE     0x0a
 
 // LED codes
 #define LED_NUML      0x00
@@ -361,7 +403,7 @@ VOID
 HIDAppend2(
     PDYNAMIC_ARRAY pArray,
     UCHAR tag,
-    ULONG value
+    LONG value
 );
 
 BOOLEAN
@@ -370,11 +412,20 @@ DecodeNextBit(
     PUCHAR pValue
 );
 
+VOID
+GetAbsAxisInfo(
+    PINPUT_DEVICE pContext,
+    ULONG uAbsAxis,
+    struct virtio_input_absinfo *pAbsInfo
+);
+
 NTSTATUS
 HIDMouseBuildReportDescriptor(
+    PINPUT_DEVICE pContext,
     PDYNAMIC_ARRAY pHidDesc,
     PINPUT_CLASS_MOUSE pMouseDesc,
-    PVIRTIO_INPUT_CFG_DATA pAxes,
+    PVIRTIO_INPUT_CFG_DATA pRelAxes,
+    PVIRTIO_INPUT_CFG_DATA pAbsAxes,
     PVIRTIO_INPUT_CFG_DATA pButtons
 );
 
@@ -393,6 +444,15 @@ HIDConsumerBuildReportDescriptor(
     PVIRTIO_INPUT_CFG_DATA pKeys
 );
 
+NTSTATUS
+HIDTabletBuildReportDescriptor(
+    PINPUT_DEVICE pContext,
+    PDYNAMIC_ARRAY pHidDesc,
+    PINPUT_CLASS_TABLET pTabletDesc,
+    PVIRTIO_INPUT_CFG_DATA pAxes,
+    PVIRTIO_INPUT_CFG_DATA pButtons
+);
+
 VOID
 HIDMouseReleaseClass(
     PINPUT_CLASS_MOUSE pMouseDesc
@@ -406,6 +466,11 @@ HIDKeyboardReleaseClass(
 VOID
 HIDConsumerReleaseClass(
     PINPUT_CLASS_CONSUMER pConsumerDesc
+);
+
+VOID
+HIDTabletReleaseClass(
+    PINPUT_CLASS_TABLET pTabletDesc
 );
 
 VOID
@@ -423,6 +488,12 @@ HIDKeyboardEventToReport(
 VOID
 HIDConsumerEventToReport(
     PINPUT_CLASS_CONSUMER pConsumerDesc,
+    PVIRTIO_INPUT_EVENT pEvent
+);
+
+VOID
+HIDTabletEventToReport(
+    PINPUT_CLASS_TABLET pTabletDesc,
     PVIRTIO_INPUT_EVENT pEvent
 );
 

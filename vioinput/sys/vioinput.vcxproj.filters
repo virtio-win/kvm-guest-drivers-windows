@@ -71,6 +71,9 @@
     <ClCompile Include="KeyMap.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="HidTablet.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="vioinput.inx">

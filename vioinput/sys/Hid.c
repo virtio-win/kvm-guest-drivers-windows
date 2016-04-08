@@ -207,6 +207,7 @@ ProcessInputEvent(
         CompleteHIDQueueRequest(pContext, &pContext->MouseDesc.Common);
         CompleteHIDQueueRequest(pContext, &pContext->KeyboardDesc.Common);
         CompleteHIDQueueRequest(pContext, &pContext->ConsumerDesc.Common);
+        CompleteHIDQueueRequest(pContext, &pContext->TabletDesc.Common);
     }
 
     if (pContext->MouseDesc.Common.cbHidReportSize > 0)
@@ -221,8 +222,12 @@ ProcessInputEvent(
     {
         HIDConsumerEventToReport(&pContext->ConsumerDesc, pEvent);
     }
+    if (pContext->TabletDesc.Common.cbHidReportSize > 0)
+    {
+        HIDTabletEventToReport(&pContext->TabletDesc, pEvent);
+    }
 
-    // TODO: tablet, joystick, ...
+    // TODO: joystick, ...
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
 }
@@ -262,14 +267,14 @@ VOID HIDAppend1(PDYNAMIC_ARRAY pArray, UCHAR tag)
     DynamicArrayAppend(pArray, &tag, sizeof(tag));
 }
 
-VOID HIDAppend2(PDYNAMIC_ARRAY pArray, UCHAR tag, ULONG value)
+VOID HIDAppend2(PDYNAMIC_ARRAY pArray, UCHAR tag, LONG value)
 {
-    if (value < MAXUCHAR)
+    if (value >= -MINCHAR && value <= MAXCHAR)
     {
         HIDAppend1(pArray, tag | 0x01);
         DynamicArrayAppend(pArray, &value, 1);
     }
-    else if (value < MAXUSHORT)
+    else if (value >= -MINSHORT && value <= MAXSHORT)
     {
         HIDAppend1(pArray, tag | 0x02);
         DynamicArrayAppend(pArray, &value, 2);
@@ -354,12 +359,25 @@ static u8 SelectInputConfig(PINPUT_DEVICE pContext, u8 cfgSelect, u8 cfgSubSel)
     return size;
 }
 
+static BOOLEAN InputCfgDataEmpty(PVIRTIO_INPUT_CFG_DATA pCfgData)
+{
+    UCHAR i;
+    for (i = 0; i < pCfgData->size; i++)
+    {
+        if (pCfgData->u.bitmap[i] != 0)
+        {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
 NTSTATUS
 VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
 {
     DYNAMIC_ARRAY ReportDescriptor = { NULL };
     NTSTATUS status = STATUS_SUCCESS;
-    VIRTIO_INPUT_CFG_DATA KeyData, RelData, LedData;
+    VIRTIO_INPUT_CFG_DATA KeyData, RelData, AbsData, LedData;
     SIZE_T cbReportDescriptor;
     UCHAR i, uReportID = 0;
 
@@ -385,14 +403,43 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
             &RelData.u.bitmap[i], 1);
     }
 
+    // absolute axis config
+    AbsData.size = SelectInputConfig(pContext, VIRTIO_INPUT_CFG_EV_BITS, EV_ABS);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got EV_ABS bits size %d\n", AbsData.size);
+    for (i = 0; i < AbsData.size; i++)
+    {
+        VirtIOWdfDeviceGet(
+            &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
+            &AbsData.u.bitmap[i], 1);
+    }
+
     // if we have any relative axes, we'll expose a mouse device
-    if (RelData.size > 0)
+    // if we have any absolute axes, we may expose a mouse as well
+    if (!InputCfgDataEmpty(&RelData) || !InputCfgDataEmpty(&AbsData))
     {
         pContext->MouseDesc.Common.uReportID = ++uReportID;
         status = HIDMouseBuildReportDescriptor(
+            pContext,
             &ReportDescriptor,
             &pContext->MouseDesc,
             &RelData,
+            &AbsData,
+            &KeyData);
+        if (!NT_SUCCESS(status))
+        {
+            return status;
+        }
+    }
+
+    // if we have any absolute axes left, we'll expose a table device
+    if (!InputCfgDataEmpty(&AbsData))
+    {
+        pContext->TabletDesc.Common.uReportID = ++uReportID;
+        status = HIDTabletBuildReportDescriptor(
+            pContext,
+            &ReportDescriptor,
+            &pContext->TabletDesc,
+            &AbsData,
             &KeyData);
         if (!NT_SUCCESS(status))
         {
@@ -401,7 +448,7 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
     }
 
     // if we have any keys left, we'll expose a keyboard device
-    if (KeyData.size > 0)
+    if (!InputCfgDataEmpty(&KeyData))
     {
         // LED config
         LedData.size = SelectInputConfig(pContext, VIRTIO_INPUT_CFG_EV_BITS, EV_LED);
@@ -426,7 +473,7 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
     }
 
     // if we still have any keys left, we'll check for a consumer device
-    if (KeyData.size > 0)
+    if (!InputCfgDataEmpty(&KeyData))
     {
         pContext->ConsumerDesc.Common.uReportID = ++uReportID;
         status = HIDConsumerBuildReportDescriptor(
@@ -439,7 +486,7 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
         }
     }
 
-    // TODO: tablet, joystick, ...
+    // TODO: joystick, ...
 
     // initialize the HID descriptor
     pContext->HidReportDescriptor = (PHID_REPORT_DESCRIPTOR)DynamicArrayGet(
@@ -459,6 +506,28 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return status;
+}
+
+VOID
+GetAbsAxisInfo(
+    PINPUT_DEVICE pContext,
+    ULONG uAbsAxis,
+    struct virtio_input_absinfo *pAbsInfo)
+{
+    UCHAR uSize, i;
+
+    RtlZeroMemory(pAbsInfo, sizeof(struct virtio_input_absinfo));
+    if (uAbsAxis <= MAXUCHAR)
+    {
+        uSize = SelectInputConfig(pContext, VIRTIO_INPUT_CFG_ABS_INFO, (UCHAR)uAbsAxis);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got abs axis %d info size %d\n", uAbsAxis, uSize);
+        for (i = 0; i < uSize && i < sizeof(struct virtio_input_absinfo); i++)
+        {
+            VirtIOWdfDeviceGet(
+                &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
+                (PUCHAR)pAbsInfo + i, 1);
+        }
+    }
 }
 
 NTSTATUS

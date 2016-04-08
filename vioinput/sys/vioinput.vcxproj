@@ -167,6 +167,7 @@
     <ClCompile Include="HidConsumer.c" />
     <ClCompile Include="HidKeyboard.c" />
     <ClCompile Include="HidMouse.c" />
+    <ClCompile Include="HidTablet.c" />
     <ClCompile Include="IsrDpc.c" />
     <ClCompile Include="KeyMap.c" />
     <ClCompile Include="utils.c" />

@@ -23,13 +23,17 @@
 #define HID_TAG_USAGE_MAXIMUM      0x28
 #define HID_TAG_PHYSICAL_MINIMUM   0x34
 #define HID_TAG_PHYSICAL_MAXIMUM   0x44
+#define HID_TAG_UNIT_EXPONENT      0x54
+#define HID_TAG_UNIT               0x64
 #define HID_TAG_REPORT_SIZE        0x74
 #define HID_TAG_INPUT              0x80
 #define HID_TAG_REPORT_ID          0x84
 #define HID_TAG_OUTPUT             0x90
 #define HID_TAG_REPORT_COUNT       0x94
 #define HID_TAG_COLLECTION         0xa0
+#define HID_TAG_PUSH               0xa4
 #define HID_TAG_FEATURE            0xb0
+#define HID_TAG_POP                0xb4
 #define HID_TAG_END_COLLECTION     0xc0
 
 #define HID_COLLECTION_PHYSICAL    0x00
@@ -47,6 +51,14 @@
 
 #define HID_USAGE_LED_SYSTEM_SUSPEND           0x4C
 #define HID_USAGE_LED_EXTERNAL_POWER_CONNECTED 0x4D
+
+#define HID_USAGE_DIGITIZER                    0x01
+#define HID_USAGE_PEN                          0x02
+#define HID_USAGE_TOUCH_SCREEN                 0x04
+#define HID_USAGE_TOUCH_PAD                    0x05
+#define HID_USAGE_DIGITIZER_STYLUS             0x20
+#define HID_USAGE_DIGITIZER_CONTACT_ID         0x51
+#define HID_USAGE_DIGITIZER_DATA_VALID_FINGER  0x37
 
 #define KEY_USAGE_MASK    0x0000FFFF
 #define KEY_TYPE_MASK     0xFFFF0000
