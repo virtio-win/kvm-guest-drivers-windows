@@ -89,6 +89,7 @@
   <PropertyGroup Label="Globals">
     <RootNamespace>virtiolib</RootNamespace>
     <VCTargetsPath Condition="'$(VCTargetsPath11)' != '' and '$(VisualStudioVersion)' == '11.0'">$(VCTargetsPath11)</VCTargetsPath>
+    <WindowsTargetPlatformVersion>10.0.10240.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <PropertyGroup Label="PropertySheets">
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
@@ -100,7 +101,8 @@
     <UseDebugLibraries>true</UseDebugLibraries>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'" Label="Configuration">
-    <TargetVersion></TargetVersion>
+    <TargetVersion>
+    </TargetVersion>
     <UseDebugLibraries>true</UseDebugLibraries>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" Label="Configuration">
@@ -108,7 +110,8 @@
     <UseDebugLibraries>false</UseDebugLibraries>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'" Label="Configuration">
-    <TargetVersion></TargetVersion>
+    <TargetVersion>
+    </TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'" Label="Configuration">
@@ -132,7 +135,8 @@
     <UseDebugLibraries>true</UseDebugLibraries>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'" Label="Configuration">
-    <TargetVersion></TargetVersion>
+    <TargetVersion>
+    </TargetVersion>
     <UseDebugLibraries>true</UseDebugLibraries>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" Label="Configuration">
@@ -140,7 +144,8 @@
     <UseDebugLibraries>false</UseDebugLibraries>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'" Label="Configuration">
-    <TargetVersion></TargetVersion>
+    <TargetVersion>
+    </TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'" Label="Configuration">
@@ -258,7 +263,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>/kernel /d1import_no_registry /d2AllowCompatibleILVersions /d2Zi+ %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
@@ -270,7 +275,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>/kernel /homeparams %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
@@ -282,7 +287,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>/kernel /d1nodatetime %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
@@ -294,7 +299,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH);%(AdditionalIncludeDirectories);..\..\VirtIO\</AdditionalIncludeDirectories>
       <AdditionalOptions>-kernel -d2epilogunwind %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
