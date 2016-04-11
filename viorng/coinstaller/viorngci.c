@@ -32,6 +32,8 @@
 
 #include "viorngci.h"
 
+#include <bcrypt_provider.h>
+
 #define VIRTRNG_IMAGE_NAME L"viorngum.dll"
 
 PWSTR VirtRngAlgorithmNames[1] = {
