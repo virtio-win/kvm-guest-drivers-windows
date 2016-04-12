@@ -150,6 +150,26 @@ typedef struct _tagInputClassTablet
 
 } INPUT_CLASS_TABLET, *PINPUT_CLASS_TABLET;
 
+typedef struct _tagInputClassJoystick
+{
+    INPUT_CLASS_COMMON Common;
+
+    // the joystick HID report is laid out as follows:
+    // offset 0
+    // * report ID
+    // offset 1
+    // * axes; four bytes per axis, mapping in pAxisMap
+    // offset 1 + cbAxisLen
+    // * buttons; one bit per button followed by padding to the nearest whole byte
+
+    // number of buttons supported by the HID report
+    ULONG  uNumOfButtons;
+    // length of axis data
+    SIZE_T cbAxisLen;
+    // mapping from EVDEV axis codes to HID axis offsets
+    PULONG pAxisMap;
+} INPUT_CLASS_JOYSTICK, *PINPUT_CLASS_JOYSTICK;
+
 typedef struct _tagInputDevice
 {
     VIRTIO_WDF_DRIVER      VDevice;
@@ -173,6 +193,7 @@ typedef struct _tagInputDevice
     INPUT_CLASS_KEYBOARD   KeyboardDesc;
     INPUT_CLASS_CONSUMER   ConsumerDesc;
     INPUT_CLASS_TABLET     TabletDesc;
+    INPUT_CLASS_JOYSTICK   JoystickDesc;
 } INPUT_DEVICE, *PINPUT_DEVICE;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(INPUT_DEVICE, GetDeviceContext)
@@ -271,6 +292,7 @@ typedef struct virtio_input_event_with_request
 #define BTN_TASK      0x117
 
 #define BTN_JOYSTICK  0x120
+#define BTN_GAMEPAD   0x130
 
 #define BTN_TOUCH     0x14a
 #define BTN_STYLUS    0x14b
@@ -303,6 +325,11 @@ typedef struct virtio_input_event_with_request
 #define ABS_WHEEL     0x08
 #define ABS_GAS       0x09
 #define ABS_BRAKE     0x0a
+#define ABS_PRESSURE  0x18
+#define ABS_DISTANCE  0x19
+#define ABS_TILT_X    0x1a
+#define ABS_TILT_Y    0x1b
+#define ABS_MISC      0x28
 
 // LED codes
 #define LED_NUML      0x00
@@ -453,6 +480,15 @@ HIDTabletBuildReportDescriptor(
     PVIRTIO_INPUT_CFG_DATA pButtons
 );
 
+NTSTATUS
+HIDJoystickBuildReportDescriptor(
+    PINPUT_DEVICE pContext,
+    PDYNAMIC_ARRAY pHidDesc,
+    PINPUT_CLASS_JOYSTICK pJoystickDesc,
+    PVIRTIO_INPUT_CFG_DATA pAxes,
+    PVIRTIO_INPUT_CFG_DATA pButtons
+);
+
 VOID
 HIDMouseReleaseClass(
     PINPUT_CLASS_MOUSE pMouseDesc
@@ -494,6 +530,12 @@ HIDConsumerEventToReport(
 VOID
 HIDTabletEventToReport(
     PINPUT_CLASS_TABLET pTabletDesc,
+    PVIRTIO_INPUT_EVENT pEvent
+);
+
+VOID
+HIDJoystickEventToReport(
+    PINPUT_CLASS_JOYSTICK pJoystickDesc,
     PVIRTIO_INPUT_EVENT pEvent
 );
 
