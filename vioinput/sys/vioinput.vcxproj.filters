@@ -74,6 +74,9 @@
     <ClCompile Include="HidTablet.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="HidJoystick.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="vioinput.inx">

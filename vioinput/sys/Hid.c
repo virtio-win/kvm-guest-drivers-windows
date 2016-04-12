@@ -208,6 +208,7 @@ ProcessInputEvent(
         CompleteHIDQueueRequest(pContext, &pContext->KeyboardDesc.Common);
         CompleteHIDQueueRequest(pContext, &pContext->ConsumerDesc.Common);
         CompleteHIDQueueRequest(pContext, &pContext->TabletDesc.Common);
+        CompleteHIDQueueRequest(pContext, &pContext->JoystickDesc.Common);
     }
 
     if (pContext->MouseDesc.Common.cbHidReportSize > 0)
@@ -226,8 +227,10 @@ ProcessInputEvent(
     {
         HIDTabletEventToReport(&pContext->TabletDesc, pEvent);
     }
-
-    // TODO: joystick, ...
+    if (pContext->JoystickDesc.Common.cbHidReportSize > 0)
+    {
+        HIDJoystickEventToReport(&pContext->JoystickDesc, pEvent);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
 }
@@ -431,6 +434,22 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
         }
     }
 
+    // if we have any absolute axes left, we may expose a joystick
+    if (!InputCfgDataEmpty(&AbsData))
+    {
+        pContext->JoystickDesc.Common.uReportID = ++uReportID;
+        status = HIDJoystickBuildReportDescriptor(
+            pContext,
+            &ReportDescriptor,
+            &pContext->JoystickDesc,
+            &AbsData,
+            &KeyData);
+        if (!NT_SUCCESS(status))
+        {
+            return status;
+        }
+    }
+
     // if we have any absolute axes left, we'll expose a table device
     if (!InputCfgDataEmpty(&AbsData))
     {
@@ -485,8 +504,6 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
             return status;
         }
     }
-
-    // TODO: joystick, ...
 
     // initialize the HID descriptor
     pContext->HidReportDescriptor = (PHID_REPORT_DESCRIPTOR)DynamicArrayGet(
