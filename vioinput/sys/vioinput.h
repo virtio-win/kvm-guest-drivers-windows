@@ -36,6 +36,22 @@ typedef UCHAR HID_REPORT_DESCRIPTOR, *PHID_REPORT_DESCRIPTOR;
 #define HIDMINI_VID     0x1AF4
 #define HIDMINI_VERSION 0x0001
 
+typedef struct _tagDynamicArray
+{
+    PVOID  Ptr;
+    SIZE_T Size;
+    SIZE_T MaxSize;
+} DYNAMIC_ARRAY, *PDYNAMIC_ARRAY;
+
+typedef struct virtio_input_event
+{
+    unsigned short type;
+    unsigned short code;
+    unsigned long value;
+} VIRTIO_INPUT_EVENT, *PVIRTIO_INPUT_EVENT;
+
+struct _tagInputDevice;
+
 typedef struct _tagInputClassCommon
 {
 // the first byte of a HID report is always report ID
@@ -50,125 +66,15 @@ typedef struct _tagInputClassCommon
     UCHAR uReportID;
     // the HID report is dirty and should be sent up
     BOOLEAN bDirty;
+
+    NTSTATUS(*EventToReportFunc)(struct _tagInputClassCommon *pClass, PVIRTIO_INPUT_EVENT pEvent);
+    NTSTATUS(*ReportToEventFunc)(struct _tagInputClassCommon *pClass, struct _tagInputDevice *pContext,
+                                 WDFREQUEST Request, PUCHAR pReport, ULONG cbReport);
+    VOID(*CleanupFunc)(struct _tagInputClassCommon *pClass);
+
 } INPUT_CLASS_COMMON, *PINPUT_CLASS_COMMON;
 
-typedef struct _tagInputClassMouse
-{
-    INPUT_CLASS_COMMON Common;
-
-    // the mouse HID report is laid out as follows:
-    // offset 0
-    // * report ID
-    // offset 1
-    // * buttons; one bit per button followed by padding to the nearest whole byte
-    // offset cbAxisOffset
-    // * axes; one byte per axis, mapping in pAxisMap
-    // offset cbAxisOffset + cbAxisLen
-    // * vertical wheel; one byte, if uFlags & CLASS_MOUSE_HAS_V_WHEEL
-    // * horizontal wheel; one byte, if uFlags & CLASS_MOUSE_HAS_H_WHEEL
-
-    // number of buttons supported by the HID report
-    ULONG  uNumOfButtons;
-    // offset of axis data within the HID report
-    SIZE_T cbAxisOffset;
-    // length of axis data
-    SIZE_T cbAxisLen;
-    // mapping from EVDEV axis codes to HID axis offsets
-    PULONG pAxisMap;
-    // flags
-#define CLASS_MOUSE_HAS_V_WHEEL         0x01
-#define CLASS_MOUSE_HAS_H_WHEEL         0x02
-#define CLASS_MOUSE_SUPPORTS_REL_WHEEL  0x04
-#define CLASS_MOUSE_SUPPORTS_REL_HWHEEL 0x08
-#define CLASS_MOUSE_SUPPORTS_REL_DIAL   0x10
-    ULONG  uFlags;
-} INPUT_CLASS_MOUSE, *PINPUT_CLASS_MOUSE;
-
-typedef struct _tagInputClassKeyboard
-{
-    INPUT_CLASS_COMMON Common;
-
-#define HID_KEYBOARD_KEY_SLOTS 6
-    // the keyboard HID report is laid out as follows:
-    // offset 0
-    // * report ID
-    // offset 1
-    // * 8 modifiers; one bit per modifier
-    // offset 2
-    // * padding
-    // offset 3
-    // * key array of length HID_KEYBOARD_KEY_SLOTS; one byte per key
-
-    // bitmap of currently pressed keys
-    PUCHAR pKeysPressed;
-    // length of the pKeysPressed bitmap in bytes
-    SIZE_T cbKeysPressedLen;
-    // number of keys currently pressed
-    SIZE_T nKeysPressed;
-    // size of the output (host -> device) report
-    SIZE_T cbOutputReport;
-    // last seen output (host -> device) report
-    PUCHAR pLastOutputReport;
-} INPUT_CLASS_KEYBOARD, *PINPUT_CLASS_KEYBOARD;
-
-typedef struct _tagInputClassConsumer
-{
-    INPUT_CLASS_COMMON Common;
-
-    // the consumer HID report is laid out as follows:
-    // offset 0
-    // * report ID
-    // offset 1
-    // * consumer controls, one bit per control followed by padding
-    //   to the nearest whole byte
-
-    // number of controls supported by the HID report
-    ULONG  uNumOfControls;
-    // array of control bitmap indices indexed by EVDEV codes
-    PULONG pControlMap;
-    // length of the pControlMap array in bytes
-    SIZE_T cbControlMapLen;
-} INPUT_CLASS_CONSUMER, *PINPUT_CLASS_CONSUMER;
-
-typedef struct _tagInputClassTablet
-{
-    INPUT_CLASS_COMMON Common;
-
-    // the tablet HID report is laid out as follows:
-    // offset 0
-    // * report ID
-    // offset 1
-    // * switches and flags
-    // ** bit 0 tip switch
-    // ** bit 1 in range
-    // ** bit 2 barrel switch
-    // ** bits 3-7 padding
-    // offset 2
-    // * X axis, 2 bytes, absolute
-    // offset 4
-    // * Y axis, 2 bytes, absolute
-
-} INPUT_CLASS_TABLET, *PINPUT_CLASS_TABLET;
-
-typedef struct _tagInputClassJoystick
-{
-    INPUT_CLASS_COMMON Common;
-
-    // the joystick HID report is laid out as follows:
-    // offset 0
-    // * report ID
-    // offset 1
-    // * axes; four bytes per axis, mapping in pAxisMap
-    // offset 1 + cbAxisLen
-    // * buttons; one bit per button followed by padding to the nearest whole byte
-
-    // number of buttons supported by the HID report
-    ULONG  uNumOfButtons;
-    // length of axis data
-    SIZE_T cbAxisLen;
-    // mapping from EVDEV axis codes to HID axis offsets
-    PULONG pAxisMap;
-} INPUT_CLASS_JOYSTICK, *PINPUT_CLASS_JOYSTICK;
+#define MAX_INPUT_CLASS_COUNT 5
 
 typedef struct _tagInputDevice
 {
@@ -189,23 +95,15 @@ typedef struct _tagInputDevice
     HID_DEVICE_ATTRIBUTES  HidDeviceAttributes;
     PHID_REPORT_DESCRIPTOR HidReportDescriptor;
 
-    INPUT_CLASS_MOUSE      MouseDesc;
-    INPUT_CLASS_KEYBOARD   KeyboardDesc;
-    INPUT_CLASS_CONSUMER   ConsumerDesc;
-    INPUT_CLASS_TABLET     TabletDesc;
-    INPUT_CLASS_JOYSTICK   JoystickDesc;
+    // array of pointers to input class descriptors, each responsible
+    // for one device class (e.g. mouse)
+    PINPUT_CLASS_COMMON    InputClasses[MAX_INPUT_CLASS_COUNT];
+    ULONG                  uNumOfClasses;
 } INPUT_DEVICE, *PINPUT_DEVICE;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(INPUT_DEVICE, GetDeviceContext)
 
 #define VIOINPUT_DRIVER_MEMORY_TAG (ULONG)'niIV'
-
-typedef struct _tagDynamicArray
-{
-    PVOID  Ptr;
-    SIZE_T Size;
-    SIZE_T MaxSize;
-} DYNAMIC_ARRAY, *PDYNAMIC_ARRAY;
 
 // Virtio-input data structures:
 
@@ -259,13 +157,6 @@ struct virtio_input_config
     unsigned char reserved[5];
     union virtio_input_raw_cfg_data u;
 };
-
-typedef struct virtio_input_event
-{
-    unsigned short type;
-    unsigned short code;
-    unsigned long value;
-} VIRTIO_INPUT_EVENT, *PVIRTIO_INPUT_EVENT;
 
 typedef struct virtio_input_event_with_request
 {
@@ -447,103 +338,69 @@ GetAbsAxisInfo(
 );
 
 NTSTATUS
-HIDMouseBuildReportDescriptor(
+RegisterClass(
+    PINPUT_DEVICE pContext,
+    PINPUT_CLASS_COMMON pClass
+);
+
+NTSTATUS
+HIDMouseProbe(
     PINPUT_DEVICE pContext,
     PDYNAMIC_ARRAY pHidDesc,
-    PINPUT_CLASS_MOUSE pMouseDesc,
     PVIRTIO_INPUT_CFG_DATA pRelAxes,
     PVIRTIO_INPUT_CFG_DATA pAbsAxes,
     PVIRTIO_INPUT_CFG_DATA pButtons
 );
 
 NTSTATUS
-HIDKeyboardBuildReportDescriptor(
+HIDKeyboardProbe(
+    PINPUT_DEVICE pContext,
     PDYNAMIC_ARRAY pHidDesc,
-    PINPUT_CLASS_KEYBOARD pKeyboardDesc,
     PVIRTIO_INPUT_CFG_DATA pKeys,
     PVIRTIO_INPUT_CFG_DATA pLeds
 );
 
 NTSTATUS
-HIDConsumerBuildReportDescriptor(
+HIDConsumerProbe(
+    PINPUT_DEVICE pContext,
     PDYNAMIC_ARRAY pHidDesc,
-    PINPUT_CLASS_CONSUMER pConsumerDesc,
     PVIRTIO_INPUT_CFG_DATA pKeys
 );
 
 NTSTATUS
-HIDTabletBuildReportDescriptor(
+HIDTabletProbe(
     PINPUT_DEVICE pContext,
     PDYNAMIC_ARRAY pHidDesc,
-    PINPUT_CLASS_TABLET pTabletDesc,
     PVIRTIO_INPUT_CFG_DATA pAxes,
     PVIRTIO_INPUT_CFG_DATA pButtons
 );
 
 NTSTATUS
-HIDJoystickBuildReportDescriptor(
+HIDJoystickProbe(
     PINPUT_DEVICE pContext,
     PDYNAMIC_ARRAY pHidDesc,
-    PINPUT_CLASS_JOYSTICK pJoystickDesc,
     PVIRTIO_INPUT_CFG_DATA pAxes,
     PVIRTIO_INPUT_CFG_DATA pButtons
 );
 
-VOID
-HIDMouseReleaseClass(
-    PINPUT_CLASS_MOUSE pMouseDesc
-);
+static inline PVOID VIOInputAlloc(SIZE_T cbNumberOfBytes)
+{
+    PVOID pPtr = ExAllocatePoolWithTag(
+        NonPagedPool,
+        cbNumberOfBytes,
+        VIOINPUT_DRIVER_MEMORY_TAG);
+    if (pPtr)
+    {
+        RtlZeroMemory(pPtr, cbNumberOfBytes);
+    }
+    return pPtr;
+}
 
-VOID
-HIDKeyboardReleaseClass(
-    PINPUT_CLASS_KEYBOARD pKeyboardDesc
-);
-
-VOID
-HIDConsumerReleaseClass(
-    PINPUT_CLASS_CONSUMER pConsumerDesc
-);
-
-VOID
-HIDTabletReleaseClass(
-    PINPUT_CLASS_TABLET pTabletDesc
-);
-
-VOID
-HIDMouseEventToReport(
-    PINPUT_CLASS_MOUSE pMouseDesc,
-    PVIRTIO_INPUT_EVENT pEvent
-);
-
-VOID
-HIDKeyboardEventToReport(
-    PINPUT_CLASS_KEYBOARD pKeyboardDesc,
-    PVIRTIO_INPUT_EVENT pEvent
-);
-
-VOID
-HIDConsumerEventToReport(
-    PINPUT_CLASS_CONSUMER pConsumerDesc,
-    PVIRTIO_INPUT_EVENT pEvent
-);
-
-VOID
-HIDTabletEventToReport(
-    PINPUT_CLASS_TABLET pTabletDesc,
-    PVIRTIO_INPUT_EVENT pEvent
-);
-
-VOID
-HIDJoystickEventToReport(
-    PINPUT_CLASS_JOYSTICK pJoystickDesc,
-    PVIRTIO_INPUT_EVENT pEvent
-);
-
-NTSTATUS
-HIDKeyboardReportToEvent(
-    PINPUT_DEVICE pContext,
-    PINPUT_CLASS_KEYBOARD pKeyboardDesc,
-    WDFREQUEST Request,
-    PUCHAR pReport,
-    ULONG cbReport
-);
+static inline VOID VIOInputFree(PVOID *pPtr)
+{
+    if (*pPtr)
+    {
+        ExFreePoolWithTag(*pPtr, VIOINPUT_DRIVER_MEMORY_TAG);
+        *pPtr = NULL;
+    }
+}

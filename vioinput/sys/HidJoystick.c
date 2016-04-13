@@ -24,6 +24,93 @@
 // initial length of the axis map (will grow as needed)
 #define AXIS_MAP_INITIAL_LENGTH 6
 
+typedef struct _tagInputClassJoystick
+{
+    INPUT_CLASS_COMMON Common;
+
+    // the joystick HID report is laid out as follows:
+    // offset 0
+    // * report ID
+    // offset 1
+    // * axes; four bytes per axis, mapping in pAxisMap
+    // offset 1 + cbAxisLen
+    // * buttons; one bit per button followed by padding to the nearest whole byte
+
+    // number of buttons supported by the HID report
+    ULONG  uNumOfButtons;
+    // length of axis data
+    SIZE_T cbAxisLen;
+    // mapping from EVDEV axis codes to HID axis offsets
+    PULONG pAxisMap;
+} INPUT_CLASS_JOYSTICK, *PINPUT_CLASS_JOYSTICK;
+
+static NTSTATUS
+HIDJoystickEventToReport(
+    PINPUT_CLASS_COMMON pClass,
+    PVIRTIO_INPUT_EVENT pEvent)
+{
+    PUCHAR pReport = pClass->pHidReport;
+    PINPUT_CLASS_JOYSTICK pJoystickDesc = (PINPUT_CLASS_JOYSTICK)pClass;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    pReport[HID_REPORT_ID_OFFSET] = pClass->uReportID;
+    switch (pEvent->type)
+    {
+    case EV_ABS:
+        if (pJoystickDesc->pAxisMap)
+        {
+            PULONG pMap;
+            for (pMap = pJoystickDesc->pAxisMap; pMap[0] != (ULONG)-1; pMap += 2)
+            {
+                if (pMap[0] == ((pEvent->type << 16) | pEvent->code))
+                {
+                    // 4 bytes per absolute axis
+                    PULONG pAxisPtr = (PULONG)&pReport[HID_REPORT_DATA_OFFSET + pMap[1]];
+                    *pAxisPtr = pEvent->value;
+                    pClass->bDirty = TRUE;
+                }
+            }
+        }
+        break;
+    case EV_KEY:
+        if (pEvent->code >= BTN_JOYSTICK && pEvent->code < BTN_GAMEPAD)
+        {
+            USHORT uButton = pEvent->code - BTN_JOYSTICK;
+            if (uButton < pJoystickDesc->uNumOfButtons)
+            {
+                SIZE_T cbOffset = pJoystickDesc->cbAxisLen + (uButton / 8);
+                UCHAR uBit = 1 << (uButton % 8);
+                if (pEvent->value)
+                {
+                    pReport[HID_REPORT_DATA_OFFSET + cbOffset] |= uBit;
+                }
+                else
+                {
+                    pReport[HID_REPORT_DATA_OFFSET + cbOffset] &= ~uBit;
+                }
+                pClass->bDirty = TRUE;
+            }
+        }
+        break;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+    return STATUS_SUCCESS;
+}
+
+static VOID
+HIDJoystickCleanup(
+    PINPUT_CLASS_COMMON pClass)
+{
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+
+    PINPUT_CLASS_JOYSTICK pJoystickDesc = (PINPUT_CLASS_JOYSTICK)pClass;
+    VIOInputFree(&pJoystickDesc->pAxisMap);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
+}
+
 static VOID
 HIDJoystickAxisMapAppend(
     PDYNAMIC_ARRAY pAxisMap,
@@ -35,16 +122,17 @@ HIDJoystickAxisMapAppend(
 }
 
 NTSTATUS
-HIDJoystickBuildReportDescriptor(
+HIDJoystickProbe(
     PINPUT_DEVICE pContext,
     PDYNAMIC_ARRAY pHidDesc,
-    PINPUT_CLASS_JOYSTICK pJoystickDesc,
     PVIRTIO_INPUT_CFG_DATA pAxes,
     PVIRTIO_INPUT_CFG_DATA pButtons)
 {
+    PINPUT_CLASS_JOYSTICK pJoystickDesc = NULL;
+    NTSTATUS status = STATUS_SUCCESS;
     UCHAR i, uValue;
     SIZE_T cbButtonBytes;
-    ULONG uNumOfAbsAxes = 0;
+    ULONG uNumOfAbsAxes = 0, uNumOfButtons = 0;
     DYNAMIC_ARRAY AxisMap = { NULL };
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
@@ -60,7 +148,7 @@ HIDJoystickBuildReportDescriptor(
                 // individual joystick button functions are not specified in the HID report,
                 // only their count is; the max button code we find will determine the count
                 TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got button %d\n", uButtonCode);
-                pJoystickDesc->uNumOfButtons = max(pJoystickDesc->uNumOfButtons, uButtonCode - BTN_JOYSTICK + 1);
+                uNumOfButtons = max(uNumOfButtons, uButtonCode - BTN_JOYSTICK + 1);
             }
             else
             {
@@ -71,11 +159,23 @@ HIDJoystickBuildReportDescriptor(
         pButtons->u.bitmap[i] = uNonButtons;
     }
 
-    if (pJoystickDesc->uNumOfButtons == 0)
+    if (uNumOfButtons == 0)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Joystick buttons not found\n");
-        return STATUS_SUCCESS;
+        goto Exit;
     }
+
+    // allocate and initialize pJoystickDesc
+    pJoystickDesc = VIOInputAlloc(sizeof(INPUT_CLASS_JOYSTICK));
+    if (pJoystickDesc == NULL)
+    {
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+    pJoystickDesc->Common.EventToReportFunc = HIDJoystickEventToReport;
+    pJoystickDesc->Common.CleanupFunc = HIDJoystickCleanup;
+    pJoystickDesc->Common.uReportID = (UCHAR)(pContext->uNumOfClasses + 1);
+    pJoystickDesc->uNumOfButtons = uNumOfButtons;
 
     HIDAppend2(pHidDesc, HID_TAG_USAGE_PAGE, HID_USAGE_PAGE_GENERIC);
     HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_GENERIC_JOYSTICK);
@@ -159,25 +259,26 @@ HIDJoystickBuildReportDescriptor(
     pJoystickDesc->pAxisMap = DynamicArrayGet(&AxisMap, NULL);
     if (pJoystickDesc->pAxisMap == NULL)
     {
-        return STATUS_INSUFFICIENT_RESOURCES;
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
     }
 
     // one bit per button
-    cbButtonBytes = (pJoystickDesc->uNumOfButtons + 7) / 8;
+    cbButtonBytes = (uNumOfButtons + 7) / 8;
     HIDAppend2(pHidDesc, HID_TAG_USAGE_PAGE, HID_USAGE_PAGE_BUTTON);
     HIDAppend2(pHidDesc, HID_TAG_USAGE_MINIMUM, 0x01);
-    HIDAppend2(pHidDesc, HID_TAG_USAGE_MAXIMUM, pJoystickDesc->uNumOfButtons);
+    HIDAppend2(pHidDesc, HID_TAG_USAGE_MAXIMUM, uNumOfButtons);
     HIDAppend2(pHidDesc, HID_TAG_LOGICAL_MINIMUM, 0x00);
     HIDAppend2(pHidDesc, HID_TAG_LOGICAL_MAXIMUM, 0x01);
-    HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, pJoystickDesc->uNumOfButtons);
+    HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, uNumOfButtons);
     HIDAppend2(pHidDesc, HID_TAG_REPORT_SIZE, 0x01);
     HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
 
     // pad to the nearest whole byte
-    if (pJoystickDesc->uNumOfButtons % 8)
+    if (uNumOfButtons % 8)
     {
         HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, 0x01);
-        HIDAppend2(pHidDesc, HID_TAG_REPORT_SIZE, (ULONG)(cbButtonBytes * 8) - pJoystickDesc->uNumOfButtons);
+        HIDAppend2(pHidDesc, HID_TAG_REPORT_SIZE, (ULONG)(cbButtonBytes * 8) - uNumOfButtons);
         HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE | HID_DATA_FLAG_CONSTANT);
     }
 
@@ -186,97 +287,25 @@ HIDJoystickBuildReportDescriptor(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
                 "Created HID joystick report descriptor with %d axes and %d buttons\n",
                 uNumOfAbsAxes,
-                pJoystickDesc->uNumOfButtons);
+                uNumOfButtons);
 
+    // calculate the joystick HID report size
     pJoystickDesc->Common.cbHidReportSize =
         1 +                 // report ID
         uNumOfAbsAxes * 4 + // axes
         cbButtonBytes;      // buttons
 
-    // allocate and initialize the joystick HID report
-    pJoystickDesc->Common.pHidReport = (PUCHAR)ExAllocatePoolWithTag(
-        NonPagedPool,
-        pJoystickDesc->Common.cbHidReportSize,
-        VIOINPUT_DRIVER_MEMORY_TAG);
-    if (pJoystickDesc->Common.pHidReport == NULL)
-    {
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-    RtlZeroMemory(pJoystickDesc->Common.pHidReport, pJoystickDesc->Common.cbHidReportSize);
+    // register the joystick class
+    status = RegisterClass(pContext, &pJoystickDesc->Common);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
-    return STATUS_SUCCESS;
-}
-
-VOID
-HIDJoystickReleaseClass(
-    PINPUT_CLASS_JOYSTICK pJoystickDesc)
-{
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
-
-    if (pJoystickDesc->Common.pHidReport != NULL)
+Exit:
+    DynamicArrayDestroy(&AxisMap);
+    if (!NT_SUCCESS(status) && pJoystickDesc != NULL)
     {
-        ExFreePoolWithTag(pJoystickDesc->Common.pHidReport, VIOINPUT_DRIVER_MEMORY_TAG);
-        pJoystickDesc->Common.pHidReport = NULL;
-    }
-    if (pJoystickDesc->pAxisMap != NULL)
-    {
-        ExFreePoolWithTag(pJoystickDesc->pAxisMap, VIOINPUT_DRIVER_MEMORY_TAG);
-        pJoystickDesc->pAxisMap = NULL;
+        pJoystickDesc->Common.CleanupFunc(&pJoystickDesc->Common);
+        VIOInputFree(&pJoystickDesc);
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
-}
-
-VOID
-HIDJoystickEventToReport(
-    PINPUT_CLASS_JOYSTICK pJoystickDesc,
-    PVIRTIO_INPUT_EVENT pEvent)
-{
-    PUCHAR pReport = pJoystickDesc->Common.pHidReport;
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
-
-    pReport[HID_REPORT_ID_OFFSET] = pJoystickDesc->Common.uReportID;
-    switch (pEvent->type)
-    {
-    case EV_ABS:
-        if (pJoystickDesc->pAxisMap)
-        {
-            PULONG pMap;
-            for (pMap = pJoystickDesc->pAxisMap; pMap[0] != (ULONG)-1; pMap += 2)
-            {
-                if (pMap[0] == ((pEvent->type << 16) | pEvent->code))
-                {
-                    // 4 bytes per absolute axis
-                    PULONG pAxisPtr = (PULONG)&pReport[HID_REPORT_DATA_OFFSET + pMap[1]];
-                    *pAxisPtr = pEvent->value;
-                    pJoystickDesc->Common.bDirty = TRUE;
-                }
-            }
-        }
-        break;
-    case EV_KEY:
-        if (pEvent->code >= BTN_JOYSTICK && pEvent->code < BTN_GAMEPAD)
-        {
-            USHORT uButton = pEvent->code - BTN_JOYSTICK;
-            if (uButton < pJoystickDesc->uNumOfButtons)
-            {
-                SIZE_T cbOffset = pJoystickDesc->cbAxisLen + (uButton / 8);
-                UCHAR uBit = 1 << (uButton % 8);
-                if (pEvent->value)
-                {
-                    pReport[HID_REPORT_DATA_OFFSET + cbOffset] |= uBit;
-                }
-                else
-                {
-                    pReport[HID_REPORT_DATA_OFFSET + cbOffset] &= ~uBit;
-                }
-                pJoystickDesc->Common.bDirty = TRUE;
-            }
-        }
-        break;
-    }
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s (%08x)\n", __FUNCTION__, status);
+    return status;
 }
