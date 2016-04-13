@@ -21,12 +21,85 @@
 #include "HidConsumer.tmh"
 #endif
 
+typedef struct _tagInputClassConsumer
+{
+    INPUT_CLASS_COMMON Common;
+
+    // the consumer HID report is laid out as follows:
+    // offset 0
+    // * report ID
+    // offset 1
+    // * consumer controls, one bit per control followed by padding
+    //   to the nearest whole byte
+
+    // number of controls supported by the HID report
+    ULONG  uNumOfControls;
+    // array of control bitmap indices indexed by EVDEV codes
+    PULONG pControlMap;
+    // length of the pControlMap array in bytes
+    SIZE_T cbControlMapLen;
+} INPUT_CLASS_CONSUMER, *PINPUT_CLASS_CONSUMER;
+
 NTSTATUS
-HIDConsumerBuildReportDescriptor(
+HIDConsumerEventToReport(
+    PINPUT_CLASS_COMMON pClass,
+    PVIRTIO_INPUT_EVENT pEvent)
+{
+    PUCHAR pReport = pClass->pHidReport;
+    PINPUT_CLASS_CONSUMER pConsumerDesc = (PINPUT_CLASS_CONSUMER)pClass;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    pReport[HID_REPORT_ID_OFFSET] = pClass->uReportID;
+    if (pEvent->type == EV_KEY && pEvent->code < pConsumerDesc->cbControlMapLen)
+    {
+        ULONG uCode = HIDKeyboardEventCodeToUsageCode(pEvent->code);
+        if (uCode != 0 && (uCode & KEY_TYPE_MASK) == KEY_TYPE_CONSUMER)
+        {
+            // use the EVDEV code as an index into pControlMap
+            ULONG uBitIndex = pConsumerDesc->pControlMap[pEvent->code];
+            if (uBitIndex < pConsumerDesc->uNumOfControls)
+            {
+                // and simply set or clear the corresponding bit
+                ULONG uOffset = uBitIndex / 8;
+                UCHAR uBit = 1 << (uBitIndex % 8);
+                if (pEvent->value)
+                {
+                    pReport[HID_REPORT_DATA_OFFSET + uOffset] |= uBit;
+                }
+                else
+                {
+                    pReport[HID_REPORT_DATA_OFFSET + uOffset] &= ~uBit;
+                }
+                pClass->bDirty = TRUE;
+            }
+        }
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+    return STATUS_SUCCESS;
+}
+
+static VOID
+HIDConsumerCleanup(
+    PINPUT_CLASS_COMMON pClass)
+{
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+
+    PINPUT_CLASS_CONSUMER pConsumerDesc = (PINPUT_CLASS_CONSUMER)pClass;
+    VIOInputFree(&pConsumerDesc->pControlMap);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
+}
+
+NTSTATUS
+HIDConsumerProbe(
+    PINPUT_DEVICE pContext,
     PDYNAMIC_ARRAY pHidDesc,
-    PINPUT_CLASS_CONSUMER pConsumerDesc,
     PVIRTIO_INPUT_CFG_DATA pKeys)
 {
+    PINPUT_CLASS_CONSUMER pConsumerDesc = NULL;
+    NTSTATUS status = STATUS_SUCCESS;
     UCHAR i, uValue;
     USHORT uMaxKeyCode;
     BOOLEAN bGotKey;
@@ -54,18 +127,27 @@ HIDConsumerBuildReportDescriptor(
     {
         // no keys in the array means that we're done
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "No consumer key found\n");
-        return STATUS_SUCCESS;
+        goto Exit;
     }
+
+    // allocate and initialize pConsumerDesc
+    pConsumerDesc = VIOInputAlloc(sizeof(INPUT_CLASS_CONSUMER));
+    if (pConsumerDesc == NULL)
+    {
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+    pConsumerDesc->Common.EventToReportFunc = HIDConsumerEventToReport;
+    pConsumerDesc->Common.CleanupFunc = HIDConsumerCleanup;
+    pConsumerDesc->Common.uReportID = (UCHAR)(pContext->uNumOfClasses + 1);
 
     // allocate and initialize the pControlMap
     pConsumerDesc->cbControlMapLen = uMaxKeyCode + 1;
-    pConsumerDesc->pControlMap = (PULONG)ExAllocatePoolWithTag(
-        NonPagedPool,
-        pConsumerDesc->cbControlMapLen * sizeof(ULONG),
-        VIOINPUT_DRIVER_MEMORY_TAG);
+    pConsumerDesc->pControlMap = VIOInputAlloc(pConsumerDesc->cbControlMapLen * sizeof(ULONG));
     if (pConsumerDesc->pControlMap == NULL)
     {
-        return STATUS_INSUFFICIENT_RESOURCES;
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
     }
     RtlFillMemory(pConsumerDesc->pControlMap, pConsumerDesc->cbControlMapLen * sizeof(ULONG), 0xFF);
 
@@ -120,80 +202,21 @@ HIDConsumerBuildReportDescriptor(
                 "Created HID consumer report descriptor with %d controls\n",
                 pConsumerDesc->uNumOfControls);
 
-    // set the total consumer HID report size
+    // calculate the consumer HID report size
     pConsumerDesc->Common.cbHidReportSize =
         HID_REPORT_DATA_OFFSET +
         (pConsumerDesc->uNumOfControls + 7) / 8;
 
-    // allocate and initialize the consumer HID report
-    pConsumerDesc->Common.pHidReport = (PUCHAR)ExAllocatePoolWithTag(
-        NonPagedPool,
-        pConsumerDesc->Common.cbHidReportSize,
-        VIOINPUT_DRIVER_MEMORY_TAG);
-    if (pConsumerDesc->Common.pHidReport == NULL)
-    {
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-    RtlZeroMemory(pConsumerDesc->Common.pHidReport, pConsumerDesc->Common.cbHidReportSize);
+    // register the consumer class
+    status = RegisterClass(pContext, &pConsumerDesc->Common);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
-    return STATUS_SUCCESS;
-}
-
-VOID
-HIDConsumerReleaseClass(
-    PINPUT_CLASS_CONSUMER pConsumerDesc)
-{
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
-
-    if (pConsumerDesc->Common.pHidReport != NULL)
+Exit:
+    if (!NT_SUCCESS(status) && pConsumerDesc != NULL)
     {
-        ExFreePoolWithTag(pConsumerDesc->Common.pHidReport, VIOINPUT_DRIVER_MEMORY_TAG);
-        pConsumerDesc->Common.pHidReport = NULL;
-    }
-    if (pConsumerDesc->pControlMap != NULL)
-    {
-        ExFreePoolWithTag(pConsumerDesc->pControlMap, VIOINPUT_DRIVER_MEMORY_TAG);
-        pConsumerDesc->pControlMap = NULL;
+        pConsumerDesc->Common.CleanupFunc(&pConsumerDesc->Common);
+        VIOInputFree(&pConsumerDesc);
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
-}
-
-VOID
-HIDConsumerEventToReport(
-    PINPUT_CLASS_CONSUMER pConsumerDesc,
-    PVIRTIO_INPUT_EVENT pEvent)
-{
-    PUCHAR pReport = pConsumerDesc->Common.pHidReport;
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
-
-    pReport[HID_REPORT_ID_OFFSET] = pConsumerDesc->Common.uReportID;
-    if (pEvent->type == EV_KEY && pEvent->code < pConsumerDesc->cbControlMapLen)
-    {
-        ULONG uCode = HIDKeyboardEventCodeToUsageCode(pEvent->code);
-        if (uCode != 0 && (uCode & KEY_TYPE_MASK) == KEY_TYPE_CONSUMER)
-        {
-            // use the EVDEV code as an index into pControlMap
-            ULONG uBitIndex = pConsumerDesc->pControlMap[pEvent->code];
-            if (uBitIndex < pConsumerDesc->uNumOfControls)
-            {
-                // and simply set or clear the corresponding bit
-                ULONG uOffset = uBitIndex / 8;
-                UCHAR uBit = 1 << (uBitIndex % 8);
-                if (pEvent->value)
-                {
-                    pReport[HID_REPORT_DATA_OFFSET + uOffset] |= uBit;
-                }
-                else
-                {
-                    pReport[HID_REPORT_DATA_OFFSET + uOffset] &= ~uBit;
-                }
-                pConsumerDesc->Common.bDirty = TRUE;
-            }
-        }
-    }
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s (%08x)\n", __FUNCTION__, status);
+    return status;
 }

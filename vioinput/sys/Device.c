@@ -245,6 +245,7 @@ VIOInputEvtDeviceReleaseHardware(
 {
     PINPUT_DEVICE pContext = GetDeviceContext(Device);
     PSINGLE_LIST_ENTRY entry;
+    ULONG i;
 
     UNREFERENCED_PARAMETER(ResourcesTranslated);
     PAGED_CODE();
@@ -253,16 +254,18 @@ VIOInputEvtDeviceReleaseHardware(
 
     VirtIOWdfShutdown(&pContext->VDevice);
 
-    HIDMouseReleaseClass(&pContext->MouseDesc);
-    HIDKeyboardReleaseClass(&pContext->KeyboardDesc);
-    HIDConsumerReleaseClass(&pContext->ConsumerDesc);
-    HIDTabletReleaseClass(&pContext->TabletDesc);
-
-    if (pContext->HidReportDescriptor != NULL)
+    for (i = 0; i < pContext->uNumOfClasses; i++)
     {
-        ExFreePoolWithTag(pContext->HidReportDescriptor, VIOINPUT_DRIVER_MEMORY_TAG);
-        pContext->HidReportDescriptor = NULL;
+        PINPUT_CLASS_COMMON pClass = pContext->InputClasses[i];
+        if (pClass->CleanupFunc)
+        {
+            pClass->CleanupFunc(pClass);
+        }
+        VIOInputFree(&pClass->pHidReport);
+        VIOInputFree(&pClass);
     }
+
+    VIOInputFree(&pContext->HidReportDescriptor);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;

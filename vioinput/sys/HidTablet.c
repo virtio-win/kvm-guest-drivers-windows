@@ -21,14 +21,104 @@
 #include "HidTablet.tmh"
 #endif
 
+typedef struct _tagInputClassTablet
+{
+    INPUT_CLASS_COMMON Common;
+
+    // the tablet HID report is laid out as follows:
+    // offset 0
+    // * report ID
+    // offset 1
+    // * switches and flags
+    // ** bit 0 tip switch
+    // ** bit 1 in range
+    // ** bit 2 barrel switch
+    // ** bits 3-7 padding
+    // offset 2
+    // * X axis, 2 bytes, absolute
+    // offset 4
+    // * Y axis, 2 bytes, absolute
+
+} INPUT_CLASS_TABLET, *PINPUT_CLASS_TABLET;
+
+static NTSTATUS
+HIDTabletEventToReport(
+    PINPUT_CLASS_COMMON pClass,
+    PVIRTIO_INPUT_EVENT pEvent)
+{
+    PUCHAR pReport = pClass->pHidReport;
+    PUSHORT pAxisReport;
+    UCHAR uBits;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    pReport[HID_REPORT_ID_OFFSET] = pClass->uReportID;
+    switch (pEvent->type)
+    {
+    case EV_ABS:
+        switch (pEvent->code)
+        {
+        case ABS_X:
+            pAxisReport = (USHORT *)&pReport[HID_REPORT_DATA_OFFSET + 1];
+            break;
+        case ABS_Y:
+            pAxisReport = (USHORT *)&pReport[HID_REPORT_DATA_OFFSET + 3];
+            break;
+        default:
+            pAxisReport = NULL;
+            break;
+        }
+        if (pAxisReport != NULL)
+        {
+            *pAxisReport = (USHORT)pEvent->value;
+            pClass->bDirty = TRUE;
+        }
+        break;
+    case EV_KEY:
+        switch (pEvent->code)
+        {
+        case BTN_LEFT:
+        case BTN_TOUCH:
+            // tip switch + in range
+            uBits = 0x03;
+            break;
+        case BTN_RIGHT:
+        case BTN_STYLUS:
+            // barrel switch
+            uBits = 0x04;
+            break;
+        default:
+            uBits = 0x00;
+            break;
+        }
+        if (uBits)
+        {
+            if (pEvent->value)
+            {
+                pReport[HID_REPORT_DATA_OFFSET] |= uBits;
+            }
+            else
+            {
+                pReport[HID_REPORT_DATA_OFFSET] &= ~uBits;
+            }
+            pClass->bDirty = TRUE;
+        }
+        break;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+    return STATUS_SUCCESS;
+}
+
 NTSTATUS
-HIDTabletBuildReportDescriptor(
+HIDTabletProbe(
     PINPUT_DEVICE pContext,
     PDYNAMIC_ARRAY pHidDesc,
-    PINPUT_CLASS_TABLET pTabletDesc,
     PVIRTIO_INPUT_CFG_DATA pAxes,
     PVIRTIO_INPUT_CFG_DATA pButtons)
 {
+    PINPUT_CLASS_TABLET pTabletDesc = NULL;
+    NTSTATUS status = STATUS_SUCCESS;
     UCHAR i, uValue;
     ULONG uAxisCode, uNumOfAbsAxes = 0;
 
@@ -56,7 +146,7 @@ HIDTabletBuildReportDescriptor(
     if (uNumOfAbsAxes != 2)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Tablet axes not found\n");
-        return STATUS_SUCCESS;
+        goto Exit;
     }
 
     // claim our buttons from the pAxes bitmap
@@ -80,6 +170,16 @@ HIDTabletBuildReportDescriptor(
         }
         pAxes->u.bitmap[i] = uNonButtons;
     }
+
+    // allocate and initialize pTabletDesc
+    pTabletDesc = VIOInputAlloc(sizeof(INPUT_CLASS_TABLET));
+    if (pTabletDesc == NULL)
+    {
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+    pTabletDesc->Common.EventToReportFunc = HIDTabletEventToReport;
+    pTabletDesc->Common.uReportID = (UCHAR)(pContext->uNumOfClasses + 1);
 
     HIDAppend2(pHidDesc, HID_TAG_USAGE_PAGE, HID_USAGE_PAGE_DIGITIZER);
     HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER);
@@ -143,105 +243,21 @@ HIDTabletBuildReportDescriptor(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Created HID tablet report descriptor\n");
 
+    // calculate the tablet HID report size
     pTabletDesc->Common.cbHidReportSize =
         1 + // report ID
         1 + // flags
         uNumOfAbsAxes * 2; // axes
 
-    // allocate and initialize the tablet HID report
-    pTabletDesc->Common.pHidReport = (PUCHAR)ExAllocatePoolWithTag(
-        NonPagedPool,
-        pTabletDesc->Common.cbHidReportSize,
-        VIOINPUT_DRIVER_MEMORY_TAG);
-    if (pTabletDesc->Common.pHidReport == NULL)
+    // register the tablet class
+    status = RegisterClass(pContext, &pTabletDesc->Common);
+
+Exit:
+    if (!NT_SUCCESS(status) && pTabletDesc != NULL)
     {
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-    RtlZeroMemory(pTabletDesc->Common.pHidReport, pTabletDesc->Common.cbHidReportSize);
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
-    return STATUS_SUCCESS;
-}
-
-VOID
-HIDTabletReleaseClass(
-    PINPUT_CLASS_TABLET pTabletDesc)
-{
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
-
-    if (pTabletDesc->Common.pHidReport != NULL)
-    {
-        ExFreePoolWithTag(pTabletDesc->Common.pHidReport, VIOINPUT_DRIVER_MEMORY_TAG);
-        pTabletDesc->Common.pHidReport = NULL;
+        VIOInputFree(&pTabletDesc);
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
-}
-
-VOID
-HIDTabletEventToReport(
-    PINPUT_CLASS_TABLET pTabletDesc,
-    PVIRTIO_INPUT_EVENT pEvent)
-{
-    PUCHAR pReport = pTabletDesc->Common.pHidReport;
-    PUSHORT pAxisReport;
-    UCHAR uBits;
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
-
-    pReport[HID_REPORT_ID_OFFSET] = pTabletDesc->Common.uReportID;
-    switch (pEvent->type)
-    {
-    case EV_ABS:
-        switch (pEvent->code)
-        {
-        case ABS_X:
-            pAxisReport = (USHORT *)&pReport[HID_REPORT_DATA_OFFSET + 1];
-            break;
-        case ABS_Y:
-            pAxisReport = (USHORT *)&pReport[HID_REPORT_DATA_OFFSET + 3];
-            break;
-        default:
-            pAxisReport = NULL;
-            break;
-        }
-        if (pAxisReport != NULL)
-        {
-            *pAxisReport = (USHORT)pEvent->value;
-            pTabletDesc->Common.bDirty = TRUE;
-        }
-        break;
-    case EV_KEY:
-        switch (pEvent->code)
-        {
-        case BTN_LEFT:
-        case BTN_TOUCH:
-            // tip switch + in range
-            uBits = 0x03;
-            break;
-        case BTN_RIGHT:
-        case BTN_STYLUS:
-            // barrel switch
-            uBits = 0x04;
-            break;
-        default:
-            uBits = 0x00;
-            break;
-        }
-        if (uBits)
-        {
-            if (pEvent->value)
-            {
-                pReport[HID_REPORT_DATA_OFFSET] |= uBits;
-            }
-            else
-            {
-                pReport[HID_REPORT_DATA_OFFSET] &= ~uBits;
-            }
-            pTabletDesc->Common.bDirty = TRUE;
-        }
-        break;
-    }
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s (%08x)\n", __FUNCTION__, status);
+    return status;
 }

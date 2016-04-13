@@ -192,6 +192,8 @@ ProcessInputEvent(
     PINPUT_DEVICE pContext,
     PVIRTIO_INPUT_EVENT pEvent)
 {
+    ULONG i;
+
     TraceEvents(
         TRACE_LEVEL_VERBOSE,
         DBG_READ,
@@ -204,32 +206,18 @@ ProcessInputEvent(
     if (pEvent->type == EV_SYN)
     {
         // send report(s) up
-        CompleteHIDQueueRequest(pContext, &pContext->MouseDesc.Common);
-        CompleteHIDQueueRequest(pContext, &pContext->KeyboardDesc.Common);
-        CompleteHIDQueueRequest(pContext, &pContext->ConsumerDesc.Common);
-        CompleteHIDQueueRequest(pContext, &pContext->TabletDesc.Common);
-        CompleteHIDQueueRequest(pContext, &pContext->JoystickDesc.Common);
+        for (i = 0; i < pContext->uNumOfClasses; i++)
+        {
+            CompleteHIDQueueRequest(pContext, pContext->InputClasses[i]);
+        }
     }
 
-    if (pContext->MouseDesc.Common.cbHidReportSize > 0)
+    // ask each class to translate the input event into a HID report
+    for (i = 0; i < pContext->uNumOfClasses; i++)
     {
-        HIDMouseEventToReport(&pContext->MouseDesc, pEvent);
-    }
-    if (pContext->KeyboardDesc.Common.cbHidReportSize > 0)
-    {
-        HIDKeyboardEventToReport(&pContext->KeyboardDesc, pEvent);
-    }
-    if (pContext->ConsumerDesc.Common.cbHidReportSize > 0)
-    {
-        HIDConsumerEventToReport(&pContext->ConsumerDesc, pEvent);
-    }
-    if (pContext->TabletDesc.Common.cbHidReportSize > 0)
-    {
-        HIDTabletEventToReport(&pContext->TabletDesc, pEvent);
-    }
-    if (pContext->JoystickDesc.Common.cbHidReportSize > 0)
-    {
-        HIDJoystickEventToReport(&pContext->JoystickDesc, pEvent);
+        pContext->InputClasses[i]->EventToReportFunc(
+            pContext->InputClasses[i],
+            pEvent);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
@@ -241,24 +229,27 @@ ProcessOutputReport(
     WDFREQUEST Request,
     PHID_XFER_PACKET pPacket)
 {
-    VIRTIO_INPUT_EVENT Event;
-    NTSTATUS status = STATUS_SUCCESS;
+    NTSTATUS status = STATUS_NONE_MAPPED;
+    ULONG i;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
-    if (pPacket->reportId == pContext->KeyboardDesc.Common.uReportID)
+    for (i = 0; i < pContext->uNumOfClasses; i++)
     {
-        status = HIDKeyboardReportToEvent(
-            pContext,
-            &pContext->KeyboardDesc,
-            Request,
-            pPacket->reportBuffer,
-            pPacket->reportBufferLen);
-    }
-    else
-    {
-        // no other device class currently supports output reports
-        status = STATUS_NONE_MAPPED;
+        PINPUT_CLASS_COMMON pClass = pContext->InputClasses[i];
+        if (pClass->uReportID == pPacket->reportId)
+        {
+            if (pClass->ReportToEventFunc)
+            {
+                status = pClass->ReportToEventFunc(
+                    pClass,
+                    pContext,
+                    Request,
+                    pPacket->reportBuffer,
+                    pPacket->reportBufferLen);
+            }
+            break;
+        }
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
@@ -420,49 +411,43 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
     // if we have any absolute axes, we may expose a mouse as well
     if (!InputCfgDataEmpty(&RelData) || !InputCfgDataEmpty(&AbsData))
     {
-        pContext->MouseDesc.Common.uReportID = ++uReportID;
-        status = HIDMouseBuildReportDescriptor(
+        status = HIDMouseProbe(
             pContext,
             &ReportDescriptor,
-            &pContext->MouseDesc,
             &RelData,
             &AbsData,
             &KeyData);
         if (!NT_SUCCESS(status))
         {
-            return status;
+            goto Exit;
         }
     }
 
     // if we have any absolute axes left, we may expose a joystick
     if (!InputCfgDataEmpty(&AbsData))
     {
-        pContext->JoystickDesc.Common.uReportID = ++uReportID;
-        status = HIDJoystickBuildReportDescriptor(
+        status = HIDJoystickProbe(
             pContext,
             &ReportDescriptor,
-            &pContext->JoystickDesc,
             &AbsData,
             &KeyData);
         if (!NT_SUCCESS(status))
         {
-            return status;
+            goto Exit;
         }
     }
 
     // if we have any absolute axes left, we'll expose a table device
     if (!InputCfgDataEmpty(&AbsData))
     {
-        pContext->TabletDesc.Common.uReportID = ++uReportID;
-        status = HIDTabletBuildReportDescriptor(
+        status = HIDTabletProbe(
             pContext,
             &ReportDescriptor,
-            &pContext->TabletDesc,
             &AbsData,
             &KeyData);
         if (!NT_SUCCESS(status))
         {
-            return status;
+            goto Exit;
         }
     }
 
@@ -479,29 +464,27 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
                 &LedData.u.bitmap[i], 1);
         }
 
-        pContext->KeyboardDesc.Common.uReportID = ++uReportID;
-        status = HIDKeyboardBuildReportDescriptor(
+        status = HIDKeyboardProbe(
+            pContext,
             &ReportDescriptor,
-            &pContext->KeyboardDesc,
             &KeyData,
             &LedData);
         if (!NT_SUCCESS(status))
         {
-            return status;
+            goto Exit;
         }
     }
 
     // if we still have any keys left, we'll check for a consumer device
     if (!InputCfgDataEmpty(&KeyData))
     {
-        pContext->ConsumerDesc.Common.uReportID = ++uReportID;
-        status = HIDConsumerBuildReportDescriptor(
+        status = HIDConsumerProbe(
+            pContext,
             &ReportDescriptor,
-            &pContext->ConsumerDesc,
             &KeyData);
         if (!NT_SUCCESS(status))
         {
-            return status;
+            goto Exit;
         }
     }
 
@@ -521,7 +504,8 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
         DumpReportDescriptor(pContext->HidReportDescriptor, cbReportDescriptor);
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
+Exit:
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s (%08x)\n", __FUNCTION__, status);
     return status;
 }
 
@@ -545,6 +529,31 @@ GetAbsAxisInfo(
                 (PUCHAR)pAbsInfo + i, 1);
         }
     }
+}
+
+NTSTATUS
+RegisterClass(
+    PINPUT_DEVICE pContext,
+    PINPUT_CLASS_COMMON pClass)
+{
+    if (pContext->uNumOfClasses >= MAX_INPUT_CLASS_COUNT)
+    {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    // allocate HID report buffer
+    if (pClass->pHidReport == NULL)
+    {
+        pClass->pHidReport = VIOInputAlloc(pClass->cbHidReportSize);
+        if (pClass->pHidReport == NULL)
+        {
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+
+    // insert the class into our array
+    pContext->InputClasses[pContext->uNumOfClasses++] = pClass;
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
