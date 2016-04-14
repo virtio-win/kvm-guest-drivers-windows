@@ -191,6 +191,24 @@
     <IntDir>$(Platform)\$(Configuration)\</IntDir>
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
   </PropertyGroup>
+  <PropertyGroup Condition="$(Configuration.StartsWith('Win8')) And '$(Platform)'=='Win32'">
+    <InfArch>x86.6.2</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(Configuration.StartsWith('Win7')) And '$(Platform)'=='Win32'">
+    <InfArch>x86.6.1</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(Configuration.StartsWith('Vista')) And '$(Platform)'=='Win32'">
+    <InfArch>x86.6.0</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(Configuration.StartsWith('Win8')) And '$(Platform)'=='x64'">
+    <InfArch>amd64.6.2</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(Configuration.StartsWith('Win7')) And '$(Platform)'=='x64'">
+    <InfArch>amd64.6.1</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(Configuration.StartsWith('Vista')) And '$(Platform)'=='x64'">
+    <InfArch>amd64.6.0</InfArch>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <WppEnabled>true</WppEnabled>
@@ -280,12 +298,12 @@
       <Command Condition="'$(Platform)'=='Win32'">
         copy "$(LegacyDDKDir)\redist\wdf\x86\WdfCoInstaller01009.dll" "$(OutDir)"
         copy viorng.inf "$(OutDir)\viorng.inf"
-        stampinf -f "$(OutDir)\viorng.inf" -a x86 -k 1.9
+        stampinf -f "$(OutDir)\viorng.inf" -a $(InfArch) -k 1.9
       </Command>
       <Command Condition="'$(Platform)'=='x64'">
         copy "$(LegacyDDKDir)\redist\wdf\amd64\WdfCoInstaller01009.dll" "$(OutDir)"
         copy viorng.inf "$(OutDir)\viorng.inf"
-        stampinf -f "$(OutDir)\viorng.inf" -a AMD64 -k 1.9
+        stampinf -f "$(OutDir)\viorng.inf" -a $(InfArch) -k 1.9
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
