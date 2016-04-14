@@ -180,6 +180,24 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="$(Configuration.StartsWith('Win8')) And '$(Platform)'=='Win32'">
+    <InfArch>x86.6.2</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(Configuration.StartsWith('Win7')) And '$(Platform)'=='Win32'">
+    <InfArch>x86.6.1</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(Configuration.StartsWith('Vista')) And '$(Platform)'=='Win32'">
+    <InfArch>x86.6.0</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(Configuration.StartsWith('Win8')) And '$(Platform)'=='x64'">
+    <InfArch>amd64.6.2</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(Configuration.StartsWith('Win7')) And '$(Platform)'=='x64'">
+    <InfArch>amd64.6.1</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(Configuration.StartsWith('Vista')) And '$(Platform)'=='x64'">
+    <InfArch>amd64.6.0</InfArch>
+  </PropertyGroup>
   <PropertyGroup>
     <OutDir>$(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
     <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
