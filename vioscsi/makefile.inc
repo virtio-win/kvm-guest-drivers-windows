@@ -3,7 +3,7 @@ clean:
 
 _LNG=$(LANGUAGE)
 _INX=.
-STAMP=stampinf -f $@ -d * -a $(_BUILDARCH)
+STAMP=stampinf -f $@ -d * -a $(_BUILDARCH).$(_NT_TARGET_MAJ_ARCH).$(_NT_TARGET_MIN_ARCH)
 
 
 $(OBJ_PATH)\$(O)\$(INF_NAME).inf: $(_INX)\$(INF_NAME).inx 
