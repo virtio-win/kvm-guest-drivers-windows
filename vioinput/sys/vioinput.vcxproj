@@ -92,26 +92,32 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
     <OutDir>objfre_win8_x86\i386\</OutDir>
     <IntDir>objfre_win8_x86\i386\</IntDir>
+    <InfArch>x86.6.3</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <OutDir>objfre_win8_x86\i386\</OutDir>
     <IntDir>objfre_win8_x86\i386\</IntDir>
+    <InfArch>x86.6.2</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
     <OutDir>objfre_win7_x86\i386\</OutDir>
     <IntDir>objfre_win7_x86\i386\</IntDir>
+    <InfArch>x86.6.1</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <OutDir>objfre_win8_amd64\amd64\</OutDir>
     <IntDir>objfre_win8_amd64\amd64\</IntDir>
+    <InfArch>amd64.6.3</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <OutDir>objfre_win8_amd64\amd64\</OutDir>
     <IntDir>objfre_win8_amd64\amd64\</IntDir>
+    <InfArch>amd64.6.2</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <OutDir>objfre_win7_amd64\amd64\</OutDir>
     <IntDir>objfre_win7_amd64\amd64\</IntDir>
+    <InfArch>amd64.6.1</InfArch>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
