@@ -8,19 +8,8 @@ set SYS_FILE_NAME=
 goto :eof 
 
 
-:buildsys
-call buildOne.bat %1 %2
-goto :eof
-
 :packsys
 call packOne.bat %1 %2 %SYS_FILE_NAME%
-goto :eof
-
-:buildpack
-call :buildsys %1 %2
-call :packsys %1 %2
-set BUILD_OS=
-set BUILD_ARC=
 goto :eof
 
 :create2012H
@@ -34,7 +23,7 @@ goto :eof
 :BuildUsing2012
 if exist vioscsi-2012.h del vioscsi-2012.h
 setlocal
-if "%_NT_TARGET_VERSION%"=="" set _NT_TARGET_VERSION=0x602
+set _NT_TARGET_VERSION=%2
 if "%_BUILD_MAJOR_VERSION_%"=="" set _BUILD_MAJOR_VERSION_=101
 if "%_BUILD_MINOR_VERSION_%"=="" set _BUILD_MINOR_VERSION_=58000
 if "%_RHEL_RELEASE_VERSION_%"=="" set _RHEL_RELEASE_VERSION_=61
@@ -51,7 +40,7 @@ goto :eof
 
 :StaticDriverVerifier2012
 setlocal
-if "%_NT_TARGET_VERSION%"=="" set _NT_TARGET_VERSION=0x602
+set _NT_TARGET_VERSION=%3
 if "%_BUILD_MAJOR_VERSION_%"=="" set _BUILD_MAJOR_VERSION_=101
 if "%_BUILD_MINOR_VERSION_%"=="" set _BUILD_MINOR_VERSION_=58000
 if "%_RHEL_RELEASE_VERSION_%"=="" set _RHEL_RELEASE_VERSION_=61
@@ -71,76 +60,45 @@ msbuild.exe vioscsi.vcxproj /t:dvl /p:Configuration="%~1" /P:platform=%2
 endlocal
 goto :eof
 
-:WIN8_32
+:buildpack
 setlocal
-set BUILD_OS=Win8
-set BUILD_ARC=x86
-rem set INF2CAT_PATH=
+set BUILD_OS=%1
+set BUILD_ARC=%2
 
-if exist Install\win8\x86 rmdir Install\win8\x86 /s /q
-call :BuildUsing2012 "Win8 Release|Win32" buildfre_win8_x86.log
+if exist Install\%BUILD_OS%\%BUILD_ARC% rmdir Install\%BUILD_OS%\%BUILD_ARC% /s /q
+call :BuildUsing2012 %3 %4 %5
 call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
-endlocal
-goto :eof
 
-:WIN8_64
-setlocal
-set BUILD_OS=Win8
-set BUILD_ARC=x64
-rem set INF2CAT_PATH=
-
-if exist Install\win8\amd64 rmdir Install\win8\amd64 /s /q
-call :BuildUsing2012 "Win8 Release|x64" buildfre_win8_amd64.log
-call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
-if "%_BUILD_DISABLE_SDV%"=="" goto :DO_SDV
-endlocal
-goto :eof
-
-:DO_SDV
-call :StaticDriverVerifier2012 "Win8 Release" %BUILD_ARC%
-call packOne.bat %BUILD_OS% %BUILD_ARC% %SYS_FILE_NAME%
-rmdir /S /Q .\sdv
-endlocal
-goto :eof
-
-:WLH_64
-setlocal
-set BUILD_OS=Wlh
-set BUILD_ARC=x64
-call :buildpack %BUILD_OS% %BUILD_ARC%
 endlocal
 goto :eof
 
 :WLH_32
-setlocal
-set BUILD_OS=Wlh
-set BUILD_ARC=x86
-call :buildpack %BUILD_OS% %BUILD_ARC%
-endlocal
+call :buildpack Wlh x86 "Vista Release|Win32" 0x600 buildfre_wlh_x86.log
+goto :eof
+
+:WLH_64
+call :buildpack Wlh x64 "Vista Release|x64" 0x600 buildfre_wlh_amd64.log
+goto :eof
+
+:WIN7_32
+call :buildpack Win7 x86 "Win7 Release|Win32" 0x601 buildfre_win7_x86.log
 goto :eof
 
 :WIN7_64
-setlocal
-set BUILD_OS=Win7
-set BUILD_ARC=x64
-call :buildpack %BUILD_OS% %BUILD_ARC%
-endlocal
+call :buildpack Win7 x64 "Win7 Release|x64" 0x601 buildfre_win7_amd64.log
 goto :eof
 
-:WLH_64
-setlocal
-set BUILD_OS=Wlh
-set BUILD_ARC=x64
-call :buildpack %BUILD_OS% %BUILD_ARC%
-endlocal
+:WIN8_32
+call :buildpack Win8 x86 "Win8 Release|Win32" 0x602 buildfre_win8_x86.log
 goto :eof
 
-:WLH_32
-setlocal
-set BUILD_OS=Wlh
-set BUILD_ARC=x86
-call :buildpack %BUILD_OS% %BUILD_ARC%
-endlocal
+:WIN8_64
+call :buildpack Win8 x64 "Win8 Release|x64" 0x602 buildfre_win8_amd64.log
+if "%_BUILD_DISABLE_SDV%"=="" goto :DO_SDV
+goto :eof
+:DO_SDV
+call :StaticDriverVerifier2012 "Win8 Release" x64 0x602
+rmdir /S /Q .\sdv
 goto :eof
 
 :eof
