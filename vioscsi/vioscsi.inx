@@ -1,4 +1,18 @@
-; Copyright (c) 2012-2016, Red Hat Inc.
+;/*++
+;
+;Copyright (c) 2012-2016 Red Hat Inc.
+;
+;Module Name:
+;    vioscsi.inf
+;
+;Abstract:
+;
+;Installation Notes:
+;    Using Devcon: Type "devcon install vioscsi.inf PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4&REV_00" or
+;                       "devcon install vioscsi.inf PCI\VEN_1AF4&DEV_1048&SUBSYS_11001AF4&REV_01" to install
+;
+;--*/
+
 [Version]
 Signature="$Windows NT$"
 Class=SCSIAdapter
@@ -35,6 +49,7 @@ vioscsi_Files_Driver = 12
 
 [RHEL.NT$ARCH$]
 %RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4&REV_00
+%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1048&SUBSYS_11001AF4&REV_01
 
 ;
 ; General installation section
