@@ -878,7 +878,6 @@ VioScsiInterrupt(
     PADAPTER_EXTENSION  adaptExt;
     BOOLEAN             isInterruptServiced = FALSE;
     PSRB_TYPE           Srb;
-    PSRB_EXTENSION      srbExt;
     ULONG               intReason = 0;
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
@@ -945,7 +944,6 @@ VioScsiMSInterrupt (
     PADAPTER_EXTENSION  adaptExt;
     BOOLEAN             isInterruptServiced = FALSE;
     PSRB_TYPE           Srb = NULL;
-    PSRB_EXTENSION      srbExt;
     ULONG               intReason = 0;
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
