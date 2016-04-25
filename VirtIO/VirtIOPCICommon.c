@@ -270,6 +270,7 @@ int virtio_device_initialize(VirtIODevice *pVirtIODevice,
     memset(pVirtIODevice, 0, allocatedSize);
     pVirtIODevice->DeviceContext = DeviceContext;
     pVirtIODevice->system = pSystemOps;
+    pVirtIODevice->info = pVirtIODevice->inline_info;
 
     ASSERT(allocatedSize > offsetof(VirtIODevice, info));
     pVirtIODevice->maxQueues =
@@ -282,10 +283,10 @@ int virtio_device_initialize(VirtIODevice *pVirtIODevice,
     }
     if (!err) {
         register_virtio_device(pVirtIODevice);
-    }
 
-    /* If we are here, we must have found a driver for the device */
-    virtio_add_status(pVirtIODevice, VIRTIO_CONFIG_S_DRIVER);
+        /* If we are here, we must have found a driver for the device */
+        virtio_add_status(pVirtIODevice, VIRTIO_CONFIG_S_DRIVER);
+    }
 
     return err;
 }
@@ -298,6 +299,39 @@ void virtio_device_shutdown(VirtIODevice *pVirtIODevice)
     else {
         virtio_pci_modern_remove(pVirtIODevice);
     }
+
+    if (pVirtIODevice->info &&
+        pVirtIODevice->info != pVirtIODevice->inline_info) {
+        kfree(pVirtIODevice, pVirtIODevice->info);
+        pVirtIODevice->info = NULL;
+    }
+}
+
+int virtio_find_queues(VirtIODevice *vdev,
+                       unsigned nvqs,
+                       struct virtqueue *vqs[],
+                       const char *const names[])
+{
+    if (nvqs > vdev->maxQueues) {
+        /* allocate new space for queue infos */
+        void *new_info = kmalloc(vdev, nvqs * virtio_queue_descriptor_size(), GFP_KERNEL);
+        if (!new_info) {
+            return -ENOSPC;
+        }
+
+        if (vdev->info && vdev->info != vdev->inline_info) {
+            kfree(vdev, vdev->info);
+        }
+        vdev->info = new_info;
+        vdev->maxQueues = nvqs;
+    }
+
+    return vdev->config->find_vqs(
+        vdev,
+        nvqs,
+        vqs,
+        NULL,
+        names);
 }
 
 NTSTATUS virtio_error_to_ntstatus(int error)

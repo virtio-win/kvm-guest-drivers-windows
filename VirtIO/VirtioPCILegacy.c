@@ -37,6 +37,7 @@ void VirtIODeviceInitialize(VirtIODevice * pVirtIODevice, ULONG_PTR addr, ULONG 
     DPrintf(4, ("%s\n", __FUNCTION__));
     memset(pVirtIODevice, 0, allocatedSize);
     pVirtIODevice->addr = addr;
+    pVirtIODevice->info = pVirtIODevice->inline_info;
     if (allocatedSize >= sizeof(VirtIODevice))
     {
         pVirtIODevice->maxQueues = MAX_QUEUES_PER_DEVICE_DEFAULT +

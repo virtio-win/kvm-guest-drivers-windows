@@ -141,11 +141,10 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
 
     /* find and initialize queues */
     pWdfDriver->pQueueParams = pQueueParams;
-    err = pWdfDriver->pVIODevice->config->find_vqs(
+    err = virtio_find_queues(
         pWdfDriver->pVIODevice,
         nQueues,
         pQueues,
-        NULL,
         pszNames);
     pWdfDriver->pQueueParams = NULL;
 
