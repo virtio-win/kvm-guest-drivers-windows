@@ -166,6 +166,7 @@ int vp_find_vqs(virtio_device *vdev, unsigned nvqs,
                 const char * const names[])
 {
     virtio_pci_device *vp_dev = to_vp_device(vdev);
+    const char *name;
     unsigned i;
     int err;
     u16 msix_vec;
@@ -187,12 +188,18 @@ int vp_find_vqs(virtio_device *vdev, unsigned nvqs,
 
     /* set up queue interrupts */
     for (i = 0; i < nvqs; i++) {
-        if (!names[i]) {
-            vqs[i] = NULL;
-            continue;
-        }
         msix_vec = pci_get_msix_vector(vp_dev, i);
-        vqs[i] = vp_setup_vq(vdev, i, NULL /*callbacks[i]*/, names[i], msix_vec);
+        if (names && names[i]) {
+            name = names[i];
+        } else {
+            name = "_unnamed_queue";
+        }
+        vqs[i] = vp_setup_vq(
+            vdev,
+            i,
+            NULL /*callbacks[i]*/,
+            name,
+            msix_vec);
         if (IS_ERR(vqs[i])) {
             err = (int)PTR_ERR(vqs[i]);
             goto error_find;
