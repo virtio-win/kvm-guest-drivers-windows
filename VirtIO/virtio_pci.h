@@ -262,7 +262,8 @@ typedef struct TypeVirtIODevice
     u16(*config_vector)(struct TypeVirtIODevice *vp_dev, u16 vector);
 
     ULONG maxQueues;
-    tVirtIOPerQueueInfo info[MAX_QUEUES_PER_DEVICE_DEFAULT];
+    tVirtIOPerQueueInfo *info;
+    tVirtIOPerQueueInfo inline_info[MAX_QUEUES_PER_DEVICE_DEFAULT];
     /* do not add any members after info struct, it is extensible */
 } VirtIODevice, virtio_pci_device;
 
@@ -349,9 +350,19 @@ void virtio_add_status(VirtIODevice *vdev, u8 status);
 int virtio_finalize_features(VirtIODevice *vdev);
 u8 virtio_read_isr_status(VirtIODevice *vdev);
 
+int virtio_find_queues(VirtIODevice *vdev,
+                       unsigned nvqs,
+                       struct virtqueue *vqs[],
+                       const char *const names[]);
+
 NTSTATUS virtio_error_to_ntstatus(int error);
 
 void virtqueue_set_event_suppression(struct virtqueue *vq, bool enable);
+
+ULONG __inline virtio_queue_descriptor_size()
+{
+    return sizeof(tVirtIOPerQueueInfo);
+}
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
