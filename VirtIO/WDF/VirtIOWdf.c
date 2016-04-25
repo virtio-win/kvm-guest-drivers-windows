@@ -136,12 +136,7 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
     }
 
     for (i = 0; i < nQueues; i++) {
-        if (pQueueParams[i].szName) {
-            pszNames[i] = pQueueParams[i].szName;
-        }
-        else {
-            pszNames[i] = "_unnamed_queue";
-        }
+        pszNames[i] = pQueueParams[i].szName;
     }
 
     /* find and initialize queues */
