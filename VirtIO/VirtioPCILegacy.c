@@ -287,7 +287,7 @@ struct virtqueue *VirtIODevicePrepareQueue(
         ringSize = vring_size(num,PAGE_SIZE);
         ringSize = align(ringSize, PAGE_SIZE);
         info->queue_index = index;
-        info->num = num;
+        info->num = (u16)num;
         info->queue = va;
         info->phys = pa;
         info->pOwnerContext = ownerContext;
@@ -365,6 +365,33 @@ static u16 vp_config_vector(virtio_pci_device *vp_dev, u16 vector)
     return ioread16(vp_dev->addr + VIRTIO_MSI_CONFIG_VECTOR);
 }
 
+static int query_vq_alloc(virtio_pci_device *vp_dev,
+                          unsigned index,
+                          unsigned short *pNumEntries,
+                          unsigned long *pAllocationSize,
+                          unsigned long *pHeapSize)
+{
+    unsigned long ring_size, data_size;
+    u16 num;
+
+    /* Select the queue we're interested in */
+    iowrite16((u16)index, vp_dev->addr + VIRTIO_PCI_QUEUE_SEL);
+
+    /* Check if queue is either not available or already active. */
+    num = ioread16(vp_dev->addr + VIRTIO_PCI_QUEUE_NUM);
+    if (!num || ioread32(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN))
+        return -ENOENT;
+
+    ring_size = PAGE_ALIGN(vring_size(num, VIRTIO_PCI_VRING_ALIGN));
+    data_size = PAGE_ALIGN(sizeof(void *) * num + vring_control_block_size());
+
+    *pNumEntries = num;
+    *pAllocationSize = ring_size + data_size;
+    *pHeapSize = 0;
+
+    return 0;
+}
+
 static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
                                   virtio_pci_vq_info *info,
                                   unsigned index,
@@ -373,25 +400,18 @@ static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
                                   u16 msix_vec)
 {
     struct virtqueue *vq;
-    unsigned long size, ring_size, data_size;
-    u16 num;
+    unsigned long size, ring_size, heap_size;
     int err;
 
     UNREFERENCED_PARAMETER(callback);
 
-    /* Select the queue we're interested in */
-    iowrite16((u16)index, vp_dev->addr + VIRTIO_PCI_QUEUE_SEL);
+    /* Select the queue and query allocation parameters */
+    err = query_vq_alloc(vp_dev, index, &info->num, &size, &heap_size);
+    if (err) {
+        return ERR_PTR(err);
+    }
 
-    /* Check if queue is either not available or already active. */
-    num = ioread16(vp_dev->addr + VIRTIO_PCI_QUEUE_NUM);
-    if (!num || ioread32(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN))
-        return ERR_PTR(-ENOENT);
-
-    info->num = num;
-
-    ring_size = PAGE_ALIGN(vring_size(num, VIRTIO_PCI_VRING_ALIGN));
-    data_size = PAGE_ALIGN(sizeof(void *) * num + vring_control_block_size());
-    size = ring_size + data_size;
+    ring_size = PAGE_ALIGN(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN));
 
     info->queue = alloc_pages_exact(vp_dev, size, GFP_KERNEL | __GFP_ZERO);
     if (info->queue == NULL)
@@ -508,6 +528,7 @@ int virtio_pci_legacy_probe(virtio_pci_device *vp_dev)
     vp_dev->config = &virtio_pci_config_ops;
 
     vp_dev->config_vector = vp_config_vector;
+    vp_dev->query_vq_alloc = query_vq_alloc;
     vp_dev->setup_vq = setup_vq;
     vp_dev->del_vq = del_vq;
 

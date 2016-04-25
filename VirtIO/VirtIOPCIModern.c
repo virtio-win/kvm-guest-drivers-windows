@@ -289,13 +289,13 @@ static size_t vring_pci_size(u16 num)
     return (size_t)PAGE_ALIGN(vring_size(num, SMP_CACHE_BYTES));
 }
 
-static void *alloc_virtqueue_pages(virtio_pci_device *vp_dev, int *num)
+static void *alloc_virtqueue_pages(virtio_pci_device *vp_dev, u16 *num)
 {
     void *pages;
     
     /* TODO: allocate each queue chunk individually */
-    for (; *num && vring_pci_size((u16)*num) > PAGE_SIZE; *num /= 2) {
-        pages = alloc_pages_exact(vp_dev, vring_pci_size((u16)*num),
+    for (; *num && vring_pci_size(*num) > PAGE_SIZE; *num /= 2) {
+        pages = alloc_pages_exact(vp_dev, vring_pci_size(*num),
             GFP_KERNEL | __GFP_ZERO | __GFP_NOWARN);
         if (pages)
             return pages;
@@ -305,7 +305,42 @@ static void *alloc_virtqueue_pages(virtio_pci_device *vp_dev, int *num)
         return NULL;
     
     /* Try to get a single page. You are my only hope! */
-    return alloc_pages_exact(vp_dev, vring_pci_size((u16)*num), GFP_KERNEL | __GFP_ZERO);
+    return alloc_pages_exact(vp_dev, vring_pci_size(*num), GFP_KERNEL | __GFP_ZERO);
+}
+
+static int query_vq_alloc(virtio_pci_device *vp_dev,
+                          unsigned index,
+                          unsigned short *pNumEntries,
+                          unsigned long *pAllocationSize,
+                          unsigned long *pHeapSize)
+{
+    struct virtio_pci_common_cfg __iomem *cfg = vp_dev->common;
+    u16 num;
+
+    if (index >= vp_ioread16(&cfg->num_queues))
+        return -ENOENT;
+
+    /* Select the queue we're interested in */
+    vp_iowrite16((u16)index, &cfg->queue_select);
+
+    /* Check if queue is either not available or already active. */
+    num = vp_ioread16(&cfg->queue_size);
+    /* QEMU has a bug where queues don't revert to inactive on device
+     * reset. Skip checking the queue_enable field until it is fixed.
+     */
+    if (!num /*|| vp_ioread16(&cfg->queue_enable)*/)
+        return -ENOENT;
+
+    if (num & (num - 1)) {
+        DPrintf(0, ("%p: bad queue size %u", vp_dev, num));
+        return -EINVAL;
+    }
+
+    *pNumEntries = num;
+    *pAllocationSize = (unsigned long)vring_pci_size(num);
+    *pHeapSize = vring_control_block_size() + sizeof(void *) * num;
+
+    return 0;
 }
 
 static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
@@ -318,40 +353,26 @@ static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
     struct virtio_pci_common_cfg __iomem *cfg = vp_dev->common;
     struct virtqueue *vq;
     void *vq_addr;
-    u16 num, off;
+    u16 off;
+    unsigned long size, heap_size;
     int err;
 
     UNREFERENCED_PARAMETER(callback);
 
-    if (index >= vp_ioread16(&cfg->num_queues))
-        return ERR_PTR(-ENOENT);
-
-    /* Select the queue we're interested in */
-    vp_iowrite16((u16)index, &cfg->queue_select);
-
-    /* Check if queue is either not available or already active. */
-    num = vp_ioread16(&cfg->queue_size);
-    /* QEMU has a bug where queues don't revert to inactive on device
-     * reset. Skip checking the queue_enable field until it is fixed.
-     */
-    if (!num /*|| vp_ioread16(&cfg->queue_enable)*/)
-        return ERR_PTR(-ENOENT);
-
-    if (num & (num - 1)) {
-        DPrintf(0, ("%p: bad queue size %u", vp_dev, num));
-        return ERR_PTR(-EINVAL);
+    /* Select the queue and query allocation parameters */
+    err = query_vq_alloc(vp_dev, index, &info->num, &size, &heap_size);
+    if (err) {
+        return ERR_PTR(err);
     }
 
     /* get offset of notification word for this vq */
     off = vp_ioread16(&cfg->queue_notify_off);
 
-    info->num = num;
-
     info->queue = alloc_virtqueue_pages(vp_dev, &info->num);
     if (info->queue == NULL)
         return ERR_PTR(-ENOMEM);
 
-    vq_addr = kmalloc(vp_dev, vring_control_block_size() + sizeof(void *) * num, GFP_KERNEL);
+    vq_addr = kmalloc(vp_dev, heap_size, GFP_KERNEL);
     if (vq_addr == NULL)
         return ERR_PTR(-ENOMEM);
 
@@ -365,7 +386,7 @@ static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
     }
 
     /* activate the queue */
-    vp_iowrite16(num, &cfg->queue_size);
+    vp_iowrite16(info->num, &cfg->queue_size);
     vp_iowrite64_twopart(virt_to_phys(vp_dev, info->queue),
         &cfg->queue_desc_lo, &cfg->queue_desc_hi);
     vp_iowrite64_twopart(virt_to_phys(vp_dev, virtqueue_get_avail(vq)),
@@ -702,6 +723,7 @@ int virtio_pci_modern_probe(virtio_pci_device *vp_dev)
     }
 
     vp_dev->config_vector = vp_config_vector;
+    vp_dev->query_vq_alloc = query_vq_alloc;
     vp_dev->setup_vq = setup_vq;
     vp_dev->del_vq = del_vq;
 
