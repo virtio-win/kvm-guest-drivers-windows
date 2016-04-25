@@ -197,7 +197,7 @@ typedef struct _tVirtIOPerQueueInfo
     /* the actual virtqueue */
     struct virtqueue *vq;
     /* the number of entries in the queue */
-    int num;
+    u16 num;
     /* the index of the queue */
     int queue_index;
     /* the virtual address of the ring queue */
@@ -251,6 +251,11 @@ typedef struct TypeVirtIODevice
     size_t notify_len;
     /* virtio 1.0 specific fields end */
 
+    int (*query_vq_alloc)(struct TypeVirtIODevice *vp_dev,
+                          unsigned index,
+                          unsigned short *pNumEntries,
+                          unsigned long *pAllocationSize,
+                          unsigned long *pHeapSize);
     struct virtqueue *(*setup_vq)(struct TypeVirtIODevice *vp_dev,
                                   tVirtIOPerQueueInfo *info,
                                   unsigned idx,
@@ -349,6 +354,12 @@ void virtio_add_status(VirtIODevice *vdev, u8 status);
 
 int virtio_finalize_features(VirtIODevice *vdev);
 u8 virtio_read_isr_status(VirtIODevice *vdev);
+
+int virtio_query_queue_allocation(VirtIODevice *vdev,
+                                  unsigned index,
+                                  unsigned short *pNumEntries,
+                                  unsigned long *pAllocationSize,
+                                  unsigned long *pHeapSize);
 
 int virtio_find_queues(VirtIODevice *vdev,
                        unsigned nvqs,

@@ -307,6 +307,15 @@ void virtio_device_shutdown(VirtIODevice *pVirtIODevice)
     }
 }
 
+int virtio_query_queue_allocation(VirtIODevice *vdev,
+                                  unsigned index,
+                                  unsigned short *pNumEntries,
+                                  unsigned long *pAllocationSize,
+                                  unsigned long *pHeapSize)
+{
+    return vdev->query_vq_alloc(vdev, index, pNumEntries, pAllocationSize, pHeapSize);
+}
+
 int virtio_find_queues(VirtIODevice *vdev,
                        unsigned nvqs,
                        struct virtqueue *vqs[],
