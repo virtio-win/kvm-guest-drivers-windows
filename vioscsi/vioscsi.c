@@ -512,64 +512,6 @@ EXIT_FN();
     return TRUE;
 }
 
-static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG index, ULONG vector)
-{
-    struct virtqueue *vq = NULL;
-    if (adaptExt->uncachedExtensionVa)
-    {
-        ULONG len = 0;
-        PVOID  ptr = (PVOID)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->allocationOffset);
-        PHYSICAL_ADDRESS pa = StorPortGetPhysicalAddress(adaptExt, NULL, ptr, &len);
-        BOOLEAN useEventIndex = CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX);
-        if (pa.QuadPart)
-        {
-           ULONG Size = 0;
-           ULONG dummy = 0;
-           VirtIODeviceQueryQueueAllocation(adaptExt->pvdev, index, &dummy, &Size);
-           ASSERT((adaptExt->allocationOffset + Size) < adaptExt->allocationSize);
-           vq = VirtIODevicePrepareQueue(adaptExt->pvdev, index, pa, ptr, Size, NULL, useEventIndex);
-           if (vq == NULL)
-           {
-               RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> cannot create virtual queue index = %d vector = %d ptr= %p pa = %08I64X Size = %x uncachedExtensionVa = %p offset = %x\n",
-                    __FUNCTION__, index, vector, ptr, pa.QuadPart, Size, adaptExt->uncachedExtensionVa, adaptExt->allocationOffset));
-               return NULL;
-           }
-           adaptExt->allocationOffset += ROUND_TO_PAGES(Size);
-           RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s index = %lu Size = %lu offset = %lu\n", __FUNCTION__, index, Size, adaptExt->allocationOffset));
-        }
-
-        if (vq == NULL)
-        {
-           RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> cannot create virtual queue index = %d vector = % pa = %08I64X\n", __FUNCTION__, index, vector, pa.QuadPart));
-           return NULL;
-        }
-        if (vector)
-        {
-           unsigned res = VIRTIO_MSI_NO_VECTOR;
-           StorPortWritePortUshort(adaptExt, (PUSHORT)(adaptExt->pvdev->addr + VIRTIO_MSI_QUEUE_VECTOR),(USHORT)vector);
-           res = StorPortReadPortUshort(adaptExt, (PUSHORT)(adaptExt->pvdev->addr + VIRTIO_MSI_QUEUE_VECTOR));
-           RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s>> VIRTIO_MSI_QUEUE_VECTOR vector = %d, res = 0x%x\n", __FUNCTION__, vector, res));
-           if(res == VIRTIO_MSI_NO_VECTOR)
-           {
-              VirtIODeviceDeleteQueue(vq, NULL);
-              vq = NULL;
-              RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot create vq vector\n", __FUNCTION__));
-              return NULL;
-           }
-           StorPortWritePortUshort(adaptExt, (PUSHORT)(adaptExt->pvdev->addr + VIRTIO_MSI_CONFIG_VECTOR),(USHORT)vector);
-           res = StorPortReadPortUshort(adaptExt, (PUSHORT)(adaptExt->pvdev->addr + VIRTIO_MSI_CONFIG_VECTOR));
-           if (res != vector)
-           {
-              VirtIODeviceDeleteQueue(vq, NULL);
-              vq = NULL;
-              RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot set config vector\n", __FUNCTION__));
-              return NULL;
-           }
-        }
-    }
-    return vq;
-}
-
 static BOOLEAN InitializeVirtualQueues(PADAPTER_EXTENSION adaptExt, ULONG numQueues)
 {
     ULONG index;
