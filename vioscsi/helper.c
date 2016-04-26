@@ -186,15 +186,13 @@ ShutDown(
     ULONG index;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 ENTER_FN();
-    VirtIODeviceReset(adaptExt->pvdev);
-    StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), 0);
+    adaptExt->vdev.config->reset(&adaptExt->vdev);
+    adaptExt->vdev.config->del_vqs(&adaptExt->vdev);
     for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
-        if (adaptExt->vq[index]) {
-            virtqueue_shutdown(adaptExt->vq[index]);
-            VirtIODeviceDeleteQueue(adaptExt->vq[index], NULL);
-            adaptExt->vq[index] = NULL;
-        }
+        adaptExt->vq[index] = NULL;
     }
+
+    virtio_device_shutdown(&adaptExt->vdev);
 EXIT_FN();
 }
 
@@ -206,49 +204,111 @@ GetScsiConfig(
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 ENTER_FN();
 
-    adaptExt->features = StorPortReadPortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
+    adaptExt->features = virtio_get_features(&adaptExt->vdev);
 
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, seg_max),
+    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, seg_max),
                       &adaptExt->scsi_config.seg_max, sizeof(adaptExt->scsi_config.seg_max));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("seg_max %lu\n", adaptExt->scsi_config.seg_max));
 
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, num_queues),
+    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, num_queues),
                       &adaptExt->scsi_config.num_queues, sizeof(adaptExt->scsi_config.num_queues));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("num_queues %lu\n", adaptExt->scsi_config.num_queues));
 
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, max_sectors),
+    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_sectors),
                       &adaptExt->scsi_config.max_sectors, sizeof(adaptExt->scsi_config.max_sectors));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_sectors %lu\n", adaptExt->scsi_config.max_sectors));
 
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, cmd_per_lun),
+    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, cmd_per_lun),
                       &adaptExt->scsi_config.cmd_per_lun, sizeof(adaptExt->scsi_config.cmd_per_lun));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("cmd_per_lun %lu\n", adaptExt->scsi_config.cmd_per_lun));
 
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, event_info_size),
+    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, event_info_size),
                       &adaptExt->scsi_config.event_info_size, sizeof(adaptExt->scsi_config.event_info_size));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("seg_max %lu\n", adaptExt->scsi_config.seg_max));
 
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, sense_size),
+    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, sense_size),
                       &adaptExt->scsi_config.sense_size, sizeof(adaptExt->scsi_config.sense_size));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("event_info_size %lu\n", adaptExt->scsi_config.event_info_size));
 
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, cdb_size),
+    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, cdb_size),
                       &adaptExt->scsi_config.cdb_size, sizeof(adaptExt->scsi_config.cdb_size));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("cdb_size %lu\n", adaptExt->scsi_config.cdb_size));
 
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, max_channel),
+    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_channel),
                       &adaptExt->scsi_config.max_channel, sizeof(adaptExt->scsi_config.max_channel));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_channel %u\n", adaptExt->scsi_config.max_channel));
 
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, max_target),
+    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_target),
                       &adaptExt->scsi_config.max_target, sizeof(adaptExt->scsi_config.max_target));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_target %u\n", adaptExt->scsi_config.max_target));
 
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, max_lun),
+    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_lun),
                       &adaptExt->scsi_config.max_lun, sizeof(adaptExt->scsi_config.max_lun));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_lun %lu\n", adaptExt->scsi_config.max_lun));
 
 EXIT_FN();
+}
+
+static int
+GetBarIndex(
+    PPCI_COMMON_HEADER pPCIHeader,
+    PHYSICAL_ADDRESS BasePA
+    )
+{
+    int iBar, i;
+
+    /* no point in supporting PCI and CardBus bridges */
+    ASSERT(pPCIHeader->HeaderType & ~PCI_MULTIFUNCTION == PCI_DEVICE_TYPE);
+
+    for (i = 0; i < PCI_TYPE0_ADDRESSES; i++) {
+        PHYSICAL_ADDRESS BAR;
+        BAR.LowPart = pPCIHeader->u.type0.BaseAddresses[i];
+
+        iBar = i;
+        if (BAR.LowPart & 0x01) {
+            /* I/O space */
+            BAR.LowPart &= 0xFFFFFFFC;
+            BAR.HighPart = 0;
+        }
+        else if ((BAR.LowPart & 0x06) == 0x04) {
+            /* memory space 64-bit */
+            BAR.LowPart &= 0xFFFFFFF0;
+            BAR.HighPart = pPCIHeader->u.type0.BaseAddresses[++i];
+        }
+        else {
+            /* memory space 32-bit */
+            BAR.LowPart &= 0xFFFFFFF0;
+            BAR.HighPart = 0;
+        }
+
+        if (BAR.QuadPart == BasePA.QuadPart) {
+            return iBar;
+        }
+    }
+    return -1;
+}
+
+BOOLEAN
+InitVirtIODevice(
+    IN PVOID DeviceExtension
+    )
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    int err;
+
+    err = virtio_device_initialize(
+        &adaptExt->vdev,
+        &VioScsiSystemOps,
+        adaptExt,
+        sizeof(adaptExt->vdev));
+    if (err != 0) {
+        LogError(adaptExt,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Failed to initialize virtio device, error %d\n", err));
+        return FALSE;
+    }
+    return TRUE;
 }
 
 BOOLEAN
@@ -259,46 +319,49 @@ InitHW(
 {
     PACCESS_RANGE      accessRange;
     PADAPTER_EXTENSION adaptExt;
+    ULONG pci_cfg_len, i;
 
 ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    accessRange = &(*ConfigInfo->AccessRanges)[0];
+    adaptExt->system_io_bus_number = ConfigInfo->SystemIoBusNumber;
 
-    ASSERT (FALSE == accessRange->RangeInMemory) ;
+    /* read PCI config space */
+    pci_cfg_len = StorPortGetBusData(
+        DeviceExtension,
+        PCIConfiguration,
+        ConfigInfo->SystemIoBusNumber,
+        (ULONG)ConfigInfo->SlotNumber,
+        (PVOID)&adaptExt->pci_config_buf,
+        sizeof(adaptExt->pci_config_buf));
 
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Port  Resource [%08I64X-%08I64X]\n",
-                accessRange->RangeStart.QuadPart,
-                accessRange->RangeStart.QuadPart +
-                accessRange->RangeLength));
-
-    if ( accessRange->RangeLength < IO_PORT_LENGTH) {
+    if (pci_cfg_len != sizeof(adaptExt->pci_config_buf)) {
         LogError(DeviceExtension,
                 SP_INTERNAL_ADAPTER_ERROR,
                 __LINE__);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Wrong access range %x bytes\n", accessRange->RangeLength));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("CANNOT READ PCI CONFIGURATION SPACE %d\n", pci_cfg_len));
         return FALSE;
     }
 
-    adaptExt->device_base = (ULONG_PTR)StorPortGetDeviceBase(DeviceExtension,
-                                           ConfigInfo->AdapterInterfaceType,
-                                           ConfigInfo->SystemIoBusNumber,
-                                           accessRange->RangeStart,
-                                           accessRange->RangeLength,
-                                           (BOOLEAN)!accessRange->RangeInMemory);
-
-    if (adaptExt->device_base == (ULONG_PTR)NULL) {
-        LogError(DeviceExtension,
-                SP_INTERNAL_ADAPTER_ERROR,
-                __LINE__);
-
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Couldn't map %x for %x bytes\n",
-                   (*ConfigInfo->AccessRanges)[0].RangeStart.LowPart,
-                   (*ConfigInfo->AccessRanges)[0].RangeLength));
-        return FALSE;
+    /* initialize the pci_bars array */
+    for (i = 0; i < ConfigInfo->NumberOfAccessRanges; i++) {
+        accessRange = *ConfigInfo->AccessRanges + i;
+        if (accessRange->RangeLength != 0) {
+            int iBar = GetBarIndex(&adaptExt->pci_config, accessRange->RangeStart);
+            if (iBar == -1) {
+                RhelDbgPrint(TRACE_LEVEL_FATAL,
+                             ("Cannot get index for BAR %I64d\n", accessRange->RangeStart.QuadPart));
+                return FALSE;
+            }
+            adaptExt->pci_bars[iBar].BasePA = accessRange->RangeStart;
+            adaptExt->pci_bars[iBar].uLength = accessRange->RangeLength;
+            adaptExt->pci_bars[iBar].bPortSpace = !accessRange->RangeInMemory;
+        }
     }
 
-    adaptExt->pvdev = &adaptExt->vdev;
-    VirtIODeviceInitialize(adaptExt->pvdev, adaptExt->device_base, sizeof(VirtIODevice));
+    /* initialize the virtual device */
+    if (!InitVirtIODevice(DeviceExtension)) {
+        return FALSE;
+    }
 
 EXIT_FN();
     return TRUE;

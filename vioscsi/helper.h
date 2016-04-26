@@ -121,6 +121,11 @@ GetScsiConfig(
     );
 
 BOOLEAN
+InitVirtIODevice(
+    IN PVOID DeviceExtension
+    );
+
+BOOLEAN
 InitHW(
     IN PVOID DeviceExtension, 
     IN PPORT_CONFIGURATION_INFORMATION ConfigInfo
@@ -184,4 +189,7 @@ HandleResponse(
     IN PVOID DeviceExtension,
     IN PVirtIOSCSICmd cmd
     );
+
+extern VirtIOSystemOps VioScsiSystemOps;
+
 #endif ___HELPER_H___
