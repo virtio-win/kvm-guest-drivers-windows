@@ -27,33 +27,62 @@
 #include "utils.h"
 #include "vioscsi.h"
 
+/* The lower 64k of memory is never mapped so we can use the same routines
+ * for both port I/O and memory access and use the address alone to decide
+ * which space to use.
+ */
+#define PORT_MASK 0xFFFF
 
 u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
 {
-    return StorPortReadPortUlong(NULL, (PULONG)(ulRegister));
+    if (ulRegister & ~PORT_MASK) {
+        return StorPortReadRegisterUlong(NULL, (PULONG)(ulRegister));
+    } else {
+        return StorPortReadPortUlong(NULL, (PULONG)(ulRegister));
+    }
 }
 
 void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
 {
-    StorPortWritePortUlong(NULL, (PULONG)(ulRegister),(ULONG)(ulValue) );
+    if (ulRegister & ~PORT_MASK) {
+        StorPortWriteRegisterUlong(NULL, (PULONG)(ulRegister), (ULONG)(ulValue));
+    } else {
+        StorPortWritePortUlong(NULL, (PULONG)(ulRegister), (ULONG)(ulValue));
+    }
 }
 
 u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
 {
-    return StorPortReadPortUchar(NULL, (PUCHAR)(ulRegister));
+    if (ulRegister & ~PORT_MASK) {
+        return StorPortReadRegisterUchar(NULL, (PUCHAR)(ulRegister));
+    } else {
+        return StorPortReadPortUchar(NULL, (PUCHAR)(ulRegister));
+    }
 }
 
 void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
 {
-    StorPortWritePortUchar(NULL, (PUCHAR)(ulRegister),(UCHAR)(bValue));
+    if (ulRegister & ~PORT_MASK) {
+        StorPortWriteRegisterUchar(NULL, (PUCHAR)(ulRegister), (UCHAR)(bValue));
+    } else {
+        StorPortWritePortUchar(NULL, (PUCHAR)(ulRegister), (UCHAR)(bValue));
+    }
 }
 
 u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
 {
-    return StorPortReadPortUshort(NULL, (PUSHORT)(ulRegister));
+    if (ulRegister & ~PORT_MASK) {
+        return StorPortReadRegisterUshort(NULL, (PUSHORT)(ulRegister));
+    } else {
+        return StorPortReadPortUshort(NULL, (PUSHORT)(ulRegister));
+    }
 }
 
 void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
 {
-    StorPortWritePortUshort(NULL, (PUSHORT)(ulRegister),(USHORT)(wValue));
+    if (ulRegister & ~PORT_MASK) {
+        StorPortWriteRegisterUshort(NULL, (PUSHORT)(ulRegister), (USHORT)(wValue));
+    } else {
+        StorPortWritePortUshort(NULL, (PUSHORT)(ulRegister), (USHORT)(wValue));
+    }
 }
