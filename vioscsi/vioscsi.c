@@ -414,7 +414,7 @@ ENTER_FN();
 
     adaptExt->features = StorPortReadPortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
     adaptExt->allocationSize = 0;
-    adaptExt->offset = 0;
+    adaptExt->allocationOffset = 0;
     Size = 0;
     for (index = VIRTIO_SCSI_CONTROL_QUEUE; index <= VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
         VirtIODeviceQueryQueueAllocation(adaptExt->pvdev, index, &pageNum, &Size);
@@ -522,7 +522,7 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
     if (adaptExt->uncachedExtensionVa)
     {
         ULONG len = 0;
-        PVOID  ptr = (PVOID)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset);
+        PVOID  ptr = (PVOID)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->allocationOffset);
         PHYSICAL_ADDRESS pa = StorPortGetPhysicalAddress(adaptExt, NULL, ptr, &len);
         BOOLEAN useEventIndex = CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX);
         if (pa.QuadPart)
@@ -530,16 +530,16 @@ static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG ind
            ULONG Size = 0;
            ULONG dummy = 0;
            VirtIODeviceQueryQueueAllocation(adaptExt->pvdev, index, &dummy, &Size);
-           ASSERT((adaptExt->offset + Size) < adaptExt->allocationSize);
+           ASSERT((adaptExt->allocationOffset + Size) < adaptExt->allocationSize);
            vq = VirtIODevicePrepareQueue(adaptExt->pvdev, index, pa, ptr, Size, NULL, useEventIndex);
            if (vq == NULL)
            {
                RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> cannot create virtual queue index = %d vector = %d ptr= %p pa = %08I64X Size = %x uncachedExtensionVa = %p offset = %x\n",
-                    __FUNCTION__, index, vector, ptr, pa.QuadPart, Size, adaptExt->uncachedExtensionVa, adaptExt->offset));
+                    __FUNCTION__, index, vector, ptr, pa.QuadPart, Size, adaptExt->uncachedExtensionVa, adaptExt->allocationOffset));
                return NULL;
            }
-           adaptExt->offset += ROUND_TO_PAGES(Size);
-           RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s index = %lu Size = %lu offset = %lu\n", __FUNCTION__, index, Size, adaptExt->offset));
+           adaptExt->allocationOffset += ROUND_TO_PAGES(Size);
+           RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s index = %lu Size = %lu offset = %lu\n", __FUNCTION__, index, Size, adaptExt->allocationOffset));
         }
 
         if (vq == NULL)
@@ -605,7 +605,7 @@ ENTER_FN();
              (PULONG)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), guestFeatures);
 
     adaptExt->msix_vectors = 0;
-    adaptExt->offset = 0;
+    adaptExt->allocationOffset = 0;
 
 #if (MSI_SUPPORTED == 1)
     while(StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS) {
@@ -630,9 +630,9 @@ ENTER_FN();
 //HACK
         if (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0 > MAX_QUEUES_PER_DEVICE_DEFAULT)
         {
-            ULONG_PTR ptr = ((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset);
+            ULONG_PTR ptr = ((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->allocationOffset);
             ULONG size = ROUND_TO_PAGES(VirtIODeviceSizeRequired((USHORT)(adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0)));
-            adaptExt->offset += size;
+            adaptExt->allocationOffset += size;
             RtlCopyMemory((PVOID)ptr, (PVOID)adaptExt->pvdev, sizeof(VirtIODevice));
             adaptExt->pvdev = (VirtIODevice*)ptr;
             VirtIODeviceInitialize(adaptExt->pvdev,  adaptExt->device_base, size);
@@ -667,12 +667,12 @@ ENTER_FN();
         }
     }
 
-    adaptExt->tmf_cmd.SrbExtension = (PSRB_EXTENSION)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset);
-    adaptExt->offset += ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
-    adaptExt->events = (PVirtIOSCSIEventNode)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset);
-    adaptExt->offset += ROUND_TO_PAGES(sizeof(VirtIOSCSIEventNode)* 8);
-    adaptExt->dpc = (PSTOR_DPC)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->offset);
-    adaptExt->offset += ROUND_TO_PAGES(sizeof(STOR_DPC) * adaptExt->num_queues);
+    adaptExt->tmf_cmd.SrbExtension = (PSRB_EXTENSION)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->allocationOffset);
+    adaptExt->allocationOffset += ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
+    adaptExt->events = (PVirtIOSCSIEventNode)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->allocationOffset);
+    adaptExt->allocationOffset += ROUND_TO_PAGES(sizeof(VirtIOSCSIEventNode)* 8);
+    adaptExt->dpc = (PSTOR_DPC)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->allocationOffset);
+    adaptExt->allocationOffset += ROUND_TO_PAGES(sizeof(STOR_DPC) * adaptExt->num_queues);
 
     if (!adaptExt->dump_mode && CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_HOTPLUG)) {
         PVirtIOSCSIEventNode events = adaptExt->events;

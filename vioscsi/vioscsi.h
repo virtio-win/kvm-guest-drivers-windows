@@ -242,17 +242,34 @@ typedef struct {
 }TMF_COMMAND, * PTMF_COMMAND;
 #pragma pack()
 
+typedef struct virtio_bar {
+    PHYSICAL_ADDRESS  BasePA;
+    ULONG             uLength;
+    PVOID             pBase;
+    BOOLEAN           bPortSpace;
+} VIRTIO_BAR, *PVIRTIO_BAR;
+
 typedef struct _ADAPTER_EXTENSION {
     VirtIODevice          vdev;
     VirtIODevice*         pvdev;
 
     PVOID                 uncachedExtensionVa;
     ULONG                 allocationSize;
+    ULONG                 allocationOffset;
+
+    PVOID                 poolAllocationVa;
+    ULONG                 poolAllocationSize;
+    ULONG                 poolOffset;
 
     struct virtqueue *    vq[VIRTIO_SCSI_QUEUE_LAST];
-    ULONG                 offset;
     ULONG_PTR             device_base;
     VirtIOSCSIConfig      scsi_config;
+    union {
+        PCI_COMMON_HEADER pci_config;
+        UCHAR             pci_config_buf[sizeof(PCI_COMMON_CONFIG)];
+    };
+    VIRTIO_BAR            pci_bars[PCI_TYPE0_ADDRESSES];
+    ULONG                 system_io_bus_number;
 
     ULONG                 queue_depth;
     BOOLEAN               dump_mode;
