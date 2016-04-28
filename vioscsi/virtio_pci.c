@@ -232,6 +232,14 @@ static u16 pci_get_msix_vector(void *context, int queue)
     return vector;
 }
 
+static void msleep(void *context, unsigned int msecs)
+{
+    UNREFERENCED_PARAMETER(context);
+
+    /* We can't really sleep in a storage miniport so we just busy wait. */
+    KeStallExecutionProcessor(1000 * msecs);
+}
+
 VirtIOSystemOps VioScsiSystemOps = {
     alloc_pages_exact,
     free_pages_exact,
@@ -246,4 +254,5 @@ VirtIOSystemOps VioScsiSystemOps = {
     pci_get_msix_vector,
     pci_iomap_range,
     pci_iounmap,
+    msleep,
 };
