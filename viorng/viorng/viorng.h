@@ -27,7 +27,7 @@
 #include <ntddk.h>
 #include <wdf.h>
 #include <bcrypt.h>
-#include <wdmguid.h>
+#include <wdmguid.h> // required for GUID_BUS_INTERFACE_STANDARD
 
 #include "trace.h"
 
