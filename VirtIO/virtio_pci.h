@@ -227,6 +227,9 @@ typedef struct virtio_system_ops {
     u16 (*pci_get_msix_vector)(void *context, int queue);
     void *(*pci_iomap_range)(void *context, int bar, size_t offset, size_t maxlen);
     void (*pci_iounmap)(void *context, void *address);
+
+    // misc
+    void (*msleep)(void *context, unsigned int msecs);
 } VirtIOSystemOps;
 
 typedef struct TypeVirtIODevice

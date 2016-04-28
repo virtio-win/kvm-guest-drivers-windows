@@ -38,6 +38,8 @@
     vp_dev->system->kmalloc(vp_dev->DeviceContext, size)
 #define kfree(vp_dev, addr) \
     vp_dev->system->kfree(vp_dev->DeviceContext, addr)
+#define msleep(vp_dev, msecs) \
+    vp_dev->system->msleep(vp_dev->DeviceContext, msecs)
 
 #define pci_read_config_byte(vp_dev, where, bVal) \
     vp_dev->system->pci_read_config_byte(vp_dev->DeviceContext, where, bVal)

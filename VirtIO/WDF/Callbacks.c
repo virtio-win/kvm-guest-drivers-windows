@@ -162,6 +162,24 @@ static u16 pci_get_msix_vector(void *context, int queue)
     return vector;
 }
 
+static void msleep(void *context, unsigned int msecs)
+{
+    NTSTATUS status = STATUS_UNSUCCESSFUL;
+
+    UNREFERENCED_PARAMETER(context);
+
+    if (KeGetCurrentIrql() <= APC_LEVEL) {
+        LARGE_INTEGER delay;
+        delay.QuadPart = Int32x32To64(msecs, -10000);
+        status = KeDelayExecutionThread(KernelMode, FALSE, &delay);
+    }
+
+    if (!NT_SUCCESS(status)) {
+        /* fall back to busy wait if we're not allowed to sleep */
+        KeStallExecutionProcessor(1000 * msecs);
+    }
+}
+
 VirtIOSystemOps VirtIOWdfSystemOps = {
     alloc_pages_exact,
     free_pages_exact,
@@ -176,4 +194,5 @@ VirtIOSystemOps VirtIOWdfSystemOps = {
     pci_get_msix_vector,
     pci_iomap_range,
     pci_iounmap,
+    msleep,
 };

@@ -269,9 +269,14 @@ static void vp_reset(virtio_device *vdev)
     virtio_pci_device *vp_dev = to_vp_device(vdev);
     /* 0 status means a reset. */
     vp_iowrite8(0, &vp_dev->common->device_status);
-    /* Flush out the status write, and flush in device writes,
-    * including MSI-X interrupts, if any. */
-    vp_ioread8(&vp_dev->common->device_status);
+    /* After writing 0 to device_status, the driver MUST wait for a read of
+    * device_status to return 0 before reinitializing the device.
+    * This will flush out the status write, and flush in device writes,
+    * including MSI-X interrupts, if any.
+    */
+    while (vp_ioread8(&vp_dev->common->device_status)) {
+        msleep(vp_dev, 1);
+    }
 }
 
 static u16 vp_config_vector(virtio_pci_device *vp_dev, u16 vector)
