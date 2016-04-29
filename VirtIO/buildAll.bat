@@ -18,7 +18,7 @@ goto :wdf
 :parameters_here
 
 :nextparam
-if "%1"=="" goto :wdf
+if "%1"=="" goto :eof
 goto %1
 :continue
 shift
@@ -31,51 +31,51 @@ popd
 goto :eof
 
 :WLH_32
-call :BuildProject "Vista Release|Win32" buildfre_wlh_x86.log
-goto continue
+call :BuildProject "Vista Release|x86" buildfre_wlh_x86.log
+goto :continue
 
 :WLH_64
 call :BuildProject "Vista Release|x64" buildfre_wlh_amd64.log
-goto continue
+goto :continue
 
 :WNet_32
-call :BuildProject "Win2k3 Release|Win32" buildfre_wnet_x86.log
-goto continue
+call :BuildProject "Win2k3 Release|x86" buildfre_wnet_x86.log
+goto :continue
 
 :WNet_64
 call :BuildProject "Win2k3 Release|x64" buildfre_wnet_amd64.log
-goto continue
+goto :continue
 
 :WXp_32
-call :BuildProject "WinXP Release|Win32" buildfre_wxp_x86.log
-goto continue
+call :BuildProject "WinXP Release|x86" buildfre_wxp_x86.log
+goto :continue
 
 :WXp_64
-goto continue
+goto :continue
 
 :Win7_32
 call :BuildProject "Win7 Release|x86" buildfre_win7_x86.log
-goto continue
+goto :continue
 
 :Win7_64
 call :BuildProject "Win7 Release|x64" buildfre_win7_amd64.log
-goto continue
+goto :continue
 
 :Win8_32
 call :BuildProject "Win8 Release|x86" buildfre_win8_x86.log
-goto continue
+goto :continue
 
 :Win8_64
 call :BuildProject "Win8 Release|x64" buildfre_win8_amd64.log
-goto continue
+goto :continue
 
 :Win10_32
 call :BuildProject "Win10 Release|x86" buildfre_win10_x86.log
-goto continue
+goto :continue
 
 :Win10_64
 call :BuildProject "Win10 Release|x64" buildfre_win10_amd64.log
-goto continue
+goto :continue
 
 :BuildProject
 call ..\tools\callVisualStudio.bat 14 VirtioLib.vcxproj /Rebuild "%~1" /Out %2
