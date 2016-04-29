@@ -7,24 +7,24 @@ C_DEFINES = -D_NT_TARGET_MAJ=$(_NT_TARGET_MAJ) $(C_DEFINES)
 C_DEFINES = -D_NT_TARGET_MIN=$(_RHEL_RELEASE_VERSION_) $(C_DEFINES)
 
 !if "$(DDK_TARGET_OS)" == "WinLH"
-INF_NAME=WinLH
+INF_NAME=viostor
 C_DEFINES = -DUSE_STORPORT=1 $(C_DEFINES)
 C_DEFINES = -DMSI_SUPPORTED=1 $(C_DEFINES)
 TARGETLIBS=$(SDK_LIB_PATH)\storport.lib ..\VirtIO\$(O)\virtiolib.lib
 !elseif "$(DDK_TARGET_OS)" == "Win7"
-INF_NAME=WinLH
+INF_NAME=viostor
 C_DEFINES = -DUSE_STORPORT=1 $(C_DEFINES)
 C_DEFINES = -DMSI_SUPPORTED=1 $(C_DEFINES)
 TARGETLIBS=$(SDK_LIB_PATH)\storport.lib ..\VirtIO\$(O)\virtiolib.lib
 !elseif "$(DDK_TARGET_OS)" == "WinNET"
-INF_NAME=WinNET
+INF_NAME=viostor_no_msi
 C_DEFINES = -DUSE_STORPORT=1 $(C_DEFINES)
 TARGETLIBS=$(SDK_LIB_PATH)\storport.lib ..\VirtIO\$(O)\virtiolib.lib
 !elseif "$(DDK_TARGET_OS)" == "WinXP"
-INF_NAME=WinXP
+INF_NAME=viostor_no_msi
 TARGETLIBS=$(SDK_LIB_PATH)\scsiport.lib ..\VirtIO\$(O)\virtiolib.lib
 !else
-INF_NAME=WinLH
+INF_NAME=viostor
 C_DEFINES = -DMSI_SUPPORTED=1 $(C_DEFINES)
 C_DEFINES = -DUSE_STORPORT=1 $(C_DEFINES)
 TARGETLIBS=$(SDK_LIB_PATH)\storport.lib ..\VirtIO\$(O)\virtiolib.lib
