@@ -90,11 +90,11 @@ void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
 static void *alloc_pages_exact(void *context, size_t size)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
-    PVOID ptr = (PVOID)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->allocationOffset);
+    PVOID ptr = (PVOID)((ULONG_PTR)adaptExt->pageAllocationVa + adaptExt->pageOffset);
 
-    if ((adaptExt->allocationOffset + size) <= adaptExt->allocationSize) {
+    if ((adaptExt->pageOffset + size) <= adaptExt->pageAllocationSize) {
         size = ROUND_TO_PAGES(size);
-        adaptExt->allocationOffset += size;
+        adaptExt->pageOffset += size;
         RtlZeroMemory(ptr, size);
         return ptr;
     } else {
@@ -123,17 +123,7 @@ static ULONGLONG virt_to_phys(void *context, void *address)
 
 static void *kmalloc(void *context, size_t size)
 {
-    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
-    PVOID ptr = (PVOID)((ULONG_PTR)adaptExt->poolAllocationVa + adaptExt->poolOffset);
-
-    if ((adaptExt->poolOffset + size) <= adaptExt->poolAllocationSize) {
-        adaptExt->poolOffset += size;
-        RtlZeroMemory(ptr, size);
-        return ptr;
-    } else {
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Ran out of memory in kmalloc(%Id)\n", size));
-        return NULL;
-    }
+    return VioScsiPoolAlloc(context, size);
 }
 
 static void kfree(void *context, void *addr)

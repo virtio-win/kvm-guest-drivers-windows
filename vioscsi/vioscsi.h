@@ -252,9 +252,9 @@ typedef struct virtio_bar {
 typedef struct _ADAPTER_EXTENSION {
     VirtIODevice          vdev;
 
-    PVOID                 uncachedExtensionVa;
-    ULONG                 allocationSize;
-    ULONG                 allocationOffset;
+    PVOID                 pageAllocationVa;
+    ULONG                 pageAllocationSize;
+    ULONG                 pageOffset;
 
     PVOID                 poolAllocationVa;
     ULONG                 poolAllocationSize;
