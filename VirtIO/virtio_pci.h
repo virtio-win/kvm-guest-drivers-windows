@@ -264,7 +264,7 @@ typedef struct TypeVirtIODevice
     ULONG maxQueues;
     tVirtIOPerQueueInfo info[MAX_QUEUES_PER_DEVICE_DEFAULT];
     /* do not add any members after info struct, it is extensible */
-} VirtIODevice;
+} VirtIODevice, virtio_pci_device;
 
 
 /***************************************************

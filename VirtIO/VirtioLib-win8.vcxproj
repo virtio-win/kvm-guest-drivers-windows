@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="WinXP Release|Win32">
       <Configuration>WinXP Release</Configuration>
@@ -41,12 +41,12 @@
       <Configuration>Vista Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Win10 Release|Win32">
-      <Configuration>Win10 Release</Configuration>
+    <ProjectConfiguration Include="Win7 Debug|Win32">
+      <Configuration>Win7 Debug</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Win10 Release|x64">
-      <Configuration>Win10 Release</Configuration>
+    <ProjectConfiguration Include="Win7 Debug|x64">
+      <Configuration>Win7 Debug</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win7 Release|Win32">
@@ -55,6 +55,22 @@
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win7 Release|x64">
       <Configuration>Win7 Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8 Debug|Win32">
+      <Configuration>Win8 Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8 Debug|x64">
+      <Configuration>Win8 Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win10 Debug|Win32">
+      <Configuration>Win10 Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win10 Debug|x64">
+      <Configuration>Win10 Debug</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win8.1 Release|Win32">
@@ -73,6 +89,14 @@
       <Configuration>Win8 Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Win10 Release|Win32">
+      <Configuration>Win10 Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win10 Release|x64">
+      <Configuration>Win10 Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="VirtIOPCICommon.c" />
@@ -83,19 +107,22 @@
   <ItemGroup>
     <ClInclude Include="kdebugprint.h" />
     <ClInclude Include="linux\types.h" />
+    <ClInclude Include="linux\virtio_byteorder.h" />
     <ClInclude Include="linux\virtio_ids.h" />
     <ClInclude Include="linux\virtio_types.h" />
+    <ClInclude Include="linux\virtio_config.h" />
     <ClInclude Include="osdep.h" />
     <ClInclude Include="virtio.h" />
     <ClInclude Include="virtio_config.h" />
     <ClInclude Include="virtio_pci.h" />
+    <ClInclude Include="virtio_pci_common.h" />
     <ClInclude Include="virtio_ring.h" />
     <ClInclude Include="windows\virtio_ring_allocation.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{E16FC0F4-6AFF-4DA9-B556-BEB0F405857D}</ProjectGuid>
+    <ProjectGuid>{01D87C47-437A-4A16-8FD9-33FA5C99339E}</ProjectGuid>
     <TemplateGuid>{0a049372-4c4d-4ea0-a64e-dc6ad88ceca1}</TemplateGuid>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <MinimumVisualStudioVersion>11.0</MinimumVisualStudioVersion>
     <Configuration>Win8 Release</Configuration>
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
@@ -111,22 +138,14 @@
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <TargetName>virtiolib</TargetName>
   </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
     <DriverType>WDM</DriverType>
-    <ClCompile>
-      <AdditionalOptions>/kernel %(AdditionalOptions)</AdditionalOptions>
-      <WarningLevel>Level3</WarningLevel>
-    </ClCompile>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="$(Configuration.EndsWith('Debug'))">
     <UseDebugLibraries>true</UseDebugLibraries>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
-    <TargetVersion>WindowsV6.3</TargetVersion>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <TargetVersion>WindowsV6.3</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
   </PropertyGroup>
@@ -134,35 +153,47 @@
     <TargetVersion>Windows8</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
   </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
+    <TargetVersion>Windows8</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
+    <TargetVersion>Windows10</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">
+    <TargetVersion>Windows10</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+  </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
+    <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
     <TargetVersion>Windows7</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v140_xp</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|Win32'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v140_xp</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win2k3 Debug|Win32'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v140_xp</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='WinXP Release|Win32'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v140_xp</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='WinXP Debug|Win32'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v140_xp</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
-    <TargetVersion>WindowsV6.3</TargetVersion>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <TargetVersion>WindowsV6.3</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
   </PropertyGroup>
@@ -170,29 +201,45 @@
     <TargetVersion>Windows8</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
   </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
+    <TargetVersion>Windows8</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
+    <TargetVersion>Windows10</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
+    <TargetVersion>Windows10</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+  </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
+    <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
     <TargetVersion>Windows7</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v140_xp</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|x64'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v140_xp</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win2k3 Debug|x64'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v140_xp</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='WinXP Release|x64'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v140_xp</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='WinXP Debug|x64'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v140_xp</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -205,17 +252,29 @@
     <OutDir>objfre_win8_x86\i386\</OutDir>
     <IntDir>objfre_win8_x86\i386\</IntDir>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
-    <OutDir>objfre_win10_x86\i386\</OutDir>
-    <IntDir>objfre_win10_x86\i386\</IntDir>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <OutDir>objfre_win8_x86\i386\</OutDir>
     <IntDir>objfre_win8_x86\i386\</IntDir>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
+    <OutDir>objchk_win8_x86\i386\</OutDir>
+    <IntDir>objchk_win8_x86\i386\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
+    <OutDir>objfre_win10_x86\i386\</OutDir>
+    <IntDir>objfre_win10_x86\i386\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">
+    <OutDir>objchk_win10_x86\i386\</OutDir>
+    <IntDir>objchk_win10_x86\i386\</IntDir>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
     <OutDir>objfre_win7_x86\i386\</OutDir>
     <IntDir>objfre_win7_x86\i386\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
+    <OutDir>objchk_win7_x86\i386\</OutDir>
+    <IntDir>objchk_win7_x86\i386\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <OutDir>objfre_wlh_x86\i386\</OutDir>
@@ -241,17 +300,29 @@
     <OutDir>objfre_win8_amd64\amd64\</OutDir>
     <IntDir>objfre_win8_amd64\amd64\</IntDir>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
-    <OutDir>objfre_win10_amd64\amd64\</OutDir>
-    <IntDir>objfre_win10_amd64\amd64\</IntDir>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <OutDir>objfre_win8_amd64\amd64\</OutDir>
     <IntDir>objfre_win8_amd64\amd64\</IntDir>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
+    <OutDir>objchk_win8_amd64\amd64\</OutDir>
+    <IntDir>objchk_win8_amd64\amd64\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
+    <OutDir>objfre_win10_amd64\amd64\</OutDir>
+    <IntDir>objfre_win10_amd64\amd64\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
+    <OutDir>objchk_win10_amd64\amd64\</OutDir>
+    <IntDir>objchk_win10_amd64\amd64\</IntDir>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <OutDir>objfre_win7_amd64\amd64\</OutDir>
     <IntDir>objfre_win7_amd64\amd64\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+    <OutDir>objchk_win7_amd64\amd64\</OutDir>
+    <IntDir>objchk_win7_amd64\amd64\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <OutDir>objfre_wlh_amd64\amd64\</OutDir>
@@ -272,8 +343,28 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Debug|x64'">
     <OutDir>objchk_wxp_amd64\amd64\</OutDir>
     <IntDir>objchk_wxp_amd64\amd64\</IntDir>
-+  </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v120_xp'">
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalOptions>/kernel %(AdditionalOptions)</AdditionalOptions>
+      <WarningLevel>Level3</WarningLevel>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">false</DisableLanguageExtensions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v140_xp'">
     <ClCompile>
       <AdditionalIncludeDirectories>$(ProjectDir);$(LegacyDDKDir)\inc\ddk;$(LegacyDDKDir)\inc\crt;$(LegacyDDKDir)\inc\api;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary />
@@ -286,12 +377,12 @@
       <StructMemberAlignment>8Bytes</StructMemberAlignment>
       <TreatWarningAsError>true</TreatWarningAsError>
       <StringPooling>true</StringPooling>
-      <ForceConformanceInForLoopScope>false</ForceConformanceInForLoopScope>
+      <ForceConformanceInForLoopScope>true</ForceConformanceInForLoopScope>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <ExceptionHandling />
     </ClCompile>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(PlatformToolset)|$(Platform)'=='v120_xp|Win32'">
+  <ItemDefinitionGroup Condition="'$(PlatformToolset)|$(Platform)'=='v140_xp|Win32'">
     <ClCompile>
       <PreprocessorDefinitions>_X86_=1;i386=1;STD_CALL;WINNT=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CallingConvention>StdCall</CallingConvention>
@@ -300,7 +391,7 @@
       <TargetMachine>MachineX86</TargetMachine>
     </Lib>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(PlatformToolset)|$(Platform)'=='v120_xp|x64'">
+  <ItemDefinitionGroup Condition="'$(PlatformToolset)|$(Platform)'=='v140_xp|x64'">
     <ClCompile>
       <PreprocessorDefinitions>_AMD64_;AMD64;_WIN64;WINNT=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
@@ -311,16 +402,26 @@
   <ItemDefinitionGroup Condition="$(Configuration.StartsWith('Vista'))">
     <ClCompile>
       <PreprocessorDefinitions>_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000100;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">false</DisableLanguageExtensions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="$(Configuration.StartsWith('Win2k3'))">
     <ClCompile>
       <PreprocessorDefinitions>_WIN32_WINNT=0x0502;WINVER=0x0502;NTDDI_VERSION=0x05020100;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|Win32'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win2k3 Debug|Win32'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|x64'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win2k3 Debug|x64'">false</DisableLanguageExtensions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="$(Configuration.StartsWith('WinXP'))">
     <ClCompile>
       <PreprocessorDefinitions>_WIN32_WINNT=0x0501;WINVER=0x0501;NTDDI_VERSION=0x05010200;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='WinXP Release|Win32'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='WinXP Debug|Win32'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='WinXP Release|x64'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='WinXP Debug|x64'">false</DisableLanguageExtensions>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
