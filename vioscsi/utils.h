@@ -25,6 +25,9 @@
 #define CHECKFLAG(value, flag) ((value & (flag)) == flag)
 #define SETFLAG(value, flag) (value |= (flag))
 
+#define CACHE_LINE_SIZE 64
+#define ROUND_TO_CACHE_LINES(Size)  (((ULONG_PTR)(Size) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1))
+
 #if 0
 #define ENTER_FN() RhelDbgPrint(TRACE_LEVEL_VERBOSE, (("--> %s.\n"),__FUNCTION__))
 #define EXIT_FN()  RhelDbgPrint(TRACE_LEVEL_VERBOSE, (("<-- %s.\n"),__FUNCTION__))

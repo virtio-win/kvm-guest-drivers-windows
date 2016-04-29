@@ -190,6 +190,12 @@ HandleResponse(
     IN PVirtIOSCSICmd cmd
     );
 
+PVOID
+VioScsiPoolAlloc(
+    IN PVOID DeviceExtension,
+    IN SIZE_T size
+    );
+
 extern VirtIOSystemOps VioScsiSystemOps;
 
 #endif ___HELPER_H___

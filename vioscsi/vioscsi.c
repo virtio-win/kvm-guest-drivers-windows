@@ -264,6 +264,7 @@ VioScsiFindAdapter(
     )
 {
     PADAPTER_EXTENSION adaptExt;
+    PVOID              uncachedExtensionVa;
     USHORT             queueLength;
     ULONG              Size;
     ULONG              HeapSize;
@@ -397,9 +398,19 @@ ENTER_FN();
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus));
 
-    adaptExt->allocationSize = 0;
-    adaptExt->allocationOffset = 0;
+    /* This function is our only chance to allocate memory for the driver; allocations are not
+     * possible later on. Even worse, the only allocation mechanism guaranteed to work in all
+     * cases is StorPortGetUncachedExtension, which gives us one block of physically contiguous
+     * pages.
+     *
+     * Allocations that need to be page-aligned will be satisfied from this one block starting
+     * at the first page-aligned offset, up to adaptExt->pageAllocationSize computed below. Other
+     * allocations will be cache-line-aligned, of total size adaptExt->poolAllocationSize, also
+     * computed below.
+     */
+    adaptExt->pageAllocationSize = 0;
     adaptExt->poolAllocationSize = 0;
+    adaptExt->pageOffset = 0;
     adaptExt->poolOffset = 0;
     Size = 0;
     for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
@@ -412,20 +423,18 @@ ENTER_FN();
             RhelDbgPrint(TRACE_LEVEL_FATAL, ("Virtual queue %d config failed.\n", index));
             return SP_RETURN_ERROR;
         }
-        adaptExt->allocationSize += ROUND_TO_PAGES(Size);
-        adaptExt->poolAllocationSize += HeapSize;
+        adaptExt->pageAllocationSize += ROUND_TO_PAGES(Size);
+        adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(HeapSize);
     }
     if (!adaptExt->dump_mode) {
-        adaptExt->allocationSize += (ROUND_TO_PAGES(Size) * max_cpus);
-        adaptExt->allocationSize += ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
-        adaptExt->allocationSize += ROUND_TO_PAGES(sizeof(VirtIOSCSIEventNode) * 8);
-        adaptExt->allocationSize += ROUND_TO_PAGES(sizeof(STOR_DPC) * adaptExt->num_queues);
-    } else {
-        adaptExt->allocationSize += ROUND_TO_PAGES(Size);
+        adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(sizeof(SRB_EXTENSION));
+        adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(sizeof(VirtIOSCSIEventNode) * 8);
+        adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(sizeof(STOR_DPC) * adaptExt->num_queues);
     }
     if (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0 > MAX_QUEUES_PER_DEVICE_DEFAULT)
     {
-        adaptExt->poolAllocationSize += (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0) * virtio_queue_descriptor_size();
+        adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(
+            (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0) * virtio_queue_descriptor_size());
     }
 
 #if (INDIRECT_SUPPORTED == 1)
@@ -456,10 +465,10 @@ ENTER_FN();
                 ConfigInfo->NumberOfPhysicalBreaks,
                 adaptExt->queue_depth));
 
-    extensionSize = PAGE_SIZE + adaptExt->allocationSize + adaptExt->poolAllocationSize;
-    adaptExt->uncachedExtensionVa = StorPortGetUncachedExtension(DeviceExtension, ConfigInfo, extensionSize);
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("StorPortGetUncachedExtension uncachedExtensionVa = %p allocation size = %d\n", adaptExt->uncachedExtensionVa, extensionSize));
-    if (!adaptExt->uncachedExtensionVa) {
+    extensionSize = PAGE_SIZE + adaptExt->pageAllocationSize + adaptExt->poolAllocationSize;
+    uncachedExtensionVa = StorPortGetUncachedExtension(DeviceExtension, ConfigInfo, extensionSize);
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("StorPortGetUncachedExtension uncachedExtensionVa = %p allocation size = %d\n", uncachedExtensionVa, extensionSize));
+    if (!uncachedExtensionVa) {
         LogError(DeviceExtension,
                 SP_INTERNAL_ADAPTER_ERROR,
                 __LINE__);
@@ -468,13 +477,24 @@ ENTER_FN();
         return SP_RETURN_ERROR;
     }
 
-    // compute the beginning of the page-aligned area
-    adaptExt->uncachedExtensionVa = (PVOID)(((ULONG_PTR)(adaptExt->uncachedExtensionVa) + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1));
+    /* At this point we have all the memory we're going to need. We lay it out as follows.
+     * Note that StorPortGetUncachedExtension tends to return page-aligned memory so the
+     * padding1 region will typically be empty and the size of padding2 equal to PAGE_SIZE.
+     *
+     * uncachedExtensionVa    pageAllocationVa         poolAllocationVa
+     * +----------------------+------------------------+--------------------------+----------------------+
+     * | \ \ \ \ \ \ \ \ \ \  |<= pageAllocationSize =>|<=  poolAllocationSize  =>| \ \ \ \ \ \ \ \ \ \  |
+     * |  \ \  padding1 \ \ \ |                        |                          |  \ \  padding2 \ \ \ |
+     * | \ \ \ \ \ \ \ \ \ \  |    page-aligned area   | pool area for cache-line | \ \ \ \ \ \ \ \ \ \  |
+     * |  \ \ \ \ \ \ \ \ \ \ |                        | aligned allocations      |  \ \ \ \ \ \ \ \ \ \ |
+     * +----------------------+------------------------+--------------------------+----------------------+
+     * |<=====================================  extensionSize  =========================================>|
+     */
+    adaptExt->pageAllocationVa = (PVOID)(((ULONG_PTR)(uncachedExtensionVa) + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1));
     if (adaptExt->poolAllocationSize > 0) {
-        // the pool area for unaligned allocations immediately follows
-        adaptExt->poolAllocationVa = (PVOID)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->allocationSize);
+        adaptExt->poolAllocationVa = (PVOID)((ULONG_PTR)uncachedExtensionVa + adaptExt->pageAllocationSize);
     }
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Page-aligned area at %p, size = %d\n", adaptExt->uncachedExtensionVa, adaptExt->allocationSize));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Page-aligned area at %p, size = %d\n", adaptExt->pageAllocationVa, adaptExt->pageAllocationSize));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Pool area at %p, size = %d\n", adaptExt->poolAllocationVa, adaptExt->poolAllocationSize));
 
 #if (NTDDI_VERSION > NTDDI_WIN7)
@@ -536,6 +556,26 @@ static BOOLEAN InitializeVirtualQueues(PADAPTER_EXTENSION adaptExt, ULONG numQue
     return TRUE;
 }
 
+PVOID
+VioScsiPoolAlloc(
+    IN PVOID DeviceExtension,
+    IN SIZE_T size
+    )
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    PVOID ptr = (PVOID)((ULONG_PTR)adaptExt->poolAllocationVa + adaptExt->poolOffset);
+
+    if ((adaptExt->poolOffset + size) <= adaptExt->poolAllocationSize) {
+        size = ROUND_TO_CACHE_LINES(size);
+        adaptExt->poolOffset += (ULONG)size;
+        RtlZeroMemory(ptr, size);
+        return ptr;
+    } else {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Ran out of memory in VioScsiPoolAlloc(%Id)\n", size));
+        return NULL;
+    }
+}
+
 BOOLEAN
 VioScsiHwInitialize(
     IN PVOID DeviceExtension
@@ -575,7 +615,7 @@ ENTER_FN();
     }
 
     adaptExt->msix_vectors = 0;
-    adaptExt->allocationOffset = 0;
+    adaptExt->pageOffset = 0;
     adaptExt->poolOffset = 0;
 
 #if (MSI_SUPPORTED == 1)
@@ -630,12 +670,11 @@ ENTER_FN();
         }
     }
 
-    adaptExt->tmf_cmd.SrbExtension = (PSRB_EXTENSION)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->allocationOffset);
-    adaptExt->allocationOffset += ROUND_TO_PAGES(sizeof(SRB_EXTENSION));
-    adaptExt->events = (PVirtIOSCSIEventNode)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->allocationOffset);
-    adaptExt->allocationOffset += ROUND_TO_PAGES(sizeof(VirtIOSCSIEventNode)* 8);
-    adaptExt->dpc = (PSTOR_DPC)((ULONG_PTR)adaptExt->uncachedExtensionVa + adaptExt->allocationOffset);
-    adaptExt->allocationOffset += ROUND_TO_PAGES(sizeof(STOR_DPC) * adaptExt->num_queues);
+    if (!adaptExt->dump_mode) {
+        adaptExt->tmf_cmd.SrbExtension = (PSRB_EXTENSION)VioScsiPoolAlloc(DeviceExtension, sizeof(SRB_EXTENSION));
+        adaptExt->events = (PVirtIOSCSIEventNode)VioScsiPoolAlloc(DeviceExtension, sizeof(VirtIOSCSIEventNode)* 8);
+        adaptExt->dpc = (PSTOR_DPC)VioScsiPoolAlloc(DeviceExtension, sizeof(STOR_DPC) * adaptExt->num_queues);
+    }
 
     if (!adaptExt->dump_mode && CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_HOTPLUG)) {
         PVirtIOSCSIEventNode events = adaptExt->events;
