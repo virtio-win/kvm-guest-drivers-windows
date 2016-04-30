@@ -42,7 +42,9 @@ set SYS_PATH_AND_NAME=objfre_%INST_OS%_%INST_ARC%\%INST_EXT%\%FILE_NAME%.sys
 set PDB_PATH_AND_NAME=objfre_%INST_OS%_%INST_ARC%\%INST_EXT%\%FILE_NAME%.pdb
 set INF_PATH_AND_NAME=objfre_%INST_OS%_%INST_ARC%\%INST_EXT%\%FILE_NAME%.inf
 set WDF_PATH_AND_NAME=%BUILDROOT%\redist\wdf\%INST_ARC%\WdfCoInstaller01009.dll
-if /i "%1"=="win8" set WDF_PATH_AND_NAME="C:\Program Files (x86)\Windows Kits\8.1\Redist\wdf\%2\WdfCoInstaller01011.dll"
+if /i "%1"=="win7" set WDF_PATH_AND_NAME="C:\Program Files (x86)\Windows Kits\10\Redist\wdf\%2\WdfCoInstaller01009.dll"
+if /i "%1"=="win8" set WDF_PATH_AND_NAME="C:\Program Files (x86)\Windows Kits\10\Redist\wdf\%2\WdfCoInstaller01011.dll"
+if /i "%1"=="win10" set WDF_PATH_AND_NAME="C:\Program Files (x86)\Windows Kits\10\Redist\wdf\%2\WdfCoInstaller01015.dll"
 
 echo makeinstall %1 %2 %3
 mkdir ..\Install\%INST_OS%\%INST_ARC%

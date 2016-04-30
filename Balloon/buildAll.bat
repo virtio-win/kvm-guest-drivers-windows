@@ -1,6 +1,6 @@
 @echo off
 
-for %%A in (WXp Wnet Wlh Win7 Win8 Win10) do for %%B in (32 64) do call :buildpack %%A_%%B
+for %%A in (WXp Wnet Wlh Win7 Win8 Win10) do for %%B in (32 64) do call :buildpack %%A %%B
 
 goto :eof 
 
