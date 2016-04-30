@@ -37,7 +37,7 @@ call :BuildProject "Win10 Release|x64" buildfre_win10_amd64.log
 goto :eof
 
 :Wlh_x86
-call :BuildProject "Vista Release|Win32" buildfre_wlh_x86.log
+call :BuildProject "Vista Release|x86" buildfre_wlh_x86.log
 goto :eof
 
 :Wlh_x64
@@ -45,7 +45,7 @@ call :BuildProject "Vista Release|x64" buildfre_wlh_amd64.log
 goto :eof
 
 :Wnet_x86
-call :BuildProject "Win2k3 Release|Win32" buildfre_wnet_x86.log
+call :BuildProject "Win2k3 Release|x86" buildfre_wnet_x86.log
 goto :eof
 
 :Wnet_x64
@@ -53,7 +53,7 @@ call :BuildProject "Win2k3 Release|x64" buildfre_wnet_amd64.log
 goto :eof
 
 :WXp_x86
-call :BuildProject "WinXP Release|Win32" buildfre_wxp_x86.log
+call :BuildProject "WinXP Release|x86" buildfre_wxp_x86.log
 goto :eof
 
 :BuildProject
@@ -68,6 +68,7 @@ set _MINORVERSION_=%_BUILD_MINOR_VERSION_%
 set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% & 255)"
 set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
 set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_%
+call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x64
 call ..\..\tools\callVisualStudio.bat 14 balloon.vcxproj /Rebuild "%~1" /Out %2
 endlocal
 goto :eof
