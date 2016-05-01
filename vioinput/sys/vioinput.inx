@@ -25,12 +25,12 @@ PnpLockdown = 1
 
 ; ================= Class section =====================
 
-[ClassInstall32]
-Addreg=VirtioInputClassReg
+;[ClassInstall32]
+;Addreg=VirtioInputClassReg
 
-[VirtioInputClassReg]
-HKR,,,0,%ClassName%
-HKR,,Icon,,-5
+;[VirtioInputClassReg]
+;HKR,,,0,%ClassName%
+;HKR,,Icon,,-5
 
 [DestinationDirs]
 DefaultDestDir = 12
