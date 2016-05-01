@@ -1,6 +1,6 @@
 @echo off
 
-for %%A in (Win7 Win8) do for %%B in (32 64) do call :buildpack %%A %%B
+for %%A in (Win7 Win8 Win10) do for %%B in (32 64) do call :buildpack %%A %%B
 
 goto :eof
 
