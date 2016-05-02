@@ -537,6 +537,8 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt)
     return false;
 }
 
+#pragma warning(push)
+#pragma warning(disable:26135)
 bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
 {
     PNET_BUFFER_LIST pNBLReturnNow = nullptr;
@@ -551,7 +553,17 @@ bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
 
     if (pNBLReturnNow)
     {
-        CompleteOutstandingNBLChain(pNBLReturnNow, NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL);
+        NdisMSendNetBufferListsComplete(m_Context->MiniportHandle, pNBLReturnNow,
+                                        NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL);
+    }
+#pragma warning(pop)
+
+#pragma warning(suppress: 26110)
+    NdisDprReleaseSpinLock(&m_Context->m_CompletionLock);
+
+    if (CallbackToCall != nullptr)
+    {
+        CallbackToCall(m_Context);
     }
 
     return bDoKick;
