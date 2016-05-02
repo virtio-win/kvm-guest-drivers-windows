@@ -1265,12 +1265,11 @@ RhelScsiGetCapacity(
     u64 lastLBA;
     EIGHT_BYTE lba;
     u64 blocksize;
-    BOOLEAN depthSet;
     PADAPTER_EXTENSION adaptExt= (PADAPTER_EXTENSION)DeviceExtension;
     PCDB cdb = (PCDB)&Srb->Cdb[0];
     UCHAR  PMI = 0;
 #ifdef USE_STORPORT
-    depthSet = StorPortSetDeviceQueueDepth(DeviceExtension,
+    BOOLEAN depthSet = StorPortSetDeviceQueueDepth(DeviceExtension,
                                            Srb->PathId,
                                            Srb->TargetId,
                                            Srb->Lun,
