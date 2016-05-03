@@ -265,7 +265,7 @@ VioScsiFindAdapter(
 {
     PADAPTER_EXTENSION adaptExt;
     PVOID              uncachedExtensionVa;
-    USHORT             queueLength;
+    USHORT             queueLength = 0;
     ULONG              Size;
     ULONG              HeapSize;
     ULONG              extensionSize;

@@ -16,55 +16,13 @@
 #include "VirtioWDF.h"
 #include "private.h"
 
-static int PCIGetBarIndex(
-    int iLastIndex,
-    PPCI_COMMON_HEADER pPCIHeader,
-    PHYSICAL_ADDRESS BasePA)
-{
-    int iBar, i;
-
-    /* no point in supporting PCI and CardBus bridges */
-    ASSERT(pPCIHeader->HeaderType & ~PCI_MULTIFUNCTION == PCI_DEVICE_TYPE);
-
-    for (i = iLastIndex + 1; i < PCI_TYPE0_ADDRESSES; i++) {
-        PHYSICAL_ADDRESS BAR;
-        BAR.LowPart = pPCIHeader->u.type0.BaseAddresses[i];
-
-        iBar = i;
-        if (BAR.LowPart & 0x01) {
-            /* I/O space */
-            BAR.LowPart &= 0xFFFFFFFC;
-            BAR.HighPart = 0;
-        }
-        else if ((BAR.LowPart & 0x06) == 0x04) {
-            /* memory space 64-bit */
-            BAR.LowPart &= 0xFFFFFFF0;
-            BAR.HighPart = pPCIHeader->u.type0.BaseAddresses[++i];
-        }
-        else {
-            /* memory space 32-bit */
-            BAR.LowPart &= 0xFFFFFFF0;
-            BAR.HighPart = 0;
-        }
-
-        if (BAR.QuadPart == BasePA.QuadPart) {
-            return iBar;
-        }
-    }
-
-    ASSERT(!"BAR index not found in PCI config!");
-
-    /* best guess */
-    return iLastIndex + 1;
-}
-
 NTSTATUS PCIAllocBars(WDFCMRESLIST ResourcesTranslated,
                       PVIRTIO_WDF_DRIVER pWdfDriver)
 {
     PCM_PARTIAL_RESOURCE_DESCRIPTOR pResDescriptor;
     ULONG nInterrupts = 0, nMSIInterrupts = 0;
     int nListSize = WdfCmResourceListGetCount(ResourcesTranslated);
-    int i, iBar = -1;
+    int i;
     PVIRTIO_WDF_BAR pBar;
     PCI_COMMON_HEADER PCIHeader;
 
@@ -94,12 +52,14 @@ NTSTATUS PCIAllocBars(WDFCMRESLIST ResourcesTranslated,
                         return STATUS_INSUFFICIENT_RESOURCES;
                     }
 
-                    /* unfortunately WDF doesn't tell us the exact BAR indices, all we can
-                     * rely on is the order of resource descriptors
-                     */
-                    iBar = PCIGetBarIndex(iBar, &PCIHeader, pResDescriptor->u.Memory.Start);
+                    /* unfortunately WDF doesn't tell us BAR indices */
+                    pBar->iBar = virtio_get_bar_index(&PCIHeader, pResDescriptor->u.Memory.Start);
+                    if (pBar->iBar < 0) {
+                        /* undo what we've done so far */
+                        PCIFreeBars(pWdfDriver);
+                        return STATUS_NOT_FOUND;
+                    }
 
-                    pBar->iBar = iBar;
                     pBar->bPortSpace = !!(pResDescriptor->Flags & CM_RESOURCE_PORT_IO);
                     pBar->BasePA = pResDescriptor->u.Memory.Start;
                     pBar->uLength = pResDescriptor->u.Memory.Length;

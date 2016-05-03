@@ -369,6 +369,8 @@ int virtio_find_queues(VirtIODevice *vdev,
                        struct virtqueue *vqs[],
                        const char *const names[]);
 
+int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA);
+
 NTSTATUS virtio_error_to_ntstatus(int error);
 
 void virtqueue_set_event_suppression(struct virtqueue *vq, bool enable);

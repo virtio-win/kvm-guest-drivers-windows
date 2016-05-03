@@ -249,45 +249,6 @@ ENTER_FN();
 EXIT_FN();
 }
 
-static int
-GetBarIndex(
-    PPCI_COMMON_HEADER pPCIHeader,
-    PHYSICAL_ADDRESS BasePA
-    )
-{
-    int iBar, i;
-
-    /* no point in supporting PCI and CardBus bridges */
-    ASSERT(pPCIHeader->HeaderType & ~PCI_MULTIFUNCTION == PCI_DEVICE_TYPE);
-
-    for (i = 0; i < PCI_TYPE0_ADDRESSES; i++) {
-        PHYSICAL_ADDRESS BAR;
-        BAR.LowPart = pPCIHeader->u.type0.BaseAddresses[i];
-
-        iBar = i;
-        if (BAR.LowPart & 0x01) {
-            /* I/O space */
-            BAR.LowPart &= 0xFFFFFFFC;
-            BAR.HighPart = 0;
-        }
-        else if ((BAR.LowPart & 0x06) == 0x04) {
-            /* memory space 64-bit */
-            BAR.LowPart &= 0xFFFFFFF0;
-            BAR.HighPart = pPCIHeader->u.type0.BaseAddresses[++i];
-        }
-        else {
-            /* memory space 32-bit */
-            BAR.LowPart &= 0xFFFFFFF0;
-            BAR.HighPart = 0;
-        }
-
-        if (BAR.QuadPart == BasePA.QuadPart) {
-            return iBar;
-        }
-    }
-    return -1;
-}
-
 BOOLEAN
 InitVirtIODevice(
     IN PVOID DeviceExtension
@@ -346,7 +307,7 @@ ENTER_FN();
     for (i = 0; i < ConfigInfo->NumberOfAccessRanges; i++) {
         accessRange = *ConfigInfo->AccessRanges + i;
         if (accessRange->RangeLength != 0) {
-            int iBar = GetBarIndex(&adaptExt->pci_config, accessRange->RangeStart);
+            int iBar = virtio_get_bar_index(&adaptExt->pci_config, accessRange->RangeStart);
             if (iBar == -1) {
                 RhelDbgPrint(TRACE_LEVEL_FATAL,
                              ("Cannot get index for BAR %I64d\n", accessRange->RangeStart.QuadPart));
