@@ -32,15 +32,6 @@
     <Filter Include="Tools">
       <UniqueIdentifier>{37970de9-8475-418f-8090-ca33d7da18da}</UniqueIdentifier>
     </Filter>
-    <Filter Include="VirtIO">
-      <UniqueIdentifier>{8f8a51a1-8a92-4dce-9a37-4af03cc65444}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="VirtIO\windows">
-      <UniqueIdentifier>{08e5739f-b3d0-4529-ba20-00169c790336}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="VirtIO\linux">
-      <UniqueIdentifier>{f1f752d8-cda0-4ba2-bf0d-f1d4b6a77ac7}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Common\common.inf.h">
@@ -97,36 +88,6 @@
     <ClInclude Include="wlh\ParaNdis6.h">
       <Filter>Header Files\wlh</Filter>
     </ClInclude>
-    <ClInclude Include="..\VirtIO\kdebugprint.h">
-      <Filter>VirtIO</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VirtIO\osdep.h">
-      <Filter>VirtIO</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VirtIO\VirtIO.h">
-      <Filter>VirtIO</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VirtIO\virtio_config.h">
-      <Filter>VirtIO</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VirtIO\virtio_pci.h">
-      <Filter>VirtIO</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VirtIO\virtio_ring.h">
-      <Filter>VirtIO</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VirtIO\windows\virtio_ring_allocation.h">
-      <Filter>VirtIO\windows</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VirtIO\linux\types.h">
-      <Filter>VirtIO\linux</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VirtIO\linux\virtio_ids.h">
-      <Filter>VirtIO\linux</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VirtIO\linux\virtio_types.h">
-      <Filter>VirtIO\linux</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="wlh\Parandis6.rc">
@@ -175,12 +136,6 @@
     </ClCompile>
     <ClCompile Include="Common\sw-offload.cpp">
       <Filter>Source Files\Common</Filter>
-    </ClCompile>
-    <ClCompile Include="..\VirtIO\VirtIOPCI.c">
-      <Filter>VirtIO</Filter>
-    </ClCompile>
-    <ClCompile Include="..\VirtIO\VirtIORing.c">
-      <Filter>VirtIO</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
