@@ -109,9 +109,25 @@ typedef struct virtio_blk_req {
     VIO_SG     sg[VIRTIO_MAX_SG];
 }blk_req, *pblk_req;
 
+typedef struct virtio_bar {
+    PHYSICAL_ADDRESS  BasePA;
+    ULONG             uLength;
+    PVOID             pBase;
+    BOOLEAN           bPortSpace;
+} VIRTIO_BAR, *PVIRTIO_BAR;
+
 typedef struct _ADAPTER_EXTENSION {
     VirtIODevice          vdev;
     PVOID                 uncachedExtensionVa;
+
+    PVOID                 pageAllocationVa;
+    ULONG                 pageAllocationSize;
+    ULONG                 pageOffset;
+
+    PVOID                 poolAllocationVa;
+    ULONG                 poolAllocationSize;
+    ULONG                 poolOffset;
+
     struct virtqueue *    vq;
     INQUIRYDATA           inquiry_data;
     blk_config            info;
@@ -128,6 +144,14 @@ typedef struct _ADAPTER_EXTENSION {
     blk_req               vbr;
     BOOLEAN               indirect;
     ULONGLONG             lastLBA;
+
+    union {
+        PCI_COMMON_HEADER pci_config;
+        UCHAR             pci_config_buf[sizeof(PCI_COMMON_CONFIG)];
+    };
+    VIRTIO_BAR            pci_bars[PCI_TYPE0_ADDRESSES];
+    ULONG                 system_io_bus_number;
+
 #ifdef USE_STORPORT
     LIST_ENTRY            complete_list;
     STOR_DPC              completion_dpc;
