@@ -27,33 +27,62 @@
 #include "virtio_stor_utils.h"
 #include "virtio_stor.h"
 
+/* The lower 64k of memory is never mapped so we can use the same routines
+ * for both port I/O and memory access and use the address alone to decide
+ * which space to use.
+ */
+#define PORT_MASK 0xFFFF
 
 u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
 {
-    return ScsiPortReadPortUlong((PULONG)(ulRegister));
+    if (ulRegister & ~PORT_MASK) {
+        return ScsiPortReadRegisterUlong((PULONG)(ulRegister));
+    } else {
+        return ScsiPortReadPortUlong((PULONG)(ulRegister));
+    }
 }
 
 void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
 {
-    ScsiPortWritePortUlong( (PULONG)(ulRegister),(ULONG)(ulValue) );
+    if (ulRegister & ~PORT_MASK) {
+        ScsiPortWriteRegisterUlong((PULONG)(ulRegister), (ULONG)(ulValue));
+    } else {
+        ScsiPortWritePortUlong((PULONG)(ulRegister), (ULONG)(ulValue));
+    }
 }
 
 u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
 {
-    return ScsiPortReadPortUchar((PUCHAR)(ulRegister));
+    if (ulRegister & ~PORT_MASK) {
+        return ScsiPortReadRegisterUchar((PUCHAR)(ulRegister));
+    } else {
+        return ScsiPortReadPortUchar((PUCHAR)(ulRegister));
+    }
 }
 
 void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
 {
-    ScsiPortWritePortUchar((PUCHAR)(ulRegister),(UCHAR)(bValue));
+    if (ulRegister & ~PORT_MASK) {
+        ScsiPortWriteRegisterUchar((PUCHAR)(ulRegister), (UCHAR)(bValue));
+    } else {
+        ScsiPortWritePortUchar((PUCHAR)(ulRegister), (UCHAR)(bValue));
+    }
 }
 
 u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
 {
-    return ScsiPortReadPortUshort((PUSHORT)(ulRegister));
+    if (ulRegister & ~PORT_MASK) {
+        return ScsiPortReadRegisterUshort((PUSHORT)(ulRegister));
+    } else {
+        return ScsiPortReadPortUshort((PUSHORT)(ulRegister));
+    }
 }
 
 void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
 {
-    ScsiPortWritePortUshort((PUSHORT)(ulRegister),(USHORT)(wValue));
+    if (ulRegister & ~PORT_MASK) {
+        ScsiPortWriteRegisterUshort((PUSHORT)(ulRegister), (USHORT)(wValue));
+    } else {
+        ScsiPortWritePortUshort((PUSHORT)(ulRegister), (USHORT)(wValue));
+    }
 }
