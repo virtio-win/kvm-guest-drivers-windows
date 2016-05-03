@@ -130,8 +130,6 @@ typedef struct _ADAPTER_EXTENSION {
     struct virtqueue *    vq;
     INQUIRYDATA           inquiry_data;
     blk_config            info;
-    ULONG                 breaks_number;
-    ULONG                 transfer_size;
     ULONG                 queue_depth;
     BOOLEAN               dump_mode;
     LIST_ENTRY            list_head;
