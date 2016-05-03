@@ -445,46 +445,6 @@ VirtIoPassiveInitializeRoutine (
 }
 #endif
 
-
-static struct virtqueue *FindVirtualQueue(PADAPTER_EXTENSION adaptExt, ULONG index, ULONG vector)
-{
-    struct virtqueue *vq = NULL;
-    if (adaptExt->pageAllocationVa)
-    {
-        ULONG len;
-        BOOLEAN useEventIndex = CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX);
-        PHYSICAL_ADDRESS pa = ScsiPortGetPhysicalAddress(adaptExt, NULL, adaptExt->pageAllocationVa, &len);
-        if (pa.QuadPart)
-        {
-            vq = VirtIODevicePrepareQueue(&adaptExt->vdev, index, pa, adaptExt->pageAllocationVa, len, NULL, useEventIndex);
-        }
-    }
-
-    if (!vq) return NULL;
-
-    if (vector)
-    {
-        unsigned res;
-        ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR),(USHORT)vector);
-        res = ScsiPortReadPortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_QUEUE_VECTOR));
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> VIRTIO_MSI_QUEUE_VECTOR vector = %d, res = 0x%x\n", __FUNCTION__, vector, res));
-        if(res == VIRTIO_MSI_NO_VECTOR)
-        {
-            VirtIODeviceDeleteQueue(vq, NULL);
-            vq = NULL;
-            RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot create vq vector\n", __FUNCTION__));
-            return NULL;
-        }
-        ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_CONFIG_VECTOR),(USHORT)0);
-        res = ScsiPortReadPortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_MSI_CONFIG_VECTOR));
-        if (res != 0)
-        {
-            RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s>> Cannot set config vector\n", __FUNCTION__));
-        }
-    }
-    return vq;
-}
-
 static BOOLEAN InitializeVirtualQueues(PADAPTER_EXTENSION adaptExt)
 {
     int err;
