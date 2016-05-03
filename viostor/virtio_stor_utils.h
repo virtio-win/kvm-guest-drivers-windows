@@ -25,7 +25,7 @@
 #include "kdebugprint.h"
 #include "evntrace.h"
 
-#define CHECKBIT(value, nbit) (((value) & (1 << (nbit))) != 0)
+#define CHECKBIT(value, nbit) (((value) & (1ULL << (nbit))) != 0)
 
 int
 _cdecl
@@ -48,6 +48,13 @@ extern int nViostorDebugLevel;
 #else
 #define RhelDbgPrint(level, line) 
 #endif
+
+VOID
+LogError(
+    IN PVOID HwDeviceExtension,
+    IN ULONG ErrorCode,
+    IN ULONG UniqueId
+    );
 
 #endif ___VIOSTOR_UTILS_H___
 

@@ -66,4 +66,6 @@ RhelGetDiskGeometry(
     IN PVOID DeviceExtension
     );
 
+extern VirtIOSystemOps VioStorSystemOps;
+
 #endif ___VIOSTOR_HW_HELPER_H___
