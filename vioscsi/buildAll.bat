@@ -9,10 +9,6 @@ set SYS_FILE_NAME=
 goto :eof 
 
 
-:packsys
-call packOne.bat %1 %2 %SYS_FILE_NAME%
-goto :eof
-
 :create2012H
 echo #define _NT_TARGET_MAJ %_NT_TARGET_MAJ%
 echo #define _NT_TARGET_MIN %_NT_TARGET_MIN%
@@ -100,6 +96,7 @@ if "%_BUILD_DISABLE_SDV%"=="" goto :DO_SDV
 goto :eof
 :DO_SDV
 call :BuildSDV "Win8 Release" x64 0x602
+call packOne.bat Win8 x64 %SYS_FILE_NAME%
 rmdir /S /Q .\sdv
 goto :eof
 
