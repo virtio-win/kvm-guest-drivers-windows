@@ -900,7 +900,7 @@ VioScsiInterrupt(
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s (%d)\n", __FUNCTION__, KeGetCurrentIrql()));
     intReason = virtio_read_isr_status(&adaptExt->vdev);
 
-    if ( intReason == 1) {
+    if (intReason == 1 || adaptExt->dump_mode) {
         isInterruptServiced = TRUE;
         while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0], &len)) != NULL) {
            HandleResponse(DeviceExtension, cmd);
