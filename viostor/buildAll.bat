@@ -41,7 +41,8 @@ set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% 
 set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
 call :create2012H  > viostor-2012.h
 set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_%
-call ..\tools\callVisualStudio.bat 12 viostor.vcxproj /Rebuild "%~1" /Out %2
+call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x64
+call ..\tools\callVisualStudio.bat 14 viostor.vcxproj /Rebuild "%~1" /Out %3
 endlocal
 goto :eof
 
@@ -81,7 +82,7 @@ call packOne.bat Win10 x64 %SYS_FILE_NAME%
 goto :eof
 
 :WIN8_32
-call :buildpack Win8 x86 "Win8 Release|Win32" 0x602 buildfre_win8_x86.log
+call :buildpack Win8 x86 "Win8 Release|x86" 0x602 buildfre_win8_x86.log
 goto :eof
 
 :WIN8_64
@@ -95,7 +96,7 @@ rmdir /S /Q .\sdv
 goto :eof
 
 :WIN7_32
-call :buildpack Win7 x86 "Win7 Release|Win32" 0x601 buildfre_win7_x86.log
+call :buildpack Win7 x86 "Win7 Release|x86" 0x601 buildfre_win7_x86.log
 goto :eof
 
 :WIN7_64
@@ -103,7 +104,7 @@ call :buildpack Win7 x64 "Win7 Release|x64" 0x601 buildfre_win7_amd64.log
 goto :eof
 
 :WLH_32
-call :buildpack Wlh x86 "Vista Release|Win32" 0x600 buildfre_wlh_x86.log
+call :buildpack Wlh x86 "Vista Release|x86" 0x600 buildfre_wlh_x86.log
 goto :eof
 
 :WLH_64
@@ -111,7 +112,7 @@ call :buildpack Wlh x64 "Vista Release|x64" 0x600 buildfre_wlh_amd64.log
 goto :eof
 
 :WNET_32
-call :buildpack Wnet x86 "Win2k3 Release|Win32" 0x502 buildfre_wnet_x86.log
+call :buildpack Wnet x86 "Win2k3 Release|x86" 0x502 buildfre_wnet_x86.log
 goto :eof
 
 :WNET_64
@@ -119,7 +120,7 @@ call :buildpack Wnet x64 "Win2k3 Release|x64" 0x502 buildfre_wnet_amd64.log
 goto :eof
 
 :WXP_32
-call :buildpack Wxp x86 "WinXP Release|Win32" 0x501 buildfre_wxp_x86.log
+call :buildpack Wxp x86 "WinXP Release|x86" 0x501 buildfre_wxp_x86.log
 goto :eof
 
 :WXP_64
