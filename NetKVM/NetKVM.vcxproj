@@ -946,6 +946,7 @@
     <ClInclude Include="Common\ParaNdis-Oid.h" />
     <ClInclude Include="Common\ParaNdis-RSS.h" />
     <ClInclude Include="Common\ParaNdis-RX.h" />
+    <ClInclude Include="Common\ParaNdis-SM.h" />
     <ClInclude Include="Common\ParaNdis-TX.h" />
     <ClInclude Include="Common\ParaNdis-VirtQueue.h" />
     <ClInclude Include="Common\ParaNdis-Util.h" />
