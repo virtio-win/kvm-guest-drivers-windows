@@ -998,7 +998,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         DPrintf(0, ("[%s] %u queues' slots reallocated for size %lu\n", __FUNCTION__, pContext->IODevice->maxQueues, IODeviceSize));
     }
 
-    new (&pContext->CXPath, PLACEMENT_NEW) CParaNdisCX();
+    new (&pContext->CXPath) CParaNdisCX();
     pContext->bCXPathAllocated = TRUE;
     if (pContext->bControlQueueSupported && pContext->CXPath.Create(pContext, 2 * pContext->nHardwareQueues))
     {
@@ -1023,7 +1023,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 
     for (i = 0; i < pContext->nPathBundles; i++)
     {
-        new (pContext->pPathBundles + i, PLACEMENT_NEW) CPUPathesBundle();
+        new (pContext->pPathBundles + i) CPUPathesBundle();
     }
 
     for (i = 0; i < pContext->nPathBundles; i++)

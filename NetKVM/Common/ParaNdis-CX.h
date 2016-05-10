@@ -3,7 +3,7 @@
 #include "ndis56common.h"
 #include "ParaNdis-AbstractPath.h"
 
-class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CNdisAllocatable < CParaNdisCX, 'CXHR' > {
+class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementAllocatable {
 public:
     CParaNdisCX();
     ~CParaNdisCX();

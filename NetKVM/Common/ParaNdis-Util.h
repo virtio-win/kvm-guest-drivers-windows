@@ -6,19 +6,20 @@ extern "C" {
 
 #include "kdebugprint.h"
 
-typedef enum
+class CPlacementAllocatable
 {
-    PLACEMENT_NEW
-} parandis_placement;
+public:
+    void* operator new(size_t size, void *ptr) throw()
+    {
+        UNREFERENCED_PARAMETER(size);
+        return ptr;
+    }
+};
 
 template <typename T, ULONG Tag>
 class CNdisAllocatable
 {
 public:
-    void* operator new(size_t /* size */, void *ptr, parandis_placement placement) throw()
-        { UNREFERENCED_PARAMETER(placement); return ptr; }
-
-
     void* operator new(size_t Size, NDIS_HANDLE MiniportHandle) throw()
         { return NdisAllocateMemoryWithTagPriority(MiniportHandle, (UINT) Size, Tag, NormalPoolPriority); }
 
@@ -38,8 +39,6 @@ protected:
     * are declared private and object arrays has be created and destroyed in two steps - construction by
     * allocating array memory with NdisAllocateMemoryWithTagPriority and then in-place constructing the
     * objects and destructing in the reverse order. */
-    void* operator new[](size_t /* size */, void *ptr, parandis_placement placement) throw() = delete;
-
     void* operator new[](size_t Size, NDIS_HANDLE MiniportHandle) throw() = delete;
     void* operator new[](size_t Size) throw() = delete;
     void operator delete[](void *) = delete;
@@ -361,7 +360,7 @@ private:
     friend class CNdisRWLock;
 };
 
-class CNdisRWLock : public CNdisAllocatable < CNdisRWLock, 'RWLK'> 
+class CNdisRWLock : public CPlacementAllocatable
 {
 public:
 #ifdef RW_LOCK_60

@@ -161,7 +161,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
         NdisAllocateSpinLock(&pContext->m_CompletionLock);
         pContext->m_CompletionLockCreated = true;
 
-        new (&pContext->m_PauseLock, PLACEMENT_NEW) CNdisRWLock();
+        new (&pContext->m_PauseLock) CNdisRWLock();
         if (!pContext->m_PauseLock.Create(pContext->MiniportHandle))
         {
             status = NDIS_STATUS_RESOURCES;
@@ -286,7 +286,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
             pContext->bRSSInitialized = TRUE;
         }
 
-        new (&pContext->RSSParameters.rwLock, PLACEMENT_NEW) CNdisRWLock();
+        new (&pContext->RSSParameters.rwLock) CNdisRWLock();
         if (!pContext->RSSParameters.rwLock.Create(pContext->MiniportHandle))
         {
             DPrintf(0, ("RSS RW lock allocation failed\n"));
