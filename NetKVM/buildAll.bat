@@ -66,18 +66,18 @@ endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
 
 :: XP
-rem pushd NDIS5
-rem call buildall.bat XP
-rem popd
-rem if %ERRORLEVEL% NEQ 0 goto :eof
-rem xcopy /S /I /Y NDIS5\Install\XP\x86 Install\XP\x86
+pushd NDIS5
+call buildall.bat XP
+popd
+if %ERRORLEVEL% NEQ 0 goto :eof
+xcopy /S /I /Y NDIS5\Install\XP\x86 Install\XP\x86
 
 :: XP64
-rem pushd NDIS5
-rem call buildall.bat XP64
-rem popd
-rem if %ERRORLEVEL% NEQ 0 goto :eof
-rem xcopy /S /I /Y NDIS5\Install\XP\amd64 Install\XP\amd64
+pushd NDIS5
+call buildall.bat XP64
+popd
+if %ERRORLEVEL% NEQ 0 goto :eof
+xcopy /S /I /Y NDIS5\Install\XP\amd64 Install\XP\amd64
 
 mkdir Install
 mkdir Install\Vista
