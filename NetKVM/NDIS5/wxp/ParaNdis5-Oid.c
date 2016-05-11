@@ -339,11 +339,12 @@ NDIS_STATUS ParaNdis5_SetOID(IN NDIS_HANDLE MiniportAdapterContext,
 
 static void OnSetPowerWorkItem(NDIS_WORK_ITEM * pWorkItem, PVOID  Context)
 {
+    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     tPowerWorkItem *pwi = (tPowerWorkItem *)pWorkItem;
     PARANDIS_ADAPTER *pContext = pwi->pContext;
     if (pwi->state == NetDeviceStateD0)
     {
-        ParaNdis_PowerOn(pContext);
+        status = ParaNdis_PowerOn(pContext);
     }
     else
     {
@@ -351,7 +352,7 @@ static void OnSetPowerWorkItem(NDIS_WORK_ITEM * pWorkItem, PVOID  Context)
     }
     NdisFreeMemory(pwi, 0, 0);
     ParaNdis_DebugHistory(pContext, hopOidRequest, NULL, OID_PNP_SET_POWER, 0, 2);
-    NdisMSetInformationComplete(pContext->MiniportHandle, NDIS_STATUS_SUCCESS);
+    NdisMSetInformationComplete(pContext->MiniportHandle, status);
 }
 
 /**********************************************************
