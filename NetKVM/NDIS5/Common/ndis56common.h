@@ -91,6 +91,8 @@ static inline bool VirtIODeviceEnableGuestFeature(VirtIODevice * pVirtIODevice, 
 
     return !!(ulValue & (1 << uFeature));
 }
+// maximum number of virtio queues used by the driver
+#define MAX_NUM_OF_QUEUES 3
 
 /* The feature bitmap for virtio net */
 #define VIRTIO_NET_F_CSUM   0   /* Host handles pkts w/ partial csum */
@@ -127,6 +129,8 @@ static inline bool VirtIODeviceEnableGuestFeature(VirtIODevice * pVirtIODevice, 
 
 #define PARANDIS_UNLIMITED_PACKETS_TO_INDICATE  (~0ul)
 
+extern VirtIOSystemOps ParaNdisSystemOps;
+
 typedef enum _tagInterruptSource
 {
     isControl  = VIRTIO_PCI_ISR_CONFIG,
@@ -155,10 +159,19 @@ typedef enum _tagSendReceiveState
     srsEnabled
 } tSendReceiveState;
 
+typedef struct _tagBusResource {
+    NDIS_PHYSICAL_ADDRESS BasePA;
+    ULONG                 uLength;
+    PVOID                 pBase;
+    BOOLEAN               bPortSpace;
+    BOOLEAN               bUsed;
+} tBusResource;
+
 typedef struct _tagAdapterResources
 {
     ULONG ulIOAddress;
     ULONG IOLength;
+    tBusResource PciBars[PCI_TYPE0_ADDRESSES];
     ULONG Vector;
     ULONG Level;
     KAFFINITY Affinity;
@@ -343,6 +356,8 @@ typedef struct _tagPARANDIS_ADAPTER
     NDIS_EVENT              ResetEvent;
     tAdapterResources       AdapterResources;
     PVOID                   pIoPortOffset;
+    tBusResource            SharedMemoryRanges[MAX_NUM_OF_QUEUES];
+
     VirtIODevice            IODevice;
     LARGE_INTEGER           LastTxCompletionTimeStamp;
 #ifdef PARANDIS_DEBUG_INTERRUPTS
