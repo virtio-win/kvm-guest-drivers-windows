@@ -12,8 +12,10 @@ shift
 goto rmfiles
 
 :start
+for /d %%d in  (objfre*) do call :rmdir %%d
 for /d %%d in  (wxp\objfre*) do call :rmdir %%d
 for /d %%d in  (common\objfre*) do call :rmdir %%d
+for /d %%d in  (objchk*) do call :rmdir %%d
 for /d %%d in  (wxp\objchk*) do call :rmdir %%d
 for /d %%d in  (common\objchk*) do call :rmdir %%d
 call :rmdir Install
