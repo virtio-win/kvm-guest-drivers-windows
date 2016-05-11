@@ -73,24 +73,6 @@
 // to be set to real limit later
 #define MAX_RX_LOOPS    1000
 
-static inline bool VirtIODeviceGetHostFeature(VirtIODevice * pVirtIODevice, unsigned uFeature)
-{
-    DPrintf(4, ("%s\n", __FUNCTION__));
-
-    return !!(ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_HOST_FEATURES) & (1 << uFeature));
-}
-
-static inline bool VirtIODeviceEnableGuestFeature(VirtIODevice * pVirtIODevice, unsigned uFeature)
-{
-    ULONG ulValue = 0;
-    DPrintf(4, ("%s\n", __FUNCTION__));
-
-    ulValue = ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_GUEST_FEATURES);
-    ulValue |= (1 << uFeature);
-    WriteVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_GUEST_FEATURES, ulValue);
-
-    return !!(ulValue & (1 << uFeature));
-}
 // maximum number of virtio queues used by the driver
 #define MAX_NUM_OF_QUEUES 3
 
@@ -169,8 +151,6 @@ typedef struct _tagBusResource {
 
 typedef struct _tagAdapterResources
 {
-    ULONG ulIOAddress;
-    ULONG IOLength;
     tBusResource PciBars[PCI_TYPE0_ADDRESSES];
     ULONG Vector;
     ULONG Level;
@@ -351,14 +331,15 @@ typedef struct _tagPARANDIS_ADAPTER
 {
     NDIS_HANDLE             DriverHandle;
     NDIS_HANDLE             MiniportHandle;
-    NDIS_HANDLE             InterruptHandle;
-    NDIS_HANDLE             BufferListsPool;
     NDIS_EVENT              ResetEvent;
     tAdapterResources       AdapterResources;
-    PVOID                   pIoPortOffset;
     tBusResource            SharedMemoryRanges[MAX_NUM_OF_QUEUES];
 
     VirtIODevice            IODevice;
+    BOOLEAN                 bIODeviceInitialized;
+    ULONGLONG               ullHostFeatures;
+    ULONGLONG               ullGuestFeatures;
+
     LARGE_INTEGER           LastTxCompletionTimeStamp;
 #ifdef PARANDIS_DEBUG_INTERRUPTS
     LARGE_INTEGER           LastInterruptTimeStamp;
@@ -383,6 +364,7 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bUsingMSIX;
     BOOLEAN                 bUseIndirect;
     BOOLEAN                 bHasHardwareFilters;
+    BOOLEAN                 bHasControlQueue;
     BOOLEAN                 bNoPauseOnSuspend;
     BOOLEAN                 bFastSuspendInProcess;
     BOOLEAN                 bResetInProgress;
@@ -441,12 +423,9 @@ typedef struct _tagPARANDIS_ADAPTER
     tReuseReceiveBufferProc ReuseBufferProc;
     /* Net part - management of buffers and queues of QEMU */
     struct virtqueue *      NetControlQueue;
-    tCompletePhysicalAddress ControlQueueRing;
     tCompletePhysicalAddress ControlData;
     struct virtqueue *      NetReceiveQueue;
-    tCompletePhysicalAddress ReceiveQueueRing;
     struct virtqueue *      NetSendQueue;
-    tCompletePhysicalAddress SendQueueRing;
     /* list of Rx buffers available for data (under VIRTIO management) */
     LIST_ENTRY              NetReceiveBuffers;
     UINT                    NetNofReceiveBuffers;
@@ -516,6 +495,21 @@ NON-LAZZY release releases transmit buffers from VirtIO
 library every time there is something to release
 ***********************************************************/
 //#define LAZZY_TX_RELEASE
+
+static inline bool VirtIODeviceGetHostFeature(PARANDIS_ADAPTER *pContext, unsigned uFeature)
+{
+   DPrintf(4, ("%s\n", __FUNCTION__));
+
+   return !!(pContext->ullHostFeatures & (1ULL << uFeature));
+}
+
+static inline void VirtIODeviceEnableGuestFeature(PARANDIS_ADAPTER *pContext, unsigned uFeature)
+{
+   ULONG ulValue = 0;
+   DPrintf(4, ("%s\n", __FUNCTION__));
+
+   pContext->ullGuestFeatures |= (1ULL << uFeature);
+}
 
 BOOLEAN FORCEINLINE IsTimeToReleaseTx(PARANDIS_ADAPTER *pContext)
 {
@@ -620,7 +614,7 @@ VOID ParaNdis_ReportLinkStatus(
     PARANDIS_ADAPTER *pContext,
     BOOLEAN bForce);
 
-VOID ParaNdis_PowerOn(
+NDIS_STATUS ParaNdis_PowerOn(
     PARANDIS_ADAPTER *pContext
 );
 
