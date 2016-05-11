@@ -60,65 +60,45 @@ goto :eof
 
 :XP
 setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% fre WXP no_oacr
-popd
+set _BUILDARCH=x86
+set _NT_TARGET_VERSION=0x0501
 call :preparebuild
-build -cZg
-
-if %ERRORLEVEL% NEQ 0 (
-	endlocal
-	exit /B 1
-)
-call tools\makeinstall x86 wxp\objfre_wxp_x86\i386\netkvm.sys wxp\netkvm.inf %_VERSION_% XP Install
+call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x64
+call ..\..\tools\callVisualStudio.bat 14 NetKVM-NDIS5.sln /Rebuild "WinXP Release|x86" /Out buildfre_wxp_x86.log
+call tools\makeinstall x86 objfre_wxp_x86\i386\netkvm.sys wxp\netkvm.inf %_VERSION_% XP Install
 endlocal
 goto continue
 
 :XP64
 setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% fre WNET no_oacr
-popd
+set _BUILDARCH=amd64
+set _NT_TARGET_VERSION=0x0502
 call :preparebuild
-build -cZg
-
-if %ERRORLEVEL% NEQ 0 (
-	endlocal
-	exit /B 1
-)
-call tools\makeinstall amd64 wxp\objfre_wnet_amd64\amd64\netkvm.sys wxp\netkvm.inf %_VERSION_% XP Install
+call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x64
+call ..\..\tools\callVisualStudio.bat 14 NetKVM-NDIS5.sln /Rebuild "Win2k3 Release|x64" /Out buildfre_wnet_amd64.log
+call tools\makeinstall amd64 objfre_wnet_amd64\amd64\netkvm.sys wxp\netkvm.inf %_VERSION_% XP Install
 endlocal
 goto continue
 
 :XPCHK
 setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% chk WXP no_oacr
-popd
+set _BUILDARCH=x86
+set _NT_TARGET_VERSION=0x0501
 call :preparebuild
-build -cZg
-
-if %ERRORLEVEL% NEQ 0 (
-	endlocal
-	exit /B 1
-)
-call tools\makeinstall x86 wxp\objchk_wxp_x86\i386\netkvm.sys wxp\netkvm.inf %_VERSION_% XP Install_Checked
+call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x64
+call ..\..\tools\callVisualStudio.bat 14 NetKVM-NDIS5.sln /Rebuild "WinXP Debug|x86" /Out buildchk_wxp_x86.log
+call tools\makeinstall x86 objchk_wxp_x86\i386\netkvm.sys wxp\netkvm.inf %_VERSION_% XP Install_Checked
 endlocal
 goto continue
 
 :XP64CHK
 setlocal
-pushd %BUILDROOT%
-call %BUILDROOT%\bin\setenv.bat %BUILDROOT% %X64ENV% chk WNET no_oacr
-popd
+set _BUILDARCH=amd64
+set _NT_TARGET_VERSION=0x0502
 call :preparebuild
-build -cZg
-
-if %ERRORLEVEL% NEQ 0 (
-	endlocal
-	exit /B 1
-)
-call tools\makeinstall amd64 wxp\objchk_wnet_amd64\amd64\netkvm.sys wxp\netkvm.inf %_VERSION_% XP Install_Checked
+call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x64
+call ..\..\tools\callVisualStudio.bat 14 NetKVM-NDIS5.sln /Rebuild "Win2k3 Debug|x64" /Out buildchk_wnet_amd64.log
+call tools\makeinstall amd64 objchk_wnet_amd64\amd64\netkvm.sys wxp\netkvm.inf %_VERSION_% XP Install_Checked
 endlocal
 goto continue
 
