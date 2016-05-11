@@ -1,11 +1,18 @@
-;-------------------------------------------------------------------------------
-; netkvm.INF
+;/*++
 ;
-;  Red Hat VirtIO Ethernet Adapter
+;Copyright (c) 2008-2016 Red Hat Inc.
 ;
-; Copyright (c) 2008-2016 Red Hat, Inc.  All rights reserved.
+;Module Name:
+;    netkvm.inf
 ;
-;-------------------------------------------------------------------------------
+;Abstract:
+;    Red Hat VirtIO Ethernet Adapter
+;
+;Installation Notes:
+;    Using Devcon: Type "devcon install netkvm.inf PCI\VEN_1AF4&DEV_1000&SUBSYS_00011AF4&REV_00" or
+;                       "devcon install netkvm.inf PCI\VEN_1AF4&DEV_1041&SUBSYS_11001AF4&REV_01" to install
+;
+;--*/
 
 [version]
 Signature   = "$Windows NT$"
@@ -22,6 +29,7 @@ DriverPackageDisplayName = %kvmnet5.DeviceDesc%
 
 [RedHat.NT$ARCH$]
 %kvmnet5.DeviceDesc%    = kvmnet5.ndi, PCI\VEN_1AF4&DEV_1000&SUBSYS_00011AF4&REV_00
+%kvmnet5.DeviceDesc%    = kvmnet5.ndi, PCI\VEN_1AF4&DEV_1041&SUBSYS_11001AF4&REV_01
 
 
 [kvmnet5.ndi]
