@@ -18,9 +18,6 @@
 static void ReuseReceiveBufferRegular(PARANDIS_ADAPTER *pContext, pIONetDescriptor pBuffersDescriptor);
 static void ReuseReceiveBufferPowerOff(PARANDIS_ADAPTER *pContext, pIONetDescriptor pBuffersDescriptor);
 
-// TODO: remove when the problem solved
-void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue);
-
 //#define ROUNDSIZE(sz) ((sz + 15) & ~15)
 #define MAX_VLAN_ID     4095
 
@@ -2338,83 +2335,6 @@ BOOLEAN ParaNdis_CheckForHang(PARANDIS_ADAPTER *pContext)
     //nHangOn++;
     DEBUG_EXIT_STATUS(b ? 0 : 6, b);
     return b;
-}
-
-
-/////////////////////////////////////////////////////////////////////////////////////
-//
-// ReadVirtIODeviceRegister\WriteVirtIODeviceRegister
-// NDIS specific implementation of the IO space read\write
-//
-/////////////////////////////////////////////////////////////////////////////////////
-u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
-{
-    ULONG ulValue;
-
-    NdisRawReadPortUlong(ulRegister, &ulValue);
-
-    DPrintf(6, ("[%s]R[%x]=%x", __FUNCTION__, (ULONG)ulRegister, ulValue) );
-    return ulValue;
-}
-
-void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
-{
-    DPrintf(6, ("[%s]R[%x]=%x", __FUNCTION__, (ULONG)ulRegister, ulValue) );
-
-    NdisRawWritePortUlong(ulRegister, ulValue);
-}
-
-u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
-{
-    u8 bValue;
-
-    NdisRawReadPortUchar(ulRegister, &bValue);
-
-    DPrintf(6, ("[%s]R[%x]=%x", __FUNCTION__, (ULONG)ulRegister, bValue) );
-
-    return bValue;
-}
-
-void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
-{
-    DPrintf(6, ("[%s]R[%x]=%x", __FUNCTION__, (ULONG)ulRegister, bValue) );
-
-    NdisRawWritePortUchar(ulRegister, bValue);
-}
-
-u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
-{
-    u16 wValue;
-
-    NdisRawReadPortUshort(ulRegister, &wValue);
-
-    DPrintf(6, ("[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, wValue) );
-
-    return wValue;
-}
-
-void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
-{
-#if 1
-    NdisRawWritePortUshort(ulRegister, wValue);
-#else
-    // test only to cause long TX waiting queue of NDIS packets
-    // to recognize it and request for reset via Hang handler
-    static int nCounterToFail = 0;
-    static const int StartFail = 200, StopFail = 600;
-    BOOLEAN bFail = FALSE;
-    DPrintf(6, ("%s> R[%x] = %x\n", __FUNCTION__, (ULONG)ulRegister, wValue) );
-    if ((ulRegister & 0x1F) == 0x10)
-    {
-        nCounterToFail++;
-        bFail = nCounterToFail >= StartFail && nCounterToFail < StopFail;
-    }
-    if (!bFail) NdisRawWritePortUshort(ulRegister, wValue);
-    else
-    {
-        DPrintf(0, ("%s> FAILING R[%x] = %x\n", __FUNCTION__, (ULONG)ulRegister, wValue) );
-    }
-#endif
 }
 
 /**********************************************************
