@@ -41,6 +41,22 @@
 #include "NetKVM-2012.h"
 #endif
 
+#define _EXPAND1(x) x ## 0
+#define _EXPAND2(x) _EXPAND1(x)
+
+#if !defined(_MAJORVERSION_) || (_EXPAND2(_MAJORVERSION_) == 0)
+#undef _MAJORVERSION_
+#define _MAJORVERSION_ 101
+#endif
+
+#if !defined(_MINORVERSION_) || (_EXPAND2(_MINORVERSION_) == 0)
+#undef _MINORVERSION_
+#define _MINORVERSION_ 58000
+#endif
+
+#undef _EXPAND2
+#undef _EXPAND1
+
 #define VER_PRODUCTBUILD                _MAJORVERSION_
 #define VER_PRODUCTBUILD_QFE            _MINORVERSION_
 #define VER_PRODUCTMAJORVERSION         _NT_TARGET_MAJ
