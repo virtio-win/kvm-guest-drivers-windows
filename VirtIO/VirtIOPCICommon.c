@@ -129,6 +129,7 @@ void vp_del_vqs(virtio_device *vdev)
         vq = vdev->info[i].vq;
         if (vq != NULL) {
             vp_dev->del_vq(&vdev->info[i]);
+            vdev->info[i].vq = NULL;
         }
     }
 }
