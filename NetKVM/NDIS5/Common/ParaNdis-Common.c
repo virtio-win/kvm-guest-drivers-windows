@@ -1801,7 +1801,6 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
         {
             // we asked
             unsigned short addPriorityLen = (pParams->flags & pcrPriorityTag) ? ETH_PRIORITY_HEADER_SIZE : 0;
-            tOffloadSettingsFlags f = pContext->Offload.flags;
             PVOID ipPacket = RtlOffsetToPointer(
                 pBuffersDescriptor->DataInfo.Virtual, pContext->Offload.ipHeaderOffset + addPriorityLen);
             ULONG ipPacketLength = CopierResult.size - pContext->Offload.ipHeaderOffset - addPriorityLen;

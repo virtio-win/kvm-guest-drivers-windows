@@ -249,7 +249,6 @@ NDIS_STATUS ParaNdis5_QueryOID(IN NDIS_HANDLE MiniportAdapterContext,
                                     OUT PULONG BytesNeeded)
 {
     NDIS_STATUS  status = NDIS_STATUS_NOT_SUPPORTED;
-    int debugLevel;
     tOidWhatToDo Rules;
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportAdapterContext;
     tOidDesc _oid;
@@ -747,7 +746,6 @@ NDIS_STATUS CreateOffloadInfo5ForQuery(
 NDIS_STATUS OnOidSetNdis5Offload(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
     NDIS_STATUS status;
-    tOffloadSettings saveOffload = pContext->Offload;
     status = ParseOffload(pContext, (NDIS_TASK_OFFLOAD_HEADER *)pOid->InformationBuffer,
         pOid->InformationBufferLength, TRUE, "SET", FALSE);
     if (status == STATUS_SUCCESS)

@@ -455,7 +455,6 @@ tPacketIndicationType ParaNdis_IndicateReceivedPacket(
     pIONetDescriptor pBuffersDesc)
 {
     BOOLEAN b = FALSE;
-    NDIS_STATUS status;
     PNDIS_BUFFER    pBuffer = NULL;
     PNDIS_BUFFER    pNoBuffer = NULL;
     PNDIS_PACKET    Packet = pBuffersDesc->pHolder;
