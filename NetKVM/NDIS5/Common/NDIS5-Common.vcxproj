@@ -38,6 +38,7 @@
     <ClCompile Include="ParaNdis-Common.c" />
     <ClCompile Include="ParaNdis-Debug.c" />
     <ClCompile Include="ParaNdis-Oid.c" />
+    <ClCompile Include="ParaNdis-VirtIO.c" />
     <ClCompile Include="sw-offload.c" />
   </ItemGroup>
   <ItemGroup>
