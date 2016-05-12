@@ -803,6 +803,7 @@ VIOSerialPortDeviceControl(
     {
 
         case IOCTL_GET_INFORMATION:
+        case IOCTL_GET_INFORMATION_BUFFERED:
         {
            status = WdfRequestRetrieveOutputBuffer(Request, sizeof(VIRTIO_PORT_INFO), (PVOID*)&pport_info, &length);
            if (!NT_SUCCESS(status))
@@ -824,7 +825,10 @@ VIOSerialPortDeviceControl(
               name_size = pdoData->port->NameString.MaximumLength;
               if (length < sizeof(VIRTIO_PORT_INFO) + name_size)
               {
-                 status = STATUS_BUFFER_OVERFLOW;
+                 // STATUS_BUFFER_OVERFLOW is not safe to use with buffered IOCTL
+                 status = (IoControlCode == IOCTL_GET_INFORMATION_BUFFERED)
+                    ? STATUS_BUFFER_TOO_SMALL
+                    : STATUS_BUFFER_OVERFLOW;
                  TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS,
                                "Buffer too small. got = %d, expected = %d\n", length, sizeof (VIRTIO_PORT_INFO) + name_size);
               }
