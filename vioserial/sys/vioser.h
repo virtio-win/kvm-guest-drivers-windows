@@ -49,6 +49,11 @@ EVT_WDF_INTERRUPT_DISABLE                       VIOSerialInterruptDisable;
 
 #define RETRY_THRESHOLD                 400
 
+// This is the value of the IOCTL_GET_INFORMATION macro used by older versions
+// of the driver. We still respond to it for backward compatibility. New clients
+// should use the new value declared in public.h.
+#define IOCTL_GET_INFORMATION_BUFFERED CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS)
+
 #pragma pack (push)
 #pragma pack (1)
 
