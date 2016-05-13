@@ -137,6 +137,9 @@
     <ClCompile Include="Common\sw-offload.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
+    <ClCompile Include="Common\ParaNdis-VirtIO.cpp">
+      <Filter>Source Files\Common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="tools\cleanemptystrings.vbs">
@@ -160,6 +163,9 @@
   </ItemGroup>
   <ItemGroup>
     <Inf Include="w10\netkvm.inf">
+      <Filter>Driver Files</Filter>
+    </Inf>
+    <Inf Include="wlh\netkvm.inf">
       <Filter>Driver Files</Filter>
     </Inf>
   </ItemGroup>

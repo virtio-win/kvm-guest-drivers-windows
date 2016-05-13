@@ -558,6 +558,7 @@
     <ClCompile Include="Common\ParaNdis-RX.cpp" />
     <ClCompile Include="Common\ParaNdis-TX.cpp" />
     <ClCompile Include="Common\ParaNdis-Util.cpp" />
+    <ClCompile Include="Common\ParaNdis-VirtIO.cpp" />
     <ClCompile Include="Common\ParaNdis-VirtQueue.cpp" />
     <ClCompile Include="Common\sw-offload.cpp" />
     <ClCompile Include="wlh\ParaNdis6-Driver.cpp" />
