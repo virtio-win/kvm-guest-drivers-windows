@@ -35,6 +35,9 @@
 #define wmb()  KeMemoryBarrier()
 #define smp_wmb() KeMemoryBarrier()
 
+#define IORESOURCE_IO           0x00000100      /* PCI/ISA I/O ports */
+#define IORESOURCE_MEM          0x00000200
+
 #ifndef min
 #define min(_a, _b) (((_a) < (_b)) ? (_a) : (_b))
 #endif
