@@ -88,6 +88,9 @@
     <ClInclude Include="wlh\ParaNdis6.h">
       <Filter>Header Files\wlh</Filter>
     </ClInclude>
+    <ClInclude Include="Common\ParaNdis-VirtIO.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="wlh\Parandis6.rc">
