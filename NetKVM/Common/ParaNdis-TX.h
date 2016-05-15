@@ -31,9 +31,6 @@ public:
     bool HaveDetachedBuffers()
     { return m_MappedBuffersDetached != 0; }
 
-    //TODO: Needs review
-    void CompleteMappedBuffers();
-
     PNET_BUFFER_LIST DetachInternalObject();
     //TODO: Needs review
     void NBComplete();
@@ -237,13 +234,10 @@ public:
 private:
 
     //TODO: Needs review
-    bool SendMapped(bool IsInterrupt, PNET_BUFFER_LIST &NBLFailNow);
+    bool SendMapped(bool IsInterrupt);
 
     PNET_BUFFER_LIST ProcessWaitingList();
     PNET_BUFFER_LIST BuildCancelList(PVOID CancelId);
-
-    //TODO: Needs review
-    PNET_BUFFER_LIST RemoveAllNonWaitingNBLs();
 
     bool HaveMappedNBLs() { return !m_SendList.IsEmpty(); }
     CNBL *PopMappedNBL() { return m_SendList.Pop(); }
