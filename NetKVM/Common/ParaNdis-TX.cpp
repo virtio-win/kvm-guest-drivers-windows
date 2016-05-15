@@ -407,18 +407,6 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList()
     return CompletedNBLs;
 }
 
-bool CParaNdisTX::Pause()
-{
-    bool res;
-
-    DoWithTXLock([this, &res]()
-                 {
-                     res = (!m_VirtQueue.HasPacketsInHW() && m_WaitingList.IsEmpty());
-                 });
-
-    return res;
-}
-
 PNET_BUFFER_LIST CParaNdisTX::BuildCancelList(PVOID CancelId)
 {
     PNET_BUFFER_LIST CanceledNBLs = nullptr;

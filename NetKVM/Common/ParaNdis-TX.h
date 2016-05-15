@@ -200,8 +200,6 @@ public:
     }
 
     //TODO: Needs review
-    bool Pause();
-    //TODO: Needs review
     void CancelNBLs(PVOID CancelId);
 
     //TODO: Temporary!!!
