@@ -154,24 +154,12 @@ static NDIS_STATUS ParaNdis6_Initialize(
         pContext->ulUniqueID = NdisInterlockedIncrement(&gID);
         pContext->DriverHandle = DriverHandle;
         pContext->MiniportHandle = miniportAdapterHandle;
-    }
 
-    if (status == NDIS_STATUS_SUCCESS)
-    {
         new (&pContext->m_StateMachine) CMiniportStateMachine;
         new (&pContext->m_RxStateMachine) CDataFlowStateMachine;
 
         pContext->m_StateMachine.RegisterFlow(pContext->m_RxStateMachine);
 
-        new (&pContext->m_PauseLock) CNdisRWLock();
-        if (!pContext->m_PauseLock.Create(pContext->MiniportHandle))
-        {
-            status = NDIS_STATUS_RESOURCES;
-        }
-    }
-
-    if (status == NDIS_STATUS_SUCCESS)
-    {
         NdisZeroMemory(&miniportAttributes, sizeof(miniportAttributes));
         miniportAttributes.RegistrationAttributes.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES;
         miniportAttributes.RegistrationAttributes.Header.Revision = NDIS_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES_REVISION_1;
@@ -339,8 +327,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
         }
 #endif
 
-        pContext->m_PauseLock.~CNdisRWLock();
-
         pContext->m_StateMachine.UnregisterFlow(pContext->m_RxStateMachine);
 
         pContext->m_RxStateMachine.~CDataFlowStateMachine();
@@ -416,18 +402,6 @@ static VOID ParaNdis6_Unload(IN PDRIVER_OBJECT pDriverObject)
 }
 
 /**********************************************************
-    callback from asynchronous RECEIVE PAUSE
-***********************************************************/
-static void OnReceivePauseComplete(void *ctx)
-{
-    DEBUG_ENTRY(0);
-    // pause exit
-    PPARANDIS_ADAPTER pContext = (PPARANDIS_ADAPTER) ctx;
-    ParaNdis_DebugHistory(pContext, hopSysPause, NULL, 0, 0, 0);
-    NdisMPauseComplete(pContext->MiniportHandle);
-}
-
-/**********************************************************
 Required NDIS handler
 called at IRQL = PASSIVE_LEVEL
 Must pause RX and TX
@@ -435,29 +409,12 @@ Called before halt, on standby,
 upon protocols activation
 ***********************************************************/
 static NDIS_STATUS ParaNdis6_Pause(
-        NDIS_HANDLE                         miniportAdapterContext,
-        PNDIS_MINIPORT_PAUSE_PARAMETERS     miniportPauseParameters)
+        NDIS_HANDLE miniportAdapterContext,
+        PNDIS_MINIPORT_PAUSE_PARAMETERS)
 {
-    NDIS_STATUS  status;
-    PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     DEBUG_ENTRY(0);
-
-    UNREFERENCED_PARAMETER(miniportPauseParameters);
-
-    ParaNdis_DebugHistory(pContext, hopSysPause, NULL, 1, 0, 0);
-    status = ParaNdis6_ReceivePauseRestart(pContext, TRUE, OnReceivePauseComplete);
-
-    DEBUG_EXIT_STATUS(0, status);
-
-    if (status == STATUS_SUCCESS)
-    {
-        // pause exit
-        ParaNdis_DebugHistory(pContext, hopSysPause, NULL, 0, 0, 0);
-    }
-
-    pContext->m_StateMachine.NotifyPaused();
-
-    return status;
+    static_cast<PPARANDIS_ADAPTER>(miniportAdapterContext)->m_StateMachine.NotifyPaused();
+    return NDIS_STATUS_SUCCESS;
 }
 
 /**********************************************************
@@ -468,23 +425,12 @@ Called upon startup, on resume,
 upon protocols activation
 ***********************************************************/
 static NDIS_STATUS ParaNdis6_Restart(
-    NDIS_HANDLE                         miniportAdapterContext,
-    PNDIS_MINIPORT_RESTART_PARAMETERS   miniportRestartParameters)
+    NDIS_HANDLE miniportAdapterContext,
+    PNDIS_MINIPORT_RESTART_PARAMETERS)
 {
-    NDIS_STATUS  status = NDIS_STATUS_SUCCESS;
-    PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     DEBUG_ENTRY(0);
-
-    UNREFERENCED_PARAMETER(miniportRestartParameters);
-
-    pContext->m_StateMachine.NotifyRestarted();
-
-    ParaNdis_DebugHistory(pContext, hopSysResume, NULL, 1, 0, 0);
-    ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
-
-    ParaNdis_DebugHistory(pContext, hopSysResume, NULL, 0, 0, 0);
-    DEBUG_EXIT_STATUS(2, status);
-    return status;
+    static_cast<PPARANDIS_ADAPTER>(miniportAdapterContext)->m_StateMachine.NotifyRestarted();
+    return NDIS_STATUS_SUCCESS;
 }
 
 
@@ -533,37 +479,9 @@ static BOOLEAN ParaNdis6_CheckForHang(NDIS_HANDLE miniportAdapterContext)
     return FALSE;
 }
 
-/**********************************************************
-    callback from asynchronous RECEIVE PAUSE on reset
-***********************************************************/
-static void OnReceivePauseCompleteOnReset(void *ctx)
-{
-    DEBUG_ENTRY(0);
-    PPARANDIS_ADAPTER pContext = (PPARANDIS_ADAPTER) ctx;
-    NdisSetEvent(&pContext->ResetEvent);
-}
-
 VOID ParaNdis_Suspend(PARANDIS_ADAPTER *pContext)
 {
-    DPrintf(0, ("[%s]%s\n", __FUNCTION__, pContext->bFastSuspendInProcess ? "(Fast)" : ""));
-    NdisResetEvent(&pContext->ResetEvent);
-    NdisWaitEvent(&pContext->ResetEvent, 0);
-    if (!pContext->bFastSuspendInProcess)
-    {
-        NdisResetEvent(&pContext->ResetEvent);
-        if (NDIS_STATUS_PENDING != ParaNdis6_ReceivePauseRestart(pContext, TRUE, OnReceivePauseCompleteOnReset))
-        {
-            NdisSetEvent(&pContext->ResetEvent);
-        }
-        NdisWaitEvent(&pContext->ResetEvent, 0);
-    }
-    else
-    {
-        ParaNdis6_ReceivePauseRestart(pContext, TRUE, NULL);
-    }
-
     pContext->m_StateMachine.NotifyPaused();
-
     DEBUG_EXIT_STATUS(0, 0);
 }
 
@@ -584,15 +502,8 @@ static NDIS_STATUS ParaNdis6_Reset(
 
 VOID ParaNdis_Resume(PARANDIS_ADAPTER *pContext)
 {
-    DPrintf(0, ("[%s] %s\n", __FUNCTION__, pContext->bFastSuspendInProcess ? " Resuming TX and RX" : "(nothing to do)"));
-    if (pContext->bFastSuspendInProcess)
-    {
-        ParaNdis6_ReceivePauseRestart(pContext, FALSE, NULL);
-    }
-
     pContext->m_StateMachine.NotifyRestarted();
 }
-
 
 /***************************************************
 Required NDIS handler for adapter shutdown

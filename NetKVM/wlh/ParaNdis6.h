@@ -42,13 +42,6 @@ VOID ParaNdis6_ReturnNetBufferLists(
     NDIS_HANDLE miniportAdapterContext,
     PNET_BUFFER_LIST pNBL, ULONG returnFlags);
 
-
-NDIS_STATUS ParaNdis6_ReceivePauseRestart(
-    PARANDIS_ADAPTER *pContext,
-    BOOLEAN bPause,
-    ONPAUSECOMPLETEPROC Callback
-    );
-
 MINIPORT_CANCEL_OID_REQUEST ParaNdis6_OidCancelRequest;
 VOID ParaNdis6_OidCancelRequest(
         NDIS_HANDLE hMiniportAdapterContext,
