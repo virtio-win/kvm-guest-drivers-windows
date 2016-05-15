@@ -356,7 +356,6 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bConnected;
     NDIS_MEDIA_CONNECT_STATE fCurrentLinkState;
     BOOLEAN                 bEnableInterruptHandlingDPC;
-    BOOLEAN                 bEnableInterruptChecking;
     BOOLEAN                 bDoSupportPriority;
     BOOLEAN                 bLinkDetectSupported;
     BOOLEAN                 bGuestChecksumSupported;
@@ -380,9 +379,7 @@ typedef struct _tagPARANDIS_ADAPTER
     tMulticastData          MulticastData;
     UINT                    uNumberOfHandledRXPacketsInDPC;
     NDIS_DEVICE_POWER_STATE powerState;
-    LONG                    nPendingDPCs;
     LONG                    counterDPCInside;
-    LONG                    bDPCInactive;
     ULONG                   ulPriorityVlanSetting;
     ULONG                   VlanId;
     ULONGLONG               ulFormalLinkSpeed;

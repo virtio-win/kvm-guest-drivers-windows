@@ -55,9 +55,6 @@ NDIS_STATUS ParaNdis6_ReceivePauseRestart(
     ONPAUSECOMPLETEPROC Callback
     );
 
-/* returns number of buffers that have been sent */
-UINT ParaNdis6_CopyDataFromSingleNBL(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST pNBL);
-
 MINIPORT_CANCEL_OID_REQUEST ParaNdis6_OidCancelRequest;
 VOID ParaNdis6_OidCancelRequest(
         NDIS_HANDLE hMiniportAdapterContext,
