@@ -223,11 +223,6 @@ public:
     //TODO: Needs review
     bool DoPendingTasks(bool IsInterrupt);
 
-    bool QueueHasPacketInHW()
-    {
-        return m_VirtQueue.HasPacketsInHW();
-    }
-
     void CompleteOutstandingNBLChain(PNET_BUFFER_LIST NBL, ULONG Flags = 0);
 private:
 
