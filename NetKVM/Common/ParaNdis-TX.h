@@ -187,6 +187,7 @@ class CParaNdisTX : public CParaNdisTemplatePath<CTXVirtQueue>, public CNdisAllo
 {
 public:
     CParaNdisTX();
+    ~CParaNdisTX();
 
     bool Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex);
 
@@ -232,6 +233,7 @@ public:
         return m_VirtQueue.HasPacketsInHW();
     }
 
+    void CompleteOutstandingNBLChain(PNET_BUFFER_LIST NBL, ULONG Flags = 0);
 private:
 
     //TODO: Needs review
@@ -246,6 +248,9 @@ private:
     bool HaveMappedNBLs() { return !m_SendList.IsEmpty(); }
     CNBL *PopMappedNBL() { return m_SendList.Pop(); }
     void PushMappedNBL(CNBL *NBLHolder) { m_SendList.Push(NBLHolder); }
+
+    CDataFlowStateMachine m_StateMachine;
+    bool m_StateMachineRegistered = false;
 
     CNdisList<CNBL, CRawAccess, CNonCountingObject> m_SendList;
     CNdisList<CNBL, CRawAccess, CNonCountingObject> m_WaitingList;

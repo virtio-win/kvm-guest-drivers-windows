@@ -24,8 +24,8 @@ CNBL::~CNBL()
     if(m_NBL)
     {
         auto NBL = DetachInternalObject();
-        NET_BUFFER_LIST_NEXT_NBL(NBL) = nullptr;
-        NdisMSendNetBufferListsComplete(m_Context->MiniportHandle, NBL, 0);
+        NETKVM_ASSERT(NET_BUFFER_LIST_NEXT_NBL(NBL) == nullptr);
+        m_ParentTXPath->CompleteOutstandingNBLChain(NBL);
     }
 }
 
@@ -256,10 +256,21 @@ void CNBL::OnLastReferenceGone()
 CParaNdisTX::CParaNdisTX()
 { }
 
+CParaNdisTX::~CParaNdisTX()
+{
+    if (m_StateMachineRegistered)
+    {
+        m_Context->m_StateMachine.UnregisterFlow(m_StateMachine);
+    }
+}
+
 bool CParaNdisTX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 {
     m_Context = Context;
     m_queueIndex = (u16)DeviceQueueIndex;
+
+    Context->m_StateMachine.RegisterFlow(m_StateMachine);
+    m_StateMachineRegistered = true;
 
     return m_VirtQueue.Create(DeviceQueueIndex,
         m_Context->IODevice,
@@ -270,9 +281,25 @@ bool CParaNdisTX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
         m_Context);
 }
 
+void CParaNdisTX::CompleteOutstandingNBLChain(PNET_BUFFER_LIST NBL, ULONG Flags)
+{
+    ULONG NBLNum = ParaNdis_CountNBLs(NBL);
+
+    ParaNdis_CompleteNBLChain(m_Context->MiniportHandle, NBL, Flags);
+
+    m_StateMachine.UnregisterOutstandingItems(NBLNum);
+}
+
 void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
 {
     PNET_BUFFER_LIST nextNBL = nullptr;
+    NDIS_STATUS RejectionStatus = NDIS_STATUS_FAILURE;
+
+    if (!m_StateMachine.RegisterOutstandingItems(ParaNdis_CountNBLs(NBL), &RejectionStatus))
+    {
+        ParaNdis_CompleteNBLChainWithStatus(m_Context->MiniportHandle, NBL, RejectionStatus);
+        return;
+    }
 
     for(auto currNBL = NBL; currNBL != nullptr; currNBL = nextNBL)
     {
@@ -283,8 +310,8 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
 
         if (NBLHolder == nullptr)
         {
-            CNBL OnStack(currNBL, m_Context, *this);
-            OnStack.SetStatus(NDIS_STATUS_RESOURCES);
+            currNBL->Status = NDIS_STATUS_RESOURCES;
+            CompleteOutstandingNBLChain(currNBL);
             DPrintf(0, ("ERROR: Failed to allocate CNBL instance\n"));
             continue;
         }
@@ -424,7 +451,7 @@ bool CParaNdisTX::Pause()
 
     if(NBL != nullptr)
     {
-        NdisMSendNetBufferListsComplete(m_Context->MiniportHandle, NBL, 0);
+        CompleteOutstandingNBLChain(NBL);
     }
 
     return res;
@@ -453,7 +480,7 @@ void CParaNdisTX::CancelNBLs(PVOID CancelId)
     auto CanceledNBLs = BuildCancelList(CancelId);
     if (CanceledNBLs != nullptr)
     {
-        NdisMSendNetBufferListsComplete(m_Context->MiniportHandle, CanceledNBLs, 0);
+        CompleteOutstandingNBLChain(CanceledNBLs);
     }
 }
 
@@ -602,14 +629,13 @@ bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
 
     if (pNBLFailNow)
     {
-        NdisMSendNetBufferListsComplete(m_Context->MiniportHandle, pNBLFailNow,
-                                        NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL);
+        CompleteOutstandingNBLChain(pNBLFailNow, NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL);
+
     }
 
     if (pNBLReturnNow)
     {
-        NdisMSendNetBufferListsComplete(m_Context->MiniportHandle, pNBLReturnNow,
-                                        NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL);
+        CompleteOutstandingNBLChain(pNBLReturnNow, NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL);
     }
 
 #pragma warning(suppress: 26110)
