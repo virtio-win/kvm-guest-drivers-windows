@@ -1369,6 +1369,8 @@ VOID ParaNdis_OnShutdown(PARANDIS_ADAPTER *pContext)
 {
     DEBUG_ENTRY(0); // this is only for kdbg :)
     ParaNdis_ResetVirtIONetDevice(pContext);
+
+    pContext->m_StateMachine.NotifyShutdown();
 }
 
 static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacketInfo)
@@ -2127,8 +2129,8 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     // if bFastSuspendInProcess is set by Win8 power-off procedure,
     // the ParaNdis_Resume enables Tx and RX
     // otherwise it does not do anything in Vista+ (Tx and RX are enabled after power-on by Restart)
-    ParaNdis_Resume(pContext);
     pContext->bFastSuspendInProcess = FALSE;
+    pContext->m_StateMachine.NotifyResumed();
 
     ParaNdis_DebugHistory(pContext, hopPowerOn, NULL, 0, 0, 0);
 }
@@ -2138,12 +2140,13 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, hopPowerOff, NULL, 1, 0, 0);
 
-    pContext->bConnected = FALSE;
-
     // if bFastSuspendInProcess is set by Win8 power-off procedure
     // the ParaNdis_Suspend does fast Rx stop without waiting (=>srsPausing, if there are some RX packets in Ndis)
     pContext->bFastSuspendInProcess = pContext->bNoPauseOnSuspend && pContext->ReceiveState == srsEnabled;
-    ParaNdis_Suspend(pContext);
+
+    pContext->m_StateMachine.NotifySuspended();
+
+    pContext->bConnected = FALSE;
 
     ParaNdis_RemoveDriverOKStatus(pContext);
     
