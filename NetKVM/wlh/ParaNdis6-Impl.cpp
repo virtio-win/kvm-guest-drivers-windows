@@ -1049,14 +1049,6 @@ NDIS_STATUS ParaNdis6_SendPauseRestart(
                 pContext->SendPauseCompletionProc = Callback;
             }
 
-            for (UINT i = 0; i < pContext->nPathBundles; i++)
-            {
-                if (!pContext->pPathBundles[i].txPath.Pause())
-                {
-                    status = NDIS_STATUS_PENDING;
-                }
-            }
-
             if (status == NDIS_STATUS_SUCCESS)
             {
                 pContext->SendState = srsDisabled;
