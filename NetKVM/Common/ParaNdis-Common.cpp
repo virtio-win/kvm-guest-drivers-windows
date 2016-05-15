@@ -1303,10 +1303,6 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 #endif
 
     pContext->m_PauseLock.~CNdisRWLock();
-    if (pContext->m_CompletionLockCreated)
-    {
-        NdisFreeSpinLock(&pContext->m_CompletionLock);
-    }
 
 #if PARANDIS_SUPPORT_RSS
     if (pContext->bRSSInitialized)
@@ -2303,16 +2299,6 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
     }
 
     return res;
-}
-
-bool ParaNdis_HasPacketsInHW(PARANDIS_ADAPTER *pContext)
-{
-    for (auto i = 0U; i < pContext->nPathBundles; i++)
-    {
-        if (pContext->pPathBundles[i].txPath.QueueHasPacketInHW())
-            return true;
-    }
-    return false;
 }
 
 void ParaNdis_PrintCharArray(int DebugPrintLevel, const CCHAR *data, size_t length)

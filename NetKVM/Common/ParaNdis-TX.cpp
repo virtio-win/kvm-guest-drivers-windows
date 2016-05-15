@@ -542,7 +542,6 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt)
 
 bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
 {
-    ONPAUSECOMPLETEPROC CallbackToCall = nullptr;
     PNET_BUFFER_LIST pNBLReturnNow = nullptr;
     bool bDoKick = false;
 
@@ -551,34 +550,11 @@ bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
                     m_VirtQueue.ProcessTXCompletions();
                     bDoKick = SendMapped(IsInterrupt);
                     pNBLReturnNow = ProcessWaitingList();
-                    {
-                        NdisDprAcquireSpinLock(&m_Context->m_CompletionLock);
-
-                        if (m_Context->SendState == srsPausing)
-                        {
-                            CNdisPassiveWriteAutoLock tLock(m_Context->m_PauseLock);
-
-                            if (m_Context->SendState == srsPausing && !ParaNdis_HasPacketsInHW(m_Context))
-                            {
-                                CallbackToCall = m_Context->SendPauseCompletionProc;
-                                m_Context->SendPauseCompletionProc = nullptr;
-                                m_Context->SendState = srsDisabled;
-                            }
-                        }
-                    }
                  });
 
     if (pNBLReturnNow)
     {
         CompleteOutstandingNBLChain(pNBLReturnNow, NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL);
-    }
-
-#pragma warning(suppress: 26110)
-    NdisDprReleaseSpinLock(&m_Context->m_CompletionLock);
-
-    if (CallbackToCall != nullptr)
-    {
-        CallbackToCall(m_Context);
     }
 
     return bDoKick;

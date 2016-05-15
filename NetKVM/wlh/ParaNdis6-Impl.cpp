@@ -980,7 +980,6 @@ NDIS_STATUS ParaNdis6_ReceivePauseRestart(
 NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_FAILURE;
-    if (pContext->SendState != srsEnabled ) status = NDIS_STATUS_PAUSED;
     if (!pContext->bConnected) status = NDIS_STATUS_MEDIA_DISCONNECTED;
     if (pContext->bSurprizeRemoved) status = NDIS_STATUS_NOT_ACCEPTED;
     // override NDIS_STATUS_PAUSED is there is a specific reason of implicit paused state
@@ -991,7 +990,7 @@ NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext)
 BOOLEAN ParaNdis_IsSendPossible(PARANDIS_ADAPTER *pContext)
 {
     BOOLEAN b;
-    b =  !pContext->bSurprizeRemoved && pContext->bConnected && pContext->SendState == srsEnabled;
+    b =  !pContext->bSurprizeRemoved && pContext->bConnected;
     return b;
 }
 
@@ -1014,57 +1013,6 @@ VOID ProcessSGListHandler(
 
     auto NBHolder = static_cast<CNB*>(Context);
     NBHolder->MappingDone(pSGL);
-}
-
-/**********************************************************
-Pauses of restarts TX activity.
-Restart is immediate, pause may be delayed until
-we return all the NBLs to NDIS
-
-Parameters:
-    context
-    bPause 1/0 - pause or restart
-    ONPAUSECOMPLETEPROC Callback to be called when PAUSE finished
-Return value:
-    SUCCESS if finished synchronously
-    PENDING if not, then callback will be called later
-***********************************************************/
-NDIS_STATUS ParaNdis6_SendPauseRestart(
-    PARANDIS_ADAPTER *pContext,
-    BOOLEAN bPause,
-    ONPAUSECOMPLETEPROC Callback
-)
-{
-    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
-    DEBUG_ENTRY(4);
-    if (bPause)
-    {
-        ParaNdis_DebugHistory(pContext, hopInternalSendPause, NULL, 1, 0, 0);
-        if (pContext->SendState == srsEnabled)
-        {
-            {
-                CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
-
-                pContext->SendState = srsPausing;
-                pContext->SendPauseCompletionProc = Callback;
-            }
-
-            if (status == NDIS_STATUS_SUCCESS)
-            {
-                pContext->SendState = srsDisabled;
-            }
-        }
-        if (status == NDIS_STATUS_SUCCESS)
-        {
-            ParaNdis_DebugHistory(pContext, hopInternalSendPause, NULL, 0, 0, 0);
-        }
-    }
-    else
-    {
-        pContext->SendState = srsEnabled;
-        ParaNdis_DebugHistory(pContext, hopInternalSendResume, NULL, 0, 0, 0);
-    }
-    return status;
 }
 
 /**********************************************************

@@ -43,12 +43,6 @@ VOID ParaNdis6_ReturnNetBufferLists(
     PNET_BUFFER_LIST pNBL, ULONG returnFlags);
 
 
-NDIS_STATUS ParaNdis6_SendPauseRestart(
-    PARANDIS_ADAPTER *pContext,
-    BOOLEAN bPause,
-    ONPAUSECOMPLETEPROC Callback
-    );
-
 NDIS_STATUS ParaNdis6_ReceivePauseRestart(
     PARANDIS_ADAPTER *pContext,
     BOOLEAN bPause,
