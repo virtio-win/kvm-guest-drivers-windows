@@ -162,6 +162,9 @@ static NDIS_STATUS ParaNdis6_Initialize(
         pContext->m_CompletionLockCreated = true;
 
         new (&pContext->m_StateMachine) CMiniportStateMachine;
+        new (&pContext->m_RxStateMachine) CDataFlowStateMachine;
+
+        pContext->m_StateMachine.RegisterFlow(pContext->m_RxStateMachine);
 
         new (&pContext->m_PauseLock) CNdisRWLock();
         if (!pContext->m_PauseLock.Create(pContext->MiniportHandle))
@@ -345,6 +348,9 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
         pContext->m_PauseLock.~CNdisRWLock();
 
+        pContext->m_StateMachine.UnregisterFlow(pContext->m_RxStateMachine);
+
+        pContext->m_RxStateMachine.~CDataFlowStateMachine();
         pContext->m_StateMachine.~CMiniportStateMachine();
 
         if (pContext->IODevice != nullptr)

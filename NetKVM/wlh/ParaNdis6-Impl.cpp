@@ -919,20 +919,16 @@ VOID ParaNdis6_ReturnNetBufferLists(
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
 
+    auto NumNBLs = ParaNdis_CountNBLs(pNBL);
+
     UNREFERENCED_PARAMETER(returnFlags);
 
     DEBUG_ENTRY(5);
-    while (pNBL)
-    {
-        PNET_BUFFER_LIST pTemp = pNBL;
-        pRxNetDescriptor pBuffersDescriptor = (pRxNetDescriptor)pNBL->MiniportReserved[0];
-        DPrintf(3, ("  Returned NBL of pBuffersDescriptor %p!\n", pBuffersDescriptor));
-        pNBL = NET_BUFFER_LIST_NEXT_NBL(pNBL);
-        NET_BUFFER_LIST_NEXT_NBL(pTemp) = NULL;
-        NdisFreeNetBufferList(pTemp);
-        pBuffersDescriptor->Queue->ReuseReceiveBuffer(pBuffersDescriptor);
-    }
+
+    ParaNdis_ReuseRxNBLs(pNBL);
+
     ParaNdis_TestPausing(pContext);
+    pContext->m_RxStateMachine.UnregisterOutstandingItems(NumNBLs);
 }
 
 /**********************************************************

@@ -1715,11 +1715,15 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
 
         if (nIndicate)
         {
-            NdisMIndicateReceiveNetBufferLists(pContext->MiniportHandle,
-                indicate,
-                0,
-                nIndicate,
-                0);
+            if(pContext->m_RxStateMachine.RegisterOutstandingItems(nIndicate))
+            {
+                NdisMIndicateReceiveNetBufferLists(pContext->MiniportHandle,
+                                                   indicate, 0, nIndicate, 0);
+            }
+            else
+            {
+                ParaNdis_ReuseRxNBLs(indicate);
+            }
         }
 
         ParaNdis_TestPausing(pContext);
@@ -1727,6 +1731,20 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
     } while (bMoreDataInRing);
 
     return res;
+}
+
+void ParaNdis_ReuseRxNBLs(PNET_BUFFER_LIST pNBL)
+{
+    while (pNBL)
+    {
+        PNET_BUFFER_LIST pTemp = pNBL;
+        pRxNetDescriptor pBuffersDescriptor = (pRxNetDescriptor)pNBL->MiniportReserved[0];
+        DPrintf(3, ("  Returned NBL of pBuffersDescriptor %p!\n", pBuffersDescriptor));
+        pNBL = NET_BUFFER_LIST_NEXT_NBL(pNBL);
+        NET_BUFFER_LIST_NEXT_NBL(pTemp) = NULL;
+        NdisFreeNetBufferList(pTemp);
+        pBuffersDescriptor->Queue->ReuseReceiveBuffer(pBuffersDescriptor);
+    }
 }
 
 bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndicate)
