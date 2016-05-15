@@ -927,54 +927,7 @@ VOID ParaNdis6_ReturnNetBufferLists(
 
     ParaNdis_ReuseRxNBLs(pNBL);
 
-    ParaNdis_TestPausing(pContext);
     pContext->m_RxStateMachine.UnregisterOutstandingItems(NumNBLs);
-}
-
-/**********************************************************
-Pauses of restarts RX activity.
-Restart is immediate, pause may be delayed until
-NDIS returns all the indicated NBL
-
-Parameters:
-    context
-    bPause 1/0 - pause or restart
-    ONPAUSECOMPLETEPROC Callback to be called when PAUSE finished
-Return value:
-    SUCCESS if finished synchronously
-    PENDING if not, then callback will be called
-***********************************************************/
-NDIS_STATUS ParaNdis6_ReceivePauseRestart(
-    PARANDIS_ADAPTER *pContext,
-    BOOLEAN bPause,
-    ONPAUSECOMPLETEPROC Callback
-    )
-{
-    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
-
-    if (bPause)
-    {
-        CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
-
-        ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 1, 0, 0);
-        if (pContext->m_rxPacketsOutsideRing != 0)
-        {
-            pContext->ReceiveState = srsPausing;
-            pContext->ReceivePauseCompletionProc = Callback;
-            status = NDIS_STATUS_PENDING;
-        }
-        else
-        {
-            ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 0, 0, 0);
-            pContext->ReceiveState = srsDisabled;
-        }
-    }
-    else
-    {
-        ParaNdis_DebugHistory(pContext, hopInternalReceiveResume, NULL, 0, 0, 0);
-        pContext->ReceiveState = srsEnabled;
-    }
-    return status;
 }
 
 NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext)

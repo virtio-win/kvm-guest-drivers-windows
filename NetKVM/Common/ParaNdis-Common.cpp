@@ -748,7 +748,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
     }
 
     VirtIODeviceWriteGuestFeatures(pContext->IODevice, pContext->u32GuestFeatures);
-    NdisInitializeEvent(&pContext->ResetEvent);
     DEBUG_EXIT_STATUS(0, status);
     return status;
 }
@@ -1172,7 +1171,6 @@ Return value:
 ***********************************************************/
 static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
 {
-    BOOLEAN b;
     ULONG i;
     DEBUG_ENTRY(0);
 
@@ -1199,18 +1197,6 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
             pBufferDescriptor->Queue->ReuseReceiveBuffer(pBufferDescriptor);
         }
     }
-
-    do
-    {
-        b = pContext->m_rxPacketsOutsideRing != 0;
-
-        if (b)
-        {
-            DPrintf(0, ("[%s] There are waiting buffers\n", __FUNCTION__));
-            PrintStatistics(pContext);
-            NdisMSleep(5000000);
-        }
-    } while (b);
 
     RestoreMAC(pContext);
 
@@ -1301,8 +1287,6 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
         }
     }
 #endif
-
-    pContext->m_PauseLock.~CNdisRWLock();
 
 #if PARANDIS_SUPPORT_RSS
     if (pContext->bRSSInitialized)
@@ -1500,26 +1484,6 @@ VOID ParaNdis_ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescri
                                     &pQueue->Lock);
 }
 
-VOID ParaNdis_TestPausing(PARANDIS_ADAPTER *pContext)
-{
-    ONPAUSECOMPLETEPROC callback = nullptr;
-
-    if (pContext->m_rxPacketsOutsideRing == 0 && pContext->ReceiveState == srsPausing)
-    {
-        CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
-
-        if (pContext->m_rxPacketsOutsideRing == 0 && (pContext->ReceiveState == srsPausing || pContext->ReceivePauseCompletionProc))
-        {
-            callback = pContext->ReceivePauseCompletionProc;
-            pContext->ReceiveState = srsDisabled;
-            pContext->ReceivePauseCompletionProc = NULL;
-            ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 0, 0, 0);
-        }
-    }
-
-    if (callback) callback(pContext);
-}
-
 static __inline
 pRxNetDescriptor ReceiveQueueGetBuffer(PPARANDIS_RECEIVE_QUEUE pQueue)
 {
@@ -1592,7 +1556,6 @@ static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
             PNET_PACKET_INFO pPacketInfo = &pBufferDescriptor->PacketInfo;
 
             if( !pContext->bSurprizeRemoved &&
-                pContext->ReceiveState == srsEnabled &&
                 pContext->bConnected &&
                 ShallPassPacket(pContext, pPacketInfo))
             {
@@ -1674,39 +1637,32 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
         indicateTail = nullptr;
         nIndicate = 0;
 
+        /* pathBundle is passed from ParaNdis_DPCWorkBody and may be NULL
+        if case DPC handler is scheduled by RSS to the CPU with
+        associated queues */
+        if (pathBundle != nullptr)
         {
-            CNdisDispatchReadAutoLock tLock(pContext->m_PauseLock);
+            pathBundle->rxPath.ProcessRxRing(CurrCpuReceiveQueue);
 
-            /* pathBundle is passed from ParaNdis_DPCWorkBody and may be NULL
-            if case DPC handler is scheduled by RSS to the CPU with
-            associated queues */
-            if (pathBundle != nullptr)
-            {
-                pathBundle->rxPath.ProcessRxRing(CurrCpuReceiveQueue);
-            }
-
-            if (pathBundle != nullptr)
-            {
-                res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pathBundle->rxPath.UnclassifiedPacketsQueue(),
-                    &indicate, &indicateTail, &nIndicate);
-            }
+            res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pathBundle->rxPath.UnclassifiedPacketsQueue(),
+                &indicate, &indicateTail, &nIndicate);
+        }
 
 #ifdef PARANDIS_SUPPORT_RSS
-            if (CurrCpuReceiveQueue != PARANDIS_RECEIVE_NO_QUEUE)
-            {
-                res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pContext->ReceiveQueues[CurrCpuReceiveQueue],
-                    &indicate, &indicateTail, &nIndicate);
-            }
+        if (CurrCpuReceiveQueue != PARANDIS_RECEIVE_NO_QUEUE)
+        {
+            res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pContext->ReceiveQueues[CurrCpuReceiveQueue],
+                &indicate, &indicateTail, &nIndicate);
+        }
 #endif
 
-            if (pathBundle != nullptr)
-            {
-                bMoreDataInRing = pathBundle->rxPath.RestartQueue();
-            }
-            else
-            {
-                bMoreDataInRing = FALSE;
-            }
+        if (pathBundle != nullptr)
+        {
+            bMoreDataInRing = pathBundle->rxPath.RestartQueue();
+        }
+        else
+        {
+            bMoreDataInRing = FALSE;
         }
 
         if (nIndicate)
@@ -1721,9 +1677,6 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
                 ParaNdis_ReuseRxNBLs(indicate);
             }
         }
-
-        ParaNdis_TestPausing(pContext);
-
     } while (bMoreDataInRing);
 
     return res;
@@ -2148,7 +2101,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
 
     // if bFastSuspendInProcess is set by Win8 power-off procedure
     // the ParaNdis_Suspend does fast Rx stop without waiting (=>srsPausing, if there are some RX packets in Ndis)
-    pContext->bFastSuspendInProcess = pContext->bNoPauseOnSuspend && pContext->ReceiveState == srsEnabled;
+    pContext->bFastSuspendInProcess = pContext->bNoPauseOnSuspend;
 
     pContext->m_StateMachine.NotifySuspended();
 
