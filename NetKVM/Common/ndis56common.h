@@ -394,6 +394,7 @@ typedef struct _tagPARANDIS_ADAPTER
     ULONG                   nVirtioHeaderSize;
 
     CMiniportStateMachine   m_StateMachine;
+    CDataFlowStateMachine   m_RxStateMachine;
 
     /* send part */
     NDIS_STATISTICS_INFO    Statistics;
@@ -523,6 +524,8 @@ VOID ParaNdis_CleanupContext(
 bool ParaNdis_DPCWorkBody(
     PARANDIS_ADAPTER *pContext,
     ULONG ulMaxPacketsToIndicate);
+
+void ParaNdis_ReuseRxNBLs(PNET_BUFFER_LIST pNBL);
 
 #ifdef PARANDIS_SUPPORT_RSS
 VOID ParaNdis_ResetRxClassification(
