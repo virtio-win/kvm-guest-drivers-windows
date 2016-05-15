@@ -557,3 +557,28 @@ void ParaNdis_PrintTable(int DebugPrintLevel, TTable table, size_t Size, LPCSTR 
 }
 void ParaNdis_PrintCharArray(int DebugPrintLevel, const CCHAR *data, size_t length);
 
+static inline
+ULONG ParaNdis_CountNBLs(PNET_BUFFER_LIST NBL)
+{
+    for (auto Result = 0UL; NBL != nullptr;
+        NBL = NET_BUFFER_LIST_NEXT_NBL(NBL), Result++);
+
+    return Result;
+}
+
+static inline
+void ParaNdis_CompleteNBLChain(NDIS_HANDLE MiniportHandle, PNET_BUFFER_LIST NBL, ULONG Flags = 0)
+{
+    NdisMSendNetBufferListsComplete(MiniportHandle, NBL, Flags);
+}
+
+static inline
+void ParaNdis_CompleteNBLChainWithStatus(NDIS_HANDLE MiniportHandle, PNET_BUFFER_LIST NBL, NDIS_STATUS Status, ULONG Flags = 0)
+{
+    for (auto curr = NBL; curr != nullptr; curr = NET_BUFFER_LIST_NEXT_NBL(curr))
+    {
+        NET_BUFFER_LIST_STATUS(curr) = Status;
+    }
+
+    ParaNdis_CompleteNBLChain(MiniportHandle, NBL, Flags);
+}
