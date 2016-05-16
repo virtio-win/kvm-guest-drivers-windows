@@ -935,8 +935,6 @@ NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext)
     NDIS_STATUS status = NDIS_STATUS_FAILURE;
     if (!pContext->bConnected) status = NDIS_STATUS_MEDIA_DISCONNECTED;
     if (pContext->bSurprizeRemoved) status = NDIS_STATUS_NOT_ACCEPTED;
-    // override NDIS_STATUS_PAUSED is there is a specific reason of implicit paused state
-    if (pContext->powerState != NdisDeviceStateD0) status = NDIS_STATUS_LOW_POWER_STATE;
     return status;
 }
 

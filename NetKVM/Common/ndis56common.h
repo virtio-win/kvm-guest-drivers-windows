@@ -369,8 +369,6 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bCtrlRXFiltersSupported;
     BOOLEAN                 bCtrlRXExtraFiltersSupported;
     BOOLEAN                 bCtrlVLANFiltersSupported;
-    BOOLEAN                 bNoPauseOnSuspend;
-    BOOLEAN                 bFastSuspendInProcess;
     BOOLEAN                 bCtrlMACAddrSupported;
     BOOLEAN                 bCfgMACAddrSupported;
     BOOLEAN                 bMultiQueue;
@@ -378,7 +376,6 @@ typedef struct _tagPARANDIS_ADAPTER
     ULONG                   ulCurrentVlansFilterSet;
     tMulticastData          MulticastData;
     UINT                    uNumberOfHandledRXPacketsInDPC;
-    NDIS_DEVICE_POWER_STATE powerState;
     LONG                    counterDPCInside;
     ULONG                   ulPriorityVlanSetting;
     ULONG                   VlanId;
@@ -692,12 +689,6 @@ BOOLEAN ParaNdis_SynchronizeWithInterrupt(
     tSynchronizedProcedure procedure,
     PVOID parameter);
 
-VOID ParaNdis_Suspend(
-    PARANDIS_ADAPTER *pContext);
-
-VOID ParaNdis_Resume(
-    PARANDIS_ADAPTER *pContext);
-
 typedef VOID (*tOnAdditionalPhysicalMemoryAllocated)(
     PARANDIS_ADAPTER *pContext,
     tCompletePhysicalAddress *pAddresses);
@@ -740,10 +731,6 @@ VOID ParaNdis_UpdateDeviceFilters(
 
 VOID ParaNdis_DeviceFiltersUpdateVlanId(
     PARANDIS_ADAPTER *pContext);
-
-VOID ParaNdis_SetPowerState(
-    PARANDIS_ADAPTER *pContext,
-    NDIS_DEVICE_POWER_STATE newState);
 
 VOID ParaNdis_SynchronizeLinkState(
     PARANDIS_ADAPTER *pContext);

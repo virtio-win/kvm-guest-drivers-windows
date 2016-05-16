@@ -105,11 +105,6 @@ VOID ParaNdis_SynchronizeLinkState(PARANDIS_ADAPTER *pContext)
                                                          : MediaConnectStateDisconnected);
 }
 
-VOID ParaNdis_SetPowerState(PARANDIS_ADAPTER *pContext, NDIS_DEVICE_POWER_STATE newState)
-{
-    pContext->powerState = newState;
-}
-
 /**********************************************************
 Required NDIS handler
 Initialize adapter context, prepare it for operation,
@@ -215,7 +210,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
         {
             DPrintf(0, ("[%s] ERROR: ParaNdis6_InitializeContext failed (%X)!\n", __FUNCTION__, status));
         }
-        pContext->bNoPauseOnSuspend = bNoPauseOnSuspend; 
     }
 
     if (status == NDIS_STATUS_SUCCESS)
@@ -479,12 +473,6 @@ static BOOLEAN ParaNdis6_CheckForHang(NDIS_HANDLE miniportAdapterContext)
     return FALSE;
 }
 
-VOID ParaNdis_Suspend(PARANDIS_ADAPTER *pContext)
-{
-    pContext->m_StateMachine.NotifyPaused();
-    DEBUG_EXIT_STATUS(0, 0);
-}
-
 /**********************************************************
 Required NDIS handler for RESET operation
 Never happens under normal condition, only if
@@ -498,11 +486,6 @@ static NDIS_STATUS ParaNdis6_Reset(
     UNREFERENCED_PARAMETER(miniportAdapterContext);
     *pAddressingReset = FALSE;
     return NDIS_STATUS_SUCCESS;
-}
-
-VOID ParaNdis_Resume(PARANDIS_ADAPTER *pContext)
-{
-    pContext->m_StateMachine.NotifyRestarted();
 }
 
 /***************************************************
