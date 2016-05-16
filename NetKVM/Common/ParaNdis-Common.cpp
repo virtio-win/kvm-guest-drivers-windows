@@ -642,7 +642,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
     ReadNicConfiguration(pContext, CurrentMAC);
 
     pContext->fCurrentLinkState = MediaConnectStateUnknown;
-    pContext->powerState = NdisDeviceStateUnspecified;
 
     pContext->MaxPacketSize.nMaxFullSizeOS = pContext->MaxPacketSize.nMaxDataSize + ETH_HEADER_SIZE;
     pContext->MaxPacketSize.nMaxFullSizeHwTx = pContext->MaxPacketSize.nMaxFullSizeOS;
@@ -1110,7 +1109,6 @@ NDIS_STATUS ParaNdis_DeviceEnterD0(PARANDIS_ADAPTER *pContext)
 
     ReadLinkState(pContext);
     pContext->bEnableInterruptHandlingDPC = TRUE;
-    ParaNdis_SetPowerState(pContext, NdisDeviceStateD0);
     ParaNdis_SynchronizeLinkState(pContext);
     ParaNdis_AddDriverOKStatus(pContext);
     ParaNdis_DeviceConfigureMultiqQueue(pContext);
@@ -1270,7 +1268,6 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
         ParaNdis_ResetVirtIONetDevice(pContext);
     }
 
-    ParaNdis_SetPowerState(pContext, NdisDeviceStateD3);
     ParaNdis_SetLinkState(pContext, MediaConnectStateUnknown);
     VirtIONetRelease(pContext);
 
@@ -2085,10 +2082,6 @@ VOID ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     ParaNdis_DeviceEnterD0(pContext);
     ParaNdis_UpdateDeviceFilters(pContext);
 
-    // if bFastSuspendInProcess is set by Win8 power-off procedure,
-    // the ParaNdis_Resume enables Tx and RX
-    // otherwise it does not do anything in Vista+ (Tx and RX are enabled after power-on by Restart)
-    pContext->bFastSuspendInProcess = FALSE;
     pContext->m_StateMachine.NotifyResumed();
 
     ParaNdis_DebugHistory(pContext, hopPowerOn, NULL, 0, 0, 0);
@@ -2098,10 +2091,6 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
 {
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, hopPowerOff, NULL, 1, 0, 0);
-
-    // if bFastSuspendInProcess is set by Win8 power-off procedure
-    // the ParaNdis_Suspend does fast Rx stop without waiting (=>srsPausing, if there are some RX packets in Ndis)
-    pContext->bFastSuspendInProcess = pContext->bNoPauseOnSuspend;
 
     pContext->m_StateMachine.NotifySuspended();
 
@@ -2115,7 +2104,6 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     // indication only and fail on disconnect indication
     ParaNdis_SetLinkState(pContext, MediaConnectStateDisconnected);
 #endif
-    ParaNdis_SetPowerState(pContext, NdisDeviceStateD3);
     ParaNdis_SetLinkState(pContext, MediaConnectStateUnknown);
 
     PreventDPCServicing(pContext);
