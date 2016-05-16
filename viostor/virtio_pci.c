@@ -236,15 +236,16 @@ static u16 pci_get_msix_vector(void *context, int queue)
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
     u16 vector;
 
-    if (queue >= 0) {
-        /* queue interrupt */
-        if (!adaptExt->dump_mode && adaptExt->msix_vectors > 1) {
+    if (!adaptExt->dump_mode && adaptExt->msix_vectors > 1) {
+        if (queue >= 0) {
+            /* queue interrupt */
             vector = (u16)(adaptExt->msix_vectors - 1);
         } else {
-            vector = VIRTIO_MSI_NO_VECTOR;
+            /* on-device-config-change interrupt */
+            vector = 0;
         }
-    } else {
-        /* on-device-config-change interrupt */
+    }
+    else {
         vector = VIRTIO_MSI_NO_VECTOR;
     }
 
