@@ -366,7 +366,7 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bSurprizeRemoved;
     BOOLEAN                 bUsingMSIX;
     BOOLEAN                 bUseIndirect;
-    BOOLEAN                 bAnyLaypout;
+    BOOLEAN                 bAnyLayout;
     BOOLEAN                 bCtrlRXFiltersSupported;
     BOOLEAN                 bCtrlRXExtraFiltersSupported;
     BOOLEAN                 bCtrlVLANFiltersSupported;

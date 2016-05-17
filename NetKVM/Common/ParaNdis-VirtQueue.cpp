@@ -89,7 +89,7 @@ bool CTXVirtQueue::PrepareBuffers()
             m_SGTable,
             m_SGTableCapacity,
             m_Context->bUseIndirect ? true : false,
-            m_Context->bAnyLaypout ? true : false))
+            m_Context->bAnyLayout ? true : false))
         {
             CTXDescriptor::Destroy(TXDescr, m_Context->MiniportHandle);
             break;
