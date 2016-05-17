@@ -10,8 +10,7 @@
  * the COPYING file in the top-level directory.
  *
 **********************************************************************/
-#ifndef __OS_DEP_H
-#define __OS_DEP_H
+#pragma once
 
 #pragma warning (push)
 #pragma warning (disable:28301)
@@ -60,6 +59,4 @@
 #if (7-PARANDIS_MINOR_DRIVER_VERSION-7) == 14
 #undef PARANDIS_MINOR_DRIVER_VERSION
 #define PARANDIS_MINOR_DRIVER_VERSION       58000
-#endif
-
 #endif
