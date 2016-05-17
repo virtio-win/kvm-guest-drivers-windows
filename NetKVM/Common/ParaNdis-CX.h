@@ -10,7 +10,7 @@ public:
 
     bool Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex);
 
-    virtual NDIS_STATUS SetupMessageIndex(u16 queueCardinal);
+    virtual NDIS_STATUS SetupMessageIndex(u16 vector);
 
     BOOLEAN CParaNdisCX::SendControlMessage(
         UCHAR cls,

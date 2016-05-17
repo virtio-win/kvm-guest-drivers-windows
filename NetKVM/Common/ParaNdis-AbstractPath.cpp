@@ -2,20 +2,17 @@
 #include "ParaNdis-AbstractPath.h"
 #include "kdebugprint.h"
 
-NDIS_STATUS CParaNdisAbstractPath::SetupMessageIndex(u16 queueCardinal)
+NDIS_STATUS CParaNdisAbstractPath::SetupMessageIndex(u16 vector)
 {
-    u16 val;
+    u16 val = m_pVirtQueue->SetMSIVector(vector);
 
-    WriteVirtIODeviceWord(m_Context->IODevice->addr + VIRTIO_PCI_QUEUE_SEL, (u16)queueCardinal);
-    WriteVirtIODeviceWord(m_Context->IODevice->addr + VIRTIO_MSI_QUEUE_VECTOR, (u16)queueCardinal);
-    val = ReadVirtIODeviceWord(m_Context->IODevice->addr + VIRTIO_MSI_QUEUE_VECTOR);
-    if (val != queueCardinal)
+    if (val != vector)
     {
-        DPrintf(0, ("[%s] - read/write mismatch, %u vs %u\n", val, queueCardinal));
+        DPrintf(0, ("[%s] - read/write mismatch, %u vs %u\n", val, vector));
         return NDIS_STATUS_DEVICE_FAILED;
     }
 
-    m_messageIndex = queueCardinal;
+    m_messageIndex = vector;
     return NDIS_STATUS_SUCCESS;
 }
 

@@ -171,6 +171,8 @@ public:
 
     void Shutdown();
 
+    u16 SetMSIVector(u16 vector);
+
     int AddBuf(struct VirtIOBufferDescriptor sg[],
         unsigned int out_num,
         unsigned int in_num,
