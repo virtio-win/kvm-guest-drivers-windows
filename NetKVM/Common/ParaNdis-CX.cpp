@@ -126,9 +126,9 @@ BOOLEAN CParaNdisCX::SendControlMessage(
     return bOK;
 }
 
-NDIS_STATUS CParaNdisCX::SetupMessageIndex(u16 queueCardinal)
+NDIS_STATUS CParaNdisCX::SetupMessageIndex(u16 vector)
 {
-    WriteVirtIODeviceWord(m_Context->IODevice->addr + VIRTIO_MSI_CONFIG_VECTOR, (u16)queueCardinal);
+    m_Context->IODevice->config_vector(m_Context->IODevice, vector);
 
-    return CParaNdisAbstractPath::SetupMessageIndex(queueCardinal);
+    return CParaNdisAbstractPath::SetupMessageIndex(vector);
 }

@@ -35,7 +35,7 @@ public:
         return m_queueIndex;
     }
 
-    virtual NDIS_STATUS SetupMessageIndex(u16 queueCardinal);
+    virtual NDIS_STATUS SetupMessageIndex(u16 vector);
 
     /* TODO - Path classes should inherit from CVirtQueue*/
     virtual void DisableInterrupts()
@@ -52,6 +52,13 @@ public:
     {
         m_pVirtQueue->Renew();
     }
+
+    bool IsInterruptEnabled()
+    {
+        return m_pVirtQueue->IsInterruptEnabled();
+    }
+
+
 
     ULONG getCPUIndex();
 
