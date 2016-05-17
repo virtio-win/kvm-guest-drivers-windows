@@ -36,12 +36,13 @@
 #define BUILD_BUG_ON(condition) \
     static_assert(!(condition), "Compile-time assumption failed")
 
-#ifndef bool
+#if !defined(__cplusplus) && !defined(bool)
 #define bool int
 #define false FALSE
 #define true TRUE
-#define inline __forceinline
 #endif
+
+#define inline __forceinline
 
 #ifdef DBG
 #define DEBUG
