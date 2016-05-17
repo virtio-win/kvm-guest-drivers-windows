@@ -625,7 +625,7 @@ BOOLEAN ParaNdis_OnQueuedInterrupt(
 VOID ParaNdis_OnShutdown(
     PARANDIS_ADAPTER *pContext);
 
-VOID ParaNdis_PowerOn(
+NDIS_STATUS ParaNdis_PowerOn(
     PARANDIS_ADAPTER *pContext
 );
 

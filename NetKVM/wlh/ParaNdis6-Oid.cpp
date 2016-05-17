@@ -558,7 +558,7 @@ static void OnSetPowerWorkItem(PVOID  WorkItemContext, NDIS_HANDLE  NdisIoWorkIt
 
         if (pwi->state == NetDeviceStateD0)
         {
-            ParaNdis_PowerOn(pContext);
+            status = ParaNdis_PowerOn(pContext);
         }
         else
         {
