@@ -1,6 +1,7 @@
 #ifndef _LINUX_VIRTIO_CONFIG_H
 #define _LINUX_VIRTIO_CONFIG_H
 
+#include "osdep.h"
 #include "virtio.h"
 #include "linux/virtio_byteorder.h"
 #include "linux/virtio_config.h"
@@ -69,7 +70,10 @@ struct virtio_config_ops {
                     struct virtqueue *vqs[],
                     vq_callback_t *callbacks[],
                     const char * const names[]);
+    int (*find_vq)(virtio_device *, unsigned index,
+                   struct virtqueue **vq, const char *name);
     void (*del_vqs)(virtio_device *);
+    void (*del_vq)(struct virtqueue *);
     u64 (*get_features)(virtio_device *vdev);
     int (*finalize_features)(virtio_device *vdev);
     const char *(*bus_name)(virtio_device *vdev);

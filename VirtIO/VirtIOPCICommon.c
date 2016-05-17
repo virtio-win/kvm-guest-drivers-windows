@@ -134,6 +134,16 @@ void vp_del_vqs(virtio_device *vdev)
     }
 }
 
+/* the config->del_vq() implementation */
+void vp_del_vq(struct virtqueue *vq)
+{
+    virtio_pci_device *vp_dev = to_vp_device(vq->vdev);
+    unsigned i = vq->index;
+
+    vp_dev->del_vq(&vp_dev->info[i]);
+    vp_dev->info[i].vq = NULL;
+}
+
 static struct virtqueue *vp_setup_vq(virtio_device *vdev, unsigned index,
                                      void(*callback)(struct virtqueue *vq),
                                      const char *name,
@@ -214,6 +224,27 @@ int vp_find_vqs(virtio_device *vdev, unsigned nvqs,
 error_find:
     vp_del_vqs(vdev);
     return err;
+}
+
+/* the config->find_vq() implementation */
+int vp_find_vq(virtio_device *vdev, unsigned index,
+               struct virtqueue **vq,
+               const char *name)
+{
+    virtio_pci_device *vp_dev = to_vp_device(vdev);
+
+    struct virtqueue *queue = vp_setup_vq(
+        vp_dev,
+        index,
+        NULL,
+        name,
+        VIRTIO_MSI_NO_VECTOR);
+    if (IS_ERR(queue)) {
+        return (int)PTR_ERR(queue);
+    }
+
+    *vq = queue;
+    return 0;
 }
 
 u8 virtio_read_isr_status(VirtIODevice *vdev)
