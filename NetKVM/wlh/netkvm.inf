@@ -26,6 +26,7 @@ DriverPackageDisplayName = %kvmnet6.DeviceDesc%
 
 [RedHat.NT$ARCH$]
 %kvmnet6.DeviceDesc%    = kvmnet6.ndi, PCI\VEN_1AF4&DEV_1000&SUBSYS_00011AF4&REV_00
+%kvmnet6.DeviceDesc%    = kvmnet6.ndi, PCI\VEN_1AF4&DEV_1041&SUBSYS_11001AF4&REV_01
 
 [kvmnet6.ndi.hw]
 AddReg          = kvmnet6.EnableMSI
