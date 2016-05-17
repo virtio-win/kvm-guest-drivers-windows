@@ -476,6 +476,26 @@ static int vp_modern_find_vqs(virtio_device *vdev, unsigned nvqs,
     return 0;
 }
 
+static int vp_modern_find_vq(virtio_device *vdev, unsigned index,
+                             struct virtqueue **vq,
+                             const char *name)
+{
+    virtio_pci_device *vp_dev = to_vp_device(vdev);
+    int rc;
+
+    rc = vp_find_vq(vdev, index, vq, name);
+    if (rc)
+        return rc;
+
+    /* Select and activate the queue. Has to be done last: once we do
+     * this, there's no way to go back except reset.
+     */
+    vp_iowrite16((u16)index, &vp_dev->common->queue_select);
+    vp_iowrite16(1, &vp_dev->common->queue_enable);
+
+    return 0;
+}
+
 static void del_vq(virtio_pci_vq_info *info)
 {
     struct virtqueue *vq = info->vq;
@@ -507,7 +527,9 @@ static const struct virtio_config_ops virtio_pci_config_nodev_ops = {
     .set_status = vp_set_status,
     .reset = vp_reset,
     .find_vqs = vp_modern_find_vqs,
+    .find_vq = vp_modern_find_vq,
     .del_vqs = vp_del_vqs,
+    .del_vq = vp_del_vq,
     .get_features = vp_get_features,
     .finalize_features = vp_finalize_features,
     .bus_name = NULL,
@@ -522,7 +544,9 @@ static const struct virtio_config_ops virtio_pci_config_ops = {
     .set_status = vp_set_status,
     .reset = vp_reset,
     .find_vqs = vp_modern_find_vqs,
+    .find_vq = vp_modern_find_vq,
     .del_vqs = vp_del_vqs,
+    .del_vq = vp_del_vq,
     .get_features = vp_get_features,
     .finalize_features = vp_finalize_features,
     .bus_name = NULL,

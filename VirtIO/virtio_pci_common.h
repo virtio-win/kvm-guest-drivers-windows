@@ -65,11 +65,17 @@
 bool vp_notify(struct virtqueue *vq);
 /* the config->del_vqs() implementation */
 void vp_del_vqs(virtio_device *vdev);
+/* the config->del_vq() implementation */
+void vp_del_vq(struct virtqueue *vq);
 /* the config->find_vqs() implementation */
 int vp_find_vqs(virtio_device *vdev, unsigned nvqs,
                 struct virtqueue *vqs[],
                 vq_callback_t *callbacks[],
                 const char * const names[]);
+/* the config->find_vq() implementation */
+int vp_find_vq(virtio_device *vdev, unsigned index,
+                struct virtqueue **vq,
+                const char *name);
 
 int pci_find_capability(virtio_device *vdev, int cap);
 int pci_find_next_capability(virtio_device *vdev, u8 pos, int cap);
