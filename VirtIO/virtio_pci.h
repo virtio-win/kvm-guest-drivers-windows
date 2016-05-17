@@ -364,6 +364,8 @@ int virtio_query_queue_allocation(VirtIODevice *vdev,
                                   unsigned long *pAllocationSize,
                                   unsigned long *pHeapSize);
 
+int virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs);
+
 int virtio_find_queues(VirtIODevice *vdev,
                        unsigned nvqs,
                        struct virtqueue *vqs[],

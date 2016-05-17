@@ -78,6 +78,7 @@ struct virtio_config_ops {
     int (*finalize_features)(virtio_device *vdev);
     const char *(*bus_name)(virtio_device *vdev);
     int (*set_vq_affinity)(struct virtqueue *vq, int cpu);
+    u16 (*set_msi_vector)(struct virtqueue *vq, u16 vector);
 };
 
 /**

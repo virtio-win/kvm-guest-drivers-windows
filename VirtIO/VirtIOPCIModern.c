@@ -172,6 +172,17 @@ static int vp_finalize_features(virtio_device *vdev)
     return 0;
 }
 
+/* virtio config->set_msi_vector() implementation */
+static u16 vp_set_msi_vector(struct virtqueue *vq, u16 vector)
+{
+    virtio_pci_device *vp_dev = to_vp_device(vq->vdev);
+    struct virtio_pci_common_cfg __iomem *cfg = vp_dev->common;
+
+    vp_iowrite16((u16)vq->index, &cfg->queue_select);
+    vp_iowrite16(vector, &cfg->queue_msix_vector);
+    return vp_ioread16(&cfg->queue_msix_vector);
+}
+
 /* virtio config->get() implementation */
 static void vp_get(virtio_device *vdev, unsigned offset,
                    void *buf, unsigned len)
@@ -534,6 +545,7 @@ static const struct virtio_config_ops virtio_pci_config_nodev_ops = {
     .finalize_features = vp_finalize_features,
     .bus_name = NULL,
     .set_vq_affinity = NULL,
+    .set_msi_vector = vp_set_msi_vector,
 };
 
 static const struct virtio_config_ops virtio_pci_config_ops = {
@@ -551,6 +563,7 @@ static const struct virtio_config_ops virtio_pci_config_ops = {
     .finalize_features = vp_finalize_features,
     .bus_name = NULL,
     .set_vq_affinity = NULL,
+    .set_msi_vector = vp_set_msi_vector,
 };
 
 /**
