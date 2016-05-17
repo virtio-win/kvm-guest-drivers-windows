@@ -160,16 +160,6 @@ typedef enum _tagSendReceiveState
     srsEnabled
 } tSendReceiveState;
 
-typedef struct _tagAdapterResources
-{
-    ULONG ulIOAddress;
-    ULONG IOLength;
-    ULONG Vector;
-    ULONG Level;
-    KAFFINITY Affinity;
-    ULONG InterruptFlags;
-} tAdapterResources;
-
 typedef enum _tagOffloadSettingsBit
 {
     osbT4IpChecksum = (1 << 0),
@@ -342,9 +332,7 @@ typedef struct _tagPARANDIS_ADAPTER
     NDIS_HANDLE             BufferListsPool;
     NDIS_EVENT              ResetEvent;
 
-    tAdapterResources       AdapterResources;
     CPciResources           PciResources;
-    PVOID                   pIoPortOffset;
     VirtIODevice            IODevice;
     CNdisSharedMemory       *pPageAllocator;
 
