@@ -205,7 +205,7 @@ static BOOLEAN MiniportInterrupt(
     )
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
-    ULONG status = VirtIODeviceISR(pContext->IODevice);
+    ULONG status = virtio_read_isr_status(&pContext->IODevice);
 
     *TargetProcessors = 0;
 

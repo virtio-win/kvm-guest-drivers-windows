@@ -22,7 +22,7 @@ bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     m_queueIndex = (u16)DeviceQueueIndex;
 
     if (!m_VirtQueue.Create(DeviceQueueIndex,
-        m_Context->IODevice,
+        &m_Context->IODevice,
         m_Context->MiniportHandle,
         m_Context->bDoPublishIndices ? true : false))
     {
