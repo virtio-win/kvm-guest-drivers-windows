@@ -4,19 +4,45 @@
 
 bool CVirtQueue::AllocateQueueMemory()
 {
-    ULONG NumEntries, AllocationSize;
-    VirtIODeviceQueryQueueAllocation(m_IODevice, m_Index, &NumEntries, &AllocationSize);
+    USHORT NumEntries;
+    ULONG AllocationSize, HeapSize;
+
+    int err = m_IODevice->query_vq_alloc(
+        m_IODevice,
+        m_Index,
+        &NumEntries,
+        &AllocationSize,
+        &HeapSize);
+    if (err != 0)
+    {
+        DPrintf(0, ("[%s] query_vq_alloc(%d) failed with error %d\n", __FUNCTION__, m_Index, err));
+        return false;
+    }
+
     return (AllocationSize != 0) ? m_SharedMemory.Allocate(AllocationSize) : false;
 }
 
 void CVirtQueue::Renew()
 {
-    auto virtioDev = m_VirtQueue->vdev;
-    auto info = &virtioDev->info[m_VirtQueue->index];
-    auto pageNum = static_cast<ULONG>(info->phys.QuadPart >> PAGE_SHIFT);
-    DPrintf(0, ("[%s] devaddr %p, queue %d, pfn %x\n", __FUNCTION__, virtioDev->addr, info->queue_index, pageNum));
-    WriteVirtIODeviceWord(virtioDev->addr + VIRTIO_PCI_QUEUE_SEL, static_cast<UINT16>(info->queue_index));
-    WriteVirtIODeviceRegister(virtioDev->addr + VIRTIO_PCI_QUEUE_PFN, pageNum);
+    PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)m_IODevice->DeviceContext;
+
+    pContext->pPageAllocator = &m_SharedMemory;
+    int err = m_IODevice->config->find_vq(
+        m_IODevice,
+        m_Index,
+        &m_VirtQueue,
+        "queue_name");
+    pContext->pPageAllocator = nullptr;
+
+    if (err == 0)
+    {
+        virtqueue_set_event_suppression(m_VirtQueue, m_UsePublishedIndices);
+    }
+    else
+    {
+        DPrintf(0, ("[%s] - queue setup failed for index %u with error %d\n", __FUNCTION__, m_Index, err));
+        m_VirtQueue = nullptr;
+    }
 }
 
 bool CVirtQueue::Create(UINT Index,
@@ -37,19 +63,9 @@ bool CVirtQueue::Create(UINT Index,
 
     NETKVM_ASSERT(m_VirtQueue == nullptr);
 
-    if(AllocateQueueMemory())
+    if (AllocateQueueMemory())
     {
-        m_VirtQueue = VirtIODevicePrepareQueue(m_IODevice,
-                                               m_Index,
-                                               m_SharedMemory.GetPA(),
-                                               m_SharedMemory.GetVA(),
-                                               m_SharedMemory.GetSize(),
-                                               nullptr,
-                                               static_cast<BOOLEAN>(m_UsePublishedIndices));
-        if (m_VirtQueue == nullptr)
-        {
-            DPrintf(0, ("[%s] - queue preparation failed for index %u\n", __FUNCTION__, Index));
-        }
+        Renew();
     }
     else
     {
@@ -63,7 +79,7 @@ void CVirtQueue::Delete()
 {
     if (m_VirtQueue != nullptr)
     {
-        VirtIODeviceDeleteQueue(m_VirtQueue, nullptr);
+        m_IODevice->config->del_vq(m_VirtQueue);
     }
 }
 

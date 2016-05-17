@@ -30,7 +30,7 @@ bool CParaNdisCX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     }
 
     return m_VirtQueue.Create(DeviceQueueIndex,
-        m_Context->IODevice,
+        &m_Context->IODevice,
         m_Context->MiniportHandle,
         m_Context->bDoPublishIndices ? true : false);
 }
@@ -128,7 +128,7 @@ BOOLEAN CParaNdisCX::SendControlMessage(
 
 NDIS_STATUS CParaNdisCX::SetupMessageIndex(u16 vector)
 {
-    m_Context->IODevice->config_vector(m_Context->IODevice, vector);
+    m_Context->IODevice.config_vector(&m_Context->IODevice, vector);
 
     return CParaNdisAbstractPath::SetupMessageIndex(vector);
 }

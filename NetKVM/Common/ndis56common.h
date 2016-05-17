@@ -345,15 +345,15 @@ typedef struct _tagPARANDIS_ADAPTER
     tAdapterResources       AdapterResources;
     CPciResources           PciResources;
     PVOID                   pIoPortOffset;
-    VirtIODevice            *IODevice;
+    VirtIODevice            IODevice;
     CNdisSharedMemory       *pPageAllocator;
 
     LARGE_INTEGER           LastTxCompletionTimeStamp;
 #ifdef PARANDIS_DEBUG_INTERRUPTS
     LARGE_INTEGER           LastInterruptTimeStamp;
 #endif
-    u32                     u32HostFeatures;
-    u32                     u32GuestFeatures;
+    u64                     u64HostFeatures;
+    u64                     u64GuestFeatures;
     BOOLEAN                 bConnected;
     NDIS_MEDIA_CONNECT_STATE fCurrentLinkState;
     BOOLEAN                 bEnableInterruptHandlingDPC;
