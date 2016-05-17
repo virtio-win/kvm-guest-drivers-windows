@@ -499,6 +499,16 @@ static int vp_finalize_features(virtio_device *vdev)
     return 0;
 }
 
+/* virtio config->set_msi_vector() implementation */
+static u16 vp_set_msi_vector(struct virtqueue *vq, u16 vector)
+{
+    virtio_pci_device *vp_dev = to_vp_device(vq->vdev);
+
+    iowrite16((u16)vq->index, vp_dev->addr + VIRTIO_PCI_QUEUE_SEL);
+    iowrite16(vector, vp_dev->addr + VIRTIO_MSI_QUEUE_VECTOR);
+    return ioread16(vp_dev->addr + VIRTIO_MSI_QUEUE_VECTOR);
+}
+
 static const struct virtio_config_ops virtio_pci_config_ops = {
     .get = VirtIODeviceGet,
     .set = VirtIODeviceSet,
@@ -514,6 +524,7 @@ static const struct virtio_config_ops virtio_pci_config_ops = {
     .finalize_features = vp_finalize_features,
     .bus_name = NULL,
     .set_vq_affinity = NULL,
+    .set_msi_vector = vp_set_msi_vector,
 };
 
 /* the PCI probing function */

@@ -348,10 +348,7 @@ int virtio_query_queue_allocation(VirtIODevice *vdev,
     return vdev->query_vq_alloc(vdev, index, pNumEntries, pAllocationSize, pHeapSize);
 }
 
-int virtio_find_queues(VirtIODevice *vdev,
-                       unsigned nvqs,
-                       struct virtqueue *vqs[],
-                       const char *const names[])
+int virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs)
 {
     if (nvqs > vdev->maxQueues) {
         /* allocate new space for queue infos */
@@ -366,13 +363,25 @@ int virtio_find_queues(VirtIODevice *vdev,
         vdev->info = new_info;
         vdev->maxQueues = nvqs;
     }
+    return 0;
+}
 
-    return vdev->config->find_vqs(
-        vdev,
-        nvqs,
-        vqs,
-        NULL,
-        names);
+int virtio_find_queues(VirtIODevice *vdev,
+                       unsigned nvqs,
+                       struct virtqueue *vqs[],
+                       const char *const names[])
+{
+    int err = virtio_reserve_queue_memory(vdev, nvqs);
+    if (err == 0)
+    {
+        err = vdev->config->find_vqs(
+            vdev,
+            nvqs,
+            vqs,
+            NULL,
+            names);
+    }
+    return err;
 }
 
 int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA)
