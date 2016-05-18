@@ -107,8 +107,6 @@
   <ItemGroup>
     <ClInclude Include="kdebugprint.h" />
     <ClInclude Include="linux\types.h" />
-    <ClInclude Include="linux\virtio_byteorder.h" />
-    <ClInclude Include="linux\virtio_ids.h" />
     <ClInclude Include="linux\virtio_types.h" />
     <ClInclude Include="linux\virtio_config.h" />
     <ClInclude Include="osdep.h" />

@@ -1184,6 +1184,13 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     return status;
 }
 
+static void VirtIODeviceRemoveStatus(VirtIODevice *pVirtIODevice, u8 status)
+{
+    pVirtIODevice->config->set_status(
+        pVirtIODevice,
+        pVirtIODevice->config->get_status(pVirtIODevice) & ~status);
+}
+
 /**********************************************************
 Finishes initialization of context structure, calling also version dependent part
 If this procedure failed, ParaNdis_CleanupContext must be called

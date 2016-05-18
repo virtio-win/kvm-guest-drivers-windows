@@ -51,7 +51,6 @@
 #define mb()   KeMemoryBarrier()
 #define rmb()  KeMemoryBarrier()
 #define wmb()  KeMemoryBarrier()
-#define smp_wmb() KeMemoryBarrier()
 
 #define ENOENT           2      /* No such file or directory */
 #define ENOMEM          12      /* Out of Memory */
@@ -85,7 +84,6 @@ inline LONG_PTR IS_ERR(const void *ptr)
 #define PAGE_ALIGN(addr) ROUND_TO_PAGES(addr)
 
 #define SMP_CACHE_BYTES 64
-#define __LITTLE_ENDIAN
 
 #define cpu_to_le16(x) (x)
 #define cpu_to_le32(x) (x)

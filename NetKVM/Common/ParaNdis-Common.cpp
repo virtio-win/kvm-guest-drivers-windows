@@ -775,21 +775,6 @@ void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescripto
     NdisFreeMemory(p, 0, 0);
 }
 
-/**********************************************************
-Allocates maximum RX buffers for incoming packets
-Buffers are chained in NetReceiveBuffers
-Parameters:
-    context
-***********************************************************/
-
-void ParaNdis_DeleteQueue(PARANDIS_ADAPTER *pContext, struct virtqueue **ppq, tCompletePhysicalAddress *ppa)
-{
-    if (*ppq) VirtIODeviceDeleteQueue(*ppq, NULL);
-    *ppq = NULL;
-    if (ppa->Virtual) ParaNdis_FreePhysicalMemory(pContext, ppa);
-    RtlZeroMemory(ppa, sizeof(*ppa));
-}
-
 #if PARANDIS_SUPPORT_RSS
 static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
 {

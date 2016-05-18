@@ -523,11 +523,6 @@ VOID ParaNdis_VirtIODisableIrqSynchronized(
     PARANDIS_ADAPTER *pContext,
     ULONG interruptSource);
 
-void ParaNdis_DeleteQueue(
-    PARANDIS_ADAPTER *pContext, 
-    struct virtqueue **ppq,
-    tCompletePhysicalAddress *ppa);
-
 void ParaNdis_FreeRxBufferDescriptor(
     PARANDIS_ADAPTER *pContext,
     pRxNetDescriptor p);

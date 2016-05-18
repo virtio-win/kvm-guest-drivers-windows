@@ -81,9 +81,6 @@
 /* Deprecated: please use VIRTIO_PCI_CONFIG_OFF instead */
 #define VIRTIO_PCI_CONFIG(msix_enabled)	VIRTIO_PCI_CONFIG_OFF(msix_enabled)
 
-/* Virtio ABI version, this must match exactly */
-#define VIRTIO_PCI_ABI_VERSION		0
-
 /* How many bits to shift physical queue address written to QUEUE_PFN.
 * 12 is historical, and due to x86 page size. */
 #define VIRTIO_PCI_QUEUE_ADDR_SHIFT	12
@@ -98,8 +95,6 @@
 #define VIRTIO_PCI_ISR_CONFIG		0x2
 /* Vector value used to disable MSI for queue */
 #define VIRTIO_MSI_NO_VECTOR            0xffff
-
-#ifndef VIRTIO_PCI_NO_MODERN
 
 /* IDs for different capabilities.  Must all exist. */
 
@@ -188,8 +183,6 @@ struct virtio_pci_common_cfg {
 #define VIRTIO_PCI_COMMON_Q_USEDLO	48
 #define VIRTIO_PCI_COMMON_Q_USEDHI	52
 
-#endif /* VIRTIO_PCI_NO_MODERN */
-
 #define MAX_QUEUES_PER_DEVICE_DEFAULT           8
 
 typedef struct _tVirtIOPerQueueInfo
@@ -198,14 +191,8 @@ typedef struct _tVirtIOPerQueueInfo
     struct virtqueue *vq;
     /* the number of entries in the queue */
     u16 num;
-    /* the index of the queue */
-    int queue_index;
     /* the virtual address of the ring queue */
     void *queue;
-    /* physical address of the ring queue */
-    PHYSICAL_ADDRESS phys;
-    /* owner per-queue context */
-    void *pOwnerContext;
 } tVirtIOPerQueueInfo, virtio_pci_vq_info;
 
 typedef struct virtio_system_ops {
@@ -275,7 +262,6 @@ typedef struct TypeVirtIODevice
     /* do not add any members after info struct, it is extensible */
 } VirtIODevice, virtio_pci_device;
 
-
 /***************************************************
 shall be used only if VirtIODevice device storage is allocated
 dynamically to provide support for more than 8 (MAX_QUEUES_PER_DEVICE_DEFAULT) queues.
@@ -292,57 +278,18 @@ ULONG __inline VirtIODeviceSizeRequired(USHORT maxNumberOfQueues)
 }
 
 /***************************************************
-addr - start of IO address space (usually 32 bytes)
-allocatedSize - sizeof(VirtIODevice) if static or built-in allocation used
-
-if allocated dynamically to provide support for more than MAX_QUEUES_PER_DEVICE_DEFAULT queues
-allocatedSize should be at least VirtIODeviceSizeRequired(...) and pVirtIODevice should be aligned
-at 8 bytes boundary (OS allocation does it automatically
-***************************************************/
-void VirtIODeviceInitialize(VirtIODevice * pVirtIODevice, ULONG_PTR addr, ULONG allocatedSize);
-/***************************************************
 shall be called if the device currently uses MSI-X feature
 as soon as possible after initialization
 before use VirtIODeviceGet or VirtIODeviceSet
 ***************************************************/
 void VirtIODeviceSetMSIXUsed(VirtIODevice * pVirtIODevice, bool used);
-void VirtIODeviceReset(VirtIODevice * pVirtIODevice);
 void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice);
-
-#define VirtIODeviceReadHostFeatures(pVirtIODevice) \
-    ReadVirtIODeviceRegister((pVirtIODevice)->addr + VIRTIO_PCI_HOST_FEATURES)
-
-#define VirtIODeviceWriteGuestFeatures(pVirtIODevice, u32Features) \
-    WriteVirtIODeviceRegister((pVirtIODevice)->addr + VIRTIO_PCI_GUEST_FEATURES, (u32Features))
 
 #define VirtIOIsFeatureEnabled(FeaturesList, Feature)   (!!((FeaturesList) & (1ULL << (Feature))))
 #define VirtIOFeatureEnable(FeaturesList, Feature)      ((FeaturesList) |= (1ULL << (Feature)))
 #define VirtIOFeatureDisable(FeaturesList, Feature)     ((FeaturesList) &= ~(1ULL << (Feature)))
 
-void VirtIODeviceGet(VirtIODevice * pVirtIODevice,
-                     unsigned offset,
-                     void *buf,
-                     unsigned len);
-void VirtIODeviceSet(VirtIODevice * pVirtIODevice,
-                     unsigned offset,
-                     const void *buf,
-                     unsigned len);
-ULONG VirtIODeviceISR(VirtIODevice * pVirtIODevice);
-void VirtIODeviceAddStatus(VirtIODevice * pVirtIODevice, u8 status);
-void VirtIODeviceRemoveStatus(VirtIODevice * pVirtIODevice, u8 status);
-
-void VirtIODeviceQueryQueueAllocation(VirtIODevice *vp_dev, unsigned index, unsigned long *pNumEntries, unsigned long *pAllocationSize);
-struct virtqueue *VirtIODevicePrepareQueue(
-                    VirtIODevice *vp_dev,
-                    unsigned index,
-                    PHYSICAL_ADDRESS pa,
-                    void *va,
-                    unsigned long size,
-                    void *ownerContext,
-                    BOOLEAN usePublishedIndices);
-void VirtIODeviceDeleteQueue(struct virtqueue *vq, /* optional*/ void **pOwnerContext);
 u32  VirtIODeviceGetQueueSize(struct virtqueue *vq);
-void VirtIODeviceRenewQueue(struct virtqueue *vq);
 
 unsigned long VirtIODeviceIndirectPageCapacity();
 
