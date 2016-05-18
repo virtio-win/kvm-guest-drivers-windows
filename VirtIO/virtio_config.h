@@ -3,7 +3,6 @@
 
 #include "osdep.h"
 #include "virtio.h"
-#include "linux/virtio_byteorder.h"
 #include "linux/virtio_config.h"
 
 /**
@@ -50,11 +49,6 @@
 *    This gives the final feature bits for the device: it can change
 *    the dev->feature bits if it wants.
 *    Returns 0 on success or error status
-* @bus_name: return the bus name associated with the device
-*    vdev: the virtio_device
-*      This returns a pointer to the bus name a la pci_name from which
-*      the caller can then copy.
-* @set_vq_affinity: set the affinity for a virtqueue.
 */
 typedef void vq_callback_t(struct virtqueue *);
 struct virtio_config_ops {
@@ -76,8 +70,6 @@ struct virtio_config_ops {
     void (*del_vq)(struct virtqueue *);
     u64 (*get_features)(virtio_device *vdev);
     int (*finalize_features)(virtio_device *vdev);
-    const char *(*bus_name)(virtio_device *vdev);
-    int (*set_vq_affinity)(struct virtqueue *vq, int cpu);
     u16 (*set_msi_vector)(struct virtqueue *vq, u16 vector);
 };
 
@@ -106,10 +98,7 @@ static inline void __virtio_set_bit(virtio_device *vdev,
                                     unsigned int fbit)
 {
     /* Did you forget to fix assumptions on max features? */
-    //if (__builtin_constant_p(fbit))
-    //    BUILD_BUG_ON(fbit >= 64);
-    //else
-        BUG_ON(fbit >= 64);
+    BUG_ON(fbit >= 64);
 
     vdev->features |= BIT_ULL(fbit);
 }
@@ -139,24 +128,6 @@ static inline bool virtio_has_feature(const virtio_device *vdev,
     return __virtio_test_bit(vdev, fbit);
 }
 
-static inline
-struct virtqueue *virtio_find_single_vq(virtio_device *vdev,
-                                        vq_callback_t *c, const char *n)
-{
-    vq_callback_t *callbacks[1];
-    const char *names[1];
-    struct virtqueue *vq;
-    int err;
-
-    callbacks[0] = c;
-    names[0] = n;
-
-    err = vdev->config->find_vqs(vdev, 1, &vq, callbacks, names);
-    if (err < 0)
-        return (struct virtqueue *)ERR_PTR(err);
-    return vq;
-}
-
 /**
 * virtio_device_ready - enable vq use in probe function
 * @vdev: the device
@@ -180,72 +151,6 @@ u64 virtio_get_features(virtio_device *dev)
     dev->features = dev->config->get_features(dev);
     return dev->features;
 }
-
-static inline
-const char *virtio_bus_name(virtio_device *vdev)
-{
-    if (!vdev->config->bus_name)
-        return "virtio";
-    return vdev->config->bus_name(vdev);
-}
-
-/**
-* virtqueue_set_affinity - setting affinity for a virtqueue
-* @vq: the virtqueue
-* @cpu: the cpu no.
-*
-* Pay attention the function are best-effort: the affinity hint may not be set
-* due to config support, irq type and sharing.
-*
-*/
-static inline
-int virtqueue_set_affinity(struct virtqueue *vq, int cpu)
-{
-    virtio_device *vdev = vq->vdev;
-    if (vdev->config->set_vq_affinity)
-        return vdev->config->set_vq_affinity(vq, cpu);
-    return 0;
-}
-
-static inline bool virtio_is_little_endian(virtio_device *vdev)
-{
-    return virtio_has_feature(vdev, VIRTIO_F_VERSION_1) ||
-        virtio_legacy_is_little_endian();
-}
-
-/* Memory accessors */
-#pragma warning (push)
-#pragma warning (disable:4100) // unreferenced formal parameter vdev
-static inline u16 virtio16_to_cpu(virtio_device *vdev, __virtio16 val)
-{
-    return __virtio16_to_cpu(virtio_is_little_endian(vdev), val);
-}
-
-static inline __virtio16 cpu_to_virtio16(virtio_device *vdev, u16 val)
-{
-    return __cpu_to_virtio16(virtio_is_little_endian(vdev), val);
-}
-
-static inline u32 virtio32_to_cpu(virtio_device *vdev, __virtio32 val)
-{
-    return __virtio32_to_cpu(virtio_is_little_endian(vdev), val);
-}
-
-static inline __virtio32 cpu_to_virtio32(virtio_device *vdev, u32 val)
-{
-    return __cpu_to_virtio32(virtio_is_little_endian(vdev), val);
-}
-
-static inline u64 virtio64_to_cpu(virtio_device *vdev, __virtio64 val)
-{
-    return __virtio64_to_cpu(virtio_is_little_endian(vdev), val);
-}
-
-static inline __virtio64 cpu_to_virtio64(virtio_device *vdev, u64 val)
-{
-    return __cpu_to_virtio64(virtio_is_little_endian(vdev), val);
-}
-#pragma warning (pop)
 
 /* Config space accessors. */
 #define virtio_cread(vdev, structname, member, ptr)         \
@@ -355,13 +260,12 @@ static inline u16 virtio_cread16(virtio_device *vdev,
 {
     u16 ret;
     vdev->config->get(vdev, offset, &ret, sizeof(ret));
-    return virtio16_to_cpu(vdev, (__force __virtio16)ret);
+    return ret;
 }
 
 static inline void virtio_cwrite16(virtio_device *vdev,
                                    unsigned int offset, u16 val)
 {
-    val = (__force u16)cpu_to_virtio16(vdev, val);
     vdev->config->set(vdev, offset, &val, sizeof(val));
 }
 
@@ -370,13 +274,12 @@ static inline u32 virtio_cread32(virtio_device *vdev,
 {
     u32 ret;
     vdev->config->get(vdev, offset, &ret, sizeof(ret));
-    return virtio32_to_cpu(vdev, (__force __virtio32)ret);
+    return ret;
 }
 
 static inline void virtio_cwrite32(virtio_device *vdev,
                                    unsigned int offset, u32 val)
 {
-    val = (__force u32)cpu_to_virtio32(vdev, val);
     vdev->config->set(vdev, offset, &val, sizeof(val));
 }
 
@@ -385,25 +288,13 @@ static inline u64 virtio_cread64(virtio_device *vdev,
 {
     u64 ret;
     __virtio_cread_many(vdev, offset, &ret, 1, sizeof(ret));
-    return virtio64_to_cpu(vdev, (__force __virtio64)ret);
+    return ret;
 }
 
 static inline void virtio_cwrite64(virtio_device *vdev,
                                    unsigned int offset, u64 val)
 {
-    val = (__force u64)cpu_to_virtio64(vdev, val);
     vdev->config->set(vdev, offset, &val, sizeof(val));
 }
-
-/* Conditional config space accessors. */
-#define virtio_cread_feature(vdev, fbit, structname, member, ptr)    \
-    ({                                                               \
-        int _r = 0;                                                  \
-        if (!virtio_has_feature(vdev, fbit))                         \
-            _r = -ENOENT;                                            \
-                else                                                 \
-            virtio_cread((vdev), structname, member, ptr);           \
-        _r;                                                          \
-    })
 
 #endif /* _LINUX_VIRTIO_CONFIG_H */

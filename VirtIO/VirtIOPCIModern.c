@@ -543,8 +543,6 @@ static const struct virtio_config_ops virtio_pci_config_nodev_ops = {
     .del_vq = vp_del_vq,
     .get_features = vp_get_features,
     .finalize_features = vp_finalize_features,
-    .bus_name = NULL,
-    .set_vq_affinity = NULL,
     .set_msi_vector = vp_set_msi_vector,
 };
 
@@ -561,8 +559,6 @@ static const struct virtio_config_ops virtio_pci_config_ops = {
     .del_vq = vp_del_vq,
     .get_features = vp_get_features,
     .finalize_features = vp_finalize_features,
-    .bus_name = NULL,
-    .set_vq_affinity = NULL,
     .set_msi_vector = vp_set_msi_vector,
 };
 

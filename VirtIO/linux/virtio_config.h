@@ -50,19 +50,17 @@
 #define VIRTIO_TRANSPORT_F_START        28
 #define VIRTIO_TRANSPORT_F_END          32
 
-#ifndef VIRTIO_CONFIG_NO_LEGACY
 /* Do we get callbacks when the ring is completely used, even if we've
  * suppressed them? */
 #define VIRTIO_F_NOTIFY_ON_EMPTY        24
 
 /* Can the device handle any descriptor layout? */
 #define VIRTIO_F_ANY_LAYOUT             27
-#endif /* VIRTIO_CONFIG_NO_LEGACY */
 
 /* v1.0 compliant. */
 #define VIRTIO_F_VERSION_1              32
 
 // if this number is not equal to desc size, queue creation fails
-#define SIZE_OF_SINGLE_INDIRECT_DESC        16
+#define SIZE_OF_SINGLE_INDIRECT_DESC    16
 
 #endif /* _UAPI_LINUX_VIRTIO_CONFIG_H */

@@ -27,7 +27,6 @@
 * SUCH DAMAGE. */
 #include <pshpack1.h>
 #include <linux/types.h>
-#include <linux/virtio_ids.h>
 //#include <linux/virtio_config.h>
 #include <linux/virtio_types.h>
 #include <linux/if_ether.h>

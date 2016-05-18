@@ -33,7 +33,6 @@
 #define mb()   KeMemoryBarrier()
 #define rmb()  KeMemoryBarrier()
 #define wmb()  KeMemoryBarrier()
-#define smp_wmb() KeMemoryBarrier()
 
 #ifndef min
 #define min(_a, _b) (((_a) < (_b)) ? (_a) : (_b))
