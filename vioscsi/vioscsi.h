@@ -101,6 +101,23 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_SCSI_REQUEST_QUEUE_0            2
 #define VIRTIO_SCSI_QUEUE_LAST                 VIRTIO_SCSI_REQUEST_QUEUE_0 + MAX_CPU
 
+
+#define VENDORID                      0x1AF4
+#define PRODUCTID                     0x1004
+#define MANUFACTURER                  L"Red Hat Inc."
+#define SERIALNUMBER                  L"SerialNumber"
+#define MODEL                         L"Model"
+#define MODELDESCRIPTION              L"ModelDescription"
+#define HARDWAREVERSION               L"HardwareVersion"
+#define DRIVERVERSION                 L"DriverVersion"
+#define OPTIONROMVERSION              L"OptionROMVersion"
+#define FIRMWAREVERSION               L"FirmwareVersion"
+#define DRIVERNAME                    L"DriverName"
+#define HBASYMBOLICNAME               L"HBASymbolicName"
+#define REDUNDANTOPTIONROMVERSION     L"RedundantOptionROMVersion"
+#define REDUNDANTFIRMWAREVERSION      L"RedundantFirmwareVersion"
+#define MFRDOMAIN                     L"MfrDomain"
+
 /* SCSI command request, followed by data-out */
 #pragma pack(1)
 typedef struct {
