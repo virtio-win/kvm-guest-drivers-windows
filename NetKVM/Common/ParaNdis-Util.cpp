@@ -1,6 +1,23 @@
 #include "ParaNdis-Util.h"
 #include "ndis56common.h"
 
+#ifdef DBG
+void NetKvmAssert(bool Statement, ULONG Code)
+{
+    if (!Statement)
+    {
+#pragma warning (push)
+#pragma warning (disable:28159)
+        KeBugCheckEx(0x0ABCDEF0,
+                     0x0ABCDEF0,
+                     Code,
+                     NDIS_MINIPORT_MAJOR_VERSION,
+                     NDIS_MINIPORT_MINOR_VERSION);
+#pragma warning (pop)
+    }
+}
+#endif
+
 void CNdisRefCounter::AddRef(ULONG RefCnt)
 {
     for (auto i = 0UL; i < RefCnt; ++i)
@@ -41,7 +58,7 @@ CNdisSharedMemory::~CNdisSharedMemory()
 //Must never be called
 void __CRTDECL operator delete(void *) throw()
 {
-    ASSERT(FALSE);
+    NETKVM_ASSERT(FALSE);
 #ifdef DBG
 #pragma warning (push)
 #pragma warning (disable:28159)
@@ -52,7 +69,7 @@ void __CRTDECL operator delete(void *) throw()
 
 void __CRTDECL operator delete[](void *) throw()
 {
-    ASSERT(FALSE);
+    NETKVM_ASSERT(FALSE);
 #ifdef DBG
 #pragma warning (push)
 #pragma warning (disable:28159)

@@ -127,7 +127,7 @@ CCHAR FindReceiveQueueForCurrentCpu(PPARANDIS_SCALING_SETTINGS RSSScalingSetting
     KeGetCurrentProcessorNumberEx(&CurrProcNum);
     CurrProcIdx = KeGetProcessorIndexFromNumber(&CurrProcNum);
 
-    ASSERT(CurrProcIdx != INVALID_PROCESSOR_INDEX);
+    NETKVM_ASSERT(CurrProcIdx != INVALID_PROCESSOR_INDEX);
 
     if(CurrProcIdx >= RSSScalingSettings->CPUIndexMappingSize)
         return PARANDIS_RECEIVE_NO_QUEUE;

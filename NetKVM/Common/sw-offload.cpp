@@ -1026,8 +1026,8 @@ ULONG ParaNdis_StripVlanHeaderMoveHead(PNET_PACKET_INFO packetInfo)
 {
     PUINT32 pData = (PUINT32) packetInfo->headersBuffer;
 
-    ASSERT(packetInfo->hasVlanHeader);
-    ASSERT(packetInfo->L2HdrLen == ETH_HEADER_SIZE + ETH_PRIORITY_HEADER_SIZE);
+    NETKVM_ASSERT(packetInfo->hasVlanHeader);
+    NETKVM_ASSERT(packetInfo->L2HdrLen == ETH_HEADER_SIZE + ETH_PRIORITY_HEADER_SIZE);
 
     pData[3] = pData[2];
     pData[2] = pData[1];

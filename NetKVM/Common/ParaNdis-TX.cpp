@@ -113,7 +113,7 @@ bool CNBL::FitsLSO()
 
 bool CNBL::ParseLSO()
 {
-    ASSERT(IsLSO());
+    NETKVM_ASSERT(IsLSO());
 
     if (m_LsoInfo.LsoV1Transmit.Type != NDIS_TCP_LARGE_SEND_OFFLOAD_V1_TYPE &&
         m_LsoInfo.LsoV2Transmit.Type != NDIS_TCP_LARGE_SEND_OFFLOAD_V2_TYPE)
@@ -158,7 +158,7 @@ template <typename TClassPred, typename TOffloadPred, typename TSupportedPred>
 bool CNBL::ParseCSO(TClassPred IsClass, TOffloadPred IsOffload,
                     TSupportedPred IsSupported, LPSTR OffloadName)
 {
-    ASSERT(IsClass());
+    NETKVM_ASSERT(IsClass());
     UNREFERENCED_PARAMETER(IsClass);
 
     if (IsOffload())
@@ -304,7 +304,7 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
 
 void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
 {
-    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+    NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 
     if (NBLHolder->MappingSuceeded())
     {
@@ -541,7 +541,7 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, PNET_BUFFER_LIST &NBLFailNow)
                     }
                     break;
                 default:
-                    ASSERT(false);
+                    NETKVM_ASSERT(false);
                     break;
                 }
             }
@@ -631,7 +631,7 @@ void CNB::MappingDone(PSCATTER_GATHER_LIST SGL)
 
 CNB::~CNB()
 {
-    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+    NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 
     if(m_SGL != nullptr)
     {
@@ -650,7 +650,7 @@ void CNB::ReleaseResources()
 
 bool CNB::ScheduleBuildSGListForTx()
 {
-    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+    NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 
     return NdisMAllocateNetBufferSGList(m_Context->DmaHandle, m_NB, this,
                                         NDIS_SG_LIST_WRITE_TO_DEVICE, nullptr, 0) == NDIS_STATUS_SUCCESS;
