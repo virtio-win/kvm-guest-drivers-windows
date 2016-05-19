@@ -6,6 +6,13 @@ extern "C" {
 
 #include "kdebugprint.h"
 
+#ifdef DBG
+void NetKvmAssert(bool Statement, ULONG Code);
+#define NETKVM_ASSERT(x) NetKvmAssert((x) ? true : false, __LINE__)
+#else
+#define NETKVM_ASSERT(x) for(;;) break
+#endif
+
 class CPlacementAllocatable
 {
 public:
@@ -438,7 +445,7 @@ public:
     _Acquires_shared_lock_(this->m_pLock)
     void acquireReadDpr(CNdisRWLockState &lockState)
     {
-        ASSERTMSG("Unexpected IRQL level", KeGetCurrentIrql() == DISPATCH_LEVEL);
+        NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 
 #ifdef RW_LOCK_60
         NdisDprAcquireReadWriteLock(&m_lock, 0, &lockState.m_state);
@@ -451,7 +458,7 @@ public:
     _Acquires_exclusive_lock_(this->m_pLock)
     void acquireWriteDpr(CNdisRWLockState &lockState)
     {
-        ASSERTMSG("Unexpected IRQL level", KeGetCurrentIrql() == DISPATCH_LEVEL);
+        NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 #ifdef RW_LOCK_60
         NdisDprAcquireReadWriteLock(&m_lock, 1, &lockState.m_state);
 #endif
@@ -463,7 +470,7 @@ public:
     _Requires_lock_held_(m_pLock)
     void releaseDpr(CNdisRWLockState &lockState)
     {
-        ASSERTMSG("Unexpected IRQL level", KeGetCurrentIrql() == DISPATCH_LEVEL);
+        NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 #ifdef RW_LOCK_60
         NdisDprReleaseReadWriteLock(&m_lock, &lockState.m_state);
 #endif

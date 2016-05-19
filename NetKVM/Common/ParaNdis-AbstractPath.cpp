@@ -29,7 +29,7 @@ ULONG CParaNdisAbstractPath::getCPUIndex()
     if (number == INVALID_PROCESSOR_INDEX)
     {
         DPrintf(0, ("[%s] : bad in-group processor index: mask 0x%lx\n", __FUNCTION__, (ULONG)DPCAffinity.Mask));
-        ASSERT(FALSE);
+        NETKVM_ASSERT(FALSE);
         return INVALID_PROCESSOR_INDEX;
     }
 
@@ -37,7 +37,7 @@ ULONG CParaNdisAbstractPath::getCPUIndex()
     procNumber.Reserved = 0;
 
     ULONG procIndex = KeGetProcessorIndexFromNumber(&procNumber);
-    ASSERTMSG("Bad processor Index", procIndex != INVALID_PROCESSOR_INDEX);
+    NETKVM_ASSERT(procIndex != INVALID_PROCESSOR_INDEX);
     return procIndex;
 #else
     return ParaNdis_GetIndexFromAffinity(DPCTargetProcessor);

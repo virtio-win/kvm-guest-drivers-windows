@@ -735,7 +735,7 @@ void ParaNdis_AdjustRxBufferHolderLength(
         ulBytesLeft -= ulThisMdlBytes;
         NextMdlLinkage = NDIS_MDL_LINKAGE(NextMdlLinkage);
     }
-    ASSERT(ulBytesLeft == 0);
+    NETKVM_ASSERT(ulBytesLeft == 0);
 }
 
 static __inline
