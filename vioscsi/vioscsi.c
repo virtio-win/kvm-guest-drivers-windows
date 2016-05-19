@@ -17,9 +17,17 @@
 #include "helper.h"
 #include "vioscsidt.h"
 
+#define MS_SM_HBA_API
+#include <hbapiwmi.h>
+
+#include <hbaapi.h>
+#include <ntddscsi.h>
+
 #define VioScsiWmi_MofResourceName        L"MofResource"
 
 #define VIOSCSI_SETUP_GUID_INDEX 0
+#define VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX 1
+#define VIOSCSI_MS_PORT_INFORM_GUID_INDEX 2
 
 BOOLEAN IsCrashDumpMode;
 
@@ -149,6 +157,12 @@ VioScsiWmiSrb(
     IN OUT PSRB_TYPE Srb
     );
 
+VOID
+VioScsiIoControl(
+    IN PVOID  DeviceExtension,
+    IN OUT PSRB_TYPE Srb
+    );
+
 BOOLEAN
 VioScsiQueryWmiDataBlock(
     IN PVOID Context,
@@ -159,6 +173,18 @@ VioScsiQueryWmiDataBlock(
     IN OUT PULONG InstanceLengthArray,
     IN ULONG OutBufferSize,
     OUT PUCHAR Buffer
+    );
+
+UCHAR
+VioScsiExecuteWmiMethod(
+    IN PVOID Context,
+    IN PSCSIWMI_REQUEST_CONTEXT RequestContext,
+    IN ULONG GuidIndex,
+    IN ULONG InstanceIndex,
+    IN ULONG MethodId,
+    IN ULONG InBufferSize,
+    IN ULONG OutBufferSize,
+    IN OUT PUCHAR Buffer
     );
 
 UCHAR
@@ -175,13 +201,14 @@ VioScsiReadExtendedData(
    );
 
 GUID VioScsiWmiExtendedInfoGuid = VioScsiWmi_ExtendedInfo_Guid;
+GUID VioScsiWmiAdaperInformationQueryGuid = MS_SM_AdapterInformationQueryGuid;
+GUID VioScsiWmiPortInformationMethodsGuid = MS_SM_PortInformationMethodsGuid;
 
 SCSIWMIGUIDREGINFO VioScsiGuidList[] =
 {
-   {&VioScsiWmiExtendedInfoGuid,
-    1,
-    0
-   },
+   { &VioScsiWmiExtendedInfoGuid, 1, 0 },
+   { &VioScsiWmiAdaperInformationQueryGuid, 1, 0 },
+   { &VioScsiWmiPortInformationMethodsGuid, 1, 0 },
 };
 
 #define VioScsiGuidCount (sizeof(VioScsiGuidList) / sizeof(SCSIWMIGUIDREGINFO))
@@ -1327,6 +1354,9 @@ ENTER_FN();
         case SRB_FUNCTION_WMI:
             VioScsiWmiSrb(DeviceExtension, Srb);
             return TRUE;
+        case SRB_FUNCTION_IO_CONTROL:
+            VioScsiIoControl(DeviceExtension, Srb);
+            return TRUE;
     }
 EXIT_FN();
     return FALSE;
@@ -1471,12 +1501,10 @@ ENTER_FN();
     WmiLibContext->QueryWmiDataBlock = VioScsiQueryWmiDataBlock;
     WmiLibContext->SetWmiDataItem = NULL;
     WmiLibContext->SetWmiDataBlock = NULL;
+    WmiLibContext->ExecuteWmiMethod = VioScsiExecuteWmiMethod;
     WmiLibContext->WmiFunctionControl = NULL;
-    WmiLibContext->ExecuteWmiMethod = NULL;
 EXIT_FN();
 }
-
-
 
 VOID
 VioScsiWmiSrb(
@@ -1524,6 +1552,51 @@ ENTER_FN();
 EXIT_FN();
 }
 
+VOID
+VioScsiIoControl(
+    IN PVOID  DeviceExtension,
+    IN OUT PSRB_TYPE Srb
+    )
+{
+    PSRB_IO_CONTROL srbControl;
+    PVOID           srbDataBuffer = SRB_DATA_BUFFER(Srb);
+    PADAPTER_EXTENSION    adaptExt;
+
+ENTER_FN();
+    RhelDbgPrint(TRACE_LEVEL_FATAL, ("<-->VioScsiIoControl\n"));
+
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    srbControl = (PSRB_IO_CONTROL)srbDataBuffer;
+
+    switch (srbControl->ControlCode) {
+        case IOCTL_SCSI_MINIPORT_NOT_QUORUM_CAPABLE:
+            SRB_SET_SRB_STATUS(Srb, SRB_STATUS_ERROR);
+			RhelDbgPrint(TRACE_LEVEL_FATAL, ("<--> Signature = %02x %02x %02x %02x %02x %02x %02x %02x\n",
+				srbControl->Signature[0], srbControl->Signature[1], srbControl->Signature[2], srbControl->Signature[3],
+				srbControl->Signature[4], srbControl->Signature[5], srbControl->Signature[6], srbControl->Signature[7]));
+			RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("<-->IOCTL_SCSI_MINIPORT_NOT_QUORUM_CAPABLE\n"));
+            break;
+        default:
+            SRB_SET_SRB_STATUS(Srb, SRB_STATUS_INVALID_REQUEST);
+            RhelDbgPrint(TRACE_LEVEL_INFORMATIO, ("<-->Unsupport control code 0x%x\n", srbControl->ControlCode));
+            break;
+    }
+EXIT_FN();
+}
+
+void CopyWMIString(void* _pDest, const void* _pSrc, size_t _maxlength)
+{
+     PUSHORT _pDestTemp = _pDest;
+     USHORT  _length = _maxlength - sizeof(USHORT);
+                                                                                                                                                 \
+     *_pDestTemp++ = _length;
+                                                                                                                                                 \
+     _length = (USHORT)min(wcslen(_pSrc)*sizeof(WCHAR), _length);
+     memcpy(_pDestTemp, _pSrc, _length);
+}
+
+
+
 BOOLEAN
 VioScsiQueryWmiDataBlock(
     IN PVOID Context,
@@ -1562,7 +1635,46 @@ ENTER_FN();
             status = SRB_STATUS_SUCCESS;
             break;
         }
+        case VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX:
+        {
+            PMS_SM_AdapterInformationQuery pOutBfr = (PMS_SM_AdapterInformationQuery)Buffer;
+            RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX\n"));
+            size = sizeof(MS_SM_AdapterInformationQuery);
+            if (OutBufferSize < size)
+            {
+                status = SRB_STATUS_DATA_OVERRUN;
+                break;
+            }
 
+            memset(pOutBfr, 0, size);
+            pOutBfr->UniqueAdapterId = (ULONGLONG)1234567890987654321/*Context*/;
+            pOutBfr->HBAStatus = HBA_STATUS_OK;
+
+            pOutBfr->NumberOfPorts = 1;
+            pOutBfr->VendorSpecificID = VENDORID | (PRODUCTID << 16);
+            CopyWMIString(pOutBfr->Manufacturer, MANUFACTURER, sizeof(pOutBfr->Manufacturer));
+            CopyWMIString(pOutBfr->SerialNumber, SERIALNUMBER, sizeof(pOutBfr->SerialNumber));
+            CopyWMIString(pOutBfr->Model, MODEL, sizeof(pOutBfr->Model));
+            CopyWMIString(pOutBfr->ModelDescription, MODELDESCRIPTION, sizeof(pOutBfr->ModelDescription));
+            CopyWMIString(pOutBfr->HardwareVersion, HARDWAREVERSION, sizeof(pOutBfr->HardwareVersion));
+            CopyWMIString(pOutBfr->DriverVersion, DRIVERVERSION, sizeof(pOutBfr->DriverVersion));
+            CopyWMIString(pOutBfr->OptionROMVersion, OPTIONROMVERSION, sizeof(pOutBfr->OptionROMVersion));
+            CopyWMIString(pOutBfr->FirmwareVersion, FIRMWAREVERSION, sizeof(pOutBfr->FirmwareVersion));
+            CopyWMIString(pOutBfr->DriverName, DRIVERNAME, sizeof(pOutBfr->DriverName));
+            CopyWMIString(pOutBfr->HBASymbolicName, HBASYMBOLICNAME, sizeof(pOutBfr->HBASymbolicName));
+            CopyWMIString(pOutBfr->RedundantOptionROMVersion, OPTIONROMVERSION, sizeof(pOutBfr->RedundantOptionROMVersion));
+            CopyWMIString(pOutBfr->RedundantFirmwareVersion, FIRMWAREVERSION, sizeof(pOutBfr->RedundantFirmwareVersion));
+            CopyWMIString(pOutBfr->MfgDomain, MFRDOMAIN, sizeof(pOutBfr->MfgDomain));
+
+            *InstanceLengthArray = size;
+            status = SRB_STATUS_SUCCESS;
+            break;
+        }
+        case VIOSCSI_MS_PORT_INFORM_GUID_INDEX:
+        {
+            RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->VIOSCSI_MS_PORT_INFORM_GUID_INDEX ERROR\n"));
+            break;
+        }
         default:
         {
             status = SRB_STATUS_ERROR;
@@ -1574,7 +1686,254 @@ ENTER_FN();
                            size);
 
 EXIT_FN();
-    return status;
+    return TRUE;
+}
+
+UCHAR
+VioScsiExecuteWmiMethod(
+    IN PVOID Context,
+    IN PSCSIWMI_REQUEST_CONTEXT RequestContext,
+    IN ULONG GuidIndex,
+    IN ULONG InstanceIndex,
+    IN ULONG MethodId,
+    IN ULONG InBufferSize,
+    IN ULONG OutBufferSize,
+    IN OUT PUCHAR Buffer
+    )
+{
+    PADAPTER_EXTENSION      adaptExt = (PADAPTER_EXTENSION)Context;
+    ULONG                   size = 0;
+    UCHAR                   status = SRB_STATUS_SUCCESS;
+
+    ENTER_FN();
+    RhelDbgPrint(TRACE_LEVEL_FATAL, ("<-->VioScsiQueryWmiDataBlock\n"));
+    switch (GuidIndex)
+    {
+        case VIOSCSI_SETUP_GUID_INDEX:
+        {
+            RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->VIOSCSI_SETUP_GUID_INDEX ERROR\n"));
+            break;
+        }
+        case VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX:
+        {
+            PMS_SM_AdapterInformationQuery pOutBfr = (PMS_SM_AdapterInformationQuery)Buffer;
+            RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX ERROR\n"));
+            break;
+        }
+        case VIOSCSI_MS_PORT_INFORM_GUID_INDEX:
+        {
+            switch (MethodId)
+            {
+                case SM_GetPortType:
+                {
+                    PSM_GetPortType_IN  pInBfr = (PSM_GetPortType_IN)Buffer;
+                    PSM_GetPortType_OUT pOutBfr = (PSM_GetPortType_OUT)Buffer;
+
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetPortType\n"));
+                    size = SM_GetPortType_OUT_SIZE;
+
+                    if (OutBufferSize < size)
+                    {
+                        status = SRB_STATUS_DATA_OVERRUN;
+                        break;
+                    }
+
+                    if (InBufferSize < SM_GetPortType_IN_SIZE)
+                    {
+                        status = SRB_STATUS_BAD_FUNCTION;
+                        break;
+                    }
+
+                    break;
+                }
+                case SM_GetAdapterPortAttributes:
+                {
+                    PSM_GetAdapterPortAttributes_IN  pInBfr = (PSM_GetAdapterPortAttributes_IN)Buffer;
+                    PSM_GetAdapterPortAttributes_OUT pOutBfr = (PSM_GetAdapterPortAttributes_OUT)Buffer;
+
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetAdapterPortAttributes\n"));
+                    size = SM_GetAdapterPortAttributes_OUT_SIZE;
+
+                    if (OutBufferSize < size)
+                    {
+                        status = SRB_STATUS_DATA_OVERRUN;
+                        break;
+                    }
+
+                    if (InBufferSize < SM_GetAdapterPortAttributes_IN_SIZE)
+                    {
+                        status = SRB_STATUS_BAD_FUNCTION;
+                        break;
+                    }
+
+                    break;
+                }
+
+                case SM_GetDiscoveredPortAttributes:
+                {
+                    PSM_GetDiscoveredPortAttributes_IN  pInBfr = (PSM_GetDiscoveredPortAttributes_IN)Buffer;
+                    PSM_GetDiscoveredPortAttributes_OUT pOutBfr = (PSM_GetDiscoveredPortAttributes_OUT)Buffer;
+
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetDiscoveredPortAttributes\n"));
+                    size = SM_GetDiscoveredPortAttributes_OUT_SIZE;
+
+                    if (OutBufferSize < size)
+                    {
+                        status = SRB_STATUS_DATA_OVERRUN;
+                        break;
+                    }
+
+                    if (InBufferSize < SM_GetDiscoveredPortAttributes_IN_SIZE)
+                    {
+                        status = SRB_STATUS_BAD_FUNCTION;
+                        break;
+                    }
+
+                    break;
+                }
+
+                case SM_GetPortAttributesByWWN:
+                {
+                    PSM_GetPortAttributesByWWN_IN  pInBfr = (PSM_GetPortAttributesByWWN_IN)Buffer;
+                    PSM_GetPortAttributesByWWN_OUT pOutBfr = (PSM_GetPortAttributesByWWN_OUT)Buffer;
+
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetPortAttributesByWWN\n"));
+                    size = SM_GetPortAttributesByWWN_OUT_SIZE;
+
+                    if (OutBufferSize < size)
+                    {
+                        status = SRB_STATUS_DATA_OVERRUN;
+                        break;
+                    }
+
+                    if (InBufferSize < SM_GetPortAttributesByWWN_IN_SIZE)
+                    {
+                        status = SRB_STATUS_BAD_FUNCTION;
+                        break;
+                    }
+
+                    break;
+                }
+
+                case SM_GetProtocolStatistics:
+                {
+                    PSM_GetProtocolStatistics_IN  pInBfr = (PSM_GetProtocolStatistics_IN)Buffer;
+                    PSM_GetProtocolStatistics_OUT pOutBfr = (PSM_GetProtocolStatistics_OUT)Buffer;
+
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetProtocolStatistics\n"));
+                    size = SM_GetProtocolStatistics_OUT_SIZE;
+
+                    if (OutBufferSize < size)
+                    {
+                        status = SRB_STATUS_DATA_OVERRUN;
+                        break;
+                    }
+
+                    if (InBufferSize < SM_GetProtocolStatistics_IN_SIZE)
+                    {
+                        status = SRB_STATUS_BAD_FUNCTION;
+                        break;
+                    }
+
+                    break;
+                }
+
+                case SM_GetPhyStatistics:
+                {
+                    PSM_GetPhyStatistics_IN  pInBfr = (PSM_GetPhyStatistics_IN)Buffer;
+                    PSM_GetPhyStatistics_OUT pOutBfr = (PSM_GetPhyStatistics_OUT)Buffer;
+
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetPhyStatistics\n"));
+                    //FIXME
+                    size = FIELD_OFFSET(SM_GetPhyStatistics_OUT, PhyCounter) + sizeof(LONGLONG);
+                    if (OutBufferSize < size)
+                    {
+                        status = SRB_STATUS_DATA_OVERRUN;
+                        break;
+                    }
+
+                    if (InBufferSize < SM_GetPhyStatistics_IN_SIZE)
+                    {
+                        status = SRB_STATUS_BAD_FUNCTION;
+                        break;
+                    }
+
+                    break;
+                }
+
+
+                case SM_GetFCPhyAttributes:
+                {
+                    PSM_GetFCPhyAttributes_IN  pInBfr = (PSM_GetFCPhyAttributes_IN)Buffer;
+                    PSM_GetFCPhyAttributes_OUT pOutBfr = (PSM_GetFCPhyAttributes_OUT)Buffer;
+
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetFCPhyAttributes\n"));
+                    size = SM_GetFCPhyAttributes_OUT_SIZE;
+
+                    if (OutBufferSize < size)
+                    {
+                        status = SRB_STATUS_DATA_OVERRUN;
+                        break;
+                    }
+
+                    if (InBufferSize < SM_GetFCPhyAttributes_IN_SIZE)
+                    {
+                        status = SRB_STATUS_BAD_FUNCTION;
+                        break;
+                    }
+
+                    break;
+                }
+
+                case SM_GetSASPhyAttributes:
+                {
+                    PSM_GetSASPhyAttributes_IN  pInBfr = (PSM_GetSASPhyAttributes_IN)Buffer;
+                    PSM_GetSASPhyAttributes_OUT pOutBfr = (PSM_GetSASPhyAttributes_OUT)Buffer;
+
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetSASPhyAttributes\n"));
+                    size = SM_GetSASPhyAttributes_OUT_SIZE;
+
+                    if (OutBufferSize < size)
+                    {
+                        status = SRB_STATUS_DATA_OVERRUN;
+                        break;
+                    }
+
+                    if (InBufferSize < SM_GetSASPhyAttributes_IN_SIZE)
+                    {
+                        status = SRB_STATUS_BAD_FUNCTION;
+                        break;
+                    }
+
+                    break;
+                }
+
+                case SM_RefreshInformation:
+                {
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_RefreshInformation\n"));
+                    break;
+                }
+
+                default:
+                    status = SRB_STATUS_INVALID_REQUEST;
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("--> ERROR Unknown MethodId = %lu\n", MethodId));
+                    break;
+            }
+            default:
+                status = SRB_STATUS_INVALID_REQUEST;
+                RhelDbgPrint(TRACE_LEVEL_FATAL, ("--> ERROR Unknown GuidIndex = %lu\n", GuidIndex));
+
+                break;
+        }
+
+    }
+    ScsiPortWmiPostProcess(RequestContext,
+        status,
+        size);
+
+    EXIT_FN();
+    return SRB_STATUS_SUCCESS;
+
 }
 
 UCHAR
