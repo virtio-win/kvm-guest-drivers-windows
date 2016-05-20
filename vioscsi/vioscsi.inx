@@ -50,8 +50,6 @@ vioscsi_Files_Driver = 12
 [RHEL.NT$ARCH$]
 %RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4&REV_00
 %RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1048&SUBSYS_11001AF4&REV_01
-%RHELSas.DeviceDesc% = rhelsas_inst, PCI\VEN_1AF4&DEV_100A&SUBSYS_00081AF4&REV_00
-%RHELSas.DeviceDesc% = rhelsas_inst, PCI\VEN_1AF4&DEV_10A8&SUBSYS_11001AF4&REV_01
 
 ;
 ; General installation section
@@ -63,9 +61,6 @@ vioscsi.sys,,,2
 [rhelscsi_inst]
 CopyFiles=vioscsi_Files_Driver
 
-[rhelsas_inst]
-CopyFiles=vioscsi_Files_Driver
-
 ;
 ; Service Installation
 ;
@@ -73,29 +68,15 @@ CopyFiles=vioscsi_Files_Driver
 [rhelscsi_inst.Services]
 AddService = vioscsi, 0x00000002 , rhelscsi_Service_Inst, rhelscsi_EventLog_Inst
 
-[rhelsas_inst.Services]
-AddService = vioscsi, 0x00000002 , rhelsas_Service_Inst, rhelscsi_EventLog_Inst
-
 [rhelscsi_Service_Inst]
 ServiceType    = %SERVICE_KERNEL_DRIVER%
 StartType      = %SERVICE_BOOT_START%
 ErrorControl   = %SERVICE_ERROR_NORMAL%
 ServiceBinary  = %12%\vioscsi.sys
 LoadOrderGroup = SCSI miniport
-AddReg         = pnpsafe_scsi_addreg
-
-[rhelsas_Service_Inst]
-ServiceType    = %SERVICE_KERNEL_DRIVER%
-StartType      = %SERVICE_BOOT_START%
-ErrorControl   = %SERVICE_ERROR_NORMAL%
-ServiceBinary  = %12%\vioscsi.sys
-LoadOrderGroup = SCSI miniport
-AddReg         = pnpsafe_sas_addreg
+AddReg         = pnpsafe_pci_addreg
 
 [rhelscsi_inst.HW]
-AddReg         = pnpsafe_pci_addreg_msix
-
-[rhelsas_inst.HW]
 AddReg         = pnpsafe_pci_addreg_msix
 
 [rhelscsi_EventLog_Inst]
@@ -106,11 +87,7 @@ HKR,,EventMessageFile,%REG_EXPAND_SZ%,"%%SystemRoot%%\System32\IoLogMsg.dll"
 HKR,,TypesSupported,%REG_DWORD%,7
 
 
-[pnpsafe_scsi_addreg]
-HKR, "Parameters\PnpInterface", "5", %REG_DWORD%, 0x00000001
-HKR, "Parameters", "BusType", %REG_DWORD%, 0x00000001
-
-[pnpsafe_sas_addreg]
+[pnpsafe_pci_addreg]
 HKR, "Parameters\PnpInterface", "5", %REG_DWORD%, 0x00000001
 HKR, "Parameters", "BusType", %REG_DWORD%, 0x0000000A
 
@@ -130,7 +107,6 @@ HKR, "Interrupt Management\Affinity Policy", DevicePriority, 0x00010001, 3
 ;
 diskId1 = "Red Hat VirtIO SCSI pass-through controller Installation Disk"
 RHELScsi.DeviceDesc = "Red Hat VirtIO SCSI pass-through controller"
-RHELSas.DeviceDesc = "Red Hat VirtIO SAS pass-through controller"
 RHEL = "Red Hat, Inc."
 
 ;
