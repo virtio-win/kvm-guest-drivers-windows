@@ -152,8 +152,8 @@ static int query_vq_alloc(virtio_pci_device *vp_dev,
     if (!num || ioread32(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN))
         return -ENOENT;
 
-    ring_size = PAGE_ALIGN(vring_size(num, VIRTIO_PCI_VRING_ALIGN));
-    data_size = PAGE_ALIGN(sizeof(void *) * num + vring_control_block_size());
+    ring_size = ROUND_TO_PAGES(vring_size(num, VIRTIO_PCI_VRING_ALIGN));
+    data_size = ROUND_TO_PAGES(sizeof(void *) * num + vring_control_block_size());
 
     *pNumEntries = num;
     *pAllocationSize = ring_size + data_size;
@@ -178,7 +178,7 @@ static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
         return ERR_PTR(err);
     }
 
-    ring_size = PAGE_ALIGN(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN));
+    ring_size = ROUND_TO_PAGES(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN));
 
     info->queue = alloc_pages_exact(vp_dev, size);
     if (info->queue == NULL)
@@ -197,7 +197,7 @@ static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
         goto out_activate_queue;
     }
 
-    vq->priv = (void __force *)(vp_dev->addr + VIRTIO_PCI_QUEUE_NOTIFY);
+    vq->priv = (void *)(vp_dev->addr + VIRTIO_PCI_QUEUE_NOTIFY);
 
     if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
         iowrite16(msix_vec, vp_dev->addr + VIRTIO_MSI_QUEUE_VECTOR);
@@ -235,7 +235,7 @@ static void del_vq(virtio_pci_vq_info *info)
     /* Select and deactivate the queue */
     iowrite32(0, vp_dev->addr + VIRTIO_PCI_QUEUE_PFN);
 
-    size = PAGE_ALIGN(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN));
+    size = ROUND_TO_PAGES(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN));
     free_pages_exact(vp_dev, info->queue);
 }
 

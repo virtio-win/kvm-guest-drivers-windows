@@ -39,51 +39,51 @@
  * method, i.e. 32-bit accesses for 32-bit fields, 16-bit accesses
  * for 16-bit fields and 8-bit accesses for 8-bit fields.
  */
-static inline u8 vp_ioread8(u8 __iomem *addr)
+static inline u8 vp_ioread8(u8 *addr)
 {
     return ioread8(addr);
 }
-static inline u16 vp_ioread16(u16 __iomem *addr)
+static inline u16 vp_ioread16(u16 *addr)
 {
     return ioread16(addr);
 }
 
-static inline u32 vp_ioread32(u32 __iomem *addr)
+static inline u32 vp_ioread32(u32 *addr)
 {
     return ioread32(addr);
 }
 
-static inline void vp_iowrite8(u8 value, u8 __iomem *addr)
+static inline void vp_iowrite8(u8 value, u8 *addr)
 {
     iowrite8(value, addr);
 }
 
-static inline void vp_iowrite16(u16 value, u16 __iomem *addr)
+static inline void vp_iowrite16(u16 value, u16 *addr)
 {
     iowrite16(value, addr);
 }
 
-static inline void vp_iowrite32(u32 value, u32 __iomem *addr)
+static inline void vp_iowrite32(u32 value, u32 *addr)
 {
     iowrite32(value, addr);
 }
 
 static void vp_iowrite64_twopart(u64 val,
-                                 __le32 __iomem *lo, __le32 __iomem *hi)
+                                 __le32 *lo, __le32 *hi)
 {
     vp_iowrite32((u32)val, lo);
     vp_iowrite32(val >> 32, hi);
 }
 
-static void __iomem *map_capability(VirtIODevice *dev, int off,
-                                    size_t minlen,
-                                    u32 align,
-                                    u32 start, u32 size,
-                                    size_t *len)
+static void *map_capability(VirtIODevice *dev, int off,
+                            size_t minlen,
+                            u32 align,
+                            u32 start, u32 size,
+                            size_t *len)
 {
     u8 bar;
     u32 offset, length;
-    void __iomem *p;
+    void *p;
 
     pci_read_config_byte(dev, off + offsetof(struct virtio_pci_cap,
                                              bar),
@@ -176,7 +176,7 @@ static int vp_finalize_features(virtio_device *vdev)
 static u16 vp_set_msi_vector(struct virtqueue *vq, u16 vector)
 {
     virtio_pci_device *vp_dev = to_vp_device(vq->vdev);
-    struct virtio_pci_common_cfg __iomem *cfg = vp_dev->common;
+    struct virtio_pci_common_cfg *cfg = vp_dev->common;
 
     vp_iowrite16((u16)vq->index, &cfg->queue_select);
     vp_iowrite16(vector, &cfg->queue_msix_vector);
@@ -302,7 +302,7 @@ static u16 vp_config_vector(virtio_pci_device *vp_dev, u16 vector)
 static size_t vring_pci_size(u16 num)
 {
     /* We only need a cacheline separation. */
-    return (size_t)PAGE_ALIGN(vring_size(num, SMP_CACHE_BYTES));
+    return (size_t)ROUND_TO_PAGES(vring_size(num, SMP_CACHE_BYTES));
 }
 
 static void *alloc_virtqueue_pages(virtio_pci_device *vp_dev, u16 *num)
@@ -329,7 +329,7 @@ static int query_vq_alloc(virtio_pci_device *vp_dev,
                           unsigned long *pAllocationSize,
                           unsigned long *pHeapSize)
 {
-    struct virtio_pci_common_cfg __iomem *cfg = vp_dev->common;
+    struct virtio_pci_common_cfg *cfg = vp_dev->common;
     u16 num;
 
     if (index >= vp_ioread16(&cfg->num_queues))
@@ -364,7 +364,7 @@ static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
                                   const char *name,
                                   u16 msix_vec)
 {
-    struct virtio_pci_common_cfg __iomem *cfg = vp_dev->common;
+    struct virtio_pci_common_cfg *cfg = vp_dev->common;
     struct virtqueue *vq;
     void *vq_addr;
     u16 off;
@@ -419,11 +419,11 @@ static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
             err = -EINVAL;
             goto err_map_notify;
         }
-        vq->priv = (void __force *)(vp_dev->notify_base +
+        vq->priv = (void *)(vp_dev->notify_base +
             off * vp_dev->notify_offset_multiplier);
     }
     else {
-        vq->priv = (void __force *)map_capability(vp_dev,
+        vq->priv = (void *)map_capability(vp_dev,
             vp_dev->notify_map_cap, 2, 2,
             off * vp_dev->notify_offset_multiplier, 2,
             NULL);
@@ -447,7 +447,7 @@ static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
 
 err_assign_vector:
     if (!vp_dev->notify_base)
-        pci_iounmap(vp_dev, (void __iomem __force *)vq->priv);
+        pci_iounmap(vp_dev, (void *)vq->priv);
 err_map_notify:
     virtqueue_shutdown(vq);
 err_new_queue:
@@ -517,7 +517,7 @@ static void del_vq(virtio_pci_vq_info *info)
     }
 
     if (!vp_dev->notify_base)
-        pci_iounmap(vp_dev, (void __force __iomem *)vq->priv);
+        pci_iounmap(vp_dev, (void *)vq->priv);
 
     virtqueue_shutdown(vq);
 
