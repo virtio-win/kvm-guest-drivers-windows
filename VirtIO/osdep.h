@@ -56,11 +56,6 @@
 
 #define SMP_CACHE_BYTES 64
 
-#define cpu_to_le16(x) (x)
-#define cpu_to_le32(x) (x)
-#define le16_to_cpu(x) (x)
-#define le32_to_cpu(x) (x)
-
 #define IORESOURCE_IO           0x00000100      /* PCI/ISA I/O ports */
 #define IORESOURCE_MEM          0x00000200
 
