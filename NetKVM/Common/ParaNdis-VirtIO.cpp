@@ -301,7 +301,7 @@ static void *alloc_pages_exact(void *context, size_t size)
     return retVal;
 }
 
-static void free_pages_exact(void *context, void *virt, size_t size)
+static void free_pages_exact(void *context, void *virt)
 {
     /* The actual allocation and deallocation is tracked by instances of
      * CNdisSharedMemory whose lifetime is controlled by their owning queues.
@@ -310,7 +310,6 @@ static void free_pages_exact(void *context, void *virt, size_t size)
      */
     UNREFERENCED_PARAMETER(context);
     UNREFERENCED_PARAMETER(virt);
-    UNREFERENCED_PARAMETER(size);
 }
 
 static ULONGLONG virt_to_phys(void *context, void *address)

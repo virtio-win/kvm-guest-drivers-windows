@@ -163,7 +163,7 @@ static void *alloc_pages_exact(void *context, size_t size)
     return retVal;
 }
 
-static void free_pages_exact(void *context, void *virt, size_t size)
+static void free_pages_exact(void *context, void *virt)
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)context;
     ULONG i;

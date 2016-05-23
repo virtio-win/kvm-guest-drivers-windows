@@ -103,11 +103,10 @@ static void *alloc_pages_exact(void *context, size_t size)
     }
 }
 
-static void free_pages_exact(void *context, void *virt, size_t size)
+static void free_pages_exact(void *context, void *virt)
 {
     UNREFERENCED_PARAMETER(context);
     UNREFERENCED_PARAMETER(virt);
-    UNREFERENCED_PARAMETER(size);
 
     /* We allocate pages from a single uncached extension by simply moving the
      * adaptExt->allocationOffset pointer forward. Nothing to do here.

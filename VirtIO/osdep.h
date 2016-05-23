@@ -90,23 +90,8 @@ inline LONG_PTR IS_ERR(const void *ptr)
 #define le16_to_cpu(x) (x)
 #define le32_to_cpu(x) (x)
 
-#define PCI_CAP_ID_VNDR PCI_CAPABILITY_ID_VENDOR_SPECIFIC
 #define IORESOURCE_IO           0x00000100      /* PCI/ISA I/O ports */
 #define IORESOURCE_MEM          0x00000200
-
-/* memory allocation flags */
-#define ___GFP_ZERO             0x8000u
-#define ___GFP_NOWARN           0x200u
-
-#define __GFP_NOWARN  ((__force gfp_t)___GFP_NOWARN)
-#define __GFP_ZERO    ((__force gfp_t)___GFP_ZERO)
-
-typedef enum {
-    GFP_KERNEL,
-    GFP_ATOMIC,
-    __GFP_HIGHMEM,
-    __GFP_HIGH
-} gfp_t;
 
 #endif
 #endif

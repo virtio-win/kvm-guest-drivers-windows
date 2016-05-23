@@ -111,7 +111,7 @@
 
 /* This is the PCI capability header: */
 struct virtio_pci_cap {
-    __u8 cap_vndr;		/* Generic PCI field: PCI_CAP_ID_VNDR */
+    __u8 cap_vndr;		/* Generic PCI field: PCI_CAPABILITY_ID_VENDOR_SPECIFIC */
     __u8 cap_next;		/* Generic PCI field: next ptr. */
     __u8 cap_len;		/* Generic PCI field: capability length */
     __u8 cfg_type;		/* Identifies the structure. */
@@ -198,7 +198,7 @@ typedef struct _tVirtIOPerQueueInfo
 typedef struct virtio_system_ops {
     // memory management
     void *(*alloc_contiguous_pages)(void *context, size_t size);
-    void (*free_contiguous_pages)(void *context, void *virt, size_t size);
+    void (*free_contiguous_pages)(void *context, void *virt);
     ULONGLONG (*virt_to_phys)(void *context, void *address);
     void *(*kmalloc)(void *context, size_t size);
     void (*kfree)(void *context, void *addr);
@@ -249,7 +249,6 @@ typedef struct TypeVirtIODevice
     struct virtqueue *(*setup_vq)(struct TypeVirtIODevice *vp_dev,
                                   tVirtIOPerQueueInfo *info,
                                   unsigned idx,
-                                  void(*callback)(struct virtqueue *vq),
                                   const char *name,
                                   u16 msix_vec);
     void(*del_vq)(virtio_pci_vq_info *info);
