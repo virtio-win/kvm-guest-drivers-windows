@@ -241,17 +241,17 @@ typedef struct TypeVirtIODevice
     size_t notify_len;
     /* virtio 1.0 specific fields end */
 
-    int (*query_vq_alloc)(struct TypeVirtIODevice *vp_dev,
-                          unsigned index,
-                          unsigned short *pNumEntries,
-                          unsigned long *pAllocationSize,
-                          unsigned long *pHeapSize);
-    int (*setup_vq)(struct virtqueue **queue,
-                    struct TypeVirtIODevice *vp_dev,
-                    tVirtIOPerQueueInfo *info,
-                    unsigned idx,
-                    const char *name,
-                    u16 msix_vec);
+    NTSTATUS (*query_vq_alloc)(struct TypeVirtIODevice *vp_dev,
+                               unsigned index,
+                               unsigned short *pNumEntries,
+                               unsigned long *pAllocationSize,
+                               unsigned long *pHeapSize);
+    NTSTATUS (*setup_vq)(struct virtqueue **queue,
+                         struct TypeVirtIODevice *vp_dev,
+                         tVirtIOPerQueueInfo *info,
+                         unsigned idx,
+                         const char *name,
+                         u16 msix_vec);
     void(*del_vq)(virtio_pci_vq_info *info);
 
     u16(*config_vector)(struct TypeVirtIODevice *vp_dev, u16 vector);
@@ -293,34 +293,32 @@ u32  VirtIODeviceGetQueueSize(struct virtqueue *vq);
 
 unsigned long VirtIODeviceIndirectPageCapacity();
 
-int virtio_device_initialize(VirtIODevice *pVirtIODevice,
-                             const VirtIOSystemOps *pSystemOps,
-                             PVOID DeviceContext,
-                             ULONG allocatedSize);
+NTSTATUS virtio_device_initialize(VirtIODevice *pVirtIODevice,
+                                  const VirtIOSystemOps *pSystemOps,
+                                  PVOID DeviceContext,
+                                  ULONG allocatedSize);
 void virtio_device_shutdown(VirtIODevice *pVirtIODevice);
 
 u8 virtio_get_status(VirtIODevice *vdev);
 void virtio_add_status(VirtIODevice *vdev, u8 status);
 
-int virtio_finalize_features(VirtIODevice *vdev);
+NTSTATUS virtio_finalize_features(VirtIODevice *vdev);
 u8 virtio_read_isr_status(VirtIODevice *vdev);
 
-int virtio_query_queue_allocation(VirtIODevice *vdev,
-                                  unsigned index,
-                                  unsigned short *pNumEntries,
-                                  unsigned long *pAllocationSize,
-                                  unsigned long *pHeapSize);
+NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev,
+                                       unsigned index,
+                                       unsigned short *pNumEntries,
+                                       unsigned long *pAllocationSize,
+                                       unsigned long *pHeapSize);
 
-int virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs);
+NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs);
 
-int virtio_find_queues(VirtIODevice *vdev,
-                       unsigned nvqs,
-                       struct virtqueue *vqs[],
-                       const char *const names[]);
+NTSTATUS virtio_find_queues(VirtIODevice *vdev,
+                            unsigned nvqs,
+                            struct virtqueue *vqs[],
+                            const char *const names[]);
 
 int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA);
-
-NTSTATUS virtio_error_to_ntstatus(int error);
 
 void virtqueue_set_event_suppression(struct virtqueue *vq, bool enable);
 

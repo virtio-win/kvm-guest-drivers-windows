@@ -562,16 +562,16 @@ EXIT_FN();
 static BOOLEAN InitializeVirtualQueues(PADAPTER_EXTENSION adaptExt, ULONG numQueues)
 {
     ULONG index;
-    int err;
+    NTSTATUS status;
     BOOLEAN useEventIndex = CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX);
 
-    err = virtio_find_queues(
+    status = virtio_find_queues(
         &adaptExt->vdev,
         numQueues,
         adaptExt->vq,
         NULL);
-    if (err) {
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("find_vqs failed with error %d\n", err));
+    if (!NT_SUCCESS(status)) {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("virtio_find_queues failed with error %x\n", status));
         return FALSE;
     }
 
@@ -636,7 +636,7 @@ ENTER_FN();
         guestFeatures |= (1ULL << VIRTIO_SCSI_F_HOTPLUG);
     }
     adaptExt->vdev.features = guestFeatures;
-    if (virtio_finalize_features(&adaptExt->vdev)) {
+    if (!NT_SUCCESS(virtio_finalize_features(&adaptExt->vdev))) {
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("virtio_finalize_features failed\n"));
         return FALSE;
     }

@@ -221,19 +221,19 @@ DriverEntry(
 static ULONG InitVirtIODevice(PVOID DeviceExtension)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    int err;
+    NTSTATUS status;
 
-    err = virtio_device_initialize(
+    status = virtio_device_initialize(
         &adaptExt->vdev,
         &VioStorSystemOps,
         adaptExt,
         sizeof(adaptExt->vdev));
-    if (err != 0) {
+    if (!NT_SUCCESS(status)) {
         LogError(adaptExt,
                 SP_INTERNAL_ADAPTER_ERROR,
                 __LINE__);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Failed to initialize virtio device, error %d\n", err));
-        if (err == -ENODEV) {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Failed to initialize virtio device, error %x\n", status));
+        if (status == STATUS_DEVICE_NOT_CONNECTED) {
             return SP_RETURN_NOT_FOUND;
         } else {
             return SP_RETURN_ERROR;
@@ -447,16 +447,16 @@ VirtIoPassiveInitializeRoutine (
 
 static BOOLEAN InitializeVirtualQueues(PADAPTER_EXTENSION adaptExt)
 {
-    int err;
+    NTSTATUS status;
     BOOLEAN useEventIndex = CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX);
 
-    err = virtio_find_queues(
+    status = virtio_find_queues(
         &adaptExt->vdev,
         1 /* nvqs */,
         &adaptExt->vq,
         NULL);
-    if (err) {
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("find_vqs failed with error %d\n", err));
+    if (!NT_SUCCESS(status)) {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("virtio_find_queues failed with error %x\n", status));
         return FALSE;
     }
 
@@ -528,7 +528,7 @@ VirtIoHwInitialize(
     }
 
     adaptExt->vdev.features = guestFeatures;
-    if (virtio_finalize_features(&adaptExt->vdev)) {
+    if (!NT_SUCCESS(virtio_finalize_features(&adaptExt->vdev))) {
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("virtio_finalize_features failed\n"));
         return FALSE;
     }
