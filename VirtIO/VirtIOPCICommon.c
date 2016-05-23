@@ -144,20 +144,20 @@ void vp_del_vq(struct virtqueue *vq)
     vp_dev->info[i].vq = NULL;
 }
 
-static struct virtqueue *vp_setup_vq(virtio_device *vdev, unsigned index,
-                                     const char *name,
-                                     u16 msix_vec)
+static int vp_setup_vq(struct virtqueue **queue,
+                       virtio_device *vdev, unsigned index,
+                       const char *name,
+                       u16 msix_vec)
 {
     virtio_pci_device *vp_dev = to_vp_device(vdev);
     virtio_pci_vq_info *info = &vp_dev->info[index];
-    struct virtqueue *vq;
 
-    vq = vp_dev->setup_vq(vp_dev, info, index, name, msix_vec);
-    if (!IS_ERR(vq)) {
-        info->vq = vq;
+    int err = vp_dev->setup_vq(queue, vp_dev, info, index, name, msix_vec);
+    if (err == 0) {
+        info->vq = *queue;
     }
 
-    return vq;
+    return err;
 }
 
 /* the notify function used when creating a virt queue */
@@ -201,13 +201,13 @@ int vp_find_vqs(virtio_device *vdev, unsigned nvqs,
         } else {
             name = "_unnamed_queue";
         }
-        vqs[i] = vp_setup_vq(
+        err = vp_setup_vq(
+            &vqs[i],
             vdev,
             i,
             name,
             msix_vec);
-        if (IS_ERR(vqs[i])) {
-            err = (int)PTR_ERR(vqs[i]);
+        if (err != 0) {
             goto error_find;
         }
         if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
@@ -228,17 +228,12 @@ int vp_find_vq(virtio_device *vdev, unsigned index,
 {
     virtio_pci_device *vp_dev = to_vp_device(vdev);
 
-    struct virtqueue *queue = vp_setup_vq(
+    return vp_setup_vq(
+        vq,
         vp_dev,
         index,
         name,
         VIRTIO_MSI_NO_VECTOR);
-    if (IS_ERR(queue)) {
-        return (int)PTR_ERR(queue);
-    }
-
-    *vq = queue;
-    return 0;
 }
 
 u8 virtio_read_isr_status(VirtIODevice *vdev)

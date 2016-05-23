@@ -162,11 +162,12 @@ static int query_vq_alloc(virtio_pci_device *vp_dev,
     return 0;
 }
 
-static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
-                                  virtio_pci_vq_info *info,
-                                  unsigned index,
-                                  const char *name,
-                                  u16 msix_vec)
+static int setup_vq(struct virtqueue **queue,
+                    virtio_pci_device *vp_dev,
+                    virtio_pci_vq_info *info,
+                    unsigned index,
+                    const char *name,
+                    u16 msix_vec)
 {
     struct virtqueue *vq;
     unsigned long size, ring_size, heap_size;
@@ -175,14 +176,14 @@ static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
     /* Select the queue and query allocation parameters */
     err = query_vq_alloc(vp_dev, index, &info->num, &size, &heap_size);
     if (err) {
-        return ERR_PTR(err);
+        return err;
     }
 
     ring_size = ROUND_TO_PAGES(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN));
 
     info->queue = alloc_pages_exact(vp_dev, size);
     if (info->queue == NULL)
-        return ERR_PTR(-ENOMEM);
+        return -ENOMEM;
 
     /* activate the queue */
     iowrite32((u32)(virt_to_phys(vp_dev, info->queue) >> VIRTIO_PCI_QUEUE_ADDR_SHIFT),
@@ -208,13 +209,14 @@ static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
         }
     }
 
-    return vq;
+    *queue = vq;
+    return 0;
 
 out_assign:
 out_activate_queue:
     iowrite32(0, vp_dev->addr + VIRTIO_PCI_QUEUE_PFN);
     free_pages_exact(vp_dev, info->queue);
-    return ERR_PTR(err);
+    return err;
 }
 
 static void del_vq(virtio_pci_vq_info *info)

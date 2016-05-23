@@ -61,21 +61,6 @@
 
 #define BIT_ULL(nr) (1ULL << (nr))
 
-#define IS_ERR_VALUE(x) unlikely((x) >= (ULONG_PTR)-MAX_ERRNO)
-
-inline void *ERR_PTR(LONG_PTR error)
-{
-    return (void *)error;
-}
-inline LONG_PTR PTR_ERR(const void *ptr)
-{
-    return (LONG_PTR)ptr;
-}
-inline LONG_PTR IS_ERR(const void *ptr)
-{
-    return IS_ERR_VALUE((ULONG_PTR)ptr);
-}
-
 #define SMP_CACHE_BYTES 64
 
 #define cpu_to_le16(x) (x)
