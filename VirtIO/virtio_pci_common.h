@@ -28,13 +28,13 @@
 #define iowrite16(val, addr) WriteVirtIODeviceWord((ULONG_PTR)(addr), val)
 #define iowrite32(val, addr) WriteVirtIODeviceRegister((ULONG_PTR)(addr), val)
 
-#define alloc_pages_exact(vp_dev, size, gfp_mask) \
+#define alloc_pages_exact(vp_dev, size) \
     vp_dev->system->alloc_contiguous_pages(vp_dev->DeviceContext, size)
-#define free_pages_exact(vp_dev, addr, size) \
-    vp_dev->system->free_contiguous_pages(vp_dev->DeviceContext, addr, size)
+#define free_pages_exact(vp_dev, addr) \
+    vp_dev->system->free_contiguous_pages(vp_dev->DeviceContext, addr)
 #define virt_to_phys(vp_dev, addr) \
     vp_dev->system->virt_to_phys(vp_dev->DeviceContext, addr)
-#define kmalloc(vp_dev, size, gfp_mask) \
+#define kmalloc(vp_dev, size) \
     vp_dev->system->kmalloc(vp_dev->DeviceContext, size)
 #define kfree(vp_dev, addr) \
     vp_dev->system->kfree(vp_dev->DeviceContext, addr)
@@ -70,7 +70,6 @@ void vp_del_vq(struct virtqueue *vq);
 /* the config->find_vqs() implementation */
 int vp_find_vqs(virtio_device *vdev, unsigned nvqs,
                 struct virtqueue *vqs[],
-                vq_callback_t *callbacks[],
                 const char * const names[]);
 /* the config->find_vq() implementation */
 int vp_find_vq(virtio_device *vdev, unsigned index,

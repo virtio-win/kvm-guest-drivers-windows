@@ -311,8 +311,7 @@ static void *alloc_virtqueue_pages(virtio_pci_device *vp_dev, u16 *num)
     
     /* TODO: allocate each queue chunk individually */
     for (; *num && vring_pci_size(*num) > PAGE_SIZE; *num /= 2) {
-        pages = alloc_pages_exact(vp_dev, vring_pci_size(*num),
-            GFP_KERNEL | __GFP_ZERO | __GFP_NOWARN);
+        pages = alloc_pages_exact(vp_dev, vring_pci_size(*num));
         if (pages)
             return pages;
     }
@@ -321,7 +320,7 @@ static void *alloc_virtqueue_pages(virtio_pci_device *vp_dev, u16 *num)
         return NULL;
     
     /* Try to get a single page. You are my only hope! */
-    return alloc_pages_exact(vp_dev, vring_pci_size(*num), GFP_KERNEL | __GFP_ZERO);
+    return alloc_pages_exact(vp_dev, vring_pci_size(*num));
 }
 
 static int query_vq_alloc(virtio_pci_device *vp_dev,
@@ -362,7 +361,6 @@ static int query_vq_alloc(virtio_pci_device *vp_dev,
 static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
                                   virtio_pci_vq_info *info,
                                   unsigned index,
-                                  void(*callback)(struct virtqueue *vq),
                                   const char *name,
                                   u16 msix_vec)
 {
@@ -372,8 +370,6 @@ static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
     u16 off;
     unsigned long size, heap_size;
     int err;
-
-    UNREFERENCED_PARAMETER(callback);
 
     /* Select the queue and query allocation parameters */
     err = query_vq_alloc(vp_dev, index, &info->num, &size, &heap_size);
@@ -388,7 +384,7 @@ static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
     if (info->queue == NULL)
         return ERR_PTR(-ENOMEM);
 
-    vq_addr = kmalloc(vp_dev, heap_size, GFP_KERNEL);
+    vq_addr = kmalloc(vp_dev, heap_size);
     if (vq_addr == NULL)
         return ERR_PTR(-ENOMEM);
 
@@ -456,13 +452,12 @@ err_map_notify:
     virtqueue_shutdown(vq);
 err_new_queue:
     kfree(vp_dev, vq_addr);
-    free_pages_exact(vp_dev, info->queue, vring_pci_size((u16)info->num));
+    free_pages_exact(vp_dev, info->queue);
     return ERR_PTR(err);
 }
 
 static int vp_modern_find_vqs(virtio_device *vdev, unsigned nvqs,
                               struct virtqueue *vqs[],
-                              vq_callback_t *callbacks[],
                               const char * const names[])
 {
     virtio_pci_device *vp_dev = to_vp_device(vdev);
@@ -470,7 +465,7 @@ static int vp_modern_find_vqs(virtio_device *vdev, unsigned nvqs,
     unsigned i;
     int rc;
     
-    rc = vp_find_vqs(vdev, nvqs, vqs, callbacks, (const char **)names);
+    rc = vp_find_vqs(vdev, nvqs, vqs, (const char **)names);
     if (rc)
         return rc;
     
@@ -527,7 +522,7 @@ static void del_vq(virtio_pci_vq_info *info)
     virtqueue_shutdown(vq);
 
     kfree(vp_dev, vq);
-    free_pages_exact(vp_dev, info->queue, vring_pci_size((u16)info->num));
+    free_pages_exact(vp_dev, info->queue);
 }
 
 static const struct virtio_config_ops virtio_pci_config_nodev_ops = {
@@ -575,9 +570,9 @@ static inline int virtio_pci_find_capability(virtio_pci_device *vp_dev, u8 cfg_t
 {
     int pos;
 
-    for (pos = pci_find_capability(vp_dev, PCI_CAP_ID_VNDR);
+    for (pos = pci_find_capability(vp_dev, PCI_CAPABILITY_ID_VENDOR_SPECIFIC);
         pos > 0;
-        pos = pci_find_next_capability(vp_dev, (u8)pos, PCI_CAP_ID_VNDR)) {
+        pos = pci_find_next_capability(vp_dev, (u8)pos, PCI_CAPABILITY_ID_VENDOR_SPECIFIC)) {
         u8 type, bar;
         pci_read_config_byte(vp_dev, pos + offsetof(struct virtio_pci_cap,
             cfg_type),

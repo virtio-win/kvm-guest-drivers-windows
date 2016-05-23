@@ -62,7 +62,6 @@ struct virtio_config_ops {
     void (*reset)(virtio_device *vdev);
     int (*find_vqs)(virtio_device *, unsigned nvqs,
                     struct virtqueue *vqs[],
-                    vq_callback_t *callbacks[],
                     const char * const names[]);
     int (*find_vq)(virtio_device *, unsigned index,
                    struct virtqueue **vq, const char *name);

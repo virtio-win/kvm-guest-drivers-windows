@@ -599,7 +599,6 @@ void initialize_virtqueue(struct vring_virtqueue* vq,
                           bool event,
                           void *pages,
                           void (*notify)(struct virtqueue *),
-                          // void (*callback)(struct virtqueue *),
                           const char *name)
 {
     unsigned short i = (unsigned short) num;
@@ -609,8 +608,6 @@ void initialize_virtqueue(struct vring_virtqueue* vq,
     vq->vq.vdev = vdev;
     vq->vq.name = name;
     vq->notify = notify;
-    // vq->callback = callback;
-    //vq->weak_barriers = weak_barriers;
     vq->broken = 0;
     vq->vq.index = index;
     vq->last_used_idx = 0;
@@ -621,11 +618,6 @@ void initialize_virtqueue(struct vring_virtqueue* vq,
 #endif
     //vq->indirect = virtio_has_feature(vdev, VIRTIO_RING_F_INDIRECT_DESC);
     vq->event = event; // virtio_has_feature(vdev, VIRTIO_RING_F_EVENT_IDX);
-
-    /* No callback?  Tell other side not to bother us. */
-    // TBD
-    //if (!callback)
-    //  vq->vring.avail->flags |= VRING_AVAIL_F_NO_INTERRUPT;
 
     /* Put everything in free lists. */
     vq->vq.num_free = num;

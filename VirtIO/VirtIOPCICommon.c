@@ -145,7 +145,6 @@ void vp_del_vq(struct virtqueue *vq)
 }
 
 static struct virtqueue *vp_setup_vq(virtio_device *vdev, unsigned index,
-                                     void(*callback)(struct virtqueue *vq),
                                      const char *name,
                                      u16 msix_vec)
 {
@@ -153,7 +152,7 @@ static struct virtqueue *vp_setup_vq(virtio_device *vdev, unsigned index,
     virtio_pci_vq_info *info = &vp_dev->info[index];
     struct virtqueue *vq;
 
-    vq = vp_dev->setup_vq(vp_dev, info, index, callback, name, msix_vec);
+    vq = vp_dev->setup_vq(vp_dev, info, index, name, msix_vec);
     if (!IS_ERR(vq)) {
         info->vq = vq;
     }
@@ -173,7 +172,6 @@ bool vp_notify(struct virtqueue *vq)
 /* the config->find_vqs() implementation */
 int vp_find_vqs(virtio_device *vdev, unsigned nvqs,
                 struct virtqueue *vqs[],
-                vq_callback_t *callbacks[],
                 const char * const names[])
 {
     virtio_pci_device *vp_dev = to_vp_device(vdev);
@@ -181,8 +179,6 @@ int vp_find_vqs(virtio_device *vdev, unsigned nvqs,
     unsigned i;
     int err;
     u16 msix_vec;
-
-    UNREFERENCED_PARAMETER(callbacks);
 
     /* set up the config interrupt */
     msix_vec = pci_get_msix_vector(vp_dev, -1);
@@ -208,7 +204,6 @@ int vp_find_vqs(virtio_device *vdev, unsigned nvqs,
         vqs[i] = vp_setup_vq(
             vdev,
             i,
-            NULL /*callbacks[i]*/,
             name,
             msix_vec);
         if (IS_ERR(vqs[i])) {
@@ -236,7 +231,6 @@ int vp_find_vq(virtio_device *vdev, unsigned index,
     struct virtqueue *queue = vp_setup_vq(
         vp_dev,
         index,
-        NULL,
         name,
         VIRTIO_MSI_NO_VECTOR);
     if (IS_ERR(queue)) {
@@ -352,7 +346,7 @@ int virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs)
 {
     if (nvqs > vdev->maxQueues) {
         /* allocate new space for queue infos */
-        void *new_info = kmalloc(vdev, nvqs * virtio_queue_descriptor_size(), GFP_KERNEL);
+        void *new_info = kmalloc(vdev, nvqs * virtio_queue_descriptor_size());
         if (!new_info) {
             return -ENOSPC;
         }
@@ -378,7 +372,6 @@ int virtio_find_queues(VirtIODevice *vdev,
             vdev,
             nvqs,
             vqs,
-            NULL,
             names);
     }
     return err;
