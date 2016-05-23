@@ -76,13 +76,6 @@ inline LONG_PTR IS_ERR(const void *ptr)
     return IS_ERR_VALUE((ULONG_PTR)ptr);
 }
 
-#define __force
-#define __iomem
-
-/* the Windows PAGE_ALIGN macro rounds down */
-#undef PAGE_ALIGN
-#define PAGE_ALIGN(addr) ROUND_TO_PAGES(addr)
-
 #define SMP_CACHE_BYTES 64
 
 #define cpu_to_le16(x) (x)
