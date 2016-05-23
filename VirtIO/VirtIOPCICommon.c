@@ -144,20 +144,20 @@ void vp_del_vq(struct virtqueue *vq)
     vp_dev->info[i].vq = NULL;
 }
 
-static int vp_setup_vq(struct virtqueue **queue,
-                       virtio_device *vdev, unsigned index,
-                       const char *name,
-                       u16 msix_vec)
+static NTSTATUS vp_setup_vq(struct virtqueue **queue,
+                            virtio_device *vdev, unsigned index,
+                            const char *name,
+                            u16 msix_vec)
 {
     virtio_pci_device *vp_dev = to_vp_device(vdev);
     virtio_pci_vq_info *info = &vp_dev->info[index];
 
-    int err = vp_dev->setup_vq(queue, vp_dev, info, index, name, msix_vec);
-    if (err == 0) {
+    NTSTATUS status = vp_dev->setup_vq(queue, vp_dev, info, index, name, msix_vec);
+    if (NT_SUCCESS(status)) {
         info->vq = *queue;
     }
 
-    return err;
+    return status;
 }
 
 /* the notify function used when creating a virt queue */
@@ -170,14 +170,14 @@ bool vp_notify(struct virtqueue *vq)
 }
 
 /* the config->find_vqs() implementation */
-int vp_find_vqs(virtio_device *vdev, unsigned nvqs,
-                struct virtqueue *vqs[],
-                const char * const names[])
+NTSTATUS vp_find_vqs(virtio_device *vdev, unsigned nvqs,
+                     struct virtqueue *vqs[],
+                     const char * const names[])
 {
     virtio_pci_device *vp_dev = to_vp_device(vdev);
     const char *name;
     unsigned i;
-    int err;
+    NTSTATUS status;
     u16 msix_vec;
 
     /* set up the config interrupt */
@@ -187,7 +187,7 @@ int vp_find_vqs(virtio_device *vdev, unsigned nvqs,
         msix_vec = vp_dev->config_vector(vp_dev, msix_vec);
         /* Verify we had enough resources to assign the vector */
         if (msix_vec == VIRTIO_MSI_NO_VECTOR) {
-            err = -EBUSY;
+            status = STATUS_DEVICE_BUSY;
             goto error_find;
         }
         vp_dev->msix_used = 1;
@@ -201,30 +201,30 @@ int vp_find_vqs(virtio_device *vdev, unsigned nvqs,
         } else {
             name = "_unnamed_queue";
         }
-        err = vp_setup_vq(
+        status = vp_setup_vq(
             &vqs[i],
             vdev,
             i,
             name,
             msix_vec);
-        if (err != 0) {
+        if (!NT_SUCCESS(status)) {
             goto error_find;
         }
         if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
             vp_dev->msix_used |= 1;
         }
     }
-    return 0;
+    return STATUS_SUCCESS;
 
 error_find:
     vp_del_vqs(vdev);
-    return err;
+    return status;
 }
 
 /* the config->find_vq() implementation */
-int vp_find_vq(virtio_device *vdev, unsigned index,
-               struct virtqueue **vq,
-               const char *name)
+NTSTATUS vp_find_vq(virtio_device *vdev, unsigned index,
+                    struct virtqueue **vq,
+                    const char *name)
 {
     virtio_pci_device *vp_dev = to_vp_device(vdev);
 
@@ -261,32 +261,34 @@ static void register_virtio_device(virtio_device *dev)
     virtio_add_status(dev, VIRTIO_CONFIG_S_ACKNOWLEDGE);
 }
 
-int virtio_finalize_features(VirtIODevice *dev)
+NTSTATUS virtio_finalize_features(VirtIODevice *dev)
 {
-    unsigned status;
-    int ret = dev->config->finalize_features(dev);
+    unsigned char dev_status;
+    NTSTATUS status = dev->config->finalize_features(dev);
 
-    if (ret)
-        return ret;
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
 
-    if (!virtio_has_feature(dev, VIRTIO_F_VERSION_1))
-        return 0;
+    if (!virtio_has_feature(dev, VIRTIO_F_VERSION_1)) {
+        return status;
+    }
 
     virtio_add_status(dev, VIRTIO_CONFIG_S_FEATURES_OK);
-    status = dev->config->get_status(dev);
-    if (!(status & VIRTIO_CONFIG_S_FEATURES_OK)) {
-        DPrintf(0, ("virtio: device refuses features: %x\n", status));
-        return -ENODEV;
+    dev_status = dev->config->get_status(dev);
+    if (!(dev_status & VIRTIO_CONFIG_S_FEATURES_OK)) {
+        DPrintf(0, ("virtio: device refuses features: %x\n", dev_status));
+        status = STATUS_INVALID_PARAMETER;
     }
-    return 0;
+    return status;
 }
 
-int virtio_device_initialize(VirtIODevice *pVirtIODevice,
-                             const VirtIOSystemOps *pSystemOps,
-                             PVOID DeviceContext,
-                             ULONG allocatedSize)
+NTSTATUS virtio_device_initialize(VirtIODevice *pVirtIODevice,
+                                  const VirtIOSystemOps *pSystemOps,
+                                  PVOID DeviceContext,
+                                  ULONG allocatedSize)
 {
-    int err;
+    NTSTATUS status;
 
     memset(pVirtIODevice, 0, allocatedSize);
     pVirtIODevice->DeviceContext = DeviceContext;
@@ -297,19 +299,19 @@ int virtio_device_initialize(VirtIODevice *pVirtIODevice,
     pVirtIODevice->maxQueues =
         (allocatedSize - offsetof(VirtIODevice, info)) / sizeof(tVirtIOPerQueueInfo);
 
-    err = virtio_pci_modern_probe(pVirtIODevice);
-    if (err == -ENODEV) {
+    status = virtio_pci_modern_probe(pVirtIODevice);
+    if (status == STATUS_DEVICE_NOT_CONNECTED) {
         /* legacy virtio device */
-        err = virtio_pci_legacy_probe(pVirtIODevice);
+        status = virtio_pci_legacy_probe(pVirtIODevice);
     }
-    if (!err) {
+    if (NT_SUCCESS(status)) {
         register_virtio_device(pVirtIODevice);
 
         /* If we are here, we must have found a driver for the device */
         virtio_add_status(pVirtIODevice, VIRTIO_CONFIG_S_DRIVER);
     }
 
-    return err;
+    return status;
 }
 
 void virtio_device_shutdown(VirtIODevice *pVirtIODevice)
@@ -328,22 +330,22 @@ void virtio_device_shutdown(VirtIODevice *pVirtIODevice)
     }
 }
 
-int virtio_query_queue_allocation(VirtIODevice *vdev,
-                                  unsigned index,
-                                  unsigned short *pNumEntries,
-                                  unsigned long *pAllocationSize,
-                                  unsigned long *pHeapSize)
+NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev,
+                                       unsigned index,
+                                       unsigned short *pNumEntries,
+                                       unsigned long *pAllocationSize,
+                                       unsigned long *pHeapSize)
 {
     return vdev->query_vq_alloc(vdev, index, pNumEntries, pAllocationSize, pHeapSize);
 }
 
-int virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs)
+NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs)
 {
     if (nvqs > vdev->maxQueues) {
         /* allocate new space for queue infos */
         void *new_info = kmalloc(vdev, nvqs * virtio_queue_descriptor_size());
         if (!new_info) {
-            return -ENOSPC;
+            return STATUS_INSUFFICIENT_RESOURCES;
         }
 
         if (vdev->info && vdev->info != vdev->inline_info) {
@@ -352,24 +354,24 @@ int virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs)
         vdev->info = new_info;
         vdev->maxQueues = nvqs;
     }
-    return 0;
+    return STATUS_SUCCESS;
 }
 
-int virtio_find_queues(VirtIODevice *vdev,
-                       unsigned nvqs,
-                       struct virtqueue *vqs[],
-                       const char *const names[])
+NTSTATUS virtio_find_queues(VirtIODevice *vdev,
+                            unsigned nvqs,
+                            struct virtqueue *vqs[],
+                            const char *const names[])
 {
-    int err = virtio_reserve_queue_memory(vdev, nvqs);
-    if (err == 0)
+    NTSTATUS status = virtio_reserve_queue_memory(vdev, nvqs);
+    if (NT_SUCCESS(status))
     {
-        err = vdev->config->find_vqs(
+        status = vdev->config->find_vqs(
             vdev,
             nvqs,
             vqs,
             names);
     }
-    return err;
+    return status;
 }
 
 int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA)
@@ -405,24 +407,4 @@ int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA)
         }
     }
     return -1;
-}
-
-NTSTATUS virtio_error_to_ntstatus(int error)
-{
-    switch (error) {
-        case 0:
-            return STATUS_SUCCESS;
-        case -ENOENT:
-            return STATUS_NOT_FOUND;
-        case -ENOMEM:
-            return STATUS_INSUFFICIENT_RESOURCES;
-        case -EBUSY:
-            return STATUS_DEVICE_BUSY;
-        case -ENODEV:
-            return STATUS_DEVICE_NOT_CONNECTED;
-        case -EINVAL:
-            return STATUS_INVALID_PARAMETER;
-        default:
-            return STATUS_UNSUCCESSFUL;
-    }
 }

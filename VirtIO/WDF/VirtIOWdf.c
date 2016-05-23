@@ -31,7 +31,6 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
 {
     NTSTATUS status = STATUS_SUCCESS;
     SIZE_T cbVIODevice;
-    int err;
 
     RtlZeroMemory(pWdfDriver, sizeof(*pWdfDriver));
     pWdfDriver->MemoryTag = MemoryTag;
@@ -61,17 +60,16 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
         cbVIODevice,
         pWdfDriver->MemoryTag);
     
-    err = virtio_device_initialize(
+    status = virtio_device_initialize(
         pWdfDriver->pVIODevice,
         &VirtIOWdfSystemOps,
         pWdfDriver,
         (ULONG)cbVIODevice);
-    if (err != 0) {
+    if (!NT_SUCCESS(status)) {
         ExFreePoolWithTag(pWdfDriver->pVIODevice, pWdfDriver->MemoryTag);
         PCIFreeBars(pWdfDriver);
-        status = virtio_error_to_ntstatus(err);
     }
-    
+
     pWdfDriver->ConfigInterrupt = ConfigInterrupt;
     VirtIODeviceSetMSIXUsed(pWdfDriver->pVIODevice, pWdfDriver->nMSIInterrupts > 0);
 
@@ -86,8 +84,6 @@ ULONGLONG VirtIOWdfGetDeviceFeatures(PVIRTIO_WDF_DRIVER pWdfDriver)
 NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver,
                                     ULONGLONG uFeatures)
 {
-    int err;
-
     /* make sure that we always follow the status bit-setting protocol */
     u8 status = virtio_get_status(pWdfDriver->pVIODevice);
     if (!(status & VIRTIO_CONFIG_S_ACKNOWLEDGE)) {
@@ -98,8 +94,7 @@ NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver,
     }
 
     pWdfDriver->pVIODevice->features = uFeatures;
-    err = virtio_finalize_features(pWdfDriver->pVIODevice);
-    return virtio_error_to_ntstatus(err);
+    return virtio_finalize_features(pWdfDriver->pVIODevice);
 }
 
 NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
@@ -107,22 +102,22 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
                              struct virtqueue **pQueues,
                              PVIRTIO_WDF_QUEUE_PARAM pQueueParams)
 {
-    int err;
+    NTSTATUS status;
     ULONG i;
     LPCSTR *pszNames;
 
     /* make sure that we always follow the status bit-setting protocol */
-    u8 status = virtio_get_status(pWdfDriver->pVIODevice);
-    if (!(status & VIRTIO_CONFIG_S_ACKNOWLEDGE)) {
+    u8 dev_status = virtio_get_status(pWdfDriver->pVIODevice);
+    if (!(dev_status & VIRTIO_CONFIG_S_ACKNOWLEDGE)) {
         virtio_add_status(pWdfDriver->pVIODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
     }
-    if (!(status & VIRTIO_CONFIG_S_DRIVER)) {
+    if (!(dev_status & VIRTIO_CONFIG_S_DRIVER)) {
         virtio_add_status(pWdfDriver->pVIODevice, VIRTIO_CONFIG_S_DRIVER);
     }
-    if (!(status & VIRTIO_CONFIG_S_FEATURES_OK)) {
-        err = virtio_finalize_features(pWdfDriver->pVIODevice);
-        if (err != 0) {
-            return virtio_error_to_ntstatus(err);
+    if (!(dev_status & VIRTIO_CONFIG_S_FEATURES_OK)) {
+        status = virtio_finalize_features(pWdfDriver->pVIODevice);
+        if (!NT_SUCCESS(status)) {
+            return status;
         }
     }
 
@@ -141,7 +136,7 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
 
     /* find and initialize queues */
     pWdfDriver->pQueueParams = pQueueParams;
-    err = virtio_find_queues(
+    status = virtio_find_queues(
         pWdfDriver->pVIODevice,
         nQueues,
         pQueues,
@@ -150,18 +145,15 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
 
     ExFreePoolWithTag((PVOID)pszNames, pWdfDriver->MemoryTag);
 
-    if (err) {
-        return virtio_error_to_ntstatus(err);
+    if (NT_SUCCESS(status)) {
+        /* set interrupt suppression flags */
+        for (i = 0; i < nQueues; i++) {
+            virtqueue_set_event_suppression(
+                pQueues[i],
+                pQueueParams[i].bEnableInterruptSuppression);
+        }
     }
-
-    /* set interrupt suppression flags */
-    for (i = 0; i < nQueues; i++) {
-        virtqueue_set_event_suppression(
-            pQueues[i],
-            pQueueParams[i].bEnableInterruptSuppression);
-    }
-
-    return STATUS_SUCCESS;
+    return status;
 }
 
 void VirtIOWdfSetDriverOK(PVIRTIO_WDF_DRIVER pWdfDriver)

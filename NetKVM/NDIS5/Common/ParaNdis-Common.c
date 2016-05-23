@@ -602,16 +602,16 @@ static void PrintStatistics(PARANDIS_ADAPTER *pContext)
     }
 }
 
-static NDIS_STATUS ErrorToNdisStatus(int error) {
-    switch (error) {
-    case 0:
+static NDIS_STATUS NTStatusToNdisStatus(NTSTATUS nt_status) {
+    switch (nt_status) {
+    case STATUS_SUCCESS:
         return NDIS_STATUS_SUCCESS;
-    case -ENOENT:
-    case -ENODEV:
+    case STATUS_NOT_FOUND:
+    case STATUS_DEVICE_NOT_CONNECTED:
         return NDIS_STATUS_ADAPTER_NOT_FOUND;
-    case -ENOMEM:
+    case STATUS_INSUFFICIENT_RESOURCES:
         return NDIS_STATUS_RESOURCES;
-    case -EINVAL:
+    case STATUS_INVALID_PARAMETER:
         return NDIS_STATUS_INVALID_DEVICE_REQUEST;
     default:
         return NDIS_STATUS_FAILURE;
@@ -620,11 +620,11 @@ static NDIS_STATUS ErrorToNdisStatus(int error) {
 
 static NDIS_STATUS FinalizeFeatures(PARANDIS_ADAPTER *pContext)
 {
-    int err = virtio_finalize_features(&pContext->IODevice);
-    if (err != 0) {
-        DPrintf(0, ("[%s] virtio_finalize_features failed with %d\n", __FUNCTION__, err));
+    NTSTATUS nt_status = virtio_finalize_features(&pContext->IODevice);
+    if (!NT_SUCCESS(nt_status)) {
+        DPrintf(0, ("[%s] virtio_finalize_features failed with %x\n", __FUNCTION__, nt_status));
     }
-    return ErrorToNdisStatus(err);
+    return NTStatusToNdisStatus(nt_status);
 }
 
 /**********************************************************
@@ -648,7 +648,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     PUCHAR pNewMacAddress = NULL;
     USHORT linkStatus = 0;
-    int err;
+    NTSTATUS nt_status;
     UINT i;
 
     DEBUG_ENTRY(0);
@@ -684,14 +684,14 @@ NDIS_STATUS ParaNdis_InitializeContext(
             pContext->bUsingMSIX = TRUE;
         }
 
-        err = virtio_device_initialize(
+        nt_status = virtio_device_initialize(
             &pContext->IODevice,
             &ParaNdisSystemOps,
             pContext,
             sizeof(pContext->IODevice));
-        if (err != 0) {
-            DPrintf(0, ("[%s] virtio_device_initialize failed with %d\n", __FUNCTION__, err));
-            status = ErrorToNdisStatus(err);
+        if (!NT_SUCCESS(nt_status)) {
+            DPrintf(0, ("[%s] virtio_device_initialize failed with %x\n", __FUNCTION__, nt_status));
+            status = NTStatusToNdisStatus(nt_status);
             DEBUG_EXIT_STATUS(0, status);
             return status;
         }
@@ -1095,17 +1095,17 @@ static NDIS_STATUS FindNetQueues(PARANDIS_ADAPTER *pContext)
     LPCSTR const names[] = { "rx", "tx", "ctrl" };
     struct virtqueue *queues[3];
     unsigned i, nvqs = pContext->bHasControlQueue ? 3 : 2;
-    int err;
+    NTSTATUS status;
 
     // We work with two or three virtqueues, 0 - receive, 1 - send, 2 - control
-    err = virtio_find_queues(
+    status = virtio_find_queues(
        &pContext->IODevice,
        nvqs,
        queues,
        names);
-    if (err != 0) {
-       DPrintf(0, ("[%s] virtio_find_queues failed with %d\n", __FUNCTION__, err));
-       return ErrorToNdisStatus(err);
+    if (!NT_SUCCESS(status)) {
+       DPrintf(0, ("[%s] virtio_find_queues failed with %x\n", __FUNCTION__, status));
+       return NTStatusToNdisStatus(status);
     }
 
     // set interrupt suppression flags

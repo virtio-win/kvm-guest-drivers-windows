@@ -255,18 +255,18 @@ InitVirtIODevice(
     )
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    int err;
+    NTSTATUS status;
 
-    err = virtio_device_initialize(
+    status = virtio_device_initialize(
         &adaptExt->vdev,
         &VioScsiSystemOps,
         adaptExt,
         sizeof(adaptExt->vdev));
-    if (err != 0) {
+    if (!NT_SUCCESS(status)) {
         LogError(adaptExt,
                 SP_INTERNAL_ADAPTER_ERROR,
                 __LINE__);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Failed to initialize virtio device, error %d\n", err));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Failed to initialize virtio device, error %x\n", status));
         return FALSE;
     }
     return TRUE;

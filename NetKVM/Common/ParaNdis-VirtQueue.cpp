@@ -7,15 +7,15 @@ bool CVirtQueue::AllocateQueueMemory()
     USHORT NumEntries;
     ULONG AllocationSize, HeapSize;
 
-    int err = m_IODevice->query_vq_alloc(
+    NTSTATUS status = m_IODevice->query_vq_alloc(
         m_IODevice,
         m_Index,
         &NumEntries,
         &AllocationSize,
         &HeapSize);
-    if (err != 0)
+    if (!NT_SUCCESS(status))
     {
-        DPrintf(0, ("[%s] query_vq_alloc(%d) failed with error %d\n", __FUNCTION__, m_Index, err));
+        DPrintf(0, ("[%s] query_vq_alloc(%d) failed with error %x\n", __FUNCTION__, m_Index, status));
         return false;
     }
 
@@ -27,20 +27,20 @@ void CVirtQueue::Renew()
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)m_IODevice->DeviceContext;
 
     pContext->pPageAllocator = &m_SharedMemory;
-    int err = m_IODevice->config->find_vq(
+    NTSTATUS status = m_IODevice->config->find_vq(
         m_IODevice,
         m_Index,
         &m_VirtQueue,
         "queue_name");
     pContext->pPageAllocator = nullptr;
 
-    if (err == 0)
+    if (NT_SUCCESS(status))
     {
         virtqueue_set_event_suppression(m_VirtQueue, m_UsePublishedIndices);
     }
     else
     {
-        DPrintf(0, ("[%s] - queue setup failed for index %u with error %d\n", __FUNCTION__, m_Index, err));
+        DPrintf(0, ("[%s] - queue setup failed for index %u with error %x\n", __FUNCTION__, m_Index, status));
         m_VirtQueue = nullptr;
     }
 }

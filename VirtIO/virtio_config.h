@@ -60,15 +60,15 @@ struct virtio_config_ops {
     u8 (*get_status)(virtio_device *vdev);
     void (*set_status)(virtio_device *vdev, u8 status);
     void (*reset)(virtio_device *vdev);
-    int (*find_vqs)(virtio_device *, unsigned nvqs,
-                    struct virtqueue *vqs[],
-                    const char * const names[]);
-    int (*find_vq)(virtio_device *, unsigned index,
+    NTSTATUS (*find_vqs)(virtio_device *, unsigned nvqs,
+                         struct virtqueue *vqs[],
+                         const char * const names[]);
+    NTSTATUS (*find_vq)(virtio_device *, unsigned index,
                    struct virtqueue **vq, const char *name);
     void (*del_vqs)(virtio_device *);
     void (*del_vq)(struct virtqueue *);
     u64 (*get_features)(virtio_device *vdev);
-    int (*finalize_features)(virtio_device *vdev);
+    NTSTATUS (*finalize_features)(virtio_device *vdev);
     u16 (*set_msi_vector)(struct virtqueue *vq, u16 vector);
 };
 

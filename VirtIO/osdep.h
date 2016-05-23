@@ -52,13 +52,6 @@
 #define rmb()  KeMemoryBarrier()
 #define wmb()  KeMemoryBarrier()
 
-#define ENOENT           2      /* No such file or directory */
-#define ENOMEM          12      /* Out of Memory */
-#define EBUSY           16      /* Device or resource busy */
-#define ENODEV          19      /* No such device */
-#define EINVAL          22      /* Invalid argument */
-#define MAX_ERRNO       4095
-
 #define BIT_ULL(nr) (1ULL << (nr))
 
 #define SMP_CACHE_BYTES 64

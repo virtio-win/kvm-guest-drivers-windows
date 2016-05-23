@@ -590,16 +590,16 @@ RestoreMAC(PPARANDIS_ADAPTER pContext)
     SetDeviceMAC(pContext, pContext->PermanentMacAddress);
 }
 
-static NDIS_STATUS ErrorToNdisStatus(int error) {
-    switch (error) {
-    case 0:
+static NDIS_STATUS NTStatusToNdisStatus(NTSTATUS nt_status) {
+    switch (nt_status) {
+    case STATUS_SUCCESS:
         return NDIS_STATUS_SUCCESS;
-    case -ENOENT:
-    case -ENODEV:
+    case STATUS_NOT_FOUND:
+    case STATUS_DEVICE_NOT_CONNECTED:
         return NDIS_STATUS_ADAPTER_NOT_FOUND;
-    case -ENOMEM:
+    case STATUS_INSUFFICIENT_RESOURCES:
         return NDIS_STATUS_RESOURCES;
-    case -EINVAL:
+    case STATUS_INVALID_PARAMETER:
         return NDIS_STATUS_INVALID_DEVICE_REQUEST;
     default:
         return NDIS_STATUS_FAILURE;
@@ -655,15 +655,15 @@ NDIS_STATUS ParaNdis_InitializeContext(
             pContext->bUsingMSIX = TRUE;
         }
 
-        int err = virtio_device_initialize(
+        NTSTATUS nt_status = virtio_device_initialize(
             &pContext->IODevice,
             &ParaNdisSystemOps,
             pContext,
             sizeof(pContext->IODevice));
-        if (err != 0)
+        if (!NT_SUCCESS(nt_status))
         {
-            DPrintf(0, ("[%s] virtio_device_initialize failed with %d\n", __FUNCTION__, err));
-            status = ErrorToNdisStatus(err);
+            DPrintf(0, ("[%s] virtio_device_initialize failed with %x\n", __FUNCTION__, nt_status));
+            status = NTStatusToNdisStatus(nt_status);
             DEBUG_EXIT_STATUS(0, status);
             return status;
         }
@@ -749,11 +749,11 @@ NDIS_STATUS ParaNdis_InitializeContext(
     if (status == NDIS_STATUS_SUCCESS)
     {
         pContext->IODevice.features = pContext->u64GuestFeatures;
-        int err = virtio_finalize_features(&pContext->IODevice);
-        if (err != 0)
+        NTSTATUS nt_status = virtio_finalize_features(&pContext->IODevice);
+        if (!NT_SUCCESS(nt_status))
         {
-            DPrintf(0, ("[%s] virtio_finalize_features failed with %d\n", __FUNCTION__, err));
-            status = ErrorToNdisStatus(err);
+            DPrintf(0, ("[%s] virtio_finalize_features failed with %x\n", __FUNCTION__, nt_status));
+            status = NTStatusToNdisStatus(nt_status);
         }
     }
 
@@ -970,11 +970,11 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         return NDIS_STATUS_RESOURCES;
     }
 
-    int err = virtio_reserve_queue_memory(&pContext->IODevice, nVirtIOQueues);
-    if (err != 0)
+    NTSTATUS nt_status = virtio_reserve_queue_memory(&pContext->IODevice, nVirtIOQueues);
+    if (!NT_SUCCESS(nt_status))
     {
         DPrintf(0, ("[%s] - failed to reserve %u queues\n", __FUNCTION__, nVirtIOQueues));
-        return ErrorToNdisStatus(err);
+        return NTStatusToNdisStatus(nt_status);
     }
 
     new (&pContext->CXPath) CParaNdisCX();
@@ -1935,11 +1935,11 @@ NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
      otherwise the device will not work properly */
     (void)virtio_get_features(&pContext->IODevice);
     pContext->IODevice.features = pContext->u64GuestFeatures;
-    int err = virtio_finalize_features(&pContext->IODevice);
-    if (err != 0)
+    NTSTATUS nt_status = virtio_finalize_features(&pContext->IODevice);
+    if (!NT_SUCCESS(nt_status))
     {
-        DPrintf(0, ("[%s] virtio_finalize_features failed with %d\n", __FUNCTION__, err));
-        return ErrorToNdisStatus(err);
+        DPrintf(0, ("[%s] virtio_finalize_features failed with %x\n", __FUNCTION__, nt_status));
+        return NTStatusToNdisStatus(nt_status);
     }
 
     for (i = 0; i < pContext->nPathBundles; i++)
