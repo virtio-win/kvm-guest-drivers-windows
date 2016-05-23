@@ -358,11 +358,12 @@ static int query_vq_alloc(virtio_pci_device *vp_dev,
     return 0;
 }
 
-static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
-                                  virtio_pci_vq_info *info,
-                                  unsigned index,
-                                  const char *name,
-                                  u16 msix_vec)
+static int setup_vq(struct virtqueue **queue,
+                    virtio_pci_device *vp_dev,
+                    virtio_pci_vq_info *info,
+                    unsigned index,
+                    const char *name,
+                    u16 msix_vec)
 {
     struct virtio_pci_common_cfg *cfg = vp_dev->common;
     struct virtqueue *vq;
@@ -374,7 +375,7 @@ static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
     /* Select the queue and query allocation parameters */
     err = query_vq_alloc(vp_dev, index, &info->num, &size, &heap_size);
     if (err) {
-        return ERR_PTR(err);
+        return err;
     }
 
     /* get offset of notification word for this vq */
@@ -382,11 +383,11 @@ static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
 
     info->queue = alloc_virtqueue_pages(vp_dev, &info->num);
     if (info->queue == NULL)
-        return ERR_PTR(-ENOMEM);
+        return -ENOMEM;
 
     vq_addr = kmalloc(vp_dev, heap_size);
     if (vq_addr == NULL)
-        return ERR_PTR(-ENOMEM);
+        return -ENOMEM;
 
     /* create the vring */
     vq = vring_new_virtqueue(index, info->num,
@@ -443,7 +444,8 @@ static struct virtqueue *setup_vq(virtio_pci_device *vp_dev,
         }
     }
 
-    return vq;
+    *queue = vq;
+    return 0;
 
 err_assign_vector:
     if (!vp_dev->notify_base)
@@ -453,7 +455,7 @@ err_map_notify:
 err_new_queue:
     kfree(vp_dev, vq_addr);
     free_pages_exact(vp_dev, info->queue);
-    return ERR_PTR(err);
+    return err;
 }
 
 static int vp_modern_find_vqs(virtio_device *vdev, unsigned nvqs,

@@ -246,11 +246,12 @@ typedef struct TypeVirtIODevice
                           unsigned short *pNumEntries,
                           unsigned long *pAllocationSize,
                           unsigned long *pHeapSize);
-    struct virtqueue *(*setup_vq)(struct TypeVirtIODevice *vp_dev,
-                                  tVirtIOPerQueueInfo *info,
-                                  unsigned idx,
-                                  const char *name,
-                                  u16 msix_vec);
+    int (*setup_vq)(struct virtqueue **queue,
+                    struct TypeVirtIODevice *vp_dev,
+                    tVirtIOPerQueueInfo *info,
+                    unsigned idx,
+                    const char *name,
+                    u16 msix_vec);
     void(*del_vq)(virtio_pci_vq_info *info);
 
     u16(*config_vector)(struct TypeVirtIODevice *vp_dev, u16 vector);
