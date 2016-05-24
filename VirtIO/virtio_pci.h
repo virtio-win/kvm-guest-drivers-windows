@@ -210,7 +210,6 @@ typedef struct virtio_system_ops {
 
     // PCI resource handling
     size_t (*pci_get_resource_len)(void *context, int bar);
-    u32 (*pci_get_resource_flags)(void *context, int bar);
     void *(*pci_map_address_range)(void *context, int bar, size_t offset, size_t maxlen);
     void (*pci_unmap_address_range)(void *context, void *address);
 

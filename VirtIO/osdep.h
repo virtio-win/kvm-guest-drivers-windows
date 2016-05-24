@@ -56,8 +56,5 @@
 
 #define SMP_CACHE_BYTES 64
 
-#define IORESOURCE_IO           0x00000100      /* PCI/ISA I/O ports */
-#define IORESOURCE_MEM          0x00000200
-
 #endif
 #endif

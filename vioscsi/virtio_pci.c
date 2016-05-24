@@ -162,15 +162,6 @@ static size_t pci_get_resource_len(void *context, int bar)
     return 0;
 }
 
-static u32 pci_get_resource_flags(void *context, int bar)
-{
-    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
-    if (bar < PCI_TYPE0_ADDRESSES) {
-        return (adaptExt->pci_bars[bar].bPortSpace ? IORESOURCE_IO : IORESOURCE_MEM);
-    }
-    return 0;
-}
-
 static void *pci_map_address_range(void *context, int bar, size_t offset, size_t maxlen)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
@@ -239,7 +230,6 @@ VirtIOSystemOps VioScsiSystemOps = {
     .pci_read_config_word = pci_read_config_word,
     .pci_read_config_dword = pci_read_config_dword,
     .pci_get_resource_len = pci_get_resource_len,
-    .pci_get_resource_flags = pci_get_resource_flags,
     .pci_map_address_range = pci_map_address_range,
     .pci_unmap_address_range = pci_unmap_address_range,
     .vdev_get_msix_vector = vdev_get_msix_vector,

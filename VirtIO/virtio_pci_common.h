@@ -48,8 +48,6 @@
 
 #define pci_get_resource_len(vp_dev, bar) \
     vp_dev->system->pci_get_resource_len(vp_dev->DeviceContext, bar)
-#define pci_get_resource_flags(vp_dev, bar) \
-    vp_dev->system->pci_get_resource_flags(vp_dev->DeviceContext, bar)
 #define pci_map_address_range(vp_dev, bar, offset, maxlen) \
     vp_dev->system->pci_map_address_range(vp_dev->DeviceContext, bar, offset, maxlen)
 #define pci_unmap_address_range(vp_dev, address) \

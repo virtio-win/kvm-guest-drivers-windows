@@ -416,19 +416,6 @@ static size_t pci_get_resource_len(void *context, int bar)
     return 0;
 }
 
-static u32 pci_get_resource_flags(void *context, int bar)
-{
-    PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)context;
-
-    if (bar < PCI_TYPE0_ADDRESSES)
-    {
-        return (pContext->PciResources.IsPortBar(bar) ? IORESOURCE_IO : IORESOURCE_MEM);
-    }
-
-    DPrintf(0, ("[%s] queried invalid BAR %d\n", __FUNCTION__, bar));
-    return 0;
-}
-
 static void *pci_map_address_range(void *context, int bar, size_t offset, size_t maxlen)
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)context;
@@ -481,7 +468,6 @@ VirtIOSystemOps ParaNdisSystemOps = {
     pci_read_config_word,
     pci_read_config_dword,
     pci_get_resource_len,
-    pci_get_resource_flags,
     pci_map_address_range,
     pci_unmap_address_range,
     vdev_get_msix_vector,
