@@ -28,18 +28,16 @@
 #define iowrite16(val, addr) WriteVirtIODeviceWord((ULONG_PTR)(addr), val)
 #define iowrite32(val, addr) WriteVirtIODeviceRegister((ULONG_PTR)(addr), val)
 
-#define alloc_pages_exact(vp_dev, size) \
-    vp_dev->system->alloc_contiguous_pages(vp_dev->DeviceContext, size)
-#define free_pages_exact(vp_dev, addr) \
-    vp_dev->system->free_contiguous_pages(vp_dev->DeviceContext, addr)
-#define virt_to_phys(vp_dev, addr) \
-    vp_dev->system->virt_to_phys(vp_dev->DeviceContext, addr)
-#define kmalloc(vp_dev, size) \
-    vp_dev->system->kmalloc(vp_dev->DeviceContext, size)
-#define kfree(vp_dev, addr) \
-    vp_dev->system->kfree(vp_dev->DeviceContext, addr)
-#define msleep(vp_dev, msecs) \
-    vp_dev->system->msleep(vp_dev->DeviceContext, msecs)
+#define mem_alloc_contiguous_pages(vp_dev, size) \
+    vp_dev->system->mem_alloc_contiguous_pages(vp_dev->DeviceContext, size)
+#define mem_free_contiguous_pages(vp_dev, virt) \
+    vp_dev->system->mem_free_contiguous_pages(vp_dev->DeviceContext, virt)
+#define mem_get_physical_address(vp_dev, virt) \
+    vp_dev->system->mem_get_physical_address(vp_dev->DeviceContext, virt)
+#define mem_alloc_nonpaged_block(vp_dev, size) \
+    vp_dev->system->mem_alloc_nonpaged_block(vp_dev->DeviceContext, size)
+#define mem_free_nonpaged_block(vp_dev, addr) \
+    vp_dev->system->mem_free_nonpaged_block(vp_dev->DeviceContext, addr)
 
 #define pci_read_config_byte(vp_dev, where, bVal) \
     vp_dev->system->pci_read_config_byte(vp_dev->DeviceContext, where, bVal)
@@ -48,16 +46,19 @@
 #define pci_read_config_dword(vp_dev, where, dwVal) \
     vp_dev->system->pci_read_config_dword(vp_dev->DeviceContext, where, dwVal)
 
-#define pci_resource_len(vp_dev, bar) \
+#define pci_get_resource_len(vp_dev, bar) \
     vp_dev->system->pci_get_resource_len(vp_dev->DeviceContext, bar)
-#define pci_resource_flags(vp_dev, bar) \
+#define pci_get_resource_flags(vp_dev, bar) \
     vp_dev->system->pci_get_resource_flags(vp_dev->DeviceContext, bar)
-#define pci_get_msix_vector(vp_dev, queue) \
-    vp_dev->system->pci_get_msix_vector(vp_dev->DeviceContext, queue)
-#define pci_iomap_range(vp_dev, bar, offset, maxlen) \
-    vp_dev->system->pci_iomap_range(vp_dev->DeviceContext, bar, offset, maxlen)
-#define pci_iounmap(vp_dev, address) \
-    vp_dev->system->pci_iounmap(vp_dev->DeviceContext, address)
+#define pci_map_address_range(vp_dev, bar, offset, maxlen) \
+    vp_dev->system->pci_map_address_range(vp_dev->DeviceContext, bar, offset, maxlen)
+#define pci_unmap_address_range(vp_dev, address) \
+    vp_dev->system->pci_unmap_address_range(vp_dev->DeviceContext, address)
+
+#define vdev_get_msix_vector(vp_dev, queue) \
+    vp_dev->system->vdev_get_msix_vector(vp_dev->DeviceContext, queue)
+#define vdev_sleep(vp_dev, msecs) \
+    vp_dev->system->vdev_sleep(vp_dev->DeviceContext, msecs)
 
 #define to_vp_device(x) x
 

@@ -197,11 +197,11 @@ typedef struct _tVirtIOPerQueueInfo
 
 typedef struct virtio_system_ops {
     // memory management
-    void *(*alloc_contiguous_pages)(void *context, size_t size);
-    void (*free_contiguous_pages)(void *context, void *virt);
-    ULONGLONG (*virt_to_phys)(void *context, void *address);
-    void *(*kmalloc)(void *context, size_t size);
-    void (*kfree)(void *context, void *addr);
+    void *(*mem_alloc_contiguous_pages)(void *context, size_t size);
+    void (*mem_free_contiguous_pages)(void *context, void *virt);
+    ULONGLONG (*mem_get_physical_address)(void *context, void *virt);
+    void *(*mem_alloc_nonpaged_block)(void *context, size_t size);
+    void (*mem_free_nonpaged_block)(void *context, void *addr);
 
     // PCI config space access
     int (*pci_read_config_byte)(void *context, int where, u8 *bVal);
@@ -211,12 +211,12 @@ typedef struct virtio_system_ops {
     // PCI resource handling
     size_t (*pci_get_resource_len)(void *context, int bar);
     u32 (*pci_get_resource_flags)(void *context, int bar);
-    u16 (*pci_get_msix_vector)(void *context, int queue);
-    void *(*pci_iomap_range)(void *context, int bar, size_t offset, size_t maxlen);
-    void (*pci_iounmap)(void *context, void *address);
+    void *(*pci_map_address_range)(void *context, int bar, size_t offset, size_t maxlen);
+    void (*pci_unmap_address_range)(void *context, void *address);
 
     // misc
-    void (*msleep)(void *context, unsigned int msecs);
+    u16 (*vdev_get_msix_vector)(void *context, int queue);
+    void (*vdev_sleep)(void *context, unsigned int msecs);
 } VirtIOSystemOps;
 
 typedef struct TypeVirtIODevice

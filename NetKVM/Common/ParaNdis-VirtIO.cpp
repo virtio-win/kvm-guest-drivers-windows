@@ -278,7 +278,7 @@ void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
 #endif
 }
 
-static void *alloc_pages_exact(void *context, size_t size)
+static void *mem_alloc_contiguous_pages(void *context, size_t size)
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)context;
     CNdisSharedMemory *pMem = pContext->pPageAllocator;
@@ -301,7 +301,7 @@ static void *alloc_pages_exact(void *context, size_t size)
     return retVal;
 }
 
-static void free_pages_exact(void *context, void *virt)
+static void mem_free_contiguous_pages(void *context, void *virt)
 {
     /* The actual allocation and deallocation is tracked by instances of
      * CNdisSharedMemory whose lifetime is controlled by their owning queues.
@@ -312,26 +312,26 @@ static void free_pages_exact(void *context, void *virt)
     UNREFERENCED_PARAMETER(virt);
 }
 
-static ULONGLONG virt_to_phys(void *context, void *address)
+static ULONGLONG mem_get_physical_address(void *context, void *virt)
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)context;
     CNdisSharedMemory *pMem = pContext->pPageAllocator;
-    ULONG_PTR uAddr = (ULONG_PTR)address;
+    ULONG_PTR uAddr = (ULONG_PTR)virt;
 
     ULONG_PTR uBase = (ULONG_PTR)pMem->GetVA();
     if (uAddr >= uBase && uAddr < (uBase + pMem->GetSize()))
     {
         ULONGLONG retVal = pMem->GetPA().QuadPart + (uAddr - uBase);
 
-        DPrintf(6, ("[%s] translated %p to %I64X\n", __FUNCTION__, address, retVal));
+        DPrintf(6, ("[%s] translated %p to %I64X\n", __FUNCTION__, virt, retVal));
         return retVal;
     }
 
-    DPrintf(0, ("[%s] failed to translate %p\n", __FUNCTION__, address));
+    DPrintf(0, ("[%s] failed to translate %p\n", __FUNCTION__, virt));
     return 0;
 }
 
-static void *kmalloc(void *context, size_t size)
+static void *mem_alloc_nonpaged_block(void *context, size_t size)
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)context;
     PVOID retVal;
@@ -354,7 +354,7 @@ static void *kmalloc(void *context, size_t size)
     return retVal;
 }
 
-static void kfree(void *context, void *addr)
+static void mem_free_nonpaged_block(void *context, void *addr)
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)context;
 
@@ -404,14 +404,7 @@ static int pci_read_config_dword(void *context, int where, u32 *dwVal)
     return PCIReadConfig((PPARANDIS_ADAPTER)context, where, dwVal, sizeof(*dwVal));
 }
 
-static void msleep(void *context, unsigned int msecs)
-{
-    UNREFERENCED_PARAMETER(context);
-
-    NdisMSleep(1000 * msecs);
-}
-
-static size_t pci_resource_len(void *context, int bar)
+static size_t pci_get_resource_len(void *context, int bar)
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)context;
 
@@ -423,7 +416,7 @@ static size_t pci_resource_len(void *context, int bar)
     return 0;
 }
 
-static u32 pci_resource_flags(void *context, int bar)
+static u32 pci_get_resource_flags(void *context, int bar)
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)context;
 
@@ -436,7 +429,7 @@ static u32 pci_resource_flags(void *context, int bar)
     return 0;
 }
 
-static void *pci_iomap_range(void *context, int bar, size_t offset, size_t maxlen)
+static void *pci_map_address_range(void *context, int bar, size_t offset, size_t maxlen)
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)context;
 
@@ -451,7 +444,7 @@ static void *pci_iomap_range(void *context, int bar, size_t offset, size_t maxle
     return nullptr;
 }
 
-static void pci_iounmap(void *context, void *address)
+static void pci_unmap_address_range(void *context, void *address)
 {
     /* We map entire memory/IO regions on demand and unmap all of them on shutdown
      * so nothing to do here.
@@ -460,7 +453,7 @@ static void pci_iounmap(void *context, void *address)
     UNREFERENCED_PARAMETER(address);
 }
 
-static u16 pci_get_msix_vector(void *context, int queue)
+static u16 vdev_get_msix_vector(void *context, int queue)
 {
     /* Interrupt vectors are set up in CParaNdisAbstractPath::SetupMessageIndex,
      * no need to figure out MSI here as part of queue initialization.
@@ -471,19 +464,26 @@ static u16 pci_get_msix_vector(void *context, int queue)
     return VIRTIO_MSI_NO_VECTOR;
 }
 
+static void vdev_sleep(void *context, unsigned int msecs)
+{
+    UNREFERENCED_PARAMETER(context);
+
+    NdisMSleep(1000 * msecs);
+}
+
 VirtIOSystemOps ParaNdisSystemOps = {
-    alloc_pages_exact,
-    free_pages_exact,
-    virt_to_phys,
-    kmalloc,
-    kfree,
+    mem_alloc_contiguous_pages,
+    mem_free_contiguous_pages,
+    mem_get_physical_address,
+    mem_alloc_nonpaged_block,
+    mem_free_nonpaged_block,
     pci_read_config_byte,
     pci_read_config_word,
     pci_read_config_dword,
-    pci_resource_len,
-    pci_resource_flags,
-    pci_get_msix_vector,
-    pci_iomap_range,
-    pci_iounmap,
-    msleep,
+    pci_get_resource_len,
+    pci_get_resource_flags,
+    pci_map_address_range,
+    pci_unmap_address_range,
+    vdev_get_msix_vector,
+    vdev_sleep,
 };
