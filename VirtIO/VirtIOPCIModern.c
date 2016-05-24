@@ -563,12 +563,10 @@ static const struct virtio_config_ops virtio_pci_config_ops = {
  * virtio_pci_find_capability - walk capabilities to find device info.
  * @dev: the pci device
  * @cfg_type: the VIRTIO_PCI_CAP_* value we seek
- * @ioresource_types: IORESOURCE_MEM and/or IORESOURCE_IO.
  *
  * Returns offset of the capability, or 0.
  */
-static inline int virtio_pci_find_capability(virtio_pci_device *vp_dev, u8 cfg_type,
-                                             u32 ioresource_types, int *bars)
+static inline int virtio_pci_find_capability(virtio_pci_device *vp_dev, u8 cfg_type)
 {
     int pos;
 
@@ -588,9 +586,7 @@ static inline int virtio_pci_find_capability(virtio_pci_device *vp_dev, u8 cfg_t
             continue;
 
         if (type == cfg_type) {
-            if (pci_get_resource_len(vp_dev, bar) &&
-                pci_get_resource_flags(vp_dev, bar) & ioresource_types) {
-                *bars |= (1 << bar);
+            if (pci_get_resource_len(vp_dev, bar)) {
                 return pos;
             }
         }
@@ -664,27 +660,21 @@ static inline void check_offsets(void)
 /* the PCI probing function */
 NTSTATUS virtio_pci_modern_probe(virtio_pci_device *vp_dev)
 {
-    int common, isr, notify, device, modern_bars = 0;
+    int common, isr, notify, device;
     u32 notify_length;
     u32 notify_offset;
     NTSTATUS status;
 
     /* check for a common config: if not, use legacy mode (bar 0). */
-    common = virtio_pci_find_capability(vp_dev, VIRTIO_PCI_CAP_COMMON_CFG,
-        IORESOURCE_IO | IORESOURCE_MEM,
-        &modern_bars);
+    common = virtio_pci_find_capability(vp_dev, VIRTIO_PCI_CAP_COMMON_CFG);
     if (!common) {
         DPrintf(0, ("virtio_pci: %p: leaving for legacy driver\n", vp_dev));
         return STATUS_DEVICE_NOT_CONNECTED;
     }
 
     /* If common is there, these should be too... */
-    isr = virtio_pci_find_capability(vp_dev, VIRTIO_PCI_CAP_ISR_CFG,
-        IORESOURCE_IO | IORESOURCE_MEM,
-        &modern_bars);
-    notify = virtio_pci_find_capability(vp_dev, VIRTIO_PCI_CAP_NOTIFY_CFG,
-        IORESOURCE_IO | IORESOURCE_MEM,
-        &modern_bars);
+    isr = virtio_pci_find_capability(vp_dev, VIRTIO_PCI_CAP_ISR_CFG);
+    notify = virtio_pci_find_capability(vp_dev, VIRTIO_PCI_CAP_NOTIFY_CFG);
     if (!isr || !notify) {
         DPrintf(0, ("virtio_pci: %p: missing capabilities %i/%i/%i\n",
             vp_dev, common, isr, notify));
@@ -694,9 +684,7 @@ NTSTATUS virtio_pci_modern_probe(virtio_pci_device *vp_dev)
     /* Device capability is only mandatory for devices that have
      * device-specific configuration.
      */
-    device = virtio_pci_find_capability(vp_dev, VIRTIO_PCI_CAP_DEVICE_CFG,
-        IORESOURCE_IO | IORESOURCE_MEM,
-        &modern_bars);
+    device = virtio_pci_find_capability(vp_dev, VIRTIO_PCI_CAP_DEVICE_CFG);
 
     status = STATUS_INVALID_PARAMETER;
     vp_dev->common = map_capability(vp_dev, common,
