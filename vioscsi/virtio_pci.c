@@ -87,7 +87,7 @@ void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
     }
 }
 
-static void *alloc_pages_exact(void *context, size_t size)
+static void *mem_alloc_contiguous_pages(void *context, size_t size)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
     PVOID ptr = (PVOID)((ULONG_PTR)adaptExt->pageAllocationVa + adaptExt->pageOffset);
@@ -103,7 +103,7 @@ static void *alloc_pages_exact(void *context, size_t size)
     }
 }
 
-static void free_pages_exact(void *context, void *virt)
+static void mem_free_contiguous_pages(void *context, void *virt)
 {
     UNREFERENCED_PARAMETER(context);
     UNREFERENCED_PARAMETER(virt);
@@ -113,19 +113,19 @@ static void free_pages_exact(void *context, void *virt)
      */
 }
 
-static ULONGLONG virt_to_phys(void *context, void *address)
+static ULONGLONG mem_get_physical_address(void *context, void *virt)
 {
     ULONG uLength;
-    STOR_PHYSICAL_ADDRESS pa = StorPortGetPhysicalAddress(context, NULL, address, &uLength);
+    STOR_PHYSICAL_ADDRESS pa = StorPortGetPhysicalAddress(context, NULL, virt, &uLength);
     return pa.QuadPart;
 }
 
-static void *kmalloc(void *context, size_t size)
+static void *mem_alloc_nonpaged_block(void *context, size_t size)
 {
     return VioScsiPoolAlloc(context, size);
 }
 
-static void kfree(void *context, void *addr)
+static void mem_free_nonpaged_block(void *context, void *addr)
 {
     /* We allocate memory from a single non-paged pool allocation by simply moving
      * the adaptExt->poolOffset pointer forward. Nothing to do here.
@@ -153,7 +153,7 @@ static int pci_read_config_dword(void *context, int where, u32 *dwVal)
     return 0;
 }
 
-static size_t pci_resource_len(void *context, int bar)
+static size_t pci_get_resource_len(void *context, int bar)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
     if (bar < PCI_TYPE0_ADDRESSES) {
@@ -162,7 +162,7 @@ static size_t pci_resource_len(void *context, int bar)
     return 0;
 }
 
-static u32 pci_resource_flags(void *context, int bar)
+static u32 pci_get_resource_flags(void *context, int bar)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
     if (bar < PCI_TYPE0_ADDRESSES) {
@@ -171,7 +171,7 @@ static u32 pci_resource_flags(void *context, int bar)
     return 0;
 }
 
-static void *pci_iomap_range(void *context, int bar, size_t offset, size_t maxlen)
+static void *pci_map_address_range(void *context, int bar, size_t offset, size_t maxlen)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
     if (bar < PCI_TYPE0_ADDRESSES) {
@@ -192,7 +192,7 @@ static void *pci_iomap_range(void *context, int bar, size_t offset, size_t maxle
     return NULL;
 }
 
-static void pci_iounmap(void *context, void *address)
+static void pci_unmap_address_range(void *context, void *address)
 {
     /* We map entire memory/IO regions on demand and the storage port driver
      * unmaps all of them on shutdown so nothing to do here.
@@ -201,7 +201,7 @@ static void pci_iounmap(void *context, void *address)
     UNREFERENCED_PARAMETER(address);
 }
 
-static u16 pci_get_msix_vector(void *context, int queue)
+static u16 vdev_get_msix_vector(void *context, int queue)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
     u16 vector;
@@ -221,7 +221,7 @@ static u16 pci_get_msix_vector(void *context, int queue)
     return vector;
 }
 
-static void msleep(void *context, unsigned int msecs)
+static void vdev_sleep(void *context, unsigned int msecs)
 {
     UNREFERENCED_PARAMETER(context);
 
@@ -230,18 +230,18 @@ static void msleep(void *context, unsigned int msecs)
 }
 
 VirtIOSystemOps VioScsiSystemOps = {
-    alloc_pages_exact,
-    free_pages_exact,
-    virt_to_phys,
-    kmalloc,
-    kfree,
-    pci_read_config_byte,
-    pci_read_config_word,
-    pci_read_config_dword,
-    pci_resource_len,
-    pci_resource_flags,
-    pci_get_msix_vector,
-    pci_iomap_range,
-    pci_iounmap,
-    msleep,
+    .mem_alloc_contiguous_pages = mem_alloc_contiguous_pages,
+    .mem_free_contiguous_pages = mem_free_contiguous_pages,
+    .mem_get_physical_address = mem_get_physical_address,
+    .mem_alloc_nonpaged_block = mem_alloc_nonpaged_block,
+    .mem_free_nonpaged_block = mem_free_nonpaged_block,
+    .pci_read_config_byte = pci_read_config_byte,
+    .pci_read_config_word = pci_read_config_word,
+    .pci_read_config_dword = pci_read_config_dword,
+    .pci_get_resource_len = pci_get_resource_len,
+    .pci_get_resource_flags = pci_get_resource_flags,
+    .pci_map_address_range = pci_map_address_range,
+    .pci_unmap_address_range = pci_unmap_address_range,
+    .vdev_get_msix_vector = vdev_get_msix_vector,
+    .vdev_sleep = vdev_sleep,
 };

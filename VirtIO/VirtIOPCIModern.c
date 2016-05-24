@@ -124,14 +124,14 @@ static void *map_capability(VirtIODevice *dev, int off,
         *len = length;
 
     if (minlen + offset < minlen ||
-        minlen + offset > pci_resource_len(dev, bar)) {
+        minlen + offset > pci_get_resource_len(dev, bar)) {
         DPrintf(0, ("virtio_pci: map virtio %zu@%u out of range on bar %i length %lu\n",
             minlen, offset,
-            bar, (unsigned long)pci_resource_len(dev, bar)));
+            bar, (unsigned long)pci_get_resource_len(dev, bar)));
         return NULL;
     }
 
-    p = pci_iomap_range(dev, bar, offset, length);
+    p = pci_map_address_range(dev, bar, offset, length);
     if (!p)
         DPrintf(0, ("virtio_pci: unable to map virtio %u@%u on bar %i\n", length, offset, bar));
     return p;
@@ -286,7 +286,7 @@ static void vp_reset(virtio_device *vdev)
     * including MSI-X interrupts, if any.
     */
     while (vp_ioread8(&vp_dev->common->device_status)) {
-        msleep(vp_dev, 1);
+        vdev_sleep(vp_dev, 1);
     }
 }
 
@@ -311,7 +311,7 @@ static void *alloc_virtqueue_pages(virtio_pci_device *vp_dev, u16 *num)
     
     /* TODO: allocate each queue chunk individually */
     for (; *num && vring_pci_size(*num) > PAGE_SIZE; *num /= 2) {
-        pages = alloc_pages_exact(vp_dev, vring_pci_size(*num));
+        pages = mem_alloc_contiguous_pages(vp_dev, vring_pci_size(*num));
         if (pages)
             return pages;
     }
@@ -320,7 +320,7 @@ static void *alloc_virtqueue_pages(virtio_pci_device *vp_dev, u16 *num)
         return NULL;
     
     /* Try to get a single page. You are my only hope! */
-    return alloc_pages_exact(vp_dev, vring_pci_size(*num));
+    return mem_alloc_contiguous_pages(vp_dev, vring_pci_size(*num));
 }
 
 static NTSTATUS query_vq_alloc(virtio_pci_device *vp_dev,
@@ -385,7 +385,7 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
     if (info->queue == NULL)
         return STATUS_INSUFFICIENT_RESOURCES;
 
-    vq_addr = kmalloc(vp_dev, heap_size);
+    vq_addr = mem_alloc_nonpaged_block(vp_dev, heap_size);
     if (vq_addr == NULL)
         return STATUS_INSUFFICIENT_RESOURCES;
 
@@ -400,11 +400,11 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
 
     /* activate the queue */
     vp_iowrite16(info->num, &cfg->queue_size);
-    vp_iowrite64_twopart(virt_to_phys(vp_dev, info->queue),
+    vp_iowrite64_twopart(mem_get_physical_address(vp_dev, info->queue),
         &cfg->queue_desc_lo, &cfg->queue_desc_hi);
-    vp_iowrite64_twopart(virt_to_phys(vp_dev, virtqueue_get_avail(vq)),
+    vp_iowrite64_twopart(mem_get_physical_address(vp_dev, virtqueue_get_avail(vq)),
         &cfg->queue_avail_lo, &cfg->queue_avail_hi);
-    vp_iowrite64_twopart(virt_to_phys(vp_dev, virtqueue_get_used(vq)),
+    vp_iowrite64_twopart(mem_get_physical_address(vp_dev, virtqueue_get_used(vq)),
         &cfg->queue_used_lo, &cfg->queue_used_hi);
 
     if (vp_dev->notify_base) {
@@ -449,12 +449,12 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
 
 err_assign_vector:
     if (!vp_dev->notify_base)
-        pci_iounmap(vp_dev, (void *)vq->priv);
+        pci_unmap_address_range(vp_dev, (void *)vq->priv);
 err_map_notify:
     virtqueue_shutdown(vq);
 err_new_queue:
-    kfree(vp_dev, vq_addr);
-    free_pages_exact(vp_dev, info->queue);
+    mem_free_nonpaged_block(vp_dev, vq_addr);
+    mem_free_contiguous_pages(vp_dev, info->queue);
     return status;
 }
 
@@ -519,12 +519,12 @@ static void del_vq(virtio_pci_vq_info *info)
     }
 
     if (!vp_dev->notify_base)
-        pci_iounmap(vp_dev, (void *)vq->priv);
+        pci_unmap_address_range(vp_dev, (void *)vq->priv);
 
     virtqueue_shutdown(vq);
 
-    kfree(vp_dev, vq);
-    free_pages_exact(vp_dev, info->queue);
+    mem_free_nonpaged_block(vp_dev, vq);
+    mem_free_contiguous_pages(vp_dev, info->queue);
 }
 
 static const struct virtio_config_ops virtio_pci_config_nodev_ops = {
@@ -588,8 +588,8 @@ static inline int virtio_pci_find_capability(virtio_pci_device *vp_dev, u8 cfg_t
             continue;
 
         if (type == cfg_type) {
-            if (pci_resource_len(vp_dev, bar) &&
-                pci_resource_flags(vp_dev, bar) & ioresource_types) {
+            if (pci_get_resource_len(vp_dev, bar) &&
+                pci_get_resource_flags(vp_dev, bar) & ioresource_types) {
                 *bars |= (1 << bar);
                 return pos;
             }
@@ -767,11 +767,11 @@ NTSTATUS virtio_pci_modern_probe(virtio_pci_device *vp_dev)
 
 err_map_device:
     if (vp_dev->notify_base)
-        pci_iounmap(vp_dev, (void *)vp_dev->notify_base);
+        pci_unmap_address_range(vp_dev, (void *)vp_dev->notify_base);
 err_map_notify:
-    pci_iounmap(vp_dev, vp_dev->isr);
+    pci_unmap_address_range(vp_dev, vp_dev->isr);
 err_map_isr:
-    pci_iounmap(vp_dev, vp_dev->common);
+    pci_unmap_address_range(vp_dev, vp_dev->common);
 err_map_common:
     return status;
 }
@@ -779,9 +779,9 @@ err_map_common:
 void virtio_pci_modern_remove(virtio_pci_device *vp_dev)
 {
     if (vp_dev->device)
-        pci_iounmap(vp_dev, vp_dev->device);
+        pci_unmap_address_range(vp_dev, vp_dev->device);
     if (vp_dev->notify_base)
-        pci_iounmap(vp_dev, (void *)vp_dev->notify_base);
-    pci_iounmap(vp_dev, vp_dev->isr);
-    pci_iounmap(vp_dev, vp_dev->common);
+        pci_unmap_address_range(vp_dev, (void *)vp_dev->notify_base);
+    pci_unmap_address_range(vp_dev, vp_dev->isr);
+    pci_unmap_address_range(vp_dev, vp_dev->common);
 }

@@ -17,7 +17,7 @@
 #include "VirtioWDF.h"
 #include "private.h"
 
-static void *alloc_pages_exact(void *context, size_t size)
+static void *mem_alloc_contiguous_pages(void *context, size_t size)
 {
     PHYSICAL_ADDRESS HighestAcceptable;
     void *ret;
@@ -30,22 +30,22 @@ static void *alloc_pages_exact(void *context, size_t size)
     return ret;
 }
 
-static void free_pages_exact(void *context, void *virt)
+static void mem_free_contiguous_pages(void *context, void *virt)
 {
     UNREFERENCED_PARAMETER(context);
 
     MmFreeContiguousMemory(virt);
 }
 
-static ULONGLONG virt_to_phys(void *context, void *address)
+static ULONGLONG mem_get_physical_address(void *context, void *virt)
 {
     UNREFERENCED_PARAMETER(context);
 
-    PHYSICAL_ADDRESS pa = MmGetPhysicalAddress(address);
+    PHYSICAL_ADDRESS pa = MmGetPhysicalAddress(virt);
     return pa.QuadPart;
 }
 
-static void *kmalloc(void *context, size_t size)
+static void *mem_alloc_nonpaged_block(void *context, size_t size)
 {
     PVIRTIO_WDF_DRIVER pWdfDriver = (PVIRTIO_WDF_DRIVER)context;
 
@@ -55,7 +55,7 @@ static void *kmalloc(void *context, size_t size)
         pWdfDriver->MemoryTag);
 }
 
-static void kfree(void *context, void *addr)
+static void mem_free_nonpaged_block(void *context, void *addr)
 {
     PVIRTIO_WDF_DRIVER pWdfDriver = (PVIRTIO_WDF_DRIVER)context;
 
@@ -94,13 +94,13 @@ static PVIRTIO_WDF_BAR find_bar(void *context, int bar)
     return NULL;
 }
 
-static size_t pci_resource_len(void *context, int bar)
+static size_t pci_get_resource_len(void *context, int bar)
 {
     PVIRTIO_WDF_BAR pBar = find_bar(context, bar);
     return (pBar ? pBar->uLength : 0);
 }
 
-static u32 pci_resource_flags(void *context, int bar)
+static u32 pci_get_resource_flags(void *context, int bar)
 {
     PVIRTIO_WDF_BAR pBar = find_bar(context, bar);
     if (pBar) {
@@ -109,7 +109,7 @@ static u32 pci_resource_flags(void *context, int bar)
     return 0;
 }
 
-static void *pci_iomap_range(void *context, int bar, size_t offset, size_t maxlen)
+static void *pci_map_address_range(void *context, int bar, size_t offset, size_t maxlen)
 {
     PVIRTIO_WDF_BAR pBar = find_bar(context, bar);
     if (pBar) {
@@ -124,7 +124,7 @@ static void *pci_iomap_range(void *context, int bar, size_t offset, size_t maxle
     return NULL;
 }
 
-static void pci_iounmap(void *context, void *address)
+static void pci_unmap_address_range(void *context, void *address)
 {
     /* We map entire memory/IO regions on demand and unmap all of them on shutdown
      * so nothing to do here.
@@ -133,7 +133,7 @@ static void pci_iounmap(void *context, void *address)
     UNREFERENCED_PARAMETER(address);
 }
 
-static u16 pci_get_msix_vector(void *context, int queue)
+static u16 vdev_get_msix_vector(void *context, int queue)
 {
     PVIRTIO_WDF_DRIVER pWdfDriver = (PVIRTIO_WDF_DRIVER)context;
     WDF_INTERRUPT_INFO info;
@@ -161,7 +161,7 @@ static u16 pci_get_msix_vector(void *context, int queue)
     return vector;
 }
 
-static void msleep(void *context, unsigned int msecs)
+static void vdev_sleep(void *context, unsigned int msecs)
 {
     NTSTATUS status = STATUS_UNSUCCESSFUL;
 
@@ -180,18 +180,18 @@ static void msleep(void *context, unsigned int msecs)
 }
 
 VirtIOSystemOps VirtIOWdfSystemOps = {
-    alloc_pages_exact,
-    free_pages_exact,
-    virt_to_phys,
-    kmalloc,
-    kfree,
-    pci_read_config_byte,
-    pci_read_config_word,
-    pci_read_config_dword,
-    pci_resource_len,
-    pci_resource_flags,
-    pci_get_msix_vector,
-    pci_iomap_range,
-    pci_iounmap,
-    msleep,
+    .mem_alloc_contiguous_pages = mem_alloc_contiguous_pages,
+    .mem_free_contiguous_pages = mem_free_contiguous_pages,
+    .mem_get_physical_address = mem_get_physical_address,
+    .mem_alloc_nonpaged_block = mem_alloc_nonpaged_block,
+    .mem_free_nonpaged_block = mem_free_nonpaged_block,
+    .pci_read_config_byte = pci_read_config_byte,
+    .pci_read_config_word = pci_read_config_word,
+    .pci_read_config_dword = pci_read_config_dword,
+    .pci_get_resource_len = pci_get_resource_len,
+    .pci_get_resource_flags = pci_get_resource_flags,
+    .pci_map_address_range = pci_map_address_range,
+    .pci_unmap_address_range = pci_unmap_address_range,
+    .vdev_get_msix_vector = vdev_get_msix_vector,
+    .vdev_sleep = vdev_sleep,
 };

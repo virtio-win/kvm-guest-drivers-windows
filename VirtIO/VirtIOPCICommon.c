@@ -181,7 +181,7 @@ NTSTATUS vp_find_vqs(virtio_device *vdev, unsigned nvqs,
     u16 msix_vec;
 
     /* set up the config interrupt */
-    msix_vec = pci_get_msix_vector(vp_dev, -1);
+    msix_vec = vdev_get_msix_vector(vp_dev, -1);
 
     if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
         msix_vec = vp_dev->config_vector(vp_dev, msix_vec);
@@ -195,7 +195,7 @@ NTSTATUS vp_find_vqs(virtio_device *vdev, unsigned nvqs,
 
     /* set up queue interrupts */
     for (i = 0; i < nvqs; i++) {
-        msix_vec = pci_get_msix_vector(vp_dev, i);
+        msix_vec = vdev_get_msix_vector(vp_dev, i);
         if (names && names[i]) {
             name = names[i];
         } else {
@@ -325,7 +325,7 @@ void virtio_device_shutdown(VirtIODevice *pVirtIODevice)
 
     if (pVirtIODevice->info &&
         pVirtIODevice->info != pVirtIODevice->inline_info) {
-        kfree(pVirtIODevice, pVirtIODevice->info);
+        mem_free_nonpaged_block(pVirtIODevice, pVirtIODevice->info);
         pVirtIODevice->info = NULL;
     }
 }
@@ -343,13 +343,13 @@ NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs)
 {
     if (nvqs > vdev->maxQueues) {
         /* allocate new space for queue infos */
-        void *new_info = kmalloc(vdev, nvqs * virtio_queue_descriptor_size());
+        void *new_info = mem_alloc_nonpaged_block(vdev, nvqs * virtio_queue_descriptor_size());
         if (!new_info) {
             return STATUS_INSUFFICIENT_RESOURCES;
         }
 
         if (vdev->info && vdev->info != vdev->inline_info) {
-            kfree(vdev, vdev->info);
+            mem_free_nonpaged_block(vdev, vdev->info);
         }
         vdev->info = new_info;
         vdev->maxQueues = nvqs;

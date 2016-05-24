@@ -181,13 +181,13 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
 
     ring_size = ROUND_TO_PAGES(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN));
 
-    info->queue = alloc_pages_exact(vp_dev, size);
+    info->queue = mem_alloc_contiguous_pages(vp_dev, size);
     if (info->queue == NULL) {
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
     /* activate the queue */
-    iowrite32((u32)(virt_to_phys(vp_dev, info->queue) >> VIRTIO_PCI_QUEUE_ADDR_SHIFT),
+    iowrite32((u32)(mem_get_physical_address(vp_dev, info->queue) >> VIRTIO_PCI_QUEUE_ADDR_SHIFT),
         vp_dev->addr + VIRTIO_PCI_QUEUE_PFN);
 
     /* create the vring */
@@ -216,7 +216,7 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
 out_assign:
 out_activate_queue:
     iowrite32(0, vp_dev->addr + VIRTIO_PCI_QUEUE_PFN);
-    free_pages_exact(vp_dev, info->queue);
+    mem_free_contiguous_pages(vp_dev, info->queue);
     return status;
 }
 
@@ -239,7 +239,7 @@ static void del_vq(virtio_pci_vq_info *info)
     iowrite32(0, vp_dev->addr + VIRTIO_PCI_QUEUE_PFN);
 
     size = ROUND_TO_PAGES(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN));
-    free_pages_exact(vp_dev, info->queue);
+    mem_free_contiguous_pages(vp_dev, info->queue);
 }
 
 /* virtio config->get_features() implementation */
@@ -298,8 +298,8 @@ static const struct virtio_config_ops virtio_pci_config_ops = {
 /* the PCI probing function */
 NTSTATUS virtio_pci_legacy_probe(virtio_pci_device *vp_dev)
 {
-    size_t length = pci_resource_len(vp_dev, 0);
-    vp_dev->addr = (ULONG_PTR)pci_iomap_range(vp_dev, 0, 0, length);
+    size_t length = pci_get_resource_len(vp_dev, 0);
+    vp_dev->addr = (ULONG_PTR)pci_map_address_range(vp_dev, 0, 0, length);
 
     if (!vp_dev->addr)
         return STATUS_INSUFFICIENT_RESOURCES;
@@ -318,5 +318,5 @@ NTSTATUS virtio_pci_legacy_probe(virtio_pci_device *vp_dev)
 
 void virtio_pci_legacy_remove(virtio_pci_device *vp_dev)
 {
-    pci_iounmap(vp_dev, (void *)vp_dev->addr);
+    pci_unmap_address_range(vp_dev, (void *)vp_dev->addr);
 }

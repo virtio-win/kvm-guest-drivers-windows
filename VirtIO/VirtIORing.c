@@ -384,7 +384,7 @@ static void detach_buf(struct vring_virtqueue *vq, unsigned int head)
 
     /* Free the indirect table */
     /*if (vq->vring.desc[i].flags & VRING_DESC_F_INDIRECT)
-        kfree(phys_to_virt(vq->vring.desc[i].addr));*/
+        mem_free_nonpaged_block(phys_to_virt(vq->vring.desc[i].addr));*/
 
     while (vq->vring.desc[i].flags & VRING_DESC_F_NEXT) {
         i = vq->vring.desc[i].next;
