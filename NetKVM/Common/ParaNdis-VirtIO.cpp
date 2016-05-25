@@ -184,7 +184,7 @@ PVOID CPciResources::GetMappedAddress(UINT bar, ULONG uOffset)
 
 #define PORT_MASK 0xFFFF
 
-u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
+static u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
 {
     ULONG ulValue;
 
@@ -198,7 +198,7 @@ u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
     return ulValue;
 }
 
-void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
+static void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
 {
     DPrintf(6, ("[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, ulValue));
 
@@ -209,7 +209,7 @@ void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
     }
 }
 
-u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
+static u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
 {
     u8 bValue;
 
@@ -224,7 +224,7 @@ u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
     return bValue;
 }
 
-void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
+static void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
 {
     DPrintf(6, ("[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, bValue));
 
@@ -235,7 +235,7 @@ void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
     }
 }
 
-u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
+static u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
 {
     u16 wValue;
 
@@ -250,7 +250,7 @@ u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
     return wValue;
 }
 
-void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
+static void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
 {
 #if 1
     if (ulRegister & ~PORT_MASK) {
@@ -459,6 +459,12 @@ static void vdev_sleep(void *context, unsigned int msecs)
 }
 
 VirtIOSystemOps ParaNdisSystemOps = {
+    ReadVirtIODeviceByte,
+    ReadVirtIODeviceWord,
+    ReadVirtIODeviceRegister,
+    WriteVirtIODeviceByte,
+    WriteVirtIODeviceWord,
+    WriteVirtIODeviceRegister,
     mem_alloc_contiguous_pages,
     mem_free_contiguous_pages,
     mem_get_physical_address,

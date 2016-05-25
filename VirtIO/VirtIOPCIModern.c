@@ -31,48 +31,12 @@
 #include "VirtIOPCIModern.tmh"
 #endif
 
-/*
- * Type-safe wrappers for io accesses.
- * Use these to enforce at compile time the following spec requirement:
- *
- * The driver MUST access each field using the “natural” access
- * method, i.e. 32-bit accesses for 32-bit fields, 16-bit accesses
- * for 16-bit fields and 8-bit accesses for 8-bit fields.
- */
-static inline u8 vp_ioread8(u8 *addr)
+static void iowrite64_twopart(virtio_pci_device *vp_dev,
+                              u64 val,
+                              __le32 *lo, __le32 *hi)
 {
-    return ioread8(addr);
-}
-static inline u16 vp_ioread16(u16 *addr)
-{
-    return ioread16(addr);
-}
-
-static inline u32 vp_ioread32(u32 *addr)
-{
-    return ioread32(addr);
-}
-
-static inline void vp_iowrite8(u8 value, u8 *addr)
-{
-    iowrite8(value, addr);
-}
-
-static inline void vp_iowrite16(u16 value, u16 *addr)
-{
-    iowrite16(value, addr);
-}
-
-static inline void vp_iowrite32(u32 value, u32 *addr)
-{
-    iowrite32(value, addr);
-}
-
-static void vp_iowrite64_twopart(u64 val,
-                                 __le32 *lo, __le32 *hi)
-{
-    vp_iowrite32((u32)val, lo);
-    vp_iowrite32(val >> 32, hi);
+    iowrite32(vp_dev, (u32)val, lo);
+    iowrite32(vp_dev, val >> 32, hi);
 }
 
 static void *map_capability(VirtIODevice *dev, int off,
@@ -143,10 +107,10 @@ static u64 vp_get_features(virtio_device *vdev)
     virtio_pci_device *vp_dev = to_vp_device(vdev);
     u64 features;
 
-    vp_iowrite32(0, &vp_dev->common->device_feature_select);
-    features = vp_ioread32(&vp_dev->common->device_feature);
-    vp_iowrite32(1, &vp_dev->common->device_feature_select);
-    features |= ((u64)vp_ioread32(&vp_dev->common->device_feature) << 32);
+    iowrite32(vp_dev, 0, &vp_dev->common->device_feature_select);
+    features = ioread32(vp_dev, &vp_dev->common->device_feature);
+    iowrite32(vp_dev, 1, &vp_dev->common->device_feature_select);
+    features |= ((u64)ioread32(vp_dev, &vp_dev->common->device_feature) << 32);
 
     return features;
 }
@@ -164,10 +128,10 @@ static NTSTATUS vp_finalize_features(virtio_device *vdev)
         return STATUS_INVALID_PARAMETER;
     }
 
-    vp_iowrite32(0, &vp_dev->common->guest_feature_select);
-    vp_iowrite32((u32)vdev->features, &vp_dev->common->guest_feature);
-    vp_iowrite32(1, &vp_dev->common->guest_feature_select);
-    vp_iowrite32(vdev->features >> 32, &vp_dev->common->guest_feature);
+    iowrite32(vp_dev, 0, &vp_dev->common->guest_feature_select);
+    iowrite32(vp_dev, (u32)vdev->features, &vp_dev->common->guest_feature);
+    iowrite32(vp_dev, 1, &vp_dev->common->guest_feature_select);
+    iowrite32(vp_dev, vdev->features >> 32, &vp_dev->common->guest_feature);
 
     return STATUS_SUCCESS;
 }
@@ -178,9 +142,9 @@ static u16 vp_set_msi_vector(struct virtqueue *vq, u16 vector)
     virtio_pci_device *vp_dev = to_vp_device(vq->vdev);
     struct virtio_pci_common_cfg *cfg = vp_dev->common;
 
-    vp_iowrite16((u16)vq->index, &cfg->queue_select);
-    vp_iowrite16(vector, &cfg->queue_msix_vector);
-    return vp_ioread16(&cfg->queue_msix_vector);
+    iowrite16(vp_dev, (u16)vq->index, &cfg->queue_select);
+    iowrite16(vp_dev, vector, &cfg->queue_msix_vector);
+    return ioread16(vp_dev, &cfg->queue_msix_vector);
 }
 
 /* virtio config->get() implementation */
@@ -196,21 +160,21 @@ static void vp_get(virtio_device *vdev, unsigned offset,
 
     switch (len) {
     case 1:
-        b = ioread8(vp_dev->device + offset);
+        b = ioread8(vp_dev, vp_dev->device + offset);
         memcpy(buf, &b, sizeof b);
         break;
     case 2:
-        w = ioread16(vp_dev->device + offset);
+        w = ioread16(vp_dev, vp_dev->device + offset);
         memcpy(buf, &w, sizeof w);
         break;
     case 4:
-        l = ioread32(vp_dev->device + offset);
+        l = ioread32(vp_dev, vp_dev->device + offset);
         memcpy(buf, &l, sizeof l);
         break;
     case 8:
-        l = ioread32(vp_dev->device + offset);
+        l = ioread32(vp_dev, vp_dev->device + offset);
         memcpy(buf, &l, sizeof l);
-        l = ioread32(vp_dev->device + offset + sizeof l);
+        l = ioread32(vp_dev, vp_dev->device + offset + sizeof l);
         memcpy((unsigned char *)buf + sizeof l, &l, sizeof l);
         break;
     default:
@@ -233,21 +197,21 @@ static void vp_set(virtio_device *vdev, unsigned offset,
     switch (len) {
     case 1:
         memcpy(&b, buf, sizeof b);
-        iowrite8(b, vp_dev->device + offset);
+        iowrite8(vp_dev, b, vp_dev->device + offset);
         break;
     case 2:
         memcpy(&w, buf, sizeof w);
-        iowrite16(w, vp_dev->device + offset);
+        iowrite16(vp_dev, w, vp_dev->device + offset);
         break;
     case 4:
         memcpy(&l, buf, sizeof l);
-        iowrite32(l, vp_dev->device + offset);
+        iowrite32(vp_dev, l, vp_dev->device + offset);
         break;
     case 8:
         memcpy(&l, buf, sizeof l);
-        iowrite32(l, vp_dev->device + offset);
+        iowrite32(vp_dev, l, vp_dev->device + offset);
         memcpy(&l, (unsigned char *)buf + sizeof l, sizeof l);
-        iowrite32(l, vp_dev->device + offset + sizeof l);
+        iowrite32(vp_dev, l, vp_dev->device + offset + sizeof l);
         break;
     default:
         BUG();
@@ -257,14 +221,14 @@ static void vp_set(virtio_device *vdev, unsigned offset,
 static u32 vp_generation(virtio_device *vdev)
 {
     virtio_pci_device *vp_dev = to_vp_device(vdev);
-    return vp_ioread8(&vp_dev->common->config_generation);
+    return ioread8(vdev, &vp_dev->common->config_generation);
 }
 
 /* config->{get,set}_status() implementations */
 static u8 vp_get_status(virtio_device *vdev)
 {
     virtio_pci_device *vp_dev = to_vp_device(vdev);
-    return vp_ioread8(&vp_dev->common->device_status);
+    return ioread8(vdev, &vp_dev->common->device_status);
 }
 
 static void vp_set_status(virtio_device *vdev, u8 status)
@@ -272,20 +236,20 @@ static void vp_set_status(virtio_device *vdev, u8 status)
     virtio_pci_device *vp_dev = to_vp_device(vdev);
     /* We should never be setting status to 0. */
     BUG_ON(status == 0);
-    vp_iowrite8(status, &vp_dev->common->device_status);
+    iowrite8(vp_dev, status, &vp_dev->common->device_status);
 }
 
 static void vp_reset(virtio_device *vdev)
 {
     virtio_pci_device *vp_dev = to_vp_device(vdev);
     /* 0 status means a reset. */
-    vp_iowrite8(0, &vp_dev->common->device_status);
+    iowrite8(vp_dev, 0, &vp_dev->common->device_status);
     /* After writing 0 to device_status, the driver MUST wait for a read of
     * device_status to return 0 before reinitializing the device.
     * This will flush out the status write, and flush in device writes,
     * including MSI-X interrupts, if any.
     */
-    while (vp_ioread8(&vp_dev->common->device_status)) {
+    while (ioread8(vp_dev, &vp_dev->common->device_status)) {
         vdev_sleep(vp_dev, 1);
     }
 }
@@ -293,10 +257,10 @@ static void vp_reset(virtio_device *vdev)
 static u16 vp_config_vector(virtio_pci_device *vp_dev, u16 vector)
 {
     /* Setup the vector used for configuration events */
-    vp_iowrite16(vector, &vp_dev->common->msix_config);
+    iowrite16(vp_dev, vector, &vp_dev->common->msix_config);
     /* Verify we had enough resources to assign the vector */
     /* Will also flush the write out to device */
-    return vp_ioread16(&vp_dev->common->msix_config);
+    return ioread16(vp_dev, &vp_dev->common->msix_config);
 }
 
 static size_t vring_pci_size(u16 num)
@@ -332,18 +296,18 @@ static NTSTATUS query_vq_alloc(virtio_pci_device *vp_dev,
     struct virtio_pci_common_cfg *cfg = vp_dev->common;
     u16 num;
 
-    if (index >= vp_ioread16(&cfg->num_queues))
+    if (index >= ioread16(vp_dev, &cfg->num_queues))
         return STATUS_NOT_FOUND;
 
     /* Select the queue we're interested in */
-    vp_iowrite16((u16)index, &cfg->queue_select);
+    iowrite16(vp_dev, (u16)index, &cfg->queue_select);
 
     /* Check if queue is either not available or already active. */
-    num = vp_ioread16(&cfg->queue_size);
+    num = ioread16(vp_dev, &cfg->queue_size);
     /* QEMU has a bug where queues don't revert to inactive on device
      * reset. Skip checking the queue_enable field until it is fixed.
      */
-    if (!num /*|| vp_ioread16(&cfg->queue_enable)*/)
+    if (!num /*|| ioread16(vp_dev, &cfg->queue_enable)*/)
         return STATUS_NOT_FOUND;
 
     if (num & (num - 1)) {
@@ -379,7 +343,7 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
     }
 
     /* get offset of notification word for this vq */
-    off = vp_ioread16(&cfg->queue_notify_off);
+    off = ioread16(vp_dev, &cfg->queue_notify_off);
 
     info->queue = alloc_virtqueue_pages(vp_dev, &info->num);
     if (info->queue == NULL)
@@ -399,12 +363,12 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
     }
 
     /* activate the queue */
-    vp_iowrite16(info->num, &cfg->queue_size);
-    vp_iowrite64_twopart(mem_get_physical_address(vp_dev, info->queue),
+    iowrite16(vp_dev, info->num, &cfg->queue_size);
+    iowrite64_twopart(vp_dev, mem_get_physical_address(vp_dev, info->queue),
         &cfg->queue_desc_lo, &cfg->queue_desc_hi);
-    vp_iowrite64_twopart(mem_get_physical_address(vp_dev, virtqueue_get_avail(vq)),
+    iowrite64_twopart(vp_dev, mem_get_physical_address(vp_dev, virtqueue_get_avail(vq)),
         &cfg->queue_avail_lo, &cfg->queue_avail_hi);
-    vp_iowrite64_twopart(mem_get_physical_address(vp_dev, virtqueue_get_used(vq)),
+    iowrite64_twopart(vp_dev, mem_get_physical_address(vp_dev, virtqueue_get_used(vq)),
         &cfg->queue_used_lo, &cfg->queue_used_hi);
 
     if (vp_dev->notify_base) {
@@ -436,8 +400,8 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
     }
 
     if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
-        vp_iowrite16(msix_vec, &cfg->queue_msix_vector);
-        msix_vec = vp_ioread16(&cfg->queue_msix_vector);
+        iowrite16(vp_dev, msix_vec, &cfg->queue_msix_vector);
+        msix_vec = ioread16(vp_dev, &cfg->queue_msix_vector);
         if (msix_vec == VIRTIO_MSI_NO_VECTOR) {
             status = STATUS_DEVICE_BUSY;
             goto err_assign_vector;
@@ -475,8 +439,8 @@ static NTSTATUS vp_modern_find_vqs(virtio_device *vdev, unsigned nvqs,
          */
         for (i = 0; i < nvqs; i++) {
             if ((vq = vqs[i]) != NULL) {
-                vp_iowrite16((u16)vq->index, &vp_dev->common->queue_select);
-                vp_iowrite16(1, &vp_dev->common->queue_enable);
+                iowrite16(vp_dev, (u16)vq->index, &vp_dev->common->queue_select);
+                iowrite16(vp_dev, 1, &vp_dev->common->queue_enable);
             }
         }
     }
@@ -497,8 +461,8 @@ static NTSTATUS vp_modern_find_vq(virtio_device *vdev, unsigned index,
         /* Select and activate the queue. Has to be done last: once we do
          * this, there's no way to go back except reset.
          */
-        vp_iowrite16((u16)index, &vp_dev->common->queue_select);
-        vp_iowrite16(1, &vp_dev->common->queue_enable);
+        iowrite16(vp_dev, (u16)index, &vp_dev->common->queue_select);
+        iowrite16(vp_dev, 1, &vp_dev->common->queue_enable);
     }
 
     return status;
@@ -509,13 +473,13 @@ static void del_vq(virtio_pci_vq_info *info)
     struct virtqueue *vq = info->vq;
     virtio_pci_device *vp_dev = to_vp_device(vq->vdev);
 
-    vp_iowrite16((u16)vq->index, &vp_dev->common->queue_select);
+    iowrite16(vp_dev, (u16)vq->index, &vp_dev->common->queue_select);
 
     if (vp_dev->msix_used) {
-        vp_iowrite16(VIRTIO_MSI_NO_VECTOR,
+        iowrite16(vp_dev, VIRTIO_MSI_NO_VECTOR,
             &vp_dev->common->queue_msix_vector);
         /* Flush the write out to device */
-        vp_ioread16(&vp_dev->common->queue_msix_vector);
+        ioread16(vp_dev, &vp_dev->common->queue_msix_vector);
     }
 
     if (!vp_dev->notify_base)

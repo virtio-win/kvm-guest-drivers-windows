@@ -170,7 +170,20 @@ static void vdev_sleep(void *context, unsigned int msecs)
     }
 }
 
+extern u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister);
+extern void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue);
+extern u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister);
+extern void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue);
+extern u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister);
+extern void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 bValue);
+
 VirtIOSystemOps VirtIOWdfSystemOps = {
+    .vdev_read_byte = ReadVirtIODeviceByte,
+    .vdev_read_word = ReadVirtIODeviceWord,
+    .vdev_read_dword = ReadVirtIODeviceRegister,
+    .vdev_write_byte = WriteVirtIODeviceByte,
+    .vdev_write_word = WriteVirtIODeviceWord,
+    .vdev_write_dword = WriteVirtIODeviceRegister,
     .mem_alloc_contiguous_pages = mem_alloc_contiguous_pages,
     .mem_free_contiguous_pages = mem_free_contiguous_pages,
     .mem_get_physical_address = mem_get_physical_address,

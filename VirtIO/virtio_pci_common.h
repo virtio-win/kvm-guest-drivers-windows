@@ -21,12 +21,18 @@
 
 #include "virtio_config.h"
 
-#define ioread8(addr) ReadVirtIODeviceByte((ULONG_PTR)(addr))
-#define ioread16(addr) ReadVirtIODeviceWord((ULONG_PTR)(addr))
-#define ioread32(addr) ReadVirtIODeviceRegister((ULONG_PTR)(addr))
-#define iowrite8(val, addr) WriteVirtIODeviceByte((ULONG_PTR)(addr), val)
-#define iowrite16(val, addr) WriteVirtIODeviceWord((ULONG_PTR)(addr), val)
-#define iowrite32(val, addr) WriteVirtIODeviceRegister((ULONG_PTR)(addr), val)
+#define ioread8(vp_dev, addr) \
+    vp_dev->system->vdev_read_byte((ULONG_PTR)(addr))
+#define ioread16(vp_dev, addr) \
+    vp_dev->system->vdev_read_word((ULONG_PTR)(addr))
+#define ioread32(vp_dev, addr) \
+    vp_dev->system->vdev_read_dword((ULONG_PTR)(addr))
+#define iowrite8(vp_dev, val, addr) \
+    vp_dev->system->vdev_write_byte((ULONG_PTR)(addr), val)
+#define iowrite16(vp_dev, val, addr) \
+    vp_dev->system->vdev_write_word((ULONG_PTR)(addr), val)
+#define iowrite32(vp_dev, val, addr) \
+    vp_dev->system->vdev_write_dword((ULONG_PTR)(addr), val)
 
 #define mem_alloc_contiguous_pages(vp_dev, size) \
     vp_dev->system->mem_alloc_contiguous_pages(vp_dev->DeviceContext, size)

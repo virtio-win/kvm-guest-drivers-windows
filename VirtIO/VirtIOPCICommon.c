@@ -165,7 +165,7 @@ bool vp_notify(struct virtqueue *vq)
 {
     /* we write the queue's selector into the notification register to
      * signal the other end */
-    iowrite16((unsigned short)vq->index, (void *)vq->priv);
+    iowrite16(vq->vdev, (unsigned short)vq->index, (void *)vq->priv);
     return true;
 }
 
@@ -238,7 +238,7 @@ NTSTATUS vp_find_vq(virtio_device *vdev, unsigned index,
 
 u8 virtio_read_isr_status(VirtIODevice *vdev)
 {
-    return ioread8(vdev->isr);
+    return ioread8(vdev, vdev->isr);
 }
 
 u8 virtio_get_status(VirtIODevice *vdev)

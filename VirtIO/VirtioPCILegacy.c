@@ -41,14 +41,14 @@ void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice)
 {
     DPrintf(5, ("%s\n", __FUNCTION__));
 
-    DPrintf(0, ("[VIRTIO_PCI_HOST_FEATURES] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_HOST_FEATURES)));
-    DPrintf(0, ("[VIRTIO_PCI_GUEST_FEATURES] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_GUEST_FEATURES)));
-    DPrintf(0, ("[VIRTIO_PCI_QUEUE_PFN] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_QUEUE_PFN)));
-    DPrintf(0, ("[VIRTIO_PCI_QUEUE_NUM] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_QUEUE_NUM)));
-    DPrintf(0, ("[VIRTIO_PCI_QUEUE_SEL] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_QUEUE_SEL)));
-    DPrintf(0, ("[VIRTIO_PCI_QUEUE_NOTIFY] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_QUEUE_NOTIFY)));
-    DPrintf(0, ("[VIRTIO_PCI_STATUS] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_STATUS)));
-    DPrintf(0, ("[VIRTIO_PCI_ISR] = %x\n", ReadVirtIODeviceRegister(pVirtIODevice->addr + VIRTIO_PCI_ISR)));
+    DPrintf(0, ("[VIRTIO_PCI_HOST_FEATURES] = %x\n", ioread32(pVirtIODevice, pVirtIODevice->addr + VIRTIO_PCI_HOST_FEATURES)));
+    DPrintf(0, ("[VIRTIO_PCI_GUEST_FEATURES] = %x\n", ioread32(pVirtIODevice, pVirtIODevice->addr + VIRTIO_PCI_GUEST_FEATURES)));
+    DPrintf(0, ("[VIRTIO_PCI_QUEUE_PFN] = %x\n", ioread32(pVirtIODevice, pVirtIODevice->addr + VIRTIO_PCI_QUEUE_PFN)));
+    DPrintf(0, ("[VIRTIO_PCI_QUEUE_NUM] = %x\n", ioread32(pVirtIODevice, pVirtIODevice->addr + VIRTIO_PCI_QUEUE_NUM)));
+    DPrintf(0, ("[VIRTIO_PCI_QUEUE_SEL] = %x\n", ioread32(pVirtIODevice, pVirtIODevice->addr + VIRTIO_PCI_QUEUE_SEL)));
+    DPrintf(0, ("[VIRTIO_PCI_QUEUE_NOTIFY] = %x\n", ioread32(pVirtIODevice, pVirtIODevice->addr + VIRTIO_PCI_QUEUE_NOTIFY)));
+    DPrintf(0, ("[VIRTIO_PCI_STATUS] = %x\n", ioread32(pVirtIODevice, pVirtIODevice->addr + VIRTIO_PCI_STATUS)));
+    DPrintf(0, ("[VIRTIO_PCI_ISR] = %x\n", ioread32(pVirtIODevice, pVirtIODevice->addr + VIRTIO_PCI_ISR)));
 }
 
 
@@ -60,7 +60,7 @@ void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice)
 static void VirtIODeviceReset(VirtIODevice * pVirtIODevice)
 {
     /* 0 status means a reset. */
-    WriteVirtIODeviceByte(pVirtIODevice->addr + VIRTIO_PCI_STATUS, 0);
+    iowrite8(pVirtIODevice, 0, pVirtIODevice->addr + VIRTIO_PCI_STATUS);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -72,13 +72,13 @@ static u8 VirtIODeviceGetStatus(VirtIODevice * pVirtIODevice)
 {
     DPrintf(6, ("%s\n", __FUNCTION__));
 
-    return ReadVirtIODeviceByte(pVirtIODevice->addr + VIRTIO_PCI_STATUS);
+    return ioread8(pVirtIODevice, pVirtIODevice->addr + VIRTIO_PCI_STATUS);
 }
 
 static void VirtIODeviceSetStatus(VirtIODevice * pVirtIODevice, u8 status)
 {
     DPrintf(6, ("%s>>> %x\n", __FUNCTION__, status));
-    WriteVirtIODeviceByte(pVirtIODevice->addr + VIRTIO_PCI_STATUS, status);
+    iowrite8(pVirtIODevice, status, pVirtIODevice->addr + VIRTIO_PCI_STATUS);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -98,7 +98,7 @@ static void VirtIODeviceGet(VirtIODevice * pVirtIODevice,
     DPrintf(5, ("%s\n", __FUNCTION__));
 
     for (i = 0; i < len; i++)
-        ptr[i] = ReadVirtIODeviceByte(ioaddr + i);
+        ptr[i] = ioread8(pVirtIODevice, ioaddr + i);
 }
 
 static void VirtIODeviceSet(VirtIODevice * pVirtIODevice,
@@ -113,7 +113,7 @@ static void VirtIODeviceSet(VirtIODevice * pVirtIODevice,
     DPrintf(5, ("%s\n", __FUNCTION__));
 
     for (i = 0; i < len; i++)
-        WriteVirtIODeviceByte(ioaddr + i, ptr[i]);
+        iowrite8(pVirtIODevice, ptr[i], ioaddr + i);
 }
 
 u32 VirtIODeviceGetQueueSize(struct virtqueue *vq)
@@ -129,10 +129,10 @@ u32 VirtIODeviceIndirectPageCapacity()
 static u16 vp_config_vector(virtio_pci_device *vp_dev, u16 vector)
 {
     /* Setup the vector used for configuration events */
-    iowrite16(vector, vp_dev->addr + VIRTIO_MSI_CONFIG_VECTOR);
+    iowrite16(vp_dev, vector, vp_dev->addr + VIRTIO_MSI_CONFIG_VECTOR);
     /* Verify we had enough resources to assign the vector */
     /* Will also flush the write out to device */
-    return ioread16(vp_dev->addr + VIRTIO_MSI_CONFIG_VECTOR);
+    return ioread16(vp_dev, vp_dev->addr + VIRTIO_MSI_CONFIG_VECTOR);
 }
 
 static NTSTATUS query_vq_alloc(virtio_pci_device *vp_dev,
@@ -145,11 +145,11 @@ static NTSTATUS query_vq_alloc(virtio_pci_device *vp_dev,
     u16 num;
 
     /* Select the queue we're interested in */
-    iowrite16((u16)index, vp_dev->addr + VIRTIO_PCI_QUEUE_SEL);
+    iowrite16(vp_dev, (u16)index, vp_dev->addr + VIRTIO_PCI_QUEUE_SEL);
 
     /* Check if queue is either not available or already active. */
-    num = ioread16(vp_dev->addr + VIRTIO_PCI_QUEUE_NUM);
-    if (!num || ioread32(vp_dev->addr + VIRTIO_PCI_QUEUE_PFN))
+    num = ioread16(vp_dev, vp_dev->addr + VIRTIO_PCI_QUEUE_NUM);
+    if (!num || ioread32(vp_dev, vp_dev->addr + VIRTIO_PCI_QUEUE_PFN))
         return STATUS_NOT_FOUND;
 
     ring_size = ROUND_TO_PAGES(vring_size(num, VIRTIO_PCI_VRING_ALIGN));
@@ -187,7 +187,7 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
     }
 
     /* activate the queue */
-    iowrite32((u32)(mem_get_physical_address(vp_dev, info->queue) >> VIRTIO_PCI_QUEUE_ADDR_SHIFT),
+    iowrite32(vp_dev, (u32)(mem_get_physical_address(vp_dev, info->queue) >> VIRTIO_PCI_QUEUE_ADDR_SHIFT),
         vp_dev->addr + VIRTIO_PCI_QUEUE_PFN);
 
     /* create the vring */
@@ -202,8 +202,8 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
     vq->priv = (void *)(vp_dev->addr + VIRTIO_PCI_QUEUE_NOTIFY);
 
     if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
-        iowrite16(msix_vec, vp_dev->addr + VIRTIO_MSI_QUEUE_VECTOR);
-        msix_vec = ioread16(vp_dev->addr + VIRTIO_MSI_QUEUE_VECTOR);
+        iowrite16(vp_dev, msix_vec, vp_dev->addr + VIRTIO_MSI_QUEUE_VECTOR);
+        msix_vec = ioread16(vp_dev, vp_dev->addr + VIRTIO_MSI_QUEUE_VECTOR);
         if (msix_vec == VIRTIO_MSI_NO_VECTOR) {
             status = STATUS_DEVICE_BUSY;
             goto out_assign;
@@ -215,7 +215,7 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
 
 out_assign:
 out_activate_queue:
-    iowrite32(0, vp_dev->addr + VIRTIO_PCI_QUEUE_PFN);
+    iowrite32(vp_dev, 0, vp_dev->addr + VIRTIO_PCI_QUEUE_PFN);
     mem_free_contiguous_pages(vp_dev, info->queue);
     return status;
 }
@@ -226,17 +226,17 @@ static void del_vq(virtio_pci_vq_info *info)
     virtio_pci_device *vp_dev = to_vp_device(vq->vdev);
     unsigned long size;
 
-    iowrite16((u16)vq->index, vp_dev->addr + VIRTIO_PCI_QUEUE_SEL);
+    iowrite16(vp_dev, (u16)vq->index, vp_dev->addr + VIRTIO_PCI_QUEUE_SEL);
 
     if (vp_dev->msix_used) {
-        iowrite16(VIRTIO_MSI_NO_VECTOR,
+        iowrite16(vp_dev, VIRTIO_MSI_NO_VECTOR,
             vp_dev->addr + VIRTIO_MSI_QUEUE_VECTOR);
         /* Flush the write out to device */
-        ioread8(vp_dev->addr + VIRTIO_PCI_ISR);
+        ioread8(vp_dev, vp_dev->addr + VIRTIO_PCI_ISR);
     }
 
     /* Select and deactivate the queue */
-    iowrite32(0, vp_dev->addr + VIRTIO_PCI_QUEUE_PFN);
+    iowrite32(vp_dev, 0, vp_dev->addr + VIRTIO_PCI_QUEUE_PFN);
 
     size = ROUND_TO_PAGES(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN));
     mem_free_contiguous_pages(vp_dev, info->queue);
@@ -249,7 +249,7 @@ static u64 vp_get_features(virtio_device *vdev)
 
     /* When someone needs more than 32 feature bits, we'll need to
     * steal a bit to indicate that the rest are somewhere else. */
-    return ioread32(vp_dev->addr + VIRTIO_PCI_HOST_FEATURES);
+    return ioread32(vp_dev, vp_dev->addr + VIRTIO_PCI_HOST_FEATURES);
 }
 
 /* virtio config->finalize_features() implementation */
@@ -264,7 +264,7 @@ static NTSTATUS vp_finalize_features(virtio_device *vdev)
     BUG_ON((u32)vdev->features != vdev->features);
 
     /* We only support 32 feature bits. */
-    iowrite32((u32)vp_dev->features, vp_dev->addr + VIRTIO_PCI_GUEST_FEATURES);
+    iowrite32(vp_dev, (u32)vp_dev->features, vp_dev->addr + VIRTIO_PCI_GUEST_FEATURES);
 
     return STATUS_SUCCESS;
 }
@@ -274,9 +274,9 @@ static u16 vp_set_msi_vector(struct virtqueue *vq, u16 vector)
 {
     virtio_pci_device *vp_dev = to_vp_device(vq->vdev);
 
-    iowrite16((u16)vq->index, vp_dev->addr + VIRTIO_PCI_QUEUE_SEL);
-    iowrite16(vector, vp_dev->addr + VIRTIO_MSI_QUEUE_VECTOR);
-    return ioread16(vp_dev->addr + VIRTIO_MSI_QUEUE_VECTOR);
+    iowrite16(vp_dev, (u16)vq->index, vp_dev->addr + VIRTIO_PCI_QUEUE_SEL);
+    iowrite16(vp_dev, vector, vp_dev->addr + VIRTIO_MSI_QUEUE_VECTOR);
+    return ioread16(vp_dev, vp_dev->addr + VIRTIO_MSI_QUEUE_VECTOR);
 }
 
 static const struct virtio_config_ops virtio_pci_config_ops = {
