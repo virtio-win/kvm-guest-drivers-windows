@@ -196,6 +196,14 @@ typedef struct _tVirtIOPerQueueInfo
 } tVirtIOPerQueueInfo, virtio_pci_vq_info;
 
 typedef struct virtio_system_ops {
+    // device register access
+    u8 (*vdev_read_byte)(ULONG_PTR ulRegister);
+    u16 (*vdev_read_word)(ULONG_PTR ulRegister);
+    u32 (*vdev_read_dword)(ULONG_PTR ulRegister);
+    void (*vdev_write_byte)(ULONG_PTR ulRegister, u8 bValue);
+    void (*vdev_write_word)(ULONG_PTR ulRegister, u16 wValue);
+    void (*vdev_write_dword)(ULONG_PTR ulRegister, u32 ulValue);
+
     // memory management
     void *(*mem_alloc_contiguous_pages)(void *context, size_t size);
     void (*mem_free_contiguous_pages)(void *context, void *virt);
@@ -325,24 +333,5 @@ ULONG __inline virtio_queue_descriptor_size()
 {
     return sizeof(tVirtIOPerQueueInfo);
 }
-
-/////////////////////////////////////////////////////////////////////////////////////
-//
-// IO space read\write functions
-//
-// ReadVirtIODeviceRegister
-// WriteVirtIODeviceRegister
-// ReadVirtIODeviceByte
-// WriteVirtIODeviceByte
-//
-// Must be implemented in device specific module
-//
-/////////////////////////////////////////////////////////////////////////////////////
-extern u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister);
-extern void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue);
-extern u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister);
-extern void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue);
-extern u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister);
-extern void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 bValue);
 
 #endif
