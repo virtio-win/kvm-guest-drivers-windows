@@ -186,12 +186,6 @@ BalloonEvtDeviceContextCleanup(
         devCtx->pfns_table = NULL;
     }
 
-    if (devCtx->StatWorkItem)
-    {
-        WdfWorkItemFlush(devCtx->StatWorkItem);
-        devCtx->StatWorkItem = NULL;
-    }
-
     RtlFillMemory(devCtx->MemStats,
         sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
     if (devCtx->StatVirtQueue)
@@ -451,6 +445,16 @@ BalloonEvtDeviceD0Exit(
     {
         ZwClose(devCtx->hLowMem);
         devCtx->evLowMem = NULL;
+    }
+
+   /*
+    * interrupts were already disabled (between BalloonEvtDeviceD0ExitPreInterruptsDisabled and this call)
+    * we should flush StatWorkItem before calling BalloonTerm which will delete virtio queues
+    */
+    if (devCtx->StatWorkItem)
+    {
+        WdfWorkItemFlush(devCtx->StatWorkItem);
+        devCtx->StatWorkItem = NULL;
     }
 
     BalloonTerm(Device);
