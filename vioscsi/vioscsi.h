@@ -118,6 +118,8 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define REDUNDANTFIRMWAREVERSION      L"RedundantFirmwareVersion"
 #define MFRDOMAIN                     L"MfrDomain"
 
+#define CLUSDISK                      L"CLUSDISK"
+
 /* SCSI command request, followed by data-out */
 #pragma pack(1)
 typedef struct {
