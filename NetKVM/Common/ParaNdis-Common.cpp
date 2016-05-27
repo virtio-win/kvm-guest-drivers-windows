@@ -515,15 +515,13 @@ DumpMac(int dbg_level, const char* header_str, UCHAR* mac)
 static __inline void
 SetDeviceMAC(PPARANDIS_ADAPTER pContext, PUCHAR pDeviceMAC)
 {
-    if(pContext->bCfgMACAddrSupported && !pContext->bCtrlMACAddrSupported)
+    if (pContext->bCfgMACAddrSupported && !pContext->bCtrlMACAddrSupported)
     {
-        for (UINT i = 0; i < ETH_ALEN; i++) {
-            pContext->IODevice.config->set(
-                &pContext->IODevice,
-                i,
-                &pDeviceMAC[i],
-                1);
-        }
+        virtio_set_config(
+            &pContext->IODevice,
+            0,
+            pDeviceMAC,
+            ETH_ALEN);
     }
 }
 
@@ -537,13 +535,11 @@ InitializeMAC(PPARANDIS_ADAPTER pContext, PUCHAR pCurrentMAC)
     //Read and validate permanent MAC address
     if (pContext->bCfgMACAddrSupported)
     {
-        for (UINT i = 0; i < ETH_ALEN; i++) {
-            pContext->IODevice.config->get(
-                &pContext->IODevice,
-                i,
-                &pContext->PermanentMacAddress[i],
-                1);
-        }
+        virtio_get_config(
+            &pContext->IODevice,
+            0,
+            &pContext->PermanentMacAddress,
+            ETH_ALEN);
 
         if (!ParaNdis_ValidateMacAddress(pContext->PermanentMacAddress, FALSE))
         {
@@ -674,7 +670,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
         pContext->bLinkDetectSupported = AckFeature(pContext, VIRTIO_NET_F_STATUS);
         if(pContext->bLinkDetectSupported) {
-            pContext->IODevice.config->get(&pContext->IODevice, ETH_ALEN, &linkStatus, sizeof(linkStatus));
+            virtio_get_config(&pContext->IODevice, ETH_ALEN, &linkStatus, sizeof(linkStatus));
             pContext->bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
             DPrintf(0, ("[%s] Link status on driver startup: %d\n", __FUNCTION__, pContext->bConnected));
         }
@@ -696,7 +692,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
     pContext->bMultiQueue = pContext->bControlQueueSupported && AckFeature(pContext, VIRTIO_NET_F_MQ);
     if (pContext->bMultiQueue)
     {
-        pContext->IODevice.config->get(&pContext->IODevice, ETH_ALEN + sizeof(USHORT), &pContext->nHardwareQueues,
+        virtio_get_config(&pContext->IODevice, ETH_ALEN + sizeof(USHORT), &pContext->nHardwareQueues,
             sizeof(pContext->nHardwareQueues));
     }
     else
@@ -1037,7 +1033,7 @@ static void ReadLinkState(PARANDIS_ADAPTER *pContext)
     if (pContext->bLinkDetectSupported)
     {
         USHORT linkStatus = 0;
-        pContext->IODevice.config->get(&pContext->IODevice, ETH_ALEN, &linkStatus, sizeof(linkStatus));
+        virtio_get_config(&pContext->IODevice, ETH_ALEN, &linkStatus, sizeof(linkStatus));
         pContext->bConnected = !!(linkStatus & VIRTIO_NET_S_LINK_UP);
     }
     else

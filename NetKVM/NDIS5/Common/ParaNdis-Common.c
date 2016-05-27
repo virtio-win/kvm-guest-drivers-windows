@@ -649,7 +649,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
     PUCHAR pNewMacAddress = NULL;
     USHORT linkStatus = 0;
     NTSTATUS nt_status;
-    UINT i;
 
     DEBUG_ENTRY(0);
     /* read first PCI IO bar*/
@@ -710,7 +709,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
         pContext->bLinkDetectSupported = 0 != VirtIODeviceGetHostFeature(pContext, VIRTIO_NET_F_STATUS);
 
         if(pContext->bLinkDetectSupported) {
-            pContext->IODevice.config->get(&pContext->IODevice, sizeof(pContext->CurrentMacAddress), &linkStatus, sizeof(linkStatus));
+            virtio_get_config(&pContext->IODevice, sizeof(pContext->CurrentMacAddress), &linkStatus, sizeof(linkStatus));
             pContext->bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
             DPrintf(0, ("[%s] Link status on driver startup: %d", __FUNCTION__, pContext->bConnected));
         }
@@ -746,13 +745,11 @@ NDIS_STATUS ParaNdis_InitializeContext(
         }
         if (VirtIODeviceGetHostFeature(pContext, VIRTIO_NET_F_MAC))
         {
-            for (i = 0; i < ETH_LENGTH_OF_ADDRESS; i++) {
-                pContext->IODevice.config->get(
-                    &pContext->IODevice,
-                    i, // + offsetof(struct virtio_net_config, mac)
-                    &pContext->PermanentMacAddress[i],
-                    1);
-            }
+            virtio_get_config(
+                &pContext->IODevice,
+                0, // + offsetof(struct virtio_net_config, mac)
+                &pContext->PermanentMacAddress,
+                ETH_LENGTH_OF_ADDRESS);
             if (!ParaNdis_ValidateMacAddress(pContext->PermanentMacAddress, FALSE))
             {
                 DPrintf(0,("Invalid device MAC ignored(%02x-%02x-%02x-%02x-%02x-%02x)",
@@ -2209,7 +2206,7 @@ void ParaNdis_ReportLinkStatus(PARANDIS_ADAPTER *pContext, BOOLEAN bForce)
         USHORT linkStatus = 0;
         USHORT offset = sizeof(pContext->CurrentMacAddress);
         // link changed
-        pContext->IODevice.config->get(&pContext->IODevice, offset, &linkStatus, sizeof(linkStatus));
+        virtio_get_config(&pContext->IODevice, offset, &linkStatus, sizeof(linkStatus));
         bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
     }
     ParaNdis_IndicateConnect(pContext, bConnected, bForce);
