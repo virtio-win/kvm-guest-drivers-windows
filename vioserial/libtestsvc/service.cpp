@@ -1,5 +1,4 @@
-#include "service.h"
-#include "utils.h"
+#include "stdafx.h"
 
 CService::CService()
 {

@@ -1,6 +1,7 @@
 #ifndef PUBLIC_H
 #define PUBLIC_H
 
+#include <initguid.h>
 // {E18B5FB3-04E4-42fc-9601-8395C217391B}
 DEFINE_GUID(GUID_DEVINTERFACE_BALLOON,
 0xe18b5fb3, 0x4e4, 0x42fc, 0x96, 0x1, 0x83, 0x95, 0xc2, 0x17, 0x39, 0x1b);
