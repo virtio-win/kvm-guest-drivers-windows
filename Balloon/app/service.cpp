@@ -1,9 +1,4 @@
-#define INITGUID
-
-#include "service.h"
-#include "utils.h"
-#include "device.h"
-#include "public.h"
+#include "stdafx.h"
 
 CService::CService()
 {

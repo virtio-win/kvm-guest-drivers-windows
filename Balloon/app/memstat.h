@@ -2,7 +2,6 @@
 #define MEMSTAT_H
 
 #include "Wbemidl.h"
-#include "coguid.h"
 #include "atlbase.h"
 #include "comdef.h"
 #include "comutil.h"

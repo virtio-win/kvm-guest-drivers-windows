@@ -1,5 +1,4 @@
-#include "memstat.h"
-#include "utils.h"
+#include "stdafx.h"
 
 CMemStat::CMemStat()
 {

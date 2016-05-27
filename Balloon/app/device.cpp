@@ -1,11 +1,4 @@
-#include "device.h"
-#include "public.h"
-#include "utils.h"
-#include "memstat.h"
-
-#include <dbt.h>
-#include <setupapi.h>
-#include <tchar.h>
+#include "stdafx.h"
 
 CDevice::CDevice()
 {
@@ -65,7 +58,7 @@ VOID CDevice::Fini()
 
 DWORD CDevice::Run()
 {
-    PWCHAR DevicePath = GetDevicePath((LPGUID)&GUID_DEVINTERFACE_BALLOON);
+	PWCHAR DevicePath = GetDevicePath((LPGUID)&GUID_DEVINTERFACE_BALLOON);
     if (DevicePath == NULL) {
         PrintMessage("File not found.");
         return ERROR_FILE_NOT_FOUND;
@@ -128,7 +121,7 @@ VOID CDevice::WriteLoop(HANDLE hDevice)
 
         if (m_pMemStat->Update()) {
             writerc = WriteFile(hDevice, m_pMemStat->GetBuffer(),
-                m_pMemStat->GetSize(), NULL, &ovlp);
+                (DWORD)m_pMemStat->GetSize(), NULL, &ovlp);
             if (!writerc && (GetLastError() == ERROR_IO_PENDING)) {
                 timeout = INFINITE;
             }

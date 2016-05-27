@@ -1,21 +1,51 @@
-@echo off
-if /i "%1"=="WXp" goto %2
-if /i "%1"=="Wnet" goto %2
-if /i "%1"=="Wlh" goto %2
-if /i "%1"=="Win7" goto %2
-if /i "%1"=="Win8" goto %2
-if /i "%1"=="Win10" goto %2
+@echo on
+setlocal
 
+call :%1_%2
 goto :eof
 
-:x86
-if exist "Release\%~2" goto :eof
-call :BuildProject "Release|x86" buildfre_x86.log
+:Win7_x86
+call :BuildProject "Win7 Release|x86" buildfre_win7_x86.log
 goto :eof
 
-:x64
-if exist "Release\%~2" goto :eof
-call :BuildProject "Release|x64" buildfre_amd64.log
+:Win7_x64
+call :BuildProject "Win7 Release|x64" buildfre_win7_amd64.log
+goto :eof
+
+:Win8_x86
+call :BuildProject "Win8 Release|x86" buildfre_win8_x86.log
+goto :eof
+
+:Win8_x64
+call :BuildProject "Win8 Release|x64" buildfre_win8_amd64.log
+goto :eof
+
+:Win10_x86
+call :BuildProject "Win10 Release|x86" buildfre_win10_x86.log
+goto :eof
+
+:Win10_x64
+call :BuildProject "Win10 Release|x64" buildfre_win10_amd64.log
+goto :eof
+
+:Wlh_x86
+call :BuildProject "Vista Release|x86" buildfre_wlh_x86.log
+goto :eof
+
+:Wlh_x64
+call :BuildProject "Vista Release|x64" buildfre_wlh_amd64.log
+goto :eof
+
+:Wnet_x86
+call :BuildProject "Win2k3 Release|x86" buildfre_wnet_x86.log
+goto :eof
+
+:Wnet_x64
+call :BuildProject "Win2k3 Release|x64" buildfre_wnet_amd64.log
+goto :eof
+
+:WXp_x86
+call :BuildProject "WinXP Release|x86" buildfre_wxp_x86.log
 goto :eof
 
 :BuildProject
