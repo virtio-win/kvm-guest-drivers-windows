@@ -192,7 +192,7 @@ void VirtIOWdfDeviceGet(PVIRTIO_WDF_DRIVER pWdfDriver,
                         PVOID buf,
                         ULONG len)
 {
-    pWdfDriver->pVIODevice->config->get(
+    virtio_get_config(
         pWdfDriver->pVIODevice,
         offset,
         buf,
@@ -204,7 +204,7 @@ void VirtIOWdfDeviceSet(PVIRTIO_WDF_DRIVER pWdfDriver,
                         CONST PVOID buf,
                         ULONG len)
 {
-    pWdfDriver->pVIODevice->config->set(
+    virtio_set_config(
         pWdfDriver->pVIODevice,
         offset,
         buf,

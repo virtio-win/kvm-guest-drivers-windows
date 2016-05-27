@@ -206,43 +206,43 @@ ENTER_FN();
 
     adaptExt->features = virtio_get_features(&adaptExt->vdev);
 
-    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, seg_max),
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, seg_max),
                       &adaptExt->scsi_config.seg_max, sizeof(adaptExt->scsi_config.seg_max));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("seg_max %lu\n", adaptExt->scsi_config.seg_max));
 
-    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, num_queues),
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, num_queues),
                       &adaptExt->scsi_config.num_queues, sizeof(adaptExt->scsi_config.num_queues));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("num_queues %lu\n", adaptExt->scsi_config.num_queues));
 
-    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_sectors),
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_sectors),
                       &adaptExt->scsi_config.max_sectors, sizeof(adaptExt->scsi_config.max_sectors));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_sectors %lu\n", adaptExt->scsi_config.max_sectors));
 
-    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, cmd_per_lun),
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, cmd_per_lun),
                       &adaptExt->scsi_config.cmd_per_lun, sizeof(adaptExt->scsi_config.cmd_per_lun));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("cmd_per_lun %lu\n", adaptExt->scsi_config.cmd_per_lun));
 
-    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, event_info_size),
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, event_info_size),
                       &adaptExt->scsi_config.event_info_size, sizeof(adaptExt->scsi_config.event_info_size));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("seg_max %lu\n", adaptExt->scsi_config.seg_max));
 
-    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, sense_size),
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, sense_size),
                       &adaptExt->scsi_config.sense_size, sizeof(adaptExt->scsi_config.sense_size));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("event_info_size %lu\n", adaptExt->scsi_config.event_info_size));
 
-    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, cdb_size),
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, cdb_size),
                       &adaptExt->scsi_config.cdb_size, sizeof(adaptExt->scsi_config.cdb_size));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("cdb_size %lu\n", adaptExt->scsi_config.cdb_size));
 
-    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_channel),
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_channel),
                       &adaptExt->scsi_config.max_channel, sizeof(adaptExt->scsi_config.max_channel));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_channel %u\n", adaptExt->scsi_config.max_channel));
 
-    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_target),
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_target),
                       &adaptExt->scsi_config.max_target, sizeof(adaptExt->scsi_config.max_target));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_target %u\n", adaptExt->scsi_config.max_target));
 
-    adaptExt->vdev.config->get(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_lun),
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_lun),
                       &adaptExt->scsi_config.max_lun, sizeof(adaptExt->scsi_config.max_lun));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_lun %lu\n", adaptExt->scsi_config.max_lun));
 

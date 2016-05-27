@@ -408,3 +408,71 @@ int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA)
     }
     return -1;
 }
+
+
+/* Read @count fields, @bytes each. */
+static void virtio_cread_many(virtio_device *vdev,
+    unsigned int offset,
+    void *buf, size_t count, size_t bytes)
+{
+    u32 old, gen = vdev->config->generation ?
+        vdev->config->generation(vdev) : 0;
+    size_t i;
+
+    do {
+        old = gen;
+
+        for (i = 0; i < count; i++)
+            vdev->config->get(vdev, (unsigned)(offset + bytes * i),
+                (char *)buf + i * bytes, (unsigned)bytes);
+
+        gen = vdev->config->generation ?
+            vdev->config->generation(vdev) : 0;
+    } while (gen != old);
+}
+
+/* Write @count fields, @bytes each. */
+static void virtio_cwrite_many(virtio_device *vdev,
+    unsigned int offset,
+    void *buf, size_t count, size_t bytes)
+{
+    size_t i;
+    for (i = 0; i < count; i++)
+        vdev->config->set(vdev, (unsigned)(offset + bytes * i),
+            (char *)buf + i * bytes, (unsigned)bytes);
+}
+
+/* Config space accessors. */
+void virtio_get_config(virtio_device *vdev, unsigned offset,
+    void *buf, unsigned len)
+{
+    switch (len) {
+    case 1:
+    case 2:
+    case 4:
+        vdev->config->get(vdev, offset, buf, len);
+        break;
+    case 8:
+        virtio_cread_many(vdev, offset, buf, 2, sizeof(u32));
+        break;
+    default:
+        virtio_cread_many(vdev, offset, buf, len, 1);
+    }
+}
+
+void virtio_set_config(virtio_device *vdev, unsigned offset,
+    void *buf, unsigned len)
+{
+    switch (len) {
+    case 1:
+    case 2:
+    case 4:
+        vdev->config->set(vdev, offset, buf, len);
+        break;
+    case 8:
+        virtio_cwrite_many(vdev, offset, buf, 2, sizeof(u32));
+        break;
+    default:
+        virtio_cwrite_many(vdev, offset, buf, len, 1);
+    }
+}
