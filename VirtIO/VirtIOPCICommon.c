@@ -20,7 +20,6 @@
 #include "osdep.h"
 #include "virtio_pci.h"
 #include "virtio.h"
-#include "virtio_config.h"
 #include "kdebugprint.h"
 #include <stddef.h>
 

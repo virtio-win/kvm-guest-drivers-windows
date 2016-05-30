@@ -19,7 +19,6 @@
 #include "osdep.h"
 #define VIRTIO_PCI_NO_LEGACY
 #include "virtio_pci.h"
-#include "virtio_config.h"
 #include "virtio.h"
 #include "kdebugprint.h"
 #include "virtio_ring.h"
