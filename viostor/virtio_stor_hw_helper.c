@@ -208,8 +208,8 @@ RhelShutDown(
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    adaptExt->vdev.config->reset(&adaptExt->vdev);
-    adaptExt->vdev.config->del_vqs(&adaptExt->vdev);
+    virtio_device_reset(&adaptExt->vdev);
+    virtio_delete_queues(&adaptExt->vdev);
     adaptExt->vq = NULL;
 }
 

@@ -27,7 +27,6 @@
 
 #include "osdep.h"
 #include "virtio_pci.h"
-#include "virtio_config.h"
 #include "virtio.h"
 #include "VirtIOWdf.h"
 

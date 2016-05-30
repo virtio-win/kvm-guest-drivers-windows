@@ -186,8 +186,8 @@ ShutDown(
     ULONG index;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 ENTER_FN();
-    adaptExt->vdev.config->reset(&adaptExt->vdev);
-    adaptExt->vdev.config->del_vqs(&adaptExt->vdev);
+    virtio_device_reset(&adaptExt->vdev);
+    virtio_delete_queues(&adaptExt->vdev);
     for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
         adaptExt->vq[index] = NULL;
     }

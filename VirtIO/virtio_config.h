@@ -3,7 +3,6 @@
 
 #include "osdep.h"
 #include "virtio.h"
-#include "linux/virtio_config.h"
 
 /**
 * virtio_config_ops - operations for configuring a virtio device
@@ -40,7 +39,6 @@
 *    names: array of virtqueue names (mainly for debugging)
 *        include a NULL entry for vqs unused by driver
 *    Returns 0 on success or error status
-* @del_vqs: free virtqueues found by find_vqs().
 * @get_features: get the array of feature bits for this device.
 *    vdev: the virtio_device
 *    Returns the first 32 feature bits (all we currently need).
@@ -65,8 +63,6 @@ struct virtio_config_ops {
                          const char * const names[]);
     NTSTATUS (*find_vq)(virtio_device *, unsigned index,
                    struct virtqueue **vq, const char *name);
-    void (*del_vqs)(virtio_device *);
-    void (*del_vq)(struct virtqueue *);
     u64 (*get_features)(virtio_device *vdev);
     NTSTATUS (*finalize_features)(virtio_device *vdev);
     u16 (*set_msi_vector)(struct virtqueue *vq, u16 vector);
@@ -126,35 +122,5 @@ static inline bool virtio_has_feature(const virtio_device *vdev,
 {
     return __virtio_test_bit(vdev, fbit);
 }
-
-/**
-* virtio_device_ready - enable vq use in probe function
-* @vdev: the device
-*
-* Driver must call this to use vqs in the probe function.
-*
-* Note: vqs are enabled automatically after probe returns.
-*/
-static inline
-void virtio_device_ready(virtio_device *dev)
-{
-    unsigned status = dev->config->get_status(dev);
-
-    BUG_ON(status & VIRTIO_CONFIG_S_DRIVER_OK);
-    dev->config->set_status(dev, (u8)(status | VIRTIO_CONFIG_S_DRIVER_OK));
-}
-
-static inline
-u64 virtio_get_features(virtio_device *dev)
-{
-    dev->features = dev->config->get_features(dev);
-    return dev->features;
-}
-
-void virtio_get_config(virtio_device *vdev, unsigned offset,
-    void *buf, unsigned len);
-
-void virtio_set_config(virtio_device *vdev, unsigned offset,
-    void *buf, unsigned len);
 
 #endif /* _LINUX_VIRTIO_CONFIG_H */

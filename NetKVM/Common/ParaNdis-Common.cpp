@@ -120,7 +120,7 @@ static const tConfigurationEntries defaultConfiguration =
 
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
 {
-    pContext->IODevice.config->reset(&pContext->IODevice);
+    virtio_device_reset(&pContext->IODevice);
     DPrintf(0, ("[%s] Done\n", __FUNCTION__));
 
     KeMemoryBarrier();
