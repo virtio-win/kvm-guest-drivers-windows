@@ -119,7 +119,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
 {
     NDIS_MINIPORT_ADAPTER_ATTRIBUTES        miniportAttributes = {};
     NDIS_STATUS  status = NDIS_STATUS_SUCCESS;
-    BOOLEAN bNoPauseOnSuspend = FALSE;
     PARANDIS_ADAPTER *pContext;
 
     UNREFERENCED_PARAMETER(miniportDriverContext);
@@ -170,7 +169,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
 #endif
 #if NDIS_SUPPORT_NDIS630
         miniportAttributes.RegistrationAttributes.AttributeFlags |= NDIS_MINIPORT_ATTRIBUTES_NO_PAUSE_ON_SUSPEND;
-        bNoPauseOnSuspend = TRUE;
 #endif
         miniportAttributes.RegistrationAttributes.CheckForHangTimeInSeconds = 4;
         miniportAttributes.RegistrationAttributes.InterfaceType = NdisInterfacePci;
