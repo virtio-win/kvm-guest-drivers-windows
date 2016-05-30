@@ -282,6 +282,10 @@ static const struct virtio_config_ops virtio_pci_config_ops = {
     .get_status = VirtIODeviceGetStatus,
     .set_status = VirtIODeviceSetStatus,
     .reset = VirtIODeviceReset,
+    .config_vector = vp_config_vector,
+    .query_vq_alloc = query_vq_alloc,
+    .setup_vq = setup_vq,
+    .del_vq = del_vq,
     .find_vqs = vp_find_vqs,
     .find_vq = vp_find_vq,
     .get_features = vp_get_features,
@@ -301,11 +305,6 @@ NTSTATUS virtio_pci_legacy_probe(VirtIODevice *vdev)
     vdev->isr = (u8 *)vdev->addr + VIRTIO_PCI_ISR;
 
     vdev->config = &virtio_pci_config_ops;
-
-    vdev->config_vector = vp_config_vector;
-    vdev->query_vq_alloc = query_vq_alloc;
-    vdev->setup_vq = setup_vq;
-    vdev->del_vq = del_vq;
 
     return STATUS_SUCCESS;
 }

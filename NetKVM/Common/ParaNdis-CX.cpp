@@ -128,7 +128,7 @@ BOOLEAN CParaNdisCX::SendControlMessage(
 
 NDIS_STATUS CParaNdisCX::SetupMessageIndex(u16 vector)
 {
-    m_Context->IODevice.config_vector(&m_Context->IODevice, vector);
+    virtio_set_config_vector(&m_Context->IODevice, vector);
 
     return CParaNdisAbstractPath::SetupMessageIndex(vector);
 }

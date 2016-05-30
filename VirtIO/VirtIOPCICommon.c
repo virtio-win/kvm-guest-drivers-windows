@@ -126,7 +126,7 @@ void virtio_delete_queues(VirtIODevice *vdev)
     for (i = 0; i < vdev->maxQueues; i++) {
         vq = vdev->info[i].vq;
         if (vq != NULL) {
-            vdev->del_vq(&vdev->info[i]);
+            vdev->config->del_vq(&vdev->info[i]);
             vdev->info[i].vq = NULL;
         }
     }
@@ -137,8 +137,13 @@ void virtio_delete_queue(struct virtqueue *vq)
     VirtIODevice *vdev = vq->vdev;
     unsigned i = vq->index;
 
-    vdev->del_vq(&vdev->info[i]);
+    vdev->config->del_vq(&vdev->info[i]);
     vdev->info[i].vq = NULL;
+}
+
+u16 virtio_set_config_vector(VirtIODevice *vdev, u16 vector)
+{
+    return vdev->config->config_vector(vdev, vector);
 }
 
 u16 virtio_set_queue_vector(struct virtqueue *vq, u16 vector)
@@ -153,7 +158,7 @@ static NTSTATUS vp_setup_vq(struct virtqueue **queue,
 {
     virtio_pci_vq_info *info = &vdev->info[index];
 
-    NTSTATUS status = vdev->setup_vq(queue, vdev, info, index, name, msix_vec);
+    NTSTATUS status = vdev->config->setup_vq(queue, vdev, info, index, name, msix_vec);
     if (NT_SUCCESS(status)) {
         info->vq = *queue;
     }
@@ -184,7 +189,7 @@ NTSTATUS vp_find_vqs(VirtIODevice *vdev, unsigned nvqs,
     msix_vec = vdev_get_msix_vector(vdev, -1);
 
     if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
-        msix_vec = vdev->config_vector(vdev, msix_vec);
+        msix_vec = vdev->config->config_vector(vdev, msix_vec);
         /* Verify we had enough resources to assign the vector */
         if (msix_vec == VIRTIO_MSI_NO_VECTOR) {
             status = STATUS_DEVICE_BUSY;
@@ -344,7 +349,7 @@ NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev,
                                        unsigned long *pAllocationSize,
                                        unsigned long *pHeapSize)
 {
-    return vdev->query_vq_alloc(vdev, index, pNumEntries, pAllocationSize, pHeapSize);
+    return vdev->config->query_vq_alloc(vdev, index, pNumEntries, pAllocationSize, pHeapSize);
 }
 
 NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs)
