@@ -48,17 +48,17 @@ BalloonInit(
 
     u64HostFeatures = VirtIOWdfGetDeviceFeatures(&devCtx->VDevice);
 
-    if (VirtIOIsFeatureEnabled(u64HostFeatures, VIRTIO_F_VERSION_1))
+    if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_F_VERSION_1))
     {
-        VirtIOFeatureEnable(u64GuestFeatures, VIRTIO_F_VERSION_1);
+        virtio_feature_enable(u64GuestFeatures, VIRTIO_F_VERSION_1);
     }
-    if (VirtIOIsFeatureEnabled(u64HostFeatures, VIRTIO_F_ANY_LAYOUT))
+    if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_F_ANY_LAYOUT))
     {
-        VirtIOFeatureEnable(u64GuestFeatures, VIRTIO_F_ANY_LAYOUT);
+        virtio_feature_enable(u64GuestFeatures, VIRTIO_F_ANY_LAYOUT);
     }
 
     // initialize 2 or 3 queues
-    nvqs = VirtIOIsFeatureEnabled(u64HostFeatures, VIRTIO_BALLOON_F_STATS_VQ) ? 3 : 2;
+    nvqs = virtio_is_feature_enabled(u64HostFeatures, VIRTIO_BALLOON_F_STATS_VQ) ? 3 : 2;
     status = VirtIOWdfInitQueues(&devCtx->VDevice, nvqs, vqs, params);
     if (NT_SUCCESS(status))
     {
@@ -80,7 +80,7 @@ BalloonInit(
             if (virtqueue_add_buf(
                     devCtx->StatVirtQueue, &sg, 1, 0, devCtx, NULL, 0) >= 0)
             {
-                VirtIOFeatureEnable(u64GuestFeatures, VIRTIO_BALLOON_F_STATS_VQ);
+                virtio_feature_enable(u64GuestFeatures, VIRTIO_BALLOON_F_STATS_VQ);
                 notify_stat_queue = true;
             }
             else

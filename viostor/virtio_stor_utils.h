@@ -25,7 +25,7 @@
 #include "kdebugprint.h"
 #include "evntrace.h"
 
-#define CHECKBIT(value, nbit) (((value) & (1ULL << (nbit))) != 0)
+#define CHECKBIT(value, nbit) virtio_is_feature_enabled(value, nbit)
 
 int
 _cdecl

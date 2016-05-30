@@ -52,8 +52,6 @@
 #define rmb()  KeMemoryBarrier()
 #define wmb()  KeMemoryBarrier()
 
-#define BIT_ULL(nr) (1ULL << (nr))
-
 #define SMP_CACHE_BYTES 64
 
 #endif

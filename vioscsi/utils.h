@@ -21,7 +21,7 @@
 #include "evntrace.h"
 #include "helper.h"
 
-#define CHECKBIT(value, nbit) (((value) & (1ULL << (nbit))) != 0)
+#define CHECKBIT(value, nbit) virtio_is_feature_enabled(value, nbit)
 #define CHECKFLAG(value, flag) ((value & (flag)) == flag)
 #define SETFLAG(value, flag) (value |= (flag))
 

@@ -709,7 +709,7 @@ void vring_transport_features(VirtIODevice *vdev)
             break;
         default:
             /* We don't understand this bit. */
-            __virtio_clear_bit(vdev, i);
+            virtio_feature_disable(vdev->features, i);
         }
     }
 }

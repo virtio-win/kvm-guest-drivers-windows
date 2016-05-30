@@ -215,19 +215,19 @@ VIOSerialEvtDevicePrepareHardware(
 
     u64HostFeatures = VirtIOWdfGetDeviceFeatures(&pContext->VDevice);
 
-    if (VirtIOIsFeatureEnabled(u64HostFeatures, VIRTIO_F_VERSION_1))
+    if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_F_VERSION_1))
     {
-        VirtIOFeatureEnable(u64GuestFeatures, VIRTIO_F_VERSION_1);
+        virtio_feature_enable(u64GuestFeatures, VIRTIO_F_VERSION_1);
     }
-    if (VirtIOIsFeatureEnabled(u64HostFeatures, VIRTIO_F_ANY_LAYOUT))
+    if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_F_ANY_LAYOUT))
     {
-        VirtIOFeatureEnable(u64GuestFeatures, VIRTIO_F_ANY_LAYOUT);
+        virtio_feature_enable(u64GuestFeatures, VIRTIO_F_ANY_LAYOUT);
     }
 
-    if(pContext->isHostMultiport = VirtIOIsFeatureEnabled(u64HostFeatures, VIRTIO_CONSOLE_F_MULTIPORT))
+    if(pContext->isHostMultiport = virtio_is_feature_enabled(u64HostFeatures, VIRTIO_CONSOLE_F_MULTIPORT))
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "We have multiport host\n");
-        VirtIOFeatureEnable(u64GuestFeatures, VIRTIO_CONSOLE_F_MULTIPORT);
+        virtio_feature_enable(u64GuestFeatures, VIRTIO_CONSOLE_F_MULTIPORT);
         VirtIOWdfDeviceGet(&pContext->VDevice,
                            FIELD_OFFSET(CONSOLE_CONFIG, max_nr_ports),
                            &pContext->consoleConfig.max_nr_ports,

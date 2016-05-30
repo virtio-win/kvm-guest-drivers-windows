@@ -120,7 +120,7 @@ static NTSTATUS vp_finalize_features(VirtIODevice *vdev)
     /* Give virtio_ring a chance to accept features. */
     vring_transport_features(vdev);
 
-    if (!__virtio_test_bit(vdev, VIRTIO_F_VERSION_1)) {
+    if (!virtio_has_feature(vdev, VIRTIO_F_VERSION_1)) {
         DPrintf(0, ("virtio: device uses modern interface but does not have VIRTIO_F_VERSION_1\n"));
         return STATUS_INVALID_PARAMETER;
     }
