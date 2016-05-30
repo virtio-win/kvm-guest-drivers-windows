@@ -227,7 +227,7 @@ typedef struct virtio_system_ops {
     void (*vdev_sleep)(void *context, unsigned int msecs);
 } VirtIOSystemOps;
 
-typedef struct TypeVirtIODevice
+typedef struct virtio_device
 {
     ULONG_PTR addr;
     bool msix_used;
@@ -249,26 +249,26 @@ typedef struct TypeVirtIODevice
     size_t notify_len;
     /* virtio 1.0 specific fields end */
 
-    NTSTATUS (*query_vq_alloc)(struct TypeVirtIODevice *vp_dev,
+    NTSTATUS (*query_vq_alloc)(struct virtio_device *vdev,
                                unsigned index,
                                unsigned short *pNumEntries,
                                unsigned long *pAllocationSize,
                                unsigned long *pHeapSize);
     NTSTATUS (*setup_vq)(struct virtqueue **queue,
-                         struct TypeVirtIODevice *vp_dev,
+                         struct virtio_device *vdev,
                          tVirtIOPerQueueInfo *info,
                          unsigned idx,
                          const char *name,
                          u16 msix_vec);
-    void(*del_vq)(virtio_pci_vq_info *info);
+    void (*del_vq)(virtio_pci_vq_info *info);
 
-    u16(*config_vector)(struct TypeVirtIODevice *vp_dev, u16 vector);
+    u16 (*config_vector)(struct virtio_device *vdev, u16 vector);
 
     ULONG maxQueues;
     tVirtIOPerQueueInfo *info;
     tVirtIOPerQueueInfo inline_info[MAX_QUEUES_PER_DEVICE_DEFAULT];
     /* do not add any members after info struct, it is extensible */
-} VirtIODevice, virtio_pci_device;
+} VirtIODevice;
 
 /***************************************************
 shall be used only if VirtIODevice device storage is allocated

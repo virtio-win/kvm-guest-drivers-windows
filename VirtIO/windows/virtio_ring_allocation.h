@@ -4,7 +4,7 @@
 struct virtqueue *vring_new_virtqueue(unsigned int index,
     unsigned int num,
     unsigned int vring_align,
-    virtio_device *vdev,
+    VirtIODevice *vdev,
     bool event,
     void *pages,
     void(*notify)(struct virtqueue *),
