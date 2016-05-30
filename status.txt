@@ -1,3 +1,15 @@
+Date    30 May 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm138
+
+Fixed bugs:
+BZ#1293249: Fix IOCTL_GET_INFORMATION regression
+
+New Features:
+Enable RSC
+Fix IPv6 offload support with SLIRP
+Fix MPE HCK test problems
+
 Date    08 Apr 2016
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm137
