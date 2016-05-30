@@ -487,6 +487,10 @@ static const struct virtio_config_ops virtio_pci_config_nodev_ops = {
     .get_status = vp_get_status,
     .set_status = vp_set_status,
     .reset = vp_reset,
+    .config_vector = vp_config_vector,
+    .query_vq_alloc = query_vq_alloc,
+    .setup_vq = setup_vq,
+    .del_vq = del_vq,
     .find_vqs = vp_modern_find_vqs,
     .find_vq = vp_modern_find_vq,
     .get_features = vp_get_features,
@@ -501,6 +505,10 @@ static const struct virtio_config_ops virtio_pci_config_ops = {
     .get_status = vp_get_status,
     .set_status = vp_set_status,
     .reset = vp_reset,
+    .config_vector = vp_config_vector,
+    .query_vq_alloc = query_vq_alloc,
+    .setup_vq = setup_vq,
+    .del_vq = del_vq,
     .find_vqs = vp_modern_find_vqs,
     .find_vq = vp_modern_find_vq,
     .get_features = vp_get_features,
@@ -694,11 +702,6 @@ NTSTATUS virtio_pci_modern_probe(VirtIODevice *vdev)
     else {
         vdev->config = &virtio_pci_config_nodev_ops;
     }
-
-    vdev->config_vector = vp_config_vector;
-    vdev->query_vq_alloc = query_vq_alloc;
-    vdev->setup_vq = setup_vq;
-    vdev->del_vq = del_vq;
 
     return STATUS_SUCCESS;
 

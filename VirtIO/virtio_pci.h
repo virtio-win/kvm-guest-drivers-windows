@@ -249,21 +249,6 @@ typedef struct virtio_device
     size_t notify_len;
     /* virtio 1.0 specific fields end */
 
-    NTSTATUS (*query_vq_alloc)(struct virtio_device *vdev,
-                               unsigned index,
-                               unsigned short *pNumEntries,
-                               unsigned long *pAllocationSize,
-                               unsigned long *pHeapSize);
-    NTSTATUS (*setup_vq)(struct virtqueue **queue,
-                         struct virtio_device *vdev,
-                         tVirtIOPerQueueInfo *info,
-                         unsigned idx,
-                         const char *name,
-                         u16 msix_vec);
-    void (*del_vq)(virtio_pci_vq_info *info);
-
-    u16 (*config_vector)(struct virtio_device *vdev, u16 vector);
-
     ULONG maxQueues;
     tVirtIOPerQueueInfo *info;
     tVirtIOPerQueueInfo inline_info[MAX_QUEUES_PER_DEVICE_DEFAULT];
@@ -340,6 +325,7 @@ void virtio_delete_queues(VirtIODevice *vdev);
 int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA);
 
 void virtqueue_set_event_suppression(struct virtqueue *vq, bool enable);
+u16 virtio_set_config_vector(VirtIODevice *vdev, u16 vector);
 u16 virtio_set_queue_vector(struct virtqueue *vq, u16 vector);
 
 ULONG __inline virtio_queue_descriptor_size()

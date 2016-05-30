@@ -58,11 +58,23 @@ struct virtio_config_ops {
     u8 (*get_status)(VirtIODevice *vdev);
     void (*set_status)(VirtIODevice *vdev, u8 status);
     void (*reset)(VirtIODevice *vdev);
+    NTSTATUS (*query_vq_alloc)(VirtIODevice *vdev,
+                unsigned index, unsigned short *pNumEntries,
+                unsigned long *pAllocationSize,
+                unsigned long *pHeapSize);
+    NTSTATUS (*setup_vq)(struct virtqueue **queue,
+                VirtIODevice *vdev,
+                tVirtIOPerQueueInfo *info,
+                unsigned idx,
+                const char *name,
+                u16 msix_vec);
+    void (*del_vq)(virtio_pci_vq_info *info);
+    u16 (*config_vector)(VirtIODevice *vdev, u16 vector);
     NTSTATUS (*find_vqs)(VirtIODevice *, unsigned nvqs,
-                         struct virtqueue *vqs[],
-                         const char * const names[]);
+                struct virtqueue *vqs[],
+                const char * const names[]);
     NTSTATUS (*find_vq)(VirtIODevice *, unsigned index,
-                   struct virtqueue **vq, const char *name);
+                struct virtqueue **vq, const char *name);
     u64 (*get_features)(VirtIODevice *vdev);
     NTSTATUS (*finalize_features)(VirtIODevice *vdev);
     u16 (*set_msi_vector)(struct virtqueue *vq, u16 vector);

@@ -7,7 +7,7 @@ bool CVirtQueue::AllocateQueueMemory()
     USHORT NumEntries;
     ULONG AllocationSize, HeapSize;
 
-    NTSTATUS status = m_IODevice->query_vq_alloc(
+    NTSTATUS status = virtio_query_queue_allocation(
         m_IODevice,
         m_Index,
         &NumEntries,
@@ -15,7 +15,7 @@ bool CVirtQueue::AllocateQueueMemory()
         &HeapSize);
     if (!NT_SUCCESS(status))
     {
-        DPrintf(0, ("[%s] query_vq_alloc(%d) failed with error %x\n", __FUNCTION__, m_Index, status));
+        DPrintf(0, ("[%s] virtio_query_queue_allocation(%d) failed with error %x\n", __FUNCTION__, m_Index, status));
         return false;
     }
 
