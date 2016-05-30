@@ -186,7 +186,7 @@ struct virtio_pci_common_cfg {
 
 #define MAX_QUEUES_PER_DEVICE_DEFAULT           8
 
-typedef struct _tVirtIOPerQueueInfo
+typedef struct virtio_queue_info
 {
     /* the actual virtqueue */
     struct virtqueue *vq;
@@ -194,7 +194,7 @@ typedef struct _tVirtIOPerQueueInfo
     u16 num;
     /* the virtual address of the ring queue */
     void *queue;
-} tVirtIOPerQueueInfo, virtio_pci_vq_info;
+} VirtIOQueueInfo;
 
 typedef struct virtio_system_ops {
     // device register access
@@ -250,8 +250,8 @@ typedef struct virtio_device
     /* virtio 1.0 specific fields end */
 
     ULONG maxQueues;
-    tVirtIOPerQueueInfo *info;
-    tVirtIOPerQueueInfo inline_info[MAX_QUEUES_PER_DEVICE_DEFAULT];
+    VirtIOQueueInfo *info;
+    VirtIOQueueInfo inline_info[MAX_QUEUES_PER_DEVICE_DEFAULT];
     /* do not add any members after info struct, it is extensible */
 } VirtIODevice;
 
@@ -265,7 +265,7 @@ ULONG __inline VirtIODeviceSizeRequired(USHORT maxNumberOfQueues)
     ULONG size = sizeof(VirtIODevice);
     if (maxNumberOfQueues > MAX_QUEUES_PER_DEVICE_DEFAULT)
     {
-        size += sizeof(tVirtIOPerQueueInfo) * (maxNumberOfQueues - MAX_QUEUES_PER_DEVICE_DEFAULT);
+        size += sizeof(VirtIOQueueInfo) * (maxNumberOfQueues - MAX_QUEUES_PER_DEVICE_DEFAULT);
     }
     return size;
 }
@@ -330,7 +330,7 @@ u16 virtio_set_queue_vector(struct virtqueue *vq, u16 vector);
 
 ULONG __inline virtio_queue_descriptor_size()
 {
-    return sizeof(tVirtIOPerQueueInfo);
+    return sizeof(VirtIOQueueInfo);
 }
 
 void virtio_get_config(VirtIODevice *vdev, unsigned offset,

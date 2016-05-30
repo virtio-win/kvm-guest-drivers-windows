@@ -164,7 +164,7 @@ static NTSTATUS query_vq_alloc(VirtIODevice *vdev,
 
 static NTSTATUS setup_vq(struct virtqueue **queue,
                          VirtIODevice *vdev,
-                         virtio_pci_vq_info *info,
+                         VirtIOQueueInfo *info,
                          unsigned index,
                          const char *name,
                          u16 msix_vec)
@@ -220,7 +220,7 @@ out_activate_queue:
     return status;
 }
 
-static void del_vq(virtio_pci_vq_info *info)
+static void del_vq(VirtIOQueueInfo *info)
 {
     struct virtqueue *vq = info->vq;
     VirtIODevice *vdev = vq->vdev;

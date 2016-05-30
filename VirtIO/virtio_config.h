@@ -64,11 +64,11 @@ struct virtio_config_ops {
                 unsigned long *pHeapSize);
     NTSTATUS (*setup_vq)(struct virtqueue **queue,
                 VirtIODevice *vdev,
-                tVirtIOPerQueueInfo *info,
+                VirtIOQueueInfo *info,
                 unsigned idx,
                 const char *name,
                 u16 msix_vec);
-    void (*del_vq)(virtio_pci_vq_info *info);
+    void (*del_vq)(VirtIOQueueInfo *info);
     u16 (*config_vector)(VirtIODevice *vdev, u16 vector);
     NTSTATUS (*find_vqs)(VirtIODevice *, unsigned nvqs,
                 struct virtqueue *vqs[],
