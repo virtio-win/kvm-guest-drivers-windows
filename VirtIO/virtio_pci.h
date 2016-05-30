@@ -278,9 +278,9 @@ before use VirtIODeviceGet or VirtIODeviceSet
 void VirtIODeviceSetMSIXUsed(VirtIODevice * pVirtIODevice, bool used);
 void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice);
 
-#define VirtIOIsFeatureEnabled(FeaturesList, Feature)   (!!((FeaturesList) & (1ULL << (Feature))))
-#define VirtIOFeatureEnable(FeaturesList, Feature)      ((FeaturesList) |= (1ULL << (Feature)))
-#define VirtIOFeatureDisable(FeaturesList, Feature)     ((FeaturesList) &= ~(1ULL << (Feature)))
+#define virtio_is_feature_enabled(FeaturesList, Feature)  (!!((FeaturesList) & (1ULL << (Feature))))
+#define virtio_feature_enable(FeaturesList, Feature)      ((FeaturesList) |= (1ULL << (Feature)))
+#define virtio_feature_disable(FeaturesList, Feature)     ((FeaturesList) &= ~(1ULL << (Feature)))
 
 u32  VirtIODeviceGetQueueSize(struct virtqueue *vq);
 

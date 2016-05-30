@@ -394,7 +394,7 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
     UINT i;
     for (i = 0; i < sizeof(Features)/sizeof(Features[0]); ++i)
     {
-        if (VirtIOIsFeatureEnabled(pContext->u64HostFeatures, Features[i].bitmask))
+        if (virtio_is_feature_enabled(pContext->u64HostFeatures, Features[i].bitmask))
         {
             DPrintf(0, ("VirtIO Host Feature %s\n", Features[i].Name));
         }
@@ -404,9 +404,9 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
 static BOOLEAN
 AckFeature(PPARANDIS_ADAPTER pContext, UINT32 Feature)
 {
-    if (VirtIOIsFeatureEnabled(pContext->u64HostFeatures, Feature))
+    if (virtio_is_feature_enabled(pContext->u64HostFeatures, Feature))
     {
-        VirtIOFeatureEnable(pContext->u64GuestFeatures, Feature);
+        virtio_feature_enable(pContext->u64GuestFeatures, Feature);
         return TRUE;
     }
     return FALSE;
@@ -478,7 +478,7 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
     else
     {
         pContext->RSC.bIPv4SupportedHW =
-            VirtIOIsFeatureEnabled(pContext->u64HostFeatures, VIRTIO_NET_F_GUEST_TSO4);
+            virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_GUEST_TSO4);
     }
 
     if(pContext->RSC.bIPv6SupportedSW)
@@ -490,7 +490,7 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
     else
     {
         pContext->RSC.bIPv6SupportedHW =
-            VirtIOIsFeatureEnabled(pContext->u64HostFeatures, VIRTIO_NET_F_GUEST_TSO6);
+            virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_GUEST_TSO6);
     }
 
     pContext->RSC.bHasDynamicConfig = (pContext->RSC.bIPv4Enabled || pContext->RSC.bIPv6Enabled) &&

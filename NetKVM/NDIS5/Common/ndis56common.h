@@ -499,7 +499,7 @@ static inline bool VirtIODeviceGetHostFeature(PARANDIS_ADAPTER *pContext, unsign
 {
    DPrintf(4, ("%s\n", __FUNCTION__));
 
-   return !!(pContext->ullHostFeatures & (1ULL << uFeature));
+   return virtio_is_feature_enabled(pContext->ullHostFeatures, uFeature);
 }
 
 static inline void VirtIODeviceEnableGuestFeature(PARANDIS_ADAPTER *pContext, unsigned uFeature)
@@ -507,7 +507,7 @@ static inline void VirtIODeviceEnableGuestFeature(PARANDIS_ADAPTER *pContext, un
    ULONG ulValue = 0;
    DPrintf(4, ("%s\n", __FUNCTION__));
 
-   pContext->ullGuestFeatures |= (1ULL << uFeature);
+   virtio_feature_enable(pContext->ullGuestFeatures, uFeature);
 }
 
 BOOLEAN FORCEINLINE IsTimeToReleaseTx(PARANDIS_ADAPTER *pContext)

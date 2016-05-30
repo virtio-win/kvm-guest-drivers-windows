@@ -220,13 +220,13 @@ VIOInputEvtDevicePrepareHardware(
     }
 
     hostFeatures = VirtIOWdfGetDeviceFeatures(&pContext->VDevice);
-    if (VirtIOIsFeatureEnabled(hostFeatures, VIRTIO_F_VERSION_1))
+    if (virtio_is_feature_enabled(hostFeatures, VIRTIO_F_VERSION_1))
     {
-        VirtIOFeatureEnable(guestFeatures, VIRTIO_F_VERSION_1);
+        virtio_feature_enable(guestFeatures, VIRTIO_F_VERSION_1);
     }
-    if (VirtIOIsFeatureEnabled(hostFeatures, VIRTIO_F_ANY_LAYOUT))
+    if (virtio_is_feature_enabled(hostFeatures, VIRTIO_F_ANY_LAYOUT))
     {
-        VirtIOFeatureEnable(guestFeatures, VIRTIO_F_ANY_LAYOUT);
+        virtio_feature_enable(guestFeatures, VIRTIO_F_ANY_LAYOUT);
     }
     VirtIOWdfSetDriverFeatures(&pContext->VDevice, guestFeatures);
 

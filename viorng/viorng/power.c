@@ -99,13 +99,13 @@ NTSTATUS VirtRngEvtDeviceD0Entry(IN WDFDEVICE Device,
 
     u64HostFeatures = VirtIOWdfGetDeviceFeatures(&context->VDevice);
 
-    if (VirtIOIsFeatureEnabled(u64HostFeatures, VIRTIO_F_VERSION_1))
+    if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_F_VERSION_1))
     {
-        VirtIOFeatureEnable(u64GuestFeatures, VIRTIO_F_VERSION_1);
+        virtio_feature_enable(u64GuestFeatures, VIRTIO_F_VERSION_1);
     }
-    if (VirtIOIsFeatureEnabled(u64HostFeatures, VIRTIO_F_ANY_LAYOUT))
+    if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_F_ANY_LAYOUT))
     {
-        VirtIOFeatureEnable(u64GuestFeatures, VIRTIO_F_ANY_LAYOUT);
+        virtio_feature_enable(u64GuestFeatures, VIRTIO_F_ANY_LAYOUT);
     }
 
     status = VirtIOWdfSetDriverFeatures(&context->VDevice, u64GuestFeatures);
