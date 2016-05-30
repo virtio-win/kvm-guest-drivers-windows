@@ -43,7 +43,7 @@
 #include "kdebugprint.h"
 #include "ethernetutils.h"
 #include "virtio_pci.h"
-#include "VirtIO.h"
+#include "virtio.h"
 #include "virtio_ring.h"
 #include "IONetDescriptor.h"
 #include "DebugData.h"

@@ -14,7 +14,7 @@
 **********************************************************************/
 #include "osdep.h"
 #include "virtio_pci.h"
-#include "VirtioWDF.h"
+#include "VirtIOWdf.h"
 #include "private.h"
 
 static void *mem_alloc_contiguous_pages(void *context, size_t size)

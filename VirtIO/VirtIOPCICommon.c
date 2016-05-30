@@ -18,7 +18,7 @@
  */
 
 #include "osdep.h"
-#include "VirtIO_PCI.h"
+#include "virtio_pci.h"
 #include "virtio.h"
 #include "virtio_config.h"
 #include "kdebugprint.h"

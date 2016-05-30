@@ -13,7 +13,7 @@
  *
 **********************************************************************/
 #include "osdep.h"
-#include "VirtioWDF.h"
+#include "VirtIOWdf.h"
 #include "private.h"
 
 NTSTATUS PCIAllocBars(WDFCMRESLIST ResourcesTranslated,

@@ -15,7 +15,7 @@
 #include "precomp.h"
 
 #if defined(EVENT_TRACING)
-#include "device.tmh"
+#include "Device.tmh"
 #endif
 
 #ifdef ALLOC_PRAGMA
