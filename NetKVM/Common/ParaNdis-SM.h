@@ -177,7 +177,12 @@ private:
     { return IsInState(State) || IsInState(MoreStates...); }
 
     template <typename... Args>
-    void ChangeState(MiniportState NewState, Args... AllowedStates)
+    void ChangeState(MiniportState NewState,
+                     Args...
+#ifdef DBG
+                     AllowedStates
+#endif
+                    )
     {
         NETKVM_ASSERT(IsInState(AllowedStates...));
         m_State = NewState;
