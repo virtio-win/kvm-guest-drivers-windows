@@ -183,7 +183,7 @@ typedef struct _tagSynchronizedContext tSynchronizedContext;
 class CParaNdisTX : public CParaNdisTemplatePath<CTXVirtQueue>, public CNdisAllocatable<CParaNdisTX, 'XTHR'>
 {
 public:
-    CParaNdisTX();
+    CParaNdisTX() = default;
     ~CParaNdisTX();
 
     bool Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex);

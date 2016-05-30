@@ -253,9 +253,6 @@ void CNBL::OnLastReferenceGone()
     Destroy(this, m_Context->MiniportHandle);
 }
 
-CParaNdisTX::CParaNdisTX()
-{ }
-
 CParaNdisTX::~CParaNdisTX()
 {
     if (m_StateMachineRegistered)
