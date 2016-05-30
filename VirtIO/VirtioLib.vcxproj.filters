@@ -36,9 +36,6 @@
     <ClInclude Include="linux\virtio_config.h">
       <Filter>Header Files\linux</Filter>
     </ClInclude>
-    <ClInclude Include="virtio_config.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="virtio_pci.h">
       <Filter>Header Files</Filter>
     </ClInclude>
