@@ -178,7 +178,7 @@ static inline int vring_need_event(__u16 event_idx, __u16 new_idx, __u16 old)
 #include <poppack.h>
 #pragma warning (pop)
 
-void vring_transport_features(virtio_device *vdev);
+void vring_transport_features(VirtIODevice *vdev);
 void *virtqueue_get_avail(struct virtqueue *_vq);
 void *virtqueue_get_used(struct virtqueue *_vq);
 

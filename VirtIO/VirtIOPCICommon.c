@@ -29,7 +29,7 @@
 #define PCI_CAP_LIST_NEXT       1
 #define PCI_FIND_CAP_TTL        48
 
-static int __pci_find_next_cap_ttl(virtio_device *vdev, u8 pos, int cap, int *ttl)
+static int __pci_find_next_cap_ttl(VirtIODevice *vdev, u8 pos, int cap, int *ttl)
 {
     u8 id;
     u16 ent;
@@ -52,14 +52,14 @@ static int __pci_find_next_cap_ttl(virtio_device *vdev, u8 pos, int cap, int *tt
     return 0;
 }
 
-static int __pci_find_next_cap(virtio_device *vdev, u8 pos, int cap)
+static int __pci_find_next_cap(VirtIODevice *vdev, u8 pos, int cap)
 {
     int ttl = PCI_FIND_CAP_TTL;
 
     return __pci_find_next_cap_ttl(vdev, pos, cap, &ttl);
 }
 
-static int __pci_bus_find_cap_start(virtio_device *vdev, u8 hdr_type)
+static int __pci_bus_find_cap_start(VirtIODevice *vdev, u8 hdr_type)
 {
     u16 status;
 
@@ -96,7 +96,7 @@ static int __pci_bus_find_cap_start(virtio_device *vdev, u8 hdr_type)
  *  %PCI_CAP_ID_PCIX         PCI-X
  *  %PCI_CAP_ID_EXP          PCI Express
  */
-int pci_find_capability(virtio_device *vdev, int cap)
+int pci_find_capability(VirtIODevice *vdev, int cap)
 {
     int pos, res;
     u8 hdr_type;
@@ -112,22 +112,21 @@ int pci_find_capability(virtio_device *vdev, int cap)
     return pos;
 }
 
-int pci_find_next_capability(virtio_device *vdev, u8 pos, int cap)
+int pci_find_next_capability(VirtIODevice *vdev, u8 pos, int cap)
 {
     return __pci_find_next_cap(vdev,
         pos + PCI_CAP_LIST_NEXT, cap);
 }
 
-void virtio_delete_queues(virtio_device *vdev)
+void virtio_delete_queues(VirtIODevice *vdev)
 {
-    virtio_pci_device *vp_dev = to_vp_device(vdev);
     struct virtqueue *vq;
     unsigned i;
 
     for (i = 0; i < vdev->maxQueues; i++) {
         vq = vdev->info[i].vq;
         if (vq != NULL) {
-            vp_dev->del_vq(&vdev->info[i]);
+            vdev->del_vq(&vdev->info[i]);
             vdev->info[i].vq = NULL;
         }
     }
@@ -135,11 +134,11 @@ void virtio_delete_queues(virtio_device *vdev)
 
 void virtio_delete_queue(struct virtqueue *vq)
 {
-    virtio_pci_device *vp_dev = to_vp_device(vq->vdev);
+    VirtIODevice *vdev = vq->vdev;
     unsigned i = vq->index;
 
-    vp_dev->del_vq(&vp_dev->info[i]);
-    vp_dev->info[i].vq = NULL;
+    vdev->del_vq(&vdev->info[i]);
+    vdev->info[i].vq = NULL;
 }
 
 u16 virtio_set_queue_vector(struct virtqueue *vq, u16 vector)
@@ -148,14 +147,13 @@ u16 virtio_set_queue_vector(struct virtqueue *vq, u16 vector)
 }
 
 static NTSTATUS vp_setup_vq(struct virtqueue **queue,
-                            virtio_device *vdev, unsigned index,
+                            VirtIODevice *vdev, unsigned index,
                             const char *name,
                             u16 msix_vec)
 {
-    virtio_pci_device *vp_dev = to_vp_device(vdev);
-    virtio_pci_vq_info *info = &vp_dev->info[index];
+    virtio_pci_vq_info *info = &vdev->info[index];
 
-    NTSTATUS status = vp_dev->setup_vq(queue, vp_dev, info, index, name, msix_vec);
+    NTSTATUS status = vdev->setup_vq(queue, vdev, info, index, name, msix_vec);
     if (NT_SUCCESS(status)) {
         info->vq = *queue;
     }
@@ -173,32 +171,31 @@ bool vp_notify(struct virtqueue *vq)
 }
 
 /* the config->find_vqs() implementation */
-NTSTATUS vp_find_vqs(virtio_device *vdev, unsigned nvqs,
+NTSTATUS vp_find_vqs(VirtIODevice *vdev, unsigned nvqs,
                      struct virtqueue *vqs[],
                      const char * const names[])
 {
-    virtio_pci_device *vp_dev = to_vp_device(vdev);
     const char *name;
     unsigned i;
     NTSTATUS status;
     u16 msix_vec;
 
     /* set up the config interrupt */
-    msix_vec = vdev_get_msix_vector(vp_dev, -1);
+    msix_vec = vdev_get_msix_vector(vdev, -1);
 
     if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
-        msix_vec = vp_dev->config_vector(vp_dev, msix_vec);
+        msix_vec = vdev->config_vector(vdev, msix_vec);
         /* Verify we had enough resources to assign the vector */
         if (msix_vec == VIRTIO_MSI_NO_VECTOR) {
             status = STATUS_DEVICE_BUSY;
             goto error_find;
         }
-        vp_dev->msix_used = 1;
+        vdev->msix_used = 1;
     }
 
     /* set up queue interrupts */
     for (i = 0; i < nvqs; i++) {
-        msix_vec = vdev_get_msix_vector(vp_dev, i);
+        msix_vec = vdev_get_msix_vector(vdev, i);
         if (names && names[i]) {
             name = names[i];
         } else {
@@ -214,7 +211,7 @@ NTSTATUS vp_find_vqs(virtio_device *vdev, unsigned nvqs,
             goto error_find;
         }
         if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
-            vp_dev->msix_used |= 1;
+            vdev->msix_used |= 1;
         }
     }
     return STATUS_SUCCESS;
@@ -225,15 +222,13 @@ error_find:
 }
 
 /* the config->find_vq() implementation */
-NTSTATUS vp_find_vq(virtio_device *vdev, unsigned index,
+NTSTATUS vp_find_vq(VirtIODevice *vdev, unsigned index,
                     struct virtqueue **vq,
                     const char *name)
 {
-    virtio_pci_device *vp_dev = to_vp_device(vdev);
-
     return vp_setup_vq(
         vq,
-        vp_dev,
+        vdev,
         index,
         name,
         VIRTIO_MSI_NO_VECTOR);
@@ -259,7 +254,7 @@ void virtio_add_status(VirtIODevice *vdev, u8 status)
     vdev->config->set_status(vdev, (u8)(vdev->config->get_status(vdev) | status));
 }
 
-static void register_virtio_device(virtio_device *dev)
+static void register_virtio_device(VirtIODevice *dev)
 {
     /* We always start by resetting the device, in case a previous
      * driver messed it up.  This also tests that code path a little. */
@@ -435,7 +430,7 @@ int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA)
 
 
 /* Read @count fields, @bytes each. */
-static void virtio_cread_many(virtio_device *vdev,
+static void virtio_cread_many(VirtIODevice *vdev,
     unsigned int offset,
     void *buf, size_t count, size_t bytes)
 {
@@ -456,7 +451,7 @@ static void virtio_cread_many(virtio_device *vdev,
 }
 
 /* Write @count fields, @bytes each. */
-static void virtio_cwrite_many(virtio_device *vdev,
+static void virtio_cwrite_many(VirtIODevice *vdev,
     unsigned int offset,
     void *buf, size_t count, size_t bytes)
 {
@@ -467,7 +462,7 @@ static void virtio_cwrite_many(virtio_device *vdev,
 }
 
 /* Config space accessors. */
-void virtio_get_config(virtio_device *vdev, unsigned offset,
+void virtio_get_config(VirtIODevice *vdev, unsigned offset,
     void *buf, unsigned len)
 {
     switch (len) {
@@ -484,7 +479,7 @@ void virtio_get_config(virtio_device *vdev, unsigned offset,
     }
 }
 
-void virtio_set_config(virtio_device *vdev, unsigned offset,
+void virtio_set_config(VirtIODevice *vdev, unsigned offset,
     void *buf, unsigned len)
 {
     switch (len) {
@@ -501,7 +496,7 @@ void virtio_set_config(virtio_device *vdev, unsigned offset,
     }
 }
 
-void virtio_device_ready(virtio_device *dev)
+void virtio_device_ready(VirtIODevice *dev)
 {
     unsigned status = dev->config->get_status(dev);
 
@@ -509,7 +504,7 @@ void virtio_device_ready(virtio_device *dev)
     dev->config->set_status(dev, (u8)(status | VIRTIO_CONFIG_S_DRIVER_OK));
 }
 
-u64 virtio_get_features(virtio_device *dev)
+u64 virtio_get_features(VirtIODevice *dev)
 {
     dev->features = dev->config->get_features(dev);
     return dev->features;

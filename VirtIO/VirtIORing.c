@@ -103,7 +103,7 @@ static void initialize_virtqueue(struct vring_virtqueue* vq,
                                  unsigned int index,
                                  unsigned int num,
                                  unsigned int vring_align,
-                                 virtio_device *vdev,
+                                 VirtIODevice *vdev,
                                  bool event,
                                  void *pages,
                                  void (*notify)(struct virtqueue *),
@@ -469,7 +469,7 @@ void virtqueue_shutdown(struct virtqueue *_vq)
     unsigned int num = vq->vring.num;
     unsigned int index = vq->vq.index;
     void *pages = vq->vring.desc;
-    virtio_device *vdev = vq->vq.vdev;
+    VirtIODevice *vdev = vq->vq.vdev;
     bool event = vq->event;
     void (*notify)(struct virtqueue *) = vq->notify;
     const char* name = vq->vq.name;
@@ -595,7 +595,7 @@ void initialize_virtqueue(struct vring_virtqueue* vq,
                           unsigned int index,
                           unsigned int num,
                           unsigned int vring_align,
-                          virtio_device *vdev,
+                          VirtIODevice *vdev,
                           bool event,
                           void *pages,
                           void (*notify)(struct virtqueue *),
@@ -632,7 +632,7 @@ void initialize_virtqueue(struct vring_virtqueue* vq,
 struct virtqueue *vring_new_virtqueue(unsigned int index,
                                       unsigned int num,
                                       unsigned int vring_align,
-                                      virtio_device *vdev,
+                                      VirtIODevice *vdev,
                                       bool event,
                                       void *pages,
                                       void (*notify)(struct virtqueue *),
@@ -695,7 +695,7 @@ unsigned int vring_control_block_size()
 }
 
 /* Manipulates transport-specific feature bits. */
-void vring_transport_features(virtio_device *vdev)
+void vring_transport_features(VirtIODevice *vdev)
 {
     unsigned int i;
 

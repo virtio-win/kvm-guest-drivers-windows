@@ -1,10 +1,8 @@
 #ifndef _LINUX_VIRTIO_H
 #define _LINUX_VIRTIO_H
 
-#define virtio_device VirtIODevice
 #define scatterlist VirtIOBufferDescriptor
 
-typedef struct TypeVirtIODevice VirtIODevice;
 struct VirtIOBufferDescriptor {
     PHYSICAL_ADDRESS physAddr;
     ULONG length;
@@ -28,7 +26,7 @@ struct virtqueue {
     // struct list_head list;
     // void (*callback)(struct virtqueue *vq);
     const char *name;
-    virtio_device *vdev;
+    VirtIODevice *vdev;
     unsigned int index;
     unsigned int num_free;
     void *priv;

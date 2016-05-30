@@ -50,21 +50,21 @@
 */
 typedef void vq_callback_t(struct virtqueue *);
 struct virtio_config_ops {
-    void (*get)(virtio_device *vdev, unsigned offset,
+    void (*get)(VirtIODevice *vdev, unsigned offset,
                 void *buf, unsigned len);
-    void (*set)(virtio_device *vdev, unsigned offset,
+    void (*set)(VirtIODevice *vdev, unsigned offset,
                 const void *buf, unsigned len);
-    u32 (*generation)(virtio_device *vdev);
-    u8 (*get_status)(virtio_device *vdev);
-    void (*set_status)(virtio_device *vdev, u8 status);
-    void (*reset)(virtio_device *vdev);
-    NTSTATUS (*find_vqs)(virtio_device *, unsigned nvqs,
+    u32 (*generation)(VirtIODevice *vdev);
+    u8 (*get_status)(VirtIODevice *vdev);
+    void (*set_status)(VirtIODevice *vdev, u8 status);
+    void (*reset)(VirtIODevice *vdev);
+    NTSTATUS (*find_vqs)(VirtIODevice *, unsigned nvqs,
                          struct virtqueue *vqs[],
                          const char * const names[]);
-    NTSTATUS (*find_vq)(virtio_device *, unsigned index,
+    NTSTATUS (*find_vq)(VirtIODevice *, unsigned index,
                    struct virtqueue **vq, const char *name);
-    u64 (*get_features)(virtio_device *vdev);
-    NTSTATUS (*finalize_features)(virtio_device *vdev);
+    u64 (*get_features)(VirtIODevice *vdev);
+    NTSTATUS (*finalize_features)(VirtIODevice *vdev);
     u16 (*set_msi_vector)(struct virtqueue *vq, u16 vector);
 };
 
@@ -75,7 +75,7 @@ struct virtio_config_ops {
 * @vdev: the device
 * @fbit: the feature bit
 */
-static inline bool __virtio_test_bit(const virtio_device *vdev,
+static inline bool __virtio_test_bit(const VirtIODevice *vdev,
                                      unsigned int fbit)
 {
     /* Did you forget to fix assumptions on max features? */
@@ -89,7 +89,7 @@ static inline bool __virtio_test_bit(const virtio_device *vdev,
 * @vdev: the device
 * @fbit: the feature bit
 */
-static inline void __virtio_set_bit(virtio_device *vdev,
+static inline void __virtio_set_bit(VirtIODevice *vdev,
                                     unsigned int fbit)
 {
     /* Did you forget to fix assumptions on max features? */
@@ -103,7 +103,7 @@ static inline void __virtio_set_bit(virtio_device *vdev,
 * @vdev: the device
 * @fbit: the feature bit
 */
-static inline void __virtio_clear_bit(virtio_device *vdev,
+static inline void __virtio_clear_bit(VirtIODevice *vdev,
                                       unsigned int fbit)
 {
     /* Did you forget to fix assumptions on max features? */
@@ -117,7 +117,7 @@ static inline void __virtio_clear_bit(virtio_device *vdev,
 * @vdev: the device
 * @fbit: the feature bit
 */
-static inline bool virtio_has_feature(const virtio_device *vdev,
+static inline bool virtio_has_feature(const VirtIODevice *vdev,
                                       unsigned int fbit)
 {
     return __virtio_test_bit(vdev, fbit);
