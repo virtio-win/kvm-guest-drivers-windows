@@ -50,7 +50,6 @@ void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice)
     DPrintf(0, ("[VIRTIO_PCI_ISR] = %x\n", ioread32(pVirtIODevice, pVirtIODevice->addr + VIRTIO_PCI_ISR)));
 }
 
-
 /////////////////////////////////////////////////////////////////////////////////////
 //
 // Reset device
@@ -201,8 +200,7 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
     vq->priv = (void *)(vdev->addr + VIRTIO_PCI_QUEUE_NOTIFY);
 
     if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
-        iowrite16(vdev, msix_vec, vdev->addr + VIRTIO_MSI_QUEUE_VECTOR);
-        msix_vec = ioread16(vdev, vdev->addr + VIRTIO_MSI_QUEUE_VECTOR);
+        msix_vec = vdev->device->set_queue_vector(vq, msix_vec);
         if (msix_vec == VIRTIO_MSI_NO_VECTOR) {
             status = STATUS_DEVICE_BUSY;
             goto out_assign;
@@ -219,6 +217,7 @@ out_activate_queue:
     return status;
 }
 
+/* virtio device->delete_queue() implementation */
 static void del_vq(VirtIOQueueInfo *info)
 {
     struct virtqueue *vq = info->vq;
@@ -241,7 +240,7 @@ static void del_vq(VirtIOQueueInfo *info)
     mem_free_contiguous_pages(vdev, info->queue);
 }
 
-/* virtio config->get_features() implementation */
+/* virtio device->get_features() implementation */
 static u64 vp_get_features(VirtIODevice *vdev)
 {
     /* When someone needs more than 32 feature bits, we'll need to
@@ -249,8 +248,8 @@ static u64 vp_get_features(VirtIODevice *vdev)
     return ioread32(vdev, vdev->addr + VIRTIO_PCI_HOST_FEATURES);
 }
 
-/* virtio config->finalize_features() implementation */
-static NTSTATUS vp_finalize_features(VirtIODevice *vdev)
+/* virtio device->set_features() implementation */
+static NTSTATUS vp_set_features(VirtIODevice *vdev)
 {
     /* Give virtio_ring a chance to accept features. */
     vring_transport_features(vdev);
@@ -264,8 +263,8 @@ static NTSTATUS vp_finalize_features(VirtIODevice *vdev)
     return STATUS_SUCCESS;
 }
 
-/* virtio config->set_msi_vector() implementation */
-static u16 vp_set_msi_vector(struct virtqueue *vq, u16 vector)
+/* virtio device->set_queue_vector() implementation */
+static u16 vp_queue_vector(struct virtqueue *vq, u16 vector)
 {
     VirtIODevice *vdev = vq->vdev;
 
@@ -274,22 +273,22 @@ static u16 vp_set_msi_vector(struct virtqueue *vq, u16 vector)
     return ioread16(vdev, vdev->addr + VIRTIO_MSI_QUEUE_VECTOR);
 }
 
-static const struct virtio_config_ops virtio_pci_config_ops = {
-    .get = VirtIODeviceGet,
-    .set = VirtIODeviceSet,
-    .generation = NULL,
+static const struct virtio_device_ops virtio_pci_device_ops = {
+    .get_config = VirtIODeviceGet,
+    .set_config = VirtIODeviceSet,
+    .get_config_generation = NULL,
     .get_status = VirtIODeviceGetStatus,
     .set_status = VirtIODeviceSetStatus,
     .reset = VirtIODeviceReset,
-    .config_vector = vp_config_vector,
-    .query_vq_alloc = query_vq_alloc,
-    .setup_vq = setup_vq,
-    .del_vq = del_vq,
-    .find_vqs = vp_find_vqs,
-    .find_vq = vp_find_vq,
     .get_features = vp_get_features,
-    .finalize_features = vp_finalize_features,
-    .set_msi_vector = vp_set_msi_vector,
+    .set_features = vp_set_features,
+    .set_config_vector = vp_config_vector,
+    .set_queue_vector = vp_queue_vector,
+    .query_queue_alloc = query_vq_alloc,
+    .setup_queue = setup_vq,
+    .find_queue = vp_find_vq,
+    .find_queues = vp_find_vqs,
+    .delete_queue = del_vq,
 };
 
 /* the PCI probing function */
@@ -303,7 +302,7 @@ NTSTATUS virtio_pci_legacy_probe(VirtIODevice *vdev)
 
     vdev->isr = (u8 *)vdev->addr + VIRTIO_PCI_ISR;
 
-    vdev->config = &virtio_pci_config_ops;
+    vdev->device = &virtio_pci_device_ops;
 
     return STATUS_SUCCESS;
 }

@@ -100,7 +100,7 @@ static void *map_capability(VirtIODevice *dev, int off,
     return p;
 }
 
-/* virtio config->get_features() implementation */
+/* virtio device->get_features() implementation */
 static u64 vp_get_features(VirtIODevice *vdev)
 {
     u64 features;
@@ -113,8 +113,8 @@ static u64 vp_get_features(VirtIODevice *vdev)
     return features;
 }
 
-/* virtio config->finalize_features() implementation */
-static NTSTATUS vp_finalize_features(VirtIODevice *vdev)
+/* virtio device->set_features() implementation */
+static NTSTATUS vp_set_features(VirtIODevice *vdev)
 {
     /* Give virtio_ring a chance to accept features. */
     vring_transport_features(vdev);
@@ -132,8 +132,8 @@ static NTSTATUS vp_finalize_features(VirtIODevice *vdev)
     return STATUS_SUCCESS;
 }
 
-/* virtio config->set_msi_vector() implementation */
-static u16 vp_set_msi_vector(struct virtqueue *vq, u16 vector)
+/* virtio device->set_queue_vector() implementation */
+static u16 vp_queue_vector(struct virtqueue *vq, u16 vector)
 {
     VirtIODevice *vdev = vq->vdev;
     struct virtio_pci_common_cfg *cfg = vdev->common;
@@ -143,7 +143,7 @@ static u16 vp_set_msi_vector(struct virtqueue *vq, u16 vector)
     return ioread16(vdev, &cfg->queue_msix_vector);
 }
 
-/* virtio config->get() implementation */
+/* virtio device->get_config() implementation */
 static void vp_get(VirtIODevice *vdev, unsigned offset,
                    void *buf, unsigned len)
 {
@@ -151,25 +151,30 @@ static void vp_get(VirtIODevice *vdev, unsigned offset,
     __le16 w;
     __le32 l;
 
-    BUG_ON(offset + len > vdev->device_len);
+    if (!vdev->config) {
+        BUG();
+        return;
+    }
+
+    BUG_ON(offset + len > vdev->config_len);
 
     switch (len) {
     case 1:
-        b = ioread8(vdev, vdev->device + offset);
+        b = ioread8(vdev, vdev->config + offset);
         memcpy(buf, &b, sizeof b);
         break;
     case 2:
-        w = ioread16(vdev, vdev->device + offset);
+        w = ioread16(vdev, vdev->config + offset);
         memcpy(buf, &w, sizeof w);
         break;
     case 4:
-        l = ioread32(vdev, vdev->device + offset);
+        l = ioread32(vdev, vdev->config + offset);
         memcpy(buf, &l, sizeof l);
         break;
     case 8:
-        l = ioread32(vdev, vdev->device + offset);
+        l = ioread32(vdev, vdev->config + offset);
         memcpy(buf, &l, sizeof l);
-        l = ioread32(vdev, vdev->device + offset + sizeof l);
+        l = ioread32(vdev, vdev->config + offset + sizeof l);
         memcpy((unsigned char *)buf + sizeof l, &l, sizeof l);
         break;
     default:
@@ -177,7 +182,7 @@ static void vp_get(VirtIODevice *vdev, unsigned offset,
     }
 }
 
-/* the config->set() implementation.  it's symmetric to the config->get()
+/* the device->set_config() implementation.  it's symmetric to the device->get_config()
  * implementation */
 static void vp_set(VirtIODevice *vdev, unsigned offset,
                    const void *buf, unsigned len)
@@ -186,26 +191,31 @@ static void vp_set(VirtIODevice *vdev, unsigned offset,
     __le16 w;
     __le32 l;
 
-    BUG_ON(offset + len > vdev->device_len);
+    if (!vdev->config) {
+        BUG();
+        return;
+    }
+
+    BUG_ON(offset + len > vdev->config_len);
 
     switch (len) {
     case 1:
         memcpy(&b, buf, sizeof b);
-        iowrite8(vdev, b, vdev->device + offset);
+        iowrite8(vdev, b, vdev->config + offset);
         break;
     case 2:
         memcpy(&w, buf, sizeof w);
-        iowrite16(vdev, w, vdev->device + offset);
+        iowrite16(vdev, w, vdev->config + offset);
         break;
     case 4:
         memcpy(&l, buf, sizeof l);
-        iowrite32(vdev, l, vdev->device + offset);
+        iowrite32(vdev, l, vdev->config + offset);
         break;
     case 8:
         memcpy(&l, buf, sizeof l);
-        iowrite32(vdev, l, vdev->device + offset);
+        iowrite32(vdev, l, vdev->config + offset);
         memcpy(&l, (unsigned char *)buf + sizeof l, sizeof l);
-        iowrite32(vdev, l, vdev->device + offset + sizeof l);
+        iowrite32(vdev, l, vdev->config + offset + sizeof l);
         break;
     default:
         BUG();
@@ -217,7 +227,7 @@ static u32 vp_generation(VirtIODevice *vdev)
     return ioread8(vdev, &vdev->common->config_generation);
 }
 
-/* config->{get,set}_status() implementations */
+/* device->{get,set}_status() implementations */
 static u8 vp_get_status(VirtIODevice *vdev)
 {
     return ioread8(vdev, &vdev->common->device_status);
@@ -390,8 +400,7 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
     }
 
     if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
-        iowrite16(vdev, msix_vec, &cfg->queue_msix_vector);
-        msix_vec = ioread16(vdev, &cfg->queue_msix_vector);
+        msix_vec = vdev->device->set_queue_vector(vq, msix_vec);
         if (msix_vec == VIRTIO_MSI_NO_VECTOR) {
             status = STATUS_DEVICE_BUSY;
             goto err_assign_vector;
@@ -479,40 +488,22 @@ static void del_vq(VirtIOQueueInfo *info)
     mem_free_contiguous_pages(vdev, info->queue);
 }
 
-static const struct virtio_config_ops virtio_pci_config_nodev_ops = {
-    .get = NULL,
-    .set = NULL,
-    .generation = vp_generation,
+static const struct virtio_device_ops virtio_pci_device_ops = {
+    .get_config = vp_get,
+    .set_config = vp_set,
+    .get_config_generation = vp_generation,
     .get_status = vp_get_status,
     .set_status = vp_set_status,
     .reset = vp_reset,
-    .config_vector = vp_config_vector,
-    .query_vq_alloc = query_vq_alloc,
-    .setup_vq = setup_vq,
-    .del_vq = del_vq,
-    .find_vqs = vp_modern_find_vqs,
-    .find_vq = vp_modern_find_vq,
     .get_features = vp_get_features,
-    .finalize_features = vp_finalize_features,
-    .set_msi_vector = vp_set_msi_vector,
-};
-
-static const struct virtio_config_ops virtio_pci_config_ops = {
-    .get = vp_get,
-    .set = vp_set,
-    .generation = vp_generation,
-    .get_status = vp_get_status,
-    .set_status = vp_set_status,
-    .reset = vp_reset,
-    .config_vector = vp_config_vector,
-    .query_vq_alloc = query_vq_alloc,
-    .setup_vq = setup_vq,
-    .del_vq = del_vq,
-    .find_vqs = vp_modern_find_vqs,
-    .find_vq = vp_modern_find_vq,
-    .get_features = vp_get_features,
-    .finalize_features = vp_finalize_features,
-    .set_msi_vector = vp_set_msi_vector,
+    .set_features = vp_set_features,
+    .set_config_vector = vp_config_vector,
+    .set_queue_vector = vp_queue_vector,
+    .query_queue_alloc = query_vq_alloc,
+    .setup_queue = setup_vq,
+    .find_queue = vp_modern_find_vq,
+    .find_queues = vp_modern_find_vqs,
+    .delete_queue = del_vq,
 };
 
 /**
@@ -616,7 +607,7 @@ static inline void check_offsets(void)
 /* the PCI probing function */
 NTSTATUS virtio_pci_modern_probe(VirtIODevice *vdev)
 {
-    int common, isr, notify, device;
+    int common, isr, notify, config;
     u32 notify_length;
     u32 notify_offset;
     NTSTATUS status;
@@ -640,7 +631,7 @@ NTSTATUS virtio_pci_modern_probe(VirtIODevice *vdev)
     /* Device capability is only mandatory for devices that have
      * device-specific configuration.
      */
-    device = virtio_pci_find_capability(vdev, VIRTIO_PCI_CAP_DEVICE_CFG);
+    config = virtio_pci_find_capability(vdev, VIRTIO_PCI_CAP_DEVICE_CFG);
 
     status = STATUS_INVALID_PARAMETER;
     vdev->common = map_capability(vdev, common,
@@ -689,22 +680,20 @@ NTSTATUS virtio_pci_modern_probe(VirtIODevice *vdev)
     /* Again, we don't know how much we should map, but PAGE_SIZE
      * is more than enough for all existing devices.
      */
-    if (device) {
-        vdev->device = map_capability(vdev, device, 0, 4,
+    if (config) {
+        vdev->config = map_capability(vdev, config, 0, 4,
             0, PAGE_SIZE,
-            &vdev->device_len);
-        if (!vdev->device)
-            goto err_map_device;
+            &vdev->config_len);
+        if (!vdev->config)
+            goto err_map_config;
 
-        vdev->config = &virtio_pci_config_ops;
     }
-    else {
-        vdev->config = &virtio_pci_config_nodev_ops;
-    }
+
+    vdev->device = &virtio_pci_device_ops;
 
     return STATUS_SUCCESS;
 
-err_map_device:
+err_map_config:
     if (vdev->notify_base)
         pci_unmap_address_range(vdev, (void *)vdev->notify_base);
 err_map_notify:
@@ -717,8 +706,8 @@ err_map_common:
 
 void virtio_pci_modern_remove(VirtIODevice *vdev)
 {
-    if (vdev->device)
-        pci_unmap_address_range(vdev, vdev->device);
+    if (vdev->config)
+        pci_unmap_address_range(vdev, vdev->config);
     if (vdev->notify_base)
         pci_unmap_address_range(vdev, (void *)vdev->notify_base);
     pci_unmap_address_range(vdev, vdev->isr);
