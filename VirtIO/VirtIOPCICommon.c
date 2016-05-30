@@ -156,7 +156,7 @@ static NTSTATUS vp_setup_vq(struct virtqueue **queue,
                             const char *name,
                             u16 msix_vec)
 {
-    virtio_pci_vq_info *info = &vdev->info[index];
+    VirtIOQueueInfo *info = &vdev->info[index];
 
     NTSTATUS status = vdev->config->setup_vq(queue, vdev, info, index, name, msix_vec);
     if (NT_SUCCESS(status)) {
@@ -305,7 +305,7 @@ NTSTATUS virtio_device_initialize(VirtIODevice *pVirtIODevice,
 
     ASSERT(allocatedSize > offsetof(VirtIODevice, info));
     pVirtIODevice->maxQueues =
-        (allocatedSize - offsetof(VirtIODevice, info)) / sizeof(tVirtIOPerQueueInfo);
+        (allocatedSize - offsetof(VirtIODevice, info)) / sizeof(VirtIOQueueInfo);
 
     status = virtio_pci_modern_probe(pVirtIODevice);
     if (status == STATUS_DEVICE_NOT_CONNECTED) {
