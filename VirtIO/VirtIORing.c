@@ -748,4 +748,3 @@ void virtqueue_set_event_suppression(struct virtqueue *_vq, bool enable)
     struct vring_virtqueue *vq = to_vvq(_vq);
     vq->event = (enable ? 1 : 0);
 }
-

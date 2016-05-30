@@ -19,8 +19,6 @@
  *
  */
 
-#include "virtio_config.h"
-
 #define ioread8(vp_dev, addr) \
     vp_dev->system->vdev_read_byte((ULONG_PTR)(addr))
 #define ioread16(vp_dev, addr) \
@@ -68,10 +66,6 @@
 
 /* the notify function used when creating a virt queue */
 bool vp_notify(struct virtqueue *vq);
-/* the config->del_vqs() implementation */
-void vp_del_vqs(virtio_device *vdev);
-/* the config->del_vq() implementation */
-void vp_del_vq(struct virtqueue *vq);
 /* the config->find_vqs() implementation */
 NTSTATUS vp_find_vqs(virtio_device *vdev, unsigned nvqs,
                      struct virtqueue *vqs[],

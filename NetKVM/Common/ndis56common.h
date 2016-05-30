@@ -60,8 +60,6 @@ extern "C"
 
 #include "kdebugprint.h"
 #include "virtio_pci.h"
-#include "virtio_config.h"
-#include "linux\virtio_config.h"
 #include "DebugData.h"
 }
 

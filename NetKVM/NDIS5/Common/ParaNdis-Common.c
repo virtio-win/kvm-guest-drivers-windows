@@ -155,7 +155,7 @@ static const tConfigurationEntries defaultConfiguration =
 
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
 {
-    pContext->IODevice.config->reset(&pContext->IODevice);
+    virtio_device_reset(&pContext->IODevice);
     DPrintf(0, ("[%s] Done", __FUNCTION__));
     /* reset all the features in the device */
     pContext->ulCurrentVlansFilterSet = 0;
@@ -168,7 +168,7 @@ static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
         if (devStatus)
         {
             DPrintf(0, ("[%s] Device status is still %02X", __FUNCTION__, (ULONG)devStatus));
-            pContext->IODevice.config->reset(&pContext->IODevice);
+            virtio_device_reset(&pContext->IODevice);
             devStatus = virtio_get_status(&pContext->IODevice);
             DPrintf(0, ("[%s] Device status on retry %02X", __FUNCTION__, (ULONG)devStatus));
         }
@@ -1124,7 +1124,7 @@ static NDIS_STATUS FindNetQueues(PARANDIS_ADAPTER *pContext)
 // called on PASSIVE upon unsuccessful Init or upon Halt
 static void DeleteNetQueues(PARANDIS_ADAPTER *pContext)
 {
-    pContext->IODevice.config->del_vqs(&pContext->IODevice);
+    virtio_delete_queues(&pContext->IODevice);
 }
 
 /**********************************************************
@@ -1183,9 +1183,9 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 
 static void VirtIODeviceRemoveStatus(VirtIODevice *pVirtIODevice, u8 status)
 {
-    pVirtIODevice->config->set_status(
+    virtio_set_status(
         pVirtIODevice,
-        pVirtIODevice->config->get_status(pVirtIODevice) & ~status);
+        virtio_get_status(pVirtIODevice) & ~status);
 }
 
 /**********************************************************

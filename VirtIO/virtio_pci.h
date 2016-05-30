@@ -40,6 +40,7 @@
 #define _LINUX_VIRTIO_PCI_H
 
 #include <linux/types.h>
+#include <linux/virtio_config.h>
 
 #ifndef VIRTIO_PCI_NO_LEGACY
 
@@ -304,11 +305,16 @@ NTSTATUS virtio_device_initialize(VirtIODevice *pVirtIODevice,
                                   const VirtIOSystemOps *pSystemOps,
                                   PVOID DeviceContext,
                                   ULONG allocatedSize);
+void virtio_device_reset(VirtIODevice *pVirtIODevice);
 void virtio_device_shutdown(VirtIODevice *pVirtIODevice);
 
 u8 virtio_get_status(VirtIODevice *vdev);
+void virtio_set_status(VirtIODevice *vdev, u8 status);
 void virtio_add_status(VirtIODevice *vdev, u8 status);
 
+void virtio_device_ready(VirtIODevice *vdev);
+
+u64 virtio_get_features(VirtIODevice *dev);
 NTSTATUS virtio_finalize_features(VirtIODevice *vdev);
 u8 virtio_read_isr_status(VirtIODevice *vdev);
 
@@ -320,18 +326,31 @@ NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev,
 
 NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs);
 
+NTSTATUS virtio_find_queue(VirtIODevice *vdev, unsigned index,
+                           struct virtqueue **vq,
+                           const char *name);
 NTSTATUS virtio_find_queues(VirtIODevice *vdev,
                             unsigned nvqs,
                             struct virtqueue *vqs[],
                             const char *const names[]);
 
+void virtio_delete_queue(struct virtqueue *vq);
+void virtio_delete_queues(VirtIODevice *vdev);
+
 int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA);
 
 void virtqueue_set_event_suppression(struct virtqueue *vq, bool enable);
+u16 virtio_set_queue_vector(struct virtqueue *vq, u16 vector);
 
 ULONG __inline virtio_queue_descriptor_size()
 {
     return sizeof(tVirtIOPerQueueInfo);
 }
+
+void virtio_get_config(VirtIODevice *vdev, unsigned offset,
+                       void *buf, unsigned len);
+
+void virtio_set_config(VirtIODevice *vdev, unsigned offset,
+                       void *buf, unsigned len);
 
 #endif

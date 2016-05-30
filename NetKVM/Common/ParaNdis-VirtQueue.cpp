@@ -27,7 +27,7 @@ void CVirtQueue::Renew()
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)m_IODevice->DeviceContext;
 
     pContext->pPageAllocator = &m_SharedMemory;
-    NTSTATUS status = m_IODevice->config->find_vq(
+    NTSTATUS status = virtio_find_queue(
         m_IODevice,
         m_Index,
         &m_VirtQueue,
@@ -79,7 +79,7 @@ void CVirtQueue::Delete()
 {
     if (m_VirtQueue != nullptr)
     {
-        m_IODevice->config->del_vq(m_VirtQueue);
+        virtio_delete_queue(m_VirtQueue);
     }
 }
 
@@ -90,7 +90,7 @@ void CVirtQueue::Shutdown()
 
 u16 CVirtQueue::SetMSIVector(u16 vector)
 {
-    return m_IODevice->config->set_msi_vector(m_VirtQueue, vector);
+    return virtio_set_queue_vector(m_VirtQueue, vector);
 }
 
 bool CTXVirtQueue::PrepareBuffers()

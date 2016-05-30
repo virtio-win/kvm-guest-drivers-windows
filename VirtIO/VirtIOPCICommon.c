@@ -118,8 +118,7 @@ int pci_find_next_capability(virtio_device *vdev, u8 pos, int cap)
         pos + PCI_CAP_LIST_NEXT, cap);
 }
 
-/* the config->del_vqs() implementation */
-void vp_del_vqs(virtio_device *vdev)
+void virtio_delete_queues(virtio_device *vdev)
 {
     virtio_pci_device *vp_dev = to_vp_device(vdev);
     struct virtqueue *vq;
@@ -134,14 +133,18 @@ void vp_del_vqs(virtio_device *vdev)
     }
 }
 
-/* the config->del_vq() implementation */
-void vp_del_vq(struct virtqueue *vq)
+void virtio_delete_queue(struct virtqueue *vq)
 {
     virtio_pci_device *vp_dev = to_vp_device(vq->vdev);
     unsigned i = vq->index;
 
     vp_dev->del_vq(&vp_dev->info[i]);
     vp_dev->info[i].vq = NULL;
+}
+
+u16 virtio_set_queue_vector(struct virtqueue *vq, u16 vector)
+{
+    return vq->vdev->config->set_msi_vector(vq, vector);
 }
 
 static NTSTATUS vp_setup_vq(struct virtqueue **queue,
@@ -217,7 +220,7 @@ NTSTATUS vp_find_vqs(virtio_device *vdev, unsigned nvqs,
     return STATUS_SUCCESS;
 
 error_find:
-    vp_del_vqs(vdev);
+    virtio_delete_queues(vdev);
     return status;
 }
 
@@ -244,6 +247,11 @@ u8 virtio_read_isr_status(VirtIODevice *vdev)
 u8 virtio_get_status(VirtIODevice *vdev)
 {
     return vdev->config->get_status(vdev);
+}
+
+void virtio_set_status(VirtIODevice *vdev, u8 status)
+{
+    vdev->config->set_status(vdev, status);
 }
 
 void virtio_add_status(VirtIODevice *vdev, u8 status)
@@ -314,6 +322,11 @@ NTSTATUS virtio_device_initialize(VirtIODevice *pVirtIODevice,
     return status;
 }
 
+void virtio_device_reset(VirtIODevice *pVirtIODevice)
+{
+    pVirtIODevice->config->reset(pVirtIODevice);
+}
+
 void virtio_device_shutdown(VirtIODevice *pVirtIODevice)
 {
     if (pVirtIODevice->addr) {
@@ -355,6 +368,17 @@ NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs)
         vdev->maxQueues = nvqs;
     }
     return STATUS_SUCCESS;
+}
+
+NTSTATUS virtio_find_queue(VirtIODevice *vdev, unsigned index,
+                           struct virtqueue **vq,
+                           const char *name)
+{
+    return vdev->config->find_vq(
+        vdev,
+        index,
+        vq,
+        name);
 }
 
 NTSTATUS virtio_find_queues(VirtIODevice *vdev,
@@ -475,4 +499,18 @@ void virtio_set_config(virtio_device *vdev, unsigned offset,
     default:
         virtio_cwrite_many(vdev, offset, buf, len, 1);
     }
+}
+
+void virtio_device_ready(virtio_device *dev)
+{
+    unsigned status = dev->config->get_status(dev);
+
+    BUG_ON(status & VIRTIO_CONFIG_S_DRIVER_OK);
+    dev->config->set_status(dev, (u8)(status | VIRTIO_CONFIG_S_DRIVER_OK));
+}
+
+u64 virtio_get_features(virtio_device *dev)
+{
+    dev->features = dev->config->get_features(dev);
+    return dev->features;
 }

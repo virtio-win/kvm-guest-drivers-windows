@@ -14,7 +14,6 @@
 **********************************************************************/
 #include "osdep.h"
 #include "virtio_pci.h"
-#include "virtio_config.h"
 #include "VirtioWDF.h"
 #include "private.h"
 
@@ -181,8 +180,8 @@ NTSTATUS VirtIOWdfShutdown(PVIRTIO_WDF_DRIVER pWdfDriver)
 
 NTSTATUS VirtIOWdfDestroyQueues(PVIRTIO_WDF_DRIVER pWdfDriver)
 {
-    pWdfDriver->pVIODevice->config->reset(pWdfDriver->pVIODevice);
-    pWdfDriver->pVIODevice->config->del_vqs(pWdfDriver->pVIODevice);
+    virtio_device_reset(pWdfDriver->pVIODevice);
+    virtio_delete_queues(pWdfDriver->pVIODevice);
 
     return STATUS_SUCCESS;
 }
