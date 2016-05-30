@@ -15,11 +15,11 @@
  *
  */
 #include "osdep.h"
-#include "VirtIO_PCI.h"
+#include "virtio_pci.h"
 #include "virtio_config.h"
 #include "virtio.h"
 #include "kdebugprint.h"
-#include "VirtIO_Ring.h"
+#include "virtio_ring.h"
 #include "virtio_pci_common.h"
 #include "windows\virtio_ring_allocation.h"
 

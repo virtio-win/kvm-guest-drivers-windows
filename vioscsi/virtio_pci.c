@@ -23,7 +23,7 @@
  *
 **********************************************************************/
 #include "osdep.h"
-#include "VirtIO_PCI.h"
+#include "virtio_pci.h"
 #include "utils.h"
 #include "vioscsi.h"
 
