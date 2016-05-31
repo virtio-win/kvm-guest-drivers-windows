@@ -157,6 +157,15 @@
     <FilesToPackage Include="..\$(IntDir)pvpanic.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
+    <FilesToPackage Include="..\$(IntDir)pvpanic.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(IntDir)pvpanic.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="$(FrameworkSdkDir)Redist\wdf\$(DDKPlatform)\WdfCoInstaller01011.dll" Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
     <FilesToPackage Include="..\$(IntDir)pvpanic.pdb" Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
@@ -167,6 +176,15 @@
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
     <FilesToPackage Include="..\$(IntDir)pvpanic.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(IntDir)pvpanic.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\$(IntDir)pvpanic.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="$(FrameworkSdkDir)Redist\wdf\$(DDKPlatform)\WdfCoInstaller01011.dll" Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
   </ItemGroup>
