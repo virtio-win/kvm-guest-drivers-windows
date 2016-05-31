@@ -282,13 +282,13 @@ VIOInputInitAllQueues(
     struct virtqueue *vqs[2];
     VIRTIO_WDF_QUEUE_PARAM params[2];
 
+    // event
     params[0].bEnableInterruptSuppression = false;
     params[0].Interrupt = pContext->QueuesInterrupt;
-    params[0].szName = "event";
 
+    // status
     params[1].bEnableInterruptSuppression = false;
     params[1].Interrupt = pContext->QueuesInterrupt;
-    params[1].szName = "status";
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 

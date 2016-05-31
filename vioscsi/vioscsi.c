@@ -568,8 +568,7 @@ static BOOLEAN InitializeVirtualQueues(PADAPTER_EXTENSION adaptExt, ULONG numQue
     status = virtio_find_queues(
         &adaptExt->vdev,
         numQueues,
-        adaptExt->vq,
-        NULL);
+        adaptExt->vq);
     if (!NT_SUCCESS(status)) {
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("virtio_find_queues failed with error %x\n", status));
         return FALSE;

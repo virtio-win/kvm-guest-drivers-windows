@@ -113,7 +113,6 @@ NTSTATUS VirtRngEvtDeviceD0Entry(IN WDFDEVICE Device,
     {
         param.bEnableInterruptSuppression = false;
         param.Interrupt = context->WdfInterrupt;
-        param.szName = "requestq";
 
         status = VirtIOWdfInitQueues(&context->VDevice, 1, &context->VirtQueue, &param);
     }

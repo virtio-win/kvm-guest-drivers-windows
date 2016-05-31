@@ -19,9 +19,6 @@
 
 /* Configures a virtqueue, see VirtIOWdfInitQueues. */
 typedef struct virtio_wdf_queue_param {
-    /* queue name, optional */
-    LPCSTR                  szName;
-
     /* interrupt associated with the queue */
     WDFINTERRUPT            Interrupt;
 

@@ -30,8 +30,7 @@ void CVirtQueue::Renew()
     NTSTATUS status = virtio_find_queue(
         m_IODevice,
         m_Index,
-        &m_VirtQueue,
-        "queue_name");
+        &m_VirtQueue);
     pContext->pPageAllocator = nullptr;
 
     if (NT_SUCCESS(status))

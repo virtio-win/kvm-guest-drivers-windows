@@ -34,17 +34,17 @@ BalloonInit(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonInit\n");
 
+    // inflate
     params[0].bEnableInterruptSuppression = false;
     params[0].Interrupt = devCtx->WdfInterrupt;
-    params[0].szName = "inflate";
 
+    // deflate
     params[1].bEnableInterruptSuppression = false;
     params[1].Interrupt = devCtx->WdfInterrupt;
-    params[1].szName = "deflate";
 
+    // stats
     params[2].bEnableInterruptSuppression = false;
     params[2].Interrupt = devCtx->WdfInterrupt;
-    params[2].szName = "stats";
 
     u64HostFeatures = VirtIOWdfGetDeviceFeatures(&devCtx->VDevice);
 

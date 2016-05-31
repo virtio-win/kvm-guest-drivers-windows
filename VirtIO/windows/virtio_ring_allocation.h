@@ -7,9 +7,8 @@ struct virtqueue *vring_new_virtqueue(unsigned int index,
     VirtIODevice *vdev,
     bool event,
     void *pages,
-    void(*notify)(struct virtqueue *),
-    void *control,
-    const char *name);
+    void (*notify)(struct virtqueue *),
+    void *control);
 
 unsigned int vring_control_block_size();
 

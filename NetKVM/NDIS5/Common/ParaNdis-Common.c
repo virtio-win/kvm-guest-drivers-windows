@@ -1089,7 +1089,6 @@ static int PrepareReceiveBuffers(PARANDIS_ADAPTER *pContext)
 
 static NDIS_STATUS FindNetQueues(PARANDIS_ADAPTER *pContext)
 {
-    LPCSTR const names[] = { "rx", "tx", "ctrl" };
     struct virtqueue *queues[3];
     unsigned i, nvqs = pContext->bHasControlQueue ? 3 : 2;
     NTSTATUS status;
@@ -1098,8 +1097,7 @@ static NDIS_STATUS FindNetQueues(PARANDIS_ADAPTER *pContext)
     status = virtio_find_queues(
        &pContext->IODevice,
        nvqs,
-       queues,
-       names);
+       queues);
     if (!NT_SUCCESS(status)) {
        DPrintf(0, ("[%s] virtio_find_queues failed with %x\n", __FUNCTION__, status));
        return NTStatusToNdisStatus(status);

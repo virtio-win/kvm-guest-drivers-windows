@@ -103,7 +103,6 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
 {
     NTSTATUS status;
     ULONG i;
-    LPCSTR *pszNames;
 
     /* make sure that we always follow the status bit-setting protocol */
     u8 dev_status = virtio_get_status(pWdfDriver->pVIODevice);
@@ -120,29 +119,13 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
         }
     }
 
-    /* extract and validate queue names */
-    pszNames = (LPCSTR *)ExAllocatePoolWithTag(
-        NonPagedPool,
-        nQueues * sizeof(LPCSTR),
-        pWdfDriver->MemoryTag);
-    if (pszNames == NULL) {
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-
-    for (i = 0; i < nQueues; i++) {
-        pszNames[i] = pQueueParams[i].szName;
-    }
-
     /* find and initialize queues */
     pWdfDriver->pQueueParams = pQueueParams;
     status = virtio_find_queues(
         pWdfDriver->pVIODevice,
         nQueues,
-        pQueues,
-        pszNames);
+        pQueues);
     pWdfDriver->pQueueParams = NULL;
-
-    ExFreePoolWithTag((PVOID)pszNames, pWdfDriver->MemoryTag);
 
     if (NT_SUCCESS(status)) {
         /* set interrupt suppression flags */

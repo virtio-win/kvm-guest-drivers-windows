@@ -10,9 +10,6 @@ struct VirtIOBufferDescriptor {
 
 /**
  * virtqueue - a queue to register buffers for sending or receiving.
- * @list: the chain of virtqueues for this device
- * @callback: the function to call when buffers are consumed (can be NULL).
- * @name: the name of this virtqueue (mainly for debugging)
  * @vdev: the virtio device this queue was created for.
  * @priv: a pointer for the virtqueue implementation to use.
  * @index: the zero-based ordinal number for this queue.
@@ -23,9 +20,6 @@ struct VirtIOBufferDescriptor {
  * sg element.
  */
 struct virtqueue {
-    // struct list_head list;
-    // void (*callback)(struct virtqueue *vq);
-    const char *name;
     VirtIODevice *vdev;
     unsigned int index;
     unsigned int num_free;
