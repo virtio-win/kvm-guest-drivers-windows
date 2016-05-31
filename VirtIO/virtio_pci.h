@@ -256,16 +256,10 @@ struct virtio_device_ops
         unsigned long *pAllocationSize,
         unsigned long *pHeapSize);
 
-    // allocate and initialize a queue (internal helper)
+    // allocate and initialize a queue
     NTSTATUS (*setup_queue)(struct virtqueue **queue,
         VirtIODevice *vdev, VirtIOQueueInfo *info,
         unsigned idx, const char *name, u16 msix_vec);
-
-    // allocate and initialize a queue/queues
-    NTSTATUS (*find_queue)(VirtIODevice *vdev, unsigned index,
-        struct virtqueue **vq, const char *name);
-    NTSTATUS (*find_queues)(VirtIODevice *, unsigned nvqs,
-        struct virtqueue *vqs[], const char * const names[]);
 
     // tear down and deallocate a queue
     void (*delete_queue)(VirtIOQueueInfo *info);

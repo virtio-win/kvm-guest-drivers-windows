@@ -76,14 +76,6 @@ static inline bool virtio_has_feature(const VirtIODevice *vdev,
 
 /* the notify function used when creating a virt queue */
 bool vp_notify(struct virtqueue *vq);
-/* the device->find_queues() implementation */
-NTSTATUS vp_find_vqs(VirtIODevice *vdev, unsigned nvqs,
-                     struct virtqueue *vqs[],
-                     const char * const names[]);
-/* the device->find_queue() implementation */
-NTSTATUS vp_find_vq(VirtIODevice *vdev, unsigned index,
-                    struct virtqueue **vq,
-                    const char *name);
 
 int pci_find_capability(VirtIODevice *vdev, int cap);
 int pci_find_next_capability(VirtIODevice *vdev, u8 pos, int cap);

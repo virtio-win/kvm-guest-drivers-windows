@@ -286,8 +286,6 @@ static const struct virtio_device_ops virtio_pci_device_ops = {
     .set_queue_vector = vp_queue_vector,
     .query_queue_alloc = query_vq_alloc,
     .setup_queue = setup_vq,
-    .find_queue = vp_find_vq,
-    .find_queues = vp_find_vqs,
     .delete_queue = del_vq,
 };
 

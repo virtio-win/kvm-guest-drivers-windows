@@ -407,6 +407,9 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
         }
     }
 
+    /* enable the queue */
+    iowrite16(vdev, 1, &vdev->common->queue_enable);
+
     *queue = vq;
     return STATUS_SUCCESS;
 
@@ -418,50 +421,6 @@ err_map_notify:
 err_new_queue:
     mem_free_nonpaged_block(vdev, vq_addr);
     mem_free_contiguous_pages(vdev, info->queue);
-    return status;
-}
-
-static NTSTATUS vp_modern_find_vqs(VirtIODevice *vdev, unsigned nvqs,
-                                   struct virtqueue *vqs[],
-                                   const char * const names[])
-{
-    struct virtqueue *vq;
-    unsigned i;
-    NTSTATUS status;
-    
-    status = vp_find_vqs(vdev, nvqs, vqs, (const char **)names);
-
-    if (NT_SUCCESS(status)) {
-        /* Select and activate all queues. Has to be done last: once we do
-         * this, there's no way to go back except reset.
-         */
-        for (i = 0; i < nvqs; i++) {
-            if ((vq = vqs[i]) != NULL) {
-                iowrite16(vdev, (u16)vq->index, &vdev->common->queue_select);
-                iowrite16(vdev, 1, &vdev->common->queue_enable);
-            }
-        }
-    }
-
-    return status;
-}
-
-static NTSTATUS vp_modern_find_vq(VirtIODevice *vdev, unsigned index,
-                                  struct virtqueue **vq,
-                                  const char *name)
-{
-    NTSTATUS status;
-
-    status = vp_find_vq(vdev, index, vq, name);
-
-    if (NT_SUCCESS(status)) {
-        /* Select and activate the queue. Has to be done last: once we do
-         * this, there's no way to go back except reset.
-         */
-        iowrite16(vdev, (u16)index, &vdev->common->queue_select);
-        iowrite16(vdev, 1, &vdev->common->queue_enable);
-    }
-
     return status;
 }
 
@@ -501,8 +460,6 @@ static const struct virtio_device_ops virtio_pci_device_ops = {
     .set_queue_vector = vp_queue_vector,
     .query_queue_alloc = query_vq_alloc,
     .setup_queue = setup_vq,
-    .find_queue = vp_modern_find_vq,
-    .find_queues = vp_modern_find_vqs,
     .delete_queue = del_vq,
 };
 

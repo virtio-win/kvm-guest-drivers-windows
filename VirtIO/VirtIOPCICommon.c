@@ -174,61 +174,9 @@ bool vp_notify(struct virtqueue *vq)
     return true;
 }
 
-/* the device->find_queues() implementation */
-NTSTATUS vp_find_vqs(VirtIODevice *vdev, unsigned nvqs,
-                     struct virtqueue *vqs[],
-                     const char * const names[])
-{
-    const char *name;
-    unsigned i;
-    NTSTATUS status;
-    u16 msix_vec;
-
-    /* set up the config interrupt */
-    msix_vec = vdev_get_msix_vector(vdev, -1);
-
-    if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
-        msix_vec = vdev->device->set_config_vector(vdev, msix_vec);
-        /* Verify we had enough resources to assign the vector */
-        if (msix_vec == VIRTIO_MSI_NO_VECTOR) {
-            status = STATUS_DEVICE_BUSY;
-            goto error_find;
-        }
-        vdev->msix_used = 1;
-    }
-
-    /* set up queue interrupts */
-    for (i = 0; i < nvqs; i++) {
-        msix_vec = vdev_get_msix_vector(vdev, i);
-        if (names && names[i]) {
-            name = names[i];
-        } else {
-            name = "_unnamed_queue";
-        }
-        status = vp_setup_vq(
-            &vqs[i],
-            vdev,
-            i,
-            name,
-            msix_vec);
-        if (!NT_SUCCESS(status)) {
-            goto error_find;
-        }
-        if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
-            vdev->msix_used |= 1;
-        }
-    }
-    return STATUS_SUCCESS;
-
-error_find:
-    virtio_delete_queues(vdev);
-    return status;
-}
-
-/* the device->find_queue() implementation */
-NTSTATUS vp_find_vq(VirtIODevice *vdev, unsigned index,
-                    struct virtqueue **vq,
-                    const char *name)
+NTSTATUS virtio_find_queue(VirtIODevice *vdev, unsigned index,
+                           struct virtqueue **vq,
+                           const char *name)
 {
     return vp_setup_vq(
         vq,
@@ -369,31 +317,59 @@ NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS virtio_find_queue(VirtIODevice *vdev, unsigned index,
-                           struct virtqueue **vq,
-                           const char *name)
-{
-    return vdev->device->find_queue(
-        vdev,
-        index,
-        vq,
-        name);
-}
-
 NTSTATUS virtio_find_queues(VirtIODevice *vdev,
                             unsigned nvqs,
                             struct virtqueue *vqs[],
                             const char *const names[])
 {
-    NTSTATUS status = virtio_reserve_queue_memory(vdev, nvqs);
-    if (NT_SUCCESS(status))
-    {
-        status = vdev->device->find_queues(
-            vdev,
-            nvqs,
-            vqs,
-            names);
+    const char *name;
+    unsigned i;
+    NTSTATUS status;
+    u16 msix_vec;
+
+    status = virtio_reserve_queue_memory(vdev, nvqs);
+    if (!NT_SUCCESS(status)) {
+        return status;
     }
+
+    /* set up the device config interrupt */
+    msix_vec = vdev_get_msix_vector(vdev, -1);
+
+    if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
+        msix_vec = vdev->device->set_config_vector(vdev, msix_vec);
+        /* Verify we had enough resources to assign the vector */
+        if (msix_vec == VIRTIO_MSI_NO_VECTOR) {
+            status = STATUS_DEVICE_BUSY;
+            goto error_find;
+        }
+        vdev->msix_used = 1;
+    }
+
+    /* set up queue interrupts */
+    for (i = 0; i < nvqs; i++) {
+        msix_vec = vdev_get_msix_vector(vdev, i);
+        if (names && names[i]) {
+            name = names[i];
+        } else {
+            name = "_unnamed_queue";
+        }
+        status = vp_setup_vq(
+            &vqs[i],
+            vdev,
+            i,
+            name,
+            msix_vec);
+        if (!NT_SUCCESS(status)) {
+            goto error_find;
+        }
+        if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
+            vdev->msix_used |= 1;
+        }
+    }
+    return STATUS_SUCCESS;
+
+error_find:
+    virtio_delete_queues(vdev);
     return status;
 }
 
