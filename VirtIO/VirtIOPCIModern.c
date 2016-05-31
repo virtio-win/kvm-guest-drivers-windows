@@ -462,37 +462,83 @@ static const struct virtio_device_ops virtio_pci_device_ops = {
     .delete_queue = del_vq,
 };
 
-/**
- * virtio_pci_find_capability - walk capabilities to find device info.
- * @dev: the pci device
- * @cfg_type: the VIRTIO_PCI_CAP_* value we seek
- *
- * Returns offset of the capability, or 0.
- */
-static inline int virtio_pci_find_capability(VirtIODevice *vdev, u8 cfg_type)
+static u8 find_next_pci_vendor_capability(VirtIODevice *vdev, u8 offset)
 {
-    int pos;
+    u8 id = 0;
+    int iterations = 48;
 
-    for (pos = pci_find_capability(vdev, PCI_CAPABILITY_ID_VENDOR_SPECIFIC);
-        pos > 0;
-        pos = pci_find_next_capability(vdev, (u8)pos, PCI_CAPABILITY_ID_VENDOR_SPECIFIC)) {
-        u8 type, bar;
-        pci_read_config_byte(vdev, pos + offsetof(struct virtio_pci_cap,
-            cfg_type),
-            &type);
-        pci_read_config_byte(vdev, pos + offsetof(struct virtio_pci_cap,
-            bar),
-            &bar);
-        
-        /* Ignore structures with reserved BAR values */
-        if (bar > 0x5)
-            continue;
+    if (pci_read_config_byte(vdev, offset, &offset) != 0) {
+        return 0;
+    }
 
-        if (type == cfg_type) {
-            if (pci_get_resource_len(vdev, bar)) {
-                return pos;
-            }
+    while (iterations-- && offset >= 0x40) {
+        offset &= ~3;
+        if (pci_read_config_byte(vdev, offset + offsetof(PCI_CAPABILITIES_HEADER,
+                CapabilityID), &id) != 0) {
+            break;
         }
+        if (id == 0xFF) {
+            break;
+        }
+        if (id == PCI_CAPABILITY_ID_VENDOR_SPECIFIC) {
+            return offset;
+        }
+        if (pci_read_config_byte(vdev, offset + offsetof(PCI_CAPABILITIES_HEADER,
+                Next), &offset) != 0) {
+            break;
+        }
+    }
+    return 0;
+}
+
+static u8 find_first_pci_vendor_capability(VirtIODevice *vdev)
+{
+    u8 hdr_type, offset;
+    u16 status;
+
+    if (pci_read_config_byte(vdev, offsetof(PCI_COMMON_HEADER, HeaderType), &hdr_type) != 0) {
+        return 0;
+    }
+    if (pci_read_config_word(vdev, offsetof(PCI_COMMON_HEADER, Status), &status) != 0) {
+        return 0;
+    }
+    if ((status & PCI_STATUS_CAPABILITIES_LIST) == 0) {
+        return 0;
+    }
+
+    switch (hdr_type & ~PCI_MULTIFUNCTION) {
+    case PCI_BRIDGE_TYPE:
+        offset = offsetof(PCI_COMMON_HEADER, u.type1.CapabilitiesPtr);
+        break;
+    case PCI_CARDBUS_BRIDGE_TYPE:
+        offset = offsetof(PCI_COMMON_HEADER, u.type2.CapabilitiesPtr);
+        break;
+    default:
+        offset = offsetof(PCI_COMMON_HEADER, u.type0.CapabilitiesPtr);
+        break;
+    }
+
+    if (offset != 0) {
+        offset = find_next_pci_vendor_capability(vdev, offset);
+    }
+    return offset;
+}
+
+static u8 find_pci_vendor_capability(VirtIODevice *vdev, u8 capability_type)
+{
+    u8 offset = find_first_pci_vendor_capability(vdev);
+    while (offset > 0) {
+        u8 cfg_type, bar;
+        pci_read_config_byte(vdev, offset + offsetof(struct virtio_pci_cap, cfg_type), &cfg_type);
+        pci_read_config_byte(vdev, offset + offsetof(struct virtio_pci_cap, bar), &bar);
+
+        if (bar < PCI_TYPE0_ADDRESSES &&
+            cfg_type == capability_type &&
+            pci_get_resource_len(vdev, bar) > 0) {
+            return offset;
+        }
+
+        offset = find_next_pci_vendor_capability(vdev, offset + offsetof(PCI_CAPABILITIES_HEADER, Next));
     }
     return 0;
 }
@@ -506,15 +552,15 @@ NTSTATUS virtio_pci_modern_probe(VirtIODevice *vdev)
     NTSTATUS status;
 
     /* check for a common config: if not, use legacy mode (bar 0). */
-    common = virtio_pci_find_capability(vdev, VIRTIO_PCI_CAP_COMMON_CFG);
+    common = find_pci_vendor_capability(vdev, VIRTIO_PCI_CAP_COMMON_CFG);
     if (!common) {
         DPrintf(0, ("virtio_pci: %p: leaving for legacy driver\n", vdev));
         return STATUS_DEVICE_NOT_CONNECTED;
     }
 
     /* If common is there, these should be too... */
-    isr = virtio_pci_find_capability(vdev, VIRTIO_PCI_CAP_ISR_CFG);
-    notify = virtio_pci_find_capability(vdev, VIRTIO_PCI_CAP_NOTIFY_CFG);
+    isr = find_pci_vendor_capability(vdev, VIRTIO_PCI_CAP_ISR_CFG);
+    notify = find_pci_vendor_capability(vdev, VIRTIO_PCI_CAP_NOTIFY_CFG);
     if (!isr || !notify) {
         DPrintf(0, ("virtio_pci: %p: missing capabilities %i/%i/%i\n",
             vdev, common, isr, notify));
@@ -524,7 +570,7 @@ NTSTATUS virtio_pci_modern_probe(VirtIODevice *vdev)
     /* Device capability is only mandatory for devices that have
      * device-specific configuration.
      */
-    config = virtio_pci_find_capability(vdev, VIRTIO_PCI_CAP_DEVICE_CFG);
+    config = find_pci_vendor_capability(vdev, VIRTIO_PCI_CAP_DEVICE_CFG);
 
     status = STATUS_INVALID_PARAMETER;
     vdev->common = map_capability(vdev, common,
