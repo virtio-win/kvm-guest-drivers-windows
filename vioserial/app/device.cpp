@@ -232,7 +232,7 @@ BOOL CDevice::GetInfo(PVOID buf, size_t *size)
     PVOID   pBuffer = NULL;
     DWORD   err;
 
-    printf ("%s, buf = %p, size = %d\n", __FUNCTION__, buf, *size);
+    printf ("%s, buf = %p, size = %zd\n", __FUNCTION__, buf, *size);
     res = DeviceIoControl(
                              m_hDevice,
                              IOCTL_GET_INFORMATION,
