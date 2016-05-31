@@ -152,12 +152,11 @@ u16 virtio_set_queue_vector(struct virtqueue *vq, u16 vector)
 
 static NTSTATUS vp_setup_vq(struct virtqueue **queue,
                             VirtIODevice *vdev, unsigned index,
-                            const char *name,
                             u16 msix_vec)
 {
     VirtIOQueueInfo *info = &vdev->info[index];
 
-    NTSTATUS status = vdev->device->setup_queue(queue, vdev, info, index, name, msix_vec);
+    NTSTATUS status = vdev->device->setup_queue(queue, vdev, info, index, msix_vec);
     if (NT_SUCCESS(status)) {
         info->vq = *queue;
     }
@@ -175,14 +174,12 @@ bool vp_notify(struct virtqueue *vq)
 }
 
 NTSTATUS virtio_find_queue(VirtIODevice *vdev, unsigned index,
-                           struct virtqueue **vq,
-                           const char *name)
+                           struct virtqueue **vq)
 {
     return vp_setup_vq(
         vq,
         vdev,
         index,
-        name,
         VIRTIO_MSI_NO_VECTOR);
 }
 
@@ -319,10 +316,8 @@ NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs)
 
 NTSTATUS virtio_find_queues(VirtIODevice *vdev,
                             unsigned nvqs,
-                            struct virtqueue *vqs[],
-                            const char *const names[])
+                            struct virtqueue *vqs[])
 {
-    const char *name;
     unsigned i;
     NTSTATUS status;
     u16 msix_vec;
@@ -348,16 +343,10 @@ NTSTATUS virtio_find_queues(VirtIODevice *vdev,
     /* set up queue interrupts */
     for (i = 0; i < nvqs; i++) {
         msix_vec = vdev_get_msix_vector(vdev, i);
-        if (names && names[i]) {
-            name = names[i];
-        } else {
-            name = "_unnamed_queue";
-        }
         status = vp_setup_vq(
             &vqs[i],
             vdev,
             i,
-            name,
             msix_vec);
         if (!NT_SUCCESS(status)) {
             goto error_find;

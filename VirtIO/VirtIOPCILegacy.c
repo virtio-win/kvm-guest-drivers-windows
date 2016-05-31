@@ -164,7 +164,6 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
                          VirtIODevice *vdev,
                          VirtIOQueueInfo *info,
                          unsigned index,
-                         const char *name,
                          u16 msix_vec)
 {
     struct virtqueue *vq;
@@ -191,7 +190,7 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
     /* create the vring */
     vq = vring_new_virtqueue(index, info->num,
         VIRTIO_PCI_VRING_ALIGN, vdev,
-        true, info->queue, vp_notify, (u8 *)info->queue + ring_size, name);
+        true, info->queue, vp_notify, (u8 *)info->queue + ring_size);
     if (!vq) {
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto out_activate_queue;

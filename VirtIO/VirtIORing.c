@@ -105,9 +105,7 @@ static void initialize_virtqueue(struct vring_virtqueue* vq,
                                  VirtIODevice *vdev,
                                  bool event,
                                  void *pages,
-                                 void (*notify)(struct virtqueue *),
-                                 // void (*callback)(struct virtqueue *),
-                                 const char *name);
+                                 void (*notify)(struct virtqueue *));
 
 
 //#define to_vvq(_vq) container_of(_vq, struct vring_virtqueue, vq)
@@ -471,11 +469,10 @@ void virtqueue_shutdown(struct virtqueue *_vq)
     VirtIODevice *vdev = vq->vq.vdev;
     bool event = vq->event;
     void (*notify)(struct virtqueue *) = vq->notify;
-    const char* name = vq->vq.name;
     unsigned int vring_align = vdev->addr ? PAGE_SIZE : SMP_CACHE_BYTES;
 
     memset(pages, 0, vring_size(num, vring_align));
-    initialize_virtqueue(vq, index, num, vring_align, vdev, event, pages, notify, name);
+    initialize_virtqueue(vq, index, num, vring_align, vdev, event, pages, notify);
 }
 
 /**
@@ -597,15 +594,13 @@ void initialize_virtqueue(struct vring_virtqueue* vq,
                           VirtIODevice *vdev,
                           bool event,
                           void *pages,
-                          void (*notify)(struct virtqueue *),
-                          const char *name)
+                          void (*notify)(struct virtqueue *))
 {
     unsigned short i = (unsigned short) num;
     memset(vq, 0, sizeof(*vq) + sizeof(void *)*num);
 
     vring_init(&vq->vring, num, pages, vring_align);
     vq->vq.vdev = vdev;
-    vq->vq.name = name;
     vq->notify = notify;
     vq->broken = 0;
     vq->vq.index = index;
@@ -635,8 +630,7 @@ struct virtqueue *vring_new_virtqueue(unsigned int index,
                                       bool event,
                                       void *pages,
                                       void (*notify)(struct virtqueue *),
-                                      void *control,
-                                      const char *name)
+                                      void *control)
 {
     struct vring_virtqueue *vq;
 
@@ -650,7 +644,7 @@ struct virtqueue *vring_new_virtqueue(unsigned int index,
     if (!vq)
         return NULL;
 
-    initialize_virtqueue(vq, index, num, vring_align, vdev, event, pages, notify, name);
+    initialize_virtqueue(vq, index, num, vring_align, vdev, event, pages, notify);
 
     return &vq->vq;
 }

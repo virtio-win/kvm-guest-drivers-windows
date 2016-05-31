@@ -370,16 +370,14 @@ VIOSerialInitAllQueues(
         params[i * 2 + 1].bEnableInterruptSuppression = false;
         if (i == 1)
         {
-            params[2].szName = "control receiveq";
+            // control queues
             params[2].Interrupt = pContext->WdfInterrupt;
-            params[3].szName = "control transmitq";
             params[3].Interrupt = pContext->WdfInterrupt;
         }
         else
         {
-            params[i * 2].szName = "receiveq";
+            // port queues
             params[i * 2].Interrupt = pContext->QueuesInterrupt;
-            params[i * 2 + 1].szName = "transmitq";
             params[i * 2 + 1].Interrupt = pContext->QueuesInterrupt;
         }
     }

@@ -259,7 +259,7 @@ struct virtio_device_ops
     // allocate and initialize a queue
     NTSTATUS (*setup_queue)(struct virtqueue **queue,
         VirtIODevice *vdev, VirtIOQueueInfo *info,
-        unsigned idx, const char *name, u16 msix_vec);
+        unsigned idx, u16 msix_vec);
 
     // tear down and deallocate a queue
     void (*delete_queue)(VirtIOQueueInfo *info);
@@ -350,12 +350,10 @@ NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev,
 NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs);
 
 NTSTATUS virtio_find_queue(VirtIODevice *vdev, unsigned index,
-                           struct virtqueue **vq,
-                           const char *name);
+                           struct virtqueue **vq);
 NTSTATUS virtio_find_queues(VirtIODevice *vdev,
                             unsigned nvqs,
-                            struct virtqueue *vqs[],
-                            const char *const names[]);
+                            struct virtqueue *vqs[]);
 
 void virtio_delete_queue(struct virtqueue *vq);
 void virtio_delete_queues(VirtIODevice *vdev);
