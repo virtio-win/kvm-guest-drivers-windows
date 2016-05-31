@@ -33,9 +33,6 @@
 #define WARN_ON(a)
 #define BUG() ASSERT(0)
 
-#define BUILD_BUG_ON(condition) \
-    static_assert(!(condition), "Compile-time assumption failed")
-
 #if !defined(__cplusplus) && !defined(bool)
 #define bool int
 #define false FALSE
