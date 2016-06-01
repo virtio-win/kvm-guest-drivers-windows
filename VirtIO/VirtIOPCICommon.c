@@ -183,8 +183,7 @@ void virtio_device_shutdown(VirtIODevice *pVirtIODevice)
 {
     if (pVirtIODevice->addr) {
         virtio_pci_legacy_remove(pVirtIODevice);
-    }
-    else {
+    } else {
         virtio_pci_modern_remove(pVirtIODevice);
     }
 
@@ -286,13 +285,11 @@ int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA)
             /* I/O space */
             BAR.LowPart &= 0xFFFFFFFC;
             BAR.HighPart = 0;
-        }
-        else if ((BAR.LowPart & 0x06) == 0x04) {
+        } else if ((BAR.LowPart & 0x06) == 0x04) {
             /* memory space 64-bit */
             BAR.LowPart &= 0xFFFFFFF0;
             BAR.HighPart = pPCIHeader->u.type0.BaseAddresses[++i];
-        }
-        else {
+        } else {
             /* memory space 32-bit */
             BAR.LowPart &= 0xFFFFFFF0;
             BAR.HighPart = 0;
@@ -304,7 +301,6 @@ int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA)
     }
     return -1;
 }
-
 
 /* Read @count fields, @bytes each. */
 static void virtio_cread_many(VirtIODevice *vdev,
@@ -318,9 +314,10 @@ static void virtio_cread_many(VirtIODevice *vdev,
     do {
         old = gen;
 
-        for (i = 0; i < count; i++)
+        for (i = 0; i < count; i++) {
             vdev->device->get_config(vdev, (unsigned)(offset + bytes * i),
                 (char *)buf + i * bytes, (unsigned)bytes);
+        }
 
         gen = vdev->device->get_config_generation ?
             vdev->device->get_config_generation(vdev) : 0;
@@ -333,9 +330,10 @@ static void virtio_cwrite_many(VirtIODevice *vdev,
     void *buf, size_t count, size_t bytes)
 {
     size_t i;
-    for (i = 0; i < count; i++)
+    for (i = 0; i < count; i++) {
         vdev->device->set_config(vdev, (unsigned)(offset + bytes * i),
             (char *)buf + i * bytes, (unsigned)bytes);
+    }
 }
 
 /* Config space accessors. */

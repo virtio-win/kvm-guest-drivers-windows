@@ -95,8 +95,9 @@ static void VirtIODeviceGet(VirtIODevice * pVirtIODevice,
 
     DPrintf(5, ("%s\n", __FUNCTION__));
 
-    for (i = 0; i < len; i++)
+    for (i = 0; i < len; i++) {
         ptr[i] = ioread8(pVirtIODevice, ioaddr + i);
+    }
 }
 
 static void VirtIODeviceSet(VirtIODevice * pVirtIODevice,
@@ -110,8 +111,9 @@ static void VirtIODeviceSet(VirtIODevice * pVirtIODevice,
 
     DPrintf(5, ("%s\n", __FUNCTION__));
 
-    for (i = 0; i < len; i++)
+    for (i = 0; i < len; i++) {
         iowrite8(pVirtIODevice, ptr[i], ioaddr + i);
+    }
 }
 
 u32 VirtIODeviceGetQueueSize(struct virtqueue *vq)
@@ -147,8 +149,9 @@ static NTSTATUS query_vq_alloc(VirtIODevice *vdev,
 
     /* Check if queue is either not available or already active. */
     num = ioread16(vdev, vdev->addr + VIRTIO_PCI_QUEUE_NUM);
-    if (!num || ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_PFN))
+    if (!num || ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_PFN)) {
         return STATUS_NOT_FOUND;
+    }
 
     ring_size = ROUND_TO_PAGES(vring_size(num, VIRTIO_PCI_VRING_ALIGN));
     data_size = ROUND_TO_PAGES(sizeof(void *) * num + vring_control_block_size());
@@ -221,7 +224,6 @@ static void del_vq(VirtIOQueueInfo *info)
 {
     struct virtqueue *vq = info->vq;
     VirtIODevice *vdev = vq->vdev;
-    unsigned long size;
 
     iowrite16(vdev, (u16)vq->index, vdev->addr + VIRTIO_PCI_QUEUE_SEL);
 
@@ -235,7 +237,6 @@ static void del_vq(VirtIOQueueInfo *info)
     /* Select and deactivate the queue */
     iowrite32(vdev, 0, vdev->addr + VIRTIO_PCI_QUEUE_PFN);
 
-    size = ROUND_TO_PAGES(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN));
     mem_free_contiguous_pages(vdev, info->queue);
 }
 
@@ -294,8 +295,9 @@ NTSTATUS virtio_pci_legacy_probe(VirtIODevice *vdev)
     size_t length = pci_get_resource_len(vdev, 0);
     vdev->addr = (ULONG_PTR)pci_map_address_range(vdev, 0, 0, length);
 
-    if (!vdev->addr)
+    if (!vdev->addr) {
         return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     vdev->isr = (u8 *)vdev->addr + VIRTIO_PCI_ISR;
 
