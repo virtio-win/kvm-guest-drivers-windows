@@ -558,6 +558,7 @@
     <ClCompile Include="Common\ParaNdis-Oid.cpp" />
     <ClCompile Include="Common\ParaNdis-RX.cpp" />
     <ClCompile Include="Common\ParaNdis-TX.cpp" />
+    <ClInclude Include="Common\ParaNdis-SM.h" />
     <ClCompile Include="Common\ParaNdis-Util.cpp" />
     <ClCompile Include="Common\ParaNdis-VirtIO.cpp" />
     <ClCompile Include="Common\ParaNdis-VirtQueue.cpp" />

@@ -131,6 +131,9 @@
     <ClCompile Include="Common\ParaNdis-TX.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
+    <ClInclude Include="Common\ParaNdis-SM.h">
+      <Filter>Source Files\Common</Filter>
+    </ClInclude>
     <ClCompile Include="Common\ParaNdis-Util.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>

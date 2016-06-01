@@ -757,7 +757,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
         }
     }
 
-    NdisInitializeEvent(&pContext->ResetEvent);
     DEBUG_EXIT_STATUS(0, status);
     return status;
 }
@@ -1233,7 +1232,6 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     free all the buffers and their descriptors
     *****************************************/
 
-    ParaNdis_SetPowerState(pContext, NdisDeviceStateD3);
     ParaNdis_SetLinkState(pContext, MediaConnectStateUnknown);
     VirtIONetRelease(pContext);
 
