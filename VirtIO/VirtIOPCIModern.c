@@ -48,8 +48,7 @@ static void *map_capability(VirtIODevice *dev, int off,
     u32 offset, length;
     void *p;
 
-    pci_read_config_byte(dev, off + offsetof(struct virtio_pci_cap,
-                                             bar),
+    pci_read_config_byte(dev, off + offsetof(struct virtio_pci_cap, bar),
                          &bar);
     pci_read_config_dword(dev, off + offsetof(struct virtio_pci_cap, offset),
                           &offset);
@@ -80,11 +79,13 @@ static void *map_capability(VirtIODevice *dev, int off,
         return NULL;
     }
 
-    if (length > size)
+    if (length > size) {
         length = size;
+    }
 
-    if (len)
+    if (len) {
         *len = length;
+    }
 
     if (minlen + offset < minlen ||
         minlen + offset > pci_get_resource_len(dev, bar)) {
@@ -95,8 +96,9 @@ static void *map_capability(VirtIODevice *dev, int off,
     }
 
     p = pci_map_address_range(dev, bar, offset, length);
-    if (!p)
+    if (!p) {
         DPrintf(0, ("virtio_pci: unable to map virtio %u@%u on bar %i\n", length, offset, bar));
+    }
     return p;
 }
 
@@ -276,12 +278,14 @@ static void *alloc_virtqueue_pages(VirtIODevice *vdev, u16 *num)
     /* TODO: allocate each queue chunk individually */
     for (; *num && vring_pci_size(*num) > PAGE_SIZE; *num /= 2) {
         pages = mem_alloc_contiguous_pages(vdev, vring_pci_size(*num));
-        if (pages)
+        if (pages) {
             return pages;
+        }
     }
     
-    if (!*num)
+    if (!*num) {
         return NULL;
+    }
     
     /* Try to get a single page. You are my only hope! */
     return mem_alloc_contiguous_pages(vdev, vring_pci_size(*num));
@@ -296,8 +300,9 @@ static NTSTATUS query_vq_alloc(VirtIODevice *vdev,
     struct virtio_pci_common_cfg *cfg = vdev->common;
     u16 num;
 
-    if (index >= ioread16(vdev, &cfg->num_queues))
+    if (index >= ioread16(vdev, &cfg->num_queues)) {
         return STATUS_NOT_FOUND;
+    }
 
     /* Select the queue we're interested in */
     iowrite16(vdev, (u16)index, &cfg->queue_select);
@@ -307,8 +312,9 @@ static NTSTATUS query_vq_alloc(VirtIODevice *vdev,
     /* QEMU has a bug where queues don't revert to inactive on device
      * reset. Skip checking the queue_enable field until it is fixed.
      */
-    if (!num /*|| ioread16(vdev, &cfg->queue_enable)*/)
+    if (!num /*|| ioread16(vdev, &cfg->queue_enable)*/) {
         return STATUS_NOT_FOUND;
+    }
 
     if (num & (num - 1)) {
         DPrintf(0, ("%p: bad queue size %u", vdev, num));
@@ -345,12 +351,14 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
     off = ioread16(vdev, &cfg->queue_notify_off);
 
     info->queue = alloc_virtqueue_pages(vdev, &info->num);
-    if (info->queue == NULL)
+    if (info->queue == NULL) {
         return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     vq_addr = mem_alloc_nonpaged_block(vdev, heap_size);
-    if (vq_addr == NULL)
+    if (vq_addr == NULL) {
         return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     /* create the vring */
     vq = vring_new_virtqueue(index, info->num,
@@ -385,8 +393,7 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
         }
         vq->priv = (void *)(vdev->notify_base +
             off * vdev->notify_offset_multiplier);
-    }
-    else {
+    } else {
         vq->priv = (void *)map_capability(vdev,
             vdev->notify_map_cap, 2, 2,
             off * vdev->notify_offset_multiplier, 2,
@@ -413,8 +420,9 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
     return STATUS_SUCCESS;
 
 err_assign_vector:
-    if (!vdev->notify_base)
+    if (!vdev->notify_base) {
         pci_unmap_address_range(vdev, (void *)vq->priv);
+    }
 err_map_notify:
     virtqueue_shutdown(vq);
 err_new_queue:
@@ -437,8 +445,9 @@ static void del_vq(VirtIOQueueInfo *info)
         ioread16(vdev, &vdev->common->queue_msix_vector);
     }
 
-    if (!vdev->notify_base)
+    if (!vdev->notify_base) {
         pci_unmap_address_range(vdev, (void *)vq->priv);
+    }
 
     virtqueue_shutdown(vq);
 
@@ -577,13 +586,15 @@ NTSTATUS virtio_pci_modern_probe(VirtIODevice *vdev)
         sizeof(struct virtio_pci_common_cfg), 4,
         0, sizeof(struct virtio_pci_common_cfg),
         NULL);
-    if (!vdev->common)
+    if (!vdev->common) {
         goto err_map_common;
+    }
     vdev->isr = map_capability(vdev, isr, sizeof(u8), 1,
         0, 1,
         NULL);
-    if (!vdev->isr)
+    if (!vdev->isr) {
         goto err_map_isr;
+    }
 
     /* Read notify_off_multiplier from config space. */
     pci_read_config_dword(vdev,
@@ -609,10 +620,10 @@ NTSTATUS virtio_pci_modern_probe(VirtIODevice *vdev)
         vdev->notify_base = map_capability(vdev, notify, 2, 2,
             0, notify_length,
             &vdev->notify_len);
-        if (!vdev->notify_base)
+        if (!vdev->notify_base) {
             goto err_map_notify;
-    }
-    else {
+        }
+    } else {
         vdev->notify_map_cap = notify;
     }
 
@@ -623,9 +634,9 @@ NTSTATUS virtio_pci_modern_probe(VirtIODevice *vdev)
         vdev->config = map_capability(vdev, config, 0, 4,
             0, PAGE_SIZE,
             &vdev->config_len);
-        if (!vdev->config)
+        if (!vdev->config) {
             goto err_map_config;
-
+        }
     }
 
     vdev->device = &virtio_pci_device_ops;
@@ -633,8 +644,9 @@ NTSTATUS virtio_pci_modern_probe(VirtIODevice *vdev)
     return STATUS_SUCCESS;
 
 err_map_config:
-    if (vdev->notify_base)
+    if (vdev->notify_base) {
         pci_unmap_address_range(vdev, (void *)vdev->notify_base);
+    }
 err_map_notify:
     pci_unmap_address_range(vdev, vdev->isr);
 err_map_isr:
@@ -645,10 +657,12 @@ err_map_common:
 
 void virtio_pci_modern_remove(VirtIODevice *vdev)
 {
-    if (vdev->config)
+    if (vdev->config) {
         pci_unmap_address_range(vdev, vdev->config);
-    if (vdev->notify_base)
+    }
+    if (vdev->notify_base) {
         pci_unmap_address_range(vdev, (void *)vdev->notify_base);
+    }
     pci_unmap_address_range(vdev, vdev->isr);
     pci_unmap_address_range(vdev, vdev->common);
 }
