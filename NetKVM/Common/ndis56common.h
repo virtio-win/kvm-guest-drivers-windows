@@ -99,7 +99,7 @@ typedef struct _tagPARANDIS_RECEIVE_QUEUE
 
 #include "ParaNdis-VirtIO.h"
 
-struct CPUPathesBundle : public CNdisAllocatable<CPUPathesBundle, 'CPPB'> {
+struct CPUPathesBundle : public CPlacementAllocatable {
     CParaNdisRX rxPath;
     bool        rxCreated = false;
 
@@ -330,7 +330,6 @@ typedef struct _tagPARANDIS_ADAPTER
     NDIS_HANDLE             MiniportHandle;
     NDIS_HANDLE             InterruptHandle;
     NDIS_HANDLE             BufferListsPool;
-    NDIS_EVENT              ResetEvent;
 
     CPciResources           PciResources;
     VirtIODevice            IODevice;

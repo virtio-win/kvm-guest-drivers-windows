@@ -562,7 +562,8 @@ void ParaNdis_PrintCharArray(int DebugPrintLevel, const CCHAR *data, size_t leng
 static inline
 ULONG ParaNdis_CountNBLs(PNET_BUFFER_LIST NBL)
 {
-    for (auto Result = 0UL; NBL != nullptr;
+	ULONG Result;
+    for (Result = 0UL; NBL != nullptr;
         NBL = NET_BUFFER_LIST_NEXT_NBL(NBL), Result++);
 
     return Result;
