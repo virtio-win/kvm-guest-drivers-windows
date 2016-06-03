@@ -81,6 +81,12 @@ struct vring_virtqueue
     /* Last used index we've seen. */
     u16 last_used_idx;
 
+    /* Last written value to avail->flags */
+    u16 avail_flags_shadow;
+
+    /* Last written value to avail->idx in guest byte order */
+    u16 avail_idx_shadow;
+
     /* How to notify other side. FIXME: commonalize hcalls! */
     void (*notify)(struct virtqueue *vq);
 
@@ -257,13 +263,14 @@ add_head:
 
     /* Put entry in available array (but don't update avail->idx until they
      * do sync). */
-    avail = (vq->vring.avail->idx & (vq->vring.num-1));
+    avail = vq->avail_idx_shadow & (vq->vring.num - 1);
     vq->vring.avail->ring[avail] = (u16) head;
 
     /* Descriptors and available array need to be set before we expose the
      * new available array entries. */
     virtio_wmb(vq);
-    vq->vring.avail->idx++;
+    vq->avail_idx_shadow++;
+    vq->vring.avail->idx = vq->avail_idx_shadow;
     vq->num_added++;
 
     /* This is very unlikely, but theoretically possible.  Kick
@@ -299,8 +306,8 @@ bool virtqueue_kick_prepare(struct virtqueue *_vq)
      * event. */
     virtio_mb(vq);
 
-    old = (u16) (vq->vring.avail->idx - vq->num_added);
-    new = vq->vring.avail->idx;
+    old = (u16) (vq->avail_idx_shadow - vq->num_added);
+    new = vq->avail_idx_shadow;
     vq->num_added = 0;
 
 #ifdef DEBUG
@@ -421,7 +428,10 @@ bool virtqueue_enable_cb(struct virtqueue *_vq)
     /* Depending on the VIRTIO_RING_F_EVENT_IDX feature, we need to
      * either clear the flags bit or point the event index at the next
      * entry. Always do both to keep code simple. */
-    vq->vring.avail->flags &= ~VRING_AVAIL_F_NO_INTERRUPT;
+    if (vq->avail_flags_shadow & VRING_AVAIL_F_NO_INTERRUPT) {
+        vq->avail_flags_shadow &= ~VRING_AVAIL_F_NO_INTERRUPT;
+        vq->vring.avail->flags = vq->avail_flags_shadow;
+    }
     vring_used_event(&vq->vring) = vq->last_used_idx;
     virtio_mb(vq);
     if (unlikely(more_used(vq))) {
@@ -446,13 +456,16 @@ void virtqueue_disable_cb(struct virtqueue *_vq)
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
 
-    vq->vring.avail->flags |= VRING_AVAIL_F_NO_INTERRUPT;
+    if (!(vq->avail_flags_shadow & VRING_AVAIL_F_NO_INTERRUPT)) {
+        vq->avail_flags_shadow |= VRING_AVAIL_F_NO_INTERRUPT;
+        vq->vring.avail->flags = vq->avail_flags_shadow;
+    }
 }
 
 BOOLEAN virtqueue_is_interrupt_enabled(struct virtqueue *_vq)
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
-    return (vq->vring.avail->flags & VRING_AVAIL_F_NO_INTERRUPT) ? FALSE : TRUE;
+    return (vq->avail_flags_shadow & VRING_AVAIL_F_NO_INTERRUPT) ? FALSE : TRUE;
 }
 
 /*
@@ -534,7 +547,7 @@ void *virtqueue_get_buf(struct virtqueue *_vq, unsigned int *len)
     /* If we expect an interrupt for the next entry, tell host
      * by writing event index and flush out the write before
      * the read in the next get_buf call. */
-    if (!(vq->vring.avail->flags & VRING_AVAIL_F_NO_INTERRUPT)) {
+    if (!(vq->avail_flags_shadow & VRING_AVAIL_F_NO_INTERRUPT)) {
         vring_used_event(&vq->vring) = vq->last_used_idx;
         virtio_mb(vq);
     }
@@ -572,9 +585,12 @@ bool virtqueue_enable_cb_delayed(struct virtqueue *_vq)
     /* Depending on the VIRTIO_RING_F_USED_EVENT_IDX feature, we need to
      * either clear the flags bit or point the event index at the next
      * entry. Always do both to keep code simple. */
-    vq->vring.avail->flags &= ~VRING_AVAIL_F_NO_INTERRUPT;
+    if (vq->avail_flags_shadow & VRING_AVAIL_F_NO_INTERRUPT) {
+        vq->avail_flags_shadow &= ~VRING_AVAIL_F_NO_INTERRUPT;
+        vq->vring.avail->flags = vq->avail_flags_shadow;
+    }
     /* TODO: tune this threshold */
-    bufs = (u16)(vq->vring.avail->idx - vq->last_used_idx) * 3 / 4;
+    bufs = (u16)(vq->avail_idx_shadow - vq->last_used_idx) * 3 / 4;
     vring_used_event(&vq->vring) = vq->last_used_idx + bufs;
     virtio_mb(vq);
     if (unlikely((u16)(vq->vring.used->idx - vq->last_used_idx) > bufs)) {
@@ -605,6 +621,8 @@ void initialize_virtqueue(struct vring_virtqueue* vq,
     vq->broken = 0;
     vq->vq.index = index;
     vq->last_used_idx = 0;
+    vq->avail_flags_shadow = 0;
+    vq->avail_idx_shadow = 0;
     vq->num_added = 0;
 #ifdef DEBUG
     vq->in_use = 0;
@@ -671,7 +689,8 @@ void *virtqueue_detach_unused_buf(struct virtqueue *_vq)
         /* detach_buf clears data, so grab it now. */
         buf = vq->data[i];
         detach_buf(vq, i);
-        vq->vring.avail->idx--;
+        vq->avail_idx_shadow--;
+        vq->vring.avail->idx = vq->avail_idx_shadow;
         END_USE(vq);
         return buf;
     }
