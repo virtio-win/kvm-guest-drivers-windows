@@ -927,10 +927,16 @@ VioScsiInterrupt(
     intReason = virtio_read_isr_status(&adaptExt->vdev);
 
     if (intReason == 1 || adaptExt->dump_mode) {
+        struct virtqueue *vq = adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0];
         isInterruptServiced = TRUE;
-        while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0], &len)) != NULL) {
-           HandleResponse(DeviceExtension, cmd);
-        }
+
+        virtqueue_disable_cb(vq);
+        do {
+            while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(vq, &len)) != NULL) {
+                HandleResponse(DeviceExtension, cmd);
+            }
+        } while (!virtqueue_enable_cb(vq));
+
         if (adaptExt->tmf_infly) {
            while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE], &len)) != NULL) {
               VirtIOSCSICtrlTMFResp *resp;
@@ -992,6 +998,11 @@ VioScsiMSInterrupt (
     RhelDbgPrint(TRACE_LEVEL_VERBOSE,
                  ("<--->%s : MessageID 0x%x\n", __FUNCTION__, MessageID));
 
+    if (MessageID > 2)
+    {
+        DispatchQueue(DeviceExtension, MessageID);
+        return TRUE;
+    }
     if (MessageID == 0)
     {
        return TRUE;
@@ -1039,11 +1050,6 @@ VioScsiMSInterrupt (
            }
            SynchronizedKickEventRoutine(DeviceExtension, evtNode);
         }
-        return TRUE;
-    }
-    if (MessageID > 2)
-    {
-        DispatchQueue(DeviceExtension, MessageID);
         return TRUE;
     }
     return FALSE;
@@ -1259,40 +1265,46 @@ ProcessQueue(
     PADAPTER_EXTENSION  adaptExt;
     ULONG               msg = MessageID - 3;
     STOR_LOCK_HANDLE    queueLock = { 0 };
+    struct virtqueue    *vq;
 #if (NTDDI_VERSION > NTDDI_WIN7)
     UCHAR               cnt = 0;
 #endif
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 ENTER_FN();
 
+    vq = adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + msg];
+
     VioScsiVQLock(DeviceExtension, MessageID, &queueLock, isr);
 
-    while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + msg], &len)) != NULL)
-    {
-
-        if (adaptExt->num_queues == 1) {
-           HandleResponse(DeviceExtension, cmd);
-        }
-        else {
+    virtqueue_disable_cb(vq);
+    do {
+        while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(vq, &len)) != NULL) {
+            if (adaptExt->num_queues == 1) {
+                HandleResponse(DeviceExtension, cmd);
+            }
+            else {
 #if (NTDDI_VERSION > NTDDI_WIN7)
-        PSRB_TYPE Srb = (PSRB_TYPE)(cmd->srb);
-        PSRB_EXTENSION srbExt = SRB_EXTENSION(Srb);
-        ULONG status = STOR_STATUS_SUCCESS;
-        PSTOR_SLIST_ENTRY Result = NULL;
-        VioScsiVQUnlock(DeviceExtension, MessageID, &queueLock, isr);
-        srbExt->priv = (PVOID)cmd;
-        status = StorPortInterlockedPushEntrySList(DeviceExtension, &adaptExt->srb_list[msg], &srbExt->list_entry, &Result);
-        if (status != STOR_STATUS_SUCCESS) {
-           RhelDbgPrint(TRACE_LEVEL_FATAL, ("StorPortInterlockedPushEntrySList failed with status 0x%x\n\n", status));
-        }
-        cnt++;
-        VioScsiVQLock(DeviceExtension, MessageID, &queueLock, isr);
+                PSRB_TYPE Srb = (PSRB_TYPE)(cmd->srb);
+                PSRB_EXTENSION srbExt = SRB_EXTENSION(Srb);
+                ULONG status = STOR_STATUS_SUCCESS;
+                PSTOR_SLIST_ENTRY Result = NULL;
+                VioScsiVQUnlock(DeviceExtension, MessageID, &queueLock, isr);
+                srbExt->priv = (PVOID)cmd;
+                status = StorPortInterlockedPushEntrySList(DeviceExtension, &adaptExt->srb_list[msg], &srbExt->list_entry, &Result);
+                if (status != STOR_STATUS_SUCCESS) {
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("StorPortInterlockedPushEntrySList failed with status 0x%x\n\n", status));
+                }
+                cnt++;
+                VioScsiVQLock(DeviceExtension, MessageID, &queueLock, isr);
 #else
-        NT_ASSERT(0);
+                NT_ASSERT(0);
 #endif
+            }
         }
-    }
+    } while (!virtqueue_enable_cb(vq));
+
     VioScsiVQUnlock(DeviceExtension, MessageID, &queueLock, isr);
+
 #if (NTDDI_VERSION > NTDDI_WIN7)
     if (cnt) {
        ULONG status = STOR_STATUS_SUCCESS;
