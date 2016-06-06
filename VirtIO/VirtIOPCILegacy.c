@@ -273,6 +273,11 @@ static u16 vp_queue_vector(struct virtqueue *vq, u16 vector)
     return ioread16(vdev, vdev->addr + VIRTIO_MSI_QUEUE_VECTOR);
 }
 
+static void vio_legacy_release(VirtIODevice *vdev)
+{
+    pci_unmap_address_range(vdev, (void *)vdev->addr);
+}
+
 static const struct virtio_device_ops virtio_pci_device_ops = {
     .get_config = VirtIODeviceGet,
     .set_config = VirtIODeviceSet,
@@ -287,10 +292,11 @@ static const struct virtio_device_ops virtio_pci_device_ops = {
     .query_queue_alloc = query_vq_alloc,
     .setup_queue = setup_vq,
     .delete_queue = del_vq,
+    .release = vio_legacy_release,
 };
 
-/* the PCI probing function */
-NTSTATUS virtio_pci_legacy_probe(VirtIODevice *vdev)
+/* Legacy device initialization */
+NTSTATUS vio_legacy_initialize(VirtIODevice *vdev)
 {
     size_t length = pci_get_resource_len(vdev, 0);
     vdev->addr = (ULONG_PTR)pci_map_address_range(vdev, 0, 0, length);
@@ -304,9 +310,4 @@ NTSTATUS virtio_pci_legacy_probe(VirtIODevice *vdev)
     vdev->device = &virtio_pci_device_ops;
 
     return STATUS_SUCCESS;
-}
-
-void virtio_pci_legacy_remove(VirtIODevice *vdev)
-{
-    pci_unmap_address_range(vdev, (void *)vdev->addr);
 }

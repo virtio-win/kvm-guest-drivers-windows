@@ -455,6 +455,18 @@ static void del_vq(VirtIOQueueInfo *info)
     mem_free_contiguous_pages(vdev, info->queue);
 }
 
+static void vio_modern_release(VirtIODevice *vdev)
+{
+    if (vdev->config) {
+        pci_unmap_address_range(vdev, vdev->config);
+    }
+    if (vdev->notify_base) {
+        pci_unmap_address_range(vdev, (void *)vdev->notify_base);
+    }
+    pci_unmap_address_range(vdev, vdev->isr);
+    pci_unmap_address_range(vdev, vdev->common);
+}
+
 static const struct virtio_device_ops virtio_pci_device_ops = {
     .get_config = vp_get,
     .set_config = vp_set,
@@ -469,6 +481,7 @@ static const struct virtio_device_ops virtio_pci_device_ops = {
     .query_queue_alloc = query_vq_alloc,
     .setup_queue = setup_vq,
     .delete_queue = del_vq,
+    .release = vio_modern_release,
 };
 
 static u8 find_next_pci_vendor_capability(VirtIODevice *vdev, u8 offset)
@@ -552,8 +565,8 @@ static u8 find_pci_vendor_capability(VirtIODevice *vdev, u8 capability_type)
     return 0;
 }
 
-/* the PCI probing function */
-NTSTATUS virtio_pci_modern_probe(VirtIODevice *vdev)
+/* Modern device initialization */
+NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
 {
     int common, isr, notify, config;
     u32 notify_length;
@@ -653,16 +666,4 @@ err_map_isr:
     pci_unmap_address_range(vdev, vdev->common);
 err_map_common:
     return status;
-}
-
-void virtio_pci_modern_remove(VirtIODevice *vdev)
-{
-    if (vdev->config) {
-        pci_unmap_address_range(vdev, vdev->config);
-    }
-    if (vdev->notify_base) {
-        pci_unmap_address_range(vdev, (void *)vdev->notify_base);
-    }
-    pci_unmap_address_range(vdev, vdev->isr);
-    pci_unmap_address_range(vdev, vdev->common);
 }
