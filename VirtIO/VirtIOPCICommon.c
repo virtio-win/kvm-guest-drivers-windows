@@ -111,16 +111,6 @@ void virtio_add_status(VirtIODevice *vdev, u8 status)
     vdev->device->set_status(vdev, (u8)(vdev->device->get_status(vdev) | status));
 }
 
-static void register_virtio_device(VirtIODevice *dev)
-{
-    /* We always start by resetting the device, in case a previous
-     * driver messed it up.  This also tests that code path a little. */
-    dev->device->reset(dev);
-
-    /* Acknowledge that we've seen the device. */
-    virtio_add_status(dev, VIRTIO_CONFIG_S_ACKNOWLEDGE);
-}
-
 NTSTATUS virtio_finalize_features(VirtIODevice *dev)
 {
     unsigned char dev_status;
@@ -159,13 +149,17 @@ NTSTATUS virtio_device_initialize(VirtIODevice *pVirtIODevice,
     pVirtIODevice->maxQueues =
         (allocatedSize - offsetof(VirtIODevice, info)) / sizeof(VirtIOQueueInfo);
 
-    status = virtio_pci_modern_probe(pVirtIODevice);
+    status = vio_modern_initialize(pVirtIODevice);
     if (status == STATUS_DEVICE_NOT_CONNECTED) {
-        /* legacy virtio device */
-        status = virtio_pci_legacy_probe(pVirtIODevice);
+        /* fall back to legacy virtio device */
+        status = vio_legacy_initialize(pVirtIODevice);
     }
     if (NT_SUCCESS(status)) {
-        register_virtio_device(pVirtIODevice);
+        /* Always start by resetting the device */
+        virtio_device_reset(pVirtIODevice);
+
+        /* Acknowledge that we've seen the device. */
+        virtio_add_status(pVirtIODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
 
         /* If we are here, we must have found a driver for the device */
         virtio_add_status(pVirtIODevice, VIRTIO_CONFIG_S_DRIVER);
@@ -181,11 +175,7 @@ void virtio_device_reset(VirtIODevice *pVirtIODevice)
 
 void virtio_device_shutdown(VirtIODevice *pVirtIODevice)
 {
-    if (pVirtIODevice->addr) {
-        virtio_pci_legacy_remove(pVirtIODevice);
-    } else {
-        virtio_pci_modern_remove(pVirtIODevice);
-    }
+    pVirtIODevice->device->release(pVirtIODevice);
 
     if (pVirtIODevice->info &&
         pVirtIODevice->info != pVirtIODevice->inline_info) {

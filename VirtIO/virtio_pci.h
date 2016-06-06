@@ -232,6 +232,9 @@ struct virtio_device_ops
 
     // tear down and deallocate a queue
     void (*delete_queue)(VirtIOQueueInfo *info);
+
+    // release the device
+    void (*release)(VirtIODevice *vdev);
 };
 
 struct virtio_device

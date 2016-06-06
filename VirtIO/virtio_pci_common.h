@@ -77,10 +77,7 @@ static inline bool virtio_has_feature(const VirtIODevice *vdev,
 /* the notify function used when creating a virt queue */
 bool vp_notify(struct virtqueue *vq);
 
-NTSTATUS virtio_pci_legacy_probe(VirtIODevice *vdev);
-void virtio_pci_legacy_remove(VirtIODevice *vdev);
-
-NTSTATUS virtio_pci_modern_probe(VirtIODevice *vdev);
-void virtio_pci_modern_remove(VirtIODevice *vdev);
+NTSTATUS vio_legacy_initialize(VirtIODevice *vdev);
+NTSTATUS vio_modern_initialize(VirtIODevice *vdev);
 
 #endif
