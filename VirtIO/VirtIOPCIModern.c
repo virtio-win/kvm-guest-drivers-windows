@@ -546,7 +546,8 @@ static u8 find_first_pci_vendor_capability(VirtIODevice *vdev)
     return offset;
 }
 
-static u8 find_pci_vendor_capability(VirtIODevice *vdev, u8 capability_type)
+/* Populate Offsets with virtio vendor capability offsets within the PCI config space */
+static void find_pci_vendor_capabilities(VirtIODevice *vdev, int *Offsets, size_t nOffsets)
 {
     u8 offset = find_first_pci_vendor_capability(vdev);
     while (offset > 0) {
@@ -555,54 +556,57 @@ static u8 find_pci_vendor_capability(VirtIODevice *vdev, u8 capability_type)
         pci_read_config_byte(vdev, offset + offsetof(struct virtio_pci_cap, bar), &bar);
 
         if (bar < PCI_TYPE0_ADDRESSES &&
-            cfg_type == capability_type &&
+            cfg_type < nOffsets &&
             pci_get_resource_len(vdev, bar) > 0) {
-            return offset;
+            Offsets[cfg_type] = offset;
         }
 
         offset = find_next_pci_vendor_capability(vdev, offset + offsetof(PCI_CAPABILITIES_HEADER, Next));
     }
-    return 0;
 }
 
 /* Modern device initialization */
 NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
 {
-    int common, isr, notify, config;
+    int capabilities[VIRTIO_PCI_CAP_PCI_CFG];
+
     u32 notify_length;
     u32 notify_offset;
     NTSTATUS status;
 
-    /* check for a common config: if not, use legacy mode (bar 0). */
-    common = find_pci_vendor_capability(vdev, VIRTIO_PCI_CAP_COMMON_CFG);
-    if (!common) {
-        DPrintf(0, ("virtio_pci: %p: leaving for legacy driver\n", vdev));
+    RtlZeroMemory(capabilities, sizeof(capabilities));
+    find_pci_vendor_capabilities(vdev, capabilities, VIRTIO_PCI_CAP_PCI_CFG);
+
+    /* Check for a common config, if not found use legacy mode */
+    if (!capabilities[VIRTIO_PCI_CAP_COMMON_CFG]) {
+        DPrintf(0, ("%s(%p): device not found\n", __FUNCTION__, vdev));
         return STATUS_DEVICE_NOT_CONNECTED;
     }
 
-    /* If common is there, these should be too... */
-    isr = find_pci_vendor_capability(vdev, VIRTIO_PCI_CAP_ISR_CFG);
-    notify = find_pci_vendor_capability(vdev, VIRTIO_PCI_CAP_NOTIFY_CFG);
-    if (!isr || !notify) {
-        DPrintf(0, ("virtio_pci: %p: missing capabilities %i/%i/%i\n",
-            vdev, common, isr, notify));
+    /* Check isr and notify caps, if not found fail */
+    if (!capabilities[VIRTIO_PCI_CAP_ISR_CFG] || !capabilities[VIRTIO_PCI_CAP_NOTIFY_CFG]) {
+        DPrintf(0, ("%s(%p): missing capabilities %i/%i/%i\n",
+            __FUNCTION__, vdev,
+            capabilities[VIRTIO_PCI_CAP_COMMON_CFG],
+            capabilities[VIRTIO_PCI_CAP_ISR_CFG],
+            capabilities[VIRTIO_PCI_CAP_NOTIFY_CFG]));
         return STATUS_INVALID_PARAMETER;
     }
 
-    /* Device capability is only mandatory for devices that have
-     * device-specific configuration.
-     */
-    config = find_pci_vendor_capability(vdev, VIRTIO_PCI_CAP_DEVICE_CFG);
-
+    /* Map bars according to the capabilities */
     status = STATUS_INVALID_PARAMETER;
-    vdev->common = map_capability(vdev, common,
+    vdev->common = map_capability(vdev,
+        capabilities[VIRTIO_PCI_CAP_COMMON_CFG],
         sizeof(struct virtio_pci_common_cfg), 4,
         0, sizeof(struct virtio_pci_common_cfg),
         NULL);
     if (!vdev->common) {
         goto err_map_common;
     }
-    vdev->isr = map_capability(vdev, isr, sizeof(u8), 1,
+
+    vdev->isr = map_capability(vdev,
+        capabilities[VIRTIO_PCI_CAP_ISR_CFG],
+        sizeof(u8), 1,
         0, 1,
         NULL);
     if (!vdev->isr) {
@@ -611,17 +615,17 @@ NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
 
     /* Read notify_off_multiplier from config space. */
     pci_read_config_dword(vdev,
-        notify + offsetof(struct virtio_pci_notify_cap,
+        capabilities[VIRTIO_PCI_CAP_NOTIFY_CFG] + offsetof(struct virtio_pci_notify_cap,
         notify_off_multiplier),
         &vdev->notify_offset_multiplier);
     /* Read notify length and offset from config space. */
     pci_read_config_dword(vdev,
-        notify + offsetof(struct virtio_pci_notify_cap,
+        capabilities[VIRTIO_PCI_CAP_NOTIFY_CFG] + offsetof(struct virtio_pci_notify_cap,
         cap.length),
         &notify_length);
 
     pci_read_config_dword(vdev,
-        notify + offsetof(struct virtio_pci_notify_cap,
+        capabilities[VIRTIO_PCI_CAP_NOTIFY_CFG] + offsetof(struct virtio_pci_notify_cap,
         cap.offset),
         &notify_offset);
 
@@ -629,22 +633,22 @@ NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
      * If notify length is small, map it all now.
      * Otherwise, map each VQ individually later.
      */
-    if ((u64)notify_length + (notify_offset % PAGE_SIZE) <= PAGE_SIZE) {
-        vdev->notify_base = map_capability(vdev, notify, 2, 2,
+    if (notify_length + (notify_offset % PAGE_SIZE) <= PAGE_SIZE) {
+        vdev->notify_base = map_capability(vdev,
+            capabilities[VIRTIO_PCI_CAP_NOTIFY_CFG], 2, 2,
             0, notify_length,
             &vdev->notify_len);
         if (!vdev->notify_base) {
             goto err_map_notify;
         }
     } else {
-        vdev->notify_map_cap = notify;
+        vdev->notify_map_cap = capabilities[VIRTIO_PCI_CAP_NOTIFY_CFG];
     }
 
-    /* Again, we don't know how much we should map, but PAGE_SIZE
-     * is more than enough for all existing devices.
-     */
-    if (config) {
-        vdev->config = map_capability(vdev, config, 0, 4,
+    /* Map the device config capability, the PAGE_SIZE size is a guess */
+    if (capabilities[VIRTIO_PCI_CAP_DEVICE_CFG]) {
+        vdev->config = map_capability(vdev,
+            capabilities[VIRTIO_PCI_CAP_DEVICE_CFG], 0, 4,
             0, PAGE_SIZE,
             &vdev->config_len);
         if (!vdev->config) {
