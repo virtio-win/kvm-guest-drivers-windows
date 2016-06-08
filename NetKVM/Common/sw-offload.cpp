@@ -366,7 +366,7 @@ static __inline USHORT GetXxpHeaderAndPayloadLen(IPHeader *pIpHeader, tTcpIpPack
     {
         USHORT headerLength = IP_HEADER_LENGTH(&pIpHeader->v4);
         USHORT len = swap_short(pIpHeader->v4.ip_length);
-        return len - headerLength;          
+        return len - headerLength;
     }
     if (res.ipStatus == ppresIPV6)
     {
@@ -728,8 +728,7 @@ VOID AnalyzeL3Proto(
 }
 
 static
-BOOLEAN AnalyzeL2Hdr(
-    PNET_PACKET_INFO packetInfo)
+BOOLEAN AnalyzeL2Hdr(PNET_PACKET_INFO packetInfo)
 {
     PETH_HEADER dataBuffer = (PETH_HEADER) packetInfo->headersBuffer;
 

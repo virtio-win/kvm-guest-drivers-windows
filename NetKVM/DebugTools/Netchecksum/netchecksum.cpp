@@ -47,7 +47,7 @@ bool ProcessFile(FILE *f, ULONG flags, ULONG result[4])
         ULONG expected;
         ULONG pass = 0;
         bContinue = true;
-        
+
         if (bContinue)
         {
             pass++;
@@ -88,8 +88,8 @@ bool ProcessFile(FILE *f, ULONG flags, ULONG result[4])
                 DPrintf(0, ("%d pass FAILED: expected %08X, received %08X", pass, expected, res.value));
                 bContinue = false;
             }
-        }       
-        
+        }
+
         if (bContinue)
         {
             pass++;
