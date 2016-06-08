@@ -1542,7 +1542,7 @@ static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
                                     PNET_BUFFER_LIST *indicateTail,
                                     ULONG *nIndicate)
 {
-    
+
     pRxNetDescriptor pBufferDescriptor;
 
     if(NdisInterlockedIncrement(&pTargetReceiveQueue->ActiveProcessorsCount) == 1)
@@ -1594,16 +1594,16 @@ static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
 }
 
 
-/* DPC throttling implementation. 
+/* DPC throttling implementation.
 
 The main loop of the function RxDPCWorkBody finishes under light traffic
 when there are no more packets in the virtqueue receive queue. Under the
 heavy traffic, the situation is more complicated: the ready-to process packets
 are fetched from the virtqueue's receive queue, indicated toward the OS upper
 layer in the ProcessReceiveQueue and, depending on the relative speed of
-a virtual NIC and guest OS, may be returned by the upper layer to the driver 
+a virtual NIC and guest OS, may be returned by the upper layer to the driver
 with ParaNdis6_ReturnNetBufferLists and reinserted into the virtqueue for
-reading. 
+reading.
 
 Under these conditions, the RxDPCWorkBody's loop terminates because
 ProcessReceiveQueue is limited by the nPacketsToIndicate parameter, accepting
@@ -2097,7 +2097,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     pContext->bConnected = FALSE;
 
     ParaNdis_RemoveDriverOKStatus(pContext);
-    
+
 #if !NDIS_SUPPORT_NDIS620
     // WLK tests for Windows 2008 require media disconnect indication
     // on power off. HCK tests for newer versions require media state unknown
