@@ -320,7 +320,7 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
             if (bParsingDone)
                 break;
         }
-        if (ipHeaderSize <= MAX_SUPPORTED_IPV6_HEADERS)
+        if ((ipHeaderSize <= MAX_SUPPORTED_IPV6_HEADERS) && (ipHeaderSize <= fullLength))
         {
             DPrintf(3, ("ip_version %d, ipHeaderSize %d, protocol %d, iplen %d\n",
                 ip_version, ipHeaderSize, nextHeader, fullLength));
