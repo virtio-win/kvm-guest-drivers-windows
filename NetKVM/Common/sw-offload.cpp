@@ -332,7 +332,12 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
             res.ipStatus = ppresNotIP;
         }
     }
-    
+    else
+    {
+        res.ipStatus = ppresNotIP;
+        return res;
+    }
+
     if (res.ipStatus == ppresIPV4)
     {
         res.ipHeaderSize = ipHeaderSize;
