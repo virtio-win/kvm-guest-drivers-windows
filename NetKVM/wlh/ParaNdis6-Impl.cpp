@@ -866,7 +866,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
                     pContext,
                     pHeader->flags,
                     &pBuffersDesc->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE],
-                    pPacketInfo->dataLength,
+                    pPacketInfo,
                     nBytesStripped, TRUE);
                 if (csRes.value)
                 {

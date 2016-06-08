@@ -2142,13 +2142,14 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
                                             PARANDIS_ADAPTER *pContext,
                                             ULONG virtioFlags,
                                             tCompletePhysicalAddress *pPacketPages,
-                                            ULONG ulPacketLength,
+                                            PNET_PACKET_INFO pPacketInfo,
                                             ULONG ulDataOffset,
                                             BOOLEAN verifyLength)
 {
     tOffloadSettingsFlags f = pContext->Offload.flags;
     tChecksumCheckResult res;
     tTcpIpPacketParsingResult ppr;
+    ULONG ulPacketLength = pPacketInfo->dataLength;
     ULONG flagsToCalculate = 0;
     res.value = 0;
 
@@ -2172,8 +2173,16 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
         }
     }
 
-    ppr = ParaNdis_CheckSumVerify(pPacketPages, ulPacketLength - ETH_HEADER_SIZE, ulDataOffset + ETH_HEADER_SIZE, flagsToCalculate,
-        verifyLength, __FUNCTION__);
+    if (pPacketInfo->isIP4 || pPacketInfo->isIP6)
+    {
+        ppr = ParaNdis_CheckSumVerify(pPacketPages, ulPacketLength - ETH_HEADER_SIZE,
+                                      ulDataOffset + ETH_HEADER_SIZE, flagsToCalculate,
+                                      verifyLength, __FUNCTION__);
+    }
+    else
+    {
+        ppr.ipStatus = ppresNotIP;
+    }
 
     if (ppr.ipCheckSum == ppresIPTooShort || ppr.xxpStatus == ppresXxpIncomplete)
     {
