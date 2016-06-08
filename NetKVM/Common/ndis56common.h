@@ -587,14 +587,6 @@ void ParaNdis_FreeRxBufferDescriptor(
     PARANDIS_ADAPTER *pContext,
     pRxNetDescriptor p);
 
-BOOLEAN ParaNdis_PerformPacketAnalyzis(
-#if PARANDIS_SUPPORT_RSS
-    PPARANDIS_RSS_PARAMS RSSParameters,
-#endif
-    PNET_PACKET_INFO PacketInfo,
-    PVOID HeadersBuffer,
-    ULONG DataLength);
-
 CCHAR ParaNdis_GetScalingDataForPacket(
     PARANDIS_ADAPTER *pContext,
     PNET_PACKET_INFO pPacketInfo,
