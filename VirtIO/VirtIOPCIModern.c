@@ -30,68 +30,61 @@
 #include "VirtIOPCIModern.tmh"
 #endif
 
-static void *map_capability(VirtIODevice *dev, int off,
-                            size_t minlen,
-                            u32 align,
-                            u32 start, u32 size,
-                            size_t *len)
+static void *vio_modern_map_capability(VirtIODevice *dev, int cap_offset,
+                                       size_t minlen, u32 alignment,
+                                       u32 start, u32 size, size_t *len)
 {
     u8 bar;
-    u32 offset, length;
-    void *p;
+    u32 bar_offset, bar_length;
+    void *addr;
 
-    pci_read_config_byte(dev, off + offsetof(struct virtio_pci_cap, bar),
-                         &bar);
-    pci_read_config_dword(dev, off + offsetof(struct virtio_pci_cap, offset),
-                          &offset);
-    pci_read_config_dword(dev, off + offsetof(struct virtio_pci_cap, length),
-                          &length);
+    pci_read_config_byte(dev, cap_offset + offsetof(struct virtio_pci_cap, bar), &bar);
+    pci_read_config_dword(dev, cap_offset + offsetof(struct virtio_pci_cap, offset), &bar_offset);
+    pci_read_config_dword(dev, cap_offset + offsetof(struct virtio_pci_cap, length), &bar_length);
 
-    if (length <= start) {
-        DPrintf(0, ("virtio_pci: bad capability len %u (>%u expected)\n", length, start));
+    if (start + minlen > bar_length) {
+        DPrintf(0, ("bar %i cap is not large enough to map %zu bytes at offset %u\n", bar, minlen, start));
         return NULL;
     }
 
-    if (length - start < minlen) {
-        DPrintf(0, ("virtio_pci: bad capability len %u (>=%zu expected)\n", length, minlen));
+    bar_length -= start;
+    bar_offset += start;
+
+    if (bar_offset & (alignment - 1)) {
+        DPrintf(0, ("bar %i offset %u not aligned to %u\n", bar, bar_offset, alignment));
         return NULL;
     }
 
-    length -= start;
-
-    if (start + offset < offset) {
-        DPrintf(0, ("virtio_pci: map wrap-around %u+%u\n", start, offset));
-        return NULL;
-    }
-
-    offset += start;
-
-    if (offset & (align - 1)) {
-        DPrintf(0, ("virtio_pci: offset %u not aligned to %u\n", offset, align));
-        return NULL;
-    }
-
-    if (length > size) {
-        length = size;
+    if (bar_length > size) {
+        bar_length = size;
     }
 
     if (len) {
-        *len = length;
+        *len = bar_length;
     }
 
-    if (minlen + offset < minlen ||
-        minlen + offset > pci_get_resource_len(dev, bar)) {
-        DPrintf(0, ("virtio_pci: map virtio %zu@%u out of range on bar %i length %lu\n",
-            minlen, offset,
-            bar, (unsigned long)pci_get_resource_len(dev, bar)));
+    if (bar_offset + minlen > pci_get_resource_len(dev, bar)) {
+        DPrintf(0, ("bar %i is not large enough to map %zu bytes at offset %u\n", bar, minlen, bar_offset));
         return NULL;
     }
 
-    p = pci_map_address_range(dev, bar, offset, length);
-    if (!p) {
-        DPrintf(0, ("virtio_pci: unable to map virtio %u@%u on bar %i\n", length, offset, bar));
+    addr = pci_map_address_range(dev, bar, bar_offset, bar_length);
+    if (!addr) {
+        DPrintf(0, ("unable to map %u bytes at bar %i offset %u\n", bar_length, bar, bar_offset));
     }
-    return p;
+    return addr;
+}
+
+static void *vio_modern_map_simple_capability(VirtIODevice *dev, int cap_offset, size_t length, u32 alignment)
+{
+    return vio_modern_map_capability(
+        dev,
+        cap_offset,
+        length,      // minlen
+        alignment,
+        0,           // offset
+        (u32)length, // size is equal to minlen
+        NULL);       // not interested in the full length
 }
 
 static void vio_modern_get_config(VirtIODevice *vdev, unsigned offset,
@@ -341,7 +334,7 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue,
         vq->priv = (void *)(vdev->notify_base +
             off * vdev->notify_offset_multiplier);
     } else {
-        vq->priv = (void *)map_capability(vdev,
+        vq->priv = vio_modern_map_capability(vdev,
             vdev->notify_map_cap, 2, 2,
             off * vdev->notify_offset_multiplier, 2,
             NULL);
@@ -386,8 +379,7 @@ static void vio_modern_del_vq(VirtIOQueueInfo *info)
     iowrite16(vdev, (u16)vq->index, &vdev->common->queue_select);
 
     if (vdev->msix_used) {
-        iowrite16(vdev, VIRTIO_MSI_NO_VECTOR,
-            &vdev->common->queue_msix_vector);
+        iowrite16(vdev, VIRTIO_MSI_NO_VECTOR, &vdev->common->queue_msix_vector);
         /* Flush the write out to device */
         ioread16(vdev, &vdev->common->queue_msix_vector);
     }
@@ -408,7 +400,7 @@ static void vio_modern_release(VirtIODevice *vdev)
         pci_unmap_address_range(vdev, vdev->config);
     }
     if (vdev->notify_base) {
-        pci_unmap_address_range(vdev, (void *)vdev->notify_base);
+        pci_unmap_address_range(vdev, vdev->notify_base);
     }
     pci_unmap_address_range(vdev, vdev->isr);
     pci_unmap_address_range(vdev, vdev->common);
@@ -519,7 +511,6 @@ NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
 
     u32 notify_length;
     u32 notify_offset;
-    NTSTATUS status;
 
     RtlZeroMemory(capabilities, sizeof(capabilities));
     find_pci_vendor_capabilities(vdev, capabilities, VIRTIO_PCI_CAP_PCI_CFG);
@@ -541,21 +532,16 @@ NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
     }
 
     /* Map bars according to the capabilities */
-    status = STATUS_INVALID_PARAMETER;
-    vdev->common = map_capability(vdev,
+    vdev->common = vio_modern_map_simple_capability(vdev,
         capabilities[VIRTIO_PCI_CAP_COMMON_CFG],
-        sizeof(struct virtio_pci_common_cfg), 4,
-        0, sizeof(struct virtio_pci_common_cfg),
-        NULL);
+        sizeof(struct virtio_pci_common_cfg), 4);
     if (!vdev->common) {
         goto err_map_common;
     }
 
-    vdev->isr = map_capability(vdev,
+    vdev->isr = vio_modern_map_simple_capability(vdev,
         capabilities[VIRTIO_PCI_CAP_ISR_CFG],
-        sizeof(u8), 1,
-        0, 1,
-        NULL);
+        sizeof(u8), 1);
     if (!vdev->isr) {
         goto err_map_isr;
     }
@@ -565,23 +551,22 @@ NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
         capabilities[VIRTIO_PCI_CAP_NOTIFY_CFG] + offsetof(struct virtio_pci_notify_cap,
         notify_off_multiplier),
         &vdev->notify_offset_multiplier);
+
     /* Read notify length and offset from config space. */
     pci_read_config_dword(vdev,
         capabilities[VIRTIO_PCI_CAP_NOTIFY_CFG] + offsetof(struct virtio_pci_notify_cap,
         cap.length),
         &notify_length);
-
     pci_read_config_dword(vdev,
         capabilities[VIRTIO_PCI_CAP_NOTIFY_CFG] + offsetof(struct virtio_pci_notify_cap,
         cap.offset),
         &notify_offset);
 
-    /* We don't know how many VQs we'll map, ahead of the time.
-     * If notify length is small, map it all now.
+    /* Map the notify capability if it's small enough.
      * Otherwise, map each VQ individually later.
      */
     if (notify_length + (notify_offset % PAGE_SIZE) <= PAGE_SIZE) {
-        vdev->notify_base = map_capability(vdev,
+        vdev->notify_base = vio_modern_map_capability(vdev,
             capabilities[VIRTIO_PCI_CAP_NOTIFY_CFG], 2, 2,
             0, notify_length,
             &vdev->notify_len);
@@ -594,7 +579,7 @@ NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
 
     /* Map the device config capability, the PAGE_SIZE size is a guess */
     if (capabilities[VIRTIO_PCI_CAP_DEVICE_CFG]) {
-        vdev->config = map_capability(vdev,
+        vdev->config = vio_modern_map_capability(vdev,
             capabilities[VIRTIO_PCI_CAP_DEVICE_CFG], 0, 4,
             0, PAGE_SIZE,
             &vdev->config_len);
@@ -609,12 +594,12 @@ NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
 
 err_map_config:
     if (vdev->notify_base) {
-        pci_unmap_address_range(vdev, (void *)vdev->notify_base);
+        pci_unmap_address_range(vdev, vdev->notify_base);
     }
 err_map_notify:
     pci_unmap_address_range(vdev, vdev->isr);
 err_map_isr:
     pci_unmap_address_range(vdev, vdev->common);
 err_map_common:
-    return status;
+    return STATUS_INVALID_PARAMETER;
 }
