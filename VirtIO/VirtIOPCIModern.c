@@ -30,14 +30,6 @@
 #include "VirtIOPCIModern.tmh"
 #endif
 
-static void iowrite64_twopart(VirtIODevice *vdev,
-                              u64 val,
-                              __le32 *lo, __le32 *hi)
-{
-    iowrite32(vdev, (u32)val, lo);
-    iowrite32(vdev, val >> 32, hi);
-}
-
 static void *map_capability(VirtIODevice *dev, int off,
                             size_t minlen,
                             u32 align,
@@ -102,8 +94,92 @@ static void *map_capability(VirtIODevice *dev, int off,
     return p;
 }
 
-/* virtio device->get_features() implementation */
-static u64 vp_get_features(VirtIODevice *vdev)
+static void vio_modern_get_config(VirtIODevice *vdev, unsigned offset,
+                                  void *buf, unsigned len)
+{
+    if (!vdev->config) {
+        ASSERT(!"Device has no config to read");
+        return;
+    }
+    if (offset + len > vdev->config_len) {
+        ASSERT(!"Can't read beyond the config length");
+        return;
+    }
+
+    switch (len) {
+    case 1:
+        *(u8 *)buf = ioread8(vdev, vdev->config + offset);
+        break;
+    case 2:
+        *(u16 *)buf = ioread16(vdev, vdev->config + offset);
+        break;
+    case 4:
+        *(u32 *)buf = ioread32(vdev, vdev->config + offset);
+        break;
+    default:
+        ASSERT(!"Only 1, 2, 4 byte config reads are supported");
+    }
+}
+
+static void vio_modern_set_config(VirtIODevice *vdev, unsigned offset,
+                                  const void *buf, unsigned len)
+{
+    if (!vdev->config) {
+        ASSERT(!"Device has no config to write");
+        return;
+    }
+    if (offset + len > vdev->config_len) {
+        ASSERT(!"Can't write beyond the config length");
+        return;
+    }
+
+    switch (len) {
+    case 1:
+        iowrite8(vdev, *(u8 *)buf, vdev->config + offset);
+        break;
+    case 2:
+        iowrite16(vdev, *(u16 *)buf, vdev->config + offset);
+        break;
+    case 4:
+        iowrite32(vdev, *(u32 *)buf, vdev->config + offset);
+        break;
+    default:
+        ASSERT(!"Only 1, 2, 4 byte config writes are supported");
+    }
+}
+
+static u32 vio_modern_get_generation(VirtIODevice *vdev)
+{
+    return ioread8(vdev, &vdev->common->config_generation);
+}
+
+static u8 vio_modern_get_status(VirtIODevice *vdev)
+{
+    return ioread8(vdev, &vdev->common->device_status);
+}
+
+static void vio_modern_set_status(VirtIODevice *vdev, u8 status)
+{
+    /* We should never be setting status to 0. */
+    ASSERT(status != 0);
+    iowrite8(vdev, status, &vdev->common->device_status);
+}
+
+static void vio_modern_reset(VirtIODevice *vdev)
+{
+    /* 0 status means a reset. */
+    iowrite8(vdev, 0, &vdev->common->device_status);
+    /* After writing 0 to device_status, the driver MUST wait for a read of
+     * device_status to return 0 before reinitializing the device.
+     * This will flush out the status write, and flush in device writes,
+     * including MSI-X interrupts, if any.
+     */
+    while (ioread8(vdev, &vdev->common->device_status)) {
+        vdev_sleep(vdev, 1);
+    }
+}
+
+static u64 vio_modern_get_features(VirtIODevice *vdev)
 {
     u64 features;
 
@@ -115,8 +191,7 @@ static u64 vp_get_features(VirtIODevice *vdev)
     return features;
 }
 
-/* virtio device->set_features() implementation */
-static NTSTATUS vp_set_features(VirtIODevice *vdev)
+static NTSTATUS vio_modern_set_features(VirtIODevice *vdev)
 {
     /* Give virtio_ring a chance to accept features. */
     vring_transport_features(vdev);
@@ -134,8 +209,16 @@ static NTSTATUS vp_set_features(VirtIODevice *vdev)
     return STATUS_SUCCESS;
 }
 
-/* virtio device->set_queue_vector() implementation */
-static u16 vp_queue_vector(struct virtqueue *vq, u16 vector)
+static u16 vio_modern_set_config_vector(VirtIODevice *vdev, u16 vector)
+{
+    /* Setup the vector used for configuration events */
+    iowrite16(vdev, vector, &vdev->common->msix_config);
+    /* Verify we had enough resources to assign the vector */
+    /* Will also flush the write out to device */
+    return ioread16(vdev, &vdev->common->msix_config);
+}
+
+static u16 vio_modern_set_queue_vector(struct virtqueue *vq, u16 vector)
 {
     VirtIODevice *vdev = vq->vdev;
     struct virtio_pci_common_cfg *cfg = vdev->common;
@@ -145,157 +228,17 @@ static u16 vp_queue_vector(struct virtqueue *vq, u16 vector)
     return ioread16(vdev, &cfg->queue_msix_vector);
 }
 
-/* virtio device->get_config() implementation */
-static void vp_get(VirtIODevice *vdev, unsigned offset,
-                   void *buf, unsigned len)
-{
-    u8 b;
-    __le16 w;
-    __le32 l;
-
-    if (!vdev->config) {
-        BUG();
-        return;
-    }
-
-    BUG_ON(offset + len > vdev->config_len);
-
-    switch (len) {
-    case 1:
-        b = ioread8(vdev, vdev->config + offset);
-        memcpy(buf, &b, sizeof b);
-        break;
-    case 2:
-        w = ioread16(vdev, vdev->config + offset);
-        memcpy(buf, &w, sizeof w);
-        break;
-    case 4:
-        l = ioread32(vdev, vdev->config + offset);
-        memcpy(buf, &l, sizeof l);
-        break;
-    case 8:
-        l = ioread32(vdev, vdev->config + offset);
-        memcpy(buf, &l, sizeof l);
-        l = ioread32(vdev, vdev->config + offset + sizeof l);
-        memcpy((unsigned char *)buf + sizeof l, &l, sizeof l);
-        break;
-    default:
-        BUG();
-    }
-}
-
-/* the device->set_config() implementation.  it's symmetric to the device->get_config()
- * implementation */
-static void vp_set(VirtIODevice *vdev, unsigned offset,
-                   const void *buf, unsigned len)
-{
-    u8 b;
-    __le16 w;
-    __le32 l;
-
-    if (!vdev->config) {
-        BUG();
-        return;
-    }
-
-    BUG_ON(offset + len > vdev->config_len);
-
-    switch (len) {
-    case 1:
-        memcpy(&b, buf, sizeof b);
-        iowrite8(vdev, b, vdev->config + offset);
-        break;
-    case 2:
-        memcpy(&w, buf, sizeof w);
-        iowrite16(vdev, w, vdev->config + offset);
-        break;
-    case 4:
-        memcpy(&l, buf, sizeof l);
-        iowrite32(vdev, l, vdev->config + offset);
-        break;
-    case 8:
-        memcpy(&l, buf, sizeof l);
-        iowrite32(vdev, l, vdev->config + offset);
-        memcpy(&l, (unsigned char *)buf + sizeof l, sizeof l);
-        iowrite32(vdev, l, vdev->config + offset + sizeof l);
-        break;
-    default:
-        BUG();
-    }
-}
-
-static u32 vp_generation(VirtIODevice *vdev)
-{
-    return ioread8(vdev, &vdev->common->config_generation);
-}
-
-/* device->{get,set}_status() implementations */
-static u8 vp_get_status(VirtIODevice *vdev)
-{
-    return ioread8(vdev, &vdev->common->device_status);
-}
-
-static void vp_set_status(VirtIODevice *vdev, u8 status)
-{
-    /* We should never be setting status to 0. */
-    BUG_ON(status == 0);
-    iowrite8(vdev, status, &vdev->common->device_status);
-}
-
-static void vp_reset(VirtIODevice *vdev)
-{
-    /* 0 status means a reset. */
-    iowrite8(vdev, 0, &vdev->common->device_status);
-    /* After writing 0 to device_status, the driver MUST wait for a read of
-    * device_status to return 0 before reinitializing the device.
-    * This will flush out the status write, and flush in device writes,
-    * including MSI-X interrupts, if any.
-    */
-    while (ioread8(vdev, &vdev->common->device_status)) {
-        vdev_sleep(vdev, 1);
-    }
-}
-
-static u16 vp_config_vector(VirtIODevice *vdev, u16 vector)
-{
-    /* Setup the vector used for configuration events */
-    iowrite16(vdev, vector, &vdev->common->msix_config);
-    /* Verify we had enough resources to assign the vector */
-    /* Will also flush the write out to device */
-    return ioread16(vdev, &vdev->common->msix_config);
-}
-
 static size_t vring_pci_size(u16 num)
 {
     /* We only need a cacheline separation. */
     return (size_t)ROUND_TO_PAGES(vring_size(num, SMP_CACHE_BYTES));
 }
 
-static void *alloc_virtqueue_pages(VirtIODevice *vdev, u16 *num)
-{
-    void *pages;
-    
-    /* TODO: allocate each queue chunk individually */
-    for (; *num && vring_pci_size(*num) > PAGE_SIZE; *num /= 2) {
-        pages = mem_alloc_contiguous_pages(vdev, vring_pci_size(*num));
-        if (pages) {
-            return pages;
-        }
-    }
-    
-    if (!*num) {
-        return NULL;
-    }
-    
-    /* Try to get a single page. You are my only hope! */
-    return mem_alloc_contiguous_pages(vdev, vring_pci_size(*num));
-}
-
-static NTSTATUS query_vq_alloc(VirtIODevice *vdev,
-                               unsigned index,
-                               unsigned short *pNumEntries,
-                               unsigned long *pAllocationSize,
-                               unsigned long *pHeapSize)
+static NTSTATUS vio_modern_query_vq_alloc(VirtIODevice *vdev,
+                                          unsigned index,
+                                          unsigned short *pNumEntries,
+                                          unsigned long *pAllocationSize,
+                                          unsigned long *pHeapSize)
 {
     struct virtio_pci_common_cfg *cfg = vdev->common;
     u16 num;
@@ -328,11 +271,11 @@ static NTSTATUS query_vq_alloc(VirtIODevice *vdev,
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS setup_vq(struct virtqueue **queue,
-                         VirtIODevice *vdev,
-                         VirtIOQueueInfo *info,
-                         unsigned index,
-                         u16 msix_vec)
+static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue,
+                                    VirtIODevice *vdev,
+                                    VirtIOQueueInfo *info,
+                                    unsigned index,
+                                    u16 msix_vec)
 {
     struct virtio_pci_common_cfg *cfg = vdev->common;
     struct virtqueue *vq;
@@ -341,8 +284,8 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
     unsigned long size, heap_size;
     NTSTATUS status;
 
-    /* Select the queue and query allocation parameters */
-    status = query_vq_alloc(vdev, index, &info->num, &size, &heap_size);
+    /* select the queue and query allocation parameters */
+    status = vio_modern_query_vq_alloc(vdev, index, &info->num, &size, &heap_size);
     if (!NT_SUCCESS(status)) {
         return status;
     }
@@ -350,9 +293,13 @@ static NTSTATUS setup_vq(struct virtqueue **queue,
     /* get offset of notification word for this vq */
     off = ioread16(vdev, &cfg->queue_notify_off);
 
-    info->queue = alloc_virtqueue_pages(vdev, &info->num);
-    if (info->queue == NULL) {
-        return STATUS_INSUFFICIENT_RESOURCES;
+    /* try to allocate contiguous pages, scale down on failure */
+    while (!(info->queue = mem_alloc_contiguous_pages(vdev, vring_pci_size(info->num)))) {
+        if (info->num > 0) {
+            info->num /= 2;
+        } else {
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
     }
 
     vq_addr = mem_alloc_nonpaged_block(vdev, heap_size);
@@ -431,7 +378,7 @@ err_new_queue:
     return status;
 }
 
-static void del_vq(VirtIOQueueInfo *info)
+static void vio_modern_del_vq(VirtIOQueueInfo *info)
 {
     struct virtqueue *vq = info->vq;
     VirtIODevice *vdev = vq->vdev;
@@ -468,19 +415,19 @@ static void vio_modern_release(VirtIODevice *vdev)
 }
 
 static const struct virtio_device_ops virtio_pci_device_ops = {
-    .get_config = vp_get,
-    .set_config = vp_set,
-    .get_config_generation = vp_generation,
-    .get_status = vp_get_status,
-    .set_status = vp_set_status,
-    .reset = vp_reset,
-    .get_features = vp_get_features,
-    .set_features = vp_set_features,
-    .set_config_vector = vp_config_vector,
-    .set_queue_vector = vp_queue_vector,
-    .query_queue_alloc = query_vq_alloc,
-    .setup_queue = setup_vq,
-    .delete_queue = del_vq,
+    .get_config = vio_modern_get_config,
+    .set_config = vio_modern_set_config,
+    .get_config_generation = vio_modern_get_generation,
+    .get_status = vio_modern_get_status,
+    .set_status = vio_modern_set_status,
+    .reset = vio_modern_reset,
+    .get_features = vio_modern_get_features,
+    .set_features = vio_modern_set_features,
+    .set_config_vector = vio_modern_set_config_vector,
+    .set_queue_vector = vio_modern_set_queue_vector,
+    .query_queue_alloc = vio_modern_query_vq_alloc,
+    .setup_queue = vio_modern_setup_vq,
+    .delete_queue = vio_modern_del_vq,
     .release = vio_modern_release,
 };
 
