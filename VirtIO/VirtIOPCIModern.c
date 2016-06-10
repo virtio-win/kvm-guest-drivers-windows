@@ -237,7 +237,7 @@ static size_t vring_pci_size(u16 num)
 static NTSTATUS vio_modern_query_vq_alloc(VirtIODevice *vdev,
                                           unsigned index,
                                           unsigned short *pNumEntries,
-                                          unsigned long *pAllocationSize,
+                                          unsigned long *pRingSize,
                                           unsigned long *pHeapSize)
 {
     struct virtio_pci_common_cfg *cfg = vdev->common;
@@ -265,7 +265,7 @@ static NTSTATUS vio_modern_query_vq_alloc(VirtIODevice *vdev,
     }
 
     *pNumEntries = num;
-    *pAllocationSize = (unsigned long)vring_pci_size(num);
+    *pRingSize = (unsigned long)vring_pci_size(num);
     *pHeapSize = vring_control_block_size() + sizeof(void *) * num;
 
     return STATUS_SUCCESS;
@@ -281,11 +281,11 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue,
     struct virtqueue *vq;
     void *vq_addr;
     u16 off;
-    unsigned long size, heap_size;
+    unsigned long ring_size, heap_size;
     NTSTATUS status;
 
     /* select the queue and query allocation parameters */
-    status = vio_modern_query_vq_alloc(vdev, index, &info->num, &size, &heap_size);
+    status = vio_modern_query_vq_alloc(vdev, index, &info->num, &ring_size, &heap_size);
     if (!NT_SUCCESS(status)) {
         return status;
     }

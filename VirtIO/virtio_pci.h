@@ -222,7 +222,7 @@ struct virtio_device_ops
     // query virtual queue size and memory requirements
     NTSTATUS (*query_queue_alloc)(VirtIODevice *vdev,
         unsigned index, unsigned short *pNumEntries,
-        unsigned long *pAllocationSize,
+        unsigned long *pRingSize,
         unsigned long *pHeapSize);
 
     // allocate and initialize a queue
@@ -316,7 +316,7 @@ u8 virtio_read_isr_status(VirtIODevice *vdev);
 NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev,
                                        unsigned index,
                                        unsigned short *pNumEntries,
-                                       unsigned long *pAllocationSize,
+                                       unsigned long *pRingSize,
                                        unsigned long *pHeapSize);
 
 NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs);
