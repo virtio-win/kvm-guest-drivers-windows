@@ -292,9 +292,9 @@ void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice);
 #define virtio_feature_enable(FeaturesList, Feature)      ((FeaturesList) |= (1ULL << (Feature)))
 #define virtio_feature_disable(FeaturesList, Feature)     ((FeaturesList) &= ~(1ULL << (Feature)))
 
-u32  VirtIODeviceGetQueueSize(struct virtqueue *vq);
+u32 virtio_device_get_queue_size(struct virtqueue *vq);
 
-unsigned long VirtIODeviceIndirectPageCapacity();
+unsigned long virtio_get_indirect_page_capacity();
 
 NTSTATUS virtio_device_initialize(VirtIODevice *pVirtIODevice,
                                   const VirtIOSystemOps *pSystemOps,

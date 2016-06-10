@@ -994,7 +994,7 @@ static void PrepareTransmitBuffers(PARANDIS_ADAPTER *pContext)
 {
     UINT nBuffers, nMaxBuffers;
     DEBUG_ENTRY(4);
-    nMaxBuffers = VirtIODeviceGetQueueSize(pContext->NetSendQueue) / 2;
+    nMaxBuffers = virtio_device_get_queue_size(pContext->NetSendQueue) / 2;
     if (nMaxBuffers > pContext->maxFreeTxDescriptors) nMaxBuffers = pContext->maxFreeTxDescriptors;
 
     for (nBuffers = 0; nBuffers < nMaxBuffers; ++nBuffers)
