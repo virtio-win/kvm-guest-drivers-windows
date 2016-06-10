@@ -148,7 +148,7 @@ bool CTXVirtQueue::Create(UINT Index,
     m_HeaderSize = HeaderSize;
     m_Context = Context;
 
-    m_SGTableCapacity = m_Context->bUseIndirect ? VirtIODeviceIndirectPageCapacity() : GetRingSize();
+    m_SGTableCapacity = m_Context->bUseIndirect ? virtio_get_indirect_page_capacity() : GetRingSize();
 
     auto SGBuffer = ParaNdis_AllocateMemoryRaw(m_DrvHandle, m_SGTableCapacity * sizeof(m_SGTable[0]));
     m_SGTable = static_cast<struct VirtIOBufferDescriptor *>(SGBuffer);

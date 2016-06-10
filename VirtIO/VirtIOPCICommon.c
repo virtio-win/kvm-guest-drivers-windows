@@ -374,3 +374,8 @@ u64 virtio_get_features(VirtIODevice *dev)
     dev->features = dev->device->get_features(dev);
     return dev->features;
 }
+
+u32 virtio_device_get_queue_size(struct virtqueue *vq)
+{
+    return vq->vdev->info[vq->index].num;
+}
