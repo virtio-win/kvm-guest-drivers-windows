@@ -31,6 +31,9 @@
     vdev->system->vdev_write_word((ULONG_PTR)(addr), val)
 #define iowrite32(vdev, val, addr) \
     vdev->system->vdev_write_dword((ULONG_PTR)(addr), val)
+#define iowrite64_twopart(vdev, val, lo_addr, hi_addr) \
+    vdev->system->vdev_write_dword((ULONG_PTR)(lo_addr), (u32)(val)); \
+    vdev->system->vdev_write_dword((ULONG_PTR)(hi_addr), (val) >> 32)
 
 #define mem_alloc_contiguous_pages(vdev, size) \
     vdev->system->mem_alloc_contiguous_pages(vdev->DeviceContext, size)
