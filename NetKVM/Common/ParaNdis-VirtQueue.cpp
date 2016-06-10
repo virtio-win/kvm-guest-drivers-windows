@@ -5,13 +5,13 @@
 bool CVirtQueue::AllocateQueueMemory()
 {
     USHORT NumEntries;
-    ULONG AllocationSize, HeapSize;
+    ULONG RingSize, HeapSize;
 
     NTSTATUS status = virtio_query_queue_allocation(
         m_IODevice,
         m_Index,
         &NumEntries,
-        &AllocationSize,
+        &RingSize,
         &HeapSize);
     if (!NT_SUCCESS(status))
     {
@@ -19,7 +19,7 @@ bool CVirtQueue::AllocateQueueMemory()
         return false;
     }
 
-    return (AllocationSize != 0) ? m_SharedMemory.Allocate(AllocationSize) : false;
+    return (RingSize != 0) ? m_SharedMemory.Allocate(RingSize) : false;
 }
 
 void CVirtQueue::Renew()

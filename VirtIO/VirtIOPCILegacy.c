@@ -136,10 +136,10 @@ static u16 vio_legacy_set_queue_vector(struct virtqueue *vq, u16 vector)
 }
 
 static NTSTATUS vio_legacy_query_vq_alloc(VirtIODevice *vdev,
-    unsigned index,
-    unsigned short *pNumEntries,
-    unsigned long *pAllocationSize,
-    unsigned long *pHeapSize)
+                                          unsigned index,
+                                          unsigned short *pNumEntries,
+                                          unsigned long *pRingSize,
+                                          unsigned long *pHeapSize)
 {
     unsigned long ring_size, data_size;
     u16 num;
@@ -157,7 +157,7 @@ static NTSTATUS vio_legacy_query_vq_alloc(VirtIODevice *vdev,
     data_size = ROUND_TO_PAGES(sizeof(void *) * num + vring_control_block_size());
 
     *pNumEntries = num;
-    *pAllocationSize = ring_size + data_size;
+    *pRingSize = ring_size + data_size;
     *pHeapSize = 0;
 
     return STATUS_SUCCESS;
@@ -170,18 +170,16 @@ static NTSTATUS vio_legacy_setup_vq(struct virtqueue **queue,
                                     u16 msix_vec)
 {
     struct virtqueue *vq;
-    unsigned long size, ring_size, heap_size;
+    unsigned long ring_size, heap_size;
     NTSTATUS status;
 
     /* Select the queue and query allocation parameters */
-    status = vio_legacy_query_vq_alloc(vdev, index, &info->num, &size, &heap_size);
+    status = vio_legacy_query_vq_alloc(vdev, index, &info->num, &ring_size, &heap_size);
     if (!NT_SUCCESS(status)) {
         return status;
     }
 
-    ring_size = ROUND_TO_PAGES(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN));
-
-    info->queue = mem_alloc_contiguous_pages(vdev, size);
+    info->queue = mem_alloc_contiguous_pages(vdev, ring_size);
     if (info->queue == NULL) {
         return STATUS_INSUFFICIENT_RESOURCES;
     }
@@ -193,7 +191,8 @@ static NTSTATUS vio_legacy_setup_vq(struct virtqueue **queue,
     /* create the vring */
     vq = vring_new_virtqueue(index, info->num,
         VIRTIO_PCI_VRING_ALIGN, vdev,
-        true, info->queue, vp_notify, (u8 *)info->queue + ring_size);
+        true, info->queue, vp_notify,
+        (u8 *)info->queue + ROUND_TO_PAGES(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN)));
     if (!vq) {
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto out_activate_queue;

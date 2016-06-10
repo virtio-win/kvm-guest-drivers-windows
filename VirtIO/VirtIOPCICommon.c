@@ -187,10 +187,10 @@ void virtio_device_shutdown(VirtIODevice *pVirtIODevice)
 NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev,
                                        unsigned index,
                                        unsigned short *pNumEntries,
-                                       unsigned long *pAllocationSize,
+                                       unsigned long *pRingSize,
                                        unsigned long *pHeapSize)
 {
-    return vdev->device->query_queue_alloc(vdev, index, pNumEntries, pAllocationSize, pHeapSize);
+    return vdev->device->query_queue_alloc(vdev, index, pNumEntries, pRingSize, pHeapSize);
 }
 
 NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs)
