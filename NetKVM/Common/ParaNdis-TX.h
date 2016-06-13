@@ -202,10 +202,6 @@ public:
     //TODO: Needs review
     void CancelNBLs(PVOID CancelId);
 
-    //TODO: Temporary!!!
-    void Kick()
-    { m_VirtQueue.Kick(); }
-
     //TODO: Requires review
     bool RestartQueue(bool DoKick);
 
