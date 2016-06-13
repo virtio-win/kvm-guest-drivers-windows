@@ -82,11 +82,6 @@ void CVirtQueue::Delete()
     }
 }
 
-void CVirtQueue::Shutdown()
-{
-    virtqueue_shutdown(m_VirtQueue);
-}
-
 u16 CVirtQueue::SetMSIVector(u16 vector)
 {
     return virtio_set_queue_vector(m_VirtQueue, vector);
@@ -173,11 +168,11 @@ CTXVirtQueue::~CTXVirtQueue()
 
 void CTXVirtQueue::KickQueueOnOverflow()
 {
-    virtqueue_enable_cb_delayed(m_VirtQueue);
+    EnableInterruptsDelayed();
 
     if (m_DoKickOnNoBuffer)
     {
-        virtqueue_notify(m_VirtQueue);
+        KickAlways();
         m_DoKickOnNoBuffer = false;
     }
 }
@@ -239,7 +234,7 @@ SubmitTxPacketResult CTXVirtQueue::SubmitPacket(CNB &NB)
         return SUBMIT_FAILURE;
     }
 
-    auto res = TXDescriptor->Enqueue(m_VirtQueue, m_TotalHWBuffers, m_FreeHWBuffers);
+    auto res = TXDescriptor->Enqueue(this, m_TotalHWBuffers, m_FreeHWBuffers);
 
     switch (res)
     {
@@ -276,7 +271,7 @@ UINT CTXVirtQueue::VirtIONetReleaseTransmitBuffers()
 
     DEBUG_ENTRY(4);
 
-    while(NULL != (TXDescriptor = (CTXDescriptor *) virtqueue_get_buf(m_VirtQueue, &len)))
+    while(NULL != (TXDescriptor = (CTXDescriptor *) GetBuf(&len)))
     {
         m_DescriptorsInUse.Remove(TXDescriptor);
         if (!TXDescriptor->GetUsedBuffersNum())
@@ -317,7 +312,7 @@ void CTXVirtQueue::OnTransmitBufferReleased(CTXDescriptor *TXDescriptor)
 
 void CTXVirtQueue::Shutdown()
 {
-    virtqueue_shutdown(m_VirtQueue);
+    CVirtQueue::Shutdown();
 
     m_DescriptorsInUse.ForEachDetached([this](CTXDescriptor *TXDescriptor)
                                            {
@@ -326,7 +321,7 @@ void CTXVirtQueue::Shutdown()
                                            });
 }
 
-SubmitTxPacketResult CTXDescriptor::Enqueue(struct virtqueue *VirtQueue, ULONG TotalDescriptors, ULONG FreeDescriptors)
+SubmitTxPacketResult CTXDescriptor::Enqueue(CTXVirtQueue *Queue, ULONG TotalDescriptors, ULONG FreeDescriptors)
 {
     m_UsedBuffersNum = m_Indirect ? 1 : m_CurrVirtioSGLEntry;
 
@@ -340,13 +335,12 @@ SubmitTxPacketResult CTXDescriptor::Enqueue(struct virtqueue *VirtQueue, ULONG T
         return SUBMIT_NO_PLACE_IN_QUEUE;
     }
 
-    if (0 <= virtqueue_add_buf(VirtQueue,
-                               m_VirtioSGL,
-                               m_CurrVirtioSGLEntry,
-                               0,
-                               this,
-                               m_IndirectArea.GetVA(),
-                               m_IndirectArea.GetPA().QuadPart))
+    if (0 <= Queue->AddBuf(m_VirtioSGL,
+                           m_CurrVirtioSGLEntry,
+                           0,
+                           this,
+                           m_IndirectArea.GetVA(),
+                           m_IndirectArea.GetPA().QuadPart))
     {
         return SUBMIT_SUCCESS;
     }

@@ -93,7 +93,7 @@ BOOLEAN CParaNdisCX::SendControlMessage(
             void *p;
             /* Control messages are processed synchronously in QEMU, so upon kick_buf return, the response message
               has been already inserted in the queue */
-            m_VirtQueue.KickAlways();
+            m_VirtQueue.Kick();
             p = m_VirtQueue.GetBuf(&len);
             if (!p)
             {

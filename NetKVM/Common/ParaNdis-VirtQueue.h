@@ -14,6 +14,7 @@ extern "C"
 #include "virtio_net.h"
 
 class CNB;
+class CTXVirtQueue;
 typedef struct _tagPARANDIS_ADAPTER *PPARANDIS_ADAPTER;
 
 typedef enum
@@ -111,7 +112,7 @@ public:
         return m_Headers.Allocate() && (!m_Indirect || m_IndirectArea.Allocate(PAGE_SIZE));
     }
 
-    SubmitTxPacketResult Enqueue(struct virtqueue *VirtQueue, ULONG TotalDescriptors, ULONG FreeDescriptors);
+    SubmitTxPacketResult Enqueue(CTXVirtQueue *Queue, ULONG TotalDescriptors, ULONG FreeDescriptors);
 
     CTXHeaders &HeadersAreaAccessor()
     { return m_Headers; }
@@ -169,7 +170,8 @@ public:
 
     void Renew();
 
-    void Shutdown();
+    void Shutdown()
+    { virtqueue_shutdown(m_VirtQueue); }
 
     u16 SetMSIVector(u16 vector);
 
@@ -182,9 +184,6 @@ public:
     { return virtqueue_add_buf(m_VirtQueue, sg, out_num, in_num, data, 
           va_indirect, phys_indirect); }
 
-    void KickAlways()
-    { virtqueue_kick(m_VirtQueue); }
-
     void* GetBuf(unsigned int *len)
     { return virtqueue_get_buf(m_VirtQueue, len); }
 
@@ -192,8 +191,16 @@ public:
     void Kick()
     { virtqueue_kick(m_VirtQueue); }
 
+    //TODO: Needs review / temporary
+    void KickAlways()
+    { virtqueue_notify(m_VirtQueue); }
+
     bool Restart()
     { return virtqueue_enable_cb(m_VirtQueue); }
+
+    //TODO: Needs review/temporary?
+    void EnableInterruptsDelayed()
+    { virtqueue_enable_cb_delayed(m_VirtQueue); }
 
     //TODO: Needs review/temporary?
     void EnableInterrupts()
@@ -202,10 +209,6 @@ public:
     //TODO: Needs review/temporary?
     void DisableInterrupts()
     { virtqueue_disable_cb(m_VirtQueue); }
-
-    //TODO: Needs review/temporary?
-    bool IsInterruptEnabled()
-    { return virtqueue_is_interrupt_enabled(m_VirtQueue) ? true : false; }
 
 protected:
     NDIS_HANDLE m_DrvHandle;
@@ -219,9 +222,6 @@ private:
 
     CNdisSharedMemory m_SharedMemory;
     bool m_UsePublishedIndices;
-
-protected:
-    //TODO: Temporary, must to be private
     struct virtqueue *m_VirtQueue = nullptr;
 
     CVirtQueue(const CVirtQueue&) = delete;
@@ -254,28 +254,6 @@ public:
 
     //TODO: Needs review
     void OnTransmitBufferReleased(CTXDescriptor *TXDescriptor);
-
-    //TODO: Needs review / temporary
-    void Kick()
-    {
-        virtqueue_kick(m_VirtQueue);
-    }
-
-    //TODO: Needs review / temporary
-    bool Restart()
-    { return virtqueue_enable_cb(m_VirtQueue); }
-
-    //TODO: Needs review/temporary?
-    void EnableInterrupts()
-    { virtqueue_enable_cb(m_VirtQueue); }
-
-    //TODO: Needs review/temporary?
-    void DisableInterrupts()
-    { virtqueue_disable_cb(m_VirtQueue); }
-
-    //TODO: Needs review/temporary?
-    bool IsInterruptEnabled()
-    { return virtqueue_is_interrupt_enabled(m_VirtQueue) ? true : false; }
 
     //TODO: Needs review/temporary?
     ULONG GetFreeTXDescriptors()

@@ -449,7 +449,7 @@ bool CParaNdisTX::RestartQueue(bool DoKick)
 
     if(DoKick)
     {
-        Kick();
+        m_VirtQueue.Kick();
     }
 
     return res;
