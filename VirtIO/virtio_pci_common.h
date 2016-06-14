@@ -63,18 +63,6 @@
 #define vdev_sleep(vdev, msecs) \
     vdev->system->vdev_sleep(vdev->DeviceContext, msecs)
 
- /**
- * virtio_has_feature - helper to determine if this device has this feature.
- * @vdev: the device
- * @fbit: the feature bit
- */
-static inline bool virtio_has_feature(const VirtIODevice *vdev,
-    unsigned int fbit)
-{
-    BUG_ON(fbit >= 64);
-    return virtio_is_feature_enabled(vdev->features, fbit);
-}
-
 /* the notify function used when creating a virt queue */
 bool vp_notify(struct virtqueue *vq);
 

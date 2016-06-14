@@ -184,20 +184,20 @@ static u64 vio_modern_get_features(VirtIODevice *vdev)
     return features;
 }
 
-static NTSTATUS vio_modern_set_features(VirtIODevice *vdev)
+static NTSTATUS vio_modern_set_features(VirtIODevice *vdev, u64 features)
 {
     /* Give virtio_ring a chance to accept features. */
-    vring_transport_features(vdev);
+    vring_transport_features(vdev, &features);
 
-    if (!virtio_has_feature(vdev, VIRTIO_F_VERSION_1)) {
+    if (!virtio_is_feature_enabled(features, VIRTIO_F_VERSION_1)) {
         DPrintf(0, ("virtio: device uses modern interface but does not have VIRTIO_F_VERSION_1\n"));
         return STATUS_INVALID_PARAMETER;
     }
 
     iowrite32(vdev, 0, &vdev->common->guest_feature_select);
-    iowrite32(vdev, (u32)vdev->features, &vdev->common->guest_feature);
+    iowrite32(vdev, (u32)features, &vdev->common->guest_feature);
     iowrite32(vdev, 1, &vdev->common->guest_feature_select);
-    iowrite32(vdev, vdev->features >> 32, &vdev->common->guest_feature);
+    iowrite32(vdev, features >> 32, &vdev->common->guest_feature);
 
     return STATUS_SUCCESS;
 }

@@ -100,14 +100,14 @@ static u64 vio_legacy_get_features(VirtIODevice *vdev)
     return ioread32(vdev, vdev->addr + VIRTIO_PCI_HOST_FEATURES);
 }
 
-static NTSTATUS vio_legacy_set_features(VirtIODevice *vdev)
+static NTSTATUS vio_legacy_set_features(VirtIODevice *vdev, u64 features)
 {
     /* Give virtio_ring a chance to accept features. */
-    vring_transport_features(vdev);
+    vring_transport_features(vdev, &features);
 
     /* Make sure we don't have any features > 32 bits! */
-    ASSERT((u32)vdev->features == vdev->features);
-    iowrite32(vdev, (u32)vdev->features, vdev->addr + VIRTIO_PCI_GUEST_FEATURES);
+    ASSERT((u32)features == features);
+    iowrite32(vdev, (u32)features, vdev->addr + VIRTIO_PCI_GUEST_FEATURES);
 
     return STATUS_SUCCESS;
 }

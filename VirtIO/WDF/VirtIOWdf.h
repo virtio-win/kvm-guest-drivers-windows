@@ -33,6 +33,7 @@ typedef struct virtio_wdf_driver {
     VirtIODevice            VIODevice;
 
     ULONG                   MemoryTag;
+    ULONGLONG               uFeatures;
 
     BUS_INTERFACE_STANDARD  PCIBus;
     SINGLE_LIST_ENTRY       PCIBars;

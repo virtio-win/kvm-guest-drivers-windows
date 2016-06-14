@@ -525,9 +525,8 @@ VirtIoHwInitialize(
         guestFeatures |= (1ULL << VIRTIO_BLK_F_GEOMETRY);
     }
 
-    adaptExt->vdev.features = guestFeatures;
-    if (!NT_SUCCESS(virtio_finalize_features(&adaptExt->vdev))) {
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("virtio_finalize_features failed\n"));
+    if (!NT_SUCCESS(virtio_set_features(&adaptExt->vdev, guestFeatures))) {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("virtio_set_features failed\n"));
         return FALSE;
     }
 

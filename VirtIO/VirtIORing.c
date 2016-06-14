@@ -707,7 +707,7 @@ unsigned int vring_control_block_size()
 }
 
 /* Manipulates transport-specific feature bits. */
-void vring_transport_features(VirtIODevice *vdev)
+void vring_transport_features(VirtIODevice *vdev, u64 *features)
 {
     unsigned int i;
 
@@ -721,7 +721,7 @@ void vring_transport_features(VirtIODevice *vdev)
             break;
         default:
             /* We don't understand this bit. */
-            virtio_feature_disable(vdev->features, i);
+            virtio_feature_disable(*features, i);
         }
     }
 }

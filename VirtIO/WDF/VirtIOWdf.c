@@ -83,8 +83,9 @@ NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver,
         virtio_add_status(&pWdfDriver->VIODevice, VIRTIO_CONFIG_S_DRIVER);
     }
 
-    pWdfDriver->VIODevice.features = uFeatures;
-    return virtio_finalize_features(&pWdfDriver->VIODevice);
+    /* cache driver features in case we need to replay this in VirtIOWdfInitQueues */
+    pWdfDriver->uFeatures = uFeatures;
+    return virtio_set_features(&pWdfDriver->VIODevice, uFeatures);
 }
 
 NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
@@ -104,7 +105,7 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
         virtio_add_status(&pWdfDriver->VIODevice, VIRTIO_CONFIG_S_DRIVER);
     }
     if (!(dev_status & VIRTIO_CONFIG_S_FEATURES_OK)) {
-        status = virtio_finalize_features(&pWdfDriver->VIODevice);
+        status = virtio_set_features(&pWdfDriver->VIODevice, pWdfDriver->uFeatures);
         if (!NT_SUCCESS(status)) {
             return status;
         }

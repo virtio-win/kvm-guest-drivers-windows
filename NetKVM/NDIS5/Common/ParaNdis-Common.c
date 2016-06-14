@@ -620,9 +620,9 @@ static NDIS_STATUS NTStatusToNdisStatus(NTSTATUS nt_status) {
 
 static NDIS_STATUS FinalizeFeatures(PARANDIS_ADAPTER *pContext)
 {
-    NTSTATUS nt_status = virtio_finalize_features(&pContext->IODevice);
+    NTSTATUS nt_status = virtio_set_features(&pContext->IODevice, pContext->ullGuestFeatures);
     if (!NT_SUCCESS(nt_status)) {
-        DPrintf(0, ("[%s] virtio_finalize_features failed with %x\n", __FUNCTION__, nt_status));
+        DPrintf(0, ("[%s] virtio_set_features failed with %x\n", __FUNCTION__, nt_status));
     }
     return NTStatusToNdisStatus(nt_status);
 }
@@ -2740,7 +2740,6 @@ NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     if (VirtIODeviceGetHostFeature(pContext, VIRTIO_F_ANY_LAYOUT))
         VirtIODeviceEnableGuestFeature(pContext, VIRTIO_F_ANY_LAYOUT);
 
-    pContext->IODevice.features = pContext->ullGuestFeatures;
     status = FinalizeFeatures(pContext);
     if (status == NDIS_STATUS_SUCCESS) {
         status = FindNetQueues(pContext);
