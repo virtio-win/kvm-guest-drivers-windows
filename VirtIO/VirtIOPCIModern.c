@@ -214,7 +214,7 @@ static u16 vio_modern_set_config_vector(VirtIODevice *vdev, u16 vector)
 static u16 vio_modern_set_queue_vector(struct virtqueue *vq, u16 vector)
 {
     VirtIODevice *vdev = vq->vdev;
-    struct virtio_pci_common_cfg *cfg = vdev->common;
+    volatile struct virtio_pci_common_cfg *cfg = vdev->common;
 
     iowrite16(vdev, (u16)vq->index, &cfg->queue_select);
     iowrite16(vdev, vector, &cfg->queue_msix_vector);
@@ -233,7 +233,7 @@ static NTSTATUS vio_modern_query_vq_alloc(VirtIODevice *vdev,
                                           unsigned long *pRingSize,
                                           unsigned long *pHeapSize)
 {
-    struct virtio_pci_common_cfg *cfg = vdev->common;
+    volatile struct virtio_pci_common_cfg *cfg = vdev->common;
     u16 num;
 
     if (index >= ioread16(vdev, &cfg->num_queues)) {
@@ -270,7 +270,7 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue,
                                     unsigned index,
                                     u16 msix_vec)
 {
-    struct virtio_pci_common_cfg *cfg = vdev->common;
+    volatile struct virtio_pci_common_cfg *cfg = vdev->common;
     struct virtqueue *vq;
     void *vq_addr;
     u16 off;

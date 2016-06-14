@@ -58,7 +58,7 @@
 #define pci_map_address_range(vdev, bar, offset, maxlen) \
     vdev->system->pci_map_address_range(vdev->DeviceContext, bar, offset, maxlen)
 #define pci_unmap_address_range(vdev, address) \
-    vdev->system->pci_unmap_address_range(vdev->DeviceContext, address)
+    vdev->system->pci_unmap_address_range(vdev->DeviceContext, (void *)address)
 
 #define vdev_get_msix_vector(vdev, queue) \
     vdev->system->vdev_get_msix_vector(vdev->DeviceContext, queue)

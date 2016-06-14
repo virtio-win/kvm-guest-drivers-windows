@@ -245,7 +245,7 @@ NTSTATUS virtio_find_queues(VirtIODevice *vdev,
             goto error_find;
         }
         if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
-            vdev->msix_used |= 1;
+            vdev->msix_used = 1;
         }
     }
     return STATUS_SUCCESS;
