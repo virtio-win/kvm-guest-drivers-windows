@@ -345,20 +345,7 @@
     <ClCompile>
       <AdditionalOptions>/kernel %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel>Level3</WarningLevel>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">false</DisableLanguageExtensions>
+      <DisableLanguageExtensions>false</DisableLanguageExtensions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v140_xp'">
@@ -399,26 +386,16 @@
   <ItemDefinitionGroup Condition="$(Configuration.StartsWith('Vista'))">
     <ClCompile>
       <PreprocessorDefinitions>_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000100;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">false</DisableLanguageExtensions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="$(Configuration.StartsWith('Win2k3'))">
     <ClCompile>
       <PreprocessorDefinitions>_WIN32_WINNT=0x0502;WINVER=0x0502;NTDDI_VERSION=0x05020100;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|Win32'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win2k3 Debug|Win32'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|x64'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Win2k3 Debug|x64'">false</DisableLanguageExtensions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="$(Configuration.StartsWith('WinXP'))">
     <ClCompile>
       <PreprocessorDefinitions>_WIN32_WINNT=0x0501;WINVER=0x0501;NTDDI_VERSION=0x05010200;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='WinXP Release|Win32'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='WinXP Debug|Win32'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='WinXP Release|x64'">false</DisableLanguageExtensions>
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='WinXP Debug|x64'">false</DisableLanguageExtensions>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
