@@ -111,16 +111,16 @@ void virtio_add_status(VirtIODevice *vdev, u8 status)
     vdev->device->set_status(vdev, (u8)(vdev->device->get_status(vdev) | status));
 }
 
-NTSTATUS virtio_finalize_features(VirtIODevice *vdev)
+NTSTATUS virtio_set_features(VirtIODevice *vdev, u64 features)
 {
     unsigned char dev_status;
-    NTSTATUS status = vdev->device->set_features(vdev);
+    NTSTATUS status = vdev->device->set_features(vdev, features);
 
     if (!NT_SUCCESS(status)) {
         return status;
     }
 
-    if (!virtio_has_feature(vdev, VIRTIO_F_VERSION_1)) {
+    if (!virtio_is_feature_enabled(features, VIRTIO_F_VERSION_1)) {
         return status;
     }
 
@@ -365,8 +365,7 @@ void virtio_device_ready(VirtIODevice *vdev)
 
 u64 virtio_get_features(VirtIODevice *vdev)
 {
-    vdev->features = vdev->device->get_features(vdev);
-    return vdev->features;
+    return vdev->device->get_features(vdev);
 }
 
 u32 virtio_device_get_queue_size(struct virtqueue *vq)

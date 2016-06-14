@@ -743,11 +743,10 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
     if (status == NDIS_STATUS_SUCCESS)
     {
-        pContext->IODevice.features = pContext->u64GuestFeatures;
-        NTSTATUS nt_status = virtio_finalize_features(&pContext->IODevice);
+        NTSTATUS nt_status = virtio_set_features(&pContext->IODevice, pContext->u64GuestFeatures);
         if (!NT_SUCCESS(nt_status))
         {
-            DPrintf(0, ("[%s] virtio_finalize_features failed with %x\n", __FUNCTION__, nt_status));
+            DPrintf(0, ("[%s] virtio_set_features failed with %x\n", __FUNCTION__, nt_status));
             status = NTStatusToNdisStatus(nt_status);
         }
     }
@@ -1929,11 +1928,10 @@ NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     /* virtio_get_features must be called with any mask once upon device initialization:
      otherwise the device will not work properly */
     (void)virtio_get_features(&pContext->IODevice);
-    pContext->IODevice.features = pContext->u64GuestFeatures;
-    NTSTATUS nt_status = virtio_finalize_features(&pContext->IODevice);
+    NTSTATUS nt_status = virtio_set_features(&pContext->IODevice, pContext->u64GuestFeatures);
     if (!NT_SUCCESS(nt_status))
     {
-        DPrintf(0, ("[%s] virtio_finalize_features failed with %x\n", __FUNCTION__, nt_status));
+        DPrintf(0, ("[%s] virtio_set_features failed with %x\n", __FUNCTION__, nt_status));
         return NTStatusToNdisStatus(nt_status);
     }
 

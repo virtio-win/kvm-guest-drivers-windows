@@ -212,7 +212,7 @@ struct virtio_device_ops
 
     // get/set device feature bits
     u64 (*get_features)(VirtIODevice *vdev);
-    NTSTATUS (*set_features)(VirtIODevice *vdev);
+    NTSTATUS (*set_features)(VirtIODevice *vdev, u64 features);
 
     // set config/queue MSI interrupt vector, returns the new vector
     u16 (*set_config_vector)(VirtIODevice *vdev, u16 vector);
@@ -255,9 +255,6 @@ struct virtio_device
 
     // the ISR status field, reading causes the device to de-assert an interrupt
     volatile u8 *isr;
-
-    // bitmap of features offered by the device or accepted by the driver
-    u64 features;
 
     // modern virtio device capabilities and related state
     volatile struct virtio_pci_common_cfg *common;
@@ -306,8 +303,9 @@ void virtio_add_status(VirtIODevice *vdev, u8 status);
 
 void virtio_device_ready(VirtIODevice *vdev);
 
-u64 virtio_get_features(VirtIODevice *vdev);
-NTSTATUS virtio_finalize_features(VirtIODevice *vdev);
+u64 virtio_get_features(VirtIODevice *dev);
+NTSTATUS virtio_set_features(VirtIODevice *vdev, u64 features);
+
 u8 virtio_read_isr_status(VirtIODevice *vdev);
 
 NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev,
