@@ -664,7 +664,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
             return status;
         }
 
-        VirtIODeviceSetMSIXUsed(&pContext->IODevice, pContext->bUsingMSIX ? true : false);
+        virtio_device_set_msix_used(&pContext->IODevice, pContext->bUsingMSIX ? true : false);
         pContext->u64HostFeatures = virtio_get_features(&pContext->IODevice);
         DumpVirtIOFeatures(pContext);
 

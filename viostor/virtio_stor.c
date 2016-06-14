@@ -361,7 +361,7 @@ VirtIoFindAdapter(
                     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("CapabilityID = %x, Next CapOffset = %x\n", pMsixCapOffset->Header.CapabilityID, CapOffset));
                  }
               }
-              VirtIODeviceSetMSIXUsed(&adaptExt->vdev, adaptExt->msix_enabled);
+              virtio_device_set_msix_used(&adaptExt->vdev, adaptExt->msix_enabled);
            }
            else
            {

@@ -381,7 +381,7 @@ ENTER_FN();
                  CapOffset = pMsixCapOffset->Header.Next;
               }
               RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("msix_enabled = %d\n", adaptExt->msix_enabled));
-              VirtIODeviceSetMSIXUsed(&adaptExt->vdev, adaptExt->msix_enabled);
+              virtio_device_set_msix_used(&adaptExt->vdev, adaptExt->msix_enabled);
            }
            else
            {
