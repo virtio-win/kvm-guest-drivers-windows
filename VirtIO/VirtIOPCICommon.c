@@ -171,8 +171,6 @@ void virtio_device_reset(VirtIODevice *vdev)
 
 void virtio_device_shutdown(VirtIODevice *vdev)
 {
-    vdev->device->release(vdev);
-
     if (vdev->info &&
         vdev->info != vdev->inline_info) {
         mem_free_nonpaged_block(vdev, vdev->info);
