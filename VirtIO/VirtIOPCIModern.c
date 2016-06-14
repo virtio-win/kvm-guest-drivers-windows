@@ -360,9 +360,6 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue,
     return STATUS_SUCCESS;
 
 err_assign_vector:
-    if (!vdev->notify_base) {
-        pci_unmap_address_range(vdev, (void *)vq->priv);
-    }
 err_map_notify:
     virtqueue_shutdown(vq);
 err_new_queue:
@@ -384,10 +381,6 @@ static void vio_modern_del_vq(VirtIOQueueInfo *info)
         ioread16(vdev, &vdev->common->queue_msix_vector);
     }
 
-    if (!vdev->notify_base) {
-        pci_unmap_address_range(vdev, (void *)vq->priv);
-    }
-
     virtqueue_shutdown(vq);
 
     mem_free_nonpaged_block(vdev, vq);
@@ -396,14 +389,6 @@ static void vio_modern_del_vq(VirtIOQueueInfo *info)
 
 static void vio_modern_release(VirtIODevice *vdev)
 {
-    if (vdev->config) {
-        pci_unmap_address_range(vdev, vdev->config);
-    }
-    if (vdev->notify_base) {
-        pci_unmap_address_range(vdev, vdev->notify_base);
-    }
-    pci_unmap_address_range(vdev, vdev->isr);
-    pci_unmap_address_range(vdev, vdev->common);
 }
 
 static const struct virtio_device_ops virtio_pci_device_ops = {
@@ -536,14 +521,14 @@ NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
         capabilities[VIRTIO_PCI_CAP_COMMON_CFG],
         sizeof(struct virtio_pci_common_cfg), 4);
     if (!vdev->common) {
-        goto err_map_common;
+        return STATUS_INVALID_PARAMETER;
     }
 
     vdev->isr = vio_modern_map_simple_capability(vdev,
         capabilities[VIRTIO_PCI_CAP_ISR_CFG],
         sizeof(u8), 1);
     if (!vdev->isr) {
-        goto err_map_isr;
+        return STATUS_INVALID_PARAMETER;
     }
 
     /* Read notify_off_multiplier from config space. */
@@ -571,7 +556,7 @@ NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
             0, notify_length,
             &vdev->notify_len);
         if (!vdev->notify_base) {
-            goto err_map_notify;
+            return STATUS_INVALID_PARAMETER;
         }
     } else {
         vdev->notify_map_cap = capabilities[VIRTIO_PCI_CAP_NOTIFY_CFG];
@@ -584,22 +569,11 @@ NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
             0, PAGE_SIZE,
             &vdev->config_len);
         if (!vdev->config) {
-            goto err_map_config;
+            return STATUS_INVALID_PARAMETER;
         }
     }
 
     vdev->device = &virtio_pci_device_ops;
 
     return STATUS_SUCCESS;
-
-err_map_config:
-    if (vdev->notify_base) {
-        pci_unmap_address_range(vdev, vdev->notify_base);
-    }
-err_map_notify:
-    pci_unmap_address_range(vdev, vdev->isr);
-err_map_isr:
-    pci_unmap_address_range(vdev, vdev->common);
-err_map_common:
-    return STATUS_INVALID_PARAMETER;
 }

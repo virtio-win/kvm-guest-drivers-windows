@@ -212,15 +212,6 @@ static void *pci_map_address_range(void *context, int bar, size_t offset, size_t
     return NULL;
 }
 
-static void pci_unmap_address_range(void *context, void *address)
-{
-    /* We map entire memory/IO regions on demand and the storage port driver
-     * unmaps all of them on shutdown so nothing to do here.
-     */
-    UNREFERENCED_PARAMETER(context);
-    UNREFERENCED_PARAMETER(address);
-}
-
 static u16 vdev_get_msix_vector(void *context, int queue)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
@@ -267,7 +258,6 @@ VirtIOSystemOps VioStorSystemOps = {
     .pci_read_config_dword = pci_read_config_dword,
     .pci_get_resource_len = pci_get_resource_len,
     .pci_map_address_range = pci_map_address_range,
-    .pci_unmap_address_range = pci_unmap_address_range,
     .vdev_get_msix_vector = vdev_get_msix_vector,
     .vdev_sleep = vdev_sleep,
 };
