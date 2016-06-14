@@ -431,15 +431,6 @@ static void *pci_map_address_range(void *context, int bar, size_t offset, size_t
     return nullptr;
 }
 
-static void pci_unmap_address_range(void *context, void *address)
-{
-    /* We map entire memory/IO regions on demand and unmap all of them on shutdown
-     * so nothing to do here.
-     */
-    UNREFERENCED_PARAMETER(context);
-    UNREFERENCED_PARAMETER(address);
-}
-
 static u16 vdev_get_msix_vector(void *context, int queue)
 {
     /* Interrupt vectors are set up in CParaNdisAbstractPath::SetupMessageIndex,
@@ -475,7 +466,6 @@ VirtIOSystemOps ParaNdisSystemOps = {
     pci_read_config_dword,
     pci_get_resource_len,
     pci_map_address_range,
-    pci_unmap_address_range,
     vdev_get_msix_vector,
     vdev_sleep,
 };

@@ -235,7 +235,6 @@ static void vio_legacy_del_vq(VirtIOQueueInfo *info)
 
 static void vio_legacy_release(VirtIODevice *vdev)
 {
-    pci_unmap_address_range(vdev, (void *)vdev->addr);
 }
 
 static const struct virtio_device_ops virtio_pci_device_ops = {
