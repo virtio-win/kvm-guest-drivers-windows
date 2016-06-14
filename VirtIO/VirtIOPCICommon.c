@@ -111,21 +111,21 @@ void virtio_add_status(VirtIODevice *vdev, u8 status)
     vdev->device->set_status(vdev, (u8)(vdev->device->get_status(vdev) | status));
 }
 
-NTSTATUS virtio_finalize_features(VirtIODevice *dev)
+NTSTATUS virtio_finalize_features(VirtIODevice *vdev)
 {
     unsigned char dev_status;
-    NTSTATUS status = dev->device->set_features(dev);
+    NTSTATUS status = vdev->device->set_features(vdev);
 
     if (!NT_SUCCESS(status)) {
         return status;
     }
 
-    if (!virtio_has_feature(dev, VIRTIO_F_VERSION_1)) {
+    if (!virtio_has_feature(vdev, VIRTIO_F_VERSION_1)) {
         return status;
     }
 
-    virtio_add_status(dev, VIRTIO_CONFIG_S_FEATURES_OK);
-    dev_status = dev->device->get_status(dev);
+    virtio_add_status(vdev, VIRTIO_CONFIG_S_FEATURES_OK);
+    dev_status = vdev->device->get_status(vdev);
     if (!(dev_status & VIRTIO_CONFIG_S_FEATURES_OK)) {
         DPrintf(0, ("virtio: device refuses features: %x\n", dev_status));
         status = STATUS_INVALID_PARAMETER;
@@ -133,54 +133,54 @@ NTSTATUS virtio_finalize_features(VirtIODevice *dev)
     return status;
 }
 
-NTSTATUS virtio_device_initialize(VirtIODevice *pVirtIODevice,
+NTSTATUS virtio_device_initialize(VirtIODevice *vdev,
                                   const VirtIOSystemOps *pSystemOps,
                                   PVOID DeviceContext,
                                   ULONG allocatedSize)
 {
     NTSTATUS status;
 
-    memset(pVirtIODevice, 0, allocatedSize);
-    pVirtIODevice->DeviceContext = DeviceContext;
-    pVirtIODevice->system = pSystemOps;
-    pVirtIODevice->info = pVirtIODevice->inline_info;
+    memset(vdev, 0, allocatedSize);
+    vdev->DeviceContext = DeviceContext;
+    vdev->system = pSystemOps;
+    vdev->info = vdev->inline_info;
 
     ASSERT(allocatedSize > offsetof(VirtIODevice, info));
-    pVirtIODevice->maxQueues =
+    vdev->maxQueues =
         (allocatedSize - offsetof(VirtIODevice, info)) / sizeof(VirtIOQueueInfo);
 
-    status = vio_modern_initialize(pVirtIODevice);
+    status = vio_modern_initialize(vdev);
     if (status == STATUS_DEVICE_NOT_CONNECTED) {
         /* fall back to legacy virtio device */
-        status = vio_legacy_initialize(pVirtIODevice);
+        status = vio_legacy_initialize(vdev);
     }
     if (NT_SUCCESS(status)) {
         /* Always start by resetting the device */
-        virtio_device_reset(pVirtIODevice);
+        virtio_device_reset(vdev);
 
         /* Acknowledge that we've seen the device. */
-        virtio_add_status(pVirtIODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
+        virtio_add_status(vdev, VIRTIO_CONFIG_S_ACKNOWLEDGE);
 
         /* If we are here, we must have found a driver for the device */
-        virtio_add_status(pVirtIODevice, VIRTIO_CONFIG_S_DRIVER);
+        virtio_add_status(vdev, VIRTIO_CONFIG_S_DRIVER);
     }
 
     return status;
 }
 
-void virtio_device_reset(VirtIODevice *pVirtIODevice)
+void virtio_device_reset(VirtIODevice *vdev)
 {
-    pVirtIODevice->device->reset(pVirtIODevice);
+    vdev->device->reset(vdev);
 }
 
-void virtio_device_shutdown(VirtIODevice *pVirtIODevice)
+void virtio_device_shutdown(VirtIODevice *vdev)
 {
-    pVirtIODevice->device->release(pVirtIODevice);
+    vdev->device->release(vdev);
 
-    if (pVirtIODevice->info &&
-        pVirtIODevice->info != pVirtIODevice->inline_info) {
-        mem_free_nonpaged_block(pVirtIODevice, pVirtIODevice->info);
-        pVirtIODevice->info = NULL;
+    if (vdev->info &&
+        vdev->info != vdev->inline_info) {
+        mem_free_nonpaged_block(vdev, vdev->info);
+        vdev->info = NULL;
     }
 }
 
@@ -361,18 +361,18 @@ void virtio_set_config(VirtIODevice *vdev, unsigned offset,
     }
 }
 
-void virtio_device_ready(VirtIODevice *dev)
+void virtio_device_ready(VirtIODevice *vdev)
 {
-    unsigned status = dev->device->get_status(dev);
+    unsigned status = vdev->device->get_status(vdev);
 
     BUG_ON(status & VIRTIO_CONFIG_S_DRIVER_OK);
-    dev->device->set_status(dev, (u8)(status | VIRTIO_CONFIG_S_DRIVER_OK));
+    vdev->device->set_status(vdev, (u8)(status | VIRTIO_CONFIG_S_DRIVER_OK));
 }
 
-u64 virtio_get_features(VirtIODevice *dev)
+u64 virtio_get_features(VirtIODevice *vdev)
 {
-    dev->features = dev->device->get_features(dev);
-    return dev->features;
+    vdev->features = vdev->device->get_features(vdev);
+    return vdev->features;
 }
 
 u32 virtio_device_get_queue_size(struct virtqueue *vq)
@@ -380,7 +380,7 @@ u32 virtio_device_get_queue_size(struct virtqueue *vq)
     return vq->vdev->info[vq->index].num;
 }
 
-void virtio_device_set_msix_used(VirtIODevice * pVirtIODevice, bool used)
+void virtio_device_set_msix_used(VirtIODevice *vdev, bool used)
 {
-    pVirtIODevice->msix_used = used != 0;
+    vdev->msix_used = used != 0;
 }
