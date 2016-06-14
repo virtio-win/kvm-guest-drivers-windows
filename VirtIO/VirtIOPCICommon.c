@@ -379,3 +379,8 @@ u32 virtio_device_get_queue_size(struct virtqueue *vq)
 {
     return vq->vdev->info[vq->index].num;
 }
+
+void virtio_device_set_msix_used(VirtIODevice * pVirtIODevice, bool used)
+{
+    pVirtIODevice->msix_used = used != 0;
+}

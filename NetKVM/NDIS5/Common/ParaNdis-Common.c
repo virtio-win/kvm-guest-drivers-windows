@@ -696,7 +696,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
         }
 
         pContext->bIODeviceInitialized = TRUE;
-        VirtIODeviceSetMSIXUsed(&pContext->IODevice, pContext->bUsingMSIX);
+        virtio_device_set_msix_used(&pContext->IODevice, pContext->bUsingMSIX);
         JustForCheckClearInterrupt(pContext, "init 0");
         ParaNdis_ResetVirtIONetDevice(pContext);
         JustForCheckClearInterrupt(pContext, "init 1");

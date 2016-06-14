@@ -26,17 +26,12 @@
 #include "VirtIOPCILegacy.tmh"
 #endif
 
-void VirtIODeviceSetMSIXUsed(VirtIODevice * pVirtIODevice, bool used)
-{
-    pVirtIODevice->msix_used = used != 0;
-}
-
 /////////////////////////////////////////////////////////////////////////////////////
 //
-// VirtIODeviceDumpRegisters - Dump HW registers of the device
+// vio_legacy_dump_registers - Dump HW registers of the device
 //
 /////////////////////////////////////////////////////////////////////////////////////
-void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice)
+void vio_legacy_dump_registers(VirtIODevice * pVirtIODevice)
 {
     DPrintf(5, ("%s\n", __FUNCTION__));
 
@@ -195,7 +190,7 @@ static NTSTATUS vio_legacy_setup_vq(struct virtqueue **queue,
         (u8 *)info->queue + ROUND_TO_PAGES(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN)));
     if (!vq) {
         status = STATUS_INSUFFICIENT_RESOURCES;
-        goto out_activate_queue;
+        goto err_activate_queue;
     }
 
     vq->priv = (void *)(vdev->addr + VIRTIO_PCI_QUEUE_NOTIFY);
@@ -204,15 +199,15 @@ static NTSTATUS vio_legacy_setup_vq(struct virtqueue **queue,
         msix_vec = vdev->device->set_queue_vector(vq, msix_vec);
         if (msix_vec == VIRTIO_MSI_NO_VECTOR) {
             status = STATUS_DEVICE_BUSY;
-            goto out_assign;
+            goto err_assign;
         }
     }
 
     *queue = vq;
     return STATUS_SUCCESS;
 
-out_assign:
-out_activate_queue:
+err_assign:
+err_activate_queue:
     iowrite32(vdev, 0, vdev->addr + VIRTIO_PCI_QUEUE_PFN);
     mem_free_contiguous_pages(vdev, info->queue);
     return status;

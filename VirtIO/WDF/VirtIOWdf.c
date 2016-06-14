@@ -70,7 +70,7 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
     }
 
     pWdfDriver->ConfigInterrupt = ConfigInterrupt;
-    VirtIODeviceSetMSIXUsed(pWdfDriver->pVIODevice, pWdfDriver->nMSIInterrupts > 0);
+    virtio_device_set_msix_used(pWdfDriver->pVIODevice, pWdfDriver->nMSIInterrupts > 0);
 
     return status;
 }

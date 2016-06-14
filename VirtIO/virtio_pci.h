@@ -285,8 +285,8 @@ shall be called if the device currently uses MSI-X feature
 as soon as possible after initialization
 before use VirtIODeviceGet or VirtIODeviceSet
 ***************************************************/
-void VirtIODeviceSetMSIXUsed(VirtIODevice * pVirtIODevice, bool used);
-void VirtIODeviceDumpRegisters(VirtIODevice * pVirtIODevice);
+void virtio_device_set_msix_used(VirtIODevice * pVirtIODevice, bool used);
+void vio_legacy_dump_registers(VirtIODevice * pVirtIODevice);
 
 #define virtio_is_feature_enabled(FeaturesList, Feature)  (!!((FeaturesList) & (1ULL << (Feature))))
 #define virtio_feature_enable(FeaturesList, Feature)      ((FeaturesList) |= (1ULL << (Feature)))
