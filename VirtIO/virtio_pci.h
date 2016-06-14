@@ -239,27 +239,42 @@ struct virtio_device_ops
 
 struct virtio_device
 {
+    // the I/O port BAR of the PCI device (legacy virtio devices only)
     ULONG_PTR addr;
+
+    // true if the device uses MSI interrupts
     bool msix_used;
 
+    // internal device operations, implemented separately for legacy and modern
     const struct virtio_device_ops *device;
+
+    // external callbacks implemented separately by different driver model drivers
     const struct virtio_system_ops *system;
+
+    // opaque context value passed as first argument to virtio_system_ops callbacks
     void *DeviceContext;
-    u8 *isr;
+
+    // the ISR status field, reading causes the device to de-assert an interrupt
+    volatile u8 *isr;
+
+    // bitmap of features offered by the device or accepted by the driver
     u64 features;
 
-    /* virtio 1.0 specific fields begin */
-    struct virtio_pci_common_cfg *common;
-    unsigned char *config;
-    unsigned char *notify_base;
+    // modern virtio device capabilities and related state
+    volatile struct virtio_pci_common_cfg *common;
+    volatile unsigned char *config;
+    volatile unsigned char *notify_base;
     int notify_map_cap;
     u32 notify_offset_multiplier;
 
     size_t config_len;
     size_t notify_len;
-    /* virtio 1.0 specific fields end */
 
+    // maximum number of virtqueues that fit in the memory block pointed to by info
     ULONG maxQueues;
+
+    // points to inline_info if not more than MAX_QUEUES_PER_DEVICE_DEFAULT queues
+    // are used, or to an external allocation otherwise
     VirtIOQueueInfo *info;
     VirtIOQueueInfo inline_info[MAX_QUEUES_PER_DEVICE_DEFAULT];
 };
