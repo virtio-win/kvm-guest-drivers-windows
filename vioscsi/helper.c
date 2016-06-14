@@ -260,8 +260,7 @@ InitVirtIODevice(
     status = virtio_device_initialize(
         &adaptExt->vdev,
         &VioScsiSystemOps,
-        adaptExt,
-        sizeof(adaptExt->vdev));
+        adaptExt);
     if (!NT_SUCCESS(status)) {
         LogError(adaptExt,
                 SP_INTERNAL_ADAPTER_ERROR,

@@ -135,19 +135,15 @@ NTSTATUS virtio_finalize_features(VirtIODevice *vdev)
 
 NTSTATUS virtio_device_initialize(VirtIODevice *vdev,
                                   const VirtIOSystemOps *pSystemOps,
-                                  PVOID DeviceContext,
-                                  ULONG allocatedSize)
+                                  PVOID DeviceContext)
 {
     NTSTATUS status;
 
-    memset(vdev, 0, allocatedSize);
+    RtlZeroMemory(vdev, sizeof(VirtIODevice));
     vdev->DeviceContext = DeviceContext;
     vdev->system = pSystemOps;
     vdev->info = vdev->inline_info;
-
-    ASSERT(allocatedSize > offsetof(VirtIODevice, info));
-    vdev->maxQueues =
-        (allocatedSize - offsetof(VirtIODevice, info)) / sizeof(VirtIOQueueInfo);
+    vdev->maxQueues = ARRAYSIZE(vdev->inline_info);
 
     status = vio_modern_initialize(vdev);
     if (status == STATUS_DEVICE_NOT_CONNECTED) {

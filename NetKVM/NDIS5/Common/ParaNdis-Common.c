@@ -686,8 +686,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
         nt_status = virtio_device_initialize(
             &pContext->IODevice,
             &ParaNdisSystemOps,
-            pContext,
-            sizeof(pContext->IODevice));
+            pContext);
         if (!NT_SUCCESS(nt_status)) {
             DPrintf(0, ("[%s] virtio_device_initialize failed with %x\n", __FUNCTION__, nt_status));
             status = NTStatusToNdisStatus(nt_status);
