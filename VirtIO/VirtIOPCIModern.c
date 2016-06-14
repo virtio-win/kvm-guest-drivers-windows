@@ -387,10 +387,6 @@ static void vio_modern_del_vq(VirtIOQueueInfo *info)
     mem_free_contiguous_pages(vdev, info->queue);
 }
 
-static void vio_modern_release(VirtIODevice *vdev)
-{
-}
-
 static const struct virtio_device_ops virtio_pci_device_ops = {
     .get_config = vio_modern_get_config,
     .set_config = vio_modern_set_config,
@@ -405,7 +401,6 @@ static const struct virtio_device_ops virtio_pci_device_ops = {
     .query_queue_alloc = vio_modern_query_vq_alloc,
     .setup_queue = vio_modern_setup_vq,
     .delete_queue = vio_modern_del_vq,
-    .release = vio_modern_release,
 };
 
 static u8 find_next_pci_vendor_capability(VirtIODevice *vdev, u8 offset)

@@ -233,10 +233,6 @@ static void vio_legacy_del_vq(VirtIOQueueInfo *info)
     mem_free_contiguous_pages(vdev, info->queue);
 }
 
-static void vio_legacy_release(VirtIODevice *vdev)
-{
-}
-
 static const struct virtio_device_ops virtio_pci_device_ops = {
     .get_config = vio_legacy_get_config,
     .set_config = vio_legacy_set_config,
@@ -251,7 +247,6 @@ static const struct virtio_device_ops virtio_pci_device_ops = {
     .query_queue_alloc = vio_legacy_query_vq_alloc,
     .setup_queue = vio_legacy_setup_vq,
     .delete_queue = vio_legacy_del_vq,
-    .release = vio_legacy_release,
 };
 
 /* Legacy device initialization */
