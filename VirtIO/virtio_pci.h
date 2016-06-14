@@ -266,21 +266,6 @@ struct virtio_device
 };
 
 /***************************************************
-shall be used only if VirtIODevice device storage is allocated
-dynamically to provide support for more than 8 (MAX_QUEUES_PER_DEVICE_DEFAULT) queues.
-return size in bytes to allocate for VirtIODevice structure.
-***************************************************/
-ULONG __inline VirtIODeviceSizeRequired(USHORT maxNumberOfQueues)
-{
-    ULONG size = sizeof(VirtIODevice);
-    if (maxNumberOfQueues > MAX_QUEUES_PER_DEVICE_DEFAULT)
-    {
-        size += sizeof(VirtIOQueueInfo) * (maxNumberOfQueues - MAX_QUEUES_PER_DEVICE_DEFAULT);
-    }
-    return size;
-}
-
-/***************************************************
 shall be called if the device currently uses MSI-X feature
 as soon as possible after initialization
 before use VirtIODeviceGet or VirtIODeviceSet

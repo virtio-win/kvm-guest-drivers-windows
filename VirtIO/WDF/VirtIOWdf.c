@@ -29,7 +29,6 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
                              USHORT nMaxQueues)
 {
     NTSTATUS status = STATUS_SUCCESS;
-    SIZE_T cbVIODevice;
 
     RtlZeroMemory(pWdfDriver, sizeof(*pWdfDriver));
     pWdfDriver->MemoryTag = MemoryTag;
@@ -53,47 +52,40 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
     }
 
     /* initialize the underlying VirtIODevice */
-    cbVIODevice = VirtIODeviceSizeRequired(nMaxQueues);
-    pWdfDriver->pVIODevice = (VirtIODevice *)ExAllocatePoolWithTag(
-        NonPagedPool,
-        cbVIODevice,
-        pWdfDriver->MemoryTag);
-    
     status = virtio_device_initialize(
-        pWdfDriver->pVIODevice,
+        &pWdfDriver->VIODevice,
         &VirtIOWdfSystemOps,
         pWdfDriver,
-        (ULONG)cbVIODevice);
+        sizeof(pWdfDriver->VIODevice));
     if (!NT_SUCCESS(status)) {
-        ExFreePoolWithTag(pWdfDriver->pVIODevice, pWdfDriver->MemoryTag);
         PCIFreeBars(pWdfDriver);
     }
 
     pWdfDriver->ConfigInterrupt = ConfigInterrupt;
-    virtio_device_set_msix_used(pWdfDriver->pVIODevice, pWdfDriver->nMSIInterrupts > 0);
+    virtio_device_set_msix_used(&pWdfDriver->VIODevice, pWdfDriver->nMSIInterrupts > 0);
 
     return status;
 }
 
 ULONGLONG VirtIOWdfGetDeviceFeatures(PVIRTIO_WDF_DRIVER pWdfDriver)
 {
-    return virtio_get_features(pWdfDriver->pVIODevice);
+    return virtio_get_features(&pWdfDriver->VIODevice);
 }
 
 NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver,
                                     ULONGLONG uFeatures)
 {
     /* make sure that we always follow the status bit-setting protocol */
-    u8 status = virtio_get_status(pWdfDriver->pVIODevice);
+    u8 status = virtio_get_status(&pWdfDriver->VIODevice);
     if (!(status & VIRTIO_CONFIG_S_ACKNOWLEDGE)) {
-        virtio_add_status(pWdfDriver->pVIODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
+        virtio_add_status(&pWdfDriver->VIODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
     }
     if (!(status & VIRTIO_CONFIG_S_DRIVER)) {
-        virtio_add_status(pWdfDriver->pVIODevice, VIRTIO_CONFIG_S_DRIVER);
+        virtio_add_status(&pWdfDriver->VIODevice, VIRTIO_CONFIG_S_DRIVER);
     }
 
-    pWdfDriver->pVIODevice->features = uFeatures;
-    return virtio_finalize_features(pWdfDriver->pVIODevice);
+    pWdfDriver->VIODevice.features = uFeatures;
+    return virtio_finalize_features(&pWdfDriver->VIODevice);
 }
 
 NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
@@ -105,15 +97,15 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
     ULONG i;
 
     /* make sure that we always follow the status bit-setting protocol */
-    u8 dev_status = virtio_get_status(pWdfDriver->pVIODevice);
+    u8 dev_status = virtio_get_status(&pWdfDriver->VIODevice);
     if (!(dev_status & VIRTIO_CONFIG_S_ACKNOWLEDGE)) {
-        virtio_add_status(pWdfDriver->pVIODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
+        virtio_add_status(&pWdfDriver->VIODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
     }
     if (!(dev_status & VIRTIO_CONFIG_S_DRIVER)) {
-        virtio_add_status(pWdfDriver->pVIODevice, VIRTIO_CONFIG_S_DRIVER);
+        virtio_add_status(&pWdfDriver->VIODevice, VIRTIO_CONFIG_S_DRIVER);
     }
     if (!(dev_status & VIRTIO_CONFIG_S_FEATURES_OK)) {
-        status = virtio_finalize_features(pWdfDriver->pVIODevice);
+        status = virtio_finalize_features(&pWdfDriver->VIODevice);
         if (!NT_SUCCESS(status)) {
             return status;
         }
@@ -122,7 +114,7 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
     /* find and initialize queues */
     pWdfDriver->pQueueParams = pQueueParams;
     status = virtio_find_queues(
-        pWdfDriver->pVIODevice,
+        &pWdfDriver->VIODevice,
         nQueues,
         pQueues);
     pWdfDriver->pQueueParams = NULL;
@@ -140,31 +132,27 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
 
 void VirtIOWdfSetDriverOK(PVIRTIO_WDF_DRIVER pWdfDriver)
 {
-    virtio_device_ready(pWdfDriver->pVIODevice);
+    virtio_device_ready(&pWdfDriver->VIODevice);
 }
 
 void VirtIOWdfSetDriverFailed(PVIRTIO_WDF_DRIVER pWdfDriver)
 {
-    virtio_add_status(pWdfDriver->pVIODevice, VIRTIO_CONFIG_S_FAILED);
+    virtio_add_status(&pWdfDriver->VIODevice, VIRTIO_CONFIG_S_FAILED);
 }
 
 NTSTATUS VirtIOWdfShutdown(PVIRTIO_WDF_DRIVER pWdfDriver)
 {
-    virtio_device_shutdown(pWdfDriver->pVIODevice);
+    virtio_device_shutdown(&pWdfDriver->VIODevice);
 
     PCIFreeBars(pWdfDriver);
-    if (pWdfDriver->pVIODevice) {
-        ExFreePoolWithTag(pWdfDriver->pVIODevice, pWdfDriver->MemoryTag);
-        pWdfDriver->pVIODevice = NULL;
-    }
 
     return STATUS_SUCCESS;
 }
 
 NTSTATUS VirtIOWdfDestroyQueues(PVIRTIO_WDF_DRIVER pWdfDriver)
 {
-    virtio_device_reset(pWdfDriver->pVIODevice);
-    virtio_delete_queues(pWdfDriver->pVIODevice);
+    virtio_device_reset(&pWdfDriver->VIODevice);
+    virtio_delete_queues(&pWdfDriver->VIODevice);
 
     return STATUS_SUCCESS;
 }
@@ -175,7 +163,7 @@ void VirtIOWdfDeviceGet(PVIRTIO_WDF_DRIVER pWdfDriver,
                         ULONG len)
 {
     virtio_get_config(
-        pWdfDriver->pVIODevice,
+        &pWdfDriver->VIODevice,
         offset,
         buf,
         len);
@@ -187,7 +175,7 @@ void VirtIOWdfDeviceSet(PVIRTIO_WDF_DRIVER pWdfDriver,
                         ULONG len)
 {
     virtio_set_config(
-        pWdfDriver->pVIODevice,
+        &pWdfDriver->VIODevice,
         offset,
         buf,
         len);
@@ -195,5 +183,5 @@ void VirtIOWdfDeviceSet(PVIRTIO_WDF_DRIVER pWdfDriver,
 
 UCHAR VirtIOWdfGetISRStatus(PVIRTIO_WDF_DRIVER pWdfDriver)
 {
-    return virtio_read_isr_status(pWdfDriver->pVIODevice);
+    return virtio_read_isr_status(&pWdfDriver->VIODevice);
 }

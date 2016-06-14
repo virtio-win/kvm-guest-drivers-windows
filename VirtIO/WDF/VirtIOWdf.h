@@ -30,7 +30,7 @@ typedef struct virtio_wdf_queue_param {
  * a field in the driver's context structure and treated opaque.
  */
 typedef struct virtio_wdf_driver {
-    VirtIODevice            *pVIODevice;
+    VirtIODevice            VIODevice;
 
     ULONG                   MemoryTag;
 
