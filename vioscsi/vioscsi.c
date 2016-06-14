@@ -25,6 +25,9 @@
 
 #define VioScsiWmi_MofResourceName        L"MofResource"
 
+#include "resources.h"
+
+
 #define VIOSCSI_SETUP_GUID_INDEX 0
 #define VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX 1
 #define VIOSCSI_MS_PORT_INFORM_GUID_INDEX 2
@@ -200,6 +203,12 @@ VioScsiReadExtendedData(
     OUT PUCHAR Buffer
    );
 
+VOID
+VioScsiSaveInquiryData(
+    IN PVOID  DeviceExtension,
+    IN OUT PSRB_TYPE Srb
+    );
+
 GUID VioScsiWmiExtendedInfoGuid = VioScsiWmi_ExtendedInfo_Guid;
 GUID VioScsiWmiAdaperInformationQueryGuid = MS_SM_AdapterInformationQueryGuid;
 GUID VioScsiWmiPortInformationMethodsGuid = MS_SM_PortInformationMethodsGuid;
@@ -311,7 +320,7 @@ ENTER_FN();
     RtlZeroMemory(adaptExt, sizeof(ADAPTER_EXTENSION));
 
     adaptExt->dump_mode  = IsCrashDumpMode;
-
+    adaptExt->hba_id     = HBA_ID;
     ConfigInfo->Master                      = TRUE;
     ConfigInfo->ScatterGather               = TRUE;
     ConfigInfo->DmaWidth                    = Width32Bits;
@@ -1401,6 +1410,9 @@ ENTER_FN();
                           adaptExt->queue_depth));
            }
            break;
+        case SCSIOP_INQUIRY:
+            VioScsiSaveInquiryData(DeviceExtension, Srb);
+           break;
         default:
            break;
 
@@ -1589,9 +1601,80 @@ ENTER_FN();
             break;
         default:
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_INVALID_REQUEST);
-            RhelDbgPrint(TRACE_LEVEL_INFORMATIO, ("<-->Unsupport control code 0x%x\n", srbControl->ControlCode));
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("<-->Unsupport control code 0x%x\n", srbControl->ControlCode));
             break;
     }
+EXIT_FN();
+}
+
+VOID
+VioScsiSaveInquiryData(
+    IN PVOID  DeviceExtension,
+    IN OUT PSRB_TYPE Srb
+    )
+{
+    PVOID           dataBuffer;
+    PADAPTER_EXTENSION    adaptExt;
+    PCDB cdb;
+    PINQUIRYDATA InquiryData;
+    ULONG dataLen;
+
+ENTER_FN();
+    RhelDbgPrint(TRACE_LEVEL_FATAL, ("<-->VioScsiSaveInquiryData\n"));
+
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    cdb      = SRB_CDB(Srb);
+    dataBuffer = SRB_DATA_BUFFER(Srb);
+    InquiryData = (PINQUIRYDATA)dataBuffer;
+    dataLen = SRB_DATA_TRANSFER_LENGTH(Srb);
+    switch (cdb->CDB6INQUIRY3.PageCode) {
+        case VPD_SERIAL_NUMBER: {
+            PVPD_SERIAL_NUMBER_PAGE SerialPage;
+            SerialPage = (PVPD_SERIAL_NUMBER_PAGE)dataBuffer;
+            RhelDbgPrint(TRACE_LEVEL_FATAL, ("VPD_SERIAL_NUMBER PageLength = %d\n", SerialPage->PageLength));
+            if (SerialPage->PageLength > 0 && adaptExt->ser_num == NULL) {
+                int ln = min (64, SerialPage->PageLength);
+                ULONG Status =
+                             StorPortAllocatePool(DeviceExtension,
+                             ln + 1,
+                             VIOSCSI_POOL_TAG,
+                             (PVOID*)&adaptExt->ser_num);
+                if (NT_SUCCESS(Status)) {
+                    StorPortMoveMemory(adaptExt->ser_num, SerialPage->SerialNumber, ln);
+                    adaptExt->ser_num[ln] = '\0';
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("serial number %s\n", adaptExt->ser_num));
+                }
+            }
+            break;
+        }
+        case VPD_DEVICE_IDENTIFIERS: {
+            PVPD_IDENTIFICATION_PAGE IdentificationPage;
+            PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr;
+            IdentificationPage = (PVPD_IDENTIFICATION_PAGE)dataBuffer;
+            if (IdentificationPage->PageLength >= sizeof(VPD_IDENTIFICATION_DESCRIPTOR)) {
+                IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
+                RhelDbgPrint(TRACE_LEVEL_FATAL, ("VPD_DEVICE_IDENTIFIERS CodeSet = %x IdentifierType = %x IdentifierLength= %d\n", IdentificationDescr->CodeSet, IdentificationDescr->IdentifierType, IdentificationDescr->IdentifierLength));
+                if (IdentificationDescr->IdentifierLength >= (sizeof(ULONGLONG)) && (IdentificationDescr->CodeSet == VpdCodeSetBinary)) {
+                    REVERSE_BYTES_QUAD(&adaptExt->hba_id, &IdentificationDescr->Identifier[8]);
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x  %llx\n",
+                                 IdentificationDescr->Identifier[0], IdentificationDescr->Identifier[1],
+                                 IdentificationDescr->Identifier[2], IdentificationDescr->Identifier[3],
+                                 IdentificationDescr->Identifier[4], IdentificationDescr->Identifier[5],
+                                 IdentificationDescr->Identifier[6], IdentificationDescr->Identifier[7],
+                                 IdentificationDescr->Identifier[8], IdentificationDescr->Identifier[9],
+                                 IdentificationDescr->Identifier[10], IdentificationDescr->Identifier[11],
+                                 IdentificationDescr->Identifier[12], IdentificationDescr->Identifier[13],
+                                 IdentificationDescr->Identifier[14], IdentificationDescr->Identifier[15],
+                                 adaptExt->hba_id));
+                }
+            }
+            break;
+        }
+        default:
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Unhandled page code %x\n", cdb->CDB6INQUIRY3.PageCode));
+            break;
+    }
+
 EXIT_FN();
 }
 
@@ -1605,8 +1688,6 @@ void CopyWMIString(void* _pDest, const void* _pSrc, size_t _maxlength)
      _length = (USHORT)min(wcslen(_pSrc)*sizeof(WCHAR), _length);
      memcpy(_pDestTemp, _pSrc, _length);
 }
-
-
 
 BOOLEAN
 VioScsiQueryWmiDataBlock(
@@ -1658,22 +1739,17 @@ ENTER_FN();
             }
 
             memset(pOutBfr, 0, size);
-            pOutBfr->UniqueAdapterId = (ULONGLONG)1234567890987654321/*Context*/;
+            pOutBfr->UniqueAdapterId = adaptExt->hba_id;
             pOutBfr->HBAStatus = HBA_STATUS_OK;
-
             pOutBfr->NumberOfPorts = 1;
             pOutBfr->VendorSpecificID = VENDORID | (PRODUCTID << 16);
             CopyWMIString(pOutBfr->Manufacturer, MANUFACTURER, sizeof(pOutBfr->Manufacturer));
-            CopyWMIString(pOutBfr->SerialNumber, SERIALNUMBER, sizeof(pOutBfr->SerialNumber));
+            CopyWMIString(pOutBfr->SerialNumber, adaptExt->ser_num ? adaptExt->ser_num : SERIALNUMBER, sizeof(pOutBfr->SerialNumber));
             CopyWMIString(pOutBfr->Model, MODEL, sizeof(pOutBfr->Model));
             CopyWMIString(pOutBfr->ModelDescription, MODELDESCRIPTION, sizeof(pOutBfr->ModelDescription));
-            CopyWMIString(pOutBfr->HardwareVersion, HARDWAREVERSION, sizeof(pOutBfr->HardwareVersion));
-            CopyWMIString(pOutBfr->DriverVersion, DRIVERVERSION, sizeof(pOutBfr->DriverVersion));
-            CopyWMIString(pOutBfr->OptionROMVersion, OPTIONROMVERSION, sizeof(pOutBfr->OptionROMVersion));
             CopyWMIString(pOutBfr->FirmwareVersion, FIRMWAREVERSION, sizeof(pOutBfr->FirmwareVersion));
             CopyWMIString(pOutBfr->DriverName, DRIVERNAME, sizeof(pOutBfr->DriverName));
             CopyWMIString(pOutBfr->HBASymbolicName, HBASYMBOLICNAME, sizeof(pOutBfr->HBASymbolicName));
-            CopyWMIString(pOutBfr->RedundantOptionROMVersion, OPTIONROMVERSION, sizeof(pOutBfr->RedundantOptionROMVersion));
             CopyWMIString(pOutBfr->RedundantFirmwareVersion, FIRMWAREVERSION, sizeof(pOutBfr->RedundantFirmwareVersion));
             CopyWMIString(pOutBfr->MfgDomain, MFRDOMAIN, sizeof(pOutBfr->MfgDomain));
 
