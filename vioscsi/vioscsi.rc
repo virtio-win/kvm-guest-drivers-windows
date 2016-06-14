@@ -11,12 +11,13 @@
 **********************************************************************/
 #include <windows.h>
 #include <ntverp.h>
+#include "resources.h"
 
 #define VER_FILETYPE                VFT_DRV
 #define VER_FILESUBTYPE             VFT2_DRV_SYSTEM
 #define VER_FILEDESCRIPTION_STR     "Red Hat VirtIO SCSI pass-through driver"
-#define VER_INTERNALNAME_STR        "vioscsi.sys"
-#define VER_ORIGINALFILENAME_STR    "vioscsi.sys"
+#define VER_INTERNALNAME_STR        DRIVERNAME
+#define VER_ORIGINALFILENAME_STR    DRIVERNAME
 
 #undef  VER_PRODUCTBUILD
 #undef  VER_PRODUCTBUILD_QFE
@@ -27,10 +28,9 @@
 #define VER_LEGALCOPYRIGHT_STR      "Copyright (C) 2012-2016 Red, Hat Inc."
 
 #undef  VER_COMPANYNAME_STR
-#define VER_COMPANYNAME_STR         "Red Hat, Inc."
-
+#define VER_COMPANYNAME_STR         MANUFACTURER
 #undef  VER_PRODUCTNAME_STR
-#define VER_PRODUCTNAME_STR         "Red Hat VirtIO SCSI pass-through controller"
+#define VER_PRODUCTNAME_STR         HBASYMBOLICNAME
 
 #define VER_LANGNEUTRAL
 

@@ -10,10 +10,13 @@ goto :eof
 
 
 :create2012H
+echo #ifndef ___2012_H___
+echo #define ___2012_H___
 echo #define _NT_TARGET_MAJ %_NT_TARGET_MAJ%
 echo #define _NT_TARGET_MIN %_NT_TARGET_MIN%
 echo #define _MAJORVERSION_ %_MAJORVERSION_%
 echo #define _MINORVERSION_ %_MINORVERSION_%
+echo #endif //___2012_H___
 goto :eof
 
 
