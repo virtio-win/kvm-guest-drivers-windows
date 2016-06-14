@@ -262,7 +262,6 @@ struct virtio_device
     ULONG maxQueues;
     VirtIOQueueInfo *info;
     VirtIOQueueInfo inline_info[MAX_QUEUES_PER_DEVICE_DEFAULT];
-    /* do not add any members after info struct, it is extensible */
 };
 
 /***************************************************
@@ -283,8 +282,7 @@ unsigned long virtio_get_indirect_page_capacity();
 
 NTSTATUS virtio_device_initialize(VirtIODevice *vdev,
                                   const VirtIOSystemOps *pSystemOps,
-                                  PVOID DeviceContext,
-                                  ULONG allocatedSize);
+                                  PVOID DeviceContext);
 void virtio_device_reset(VirtIODevice *vdev);
 void virtio_device_shutdown(VirtIODevice *vdev);
 

@@ -55,8 +55,7 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
     status = virtio_device_initialize(
         &pWdfDriver->VIODevice,
         &VirtIOWdfSystemOps,
-        pWdfDriver,
-        sizeof(pWdfDriver->VIODevice));
+        pWdfDriver);
     if (!NT_SUCCESS(status)) {
         PCIFreeBars(pWdfDriver);
     }
