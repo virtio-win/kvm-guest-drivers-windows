@@ -285,8 +285,8 @@ shall be called if the device currently uses MSI-X feature
 as soon as possible after initialization
 before use VirtIODeviceGet or VirtIODeviceSet
 ***************************************************/
-void virtio_device_set_msix_used(VirtIODevice * pVirtIODevice, bool used);
-void vio_legacy_dump_registers(VirtIODevice * pVirtIODevice);
+void virtio_device_set_msix_used(VirtIODevice *vdev, bool used);
+void vio_legacy_dump_registers(VirtIODevice *vdev);
 
 #define virtio_is_feature_enabled(FeaturesList, Feature)  (!!((FeaturesList) & (1ULL << (Feature))))
 #define virtio_feature_enable(FeaturesList, Feature)      ((FeaturesList) |= (1ULL << (Feature)))
@@ -296,12 +296,12 @@ u32 virtio_device_get_queue_size(struct virtqueue *vq);
 
 unsigned long virtio_get_indirect_page_capacity();
 
-NTSTATUS virtio_device_initialize(VirtIODevice *pVirtIODevice,
+NTSTATUS virtio_device_initialize(VirtIODevice *vdev,
                                   const VirtIOSystemOps *pSystemOps,
                                   PVOID DeviceContext,
                                   ULONG allocatedSize);
-void virtio_device_reset(VirtIODevice *pVirtIODevice);
-void virtio_device_shutdown(VirtIODevice *pVirtIODevice);
+void virtio_device_reset(VirtIODevice *vdev);
+void virtio_device_shutdown(VirtIODevice *vdev);
 
 u8 virtio_get_status(VirtIODevice *vdev);
 void virtio_set_status(VirtIODevice *vdev, u8 status);
@@ -309,7 +309,7 @@ void virtio_add_status(VirtIODevice *vdev, u8 status);
 
 void virtio_device_ready(VirtIODevice *vdev);
 
-u64 virtio_get_features(VirtIODevice *dev);
+u64 virtio_get_features(VirtIODevice *vdev);
 NTSTATUS virtio_finalize_features(VirtIODevice *vdev);
 u8 virtio_read_isr_status(VirtIODevice *vdev);
 

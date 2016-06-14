@@ -1179,11 +1179,11 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     return status;
 }
 
-static void VirtIODeviceRemoveStatus(VirtIODevice *pVirtIODevice, u8 status)
+static void VirtIODeviceRemoveStatus(VirtIODevice *vdev, u8 status)
 {
     virtio_set_status(
-        pVirtIODevice,
-        virtio_get_status(pVirtIODevice) & ~status);
+        vdev,
+        virtio_get_status(vdev) & ~status);
 }
 
 /**********************************************************

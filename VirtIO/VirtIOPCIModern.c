@@ -30,7 +30,7 @@
 #include "VirtIOPCIModern.tmh"
 #endif
 
-static void *vio_modern_map_capability(VirtIODevice *dev, int cap_offset,
+static void *vio_modern_map_capability(VirtIODevice *vdev, int cap_offset,
                                        size_t minlen, u32 alignment,
                                        u32 start, u32 size, size_t *len)
 {
@@ -38,9 +38,9 @@ static void *vio_modern_map_capability(VirtIODevice *dev, int cap_offset,
     u32 bar_offset, bar_length;
     void *addr;
 
-    pci_read_config_byte(dev, cap_offset + offsetof(struct virtio_pci_cap, bar), &bar);
-    pci_read_config_dword(dev, cap_offset + offsetof(struct virtio_pci_cap, offset), &bar_offset);
-    pci_read_config_dword(dev, cap_offset + offsetof(struct virtio_pci_cap, length), &bar_length);
+    pci_read_config_byte(vdev, cap_offset + offsetof(struct virtio_pci_cap, bar), &bar);
+    pci_read_config_dword(vdev, cap_offset + offsetof(struct virtio_pci_cap, offset), &bar_offset);
+    pci_read_config_dword(vdev, cap_offset + offsetof(struct virtio_pci_cap, length), &bar_length);
 
     if (start + minlen > bar_length) {
         DPrintf(0, ("bar %i cap is not large enough to map %zu bytes at offset %u\n", bar, minlen, start));
@@ -63,22 +63,22 @@ static void *vio_modern_map_capability(VirtIODevice *dev, int cap_offset,
         *len = bar_length;
     }
 
-    if (bar_offset + minlen > pci_get_resource_len(dev, bar)) {
+    if (bar_offset + minlen > pci_get_resource_len(vdev, bar)) {
         DPrintf(0, ("bar %i is not large enough to map %zu bytes at offset %u\n", bar, minlen, bar_offset));
         return NULL;
     }
 
-    addr = pci_map_address_range(dev, bar, bar_offset, bar_length);
+    addr = pci_map_address_range(vdev, bar, bar_offset, bar_length);
     if (!addr) {
         DPrintf(0, ("unable to map %u bytes at bar %i offset %u\n", bar_length, bar, bar_offset));
     }
     return addr;
 }
 
-static void *vio_modern_map_simple_capability(VirtIODevice *dev, int cap_offset, size_t length, u32 alignment)
+static void *vio_modern_map_simple_capability(VirtIODevice *vdev, int cap_offset, size_t length, u32 alignment)
 {
     return vio_modern_map_capability(
-        dev,
+        vdev,
         cap_offset,
         length,      // minlen
         alignment,
