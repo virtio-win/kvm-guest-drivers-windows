@@ -275,41 +275,60 @@ struct virtio_device
     VirtIOQueueInfo inline_info[MAX_QUEUES_PER_DEVICE_DEFAULT];
 };
 
-/***************************************************
-shall be called if the device currently uses MSI-X feature
-as soon as possible after initialization
-before use VirtIODeviceGet or VirtIODeviceSet
-***************************************************/
-void virtio_device_set_msix_used(VirtIODevice *vdev, bool used);
-void vio_legacy_dump_registers(VirtIODevice *vdev);
-
-#define virtio_is_feature_enabled(FeaturesList, Feature)  (!!((FeaturesList) & (1ULL << (Feature))))
-#define virtio_feature_enable(FeaturesList, Feature)      ((FeaturesList) |= (1ULL << (Feature)))
-#define virtio_feature_disable(FeaturesList, Feature)     ((FeaturesList) &= ~(1ULL << (Feature)))
-
-u32 virtio_device_get_queue_size(struct virtqueue *vq);
-
-unsigned long virtio_get_indirect_page_capacity();
-
+/* Driver API: device init and shutdown
+ * DeviceContext is a driver defined opaque value which will be passed to driver
+ * supplied callbacks described in pSystemOps. pSystemOps must be non-NULL and all
+ * its fields must be non-NULL.
+ */
 NTSTATUS virtio_device_initialize(VirtIODevice *vdev,
                                   const VirtIOSystemOps *pSystemOps,
-                                  PVOID DeviceContext);
-void virtio_device_reset(VirtIODevice *vdev);
+                                  void *DeviceContext);
 void virtio_device_shutdown(VirtIODevice *vdev);
 
+/* Driver API: device status manipulation
+ * virtio_set_status should not be called by new drivers. Device status should only
+ * be getting its bits set with virtio_add_status and reset all back to 0 with
+ * virtio_device_reset. virtio_device_ready is a special version of virtio_add_status
+ * which adds the VIRTIO_CONFIG_S_DRIVER_OK status bit.
+ */
 u8 virtio_get_status(VirtIODevice *vdev);
 void virtio_set_status(VirtIODevice *vdev, u8 status);
 void virtio_add_status(VirtIODevice *vdev, u8 status);
 
+void virtio_device_reset(VirtIODevice *vdev);
 void virtio_device_ready(VirtIODevice *vdev);
+
+/* Driver API: device feature bitmap manipulation
+ * Features passed to virtio_set_features should be a subset of features offered by
+ * the device as returned from virtio_get_features. virtio_set_features sets the
+ * VIRTIO_CONFIG_S_FEATURES_OK status bit if it is supported by the device.
+ */
+#define virtio_is_feature_enabled(FeaturesList, Feature)  (!!((FeaturesList) & (1ULL << (Feature))))
+#define virtio_feature_enable(FeaturesList, Feature)      ((FeaturesList) |= (1ULL << (Feature)))
+#define virtio_feature_disable(FeaturesList, Feature)     ((FeaturesList) &= ~(1ULL << (Feature)))
 
 u64 virtio_get_features(VirtIODevice *dev);
 NTSTATUS virtio_set_features(VirtIODevice *vdev, u64 features);
 
-u8 virtio_read_isr_status(VirtIODevice *vdev);
+/* Driver API: device configuration access
+ * Both virtio_get_config and virtio_set_config support arbitrary values of the len
+ * parameter. Config items of length 1, 2, and 4 are read/written using one access,
+ * length 8 is broken down to two 4 bytes accesses, and any other length is read or
+ * written byte by byte.
+ */
+void virtio_get_config(VirtIODevice *vdev, unsigned offset,
+                       void *buf, unsigned len);
+void virtio_set_config(VirtIODevice *vdev, unsigned offset,
+                       void *buf, unsigned len);
 
-NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev,
-                                       unsigned index,
+/* Driver API: virtqueue setup
+ * virtio_reserve_queue_memory makes VirtioLib reserve memory for its virtqueue
+ * bookkeeping. Drivers should call this function if they intend to set up queues
+ * one by one with virtio_find_queue. virtio_find_queues (plural) internally takes
+ * care of the reservation and virtio_reserve_queue_memory need not be called.
+ * Drivers should treat the returned struct virtqueue pointers as opaque handles.
+ */
+NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev, unsigned index,
                                        unsigned short *pNumEntries,
                                        unsigned long *pRingSize,
                                        unsigned long *pHeapSize);
@@ -318,28 +337,52 @@ NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs);
 
 NTSTATUS virtio_find_queue(VirtIODevice *vdev, unsigned index,
                            struct virtqueue **vq);
-NTSTATUS virtio_find_queues(VirtIODevice *vdev,
-                            unsigned nvqs,
+NTSTATUS virtio_find_queues(VirtIODevice *vdev, unsigned nvqs,
                             struct virtqueue *vqs[]);
 
+/* Driver API: virtqueue shutdown
+ * The device must be reset and re-initialized to re-setup queues after they have
+ * been deleted.
+ */
 void virtio_delete_queue(struct virtqueue *vq);
 void virtio_delete_queues(VirtIODevice *vdev);
 
-int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA);
-
+/* Driver API: virtqueue query and manipulation
+ * virtqueue_set_event_suppression controls the virtqueue notification logic, see
+ * the VIRTIO_RING_F_EVENT_IDX feature bit for more details. virtio_queue_descriptor_size
+ * is useful in situations where the driver has to prepare for the memory allocation
+ * performed by virtio_reserve_queue_memory beforehand.
+ */
 void virtqueue_set_event_suppression(struct virtqueue *vq, bool enable);
-u16 virtio_set_config_vector(VirtIODevice *vdev, u16 vector);
-u16 virtio_set_queue_vector(struct virtqueue *vq, u16 vector);
+
+u32 virtio_device_get_queue_size(struct virtqueue *vq);
+unsigned long virtio_get_indirect_page_capacity();
 
 ULONG __inline virtio_queue_descriptor_size()
 {
     return sizeof(VirtIOQueueInfo);
 }
 
-void virtio_get_config(VirtIODevice *vdev, unsigned offset,
-                       void *buf, unsigned len);
+/* Driver API: interrupt handling
+ * virtio_set_config_vector and virtio_set_queue_vector set the MSI vector used for
+ * device configuration interrupt and queue interrupt, respectively. The driver may
+ * choose to either return the vector from the vdev_get_msix_vector callback (called
+ * as part of queue setup) or call these functions later. Note that setting the vector
+ * may fail which is indicated by the return value of VIRTIO_MSI_NO_VECTOR.
+ * virtio_read_isr_status returns the value of the ISR status register, note that it
+ * is not idempotent, calling the function makes the device de-assert the interrupt.
+ */
+u16 virtio_set_config_vector(VirtIODevice *vdev, u16 vector);
+u16 virtio_set_queue_vector(struct virtqueue *vq, u16 vector);
 
-void virtio_set_config(VirtIODevice *vdev, unsigned offset,
-                       void *buf, unsigned len);
+u8 virtio_read_isr_status(VirtIODevice *vdev);
+void virtio_device_set_msix_used(VirtIODevice *vdev, bool used);
+
+/* Driver API: miscellaneous helpers
+ * virtio_get_bar_index returns the corresponding BAR index given its physical address.
+ * This tends to be useful to all drivers since Windows doesn't provide reliable BAR
+ * indices as part of resource enumeration. The function returns -1 on failure.
+ */
+int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA);
 
 #endif
