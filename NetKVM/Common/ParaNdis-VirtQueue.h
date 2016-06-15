@@ -165,7 +165,7 @@ public:
         bool UsePublishedIndices);
 
     ULONG GetRingSize()
-    { return virtio_device_get_queue_size(m_VirtQueue); }
+    { return virtio_get_queue_size(m_VirtQueue); }
 
     void Renew();
 

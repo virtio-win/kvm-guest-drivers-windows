@@ -458,7 +458,7 @@ static BOOLEAN InitializeVirtualQueues(PADAPTER_EXTENSION adaptExt)
         return FALSE;
     }
 
-    virtqueue_set_event_suppression(
+    virtio_set_queue_event_suppression(
         adaptExt->vq,
         useEventIndex);
     return TRUE;

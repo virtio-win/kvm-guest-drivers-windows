@@ -755,7 +755,7 @@ void *virtqueue_get_used(struct virtqueue *_vq)
     return vq->vring.used;
 }
 
-void virtqueue_set_event_suppression(struct virtqueue *_vq, bool enable)
+void virtio_set_queue_event_suppression(struct virtqueue *_vq, bool enable)
 {
     struct vring_virtqueue *vq = to_vvq(_vq);
     vq->event = (enable ? 1 : 0);

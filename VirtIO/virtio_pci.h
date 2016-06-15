@@ -350,17 +350,17 @@ void virtio_delete_queue(struct virtqueue *vq);
 void virtio_delete_queues(VirtIODevice *vdev);
 
 /* Driver API: virtqueue query and manipulation
- * virtqueue_set_event_suppression controls the virtqueue notification logic, see
- * the VIRTIO_RING_F_EVENT_IDX feature bit for more details. virtio_queue_descriptor_size
+ * virtio_set_queue_event_suppression controls the virtqueue notification logic, see
+ * the VIRTIO_RING_F_EVENT_IDX feature bit for more details. virtio_get_queue_descriptor_size
  * is useful in situations where the driver has to prepare for the memory allocation
  * performed by virtio_reserve_queue_memory beforehand.
  */
-void virtqueue_set_event_suppression(struct virtqueue *vq, bool enable);
+void virtio_set_queue_event_suppression(struct virtqueue *vq, bool enable);
 
-u32 virtio_device_get_queue_size(struct virtqueue *vq);
+u32 virtio_get_queue_size(struct virtqueue *vq);
 unsigned long virtio_get_indirect_page_capacity();
 
-ULONG __inline virtio_queue_descriptor_size()
+ULONG __inline virtio_get_queue_descriptor_size()
 {
     return sizeof(VirtIOQueueInfo);
 }

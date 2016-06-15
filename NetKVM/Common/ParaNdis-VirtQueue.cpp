@@ -35,7 +35,7 @@ void CVirtQueue::Renew()
 
     if (NT_SUCCESS(status))
     {
-        virtqueue_set_event_suppression(m_VirtQueue, m_UsePublishedIndices);
+        virtio_set_queue_event_suppression(m_VirtQueue, m_UsePublishedIndices);
     }
     else
     {

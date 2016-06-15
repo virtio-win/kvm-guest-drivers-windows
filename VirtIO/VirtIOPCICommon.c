@@ -193,7 +193,7 @@ NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs)
 {
     if (nvqs > vdev->maxQueues) {
         /* allocate new space for queue infos */
-        void *new_info = mem_alloc_nonpaged_block(vdev, nvqs * virtio_queue_descriptor_size());
+        void *new_info = mem_alloc_nonpaged_block(vdev, nvqs * virtio_get_queue_descriptor_size());
         if (!new_info) {
             return STATUS_INSUFFICIENT_RESOURCES;
         }
@@ -366,7 +366,7 @@ u64 virtio_get_features(VirtIODevice *vdev)
     return vdev->device->get_features(vdev);
 }
 
-u32 virtio_device_get_queue_size(struct virtqueue *vq)
+u32 virtio_get_queue_size(struct virtqueue *vq)
 {
     return vq->vdev->info[vq->index].num;
 }

@@ -993,7 +993,7 @@ static void PrepareTransmitBuffers(PARANDIS_ADAPTER *pContext)
 {
     UINT nBuffers, nMaxBuffers;
     DEBUG_ENTRY(4);
-    nMaxBuffers = virtio_device_get_queue_size(pContext->NetSendQueue) / 2;
+    nMaxBuffers = virtio_get_queue_size(pContext->NetSendQueue) / 2;
     if (nMaxBuffers > pContext->maxFreeTxDescriptors) nMaxBuffers = pContext->maxFreeTxDescriptors;
 
     for (nBuffers = 0; nBuffers < nMaxBuffers; ++nBuffers)
@@ -1104,7 +1104,7 @@ static NDIS_STATUS FindNetQueues(PARANDIS_ADAPTER *pContext)
 
     // set interrupt suppression flags
     for (i = 0; i < nvqs; i++) {
-       virtqueue_set_event_suppression(
+        virtio_set_queue_event_suppression(
           queues[i],
           pContext->bDoPublishIndices);
     }
