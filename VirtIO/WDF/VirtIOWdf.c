@@ -122,7 +122,7 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
     if (NT_SUCCESS(status)) {
         /* set interrupt suppression flags */
         for (i = 0; i < nQueues; i++) {
-            virtqueue_set_event_suppression(
+            virtio_set_queue_event_suppression(
                 pQueues[i],
                 pQueueParams[i].bEnableInterruptSuppression);
         }

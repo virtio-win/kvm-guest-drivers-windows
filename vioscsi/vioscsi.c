@@ -425,7 +425,7 @@ ENTER_FN();
     if (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0 > MAX_QUEUES_PER_DEVICE_DEFAULT)
     {
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(
-            (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0) * virtio_queue_descriptor_size());
+            (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0) * virtio_get_queue_descriptor_size());
     }
 
 #if (INDIRECT_SUPPORTED == 1)
@@ -539,7 +539,7 @@ static BOOLEAN InitializeVirtualQueues(PADAPTER_EXTENSION adaptExt, ULONG numQue
     }
 
     for (index = 0; index < numQueues; index++) {
-        virtqueue_set_event_suppression(
+        virtio_set_queue_event_suppression(
             adaptExt->vq[index],
             useEventIndex);
     }
