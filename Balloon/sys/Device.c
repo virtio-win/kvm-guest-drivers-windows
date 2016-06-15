@@ -144,6 +144,10 @@ BalloonDeviceAdd(
                       FALSE
                       );
 
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    attributes.ParentObject = device;
+    status = WdfSpinLockCreate(&attributes, &devCtx->D0Lock);
+
     status = StatInitializeWorkItem(device);
     if(!NT_SUCCESS(status))
     {
@@ -424,6 +428,10 @@ BalloonEvtDeviceD0Entry(
     devCtx->evLowMem = IoCreateNotificationEvent(
         (PUNICODE_STRING)&evLowMemString, &devCtx->hLowMem);
 
+    WdfSpinLockAcquire(devCtx->D0Lock);
+    devCtx->bD0Entry = TRUE;
+    WdfSpinLockRelease(devCtx->D0Lock);
+
     return status;
 }
 
@@ -451,10 +459,12 @@ BalloonEvtDeviceD0Exit(
     * interrupts were already disabled (between BalloonEvtDeviceD0ExitPreInterruptsDisabled and this call)
     * we should flush StatWorkItem before calling BalloonTerm which will delete virtio queues
     */
+    WdfSpinLockAcquire(devCtx->D0Lock);
+    devCtx->bD0Entry = FALSE;
+    WdfSpinLockRelease(devCtx->D0Lock);
     if (devCtx->StatWorkItem)
     {
         WdfWorkItemFlush(devCtx->StatWorkItem);
-        devCtx->StatWorkItem = NULL;
     }
 
     BalloonTerm(Device);
@@ -554,10 +564,16 @@ BalloonInterruptDpc(
          *
          * For each dpc (i.e. interrupt) we'll push stats exactly that many times.
          */
-        if (1==InterlockedIncrement(&devCtx->WorkCount))
+
+        WdfSpinLockAcquire(devCtx->D0Lock);
+        if (devCtx->bD0Entry)
         {
-            WdfWorkItemEnqueue(devCtx->StatWorkItem);
+            if (1==InterlockedIncrement(&devCtx->WorkCount))
+            {
+                WdfWorkItemEnqueue(devCtx->StatWorkItem);
+            }
         }
+        WdfSpinLockRelease(devCtx->D0Lock);
     }
 
     if(devCtx->Thread)
