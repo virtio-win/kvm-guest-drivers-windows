@@ -48,6 +48,8 @@ typedef struct _DEVICE_CONTEXT {
     WDFINTERRUPT            WdfInterrupt;
     WDFWORKITEM             StatWorkItem;
     LONG                    WorkCount;
+    LONG                    ExtraIsrCount;
+    LONG                    ExtraDpcCount;
     PUCHAR                  PortBase;
     ULONG                   PortCount;
     BOOLEAN                 PortMapped;

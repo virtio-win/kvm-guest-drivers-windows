@@ -514,7 +514,14 @@ BalloonInterruptIsr(
 
     if(VirtIODeviceISR(&devCtx->VDevice) > 0)
     {
-        WdfInterruptQueueDpcForIsr( WdfInterrupt );
+        /*
+         * According to MSDN WdfInterruptQueueDpcForIsr
+         * returns TRUE if dpc was inserted and FALSE otherwise
+         */
+        if (!WdfInterruptQueueDpcForIsr( WdfInterrupt ))
+        {
+            InterlockedIncrement(&devCtx->ExtraIsrCount);
+        }
         return TRUE;
     }
     return FALSE;
@@ -548,6 +555,7 @@ BalloonInterruptDpc(
         KeSetEvent (&devCtx->HostAckEvent, IO_NO_INCREMENT, FALSE);
     }
 
+    InterlockedIncrement(&devCtx->ExtraDpcCount);
     if (devCtx->StatVirtQueue &&
         virtqueue_get_buf(devCtx->StatVirtQueue, &len))
     {
@@ -568,6 +576,7 @@ BalloonInterruptDpc(
         WdfSpinLockAcquire(devCtx->D0Lock);
         if (devCtx->bD0Entry)
         {
+            InterlockedDecrement(&devCtx->ExtraDpcCount);
             if (1==InterlockedIncrement(&devCtx->WorkCount))
             {
                 WdfWorkItemEnqueue(devCtx->StatWorkItem);
