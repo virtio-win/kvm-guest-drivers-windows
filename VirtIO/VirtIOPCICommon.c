@@ -236,11 +236,12 @@ static NTSTATUS vp_setup_vq(struct virtqueue **queue,
 NTSTATUS virtio_find_queue(VirtIODevice *vdev, unsigned index,
                            struct virtqueue **vq)
 {
+    u16 msix_vec = vdev_get_msix_vector(vdev, index);
     return vp_setup_vq(
         vq,
         vdev,
         index,
-        VIRTIO_MSI_NO_VECTOR);
+        msix_vec);
 }
 
 NTSTATUS virtio_find_queues(VirtIODevice *vdev,
