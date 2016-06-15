@@ -346,51 +346,6 @@ ENTER_FN();
         return SP_RETURN_NOT_FOUND;
     }
 
-#if (MSI_SUPPORTED == 1)
-    {
-        UCHAR CapOffset;
-        PPCI_MSIX_CAPABILITY pMsixCapOffset;
-        PPCI_COMMON_HEADER   pPciComHeader;
-        pPciComHeader = &adaptExt->pci_config;
-        if ( (pPciComHeader->Status & PCI_STATUS_CAPABILITIES_LIST) == 0)
-        {
-           RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("NO CAPABILITIES_LIST\n"));
-        }
-        else
-        {
-           if ( (pPciComHeader->HeaderType & (~PCI_MULTIFUNCTION)) == PCI_DEVICE_TYPE )
-           {
-              CapOffset = pPciComHeader->u.type0.CapabilitiesPtr;
-              while (CapOffset != 0)
-              {
-                 pMsixCapOffset = (PPCI_MSIX_CAPABILITY)&adaptExt->pci_config_buf[CapOffset];
-                 if ( pMsixCapOffset->Header.CapabilityID == PCI_CAPABILITY_ID_MSIX )
-                 {
-                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageControl.TableSize = %d\n", pMsixCapOffset->MessageControl.TableSize));
-                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageControl.FunctionMask = %d\n", pMsixCapOffset->MessageControl.FunctionMask));
-                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageControl.MSIXEnable = %d\n", pMsixCapOffset->MessageControl.MSIXEnable));
-
-                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageTable = %p\n", pMsixCapOffset->MessageTable));
-                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("PBATable = %d\n", pMsixCapOffset->PBATable));
-                    adaptExt->msix_enabled = (pMsixCapOffset->MessageControl.MSIXEnable == 1);
-                 }
-                 else
-                 {
-                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("CapabilityID = %x, Next CapOffset = %x\n", pMsixCapOffset->Header.CapabilityID, CapOffset));
-                 }
-                 CapOffset = pMsixCapOffset->Header.Next;
-              }
-              RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("msix_enabled = %d\n", adaptExt->msix_enabled));
-              virtio_device_set_msix_used(&adaptExt->vdev, adaptExt->msix_enabled);
-           }
-           else
-           {
-              RhelDbgPrint(TRACE_LEVEL_FATAL, ("NOT A PCI_DEVICE_TYPE\n"));
-           }
-        }
-    }
-#endif
-
     GetScsiConfig(DeviceExtension);
 
     ConfigInfo->NumberOfBuses               = 1;//(UCHAR)adaptExt->num_queues;

@@ -226,7 +226,8 @@ static ULONG InitVirtIODevice(PVOID DeviceExtension)
     status = virtio_device_initialize(
         &adaptExt->vdev,
         &VioStorSystemOps,
-        adaptExt);
+        adaptExt,
+        adaptExt->msix_enabled);
     if (!NT_SUCCESS(status)) {
         LogError(adaptExt,
                 SP_INTERNAL_ADAPTER_ERROR,
@@ -318,12 +319,6 @@ VirtIoFindAdapter(
         }
     }
 
-    /* initialize the virtual device */
-    res = InitVirtIODevice(DeviceExtension);
-    if (res != SP_RETURN_FOUND) {
-        return res;
-    }
-
     adaptExt->msix_enabled = FALSE;
 #ifdef MSI_SUPPORTED
     {
@@ -360,7 +355,6 @@ VirtIoFindAdapter(
                     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("CapabilityID = %x, Next CapOffset = %x\n", pMsixCapOffset->Header.CapabilityID, CapOffset));
                  }
               }
-              virtio_device_set_msix_used(&adaptExt->vdev, adaptExt->msix_enabled);
            }
            else
            {
@@ -369,6 +363,12 @@ VirtIoFindAdapter(
         }
     }
 #endif
+
+    /* initialize the virtual device */
+    res = InitVirtIODevice(DeviceExtension);
+    if (res != SP_RETURN_FOUND) {
+        return res;
+    }
 
     adaptExt->features = virtio_get_features(&adaptExt->vdev);
     ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WCACHE) ? TRUE : FALSE;

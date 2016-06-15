@@ -654,7 +654,8 @@ NDIS_STATUS ParaNdis_InitializeContext(
         NTSTATUS nt_status = virtio_device_initialize(
             &pContext->IODevice,
             &ParaNdisSystemOps,
-            pContext);
+            pContext,
+            pContext->bUsingMSIX ? true : false);
         if (!NT_SUCCESS(nt_status))
         {
             DPrintf(0, ("[%s] virtio_device_initialize failed with %x\n", __FUNCTION__, nt_status));
@@ -663,7 +664,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
             return status;
         }
 
-        virtio_device_set_msix_used(&pContext->IODevice, pContext->bUsingMSIX ? true : false);
         pContext->u64HostFeatures = virtio_get_features(&pContext->IODevice);
         DumpVirtIOFeatures(pContext);
 

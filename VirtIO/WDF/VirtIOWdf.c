@@ -55,13 +55,13 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
     status = virtio_device_initialize(
         &pWdfDriver->VIODevice,
         &VirtIOWdfSystemOps,
-        pWdfDriver);
+        pWdfDriver,
+        pWdfDriver->nMSIInterrupts > 0);
     if (!NT_SUCCESS(status)) {
         PCIFreeBars(pWdfDriver);
     }
 
     pWdfDriver->ConfigInterrupt = ConfigInterrupt;
-    virtio_device_set_msix_used(&pWdfDriver->VIODevice, pWdfDriver->nMSIInterrupts > 0);
 
     return status;
 }

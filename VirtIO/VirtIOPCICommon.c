@@ -135,13 +135,15 @@ NTSTATUS virtio_set_features(VirtIODevice *vdev, u64 features)
 
 NTSTATUS virtio_device_initialize(VirtIODevice *vdev,
                                   const VirtIOSystemOps *pSystemOps,
-                                  PVOID DeviceContext)
+                                  PVOID DeviceContext,
+                                  bool msix_used)
 {
     NTSTATUS status;
 
     RtlZeroMemory(vdev, sizeof(VirtIODevice));
     vdev->DeviceContext = DeviceContext;
     vdev->system = pSystemOps;
+    vdev->msix_used = msix_used;
     vdev->info = vdev->inline_info;
     vdev->maxQueues = ARRAYSIZE(vdev->inline_info);
 
@@ -228,7 +230,6 @@ NTSTATUS virtio_find_queues(VirtIODevice *vdev,
             status = STATUS_DEVICE_BUSY;
             goto error_find;
         }
-        vdev->msix_used = 1;
     }
 
     /* set up queue interrupts */
@@ -241,9 +242,6 @@ NTSTATUS virtio_find_queues(VirtIODevice *vdev,
             msix_vec);
         if (!NT_SUCCESS(status)) {
             goto error_find;
-        }
-        if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
-            vdev->msix_used = 1;
         }
     }
     return STATUS_SUCCESS;
@@ -371,9 +369,4 @@ u64 virtio_get_features(VirtIODevice *vdev)
 u32 virtio_device_get_queue_size(struct virtqueue *vq)
 {
     return vq->vdev->info[vq->index].num;
-}
-
-void virtio_device_set_msix_used(VirtIODevice *vdev, bool used)
-{
-    vdev->msix_used = used != 0;
 }
