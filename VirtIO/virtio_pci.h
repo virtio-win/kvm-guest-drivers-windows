@@ -328,6 +328,8 @@ void virtio_set_config(VirtIODevice *vdev, unsigned offset,
  * bookkeeping. Drivers should call this function if they intend to set up queues
  * one by one with virtio_find_queue. virtio_find_queues (plural) internally takes
  * care of the reservation and virtio_reserve_queue_memory need not be called.
+ * Note that in addition to queue interrupt vectors, virtio_find_queues also sets
+ * up the device config vector as a convenience.
  * Drivers should treat the returned struct virtqueue pointers as opaque handles.
  */
 NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev, unsigned index,
