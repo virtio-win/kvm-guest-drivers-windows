@@ -278,11 +278,13 @@ struct virtio_device
 /* Driver API: device init and shutdown
  * DeviceContext is a driver defined opaque value which will be passed to driver
  * supplied callbacks described in pSystemOps. pSystemOps must be non-NULL and all
- * its fields must be non-NULL.
+ * its fields must be non-NULL. msix_used is true if and only if the device is
+ * configured with MSI support.
  */
 NTSTATUS virtio_device_initialize(VirtIODevice *vdev,
                                   const VirtIOSystemOps *pSystemOps,
-                                  void *DeviceContext);
+                                  void *DeviceContext,
+                                  bool msix_used);
 void virtio_device_shutdown(VirtIODevice *vdev);
 
 /* Driver API: device status manipulation
@@ -376,7 +378,6 @@ u16 virtio_set_config_vector(VirtIODevice *vdev, u16 vector);
 u16 virtio_set_queue_vector(struct virtqueue *vq, u16 vector);
 
 u8 virtio_read_isr_status(VirtIODevice *vdev);
-void virtio_device_set_msix_used(VirtIODevice *vdev, bool used);
 
 /* Driver API: miscellaneous helpers
  * virtio_get_bar_index returns the corresponding BAR index given its physical address.

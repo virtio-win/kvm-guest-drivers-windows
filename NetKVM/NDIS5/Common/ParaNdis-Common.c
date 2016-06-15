@@ -686,7 +686,8 @@ NDIS_STATUS ParaNdis_InitializeContext(
         nt_status = virtio_device_initialize(
             &pContext->IODevice,
             &ParaNdisSystemOps,
-            pContext);
+            pContext,
+            pContext->bUsingMSIX);
         if (!NT_SUCCESS(nt_status)) {
             DPrintf(0, ("[%s] virtio_device_initialize failed with %x\n", __FUNCTION__, nt_status));
             status = NTStatusToNdisStatus(nt_status);
@@ -695,7 +696,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
         }
 
         pContext->bIODeviceInitialized = TRUE;
-        virtio_device_set_msix_used(&pContext->IODevice, pContext->bUsingMSIX);
         JustForCheckClearInterrupt(pContext, "init 0");
         ParaNdis_ResetVirtIONetDevice(pContext);
         JustForCheckClearInterrupt(pContext, "init 1");
