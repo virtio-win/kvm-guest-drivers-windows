@@ -25,114 +25,6 @@
 
 #include "virtio_pci_common.h"
 
-void virtio_delete_queues(VirtIODevice *vdev)
-{
-    struct virtqueue *vq;
-    unsigned i;
-
-    for (i = 0; i < vdev->maxQueues; i++) {
-        vq = vdev->info[i].vq;
-        if (vq != NULL) {
-            vdev->device->delete_queue(&vdev->info[i]);
-            vdev->info[i].vq = NULL;
-        }
-    }
-}
-
-void virtio_delete_queue(struct virtqueue *vq)
-{
-    VirtIODevice *vdev = vq->vdev;
-    unsigned i = vq->index;
-
-    vdev->device->delete_queue(&vdev->info[i]);
-    vdev->info[i].vq = NULL;
-}
-
-u16 virtio_set_config_vector(VirtIODevice *vdev, u16 vector)
-{
-    return vdev->device->set_config_vector(vdev, vector);
-}
-
-u16 virtio_set_queue_vector(struct virtqueue *vq, u16 vector)
-{
-    return vq->vdev->device->set_queue_vector(vq, vector);
-}
-
-static NTSTATUS vp_setup_vq(struct virtqueue **queue,
-                            VirtIODevice *vdev, unsigned index,
-                            u16 msix_vec)
-{
-    VirtIOQueueInfo *info = &vdev->info[index];
-
-    NTSTATUS status = vdev->device->setup_queue(queue, vdev, info, index, msix_vec);
-    if (NT_SUCCESS(status)) {
-        info->vq = *queue;
-    }
-
-    return status;
-}
-
-/* the notify function used when creating a virt queue */
-bool vp_notify(struct virtqueue *vq)
-{
-    /* we write the queue's selector into the notification register to
-     * signal the other end */
-    iowrite16(vq->vdev, (unsigned short)vq->index, (void *)vq->priv);
-    return true;
-}
-
-NTSTATUS virtio_find_queue(VirtIODevice *vdev, unsigned index,
-                           struct virtqueue **vq)
-{
-    return vp_setup_vq(
-        vq,
-        vdev,
-        index,
-        VIRTIO_MSI_NO_VECTOR);
-}
-
-u8 virtio_read_isr_status(VirtIODevice *vdev)
-{
-    return ioread8(vdev, vdev->isr);
-}
-
-u8 virtio_get_status(VirtIODevice *vdev)
-{
-    return vdev->device->get_status(vdev);
-}
-
-void virtio_set_status(VirtIODevice *vdev, u8 status)
-{
-    vdev->device->set_status(vdev, status);
-}
-
-void virtio_add_status(VirtIODevice *vdev, u8 status)
-{
-    vdev->device->set_status(vdev, (u8)(vdev->device->get_status(vdev) | status));
-}
-
-NTSTATUS virtio_set_features(VirtIODevice *vdev, u64 features)
-{
-    unsigned char dev_status;
-    NTSTATUS status = vdev->device->set_features(vdev, features);
-
-    if (!NT_SUCCESS(status)) {
-        return status;
-    }
-
-    if (!virtio_is_feature_enabled(features, VIRTIO_F_VERSION_1)) {
-        return status;
-    }
-
-    virtio_add_status(vdev, VIRTIO_CONFIG_S_FEATURES_OK);
-    dev_status = vdev->device->get_status(vdev);
-    if (!(dev_status & VIRTIO_CONFIG_S_FEATURES_OK)) {
-        DPrintf(0, ("virtio: device refuses features: %x\n", dev_status));
-        status = STATUS_INVALID_PARAMETER;
-    }
-    return status;
-}
-
 NTSTATUS virtio_device_initialize(VirtIODevice *vdev,
                                   const VirtIOSystemOps *pSystemOps,
                                   PVOID DeviceContext,
@@ -166,17 +58,137 @@ NTSTATUS virtio_device_initialize(VirtIODevice *vdev,
     return status;
 }
 
-void virtio_device_reset(VirtIODevice *vdev)
-{
-    vdev->device->reset(vdev);
-}
-
 void virtio_device_shutdown(VirtIODevice *vdev)
 {
     if (vdev->info &&
         vdev->info != vdev->inline_info) {
         mem_free_nonpaged_block(vdev, vdev->info);
         vdev->info = NULL;
+    }
+}
+
+u8 virtio_get_status(VirtIODevice *vdev)
+{
+    return vdev->device->get_status(vdev);
+}
+
+void virtio_set_status(VirtIODevice *vdev, u8 status)
+{
+    vdev->device->set_status(vdev, status);
+}
+
+void virtio_add_status(VirtIODevice *vdev, u8 status)
+{
+    vdev->device->set_status(vdev, (u8)(vdev->device->get_status(vdev) | status));
+}
+
+void virtio_device_reset(VirtIODevice *vdev)
+{
+    vdev->device->reset(vdev);
+}
+
+void virtio_device_ready(VirtIODevice *vdev)
+{
+    unsigned status = vdev->device->get_status(vdev);
+
+    ASSERT(!(status & VIRTIO_CONFIG_S_DRIVER_OK));
+    vdev->device->set_status(vdev, (u8)(status | VIRTIO_CONFIG_S_DRIVER_OK));
+}
+
+u64 virtio_get_features(VirtIODevice *vdev)
+{
+    return vdev->device->get_features(vdev);
+}
+
+NTSTATUS virtio_set_features(VirtIODevice *vdev, u64 features)
+{
+    unsigned char dev_status;
+    NTSTATUS status = vdev->device->set_features(vdev, features);
+
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
+    if (!virtio_is_feature_enabled(features, VIRTIO_F_VERSION_1)) {
+        return status;
+    }
+
+    virtio_add_status(vdev, VIRTIO_CONFIG_S_FEATURES_OK);
+    dev_status = vdev->device->get_status(vdev);
+    if (!(dev_status & VIRTIO_CONFIG_S_FEATURES_OK)) {
+        DPrintf(0, ("virtio: device refuses features: %x\n", dev_status));
+        status = STATUS_INVALID_PARAMETER;
+    }
+    return status;
+}
+
+/* Read @count fields, @bytes each. */
+static void virtio_cread_many(VirtIODevice *vdev,
+                              unsigned int offset,
+                              void *buf, size_t count, size_t bytes)
+{
+    u32 old, gen = vdev->device->get_config_generation ?
+        vdev->device->get_config_generation(vdev) : 0;
+    size_t i;
+
+    do {
+        old = gen;
+
+        for (i = 0; i < count; i++) {
+            vdev->device->get_config(vdev, (unsigned)(offset + bytes * i),
+                (char *)buf + i * bytes, (unsigned)bytes);
+        }
+
+        gen = vdev->device->get_config_generation ?
+            vdev->device->get_config_generation(vdev) : 0;
+    } while (gen != old);
+}
+
+void virtio_get_config(VirtIODevice *vdev, unsigned offset,
+                       void *buf, unsigned len)
+{
+    switch (len) {
+    case 1:
+    case 2:
+    case 4:
+        vdev->device->get_config(vdev, offset, buf, len);
+        break;
+    case 8:
+        virtio_cread_many(vdev, offset, buf, 2, sizeof(u32));
+        break;
+    default:
+        virtio_cread_many(vdev, offset, buf, len, 1);
+        break;
+    }
+}
+
+/* Write @count fields, @bytes each. */
+static void virtio_cwrite_many(VirtIODevice *vdev,
+                               unsigned int offset,
+                               void *buf, size_t count, size_t bytes)
+{
+    size_t i;
+    for (i = 0; i < count; i++) {
+        vdev->device->set_config(vdev, (unsigned)(offset + bytes * i),
+            (char *)buf + i * bytes, (unsigned)bytes);
+    }
+}
+
+void virtio_set_config(VirtIODevice *vdev, unsigned offset,
+                       void *buf, unsigned len)
+{
+    switch (len) {
+    case 1:
+    case 2:
+    case 4:
+        vdev->device->set_config(vdev, offset, buf, len);
+        break;
+    case 8:
+        virtio_cwrite_many(vdev, offset, buf, 2, sizeof(u32));
+        break;
+    default:
+        virtio_cwrite_many(vdev, offset, buf, len, 1);
+        break;
     }
 }
 
@@ -205,6 +217,30 @@ NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs)
         vdev->maxQueues = nvqs;
     }
     return STATUS_SUCCESS;
+}
+
+static NTSTATUS vp_setup_vq(struct virtqueue **queue,
+                            VirtIODevice *vdev, unsigned index,
+                            u16 msix_vec)
+{
+    VirtIOQueueInfo *info = &vdev->info[index];
+
+    NTSTATUS status = vdev->device->setup_queue(queue, vdev, info, index, msix_vec);
+    if (NT_SUCCESS(status)) {
+        info->vq = *queue;
+    }
+
+    return status;
+}
+
+NTSTATUS virtio_find_queue(VirtIODevice *vdev, unsigned index,
+                           struct virtqueue **vq)
+{
+    return vp_setup_vq(
+        vq,
+        vdev,
+        index,
+        VIRTIO_MSI_NO_VECTOR);
 }
 
 NTSTATUS virtio_find_queues(VirtIODevice *vdev,
@@ -251,6 +287,49 @@ error_find:
     return status;
 }
 
+void virtio_delete_queue(struct virtqueue *vq)
+{
+    VirtIODevice *vdev = vq->vdev;
+    unsigned i = vq->index;
+
+    vdev->device->delete_queue(&vdev->info[i]);
+    vdev->info[i].vq = NULL;
+}
+
+void virtio_delete_queues(VirtIODevice *vdev)
+{
+    struct virtqueue *vq;
+    unsigned i;
+
+    for (i = 0; i < vdev->maxQueues; i++) {
+        vq = vdev->info[i].vq;
+        if (vq != NULL) {
+            vdev->device->delete_queue(&vdev->info[i]);
+            vdev->info[i].vq = NULL;
+        }
+    }
+}
+
+u32 virtio_get_queue_size(struct virtqueue *vq)
+{
+    return vq->vdev->info[vq->index].num;
+}
+
+u16 virtio_set_config_vector(VirtIODevice *vdev, u16 vector)
+{
+    return vdev->device->set_config_vector(vdev, vector);
+}
+
+u16 virtio_set_queue_vector(struct virtqueue *vq, u16 vector)
+{
+    return vq->vdev->device->set_queue_vector(vq, vector);
+}
+
+u8 virtio_read_isr_status(VirtIODevice *vdev)
+{
+    return ioread8(vdev, vdev->isr);
+}
+
 int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA)
 {
     int iBar, i;
@@ -284,89 +363,13 @@ int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA)
     return -1;
 }
 
-/* Read @count fields, @bytes each. */
-static void virtio_cread_many(VirtIODevice *vdev,
-    unsigned int offset,
-    void *buf, size_t count, size_t bytes)
+/* The notify function used when creating a virt queue, common to both modern
+ * and legacy (the difference is in how vq->priv is set up).
+ */
+bool vp_notify(struct virtqueue *vq)
 {
-    u32 old, gen = vdev->device->get_config_generation ?
-        vdev->device->get_config_generation(vdev) : 0;
-    size_t i;
-
-    do {
-        old = gen;
-
-        for (i = 0; i < count; i++) {
-            vdev->device->get_config(vdev, (unsigned)(offset + bytes * i),
-                (char *)buf + i * bytes, (unsigned)bytes);
-        }
-
-        gen = vdev->device->get_config_generation ?
-            vdev->device->get_config_generation(vdev) : 0;
-    } while (gen != old);
-}
-
-/* Write @count fields, @bytes each. */
-static void virtio_cwrite_many(VirtIODevice *vdev,
-    unsigned int offset,
-    void *buf, size_t count, size_t bytes)
-{
-    size_t i;
-    for (i = 0; i < count; i++) {
-        vdev->device->set_config(vdev, (unsigned)(offset + bytes * i),
-            (char *)buf + i * bytes, (unsigned)bytes);
-    }
-}
-
-/* Config space accessors. */
-void virtio_get_config(VirtIODevice *vdev, unsigned offset,
-    void *buf, unsigned len)
-{
-    switch (len) {
-    case 1:
-    case 2:
-    case 4:
-        vdev->device->get_config(vdev, offset, buf, len);
-        break;
-    case 8:
-        virtio_cread_many(vdev, offset, buf, 2, sizeof(u32));
-        break;
-    default:
-        virtio_cread_many(vdev, offset, buf, len, 1);
-    }
-}
-
-void virtio_set_config(VirtIODevice *vdev, unsigned offset,
-    void *buf, unsigned len)
-{
-    switch (len) {
-    case 1:
-    case 2:
-    case 4:
-        vdev->device->set_config(vdev, offset, buf, len);
-        break;
-    case 8:
-        virtio_cwrite_many(vdev, offset, buf, 2, sizeof(u32));
-        break;
-    default:
-        virtio_cwrite_many(vdev, offset, buf, len, 1);
-    }
-}
-
-void virtio_device_ready(VirtIODevice *vdev)
-{
-    unsigned status = vdev->device->get_status(vdev);
-
-    BUG_ON(status & VIRTIO_CONFIG_S_DRIVER_OK);
-    vdev->device->set_status(vdev, (u8)(status | VIRTIO_CONFIG_S_DRIVER_OK));
-}
-
-u64 virtio_get_features(VirtIODevice *vdev)
-{
-    return vdev->device->get_features(vdev);
-}
-
-u32 virtio_get_queue_size(struct virtqueue *vq)
-{
-    return vq->vdev->info[vq->index].num;
+    /* we write the queue's selector into the notification register to
+     * signal the other end */
+    iowrite16(vq->vdev, (unsigned short)vq->index, vq->priv);
+    return true;
 }
