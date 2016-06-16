@@ -88,5 +88,4 @@ protected:
     CNdisSpinLock m_Lock;
 
     VQ m_VirtQueue;
-    tCompletePhysicalAddress m_VirtQueueRing;
 };
