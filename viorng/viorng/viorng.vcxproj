@@ -231,7 +231,7 @@
       <StructMemberAlignment>8Bytes</StructMemberAlignment>
       <TreatWarningAsError>true</TreatWarningAsError>
       <StringPooling>true</StringPooling>
-      <ForceConformanceInForLoopScope>false</ForceConformanceInForLoopScope>
+      <ForceConformanceInForLoopScope>true</ForceConformanceInForLoopScope>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <ExceptionHandling />
       <AdditionalOptions>/kernel %(AdditionalOptions)</AdditionalOptions>
