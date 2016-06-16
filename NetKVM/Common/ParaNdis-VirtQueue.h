@@ -196,7 +196,15 @@ public:
     { virtqueue_notify(m_VirtQueue); }
 
     bool Restart()
-    { return virtqueue_enable_cb(m_VirtQueue); }
+    {
+        if (!virtqueue_enable_cb(m_VirtQueue))
+        {
+            virtqueue_disable_cb(m_VirtQueue);
+            return false;
+        }
+
+        return true;
+    }
 
     //TODO: Needs review/temporary?
     void EnableInterruptsDelayed()
