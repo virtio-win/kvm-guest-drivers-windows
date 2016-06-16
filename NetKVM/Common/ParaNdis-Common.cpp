@@ -1671,7 +1671,7 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
             pContext->CXPath.ClearInterruptReport();
         }
 
-        if (!stillRequiresProcessing && pathBundle != nullptr)
+        if (pathBundle != nullptr)
         {
             bDoKick = pathBundle->txPath.DoPendingTasks(true);
             if (pathBundle->txPath.RestartQueue(bDoKick))
