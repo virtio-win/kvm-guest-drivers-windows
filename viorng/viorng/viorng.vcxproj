@@ -66,115 +66,111 @@
     <VCTargetsPath Condition="'$(VCTargetsPath11)' != '' and '$(VisualStudioVersion)' == '11.0'">$(VCTargetsPath11)</VCTargetsPath>
     <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
-  <PropertyGroup Label="PropertySheets">
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <ConfigurationType>Driver</ConfigurationType>
-    <DriverType>KMDF</DriverType>
-  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'" Label="Configuration">
     <TargetVersion>Windows8</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" Label="Configuration">
     <TargetVersion>Windows8</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'" Label="Configuration">
-    <TargetVersion>Vista</TargetVersion>
+    <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>v140_xp</PlatformToolset>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'" Label="Configuration">
-    <TargetVersion>Vista</TargetVersion>
+    <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>v140_xp</PlatformToolset>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'" Label="Configuration">
-    <TargetVersion>
-    </TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
+    <TargetVersion>Windows10</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <KMDF_VERSION_MINOR>15</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'" Label="Configuration">
-    <TargetVersion>
-    </TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
+    <TargetVersion>Windows10</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <KMDF_VERSION_MINOR>15</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'" Label="Configuration">
     <TargetVersion>Windows8</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" Label="Configuration">
     <TargetVersion>Windows8</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'" Label="Configuration">
-    <TargetVersion>Vista</TargetVersion>
+    <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>v140_xp</PlatformToolset>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'" Label="Configuration">
-    <TargetVersion>Vista</TargetVersion>
+    <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>v140_xp</PlatformToolset>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'" Label="Configuration">
-    <TargetVersion>
-    </TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
+    <TargetVersion>Windows10</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <KMDF_VERSION_MINOR>15</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'" Label="Configuration">
-    <TargetVersion>
-    </TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
+    <TargetVersion>Windows10</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <KMDF_VERSION_MINOR>15</KMDF_VERSION_MINOR>
+  </PropertyGroup>
+  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'!='v140_xp'">
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>KMDF</DriverType>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+  </PropertyGroup>
+  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'=='v140_xp'">
+    <ConfigurationType>Application</ConfigurationType>
+    <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -190,24 +186,6 @@
   <PropertyGroup>
     <IntDir>$(Platform)\$(Configuration)\</IntDir>
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="$(Configuration.StartsWith('Win8')) And '$(Platform)'=='Win32'">
-    <InfArch>x86.6.2</InfArch>
-  </PropertyGroup>
-  <PropertyGroup Condition="$(Configuration.StartsWith('Win7')) And '$(Platform)'=='Win32'">
-    <InfArch>x86.6.1</InfArch>
-  </PropertyGroup>
-  <PropertyGroup Condition="$(Configuration.StartsWith('Vista')) And '$(Platform)'=='Win32'">
-    <InfArch>x86.6.0</InfArch>
-  </PropertyGroup>
-  <PropertyGroup Condition="$(Configuration.StartsWith('Win8')) And '$(Platform)'=='x64'">
-    <InfArch>amd64.6.2</InfArch>
-  </PropertyGroup>
-  <PropertyGroup Condition="$(Configuration.StartsWith('Win7')) And '$(Platform)'=='x64'">
-    <InfArch>amd64.6.1</InfArch>
-  </PropertyGroup>
-  <PropertyGroup Condition="$(Configuration.StartsWith('Vista')) And '$(Platform)'=='x64'">
-    <InfArch>amd64.6.0</InfArch>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
@@ -243,7 +221,7 @@
       <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v120_xp'">
+  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v140_xp'">
     <ClCompile>
       <AdditionalIncludeDirectories>$(ProjectDir);$(LegacyDDKDir)\inc\ddk;$(LegacyDDKDir)\inc\crt;$(LegacyDDKDir)\inc\api;$(LegacyDDKDir)\inc\wdf\kmdf\1.9;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary />
@@ -298,12 +276,10 @@
       <Command Condition="'$(Platform)'=='Win32'">
         copy "$(LegacyDDKDir)\redist\wdf\x86\WdfCoInstaller01009.dll" "$(OutDir)"
         copy viorng.inf "$(OutDir)\viorng.inf"
-        stampinf -f "$(OutDir)\viorng.inf" -a $(InfArch) -k 1.9
       </Command>
       <Command Condition="'$(Platform)'=='x64'">
         copy "$(LegacyDDKDir)\redist\wdf\amd64\WdfCoInstaller01009.dll" "$(OutDir)"
         copy viorng.inf "$(OutDir)\viorng.inf"
-        stampinf -f "$(OutDir)\viorng.inf" -a $(InfArch) -k 1.9
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -342,7 +318,7 @@
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
   <Target Name="GetDriverProjectAttributes" Returns="@(DriverProjectAttributes)" >
-    <ItemGroup Condition="'$(PlatformToolset)'=='v120_xp'">
+    <ItemGroup Condition="'$(PlatformToolset)'=='v140_xp'">
       <DriverProjectAttributes Include="$(ProjectGuid)">
         <DriverType>$(DriverType)</DriverType>
         <PlatformToolset>$(PlatformToolset)</PlatformToolset>
@@ -353,7 +329,7 @@
     </ItemGroup>
   </Target>
   <Target Name="GetPackageFiles" Returns="@(FullyQualifiedFilesToPackage)">
-    <ItemGroup Condition="'$(PlatformToolset)'=='v120_xp'">
+    <ItemGroup Condition="'$(PlatformToolset)'=='v140_xp'">
       <FilesToPackage Include="$(OutDir)\viorng.inf" />
       <FilesToPackage Include="$(OutDir)\WdfCoInstaller01009.dll" />
     </ItemGroup>
