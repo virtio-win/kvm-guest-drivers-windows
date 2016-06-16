@@ -1565,60 +1565,52 @@ static
 BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, ULONG nPacketsToIndicate)
 {
     BOOLEAN res = FALSE;
-    BOOLEAN bMoreDataInRing;
 
     PNET_BUFFER_LIST indicate, indicateTail;
     ULONG nIndicate;
 
     CCHAR CurrCpuReceiveQueue = GetReceiveQueueForCurrentCPU(pContext);
 
-    do
+    indicate = nullptr;
+    indicateTail = nullptr;
+    nIndicate = 0;
+
+    /* pathBundle is passed from ParaNdis_DPCWorkBody and may be NULL
+    if case DPC handler is scheduled by RSS to the CPU with
+    associated queues */
+    if (pathBundle != nullptr)
     {
-        indicate = nullptr;
-        indicateTail = nullptr;
-        nIndicate = 0;
+        pathBundle->rxPath.ProcessRxRing(CurrCpuReceiveQueue);
 
-        /* pathBundle is passed from ParaNdis_DPCWorkBody and may be NULL
-        if case DPC handler is scheduled by RSS to the CPU with
-        associated queues */
-        if (pathBundle != nullptr)
-        {
-            pathBundle->rxPath.ProcessRxRing(CurrCpuReceiveQueue);
-
-            res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pathBundle->rxPath.UnclassifiedPacketsQueue(),
-                &indicate, &indicateTail, &nIndicate);
-        }
+        res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pathBundle->rxPath.UnclassifiedPacketsQueue(),
+            &indicate, &indicateTail, &nIndicate);
+    }
 
 #ifdef PARANDIS_SUPPORT_RSS
-        if (CurrCpuReceiveQueue != PARANDIS_RECEIVE_NO_QUEUE)
-        {
-            res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pContext->ReceiveQueues[CurrCpuReceiveQueue],
-                &indicate, &indicateTail, &nIndicate);
-        }
+    if (CurrCpuReceiveQueue != PARANDIS_RECEIVE_NO_QUEUE)
+    {
+        res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pContext->ReceiveQueues[CurrCpuReceiveQueue],
+            &indicate, &indicateTail, &nIndicate);
+    }
 #endif
 
-        if (pathBundle != nullptr)
+    if (pathBundle != nullptr)
+    {
+        res |= pathBundle->rxPath.RestartQueue();
+    }
+
+    if (nIndicate)
+    {
+        if(pContext->m_RxStateMachine.RegisterOutstandingItems(nIndicate))
         {
-            bMoreDataInRing = pathBundle->rxPath.RestartQueue();
+            NdisMIndicateReceiveNetBufferLists(pContext->MiniportHandle,
+                                                indicate, 0, nIndicate, 0);
         }
         else
         {
-            bMoreDataInRing = FALSE;
+            ParaNdis_ReuseRxNBLs(indicate);
         }
-
-        if (nIndicate)
-        {
-            if(pContext->m_RxStateMachine.RegisterOutstandingItems(nIndicate))
-            {
-                NdisMIndicateReceiveNetBufferLists(pContext->MiniportHandle,
-                                                   indicate, 0, nIndicate, 0);
-            }
-            else
-            {
-                ParaNdis_ReuseRxNBLs(indicate);
-            }
-        }
-    } while (bMoreDataInRing);
+    }
 
     return res;
 }
