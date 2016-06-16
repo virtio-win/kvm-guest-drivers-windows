@@ -84,6 +84,13 @@ public:
         m_VirtQueue.Shutdown();
     }
 
+    static BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT)
+    RestartQueueSynchronously(PVOID ctx)
+    {
+        auto This = static_cast<CParaNdisTemplatePath<VQ>*>(ctx);
+        return !This->m_VirtQueue.Restart();
+    }
+
 protected:
     CNdisSpinLock m_Lock;
 

@@ -177,8 +177,6 @@ private:
     DECLARE_CNDISLIST_ENTRY(CNB);
 };
 
-typedef struct _tagSynchronizedContext tSynchronizedContext;
-
 class CParaNdisTX : public CParaNdisTemplatePath<CTXVirtQueue>, public CNdisAllocatable<CParaNdisTX, 'XTHR'>
 {
 public:
@@ -203,9 +201,6 @@ public:
 
     //TODO: Requires review
     bool RestartQueue(bool DoKick);
-
-    //TODO: Requires review
-    static BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) RestartQueueSynchronously(tSynchronizedContext *ctx);
 
     //TODO: Needs review/temporary?
     ULONG GetFreeTXDescriptors()

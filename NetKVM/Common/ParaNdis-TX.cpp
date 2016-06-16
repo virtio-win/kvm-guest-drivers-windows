@@ -432,19 +432,12 @@ void CParaNdisTX::CancelNBLs(PVOID CancelId)
 }
 
 //TODO: Requires review
-BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) CParaNdisTX::RestartQueueSynchronously(tSynchronizedContext *ctx)
-{
-    auto TXPath = static_cast<CParaNdisTX *>(ctx->Parameter);
-    return !TXPath->m_VirtQueue.Restart();
-}
-
-//TODO: Requires review
 bool CParaNdisTX::RestartQueue(bool DoKick)
 {
     TSpinLocker LockedContext(m_Lock);
     auto res = ParaNdis_SynchronizeWithInterrupt(m_Context,
                                                  m_messageIndex,
-                                                 CParaNdisTX::RestartQueueSynchronously,
+                                                 RestartQueueSynchronously,
                                                  this) ? true : false;
 
     if(DoKick)

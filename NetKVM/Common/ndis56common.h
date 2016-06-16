@@ -458,13 +458,7 @@ typedef struct _tagPARANDIS_ADAPTER
     _tagPARANDIS_ADAPTER& operator= (const _tagPARANDIS_ADAPTER&) = delete;
 }PARANDIS_ADAPTER, *PPARANDIS_ADAPTER;
 
-typedef struct _tagSynchronizedContext
-{
-    PARANDIS_ADAPTER    *pContext;
-    PVOID               Parameter;
-}tSynchronizedContext;
-
-typedef BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) (*tSynchronizedProcedure)(tSynchronizedContext *context);
+typedef BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) (*tSynchronizedProcedure)(PVOID context);
 
 BOOLEAN FORCEINLINE IsValidVlanId(PARANDIS_ADAPTER *pContext, ULONG VlanID)
 {

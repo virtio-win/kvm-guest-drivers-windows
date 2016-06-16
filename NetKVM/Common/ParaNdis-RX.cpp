@@ -279,19 +279,10 @@ void CParaNdisRX::PopulateQueue()
     m_VirtQueue.Kick();
 }
 
-BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) CParaNdisRX::RestartQueueSynchronously(tSynchronizedContext *ctx)
-{
-    CVirtQueue *queue = (CVirtQueue *) ctx->Parameter;
-    bool res = queue->Restart();
-
-    ParaNdis_DebugHistory(ctx->pContext, hopDPC, (PVOID)ctx->Parameter, 0x20, res, 0);
-    return !res;
-}
-
 BOOLEAN CParaNdisRX::RestartQueue()
 {
     return ParaNdis_SynchronizeWithInterrupt(m_Context,
-        m_messageIndex,
-        RestartQueueSynchronously,
-        &m_VirtQueue);
+                                             m_messageIndex,
+                                             RestartQueueSynchronously,
+                                             this);
 }
