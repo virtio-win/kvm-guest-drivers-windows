@@ -1972,7 +1972,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     pContext->bConnected = FALSE;
 
     ParaNdis_ResetVirtIONetDevice(pContext);
-    
+
 #if !NDIS_SUPPORT_NDIS620
     // WLK tests for Windows 2008 require media disconnect indication
     // on power off. HCK tests for newer versions require media state unknown

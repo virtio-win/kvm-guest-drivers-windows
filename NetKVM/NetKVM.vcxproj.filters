@@ -93,6 +93,12 @@
     <ClInclude Include="Common\ParaNdis_Debug.h">
       <Filter>Header Files\Common</Filter>
     </ClInclude>
+    <ClInclude Include="..\VirtIO\virtio.h">
+      <Filter>VirtIO</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\ParaNdis-SM.h">
+      <Filter>Source Files\Common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Common\ParaNdis-TX.cpp">
