@@ -155,14 +155,16 @@ typedef struct _ADAPTER_EXTENSION {
 #endif
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
-typedef struct vring_desc_alias
+#if (INDIRECT_SUPPORTED == 1)
+typedef struct _VRING_DESC_ALIAS
 {
     union
     {
         ULONGLONG data[2];
         UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
     }u;
-};
+}VRING_DESC_ALIAS;
+#endif
 
 typedef struct _RHEL_SRB_EXTENSION {
     blk_req               vbr;
@@ -174,7 +176,7 @@ typedef struct _RHEL_SRB_EXTENSION {
     BOOLEAN               call_next;
 #endif
 #if INDIRECT_SUPPORTED
-    struct vring_desc_alias     desc[VIRTIO_MAX_SG];
+    VRING_DESC_ALIAS      desc[VIRTIO_MAX_SG];
 #endif
 }RHEL_SRB_EXTENSION, *PRHEL_SRB_EXTENSION;
 
