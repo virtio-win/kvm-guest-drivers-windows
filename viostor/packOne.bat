@@ -6,6 +6,7 @@ setlocal
  
 if "%2"=="x64" set %%2=amd64
 
+if /i "%1"=="Win10" goto :checkarch
 if /i "%1"=="Win8" goto :checkarch
 if /i "%1"=="Win7" goto :checkarch
 if /i "%1"=="Wlh" goto :checkarch
@@ -54,8 +55,9 @@ copy /Y %INF_PATH_AND_NAME% .\Install\%INST_OS%\%INST_ARC%\%SYS_NAME%.inf
 :create_cat
 echo "Setting OS mask for:" %1 %2
 
+if /i "%1"=="win10" goto create_win10
 if /i "%1"=="wlh" goto create_vista
-if /i "%1"=="win7" goto create_vista
+if /i "%1"=="win7" goto create_win7
 if /i "%1"=="win8" goto create_win8
 if /i "%1"=="wnet" goto create_xp
 if /i "%1"=="wxp" goto create_xp
