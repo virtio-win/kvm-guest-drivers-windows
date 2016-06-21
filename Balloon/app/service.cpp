@@ -28,7 +28,7 @@ DWORD __stdcall CService::HandlerExThunk(CService* service, DWORD ctlcode, DWORD
         return service->ServiceHandleDeviceChange(evtype, (_DEV_BROADCAST_HEADER*) evdata);
 
     case SERVICE_CONTROL_POWEREVENT:
-        return service->ServiceHandlePowerEvent(evtype, (DWORD) evdata);
+        return service->ServiceHandlePowerEvent(evtype, (DWORD)((DWORD_PTR) evdata));
 
     default:
         service->ServiceCtrlHandler(ctlcode);

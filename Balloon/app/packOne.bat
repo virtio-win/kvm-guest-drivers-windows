@@ -25,10 +25,8 @@ goto :eof
 set INST_OS=%1
 set INST_ARC=%2
 set FILE_NAME=%3
-rem set INST_EXT=INST_ARC
 
 if /i "%INST_ARC%"=="x64" goto :set_x64
-
 set INST_ARC=x86
 set EXT_ARC=i386
 goto :startcopy
