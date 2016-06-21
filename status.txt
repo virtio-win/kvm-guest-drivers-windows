@@ -1,3 +1,10 @@
+Date    21 Jun 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm139
+
+New Features:
+Sync with Win10 branch
+
 Date    30 May 2016
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm138
