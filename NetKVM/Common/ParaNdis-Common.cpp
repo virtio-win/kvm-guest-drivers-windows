@@ -1479,62 +1479,55 @@ UpdateReceiveFailStatistics(PPARANDIS_ADAPTER pContext, UINT nCoalescedSegmentsC
     pContext->Statistics.ifInDiscards += nCoalescedSegmentsCount;
 }
 
-static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
-                                    PULONG pnPacketsToIndicateLeft,
-                                    PPARANDIS_RECEIVE_QUEUE pTargetReceiveQueue,
-                                    PNET_BUFFER_LIST *indicate,
-                                    PNET_BUFFER_LIST *indicateTail,
-                                    ULONG *nIndicate)
+static void ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
+                                PULONG pnPacketsToIndicateLeft,
+                                PPARANDIS_RECEIVE_QUEUE pTargetReceiveQueue,
+                                PNET_BUFFER_LIST *indicate,
+                                PNET_BUFFER_LIST *indicateTail,
+                                ULONG *nIndicate)
 {
-
     pRxNetDescriptor pBufferDescriptor;
 
-    if(NdisInterlockedIncrement(&pTargetReceiveQueue->ActiveProcessorsCount) == 1)
+    while( (*pnPacketsToIndicateLeft > 0) &&
+            (NULL != (pBufferDescriptor = ReceiveQueueGetBuffer(pTargetReceiveQueue))) )
     {
-        while( (*pnPacketsToIndicateLeft > 0) &&
-               (NULL != (pBufferDescriptor = ReceiveQueueGetBuffer(pTargetReceiveQueue))) )
+        PNET_PACKET_INFO pPacketInfo = &pBufferDescriptor->PacketInfo;
+
+        if( !pContext->bSurprizeRemoved &&
+            pContext->bConnected &&
+            ShallPassPacket(pContext, pPacketInfo))
         {
-            PNET_PACKET_INFO pPacketInfo = &pBufferDescriptor->PacketInfo;
-
-            if( !pContext->bSurprizeRemoved &&
-                pContext->bConnected &&
-                ShallPassPacket(pContext, pPacketInfo))
+            UINT nCoalescedSegmentsCount;
+            PNET_BUFFER_LIST packet = ParaNdis_PrepareReceivedPacket(pContext, pBufferDescriptor, &nCoalescedSegmentsCount);
+            if(packet != NULL)
             {
-                UINT nCoalescedSegmentsCount;
-                PNET_BUFFER_LIST packet = ParaNdis_PrepareReceivedPacket(pContext, pBufferDescriptor, &nCoalescedSegmentsCount);
-                if(packet != NULL)
+                UpdateReceiveSuccessStatistics(pContext, pPacketInfo, nCoalescedSegmentsCount);
+                if (*indicate == nullptr)
                 {
-                    UpdateReceiveSuccessStatistics(pContext, pPacketInfo, nCoalescedSegmentsCount);
-                    if (*indicate == nullptr)
-                    {
-                        *indicate = *indicateTail = packet;
-                    }
-                    else
-                    {
-                        NET_BUFFER_LIST_NEXT_NBL(*indicateTail) = packet;
-                        *indicateTail = packet;
-                    }
-
-                    NET_BUFFER_LIST_NEXT_NBL(*indicateTail) = NULL;
-                    (*pnPacketsToIndicateLeft)--;
-                    (*nIndicate)++;
+                    *indicate = *indicateTail = packet;
                 }
                 else
                 {
-                    UpdateReceiveFailStatistics(pContext, nCoalescedSegmentsCount);
-                    pBufferDescriptor->Queue->ReuseReceiveBuffer(pBufferDescriptor);
+                    NET_BUFFER_LIST_NEXT_NBL(*indicateTail) = packet;
+                    *indicateTail = packet;
                 }
+
+                NET_BUFFER_LIST_NEXT_NBL(*indicateTail) = NULL;
+                (*pnPacketsToIndicateLeft)--;
+                (*nIndicate)++;
             }
             else
             {
-                pContext->extraStatistics.framesFilteredOut++;
+                UpdateReceiveFailStatistics(pContext, nCoalescedSegmentsCount);
                 pBufferDescriptor->Queue->ReuseReceiveBuffer(pBufferDescriptor);
             }
         }
-     }
-
-    NdisInterlockedDecrement(&pTargetReceiveQueue->ActiveProcessorsCount);
-    return ReceiveQueueHasBuffers(pTargetReceiveQueue);
+        else
+        {
+            pContext->extraStatistics.framesFilteredOut++;
+            pBufferDescriptor->Queue->ReuseReceiveBuffer(pBufferDescriptor);
+        }
+    }
 }
 
 
@@ -1565,7 +1558,7 @@ static
 BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, ULONG nPacketsToIndicate)
 {
     BOOLEAN res = FALSE;
-
+    bool rxPathOwner = false;
     PNET_BUFFER_LIST indicate, indicateTail;
     ULONG nIndicate;
 
@@ -1580,24 +1573,25 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
     associated queues */
     if (pathBundle != nullptr)
     {
+        rxPathOwner = pathBundle->rxPath.UnclassifiedPacketsQueue().Ownership.Acquire();
+
         pathBundle->rxPath.ProcessRxRing(CurrCpuReceiveQueue);
 
-        res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pathBundle->rxPath.UnclassifiedPacketsQueue(),
-            &indicate, &indicateTail, &nIndicate);
+        if (rxPathOwner)
+        {
+            ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pathBundle->rxPath.UnclassifiedPacketsQueue(),
+                                &indicate, &indicateTail, &nIndicate);
+        }
     }
 
 #ifdef PARANDIS_SUPPORT_RSS
     if (CurrCpuReceiveQueue != PARANDIS_RECEIVE_NO_QUEUE)
     {
-        res |= ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pContext->ReceiveQueues[CurrCpuReceiveQueue],
-            &indicate, &indicateTail, &nIndicate);
+        ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pContext->ReceiveQueues[CurrCpuReceiveQueue],
+                            &indicate, &indicateTail, &nIndicate);
+        res |= ReceiveQueueHasBuffers(&pContext->ReceiveQueues[CurrCpuReceiveQueue]);
     }
 #endif
-
-    if (pathBundle != nullptr)
-    {
-        res |= pathBundle->rxPath.RestartQueue();
-    }
 
     if (nIndicate)
     {
@@ -1610,6 +1604,17 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
         {
             ParaNdis_ReuseRxNBLs(indicate);
         }
+    }
+
+    if (rxPathOwner)
+    {
+        pathBundle->rxPath.UnclassifiedPacketsQueue().Ownership.Release();
+    }
+
+    if (pathBundle != nullptr)
+    {
+        res |= pathBundle->rxPath.RestartQueue() |
+               ReceiveQueueHasBuffers(&pathBundle->rxPath.UnclassifiedPacketsQueue());
     }
 
     return res;

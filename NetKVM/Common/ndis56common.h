@@ -88,8 +88,7 @@ typedef struct _tagPARANDIS_RECEIVE_QUEUE
 {
     NDIS_SPIN_LOCK          Lock;
     LIST_ENTRY              BuffersList;
-
-    LONG                    ActiveProcessorsCount;
+    COwnership              Ownership;
 } PARANDIS_RECEIVE_QUEUE, *PPARANDIS_RECEIVE_QUEUE;
 
 #include "ParaNdis-TX.h"

@@ -8,7 +8,6 @@ CParaNdisRX::CParaNdisRX() : m_nReusedRxBuffersCounter(0), m_NetNofReceiveBuffer
 
     NdisAllocateSpinLock(&m_UnclassifiedPacketsQueue.Lock);
     InitializeListHead(&m_UnclassifiedPacketsQueue.BuffersList);
-    m_UnclassifiedPacketsQueue.ActiveProcessorsCount = 0;
 }
 
 CParaNdisRX::~CParaNdisRX()
