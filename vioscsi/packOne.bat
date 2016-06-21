@@ -6,6 +6,7 @@ setlocal
  
 if "%2"=="x64" set %%2=amd64
 
+if /i "%1"=="Win10" goto :checkarch
 if /i "%1"=="Win8" goto :checkarch
 if /i "%1"=="Win7" goto :checkarch
 if /i "%1"=="Wlh" goto :checkarch
@@ -52,9 +53,10 @@ copy /Y %INF_PATH_AND_NAME% .\Install\%INST_OS%\%INST_ARC%\%SYS_NAME%.inf
 :create_cat
 echo "Setting OS mask for:" %1 %2
 
-if /i "%1"=="win8" goto create_win8
-if /i "%1"=="wlh" goto create_vista
-if /i "%1"=="win7" goto create_vista
+if /i "%1"=="Win10" goto create_win10
+if /i "%1"=="Win8" goto create_win8
+if /i "%1"=="Wlh" goto create_vista
+if /i "%1"=="Win7" goto create_win7
 goto error_inf2cat
 
 :create_vista
@@ -78,7 +80,6 @@ goto run_inf2cat
 :create_win8
 if not exist %DVL_PATH_AND_NAME% goto do_the_job
 if /i "%2"=="x64" copy /Y %DVL_PATH_AND_NAME% .\Install\%INST_OS%\%INST_ARC%\
-rem goto after_inf2cat
 :do_the_job
 if /i "%2"=="x86" set _OSMASK_=8_X86
 if /i "%2"=="x64" set _OSMASK_=8_X64,Server8_X64
