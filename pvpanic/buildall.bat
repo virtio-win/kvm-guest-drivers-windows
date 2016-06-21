@@ -22,6 +22,7 @@ if "%1"=="Vista" set _NT_TARGET_VERSION=0x600
 if "%1"=="Wlh" set _NT_TARGET_VERSION=0x600
 if "%1"=="Win7" set _NT_TARGET_VERSION=0x610
 if "%1"=="Win8" set _NT_TARGET_VERSION=0x620
+if "%1"=="Win10" set _NT_TARGET_VERSION=0xA00
 set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + ((%_NT_TARGET_VERSION% & 255) >> 4)"
 goto :eof
 
@@ -30,6 +31,7 @@ if "%1"=="Vista" set OS=wlh
 if "%1"=="Wlh" set OS=wlh
 if "%1"=="Win7" set OS=win7
 if "%1"=="Win8" set OS=win8
+if "%1"=="Win10" set OS=win10
 if "%2"=="Win32" set PLAT=x86
 if "%2"=="x64" set PLAT=amd64
 goto :eof
@@ -79,7 +81,7 @@ goto :eof
 
 :build_driver
 call :prebuild_driver %1 %2
-call ..\tools\callVisualStudio.bat 12 pvpanic.sln /Rebuild "%1 Release|%2" /Out %OUT_FILENAME%
+call ..\tools\callVisualStudio.bat 14 pvpanic.sln /Rebuild "%1 Release|%2" /Out %OUT_FILENAME%
 call :fix_wdfcoinstaller_name %1 %2
 goto :eof
 
