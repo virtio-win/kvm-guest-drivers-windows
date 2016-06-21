@@ -368,6 +368,30 @@ private:
     CNdisSharedMemory& operator= (const CNdisSharedMemory&) = delete;
 };
 
+class CNdisEvent
+{
+public:
+    CNdisEvent()
+    { NdisInitializeEvent(&m_Event); }
+
+    void Notify()
+    { NdisSetEvent(&m_Event); }
+
+    void Clear()
+    { NdisResetEvent(&m_Event); }
+
+    bool Wait(UINT IntervalMs = 0)
+    { return NdisWaitEvent(&m_Event, IntervalMs) == TRUE; }
+
+private:
+    NDIS_EVENT m_Event;
+};
+
+bool __inline ParaNdis_IsPassive()
+{
+    return (KeGetCurrentIrql() < DISPATCH_LEVEL);
+}
+
 #if NDIS_SUPPORT_NDIS620
 #define RW_LOCK_62
 #elif NDIS_SUPPORT_NDIS6
