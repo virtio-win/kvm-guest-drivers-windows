@@ -103,7 +103,7 @@ typedef CLockedContext<CNdisSpinLock> TSpinLocker;
 class CNdisRefCounter
 {
 public:
-    CNdisRefCounter() {}
+    CNdisRefCounter() = default;
 
     void AddRef() { NdisInterlockedIncrement(&m_Counter); }
     void AddRef(ULONG RefCnt);
