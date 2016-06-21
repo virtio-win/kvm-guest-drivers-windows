@@ -206,14 +206,16 @@ typedef struct {
 } VirtIOSCSIEventNode, * PVirtIOSCSIEventNode;
 #pragma pack()
 
-typedef struct vring_desc_alias
+#if (INDIRECT_SUPPORTED == 1)
+typedef struct _VRING_DESC_ALIAS
 {
     union
     {
         ULONGLONG data[2];
         UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
     }u;
-};
+}VRING_DESC_ALIAS;
+#endif
 
 #pragma pack(1)
 typedef struct _SRB_EXTENSION {
@@ -227,7 +229,7 @@ typedef struct _SRB_EXTENSION {
     VirtIOSCSICmd         cmd;
     VIO_SG                sg[128];
 #if (INDIRECT_SUPPORTED == 1)
-    struct vring_desc_alias     desc[VIRTIO_MAX_SG];
+    VRING_DESC_ALIAS      desc[VIRTIO_MAX_SG];
 #endif
     UCHAR                 cpu;
     PVOID                 priv;
