@@ -9,7 +9,6 @@ if "%_BUILD_MINOR_VERSION_%"=="" set _BUILD_MINOR_VERSION_=58000
 if "%_RHEL_RELEASE_VERSION_%"=="" set _RHEL_RELEASE_VERSION_=61
 
 if /i "%1"=="prepare" goto %1
-
 call :%1_%2
 goto :eof
 
