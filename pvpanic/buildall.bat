@@ -24,6 +24,10 @@ if "%1"=="Win7" set _NT_TARGET_VERSION=0x610
 if "%1"=="Win8" set _NT_TARGET_VERSION=0x620
 if "%1"=="Win10" set _NT_TARGET_VERSION=0xA00
 set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + ((%_NT_TARGET_VERSION% & 255) >> 4)"
+
+set /a _NT_TARGET_MAJ_ARCH="%_NT_TARGET_VERSION% >> 8"
+set /a _NT_TARGET_MIN_ARCH="%_NT_TARGET_VERSION% & 255"
+
 goto :eof
 
 :set_os_and_platform
