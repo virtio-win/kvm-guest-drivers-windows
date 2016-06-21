@@ -101,8 +101,8 @@ CopyFiles=VirtRng_Wdf_CoInstaller_CopyFiles
 
 [VirtRng_Wdf_CoInstaller_AddReg]
 HKR,,CoInstallers32,0x00010000, \
-	"WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller", \
-	"viorngci.dll,VirtRngCoInstaller"
+	"WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+HKR,,CoInstallers32,0x00010000,"viorngci.dll,VirtRngCoInstaller"
 
 [VirtRng_Wdf_CoInstaller_CopyFiles]
 WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
