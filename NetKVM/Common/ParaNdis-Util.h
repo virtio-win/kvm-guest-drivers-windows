@@ -106,7 +106,7 @@ class CNdisRefCounter
 public:
     CNdisRefCounter() = default;
 
-    void AddRef() { NdisInterlockedIncrement(&m_Counter); }
+    LONG AddRef() { return NdisInterlockedIncrement(&m_Counter); }
     void AddRef(ULONG RefCnt);
     LONG Release() { return NdisInterlockedDecrement(&m_Counter); }
     LONG Release(ULONG RefCnt);
@@ -116,6 +116,31 @@ private:
 
     CNdisRefCounter(const CNdisRefCounter&) = delete;
     CNdisRefCounter& operator= (const CNdisRefCounter&) = delete;
+};
+
+class COwnership
+{
+public:
+    COwnership() = default;
+
+    bool Acquire()
+    {
+        if (m_RefCounter.AddRef() == 1)
+        {
+            return true;
+        }
+        else
+        {
+            m_RefCounter.Release();
+            return false;
+        }
+    }
+
+    void Release()
+    { m_RefCounter.Release(); }
+
+private:
+    CNdisRefCounter m_RefCounter;
 };
 
 class CRefCountingObject
