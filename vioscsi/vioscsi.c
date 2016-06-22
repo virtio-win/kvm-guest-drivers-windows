@@ -1656,7 +1656,7 @@ VioScsiQueryWmiDataBlock(
     )
 {
     ULONG size = 0;
-    UCHAR status;
+    UCHAR status = SRB_STATUS_SUCCESS;
     PADAPTER_EXTENSION    adaptExt;
 
 ENTER_FN();
