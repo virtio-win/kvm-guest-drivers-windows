@@ -1,3 +1,9 @@
+Date    22 Jun 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm140
+
+Adding missed bits after sync with Win10 branch.
+
 Date    21 Jun 2016
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm139
