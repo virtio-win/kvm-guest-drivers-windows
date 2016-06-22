@@ -179,7 +179,10 @@
   <PropertyGroup Condition="$(Configuration.StartsWith('Win10')) And '$(Platform)'=='Win32'">
     <InfArch>x86.10.0</InfArch>
   </PropertyGroup>
-  <PropertyGroup Condition="$(Configuration.StartsWith('Win8')) And '$(Platform)'=='Win32'">
+  <PropertyGroup Condition="$(Configuration.StartsWith('Win8.1')) And '$(Platform)'=='Win32'">
+    <InfArch>x86.6.3</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(Configuration.StartsWith('Win8 ')) And '$(Platform)'=='Win32'">
     <InfArch>x86.6.2</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="$(Configuration.StartsWith('Win7')) And '$(Platform)'=='Win32'">
@@ -191,7 +194,10 @@
   <PropertyGroup Condition="$(Configuration.StartsWith('Win10')) And '$(Platform)'=='x64'">
     <InfArch>amd64.10.0</InfArch>
   </PropertyGroup>
-  <PropertyGroup Condition="$(Configuration.StartsWith('Win8')) And '$(Platform)'=='x64'">
+  <PropertyGroup Condition="$(Configuration.StartsWith('Win8.1')) And '$(Platform)'=='x64'">
+    <InfArch>amd64.6.3</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(Configuration.StartsWith('Win8 ')) And '$(Platform)'=='x64'">
     <InfArch>amd64.6.2</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="$(Configuration.StartsWith('Win7')) And '$(Platform)'=='x64'">
