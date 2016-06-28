@@ -404,7 +404,7 @@ ENTER_FN();
     adaptExt->pageOffset = 0;
     adaptExt->poolOffset = 0;
     Size = 0;
-    for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
+    for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < max_cpus + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
         virtio_query_queue_allocation(&adaptExt->vdev, index, &queueLength, &Size, &HeapSize);
         if (Size == 0) {
             LogError(DeviceExtension,
