@@ -297,7 +297,7 @@ typedef struct _ADAPTER_EXTENSION {
 
     SCSI_WMILIB_CONTEXT   WmiLibContext;
     ULONGLONG             hba_id;
-    PWCHAR                ser_num;
+    PUCHAR                ser_num;
 }ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
 
 #if (MSI_SUPPORTED == 1)
