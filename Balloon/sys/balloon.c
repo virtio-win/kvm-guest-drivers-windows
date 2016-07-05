@@ -295,6 +295,7 @@ BalloonTerm(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonTerm\n");
 
     VirtIOWdfDestroyQueues(&devCtx->VDevice);
+    devCtx->StatVirtQueue = NULL;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- BalloonTerm\n");
 }
