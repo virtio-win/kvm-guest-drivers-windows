@@ -1047,9 +1047,21 @@ NDIS_STATUS OnSetRSCParameters(PPARANDIS_ADAPTER pContext, PNDIS_OFFLOAD_PARAMET
     if(op->RscIPv6 != NDIS_OFFLOAD_PARAMETERS_NO_CHANGE)
         pContext->RSC.bIPv6Enabled = (op->RscIPv6 == NDIS_OFFLOAD_PARAMETERS_RSC_ENABLED);
 
+    if (op->RscIPv4 != NDIS_OFFLOAD_PARAMETERS_NO_CHANGE && pContext->RSC.bIPv4SupportedQEMU)
+    {
+        pContext->RSC.bIPv4EnabledQEMU = (op->RscIPv4 == NDIS_OFFLOAD_PARAMETERS_RSC_ENABLED);
+    }
+
+    if (op->RscIPv6 != NDIS_OFFLOAD_PARAMETERS_NO_CHANGE && pContext->RSC.bIPv6SupportedQEMU)
+    {
+        pContext->RSC.bIPv6EnabledQEMU = (op->RscIPv6 == NDIS_OFFLOAD_PARAMETERS_RSC_ENABLED);
+    }
+
     GuestOffloads = 1 << VIRTIO_NET_F_GUEST_CSUM                                        |
                     ((pContext->RSC.bIPv4Enabled) ? (1 << VIRTIO_NET_F_GUEST_TSO4) : 0) |
-                    ((pContext->RSC.bIPv6Enabled) ? (1 << VIRTIO_NET_F_GUEST_TSO6) : 0);
+                    ((pContext->RSC.bIPv6Enabled) ? (1 << VIRTIO_NET_F_GUEST_TSO6) : 0) |
+                    ((pContext->RSC.bIPv4EnabledQEMU) ? ((UINT64)1 << VIRTIO_NET_F_GUEST_RSC4) : 0) |
+                    ((pContext->RSC.bIPv6EnabledQEMU) ? ((UINT64)1 << VIRTIO_NET_F_GUEST_RSC6) : 0);
 
     ParaNdis_UpdateGuestOffloads(pContext, GuestOffloads);
 #else
