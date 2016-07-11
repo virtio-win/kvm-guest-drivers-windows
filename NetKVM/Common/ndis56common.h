@@ -445,6 +445,10 @@ typedef struct _tagPARANDIS_ADAPTER
         BOOLEAN                     bIPv4Enabled;
         BOOLEAN                     bIPv6Enabled;
         BOOLEAN                     bHasDynamicConfig;
+        BOOLEAN                     bIPv4EnabledQEMU;
+        BOOLEAN                     bIPv6EnabledQEMU;
+        BOOLEAN                     bIPv4SupportedQEMU;
+        BOOLEAN                     bIPv6SupportedQEMU;
         struct {
             LARGE_INTEGER           CoalescedPkts;
             LARGE_INTEGER           CoalescedOctets;

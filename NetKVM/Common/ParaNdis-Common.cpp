@@ -474,11 +474,18 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
         pContext->RSC.bIPv4Enabled =
             pContext->RSC.bIPv4SupportedHW =
                 AckFeature(pContext, VIRTIO_NET_F_GUEST_TSO4);
+
+        pContext->RSC.bIPv4EnabledQEMU =
+            pContext->RSC.bIPv4SupportedQEMU =
+                AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC4);
     }
     else
     {
         pContext->RSC.bIPv4SupportedHW =
             virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_GUEST_TSO4);
+
+        pContext->RSC.bIPv4SupportedQEMU =
+            virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_GUEST_RSC4);
     }
 
     if(pContext->RSC.bIPv6SupportedSW)
@@ -486,11 +493,18 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
         pContext->RSC.bIPv6Enabled =
             pContext->RSC.bIPv6SupportedHW =
                 AckFeature(pContext, VIRTIO_NET_F_GUEST_TSO6);
+
+        pContext->RSC.bIPv6EnabledQEMU =
+            pContext->RSC.bIPv6SupportedQEMU =
+                AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC6);
     }
     else
     {
         pContext->RSC.bIPv6SupportedHW =
             virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_GUEST_TSO6);
+
+        pContext->RSC.bIPv6SupportedQEMU =
+            virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_GUEST_RSC6);
     }
 
     pContext->RSC.bHasDynamicConfig = (pContext->RSC.bIPv4Enabled || pContext->RSC.bIPv6Enabled) &&
@@ -499,6 +513,9 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
 
     DPrintf(0, ("[%s] Guest TSO state: IP4=%d, IP6=%d, Dynamic=%d\n", __FUNCTION__,
         pContext->RSC.bIPv4Enabled, pContext->RSC.bIPv6Enabled, pContext->RSC.bHasDynamicConfig) );
+
+    DPrintf(0, ("[%s] Guest QEMU RSC support state: Supported IP4=%d, Supported IP6=%d, Enabled IP4=%d, Enabled IP6=%d\n", __FUNCTION__,
+        pContext->RSC.bIPv4SupportedQEMU, pContext->RSC.bIPv6SupportedQEMU, pContext->RSC.bIPv4EnabledQEMU, pContext->RSC.bIPv6EnabledQEMU) );
 #else
     UNREFERENCED_PARAMETER(pContext);
 #endif
@@ -730,8 +747,18 @@ NDIS_STATUS ParaNdis_InitializeContext(
     pContext->bAnyLayout = AckFeature(pContext, VIRTIO_F_ANY_LAYOUT);
     if (AckFeature(pContext, VIRTIO_F_VERSION_1))
     {
-        // virtio 1.0 always uses the extended header
-        pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_mrg_rxbuf);
+#if PARANDIS_SUPPORT_RSC
+        if (pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU)
+        {
+            // User virtio_net_hdr_v1 if RSC is implimented in QEMU
+            pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_v1);
+        }
+        else
+#endif
+        {
+            // virtio 1.0 always uses the mergable header
+            pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_mrg_rxbuf);
+        }
     }
 
     if (pContext->bControlQueueSupported)
