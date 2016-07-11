@@ -785,7 +785,7 @@ UINT PktGetTCPCoalescedSegmentsCount(PNET_PACKET_INFO PacketInfo, UINT nMaxTCPPa
 
 static __inline
 VOID NBLSetRSCInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL,
-                   PNET_PACKET_INFO PacketInfo, UINT nCoalescedSegments)
+                   PNET_PACKET_INFO PacketInfo, UINT nCoalescedSegments, USHORT nDupAck)
 {
     NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
 
@@ -797,7 +797,7 @@ VOID NBLSetRSCInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL,
     NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
 
     NET_BUFFER_LIST_COALESCED_SEG_COUNT(pNBL) = (USHORT) nCoalescedSegments;
-    NET_BUFFER_LIST_DUP_ACK_COUNT(pNBL) = 0;
+    NET_BUFFER_LIST_DUP_ACK_COUNT(pNBL) = nDupAck;
 
     NdisInterlockedAddLargeStatistic(&pContext->RSC.Statistics.CoalescedOctets, PacketInfo->L2PayloadLen);
     NdisInterlockedAddLargeStatistic(&pContext->RSC.Statistics.CoalesceEvents, 1);
@@ -842,7 +842,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
 
         if (pNBL)
         {
-            virtio_net_hdr *pHeader = (virtio_net_hdr *) pBuffersDesc->PhysicalPages[0].Virtual;
+            virtio_net_hdr_v1 *pHeader = (virtio_net_hdr_v1 *) pBuffersDesc->PhysicalPages[0].Virtual;
             tChecksumCheckResult csRes;
             pNBL->SourceHandle = pContext->MiniportHandle;
             NBLSetRSSInfo(pContext, pNBL, pPacketInfo);
@@ -851,10 +851,15 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
             pNBL->MiniportReserved[0] = pBuffersDesc;
 
 #if PARANDIS_SUPPORT_RSC
-            if(pHeader->gso_type != VIRTIO_NET_HDR_GSO_NONE)
+            if (!(pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) && (pHeader->gso_type != VIRTIO_NET_HDR_GSO_NONE))
             {
                 *pnCoalescedSegmentsCount = PktGetTCPCoalescedSegmentsCount(pPacketInfo, pContext->MaxPacketSize.nMaxDataSize);
-                NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount);
+                NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, 0);
+            }
+            else if ((pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) && (pHeader->gso_type != VIRTIO_NET_HDR_RSC_NONE))
+            {
+                *pnCoalescedSegmentsCount = pHeader->coalesced;
+                NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, pHeader->dup_ack);
             }
             else
 #endif
