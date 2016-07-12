@@ -1,3 +1,14 @@
+Date    12 Jul 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm142
+
+Fixed bugs:
+
+BZ#1352517: fix bsod on several pnp whql tests (again).
+BZ#1352809: viorng wrong dervier version for virtio-win-prewhql-121
+BZ#1352432: vioscsi Win2012-64&R2 guest occurred bsod(d1) when whql test DPWLK- Hot-Replace
+BZ#1234741: vioscsi win2012 guest bsod(c9) when whql test DPWLK-HotAdd(1104) job
+
 Date    28 Jun 2016
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm141
