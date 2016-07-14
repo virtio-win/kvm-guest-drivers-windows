@@ -367,7 +367,7 @@ ENTER_FN();
     max_cpus = KeQueryMaximumProcessorCount();
 #endif
     adaptExt->num_queues = adaptExt->scsi_config.num_queues;
-    RtlFillMemory(adaptExt->cpu_to_vq_map, (UCHAR)0, MAX_CPU);
+
     if (adaptExt->dump_mode || !adaptExt->msix_enabled)
     {
         adaptExt->num_queues = 1;
