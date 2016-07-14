@@ -278,6 +278,7 @@ typedef struct _ADAPTER_EXTENSION {
 
     ULONG                 msix_vectors;
     BOOLEAN               msix_enabled;
+    BOOLEAN               msix_one_vector;
     BOOLEAN               indirect;
 
     TMF_COMMAND           tmf_cmd;

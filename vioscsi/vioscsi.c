@@ -625,9 +625,16 @@ ENTER_FN();
         adaptExt->num_queues = 1;
     }
 
-    if (!adaptExt->dump_mode &&
-        (adaptExt->msix_vectors >= adaptExt->num_queues + 3)) {
-        /* initialize queues with one MSI vector per queue */
+    if (!adaptExt->dump_mode && adaptExt->msix_vectors > 0) {
+        if (adaptExt->msix_vectors >= adaptExt->num_queues + 3) {
+            /* initialize queues with a MSI vector per queue */
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Using a unique MSI vector per queue\n"));
+            adaptExt->msix_one_vector = FALSE;
+        } else {
+            /* if we don't have enough vectors, use one for all queues */
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Using one MSI vector for all queues\n"));
+            adaptExt->msix_one_vector = TRUE;
+        }
         if (!InitializeVirtualQueues(adaptExt, adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0)) {
             return FALSE;
         }
@@ -942,8 +949,8 @@ VioScsiInterrupt(
 }
 
 #if (MSI_SUPPORTED == 1)
-BOOLEAN
-VioScsiMSInterrupt (
+static BOOLEAN
+VioScsiMSInterruptWorker(
     IN PVOID  DeviceExtension,
     IN ULONG  MessageID
     )
@@ -952,7 +959,6 @@ VioScsiMSInterrupt (
     PVirtIOSCSIEventNode evtNode;
     unsigned int        len;
     PADAPTER_EXTENSION  adaptExt;
-    BOOLEAN             isInterruptServiced = FALSE;
     PSRB_TYPE           Srb = NULL;
     ULONG               intReason = 0;
 
@@ -1016,6 +1022,30 @@ VioScsiMSInterrupt (
         return TRUE;
     }
     return FALSE;
+}
+
+BOOLEAN
+VioScsiMSInterrupt(
+    IN PVOID  DeviceExtension,
+    IN ULONG  MessageID
+    )
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    BOOLEAN isInterruptServiced = FALSE;
+    ULONG i;
+
+    if (!adaptExt->msix_one_vector) {
+        /* Each queue has its own vector, this is the fast and common case */
+        return VioScsiMSInterruptWorker(DeviceExtension, MessageID);
+    }
+
+    /* Fall back to checking all queues */
+    for (i = 0; i < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; i++) {
+        if (virtqueue_has_buf(adaptExt->vq[i])) {
+            isInterruptServiced |= VioScsiMSInterruptWorker(DeviceExtension, i + 1);
+        }
+    }
+    return isInterruptServiced;
 }
 #endif
 
