@@ -56,6 +56,8 @@ unsigned int virtqueue_get_vring_size(struct virtqueue *vq);
 
 BOOLEAN virtqueue_is_interrupt_enabled(struct virtqueue *_vq);
 
+BOOLEAN virtqueue_has_buf(struct virtqueue *_vq);
+
 void virtqueue_shutdown(struct virtqueue *_vq);
 
 #endif /* _LINUX_VIRTIO_H */

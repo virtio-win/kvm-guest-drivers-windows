@@ -468,6 +468,12 @@ BOOLEAN virtqueue_is_interrupt_enabled(struct virtqueue *_vq)
     return (vq->avail_flags_shadow & VRING_AVAIL_F_NO_INTERRUPT) ? FALSE : TRUE;
 }
 
+BOOLEAN virtqueue_has_buf(struct virtqueue *_vq)
+{
+    struct vring_virtqueue *vq = to_vvq(_vq);
+    return !vq->broken && more_used(vq);
+}
+
 /*
  changed: vring_shutdown brings the queue to initial state, as it was
  upon initialization (for proper power management)
