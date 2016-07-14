@@ -308,6 +308,7 @@ VioScsiFindAdapter(
     ULONG              index;
     ULONG              num_cpus;
     ULONG              max_cpus;
+    ULONG              max_queues;
 
     UNREFERENCED_PARAMETER( HwContext );
     UNREFERENCED_PARAMETER( BusInformation );
@@ -389,6 +390,13 @@ ENTER_FN();
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus));
 
+    /* Figure out the maximum number of queues we will ever need to set up. Note that this may
+     * be higher than adaptExt->num_queues, because the driver may be reinitialized by calling
+     * VioScsiFindAdapter again with more CPUs enabled. Unfortunately StorPortGetUncachedExtension
+     * only allocates when called for the first time so we need to always use this upper bound.
+     */
+    max_queues = min(max_cpus, adaptExt->scsi_config.num_queues);
+
     /* This function is our only chance to allocate memory for the driver; allocations are not
      * possible later on. Even worse, the only allocation mechanism guaranteed to work in all
      * cases is StorPortGetUncachedExtension, which gives us one block of physically contiguous
@@ -404,7 +412,7 @@ ENTER_FN();
     adaptExt->pageOffset = 0;
     adaptExt->poolOffset = 0;
     Size = 0;
-    for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < max_cpus + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
+    for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < max_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
         virtio_query_queue_allocation(&adaptExt->vdev, index, &queueLength, &Size, &HeapSize);
         if (Size == 0) {
             LogError(DeviceExtension,
