@@ -44,12 +44,30 @@ ENTER_FN();
     SET_VA_PA();
 
     if (adaptExt->num_queues > 1) {
+#ifdef USE_CPU_TO_VQ_MAP
         QueueNumber = adaptExt->cpu_to_vq_map[srbExt->cpu] + VIRTIO_SCSI_REQUEST_QUEUE_0;
+        MessageId = QueueNumber + 1;
+#else // USE_CPU_TO_VQ_MAP
+        STARTIO_PERFORMANCE_PARAMETERS param;
+        param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
+        status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
+        if (status == STOR_STATUS_SUCCESS) {
+//            RhelDbgPrint(TRACE_LEVEL_FATAL, ("srb %p, cpu %d :: QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n", Srb, srbExt->cpu, QueueNumber, param.MessageNumber, param.ChannelNumber));
+            MessageId = param.MessageNumber;
+            QueueNumber = MessageId - 1;
+        }
+        else {
+            RhelDbgPrint(TRACE_LEVEL_FATAL, ("srb %p cpu %d status 0x%x.\n", Srb, srbExt->cpu, status));
+            QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
+            MessageId = 3;
+        }
+#endif // USE_CPU_TO_VQ_MAP
     }
     else {
         QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
+        MessageId = 3;
     }
-    MessageId = QueueNumber + 1;
+
     VioScsiVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (virtqueue_add_buf(adaptExt->vq[QueueNumber],
                      &srbExt->sg[0],
@@ -59,7 +77,7 @@ ENTER_FN();
         notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
     }
     else {
-        RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s Can not add packet to queue.\n", __FUNCTION__));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s Can not add packet to queue.\n", __FUNCTION__));
 //FIXME
     }
 #ifndef USE_WORK_ITEM
