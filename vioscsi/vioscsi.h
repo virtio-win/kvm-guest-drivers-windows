@@ -287,7 +287,7 @@ typedef struct _ADAPTER_EXTENSION {
     PVirtIOSCSIEventNode  events;
 
     ULONG                 num_queues;
-    UCHAR                 cpu_to_vq_map[MAX_CPU];
+//    UCHAR                 cpu_to_vq_map[MAX_CPU];
 #if (NTDDI_VERSION > NTDDI_WIN7)
     STOR_SLIST_HEADER     srb_list[MAX_CPU];
 #endif

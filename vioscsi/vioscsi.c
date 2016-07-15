@@ -368,7 +368,6 @@ ENTER_FN();
     max_cpus = KeQueryMaximumProcessorCount();
 #endif
     adaptExt->num_queues = adaptExt->scsi_config.num_queues;
-
     if (adaptExt->dump_mode || !adaptExt->msix_enabled)
     {
         adaptExt->num_queues = 1;
@@ -650,9 +649,9 @@ ENTER_FN();
         for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
               if ((adaptExt->num_queues > 1) &&
                   (index >= VIRTIO_SCSI_REQUEST_QUEUE_0)) {
-                  if (!CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
-                      adaptExt->cpu_to_vq_map[index - VIRTIO_SCSI_REQUEST_QUEUE_0] = (UCHAR)(index - VIRTIO_SCSI_REQUEST_QUEUE_0);
-                  }
+//                  if (!CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
+//                      adaptExt->cpu_to_vq_map[index - VIRTIO_SCSI_REQUEST_QUEUE_0] = (UCHAR)(index - VIRTIO_SCSI_REQUEST_QUEUE_0);
+//                  }
 #if (NTDDI_VERSION > NTDDI_WIN7)
                   status = StorPortInitializeSListHead(DeviceExtension, &adaptExt->srb_list[index - VIRTIO_SCSI_REQUEST_QUEUE_0]); 
                   if (status != STOR_STATUS_SUCCESS) {
@@ -735,21 +734,21 @@ ENTER_FN();
                     adaptExt->perfFlags = 0;
                     RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortInitializePerfOpts FALSE status = 0x%x\n", __FUNCTION__, status));
                 }
-                else if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY)){
-                    UCHAR msg = 0;
-                    PGROUP_AFFINITY ga;
-                    UCHAR cpu = 0;
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
-                        perfData.Version, perfData.Flags, perfData.ConcurrentChannels, perfData.FirstRedirectionMessageNumber, perfData.LastRedirectionMessageNumber));
-                    for (msg = 0; msg < adaptExt->num_queues + 3; msg++) {
-                        ga = &adaptExt->pmsg_affinity[msg];
-                        if ( ga->Mask > 0 && msg > 2) {
-                            cpu = RtlFindLeastSignificantBit((ULONGLONG)ga->Mask);
-                            adaptExt->cpu_to_vq_map[cpu] = msg - 3;
-                            RhelDbgPrint(TRACE_LEVEL_FATAL, ("msg = %d, mask = 0x%lx group = %hu cpu = %hu vq = %hu\n", msg, ga->Mask, ga->Group, cpu, adaptExt->cpu_to_vq_map[cpu]));
-                        }
-                    }
-                }
+//                else if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY)){
+//                    UCHAR msg = 0;
+//                    PGROUP_AFFINITY ga;
+//                    UCHAR cpu = 0;
+//                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
+//                        perfData.Version, perfData.Flags, perfData.ConcurrentChannels, perfData.FirstRedirectionMessageNumber, perfData.LastRedirectionMessageNumber));
+//                    for (msg = 0; msg < adaptExt->num_queues + 3; msg++) {
+//                        ga = &adaptExt->pmsg_affinity[msg];
+//                        if ( ga->Mask > 0 && msg > 2) {
+//                            cpu = RtlFindLeastSignificantBit((ULONGLONG)ga->Mask);
+//                            adaptExt->cpu_to_vq_map[cpu] = msg - 3;
+//                            RhelDbgPrint(TRACE_LEVEL_FATAL, ("msg = %d, mask = 0x%lx group = %hu cpu = %hu vq = %hu\n", msg, ga->Mask, ga->Group, cpu, adaptExt->cpu_to_vq_map[cpu]));
+//                        }
+//                    }
+//                }
             }
             else {
                 RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s StorPortInitializePerfOpts TRUE status = 0x%x\n", __FUNCTION__, status));
@@ -1243,6 +1242,7 @@ ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     if ((adaptExt->num_queues > 1) && adaptExt->dpc_ok && MessageID > 0) {
+		struct virtqueue *vq = adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + MessageID - 3];
         StorPortIssueDpc(DeviceExtension,
             &adaptExt->dpc[MessageID-3],
             ULongToPtr(MessageID),
