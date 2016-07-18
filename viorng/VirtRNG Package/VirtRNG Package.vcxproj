@@ -218,6 +218,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <OutDir>$(SolutionDir)Install\win10\amd64\</OutDir>
     <InfArch>amd64.10.0</InfArch>
+    <Inf2CatWindowsVersionList>Server10_$(DDKPlatform);$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup>
     <PackageDir>$(OutDir)</PackageDir>
@@ -258,7 +259,7 @@
     <FilesToPackage Include="..\$(Platform)\Release\viorngum.dll" Condition="$(Configuration.EndsWith('Release'))">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-   </ItemGroup>
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\viorng\viorng.vcxproj">
       <Project>{ef874d69-710d-4b5d-afda-4a3e912b5838}</Project>

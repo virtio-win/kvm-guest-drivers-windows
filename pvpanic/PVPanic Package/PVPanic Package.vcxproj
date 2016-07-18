@@ -189,6 +189,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <OutDir>$(SolutionDir)Install\win10\$(InfArch)\</OutDir>
     <PackageDir>$(OutDir)</PackageDir>
+    <Inf2CatWindowsVersionList>Server10_$(DDKPlatform);$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
     <OutDir>$(SolutionDir)Install\win10\$(InfArch)\</OutDir>
