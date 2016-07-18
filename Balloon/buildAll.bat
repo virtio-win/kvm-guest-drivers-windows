@@ -6,7 +6,7 @@ goto :eof
 
 :buildsys
 cd sys
-call buildOne.bat %1 balloon
+call buildOne.bat %1 %2
 cd ..
 goto :eof
 

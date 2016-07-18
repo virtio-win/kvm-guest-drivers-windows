@@ -63,7 +63,7 @@
     <TemplateGuid>{1bc93793-694f-48fe-9372-81e2b05556fd}</TemplateGuid>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <MinimumVisualStudioVersion>11.0</MinimumVisualStudioVersion>
-    <Configuration>Win8 Debug</Configuration>
+    <Configuration>Win8 Release</Configuration>
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
     <DDKINSTALLROOT Condition="'$(DDKINSTALLROOT)' == ''">C:\WINDDK\</DDKINSTALLROOT>
     <DDKVER Condition="'$(DDKVER)' == ''">7600.16385.1</DDKVER>
@@ -78,17 +78,19 @@
     <DriverType>KMDF</DriverType>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+  </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
     <TargetVersion>WindowsV6.3</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
-    <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" Label="Configuration">
-    <TargetVersion>Windows8</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <KMDF_VERSION_MINOR>13</KMDF_VERSION_MINOR>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
+    <TargetVersion>Windows8</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <TargetVersion>Windows10</TargetVersion>
@@ -117,15 +119,13 @@
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <TargetVersion>WindowsV6.3</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
-    <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" Label="Configuration">
-    <TargetVersion>Windows8</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <KMDF_VERSION_MINOR>13</KMDF_VERSION_MINOR>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+    <TargetVersion>Windows8</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <TargetVersion>Windows10</TargetVersion>
@@ -167,6 +167,11 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <TargetName>balloon</TargetName>
+    <TargetExt>.sys</TargetExt>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
     <TargetName>balloon</TargetName>
     <OutDir>objfre_win8_x86\i386\</OutDir>
@@ -248,12 +253,10 @@
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData Condition="'%(ClCompile. ScanConfigurationData)'  == ''">trace.h</WppScanConfigurationData>
       <WppKernelMode>true</WppKernelMode>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO</AdditionalIncludeDirectories>
-      <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">Level3</WarningLevel>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO</AdditionalIncludeDirectories>
-      <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">Level3</WarningLevel>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">_X86_=1;i386=1;STD_CALL;%(PreprocessorDefinitions);POOL_NX_OPTIN=1</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions);POOL_NX_OPTIN=1</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO;..\..\VirtIO\WDF</AdditionalIncludeDirectories>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions Condition="'$(Platform)'=='Win32'">_X86_=1;i386=1;STD_CALL;%(PreprocessorDefinitions);POOL_NX_OPTIN=1</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Platform)'=='x64'">_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions);POOL_NX_OPTIN=1</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <OptimizeReferences>true</OptimizeReferences>
@@ -261,15 +264,17 @@
       <AdditionalLibraryDirectories>..\..\VirtIO\$(OutDir);..\..\VirtIO\WDF\$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>virtiolib.lib;virtiolib_wdf.lib;ntstrsafe.lib;wdmsec.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
-    <Link>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">..\..\VirtIO\objfre_win8_x86\i386\</AdditionalLibraryDirectories>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">virtiolib.lib;ntstrsafe.lib;wdmsec.lib</AdditionalDependencies>
+    <Link Condition="'$(Configuration)'=='Win7 Release'">
+      <Version>6.1</Version>
+      <AdditionalOptions>/osversion:6.1 %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">BuildOne.bat prepare Win8 $(InfArch)</Command>
-    </PreBuildEvent>
-    <PreBuildEvent>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">BuildOne.bat prepare Win8 $(InfArch)</Command>
+      <Command Condition="'$(Configuration)'=='Win10 Release'">BuildOne.bat prepare Win10 $(InfArch)</Command>
+      <Command Condition="'$(Configuration)'=='Win8 Release'">BuildOne.bat prepare Win8 $(InfArch)</Command>
+      <Command Condition="'$(Configuration)'=='Win7 Release'">BuildOne.bat prepare Win7 $(InfArch)</Command>
+      <Command Condition="'$(Configuration)'=='Win2k3 Release'">BuildOne.bat prepare Wnet $(InfArch)</Command>
+      <Command Condition="'$(Configuration)'=='Vista Release'">BuildOne.bat prepare Wlh $(InfArch)</Command>
+      <Command Condition="'$(Configuration)'=='WinXP Release'">BuildOne.bat prepare WXp $(InfArch)</Command>
     </PreBuildEvent>
     <Inf>
       <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
