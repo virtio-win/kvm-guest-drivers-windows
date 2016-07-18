@@ -53,13 +53,6 @@ public:
         m_pVirtQueue->Renew();
     }
 
-    bool IsInterruptEnabled()
-    {
-        return m_pVirtQueue->IsInterruptEnabled();
-    }
-
-
-
     ULONG getCPUIndex();
 
 #if NDIS_SUPPORT_NDIS620

@@ -82,11 +82,6 @@ void CVirtQueue::Delete()
     }
 }
 
-void CVirtQueue::Shutdown()
-{
-    virtqueue_shutdown(m_VirtQueue);
-}
-
 u16 CVirtQueue::SetMSIVector(u16 vector)
 {
     return virtio_set_queue_vector(m_VirtQueue, vector);
