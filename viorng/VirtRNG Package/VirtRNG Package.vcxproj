@@ -158,10 +158,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
     <OutDir>$(SolutionDir)Install_Debug\wlh\x86\</OutDir>
     <InfArch>x86.6.0</InfArch>
+    <Inf2CatWindowsVersionList>Vista_$(DDKPlatform);Server2008_$(DDKPlatform)</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <OutDir>$(SolutionDir)Install\wlh\x86\</OutDir>
     <InfArch>x86.6.0</InfArch>
+    <Inf2CatWindowsVersionList>Vista_$(DDKPlatform);Server2008_$(DDKPlatform)</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
     <OutDir>$(SolutionDir)Install_Debug\win7\x86\</OutDir>
@@ -190,10 +192,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
     <OutDir>$(SolutionDir)Install_Debug\wlh\amd64\</OutDir>
     <InfArch>amd64.6.0</InfArch>
+    <Inf2CatWindowsVersionList>Vista_$(DDKPlatform);Server2008_$(DDKPlatform)</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <OutDir>$(SolutionDir)Install\wlh\amd64\</OutDir>
     <InfArch>amd64.6.0</InfArch>
+    <Inf2CatWindowsVersionList>Vista_$(DDKPlatform);Server2008_$(DDKPlatform)</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
     <OutDir>$(SolutionDir)Install_Debug\win7\amd64\</OutDir>
