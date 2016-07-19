@@ -469,6 +469,9 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
         return;
     }
 
+    BOOLEAN bDynamicOffloadsPossible = pContext->bControlQueueSupported &&
+                                       AckFeature(pContext, VIRTIO_NET_CTRL_GUEST_OFFLOADS);
+
     if(pContext->RSC.bIPv4SupportedSW)
     {
         pContext->RSC.bIPv4Enabled =
@@ -477,15 +480,16 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
 
         pContext->RSC.bIPv4EnabledQEMU =
             pContext->RSC.bIPv4SupportedQEMU =
-                AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC4);
+                bDynamicOffloadsPossible && AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC4);
     }
     else
     {
         pContext->RSC.bIPv4SupportedHW =
             virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_GUEST_TSO4);
 
+        /* We are acking in any case in order for the host to use extended virtio-net header */
         pContext->RSC.bIPv4SupportedQEMU =
-            virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_GUEST_RSC4);
+            bDynamicOffloadsPossible && AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC4);
     }
 
     if(pContext->RSC.bIPv6SupportedSW)
@@ -496,20 +500,21 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
 
         pContext->RSC.bIPv6EnabledQEMU =
             pContext->RSC.bIPv6SupportedQEMU =
-                AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC6);
+                bDynamicOffloadsPossible && AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC6);
     }
     else
     {
         pContext->RSC.bIPv6SupportedHW =
             virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_GUEST_TSO6);
 
+        /* We are acking in any case in order for the host to use extended virtio-net header */
         pContext->RSC.bIPv6SupportedQEMU =
-            virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_GUEST_RSC6);
+            bDynamicOffloadsPossible && AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC6);
     }
 
-    pContext->RSC.bHasDynamicConfig = (pContext->RSC.bIPv4Enabled || pContext->RSC.bIPv6Enabled) &&
-                                      pContext->bControlQueueSupported &&
-                                      AckFeature(pContext, VIRTIO_NET_CTRL_GUEST_OFFLOADS);
+    pContext->RSC.bHasDynamicConfig = (pContext->RSC.bIPv4Enabled || pContext->RSC.bIPv6Enabled ||
+                                      pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) &&
+                                      bDynamicOffloadsPossible;
 
     DPrintf(0, ("[%s] Guest TSO state: IP4=%d, IP6=%d, Dynamic=%d\n", __FUNCTION__,
         pContext->RSC.bIPv4Enabled, pContext->RSC.bIPv6Enabled, pContext->RSC.bHasDynamicConfig) );
@@ -1076,6 +1081,27 @@ static VOID ParaNdis_AddDriverOKStatus(PPARANDIS_ADAPTER pContext)
     virtio_device_ready(&pContext->IODevice);
 }
 
+void ParaNdis_DeviceConfigureRSC(PARANDIS_ADAPTER *pContext)
+{
+    DEBUG_ENTRY(0);
+
+#if PARANDIS_SUPPORT_RSC
+    UINT64 GuestOffloads;
+
+    GuestOffloads = 1 << VIRTIO_NET_F_GUEST_CSUM |
+        ((pContext->RSC.bIPv4Enabled) ? (1 << VIRTIO_NET_F_GUEST_TSO4) : 0) |
+        ((pContext->RSC.bIPv6Enabled) ? (1 << VIRTIO_NET_F_GUEST_TSO6) : 0) |
+        ((pContext->RSC.bIPv4EnabledQEMU) ? ((UINT64)1 << VIRTIO_NET_F_GUEST_RSC4) : 0) |
+        ((pContext->RSC.bIPv6EnabledQEMU) ? ((UINT64)1 << VIRTIO_NET_F_GUEST_RSC6) : 0);
+
+    DPrintf(0, ("Updateing offload settings with %I64x", GuestOffloads));
+
+    ParaNdis_UpdateGuestOffloads(pContext, GuestOffloads);
+#else
+UNREFERENCED_PARAMETER(pContext);
+#endif /* PARANDIS_SUPPORT_RSC */
+}
+
 NDIS_STATUS ParaNdis_DeviceConfigureMultiqQueue(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
@@ -1105,6 +1131,7 @@ NDIS_STATUS ParaNdis_DeviceEnterD0(PARANDIS_ADAPTER *pContext)
     ParaNdis_SynchronizeLinkState(pContext);
     ParaNdis_AddDriverOKStatus(pContext);
     ParaNdis_DeviceConfigureMultiqQueue(pContext);
+    ParaNdis_DeviceConfigureRSC(pContext);
     ParaNdis_UpdateMAC(pContext);
 
     DEBUG_EXIT_STATUS(0, status);
