@@ -210,6 +210,7 @@ RhelShutDown(
 
     virtio_device_reset(&adaptExt->vdev);
     virtio_delete_queues(&adaptExt->vdev);
+    virtio_device_shutdown(&adaptExt->vdev);
     adaptExt->vq = NULL;
 }
 
