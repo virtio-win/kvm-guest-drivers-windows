@@ -243,15 +243,6 @@ struct virtio_net_ctrl_mq {
 #define VIRTIO_NET_CTRL_GUEST_OFFLOADS    5
  #define VIRTIO_NET_CTRL_GUEST_OFFLOADS_SET        0
 
-/*
-* Control network offloads
-*
-* Dynamic offloads are available with the
-* VIRTIO_NET_F_CTRL_GUEST_OFFLOADS feature bit.
-*/
-#define VIRTIO_NET_CTRL_GUEST_OFFLOADS       5
-#define VIRTIO_NET_CTRL_GUEST_OFFLOADS_SET   0
-
 #include <poppack.h>
 
 #endif /* _LINUX_VIRTIO_NET_H */
