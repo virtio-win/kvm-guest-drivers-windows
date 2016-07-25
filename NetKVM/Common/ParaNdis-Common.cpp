@@ -402,7 +402,7 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
 }
 
 static BOOLEAN
-AckFeature(PPARANDIS_ADAPTER pContext, UINT32 Feature)
+AckFeature(PPARANDIS_ADAPTER pContext, UINT64 Feature)
 {
     if (virtio_is_feature_enabled(pContext->u64HostFeatures, Feature))
     {
