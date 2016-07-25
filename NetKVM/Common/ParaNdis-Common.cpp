@@ -470,7 +470,7 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
     }
 
     BOOLEAN bDynamicOffloadsPossible = pContext->bControlQueueSupported &&
-                                       AckFeature(pContext, VIRTIO_NET_CTRL_GUEST_OFFLOADS);
+                                       AckFeature(pContext, VIRTIO_NET_F_CTRL_GUEST_OFFLOADS);
 
     if(pContext->RSC.bIPv4SupportedSW)
     {
