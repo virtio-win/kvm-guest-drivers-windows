@@ -1,3 +1,21 @@
+Date    25 Jul 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm143
+
+Fixed bugs:
+
+BZ#1349724: viostor fix bus reset. related to Bug 1349724 - [virtio-win][viostor][whql] 
+            cannot pass whql test Bus Reset Test on win2008R2
+BZ#1246993: virtio-win  add Server10 to the Windows version list. fix for Bug 1246993
+BZ#1356422: virtiolib fix 'code integrity checks' verifier crash
+
+New Features:
+Enable RSC in INF file
+Enable dynamic RSC offload based on QEMU implementation
+Use new RSC information fields in virtio_net_hdr_v1
+Add RSC related definitions based on virtio 1.0 spec to virtio_net.h
+
+
 Date    12 Jul 2016
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm142
