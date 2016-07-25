@@ -1746,9 +1746,21 @@ ENTER_FN();
             pOutBfr->NumberOfPorts = 1;
             pOutBfr->VendorSpecificID = VENDORID | (PRODUCTID << 16);
             CopyWMIString(pOutBfr->Manufacturer, MANUFACTURER, sizeof(pOutBfr->Manufacturer));
-//FIXME
-//			CopyWMIString(pOutBfr->SerialNumber, adaptExt->ser_num ? adaptExt->ser_num : SERIALNUMBER, sizeof(pOutBfr->SerialNumber));
-			CopyWMIString(pOutBfr->SerialNumber, SERIALNUMBER, sizeof(pOutBfr->SerialNumber));
+			if (adaptExt->ser_num)
+            {
+				ANSI_STRING ansiSN;
+				UNICODE_STRING unicSN;
+				RtlInitAnsiString(&ansiSN, adaptExt->ser_num);
+				unicSN.MaximumLength = 65 * sizeof(WCHAR);
+				unicSN.Buffer = pOutBfr->SerialNumber;
+				if (!NT_SUCCESS(RtlAnsiStringToUnicodeString(&unicSN, &ansiSN, FALSE))) {
+					CopyWMIString(pOutBfr->SerialNumber, SERIALNUMBER, sizeof(pOutBfr->SerialNumber));
+				}
+			}
+			else
+            {
+                CopyWMIString(pOutBfr->SerialNumber, SERIALNUMBER, sizeof(pOutBfr->SerialNumber));
+            }
             CopyWMIString(pOutBfr->Model, MODEL, sizeof(pOutBfr->Model));
             CopyWMIString(pOutBfr->ModelDescription, MODELDESCRIPTION, sizeof(pOutBfr->ModelDescription));
             CopyWMIString(pOutBfr->FirmwareVersion, FIRMWAREVERSION, sizeof(pOutBfr->FirmwareVersion));
@@ -2013,7 +2025,6 @@ VioScsiExecuteWmiMethod(
             default:
                 status = SRB_STATUS_INVALID_REQUEST;
                 RhelDbgPrint(TRACE_LEVEL_FATAL, ("--> ERROR Unknown GuidIndex = %lu\n", GuidIndex));
-
                 break;
         }
 
