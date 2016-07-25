@@ -266,6 +266,7 @@ VirtIoFindAdapter(
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
+    adaptExt->system_io_bus_number = ConfigInfo->SystemIoBusNumber;
     adaptExt->dump_mode  = IsCrashDumpMode;
 
     ConfigInfo->Master                 = TRUE;
