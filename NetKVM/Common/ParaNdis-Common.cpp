@@ -480,7 +480,7 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
 
         pContext->RSC.bIPv4EnabledQEMU =
             pContext->RSC.bIPv4SupportedQEMU =
-                bDynamicOffloadsPossible && AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC4);
+                bDynamicOffloadsPossible && AckFeature(pContext, VIRTIO_F_VERSION_1) && AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC4);
     }
     else
     {
@@ -489,7 +489,7 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
 
         /* We are acking in any case in order for the host to use extended virtio-net header */
         pContext->RSC.bIPv4SupportedQEMU =
-            bDynamicOffloadsPossible && AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC4);
+            bDynamicOffloadsPossible && AckFeature(pContext, VIRTIO_F_VERSION_1) && AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC4);
     }
 
     if(pContext->RSC.bIPv6SupportedSW)
@@ -500,7 +500,7 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
 
         pContext->RSC.bIPv6EnabledQEMU =
             pContext->RSC.bIPv6SupportedQEMU =
-                bDynamicOffloadsPossible && AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC6);
+                bDynamicOffloadsPossible && AckFeature(pContext, VIRTIO_F_VERSION_1) && AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC6);
     }
     else
     {
@@ -509,7 +509,7 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
 
         /* We are acking in any case in order for the host to use extended virtio-net header */
         pContext->RSC.bIPv6SupportedQEMU =
-            bDynamicOffloadsPossible && AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC6);
+            bDynamicOffloadsPossible && AckFeature(pContext, VIRTIO_F_VERSION_1) && AckFeature(pContext, VIRTIO_NET_F_GUEST_RSC6);
     }
 
     pContext->RSC.bHasDynamicConfig = (pContext->RSC.bIPv4Enabled || pContext->RSC.bIPv6Enabled ||
