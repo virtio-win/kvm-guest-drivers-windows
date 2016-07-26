@@ -1680,15 +1680,29 @@ ENTER_FN();
 EXIT_FN();
 }
 
-void CopyWMIString(void* _pDest, const void* _pSrc, size_t _maxlength)
+void CopyUnicodeString(void* _pDest, const void* _pSrc, size_t _maxlength)
 {
      PUSHORT _pDestTemp = _pDest;
      USHORT  _length = _maxlength - sizeof(USHORT);
-                                                                                                                                                 \
      *_pDestTemp++ = _length;
-                                                                                                                                                 \
      _length = (USHORT)min(wcslen(_pSrc)*sizeof(WCHAR), _length);
      memcpy(_pDestTemp, _pSrc, _length);
+}
+
+void CopyAnsiToUnicodeString(void* _pDest, const void* _pSrc, size_t _maxlength)
+{
+    PUSHORT _pDestTemp = _pDest;
+    PWCHAR  dst;
+    PCHAR   src = (PCHAR)_pSrc;
+    USHORT  _length = _maxlength - sizeof(USHORT);
+    *_pDestTemp++ = _length;
+    dst = (PWCHAR)_pDestTemp;
+    _length = (USHORT)min(strlen((const char*)_pSrc) * sizeof(WCHAR), _length);
+    _length /= sizeof(WCHAR);
+    while (_length) {
+        *dst++ = *src++;
+        --_length;
+    };
 }
 
 BOOLEAN
@@ -1745,29 +1759,22 @@ ENTER_FN();
             pOutBfr->HBAStatus = HBA_STATUS_OK;
             pOutBfr->NumberOfPorts = 1;
             pOutBfr->VendorSpecificID = VENDORID | (PRODUCTID << 16);
-            CopyWMIString(pOutBfr->Manufacturer, MANUFACTURER, sizeof(pOutBfr->Manufacturer));
-			if (adaptExt->ser_num)
+            CopyUnicodeString(pOutBfr->Manufacturer, MANUFACTURER, sizeof(pOutBfr->Manufacturer));
+            if (adaptExt->ser_num)
             {
-				ANSI_STRING ansiSN;
-				UNICODE_STRING unicSN;
-				RtlInitAnsiString(&ansiSN, adaptExt->ser_num);
-				unicSN.MaximumLength = 65 * sizeof(WCHAR);
-				unicSN.Buffer = pOutBfr->SerialNumber;
-				if (!NT_SUCCESS(RtlAnsiStringToUnicodeString(&unicSN, &ansiSN, FALSE))) {
-					CopyWMIString(pOutBfr->SerialNumber, SERIALNUMBER, sizeof(pOutBfr->SerialNumber));
-				}
-			}
-			else
-            {
-                CopyWMIString(pOutBfr->SerialNumber, SERIALNUMBER, sizeof(pOutBfr->SerialNumber));
+                CopyAnsiToUnicodeString(pOutBfr->SerialNumber, adaptExt->ser_num, sizeof(pOutBfr->SerialNumber));
             }
-            CopyWMIString(pOutBfr->Model, MODEL, sizeof(pOutBfr->Model));
-            CopyWMIString(pOutBfr->ModelDescription, MODELDESCRIPTION, sizeof(pOutBfr->ModelDescription));
-            CopyWMIString(pOutBfr->FirmwareVersion, FIRMWAREVERSION, sizeof(pOutBfr->FirmwareVersion));
-            CopyWMIString(pOutBfr->DriverName, DRIVERNAME, sizeof(pOutBfr->DriverName));
-            CopyWMIString(pOutBfr->HBASymbolicName, HBASYMBOLICNAME, sizeof(pOutBfr->HBASymbolicName));
-            CopyWMIString(pOutBfr->RedundantFirmwareVersion, FIRMWAREVERSION, sizeof(pOutBfr->RedundantFirmwareVersion));
-            CopyWMIString(pOutBfr->MfgDomain, MFRDOMAIN, sizeof(pOutBfr->MfgDomain));
+            else
+            {
+                CopyUnicodeString(pOutBfr->SerialNumber, SERIALNUMBER, sizeof(pOutBfr->SerialNumber));
+            }
+            CopyUnicodeString(pOutBfr->Model, MODEL, sizeof(pOutBfr->Model));
+            CopyUnicodeString(pOutBfr->ModelDescription, MODELDESCRIPTION, sizeof(pOutBfr->ModelDescription));
+            CopyUnicodeString(pOutBfr->FirmwareVersion, FIRMWAREVERSION, sizeof(pOutBfr->FirmwareVersion));
+            CopyUnicodeString(pOutBfr->DriverName, DRIVERNAME, sizeof(pOutBfr->DriverName));
+            CopyUnicodeString(pOutBfr->HBASymbolicName, HBASYMBOLICNAME, sizeof(pOutBfr->HBASymbolicName));
+            CopyUnicodeString(pOutBfr->RedundantFirmwareVersion, FIRMWAREVERSION, sizeof(pOutBfr->RedundantFirmwareVersion));
+            CopyUnicodeString(pOutBfr->MfgDomain, MFRDOMAIN, sizeof(pOutBfr->MfgDomain));
 
             *InstanceLengthArray = size;
             status = SRB_STATUS_SUCCESS;
