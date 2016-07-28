@@ -756,13 +756,12 @@ NDIS_STATUS ParaNdis_InitializeContext(
         if (pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU)
         {
             // User virtio_net_hdr_v1 if RSC is implimented in QEMU
-            pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_v1);
+            pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_rsc);
         }
         else
 #endif
         {
-            // virtio 1.0 always uses the mergable header
-            pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_mrg_rxbuf);
+            pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_v1);
         }
     }
 

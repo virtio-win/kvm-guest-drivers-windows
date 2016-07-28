@@ -842,7 +842,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
 
         if (pNBL)
         {
-            virtio_net_hdr_v1 *pHeader = (virtio_net_hdr_v1 *) pBuffersDesc->PhysicalPages[0].Virtual;
+            virtio_net_hdr_rsc *pHeader = (virtio_net_hdr_rsc *) pBuffersDesc->PhysicalPages[0].Virtual;
             tChecksumCheckResult csRes;
             pNBL->SourceHandle = pContext->MiniportHandle;
             NBLSetRSSInfo(pContext, pNBL, pPacketInfo);
@@ -851,22 +851,22 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
             pNBL->MiniportReserved[0] = pBuffersDesc;
 
 #if PARANDIS_SUPPORT_RSC
-            if (!(pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) && (pHeader->gso_type != VIRTIO_NET_HDR_GSO_NONE))
+            if (!(pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) && (pHeader->hdr.gso_type != VIRTIO_NET_HDR_GSO_NONE))
             {
                 *pnCoalescedSegmentsCount = PktGetTCPCoalescedSegmentsCount(pPacketInfo, pContext->MaxPacketSize.nMaxDataSize);
                 NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, 0);
             }
-            else if ((pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) && (pHeader->gso_type != VIRTIO_NET_HDR_RSC_NONE))
+            else if ((pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) && (pHeader->hdr.gso_type != VIRTIO_NET_HDR_RSC_NONE))
             {
-                *pnCoalescedSegmentsCount = pHeader->coalesced;
-                NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, pHeader->dup_ack);
+                *pnCoalescedSegmentsCount = pHeader->rsc_pkts;
+                NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, pHeader->rsc_dup_acks);
             }
             else
 #endif
             {
                 csRes = ParaNdis_CheckRxChecksum(
                     pContext,
-                    pHeader->flags,
+                    pHeader->hdr.flags,
                     &pBuffersDesc->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE],
                     pPacketInfo,
                     nBytesStripped, TRUE);
