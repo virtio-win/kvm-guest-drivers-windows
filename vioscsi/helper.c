@@ -433,7 +433,7 @@ ENTER_FN();
         if (adaptExt->num_queues == 1) {
             if (!isr) {
                 ULONG oldIrql = 0;
-                StorPortAcquireMSISpinLock(DeviceExtension, MessageID, &oldIrql);
+                StorPortAcquireMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), &oldIrql);
                 LockHandle->Context.OldIrql = (KIRQL)oldIrql;
             }
         }
@@ -475,7 +475,7 @@ ENTER_FN();
     else {
         if (adaptExt->num_queues == 1) {
             if (!isr) {
-                StorPortReleaseMSISpinLock(DeviceExtension, MessageID, LockHandle->Context.OldIrql);
+                StorPortReleaseMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), LockHandle->Context.OldIrql);
             }
         }
         else {
