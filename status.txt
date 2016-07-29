@@ -1,3 +1,13 @@
+Date    29 Jul 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm144
+
+Fixed bugs:
+BZ#1356363: viorng cannot install viorng driver on win2008-32/64 (build 122)
+BZ#1352432: vioscsi Win2012-64&R2 guest occurred bsod(d1) when whql test DPWLK- Hot-Replace - Device Test 
+            - Verify driver support for D3 power state
+BZ#1358125: viostor Virtio 1.0 driver didn't work on win10 with q35 machine type
+
 Date    25 Jul 2016
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm143
