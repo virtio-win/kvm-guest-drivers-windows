@@ -168,10 +168,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="w10\netkvm.inf">
-      <Filter>Driver Files</Filter>
-    </Inf>
-    <Inf Include="wlh\netkvm.inf">
+    <Inf Include="netkvm.inf">
       <Filter>Driver Files</Filter>
     </Inf>
   </ItemGroup>

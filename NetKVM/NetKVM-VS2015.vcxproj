@@ -69,6 +69,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objchk_win10_x86\i386</DEP_LIB_PATH>
+    <SourceInfFile>netkvm.inf</SourceInfFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
@@ -78,6 +79,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win10_x86\i386</DEP_LIB_PATH>
+    <SourceInfFile>netkvm.inf</SourceInfFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
@@ -87,6 +89,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win7_x86\i386</DEP_LIB_PATH>
+    <SourceInfFile>netkvm_no_RSC.inf</SourceInfFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
@@ -96,6 +99,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_wlh_x86\i386</DEP_LIB_PATH>
+    <SourceInfFile>netkvm_no_RSS.inf</SourceInfFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'" Label="Configuration">
     <TargetVersion>WindowsV6.3</TargetVersion>
@@ -105,6 +109,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win8_x86\i386</DEP_LIB_PATH>
+    <SourceInfFile>netkvm.inf</SourceInfFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" Label="Configuration">
     <TargetVersion>Windows8</TargetVersion>
@@ -114,6 +119,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win8_x86\i386</DEP_LIB_PATH>
+    <SourceInfFile>netkvm.inf</SourceInfFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
@@ -123,6 +129,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objchk_win10_amd64\amd64</DEP_LIB_PATH>
+    <SourceInfFile>netkvm.inf</SourceInfFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
@@ -132,6 +139,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win10_amd64\amd64</DEP_LIB_PATH>
+    <SourceInfFile>netkvm.inf</SourceInfFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
@@ -141,6 +149,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win7_amd64\amd64</DEP_LIB_PATH>
+    <SourceInfFile>netkvm_no_RSC.inf</SourceInfFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
@@ -150,6 +159,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_wlh_amd64\amd64</DEP_LIB_PATH>
+    <SourceInfFile>netkvm_no_RSS.inf</SourceInfFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'" Label="Configuration">
     <TargetVersion>WindowsV6.3</TargetVersion>
@@ -159,6 +169,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win8_amd64\amd64</DEP_LIB_PATH>
+    <SourceInfFile>netkvm.inf</SourceInfFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" Label="Configuration">
     <TargetVersion>Windows8</TargetVersion>
@@ -168,6 +179,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win8_amd64\amd64</DEP_LIB_PATH>
+    <SourceInfFile>netkvm.inf</SourceInfFile>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -232,10 +244,6 @@
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);$(DDK_LIB_PATH)\ndis.lib;..\VirtIO\$(DEP_LIB_PATH)\virtiolib.lib</AdditionalDependencies>
     </Link>
-    <PostBuildEvent>
-      <Command>tools\make_inf.bat $(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\ $(DDKSpec)</Command>
-      <Message>Compile INF file for all platforms</Message>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
     <ClCompile>
@@ -279,7 +287,7 @@
       <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
     </ResourceCompile>
     <Inf>
-      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
+      <TimeStamp>100$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
@@ -302,6 +310,12 @@
     <Inf>
       <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
+	 <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
     <ClCompile>
@@ -314,6 +328,12 @@
     <Inf>
       <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
+	<PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <ClCompile>
@@ -330,9 +350,11 @@
       <Version>6.0</Version>
       <MinimumRequiredVersion>6.0</MinimumRequiredVersion>
     </Link>
-    <PostBuildEvent>
-      <Command>tools\make_inf.bat $(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\ Vista</Command>
-    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 60$(STAMPINF_RHEL_VERSION)</Command>
+    </PreBuildEvent>
     <Inf>
       <TimeStamp>60$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
@@ -348,6 +370,12 @@
     <Inf>
       <TimeStamp>63$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <ClCompile>
@@ -360,6 +388,12 @@
     <Inf>
       <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 62$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <ClCompile>
@@ -370,8 +404,14 @@
       <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
     </ResourceCompile>
     <Inf>
-      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
+      <TimeStamp>100$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 100$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
     <ClCompile>
@@ -393,6 +433,12 @@
     <Inf>
       <TimeStamp>63$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
     <ClCompile>
@@ -405,6 +451,12 @@
     <Inf>
       <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
     <ClCompile>
@@ -415,8 +467,14 @@
       <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
     </ResourceCompile>
     <Inf>
-      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
+      <TimeStamp>100$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 100$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <ClCompile>
@@ -441,6 +499,12 @@
     <Inf>
       <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <ClCompile>
@@ -453,6 +517,12 @@
     <Inf>
       <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <ClCompile>
@@ -465,6 +535,12 @@
     <Inf>
       <TimeStamp>63$(STAMPINF_RHEL_VERSION)" "</TimeStamp>
     </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <ClCompile>
@@ -482,15 +558,18 @@
       <AdditionalLibraryDirectories>C:\WinDDK\7600.16385.1\lib\wlh\amd64</AdditionalLibraryDirectories>
       <MinimumRequiredVersion>6.0</MinimumRequiredVersion>
     </Link>
-    <PostBuildEvent>
-      <Command>tools\make_inf.bat $(SolutionDir)$(PlatformTarget)\$(ConfigurationName)\ Vista</Command>
-    </PostBuildEvent>
     <Inf>
       <TimeStamp>60$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
     <ProjectReference>
       <LinkLibraryDependencies>true</LinkLibraryDependencies>
     </ProjectReference>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 60$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <ClCompile>
@@ -503,6 +582,12 @@
     <Inf>
       <TimeStamp>63$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <ClCompile>
@@ -515,6 +600,12 @@
     <Inf>
       <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 62$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <ClCompile>
@@ -525,14 +616,20 @@
       <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
     </ResourceCompile>
     <Inf>
-      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
+      <TimeStamp>100$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 100$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <Inf Include="wlh\netkvm.inf" />
-  </ItemGroup>
-  <ItemGroup>
-    <FilesToPackage Include="$(TargetPath)" />
+    <FilesToPackage Include="$(TargetPath)">
+      <PackageRelativeDirectory>
+      </PackageRelativeDirectory>
+    </FilesToPackage>
     <FilesToPackage Include="@(Inf->'%(CopyOutput)')" Condition="'@(Inf)'!=''" />
   </ItemGroup>
   <ItemGroup>
@@ -586,7 +683,7 @@
     <None Include="tools\set_version.bat" />
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="w10\netkvm.inf" />
+    <Inf Include="netkvm.inf" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
