@@ -789,6 +789,8 @@ NDIS_STATUS ParaNdis_InitializeContext(
 void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p)
 {
     ULONG i;
+
+    ParaNdis_UnbindRxBufferFromPacket(p);
     for(i = 0; i < p->PagesAllocated; i++)
     {
         ParaNdis_FreePhysicalMemory(pContext, &p->PhysicalPages[i]);
