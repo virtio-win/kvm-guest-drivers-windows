@@ -243,7 +243,7 @@
       <DisableSpecificWarnings>4201;4214;4115;4127;4302;4463;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>$(SDK_INC_PATH);%(AdditionalIncludeDirectories);Common</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>wlh;Common;..\Virtio;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions Condition="'$(Platform)'=='Win32'">%(PreprocessorDefinitions);_X86_=1;i386=1;STD_CALL;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);_RHEL_RELEASE_VERSION_=$(_RHEL_RELEASE_VERSION_)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Platform)'=='x64'">%(PreprocessorDefinitions);_WIN64;_AMD64_=1;AMD64;;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);_RHEL_RELEASE_VERSION_=$(_RHEL_RELEASE_VERSION_)</PreprocessorDefinitions>
     </ResourceCompile>
@@ -290,7 +290,7 @@
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100</PreprocessorDefinitions>
     </ResourceCompile>
     <Inf>
       <TimeStamp>100$(STAMPINF_RHEL_VERSION)</TimeStamp>
@@ -316,7 +316,7 @@
     <Inf>
       <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
-	 <PreBuildEvent>
+    <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
 stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
@@ -334,7 +334,7 @@ stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Co
     <Inf>
       <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
-	<PreBuildEvent>
+    <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
 stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
@@ -407,7 +407,7 @@ stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 62$(STAMPINF_RHEL_VERSION)</Co
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100</PreprocessorDefinitions>
     </ResourceCompile>
     <Inf>
       <TimeStamp>100$(STAMPINF_RHEL_VERSION)</TimeStamp>
@@ -470,7 +470,7 @@ stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Co
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100</PreprocessorDefinitions>
     </ResourceCompile>
     <Inf>
       <TimeStamp>100$(STAMPINF_RHEL_VERSION)</TimeStamp>
@@ -615,11 +615,11 @@ stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 62$(STAMPINF_RHEL_VERSION)</Co
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=10</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100</PreprocessorDefinitions>
     </ResourceCompile>
     <Inf>
       <TimeStamp>100$(STAMPINF_RHEL_VERSION)</TimeStamp>
