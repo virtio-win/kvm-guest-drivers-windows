@@ -58,6 +58,10 @@
     <DDKINSTALLROOT Condition="'$(DDKINSTALLROOT)' == ''">C:\WINDDK\</DDKINSTALLROOT>
     <DDKVER Condition="'$(DDKVER)' == ''">7600.16385.1</DDKVER>
     <LegacyDDKDir>$(DDKINSTALLROOT)$(DDKVER)</LegacyDDKDir>
+    <_NT_TARGET_MAJ Condition="'$(_NT_TARGET_MAJ)' == ''">51</_NT_TARGET_MAJ>
+    <_NT_TARGET_MIN Condition="'$(_NT_TARGET_MIN)' == ''">6</_NT_TARGET_MIN>
+    <_MAJORVERSION_ Condition="'$(_MAJORVERSION_)' == ''">101</_MAJORVERSION_>
+    <_MINORVERSION_ Condition="'$(_MINORVERSION_)' == ''">58000</_MINORVERSION_>
   </PropertyGroup>
   <PropertyGroup Label="Globals">
     <RootNamespace>NetKVMNDIS5</RootNamespace>
@@ -126,7 +130,7 @@
       <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
       <Optimization Condition="$(Configuration.EndsWith('Release'))">Full</Optimization>
       <Optimization Condition="$(Configuration.EndsWith('Debug'))">Disabled</Optimization>
-      <PreprocessorDefinitions>NDIS_MINIPORT_DRIVER;NDIS51_MINIPORT=1;BINARY_COMPATIBLE=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDIS_MINIPORT_DRIVER;NDIS51_MINIPORT=1;BINARY_COMPATIBLE=0;_NT_TARGET_MAJ=$(_NT_TARGET_MAJ);_NT_TARGET_MIN=$(_NT_TARGET_MIN);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
@@ -140,7 +144,7 @@
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>$(LegacyDDKDir)\inc\api;$(ProjectDir)\Common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_MAJORVERSION_=$(_MAJORVERSION_);_MINORVERSION_=$(_MINORVERSION_);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_MAJORVERSION_=$(_MAJORVERSION_);_MINORVERSION_=$(_MINORVERSION_);_NT_TARGET_MAJ=$(_NT_TARGET_MAJ);_NT_TARGET_MIN=$(_NT_TARGET_MIN);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
     <Link>
       <OptimizeReferences>true</OptimizeReferences>
@@ -176,11 +180,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="$(Configuration.StartsWith('WinXP'))">
     <ClCompile>
-      <PreprocessorDefinitions>_WIN32_WINNT=0x0501;WINVER=0x0501;NTDDI_VERSION=0x05010200;_NT_TARGET_MAJ=5;_NT_TARGET_MIN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WIN32_WINNT=0x0501;WINVER=0x0501;NTDDI_VERSION=0x05010200;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>_NT_TARGET_MAJ=5;_NT_TARGET_MIN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ResourceCompile>
     <Link>
       <AdditionalLibraryDirectories>$(LegacyDDKDir)\lib\wxp\i386;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
@@ -188,11 +189,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="$(Configuration.StartsWith('Win2k3'))">
     <ClCompile>
-      <PreprocessorDefinitions>_WIN32_WINNT=0x0502;WINVER=0x0502;NTDDI_VERSION=0x05020100;_NT_TARGET_MAJ=5;_NT_TARGET_MIN=2;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WIN32_WINNT=0x0502;WINVER=0x0502;NTDDI_VERSION=0x05020100;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>_NT_TARGET_MAJ=5;_NT_TARGET_MIN=2;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ResourceCompile>
     <Link>
       <AdditionalLibraryDirectories Condition="'$(Platform)'=='Win32'">$(LegacyDDKDir)\lib\wnet\i386;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalLibraryDirectories Condition="'$(Platform)'=='x64'">$(LegacyDDKDir)\lib\wnet\amd64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
