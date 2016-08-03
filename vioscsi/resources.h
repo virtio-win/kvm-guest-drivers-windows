@@ -20,7 +20,7 @@
 
 #define VENDORID                      0x1AF4
 #define PRODUCTID                     0x1004
-#define MANUFACTURER                  L"Red Hat Inc."
+#define MANUFACTURER                  L"Red Hat, Inc."
 #define SERIALNUMBER                  L"SerialNumber"
 #define MODEL                         L"VirtIO-SCSI"
 #define MODELDESCRIPTION              L"Red Hat VirtIO SCSI pass-through controller"
@@ -32,7 +32,7 @@
 #define HBASYMBOLICNAME               L"Red Hat VirtIO SCSI pass-through controller"
 //#define REDUNDANTOPTIONROMVERSION     L"RedundantOptionROMVersion"
 //#define REDUNDANTFIRMWAREVERSION      L"RedundantFirmwareVersion"
-#define MFRDOMAIN                     L"Red, Hat Inc."
+#define MFRDOMAIN                     L"Red Hat, Inc."
 
 #define CLUSDISK                      L"CLUSDISK"
 #define HBA_ID                        1234567890987654321ULL
