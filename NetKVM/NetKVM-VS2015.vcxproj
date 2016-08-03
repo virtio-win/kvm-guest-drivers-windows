@@ -229,6 +229,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <Inf2CatWindowsVersionList>Server10_$(DDKPlatform);$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
+    <Inf2CatWindowsVersionList>Vista_$(DDKPlatform)</Inf2CatWindowsVersionList>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
+    <Inf2CatWindowsVersionList>Vista_$(DDKPlatform)</Inf2CatWindowsVersionList>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>wlh;Common;..\Virtio;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
