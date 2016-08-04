@@ -1,3 +1,13 @@
+Date    04 Aug 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm145
+
+Fixed bugs:
+
+BZ#1361501: Balloon fix "vcruntime120.dll is missing"
+BZ#1359626: NetKVM RSC and RSS parameters should be set according to OS version
+
+
 Date    29 Jul 2016
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm144
