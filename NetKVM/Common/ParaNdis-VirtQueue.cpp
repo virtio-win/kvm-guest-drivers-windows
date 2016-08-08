@@ -79,6 +79,7 @@ void CVirtQueue::Delete()
     if (m_VirtQueue != nullptr)
     {
         virtio_delete_queue(m_VirtQueue);
+        m_VirtQueue = nullptr;
     }
 }
 
