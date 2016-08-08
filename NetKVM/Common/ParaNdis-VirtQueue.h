@@ -171,7 +171,10 @@ public:
     void Renew();
 
     void Shutdown()
-    { virtqueue_shutdown(m_VirtQueue); }
+    {
+        virtqueue_shutdown(m_VirtQueue);
+        Delete();
+    }
 
     u16 SetMSIVector(u16 vector);
 
