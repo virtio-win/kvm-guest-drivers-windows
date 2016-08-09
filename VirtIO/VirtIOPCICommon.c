@@ -339,7 +339,7 @@ int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA)
     int iBar, i;
 
     /* no point in supporting PCI and CardBus bridges */
-    ASSERT(pPCIHeader->HeaderType && ~PCI_MULTIFUNCTION == PCI_DEVICE_TYPE);
+    ASSERT((pPCIHeader->HeaderType & ~PCI_MULTIFUNCTION) == PCI_DEVICE_TYPE);
 
     for (i = 0; i < PCI_TYPE0_ADDRESSES; i++) {
         PHYSICAL_ADDRESS BAR;
