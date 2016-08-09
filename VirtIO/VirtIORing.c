@@ -32,8 +32,8 @@ __pragma(warning(push))                                          \
 __pragma(warning(disable:4127))                                 \
     do {                                                        \
         if ((_vq)->in_use)                                      \
-            DPrintf(0, ("%s:in_use = %i\n",                     \
-                           (_vq)->vq.name, (_vq)->in_use));     \
+            DPrintf(0, ("%p:in_use = %i\n",                     \
+                           (_vq), (_vq)->in_use));     \
         (_vq)->in_use = __LINE__;                               \
     } while (0) \
 __pragma(warning(pop))
