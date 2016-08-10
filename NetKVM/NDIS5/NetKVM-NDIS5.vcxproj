@@ -58,10 +58,6 @@
     <DDKINSTALLROOT Condition="'$(DDKINSTALLROOT)' == ''">C:\WINDDK\</DDKINSTALLROOT>
     <DDKVER Condition="'$(DDKVER)' == ''">7600.16385.1</DDKVER>
     <LegacyDDKDir>$(DDKINSTALLROOT)$(DDKVER)</LegacyDDKDir>
-    <_NT_TARGET_MAJ Condition="'$(_NT_TARGET_MAJ)' == ''">51</_NT_TARGET_MAJ>
-    <_NT_TARGET_MIN Condition="'$(_NT_TARGET_MIN)' == ''">6</_NT_TARGET_MIN>
-    <_MAJORVERSION_ Condition="'$(_MAJORVERSION_)' == ''">101</_MAJORVERSION_>
-    <_MINORVERSION_ Condition="'$(_MINORVERSION_)' == ''">58000</_MINORVERSION_>
   </PropertyGroup>
   <PropertyGroup Label="Globals">
     <RootNamespace>NetKVMNDIS5</RootNamespace>
@@ -79,6 +75,7 @@
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="PropertySheets">
@@ -144,7 +141,6 @@
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>$(LegacyDDKDir)\inc\api;$(ProjectDir)\Common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_MAJORVERSION_=$(_MAJORVERSION_);_MINORVERSION_=$(_MINORVERSION_);_NT_TARGET_MAJ=$(_NT_TARGET_MAJ);_NT_TARGET_MIN=$(_NT_TARGET_MIN);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
     <Link>
       <OptimizeReferences>true</OptimizeReferences>
