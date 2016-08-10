@@ -1112,9 +1112,6 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configu
     <None Include="tools\NetKVMTemporaryCert.pfx" />
     <None Include="tools\set_version.bat" />
   </ItemGroup>
-  <ItemGroup>
-    <Inf Include="netkvm.inf" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
