@@ -12,11 +12,23 @@
     <SignMode>TestSign</SignMode>
     <TestCertificate>..\Tools\NetKVMTemporaryCert.cer</TestCertificate>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
+    <SignMode>TestSign</SignMode>
+    <TestCertificate>..\Tools\NetKVMTemporaryCert.cer</TestCertificate>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <SignMode>TestSign</SignMode>
     <TestCertificate>..\Tools\NetKVMTemporaryCert.cer</TestCertificate>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
+    <SignMode>TestSign</SignMode>
+    <TestCertificate>..\Tools\NetKVMTemporaryCert.cer</TestCertificate>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
+    <SignMode>TestSign</SignMode>
+    <TestCertificate>..\Tools\NetKVMTemporaryCert.cer</TestCertificate>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|Win32'">
     <SignMode>TestSign</SignMode>
     <TestCertificate>..\Tools\NetKVMTemporaryCert.cer</TestCertificate>
   </PropertyGroup>
@@ -32,11 +44,23 @@
     <SignMode>TestSign</SignMode>
     <TestCertificate>..\Tools\NetKVMTemporaryCert.cer</TestCertificate>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+    <SignMode>TestSign</SignMode>
+    <TestCertificate>..\Tools\NetKVMTemporaryCert.cer</TestCertificate>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <SignMode>TestSign</SignMode>
     <TestCertificate>..\Tools\NetKVMTemporaryCert.cer</TestCertificate>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
+    <SignMode>TestSign</SignMode>
+    <TestCertificate>..\Tools\NetKVMTemporaryCert.cer</TestCertificate>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
+    <SignMode>TestSign</SignMode>
+    <TestCertificate>..\Tools\NetKVMTemporaryCert.cer</TestCertificate>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'">
     <SignMode>TestSign</SignMode>
     <TestCertificate>..\Tools\NetKVMTemporaryCert.cer</TestCertificate>
   </PropertyGroup>
