@@ -1,12 +1,28 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Vista Debug|Win32">
+      <Configuration>Vista Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Vista Debug|x64">
+      <Configuration>Vista Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Vista Release|Win32">
       <Configuration>Vista Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Vista Release|x64">
       <Configuration>Vista Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8 Debug|Win32">
+      <Configuration>Win8 Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8 Debug|x64">
+      <Configuration>Win8 Debug</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win10 Debug|Win32">
@@ -25,6 +41,14 @@
       <Configuration>Win10 Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Win7 Debug|Win32">
+      <Configuration>Win7 Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win7 Debug|x64">
+      <Configuration>Win7 Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Win7 Release|Win32">
       <Configuration>Win7 Release</Configuration>
       <Platform>Win32</Platform>
@@ -39,6 +63,14 @@
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win8 Release|x64">
       <Configuration>Win8 Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8.1 Debug|Win32">
+      <Configuration>Win8.1 Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8.1 Debug|x64">
+      <Configuration>Win8.1 Debug</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win8.1 Release|Win32">
@@ -91,6 +123,16 @@
     <DEP_LIB_PATH>objfre_win7_x86\i386</DEP_LIB_PATH>
     <SourceInfFile>netkvm_no_RSC.inf</SourceInfFile>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'" Label="Configuration">
+    <TargetVersion>Windows7</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+    <DEP_LIB_PATH>objchk_win7_x86\i386</DEP_LIB_PATH>
+    <SourceInfFile>netkvm_no_RSC.inf</SourceInfFile>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -99,6 +141,16 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_wlh_x86\i386</DEP_LIB_PATH>
+    <SourceInfFile>netkvm_no_RSS.inf</SourceInfFile>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'" Label="Configuration">
+    <TargetVersion>Windows7</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+    <DEP_LIB_PATH>objchk_wlh_x86\i386</DEP_LIB_PATH>
     <SourceInfFile>netkvm_no_RSS.inf</SourceInfFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'" Label="Configuration">
@@ -111,6 +163,16 @@
     <DEP_LIB_PATH>objfre_win8_x86\i386</DEP_LIB_PATH>
     <SourceInfFile>netkvm.inf</SourceInfFile>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|Win32'" Label="Configuration">
+    <TargetVersion>WindowsV6.3</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+    <DEP_LIB_PATH>objchk_win8_x86\i386</DEP_LIB_PATH>
+    <SourceInfFile>netkvm.inf</SourceInfFile>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" Label="Configuration">
     <TargetVersion>Windows8</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -119,6 +181,16 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win8_x86\i386</DEP_LIB_PATH>
+    <SourceInfFile>netkvm.inf</SourceInfFile>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'" Label="Configuration">
+    <TargetVersion>Windows8</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+    <DEP_LIB_PATH>objchk_win8_x86\i386</DEP_LIB_PATH>
     <SourceInfFile>netkvm.inf</SourceInfFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'" Label="Configuration">
@@ -151,6 +223,16 @@
     <DEP_LIB_PATH>objfre_win7_amd64\amd64</DEP_LIB_PATH>
     <SourceInfFile>netkvm_no_RSC.inf</SourceInfFile>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'" Label="Configuration">
+    <TargetVersion>Windows7</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+    <DEP_LIB_PATH>objchk_win7_amd64\amd64</DEP_LIB_PATH>
+    <SourceInfFile>netkvm_no_RSC.inf</SourceInfFile>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -159,6 +241,16 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_wlh_amd64\amd64</DEP_LIB_PATH>
+    <SourceInfFile>netkvm_no_RSS.inf</SourceInfFile>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'" Label="Configuration">
+    <TargetVersion>Windows7</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+    <DEP_LIB_PATH>objchk_wlh_amd64\amd64</DEP_LIB_PATH>
     <SourceInfFile>netkvm_no_RSS.inf</SourceInfFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'" Label="Configuration">
@@ -171,6 +263,16 @@
     <DEP_LIB_PATH>objfre_win8_amd64\amd64</DEP_LIB_PATH>
     <SourceInfFile>netkvm.inf</SourceInfFile>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'" Label="Configuration">
+    <TargetVersion>WindowsV6.3</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+    <DEP_LIB_PATH>objchk_win8_amd64\amd64</DEP_LIB_PATH>
+    <SourceInfFile>netkvm.inf</SourceInfFile>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" Label="Configuration">
     <TargetVersion>Windows8</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -179,6 +281,16 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win8_amd64\amd64</DEP_LIB_PATH>
+    <SourceInfFile>netkvm.inf</SourceInfFile>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'" Label="Configuration">
+    <TargetVersion>Windows8</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
+    <DEP_LIB_PATH>objchk_win8_amd64\amd64</DEP_LIB_PATH>
     <SourceInfFile>netkvm.inf</SourceInfFile>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -253,12 +365,27 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1;DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
-      <EnablePREfast>true</EnablePREfast>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1;DRIVER_NT_TARGET_VERSION=60;DBG</PreprocessorDefinitions>
+      <EnablePREfast>false</EnablePREfast>
+      <Optimization>Disabled</Optimization>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
     </ResourceCompile>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 60$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|Win32'">
     <ClCompile>
@@ -286,7 +413,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100;DBG</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
     <ResourceCompile>
@@ -295,6 +422,20 @@
     <Inf>
       <TimeStamp>100$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 100$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <ClCompile>
@@ -340,6 +481,41 @@ echo "Copy: "$(SolutionDir)\$(SourceInfFile)
 stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
+    <ClCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1;DRIVER_NT_TARGET_VERSION=61;DBG</PreprocessorDefinitions>
+      <EnablePREfast>false</EnablePREfast>
+      <Optimization>Disabled</Optimization>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=61</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Inf>
+      <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
+    </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <ClCompile>
@@ -360,10 +536,19 @@ stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Co
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
 stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 60$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <Inf>
       <TimeStamp>60$(STAMPINF_RHEL_VERSION)</TimeStamp>
     </Inf>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
     <ClCompile>
@@ -382,6 +567,41 @@ echo "Copy: "$(SolutionDir)\$(SourceInfFile)
 stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|Win32'">
+    <ClCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=63;DBG</PreprocessorDefinitions>
+      <EnablePREfast>false</EnablePREfast>
+      <Optimization>Disabled</Optimization>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Inf>
+      <TimeStamp>63$(STAMPINF_RHEL_VERSION)</TimeStamp>
+    </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <ClCompile>
@@ -400,6 +620,41 @@ echo "Copy: "$(SolutionDir)\$(SourceInfFile)
 stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 62$(STAMPINF_RHEL_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
+    <ClCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=62;DBG</PreprocessorDefinitions>
+      <EnablePREfast>false</EnablePREfast>
+      <Optimization>Disabled</Optimization>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Inf>
+      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
+    </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 62$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <ClCompile>
@@ -418,15 +673,38 @@ echo "Copy: "$(SolutionDir)\$(SourceInfFile)
 stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 100$(STAMPINF_RHEL_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1;DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
-      <EnablePREfast>true</EnablePREfast>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1;DRIVER_NT_TARGET_VERSION=60;DBG</PreprocessorDefinitions>
+      <EnablePREfast>false</EnablePREfast>
+      <Optimization>Disabled</Optimization>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
     </ResourceCompile>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 60$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'">
     <ClCompile>
@@ -466,7 +744,7 @@ stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Co
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100;DBG</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
     <ResourceCompile>
@@ -481,6 +759,14 @@ echo "Copy: "$(SolutionDir)\$(SourceInfFile)
 stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 100$(STAMPINF_RHEL_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <ClCompile>
@@ -529,8 +815,61 @@ echo "Copy: "$(SolutionDir)\$(SourceInfFile)
 stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+    <ClCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1;DRIVER_NT_TARGET_VERSION=61;DBG</PreprocessorDefinitions>
+      <EnablePREfast>false</EnablePREfast>
+      <Optimization>Disabled</Optimization>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=61</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Inf>
+      <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
+    </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
+    <ClCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
+      <EnablePREfast>false</EnablePREfast>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Inf>
+      <TimeStamp>63$(STAMPINF_RHEL_VERSION)" "</TimeStamp>
+    </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'">
     <ClCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
@@ -576,6 +915,14 @@ echo "Copy: "$(SolutionDir)\$(SourceInfFile)
 stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 60$(STAMPINF_RHEL_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <ClCompile>
@@ -594,6 +941,41 @@ echo "Copy: "$(SolutionDir)\$(SourceInfFile)
 stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'">
+    <ClCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=63;DBG</PreprocessorDefinitions>
+      <EnablePREfast>false</EnablePREfast>
+      <Optimization>Disabled</Optimization>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Inf>
+      <TimeStamp>63$(STAMPINF_RHEL_VERSION)</TimeStamp>
+    </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <ClCompile>
@@ -612,6 +994,41 @@ echo "Copy: "$(SolutionDir)\$(SourceInfFile)
 stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 62$(STAMPINF_RHEL_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
+    <ClCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=62;DBG</PreprocessorDefinitions>
+      <EnablePREfast>false</EnablePREfast>
+      <Optimization>Disabled</Optimization>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Inf>
+      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
+    </Inf>
+    <PreBuildEvent>
+      <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
+echo "Copy: "$(SolutionDir)\$(SourceInfFile)
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 62$(STAMPINF_RHEL_VERSION)</Command>
+      <Message>Copy correct INF and stamp it</Message>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <ClCompile>
@@ -630,6 +1047,14 @@ echo "Copy: "$(SolutionDir)\$(SourceInfFile)
 stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 100$(STAMPINF_RHEL_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
+xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)">
