@@ -1,3 +1,11 @@
+Date    10 Aug 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm146
+
+New Features:
+NetKVM fix SDV problems
+Debug targets
+
 Date    04 Aug 2016
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm145
