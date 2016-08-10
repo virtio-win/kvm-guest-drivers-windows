@@ -1064,7 +1064,6 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configu
     <FilesToPackage Include="@(Inf->'%(CopyOutput)')" Condition="'@(Inf)'!=''" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Common\common.inf.h" />
     <ClInclude Include="Common\DebugData.h" />
     <ClInclude Include="Common\ethernetutils.h" />
     <ClInclude Include="Common\ndis56common.h" />
