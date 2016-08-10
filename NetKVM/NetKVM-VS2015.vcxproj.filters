@@ -164,9 +164,4 @@
       <Filter>Tools</Filter>
     </None>
   </ItemGroup>
-  <ItemGroup>
-    <Inf Include="netkvm.inf">
-      <Filter>Driver Files</Filter>
-    </Inf>
-  </ItemGroup>
 </Project>
