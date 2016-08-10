@@ -8,7 +8,6 @@ rmdir /S /Q .\sdv
 rmdir /S /Q .\sdv.temp
 
 del /F *.log *.wrn *.err *.sdf
-del viostor-2012.h
 del viostor.dvl.xml
 del sdv-map.h
 
