@@ -34,10 +34,6 @@
 
 #define VER_LANGNEUTRAL
 
-#ifndef _NT_TARGET_MAJ
-#include "vioscsi-2012.h"
-#endif
-
 #define VER_PRODUCTBUILD            _MAJORVERSION_
 #define VER_PRODUCTBUILD_QFE        _MINORVERSION_
 #define VER_PRODUCTMAJORVERSION     _NT_TARGET_MAJ

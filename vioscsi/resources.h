@@ -14,10 +14,6 @@
 #ifndef ___RESOURCES_H__
 #define ___RESOURCES_H__
 
-#ifndef _NT_TARGET_MAJ
-#include "vioscsi-2012.h"
-#endif
-
 #define VENDORID                      0x1AF4
 #define PRODUCTID                     0x1004
 #define MANUFACTURER                  L"Red Hat, Inc."
