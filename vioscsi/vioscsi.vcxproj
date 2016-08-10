@@ -112,6 +112,7 @@
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="PropertySheets">
@@ -195,9 +196,6 @@
     <ResourceCompile>
       <AdditionalIncludeDirectories>$(SDK_INC_PATH);$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
-    <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v140_xp'">
     <ClCompile>
@@ -246,7 +244,7 @@
     <PostBuildEvent>
       <Command>
         copy vioscsi.inx $(OutDir)\vioscsi.inf
-        stampinf -f $(OutDir)\vioscsi.inf -a $(InfArch)
+        stampinf -f $(OutDir)\vioscsi.inf -a $(InfArch) -v $(STAMPINF_VERSION)
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
