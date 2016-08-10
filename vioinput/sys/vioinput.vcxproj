@@ -96,6 +96,7 @@
     <DriverType>KMDF</DriverType>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="PropertySheets">
@@ -168,14 +169,6 @@
       <Version>6.1</Version>
       <AdditionalOptions>/osversion:6.1 %(AdditionalOptions)</AdditionalOptions>
     </Link>
-    <PreBuildEvent>
-      <Command Condition="'$(Configuration)'=='Win10 Release'">BuildOne.bat prepare Win10 $(InfArch)</Command>
-      <Command Condition="'$(Configuration)'=='Win8 Release'">BuildOne.bat prepare Win8 $(InfArch)</Command>
-      <Command Condition="'$(Configuration)'=='Win7 Release'">BuildOne.bat prepare Win7 $(InfArch)</Command>
-    </PreBuildEvent>
-    <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
