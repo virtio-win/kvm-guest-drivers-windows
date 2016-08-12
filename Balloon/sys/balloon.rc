@@ -39,7 +39,4 @@
 #define VER_PRODUCTMAJORVERSION     _NT_TARGET_MAJ
 #define VER_PRODUCTMINORVERSION     _NT_TARGET_MIN
 
-#if !defined(_NT_TARGET_MAJ)
-#include "2012-defines.h"
-#endif
 #include "common.ver"

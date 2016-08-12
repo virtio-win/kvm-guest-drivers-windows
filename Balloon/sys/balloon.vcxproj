@@ -161,6 +161,7 @@
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="PropertySheets">
@@ -268,17 +269,6 @@
       <Version>6.1</Version>
       <AdditionalOptions>/osversion:6.1 %(AdditionalOptions)</AdditionalOptions>
     </Link>
-    <PreBuildEvent>
-      <Command Condition="'$(Configuration)'=='Win10 Release'">BuildOne.bat prepare Win10 $(InfArch)</Command>
-      <Command Condition="'$(Configuration)'=='Win8 Release'">BuildOne.bat prepare Win8 $(InfArch)</Command>
-      <Command Condition="'$(Configuration)'=='Win7 Release'">BuildOne.bat prepare Win7 $(InfArch)</Command>
-      <Command Condition="'$(Configuration)'=='Win2k3 Release'">BuildOne.bat prepare Wnet $(InfArch)</Command>
-      <Command Condition="'$(Configuration)'=='Vista Release'">BuildOne.bat prepare Wlh $(InfArch)</Command>
-      <Command Condition="'$(Configuration)'=='WinXP Release'">BuildOne.bat prepare WXp $(InfArch)</Command>
-    </PreBuildEvent>
-    <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v140_xp'">
     <ClCompile>
@@ -333,7 +323,7 @@
     <PostBuildEvent>
       <Command>
         copy balloon.inx $(OutDir)\balloon.inf
-        stampinf -f $(OutDir)\balloon.inf -a $(InfArch) -k 1.9
+        stampinf -f $(OutDir)\balloon.inf -a $(InfArch) -k 1.9 -v $(STAMPINF_VERSION)
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
