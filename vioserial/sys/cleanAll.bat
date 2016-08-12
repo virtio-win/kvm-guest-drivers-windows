@@ -7,5 +7,3 @@ rmdir /S /Q Win8Debug
 rmdir /S /Q x64
 
 del /F *.log *.wrn *.err
-del 2012-defines.h
-
