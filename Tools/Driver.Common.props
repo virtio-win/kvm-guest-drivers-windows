@@ -1,0 +1,57 @@
+<!--
+***********************************************************************************************
+Driver.Common.props
+Common property definitions used by all drivers.
+***********************************************************************************************
+-->
+
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" TreatAsLocalProperty="Platform">
+  <PropertyGroup>
+    <!-- Second component of driver version -->
+    <_NT_TARGET_MIN Condition="'$(_NT_TARGET_MIN)' == ''">6</_NT_TARGET_MIN>
+    <!-- Third component of driver version -->
+    <_MAJORVERSION_ Condition="'$(_MAJORVERSION_)' == ''">101</_MAJORVERSION_>
+    <!-- Fourth component of driver version -->
+    <_MINORVERSION_ Condition="'$(_MINORVERSION_)' == ''">58000</_MINORVERSION_>
+  </PropertyGroup>
+
+  <!-- First component of driver version (always reflects target OS version) -->
+  <PropertyGroup Condition="'$(Configuration)'=='Win10 Release' OR '$(Configuration)'=='Win10 Debug'">
+    <_NT_TARGET_MAJ>100</_NT_TARGET_MAJ>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Win8.1 Release' OR '$(Configuration)'=='Win8.1 Debug'">
+    <_NT_TARGET_MAJ>63</_NT_TARGET_MAJ>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Win8 Release' OR '$(Configuration)'=='Win8 Debug'">
+    <_NT_TARGET_MAJ>62</_NT_TARGET_MAJ>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Win7 Release' OR '$(Configuration)'=='Win7 Debug'">
+    <_NT_TARGET_MAJ>61</_NT_TARGET_MAJ>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Vista Release' OR '$(Configuration)'=='Vista Debug'">
+    <_NT_TARGET_MAJ>60</_NT_TARGET_MAJ>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Win2k3 Release' OR '$(Configuration)'=='Win2k3 Debug'">
+    <_NT_TARGET_MAJ>52</_NT_TARGET_MAJ>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='WinXP Release' OR '$(Configuration)'=='WinXP Debug'">
+    <_NT_TARGET_MAJ>51</_NT_TARGET_MAJ>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <STAMPINF_VERSION>$(_NT_TARGET_MAJ).$(_NT_TARGET_MIN).$(_MAJORVERSION_).$(_MINORVERSION_)</STAMPINF_VERSION>
+  </PropertyGroup>
+
+  <!-- Version specs for C preprocessor, resource compiler, and stampinf -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>_MAJORVERSION_=$(_MAJORVERSION_);_MINORVERSION_=$(_MINORVERSION_);_NT_TARGET_MAJ=$(_NT_TARGET_MAJ);_NT_TARGET_MIN=$(_NT_TARGET_MIN);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_MAJORVERSION_=$(_MAJORVERSION_);_MINORVERSION_=$(_MINORVERSION_);_NT_TARGET_MAJ=$(_NT_TARGET_MAJ);_NT_TARGET_MIN=$(_NT_TARGET_MIN);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Inf>
+      <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
+    </Inf>
+  </ItemDefinitionGroup>
+</Project>
