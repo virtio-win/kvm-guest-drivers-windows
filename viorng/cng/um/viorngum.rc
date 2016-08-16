@@ -47,10 +47,6 @@
 
 #define VER_LANGNEUTRAL
 
-#ifndef _NT_TARGET_MAJ
-#include "..\..\2012-defines.h"
-#endif
-
 #define VER_PRODUCTBUILD                _MAJORVERSION_
 #define VER_PRODUCTBUILD_QFE            _MINORVERSION_
 #define VER_PRODUCTMAJORVERSION         _NT_TARGET_MAJ
