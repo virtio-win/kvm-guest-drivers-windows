@@ -189,6 +189,7 @@
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="PropertySheets">
@@ -236,9 +237,6 @@
       <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">..\..\VirtIO\objchk_win10_amd64\amd64;..\..\VirtIO\WDF\objchk_win10_amd64\amd64</AdditionalLibraryDirectories>
       <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">..\..\VirtIO\objfre_win10_amd64\amd64;..\..\VirtIO\WDF\objfre_win10_amd64\amd64</AdditionalLibraryDirectories>
     </Link>
-    <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v140_xp'">
     <ClCompile>
