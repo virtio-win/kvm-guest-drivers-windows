@@ -251,16 +251,10 @@
     <FilesToPackage Include="..\$(IntDir)viorng.pdb">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Debug\viorngci.dll" Condition="$(Configuration.EndsWith('Debug'))">
+    <FilesToPackage Include="..\$(IntDir)viorngci.dll">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Debug\viorngum.dll" Condition="$(Configuration.EndsWith('Debug'))">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Release\viorngci.dll" Condition="$(Configuration.EndsWith('Release'))">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\$(Platform)\Release\viorngum.dll" Condition="$(Configuration.EndsWith('Release'))">
+    <FilesToPackage Include="..\$(IntDir)viorngum.dll">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
   </ItemGroup>
