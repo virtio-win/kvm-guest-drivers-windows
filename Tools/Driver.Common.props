@@ -47,6 +47,50 @@ Common property definitions used by all drivers.
     <STAMPINF_VERSION>$(_NT_TARGET_MAJ).$(_NT_TARGET_MIN).$(_MAJORVERSION_).$(_MINORVERSION_)</STAMPINF_VERSION>
   </PropertyGroup>
 
+  <!-- InfArch turns into the TargetOS inf file directive -->
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32' OR '$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">
+    <InfArch>x86.10.0</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32' OR '$(Configuration)|$(Platform)'=='Win8.1 Debug|Win32'">
+    <InfArch>x86.6.3</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32' OR '$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
+    <InfArch>x86.6.2</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32' OR '$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
+    <InfArch>x86.6.1</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32' OR '$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
+    <InfArch>x86.6.0</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|Win32' OR '$(Configuration)|$(Platform)'=='Win2k3 Debug|Win32'">
+    <InfArch>x86.5.2</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Release|Win32' OR '$(Configuration)|$(Platform)'=='WinXP Debug|Win32'">
+    <InfArch>x86.5.1</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64' OR '$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
+    <InfArch>amd64.10.0</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64' OR '$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'">
+    <InfArch>amd64.6.3</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64' OR '$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
+    <InfArch>amd64.6.2</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64' OR '$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+    <InfArch>amd64.6.1</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64' OR '$(Configuration)|$(Platform)'=='Vista Debug|x64'">
+    <InfArch>amd64.6.0</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|x64' OR '$(Configuration)|$(Platform)'=='Win2k3 Debug|x64'">
+    <InfArch>amd64.5.2</InfArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Release|x64' OR '$(Configuration)|$(Platform)'=='WinXP Debug|x64'">
+    <InfArch>amd64.5.1</InfArch>
+  </PropertyGroup>
+
   <!-- Version specs for C preprocessor, resource compiler, and stampinf -->
   <ItemDefinitionGroup>
     <ClCompile>

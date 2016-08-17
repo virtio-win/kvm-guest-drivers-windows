@@ -158,71 +158,55 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
     <OutDir>$(SolutionDir)Install_Debug\wlh\x86\</OutDir>
-    <InfArch>x86.6.0</InfArch>
     <Inf2CatWindowsVersionList>Vista_$(DDKPlatform);Server2008_$(DDKPlatform)</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <OutDir>$(SolutionDir)Install\wlh\x86\</OutDir>
-    <InfArch>x86.6.0</InfArch>
     <Inf2CatWindowsVersionList>Vista_$(DDKPlatform);Server2008_$(DDKPlatform)</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
     <OutDir>$(SolutionDir)Install_Debug\win7\x86\</OutDir>
-    <InfArch>x86.6.1</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
     <OutDir>$(SolutionDir)Install\win7\x86\</OutDir>
-    <InfArch>x86.6.1</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
     <OutDir>$(SolutionDir)Install_Debug\win8\x86\</OutDir>
-    <InfArch>x86.6.2</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <OutDir>$(SolutionDir)Install\win8\x86\</OutDir>
-    <InfArch>x86.6.2</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <OutDir>$(SolutionDir)Install\win10\x86\</OutDir>
-    <InfArch>x86.10.0</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">
     <OutDir>$(SolutionDir)Install_Debug\win10\x86\</OutDir>
-    <InfArch>x86.10.0</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
     <OutDir>$(SolutionDir)Install_Debug\wlh\amd64\</OutDir>
-    <InfArch>amd64.6.0</InfArch>
     <Inf2CatWindowsVersionList>Vista_$(DDKPlatform);Server2008_$(DDKPlatform)</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <OutDir>$(SolutionDir)Install\wlh\amd64\</OutDir>
-    <InfArch>amd64.6.0</InfArch>
     <Inf2CatWindowsVersionList>Vista_$(DDKPlatform);Server2008_$(DDKPlatform)</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
     <OutDir>$(SolutionDir)Install_Debug\win7\amd64\</OutDir>
-    <InfArch>amd64.6.1</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <OutDir>$(SolutionDir)Install\win7\amd64\</OutDir>
-    <InfArch>amd64.6.1</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
     <OutDir>$(SolutionDir)Install_Debug\win8\amd64\</OutDir>
-    <InfArch>amd64.6.2</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <OutDir>$(SolutionDir)Install\win8\amd64\</OutDir>
-    <InfArch>amd64.6.2</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
     <OutDir>$(SolutionDir)Install_Debug\win10\amd64\</OutDir>
-    <InfArch>amd64.10.0</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <OutDir>$(SolutionDir)Install\win10\amd64\</OutDir>
-    <InfArch>amd64.10.0</InfArch>
     <Inf2CatWindowsVersionList>Server10_$(DDKPlatform);$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup>
