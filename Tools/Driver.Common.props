@@ -13,6 +13,11 @@ Common property definitions used by all drivers.
     <_MAJORVERSION_ Condition="'$(_MAJORVERSION_)' == ''">101</_MAJORVERSION_>
     <!-- Fourth component of driver version -->
     <_MINORVERSION_ Condition="'$(_MINORVERSION_)' == ''">58000</_MINORVERSION_>
+
+    <!-- Define the legacy DDK directory required for downlevel targets -->
+    <DDKINSTALLROOT Condition="'$(DDKINSTALLROOT)' == ''">C:\WINDDK\</DDKINSTALLROOT>
+    <DDKVER Condition="'$(DDKVER)' == ''">7600.16385.1</DDKVER>
+    <LegacyDDKDir>$(DDKINSTALLROOT)$(DDKVER)</LegacyDDKDir>
   </PropertyGroup>
 
   <!-- First component of driver version (always reflects target OS version) -->
