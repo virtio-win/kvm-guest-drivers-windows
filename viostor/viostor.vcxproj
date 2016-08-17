@@ -132,6 +132,7 @@
     <DriverType>Miniport</DriverType>
   </PropertyGroup>
   <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'=='v140_xp'">
+    <UseLegacyDDK>true</UseLegacyDDK>
     <ConfigurationType>Application</ConfigurationType>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -200,14 +201,13 @@
     <ClCompile>
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\VirtIO</AdditionalIncludeDirectories>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions Condition="'$(Platform)'=='Win32'">_X86_=1;i386=1;STD_CALL;_WINNT_;INDIRECT_SUPPORTED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Platform)'=='x64'">_WIN64;_AMD64_;AMD64;STD_CALL;_WINNT_;INDIRECT_SUPPORTED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>INDIRECT_SUPPORTED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4603;4627;4986;4987;4996;6001;6387;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <AdditionalLibraryDirectories>..\VirtIO\$(OutDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\VirtIO\$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);ntoskrnl.lib;wdm.lib;virtiolib.lib</AdditionalDependencies>
     </Link>
     <Link Condition="'$(Configuration)'=='Win7 Release'">
@@ -220,29 +220,9 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v140_xp'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(LegacyDDKDir)\inc\ddk;$(LegacyDDKDir)\inc\crt;$(LegacyDDKDir)\inc\api;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <RuntimeLibrary />
-      <FunctionLevelLinking>true</FunctionLevelLinking>
-      <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
-      <Optimization>Full</Optimization>
-      <StructMemberAlignment>8Bytes</StructMemberAlignment>
-      <TreatWarningAsError>true</TreatWarningAsError>
-      <StringPooling>true</StringPooling>
-      <ForceConformanceInForLoopScope>true</ForceConformanceInForLoopScope>
-      <RuntimeTypeInfo>false</RuntimeTypeInfo>
-      <ExceptionHandling />
-      <AdditionalOptions>/kernel %(AdditionalOptions)</AdditionalOptions>
-      <CallingConvention>StdCall</CallingConvention>
       <DisableSpecificWarnings>4267;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
-      <Driver>Driver</Driver>
-      <Version>6.1</Version>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
-      <AdditionalDependencies>BufferOverflowK.lib;wdm.lib;wdmsec.lib;ntoskrnl.lib;hal.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalOptions>/kernel /osversion:6.1 %(AdditionalOptions)</AdditionalOptions>
-      <SubSystem>Native</SubSystem>
       <EntryPointSymbol Condition="'$(Platform)'=='Win32'">GsDriverEntry@8</EntryPointSymbol>
       <EntryPointSymbol Condition="'$(Platform)'=='x64'">GsDriverEntry</EntryPointSymbol>
     </Link>
@@ -279,35 +259,24 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Vista Release'">
     <ClCompile>
-      <PreprocessorDefinitions>USE_STORPORT=1;MSI_SUPPORTED=1;_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000100;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_STORPORT=1;MSI_SUPPORTED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);storport.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Platform)'=='Win32'">$(LegacyDDKDir)\lib\wlh\i386;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalLibraryDirectories Condition="'$(Platform)'=='x64'">$(LegacyDDKDir)\lib\wlh\amd64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <MinimumRequiredVersion>6.00</MinimumRequiredVersion>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Win2k3 Release'">
     <ClCompile>
-      <PreprocessorDefinitions>USE_STORPORT=1;_WIN32_WINNT=0x0502;WINVER=0x0502;NTDDI_VERSION=0x05020100;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_STORPORT=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);storport.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition="'$(Platform)'=='Win32'">$(LegacyDDKDir)\lib\wnet\i386;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalLibraryDirectories Condition="'$(Platform)'=='x64'">$(LegacyDDKDir)\lib\wnet\amd64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <MinimumRequiredVersion>5.02</MinimumRequiredVersion>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='WinXP Release'">
-    <ClCompile>
-      <PreprocessorDefinitions>_WIN32_WINNT=0x0501;WINVER=0x0501;NTDDI_VERSION=0x05010200;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);scsiport.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(LegacyDDKDir)\lib\wxp\i386;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>DriverEntry@8</EntryPointSymbol>
-      <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

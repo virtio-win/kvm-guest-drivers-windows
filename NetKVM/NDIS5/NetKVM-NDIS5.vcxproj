@@ -69,6 +69,7 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <TargetVersion>Windows7</TargetVersion>
     <PlatformToolset>v140_xp</PlatformToolset>
+    <UseLegacyDDK>true</UseLegacyDDK>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -118,23 +119,13 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)\Common;$(LegacyDDKDir)\inc\ddk;$(LegacyDDKDir)\inc\crt;$(LegacyDDKDir)\inc\api;..\..\VirtIO;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <RuntimeLibrary />
-      <FunctionLevelLinking>true</FunctionLevelLinking>
-      <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)\Common;..\..\VirtIO;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization Condition="$(Configuration.EndsWith('Release'))">Full</Optimization>
       <Optimization Condition="$(Configuration.EndsWith('Debug'))">Disabled</Optimization>
       <PreprocessorDefinitions>NDIS_MINIPORT_DRIVER;NDIS51_MINIPORT=1;BINARY_COMPATIBLE=0;_NT_TARGET_MAJ=$(_NT_TARGET_MAJ);_NT_TARGET_MIN=$(_NT_TARGET_MIN);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
-      <StructMemberAlignment>8Bytes</StructMemberAlignment>
-      <TreatWarningAsError>true</TreatWarningAsError>
-      <StringPooling>true</StringPooling>
-      <ForceConformanceInForLoopScope>true</ForceConformanceInForLoopScope>
-      <RuntimeTypeInfo>false</RuntimeTypeInfo>
-      <ExceptionHandling />
-      <AdditionalOptions>/kernel %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>$(LegacyDDKDir)\inc\api;$(ProjectDir)\Common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -142,52 +133,18 @@
     <Link>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <AdditionalDependencies>%(AdditionalDependencies);BufferOverflowK.lib;ntoskrnl.lib;wdm.lib;wdmsec.lib;ndis.lib;ndiscommon.lib;virtiolib.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>Common\$(OutDir);..\..\VirtIO\$(OutDir)</AdditionalLibraryDirectories>
-      <Driver>Driver</Driver>
-      <Version>6.1</Version>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
-      <AdditionalOptions>/osversion:6.1 /kernel %(AdditionalOptions)</AdditionalOptions>
-      <SubSystem>Native</SubSystem>
+      <AdditionalDependencies>%(AdditionalDependencies);ndis.lib;ndiscommon.lib;virtiolib.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>Common\$(OutDir);..\..\VirtIO\$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Platform)'=='Win32'">
-    <ClCompile>
-      <CallingConvention>StdCall</CallingConvention>
-      <PreprocessorDefinitions>_X86_=1;i386=1;STD_CALL;WINNT=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
     <Link>
       <EntryPointSymbol>GsDriverEntry@8</EntryPointSymbol>
-      <TargetMachine>MachineX86</TargetMachine>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Platform)'=='x64'">
-    <ClCompile>
-      <PreprocessorDefinitions>_AMD64_;AMD64;_WIN64;WINNT=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
     <Link>
       <EntryPointSymbol>GsDriverEntry</EntryPointSymbol>
-      <TargetMachine>MachineX64</TargetMachine>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="$(Configuration.StartsWith('WinXP'))">
-    <ClCompile>
-      <PreprocessorDefinitions>_WIN32_WINNT=0x0501;WINVER=0x0501;NTDDI_VERSION=0x05010200;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
-    <Link>
-      <AdditionalLibraryDirectories>$(LegacyDDKDir)\lib\wxp\i386;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="$(Configuration.StartsWith('Win2k3'))">
-    <ClCompile>
-      <PreprocessorDefinitions>_WIN32_WINNT=0x0502;WINVER=0x0502;NTDDI_VERSION=0x05020100;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
-    <Link>
-      <AdditionalLibraryDirectories Condition="'$(Platform)'=='Win32'">$(LegacyDDKDir)\lib\wnet\i386;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalLibraryDirectories Condition="'$(Platform)'=='x64'">$(LegacyDDKDir)\lib\wnet\amd64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <MinimumRequiredVersion>5.02</MinimumRequiredVersion>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
