@@ -151,62 +151,50 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <OutDir>objfre_win8_x86\i386\</OutDir>
     <IntDir>objfre_win8_x86\i386\</IntDir>
-    <InfArch>x86.6.2</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <OutDir>objfre_win10_x86\i386\</OutDir>
     <IntDir>objfre_win10_x86\i386\</IntDir>
-    <InfArch>x86.10.0</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
     <OutDir>objfre_win7_x86\i386\</OutDir>
     <IntDir>objfre_win7_x86\i386\</IntDir>
-    <InfArch>x86.6.1</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|Win32'">
     <OutDir>objfre_wnet_x86\i386\</OutDir>
     <IntDir>objfre_wnet_x86\i386\</IntDir>
-    <InfArch>x86.5.2</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <OutDir>objfre_wlh_x86\i386\</OutDir>
     <IntDir>objfre_wlh_x86\i386\</IntDir>
-    <InfArch>x86.6.0</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Release|Win32'">
     <OutDir>objfre_wxp_x86\i386\</OutDir>
     <IntDir>objfre_wxp_x86\i386\</IntDir>
-    <InfArch>x86.5.1</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <OutDir>objfre_win8_amd64\amd64\</OutDir>
     <IntDir>objfre_win8_amd64\amd64\</IntDir>
-    <InfArch>amd64.6.2</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <OutDir>objfre_win10_amd64\amd64\</OutDir>
     <IntDir>objfre_win10_amd64\amd64\</IntDir>
-    <InfArch>amd64.10.0</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <OutDir>objfre_win7_amd64\amd64\</OutDir>
     <IntDir>objfre_win7_amd64\amd64\</IntDir>
-    <InfArch>amd64.6.1</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|x64'">
     <OutDir>objfre_wnet_amd64\amd64\</OutDir>
     <IntDir>objfre_wnet_amd64\amd64\</IntDir>
-    <InfArch>amd64.5.2</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <OutDir>objfre_wlh_amd64\amd64\</OutDir>
     <IntDir>objfre_wlh_amd64\amd64\</IntDir>
-    <InfArch>amd64.6.0</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Release|x64'">
     <OutDir>objfre_wxp_amd64\amd64\</OutDir>
     <IntDir>objfre_wxp_amd64\amd64\</IntDir>
-    <InfArch>amd64.5.1</InfArch>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
