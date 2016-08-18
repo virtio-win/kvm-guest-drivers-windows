@@ -1,81 +1,63 @@
 @echo off
-:
-: Set global parameters: 
-:
 
-: Use Windows 7 DDK
-if "%DDKVER%"=="" set DDKVER=7600.16385.1
+if "%1_%2" neq "_" (
+  call :%1_%2
+) else (
+  call clean.bat
+  for %%A in (Wxp Wnet Wlh Win7 Win8 Win10) do for %%B in (32 64) do call :%%A_%%B
+)
 
-: By default DDK is installed under C:\WINDDK, but it can be installed in different location
-if "%DDKINSTALLROOT%"=="" set DDKINSTALLROOT=C:\WINDDK\
-
-if not "%1"=="" goto parameters_here
-echo no parameters specified, rebuild all
-call clean.bat
-for %%A in (WXp WNet WLH Win7 Win8 Win10) do for %%B in (32 64) do call :%%A_%%B
-
-goto :wdf
-:parameters_here
-
-:nextparam
-if "%1"=="" goto :eof
-goto %1
-:continue
-shift
-goto nextparam
-
-:wdf
 pushd WDF
 call buildAll_Debug.bat %*
 popd
 goto :eof
 
-:WLH_32
+:Wlh_32
 call :BuildProject "Vista Debug|x86" buildchk_wlh_x86.log
-goto :continue
+goto :eof
 
-:WLH_64
+:Wlh_64
 call :BuildProject "Vista Debug|x64" buildchk_wlh_amd64.log
-goto :continue
+goto :eof
 
-:WNet_32
+:Wnet_32
 call :BuildProject "Win2k3 Debug|x86" buildchk_wnet_x86.log
-goto :continue
+goto :eof
 
-:WNet_64
+:Wnet_64
 call :BuildProject "Win2k3 Debug|x64" buildchk_wnet_amd64.log
-goto :continue
+goto :eof
 
-:WXp_32
+:Wxp_32
 call :BuildProject "WinXP Debug|x86" buildchk_wxp_x86.log
-goto :continue
+goto :eof
 
-:WXp_64
-goto :continue
+:Wxp_64
+goto :eof
 
 :Win7_32
 call :BuildProject "Win7 Debug|x86" buildchk_win7_x86.log
-goto :continue
+goto :eof
 
 :Win7_64
 call :BuildProject "Win7 Debug|x64" buildchk_win7_amd64.log
-goto :continue
+goto :eof
 
 :Win8_32
 call :BuildProject "Win8 Debug|x86" buildchk_win8_x86.log
-goto :continue
+goto :eof
 
 :Win8_64
 call :BuildProject "Win8 Debug|x64" buildchk_win8_amd64.log
-goto :continue
+goto :eof
 
 :Win10_32
 call :BuildProject "Win10 Debug|x86" buildchk_win10_x86.log
-goto :continue
+goto :eof
 
 :Win10_64
 call :BuildProject "Win10 Debug|x64" buildchk_win10_amd64.log
-goto :continue
+goto :eof
 
 :BuildProject
 call ..\tools\callVisualStudio.bat 14 VirtioLib.vcxproj /Rebuild "%~1" /Out %2
