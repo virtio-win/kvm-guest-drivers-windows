@@ -49,6 +49,22 @@
       <Configuration>Win7 Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Vista Release|x64">
+      <Configuration>Vista Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Vista Debug|x64">
+      <Configuration>Vista Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Vista Release|Win32">
+      <Configuration>Vista Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Vista Debug|Win32">
+      <Configuration>Vista Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{cdabf347-89ab-4e09-a93f-324d4efbc74f}</ProjectGuid>
@@ -60,10 +76,7 @@
   <PropertyGroup Label="Globals">
     <RootNamespace>pvpanic</RootNamespace>
     <VCTargetsPath Condition="'$(VCTargetsPath11)' != '' and '$(VisualStudioVersion)' == '11.0'">$(VCTargetsPath11)</VCTargetsPath>
-  </PropertyGroup>
-  <PropertyGroup Label="PropertySheets">
-    <ConfigurationType>Driver</ConfigurationType>
-    <DriverType>KMDF</DriverType>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'" Label="Configuration">
@@ -134,6 +147,44 @@
     <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'" Label="Configuration">
+    <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>v140_xp</PlatformToolset>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
+    <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'" Label="Configuration">
+    <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>v140_xp</PlatformToolset>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
+    <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'" Label="Configuration">
+    <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>v140_xp</PlatformToolset>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
+    <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'" Label="Configuration">
+    <TargetVersion>Windows7</TargetVersion>
+    <PlatformToolset>v140_xp</PlatformToolset>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
+    <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
+  </PropertyGroup>
+  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'!='v140_xp'">
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>KMDF</DriverType>
+    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+  </PropertyGroup>
+  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'=='v140_xp'">
+    <UseLegacyDDK>true</UseLegacyDDK>
+    <ConfigurationType>Application</ConfigurationType>
+    <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -144,8 +195,9 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <OutDir>$(SolutionDir)$(Platform)\$(ConfigurationName)\</OutDir>
-    <IntDir>$(Platform)\$(ConfigurationName)\</IntDir>
+    <TargetExt>.sys</TargetExt>
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <Inf2CatWindowsVersionList>Server10_$(DDKPlatform);$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
@@ -158,9 +210,27 @@
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO</AdditionalIncludeDirectories>
       <AdditionalOptions>/kernel %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
-    <Inf>
-      <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
-    </Inf>
+    <Link>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v140_xp'">
+    <PreBuildEvent>
+      <Command>
+        tracewpp bugcheck.c power.c pvpanic.c -km -func:TraceEvents(LEVEL,FLAGS,MSG,...) -func:Hexdump(LEVEL,FLAGS,MSG,...) -gen:{km-WdfDefault.tpl}*.tmh -cfgdir:$(LegacyDDKDir)\bin\WppConfig\Rev1
+      </Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command Condition="'$(Platform)'=='Win32'">
+        copy "$(LegacyDDKDir)\redist\wdf\x86\WdfCoInstaller01009.dll" "$(OutDir)"
+        copy pvpanic.inf "$(OutDir)\pvpanic.inf"
+      </Command>
+      <Command Condition="'$(Platform)'=='x64'">
+        copy "$(LegacyDDKDir)\redist\wdf\amd64\WdfCoInstaller01009.dll" "$(OutDir)"
+        copy pvpanic.inf "$(OutDir)\pvpanic.inf"
+      </Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
@@ -176,12 +246,29 @@
     <ClCompile Include="pvpanic.c" />
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="pvpanic.inf" />
-  </ItemGroup>
-  <ItemGroup>
     <ResourceCompile Include="pvpanic.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <Target Name="GetDriverProjectAttributes" Returns="@(DriverProjectAttributes)">
+    <ItemGroup Condition="'$(PlatformToolset)'=='v140_xp'">
+      <DriverProjectAttributes Include="$(ProjectGuid)">
+        <DriverType>$(DriverType)</DriverType>
+        <PlatformToolset>$(PlatformToolset)</PlatformToolset>
+        <IsKernelModeToolset>$(IsKernelModeToolset)</IsKernelModeToolset>
+        <IsUserModeToolset>$(IsUserModeToolset)</IsUserModeToolset>
+        <ProjectPath>$(MSBuildProjectFullPath)</ProjectPath>
+      </DriverProjectAttributes>
+    </ItemGroup>
+  </Target>
+  <Target Name="GetPackageFiles" Returns="@(FullyQualifiedFilesToPackage)">
+    <ItemGroup Condition="'$(PlatformToolset)'=='v140_xp'">
+      <FilesToPackage Include="$(OutDir)\pvpanic.inf" />
+      <FilesToPackage Include="$(OutDir)\WdfCoInstaller01009.dll" />
+    </ItemGroup>
+    <ConvertToAbsolutePath Paths="@(FilesToPackage)">
+      <Output TaskParameter="AbsolutePaths" ItemName="FullyQualifiedFilesToPackage" />
+    </ConvertToAbsolutePath>
+  </Target>
 </Project>
