@@ -1,9 +1,6 @@
 @echo off
 setlocal
 
-if "%DDKINSTALLROOT%"=="" set DDKINSTALLROOT=C:\WINDDK\
-if "%DDKVER%"=="" set DDKVER=7600.16385.1
-
 call :%1_%2
 goto :eof
 

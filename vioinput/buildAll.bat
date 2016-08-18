@@ -1,6 +1,10 @@
 @echo off
 
-for %%A in (Win7 Win8 Win10) do for %%B in (32 64) do call :buildpack %%A %%B
+if "%1_%2" neq "_" (
+  call :buildpack %1 %2
+) else (
+  for %%A in (Win7 Win8 Win10) do for %%B in (32 64) do call :buildpack %%A %%B
+)
 
 goto :eof
 
