@@ -12,7 +12,6 @@
 *.sdf
 *.opensdf
 *.DVL.XML
-*2012-defines.h
 *.opendb
 *objchk_*
 *objfre_*
