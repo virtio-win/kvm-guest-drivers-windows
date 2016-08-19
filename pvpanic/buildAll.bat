@@ -32,15 +32,7 @@ call :set_os_and_platform %1 %2
 set OUT_FILENAME=buildfre_%OS%_%PLAT%.log
 goto :eof
 
-:fix_wdfcoinstaller_name
-call :set_os_and_platform %1 %2
-pushd Install\%OS%\%PLAT%\
-for %%V in (01009 01011) do if exist WdfCoinstaller%%V.dll rename WdfCoinstaller%%V.dll WdfCoInstaller%%V.dll
-popd
-goto :eof
-
 :build_driver
 call :set_out_filename %1 %2
 call ..\tools\callVisualStudio.bat 14 pvpanic.sln /Rebuild "%BUILDCONFIG% Release|%BUILDPLAT%" /Out %OUT_FILENAME%
-call :fix_wdfcoinstaller_name %1 %2
 goto :eof
