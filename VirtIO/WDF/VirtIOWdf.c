@@ -88,15 +88,10 @@ NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver,
     return virtio_set_features(&pWdfDriver->VIODevice, uFeatures);
 }
 
-NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
-                             ULONG nQueues,
-                             struct virtqueue **pQueues,
-                             PVIRTIO_WDF_QUEUE_PARAM pQueueParams)
+static NTSTATUS VirtIOWdfFinalizeFeatures(PVIRTIO_WDF_DRIVER pWdfDriver)
 {
     NTSTATUS status;
-    ULONG i;
 
-    /* make sure that we always follow the status bit-setting protocol */
     u8 dev_status = virtio_get_status(&pWdfDriver->VIODevice);
     if (!(dev_status & VIRTIO_CONFIG_S_ACKNOWLEDGE)) {
         virtio_add_status(&pWdfDriver->VIODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE);
@@ -106,9 +101,23 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
     }
     if (!(dev_status & VIRTIO_CONFIG_S_FEATURES_OK)) {
         status = virtio_set_features(&pWdfDriver->VIODevice, pWdfDriver->uFeatures);
-        if (!NT_SUCCESS(status)) {
-            return status;
-        }
+    }
+
+    return status;
+}
+
+NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
+                             ULONG nQueues,
+                             struct virtqueue **pQueues,
+                             PVIRTIO_WDF_QUEUE_PARAM pQueueParams)
+{
+    NTSTATUS status;
+    ULONG i;
+
+    /* make sure that we always follow the status bit-setting protocol */
+    status = VirtIOWdfFinalizeFeatures(pWdfDriver);
+    if (!NT_SUCCESS(status)) {
+        return status;
     }
 
     /* find and initialize queues */
@@ -126,6 +135,68 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
                 pQueues[i],
                 pQueueParams[i].bEnableInterruptSuppression);
         }
+    }
+    return status;
+}
+
+NTSTATUS VirtIOWdfInitQueuesCB(PVIRTIO_WDF_DRIVER pWdfDriver,
+                               ULONG nQueues,
+                               VirtIOWdfGetQueueParamCallback pQueueParamFunc,
+                               VirtIOWdfSetQueueCallback pSetQueueFunc)
+{
+    VIRTIO_WDF_QUEUE_PARAM QueueParam;
+    struct virtqueue *vq;
+    NTSTATUS status;
+    u16 msix_vec;
+    ULONG i;
+
+    /* make sure that we always follow the status bit-setting protocol */
+    status = VirtIOWdfFinalizeFeatures(pWdfDriver);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
+    /* let VirtioLib know how many queues we'll need */
+    status = virtio_reserve_queue_memory(&pWdfDriver->VIODevice, nQueues);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
+    /* set up the device config vector */
+    msix_vec = PCIGetMSIInterruptVector(pWdfDriver->ConfigInterrupt);
+    if (virtio_set_config_vector(&pWdfDriver->VIODevice, msix_vec) != msix_vec) {
+        return STATUS_DEVICE_BUSY;
+    }
+
+    /* find and initialize queues */
+    for (i = 0; i < nQueues; i++) {
+        status = virtio_find_queue(&pWdfDriver->VIODevice, i, &vq);
+        if (!NT_SUCCESS(status)) {
+            break;
+        }
+
+        /* set the desired queue vector and suppression flag */
+        QueueParam.bEnableInterruptSuppression = false;
+        QueueParam.Interrupt = NULL;
+
+        pQueueParamFunc(pWdfDriver, i, &QueueParam);
+
+        msix_vec = PCIGetMSIInterruptVector(QueueParam.Interrupt);
+        if (virtio_set_queue_vector(vq, msix_vec) != msix_vec) {
+            status = STATUS_DEVICE_BUSY;
+            break;
+        }
+
+        virtio_set_queue_event_suppression(
+            vq,
+            QueueParam.bEnableInterruptSuppression);
+
+        /* pass the virtqueue pointer to the caller */
+        pSetQueueFunc(pWdfDriver, i, vq);
+    }
+
+    if (!NT_SUCCESS(status)) {
+        virtio_delete_queues(&pWdfDriver->VIODevice);
     }
     return status;
 }

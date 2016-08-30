@@ -36,3 +36,5 @@ int PCIReadConfig(PVIRTIO_WDF_DRIVER pWdfDriver,
                   int where,
                   void *buffer,
                   size_t length);
+
+u16 PCIGetMSIInterruptVector(WDFINTERRUPT Interrupt);
