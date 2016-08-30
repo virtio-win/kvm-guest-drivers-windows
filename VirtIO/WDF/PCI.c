@@ -119,3 +119,19 @@ int PCIReadConfig(PVIRTIO_WDF_DRIVER pWdfDriver,
         (ULONG)length);
     return (read == length ? 0 : -1);
 }
+
+u16 PCIGetMSIInterruptVector(WDFINTERRUPT Interrupt)
+{
+    WDF_INTERRUPT_INFO info;
+
+    WDF_INTERRUPT_INFO_INIT(&info);
+    if (Interrupt != NULL) {
+        WdfInterruptGetInfo(Interrupt, &info);
+    }
+    if (info.MessageSignaled) {
+        ASSERT(info.MessageNumber < MAXUSHORT);
+        return (u16)info.MessageNumber;
+    } else {
+        return VIRTIO_MSI_NO_VECTOR;
+    }
+}

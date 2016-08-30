@@ -118,26 +118,17 @@ static void *pci_map_address_range(void *context, int bar, size_t offset, size_t
 static u16 vdev_get_msix_vector(void *context, int queue)
 {
     PVIRTIO_WDF_DRIVER pWdfDriver = (PVIRTIO_WDF_DRIVER)context;
-    WDF_INTERRUPT_INFO info;
-    u16 vector;
+    u16 vector = VIRTIO_MSI_NO_VECTOR;
 
-    WDF_INTERRUPT_INFO_INIT(&info);
     if (queue >= 0) {
         /* queue interrupt */
         if (pWdfDriver->pQueueParams != NULL) {
-            WdfInterruptGetInfo(pWdfDriver->pQueueParams[queue].Interrupt, &info);
+            vector = PCIGetMSIInterruptVector(pWdfDriver->pQueueParams[queue].Interrupt);
         }
     }
-    else if (pWdfDriver->ConfigInterrupt != NULL) {
-        /* on-device-config-change interrupt */
-        WdfInterruptGetInfo(pWdfDriver->ConfigInterrupt, &info);
-    }
-    if (info.MessageSignaled) {
-        ASSERT(info.MessageNumber < MAXUSHORT);
-        vector = (u16)info.MessageNumber;
-    }
     else {
-        vector = VIRTIO_MSI_NO_VECTOR;
+        /* on-device-config-change interrupt */
+        vector = PCIGetMSIInterruptVector(pWdfDriver->ConfigInterrupt);
     }
 
     return vector;

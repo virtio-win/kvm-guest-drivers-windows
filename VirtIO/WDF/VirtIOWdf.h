@@ -46,6 +46,14 @@ typedef struct virtio_wdf_driver {
     
 } VIRTIO_WDF_DRIVER, *PVIRTIO_WDF_DRIVER;
 
+/* Queue discovery callbacks used by VirtIOWdfInitQueuesCB. */
+typedef void (*VirtIOWdfGetQueueParamCallback)(PVIRTIO_WDF_DRIVER pWdfDriver,
+                                               ULONG uQueueIndex,
+                                               PVIRTIO_WDF_QUEUE_PARAM pQueueParam);
+typedef void (*VirtIOWdfSetQueueCallback)(PVIRTIO_WDF_DRIVER pWdfDriver,
+                                          ULONG uQueueIndex,
+                                          struct virtqueue *pQueue);
+
 /* Initializes the VIRTIO_WDF_DRIVER context, called from driver's
  * EvtDevicePrepareHardware callback.
  */
@@ -66,13 +74,20 @@ ULONGLONG VirtIOWdfGetDeviceFeatures(PVIRTIO_WDF_DRIVER pWdfDriver);
 NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver,
                                     ULONGLONG uFeatures);
 
-/* Queue discovery entry point. Must be called after each device reset as
- * there is no way to reinitialize or reset individual queues.
+/* Queue discovery entry points. Must be called after each device reset as
+ * there is no way to reinitialize or reset individual queues. The CB
+ * version takes callbacks to get queue parameters and return queue pointers.
+ * The regular version uses caller-allocated arrays for the same. They are
+ * functionally equivalent.
  */
 NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
                              ULONG nQueues,
                              struct virtqueue **pQueues,
                              PVIRTIO_WDF_QUEUE_PARAM pQueueParams);
+NTSTATUS VirtIOWdfInitQueuesCB(PVIRTIO_WDF_DRIVER pWdfDriver,
+                               ULONG nQueues,
+                               VirtIOWdfGetQueueParamCallback pQueueParamFunc,
+                               VirtIOWdfSetQueueCallback pSetQueueFunc);
 
 /* Final signal to the device that the driver has successfully initialized
  * and is ready for device operation or that it has failed to do so.
