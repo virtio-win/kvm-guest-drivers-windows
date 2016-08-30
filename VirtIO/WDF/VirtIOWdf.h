@@ -61,8 +61,7 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
                              WDFDEVICE Device,
                              WDFCMRESLIST ResourcesTranslated,
                              WDFINTERRUPT ConfigInterrupt,
-                             ULONG MemoryTag,
-                             USHORT nMaxQueues);
+                             ULONG MemoryTag);
 
 /* Device/driver feature negotiation routines. These can be called from
  * driver's EvtDevicePrepareHardware callback or later from its

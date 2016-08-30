@@ -52,8 +52,7 @@ NTSTATUS VirtRngEvtDevicePrepareHardware(IN WDFDEVICE Device,
         Device,
         ResourcesTranslated,
         NULL,
-        VIRT_RNG_MEMORY_TAG,
-        1 /* nMaxQueues */);
+        VIRT_RNG_MEMORY_TAG);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "VirtIOWdfInitialize failed with %x\n", status);

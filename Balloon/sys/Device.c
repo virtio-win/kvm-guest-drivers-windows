@@ -232,8 +232,7 @@ BalloonEvtDevicePrepareHardware(
         Device,
         ResourceListTranslated,
         NULL,
-        BALLOON_MGMT_POOL_TAG,
-        3 /* nMaxQueues */);
+        BALLOON_MGMT_POOL_TAG);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "VirtIOWdfInitialize failed with %x\n", status);
