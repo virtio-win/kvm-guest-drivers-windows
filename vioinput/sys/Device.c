@@ -211,8 +211,7 @@ VIOInputEvtDevicePrepareHardware(
         Device,
         ResourcesTranslated,
         NULL,
-        VIOINPUT_DRIVER_MEMORY_TAG,
-        2 /* max queues */);
+        VIOINPUT_DRIVER_MEMORY_TAG);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VirtIOWdfInitialize failed with %x\n", status);

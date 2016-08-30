@@ -25,8 +25,7 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
                              WDFDEVICE Device,
                              WDFCMRESLIST ResourcesTranslated,
                              WDFINTERRUPT ConfigInterrupt,
-                             ULONG MemoryTag,
-                             USHORT nMaxQueues)
+                             ULONG MemoryTag)
 {
     NTSTATUS status = STATUS_SUCCESS;
 

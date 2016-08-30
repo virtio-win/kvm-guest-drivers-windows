@@ -203,8 +203,7 @@ VIOSerialEvtDevicePrepareHardware(
         Device,
         ResourcesTranslated,
         NULL,
-        VIOSERIAL_DRIVER_MEMORY_TAG,
-        VIRTIO_SERIAL_MAX_QUEUES);
+        VIOSERIAL_DRIVER_MEMORY_TAG);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VirtIOWdfInitialize failed with %x\n", status);
