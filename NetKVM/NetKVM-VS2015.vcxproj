@@ -293,7 +293,13 @@
     <DEP_LIB_PATH>objchk_win8_amd64\amd64</DEP_LIB_PATH>
     <SourceInfFile>netkvm.inf</SourceInfFile>
   </PropertyGroup>
+  <PropertyGroup>
+    <_NT_TARGET_MIN>$(_RHEL_RELEASE_VERSION_)</_NT_TARGET_MIN>
+    <_MAJORVERSION_>$(_BUILD_MAJOR_VERSION_)</_MAJORVERSION_>
+    <_MINORVERSION_>$(_BUILD_MINOR_VERSION_)</_MINORVERSION_>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="PropertySheets">
@@ -350,14 +356,16 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>wlh;Common;..\Virtio;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Platform)'=='Win32'">%(PreprocessorDefinitions);_X86_=1;i386=1;STD_CALL;NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Platform)'=='x64'">%(PreprocessorDefinitions);_WIN64;_AMD64_;AMD64;NDIS60_MINIPORT=1;NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_MAJORVERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_MINORVERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);DRIVER_NT_TARGET_VERSION=$(_NT_TARGET_MAJ)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Platform)'=='Win32'">%(PreprocessorDefinitions);_X86_=1;i386=1;STD_CALL</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Platform)'=='x64'">%(PreprocessorDefinitions);_WIN64;_AMD64_;AMD64</PreprocessorDefinitions>
       <DisableSpecificWarnings>4201;4214;4115;4127;4302;4463;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>wlh;Common;..\Virtio;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Platform)'=='Win32'">%(PreprocessorDefinitions);_X86_=1;i386=1;STD_CALL;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);_RHEL_RELEASE_VERSION_=$(_RHEL_RELEASE_VERSION_)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Platform)'=='x64'">%(PreprocessorDefinitions);_WIN64;_AMD64_=1;AMD64;;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);_RHEL_RELEASE_VERSION_=$(_RHEL_RELEASE_VERSION_)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);PARANDIS_MAJOR_DRIVER_VERSION=$(_MAJORVERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_MINORVERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);_RHEL_RELEASE_VERSION_=$(_NT_TARGET_MIN);DRIVER_NT_TARGET_VERSION=$(_NT_TARGET_MAJ)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Platform)'=='Win32'">%(PreprocessorDefinitions);_X86_=1;i386=1;STD_CALL</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Platform)'=='x64'">%(PreprocessorDefinitions);_WIN64;_AMD64_=1;AMD64</PreprocessorDefinitions>
     </ResourceCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);$(DDK_LIB_PATH)\ndis.lib;..\VirtIO\$(DEP_LIB_PATH)\virtiolib.lib</AdditionalDependencies>
@@ -365,13 +373,10 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1;DRIVER_NT_TARGET_VERSION=60;DBG</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1;DBG</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
       <Optimization>Disabled</Optimization>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
-    </ResourceCompile>
     <PostBuildEvent>
       <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
 xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
@@ -383,45 +388,27 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(C
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 60$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>true</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>63$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100;DBG</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DBG</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>100$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PostBuildEvent>
       <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
 xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
@@ -433,52 +420,37 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(C
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 100$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1;DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>true</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
-    </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1;DRIVER_NT_TARGET_VERSION=61</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=61</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1;DRIVER_NT_TARGET_VERSION=61</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=61</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -492,20 +464,14 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configu
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1;DRIVER_NT_TARGET_VERSION=61;DBG</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1;DBG</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
       <Optimization>Disabled</Optimization>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=61</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -519,12 +485,11 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(C
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1;_NT_TARGET_VERSION=0x0600;DRIVER_NT_TARGET_VERSION=60;_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000000;DRIVER_NT_TARGET_VERSION=0x60</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1;_NT_TARGET_VERSION=0x0600;_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000000</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>Common;C:\WinDDK\7600.16385.1\inc\api</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
     </ResourceCompile>
     <Link>
       <AdditionalDependencies>ndis.lib;ntoskrnl.lib;BufferOverflowK.lib;hal.lib;..\VirtIO\$(DEP_LIB_PATH)\virtiolib.lib</AdditionalDependencies>
@@ -535,12 +500,9 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(C
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 60$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
-    <Inf>
-      <TimeStamp>60$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PostBuildEvent>
       <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
 xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
@@ -552,19 +514,13 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configu
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>63$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -578,20 +534,14 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configu
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=63;DBG</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DBG</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
       <Optimization>Disabled</Optimization>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>63$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -605,19 +555,13 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(C
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 62$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -631,20 +575,14 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configu
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=62;DBG</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DBG</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
       <Optimization>Disabled</Optimization>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 62$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -658,19 +596,13 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(C
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>100$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 100$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -684,13 +616,10 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configu
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1;DRIVER_NT_TARGET_VERSION=60;DBG</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1;DBG</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
       <Optimization>Disabled</Optimization>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
-    </ResourceCompile>
     <PostBuildEvent>
       <Command>xcopy /y /q $(OutDir)netkvm.inf $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
 xcopy /y /q $(OutDir)netkvm.pdb $(SolutionDir)Install_Debug\$(Configuration.Replace(' Debug',''))\$(ProcessorArchitecture)\
@@ -702,61 +631,43 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(C
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 60$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>63$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100;DBG</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DBG</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>100$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 100$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -770,49 +681,31 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(C
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1;DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>true</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>60$(STAMPINF_RHEL_VERSION)" "</TimeStamp>
-    </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1;DRIVER_NT_TARGET_VERSION=61</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=61</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1;DRIVER_NT_TARGET_VERSION=61</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=61</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -826,20 +719,14 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configu
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1;DRIVER_NT_TARGET_VERSION=61;DBG</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1;DBG</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
       <Optimization>Disabled</Optimization>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=61</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>61$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 61$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -853,49 +740,36 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(C
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>63$(STAMPINF_RHEL_VERSION)" "</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>63$(STAMPINF_RHEL_VERSION)" "</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1;_NT_TARGET_VERSION=0x0600;DRIVER_NT_TARGET_VERSION=60;_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000000;DRIVER_NT_TARGET_VERSION=0x60</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1;_NT_TARGET_VERSION=0x0600;_WIN32_WINNT=0x0600;WINVER=0x0600;NTDDI_VERSION=0x06000000</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
       <AdditionalOptions>/kernel</AdditionalOptions>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>Common;C:\WinDDK\7600.16385.1\inc\api</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=60</PreprocessorDefinitions>
     </ResourceCompile>
     <Link>
       <AdditionalDependencies>ndis.lib;ntoskrnl.lib;BufferOverflowK.lib;..\VirtIO\$(DEP_LIB_PATH)\virtiolib.lib</AdditionalDependencies>
@@ -903,16 +777,13 @@ stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Co
       <AdditionalLibraryDirectories>C:\WinDDK\7600.16385.1\lib\wlh\amd64</AdditionalLibraryDirectories>
       <MinimumRequiredVersion>6.0</MinimumRequiredVersion>
     </Link>
-    <Inf>
-      <TimeStamp>60$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <ProjectReference>
       <LinkLibraryDependencies>true</LinkLibraryDependencies>
     </ProjectReference>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 60$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -926,19 +797,13 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configu
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>63$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -952,20 +817,14 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configu
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=63;DBG</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DBG</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
       <Optimization>Disabled</Optimization>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=63</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>63$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 63$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -979,19 +838,13 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(C
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 62$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -1005,20 +858,14 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configu
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=62;DBG</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DBG</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
       <Optimization>Disabled</Optimization>
     </ClCompile>
-    <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);DRIVER_NT_TARGET_VERSION=62</PreprocessorDefinitions>
-    </ResourceCompile>
-    <Inf>
-      <TimeStamp>62$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 62$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -1032,19 +879,16 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(C
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1;DRIVER_NT_TARGET_VERSION=100</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
     </ResourceCompile>
-    <Inf>
-      <TimeStamp>100$(STAMPINF_RHEL_VERSION)</TimeStamp>
-    </Inf>
     <PreBuildEvent>
       <Command>copy /Y $(SolutionDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
 echo "Copy: "$(SolutionDir)\$(SourceInfFile)
-stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v 100$(STAMPINF_RHEL_VERSION)</Command>
+stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)</Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
     <PostBuildEvent>
@@ -1110,7 +954,6 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configu
     <None Include="tools\make_inf.bat" />
     <None Include="tools\NetKVMTemporaryCert.cer" />
     <None Include="tools\NetKVMTemporaryCert.pfx" />
-    <None Include="tools\set_version.bat" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

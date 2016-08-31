@@ -160,8 +160,5 @@
     <None Include="tools\NetKVMTemporaryCert.pfx">
       <Filter>Tools</Filter>
     </None>
-    <None Include="tools\set_version.bat">
-      <Filter>Tools</Filter>
-    </None>
   </ItemGroup>
 </Project>
