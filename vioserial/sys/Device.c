@@ -232,13 +232,7 @@ VIOSerialEvtDevicePrepareHardware(
                            &pContext->consoleConfig.max_nr_ports,
                            sizeof(pContext->consoleConfig.max_nr_ports));
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
-                                "VirtIOConsoleConfig->max_nr_ports %d\n", pContext->consoleConfig.max_nr_ports);
-        if (pContext->consoleConfig.max_nr_ports > VIRTIO_SERIAL_MAX_PORTS)
-        {
-           pContext->consoleConfig.max_nr_ports = VIRTIO_SERIAL_MAX_PORTS;
-           TraceEvents(TRACE_LEVEL_WARNING, DBG_PNP,
-                                "VirtIOConsoleConfig->max_nr_ports limited to %d\n", pContext->consoleConfig.max_nr_ports);
-        }
+                    "VirtIOConsoleConfig->max_nr_ports %d\n", pContext->consoleConfig.max_nr_ports);
     }
     VirtIOWdfSetDriverFeatures(&pContext->VDevice, u64GuestFeatures);
 
@@ -344,6 +338,53 @@ void DumpQueues(WDFOBJECT Device)
 }
 #endif
 
+static void
+VIOSerialGetQueueParamCallback(
+    PVIRTIO_WDF_DRIVER pVDevice,
+    ULONG uQueueIndex,
+    PVIRTIO_WDF_QUEUE_PARAM pQueueParam)
+{
+    PPORTS_DEVICE pContext = CONTAINING_RECORD(pVDevice, PORTS_DEVICE, VDevice);
+
+    pQueueParam->bEnableInterruptSuppression = false;
+    if (uQueueIndex == 2 || uQueueIndex == 3) {
+        // control queues
+        pQueueParam->Interrupt = pContext->WdfInterrupt;
+    } else {
+        // port queues
+        pQueueParam->Interrupt = pContext->QueuesInterrupt;
+    }
+}
+
+static void
+VIOSerialSetQueueCallback(
+    PVIRTIO_WDF_DRIVER pVDevice,
+    ULONG uQueueIndex,
+    struct virtqueue *pQueue)
+{
+    PPORTS_DEVICE pContext = CONTAINING_RECORD(pVDevice, PORTS_DEVICE, VDevice);
+    ULONG uPortIndex;
+
+    // control queues
+    if (uQueueIndex == 2) {
+        pContext->c_ivq = pQueue;
+    } else if (uQueueIndex == 3) {
+        pContext->c_ovq = pQueue;
+    } else {
+        // port queues
+        uPortIndex = uQueueIndex / 2;
+        if (uPortIndex > 1) {
+            uPortIndex--;
+        }
+
+        if (uQueueIndex & 1) {
+            pContext->out_vqs[uPortIndex] = pQueue;
+        } else {
+            pContext->in_vqs[uPortIndex] = pQueue;
+        }
+    }
+}
+
 static
 NTSTATUS
 VIOSerialInitAllQueues(
@@ -351,56 +392,23 @@ VIOSerialInitAllQueues(
 {
     NTSTATUS               status = STATUS_SUCCESS;
     PPORTS_DEVICE          pContext = GetPortsDevice(Device);
-    UINT                   nr_ports, i, j;
-    VIRTIO_WDF_QUEUE_PARAM params[VIRTIO_SERIAL_MAX_QUEUES];
-    struct virtqueue       *vqs[VIRTIO_SERIAL_MAX_QUEUES];
+    UINT                   nr_ports;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
     nr_ports = pContext->consoleConfig.max_nr_ports;
-    if(pContext->isHostMultiport)
+    if (pContext->isHostMultiport)
     {
         nr_ports++;
     }
 
-    for (i = 0; i < nr_ports; i++)
-    {
-        params[i * 2].bEnableInterruptSuppression = false;
-        params[i * 2 + 1].bEnableInterruptSuppression = false;
-        if (i == 1)
-        {
-            // control queues
-            params[2].Interrupt = pContext->WdfInterrupt;
-            params[3].Interrupt = pContext->WdfInterrupt;
-        }
-        else
-        {
-            // port queues
-            params[i * 2].Interrupt = pContext->QueuesInterrupt;
-            params[i * 2 + 1].Interrupt = pContext->QueuesInterrupt;
-        }
-    }
+    status = VirtIOWdfInitQueuesCB(
+        &pContext->VDevice,
+        nr_ports * 2,
+        VIOSerialGetQueueParamCallback,
+        VIOSerialSetQueueCallback);
 
-    status = VirtIOWdfInitQueues(&pContext->VDevice, nr_ports * 2, vqs, params);
-
-    if (NT_SUCCESS(status))
-    {
-        for (i = 0, j = 0; i < nr_ports; i++)
-        {
-            if(i == 1) // Control Port
-            {
-               pContext->c_ivq = vqs[2]; // ControlVector
-               pContext->c_ovq = vqs[3]; // ControlVector
-            }
-            else
-            {
-               pContext->in_vqs[j] = vqs[i * 2];
-               pContext->out_vqs[j] = vqs[i * 2 + 1];
-               ++j;
-            }
-        }
-    }
-    else
+    if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
             "VirtIOWdfInitQueues failed with %x\n", status);
