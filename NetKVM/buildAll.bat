@@ -1,65 +1,55 @@
 
 :: Build Windows Vista
 setlocal
-call tools\set_version.bat
 call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Vista Release|x86" /Out buildfre_win7_x86.log
 endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
 
 setlocal
-call tools\set_version.bat
 call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Vista Release|x64" /Out buildfre_win7_amd64.log
 endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
 
 :: Build Windows 7
 setlocal
-call tools\set_version.bat
 call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Win7 Release|x86" /Out buildfre_win7_x86.log
 endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
 
 setlocal
-call tools\set_version.bat
 call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Win7 Release|x64" /Out buildfre_win7_amd64.log
 endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
 
 :: Build Windows 8
 setlocal
-call tools\set_version.bat
 call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Win8 Release|x86" /Out buildfre_win8_x86.log
 endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
 
 setlocal
-call tools\set_version.bat
 call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Win8 Release|x64" /Out buildfre_win8_amd64.log
 endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
 
 :: Build Windows 8.1
 setlocal
-call tools\set_version.bat
 call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Win8.1 Release|x86" /Out buildfre_win8_x86.log
 endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
 
 setlocal
-call tools\set_version.bat
 call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Win8.1 Release|x64" /Out buildfre_win8_amd64.log
 endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
 
 :: Build Windows 10
 setlocal
-call tools\set_version.bat
 call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Win10 Release|x86" /Out buildfre_win10_x86.log
 endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
 
 setlocal
-call tools\set_version.bat
 call ..\tools\callVisualStudio.bat 14 netkvm-vs2015.sln /Rebuild "Win10 Release|x64" /Out buildfre_win10_amd64.log
 endlocal
 if %ERRORLEVEL% NEQ 0 goto :eof
