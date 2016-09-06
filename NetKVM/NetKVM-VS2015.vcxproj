@@ -921,6 +921,9 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configu
     <None Include="tools\NetKVMTemporaryCert.cer" />
     <None Include="tools\NetKVMTemporaryCert.pfx" />
   </ItemGroup>
+  <ItemGroup>
+    <Inf Include="$(SourceInfFile)" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
