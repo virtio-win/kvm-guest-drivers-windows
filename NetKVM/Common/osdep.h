@@ -24,7 +24,7 @@
 #include <Ntstrsafe.h>
 #pragma warning (pop)
 
-#if NTDDI_VERSION <= NTDDI_VISTA
+#if NTDDI_VERSION <= NTDDI_VISTASP1
 #define _Requires_lock_held_(lock)
 #define _Acquires_shared_lock_(lock)
 #define _Acquires_exclusive_lock_(lock)
