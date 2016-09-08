@@ -157,6 +157,29 @@ BalloonDeviceAdd(
                       FALSE
                       );
 
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    attributes.ParentObject = device;
+
+    status = WdfSpinLockCreate(
+        &attributes,
+        &devCtx->StatQueueLock
+        );
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfSpinLockCreate failed 0x%x\n", status);
+        return status;
+    }
+
+    status = WdfSpinLockCreate(
+        &attributes,
+        &devCtx->InfDefQueueLock
+        );
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfSpinLockCreate failed 0x%x\n", status);
+        return status;
+    }
+
     status = BalloonQueueInitialize(device);
     if(!NT_SUCCESS(status))
     {
@@ -449,12 +472,14 @@ BalloonInterruptDpc(
 {
     unsigned int          len;
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(WdfDevice);
+    PVOID                 buffer;
 
     BOOLEAN               bHostAck = FALSE;
     UNREFERENCED_PARAMETER( WdfInterrupt );
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "--> %s\n", __FUNCTION__);
 
+    WdfSpinLockAcquire(devCtx->InfDefQueueLock);
     if (virtqueue_get_buf(devCtx->InfVirtQueue, &len))
     {
         bHostAck = TRUE;
@@ -463,34 +488,41 @@ BalloonInterruptDpc(
     {
         bHostAck = TRUE;
     }
+    WdfSpinLockRelease(devCtx->InfDefQueueLock);
 
     if(bHostAck)
     {
         KeSetEvent (&devCtx->HostAckEvent, IO_NO_INCREMENT, FALSE);
     }
 
-    if (devCtx->StatVirtQueue &&
-        virtqueue_get_buf(devCtx->StatVirtQueue, &len))
+    if (devCtx->StatVirtQueue)
     {
-        WDFREQUEST request = devCtx->PendingWriteRequest;
+        WdfSpinLockAcquire(devCtx->StatQueueLock);
+        buffer = virtqueue_get_buf(devCtx->StatVirtQueue, &len);
+        WdfSpinLockRelease(devCtx->StatQueueLock);
 
-        devCtx->HandleWriteRequest = TRUE;
-
-        if ((request != NULL) &&
-            (WdfRequestUnmarkCancelable(request) != STATUS_CANCELLED))
+        if (buffer)
         {
-            NTSTATUS status;
-            PVOID buffer;
-            size_t length = 0;
+            WDFREQUEST request = devCtx->PendingWriteRequest;
 
-            devCtx->PendingWriteRequest = NULL;
+            devCtx->HandleWriteRequest = TRUE;
 
-            status = WdfRequestRetrieveInputBuffer(request, 0, &buffer, &length);
-            if (!NT_SUCCESS(status))
+            if ((request != NULL) &&
+                (WdfRequestUnmarkCancelable(request) != STATUS_CANCELLED))
             {
-                length = 0;
+                NTSTATUS status;
+                PVOID buffer;
+                size_t length = 0;
+
+                devCtx->PendingWriteRequest = NULL;
+
+                status = WdfRequestRetrieveInputBuffer(request, 0, &buffer, &length);
+                if (!NT_SUCCESS(status))
+                {
+                    length = 0;
+                }
+                WdfRequestCompleteWithInformation(request, status, length);
             }
-            WdfRequestCompleteWithInformation(request, status, length);
         }
     }
 

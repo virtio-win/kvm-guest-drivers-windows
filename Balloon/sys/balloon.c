@@ -263,12 +263,14 @@ BalloonTellHost(
     sg.physAddr = MmGetPhysicalAddress(devCtx->pfns_table);
     sg.length = sizeof(devCtx->pfns_table[0]) * devCtx->num_pfns;
 
+    WdfSpinLockAcquire(devCtx->InfDefQueueLock);
     if (virtqueue_add_buf(vq, &sg, 1, 0, devCtx, NULL, 0) < 0)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> %s :: Cannot add buffer\n", __FUNCTION__);
         return;
     }
     virtqueue_kick(vq);
+    WdfSpinLockRelease(devCtx->InfDefQueueLock);
 
     timeout.QuadPart = Int32x32To64(1000, -10000);
     status = KeWaitForSingleObject (
@@ -313,11 +315,13 @@ BalloonMemStats(
     sg.physAddr = MmGetPhysicalAddress(devCtx->MemStats);
     sg.length = sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR;
 
+    WdfSpinLockAcquire(devCtx->StatQueueLock);
     if (virtqueue_add_buf(devCtx->StatVirtQueue, &sg, 1, 0, devCtx, NULL, 0) < 0)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> %s :: Cannot add buffer\n", __FUNCTION__);
     }
-
     virtqueue_kick(devCtx->StatVirtQueue);
+    WdfSpinLockRelease(devCtx->StatQueueLock);
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
