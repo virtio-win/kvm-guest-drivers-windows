@@ -87,9 +87,9 @@ BalloonIoWrite(
         WdfRequestCompleteWithInformation(Request, status, Length);
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "WdfRequestCompleteWithInformation Called! Queue 0x%p, Request 0x%p Length %d Status 0x%08x\n",
             Queue, Request, Length, status);
-        BalloonMemStats(WdfIoQueueGetDevice(Queue));
 
         devCtx->HandleWriteRequest = FALSE;
+        BalloonMemStats(WdfIoQueueGetDevice(Queue));
     }
     else
     {
