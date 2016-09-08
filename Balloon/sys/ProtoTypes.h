@@ -57,6 +57,9 @@ typedef struct _DEVICE_CONTEXT {
     PVIOQUEUE               DefVirtQueue;
     PVIOQUEUE               StatVirtQueue;
 
+    WDFSPINLOCK             StatQueueLock;
+    WDFSPINLOCK             InfDefQueueLock;
+
     KEVENT                  HostAckEvent;
 
     volatile ULONG          num_pages;

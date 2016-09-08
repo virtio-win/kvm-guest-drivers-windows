@@ -144,6 +144,29 @@ BalloonDeviceAdd(
                       FALSE
                       );
 
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    attributes.ParentObject = device;
+
+    status = WdfSpinLockCreate(
+        &attributes,
+        &devCtx->StatQueueLock
+        );
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfSpinLockCreate failed 0x%x\n", status);
+        return status;
+    }
+
+    status = WdfSpinLockCreate(
+        &attributes,
+        &devCtx->InfDefQueueLock
+        );
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfSpinLockCreate failed 0x%x\n", status);
+        return status;
+    }
+
     status = StatInitializeWorkItem(device);
     if(!NT_SUCCESS(status))
     {
@@ -454,12 +477,14 @@ BalloonInterruptDpc(
 {
     unsigned int          len;
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(WdfDevice);
+    PVOID                 buffer;
 
     BOOLEAN               bHostAck = FALSE;
     UNREFERENCED_PARAMETER( WdfInterrupt );
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "--> %s\n", __FUNCTION__);
 
+    WdfSpinLockAcquire(devCtx->InfDefQueueLock);
     if (virtqueue_get_buf(devCtx->InfVirtQueue, &len))
     {
         bHostAck = TRUE;
@@ -468,31 +493,38 @@ BalloonInterruptDpc(
     {
         bHostAck = TRUE;
     }
+    WdfSpinLockRelease(devCtx->InfDefQueueLock);
 
     if(bHostAck)
     {
         KeSetEvent (&devCtx->HostAckEvent, IO_NO_INCREMENT, FALSE);
     }
 
-    if (devCtx->StatVirtQueue &&
-        virtqueue_get_buf(devCtx->StatVirtQueue, &len))
+    if (devCtx->StatVirtQueue)
     {
-        /*
-         * According to MSDN 'Using Framework Work Items' article:
-         * Create one or more work items that your driver requeues as necessary.
-         * Subsequently, each time that the driver's EvtInterruptDpc callback
-         * function is called it must determine if the EvtWorkItem callback
-         * function has run. If the EvtWorkItem callback function has not run,
-         * the EvtInterruptDpc callback function does not call WdfWorkItemEnqueue,
-         * because the work item is still queued.
-         * A few drivers might need to call WdfWorkItemFlush to flush their work
-         * items from the work-item queue.
-         *
-         * For each dpc (i.e. interrupt) we'll push stats exactly that many times.
-         */
-        if (1==InterlockedIncrement(&devCtx->WorkCount))
+        WdfSpinLockAcquire(devCtx->StatQueueLock);
+        buffer = virtqueue_get_buf(devCtx->StatVirtQueue, &len);
+        WdfSpinLockRelease(devCtx->StatQueueLock);
+
+        if (buffer)
         {
-            WdfWorkItemEnqueue(devCtx->StatWorkItem);
+            /*
+             * According to MSDN 'Using Framework Work Items' article:
+             * Create one or more work items that your driver requeues as necessary.
+             * Subsequently, each time that the driver's EvtInterruptDpc callback
+             * function is called it must determine if the EvtWorkItem callback
+             * function has run. If the EvtWorkItem callback function has not run,
+             * the EvtInterruptDpc callback function does not call WdfWorkItemEnqueue,
+             * because the work item is still queued.
+             * A few drivers might need to call WdfWorkItemFlush to flush their work
+             * items from the work-item queue.
+             *
+             * For each dpc (i.e. interrupt) we'll push stats exactly that many times.
+             */
+            if (1==InterlockedIncrement(&devCtx->WorkCount))
+            {
+                WdfWorkItemEnqueue(devCtx->StatWorkItem);
+            }
         }
     }
 
