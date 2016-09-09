@@ -215,7 +215,7 @@
       <AdditionalOptions>/osversion:6.1 %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>$(SDK_INC_PATH);%(AdditionalIncludeDirectories);..\Inc</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..\Inc</AdditionalIncludeDirectories>
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v140_xp'">
