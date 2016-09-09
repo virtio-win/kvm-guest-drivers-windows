@@ -47,6 +47,8 @@ typedef struct _DEVICE_CONTEXT {
     WDFINTERRUPT            WdfInterrupt;
     WDFWORKITEM             StatWorkItem;
     LONG                    WorkCount;
+    LONG                    ExtraIsrCount;
+    LONG                    ExtraDpcCount;
     PUCHAR                  PortBase;
     ULONG                   PortCount;
     BOOLEAN                 PortMapped;
@@ -70,6 +72,8 @@ typedef struct _DEVICE_CONTEXT {
     KEVENT                  WakeUpThread;
     PKTHREAD                Thread;
     BOOLEAN                 bShutDown;
+    BOOLEAN                 bD0Entry;
+    WDFSPINLOCK             D0Lock;
 
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
