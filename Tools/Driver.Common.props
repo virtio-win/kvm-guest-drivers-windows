@@ -91,6 +91,11 @@ Common property definitions used by all drivers.
     <InfArch>amd64.5.1</InfArch>
   </PropertyGroup>
 
+  <!-- Properties specific to the Legacy DDK -->
+  <PropertyGroup Condition="'$(UseLegacyDDK)'=='true'">
+    <ExecutablePath>$(ExecutablePath);$(LegacyDDKDir)\bin\x86;$(LegacyDDKDir)\bin\selfsign</ExecutablePath>
+  </PropertyGroup>
+
   <!-- Common options to make the legacy DDK toolset produce a kernel driver -->
   <ItemDefinitionGroup Condition="'$(UseLegacyDDK)'=='true'">
     <!-- Common compiler options -->
