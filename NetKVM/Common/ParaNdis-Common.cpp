@@ -1325,12 +1325,14 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
         pContext->pPathBundles = nullptr;
     }
 
+#if PARANDIS_SUPPORT_RSS
     if (pContext->RSS2QueueMap)
     {
         NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->RSS2QueueMap, PARANDIS_MEMORY_TAG);
         pContext->RSS2QueueMap = nullptr;
         pContext->RSS2QueueLength = 0;
     }
+#endif
 
     virtio_device_shutdown(&pContext->IODevice);
 
