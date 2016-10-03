@@ -882,12 +882,13 @@ static NDIS_STATUS SetupDPCTarget(PARANDIS_ADAPTER *pContext)
 #if PARANDIS_SUPPORT_RSS
 NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
 {
-    USHORT rssIndex, bundleIndex;
+    CPUPathesBundle **newMap = nullptr, **oldMap = nullptr;
+    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
+
+    USHORT rssIndex = 0, bundleIndex = 0;
     ULONG cpuIndex;
     ULONG rssTableSize = pContext->RSSParameters.RSSScalingSettings.IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
 
-    rssIndex = 0;
-    bundleIndex = 0;
     USHORT *cpuIndexTable;
     ULONG cpuNumbers;
 
@@ -928,50 +929,54 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
         __FUNCTION__, rssTableSize, pContext->nPathBundles,
         pContext->RSS2QueueLength, pContext->RSS2QueueMap));
 
-    if (pContext->RSS2QueueLength && pContext->RSS2QueueLength < rssTableSize)
+    if (rssTableSize)
     {
-        DPrintf(0, ("[%s] Freeing RSS2Queue Map\n", __FUNCTION__));
-        NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->RSS2QueueMap, PARANDIS_MEMORY_TAG);
-        pContext->RSS2QueueLength = 0;
-    }
-
-    if (!pContext->RSS2QueueLength)
-    {
-        pContext->RSS2QueueLength = USHORT(rssTableSize);
-        pContext->RSS2QueueMap = (CPUPathesBundle **)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, rssTableSize * sizeof(*pContext->RSS2QueueMap),
+        newMap = (CPUPathesBundle **)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, rssTableSize * sizeof(*newMap),
             PARANDIS_MEMORY_TAG, NormalPoolPriority);
-        if (pContext->RSS2QueueMap == nullptr)
+        if (newMap == nullptr)
         {
             DPrintf(0, ("[%s] - Allocating RSS to queue mapping failed\n", __FUNCTION__));
-            NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
-            return NDIS_STATUS_RESOURCES;
+            rssTableSize = 0;
+            status = NDIS_STATUS_RESOURCES;
+            goto replace;
         }
 
-        NdisZeroMemory(pContext->RSS2QueueMap, sizeof(*pContext->RSS2QueueMap) * pContext->RSS2QueueLength);
+        NdisZeroMemory(newMap, sizeof(*newMap) * rssTableSize);
+
+        for (rssIndex = 0; rssIndex < rssTableSize; rssIndex++)
+        {
+            newMap[rssIndex] = pContext->pPathBundles;
+        }
+
+        for (rssIndex = 0; rssIndex < rssTableSize; rssIndex++)
+        {
+            cpuIndex = NdisProcessorNumberToIndex(pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex]);
+            bundleIndex = cpuIndexTable[cpuIndex];
+
+            DPrintf(3, ("[%s] filling the relationship, rssIndex = %u, bundleIndex = %u\n", __FUNCTION__, rssIndex, bundleIndex));
+            DPrintf(3, ("[%s] RSS proc number %u/%u, bundle affinity %u/%u\n", __FUNCTION__,
+                pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Group,
+                pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Number,
+                pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Group,
+                pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Mask));
+
+            newMap[rssIndex] = pContext->pPathBundles + bundleIndex;
+       }
     }
 
-    for (rssIndex = 0; rssIndex < rssTableSize; rssIndex++)
+replace:
+    oldMap = pContext->RSS2QueueMap;
+    pContext->RSS2QueueLength = USHORT(rssTableSize);
+    pContext->RSS2QueueMap = newMap;
+
+    if (oldMap)
     {
-       pContext->RSS2QueueMap[rssIndex] = pContext->pPathBundles;
-    }
-
-    for (rssIndex = 0; rssIndex < rssTableSize; rssIndex++)
-    {
-        cpuIndex = NdisProcessorNumberToIndex(pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex]);
-        bundleIndex = cpuIndexTable[cpuIndex];
-
-        DPrintf(3, ("[%s] filling the relationship, rssIndex = %u, bundleIndex = %u\n", __FUNCTION__, rssIndex, bundleIndex));
-        DPrintf(3, ("[%s] RSS proc number %u/%u, bundle affinity %u/%u\n", __FUNCTION__,
-            pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Group,
-            pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Number,
-            pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Group,
-            pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Mask));
-
-        pContext->RSS2QueueMap[rssIndex] = pContext->pPathBundles + bundleIndex;
+        DPrintf(0, ("[%s] Freeing RSS2Queue Map\n", __FUNCTION__));
+        NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, oldMap, PARANDIS_MEMORY_TAG);
     }
 
     NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
-    return NDIS_STATUS_SUCCESS;
+    return status;
 }
 #endif
 
