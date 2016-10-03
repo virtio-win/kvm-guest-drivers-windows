@@ -241,6 +241,8 @@ static NDIS_STATUS ParaNdis6_Initialize(
         miniportAttributes.GeneralAttributes.MacAddressLength =     ETH_ALEN;
 
 #if PARANDIS_SUPPORT_RSS
+        pContext->RSS2QueueRwLock = 0;
+
         if (pContext->bRSSOffloadSupported)
         {
             miniportAttributes.GeneralAttributes.RecvScaleCapabilities =
@@ -424,11 +426,26 @@ static VOID ParaNdis6_SendNetBufferLists(
         {
             ULONG RSSHashValue = NET_BUFFER_LIST_GET_HASH_VALUE(pNBL);
             ULONG indirectionIndex = RSSHashValue & (pContext->RSSParameters.ActiveRSSScalingSettings.RSSHashMask);
+            KIRQL oldIrql;
+            CPUPathesBundle** map;
+            CPUPathesBundle* p;
 
             PNET_BUFFER_LIST nextNBL = NET_BUFFER_LIST_NEXT_NBL(pNBL);
             NET_BUFFER_LIST_NEXT_NBL(pNBL) = NULL;
 
-            pContext->RSS2QueueMap[indirectionIndex]->txPath.Send(pNBL);
+            oldIrql = ExAcquireSpinLockShared(&pContext->RSS2QueueRwLock);
+            map = pContext->RSS2QueueMap;
+            if (map)
+            {
+                p = map[indirectionIndex];
+            }
+            else
+            {
+                p = &pContext->pPathBundles[0];
+            }
+            ExReleaseSpinLockShared(&pContext->RSS2QueueRwLock, oldIrql);
+
+            p->txPath.Send(pNBL);
             pNBL = nextNBL;
         }
     }

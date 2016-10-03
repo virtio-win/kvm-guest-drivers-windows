@@ -882,6 +882,7 @@ static NDIS_STATUS SetupDPCTarget(PARANDIS_ADAPTER *pContext)
 #if PARANDIS_SUPPORT_RSS
 NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
 {
+    KIRQL oldIrql;
     CPUPathesBundle **newMap = nullptr, **oldMap = nullptr;
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
 
@@ -965,9 +966,11 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
     }
 
 replace:
+    oldIrql = ExAcquireSpinLockExclusive(&pContext->RSS2QueueRwLock);
     oldMap = pContext->RSS2QueueMap;
     pContext->RSS2QueueLength = USHORT(rssTableSize);
     pContext->RSS2QueueMap = newMap;
+    ExReleaseSpinLockExclusive(&pContext->RSS2QueueRwLock, oldIrql);
 
     if (oldMap)
     {
