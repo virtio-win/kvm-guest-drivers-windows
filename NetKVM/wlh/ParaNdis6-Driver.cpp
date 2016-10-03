@@ -437,6 +437,10 @@ static VOID ParaNdis6_SendNetBufferLists(
             map = pContext->RSS2QueueMap;
             if (map)
             {
+                if (indirectionIndex >= pContext->RSS2QueueLength)
+                {
+                    indirectionIndex %= pContext->RSS2QueueLength;
+                }
                 p = map[indirectionIndex];
             }
             else
