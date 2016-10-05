@@ -308,6 +308,10 @@ private:
 
     TEntryType *Pop_LockLess()
     {
+        if (IsEmpty())
+        {
+            return nullptr;
+        }
         CounterDecrement();
         return TEntryType::GetByListEntry(RemoveHeadList(&m_List));
     }
