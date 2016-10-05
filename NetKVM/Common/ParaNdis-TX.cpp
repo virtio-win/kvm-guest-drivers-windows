@@ -495,7 +495,7 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt)
                     }
                     else
                     {
-                        NBHolder->SendComplete();
+                        NBHolder->GetParentNBL()->NBComplete();
                         CNB::Destroy(NBHolder, m_Context->MiniportHandle);
                     }
                     break;
