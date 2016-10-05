@@ -332,8 +332,7 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
 
     if (NBLHolder->MappingSuceeded())
     {
-        DoWithTXLock([NBLHolder, this](){ m_SendList.PushBack(NBLHolder); });
-        DoPendingTasks(false);
+        DoPendingTasks(NBLHolder);
     }
     else
     {
@@ -525,15 +524,19 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt)
 
 #pragma warning(push)
 #pragma warning(disable:26135)
-bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
+bool CParaNdisTX::DoPendingTasks(CNBL *nblHolder)
 {
     PNET_BUFFER_LIST pNBLReturnNow = nullptr;
     bool bRestartQueueStatus = false;
 
     DoWithTXLock([&] ()
                  {
+                    if (nblHolder)
+                    {
+                        m_SendList.PushBack(nblHolder);
+                    }
                     m_VirtQueue.ProcessTXCompletions();
-                    bRestartQueueStatus = SendMapped(IsInterrupt);
+                    bRestartQueueStatus = SendMapped(nblHolder == nullptr);
                     if (bRestartQueueStatus)
                     {
                         // we can enter here only when we called from DPC

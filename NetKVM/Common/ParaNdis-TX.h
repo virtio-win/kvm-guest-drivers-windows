@@ -212,8 +212,7 @@ public:
     ULONG GetFreeHWBuffers()
     { return m_VirtQueue.GetFreeHWBuffers(); }
 
-    //TODO: Needs review
-    bool DoPendingTasks(bool IsInterrupt);
+    bool DoPendingTasks(CNBL *nblHolder = nullptr);
 
     void CompleteOutstandingNBLChain(PNET_BUFFER_LIST NBL, ULONG Flags = 0);
 private:
