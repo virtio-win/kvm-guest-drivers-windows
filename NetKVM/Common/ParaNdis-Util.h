@@ -13,33 +13,11 @@ void NetKvmAssert(bool Statement, ULONG Code);
 #define NETKVM_ASSERT(x) for(;;) break
 #endif
 
-class CPlacementAllocatable
+class CNdisAllocatableBase
 {
-public:
-    void* operator new(size_t size, void *ptr) throw()
-    {
-        UNREFERENCED_PARAMETER(size);
-        return ptr;
-    }
-};
-
-template <typename T, ULONG Tag>
-class CNdisAllocatable
-{
-public:
-    void* operator new(size_t Size, NDIS_HANDLE MiniportHandle) throw()
-        { return NdisAllocateMemoryWithTagPriority(MiniportHandle, (UINT) Size, Tag, NormalPoolPriority); }
-
-    static void Destroy(T *ptr, NDIS_HANDLE MiniportHandle)
-    {
-        ptr->~T();
-        NdisFreeMemoryWithTagPriority(MiniportHandle, ptr, Tag);
-    }
-
 protected:
-    CNdisAllocatable() {};
-    ~CNdisAllocatable() {};
-
+    CNdisAllocatableBase() {};
+    ~CNdisAllocatableBase() {};
     /* Objects's array can't be freed by NdisFreeMemoryWithTagPriority, as C++ array constructor uses the
     * first several bytes for array length. Array  destructor can't get additional argument, so passing
     * NDIS_HANDLE to the array destructor is impossible. Therefore, the array constructors and destructor
@@ -54,6 +32,34 @@ private:
     /* The delete operator can't be disabled like array constructors and destructors, as default destructor
     * and default constructor depend on the delete operator availability */
     void operator delete(void *) {}
+};
+
+class CPlacementAllocatable
+{
+public:
+    void* operator new(size_t size, void *ptr) throw()
+    {
+        UNREFERENCED_PARAMETER(size);
+        return ptr;
+    }
+};
+
+template <typename T, ULONG Tag>
+class CNdisAllocatable : private CNdisAllocatableBase
+{
+public:
+    void* operator new(size_t Size, NDIS_HANDLE MiniportHandle) throw()
+        { return NdisAllocateMemoryWithTagPriority(MiniportHandle, (UINT) Size, Tag, NormalPoolPriority); }
+
+    static void Destroy(T *ptr, NDIS_HANDLE MiniportHandle)
+    {
+        ptr->~T();
+        NdisFreeMemoryWithTagPriority(MiniportHandle, ptr, Tag);
+    }
+
+protected:
+    CNdisAllocatable() {};
+    ~CNdisAllocatable() {};
 };
 
 class CNdisSpinLock
