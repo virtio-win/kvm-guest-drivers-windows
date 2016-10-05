@@ -202,8 +202,7 @@ public:
     //TODO: Needs review
     void CancelNBLs(PVOID CancelId);
 
-    //TODO: Requires review
-    bool RestartQueue(bool DoKick);
+    bool RestartQueue();
 
     //TODO: Needs review/temporary?
     ULONG GetFreeTXDescriptors()

@@ -431,28 +431,24 @@ void CParaNdisTX::CancelNBLs(PVOID CancelId)
     }
 }
 
-//TODO: Requires review
-bool CParaNdisTX::RestartQueue(bool DoKick)
+//called with TX lock held
+bool CParaNdisTX::RestartQueue()
 {
-    TSpinLocker LockedContext(m_Lock);
     auto res = ParaNdis_SynchronizeWithInterrupt(m_Context,
                                                  m_messageIndex,
                                                  RestartQueueSynchronously,
                                                  this) ? true : false;
-
-    if(DoKick)
-    {
-        m_VirtQueue.Kick();
-    }
-
     return res;
 }
 
+//called with TX lock held
+//returns queue restart status
 bool CParaNdisTX::SendMapped(bool IsInterrupt)
 {
+    bool SentOutSomeBuffers = false;
+    bool bRestartStatus = false;
     if(ParaNdis_IsSendPossible(m_Context))
     {
-        bool SentOutSomeBuffers = false;
         auto HaveBuffers = true;
 
         while (HaveBuffers && HaveMappedNBLs())
@@ -512,22 +508,19 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt)
                 m_WaitingList.Push(NBLHolder);
             }
         }
-
-        if (SentOutSomeBuffers)
-        {
-            DPrintf(2, ("[%s] sent down\n", __FUNCTION__, SentOutSomeBuffers));
-            if (IsInterrupt)
-            {
-                return true;
-            }
-            else
-            {
-                m_VirtQueue.Kick();
-            }
-        }
     }
 
-    return false;
+    if (IsInterrupt)
+    {
+        bRestartStatus = RestartQueue();
+    }
+
+    if (SentOutSomeBuffers)
+    {
+        m_VirtQueue.Kick();
+    }
+
+    return bRestartStatus;
 }
 
 #pragma warning(push)
@@ -535,12 +528,20 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt)
 bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
 {
     PNET_BUFFER_LIST pNBLReturnNow = nullptr;
-    bool bDoKick = false;
+    bool bRestartQueueStatus = false;
 
     DoWithTXLock([&] ()
                  {
                     m_VirtQueue.ProcessTXCompletions();
-                    bDoKick = SendMapped(IsInterrupt);
+                    bRestartQueueStatus = SendMapped(IsInterrupt);
+                    if (bRestartQueueStatus)
+                    {
+                        // we can enter here only when we called from DPC
+                        // if we can't enable interrupts on queue right now,
+                        // we can retrieve completed packets and try again
+                        m_VirtQueue.ProcessTXCompletions();
+                        bRestartQueueStatus = SendMapped(true);
+                    }
                     pNBLReturnNow = ProcessWaitingList();
                  });
 
@@ -550,7 +551,7 @@ bool CParaNdisTX::DoPendingTasks(bool IsInterrupt)
     }
 #pragma warning(pop)
 
-    return bDoKick;
+    return bRestartQueueStatus;
 }
 
 void CNB::MappingDone(PSCATTER_GATHER_LIST SGL)
