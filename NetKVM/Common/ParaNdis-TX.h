@@ -10,6 +10,67 @@ class CNBL;
 
 typedef CNdisAllocatable<CNBL, 'LNHR'> CNBLAllocator;
 
+class CNB : public CNdisAllocatable<CNB, 'BNHR'>
+{
+public:
+    CNB(PNET_BUFFER NB, CNBL *ParentNBL, PPARANDIS_ADAPTER Context)
+        : m_NB(NB)
+        , m_ParentNBL(ParentNBL)
+        , m_Context(Context)
+    { }
+
+    ~CNB();
+
+    bool IsValid() const
+    {
+        return (GetDataLength() != 0);
+    }
+
+    ULONG GetDataLength() const
+    {
+        return NET_BUFFER_DATA_LENGTH(m_NB);
+    }
+
+    bool ScheduleBuildSGListForTx();
+
+    void MappingDone(PSCATTER_GATHER_LIST SGL);
+    void ReleaseResources();
+
+    CNBL *GetParentNBL() const
+    {
+        return m_ParentNBL;
+    }
+
+    ULONG GetSGLLength() const
+    {
+        return m_SGL->NumberOfElements;
+    }
+
+    bool BindToDescriptor(CTXDescriptor &Descriptor);
+private:
+    bool Copy(PVOID Dst, ULONG Length) const;
+    bool CopyHeaders(PVOID Destination, ULONG MaxSize, ULONG &HeadersLength, ULONG &L4HeaderOffset) const;
+    void BuildPriorityHeader(PETH_HEADER EthHeader, PVLAN_HEADER VlanHeader) const;
+    void PrepareOffloads(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength, ULONG L4HeaderOffset) const;
+    void SetupLSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const;
+    USHORT QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const;
+    void DoIPHdrCSO(PVOID EthHeaders, ULONG HeadersLength) const;
+    void SetupCSO(virtio_net_hdr *VirtioHeader, ULONG L4HeaderOffset) const;
+    bool FillDescriptorSGList(CTXDescriptor &Descriptor, ULONG DataOffset) const;
+    bool MapDataToVirtioSGL(CTXDescriptor &Descriptor, ULONG Offset) const;
+    void PopulateIPLength(IPHeader *IpHeader, USHORT IpLength) const;
+
+    PNET_BUFFER m_NB;
+    CNBL *m_ParentNBL;
+    PPARANDIS_ADAPTER m_Context;
+    PSCATTER_GATHER_LIST m_SGL = nullptr;
+
+    CNB(const CNB&) = delete;
+    CNB& operator= (const CNB&) = delete;
+
+    DECLARE_CNDISLIST_ENTRY(CNB);
+};
+
 class CNBL : public CNBLAllocator, public CRefCountingObject
 {
 public:
@@ -118,64 +179,6 @@ private:
     DECLARE_CNDISLIST_ENTRY(CNBL);
 };
 
-class CNB : public CNdisAllocatable<CNB, 'BNHR'>
-{
-public:
-    CNB(PNET_BUFFER NB, CNBL *ParentNBL, PPARANDIS_ADAPTER Context)
-        : m_NB(NB)
-        , m_ParentNBL(ParentNBL)
-        , m_Context(Context)
-    { }
-
-    ~CNB();
-
-    bool IsValid() const
-    { return (GetDataLength() != 0); }
-
-    ULONG GetDataLength() const
-    { return NET_BUFFER_DATA_LENGTH(m_NB); }
-
-    bool ScheduleBuildSGListForTx();
-
-    void MappingDone(PSCATTER_GATHER_LIST SGL);
-    void ReleaseResources();
-
-    CNBL *GetParentNBL() const
-    { return m_ParentNBL; }
-
-    ULONG GetSGLLength() const
-    { return m_SGL->NumberOfElements; }
-
-    //TODO: Needs review
-    void SendComplete()
-    {
-        m_ParentNBL->NBComplete();
-    }
-
-    bool BindToDescriptor(CTXDescriptor &Descriptor);
-private:
-    bool Copy(PVOID Dst, ULONG Length) const;
-    bool CopyHeaders(PVOID Destination, ULONG MaxSize, ULONG &HeadersLength, ULONG &L4HeaderOffset) const;
-    void BuildPriorityHeader(PETH_HEADER EthHeader, PVLAN_HEADER VlanHeader) const;
-    void PrepareOffloads(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength, ULONG L4HeaderOffset) const;
-    void SetupLSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const;
-    USHORT QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const;
-    void DoIPHdrCSO(PVOID EthHeaders, ULONG HeadersLength) const;
-    void SetupCSO(virtio_net_hdr *VirtioHeader, ULONG L4HeaderOffset) const;
-    bool FillDescriptorSGList(CTXDescriptor &Descriptor, ULONG DataOffset) const;
-    bool MapDataToVirtioSGL(CTXDescriptor &Descriptor, ULONG Offset) const;
-    void PopulateIPLength(IPHeader *IpHeader, USHORT IpLength) const;
-
-    PNET_BUFFER m_NB;
-    CNBL *m_ParentNBL;
-    PPARANDIS_ADAPTER m_Context;
-    PSCATTER_GATHER_LIST m_SGL = nullptr;
-
-    CNB(const CNB&) = delete;
-    CNB& operator= (const CNB&) = delete;
-
-    DECLARE_CNDISLIST_ENTRY(CNB);
-};
 
 class CParaNdisTX : public CParaNdisTemplatePath<CTXVirtQueue>, public CNdisAllocatable<CParaNdisTX, 'XTHR'>
 {
