@@ -1735,8 +1735,6 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
 
     if (pContext->bEnableInterruptHandlingDPC)
     {
-        bool bDoKick = false;
-
         if (RxDPCWorkBody(pContext, pathBundle, numOfPacketsToIndicate))
         {
             stillRequiresProcessing = true;
@@ -1749,13 +1747,9 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
             pContext->CXPath.ClearInterruptReport();
         }
 
-        if (pathBundle != nullptr)
+        if (pathBundle != nullptr && pathBundle->txPath.DoPendingTasks(true))
         {
-            bDoKick = pathBundle->txPath.DoPendingTasks(true);
-            if (pathBundle->txPath.RestartQueue(bDoKick))
-            {
-                stillRequiresProcessing = true;
-            }
+            stillRequiresProcessing = true;
         }
     }
     InterlockedDecrement(&pContext->counterDPCInside);
