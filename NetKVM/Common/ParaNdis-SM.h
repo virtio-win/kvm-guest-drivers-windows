@@ -7,64 +7,60 @@ class CDataFlowStateMachine : public CPlacementAllocatable
 public:
     void Start()
     {
-        TSpinLocker LockedContext(m_ObjectLock);
-
         NETKVM_ASSERT(m_State == FlowState::Stopped);
-        NETKVM_ASSERT(m_NumOutstandingItems == 0);
-
-        m_NoOutstandingItems.Clear();
-
+        m_Counter.AddRef();
         m_State = FlowState::Running;
-        m_NumOutstandingItems = 1;
+        m_Counter.ClearMask(StoppedMask);
     }
 
     void Stop(NDIS_STATUS Reason = NDIS_STATUS_PAUSED)
     {
-        m_ObjectLock.Lock();
-
         NETKVM_ASSERT(m_State == FlowState::Running);
         m_State = FlowState::Stopping;
         m_StopReason = Reason;
-
-        m_ObjectLock.Unlock();
-
+        m_NoOutstandingItems.Clear();
+        m_Counter.SetMask(StoppedMask);
         UnregisterOutstandingItem();
-
         m_NoOutstandingItems.Wait();
     }
 
     bool RegisterOutstandingItems(ULONG NumItems,
                                   NDIS_STATUS *FailureReason = nullptr)
     {
-        TSpinLocker LockedContext(m_ObjectLock);
-
-        if (m_State != FlowState::Running)
+        auto value = m_Counter.AddRef(NumItems);
+        if (value & StoppedMask)
         {
+            value = m_Counter.Release(NumItems);
+            if (value == StoppedMask)
+            {
+                CompleteStopping();
+            }
             if (FailureReason != nullptr)
             {
                 *FailureReason = m_StopReason;
             }
             return false;
         }
-
-        m_NumOutstandingItems += NumItems;
         return true;
     }
 
     void UnregisterOutstandingItems(ULONG NumItems)
     {
-        TSpinLocker LockedContext(m_ObjectLock);
-
         NETKVM_ASSERT(m_State != FlowState::Stopped);
-        NETKVM_ASSERT(m_NumOutstandingItems >= NumItems);
-
-        m_NumOutstandingItems -= NumItems;
-
-        if (m_NumOutstandingItems == 0)
+        LONG value = m_Counter.Release(NumItems);
+        if (value == StoppedMask)
         {
-            NETKVM_ASSERT(m_State == FlowState::Stopping);
-            m_State = FlowState::Stopped;
-            m_NoOutstandingItems.Notify();
+            CompleteStopping();
+        }
+        else if (value)
+        {
+            // common case, data transfer (StoppedMask not set)
+            // pausing or completing not last packet during pausing (StoppedMask set)
+        }
+        else
+        {
+            // illegal case
+            NETKVM_ASSERT(value != 0);
         }
     }
 
@@ -74,12 +70,23 @@ public:
     void UnregisterOutstandingItem()
     { UnregisterOutstandingItems(1); }
 
-    CDataFlowStateMachine() = default;
+    CDataFlowStateMachine() { m_Counter.SetMask(StoppedMask); }
     ~CDataFlowStateMachine() = default;
     CDataFlowStateMachine(const CDataFlowStateMachine&) = delete;
     CDataFlowStateMachine& operator= (const CDataFlowStateMachine&) = delete;
 
 private:
+    void CompleteStopping()
+    {
+        TSpinLocker lock(m_CompleteStoppingLock);
+        if (m_State == FlowState::Stopping)
+        {
+            m_State = FlowState::Stopped;
+            m_NoOutstandingItems.Notify();
+        }
+    }
+
+    enum { StoppedMask = 0x40000000 };
 
     using FlowState = enum
     {
@@ -88,9 +95,9 @@ private:
         Stopped
     };
 
-    ULONG m_NumOutstandingItems = 0;
+    CNdisRefCounter m_Counter;
     FlowState m_State = FlowState::Stopped;
-    CNdisSpinLock m_ObjectLock;
+    CNdisSpinLock m_CompleteStoppingLock;
     CNdisEvent m_NoOutstandingItems;
     NDIS_STATUS m_StopReason = NDIS_STATUS_PAUSED;
 
