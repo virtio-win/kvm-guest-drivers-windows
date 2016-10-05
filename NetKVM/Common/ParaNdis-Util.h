@@ -62,6 +62,37 @@ protected:
     ~CNdisAllocatable() {};
 };
 
+template <typename T>
+class CAllocationHelper
+{
+public:
+    virtual T*   Allocate()      = 0;
+    virtual void Deallocate(T *) = 0;
+};
+
+template <typename T>
+class CNdisAllocatableViaHelper : private CNdisAllocatableBase
+{
+public:
+    void* operator new(size_t Size, CAllocationHelper<T> *pHelper) throw()
+    {
+        UNREFERENCED_PARAMETER(Size);
+        return pHelper->Allocate();
+    }
+
+    static void Destroy(T *ptr)
+    {
+        CAllocationHelper<T> *pHelper = ptr->m_Allocator;
+        ptr->~T();
+        pHelper->Deallocate(ptr);
+    }
+
+protected:
+    CNdisAllocatableViaHelper(CAllocationHelper<T> *allocator) : m_Allocator(allocator) {};
+    ~CNdisAllocatableViaHelper() {};
+    CAllocationHelper<T> *m_Allocator;
+};
+
 class CNdisSpinLock
 {
 public:
@@ -355,6 +386,39 @@ public:
 
 private:
     KIRQL m_OriginalIRQL;
+};
+
+template <typename TEntryType, ULONG tag>
+class CPool : public CNdisList<TEntryType, CLockedAccess, CCountingObject>,
+              public CAllocationHelper<TEntryType>
+{
+public:
+    CPool() {}
+    TEntryType *Allocate() override
+    {
+        auto *p = Pop();
+        if (!p) p = NdisAllocate();
+        return p;
+    }
+    void Deallocate(TEntryType *ptr) override
+    {
+        PushBack(ptr);
+    }
+    void Create(NDIS_HANDLE h) { m_Handle = h; }
+    ~CPool()
+    {
+        ForEachDetached([this](TEntryType *p) { NdisFree(p); });
+    }
+private:
+    NDIS_HANDLE m_Handle = nullptr;
+    void NdisFree(TEntryType *p)
+    {
+        NdisFreeMemoryWithTagPriority(m_Handle, p, tag);
+    }
+    TEntryType *NdisAllocate()
+    {
+        return (TEntryType *)NdisAllocateMemoryWithTagPriority(m_Handle, sizeof(TEntryType), tag, NormalPoolPriority);
+    }
 };
 
 class CNdisSharedMemory
