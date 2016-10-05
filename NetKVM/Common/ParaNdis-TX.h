@@ -232,4 +232,7 @@ private:
 
     CNdisList<CNBL, CRawAccess, CNonCountingObject> m_SendList;
     CNdisList<CNBL, CRawAccess, CNonCountingObject> m_WaitingList;
+
+    CPool<CNB, 'BNHR'>  m_nbPool;
+    CPool<CNBL, 'LNHR'> m_nblPool;
 };
