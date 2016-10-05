@@ -18,26 +18,6 @@ void NetKvmAssert(bool Statement, ULONG Code)
 }
 #endif
 
-void CNdisRefCounter::AddRef(ULONG RefCnt)
-{
-    for (auto i = 0UL; i < RefCnt; ++i)
-    {
-        AddRef();
-    }
-}
-
-LONG CNdisRefCounter::Release(ULONG RefCnt)
-{
-    LONG res = m_Counter;
-
-    for (auto i = 0UL; i < RefCnt; ++i)
-    {
-        res = Release();
-    }
-
-    return res;
-}
-
 bool CNdisSharedMemory::Allocate(ULONG Size, bool IsCached)
 {
     m_Size = Size;

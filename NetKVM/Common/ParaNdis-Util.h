@@ -107,15 +107,25 @@ private:
 
 typedef CLockedContext<CNdisSpinLock> TSpinLocker;
 
+LONG FORCEINLINE NetKvmInterlockedAdd(
+    __inout __drv_interlocked LONG volatile *p,
+    __in LONG Val
+)
+{
+    return InterlockedExchangeAdd(p, Val) + Val;
+}
+
 class CNdisRefCounter
 {
 public:
     CNdisRefCounter() = default;
 
     LONG AddRef() { return NdisInterlockedIncrement(&m_Counter); }
-    void AddRef(ULONG RefCnt);
+    LONG AddRef(ULONG RefCnt) { return NetKvmInterlockedAdd(&m_Counter, (LONG)RefCnt); }
     LONG Release() { return NdisInterlockedDecrement(&m_Counter); }
-    LONG Release(ULONG RefCnt);
+    LONG Release(ULONG RefCnt) { return NetKvmInterlockedAdd(&m_Counter, -(LONG)RefCnt); }
+    void SetMask(LONG mask) { InterlockedOr(&m_Counter, mask); }
+    void ClearMask(LONG mask) { InterlockedAnd(&m_Counter, ~mask); }
     operator LONG () { return m_Counter; }
 private:
     LONG m_Counter = 0;
