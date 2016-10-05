@@ -255,6 +255,7 @@ void CNBL::OnLastReferenceGone()
 
 CParaNdisTX::~CParaNdisTX()
 {
+    DPrintf(1, ("Pools state %d-> NB: %d, NBL: %d\n", m_queueIndex, m_nbPool.GetCount(), m_nblPool.GetCount()));
     if (m_StateMachineRegistered)
     {
         m_Context->m_StateMachine.UnregisterFlow(m_StateMachine);
@@ -268,6 +269,9 @@ bool CParaNdisTX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 
     Context->m_StateMachine.RegisterFlow(m_StateMachine);
     m_StateMachineRegistered = true;
+
+    m_nbPool.Create(Context->MiniportHandle);
+    m_nblPool.Create(Context->MiniportHandle);
 
     return m_VirtQueue.Create(DeviceQueueIndex,
         &m_Context->IODevice,
