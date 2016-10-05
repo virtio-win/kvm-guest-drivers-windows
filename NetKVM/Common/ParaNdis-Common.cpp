@@ -1671,7 +1671,7 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, U
         if(pContext->m_RxStateMachine.RegisterOutstandingItems(nIndicate))
         {
             NdisMIndicateReceiveNetBufferLists(pContext->MiniportHandle,
-                                                indicate, 0, nIndicate, 0);
+                                                indicate, 0, nIndicate, NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL);
         }
         else
         {
