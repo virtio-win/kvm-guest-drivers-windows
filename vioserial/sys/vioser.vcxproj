@@ -253,6 +253,14 @@
       <Command>
         copy vioser.inx $(OutDir)\vioser.inf
         stampinf -f $(OutDir)\vioser.inf -a $(InfArch) -k 1.9 -v $(STAMPINF_VERSION)
+        packOne.bat $(TargetOS) $(TargetArch) vioser "$(LegacyDDKDir)"
+      </Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(PlatformToolset)'!='v140_xp'">
+    <PostBuildEvent>
+      <Command>
+        packOne.bat $(TargetOS) $(TargetArch) vioser "$(WDKContentRoot)"
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
