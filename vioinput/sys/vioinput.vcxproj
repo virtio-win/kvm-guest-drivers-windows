@@ -160,6 +160,11 @@
       <Version>6.1</Version>
       <AdditionalOptions>/osversion:6.1 %(AdditionalOptions)</AdditionalOptions>
     </Link>
+    <PostBuildEvent>
+      <Command>
+        packOne.bat $(TargetOS) $(TargetArch) vioinput "$(WDKContentRoot)"
+      </Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
