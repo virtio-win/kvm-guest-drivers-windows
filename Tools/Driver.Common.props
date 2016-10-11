@@ -20,27 +20,41 @@ Common property definitions used by all drivers.
     <LegacyDDKDir>$(DDKINSTALLROOT)$(DDKVER)</LegacyDDKDir>
   </PropertyGroup>
 
-  <!-- First component of driver version (always reflects target OS version) -->
+  <!-- _NT_TARGET_MAJ is the first component of driver version (always reflects target OS version) -->
   <PropertyGroup Condition="'$(Configuration)'=='Win10 Release' OR '$(Configuration)'=='Win10 Debug'">
     <_NT_TARGET_MAJ>100</_NT_TARGET_MAJ>
+    <TargetOS>Win10</TargetOS>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Win8.1 Release' OR '$(Configuration)'=='Win8.1 Debug'">
     <_NT_TARGET_MAJ>63</_NT_TARGET_MAJ>
+    <TargetOS>Win8.1</TargetOS>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Win8 Release' OR '$(Configuration)'=='Win8 Debug'">
     <_NT_TARGET_MAJ>62</_NT_TARGET_MAJ>
+    <TargetOS>Win8</TargetOS>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Win7 Release' OR '$(Configuration)'=='Win7 Debug'">
     <_NT_TARGET_MAJ>61</_NT_TARGET_MAJ>
+    <TargetOS>Win7</TargetOS>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Vista Release' OR '$(Configuration)'=='Vista Debug'">
     <_NT_TARGET_MAJ>60</_NT_TARGET_MAJ>
+    <TargetOS>Wlh</TargetOS>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Win2k3 Release' OR '$(Configuration)'=='Win2k3 Debug'">
     <_NT_TARGET_MAJ>52</_NT_TARGET_MAJ>
+    <TargetOS>Wnet</TargetOS>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='WinXP Release' OR '$(Configuration)'=='WinXP Debug'">
     <_NT_TARGET_MAJ>51</_NT_TARGET_MAJ>
+    <TargetOS>Wxp</TargetOS>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Platform)'=='Win32'">
+    <TargetArch>x86</TargetArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)'=='x64'">
+    <TargetArch>amd64</TargetArch>
   </PropertyGroup>
 
   <PropertyGroup>
