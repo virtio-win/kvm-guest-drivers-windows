@@ -230,6 +230,14 @@
       <Command>
         copy $(SourceInfFile) $(OutDir)\viostor.inf
         stampinf -f $(OutDir)\viostor.inf -a $(InfArch) -v $(STAMPINF_VERSION)
+        packOne.bat $(TargetOS) $(TargetArch) viostor
+      </Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(PlatformToolset)'!='v140_xp'">
+    <PostBuildEvent>
+      <Command>
+        packOne.bat $(TargetOS) $(TargetArch) viostor
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
