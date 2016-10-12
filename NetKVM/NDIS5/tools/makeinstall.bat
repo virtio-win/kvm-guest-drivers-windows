@@ -2,10 +2,11 @@
 : Param2 - path to SYS file
 : Param3 - path to INF file
 : Param4 - version in x.x.x.x form
-: Param5 - XP
-: Param6 - Install | InstallChk | (or any other folder name)
+: Param5 - InfArch string
+: Param6 - XP
+: Param7 - Install | InstallChk | (or any other folder name)
 
-set folder_name=%6
+set folder_name=%7
 
 if /i "%1"=="x86" goto makeinstall
 if /i "%1"=="amd64" goto makeinstall
@@ -22,10 +23,10 @@ del %~nx1
 goto :eof
 
 :makeinstall
-echo makeinstall %1 %2 %3 %4 %5
-mkdir %folder_name%\%5\%1
-del /Q %folder_name%\%5\%1\*
-copy /Y %2 %folder_name%\%5\%1
-copy /Y %~dpn2.pdb %folder_name%\%5\%1
-call :prepareinf %3 %folder_name%\%5\%1 %5
-call "%~dp0\signing.cmd" sign%5 %1 %folder_name%\%5\%1\%~nx3 %4
+echo makeinstall %1 %2 %3 %4 %5 %6
+mkdir %folder_name%\%6\%1
+del /Q %folder_name%\%6\%1\*
+copy /Y %2 %folder_name%\%6\%1
+copy /Y %~dpn2.pdb %folder_name%\%6\%1
+call :prepareinf %3 %folder_name%\%6\%1 %6
+call "%~dp0\signing.cmd" sign%6 %1 %folder_name%\%6\%1\%~nx3 %4 %5

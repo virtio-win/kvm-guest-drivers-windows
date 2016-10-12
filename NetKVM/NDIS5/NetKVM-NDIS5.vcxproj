@@ -136,6 +136,14 @@
       <AdditionalDependencies>%(AdditionalDependencies);ndis.lib;ndiscommon.lib;virtiolib.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>Common\$(OutDir);..\..\VirtIO\$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
+    <PostBuildEvent>
+      <Command Condition="$(Configuration.EndsWith('Release'))">
+        tools\makeinstall.bat $(TargetArch) $(OutDir)netkvm.sys wxp\netkvm.inf $(STAMPINF_VERSION) $(InfArch) XP Install
+      </Command>
+      <Command Condition="$(Configuration.EndsWith('Debug'))">
+        tools\makeinstall.bat $(TargetArch) $(OutDir)netkvm.sys wxp\netkvm.inf $(STAMPINF_VERSION) $(InfArch) XP Install_Checked
+      </Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Platform)'=='Win32'">
     <Link>
