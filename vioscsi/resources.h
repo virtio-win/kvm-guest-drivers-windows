@@ -21,7 +21,7 @@
 #define MODEL                         L"VirtIO-SCSI"
 #define MODELDESCRIPTION              L"Red Hat VirtIO SCSI pass-through controller"
 #define HARDWAREVERSION               L"v1.0"
-#define DRIVERVERSION                 _MAJORVERSION_
+#define DRIVERVERSION                 _BUILD_MAJOR_VERSION_
 //#define OPTIONROMVERSION              L"OptionROMVersion"
 #define FIRMWAREVERSION               L"v1.0"
 #define DRIVERNAME                    L"vioscsi.sys"

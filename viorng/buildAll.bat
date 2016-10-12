@@ -2,10 +2,6 @@
 
 setlocal
 
-set _MAJORVERSION_=%_BUILD_MAJOR_VERSION_%
-set _MINORVERSION_=%_BUILD_MINOR_VERSION_%
-set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
-
 if "%1_%2" neq "_" (
   call :build_driver %1 %2
 ) else (

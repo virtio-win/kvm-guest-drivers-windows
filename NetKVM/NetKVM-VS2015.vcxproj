@@ -305,11 +305,6 @@
     <DEP_LIB_PATH>objchk_win8_amd64\amd64</DEP_LIB_PATH>
     <SourceInfFile>netkvm.inf</SourceInfFile>
   </PropertyGroup>
-  <PropertyGroup>
-    <_NT_TARGET_MIN>$(_RHEL_RELEASE_VERSION_)</_NT_TARGET_MIN>
-    <_MAJORVERSION_>$(_BUILD_MAJOR_VERSION_)</_MAJORVERSION_>
-    <_MINORVERSION_>$(_BUILD_MINOR_VERSION_)</_MINORVERSION_>
-  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -333,12 +328,12 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>wlh;Common;..\Virtio;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_MAJORVERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_MINORVERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);DRIVER_NT_TARGET_VERSION=$(_NT_TARGET_MAJ)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);DRIVER_NT_TARGET_VERSION=$(_NT_TARGET_MAJ)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4201;4214;4115;4127;4302;4463;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>wlh;Common;..\Virtio;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);PARANDIS_MAJOR_DRIVER_VERSION=$(_MAJORVERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_MINORVERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);_RHEL_RELEASE_VERSION_=$(_NT_TARGET_MIN);DRIVER_NT_TARGET_VERSION=$(_NT_TARGET_MAJ)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);_RHEL_RELEASE_VERSION_=$(_RHEL_RELEASE_VERSION_);DRIVER_NT_TARGET_VERSION=$(_NT_TARGET_MAJ)</PreprocessorDefinitions>
     </ResourceCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);$(DDK_LIB_PATH)\ndis.lib;..\VirtIO\$(DEP_LIB_PATH)\virtiolib.lib</AdditionalDependencies>

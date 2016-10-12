@@ -122,7 +122,7 @@
       <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)\Common;..\..\VirtIO;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization Condition="$(Configuration.EndsWith('Release'))">Full</Optimization>
       <Optimization Condition="$(Configuration.EndsWith('Debug'))">Disabled</Optimization>
-      <PreprocessorDefinitions>NDIS_MINIPORT_DRIVER;NDIS51_MINIPORT=1;BINARY_COMPATIBLE=0;_NT_TARGET_MAJ=$(_NT_TARGET_MAJ);_NT_TARGET_MIN=$(_NT_TARGET_MIN);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDIS_MINIPORT_DRIVER;NDIS51_MINIPORT=1;BINARY_COMPATIBLE=0;_NT_TARGET_MAJ=$(_NT_TARGET_MAJ);_RHEL_RELEASE_VERSION_=$(_RHEL_RELEASE_VERSION_);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>

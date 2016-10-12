@@ -19,10 +19,6 @@ goto :eof
 :BuildProject
 setlocal
 
-set _MAJORVERSION_=%_BUILD_MAJOR_VERSION_%
-set _MINORVERSION_=%_BUILD_MINOR_VERSION_%
-set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
-
 call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x64
 call ..\tools\callVisualStudio.bat 14 viostor.vcxproj /Rebuild "%~1" /Out %2
 endlocal
@@ -30,10 +26,6 @@ goto :eof
 
 :StaticDriverVerifier
 setlocal
-
-set _MAJORVERSION_=%_BUILD_MAJOR_VERSION_%
-set _MINORVERSION_=%_BUILD_MINOR_VERSION_%
-set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
 
 call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %2
 msbuild.exe viostor.vcxproj /t:clean /p:Configuration="%~1" /P:Platform=%2 
