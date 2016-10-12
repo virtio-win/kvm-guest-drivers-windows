@@ -1,10 +1,6 @@
 @echo off
 setlocal
 
-set _MAJORVERSION_=%_BUILD_MAJOR_VERSION_%
-set _MINORVERSION_=%_BUILD_MINOR_VERSION_%
-set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
-
 if not "%1"=="" goto parameters_here
 echo no parameters specified, rebuild all
 call clean.bat
