@@ -1,11 +1,7 @@
 @echo off
 
-set SYS_FILE_NAME=vioscsi
-
 if "%1_%2" neq "_" goto %1_%2
 for %%A in (Wlh Win7 Win8 Win10) do for %%B in (32 64) do call :%%A_%%B
-
-set SYS_FILE_NAME=
 goto :eof 
 
 
@@ -23,17 +19,11 @@ goto :eof
 
 :BuildSDV
 setlocal
-set _NT_TARGET_VERSION=%3
-if "%_BUILD_MAJOR_VERSION_%"=="" set _BUILD_MAJOR_VERSION_=101
-if "%_BUILD_MINOR_VERSION_%"=="" set _BUILD_MINOR_VERSION_=58000
-if "%_RHEL_RELEASE_VERSION_%"=="" set _RHEL_RELEASE_VERSION_=61
 
 set _MAJORVERSION_=%_BUILD_MAJOR_VERSION_%
 set _MINORVERSION_=%_BUILD_MINOR_VERSION_%
-set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% & 255)"
 set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
 
-set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_% 
 call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %2
 msbuild.exe vioscsi.vcxproj /t:clean /p:Configuration="%~1" /P:Platform=%2 
 msbuild.exe vioscsi.vcxproj /t:sdv /p:inputs="/clean" /p:Configuration="%~1" /P:platform=%2

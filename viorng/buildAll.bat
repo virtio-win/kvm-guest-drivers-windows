@@ -36,19 +36,3 @@ goto :eof
 call :set_out_filename %1 %2
 call ..\tools\callVisualStudio.bat 14 viorng.sln /Rebuild "%BUILDCONFIG% Release|%BUILDPLAT%" /Out %OUT_FILENAME%
 goto :eof
-
-:build_um_provider
-call :set_out_filename %1 %2
-call ..\tools\callVisualStudio.bat 14 cng\um\viorngum.vcxproj /Rebuild "Release|%BUILDPLAT%" /Out %OUT_FILENAME%
-copy "cng\um\%2\Release\viorngum.dll" "Install\%OS%\%PLAT%\"
-set BUILDPLAT=
-goto :eof
-
-:build_co_installer
-set BUILDPLAT=%2
-if "%2"=="Win32" set BUILDPLAT=x86
-call :set_out_filename %1 %2
-call ..\tools\callVisualStudio.bat 14 coinstaller\viorngci.vcxproj /Rebuild "Release|%BUILDPLAT%" /Out %OUT_FILENAME%
-copy "coinstaller\%2\Release\viorngci.dll" "Install\%OS%\%PLAT%\"
-set BUILDPLAT=
-goto :eof
