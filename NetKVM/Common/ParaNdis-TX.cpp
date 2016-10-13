@@ -1,10 +1,11 @@
 #include "ndis56common.h"
 #include "kdebugprint.h"
 
-CNBL::CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath)
+CNBL::CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath, CAllocationHelper<CNBL> *NBLAllocator)
     : m_NBL(NBL)
     , m_Context(Context)
     , m_ParentTXPath(&ParentTXPath)
+    , CNdisAllocatableViaHelper<CNBL>(NBLAllocator)
 {
     m_NBL->Scratch = this;
     m_LsoInfo.Value = NET_BUFFER_LIST_INFO(m_NBL, TcpLargeSendNetBufferListInfo);
@@ -250,7 +251,7 @@ void CNBL::StartMapping()
 
 void CNBL::OnLastReferenceGone()
 {
-    Destroy(this, m_Context->MiniportHandle);
+    Destroy(this);
 }
 
 CParaNdisTX::~CParaNdisTX()
@@ -307,7 +308,7 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
         nextNBL = NET_BUFFER_LIST_NEXT_NBL(currNBL);
         NET_BUFFER_LIST_NEXT_NBL(currNBL) = nullptr;
 
-        auto NBLHolder = new (m_Context->MiniportHandle) CNBL(currNBL, m_Context, *this);
+        auto NBLHolder = new (&m_nblPool) CNBL(currNBL, m_Context, *this, &m_nblPool);
 
         if (NBLHolder == nullptr)
         {
