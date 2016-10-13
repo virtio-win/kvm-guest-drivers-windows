@@ -1,11 +1,12 @@
 #include "ndis56common.h"
 #include "kdebugprint.h"
 
-CNBL::CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath, CAllocationHelper<CNBL> *NBLAllocator)
+CNBL::CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath, CAllocationHelper<CNBL> *NBLAllocator, CAllocationHelper<CNB> *NBAllocator)
     : m_NBL(NBL)
     , m_Context(Context)
     , m_ParentTXPath(&ParentTXPath)
     , CNdisAllocatableViaHelper<CNBL>(NBLAllocator)
+    , m_NBAllocator(NBAllocator)
 {
     m_NBL->Scratch = this;
     m_LsoInfo.Value = NET_BUFFER_LIST_INFO(m_NBL, TcpLargeSendNetBufferListInfo);
@@ -17,10 +18,10 @@ CNBL::~CNBL()
     CDpcIrqlRaiser OnDpc;
 
     m_MappedBuffers.ForEachDetached([this](CNB *NB)
-                                    { CNB::Destroy(NB, m_Context->MiniportHandle); });
+                                    { CNB::Destroy(NB); });
 
     m_Buffers.ForEachDetached([this](CNB *NB)
-                              { CNB::Destroy(NB, m_Context->MiniportHandle); });
+                              { CNB::Destroy(NB); });
 
     if(m_NBL)
     {
@@ -81,10 +82,12 @@ void CNBL::RegisterMappedNB(CNB *NB)
 bool CNBL::ParseBuffers()
 {
     m_MaxDataLength = 0;
+    CAllocationHelper<CNB> *pNBAllocator = this;
 
     for (auto NB = NET_BUFFER_LIST_FIRST_NB(m_NBL); NB != nullptr; NB = NET_BUFFER_NEXT_NB(NB))
     {
-        CNB *NBHolder = new (m_Context->MiniportHandle) CNB(NB, this, m_Context);
+        CNB *NBHolder = new (pNBAllocator) CNB(NB, this, m_Context, pNBAllocator);
+        pNBAllocator = m_NBAllocator;
         if(!NBHolder || !NBHolder->IsValid())
         {
             return false;
@@ -308,7 +311,7 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
         nextNBL = NET_BUFFER_LIST_NEXT_NBL(currNBL);
         NET_BUFFER_LIST_NEXT_NBL(currNBL) = nullptr;
 
-        auto NBLHolder = new (&m_nblPool) CNBL(currNBL, m_Context, *this, &m_nblPool);
+        auto NBLHolder = new (&m_nblPool) CNBL(currNBL, m_Context, *this, &m_nblPool, &m_nbPool);
 
         if (NBLHolder == nullptr)
         {
@@ -496,7 +499,7 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt)
                     else
                     {
                         NBHolder->GetParentNBL()->NBComplete();
-                        CNB::Destroy(NBHolder, m_Context->MiniportHandle);
+                        CNB::Destroy(NBHolder);
                     }
                     break;
                 default:

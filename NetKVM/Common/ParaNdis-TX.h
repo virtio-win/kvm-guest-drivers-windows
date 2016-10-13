@@ -8,13 +8,14 @@ class CParaNdisTX;
 typedef struct _tagPARANDIS_ADAPTER *PPARANDIS_ADAPTER;
 class CNBL;
 
-class CNB : public CNdisAllocatable<CNB, 'BNHR'>
+class CNB : public CNdisAllocatableViaHelper<CNB>
 {
 public:
-    CNB(PNET_BUFFER NB, CNBL *ParentNBL, PPARANDIS_ADAPTER Context)
+    CNB(PNET_BUFFER NB, CNBL *ParentNBL, PPARANDIS_ADAPTER Context, CAllocationHelper<CNB> *Allocator)
         : m_NB(NB)
         , m_ParentNBL(ParentNBL)
         , m_Context(Context)
+        , CNdisAllocatableViaHelper<CNB>(Allocator)
     { }
 
     ~CNB();
@@ -74,7 +75,7 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>,
              public CAllocationHelper<CNB>
 {
 public:
-    CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath, CAllocationHelper<CNBL> *NBLAllocator);
+    CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath, CAllocationHelper<CNBL> *NBLAllocator, CAllocationHelper<CNB> *NBAllocator);
     ~CNBL();
 
     /* CAllocationHelper<CNB> */
@@ -182,6 +183,8 @@ private:
 
     NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO m_LsoInfo;
     NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO m_CsoInfo;
+
+    CAllocationHelper<CNB> *m_NBAllocator;
 
     CNBL(const CNBL&) = delete;
     CNBL& operator= (const CNBL&) = delete;

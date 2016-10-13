@@ -308,7 +308,7 @@ void CTXVirtQueue::OnTransmitBufferReleased(CTXDescriptor *TXDescriptor)
 {
     auto NB = TXDescriptor->GetNB();
     NB->GetParentNBL()->NBComplete();
-    CNB::Destroy(NB, m_Context->MiniportHandle);
+    CNB::Destroy(NB);
 }
 
 void CTXVirtQueue::Shutdown()
