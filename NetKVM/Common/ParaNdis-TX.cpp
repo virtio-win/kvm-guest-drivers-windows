@@ -498,8 +498,8 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt)
                     }
                     else
                     {
-                        NBHolder->GetParentNBL()->NBComplete();
                         CNB::Destroy(NBHolder);
+                        NBLHolder->NBComplete();
                     }
                     break;
                 default:
