@@ -71,11 +71,24 @@ private:
     DECLARE_CNDISLIST_ENTRY(CNB);
 };
 
-class CNBL : public CNBLAllocator, public CRefCountingObject
+class CNBL : public CNBLAllocator,
+             public CRefCountingObject,
+             public CAllocationHelper<CNB>
 {
 public:
     CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath);
     ~CNBL();
+
+    /* CAllocationHelper<CNB> */
+    CNB *Allocate() override
+    {
+        return (CNB *)&m_CNB_Storage;
+    }
+    void Deallocate(CNB *ptr) override
+    {
+        UNREFERENCED_PARAMETER(ptr);
+    }
+
     bool Prepare()
     { return (ParsePriority() && ParseBuffers() && ParseOffloads()); }
     void StartMapping();
@@ -154,6 +167,8 @@ private:
     PNET_BUFFER_LIST m_NBL;
     PPARANDIS_ADAPTER m_Context;
     CParaNdisTX *m_ParentTXPath;
+    // align storage for CNB on pointer size boundary and provide enough room for it
+    ULONG_PTR m_CNB_Storage[(sizeof(CNB) + sizeof(ULONG_PTR) - 1) / sizeof(ULONG_PTR)];
     bool m_HaveFailedMappings = false;
 
     CNdisList<CNB, CRawAccess, CNonCountingObject> m_Buffers;
