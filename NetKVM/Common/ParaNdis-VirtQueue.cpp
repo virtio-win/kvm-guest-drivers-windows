@@ -307,8 +307,9 @@ void CTXVirtQueue::ProcessTXCompletions()
 void CTXVirtQueue::OnTransmitBufferReleased(CTXDescriptor *TXDescriptor)
 {
     auto NB = TXDescriptor->GetNB();
-    NB->GetParentNBL()->NBComplete();
+    auto parentNBL = NB->GetParentNBL();
     CNB::Destroy(NB);
+    parentNBL->NBComplete();
 }
 
 void CTXVirtQueue::Shutdown()
