@@ -8,8 +8,6 @@ class CParaNdisTX;
 typedef struct _tagPARANDIS_ADAPTER *PPARANDIS_ADAPTER;
 class CNBL;
 
-typedef CNdisAllocatable<CNBL, 'LNHR'> CNBLAllocator;
-
 class CNB : public CNdisAllocatable<CNB, 'BNHR'>
 {
 public:
@@ -71,12 +69,12 @@ private:
     DECLARE_CNDISLIST_ENTRY(CNB);
 };
 
-class CNBL : public CNBLAllocator,
+class CNBL : public CNdisAllocatableViaHelper<CNBL>,
              public CRefCountingObject,
              public CAllocationHelper<CNB>
 {
 public:
-    CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath);
+    CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath, CAllocationHelper<CNBL> *NBLAllocator);
     ~CNBL();
 
     /* CAllocationHelper<CNB> */
@@ -140,9 +138,6 @@ public:
 
 private:
     virtual void OnLastReferenceGone() override;
-
-    static void Destroy(CNBL *ptr, NDIS_HANDLE MiniportHandle)
-    { CNBLAllocator::Destroy(ptr, MiniportHandle); }
 
     void RegisterNB(CNB *NB);
     bool ParsePriority();
