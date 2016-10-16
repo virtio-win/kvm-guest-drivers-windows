@@ -241,7 +241,7 @@ static CParaNdisAbstractPath *GetPathByMessageId(PARANDIS_ADAPTER *pContext, ULO
     CParaNdisAbstractPath *path = NULL;
 
     UINT bundleId = MessageId / 2;
-    if (bundleId >= pContext->nPathBundles)
+    if (pContext->CXPath.getMessageIndex() == MessageId)
     {
         path = &pContext->CXPath;
     }
@@ -459,11 +459,17 @@ static VOID SharedMemAllocateCompleteHandler(
     UNREFERENCED_PARAMETER(Context);
 }
 
+/*
+  We enter this procedure in two cases:
+  - number of MSIX vectors is at least nPathBundles*2 + 1
+  - there is single MSIX vector and one path bundle
+*/
 NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_RESOURCES;
     UINT i;
     PIO_INTERRUPT_MESSAGE_INFO pTable = pContext->pMSIXInfoTable;
+    bool bSingleVector = pContext->pMSIXInfoTable->MessageCount == 1;
     if (pTable && pTable->MessageCount)
     {
         status = NDIS_STATUS_SUCCESS;
@@ -478,8 +484,13 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
         }
         for (UINT j = 0; j < pContext->nPathBundles && status == NDIS_STATUS_SUCCESS; ++j)
         {
-            status = pContext->pPathBundles[j].rxPath.SetupMessageIndex(2 * u16(j) + 1);
-            status = pContext->pPathBundles[j].txPath.SetupMessageIndex(2 * u16(j));
+            u16 vector = 2 * u16(j);
+            status = pContext->pPathBundles[j].txPath.SetupMessageIndex(vector);
+            if (status == NDIS_STATUS_SUCCESS)
+            {
+                if (!bSingleVector) vector++;
+                status = pContext->pPathBundles[j].rxPath.SetupMessageIndex(vector);
+            }
             DPrintf(0, ("[%s] Using messages %u/%u for RX/TX queue %u\n", __FUNCTION__,
                         pContext->pPathBundles[j].rxPath.getMessageIndex(),
                         pContext->pPathBundles[j].txPath.getMessageIndex(),
@@ -488,16 +499,17 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
 
         if (status == NDIS_STATUS_SUCCESS && pContext->bCXPathCreated)
         {
-            /* We need own vector for control queue. If one is not available, fail the initialization */
-            if (pContext->nPathBundles * 2 > pTable->MessageCount - 1)
+            /*
+            Usually there is own vector for control queue.
+            In corner case of single vector control queue uses the same vector as RX and TX
+            */
+            if (bSingleVector)
             {
-                DPrintf(0, ("[%s] Not enough vectors for control queue!\n", __FUNCTION__));
-                status = NDIS_STATUS_RESOURCES;
+                status = pContext->CXPath.SetupMessageIndex(0);
             }
             else
             {
                 status = pContext->CXPath.SetupMessageIndex(2 * u16(pContext->nPathBundles));
-                DPrintf(0, ("[%s] Using message %u for controls\n", __FUNCTION__, pContext->CXPath.getMessageIndex()));
             }
         }
     }

@@ -824,6 +824,11 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
 
     /* In virtio the type of the queue index is "short", thus this type casting */
     USHORT nBundles = USHORT(((pContext->pMSIXInfoTable->MessageCount - 1) / 2)  & 0xFFFF);
+    if (!nBundles && pContext->pMSIXInfoTable->MessageCount == 1)
+    {
+        DPrintf(0, ("[%s] WARNING: Single MSIx interrupt allocated, performance will be reduced\n", __FUNCTION__, pContext->pMSIXInfoTable->MessageCount));
+        nBundles = 1;
+    }
 
     DPrintf(0, ("[%s] %lu CPUs reported\n", __FUNCTION__, nProcessors));
     DPrintf(0, ("[%s] %lu MSIs, %u queues' bundles\n", __FUNCTION__, pContext->pMSIXInfoTable->MessageCount, nBundles));
@@ -836,9 +841,20 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
     return nBundles;
 }
 #else
-static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *)
+static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
 {
-    return 1;
+    if (!pContext->bUsingMSIX)
+    {
+        DPrintf(0, ("[%s] No MSIX, using 1 queue\n", __FUNCTION__));
+        return 1;
+    }
+
+    if (pContext->pMSIXInfoTable->MessageCount == 1 || pContext->pMSIXInfoTable->MessageCount > 2)
+    {
+        return 1;
+    }
+
+    return 0;
 }
 #endif
 
