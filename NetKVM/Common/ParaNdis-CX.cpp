@@ -128,6 +128,8 @@ BOOLEAN CParaNdisCX::SendControlMessage(
 
 NDIS_STATUS CParaNdisCX::SetupMessageIndex(u16 vector)
 {
+    DPrintf(0, ("[%s] Using message %u for controls\n", __FUNCTION__, vector));
+
     virtio_set_config_vector(&m_Context->IODevice, vector);
 
     return CParaNdisAbstractPath::SetupMessageIndex(vector);
