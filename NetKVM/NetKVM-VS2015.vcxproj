@@ -458,7 +458,7 @@ xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install_Debug\$(C
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);ndis.lib;..\VirtIO\$(DEP_LIB_PATH)\virtiolib.lib</AdditionalDependencies>
+      <AdditionalDependencies>ndis.lib;..\VirtIO\$(DEP_LIB_PATH)\virtiolib.lib;hal.lib;ntoskrnl.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <EntryPointSymbol>GsDriverEntry@8</EntryPointSymbol>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
