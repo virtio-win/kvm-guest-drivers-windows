@@ -5,5 +5,4 @@ msbuild.exe NetKVM-VS2015.vcxproj /t:sdv /p:inputs="/clean" /p:Configuration="Wi
 msbuild.exe NetKVM-VS2015.vcxproj /p:Configuration="Win10 Release" /P:Platform=x64 /P:RunCodeAnalysisOnce=True
 msbuild.exe NetKVM-VS2015.vcxproj /t:sdv /p:inputs="/check" /p:Configuration="Win10 Release" /P:platform=x64
 msbuild.exe NetKVM-VS2015.vcxproj /t:dvl /p:Configuration="Win10 Release" /P:platform=x64
-copy NetKVM.DVL.XML .\Install\Win10\amd64\
 endlocal

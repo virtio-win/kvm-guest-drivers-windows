@@ -325,6 +325,9 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <Inf2CatWindowsVersionList>Server10_$(DDKPlatform);$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
   </PropertyGroup>
+  <PropertyGroup>
+    <CustomBuildAfterTargets>dvl</CustomBuildAfterTargets>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>wlh;Common;..\Virtio;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -861,6 +864,13 @@ xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(SolutionDir)Install\$(Configura
 xcopy /y /q $(SolutionDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\
 xcopy /y /q $(SolutionDir)CoInstaller\readme.doc $(SolutionDir)Install\$(Configuration.Replace(' Release',''))\$(ProcessorArchitecture)\</Command>
     </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup>
+    <CustomBuildStep>
+      <Command>copy /Y $(ProjectDir)NetKVM.DVL.XML $(SolutionDir)Install\$(TargetOS)\$(TargetArch)</Command>
+      <Inputs>$(ProjectDir)NetKVM.DVL.XML</Inputs>
+      <Outputs>$(SolutionDir)Install\$(TargetOS)\$(TargetArch)\NetKVM.DVL.XML</Outputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)">
