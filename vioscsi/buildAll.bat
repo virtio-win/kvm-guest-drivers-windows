@@ -62,8 +62,6 @@ if "%_BUILD_DISABLE_SDV%"=="" goto :DO_SDV
 goto :eof
 :DO_SDV
 call :BuildSDV "Win8 Release" x64
-copy vioscsi.DVL.XML Install\Win8\amd64
-rmdir /S /Q .\sdv
 goto :eof
 
 :WIN10_32
@@ -76,8 +74,6 @@ if "%_BUILD_DISABLE_SDV%"=="" goto :DO_SDV
 goto :eof
 :DO_SDV
 call :BuildSDV "Win10 Release" x64
-copy vioscsi.DVL.XML Install\Win10\amd64
-rmdir /S /Q .\sdv
 goto :eof
 
 :eof
