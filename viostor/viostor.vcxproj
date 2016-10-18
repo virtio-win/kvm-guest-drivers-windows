@@ -197,6 +197,9 @@
     <OutDir>objfre_wxp_amd64\amd64\</OutDir>
     <IntDir>objfre_wxp_amd64\amd64\</IntDir>
   </PropertyGroup>
+  <PropertyGroup>
+    <CustomBuildAfterTargets>dvl</CustomBuildAfterTargets>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\VirtIO</AdditionalIncludeDirectories>
@@ -286,6 +289,13 @@
       <AdditionalDependencies>%(AdditionalDependencies);scsiport.lib</AdditionalDependencies>
       <EntryPointSymbol>DriverEntry@8</EntryPointSymbol>
     </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup>
+    <CustomBuildStep>
+      <Command>copy /Y $(ProjectDir)viostor.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)</Command>
+      <Inputs>$(ProjectDir)viostor.DVL.XML</Inputs>
+      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viostor.DVL.XML</Outputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
