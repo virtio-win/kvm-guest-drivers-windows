@@ -89,8 +89,6 @@ goto :eof
 pushd NDIS5
 call buildall.bat XP
 popd
-if %ERRORLEVEL% NEQ 0 goto :eof
-xcopy /S /I /Y NDIS5\Install\XP\x86 Install\XP\x86
 goto :eof
 
 :: XP64
@@ -98,6 +96,4 @@ goto :eof
 pushd NDIS5
 call buildall.bat XP64
 popd
-if %ERRORLEVEL% NEQ 0 goto :eof
-xcopy /S /I /Y NDIS5\Install\XP\amd64 Install\XP\amd64
 goto :eof

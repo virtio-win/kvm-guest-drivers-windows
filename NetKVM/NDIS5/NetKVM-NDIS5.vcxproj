@@ -138,10 +138,10 @@
     </Link>
     <PostBuildEvent>
       <Command Condition="$(Configuration.EndsWith('Release'))">
-        tools\makeinstall.bat $(TargetArch) $(OutDir)netkvm.sys wxp\netkvm.inf $(STAMPINF_VERSION) $(InfArch) XP Install
+        tools\makeinstall.bat $(TargetArch) $(OutDir)netkvm.sys wxp\netkvm.inf $(STAMPINF_VERSION) $(InfArch) $(TargetOS) ..\Install
       </Command>
       <Command Condition="$(Configuration.EndsWith('Debug'))">
-        tools\makeinstall.bat $(TargetArch) $(OutDir)netkvm.sys wxp\netkvm.inf $(STAMPINF_VERSION) $(InfArch) XP Install_Checked
+        tools\makeinstall.bat $(TargetArch) $(OutDir)netkvm.sys wxp\netkvm.inf $(STAMPINF_VERSION) $(InfArch) $(TargetOS) ..\Install_Debug
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
