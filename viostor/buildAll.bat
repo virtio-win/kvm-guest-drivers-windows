@@ -46,7 +46,6 @@ if "%_BUILD_DISABLE_SDV%"=="" goto :DO_SDV
 goto :eof
 :DO_SDV
 call :StaticDriverVerifier "Win10 Release" x64
-copy viostor.DVL.XML Install\Win10\amd64
 goto :eof
 
 :WIN8_32
@@ -59,8 +58,6 @@ if "%_BUILD_DISABLE_SDV%"=="" goto :DO_SDV
 goto :eof
 :DO_SDV
 call :StaticDriverVerifier "Win8 Release" x64
-copy viostor.DVL.XML Install\Win8\amd64
-rmdir /S /Q .\sdv
 goto :eof
 
 :WIN7_32
