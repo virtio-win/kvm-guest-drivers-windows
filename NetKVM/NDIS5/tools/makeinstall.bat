@@ -3,7 +3,7 @@
 : Param3 - path to INF file
 : Param4 - version in x.x.x.x form
 : Param5 - InfArch string
-: Param6 - XP
+: Param6 - TargetOS
 : Param7 - Install | InstallChk | (or any other folder name)
 
 set folder_name=%7
@@ -29,4 +29,4 @@ del /Q %folder_name%\%6\%1\*
 copy /Y %2 %folder_name%\%6\%1
 copy /Y %~dpn2.pdb %folder_name%\%6\%1
 call :prepareinf %3 %folder_name%\%6\%1 %6
-call "%~dp0\signing.cmd" sign%6 %1 %folder_name%\%6\%1\%~nx3 %4 %5
+call "%~dp0\signing.cmd" %1 %folder_name%\%6\%1\%~nx3 %4 %5

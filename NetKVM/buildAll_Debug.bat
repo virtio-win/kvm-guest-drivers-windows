@@ -68,14 +68,10 @@ if %ERRORLEVEL% NEQ 0 goto :eof
 pushd NDIS5
 call buildAll.bat XPCHK
 popd
-if %ERRORLEVEL% NEQ 0 goto :eof
-xcopy /S /I /Y NDIS5\Install_Checked\XP\x86 Install_Debug\XP\x86
 
 :: XP64
 pushd NDIS5
 call buildAll.bat XP64CHK
 popd
-if %ERRORLEVEL% NEQ 0 goto :eof
-xcopy /S /I /Y NDIS5\Install_Checked\XP\amd64 Install_Debug\XP\amd64
 
 xcopy /y /q tools\NetKVMTemporaryCert.cer Install_Debug\NetKVM.cer*
