@@ -72,6 +72,7 @@
     <MinimumVisualStudioVersion>11.0</MinimumVisualStudioVersion>
     <Configuration>Win8 Debug</Configuration>
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
+    <SignMode>Off</SignMode>
   </PropertyGroup>
   <PropertyGroup Label="Globals">
     <RootNamespace>pvpanic</RootNamespace>
