@@ -65,6 +65,7 @@
     <MinimumVisualStudioVersion>11.0</MinimumVisualStudioVersion>
     <Configuration>Win8 Release</Configuration>
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
+    <SignMode>Off</SignMode>
   </PropertyGroup>
   <PropertyGroup Label="Globals">
     <RootNamespace>balloon</RootNamespace>
