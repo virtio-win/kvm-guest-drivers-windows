@@ -1,1 +1,1 @@
-@call ..\tools\build.bat sys\vioinput.vcxproj "Win7 Win8 Win10" %*
+@call ..\tools\build.bat vioinput.sln "Win7 Win8 Win10" %*
