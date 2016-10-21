@@ -7,10 +7,10 @@ call tools\build.bat vioscsi\vioscsi.vcxproj "Win8_SDV Win10_SDV" %*
 if errorlevel 1 goto :eof
 call tools\build.bat viostor\viostor.vcxproj "Win8_SDV Win10_SDV" %*
 if errorlevel 1 goto :eof
-pushd pciserial
-call buildAll.bat
-if errorlevel 1 goto :eof
-popd
-pushd packaging
-call buildAll.bat
-popd
+
+for %%D in (pciserial fwcfg packaging) do (
+  pushd %%D
+  call buildAll.bat
+  if errorlevel 1 goto :eof
+  popd
+)
