@@ -34,7 +34,10 @@
 #define BUG() ASSERT(0)
 
 #if !defined(__cplusplus) && !defined(bool)
-#define bool int
+// Important note: in MSFT C++ bool length is 1 bytes
+// C++ does not define length of bool
+// inconsistent definition of 'bool' may create compatibility problems
+#define bool u8
 #define false FALSE
 #define true TRUE
 #endif
