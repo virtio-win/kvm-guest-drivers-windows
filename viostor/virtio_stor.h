@@ -166,7 +166,7 @@ typedef struct _VRING_DESC_ALIAS
 }VRING_DESC_ALIAS;
 #endif
 
-typedef struct _RHEL_SRB_EXTENSION {
+typedef struct _SRB_EXTENSION {
     blk_req               vbr;
     ULONG                 out;
     ULONG                 in;
@@ -178,7 +178,7 @@ typedef struct _RHEL_SRB_EXTENSION {
 #if INDIRECT_SUPPORTED
     VRING_DESC_ALIAS      desc[VIRTIO_MAX_SG];
 #endif
-}RHEL_SRB_EXTENSION, *PRHEL_SRB_EXTENSION;
+}SRB_EXTENSION, *PSRB_EXTENSION;
 
 BOOLEAN
 VirtIoInterrupt(
