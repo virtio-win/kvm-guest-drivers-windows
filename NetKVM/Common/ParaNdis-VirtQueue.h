@@ -239,6 +239,8 @@ private:
     CVirtQueue& operator= (const CVirtQueue&) = delete;
 };
 
+typedef CNdisList<CNB, CRawAccess, CNonCountingObject> CRawCNBList;
+
 class CTXVirtQueue : public CVirtQueue
 {
 public:
@@ -257,14 +259,7 @@ public:
 
     SubmitTxPacketResult SubmitPacket(CNB &NB);
 
-    //TODO: Temporary, needs review
-    UINT VirtIONetReleaseTransmitBuffers();
-
-    //TODO: Needs review
-    void ProcessTXCompletions();
-
-    //TODO: Needs review
-    void OnTransmitBufferReleased(CTXDescriptor *TXDescriptor);
+    void ProcessTXCompletions(CRawCNBList& listDone);
 
     //TODO: Needs review/temporary?
     ULONG GetFreeTXDescriptors()
@@ -278,6 +273,7 @@ public:
     void Shutdown();
 
 private:
+    UINT ReleaseTransmitBuffers(CRawCNBList& listDone);
     bool PrepareBuffers();
     void FreeBuffers();
     ULONG m_MaxBuffers;
