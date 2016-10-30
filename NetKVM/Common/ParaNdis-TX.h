@@ -174,10 +174,8 @@ private:
 
     ULONG m_BuffersNumber = 0;
     CNdisRefCounter m_BuffersMapped;
-
-    ULONG m_MappedBuffersDetached = 0;
-    //TODO: Needs review
-    ULONG m_BuffersDone = 0;
+    CNdisRefCounter m_MappedBuffersDetached;
+    CNdisRefCounter m_BuffersDone;
 
     ULONG m_MaxDataLength = 0;
     ULONG m_TransferSize = 0;
@@ -195,6 +193,7 @@ private:
     DECLARE_CNDISLIST_ENTRY(CNBL);
 };
 
+typedef CNdisList<CNBL, CRawAccess, CNonCountingObject> CRawCNBLList;
 
 class CParaNdisTX : public CParaNdisTemplatePath<CTXVirtQueue>, public CNdisAllocatable<CParaNdisTX, 'XTHR'>
 {
@@ -233,10 +232,9 @@ public:
     void CompleteOutstandingNBLChain(PNET_BUFFER_LIST NBL, ULONG Flags = 0);
 private:
 
-    //TODO: Needs review
-    bool SendMapped(bool IsInterrupt);
+    bool SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList);
 
-    PNET_BUFFER_LIST ProcessWaitingList();
+    PNET_BUFFER_LIST ProcessWaitingList(CRawCNBLList& completed);
     PNET_BUFFER_LIST BuildCancelList(PVOID CancelId);
 
     bool HaveMappedNBLs() { return !m_SendList.IsEmpty(); }
@@ -246,8 +244,9 @@ private:
     CDataFlowStateMachine m_StateMachine;
     bool m_StateMachineRegistered = false;
 
-    CNdisList<CNBL, CRawAccess, CNonCountingObject> m_SendList;
-    CNdisList<CNBL, CRawAccess, CNonCountingObject> m_WaitingList;
+    CRawCNBLList m_SendList;
+    CRawCNBLList m_WaitingList;
+    CNdisSpinLock m_WaitingListLock;
 
     CPool<CNB, 'BNHR'>  m_nbPool;
     CPool<CNBL, 'LNHR'> m_nblPool;

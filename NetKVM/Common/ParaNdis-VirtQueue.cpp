@@ -264,8 +264,7 @@ SubmitTxPacketResult CTXVirtQueue::SubmitPacket(CNB &NB)
     return res;
 }
 
-//TODO: Temporary, needs review
-UINT CTXVirtQueue::VirtIONetReleaseTransmitBuffers()
+UINT CTXVirtQueue::ReleaseTransmitBuffers(CRawCNBList& listDone)
 {
     UINT len, i = 0;
     CTXDescriptor *TXDescriptor;
@@ -280,7 +279,7 @@ UINT CTXVirtQueue::VirtIONetReleaseTransmitBuffers()
             DPrintf(0, ("[%s] ERROR: nofUsedBuffers not set!\n", __FUNCTION__));
         }
         m_FreeHWBuffers += TXDescriptor->GetUsedBuffersNum();
-        OnTransmitBufferReleased(TXDescriptor);
+        listDone.PushBack(TXDescriptor->GetNB());
         m_Descriptors.Push(TXDescriptor);
         DPrintf(3, ("[%s] Free Tx: desc %d, buff %d\n", __FUNCTION__, m_Descriptors.GetCount(), m_FreeHWBuffers));
         ++i;
@@ -295,21 +294,12 @@ UINT CTXVirtQueue::VirtIONetReleaseTransmitBuffers()
 }
 
 //TODO: Needs review
-void CTXVirtQueue::ProcessTXCompletions()
+void CTXVirtQueue::ProcessTXCompletions(CRawCNBList& listDone)
 {
     if (m_Descriptors.GetCount() < m_TotalDescriptors)
     {
-        VirtIONetReleaseTransmitBuffers();
+        ReleaseTransmitBuffers(listDone);
     }
-}
-
-//TODO: Needs review
-void CTXVirtQueue::OnTransmitBufferReleased(CTXDescriptor *TXDescriptor)
-{
-    auto NB = TXDescriptor->GetNB();
-    auto parentNBL = NB->GetParentNBL();
-    CNB::Destroy(NB);
-    parentNBL->NBComplete();
 }
 
 void CTXVirtQueue::Shutdown()
