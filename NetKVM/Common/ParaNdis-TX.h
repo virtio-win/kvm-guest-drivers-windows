@@ -96,10 +96,13 @@ public:
     void SetStatus(NDIS_STATUS Status)
     { m_NBL->Status = Status; }
 
+    // called under m_Lock of parent TX path for CNBL object in Send list
     CNB *PopMappedNB();
+    // called under m_Lock of parent TX path for CNBL object in Send list
     void PushMappedNB(CNB *NBHolder);
+    // called under m_Lock of parent TX path for CNBL object in Send list
     bool HaveMappedBuffers()
-    { return !m_MappedBuffers.IsEmpty(); }
+    { return !m_Buffers.IsEmpty(); }
 
     bool HaveDetachedBuffers()
     { return m_MappedBuffersDetached != 0; }
@@ -170,7 +173,7 @@ private:
     CNdisList<CNB, CRawAccess, CNonCountingObject> m_Buffers;
 
     ULONG m_BuffersNumber = 0;
-    CNdisList<CNB, CLockedAccess, CCountingObject> m_MappedBuffers;
+    CNdisRefCounter m_BuffersMapped;
 
     ULONG m_MappedBuffersDetached = 0;
     //TODO: Needs review

@@ -17,9 +17,6 @@ CNBL::~CNBL()
 {
     CDpcIrqlRaiser OnDpc;
 
-    m_MappedBuffers.ForEachDetached([this](CNB *NB)
-                                    { CNB::Destroy(NB); });
-
     m_Buffers.ForEachDetached([this](CNB *NB)
                               { CNB::Destroy(NB); });
 
@@ -73,7 +70,8 @@ void CNBL::RegisterNB(CNB *NB)
 
 void CNBL::RegisterMappedNB(CNB *NB)
 {
-    if (m_MappedBuffers.PushBack(NB) == m_BuffersNumber)
+    UNREFERENCED_PARAMETER(NB);
+    if (m_BuffersNumber == (ULONG)m_BuffersMapped.AddRef())
     {
         m_ParentTXPath->NBLMappingDone(this);
     }
@@ -240,7 +238,7 @@ void CNBL::StartMapping()
 
     AddRef();
 
-    m_Buffers.ForEachDetached([this](CNB *NB)
+    m_Buffers.ForEach([this](CNB *NB)
                               {
                                   if (!NB->ScheduleBuildSGListForTx())
                                   {
@@ -352,12 +350,12 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
 CNB *CNBL::PopMappedNB()
 {
     m_MappedBuffersDetached++;
-    return m_MappedBuffers.Pop();
+    return m_Buffers.Pop();
 }
 void CNBL::PushMappedNB(CNB *NB)
 {
     m_MappedBuffersDetached--;
-    m_MappedBuffers.Push(NB);
+    m_Buffers.Push(NB);
 }
 
 //TODO: Needs review
@@ -374,7 +372,7 @@ bool CNBL::IsSendDone()
 
 PNET_BUFFER_LIST CNBL::DetachInternalObject()
 {
-    m_MappedBuffers.ForEach([this](CNB *NB)
+    m_Buffers.ForEach([this](CNB *NB)
     {
         NB->ReleaseResources();
     });
