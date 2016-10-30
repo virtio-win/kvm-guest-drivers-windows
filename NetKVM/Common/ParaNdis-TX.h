@@ -244,6 +244,9 @@ private:
     CDataFlowStateMachine m_StateMachine;
     bool m_StateMachineRegistered = false;
 
+    // indication that DPC waits on TX lock
+    CNdisRefCounter m_DpcWaiting;
+
     CRawCNBLList m_SendList;
     CRawCNBLList m_WaitingList;
     CNdisSpinLock m_WaitingListLock;
