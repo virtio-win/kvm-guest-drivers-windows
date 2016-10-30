@@ -546,8 +546,14 @@ bool CParaNdisTX::DoPendingTasks(CNBL *nblHolder)
 {
     PNET_BUFFER_LIST pNBLReturnNow = nullptr;
     bool bRestartQueueStatus = false;
+    bool bFromDpc = nblHolder == nullptr;
     CRawCNBList  nbToFree;
     CRawCNBLList completedNBLs;
+
+    if (bFromDpc)
+    {
+        m_DpcWaiting.AddRef();
+    }
 
     DoWithTXLock([&] ()
                  {
@@ -556,14 +562,28 @@ bool CParaNdisTX::DoPendingTasks(CNBL *nblHolder)
                         m_SendList.PushBack(nblHolder);
                     }
                     m_VirtQueue.ProcessTXCompletions(nbToFree);
-                    bRestartQueueStatus = SendMapped(nblHolder == nullptr, completedNBLs);
-                    if (bRestartQueueStatus)
+
+                    if (bFromDpc)
                     {
-                        // we can enter here only when we called from DPC
-                        // if we can't enable interrupts on queue right now,
-                        // we can retrieve completed packets and try again
-                        m_VirtQueue.ProcessTXCompletions(nbToFree);
-                        bRestartQueueStatus = SendMapped(true, completedNBLs);
+                        m_DpcWaiting.Release();
+                    }
+
+                    if (bFromDpc || 0 == (LONG)m_DpcWaiting)
+                    {
+                        bRestartQueueStatus = SendMapped(bFromDpc, completedNBLs);
+                        if (bRestartQueueStatus)
+                        {
+                            // we can enter here only when we called from DPC
+                            // if we can't enable interrupts on queue right now,
+                            // we can retrieve completed packets and try again
+                            m_VirtQueue.ProcessTXCompletions(nbToFree);
+                            bRestartQueueStatus = SendMapped(true, completedNBLs);
+                        }
+                    }
+                    else
+                    {
+                        // the call initiated by Send(), we can give up
+                        // and let pending DPC do the job instead of wait
                     }
                  });
 
