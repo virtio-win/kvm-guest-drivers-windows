@@ -263,6 +263,7 @@ VIOInputEvtDeviceReleaseHardware(
         VIOInputFree(&pClass->pHidReport);
         VIOInputFree(&pClass);
     }
+    pContext->uNumOfClasses = 0;
 
     VIOInputFree(&pContext->HidReportDescriptor);
 
