@@ -1,3 +1,17 @@
+Date    02 Nov 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm148
+
+Fixed bugs:
+BZ#1389445: VirtIO definition of bool as int used by all drivers
+            that use VirtIO library, except (currently) netkvm which is C++
+            and uses bool as fundamental C++ type.
+BZ#1389125: viostor - extend viostor driver with STORAGE_REQUEST_BLOCK support
+
+New Features:
+NetKVM performance optimization
+fwcfg: Rename driver files fwcfg -> qemufwcfg
+
 Date    25 Oct 2016
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm147
