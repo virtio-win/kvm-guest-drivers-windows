@@ -3,13 +3,13 @@
 ;Copyright (c) 2016 Red Hat Inc.
 ;
 ;Module Name:
-;    fwcfg.inf
+;    qemufwcfg.inf
 ;
 ;Abstract:
 ;    QEMU Firmware Configuration Device null driver
 ;
 ;Installation Notes:
-;    Using Devcon: Type "devcon install fwcfg.inf ACPI\QEMU0002" to install
+;    Using Devcon: Type "devcon install qemufwcfg.inf ACPI\QEMU0002" to install
 ;
 ;--*/
 
@@ -19,7 +19,7 @@ Class=System
 ClassGUID={4d36e97d-e325-11ce-bfc1-08002be10318}
 Provider=%QEMU%
 DriverVer=10/21/2016,1.0.0
-CatalogFile=fwcfg.cat
+CatalogFile=qemufwcfg.cat
 
 [Manufacturer]
 %QEMU%=QEMU,NTx86,NTAMD64
