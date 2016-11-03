@@ -319,7 +319,7 @@ bool virtqueue_kick_prepare(struct virtqueue *_vq)
 #endif
 
     if (vq->event) {
-        needs_kick = vring_need_event(vring_avail_event(&vq->vring),
+        needs_kick = (bool)vring_need_event(vring_avail_event(&vq->vring),
                           new, old);
     } else {
         needs_kick = !(vq->vring.used->flags & VRING_USED_F_NO_NOTIFY);
