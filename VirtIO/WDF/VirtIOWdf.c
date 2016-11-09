@@ -89,7 +89,7 @@ NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver,
 
 static NTSTATUS VirtIOWdfFinalizeFeatures(PVIRTIO_WDF_DRIVER pWdfDriver)
 {
-    NTSTATUS status;
+    NTSTATUS status = STATUS_SUCCESS;
 
     u8 dev_status = virtio_get_status(&pWdfDriver->VIODevice);
     if (!(dev_status & VIRTIO_CONFIG_S_ACKNOWLEDGE)) {
