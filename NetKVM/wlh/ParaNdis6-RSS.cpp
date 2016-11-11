@@ -231,7 +231,6 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_RSS_PARAMS *RSSParameters,
 {
     ULONG ProcessorMasksSize;
     ULONG IndirectionTableEntries;
-    CNdisPassiveWriteAutoLock autoLock(RSSParameters->rwLock);
 
     *ParamsBytesRead = 0;
 

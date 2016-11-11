@@ -53,6 +53,8 @@ static NDIS_STATUS RSSSetParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     if (!pContext->bRSSOffloadSupported)
         return NDIS_STATUS_NOT_SUPPORTED;
 
+    CNdisPassiveWriteAutoLock autoLock(pContext->RSSParameters.rwLock);
+
     status = ParaNdis6_RSSSetParameters(&pContext->RSSParameters,
                                         (NDIS_RECEIVE_SCALE_PARAMETERS*) pOid->InformationBuffer,
                                         pOid->InformationBufferLength,

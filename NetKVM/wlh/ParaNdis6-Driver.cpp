@@ -418,6 +418,7 @@ static VOID ParaNdis6_SendNetBufferLists(
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     UNREFERENCED_PARAMETER(portNumber);
 #ifdef PARANDIS_SUPPORT_RSS
+    CNdisPassiveReadAutoLock autoLock(pContext->RSSParameters.rwLock);
     if (pContext->RSS2QueueMap != nullptr)
     {
         while (pNBL)
