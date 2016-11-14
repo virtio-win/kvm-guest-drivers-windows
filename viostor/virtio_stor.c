@@ -259,6 +259,13 @@ VirtIoFindAdapter(
     ULONG              pci_cfg_len;
     ULONG              res, i;
 
+    ULONG              index;
+    ULONG              num_cpus;
+    ULONG              max_cpus;
+    ULONG              max_queues;
+    ULONG              Size;
+    ULONG              HeapSize;
+
     UNREFERENCED_PARAMETER( HwContext );
     UNREFERENCED_PARAMETER( BusInformation );
     UNREFERENCED_PARAMETER( ArgumentString );
@@ -372,7 +379,7 @@ VirtIoFindAdapter(
     }
 
     adaptExt->features = virtio_get_features(&adaptExt->vdev);
-    ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WCACHE) ? TRUE : FALSE;
+    ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH) ? TRUE : FALSE;
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_WCACHE = %d\n", ConfigInfo->CachesData));
 
     virtio_query_queue_allocation(
@@ -391,36 +398,112 @@ VirtIoFindAdapter(
     ConfigInfo->MaximumTransferLength = 0x00FFFFFF;
     adaptExt->queue_depth = queueLength / ConfigInfo->NumberOfPhysicalBreaks - 1;
 
-#if (INDIRECT_SUPPORTED)
+#if (NTDDI_VERSION >= NTDDI_WIN7)
+    num_cpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
+    max_cpus = KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS);
+#else
+    num_cpus = KeQueryActiveProcessorCount(NULL);
+    max_cpus = KeQueryMaximumProcessorCount();
+#endif
+
+    adaptExt->num_queues = 1;
+    RhelGetDiskGeometry(DeviceExtension);
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_MQ)) {
+        virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, num_queues),
+                          &adaptExt->num_queues, sizeof(adaptExt->num_queues));
+    }
+
+    if (adaptExt->dump_mode || !adaptExt->msix_enabled)
+    {
+        adaptExt->num_queues = 1;
+    }
+    else if (adaptExt->num_queues < num_cpus)
+    {
+//FIXME
+        adaptExt->num_queues = 1;
+    }
+    else
+    {
+//FIXME
+#if (NTDDI_VERSION > NTDDI_WIN7)
+        adaptExt->num_queues = (USHORT)num_cpus;
+#else
+        adaptExt->num_queues = 1;
+#endif
+    }
+
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus));
+
+    max_queues = min(max_cpus, adaptExt->num_queues);
+
+    adaptExt->pageAllocationSize = 0;
+    adaptExt->poolAllocationSize = 0;
+    adaptExt->pageOffset = 0;
+    adaptExt->poolOffset = 0;
+    Size = 0;
+
+    for (index = 0; index < max_queues; ++index) {
+        virtio_query_queue_allocation(&adaptExt->vdev, index, &queueLength, &Size, &HeapSize);
+        if (Size == 0) {
+            LogError(DeviceExtension,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
+
+            RhelDbgPrint(TRACE_LEVEL_FATAL, ("Virtual queue %d config failed.\n", index));
+            return SP_RETURN_ERROR;
+        }
+        adaptExt->pageAllocationSize += ROUND_TO_PAGES(Size);
+        adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(HeapSize);
+    }
+    if (!adaptExt->dump_mode) {
+        adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(sizeof(RHEL_SRB_EXTENSION));
+        adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(sizeof(STOR_DPC) * max_queues);
+    }
+    if (max_queues > MAX_QUEUES_PER_DEVICE_DEFAULT)
+    {
+        adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(
+            (max_queues) * virtio_get_queue_descriptor_size());
+    }
+
+#if (INDIRECT_SUPPORTED == 1)
     if(!adaptExt->dump_mode) {
         adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
-    }
-    if(adaptExt->indirect) {
-        adaptExt->queue_depth = queueLength;
     }
 #else
     adaptExt->indirect = 0;
 #endif
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("breaks_number = %x  queue_depth = %x\n",
-                ConfigInfo->NumberOfPhysicalBreaks,
-                adaptExt->queue_depth));
 
-    /* Note that the pointer returned from ScsiPortGetUncachedExtension may not be page-aligned */
-    adaptExt->pageAllocationSize = ROUND_TO_PAGES(adaptExt->pageAllocationSize);
-    adaptExt->pageAllocationVa = ScsiPortGetUncachedExtension(
-        DeviceExtension,
-        ConfigInfo,
-        PAGE_SIZE + adaptExt->pageAllocationSize + adaptExt->poolAllocationSize);
-    if (!adaptExt->pageAllocationVa) {
-        LogError(DeviceExtension,
-                SP_INTERNAL_ADAPTER_ERROR,
-                __LINE__);
 
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Couldn't get uncached extension\n"));
-        return SP_RETURN_ERROR;
-    }
-    adaptExt->pageAllocationVa = (PVOID)(((ULONG_PTR)adaptExt->pageAllocationVa + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1));
-    adaptExt->poolAllocationVa = (PVOID)((ULONG_PTR)adaptExt->pageAllocationVa + adaptExt->pageAllocationSize);
+//#if (INDIRECT_SUPPORTED)
+//    if(!adaptExt->dump_mode) {
+//        adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
+//    }
+//    if(adaptExt->indirect) {
+//        adaptExt->queue_depth = queueLength;
+//    }
+//#else
+//    adaptExt->indirect = 0;
+//#endif
+//    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("breaks_number = %x  queue_depth = %x\n",
+//                ConfigInfo->NumberOfPhysicalBreaks,
+//                adaptExt->queue_depth));
+//
+//    /* Note that the pointer returned from ScsiPortGetUncachedExtension may not be page-aligned */
+//    adaptExt->pageAllocationSize = ROUND_TO_PAGES(adaptExt->pageAllocationSize);
+//    adaptExt->pageAllocationVa = ScsiPortGetUncachedExtension(
+//        DeviceExtension,
+//        ConfigInfo,
+//        PAGE_SIZE + adaptExt->pageAllocationSize + adaptExt->poolAllocationSize);
+//    if (!adaptExt->pageAllocationVa) {
+//        LogError(DeviceExtension,
+//                SP_INTERNAL_ADAPTER_ERROR,
+//                __LINE__);
+//
+//        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Couldn't get uncached extension\n"));
+//        return SP_RETURN_ERROR;
+//    }
+//    adaptExt->pageAllocationVa = (PVOID)(((ULONG_PTR)adaptExt->pageAllocationVa + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1));
+//    adaptExt->poolAllocationVa = (PVOID)((ULONG_PTR)adaptExt->pageAllocationVa + adaptExt->pageAllocationSize);
 
     InitializeListHead(&adaptExt->list_head);
 #ifdef USE_STORPORT
@@ -483,8 +566,8 @@ VirtIoHwInitialize(
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     adaptExt->msix_vectors = 0;
-    adaptExt->pageOffset = 0;
-    adaptExt->poolOffset = 0;
+//    adaptExt->pageOffset = 0;
+//    adaptExt->poolOffset = 0;
 
     if (CHECKBIT(adaptExt->features, VIRTIO_F_VERSION_1)) {
         guestFeatures |= (1ULL << VIRTIO_F_VERSION_1);
@@ -498,8 +581,8 @@ VirtIoHwInitialize(
         guestFeatures |= (1ULL << VIRTIO_RING_F_EVENT_IDX);
     }
 
-    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WCACHE)) {
-        guestFeatures |= (1ULL << VIRTIO_BLK_F_WCACHE);
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH)) {
+        guestFeatures |= (1ULL << VIRTIO_BLK_F_FLUSH);
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BARRIER)) {
@@ -524,6 +607,10 @@ VirtIoHwInitialize(
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_GEOMETRY)) {
         guestFeatures |= (1ULL << VIRTIO_BLK_F_GEOMETRY);
+    }
+
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_MQ)) {
+        guestFeatures |= (1ULL << VIRTIO_BLK_F_MQ);
     }
 
     if (!NT_SUCCESS(virtio_set_features(&adaptExt->vdev, guestFeatures))) {
@@ -552,9 +639,14 @@ VirtIoHwInitialize(
         virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
         return ret;
     }
-
+/*
+    adaptExt->num_queues = 1;
     RhelGetDiskGeometry(DeviceExtension);
-
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_MQ)) {
+        virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, num_queues),
+                          &adaptExt->num_queues, sizeof(adaptExt->num_queues));
+    }
+*/
     memset(&adaptExt->inquiry_data, 0, sizeof(INQUIRYDATA));
 
     adaptExt->inquiry_data.ANSIVersion = 4;
@@ -944,7 +1036,7 @@ VirtIoBuildIo(
     srbExt->vbr.out_hdr.sector = lba;
     srbExt->vbr.out_hdr.ioprio = 0;
     srbExt->vbr.req            = (PVOID)Srb;
-    srbExt->fua                = (cdb->CDB10.ForceUnitAccess == 1);
+    srbExt->fua                = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH) ? (cdb->CDB10.ForceUnitAccess == 1) : FALSE;
 
     if (Srb->SrbFlags & SRB_FLAGS_DATA_OUT) {
         srbExt->vbr.out_hdr.type = VIRTIO_BLK_T_OUT;
@@ -1188,7 +1280,7 @@ RhelScsiGetModeSense(
            memset(cachePage, 0, sizeof(MODE_CACHING_PAGE));
            cachePage->PageCode = MODE_PAGE_CACHING;
            cachePage->PageLength = 10;
-           cachePage->WriteCacheEnable = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WCACHE) ? 1 : 0;
+           cachePage->WriteCacheEnable = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH) ? 1 : 0;
 
            Srb->DataTransferLength = sizeof(MODE_PARAMETER_HEADER) +
                                      sizeof(MODE_CACHING_PAGE);

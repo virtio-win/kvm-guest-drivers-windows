@@ -27,6 +27,9 @@
 
 #define CHECKBIT(value, nbit) virtio_is_feature_enabled(value, nbit)
 
+#define CACHE_LINE_SIZE 64
+#define ROUND_TO_CACHE_LINES(Size)  (((ULONG_PTR)(Size) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1))
+
 int
 _cdecl
 _vsnprintf(
