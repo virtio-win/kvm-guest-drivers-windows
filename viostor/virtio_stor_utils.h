@@ -26,6 +26,8 @@
 #include "evntrace.h"
 
 #define CHECKBIT(value, nbit) virtio_is_feature_enabled(value, nbit)
+#define CHECKFLAG(value, flag) ((value & (flag)) == flag)
+#define SETFLAG(value, flag) (value |= (flag))
 
 int
 _cdecl
@@ -40,6 +42,9 @@ _vsnprintf(
 void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath);
 
 extern int nViostorDebugLevel;
+
+#define DBG 1
+#define COM_DEBUG 1
 
 #if DBG
 #define RhelDbgPrint(level, line) \

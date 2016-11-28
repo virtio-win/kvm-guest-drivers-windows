@@ -38,8 +38,10 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_BLK_F_RO         5       /* Disk is read-only */
 #define VIRTIO_BLK_F_BLK_SIZE   6       /* Block size of disk is available*/
 #define VIRTIO_BLK_F_SCSI       7       /* Supports scsi command passthru */
-#define VIRTIO_BLK_F_WCACHE     9       /* write cache enabled */
+#define VIRTIO_BLK_F_FLUSH      9       /* Flush command supported */
 #define VIRTIO_BLK_F_TOPOLOGY   10      /* Topology information is available */
+#define VIRTIO_BLK_F_CONFIG_WCE 11      /* Writeback mode available in config */
+#define VIRTIO_BLK_F_MQ         12      /* support more than one vq */
 
 /* These two define direction. */
 #define VIRTIO_BLK_T_IN         0
@@ -55,6 +57,9 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define SECTOR_SIZE             512
 #define IO_PORT_LENGTH          0x40
+#define MAX_CPU                 256
+
+#define VIRTIO_BLK_QUEUE_LAST   MAX_CPU
 
 #define VIRTIO_RING_F_INDIRECT_DESC     28
 
@@ -67,6 +72,8 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #endif
 
 #define VIRTIO_MAX_SG           (3+MAX_PHYS_SEGMENTS)
+
+#define VIOSCSI_POOL_TAG        'BoiV'
 
 #pragma pack(1)
 typedef struct virtio_blk_config {
@@ -126,7 +133,8 @@ typedef struct _ADAPTER_EXTENSION {
     ULONG                 poolAllocationSize;
     ULONG                 poolOffset;
 
-    struct virtqueue *    vq;
+    struct virtqueue *    vq[VIRTIO_BLK_QUEUE_LAST];
+    USHORT                num_queues;
     INQUIRYDATA           inquiry_data;
     blk_config            info;
     ULONG                 queue_depth;
@@ -149,8 +157,10 @@ typedef struct _ADAPTER_EXTENSION {
     ULONG                 system_io_bus_number;
 
 #ifdef USE_STORPORT
+    ULONG                 perfFlags;
+    PGROUP_AFFINITY       pmsg_affinity;
     LIST_ENTRY            complete_list;
-    STOR_DPC              completion_dpc;
+    PSTOR_DPC             dpc;
     BOOLEAN               dpc_ok;
 #endif
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
@@ -171,6 +181,8 @@ typedef struct _SRB_EXTENSION {
     ULONG                 out;
     ULONG                 in;
     ULONG                 Xfer;
+    ULONG                 MessageID;
+    UCHAR                 cpu;
     BOOLEAN               fua;
 #ifndef USE_STORPORT
     BOOLEAN               call_next;

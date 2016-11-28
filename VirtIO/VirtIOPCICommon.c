@@ -375,5 +375,6 @@ bool vp_notify(struct virtqueue *vq)
     /* we write the queue's selector into the notification register to
      * signal the other end */
     iowrite16(vq->vdev, (unsigned short)vq->index, vq->priv);
+    DPrintf(0, ("virtio: vp_notify vq->index = %x\n", vq->index));
     return true;
 }
