@@ -137,6 +137,30 @@ RhelGetDiskGeometry(
     IN PVOID DeviceExtension
     );
 
+#ifdef USE_STORPORT
+PVOID
+VioStorPoolAlloc(
+    IN PVOID DeviceExtension,
+    IN SIZE_T size
+    );
+
+VOID
+VioStorVQLock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN OUT PSTOR_LOCK_HANDLE LockHandle,
+    IN BOOLEAN isr
+    );
+
+VOID
+VioStorVQUnlock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN PSTOR_LOCK_HANDLE LockHandle,
+    IN BOOLEAN isr
+    );
+#endif
+
 extern VirtIOSystemOps VioStorSystemOps;
 
 #endif ___VIOSTOR_HW_HELPER_H___

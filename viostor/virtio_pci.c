@@ -25,6 +25,7 @@
 #include "osdep.h"
 #include "virtio_pci.h"
 #include "virtio_stor_utils.h"
+#include "virtio_stor_hw_helper.h"
 #include "virtio_stor.h"
 
 /* The lower 64k of memory is never mapped so we can use the same routines
@@ -122,17 +123,7 @@ static ULONGLONG mem_get_physical_address(void *context, void *virt)
 
 static void *mem_alloc_nonpaged_block(void *context, size_t size)
 {
-    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
-    PVOID ptr = (PVOID)((ULONG_PTR)adaptExt->poolAllocationVa + adaptExt->poolOffset);
-
-    if ((adaptExt->poolOffset + size) <= adaptExt->poolAllocationSize) {
-        adaptExt->poolOffset += size;
-        RtlZeroMemory(ptr, size);
-        return ptr;
-    } else {
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Ran out of memory in %s(%Id)\n", __FUNCTION__, size));
-        return NULL;
-    }
+    return VioStorPoolAlloc(context, size);
 }
 
 static void mem_free_nonpaged_block(void *context, void *addr)

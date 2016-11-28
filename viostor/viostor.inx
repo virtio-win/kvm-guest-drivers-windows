@@ -95,7 +95,7 @@ HKR, "Parameters", "BusType", %REG_DWORD%, 0x00000001
 HKR, "Interrupt Management",, 0x00000010
 HKR, "Interrupt Management\MessageSignaledInterruptProperties",, 0x00000010
 HKR, "Interrupt Management\MessageSignaledInterruptProperties", MSISupported, 0x00010001, 1
-HKR, "Interrupt Management\MessageSignaledInterruptProperties", MessageNumberLimit, 0x00010001, 2
+HKR, "Interrupt Management\MessageSignaledInterruptProperties", MessageNumberLimit, 0x00010001, 256
 HKR, "Interrupt Management\Affinity Policy",, 0x00000010
 HKR, "Interrupt Management\Affinity Policy", DevicePolicy, 0x00010001, 5
 
