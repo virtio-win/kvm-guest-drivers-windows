@@ -313,7 +313,7 @@ struct _tagRxNetDescriptor {
 #define PARANDIS_FIRST_RX_DATA_PAGE   (1)
     struct VirtIOBufferDescriptor *BufferSGArray;
     tCompletePhysicalAddress      *PhysicalPages;
-    ULONG                          PagesAllocated;
+    ULONG                          BufferSGLength;
     tCompletePhysicalAddress       IndirectArea;
     tPacketHolderType              Holder;
 

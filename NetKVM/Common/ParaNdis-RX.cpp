@@ -90,16 +90,29 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
         ParaNdis_AllocateMemory(m_Context, sizeof(*p->PhysicalPages) * ulNumPages);
     if (p->PhysicalPages == NULL) goto error_exit;
 
-    for (p->PagesAllocated = 0; p->PagesAllocated < ulNumPages; p->PagesAllocated++)
+    p->BufferSGLength = 0;
+    while (ulNumPages > 0)
     {
-        if (!ParaNdis_InitialAllocatePhysicalMemory(
-                m_Context,
-                PAGE_SIZE,
-                &p->PhysicalPages[p->PagesAllocated]))
-            goto error_exit;
+        // Allocate the first page separately, the rest can be one contiguous block
+        ULONG ulPagesToAlloc = (p->BufferSGLength == 0 ? 1 : ulNumPages);
 
-        p->BufferSGArray[p->PagesAllocated].physAddr = p->PhysicalPages[p->PagesAllocated].Physical;
-        p->BufferSGArray[p->PagesAllocated].length = PAGE_SIZE;
+        while (!ParaNdis_InitialAllocatePhysicalMemory(
+                    m_Context,
+                    PAGE_SIZE * ulPagesToAlloc,
+                    &p->PhysicalPages[p->BufferSGLength]))
+        {
+            // Retry with half the pages
+            if (ulPagesToAlloc == 1)
+                goto error_exit;
+            else
+                ulPagesToAlloc /= 2;
+        }
+
+        p->BufferSGArray[p->BufferSGLength].physAddr = p->PhysicalPages[p->BufferSGLength].Physical;
+        p->BufferSGArray[p->BufferSGLength].length = p->PhysicalPages[p->BufferSGLength].size;
+
+        ulNumPages -= ulPagesToAlloc;
+        p->BufferSGLength++;
     }
 
     //First page is for virtio header, size needs to be adjusted correspondingly
@@ -126,7 +139,7 @@ BOOLEAN CParaNdisRX::AddRxBufferToQueue(pRxNetDescriptor pBufferDescriptor)
     return 0 <= pBufferDescriptor->Queue->m_VirtQueue.AddBuf(
         pBufferDescriptor->BufferSGArray,
         0,
-        pBufferDescriptor->PagesAllocated,
+        pBufferDescriptor->BufferSGLength,
         pBufferDescriptor,
         m_Context->bUseIndirect ? pBufferDescriptor->IndirectArea.Virtual : NULL,
         m_Context->bUseIndirect ? pBufferDescriptor->IndirectArea.Physical.QuadPart : 0);

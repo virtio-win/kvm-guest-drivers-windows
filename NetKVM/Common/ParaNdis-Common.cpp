@@ -791,7 +791,7 @@ void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescripto
     ULONG i;
 
     ParaNdis_UnbindRxBufferFromPacket(p);
-    for(i = 0; i < p->PagesAllocated; i++)
+    for(i = 0; i < p->BufferSGLength; i++)
     {
         ParaNdis_FreePhysicalMemory(pContext, &p->PhysicalPages[i]);
     }

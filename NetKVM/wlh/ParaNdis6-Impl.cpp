@@ -700,9 +700,12 @@ BOOLEAN ParaNdis_BindRxBufferToPacket(
     ULONG i;
     PMDL *NextMdlLinkage = &p->Holder;
 
-    for(i = PARANDIS_FIRST_RX_DATA_PAGE; i < p->PagesAllocated; i++)
+    for(i = PARANDIS_FIRST_RX_DATA_PAGE; i < p->BufferSGLength; i++)
     {
-        *NextMdlLinkage = NdisAllocateMdl(pContext->MiniportHandle, p->PhysicalPages[i].Virtual, PAGE_SIZE);
+        *NextMdlLinkage = NdisAllocateMdl(
+            pContext->MiniportHandle,
+            p->PhysicalPages[i].Virtual,
+            p->PhysicalPages[i].size);
         if(*NextMdlLinkage == NULL) goto error_exit;
 
         NextMdlLinkage = &(NDIS_MDL_LINKAGE(*NextMdlLinkage));
@@ -721,14 +724,16 @@ void ParaNdis_UnbindRxBufferFromPacket(
     pRxNetDescriptor p)
 {
     PMDL NextMdlLinkage = p->Holder;
+    ULONG ulPageDescIndex = PARANDIS_FIRST_RX_DATA_PAGE;
 
     while(NextMdlLinkage != NULL)
     {
         PMDL pThisMDL = NextMdlLinkage;
         NextMdlLinkage = NDIS_MDL_LINKAGE(pThisMDL);
 
-        NdisAdjustMdlLength(pThisMDL, PAGE_SIZE);
+        NdisAdjustMdlLength(pThisMDL, p->PhysicalPages[ulPageDescIndex].size);
         NdisFreeMdl(pThisMDL);
+        ulPageDescIndex++;
     }
 }
 
@@ -739,13 +744,15 @@ void ParaNdis_AdjustRxBufferHolderLength(
 {
     PMDL NextMdlLinkage = p->Holder;
     ULONG ulBytesLeft = p->PacketInfo.dataLength + ulDataOffset;
+    ULONG ulPageDescIndex = PARANDIS_FIRST_RX_DATA_PAGE;
 
     while(NextMdlLinkage != NULL)
     {
-        ULONG ulThisMdlBytes = min(PAGE_SIZE, ulBytesLeft);
+        ULONG ulThisMdlBytes = min(p->PhysicalPages[ulPageDescIndex].size, ulBytesLeft);
         NdisAdjustMdlLength(NextMdlLinkage, ulThisMdlBytes);
         ulBytesLeft -= ulThisMdlBytes;
         NextMdlLinkage = NDIS_MDL_LINKAGE(NextMdlLinkage);
+        ulPageDescIndex++;
     }
     NETKVM_ASSERT(ulBytesLeft == 0);
 }
