@@ -29,7 +29,6 @@
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
-
 /* Feature bits */
 #define VIRTIO_BLK_F_BARRIER    0       /* Does host support barriers? */
 #define VIRTIO_BLK_F_SIZE_MAX   1       /* Indicates maximum segment size */
@@ -94,7 +93,12 @@ typedef struct virtio_blk_config {
     u8  physical_block_exp;
     u8  alignment_offset;
     u16 min_io_size;
-    u16 opt_io_size;
+    u32 opt_io_size;
+    /* writeback mode (if VIRTIO_BLK_F_CONFIG_WCE) */
+    u8 wce;
+    u8 unused;
+    /* number of vqs, only available when VIRTIO_BLK_F_MQ is set */
+    u16 num_queues;
 }blk_config, *pblk_config;
 #pragma pack()
 
@@ -139,9 +143,10 @@ typedef struct _ADAPTER_EXTENSION {
     blk_config            info;
     ULONG                 queue_depth;
     BOOLEAN               dump_mode;
-    LIST_ENTRY            list_head;
+//    LIST_ENTRY            list_head;
     ULONG                 msix_vectors;
     BOOLEAN               msix_enabled;
+    BOOLEAN               msix_one_vector;
     ULONGLONG             features;
     CHAR                  sn[BLOCK_SERIAL_STRLEN];
     BOOLEAN               sn_ok;

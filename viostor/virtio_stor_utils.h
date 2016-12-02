@@ -29,6 +29,9 @@
 #define CHECKFLAG(value, flag) ((value & (flag)) == flag)
 #define SETFLAG(value, flag) (value |= (flag))
 
+#define CACHE_LINE_SIZE 64
+#define ROUND_TO_CACHE_LINES(Size)  (((ULONG_PTR)(Size) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1))
+
 int
 _cdecl
 _vsnprintf(
@@ -43,8 +46,8 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regi
 
 extern int nViostorDebugLevel;
 
-#define DBG 1
-#define COM_DEBUG 1
+//#define DBG 1
+//#define COM_DEBUG 1
 
 #if DBG
 #define RhelDbgPrint(level, line) \

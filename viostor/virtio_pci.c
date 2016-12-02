@@ -208,16 +208,19 @@ static u16 vdev_get_msix_vector(void *context, int queue)
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
     u16 vector;
 
-    if (!adaptExt->dump_mode && adaptExt->msix_vectors > 1) {
-        if (queue >= 0) {
-            /* queue interrupt */
-            vector = (u16)(adaptExt->msix_vectors - 1);
+    if (queue >= 0) {
+        /* queue interrupt */
+        if (adaptExt->msix_enabled) {
+            if (adaptExt->msix_one_vector) {
+                vector = 0;
+            } else {
+                vector = queue + 1;
+            }
         } else {
-            /* on-device-config-change interrupt */
-            vector = 0;
+            vector = VIRTIO_MSI_NO_VECTOR;
         }
-    }
-    else {
+    } else {
+        /* on-device-config-change interrupt */
         vector = VIRTIO_MSI_NO_VECTOR;
     }
 
