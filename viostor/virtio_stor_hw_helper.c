@@ -59,7 +59,7 @@ SynchronizedFlushRoutine(
         if (status == STOR_STATUS_SUCCESS) {
            MessageId = param.MessageNumber;
            QueueNumber = MessageId - 1;
-           RhelDbgPrint(TRACE_LEVEL_FATAL, ("srb %p, cpu %d :: QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n", Srb, srbExt->cpu, QueueNumber, param.MessageNumber, param.ChannelNumber));
+           RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s srb %p, cpu %d :: QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",  __FUNCTION__, Srb, srbExt->cpu, QueueNumber, param.MessageNumber, param.ChannelNumber));
         }
         else {
            RhelDbgPrint(TRACE_LEVEL_FATAL, ("srb %p cpu %d status 0x%x.\n", Srb, srbExt->cpu, status));
@@ -89,18 +89,18 @@ SynchronizedFlushRoutine(
                      &srbExt->vbr.sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->vbr, va, pa) >= 0) {
+        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
         result = TRUE;
         notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
     }
     else {
+        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s Can not add packet to queue.\n", __FUNCTION__));
 #ifdef USE_STORPORT
         StorPortBusy(DeviceExtension, 2);
 //FIXME
 #endif
     }
-
-    VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (notify) {
         virtqueue_notify(adaptExt->vq[QueueNumber]);
     }
@@ -115,13 +115,7 @@ RhelDoFlush(
     BOOLEAN resend
     )
 {
-//    if (sync) {
-//       return StorPortSynchronizeAccess(DeviceExtension, SynchronizedFlushRoutine, Srb);
-//    } else {
-//       return SynchronizedFlushRoutine(DeviceExtension, Srb);
-//    }
     return SynchronizedFlushRoutine(DeviceExtension, Srb, resend);
-
 }
 #else
 BOOLEAN
@@ -156,6 +150,7 @@ SynchronizedReadWriteRoutine(
     bool                notify = FALSE;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
+    struct virtqueue    *vq;
 
     SET_VA_PA();
 
@@ -166,7 +161,7 @@ SynchronizedReadWriteRoutine(
         if (status == STOR_STATUS_SUCCESS) {
            MessageId = param.MessageNumber;
            QueueNumber = MessageId - 1;
-           RhelDbgPrint(TRACE_LEVEL_FATAL, ("srb %p, cpu %d :: QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n", Srb, srbExt->cpu, QueueNumber, param.MessageNumber, param.ChannelNumber));
+           RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s srb %p, cpu %d :: QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",  __FUNCTION__, Srb, srbExt->cpu, QueueNumber, param.MessageNumber, param.ChannelNumber));
         }
         else {
            RhelDbgPrint(TRACE_LEVEL_FATAL, ("srb %p cpu %d status 0x%x.\n", Srb, srbExt->cpu, status));
@@ -180,24 +175,27 @@ SynchronizedReadWriteRoutine(
     }
 
     srbExt->MessageID = MessageId;
+    vq = adaptExt->vq[QueueNumber];
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 ("<--->%s : QueueNumber 0x%x vq = %p vbr = %p\n", __FUNCTION__, QueueNumber, vq, srbExt->vbr));
 
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
-    if (virtqueue_add_buf(adaptExt->vq[QueueNumber],
+    if (virtqueue_add_buf(vq,
                      &srbExt->vbr.sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->vbr, va, pa) >= 0){
-        InsertTailList(&adaptExt->list_head, &srbExt->vbr.list_entry);
+        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
         result = TRUE;
-        notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
+        notify = virtqueue_kick_prepare(vq);
     }
     else {
+        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s Can not add packet to queue.\n", __FUNCTION__));
         StorPortBusy(DeviceExtension, 2);
 //FIXME
     }
-    VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (notify) {
-        virtqueue_notify(adaptExt->vq[QueueNumber]);
+        virtqueue_notify(vq);
     }
     return result;
 }
@@ -206,7 +204,6 @@ BOOLEAN
 RhelDoReadWrite(PVOID DeviceExtension,
                 PSRB_TYPE Srb)
 {
-//    return StorPortSynchronizeAccess(DeviceExtension, SynchronizedReadWriteRoutine, (PVOID)Srb);
     return SynchronizedReadWriteRoutine(DeviceExtension, (PVOID)Srb);
 
 }
@@ -466,7 +463,8 @@ VioStorVQLock(
     )
 {
     PADAPTER_EXTENSION  adaptExt;
-//ENTER_FN();
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("--->%s MessageID = %d\n", __FUNCTION__, MessageID));
+
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     if (!adaptExt->msix_enabled) {
@@ -478,7 +476,7 @@ VioStorVQLock(
         if (adaptExt->num_queues == 1) {
             if (!isr) {
                 ULONG oldIrql = 0;
-                StorPortAcquireMSISpinLock(DeviceExtension, MessageID, &oldIrql);
+                StorPortAcquireMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), &oldIrql);
                 LockHandle->Context.OldIrql = (KIRQL)oldIrql;
             }
         }
@@ -495,7 +493,7 @@ VioStorVQLock(
             }
         }
     }
-//EXIT_FN();
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("<---%s MessageID = %d\n", __FUNCTION__, MessageID));
 }
 
 VOID
@@ -507,7 +505,7 @@ VioStorVQUnlock(
     )
 {
     PADAPTER_EXTENSION  adaptExt;
-//ENTER_FN();
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("--->%s MessageID = %d\n", __FUNCTION__, MessageID));
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     if (!adaptExt->msix_enabled) {
@@ -518,7 +516,7 @@ VioStorVQUnlock(
     else {
         if (adaptExt->num_queues == 1) {
             if (!isr) {
-                StorPortReleaseMSISpinLock(DeviceExtension, MessageID, LockHandle->Context.OldIrql);
+                StorPortReleaseMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), LockHandle->Context.OldIrql);
             }
         }
         else {
@@ -534,7 +532,6 @@ VioStorVQUnlock(
             }
         }
     }
-
-//EXIT_FN();
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("<---%s MessageID = %d\n", __FUNCTION__, MessageID));
 }
 #endif
