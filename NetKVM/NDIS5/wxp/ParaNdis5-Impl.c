@@ -198,10 +198,8 @@ Parameters:
     tCompletePhysicalAddress *pAddresses
             the structure accumulates all our knowledge
             about the allocation (size, addresses, cacheability etc)
-            filled by ParaNdis_InitialAllocatePhysicalMemory or
-            by ParaNdis_RuntimeRequestToAllocatePhysicalMemory
+            filled by ParaNdis_InitialAllocatePhysicalMemory
 ***********************************************************/
-
 VOID ParaNdis_FreePhysicalMemory(
     PARANDIS_ADAPTER *pContext,
     tCompletePhysicalAddress *pAddresses)

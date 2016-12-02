@@ -86,17 +86,22 @@ Return value:
 ***********************************************************/
 BOOLEAN ParaNdis_InitialAllocatePhysicalMemory(
     PARANDIS_ADAPTER *pContext,
+    ULONG ulSize,
     tCompletePhysicalAddress *pAddresses)
 {
     NdisMAllocateSharedMemory(
         pContext->MiniportHandle,
-        pAddresses->size,
+        ulSize,
         TRUE,
         &pAddresses->Virtual,
         &pAddresses->Physical);
-    return pAddresses->Virtual != NULL;
+    if (pAddresses->Virtual != NULL)
+    {
+        pAddresses->size = ulSize;
+        return TRUE;
+    }
+    return FALSE;
 }
-
 
 /**********************************************************
 NDIS6 implementation of shared memory freeing
@@ -105,15 +110,12 @@ Parameters:
     tCompletePhysicalAddress *pAddresses
             the structure accumulates all our knowledge
             about the allocation (size, addresses, cacheability etc)
-            filled by ParaNdis_InitialAllocatePhysicalMemory or
-            by ParaNdis_RuntimeRequestToAllocatePhysicalMemory
+            filled by ParaNdis_InitialAllocatePhysicalMemory
 ***********************************************************/
-
 VOID ParaNdis_FreePhysicalMemory(
     PARANDIS_ADAPTER *pContext,
     tCompletePhysicalAddress *pAddresses)
 {
-
     NdisMFreeSharedMemory(
         pContext->MiniportHandle,
         pAddresses->size,

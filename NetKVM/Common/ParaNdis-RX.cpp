@@ -92,8 +92,10 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
 
     for (p->PagesAllocated = 0; p->PagesAllocated < ulNumPages; p->PagesAllocated++)
     {
-        p->PhysicalPages[p->PagesAllocated].size = PAGE_SIZE;
-        if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, &p->PhysicalPages[p->PagesAllocated]))
+        if (!ParaNdis_InitialAllocatePhysicalMemory(
+                m_Context,
+                PAGE_SIZE,
+                &p->PhysicalPages[p->PagesAllocated]))
             goto error_exit;
 
         p->BufferSGArray[p->PagesAllocated].physAddr = p->PhysicalPages[p->PagesAllocated].Physical;
