@@ -675,13 +675,8 @@ typedef struct _tagPhysicalAddressAllocationContext
 
 BOOLEAN ParaNdis_InitialAllocatePhysicalMemory(
     PARANDIS_ADAPTER *pContext,
+    ULONG ulSize,
     tCompletePhysicalAddress *pAddresses);
-
-BOOLEAN ParaNdis_RuntimeRequestToAllocatePhysicalMemory(
-    PARANDIS_ADAPTER *pContext,
-    tCompletePhysicalAddress *pAddresses,
-    tOnAdditionalPhysicalMemoryAllocated Callback
-    );
 
 VOID ParaNdis_FreePhysicalMemory(
     PARANDIS_ADAPTER *pContext,
