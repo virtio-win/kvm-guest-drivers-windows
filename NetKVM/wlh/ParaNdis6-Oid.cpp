@@ -15,6 +15,7 @@
 #include "ParaNdis6.h"
 #include "kdebugprint.h"
 #include "ParaNdis_DebugHistory.h"
+#include "netkvmmof.h"
 
 static NDIS_IO_WORKITEM_FUNCTION OnSetPowerWorkItem;
 
@@ -43,6 +44,11 @@ static NDIS_STATUS OnSetInterruptModeration(PARANDIS_ADAPTER *pContext, tOidDesc
 static NDIS_STATUS OnSetOffloadParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 static NDIS_STATUS OnSetOffloadEncapsulation(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 static NDIS_STATUS OnSetLinkParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
+static NDIS_STATUS OnSetVendorSpecific1(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
+static NDIS_STATUS OnSetVendorSpecific2(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
+
+#define OID_VENDOR_1                    0xff010201
+#define OID_VENDOR_2                    0xff010202
 
 #if PARANDIS_SUPPORT_RSS
 
@@ -125,7 +131,7 @@ OIDENTRY(OID_GEN_PROTOCOL_OPTIONS,              2,0,4, 0                ),
 OIDENTRY(OID_GEN_MAC_OPTIONS,                   2,0,4, ohfQuery         ),
 OIDENTRY(OID_GEN_MAXIMUM_SEND_PACKETS,          2,0,4, ohfQueryStat     ),
 OIDENTRY(OID_GEN_VENDOR_DRIVER_VERSION,         2,0,4, ohfQueryStat     ),
-OIDENTRY(OID_GEN_SUPPORTED_GUIDS,               2,4,4, 0                ),
+OIDENTRY(OID_GEN_SUPPORTED_GUIDS,               2,4,4, ohfQuery         ),
 OIDENTRY(OID_GEN_TRANSPORT_HEADER_OFFSET,       2,4,4, 0                ),
 OIDENTRY(OID_GEN_MEDIA_CAPABILITIES,            2,4,4, 0                ),
 OIDENTRY(OID_GEN_PHYSICAL_MEDIUM,               2,4,4, 0                ),
@@ -186,6 +192,8 @@ OIDENTRY(OID_IP4_OFFLOAD_STATS,                 4,4,4, 0),
 OIDENTRY(OID_IP6_OFFLOAD_STATS,                 4,4,4, 0),
 OIDENTRYPROC(OID_TCP_OFFLOAD_PARAMETERS,        0,0,0, ohfSet | ohfSetMoreOK | ohfSetLessOK, OnSetOffloadParameters),
 OIDENTRYPROC(OID_OFFLOAD_ENCAPSULATION,         0,0,0, ohfQuerySet, OnSetOffloadEncapsulation),
+OIDENTRYPROC(OID_VENDOR_1,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific1),
+OIDENTRYPROC(OID_VENDOR_2,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific2),
 
 #if PARANDIS_SUPPORT_RSS
     OIDENTRYPROC(OID_GEN_RECEIVE_SCALE_PARAMETERS,  0,0,0, ohfSet | ohfSetMoreOK, RSSSetParameters),
@@ -254,6 +262,9 @@ static NDIS_OID SupportedOids[] =
         OID_GEN_XMIT_OK,
         OID_GEN_RCV_OK,
         OID_GEN_VLAN_ID,
+        OID_GEN_SUPPORTED_GUIDS,
+        OID_VENDOR_1,
+        OID_VENDOR_2,
         OID_OFFLOAD_ENCAPSULATION,
         OID_TCP_OFFLOAD_PARAMETERS,
 #if PARANDIS_SUPPORT_RSS
@@ -265,6 +276,11 @@ static NDIS_OID SupportedOids[] =
 #endif
 };
 
+static const NDIS_GUID supportedGUIDs[]
+{
+    { NetKvm_LoggingGuid,    OID_VENDOR_1, NetKvm_Logging_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE },
+    { NetKvm_StatisticsGuid, OID_VENDOR_2, NetKvm_Statistics_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE }
+};
 
 /**********************************************************
         For statistics header
@@ -352,6 +368,26 @@ void ParaNdis6_GetSupportedOid(NDIS_MINIPORT_ADAPTER_GENERAL_ATTRIBUTES *pGenAtt
     pGenAttributes->SupportedStatistics = SupportedStatistics;
 }
 
+// WMI properties (set operation)
+static NDIS_STATUS OnSetVendorSpecific1(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
+{
+    NDIS_STATUS status = STATUS_SUCCESS;
+    UNREFERENCED_PARAMETER(pContext);
+    status = ParaNdis_OidSetCopy(pOid, &virtioDebugLevel, sizeof(virtioDebugLevel));
+    DPrintf(0, ("DebugLevel => %d\n", virtioDebugLevel));
+    return status;
+}
+
+static NDIS_STATUS OnSetVendorSpecific2(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
+{
+    ULONG dummy = 0;
+    NDIS_STATUS status;
+    UNREFERENCED_PARAMETER(pContext);
+    status = ParaNdis_OidSetCopy(pOid, &dummy, sizeof(dummy));
+    RtlZeroMemory(&pContext->extraStatistics, sizeof(pContext->extraStatistics));
+    return status;
+}
+
 /*****************************************************************
 Handles NDIS6 specific OID, all the rest handled by common handler
 *****************************************************************/
@@ -374,6 +410,7 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     ULONG ulSize = 0;
     BOOLEAN bFreeInfo = FALSE;
     LONGLONG ul64LinkSpeed = 0;
+    NetKvm_Statistics wmiStatistics;
 
 #define SETINFO(field, value) pInfo = &u.##field; ulSize = sizeof(u.##field); u.##field = (value)
     switch(pOid->Oid)
@@ -399,6 +436,25 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             pInfo  = &pContext->Statistics;
             ulSize = sizeof(pContext->Statistics);
             break;
+        case OID_GEN_SUPPORTED_GUIDS:
+            pInfo = (PVOID)&supportedGUIDs;
+            ulSize = sizeof(supportedGUIDs);
+            break;
+        case OID_VENDOR_1:
+            pInfo = &virtioDebugLevel;
+            ulSize = sizeof(virtioDebugLevel);
+            break;
+        case OID_VENDOR_2:
+            pInfo = &wmiStatistics;
+            ulSize = sizeof(wmiStatistics);
+            wmiStatistics.txChecksumOffload = pContext->extraStatistics.framesCSOffload;
+            wmiStatistics.txLargeOffload = pContext->extraStatistics.framesLSO;
+            wmiStatistics.rxPriority = pContext->extraStatistics.framesRxPriority;
+            wmiStatistics.rxChecksumOK = pContext->extraStatistics.framesRxCSHwOK;
+            wmiStatistics.rxCoalescedWin = pContext->extraStatistics.framesCoalescedWindows;
+            wmiStatistics.rxCoalescedNonWin = pContext->extraStatistics.framesCoalescedEmul;
+            break;
+
         case OID_GEN_INTERRUPT_MODERATION:
             u.InterruptModeration.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
             u.InterruptModeration.Header.Size = sizeof(u.InterruptModeration);
