@@ -19,7 +19,7 @@ class NetKvm_Statistics : MSNdis
     [key, read] string InstanceName;
     [read] boolean Active;
     [read,write,WmiDataId(1)] uint32 rxCoalescedWin;
-    [read,write,WmiDataId(2)] uint32 rxCoalescedNonWin;
+    [read,write,WmiDataId(2)] uint32 rxCoalescedHost;
     [read,write,WmiDataId(3)] uint32 rxChecksumOK;
     [read,write,WmiDataId(4)] uint32 rxPriority;
     [read,write,WmiDataId(5)] uint32 txLargeOffload;
