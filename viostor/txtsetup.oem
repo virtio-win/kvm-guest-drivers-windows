@@ -1,23 +1,17 @@
 [Disks]
-d1 = "OEM DISK (SCSI) WinXP/32-bit",\disk1,\i386\WinXP
 d2 = "OEM DISK (SCSI) Win2003/32-bit",\disk1,\i386\Win2003
 d3 = "OEM DISK (SCSI) Win2003/64-bit",\disk1,\amd64\Win2003
 d4 = "OEM DISK (SCSI) Win2003/32-bit",\disk1,\i386\Win2003
 d5 = "OEM DISK (SCSI) Win2003/64-bit",\disk1,\amd64\Win2003
 
 [Defaults]
-SCSI = WXP32
+SCSI = WNET32
 
 [scsi]
-WXP32  = "Red Hat VirtIO BLOCK Disk Device WinXP/32-bit"
 WNET32 = "Red Hat VirtIO BLOCK Disk Device Win2003/32-bit"
 WNET64 = "Red Hat VirtIO BLOCK Disk Device Win2003/64-bit"
 WNET32_SCSI = "Red Hat VirtIO SCSI Disk Device Win2003/32-bit"
 WNET64_SCSI = "Red Hat VirtIO SCSI Disk Device Win2003/64-bit"
-[Files.scsi.WXP32]
-driver = d1, viostor.sys, viostor
-inf    = d1, viostor.inf
-catalog= d1, viostor.cat
 
 [Files.scsi.WNET32]
 driver = d2, viostor.sys, viostor
@@ -39,12 +33,8 @@ driver = d5, vioscsi.sys, vioscsi
 inf    = d5, vioscsi.inf
 catalog= d5, vioscsi.cat
 
-[HardwareIds.scsi.WXP32]
-id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4&REV_00", "viostor"
-
 [HardwareIds.scsi.WNET32]
 id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4&REV_00", "viostor"
-
 
 [HardwareIds.scsi.WNET32_SCSI]
 id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4&REV_00", "vioscsi"
@@ -54,9 +44,6 @@ id = "PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4&REV_00", "viostor"
 
 [HardwareIds.scsi.WNET64_SCSI]
 id = "PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4&REV_00", "vioscsi"
-
-[Config.WXP32]
-value = Parameters\PnpInterface,5,REG_DWORD,1
 
 [Config.WNET32]
 value = Parameters\PnpInterface,5,REG_DWORD,1

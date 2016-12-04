@@ -18,12 +18,7 @@
 
 #include <ntddk.h>
 
-#ifdef USE_STORPORT
-#define STOR_USE_SCSI_ALIASES
 #include <storport.h>
-#else
-#include <scsi.h>
-#endif
 
 #include "osdep.h"
 #include "virtio_pci.h"
@@ -137,7 +132,6 @@ RhelGetDiskGeometry(
     IN PVOID DeviceExtension
     );
 
-#ifdef USE_STORPORT
 PVOID
 VioStorPoolAlloc(
     IN PVOID DeviceExtension,
@@ -159,7 +153,6 @@ VioStorVQUnlock(
     IN PSTOR_LOCK_HANDLE LockHandle,
     IN BOOLEAN isr
     );
-#endif
 
 extern VirtIOSystemOps VioStorSystemOps;
 

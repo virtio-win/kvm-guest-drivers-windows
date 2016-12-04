@@ -49,7 +49,6 @@ VirtIoHwReinitialize(
     IN PVOID DeviceExtension
     );
 
-#ifdef USE_STORPORT
 BOOLEAN
 VirtIoBuildIo(
     IN PVOID DeviceExtension,
@@ -69,7 +68,6 @@ VirtIoMSInterruptRoutine (
     IN PVOID  DeviceExtension,
     IN ULONG  MessageID
     );
-#endif
 #endif
 
 BOOLEAN
@@ -151,11 +149,6 @@ DriverEntry(
     HW_INITIALIZATION_DATA hwInitData;
     ULONG                  initResult;
 
-#ifndef USE_STORPORT
-    UCHAR venId[4]  = {'1', 'A', 'F', '4'};
-    UCHAR devId[4]  = {'1', '0', '0', '1'};
-#endif
-
     InitializeDebugPrints((PDRIVER_OBJECT)DriverObject, (PUNICODE_STRING)RegistryPath);
 
     RhelDbgPrint(TRACE_LEVEL_ERROR, ("Viostor driver started...built on %s %s\n", __DATE__, __TIME__));
@@ -176,9 +169,7 @@ DriverEntry(
     hwInitData.HwInterrupt              = VirtIoInterrupt;
     hwInitData.HwResetBus               = VirtIoResetBus;
     hwInitData.HwAdapterControl         = VirtIoAdapterControl;
-#ifdef USE_STORPORT
     hwInitData.HwBuildIo                = VirtIoBuildIo;
-#endif
     hwInitData.NeedPhysicalAddresses    = TRUE;
     hwInitData.TaggedQueuing            = TRUE;
     hwInitData.AutoRequestSense         = TRUE;
@@ -189,24 +180,13 @@ DriverEntry(
 
     hwInitData.AdapterInterfaceType     = PCIBus;
 
-#ifndef USE_STORPORT
-    hwInitData.VendorIdLength           = 4;
-    hwInitData.VendorId                 = venId;
-    hwInitData.DeviceIdLength           = 4;
-    hwInitData.DeviceId                 = devId;
-#endif
-
     /* Virtio doesn't specify the number of BARs used by the device; it may
      * be one, it may be more. PCI_TYPE0_ADDRESSES, the theoretical maximum
      * on PCI, is a safe upper bound.
      */
     hwInitData.NumberOfAccessRanges     = PCI_TYPE0_ADDRESSES;
-#ifdef USE_STORPORT
     hwInitData.MapBuffers               = STOR_MAP_NON_READ_WRITE_BUFFERS;
-#else
-    hwInitData.MapBuffers               = TRUE;
-#endif
-    initResult = ScsiPortInitialize(DriverObject,
+    initResult = StorPortInitialize(DriverObject,
                                     RegistryPath,
                                     &hwInitData,
                                     NULL);
@@ -286,22 +266,18 @@ VirtIoFindAdapter(
     ConfigInfo->Dma64BitAddresses      = TRUE;
     ConfigInfo->WmiDataProvider        = FALSE;
     ConfigInfo->AlignmentMask          = 0x3;
-#ifdef USE_STORPORT
     ConfigInfo->MapBuffers             = STOR_MAP_NON_READ_WRITE_BUFFERS;
     ConfigInfo->SynchronizationModel   = StorSynchronizeFullDuplex;
 #ifdef MSI_SUPPORTED
     ConfigInfo->HwMSInterruptRoutine   = VirtIoMSInterruptRoutine;
     ConfigInfo->InterruptSynchronizationMode=InterruptSynchronizePerMessage;
 #endif
-#else
-    ConfigInfo->MapBuffers             = TRUE;
-#endif
 
     ConfigInfo->NumberOfBuses               = 1;
     ConfigInfo->MaximumNumberOfTargets      = 1;
     ConfigInfo->MaximumNumberOfLogicalUnits = 1;
 
-    pci_cfg_len = ScsiPortGetBusData(
+    pci_cfg_len = StorPortGetBusData(
         DeviceExtension,
         PCIConfiguration,
         ConfigInfo->SystemIoBusNumber,
@@ -486,7 +462,7 @@ VirtIoFindAdapter(
                 adaptExt->queue_depth));
 
     extensionSize = PAGE_SIZE + adaptExt->pageAllocationSize + adaptExt->poolAllocationSize;
-    uncachedExtensionVa = ScsiPortGetUncachedExtension(DeviceExtension, ConfigInfo, extensionSize);
+    uncachedExtensionVa = StorPortGetUncachedExtension(DeviceExtension, ConfigInfo, extensionSize);
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("StorPortGetUncachedExtension uncachedExtensionVa = %p allocation size = %d\n", uncachedExtensionVa, extensionSize));
     if (!uncachedExtensionVa) {
         LogError(DeviceExtension,
@@ -518,13 +494,10 @@ VirtIoFindAdapter(
 #endif
 
 //    InitializeListHead(&adaptExt->list_head);
-#ifdef USE_STORPORT
     InitializeListHead(&adaptExt->complete_list);
-#endif
     return SP_RETURN_FOUND;
 }
 
-#ifdef USE_STORPORT
 BOOLEAN
 VirtIoPassiveInitializeRoutine (
     IN PVOID DeviceExtension
@@ -540,7 +513,6 @@ VirtIoPassiveInitializeRoutine (
     adaptExt->dpc_ok = TRUE;
     return TRUE;
 }
-#endif
 
 static BOOLEAN InitializeVirtualQueues(PADAPTER_EXTENSION adaptExt)
 {
@@ -575,12 +547,10 @@ VirtIoHwInitialize(
     PADAPTER_EXTENSION adaptExt;
     BOOLEAN            ret = FALSE;
     ULONGLONG          guestFeatures = 0;
-#ifdef USE_STORPORT
     PERF_CONFIGURATION_DATA perfData = { 0 };
     ULONG              status = STOR_STATUS_SUCCESS;
 #ifdef MSI_SUPPORTED
     MESSAGE_INTERRUPT_INFORMATION msi_info = { 0 };
-#endif
 #endif
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s (%d)\n", __FUNCTION__, KeGetCurrentIrql()));
@@ -689,10 +659,10 @@ VirtIoHwInitialize(
     adaptExt->inquiry_data.DeviceType   = DIRECT_ACCESS_DEVICE;
     adaptExt->inquiry_data.Wide32Bit    = 1;
     adaptExt->inquiry_data.AdditionalLength = 91;
-    ScsiPortMoveMemory(&adaptExt->inquiry_data.VendorId, "Red Hat ", sizeof("Red Hat "));
-    ScsiPortMoveMemory(&adaptExt->inquiry_data.ProductId, "VirtIO", sizeof("VirtIO"));
-    ScsiPortMoveMemory(&adaptExt->inquiry_data.ProductRevisionLevel, "0001", sizeof("0001"));
-    ScsiPortMoveMemory(&adaptExt->inquiry_data.VendorSpecific, "0001", sizeof("0001"));
+    StorPortMoveMemory(&adaptExt->inquiry_data.VendorId, "Red Hat ", sizeof("Red Hat "));
+    StorPortMoveMemory(&adaptExt->inquiry_data.ProductId, "VirtIO", sizeof("VirtIO"));
+    StorPortMoveMemory(&adaptExt->inquiry_data.ProductRevisionLevel, "0001", sizeof("0001"));
+    StorPortMoveMemory(&adaptExt->inquiry_data.VendorSpecific, "0001", sizeof("0001"));
 
     if(!adaptExt->dump_mode && !adaptExt->sn_ok)
     {
@@ -701,7 +671,6 @@ VirtIoHwInitialize(
 
     ret = TRUE;
 
-#ifdef USE_STORPORT
     if (!adaptExt->dump_mode)
     {
         if ((adaptExt->num_queues > 1) && (adaptExt->perfFlags == 0)) {
@@ -773,7 +742,6 @@ VirtIoHwInitialize(
     {
         ret = StorPortEnablePassiveInitialization(DeviceExtension, VirtIoPassiveInitializeRoutine);
     }
-#endif
 
     if (ret) {
         virtio_device_ready(&adaptExt->vdev);
@@ -1064,7 +1032,6 @@ VirtIoHwReinitialize(
     return VirtIoHwInitialize(DeviceExtension);
 }
 
-#ifdef USE_STORPORT
 BOOLEAN
 VirtIoBuildIo(
     IN PVOID DeviceExtension,
@@ -1095,7 +1062,7 @@ VirtIoBuildIo(
 
     if(SRB_PATH_ID(Srb) || SRB_TARGET_ID(Srb) || SRB_LUN(Srb)) {
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_NO_DEVICE);
-        ScsiPortNotification(RequestComplete,
+        StorPortNotification(RequestComplete,
                              DeviceExtension,
                              Srb);
         return FALSE;
@@ -1162,10 +1129,10 @@ VirtIoBuildIo(
         srbExt->in = sgElement;
     }
 
-    srbExt->vbr.sg[0].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &dummy);
+    srbExt->vbr.sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &dummy);
     srbExt->vbr.sg[0].length = sizeof(srbExt->vbr.out_hdr);
 
-    srbExt->vbr.sg[sgElement].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &dummy);
+    srbExt->vbr.sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &dummy);
     srbExt->vbr.sg[sgElement].length = sizeof(srbExt->vbr.status);
 
     return TRUE;
@@ -1266,8 +1233,6 @@ VirtIoMSInterruptRoutine (
 }
 #endif
 
-#endif
-
 UCHAR
 RhelScsiGetInquiryData(
     IN PVOID DeviceExtension,
@@ -1316,7 +1281,7 @@ RhelScsiGetInquiryData(
            SerialPage->SerialNumber[0] = '0';
         } else {
            SerialPage->PageLength = BLOCK_SERIAL_STRLEN;
-           ScsiPortMoveMemory(&SerialPage->SerialNumber, &adaptExt->sn, BLOCK_SERIAL_STRLEN);
+           StorPortMoveMemory(&SerialPage->SerialNumber, &adaptExt->sn, BLOCK_SERIAL_STRLEN);
         }
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_SERIAL_NUMBER_PAGE) + SerialPage->PageLength));
     }
@@ -1349,10 +1314,10 @@ RhelScsiGetInquiryData(
 
     }
     else if (dataLen > sizeof(INQUIRYDATA)) {
-        ScsiPortMoveMemory(InquiryData, &adaptExt->inquiry_data, sizeof(INQUIRYDATA));
+        StorPortMoveMemory(InquiryData, &adaptExt->inquiry_data, sizeof(INQUIRYDATA));
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(INQUIRYDATA)));
     } else {
-        ScsiPortMoveMemory(InquiryData, &adaptExt->inquiry_data, dataLen);
+        StorPortMoveMemory(InquiryData, &adaptExt->inquiry_data, dataLen);
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, dataLen);
     }
 
@@ -1491,14 +1456,12 @@ RhelScsiGetCapacity(
     PCDB cdb = SRB_CDB(Srb);
     UCHAR ScsiStatus = SCSISTAT_GOOD;
     UCHAR  PMI = 0;
-#ifdef USE_STORPORT
     BOOLEAN depthSet = StorPortSetDeviceQueueDepth(DeviceExtension,
                                            SRB_PATH_ID(Srb),
                                            SRB_TARGET_ID(Srb),
                                            SRB_LUN(Srb),
                                            adaptExt->queue_depth);
     ASSERT(depthSet);
-#endif
 
     readCap = (PREAD_CAPACITY_DATA)SRB_DATA_BUFFER(Srb);
     readCapEx = (PREAD_CAPACITY_DATA_EX)SRB_DATA_BUFFER(Srb);
@@ -1551,16 +1514,9 @@ CompleteSRB(
     IN PSRB_TYPE Srb
     )
 {
-    ScsiPortNotification(RequestComplete,
+    StorPortNotification(RequestComplete,
                          DeviceExtension,
                          Srb);
-#ifndef USE_STORPORT
-    ScsiPortNotification(NextLuRequest,
-                         DeviceExtension,
-                         SRB_PATH_ID(Srb),
-                         SRB_TARGET_ID(Srb),
-                         SRB_LUN(Srb));
-#endif
 }
 
 VOID
@@ -1573,13 +1529,8 @@ CompleteDPC(
 {
     PSRB_TYPE Srb                = (PSRB_TYPE)vbr->req;
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-#ifndef USE_STORPORT
-    PSRB_EXTENSION srbExt        = SRB_EXTENSION(Srb);
-    UNREFERENCED_PARAMETER( MessageID );
-#endif
     RemoveEntryList(&vbr->list_entry);
 
-#ifdef USE_STORPORT
     if(!adaptExt->dump_mode && adaptExt->dpc_ok) {
         InsertTailList(&adaptExt->complete_list, &vbr->list_entry);
         StorPortIssueDpc(DeviceExtension,
@@ -1589,24 +1540,8 @@ CompleteDPC(
         return;
     }
     CompleteSRB(DeviceExtension, Srb);
-#else
-   if (SRB_DATA_TRANSFER_LENGTH(Srb) > srbExt->Xfer) {
-       SRB_SET_DATA_TRANSFER_LENGTH(Srb, (srbExt->Xfer));
-       SRB_SET_SRB_STATUS(Srb, SRB_STATUS_DATA_OVERRUN);
-    }
-    ScsiPortNotification(RequestComplete,
-                         DeviceExtension,
-                         Srb);
-    if(srbExt->call_next) {
-        ScsiPortNotification(NextLuRequest,
-                         DeviceExtension,
-                         SRB_PATH_ID(Srb),
-                         SRB_TARGET_ID(Srb),
-                         SRB_LUN(Srb));
-    }
-#endif
 }
-#ifdef USE_STORPORT
+
 VOID
 CompleteDpcRoutineEx(
     IN PVOID DeviceExtension,
@@ -1737,7 +1672,7 @@ CompleteDpcRoutine(
            SRB_SET_DATA_TRANSFER_LENGTH(Srb, (srbExt->Xfer));
            SRB_SET_SRB_STATUS(Srb, SRB_STATUS_DATA_OVERRUN);
         }
-        ScsiPortNotification(RequestComplete,
+        StorPortNotification(RequestComplete,
                          Context,
                          Srb);
 #ifdef MSI_SUPPORTED
@@ -1762,7 +1697,6 @@ CompleteDpcRoutine(
 #endif
     return;
 }
-#endif
 
 VOID
 LogError(
@@ -1783,7 +1717,7 @@ LogError(
     logEvent.DumpData                  = &UniqueId;
     StorPortLogSystemEvent( DeviceExtension, &logEvent, NULL );
 #else
-    ScsiPortLogError(DeviceExtension,
+    StorPortLogError(DeviceExtension,
                          NULL,
                          0,
                          0,

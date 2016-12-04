@@ -15,12 +15,7 @@
 
 
 #include <ntddk.h>
-#ifdef USE_STORPORT
-#define STOR_USE_SCSI_ALIASES
 #include <storport.h>
-#else
-#include <scsi.h>
-#endif
 #include <stdarg.h>
 #include "kdebugprint.h"
 #include "evntrace.h"
