@@ -387,6 +387,8 @@ typedef struct _tagPARANDIS_ADAPTER
         ULONG framesRxPriority;
         ULONG framesRxCSHwOK;
         ULONG framesFilteredOut;
+        ULONG framesCoalescedEmul;
+        ULONG framesCoalescedWindows;
     } extraStatistics;
 
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
