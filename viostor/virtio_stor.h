@@ -15,12 +15,7 @@
 #define ___VIOSTOR_H__
 
 #include <ntddk.h>
-#ifdef USE_STORPORT
-#define STOR_USE_SCSI_ALIASES
 #include <storport.h>
-#else
-#include <scsi.h>
-#endif
 
 #include "osdep.h"
 #include "virtio_pci.h"
@@ -161,13 +156,11 @@ typedef struct _ADAPTER_EXTENSION {
     VIRTIO_BAR            pci_bars[PCI_TYPE0_ADDRESSES];
     ULONG                 system_io_bus_number;
 
-#ifdef USE_STORPORT
     ULONG                 perfFlags;
     PGROUP_AFFINITY       pmsg_affinity;
     LIST_ENTRY            complete_list;
     PSTOR_DPC             dpc;
     BOOLEAN               dpc_ok;
-#endif
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
 #if (INDIRECT_SUPPORTED == 1)
@@ -189,9 +182,6 @@ typedef struct _SRB_EXTENSION {
     ULONG                 MessageID;
     UCHAR                 cpu;
     BOOLEAN               fua;
-#ifndef USE_STORPORT
-    BOOLEAN               call_next;
-#endif
 #if INDIRECT_SUPPORTED
     VRING_DESC_ALIAS      desc[VIRTIO_MAX_SG];
 #endif

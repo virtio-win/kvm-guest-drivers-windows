@@ -18,7 +18,7 @@
 
 #if (INDIRECT_SUPPORTED)
 #define SET_VA_PA() { ULONG len; va = adaptExt->indirect ? srbExt->desc : NULL; \
-                      pa = va ? ScsiPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0; \
+                      pa = va ? StorPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0; \
                     }
 #else
 #define SET_VA_PA()    va = NULL; pa = 0;
@@ -79,9 +79,9 @@ SynchronizedFlushRoutine(
     srbExt->out                = 1;
     srbExt->in                 = 1;
 
-    srbExt->vbr.sg[0].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
+    srbExt->vbr.sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
     srbExt->vbr.sg[0].length   = sizeof(srbExt->vbr.out_hdr);
-    srbExt->vbr.sg[1].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
+    srbExt->vbr.sg[1].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
     srbExt->vbr.sg[1].length   = sizeof(srbExt->vbr.status);
 
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
@@ -96,10 +96,8 @@ SynchronizedFlushRoutine(
     else {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s Can not add packet to queue.\n", __FUNCTION__));
-#ifdef USE_STORPORT
         StorPortBusy(DeviceExtension, 2);
 //FIXME
-#endif
     }
     if (notify) {
         virtqueue_notify(adaptExt->vq[QueueNumber]);
@@ -107,7 +105,6 @@ SynchronizedFlushRoutine(
     return result;
 }
 
-#ifdef USE_STORPORT
 BOOLEAN
 RhelDoFlush(
     PVOID DeviceExtension,
@@ -117,20 +114,7 @@ RhelDoFlush(
 {
     return SynchronizedFlushRoutine(DeviceExtension, Srb, resend);
 }
-#else
-BOOLEAN
-RhelDoFlush(
-    PVOID DeviceExtension,
-    PSRB_TYPE Srb,
-    BOOLEAN sync
-    )
-{
-    UNREFERENCED_PARAMETER(sync);
-    return SynchronizedFlushRoutine(DeviceExtension, Srb);
-}
-#endif
 
-#ifdef USE_STORPORT
 BOOLEAN
 SynchronizedReadWriteRoutine(
     IN PVOID DeviceExtension,
@@ -207,79 +191,6 @@ RhelDoReadWrite(PVOID DeviceExtension,
     return SynchronizedReadWriteRoutine(DeviceExtension, (PVOID)Srb);
 
 }
-#else
-BOOLEAN
-RhelDoReadWrite(PVOID DeviceExtension,
-                PSRB_TYPE Srb)
-{
-    PCDB                  cdb;
-    ULONG                 fragLen;
-    ULONG                 sgElement;
-    ULONG                 BytesLeft;
-    PVOID                 DataBuffer;
-    PADAPTER_EXTENSION    adaptExt;
-    PSRB_EXTENSION        srbExt;
-    int                   num_free;
-    PVOID                 va;
-    ULONGLONG             pa;
-    ULONG                 i;
-    ULONG                 sgMaxElements;
-
-    cdb      = SRB_CDB(Srb);
-    srbExt   = SRB_EXTENSION(Srb);
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    BytesLeft  = SRB_DATA_TRANSFER_LENGTH(Srb);
-    DataBuffer = SRB_DATA_BUFFER(Srb);
-
-    memset(srbExt, 0, sizeof (SRB_EXTENSION));
-    sgMaxElements = MAX_PHYS_SEGMENTS + 1;
-    for (i = 0, sgElement = 1; (i < sgMaxElements) && BytesLeft; i++, sgElement++) {
-        srbExt->vbr.sg[sgElement].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, Srb, DataBuffer, &fragLen);
-        srbExt->vbr.sg[sgElement].length   = fragLen;
-        srbExt->Xfer += fragLen;
-        BytesLeft -= fragLen;
-        DataBuffer = (PVOID)((ULONG_PTR)DataBuffer + fragLen);
-    }
-
-    srbExt->vbr.out_hdr.sector = RhelGetLba(DeviceExtension, cdb);
-    srbExt->vbr.out_hdr.ioprio = 0;
-    srbExt->vbr.req            = (struct request *)Srb;
-
-    if (SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT) {
-        srbExt->vbr.out_hdr.type = VIRTIO_BLK_T_OUT;
-        srbExt->out = sgElement;
-        srbExt->in = 1;
-    } else {
-        srbExt->vbr.out_hdr.type = VIRTIO_BLK_T_IN;
-        srbExt->out = 1;
-        srbExt->in = sgElement;
-    }
-
-    srbExt->vbr.sg[0].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
-    srbExt->vbr.sg[0].length = sizeof(srbExt->vbr.out_hdr);
-
-    srbExt->vbr.sg[sgElement].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
-    srbExt->vbr.sg[sgElement].length = sizeof(srbExt->vbr.status);
-
-    SET_VA_PA();
-    num_free = virtqueue_add_buf(adaptExt->vq,
-                                      &srbExt->vbr.sg[0],
-                                      srbExt->out, srbExt->in,
-                                      &srbExt->vbr, va, pa);
-
-    if ( num_free >= 0) {
-        InsertTailList(&adaptExt->list_head, &srbExt->vbr.list_entry);
-        virtqueue_kick(adaptExt->vq);
-        srbExt->call_next = FALSE;
-        if(!adaptExt->indirect && num_free < VIRTIO_MAX_SG) {
-            srbExt->call_next = TRUE;
-        } else {
-           ScsiPortNotification(NextLuRequest, DeviceExtension, SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb));
-        }
-    }
-    return TRUE;
-}
-#endif
 
 VOID
 RhelShutDown(
@@ -453,7 +364,6 @@ RhelGetDiskGeometry(
     }
 }
 
-#ifdef USE_STORPORT
 VOID
 VioStorVQLock(
     IN PVOID DeviceExtension,
@@ -534,4 +444,3 @@ VioStorVQUnlock(
     }
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("<---%s MessageID = %d\n", __FUNCTION__, MessageID));
 }
-#endif

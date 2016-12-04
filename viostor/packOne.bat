@@ -7,7 +7,7 @@ if /i "%1"=="Win8" goto :checkarch
 if /i "%1"=="Win7" goto :checkarch
 if /i "%1"=="Wlh" goto :checkarch
 if /i "%1"=="Wnet" goto :checkarch
-if /i "%1"=="WXp" goto :checkarch
+
 goto :printerr
 :checkarch
 if /i "%2"=="x86" goto :makeinstall
@@ -41,13 +41,13 @@ if /i "%1"=="win10" goto create_win10
 if /i "%1"=="wlh" goto create_vista
 if /i "%1"=="win7" goto create_win7
 if /i "%1"=="win8" goto create_win8
-if /i "%1"=="wnet" goto create_xp
-if /i "%1"=="wxp" goto create_xp
+if /i "%1"=="wnet" goto create_wnet
+
 goto error_inf2cat
 
-:create_xp
-if /i "%2"=="x86" set _OSMASK_=XP_X86,Server2003_X86
-if /i "%2"=="amd64" set _OSMASK_=XP_X64,Server2003_X64
+:create_wnet
+if /i "%2"=="x86" set Server2003_X86
+if /i "%2"=="amd64" set Server2003_X64
 goto run_inf2cat
 
 :create_vista

@@ -37,54 +37,54 @@
 static u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
 {
     if (ulRegister & ~PORT_MASK) {
-        return ScsiPortReadRegisterUlong((PULONG)(ulRegister));
+        return StorPortReadRegisterUlong(NULL, (PULONG)(ulRegister));
     } else {
-        return ScsiPortReadPortUlong((PULONG)(ulRegister));
+        return StorPortReadPortUlong(NULL, (PULONG)(ulRegister));
     }
 }
 
 static void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
 {
     if (ulRegister & ~PORT_MASK) {
-        ScsiPortWriteRegisterUlong((PULONG)(ulRegister), (ULONG)(ulValue));
+        StorPortWriteRegisterUlong(NULL, (PULONG)(ulRegister), (ULONG)(ulValue));
     } else {
-        ScsiPortWritePortUlong((PULONG)(ulRegister), (ULONG)(ulValue));
+        StorPortWritePortUlong(NULL, (PULONG)(ulRegister), (ULONG)(ulValue));
     }
 }
 
 static u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
 {
     if (ulRegister & ~PORT_MASK) {
-        return ScsiPortReadRegisterUchar((PUCHAR)(ulRegister));
+        return StorPortReadRegisterUchar(NULL, (PUCHAR)(ulRegister));
     } else {
-        return ScsiPortReadPortUchar((PUCHAR)(ulRegister));
+        return StorPortReadPortUchar(NULL, (PUCHAR)(ulRegister));
     }
 }
 
 static void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
 {
     if (ulRegister & ~PORT_MASK) {
-        ScsiPortWriteRegisterUchar((PUCHAR)(ulRegister), (UCHAR)(bValue));
+        StorPortWriteRegisterUchar(NULL, (PUCHAR)(ulRegister), (UCHAR)(bValue));
     } else {
-        ScsiPortWritePortUchar((PUCHAR)(ulRegister), (UCHAR)(bValue));
+        StorPortWritePortUchar(NULL, (PUCHAR)(ulRegister), (UCHAR)(bValue));
     }
 }
 
 static u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
 {
     if (ulRegister & ~PORT_MASK) {
-        return ScsiPortReadRegisterUshort((PUSHORT)(ulRegister));
+        return StorPortReadRegisterUshort(NULL, (PUSHORT)(ulRegister));
     } else {
-        return ScsiPortReadPortUshort((PUSHORT)(ulRegister));
+        return StorPortReadPortUshort(NULL, (PUSHORT)(ulRegister));
     }
 }
 
 static void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
 {
     if (ulRegister & ~PORT_MASK) {
-        ScsiPortWriteRegisterUshort((PUSHORT)(ulRegister), (USHORT)(wValue));
+        StorPortWriteRegisterUshort(NULL, (PUSHORT)(ulRegister), (USHORT)(wValue));
     } else {
-        ScsiPortWritePortUshort((PUSHORT)(ulRegister), (USHORT)(wValue));
+        StorPortWritePortUshort(NULL, (PUSHORT)(ulRegister), (USHORT)(wValue));
     }
 }
 
@@ -117,7 +117,7 @@ static void mem_free_contiguous_pages(void *context, void *virt)
 static ULONGLONG mem_get_physical_address(void *context, void *virt)
 {
     ULONG uLength;
-    SCSI_PHYSICAL_ADDRESS pa = ScsiPortGetPhysicalAddress(context, NULL, virt, &uLength);
+    STOR_PHYSICAL_ADDRESS pa = StorPortGetPhysicalAddress(context, NULL, virt, &uLength);
     return pa.QuadPart;
 }
 
@@ -169,26 +169,7 @@ static void *pci_map_address_range(void *context, int bar, size_t offset, size_t
     if (bar < PCI_TYPE0_ADDRESSES) {
         PVIRTIO_BAR pBar = &adaptExt->pci_bars[bar];
         if (pBar->pBase == NULL) {
-#ifndef USE_STORPORT
-            if (!ScsiPortValidateRange(
-                adaptExt,
-                PCIBus,
-                adaptExt->system_io_bus_number,
-                pBar->BasePA,
-                pBar->uLength,
-                !!pBar->bPortSpace)) {
-                LogError(adaptExt,
-                        SP_INTERNAL_ADAPTER_ERROR,
-                        __LINE__);
-
-                RhelDbgPrint(TRACE_LEVEL_FATAL, ("Range validation failed %I64x for %x bytes\n",
-                            pBar->BasePA.QuadPart,
-                            pBar->uLength));
-
-                return NULL;
-            }
-#endif
-            pBar->pBase = ScsiPortGetDeviceBase(
+            pBar->pBase = StorPortGetDeviceBase(
                 adaptExt,
                 PCIBus,
                 adaptExt->system_io_bus_number,
