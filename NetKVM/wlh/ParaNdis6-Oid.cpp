@@ -452,7 +452,7 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             wmiStatistics.rxPriority = pContext->extraStatistics.framesRxPriority;
             wmiStatistics.rxChecksumOK = pContext->extraStatistics.framesRxCSHwOK;
             wmiStatistics.rxCoalescedWin = pContext->extraStatistics.framesCoalescedWindows;
-            wmiStatistics.rxCoalescedNonWin = pContext->extraStatistics.framesCoalescedEmul;
+            wmiStatistics.rxCoalescedHost = pContext->extraStatistics.framesCoalescedHost;
             break;
 
         case OID_GEN_INTERRUPT_MODERATION:

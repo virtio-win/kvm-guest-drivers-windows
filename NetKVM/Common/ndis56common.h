@@ -387,7 +387,7 @@ typedef struct _tagPARANDIS_ADAPTER
         ULONG framesRxPriority;
         ULONG framesRxCSHwOK;
         ULONG framesFilteredOut;
-        ULONG framesCoalescedEmul;
+        ULONG framesCoalescedHost;
         ULONG framesCoalescedWindows;
     } extraStatistics;
 
