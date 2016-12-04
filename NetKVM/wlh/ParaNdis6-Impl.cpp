@@ -877,11 +877,13 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
             {
                 *pnCoalescedSegmentsCount = PktGetTCPCoalescedSegmentsCount(pPacketInfo, pContext->MaxPacketSize.nMaxDataSize);
                 NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, 0);
+                DPrintf(1, ("RSC emul packet, datalen %d, GSO type %d\n", pPacketInfo->dataLength, pHeader->hdr.gso_type));
             }
             else if ((pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) && (pHeader->hdr.gso_type != VIRTIO_NET_HDR_RSC_NONE))
             {
                 *pnCoalescedSegmentsCount = pHeader->rsc_pkts;
                 NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, pHeader->rsc_dup_acks);
+                DPrintf(1, ("RSC true packet, datalen %d, GSO type %d\n", pPacketInfo->dataLength, pHeader->hdr.gso_type));
             }
             else
 #endif
