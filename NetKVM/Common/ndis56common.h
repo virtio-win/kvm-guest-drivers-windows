@@ -384,11 +384,8 @@ typedef struct _tagPARANDIS_ADAPTER
     {
         ULONG framesCSOffload;
         ULONG framesLSO;
-        ULONG framesIndirect;
         ULONG framesRxPriority;
         ULONG framesRxCSHwOK;
-        ULONG framesRxCSHwMissedBad;
-        ULONG framesRxCSHwMissedGood;
         ULONG framesFilteredOut;
     } extraStatistics;
 
