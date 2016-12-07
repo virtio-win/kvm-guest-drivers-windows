@@ -23,6 +23,7 @@ private:
     CMemStat* m_pMemStat;
     SERVICE_STATUS_HANDLE m_hService;
     HANDLE m_hThread;
+    HANDLE m_evtInitialized;
     HANDLE m_evtTerminate;
     HANDLE m_evtWrite;
 };

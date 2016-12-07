@@ -5,6 +5,7 @@ CDevice::CDevice()
     m_pMemStat = NULL;
     m_hService = NULL;
     m_hThread = NULL;
+    m_evtInitialized = NULL;
     m_evtTerminate = NULL;
     m_evtWrite = NULL;
 }
@@ -18,6 +19,11 @@ BOOL CDevice::Init(SERVICE_STATUS_HANDLE hService)
 {
     m_pMemStat = new CMemStat();
     if (!m_pMemStat || !m_pMemStat->Init()) {
+        return FALSE;
+    }
+
+    m_evtInitialized = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (!m_evtInitialized) {
         return FALSE;
     }
 
@@ -43,6 +49,11 @@ VOID CDevice::Fini()
     if (m_evtWrite) {
         CloseHandle(m_evtWrite);
         m_evtWrite = NULL;
+    }
+
+    if (m_evtInitialized) {
+        CloseHandle(m_evtInitialized);
+        m_evtInitialized = NULL;
     }
 
     if (m_evtTerminate) {
@@ -91,6 +102,8 @@ DWORD CDevice::Run()
         CloseHandle(hDevice);
         return err;
     }
+
+    SetEvent(m_evtInitialized);
 
     WriteLoop(hDevice);
 
@@ -145,14 +158,28 @@ VOID CDevice::WriteLoop(HANDLE hDevice)
 
 BOOL CDevice::Start()
 {
-    DWORD tid;
+    DWORD tid, waitrc;
 
     if (!m_hThread) {
         m_hThread = CreateThread(NULL, 0,
             (LPTHREAD_START_ROUTINE)DeviceThread, (LPVOID)this, 0, &tid);
+        if (!m_hThread) {
+            return FALSE;
+        }
+
+        HANDLE waitfor[] = { m_evtInitialized, m_hThread };
+        waitrc = WaitForMultipleObjects(sizeof(waitfor) / sizeof(waitfor[0]),
+            waitfor, FALSE, INFINITE);
+        if (waitrc != WAIT_OBJECT_0) {
+            // the thread failed to initialize
+            CloseHandle(m_hThread);
+            m_hThread = NULL;
+        }
     }
 
-    return (m_hThread != NULL);
+    // keep the original behavior of reporting success
+    // even if the thread failed to initialize
+    return TRUE;
 }
 
 VOID CDevice::Stop()
