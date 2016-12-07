@@ -1,7 +1,5 @@
 #include "stdafx.h"
 
-#pragma warning(disable:4996)
-
 extern LPWSTR ServiceName;
 extern LPWSTR DisplayName;
 
@@ -25,9 +23,11 @@ void ErrorHandler(char *s, int err)
         printf("unknown error\n");
     }
 
-    FILE* pLog = fopen("balloon.log","a");
-    fprintf(pLog, "%s failed, error code = %d\n",s , err);
-    fclose(pLog);
+    FILE* pLog;
+    if (fopen_s(&pLog, "balloon.log", "a") == 0) {
+        fprintf(pLog, "%s failed, error code = %d\n", s, err);
+        fclose(pLog);
+    }
 
     ExitProcess(err);
 }
@@ -35,9 +35,11 @@ void ErrorHandler(char *s, int err)
 void PrintMessage(char *s)
 {
 #ifdef DBG
-    FILE* pLog = fopen("balloon.log", "a");
-    fprintf(pLog, "%s\n", s);
-    fclose(pLog);
+    FILE* pLog;
+    if (fopen_s(&pLog, "balloon.log", "a") == 0) {
+        fprintf(pLog, "%s\n", s);
+        fclose(pLog);
+    }
 #endif
 }
 
