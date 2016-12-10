@@ -703,8 +703,8 @@ void ParaNdis6_FillOffloadConfiguration(PARANDIS_ADAPTER *pContext)
     NDIS_OFFLOAD *po = &pContext->ReportedOffloadConfiguration;
     FillOffloadStructure(po, pContext->Offload.flags);
 #if PARANDIS_SUPPORT_RSC
-    po->Rsc.IPv4.Enabled = (pContext->RSC.bIPv4SupportedSW && pContext->RSC.bIPv4SupportedHW);
-    po->Rsc.IPv6.Enabled = (pContext->RSC.bIPv6SupportedSW && pContext->RSC.bIPv6SupportedHW);
+    po->Rsc.IPv4.Enabled = pContext->RSC.bIPv4Enabled;
+    po->Rsc.IPv6.Enabled = pContext->RSC.bIPv6Enabled;
 #endif
 }
 
