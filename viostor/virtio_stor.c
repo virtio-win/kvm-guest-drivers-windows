@@ -15,6 +15,7 @@
 #include "virtio_stor.h"
 #include "virtio_stor_utils.h"
 #include "virtio_stor_hw_helper.h"
+#include "acpiioct.h"
 
 BOOLEAN IsCrashDumpMode;
 
@@ -487,7 +488,7 @@ VirtIoFindAdapter(
         ULONG Status =
         StorPortAllocatePool(DeviceExtension,
                              sizeof(GROUP_AFFINITY) * (adaptExt->num_queues),
-                             VIOSCSI_POOL_TAG,
+                             VIOBLK_POOL_TAG,
                              (PVOID*)&adaptExt->pmsg_affinity);
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("pmsg_affinity = %p Status = %lu\n",adaptExt->pmsg_affinity, Status));
     }
@@ -496,6 +497,74 @@ VirtIoFindAdapter(
 //    InitializeListHead(&adaptExt->list_head);
     InitializeListHead(&adaptExt->complete_list);
     return SP_RETURN_FOUND;
+}
+
+void CheckACPI(IN PVOID DeviceExtension)
+{
+    ULONG   status = STOR_STATUS_SUCCESS;
+
+    ACPI_EVAL_INPUT_BUFFER   inputData = { 0 };
+    PACPI_EVAL_OUTPUT_BUFFER acpiData = NULL;
+    PACPI_METHOD_ARGUMENT    argument = NULL;
+    ULONG                    acpiDataSize = 256;     // initial size, should be good enough for most cases
+    ULONG                    returnedLength = 0;
+    UCHAR                    gtfCommandCount = 0;
+
+    RhelDbgPrint(TRACE_LEVEL_FATAL, ("--->%s\n", __FUNCTION__));
+
+    inputData.Signature = ACPI_EVAL_INPUT_BUFFER_SIGNATURE;
+    inputData.MethodNameAsUlong = (ULONG)('TRIV');
+
+    status = StorPortAllocatePool(DeviceExtension,
+        acpiDataSize,
+        VIOBLK_POOL_TAG,
+        (PVOID*)&acpiData);
+
+    if (acpiData != NULL) {
+        // call API to get required buffer size
+        status = StorPortInvokeAcpiMethod(DeviceExtension,
+            NULL,
+            (ULONG)('TRIV'),
+            &inputData,
+            sizeof(ACPI_EVAL_INPUT_BUFFER),
+            (PVOID)acpiData,
+            acpiDataSize,
+            &returnedLength
+        );
+    }
+
+    // in case of the allocate buffer is too small, re-allocate buffer and retry the call
+    if ((status == STOR_STATUS_BUFFER_TOO_SMALL) && (acpiData->Length > acpiDataSize)) {
+        acpiDataSize = acpiData->Length;
+        StorPortFreePool(DeviceExtension, (PVOID)acpiData);
+        acpiData = NULL;
+        // re-allocate a bigger buffer
+        status = StorPortAllocatePool(DeviceExtension,
+            acpiDataSize,
+            VIOBLK_POOL_TAG,
+            (PVOID*)&acpiData);
+
+        if (acpiData != NULL) {
+            status = StorPortInvokeAcpiMethod(DeviceExtension,
+                NULL,
+                (ULONG)('TRIV'),
+                &inputData,
+                sizeof(ACPI_EVAL_INPUT_BUFFER),
+                (PVOID)acpiData,
+                acpiDataSize,
+                &returnedLength
+            );
+        }
+    }
+    if ((status == STOR_STATUS_SUCCESS) &&
+        (acpiData != NULL) &&
+        (acpiData->Signature == ACPI_EVAL_OUTPUT_BUFFER_SIGNATURE) &&
+        (acpiData->Count == 1)) {
+
+        argument = acpiData->Argument;
+        RhelDbgPrint(TRACE_LEVEL_FATAL, (" Type = %d DataLength = %d\n", Argument->Type, argument->DataLength));
+    }
+    RhelDbgPrint(TRACE_LEVEL_FATAL, ("<---%s\n", __FUNCTION__));
 }
 
 BOOLEAN
@@ -511,6 +580,7 @@ VirtIoPassiveInitializeRoutine (
             CompleteDpcRoutine);
     }
     adaptExt->dpc_ok = TRUE;
+//    CheckACPI(DeviceExtension);
     return TRUE;
 }
 

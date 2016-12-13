@@ -67,7 +67,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define VIRTIO_MAX_SG           (3+MAX_PHYS_SEGMENTS)
 
-#define VIOSCSI_POOL_TAG        'BoiV'
+#define VIOBLK_POOL_TAG        'BoiV'
 
 #pragma pack(1)
 typedef struct virtio_blk_config {
