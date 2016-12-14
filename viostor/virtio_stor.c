@@ -131,12 +131,17 @@ CompleteSRB(
     IN PSRB_TYPE Srb
     );
 
-VOID
+BOOLEAN
 FORCEINLINE
 CompleteDPC(
     IN PVOID DeviceExtension,
-    IN pblk_req vbr,
     IN ULONG  MessageID
+    );
+
+VOID
+CompleteRequest(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID
     );
 
 
@@ -562,7 +567,7 @@ void CheckACPI(IN PVOID DeviceExtension)
         (acpiData->Count == 1)) {
 
         argument = acpiData->Argument;
-        RhelDbgPrint(TRACE_LEVEL_FATAL, (" Type = %d DataLength = %d\n", Argument->Type, argument->DataLength));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, (" Type = %d DataLength = %d\n", argument->Type, argument->DataLength));
     }
     RhelDbgPrint(TRACE_LEVEL_FATAL, ("<---%s\n", __FUNCTION__));
 }
@@ -971,45 +976,10 @@ VirtIoInterrupt(
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s (%d)\n", __FUNCTION__, KeGetCurrentIrql()));
     intReason = virtio_read_isr_status(&adaptExt->vdev);
     if ( intReason == 1 || adaptExt->dump_mode ) {
-        isInterruptServiced = TRUE;
-        while((vbr = (pblk_req)virtqueue_get_buf(adaptExt->vq[0], &len)) != NULL) {
-           Srb = (PSRB_TYPE)vbr->req;
-           if (Srb) {
-              switch (vbr->status) {
-              case VIRTIO_BLK_S_OK:
-                 SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
-                 break;
-              case VIRTIO_BLK_S_UNSUPP:
-                 SRB_SET_SRB_STATUS(Srb, SRB_STATUS_INVALID_REQUEST);
-                 break;
-              default:
-                 SRB_SET_SRB_STATUS(Srb, SRB_STATUS_ERROR);
-                 RhelDbgPrint(TRACE_LEVEL_ERROR, ("SRB_STATUS_ERROR\n"));
-                 break;
-              }
-           }
-           if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
-              CompleteSRB(DeviceExtension, Srb);
-           } else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
-              adaptExt->sn_ok = TRUE;
-           } else if (Srb) {
-              srbExt = SRB_EXTENSION(Srb);
-              if (srbExt->fua) {
-                  UCHAR ScsiStatus = SCSISTAT_GOOD;
-                  RemoveEntryList(&vbr->list_entry);
-                  SRB_SET_SRB_STATUS(Srb, SRB_STATUS_PENDING);
-                  SRB_SET_SCSI_STATUS(((PSRB_TYPE)Srb), ScsiStatus);
-                  if (!RhelDoFlush(DeviceExtension, Srb, TRUE)) {
-                      SRB_SET_SRB_STATUS(Srb, SRB_STATUS_ERROR);
-                      CompleteSRB(DeviceExtension, Srb);
-                  } else {
-                      srbExt->fua = FALSE;
-                  }
-              } else {
-                  CompleteDPC(DeviceExtension, vbr, 1);
-              }
-           }
+        if (!CompleteDPC(DeviceExtension, 1)) {
+            CompleteRequest(DeviceExtension, 1);
         }
+        isInterruptServiced = TRUE;
     } else if (intReason == 3) {
         RhelGetDiskGeometry(DeviceExtension);
         isInterruptServiced = TRUE;
@@ -1207,21 +1177,6 @@ VirtIoBuildIo(
 
     return TRUE;
 }
-BOOLEAN CompleteDPCEx(
-    IN PVOID  DeviceExtension,
-    IN ULONG  MessageID
-)
-{
-    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    if(!adaptExt->dump_mode && adaptExt->dpc_ok) {
-        StorPortIssueDpc(DeviceExtension,
-                         &adaptExt->dpc[MessageID - 1],
-                         ULongToPtr(MessageID),
-                         ULongToPtr(TRUE));
-        return TRUE;
-    }
-    return FALSE;
-}
 
 #ifdef MSI_SUPPORTED
 BOOLEAN
@@ -1244,60 +1199,9 @@ VirtIoMSInterruptRoutine (
         RhelGetDiskGeometry(DeviceExtension);
         return TRUE;
     }
-    if (!CompleteDPCEx(DeviceExtension, MessageID))
+    if (!CompleteDPC(DeviceExtension, MessageID))
     {
-        pblk_req            vbr;
-        unsigned int        len;
-        PSRB_TYPE           Srb;
-        BOOLEAN             isInterruptServiced = FALSE;
-        PSRB_EXTENSION      srbExt;
-        STOR_LOCK_HANDLE    queueLock = { 0 };
-        VioStorVQLock(DeviceExtension, MessageID, &queueLock, TRUE);
-        while ((vbr = (pblk_req)virtqueue_get_buf(adaptExt->vq[MessageID - 1], &len)) != NULL) {
-            VioStorVQUnlock(DeviceExtension, MessageID, &queueLock, TRUE);
-            Srb = (PSRB_TYPE)vbr->req;
-            if (Srb) {
-                switch (vbr->status) {
-                case VIRTIO_BLK_S_OK:
-                    SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
-                    break;
-                case VIRTIO_BLK_S_UNSUPP:
-                    SRB_SET_SRB_STATUS(Srb, SRB_STATUS_INVALID_REQUEST);
-                    break;
-                default:
-                    SRB_SET_SRB_STATUS(Srb, SRB_STATUS_ERROR);
-                    RhelDbgPrint(TRACE_LEVEL_ERROR, ("SRB_STATUS_ERROR\n"));
-                    break;
-                }
-            }
-            if (vbr->out_hdr.type == VIRTIO_BLK_T_FLUSH) {
-                CompleteSRB(DeviceExtension, Srb);
-            }
-            else if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
-                adaptExt->sn_ok = TRUE;
-            }
-            else if (Srb) {
-                srbExt = SRB_EXTENSION(Srb);
-                if (srbExt->fua == TRUE) {
-                    UCHAR ScsiStatus = SCSISTAT_GOOD;
-                    RemoveEntryList(&vbr->list_entry);
-                    SRB_SET_SRB_STATUS(Srb, SRB_STATUS_PENDING);
-                    SRB_SET_SCSI_STATUS(((PSRB_TYPE)Srb), ScsiStatus);
-                    if (!RhelDoFlush(DeviceExtension, Srb, TRUE)) {
-                        SRB_SET_SRB_STATUS(Srb, SRB_STATUS_ERROR);
-                        CompleteSRB(DeviceExtension, Srb);
-                    }
-                    else {
-                        srbExt->fua = FALSE;
-                    }
-                }
-                else {
-                    CompleteDPC(DeviceExtension, vbr, MessageID);
-                }
-            }
-            VioStorVQLock(DeviceExtension, MessageID, &queueLock, TRUE);
-        }
-        VioStorVQUnlock(DeviceExtension, MessageID, &queueLock, TRUE);
+        CompleteRequest(DeviceExtension, MessageID);
     }
     return ((MessageID > 0) && (MessageID <= adaptExt->msix_vectors));
 }
@@ -1589,31 +1493,27 @@ CompleteSRB(
                          Srb);
 }
 
-VOID
+BOOLEAN
 FORCEINLINE
 CompleteDPC(
     IN PVOID DeviceExtension,
-    IN pblk_req vbr,
     IN ULONG MessageID
     )
 {
-    PSRB_TYPE Srb                = (PSRB_TYPE)vbr->req;
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    RemoveEntryList(&vbr->list_entry);
 
     if(!adaptExt->dump_mode && adaptExt->dpc_ok) {
-        InsertTailList(&adaptExt->complete_list, &vbr->list_entry);
         StorPortIssueDpc(DeviceExtension,
                          &adaptExt->dpc[MessageID - 1],
                          ULongToPtr(MessageID),
                          ULongToPtr(FALSE));
-        return;
+        return TRUE;
     }
-    CompleteSRB(DeviceExtension, Srb);
+    return FALSE;
 }
 
 VOID
-CompleteDpcRoutineEx(
+CompleteRequest(
     IN PVOID DeviceExtension,
     IN ULONG MessageID
 )
@@ -1698,74 +1598,8 @@ CompleteDpcRoutine(
     IN PVOID SystemArgument2
     )
 {
-    STOR_LOCK_HANDLE  LockHandle;
-    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)Context;
-#ifdef MSI_SUPPORTED
     ULONG MessageID = PtrToUlong(SystemArgument1);
-    BOOLEAN bNewStuff = (BOOLEAN)(PtrToUlong(SystemArgument2));
-    ULONG OldIrql;
-#endif
-
-#ifdef MSI_SUPPORTED
-
-    if (bNewStuff)
-    {
-        CompleteDpcRoutineEx(Context, MessageID);
-        return;
-    }
-    if(adaptExt->msix_vectors) {
-        StorPortAcquireMSISpinLock (Context, MessageID, &OldIrql);
-    } else {
-#endif
-        StorPortAcquireSpinLock ( Context, InterruptLock , NULL, &LockHandle);
-#ifdef MSI_SUPPORTED
-    }
-#endif
-
-    while (!IsListEmpty(&adaptExt->complete_list)) {
-        PSRB_TYPE Srb;
-        PSRB_EXTENSION srbExt;
-        pblk_req vbr;
-        vbr  = (pblk_req) RemoveHeadList(&adaptExt->complete_list);
-        Srb = (PSRB_TYPE)vbr->req;
-        srbExt   = SRB_EXTENSION(Srb);
-#ifdef MSI_SUPPORTED
-        if(adaptExt->msix_vectors) {
-           StorPortReleaseMSISpinLock (Context, MessageID, OldIrql);
-        } else {
-#endif
-           StorPortReleaseSpinLock (Context, &LockHandle);
-#ifdef MSI_SUPPORTED
-        }
-#endif
-        if (SRB_DATA_TRANSFER_LENGTH(Srb) > srbExt->Xfer) {
-           SRB_SET_DATA_TRANSFER_LENGTH(Srb, (srbExt->Xfer));
-           SRB_SET_SRB_STATUS(Srb, SRB_STATUS_DATA_OVERRUN);
-        }
-        StorPortNotification(RequestComplete,
-                         Context,
-                         Srb);
-#ifdef MSI_SUPPORTED
-        if(adaptExt->msix_vectors) {
-           StorPortAcquireMSISpinLock (Context, MessageID, &OldIrql);
-        } else {
-#endif
-           StorPortAcquireSpinLock ( Context, InterruptLock , NULL, &LockHandle);
-#ifdef MSI_SUPPORTED
-        }
-#endif
-    }
-
-#ifdef MSI_SUPPORTED
-    if(adaptExt->msix_vectors) {
-        StorPortReleaseMSISpinLock (Context, MessageID, OldIrql);
-    } else {
-#endif
-        StorPortReleaseSpinLock (Context, &LockHandle);
-#ifdef MSI_SUPPORTED
-    }
-#endif
-    return;
+    CompleteRequest(Context, MessageID);
 }
 
 VOID

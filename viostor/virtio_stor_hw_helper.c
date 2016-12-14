@@ -24,16 +24,14 @@
 #define SET_VA_PA()    va = NULL; pa = 0;
 #endif
 
-
 BOOLEAN
-SynchronizedFlushRoutine(
-    IN PVOID DeviceExtension,
-    IN PVOID Context,
-    IN BOOLEAN resend
+RhelDoFlush(
+    PVOID DeviceExtension,
+    PSRB_TYPE Srb,
+    BOOLEAN resend
     )
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    PSRB_TYPE           Srb      = (PSRB_TYPE) Context;
     PSRB_EXTENSION srbExt        = SRB_EXTENSION(Srb);
     ULONG               fragLen;
     PVOID               va;
@@ -71,7 +69,6 @@ SynchronizedFlushRoutine(
         MessageId = 1;
     }
 
-
     srbExt->vbr.out_hdr.sector = 0;
     srbExt->vbr.out_hdr.ioprio = 0;
     srbExt->vbr.req            = (struct request *)Srb;
@@ -106,23 +103,10 @@ SynchronizedFlushRoutine(
 }
 
 BOOLEAN
-RhelDoFlush(
-    PVOID DeviceExtension,
-    PSRB_TYPE Srb,
-    BOOLEAN resend
-    )
-{
-    return SynchronizedFlushRoutine(DeviceExtension, Srb, resend);
-}
-
-BOOLEAN
-SynchronizedReadWriteRoutine(
-    IN PVOID DeviceExtension,
-    IN PVOID Context
-    )
+RhelDoReadWrite(PVOID DeviceExtension,
+                PSRB_TYPE Srb)
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    PSRB_TYPE           Srb      = (PSRB_TYPE) Context;
     PSRB_EXTENSION      srbExt   = SRB_EXTENSION(Srb);
     PVOID               va;
     ULONGLONG           pa;
@@ -161,7 +145,7 @@ SynchronizedReadWriteRoutine(
     srbExt->MessageID = MessageId;
     vq = adaptExt->vq[QueueNumber];
     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                 ("<--->%s : QueueNumber 0x%x vq = %p vbr = %p\n", __FUNCTION__, QueueNumber, vq, srbExt->vbr));
+                 ("<--->%s : QueueNumber 0x%x vq = %p\n", __FUNCTION__, QueueNumber, vq));
 
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (virtqueue_add_buf(vq,
@@ -182,14 +166,6 @@ SynchronizedReadWriteRoutine(
         virtqueue_notify(vq);
     }
     return result;
-}
-
-BOOLEAN
-RhelDoReadWrite(PVOID DeviceExtension,
-                PSRB_TYPE Srb)
-{
-    return SynchronizedReadWriteRoutine(DeviceExtension, (PVOID)Srb);
-
 }
 
 VOID
