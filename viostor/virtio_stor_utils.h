@@ -41,8 +41,8 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regi
 
 extern int nViostorDebugLevel;
 
-//#define DBG 1
-//#define COM_DEBUG 1
+#define DBG 1
+#define COM_DEBUG 1
 
 #if DBG
 #define RhelDbgPrint(level, line) \
