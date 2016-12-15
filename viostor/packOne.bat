@@ -46,8 +46,8 @@ if /i "%1"=="wnet" goto create_wnet
 goto error_inf2cat
 
 :create_wnet
-if /i "%2"=="x86" set Server2003_X86
-if /i "%2"=="amd64" set Server2003_X64
+if /i "%2"=="x86" set _OSMASK_=Server2003_X86
+if /i "%2"=="amd64" set _OSMASK_=Server2003_X64
 goto run_inf2cat
 
 :create_vista
