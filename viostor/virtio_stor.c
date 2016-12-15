@@ -246,8 +246,10 @@ VirtIoFindAdapter(
     ULONG              res, i;
 
     ULONG              index;
+#ifdef MSI_SUPPORTED
     ULONG              num_cpus;
     ULONG              max_cpus;
+#endif
     ULONG              max_queues;
     ULONG              Size;
     ULONG              HeapSize;
@@ -395,13 +397,14 @@ VirtIoFindAdapter(
     adaptExt->queue_depth = queueLength / ConfigInfo->NumberOfPhysicalBreaks - 1;
 #endif
 
-
+#ifdef MSI_SUPPORTED
 #if (NTDDI_VERSION >= NTDDI_WIN7)
     num_cpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
     max_cpus = KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS);
 #else
     num_cpus = KeQueryActiveProcessorCount(NULL);
     max_cpus = KeQueryMaximumProcessorCount();
+#endif
 #endif
 
     adaptExt->num_queues = 1;
@@ -411,6 +414,7 @@ VirtIoFindAdapter(
                           &adaptExt->num_queues, sizeof(adaptExt->num_queues));
     }
 
+#ifdef MSI_SUPPORTED
     if (adaptExt->dump_mode || !adaptExt->msix_enabled)
     {
         adaptExt->num_queues = 1;
@@ -433,7 +437,10 @@ VirtIoFindAdapter(
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus));
 
     max_queues = min(max_cpus, adaptExt->num_queues);
-
+#else
+    adaptExt->num_queues = 1;
+    max_queues = 1;
+#endif
     adaptExt->pageAllocationSize = 0;
     adaptExt->poolAllocationSize = 0;
     adaptExt->pageOffset = 0;
@@ -499,11 +506,10 @@ VirtIoFindAdapter(
     }
 #endif
 
-//    InitializeListHead(&adaptExt->list_head);
-    InitializeListHead(&adaptExt->complete_list);
     return SP_RETURN_FOUND;
 }
 
+#if 0
 void CheckACPI(IN PVOID DeviceExtension)
 {
     ULONG   status = STOR_STATUS_SUCCESS;
@@ -571,6 +577,7 @@ void CheckACPI(IN PVOID DeviceExtension)
     }
     RhelDbgPrint(TRACE_LEVEL_FATAL, ("<---%s\n", __FUNCTION__));
 }
+#endif
 
 BOOLEAN
 VirtIoPassiveInitializeRoutine (
@@ -962,13 +969,9 @@ VirtIoInterrupt(
     IN PVOID DeviceExtension
     )
 {
-    pblk_req            vbr;
-    unsigned int        len;
     PADAPTER_EXTENSION  adaptExt;
     BOOLEAN             isInterruptServiced = FALSE;
-    PSRB_TYPE           Srb;
     ULONG               intReason = 0;
-    PSRB_EXTENSION      srbExt;
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
