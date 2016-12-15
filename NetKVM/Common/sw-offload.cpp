@@ -90,20 +90,45 @@ typedef struct _tagIP6_TYPE2_ROUTING_HEADER
 
 #define IP6_EXT_HDR_GRANULARITY   (8)
 
-static UINT32 RawCheckSumCalculator(PVOID buffer, ULONG len)
+static UINT_PTR RawCheckSumCalculator(PVOID buffer, ULONG len)
 {
-    UINT32 val = 0;
-    PUSHORT pus = (PUSHORT)buffer;
+    UINT_PTR val = 0;
+    PUCHAR ptr = (PUCHAR)buffer;
+#ifdef _WIN64
+    ULONG count = len >> 2;
+    while (count--) {
+        val += *(PUINT32)ptr;
+        ptr += 4;
+    }
+    if (len & 2) {
+        val += *(PUINT16)ptr;
+        ptr += 2;
+    }
+#else
     ULONG count = len >> 1;
-    while (count--) val += *pus++;
-    if (len & 1) val += (USHORT)*(PUCHAR)pus;
+    while (count--) {
+        val += *(PUINT16)ptr;
+        ptr += 2;
+    }
+#endif
+    if (len & 1) {
+        val += *ptr;
+    }
     return val;
 }
 
-static __inline USHORT RawCheckSumFinalize(UINT32 val)
+static __inline USHORT RawCheckSumFinalize(UINT_PTR sum)
 {
-    val = (((val >> 16) | (val << 16)) + val) >> 16;
-    return (USHORT)~val;
+    UINT32 sum32;
+    UINT16 sum16;
+
+#ifdef _WIN64
+    sum32 = (((sum >> 32) | (sum << 32)) + sum) >> 32;
+#else
+    sum32 = sum;
+#endif
+    sum16 = (((sum32 >> 16) | (sum32 << 16)) + sum32) >> 16;
+    return ~sum16;
 }
 
 static __inline USHORT CheckSumCalculatorFlat(PVOID buffer, ULONG len)
@@ -115,7 +140,7 @@ static __inline USHORT CheckSumCalculator(tCompletePhysicalAddress *pDataPages, 
 {
     tCompletePhysicalAddress *pCurrentPage = &pDataPages[0];
     ULONG ulCurrPageOffset = 0;
-    UINT32 u32RawCSum = 0;
+    UINT_PTR uRawCSum = 0;
 
     while(ulStartOffset > 0)
     {
@@ -132,13 +157,13 @@ static __inline USHORT CheckSumCalculator(tCompletePhysicalAddress *pDataPages, 
         PVOID pCurrentPageDataStart = RtlOffsetToPointer(pCurrentPage->Virtual, ulCurrPageOffset);
         ULONG ulCurrentPageDataLength = min(len, pCurrentPage->size - ulCurrPageOffset);
 
-        u32RawCSum += RawCheckSumCalculator(pCurrentPageDataStart, ulCurrentPageDataLength);
+        uRawCSum += RawCheckSumCalculator(pCurrentPageDataStart, ulCurrentPageDataLength);
         pCurrentPage++;
         ulCurrPageOffset = 0;
         len -= ulCurrentPageDataLength;
     }
 
-    return RawCheckSumFinalize(u32RawCSum);
+    return RawCheckSumFinalize(uRawCSum);
 }
 
 
