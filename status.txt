@@ -1,3 +1,17 @@
+Date    15 Dec 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm149
+
+New Features:
+
+NetKVM Return correct info for OID_TCP_OFFLOAD_PARAMETERS
+Balloon: Fix blnsvr race conditions
+NetKvm: Support WMI commands
+NetKvm: Use fewer virtio receive SG descriptors
+NetKvm: Fix race of changing of RSS parameters and TX
+virtiolib: Fix uninitialized variable in VirtIOWdfFinalizeFeatures
+
+
 Date    02 Nov 2016
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm148
