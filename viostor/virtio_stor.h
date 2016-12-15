@@ -29,6 +29,7 @@
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
+
 /* Feature bits */
 #define VIRTIO_BLK_F_BARRIER    0       /* Does host support barriers? */
 #define VIRTIO_BLK_F_SIZE_MAX   1       /* Indicates maximum segment size */
@@ -37,10 +38,8 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_BLK_F_RO         5       /* Disk is read-only */
 #define VIRTIO_BLK_F_BLK_SIZE   6       /* Block size of disk is available*/
 #define VIRTIO_BLK_F_SCSI       7       /* Supports scsi command passthru */
-#define VIRTIO_BLK_F_FLUSH	9	/* Flush command supported */
+#define VIRTIO_BLK_F_WCACHE     9       /* write cache enabled */
 #define VIRTIO_BLK_F_TOPOLOGY   10      /* Topology information is available */
-#define VIRTIO_BLK_F_CONFIG_WCE	11	/* Writeback mode available in config */
-#define VIRTIO_BLK_F_MQ		12	/* support more than one vq */
 
 /* These two define direction. */
 #define VIRTIO_BLK_T_IN         0
@@ -88,12 +87,7 @@ typedef struct virtio_blk_config {
     u8  physical_block_exp;
     u8  alignment_offset;
     u16 min_io_size;
-    u32 opt_io_size;
-    /* writeback mode (if VIRTIO_BLK_F_CONFIG_WCE) */
-    u8 wce;
-    u8 unused;
-    /* number of vqs, only available when VIRTIO_BLK_F_MQ is set */
-    u16 num_queues;
+    u16 opt_io_size;
 }blk_config, *pblk_config;
 #pragma pack()
 
@@ -133,7 +127,6 @@ typedef struct _ADAPTER_EXTENSION {
     ULONG                 poolOffset;
 
     struct virtqueue *    vq;
-    USHORT                num_queues;
     INQUIRYDATA           inquiry_data;
     blk_config            info;
     ULONG                 queue_depth;
@@ -173,7 +166,7 @@ typedef struct _VRING_DESC_ALIAS
 }VRING_DESC_ALIAS;
 #endif
 
-typedef struct _SRB_EXTENSION {
+typedef struct _RHEL_SRB_EXTENSION {
     blk_req               vbr;
     ULONG                 out;
     ULONG                 in;
@@ -185,7 +178,7 @@ typedef struct _SRB_EXTENSION {
 #if INDIRECT_SUPPORTED
     VRING_DESC_ALIAS      desc[VIRTIO_MAX_SG];
 #endif
-}SRB_EXTENSION, *PSRB_EXTENSION;
+}RHEL_SRB_EXTENSION, *PRHEL_SRB_EXTENSION;
 
 BOOLEAN
 VirtIoInterrupt(

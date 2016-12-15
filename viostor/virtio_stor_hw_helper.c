@@ -32,8 +32,8 @@ SynchronizedFlushRoutine(
     )
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    PSRB_TYPE           Srb      = (PSRB_TYPE) Context;
-    PSRB_EXTENSION srbExt        = SRB_EXTENSION(Srb);
+    PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
+    PRHEL_SRB_EXTENSION srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
     ULONG               fragLen;
     PVOID               va;
     ULONGLONG           pa;
@@ -70,7 +70,7 @@ SynchronizedFlushRoutine(
 BOOLEAN
 RhelDoFlush(
     PVOID DeviceExtension,
-    PSRB_TYPE Srb,
+    PSCSI_REQUEST_BLOCK Srb,
     BOOLEAN sync
     )
 {
@@ -84,7 +84,7 @@ RhelDoFlush(
 BOOLEAN
 RhelDoFlush(
     PVOID DeviceExtension,
-    PSRB_TYPE Srb,
+    PSCSI_REQUEST_BLOCK Srb,
     BOOLEAN sync
     )
 {
@@ -101,8 +101,8 @@ SynchronizedReadWriteRoutine(
     )
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    PSRB_TYPE           Srb      = (PSRB_TYPE) Context;
-    PSRB_EXTENSION      srbExt   = SRB_EXTENSION(Srb);
+    PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
+    PRHEL_SRB_EXTENSION srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
     PVOID               va;
     ULONGLONG           pa;
 
@@ -123,14 +123,14 @@ SynchronizedReadWriteRoutine(
 
 BOOLEAN
 RhelDoReadWrite(PVOID DeviceExtension,
-                PSRB_TYPE Srb)
+                PSCSI_REQUEST_BLOCK Srb)
 {
     return StorPortSynchronizeAccess(DeviceExtension, SynchronizedReadWriteRoutine, (PVOID)Srb);
 }
 #else
 BOOLEAN
 RhelDoReadWrite(PVOID DeviceExtension,
-                PSRB_TYPE Srb)
+                PSCSI_REQUEST_BLOCK Srb)
 {
     PCDB                  cdb;
     ULONG                 fragLen;
@@ -138,20 +138,20 @@ RhelDoReadWrite(PVOID DeviceExtension,
     ULONG                 BytesLeft;
     PVOID                 DataBuffer;
     PADAPTER_EXTENSION    adaptExt;
-    PSRB_EXTENSION        srbExt;
+    PRHEL_SRB_EXTENSION   srbExt;
     int                   num_free;
     PVOID                 va;
     ULONGLONG             pa;
     ULONG                 i;
     ULONG                 sgMaxElements;
 
-    cdb      = SRB_CDB(Srb);
-    srbExt   = SRB_EXTENSION(Srb);
+    cdb      = (PCDB)&Srb->Cdb[0];
+    srbExt   = (PRHEL_SRB_EXTENSION)Srb->SrbExtension;
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    BytesLeft  = SRB_DATA_TRANSFER_LENGTH(Srb);
-    DataBuffer = SRB_DATA_BUFFER(Srb);
+    BytesLeft= Srb->DataTransferLength;
+    DataBuffer = Srb->DataBuffer;
 
-    memset(srbExt, 0, sizeof (SRB_EXTENSION));
+    memset(srbExt, 0, sizeof (RHEL_SRB_EXTENSION));
     sgMaxElements = MAX_PHYS_SEGMENTS + 1;
     for (i = 0, sgElement = 1; (i < sgMaxElements) && BytesLeft; i++, sgElement++) {
         srbExt->vbr.sg[sgElement].physAddr = ScsiPortGetPhysicalAddress(DeviceExtension, Srb, DataBuffer, &fragLen);
@@ -165,7 +165,7 @@ RhelDoReadWrite(PVOID DeviceExtension,
     srbExt->vbr.out_hdr.ioprio = 0;
     srbExt->vbr.req            = (struct request *)Srb;
 
-    if (SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT) {
+    if (Srb->SrbFlags & SRB_FLAGS_DATA_OUT) {
         srbExt->vbr.out_hdr.type = VIRTIO_BLK_T_OUT;
         srbExt->out = sgElement;
         srbExt->in = 1;
@@ -194,7 +194,7 @@ RhelDoReadWrite(PVOID DeviceExtension,
         if(!adaptExt->indirect && num_free < VIRTIO_MAX_SG) {
             srbExt->call_next = TRUE;
         } else {
-           ScsiPortNotification(NextLuRequest, DeviceExtension, SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb));
+           ScsiPortNotification(NextLuRequest, DeviceExtension, Srb->PathId, Srb->TargetId, Srb->Lun);
         }
     }
     return TRUE;
