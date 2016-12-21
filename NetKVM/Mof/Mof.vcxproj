@@ -36,6 +36,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Header|Win32'">
     <NMakeBuildCommandLine>build.cmd</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>build.cmd</NMakeReBuildCommandLine>
   </PropertyGroup>
   <ItemDefinitionGroup>
   </ItemDefinitionGroup>
