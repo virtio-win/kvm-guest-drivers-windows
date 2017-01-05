@@ -74,6 +74,7 @@ BalloonDeviceAdd(
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
     attributes.EvtCleanupCallback = BalloonEvtDeviceContextCleanup;
+    attributes.SynchronizationScope = WdfSynchronizationScopeDevice;
     status = WdfDeviceCreate(&DeviceInit, &attributes, &device);
     if(!NT_SUCCESS(status))
     {
@@ -90,6 +91,10 @@ BalloonDeviceAdd(
 
     interruptConfig.EvtInterruptEnable  = BalloonInterruptEnable;
     interruptConfig.EvtInterruptDisable = BalloonInterruptDisable;
+
+    // Serialize the DPC routine with queue operations to prevent races
+    // around PendingWriteRequest and HandleWriteRequest.
+    interruptConfig.AutomaticSerialization = TRUE;
 
     status = WdfInterruptCreate(device,
                             &interruptConfig,
