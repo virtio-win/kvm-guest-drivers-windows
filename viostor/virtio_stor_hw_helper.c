@@ -28,7 +28,8 @@ BOOLEAN
 RhelDoFlush(
     PVOID DeviceExtension,
     PSRB_TYPE Srb,
-    BOOLEAN resend
+    BOOLEAN resend,
+    BOOLEAN bIsr
     )
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
@@ -44,6 +45,7 @@ RhelDoFlush(
     bool                notify = FALSE;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
+    struct virtqueue    *vq = NULL;
 
     SET_VA_PA();
 
@@ -57,10 +59,11 @@ RhelDoFlush(
         if (status == STOR_STATUS_SUCCESS) {
            MessageId = param.MessageNumber;
            QueueNumber = MessageId - 1;
-           RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s srb %p, cpu %d :: QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",  __FUNCTION__, Srb, srbExt->cpu, QueueNumber, param.MessageNumber, param.ChannelNumber));
+           RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s srb %p, cpu %d :: QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",  __FUNCTION__, Srb, srbExt->cpu, QueueNumber, param.MessageNumber, param.ChannelNumber));
+//FIXME
         }
         else {
-           RhelDbgPrint(TRACE_LEVEL_FATAL, ("srb %p cpu %d status 0x%x.\n", Srb, srbExt->cpu, status));
+           RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortGetStartIoPerfParams failed. srb %p cpu %d status 0x%x.\n",__FUNCTION__, Srb, srbExt->cpu, status));
            QueueNumber = 0;
            MessageId = 1;
         }
@@ -68,6 +71,9 @@ RhelDoFlush(
         QueueNumber = 0;
         MessageId = 1;
     }
+
+    srbExt->MessageID = MessageId;
+    vq = adaptExt->vq[QueueNumber];
 
     srbExt->vbr.out_hdr.sector = 0;
     srbExt->vbr.out_hdr.ioprio = 0;
@@ -82,22 +88,22 @@ RhelDoFlush(
     srbExt->vbr.sg[1].length   = sizeof(srbExt->vbr.status);
 
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
-    if (virtqueue_add_buf(adaptExt->vq[QueueNumber],
+    if (virtqueue_add_buf(vq,
                      &srbExt->vbr.sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->vbr, va, pa) >= 0) {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
         result = TRUE;
-        notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
+        notify = virtqueue_kick_prepare(vq);
     }
     else {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s Can not add packet to queue.\n", __FUNCTION__));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s Can not add packet to queue %d.\n", __FUNCTION__, QueueNumber));
         StorPortBusy(DeviceExtension, 2);
 //FIXME
     }
     if (notify) {
-        virtqueue_notify(adaptExt->vq[QueueNumber]);
+        virtqueue_notify(vq);
     }
     return result;
 }
@@ -118,7 +124,7 @@ RhelDoReadWrite(PVOID DeviceExtension,
     bool                notify = FALSE;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
-    struct virtqueue    *vq;
+    struct virtqueue    *vq = NULL;
 
     SET_VA_PA();
 
@@ -129,10 +135,10 @@ RhelDoReadWrite(PVOID DeviceExtension,
         if (status == STOR_STATUS_SUCCESS) {
            MessageId = param.MessageNumber;
            QueueNumber = MessageId - 1;
-           RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s srb %p, cpu %d :: QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",  __FUNCTION__, Srb, srbExt->cpu, QueueNumber, param.MessageNumber, param.ChannelNumber));
+           RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s srb %p, cpu %d :: QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n", __FUNCTION__, Srb, srbExt->cpu, QueueNumber, param.MessageNumber, param.ChannelNumber));
         }
         else {
-           RhelDbgPrint(TRACE_LEVEL_FATAL, ("srb %p cpu %d status 0x%x.\n", Srb, srbExt->cpu, status));
+           RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortGetStartIoPerfParams failed srb %p cpu %d status 0x%x.\n", __FUNCTION__, Srb, srbExt->cpu, status));
            QueueNumber = 0;
            MessageId = 1;
         }
@@ -144,7 +150,7 @@ RhelDoReadWrite(PVOID DeviceExtension,
 
     srbExt->MessageID = MessageId;
     vq = adaptExt->vq[QueueNumber];
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
                  ("<--->%s : QueueNumber 0x%x vq = %p\n", __FUNCTION__, QueueNumber, vq));
 
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
@@ -158,7 +164,7 @@ RhelDoReadWrite(PVOID DeviceExtension,
     }
     else {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s Can not add packet to queue.\n", __FUNCTION__));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s Can not add packet to queue %d.\n", __FUNCTION__, QueueNumber));
         StorPortBusy(DeviceExtension, 2);
 //FIXME
     }
@@ -349,7 +355,7 @@ VioStorVQLock(
     )
 {
     PADAPTER_EXTENSION  adaptExt;
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("--->%s MessageID = %d\n", __FUNCTION__, MessageID));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("--->%s MessageID = %d\n", __FUNCTION__, MessageID));
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
@@ -379,7 +385,7 @@ VioStorVQLock(
             }
         }
     }
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("<---%s MessageID = %d\n", __FUNCTION__, MessageID));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<---%s MessageID = %d\n", __FUNCTION__, MessageID));
 }
 
 VOID
@@ -391,7 +397,7 @@ VioStorVQUnlock(
     )
 {
     PADAPTER_EXTENSION  adaptExt;
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("--->%s MessageID = %d\n", __FUNCTION__, MessageID));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("--->%s MessageID = %d\n", __FUNCTION__, MessageID));
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     if (!adaptExt->msix_enabled) {
@@ -418,5 +424,5 @@ VioStorVQUnlock(
             }
         }
     }
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("<---%s MessageID = %d\n", __FUNCTION__, MessageID));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<---%s MessageID = %d\n", __FUNCTION__, MessageID));
 }
