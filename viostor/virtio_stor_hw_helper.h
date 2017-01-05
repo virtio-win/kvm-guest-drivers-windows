@@ -108,7 +108,8 @@ BOOLEAN
 RhelDoFlush(
     IN PVOID DeviceExtension,
     IN PSRB_TYPE Srb,
-    IN BOOLEAN sync
+    IN BOOLEAN resend,
+    BOOLEAN bIsr
     );
 
 VOID

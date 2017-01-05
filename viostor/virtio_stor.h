@@ -138,7 +138,6 @@ typedef struct _ADAPTER_EXTENSION {
     blk_config            info;
     ULONG                 queue_depth;
     BOOLEAN               dump_mode;
-//    LIST_ENTRY            list_head;
     ULONG                 msix_vectors;
     BOOLEAN               msix_enabled;
     BOOLEAN               msix_one_vector;
@@ -158,7 +157,6 @@ typedef struct _ADAPTER_EXTENSION {
 
     ULONG                 perfFlags;
     PGROUP_AFFINITY       pmsg_affinity;
-    LIST_ENTRY            complete_list;
     PSTOR_DPC             dpc;
     BOOLEAN               dpc_ok;
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
