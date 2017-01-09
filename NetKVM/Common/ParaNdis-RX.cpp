@@ -64,8 +64,6 @@ int CParaNdisRX::PrepareReceiveBuffers()
     DPrintf(0, ("[%s] MaxReceiveBuffers %d\n", __FUNCTION__, m_Context->NetMaxReceiveBuffers));
     m_Reinsert = true;
 
-    m_VirtQueue.Kick();
-
     return nRet;
 }
 
@@ -191,6 +189,11 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
     }
 }
 
+VOID CParaNdisRX::KickRXRing()
+{
+    m_VirtQueue.Kick();
+}
+
 VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 {
     pRxNetDescriptor pBufferDescriptor;
@@ -289,8 +292,6 @@ void CParaNdisRX::PopulateQueue()
         }
     }
     m_Reinsert = true;
-
-    m_VirtQueue.Kick();
 }
 
 BOOLEAN CParaNdisRX::RestartQueue()
