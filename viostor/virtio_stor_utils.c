@@ -13,8 +13,6 @@
 #include <ntstrsafe.h>
 
 // Global debug printout level and enable\disable flag
-
-// Global debug printout level and enable\disable flag
 int virtioDebugLevel;
 int bDebugPrint;
 int nViostorDebugLevel;
@@ -50,7 +48,7 @@ static void DebugPrintFuncSerial(const char *format, ...)
     }
 }
 #endif
-        //
+
 #if defined(PRINT_DEBUG)
 static void DebugPrintFunc(const char *format, ...)
 {
