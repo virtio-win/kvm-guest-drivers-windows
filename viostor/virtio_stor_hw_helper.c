@@ -94,7 +94,8 @@ RhelDoFlush(
                      &srbExt->vbr, va, pa) >= 0) {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
         result = TRUE;
-        notify = virtqueue_kick_prepare(vq);
+        InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
+//        notify = virtqueue_kick_prepare(vq);
     }
     else {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
@@ -103,8 +104,10 @@ RhelDoFlush(
 //FIXME
     }
     if (notify) {
-        virtqueue_notify(vq);
+//        virtqueue_notify(vq);
     }
+virtqueue_kick_always(vq);
+
     return result;
 }
 
@@ -159,8 +162,9 @@ RhelDoReadWrite(PVOID DeviceExtension,
                      srbExt->out, srbExt->in,
                      &srbExt->vbr, va, pa) >= 0){
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+        InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
         result = TRUE;
-        notify = virtqueue_kick_prepare(vq);
+//        notify = virtqueue_kick_prepare(vq);
     }
     else {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
@@ -169,8 +173,10 @@ RhelDoReadWrite(PVOID DeviceExtension,
 //FIXME
     }
     if (notify) {
-        virtqueue_notify(vq);
+//        virtqueue_notify(vq);
     }
+virtqueue_kick_always(vq);
+
     return result;
 }
 
@@ -264,6 +270,7 @@ RhelGetSerialNumber(
                      &adaptExt->vbr.sg[0],
                      1, 2,
                      &adaptExt->vbr, NULL, 0) >= 0) {
+        InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
         virtqueue_kick(adaptExt->vq[0]);
     }
 }
