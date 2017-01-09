@@ -34,6 +34,8 @@ public:
         m_Reinsert = false;
     }
 
+    void KickRXRing();
+
     PARANDIS_RECEIVE_QUEUE &UnclassifiedPacketsQueue() { return m_UnclassifiedPacketsQueue;  }
 
 private:

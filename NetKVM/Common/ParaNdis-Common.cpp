@@ -1132,6 +1132,16 @@ NDIS_STATUS ParaNdis_DeviceConfigureMultiqQueue(PARANDIS_ADAPTER *pContext)
     return status;
 }
 
+static VOID
+ParaNdis_KickRX(PARANDIS_ADAPTER *pContext)
+{
+    UINT i;
+    for (i = 0; i < pContext->nPathBundles; i++)
+    {
+        pContext->pPathBundles[i].rxPath.KickRXRing();
+    }
+}
+
 NDIS_STATUS ParaNdis_DeviceEnterD0(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
@@ -1144,6 +1154,7 @@ NDIS_STATUS ParaNdis_DeviceEnterD0(PARANDIS_ADAPTER *pContext)
     ParaNdis_DeviceConfigureMultiqQueue(pContext);
     ParaNdis_DeviceConfigureRSC(pContext);
     ParaNdis_UpdateMAC(pContext);
+    ParaNdis_KickRX(pContext);
 
     DEBUG_EXIT_STATUS(0, status);
     return status;
