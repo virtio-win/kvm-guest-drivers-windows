@@ -1290,7 +1290,7 @@ RhelScsiGetCapacity(
 
     blocksize = adaptExt->info.blk_size;
     lastLBA = adaptExt->info.capacity / (blocksize / SECTOR_SIZE) - 1;
-    adaptExt->lastLBA = lastLBA;
+    adaptExt->lastLBA = adaptExt->info.capacity;
 
     if (SRB_DATA_TRANSFER_LENGTH(Srb) == sizeof(READ_CAPACITY_DATA)) {
         if (lastLBA > 0xFFFFFFFF) {
