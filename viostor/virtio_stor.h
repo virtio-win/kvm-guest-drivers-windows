@@ -159,6 +159,10 @@ typedef struct _ADAPTER_EXTENSION {
     PGROUP_AFFINITY       pmsg_affinity;
     PSTOR_DPC             dpc;
     BOOLEAN               dpc_ok;
+
+    ULONG                 srb_cnt;
+    ULONG                 inqueue_cnt;
+    ULONG                 g_cnt;
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
 #if (INDIRECT_SUPPORTED == 1)
