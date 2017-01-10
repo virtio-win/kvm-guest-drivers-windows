@@ -1,5 +1,5 @@
 REM -----------------------------------------------------------------------
-REM  Copyright (c) 2010-2015  Red Hat, Inc.
+REM  Copyright (c) 2010-2016  Red Hat, Inc.
 REM
 REM  File: RunSdv.js
 REM
@@ -36,10 +36,7 @@ if "%_BUILD_MAJOR_VERSION_%"=="" set _BUILD_MAJOR_VERSION_=101
 if "%_BUILD_MINOR_VERSION_%"=="" set _BUILD_MINOR_VERSION_=58000
 if "%_RHEL_RELEASE_VERSION_%"=="" set _RHEL_RELEASE_VERSION_=61
 
-set _MAJORVERSION_=%_BUILD_MAJOR_VERSION_%
-set _MINORVERSION_=%_BUILD_MINOR_VERSION_%
 set /a _NT_TARGET_MAJ="(%_NT_TARGET_VERSION% >> 8) * 10 + (%_NT_TARGET_VERSION% & 255)"
-set _NT_TARGET_MIN=%_RHEL_RELEASE_VERSION_%
 set STAMPINF_VERSION=%_NT_TARGET_MAJ%.%_RHEL_RELEASE_VERSION_%.%_BUILD_MAJOR_VERSION_%.%_BUILD_MINOR_VERSION_%
 
 cscript.exe %ROOT_PATH%\Tools\RunSdv.js  %ROOT_PATH% %PROJECT_XML_PATH% %PROJECT_DIR_PATH% %PROJECT_NAME% //Nologo

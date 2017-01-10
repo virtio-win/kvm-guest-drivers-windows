@@ -1,6 +1,4 @@
-#include "utils.h"
-#include "service.h"
-#include "strsafe.h"
+#include "stdafx.h"
 
 extern LPWSTR ServiceName;
 extern CService srvc;

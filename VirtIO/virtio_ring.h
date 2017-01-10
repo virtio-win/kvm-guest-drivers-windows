@@ -153,9 +153,12 @@ static inline void vring_init(struct vring *vr, unsigned int num, void *p,
 
 static inline unsigned vring_size(unsigned int num, unsigned long align)
 {
+#pragma warning (push)
+#pragma warning (disable:4319)
     return ((sizeof(struct vring_desc) * num + sizeof(__virtio16) * (3 + num)
         + align - 1) & ~(align - 1))
         + sizeof(__virtio16) * 3 + sizeof(struct vring_used_elem) * num;
+#pragma warning(pop)
 }
 
 /* The following is used with USED_EVENT_IDX and AVAIL_EVENT_IDX */
@@ -174,5 +177,9 @@ static inline int vring_need_event(__u16 event_idx, __u16 new_idx, __u16 old)
 
 #include <poppack.h>
 #pragma warning (pop)
+
+void vring_transport_features(VirtIODevice *vdev, u64 *features);
+void *virtqueue_get_avail(struct virtqueue *_vq);
+void *virtqueue_get_used(struct virtqueue *_vq);
 
 #endif /* _UAPI_LINUX_VIRTIO_RING_H */

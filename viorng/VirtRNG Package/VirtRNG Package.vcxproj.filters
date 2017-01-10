@@ -6,4 +6,9 @@
       <Extensions>inf;inv;inx;mof;mc;</Extensions>
     </Filter>
   </ItemGroup>
+  <ItemGroup>
+    <Inf Include="..\viorng\viorng.inf">
+      <Filter>Driver Files</Filter>
+    </Inf>
+  </ItemGroup>
 </Project>

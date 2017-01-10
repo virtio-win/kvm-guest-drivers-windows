@@ -1,0 +1,40 @@
+;/*++
+;
+;Copyright (c) 2016 Red Hat Inc.
+;
+;Module Name:
+;    qemufwcfg.inf
+;
+;Abstract:
+;    QEMU Firmware Configuration Device null driver
+;
+;Installation Notes:
+;    Using Devcon: Type "devcon install qemufwcfg.inf ACPI\QEMU0002" to install
+;
+;--*/
+
+[Version]
+Signature="$Windows NT$"
+Class=System
+ClassGUID={4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider=%QEMU%
+DriverVer=10/21/2016,1.0.0
+CatalogFile=qemufwcfg.cat
+
+[Manufacturer]
+%QEMU%=QEMU,NTx86,NTAMD64
+
+[QEMU.NTx86]
+%FWCfg.DeviceDesc% = FWCfg_Device, ACPI\QEMU0002
+
+[QEMU.NTAMD64]
+%FWCfg.DeviceDesc% = FWCfg_Device, ACPI\QEMU0002
+
+[FWCfg_Device.NT]
+
+[FWCfg_Device.NT.Services]
+AddService = ,2    ; no value for the service name
+
+[Strings]
+QEMU="QEMU"
+FWCfg.DeviceDesc = "QEMU FWCfg Device"

@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2010-2015 Red Hat, Inc.
+ * Copyright (c) 2010-2016 Red Hat, Inc.
  *
  * File: public.h
  *
@@ -23,7 +23,7 @@ DEFINE_GUID(GUID_VIOSERIAL_PORT,
 0x6fde7521, 0x1b65, 0x48ae, 0xb6, 0x28, 0x80, 0xbe, 0x62, 0x1, 0x60, 0x26);
 // {6FDE7521-1B65-48ae-B628-80BE62016026}
 
-#define IOCTL_GET_INFORMATION    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define IOCTL_GET_INFORMATION    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
 
 typedef struct _tagVirtioPortInfo {
     UINT                Id;

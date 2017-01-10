@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2008-2015 Red Hat, Inc.
+ * Copyright (c) 2008-2016 Red Hat, Inc.
  *
  * File: ndis56common.h
  *
@@ -43,7 +43,8 @@
 #include "kdebugprint.h"
 #include "ethernetutils.h"
 #include "virtio_pci.h"
-#include "VirtIO.h"
+#include "virtio.h"
+#include "virtio_ring.h"
 #include "IONetDescriptor.h"
 #include "DebugData.h"
 
@@ -58,10 +59,6 @@
 #error "Something is wrong with NDIS environment"
 #endif
 
-#if !defined(PARANDIS_MAJOR_DRIVER_VERSION) || !defined(PARANDIS_MINOR_DRIVER_VERSION)
-#error "Something is wrong with our versioning"
-#endif
-
 //define to see when the status register is unreadable(see ParaNdis_ResetVirtIONetDevice)
 //#define VIRTIO_RESET_VERIFY
 
@@ -74,6 +71,9 @@
 
 // to be set to real limit later
 #define MAX_RX_LOOPS    1000
+
+// maximum number of virtio queues used by the driver
+#define MAX_NUM_OF_QUEUES 3
 
 /* The feature bitmap for virtio net */
 #define VIRTIO_NET_F_CSUM   0   /* Host handles pkts w/ partial csum */
@@ -110,6 +110,8 @@
 
 #define PARANDIS_UNLIMITED_PACKETS_TO_INDICATE  (~0ul)
 
+extern VirtIOSystemOps ParaNdisSystemOps;
+
 typedef enum _tagInterruptSource
 {
     isControl  = VIRTIO_PCI_ISR_CONFIG,
@@ -138,10 +140,17 @@ typedef enum _tagSendReceiveState
     srsEnabled
 } tSendReceiveState;
 
+typedef struct _tagBusResource {
+    NDIS_PHYSICAL_ADDRESS BasePA;
+    ULONG                 uLength;
+    PVOID                 pBase;
+    BOOLEAN               bPortSpace;
+    BOOLEAN               bUsed;
+} tBusResource;
+
 typedef struct _tagAdapterResources
 {
-    ULONG ulIOAddress;
-    ULONG IOLength;
+    tBusResource PciBars[PCI_TYPE0_ADDRESSES];
     ULONG Vector;
     ULONG Level;
     KAFFINITY Affinity;
@@ -235,7 +244,6 @@ typedef struct _tagChecksumCheckResult
 /*
 for simplicity, we use for NDIS5 the same statistics as native NDIS6 uses
 */
-#if !NDIS_SUPPORT_NDIS6
 typedef struct _tagNdisStatustics
 {
     ULONG64                     ifHCInOctets;
@@ -273,14 +281,6 @@ typedef struct _tagNdisOffloadParams
     UCHAR   UDPIPv6Checksum;
     UCHAR   LsoV2IPv6;
 }NDIS_OFFLOAD_PARAMETERS;
-
-#else // NDIS_SUPPORT_NDIS6
-
-typedef PNET_BUFFER         tPacketType;
-typedef PMDL                tPacketHolderType;
-typedef PNET_BUFFER_LIST    tPacketIndicationType;
-
-#endif  //!NDIS_SUPPORT_NDIS6
 
 //#define UNIFY_LOCKS
 
@@ -330,12 +330,15 @@ typedef struct _tagPARANDIS_ADAPTER
 {
     NDIS_HANDLE             DriverHandle;
     NDIS_HANDLE             MiniportHandle;
-    NDIS_HANDLE             InterruptHandle;
-    NDIS_HANDLE             BufferListsPool;
     NDIS_EVENT              ResetEvent;
     tAdapterResources       AdapterResources;
-    PVOID                   pIoPortOffset;
+    tBusResource            SharedMemoryRanges[MAX_NUM_OF_QUEUES];
+
     VirtIODevice            IODevice;
+    BOOLEAN                 bIODeviceInitialized;
+    ULONGLONG               ullHostFeatures;
+    ULONGLONG               ullGuestFeatures;
+
     LARGE_INTEGER           LastTxCompletionTimeStamp;
 #ifdef PARANDIS_DEBUG_INTERRUPTS
     LARGE_INTEGER           LastInterruptTimeStamp;
@@ -360,6 +363,7 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bUsingMSIX;
     BOOLEAN                 bUseIndirect;
     BOOLEAN                 bHasHardwareFilters;
+    BOOLEAN                 bHasControlQueue;
     BOOLEAN                 bNoPauseOnSuspend;
     BOOLEAN                 bFastSuspendInProcess;
     BOOLEAN                 bResetInProgress;
@@ -418,12 +422,9 @@ typedef struct _tagPARANDIS_ADAPTER
     tReuseReceiveBufferProc ReuseBufferProc;
     /* Net part - management of buffers and queues of QEMU */
     struct virtqueue *      NetControlQueue;
-    tCompletePhysicalAddress ControlQueueRing;
     tCompletePhysicalAddress ControlData;
     struct virtqueue *      NetReceiveQueue;
-    tCompletePhysicalAddress ReceiveQueueRing;
     struct virtqueue *      NetSendQueue;
-    tCompletePhysicalAddress SendQueueRing;
     /* list of Rx buffers available for data (under VIRTIO management) */
     LIST_ENTRY              NetReceiveBuffers;
     UINT                    NetNofReceiveBuffers;
@@ -458,23 +459,6 @@ typedef struct _tagPARANDIS_ADAPTER
     ULONG                       ulTxMessage;
     ULONG                       ulControlMessage;
 
-#if NDIS_SUPPORT_NDIS6
-// Vista +
-    PIO_INTERRUPT_MESSAGE_INFO  pMSIXInfoTable;
-    PNET_BUFFER_LIST            SendHead;
-    PNET_BUFFER_LIST            SendTail;
-    PNET_BUFFER_LIST            SendWaitingList;
-    LIST_ENTRY                  WaitingMapping;
-    NDIS_HANDLE                 DmaHandle;
-    NDIS_HANDLE                 ConnectTimer;
-    NDIS_HANDLE                 InterruptRecoveryTimer;
-    ULONG                       ulIrqReceived;
-    NDIS_OFFLOAD                ReportedOffloadCapabilities;
-    NDIS_OFFLOAD                ReportedOffloadConfiguration;
-    BOOLEAN                     bOffloadv4Enabled;
-    BOOLEAN                     bOffloadv6Enabled;
-#else
-// Vista -
     NDIS_MINIPORT_INTERRUPT     Interrupt;
     NDIS_HANDLE                 PacketPool;
     NDIS_HANDLE                 BuffersPool;
@@ -485,7 +469,6 @@ typedef struct _tagPARANDIS_ADAPTER
     NDIS_TIMER                  ConnectTimer;
     NDIS_TIMER                  DPCPostProcessTimer;
     BOOLEAN                     bDmaInitialized;
-#endif
 }PARANDIS_ADAPTER, *PPARANDIS_ADAPTER;
 
 typedef enum { cpeOK, cpeNoBuffer, cpeInternalError, cpeTooLarge, cpeNoIndirect } tCopyPacketError;
@@ -511,6 +494,21 @@ NON-LAZZY release releases transmit buffers from VirtIO
 library every time there is something to release
 ***********************************************************/
 //#define LAZZY_TX_RELEASE
+
+static inline bool VirtIODeviceGetHostFeature(PARANDIS_ADAPTER *pContext, unsigned uFeature)
+{
+   DPrintf(4, ("%s\n", __FUNCTION__));
+
+   return virtio_is_feature_enabled(pContext->ullHostFeatures, uFeature);
+}
+
+static inline void VirtIODeviceEnableGuestFeature(PARANDIS_ADAPTER *pContext, unsigned uFeature)
+{
+   ULONG ulValue = 0;
+   DPrintf(4, ("%s\n", __FUNCTION__));
+
+   virtio_feature_enable(pContext->ullGuestFeatures, uFeature);
+}
 
 BOOLEAN FORCEINLINE IsTimeToReleaseTx(PARANDIS_ADAPTER *pContext)
 {
@@ -587,7 +585,7 @@ ParaNdis_GetQueueForInterrupt(PARANDIS_ADAPTER *pContext, ULONG interruptSource)
 static __inline BOOLEAN
 ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq)
 {
-    return _vq->vq_ops->is_interrupt_enabled(_vq);
+    return virtqueue_is_interrupt_enabled(_vq);
 }
 
 VOID ParaNdis_OnPnPEvent(
@@ -615,7 +613,7 @@ VOID ParaNdis_ReportLinkStatus(
     PARANDIS_ADAPTER *pContext,
     BOOLEAN bForce);
 
-VOID ParaNdis_PowerOn(
+NDIS_STATUS ParaNdis_PowerOn(
     PARANDIS_ADAPTER *pContext
 );
 
@@ -773,12 +771,6 @@ BOOLEAN ParaNdis_InitialAllocatePhysicalMemory(
     PARANDIS_ADAPTER *pContext,
     tCompletePhysicalAddress *pAddresses);
 
-BOOLEAN ParaNdis_RuntimeRequestToAllocatePhysicalMemory(
-    PARANDIS_ADAPTER *pContext,
-    tCompletePhysicalAddress *pAddresses,
-    tOnAdditionalPhysicalMemoryAllocated Callback
-    );
-
 VOID ParaNdis_FreePhysicalMemory(
     PARANDIS_ADAPTER *pContext,
     tCompletePhysicalAddress *pAddresses);
@@ -877,7 +869,6 @@ typedef enum _tagPacketOffloadRequest
 }tPacketOffloadRequest;
 
 // sw offload
-void ParaNdis_CheckSumCalculate(PVOID buffer, ULONG size, ULONG flags);
 tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(PVOID buffer, ULONG size, ULONG flags, LPCSTR caller);
 tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, LPCSTR caller);
 

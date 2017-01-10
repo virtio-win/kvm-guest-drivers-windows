@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2008-2015 Red Hat, Inc.
+ * Copyright (c) 2008-2016 Red Hat, Inc.
  *
  * File: ParaNdis.h
  *
@@ -11,8 +11,6 @@
 **********************************************************************/
 #ifndef PARA_NDIS6_H
 #define PARA_NDIS6_H
-
-#pragma warning (disable: 4201 4214 4115 4127) // disable annoying warnings in NDIS
 
 #include "ndis56common.h"
 
@@ -41,22 +39,6 @@ MINIPORT_RETURN_NET_BUFFER_LISTS ParaNdis6_ReturnNetBufferLists;
 VOID ParaNdis6_ReturnNetBufferLists(
     NDIS_HANDLE miniportAdapterContext,
     PNET_BUFFER_LIST pNBL, ULONG returnFlags);
-
-
-NDIS_STATUS ParaNdis6_SendPauseRestart(
-    PARANDIS_ADAPTER *pContext,
-    BOOLEAN bPause,
-    ONPAUSECOMPLETEPROC Callback
-    );
-
-NDIS_STATUS ParaNdis6_ReceivePauseRestart(
-    PARANDIS_ADAPTER *pContext,
-    BOOLEAN bPause,
-    ONPAUSECOMPLETEPROC Callback
-    );
-
-/* returns number of buffers that have been sent */
-UINT ParaNdis6_CopyDataFromSingleNBL(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST pNBL);
 
 MINIPORT_CANCEL_OID_REQUEST ParaNdis6_OidCancelRequest;
 VOID ParaNdis6_OidCancelRequest(

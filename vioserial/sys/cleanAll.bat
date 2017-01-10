@@ -1,18 +1,9 @@
 @echo off
 
-rmdir /S /Q objfre_wxp_x86
-rmdir /S /Q objfre_wnet_x86
-rmdir /S /Q objfre_wnet_amd64
-rmdir /S /Q objfre_wlh_x86
-rmdir /S /Q objfre_wlh_amd64
-rmdir /S /Q objfre_win7_x86
-rmdir /S /Q objfre_win7_amd64
-rmdir /S /Q objfre_win8_x86
-rmdir /S /Q objfre_win8_amd64
+for /d %%x in (objfre_*) do rmdir /S /Q %%x
+for /d %%x in (objchk_*) do rmdir /S /Q %%x
 rmdir /S /Q Win8Release
 rmdir /S /Q Win8Debug
 rmdir /S /Q x64
 
 del /F *.log *.wrn *.err
-del 2012-defines.h
-

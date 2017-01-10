@@ -6,19 +6,48 @@ extern "C" {
 
 #include "kdebugprint.h"
 
-typedef enum
-{
-    PLACEMENT_NEW
-} parandis_placement;
+#ifdef DBG
+void NetKvmAssert(bool Statement, ULONG Code);
+#define NETKVM_ASSERT(x) NetKvmAssert((x) ? true : false, __LINE__)
+#else
+#define NETKVM_ASSERT(x) for(;;) break
+#endif
 
-template <typename T, ULONG Tag>
-class CNdisAllocatable
+class CNdisAllocatableBase
+{
+protected:
+    CNdisAllocatableBase() {};
+    ~CNdisAllocatableBase() {};
+    /* Objects's array can't be freed by NdisFreeMemoryWithTagPriority, as C++ array constructor uses the
+    * first several bytes for array length. Array  destructor can't get additional argument, so passing
+    * NDIS_HANDLE to the array destructor is impossible. Therefore, the array constructors and destructor
+    * are declared private and object arrays has be created and destroyed in two steps - construction by
+    * allocating array memory with NdisAllocateMemoryWithTagPriority and then in-place constructing the
+    * objects and destructing in the reverse order. */
+    void* operator new[](size_t Size, NDIS_HANDLE MiniportHandle) throw() = delete;
+    void* operator new[](size_t Size) throw() = delete;
+    void operator delete[](void *) = delete;
+
+private:
+    /* The delete operator can't be disabled like array constructors and destructors, as default destructor
+    * and default constructor depend on the delete operator availability */
+    void operator delete(void *) {}
+};
+
+class CPlacementAllocatable
 {
 public:
-    void* operator new(size_t /* size */, void *ptr, parandis_placement placement) throw()
-        { UNREFERENCED_PARAMETER(placement); return ptr; }
+    void* operator new(size_t size, void *ptr) throw()
+    {
+        UNREFERENCED_PARAMETER(size);
+        return ptr;
+    }
+};
 
-
+template <typename T, ULONG Tag>
+class CNdisAllocatable : private CNdisAllocatableBase
+{
+public:
     void* operator new(size_t Size, NDIS_HANDLE MiniportHandle) throw()
         { return NdisAllocateMemoryWithTagPriority(MiniportHandle, (UINT) Size, Tag, NormalPoolPriority); }
 
@@ -31,23 +60,37 @@ public:
 protected:
     CNdisAllocatable() {};
     ~CNdisAllocatable() {};
+};
 
-    /* Objects's array can't be freed by NdisFreeMemoryWithTagPriority, as C++ array constructor uses the
-    * first several bytes for array length. Array  destructor can't get additional argument, so passing
-    * NDIS_HANDLE to the array destructor is impossible. Therefore, the array constructors and destructor
-    * are declared private and object arrays has be created and destroyed in two steps - construction by
-    * allocating array memory with NdisAllocateMemoryWithTagPriority and then in-place constructing the
-    * objects and destructing in the reverse order. */
-    void* operator new[](size_t /* size */, void *ptr, parandis_placement placement) throw() = delete;
+template <typename T>
+class CAllocationHelper
+{
+public:
+    virtual T*   Allocate()      = 0;
+    virtual void Deallocate(T *) = 0;
+};
 
-    void* operator new[](size_t Size, NDIS_HANDLE MiniportHandle) throw() = delete;
-    void* operator new[](size_t Size) throw() = delete;
-    void operator delete[](void *) = delete;
+template <typename T>
+class CNdisAllocatableViaHelper : private CNdisAllocatableBase
+{
+public:
+    void* operator new(size_t Size, CAllocationHelper<T> *pHelper) throw()
+    {
+        UNREFERENCED_PARAMETER(Size);
+        return pHelper->Allocate();
+    }
 
-private:
-    /* The delete operator can't be disabled like array constructors and destructors, as default destructor
-    * and default constructor depend on the delete operator availability */
-    void operator delete(void *) {}
+    static void Destroy(T *ptr)
+    {
+        CAllocationHelper<T> *pHelper = ptr->m_Allocator;
+        ptr->~T();
+        pHelper->Deallocate(ptr);
+    }
+
+protected:
+    CNdisAllocatableViaHelper(CAllocationHelper<T> *allocator) : m_Allocator(allocator) {};
+    ~CNdisAllocatableViaHelper() {};
+    CAllocationHelper<T> *m_Allocator;
 };
 
 class CNdisSpinLock
@@ -60,6 +103,7 @@ public:
 
 #pragma warning(push)
 #pragma warning(disable:28167) // The function changes IRQL and doesn't restore
+#pragma warning(disable:26135)
     void Lock()
     { NdisAcquireSpinLock(&m_Lock); }
 #pragma warning(disable:26110) // Caller failing to hold lock before calling function 'KeReleaseSpinLock'
@@ -94,21 +138,56 @@ private:
 
 typedef CLockedContext<CNdisSpinLock> TSpinLocker;
 
+LONG FORCEINLINE NetKvmInterlockedAdd(
+    __inout __drv_interlocked LONG volatile *p,
+    __in LONG Val
+)
+{
+    return InterlockedExchangeAdd(p, Val) + Val;
+}
+
 class CNdisRefCounter
 {
 public:
-    CNdisRefCounter() {}
+    CNdisRefCounter() = default;
 
-    void AddRef() { NdisInterlockedIncrement(&m_Counter); }
-    void AddRef(ULONG RefCnt);
+    LONG AddRef() { return NdisInterlockedIncrement(&m_Counter); }
+    LONG AddRef(ULONG RefCnt) { return NetKvmInterlockedAdd(&m_Counter, (LONG)RefCnt); }
     LONG Release() { return NdisInterlockedDecrement(&m_Counter); }
-    LONG Release(ULONG RefCnt);
+    LONG Release(ULONG RefCnt) { return NetKvmInterlockedAdd(&m_Counter, -(LONG)RefCnt); }
+    void SetMask(LONG mask) { InterlockedOr(&m_Counter, mask); }
+    void ClearMask(LONG mask) { InterlockedAnd(&m_Counter, ~mask); }
     operator LONG () { return m_Counter; }
 private:
     LONG m_Counter = 0;
 
     CNdisRefCounter(const CNdisRefCounter&) = delete;
     CNdisRefCounter& operator= (const CNdisRefCounter&) = delete;
+};
+
+class COwnership
+{
+public:
+    COwnership() = default;
+
+    bool Acquire()
+    {
+        if (m_RefCounter.AddRef() == 1)
+        {
+            return true;
+        }
+        else
+        {
+            m_RefCounter.Release();
+            return false;
+        }
+    }
+
+    void Release()
+    { m_RefCounter.Release(); }
+
+private:
+    CNdisRefCounter m_RefCounter;
 };
 
 class CRefCountingObject
@@ -270,6 +349,10 @@ private:
 
     TEntryType *Pop_LockLess()
     {
+        if (IsEmpty())
+        {
+            return nullptr;
+        }
         CounterDecrement();
         return TEntryType::GetByListEntry(RemoveHeadList(&m_List));
     }
@@ -305,6 +388,39 @@ private:
     KIRQL m_OriginalIRQL;
 };
 
+template <typename TEntryType, ULONG tag>
+class CPool : public CNdisList<TEntryType, CLockedAccess, CCountingObject>,
+              public CAllocationHelper<TEntryType>
+{
+public:
+    CPool() {}
+    TEntryType *Allocate() override
+    {
+        auto *p = Pop();
+        if (!p) p = NdisAllocate();
+        return p;
+    }
+    void Deallocate(TEntryType *ptr) override
+    {
+        PushBack(ptr);
+    }
+    void Create(NDIS_HANDLE h) { m_Handle = h; }
+    ~CPool()
+    {
+        ForEachDetached([this](TEntryType *p) { NdisFree(p); });
+    }
+private:
+    NDIS_HANDLE m_Handle = nullptr;
+    void NdisFree(TEntryType *p)
+    {
+        NdisFreeMemoryWithTagPriority(m_Handle, p, tag);
+    }
+    TEntryType *NdisAllocate()
+    {
+        return (TEntryType *)NdisAllocateMemoryWithTagPriority(m_Handle, sizeof(TEntryType), tag, NormalPoolPriority);
+    }
+};
+
 class CNdisSharedMemory
 {
 public:
@@ -336,6 +452,25 @@ private:
     CNdisSharedMemory& operator= (const CNdisSharedMemory&) = delete;
 };
 
+class CNdisEvent
+{
+public:
+    CNdisEvent()
+    { NdisInitializeEvent(&m_Event); }
+
+    void Notify()
+    { NdisSetEvent(&m_Event); }
+
+    void Clear()
+    { NdisResetEvent(&m_Event); }
+
+    bool Wait(UINT IntervalMs = 0)
+    { return NdisWaitEvent(&m_Event, IntervalMs) == TRUE; }
+
+private:
+    NDIS_EVENT m_Event;
+};
+
 bool __inline ParaNdis_IsPassive()
 {
     return (KeGetCurrentIrql() < DISPATCH_LEVEL);
@@ -361,7 +496,7 @@ private:
     friend class CNdisRWLock;
 };
 
-class CNdisRWLock : public CNdisAllocatable < CNdisRWLock, 'RWLK'> 
+class CNdisRWLock : public CPlacementAllocatable
 {
 public:
 #ifdef RW_LOCK_60
@@ -420,7 +555,7 @@ public:
     _Acquires_shared_lock_(this->m_pLock)
     void acquireReadDpr(CNdisRWLockState &lockState)
     {
-        ASSERTMSG("Unexpected IRQL level", KeGetCurrentIrql() == DISPATCH_LEVEL);
+        NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 
 #ifdef RW_LOCK_60
         NdisDprAcquireReadWriteLock(&m_lock, 0, &lockState.m_state);
@@ -433,7 +568,7 @@ public:
     _Acquires_exclusive_lock_(this->m_pLock)
     void acquireWriteDpr(CNdisRWLockState &lockState)
     {
-        ASSERTMSG("Unexpected IRQL level", KeGetCurrentIrql() == DISPATCH_LEVEL);
+        NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 #ifdef RW_LOCK_60
         NdisDprAcquireReadWriteLock(&m_lock, 1, &lockState.m_state);
 #endif
@@ -445,7 +580,7 @@ public:
     _Requires_lock_held_(m_pLock)
     void releaseDpr(CNdisRWLockState &lockState)
     {
-        ASSERTMSG("Unexpected IRQL level", KeGetCurrentIrql() == DISPATCH_LEVEL);
+        NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 #ifdef RW_LOCK_60
         NdisDprReleaseReadWriteLock(&m_lock, &lockState.m_state);
 #endif
@@ -532,3 +667,29 @@ void ParaNdis_PrintTable(int DebugPrintLevel, TTable table, size_t Size, LPCSTR 
 }
 void ParaNdis_PrintCharArray(int DebugPrintLevel, const CCHAR *data, size_t length);
 
+static inline
+ULONG ParaNdis_CountNBLs(PNET_BUFFER_LIST NBL)
+{
+	ULONG Result;
+    for (Result = 0UL; NBL != nullptr;
+        NBL = NET_BUFFER_LIST_NEXT_NBL(NBL), Result++);
+
+    return Result;
+}
+
+static inline
+void ParaNdis_CompleteNBLChain(NDIS_HANDLE MiniportHandle, PNET_BUFFER_LIST NBL, ULONG Flags = 0)
+{
+    NdisMSendNetBufferListsComplete(MiniportHandle, NBL, Flags);
+}
+
+static inline
+void ParaNdis_CompleteNBLChainWithStatus(NDIS_HANDLE MiniportHandle, PNET_BUFFER_LIST NBL, NDIS_STATUS Status, ULONG Flags = 0)
+{
+    for (auto curr = NBL; curr != nullptr; curr = NET_BUFFER_LIST_NEXT_NBL(curr))
+    {
+        NET_BUFFER_LIST_STATUS(curr) = Status;
+    }
+
+    ParaNdis_CompleteNBLChain(MiniportHandle, NBL, Flags);
+}

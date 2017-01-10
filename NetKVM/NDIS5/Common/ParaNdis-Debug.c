@@ -1,7 +1,7 @@
 /**********************************************************************
- * Copyright (c) 2008-2015 Red Hat, Inc.
+ * Copyright (c) 2008-2016 Red Hat, Inc.
  *
- * File: ParaNdis6-Debug.c
+ * File: ParaNdis-Debug.c
  *
  * This file contains debug support procedures, common for NDIS5 and NDIS6
  *
@@ -19,6 +19,7 @@
 #include "ParaNdis-Debug.tmh"
 #endif
 
+int virtioDebugLevel = 1;
 int nDebugLevel = 1;
 int bDebugPrint = 1;
 
@@ -113,11 +114,13 @@ static void DebugPrint(const char *fmt, ...)
 }
 
 DEBUGPRINTFUNC pDebugPrint = DebugPrint;
+DEBUGPRINTFUNC VirtioDebugPrintProc = DebugPrint;
 
 #else //DPFLTR_MASK
 #pragma message("DebugPrint for Win2K")
 
 DEBUGPRINTFUNC pDebugPrint = DbgPrint;
+DEBUGPRINTFUNC VirtioDebugPrintProc = DbgPrint;
 
 #endif //DPFLTR_MASK
 #endif //!defined(WPP_EVENT_TRACING) || defined(WPP_USE_BYPASS)

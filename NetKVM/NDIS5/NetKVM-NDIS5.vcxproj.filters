@@ -15,62 +15,11 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Common\common.inf.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\DebugData.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\ethernetutils.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\IONetDescriptor.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\kdebugprint.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\ndis56common.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\osdep.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\ParaNdis-Oid.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\quverp.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="wxp\ParaNdis5.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VirtIO\osdep.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VirtIO\VirtIO.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VirtIO\virtio_pci.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VirtIO\virtio_ring.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Common\ParaNdis-Common.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Common\ParaNdis-Debug.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Common\ParaNdis-Oid.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Common\sw-offload.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="wxp\ParaNdis5-Driver.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -80,15 +29,8 @@
     <ClCompile Include="wxp\ParaNdis5-Oid.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="VirtIO\VirtIOPCI.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="VirtIO\VirtIORing.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="wxp\netkvm.inf" />
-    <None Include="VirtIO\sources" />
   </ItemGroup>
 </Project>

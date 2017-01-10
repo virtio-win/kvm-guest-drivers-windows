@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2008-2015 Red Hat, Inc.
+ * Copyright (c) 2008-2016 Red Hat, Inc.
  *
  * File: osdep.h
  *
@@ -10,11 +10,9 @@
  * the COPYING file in the top-level directory.
  *
 **********************************************************************/
-#ifndef __OS_DEP_H
-#define __OS_DEP_H
+#pragma once
 
 #pragma warning (push)
-#pragma warning (disable:4201)
 #pragma warning (disable:28301)
 #pragma warning (disable:28252)
 #pragma warning (disable:28251)
@@ -26,7 +24,7 @@
 #include <Ntstrsafe.h>
 #pragma warning (pop)
 
-#if NTDDI_VERSION <= NTDDI_VISTA
+#if NTDDI_VERSION <= NTDDI_VISTASP1
 #define _Requires_lock_held_(lock)
 #define _Acquires_shared_lock_(lock)
 #define _Acquires_exclusive_lock_(lock)
@@ -35,7 +33,6 @@
 #define mb()   KeMemoryBarrier()
 #define rmb()  KeMemoryBarrier()
 #define wmb()  KeMemoryBarrier()
-#define smp_wmb() KeMemoryBarrier()
 
 #ifndef min
 #define min(_a, _b) (((_a) < (_b)) ? (_a) : (_b))
@@ -61,6 +58,4 @@
 #if (7-PARANDIS_MINOR_DRIVER_VERSION-7) == 14
 #undef PARANDIS_MINOR_DRIVER_VERSION
 #define PARANDIS_MINOR_DRIVER_VERSION       58000
-#endif
-
 #endif

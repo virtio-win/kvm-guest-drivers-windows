@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2012-2015 Red Hat, Inc.
+ * Copyright (c) 2012-2016 Red Hat, Inc.
  *
  * File: utils.h
  *
@@ -19,10 +19,14 @@
 #include <stdarg.h>
 #include "kdebugprint.h"
 #include "evntrace.h"
+#include "helper.h"
 
-#define CHECKBIT(value, nbit) (((value) & (1 << (nbit))) != 0)
-#define CHECKFLAG(value, flag) (!!(value & (flag)))
+#define CHECKBIT(value, nbit) virtio_is_feature_enabled(value, nbit)
+#define CHECKFLAG(value, flag) ((value & (flag)) == flag)
 #define SETFLAG(value, flag) (value |= (flag))
+
+#define CACHE_LINE_SIZE 64
+#define ROUND_TO_CACHE_LINES(Size)  (((ULONG_PTR)(Size) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1))
 
 #if 0
 #define ENTER_FN() RhelDbgPrint(TRACE_LEVEL_VERBOSE, (("--> %s.\n"),__FUNCTION__))
@@ -31,7 +35,7 @@
 #define CHECK_CPU(Srb) { \
     PROCESSOR_NUMBER    ProcNumber; \
     ULONG               processor = KeGetCurrentProcessorNumberEx(&ProcNumber); \
-    PSRB_EXTENSION srbExt  = (PSRB_EXTENSION)Srb->SrbExtension; \
+    PSRB_EXTENSION srbExt  = SRB_EXTENSION(Srb); \
     if (ProcNumber.Group != srbExt->procNum.Group || \
         ProcNumber.Number != srbExt->procNum.Number) { \
            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s Srb %p issued on %d::%d currentn %d::%d\n", \
@@ -49,6 +53,9 @@
 void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath);
 
 extern int nViostorDebugLevel;
+
+//#define DBG 1
+//#define COM_DEBUG 1
 
 #if DBG
 int

@@ -4,13 +4,13 @@ call :rmdir Install
 call :rmdir Install_Debug
 call :rmfiles *.log
 call :rmfiles *.err
-call :rmfiles 2012-defines.h
 call :cleandir
 
 pushd pvpanic
 call :cleandir
 for /D %%D IN (objchk_*) do call call :rmdir %%D
 for /D %%D IN (objfre_*) do call call :rmdir %%D
+call :rmfiles *.tmh
 popd
 
 pushd "PVPanic Package"

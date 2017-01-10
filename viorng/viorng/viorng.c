@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2015 Red Hat, Inc.
+ * Copyright (C) 2014-2016 Red Hat, Inc.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -122,7 +122,9 @@ NTSTATUS VirtRngEvtDeviceAdd(IN WDFDRIVER Driver,
         return status;
     }
 
-    status = WdfSpinLockCreate(WDF_NO_OBJECT_ATTRIBUTES,
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    attributes.ParentObject = device;
+    status = WdfSpinLockCreate(&attributes,
         &context->VirtQueueLock);
 
     if (!NT_SUCCESS(status))

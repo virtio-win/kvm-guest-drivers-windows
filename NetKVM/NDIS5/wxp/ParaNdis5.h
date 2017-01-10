@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2008-2015 Red Hat, Inc.
+ * Copyright (c) 2008-2016 Red Hat, Inc.
  *
  * File: ParaNdis5.h
  *
@@ -40,10 +40,8 @@ VOID ParaNdis5_ReturnPacket(IN NDIS_HANDLE  MiniportAdapterContext,IN PNDIS_PACK
 VOID ParaNdis5_IndicateConnect(PARANDIS_ADAPTER *pContext, BOOLEAN bConnected);
 
 
-#ifdef NDIS51_MINIPORT
 //NDIS 5.1 related functions
 VOID ParaNdis5_CancelSendPackets(IN NDIS_HANDLE MiniportAdapterContext,IN PVOID CancelId);
-#endif /* NDIS51_MINIPORT */
 
 NDIS_STATUS ParaNdis5_StopSend(
     PARANDIS_ADAPTER *pContext,

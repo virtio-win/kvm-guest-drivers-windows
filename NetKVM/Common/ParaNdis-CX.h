@@ -3,14 +3,14 @@
 #include "ndis56common.h"
 #include "ParaNdis-AbstractPath.h"
 
-class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CNdisAllocatable < CParaNdisCX, 'CXHR' > {
+class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementAllocatable {
 public:
     CParaNdisCX();
     ~CParaNdisCX();
 
     bool Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex);
 
-    virtual NDIS_STATUS SetupMessageIndex(u16 queueCardinal);
+    virtual NDIS_STATUS SetupMessageIndex(u16 vector);
 
     BOOLEAN CParaNdisCX::SendControlMessage(
         UCHAR cls,

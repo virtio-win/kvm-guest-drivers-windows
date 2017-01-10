@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2009-2015  Red Hat, Inc.
+ * Copyright (c) 2009-2016  Red Hat, Inc.
  *
  * File: precomp.h
  *
@@ -25,9 +25,9 @@
 #include "osdep.h"
 
 #include "virtio_pci.h"
-#include "virtio_config.h"
 #include "virtio.h"
+#include "VirtIOWdf.h"
 
-#include "ProtoTypes.h"
 #include "public.h"
+#include "ProtoTypes.h"
 #include "trace.h"

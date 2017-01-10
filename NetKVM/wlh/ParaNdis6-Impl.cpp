@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2008-2015 Red Hat, Inc.
+ * Copyright (c) 2008-2016 Red Hat, Inc.
  *
  * File: ParaNdis6-Impl.c
  *
@@ -86,17 +86,22 @@ Return value:
 ***********************************************************/
 BOOLEAN ParaNdis_InitialAllocatePhysicalMemory(
     PARANDIS_ADAPTER *pContext,
+    ULONG ulSize,
     tCompletePhysicalAddress *pAddresses)
 {
     NdisMAllocateSharedMemory(
         pContext->MiniportHandle,
-        pAddresses->size,
+        ulSize,
         TRUE,
         &pAddresses->Virtual,
         &pAddresses->Physical);
-    return pAddresses->Virtual != NULL;
+    if (pAddresses->Virtual != NULL)
+    {
+        pAddresses->size = ulSize;
+        return TRUE;
+    }
+    return FALSE;
 }
-
 
 /**********************************************************
 NDIS6 implementation of shared memory freeing
@@ -105,15 +110,12 @@ Parameters:
     tCompletePhysicalAddress *pAddresses
             the structure accumulates all our knowledge
             about the allocation (size, addresses, cacheability etc)
-            filled by ParaNdis_InitialAllocatePhysicalMemory or
-            by ParaNdis_RuntimeRequestToAllocatePhysicalMemory
+            filled by ParaNdis_InitialAllocatePhysicalMemory
 ***********************************************************/
-
 VOID ParaNdis_FreePhysicalMemory(
     PARANDIS_ADAPTER *pContext,
     tCompletePhysicalAddress *pAddresses)
 {
-
     NdisMFreeSharedMemory(
         pContext->MiniportHandle,
         pAddresses->size,
@@ -135,15 +137,12 @@ BOOLEAN ParaNdis_SynchronizeWithInterrupt(
     tSynchronizedProcedure procedure,
     PVOID parameter)
 {
-    tSynchronizedContext SyncContext;
     NDIS_SYNC_PROC_TYPE syncProc;
 #pragma warning (push)
 #pragma warning (disable:4152)
     syncProc = (NDIS_SYNC_PROC_TYPE) procedure;
 #pragma warning (pop)
-    SyncContext.pContext  = pContext;
-    SyncContext.Parameter = parameter;
-    return NdisMSynchronizeWithInterruptEx(pContext->InterruptHandle, messageId, syncProc, &SyncContext);
+    return NdisMSynchronizeWithInterruptEx(pContext->InterruptHandle, messageId, syncProc, parameter);
 }
 
 /**********************************************************
@@ -205,7 +204,7 @@ static BOOLEAN MiniportInterrupt(
     )
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
-    ULONG status = VirtIODeviceISR(pContext->IODevice);
+    ULONG status = virtio_read_isr_status(&pContext->IODevice);
 
     *TargetProcessors = 0;
 
@@ -231,6 +230,7 @@ static BOOLEAN MiniportInterrupt(
     if (pContext->bCXPathCreated)
     {
         pContext->CXPath.DisableInterrupts();
+        pContext->CXPath.ReportInterrupt();
     }
     
     *QueueDefaultInterruptDpc = TRUE;
@@ -244,7 +244,7 @@ static CParaNdisAbstractPath *GetPathByMessageId(PARANDIS_ADAPTER *pContext, ULO
     CParaNdisAbstractPath *path = NULL;
 
     UINT bundleId = MessageId / 2;
-    if (bundleId >= pContext->nPathBundles)
+    if (pContext->CXPath.getMessageIndex() == MessageId)
     {
         path = &pContext->CXPath;
     }
@@ -462,11 +462,17 @@ static VOID SharedMemAllocateCompleteHandler(
     UNREFERENCED_PARAMETER(Context);
 }
 
+/*
+  We enter this procedure in two cases:
+  - number of MSIX vectors is at least nPathBundles*2 + 1
+  - there is single MSIX vector and one path bundle
+*/
 NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_RESOURCES;
     UINT i;
     PIO_INTERRUPT_MESSAGE_INFO pTable = pContext->pMSIXInfoTable;
+    bool bSingleVector = pContext->pMSIXInfoTable->MessageCount == 1;
     if (pTable && pTable->MessageCount)
     {
         status = NDIS_STATUS_SUCCESS;
@@ -481,8 +487,13 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
         }
         for (UINT j = 0; j < pContext->nPathBundles && status == NDIS_STATUS_SUCCESS; ++j)
         {
-            status = pContext->pPathBundles[j].rxPath.SetupMessageIndex(2 * u16(j) + 1);
-            status = pContext->pPathBundles[j].txPath.SetupMessageIndex(2 * u16(j));
+            u16 vector = 2 * u16(j);
+            status = pContext->pPathBundles[j].txPath.SetupMessageIndex(vector);
+            if (status == NDIS_STATUS_SUCCESS)
+            {
+                if (!bSingleVector) vector++;
+                status = pContext->pPathBundles[j].rxPath.SetupMessageIndex(vector);
+            }
             DPrintf(0, ("[%s] Using messages %u/%u for RX/TX queue %u\n", __FUNCTION__,
                         pContext->pPathBundles[j].rxPath.getMessageIndex(),
                         pContext->pPathBundles[j].txPath.getMessageIndex(),
@@ -491,16 +502,17 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
 
         if (status == NDIS_STATUS_SUCCESS && pContext->bCXPathCreated)
         {
-            /* We need own vector for control queue. If one is not available, fail the initialization */
-            if (pContext->nPathBundles * 2 > pTable->MessageCount - 1)
+            /*
+            Usually there is own vector for control queue.
+            In corner case of single vector control queue uses the same vector as RX and TX
+            */
+            if (bSingleVector)
             {
-                DPrintf(0, ("[%s] Not enough vectors for control queue!\n", __FUNCTION__));
-                status = NDIS_STATUS_RESOURCES;
+                status = pContext->CXPath.SetupMessageIndex(0);
             }
             else
             {
                 status = pContext->CXPath.SetupMessageIndex(2 * u16(pContext->nPathBundles));
-                DPrintf(0, ("[%s] Using message %u for controls\n", __FUNCTION__, pContext->CXPath.getMessageIndex()));
             }
         }
     }
@@ -688,9 +700,12 @@ BOOLEAN ParaNdis_BindRxBufferToPacket(
     ULONG i;
     PMDL *NextMdlLinkage = &p->Holder;
 
-    for(i = PARANDIS_FIRST_RX_DATA_PAGE; i < p->PagesAllocated; i++)
+    for(i = PARANDIS_FIRST_RX_DATA_PAGE; i < p->BufferSGLength; i++)
     {
-        *NextMdlLinkage = NdisAllocateMdl(pContext->MiniportHandle, p->PhysicalPages[i].Virtual, PAGE_SIZE);
+        *NextMdlLinkage = NdisAllocateMdl(
+            pContext->MiniportHandle,
+            p->PhysicalPages[i].Virtual,
+            p->PhysicalPages[i].size);
         if(*NextMdlLinkage == NULL) goto error_exit;
 
         NextMdlLinkage = &(NDIS_MDL_LINKAGE(*NextMdlLinkage));
@@ -709,14 +724,16 @@ void ParaNdis_UnbindRxBufferFromPacket(
     pRxNetDescriptor p)
 {
     PMDL NextMdlLinkage = p->Holder;
+    ULONG ulPageDescIndex = PARANDIS_FIRST_RX_DATA_PAGE;
 
     while(NextMdlLinkage != NULL)
     {
         PMDL pThisMDL = NextMdlLinkage;
         NextMdlLinkage = NDIS_MDL_LINKAGE(pThisMDL);
 
-        NdisAdjustMdlLength(pThisMDL, PAGE_SIZE);
+        NdisAdjustMdlLength(pThisMDL, p->PhysicalPages[ulPageDescIndex].size);
         NdisFreeMdl(pThisMDL);
+        ulPageDescIndex++;
     }
 }
 
@@ -727,15 +744,17 @@ void ParaNdis_AdjustRxBufferHolderLength(
 {
     PMDL NextMdlLinkage = p->Holder;
     ULONG ulBytesLeft = p->PacketInfo.dataLength + ulDataOffset;
+    ULONG ulPageDescIndex = PARANDIS_FIRST_RX_DATA_PAGE;
 
     while(NextMdlLinkage != NULL)
     {
-        ULONG ulThisMdlBytes = min(PAGE_SIZE, ulBytesLeft);
+        ULONG ulThisMdlBytes = min(p->PhysicalPages[ulPageDescIndex].size, ulBytesLeft);
         NdisAdjustMdlLength(NextMdlLinkage, ulThisMdlBytes);
         ulBytesLeft -= ulThisMdlBytes;
         NextMdlLinkage = NDIS_MDL_LINKAGE(NextMdlLinkage);
+        ulPageDescIndex++;
     }
-    ASSERT(ulBytesLeft == 0);
+    NETKVM_ASSERT(ulBytesLeft == 0);
 }
 
 static __inline
@@ -788,7 +807,7 @@ UINT PktGetTCPCoalescedSegmentsCount(PNET_PACKET_INFO PacketInfo, UINT nMaxTCPPa
 
 static __inline
 VOID NBLSetRSCInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL,
-                   PNET_PACKET_INFO PacketInfo, UINT nCoalescedSegments)
+                   PNET_PACKET_INFO PacketInfo, UINT nCoalescedSegments, USHORT nDupAck)
 {
     NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
 
@@ -800,7 +819,7 @@ VOID NBLSetRSCInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL,
     NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
 
     NET_BUFFER_LIST_COALESCED_SEG_COUNT(pNBL) = (USHORT) nCoalescedSegments;
-    NET_BUFFER_LIST_DUP_ACK_COUNT(pNBL) = 0;
+    NET_BUFFER_LIST_DUP_ACK_COUNT(pNBL) = nDupAck;
 
     NdisInterlockedAddLargeStatistic(&pContext->RSC.Statistics.CoalescedOctets, PacketInfo->L2PayloadLen);
     NdisInterlockedAddLargeStatistic(&pContext->RSC.Statistics.CoalesceEvents, 1);
@@ -845,7 +864,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
 
         if (pNBL)
         {
-            virtio_net_hdr *pHeader = (virtio_net_hdr *) pBuffersDesc->PhysicalPages[0].Virtual;
+            virtio_net_hdr_rsc *pHeader = (virtio_net_hdr_rsc *) pBuffersDesc->PhysicalPages[0].Virtual;
             tChecksumCheckResult csRes;
             pNBL->SourceHandle = pContext->MiniportHandle;
             NBLSetRSSInfo(pContext, pNBL, pPacketInfo);
@@ -854,19 +873,28 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
             pNBL->MiniportReserved[0] = pBuffersDesc;
 
 #if PARANDIS_SUPPORT_RSC
-            if(pHeader->gso_type != VIRTIO_NET_HDR_GSO_NONE)
+            if (!(pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) && (pHeader->hdr.gso_type != VIRTIO_NET_HDR_GSO_NONE))
             {
                 *pnCoalescedSegmentsCount = PktGetTCPCoalescedSegmentsCount(pPacketInfo, pContext->MaxPacketSize.nMaxDataSize);
-                NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount);
+                NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, 0);
+                DPrintf(1, ("RSC host packet, datalen %d, GSO type %d\n", pPacketInfo->dataLength, pHeader->hdr.gso_type));
+                pContext->extraStatistics.framesCoalescedHost++;
+            }
+            else if ((pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) && (pHeader->hdr.gso_type != VIRTIO_NET_HDR_RSC_NONE))
+            {
+                *pnCoalescedSegmentsCount = pHeader->rsc_pkts;
+                NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, pHeader->rsc_dup_acks);
+                DPrintf(1, ("RSC win packet, datalen %d, GSO type %d\n", pPacketInfo->dataLength, pHeader->hdr.gso_type));
+                pContext->extraStatistics.framesCoalescedWindows++;
             }
             else
 #endif
             {
                 csRes = ParaNdis_CheckRxChecksum(
                     pContext,
-                    pHeader->flags,
+                    pHeader->hdr.flags,
                     &pBuffersDesc->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE],
-                    pPacketInfo->dataLength,
+                    pPacketInfo,
                     nBytesStripped, TRUE);
                 if (csRes.value)
                 {
@@ -919,83 +947,29 @@ VOID ParaNdis6_ReturnNetBufferLists(
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
 
+    auto NumNBLs = ParaNdis_CountNBLs(pNBL);
+
     UNREFERENCED_PARAMETER(returnFlags);
 
     DEBUG_ENTRY(5);
-    while (pNBL)
-    {
-        PNET_BUFFER_LIST pTemp = pNBL;
-        pRxNetDescriptor pBuffersDescriptor = (pRxNetDescriptor)pNBL->MiniportReserved[0];
-        DPrintf(3, ("  Returned NBL of pBuffersDescriptor %p!\n", pBuffersDescriptor));
-        pNBL = NET_BUFFER_LIST_NEXT_NBL(pNBL);
-        NET_BUFFER_LIST_NEXT_NBL(pTemp) = NULL;
-        NdisFreeNetBufferList(pTemp);
-        pBuffersDescriptor->Queue->ReuseReceiveBuffer(pBuffersDescriptor);
-    }
-    ParaNdis_TestPausing(pContext);
-}
 
-/**********************************************************
-Pauses of restarts RX activity.
-Restart is immediate, pause may be delayed until
-NDIS returns all the indicated NBL
+    ParaNdis_ReuseRxNBLs(pNBL);
 
-Parameters:
-    context
-    bPause 1/0 - pause or restart
-    ONPAUSECOMPLETEPROC Callback to be called when PAUSE finished
-Return value:
-    SUCCESS if finished synchronously
-    PENDING if not, then callback will be called
-***********************************************************/
-NDIS_STATUS ParaNdis6_ReceivePauseRestart(
-    PARANDIS_ADAPTER *pContext,
-    BOOLEAN bPause,
-    ONPAUSECOMPLETEPROC Callback
-    )
-{
-    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
-
-    if (bPause)
-    {
-        CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
-
-        ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 1, 0, 0);
-        if (pContext->m_rxPacketsOutsideRing != 0)
-        {
-            pContext->ReceiveState = srsPausing;
-            pContext->ReceivePauseCompletionProc = Callback;
-            status = NDIS_STATUS_PENDING;
-        }
-        else
-        {
-            ParaNdis_DebugHistory(pContext, hopInternalReceivePause, NULL, 0, 0, 0);
-            pContext->ReceiveState = srsDisabled;
-        }
-    }
-    else
-    {
-        ParaNdis_DebugHistory(pContext, hopInternalReceiveResume, NULL, 0, 0, 0);
-        pContext->ReceiveState = srsEnabled;
-    }
-    return status;
+    pContext->m_RxStateMachine.UnregisterOutstandingItems(NumNBLs);
 }
 
 NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_FAILURE;
-    if (pContext->SendState != srsEnabled ) status = NDIS_STATUS_PAUSED;
     if (!pContext->bConnected) status = NDIS_STATUS_MEDIA_DISCONNECTED;
     if (pContext->bSurprizeRemoved) status = NDIS_STATUS_NOT_ACCEPTED;
-    // override NDIS_STATUS_PAUSED is there is a specific reason of implicit paused state
-    if (pContext->powerState != NdisDeviceStateD0) status = NDIS_STATUS_LOW_POWER_STATE;
     return status;
 }
 
 BOOLEAN ParaNdis_IsSendPossible(PARANDIS_ADAPTER *pContext)
 {
     BOOLEAN b;
-    b =  !pContext->bSurprizeRemoved && pContext->bConnected && pContext->SendState == srsEnabled;
+    b =  !pContext->bSurprizeRemoved && pContext->bConnected;
     return b;
 }
 
@@ -1018,65 +992,6 @@ VOID ProcessSGListHandler(
 
     auto NBHolder = static_cast<CNB*>(Context);
     NBHolder->MappingDone(pSGL);
-}
-
-/**********************************************************
-Pauses of restarts TX activity.
-Restart is immediate, pause may be delayed until
-we return all the NBLs to NDIS
-
-Parameters:
-    context
-    bPause 1/0 - pause or restart
-    ONPAUSECOMPLETEPROC Callback to be called when PAUSE finished
-Return value:
-    SUCCESS if finished synchronously
-    PENDING if not, then callback will be called later
-***********************************************************/
-NDIS_STATUS ParaNdis6_SendPauseRestart(
-    PARANDIS_ADAPTER *pContext,
-    BOOLEAN bPause,
-    ONPAUSECOMPLETEPROC Callback
-)
-{
-    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
-    DEBUG_ENTRY(4);
-    if (bPause)
-    {
-        ParaNdis_DebugHistory(pContext, hopInternalSendPause, NULL, 1, 0, 0);
-        if (pContext->SendState == srsEnabled)
-        {
-            {
-                CNdisPassiveWriteAutoLock tLock(pContext->m_PauseLock);
-
-                pContext->SendState = srsPausing;
-                pContext->SendPauseCompletionProc = Callback;
-            }
-
-            for (UINT i = 0; i < pContext->nPathBundles; i++)
-            {
-                if (!pContext->pPathBundles[i].txPath.Pause())
-                {
-                    status = NDIS_STATUS_PENDING;
-                }
-            }
-
-            if (status == NDIS_STATUS_SUCCESS)
-            {
-                pContext->SendState = srsDisabled;
-            }
-        }
-        if (status == NDIS_STATUS_SUCCESS)
-        {
-            ParaNdis_DebugHistory(pContext, hopInternalSendPause, NULL, 0, 0, 0);
-        }
-    }
-    else
-    {
-        pContext->SendState = srsEnabled;
-        ParaNdis_DebugHistory(pContext, hopInternalSendResume, NULL, 0, 0, 0);
-    }
-    return status;
 }
 
 /**********************************************************

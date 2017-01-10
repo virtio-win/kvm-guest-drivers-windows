@@ -21,7 +21,7 @@ VIOSerialInterruptIsr(
 
     // Schedule a DPC if the device is using message-signaled interrupts, or
     // if the device ISR status is enabled.
-    if (info.MessageSignaled || VirtIODeviceISR(pContext->pIODevice))
+    if (info.MessageSignaled || VirtIOWdfGetISRStatus(&pContext->VDevice))
     {
         WdfInterruptQueueDpcForIsr(Interrupt);
         serviced = TRUE;
@@ -97,54 +97,11 @@ VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt,
 
         Port = RawPdoSerialPortGetData(Device)->port;
 
-        WdfSpinLockAcquire(Port->InBufLock);
-        if (!Port->InBuf)
-        {
-            Port->InBuf = (PPORT_BUFFER)VIOSerialGetInBuf(Port);
-        }
+        // handle the read queue
+        VIOSerialProcessInputBuffers(Port);
 
-        if (!Port->GuestConnected)
-        {
-            VIOSerialDiscardPortDataLocked(Port);
-        }
-
-        if (Port->InBuf && Port->PendingReadRequest)
-        {
-            WDFREQUEST Request = Port->PendingReadRequest;
-            status = WdfRequestUnmarkCancelable(Request);
-            if (status != STATUS_CANCELLED)
-            {
-                PVOID Buffer;
-                size_t Length;
-
-                status = WdfRequestRetrieveOutputBuffer(Request, 0, &Buffer, &Length);
-                if (NT_SUCCESS(status))
-                {
-                    ULONG Read;
-
-                    Port->PendingReadRequest = NULL;
-                    Read = (ULONG)VIOSerialFillReadBufLocked(Port, Buffer, Length);
-                    WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS,
-                        Read);
-                }
-                else
-                {
-                    TraceEvents(TRACE_LEVEL_ERROR, DBG_DPC,
-                        "Failed to retrieve output buffer (Status: %x Request: %p).\n",
-                        status, Request);
-                }
-            }
-            else
-            {
-                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
-                    "Request %p was cancelled.\n", Request);
-            }
-        }
-        WdfSpinLockRelease(Port->InBufLock);
-
-        WdfSpinLockAcquire(Port->OutVqLock);
+        // handle the write queue
         VIOSerialReclaimConsumedBuffers(Port);
-        WdfSpinLockRelease(Port->OutVqLock);
     }
     WdfChildListEndIteration(PortList, &iterator);
 

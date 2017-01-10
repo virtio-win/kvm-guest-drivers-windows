@@ -48,18 +48,18 @@ VIOSerialAllocateBuffer(
 }
 
 size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port,
-                            IN PVOID Buffer,
+                            IN PWRITE_BUFFER_ENTRY Entry,
                             IN size_t Length)
 {
     struct virtqueue *vq = GetOutQueue(Port);
     struct VirtIOBufferDescriptor sg[QUEUE_DESCRIPTORS];
-    PVOID buffer = Buffer;
+    PVOID buffer = Entry->Buffer;
     size_t length = Length;
-    int out = 0;
+    int out = 0, prepared = 0;
     int ret;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,
-        "--> %s Buffer: %p Length: %d\n", __FUNCTION__, Buffer, Length);
+        "--> %s Buffer: %p Length: %d\n", __FUNCTION__, Entry->Buffer, Length);
 
     if (BYTES_TO_PAGES(Length) > QUEUE_DESCRIPTORS)
     {
@@ -78,21 +78,28 @@ size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port,
 
     WdfSpinLockAcquire(Port->OutVqLock);
 
-    ret = virtqueue_add_buf(vq, sg, out, 0, Buffer, NULL, 0);
-    virtqueue_kick(vq);
+    ret = virtqueue_add_buf(vq, sg, out, 0, Entry->Buffer, NULL, 0);
 
     if (ret >= 0)
     {
-        Port->OutVqFull = (ret == 0);
+        prepared = virtqueue_kick_prepare(vq);
+        PushEntryList(&Port->WriteBuffersList, &Entry->ListEntry);
     }
     else
     {
+        Port->OutVqFull = TRUE;
         Length = 0;
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
             "Error adding buffer to queue (ret = %d)\n", ret);
     }
 
     WdfSpinLockRelease(Port->OutVqLock);
+
+    if (prepared)
+    {
+        // notify can run without the lock held
+        virtqueue_notify(vq);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 
@@ -115,37 +122,82 @@ VIOSerialFreeBuffer(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
 }
 
-VOID VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
+VOID VIOSerialProcessInputBuffers(IN PVIOSERIAL_PORT Port)
+{
+    NTSTATUS status;
+    ULONG Read;
+    WDFREQUEST Request = NULL;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
+
+    WdfSpinLockAcquire(Port->InBufLock);
+    if (!Port->InBuf)
+    {
+        Port->InBuf = (PPORT_BUFFER)VIOSerialGetInBuf(Port);
+    }
+
+    if (!Port->GuestConnected)
+    {
+        VIOSerialDiscardPortDataLocked(Port);
+    }
+
+    if (Port->InBuf && Port->PendingReadRequest)
+    {
+        status = WdfRequestUnmarkCancelable(Port->PendingReadRequest);
+        if (status != STATUS_CANCELLED)
+        {
+            PVOID Buffer;
+            size_t Length;
+
+            status = WdfRequestRetrieveOutputBuffer(Port->PendingReadRequest, 0, &Buffer, &Length);
+            if (NT_SUCCESS(status))
+            {
+                Request = Port->PendingReadRequest;
+                Port->PendingReadRequest = NULL;
+                Read = (ULONG)VIOSerialFillReadBufLocked(Port, Buffer, Length);
+            }
+            else
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING,
+                    "Failed to retrieve output buffer (Status: %x Request: %p).\n",
+                    status, Request);
+            }
+        }
+        else
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING,
+                "Request %p was cancelled.\n", Request);
+        }
+    }
+    WdfSpinLockRelease(Port->InBufLock);
+
+    if (Request != NULL)
+    {
+        // no need to have the lock when completing the request
+        WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, Read);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
+}
+
+BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 {
     WDFREQUEST request;
-    PSINGLE_LIST_ENTRY iter;
+    SINGLE_LIST_ENTRY ReclaimedList = { NULL };
+    PSINGLE_LIST_ENTRY iter, last = &ReclaimedList;
     PVOID buffer;
     UINT len;
     struct virtqueue *vq = GetOutQueue(Port);
+    BOOLEAN ret;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
+
+    WdfSpinLockAcquire(Port->OutVqLock);
 
     if (vq)
     {
         while ((buffer = virtqueue_get_buf(vq, &len)) != NULL)
         {
-            if (Port->PendingWriteRequest != NULL)
-            {
-                request = Port->PendingWriteRequest;
-                Port->PendingWriteRequest = NULL;
-
-                if (WdfRequestUnmarkCancelable(request) != STATUS_CANCELLED)
-                {
-                    WdfRequestCompleteWithInformation(request, STATUS_SUCCESS,
-                        (size_t)WdfRequestGetInformation(request));
-                }
-                else
-                {
-                    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING,
-                        "Request %p was cancelled.\n", request);
-                }
-            }
-
             iter = &Port->WriteBuffersList;
             while (iter->Next != NULL)
             {
@@ -154,10 +206,24 @@ VOID VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 
                 if (buffer == entry->Buffer)
                 {
+                    if (entry->Request != NULL)
+                    {
+                        request = entry->Request;
+                        if (WdfRequestUnmarkCancelable(request) == STATUS_CANCELLED)
+                        {
+                            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING,
+                                "Request %p was cancelled.\n", request);
+                            entry->Request = NULL;
+                        }
+                    }
+
+                    // remove from WriteBuffersList
                     iter->Next = entry->ListEntry.Next;
 
-                    ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
-                    ExFreePoolWithTag(entry, VIOSERIAL_DRIVER_MEMORY_TAG);
+                    // append to ReclaimedList
+                    last->Next = &entry->ListEntry;
+                    last = last->Next;
+                    last->Next = NULL;
                 }
                 else
                 {
@@ -168,9 +234,31 @@ VOID VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
             Port->OutVqFull = FALSE;
         }
     }
+    ret = Port->OutVqFull;
+
+    WdfSpinLockRelease(Port->OutVqLock);
+
+    // no need to hold the lock to complete requests and free buffers
+    while ((iter = PopEntryList(&ReclaimedList)) != NULL)
+    {
+        PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter,
+            WRITE_BUFFER_ENTRY, ListEntry);
+
+        request = entry->Request;
+        if (request != NULL)
+        {
+            WdfRequestCompleteWithInformation(request, STATUS_SUCCESS,
+                WdfRequestGetInformation(request));
+        }
+
+        ExFreePoolWithTag(entry->Buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
+        WdfObjectDelete(entry->EntryHandle);
+    };
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s Full: %d\n",
-        __FUNCTION__, Port->OutVqFull);
+        __FUNCTION__, ret);
+
+    return ret;
 }
 
 // this procedure must be called with port InBuf spinlock held

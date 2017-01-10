@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2015 Red Hat, Inc.
+ * Copyright (C) 2014-2016 Red Hat, Inc.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -74,7 +74,7 @@ BOOLEAN VirtRngEvtInterruptIsr(IN WDFINTERRUPT Interrupt, IN ULONG MessageId)
     WdfInterruptGetInfo(context->WdfInterrupt, &info);
 
     if ((info.MessageSignaled && (MessageId == 0)) ||
-        VirtIODeviceISR(&context->VirtDevice))
+        VirtIOWdfGetISRStatus(&context->VDevice))
     {
         WdfInterruptQueueDpcForIsr(Interrupt);
         serviced = TRUE;

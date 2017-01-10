@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2009-2015 Red Hat, Inc.
+ * Copyright (c) 2009-2016 Red Hat, Inc.
  *
  * File: precomp.h
  *
@@ -33,7 +33,6 @@ typedef struct _VIRTIO_BALLOON_CONFIG
 }VIRTIO_BALLOON_CONFIG, *PVIRTIO_BALLOON_CONFIG;
 
 
-typedef VirtIODevice VIODEVICE, *PVIODEVICE;
 typedef struct virtqueue VIOQUEUE, *PVIOQUEUE;
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
@@ -46,16 +45,20 @@ typedef struct {
 
 typedef struct _DEVICE_CONTEXT {
     WDFINTERRUPT            WdfInterrupt;
-    WDFREQUEST              PendingWriteRequest;
+    WDFWORKITEM             StatWorkItem;
+    LONG                    WorkCount;
     PUCHAR                  PortBase;
     ULONG                   PortCount;
     BOOLEAN                 PortMapped;
     PKEVENT                 evLowMem;
     HANDLE                  hLowMem;
-    VIODEVICE               VDevice;
+    VIRTIO_WDF_DRIVER       VDevice;
     PVIOQUEUE               InfVirtQueue;
     PVIOQUEUE               DefVirtQueue;
     PVIOQUEUE               StatVirtQueue;
+
+    WDFSPINLOCK             StatQueueLock;
+    WDFSPINLOCK             InfDefQueueLock;
 
     KEVENT                  HostAckEvent;
 
@@ -70,7 +73,6 @@ typedef struct _DEVICE_CONTEXT {
     KEVENT                  WakeUpThread;
     PKTHREAD                Thread;
     BOOLEAN                 bShutDown;
-    BOOLEAN                 HandleWriteRequest;
 
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
@@ -88,12 +90,11 @@ EVT_WDF_DEVICE_RELEASE_HARDWARE                BalloonEvtDeviceReleaseHardware;
 EVT_WDF_DEVICE_D0_ENTRY                        BalloonEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT                         BalloonEvtDeviceD0Exit;
 EVT_WDF_DEVICE_D0_EXIT_PRE_INTERRUPTS_DISABLED BalloonEvtDeviceD0ExitPreInterruptsDisabled;
-EVT_WDF_FILE_CLOSE                             BalloonEvtFileClose;
 EVT_WDF_INTERRUPT_ISR                          BalloonInterruptIsr;
 EVT_WDF_INTERRUPT_DPC                          BalloonInterruptDpc;
 EVT_WDF_INTERRUPT_ENABLE                       BalloonInterruptEnable;
 EVT_WDF_INTERRUPT_DISABLE                      BalloonInterruptDisable;
-
+EVT_WDF_WORKITEM                               StatWorkItemWorker;
 
 VOID
 BalloonInterruptDpc(
@@ -200,11 +201,6 @@ BalloonGetSize(
     );
 
 NTSTATUS
-BalloonQueueInitialize(
-    IN WDFDEVICE hDevice
-    );
-
-NTSTATUS
 BalloonCloseWorkerThread(
     IN WDFDEVICE  Device
     );
@@ -219,7 +215,6 @@ IsLowMemory(
     IN WDFOBJECT    WdfDevice
     )
 {
-#if (WINVER >= 0x0501)
     LARGE_INTEGER       TimeOut = {0};
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
 
@@ -232,8 +227,12 @@ IsLowMemory(
                                  FALSE,
                                  &TimeOut));
     }
-#endif // (WINVER >= 0x0501)
     return FALSE;
 }
+
+NTSTATUS
+StatInitializeWorkItem(
+    IN WDFDEVICE Device
+    );
 
 #endif  // _PROTOTYPES_H_

@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2012-2015 Red Hat, Inc.
+ * Copyright (c) 2012-2016 Red Hat, Inc.
  *
  * File: helper.c
  *
@@ -23,36 +23,6 @@
 #define SET_VA_PA()   va = NULL; pa = 0;
 #endif
 
-VOID
-FORCEINLINE
-Lock(
-    IN PVOID DeviceExtension,
-    IN ULONG MessageID,
-    OUT PSTOR_LOCK_HANDLE LockHandle
-    )
-{
-    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    if (adaptExt->num_queues > 1) {
-        // Queue numbers start at 0, message ids at 1.
-        NT_ASSERT(MessageID > VIRTIO_SCSI_REQUEST_QUEUE_0);
-        StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[MessageID - VIRTIO_SCSI_REQUEST_QUEUE_0 - 1], LockHandle);
-    }
-    else {
-        StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, LockHandle);
-    }
-}
-
-VOID
-FORCEINLINE
-Unlock(
-    IN PVOID DeviceExtension,
-    IN ULONG MessageID,
-    IN PSTOR_LOCK_HANDLE LockHandle
-    )
-{
-    StorPortReleaseSpinLock(DeviceExtension, LockHandle);
-}
-
 BOOLEAN
 SendSRB(
     IN PVOID DeviceExtension,
@@ -64,6 +34,7 @@ SendSRB(
     PVOID               va = NULL;
     ULONGLONG           pa = 0;
     ULONG               QueueNumber = 0;
+    ULONG               OldIrql = 0;
     ULONG               MessageId = 0;
     BOOLEAN             result = FALSE;
     bool                notify = FALSE;
@@ -71,18 +42,15 @@ SendSRB(
     ULONG               status = STOR_STATUS_SUCCESS;
 ENTER_FN();
     SET_VA_PA();
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Srb %p issued on %d::%d QueueNumber %d\n",
-                 Srb, srbExt->procNum.Group, srbExt->procNum.Number, QueueNumber));
 
-    QueueNumber = adaptExt->cpu_to_vq_map[srbExt->procNum.Number];
+    if (adaptExt->num_queues > 1) {
+        QueueNumber = adaptExt->cpu_to_vq_map[srbExt->cpu] + VIRTIO_SCSI_REQUEST_QUEUE_0;
+    }
+    else {
+        QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
+    }
     MessageId = QueueNumber + 1;
-    Lock(DeviceExtension, MessageId, &LockHandle);
-    if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
-        ProcessQueue(DeviceExtension, MessageId, FALSE);
-    }
-    if (status != STOR_STATUS_SUCCESS) {
-        RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortAcquireMSISpinLock returned status 0x%x\n", __FUNCTION__, status));
-    }
+    VioScsiVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (virtqueue_add_buf(adaptExt->vq[QueueNumber],
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
@@ -91,14 +59,40 @@ ENTER_FN();
         notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
     }
     else {
-        RhelDbgPrint(TRACE_LEVEL_WARNING, ("%s Cant add packet to queue.\n", __FUNCTION__));
+        RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s Can not add packet to queue.\n", __FUNCTION__));
+//FIXME
     }
-    Unlock(DeviceExtension, MessageId, &LockHandle);
+    VioScsiVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (notify) {
         virtqueue_notify(adaptExt->vq[QueueNumber]);
     }
-    return result;
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    if (adaptExt->num_queues > 1) {
+        if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
+            ULONG msg = MessageId - 3;
+            PSTOR_SLIST_ENTRY   listEntryRev, listEntry;
+            status = StorPortInterlockedFlushSList(DeviceExtension, &adaptExt->srb_list[msg], &listEntryRev);
+            if ((status == STOR_STATUS_SUCCESS) && (listEntryRev != NULL)) {
+                listEntry = listEntryRev;
+                while(listEntry)
+                {
+                    PVirtIOSCSICmd  cmd = NULL;
+                    PSTOR_SLIST_ENTRY next = listEntry->Next;
+                    srbExt = CONTAINING_RECORD(listEntry,
+                                SRB_EXTENSION, list_entry);
+
+                    ASSERT(srExt);
+                    cmd = (PVirtIOSCSICmd)srbExt->priv;
+                    ASSERT(cmd);
+                    HandleResponse(DeviceExtension, cmd);
+                    listEntry = next;
+                }
+            }
+        }
+    }
+#endif
 EXIT_FN();
+    return result;
 }
 
 BOOLEAN
@@ -109,7 +103,7 @@ SynchronizedTMFRoutine(
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSCSI_REQUEST_BLOCK Srb      = (PSCSI_REQUEST_BLOCK) Context;
-    PSRB_EXTENSION      srbExt        = (PSRB_EXTENSION)Srb->SrbExtension;
+    PSRB_EXTENSION      srbExt   = SRB_EXTENSION(Srb);
     PVOID               va;
     ULONGLONG           pa;
 
@@ -122,7 +116,7 @@ ENTER_FN();
         virtqueue_kick(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE]);
         return TRUE;
     }
-    Srb->SrbStatus = SRB_STATUS_BUSY;
+    SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUSY);
     StorPortBusy(DeviceExtension, adaptExt->queue_depth);
 EXIT_ERR();
     return FALSE;
@@ -158,7 +152,7 @@ ENTER_FN();
     ASSERT(adaptExt->tmf_infly == FALSE);
     Srb->SrbExtension = srbExt;
     RtlZeroMemory((PVOID)cmd, sizeof(VirtIOSCSICmd));
-    cmd->sc = Srb;
+    cmd->srb = (PVOID)Srb;
     cmd->req.tmf.lun[0] = 1;
     cmd->req.tmf.lun[1] = 0;
     cmd->req.tmf.lun[2] = 0;
@@ -192,15 +186,13 @@ ShutDown(
     ULONG index;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 ENTER_FN();
-    VirtIODeviceReset(adaptExt->pvdev);
-    StorPortWritePortUshort(DeviceExtension, (PUSHORT)(adaptExt->device_base + VIRTIO_PCI_GUEST_FEATURES), 0);
+    virtio_device_reset(&adaptExt->vdev);
+    virtio_delete_queues(&adaptExt->vdev);
     for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
-        if (adaptExt->vq[index]) {
-            virtqueue_shutdown(adaptExt->vq[index]);
-            VirtIODeviceDeleteQueue(adaptExt->vq[index], NULL);
-            adaptExt->vq[index] = NULL;
-        }
+        adaptExt->vq[index] = NULL;
     }
+
+    virtio_device_shutdown(&adaptExt->vdev);
 EXIT_FN();
 }
 
@@ -212,30 +204,72 @@ GetScsiConfig(
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 ENTER_FN();
 
-    adaptExt->features = StorPortReadPortUlong(DeviceExtension, (PULONG)(adaptExt->device_base + VIRTIO_PCI_HOST_FEATURES));
+    adaptExt->features = virtio_get_features(&adaptExt->vdev);
 
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, seg_max),
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, seg_max),
                       &adaptExt->scsi_config.seg_max, sizeof(adaptExt->scsi_config.seg_max));
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, num_queues),
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("seg_max %lu\n", adaptExt->scsi_config.seg_max));
+
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, num_queues),
                       &adaptExt->scsi_config.num_queues, sizeof(adaptExt->scsi_config.num_queues));
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, max_sectors),
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("num_queues %lu\n", adaptExt->scsi_config.num_queues));
+
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_sectors),
                       &adaptExt->scsi_config.max_sectors, sizeof(adaptExt->scsi_config.max_sectors));
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, cmd_per_lun),
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_sectors %lu\n", adaptExt->scsi_config.max_sectors));
+
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, cmd_per_lun),
                       &adaptExt->scsi_config.cmd_per_lun, sizeof(adaptExt->scsi_config.cmd_per_lun));
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, event_info_size),
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("cmd_per_lun %lu\n", adaptExt->scsi_config.cmd_per_lun));
+
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, event_info_size),
                       &adaptExt->scsi_config.event_info_size, sizeof(adaptExt->scsi_config.event_info_size));
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, sense_size),
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("seg_max %lu\n", adaptExt->scsi_config.seg_max));
+
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, sense_size),
                       &adaptExt->scsi_config.sense_size, sizeof(adaptExt->scsi_config.sense_size));
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, cdb_size),
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("event_info_size %lu\n", adaptExt->scsi_config.event_info_size));
+
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, cdb_size),
                       &adaptExt->scsi_config.cdb_size, sizeof(adaptExt->scsi_config.cdb_size));
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, max_channel),
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("cdb_size %lu\n", adaptExt->scsi_config.cdb_size));
+
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_channel),
                       &adaptExt->scsi_config.max_channel, sizeof(adaptExt->scsi_config.max_channel));
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, max_target),
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_channel %u\n", adaptExt->scsi_config.max_channel));
+
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_target),
                       &adaptExt->scsi_config.max_target, sizeof(adaptExt->scsi_config.max_target));
-    VirtIODeviceGet( adaptExt->pvdev, FIELD_OFFSET(VirtIOSCSIConfig, max_lun),
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_target %u\n", adaptExt->scsi_config.max_target));
+
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_lun),
                       &adaptExt->scsi_config.max_lun, sizeof(adaptExt->scsi_config.max_lun));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_lun %lu\n", adaptExt->scsi_config.max_lun));
 
 EXIT_FN();
+}
+
+BOOLEAN
+InitVirtIODevice(
+    IN PVOID DeviceExtension
+    )
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    NTSTATUS status;
+
+    status = virtio_device_initialize(
+        &adaptExt->vdev,
+        &VioScsiSystemOps,
+        adaptExt,
+        adaptExt->msix_enabled);
+    if (!NT_SUCCESS(status)) {
+        LogError(adaptExt,
+                SP_INTERNAL_ADAPTER_ERROR,
+                __LINE__);
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Failed to initialize virtio device, error %x\n", status));
+        return FALSE;
+    }
+    return TRUE;
 }
 
 BOOLEAN
@@ -246,46 +280,90 @@ InitHW(
 {
     PACCESS_RANGE      accessRange;
     PADAPTER_EXTENSION adaptExt;
+    ULONG pci_cfg_len, i;
 
 ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    accessRange = &(*ConfigInfo->AccessRanges)[0];
+    adaptExt->system_io_bus_number = ConfigInfo->SystemIoBusNumber;
 
-    ASSERT (FALSE == accessRange->RangeInMemory) ;
+    /* read PCI config space */
+    pci_cfg_len = StorPortGetBusData(
+        DeviceExtension,
+        PCIConfiguration,
+        ConfigInfo->SystemIoBusNumber,
+        (ULONG)ConfigInfo->SlotNumber,
+        (PVOID)&adaptExt->pci_config_buf,
+        sizeof(adaptExt->pci_config_buf));
 
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Port  Resource [%08I64X-%08I64X]\n",
-                accessRange->RangeStart.QuadPart,
-                accessRange->RangeStart.QuadPart +
-                accessRange->RangeLength));
-
-    if ( accessRange->RangeLength < IO_PORT_LENGTH) {
+    if (pci_cfg_len != sizeof(adaptExt->pci_config_buf)) {
         LogError(DeviceExtension,
                 SP_INTERNAL_ADAPTER_ERROR,
                 __LINE__);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Wrong access range %x bytes\n", accessRange->RangeLength));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, ("CANNOT READ PCI CONFIGURATION SPACE %d\n", pci_cfg_len));
         return FALSE;
     }
 
-    adaptExt->device_base = (ULONG_PTR)StorPortGetDeviceBase(DeviceExtension,
-                                           ConfigInfo->AdapterInterfaceType,
-                                           ConfigInfo->SystemIoBusNumber,
-                                           accessRange->RangeStart,
-                                           accessRange->RangeLength,
-                                           (BOOLEAN)!accessRange->RangeInMemory);
+#if (MSI_SUPPORTED == 1)
+    {
+        UCHAR CapOffset;
+        PPCI_MSIX_CAPABILITY pMsixCapOffset;
+        PPCI_COMMON_HEADER   pPciComHeader;
+        pPciComHeader = &adaptExt->pci_config;
+        if ((pPciComHeader->Status & PCI_STATUS_CAPABILITIES_LIST) == 0)
+        {
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("NO CAPABILITIES_LIST\n"));
+        } else
+        {
+            if ((pPciComHeader->HeaderType & (~PCI_MULTIFUNCTION)) == PCI_DEVICE_TYPE)
+            {
+                CapOffset = pPciComHeader->u.type0.CapabilitiesPtr;
+                while (CapOffset != 0)
+                {
+                    pMsixCapOffset = (PPCI_MSIX_CAPABILITY)&adaptExt->pci_config_buf[CapOffset];
+                    if (pMsixCapOffset->Header.CapabilityID == PCI_CAPABILITY_ID_MSIX)
+                    {
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageControl.TableSize = %d\n", pMsixCapOffset->MessageControl.TableSize));
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageControl.FunctionMask = %d\n", pMsixCapOffset->MessageControl.FunctionMask));
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageControl.MSIXEnable = %d\n", pMsixCapOffset->MessageControl.MSIXEnable));
 
-    if (adaptExt->device_base == (ULONG_PTR)NULL) {
-        LogError(DeviceExtension,
-                SP_INTERNAL_ADAPTER_ERROR,
-                __LINE__);
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageTable = %p\n", pMsixCapOffset->MessageTable));
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("PBATable = %d\n", pMsixCapOffset->PBATable));
+                        adaptExt->msix_enabled = (pMsixCapOffset->MessageControl.MSIXEnable == 1);
+                    } else
+                    {
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("CapabilityID = %x, Next CapOffset = %x\n", pMsixCapOffset->Header.CapabilityID, CapOffset));
+                    }
+                    CapOffset = pMsixCapOffset->Header.Next;
+                }
+                RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("msix_enabled = %d\n", adaptExt->msix_enabled));
+            } else
+            {
+                RhelDbgPrint(TRACE_LEVEL_FATAL, ("NOT A PCI_DEVICE_TYPE\n"));
+            }
+        }
+    }
+#endif
 
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Couldn't map %x for %x bytes\n",
-                   (*ConfigInfo->AccessRanges)[0].RangeStart.LowPart,
-                   (*ConfigInfo->AccessRanges)[0].RangeLength));
-        return FALSE;
+    /* initialize the pci_bars array */
+    for (i = 0; i < ConfigInfo->NumberOfAccessRanges; i++) {
+        accessRange = *ConfigInfo->AccessRanges + i;
+        if (accessRange->RangeLength != 0) {
+            int iBar = virtio_get_bar_index(&adaptExt->pci_config, accessRange->RangeStart);
+            if (iBar == -1) {
+                RhelDbgPrint(TRACE_LEVEL_FATAL,
+                             ("Cannot get index for BAR %I64d\n", accessRange->RangeStart.QuadPart));
+                return FALSE;
+            }
+            adaptExt->pci_bars[iBar].BasePA = accessRange->RangeStart;
+            adaptExt->pci_bars[iBar].uLength = accessRange->RangeLength;
+            adaptExt->pci_bars[iBar].bPortSpace = !accessRange->RangeInMemory;
+        }
     }
 
-    adaptExt->pvdev = &adaptExt->vdev;
-    VirtIODeviceInitialize(adaptExt->pvdev, adaptExt->device_base, sizeof(VirtIODevice));
+    /* initialize the virtual device */
+    if (!InitVirtIODevice(DeviceExtension)) {
+        return FALSE;
+    }
 
 EXIT_FN();
     return TRUE;
@@ -330,5 +408,89 @@ ENTER_FN();
     EventNode->sg.physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &EventNode->event, &fragLen);
     EventNode->sg.length   = sizeof(VirtIOSCSIEvent);
     return SynchronizedKickEventRoutine(DeviceExtension, (PVOID)EventNode);
+EXIT_FN();
+}
+
+VOID
+//FORCEINLINE
+VioScsiVQLock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN OUT PSTOR_LOCK_HANDLE LockHandle,
+    IN BOOLEAN isr
+    )
+{
+    PADAPTER_EXTENSION  adaptExt;
+ENTER_FN();
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    if (!adaptExt->msix_enabled) {
+        if (!isr) {
+            StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, LockHandle);
+        }
+    }
+    else {
+        if (adaptExt->num_queues == 1) {
+            if (!isr) {
+                ULONG oldIrql = 0;
+                StorPortAcquireMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), &oldIrql);
+                LockHandle->Context.OldIrql = (KIRQL)oldIrql;
+            }
+        }
+        else {
+            NT_ASSERT(MessageID > VIRTIO_SCSI_REQUEST_QUEUE_0);
+            NT_ASSERT(MessageID <= VIRTIO_SCSI_REQUEST_QUEUE_0 + adaptExt->num_queues);
+            if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_CONCURRENT_CHANNELS)) {
+                if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
+                    StorPortAcquireSpinLock(DeviceExtension, StartIoLock, &adaptExt->dpc[MessageID - VIRTIO_SCSI_REQUEST_QUEUE_0 - 1], LockHandle);
+                }
+                else {
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s STOR_PERF_CONCURRENT_CHANNELS yes, STOR_PERF_ADV_CONFIG_LOCALITY no\n", __FUNCTION__));
+                }
+            }
+        }
+    }
+
+EXIT_FN();
+}
+
+VOID
+//FORCEINLINE
+VioScsiVQUnlock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN PSTOR_LOCK_HANDLE LockHandle,
+    IN BOOLEAN isr
+    )
+{
+    PADAPTER_EXTENSION  adaptExt;
+ENTER_FN();
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    if (!adaptExt->msix_enabled) {
+        if (!isr) {
+            StorPortReleaseSpinLock(DeviceExtension, LockHandle);
+        }
+    }
+    else {
+        if (adaptExt->num_queues == 1) {
+            if (!isr) {
+                StorPortReleaseMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), LockHandle->Context.OldIrql);
+            }
+        }
+        else {
+            NT_ASSERT(MessageID > VIRTIO_SCSI_REQUEST_QUEUE_0);
+            NT_ASSERT(MessageID <= VIRTIO_SCSI_REQUEST_QUEUE_0 + adaptExt->num_queues);
+            if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_CONCURRENT_CHANNELS)) {
+                if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
+                    StorPortReleaseSpinLock(DeviceExtension, LockHandle);
+                }
+                else {
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s STOR_PERF_CONCURRENT_CHANNELS yes, STOR_PERF_ADV_CONFIG_LOCALITY no\n", __FUNCTION__));
+                }
+            }
+        }
+    }
+
 EXIT_FN();
 }

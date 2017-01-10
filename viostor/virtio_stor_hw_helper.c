@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2008-2015 Red Hat, Inc.
+ * Copyright (c) 2008-2016 Red Hat, Inc.
  *
  * File: virtio_stor_hw_helper.c
  *
@@ -208,13 +208,10 @@ RhelShutDown(
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    VirtIODeviceReset(&adaptExt->vdev);
-    ScsiPortWritePortUshort((PUSHORT)(adaptExt->vdev.addr + VIRTIO_PCI_GUEST_FEATURES), 0);
-    if (adaptExt->vq) {
-       virtqueue_shutdown(adaptExt->vq);
-       VirtIODeviceDeleteQueue(adaptExt->vq, NULL);
-       adaptExt->vq = NULL;
-    }
+    virtio_device_reset(&adaptExt->vdev);
+    virtio_delete_queues(&adaptExt->vdev);
+    virtio_device_shutdown(&adaptExt->vdev);
+    adaptExt->vq = NULL;
 }
 
 ULONGLONG
@@ -305,7 +302,7 @@ RhelGetDiskGeometry(
     struct virtio_blk_geometry vgeo;
 
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    adaptExt->features = ScsiPortReadPortUlong((PULONG)(adaptExt->vdev.addr + VIRTIO_PCI_HOST_FEATURES));
+    adaptExt->features = virtio_get_features(&adaptExt->vdev);
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BARRIER)) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_BARRIER\n"));
@@ -316,23 +313,23 @@ RhelGetDiskGeometry(
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SIZE_MAX)) {
-        VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, size_max),
-                      &v, sizeof(v));
+        virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, size_max),
+                          &v, sizeof(v));
         adaptExt->info.size_max = v;
     } else {
         adaptExt->info.size_max = SECTOR_SIZE;
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SEG_MAX)) {
-        VirtIODeviceGet(&adaptExt->vdev, FIELD_OFFSET(blk_config, seg_max),
-                      &v, sizeof(v));
+        virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, seg_max),
+                          &v, sizeof(v));
         adaptExt->info.seg_max = v;
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_SEG_MAX = %d\n", adaptExt->info.seg_max));
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BLK_SIZE)) {
-        VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, blk_size),
-                      &v, sizeof(v));
+        virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, blk_size),
+                          &v, sizeof(v));
         adaptExt->info.blk_size = v;
     } else {
         adaptExt->info.blk_size = SECTOR_SIZE;
@@ -340,36 +337,35 @@ RhelGetDiskGeometry(
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_BLK_SIZE = %d\n", adaptExt->info.blk_size));
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_GEOMETRY)) {
-        VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, geometry),
-                      &vgeo, sizeof(vgeo));
+        virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, geometry),
+                          &vgeo, sizeof(vgeo));
         adaptExt->info.geometry.cylinders= vgeo.cylinders;
         adaptExt->info.geometry.heads    = vgeo.heads;
         adaptExt->info.geometry.sectors  = vgeo.sectors;
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_GEOMETRY. cylinders = %d  heads = %d  sectors = %d\n", adaptExt->info.geometry.cylinders, adaptExt->info.geometry.heads, adaptExt->info.geometry.sectors));
     }
 
-    VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, capacity),
+    virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, capacity),
                       &cap, sizeof(cap));
     adaptExt->info.capacity = cap;
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("capacity = %08I64X\n", adaptExt->info.capacity));
 
 
     if(CHECKBIT(adaptExt->features, VIRTIO_BLK_F_TOPOLOGY)) {
-        VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, physical_block_exp),
-                      &adaptExt->info.physical_block_exp, sizeof(adaptExt->info.physical_block_exp));
+        virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, physical_block_exp),
+                          &adaptExt->info.physical_block_exp, sizeof(adaptExt->info.physical_block_exp));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("physical_block_exp = %d\n", adaptExt->info.physical_block_exp));
 
-        VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, alignment_offset),
-                      &adaptExt->info.alignment_offset, sizeof(adaptExt->info.alignment_offset));
+        virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, alignment_offset),
+                          &adaptExt->info.alignment_offset, sizeof(adaptExt->info.alignment_offset));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("alignment_offset = %d\n", adaptExt->info.alignment_offset));
 
-        VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, min_io_size),
-                      &adaptExt->info.min_io_size, sizeof(adaptExt->info.min_io_size));
+        virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, min_io_size),
+                          &adaptExt->info.min_io_size, sizeof(adaptExt->info.min_io_size));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("min_io_size = %d\n", adaptExt->info.min_io_size));
 
-        VirtIODeviceGet( &adaptExt->vdev, FIELD_OFFSET(blk_config, opt_io_size),
-                      &adaptExt->info.opt_io_size, sizeof(adaptExt->info.opt_io_size));
+        virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, opt_io_size),
+                          &adaptExt->info.opt_io_size, sizeof(adaptExt->info.opt_io_size));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("opt_io_size = %d\n", adaptExt->info.opt_io_size));
     }
 }
-

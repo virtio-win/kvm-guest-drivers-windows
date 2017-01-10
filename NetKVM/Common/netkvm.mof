@@ -1,0 +1,29 @@
+// Declaration of NetKvm WMI OID
+#pragma namespace("\\\\.\\root\\wmi")
+#pragma classflags("forceupdate")
+#pragma autorecover
+
+[Dynamic : ToInstance, Provider("WMIProv"), WMI,
+guid("{234E1FBF-37DC-4882-B01E-18F47CC0A40E}")]
+class NetKvm_Logging : MSNdis
+{
+    [key, read] string InstanceName;
+    [read] boolean Active;
+    [read,write,WmiDataId(1)] uint32 level;
+};
+
+[Dynamic : ToInstance, Provider("WMIProv"), WMI,
+guid("{76EA6A8E-FD60-4F0E-B98D-22CDC8B99721}")]
+class NetKvm_Statistics : MSNdis
+{
+    [key, read] string InstanceName;
+    [read] boolean Active;
+    [read,write,WmiDataId(1)] uint32 rxCoalescedWin;
+    [read,write,WmiDataId(2)] uint32 rxCoalescedHost;
+    [read,write,WmiDataId(3)] uint32 rxChecksumOK;
+    [read,write,WmiDataId(4)] uint32 rxPriority;
+    [read,write,WmiDataId(5)] uint32 txLargeOffload;
+    [read,write,WmiDataId(6)] uint32 txChecksumOffload;
+};
+
+

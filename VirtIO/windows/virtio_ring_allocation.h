@@ -4,12 +4,11 @@
 struct virtqueue *vring_new_virtqueue(unsigned int index,
     unsigned int num,
     unsigned int vring_align,
-    virtio_device *vdev,
+    VirtIODevice *vdev,
     bool event,
     void *pages,
-    void(*notify)(struct virtqueue *),
-    void *control,
-    const char *name);
+    void (*notify)(struct virtqueue *),
+    void *control);
 
 unsigned int vring_control_block_size();
 

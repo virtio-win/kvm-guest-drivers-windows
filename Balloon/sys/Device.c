@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2009-2015  Red Hat, Inc.
+ * Copyright (c) 2009-2016  Red Hat, Inc.
  *
  * File: device.c
  *
@@ -15,7 +15,7 @@
 #include "precomp.h"
 
 #if defined(EVENT_TRACING)
-#include "device.tmh"
+#include "Device.tmh"
 #endif
 
 #ifdef ALLOC_PRAGMA
@@ -25,14 +25,11 @@
 #pragma alloc_text(PAGE, BalloonEvtDeviceD0Exit)
 #pragma alloc_text(PAGE, BalloonEvtDeviceD0ExitPreInterruptsDisabled)
 #pragma alloc_text(PAGE, BalloonDeviceAdd)
-#pragma alloc_text(PAGE, BalloonEvtFileClose)
 #pragma alloc_text(PAGE, BalloonCloseWorkerThread)
 #endif
 
-#if (WINVER >= 0x0501)
 #define LOMEMEVENTNAME L"\\KernelObjects\\LowMemoryCondition"
 DECLARE_CONST_UNICODE_STRING(evLowMemString, LOMEMEVENTNAME);
-#endif // (WINVER >= 0x0501)
 
 
 NTSTATUS
@@ -44,7 +41,6 @@ BalloonDeviceAdd(
     WDFDEVICE                    device;
     PDEVICE_CONTEXT              devCtx = NULL;
     WDF_INTERRUPT_CONFIG         interruptConfig;
-    WDF_FILEOBJECT_CONFIG        fileConfig;
     WDF_OBJECT_ATTRIBUTES        attributes;
     WDF_PNPPOWER_EVENT_CALLBACKS pnpPowerCallbacks;
 
@@ -62,17 +58,6 @@ BalloonDeviceAdd(
     pnpPowerCallbacks.EvtDeviceD0ExitPreInterruptsDisabled = BalloonEvtDeviceD0ExitPreInterruptsDisabled;
 
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
-
-    WDF_FILEOBJECT_CONFIG_INIT(
-                            &fileConfig,
-                            WDF_NO_EVENT_CALLBACK,
-                            BalloonEvtFileClose,
-                            WDF_NO_EVENT_CALLBACK
-                            );
-
-    WdfDeviceInitSetFileObjectConfig(DeviceInit,
-                            &fileConfig,
-                            WDF_NO_OBJECT_ATTRIBUTES);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
     attributes.EvtCleanupCallback = BalloonEvtDeviceContextCleanup;
@@ -159,11 +144,34 @@ BalloonDeviceAdd(
                       FALSE
                       );
 
-    status = BalloonQueueInitialize(device);
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    attributes.ParentObject = device;
+
+    status = WdfSpinLockCreate(
+        &attributes,
+        &devCtx->StatQueueLock
+        );
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfSpinLockCreate failed 0x%x\n", status);
+        return status;
+    }
+
+    status = WdfSpinLockCreate(
+        &attributes,
+        &devCtx->InfDefQueueLock
+        );
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfSpinLockCreate failed 0x%x\n", status);
+        return status;
+    }
+
+    status = StatInitializeWorkItem(device);
     if(!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-           "BalloonQueueInitialize failed with status 0x%08x\n", status);
+           "StatInitializeWorkItem failed with status 0x%08x\n", status);
         return status;
     }
 
@@ -200,6 +208,14 @@ BalloonEvtDeviceContextCleanup(
                    );
         devCtx->pfns_table = NULL;
     }
+
+    RtlFillMemory(devCtx->MemStats,
+        sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
+    if (devCtx->StatVirtQueue)
+    {
+        BalloonMemStats(Device);
+    }
+
     if(devCtx->MemStats)
     {
         ExFreePoolWithTag(
@@ -219,14 +235,7 @@ BalloonEvtDevicePrepareHardware(
     )
 {
     NTSTATUS            status         = STATUS_SUCCESS;
-    BOOLEAN             foundPort      = FALSE;
-    PHYSICAL_ADDRESS    PortBasePA     = {0};
-    ULONG               PortLength     = 0;
-    ULONG               i;
-    WDF_INTERRUPT_INFO  interruptInfo;
     PDEVICE_CONTEXT     devCtx = NULL;
-
-    PCM_PARTIAL_RESOURCE_DESCRIPTOR  desc;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
@@ -236,68 +245,16 @@ BalloonEvtDevicePrepareHardware(
 
     devCtx = GetDeviceContext(Device);
 
-    for (i=0; i < WdfCmResourceListGetCount(ResourceListTranslated); i++) {
-
-        desc = WdfCmResourceListGetDescriptor( ResourceListTranslated, i );
-
-        if(!desc) {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                        "WdfResourceCmGetDescriptor failed\n");
-            return STATUS_DEVICE_CONFIGURATION_ERROR;
-        }
-
-        switch (desc->Type) {
-
-            case CmResourceTypePort:
-                if (!foundPort &&
-                     desc->u.Port.Length >= 0x20) {
-
-                    devCtx->PortMapped =
-                         (desc->Flags & CM_RESOURCE_PORT_IO) ? FALSE : TRUE;
-
-                    PortBasePA = desc->u.Port.Start;
-                    PortLength = desc->u.Port.Length;
-                    foundPort = TRUE;
-
-                    if (devCtx->PortMapped) {
-                         devCtx->PortBase =
-                             (PUCHAR) MmMapIoSpace( PortBasePA, PortLength, MmNonCached );
-
-                      if (!devCtx->PortBase) {
-                         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, " Unable to map port range %08I64X, length %d\n",
-                                        PortBasePA.QuadPart, PortLength);
-
-                         return STATUS_INSUFFICIENT_RESOURCES;
-                      }
-                      devCtx->PortCount = PortLength;
-
-                    } else {
-                         devCtx->PortBase  = (PUCHAR)(ULONG_PTR) PortBasePA.QuadPart;
-                         devCtx->PortCount = PortLength;
-                    }
-                }
-
-                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-> Port   Resource [%08I64X-%08I64X]\n",
-                            desc->u.Port.Start.QuadPart,
-                            desc->u.Port.Start.QuadPart +
-                            desc->u.Port.Length);
-                break;
-
-            default:
-                break;
-        }
+    status = VirtIOWdfInitialize(
+        &devCtx->VDevice,
+        Device,
+        ResourceListTranslated,
+        NULL,
+        BALLOON_MGMT_POOL_TAG);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "VirtIOWdfInitialize failed with %x\n", status);
     }
-
-    if (!foundPort) {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, " Missing resources\n");
-        return STATUS_DEVICE_CONFIGURATION_ERROR;
-    }
-
-    WDF_INTERRUPT_INFO_INIT(&interruptInfo);
-    WdfInterruptGetInfo(devCtx->WdfInterrupt, &interruptInfo);
-
-    VirtIODeviceInitialize(&devCtx->VDevice, (ULONG_PTR)devCtx->PortBase, sizeof(devCtx->VDevice));
-    VirtIODeviceSetMSIXUsed(&devCtx->VDevice, interruptInfo.MessageSignaled);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return status;
@@ -319,12 +276,7 @@ BalloonEvtDeviceReleaseHardware (
 
     devCtx = GetDeviceContext(Device);
 
-    if(devCtx->PortBase && devCtx->PortMapped)
-    {
-        MmUnmapIoSpace( devCtx->PortBase,  devCtx->PortCount );
-    }
-
-    devCtx->PortBase = NULL;
+    VirtIOWdfShutdown(&devCtx->VDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
@@ -407,9 +359,7 @@ BalloonEvtDeviceD0Entry(
     )
 {
     NTSTATUS            status = STATUS_SUCCESS;
-#if (WINVER >= 0x0501)
     PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
-#endif // (WINVER >= 0x0501)
 
     UNREFERENCED_PARAMETER(PreviousState);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
@@ -430,10 +380,8 @@ BalloonEvtDeviceD0Entry(
            "BalloonCreateWorkerThread failed with status 0x%08x\n", status);
     } 
 
-#if (WINVER >= 0x0501)
     devCtx->evLowMem = IoCreateNotificationEvent(
         (PUNICODE_STRING)&evLowMemString, &devCtx->hLowMem);
-#endif // (WINVER >= 0x0501)
 
     return status;
 }
@@ -444,9 +392,7 @@ BalloonEvtDeviceD0Exit(
     IN  WDF_POWER_DEVICE_STATE TargetState
     )
 {
-#if (WINVER >= 0x0501)
     PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
-#endif // (WINVER >= 0x0501)
 
     UNREFERENCED_PARAMETER(TargetState);
 
@@ -454,13 +400,21 @@ BalloonEvtDeviceD0Exit(
 
     PAGED_CODE();
 
-#if (WINVER >= 0x0501)
     if (devCtx->evLowMem)
     {
         ZwClose(devCtx->hLowMem);
         devCtx->evLowMem = NULL;
     }
-#endif // (WINVER >= 0x0501)
+
+   /*
+    * interrupts were already disabled (between BalloonEvtDeviceD0ExitPreInterruptsDisabled and this call)
+    * we should flush StatWorkItem before calling BalloonTerm which will delete virtio queues
+    */
+    if (devCtx->StatWorkItem)
+    {
+        WdfWorkItemFlush(devCtx->StatWorkItem);
+        devCtx->StatWorkItem = NULL;
+    }
 
     BalloonTerm(Device);
 
@@ -507,7 +461,7 @@ BalloonInterruptIsr(
     Device = WdfInterruptGetDevice(WdfInterrupt);
     devCtx = GetDeviceContext(Device);
 
-    if(VirtIODeviceISR(&devCtx->VDevice) > 0)
+    if (VirtIOWdfGetISRStatus(&devCtx->VDevice) > 0)
     {
         WdfInterruptQueueDpcForIsr( WdfInterrupt );
         return TRUE;
@@ -523,12 +477,14 @@ BalloonInterruptDpc(
 {
     unsigned int          len;
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(WdfDevice);
+    PVOID                 buffer;
 
     BOOLEAN               bHostAck = FALSE;
     UNREFERENCED_PARAMETER( WdfInterrupt );
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "--> %s\n", __FUNCTION__);
 
+    WdfSpinLockAcquire(devCtx->InfDefQueueLock);
     if (virtqueue_get_buf(devCtx->InfVirtQueue, &len))
     {
         bHostAck = TRUE;
@@ -537,34 +493,38 @@ BalloonInterruptDpc(
     {
         bHostAck = TRUE;
     }
+    WdfSpinLockRelease(devCtx->InfDefQueueLock);
 
     if(bHostAck)
     {
         KeSetEvent (&devCtx->HostAckEvent, IO_NO_INCREMENT, FALSE);
     }
 
-    if (devCtx->StatVirtQueue &&
-        virtqueue_get_buf(devCtx->StatVirtQueue, &len))
+    if (devCtx->StatVirtQueue)
     {
-        WDFREQUEST request = devCtx->PendingWriteRequest;
+        WdfSpinLockAcquire(devCtx->StatQueueLock);
+        buffer = virtqueue_get_buf(devCtx->StatVirtQueue, &len);
+        WdfSpinLockRelease(devCtx->StatQueueLock);
 
-        devCtx->HandleWriteRequest = TRUE;
-
-        if ((request != NULL) &&
-            (WdfRequestUnmarkCancelable(request) != STATUS_CANCELLED))
+        if (buffer)
         {
-            NTSTATUS status;
-            PVOID buffer;
-            size_t length = 0;
-
-            devCtx->PendingWriteRequest = NULL;
-
-            status = WdfRequestRetrieveInputBuffer(request, 0, &buffer, &length);
-            if (!NT_SUCCESS(status))
+            /*
+             * According to MSDN 'Using Framework Work Items' article:
+             * Create one or more work items that your driver requeues as necessary.
+             * Subsequently, each time that the driver's EvtInterruptDpc callback
+             * function is called it must determine if the EvtWorkItem callback
+             * function has run. If the EvtWorkItem callback function has not run,
+             * the EvtInterruptDpc callback function does not call WdfWorkItemEnqueue,
+             * because the work item is still queued.
+             * A few drivers might need to call WdfWorkItemFlush to flush their work
+             * items from the work-item queue.
+             *
+             * For each dpc (i.e. interrupt) we'll push stats exactly that many times.
+             */
+            if (1==InterlockedIncrement(&devCtx->WorkCount))
             {
-                length = 0;
+                WdfWorkItemEnqueue(devCtx->StatWorkItem);
             }
-            WdfRequestCompleteWithInformation(request, status, length);
         }
     }
 
@@ -610,27 +570,6 @@ BalloonInterruptDisable(
 }
 
 VOID
-BalloonEvtFileClose (
-    IN WDFFILEOBJECT    FileObject
-    )
-{
-    PDEVICE_CONTEXT devCtx = GetDeviceContext(
-        WdfFileObjectGetDevice(FileObject));
-
-    PAGED_CODE();
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-> %s\n", __FUNCTION__);
-
-    RtlFillMemory(devCtx->MemStats,
-        sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
-
-    if (devCtx->StatVirtQueue)
-    {
-        BalloonMemStats(WdfFileObjectGetDevice(FileObject));
-    }
-}
-
-VOID
 BalloonSetSize(
     IN WDFOBJECT WdfDevice,
     IN size_t    num
@@ -638,7 +577,7 @@ BalloonSetSize(
 {
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(WdfDevice);
     u32 actual = (u32)num;
-    VirtIODeviceSet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, actual), &actual, sizeof(actual));
+    VirtIOWdfDeviceSet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, actual), &actual, sizeof(actual));
 }
 
 LONGLONG
@@ -649,7 +588,7 @@ BalloonGetSize(
     PDEVICE_CONTEXT       devCtx = GetDeviceContext(WdfDevice);
 
     u32 v;
-    VirtIODeviceGet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, num_pages), &v, sizeof(v));
+    VirtIOWdfDeviceGet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, num_pages), &v, sizeof(v));
     return (LONGLONG)v - devCtx->num_pages;
 }
 
@@ -662,16 +601,14 @@ BalloonRoutine(
     PDEVICE_CONTEXT                 devCtx = GetDeviceContext(Device);
 
     NTSTATUS            status = STATUS_SUCCESS;
-    LARGE_INTEGER       Timeout = {0};
     LONGLONG            diff;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Balloon thread started....\n");
 
     for (;;)
     {
-        Timeout.QuadPart = Int32x32To64(10000, -10000);
         status = KeWaitForSingleObject(&devCtx->WakeUpThread, Executive,
-                                       KernelMode, FALSE, &Timeout);
+                                       KernelMode, FALSE, NULL);
         if(STATUS_WAIT_0 == status)
         {
             if(devCtx->bShutDown)

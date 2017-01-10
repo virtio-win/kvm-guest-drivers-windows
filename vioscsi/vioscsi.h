@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2012-2015  Red Hat, Inc.
+ * Copyright (c) 2012-2016  Red Hat, Inc.
  *
  * File: vioscsi.h
  *
@@ -20,7 +20,6 @@
 
 #include "osdep.h"
 #include "virtio_pci.h"
-#include "virtio_config.h"
 #include "virtio.h"
 #include "virtio_ring.h"
 
@@ -35,6 +34,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define MAX_PHYS_SEGMENTS       16
 #endif
 
+#define VIOSCSI_POOL_TAG        'SoiV'
 #define VIRTIO_MAX_SG            (3+MAX_PHYS_SEGMENTS)
 
 #define SECTOR_SIZE             512
@@ -182,7 +182,7 @@ typedef struct {
 
 #pragma pack(1)
 typedef struct {
-    PVOID sc;
+    PVOID srb;
     PVOID comp;
     union {
         VirtIOSCSICmdReq      cmd;
@@ -206,18 +206,22 @@ typedef struct {
 } VirtIOSCSIEventNode, * PVirtIOSCSIEventNode;
 #pragma pack()
 
-typedef struct vring_desc_alias
+#if (INDIRECT_SUPPORTED == 1)
+typedef struct _VRING_DESC_ALIAS
 {
     union
     {
         ULONGLONG data[2];
         UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
     }u;
-};
+}VRING_DESC_ALIAS;
+#endif
 
 #pragma pack(1)
 typedef struct _SRB_EXTENSION {
-    LIST_ENTRY            list_entry;
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    STOR_SLIST_ENTRY      list_entry;
+#endif
     PSCSI_REQUEST_BLOCK   Srb;
     ULONG                 out;
     ULONG                 in;
@@ -225,9 +229,10 @@ typedef struct _SRB_EXTENSION {
     VirtIOSCSICmd         cmd;
     VIO_SG                sg[128];
 #if (INDIRECT_SUPPORTED == 1)
-    struct vring_desc_alias     desc[VIRTIO_MAX_SG];
+    VRING_DESC_ALIAS      desc[VIRTIO_MAX_SG];
 #endif
-    PROCESSOR_NUMBER      procNum;
+    UCHAR                 cpu;
+    PVOID                 priv;
 }SRB_EXTENSION, * PSRB_EXTENSION;
 #pragma pack()
 
@@ -238,25 +243,42 @@ typedef struct {
 }TMF_COMMAND, * PTMF_COMMAND;
 #pragma pack()
 
+typedef struct virtio_bar {
+    PHYSICAL_ADDRESS  BasePA;
+    ULONG             uLength;
+    PVOID             pBase;
+    BOOLEAN           bPortSpace;
+} VIRTIO_BAR, *PVIRTIO_BAR;
+
 typedef struct _ADAPTER_EXTENSION {
     VirtIODevice          vdev;
-    VirtIODevice*         pvdev;
 
-    PVOID                 uncachedExtensionVa;
-    ULONG                 allocationSize;
+    PVOID                 pageAllocationVa;
+    ULONG                 pageAllocationSize;
+    ULONG                 pageOffset;
+
+    PVOID                 poolAllocationVa;
+    ULONG                 poolAllocationSize;
+    ULONG                 poolOffset;
 
     struct virtqueue *    vq[VIRTIO_SCSI_QUEUE_LAST];
-    ULONG                 offset;
     ULONG_PTR             device_base;
     VirtIOSCSIConfig      scsi_config;
+    union {
+        PCI_COMMON_HEADER pci_config;
+        UCHAR             pci_config_buf[sizeof(PCI_COMMON_CONFIG)];
+    };
+    VIRTIO_BAR            pci_bars[PCI_TYPE0_ADDRESSES];
+    ULONG                 system_io_bus_number;
 
     ULONG                 queue_depth;
     BOOLEAN               dump_mode;
 
-    ULONG                 features;
+    ULONGLONG             features;
 
     ULONG                 msix_vectors;
     BOOLEAN               msix_enabled;
+    BOOLEAN               msix_one_vector;
     BOOLEAN               indirect;
 
     TMF_COMMAND           tmf_cmd;
@@ -266,12 +288,17 @@ typedef struct _ADAPTER_EXTENSION {
 
     ULONG                 num_queues;
     UCHAR                 cpu_to_vq_map[MAX_CPU];
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    STOR_SLIST_HEADER     srb_list[MAX_CPU];
+#endif
     ULONG                 perfFlags;
-
+    PGROUP_AFFINITY       pmsg_affinity;
     BOOLEAN               dpc_ok;
     PSTOR_DPC             dpc;
 
     SCSI_WMILIB_CONTEXT   WmiLibContext;
+    ULONGLONG             hba_id;
+    PUCHAR                ser_num;
 }ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
 
 #if (MSI_SUPPORTED == 1)

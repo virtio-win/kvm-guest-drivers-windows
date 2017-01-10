@@ -29,15 +29,20 @@
 #define unlikely(x) x
 
 #define ENOSPC 1
-#define BUG_ON(a)
+#define BUG_ON(a) ASSERT(!(a))
 #define WARN_ON(a)
+#define BUG() ASSERT(0)
 
-#ifndef bool
-#define bool int
+#if !defined(__cplusplus) && !defined(bool)
+// Important note: in MSFT C++ bool length is 1 bytes
+// C++ does not define length of bool
+// inconsistent definition of 'bool' may create compatibility problems
+#define bool u8
 #define false FALSE
 #define true TRUE
-#define inline __forceinline
 #endif
+
+#define inline __forceinline
 
 #ifdef DBG
 #define DEBUG
@@ -46,15 +51,8 @@
 #define mb()   KeMemoryBarrier()
 #define rmb()  KeMemoryBarrier()
 #define wmb()  KeMemoryBarrier()
-#define smp_wmb() KeMemoryBarrier()
 
-#ifndef min
-#define min(_a, _b) (((_a) < (_b)) ? (_a) : (_b))
-#endif
-
-#ifndef max
-#define max(_a, _b) (((_a) > (_b)) ? (_a) : (_b))
-#endif
+#define SMP_CACHE_BYTES 64
 
 #endif
 #endif

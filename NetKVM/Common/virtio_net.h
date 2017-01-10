@@ -27,7 +27,6 @@
 * SUCH DAMAGE. */
 #include <pshpack1.h>
 #include <linux/types.h>
-#include <linux/virtio_ids.h>
 //#include <linux/virtio_config.h>
 #include <linux/virtio_types.h>
 #include <linux/if_ether.h>
@@ -35,6 +34,7 @@
 /* The feature bitmap for virtio net */
 #define VIRTIO_NET_F_CSUM	0	/* Host handles pkts w/ partial csum */
 #define VIRTIO_NET_F_GUEST_CSUM	1	/* Guest handles pkts w/ partial csum */
+#define VIRTIO_NET_F_CTRL_GUEST_OFFLOADS	2	/* Dynamic offload configuration. */
 #define VIRTIO_NET_F_MAC	5	/* Host has given MAC address. */
 #define VIRTIO_NET_F_GUEST_TSO4	7	/* Guest can handle TSOv4 in. */
 #define VIRTIO_NET_F_GUEST_TSO6	8	/* Guest can handle TSOv6 in. */
@@ -55,6 +55,8 @@
 #define VIRTIO_NET_F_MQ	22	/* Device supports Receive Flow
 					 * Steering */
 #define VIRTIO_NET_F_CTRL_MAC_ADDR 23	/* Set MAC address */
+#define VIRTIO_NET_F_GUEST_RSC4 41	/* Guest can handle coalesced IPv4 tcp packets. */
+#define VIRTIO_NET_F_GUEST_RSC6 42	/* Guest can handle coalesced IPv6 tcp packets. */
 
 #ifndef VIRTIO_NET_NO_LEGACY
 #define VIRTIO_NET_F_GSO	6	/* Host handles pkts w/ any GSO type */
@@ -90,6 +92,9 @@ struct virtio_net_hdr_v1 {
 #define VIRTIO_NET_HDR_GSO_TCPV4	1	/* GSO frame, IPv4 TCP (TSO) */
 #define VIRTIO_NET_HDR_GSO_UDP		3	/* GSO frame, IPv4 UDP (UFO) */
 #define VIRTIO_NET_HDR_GSO_TCPV6	4	/* GSO frame, IPv6 TCP */
+#define VIRTIO_NET_HDR_RSC_NONE	5	/* No packets coalesced */
+#define VIRTIO_NET_HDR_RSC_TCPV4	6	/* IPv4 TCP coalesced */
+#define VIRTIO_NET_HDR_RSC_TCPV6	7	/* IPv6 TCP coalesced */
 #define VIRTIO_NET_HDR_GSO_ECN		0x80	/* TCP has ECN set */
 	__u8 gso_type;
 	__virtio16 hdr_len;	/* Ethernet + IP + tcp/udp hdrs */
@@ -97,6 +102,14 @@ struct virtio_net_hdr_v1 {
 	__virtio16 csum_start;	/* Position to start checksumming from */
 	__virtio16 csum_offset;	/* Offset after that to place checksum */
 	__virtio16 num_buffers;	/* Number of merged rx buffers */
+};
+
+/* This is the header to use when either one or both of GUEST_RSC4/6
+ * features have been negotiated. */
+struct virtio_net_hdr_rsc {
+	struct virtio_net_hdr_v1 hdr;
+	__virtio16 rsc_pkts;	/* Number of coalesced packets */
+	__virtio16 rsc_dup_acks;	/* Duplicated ack packets */
 };
 
 #ifndef VIRTIO_NET_NO_LEGACY
@@ -235,15 +248,6 @@ struct virtio_net_ctrl_mq {
 */
 #define VIRTIO_NET_CTRL_GUEST_OFFLOADS    5
  #define VIRTIO_NET_CTRL_GUEST_OFFLOADS_SET        0
-
-/*
-* Control network offloads
-*
-* Dynamic offloads are available with the
-* VIRTIO_NET_F_CTRL_GUEST_OFFLOADS feature bit.
-*/
-#define VIRTIO_NET_CTRL_GUEST_OFFLOADS       5
-#define VIRTIO_NET_CTRL_GUEST_OFFLOADS_SET   0
 
 #include <poppack.h>
 

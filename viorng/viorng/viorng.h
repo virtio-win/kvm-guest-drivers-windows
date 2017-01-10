@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2015 Red Hat, Inc.
+ * Copyright (C) 2014-2016 Red Hat, Inc.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,33 +27,15 @@
 #include <ntddk.h>
 #include <wdf.h>
 #include <bcrypt.h>
+#include <wdmguid.h> // required for GUID_BUS_INTERFACE_STANDARD
 
 #include "trace.h"
 
-#ifndef u8
-#define u8 UCHAR
-#endif
+#include "osdep.h"
 
-#ifndef u16
-#define u16 USHORT
-#endif
-
-#ifndef u32
-#define u32 ULONG
-#endif
-
-#ifndef bool
-#define bool INT
-#endif
-
-#pragma warning(push)
-// nonstandard extension used : bit field types other than int
-#pragma warning(disable : 4214)
 #include "virtio_pci.h"
-#pragma warning(pop)
-
-#include "virtio_config.h"
 #include "virtio.h"
+#include "VirtIOWdf.h"
 
 #define VIRT_RNG_MEMORY_TAG ((ULONG)'gnrV')
 
@@ -71,13 +53,8 @@ typedef struct _ReadBufferEntry
 
 typedef struct _DEVICE_CONTEXT {
 
-    VirtIODevice        VirtDevice;
+    VIRTIO_WDF_DRIVER   VDevice;
     struct virtqueue    *VirtQueue;
-
-    // HW Resources
-    PVOID               IoBaseAddress;
-    ULONG               IoRange;
-    BOOLEAN             MappedPort;
 
     WDFINTERRUPT        WdfInterrupt;
     WDFSPINLOCK         VirtQueueLock;
@@ -109,6 +86,5 @@ EVT_WDF_INTERRUPT_DPC VirtRngEvtInterruptDpc;
 EVT_WDF_INTERRUPT_ENABLE VirtRngEvtInterruptEnable;
 EVT_WDF_INTERRUPT_DISABLE VirtRngEvtInterruptDisable;
 
-EVT_WDF_IO_QUEUE_IO_INTERNAL_DEVICE_CONTROL VirtRngEvtIoInternalDeviceControl;
 EVT_WDF_IO_QUEUE_IO_READ VirtRngEvtIoRead;
 EVT_WDF_IO_QUEUE_IO_STOP VirtRngEvtIoStop;

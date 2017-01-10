@@ -19,7 +19,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="WinLH.inx">
+    <Inf Include="viostor.inx">
       <Filter>Driver Files</Filter>
     </Inf>
   </ItemGroup>

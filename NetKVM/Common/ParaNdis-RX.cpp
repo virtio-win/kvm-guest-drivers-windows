@@ -8,7 +8,6 @@ CParaNdisRX::CParaNdisRX() : m_nReusedRxBuffersCounter(0), m_NetNofReceiveBuffer
 
     NdisAllocateSpinLock(&m_UnclassifiedPacketsQueue.Lock);
     InitializeListHead(&m_UnclassifiedPacketsQueue.BuffersList);
-    m_UnclassifiedPacketsQueue.ActiveProcessorsCount = 0;
 }
 
 CParaNdisRX::~CParaNdisRX()
@@ -22,7 +21,7 @@ bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     m_queueIndex = (u16)DeviceQueueIndex;
 
     if (!m_VirtQueue.Create(DeviceQueueIndex,
-        m_Context->IODevice,
+        &m_Context->IODevice,
         m_Context->MiniportHandle,
         m_Context->bDoPublishIndices ? true : false))
     {
@@ -91,14 +90,29 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
         ParaNdis_AllocateMemory(m_Context, sizeof(*p->PhysicalPages) * ulNumPages);
     if (p->PhysicalPages == NULL) goto error_exit;
 
-    for (p->PagesAllocated = 0; p->PagesAllocated < ulNumPages; p->PagesAllocated++)
+    p->BufferSGLength = 0;
+    while (ulNumPages > 0)
     {
-        p->PhysicalPages[p->PagesAllocated].size = PAGE_SIZE;
-        if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, &p->PhysicalPages[p->PagesAllocated]))
-            goto error_exit;
+        // Allocate the first page separately, the rest can be one contiguous block
+        ULONG ulPagesToAlloc = (p->BufferSGLength == 0 ? 1 : ulNumPages);
 
-        p->BufferSGArray[p->PagesAllocated].physAddr = p->PhysicalPages[p->PagesAllocated].Physical;
-        p->BufferSGArray[p->PagesAllocated].length = PAGE_SIZE;
+        while (!ParaNdis_InitialAllocatePhysicalMemory(
+                    m_Context,
+                    PAGE_SIZE * ulPagesToAlloc,
+                    &p->PhysicalPages[p->BufferSGLength]))
+        {
+            // Retry with half the pages
+            if (ulPagesToAlloc == 1)
+                goto error_exit;
+            else
+                ulPagesToAlloc /= 2;
+        }
+
+        p->BufferSGArray[p->BufferSGLength].physAddr = p->PhysicalPages[p->BufferSGLength].Physical;
+        p->BufferSGArray[p->BufferSGLength].length = p->PhysicalPages[p->BufferSGLength].size;
+
+        ulNumPages -= ulPagesToAlloc;
+        p->BufferSGLength++;
     }
 
     //First page is for virtio header, size needs to be adjusted correspondingly
@@ -125,7 +139,7 @@ BOOLEAN CParaNdisRX::AddRxBufferToQueue(pRxNetDescriptor pBufferDescriptor)
     return 0 <= pBufferDescriptor->Queue->m_VirtQueue.AddBuf(
         pBufferDescriptor->BufferSGArray,
         0,
-        pBufferDescriptor->PagesAllocated,
+        pBufferDescriptor->BufferSGLength,
         pBufferDescriptor,
         m_Context->bUseIndirect ? pBufferDescriptor->IndirectArea.Virtual : NULL,
         m_Context->bUseIndirect ? pBufferDescriptor->IndirectArea.Physical.QuadPart : 0);
@@ -143,8 +157,6 @@ void CParaNdisRX::FreeRxDescriptorsFromList()
 void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
 {
     DEBUG_ENTRY(4);
-
-    m_Context->m_rxPacketsOutsideRing.Release();
 
     if (!m_Reinsert)
     {
@@ -167,7 +179,7 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
         if (++m_nReusedRxBuffersCounter >= m_nReusedRxBuffersLimit)
         {
             m_nReusedRxBuffersCounter = 0;
-            m_VirtQueue.KickAlways();
+            m_VirtQueue.Kick();
         }
     }
     else
@@ -192,11 +204,6 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 
     while (NULL != (pBufferDescriptor = (pRxNetDescriptor)m_VirtQueue.GetBuf(&nFullLength)))
     {
-        /* The counter m_rxPacketsOutsideRing is increased when the packet is removed from ring; it is decreased
-        in CParaNdisRX::ReuseReceiveBuffer either in case of error or when NDIS calls ParaNdis6_ReturnNetBufferLists
-        indicating the return of a receive buffer under miniport driver ownership */
-
-        m_Context->m_rxPacketsOutsideRing.AddRef();
         RemoveEntryList(&pBufferDescriptor->listEntry);
         m_NetNofReceiveBuffers--;
 
@@ -286,19 +293,10 @@ void CParaNdisRX::PopulateQueue()
     m_VirtQueue.Kick();
 }
 
-BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) CParaNdisRX::RestartQueueSynchronously(tSynchronizedContext *ctx)
-{
-    CVirtQueue *queue = (CVirtQueue *) ctx->Parameter;
-    bool res = queue->Restart();
-
-    ParaNdis_DebugHistory(ctx->pContext, hopDPC, (PVOID)ctx->Parameter, 0x20, res, 0);
-    return !res;
-}
-
 BOOLEAN CParaNdisRX::RestartQueue()
 {
     return ParaNdis_SynchronizeWithInterrupt(m_Context,
-        m_messageIndex,
-        RestartQueueSynchronously,
-        &m_VirtQueue);
+                                             m_messageIndex,
+                                             RestartQueueSynchronously,
+                                             this);
 }

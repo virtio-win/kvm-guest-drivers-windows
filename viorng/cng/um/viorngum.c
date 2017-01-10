@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2015 Red Hat, Inc.
+ * Copyright (C) 2014-2016 Red Hat, Inc.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,6 +24,8 @@
 
 #define STRICT
 #include <windows.h>
+#include <bcrypt.h>
+#include <bcrypt_provider.h>
 #include <initguid.h>
 #include <setupapi.h>
 #include <tchar.h>
@@ -31,6 +33,7 @@
 #include <stdio.h>
 
 #include "viorngum.h"
+#include <bcrypt_provider.h>
 
 DEFINE_GUID(GUID_DEVINTERFACE_VIRT_RNG,
     0x2489fc19, 0xd0fd, 0x4950, 0x83, 0x86, 0xf3, 0xda, 0x3f, 0xa8, 0x5, 0x8);

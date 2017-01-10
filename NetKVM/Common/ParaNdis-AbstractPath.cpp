@@ -2,20 +2,17 @@
 #include "ParaNdis-AbstractPath.h"
 #include "kdebugprint.h"
 
-NDIS_STATUS CParaNdisAbstractPath::SetupMessageIndex(u16 queueCardinal)
+NDIS_STATUS CParaNdisAbstractPath::SetupMessageIndex(u16 vector)
 {
-    u16 val;
+    u16 val = m_pVirtQueue->SetMSIVector(vector);
 
-    WriteVirtIODeviceWord(m_Context->IODevice->addr + VIRTIO_PCI_QUEUE_SEL, (u16)queueCardinal);
-    WriteVirtIODeviceWord(m_Context->IODevice->addr + VIRTIO_MSI_QUEUE_VECTOR, (u16)queueCardinal);
-    val = ReadVirtIODeviceWord(m_Context->IODevice->addr + VIRTIO_MSI_QUEUE_VECTOR);
-    if (val != queueCardinal)
+    if (val != vector)
     {
-        DPrintf(0, ("[%s] - read/write mismatch, %u vs %u\n", val, queueCardinal));
+        DPrintf(0, ("[%s] - read/write mismatch, %u vs %u\n", val, vector));
         return NDIS_STATUS_DEVICE_FAILED;
     }
 
-    m_messageIndex = queueCardinal;
+    m_messageIndex = vector;
     return NDIS_STATUS_SUCCESS;
 }
 
@@ -29,7 +26,7 @@ ULONG CParaNdisAbstractPath::getCPUIndex()
     if (number == INVALID_PROCESSOR_INDEX)
     {
         DPrintf(0, ("[%s] : bad in-group processor index: mask 0x%lx\n", __FUNCTION__, (ULONG)DPCAffinity.Mask));
-        ASSERT(FALSE);
+        NETKVM_ASSERT(FALSE);
         return INVALID_PROCESSOR_INDEX;
     }
 
@@ -37,7 +34,7 @@ ULONG CParaNdisAbstractPath::getCPUIndex()
     procNumber.Reserved = 0;
 
     ULONG procIndex = KeGetProcessorIndexFromNumber(&procNumber);
-    ASSERTMSG("Bad processor Index", procIndex != INVALID_PROCESSOR_INDEX);
+    NETKVM_ASSERT(procIndex != INVALID_PROCESSOR_INDEX);
     return procIndex;
 #else
     return ParaNdis_GetIndexFromAffinity(DPCTargetProcessor);

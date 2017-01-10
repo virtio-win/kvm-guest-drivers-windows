@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2008-2015 Red Hat, Inc.
+ * Copyright (c) 2008-2016 Red Hat, Inc.
  *
  * File: sw-offload.c
  *
@@ -90,20 +90,45 @@ typedef struct _tagIP6_TYPE2_ROUTING_HEADER
 
 #define IP6_EXT_HDR_GRANULARITY   (8)
 
-static UINT32 RawCheckSumCalculator(PVOID buffer, ULONG len)
+static UINT_PTR RawCheckSumCalculator(PVOID buffer, ULONG len)
 {
-    UINT32 val = 0;
-    PUSHORT pus = (PUSHORT)buffer;
+    UINT_PTR val = 0;
+    PUCHAR ptr = (PUCHAR)buffer;
+#ifdef _WIN64
+    ULONG count = len >> 2;
+    while (count--) {
+        val += *(PUINT32)ptr;
+        ptr += 4;
+    }
+    if (len & 2) {
+        val += *(PUINT16)ptr;
+        ptr += 2;
+    }
+#else
     ULONG count = len >> 1;
-    while (count--) val += *pus++;
-    if (len & 1) val += (USHORT)*(PUCHAR)pus;
+    while (count--) {
+        val += *(PUINT16)ptr;
+        ptr += 2;
+    }
+#endif
+    if (len & 1) {
+        val += *ptr;
+    }
     return val;
 }
 
-static __inline USHORT RawCheckSumFinalize(UINT32 val)
+static __inline USHORT RawCheckSumFinalize(UINT_PTR sum)
 {
-    val = (((val >> 16) | (val << 16)) + val) >> 16;
-    return (USHORT)~val;
+    UINT32 sum32;
+    UINT16 sum16;
+
+#ifdef _WIN64
+    sum32 = (((sum >> 32) | (sum << 32)) + sum) >> 32;
+#else
+    sum32 = sum;
+#endif
+    sum16 = (((sum32 >> 16) | (sum32 << 16)) + sum32) >> 16;
+    return ~sum16;
 }
 
 static __inline USHORT CheckSumCalculatorFlat(PVOID buffer, ULONG len)
@@ -115,7 +140,7 @@ static __inline USHORT CheckSumCalculator(tCompletePhysicalAddress *pDataPages, 
 {
     tCompletePhysicalAddress *pCurrentPage = &pDataPages[0];
     ULONG ulCurrPageOffset = 0;
-    UINT32 u32RawCSum = 0;
+    UINT_PTR uRawCSum = 0;
 
     while(ulStartOffset > 0)
     {
@@ -132,13 +157,13 @@ static __inline USHORT CheckSumCalculator(tCompletePhysicalAddress *pDataPages, 
         PVOID pCurrentPageDataStart = RtlOffsetToPointer(pCurrentPage->Virtual, ulCurrPageOffset);
         ULONG ulCurrentPageDataLength = min(len, pCurrentPage->size - ulCurrPageOffset);
 
-        u32RawCSum += RawCheckSumCalculator(pCurrentPageDataStart, ulCurrentPageDataLength);
+        uRawCSum += RawCheckSumCalculator(pCurrentPageDataStart, ulCurrentPageDataLength);
         pCurrentPage++;
         ulCurrPageOffset = 0;
         len -= ulCurrentPageDataLength;
     }
 
-    return RawCheckSumFinalize(u32RawCSum);
+    return RawCheckSumFinalize(uRawCSum);
 }
 
 
@@ -216,7 +241,6 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
     UCHAR  ip_version = (ver_len & 0xF0) >> 4;
     USHORT ipHeaderSize = 0;
     USHORT fullLength = 0;
-    res.value = 0;
 
     if (ip_version == 4)
     {
@@ -321,7 +345,7 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
             if (bParsingDone)
                 break;
         }
-        if (ipHeaderSize <= MAX_SUPPORTED_IPV6_HEADERS)
+        if ((ipHeaderSize <= MAX_SUPPORTED_IPV6_HEADERS) && (ipHeaderSize <= fullLength))
         {
             DPrintf(3, ("ip_version %d, ipHeaderSize %d, protocol %d, iplen %d\n",
                 ip_version, ipHeaderSize, nextHeader, fullLength));
@@ -333,7 +357,12 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
             res.ipStatus = ppresNotIP;
         }
     }
-    
+    else
+    {
+        res.ipStatus = ppresNotIP;
+        return res;
+    }
+
     if (res.ipStatus == ppresIPV4)
     {
         res.ipHeaderSize = ipHeaderSize;
@@ -366,7 +395,7 @@ static __inline USHORT GetXxpHeaderAndPayloadLen(IPHeader *pIpHeader, tTcpIpPack
     {
         USHORT headerLength = IP_HEADER_LENGTH(&pIpHeader->v4);
         USHORT len = swap_short(pIpHeader->v4.ip_length);
-        return len - headerLength;          
+        return len - headerLength;
     }
     if (res.ipStatus == ppresIPV6)
     {
@@ -728,8 +757,7 @@ VOID AnalyzeL3Proto(
 }
 
 static
-BOOLEAN AnalyzeL2Hdr(
-    PNET_PACKET_INFO packetInfo)
+BOOLEAN AnalyzeL2Hdr(PNET_PACKET_INFO packetInfo)
 {
     PETH_HEADER dataBuffer = (PETH_HEADER) packetInfo->headersBuffer;
 
@@ -740,17 +768,14 @@ BOOLEAN AnalyzeL2Hdr(
 
     if (ETH_IS_BROADCAST(dataBuffer))
     {
-        #pragma warning(suppress: 4463)
         packetInfo->isBroadcast = TRUE;
     }
     else if (ETH_IS_MULTICAST(dataBuffer))
     {
-        #pragma warning(suppress: 4463)
         packetInfo->isMulticast = TRUE;
     }
     else
     {
-        #pragma warning(suppress: 4463)
         packetInfo->isUnicast = TRUE;
     }
 
@@ -761,7 +786,6 @@ BOOLEAN AnalyzeL2Hdr(
         if(packetInfo->dataLength < ETH_HEADER_SIZE + ETH_PRIORITY_HEADER_SIZE)
             return FALSE;
 
-        #pragma warning(suppress: 4463)
         packetInfo->hasVlanHeader     = TRUE;
         packetInfo->Vlan.UserPriority = VLAN_GET_USER_PRIORITY(vlanHdr);
         packetInfo->Vlan.VlanId       = VLAN_GET_VLAN_ID(vlanHdr);
@@ -1026,8 +1050,8 @@ ULONG ParaNdis_StripVlanHeaderMoveHead(PNET_PACKET_INFO packetInfo)
 {
     PUINT32 pData = (PUINT32) packetInfo->headersBuffer;
 
-    ASSERT(packetInfo->hasVlanHeader);
-    ASSERT(packetInfo->L2HdrLen == ETH_HEADER_SIZE + ETH_PRIORITY_HEADER_SIZE);
+    NETKVM_ASSERT(packetInfo->hasVlanHeader);
+    NETKVM_ASSERT(packetInfo->L2HdrLen == ETH_HEADER_SIZE + ETH_PRIORITY_HEADER_SIZE);
 
     pData[3] = pData[2];
     pData[2] = pData[1];

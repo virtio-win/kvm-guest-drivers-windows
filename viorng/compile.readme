@@ -1,0 +1,11 @@
+For successfull compilation the next tools needed to be installed on system:
+
+- Microsoft VS12 (VS 2013)
+- Microsoft VDK 8.1
+- Microsoft ADK 8.1
+- Microsoft CNG SDK *note1
+
+*note1:
+- After CPDK installation you need to copy the CPDK dir (Cryptographic Provides Developer Kit)
+to C:\Program Files (x86)\Windows Kits\8.1 from C:\Program Files (x86)\Windows Kits\8.0
+Because by default VS12 $WindowsSdkDir points to C:\Program Files (x86)\Windows Kits\8.1

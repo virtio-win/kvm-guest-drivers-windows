@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2008-2015 Red Hat, Inc.
+ * Copyright (c) 2008-2016 Red Hat, Inc.
  *
  * File: virtio_stor.h
  *
@@ -24,7 +24,6 @@
 
 #include "osdep.h"
 #include "virtio_pci.h"
-#include "virtio_config.h"
 #include "virtio.h"
 #include "virtio_ring.h"
 
@@ -109,25 +108,46 @@ typedef struct virtio_blk_req {
     VIO_SG     sg[VIRTIO_MAX_SG];
 }blk_req, *pblk_req;
 
+typedef struct virtio_bar {
+    PHYSICAL_ADDRESS  BasePA;
+    ULONG             uLength;
+    PVOID             pBase;
+    BOOLEAN           bPortSpace;
+} VIRTIO_BAR, *PVIRTIO_BAR;
+
 typedef struct _ADAPTER_EXTENSION {
     VirtIODevice          vdev;
-    PVOID                 uncachedExtensionVa;
+
+    PVOID                 pageAllocationVa;
+    ULONG                 pageAllocationSize;
+    ULONG                 pageOffset;
+
+    PVOID                 poolAllocationVa;
+    ULONG                 poolAllocationSize;
+    ULONG                 poolOffset;
+
     struct virtqueue *    vq;
     INQUIRYDATA           inquiry_data;
     blk_config            info;
-    ULONG                 breaks_number;
-    ULONG                 transfer_size;
     ULONG                 queue_depth;
     BOOLEAN               dump_mode;
     LIST_ENTRY            list_head;
     ULONG                 msix_vectors;
     BOOLEAN               msix_enabled;
-    ULONG                 features;
+    ULONGLONG             features;
     CHAR                  sn[BLOCK_SERIAL_STRLEN];
     BOOLEAN               sn_ok;
     blk_req               vbr;
     BOOLEAN               indirect;
     ULONGLONG             lastLBA;
+
+    union {
+        PCI_COMMON_HEADER pci_config;
+        UCHAR             pci_config_buf[sizeof(PCI_COMMON_CONFIG)];
+    };
+    VIRTIO_BAR            pci_bars[PCI_TYPE0_ADDRESSES];
+    ULONG                 system_io_bus_number;
+
 #ifdef USE_STORPORT
     LIST_ENTRY            complete_list;
     STOR_DPC              completion_dpc;
@@ -135,14 +155,16 @@ typedef struct _ADAPTER_EXTENSION {
 #endif
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
-typedef struct vring_desc_alias
+#if (INDIRECT_SUPPORTED == 1)
+typedef struct _VRING_DESC_ALIAS
 {
     union
     {
         ULONGLONG data[2];
         UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
     }u;
-};
+}VRING_DESC_ALIAS;
+#endif
 
 typedef struct _RHEL_SRB_EXTENSION {
     blk_req               vbr;
@@ -154,7 +176,7 @@ typedef struct _RHEL_SRB_EXTENSION {
     BOOLEAN               call_next;
 #endif
 #if INDIRECT_SUPPORTED
-    struct vring_desc_alias     desc[VIRTIO_MAX_SG];
+    VRING_DESC_ALIAS      desc[VIRTIO_MAX_SG];
 #endif
 }RHEL_SRB_EXTENSION, *PRHEL_SRB_EXTENSION;
 

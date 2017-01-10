@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2010-2015 Red Hat, Inc.
+ * Copyright (c) 2010-2016 Red Hat, Inc.
  *
  * File: vioser.h
  *
@@ -25,13 +25,6 @@ EVT_WDF_INTERRUPT_ENABLE                        VIOSerialInterruptEnable;
 EVT_WDF_INTERRUPT_DISABLE                       VIOSerialInterruptDisable;
 
 
-
-#define VIRTIO_SERIAL_MAX_PORTS 31
-#define VIRTIO_SERIAL_MAX_QUEUES_COUPLES (VIRTIO_SERIAL_MAX_PORTS + 1)
-#define VIRTIO_SERIAL_CONTROL_PORT_INDEX 1
-
-#define VIRTIO_SERIAL_INVALID_INTERRUPT_STATUS 0xFF
-
 #define VIRTIO_CONSOLE_F_SIZE      0
 #define VIRTIO_CONSOLE_F_MULTIPORT 1
 #define VIRTIO_CONSOLE_BAD_ID      (~(u32)0)
@@ -48,6 +41,11 @@ EVT_WDF_INTERRUPT_DISABLE                       VIOSerialInterruptDisable;
 #define VIRTIO_CONSOLE_PORT_NAME        7
 
 #define RETRY_THRESHOLD                 400
+
+// This is the value of the IOCTL_GET_INFORMATION macro used by older versions
+// of the driver. We still respond to it for backward compatibility. New clients
+// should use the new value declared in public.h.
+#define IOCTL_GET_INFORMATION_BUFFERED CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 #pragma pack (push)
 #pragma pack (1)
@@ -75,12 +73,7 @@ typedef struct _tagVirtioConsoleControl {
 
 typedef struct _tagPortDevice
 {
-    VirtIODevice        *pIODevice;
-
-    PHYSICAL_ADDRESS    PortBasePA;
-    ULONG               uPortLength;
-    PVOID               pPortBase;
-    bool                bPortMapped;
+    VIRTIO_WDF_DRIVER   VDevice;
 
     WDFINTERRUPT        WdfInterrupt;
     WDFINTERRUPT        QueuesInterrupt;
@@ -122,6 +115,8 @@ typedef struct _tagPortBuffer
 typedef struct _WriteBufferEntry
 {
     SINGLE_LIST_ENTRY ListEntry;
+    WDFMEMORY EntryHandle;
+    WDFREQUEST Request;
     PVOID Buffer;
 } WRITE_BUFFER_ENTRY, *PWRITE_BUFFER_ENTRY;
 
@@ -145,7 +140,6 @@ typedef struct _tagVioSerialPort
     BOOLEAN             Removed;
     WDFQUEUE            ReadQueue;
     WDFREQUEST          PendingReadRequest;
-    WDFREQUEST          PendingWriteRequest;
 
     // Hold a list of allocated buffers which were written to the virt queue
     // and was not returned yet.
@@ -166,6 +160,15 @@ typedef struct _tagRawPdoVioSerialPort
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(RAWPDO_VIOSERIAL_PORT, RawPdoSerialPortGetData)
 
 
+typedef struct _tagDriverContext
+{
+    // one global lookaside owned by the driver object
+    WDFLOOKASIDE WriteBufferLookaside;
+} DRIVER_CONTEXT, *PDRIVER_CONTEXT;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DRIVER_CONTEXT, GetDriverContext)
+
+
 NTSTATUS
 VIOSerialFillQueue(
     IN struct virtqueue *vq,
@@ -179,6 +182,11 @@ VIOSerialAddInBuf(
 );
 
 VOID
+VIOSerialProcessInputBuffers(
+    IN PVIOSERIAL_PORT port
+);
+
+BOOLEAN
 VIOSerialReclaimConsumedBuffers(
     IN PVIOSERIAL_PORT port
 );
@@ -186,7 +194,7 @@ VIOSerialReclaimConsumedBuffers(
 size_t
 VIOSerialSendBuffers(
     IN PVIOSERIAL_PORT Port,
-    IN PVOID Buffer,
+    IN PWRITE_BUFFER_ENTRY Entry,
     IN size_t Length
 );
 
@@ -275,7 +283,8 @@ EVT_WDF_CHILD_LIST_IDENTIFICATION_DESCRIPTION_CLEANUP VIOSerialEvtChildListIdent
 EVT_WDF_CHILD_LIST_IDENTIFICATION_DESCRIPTION_DUPLICATE VIOSerialEvtChildListIdentificationDescriptionDuplicate;
 EVT_WDF_IO_QUEUE_IO_READ VIOSerialPortRead;
 EVT_WDF_IO_QUEUE_IO_WRITE VIOSerialPortWrite;
-EVT_WDF_IO_QUEUE_IO_STOP VIOSerialPortIoStop;
+EVT_WDF_IO_QUEUE_IO_STOP VIOSerialPortReadIoStop;
+EVT_WDF_IO_QUEUE_IO_STOP VIOSerialPortWriteIoStop;
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL VIOSerialPortDeviceControl;
 EVT_WDF_DEVICE_FILE_CREATE VIOSerialPortCreate;
 EVT_WDF_FILE_CLOSE VIOSerialPortClose;

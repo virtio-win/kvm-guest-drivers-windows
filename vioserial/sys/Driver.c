@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2010-2015 Red Hat, Inc.
+ * Copyright (c) 2010-2016 Red Hat, Inc.
  *
  * File: VIOSerialDriver.c
  *
@@ -37,7 +37,8 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
     NTSTATUS               status = STATUS_SUCCESS;
     WDF_DRIVER_CONFIG      config;
     WDF_OBJECT_ATTRIBUTES  attributes;
-
+    WDFDRIVER              Driver;
+    PDRIVER_CONTEXT        Context;
 
 #if (NTDDI_VERSION > NTDDI_WIN7)
     ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
@@ -50,19 +51,36 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
     WDF_DRIVER_CONFIG_INIT(&config,VIOSerialEvtDeviceAdd);
     config.DriverPoolTag  = VIOSERIAL_DRIVER_MEMORY_TAG;
 
-    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DRIVER_CONTEXT);
     attributes.EvtCleanupCallback = VIOSerialEvtDriverContextCleanup;
 
     status = WdfDriverCreate(DriverObject,
                              RegistryPath,
                              &attributes,
                              &config,
-                             WDF_NO_HANDLE);
+                             &Driver);
 
     if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
            "WdfDriverCreate failed - 0x%x\n", status);
         WPP_CLEANUP(DriverObject);
+        return status;
+    }
+
+    Context = GetDriverContext(Driver);
+
+    // create a lookaside list used for allocating WRITE_BUFFER_ENTRY
+    // structures by all devices
+    status = WdfLookasideListCreate(WDF_NO_OBJECT_ATTRIBUTES,
+                                    sizeof(WRITE_BUFFER_ENTRY),
+                                    NonPagedPool,
+                                    WDF_NO_OBJECT_ATTRIBUTES,
+                                    VIOSERIAL_DRIVER_MEMORY_TAG,
+                                    &Context->WriteBufferLookaside);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+            "WdfLookasideListCreate failed - 0x%x\n", status);
         return status;
     }
 

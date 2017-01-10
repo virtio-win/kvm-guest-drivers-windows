@@ -63,7 +63,7 @@ WriteTest(
 
     if( buf == NULL )
     {
-        printf("%s: Could not allocate %d "
+        printf("%s: Could not allocate %zd "
                "bytes buf\n", __FUNCTION__, size);
 
         return FALSE;
@@ -87,7 +87,7 @@ WriteTest(
     else
     {
         printf ("%s: WriteFile OK: "
-                "snd %d bytes\n\n", __FUNCTION__, size);
+                "snd %zd bytes\n\n", __FUNCTION__, size);
         printf ("%s\n", buf);
     }
 
@@ -133,7 +133,7 @@ ReadTest(
 
     if( buf == NULL )
     {
-        printf("%s: Could not allocate %d "
+        printf("%s: Could not allocate %zd "
                "bytes buf\n", __FUNCTION__, size);
 
         return FALSE;
@@ -149,7 +149,7 @@ ReadTest(
     else
     {
         printf ("%s: ReadFile OK: "
-                "rcv %d bytes\n\n", __FUNCTION__, size);
+                "rcv %zd bytes\n\n", __FUNCTION__, size);
         printf ("%s\n", buf);
     }
 

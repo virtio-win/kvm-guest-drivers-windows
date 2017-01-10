@@ -4,7 +4,6 @@
 
 CParaNdisCX::CParaNdisCX()
 {
-    m_ControlData.size = 512;
     m_ControlData.Virtual = nullptr;
 }
 
@@ -21,7 +20,7 @@ bool CParaNdisCX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     m_Context = Context;
     m_queueIndex = (u16)DeviceQueueIndex;
 
-    if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, &m_ControlData))
+    if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, 512, &m_ControlData))
     {
         DPrintf(0, ("CParaNdisCX::Create - ParaNdis_InitialAllocatePhysicalMemory failed for %u\n",
             DeviceQueueIndex));
@@ -30,7 +29,7 @@ bool CParaNdisCX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     }
 
     return m_VirtQueue.Create(DeviceQueueIndex,
-        m_Context->IODevice,
+        &m_Context->IODevice,
         m_Context->MiniportHandle,
         m_Context->bDoPublishIndices ? true : false);
 }
@@ -93,7 +92,7 @@ BOOLEAN CParaNdisCX::SendControlMessage(
             void *p;
             /* Control messages are processed synchronously in QEMU, so upon kick_buf return, the response message
               has been already inserted in the queue */
-            m_VirtQueue.KickAlways();
+            m_VirtQueue.Kick();
             p = m_VirtQueue.GetBuf(&len);
             if (!p)
             {
@@ -126,9 +125,11 @@ BOOLEAN CParaNdisCX::SendControlMessage(
     return bOK;
 }
 
-NDIS_STATUS CParaNdisCX::SetupMessageIndex(u16 queueCardinal)
+NDIS_STATUS CParaNdisCX::SetupMessageIndex(u16 vector)
 {
-    WriteVirtIODeviceWord(m_Context->IODevice->addr + VIRTIO_MSI_CONFIG_VECTOR, (u16)queueCardinal);
+    DPrintf(0, ("[%s] Using message %u for controls\n", __FUNCTION__, vector));
 
-    return CParaNdisAbstractPath::SetupMessageIndex(queueCardinal);
+    virtio_set_config_vector(&m_Context->IODevice, vector);
+
+    return CParaNdisAbstractPath::SetupMessageIndex(vector);
 }

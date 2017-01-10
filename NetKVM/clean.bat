@@ -12,15 +12,9 @@ shift
 goto rmfiles
 
 :start
+call clean_dvl_log.cmd
 call :rmdir Install
 call :rmdir Install_Debug
-call :rmdir "NetKVM Package\VistaRelease"
-call :rmdir "NetKVM Package\VistaDebug"
-call :rmdir "NetKVM Package\Win8Release"
-call :rmdir "NetKVM Package\Win8Debug"
-call :rmdir "NetKVM Package\Win7Release"
-call :rmdir "NetKVM Package\Win7Debug"
-call :rmdir "NetKVM Package\x64"
 call :rmdir x64
 call :rmdir x86
 del build.err
@@ -29,7 +23,8 @@ del buildfre_*.log
 del buildchk_*.log
 del msbuild.log
 del netkvm.DVL.XML
-call clean_dvl_log.cmd
+del SDV-default.xml
+del sdv-user.sdv
 
 pushd CoInstaller
 call clean.bat

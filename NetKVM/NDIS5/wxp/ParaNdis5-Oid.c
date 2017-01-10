@@ -1,7 +1,7 @@
 /**********************************************************************
- * Copyright (c) 2008-2015 Red Hat, Inc.
+ * Copyright (c) 2008-2016 Red Hat, Inc.
  *
- * File: ParaNdis-Oid.c
+ * File: ParaNdis5-Oid.c
  *
  * This file contains NDIS5.X implementation of
  * OID-related adapter driver procedures
@@ -12,8 +12,6 @@
 **********************************************************************/
 #include "ParaNdis5.h"
 #include "ParaNdis-Oid.h"
-
-#if defined(NDIS51_MINIPORT) || defined(NDIS50_MINIPORT)
 
 #ifdef WPP_EVENT_TRACING
 #include "ParaNdis5-Oid.tmh"
@@ -251,7 +249,6 @@ NDIS_STATUS ParaNdis5_QueryOID(IN NDIS_HANDLE MiniportAdapterContext,
                                     OUT PULONG BytesNeeded)
 {
     NDIS_STATUS  status = NDIS_STATUS_NOT_SUPPORTED;
-    int debugLevel;
     tOidWhatToDo Rules;
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportAdapterContext;
     tOidDesc _oid;
@@ -342,11 +339,12 @@ NDIS_STATUS ParaNdis5_SetOID(IN NDIS_HANDLE MiniportAdapterContext,
 
 static void OnSetPowerWorkItem(NDIS_WORK_ITEM * pWorkItem, PVOID  Context)
 {
+    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     tPowerWorkItem *pwi = (tPowerWorkItem *)pWorkItem;
     PARANDIS_ADAPTER *pContext = pwi->pContext;
     if (pwi->state == NetDeviceStateD0)
     {
-        ParaNdis_PowerOn(pContext);
+        status = ParaNdis_PowerOn(pContext);
     }
     else
     {
@@ -354,7 +352,7 @@ static void OnSetPowerWorkItem(NDIS_WORK_ITEM * pWorkItem, PVOID  Context)
     }
     NdisFreeMemory(pwi, 0, 0);
     ParaNdis_DebugHistory(pContext, hopOidRequest, NULL, OID_PNP_SET_POWER, 0, 2);
-    NdisMSetInformationComplete(pContext->MiniportHandle, NDIS_STATUS_SUCCESS);
+    NdisMSetInformationComplete(pContext->MiniportHandle, status);
 }
 
 /**********************************************************
@@ -749,7 +747,6 @@ NDIS_STATUS CreateOffloadInfo5ForQuery(
 NDIS_STATUS OnOidSetNdis5Offload(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
     NDIS_STATUS status;
-    tOffloadSettings saveOffload = pContext->Offload;
     status = ParseOffload(pContext, (NDIS_TASK_OFFLOAD_HEADER *)pOid->InformationBuffer,
         pOid->InformationBufferLength, TRUE, "SET", FALSE);
     if (status == STATUS_SUCCESS)
@@ -769,6 +766,3 @@ NDIS_STATUS OnOidSetNdis5Offload(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     }
     return status;
 }
-
-
-#endif //defined(NDIS51_MINIPORT) || defined(NDIS50_MINIPORT)

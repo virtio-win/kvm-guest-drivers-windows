@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Red Hat, Inc.
+ * Copyright (C) 2015-2016 Red Hat, Inc.
  *
  * This software is licensed under the GNU General Public License,
  * version 2 (GPLv2) (see COPYING for details), subject to the following
@@ -40,7 +40,7 @@
 #undef  VER_PRODUCTMINORVERSION
 
 #undef  VER_LEGALCOPYRIGHT_STR
-#define VER_LEGALCOPYRIGHT_STR      "Copyright (C) 2015 Red Hat Inc."
+#define VER_LEGALCOPYRIGHT_STR      "Copyright (C) 2015-2016 Red Hat Inc."
 
 #undef  VER_COMPANYNAME_STR
 #define VER_COMPANYNAME_STR         "Red Hat Inc."
@@ -50,13 +50,9 @@
 
 #define VER_LANGNEUTRAL
 
-#ifndef _NT_TARGET_MAJ
-#include "..\2012-defines.h"
-#endif
-
-#define VER_PRODUCTBUILD                _MAJORVERSION_
-#define VER_PRODUCTBUILD_QFE            _MINORVERSION_
+#define VER_PRODUCTBUILD                _BUILD_MAJOR_VERSION_
+#define VER_PRODUCTBUILD_QFE            _BUILD_MINOR_VERSION_
 #define VER_PRODUCTMAJORVERSION         _NT_TARGET_MAJ
-#define VER_PRODUCTMINORVERSION         _NT_TARGET_MIN
+#define VER_PRODUCTMINORVERSION         _RHEL_RELEASE_VERSION_
 
 #include "common.ver"

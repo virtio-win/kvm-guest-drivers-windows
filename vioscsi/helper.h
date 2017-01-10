@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2012-2015 Red Hat, Inc.
+ * Copyright (c) 2012-2016 Red Hat, Inc.
  *
  * File: helper.h
  *
@@ -23,7 +23,6 @@
 #include "osdep.h"
 #include "virtio_pci.h"
 #include "vioscsi.h"
-
 #if (NTDDI_VERSION > NTDDI_WIN7)
 #include <srbhelper.h>
 
@@ -64,6 +63,7 @@ SrbGetPnpInfo(_In_ PVOID Srb, ULONG* PnPFlags, ULONG* PnPAction) {
 #define SRB_LUN(Srb) SrbGetLun(Srb)
 #define SRB_DATA_BUFFER(Srb) SrbGetDataBuffer(Srb)
 #define SRB_DATA_TRANSFER_LENGTH(Srb) SrbGetDataTransferLength(Srb)
+#define SRB_LENGTH(Srb) SrbGetSrbLength(Srb)
 #define SRB_WMI_DATA(Srb) (PSRBEX_DATA_WMI)SrbGetSrbExDataByType((PSTORAGE_REQUEST_BLOCK)Srb, SrbExDataTypeWmi)
 #define SRB_GET_SENSE_INFO(Srb, senseInfoBuffer, senseInfoBufferLen) SrbGetScsiData(Srb, NULL, NULL, NULL, &senseInfoBuffer, &senseInfoBufferLen)
 #define SRB_GET_PNP_INFO(Srb, PnPFlags, PnPAction) SrbGetPnpInfo(Srb, &PnPFlags, &PnPAction)
@@ -84,6 +84,7 @@ SrbGetPnpInfo(_In_ PVOID Srb, ULONG* PnPFlags, ULONG* PnPAction) {
 #define SRB_LUN(Srb) Srb->Lun
 #define SRB_DATA_BUFFER(Srb) Srb->DataBuffer
 #define SRB_DATA_TRANSFER_LENGTH(Srb) Srb->DataTransferLength
+#define SRB_LENGTH(Srb) Srb->Lenght
 #define SRB_WMI_DATA(Srb) (PSCSI_WMI_REQUEST_BLOCK)Srb
 #define SRB_GET_SENSE_INFO(Srb, senseInfoBuffer, senseInfoBufferLen) senseInfoBuffer = Srb->SenseInfoBuffer;senseInfoBufferLen = Srb->SenseInfoBufferLength
 #define SRB_GET_PNP_INFO(Srb, PnPFlags, PnPAction) PnPFlags = ((PSCSI_PNP_REQUEST_BLOCK)Srb)->SrbPnPFlags; PnPAction = ((PSCSI_PNP_REQUEST_BLOCK)Srb)->PnPAction
@@ -116,6 +117,11 @@ DeviceReset(
 
 VOID
 GetScsiConfig(
+    IN PVOID DeviceExtension
+    );
+
+BOOLEAN
+InitVirtIODevice(
     IN PVOID DeviceExtension
     );
 
@@ -156,21 +162,40 @@ VOID
 ProcessQueue(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
-    IN BOOLEAN dpc
+    IN BOOLEAN isr
     );
 
 VOID
-Lock(
+//FORCEINLINE
+VioScsiVQLock(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
-    OUT PSTOR_LOCK_HANDLE LockHandle
+    IN OUT PSTOR_LOCK_HANDLE LockHandle,
+    IN BOOLEAN isr
     );
 
 VOID
-Unlock(
+//FORCEINLINE
+VioScsiVQUnlock(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
-    IN PSTOR_LOCK_HANDLE LockHandle
+    IN PSTOR_LOCK_HANDLE LockHandle,
+    IN BOOLEAN isr
     );
+
+VOID
+//FORCEINLINE
+HandleResponse(
+    IN PVOID DeviceExtension,
+    IN PVirtIOSCSICmd cmd
+    );
+
+PVOID
+VioScsiPoolAlloc(
+    IN PVOID DeviceExtension,
+    IN SIZE_T size
+    );
+
+extern VirtIOSystemOps VioScsiSystemOps;
 
 #endif ___HELPER_H___

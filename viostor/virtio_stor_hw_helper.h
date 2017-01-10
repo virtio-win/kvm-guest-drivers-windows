@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2008-2015 Red Hat, Inc.
+ * Copyright (c) 2008-2016 Red Hat, Inc.
  *
  * File: virtio_stor_hw_helper.h
  *
@@ -27,7 +27,6 @@
 
 #include "osdep.h"
 #include "virtio_pci.h"
-#include "virtio_config.h"
 #include "virtio.h"
 #include "virtio_stor.h"
 
@@ -65,5 +64,7 @@ VOID
 RhelGetDiskGeometry(
     IN PVOID DeviceExtension
     );
+
+extern VirtIOSystemOps VioStorSystemOps;
 
 #endif ___VIOSTOR_HW_HELPER_H___

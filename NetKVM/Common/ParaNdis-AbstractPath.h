@@ -35,7 +35,7 @@ public:
         return m_queueIndex;
     }
 
-    virtual NDIS_STATUS SetupMessageIndex(u16 queueCardinal);
+    virtual NDIS_STATUS SetupMessageIndex(u16 vector);
 
     /* TODO - Path classes should inherit from CVirtQueue*/
     virtual void DisableInterrupts()
@@ -51,11 +51,6 @@ public:
     void Renew()
     {
         m_pVirtQueue->Renew();
-    }
-
-    bool IsInterruptEnabled()
-    {
-        return m_pVirtQueue->IsInterruptEnabled();
     }
 
     ULONG getCPUIndex();
@@ -89,9 +84,15 @@ public:
         m_VirtQueue.Shutdown();
     }
 
+    static BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT)
+    RestartQueueSynchronously(PVOID ctx)
+    {
+        auto This = static_cast<CParaNdisTemplatePath<VQ>*>(ctx);
+        return !This->m_VirtQueue.Restart();
+    }
+
 protected:
     CNdisSpinLock m_Lock;
 
     VQ m_VirtQueue;
-    tCompletePhysicalAddress m_VirtQueueRing;
 };

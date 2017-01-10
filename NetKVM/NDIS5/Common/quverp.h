@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2008-2015  Red Hat, Inc.
+ * Copyright (c) 2008-2016  Red Hat, Inc.
  *
  * File: quverp.h
  *
@@ -35,16 +35,12 @@
 #endif
 #define VER_COMPANYNAME_STR             "Red Hat, Inc."
 #define VER_LEGALTRADEMARKS_STR         ""
-#define VER_LEGALCOPYRIGHT_STR          "Copyright (C) 2008-2015 Red Hat Inc."
+#define VER_LEGALCOPYRIGHT_STR          "Copyright (C) 2008-2016 Red Hat Inc."
 
-#ifndef _NT_TARGET_MAJ
-#include "NetKVM-2012.h"
-#endif
-
-#define VER_PRODUCTBUILD                _MAJORVERSION_
-#define VER_PRODUCTBUILD_QFE            _MINORVERSION_
+#define VER_PRODUCTBUILD                _BUILD_MAJOR_VERSION_
+#define VER_PRODUCTBUILD_QFE            _BUILD_MINOR_VERSION_
 #define VER_PRODUCTMAJORVERSION         _NT_TARGET_MAJ
-#define VER_PRODUCTMINORVERSION         _NT_TARGET_MIN
+#define VER_PRODUCTMINORVERSION         _RHEL_RELEASE_VERSION_
 #undef __BUILDMACHINE__
 
 #define VER_LANGNEUTRAL
