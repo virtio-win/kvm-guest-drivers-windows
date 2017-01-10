@@ -2144,7 +2144,7 @@ ENTER_FN();
             HandleResponse(DeviceExtension, cmd);
             listEntry = next;
         }
-        if (old_affinity != 0) {
+        if (new_affinity != 0) {
             KeRevertToUserAffinityThreadEx(old_affinity);
         }
     }
