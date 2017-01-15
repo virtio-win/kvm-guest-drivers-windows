@@ -51,8 +51,7 @@ ENTER_FN();
         STARTIO_PERFORMANCE_PARAMETERS param;
         param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
         status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
-        if (status == STOR_STATUS_SUCCESS) {
-//            RhelDbgPrint(TRACE_LEVEL_FATAL, ("srb %p, cpu %d :: QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n", Srb, srbExt->cpu, QueueNumber, param.MessageNumber, param.ChannelNumber));
+        if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
             MessageId = param.MessageNumber;
             QueueNumber = MessageId - 1;
         }
