@@ -46,24 +46,21 @@ ENTER_FN();
     if (adaptExt->num_queues > 1) {
          STARTIO_PERFORMANCE_PARAMETERS param;
          param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
-//         QueueNumber = adaptExt->cpu_to_vq_map[srbExt->cpu] + VIRTIO_SCSI_REQUEST_QUEUE_0;
          status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
-         if (status == STOR_STATUS_SUCCESS) {
-//            RhelDbgPrint(TRACE_LEVEL_FATAL, ("srb %p, cpu %d :: QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n", Srb, srbExt->cpu, QueueNumber, param.MessageNumber, param.ChannelNumber));
-			MessageId = param.MessageNumber;
-			QueueNumber = MessageId - 1;
+         if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
+            MessageId = param.MessageNumber;
+            QueueNumber = MessageId - 1;
          }
          else {
             RhelDbgPrint(TRACE_LEVEL_FATAL, ("srb %p cpu %d status 0x%x.\n", Srb, srbExt->cpu, status));
-			QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
-			MessageId = 3;
-		 }
+            QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
+            MessageId = 3;
+         }
     }
     else {
         QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
-		MessageId = 3;
+        MessageId = 3;
     }
-//    MessageId = QueueNumber + 1;
     VioScsiVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (virtqueue_add_buf(adaptExt->vq[QueueNumber],
                      &srbExt->sg[0],
