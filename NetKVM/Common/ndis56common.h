@@ -415,8 +415,11 @@ typedef struct _tagPARANDIS_ADAPTER
     CPUPathesBundle             *pPathBundles;
     UINT                        nPathBundles;
 
-    CPUPathesBundle            **RSS2QueueMap;
+#if PARANDIS_SUPPORT_RSS
+    CPUPathesBundle             **RSS2QueueMap;
     USHORT                      RSS2QueueLength;
+    EX_SPIN_LOCK                RSS2QueueRwLock;
+#endif
 
     PIO_INTERRUPT_MESSAGE_INFO  pMSIXInfoTable;
     NDIS_HANDLE                 DmaHandle;
