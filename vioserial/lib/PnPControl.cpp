@@ -100,7 +100,7 @@ void PnPControl::Init( )
 
     if ( !InitializeCriticalSectionAndSpinCount(&PortsCS, 0x4000))
     {
-        printf("Cannot initalize critical section Error = %d.\n", GetLastError());
+        printf("Cannot initialize critical section Error = %d.\n", GetLastError());
     }
 
 }
