@@ -38,7 +38,7 @@
     PSRB_EXTENSION srbExt  = SRB_EXTENSION(Srb); \
     if (ProcNumber.Group != srbExt->procNum.Group || \
         ProcNumber.Number != srbExt->procNum.Number) { \
-           RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s Srb %p issued on %d::%d currentn %d::%d\n", \
+           RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s Srb %p issued on %d::%d current %d::%d\n", \
                    __FUNCTION__, Srb, srbExt->procNum.Group, srbExt->procNum.Number, ProcNumber.Group, ProcNumber.Number)); \
     } \
 }while (0);

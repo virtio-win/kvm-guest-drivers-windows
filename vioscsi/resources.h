@@ -4,7 +4,7 @@
  * File: resources.h
  *
  * Main include file
- * This file contains vrious definitions and globals
+ * This file contains various definitions and globals
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
