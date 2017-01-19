@@ -11,7 +11,7 @@ VOID ShowUsage()
     wprintf(L"<type>           (r)ead or (w)rite\n");
     wprintf(L"<port_name>      name of the port to use\n");
     wprintf(L"<request_size>   size of each I/O request in bytes, %u by default\n", DEFAULT_REQUEST_SIZE);
-    wprintf(L"<concurrency>    number of requests to run in parallel, if ommitted\n");
+    wprintf(L"<concurrency>    number of requests to run in parallel, if omitted\n");
     wprintf(L"                 benchmarks all concurrency levels 1 and up\n");
     wprintf(L"<time>           time in seconds to run for at each concurrency level,\n");
     wprintf(L"                 %u by default\n", DEFAULT_NUM_OF_ITERATIONS);

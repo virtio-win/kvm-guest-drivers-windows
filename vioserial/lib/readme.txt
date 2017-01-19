@@ -84,7 +84,7 @@ Parameters
         The size, in bytes, of the buffer pointed to by buf.
 
 Return Value
-If the ReadPort method encounters no errors, it returns TRUE. Otherwise it retunrs FALSE.
+If the ReadPort method encounters no errors, it returns TRUE. Otherwise it returns FALSE.
 
 Comments
 None

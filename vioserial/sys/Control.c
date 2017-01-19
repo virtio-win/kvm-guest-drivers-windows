@@ -116,7 +116,7 @@ VIOSerialHandleCtrlMsg(
 
     if (!port && (cpkt->event != VIRTIO_CONSOLE_PORT_ADD))
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Invlid index %u in control packet\n", cpkt->id);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Invalid index %u in control packet\n", cpkt->id);
     }
 
     switch (cpkt->event)

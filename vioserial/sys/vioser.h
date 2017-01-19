@@ -51,7 +51,7 @@ EVT_WDF_INTERRUPT_DISABLE                       VIOSerialInterruptDisable;
 #pragma pack (1)
 
 typedef struct _tagConsoleConfig {
-    //* colums of the screens
+    //* columns of the screens
     u16 cols;
     //* rows of the screens
     u16 rows;

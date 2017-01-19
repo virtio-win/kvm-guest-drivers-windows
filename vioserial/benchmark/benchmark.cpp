@@ -1,10 +1,10 @@
 #include "stdafx.h"
 
 template<class IOPROVIDER>
-BOOL RunBenchmarkWorker(HANDLE hPort, SIZE_T cbRequestSize, DWORD dwConcurency, DWORD dwIterations)
+BOOL RunBenchmarkWorker(HANDLE hPort, SIZE_T cbRequestSize, DWORD dwConcurrency, DWORD dwIterations)
 {
-    std::unique_ptr<OVERLAPPED[]> lpOverlapped(new OVERLAPPED[dwConcurency]);
-    std::unique_ptr<HANDLE[]> lpHandles(new HANDLE[dwConcurency + 1]);
+    std::unique_ptr<OVERLAPPED[]> lpOverlapped(new OVERLAPPED[dwConcurrency]);
+    std::unique_ptr<HANDLE[]> lpHandles(new HANDLE[dwConcurrency + 1]);
     HANDLE* hTimer = &lpHandles[0];
     HANDLE* lpEvents = &lpHandles[1];
     std::unique_ptr<BYTE[]> lpBuffer(new BYTE[cbRequestSize]);
@@ -28,7 +28,7 @@ BOOL RunBenchmarkWorker(HANDLE hPort, SIZE_T cbRequestSize, DWORD dwConcurency, 
     }
 
     // prepare requests
-    for (DWORD i = 0; i < dwConcurency; i++)
+    for (DWORD i = 0; i < dwConcurrency; i++)
     {
         memset(&lpOverlapped[i], 0, sizeof(OVERLAPPED));
         lpEvents[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -48,7 +48,7 @@ BOOL RunBenchmarkWorker(HANDLE hPort, SIZE_T cbRequestSize, DWORD dwConcurency, 
     while (!_kbhit() && dwIterations > 0)
     {
         // (re)initialize all overlapped structures and start the I/O
-        for (DWORD i = 0; i < dwConcurency; i++)
+        for (DWORD i = 0; i < dwConcurrency; i++)
         {
             if (lpOverlapped[i].hEvent == NULL)
             {
@@ -66,18 +66,18 @@ BOOL RunBenchmarkWorker(HANDLE hPort, SIZE_T cbRequestSize, DWORD dwConcurency, 
         }
 
         // wait for any of the overlapped events to get signaled or for a timer tick
-        DWORD dwWaitRes = WaitForMultipleObjects(dwConcurency + 1, lpHandles.get(), FALSE, INFINITE);
+        DWORD dwWaitRes = WaitForMultipleObjects(dwConcurrency + 1, lpHandles.get(), FALSE, INFINITE);
         if (dwWaitRes == WAIT_OBJECT_0)
         {
             // the timer object was signaled
             if (cbTotalTransferred != 0)
             {
-                wprintf(L"Parallelism %d, throughput %Iu\n", dwConcurency, cbTotalTransferred);
+                wprintf(L"Parallelism %d, throughput %Iu\n", dwConcurrency, cbTotalTransferred);
                 cbTotalTransferred = 0;
                 dwIterations--;
             }
         }
-        else if (dwWaitRes > WAIT_OBJECT_0 && dwWaitRes <= WAIT_OBJECT_0 + dwConcurency)
+        else if (dwWaitRes > WAIT_OBJECT_0 && dwWaitRes <= WAIT_OBJECT_0 + dwConcurrency)
         {
             // one of the overlapped events was signaled
             for (DWORD idx = dwWaitRes - WAIT_OBJECT_0 - 1; idx < dwWaitRes; idx++)
@@ -110,7 +110,7 @@ BOOL RunBenchmarkWorker(HANDLE hPort, SIZE_T cbRequestSize, DWORD dwConcurency, 
     }
 
     // cancel all requests
-    for (DWORD i = 0; i < dwConcurency; i++)
+    for (DWORD i = 0; i < dwConcurrency; i++)
     {
         if (lpOverlapped[i].hEvent != NULL)
         {
@@ -123,7 +123,7 @@ BOOL RunBenchmarkWorker(HANDLE hPort, SIZE_T cbRequestSize, DWORD dwConcurency, 
     }
 
     // close all handles
-    for (DWORD i = 0; i < dwConcurency; i++)
+    for (DWORD i = 0; i < dwConcurrency; i++)
     {
         CloseHandle(lpEvents[i]);
     }
