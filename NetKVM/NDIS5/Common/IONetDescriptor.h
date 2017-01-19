@@ -58,7 +58,7 @@ typedef u8 virtio_net_ctrl_ack;
 #define VIRTIO_NET_ERR    1
 
 /*
- * Control the RX mode, ie. promisucous, allmulti, etc...
+ * Control the RX mode, ie. promiscuous, allmulti, etc...
  * All commands require an "out" sg entry containing a 1 byte
  * state value, zero = disable, non-zero = enable.  Commands
  * 0 and 1 are supported with the VIRTIO_NET_F_CTRL_RX feature.
@@ -103,7 +103,7 @@ struct virtio_net_ctrl_mac {
  * The VLAN filter table is controlled via a simple ADD/DEL interface.
  * VLAN IDs not added may be filterd by the hypervisor.  Del is the
  * opposite of add.  Both commands expect an out entry containing a 2
- * byte VLAN ID.  VLAN filterting is available with the
+ * byte VLAN ID.  VLAN filtering is available with the
  * VIRTIO_NET_F_CTRL_VLAN feature bit.
  */
 #define VIRTIO_NET_CTRL_VLAN                 2

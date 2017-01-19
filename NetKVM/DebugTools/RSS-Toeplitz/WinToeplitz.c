@@ -12,7 +12,7 @@ void toeplitzw_initialize(uint8_t *key, int keysize)
 #define RtlUlongByteSwap(ul) _byteswap_ulong(ul)
 
 // Little Endian version ONLY
-UINT32 ToeplitsHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, UINT8 *fullKey)
+UINT32 ToeplitzHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, UINT8 *fullKey)
 {
 #define TOEPLITZ_MAX_BIT_NUM (7)
 #define TOEPLITZ_BYTE_HAS_BIT(byte, bit) ((byte) & (1 << (TOEPLITZ_MAX_BIT_NUM - (bit))))

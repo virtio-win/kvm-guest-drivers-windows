@@ -87,13 +87,13 @@ typedef struct _tagBugCheckStaticDataContent_V0
 #define PARANDIS_DEBUG_INTERRUPTS
 
 #ifdef PARANDIS_DEBUG_INTERRUPTS
-#   define PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(p) \
+#   define PARANDIS_STORE_LAST_INTERRUPT_TIMESTAMP(p) \
         NdisGetCurrentSystemTime(&(p)->LastInterruptTimeStamp)
-#   define PARADNIS_GET_LAST_INTERRUPT_TIMESTAMP(p) \
+#   define PARANDIS_GET_LAST_INTERRUPT_TIMESTAMP(p) \
         (p)->LastInterruptTimeStamp.QuadPart
 #else
-#   define PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(p)
-#   define PARADNIS_GET_LAST_INTERRUPT_TIMESTAMP(p) (0)
+#   define PARANDIS_STORE_LAST_INTERRUPT_TIMESTAMP(p)
+#   define PARANDIS_GET_LAST_INTERRUPT_TIMESTAMP(p) (0)
 #endif
 
 typedef struct _tagBugCheckPerNicDataContent_V0

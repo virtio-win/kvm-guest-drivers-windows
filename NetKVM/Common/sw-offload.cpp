@@ -85,7 +85,7 @@ typedef struct _tagIP6_TYPE2_ROUTING_HEADER
 #define IP6_HDR_ESP               (50)
 #define IP6_HDR_AUTHENTICATION    (51)
 #define IP6_HDR_NONE              (59)
-#define IP6_HDR_DESTINATON        (60)
+#define IP6_HDR_DESTINATION       (60)
 #define IP6_HDR_MOBILITY          (135)
 
 #define IP6_EXT_HDR_GRANULARITY   (8)
@@ -917,7 +917,7 @@ BOOLEAN AnalyzeIP6Hdr(
             __fallthrough;
         case IP6_HDR_FRAGMENT:
             return TRUE;
-        case IP6_HDR_DESTINATON:
+        case IP6_HDR_DESTINATION:
             {
                 IPV6_ADDRESS *homeAddr = NULL;
                 ULONG destHdrOffset = *ip6HdrLength;

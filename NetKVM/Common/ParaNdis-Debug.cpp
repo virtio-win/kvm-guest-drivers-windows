@@ -226,7 +226,7 @@ static UINT FillDataOnBugCheck()
             pSave->nofReadyTxBuffers += p->pPathBundles[j].txPath.GetFreeHWBuffers();
         }
 
-        pSave->LastInterruptTimeStamp.QuadPart = PARADNIS_GET_LAST_INTERRUPT_TIMESTAMP(p);
+        pSave->LastInterruptTimeStamp.QuadPart = PARANDIS_GET_LAST_INTERRUPT_TIMESTAMP(p);
         pSave->LastTxCompletionTimeStamp = p->LastTxCompletionTimeStamp;
         ParaNdis_CallOnBugCheck(p);
         ++n;

@@ -4,7 +4,7 @@ trouble-shooting the HCK error when HCK complains about missing and/or
 out of order packet delivery  by the NetKVM network driver.
 
      The utility is bases on partial HCK packet
-formaet reverse-engineering: it assumes that all HCK packet include
+format reverse-engineering: it assumes that all HCK packet include
 the HCK content marked by "NDIS" prefix, the sequence number can be
 found as 16-bit little-endian number in 12th an 13th bytes of the HCK
 content and session number is 16-bit little-endian number at offset 22

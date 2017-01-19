@@ -336,7 +336,7 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
 {
     NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 
-    if (NBLHolder->MappingSuceeded())
+    if (NBLHolder->MappingSucceeded())
     {
         DoPendingTasks(NBLHolder);
     }

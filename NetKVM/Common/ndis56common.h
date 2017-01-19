@@ -97,7 +97,7 @@ typedef struct _tagPARANDIS_RECEIVE_QUEUE
 
 #include "ParaNdis-VirtIO.h"
 
-struct CPUPathesBundle : public CPlacementAllocatable {
+struct CPUPathBundle : public CPlacementAllocatable {
     CParaNdisRX rxPath;
     bool        rxCreated = false;
 
@@ -412,10 +412,10 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN bCXPathAllocated;
     BOOLEAN bCXPathCreated;
 
-    CPUPathesBundle             *pPathBundles;
+    CPUPathBundle               *pPathBundles;
     UINT                        nPathBundles;
 
-    CPUPathesBundle            **RSS2QueueMap;
+    CPUPathBundle              **RSS2QueueMap;
     USHORT                      RSS2QueueLength;
 
     PIO_INTERRUPT_MESSAGE_INFO  pMSIXInfoTable;
@@ -520,7 +520,7 @@ void ParaNdis_FreeRxBufferDescriptor(
     PARANDIS_ADAPTER *pContext,
     pRxNetDescriptor p);
 
-BOOLEAN ParaNdis_PerformPacketAnalyzis(
+BOOLEAN ParaNdis_PerformPacketAnalysis(
 #if PARANDIS_SUPPORT_RSS
     PPARANDIS_RSS_PARAMS RSSParameters,
 #endif
