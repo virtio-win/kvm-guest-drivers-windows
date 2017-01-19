@@ -14,7 +14,7 @@ cls
 cls
 Echo.
 Echo          ***********************************************
-Echo          *     Runnig SDV...  Don't close!             *
+Echo          *     Running SDV...  Don't close!             *
 Echo          ***********************************************
 :START
 
@@ -66,7 +66,7 @@ EXIT /B 1
 :Error3
 Echo.
 Echo       *********************************************************************
-Echo       *        Error Couldn't find VS instalation                         *
+Echo       *        Error Couldn't find VS installation                        *
 Echo       *********************************************************************
 Echo.
 ENDLOCAL

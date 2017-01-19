@@ -117,14 +117,14 @@ function runSdv(confList) {
 
     this.exeCheckCmd = function () {
         this.buildCheckCmd();
-        logString("\nRunnig " + '"' + this.inputCheck + '"' + ' ' + "SDV on: " + ' Project: "' +
+        logString("\nRunning " + '"' + this.inputCheck + '"' + ' ' + "SDV on: " + ' Project: "' +
         this.projectName + '" Configuration: "' +
         this.configuration + '" Platform: "' + this.platform + '" ...');
 
         this.res = this.WshShell.run(this.cmd, 1, true);
         logString("Res " + this.res);
         if (this.res != 0)
-            throw "Error Runnig SDV logs" + ' Project: "' + this.projectName + '" Configuration: "' +
+            throw "Error Running SDV logs" + ' Project: "' + this.projectName + '" Configuration: "' +
             this.configuration + '" Platform: "' + this.platform + '"';
     }
 
@@ -214,11 +214,11 @@ try {
 catch (exception) {
     logString("ERROR: " + exception);
     logString("**** ERROR Info ****");
-    logString("\tMessage   : " + exception.message);
-    logString("\tName      : " + exception.name);
-    logString("\tCode      : " + (exception.number & 0xFFFF));
-    logString("\tFacility  : " + (exception.number >> 16 & 0x1FFF));
-    logString("\tDesription: " + exception.description);
+    logString("\tMessage    : " + exception.message);
+    logString("\tName       : " + exception.name);
+    logString("\tCode       : " + (exception.number & 0xFFFF));
+    logString("\tFacility   : " + (exception.number >> 16 & 0x1FFF));
+    logString("\tDescription: " + exception.description);
     logString("********************");
     stopLog();
     WScript.StdErr.WriteLine("ERROR: " + exception);

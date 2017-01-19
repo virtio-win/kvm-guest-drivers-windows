@@ -47,7 +47,7 @@ def rmwhite_file_or_dir(file, patterns)
   end
 end
 
-# Recurcive function that walks over all directories and files according to the predifined pattern
+# Recursive function that walks over all directories and files according to the predefined pattern
 #
 # Parameters:
 # * file - file or directory path
