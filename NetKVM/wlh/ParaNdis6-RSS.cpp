@@ -411,7 +411,7 @@ typedef struct _tagHASH_CALC_SG_BUF_ENTRY
 
 // Little Endian version ONLY
 static
-UINT32 ToeplitsHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, PCCHAR fullKey)
+UINT32 ToeplitzHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, PCCHAR fullKey)
 {
 #define TOEPLITZ_MAX_BIT_NUM (7)
 #define TOEPLITZ_BYTE_HAS_BIT(byte, bit) ((byte) & (1 << (TOEPLITZ_MAX_BIT_NUM - (bit))))
@@ -488,7 +488,7 @@ VOID RSSCalcHash_Unsafe(
             sgBuff[1].chunkPtr = RtlOffsetToPointer(pTCPHeader, FIELD_OFFSET(TCPHeader, tcp_src));
             sgBuff[1].chunkLen = RTL_FIELD_SIZE(TCPHeader, tcp_src) + RTL_FIELD_SIZE(TCPHeader, tcp_dest);
 
-            packetInfo->RSSHash.Value = ToeplitsHash(sgBuff, 2, &RSSParameters->ActiveHashingSettings.HashSecretKey[0]);
+            packetInfo->RSSHash.Value = ToeplitzHash(sgBuff, 2, &RSSParameters->ActiveHashingSettings.HashSecretKey[0]);
             packetInfo->RSSHash.Type = NDIS_HASH_TCP_IPV4;
             packetInfo->RSSHash.Function = NdisHashFunctionToeplitz;
             return;
@@ -499,7 +499,7 @@ VOID RSSCalcHash_Unsafe(
             sgBuff[0].chunkPtr = RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen + FIELD_OFFSET(IPv4Header, ip_src));
             sgBuff[0].chunkLen = RTL_FIELD_SIZE(IPv4Header, ip_src) + RTL_FIELD_SIZE(IPv4Header, ip_dest);
 
-            packetInfo->RSSHash.Value = ToeplitsHash(sgBuff, 1, RSSParameters->ActiveHashingSettings.HashSecretKey);
+            packetInfo->RSSHash.Value = ToeplitzHash(sgBuff, 1, RSSParameters->ActiveHashingSettings.HashSecretKey);
             packetInfo->RSSHash.Type = NDIS_HASH_IPV4;
             packetInfo->RSSHash.Function = NdisHashFunctionToeplitz;
             return;
@@ -521,7 +521,7 @@ VOID RSSCalcHash_Unsafe(
                 sgBuff[2].chunkPtr = RtlOffsetToPointer(pTCPHeader, FIELD_OFFSET(TCPHeader, tcp_src));
                 sgBuff[2].chunkLen = RTL_FIELD_SIZE(TCPHeader, tcp_src) + RTL_FIELD_SIZE(TCPHeader, tcp_dest);
 
-                packetInfo->RSSHash.Value = ToeplitsHash(sgBuff, 3, RSSParameters->ActiveHashingSettings.HashSecretKey);
+                packetInfo->RSSHash.Value = ToeplitzHash(sgBuff, 3, RSSParameters->ActiveHashingSettings.HashSecretKey);
                 packetInfo->RSSHash.Type = (hashTypes & NDIS_HASH_TCP_IPV6_EX) ? NDIS_HASH_TCP_IPV6_EX : NDIS_HASH_TCP_IPV6;
                 packetInfo->RSSHash.Function = NdisHashFunctionToeplitz;
                 return;
@@ -535,7 +535,7 @@ VOID RSSCalcHash_Unsafe(
             sgBuff[1].chunkPtr = (PCHAR) GetIP6DstAddrForHash(dataBuffer, packetInfo, hashTypes);
             sgBuff[1].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_dst_address);
 
-            packetInfo->RSSHash.Value = ToeplitsHash(sgBuff, 2, RSSParameters->ActiveHashingSettings.HashSecretKey);
+            packetInfo->RSSHash.Value = ToeplitzHash(sgBuff, 2, RSSParameters->ActiveHashingSettings.HashSecretKey);
             packetInfo->RSSHash.Type = (hashTypes & NDIS_HASH_IPV6_EX) ? NDIS_HASH_IPV6_EX : NDIS_HASH_IPV6;
             packetInfo->RSSHash.Function = NdisHashFunctionToeplitz;
             return;
@@ -548,7 +548,7 @@ VOID RSSCalcHash_Unsafe(
             sgBuff[0].chunkPtr = RtlOffsetToPointer(pIpHeader, FIELD_OFFSET(IPv6Header, ip6_src_address));
             sgBuff[0].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_src_address) + RTL_FIELD_SIZE(IPv6Header, ip6_dst_address);
 
-            packetInfo->RSSHash.Value = ToeplitsHash(sgBuff, 2, RSSParameters->ActiveHashingSettings.HashSecretKey);
+            packetInfo->RSSHash.Value = ToeplitzHash(sgBuff, 2, RSSParameters->ActiveHashingSettings.HashSecretKey);
             packetInfo->RSSHash.Type = NDIS_HASH_IPV6;
             packetInfo->RSSHash.Function = NdisHashFunctionToeplitz;
             return;

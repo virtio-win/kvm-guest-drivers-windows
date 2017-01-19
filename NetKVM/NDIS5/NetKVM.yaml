@@ -4,7 +4,7 @@
 
 Name: NetKVM
 Version: 6.0.0.0
-Desctription: Windows guest network driver based on VirtIO interface.
+Description: Windows guest network driver based on VirtIO interface.
 
 OS:
 	- WindowsXP

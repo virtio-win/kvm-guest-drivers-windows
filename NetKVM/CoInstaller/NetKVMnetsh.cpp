@@ -39,10 +39,10 @@ static bool _NetKVMGetDeviceClassGuids(vector<GUID>& GUIDs)
 
         if(ERROR_INSUFFICIENT_BUFFER == dwErr)
         {
-            /* On first attemp we pass NULL and 0 as GUID array and GUID array size respectively;
+            /* On first attempt we pass NULL and 0 as GUID array and GUID array size respectively;
             according to SetupDiClassGuidsFromNameEx, the function sets RequiredSize output formal parameter (&dwNumGuids)
             to the desired GUID's array size. The static analyzer indicates an error when output parameter from
-            failed funciton is used, so the warning is suppressed */
+            failed function is used, so the warning is suppressed */
 #pragma warning(suppress: 6102)
             pguidDevClassPtr = new GUID[dwNumGuids];
         }
@@ -85,7 +85,7 @@ tstring _NetKVMQueryDeviceString(HDEVINFO hDeviceSet, PSP_DEVINFO_DATA DeviceInf
         }
         /* According to SetupDiGetDeviceRegistryProperty, the RequiredSize output parameter (&dwSize) is set
           to the required size of PropertyBuffer (szDeviceString) parameter. The static analyzer indicates
-          error when the output paramter from failed function, so the warnings is suppressed */
+          error when the output parameter from failed function, so the warning is suppressed */
 #pragma warning(suppress: 6102)
         szDeviceString = new TCHAR[(dwSize/sizeof(TCHAR))+1];
     }

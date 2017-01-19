@@ -309,7 +309,7 @@ public:
         }
         else
         {
-            CString sMessage = TEXT("Error: Not all required interaces are up\n");
+            CString sMessage = TEXT("Error: Not all required interfaces are up\n");
             if (!Client) sMessage += TEXT("Client interface is not initialized\n");
             if (!Control) sMessage += TEXT("Control interface is not initialized\n");
             if (!DataSpaces) sMessage += TEXT("Data interface is not initialized\n");

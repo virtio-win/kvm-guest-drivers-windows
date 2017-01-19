@@ -51,7 +51,7 @@ typedef enum _tag_eInspectedPacketType
 {
     iptUnicast,
     iptBroadcast,
-    iptMilticast,
+    iptMulticast,
     iptInvalid
 }eInspectedPacketType;
 

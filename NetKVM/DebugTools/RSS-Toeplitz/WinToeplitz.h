@@ -22,7 +22,7 @@ typedef struct _tagHASH_CALC_SG_BUF_ENTRY
 } HASH_CALC_SG_BUF_ENTRY, *PHASH_CALC_SG_BUF_ENTRY;
 
 EXTERN_C void toeplitzw_initialize(uint8_t *key, int keysize);
-EXTERN_C UINT32 ToeplitsHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, UINT8 *fullKey);
+EXTERN_C UINT32 ToeplitzHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, UINT8 *fullKey);
 
 EXTERN_C uint8_t workingkey[];
 

@@ -36,9 +36,9 @@ int _tmain(int argc, _TCHAR* argv[])
     int i;
     uint8_t vector[12];
 
-    unsigned long numSucessfullTCP = 0;
+    unsigned long numSuccessfulTCP = 0;
     unsigned long numFailedTCP = 0;
-    unsigned long numSucessfullIP = 0;
+    unsigned long numSuccessfulIP = 0;
     unsigned long numFailedIP = 0;
     ULONGLONG StartTickCount, FinishTickCount;
 
@@ -71,20 +71,20 @@ int _tmain(int argc, _TCHAR* argv[])
             sgBuffer[1].chunkPtr = vector + 8;
             sgBuffer[1].chunkLen = 4;
 
-            res = ToeplitsHash(sgBuffer, 1, workingkey);
+            res = ToeplitzHash(sgBuffer, 1, workingkey);
             if (res == testData[i].resultIP)
             {
-                ++numSucessfullIP;
+                ++numSuccessfulIP;
             }
             else
             {
                 ++numFailedIP;
                 printf("IP calculation failed for data sample %d\n", i);
             }
-            res = ToeplitsHash(sgBuffer, 2, workingkey);
+            res = ToeplitzHash(sgBuffer, 2, workingkey);
             if (res == testData[i].resultTCP)
             {
-                ++numSucessfullTCP;
+                ++numSuccessfulTCP;
             }
             else
             {
@@ -96,8 +96,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
     FinishTickCount = GetTickCount64();
 
-    printf("Correct IP calculations     %lu\n", numSucessfullIP);
-    printf("Correct TCP calculations    %lu\n", numSucessfullTCP);
+    printf("Correct IP calculations     %lu\n", numSuccessfulIP);
+    printf("Correct TCP calculations    %lu\n", numSuccessfulTCP);
     printf("Wrong IP calculations       %lu\n", numFailedIP);
     printf("Wrong TCP calculations      %lu\n", numFailedTCP);
     printf("Total test time             %lu Ms\n", FinishTickCount - StartTickCount);

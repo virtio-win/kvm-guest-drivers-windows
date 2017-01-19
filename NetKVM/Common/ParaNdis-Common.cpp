@@ -749,7 +749,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 #if PARANDIS_SUPPORT_RSC
         if (pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU)
         {
-            // User virtio_net_hdr_v1 if RSC is implimented in QEMU
+            // User virtio_net_hdr_v1 if RSC is implemented in QEMU
             pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_rsc);
         }
         else
@@ -948,7 +948,7 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
     if (!pContext->RSS2QueueLength)
     {
         pContext->RSS2QueueLength = USHORT(rssTableSize);
-        pContext->RSS2QueueMap = (CPUPathesBundle **)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, rssTableSize * sizeof(*pContext->RSS2QueueMap),
+        pContext->RSS2QueueMap = (CPUPathBundle **)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, rssTableSize * sizeof(*pContext->RSS2QueueMap),
             PARANDIS_MEMORY_TAG, NormalPoolPriority);
         if (pContext->RSS2QueueMap == nullptr)
         {
@@ -1029,7 +1029,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 
     }
 
-    pContext->pPathBundles = (CPUPathesBundle *)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, pContext->nPathBundles * sizeof(*pContext->pPathBundles),
+    pContext->pPathBundles = (CPUPathBundle *)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, pContext->nPathBundles * sizeof(*pContext->pPathBundles),
         PARANDIS_MEMORY_TAG, NormalPoolPriority);
     if (pContext->pPathBundles == nullptr)
     {
@@ -1039,7 +1039,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
 
     for (i = 0; i < pContext->nPathBundles; i++)
     {
-        new (pContext->pPathBundles + i) CPUPathesBundle();
+        new (pContext->pPathBundles + i) CPUPathBundle();
     }
 
     for (i = 0; i < pContext->nPathBundles; i++)
@@ -1105,7 +1105,7 @@ void ParaNdis_DeviceConfigureRSC(PARANDIS_ADAPTER *pContext)
         ((pContext->RSC.bIPv4EnabledQEMU) ? ((UINT64)1 << VIRTIO_NET_F_GUEST_RSC4) : 0) |
         ((pContext->RSC.bIPv6EnabledQEMU) ? ((UINT64)1 << VIRTIO_NET_F_GUEST_RSC6) : 0);
 
-    DPrintf(0, ("Updateing offload settings with %I64x", GuestOffloads));
+    DPrintf(0, ("Updating offload settings with %I64x", GuestOffloads));
 
     ParaNdis_UpdateGuestOffloads(pContext, GuestOffloads);
 #else
@@ -1113,15 +1113,15 @@ UNREFERENCED_PARAMETER(pContext);
 #endif /* PARANDIS_SUPPORT_RSC */
 }
 
-NDIS_STATUS ParaNdis_DeviceConfigureMultiqQueue(PARANDIS_ADAPTER *pContext)
+NDIS_STATUS ParaNdis_DeviceConfigureMultiQueue(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     DEBUG_ENTRY(0);
 
     if (pContext->nPathBundles > 1)
     {
-        u16 nPathes = u16(pContext->nPathBundles);
-        if (!pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET, &nPathes, sizeof(nPathes), NULL, 0, 2))
+        u16 nPaths = u16(pContext->nPathBundles);
+        if (!pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET, &nPaths, sizeof(nPaths), NULL, 0, 2))
         {
             DPrintf(0, ("[%s] - Sending MQ control message failed\n", __FUNCTION__));
             status = NDIS_STATUS_DEVICE_FAILED;
@@ -1151,7 +1151,7 @@ NDIS_STATUS ParaNdis_DeviceEnterD0(PARANDIS_ADAPTER *pContext)
     pContext->bEnableInterruptHandlingDPC = TRUE;
     ParaNdis_SynchronizeLinkState(pContext);
     ParaNdis_AddDriverOKStatus(pContext);
-    ParaNdis_DeviceConfigureMultiqQueue(pContext);
+    ParaNdis_DeviceConfigureMultiQueue(pContext);
     ParaNdis_DeviceConfigureRSC(pContext);
     ParaNdis_UpdateMAC(pContext);
     ParaNdis_KickRX(pContext);
@@ -1340,7 +1340,7 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 
         for (i = 0; i < pContext->nPathBundles; i++)
         {
-            pContext->pPathBundles[i].~CPUPathesBundle();
+            pContext->pPathBundles[i].~CPUPathBundle();
         }
         NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->pPathBundles, PARANDIS_MEMORY_TAG);
         pContext->pPathBundles = nullptr;
@@ -1429,7 +1429,7 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacke
     return FALSE;
 }
 
-BOOLEAN ParaNdis_PerformPacketAnalyzis(
+BOOLEAN ParaNdis_PerformPacketAnalysis(
 #if PARANDIS_SUPPORT_RSS
                             PPARANDIS_RSS_PARAMS RSSParameters,
 #endif
@@ -1629,11 +1629,11 @@ OS's upper layer and stops indicating when nPacketsToIndicate drops to zero.
 When nPacketsToIndicate reaches zero, the loop operates in the following way:
 ProcessRxRing fetches the ready-to-process packet from virtqueue and places
 them into receiving queues, but the packets are not indicated by
-ProcessReceiveQueue; OS has no packets to be reinserted into the virtuqeue,
+ProcessReceiveQueue; OS has no packets to be reinserted into the virtqueue,
 virtqueue eventually becomes empty and RxDPCWorkBody's loop exits  */
 
 static
-BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathesBundle *pathBundle, ULONG nPacketsToIndicate)
+BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathBundle *pathBundle, ULONG nPacketsToIndicate)
 {
     BOOLEAN res = FALSE;
     bool rxPathOwner = false;
@@ -1721,7 +1721,7 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
 
     InterlockedIncrement(&pContext->counterDPCInside);
 
-    CPUPathesBundle *pathBundle = nullptr;
+    CPUPathBundle *pathBundle = nullptr;
 
     if (pContext->nPathBundles == 1)
     {

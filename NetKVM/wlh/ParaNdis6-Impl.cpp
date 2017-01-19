@@ -215,7 +215,7 @@ static BOOLEAN MiniportInterrupt(
         return FALSE;
     }
 
-    PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
+    PARANDIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
 
     if(!pContext->bDeviceInitialized) {
         *QueueDefaultInterruptDpc = FALSE;
@@ -279,7 +279,7 @@ static BOOLEAN MiniportMSIInterrupt(
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
 
-    PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
+    PARANDIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
 
     *TargetProcessors = 0;
 

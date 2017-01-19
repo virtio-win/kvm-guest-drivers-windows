@@ -63,7 +63,7 @@ static eInspectedPacketType QueryPacketType(PVOID data)
     if (ETH_IS_BROADCAST(data))
         return iptBroadcast;
     if (ETH_IS_MULTICAST(data))
-        return iptMilticast;
+        return iptMulticast;
     return iptUnicast;
 }
 
@@ -1441,7 +1441,7 @@ BOOLEAN ParaNdis_OnLegacyInterrupt(
         return FALSE;
     }
 
-    PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
+    PARANDIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
     ParaNdis_VirtIODisableIrqSynchronized(pContext, isAny);
     InterlockedOr(&pContext->InterruptStatus, (LONG) ((status & isControl) | isReceive | isTransmit));
     *pRunDpc = TRUE;
@@ -1462,7 +1462,7 @@ BOOLEAN ParaNdis_OnQueuedInterrupt(
     }
     else
     {
-        PARADNIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
+        PARANDIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
         InterlockedOr(&pContext->InterruptStatus, (LONG)knownInterruptSources);
         ParaNdis_VirtIODisableIrqSynchronized(pContext, knownInterruptSources);
         *pRunDpc = TRUE;
@@ -1549,7 +1549,7 @@ static void ReuseReceiveBufferPowerOff(PARANDIS_ADAPTER *pContext, pIONetDescrip
 
 /**********************************************************
 It is called from Tx processing routines
-Gets all the fininshed buffer from VirtIO TX path and
+Gets all the finished buffer from VirtIO TX path and
 returns them to NetFreeSendBuffers
 
 Must be called with &pContext->SendLock acquired
@@ -1661,7 +1661,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
         virtqueue_enable_cb_delayed(pContext->NetSendQueue);
         result.error = cpeNoBuffer;
     }
-    else if (Params->offloalMss && bUseCopy)
+    else if (Params->offloadMss && bUseCopy)
     {
         result.error = cpeInternalError;
         DPrintf(0, ("[%s] ERROR: expecting SG for TSO! (%d buffers, %d bytes)", __FUNCTION__,
@@ -1811,7 +1811,7 @@ tCopyPacketResult ParaNdis_DoSubmitPacket(PARANDIS_ADAPTER *pContext, tTxOperati
                     pContext->Statistics.ifHCOutBroadcastOctets += result.size;
                     pContext->Statistics.ifHCOutBroadcastPkts++;
                     break;
-                case iptMilticast:
+                case iptMulticast:
                     pContext->Statistics.ifHCOutMulticastOctets += result.size;
                     pContext->Statistics.ifHCOutMulticastPkts++;
                     break;
@@ -1998,7 +1998,7 @@ tCopyPacketResult ParaNdis_DoCopyPacketData(
                         pContext->Statistics.ifHCOutBroadcastOctets += reportedSize;
                         pContext->Statistics.ifHCOutBroadcastPkts++;
                         break;
-                    case iptMilticast:
+                    case iptMulticast:
                         pContext->Statistics.ifHCOutMulticastOctets += reportedSize;
                         pContext->Statistics.ifHCOutMulticastPkts++;
                         break;
@@ -2036,7 +2036,7 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PVOID address, UINT len
         case iptBroadcast:
             b = pContext->PacketFilter & NDIS_PACKET_TYPE_BROADCAST;
             break;
-        case iptMilticast:
+        case iptMulticast:
             b = pContext->PacketFilter & NDIS_PACKET_TYPE_ALL_MULTICAST;
             if (!b && (pContext->PacketFilter & NDIS_PACKET_TYPE_MULTICAST))
             {
@@ -2159,7 +2159,7 @@ static UINT ParaNdis_ProcessRxPath(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacket
                         pContext->Statistics.ifHCInBroadcastPkts++;
                         pContext->Statistics.ifHCInBroadcastOctets += length;
                         break;
-                    case iptMilticast:
+                    case iptMulticast:
                         pContext->Statistics.ifHCInMulticastPkts++;
                         pContext->Statistics.ifHCInMulticastOctets += length;
                         break;

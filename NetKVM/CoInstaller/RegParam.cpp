@@ -19,7 +19,7 @@
 #define REG_PARAM_EDIT_TYPE_LIM_VNAME   TEXT("LimitText")
 #define REG_PARAM_EDIT_TYPE_UCASE_VNAME TEXT("UpperCase")
 
-#define REG_PARAM_INFO_DELIMETER        TEXT("-----------------------------------------------------")
+#define REG_PARAM_INFO_DELIMITER        TEXT("-----------------------------------------------------")
 #define REG_PARAM_INFO_IDENT            TEXT("  ")
 
 static const LPCTSTR RegParamTypes[] =
