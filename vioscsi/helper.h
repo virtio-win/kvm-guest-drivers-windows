@@ -26,8 +26,9 @@
 #if (NTDDI_VERSION > NTDDI_WIN7)
 #include <srbhelper.h>
 
+// Note: SrbGetCdbLength is defined in srbhelper.h
 FORCEINLINE ULONG
-SrbGetCdbLenght(_In_ PVOID Srb) {
+SrbGetCdbLength32(_In_ PVOID Srb) {
     ULONG CdbLen32 = 0;
     UCHAR CdbLen8 = 0;
     SrbGetScsiData(Srb, &CdbLen8, &CdbLen32, NULL, NULL, NULL);
@@ -56,7 +57,7 @@ SrbGetPnpInfo(_In_ PVOID Srb, ULONG* PnPFlags, ULONG* PnPAction) {
 #define SRB_EXTENSION(Srb) SrbGetMiniportContext(Srb)
 #define SRB_FUNCTION(Srb) SrbGetSrbFunction(Srb)
 #define SRB_CDB(Srb) SrbGetCdb(Srb)
-#define SRB_CDB_LENGTH(Srb) SrbGetCdbLenght(Srb)
+#define SRB_CDB_LENGTH(Srb) SrbGetCdbLength32(Srb)
 #define SRB_FLAGS(Srb) SrbGetSrbFlags(Srb)
 #define SRB_PATH_ID(Srb) SrbGetPathId(Srb)
 #define SRB_TARGET_ID(Srb) SrbGetTargetId(Srb)
@@ -84,7 +85,7 @@ SrbGetPnpInfo(_In_ PVOID Srb, ULONG* PnPFlags, ULONG* PnPAction) {
 #define SRB_LUN(Srb) Srb->Lun
 #define SRB_DATA_BUFFER(Srb) Srb->DataBuffer
 #define SRB_DATA_TRANSFER_LENGTH(Srb) Srb->DataTransferLength
-#define SRB_LENGTH(Srb) Srb->Lenght
+#define SRB_LENGTH(Srb) Srb->Length
 #define SRB_WMI_DATA(Srb) (PSCSI_WMI_REQUEST_BLOCK)Srb
 #define SRB_GET_SENSE_INFO(Srb, senseInfoBuffer, senseInfoBufferLen) senseInfoBuffer = Srb->SenseInfoBuffer;senseInfoBufferLen = Srb->SenseInfoBufferLength
 #define SRB_GET_PNP_INFO(Srb, PnPFlags, PnPAction) PnPFlags = ((PSCSI_PNP_REQUEST_BLOCK)Srb)->SrbPnPFlags; PnPAction = ((PSCSI_PNP_REQUEST_BLOCK)Srb)->PnPAction

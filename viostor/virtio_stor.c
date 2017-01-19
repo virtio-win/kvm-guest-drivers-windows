@@ -810,7 +810,7 @@ VirtIoAdapterControl(
     ULONG                             Index;
     PADAPTER_EXTENSION                adaptExt;
     SCSI_ADAPTER_CONTROL_STATUS       status = ScsiAdapterControlUnsuccessful;
-    BOOLEAN SupportedConrolTypes[5] = {TRUE, TRUE, TRUE, FALSE, FALSE};
+    BOOLEAN SupportedControlTypes[5] = {TRUE, TRUE, TRUE, FALSE, FALSE};
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
@@ -827,7 +827,7 @@ VirtIoAdapterControl(
             5;
         for (Index = 0; Index < AdjustedMaxControlType; Index++) {
             ControlTypeList->SupportedTypeList[Index] =
-                SupportedConrolTypes[Index];
+                SupportedControlTypes[Index];
         }
         status = ScsiAdapterControlSuccess;
         break;

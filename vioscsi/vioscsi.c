@@ -212,13 +212,13 @@ VioScsiSaveInquiryData(
     );
 
 GUID VioScsiWmiExtendedInfoGuid = VioScsiWmi_ExtendedInfo_Guid;
-GUID VioScsiWmiAdaperInformationQueryGuid = MS_SM_AdapterInformationQueryGuid;
+GUID VioScsiWmiAdapterInformationQueryGuid = MS_SM_AdapterInformationQueryGuid;
 GUID VioScsiWmiPortInformationMethodsGuid = MS_SM_PortInformationMethodsGuid;
 
 SCSIWMIGUIDREGINFO VioScsiGuidList[] =
 {
    { &VioScsiWmiExtendedInfoGuid, 1, 0 },
-   { &VioScsiWmiAdaperInformationQueryGuid, 1, 0 },
+   { &VioScsiWmiAdapterInformationQueryGuid, 1, 0 },
    { &VioScsiWmiPortInformationMethodsGuid, 1, 0 },
 };
 
@@ -1086,7 +1086,7 @@ VioScsiAdapterControl(
     ULONG                             Index;
     PADAPTER_EXTENSION                adaptExt;
     SCSI_ADAPTER_CONTROL_STATUS       status = ScsiAdapterControlUnsuccessful;
-    BOOLEAN SupportedConrolTypes[5] = {TRUE, TRUE, TRUE, FALSE, FALSE};
+    BOOLEAN SupportedControlTypes[5] = {TRUE, TRUE, TRUE, FALSE, FALSE};
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
@@ -1104,7 +1104,7 @@ ENTER_FN();
             5;
         for (Index = 0; Index < AdjustedMaxControlType; Index++) {
             ControlTypeList->SupportedTypeList[Index] =
-                SupportedConrolTypes[Index];
+                SupportedControlTypes[Index];
         }
         status = ScsiAdapterControlSuccess;
         break;

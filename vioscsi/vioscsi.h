@@ -4,7 +4,7 @@
  * File: vioscsi.h
  *
  * Main include file
- * This file contains vrious routines and globals
+ * This file contains various routines and globals
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
