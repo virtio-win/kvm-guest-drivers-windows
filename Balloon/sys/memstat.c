@@ -66,7 +66,7 @@ static ULARGE_INTEGER Counters[_LastCounter];
 
 /*
  * 32-bit page counters overflows at 16Tb.
- * This applyes to PageReadCount, DirtyPageWriteCount and PageFaultCount.
+ * This applies to PageReadCount, DirtyPageWriteCount and PageFaultCount.
  * PageReadIoCount depends on workload and uses 64-256Kb in average, can be overflowed too.
  *
  * AvailablePages and NumberOfPhysicalPages are current values.

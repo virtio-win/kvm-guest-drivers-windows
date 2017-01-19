@@ -22,7 +22,7 @@ rem ============================================================================
 
 rem This is a list of supported build target specifications A_B where A is the
 rem VS project configuration name and B is the corresponding platform identifier
-rem used in log file names and intemediate directory names. Either of the two can
+rem used in log file names and intermediate directory names. Either of the two can
 rem be used in the <target_os_version> command line argument.
 set SUPPORTED_BUILD_SPECS=WinXP_wxp Win2k3_wnet Vista_wlh Win7_win7 Win8_win8 Win8.1_win81 Win10_win10
 

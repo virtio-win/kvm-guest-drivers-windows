@@ -15,7 +15,7 @@ Rem This script was made to run Static Driver Verifier.
 Rem This script was Tested only on Windows 2008R2 and visual studio 2012.
 Rem ver SdvTool 1.0.0.0
 
-REM for running auto from build system use without any paramters.
+REM for running auto from build system use without any parameters.
 SETLOCAL
 IF "%~1"=="" ( SET var=1)
 IF "%~1"=="" ( Goto PRERUN)
@@ -55,7 +55,7 @@ if "%var%"=="5" ( Goto PRERUN)
 if "%var%"=="6" ( Goto PRERUN)
 
         Echo       *******************************************************************
-        Echo       *     Wrong Opertation Argument,Please Try Again in 5 sec ...     *
+        Echo       *     Wrong Operation Argument, Please Try Again in 5 sec ...     *
         Echo       *******************************************************************
         Ping -n 5 127.0.0.1 > NUL
         Goto Menu

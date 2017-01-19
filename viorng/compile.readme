@@ -1,6 +1,6 @@
-For successfull compilation the next tools needed to be installed on system:
+For successful compilation the following tools needed to be installed on system:
 
-- Microsoft VS12 (VS 2013)
+- Microsoft VS14 (VS 2015)
 - Microsoft VDK 8.1
 - Microsoft ADK 8.1
 - Microsoft CNG SDK *note1
