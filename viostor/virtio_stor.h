@@ -69,6 +69,9 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define VIOBLK_POOL_TAG        'BoiV'
 
+//#define DBG 1
+//#define COM_DEBUG 1
+
 #pragma pack(1)
 typedef struct virtio_blk_config {
     /* The capacity (in 512-byte sectors). */
@@ -159,10 +162,10 @@ typedef struct _ADAPTER_EXTENSION {
     PGROUP_AFFINITY       pmsg_affinity;
     PSTOR_DPC             dpc;
     BOOLEAN               dpc_ok;
-
+#ifdef DBG
     ULONG                 srb_cnt;
     ULONG                 inqueue_cnt;
-    ULONG                 g_cnt;
+#endif
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
 #if (INDIRECT_SUPPORTED == 1)
@@ -182,10 +185,12 @@ typedef struct _SRB_EXTENSION {
     ULONG                 in;
     ULONG                 Xfer;
     ULONG                 MessageID;
-    UCHAR                 cpu;
     BOOLEAN               fua;
 #if INDIRECT_SUPPORTED
     VRING_DESC_ALIAS      desc[VIRTIO_MAX_SG];
+#endif
+#if DBG
+    UCHAR                 cpu;
 #endif
 }SRB_EXTENSION, *PSRB_EXTENSION;
 

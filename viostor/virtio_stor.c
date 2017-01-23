@@ -785,12 +785,14 @@ VirtIoStartIo(
         case SRB_FUNCTION_RESET_DEVICE:
         case SRB_FUNCTION_RESET_LOGICAL_UNIT: {
             CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
+#ifdef DBG
             RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s RESET (%p) Function %x Cnt %d InQueue %d\n", __FUNCTION__, Srb, SRB_FUNCTION(Srb), adaptExt->srb_cnt, adaptExt->inqueue_cnt));
             for (USHORT i = 0; i < adaptExt->num_queues; i++) {
                 if (adaptExt->vq[i]) {
                     RhelDbgPrint(TRACE_LEVEL_ERROR, ("%d indx %d num_free %d\n", i, adaptExt->vq[i]->index, adaptExt->vq[i]->num_free));
                 }
             }
+#endif
             return TRUE;
         }
         case SRB_FUNCTION_FLUSH:
@@ -1014,6 +1016,7 @@ VirtIoBuildIo(
     PSTOR_SCATTER_GATHER_LIST sgList;
     ULONGLONG             lba;
     ULONG                 blocks;
+#ifdef DBG
 #if (NTDDI_VERSION >= NTDDI_WIN7)
     PROCESSOR_NUMBER ProcNumber;
     ULONG processor = KeGetCurrentProcessorNumberEx(&ProcNumber);
@@ -1021,22 +1024,24 @@ VirtIoBuildIo(
 #else
     ULONG cpu = KeGetCurrentProcessorNumber();
 #endif
+#endif
 
     cdb      = SRB_CDB(Srb);
     srbExt   = SRB_EXTENSION(Srb);
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-
+#ifdef DBG
     InterlockedIncrement((LONG volatile*)&adaptExt->srb_cnt);
-    if (adaptExt->g_cnt++ >= 512) {
-        adaptExt->g_cnt = 0;
-    }
+#endif
     if(SRB_PATH_ID(Srb) || SRB_TARGET_ID(Srb) || SRB_LUN(Srb)) {
         CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_NO_DEVICE);
         return FALSE;
     }
 
     RtlZeroMemory(srbExt, sizeof(*srbExt));
+
+#ifdef DBG
     srbExt->cpu = (UCHAR)cpu;
+#endif
 
     switch (cdb->CDB6GENERIC.OperationCode) {
         case SCSIOP_READ:
@@ -1406,8 +1411,9 @@ CompleteSRB(
 {
 
     PADAPTER_EXTENSION adaptExt= (PADAPTER_EXTENSION)DeviceExtension;
+#ifdef DBG
     InterlockedDecrement((LONG volatile*)&adaptExt->srb_cnt);
-
+#endif
     StorPortNotification(RequestComplete,
                          DeviceExtension,
                          Srb);
@@ -1500,7 +1506,9 @@ VioStorCompleteRequest(
         virtqueue_disable_cb(vq);
         while ((vbr = (pblk_req)virtqueue_get_buf(vq, &len)) != NULL) {
             InsertTailList(&complete_list, &vbr->list_entry);
+#ifdef DBG
             InterlockedDecrement((LONG volatile*)&adaptExt->inqueue_cnt);
+#endif
         }
     } while (!virtqueue_enable_cb(vq));
     VioStorVQUnlock(DeviceExtension, MessageID, &queueLock, bIsr);
