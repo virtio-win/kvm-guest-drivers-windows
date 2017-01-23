@@ -33,10 +33,10 @@ RhelDoFlush(
     )
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    PSRB_EXTENSION srbExt        = SRB_EXTENSION(Srb);
-    ULONG               fragLen;
-    PVOID               va;
-    ULONGLONG           pa;
+    PSRB_EXTENSION      srbExt   = SRB_EXTENSION(Srb);
+    ULONG               fragLen = 0UL;
+    PVOID               va = NULL;
+    ULONGLONG           pa = 0ULL;
 
     ULONG               QueueNumber = 0;
     ULONG               OldIrql = 0;
@@ -56,11 +56,10 @@ RhelDoFlush(
         STARTIO_PERFORMANCE_PARAMETERS param;
         param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
         status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
-        if (status == STOR_STATUS_SUCCESS) {
+        if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
            MessageId = param.MessageNumber;
            QueueNumber = MessageId - 1;
            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s srb %p, cpu %d :: QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",  __FUNCTION__, Srb, srbExt->cpu, QueueNumber, param.MessageNumber, param.ChannelNumber));
-//FIXME
         }
         else {
            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortGetStartIoPerfParams failed. srb %p cpu %d status 0x%x.\n",__FUNCTION__, Srb, srbExt->cpu, status));
@@ -92,21 +91,19 @@ RhelDoFlush(
                      &srbExt->vbr.sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->vbr, va, pa) >= 0) {
+        notify = virtqueue_kick_prepare(vq);
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
         result = TRUE;
         InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
-//        notify = virtqueue_kick_prepare(vq);
     }
     else {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s Can not add packet to queue %d.\n", __FUNCTION__, QueueNumber));
         StorPortBusy(DeviceExtension, 2);
-//FIXME
     }
     if (notify) {
-//        virtqueue_notify(vq);
+        virtqueue_notify(vq);
     }
-virtqueue_kick_always(vq);
 
     return result;
 }
@@ -117,8 +114,8 @@ RhelDoReadWrite(PVOID DeviceExtension,
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSRB_EXTENSION      srbExt   = SRB_EXTENSION(Srb);
-    PVOID               va;
-    ULONGLONG           pa;
+    PVOID               va = NULL;
+    ULONGLONG           pa = 0ULL;
 
     ULONG               QueueNumber = 0;
     ULONG               OldIrql = 0;
@@ -135,7 +132,7 @@ RhelDoReadWrite(PVOID DeviceExtension,
         STARTIO_PERFORMANCE_PARAMETERS param;
         param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
         status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
-        if (status == STOR_STATUS_SUCCESS) {
+        if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
            MessageId = param.MessageNumber;
            QueueNumber = MessageId - 1;
            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s srb %p, cpu %d :: QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n", __FUNCTION__, Srb, srbExt->cpu, QueueNumber, param.MessageNumber, param.ChannelNumber));
@@ -153,30 +150,34 @@ RhelDoReadWrite(PVOID DeviceExtension,
 
     srbExt->MessageID = MessageId;
     vq = adaptExt->vq[QueueNumber];
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
-                 ("<--->%s : QueueNumber 0x%x vq = %p\n", __FUNCTION__, QueueNumber, vq));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<--->%s : QueueNumber 0x%x vq = %p\n", __FUNCTION__, QueueNumber, vq));
 
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (virtqueue_add_buf(vq,
                      &srbExt->vbr.sg[0],
                      srbExt->out, srbExt->in,
-                     &srbExt->vbr, va, pa) >= 0){
+                     &srbExt->vbr, va, pa) >= 0) {
+        notify = virtqueue_kick_prepare(vq);
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
         InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
         result = TRUE;
-//        notify = virtqueue_kick_prepare(vq);
     }
     else {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
         RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s Can not add packet to queue %d.\n", __FUNCTION__, QueueNumber));
         StorPortBusy(DeviceExtension, 2);
-//FIXME
     }
     if (notify) {
-//        virtqueue_notify(vq);
+        virtqueue_notify(vq);
     }
-virtqueue_kick_always(vq);
 
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    if (adaptExt->num_queues > 1) {
+        if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
+           VioStorCompleteRequest(DeviceExtension, MessageId, FALSE);
+        }
+    }
+#endif
     return result;
 }
 
@@ -253,7 +254,16 @@ RhelGetSerialNumber(
     IN PVOID DeviceExtension
 )
 {
-    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG               QueueNumber = 0;
+    ULONG               OldIrql = 0;
+    ULONG               MessageId = 0;
+    STOR_LOCK_HANDLE    LockHandle = { 0 };
+    struct virtqueue    *vq = NULL;
+    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    QueueNumber = 0;
+    MessageId = 1;
+    vq = adaptExt->vq[QueueNumber];
 
     adaptExt->vbr.out_hdr.type = VIRTIO_BLK_T_GET_ID | VIRTIO_BLK_T_IN;
     adaptExt->vbr.out_hdr.sector = 0;
@@ -266,13 +276,15 @@ RhelGetSerialNumber(
     adaptExt->vbr.sg[2].physAddr = MmGetPhysicalAddress(&adaptExt->vbr.status);
     adaptExt->vbr.sg[2].length   = sizeof(adaptExt->vbr.status);
 
-    if (virtqueue_add_buf(adaptExt->vq[0],
+    VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+    if (virtqueue_add_buf(vq,
                      &adaptExt->vbr.sg[0],
                      1, 2,
                      &adaptExt->vbr, NULL, 0) >= 0) {
         InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
-        virtqueue_kick(adaptExt->vq[0]);
+        virtqueue_kick_always(vq);
     }
+    VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
 }
 
 VOID
