@@ -133,6 +133,13 @@ RhelGetDiskGeometry(
     IN PVOID DeviceExtension
     );
 
+VOID
+VioStorCompleteRequest(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN BOOLEAN bIsr
+    );
+
 PVOID
 VioStorPoolAlloc(
     IN PVOID DeviceExtension,
