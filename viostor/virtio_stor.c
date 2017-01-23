@@ -146,14 +146,6 @@ CompleteDPC(
     IN ULONG  MessageID
     );
 
-VOID
-CompleteRequest(
-    IN PVOID DeviceExtension,
-    IN ULONG MessageID,
-    IN BOOLEAN bIsr
-    );
-
-
 ULONG
 DriverEntry(
     IN PVOID  DriverObject,
@@ -516,76 +508,6 @@ VirtIoFindAdapter(
     return SP_RETURN_FOUND;
 }
 
-#if 0
-void CheckACPI(IN PVOID DeviceExtension)
-{
-    ULONG   status = STOR_STATUS_SUCCESS;
-
-    ACPI_EVAL_INPUT_BUFFER   inputData = { 0 };
-    PACPI_EVAL_OUTPUT_BUFFER acpiData = NULL;
-    PACPI_METHOD_ARGUMENT    argument = NULL;
-    ULONG                    acpiDataSize = 256;     // initial size, should be good enough for most cases
-    ULONG                    returnedLength = 0;
-    UCHAR                    gtfCommandCount = 0;
-
-    RhelDbgPrint(TRACE_LEVEL_FATAL, ("--->%s\n", __FUNCTION__));
-
-    inputData.Signature = ACPI_EVAL_INPUT_BUFFER_SIGNATURE;
-    inputData.MethodNameAsUlong = (ULONG)('TRIV');
-
-    status = StorPortAllocatePool(DeviceExtension,
-        acpiDataSize,
-        VIOBLK_POOL_TAG,
-        (PVOID*)&acpiData);
-
-    if (acpiData != NULL) {
-        // call API to get required buffer size
-        status = StorPortInvokeAcpiMethod(DeviceExtension,
-            NULL,
-            (ULONG)('TRIV'),
-            &inputData,
-            sizeof(ACPI_EVAL_INPUT_BUFFER),
-            (PVOID)acpiData,
-            acpiDataSize,
-            &returnedLength
-        );
-    }
-
-    // in case of the allocate buffer is too small, re-allocate buffer and retry the call
-    if ((status == STOR_STATUS_BUFFER_TOO_SMALL) && (acpiData->Length > acpiDataSize)) {
-        acpiDataSize = acpiData->Length;
-        StorPortFreePool(DeviceExtension, (PVOID)acpiData);
-        acpiData = NULL;
-        // re-allocate a bigger buffer
-        status = StorPortAllocatePool(DeviceExtension,
-            acpiDataSize,
-            VIOBLK_POOL_TAG,
-            (PVOID*)&acpiData);
-
-        if (acpiData != NULL) {
-            status = StorPortInvokeAcpiMethod(DeviceExtension,
-                NULL,
-                (ULONG)('TRIV'),
-                &inputData,
-                sizeof(ACPI_EVAL_INPUT_BUFFER),
-                (PVOID)acpiData,
-                acpiDataSize,
-                &returnedLength
-            );
-        }
-    }
-    if ((status == STOR_STATUS_SUCCESS) &&
-        (acpiData != NULL) &&
-        (acpiData->Signature == ACPI_EVAL_OUTPUT_BUFFER_SIGNATURE) &&
-        (acpiData->Count == 1)) {
-
-        argument = acpiData->Argument;
-        RhelDbgPrint(TRACE_LEVEL_FATAL, (" Type = %d DataLength = %d\n", argument->Type, argument->DataLength));
-    }
-    RhelDbgPrint(TRACE_LEVEL_FATAL, ("<---%s\n", __FUNCTION__));
-}
-#endif
-
 BOOLEAN
 VirtIoPassiveInitializeRoutine (
     IN PVOID DeviceExtension
@@ -599,7 +521,6 @@ VirtIoPassiveInitializeRoutine (
             CompleteDpcRoutine);
     }
     adaptExt->dpc_ok = TRUE;
-//    CheckACPI(DeviceExtension);
     return TRUE;
 }
 
@@ -755,7 +676,7 @@ VirtIoHwInitialize(
 
     if(!adaptExt->dump_mode && !adaptExt->sn_ok)
     {
-//TMP        RhelGetSerialNumber(DeviceExtension);
+        RhelGetSerialNumber(DeviceExtension);
     }
 
     ret = TRUE;
@@ -866,6 +787,11 @@ VirtIoStartIo(
         case SRB_FUNCTION_RESET_LOGICAL_UNIT: {
             CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
             RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s RESET (%p) Function %x Cnt %d InQueue %d\n", __FUNCTION__, Srb, SRB_FUNCTION(Srb), adaptExt->srb_cnt, adaptExt->inqueue_cnt));
+            for (USHORT i = 0; i < adaptExt->num_queues; i++) {
+                if (adaptExt->vq[i]) {
+                    RhelDbgPrint(TRACE_LEVEL_ERROR, ("%d indx %d num_free %d\n", i, adaptExt->vq[i]->index, adaptExt->vq[i]->num_free));
+                }
+            }
             return TRUE;
         }
         case SRB_FUNCTION_FLUSH:
@@ -975,7 +901,7 @@ VirtIoInterrupt(
     intReason = virtio_read_isr_status(&adaptExt->vdev);
     if ( intReason == 1 || adaptExt->dump_mode ) {
         if (!CompleteDPC(DeviceExtension, 1)) {
-            CompleteRequest(DeviceExtension, 1, TRUE);
+            VioStorCompleteRequest(DeviceExtension, 1, TRUE);
         }
         isInterruptServiced = TRUE;
     } else if (intReason == 3) {
@@ -996,6 +922,7 @@ VirtIoResetBus(
 {
     UNREFERENCED_PARAMETER( DeviceExtension );
     UNREFERENCED_PARAMETER( PathId );
+    RhelDbgPrint(TRACE_LEVEL_ERROR, ("<----> %s\n", __FUNCTION__));
     return TRUE;
 }
 
@@ -1192,7 +1119,7 @@ VirtIoMSInterruptRoutine (
         return TRUE;
     }
     if (!CompleteDPC(DeviceExtension, MessageID)) {
-        CompleteRequest(DeviceExtension, MessageID, TRUE);
+        VioStorCompleteRequest(DeviceExtension, MessageID, TRUE);
     }
     if (MessageID > adaptExt->msix_vectors) {
         RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s MessageID = %d\n", __FUNCTION__, MessageID));
@@ -1536,7 +1463,7 @@ UCHAR DeviceToSrbStatus(UCHAR status)
 }
 
 VOID
-CompleteRequest(
+VioStorCompleteRequest(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
     IN BOOLEAN bIsr
@@ -1590,9 +1517,6 @@ CompleteRequest(
             srbExt = SRB_EXTENSION(Srb);
             srbStatus = DeviceToSrbStatus(vbr->status);
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s srb %p, cpu %u :: QueueNumber %lu, MessageId %lu, srbExt->MessageId %lu.\n",  __FUNCTION__, Srb, srbExt->cpu, QueueNumber, MessageID, srbExt->MessageID));
-//            if (cpu != srbExt->cpu) {
-//                RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s srb %p, cpu %u srbExt->cpu %u :: QueueNumber %lu, MessageId %lu, srbExt->MessageId %lu.\n",  __FUNCTION__, Srb, cpu, srbExt->cpu, QueueNumber, MessageID, srbExt->MessageID));
-//            }
             if (srbExt->fua == TRUE) {
                 SRB_SET_SRB_STATUS(Srb, SRB_STATUS_PENDING);
                 if (!RhelDoFlush(DeviceExtension, Srb, TRUE, bIsr)) {
@@ -1606,8 +1530,7 @@ CompleteRequest(
         }
     }
 
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
-                 ("<---%s : MessageID 0x%x\n", __FUNCTION__, MessageID));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<---%s : MessageID 0x%x\n", __FUNCTION__, MessageID));
 }
 
 #pragma warning(disable: 4100 4701)
@@ -1620,7 +1543,7 @@ CompleteDpcRoutine(
     )
 {
     ULONG MessageID = PtrToUlong(SystemArgument1);
-    CompleteRequest(Context, MessageID, FALSE);
+    VioStorCompleteRequest(Context, MessageID, FALSE);
 }
 
 VOID
