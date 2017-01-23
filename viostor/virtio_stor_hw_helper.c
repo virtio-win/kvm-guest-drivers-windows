@@ -94,7 +94,9 @@ RhelDoFlush(
         notify = virtqueue_kick_prepare(vq);
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
         result = TRUE;
+#ifdef DBG
         InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
+#endif
     }
     else {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
@@ -159,7 +161,9 @@ RhelDoReadWrite(PVOID DeviceExtension,
                      &srbExt->vbr, va, pa) >= 0) {
         notify = virtqueue_kick_prepare(vq);
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+#ifdef DBG
         InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
+#endif
         result = TRUE;
     }
     else {
@@ -281,7 +285,9 @@ RhelGetSerialNumber(
                      &adaptExt->vbr.sg[0],
                      1, 2,
                      &adaptExt->vbr, NULL, 0) >= 0) {
+#ifdef DBG
         InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
+#endif
         virtqueue_kick_always(vq);
     }
     VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
