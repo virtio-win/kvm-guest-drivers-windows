@@ -167,7 +167,7 @@ typedef struct _ADAPTER_EXTENSION {
 #endif
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
-#if (INDIRECT_SUPPORTED == 1)
+#ifdef INDIRECT_SUPPORTED
 typedef struct _VRING_DESC_ALIAS
 {
     union
@@ -185,7 +185,7 @@ typedef struct _SRB_EXTENSION {
     ULONG                 Xfer;
     ULONG                 MessageID;
     BOOLEAN               fua;
-#if INDIRECT_SUPPORTED
+#ifdef INDIRECT_SUPPORTED
     VRING_DESC_ALIAS      desc[VIRTIO_MAX_SG];
 #endif
 #if DBG

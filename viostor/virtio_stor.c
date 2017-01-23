@@ -384,7 +384,7 @@ VirtIoFindAdapter(
 
     ConfigInfo->MaximumTransferLength = 0x00FFFFFF;
 
-#if (INDIRECT_SUPPORTED == 1)
+#ifdef INDIRECT_SUPPORTED
     if(!adaptExt->dump_mode) {
         adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
     }
@@ -714,8 +714,7 @@ VirtIoHwInitialize(
         }
     }
 
-    if(!adaptExt->dump_mode && !adaptExt->dpc_ok)
-    {
+    if(!adaptExt->dump_mode && !adaptExt->dpc_ok) {
         ret = StorPortEnablePassiveInitialization(DeviceExtension, VirtIoPassiveInitializeRoutine);
     }
 
@@ -1054,7 +1053,7 @@ VirtIoBuildIo(
     srbExt->vbr.out_hdr.sector = lba;
     srbExt->vbr.out_hdr.ioprio = 0;
     srbExt->vbr.req            = (PVOID)Srb;
-    srbExt->fua                = FALSE;//CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH) ? (cdb->CDB10.ForceUnitAccess == 1) : FALSE;
+    srbExt->fua                = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH) ? (cdb->CDB10.ForceUnitAccess == 1) : FALSE;
 
     if (SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT) {
         srbExt->vbr.out_hdr.type = VIRTIO_BLK_T_OUT;

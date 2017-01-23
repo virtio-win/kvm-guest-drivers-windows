@@ -16,7 +16,7 @@
 #include"virtio_stor_utils.h"
 
 
-#if (INDIRECT_SUPPORTED)
+#ifdef INDIRECT_SUPPORTED
 #define SET_VA_PA() { ULONG len; va = adaptExt->indirect ? srbExt->desc : NULL; \
                       pa = va ? StorPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0; \
                     }
