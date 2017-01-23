@@ -492,19 +492,6 @@ VirtIoFindAdapter(
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Page-aligned area at %p, size = %d\n", adaptExt->pageAllocationVa, adaptExt->pageAllocationSize));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Pool area at %p, size = %d\n", adaptExt->poolAllocationVa, adaptExt->poolAllocationSize));
 
-
-#if (NTDDI_VERSION > NTDDI_WIN7)
-    RhelDbgPrint(TRACE_LEVEL_FATAL, ("pmsg_affinity = %p\n",adaptExt->pmsg_affinity));
-    if (!adaptExt->dump_mode && (adaptExt->num_queues > 1) && (adaptExt->pmsg_affinity == NULL)) {
-        ULONG Status =
-        StorPortAllocatePool(DeviceExtension,
-                             sizeof(GROUP_AFFINITY) * (adaptExt->num_queues),
-                             VIOBLK_POOL_TAG,
-                             (PVOID*)&adaptExt->pmsg_affinity);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("pmsg_affinity = %p Status = %lu\n",adaptExt->pmsg_affinity, Status));
-    }
-#endif
-
     return SP_RETURN_FOUND;
 }
 
@@ -698,27 +685,20 @@ VirtIoHwInitialize(
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES)) {
                     adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
                     perfData.FirstRedirectionMessageNumber = 1;
-                    perfData.LastRedirectionMessageNumber = adaptExt->msix_vectors - 1;/*perfData.FirstRedirectionMessageNumber + adaptExt->num_queues;*/
-                    if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
-                        RtlZeroMemory((PCHAR)adaptExt->pmsg_affinity, sizeof (GROUP_AFFINITY)* (adaptExt->num_queues));
-                        adaptExt->perfFlags |= STOR_PERF_ADV_CONFIG_LOCALITY;
-                        perfData.MessageTargets = adaptExt->pmsg_affinity;
-#if (NTDDI_VERSION > NTDDI_WIN7)
-                        if (CHECKFLAG(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS)) {
-                            adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS;
-                            perfData.ConcurrentChannels = adaptExt->num_queues;
-                        }
-#endif
-                    }
+                    perfData.LastRedirectionMessageNumber = adaptExt->msix_vectors - 1;
                 }
 #if (NTDDI_VERSION > NTDDI_WIN7)
-                if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION_CURRENT_CPU)) {
+                if (CHECKFLAG(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS)) {
+                    adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS;
+                    perfData.ConcurrentChannels = adaptExt->num_queues;
+                }
+//                if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION_CURRENT_CPU)) {
 //                    adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION_CURRENT_CPU;
-                }
-#endif
-                if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
+//                }
+//                if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
 //                    adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO;
-                }
+//                }
+#endif
                 perfData.Flags = adaptExt->perfFlags;
                 RhelDbgPrint(TRACE_LEVEL_FATAL, ("Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
                     perfData.Version, perfData.Flags, perfData.ConcurrentChannels, perfData.FirstRedirectionMessageNumber, perfData.LastRedirectionMessageNumber));
@@ -726,20 +706,6 @@ VirtIoHwInitialize(
                 if (status != STOR_STATUS_SUCCESS) {
                     adaptExt->perfFlags = 0;
                     RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortInitializePerfOpts FALSE status = 0x%x\n", __FUNCTION__, status));
-                }
-                else if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY)){
-                    UCHAR msg = 0;
-                    PGROUP_AFFINITY ga;
-                    UCHAR cpu = 0;
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
-                        perfData.Version, perfData.Flags, perfData.ConcurrentChannels, perfData.FirstRedirectionMessageNumber, perfData.LastRedirectionMessageNumber));
-                    for (msg = 0; msg < adaptExt->num_queues + 1; msg++) {
-                        ga = &adaptExt->pmsg_affinity[msg];
-                        if ( ga->Mask > 0 && msg > 0) {
-                            cpu = RtlFindLeastSignificantBit((ULONGLONG)ga->Mask);
-                            RhelDbgPrint(TRACE_LEVEL_FATAL, ("MessageId = %d, QueueNum = %d, mask = 0x%lx group = %hu cpu = %hu\n", msg, msg-1, ga->Mask, ga->Group, cpu));
-                        }
-                    }
                 }
             }
             else {

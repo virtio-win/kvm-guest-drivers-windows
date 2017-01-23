@@ -159,7 +159,6 @@ typedef struct _ADAPTER_EXTENSION {
     ULONG                 system_io_bus_number;
 
     ULONG                 perfFlags;
-    PGROUP_AFFINITY       pmsg_affinity;
     PSTOR_DPC             dpc;
     BOOLEAN               dpc_ok;
 #ifdef DBG
