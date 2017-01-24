@@ -1,6 +1,7 @@
 #pragma once
 #include "ParaNdis-VirtQueue.h"
 #include "ParaNdis-AbstractPath.h"
+#include "ParaNdis_GuestAnnounce.h"
 
 class CNB;
 class CParaNdisTX;
@@ -231,6 +232,7 @@ public:
     bool DoPendingTasks(CNBL *nblHolder = nullptr);
 
     void CompleteOutstandingNBLChain(PNET_BUFFER_LIST NBL, ULONG Flags = 0);
+    void CompleteOutstandingInternalNBL(PNET_BUFFER_LIST NBL, BOOLEAN UnregisterOutstanding = TRUE);
 private:
 
     bool SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList);

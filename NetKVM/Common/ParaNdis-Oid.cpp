@@ -583,10 +583,28 @@ Common handler of IP-address assignment (DHCP finish)
 ***********************************************************/
 NDIS_STATUS ParaNdis_OnOidSetNetworkAddresses(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
+    UINT i, j, ipV4Count = 0;
+
     NETWORK_ADDRESS_LIST *pnal = (NETWORK_ADDRESS_LIST *)pOid->InformationBuffer;
     if (sizeof(NETWORK_ADDRESS_LIST) < pOid->InformationBufferLength)
     {
-        UINT i, j;
+        NETWORK_ADDRESS * addr;
+        PUCHAR ptr = (PUCHAR)(&pnal->Address[0]);
+
+        for (i = 0; i < (UINT)pnal->AddressCount; i++)
+        {
+            addr = (NETWORK_ADDRESS *)ptr;
+            if (addr->AddressType == NDIS_PROTOCOL_ID_TCP_IP)
+            {
+                ipV4Count++;
+            }
+            ptr += RTL_FIELD_SIZE(NETWORK_ADDRESS, AddressLength) + RTL_FIELD_SIZE(NETWORK_ADDRESS, AddressType);
+            ptr += addr->AddressLength;
+        }
+        if (ipV4Count)
+        {
+            pContext->gratArpPackets.DestroyNBLs();
+        }
         PUCHAR p = (PUCHAR)(&pnal->Address[0]);
         DPrintf(2, ("Received %d addresses, type %d\n", pnal->AddressCount, pnal->AddressType));
         for (i = 0; i < (UINT)pnal->AddressCount; ++i)
@@ -597,6 +615,7 @@ NDIS_STATUS ParaNdis_OnOidSetNetworkAddresses(PARANDIS_ADAPTER *pContext, tOidDe
                 && pnal->AddressType == NDIS_PROTOCOL_ID_TCP_IP)
             {
                 PNETWORK_ADDRESS_IP pIP = (PNETWORK_ADDRESS_IP)pna->Address;
+                pContext->gratArpPackets.CreateNBL(pIP->in_addr);
                 DPrintf(0, ("Received IP address %d.%d.%d.%d\n",
                     (pIP->in_addr >> 0) & 0xff,
                     (pIP->in_addr >> 8) & 0xff,

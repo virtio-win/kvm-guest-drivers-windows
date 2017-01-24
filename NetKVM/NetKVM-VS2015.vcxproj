@@ -648,9 +648,11 @@
     <ClInclude Include="Common\ParaNdis-VirtQueue.h" />
     <ClInclude Include="Common\ParaNdis_Debug.h" />
     <ClInclude Include="Common\ParaNdis_DebugHistory.h" />
+    <ClInclude Include="Common\ParaNdis_GuestAnnounce.h" />
     <ClInclude Include="Common\quverp.h" />
     <ClInclude Include="Common\virtio_net.h" />
     <ClInclude Include="wlh\ParaNdis6.h" />
+    <ClInclude Include="wlh\ParaNdis6_Driver.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="wlh\Parandis6.rc" />
@@ -667,6 +669,7 @@
     <ClCompile Include="Common\ParaNdis-Util.cpp" />
     <ClCompile Include="Common\ParaNdis-VirtIO.cpp" />
     <ClCompile Include="Common\ParaNdis-VirtQueue.cpp" />
+    <ClCompile Include="Common\ParaNdis_GuestAnnounce.cpp" />
     <ClCompile Include="Common\sw-offload.cpp" />
     <ClCompile Include="wlh\ParaNdis6-Driver.cpp" />
     <ClCompile Include="wlh\ParaNdis6-Impl.cpp" />

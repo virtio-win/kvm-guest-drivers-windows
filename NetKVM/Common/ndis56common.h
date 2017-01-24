@@ -94,7 +94,7 @@ typedef struct _tagPARANDIS_RECEIVE_QUEUE
 #include "ParaNdis-TX.h"
 #include "ParaNdis-RX.h"
 #include "ParaNdis-CX.h"
-
+#include "ParaNdis_GuestAnnounce.h"
 #include "ParaNdis-VirtIO.h"
 
 struct CPUPathBundle : public CPlacementAllocatable {
@@ -340,10 +340,12 @@ typedef struct _tagPARANDIS_ADAPTER
     u64                     u64HostFeatures;
     u64                     u64GuestFeatures;
     BOOLEAN                 bConnected;
+    BOOLEAN                 bGuestAnnounced;
     NDIS_MEDIA_CONNECT_STATE fCurrentLinkState;
     BOOLEAN                 bEnableInterruptHandlingDPC;
     BOOLEAN                 bDoSupportPriority;
     BOOLEAN                 bLinkDetectSupported;
+    BOOLEAN                 bGuestAnnounceSupported;
     BOOLEAN                 bGuestChecksumSupported;
     BOOLEAN                 bControlQueueSupported;
     BOOLEAN                 bUseMergedBuffers;
@@ -377,6 +379,8 @@ typedef struct _tagPARANDIS_ADAPTER
 
     CMiniportStateMachine   m_StateMachine;
     CDataFlowStateMachine   m_RxStateMachine;
+
+    CGratuitousArpPackets    gratArpPackets;
 
     /* send part */
     NDIS_STATISTICS_INFO    Statistics;
@@ -698,6 +702,9 @@ VOID ParaNdis_DeviceFiltersUpdateVlanId(
     PARANDIS_ADAPTER *pContext);
 
 VOID ParaNdis_SynchronizeLinkState(
+    PARANDIS_ADAPTER *pContext);
+
+VOID ParaNdis_SendGratuitousArpPacket(
     PARANDIS_ADAPTER *pContext);
 
 VOID ParaNdis_SetLinkState(

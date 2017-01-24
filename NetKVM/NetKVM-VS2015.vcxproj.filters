@@ -88,6 +88,12 @@
     <ClInclude Include="Common\ParaNdis-VirtIO.h">
       <Filter>Header Files\Common</Filter>
     </ClInclude>
+    <ClInclude Include="Common\ParaNdis_GuestAnnounce.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="wlh\ParaNdis6_Driver.h">
+      <Filter>Header Files\wlh</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="wlh\Parandis6.rc">
@@ -143,6 +149,9 @@
     <ClCompile Include="Common\ParaNdis-VirtIO.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
+    <ClCompile Include="Common\ParaNdis_GuestAnnounce.cpp">
+      <Filter>Source Files\Common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="tools\cleanemptystrings.vbs">
@@ -160,5 +169,8 @@
     <None Include="tools\NetKVMTemporaryCert.pfx">
       <Filter>Tools</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Inf Include="$(SourceInfFile)" />
   </ItemGroup>
 </Project>
