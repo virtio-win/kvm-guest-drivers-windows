@@ -21,6 +21,8 @@
 #include "virtio_pci.h"
 #include "virtio.h"
 #include "virtio_ring.h"
+#include "virtio_stor_utils.h"
+#include "virtio_stor_hw_helper.h"
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
@@ -68,9 +70,6 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_MAX_SG           (3+MAX_PHYS_SEGMENTS)
 
 #define VIOBLK_POOL_TAG        'BoiV'
-
-//#define DBG 1
-//#define COM_DEBUG 1
 
 #pragma pack(1)
 typedef struct virtio_blk_config {

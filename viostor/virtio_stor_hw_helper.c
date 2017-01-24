@@ -390,7 +390,8 @@ VioStorVQLock(
         }
     }
     else {
-        if (adaptExt->num_queues == 1) {
+        if ((adaptExt->num_queues == 1) ||
+            (!CHECKFLAG(adaptExt->perfFlags, STOR_PERF_CONCURRENT_CHANNELS))) {
             if (!isr) {
                 ULONG oldIrql = 0;
                 StorPortAcquireMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), &oldIrql);
@@ -400,14 +401,7 @@ VioStorVQLock(
         else {
             NT_ASSERT(MessageID > 0);
             NT_ASSERT(MessageID <= adaptExt->num_queues);
-            if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_CONCURRENT_CHANNELS)) {
-                if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
-                    StorPortAcquireSpinLock(DeviceExtension, StartIoLock, &adaptExt->dpc[MessageID - 1], LockHandle);
-                }
-                else {
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s STOR_PERF_CONCURRENT_CHANNELS yes, STOR_PERF_ADV_CONFIG_LOCALITY no\n", __FUNCTION__));
-                }
-            }
+            StorPortAcquireSpinLock(DeviceExtension, StartIoLock, &adaptExt->dpc[MessageID - 1], LockHandle);
         }
     }
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<---%s MessageID = %d\n", __FUNCTION__, MessageID));
@@ -431,7 +425,8 @@ VioStorVQUnlock(
         }
     }
     else {
-        if (adaptExt->num_queues == 1) {
+        if ((adaptExt->num_queues == 1) ||
+            (!CHECKFLAG(adaptExt->perfFlags, STOR_PERF_CONCURRENT_CHANNELS))) {
             if (!isr) {
                 StorPortReleaseMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), LockHandle->Context.OldIrql);
             }
@@ -439,14 +434,7 @@ VioStorVQUnlock(
         else {
             NT_ASSERT(MessageID > 0);
             NT_ASSERT(MessageID <= adaptExt->num_queues);
-            if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_CONCURRENT_CHANNELS)) {
-                if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
-                    StorPortReleaseSpinLock(DeviceExtension, LockHandle);
-                }
-                else {
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s STOR_PERF_CONCURRENT_CHANNELS yes, STOR_PERF_ADV_CONFIG_LOCALITY no\n", __FUNCTION__));
-                }
-            }
+            StorPortReleaseSpinLock(DeviceExtension, LockHandle);
         }
     }
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<---%s MessageID = %d\n", __FUNCTION__, MessageID));

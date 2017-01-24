@@ -13,9 +13,6 @@
  *
 **********************************************************************/
 #include "virtio_stor.h"
-#include "virtio_stor_utils.h"
-#include "virtio_stor_hw_helper.h"
-#include "acpiioct.h"
 
 BOOLEAN IsCrashDumpMode;
 
@@ -605,6 +602,9 @@ VirtIoHwInitialize(
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("Host Features %llu gust features %llu\n", adaptExt->features, guestFeatures));
 
     adaptExt->msix_vectors = 0;
+    adaptExt->pageOffset = 0;
+    adaptExt->poolOffset = 0;
+
 #ifdef MSI_SUPPORTED
     while(StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageId = %x\n", msi_info.MessageId));
@@ -644,10 +644,6 @@ VirtIoHwInitialize(
         return ret;
     }
 
-    if (!adaptExt->dump_mode) {
-        adaptExt->dpc = (PSTOR_DPC)VioStorPoolAlloc(DeviceExtension, sizeof(STOR_DPC) * adaptExt->num_queues);
-    }
-
     memset(&adaptExt->inquiry_data, 0, sizeof(INQUIRYDATA));
 
     adaptExt->inquiry_data.ANSIVersion = 4;
@@ -660,11 +656,6 @@ VirtIoHwInitialize(
     StorPortMoveMemory(&adaptExt->inquiry_data.ProductId, "VirtIO", sizeof("VirtIO"));
     StorPortMoveMemory(&adaptExt->inquiry_data.ProductRevisionLevel, "0001", sizeof("0001"));
     StorPortMoveMemory(&adaptExt->inquiry_data.VendorSpecific, "0001", sizeof("0001"));
-
-    if(!adaptExt->dump_mode && !adaptExt->sn_ok)
-    {
-        RhelGetSerialNumber(DeviceExtension);
-    }
 
     ret = TRUE;
 
@@ -714,14 +705,24 @@ VirtIoHwInitialize(
         }
     }
 
-    if(!adaptExt->dump_mode && !adaptExt->dpc_ok) {
-        ret = StorPortEnablePassiveInitialization(DeviceExtension, VirtIoPassiveInitializeRoutine);
+    if (!adaptExt->dump_mode) {
+        if (adaptExt->dpc == NULL) {
+            adaptExt->dpc = (PSTOR_DPC)VioStorPoolAlloc(DeviceExtension, sizeof(STOR_DPC) * adaptExt->num_queues);
+        }
+        if ((adaptExt->dpc != NULL) && (adaptExt->dpc_ok == FALSE)) {
+            ret = StorPortEnablePassiveInitialization(DeviceExtension, VirtIoPassiveInitializeRoutine);
+        }
     }
 
     if (ret) {
         virtio_device_ready(&adaptExt->vdev);
     } else {
         virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
+    }
+
+    if(!adaptExt->dump_mode && !adaptExt->sn_ok)
+    {
+        RhelGetSerialNumber(DeviceExtension);
     }
 
     return ret;
@@ -752,7 +753,7 @@ VirtIoStartIo(
         case SRB_FUNCTION_RESET_LOGICAL_UNIT: {
             CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
 #ifdef DBG
-            RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s RESET (%p) Function %x Cnt %d InQueue %d\n", __FUNCTION__, Srb, SRB_FUNCTION(Srb), adaptExt->srb_cnt, adaptExt->inqueue_cnt));
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s RESET (%p) Function %x Cnt %d InQueue %d\n", __FUNCTION__, Srb, SRB_FUNCTION(Srb), adaptExt->srb_cnt, adaptExt->inqueue_cnt));
             for (USHORT i = 0; i < adaptExt->num_queues; i++) {
                 if (adaptExt->vq[i]) {
                     RhelDbgPrint(TRACE_LEVEL_ERROR, ("%d indx %d num_free %d\n", i, adaptExt->vq[i]->index, adaptExt->vq[i]->num_free));
