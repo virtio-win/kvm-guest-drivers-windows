@@ -20,6 +20,9 @@
 #include "kdebugprint.h"
 #include "evntrace.h"
 
+//#define DBG 1
+//#define COM_DEBUG 1
+
 #define CHECKBIT(value, nbit) virtio_is_feature_enabled(value, nbit)
 #define CHECKFLAG(value, flag) ((value & (flag)) == flag)
 #define SETFLAG(value, flag) (value |= (flag))
