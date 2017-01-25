@@ -179,6 +179,7 @@ private:
 
     ULONG m_MaxDataLength = 0;
     ULONG m_TransferSize = 0;
+    ULONG  m_LogIndex;
 
     UINT16 m_TCI = 0;
 

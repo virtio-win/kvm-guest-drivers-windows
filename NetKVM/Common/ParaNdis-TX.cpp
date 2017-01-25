@@ -1,5 +1,6 @@
 #include "ndis56common.h"
 #include "kdebugprint.h"
+#include "ParaNdis_DebugHistory.h"
 
 CNBL::CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath, CAllocationHelper<CNBL> *NBLAllocator, CAllocationHelper<CNB> *NBAllocator)
     : m_NBL(NBL)
@@ -11,6 +12,7 @@ CNBL::CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentT
     m_NBL->Scratch = this;
     m_LsoInfo.Value = NET_BUFFER_LIST_INFO(m_NBL, TcpLargeSendNetBufferListInfo);
     m_CsoInfo.Value = NET_BUFFER_LIST_INFO(m_NBL, TcpIpChecksumNetBufferListInfo);
+    ParaNdis_DebugNBLIn(NBL, m_LogIndex);
 }
 
 CNBL::~CNBL()
@@ -386,6 +388,7 @@ PNET_BUFFER_LIST CNBL::DetachInternalObject()
     NET_BUFFER_LIST_INFO(m_NBL, TcpLargeSendNetBufferListInfo) = m_LsoInfo.Value;
 
     auto Res = m_NBL;
+    ParaNdis_DebugNBLOut(m_LogIndex, Res);
     m_NBL = nullptr;
     return Res;
 }
