@@ -628,6 +628,17 @@ ULONG ParaNdis_GetIndexFromAffinity(KAFFINITY affinity);
 
 ULONG ParaNdis_GetSystemCPUCount();
 
+// returns system-wide CPU index in multi-group environment
+// returns regular CPU number in single-group environment
+ULONG FORCEINLINE ParaNdis_GetCurrentCPUIndex()
+{
+#if NDIS_SUPPORT_NDIS620
+    return KeGetCurrentProcessorNumberEx(NULL);
+#else
+    return KeGetCurrentProcessorNumber();
+#endif
+}
+
 template <size_t PrintWidth, size_t ColumnWidth, typename TTable, typename... AccessorsFuncs>
 void ParaNdis_PrintTable(int DebugPrintLevel, TTable table, size_t Size, LPCSTR Format, AccessorsFuncs... Accessors)
 {
