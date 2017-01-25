@@ -294,7 +294,7 @@ public:
         if (Control) Control->Release();
         if (DataSpaces) DataSpaces->Release();
         if (Client) ul = Client->Release();
-        PRINT("finished (%d)", ul);
+        //PRINT("finished (%d)", ul);
     }
     BOOL LoadFile(TCHAR *filename)
     {
@@ -454,7 +454,7 @@ DEBUG_EVENT_CHANGE_SYMBOL_STATE     ;
         __in ULONG Level
         )
     {
-        PRINT("%s");
+        PRINT("error 0x%X, level 0x%X", Error, Level);
         return DEBUG_STATUS_NO_CHANGE;
     }
     STDMETHOD(SessionStatus)(
@@ -566,43 +566,73 @@ void tDumpParser::ParseCrashData(tBugCheckStaticDataHeader *ph, ULONG64 databuff
     UINT i;
     for (i = 0; i < ph->ulMaxContexts; ++i)
     {
-        tBugCheckPerNicDataContent_V0 *pndc = (tBugCheckPerNicDataContent_V0 *)(ph->PerNicData - databuffer + (PUCHAR)ph);
-        pndc += i;
-        if (pndc->Context)
+        if (ph->PerNicDataVersion == 0)
         {
-            LONGLONG diffInt = (ph->qCrashTime.QuadPart - pndc->LastInterruptTimeStamp.QuadPart) / 10;
-            LONGLONG diffTx  = (ph->qCrashTime.QuadPart - pndc->LastTxCompletionTimeStamp.QuadPart) / 10;
-            PRINT(PRINT_SEPARATOR);
-            PRINT("Context %I64X:", pndc->Context);
-            PRINT("\tLastInterrupt %I64d us before crash", diffInt);
-            PRINT("\tLast Tx complete %I64d us before crash", diffTx);
-            PRINT("\tWaiting %d packets, %d free buffers", pndc->nofPacketsToComplete, pndc->nofReadyTxBuffers);
-            PRINT(PRINT_SEPARATOR);
+            tBugCheckPerNicDataContent_V0 *pndc = (tBugCheckPerNicDataContent_V0 *)(ph->PerNicData - databuffer + (PUCHAR)ph);
+            pndc += i;
+            if (pndc->Context)
+            {
+                LONGLONG diffInt = (ph->qCrashTime.QuadPart - pndc->LastInterruptTimeStamp.QuadPart) / 10;
+                LONGLONG diffTx = (ph->qCrashTime.QuadPart - pndc->LastTxCompletionTimeStamp.QuadPart) / 10;
+                PRINT(PRINT_SEPARATOR);
+                PRINT("Context %I64X:", pndc->Context);
+                PRINT("\tLastInterrupt %I64d us before crash", diffInt);
+                PRINT("\tLast Tx complete %I64d us before crash", diffTx);
+                PRINT("\tWaiting <unknown> packets, %d free buffers", pndc->nofReadyTxBuffers);
+                PRINT(PRINT_SEPARATOR);
+            }
+        }
+        else
+        {
+            PRINT("Unsupported per-NIC data version %d", ph->PerNicDataVersion);
         }
     }
-    tBugCheckStaticDataContent_V0 *pd = (tBugCheckStaticDataContent_V0 *)(ph->DataArea - databuffer + (PUCHAR)ph);
-    tBugCheckHistoryDataEntry *phist = (tBugCheckHistoryDataEntry *)(pd->HistoryData - databuffer + (PUCHAR)ph);
-    PRINT(PRINT_SEPARATOR);
-    if (pd->SizeOfHistory > 2)
+    if (ph->StaticDataVersion == 0)
     {
-        PRINT("History: version %d, %d entries of %d, current at %d", pd->HistoryDataVersion, pd->SizeOfHistory,  pd->SizeOfHistoryEntry, pd->CurrentHistoryIndex);
-        LONG Index = pd->CurrentHistoryIndex % pd->SizeOfHistory;
-        LONG EndIndex = Index;
-        ParseHistoryEntry(NULL, NULL, 0);
-        for (; Index < (LONG)pd->SizeOfHistory; Index++)
+        tBugCheckStaticDataContent_V0 *pd = (tBugCheckStaticDataContent_V0 *)(ph->DataArea - databuffer + (PUCHAR)ph);
+        tBugCheckHistoryDataEntry_V1 *phist = (tBugCheckHistoryDataEntry *)(pd->HistoryData - databuffer + (PUCHAR)ph);
+        PRINT(PRINT_SEPARATOR);
+        if (pd->SizeOfHistory > 2)
         {
-            ParseHistoryEntry(ph->qCrashTime.QuadPart, phist, Index);
+            PRINT("History: version %d, %d entries of %d, current at %d", pd->HistoryDataVersion, pd->SizeOfHistory, pd->SizeOfHistoryEntry, pd->CurrentHistoryIndex);
+            LONG Index = pd->CurrentHistoryIndex % pd->SizeOfHistory;
+            LONG EndIndex = Index;
+            ParseHistoryEntry(NULL, NULL, 0);
+            for (; Index < (LONG)pd->SizeOfHistory; Index++)
+            {
+                ParseHistoryEntry(ph->qCrashTime.QuadPart, phist, Index);
+            }
+            for (Index = 0; Index < EndIndex; Index++)
+            {
+                ParseHistoryEntry(ph->qCrashTime.QuadPart, phist, Index);
+            }
         }
-        for (Index = 0; Index < EndIndex; Index++)
+        else
         {
-            ParseHistoryEntry(ph->qCrashTime.QuadPart, phist, Index);
+            PRINT("History records are not available");
         }
+        PRINT(PRINT_SEPARATOR);
     }
-    else
+    else if (ph->StaticDataVersion == 1)
     {
-        PRINT("History records are not available");
+        tBugCheckStaticDataContent_V1 *pd = (tBugCheckStaticDataContent_V1 *)(ph->DataArea - databuffer + (PUCHAR)ph);
+        if (pd->PendingNblEntryVersion == 0)
+        {
+            tPendingNBlEntry_V0 *pNBL = (tPendingNBlEntry_V0 *)(pd->PendingNblData - databuffer + (PUCHAR)ph);
+            if (pd->MaxPendingNbl > 1)
+            {
+                PRINT(PRINT_SEPARATOR);
+                PRINT("Pending NBL%s, if any (time ago in us):", pd->fNBLOverflow ? "(was logging overflow)" : "");
+                for (ULONG i = 0; i < pd->MaxPendingNbl; ++i)
+                {
+                    ULONGLONG diff = ph->qCrashTime.QuadPart - pNBL[i].TimeStamp.QuadPart;
+                    if (pNBL[i].NBL == 0) continue;
+                    PRINT("[%05d] NBL %I64x %I64d", i, pNBL[i].NBL, diff);
+                }
+                PRINT(PRINT_SEPARATOR);
+            }
+        }
     }
-    PRINT(PRINT_SEPARATOR);
 }
 
 
@@ -628,7 +658,7 @@ void tDumpParser::FindOurTaggedCrashData(BOOL bWithSymbols)
                     if (size >= sizeof(tBugCheckDataLocation))
                     {
                         tBugCheckDataLocation *bcdl = (tBugCheckDataLocation *)ourBuffer;
-                        PRINT("Found NetKVM data at %I64X, size %d", bcdl->Address, bcdl->Size);
+                        PRINT("Found NetKVM data at %I64X, size %lld", bcdl->Address, bcdl->Size);
                         ULONG bufferSize= (ULONG)bcdl->Size;
                         ULONG bytesRead;
                         PVOID databuffer = malloc(bufferSize);
@@ -640,9 +670,9 @@ void tDumpParser::FindOurTaggedCrashData(BOOL bWithSymbols)
                                 PRINT("Retrieved %d bytes of data", bytesRead);
                                 if (bytesRead >= sizeof(tBugCheckStaticDataHeader))
                                 {
-                                    PRINT("Versions: status data %d, pre-NIC data %d, ptr size %d, %d contexts, crash time %I64X",
-                                        ph->StaticDataVersion, ph->PerNicDataVersion, ph->SizeOfPointer, ph->ulMaxContexts, ph->qCrashTime);
-                                    PRINT("Per-NIC data at %I64X, Static data at %I64X(%d bytes)", ph->PerNicData, ph->DataArea, ph->DataAreaSize);
+                                    PRINT("Versions: static data %d, per-NIC data %d, ptr size %d, %d contexts, crash time %I64X",
+                                        ph->StaticDataVersion, ph->PerNicDataVersion, ph->SizeOfPointer, ph->ulMaxContexts, ph->qCrashTime.QuadPart);
+                                    PRINT("Per-NIC data at %I64X, Static data at %I64X(%lld bytes)", ph->PerNicData, ph->DataArea, ph->DataAreaSize);
                                     ParseCrashData(ph, bcdl->Address, bytesRead, bWithSymbols);
                                 }
                             }
@@ -824,6 +854,10 @@ CString tDumpParser::GetProperty(eSystemProperty Prop)
     }
     return s;
 }
+
+#ifdef _DEBUG
+#define UNDER_DEBUGGING
+#endif
 
 int ParseDumpFile(int argc, TCHAR* argv[])
 {
