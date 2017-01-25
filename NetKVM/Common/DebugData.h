@@ -74,6 +74,8 @@ typedef struct _tagBugCheckDataLocation
 #define PARANDIS_DEBUG_STATIC_DATA_VERSION          0
 #define PARANDIS_DEBUG_PER_NIC_DATA_VERSION         0
 #define PARANDIS_DEBUG_HISTORY_DATA_VERSION         1
+#define PARANDIS_DEBUG_PENDING_NBL_ENTRY_VERSION    0
+
 /* This structure is NOT changeable */
 typedef struct _tagBugCheckStaticDataContent_V0
 {
@@ -127,6 +129,18 @@ typedef struct _tagBugCheckHistoryDataEntry_V1
     ULONG               lParam3;
     ULONG               lParam4;
 }tBugCheckHistoryDataEntry_V1;
+
+typedef struct _tagPendingNBlEntry_V0
+{
+    UINT64              NBL;
+    LARGE_INTEGER       TimeStamp;
+}tPendingNBlEntry_V0;
+
+#if (PARANDIS_DEBUG_PENDING_NBL_ENTRY_VERSION == 0)
+typedef tPendingNBlEntry_V0 tPendingNBlEntry;
+#elif (PARANDIS_DEBUG_PENDING_NBL_ENTRY_VERSION == 1)
+typedef tPendingNBlEntry_V1 tPendingNBlEntry;
+#endif
 
 
 #if (PARANDIS_DEBUG_STATIC_DATA_VERSION == 0)
