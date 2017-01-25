@@ -1729,10 +1729,10 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
     }
     else
     {
-        ULONG procNumber = KeGetCurrentProcessorNumber();
-        if (procNumber < pContext->nPathBundles)
+        ULONG procIndex = ParaNdis_GetCurrentCPUIndex();
+        if (procIndex < pContext->nPathBundles)
         {
-            pathBundle = pContext->pPathBundles + procNumber;
+            pathBundle = pContext->pPathBundles + procIndex;
         }
     }
     /* When DPC is scheduled for RSS processing, it may be assigned to CPU that has no
