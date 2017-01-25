@@ -71,7 +71,7 @@ typedef struct _tagBugCheckDataLocation
     UINT64              Size;
 }tBugCheckDataLocation;
 
-#define PARANDIS_DEBUG_STATIC_DATA_VERSION          0
+#define PARANDIS_DEBUG_STATIC_DATA_VERSION          1
 #define PARANDIS_DEBUG_PER_NIC_DATA_VERSION         0
 #define PARANDIS_DEBUG_HISTORY_DATA_VERSION         1
 #define PARANDIS_DEBUG_PENDING_NBL_ENTRY_VERSION    0
@@ -142,9 +142,19 @@ typedef tPendingNBlEntry_V0 tPendingNBlEntry;
 typedef tPendingNBlEntry_V1 tPendingNBlEntry;
 #endif
 
+typedef struct _tagBugCheckStaticDataContent_V1
+{
+    tBugCheckStaticDataContent_V0 StaticDataV0;
+    ULONG64             PendingNblData;
+    ULONG               MaxPendingNbl;
+    USHORT              PendingNblEntryVersion;
+    USHORT              fNBLOverflow;
+}tBugCheckStaticDataContent_V1;
 
 #if (PARANDIS_DEBUG_STATIC_DATA_VERSION == 0)
 typedef tBugCheckStaticDataContent_V0 tBugCheckStaticDataContent;
+#elif (PARANDIS_DEBUG_STATIC_DATA_VERSION == 1)
+typedef tBugCheckStaticDataContent_V1 tBugCheckStaticDataContent;
 #endif
 
 #if (PARANDIS_DEBUG_PER_NIC_DATA_VERSION == 0)
@@ -156,13 +166,6 @@ typedef tBugCheckHistoryDataEntry_V0 tBugCheckHistoryDataEntry;
 #elif (PARANDIS_DEBUG_HISTORY_DATA_VERSION == 1)
 typedef tBugCheckHistoryDataEntry_V1 tBugCheckHistoryDataEntry;
 #endif
-
-typedef struct _tagBugCheckStaticDataContent_V1
-{
-    UINT64              res1;
-    UINT64              res2;
-    UINT64              History;
-}tBugCheckStaticDataContent_V1;
 
 typedef struct _tagBugCheckPerNicDataContent_V1
 {
