@@ -121,13 +121,9 @@ BOOLEAN IsCompatibleAffinities(PGROUP_AFFINITY a1, PGROUP_AFFINITY a2)
 static
 CCHAR FindReceiveQueueForCurrentCpu(PPARANDIS_SCALING_SETTINGS RSSScalingSettings)
 {
-    PROCESSOR_NUMBER CurrProcNum;
     ULONG CurrProcIdx;
 
-    KeGetCurrentProcessorNumberEx(&CurrProcNum);
-    CurrProcIdx = KeGetProcessorIndexFromNumber(&CurrProcNum);
-
-    NETKVM_ASSERT(CurrProcIdx != INVALID_PROCESSOR_INDEX);
+    CurrProcIdx = ParaNdis_GetCurrentCPUIndex();
 
     if(CurrProcIdx >= RSSScalingSettings->CPUIndexMappingSize)
         return PARANDIS_RECEIVE_NO_QUEUE;
