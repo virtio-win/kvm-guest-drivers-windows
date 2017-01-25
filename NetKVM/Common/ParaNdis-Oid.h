@@ -67,6 +67,7 @@ NDIS_STATUS ParaNdis_OidQueryCopy(tOidDesc *pOid, PVOID pInfo, ULONG ulSize, BOO
 static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 NDIS_STATUS ParaNdis_OnOidSetMulticastList(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 NDIS_STATUS ParaNdis_OnSetPacketFilter(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
+NDIS_STATUS ParaNdis_OnOidSetNetworkAddresses(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 NDIS_STATUS ParaNdis_OnAddWakeupPattern(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 NDIS_STATUS ParaNdis_OnRemoveWakeupPattern(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 NDIS_STATUS ParaNdis_OnEnableWakeup(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);

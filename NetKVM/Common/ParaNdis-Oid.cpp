@@ -479,6 +479,7 @@ const char *ParaNdis_OidName(NDIS_OID oid)
     MAKECASE(OID_GEN_MAXIMUM_SEND_PACKETS)
     MAKECASE(OID_GEN_VENDOR_DRIVER_VERSION)
     MAKECASE(OID_GEN_SUPPORTED_GUIDS)
+    MAKECASE(OID_GEN_NETWORK_LAYER_ADDRESSES)
     MAKECASE(OID_GEN_TRANSPORT_HEADER_OFFSET)
     MAKECASE(OID_GEN_MEDIA_CAPABILITIES)
     MAKECASE(OID_GEN_PHYSICAL_MEDIUM)
@@ -575,6 +576,57 @@ MAKECASE(OID_TCP_TASK_IPSEC_OFFLOAD_V2_UPDATE_SA)
         }
         break;
     }
+}
+
+/**********************************************************
+Common handler of IP-address assignment (DHCP finish)
+***********************************************************/
+NDIS_STATUS ParaNdis_OnOidSetNetworkAddresses(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
+{
+    NETWORK_ADDRESS_LIST *pnal = (NETWORK_ADDRESS_LIST *)pOid->InformationBuffer;
+    if (sizeof(NETWORK_ADDRESS_LIST) < pOid->InformationBufferLength)
+    {
+        UINT i, j;
+        PUCHAR p = (PUCHAR)(&pnal->Address[0]);
+        DPrintf(2, ("Received %d addresses, type %d\n", pnal->AddressCount, pnal->AddressType));
+        for (i = 0; i < (UINT)pnal->AddressCount; ++i)
+        {
+            NETWORK_ADDRESS *pna = (NETWORK_ADDRESS *)p;
+            ULONG ulBufSize = pna->AddressLength * 2 + 1;
+            if (pna->AddressLength == sizeof(NETWORK_ADDRESS_IP)
+                && pnal->AddressType == NDIS_PROTOCOL_ID_TCP_IP)
+            {
+                PNETWORK_ADDRESS_IP pIP = (PNETWORK_ADDRESS_IP)pna->Address;
+                DPrintf(0, ("Received IP address %d.%d.%d.%d\n",
+                    (pIP->in_addr >> 0) & 0xff,
+                    (pIP->in_addr >> 8) & 0xff,
+                    (pIP->in_addr >> 16) & 0xff,
+                    (pIP->in_addr >> 24) & 0xff));
+            } else
+            {
+                PUCHAR TempString = (ulBufSize < 100) ? (PUCHAR) ParaNdis_AllocateMemory(pContext, ulBufSize) : NULL;
+                if (TempString)
+                {
+                    NdisZeroMemory(TempString, ulBufSize);
+                    for (j = 0; j < pna->AddressLength; ++j)
+                    {
+                        UCHAR digit;
+                        digit = pna->Address[j] >> 4;
+                        TempString[j * 2] = hexdigit(digit);
+                        digit = pna->Address[j] & 0xf;
+                        TempString[j * 2 + 1] = hexdigit(digit);
+                    }
+                }
+                DPrintf(0, ("address %d, type %d, len %d (%s)\n",
+                    i, pna->AddressType, pna->AddressLength, TempString ? TempString : (const PUCHAR)"do not know"));
+                if (TempString) NdisFreeMemory(TempString, 0, 0);
+            }
+            p += RTL_FIELD_SIZE(NETWORK_ADDRESS, AddressLength) + RTL_FIELD_SIZE(NETWORK_ADDRESS, AddressType);
+            p += pna->AddressLength;
+        }
+    }
+    *pOid->pBytesRead = pOid->InformationBufferLength;
+    return NDIS_STATUS_SUCCESS;
 }
 
 /**********************************************************
