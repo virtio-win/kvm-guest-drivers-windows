@@ -280,7 +280,7 @@ RhelGetSerialNumber(
     adaptExt->vbr.sg[2].physAddr = MmGetPhysicalAddress(&adaptExt->vbr.status);
     adaptExt->vbr.sg[2].length   = sizeof(adaptExt->vbr.status);
 
-    VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+//    VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (virtqueue_add_buf(vq,
                      &adaptExt->vbr.sg[0],
                      1, 2,
@@ -290,7 +290,7 @@ RhelGetSerialNumber(
 #endif
         virtqueue_kick_always(vq);
     }
-    VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+//    VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
 }
 
 VOID
