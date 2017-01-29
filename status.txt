@@ -1,3 +1,14 @@
+Date    29 Jan 2017
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm151
+
+Fixed bugs:
+BZ#1403550 - [RFE] viostor.sys Add multi-queue support 
+
+New Features:
+
+viostor: WinXP related code has been removed.
+
 
 Date    15 Jan 2017
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
