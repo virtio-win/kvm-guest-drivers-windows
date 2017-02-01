@@ -396,6 +396,11 @@ ENTER_FN();
      * only allocates when called for the first time so we need to always use this upper bound.
      */
     max_queues = min(max_cpus, adaptExt->scsi_config.num_queues);
+    if (adaptExt->num_queues > max_queues) {
+	RhelDbgPrint(TRACE_LEVEL_WARNING, ("Multiqueue can only use at most one queue per cpu."));
+        adaptExt->num_queues = max_queues;
+    }
+    
 
     /* This function is our only chance to allocate memory for the driver; allocations are not
      * possible later on. Even worse, the only allocation mechanism guaranteed to work in all
