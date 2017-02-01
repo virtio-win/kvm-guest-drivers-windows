@@ -424,30 +424,17 @@ VioScsiVQLock(
 ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if (!adaptExt->msix_enabled) {
-        if (!isr) {
-            StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, LockHandle);
-        }
-    }
-    else {
-        if (adaptExt->num_queues == 1) {
-            if (!isr) {
-                ULONG oldIrql = 0;
-                StorPortAcquireMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), &oldIrql);
-                LockHandle->Context.OldIrql = (KIRQL)oldIrql;
+    if (!isr) {
+        if (adaptExt->msix_enabled) {
+            if (!CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
+                // Queue numbers start at 0, message ids at 1.
+                NT_ASSERT(MessageID > VIRTIO_SCSI_REQUEST_QUEUE_0);
+                NT_ASSERT(MessageID <= VIRTIO_SCSI_REQUEST_QUEUE_0 + adaptExt->num_queues);
+                StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[MessageID - VIRTIO_SCSI_REQUEST_QUEUE_0 - 1], LockHandle);
             }
         }
         else {
-            NT_ASSERT(MessageID > VIRTIO_SCSI_REQUEST_QUEUE_0);
-            NT_ASSERT(MessageID <= VIRTIO_SCSI_REQUEST_QUEUE_0 + adaptExt->num_queues);
-            if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_CONCURRENT_CHANNELS)) {
-                if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
-                    StorPortAcquireSpinLock(DeviceExtension, StartIoLock, &adaptExt->dpc[MessageID - VIRTIO_SCSI_REQUEST_QUEUE_0 - 1], LockHandle);
-                }
-                else {
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s STOR_PERF_CONCURRENT_CHANNELS yes, STOR_PERF_ADV_CONFIG_LOCALITY no\n", __FUNCTION__));
-                }
-            }
+            StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, LockHandle);
         }
     }
 
@@ -467,28 +454,9 @@ VioScsiVQUnlock(
 ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if (!adaptExt->msix_enabled) {
-        if (!isr) {
+    if (!isr) {
+        if (!adaptExt->msix_enabled || !CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
             StorPortReleaseSpinLock(DeviceExtension, LockHandle);
-        }
-    }
-    else {
-        if (adaptExt->num_queues == 1) {
-            if (!isr) {
-                StorPortReleaseMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), LockHandle->Context.OldIrql);
-            }
-        }
-        else {
-            NT_ASSERT(MessageID > VIRTIO_SCSI_REQUEST_QUEUE_0);
-            NT_ASSERT(MessageID <= VIRTIO_SCSI_REQUEST_QUEUE_0 + adaptExt->num_queues);
-            if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_CONCURRENT_CHANNELS)) {
-                if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
-                    StorPortReleaseSpinLock(DeviceExtension, LockHandle);
-                }
-                else {
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s STOR_PERF_CONCURRENT_CHANNELS yes, STOR_PERF_ADV_CONFIG_LOCALITY no\n", __FUNCTION__));
-                }
-            }
         }
     }
 
