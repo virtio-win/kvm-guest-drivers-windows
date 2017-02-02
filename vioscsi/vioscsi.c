@@ -1277,12 +1277,19 @@ ProcessQueue(
     ULONG               msg = MessageID - 3;
     STOR_LOCK_HANDLE    queueLock = { 0 };
     struct virtqueue    *vq;
+    BOOLEAN             handleResponseInline;
+#ifdef USE_WORK_ITEM
 #if (NTDDI_VERSION > NTDDI_WIN7)
     UCHAR               cnt = 0;
 #endif
+#endif
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 ENTER_FN();
-
+#ifdef USE_WORK_ITEM
+    handleResponseInline = (adaptExt->num_queues == 1);
+#else
+    handleResponseInline = TRUE;
+#endif
     vq = adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + msg];
 
     VioScsiVQLock(DeviceExtension, MessageID, &queueLock, isr);
@@ -1290,9 +1297,10 @@ ENTER_FN();
     virtqueue_disable_cb(vq);
     do {
         while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(vq, &len)) != NULL) {
-            if (adaptExt->num_queues == 1) {
+            if (handleResponseInline) {
                 HandleResponse(DeviceExtension, cmd);
             }
+#ifdef USE_WORK_ITEM
             else {
 #if (NTDDI_VERSION > NTDDI_WIN7)
                 PSRB_TYPE Srb = (PSRB_TYPE)(cmd->srb);
@@ -1311,11 +1319,13 @@ ENTER_FN();
                 NT_ASSERT(0);
 #endif
             }
+#endif
         }
     } while (!virtqueue_enable_cb(vq));
 
     VioScsiVQUnlock(DeviceExtension, MessageID, &queueLock, isr);
 
+#ifdef USE_WORK_ITEM
 #if (NTDDI_VERSION > NTDDI_WIN7)
     if (cnt) {
        ULONG status = STOR_STATUS_SUCCESS;
@@ -1332,6 +1342,7 @@ ENTER_FN();
 //FIXME   VioScsiWorkItemCallback
        }
     }
+#endif
 #endif
 EXIT_FN();
 }
@@ -2071,6 +2082,7 @@ ENTER_FN();
 EXIT_FN();
 }
 
+#ifdef USE_WORK_ITEM
 #if (NTDDI_VERSION > NTDDI_WIN7)
 VOID
 VioScsiWorkItemCallback(
@@ -2134,4 +2146,5 @@ ENTER_FN();
     }
 EXIT_FN();
 }
+#endif
 #endif

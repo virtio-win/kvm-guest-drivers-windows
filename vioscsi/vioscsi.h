@@ -219,8 +219,10 @@ typedef struct _VRING_DESC_ALIAS
 
 #pragma pack(1)
 typedef struct _SRB_EXTENSION {
+#ifdef USE_WORK_ITEM
 #if (NTDDI_VERSION > NTDDI_WIN7)
     STOR_SLIST_ENTRY      list_entry;
+#endif
 #endif
     PSCSI_REQUEST_BLOCK   Srb;
     ULONG                 out;

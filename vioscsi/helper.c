@@ -62,10 +62,16 @@ ENTER_FN();
         RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s Can not add packet to queue.\n", __FUNCTION__));
 //FIXME
     }
+#ifndef USE_WORK_ITEM
+    if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
+        ProcessQueue(DeviceExtension, MessageId, TRUE);
+    }
+#endif
     VioScsiVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (notify) {
         virtqueue_notify(adaptExt->vq[QueueNumber]);
     }
+#ifdef USE_WORK_ITEM
 #if (NTDDI_VERSION > NTDDI_WIN7)
     if (adaptExt->num_queues > 1) {
         if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
@@ -90,6 +96,7 @@ ENTER_FN();
             }
         }
     }
+#endif
 #endif
 EXIT_FN();
     return result;
