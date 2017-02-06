@@ -219,9 +219,7 @@ typedef struct _VRING_DESC_ALIAS
 
 #pragma pack(1)
 typedef struct _SRB_EXTENSION {
-#if (NTDDI_VERSION > NTDDI_WIN7)
-    STOR_SLIST_ENTRY      list_entry;
-#endif
+    LIST_ENTRY            list_entry;
     PSCSI_REQUEST_BLOCK   Srb;
     ULONG                 out;
     ULONG                 in;
@@ -232,7 +230,6 @@ typedef struct _SRB_EXTENSION {
     VRING_DESC_ALIAS      desc[VIRTIO_MAX_SG];
 #endif
     UCHAR                 cpu;
-    PVOID                 priv;
 }SRB_EXTENSION, * PSRB_EXTENSION;
 #pragma pack()
 
