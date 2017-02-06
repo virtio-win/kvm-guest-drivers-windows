@@ -224,6 +224,7 @@ typedef struct _SRB_EXTENSION {
     STOR_SLIST_ENTRY      list_entry;
 #endif
 #endif
+    LIST_ENTRY            process_list_entry;
     PSCSI_REQUEST_BLOCK   Srb;
     ULONG                 out;
     ULONG                 in;

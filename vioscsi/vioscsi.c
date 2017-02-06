@@ -815,8 +815,11 @@ EXIT_FN();
 }
 
 VOID
-//FORCEINLINE
-HandleResponse(PVOID DeviceExtension, PVirtIOSCSICmd cmd) {
+HandleResponse(
+    IN PVOID DeviceExtension,
+    IN PVirtIOSCSICmd cmd
+)
+{
     PSRB_TYPE Srb = (PSRB_TYPE)(cmd->srb);
     PSRB_EXTENSION srbExt = SRB_EXTENSION(Srb);
     VirtIOSCSICmdResp *resp = &cmd->resp.cmd;
@@ -1287,6 +1290,9 @@ ProcessQueue(
 #endif
 #endif
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    LIST_ENTRY          complete_list;
+    PSRB_TYPE           Srb = NULL;
+    PSRB_EXTENSION      srbExt = NULL;
 ENTER_FN();
 #ifdef USE_WORK_ITEM
     handleResponseInline = (adaptExt->num_queues == 1);
@@ -1294,14 +1300,17 @@ ENTER_FN();
     handleResponseInline = TRUE;
 #endif
     vq = adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + msg];
+    InitializeListHead(&complete_list);
 
     VioScsiVQLock(DeviceExtension, MessageID, &queueLock, isr);
 
-    virtqueue_disable_cb(vq);
     do {
+        virtqueue_disable_cb(vq);
         while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(vq, &len)) != NULL) {
             if (handleResponseInline) {
-                HandleResponse(DeviceExtension, cmd);
+                Srb = (PSRB_TYPE)(cmd->srb);
+                srbExt = SRB_EXTENSION(Srb);
+                InsertTailList(&complete_list, &srbExt->process_list_entry);
             }
 #ifdef USE_WORK_ITEM
             else {
@@ -1327,6 +1336,11 @@ ENTER_FN();
     } while (!virtqueue_enable_cb(vq));
 
     VioScsiVQUnlock(DeviceExtension, MessageID, &queueLock, isr);
+
+    while (!IsListEmpty(&complete_list)) {
+        srbExt = (PSRB_EXTENSION)RemoveHeadList(&complete_list);
+        HandleResponse(DeviceExtension, &srbExt->cmd);
+    }
 
 #ifdef USE_WORK_ITEM
 #if (NTDDI_VERSION > NTDDI_WIN7)
