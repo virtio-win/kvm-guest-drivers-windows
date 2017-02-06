@@ -435,7 +435,7 @@ ENTER_FN();
             NT_ASSERT(MessageID <= VIRTIO_SCSI_REQUEST_QUEUE_0 + adaptExt->num_queues);
             if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_CONCURRENT_CHANNELS)) {
                 if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
-                    StorPortAcquireSpinLock(DeviceExtension, StartIoLock, &adaptExt->dpc[MessageID - VIRTIO_SCSI_REQUEST_QUEUE_0 - 1], LockHandle);
+                    StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[MessageID - VIRTIO_SCSI_REQUEST_QUEUE_0 - 1], LockHandle);
                 }
                 else {
                     RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s STOR_PERF_CONCURRENT_CHANNELS yes, STOR_PERF_ADV_CONFIG_LOCALITY no\n", __FUNCTION__));
