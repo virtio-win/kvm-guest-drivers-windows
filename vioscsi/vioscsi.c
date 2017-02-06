@@ -1249,7 +1249,6 @@ ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     if ((adaptExt->num_queues > 1) && adaptExt->dpc_ok && MessageID > 0) {
-		struct virtqueue *vq = adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + MessageID - 3];
         StorPortIssueDpc(DeviceExtension,
             &adaptExt->dpc[MessageID-3],
             ULongToPtr(MessageID),
