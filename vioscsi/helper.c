@@ -80,25 +80,7 @@ ENTER_FN();
 #if (NTDDI_VERSION > NTDDI_WIN7)
     if (adaptExt->num_queues > 1) {
         if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
-            ULONG msg = MessageId - 3;
-            PSTOR_SLIST_ENTRY   listEntryRev, listEntry;
-            status = StorPortInterlockedFlushSList(DeviceExtension, &adaptExt->srb_list[msg], &listEntryRev);
-            if ((status == STOR_STATUS_SUCCESS) && (listEntryRev != NULL)) {
-                listEntry = listEntryRev;
-                while(listEntry)
-                {
-                    PVirtIOSCSICmd  cmd = NULL;
-                    PSTOR_SLIST_ENTRY next = listEntry->Next;
-                    srbExt = CONTAINING_RECORD(listEntry,
-                                SRB_EXTENSION, list_entry);
-
-                    ASSERT(srExt);
-                    cmd = (PVirtIOSCSICmd)srbExt->priv;
-                    ASSERT(cmd);
-                    HandleResponse(DeviceExtension, cmd);
-                    listEntry = next;
-                }
-            }
+            ProcessQueue(DeviceExtension, MessageId, FALSE);
         }
     }
 #endif
