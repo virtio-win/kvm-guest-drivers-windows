@@ -104,7 +104,7 @@ VIOInputEvtDeviceAdd(
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&Attributes, INPUT_DEVICE);
     Attributes.SynchronizationScope = WdfSynchronizationScopeDevice;
-    Attributes.ExecutionLevel = WdfExecutionLevelPassive;
+    //Attributes.ExecutionLevel = WdfExecutionLevelPassive;
     status = WdfDeviceCreate(&DeviceInit, &Attributes, &hDevice);
     if (!NT_SUCCESS(status))
     {
