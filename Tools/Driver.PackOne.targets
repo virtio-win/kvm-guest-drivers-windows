@@ -165,7 +165,7 @@ Related features:
   <!-- $(PackOne_SourcePath) and $(PackOne_DestinationPath) -->
   <PropertyGroup>
     <PackOne_SourcePath>objfre_$(TargetOS)_$(TargetArch)\$(PackOne_SourcePathArch)</PackOne_SourcePath>
-    <PackOne_DestinationPath>$(PackOne_DestinationPrefix)Install2\$(TargetOS)\$(TargetArch)</PackOne_DestinationPath>
+    <PackOne_DestinationPath>$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)</PackOne_DestinationPath>
   </PropertyGroup>
 
   <!-- $(PackOne_CopyWdf) and $(PackOne_WdfCoinstaller) -->
