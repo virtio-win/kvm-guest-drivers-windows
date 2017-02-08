@@ -577,20 +577,25 @@ BalloonEvtFileClose (
     IN WDFFILEOBJECT    FileObject
     )
 {
-    PDEVICE_CONTEXT devCtx = GetDeviceContext(
-        WdfFileObjectGetDevice(FileObject));
+    WDFDEVICE Device = WdfFileObjectGetDevice(FileObject);
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
 
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-> %s\n", __FUNCTION__);
+
+    // synchronize with the device to make sure it doesn't exit D0 from underneath us
+    WdfObjectAcquireLock(Device);
 
     RtlFillMemory(devCtx->MemStats,
         sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
 
     if (devCtx->StatVirtQueue)
     {
-        BalloonMemStats(WdfFileObjectGetDevice(FileObject));
+        BalloonMemStats(Device);
     }
+
+    WdfObjectReleaseLock(Device);
 }
 
 VOID
