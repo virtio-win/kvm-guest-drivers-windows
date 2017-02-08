@@ -12,6 +12,16 @@
 **********************************************************************/
 
 /*
+ * These defines are only for Visual Studio built-in rc editor
+ */
+#ifndef _NT_TARGET_MAJ
+    #define VZ_RELEASE_A 1
+    #define VZ_RELEASE_B 20
+    #define VZ_RELEASE_C 300
+    #define _NT_TARGET_MAJ 4000
+#endif
+
+/*
  * vz build variants
  */
 #ifndef VZ_RELEASE_N
