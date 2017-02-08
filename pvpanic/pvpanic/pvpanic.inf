@@ -1,6 +1,7 @@
 ;/*++
 ;
-;Copyright (c) 2015-2016 Red Hat Inc.
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
 ;
 ;Module Name:
 ;    pvpanic.inf
@@ -16,10 +17,10 @@
 Signature       = "$WINDOWS NT$"
 Class           = System
 ClassGuid       = {4d36e97d-e325-11ce-bfc1-08002be10318}
-Provider        = %RedHatMfg%
+Provider        = %VENDOR%
+DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 CatalogFile     = pvpanic.cat
 PnpLockdown     = 1
-DriverVer       = 02/20/2015,1.0.0.0
 
 [DestinationDirs]
 DefaultDestDir = 12
@@ -35,9 +36,9 @@ pvpanic.sys = 1,,
 ; ---------------
 
 [Manufacturer]
-%RedHatMfg% = RedHat,NT$ARCH$
+%VENDOR% = Vendor,NT$ARCH$
 
-[RedHat.NT$ARCH$]
+[Vendor.NT$ARCH$]
 %PVPanic.DeviceDesc% = PVPanic_Device, ACPI\QEMU0001
 
 [PVPanic_Device.NT]
@@ -88,7 +89,7 @@ KmdfService = PVPanic, PVPanic_wdfsect
 KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
-RedHatMfg           = "Red Hat, Inc."
-DiskName            = "QEMU PVPanic Installation Disk"
-PVPanic.DeviceDesc  = "QEMU PVPanic Device"
-PVPanic.Service     = "QEMU PVPanic Service"
+VENDOR = "INX_COMPANY"
+DiskName            = "INX_PREFIX_QEMUQEMU PVPanic Installation Disk"
+PVPanic.DeviceDesc  = "INX_PREFIX_QEMUQEMU PVPanic Device"
+PVPanic.Service     = "INX_PREFIX_QEMUQEMU PVPanic Service"

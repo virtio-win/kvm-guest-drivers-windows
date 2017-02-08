@@ -25,6 +25,7 @@
 
 #include "pvpanic.h"
 #include "pvpanic.tmh"
+#include "..\..\Tools\vendor.check.h"
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(INIT, DriverEntry)
