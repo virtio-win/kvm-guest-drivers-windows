@@ -13,6 +13,7 @@
  *
 **********************************************************************/
 #include "virtio_stor.h"
+#include "..\Tools\vendor.check.h"
 
 BOOLEAN IsCrashDumpMode;
 
