@@ -1,0 +1,44 @@
+<!--
+***********************************************************************************************
+Driver.Vendor.props
+
+1. Uses RHEL as default vendor.
+Set $(Feature_AlwaysDefaultVendor) to false and set $(_VENDOR_) to override.
+
+2. Vendors' macros for .rc and property definitions for MSBuild used by all drivers:
+    VENDOR_VER <= $(_VENDOR_).ver
+    VER_OS     <= $(TargetOS)
+    VER_ARCH   <= $(TargetArch)
+
+3. Imports inf substitutions and versioning specific to vendor from Driver.$(_VENDOR_).props
+***********************************************************************************************
+-->
+
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <_VENDOR_ Condition="'$(_VENDOR_)'=='' OR '$(Feature_AlwaysDefaultVendor)'!='false'">RHEL</_VENDOR_>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetArch)'=='x86'">
+    <VerArch>x86</VerArch>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetArch)'=='amd64'">
+    <VerArch>x64</VerArch>
+  </PropertyGroup>
+
+  <Import Project="Driver.$(_VENDOR_).props" />
+
+  <!-- Version specs for C preprocessor, resource compiler, and stampinf -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>VENDOR_VER=$(_VENDOR_).ver;VER_OS=$(TargetOS);VER_ARCH=$(VerArch);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>VENDOR_VER=$(_VENDOR_).ver;VER_OS=$(TargetOS);VER_ARCH=$(VerArch);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Inf>
+      <TimeStamp>$(STAMPINF_VERSION)</TimeStamp>
+    </Inf>
+  </ItemDefinitionGroup>
+
+</Project>
