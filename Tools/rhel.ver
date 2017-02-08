@@ -1,0 +1,37 @@
+/**********************************************************************
+ * Copyright (c) 2017  Parallels IP Holdings GmbH
+ *
+ * File: rhel.ver
+ *
+ * This file contains rhel vendor specific
+ * resource (version) definitions for all drivers
+ *
+ * This work is licensed under the terms of the GNU GPL, version 2.  See
+ * the COPYING file in the top-level directory.
+ *
+**********************************************************************/
+
+/*
+ * rhel versioning
+ */
+#define VENDOR_VIRTIO_1            _NT_TARGET_MAJ
+#define VENDOR_VIRTIO_2            _RHEL_RELEASE_VERSION_
+#define VENDOR_VIRTIO_3            _BUILD_MAJOR_VERSION_
+#define VENDOR_VIRTIO_4            _BUILD_MINOR_VERSION_
+
+/*
+ * rhel strings
+ */
+#define VENDOR_VIRTIO_COPYRIGHT    "Copyright (C) 2008-2017 Red Hat, Inc."
+#define VENDOR_VIRTIO_COMPANY      "Red Hat,\040Inc."
+#define VENDOR_PREFIX              "Red Hat\040"
+#define VENDOR_PRODUCT_PREFIX      VENDOR_PREFIX
+#define QEMU_PRODUCT_PREFIX        "QEMU\040"
+#define VENDOR_DESC_PREFIX         VENDOR_PREFIX
+#define VENDOR_DESC_POSTFIX        ""
+
+/*
+ * remaining macro should be defined in project .rc file
+ *
+ * VENDOR_VIRTIO_PRODUCT, VER_FILEDESCRIPTION_STR, VER_INTERNALNAME_STR
+ */
