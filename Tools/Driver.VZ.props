@@ -40,4 +40,25 @@ VZ inf substitutions and versioning used by all drivers.
       <PreprocessorDefinitions>VZ_RELEASE_A=$(VZ_RELEASE_A);VZ_RELEASE_B=$(VZ_RELEASE_B);VZ_RELEASE_C=$(VZ_RELEASE_C);_NT_TARGET_MAJ=$(_NT_TARGET_MAJ);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
   </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <Substitution Include="INX_COPYRIGHT_1">
+      <ReplaceWith>Copyright (c) 2009-2017 Red Hat Inc.</ReplaceWith>
+    </Substitution>
+    <Substitution Include="INX_COPYRIGHT_2">
+      <ReplaceWith>Copyright (c) 2016-2017 Parallels IP Holdings GmbH</ReplaceWith>
+    </Substitution>
+    <Substitution Include="INX_COMPANY">
+      <ReplaceWith>Parallels IP Holdings GmbH</ReplaceWith>
+    </Substitution>
+    <Substitution Include="INX_PREFIX_VENDOR">
+      <ReplaceWith>Virtuozzo </ReplaceWith>
+    </Substitution>
+    <Substitution Include="INX_PREFIX_VIRTIO">
+      <ReplaceWith>Virtuozzo </ReplaceWith>
+    </Substitution>
+    <Substitution Include="INX_PREFIX_QEMU">
+      <ReplaceWith>Virtuozzo </ReplaceWith>
+    </Substitution>
+  </ItemGroup>
 </Project>
