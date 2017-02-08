@@ -1,0 +1,25 @@
+<!--
+***********************************************************************************************
+vioinput.props
+Enabling and customizing virtio build features
+***********************************************************************************************
+-->
+
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" TreatAsLocalProperty="Platform">
+  <PropertyGroup>
+    <Feature_AlwaysDefaultVendor>false</Feature_AlwaysDefaultVendor>
+    <Feature_UsingWDF>true</Feature_UsingWDF>
+    <Feature_PackOne>true</Feature_PackOne>
+    <Feature_AdjustInf>true</Feature_AdjustInf>
+    <!-- there was only Server2008_Xnn mask without VISTA_Xnn in packone.bat
+         for Win7 and this is wrong
+         either remove it (set feature below to false)
+         or keep VISTA masks too (set feature to true) -->
+    <PackOne_Win7AddWlhMask>true</PackOne_Win7AddWlhMask>
+    <PackOne_DestinationPrefix>..\</PackOne_DestinationPrefix>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackOne_UnsupportedOS Include="@(PackOne_UnsupportedOS);Wxp;Wnet;Wlh" />
+  </ItemGroup>
+</Project>
