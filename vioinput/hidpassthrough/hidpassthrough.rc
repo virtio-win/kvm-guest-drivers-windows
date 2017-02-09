@@ -1,0 +1,31 @@
+#include <windows.h>
+#include <ntverp.h>
+
+#define VER_FILETYPE                VFT_DRV
+#define VER_FILESUBTYPE             VFT2_DRV_SYSTEM
+#define VER_FILEDESCRIPTION_STR     "Pass-through HID to KMDF Filter Driver"
+#define VER_INTERNALNAME_STR        "viohidkmdf.sys"
+#define VER_ORIGINALFILENAME_STR    "viohidkmdf.sys"
+
+#undef  VER_PRODUCTBUILD
+#undef  VER_PRODUCTBUILD_QFE
+#undef  VER_PRODUCTMAJORVERSION
+#undef  VER_PRODUCTMINORVERSION
+
+#undef  VER_LEGALCOPYRIGHT_STR
+#define VER_LEGALCOPYRIGHT_STR      "Copyright (C) 2016 Red Hat, Inc."
+
+#undef  VER_COMPANYNAME_STR
+#define VER_COMPANYNAME_STR         "Red Hat, Inc."
+
+#undef  VER_PRODUCTNAME_STR
+#define VER_PRODUCTNAME_STR         "Red Hat VirtIO Input driver"
+
+#define VER_LANGNEUTRAL
+
+#define VER_PRODUCTBUILD            _BUILD_MAJOR_VERSION_
+#define VER_PRODUCTBUILD_QFE        _BUILD_MINOR_VERSION_
+#define VER_PRODUCTMAJORVERSION     _NT_TARGET_MAJ
+#define VER_PRODUCTMINORVERSION     _RHEL_RELEASE_VERSION_
+
+#include "common.ver"
