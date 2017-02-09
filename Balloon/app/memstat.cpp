@@ -200,6 +200,10 @@ BOOL CMemStat::Update()
 
         m_Stats[idx].tag = VIRTIO_BALLOON_S_MEMTOT;
         m_Stats[idx].val = statex.ullTotalPhys;
+        idx++;
+
+        m_Stats[idx].tag = VIRTIO_BALLOON_S_AVAIL;
+        m_Stats[idx].val = statex.ullAvailVirtual;
     }
     return TRUE;
 }
