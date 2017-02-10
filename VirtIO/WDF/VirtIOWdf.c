@@ -163,8 +163,10 @@ NTSTATUS VirtIOWdfInitQueuesCB(PVIRTIO_WDF_DRIVER pWdfDriver,
 
     /* set up the device config vector */
     msix_vec = PCIGetMSIInterruptVector(pWdfDriver->ConfigInterrupt);
-    if (virtio_set_config_vector(&pWdfDriver->VIODevice, msix_vec) != msix_vec) {
-        return STATUS_DEVICE_BUSY;
+    if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
+        if (virtio_set_config_vector(&pWdfDriver->VIODevice, msix_vec) != msix_vec) {
+            return STATUS_DEVICE_BUSY;
+        }
     }
 
     /* find and initialize queues */
@@ -181,9 +183,11 @@ NTSTATUS VirtIOWdfInitQueuesCB(PVIRTIO_WDF_DRIVER pWdfDriver,
         pQueueParamFunc(pWdfDriver, i, &QueueParam);
 
         msix_vec = PCIGetMSIInterruptVector(QueueParam.Interrupt);
-        if (virtio_set_queue_vector(vq, msix_vec) != msix_vec) {
-            status = STATUS_DEVICE_BUSY;
-            break;
+        if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
+            if (virtio_set_queue_vector(vq, msix_vec) != msix_vec) {
+                status = STATUS_DEVICE_BUSY;
+                break;
+            }
         }
 
         virtio_set_queue_event_suppression(
