@@ -172,6 +172,9 @@
     <FilesToPackage Include="@(Inf->'%(CopyOutput)')" Condition="'@(Inf)'!=''" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\hidpassthrough\hidpassthrough.vcxproj" />
+  </ItemGroup>
+  <ItemGroup>
     <Inf Include="vioinput.inx" />
   </ItemGroup>
   <ItemGroup>

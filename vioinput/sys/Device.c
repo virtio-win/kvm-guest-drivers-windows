@@ -92,7 +92,7 @@ VIOInputEvtDeviceAdd(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
-    // This driver acts like a lower filter under MsHidKmdf.sys
+    // This driver acts like a lower filter under viohidkmdf.sys
     WdfFdoInitSetFilter(DeviceInit);
 
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&PnpPowerCallbacks);

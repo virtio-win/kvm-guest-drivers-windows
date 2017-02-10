@@ -6,4 +6,6 @@ del /F *.log *.wrn *.err
 
 cd sys
 call cleanAll.bat
+cd ..\hidkmdf
+call cleanAll.bat
 cd ..
