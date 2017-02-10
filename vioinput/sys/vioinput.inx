@@ -38,6 +38,7 @@ VirtioInput_Device_CoInstaller_CopyFiles = 11
 
 [SourceDisksFiles]
 vioinput.sys  = 1,,
+viohidkmdf.sys = 1,,
 
 [SourceDisksNames]
 1 = %DiskId1%,,,""
@@ -70,19 +71,20 @@ HKR,,"LowerFilters",0x00010000,"VirtioInput"
 
 [Drivers_Dir]
 vioinput.sys
+viohidkmdf.sys
 
 ;-------------- Service installation
 
 [VirtioInput_Device.NT.Services]
 AddService = VirtioInput, 0, VirtioInput_Service_Inst
-AddService = mshidkmdf,0x00000002,mshidkmdf_Service_Inst ;flag 0x2 sets this as the service for the device
+AddService = viohidkmdf,0x00000002,viohidkmdf_Service_Inst ;flag 0x2 sets this as the service for the device
 
 ; -------------- VirtioInput driver install sections
-[mshidkmdf_Service_Inst]
+[viohidkmdf_Service_Inst]
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %10%\System32\Drivers\mshidkmdf.sys
+ServiceBinary  = %12%\viohidkmdf.sys
 
 [VirtioInput_Service_Inst]
 DisplayName    = %VirtioInput.ServiceDesc%
