@@ -1,3 +1,17 @@
+Date    12 Feb 2017
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm152
+
+Fixed bugs:
+
+BZ#1369353 - [balloon] backport available memory stat support
+BZ#1419785 - [virtio-win][whql][balloon] Guest WIN8-32 occured BSOD in job "DF - PNP Stop (Rebalance) Device Test (Certification)"
+
+New Features:
+pvpanic: Add IOCTL_GET_CRASH_DUMP_HEADER
+vioinput: Use viohidkmdf.sys instead of mshidkmdf.sys
+
+
 Date    29 Jan 2017
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm151
