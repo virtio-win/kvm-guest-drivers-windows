@@ -476,9 +476,11 @@ static VOID ParaNdis6_AdapterShutdown(
     NDIS_HANDLE miniportAdapterContext,
     NDIS_SHUTDOWN_ACTION  shutdownAction)
 {
+    if (shutdownAction == NdisShutdownBugCheck)
+    {
+        return;
+    }
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
-
-    UNREFERENCED_PARAMETER(shutdownAction);
 
     ParaNdis_OnShutdown(pContext);
 }
