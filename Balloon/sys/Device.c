@@ -25,7 +25,6 @@
 #pragma alloc_text(PAGE, BalloonEvtDeviceD0Exit)
 #pragma alloc_text(PAGE, BalloonEvtDeviceD0ExitPreInterruptsDisabled)
 #pragma alloc_text(PAGE, BalloonDeviceAdd)
-#pragma alloc_text(PAGE, BalloonEvtFileClose)
 #pragma alloc_text(PAGE, BalloonCloseWorkerThread)
 #endif
 
@@ -573,14 +572,12 @@ BalloonInterruptDisable(
 }
 
 VOID
-BalloonEvtFileClose (
+BalloonEvtFileClose(
     IN WDFFILEOBJECT    FileObject
     )
 {
     WDFDEVICE Device = WdfFileObjectGetDevice(FileObject);
     PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
-
-    PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-> %s\n", __FUNCTION__);
 
