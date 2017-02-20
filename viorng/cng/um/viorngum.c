@@ -24,8 +24,6 @@
 
 #define STRICT
 #include <windows.h>
-#include <bcrypt.h>
-#include <bcrypt_provider.h>
 #include <initguid.h>
 #include <setupapi.h>
 #include <tchar.h>
