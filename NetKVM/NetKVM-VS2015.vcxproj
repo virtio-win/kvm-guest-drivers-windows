@@ -349,6 +349,12 @@
   <PropertyGroup>
     <CustomBuildAfterTargets>dvl</CustomBuildAfterTargets>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
+    <LinkIncremental />
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
+    <LinkIncremental />
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <PreBuildEvent>
       <Command>
@@ -624,6 +630,14 @@
       <Inputs>$(ProjectDir)NetKVM.DVL.XML</Inputs>
       <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\NetKVM.DVL.XML</Outputs>
     </CustomBuildStep>
+    <ClCompile>
+      <BasicRuntimeChecks Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">Default</BasicRuntimeChecks>
+      <BufferSecurityCheck Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">false</BufferSecurityCheck>
+    </ClCompile>
+    <ClCompile>
+      <BasicRuntimeChecks Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">Default</BasicRuntimeChecks>
+      <BufferSecurityCheck Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">false</BufferSecurityCheck>
+    </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)">
@@ -648,9 +662,11 @@
     <ClInclude Include="Common\ParaNdis-VirtQueue.h" />
     <ClInclude Include="Common\ParaNdis_Debug.h" />
     <ClInclude Include="Common\ParaNdis_DebugHistory.h" />
+    <ClInclude Include="Common\ParaNdis_GuestAnnounce.h" />
     <ClInclude Include="Common\quverp.h" />
     <ClInclude Include="Common\virtio_net.h" />
     <ClInclude Include="wlh\ParaNdis6.h" />
+    <ClInclude Include="wlh\ParaNdis6_Driver.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="wlh\Parandis6.rc" />
@@ -667,6 +683,7 @@
     <ClCompile Include="Common\ParaNdis-Util.cpp" />
     <ClCompile Include="Common\ParaNdis-VirtIO.cpp" />
     <ClCompile Include="Common\ParaNdis-VirtQueue.cpp" />
+    <ClCompile Include="Common\ParaNdis_GuestAnnounce.cpp" />
     <ClCompile Include="Common\sw-offload.cpp" />
     <ClCompile Include="wlh\ParaNdis6-Driver.cpp" />
     <ClCompile Include="wlh\ParaNdis6-Impl.cpp" />

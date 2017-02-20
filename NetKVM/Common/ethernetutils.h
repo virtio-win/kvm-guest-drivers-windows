@@ -47,6 +47,13 @@ typedef ULONG IPV6_ADDRESS[4];
 #define ETH_MIN_PACKET_SIZE                 60
 #define ETH_PRIORITY_HEADER_OFFSET          12
 #define ETH_PRIORITY_HEADER_SIZE            4
+#define ETH_HARDWARE_ADDRESS_SIZE           ETH_ALEN
+#define ETH_IPV4_ADDRESS_SIZE               4
+#define ETH_HARDWARE_TYPE                   1
+#define ETH_ETHER_TYPE_ARP                  0x0806
+#define ETH_IP_PROTOCOL_TYPE                0x0800
+#define ETH_ARP_OPERATION_TYPE_REQUEST      1
+#define ETH_ARP_OPERATION_TYPE_REPLY        2
 
 #define TCP_HEADER_LENGTH(Header) ((Header->tcp_flags & 0xF0) >> 2)
 
@@ -105,7 +112,37 @@ typedef struct _tagUDPHeader {
     USHORT      udp_xsum;               // checksum
 }UDPHeader;
 
+#include <pshpack1.h>
 
+typedef struct _hardware_address {
+    UINT8 address[ETH_HARDWARE_ADDRESS_SIZE];
+} hardware_address;
+
+typedef struct _ipv4_address {
+    UINT32 address;
+} ipv4_address;
+
+// Internet Protocol (IPv4) over Ethernet ARP packet
+typedef struct _IPv4OverEthernetARPPacket {
+    UINT16 hardware_type;
+    UINT16 protocol_type;
+    UINT8 hardware_address_length;
+    UINT8 protocol_address_length;
+    UINT16 operation;
+    hardware_address sender_hardware_address;
+    ipv4_address sender_ipv4_address;
+    hardware_address target_hardware_address;
+    ipv4_address target_ipv4_address;
+} IPv4OverEthernetARPPacket;
+
+typedef struct _EthernetArpFrame {
+    hardware_address target_hardware_address;
+    hardware_address sender_hardware_address;
+    UINT16 ether_type;
+    IPv4OverEthernetARPPacket data;
+} EthernetArpFrame;
+
+#include <poppack.h>
 
 #define TCP_CHECKSUM_OFFSET     16
 #define UDP_CHECKSUM_OFFSET     6

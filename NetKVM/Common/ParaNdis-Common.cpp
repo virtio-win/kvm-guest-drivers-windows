@@ -689,6 +689,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
             virtio_get_config(&pContext->IODevice, ETH_ALEN, &linkStatus, sizeof(linkStatus));
             pContext->bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
             DPrintf(0, ("[%s] Link status on driver startup: %d\n", __FUNCTION__, pContext->bConnected));
+            pContext->bGuestAnnounceSupported = AckFeature(pContext, VIRTIO_NET_F_GUEST_ANNOUNCE);
         }
 
         InitializeMAC(pContext, CurrentMAC);
@@ -1077,6 +1078,7 @@ static void ReadLinkState(PARANDIS_ADAPTER *pContext)
         USHORT linkStatus = 0;
         virtio_get_config(&pContext->IODevice, ETH_ALEN, &linkStatus, sizeof(linkStatus));
         pContext->bConnected = !!(linkStatus & VIRTIO_NET_S_LINK_UP);
+        pContext->bGuestAnnounced = !!(linkStatus & VIRTIO_NET_S_ANNOUNCE);
     }
     else
     {
@@ -1305,6 +1307,8 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 
     ParaNdis_SetLinkState(pContext, MediaConnectStateUnknown);
     VirtIONetRelease(pContext);
+
+    pContext->gratArpPackets.~CGratuitousArpPackets();
 
     ParaNdis_FinalizeCleanup(pContext);
 
@@ -1745,11 +1749,19 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
         {
             stillRequiresProcessing = true;
         }
-
-        if (pContext->CXPath.WasInterruptReported() && pContext->bLinkDetectSupported)
+        if (pContext->CXPath.WasInterruptReported())
         {
             ReadLinkState(pContext);
-            ParaNdis_SynchronizeLinkState(pContext);
+            if (pContext->bLinkDetectSupported)
+            {
+                ParaNdis_SynchronizeLinkState(pContext);
+            }
+            if (pContext->bGuestAnnounceSupported && pContext->bGuestAnnounced)
+            {
+                ParaNdis_SendGratuitousArpPacket(pContext);
+                pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_ANNOUNCE, VIRTIO_NET_CTRL_ANNOUNCE_ACK, NULL, 0, NULL, 0, 0);
+                pContext->bGuestAnnounced = FALSE;
+            }
             pContext->CXPath.ClearInterruptReport();
         }
 

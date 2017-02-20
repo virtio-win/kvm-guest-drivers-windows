@@ -22,6 +22,7 @@ sdkddkver.h before ntddk.h cause compilation failure in wdm.h and ntddk.h */
 #include "kdebugprint.h"
 #include "ParaNdis_Debug.h"
 #include "ParaNdis_DebugHistory.h"
+#include "ParaNdis6_Driver.h"
 
 extern "C"
 {
@@ -103,6 +104,11 @@ VOID ParaNdis_SynchronizeLinkState(PARANDIS_ADAPTER *pContext)
 {
     ParaNdis_SetLinkState(pContext, pContext->bConnected ? MediaConnectStateConnected
                                                          : MediaConnectStateDisconnected);
+}
+
+VOID ParaNdis_SendGratuitousArpPacket(PARANDIS_ADAPTER *pContext)
+{
+    pContext->gratArpPackets.SendNBLs();
 }
 
 /**********************************************************
@@ -333,6 +339,8 @@ static NDIS_STATUS ParaNdis6_Initialize(
             }
     }
 
+    new (&pContext->gratArpPackets) CGratuitousArpPackets(pContext);
+
     if (pContext && status == NDIS_STATUS_SUCCESS)
     {
         pContext->m_StateMachine.NotifyInitialized();
@@ -413,10 +421,11 @@ static VOID ParaNdis6_SendNetBufferLists(
     NDIS_HANDLE miniportAdapterContext,
     PNET_BUFFER_LIST    pNBL,
     NDIS_PORT_NUMBER    portNumber,
-    ULONG               /* sendFlags */)
+    ULONG               flags/* sendFlags */)
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     UNREFERENCED_PARAMETER(portNumber);
+    UNREFERENCED_PARAMETER(flags);
 #ifdef PARANDIS_SUPPORT_RSS
     CNdisPassiveReadAutoLock autoLock(pContext->RSSParameters.rwLock);
     if (pContext->RSS2QueueMap != nullptr)
@@ -476,9 +485,11 @@ static VOID ParaNdis6_AdapterShutdown(
     NDIS_HANDLE miniportAdapterContext,
     NDIS_SHUTDOWN_ACTION  shutdownAction)
 {
+    if (shutdownAction == NdisShutdownBugCheck)
+    {
+        return;
+    }
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
-
-    UNREFERENCED_PARAMETER(shutdownAction);
 
     ParaNdis_OnShutdown(pContext);
 }
@@ -1034,4 +1045,9 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
     }
     DEBUG_EXIT_STATUS(status ? 0 : 4, status);
     return status;
+}
+
+VOID ParaNdis6_SendNBLInternal(NDIS_HANDLE miniportAdapterContext, PNET_BUFFER_LIST pNBL, NDIS_PORT_NUMBER portNumber, ULONG flags)
+{
+    ParaNdis6_SendNetBufferLists(miniportAdapterContext, pNBL, portNumber, flags);
 }

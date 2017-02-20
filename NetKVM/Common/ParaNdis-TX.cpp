@@ -26,7 +26,13 @@ CNBL::~CNBL()
     {
         auto NBL = DetachInternalObject();
         NETKVM_ASSERT(NET_BUFFER_LIST_NEXT_NBL(NBL) == nullptr);
-        m_ParentTXPath->CompleteOutstandingNBLChain(NBL);
+        if (CallCompletionForNBL(m_Context, m_NBL))
+        {
+            m_ParentTXPath->CompleteOutstandingNBLChain(NBL);
+        } else
+        {
+            m_ParentTXPath->CompleteOutstandingInternalNBL(m_NBL);
+        }
     }
 }
 
@@ -295,14 +301,34 @@ void CParaNdisTX::CompleteOutstandingNBLChain(PNET_BUFFER_LIST NBL, ULONG Flags)
     m_StateMachine.UnregisterOutstandingItems(NBLNum);
 }
 
+void CParaNdisTX::CompleteOutstandingInternalNBL(PNET_BUFFER_LIST NBL, BOOLEAN UnregisterOutstanding /*= TRUE*/)
+{
+    CGratARPPacketHolder *ARPPacket = CGratuitousArpPackets::GetCGratArpPacketFromNBL(NBL);
+    ULONG NBLNum = ParaNdis_CountNBLs(NBL);
+
+    ARPPacket->Release();
+    if (UnregisterOutstanding)
+    {
+        m_StateMachine.UnregisterOutstandingItems(NBLNum);
+    }
+}
+
 void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
 {
     PNET_BUFFER_LIST nextNBL = nullptr;
     NDIS_STATUS RejectionStatus = NDIS_STATUS_FAILURE;
+    BOOLEAN CallCompletion = CallCompletionForNBL(m_Context, NBL);
 
     if (!m_StateMachine.RegisterOutstandingItems(ParaNdis_CountNBLs(NBL), &RejectionStatus))
     {
-        ParaNdis_CompleteNBLChainWithStatus(m_Context->MiniportHandle, NBL, RejectionStatus);
+        if (CallCompletion)
+        {
+            ParaNdis_CompleteNBLChainWithStatus(m_Context->MiniportHandle, NBL, RejectionStatus);
+        }
+        else
+        {
+            CompleteOutstandingInternalNBL(NBL, FALSE);
+        }
         return;
     }
 
@@ -316,7 +342,14 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
         if (NBLHolder == nullptr)
         {
             currNBL->Status = NDIS_STATUS_RESOURCES;
-            CompleteOutstandingNBLChain(currNBL);
+            if (CallCompletion)
+            {
+                CompleteOutstandingNBLChain(currNBL);
+            }
+            else
+            {
+                CompleteOutstandingInternalNBL(NBL);
+            }
             DPrintf(0, ("ERROR: Failed to allocate CNBL instance\n"));
             continue;
         }
@@ -420,8 +453,15 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList& completed)
         NBL->SetStatus(NDIS_STATUS_SUCCESS);
         auto RawNBL = NBL->DetachInternalObject();
         NBL->Release();
-        NET_BUFFER_LIST_NEXT_NBL(RawNBL) = CompletedNBLs;
-        CompletedNBLs = RawNBL;
+        if (CallCompletionForNBL(m_Context, RawNBL))
+        {
+            NET_BUFFER_LIST_NEXT_NBL(RawNBL) = CompletedNBLs;
+            CompletedNBLs = RawNBL;
+        }
+        else
+        {
+            CompleteOutstandingInternalNBL(RawNBL);
+        }
     });
 
     return CompletedNBLs;
