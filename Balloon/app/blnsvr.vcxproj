@@ -637,7 +637,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup>
-    <PostBuildEvent>
+    <PostBuildEvent Condition="'$(USE_BALLOON_SERVICE)'!=''">
       <Command>
         packOne.bat $(TargetOS) $(TargetArch) blnsvr
       </Command>
