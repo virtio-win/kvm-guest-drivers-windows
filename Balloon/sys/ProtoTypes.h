@@ -45,8 +45,6 @@ typedef struct {
 
 typedef struct _DEVICE_CONTEXT {
     WDFINTERRUPT            WdfInterrupt;
-    WDFWORKITEM             StatWorkItem;
-    LONG                    WorkCount;
     PUCHAR                  PortBase;
     ULONG                   PortCount;
     BOOLEAN                 PortMapped;
@@ -74,6 +72,14 @@ typedef struct _DEVICE_CONTEXT {
     PKTHREAD                Thread;
     BOOLEAN                 bShutDown;
 
+#ifdef USE_BALLOON_SERVICE
+    WDFREQUEST              PendingWriteRequest;
+    BOOLEAN                 HandleWriteRequest;
+#else // USE_BALLOON_SERVICE
+    WDFWORKITEM             StatWorkItem;
+    LONG                    WorkCount;
+#endif //USE_BALLOON_SERVICE
+
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
@@ -94,7 +100,11 @@ EVT_WDF_INTERRUPT_ISR                          BalloonInterruptIsr;
 EVT_WDF_INTERRUPT_DPC                          BalloonInterruptDpc;
 EVT_WDF_INTERRUPT_ENABLE                       BalloonInterruptEnable;
 EVT_WDF_INTERRUPT_DISABLE                      BalloonInterruptDisable;
+#ifdef USE_BALLOON_SERVICE
+EVT_WDF_FILE_CLOSE                             BalloonEvtFileClose;
+#else // USE_BALLOON_SERVICE
 EVT_WDF_WORKITEM                               StatWorkItemWorker;
+#endif // USE_BALLOON_SERVICE
 
 VOID
 BalloonInterruptDpc(
@@ -230,9 +240,16 @@ IsLowMemory(
     return FALSE;
 }
 
+#ifdef USE_BALLOON_SERVICE
+NTSTATUS
+BalloonQueueInitialize(
+    IN WDFDEVICE hDevice
+    );
+#else // USE_BALLOON_SERVICE
 NTSTATUS
 StatInitializeWorkItem(
     IN WDFDEVICE Device
     );
+#endif // USE_BALLOON_SERVICE
 
 #endif  // _PROTOTYPES_H_

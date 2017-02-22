@@ -26,7 +26,10 @@
 #pragma alloc_text(PAGE, BalloonEvtDeviceD0ExitPreInterruptsDisabled)
 #pragma alloc_text(PAGE, BalloonDeviceAdd)
 #pragma alloc_text(PAGE, BalloonCloseWorkerThread)
-#endif
+#ifdef USE_BALLOON_SERVICE
+#pragma alloc_text(PAGE, BalloonEvtFileClose)
+#endif // USE_BALLOON_SERVICE
+#endif // ALLOC_PRAGMA
 
 #define LOMEMEVENTNAME L"\\KernelObjects\\LowMemoryCondition"
 DECLARE_CONST_UNICODE_STRING(evLowMemString, LOMEMEVENTNAME);
@@ -43,6 +46,9 @@ BalloonDeviceAdd(
     WDF_INTERRUPT_CONFIG         interruptConfig;
     WDF_OBJECT_ATTRIBUTES        attributes;
     WDF_PNPPOWER_EVENT_CALLBACKS pnpPowerCallbacks;
+#ifdef USE_BALLOON_SERVICE
+    WDF_FILEOBJECT_CONFIG        fileConfig;
+#endif // USE_BALLOON_SERVICE
 
     UNREFERENCED_PARAMETER(Driver);
     PAGED_CODE();
@@ -61,6 +67,22 @@ BalloonDeviceAdd(
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
     attributes.EvtCleanupCallback = BalloonEvtDeviceContextCleanup;
+
+#ifdef USE_BALLOON_SERVICE
+    attributes.SynchronizationScope = WdfSynchronizationScopeDevice;
+
+    WDF_FILEOBJECT_CONFIG_INIT(
+                            &fileConfig,
+                            WDF_NO_EVENT_CALLBACK,
+                            BalloonEvtFileClose,
+                            WDF_NO_EVENT_CALLBACK
+                            );
+
+    WdfDeviceInitSetFileObjectConfig(DeviceInit,
+                            &fileConfig,
+                            WDF_NO_OBJECT_ATTRIBUTES);
+#endif // USE_BALLOON_SERVICE
+
     status = WdfDeviceCreate(&DeviceInit, &attributes, &device);
     if(!NT_SUCCESS(status))
     {
@@ -77,6 +99,12 @@ BalloonDeviceAdd(
 
     interruptConfig.EvtInterruptEnable  = BalloonInterruptEnable;
     interruptConfig.EvtInterruptDisable = BalloonInterruptDisable;
+
+#ifndef USE_BALLOON_SERVICE
+    // Serialize the DPC routine with queue operations to prevent races
+    // around PendingWriteRequest and HandleWriteRequest.
+    interruptConfig.AutomaticSerialization = TRUE;
+#endif // !USE_BALLOON_SERVICE
 
     status = WdfInterruptCreate(device,
                             &interruptConfig,
@@ -167,13 +195,23 @@ BalloonDeviceAdd(
         return status;
     }
 
+#ifdef USE_BALLOON_SERVICE
+    status = BalloonQueueInitialize(device);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+           "BalloonQueueInitialize failed with status 0x%08x\n", status);
+        return status;
+    }
+#else // USE_BALLOON_SERVICE
     status = StatInitializeWorkItem(device);
-    if(!NT_SUCCESS(status))
+    if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
            "StatInitializeWorkItem failed with status 0x%08x\n", status);
         return status;
     }
+#endif // USE_BALLOON_SERVICE
 
     KeInitializeEvent(&devCtx->WakeUpThread,
                       SynchronizationEvent,
@@ -209,12 +247,14 @@ BalloonEvtDeviceContextCleanup(
         devCtx->pfns_table = NULL;
     }
 
+#ifndef USE_BALLOON_SERVICE
     RtlFillMemory(devCtx->MemStats,
         sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
     if (devCtx->StatVirtQueue)
     {
         BalloonMemStats(Device);
     }
+#endif // !USE_BALLOON_SERVICE
 
     if(devCtx->MemStats)
     {
@@ -408,6 +448,7 @@ BalloonEvtDeviceD0Exit(
         devCtx->evLowMem = NULL;
     }
 
+#ifndef USE_BALLOON_SERVICE
    /*
     * interrupts were already disabled (between BalloonEvtDeviceD0ExitPreInterruptsDisabled and this call)
     * we should flush StatWorkItem before calling BalloonTerm which will delete virtio queues
@@ -417,6 +458,7 @@ BalloonEvtDeviceD0Exit(
         WdfWorkItemFlush(devCtx->StatWorkItem);
         devCtx->StatWorkItem = NULL;
     }
+#endif // !USE_BALLOON_SERVICE
 
     BalloonTerm(Device);
 
@@ -510,6 +552,28 @@ BalloonInterruptDpc(
 
         if (buffer)
         {
+#ifdef USE_BALLOON_SERVICE
+            WDFREQUEST request = devCtx->PendingWriteRequest;
+
+            devCtx->HandleWriteRequest = TRUE;
+
+            if ((request != NULL) &&
+                (WdfRequestUnmarkCancelable(request) != STATUS_CANCELLED))
+            {
+                NTSTATUS status;
+                PVOID buffer;
+                size_t length = 0;
+
+                devCtx->PendingWriteRequest = NULL;
+
+                status = WdfRequestRetrieveInputBuffer(request, 0, &buffer, &length);
+                if (!NT_SUCCESS(status))
+                {
+                    length = 0;
+                }
+                WdfRequestCompleteWithInformation(request, status, length);
+            }
+#else // USE_BALLOON_SERVICE
             /*
              * According to MSDN 'Using Framework Work Items' article:
              * Create one or more work items that your driver requeues as necessary.
@@ -527,6 +591,7 @@ BalloonInterruptDpc(
             {
                 WdfWorkItemEnqueue(devCtx->StatWorkItem);
             }
+#endif // USE_BALLOON_SERVICE
         }
     }
 
@@ -570,6 +635,34 @@ BalloonInterruptDisable(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
+
+#ifdef USE_BALLOON_SERVICE
+VOID
+BalloonEvtFileClose (
+    IN WDFFILEOBJECT    FileObject
+    )
+{
+    WDFDEVICE Device = WdfFileObjectGetDevice(FileObject);
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-> %s\n", __FUNCTION__);
+
+    // synchronize with the device to make sure it doesn't exit D0 from underneath us
+    WdfObjectAcquireLock(Device);
+
+    RtlFillMemory(devCtx->MemStats,
+        sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
+
+    if (devCtx->StatVirtQueue)
+    {
+        BalloonMemStats(Device);
+    }
+
+    WdfObjectReleaseLock(Device);
+}
+#endif // USE_BALLOON_SERVICE
 
 VOID
 BalloonSetSize(

@@ -14,6 +14,9 @@
  **********************************************************************/
 
 #include "precomp.h"
+
+#ifndef USE_BALLOON_SERVICE
+
 #include "ntddkex.h"
 
 #ifdef ALLOC_PRAGMA
@@ -187,3 +190,5 @@ StatWorkItemWorker(
     } while(InterlockedDecrement(&devCtx->WorkCount));
     return;
 }
+
+#endif // !USE_BALLOON_SERVICE
