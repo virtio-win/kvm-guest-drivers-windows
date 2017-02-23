@@ -432,18 +432,15 @@ ENTER_FN();
 
     if (!isr) {
         if (adaptExt->msix_enabled) {
-            if (!CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
-                // Queue numbers start at 0, message ids at 1.
-                NT_ASSERT(MessageID > VIRTIO_SCSI_REQUEST_QUEUE_0);
-                NT_ASSERT(MessageID <= VIRTIO_SCSI_REQUEST_QUEUE_0 + adaptExt->num_queues);
-                StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[MessageID - VIRTIO_SCSI_REQUEST_QUEUE_0 - 1], LockHandle);
-            }
+            // Queue numbers start at 0, message ids at 1.
+            NT_ASSERT(MessageID > VIRTIO_SCSI_REQUEST_QUEUE_0);
+            NT_ASSERT(MessageID <= VIRTIO_SCSI_REQUEST_QUEUE_0 + adaptExt->num_queues);
+            StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[MessageID - VIRTIO_SCSI_REQUEST_QUEUE_0 - 1], LockHandle);
         }
         else {
             StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, LockHandle);
         }
     }
-
 EXIT_FN();
 }
 
@@ -461,10 +458,7 @@ ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     if (!isr) {
-        if (!adaptExt->msix_enabled || !CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
-            StorPortReleaseSpinLock(DeviceExtension, LockHandle);
-        }
+        StorPortReleaseSpinLock(DeviceExtension, LockHandle);
     }
-
 EXIT_FN();
 }
