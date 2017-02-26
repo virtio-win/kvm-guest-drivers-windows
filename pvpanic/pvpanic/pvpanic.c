@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Red Hat, Inc.
+ * Copyright (C) 2015-2017 Red Hat, Inc.
  *
  * This software is licensed under the GNU General Public License,
  * version 2 (GPLv2) (see COPYING for details), subject to the following
