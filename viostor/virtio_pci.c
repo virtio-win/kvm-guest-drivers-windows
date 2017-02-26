@@ -16,7 +16,7 @@
  *
  */
 /**********************************************************************
- * Copyright (c) 2008-2016 Red Hat, Inc.
+ * Copyright (c) 2008-2017 Red Hat, Inc.
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
