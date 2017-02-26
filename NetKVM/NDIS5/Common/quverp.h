@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2008-2016  Red Hat, Inc.
+ * Copyright (c) 2008-2017  Red Hat, Inc.
  *
  * File: quverp.h
  *
@@ -35,7 +35,7 @@
 #endif
 #define VER_COMPANYNAME_STR             "Red Hat, Inc."
 #define VER_LEGALTRADEMARKS_STR         ""
-#define VER_LEGALCOPYRIGHT_STR          "Copyright (C) 2008-2016 Red Hat Inc."
+#define VER_LEGALCOPYRIGHT_STR          "Copyright (C) 2008-2017 Red Hat Inc."
 
 #define VER_PRODUCTBUILD                _BUILD_MAJOR_VERSION_
 #define VER_PRODUCTBUILD_QFE            _BUILD_MINOR_VERSION_
