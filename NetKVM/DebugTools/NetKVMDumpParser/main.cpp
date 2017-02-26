@@ -3,7 +3,7 @@
 
 #include "stdafx.h"
 /**********************************************************************
- * Copyright (c) 2008-2016 Red Hat, Inc.
+ * Copyright (c) 2008-2017 Red Hat, Inc.
  *
  * File: main.cpp
  *

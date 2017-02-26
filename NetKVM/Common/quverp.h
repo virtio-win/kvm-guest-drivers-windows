@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2008-2016 Red Hat, Inc.
+ * Copyright (c) 2008-2017 Red Hat, Inc.
  *
  * File: quverp.h
  *
@@ -80,7 +80,7 @@
 
 #define VER_COMPANYNAME_STR             "Red Hat Inc."
 #define VER_LEGALTRADEMARKS_STR         ""
-#define VER_LEGALCOPYRIGHT_STR          "Copyright (C) 2008-2016 Red Hat Inc."
+#define VER_LEGALCOPYRIGHT_STR          "Copyright (C) 2008-2017 Red Hat Inc."
 
 #define VER_PRODUCTBUILD                PARANDIS_MAJOR_DRIVER_VERSION
 #define VER_PRODUCTBUILD_QFE            PARANDIS_MINOR_DRIVER_VERSION
