@@ -312,10 +312,12 @@ BalloonCreateWorkerThread(
 
         ObReferenceObjectByHandle(hThread, THREAD_ALL_ACCESS, NULL,
                                   KernelMode, (PVOID*)&devCtx->Thread, NULL);
+        KeSetPriorityThread(devCtx->Thread, LOW_REALTIME_PRIORITY);
+
         ZwClose(hThread);
     }
 
-    KeSetEvent(&devCtx->WakeUpThread, 0, FALSE);
+    KeSetEvent(&devCtx->WakeUpThread, EVENT_INCREMENT, FALSE);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return status;
@@ -336,7 +338,7 @@ BalloonCloseWorkerThread(
     if(NULL != devCtx->Thread)
     {
         devCtx->bShutDown = TRUE;
-        KeSetEvent(&devCtx->WakeUpThread, 0, FALSE);
+        KeSetEvent(&devCtx->WakeUpThread, EVENT_INCREMENT, FALSE);
         status = KeWaitForSingleObject(devCtx->Thread, Executive, KernelMode, FALSE, NULL);
         if(!NT_SUCCESS(status))
         {
@@ -497,7 +499,7 @@ BalloonInterruptDpc(
 
     if(bHostAck)
     {
-        KeSetEvent (&devCtx->HostAckEvent, IO_NO_INCREMENT, FALSE);
+        KeSetEvent (&devCtx->HostAckEvent, EVENT_INCREMENT, FALSE);
     }
 
     if (devCtx->StatVirtQueue)
@@ -530,7 +532,7 @@ BalloonInterruptDpc(
 
     if(devCtx->Thread)
     {
-       KeSetEvent(&devCtx->WakeUpThread, 0, FALSE);
+       KeSetEvent(&devCtx->WakeUpThread, EVENT_INCREMENT, FALSE);
     }
 }
 
