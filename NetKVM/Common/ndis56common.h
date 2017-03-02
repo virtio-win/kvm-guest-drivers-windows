@@ -801,6 +801,8 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerifyFlat(
     return ParaNdis_CheckSumVerify(&SGBuffer, ulDataLength, 0, flags, verifyLength, caller);
 }
 
+USHORT CheckSumCalculator(PVOID buffer, ULONG len);
+
 tTcpIpPacketParsingResult ParaNdis_ReviewIPPacket(PVOID buffer, ULONG size, BOOLEAN verityLength, LPCSTR caller);
 
 BOOLEAN ParaNdis_AnalyzeReceivedPacket(PVOID headersBuffer, ULONG dataLength, PNET_PACKET_INFO packetInfo);

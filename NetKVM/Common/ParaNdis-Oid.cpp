@@ -583,7 +583,7 @@ Common handler of IP-address assignment (DHCP finish)
 ***********************************************************/
 NDIS_STATUS ParaNdis_OnOidSetNetworkAddresses(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
-    UINT i, j, ipV4Count = 0;
+    UINT i, j, ipV4Count = 0, ipV6Count = 0;
 
     NETWORK_ADDRESS_LIST *pnal = (NETWORK_ADDRESS_LIST *)pOid->InformationBuffer;
     if (sizeof(NETWORK_ADDRESS_LIST) < pOid->InformationBufferLength)
@@ -597,13 +597,24 @@ NDIS_STATUS ParaNdis_OnOidSetNetworkAddresses(PARANDIS_ADAPTER *pContext, tOidDe
             if (addr->AddressType == NDIS_PROTOCOL_ID_TCP_IP)
             {
                 ipV4Count++;
+            } else if (addr->AddressType == NDIS_PROTOCOL_ID_IP6)
+            {
+                ipV6Count++;
             }
             ptr += RTL_FIELD_SIZE(NETWORK_ADDRESS, AddressLength) + RTL_FIELD_SIZE(NETWORK_ADDRESS, AddressType);
             ptr += addr->AddressLength;
         }
+        /*
+         *   As it was observed on Windows, NETWORK_ADDRESS_LIST contains either V4 or V6 Addresses
+         *   and thus if we get IPV4 addresses we only change the IPV4 packets, the same applies to IPV6
+         */
         if (ipV4Count)
         {
-            pContext->gratArpPackets.DestroyNBLs();
+            pContext->gratArpPackets.DestroyIPV4NBLs();
+        }
+        if (ipV6Count)
+        {
+            pContext->gratArpPackets.DestroyIPV6NBLs();
         }
         PUCHAR p = (PUCHAR)(&pnal->Address[0]);
         DPrintf(2, ("Received %d addresses, type %d\n", pnal->AddressCount, pnal->AddressType));
@@ -623,6 +634,12 @@ NDIS_STATUS ParaNdis_OnOidSetNetworkAddresses(PARANDIS_ADAPTER *pContext, tOidDe
                     (pIP->in_addr >> 24) & 0xff));
             } else
             {
+                if (pna->AddressLength == sizeof(NETWORK_ADDRESS_IP6)
+                    && pnal->AddressType == NDIS_PROTOCOL_ID_IP6)
+                {
+                    PNETWORK_ADDRESS_IP6 pIP = (PNETWORK_ADDRESS_IP6)pna->Address;
+                    pContext->gratArpPackets.CreateNBL(pIP->sin6_addr);
+                }
                 PUCHAR TempString = (ulBufSize < 100) ? (PUCHAR) ParaNdis_AllocateMemory(pContext, ulBufSize) : NULL;
                 if (TempString)
                 {
