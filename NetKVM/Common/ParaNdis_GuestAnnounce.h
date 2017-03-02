@@ -7,15 +7,18 @@ class CGratARPPacketHolder : public CRefCountingObject, public CNdisAllocatable<
 private:
     PNET_BUFFER_LIST m_NBL;
     NDIS_HANDLE m_handle;
+    bool m_isIPV4; /* Packet can be IPV4 or IPV6*/
 
 public:
-    CGratARPPacketHolder::CGratARPPacketHolder(PNET_BUFFER_LIST NBL, NDIS_HANDLE handle) : m_NBL(NBL), m_handle(handle){};
+    CGratARPPacketHolder::CGratARPPacketHolder(PNET_BUFFER_LIST NBL, NDIS_HANDLE handle, bool isIPV4) :
+        m_NBL(NBL), m_handle(handle), m_isIPV4(isIPV4){};
     ~CGratARPPacketHolder();
 
     PNET_BUFFER_LIST GetNBL() { return m_NBL; };
 
     CGratARPPacketHolder(const CGratARPPacketHolder&) = delete;
     CGratARPPacketHolder& operator= (const CGratARPPacketHolder&) = delete;
+    bool isIPV4() { return m_isIPV4; } /* true if ipv4, false if ipv6 */
 
 private:
     virtual void OnLastReferenceGone() override;
@@ -33,13 +36,20 @@ public:
     CGratuitousArpPackets(PARANDIS_ADAPTER *pContext) : m_Context(pContext) {};
     ~CGratuitousArpPackets()
     {
-        DestroyNBLs();
-    }
-    VOID DestroyNBLs()
-    {
         m_packets.ForEachDetached([](CGratARPPacketHolder *GratARPPacket) { GratARPPacket->Release(); });
     }
+    VOID DestroyIPV4NBLs()
+    {
+        m_packets.ForEachDetachedIf([](CGratARPPacketHolder *GratARPPacket) { return GratARPPacket->isIPV4(); },
+            [](CGratARPPacketHolder *GratARPPacket) { GratARPPacket->Release(); });
+    }
+    VOID DestroyIPV6NBLs()
+    {
+        m_packets.ForEachDetachedIf([](CGratARPPacketHolder *GratARPPacket) { return !GratARPPacket->isIPV4(); },
+            [](CGratARPPacketHolder *GratARPPacket) { GratARPPacket->Release(); });
+    }
     VOID CreateNBL(UINT32 IPV4);
+    VOID CreateNBL(USHORT *IPV6);
     VOID SendNBLs();
     static CGratARPPacketHolder *GetCGratArpPacketFromNBL(PNET_BUFFER_LIST NBL);
 };

@@ -449,6 +449,11 @@ static __inline USHORT CalculateIpPseudoHeaderChecksum(IPHeader *pIpHeader,
     return 0;
 }
 
+USHORT CheckSumCalculator(PVOID buffer, ULONG len)
+{
+        return CheckSumCalculatorFlat(buffer, len);
+}
+
 static __inline BOOLEAN
 CompareNetCheckSumOnEndSystem(USHORT computedChecksum, USHORT arrivedChecksum)
 {

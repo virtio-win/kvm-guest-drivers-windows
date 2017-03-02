@@ -49,11 +49,17 @@ typedef ULONG IPV6_ADDRESS[4];
 #define ETH_PRIORITY_HEADER_SIZE            4
 #define ETH_HARDWARE_ADDRESS_SIZE           ETH_ALEN
 #define ETH_IPV4_ADDRESS_SIZE               4
+#define ETH_IPV4_ADDRESS_SIZE               4
+#define ETH_IPV6_USHORT_ADDRESS_SIZE        8
 #define ETH_HARDWARE_TYPE                   1
 #define ETH_ETHER_TYPE_ARP                  0x0806
 #define ETH_IP_PROTOCOL_TYPE                0x0800
 #define ETH_ARP_OPERATION_TYPE_REQUEST      1
 #define ETH_ARP_OPERATION_TYPE_REPLY        2
+#define ETH_ETHER_TYPE_IPV6                 0x86DD
+#define ETH_IPV6_ICMPV6_PROTOCOL            0x3A
+#define ETH_ICMPV6_TYPE_NSM                 0x87
+#define ETH_IPV6_VERSION_TRAFFICCONTROL_FLOWLABEL 0x6E000000
 
 #define TCP_HEADER_LENGTH(Header) ((Header->tcp_flags & 0xF0) >> 2)
 
@@ -122,6 +128,16 @@ typedef struct _ipv4_address {
     UINT32 address;
 } ipv4_address;
 
+typedef struct _ipv6_address {
+    USHORT address[ETH_IPV6_USHORT_ADDRESS_SIZE];
+} ipv6_address;
+
+typedef struct _EthernetFrame {
+    hardware_address target_hardware_address;
+    hardware_address sender_hardware_address;
+    UINT16 ether_type;
+} EthernetFrame;
+
 // Internet Protocol (IPv4) over Ethernet ARP packet
 typedef struct _IPv4OverEthernetARPPacket {
     UINT16 hardware_type;
@@ -136,11 +152,44 @@ typedef struct _IPv4OverEthernetARPPacket {
 } IPv4OverEthernetARPPacket;
 
 typedef struct _EthernetArpFrame {
-    hardware_address target_hardware_address;
-    hardware_address sender_hardware_address;
-    UINT16 ether_type;
+    EthernetFrame frame;
     IPv4OverEthernetARPPacket data;
 } EthernetArpFrame;
+
+// Internet Protocol (IPv6) Neighbor Solicitation Message over Ethernet
+typedef struct _ICMPv6NSM {
+    UINT8 type;
+    UINT8 code;
+    UINT16 checksum;
+    UINT32 reserved;
+    ipv6_address target_address;
+} ICMPv6NSM;
+
+typedef struct _IPv6NSMOverEthernetPacket {
+    UINT32 version_trafficclass_flowlabel; // Version is 4 bits, Traffic Class is 8 and Flow label is 20
+    UINT16 payload_length;
+    UINT8 next_header;
+    UINT8 hop_limit;
+    ipv6_address source_address;
+    ipv6_address destination_address;
+    ICMPv6NSM nsm;
+} IPv6NSMOverEthernetPacket;
+
+// This struct is used for calculating the checksum
+typedef struct _ICMPv6PseudoHeader {
+    ipv6_address source_address;
+    ipv6_address destination_address;
+    UINT32 icmpv6_length;
+    UINT16 zeropad0 = 0;
+    UINT8 zeropad1 = 0;
+    UINT8 next_header;
+    ICMPv6NSM nsm; //data
+} ICMPv6PseudoHeader;
+
+typedef struct _EthernetNSMFrame {
+    EthernetFrame frame;
+    IPv6NSMOverEthernetPacket data;
+} EthernetNSMFrame;
 
 #include <poppack.h>
 

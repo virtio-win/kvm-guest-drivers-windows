@@ -30,6 +30,17 @@
 #define _Acquires_exclusive_lock_(lock)
 #endif
 
+#if ((OSVERSION_MASK & NTDDI_VERSION) == NTDDI_VISTA)
+#define NDIS_PROTOCOL_ID_IP6            0x03
+
+typedef struct _NETWORK_ADDRESS_IP6 {
+    USHORT      sin6_port;
+    ULONG       sin6_flowinfo;
+    USHORT      sin6_addr[8];
+    ULONG       sin6_scope_id;
+} NETWORK_ADDRESS_IP6, *PNETWORK_ADDRESS_IP6;
+#endif
+
 #define mb()   KeMemoryBarrier()
 #define rmb()  KeMemoryBarrier()
 #define wmb()  KeMemoryBarrier()
