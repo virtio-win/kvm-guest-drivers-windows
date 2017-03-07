@@ -28,11 +28,13 @@ EVT_WDF_DEVICE_D0_EXIT              VIOInputEvtDeviceD0Exit;
 static NTSTATUS VIOInputInitInterruptHandling(IN WDFDEVICE hDevice);
 static NTSTATUS VIOInputInitAllQueues(IN WDFOBJECT hDevice);
 static VOID VIOInputShutDownAllQueues(IN WDFOBJECT WdfDevice);
+static NTSTATUS VIOInputCreateChildPdo(IN WDFDEVICE hDevice);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOInputEvtDeviceAdd)
 #pragma alloc_text (PAGE, VIOInputEvtDevicePrepareHardware)
 #pragma alloc_text (PAGE, VIOInputEvtDeviceReleaseHardware)
+#pragma alloc_text (PAGE, VIOInputCreateChildPdo)
 #pragma alloc_text (PAGE, VIOInputEvtDeviceD0Exit)
 #endif
 
@@ -91,9 +93,6 @@ VIOInputEvtDeviceAdd(
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
-
-    // This driver acts like a lower filter under viohidkmdf.sys
-    WdfFdoInitSetFilter(DeviceInit);
 
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&PnpPowerCallbacks);
     PnpPowerCallbacks.EvtDevicePrepareHardware = VIOInputEvtDevicePrepareHardware;
@@ -232,7 +231,117 @@ VIOInputEvtDevicePrepareHardware(
     // corresponding HID report descriptor.
     status = VIOInputBuildReportDescriptor(pContext);
 
+    if (NT_SUCCESS(status) && !pContext->bChildPdoCreated)
+    {
+        // Create a child PDO with an instance path based on the
+        // HID report descriptor (hash). This is to make sure that
+        // the devnode won't be reused when a different virtio
+        // input device is plugged into the same PCI slot.
+        // viohidkmdf.sys (build by the hidpassthrough project) is
+        // the FDO for the child, passing IOCTL IRPs back to us.
+        status = VIOInputCreateChildPdo(Device);
+        if (NT_SUCCESS(status))
+        {
+            pContext->bChildPdoCreated = TRUE;
+        }
+    }
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+    return status;
+}
+
+static NTSTATUS
+VIOInputCreateChildPdo(
+    IN WDFDEVICE hDevice)
+{
+    PINPUT_DEVICE pContext = GetDeviceContext(hDevice);
+    PWDFDEVICE_INIT pDeviceInit = NULL;
+    PPDO_EXTENSION PdoExtension;
+    WDFDEVICE hChild;
+    WDF_OBJECT_ATTRIBUTES pdoAttributes;
+    WDF_DEVICE_PNP_CAPABILITIES PnpCaps;
+    NTSTATUS status = STATUS_SUCCESS;
+
+    DECLARE_CONST_UNICODE_STRING(deviceLocation, L"VIOINPUT");
+    DECLARE_CONST_UNICODE_STRING(deviceId, L"VIOINPUT\\REV_01");
+    DECLARE_UNICODE_STRING_SIZE(buffer, 32);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+
+    pDeviceInit = WdfPdoInitAllocate(hDevice);
+    if (pDeviceInit == NULL)
+    {
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    status = WdfPdoInitAssignDeviceID(pDeviceInit, &deviceId);
+    if (!NT_SUCCESS(status))
+    {
+        goto Exit;
+    }
+    status = WdfPdoInitAddHardwareID(pDeviceInit, &deviceId);
+    if (!NT_SUCCESS(status))
+    {
+        goto Exit;
+    }
+    status = WdfPdoInitAddCompatibleID(pDeviceInit, &deviceId);
+    if (!NT_SUCCESS(status))
+    {
+        goto Exit;
+    }
+
+    status = RtlUnicodeStringPrintf(
+        &buffer,
+        L"%08I64x",
+        pContext->HidReportDescriptorHash);
+    if (!NT_SUCCESS(status))
+    {
+        goto Exit;
+    }
+    status = WdfPdoInitAssignInstanceID(pDeviceInit, &buffer);
+    if (!NT_SUCCESS(status))
+    {
+        goto Exit;
+    }
+
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&pdoAttributes, PDO_EXTENSION);
+    status = WdfDeviceCreate(
+        &pDeviceInit,
+        &pdoAttributes,
+        &hChild);
+    if (!NT_SUCCESS(status))
+    {
+        goto Exit;
+    }
+    pDeviceInit = NULL;
+
+    // hide the child from Device Manager
+    WDF_DEVICE_PNP_CAPABILITIES_INIT(&PnpCaps);
+    PnpCaps.NoDisplayInUI = WdfTrue;
+    PnpCaps.UniqueID = WdfFalse;
+    WdfDeviceSetPnpCapabilities(hChild, &PnpCaps);
+
+    // initialize the PDO extension
+    PdoExtension = PdoGetExtension(hChild);
+    RtlZeroMemory(PdoExtension, sizeof(PDO_EXTENSION));
+    PdoExtension->Version = PDO_EXTENSION_VERSION;
+    PdoExtension->BusFdo = WdfDeviceWdmGetDeviceObject(hDevice);
+
+    // add the child
+    status = WdfFdoAddStaticChild(hDevice, hChild);
+    if (!NT_SUCCESS(status))
+    {
+        WdfObjectDelete(hChild);
+    }
+
+Exit:
+    if (pDeviceInit != NULL)
+    {
+        WdfDeviceInitFree(pDeviceInit);
+    }
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return status;
 }
 

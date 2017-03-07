@@ -14,6 +14,7 @@
 **********************************************************************/
 #pragma once
 #include "public.h"
+#include "../hidpassthrough/pdo.h"
 
 // If defined, will expose absolute axes as a tablet device only if they
 // don't come with mouse buttons.
@@ -94,6 +95,9 @@ typedef struct _tagInputDevice
     HID_DESCRIPTOR         HidDescriptor;
     HID_DEVICE_ATTRIBUTES  HidDeviceAttributes;
     PHID_REPORT_DESCRIPTOR HidReportDescriptor;
+    UINT64                 HidReportDescriptorHash;
+
+    BOOLEAN                bChildPdoCreated;
 
     // array of pointers to input class descriptors, each responsible
     // for one device class (e.g. mouse)
@@ -102,6 +106,9 @@ typedef struct _tagInputDevice
 } INPUT_DEVICE, *PINPUT_DEVICE;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(INPUT_DEVICE, GetDeviceContext)
+
+// PDO_EXTENSION is declared in hidpassthrough\pdo.h
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(PDO_EXTENSION, PdoGetExtension)
 
 #define VIOINPUT_DRIVER_MEMORY_TAG (ULONG)'niIV'
 
