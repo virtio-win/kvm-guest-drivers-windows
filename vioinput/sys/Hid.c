@@ -366,6 +366,24 @@ static BOOLEAN InputCfgDataEmpty(PVIRTIO_INPUT_CFG_DATA pCfgData)
     return TRUE;
 }
 
+static UINT64 ComputeHash(PUCHAR pData, SIZE_T Length)
+{
+    UINT64 hash = 0;
+    SIZE_T i;
+
+    for (i = 0; i < Length / sizeof(UINT64); i++)
+    {
+        hash ^= *(PUINT64)pData;
+        pData += sizeof(UINT64);
+    }
+    for (i = 0; i < (Length & 7); i++)
+    {
+        hash ^= (UINT64)*pData << (i * sizeof(UCHAR));
+        pData++;
+    }
+    return hash;
+}
+
 NTSTATUS
 VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
 {
@@ -500,6 +518,8 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
     {
         pContext->HidDescriptor = G_DefaultHidDescriptor;
         pContext->HidDescriptor.DescriptorList[0].wReportLength = (USHORT)cbReportDescriptor;
+
+        pContext->HidReportDescriptorHash = ComputeHash(pContext->HidReportDescriptor, cbReportDescriptor);
 
         DumpReportDescriptor(pContext->HidReportDescriptor, cbReportDescriptor);
     }

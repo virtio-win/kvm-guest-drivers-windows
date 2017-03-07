@@ -24,6 +24,7 @@
  */
 #include <wdm.h>
 #include <hidport.h>
+#include "pdo.h"
 
 static DRIVER_ADD_DEVICE HidPassthroughAddDevice;
 static DRIVER_UNLOAD     HidPassthroughUnload;
@@ -71,6 +72,17 @@ HidPassthroughDispatchPower(_In_    PDEVICE_OBJECT  DeviceObject,
     return PoCallDriver(ext->NextDeviceObject, Irp);
 }
 
+static NTSTATUS
+HidPassthroughDispatchIoctl(_In_    PDEVICE_OBJECT  DeviceObject,
+                            _Inout_ PIRP            Irp)
+{
+    PHID_DEVICE_EXTENSION ext = DeviceObject->DeviceExtension;
+    PPDO_EXTENSION ext_pdo = (PPDO_EXTENSION)ext->PhysicalDeviceObject->DeviceExtension;
+
+    IoCopyCurrentIrpStackLocationToNext(Irp);
+    return IoCallDriver(ext_pdo->BusFdo, Irp);
+}
+
 NTSTATUS
 DriverEntry (_In_ PDRIVER_OBJECT  DriverObject,
              _In_ PUNICODE_STRING RegistryPath)
@@ -81,9 +93,13 @@ DriverEntry (_In_ PDRIVER_OBJECT  DriverObject,
     /* The dispatch table should pass through all the IRPs,
      * but IRP_MJ_POWER is special because we need to start
      * the next power IRP immediately.
+     * IRP_MJ_INTERNAL_DEVICE_CONTROL is forwarded to the
+     * parent device to handle HID IOCTLs.
      */
     for (i = 0; i <= IRP_MJ_MAXIMUM_FUNCTION; i++) {
-        if (i == IRP_MJ_POWER) {
+        if (i == IRP_MJ_INTERNAL_DEVICE_CONTROL) {
+           DriverObject->MajorFunction[i] = HidPassthroughDispatchIoctl;
+        } else if (i == IRP_MJ_POWER) {
            DriverObject->MajorFunction[i] = HidPassthroughDispatchPower;
         } else {
            DriverObject->MajorFunction[i] = HidPassthroughDispatch;
