@@ -13,6 +13,7 @@
  *
 **********************************************************************/
 #include "precomp.h"
+#include "..\..\Tools\vendor.check.h"
 
 #if defined(EVENT_TRACING)
 #include "balloon.tmh"

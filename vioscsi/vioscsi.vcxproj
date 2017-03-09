@@ -111,6 +111,7 @@
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildProjectDirectory)\vioscsi.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
@@ -204,20 +205,8 @@
         wmimofck -t$(OutDir)\vioscsi.vbs $(OutDir)\vioscsi.bmf
       </Command>
     </PreBuildEvent>
-    <PostBuildEvent>
-      <Command>
-        copy vioscsi.inx $(OutDir)\vioscsi.inf
-        stampinf -f $(OutDir)\vioscsi.inf -a $(InfArch) -v $(STAMPINF_VERSION)
-        packOne.bat $(TargetOS) $(TargetArch) vioscsi
-      </Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(PlatformToolset)'!='v140_xp'">
-    <PostBuildEvent>
-      <Command>
-        packOne.bat $(TargetOS) $(TargetArch) vioscsi
-      </Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <ClCompile>
@@ -302,6 +291,7 @@
     <Mofcomp Include="vioscsi.mof" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>

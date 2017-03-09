@@ -1,0 +1,81 @@
+/**********************************************************************
+ * Copyright (c) 2017  Parallels IP Holdings GmbH
+ *
+ * File: vendor.ver
+ *
+ * This file contains resource (version) definitions for all drivers
+ * that are independent from vendor.
+ *
+ * This work is licensed under the terms of the GNU GPL, version 2.  See
+ * the COPYING file in the top-level directory.
+ *
+**********************************************************************/
+
+/*
+ * These defines are only for Visual Studio built-in rc editor
+ *
+ * VER_OS <= $(TargetOS) for description postfix
+ * VER_ARCH <= $(VerArch) for description postfix
+ * VENDOR_VER <= $(_VENDOR_).ver (rhel by default)
+ */
+#ifndef VER_OS
+    #define VER_OS Win??
+#endif
+#ifndef VER_ARCH
+    #define VER_ARCH x??
+#endif
+#ifndef VENDOR_VER
+    #define VENDOR_VER rhel.ver
+    //#define VENDOR_VER vz.ver
+#endif
+
+/*
+ * AUTO: these defines are defined in common.ver
+ *    VER_PRODUCTVERSION          <= VER_PRODUCTMAJORVERSION,VER_PRODUCTMINORVERSION,VER_PRODUCTBUILD,VER_PRODUCTBUILD_QFE
+ *    VER_FILEVERSION             <= VER_PRODUCTVERSION
+ *    VER_FILEVERSION_STR         <= VER_PRODUCTVERSION_STR
+ *    VER_ORIGINALFILENAME_STR    <= VER_INTERNALNAME_STR
+ */
+
+/*
+ * COMMON: these defines are strictly required
+ */
+#define VER_LANGNEUTRAL
+#define VER_FILETYPE                VFT_DRV
+#define VER_FILESUBTYPE             VFT2_DRV_SYSTEM
+#define VER_FILEDESCRIPTION_STR     "File Description required"
+#define VER_INTERNALNAME_STR        "File Name required"
+
+/*
+ * STRINGIFY
+ */
+#define STRINGIFY_AUX(X) #X
+#define STRINGIFY(X)     STRINGIFY_AUX(X)
+
+/*
+ * VENDOR SPECIFIC
+ */
+#include STRINGIFY(VENDOR_VER)
+
+/*
+ * Applying vendor specific
+ */
+#undef  VER_PRODUCTBUILD
+#undef  VER_PRODUCTBUILD_QFE
+#undef  VER_PRODUCTMAJORVERSION
+#undef  VER_PRODUCTMINORVERSION
+
+#define VER_PRODUCTMAJORVERSION    VENDOR_VIRTIO_1
+#define VER_PRODUCTMINORVERSION    VENDOR_VIRTIO_2
+#define VER_PRODUCTBUILD           VENDOR_VIRTIO_3
+#define VER_PRODUCTBUILD_QFE       VENDOR_VIRTIO_4
+
+#undef  VER_LEGALTRADEMARKS_STR
+#undef  VER_LEGALCOPYRIGHT_STR
+#undef  VER_COMPANYNAME_STR
+#undef  VER_PRODUCTNAME_STR
+
+#define VER_LEGALTRADEMARKS_STR    ""
+#define VER_LEGALCOPYRIGHT_STR     VENDOR_VIRTIO_COPYRIGHT
+#define VER_COMPANYNAME_STR        VENDOR_VIRTIO_COMPANY
+#define VER_PRODUCTNAME_STR        VENDOR_VIRTIO_PRODUCT

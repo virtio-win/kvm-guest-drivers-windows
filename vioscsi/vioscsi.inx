@@ -1,6 +1,7 @@
 ;/*++
 ;
-;Copyright (c) 2012-2016 Red Hat Inc.
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
 ;
 ;Module Name:
 ;    vioscsi.inf
@@ -17,11 +18,11 @@
 Signature="$Windows NT$"
 Class=SCSIAdapter
 ClassGUID={4D36E97B-E325-11CE-BFC1-08002BE10318}
-Provider=%RHEL%
-DriverVer=05/03/2010,6.0.6001.16640
+Provider=%VENDOR%
+DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 CatalogFile=vioscsi.cat
 DriverPackageType = PlugAndPlay
-DriverPackageDisplayName = %RHELScsi.DeviceDesc%
+DriverPackageDisplayName = %VENDOR.DeviceDesc%
 
 ;
 ; Source file information
@@ -45,11 +46,11 @@ vioscsi_Files_Driver = 12
 ;
 
 [Manufacturer]
-%RHEL%   = RHEL,NT$ARCH$
+%VENDOR%   = VENDOR,NT$ARCH$
 
-[RHEL.NT$ARCH$]
-%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4&REV_00
-%RHELScsi.DeviceDesc% = rhelscsi_inst, PCI\VEN_1AF4&DEV_1048&SUBSYS_11001AF4&REV_01
+[VENDOR.NT$ARCH$]
+%VENDOR.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4&REV_00
+%VENDOR.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1048&SUBSYS_11001AF4&REV_01
 
 ;
 ; General installation section
@@ -58,17 +59,18 @@ vioscsi_Files_Driver = 12
 [vioscsi_Files_Driver]
 vioscsi.sys,,,2
 
-[rhelscsi_inst]
+[scsi_inst]
 CopyFiles=vioscsi_Files_Driver
 
 ;
 ; Service Installation
 ;
 
-[rhelscsi_inst.Services]
-AddService = vioscsi, 0x00000002 , rhelscsi_Service_Inst, rhelscsi_EventLog_Inst
+[scsi_inst.Services]
+AddService = vioscsi, 0x00000002 , scsi_Service_Inst, scsi_EventLog_Inst
 
-[rhelscsi_Service_Inst]
+[scsi_Service_Inst]
+DisplayName    = %VENDOR.SVCDESC%
 ServiceType    = %SERVICE_KERNEL_DRIVER%
 StartType      = %SERVICE_BOOT_START%
 ErrorControl   = %SERVICE_ERROR_NORMAL%
@@ -76,13 +78,13 @@ ServiceBinary  = %12%\vioscsi.sys
 LoadOrderGroup = SCSI miniport
 AddReg         = pnpsafe_pci_addreg
 
-[rhelscsi_inst.HW]
+[scsi_inst.HW]
 AddReg         = pnpsafe_pci_addreg_msix
 
-[rhelscsi_EventLog_Inst]
-AddReg = rhelscsi_EventLog_AddReg
+[scsi_EventLog_Inst]
+AddReg = scsi_EventLog_AddReg
 
-[rhelscsi_EventLog_AddReg]
+[scsi_EventLog_AddReg]
 HKR,,EventMessageFile,%REG_EXPAND_SZ%,"%%SystemRoot%%\System32\IoLogMsg.dll"
 HKR,,TypesSupported,%REG_DWORD%,7
 
@@ -105,9 +107,10 @@ HKR, "Interrupt Management\Affinity Policy", DevicePriority, 0x00010001, 3
 ;
 ; Localizable Strings
 ;
-diskId1 = "Red Hat VirtIO SCSI pass-through controller Installation Disk"
-RHELScsi.DeviceDesc = "Red Hat VirtIO SCSI pass-through controller"
-RHEL = "Red Hat, Inc."
+VENDOR = "INX_COMPANY"
+diskId1 = "INX_PREFIX_VENDORVirtIO SCSI pass-through controller Installation Disk"
+VENDOR.DeviceDesc = "INX_PREFIX_VENDORVirtIO SCSI pass-through controller"
+VENDOR.SVCDESC = "INX_PREFIX_VENDORVirtIO SCSI pass-through Service"
 
 ;
 ; Non-Localizable Strings
@@ -118,4 +121,3 @@ REG_DWORD      = 0x00010001
 SERVICE_KERNEL_DRIVER  = 1
 SERVICE_BOOT_START     = 0
 SERVICE_ERROR_NORMAL   = 1
-
