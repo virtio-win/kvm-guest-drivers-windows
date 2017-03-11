@@ -12,6 +12,16 @@
 **********************************************************************/
 
 /*
+ * These defines are only for Visual Studio built-in rc editor
+ */
+#ifndef _NT_TARGET_MAJ
+    #define _NT_TARGET_MAJ 1
+    #define _RHEL_RELEASE_VERSION_ 20
+    #define _BUILD_MAJOR_VERSION_ 300
+    #define _BUILD_MINOR_VERSION_ 5800
+#endif
+
+/*
  * rhel versioning
  */
 #define VENDOR_VIRTIO_1            _NT_TARGET_MAJ
