@@ -16,6 +16,7 @@
 #include "utils.h"
 #include "helper.h"
 #include "vioscsidt.h"
+#include "..\Tools\vendor.check.h"
 
 #define MS_SM_HBA_API
 #include <hbapiwmi.h>
@@ -26,7 +27,7 @@
 #define VioScsiWmi_MofResourceName        L"MofResource"
 
 #include "resources.h"
-
+#include "..\Tools\vendor.ver"
 
 #define VIOSCSI_SETUP_GUID_INDEX 0
 #define VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX 1
