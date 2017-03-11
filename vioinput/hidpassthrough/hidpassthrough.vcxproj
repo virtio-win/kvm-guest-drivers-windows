@@ -112,11 +112,8 @@
     <PostBuildEvent>
       <Command>
         mkdir ..\Install\$(TargetOS)\$(TargetArch)
-        mkdir ..\Install2\$(TargetOS)\$(TargetArch)
         copy $(OutDir)viohidkmdf.sys ..\Install\$(TargetOS)\$(TargetArch)
         copy $(OutDir)viohidkmdf.pdb ..\Install\$(TargetOS)\$(TargetArch)
-        copy $(OutDir)viohidkmdf.sys ..\Install2\$(TargetOS)\$(TargetArch)
-        copy $(OutDir)viohidkmdf.pdb ..\Install2\$(TargetOS)\$(TargetArch)
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
