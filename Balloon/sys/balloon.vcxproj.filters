@@ -36,6 +36,9 @@
     <ClInclude Include="trace.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ntddkex.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="balloon.rc">
@@ -52,7 +55,7 @@
     <ClCompile Include="Driver.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="queue.c">
+    <ClCompile Include="memstat.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="utils.c">
