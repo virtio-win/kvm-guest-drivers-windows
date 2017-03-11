@@ -1,6 +1,7 @@
 ;/*++
 ;
-;Copyright (c) 2010-2016 Red Hat Inc.
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
 ;
 ;Module Name:
 ;    vioser.inf
@@ -17,8 +18,8 @@
 Signature="$WINDOWS NT$"
 Class=System
 ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
-Provider=%REDHAT%
-DriverVer=02/22/2010,6.0.1000.10000
+Provider=%VENDOR%
+DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 CatalogFile=vioser.cat
 DriverPackageType = PlugAndPlay
 DriverPackageDisplayName = %VirtioSerial.DeviceDesc%
@@ -39,7 +40,7 @@ vioser.sys  = 1,,
 ;*****************************************
 
 [Manufacturer]
-%REDHAT%=VirtioSerial,NT$ARCH$
+%VENDOR%=VirtioSerial,NT$ARCH$
 
 [VirtioSerial.NT$ARCH$]
 ;
@@ -100,7 +101,7 @@ KmdfService =  VirtioSerial, VirtioSerial_wdfsect
 KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
-REDHAT = "Red Hat, Inc."
-DiskId1 = "VirtIO Serial Installation Disk #1"
-VirtioSerial.DeviceDesc = "VirtIO Serial Driver"
-VirtioSerial.ServiceDesc = "VirtIO Serial Service"
+VENDOR = "INX_COMPANY"
+DiskId1 = "INX_PREFIX_VIRTIOVirtIO Serial Installation Disk #1"
+VirtioSerial.DeviceDesc = "INX_PREFIX_VIRTIOVirtIO Serial Driver"
+VirtioSerial.ServiceDesc = "INX_PREFIX_VIRTIOVirtIO Serial Service"
