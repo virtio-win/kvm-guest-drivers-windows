@@ -14,6 +14,8 @@ Enabling and customizing virtio build features
     <Feature_AdjustInfLegacy>true</Feature_AdjustInfLegacy>
     <Feature_AdjustInf>true</Feature_AdjustInf>
     <SourceInfFile>vioscsi.inx</SourceInfFile>
+    <RHEL_COPYRIGHT_STARTING_YEAR>2012</RHEL_COPYRIGHT_STARTING_YEAR>
+    <VZ_COPYRIGHT_STARTING_YEAR>2016</VZ_COPYRIGHT_STARTING_YEAR>
   </PropertyGroup>
 
   <ItemGroup>
