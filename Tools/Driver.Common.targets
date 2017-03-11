@@ -59,9 +59,9 @@ Invoking the task:
         }
 
         foreach (var item in SourceFiles) {
-            string fileName = item.GetMetadata("FullPath");
-            string fileNameOrig = fileName + ".orig";
-            string fileNameNew = fileName + ".new";
+            var fileName = item.GetMetadata("FullPath");
+            var fileNameOrig = fileName + ".orig";
+            var fileNameNew = fileName + ".new";
             Log.LogMessage(MessageImportance.High, "Processing file {0}", fileName);
 
             if (!File.Exists(fileName)) {
@@ -71,12 +71,15 @@ Invoking the task:
 
             Log.LogMessage(MessageImportance.High, "Saving original context to: {0}", fileNameOrig);
             File.Copy(fileName, fileNameOrig, true);
+            var content = File.ReadAllText(fileName);
 
-            string content = File.ReadAllText(fileName);
             var regex = new Regex(String.Join("|", substitutions.Keys.Select(k => Regex.Escape(k))));
-            var substituted = regex.Replace(content, m => substitutions[m.Value]);
-            File.WriteAllText(fileName, substituted);
+            for (;;) {
+              content = regex.Replace(content, m => substitutions[m.Value]);
+              if (!regex.IsMatch(content)) break;
+            }
 
+            File.WriteAllText(fileName, content);
             Log.LogMessage(MessageImportance.High, "Saving replaced context to: {0}", fileNameNew);
             File.Copy(fileName, fileNameNew, true);
         }
