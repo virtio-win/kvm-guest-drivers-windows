@@ -1,6 +1,7 @@
 ;/*++
 ;
-;Copyright (c) 2016 Red Hat Inc.
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
 ;
 ;Module Name:
 ;    vioinput.inf
@@ -16,8 +17,8 @@
 Signature="$WINDOWS NT$"
 Class=HIDClass
 ClassGuid={745a17a0-74d3-11d0-b6fe-00a0c90f57da}
-Provider=%REDHAT%
-DriverVer=01/22/2016,6.0.1000.10000
+Provider=%VENDOR%
+DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 CatalogFile=vioinput.cat
 DriverPackageType = PlugAndPlay
 DriverPackageDisplayName = %VirtioInput.DeviceDesc%
@@ -48,7 +49,7 @@ viohidkmdf.sys = 1,,
 ;*****************************************
 
 [Manufacturer]
-%REDHAT%=VirtioInput,NT$ARCH$
+%VENDOR%=VirtioInput,NT$ARCH$
 
 [VirtioInput.NT$ARCH$]
 ;
@@ -120,8 +121,8 @@ KmdfService =  VirtioInput, VirtioInput_wdfsect
 KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
-REDHAT = "Red Hat, Inc."
-DiskId1 = "VirtIO Input Installation Disk #1"
-VirtioInput.DeviceDesc = "VirtIO Input Driver"
-VirtioInput.ChildDesc = "VirtIO Input Driver Helper"
-VirtioInput.ServiceDesc = "VirtIO Input Service"
+VENDOR = "INX_COMPANY"
+DiskId1 = "INX_PREFIX_VIRTIOVirtIO Input Installation Disk #1"
+VirtioInput.DeviceDesc = "INX_PREFIX_VIRTIOVirtIO Input Driver"
+VirtioInput.ChildDesc = "INX_PREFIX_VIRTIOVirtIO Input Driver Helper"
+VirtioInput.ServiceDesc = "INX_PREFIX_VIRTIOVirtIO Input Service"

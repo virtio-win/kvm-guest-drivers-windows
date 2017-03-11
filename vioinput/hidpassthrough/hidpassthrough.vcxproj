@@ -59,6 +59,7 @@
     <TargetVersion>Windows7</TargetVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildProjectDirectory)\hidpassthrough.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" />
@@ -111,8 +112,11 @@
     <PostBuildEvent>
       <Command>
         mkdir ..\Install\$(TargetOS)\$(TargetArch)
+        mkdir ..\Install2\$(TargetOS)\$(TargetArch)
         copy $(OutDir)viohidkmdf.sys ..\Install\$(TargetOS)\$(TargetArch)
         copy $(OutDir)viohidkmdf.pdb ..\Install\$(TargetOS)\$(TargetArch)
+        copy $(OutDir)viohidkmdf.sys ..\Install2\$(TargetOS)\$(TargetArch)
+        copy $(OutDir)viohidkmdf.pdb ..\Install2\$(TargetOS)\$(TargetArch)
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -124,4 +128,5 @@
     <FilesToPackage Include="$(TargetPath)" Condition="'$(ConfigurationType)'=='Driver' or '$(ConfigurationType)'=='DynamicLibrary'" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.targets" />
 </Project>
