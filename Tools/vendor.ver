@@ -12,6 +12,24 @@
 **********************************************************************/
 
 /*
+ * These defines are only for Visual Studio built-in rc editor
+ *
+ * VER_OS <= $(TargetOS) for description postfix
+ * VER_ARCH <= $(VerArch) for description postfix
+ * VENDOR_VER <= $(_VENDOR_).ver (rhel by default)
+ */
+#ifndef VER_OS
+    #define VER_OS Win??
+#endif
+#ifndef VER_ARCH
+    #define VER_ARCH x??
+#endif
+#ifndef VENDOR_VER
+    #define VENDOR_VER rhel.ver
+    //#define VENDOR_VER vz.ver
+#endif
+
+/*
  * AUTO: these defines are defined in common.ver
  *    VER_PRODUCTVERSION          <= VER_PRODUCTMAJORVERSION,VER_PRODUCTMINORVERSION,VER_PRODUCTBUILD,VER_PRODUCTBUILD_QFE
  *    VER_FILEVERSION             <= VER_PRODUCTVERSION
