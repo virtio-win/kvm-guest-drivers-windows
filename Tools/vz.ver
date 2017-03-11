@@ -1,0 +1,52 @@
+/**********************************************************************
+ * Copyright (c) 2017  Parallels IP Holdings GmbH
+ *
+ * File: vz.ver
+ *
+ * This file contains vz vendor specific
+ * resource (version) definitions for all drivers
+ *
+ * This work is licensed under the terms of the GNU GPL, version 2.  See
+ * the COPYING file in the top-level directory.
+ *
+**********************************************************************/
+
+/*
+ * vz build variants
+ */
+#ifndef VZ_RELEASE_N
+    //custom
+    #define VENDOR_DESC_PREFIX  "Custom\040"
+    #define VENDOR_DESC_POSTFIX "\040" STRINGIFY(VER_OS) "\040for\040" STRINGIFY(VER_ARCH)
+#elif (VZ_RELEASE_N != 0)
+    //experimental
+    #define VENDOR_DESC_PREFIX  "Experimental\040"
+    #define VENDOR_DESC_POSTFIX "\040" STRINGIFY(VER_OS) "\040for\040" STRINGIFY(VER_ARCH)
+#elif (VZ_RELEASE_N == 0)
+    //build
+    #define VENDOR_DESC_PREFIX  VENDOR_PREFIX
+    #define VENDOR_DESC_POSTFIX "\040(" STRINGIFY(VER_ARCH) ")"
+#endif
+
+/*
+ * vz versioning
+ */
+#define VENDOR_VIRTIO_1 VZ_RELEASE_A
+#define VENDOR_VIRTIO_2 VZ_RELEASE_B
+#define VENDOR_VIRTIO_3 VZ_RELEASE_C
+#define VENDOR_VIRTIO_4 _NT_TARGET_MAJ
+
+/*
+ * vz strings
+ */
+#define VENDOR_VIRTIO_COPYRIGHT    "Copyright (c) 20??-2017 Parallels IP Holdings GmbH"
+#define VENDOR_VIRTIO_COMPANY      "Parallels IP Holdings GmbH"
+#define VENDOR_PREFIX              "Virtuozzo\040"
+#define VENDOR_PRODUCT_PREFIX      VENDOR_PREFIX
+#define QEMU_PRODUCT_PREFIX        VENDOR_PREFIX "QEMU\040"
+
+/*
+ * remaining macro should be defined in project .rc file
+ *
+ * VENDOR_VIRTIO_PRODUCT, VER_FILEDESCRIPTION_STR, VER_INTERNALNAME_STR
+ */
