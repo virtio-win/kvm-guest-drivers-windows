@@ -1,6 +1,7 @@
 ;/*++
 ;
-;Copyright (c) 2009-2016 Red Hat Inc.
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
 ;
 ;Module Name:
 ;    BALLOON.INF
@@ -17,8 +18,8 @@
 Signature="$WINDOWS NT$"
 Class=System
 ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
-Provider=%RHEL%
-DriverVer=05/19/2008,6.0.6000.16386
+Provider=%VENDOR%
+DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 CatalogFile=Balloon.cat
 DriverPackageType = PlugAndPlay
 DriverPackageDisplayName = %BALLOON.DeviceDesc%
@@ -38,7 +39,7 @@ balloon.sys  = 1,,
 ;*****************************************
 
 [Manufacturer]
-%RHEL%=Standard,NT$ARCH$
+%VENDOR%=Standard,NT$ARCH$
 
 [Standard.NT$ARCH$]
 %BALLOON.DeviceDesc%=BALLOON_Device, PCI\VEN_1AF4&DEV_1002&SUBSYS_00051AF4&REV_00
@@ -98,9 +99,8 @@ KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
 SPSVCINST_ASSOCSERVICE= 0x00000002
-RHEL = "Red Hat, Inc."
-DiskId1 = "VirtIO Balloon Installation Disk #1"
-BALLOON.DeviceDesc = "VirtIO Balloon Driver"
-BALLOON.SVCDESC = "VirtIO Balloon Service"
-ClassName       = "VirtIO Balloon Device"
-
+VENDOR = "INX_COMPANY"
+DiskId1 = "INX_PREFIX_VIRTIOVirtIO Balloon Installation Disk #1"
+BALLOON.DeviceDesc = "INX_PREFIX_VIRTIOVirtIO Balloon Driver"
+BALLOON.SVCDESC = "INX_PREFIX_VIRTIOVirtIO Balloon Service"
+ClassName       = "INX_PREFIX_VIRTIOVirtIO Balloon Device"
