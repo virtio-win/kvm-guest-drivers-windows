@@ -25,31 +25,13 @@
 #include <windows.h>
 #include <ntverp.h>
 
-#define VER_FILETYPE                VFT_DRV
-#define VER_FILESUBTYPE             VFT2_DRV_SYSTEM
-#define VER_FILEDESCRIPTION_STR     "Red Hat VirtIO RNG Driver"
-#define VER_INTERNALNAME_STR        "viorng.sys"
-#define VER_ORIGINALFILENAME_STR    "viorng.sys"
+#include "..\..\Tools\vendor.ver"
 
-#undef  VER_PRODUCTBUILD
-#undef  VER_PRODUCTBUILD_QFE
-#undef  VER_PRODUCTMAJORVERSION
-#undef  VER_PRODUCTMINORVERSION
+#undef  VER_FILEDESCRIPTION_STR
+#undef  VER_INTERNALNAME_STR
 
-#undef  VER_LEGALCOPYRIGHT_STR
-#define VER_LEGALCOPYRIGHT_STR      "Copyright (C) 2014-2016 Red Hat, Inc."
-
-#undef  VER_COMPANYNAME_STR
-#define VER_COMPANYNAME_STR         "Red Hat, Inc."
-
-#undef  VER_PRODUCTNAME_STR
-#define VER_PRODUCTNAME_STR         "Red Hat VirtIO RNG Device"
-
-#define VER_LANGNEUTRAL
-
-#define VER_PRODUCTBUILD                _BUILD_MAJOR_VERSION_
-#define VER_PRODUCTBUILD_QFE            _BUILD_MINOR_VERSION_
-#define VER_PRODUCTMAJORVERSION         _NT_TARGET_MAJ
-#define VER_PRODUCTMINORVERSION         _RHEL_RELEASE_VERSION_
+#define VENDOR_VIRTIO_PRODUCT      VENDOR_PRODUCT_PREFIX "VirtIO RNG Device"
+#define VER_FILEDESCRIPTION_STR    VENDOR_DESC_PREFIX "VirtIO RNG Driver" VENDOR_DESC_POSTFIX
+#define VER_INTERNALNAME_STR       "viorng.sys"
 
 #include "common.ver"
