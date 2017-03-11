@@ -205,20 +205,6 @@
         wmimofck -t$(OutDir)\vioscsi.vbs $(OutDir)\vioscsi.bmf
       </Command>
     </PreBuildEvent>
-    <PostBuildEvent>
-      <Command>
-        copy vioscsi.inx $(OutDir)\vioscsi.inf
-        stampinf -f $(OutDir)\vioscsi.inf -a $(InfArch) -v $(STAMPINF_VERSION)
-        packOne.bat $(TargetOS) $(TargetArch) vioscsi
-      </Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(PlatformToolset)'!='v140_xp'">
-    <PostBuildEvent>
-      <Command>
-        packOne.bat $(TargetOS) $(TargetArch) vioscsi
-      </Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <ClCompile>

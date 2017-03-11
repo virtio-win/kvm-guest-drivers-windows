@@ -259,20 +259,6 @@
     <ClCompile>
       <DisableSpecificWarnings>4267;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
-    <PostBuildEvent>
-      <Command>
-        copy balloon.inx $(OutDir)\balloon.inf
-        stampinf -f $(OutDir)\balloon.inf -a $(InfArch) -k 1.9 -v $(STAMPINF_VERSION)
-        packOne.bat $(TargetOS) $(TargetArch) balloon "$(LegacyDDKDir)"
-      </Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(PlatformToolset)'!='v140_xp'">
-    <PostBuildEvent>
-      <Command>
-        packOne.bat $(TargetOS) $(TargetArch) balloon "$(WDKContentRoot)"
-      </Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
