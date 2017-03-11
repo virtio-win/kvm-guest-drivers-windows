@@ -28,4 +28,25 @@ RHEL inf substitutions and versioning used by all drivers.
       <PreprocessorDefinitions>_BUILD_MAJOR_VERSION_=$(_BUILD_MAJOR_VERSION_);_BUILD_MINOR_VERSION_=$(_BUILD_MINOR_VERSION_);_NT_TARGET_MAJ=$(_NT_TARGET_MAJ);_RHEL_RELEASE_VERSION_=$(_RHEL_RELEASE_VERSION_);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
   </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <Substitution Include="INX_COPYRIGHT_1">
+      <ReplaceWith>Copyright (c) 2009-2017 Red Hat Inc.</ReplaceWith>
+    </Substitution>
+    <Substitution Include="INX_COPYRIGHT_2">
+      <ReplaceWith></ReplaceWith>
+    </Substitution>
+    <Substitution Include="INX_COMPANY">
+      <ReplaceWith>Red Hat, Inc.</ReplaceWith>
+    </Substitution>
+    <Substitution Include="INX_PREFIX_VENDOR">
+      <ReplaceWith>Red Hat </ReplaceWith>
+    </Substitution>
+    <Substitution Include="INX_PREFIX_VIRTIO">
+      <ReplaceWith></ReplaceWith>
+    </Substitution>
+    <Substitution Include="INX_PREFIX_QEMU">
+      <ReplaceWith></ReplaceWith>
+    </Substitution>
+  </ItemGroup>
 </Project>
