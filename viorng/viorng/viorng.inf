@@ -1,6 +1,7 @@
 ;/*++
 ;
-;Copyright (c) 2014-2016 Red Hat Inc.
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
 ;
 ;Module Name:
 ;    viorng.inf
@@ -17,10 +18,10 @@
 Signature       = "$WINDOWS NT$"
 Class           = System
 ClassGuid       = {4d36e97d-e325-11ce-bfc1-08002be10318}
-Provider        = %RedHatMfg%
+Provider        = %VENDOR%
 CatalogFile     = viorng.cat
 PnpLockdown     = 1
-DriverVer       = 02/20/2013,1.0.0.0
+DriverVer       =01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 
 [DestinationDirs]
 DefaultDestDir = 12
@@ -36,9 +37,9 @@ viorng.sys = 1,,
 ; ---------------
 
 [Manufacturer]
-%RedHatMfg% = RedHat,NT$ARCH$
+%VENDOR% = Standard,NT$ARCH$
 
-[RedHat.NT$ARCH$]
+[Standard.NT$ARCH$]
 %VirtRng.DeviceDesc% = VirtRng_Device, PCI\VEN_1AF4&DEV_1005&SUBSYS_00041AF4&REV_00
 %VirtRng.DeviceDesc% = VirtRng_Device, PCI\VEN_1AF4&DEV_1044&SUBSYS_11001AF4&REV_01
 
@@ -118,7 +119,7 @@ KmdfService = VirtRng, VirtRng_wdfsect
 KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
-RedHatMfg           = "Red Hat, Inc."
-DiskName            = "VirtIO RNG Installation Disk"
-VirtRng.DeviceDesc  = "VirtIO RNG Device"
-VirtRng.Service     = "VirtIO RNG Service"
+VENDOR              = "INX_COMPANY"
+DiskName            = "INX_PREFIX_VIRTIOVirtIO RNG Installation Disk"
+VirtRng.DeviceDesc  = "INX_PREFIX_VIRTIOVirtIO RNG Device"
+VirtRng.Service     = "INX_PREFIX_VIRTIOVirtIO RNG Service"

@@ -188,6 +188,9 @@
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <Feature_AlwaysDefaultVendor>false</Feature_AlwaysDefaultVendor>
+  </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
@@ -245,16 +248,6 @@
         tracewpp isrdpc.c power.c read.c biorng.c virtio.c viorng.c -km -func:TraceEvents(LEVEL,FLAGS,MSG,...) -gen:{km-WdfDefault.tpl}*.tmh -cfgdir:$(LegacyDDKDir)\bin\WppConfig\Rev1
       </Command>
     </PreBuildEvent>
-    <PostBuildEvent>
-      <Command Condition="'$(Platform)'=='Win32'">
-        copy "$(LegacyDDKDir)\redist\wdf\x86\WdfCoInstaller01009.dll" "$(OutDir)"
-        copy viorng.inf "$(OutDir)\viorng.inf"
-      </Command>
-      <Command Condition="'$(Platform)'=='x64'">
-        copy "$(LegacyDDKDir)\redist\wdf\amd64\WdfCoInstaller01009.dll" "$(OutDir)"
-        copy viorng.inf "$(OutDir)\viorng.inf"
-      </Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
@@ -294,8 +287,7 @@
   </Target>
   <Target Name="GetPackageFiles" Returns="@(FullyQualifiedFilesToPackage)">
     <ItemGroup Condition="'$(PlatformToolset)'=='v140_xp'">
-      <FilesToPackage Include="$(OutDir)\viorng.inf" />
-      <FilesToPackage Include="$(OutDir)\WdfCoInstaller01009.dll" />
+      <FilesToPackage Include="$(LegacyDDKDir)\redist\wdf\$(TargetArch)\WdfCoInstaller01009.dll" />
     </ItemGroup>
     <ConvertToAbsolutePath Paths="@(FilesToPackage)">
       <Output TaskParameter="AbsolutePaths" ItemName="FullyQualifiedFilesToPackage" />
