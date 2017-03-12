@@ -3,7 +3,7 @@
 #include "ParaNdis6_Driver.h"
 #include "ethernetutils.h"
 
-CGratARPPacketHolder::~CGratARPPacketHolder()
+CGuestAnnouncePacketHolder::~CGuestAnnouncePacketHolder()
 {
     PVOID buffer;
     PMDL mdl;
@@ -23,12 +23,12 @@ CGratARPPacketHolder::~CGratARPPacketHolder()
     }
 }
 
-void CGratARPPacketHolder::OnLastReferenceGone()
+void CGuestAnnouncePacketHolder::OnLastReferenceGone()
 {
     Destroy(this, m_handle);
 }
 
-EthernetArpFrame *CGratuitousArpPackets::CreateIPv4Packet(UINT32 IPV4)
+EthernetArpFrame *CGuestAnnouncePackets::CreateIPv4Packet(UINT32 IPV4)
 {
     EthernetArpFrame *packet = (EthernetArpFrame *)ParaNdis_AllocateMemory(m_Context, sizeof(EthernetArpFrame));
     if (!packet)
@@ -53,7 +53,7 @@ EthernetArpFrame *CGratuitousArpPackets::CreateIPv4Packet(UINT32 IPV4)
     return packet;
 }
 
-EthernetNSMFrame *CGratuitousArpPackets::CreateIPv6Packet(USHORT * IPV6)
+EthernetNSMFrame *CGuestAnnouncePackets::CreateIPv6Packet(USHORT * IPV6)
 {
     ICMPv6PseudoHeader pseudo_header;
     EthernetNSMFrame *packet = (EthernetNSMFrame *)ParaNdis_AllocateMemory(m_Context, sizeof(EthernetNSMFrame));
@@ -88,7 +88,7 @@ EthernetNSMFrame *CGratuitousArpPackets::CreateIPv6Packet(USHORT * IPV6)
 }
 
 
-VOID CGratuitousArpPackets::CreateNBL(PVOID packet, UINT size, bool isIPV4)
+VOID CGuestAnnouncePackets::CreateNBL(PVOID packet, UINT size, bool isIPV4)
 {
     PMDL mdl = NdisAllocateMdl(m_Context->MiniportHandle, packet, size);
     if (!mdl)
@@ -106,8 +106,8 @@ VOID CGratuitousArpPackets::CreateNBL(PVOID packet, UINT size, bool isIPV4)
         return;
     }
     nbl->SourceHandle = m_Context->MiniportHandle;
-    CGratARPPacketHolder *GratARPPacket = new (m_Context->MiniportHandle) CGratARPPacketHolder(nbl, m_Context->MiniportHandle, isIPV4);
-    if (!GratARPPacket)
+    CGuestAnnouncePacketHolder *PacketHolder = new (m_Context->MiniportHandle) CGuestAnnouncePacketHolder(nbl, m_Context->MiniportHandle, isIPV4);
+    if (!PacketHolder)
     {
         DPrintf(0, ("[%s] Packet holder allocation failed!\n", __FUNCTION__));
         NdisFreeNetBufferList(nbl);
@@ -115,11 +115,11 @@ VOID CGratuitousArpPackets::CreateNBL(PVOID packet, UINT size, bool isIPV4)
         NdisFreeMemory(packet, 0, 0);
         return;
     }
-    nbl->NdisReserved[0] = GratARPPacket;
-    m_packets.Push(GratARPPacket);
+    nbl->NdisReserved[0] = PacketHolder;
+    m_packets.Push(PacketHolder);
 }
 
-VOID CGratuitousArpPackets::CreateNBL(UINT32 IPV4)
+VOID CGuestAnnouncePackets::CreateNBL(UINT32 IPV4)
 {
     EthernetArpFrame * packet = CreateIPv4Packet(IPV4);
     if (packet)
@@ -128,7 +128,7 @@ VOID CGratuitousArpPackets::CreateNBL(UINT32 IPV4)
     }
 }
 
-VOID CGratuitousArpPackets::CreateNBL(USHORT *IPV6)
+VOID CGuestAnnouncePackets::CreateNBL(USHORT *IPV6)
 {
     EthernetNSMFrame * packet = CreateIPv6Packet(IPV6);
     if (packet)
@@ -137,19 +137,19 @@ VOID CGratuitousArpPackets::CreateNBL(USHORT *IPV6)
     }
 }
 
-VOID CGratuitousArpPackets::SendNBLs()
+VOID CGuestAnnouncePackets::SendNBLs()
 {
     auto ctx = m_Context;
-    m_packets.ForEach([ctx](CGratARPPacketHolder* GratARPPacket)
+    m_packets.ForEach([ctx](CGuestAnnouncePacketHolder* GratARPPacket)
     {
         GratARPPacket->AddRef();
         ParaNdis6_SendNBLInternal(ctx, GratARPPacket->GetNBL(), 0, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
     });
 }
 
-CGratARPPacketHolder *CGratuitousArpPackets::GetCGratArpPacketFromNBL(PNET_BUFFER_LIST NBL)
+CGuestAnnouncePacketHolder *CGuestAnnouncePackets::GetCGuestAnnouncePacketFromNBL(PNET_BUFFER_LIST NBL)
 {
-    return (CGratARPPacketHolder *)NBL->NdisReserved[0];
+    return (CGuestAnnouncePacketHolder *)NBL->NdisReserved[0];
 }
 
 bool CallCompletionForNBL(PARANDIS_ADAPTER * pContext, PNET_BUFFER_LIST NBL)

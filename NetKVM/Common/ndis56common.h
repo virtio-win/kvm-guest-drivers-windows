@@ -380,7 +380,7 @@ typedef struct _tagPARANDIS_ADAPTER
     CMiniportStateMachine   m_StateMachine;
     CDataFlowStateMachine   m_RxStateMachine;
 
-    CGratuitousArpPackets    gratArpPackets;
+    CGuestAnnouncePackets    guestAnnouncePackets;
 
     /* send part */
     NDIS_STATISTICS_INFO    Statistics;

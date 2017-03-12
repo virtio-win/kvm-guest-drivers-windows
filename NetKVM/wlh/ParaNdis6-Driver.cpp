@@ -108,7 +108,7 @@ VOID ParaNdis_SynchronizeLinkState(PARANDIS_ADAPTER *pContext)
 
 VOID ParaNdis_SendGratuitousArpPacket(PARANDIS_ADAPTER *pContext)
 {
-    pContext->gratArpPackets.SendNBLs();
+    pContext->guestAnnouncePackets.SendNBLs();
 }
 
 /**********************************************************
