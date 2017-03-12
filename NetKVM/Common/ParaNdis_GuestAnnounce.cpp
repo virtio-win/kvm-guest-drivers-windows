@@ -107,6 +107,14 @@ VOID CGratuitousArpPackets::CreateNBL(PVOID packet, UINT size, bool isIPV4)
     }
     nbl->SourceHandle = m_Context->MiniportHandle;
     CGratARPPacketHolder *GratARPPacket = new (m_Context->MiniportHandle) CGratARPPacketHolder(nbl, m_Context->MiniportHandle, isIPV4);
+    if (!GratARPPacket)
+    {
+        DPrintf(0, ("[%s] Packet holder allocation failed!\n", __FUNCTION__));
+        NdisFreeNetBufferList(nbl);
+        NdisFreeMdl(mdl);
+        NdisFreeMemory(packet, 0, 0);
+        return;
+    }
     nbl->NdisReserved[0] = GratARPPacket;
     m_packets.Push(GratARPPacket);
 }
