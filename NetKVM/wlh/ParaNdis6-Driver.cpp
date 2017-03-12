@@ -339,8 +339,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
             }
     }
 
-    new (&pContext->gratArpPackets) CGratuitousArpPackets(pContext);
-
     if (pContext && status == NDIS_STATUS_SUCCESS)
     {
         pContext->m_StateMachine.NotifyInitialized();
