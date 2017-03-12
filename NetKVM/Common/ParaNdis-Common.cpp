@@ -657,7 +657,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
     pContext->MaxPacketSize.nMaxDataSizeHwRx = pContext->MaxPacketSize.nMaxFullSizeOS + ETH_PRIORITY_HEADER_SIZE;
     pContext->MaxPacketSize.nMaxFullSizeOsRx = pContext->MaxPacketSize.nMaxFullSizeOS;
 #endif
-    new (&pContext->gratArpPackets) CGratuitousArpPackets(pContext);
+    new (&pContext->guestAnnouncePackets) CGuestAnnouncePackets(pContext);
 
     if (pContext->ulPriorityVlanSetting)
         pContext->MaxPacketSize.nMaxFullSizeHwTx = pContext->MaxPacketSize.nMaxFullSizeOS + ETH_PRIORITY_HEADER_SIZE;
@@ -1310,7 +1310,7 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     ParaNdis_SetLinkState(pContext, MediaConnectStateUnknown);
     VirtIONetRelease(pContext);
 
-    pContext->gratArpPackets.~CGratuitousArpPackets();
+    pContext->guestAnnouncePackets.~CGuestAnnouncePackets();
 
     ParaNdis_FinalizeCleanup(pContext);
 

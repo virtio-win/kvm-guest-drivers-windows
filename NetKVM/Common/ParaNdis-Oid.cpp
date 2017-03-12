@@ -610,11 +610,11 @@ NDIS_STATUS ParaNdis_OnOidSetNetworkAddresses(PARANDIS_ADAPTER *pContext, tOidDe
          */
         if (ipV4Count)
         {
-            pContext->gratArpPackets.DestroyIPV4NBLs();
+            pContext->guestAnnouncePackets.DestroyIPV4NBLs();
         }
         if (ipV6Count)
         {
-            pContext->gratArpPackets.DestroyIPV6NBLs();
+            pContext->guestAnnouncePackets.DestroyIPV6NBLs();
         }
         PUCHAR p = (PUCHAR)(&pnal->Address[0]);
         DPrintf(2, ("Received %d addresses, type %d\n", pnal->AddressCount, pnal->AddressType));
@@ -626,7 +626,7 @@ NDIS_STATUS ParaNdis_OnOidSetNetworkAddresses(PARANDIS_ADAPTER *pContext, tOidDe
                 && pnal->AddressType == NDIS_PROTOCOL_ID_TCP_IP)
             {
                 PNETWORK_ADDRESS_IP pIP = (PNETWORK_ADDRESS_IP)pna->Address;
-                pContext->gratArpPackets.CreateNBL(pIP->in_addr);
+                pContext->guestAnnouncePackets.CreateNBL(pIP->in_addr);
                 DPrintf(0, ("Received IP address %d.%d.%d.%d\n",
                     (pIP->in_addr >> 0) & 0xff,
                     (pIP->in_addr >> 8) & 0xff,
@@ -638,7 +638,7 @@ NDIS_STATUS ParaNdis_OnOidSetNetworkAddresses(PARANDIS_ADAPTER *pContext, tOidDe
                     && pnal->AddressType == NDIS_PROTOCOL_ID_IP6)
                 {
                     PNETWORK_ADDRESS_IP6 pIP = (PNETWORK_ADDRESS_IP6)pna->Address;
-                    pContext->gratArpPackets.CreateNBL(pIP->sin6_addr);
+                    pContext->guestAnnouncePackets.CreateNBL(pIP->sin6_addr);
                 }
                 PUCHAR TempString = (ulBufSize < 100) ? (PUCHAR) ParaNdis_AllocateMemory(pContext, ulBufSize) : NULL;
                 if (TempString)
