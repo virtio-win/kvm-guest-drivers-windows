@@ -8,7 +8,6 @@ Enabling and customizing virtio build features
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" TreatAsLocalProperty="Platform">
   <PropertyGroup>
     <Feature_AlwaysDefaultVendor>false</Feature_AlwaysDefaultVendor>
-    <RHEL_COPYRIGHT_STARTING_YEAR>2015</RHEL_COPYRIGHT_STARTING_YEAR>
-    <VZ_COPYRIGHT_STARTING_YEAR>2016</VZ_COPYRIGHT_STARTING_YEAR>
+    <CopyrightStrings>PVPanicCopyrightStrings</CopyrightStrings>
   </PropertyGroup>
 </Project>

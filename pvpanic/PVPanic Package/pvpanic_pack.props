@@ -9,7 +9,6 @@ Enabling and customizing virtio build features
   <PropertyGroup>
     <Feature_AlwaysDefaultVendor>false</Feature_AlwaysDefaultVendor>
     <Feature_AdjustInf>true</Feature_AdjustInf>
-    <RHEL_COPYRIGHT_STARTING_YEAR>2015</RHEL_COPYRIGHT_STARTING_YEAR>
-    <VZ_COPYRIGHT_STARTING_YEAR>2016</VZ_COPYRIGHT_STARTING_YEAR>
+    <CopyrightStrings>PVPanicCopyrightStrings</CopyrightStrings>
   </PropertyGroup>
 </Project>

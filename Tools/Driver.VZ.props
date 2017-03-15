@@ -27,9 +27,16 @@ VZ inf substitutions and versioning used by all drivers.
 
   <PropertyGroup>
     <STAMPINF_VERSION>$(VZ_RELEASE_A).$(VZ_RELEASE_B).$(VZ_RELEASE_C).$(_NT_TARGET_MAJ)</STAMPINF_VERSION>
-    <!-- Copyright starting year should be defined in each project -->
+    <!-- CopyrightStrings should be defined in each project -->
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'BalloonCopyrightStrings'">2009</RHEL_COPYRIGHT_STARTING_YEAR>
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'PVPanicCopyrightStrings'">2015</RHEL_COPYRIGHT_STARTING_YEAR>
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioInputCopyrightStrings'">2016</RHEL_COPYRIGHT_STARTING_YEAR>
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioRNGCopyrightStrings'">2014</RHEL_COPYRIGHT_STARTING_YEAR>
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioScsiCopyrightStrings'">2012</RHEL_COPYRIGHT_STARTING_YEAR>
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioSerialCopyrightStrings'">2010</RHEL_COPYRIGHT_STARTING_YEAR>
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioStorCopyrightStrings'">2008</RHEL_COPYRIGHT_STARTING_YEAR>
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(RHEL_COPYRIGHT_STARTING_YEAR)' == ''">20??</RHEL_COPYRIGHT_STARTING_YEAR>
-    <VZ_COPYRIGHT_STARTING_YEAR Condition="'$(VZ_COPYRIGHT_STARTING_YEAR)' == ''">20??</VZ_COPYRIGHT_STARTING_YEAR>
+    <VZ_COPYRIGHT_STARTING_YEAR>2016</VZ_COPYRIGHT_STARTING_YEAR>
   </PropertyGroup>
 
   <!-- Version specs for C preprocessor, resource compiler, and stampinf -->
@@ -48,10 +55,10 @@ VZ inf substitutions and versioning used by all drivers.
 
   <ItemGroup>
     <Substitution Include="INX_COPYRIGHT_1">
-      <ReplaceWith>Copyright (c) INX_COPYRIGHT_YEAR1 Red Hat Inc.</ReplaceWith>
+      <ReplaceWith>Copyright (c) $(RHEL_COPYRIGHT_STARTING_YEAR)-$(COPYRIGHT_CURRENT_YEAR) Red Hat Inc.</ReplaceWith>
     </Substitution>
     <Substitution Include="INX_COPYRIGHT_2">
-      <ReplaceWith>Copyright (c) INX_COPYRIGHT_YEAR2 Parallels IP Holdings GmbH</ReplaceWith>
+      <ReplaceWith>Copyright (c) $(VZ_COPYRIGHT_STARTING_YEAR)-$(COPYRIGHT_CURRENT_YEAR) Parallels IP Holdings GmbH</ReplaceWith>
     </Substitution>
     <Substitution Include="INX_COMPANY">
       <ReplaceWith>Parallels IP Holdings GmbH</ReplaceWith>
@@ -64,12 +71,6 @@ VZ inf substitutions and versioning used by all drivers.
     </Substitution>
     <Substitution Include="INX_PREFIX_QEMU">
       <ReplaceWith>Virtuozzo </ReplaceWith>
-    </Substitution>
-    <Substitution Include="INX_COPYRIGHT_YEAR1">
-      <ReplaceWith>$(RHEL_COPYRIGHT_STARTING_YEAR)-$(COPYRIGHT_CURRENT_YEAR)</ReplaceWith>
-    </Substitution>
-    <Substitution Include="INX_COPYRIGHT_YEAR2">
-      <ReplaceWith>$(VZ_COPYRIGHT_STARTING_YEAR)-$(COPYRIGHT_CURRENT_YEAR)</ReplaceWith>
     </Substitution>
   </ItemGroup>
 </Project>

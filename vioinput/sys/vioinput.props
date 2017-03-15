@@ -12,8 +12,7 @@ Enabling and customizing virtio build features
     <Feature_PackOne>true</Feature_PackOne>
     <Feature_AdjustInf>true</Feature_AdjustInf>
     <PackOne_DestinationPrefix>..\</PackOne_DestinationPrefix>
-    <RHEL_COPYRIGHT_STARTING_YEAR>2016</RHEL_COPYRIGHT_STARTING_YEAR>
-    <VZ_COPYRIGHT_STARTING_YEAR>2016</VZ_COPYRIGHT_STARTING_YEAR>
+    <CopyrightStrings>VioInputCopyrightStrings</CopyrightStrings>
   </PropertyGroup>
 
   <ItemGroup>
