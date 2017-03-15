@@ -17,7 +17,14 @@ RHEL inf substitutions and versioning used by all drivers.
 
   <PropertyGroup>
     <STAMPINF_VERSION>$(_NT_TARGET_MAJ).$(_RHEL_RELEASE_VERSION_).$(_BUILD_MAJOR_VERSION_).$(_BUILD_MINOR_VERSION_)</STAMPINF_VERSION>
-    <!-- Copyright starting year should be defined in each project -->
+    <!-- CopyrightStrings should be defined in each project -->
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'BalloonCopyrightStrings'">2009</RHEL_COPYRIGHT_STARTING_YEAR>
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'PVPanicCopyrightStrings'">2015</RHEL_COPYRIGHT_STARTING_YEAR>
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioInputCopyrightStrings'">2016</RHEL_COPYRIGHT_STARTING_YEAR>
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioRNGCopyrightStrings'">2014</RHEL_COPYRIGHT_STARTING_YEAR>
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioScsiCopyrightStrings'">2012</RHEL_COPYRIGHT_STARTING_YEAR>
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioSerialCopyrightStrings'">2010</RHEL_COPYRIGHT_STARTING_YEAR>
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioStorCopyrightStrings'">2008</RHEL_COPYRIGHT_STARTING_YEAR>
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(RHEL_COPYRIGHT_STARTING_YEAR)' == ''">20??</RHEL_COPYRIGHT_STARTING_YEAR>
   </PropertyGroup>
 
@@ -35,7 +42,7 @@ RHEL inf substitutions and versioning used by all drivers.
 
   <ItemGroup>
     <Substitution Include="INX_COPYRIGHT_1">
-      <ReplaceWith>Copyright (c) INX_COPYRIGHT_YEAR Red Hat Inc.</ReplaceWith>
+      <ReplaceWith>Copyright (c) $(RHEL_COPYRIGHT_STARTING_YEAR)-$(COPYRIGHT_CURRENT_YEAR) Red Hat Inc.</ReplaceWith>
     </Substitution>
     <Substitution Include="INX_COPYRIGHT_2">
       <ReplaceWith></ReplaceWith>
@@ -51,9 +58,6 @@ RHEL inf substitutions and versioning used by all drivers.
     </Substitution>
     <Substitution Include="INX_PREFIX_QEMU">
       <ReplaceWith></ReplaceWith>
-    </Substitution>
-    <Substitution Include="INX_COPYRIGHT_YEAR">
-      <ReplaceWith>$(RHEL_COPYRIGHT_STARTING_YEAR)-$(COPYRIGHT_CURRENT_YEAR)</ReplaceWith>
     </Substitution>
   </ItemGroup>
 </Project>

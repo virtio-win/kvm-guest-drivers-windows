@@ -74,10 +74,7 @@ Invoking the task:
             var content = File.ReadAllText(fileName);
 
             var regex = new Regex(String.Join("|", substitutions.Keys.Select(k => Regex.Escape(k))));
-            for (;;) {
-              content = regex.Replace(content, m => substitutions[m.Value]);
-              if (!regex.IsMatch(content)) break;
-            }
+            content = regex.Replace(content, m => substitutions[m.Value]);
 
             File.WriteAllText(fileName, content);
             Log.LogMessage(MessageImportance.High, "Saving replaced context to: {0}", fileNameNew);
