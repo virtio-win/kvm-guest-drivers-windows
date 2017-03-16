@@ -157,16 +157,7 @@
     <None Include="tools\cleanemptystrings.vbs">
       <Filter>Tools</Filter>
     </None>
-    <None Include="tools\InstallCertificate.bat">
-      <Filter>Tools</Filter>
-    </None>
     <None Include="tools\make_inf.bat">
-      <Filter>Tools</Filter>
-    </None>
-    <None Include="tools\NetKVMTemporaryCert.cer">
-      <Filter>Tools</Filter>
-    </None>
-    <None Include="tools\NetKVMTemporaryCert.pfx">
       <Filter>Tools</Filter>
     </None>
   </ItemGroup>
