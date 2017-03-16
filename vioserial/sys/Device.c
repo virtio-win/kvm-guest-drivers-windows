@@ -494,7 +494,7 @@ VIOSerialEvtDeviceD0Entry(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
-    if(!pContext->DeviceOK)
+    if (!pContext->DeviceOK)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Setting VIRTIO_CONFIG_S_FAILED flag\n");
         VirtIOWdfSetDriverFailed(&pContext->VDevice);
@@ -504,7 +504,12 @@ VIOSerialEvtDeviceD0Entry(
         status = VIOSerialInitAllQueues(Device);
         if (NT_SUCCESS(status) && pContext->isHostMultiport)
         {
-            VIOSerialFillQueue(pContext->c_ivq, pContext->CVqLock);
+            status = VIOSerialFillQueue(pContext->c_ivq, pContext->CVqLock);
+        }
+
+        if (!NT_SUCCESS(status))
+        {
+            pContext->DeviceOK = FALSE;
         }
     }
 

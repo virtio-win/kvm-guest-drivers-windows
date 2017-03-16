@@ -1356,6 +1356,10 @@ NTSTATUS VIOSerialPortEvtDeviceD0Entry(
 
     PAGED_CODE();
 
+    if (!pCtx->DeviceOK)
+    {
+        return STATUS_DEVICE_NOT_CONNECTED;
+    }
     if ((pCtx->in_vqs == NULL) || (pCtx->in_vqs[port->PortId] == NULL))
     {
         return STATUS_NOT_FOUND;
