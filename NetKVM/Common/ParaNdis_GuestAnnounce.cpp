@@ -47,7 +47,8 @@ EthernetArpFrame *CGuestAnnouncePackets::CreateIPv4Packet(UINT32 IPV4)
         packet->frame.sender_hardware_address.address[i] = (UINT8)m_Context->CurrentMacAddress[i];
         packet->frame.target_hardware_address.address[i] = 0xFF;
         packet->data.sender_hardware_address.address[i] = m_Context->CurrentMacAddress[i];
-        packet->data.target_hardware_address.address[i] = 0xFF;
+        // according to RFC 5227 ARP announcement shall set target hardware address to zero
+        packet->data.target_hardware_address.address[i] = 0;
     }
     packet->data.sender_ipv4_address.address = packet->data.target_ipv4_address.address = IPV4;
     return packet;
