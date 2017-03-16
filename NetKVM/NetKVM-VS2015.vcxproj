@@ -692,10 +692,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="tools\cleanemptystrings.vbs" />
-    <None Include="tools\InstallCertificate.bat" />
     <None Include="tools\make_inf.bat" />
-    <None Include="tools\NetKVMTemporaryCert.cer" />
-    <None Include="tools\NetKVMTemporaryCert.pfx" />
   </ItemGroup>
   <ItemGroup>
     <Inf Include="$(SourceInfFile)" />
