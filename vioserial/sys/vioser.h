@@ -175,6 +175,11 @@ VIOSerialFillQueue(
     IN WDFSPINLOCK Lock
 );
 
+VOID
+VIOSerialDrainQueue(
+    IN struct virtqueue *vq
+    );
+
 NTSTATUS
 VIOSerialAddInBuf(
     IN struct virtqueue *vq,
