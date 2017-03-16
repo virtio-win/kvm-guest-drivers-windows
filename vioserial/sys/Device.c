@@ -446,6 +446,9 @@ VIOSerialFillQueue(
         if(buf == NULL)
         {
            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSerialAllocateBuffer failed\n");
+           WdfSpinLockAcquire(Lock);
+           VIOSerialDrainQueue(vq);
+           WdfSpinLockRelease(Lock);
            return STATUS_INSUFFICIENT_RESOURCES;
         }
 
@@ -461,6 +464,21 @@ VIOSerialFillQueue(
     }
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
+}
+
+VOID
+VIOSerialDrainQueue(
+    IN struct virtqueue *vq
+    )
+{
+    PPORT_BUFFER buf;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "--> %s\n", __FUNCTION__);
+    while (buf = (PPORT_BUFFER)virtqueue_detach_unused_buf(vq))
+    {
+        VIOSerialFreeBuffer(buf);
+    }
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<-- %s\n", __FUNCTION__);
 }
 
 NTSTATUS
@@ -502,17 +520,13 @@ VIOSerialEvtDeviceD0Exit(
     )
 {
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
-    PPORT_BUFFER buf;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s TargetState: %d\n",
         __FUNCTION__, TargetState);
 
     PAGED_CODE();
 
-    while (buf = (PPORT_BUFFER)virtqueue_detach_unused_buf(pContext->c_ivq))
-    {
-        VIOSerialFreeBuffer(buf);
-    }
+    VIOSerialDrainQueue(pContext->c_ivq);
 
     VIOSerialShutDownAllQueues(Device);
 

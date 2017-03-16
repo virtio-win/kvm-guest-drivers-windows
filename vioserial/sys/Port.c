@@ -1394,7 +1394,6 @@ VIOSerialPortEvtDeviceD0Exit(
     )
 {
     PVIOSERIAL_PORT Port = RawPdoSerialPortGetData(Device)->port;
-    PPORT_BUFFER buf;
     PSINGLE_LIST_ENTRY iter;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s TargetState: %d\n",
@@ -1411,10 +1410,7 @@ VIOSerialPortEvtDeviceD0Exit(
 
     VIOSerialReclaimConsumedBuffers(Port);
 
-    while (buf = (PPORT_BUFFER)virtqueue_detach_unused_buf(GetInQueue(Port)))
-    {
-        VIOSerialFreeBuffer(buf);
-    }
+    VIOSerialDrainQueue(GetInQueue(Port));
 
     iter = PopEntryList(&Port->WriteBuffersList);
     while (iter != NULL)
