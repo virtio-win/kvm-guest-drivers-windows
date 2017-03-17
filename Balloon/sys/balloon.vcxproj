@@ -265,6 +265,10 @@
     <FilesToPackage Include="$(TargetPath)" />
     <FilesToPackage Include="@(Inf->'%(CopyOutput)')" Condition="'@(Inf)'!=''" />
   </ItemGroup>
+  <ItemGroup Condition="'$(USE_BALLOON_SERVICE)'!=''">
+    <PackOne_Files Include="..\app\$(OutDir)blnsvr.exe"/>
+    <PackOne_Files Include="..\app\$(OutDir)blnsvr.pdb"/>
+  </ItemGroup>
   <ItemGroup>
     <Inf Include="balloon.inx" />
   </ItemGroup>
