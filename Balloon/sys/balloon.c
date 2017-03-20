@@ -35,6 +35,8 @@ BalloonInit(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonInit\n");
 
+    WdfObjectAcquireLock(WdfDevice);
+
     // inflate
     params[0].bEnableInterruptSuppression = false;
     params[0].Interrupt = devCtx->WdfInterrupt;
@@ -121,6 +123,8 @@ BalloonInit(
     {
         virtqueue_kick(devCtx->StatVirtQueue);
     }
+
+    WdfObjectReleaseLock(WdfDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- BalloonInit\n");
     return status;
@@ -297,8 +301,12 @@ BalloonTerm(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonTerm\n");
 
+    WdfObjectAcquireLock(WdfDevice);
+
     VirtIOWdfDestroyQueues(&devCtx->VDevice);
     devCtx->StatVirtQueue = NULL;
+
+    WdfObjectReleaseLock(WdfDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- BalloonTerm\n");
 }
