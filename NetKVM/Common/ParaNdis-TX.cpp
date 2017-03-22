@@ -26,12 +26,12 @@ CNBL::~CNBL()
     {
         auto NBL = DetachInternalObject();
         NETKVM_ASSERT(NET_BUFFER_LIST_NEXT_NBL(NBL) == nullptr);
-        if (CallCompletionForNBL(m_Context, m_NBL))
+        if (CallCompletionForNBL(m_Context, NBL))
         {
             m_ParentTXPath->CompleteOutstandingNBLChain(NBL);
         } else
         {
-            m_ParentTXPath->CompleteOutstandingInternalNBL(m_NBL);
+            m_ParentTXPath->CompleteOutstandingInternalNBL(NBL);
         }
     }
 }
