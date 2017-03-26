@@ -115,6 +115,7 @@ static void NetKVMDebugPrint(const char *fmt, ...)
         }
     }
 #endif
+    va_end(list);
 }
 
 tDebugPrintFunc VirtioDebugPrintProc = NetKVMDebugPrint;

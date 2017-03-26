@@ -54,6 +54,7 @@ static void DebugPrintFuncSerial(const char *format, ...)
         WRITE_PORT_BUFFER_UCHAR(RHEL_DEBUG_PORT, (PUCHAR)buf, len);
         WRITE_PORT_UCHAR(RHEL_DEBUG_PORT, '\r');
     }
+    va_end(list);
 }
 #endif
 
@@ -63,6 +64,7 @@ static void DebugPrintFunc(const char *format, ...)
     va_list list;
     va_start(list, format);
     vDbgPrintEx(DPFLTR_DEFAULT_ID, 9 | DPFLTR_MASK, format, list);
+    va_end(list);
 }
 #endif
 
