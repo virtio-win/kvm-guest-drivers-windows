@@ -26,9 +26,6 @@
 #pragma alloc_text(PAGE, BalloonEvtDeviceD0ExitPreInterruptsDisabled)
 #pragma alloc_text(PAGE, BalloonDeviceAdd)
 #pragma alloc_text(PAGE, BalloonCloseWorkerThread)
-#ifdef USE_BALLOON_SERVICE
-#pragma alloc_text(PAGE, BalloonEvtFileClose)
-#endif // USE_BALLOON_SERVICE
 #endif // ALLOC_PRAGMA
 
 #define LOMEMEVENTNAME L"\\KernelObjects\\LowMemoryCondition"
@@ -638,14 +635,12 @@ BalloonInterruptDisable(
 
 #ifdef USE_BALLOON_SERVICE
 VOID
-BalloonEvtFileClose (
+BalloonEvtFileClose(
     IN WDFFILEOBJECT    FileObject
     )
 {
     WDFDEVICE Device = WdfFileObjectGetDevice(FileObject);
     PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
-
-    PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-> %s\n", __FUNCTION__);
 
