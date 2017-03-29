@@ -165,17 +165,21 @@ static void GetConfigurationEntry(NDIS_HANDLE cfg, tConfigurationEntry *pEntry)
         {
             statusName = "out of range";
         }
+        DPrintf(0, ("[%s] %s read for %s - current value = 0x%x, input value = 0x%x",
+            __FUNCTION__,
+            statusName,
+            pEntry->Name,
+            pEntry->ulValue,
+            ulValue));
     }
     else
     {
-        statusName = "nothing";
+        DPrintf(0, ("[%s] nothing read for %s - current value = 0x%x",
+            __FUNCTION__,
+            pEntry->Name,
+            pEntry->ulValue));
     }
 #pragma warning(pop)
-    DPrintf(0, ("[%s] %s read for %s - 0x%x\n",
-        __FUNCTION__,
-        statusName,
-        pEntry->Name,
-        pEntry->ulValue));
     if (name.Buffer) NdisFreeString(name);
 }
 
