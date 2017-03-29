@@ -282,7 +282,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             pContext->InitialOffloadParameters.LsoV2IPv6 = (UCHAR)pConfiguration->stdLsoV2ip6.ulValue;
             pContext->ulPriorityVlanSetting = pConfiguration->PriorityVlanTagging.ulValue;
             pContext->VlanId = pConfiguration->VlanId.ulValue & 0xfff;
-            if (pContext->VlanId > MAX_VLAN_ID) DPrintf(0, ("Warning: The provided Vlan id (%lu) is bigger than the maximal vlan limit (%d)\n", pContext->VlanId, MAX_VLAN_ID));
             pContext->MaxPacketSize.nMaxDataSize = pConfiguration->MTU.ulValue;
 #if PARANDIS_SUPPORT_RSS
             pContext->bRSSOffloadSupported = pConfiguration->RSSOffloadSupported.ulValue ? TRUE : FALSE;
