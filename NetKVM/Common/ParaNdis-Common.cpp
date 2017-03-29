@@ -171,7 +171,7 @@ static void GetConfigurationEntry(NDIS_HANDLE cfg, tConfigurationEntry *pEntry)
         statusName = "nothing";
     }
 #pragma warning(pop)
-    DPrintf(2, ("[%s] %s read for %s - 0x%x\n",
+    DPrintf(0, ("[%s] %s read for %s - 0x%x\n",
         __FUNCTION__,
         statusName,
         pEntry->Name,
