@@ -120,18 +120,53 @@ int PCIReadConfig(PVIRTIO_WDF_DRIVER pWdfDriver,
     return (read == length ? 0 : -1);
 }
 
+NTSTATUS PCIRegisterInterrupt(WDFINTERRUPT Interrupt)
+{
+    PVIRTIO_WDF_INTERRUPT_CONTEXT context;
+    WDF_OBJECT_ATTRIBUTES attributes;
+    NTSTATUS status;
+
+    if (Interrupt == NULL) {
+        status = STATUS_SUCCESS;
+    } else {
+        WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, VIRTIO_WDF_INTERRUPT_CONTEXT);
+        status = WdfObjectAllocateContext(
+            Interrupt,
+            &attributes,
+            &context);
+        if (status == STATUS_OBJECT_NAME_EXISTS) {
+            /* this is fine, we want to reuse the pre-existing context */
+            status = STATUS_SUCCESS;
+        }
+    }
+    return status;
+}
+
 u16 PCIGetMSIInterruptVector(WDFINTERRUPT Interrupt)
 {
     WDF_INTERRUPT_INFO info;
+    PVIRTIO_WDF_INTERRUPT_CONTEXT pContext;
+    u16 uMessageNumber = VIRTIO_MSI_NO_VECTOR;
 
-    WDF_INTERRUPT_INFO_INIT(&info);
     if (Interrupt != NULL) {
-        WdfInterruptGetInfo(Interrupt, &info);
+        pContext = GetInterruptContext(Interrupt);
+        if (pContext && pContext->bMessageNumberSet) {
+            uMessageNumber = pContext->uMessageNumber;
+        } else {
+            WDF_INTERRUPT_INFO_INIT(&info);
+            WdfInterruptGetInfo(Interrupt, &info);
+
+            if (info.MessageSignaled) {
+                ASSERT(info.MessageNumber < MAXUSHORT);
+                uMessageNumber = (u16)info.MessageNumber;
+            }
+
+            if (pContext) {
+                pContext->uMessageNumber = uMessageNumber;
+                pContext->bMessageNumberSet = true;
+            }
+        }
     }
-    if (info.MessageSignaled) {
-        ASSERT(info.MessageNumber < MAXUSHORT);
-        return (u16)info.MessageNumber;
-    } else {
-        return VIRTIO_MSI_NO_VECTOR;
-    }
+
+    return uMessageNumber;
 }
