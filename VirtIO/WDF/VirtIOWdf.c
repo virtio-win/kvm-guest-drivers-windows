@@ -44,6 +44,12 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
         return status;
     }
 
+    /* register config interrupt */
+    status = PCIRegisterInterrupt(ConfigInterrupt);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
     /* set up resources */
     status = PCIAllocBars(ResourcesTranslated, pWdfDriver);
     if (!NT_SUCCESS(status)) {
@@ -119,6 +125,14 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
         return status;
     }
 
+    /* register queue interrupts */
+    for (i = 0; i < nQueues; i++) {
+        status = PCIRegisterInterrupt(pQueueParams[i].Interrupt);
+        if (!NT_SUCCESS(status)) {
+            return status;
+        }
+    }
+
     /* find and initialize queues */
     pWdfDriver->pQueueParams = pQueueParams;
     status = virtio_find_queues(
@@ -181,6 +195,11 @@ NTSTATUS VirtIOWdfInitQueuesCB(PVIRTIO_WDF_DRIVER pWdfDriver,
         QueueParam.Interrupt = NULL;
 
         pQueueParamFunc(pWdfDriver, i, &QueueParam);
+
+        status = PCIRegisterInterrupt(QueueParam.Interrupt);
+        if (!NT_SUCCESS(status)) {
+            break;
+        }
 
         msix_vec = PCIGetMSIInterruptVector(QueueParam.Interrupt);
         if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
