@@ -51,7 +51,7 @@ VIOSerialInitInterruptHandling(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, PORTS_DEVICE);
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
     WDF_INTERRUPT_CONFIG_INIT(
                                  &interruptConfig,
                                  VIOSerialInterruptIsr,
