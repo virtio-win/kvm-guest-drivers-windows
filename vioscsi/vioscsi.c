@@ -774,7 +774,7 @@ ENTER_FN();
             }
 #endif
         }
-        if ((adaptExt->num_queues > 1) && !adaptExt->dpc_ok && !StorPortEnablePassiveInitialization(DeviceExtension, VioScsiPassiveInitializeRoutine)) {
+        if (!adaptExt->dpc_ok && !StorPortEnablePassiveInitialization(DeviceExtension, VioScsiPassiveInitializeRoutine)) {
             RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s StorPortEnablePassiveInitialization FAILED\n", __FUNCTION__));
             return FALSE;
         }
@@ -1263,7 +1263,7 @@ ENTER_FN();
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if ((adaptExt->num_queues > 1) && adaptExt->dpc_ok && MessageID > 0) {
+    if (!adaptExt->dump_mode && adaptExt->dpc_ok && MessageID > 0) {
         StorPortIssueDpc(DeviceExtension,
             &adaptExt->dpc[MessageID-3],
             ULongToPtr(MessageID),
