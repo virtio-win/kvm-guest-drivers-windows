@@ -100,6 +100,10 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_SCSI_REQUEST_QUEUE_0            2
 #define VIRTIO_SCSI_QUEUE_LAST                 VIRTIO_SCSI_REQUEST_QUEUE_0 + MAX_CPU
 
+/* MSI messages and virtqueue indices are offset by 1, MSI 0 is not used */
+#define QUEUE_TO_MESSAGE(QueueId)              ((QueueId) + 1)
+#define MESSAGE_TO_QUEUE(MessageId)            ((MessageId) - 1)
+
 /* SCSI command request, followed by data-out */
 #pragma pack(1)
 typedef struct {

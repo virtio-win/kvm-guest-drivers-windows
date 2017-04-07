@@ -762,7 +762,7 @@ ENTER_FN();
                         ga = &adaptExt->pmsg_affinity[msg];
                         if ( ga->Mask > 0 && msg > 2) {
                             cpu = RtlFindLeastSignificantBit((ULONGLONG)ga->Mask);
-                            adaptExt->cpu_to_vq_map[cpu] = msg - 3;
+                            adaptExt->cpu_to_vq_map[cpu] = MESSAGE_TO_QUEUE(msg) - VIRTIO_SCSI_REQUEST_QUEUE_0;
                             RhelDbgPrint(TRACE_LEVEL_FATAL, ("msg = %d, mask = 0x%lx group = %hu cpu = %hu vq = %hu\n", msg, ga->Mask, ga->Group, cpu, adaptExt->cpu_to_vq_map[cpu]));
                         }
                     }
@@ -996,7 +996,7 @@ VioScsiMSInterruptWorker(
     RhelDbgPrint(TRACE_LEVEL_VERBOSE,
                  ("<--->%s : MessageID 0x%x\n", __FUNCTION__, MessageID));
 
-    if (MessageID > 2)
+    if (MessageID >= QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0))
     {
         DispatchQueue(DeviceExtension, MessageID);
         return TRUE;
@@ -1005,7 +1005,7 @@ VioScsiMSInterruptWorker(
     {
        return TRUE;
     }
-    if (MessageID == 1)
+    if (MessageID == QUEUE_TO_MESSAGE(VIRTIO_SCSI_CONTROL_QUEUE))
     {
         if (adaptExt->tmf_infly)
         {
@@ -1030,7 +1030,7 @@ VioScsiMSInterruptWorker(
         }
         return TRUE;
     }
-    if (MessageID == 2) {
+    if (MessageID == QUEUE_TO_MESSAGE(VIRTIO_SCSI_EVENTS_QUEUE)) {
         while((evtNode = (PVirtIOSCSIEventNode)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_EVENTS_QUEUE], &len)) != NULL) {
            PVirtIOSCSIEvent evt = &evtNode->event;
            switch (evt->event) {
@@ -1263,9 +1263,10 @@ ENTER_FN();
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if (!adaptExt->dump_mode && adaptExt->dpc_ok && MessageID > 0) {
+    if (!adaptExt->dump_mode && adaptExt->dpc_ok) {
+        NT_ASSERT(MessageID >= QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0));
         StorPortIssueDpc(DeviceExtension,
-            &adaptExt->dpc[MessageID-3],
+            &adaptExt->dpc[MessageID - QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)],
             ULongToPtr(MessageID),
             ULongToPtr(MessageID));
 EXIT_FN();
@@ -1285,7 +1286,7 @@ ProcessQueue(
     PVirtIOSCSICmd      cmd;
     unsigned int        len;
     PADAPTER_EXTENSION  adaptExt;
-    ULONG               msg = MessageID - 3;
+    ULONG               index = MESSAGE_TO_QUEUE(MessageID) - VIRTIO_SCSI_REQUEST_QUEUE_0;
     STOR_LOCK_HANDLE    queueLock = { 0 };
     struct virtqueue    *vq;
     BOOLEAN             handleResponseInline;
@@ -1304,7 +1305,7 @@ ENTER_FN();
 #else
     handleResponseInline = TRUE;
 #endif
-    vq = adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + msg];
+    vq = adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + index];
     InitializeListHead(&complete_list);
 
     VioScsiVQLock(DeviceExtension, MessageID, &queueLock, isr);
@@ -1326,7 +1327,7 @@ ENTER_FN();
                 PSTOR_SLIST_ENTRY Result = NULL;
                 VioScsiVQUnlock(DeviceExtension, MessageID, &queueLock, isr);
                 srbExt->priv = (PVOID)cmd;
-                status = StorPortInterlockedPushEntrySList(DeviceExtension, &adaptExt->srb_list[msg], &srbExt->list_entry, &Result);
+                status = StorPortInterlockedPushEntrySList(DeviceExtension, &adaptExt->srb_list[index], &srbExt->list_entry, &Result);
                 if (status != STOR_STATUS_SUCCESS) {
                     RhelDbgPrint(TRACE_LEVEL_FATAL, ("StorPortInterlockedPushEntrySList failed with status 0x%x\n\n", status));
                 }
@@ -2134,11 +2135,11 @@ VioScsiWorkItemCallback(
 {
     ULONG MessageId = PtrToUlong(Context);
     ULONG status = STOR_STATUS_SUCCESS;
-    ULONG msg = MessageId - 3;
+    ULONG index = MESSAGE_TO_QUEUE(MessageId) - VIRTIO_SCSI_REQUEST_QUEUE_0;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSTOR_SLIST_ENTRY   listEntryRev, listEntry;
 ENTER_FN();
-    status = StorPortInterlockedFlushSList(DeviceExtension, &adaptExt->srb_list[msg], &listEntryRev);
+    status = StorPortInterlockedFlushSList(DeviceExtension, &adaptExt->srb_list[index], &listEntryRev);
     if ((status == STOR_STATUS_SUCCESS) && (listEntryRev != NULL)) {
         KAFFINITY old_affinity, new_affinity;
         old_affinity = new_affinity = 0;

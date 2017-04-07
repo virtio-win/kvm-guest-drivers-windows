@@ -194,7 +194,7 @@ static u16 vdev_get_msix_vector(void *context, int queue)
             if (adaptExt->msix_one_vector) {
                 vector = 0;
             } else {
-                vector = queue + 1;
+                vector = QUEUE_TO_MESSAGE(queue);
             }
         } else {
             vector = VIRTIO_MSI_NO_VECTOR;
