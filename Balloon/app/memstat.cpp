@@ -100,6 +100,9 @@ BOOL CMemStat::Update()
     _variant_t var_val;
     HRESULT status  = S_OK;
     UINT idx = 0;
+    SIZE_T minCacheSize = 0;
+    SIZE_T maxCacheSize = 0;
+    DWORD  flags = 0;
 
     GetSystemInfo(&sysinfo);
 
@@ -202,8 +205,25 @@ BOOL CMemStat::Update()
         m_Stats[idx].val = statex.ullTotalPhys;
         idx++;
 
+        status = memory->Get(
+                             L"CacheBytes",
+                             0,
+                             &var_val,
+                             NULL,
+                             NULL
+                             );
+
+        if (FAILED(status) || (var_val.vt == VT_NULL)) {
+            PrintMessage("Cannot get CacheBytes");
+            var_val.vt = 0;
+        }
+        else if (GetSystemFileCacheSize(&minCacheSize, &maxCacheSize, &flags) &&
+                (flags & FILE_CACHE_MIN_HARD_ENABLE) &&
+                ((ULONGLONG)var_val > minCacheSize)) {
+            var_val = (ULONGLONG)var_val - minCacheSize;
+        }
         m_Stats[idx].tag = VIRTIO_BALLOON_S_AVAIL;
-        m_Stats[idx].val = statex.ullAvailVirtual;
+        m_Stats[idx].val = statex.ullAvailPhys + (ULONGLONG)var_val/2;
     }
     return TRUE;
 }
