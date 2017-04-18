@@ -312,6 +312,11 @@ DynamicArrayDestroy(
     PDYNAMIC_ARRAY pArray
 );
 
+BOOLEAN
+DynamicArrayIsEmpty(
+    PDYNAMIC_ARRAY pArray
+);
+
 PVOID
 DynamicArrayGet(
     PDYNAMIC_ARRAY pArray,

@@ -89,6 +89,11 @@ VOID DynamicArrayDestroy(PDYNAMIC_ARRAY pArray)
     }
 }
 
+BOOLEAN DynamicArrayIsEmpty(PDYNAMIC_ARRAY pArray)
+{
+    return (pArray->Ptr == NULL || pArray->Size == 0);
+}
+
 PVOID DynamicArrayGet(PDYNAMIC_ARRAY pArray, SIZE_T *pcbSize)
 {
     PVOID Ptr = pArray->Ptr;
