@@ -455,7 +455,7 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
         }
     }
 
-    // if we have any absolute axes left, we'll expose a table device
+    // if we have any absolute axes left, we'll expose a tablet device
     if (!InputCfgDataEmpty(&AbsData))
     {
         status = HIDTabletProbe(
@@ -506,22 +506,30 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
         }
     }
 
-    // initialize the HID descriptor
-    pContext->HidReportDescriptor = (PHID_REPORT_DESCRIPTOR)DynamicArrayGet(
-        &ReportDescriptor,
-        &cbReportDescriptor);
-    if (!pContext->HidReportDescriptor)
+    if (DynamicArrayIsEmpty(&ReportDescriptor))
     {
-        status = STATUS_INSUFFICIENT_RESOURCES;
+        // we are not exposing any device
+        pContext->HidReportDescriptor = NULL;
     }
     else
     {
-        pContext->HidDescriptor = G_DefaultHidDescriptor;
-        pContext->HidDescriptor.DescriptorList[0].wReportLength = (USHORT)cbReportDescriptor;
+        // initialize the HID descriptor
+        pContext->HidReportDescriptor = (PHID_REPORT_DESCRIPTOR)DynamicArrayGet(
+            &ReportDescriptor,
+            &cbReportDescriptor);
+        if (!pContext->HidReportDescriptor)
+        {
+            status = STATUS_INSUFFICIENT_RESOURCES;
+        }
+        else
+        {
+            pContext->HidDescriptor = G_DefaultHidDescriptor;
+            pContext->HidDescriptor.DescriptorList[0].wReportLength = (USHORT)cbReportDescriptor;
 
-        pContext->HidReportDescriptorHash = ComputeHash(pContext->HidReportDescriptor, cbReportDescriptor);
+            pContext->HidReportDescriptorHash = ComputeHash(pContext->HidReportDescriptor, cbReportDescriptor);
 
-        DumpReportDescriptor(pContext->HidReportDescriptor, cbReportDescriptor);
+            DumpReportDescriptor(pContext->HidReportDescriptor, cbReportDescriptor);
+        }
     }
 
 Exit:
