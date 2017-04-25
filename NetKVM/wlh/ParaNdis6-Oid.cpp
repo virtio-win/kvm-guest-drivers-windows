@@ -264,9 +264,12 @@ static NDIS_OID SupportedOids[] =
         OID_GEN_XMIT_OK,
         OID_GEN_RCV_OK,
         OID_GEN_VLAN_ID,
+#if NDIS_SUPPORT_NDIS61
+// disable WMI custom command on 2008 due to non-filtered NDIS test failure
         OID_GEN_SUPPORTED_GUIDS,
         OID_VENDOR_1,
         OID_VENDOR_2,
+#endif
         OID_OFFLOAD_ENCAPSULATION,
         OID_TCP_OFFLOAD_PARAMETERS,
 #if PARANDIS_SUPPORT_RSS
@@ -439,8 +442,10 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             ulSize = sizeof(pContext->Statistics);
             break;
         case OID_GEN_SUPPORTED_GUIDS:
+#if NDIS_SUPPORT_NDIS61
             pInfo = (PVOID)&supportedGUIDs;
             ulSize = sizeof(supportedGUIDs);
+#endif
             break;
         case OID_VENDOR_1:
             pInfo = &virtioDebugLevel;
