@@ -40,6 +40,7 @@ VirtioInput_Device_CoInstaller_CopyFiles = 11
 [SourceDisksFiles]
 vioinput.sys  = 1,,
 viohidkmdf.sys = 1,,
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 [SourceDisksNames]
 1 = %DiskId1%,,,""
@@ -59,9 +60,10 @@ viohidkmdf.sys = 1,,
 %VirtioInput.ChildDesc%=VirtioInput_Child, VIOINPUT\REV_01
 
 [VirtioInput_Device.NT]
-CopyFiles=Drivers_Dir
+CopyFiles=CopyFiles_Device
 
 [VirtioInput_Child.NT]
+CopyFiles=CopyFiles_Child
 
 [VirtioInput_Device.NT.HW]
 AddReg=VirtioInput_AddReg
@@ -72,8 +74,10 @@ HKR,Interrupt Management\MessageSignaledInterruptProperties,,0x00000010
 HKR,Interrupt Management\MessageSignaledInterruptProperties,MSISupported,0x00010001,1
 HKR,Interrupt Management\MessageSignaledInterruptProperties,MessageNumberLimit,0x00010001,2
 
-[Drivers_Dir]
+[CopyFiles_Device]
 vioinput.sys
+
+[CopyFiles_Child]
 viohidkmdf.sys
 
 ;-------------- Service installation
@@ -110,9 +114,6 @@ HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfC
 
 [VirtioInput_Device_CoInstaller_CopyFiles]
 WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
-
-[SourceDisksFiles]
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 [VirtioInput_Device.NT.Wdf]
 KmdfService =  VirtioInput, VirtioInput_wdfsect
