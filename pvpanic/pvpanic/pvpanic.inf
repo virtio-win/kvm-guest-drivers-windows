@@ -24,12 +24,14 @@ PnpLockdown     = 1
 
 [DestinationDirs]
 DefaultDestDir = 12
+PVPanic_Device_CoInstaller_CopyFiles = 11
 
 [SourceDisksNames]
 1 = %DiskName%,,,""
 
 [SourceDisksFiles]
 pvpanic.sys = 1,,
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 ; ---------------
 ; Install Section
@@ -66,9 +68,6 @@ LoadOrderGroup = Extended Base
 ; WDF Installation
 ; ----------------
 
-[DestinationDirs]
-PVPanic_Device_CoInstaller_CopyFiles = 11
-
 [PVPanic_Device.NT.CoInstallers]
 AddReg=PVPanic_Device_CoInstaller_AddReg
 CopyFiles=PVPanic_Device_CoInstaller_CopyFiles
@@ -78,9 +77,6 @@ HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfC
 
 [PVPanic_Device_CoInstaller_CopyFiles]
 WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
-
-[SourceDisksFiles]
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 [PVPanic_Device.NT.Wdf]
 KmdfService = PVPanic, PVPanic_wdfsect
