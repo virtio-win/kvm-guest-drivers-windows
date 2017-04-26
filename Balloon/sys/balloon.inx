@@ -27,12 +27,14 @@ PnpLockdown = 1
 
 [DestinationDirs]
 DefaultDestDir = 12
+BALLOON_Device_CoInstaller_CopyFiles = 11
 
 [SourceDisksNames]
 1 = %DiskId1%,,,""
 
 [SourceDisksFiles]
 balloon.sys  = 1,,
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 ;*****************************************
 ; BALLOON  Install Section
@@ -75,9 +77,6 @@ HKR,,TypesSupported,0x00010001,7
 ;--- BALLOON_Device Coinstaller installation ------
 ;
 
-[DestinationDirs]
-BALLOON_Device_CoInstaller_CopyFiles = 11
-
 [BALLOON_Device.NT.CoInstallers]
 AddReg=BALLOON_Device_CoInstaller_AddReg
 CopyFiles=BALLOON_Device_CoInstaller_CopyFiles
@@ -87,9 +86,6 @@ HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfC
 
 [BALLOON_Device_CoInstaller_CopyFiles]
 WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
-
-[SourceDisksFiles]
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 [BALLOON_Device.NT.Wdf]
 KmdfService =  BALLOON, BALLOON_wdfsect
