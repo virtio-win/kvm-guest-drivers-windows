@@ -360,7 +360,7 @@
       <Command>
         copy /Y $(ProjectDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
         echo "Copy: "$(ProjectDir)\$(SourceInfFile)
-        stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION)
+        stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION) -d *
       </Command>
       <Message>Copy correct INF and stamp it</Message>
     </PreBuildEvent>
