@@ -31,6 +31,7 @@ VirtioSerial_Device_CoInstaller_CopyFiles = 11
 
 [SourceDisksFiles]
 vioser.sys  = 1,,
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 [SourceDisksNames]
 1 = %DiskId1%,,,""
@@ -90,9 +91,6 @@ HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfC
 
 [VirtioSerial_Device_CoInstaller_CopyFiles]
 WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
-
-[SourceDisksFiles]
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 [VirtioSerial_Device.NT.Wdf]
 KmdfService =  VirtioSerial, VirtioSerial_wdfsect
