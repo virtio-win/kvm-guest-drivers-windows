@@ -6,7 +6,7 @@ set z7_path_exe=C:\Program Files\7-Zip\7z.exe
 
 :: Set this to the path of the sysStore exe file on your local machine.----------::
 ::-------------------------------------------------------------------------------::
-set path_to_systore_exe=C:\Program Files (x86)\Windows Kits\8.1\Debuggers\x86\symstore.exe
+set path_to_systore_exe=C:\Program Files (x86)\Windows Kits\10\Debuggers\x86\symstore.exe
 
 :: Set this to the minimum size of an iso file in bytes to be considered valid.--::
 ::-------------------------------------------------------------------------------::
