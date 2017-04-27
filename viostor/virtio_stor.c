@@ -1341,8 +1341,10 @@ RhelScsiGetCapacity(
         PSENSE_DATA senseBuffer = NULL;
         UCHAR ScsiStatus = SCSISTAT_CHECK_CONDITION;
         SRB_GET_SENSE_INFO_BUFFER(Srb, senseBuffer);
-        senseBuffer->SenseKey = SCSI_SENSE_ILLEGAL_REQUEST;
-        senseBuffer->AdditionalSenseCode = SCSI_ADSENSE_INVALID_CDB;
+        if (senseBuffer) {
+            senseBuffer->SenseKey = SCSI_SENSE_ILLEGAL_REQUEST;
+            senseBuffer->AdditionalSenseCode = SCSI_ADSENSE_INVALID_CDB;
+        }
         SRB_SET_SCSI_STATUS(((PSRB_TYPE)Srb), ScsiStatus);
         return SrbStatus;
     }
