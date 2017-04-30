@@ -362,17 +362,17 @@ int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA)
         BAR.LowPart = pPCIHeader->u.type0.BaseAddresses[i];
 
         iBar = i;
-        if (BAR.LowPart & 0x01) {
+        if (BAR.LowPart & PCI_ADDRESS_IO_SPACE) {
             /* I/O space */
-            BAR.LowPart &= 0xFFFFFFFC;
+            BAR.LowPart &= PCI_ADDRESS_IO_ADDRESS_MASK;
             BAR.HighPart = 0;
-        } else if ((BAR.LowPart & 0x06) == 0x04) {
+        } else if ((BAR.LowPart & PCI_ADDRESS_MEMORY_TYPE_MASK) == PCI_TYPE_64BIT) {
             /* memory space 64-bit */
-            BAR.LowPart &= 0xFFFFFFF0;
+            BAR.LowPart &= PCI_ADDRESS_MEMORY_ADDRESS_MASK;
             BAR.HighPart = pPCIHeader->u.type0.BaseAddresses[++i];
         } else {
             /* memory space 32-bit */
-            BAR.LowPart &= 0xFFFFFFF0;
+            BAR.LowPart &= PCI_ADDRESS_MEMORY_ADDRESS_MASK;
             BAR.HighPart = 0;
         }
 
