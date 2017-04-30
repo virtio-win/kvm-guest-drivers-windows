@@ -1097,17 +1097,25 @@ VirtIoMSInterruptRoutine (
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if (MessageID == 0) {
-        RhelGetDiskGeometry(DeviceExtension);
-        return TRUE;
-    }
-    if (!CompleteDPC(DeviceExtension, MessageID)) {
-        VioStorCompleteRequest(DeviceExtension, MessageID, TRUE);
-    }
     if (MessageID > adaptExt->msix_vectors) {
         RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s MessageID = %d\n", __FUNCTION__, MessageID));
         return FALSE;
     }
+
+    if (adaptExt->msix_one_vector) {
+        MessageID = 1;
+    } else {
+        if (MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR) {
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s RhelGetDiskGeometry\n", __FUNCTION__));
+            RhelGetDiskGeometry(DeviceExtension);
+            return TRUE;
+        }
+    }
+
+    if (!CompleteDPC(DeviceExtension, MessageID)) {
+        VioStorCompleteRequest(DeviceExtension, MessageID, TRUE);
+    }
+
     return TRUE;
 }
 #endif
