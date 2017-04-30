@@ -196,7 +196,7 @@ static void *pci_map_address_range(void *context, int bar, size_t offset, size_t
 static u16 vdev_get_msix_vector(void *context, int queue)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
-    u16 vector;
+    u16 vector = VIRTIO_MSI_NO_VECTOR;
 
     if (queue >= 0) {
         /* queue interrupt */
@@ -206,12 +206,12 @@ static u16 vdev_get_msix_vector(void *context, int queue)
             } else {
                 vector = queue + 1;
             }
-        } else {
-            vector = VIRTIO_MSI_NO_VECTOR;
         }
     } else {
         /* on-device-config-change interrupt */
-        vector = VIRTIO_MSI_NO_VECTOR;
+        if (!adaptExt->msix_one_vector) {
+            vector = VIRTIO_BLK_MSIX_CONFIG_VECTOR;
+        }
     }
 
     return vector;
