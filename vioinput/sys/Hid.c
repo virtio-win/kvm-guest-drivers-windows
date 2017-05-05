@@ -353,6 +353,15 @@ static u8 SelectInputConfig(PINPUT_DEVICE pContext, u8 cfgSelect, u8 cfgSubSel)
     return size;
 }
 
+BOOLEAN InputCfgDataHasBit(PVIRTIO_INPUT_CFG_DATA pData, ULONG bit)
+{
+    if (pData->size <= (bit / 8))
+    {
+        return FALSE;
+    }
+    return (pData->u.bitmap[bit / 8] & (1 << (bit % 8)));
+}
+
 static BOOLEAN InputCfgDataEmpty(PVIRTIO_INPUT_CFG_DATA pCfgData)
 {
     UCHAR i;

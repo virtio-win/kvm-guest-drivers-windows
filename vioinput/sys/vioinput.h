@@ -342,6 +342,11 @@ DecodeNextBit(
     PUCHAR pValue
 );
 
+BOOLEAN InputCfgDataHasBit(
+    PVIRTIO_INPUT_CFG_DATA pData,
+    ULONG bit
+);
+
 VOID
 GetAbsAxisInfo(
     PINPUT_DEVICE pContext,
