@@ -97,6 +97,12 @@ HKR, Ndi\Params\*PriorityVLANTag\enum,      "2",        0,          %VLan%
 HKR, Ndi\Params\*PriorityVLANTag\enum,      "1",        0,          %PriorityOnly% 
 HKR, Ndi\Params\*PriorityVLANTag\enum,      "0",        0,          %Disable% 
  
+HKR, Ndi\params\VlanID,         ParamDesc,  0,          %VLan_ID% 
+HKR, Ndi\params\VlanID,         type,       0,          "int" 
+HKR, Ndi\params\VlanID,         default,    0,          "0" 
+HKR, Ndi\params\VlanID,         min,        0,          "0" 
+HKR, Ndi\params\VlanID,         max,        0,          "4095" 
+ 
 HKR, Ndi\Params\DoLog,              ParamDesc,  0,          %EnableLogging% 
 HKR, Ndi\Params\DoLog,              Default,    0,          "1" 
 HKR, Ndi\Params\DoLog,              type,       0,          "enum" 
@@ -300,6 +306,7 @@ String_1024 = "1024"
 PriorityVlanTag = "Priority and VLAN tagging" 
 PriorityOnly = "Priority" 
 VLan = "VLan" 
+VLan_ID = "VLan ID" 
 Priority_Vlan = "All" 
 10M = "10M" 
 100M = "100M" 
