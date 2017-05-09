@@ -1,14 +1,14 @@
 ; qemupciserial.inf for QEMU, based on MSPORTS.INF
 
 ; The driver itself is shipped with Windows (serial.sys).  This is
-; just a inf file to tell windows which pci id the serial pci card
+; just a inf file to tell windows which PCI ID the serial PCI card
 ; emulated by qemu has, and to apply a name tag to it which windows
 ; will show in the device manager.
 
-; Installing the driver: Go to device manager.  You should find a "pci
-; serial card" tagged with a yellow question mark.  Open properties.
-; Pick "update driver".  Then "select driver manually".  Pick "Ports
-; (Com+Lpt)" from the list.  Click "Have a disk".  Select this file.
+; Installing the driver: Go to Device Manager.  You should find a "PCI
+; Serial Port" tagged with a yellow question mark.  Open properties.
+; Pick "Update Driver".  Then "Select driver manually".  Pick "Ports
+; (COM & LPT)" from the list.  Click "Have Disk".  Select this file.
 ; Procedure may vary a bit depending on the windows version.
 
 ; This file covers all options: pci-serial, pci-serial-2x, pci-serial-4x
