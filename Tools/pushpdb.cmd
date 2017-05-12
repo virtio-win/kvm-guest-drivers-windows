@@ -203,6 +203,9 @@ if exist "%~n1.inf" (
     for /f "tokens=2 delims=," %%t in ('findstr /b "DriverVer" "%~n1.inf"') do (
         for /f "tokens=1 delims= " %%v in ('echo %%~t') do (
             call :lock_file
+            if  ERRORLEVEL 1 (
+                exit /b 1
+            )
             echo Pushing %~1 version %%~v to the symbol store.
             if "%DSTORE_BUILD_TAG%"=="" (
                 call "%path_to_systore_exe%" add /s "%store_address%" /f "%~1" /t "%~n1" /v "%%~v" /c "eng" > NUL
@@ -225,6 +228,8 @@ exit /b 0
 :: Creates a lock file with its unique stamp, tries to copy it to the stores
 :: location, then compares the lock at the store with its own, if equal then
 :: we locked and we continue, if not then we wait for 2 seconds then try again.
+:: If we're unable to create a uniquely named file in the store directory we
+:: abort the loop and return an error.
 :lock_file
 :loop
 (
@@ -241,8 +246,14 @@ fc %GUID%.lock "%store_address%\lock" > NUL 2>&1
 if not ERRORLEVEL 1 (
     exit /b 0
 ) else (
+    copy /y %GUID%.lock "%store_address%\%GUID%.lock" > NUL
+    if ERRORLEVEL 1 (
+        echo store appears to be broken, aborting
+        exit /b 1
+    )
+    del "%store_address%\%GUID%.lock" > NUL
     echo someone else is pushing, waiting for 2 secs
-    timeout /t 2 /nobreak > NUL
+    %windir%\system32\timeout /t 2 /nobreak > NUL
     goto :loop
 )
 
