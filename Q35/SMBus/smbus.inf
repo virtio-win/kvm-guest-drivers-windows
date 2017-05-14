@@ -1,0 +1,45 @@
+;-------------------------------------------------------------------------------
+; smbus.inf
+;
+; Red Hat SM Bus Q35
+;
+; Copyright (c) 2017 Red Hat, Inc.  All rights reserved.
+;
+;-------------------------------------------------------------------------------
+
+[Version]
+Signature = "$Windows NT$"
+Class = System
+ClassGuid = {4D36E97D-E325-11CE-BFC1-08002BE10318}
+Provider = %RedHat%
+DriverVer=04/27/2017,100.0.0.0
+DriverPackageType = PlugAndPlay
+DriverPackageDisplayName = %smbus.DeviceDesc%
+CatalogFile  = smbus.cat
+
+; ======
+; Following two lines are questionable works without them
+DriverPackageType = PlugAndPlay
+DriverPackageDisplayName = %smbus.DeviceDesc%
+
+[Manufacturer]
+%smbus.DeviceDesc% = Models, NTamd64
+
+[Models]
+%smbus.DeviceDesc% = NullInstallSection, PCI\VEN_8086&DEV_2930&SUBSYS_11001AF4
+%smbus.DeviceDesc% = NullInstallSection, PCI\VEN_8086&CC_0C0500
+%smbus.DeviceDesc% = NullInstallSection, PCI\VEN_8086&CC_0C05
+
+[Models.NTamd64]
+%smbus.DeviceDesc% = NullInstallSection, PCI\VEN_8086&DEV_2930&SUBSYS_11001AF4
+%smbus.DeviceDesc% = NullInstallSection, PCI\VEN_8086&CC_0C0500
+%smbus.DeviceDesc% = NullInstallSection, PCI\VEN_8086&CC_0C05
+
+[NullInstallSection]
+
+[NullInstallSection.Services]
+AddService = , 2                 ; null service install
+
+[Strings]
+RedHat = "Red Hat, Inc."
+smbus.DeviceDesc = "Red Hat Q35 SM Bus driver"
