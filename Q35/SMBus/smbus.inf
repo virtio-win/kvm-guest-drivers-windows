@@ -1,5 +1,5 @@
 ;-------------------------------------------------------------------------------
-; smbusq35.INF
+; smbus.INF
 ;
 ; Red Hat SM Bus Q35
 ;
@@ -26,13 +26,11 @@ DriverPackageDisplayName = %smbus.DeviceDesc%
 %smbus.DeviceDesc% = Models, NTamd64
 
 [Models]
-%smbus.DeviceDesc% = NullInstallSection, PCI\VEN_8086&DEV_2930&SUBSYS_11001AF4&REV_02
 %smbus.DeviceDesc% = NullInstallSection, PCI\VEN_8086&DEV_2930&SUBSYS_11001AF4
 %smbus.DeviceDesc% = NullInstallSection, PCI\VEN_8086&CC_0C0500
 %smbus.DeviceDesc% = NullInstallSection, PCI\VEN_8086&CC_0C05
 
 [Models.NTamd64]
-%smbus.DeviceDesc% = NullInstallSection, PCI\VEN_8086&DEV_2930&SUBSYS_11001AF4&REV_02
 %smbus.DeviceDesc% = NullInstallSection, PCI\VEN_8086&DEV_2930&SUBSYS_11001AF4
 %smbus.DeviceDesc% = NullInstallSection, PCI\VEN_8086&CC_0C0500
 %smbus.DeviceDesc% = NullInstallSection, PCI\VEN_8086&CC_0C05
