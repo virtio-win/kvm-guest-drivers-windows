@@ -524,6 +524,21 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
 #endif
 }
 
+static void
+InitializeMaxMTUConfig(PPARANDIS_ADAPTER pContext)
+{
+    pContext->bMaxMTUConfigSupported = AckFeature(pContext, VIRTIO_NET_F_MTU);
+
+    if (pContext->bMaxMTUConfigSupported)
+    {
+        virtio_get_config(
+            &pContext->IODevice,
+            0,
+            &pContext->MaxPacketSize.nMaxDataSize,
+            sizeof(USHORT));
+    }
+}
+
 static __inline void
 DumpMac(int dbg_level, const char* header_str, UCHAR* mac)
 {
@@ -651,19 +666,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
     pContext->fCurrentLinkState = MediaConnectStateUnknown;
 
-    pContext->MaxPacketSize.nMaxFullSizeOS = pContext->MaxPacketSize.nMaxDataSize + ETH_HEADER_SIZE;
-    pContext->MaxPacketSize.nMaxFullSizeHwTx = pContext->MaxPacketSize.nMaxFullSizeOS;
-#if PARANDIS_SUPPORT_RSC
-    pContext->MaxPacketSize.nMaxDataSizeHwRx = MAX_HW_RX_PACKET_SIZE;
-    pContext->MaxPacketSize.nMaxFullSizeOsRx = MAX_OS_RX_PACKET_SIZE;
-#else
-    pContext->MaxPacketSize.nMaxDataSizeHwRx = pContext->MaxPacketSize.nMaxFullSizeOS + ETH_PRIORITY_HEADER_SIZE;
-    pContext->MaxPacketSize.nMaxFullSizeOsRx = pContext->MaxPacketSize.nMaxFullSizeOS;
-#endif
     new (&pContext->guestAnnouncePackets) CGuestAnnouncePackets(pContext);
-
-    if (pContext->ulPriorityVlanSetting)
-        pContext->MaxPacketSize.nMaxFullSizeHwTx = pContext->MaxPacketSize.nMaxFullSizeOS + ETH_PRIORITY_HEADER_SIZE;
 
     if (pContext->PciResources.Init(pContext->MiniportHandle, pResourceList))
     {
@@ -698,6 +701,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
         }
 
         InitializeMAC(pContext, CurrentMAC);
+        InitializeMaxMTUConfig(pContext);
 
         pContext->bUseMergedBuffers = AckFeature(pContext, VIRTIO_NET_F_MRG_RXBUF);
         pContext->nVirtioHeaderSize = (pContext->bUseMergedBuffers) ? sizeof(virtio_net_hdr_mrg_rxbuf) : sizeof(virtio_net_hdr);
@@ -709,6 +713,19 @@ NDIS_STATUS ParaNdis_InitializeContext(
         /* avoid deregistering if failed */
         status = NDIS_STATUS_RESOURCE_CONFLICT;
     }
+
+    pContext->MaxPacketSize.nMaxFullSizeOS = pContext->MaxPacketSize.nMaxDataSize + ETH_HEADER_SIZE;
+    pContext->MaxPacketSize.nMaxFullSizeHwTx = pContext->MaxPacketSize.nMaxFullSizeOS;
+#if PARANDIS_SUPPORT_RSC
+    pContext->MaxPacketSize.nMaxDataSizeHwRx = MAX_HW_RX_PACKET_SIZE;
+    pContext->MaxPacketSize.nMaxFullSizeOsRx = MAX_OS_RX_PACKET_SIZE;
+#else
+    pContext->MaxPacketSize.nMaxDataSizeHwRx = pContext->MaxPacketSize.nMaxFullSizeOS + ETH_PRIORITY_HEADER_SIZE;
+    pContext->MaxPacketSize.nMaxFullSizeOsRx = pContext->MaxPacketSize.nMaxFullSizeOS;
+#endif
+    if (pContext->ulPriorityVlanSetting)
+        pContext->MaxPacketSize.nMaxFullSizeHwTx = pContext->MaxPacketSize.nMaxFullSizeOS + ETH_PRIORITY_HEADER_SIZE;
+
     pContext->bControlQueueSupported = AckFeature(pContext, VIRTIO_NET_F_CTRL_VQ);
 
     pContext->bMultiQueue = pContext->bControlQueueSupported && AckFeature(pContext, VIRTIO_NET_F_MQ);
