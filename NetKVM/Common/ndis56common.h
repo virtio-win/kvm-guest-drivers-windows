@@ -346,6 +346,7 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bDoSupportPriority;
     BOOLEAN                 bLinkDetectSupported;
     BOOLEAN                 bGuestAnnounceSupported;
+    BOOLEAN                 bMaxMTUConfigSupported;
     BOOLEAN                 bGuestChecksumSupported;
     BOOLEAN                 bControlQueueSupported;
     BOOLEAN                 bUseMergedBuffers;
