@@ -159,6 +159,7 @@ VIOSerialHandleCtrlMsg(
         break;
 
         case VIRTIO_CONSOLE_PORT_OPEN:
+           WdfSpinLockAcquire(pContext->CCtrlLock);
            if (port)
            {
               BOOLEAN  Connected = (BOOLEAN)cpkt->value;
@@ -189,6 +190,7 @@ VIOSerialHandleCtrlMsg(
            {
               TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIRTIO_CONSOLE_PORT_OPEN invalid id = %d\n", cpkt->id);
            }
+           WdfSpinLockRelease(pContext->CCtrlLock);
         break;
 
         case VIRTIO_CONSOLE_PORT_NAME:

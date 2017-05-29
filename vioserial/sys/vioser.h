@@ -84,6 +84,7 @@ typedef struct _tagPortDevice
     struct virtqueue    *c_ivq, *c_ovq;
     struct virtqueue    **in_vqs, **out_vqs;
     WDFSPINLOCK         CVqLock;
+    WDFSPINLOCK         CCtrlLock;
 
     BOOLEAN             DeviceOK;
     UINT                DeviceId;

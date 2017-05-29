@@ -192,6 +192,7 @@ VIOSerialEvtDevicePrepareHardware(
     UINT nr_ports;
     u64 u64HostFeatures;
     u64 u64GuestFeatures = 0;
+    WDF_OBJECT_ATTRIBUTES  attributes;
 
     UNREFERENCED_PARAMETER(ResourcesRaw);
     PAGED_CODE();
@@ -236,11 +237,22 @@ VIOSerialEvtDevicePrepareHardware(
     }
     VirtIOWdfSetDriverFeatures(&pContext->VDevice, u64GuestFeatures);
 
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    attributes.ParentObject = Device;
+
+    status = WdfSpinLockCreate(
+            &attributes,
+            &pContext->CCtrlLock
+            );
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+                "WdfSpinLockCreate failed 0x%x\n", status);
+        return status;
+    }
+    
     if(pContext->isHostMultiport)
     {
-        WDF_OBJECT_ATTRIBUTES  attributes;
-        WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-        attributes.ParentObject = Device;
         status = WdfSpinLockCreate(
                                 &attributes,
                                 &pContext->CVqLock
