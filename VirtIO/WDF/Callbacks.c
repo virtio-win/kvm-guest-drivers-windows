@@ -49,10 +49,14 @@ static void *mem_alloc_nonpaged_block(void *context, size_t size)
 {
     PVIRTIO_WDF_DRIVER pWdfDriver = (PVIRTIO_WDF_DRIVER)context;
 
-    return ExAllocatePoolWithTag(
+    PVOID addr = ExAllocatePoolWithTag(
         NonPagedPool,
         size,
         pWdfDriver->MemoryTag);
+    if (addr) {
+        RtlZeroMemory(addr, size);
+    }
+    return addr;
 }
 
 static void mem_free_nonpaged_block(void *context, void *addr)
