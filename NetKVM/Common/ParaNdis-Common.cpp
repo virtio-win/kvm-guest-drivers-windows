@@ -533,7 +533,7 @@ InitializeMaxMTUConfig(PPARANDIS_ADAPTER pContext)
     {
         virtio_get_config(
             &pContext->IODevice,
-            0,
+            ETH_ALEN + 2 * sizeof(USHORT),
             &pContext->MaxPacketSize.nMaxDataSize,
             sizeof(USHORT));
     }
