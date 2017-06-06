@@ -1,0 +1,20 @@
+image: Visual Studio 2015
+
+version: build-{build}-{branch}
+
+before_build:
+  - ren "C:\Program Files (x86)\Windows Kits\10\include\00wdf" "wdf"
+  - powershell Start-BitsTransfer -Source https://download.microsoft.com/download/1/7/6/176909B0-50F2-4DF3-B29B-830A17EA7E38/CPDK_RELEASE_UPDATE/cpdksetup.exe -Destination C:\cpdksetup.exe
+  - c:\cpdksetup.exe /quiet /norestart
+
+build_script: buildAll.bat
+
+skip_commits:
+  message: /\[ci skip\]/
+
+notifications:
+  - provider: Email
+    to: virt-win-devel@redhat.com
+    on_build_success: false
+    on_build_failure: true
+    on_build_status_changed: true
