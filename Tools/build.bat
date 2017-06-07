@@ -92,7 +92,7 @@ if "%BUILD_SPEC%"=="" (
       )
       if not "!BUILD_SPEC!"=="" (
         call :build_target !BUILD_SPEC!
-        if not "!BUILD_FAILED!"=="" goto :eof
+        if not "!BUILD_FAILED!"=="" goto :fail
       )
     )
   )
@@ -171,10 +171,35 @@ goto :eof
 
 :runsdv
 msbuild.exe %BUILD_FILE% /t:clean /p:Configuration="%~1" /P:Platform=%2
+
+IF ERRORLEVEL 1 (
+  set BUILD_FAILED=1
+)
+
 msbuild.exe %BUILD_FILE% /t:sdv /p:inputs="/clean" /p:Configuration="%~1" /P:platform=%2
+
+IF ERRORLEVEL 1 (
+  set BUILD_FAILED=1
+)
+
 msbuild.exe %BUILD_FILE% /p:Configuration="%~1" /P:Platform=%2 /P:RunCodeAnalysisOnce=True
+
+IF ERRORLEVEL 1 (
+  set BUILD_FAILED=1
+)
+
 msbuild.exe %BUILD_FILE% /t:sdv /p:inputs="/devenv /check" /p:Configuration="%~1" /P:platform=%2
+
+IF ERRORLEVEL 1 (
+  set BUILD_FAILED=1
+)
+
 msbuild.exe %BUILD_FILE% /t:dvl /p:Configuration="%~1" /P:platform=%2
+
+IF ERRORLEVEL 1 (
+  set BUILD_FAILED=1
+)
+
 goto :eof
 
 :split_target_tag
@@ -187,3 +212,7 @@ for /f "tokens=2 delims=_" %%T in (%1) do (
     set TAG=_%%T
 )
 goto :eof
+
+:fail
+
+exit /B 1
