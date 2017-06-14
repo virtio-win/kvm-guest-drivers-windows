@@ -77,6 +77,15 @@ for %%N in (%SUPPORTED_BUILD_SPECS%) do (
 )
 
 rem Silently exit if the build target could not be matched
+rem
+rem The reason for ignoring build target mismatch are projects
+rem like NetKVM, viostor, and vioscsi, which build different
+rem sln/vcxproj for different targets. Higher level script
+rem does not have information about specific sln/vcproj and
+rem platform bindings, therefore it invokes this script once
+rem for each sln/vcproj to make it decide when the actual build
+rem should be invoked.
+
 goto :eof
 
 rem Figure out which targets we're building
