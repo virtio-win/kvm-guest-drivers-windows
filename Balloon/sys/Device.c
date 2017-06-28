@@ -450,11 +450,7 @@ BalloonEvtDeviceD0Exit(
     * interrupts were already disabled (between BalloonEvtDeviceD0ExitPreInterruptsDisabled and this call)
     * we should flush StatWorkItem before calling BalloonTerm which will delete virtio queues
     */
-    if (devCtx->StatWorkItem)
-    {
-        WdfWorkItemFlush(devCtx->StatWorkItem);
-        devCtx->StatWorkItem = NULL;
-    }
+    WdfWorkItemFlush(devCtx->StatWorkItem);
 #endif // !USE_BALLOON_SERVICE
 
     BalloonTerm(Device);
