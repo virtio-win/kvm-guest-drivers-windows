@@ -2159,6 +2159,7 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
     }
     else
     {
+        ppr.value = 0;
         ppr.ipStatus = ppresNotIP;
     }
 
