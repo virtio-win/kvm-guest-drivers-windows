@@ -72,9 +72,9 @@ typedef struct _tagIP6_TYPE2_ROUTING_HEADER
 
 #define IP6_HEADER_VERSION(pHeader)     (((pHeader)->ip6_ver_tc & 0xF0) >> 4)
 
-#define ETH_GET_VLAN_HDR(ethHdr)        ((PVLAN_HEADER) RtlOffsetToPointer(ethHdr, ETH_PRIORITY_HEADER_OFFSET))
-#define VLAN_GET_USER_PRIORITY(vlanHdr) ( (((PUCHAR)(vlanHdr))[2] & 0xE0) >> 5 )
-#define VLAN_GET_VLAN_ID(vlanHdr)       ( ((USHORT) (((PUCHAR)(vlanHdr))[2] & 0x0F) << 8) | ( ((PUCHAR)(vlanHdr))[3] ) )
+#define ETH_GET_VLAN_HDR(ethHdr)        ((PVLAN_HEADER) RtlOffsetToPointer(ethHdr, ETH_HEADER_SIZE))
+#define VLAN_GET_USER_PRIORITY(vlanHdr) ( (((PUCHAR)(vlanHdr))[0] & 0xE0) >> 5 )
+#define VLAN_GET_VLAN_ID(vlanHdr)       ( ((USHORT) (((PUCHAR)(vlanHdr))[0] & 0x0F) << 8) | ( ((PUCHAR)(vlanHdr))[1] ) )
 
 #define ETH_PROTO_IP4 (0x0800)
 #define ETH_PROTO_IP6 (0x86DD)
