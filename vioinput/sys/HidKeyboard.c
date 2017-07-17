@@ -291,7 +291,7 @@ HIDKeyboardReportToEvent(
             USHORT uLedCode = HIDLEDUsageCodeToEventCode(uCode + 1);
             if (uLedCode != 0xFF)
             {
-                if (uShortPendingLedValue != 0xFF)
+                if (uPendingLedCode != 0xFF)
                 {
                     // send the pending LED change to the host
                     status = HIDKeyboardSendStatus(pContext, EV_LED, uPendingLedCode,
@@ -308,7 +308,7 @@ HIDKeyboardReportToEvent(
     }
 
     // send the last pending LED change; this one will complete the request
-    if (uShortPendingLedValue != 0xFF)
+    if (uPendingLedCode != 0xFF)
     {
         status = HIDKeyboardSendStatus(pContext, EV_LED, uPendingLedCode,
                                        uShortPendingLedValue, Request);
@@ -320,7 +320,7 @@ HIDKeyboardReportToEvent(
         RtlCopyMemory(pKeyboardDesc->pLastOutputReport, pReport,
                       pKeyboardDesc->cbOutputReport);
     }
-    if (uShortPendingLedValue == 0xFF)
+    if (uPendingLedCode == 0xFF)
     {
         // nothing was sent up, complete the request now
         WdfRequestComplete(Request, status);
