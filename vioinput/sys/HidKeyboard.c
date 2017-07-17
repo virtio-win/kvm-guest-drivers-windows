@@ -291,7 +291,7 @@ HIDKeyboardReportToEvent(
             USHORT uLedCode = HIDLEDUsageCodeToEventCode(uCode + 1);
             if (uLedCode != 0xFF)
             {
-                if (uShortPendingLedValue != 0xFF)
+                if (uPendingLedCode != 0xFF)
                 {
                     // send the pending LED change to the host
                     status = HIDKeyboardSendStatus(pContext, EV_LED, uPendingLedCode,
