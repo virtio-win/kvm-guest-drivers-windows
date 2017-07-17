@@ -51,7 +51,8 @@ public:
     VOID CreateNBL(UINT32 IPV4);
     VOID CreateNBL(USHORT *IPV6);
     VOID SendNBLs();
-    static CGuestAnnouncePacketHolder *GetCGuestAnnouncePacketFromNBL(PNET_BUFFER_LIST NBL);
+    static void NblCompletionCallback(PNET_BUFFER_LIST NBL);
+    static const ULONG cloneFlags = NDIS_CLONE_FLAGS_USE_ORIGINAL_MDLS;
 private:
     VOID CreateNBL(PVOID packet, UINT size, bool isIPV4);
     EthernetArpFrame *CreateIPv4Packet(UINT32 IPV4);

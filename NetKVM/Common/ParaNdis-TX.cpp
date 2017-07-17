@@ -303,10 +303,10 @@ void CParaNdisTX::CompleteOutstandingNBLChain(PNET_BUFFER_LIST NBL, ULONG Flags)
 
 void CParaNdisTX::CompleteOutstandingInternalNBL(PNET_BUFFER_LIST NBL, BOOLEAN UnregisterOutstanding /*= TRUE*/)
 {
-    CGuestAnnouncePacketHolder *ARPPacket = CGuestAnnouncePackets::GetCGuestAnnouncePacketFromNBL(NBL);
     ULONG NBLNum = ParaNdis_CountNBLs(NBL);
 
-    ARPPacket->Release();
+    CGuestAnnouncePackets::NblCompletionCallback(NBL);
+
     if (UnregisterOutstanding)
     {
         m_StateMachine.UnregisterOutstandingItems(NBLNum);

@@ -116,7 +116,6 @@ VOID CGuestAnnouncePackets::CreateNBL(PVOID packet, UINT size, bool isIPV4)
         NdisFreeMemory(packet, 0, 0);
         return;
     }
-    nbl->NdisReserved[0] = PacketHolder;
     m_packets.Push(PacketHolder);
 }
 
@@ -140,17 +139,35 @@ VOID CGuestAnnouncePackets::CreateNBL(USHORT *IPV6)
 
 VOID CGuestAnnouncePackets::SendNBLs()
 {
-    auto ctx = m_Context;
-    m_packets.ForEach([ctx](CGuestAnnouncePacketHolder* GratARPPacket)
+    m_packets.ForEach([this](CGuestAnnouncePacketHolder* GratARPPacket)
     {
-        GratARPPacket->AddRef();
-        ParaNdis6_SendNBLInternal(ctx, GratARPPacket->GetNBL(), 0, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
+        auto OriginalNBL = GratARPPacket->GetNBL();
+        auto NewNBL = NdisAllocateCloneNetBufferList(OriginalNBL, m_Context->BufferListsPool, NULL, cloneFlags);
+        if (NewNBL)
+        {
+            GratARPPacket->AddRef();
+            NewNBL->SourceHandle = m_Context->MiniportHandle;
+            NewNBL->MiniportReserved[0] = GratARPPacket;
+            NewNBL->ParentNetBufferList = OriginalNBL;
+            NdisInterlockedIncrement(&OriginalNBL->ChildRefCount);
+            DPrintf(1, ("[%s] ChildRefCount %d", __FUNCTION__, OriginalNBL->ChildRefCount));
+            ParaNdis6_SendNBLInternal(m_Context, NewNBL, 0, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
+        }
     });
 }
 
-CGuestAnnouncePacketHolder *CGuestAnnouncePackets::GetCGuestAnnouncePacketFromNBL(PNET_BUFFER_LIST NBL)
+void CGuestAnnouncePackets::NblCompletionCallback(PNET_BUFFER_LIST NBL)
 {
-    return (CGuestAnnouncePacketHolder *)NBL->NdisReserved[0];
+    CGuestAnnouncePacketHolder *GratARPPacket = (CGuestAnnouncePacketHolder *)NBL->MiniportReserved[0];
+    if (GratARPPacket)
+    {
+        auto OriginalNBL = GratARPPacket->GetNBL();
+        NETKVM_ASSERT(NBL->ParentNetBufferList == OriginalNBL);
+        NdisInterlockedDecrement(&OriginalNBL->ChildRefCount);
+        DPrintf(1, ("[%s] ChildRefCount %d, Child %s", __FUNCTION__, OriginalNBL->ChildRefCount, (NBL->ParentNetBufferList == OriginalNBL) ? "OK" : "Bad"));
+        NdisFreeCloneNetBufferList(NBL, cloneFlags);
+        GratARPPacket->Release();
+    }
 }
 
 bool CallCompletionForNBL(PARANDIS_ADAPTER * pContext, PNET_BUFFER_LIST NBL)
