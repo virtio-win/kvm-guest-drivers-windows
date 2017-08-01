@@ -12,26 +12,11 @@
 //
 //////////////////////////////////////////////////////////////////////////////////////////
 
-#if defined(IGNORE_VIRTIO_OSDEP_H)
-// to make simulation environment easy
-#include "external_os_dep.h"
-#else
-
-#ifndef __OS_DEP_H
-#define __OS_DEP_H
+#pragma once
 
 #include <ntddk.h>
 
-#define ktime_t ULONGLONG
-#define ktime_get() KeQueryPerformanceCounter(NULL).QuadPart
-
-#define likely(x) x
-#define unlikely(x) x
-
 #define ENOSPC 1
-#define BUG_ON(a) ASSERT(!(a))
-#define WARN_ON(a)
-#define BUG() ASSERT(0)
 
 #if !defined(__cplusplus) && !defined(bool)
 // Important note: in MSFT C++ bool length is 1 bytes
@@ -43,16 +28,4 @@
 #endif
 
 #define inline __forceinline
-
-#ifdef DBG
-#define DEBUG
-#endif
-
-#define mb()   KeMemoryBarrier()
-#define rmb()  KeMemoryBarrier()
-#define wmb()  KeMemoryBarrier()
-
 #define SMP_CACHE_BYTES 64
-
-#endif
-#endif
