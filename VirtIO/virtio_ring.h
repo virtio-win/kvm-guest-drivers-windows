@@ -39,20 +39,20 @@
 #include <pshpack1.h>
 
 /* This marks a buffer as continuing via the next field. */
-#define VRING_DESC_F_NEXT	1
+#define VIRTQ_DESC_F_NEXT	1
 /* This marks a buffer as write-only (otherwise read-only). */
-#define VRING_DESC_F_WRITE	2
+#define VIRTQ_DESC_F_WRITE	2
 /* This means the buffer contains a list of buffer descriptors. */
-#define VRING_DESC_F_INDIRECT	4
+#define VIRTQ_DESC_F_INDIRECT	4
 
 /* The Host uses this in used->flags to advise the Guest: don't kick me when
 * you add a buffer.  It's unreliable, so it's simply an optimization.  Guest
 * will still kick if it's out of buffers. */
-#define VRING_USED_F_NO_NOTIFY	1
+#define VIRTQ_USED_F_NO_NOTIFY	1
 /* The Guest uses this in avail->flags to advise the Host: don't interrupt me
 * when you consume a buffer.  It's unreliable, so it's simply an
 * optimization.  */
-#define VRING_AVAIL_F_NO_INTERRUPT	1
+#define VIRTQ_AVAIL_F_NO_INTERRUPT	1
 
 /* We support indirect buffer descriptors */
 #define VIRTIO_RING_F_INDIRECT_DESC	28
