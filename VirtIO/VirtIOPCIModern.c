@@ -303,7 +303,7 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue,
     /* create the vring */
     vq = vring_new_virtqueue(index, info->num,
         SMP_CACHE_BYTES, vdev,
-        true, info->queue, vp_notify, vq_addr);
+        info->queue, vp_notify, vq_addr);
     if (!vq) {
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto err_new_queue;

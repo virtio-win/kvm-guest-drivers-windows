@@ -186,7 +186,7 @@ static NTSTATUS vio_legacy_setup_vq(struct virtqueue **queue,
     /* create the vring */
     vq = vring_new_virtqueue(index, info->num,
         VIRTIO_PCI_VRING_ALIGN, vdev,
-        true, info->queue, vp_notify,
+        info->queue, vp_notify,
         (u8 *)info->queue + ROUND_TO_PAGES(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN)));
     if (!vq) {
         status = STATUS_INSUFFICIENT_RESOURCES;
