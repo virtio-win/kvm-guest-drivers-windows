@@ -2,13 +2,31 @@
 REM -----------------------------------------------------------------------
 REM  Copyright (c) 2010-2017 Red Hat, Inc.
 REM
-REM  File: SDVTOOL.bat
-REM
 REM  Author(s):
 REM   Miki Mishael <mikim@daynix.com>
 REM
-REM  This work is licensed under the terms of the GNU GPL, version 2.  See
-REM  the COPYING file in the top-level directory.
+REM  Redistribution and use in source and binary forms, with or without
+REM  modification, are permitted provided that the following conditions
+REM  are met :
+REM  1. Redistributions of source code must retain the above copyright
+REM     notice, this list of conditions and the following disclaimer.
+REM  2. Redistributions in binary form must reproduce the above copyright
+REM     notice, this list of conditions and the following disclaimer in the
+REM     documentation and / or other materials provided with the distribution.
+REM  3. Neither the names of the copyright holders nor the names of their contributors
+REM     may be used to endorse or promote products derived from this software
+REM     without specific prior written permission.
+REM  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS'' AND
+REM  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+REM  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+REM  ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE
+REM  FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+REM  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREM ENT OF SUBSTITUTE GOODS
+REM  OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+REM  HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+REM  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+REM  OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+REM  SUCH DAMAGE.
 REM -----------------------------------------------------------------------
 
 Rem This script was made to run Static Driver Verifier.
