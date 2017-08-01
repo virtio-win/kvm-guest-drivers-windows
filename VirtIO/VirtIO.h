@@ -1,6 +1,8 @@
 #ifndef _LINUX_VIRTIO_H
 #define _LINUX_VIRTIO_H
 
+#include "virtio_ring.h"
+
 #define scatterlist VirtIOBufferDescriptor
 
 struct VirtIOBufferDescriptor {
@@ -8,29 +10,33 @@ struct VirtIOBufferDescriptor {
     ULONG length;
 };
 
-/**
- * virtqueue - a queue to register buffers for sending or receiving.
- * @vdev: the virtio device this queue was created for.
- * @notification_addr: the register to use to notify the host side.
- * @index: the zero-based ordinal number for this queue.
- * @num_free: number of elements we expect to be able to fit.
- *
- * A note on @num_free: with indirect buffers, each buffer needs one
- * element in the queue, otherwise a buffer will need one element per
- * sg element.
- */
+/* Represents one virtqueue; only data pointed to by the vring structure is exposed to the host */
+#pragma warning (push)
+#pragma warning (disable:4200)
 struct virtqueue {
     VirtIODevice *vdev;
+    struct vring vring;
+    struct {
+        u16 flags;
+        u16 idx;
+    } master_vring_avail;
     unsigned int index;
-    unsigned int num_free;
+    unsigned int num_unused;
+    unsigned int num_added_since_kick;
+    u16 first_unused;
+    u16 last_used;
+    bool event_suppression_enabled;
     void *notification_addr;
+    void (*notification_cb)(struct virtqueue *vq);
+    void *opaque[];
 };
+#pragma warning (pop)
 
 int virtqueue_add_buf(struct virtqueue *vq,
                       struct scatterlist sg[],
                       unsigned int out_num,
                       unsigned int in_num,
-                      void *data,
+                      void *opaque,
                       void *va_indirect,
                       ULONGLONG phys_indirect);
 
@@ -51,8 +57,6 @@ bool virtqueue_enable_cb(struct virtqueue *vq);
 bool virtqueue_enable_cb_delayed(struct virtqueue *vq);
 
 void *virtqueue_detach_unused_buf(struct virtqueue *vq);
-
-unsigned int virtqueue_get_vring_size(struct virtqueue *vq);
 
 BOOLEAN virtqueue_is_interrupt_enabled(struct virtqueue *_vq);
 
