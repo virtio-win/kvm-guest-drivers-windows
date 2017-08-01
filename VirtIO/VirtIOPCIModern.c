@@ -331,16 +331,16 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue,
             status = STATUS_INVALID_PARAMETER;
             goto err_map_notify;
         }
-        vq->priv = (void *)(vdev->notify_base +
+        vq->notification_addr = (void *)(vdev->notify_base +
             off * vdev->notify_offset_multiplier);
     } else {
-        vq->priv = vio_modern_map_capability(vdev,
+        vq->notification_addr = vio_modern_map_capability(vdev,
             vdev->notify_map_cap, 2, 2,
             off * vdev->notify_offset_multiplier, 2,
             NULL);
     }
 
-    if (!vq->priv) {
+    if (!vq->notification_addr) {
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto err_map_notify;
     }

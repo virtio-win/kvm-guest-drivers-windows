@@ -193,7 +193,7 @@ static NTSTATUS vio_legacy_setup_vq(struct virtqueue **queue,
         goto err_activate_queue;
     }
 
-    vq->priv = (void *)(vdev->addr + VIRTIO_PCI_QUEUE_NOTIFY);
+    vq->notification_addr = (void *)(vdev->addr + VIRTIO_PCI_QUEUE_NOTIFY);
 
     if (msix_vec != VIRTIO_MSI_NO_VECTOR) {
         msix_vec = vdev->device->set_queue_vector(vq, msix_vec);
