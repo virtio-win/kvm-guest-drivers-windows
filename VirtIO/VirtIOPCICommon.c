@@ -368,13 +368,13 @@ int virtio_get_bar_index(PPCI_COMMON_HEADER pPCIHeader, PHYSICAL_ADDRESS BasePA)
 }
 
 /* The notify function used when creating a virt queue, common to both modern
- * and legacy (the difference is in how vq->priv is set up).
+ * and legacy (the difference is in how vq->notification_addr is set up).
  */
 bool vp_notify(struct virtqueue *vq)
 {
     /* we write the queue's selector into the notification register to
      * signal the other end */
-    iowrite16(vq->vdev, (unsigned short)vq->index, vq->priv);
+    iowrite16(vq->vdev, (unsigned short)vq->index, vq->notification_addr);
     DPrintf(0, ("virtio: vp_notify vq->index = %x\n", vq->index));
     return true;
 }

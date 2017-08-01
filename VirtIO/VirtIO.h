@@ -11,7 +11,7 @@ struct VirtIOBufferDescriptor {
 /**
  * virtqueue - a queue to register buffers for sending or receiving.
  * @vdev: the virtio device this queue was created for.
- * @priv: a pointer for the virtqueue implementation to use.
+ * @notification_addr: the register to use to notify the host side.
  * @index: the zero-based ordinal number for this queue.
  * @num_free: number of elements we expect to be able to fit.
  *
@@ -23,7 +23,7 @@ struct virtqueue {
     VirtIODevice *vdev;
     unsigned int index;
     unsigned int num_free;
-    void *priv;
+    void *notification_addr;
 };
 
 int virtqueue_add_buf(struct virtqueue *vq,
