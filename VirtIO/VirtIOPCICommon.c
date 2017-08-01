@@ -378,3 +378,15 @@ bool vp_notify(struct virtqueue *vq)
     DPrintf(0, ("virtio: vp_notify vq->index = %x\n", vq->index));
     return true;
 }
+
+void virtqueue_notify(struct virtqueue *vq)
+{
+    vq->notification_cb(vq);
+}
+
+void virtqueue_kick(struct virtqueue *vq)
+{
+    if (virtqueue_kick_prepare(vq)) {
+        virtqueue_notify(vq);
+    }
+}

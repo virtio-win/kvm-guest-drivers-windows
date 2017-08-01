@@ -179,7 +179,5 @@ static inline int vring_need_event(__u16 event_idx, __u16 new_idx, __u16 old)
 #pragma warning (pop)
 
 void vring_transport_features(VirtIODevice *vdev, u64 *features);
-void *virtqueue_get_avail(struct virtqueue *_vq);
-void *virtqueue_get_used(struct virtqueue *_vq);
 
 #endif /* _UAPI_LINUX_VIRTIO_RING_H */
