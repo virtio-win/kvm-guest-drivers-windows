@@ -33,10 +33,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Header|x64'">
     <NMakeBuildCommandLine>build.cmd</NMakeBuildCommandLine>
     <NMakeReBuildCommandLine>build.cmd</NMakeReBuildCommandLine>
+    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Header|Win32'">
     <NMakeBuildCommandLine>build.cmd</NMakeBuildCommandLine>
     <NMakeReBuildCommandLine>build.cmd</NMakeReBuildCommandLine>
+    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
   </ItemDefinitionGroup>
