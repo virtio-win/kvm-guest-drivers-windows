@@ -129,7 +129,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
     UNREFERENCED_PARAMETER(miniportDriverContext);
     DEBUG_ENTRY(0);
-#pragma warning( suppress: 28197)
     /* allocate context structure */
     pContext = (PARANDIS_ADAPTER *)
         NdisAllocateMemoryWithTagPriority(
@@ -886,8 +885,6 @@ static NDIS_STATUS ReadGlobalConfigurationEntry(NDIS_HANDLE cfg, const char *_na
     const char *statusName;
     NDIS_PARAMETER_TYPE ParameterType = NdisParameterInteger;
     NdisInitializeString(&name, (PUCHAR)_name);
-#pragma warning(push)
-#pragma warning(disable:6102)
     NdisReadConfiguration(
         &status,
         &pParam,
@@ -903,7 +900,6 @@ static NDIS_STATUS ReadGlobalConfigurationEntry(NDIS_HANDLE cfg, const char *_na
     {
         statusName = "nothing";
     }
-#pragma warning(pop)
     DPrintf(2, ("[%s] %s read for %s - 0x%x\n", __FUNCTION__, statusName, _name, *pValue));
     if (name.Buffer) NdisFreeString(name);
     return status;
@@ -926,11 +922,8 @@ static void RetrieveDriverConfiguration()
         NDIS_STRING paramsName = {};
         NdisInitializeString(&paramsName, (PUCHAR)"Parameters");
 
-#pragma warning(push)
-#pragma warning(disable:6102) // Using <param> from failed function call at line...
         NdisOpenConfigurationKeyByName(&status, cfg, &paramsName, &params);
         if (status == NDIS_STATUS_SUCCESS)
-#pragma warning(pop)
         {
             ReadGlobalConfigurationEntry(params, "DisableMSI", &bDisableMSI);
             NdisCloseConfiguration(params);

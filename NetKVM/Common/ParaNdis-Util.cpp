@@ -6,14 +6,11 @@ void NetKvmAssert(bool Statement, ULONG Code)
 {
     if (!Statement)
     {
-#pragma warning (push)
-#pragma warning (disable:28159)
         KeBugCheckEx(0x0ABCDEF0,
                      0x0ABCDEF0,
                      Code,
                      NDIS_MINIPORT_MAJOR_VERSION,
                      NDIS_MINIPORT_MINOR_VERSION);
-#pragma warning (pop)
     }
 }
 #endif
@@ -40,10 +37,7 @@ void __CRTDECL operator delete(void *) throw()
 {
     NETKVM_ASSERT(FALSE);
 #ifdef DBG
-#pragma warning (push)
-#pragma warning (disable:28159)
     KeBugCheck(100);
-#pragma warning (pop)
 #endif
 }
 
@@ -51,10 +45,7 @@ void __CRTDECL operator delete(void *, UINT64) throw()
 {
     ASSERT(FALSE);
 #ifdef DBG
-#pragma warning (push)
-#pragma warning (disable:28159)
    KeBugCheck(100);
-#pragma warning (pop)
 #endif
 }
 
@@ -62,10 +53,7 @@ void __CRTDECL operator delete(void *, unsigned int) throw()
 {
     ASSERT(FALSE);
 #ifdef DBG
-#pragma warning (push)
-#pragma warning (disable:28159)
     KeBugCheck(100);
-#pragma warning (pop)
 #endif
 }
 
@@ -73,10 +61,7 @@ void __CRTDECL operator delete[](void *) throw()
 {
     NETKVM_ASSERT(FALSE);
 #ifdef DBG
-#pragma warning (push)
-#pragma warning (disable:28159)
     KeBugCheck(100);
-#pragma warning (pop)
 #endif
 }
 

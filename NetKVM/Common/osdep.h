@@ -12,17 +12,8 @@
 **********************************************************************/
 #pragma once
 
-#pragma warning (push)
-#pragma warning (disable:28301)
-#pragma warning (disable:28252)
-#pragma warning (disable:28251)
 #include <ndis.h>
-#pragma warning (pop)
-
-#pragma warning (push)
-#pragma warning (disable:6102)
 #include <Ntstrsafe.h>
-#pragma warning (pop)
 
 #if NTDDI_VERSION <= NTDDI_VISTASP1
 #define _Requires_lock_held_(lock)

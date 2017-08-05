@@ -120,8 +120,6 @@ static void NetKVMDebugPrint(const char *fmt, ...)
 
 tDebugPrintFunc VirtioDebugPrintProc = NetKVMDebugPrint;
 
-#pragma warning (push)
-#pragma warning (disable:4055)
 void ParaNdis_DebugInitialize()
 {
     NDIS_STRING usRegister, usDeregister, usPrint;
@@ -146,7 +144,6 @@ void ParaNdis_DebugInitialize()
     res = BugCheckRegisterCallback(&CallbackRecord, ParaNdis_OnBugCheck, KbCallbackSecondaryDumpData, (const PUCHAR)"NetKvm");
     DPrintf(0, ("[%s] Crash callback %sregistered\n", __FUNCTION__, res ? "" : "NOT "));
 }
-#pragma warning (pop)
 
 void ParaNdis_DebugCleanup(PDRIVER_OBJECT  pDriverObject)
 {
