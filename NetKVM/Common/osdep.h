@@ -32,18 +32,6 @@ typedef struct _NETWORK_ADDRESS_IP6 {
 } NETWORK_ADDRESS_IP6, *PNETWORK_ADDRESS_IP6;
 #endif
 
-#define mb()   KeMemoryBarrier()
-#define rmb()  KeMemoryBarrier()
-#define wmb()  KeMemoryBarrier()
-
-#ifndef min
-#define min(_a, _b) (((_a) < (_b)) ? (_a) : (_b))
-#endif
-
-#ifndef max
-#define max(_a, _b) (((_a) > (_b)) ? (_a) : (_b))
-#endif
-
 #ifndef PARANDIS_MAJOR_DRIVER_VERSION
 #error PARANDIS_MAJOR_DRIVER_VERSION not defined
 #endif
