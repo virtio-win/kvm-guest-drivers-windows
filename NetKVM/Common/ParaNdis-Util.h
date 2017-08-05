@@ -13,6 +13,31 @@ void NetKvmAssert(bool Statement, ULONG Code);
 #define NETKVM_ASSERT(x) for(;;) break
 #endif
 
+#if ((OSVERSION_MASK & NTDDI_VERSION) > NTDDI_VISTA)
+
+#define _Ndis_acquires_lock_(type, lock)     \
+    _Acquires##type##lock_(lock)             \
+    _IRQL_raises_(DISPATCH_LEVEL)            \
+    _IRQL_saves_global_(OldIrql, lock)
+
+#define _Ndis_releases_lock_(lock)           \
+    _Requires_lock_held_(lock)               \
+    _Releases_lock_(lock)                    \
+    _IRQL_restores_global_(OldIrql, lock)
+
+#define _Ndis_acquires_exclusive_lock_(lock) _Ndis_acquires_lock_(_exclusive_, lock)
+#define _Ndis_acquires_shared_lock_(lock) _Ndis_acquires_lock_(_shared_, lock)
+
+#else
+
+// most annotations are not available when building for downlevel
+#define _Ndis_acquires_lock_(type, lock)
+#define _Ndis_releases_lock_(lock)
+#define _Ndis_acquires_exclusive_lock_(lock)
+#define _Ndis_acquires_shared_lock_(lock)
+
+#endif
+
 class CNdisAllocatableBase
 {
 protected:
@@ -104,9 +129,11 @@ public:
 #pragma warning(push)
 #pragma warning(disable:28167) // The function changes IRQL and doesn't restore
 #pragma warning(disable:26135)
+    _Ndis_acquires_exclusive_lock_(this->m_Lock)
     void Lock()
     { NdisAcquireSpinLock(&m_Lock); }
 #pragma warning(disable:26110) // Caller failing to hold lock before calling function 'KeReleaseSpinLock'
+    _Ndis_releases_lock_(this->m_Lock)
     void Unlock()
     { NdisReleaseSpinLock(&m_Lock); }
 #pragma warning(pop)
@@ -122,10 +149,11 @@ template <typename T>
 class CLockedContext
 {
 public:
+    _Ndis_acquires_exclusive_lock_(this->m_LockObject)
     CLockedContext(T &LockObject)
         : m_LockObject(LockObject)
     { m_LockObject.Lock(); }
-
+    _Ndis_releases_lock_(this->m_LockObject)
     ~CLockedContext()
     { m_LockObject.Unlock(); }
 
@@ -220,7 +248,9 @@ private:
 class CLockedAccess
 {
 public:
+    _Ndis_acquires_exclusive_lock_(this->m_Lock)
     void Lock() { m_Lock.Lock(); }
+    _Ndis_releases_lock_(this->m_Lock)
     void Unlock() { m_Lock.Unlock(); }
 private:
     CNdisSpinLock m_Lock;
@@ -372,15 +402,23 @@ public:
 
 #pragma warning(push)
 #pragma warning(disable:28167) // The function changes IRQL and doesn't restore
+#if ((OSVERSION_MASK & NTDDI_VERSION) > NTDDI_VISTA)
+    _IRQL_requires_max_(DISPATCH_LEVEL)
+    _IRQL_raises_(DISPATCH_LEVEL)
+    _IRQL_saves_global_(OldIrql, this->m_OriginalIRQL)
+#endif
     CDpcIrqlRaiser()
         : m_OriginalIRQL(KeRaiseIrqlToDpcLevel())
     { }
 
+#if ((OSVERSION_MASK & NTDDI_VERSION) > NTDDI_VISTA)
+    _IRQL_requires_(DISPATCH_LEVEL)
+    _IRQL_restores_global_(OldIrql, this->m_OriginalIRQL)
+#endif
     ~CDpcIrqlRaiser()
     { KeLowerIrql(m_OriginalIRQL); }
 #pragma warning(push)
 #pragma warning(disable:28167) // The function changes IRQL and doesn't restore
-
     CDpcIrqlRaiser(const CDpcIrqlRaiser&) = delete;
     CDpcIrqlRaiser& operator= (const CDpcIrqlRaiser&) = delete;
 
@@ -519,7 +557,7 @@ public:
 #endif
     }
 
-    _Acquires_shared_lock_(m_pLock)
+    _Ndis_acquires_shared_lock_(this->m_pLock)
     void acquireRead(CNdisRWLockState &lockState)
     {
 #ifdef RW_LOCK_60
@@ -530,7 +568,7 @@ public:
 #endif
     }
 
-    _Acquires_exclusive_lock_(m_pLock)
+    _Ndis_acquires_exclusive_lock_(this->m_pLock)
     void acquireWrite(CNdisRWLockState &lockState)
     {
 #ifdef RW_LOCK_60
@@ -541,7 +579,7 @@ public:
 #endif
     }
 
-    _Requires_lock_held_(this->m_pLock)
+    _Ndis_releases_lock_(this->m_pLock)
     void release(CNdisRWLockState &lockState)
     {
 #ifdef RW_LOCK_60
@@ -552,7 +590,7 @@ public:
 #endif
     }
 
-    _Acquires_shared_lock_(this->m_pLock)
+    _Ndis_acquires_shared_lock_(this->m_pLock)
     void acquireReadDpr(CNdisRWLockState &lockState)
     {
         NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
@@ -565,7 +603,7 @@ public:
 #endif
     }
 
-    _Acquires_exclusive_lock_(this->m_pLock)
+    _Ndis_acquires_exclusive_lock_(this->m_pLock)
     void acquireWriteDpr(CNdisRWLockState &lockState)
     {
         NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
@@ -577,7 +615,7 @@ public:
 #endif
     }
 
-    _Requires_lock_held_(m_pLock)
+    _Ndis_releases_lock_(this->m_pLock)
     void releaseDpr(CNdisRWLockState &lockState)
     {
         NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
@@ -601,11 +639,13 @@ private:
 template <void (CNdisRWLock::*Acquire)(CNdisRWLockState&), void (CNdisRWLock::*Release)(CNdisRWLockState&)>   class CNdisAutoRWLock 
 {
 public:
+    _Ndis_acquires_lock_(_, this->lock)
     CNdisAutoRWLock(CNdisRWLock &_lock) : lock(_lock)
     {
         (lock.*Acquire)(lockState);
     }
 
+    _Ndis_releases_lock_(this->lock)
     ~CNdisAutoRWLock() 
     {
         (lock.*Release)(lockState);
