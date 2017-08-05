@@ -138,10 +138,7 @@ BOOLEAN ParaNdis_SynchronizeWithInterrupt(
     PVOID parameter)
 {
     NDIS_SYNC_PROC_TYPE syncProc;
-#pragma warning (push)
-#pragma warning (disable:4152)
     syncProc = (NDIS_SYNC_PROC_TYPE) procedure;
-#pragma warning (pop)
     return NdisMSynchronizeWithInterruptEx(pContext->InterruptHandle, messageId, syncProc, parameter);
 }
 

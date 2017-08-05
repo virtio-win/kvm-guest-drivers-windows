@@ -126,17 +126,12 @@ public:
     ~CNdisSpinLock()
     { NdisFreeSpinLock(&m_Lock); }
 
-#pragma warning(push)
-#pragma warning(disable:28167) // The function changes IRQL and doesn't restore
-#pragma warning(disable:26135)
     _Ndis_acquires_exclusive_lock_(this->m_Lock)
     void Lock()
     { NdisAcquireSpinLock(&m_Lock); }
-#pragma warning(disable:26110) // Caller failing to hold lock before calling function 'KeReleaseSpinLock'
     _Ndis_releases_lock_(this->m_Lock)
     void Unlock()
     { NdisReleaseSpinLock(&m_Lock); }
-#pragma warning(pop)
 
 private:
     NDIS_SPIN_LOCK m_Lock;
@@ -400,8 +395,6 @@ class CDpcIrqlRaiser
 {
 public:
 
-#pragma warning(push)
-#pragma warning(disable:28167) // The function changes IRQL and doesn't restore
 #if ((OSVERSION_MASK & NTDDI_VERSION) > NTDDI_VISTA)
     _IRQL_requires_max_(DISPATCH_LEVEL)
     _IRQL_raises_(DISPATCH_LEVEL)
@@ -417,8 +410,6 @@ public:
 #endif
     ~CDpcIrqlRaiser()
     { KeLowerIrql(m_OriginalIRQL); }
-#pragma warning(push)
-#pragma warning(disable:28167) // The function changes IRQL and doesn't restore
     CDpcIrqlRaiser(const CDpcIrqlRaiser&) = delete;
     CDpcIrqlRaiser& operator= (const CDpcIrqlRaiser&) = delete;
 

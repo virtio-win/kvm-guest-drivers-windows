@@ -583,8 +583,6 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList)
     return bRestartStatus;
 }
 
-#pragma warning(push)
-#pragma warning(disable:26135)
 bool CParaNdisTX::DoPendingTasks(CNBL *nblHolder)
 {
     PNET_BUFFER_LIST pNBLReturnNow = nullptr;
@@ -646,7 +644,6 @@ bool CParaNdisTX::DoPendingTasks(CNBL *nblHolder)
             CompleteOutstandingNBLChain(pNBLReturnNow, NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL);
         }
     }
-#pragma warning(pop)
     return bRestartQueueStatus;
 }
 
