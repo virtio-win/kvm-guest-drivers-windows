@@ -64,9 +64,7 @@ HW_INTERRUPT         VioScsiInterrupt;
 HW_DPC_ROUTINE       VioScsiCompleteDpcRoutine;
 HW_PASSIVE_INITIALIZE_ROUTINE         VioScsiIoPassiveInitializeRoutine;
 HW_WORKITEM          VioScsiWorkItemCallback;
-#if (MSI_SUPPORTED == 1)
 HW_MESSAGE_SIGNALED_INTERRUPT_ROUTINE VioScsiMSInterrupt;
-#endif
 #endif
 
 BOOLEAN
@@ -159,13 +157,11 @@ ParamChange(
     IN PVirtIOSCSIEvent evt
     );
 
-#if (MSI_SUPPORTED == 1)
 BOOLEAN
 VioScsiMSInterrupt(
     IN PVOID  DeviceExtension,
     IN ULONG  MessageID
     );
-#endif
 
 VOID
 VioScsiWmiInitialize(
@@ -353,10 +349,8 @@ ENTER_FN();
     ConfigInfo->AlignmentMask               = 0x3;
     ConfigInfo->MapBuffers                  = STOR_MAP_NON_READ_WRITE_BUFFERS;
     ConfigInfo->SynchronizationModel        = StorSynchronizeFullDuplex;
-#if (MSI_SUPPORTED == 1)
     ConfigInfo->HwMSInterruptRoutine        = VioScsiMSInterrupt;
     ConfigInfo->InterruptSynchronizationMode=InterruptSynchronizePerMessage;
-#endif
 
     VioScsiWmiInitialize(DeviceExtension);
 
@@ -608,9 +602,7 @@ VioScsiHwInitialize(
 
     PERF_CONFIGURATION_DATA perfData = { 0 };
     ULONG              status = STOR_STATUS_SUCCESS;
-#if (MSI_SUPPORTED == 1)
     MESSAGE_INTERRUPT_INFORMATION msi_info = { 0 };
-#endif
     
 ENTER_FN();
     if (CHECKBIT(adaptExt->features, VIRTIO_F_VERSION_1)) {
@@ -637,7 +629,6 @@ ENTER_FN();
     adaptExt->pageOffset = 0;
     adaptExt->poolOffset = 0;
 
-#if (MSI_SUPPORTED == 1)
     while(StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageId = %x\n", msi_info.MessageId));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageData = %x\n", msi_info.MessageData));
@@ -687,9 +678,6 @@ ENTER_FN();
         }
     }
     else
-#else
-    adaptExt->num_queues = 1;
-#endif
     {
         /* initialize queues with no MSI interrupts */
         adaptExt->msix_enabled = FALSE;
@@ -990,7 +978,6 @@ VioScsiInterrupt(
     return isInterruptServiced;
 }
 
-#if (MSI_SUPPORTED == 1)
 static BOOLEAN
 VioScsiMSInterruptWorker(
     IN PVOID  DeviceExtension,
@@ -1089,7 +1076,6 @@ VioScsiMSInterrupt(
     }
     return isInterruptServiced;
 }
-#endif
 
 BOOLEAN
 VioScsiResetBus(

@@ -319,7 +319,6 @@ typedef struct _ADAPTER_EXTENSION {
     PUCHAR                ser_num;
 }ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
 
-#if (MSI_SUPPORTED == 1)
 #ifndef PCIX_TABLE_POINTER
 typedef struct {
   union {
@@ -344,7 +343,6 @@ typedef struct {
   PCIX_TABLE_POINTER      MessageTable;
   PCIX_TABLE_POINTER      PBATable;
 } PCI_MSIX_CAPABILITY, *PPCI_MSIX_CAPABILITY;
-#endif
 #endif
 
 #define SPC3_SCSI_SENSEQ_PARAMETERS_CHANGED                 0x0
