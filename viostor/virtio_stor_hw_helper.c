@@ -33,13 +33,9 @@
 #include"virtio_stor_utils.h"
 
 
-#ifdef INDIRECT_SUPPORTED
 #define SET_VA_PA() { ULONG len; va = adaptExt->indirect ? srbExt->desc : NULL; \
                       pa = va ? StorPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0; \
                     }
-#else
-#define SET_VA_PA()    va = NULL; pa = 0;
-#endif
 
 BOOLEAN
 RhelDoFlush(

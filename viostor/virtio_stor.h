@@ -78,11 +78,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define BLOCK_SERIAL_STRLEN     20
 
-#ifdef INDIRECT_SUPPORTED
 #define MAX_PHYS_SEGMENTS       64
-#else
-#define MAX_PHYS_SEGMENTS       16
-#endif
 
 #define VIRTIO_MAX_SG           (3+MAX_PHYS_SEGMENTS)
 
@@ -183,7 +179,6 @@ typedef struct _ADAPTER_EXTENSION {
 #endif
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
-#ifdef INDIRECT_SUPPORTED
 typedef struct _VRING_DESC_ALIAS
 {
     union
@@ -192,7 +187,6 @@ typedef struct _VRING_DESC_ALIAS
         UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
     }u;
 }VRING_DESC_ALIAS;
-#endif
 
 typedef struct _SRB_EXTENSION {
     blk_req               vbr;
@@ -201,9 +195,7 @@ typedef struct _SRB_EXTENSION {
     ULONG                 Xfer;
     ULONG                 MessageID;
     BOOLEAN               fua;
-#ifdef INDIRECT_SUPPORTED
     VRING_DESC_ALIAS      desc[VIRTIO_MAX_SG];
-#endif
 #if DBG
     UCHAR                 cpu;
 #endif
