@@ -32,7 +32,6 @@
 
 #include "precomp.h"
 #include "vioser.h"
-#include "..\..\Tools\vendor.check.h"
 
 #if defined(EVENT_TRACING)
 #include "Driver.tmh"
