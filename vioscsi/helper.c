@@ -319,7 +319,6 @@ ENTER_FN();
         return FALSE;
     }
 
-#if (MSI_SUPPORTED == 1)
     {
         UCHAR CapOffset;
         PPCI_MSIX_CAPABILITY pMsixCapOffset;
@@ -358,7 +357,6 @@ ENTER_FN();
             }
         }
     }
-#endif
 
     /* initialize the pci_bars array */
     for (i = 0; i < ConfigInfo->NumberOfAccessRanges; i++) {
