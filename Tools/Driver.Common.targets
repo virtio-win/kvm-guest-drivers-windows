@@ -55,7 +55,7 @@ Invoking the task:
             var replaceWhat = item.GetMetadata("Identity");
             var replaceWith = item.GetMetadata("ReplaceWith") ?? "---";
             substitutions.Add(replaceWhat, replaceWith);
-            Log.LogMessage(MessageImportance.High, "Adding {0}=>{1}", replaceWhat, replaceWith);
+            Log.LogMessage(MessageImportance.Low, "Adding {0}=>{1}", replaceWhat, replaceWith);
         }
 
         foreach (var item in SourceFiles) {

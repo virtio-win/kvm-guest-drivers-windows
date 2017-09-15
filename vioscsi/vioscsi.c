@@ -33,7 +33,6 @@
 #include "utils.h"
 #include "helper.h"
 #include "vioscsidt.h"
-#include "..\Tools\vendor.check.h"
 
 #define MS_SM_HBA_API
 #include <hbapiwmi.h>
