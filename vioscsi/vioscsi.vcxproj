@@ -172,7 +172,6 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\VirtIO</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>INDIRECT_SUPPORTED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
     </ClCompile>
     <Link>

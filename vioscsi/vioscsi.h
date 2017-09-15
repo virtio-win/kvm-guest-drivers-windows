@@ -45,11 +45,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_SCSI_CDB_SIZE   32
 #define VIRTIO_SCSI_SENSE_SIZE 96
 
-#if (INDIRECT_SUPPORTED == 1)
 #define MAX_PHYS_SEGMENTS       64
-#else
-#define MAX_PHYS_SEGMENTS       16
-#endif
 
 #define VIOSCSI_POOL_TAG        'SoiV'
 #define VIRTIO_MAX_SG            (3+MAX_PHYS_SEGMENTS)
@@ -227,7 +223,6 @@ typedef struct {
 } VirtIOSCSIEventNode, * PVirtIOSCSIEventNode;
 #pragma pack()
 
-#if (INDIRECT_SUPPORTED == 1)
 typedef struct _VRING_DESC_ALIAS
 {
     union
@@ -236,7 +231,6 @@ typedef struct _VRING_DESC_ALIAS
         UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
     }u;
 }VRING_DESC_ALIAS;
-#endif
 
 #pragma pack(1)
 typedef struct _SRB_EXTENSION {
@@ -252,9 +246,7 @@ typedef struct _SRB_EXTENSION {
     ULONG                 Xfer;
     VirtIOSCSICmd         cmd;
     VIO_SG                sg[128];
-#if (INDIRECT_SUPPORTED == 1)
     VRING_DESC_ALIAS      desc[VIRTIO_MAX_SG];
-#endif
     UCHAR                 cpu;
     PVOID                 priv;
 }SRB_EXTENSION, * PSRB_EXTENSION;

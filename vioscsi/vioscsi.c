@@ -462,13 +462,9 @@ ENTER_FN();
             (max_queues + VIRTIO_SCSI_REQUEST_QUEUE_0) * virtio_get_queue_descriptor_size());
     }
 
-#if (INDIRECT_SUPPORTED == 1)
     if(!adaptExt->dump_mode) {
         adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
     }
-#else
-    adaptExt->indirect = 0;
-#endif
 
     if(adaptExt->indirect) {
         adaptExt->queue_depth = max(20, (queueLength / 4));
