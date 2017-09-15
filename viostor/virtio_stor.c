@@ -399,17 +399,12 @@ VirtIoFindAdapter(
 
     ConfigInfo->MaximumTransferLength = 0x00FFFFFF;
 
-#ifdef INDIRECT_SUPPORTED
     if(!adaptExt->dump_mode) {
         adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
     }
     if(adaptExt->indirect) {
         adaptExt->queue_depth = queueLength;
     }
-#else
-    adaptExt->indirect = 0;
-    adaptExt->queue_depth = queueLength / ConfigInfo->NumberOfPhysicalBreaks - 1;
-#endif
 
 #ifdef MSI_SUPPORTED
 #if (NTDDI_VERSION >= NTDDI_WIN7)
