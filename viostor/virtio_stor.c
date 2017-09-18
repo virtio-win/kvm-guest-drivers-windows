@@ -803,7 +803,14 @@ VirtIoStartIo(
 
         case SCSIOP_READ_CAPACITY16:
         case SCSIOP_READ_CAPACITY: {
-            UCHAR SrbStatus = RhelScsiGetCapacity(DeviceExtension, (PSRB_TYPE)Srb);
+            UCHAR SrbStatus;
+            if (adaptExt->msix_one_vector) {
+                /* We don't have a separate MSI vector for VirtIO config changes so
+                 * we simply poll the disk geometry here. See VirtIoMSInterruptRoutine.
+                 */
+                RhelGetDiskGeometry(DeviceExtension);
+            }
+            SrbStatus = RhelScsiGetCapacity(DeviceExtension, (PSRB_TYPE)Srb);
             CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SrbStatus);
             return TRUE;
         }
