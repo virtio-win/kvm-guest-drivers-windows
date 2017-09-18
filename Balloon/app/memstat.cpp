@@ -141,7 +141,7 @@ BOOL CMemStat::Update()
 
         if (FAILED(status) || (var_val.vt == VT_NULL)) {
             PrintMessage("Cannot get PagesInputPerSec");
-            var_val.vt =  -1;
+            var_val = (__int64)-1;
         }
         m_Stats[idx].tag = VIRTIO_BALLOON_S_SWAP_IN;
         m_Stats[idx].val = (__int64)var_val * sysinfo.dwPageSize;
@@ -157,7 +157,7 @@ BOOL CMemStat::Update()
 
         if (FAILED(status) || (var_val.vt == VT_NULL)) {
             PrintMessage("Cannot get PagesOutputPerSec");
-            var_val.vt =  -1;
+            var_val = (__int64)-1;
         }
         m_Stats[idx].tag = VIRTIO_BALLOON_S_SWAP_OUT;
         m_Stats[idx].val = (__int64)var_val * sysinfo.dwPageSize;
@@ -173,7 +173,7 @@ BOOL CMemStat::Update()
 
         if (FAILED(status) || (var_val.vt == VT_NULL)) {
             PrintMessage("Cannot get PageReadsPerSec");
-            var_val.vt =  -1;
+            var_val = (__int64)-1;
         }
         m_Stats[idx].tag = VIRTIO_BALLOON_S_MAJFLT;
         m_Stats[idx].val = (long)var_val;
@@ -189,7 +189,7 @@ BOOL CMemStat::Update()
 
         if (FAILED(status) || (var_val.vt == VT_NULL)) {
             PrintMessage("Cannot get PageFaultsPerSec");
-            var_val.vt =  -1;
+            var_val = (__int64)-1;
         }
         m_Stats[idx].tag = VIRTIO_BALLOON_S_MINFLT;
         m_Stats[idx].val = (long)var_val;
