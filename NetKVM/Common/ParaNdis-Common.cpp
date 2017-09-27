@@ -90,7 +90,7 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry VlanId;
     tConfigurationEntry PublishIndices;
     tConfigurationEntry MTU;
-    tConfigurationEntry NumberOfHandledRXPackersInDPC;
+    tConfigurationEntry NumberOfHandledRXPacketsInDPC;
 #if PARANDIS_SUPPORT_RSS
     tConfigurationEntry RSSOffloadSupported;
     tConfigurationEntry NumRSSQueues;
@@ -254,7 +254,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             GetConfigurationEntry(cfg, &pConfiguration->VlanId);
             GetConfigurationEntry(cfg, &pConfiguration->PublishIndices);
             GetConfigurationEntry(cfg, &pConfiguration->MTU);
-            GetConfigurationEntry(cfg, &pConfiguration->NumberOfHandledRXPackersInDPC);
+            GetConfigurationEntry(cfg, &pConfiguration->NumberOfHandledRXPacketsInDPC);
 #if PARANDIS_SUPPORT_RSS
             GetConfigurationEntry(cfg, &pConfiguration->RSSOffloadSupported);
             GetConfigurationEntry(cfg, &pConfiguration->NumRSSQueues);
@@ -268,7 +268,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             virtioDebugLevel = pConfiguration->debugLevel.ulValue;
             pContext->maxFreeTxDescriptors = pConfiguration->TxCapacity.ulValue;
             pContext->NetMaxReceiveBuffers = pConfiguration->RxCapacity.ulValue;
-            pContext->uNumberOfHandledRXPacketsInDPC = pConfiguration->NumberOfHandledRXPackersInDPC.ulValue;
+            pContext->uNumberOfHandledRXPacketsInDPC = pConfiguration->NumberOfHandledRXPacketsInDPC.ulValue;
             pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;
             pContext->ulFormalLinkSpeed  = pConfiguration->ConnectRate.ulValue;
             pContext->ulFormalLinkSpeed *= 1000000;
