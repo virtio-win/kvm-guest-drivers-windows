@@ -124,7 +124,7 @@ static const tConfigurationEntries defaultConfiguration =
     { "VlanId", 0, 0, MAX_VLAN_ID},
     { "PublishIndices", 1, 0, 1},
     { "MTU", 1500, 576, 65500},
-    { "NumberOfHandledRXPackersInDPC", MAX_RX_LOOPS, 1, 10000},
+    { "NumberOfHandledRXPacketsInDPC", MAX_RX_LOOPS, 1, 10000},
 #if PARANDIS_SUPPORT_RSS
     { "*RSS", 1, 0, 1},
     { "*NumRssQueues", 8, 1, PARANDIS_RSS_MAX_RECEIVE_QUEUES},
