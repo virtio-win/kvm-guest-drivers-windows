@@ -9,6 +9,7 @@
 
 EVT_WDF_WORKITEM VIOSerialPortSymbolicNameWork;
 EVT_WDF_WORKITEM VIOSerialPortPnpNotifyWork;
+EVT_WDF_WORKITEM VIOSerialInitPortConsoleWork;
 EVT_WDF_REQUEST_CANCEL VIOSerialPortReadRequestCancel;
 EVT_WDF_REQUEST_CANCEL VIOSerialPortWriteRequestCancel;
 EVT_WDF_DEVICE_D0_ENTRY VIOSerialPortEvtDeviceD0Entry;
@@ -155,15 +156,57 @@ VIOSerialRemovePort(
 }
 
 VOID
+VIOSerialInitPortConsoleWork(
+    IN WDFWORKITEM  WorkItem
+)
+{
+    PRAWPDO_VIOSERIAL_PORT  pdoData = RawPdoSerialPortGetData(WorkItem);
+    PVIOSERIAL_PORT         pport = pdoData->port;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+
+    VIOSerialSendCtrlMsg(pport->BusDevice, pport->PortId, VIRTIO_CONSOLE_PORT_OPEN, 1);
+
+    WdfObjectDelete(WorkItem);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
+}
+
+VOID
 VIOSerialInitPortConsole(
+    IN WDFDEVICE WdfDevice,
     IN PVIOSERIAL_PORT port
 )
 {
+    WDF_OBJECT_ATTRIBUTES attributes;
+    WDF_WORKITEM_CONFIG   workitemConfig;
+    WDFWORKITEM           hWorkItem;
+    PRAWPDO_VIOSERIAL_PORT  pdoData = NULL;
+    NTSTATUS              status = STATUS_SUCCESS;
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     port->GuestConnected = TRUE;
-    VIOSerialSendCtrlMsg(port->BusDevice, port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 1);
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"<-- %s\n", __FUNCTION__);
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    WDF_OBJECT_ATTRIBUTES_SET_CONTEXT_TYPE(&attributes, RAWPDO_VIOSERIAL_PORT);
+    attributes.ParentObject = WdfDevice;
+    WDF_WORKITEM_CONFIG_INIT(&workitemConfig, VIOSerialInitPortConsoleWork);
+
+    status = WdfWorkItemCreate(&workitemConfig,
+        &attributes,
+        &hWorkItem);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "WdfWorkItemCreate failed with status = 0x%08x\n", status);
+        return;
+    }
+
+    pdoData = RawPdoSerialPortGetData(hWorkItem);
+
+    pdoData->port = port;
+
+    WdfWorkItemEnqueue(hWorkItem);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 }
 
 // this procedure must be called with port InBuf spinlock held

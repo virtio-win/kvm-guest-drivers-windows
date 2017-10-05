@@ -260,13 +260,24 @@ VIOSerialEvtDevicePrepareHardware(
         attributes.ParentObject = Device;
         status = WdfSpinLockCreate(
                                 &attributes,
-                                &pContext->CVqLock
+                                &pContext->CInVqLock
                                 );
         if (!NT_SUCCESS(status))
         {
            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
                 "WdfSpinLockCreate failed 0x%x\n", status);
            return status;
+        }
+
+        status = WdfWaitLockCreate(
+                                &attributes,
+                                &pContext->COutVqLock
+                                );
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+                "WdfWaitLockCreate failed 0x%x\n", status);
+            return status;
         }
     }
     else
@@ -521,7 +532,7 @@ VIOSerialEvtDeviceD0Entry(
         status = VIOSerialInitAllQueues(Device);
         if (NT_SUCCESS(status) && pContext->isHostMultiport)
         {
-            status = VIOSerialFillQueue(pContext->c_ivq, pContext->CVqLock);
+            status = VIOSerialFillQueue(pContext->c_ivq, pContext->CInVqLock);
         }
 
         if (!NT_SUCCESS(status))

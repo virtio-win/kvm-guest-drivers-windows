@@ -55,8 +55,6 @@ EVT_WDF_INTERRUPT_DISABLE                       VIOSerialInterruptDisable;
 #define VIRTIO_CONSOLE_PORT_OPEN        6
 #define VIRTIO_CONSOLE_PORT_NAME        7
 
-#define RETRY_THRESHOLD                 400
-
 // This is the value of the IOCTL_GET_INFORMATION macro used by older versions
 // of the driver. We still respond to it for backward compatibility. New clients
 // should use the new value declared in public.h.
@@ -98,7 +96,8 @@ typedef struct _tagPortDevice
     CONSOLE_CONFIG      consoleConfig;
     struct virtqueue    *c_ivq, *c_ovq;
     struct virtqueue    **in_vqs, **out_vqs;
-    WDFSPINLOCK         CVqLock;
+    WDFSPINLOCK         CInVqLock;
+    WDFWAITLOCK         COutVqLock;
 
     BOOLEAN             DeviceOK;
     UINT                DeviceId;
@@ -268,6 +267,7 @@ VIOSerialRemovePort(
 
 VOID
 VIOSerialInitPortConsole(
+    IN WDFDEVICE Device,
     IN PVIOSERIAL_PORT port
 );
 
