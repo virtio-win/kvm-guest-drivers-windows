@@ -358,6 +358,9 @@ ENTER_FN();
         return SP_RETURN_NOT_FOUND;
     }
 
+    /* Set num_queues and seg_max to some sane values, to keep "Static Driver Verification" happy */
+    adaptExt->scsi_config.num_queues = 1;
+    adaptExt->scsi_config.seg_max = MAX_PHYS_SEGMENTS + 1;
     GetScsiConfig(DeviceExtension);
 
     ConfigInfo->NumberOfBuses               = 1;//(UCHAR)adaptExt->num_queues;
@@ -374,6 +377,9 @@ ENTER_FN();
 #if (NTDDI_VERSION >= NTDDI_WIN7)
     num_cpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
     max_cpus = KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS);
+    /* Set num_cpus and max_cpus to some sane values, to keep "Static Driver Verification" happy */
+    num_cpus = max(1, num_cpus);
+    max_cpus = max(1, max_cpus);
 #else
     num_cpus = KeQueryActiveProcessorCount(NULL);
     max_cpus = KeQueryMaximumProcessorCount();
@@ -1430,6 +1436,9 @@ ENTER_FN();
         return;
     }
     cdb      = SRB_CDB(Srb);
+    if (!cdb)
+        return;
+
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     switch (cdb->CDB6GENERIC.OperationCode)
@@ -1583,6 +1592,8 @@ ENTER_FN();
     ASSERT(SRB_DATA_TRANSFER_LENGTH(Srb) >= sizeof(ULONG));
     ASSERT(SRB_DATA_BUFFER(Srb));
 
+    if (!pSrbWmi)
+        return;
     if (!(pSrbWmi->WMIFlags & SRB_WMI_FLAGS_ADAPTER_REQUEST))
     {
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
@@ -1656,8 +1667,12 @@ VioScsiSaveInquiryData(
 ENTER_FN();
     RhelDbgPrint(TRACE_LEVEL_FATAL, ("<-->VioScsiSaveInquiryData\n"));
 
+    if (!Srb)
+        return;
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     cdb      = SRB_CDB(Srb);
+    if (!cdb)
+        return;
     dataBuffer = SRB_DATA_BUFFER(Srb);
     InquiryData = (PINQUIRYDATA)dataBuffer;
     dataLen = SRB_DATA_TRANSFER_LENGTH(Srb);

@@ -409,6 +409,9 @@ VirtIoFindAdapter(
 #if (NTDDI_VERSION >= NTDDI_WIN7)
     num_cpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
     max_cpus = KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS);
+    /* Set num_cpus and max_cpus to some sane values, to keep Static Driver Verification happy */
+    num_cpus = max(1, num_cpus);
+    max_cpus = max(1, max_cpus);
 #else
     num_cpus = KeQueryActiveProcessorCount(NULL);
     max_cpus = KeQueryMaximumProcessorCount();
@@ -789,6 +792,8 @@ VirtIoStartIo(
         }
     }
 
+    if (!cdb)
+        return FALSE;
     switch (cdb->CDB6GENERIC.OperationCode) {
         case SCSIOP_MODE_SENSE: {
             UCHAR SrbStatus = RhelScsiGetModeSense(DeviceExtension, (PSRB_TYPE)Srb);
@@ -1022,6 +1027,8 @@ VirtIoBuildIo(
     srbExt->cpu = (UCHAR)cpu;
 #endif
 
+    if (!cdb)
+        return FALSE;
     switch (cdb->CDB6GENERIC.OperationCode) {
         case SCSIOP_READ:
         case SCSIOP_WRITE:
@@ -1056,6 +1063,8 @@ VirtIoBuildIo(
     }
 
     sgList = StorPortGetScatterGatherList(DeviceExtension, Srb);
+    if (!sgList)
+        return FALSE;
     sgMaxElements = min((MAX_PHYS_SEGMENTS + 1), sgList->NumberOfElements);
     srbExt->Xfer = 0;
     for (i = 0, sgElement = 1; i < sgMaxElements; i++, sgElement++) {
@@ -1132,6 +1141,9 @@ RhelScsiGetInquiryData(
     UCHAR SrbStatus = SRB_STATUS_INVALID_LUN;
     PCDB cdb = SRB_CDB(Srb);
     PADAPTER_EXTENSION adaptExt;
+
+    if (!cdb)
+        return SRB_STATUS_ERROR;
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
@@ -1248,6 +1260,9 @@ RhelScsiGetModeSense(
 
     SrbStatus = SRB_STATUS_INVALID_REQUEST;
 
+    if (!cdb)
+        return SRB_STATUS_ERROR;
+
     if ((cdb->MODE_SENSE.PageCode == MODE_PAGE_CACHING) ||
         (cdb->MODE_SENSE.PageCode == MODE_SENSE_RETURN_ALL)) {
 
@@ -1346,6 +1361,8 @@ RhelScsiGetCapacity(
                                            SRB_LUN(Srb),
                                            adaptExt->queue_depth);
     ASSERT(depthSet);
+    if (!cdb)
+        return SRB_STATUS_ERROR;
 
     readCap = (PREAD_CAPACITY_DATA)SRB_DATA_BUFFER(Srb);
     readCapEx = (PREAD_CAPACITY_DATA_EX)SRB_DATA_BUFFER(Srb);

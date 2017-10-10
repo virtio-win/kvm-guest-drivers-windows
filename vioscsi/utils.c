@@ -107,11 +107,10 @@ tDebugPrintFunc VirtioDebugPrintProc;
 char *DbgGetScsiOpStr(IN PSCSI_REQUEST_BLOCK Srb)
 {
     PCDB pCdb = SRB_CDB(Srb);
-    UCHAR scsiOp = pCdb->CDB6GENERIC.OperationCode;
     char *scsiOpStr = "?";
 
     if (pCdb) {
-        switch (scsiOp){
+        switch (pCdb->CDB6GENERIC.OperationCode) {
             #undef MAKE_CASE
             #define MAKE_CASE(scsiOpCode) case scsiOpCode: scsiOpStr = #scsiOpCode; break;
 
