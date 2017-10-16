@@ -665,6 +665,7 @@
     <ClInclude Include="Common\ParaNdis_GuestAnnounce.h" />
     <ClInclude Include="Common\quverp.h" />
     <ClInclude Include="Common\virtio_net.h" />
+    <ClInclude Include="ParaNdis_LockFreeQueue.h" />
     <ClInclude Include="wlh\ParaNdis6.h" />
     <ClInclude Include="wlh\ParaNdis6_Driver.h" />
   </ItemGroup>
