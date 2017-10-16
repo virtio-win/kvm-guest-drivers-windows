@@ -1,0 +1,82 @@
+;
+; vioivshmem.inf
+;
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=System
+ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider=%ManufacturerName%
+CatalogFile=vioivshmem.cat
+DriverVer= ; TODO: set DriverVer in stampinf property pages
+
+[DestinationDirs]
+DefaultDestDir = 12
+VIOIVSHMEM_Device_CoInstaller_CopyFiles = 11
+
+; ================= Class section =====================
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+vioivshmem.sys  = 1,,
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName%=Standard,NT$ARCH$
+
+[Standard.NT$ARCH$]
+%VIOIVSHMEM.DeviceDesc%=VIOIVSHMEM_Device, PCI\VEN_1AF4&DEV_1110&REV_01
+
+[VIOIVSHMEM_Device.NT]
+CopyFiles=Drivers_Dir
+
+[VIOIVSHMEM_Device.NT.Interfaces]
+AddInterface={df576976-569d-4672-95a0-f57e4ea0b210}
+
+[Drivers_Dir]
+vioivshmem.sys
+
+;-------------- Service installation
+[VIOIVSHMEM_Device.NT.Services]
+AddService = VIOIVSHMEM,%SPSVCINST_ASSOCSERVICE%, VIOIVSHMEM_Service_Inst
+
+; -------------- vioivshmem driver install sections
+[VIOIVSHMEM_Service_Inst]
+DisplayName    = %VIOIVSHMEM.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\vioivshmem.sys
+
+;
+;--- vioivshmem_Device Coinstaller installation ------
+;
+
+[VIOIVSHMEM_Device.NT.CoInstallers]
+AddReg=VIOIVSHMEM_Device_CoInstaller_AddReg
+CopyFiles=VIOIVSHMEM_Device_CoInstaller_CopyFiles
+
+[VIOIVSHMEM_Device_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[VIOIVSHMEM_Device_CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[VIOIVSHMEM_Device.NT.Wdf]
+KmdfService = VIOIVSHMEM, VIOIVSHMEM_wdfsect
+
+[VIOIVSHMEM_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000002
+ManufacturerName="RedHat"
+DiskName = "VirtoIO IVSHMEM Installation Disk"
+VIOIVSHMEM.DeviceDesc = "VirtIO IVSHMEM Device"
+VIOIVSHMEM.SVCDESC = "VirtIO IVSHMEM Service"
