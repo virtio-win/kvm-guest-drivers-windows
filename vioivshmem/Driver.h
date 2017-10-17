@@ -1,19 +1,3 @@
-/*++
-
-Module Name:
-
-    driver.h
-
-Abstract:
-
-    This file contains the driver definitions.
-
-Environment:
-
-    Kernel-mode Driver Framework
-
---*/
-
 #include <ntddk.h>
 #include <wdf.h>
 #include <initguid.h>
@@ -21,6 +5,10 @@ Environment:
 #include "device.h"
 #include "queue.h"
 #include "trace.h"
+
+// using error levels to avoid the debug print filter
+#define DEBUG_ERROR(fmt, ...) do { KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "[E:VIOIVSHMEM] " fmt "\n", ## __VA_ARGS__)); } while (0)
+#define DEBUG_INFO(fmt, ...) do { KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "[I:VIOIVSHMEM] " fmt "\n", ## __VA_ARGS__)); } while (0)
 
 EXTERN_C_START
 

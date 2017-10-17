@@ -31,7 +31,7 @@ WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with
 %ManufacturerName%=Standard,NT$ARCH$
 
 [Standard.NT$ARCH$]
-%VIOIVSHMEM.DeviceDesc%=VIOIVSHMEM_Device, PCI\VEN_1AF4&DEV_1110&REV_01
+%VIOIVSHMEM.DeviceDesc%=VIOIVSHMEM_Device, PCI\VEN_1AF4&DEV_1110
 
 [VIOIVSHMEM_Device.NT]
 CopyFiles=Drivers_Dir
