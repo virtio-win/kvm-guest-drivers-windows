@@ -55,7 +55,6 @@ NTSTATUS VIOIVSHMEMEvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INIT D
 VOID VIOIVSHMEMEvtDriverContextCleanup(_In_ WDFOBJECT DriverObject)
 {
     UNREFERENCED_PARAMETER(DriverObject);
-
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");

@@ -5,6 +5,8 @@
 #pragma alloc_text (PAGE, VIOIVSHMEMCreateDevice)
 #pragma alloc_text (PAGE, VIOIVSHMEMEvtDevicePrepareHardware)
 #pragma alloc_text (PAGE, VIOIVSHMEMEvtDeviceReleaseHardware)
+#pragma alloc_text (PAGE, VIOIVSHMEMEvtD0Exit)
+#pragma alloc_text (PAGE, VIOIVSHMEMInterruptISR)
 #endif
 
 NTSTATUS VIOIVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit)
@@ -15,6 +17,7 @@ NTSTATUS VIOIVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit)
     NTSTATUS status;
 
     PAGED_CODE();
+	DEBUG_INFO("%s", __FUNCTION__);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, DEVICE_CONTEXT);
 
@@ -22,6 +25,8 @@ NTSTATUS VIOIVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit)
 	WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpPowerCallbacks);
 	pnpPowerCallbacks.EvtDevicePrepareHardware = VIOIVSHMEMEvtDevicePrepareHardware;
 	pnpPowerCallbacks.EvtDeviceReleaseHardware = VIOIVSHMEMEvtDeviceReleaseHardware;
+	pnpPowerCallbacks.EvtDeviceD0Entry         = VIOIVSHMEMEvtD0Entry;
+	pnpPowerCallbacks.EvtDeviceD0Exit          = VIOIVSHMEMEvtD0Exit;
 	WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
 
 	WDF_FILEOBJECT_CONFIG fileConfig;
@@ -52,19 +57,41 @@ NTSTATUS VIOIVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit)
     return status;
 }
 
-NTSTATUS VIOIVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIST ResourceRaw, _In_ WDFCMRESLIST ResourcesTranslated)
+NTSTATUS VIOIVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIST ResourcesRaw, _In_ WDFCMRESLIST ResourcesTranslated)
 {
-	UNREFERENCED_PARAMETER(ResourceRaw);
-	UNREFERENCED_PARAMETER(ResourcesTranslated);
-
 	PAGED_CODE();
+	DEBUG_INFO("%s", __FUNCTION__);
 
 	PDEVICE_CONTEXT deviceContext;
 	deviceContext = DeviceGetContext(Device);
 
 	NTSTATUS status = STATUS_SUCCESS;
 	int memIndex = 0;
+
 	const ULONG resCount = WdfCmResourceListGetCount(ResourcesTranslated);
+	for (ULONG i = 0; i < resCount; ++i)
+	{
+		PCM_PARTIAL_RESOURCE_DESCRIPTOR descriptor;
+		descriptor = WdfCmResourceListGetDescriptor(ResourcesTranslated, i);
+		if (!descriptor)
+		{
+			DEBUG_ERROR("%s", "Call to WdfCmResourceListGetDescriptor failed");
+			return STATUS_DEVICE_CONFIGURATION_ERROR;
+		}
+
+		if (descriptor->Type == CmResourceTypeInterrupt && descriptor->Flags & CM_RESOURCE_INTERRUPT_MESSAGE)
+			++deviceContext->interruptCount;
+	}
+
+	deviceContext->interrupts = (WDFINTERRUPT*)MmAllocateNonCachedMemory(
+		sizeof(WDFINTERRUPT) * deviceContext->interruptCount);
+
+	if (!deviceContext->interrupts)
+	{
+		DEBUG_ERROR("Failed to allocate space for %d interrupts", deviceContext->interrupts);
+		return STATUS_DEVICE_CONFIGURATION_ERROR;
+	}
+
 	for (ULONG i = 0; i < resCount; ++i)
 	{
 		PCM_PARTIAL_RESOURCE_DESCRIPTOR descriptor;
@@ -80,13 +107,6 @@ NTSTATUS VIOIVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRES
 			// control registers
 			if (memIndex == 0)
 			{
-				if (deviceContext->devRegisters)
-				{
-					DEBUG_ERROR("%s", "Found second resource of type CmResourceTypePort, only expected one.");
-					status = STATUS_DEVICE_HARDWARE_ERROR;
-					break;
-				}
-
 				if (descriptor->u.Memory.Length != sizeof(VIOIVSHMEMDeviceRegisters))
 				{
 					DEBUG_ERROR("Resource size was %u long when %u was expected",
@@ -95,7 +115,6 @@ NTSTATUS VIOIVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRES
 					break;
 				}
 
-				DEBUG_INFO("Registers    : %p", descriptor->u.Memory.Start);
 				deviceContext->devRegisters = (PVIOIVSHMEMDeviceRegisters)MmMapIoSpace(
 					descriptor->u.Memory.Start, descriptor->u.Memory.Length, MmNonCached);
 
@@ -105,30 +124,11 @@ NTSTATUS VIOIVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRES
 					status = STATUS_DEVICE_HARDWARE_ERROR;
 					break;
 				}
-
-				++memIndex;
-				continue;
 			}
-
-			if (resCount == 7 && memIndex == 1)
-			{
-				DEBUG_INFO("MSI-X        : %p", descriptor->u.Memory.Start);
-				//TODO
-				++memIndex;
-				continue;
-			}
-
+			else
 			// shared memory resource
-			if ((resCount == 5 && memIndex == 1) || (resCount == 7 && memIndex == 2))
+			if ((deviceContext->interruptCount == 0 && memIndex == 1) || memIndex == 2)
 			{
-				if (deviceContext->shmemMap)
-				{
-					DEBUG_ERROR("%s", "Found second resource of type CmResourceTypeMemory, only expected one.");
-					status = STATUS_DEVICE_HARDWARE_ERROR;
-					break;
-				}
-
-				DEBUG_INFO("Shared Memory: %p, %u bytes", descriptor->u.Memory.Start, descriptor->u.Memory.Length);
 				deviceContext->shmemAddr.PhysicalAddress = descriptor->u.Memory.Start;
 				deviceContext->shmemAddr.NumberOfBytes = descriptor->u.Memory.Length;
 				if (!NT_SUCCESS(MmAllocateMdlForIoSpace(&deviceContext->shmemAddr, 1, &deviceContext->shmemMDL)))
@@ -137,35 +137,38 @@ NTSTATUS VIOIVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRES
 					status = STATUS_DEVICE_HARDWARE_ERROR;
 					break;
 				}
-
-				++memIndex;
-				continue;
 			}
 
+			++memIndex;
 			continue;
 		}
 
-		if (descriptor->Type == CmResourceTypeInterrupt)
+		if (descriptor->Type == CmResourceTypeInterrupt &&
+			(descriptor->Flags & CM_RESOURCE_INTERRUPT_MESSAGE))
 		{
-			DEBUG_INFO("Interrupt    : %x", descriptor->u.Interrupt.Vector);
-			//TODO
+			WDF_INTERRUPT_CONFIG irqConfig;
+			WDF_INTERRUPT_CONFIG_INIT(&irqConfig, VIOIVSHMEMInterruptISR, NULL);
+			irqConfig.PassiveHandling = TRUE;
+			irqConfig.InterruptTranslated = descriptor;
+			irqConfig.InterruptRaw = WdfCmResourceListGetDescriptor(ResourcesRaw, i);
+			if (!NT_SUCCESS(WdfInterruptCreate(Device, &irqConfig, WDF_NO_OBJECT_ATTRIBUTES,
+				&deviceContext->interrupts[deviceContext->interruptsUsed++])))
+			{
+				DEBUG_ERROR("%s", "Call to WdfInterruptCreate failed");
+				status = STATUS_DEVICE_HARDWARE_ERROR;
+				break;
+			}
 			continue;
 		}
 	}
 
-	if (!NT_SUCCESS(status))
-	{
-		if (deviceContext->devRegisters)
-		{
-			MmUnmapIoSpace(deviceContext->devRegisters, sizeof(PVIOIVSHMEMDeviceRegisters));
-			deviceContext->devRegisters = NULL;
-		}
+	if (memIndex == 0)
+		status = STATUS_DEVICE_HARDWARE_ERROR;
 
-		if (deviceContext->shmemMDL)
-		{
-			IoFreeMdl(deviceContext->shmemMDL);
-			deviceContext->shmemMDL = NULL;
-		}
+	if (NT_SUCCESS(status))
+	{
+		DEBUG_INFO("Shared Memory: %p, %u bytes", deviceContext->shmemAddr.PhysicalAddress, deviceContext->shmemAddr.NumberOfBytes);
+		DEBUG_INFO("Interrupts   : %d", deviceContext->interruptsUsed);
 	}
 
 	return status;
@@ -174,8 +177,8 @@ NTSTATUS VIOIVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRES
 NTSTATUS VIOIVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIST ResourcesTranslated)
 {
 	UNREFERENCED_PARAMETER(ResourcesTranslated);
-
 	PAGED_CODE();
+	DEBUG_INFO("%s", __FUNCTION__);
 
 	PDEVICE_CONTEXT deviceContext;
 	deviceContext = DeviceGetContext(Device);
@@ -197,5 +200,53 @@ NTSTATUS VIOIVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRES
 		deviceContext->shmemMDL = NULL;
 	}
 
+	if (deviceContext->interrupts)
+	{
+		for (int i = 0; i < deviceContext->interruptsUsed; ++i)
+			WdfObjectDelete(deviceContext->interrupts[i]);
+
+		MmFreeNonCachedMemory(
+			deviceContext->interrupts,
+			sizeof(WDFINTERRUPT) * deviceContext->interruptCount
+		);
+
+		deviceContext->interruptCount = 0;
+		deviceContext->interruptsUsed = 0;
+		deviceContext->interrupts = NULL;
+	}
+
 	return STATUS_SUCCESS;
+}
+
+NTSTATUS VIOIVSHMEMEvtD0Entry(_In_ WDFDEVICE Device, _In_ WDF_POWER_DEVICE_STATE PreviousState)
+{
+	UNREFERENCED_PARAMETER(Device);
+	UNREFERENCED_PARAMETER(PreviousState);
+	DEBUG_INFO("%s", __FUNCTION__);
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS VIOIVSHMEMEvtD0Exit(_In_ WDFDEVICE Device, _In_ WDF_POWER_DEVICE_STATE PreviousState)
+{
+	UNREFERENCED_PARAMETER(Device);
+	UNREFERENCED_PARAMETER(PreviousState);
+	PAGED_CODE();
+	DEBUG_INFO("%s", __FUNCTION__);
+	return STATUS_SUCCESS;
+}
+
+BOOLEAN VIOIVSHMEMInterruptISR(_In_ WDFINTERRUPT Interrupt, _In_ ULONG MessageID)
+{
+	WDFDEVICE device;
+	PDEVICE_CONTEXT deviceContext;
+	DEBUG_INFO("%s", __FUNCTION__);
+
+	device = WdfInterruptGetDevice(Interrupt);
+	deviceContext = DeviceGetContext(device);
+
+	UNREFERENCED_PARAMETER(device);
+	UNREFERENCED_PARAMETER(deviceContext);
+	UNREFERENCED_PARAMETER(MessageID);
+
+	return TRUE;
 }

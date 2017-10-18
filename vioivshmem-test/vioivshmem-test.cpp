@@ -69,9 +69,9 @@ int main()
 		}
 		TEST_PASS();
 
-		TEST_START("VIOIVSHMEM_IOCTL_REQUEST_SIZE");
-		size_t size = 0;
-		if (!DeviceIoControl(devHandle, VIOIVSHMEM_IOCTL_REQUEST_SIZE, NULL, 0, &size, sizeof(size_t), NULL, NULL))
+		TEST_START("IOCTL_VIOIVSHMEM_REQUEST_SIZE");
+		UINT64 size = 0;
+		if (!DeviceIoControl(devHandle, IOCTL_VIOIVSHMEM_REQUEST_SIZE, NULL, 0, &size, sizeof(UINT64), NULL, NULL))
 		{
 			TEST_FAIL("DeviceIoControl");
 			break;
@@ -86,10 +86,10 @@ int main()
 
 		printf("Size: %u\n", size);
 
-		TEST_START("VIOIVSHMEM_IOCTL_REQUEST_MMAP");
+		TEST_START("IOCTL_VIOIVSHMEM_REQUEST_MMAP");
 		VIOIVSHMEM_MMAP map;
 		ZeroMemory(&map, sizeof(VIOIVSHMEM_MMAP));
-		if (!DeviceIoControl(devHandle, VIOIVSHMEM_IOCTL_REQUEST_MMAP, NULL, 0, &map, sizeof(VIOIVSHMEM_MMAP), NULL, NULL))
+		if (!DeviceIoControl(devHandle, IOCTL_VIOIVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(VIOIVSHMEM_MMAP), NULL, NULL))
 		{
 			TEST_FAIL("DeviceIoControl");
 			break;
@@ -109,7 +109,7 @@ int main()
 		TEST_PASS();
 
 		TEST_START("Mapping more then once fails");
-		if (DeviceIoControl(devHandle, VIOIVSHMEM_IOCTL_REQUEST_MMAP, NULL, 0, &map, sizeof(VIOIVSHMEM_MMAP), NULL, NULL))
+		if (DeviceIoControl(devHandle, IOCTL_VIOIVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(VIOIVSHMEM_MMAP), NULL, NULL))
 		{
 			TEST_FAIL("mapping succeeded, this should not happen!");
 			break;
@@ -123,7 +123,7 @@ int main()
 			TEST_FAIL("Failed to open second handle");
 			break;
 		}
-		if (DeviceIoControl(devHandle, VIOIVSHMEM_IOCTL_REQUEST_MMAP, NULL, 0, &map, sizeof(VIOIVSHMEM_MMAP), NULL, NULL))
+		if (DeviceIoControl(devHandle, IOCTL_VIOIVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(VIOIVSHMEM_MMAP), NULL, NULL))
 		{
 			TEST_FAIL("mapping succeeded, this should not happen!");
 			break;
@@ -131,8 +131,19 @@ int main()
 		CloseHandle(devHandle2);
 		TEST_PASS();
 
-		TEST_START("VIOIVSHMEM_IOCTL_RELEASE_MMAP");
-		if (!DeviceIoControl(devHandle, VIOIVSHMEM_IOCTL_RELEASE_MMAP, NULL, 0, NULL, 0, NULL, NULL))
+		TEST_START("IOCTL_VIOIVSHMEM_RING_DOORBELL");
+		VIOIVSHMEM_RING ring;
+		ring.peerID = 0;
+		ring.vector = 0;
+		if (!DeviceIoControl(devHandle, IOCTL_VIOIVSHMEM_RING_DOORBELL, &ring, sizeof(VIOIVSHMEM_RING), NULL, 0, NULL, NULL))
+		{
+			TEST_FAIL("DeviceIoControl");
+			break;
+		}
+		TEST_PASS();
+
+		TEST_START("IOCTL_VIOIVSHMEM_RELEASE_MMAP");
+		if (!DeviceIoControl(devHandle, IOCTL_VIOIVSHMEM_RELEASE_MMAP, NULL, 0, NULL, 0, NULL, NULL))
 		{
 			TEST_FAIL("DeviceIoControl");
 			break;
@@ -147,7 +158,7 @@ int main()
 			TEST_FAIL("Failed to re-open handle");
 			break;
 		}
-		if (!DeviceIoControl(devHandle, VIOIVSHMEM_IOCTL_REQUEST_MMAP, NULL, 0, &map, sizeof(VIOIVSHMEM_MMAP), NULL, NULL))
+		if (!DeviceIoControl(devHandle, IOCTL_VIOIVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(VIOIVSHMEM_MMAP), NULL, NULL))
 		{
 			TEST_FAIL("Mapping failed!");
 			break;
@@ -163,7 +174,7 @@ int main()
 			TEST_FAIL("Failed to re-open handle");
 			break;
 		}
-		if (!DeviceIoControl(devHandle, VIOIVSHMEM_IOCTL_REQUEST_MMAP, NULL, 0, &map, sizeof(VIOIVSHMEM_MMAP), NULL, NULL))
+		if (!DeviceIoControl(devHandle, IOCTL_VIOIVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(VIOIVSHMEM_MMAP), NULL, NULL))
 		{
 			TEST_FAIL("Mapping failed!");
 			break;
@@ -171,7 +182,7 @@ int main()
 
 		bool fail = false;
 		unsigned char *data = (unsigned char *)map.ptr;
-		for(int i = 0; i < map.size; ++i)
+		for(UINT64 i = 0; i < map.size; ++i)
 			if (data[i] != 0xAA)
 			{
 				TEST_FAIL("Invalid data read back");

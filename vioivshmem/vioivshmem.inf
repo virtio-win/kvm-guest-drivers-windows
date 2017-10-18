@@ -39,6 +39,14 @@ CopyFiles=Drivers_Dir
 [VIOIVSHMEM_Device.NT.Interfaces]
 AddInterface={df576976-569d-4672-95a0-f57e4ea0b210}
 
+[VIOIVSHMEM_Device.NT.HW]
+AddReg = VIOIVSHMEM_AddReg
+
+[VIOIVSHMEM_AddReg]
+HKR,Interrupt Management,,0x00000010
+HKR,Interrupt Management\MessageSignaledInterruptProperties,,0x00000010
+HKR,Interrupt Management\MessageSignaledInterruptProperties,MSISupported,0x00010001,1
+
 [Drivers_Dir]
 vioivshmem.sys
 
