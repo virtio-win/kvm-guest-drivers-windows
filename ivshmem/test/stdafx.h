@@ -12,6 +12,6 @@
 #include <Windows.h>
 #include <SetupAPI.h>
 
-#include "vioivshmem\Public.h"
+#include "..\Public.h"
 
 // TODO: reference additional headers your program requires here
