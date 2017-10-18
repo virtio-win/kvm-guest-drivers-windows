@@ -49,7 +49,8 @@ VIOSerialSendCtrlMsg(
         virtqueue_kick(vq);
         while(!virtqueue_get_buf(vq, &len))
         {
-           KeStallExecutionProcessor(50);
+            LARGE_INTEGER interval = {0};
+            KeDelayExecutionThread(KernelMode, FALSE, &interval);
         }
     }
     WdfWaitLockRelease(pContext->COutVqLock);
