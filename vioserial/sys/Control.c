@@ -26,7 +26,7 @@ VIOSerialSendCtrlMsg(
     UINT len;
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
     VIRTIO_CONSOLE_CONTROL cpkt;
-    int cnt = 0;
+
     if (!pContext->isHostMultiport)
     {
         return;
