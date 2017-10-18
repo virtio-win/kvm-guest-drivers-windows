@@ -195,6 +195,7 @@ IVSHMEMEvtIoDeviceControl(
 		
 			deviceContext->devRegisters->doorbell |= (UINT32)in->vector | (in->peerID << 16);
 			status = STATUS_SUCCESS;
+			bytesReturned = 0;
 			break;
 		}
 	}
