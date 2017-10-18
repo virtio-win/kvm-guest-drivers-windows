@@ -6,7 +6,6 @@
 #pragma alloc_text (PAGE, IVSHMEMEvtDevicePrepareHardware)
 #pragma alloc_text (PAGE, IVSHMEMEvtDeviceReleaseHardware)
 #pragma alloc_text (PAGE, IVSHMEMEvtD0Exit)
-#pragma alloc_text (PAGE, IVSHMEMInterruptISR)
 #endif
 
 NTSTATUS IVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit)
@@ -43,6 +42,8 @@ NTSTATUS IVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit)
 
     deviceContext = DeviceGetContext(device);
 	RtlZeroMemory(deviceContext, sizeof(DEVICE_CONTEXT));
+	KeInitializeSpinLock(&deviceContext->eventListLock);
+	InitializeListHead(&deviceContext->eventList);
 
 	status = WdfDeviceCreateDeviceInterface(device, &GUID_DEVINTERFACE_IVSHMEM, NULL);
 
@@ -53,6 +54,11 @@ NTSTATUS IVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit)
 	}
 
     status = IVSHMEMQueueInitialize(device);
+	if (!NT_SUCCESS(status))
+	{
+		DEBUG_ERROR("%s", "IVSHMEMQueueInitialize failed");
+		return status;
+	}
 
     return status;
 }
@@ -215,6 +221,14 @@ NTSTATUS IVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
 		deviceContext->interrupts = NULL;
 	}
 
+	LIST_ENTRY *entry;
+	while((entry = ExInterlockedRemoveHeadList(&deviceContext->eventList, &deviceContext->eventListLock)) != NULL)
+	{
+		PIVSHMEMEventListEntry event = CONTAINING_RECORD(entry, IVSHMEMEventListEntry, ListEntry);
+		ObDereferenceObject(event->event);
+		MmFreeNonCachedMemory(event, sizeof(IVSHMEMEventListEntry));
+	}
+
 	return STATUS_SUCCESS;
 }
 
@@ -239,14 +253,28 @@ BOOLEAN IVSHMEMInterruptISR(_In_ WDFINTERRUPT Interrupt, _In_ ULONG MessageID)
 {
 	WDFDEVICE device;
 	PDEVICE_CONTEXT deviceContext;
-	DEBUG_INFO("%s", __FUNCTION__);
+	DEBUG_INFO("%s, MessageID=%u", __FUNCTION__, MessageID);
 
 	device = WdfInterruptGetDevice(Interrupt);
 	deviceContext = DeviceGetContext(device);
 
-	UNREFERENCED_PARAMETER(device);
-	UNREFERENCED_PARAMETER(deviceContext);
-	UNREFERENCED_PARAMETER(MessageID);
+	KIRQL oldIrql;
+	KeAcquireSpinLock(&deviceContext->eventListLock, &oldIrql);
+	PLIST_ENTRY entry = deviceContext->eventList.Flink;
+	while (entry != &deviceContext->eventList)
+	{
+		PIVSHMEMEventListEntry event = CONTAINING_RECORD(entry, IVSHMEMEventListEntry, ListEntry);
+		PLIST_ENTRY next = entry->Flink;
+		if (event->vector == MessageID)
+		{
+			KeSetEvent(event->event, 0, FALSE);
+			ObDereferenceObject(event->event);
+			RemoveEntryList(entry);
+			MmFreeNonCachedMemory(entry, sizeof(IVSHMEMEventListEntry));
+		}
+		entry = next;
+	}
+	KeReleaseSpinLock(&deviceContext->eventListLock, oldIrql);
 
 	return TRUE;
 }

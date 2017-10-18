@@ -61,16 +61,39 @@ IVSHMEMEvtIoDeviceControl(
 	NTSTATUS status = STATUS_INVALID_DEVICE_REQUEST;
 	switch (IoControlCode)
 	{
-		case IOCTL_IVSHMEM_REQUEST_SIZE:
+		case IOCTL_IVSHMEM_REQUEST_PEERID:
 		{
-			if (OutputBufferLength != sizeof(UINT64))
+			if (OutputBufferLength != sizeof(IVSHMEM_PEERID))
 			{
-				DEBUG_ERROR("IOCTL_IVSHMEM_REQUEST_SIZE: Invalid size, expected %u but got %u", sizeof(UINT64), OutputBufferLength);
+				DEBUG_ERROR("IOCTL_IVSHMEM_REQUEST_PEERID: Invalid size, expected %u but got %u", sizeof(IVSHMEM_PEERID), OutputBufferLength);
 				status = STATUS_INVALID_BUFFER_SIZE;
 				break;
 			}
 
-			size_t *out = NULL;
+			IVSHMEM_PEERID *out = NULL;
+			if (!NT_SUCCESS(WdfRequestRetrieveOutputBuffer(Request, OutputBufferLength, (PVOID)&out, NULL)))
+			{
+				DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REQUEST_PEERID: Failed to retrieve the output buffer");
+				status = STATUS_INVALID_USER_BUFFER;
+				break;
+			}
+
+			*out = (IVSHMEM_PEERID)deviceContext->devRegisters->ivProvision;
+			status = STATUS_SUCCESS;
+			bytesReturned = sizeof(IVSHMEM_PEERID);
+			break;
+		}
+
+		case IOCTL_IVSHMEM_REQUEST_SIZE:
+		{
+			if (OutputBufferLength != sizeof(IVSHMEM_SIZE))
+			{
+				DEBUG_ERROR("IOCTL_IVSHMEM_REQUEST_SIZE: Invalid size, expected %u but got %u", sizeof(IVSHMEM_SIZE), OutputBufferLength);
+				status = STATUS_INVALID_BUFFER_SIZE;
+				break;
+			}
+
+			IVSHMEM_SIZE *out = NULL;
 			if (!NT_SUCCESS(WdfRequestRetrieveOutputBuffer(Request, OutputBufferLength, (PVOID)&out, NULL)))
 			{
 				DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REQUEST_SIZE: Failed to retrieve the output buffer");
@@ -80,7 +103,7 @@ IVSHMEMEvtIoDeviceControl(
 
 			*out = deviceContext->shmemAddr.NumberOfBytes;
 			status = STATUS_SUCCESS;
-			bytesReturned = sizeof(UINT64);
+			bytesReturned = sizeof(IVSHMEM_SIZE);
 			break;
 		}
 
@@ -134,6 +157,7 @@ IVSHMEMEvtIoDeviceControl(
 			}
 
 			deviceContext->owner = WdfRequestGetFileObject(Request);
+			out->peerID   = (UINT16)deviceContext->devRegisters->ivProvision;
 			out->size     = (UINT64)deviceContext->shmemAddr.NumberOfBytes;
 			out->ptr      = deviceContext->shmemMap;
 			out->vectors  = deviceContext->interruptsUsed;
@@ -196,6 +220,59 @@ IVSHMEMEvtIoDeviceControl(
 			deviceContext->devRegisters->doorbell |= (UINT32)in->vector | (in->peerID << 16);
 			status = STATUS_SUCCESS;
 			bytesReturned = 0;
+			break;
+		}
+
+		case IOCTL_IVSHMEM_REGISTER_EVENT:
+		{
+			// ensure someone else other then the owner isn't attempting to register events
+			if (deviceContext->owner != WdfRequestGetFileObject(Request))
+			{
+				DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REGISTER_EVENT: Invalid owner");
+				status = STATUS_INVALID_HANDLE;
+				break;
+			}
+
+			if (InputBufferLength != sizeof(IVSHMEM_EVENT))
+			{
+				DEBUG_ERROR("IOCTL_IVSHMEM_REGISTER_EVENT: Invalid size, expected %u but got %u", sizeof(PIVSHMEM_EVENT), InputBufferLength);
+				status = STATUS_INVALID_BUFFER_SIZE;
+				break;
+			}
+
+			PIVSHMEM_EVENT in;
+			if (!NT_SUCCESS(WdfRequestRetrieveInputBuffer(Request, InputBufferLength, (PVOID)&in, NULL)))
+			{
+				DEBUG_ERROR("%s", "IOCTL_IVSHMEM_RING_DOORBELL: Failed to retrieve the input buffer");
+				status = STATUS_INVALID_USER_BUFFER;
+				break;
+			}
+
+			PIRP irp = WdfRequestWdmGetIrp(Request);			
+			PRKEVENT hObject;
+			if (!NT_SUCCESS(ObReferenceObjectByHandle(
+					in->event,
+					SYNCHRONIZE | EVENT_MODIFY_STATE,
+					*ExEventObjectType,
+					irp->RequestorMode,
+					&hObject,
+					NULL)))
+			{
+				DEBUG_ERROR("%s", "Unable to reference user-mode event object");
+				status = STATUS_INVALID_HANDLE;
+				break;
+			}
+
+			PIVSHMEMEventListEntry event = (PIVSHMEMEventListEntry)
+				MmAllocateNonCachedMemory(sizeof(IVSHMEMEventListEntry));
+
+			event->event  = hObject;
+			event->vector = in->vector;
+			ExInterlockedInsertTailList(&deviceContext->eventList,
+				&event->ListEntry, &deviceContext->eventListLock);
+
+			bytesReturned = 0;
+			status = STATUS_SUCCESS;
 			break;
 		}
 	}

@@ -2,22 +2,25 @@
 
 EXTERN_C_START
 
-typedef __int8 int8_t;
-typedef __int32 int32_t;
-typedef unsigned __int8 uint8_t;
-typedef unsigned __int32 uint32_t;
-
 #pragma align(push,4)
 typedef struct IVSHMEMDeviceRegisters
 {
-	uint32_t irqMask;
-	uint32_t irqStatus;
-	int32_t  ivProvision;
-	uint32_t doorbell;
-	uint8_t  reserved[240];
+	UINT32	irqMask;
+	UINT32  irqStatus;
+	INT32   ivProvision;
+	UINT32  doorbell;
+	UINT8   reserved[240];
 }
 IVSHMEMDeviceRegisters, *PIVSHMEMDeviceRegisters;
 #pragma align(pop)
+
+typedef struct IVSHMEMEventListEntry
+{
+	UINT16   vector;
+	PRKEVENT event;
+	LIST_ENTRY ListEntry;
+}
+IVSHMEMEventListEntry, *PIVSHMEMEventListEntry;
 
 typedef struct _DEVICE_CONTEXT
 {
@@ -30,6 +33,9 @@ typedef struct _DEVICE_CONTEXT
 	UINT16                     interruptCount; // the number of interrupt entries allocated
 	UINT16                     interruptsUsed; // the number of interrupt entries used
 	WDFINTERRUPT              *interrupts;     // interrupts for this device
+
+	KSPIN_LOCK                 eventListLock;  // spinlock for the below event list
+	LIST_ENTRY                 eventList;      // pending events to fire
 }
 DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
