@@ -9,24 +9,24 @@ typedef UINT64 IVSHMEM_SIZE;
 
 typedef struct IVSHMEM_MMAP
 {
-	IVSHMEM_PEERID peerID;  // our peer id
-	IVSHMEM_SIZE   size;    // the size of the memory region
-	PVOID          ptr;     // pointer to the memory region
-	UINT16         vectors; // the number of vectors available
+    IVSHMEM_PEERID peerID;  // our peer id
+    IVSHMEM_SIZE   size;    // the size of the memory region
+    PVOID          ptr;     // pointer to the memory region
+    UINT16         vectors; // the number of vectors available
 }
 IVSHMEM_MMAP, *PIVSHMEM_MMAP;
 
 typedef struct IVSHMEM_RING
 {
-	IVSHMEM_PEERID peerID;  // the id of the peer to ring
-	UINT16         vector;  // the doorbell to ring
+    IVSHMEM_PEERID peerID;  // the id of the peer to ring
+    UINT16         vector;  // the doorbell to ring
 }
 IVSHMEM_RING, *PIVSHMEM_RING;
 
 typedef struct IVSHMEM_EVENT
 {
-	UINT16 vector;  // the vector that triggers the event
-	HANDLE event;   // the event to trigger
+    UINT16 vector;  // the vector that triggers the event
+    HANDLE event;   // the event to trigger
 }
 IVSHMEM_EVENT, *PIVSHMEM_EVENT;
 
