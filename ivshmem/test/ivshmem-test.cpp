@@ -42,7 +42,7 @@ int main()
 		TEST_START("Get device name length");
 		DWORD reqSize = 0;
 		// this returns false even though we succeed in getting the size
-		SetupDiGetDeviceInterfaceDetail(deviceInfoSet, &deviceInterfaceData, NULL, 0, &reqSize, NULL); 
+		SetupDiGetDeviceInterfaceDetail(deviceInfoSet, &deviceInterfaceData, NULL, 0, &reqSize, NULL);
 		if (!reqSize)
 		{
 			TEST_FAIL("SetupDiGetDeviceInterfaceDetail");
@@ -59,7 +59,7 @@ int main()
 			break;
 		}
 		TEST_PASS();
-		
+
 		TEST_START("Open device");
 		devHandle = CreateFile(infData->DevicePath, 0, 0, NULL, OPEN_EXISTING, 0, 0);
 		if (devHandle == INVALID_HANDLE_VALUE)
@@ -69,9 +69,20 @@ int main()
 		}
 		TEST_PASS();
 
+		TEST_START("IOCTL_IVSHMEM_REQUEST_PEERID");
+		IVSHMEM_PEERID peer = 0;
+		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_PEERID, NULL, 0, &peer, sizeof(IVSHMEM_PEERID), NULL, NULL))
+		{
+			TEST_FAIL("DeviceIoControl");
+			break;
+		}
+		TEST_PASS();
+
+		printf("Peer: %u\n", peer);
+
 		TEST_START("IOCTL_IVSHMEM_REQUEST_SIZE");
-		UINT64 size = 0;
-		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_SIZE, NULL, 0, &size, sizeof(UINT64), NULL, NULL))
+		IVSHMEM_SIZE size = 0;
+		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_SIZE, NULL, 0, &size, sizeof(IVSHMEM_SIZE), NULL, NULL))
 		{
 			TEST_FAIL("DeviceIoControl");
 			break;
@@ -182,7 +193,7 @@ int main()
 
 		bool fail = false;
 		unsigned char *data = (unsigned char *)map.ptr;
-		for(UINT64 i = 0; i < map.size; ++i)
+		for (UINT64 i = 0; i < map.size; ++i)
 			if (data[i] != 0xAA)
 			{
 				TEST_FAIL("Invalid data read back");
@@ -192,6 +203,34 @@ int main()
 		if (fail)
 			break;
 		TEST_PASS();
+
+		if (map.vectors > 0)
+		{
+			TEST_START("Check events work, send interrupt 0 to this peer");
+			IVSHMEM_EVENT event;
+			event.event = CreateEvent(NULL, TRUE, FALSE, L"TEST_EVENT");
+			event.vector = 0;
+			if (event.event == INVALID_HANDLE_VALUE)
+			{
+				TEST_FAIL("Failed to create the event");
+				break;
+			}
+			if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REGISTER_EVENT, &event, sizeof(IVSHMEM_EVENT), NULL, 0, NULL, NULL))
+			{
+				TEST_FAIL("Register event failed!");
+				CloseHandle(event.event);
+				break;
+			}
+
+			if (WaitForSingleObject(event.event, INFINITE) != WAIT_OBJECT_0)
+			{
+				TEST_FAIL("WaitForSingleObject failed!");
+				CloseHandle(event.event);
+				break;
+			}
+			CloseHandle(event.event);
+			TEST_PASS();
+		}
 
 		break;
 	}
