@@ -265,6 +265,13 @@ IVSHMEMEvtIoDeviceControl(
 
 			PIVSHMEMEventListEntry event = (PIVSHMEMEventListEntry)
 				MmAllocateNonCachedMemory(sizeof(IVSHMEMEventListEntry));
+			if (!event)
+			{
+				DEBUG_ERROR("%s", "Unable to allocate PIVSHMEMEventListEntry");
+				ObDereferenceObject(hObject);
+				status = STATUS_MEMORY_NOT_ALLOCATED;
+				break;
+			}
 
 			event->event  = hObject;
 			event->vector = in->vector;
