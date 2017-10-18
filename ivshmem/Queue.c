@@ -1,5 +1,4 @@
 #include "driver.h"
-#include "queue.tmh"
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, IVSHMEMQueueInitialize)
@@ -21,13 +20,6 @@ NTSTATUS IVSHMEMQueueInitialize(_In_ WDFDEVICE Device)
     queueConfig.EvtIoStop          = IVSHMEMEvtIoStop;
 
     status = WdfIoQueueCreate(Device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &queue);
-
-    if(!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, TRACE_QUEUE, "WdfIoQueueCreate failed %!STATUS!", status);
-        return status;
-    }
-
     return status;
 }
 
@@ -41,11 +33,6 @@ IVSHMEMEvtIoDeviceControl(
 )
 {
     PAGED_CODE();
-    TraceEvents(TRACE_LEVEL_INFORMATION, 
-                TRACE_QUEUE, 
-                "%!FUNC! Queue 0x%p, Request 0x%p OutputBufferLength %d InputBufferLength %d IoControlCode %d", 
-                Queue, Request, (int) OutputBufferLength, (int) InputBufferLength, IoControlCode);
-
     WDFDEVICE hDevice = WdfIoQueueGetDevice(Queue);
     PDEVICE_CONTEXT deviceContext = DeviceGetContext(hDevice);
     size_t bytesReturned = 0;
@@ -296,11 +283,8 @@ IVSHMEMEvtIoStop(
 )
 {
     PAGED_CODE();
-    TraceEvents(TRACE_LEVEL_INFORMATION, 
-                TRACE_QUEUE, 
-                "%!FUNC! Queue 0x%p, Request 0x%p ActionFlags %d", 
-                Queue, Request, ActionFlags);
-
+	UNREFERENCED_PARAMETER(Queue);
+	UNREFERENCED_PARAMETER(ActionFlags);
     WdfRequestStopAcknowledge(Request, TRUE);
     return;
 }
@@ -308,11 +292,6 @@ IVSHMEMEvtIoStop(
 VOID IVSHMEMEvtDeviceFileCleanup(_In_ WDFFILEOBJECT FileObject)
 {
     PAGED_CODE();
-    TraceEvents(TRACE_LEVEL_INFORMATION,
-        TRACE_QUEUE,
-        "%!FUNC! File 0x%p",
-        FileObject);
-
     PDEVICE_CONTEXT deviceContext = DeviceGetContext(WdfFileObjectGetDevice(FileObject));
     if (!deviceContext->shmemMap)
         return;
