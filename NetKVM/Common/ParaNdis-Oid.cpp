@@ -289,7 +289,7 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
         {
             totalFreeTxDescriptors += pContext->pPathBundles[i].txPath.GetFreeTXDescriptors();
         }
-        SETINFO(ul, pContext->maxFreeTxDescriptors - totalFreeTxDescriptors);
+        SETINFO(ul, (pContext->nPathBundles * pContext->maxFreeTxDescriptors) - totalFreeTxDescriptors);
         break;
     }
     case OID_GEN_VENDOR_ID:
