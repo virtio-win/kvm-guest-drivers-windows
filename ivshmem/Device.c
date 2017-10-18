@@ -253,7 +253,6 @@ BOOLEAN IVSHMEMInterruptISR(_In_ WDFINTERRUPT Interrupt, _In_ ULONG MessageID)
 {
 	WDFDEVICE device;
 	PDEVICE_CONTEXT deviceContext;
-	DEBUG_INFO("%s, MessageID=%u", __FUNCTION__, MessageID);
 
 	device = WdfInterruptGetDevice(Interrupt);
 	deviceContext = DeviceGetContext(device);
