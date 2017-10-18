@@ -2,13 +2,13 @@
 #include "queue.tmh"
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (PAGE, VIOIVSHMEMQueueInitialize)
-#pragma alloc_text (PAGE, VIOIVSHMEMEvtIoDeviceControl)
-#pragma alloc_text (PAGE, VIOIVSHMEMEvtIoStop)
-#pragma alloc_text (PAGE, VIOIVSHMEMEvtDeviceFileCleanup)
+#pragma alloc_text (PAGE, IVSHMEMQueueInitialize)
+#pragma alloc_text (PAGE, IVSHMEMEvtIoDeviceControl)
+#pragma alloc_text (PAGE, IVSHMEMEvtIoStop)
+#pragma alloc_text (PAGE, IVSHMEMEvtDeviceFileCleanup)
 #endif
 
-NTSTATUS VIOIVSHMEMQueueInitialize(_In_ WDFDEVICE Device)
+NTSTATUS IVSHMEMQueueInitialize(_In_ WDFDEVICE Device)
 {
     WDFQUEUE queue;
     NTSTATUS status;
@@ -17,8 +17,8 @@ NTSTATUS VIOIVSHMEMQueueInitialize(_In_ WDFDEVICE Device)
     PAGED_CODE();
 
     WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(&queueConfig, WdfIoQueueDispatchSequential);
-    queueConfig.EvtIoDeviceControl = VIOIVSHMEMEvtIoDeviceControl;
-    queueConfig.EvtIoStop          = VIOIVSHMEMEvtIoStop;
+    queueConfig.EvtIoDeviceControl = IVSHMEMEvtIoDeviceControl;
+    queueConfig.EvtIoStop          = IVSHMEMEvtIoStop;
 
     status = WdfIoQueueCreate(Device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &queue);
 
@@ -32,7 +32,7 @@ NTSTATUS VIOIVSHMEMQueueInitialize(_In_ WDFDEVICE Device)
 }
 
 VOID
-VIOIVSHMEMEvtIoDeviceControl(
+IVSHMEMEvtIoDeviceControl(
     _In_ WDFQUEUE Queue,
     _In_ WDFREQUEST Request,
     _In_ size_t OutputBufferLength,
@@ -61,11 +61,11 @@ VIOIVSHMEMEvtIoDeviceControl(
 	NTSTATUS status = STATUS_INVALID_DEVICE_REQUEST;
 	switch (IoControlCode)
 	{
-		case IOCTL_VIOIVSHMEM_REQUEST_SIZE:
+		case IOCTL_IVSHMEM_REQUEST_SIZE:
 		{
 			if (OutputBufferLength != sizeof(UINT64))
 			{
-				DEBUG_ERROR("IOCTL_VIOIVSHMEM_REQUEST_SIZE: Invalid size, expected %u but got %u", sizeof(UINT64), OutputBufferLength);
+				DEBUG_ERROR("IOCTL_IVSHMEM_REQUEST_SIZE: Invalid size, expected %u but got %u", sizeof(UINT64), OutputBufferLength);
 				status = STATUS_INVALID_BUFFER_SIZE;
 				break;
 			}
@@ -73,7 +73,7 @@ VIOIVSHMEMEvtIoDeviceControl(
 			size_t *out = NULL;
 			if (!NT_SUCCESS(WdfRequestRetrieveOutputBuffer(Request, OutputBufferLength, (PVOID)&out, NULL)))
 			{
-				DEBUG_ERROR("%s", "IOCTL_VIOIVSHMEM_REQUEST_SIZE: Failed to retrieve the output buffer");
+				DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REQUEST_SIZE: Failed to retrieve the output buffer");
 				status = STATUS_INVALID_USER_BUFFER;
 				break;
 			}
@@ -84,7 +84,7 @@ VIOIVSHMEMEvtIoDeviceControl(
 			break;
 		}
 
-		case IOCTL_VIOIVSHMEM_REQUEST_MMAP:
+		case IOCTL_IVSHMEM_REQUEST_MMAP:
 		{
 			// only one mapping at a time is allowed
 			if (deviceContext->shmemMap)
@@ -93,17 +93,17 @@ VIOIVSHMEMEvtIoDeviceControl(
 				break;
 			}
 
-			if (OutputBufferLength != sizeof(VIOIVSHMEM_MMAP))
+			if (OutputBufferLength != sizeof(IVSHMEM_MMAP))
 			{
-				DEBUG_ERROR("IOCTL_VIOIVSHMEM_REQUEST_MMAP: Invalid size, expected %u but got %u", sizeof(VIOIVSHMEM_MMAP), OutputBufferLength);
+				DEBUG_ERROR("IOCTL_IVSHMEM_REQUEST_MMAP: Invalid size, expected %u but got %u", sizeof(IVSHMEM_MMAP), OutputBufferLength);
 				status = STATUS_INVALID_BUFFER_SIZE;
 				break;
 			}
 
-			PVIOIVSHMEM_MMAP out = NULL;
+			PIVSHMEM_MMAP out = NULL;
 			if (!NT_SUCCESS(WdfRequestRetrieveOutputBuffer(Request, OutputBufferLength, (PVOID)&out, NULL)))
 			{
-				DEBUG_ERROR("%s", "IOCTL_VIOIVSHMEM_REQUEST_MMAP: Failed to retrieve the output buffer");
+				DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REQUEST_MMAP: Failed to retrieve the output buffer");
 				status = STATUS_INVALID_USER_BUFFER;
 				break;
 			}
@@ -121,14 +121,14 @@ VIOIVSHMEMEvtIoDeviceControl(
 			}
 			__except(EXCEPTION_EXECUTE_HANDLER)
 			{
-				DEBUG_ERROR("%s", "IOCTL_VIOIVSHMEM_REQUEST_MMAP: Exception trying to map pages");
+				DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REQUEST_MMAP: Exception trying to map pages");
 				status = STATUS_DRIVER_INTERNAL_ERROR;
 				break;
 			}
 
 			if (!deviceContext->shmemMap)
 			{
-				DEBUG_ERROR("%s", "IOCTL_VIOIVSHMEM_REQUEST_MMAP: shmemMap is NULL");
+				DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REQUEST_MMAP: shmemMap is NULL");
 				status = STATUS_DRIVER_INTERNAL_ERROR;
 				break;
 			}
@@ -138,16 +138,16 @@ VIOIVSHMEMEvtIoDeviceControl(
 			out->ptr      = deviceContext->shmemMap;
 			out->vectors  = deviceContext->interruptsUsed;
 			status        = STATUS_SUCCESS;
-			bytesReturned = sizeof(VIOIVSHMEM_MMAP);
+			bytesReturned = sizeof(IVSHMEM_MMAP);
 			break;
 		}
 
-		case IOCTL_VIOIVSHMEM_RELEASE_MMAP:
+		case IOCTL_IVSHMEM_RELEASE_MMAP:
 		{
 			// ensure the mapping exists
 			if (!deviceContext->shmemMap)
 			{
-				DEBUG_ERROR("%s", "IOCTL_VIOIVSHMEM_RELEASE_MMAP: not mapped");
+				DEBUG_ERROR("%s", "IOCTL_IVSHMEM_RELEASE_MMAP: not mapped");
 				status = STATUS_INVALID_DEVICE_REQUEST;
 				break;
 			}
@@ -155,7 +155,7 @@ VIOIVSHMEMEvtIoDeviceControl(
 			// ensure someone else other then the owner doesn't attempt to release the mapping
 			if (deviceContext->owner != WdfRequestGetFileObject(Request))
 			{
-				DEBUG_ERROR("%s", "IOCTL_VIOIVSHMEM_RELEASE_MMAP: Invalid owner");
+				DEBUG_ERROR("%s", "IOCTL_IVSHMEM_RELEASE_MMAP: Invalid owner");
 				status = STATUS_INVALID_HANDLE;
 				break;
 			}
@@ -168,27 +168,27 @@ VIOIVSHMEMEvtIoDeviceControl(
 			break;
 		}
 
-		case IOCTL_VIOIVSHMEM_RING_DOORBELL:
+		case IOCTL_IVSHMEM_RING_DOORBELL:
 		{
 			// ensure someone else other then the owner doesn't attempt to trigger IRQs
 			if (deviceContext->owner != WdfRequestGetFileObject(Request))
 			{
-				DEBUG_ERROR("%s", "IOCTL_VIOIVSHMEM_RING_DOORBELL: Invalid owner");
+				DEBUG_ERROR("%s", "IOCTL_IVSHMEM_RING_DOORBELL: Invalid owner");
 				status = STATUS_INVALID_HANDLE;
 				break;
 			}
 
-			if (InputBufferLength != sizeof(VIOIVSHMEM_RING))
+			if (InputBufferLength != sizeof(IVSHMEM_RING))
 			{
-				DEBUG_ERROR("IOCTL_VIOIVSHMEM_RING_DOORBELL: Invalid size, expected %u but got %u", sizeof(VIOIVSHMEM_RING), InputBufferLength);
+				DEBUG_ERROR("IOCTL_IVSHMEM_RING_DOORBELL: Invalid size, expected %u but got %u", sizeof(IVSHMEM_RING), InputBufferLength);
 				status = STATUS_INVALID_BUFFER_SIZE;
 				break;
 			}
 
-			PVIOIVSHMEM_RING in;
+			PIVSHMEM_RING in;
 			if (!NT_SUCCESS(WdfRequestRetrieveInputBuffer(Request, InputBufferLength, (PVOID)&in, NULL)))
 			{
-				DEBUG_ERROR("%s", "IOCTL_VIOIVSHMEM_RING_DOORBELL: Failed to retrieve the input buffer");
+				DEBUG_ERROR("%s", "IOCTL_IVSHMEM_RING_DOORBELL: Failed to retrieve the input buffer");
 				status = STATUS_INVALID_USER_BUFFER;
 				break;
 			}
@@ -204,7 +204,7 @@ VIOIVSHMEMEvtIoDeviceControl(
 }
 
 VOID
-VIOIVSHMEMEvtIoStop(
+IVSHMEMEvtIoStop(
     _In_ WDFQUEUE Queue,
     _In_ WDFREQUEST Request,
     _In_ ULONG ActionFlags
@@ -220,7 +220,7 @@ VIOIVSHMEMEvtIoStop(
     return;
 }
 
-VOID VIOIVSHMEMEvtDeviceFileCleanup(_In_ WDFFILEOBJECT FileObject)
+VOID IVSHMEMEvtDeviceFileCleanup(_In_ WDFFILEOBJECT FileObject)
 {
 	PAGED_CODE();
 	TraceEvents(TRACE_LEVEL_INFORMATION,

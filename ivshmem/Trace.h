@@ -22,7 +22,7 @@ Environment:
 
 #define WPP_CONTROL_GUIDS                                              \
     WPP_DEFINE_CONTROL_GUID(                                           \
-        VIOIVSHMEMTraceGuid, (53422626,f766,4476,ab72,6a7a5c1b0211), \
+        IVSHMEMTraceGuid, (53422626,f766,4476,ab72,6a7a5c1b0211), \
                                                                             \
         WPP_DEFINE_BIT(MYDRIVER_ALL_INFO)                              \
         WPP_DEFINE_BIT(TRACE_DRIVER)                                   \

@@ -3,8 +3,8 @@
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (INIT, DriverEntry)
-#pragma alloc_text (PAGE, VIOIVSHMEMEvtDeviceAdd)
-#pragma alloc_text (PAGE, VIOIVSHMEMEvtDriverContextCleanup)
+#pragma alloc_text (PAGE, IVSHMEMEvtDeviceAdd)
+#pragma alloc_text (PAGE, IVSHMEMEvtDriverContextCleanup)
 #endif
 
 NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath)
@@ -18,9 +18,9 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING Regi
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-    attributes.EvtCleanupCallback = VIOIVSHMEMEvtDriverContextCleanup;
+    attributes.EvtCleanupCallback = IVSHMEMEvtDriverContextCleanup;
 
-    WDF_DRIVER_CONFIG_INIT(&config, VIOIVSHMEMEvtDeviceAdd);
+    WDF_DRIVER_CONFIG_INIT(&config, IVSHMEMEvtDeviceAdd);
 
     status = WdfDriverCreate(DriverObject, RegistryPath, &attributes, &config, WDF_NO_HANDLE);
 
@@ -35,7 +35,7 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING Regi
     return status;
 }
 
-NTSTATUS VIOIVSHMEMEvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INIT DeviceInit)
+NTSTATUS IVSHMEMEvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INIT DeviceInit)
 {
     NTSTATUS status;
 
@@ -45,14 +45,14 @@ NTSTATUS VIOIVSHMEMEvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INIT D
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    status = VIOIVSHMEMCreateDevice(DeviceInit);
+    status = IVSHMEMCreateDevice(DeviceInit);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 
     return status;
 }
 
-VOID VIOIVSHMEMEvtDriverContextCleanup(_In_ WDFOBJECT DriverObject)
+VOID IVSHMEMEvtDriverContextCleanup(_In_ WDFOBJECT DriverObject)
 {
     UNREFERENCED_PARAMETER(DriverObject);
     PAGED_CODE();

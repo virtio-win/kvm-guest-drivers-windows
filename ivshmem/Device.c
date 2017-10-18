@@ -2,14 +2,14 @@
 #include "device.tmh"
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (PAGE, VIOIVSHMEMCreateDevice)
-#pragma alloc_text (PAGE, VIOIVSHMEMEvtDevicePrepareHardware)
-#pragma alloc_text (PAGE, VIOIVSHMEMEvtDeviceReleaseHardware)
-#pragma alloc_text (PAGE, VIOIVSHMEMEvtD0Exit)
-#pragma alloc_text (PAGE, VIOIVSHMEMInterruptISR)
+#pragma alloc_text (PAGE, IVSHMEMCreateDevice)
+#pragma alloc_text (PAGE, IVSHMEMEvtDevicePrepareHardware)
+#pragma alloc_text (PAGE, IVSHMEMEvtDeviceReleaseHardware)
+#pragma alloc_text (PAGE, IVSHMEMEvtD0Exit)
+#pragma alloc_text (PAGE, IVSHMEMInterruptISR)
 #endif
 
-NTSTATUS VIOIVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit)
+NTSTATUS IVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit)
 {
     WDF_OBJECT_ATTRIBUTES deviceAttributes;
     PDEVICE_CONTEXT deviceContext;
@@ -23,14 +23,14 @@ NTSTATUS VIOIVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit)
 
 	WDF_PNPPOWER_EVENT_CALLBACKS pnpPowerCallbacks;
 	WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpPowerCallbacks);
-	pnpPowerCallbacks.EvtDevicePrepareHardware = VIOIVSHMEMEvtDevicePrepareHardware;
-	pnpPowerCallbacks.EvtDeviceReleaseHardware = VIOIVSHMEMEvtDeviceReleaseHardware;
-	pnpPowerCallbacks.EvtDeviceD0Entry         = VIOIVSHMEMEvtD0Entry;
-	pnpPowerCallbacks.EvtDeviceD0Exit          = VIOIVSHMEMEvtD0Exit;
+	pnpPowerCallbacks.EvtDevicePrepareHardware = IVSHMEMEvtDevicePrepareHardware;
+	pnpPowerCallbacks.EvtDeviceReleaseHardware = IVSHMEMEvtDeviceReleaseHardware;
+	pnpPowerCallbacks.EvtDeviceD0Entry         = IVSHMEMEvtD0Entry;
+	pnpPowerCallbacks.EvtDeviceD0Exit          = IVSHMEMEvtD0Exit;
 	WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
 
 	WDF_FILEOBJECT_CONFIG fileConfig;
-	WDF_FILEOBJECT_CONFIG_INIT(&fileConfig, NULL, NULL, VIOIVSHMEMEvtDeviceFileCleanup);
+	WDF_FILEOBJECT_CONFIG_INIT(&fileConfig, NULL, NULL, IVSHMEMEvtDeviceFileCleanup);
 	WdfDeviceInitSetFileObjectConfig(DeviceInit, &fileConfig, WDF_NO_OBJECT_ATTRIBUTES);
 
     status = WdfDeviceCreate(&DeviceInit, &deviceAttributes, &device);
@@ -44,7 +44,7 @@ NTSTATUS VIOIVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit)
     deviceContext = DeviceGetContext(device);
 	RtlZeroMemory(deviceContext, sizeof(DEVICE_CONTEXT));
 
-	status = WdfDeviceCreateDeviceInterface(device, &GUID_DEVINTERFACE_VIOIVSHMEM, NULL);
+	status = WdfDeviceCreateDeviceInterface(device, &GUID_DEVINTERFACE_IVSHMEM, NULL);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -52,12 +52,12 @@ NTSTATUS VIOIVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit)
 		return status;
 	}
 
-    status = VIOIVSHMEMQueueInitialize(device);
+    status = IVSHMEMQueueInitialize(device);
 
     return status;
 }
 
-NTSTATUS VIOIVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIST ResourcesRaw, _In_ WDFCMRESLIST ResourcesTranslated)
+NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIST ResourcesRaw, _In_ WDFCMRESLIST ResourcesTranslated)
 {
 	PAGED_CODE();
 	DEBUG_INFO("%s", __FUNCTION__);
@@ -107,15 +107,15 @@ NTSTATUS VIOIVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRES
 			// control registers
 			if (memIndex == 0)
 			{
-				if (descriptor->u.Memory.Length != sizeof(VIOIVSHMEMDeviceRegisters))
+				if (descriptor->u.Memory.Length != sizeof(IVSHMEMDeviceRegisters))
 				{
 					DEBUG_ERROR("Resource size was %u long when %u was expected",
-						descriptor->u.Memory.Length, sizeof(VIOIVSHMEMDeviceRegisters));
+						descriptor->u.Memory.Length, sizeof(IVSHMEMDeviceRegisters));
 					status = STATUS_DEVICE_HARDWARE_ERROR;
 					break;
 				}
 
-				deviceContext->devRegisters = (PVIOIVSHMEMDeviceRegisters)MmMapIoSpace(
+				deviceContext->devRegisters = (PIVSHMEMDeviceRegisters)MmMapIoSpace(
 					descriptor->u.Memory.Start, descriptor->u.Memory.Length, MmNonCached);
 
 				if (!deviceContext->devRegisters)
@@ -147,7 +147,7 @@ NTSTATUS VIOIVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRES
 			(descriptor->Flags & CM_RESOURCE_INTERRUPT_MESSAGE))
 		{
 			WDF_INTERRUPT_CONFIG irqConfig;
-			WDF_INTERRUPT_CONFIG_INIT(&irqConfig, VIOIVSHMEMInterruptISR, NULL);
+			WDF_INTERRUPT_CONFIG_INIT(&irqConfig, IVSHMEMInterruptISR, NULL);
 			irqConfig.PassiveHandling = TRUE;
 			irqConfig.InterruptTranslated = descriptor;
 			irqConfig.InterruptRaw = WdfCmResourceListGetDescriptor(ResourcesRaw, i);
@@ -174,7 +174,7 @@ NTSTATUS VIOIVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRES
 	return status;
 }
 
-NTSTATUS VIOIVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIST ResourcesTranslated)
+NTSTATUS IVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIST ResourcesTranslated)
 {
 	UNREFERENCED_PARAMETER(ResourcesTranslated);
 	PAGED_CODE();
@@ -185,7 +185,7 @@ NTSTATUS VIOIVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRES
 
 	if (deviceContext->devRegisters)
 	{
-		MmUnmapIoSpace(deviceContext->devRegisters, sizeof(PVIOIVSHMEMDeviceRegisters));
+		MmUnmapIoSpace(deviceContext->devRegisters, sizeof(PIVSHMEMDeviceRegisters));
 	}
 
 	if (deviceContext->shmemMap)
@@ -218,7 +218,7 @@ NTSTATUS VIOIVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRES
 	return STATUS_SUCCESS;
 }
 
-NTSTATUS VIOIVSHMEMEvtD0Entry(_In_ WDFDEVICE Device, _In_ WDF_POWER_DEVICE_STATE PreviousState)
+NTSTATUS IVSHMEMEvtD0Entry(_In_ WDFDEVICE Device, _In_ WDF_POWER_DEVICE_STATE PreviousState)
 {
 	UNREFERENCED_PARAMETER(Device);
 	UNREFERENCED_PARAMETER(PreviousState);
@@ -226,7 +226,7 @@ NTSTATUS VIOIVSHMEMEvtD0Entry(_In_ WDFDEVICE Device, _In_ WDF_POWER_DEVICE_STATE
 	return STATUS_SUCCESS;
 }
 
-NTSTATUS VIOIVSHMEMEvtD0Exit(_In_ WDFDEVICE Device, _In_ WDF_POWER_DEVICE_STATE PreviousState)
+NTSTATUS IVSHMEMEvtD0Exit(_In_ WDFDEVICE Device, _In_ WDF_POWER_DEVICE_STATE PreviousState)
 {
 	UNREFERENCED_PARAMETER(Device);
 	UNREFERENCED_PARAMETER(PreviousState);
@@ -235,7 +235,7 @@ NTSTATUS VIOIVSHMEMEvtD0Exit(_In_ WDFDEVICE Device, _In_ WDF_POWER_DEVICE_STATE 
 	return STATUS_SUCCESS;
 }
 
-BOOLEAN VIOIVSHMEMInterruptISR(_In_ WDFINTERRUPT Interrupt, _In_ ULONG MessageID)
+BOOLEAN IVSHMEMInterruptISR(_In_ WDFINTERRUPT Interrupt, _In_ ULONG MessageID)
 {
 	WDFDEVICE device;
 	PDEVICE_CONTEXT deviceContext;
