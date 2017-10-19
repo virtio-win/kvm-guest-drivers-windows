@@ -299,7 +299,8 @@ IVSHMEMEvtIoDeviceControl(
 
             event->event  = hObject;
             event->vector = in->vector;
-            InsertTailList(&deviceContext->eventList, &event->ListEntry);
+            ExInterlockedInsertTailList(&deviceContext->eventList,
+                &event->ListEntry, &deviceContext->eventListLock);
 
             bytesReturned = 0;
             status = STATUS_SUCCESS;
