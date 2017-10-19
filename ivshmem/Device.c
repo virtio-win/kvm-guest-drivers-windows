@@ -160,12 +160,13 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
             irqConfig.InterruptTranslated = descriptor;
             irqConfig.InterruptRaw = WdfCmResourceListGetDescriptor(ResourcesRaw, i);
             if (!NT_SUCCESS(WdfInterruptCreate(Device, &irqConfig, WDF_NO_OBJECT_ATTRIBUTES,
-                &deviceContext->interrupts[deviceContext->interruptsUsed++])))
+                &deviceContext->interrupts[deviceContext->interruptsUsed])))
             {
                 DEBUG_ERROR("%s", "Call to WdfInterruptCreate failed");
                 status = STATUS_DEVICE_HARDWARE_ERROR;
                 break;
             }
+            ++deviceContext->interruptsUsed;
             continue;
         }
     }
