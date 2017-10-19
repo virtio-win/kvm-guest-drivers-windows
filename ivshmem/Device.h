@@ -5,11 +5,11 @@ EXTERN_C_START
 #pragma align(push,4)
 typedef struct IVSHMEMDeviceRegisters
 {
-    UINT32  irqMask;
-    UINT32  irqStatus;
-    INT32   ivProvision;
-    UINT32  doorbell;
-    UINT8   reserved[240];
+    volatile UINT32 irqMask;
+    volatile UINT32 irqStatus;
+    volatile INT32  ivProvision;
+    volatile UINT32 doorbell;
+    volatile UINT8  reserved[240];
 }
 IVSHMEMDeviceRegisters, *PIVSHMEMDeviceRegisters;
 #pragma align(pop)
