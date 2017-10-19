@@ -203,8 +203,11 @@ IVSHMEMEvtIoDeviceControl(
                 status = STATUS_INVALID_USER_BUFFER;
                 break;
             }
-        
-            deviceContext->devRegisters->doorbell |= (UINT32)in->vector | (in->peerID << 16);
+
+            WRITE_REGISTER_ULONG(
+                &deviceContext->devRegisters->doorbell,
+                (ULONG)in->vector | ((ULONG)in->peerID << 16));
+
             status = STATUS_SUCCESS;
             bytesReturned = 0;
             break;
