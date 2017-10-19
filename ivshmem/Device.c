@@ -158,7 +158,6 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
             WDF_INTERRUPT_CONFIG_INIT(&irqConfig, IVSHMEMInterruptISR, NULL);
             irqConfig.InterruptTranslated = descriptor;
             irqConfig.InterruptRaw = WdfCmResourceListGetDescriptor(ResourcesRaw, i);
-            irqConfig.PassiveHandling = FALSE;
 
             NTSTATUS status = WdfInterruptCreate(Device, &irqConfig, WDF_NO_OBJECT_ATTRIBUTES,
                 &deviceContext->interrupts[deviceContext->interruptsUsed]);
@@ -228,7 +227,7 @@ NTSTATUS IVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
     }
 
     LIST_ENTRY *entry;
-    while((entry = RemoveHeadList(&deviceContext->eventList)) != NULL)
+    while((entry = ExInterlockedRemoveHeadList(&deviceContext->eventList, &deviceContext->eventListLock)) != NULL)
     {
         PIVSHMEMEventListEntry event = CONTAINING_RECORD(entry, IVSHMEMEventListEntry, ListEntry);
         ObDereferenceObject(event->event);
@@ -263,10 +262,8 @@ BOOLEAN IVSHMEMInterruptISR(_In_ WDFINTERRUPT Interrupt, _In_ ULONG MessageID)
     device = WdfInterruptGetDevice(Interrupt);
     deviceContext = DeviceGetContext(device);
 
-    // there is no need to lock this list, we run at higher priority
-    // and as such will not be interrupted by others that might try
-    // to touch it
-
+    KIRQL oldIrql;
+    KeAcquireSpinLock(&deviceContext->eventListLock, &oldIrql);
     PLIST_ENTRY entry = deviceContext->eventList.Flink;
     while (entry != &deviceContext->eventList)
     {
@@ -281,6 +278,7 @@ BOOLEAN IVSHMEMInterruptISR(_In_ WDFINTERRUPT Interrupt, _In_ ULONG MessageID)
         }
         entry = next;
     }
+    KeReleaseSpinLock(&deviceContext->eventListLock, oldIrql);
 
     return TRUE;
 }
