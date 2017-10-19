@@ -33,6 +33,7 @@ typedef struct _DEVICE_CONTEXT
     UINT16                     interruptCount; // the number of interrupt entries allocated
     UINT16                     interruptsUsed; // the number of interrupt entries used
     WDFINTERRUPT              *interrupts;     // interrupts for this device
+    LONG64                     pendingISR;     // flags for ISRs pending processing
 
     KSPIN_LOCK                 eventListLock;  // spinlock for the below event list
     LIST_ENTRY                 eventList;      // pending events to fire
@@ -48,5 +49,6 @@ EVT_WDF_DEVICE_RELEASE_HARDWARE IVSHMEMEvtDeviceReleaseHardware;
 EVT_WDF_DEVICE_D0_ENTRY IVSHMEMEvtD0Entry;
 EVT_WDF_DEVICE_D0_EXIT IVSHMEMEvtD0Exit;
 EVT_WDF_INTERRUPT_ISR IVSHMEMInterruptISR;
+EVT_WDF_INTERRUPT_DPC IVSHMEMInterruptDPC;
 
 EXTERN_C_END

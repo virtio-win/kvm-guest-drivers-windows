@@ -155,7 +155,9 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
             (descriptor->Flags & CM_RESOURCE_INTERRUPT_MESSAGE))
         {
             WDF_INTERRUPT_CONFIG irqConfig;
-            WDF_INTERRUPT_CONFIG_INIT(&irqConfig, IVSHMEMInterruptISR, NULL);
+            WDF_INTERRUPT_CONFIG_INIT(&irqConfig,
+                IVSHMEMInterruptISR,
+                IVSHMEMInterruptDPC);
             irqConfig.InterruptTranslated = descriptor;
             irqConfig.InterruptRaw = WdfCmResourceListGetDescriptor(ResourcesRaw, i);
 
@@ -168,7 +170,10 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
                 result = status;
                 break;
             }
-            ++deviceContext->interruptsUsed;
+
+            if (++deviceContext->interruptsUsed == 64)
+              DEBUG_INFO("%s", "This driver does not support > 64 interrupts, they will be ignored in the ISR.");
+
             continue;
         }
     }
@@ -259,8 +264,30 @@ BOOLEAN IVSHMEMInterruptISR(_In_ WDFINTERRUPT Interrupt, _In_ ULONG MessageID)
     WDFDEVICE device;
     PDEVICE_CONTEXT deviceContext;
 
+    // out of range. if you have this many you're doing it wrong anyway
+    if (MessageID > 64)
+        return TRUE;
+
     device = WdfInterruptGetDevice(Interrupt);
     deviceContext = DeviceGetContext(device);
+
+    deviceContext->pendingISR |= (LONG64)1 << MessageID;
+    WdfInterruptQueueDpcForIsr(Interrupt);
+    return TRUE;
+}
+
+void IVSHMEMInterruptDPC(_In_ WDFINTERRUPT Interrupt, _In_ WDFOBJECT AssociatedObject)
+{
+    UNREFERENCED_PARAMETER(AssociatedObject);
+
+    WDFDEVICE device;
+    PDEVICE_CONTEXT deviceContext;
+    UINT64 pending;
+
+    device = WdfInterruptGetDevice(Interrupt);
+    deviceContext = DeviceGetContext(device);
+    
+    pending = InterlockedExchange64(&deviceContext->pendingISR, 0);
 
     KIRQL oldIrql;
     KeAcquireSpinLock(&deviceContext->eventListLock, &oldIrql);
@@ -269,7 +296,7 @@ BOOLEAN IVSHMEMInterruptISR(_In_ WDFINTERRUPT Interrupt, _In_ ULONG MessageID)
     {
         PIVSHMEMEventListEntry event = CONTAINING_RECORD(entry, IVSHMEMEventListEntry, ListEntry);
         PLIST_ENTRY next = entry->Flink;
-        if (event->vector == MessageID)
+        if (pending & ((LONG64)1 << event->vector))
         {
             KeSetEvent(event->event, 0, FALSE);
             ObDereferenceObject(event->event);
@@ -279,6 +306,4 @@ BOOLEAN IVSHMEMInterruptISR(_In_ WDFINTERRUPT Interrupt, _In_ ULONG MessageID)
         entry = next;
     }
     KeReleaseSpinLock(&deviceContext->eventListLock, oldIrql);
-
-    return TRUE;
 }
