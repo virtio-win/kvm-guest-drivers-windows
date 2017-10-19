@@ -84,7 +84,7 @@ KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
 SPSVCINST_ASSOCSERVICE= 0x00000002
-ManufacturerName="RedHat"
+ManufacturerName="Red Hat, Inc."
 DiskName = "IVSHMEM Installation Disk"
 IVSHMEM.DeviceDesc = "IVSHMEM Device"
 IVSHMEM.SVCDESC = "IVSHMEM Service"
