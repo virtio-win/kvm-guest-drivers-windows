@@ -7,6 +7,18 @@
 #pragma alloc_text (PAGE, IVSHMEMEvtDeviceFileCleanup)
 #endif
 
+#ifdef _WIN64
+// 32bit struct for when a 32bit application sends IOCTL codes
+typedef struct IVSHMEM_MMAP32
+{
+    IVSHMEM_PEERID peerID;  // our peer id
+    IVSHMEM_SIZE   size;    // the size of the memory region
+    UINT32         ptr;     // pointer to the memory region
+    UINT16         vectors; // the number of vectors available
+}
+IVSHMEM_MMAP32, *PIVSHMEM_MMAP32;
+#endif
+
 NTSTATUS IVSHMEMQueueInitialize(_In_ WDFDEVICE Device)
 {
     WDFQUEUE queue;
@@ -103,15 +115,23 @@ IVSHMEMEvtIoDeviceControl(
                 break;
             }
 
-            if (OutputBufferLength != sizeof(IVSHMEM_MMAP))
+#ifdef _WIN64
+            PIRP  irp = WdfRequestWdmGetIrp(Request);
+            const BOOLEAN is32Bit   = IoIs32bitProcess(irp);
+            const size_t  bufferLen = is32Bit ? sizeof(IVSHMEM_MMAP32) : sizeof(IVSHMEM_MMAP);
+#else
+            const size_t  bufferLen = sizeof(IVSHMEM_MMAP);
+#endif
+            PVOID buffer;
+
+            if (OutputBufferLength != bufferLen)
             {
-                DEBUG_ERROR("IOCTL_IVSHMEM_REQUEST_MMAP: Invalid size, expected %u but got %u", sizeof(IVSHMEM_MMAP), OutputBufferLength);
+                DEBUG_ERROR("IOCTL_IVSHMEM_REQUEST_MMAP: Invalid size, expected %u but got %u", bufferLen, OutputBufferLength);
                 status = STATUS_INVALID_BUFFER_SIZE;
                 break;
             }
 
-            PIVSHMEM_MMAP out = NULL;
-            if (!NT_SUCCESS(WdfRequestRetrieveOutputBuffer(Request, OutputBufferLength, (PVOID)&out, NULL)))
+            if (!NT_SUCCESS(WdfRequestRetrieveOutputBuffer(Request, bufferLen, (PVOID)&buffer, NULL)))
             {
                 DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REQUEST_MMAP: Failed to retrieve the output buffer");
                 status = STATUS_INVALID_USER_BUFFER;
@@ -144,12 +164,26 @@ IVSHMEMEvtIoDeviceControl(
             }
 
             deviceContext->owner = WdfRequestGetFileObject(Request);
-            out->peerID   = (UINT16)deviceContext->devRegisters->ivProvision;
-            out->size     = (UINT64)deviceContext->shmemAddr.NumberOfBytes;
-            out->ptr      = deviceContext->shmemMap;
-            out->vectors  = deviceContext->interruptsUsed;
-            status        = STATUS_SUCCESS;
-            bytesReturned = sizeof(IVSHMEM_MMAP);
+#ifdef _WIN64
+            if (is32Bit)
+            {
+                PIVSHMEM_MMAP32 out = (PIVSHMEM_MMAP32)buffer;
+                out->peerID  = (UINT16)deviceContext->devRegisters->ivProvision;
+                out->size    = (UINT64)deviceContext->shmemAddr.NumberOfBytes;
+                out->ptr     = PtrToUint(deviceContext->shmemMap);
+                out->vectors = deviceContext->interruptsUsed;
+            }
+            else
+#endif
+            {
+                PIVSHMEM_MMAP out = (PIVSHMEM_MMAP)buffer;
+                out->peerID   = (UINT16)deviceContext->devRegisters->ivProvision;
+                out->size     = (UINT64)deviceContext->shmemAddr.NumberOfBytes;
+                out->ptr      = deviceContext->shmemMap;
+                out->vectors  = deviceContext->interruptsUsed;
+            }
+            status = STATUS_SUCCESS;
+            bytesReturned = bufferLen;
             break;
         }
 
@@ -238,7 +272,7 @@ IVSHMEMEvtIoDeviceControl(
                 break;
             }
 
-            PIRP irp = WdfRequestWdmGetIrp(Request);            
+            PIRP irp = WdfRequestWdmGetIrp(Request);
             PRKEVENT hObject;
             if (!NT_SUCCESS(ObReferenceObjectByHandle(
                     in->event,
