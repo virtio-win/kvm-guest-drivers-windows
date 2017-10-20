@@ -2,8 +2,6 @@
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, IVSHMEMQueueInitialize)
-#pragma alloc_text (PAGE, IVSHMEMEvtIoDeviceControl)
-#pragma alloc_text (PAGE, IVSHMEMEvtIoStop)
 #pragma alloc_text (PAGE, IVSHMEMEvtDeviceFileCleanup)
 #endif
 
@@ -31,11 +29,7 @@ NTSTATUS IVSHMEMQueueInitialize(_In_ WDFDEVICE Device)
     queueConfig.EvtIoDeviceControl = IVSHMEMEvtIoDeviceControl;
     queueConfig.EvtIoStop          = IVSHMEMEvtIoStop;
 
-    WDF_OBJECT_ATTRIBUTES attribs;
-    WDF_OBJECT_ATTRIBUTES_INIT(&attribs);
-    attribs.ExecutionLevel = WdfExecutionLevelPassive;
-
-    status = WdfIoQueueCreate(Device, &queueConfig, &attribs, &queue);
+    status = WdfIoQueueCreate(Device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &queue);
     return status;
 }
 
@@ -48,7 +42,6 @@ IVSHMEMEvtIoDeviceControl(
     _In_ ULONG IoControlCode
 )
 {
-    PAGED_CODE();
     WDFDEVICE hDevice = WdfIoQueueGetDevice(Queue);
     PDEVICE_CONTEXT deviceContext = DeviceGetContext(hDevice);
     size_t bytesReturned = 0;
@@ -268,21 +261,28 @@ IVSHMEMEvtIoDeviceControl(
                 break;
             }
 
+            // early non locked quick check to see if we are out of event space
+            if (deviceContext->eventBufferUsed == MAX_EVENTS)
+            {
+                DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REGISTER_EVENT: Event buffer full");
+                status = STATUS_INSUFFICIENT_RESOURCES;
+                break;
+            }
+
             PIVSHMEM_EVENT in;
             if (!NT_SUCCESS(WdfRequestRetrieveInputBuffer(Request, InputBufferLength, (PVOID)&in, NULL)))
             {
-                DEBUG_ERROR("%s", "IOCTL_IVSHMEM_RING_DOORBELL: Failed to retrieve the input buffer");
+                DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REGISTER_EVENT: Failed to retrieve the input buffer");
                 status = STATUS_INVALID_USER_BUFFER;
                 break;
             }
 
-            PIRP irp = WdfRequestWdmGetIrp(Request);
             PRKEVENT hObject;
             if (!NT_SUCCESS(ObReferenceObjectByHandle(
                     in->event,
                     SYNCHRONIZE | EVENT_MODIFY_STATE,
                     *ExEventObjectType,
-                    irp->RequestorMode,
+                    UserMode,
                     &hObject,
                     NULL)))
             {
@@ -291,27 +291,58 @@ IVSHMEMEvtIoDeviceControl(
                 break;
             }
 
-            PIVSHMEMEventListEntry event = (PIVSHMEMEventListEntry)
-                MmAllocateNonCachedMemory(sizeof(IVSHMEMEventListEntry));
-            if (!event)
-            {
-                DEBUG_ERROR("%s", "Unable to allocate PIVSHMEMEventListEntry");
-                ObDereferenceObject(hObject);
-                status = STATUS_MEMORY_NOT_ALLOCATED;
-                break;
-            }
+            // clear the event in case the caller didn't think to
+            KeClearEvent(hObject);
 
-            event->event  = hObject;
-            event->vector = in->vector;
-            ExInterlockedInsertTailList(&deviceContext->eventList,
-                &event->ListEntry, &deviceContext->eventListLock);
+            // lock the event list so we can push the new entry into it
+            KIRQL oldIRQL;
+            KeAcquireSpinLock(&deviceContext->eventListLock, &oldIRQL);
+            {
+                // check again if there is space before we search as we now hold the lock
+                if (deviceContext->eventBufferUsed == MAX_EVENTS)
+                {
+                    KeReleaseSpinLock(&deviceContext->eventListLock, oldIRQL);
+
+                    DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REGISTER_EVENT: Event buffer full");
+                    ObDereferenceObject(hObject);
+                    status = STATUS_INSUFFICIENT_RESOURCES;
+                    break;
+                }
+
+                // look for a free slot
+                BOOLEAN done = FALSE;
+                for (UINT16 i = 0; i < MAX_EVENTS; ++i)
+                {
+                    PIVSHMEMEventListEntry event = &deviceContext->eventBuffer[i];
+                    if (event->event != NULL)
+                        continue;
+
+                    // found one, assign the event to it and add it to the list
+                    event->owner = WdfRequestGetFileObject(Request);
+                    event->event = hObject;
+                    event->vector = in->vector;
+                    ++deviceContext->eventBufferUsed;
+                    InsertTailList(&deviceContext->eventList, &event->ListEntry);
+                    done = TRUE;
+                    break;
+                }
+
+                // this should never occur, if it does it indicates memory corruption
+                if (!done)
+                {
+                    DEBUG_ERROR(
+                        "IOCTL_IVSHMEM_REGISTER_EVENT: deviceContext->eventBufferUsed (%u) < MAX_EVENTS (%u) but no slots found!",
+                        deviceContext->eventBufferUsed, MAX_EVENTS);
+                    KeBugCheckEx(CRITICAL_STRUCTURE_CORRUPTION, 0, 0, 0, 0x1C);
+                }
+            }
+            KeReleaseSpinLock(&deviceContext->eventListLock, oldIRQL);
 
             bytesReturned = 0;
             status = STATUS_SUCCESS;
             break;
         }
     }
-
 
     WdfRequestCompleteWithInformation(Request, status, bytesReturned);
 }
@@ -323,7 +354,6 @@ IVSHMEMEvtIoStop(
     _In_ ULONG ActionFlags
 )
 {
-    PAGED_CODE();
 	UNREFERENCED_PARAMETER(Queue);
 	UNREFERENCED_PARAMETER(ActionFlags);
     WdfRequestStopAcknowledge(Request, TRUE);
@@ -334,6 +364,28 @@ VOID IVSHMEMEvtDeviceFileCleanup(_In_ WDFFILEOBJECT FileObject)
 {
     PAGED_CODE();
     PDEVICE_CONTEXT deviceContext = DeviceGetContext(WdfFileObjectGetDevice(FileObject));
+
+    // remove queued events that belonged to the session
+    KIRQL oldIRQL;
+    KeAcquireSpinLock(&deviceContext->eventListLock, &oldIRQL);
+    PLIST_ENTRY entry = deviceContext->eventList.Flink;
+    while (entry != &deviceContext->eventList)
+    {
+        PIVSHMEMEventListEntry event = CONTAINING_RECORD(entry, IVSHMEMEventListEntry, ListEntry);
+        PLIST_ENTRY next = entry->Flink;
+        if (event->owner != FileObject)
+            continue;
+
+        RemoveEntryList(entry);
+        ObDereferenceObject(event->event);
+        event->owner = NULL;
+        event->event = NULL;
+        event->vector = 0;
+        --deviceContext->eventBufferUsed;
+        entry = next;
+    }
+    KeReleaseSpinLock(&deviceContext->eventListLock, oldIRQL);
+
     if (!deviceContext->shmemMap)
         return;
 

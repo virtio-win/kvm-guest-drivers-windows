@@ -233,13 +233,20 @@ NTSTATUS IVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
         deviceContext->interrupts = NULL;
     }
 
-    LIST_ENTRY *entry;
-    while((entry = ExInterlockedRemoveHeadList(&deviceContext->eventList, &deviceContext->eventListLock)) != NULL)
+    KIRQL oldIRQL;
+    KeAcquireSpinLock(&deviceContext->eventListLock, &oldIRQL);
+    PLIST_ENTRY entry = deviceContext->eventList.Flink;
+    while (entry != &deviceContext->eventList)
     {
         PIVSHMEMEventListEntry event = CONTAINING_RECORD(entry, IVSHMEMEventListEntry, ListEntry);
         ObDereferenceObject(event->event);
-        MmFreeNonCachedMemory(event, sizeof(IVSHMEMEventListEntry));
+        event->owner  = NULL;
+        event->event  = NULL;
+        event->vector = 0;        
     }
+    InitializeListHead(&deviceContext->eventList);
+    deviceContext->eventBufferUsed = 0;
+    KeReleaseSpinLock(&deviceContext->eventListLock, oldIRQL);
 
     return STATUS_SUCCESS;
 }
@@ -299,10 +306,14 @@ void IVSHMEMInterruptDPC(_In_ WDFINTERRUPT Interrupt, _In_ WDFOBJECT AssociatedO
         PLIST_ENTRY next = entry->Flink;
         if (pending & ((LONG64)1 << event->vector))
         {
-            KeSetEvent(event->event, 0, FALSE);
-            ObDereferenceObject(event->event);
             RemoveEntryList(entry);
-            MmFreeNonCachedMemory(entry, sizeof(IVSHMEMEventListEntry));
+            KeSetEvent(event->event, 0, FALSE);
+
+            ObDereferenceObject(event->event);
+            event->owner  = NULL;
+            event->event  = NULL;
+            event->vector = 0;
+            --deviceContext->eventBufferUsed;
         }
         entry = next;
     }

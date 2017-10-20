@@ -2,6 +2,8 @@
 
 EXTERN_C_START
 
+#define MAX_EVENTS 32
+
 #pragma align(push,4)
 typedef struct IVSHMEMDeviceRegisters
 {
@@ -16,9 +18,10 @@ IVSHMEMDeviceRegisters, *PIVSHMEMDeviceRegisters;
 
 typedef struct IVSHMEMEventListEntry
 {
-    UINT16   vector;
-    PRKEVENT event;
-    LIST_ENTRY ListEntry;
+    WDFFILEOBJECT owner;
+    UINT16        vector;
+    PRKEVENT      event;
+    LIST_ENTRY    ListEntry;
 }
 IVSHMEMEventListEntry, *PIVSHMEMEventListEntry;
 
@@ -26,17 +29,19 @@ typedef struct _DEVICE_CONTEXT
 {
     PIVSHMEMDeviceRegisters devRegisters; // the device registers (BAR0)
 
-    MM_PHYSICAL_ADDRESS_LIST   shmemAddr;      // physical address of the shared memory (BAR2)
-    PMDL                       shmemMDL;       // memory discriptor list of the shared memory
-    PVOID                      shmemMap;       // memory mapping of the shared memory
-    WDFFILEOBJECT              owner;          // the file object that currently owns the mapping
-    UINT16                     interruptCount; // the number of interrupt entries allocated
-    UINT16                     interruptsUsed; // the number of interrupt entries used
-    WDFINTERRUPT              *interrupts;     // interrupts for this device
-    LONG64                     pendingISR;     // flags for ISRs pending processing
+    MM_PHYSICAL_ADDRESS_LIST   shmemAddr;               // physical address of the shared memory (BAR2)
+    PMDL                       shmemMDL;                // memory discriptor list of the shared memory
+    PVOID                      shmemMap;                // memory mapping of the shared memory
+    WDFFILEOBJECT              owner;                   // the file object that currently owns the mapping
+    UINT16                     interruptCount;          // the number of interrupt entries allocated
+    UINT16                     interruptsUsed;          // the number of interrupt entries used
+    WDFINTERRUPT              *interrupts;              // interrupts for this device
+    LONG64                     pendingISR;              // flags for ISRs pending processing
 
-    KSPIN_LOCK                 eventListLock;  // spinlock for the below event list
-    LIST_ENTRY                 eventList;      // pending events to fire
+    KSPIN_LOCK                 eventListLock;           // spinlock for the below event list
+    IVSHMEMEventListEntry      eventBuffer[MAX_EVENTS]; // buffer of pre-allocated events
+    UINT16                     eventBufferUsed;         // number of events currenty in use
+    LIST_ENTRY                 eventList;               // pending events to fire
 }
 DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
