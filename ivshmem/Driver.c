@@ -13,8 +13,6 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING Regi
     WDF_OBJECT_ATTRIBUTES attributes;
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-    attributes.EvtCleanupCallback = IVSHMEMEvtDriverContextCleanup;
-
     WDF_DRIVER_CONFIG_INIT(&config, IVSHMEMEvtDeviceAdd);
 
     status = WdfDriverCreate(DriverObject, RegistryPath, &attributes, &config, WDF_NO_HANDLE);
@@ -30,10 +28,4 @@ NTSTATUS IVSHMEMEvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INIT Devi
 
     status = IVSHMEMCreateDevice(DeviceInit);
     return status;
-}
-
-VOID IVSHMEMEvtDriverContextCleanup(_In_ WDFOBJECT DriverObject)
-{
-    UNREFERENCED_PARAMETER(DriverObject);
-    PAGED_CODE();
 }

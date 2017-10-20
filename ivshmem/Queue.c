@@ -2,7 +2,6 @@
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, IVSHMEMQueueInitialize)
-#pragma alloc_text (PAGE, IVSHMEMEvtDeviceFileCleanup)
 #endif
 
 #ifdef _WIN64
@@ -363,7 +362,6 @@ IVSHMEMEvtIoStop(
 
 VOID IVSHMEMEvtDeviceFileCleanup(_In_ WDFFILEOBJECT FileObject)
 {
-    PAGED_CODE();
     PDEVICE_CONTEXT deviceContext = DeviceGetContext(WdfFileObjectGetDevice(FileObject));
 
     // remove queued events that belonged to the session
@@ -378,7 +376,7 @@ VOID IVSHMEMEvtDeviceFileCleanup(_In_ WDFFILEOBJECT FileObject)
             continue;
 
         RemoveEntryList(entry);
-        ObDereferenceObject(event->event);
+        ObDereferenceObject(_Notnull_ event->event);
         event->owner = NULL;
         event->event = NULL;
         event->vector = 0;

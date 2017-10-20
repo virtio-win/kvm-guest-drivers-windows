@@ -239,7 +239,7 @@ NTSTATUS IVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
     while (entry != &deviceContext->eventList)
     {
         PIVSHMEMEventListEntry event = CONTAINING_RECORD(entry, IVSHMEMEventListEntry, ListEntry);
-        ObDereferenceObject(event->event);
+        ObDereferenceObject(_Notnull_ event->event);
         event->owner  = NULL;
         event->event  = NULL;
         event->vector = 0;
@@ -306,11 +306,11 @@ void IVSHMEMInterruptDPC(_In_ WDFINTERRUPT Interrupt, _In_ WDFOBJECT AssociatedO
         PLIST_ENTRY next = entry->Flink;
         if (pending & ((LONG64)1 << event->vector))
         {
-            KeSetEvent(event->event, 0, FALSE);
+            KeSetEvent(_Notnull_ event->event, 0, FALSE);
             if (event->singleShot)
             {
                 RemoveEntryList(entry);
-                ObDereferenceObject(event->event);
+                ObDereferenceObjectDeferDelete(_Notnull_ event->event);
                 event->owner  = NULL;
                 event->event  = NULL;
                 event->vector = 0;
