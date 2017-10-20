@@ -14,6 +14,7 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING Regi
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
     attributes.EvtCleanupCallback = IVSHMEMEvtDriverContextCleanup;
+    attributes.ExecutionLevel = WdfExecutionLevelPassive;
 
     WDF_DRIVER_CONFIG_INIT(&config, IVSHMEMEvtDeviceAdd);
 

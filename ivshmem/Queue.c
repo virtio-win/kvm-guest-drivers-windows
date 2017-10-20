@@ -31,7 +31,11 @@ NTSTATUS IVSHMEMQueueInitialize(_In_ WDFDEVICE Device)
     queueConfig.EvtIoDeviceControl = IVSHMEMEvtIoDeviceControl;
     queueConfig.EvtIoStop          = IVSHMEMEvtIoStop;
 
-    status = WdfIoQueueCreate(Device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &queue);
+    WDF_OBJECT_ATTRIBUTES attribs;
+    WDF_OBJECT_ATTRIBUTES_INIT(&attribs);
+    attribs.ExecutionLevel = WdfExecutionLevelPassive;
+
+    status = WdfIoQueueCreate(Device, &queueConfig, &attribs, &queue);
     return status;
 }
 

@@ -123,8 +123,10 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
                     break;
                 }
 
-                deviceContext->devRegisters = (PIVSHMEMDeviceRegisters)MmMapIoSpace(
-                    descriptor->u.Memory.Start, descriptor->u.Memory.Length, MmNonCached);
+                deviceContext->devRegisters = (PIVSHMEMDeviceRegisters)MmMapIoSpaceEx(
+                    descriptor->u.Memory.Start,
+                    descriptor->u.Memory.Length,
+                    PAGE_READWRITE | PAGE_NOCACHE);
 
                 if (!deviceContext->devRegisters)
                 {
@@ -289,8 +291,7 @@ void IVSHMEMInterruptDPC(_In_ WDFINTERRUPT Interrupt, _In_ WDFOBJECT AssociatedO
     
     pending = InterlockedExchange64(&deviceContext->pendingISR, 0);
 
-    KIRQL oldIrql;
-    KeAcquireSpinLock(&deviceContext->eventListLock, &oldIrql);
+    KeAcquireSpinLockAtDpcLevel(&deviceContext->eventListLock);
     PLIST_ENTRY entry = deviceContext->eventList.Flink;
     while (entry != &deviceContext->eventList)
     {
@@ -305,5 +306,5 @@ void IVSHMEMInterruptDPC(_In_ WDFINTERRUPT Interrupt, _In_ WDFOBJECT AssociatedO
         }
         entry = next;
     }
-    KeReleaseSpinLock(&deviceContext->eventListLock, oldIrql);
+    KeReleaseSpinLockFromDpcLevel(&deviceContext->eventListLock);
 }
