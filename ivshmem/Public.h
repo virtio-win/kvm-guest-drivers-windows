@@ -7,6 +7,9 @@ DEFINE_GUID (GUID_DEVINTERFACE_IVSHMEM,
 typedef UINT16 IVSHMEM_PEERID;
 typedef UINT64 IVSHMEM_SIZE;
 
+/*
+    This structure is for use with the IOCTL_IVSHMEM_REQUEST_MMAP IOCTL
+*/
 typedef struct IVSHMEM_MMAP
 {
     IVSHMEM_PEERID peerID;  // our peer id
@@ -16,6 +19,9 @@ typedef struct IVSHMEM_MMAP
 }
 IVSHMEM_MMAP, *PIVSHMEM_MMAP;
 
+/*
+    This structure is for use with the IOCTL_IVSHMEM_RING_DOORBELL IOCTL
+*/
 typedef struct IVSHMEM_RING
 {
     IVSHMEM_PEERID peerID;  // the id of the peer to ring
@@ -23,10 +29,22 @@ typedef struct IVSHMEM_RING
 }
 IVSHMEM_RING, *PIVSHMEM_RING;
 
+/*
+   This structure is for use with the IOCTL_IVSHMEM_REGISTER_EVENT IOCTL
+
+   Please Note:
+     - The IVSHMEM driver has a hard limit of 32 events.
+     - Events that are singleShot are released after they have been set.
+     - At this time repeating events are only released when the driver device
+       handle is closed, closing the event handle doesn't release it from the
+       drivers list. While this won't cause a problem in the driver, it will
+       cause you to run out of event slots.
+ */
 typedef struct IVSHMEM_EVENT
 {
-    UINT16 vector;  // the vector that triggers the event
-    HANDLE event;   // the event to trigger
+    UINT16  vector;     // the vector that triggers the event
+    HANDLE  event;      // the event to trigger
+    BOOLEAN singleShot; // set to TRUE if you want the driver to only trigger this event once
 }
 IVSHMEM_EVENT, *PIVSHMEM_EVENT;
 

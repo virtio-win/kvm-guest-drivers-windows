@@ -318,9 +318,10 @@ IVSHMEMEvtIoDeviceControl(
                         continue;
 
                     // found one, assign the event to it and add it to the list
-                    event->owner = WdfRequestGetFileObject(Request);
-                    event->event = hObject;
-                    event->vector = in->vector;
+                    event->owner      = WdfRequestGetFileObject(Request);
+                    event->event      = hObject;
+                    event->vector     = in->vector;
+                    event->singleShot = in->singleShot;
                     ++deviceContext->eventBufferUsed;
                     InsertTailList(&deviceContext->eventList, &event->ListEntry);
                     done = TRUE;

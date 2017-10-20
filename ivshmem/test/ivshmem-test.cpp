@@ -210,6 +210,7 @@ int main()
 			IVSHMEM_EVENT event;
 			event.event = CreateEvent(NULL, TRUE, FALSE, L"TEST_EVENT");
 			event.vector = 0;
+			event.singleShot = TRUE;
 			if (event.event == INVALID_HANDLE_VALUE)
 			{
 				TEST_FAIL("Failed to create the event");
