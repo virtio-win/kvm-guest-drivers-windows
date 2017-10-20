@@ -21,6 +21,7 @@ typedef struct IVSHMEMEventListEntry
     WDFFILEOBJECT owner;
     UINT16        vector;
     PRKEVENT      event;
+    BOOLEAN       singleShot;
     LIST_ENTRY    ListEntry;
 }
 IVSHMEMEventListEntry, *PIVSHMEMEventListEntry;
