@@ -141,10 +141,10 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
             {
                 deviceContext->shmemAddr.PhysicalAddress = descriptor->u.Memory.Start;
                 deviceContext->shmemAddr.NumberOfBytes = descriptor->u.Memory.Length;
-                if (!NT_SUCCESS(MmAllocateMdlForIoSpace(&deviceContext->shmemAddr, 1, &deviceContext->shmemMDL)))
+                result = MmAllocateMdlForIoSpace(&deviceContext->shmemAddr, 1, &deviceContext->shmemMDL);
+                if (!NT_SUCCESS(result))
                 {
                     DEBUG_ERROR("%s", "Call to MmAllocateMdlForIoSpace failed");
-                    result = STATUS_DEVICE_HARDWARE_ERROR;
                     break;
                 }
             }
