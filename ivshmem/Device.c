@@ -90,8 +90,8 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
 
 	if (deviceContext->interruptCount > 0)
 	{
-		deviceContext->interrupts = (WDFINTERRUPT*)MmAllocateNonCachedMemory(
-			sizeof(WDFINTERRUPT) * deviceContext->interruptCount);
+		deviceContext->interrupts = (WDFINTERRUPT*)ExAllocatePoolWithTag(NonPagedPool,
+			sizeof(WDFINTERRUPT) * deviceContext->interruptCount, 'sQRI');
 
 		if (!deviceContext->interrupts)
 		{
