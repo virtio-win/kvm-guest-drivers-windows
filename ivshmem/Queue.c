@@ -66,7 +66,7 @@ IVSHMEMEvtIoDeviceControl(
             }
 
             IVSHMEM_PEERID *out = NULL;
-            if (!NT_SUCCESS(WdfRequestRetrieveOutputBuffer(Request, OutputBufferLength, (PVOID)&out, NULL)))
+            if (!NT_SUCCESS(WdfRequestRetrieveOutputBuffer(Request, OutputBufferLength, (PVOID *)&out, NULL)))
             {
                 DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REQUEST_PEERID: Failed to retrieve the output buffer");
                 status = STATUS_INVALID_USER_BUFFER;
@@ -89,7 +89,7 @@ IVSHMEMEvtIoDeviceControl(
             }
 
             IVSHMEM_SIZE *out = NULL;
-            if (!NT_SUCCESS(WdfRequestRetrieveOutputBuffer(Request, OutputBufferLength, (PVOID)&out, NULL)))
+            if (!NT_SUCCESS(WdfRequestRetrieveOutputBuffer(Request, OutputBufferLength, (PVOID *)&out, NULL)))
             {
                 DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REQUEST_SIZE: Failed to retrieve the output buffer");
                 status = STATUS_INVALID_USER_BUFFER;
@@ -127,7 +127,7 @@ IVSHMEMEvtIoDeviceControl(
                 break;
             }
 
-            if (!NT_SUCCESS(WdfRequestRetrieveOutputBuffer(Request, bufferLen, (PVOID)&buffer, NULL)))
+            if (!NT_SUCCESS(WdfRequestRetrieveOutputBuffer(Request, bufferLen, (PVOID *)&buffer, NULL)))
             {
                 DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REQUEST_MMAP: Failed to retrieve the output buffer");
                 status = STATUS_INVALID_USER_BUFFER;
