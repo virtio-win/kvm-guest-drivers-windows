@@ -245,6 +245,8 @@ NTSTATUS IVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
         event->owner  = NULL;
         event->event  = NULL;
         event->vector = 0;
+
+        entry = entry->Flink;
     }
     InitializeListHead(&deviceContext->eventList);
     deviceContext->eventBufferUsed = 0;
