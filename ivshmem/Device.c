@@ -225,10 +225,7 @@ NTSTATUS IVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
         for (int i = 0; i < deviceContext->interruptsUsed; ++i)
             WdfObjectDelete(deviceContext->interrupts[i]);
 
-        MmFreeNonCachedMemory(
-            deviceContext->interrupts,
-            sizeof(WDFINTERRUPT) * deviceContext->interruptCount
-        );
+        ExFreePoolWithTag(deviceContext->interrupts, 'sQRI');
 
         deviceContext->interruptCount = 0;
         deviceContext->interruptsUsed = 0;
