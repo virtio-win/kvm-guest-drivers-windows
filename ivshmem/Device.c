@@ -173,7 +173,7 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
                 break;
             }
 
-            if (++deviceContext->interruptsUsed == 64)
+            if (++deviceContext->interruptsUsed == 65)
               DEBUG_INFO("%s", "This driver does not support > 64 interrupts, they will be ignored in the ISR.");
 
             continue;
