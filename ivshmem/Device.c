@@ -180,13 +180,15 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
         }
     }
 
-    if (memIndex == 0)
-        result = STATUS_DEVICE_HARDWARE_ERROR;
-
     if (NT_SUCCESS(result))
     {
-        DEBUG_INFO("Shared Memory: %p, %u bytes", deviceContext->shmemAddr.PhysicalAddress, deviceContext->shmemAddr.NumberOfBytes);
-        DEBUG_INFO("Interrupts   : %d", deviceContext->interruptsUsed);
+        if (!deviceContext->shmemMDL)
+            result = STATUS_DEVICE_HARDWARE_ERROR;
+        else
+        {
+            DEBUG_INFO("Shared Memory: %p, %u bytes", deviceContext->shmemAddr.PhysicalAddress, deviceContext->shmemAddr.NumberOfBytes);
+            DEBUG_INFO("Interrupts   : %d", deviceContext->interruptsUsed);
+        }
     }
 
     return result;
