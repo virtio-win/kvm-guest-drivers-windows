@@ -284,8 +284,9 @@ BOOLEAN IVSHMEMInterruptISR(_In_ WDFINTERRUPT Interrupt, _In_ ULONG MessageID)
     device = WdfInterruptGetDevice(Interrupt);
     deviceContext = DeviceGetContext(device);
 
-    deviceContext->pendingISR |= (LONG64)1 << MessageID;
-    WdfInterruptQueueDpcForIsr(Interrupt);
+    if (!InterlockedOr64(&deviceContext->pendingISR, 1ULL << MessageID))
+        WdfInterruptQueueDpcForIsr(Interrupt);
+
     return TRUE;
 }
 
@@ -301,6 +302,8 @@ void IVSHMEMInterruptDPC(_In_ WDFINTERRUPT Interrupt, _In_ WDFOBJECT AssociatedO
     deviceContext = DeviceGetContext(device);
     
     pending = InterlockedExchange64(&deviceContext->pendingISR, 0);
+    if (!pending)
+        return;
 
     KeAcquireSpinLockAtDpcLevel(&deviceContext->eventListLock);
     PLIST_ENTRY entry = deviceContext->eventList.Flink;
