@@ -96,7 +96,7 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
 		if (!deviceContext->interrupts)
 		{
 			DEBUG_ERROR("Failed to allocate space for %d interrupts", deviceContext->interrupts);
-			return STATUS_DEVICE_CONFIGURATION_ERROR;
+			return STATUS_INSUFFICIENT_RESOURCES;
 		}
 	}
 
