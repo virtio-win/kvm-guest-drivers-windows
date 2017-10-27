@@ -49,7 +49,8 @@ VIOSerialSendCtrlMsg(
         virtqueue_kick(vq);
         while(!virtqueue_get_buf(vq, &len))
         {
-            LARGE_INTEGER interval = {0};
+            LARGE_INTEGER interval;
+            interval.QuadPart = -1;
             KeDelayExecutionThread(KernelMode, FALSE, &interval);
         }
     }
