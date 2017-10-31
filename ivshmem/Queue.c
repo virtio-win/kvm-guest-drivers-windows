@@ -371,10 +371,13 @@ VOID IVSHMEMEvtDeviceFileCleanup(_In_ WDFFILEOBJECT FileObject)
     while (entry != &deviceContext->eventList)
     {
         PIVSHMEMEventListEntry event = CONTAINING_RECORD(entry, IVSHMEMEventListEntry, ListEntry);
-        PLIST_ENTRY next = entry->Flink;
         if (event->owner != FileObject)
+        {
+            entry = entry->Flink;
             continue;
+        }
 
+        PLIST_ENTRY next = entry->Flink;
         RemoveEntryList(entry);
         ObDereferenceObject(_Notnull_ event->event);
         event->owner = NULL;
