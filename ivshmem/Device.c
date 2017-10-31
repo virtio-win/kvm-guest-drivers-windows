@@ -3,7 +3,6 @@
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, IVSHMEMCreateDevice)
 #pragma alloc_text (PAGE, IVSHMEMEvtDevicePrepareHardware)
-#pragma alloc_text (PAGE, IVSHMEMEvtDeviceReleaseHardware)
 #pragma alloc_text (PAGE, IVSHMEMEvtD0Exit)
 #endif
 
@@ -197,7 +196,6 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
 NTSTATUS IVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIST ResourcesTranslated)
 {
     UNREFERENCED_PARAMETER(ResourcesTranslated);
-    PAGED_CODE();
     DEBUG_INFO("%s", __FUNCTION__);
 
     PDEVICE_CONTEXT deviceContext;
