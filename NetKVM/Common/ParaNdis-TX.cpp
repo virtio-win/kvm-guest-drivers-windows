@@ -510,9 +510,10 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList)
 {
     bool SentOutSomeBuffers = false;
     bool bRestartStatus = false;
+    bool HaveBuffers = true;
+
     if(ParaNdis_IsSendPossible(m_Context))
     {
-        auto HaveBuffers = true;
 
         while (HaveBuffers && HaveMappedNBLs())
         {
@@ -575,7 +576,7 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList)
         bRestartStatus = RestartQueue();
     }
 
-    if (SentOutSomeBuffers)
+    if (SentOutSomeBuffers || !HaveBuffers)
     {
         m_VirtQueue.Kick();
     }
