@@ -41,7 +41,6 @@
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
     <RootNamespace>ivshmem</RootNamespace>
     <ProjectName>ivshmem</ProjectName>
-    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'" Label="Configuration">
@@ -67,10 +66,6 @@
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>KMDF</DriverType>
     <DriverTargetPlatform>Universal</DriverTargetPlatform>
-    <KMDF_VERSION_MAJOR>
-    </KMDF_VERSION_MAJOR>
-    <KMDF_VERSION_MINOR>
-    </KMDF_VERSION_MINOR>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'" Label="Configuration">
@@ -82,6 +77,8 @@
     <DriverTargetPlatform>Universal</DriverTargetPlatform>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildProjectDirectory)\ivshmem.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="PropertySheets">
@@ -93,32 +90,42 @@
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
     <TargetName>ivshmem</TargetName>
-    <OutDir>$(Platform)\$(Configuration)\</OutDir>
+    <OutDir>objchk_win10_x86\i386\</OutDir>
+    <IntDir>objchk_win10_x86\i386\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
     <TargetName>ivshmem</TargetName>
-    <OutDir>$(Platform)\$(Configuration)\</OutDir>
+    <OutDir>objfre_win10_x86\i386\</OutDir>
+    <IntDir>objfre_win10_x86\i386\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
     <TargetName>ivshmem</TargetName>
-    <OutDir>$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>objchk_win10_amd64\amd64\</OutDir>
+    <IntDir>objchk_win10_amd64\amd64\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
     <TargetName>ivshmem</TargetName>
-    <OutDir>$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>objfre_win10_amd64\amd64\</OutDir>
+    <IntDir>objfre_win10_amd64\amd64\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup>
+    <CustomBuildAfterTargets>dvl</CustomBuildAfterTargets>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>POOL_NX_OPTIN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
+    <CustomBuildStep>
+      <Command>copy /Y $(ProjectDir)ivshmem.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)</Command>
+      <Inputs>$(ProjectDir)ivshmem.DVL.XML</Inputs>
+      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\ivshmem.DVL.XML</Outputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">
     <ClCompile>
@@ -156,6 +163,7 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
