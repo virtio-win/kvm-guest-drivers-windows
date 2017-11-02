@@ -11,6 +11,7 @@
 *.opensdf
 *.DVL.XML
 *.opendb
+*.VC.db
 *objchk_*
 *objfre_*
 *Win*Debug*
@@ -23,3 +24,5 @@ Install
 Install_Debug
 sdv
 sdv-map.h
+sdv-user.*
+SDV-default.xml
