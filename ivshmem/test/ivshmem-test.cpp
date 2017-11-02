@@ -95,7 +95,7 @@ int main()
 		}
 		TEST_PASS();
 
-		printf("Size: %u\n", size);
+		printf("Size: %I64u\n", size);
 
 		TEST_START("IOCTL_IVSHMEM_REQUEST_MMAP");
 		IVSHMEM_MMAP map;
@@ -177,7 +177,7 @@ int main()
 		TEST_PASS();
 
 		TEST_START("Shared memory actually works");
-		memset(map.ptr, 0xAA, map.size);
+		memset(map.ptr, 0xAA, (size_t)map.size);
 		CloseHandle(devHandle);
 		devHandle = CreateFile(infData->DevicePath, 0, 0, NULL, OPEN_EXISTING, 0, 0);
 		if (devHandle == INVALID_HANDLE_VALUE)
