@@ -2,6 +2,10 @@
 #include "ParaNdis-VirtQueue.h"
 #include "ParaNdis-AbstractPath.h"
 #include "ParaNdis_GuestAnnounce.h"
+#include "ParaNdis_LockFreeQueue.h"
+
+/* Must be a power of 2 */
+#define PARANDIS_TX_LOCK_FREE_QUEUE_DEFAULT_SIZE 2048
 
 class CNB;
 class CParaNdisTX;
@@ -197,6 +201,8 @@ private:
 
 typedef CNdisList<CNBL, CRawAccess, CNonCountingObject> CRawCNBLList;
 
+typedef CLockFreeQueue<CNBL> CLockFreeCNBLQueue;
+
 class CParaNdisTX : public CParaNdisTemplatePath<CTXVirtQueue>, public CNdisAllocatable<CParaNdisTX, 'XTHR'>
 {
 public:
@@ -229,7 +235,7 @@ public:
     ULONG GetFreeHWBuffers()
     { return m_VirtQueue.GetFreeHWBuffers(); }
 
-    bool DoPendingTasks(CNBL *nblHolder = nullptr);
+    bool DoPendingTasks();
 
     void CompleteOutstandingNBLChain(PNET_BUFFER_LIST NBL, ULONG Flags = 0);
     void CompleteOutstandingInternalNBL(PNET_BUFFER_LIST NBL, BOOLEAN UnregisterOutstanding = TRUE);
@@ -237,12 +243,23 @@ private:
 
     bool SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList);
 
+    bool FillQueue();
+
     PNET_BUFFER_LIST ProcessWaitingList(CRawCNBLList& completed);
     PNET_BUFFER_LIST BuildCancelList(PVOID CancelId);
 
-    bool HaveMappedNBLs() { return !m_SendList.IsEmpty(); }
-    CNBL *PopMappedNBL() { return m_SendList.Pop(); }
-    void PushMappedNBL(CNBL *NBLHolder) { m_SendList.Push(NBLHolder); }
+    bool HaveMappedNBLs() { return !m_SendQueue.IsEmpty(); }
+
+    CNBL *PopMappedNBL()
+    {
+        CNBL *nbl = PopMappedToSendNBL();
+        nbl = nbl == nullptr ? m_SendQueueFullList.Pop() : nbl;
+        return nbl;
+    }
+
+    CNBL *PopMappedToSendNBL() { return m_SendQueue.Dequeue(); }
+    CNBL *PeekMappedToSendNBL() { return m_SendQueue.Peek(); }
+    void PushMappedNBL(CNBL *NBLHolder) { m_SendQueue.Enqueue(NBLHolder); }
 
     CDataFlowStateMachine m_StateMachine;
     bool m_StateMachineRegistered = false;
@@ -250,7 +267,11 @@ private:
     // indication that DPC waits on TX lock
     CNdisRefCounter m_DpcWaiting;
 
-    CRawCNBLList m_SendList;
+    CLockFreeCNBLQueue m_SendQueue;
+    CRawCNBLList m_SendQueueFullList;
+    CNdisSpinLock m_SendQueueFullListLock;
+    volatile LONG m_SendQueueFullListIsEmpty;
+
     CRawCNBLList m_WaitingList;
     CNdisSpinLock m_WaitingListLock;
 
