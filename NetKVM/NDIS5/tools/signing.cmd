@@ -33,5 +33,5 @@ echo INF file %2
 echo VERSION file %3
 echo Target OS mask %_OSMASK_% 
 call :_stampinf %2 %3 %4
-inf2cat /driver:%~dp2 /os:%_OSMASK_%
+inf2cat /driver:%~dp2 /os:%_OSMASK_% /uselocaltime
 goto :eof

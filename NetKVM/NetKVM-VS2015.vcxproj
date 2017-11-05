@@ -92,6 +92,7 @@
     <RootNamespace>NetKVM_Win10</RootNamespace>
     <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
     <SignMode>Off</SignMode>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'" Label="Configuration">
@@ -412,7 +413,7 @@
     </Link>
     <PostBuildEvent>
       <Command>
-        inf2cat /driver:$(OutDir) /os:Vista_X86
+        inf2cat /driver:$(OutDir) /os:Vista_X86 /uselocaltime
         %(Command)
       </Command>
     </PostBuildEvent>
@@ -468,7 +469,7 @@
     </Link>
     <PostBuildEvent>
       <Command>
-        inf2cat /driver:$(OutDir) /os:Vista_X86
+        inf2cat /driver:$(OutDir) /os:Vista_X86 /uselocaltime
         %(Command)
       </Command>
     </PostBuildEvent>
@@ -518,7 +519,7 @@
     </Link>
     <PostBuildEvent>
       <Command>
-        inf2cat /driver:$(OutDir) /os:Vista_X64
+        inf2cat /driver:$(OutDir) /os:Vista_X64 /uselocaltime
         %(Command)
       </Command>
     </PostBuildEvent>
@@ -586,7 +587,7 @@
     </Link>
     <PostBuildEvent>
       <Command>
-        inf2cat /driver:$(OutDir) /os:Vista_X64
+        inf2cat /driver:$(OutDir) /os:Vista_X64 /uselocaltime
         %(Command)
       </Command>
     </PostBuildEvent>
