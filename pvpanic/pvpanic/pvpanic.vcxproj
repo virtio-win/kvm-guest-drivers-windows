@@ -203,6 +203,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <Inf2CatWindowsVersionList>Server10_$(DDKPlatform);$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
@@ -257,6 +258,39 @@
   <PropertyGroup Condition="'$(PlatformToolset)'!='v140_xp'">
     <!-- Works around a bug in WindowsDriver.Common.targets where WdfCoInstaller is spelled with lower-case i -->
     <KmdfCoinstaller>$(WDKContentRoot)redist\wdf\$(DDKPlatform)\WdfCoInstaller$(KMDF_VERSION_MAJOR_STRING)$(KMDF_VERSION_MINOR_STRING).dll</KmdfCoinstaller>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <Target Name="GetDriverProjectAttributes" Returns="@(DriverProjectAttributes)">
     <ItemGroup Condition="'$(PlatformToolset)'=='v140_xp'">

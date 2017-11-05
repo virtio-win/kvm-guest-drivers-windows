@@ -177,20 +177,24 @@
     <TargetName>balloon</TargetName>
     <OutDir>objfre_win8_x86\i386\</OutDir>
     <IntDir>objfre_win8_x86\i386\</IntDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <TargetName>balloon</TargetName>
     <OutDir>objfre_win8_x86\i386\</OutDir>
     <IntDir>objfre_win8_x86\i386\</IntDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <TargetName>balloon</TargetName>
     <OutDir>objfre_win10_x86\i386\</OutDir>
     <IntDir>objfre_win10_x86\i386\</IntDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
     <OutDir>objfre_win7_x86\i386\</OutDir>
     <IntDir>objfre_win7_x86\i386\</IntDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|Win32'">
     <OutDir>objfre_wnet_x86\i386\</OutDir>
@@ -208,20 +212,24 @@
     <TargetName>balloon</TargetName>
     <OutDir>objfre_win8_amd64\amd64\</OutDir>
     <IntDir>objfre_win8_amd64\amd64\</IntDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <TargetName>balloon</TargetName>
     <OutDir>objfre_win8_amd64\amd64\</OutDir>
     <IntDir>objfre_win8_amd64\amd64\</IntDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <TargetName>balloon</TargetName>
     <OutDir>objfre_win10_amd64\amd64\</OutDir>
     <IntDir>objfre_win10_amd64\amd64\</IntDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <OutDir>objfre_win7_amd64\amd64\</OutDir>
     <IntDir>objfre_win7_amd64\amd64\</IntDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|x64'">
     <OutDir>objfre_wnet_amd64\amd64\</OutDir>

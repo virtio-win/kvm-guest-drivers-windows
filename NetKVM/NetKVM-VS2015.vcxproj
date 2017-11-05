@@ -345,6 +345,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <Inf2CatWindowsVersionList>Server10_$(DDKPlatform);$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup>
     <CustomBuildAfterTargets>dvl</CustomBuildAfterTargets>
@@ -354,6 +355,51 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
     <LinkIncremental />
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|Win32'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <PreBuildEvent>
@@ -412,7 +458,7 @@
     </Link>
     <PostBuildEvent>
       <Command>
-        inf2cat /driver:$(OutDir) /os:Vista_X86
+        inf2cat /driver:$(OutDir) /os:Vista_X86 /uselocaltime
         %(Command)
       </Command>
     </PostBuildEvent>
@@ -468,7 +514,7 @@
     </Link>
     <PostBuildEvent>
       <Command>
-        inf2cat /driver:$(OutDir) /os:Vista_X86
+        inf2cat /driver:$(OutDir) /os:Vista_X86 /uselocaltime
         %(Command)
       </Command>
     </PostBuildEvent>
@@ -518,7 +564,7 @@
     </Link>
     <PostBuildEvent>
       <Command>
-        inf2cat /driver:$(OutDir) /os:Vista_X64
+        inf2cat /driver:$(OutDir) /os:Vista_X64 /uselocaltime
         %(Command)
       </Command>
     </PostBuildEvent>
@@ -586,7 +632,7 @@
     </Link>
     <PostBuildEvent>
       <Command>
-        inf2cat /driver:$(OutDir) /os:Vista_X64
+        inf2cat /driver:$(OutDir) /os:Vista_X64 /uselocaltime
         %(Command)
       </Command>
     </PostBuildEvent>

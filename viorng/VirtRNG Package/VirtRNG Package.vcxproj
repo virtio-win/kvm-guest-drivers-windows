@@ -161,55 +161,71 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
     <OutDir>$(ProjectDir)..\Install_Debug\wlh\x86\</OutDir>
     <Inf2CatWindowsVersionList>Vista_$(DDKPlatform);Server2008_$(DDKPlatform)</Inf2CatWindowsVersionList>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <OutDir>$(ProjectDir)..\Install\wlh\x86\</OutDir>
     <Inf2CatWindowsVersionList>Vista_$(DDKPlatform);Server2008_$(DDKPlatform)</Inf2CatWindowsVersionList>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
     <OutDir>$(ProjectDir)..\Install_Debug\win7\x86\</OutDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
     <OutDir>$(ProjectDir)..\Install\win7\x86\</OutDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
     <OutDir>$(ProjectDir)..\Install_Debug\win8\x86\</OutDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <OutDir>$(ProjectDir)..\Install\win8\x86\</OutDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <OutDir>$(ProjectDir)..\Install\win10\x86\</OutDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">
     <OutDir>$(ProjectDir)..\Install_Debug\win10\x86\</OutDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
     <OutDir>$(ProjectDir)..\Install_Debug\wlh\amd64\</OutDir>
     <Inf2CatWindowsVersionList>Vista_$(DDKPlatform);Server2008_$(DDKPlatform)</Inf2CatWindowsVersionList>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <OutDir>$(ProjectDir)..\Install\wlh\amd64\</OutDir>
     <Inf2CatWindowsVersionList>Vista_$(DDKPlatform);Server2008_$(DDKPlatform)</Inf2CatWindowsVersionList>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
     <OutDir>$(ProjectDir)..\Install_Debug\win7\amd64\</OutDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <OutDir>$(ProjectDir)..\Install\win7\amd64\</OutDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
     <OutDir>$(ProjectDir)..\Install_Debug\win8\amd64\</OutDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <OutDir>$(ProjectDir)..\Install\win8\amd64\</OutDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
     <OutDir>$(ProjectDir)..\Install_Debug\win10\amd64\</OutDir>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <OutDir>$(ProjectDir)..\Install\win10\amd64\</OutDir>
     <Inf2CatWindowsVersionList>Server10_$(DDKPlatform);$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup>
     <PackageDir>$(OutDir)</PackageDir>
