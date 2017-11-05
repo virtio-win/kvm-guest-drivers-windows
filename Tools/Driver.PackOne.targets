@@ -177,7 +177,7 @@ Related features:
     <Copy SourceFiles="@(PackOne_Files)"
           DestinationFolder="$(PackOne_DestinationPath)"/>
     <Message Text="Setting OS mask for: $(TargetOS) $(TargetArch) to $(PackOne_OsMask)" Importance="high"/>
-    <Exec Command="inf2cat /driver:$(PackOne_DestinationPath) /os:$(PackOne_OsMask)" />
+    <Exec Command="inf2cat /uselocaltime /driver:$(PackOne_DestinationPath) /os:$(PackOne_OsMask)" />
   </Target>
 
 </Project>
