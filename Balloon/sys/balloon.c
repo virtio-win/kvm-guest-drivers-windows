@@ -278,6 +278,7 @@ BalloonTellHost(
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
     NTSTATUS            status;
     LARGE_INTEGER       timeout = {0};
+    bool                do_notify;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
@@ -290,8 +291,13 @@ BalloonTellHost(
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> %s :: Cannot add buffer\n", __FUNCTION__);
         return;
     }
-    virtqueue_kick(vq);
+    do_notify = virtqueue_kick_prepare(vq);
     WdfSpinLockRelease(devCtx->InfDefQueueLock);
+
+    if (do_notify)
+    {
+        virtqueue_notify(vq);
+    }
 
     timeout.QuadPart = Int32x32To64(1000, -10000);
     status = KeWaitForSingleObject (
@@ -334,6 +340,7 @@ BalloonMemStats(
 {
     VIO_SG              sg;
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
+    bool                do_notify;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
@@ -345,8 +352,13 @@ BalloonMemStats(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> %s :: Cannot add buffer\n", __FUNCTION__);
     }
-    virtqueue_kick(devCtx->StatVirtQueue);
+    do_notify = virtqueue_kick_prepare(devCtx->StatVirtQueue);
     WdfSpinLockRelease(devCtx->StatQueueLock);
+
+    if (do_notify)
+    {
+        virtqueue_notify(devCtx->StatVirtQueue);
+    }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
