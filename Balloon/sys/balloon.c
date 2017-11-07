@@ -289,6 +289,7 @@ BalloonTellHost(
     if (virtqueue_add_buf(vq, &sg, 1, 0, devCtx, NULL, 0) < 0)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> %s :: Cannot add buffer\n", __FUNCTION__);
+        WdfSpinLockRelease(devCtx->InfDefQueueLock);
         return;
     }
     do_notify = virtqueue_kick_prepare(vq);
