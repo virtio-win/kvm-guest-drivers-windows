@@ -487,6 +487,7 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
     UINT i;
     PIO_INTERRUPT_MESSAGE_INFO pTable = pContext->pMSIXInfoTable;
     bool bSingleVector = pContext->pMSIXInfoTable->MessageCount == 1;
+    bool bDoubleVectors = pContext->pMSIXInfoTable->MessageCount == 2;
     if (pTable && pTable->MessageCount)
     {
         status = NDIS_STATUS_SUCCESS;
@@ -505,7 +506,7 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
             status = pContext->pPathBundles[j].txPath.SetupMessageIndex(vector);
             if (status == NDIS_STATUS_SUCCESS)
             {
-                if (!bSingleVector) vector++;
+                if (!bSingleVector && !bDoubleVectors) vector++;
                 status = pContext->pPathBundles[j].rxPath.SetupMessageIndex(vector);
             }
             DPrintf(0, ("[%s] Using messages %u/%u for RX/TX queue %u\n", __FUNCTION__,
@@ -523,6 +524,10 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
             if (bSingleVector)
             {
                 status = pContext->CXPath.SetupMessageIndex(0);
+            }
+            else if (bDoubleVectors)
+            {
+                status = pContext->CXPath.SetupMessageIndex(1);
             }
             else
             {
