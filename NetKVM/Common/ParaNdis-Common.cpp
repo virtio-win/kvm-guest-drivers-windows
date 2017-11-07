@@ -1222,7 +1222,7 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
     if (status == NDIS_STATUS_SUCCESS && pContext->bUsingMSIX)
     {
         status = ParaNdis_ConfigureMSIXVectors(pContext);
-        DPrintf(0, ("[%s] ParaNdis_VirtIONetInit passed, status = %d\n", __FUNCTION__, status));
+        DPrintf(0, ("[%s] ParaNdis_ConfigureMSIXVectors passed, status = %d\n", __FUNCTION__, status));
     }
 
     if (status == NDIS_STATUS_SUCCESS)
