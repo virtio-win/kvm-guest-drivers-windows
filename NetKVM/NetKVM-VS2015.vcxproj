@@ -103,7 +103,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objchk_win10_x86\i386</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inf</SourceInfFile>
+    <SourceInfFile>netkvm.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install_Debug</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'" Label="Configuration">
@@ -114,7 +114,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win10_x86\i386</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inf</SourceInfFile>
+    <SourceInfFile>netkvm.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'" Label="Configuration">
@@ -125,7 +125,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win7_x86\i386</DEP_LIB_PATH>
-    <SourceInfFile>netkvm_no_RSC.inf</SourceInfFile>
+    <SourceInfFile>netkvm_no_RSC.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'" Label="Configuration">
@@ -136,7 +136,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objchk_win7_x86\i386</DEP_LIB_PATH>
-    <SourceInfFile>netkvm_no_RSC.inf</SourceInfFile>
+    <SourceInfFile>netkvm_no_RSC.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install_Debug</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'" Label="Configuration">
@@ -150,7 +150,7 @@
     <ConfigurationName>VistaRelease</ConfigurationName>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_wlh_x86\i386</DEP_LIB_PATH>
-    <SourceInfFile>netkvm_no_RSS.inf</SourceInfFile>
+    <SourceInfFile>netkvm_no_RSS.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'" Label="Configuration">
@@ -164,7 +164,7 @@
     <ConfigurationName>VistaDebug</ConfigurationName>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objchk_wlh_x86\i386</DEP_LIB_PATH>
-    <SourceInfFile>netkvm_no_RSS.inf</SourceInfFile>
+    <SourceInfFile>netkvm_no_RSS.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install_Debug</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'" Label="Configuration">
@@ -175,7 +175,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win8_x86\i386</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inf</SourceInfFile>
+    <SourceInfFile>netkvm.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|Win32'" Label="Configuration">
@@ -186,7 +186,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objchk_win8_x86\i386</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inf</SourceInfFile>
+    <SourceInfFile>netkvm.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install_Debug</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" Label="Configuration">
@@ -197,7 +197,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win8_x86\i386</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inf</SourceInfFile>
+    <SourceInfFile>netkvm.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'" Label="Configuration">
@@ -208,7 +208,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objchk_win8_x86\i386</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inf</SourceInfFile>
+    <SourceInfFile>netkvm.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install_Debug</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'" Label="Configuration">
@@ -219,7 +219,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objchk_win10_amd64\amd64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inf</SourceInfFile>
+    <SourceInfFile>netkvm.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install_Debug</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'" Label="Configuration">
@@ -230,7 +230,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win10_amd64\amd64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inf</SourceInfFile>
+    <SourceInfFile>netkvm.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'" Label="Configuration">
@@ -241,7 +241,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win7_amd64\amd64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm_no_RSC.inf</SourceInfFile>
+    <SourceInfFile>netkvm_no_RSC.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'" Label="Configuration">
@@ -252,7 +252,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objchk_win7_amd64\amd64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm_no_RSC.inf</SourceInfFile>
+    <SourceInfFile>netkvm_no_RSC.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install_Debug</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'" Label="Configuration">
@@ -266,7 +266,7 @@
     <ConfigurationName>VistaRelease</ConfigurationName>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_wlh_amd64\amd64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm_no_RSS.inf</SourceInfFile>
+    <SourceInfFile>netkvm_no_RSS.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'" Label="Configuration">
@@ -280,7 +280,7 @@
     <ConfigurationName>VistaDebug</ConfigurationName>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objchk_wlh_amd64\amd64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm_no_RSS.inf</SourceInfFile>
+    <SourceInfFile>netkvm_no_RSS.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install_Debug</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'" Label="Configuration">
@@ -291,7 +291,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win8_amd64\amd64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inf</SourceInfFile>
+    <SourceInfFile>netkvm.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'" Label="Configuration">
@@ -302,7 +302,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objchk_win8_amd64\amd64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inf</SourceInfFile>
+    <SourceInfFile>netkvm.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install_Debug</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" Label="Configuration">
@@ -313,7 +313,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win8_amd64\amd64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inf</SourceInfFile>
+    <SourceInfFile>netkvm.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'" Label="Configuration">
@@ -324,10 +324,11 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objchk_win8_amd64\amd64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inf</SourceInfFile>
+    <SourceInfFile>netkvm.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install_Debug</InstallRoot>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildProjectDirectory)\NetKVM-VS2015.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
@@ -357,14 +358,6 @@
     <LinkIncremental />
   </PropertyGroup>
   <ItemDefinitionGroup>
-    <PreBuildEvent>
-      <Command>
-        copy /Y $(ProjectDir)\$(SourceInfFile) $(OutDir)\netkvm.inf
-        echo "Copy: "$(ProjectDir)\$(SourceInfFile)
-        stampinf -f $(OutDir)\netkvm.inf -a $(InfArch) -v $(STAMPINF_VERSION) -d *
-      </Command>
-      <Message>Copy correct INF and stamp it</Message>
-    </PreBuildEvent>
     <ClCompile>
       <AdditionalIncludeDirectories>wlh;Common;..\Virtio;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS_MINIPORT_DRIVER;BINARY_COMPATIBLE=0;PARANDIS_MAJOR_DRIVER_VERSION=$(_BUILD_MAJOR_VERSION_);PARANDIS_MINOR_DRIVER_VERSION=$(_BUILD_MINOR_VERSION_);_NT_TARGET_VERSION=$(_NT_TARGET_VERSION);DRIVER_NT_TARGET_VERSION=$(_NT_TARGET_MAJ)</PreprocessorDefinitions>
@@ -701,6 +694,7 @@
     <Inf Include="$(SourceInfFile)" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
