@@ -94,14 +94,14 @@ Invoking the task:
   </Target>
 
   <!-- Adjust inf (for Legacy DDK) -->
-  <Target Condition="'$(Feature_AdjustInfLegacy)'=='true' AND '$(UseLegacyDDK)'=='true'" Name="AdjustInf_LegacyDDK" BeforeTargets="AfterBuild">
+  <Target Condition="'$(Feature_AdjustInfLegacy)'=='true' AND '$(UseLegacyDDK)'=='true'" Name="AdjustInf_LegacyDDK" BeforeTargets="PreBuildEvent">
     <Message Text="AdjustInf_LegacyDDK: for $(SourceInfFile) to $(OutDir)$(TargetName).inf" Importance="high"/>
     <Copy SourceFiles="$(SourceInfFile)" DestinationFiles="$(OutDir)$(TargetName).inf"/>
     <SubstituteFileContent SourceFiles="$(OutDir)$(TargetName).inf" Substitutions="@(Substitution)"/>
   </Target>
 
   <!-- Stampinf (for Legacy DDK) -->
-  <Target Condition="'$(Feature_LegacyStampInf)'=='true' AND '$(UseLegacyDDK)'=='true'" Name="StampInf_LegacyDDK" AfterTargets="AdjustInf_LegacyDDK" BeforeTargets="PackOneTarget">
+  <Target Condition="'$(Feature_LegacyStampInf)'=='true' AND '$(UseLegacyDDK)'=='true'" Name="StampInf_LegacyDDK" AfterTargets="AdjustInf_LegacyDDK" BeforeTargets="PreBuildEvent">
     <Message Text="StampInf_LegacyDDK: for $(OutDir)$(TargetName).inf with Feature_UsingWDF=$(Feature_UsingWDF) and STAMPINF_VERSION=$(STAMPINF_VERSION)" Importance="high"/>
     <Exec Condition="'$(Feature_UsingWDF)'=='false'" Command="stampinf -f $(OutDir)$(TargetName).inf -a $(InfArch) -v $(STAMPINF_VERSION) -d *"/>
     <Exec Condition="'$(Feature_UsingWDF)'=='true'" Command="stampinf -f $(OutDir)$(TargetName).inf -a $(InfArch) -k 1.9 -v $(STAMPINF_VERSION) -d *"/>
