@@ -7,10 +7,14 @@ Enabling and customizing virtio build features
 
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" TreatAsLocalProperty="Platform">
   <PropertyGroup>
-    <Feature_AlwaysDefaultVendor>true</Feature_AlwaysDefaultVendor>
+    <Feature_AlwaysDefaultVendor>false</Feature_AlwaysDefaultVendor>
     <Feature_UsingWDF>true</Feature_UsingWDF>
     <Feature_PackOne>true</Feature_PackOne>
-    <Feature_AdjustInf>false</Feature_AdjustInf>
+    <Feature_LegacyStampInf>false</Feature_LegacyStampInf>
+    <Feature_AdjustInfLegacy>false</Feature_AdjustInfLegacy>
+    <Feature_AdjustInf>true</Feature_AdjustInf>
+    <SourceInfFile>ivshmem.inf</SourceInfFile>
+    <CopyrightStrings>IvshmemCopyrightStrings</CopyrightStrings>
   </PropertyGroup>
 
   <ItemGroup>

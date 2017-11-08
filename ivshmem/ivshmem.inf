@@ -1,14 +1,25 @@
+;/*++
 ;
-; IVSHMEM.inf
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
 ;
+;Module Name:
+;    ivshmem.inf
+;
+;Abstract:
+;
+;Installation Notes:
+;    Using Devcon: Type "devcon install ivshmem.inf PCI\VEN_1AF4&DEV_1110&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01" to install
+;
+;--*/
 
 [Version]
 Signature="$WINDOWS NT$"
 Class=System
 ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
-Provider=%ManufacturerName%
-CatalogFile=IVSHMEM.cat
-DriverVer= ; TODO: set DriverVer in stampinf property pages
+Provider=%VENDOR%
+CatalogFile=ivshmem.cat
+DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 
 [DestinationDirs]
 DefaultDestDir = 12
@@ -28,10 +39,10 @@ WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with
 ;*****************************************
 
 [Manufacturer]
-%ManufacturerName%=Standard,NT$ARCH$
+%VENDOR%=Standard,NT$ARCH$
 
 [Standard.NT$ARCH$]
-%IVSHMEM.DeviceDesc%=IVSHMEM_Device, PCI\VEN_1AF4&DEV_1110
+%IVSHMEM.DeviceDesc%=IVSHMEM_Device, PCI\VEN_1AF4&DEV_1110&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01
 
 [IVSHMEM_Device.NT]
 CopyFiles=Drivers_Dir
@@ -84,7 +95,7 @@ KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
 SPSVCINST_ASSOCSERVICE= 0x00000002
-ManufacturerName="Red Hat, Inc."
-DiskName = "IVSHMEM Installation Disk"
-IVSHMEM.DeviceDesc = "IVSHMEM Device"
-IVSHMEM.SVCDESC = "IVSHMEM Service"
+VENDOR = "INX_COMPANY"
+DiskName = "INX_PREFIX_QEMUIVSHMEM Installation Disk"
+IVSHMEM.DeviceDesc = "INX_PREFIX_QEMUIVSHMEM Device"
+IVSHMEM.SVCDESC = "INX_PREFIX_QEMUIVSHMEM Service"
