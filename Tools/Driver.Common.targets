@@ -91,6 +91,7 @@ Invoking the task:
   <Target Condition="'$(Feature_AdjustInf)'=='true' AND '$(UseLegacyDDK)'!='true' AND '@(Inf)' != ''" Name="AdjustInf_WDK" AfterTargets="StampInf" BeforeTargets="InfVerif">
     <Message Text="AdjustInf_WDK: for %(Inf.FullPath) stamped as %(Inf.CopyOutput)" Importance="high" />
     <SubstituteFileContent Condition="'%(Inf.ExcludedFromBuild)'!='true'" SourceFiles="%(Inf.CopyOutput)" Substitutions="@(Substitution)" />
+    <Copy Condition="'$(TargetInfFile)' != ''" SourceFiles="%(Inf.CopyOutput)" DestinationFiles="$(OutDir)$(TargetInfFile)"/>
   </Target>
 
   <!-- Adjust inf (for Legacy DDK) -->
