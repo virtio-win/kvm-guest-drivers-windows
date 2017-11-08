@@ -126,6 +126,7 @@
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win7_x86\i386</DEP_LIB_PATH>
     <SourceInfFile>netkvm_no_RSC.inx</SourceInfFile>
+    <TargetInfFile>netkvm.inf</TargetInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'" Label="Configuration">
@@ -137,6 +138,7 @@
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objchk_win7_x86\i386</DEP_LIB_PATH>
     <SourceInfFile>netkvm_no_RSC.inx</SourceInfFile>
+    <TargetInfFile>netkvm.inf</TargetInfFile>
     <InstallRoot>$(ProjectDir)Install_Debug</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'" Label="Configuration">
@@ -242,6 +244,7 @@
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win7_amd64\amd64</DEP_LIB_PATH>
     <SourceInfFile>netkvm_no_RSC.inx</SourceInfFile>
+    <TargetInfFile>netkvm.inf</TargetInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'" Label="Configuration">
@@ -253,6 +256,7 @@
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objchk_win7_amd64\amd64</DEP_LIB_PATH>
     <SourceInfFile>netkvm_no_RSC.inx</SourceInfFile>
+    <TargetInfFile>netkvm.inf</TargetInfFile>
     <InstallRoot>$(ProjectDir)Install_Debug</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'" Label="Configuration">
