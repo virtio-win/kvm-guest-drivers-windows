@@ -1,9 +1,11 @@
 ;------------------------------------------------------------------------------- 
-; netkvm.INF 
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
+;
+;Module Name:
+;    netkvm.inf
 ; 
-; Red Hat VirtIO Ethernet Adapter 
-; 
-; Copyright (c) 2008-2017 Red Hat, Inc.  All rights reserved. 
+; VirtIO Ethernet Adapter
 ; 
 ;------------------------------------------------------------------------------- 
  
@@ -12,15 +14,15 @@ Signature   = "$Windows NT$"
 Class       = Net 
 CatalogFile = netkvm.cat 
 ClassGUID   = {4d36e972-e325-11ce-bfc1-08002be10318} 
-Provider    = %RedHat% 
+Provider=%VENDOR%
 DriverVer   = 03/15/2013,1.0.0.0 
 DriverPackageType = PlugAndPlay 
 DriverPackageDisplayName = %kvmnet6.DeviceDesc% 
  
 [Manufacturer] 
-%RedHat% = RedHat, NT$ARCH$
+%VENDOR% = NetKVM, NT$ARCH$
  
-[RedHat.NT$ARCH$] 
+[NetKVM.NT$ARCH$]
 %kvmnet6.DeviceDesc%    = kvmnet6.ndi, PCI\VEN_1AF4&DEV_1000&SUBSYS_00011AF4&REV_00
 %kvmnet6.DeviceDesc%    = kvmnet6.ndi, PCI\VEN_1AF4&DEV_1041&SUBSYS_11001AF4&REV_01
  
@@ -72,19 +74,6 @@ HKR, Ndi\params\*NumRssQueues,          min,        0,          "1"
 HKR, Ndi\params\*NumRssQueues,          max,        0,          "16" 
 HKR, Ndi\params\*NumRssQueues,          step,       0,          "1" 
 
-HKR, Ndi\params\*RscIPv4,             ParamDesc,           0, "Recv Segment Coalescing (IPv4)"
-HKR, Ndi\params\*RscIPv4,             Type,                0, "enum"
-HKR, Ndi\params\*RscIPv4,             Default,             0, "1"
-HKR, Ndi\params\*RscIPv4,             Optional,            0, "0"
-HKR, Ndi\params\*RscIPv4\enum,        "0",                 0, "Disabled"
-HKR, Ndi\params\*RscIPv4\enum,        "1",                 0, "Enabled"
-
-HKR, Ndi\params\*RscIPv6,             ParamDesc,           0, "Recv Segment Coalescing (IPv6)"
-HKR, Ndi\params\*RscIPv6,             Type,                0, "enum"
-HKR, Ndi\params\*RscIPv6,             Default,             0, "1"
-HKR, Ndi\params\*RscIPv6,             Optional,            0, "0"
-HKR, Ndi\params\*RscIPv6\enum,        "0",                 0, "Disabled"
-HKR, Ndi\params\*RscIPv6\enum,        "1",                 0, "Enabled"
 
 [Parameters] 
  
@@ -239,12 +228,12 @@ HKR, Ndi\Params\*UDPChecksumOffloadIPv6\enum,   "2",    0,      %Rx%
 HKR, Ndi\Params\*UDPChecksumOffloadIPv6\enum,   "1",    0,      %Tx% 
 HKR, Ndi\Params\*UDPChecksumOffloadIPv6\enum,   "0",    0,      %Disable% 
  
-HKR, Ndi\params\NumberOfHandledRXPacketsInDPC,       ParamDesc,  0,          %NumberOfHandledRXPacketsInDPC% 
-HKR, Ndi\params\NumberOfHandledRXPacketsInDPC,       type,       0,          "long" 
-HKR, Ndi\params\NumberOfHandledRXPacketsInDPC,       default,    0,          "1000" 
-HKR, Ndi\params\NumberOfHandledRXPacketsInDPC,       min,        0,          "1" 
-HKR, Ndi\params\NumberOfHandledRXPacketsInDPC,       max,        0,          "10000" 
-HKR, Ndi\params\NumberOfHandledRXPacketsInDPC,       step,       0,          "1" 
+HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       ParamDesc,  0,          %NumberOfHandledRXPackersInDPC% 
+HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       type,       0,          "long" 
+HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       default,    0,          "1000" 
+HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       min,        0,          "1" 
+HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       max,        0,          "10000" 
+HKR, Ndi\params\NumberOfHandledRXPackersInDPC,       step,       0,          "1" 
  
 [kvmnet6.CopyFiles] 
 netkvm.sys,,,2 
@@ -280,10 +269,10 @@ netkvm.sys  = 1,,
 kvmnet6.CopyFiles = 12 
  
 [Strings] 
-RedHat = "Red Hat, Inc." 
-kvmnet6.DeviceDesc        = "Red Hat VirtIO Ethernet Adapter" 
-kvmnet6.Service.DispName    = "Red Hat VirtIO Ethernet Adapter Service" 
-DiskId1 = "Red Hat VirtIO Ethernet Adapter Driver Disk #1" 
+VENDOR = "INX_COMPANY"
+kvmnet6.DeviceDesc        = "INX_PREFIX_VENDORVirtIO Ethernet Adapter"
+kvmnet6.Service.DispName    = "INX_PREFIX_VENDORVirtIO Ethernet Adapter Service"
+DiskId1 = "INX_PREFIX_VENDORVirtIO Ethernet Adapter Driver Disk #1"
 NetworkAddress = "Assign MAC" 
 ConnectRate = "Init.ConnectionRate(Mb)" 
 Priority = "Init.Do802.1PQ" 
@@ -298,7 +287,7 @@ DebugLevel = "Logging.Level"
 Tx = "Tx Enabled"; 
 Rx = "Rx Enabled"; 
 TxRx = "Rx & Tx Enabled"; 
-NumberOfHandledRXPacketsInDPC = "TestOnly.RXThrottle" 
+NumberOfHandledRXPackersInDPC = "TestOnly.RXThrottle" 
 Std.LsoV2IPv4 = "Large Send Offload V2 (IPv4)" 
 Std.LsoV2IPv6 = "Large Send Offload V2 (IPv6)" 
 Std.UDPChecksumOffloadIPv4 = "UDP Checksum Offload (IPv4)" 
