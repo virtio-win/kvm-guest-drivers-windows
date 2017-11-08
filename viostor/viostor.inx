@@ -9,8 +9,8 @@
 ;Abstract:
 ;
 ;Installation Notes:
-;    Using Devcon: Type "devcon install viostor.inf PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4&REV_00" or
-;                       "devcon install viostor.inf PCI\VEN_1AF4&DEV_1042&SUBSYS_11001AF4&REV_01" to install
+;    Using Devcon: Type "devcon install viostor.inf PCI\VEN_1AF4&DEV_1001&SUBSYS_0002_INX_SUBSYS_VENDOR_ID&REV_00" or
+;                       "devcon install viostor.inf PCI\VEN_1AF4&DEV_1042&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01" to install
 ;
 ;--*/
 
@@ -49,8 +49,8 @@ viostor_Files_Driver = 12
 %VENDOR%   = VioStor,NT$ARCH$
 
 [VioStor.NT$ARCH$]
-%VioStorScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4&REV_00
-%VioStorScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1042&SUBSYS_11001AF4&REV_01
+%VioStorScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_0002_INX_SUBSYS_VENDOR_ID&REV_00
+%VioStorScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1042&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01
 
 ;
 ; General installation section

@@ -9,7 +9,7 @@
 ;Abstract:
 ;
 ;Installation Notes:
-;    Using Devcon: Type "devcon install vioinput.inf PCI\VEN_1AF4&DEV_1052&SUBSYS_11001AF4&REV_01" to install
+;    Using Devcon: Type "devcon install vioinput.inf PCI\VEN_1AF4&DEV_1052&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01" to install
 ;
 ;--*/
 
@@ -54,9 +54,9 @@ WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with
 
 [VirtioInput.NT$ARCH$]
 ;
-; Hw Id is PCI\VEN_1AF4&DEV_1052&SUBSYS_11001AF4&CC_090200&REV_01
+; Hw Id is PCI\VEN_1AF4&DEV_1052&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&CC_090200&REV_01
 ;
-%VirtioInput.DeviceDesc%=VirtioInput_Device, PCI\VEN_1AF4&DEV_1052&SUBSYS_11001AF4&REV_01
+%VirtioInput.DeviceDesc%=VirtioInput_Device, PCI\VEN_1AF4&DEV_1052&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01
 %VirtioInput.ChildDesc%=VirtioInput_Child, VIOINPUT\REV_01
 
 [VirtioInput_Device.NT]
