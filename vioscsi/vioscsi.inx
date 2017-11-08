@@ -9,8 +9,8 @@
 ;Abstract:
 ;
 ;Installation Notes:
-;    Using Devcon: Type "devcon install vioscsi.inf PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4&REV_00" or
-;                       "devcon install vioscsi.inf PCI\VEN_1AF4&DEV_1048&SUBSYS_11001AF4&REV_01" to install
+;    Using Devcon: Type "devcon install vioscsi.inf PCI\VEN_1AF4&DEV_1004&SUBSYS_0008_INX_SUBSYS_VENDOR_ID&REV_00" or
+;                       "devcon install vioscsi.inf PCI\VEN_1AF4&DEV_1048&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01" to install
 ;
 ;--*/
 
@@ -49,8 +49,8 @@ vioscsi_Files_Driver = 12
 %VENDOR%   = VirtioScsi,NT$ARCH$
 
 [VirtioScsi.NT$ARCH$]
-%VirtioScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1004&SUBSYS_00081AF4&REV_00
-%VirtioScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1048&SUBSYS_11001AF4&REV_01
+%VirtioScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1004&SUBSYS_0008_INX_SUBSYS_VENDOR_ID&REV_00
+%VirtioScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1048&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01
 
 ;
 ; General installation section

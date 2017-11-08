@@ -29,6 +29,16 @@ Set $(Feature_AlwaysDefaultVendor) to false and set $(_VENDOR_) to override.
 
   <Import Project="Driver.$(_VENDOR_).props" />
 
+  <!-- Default subsystem vendor ID -->
+  <PropertyGroup>
+    <SUBSYSTEM_VENDOR_ID Condition="'$(SUBSYSTEM_VENDOR_ID)'==''">1AF4</SUBSYSTEM_VENDOR_ID>
+  </PropertyGroup>
+  <ItemGroup>
+    <Substitution Include="_INX_SUBSYS_VENDOR_ID">
+      <ReplaceWith>$(SUBSYSTEM_VENDOR_ID)</ReplaceWith>
+    </Substitution>
+  </ItemGroup>
+
   <!-- Version specs for C preprocessor, resource compiler, and stampinf -->
   <ItemDefinitionGroup>
     <ClCompile>
