@@ -1,0 +1,19 @@
+<!--
+***********************************************************************************************
+NetKVM-VS2015.props
+Enabling and customizing virtio build features
+***********************************************************************************************
+-->
+
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" TreatAsLocalProperty="Platform">
+  <PropertyGroup>
+    <Feature_AlwaysDefaultVendor>false</Feature_AlwaysDefaultVendor>
+    <Feature_UsingWDF>false</Feature_UsingWDF>
+    <Feature_PackOne>true</Feature_PackOne>
+    <PackOne_DestinationPrefix>..\</PackOne_DestinationPrefix>
+    <Feature_LegacyStampInf>true</Feature_LegacyStampInf>
+    <Feature_AdjustInfLegacy>true</Feature_AdjustInfLegacy>
+    <SourceInfFile>wxp\netkvm.inx</SourceInfFile>
+    <CopyrightStrings>NetKVMCopyrightStrings</CopyrightStrings>
+  </PropertyGroup>
+</Project>

@@ -18,9 +18,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="common.inf.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="DebugData.h">
       <Filter>Header Files</Filter>
     </ClInclude>

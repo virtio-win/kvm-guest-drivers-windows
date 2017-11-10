@@ -42,7 +42,6 @@
     <ClCompile Include="sw-offload.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="common.inf.h" />
     <ClInclude Include="DebugData.h" />
     <ClInclude Include="ethernetutils.h" />
     <ClInclude Include="IONetDescriptor.h" />
