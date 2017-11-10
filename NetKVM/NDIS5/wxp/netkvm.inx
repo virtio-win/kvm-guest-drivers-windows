@@ -1,16 +1,16 @@
 ;/*++
-;
-;Copyright (c) 2008-2017 Red Hat Inc.
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
 ;
 ;Module Name:
 ;    netkvm.inf
 ;
 ;Abstract:
-;    Red Hat VirtIO Ethernet Adapter
+;    VirtIO Ethernet Adapter
 ;
 ;Installation Notes:
-;    Using Devcon: Type "devcon install netkvm.inf PCI\VEN_1AF4&DEV_1000&SUBSYS_00011AF4&REV_00" or
-;                       "devcon install netkvm.inf PCI\VEN_1AF4&DEV_1041&SUBSYS_11001AF4&REV_01" to install
+;    Using Devcon: Type "devcon install netkvm.inf PCI\VEN_1AF4&DEV_1000&SUBSYS_0001_INX_SUBSYS_VENDOR_ID&REV_00" or
+;                       "devcon install netkvm.inf PCI\VEN_1AF4&DEV_1041&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01" to install
 ;
 ;--*/
 
@@ -19,17 +19,17 @@ Signature   = "$Windows NT$"
 Class       = Net
 CatalogFile = netkvm.cat
 ClassGUID   = {4d36e972-e325-11ce-bfc1-08002be10318}
-Provider    = %RedHat%
-DriverVer   = 03/15/2007,1.0.0.0
+Provider    = %VENDOR%
+DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 DriverPackageType = PlugAndPlay
 DriverPackageDisplayName = %kvmnet5.DeviceDesc%
 
 [Manufacturer]
-%RedHat% = RedHat, NT$ARCH$
+%VENDOR% = NetKVM, NT$ARCH$
 
-[RedHat.NT$ARCH$]
-%kvmnet5.DeviceDesc%    = kvmnet5.ndi, PCI\VEN_1AF4&DEV_1000&SUBSYS_00011AF4&REV_00
-%kvmnet5.DeviceDesc%    = kvmnet5.ndi, PCI\VEN_1AF4&DEV_1041&SUBSYS_11001AF4&REV_01
+[NetKVM.NT$ARCH$]
+%kvmnet5.DeviceDesc%    = kvmnet5.ndi, PCI\VEN_1AF4&DEV_1000&SUBSYS_0001_INX_SUBSYS_VENDOR_ID&REV_00
+%kvmnet5.DeviceDesc%    = kvmnet5.ndi, PCI\VEN_1AF4&DEV_1041&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01
 
 
 [kvmnet5.ndi]
@@ -89,10 +89,11 @@ netkvm.sys  = 1,,
 kvmnet5.CopyFiles = 12
 
 [Strings]
-RedHat            = "Red Hat, Inc."
-kvmnet5.DeviceDesc   = "Red Hat VirtIO Ethernet Adapter"
-kvmnet5.Service.DispName  = "Red Hat VirtIO Ethernet Adapter Service"
-DiskId1 = "Red Hat VirtIO Ethernet Adapter Driver Disk #1"
+VENDOR            = "INX_COMPANY"
+kvmnet5.DeviceDesc   = "INX_PREFIX_VENDORVirtIO Ethernet Adapter"
+kvmnet5.Service.DispName  = "INX_PREFIX_VENDORVirtIO Ethernet Adapter Service"
+DiskId1 = "INX_PREFIX_VENDORVirtIO Ethernet Adapter Driver Disk #1"
+
 #define INCLUDE_STRINGS
 #include "Common\common.inf.h"
 #undef INCLUDE_STRINGS

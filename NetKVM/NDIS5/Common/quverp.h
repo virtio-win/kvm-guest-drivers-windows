@@ -29,43 +29,17 @@
 #include <windows.h>
 #include "ntverp.h"
 
-#ifdef VER_COMPANYNAME_STR
-#undef VER_COMPANYNAME_STR
-#endif
-#ifdef VER_LEGALTRADEMARKS_STR
-#undef VER_LEGALTRADEMARKS_STR
-#endif
-#ifdef VER_PRODUCTBUILD
-#undef VER_PRODUCTBUILD
-#endif
-#ifdef VER_PRODUCTBUILD_QFE
-#undef VER_PRODUCTBUILD_QFE
-#endif
-#ifdef VER_PRODUCTMAJORVERSION
-#undef VER_PRODUCTMAJORVERSION
-#endif
-#ifdef VER_PRODUCTMINORVERSION
-#undef VER_PRODUCTMINORVERSION
-#endif
-#ifdef VER_PRODUCTNAME_STR
-#undef VER_PRODUCTNAME_STR
-#endif
-#define VER_COMPANYNAME_STR             "Red Hat, Inc."
-#define VER_LEGALTRADEMARKS_STR         ""
-#define VER_LEGALCOPYRIGHT_STR          "Copyright (C) 2008-2017 Red Hat Inc."
+#include "..\..\..\Tools\vendor.ver"
 
-#define VER_PRODUCTBUILD                _BUILD_MAJOR_VERSION_
-#define VER_PRODUCTBUILD_QFE            _BUILD_MINOR_VERSION_
-#define VER_PRODUCTMAJORVERSION         _NT_TARGET_MAJ
-#define VER_PRODUCTMINORVERSION         _RHEL_RELEASE_VERSION_
 #undef __BUILDMACHINE__
+
+#undef  VER_FILEDESCRIPTION_STR
+#undef  VER_INTERNALNAME_STR
 
 #define VER_LANGNEUTRAL
 
-#define VER_FILETYPE                VFT_DRV
-#define VER_FILESUBTYPE             VFT2_DRV_SYSTEM
-#define VER_FILEDESCRIPTION_STR     "Red Hat NDIS Miniport Driver"
+#define VENDOR_VIRTIO_PRODUCT       VENDOR_PRODUCT_PREFIX "VirtIO Ethernet Adapter"
+#define VER_FILEDESCRIPTION_STR     VENDOR_DESC_PREFIX "NDIS Miniport Driver" VENDOR_DESC_POSTFIX
 #define VER_INTERNALNAME_STR        "netkvm.sys"
-#define VER_PRODUCTNAME_STR         "Red Hat VirtIO Ethernet Adapter"
 
 #include "common.ver"

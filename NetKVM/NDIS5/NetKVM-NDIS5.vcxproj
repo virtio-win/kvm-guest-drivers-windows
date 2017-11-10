@@ -53,11 +53,10 @@
     <TemplateGuid>{dd38f7fc-d7bd-488b-9242-7d8754cde80d}</TemplateGuid>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <MinimumVisualStudioVersion>11.0</MinimumVisualStudioVersion>
-    <Configuration>WinXP Release</Configuration>
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
-  </PropertyGroup>
-  <PropertyGroup Label="Globals">
     <RootNamespace>NetKVMNDIS5</RootNamespace>
+    <SignMode>Off</SignMode>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
     <VCTargetsPath Condition="'$(VCTargetsPath11)' != '' and '$(VisualStudioVersion)' == '11.0'">$(VCTargetsPath11)</VCTargetsPath>
   </PropertyGroup>
   <PropertyGroup Label="PropertySheets">
@@ -65,14 +64,64 @@
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Label="Configuration">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Release|Win32'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformTarget>x86</PlatformTarget>
+    <ConfigurationName>WinXPRelease</ConfigurationName>
+    <InstallRoot>$(ProjectDir)..\Install</InstallRoot>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Debug|Win32'" Label="Configuration">
     <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformTarget>x86</PlatformTarget>
+    <ConfigurationName>WinXPDebug</ConfigurationName>
+    <InstallRoot>$(ProjectDir)..\Install_Debug</InstallRoot>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|Win32'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformTarget>x86</PlatformTarget>
+    <ConfigurationName>Win2k3Release</ConfigurationName>
+    <InstallRoot>$(ProjectDir)..\Install</InstallRoot>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Debug|Win32'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformTarget>x86</PlatformTarget>
+    <ConfigurationName>Win2k3Debug</ConfigurationName>
+    <InstallRoot>$(ProjectDir)..\Install_Debug</InstallRoot>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Release|x64'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformTarget>x64</PlatformTarget>
+    <ConfigurationName>WinXPRelease</ConfigurationName>
+    <InstallRoot>$(ProjectDir)..\Install</InstallRoot>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Debug|x64'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformTarget>x64</PlatformTarget>
+    <ConfigurationName>WinXPDebug</ConfigurationName>
+    <InstallRoot>$(ProjectDir)..\Install_Debug</InstallRoot>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|x64'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformTarget>x64</PlatformTarget>
+    <ConfigurationName>Win2k3Release</ConfigurationName>
+    <InstallRoot>$(ProjectDir)..\Install</InstallRoot>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Debug|x64'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformTarget>x64</PlatformTarget>
+    <ConfigurationName>Win2k3Debug</ConfigurationName>
+    <InstallRoot>$(ProjectDir)..\Install_Debug</InstallRoot>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
     <PlatformToolset>v140_xp</PlatformToolset>
     <UseLegacyDDK>true</UseLegacyDDK>
+    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <LinkIncremental>false</LinkIncremental>
+    <SourceInfFile>wxp\netkvm.inx</SourceInfFile>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\NetKVM-VS2015.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
@@ -137,11 +186,8 @@
       <AdditionalLibraryDirectories>Common\$(OutDir);..\..\VirtIO\$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command Condition="$(Configuration.EndsWith('Release'))">
-        tools\makeinstall.bat $(TargetArch) $(OutDir)netkvm.sys wxp\netkvm.inf $(STAMPINF_VERSION) $(InfArch) $(TargetOS) ..\Install
-      </Command>
-      <Command Condition="$(Configuration.EndsWith('Debug'))">
-        tools\makeinstall.bat $(TargetArch) $(OutDir)netkvm.sys wxp\netkvm.inf $(STAMPINF_VERSION) $(InfArch) $(TargetOS) ..\Install_Debug
+      <Command>
+        tools\makeinstall.bat $(TargetArch) $(OutDir)netkvm.sys $(OutDir)netkvm.inf $(STAMPINF_VERSION) $(InfArch) $(TargetOS) $(InstallRoot)
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -156,6 +202,7 @@
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
