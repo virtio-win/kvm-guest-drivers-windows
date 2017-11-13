@@ -168,7 +168,7 @@ void *virtqueue_get_buf(
     put_unused_desc_chain(vq, idx);
 
     vq->last_used++;
-    if (virtqueue_is_interrupt_enabled(vq)) {
+    if (vq->event_suppression_enabled && virtqueue_is_interrupt_enabled(vq)) {
         vring_used_event(&vq->vring) = vq->last_used;
         KeMemoryBarrier();
     }
@@ -217,7 +217,10 @@ bool virtqueue_enable_cb(struct virtqueue *vq)
 {
     if (!virtqueue_is_interrupt_enabled(vq)) {
         vq->master_vring_avail.flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
-        vq->vring.avail->flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
+        if (!vq->event_suppression_enabled)
+        {
+            vq->vring.avail->flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
+        }
     }
 
     vring_used_event(&vq->vring) = vq->last_used;
@@ -233,7 +236,10 @@ bool virtqueue_enable_cb_delayed(struct virtqueue *vq)
 
     if (!virtqueue_is_interrupt_enabled(vq)) {
         vq->master_vring_avail.flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
-        vq->vring.avail->flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
+        if (!vq->event_suppression_enabled)
+        {
+            vq->vring.avail->flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
+        }
     }
 
     /* Note that 3/4 is an arbitrary threshold */
@@ -248,7 +254,10 @@ void virtqueue_disable_cb(struct virtqueue *vq)
 {
     if (virtqueue_is_interrupt_enabled(vq)) {
         vq->master_vring_avail.flags |= VIRTQ_AVAIL_F_NO_INTERRUPT;
-        vq->vring.avail->flags |= VIRTQ_AVAIL_F_NO_INTERRUPT;
+        if (!vq->event_suppression_enabled)
+        {
+            vq->vring.avail->flags |= VIRTQ_AVAIL_F_NO_INTERRUPT;
+        }
     }
 }
 
@@ -359,6 +368,15 @@ void vring_transport_features(
 void virtio_set_queue_event_suppression(struct virtqueue *vq, bool enable)
 {
     vq->event_suppression_enabled = enable;
+
+    /* When event/interrupt suppression is enabled, the driver must set avail
+     * ring flags to 0 according to spec
+     */
+    if (enable)
+    {
+        vq->vring.avail->flags = 0;
+        vq->master_vring_avail.flags = 0;
+    }
 }
 
 /* Returns the max number of scatter-gather elements that fit in an indirect pages */
