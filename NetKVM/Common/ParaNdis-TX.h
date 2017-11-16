@@ -218,7 +218,7 @@ public:
     template <typename TFunctor>
     void DoWithTXLock(TFunctor Functor)
     {
-        TSpinLocker LockedContext(m_Lock);
+        TDPCSpinLocker LockedContext(m_Lock);
         Functor();
     }
 

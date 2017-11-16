@@ -17,7 +17,7 @@ public:
 
     void ReuseReceiveBuffer(pRxNetDescriptor pBuffersDescriptor)
     {
-        CLockedContext<CNdisSpinLock> autoLock(m_Lock);
+        TPassiveSpinLocker autoLock(m_Lock);
 
         ReuseReceiveBufferNoLock(pBuffersDescriptor);
     }
@@ -28,7 +28,7 @@ public:
 
     void Shutdown()
     {
-        CLockedContext<CNdisSpinLock> autoLock(m_Lock);
+        TPassiveSpinLocker autoLock(m_Lock);
 
         m_VirtQueue.Shutdown();
         m_Reinsert = false;

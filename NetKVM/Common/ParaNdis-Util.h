@@ -122,20 +122,41 @@ class CNdisSpinLock
 {
 public:
     CNdisSpinLock()
-    { NdisAllocateSpinLock(&m_Lock); }
+    {
+        NdisAllocateSpinLock(&m_Lock);
+    }
     ~CNdisSpinLock()
-    { NdisFreeSpinLock(&m_Lock); }
+    {
+        NdisFreeSpinLock(&m_Lock);
+    }
 
     _Ndis_acquires_exclusive_lock_(this->m_Lock)
-    void Lock()
-    { NdisAcquireSpinLock(&m_Lock); }
+        void Lock()
+    {
+        NdisAcquireSpinLock(&m_Lock);
+    }
+
     _Ndis_releases_lock_(this->m_Lock)
-    void Unlock()
-    { NdisReleaseSpinLock(&m_Lock); }
+        void Unlock()
+    {
+        NdisReleaseSpinLock(&m_Lock);
+    }
+
+    _Ndis_acquires_exclusive_lock_(this->m_Lock)
+        void LockDPR()
+    {
+        NETKVM_ASSERT(NDIS_CURRENT_IRQL() == DISPATCH_LEVEL);
+        NdisDprAcquireSpinLock(&m_Lock);
+    }
+    _Ndis_releases_lock_(this->m_Lock)
+        void UnlockDPR()
+    {
+        NETKVM_ASSERT(NDIS_CURRENT_IRQL() == DISPATCH_LEVEL);
+        NdisDprReleaseSpinLock(&m_Lock);
+    }
 
 private:
     NDIS_SPIN_LOCK m_Lock;
-
     CNdisSpinLock(const CNdisSpinLock&) = delete;
     CNdisSpinLock& operator= (const CNdisSpinLock&) = delete;
 };
@@ -145,21 +166,70 @@ class CLockedContext
 {
 public:
     _Ndis_acquires_exclusive_lock_(this->m_LockObject)
-    CLockedContext(T &LockObject)
-        : m_LockObject(LockObject)
-    { m_LockObject.Lock(); }
+    CLockedContext(T &LockObject, BOOLEAN Autolock = TRUE)
+        : m_LockObject(LockObject), m_Autolock(Autolock)
+    {
+        if (Autolock)
+        {
+            m_LockObject.Lock();
+        }
+    }
+
     _Ndis_releases_lock_(this->m_LockObject)
-    ~CLockedContext()
-    { m_LockObject.Unlock(); }
+        ~CLockedContext()
+    {
+        if (m_Autolock)
+        {
+            m_LockObject.Unlock();
+        }
+    }
+
+protected:
+    T &m_LockObject;
+    BOOLEAN m_Autolock;
 
 private:
-    T &m_LockObject;
-
     CLockedContext(const CLockedContext&) = delete;
     CLockedContext& operator= (const CLockedContext&) = delete;
 };
 
-typedef CLockedContext<CNdisSpinLock> TSpinLocker;
+class CPassiveSpinLockedContext : public CLockedContext<CNdisSpinLock>
+{
+public:
+    _Ndis_acquires_exclusive_lock_(this->m_LockObject)
+        CPassiveSpinLockedContext(CNdisSpinLock &LockObject) :
+        CLockedContext<CNdisSpinLock>(LockObject) {}
+
+    _Ndis_releases_lock_(this->m_LockObject)
+        ~CPassiveSpinLockedContext() {}
+
+private:
+
+    CPassiveSpinLockedContext(const CPassiveSpinLockedContext&) = delete;
+    CPassiveSpinLockedContext& operator= (const CPassiveSpinLockedContext&) = delete;
+};
+
+class CDPCSpinLockedContext : public CLockedContext<CNdisSpinLock>
+{
+public:
+    _Ndis_acquires_exclusive_lock_(this->m_LockObject)
+        CDPCSpinLockedContext(CNdisSpinLock &LockObject) :
+        CLockedContext<CNdisSpinLock>(LockObject, FALSE)
+    { m_LockObject.LockDPR(); }
+
+    _Ndis_releases_lock_(this->m_LockObject)
+        ~CDPCSpinLockedContext()
+    { m_LockObject.UnlockDPR(); }
+
+private:
+
+    CDPCSpinLockedContext(const CDPCSpinLockedContext&) = delete;
+    CDPCSpinLockedContext& operator= (const CDPCSpinLockedContext&) = delete;
+};
+
+typedef CPassiveSpinLockedContext TPassiveSpinLocker;
+typedef CDPCSpinLockedContext TDPCSpinLocker;
+
 
 LONG FORCEINLINE NetKvmInterlockedAdd(
     __inout __drv_interlocked LONG volatile *p,

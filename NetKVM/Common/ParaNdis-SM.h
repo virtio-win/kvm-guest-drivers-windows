@@ -78,7 +78,7 @@ public:
 private:
     void CompleteStopping()
     {
-        TSpinLocker lock(m_CompleteStoppingLock);
+        TPassiveSpinLocker lock(m_CompleteStoppingLock);
         if (m_State == FlowState::Stopping)
         {
             m_State = FlowState::Stopped;
