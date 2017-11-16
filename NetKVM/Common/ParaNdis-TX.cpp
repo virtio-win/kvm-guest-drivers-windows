@@ -266,7 +266,7 @@ void CNBL::OnLastReferenceGone()
 CParaNdisTX::~CParaNdisTX()
 {
 
-    TSpinLocker LockedContext(m_Lock);
+    TPassiveSpinLocker LockedContext(m_Lock);
     CNBL* NBL = nullptr;
 
     NBL = m_SendQueue.Dequeue();
@@ -393,7 +393,7 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
     {
         if (!m_SendQueueFullListIsEmpty || !m_SendQueue.Enqueue(NBLHolder))
         {
-            TSpinLocker LockedContext(m_SendQueueFullListLock);
+            TDPCSpinLocker LockedContext(m_SendQueueFullListLock);
             m_SendQueueFullList.PushBack(NBLHolder);
             InterlockedExchange(&m_SendQueueFullListIsEmpty, m_SendQueueFullList.IsEmpty());
         }
@@ -464,7 +464,7 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList& completed)
 
     // locked part under waiting list lock
     {
-        TSpinLocker LockedContext(m_WaitingListLock);
+        TDPCSpinLocker LockedContext(m_WaitingListLock);
 
         completed.ForEachDetachedIf([](CNBL* NBL) { return !NBL->IsSendDone(); },
             [&](CNBL* NBL)
@@ -502,7 +502,7 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList& completed)
 PNET_BUFFER_LIST CParaNdisTX::BuildCancelList(PVOID CancelId)
 {
     PNET_BUFFER_LIST CanceledNBLs = nullptr;
-    TSpinLocker LockedContext(m_Lock);
+    TPassiveSpinLocker LockedContext(m_Lock);
     CNBL* NBL = nullptr;
 
     NBL = PopMappedNBL();
@@ -631,7 +631,7 @@ bool CParaNdisTX::FillQueue()
 
     if (!m_SendQueueFullListIsEmpty)
     {
-        TSpinLocker LockedContext(m_SendQueueFullListLock);
+        TDPCSpinLocker LockedContext(m_SendQueueFullListLock);
         do
         {
             nbl = m_SendQueueFullList.Pop();

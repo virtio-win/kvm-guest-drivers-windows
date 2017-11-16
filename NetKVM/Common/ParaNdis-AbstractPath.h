@@ -80,7 +80,7 @@ public:
 
     void Shutdown()
     {
-        TSpinLocker LockedContext(m_Lock);
+        TPassiveSpinLocker LockedContext(m_Lock);
         m_VirtQueue.Shutdown();
     }
 

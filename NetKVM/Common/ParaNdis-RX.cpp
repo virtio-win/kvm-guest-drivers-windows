@@ -203,7 +203,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
     UNREFERENCED_PARAMETER(nCurrCpuReceiveQueue);
 #endif
 
-    CLockedContext<CNdisSpinLock> autoLock(m_Lock);
+    TDPCSpinLocker autoLock(m_Lock);
 
     while (NULL != (pBufferDescriptor = (pRxNetDescriptor)m_VirtQueue.GetBuf(&nFullLength)))
     {
@@ -216,6 +216,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 #if PARANDIS_SUPPORT_RSS
             &m_Context->RSSParameters,
 #endif
+
             &pBufferDescriptor->PacketInfo,
             pBufferDescriptor->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE].Virtual,
             nFullLength - m_Context->nVirtioHeaderSize);
@@ -262,7 +263,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 void CParaNdisRX::PopulateQueue()
 {
     LIST_ENTRY TempList;
-    CLockedContext<CNdisSpinLock> autoLock(m_Lock);
+    TPassiveSpinLocker autoLock(m_Lock);
 
 
     InitializeListHead(&TempList);
