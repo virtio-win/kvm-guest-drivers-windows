@@ -478,6 +478,9 @@ typedef struct _tagPARANDIS_ADAPTER
     } RSC;
 #endif
 
+    PVOID                   UnalignedAdapterContext;
+    ULONG                   UnalignedAdapterContextSize;
+
     _tagPARANDIS_ADAPTER(const _tagPARANDIS_ADAPTER&) = delete;
     _tagPARANDIS_ADAPTER& operator= (const _tagPARANDIS_ADAPTER&) = delete;
 }PARANDIS_ADAPTER, *PPARANDIS_ADAPTER;
