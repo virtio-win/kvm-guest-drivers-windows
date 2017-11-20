@@ -220,8 +220,7 @@ NTSTATUS IVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
 
     if (deviceContext->interrupts)
     {
-        for (int i = 0; i < deviceContext->interruptsUsed; ++i)
-            WdfObjectDelete(deviceContext->interrupts[i]);
+        // WDFINTERRUPT objects are deleted by the framework
 
         ExFreePoolWithTag(deviceContext->interrupts, 'sQRI');
 
