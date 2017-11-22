@@ -282,7 +282,7 @@ struct virtqueue *vring_new_virtqueue(
     vq->vdev = vdev;
     vq->notification_cb = notify;
     vq->index = index;
-    vq->event_suppression_enabled = true;
+    vq->event_suppression_enabled = false;
 
     /* Build a linked list of unused descriptors */
     vq->num_unused = num;
