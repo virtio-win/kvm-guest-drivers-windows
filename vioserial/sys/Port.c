@@ -1450,6 +1450,12 @@ VIOSerialPortEvtDeviceD0Exit(
 
     VIOSerialDisableInterruptQueue(GetInQueue(Port));
 
+    if (Port->GuestConnected)
+    {
+        VIOSerialSendCtrlMsg(Port->BusDevice,
+            Port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
+    }
+
     WdfSpinLockAcquire(Port->InBufLock);
     VIOSerialDiscardPortDataLocked(Port);
     Port->InBuf = NULL;
