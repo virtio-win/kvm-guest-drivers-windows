@@ -387,7 +387,8 @@ VirtIoFindAdapter(
         return res;
     }
 
-    adaptExt->features = virtio_get_features(&adaptExt->vdev);
+    RhelGetDiskGeometry(DeviceExtension);
+
     ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH) ? TRUE : FALSE;
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_WCACHE = %d\n", ConfigInfo->CachesData));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_MQ = %d\n", CHECKBIT(adaptExt->features, VIRTIO_BLK_F_MQ)));
@@ -428,7 +429,6 @@ VirtIoFindAdapter(
 #endif
 
     adaptExt->num_queues = 1;
-    RhelGetDiskGeometry(DeviceExtension);
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_MQ)) {
         virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, num_queues),
                           &adaptExt->num_queues, sizeof(adaptExt->num_queues));
@@ -990,6 +990,7 @@ VirtIoHwReinitialize(
     if (InitVirtIODevice(DeviceExtension) != SP_RETURN_FOUND) {
         return FALSE;
     }
+    RhelGetDiskGeometry(DeviceExtension);
     return VirtIoHwInitialize(DeviceExtension);
 }
 
