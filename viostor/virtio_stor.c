@@ -780,7 +780,7 @@ VirtIoStartIo(
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s RESET (%p) Function %x Cnt %d InQueue %d\n", __FUNCTION__, Srb, SRB_FUNCTION(Srb), adaptExt->srb_cnt, adaptExt->inqueue_cnt));
             for (USHORT i = 0; i < adaptExt->num_queues; i++) {
                 if (adaptExt->vq[i]) {
-                    RhelDbgPrint(TRACE_LEVEL_ERROR, ("%d indx %d num_free %d\n", i, adaptExt->vq[i]->index, adaptExt->vq[i]->num_free));
+                    RhelDbgPrint(TRACE_LEVEL_ERROR, ("%d indx %d\n", i, adaptExt->vq[i]->index));
                 }
             }
 #endif
