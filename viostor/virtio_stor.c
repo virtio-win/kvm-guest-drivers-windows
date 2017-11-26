@@ -1094,11 +1094,9 @@ VirtIoBuildIo(
     if (!sgList)
         return FALSE;
     sgMaxElements = min((MAX_PHYS_SEGMENTS + 1), sgList->NumberOfElements);
-    srbExt->Xfer = 0;
     for (i = 0, sgElement = 1; i < sgMaxElements; i++, sgElement++) {
         srbExt->vbr.sg[sgElement].physAddr = sgList->List[i].PhysicalAddress;
         srbExt->vbr.sg[sgElement].length   = sgList->List[i].Length;
-        srbExt->Xfer += sgList->List[i].Length;
     }
 
     srbExt->vbr.out_hdr.sector = lba;
