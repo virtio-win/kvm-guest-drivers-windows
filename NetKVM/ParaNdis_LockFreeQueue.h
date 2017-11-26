@@ -139,7 +139,7 @@ public:
 
     TEntryType *Peek()
     {
-        if (m_ConsumerHead == m_ProducerHead)
+        if (m_ConsumerHead == m_ProducerTail)
         {
             return nullptr;
         }
