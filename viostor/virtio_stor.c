@@ -824,12 +824,11 @@ VirtIoStartIo(
         case SCSIOP_WRITE:
         case SCSIOP_WRITE16: {
             if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_RO)) {
-                PSENSE_DATA senseBuffer = (PSENSE_DATA) Srb->SenseInfoBuffer;
-                ScsiStatus = SCSISTAT_CHECK_CONDITION;
-                SRB_SET_SCSI_STATUS(((PSRB_TYPE)Srb), ScsiStatus);
-                senseBuffer->SenseKey = SCSI_SENSE_DATA_PROTECT;
-                senseBuffer->AdditionalSenseCode = SCSI_ADWRITE_PROTECT;
-                CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_ERROR);
+                UCHAR SrbStatus = SRB_STATUS_ERROR;
+                if (SetSenseInfo((PSRB_TYPE)Srb, SCSI_SENSE_DATA_PROTECT, SCSI_ADSENSE_WRITE_PROTECT, SCSI_ADSENSE_NO_SENSE)) {
+                    SrbStatus |= SRB_STATUS_AUTOSENSE_VALID;
+                }
+                CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SrbStatus);
                 return TRUE;
             }
         }
@@ -859,6 +858,10 @@ VirtIoStartIo(
         }
         case SCSIOP_SYNCHRONIZE_CACHE:
         case SCSIOP_SYNCHRONIZE_CACHE16: {
+            if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_RO)) {
+                CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
+                return TRUE;
+            }
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_PENDING);
             if (!RhelDoFlush(DeviceExtension, (PSRB_TYPE)Srb, FALSE, FALSE)) {
                 CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_ERROR);
