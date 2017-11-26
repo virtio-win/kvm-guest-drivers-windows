@@ -155,6 +155,15 @@ CompleteRequestWithStatus(
 
 BOOLEAN
 FORCEINLINE
+SetSenseInfo(
+    IN PSRB_TYPE Srb,
+    IN UCHAR senseKey,
+    IN UCHAR additionalSenseCode,
+    IN UCHAR additionalSenseCodeQualifier
+);
+
+BOOLEAN
+FORCEINLINE
 CompleteDPC(
     IN PVOID DeviceExtension,
     IN ULONG  MessageID
@@ -1436,6 +1445,35 @@ CompleteRequestWithStatus(
     SRB_SET_SRB_STATUS(Srb, status);
     CompleteSRB(DeviceExtension,
                 Srb);
+}
+
+BOOLEAN
+FORCEINLINE
+SetSenseInfo(
+    IN PSRB_TYPE Srb,
+    IN UCHAR senseKey,
+    IN UCHAR additionalSenseCode,
+    IN UCHAR additionalSenseCodeQualifier
+)
+{
+    PSENSE_DATA senseInfoBuffer = NULL;
+    UCHAR senseInfoBufferLength = 0;
+    SRB_GET_SENSE_INFO_BUFFER(Srb, senseInfoBuffer);
+    SRB_GET_SENSE_INFO_BUFFER_LENGTH(Srb, senseInfoBufferLength);
+    if (senseInfoBuffer && (senseInfoBufferLength >= sizeof(SENSE_DATA))) {
+        UCHAR ScsiStatus = SCSISTAT_CHECK_CONDITION;
+        senseInfoBuffer->ErrorCode = SCSI_SENSE_ERRORCODE_FIXED_CURRENT;
+        senseInfoBuffer->Valid = 1;
+        senseInfoBuffer->SenseKey = senseKey;
+        senseInfoBuffer->AdditionalSenseLength = sizeof(SENSE_DATA) - FIELD_OFFSET(SENSE_DATA, AdditionalSenseLength); //0xb ??
+        senseInfoBuffer->AdditionalSenseCode = additionalSenseCode;
+        senseInfoBuffer->AdditionalSenseCodeQualifier = additionalSenseCodeQualifier;
+        SRB_SET_SCSI_STATUS(((PSRB_TYPE)Srb), ScsiStatus);
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("<-->%s senseKey = 0x%x asc = 0x%x ascq = 0x%x\n",__FUNCTION__, senseKey, additionalSenseCode, additionalSenseCodeQualifier));
+        return TRUE;
+    }
+    RhelDbgPrint(TRACE_LEVEL_FATAL, ("<-->%s INVALID senseInfoBuffer %p or senseInfoBufferLength = %d\n",__FUNCTION__, senseInfoBuffer, senseInfoBufferLength));
+    return FALSE;
 }
 
 BOOLEAN
