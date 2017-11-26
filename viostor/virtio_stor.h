@@ -208,6 +208,14 @@ VirtIoInterrupt(
     IN PVOID DeviceExtension
     );
 
+#ifndef SCSI_SENSE_ERRORCODE_FIXED_CURRENT
+#define SCSI_SENSE_ERRORCODE_FIXED_CURRENT       0x70
+#endif
+
+#ifndef SCSI_SENSEQ_CAPACITY_DATA_CHANGED
+#define SCSI_SENSEQ_CAPACITY_DATA_CHANGED        0x09
+#endif
+
 #ifdef MSI_SUPPORTED
 #ifndef PCIX_TABLE_POINTER
 typedef struct {
