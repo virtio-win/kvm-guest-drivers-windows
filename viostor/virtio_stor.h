@@ -195,7 +195,6 @@ typedef struct _SRB_EXTENSION {
     blk_req               vbr;
     ULONG                 out;
     ULONG                 in;
-    ULONG                 Xfer;
     ULONG                 MessageID;
     BOOLEAN               fua;
     VRING_DESC_ALIAS      desc[VIRTIO_MAX_SG];
