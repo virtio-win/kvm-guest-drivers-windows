@@ -904,6 +904,8 @@ VirtIoInterrupt(
     } else if (intReason == 3) {
         RhelGetDiskGeometry(DeviceExtension);
         isInterruptServiced = TRUE;
+        adaptExt->check_condition = TRUE;
+        StorPortNotification( BusChangeDetected, DeviceExtension, 0);
     }
     if (!isInterruptServiced) {
         RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s isInterruptServiced = %d\n", __FUNCTION__, isInterruptServiced));
@@ -986,15 +988,28 @@ VirtIoHwReinitialize(
     IN PVOID DeviceExtension
     )
 {
+    PADAPTER_EXTENSION  adaptExt = NULL;
+    ULONGLONG           old_features = 0;
     /* The adapter is being restarted and we need to bring it back up without
      * running any passive-level code. Note that VirtIoFindAdapter is *not*
      * called on restart.
      */
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    old_features = adaptExt->features;
     if (InitVirtIODevice(DeviceExtension) != SP_RETURN_FOUND) {
         return FALSE;
     }
     RhelGetDiskGeometry(DeviceExtension);
-    return VirtIoHwInitialize(DeviceExtension);
+
+    if (!VirtIoHwInitialize(DeviceExtension)) {
+        return FALSE;
+    }
+
+    if (CHECKBIT((old_features ^ adaptExt->features), VIRTIO_BLK_F_RO)) {
+        adaptExt->check_condition = TRUE;
+        StorPortNotification( BusChangeDetected, DeviceExtension, 0);
+    }
+    return TRUE;
 }
 
 BOOLEAN
@@ -1128,8 +1143,9 @@ VirtIoMSInterruptRoutine (
         MessageID = 1;
     } else {
         if (MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR) {
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s RhelGetDiskGeometry\n", __FUNCTION__));
             RhelGetDiskGeometry(DeviceExtension);
+            adaptExt->check_condition = TRUE;
+            StorPortNotification( BusChangeDetected, DeviceExtension, 0);
             return TRUE;
         }
     }
@@ -1428,7 +1444,6 @@ CompleteSRB(
     IN PSRB_TYPE Srb
     )
 {
-
     PADAPTER_EXTENSION adaptExt= (PADAPTER_EXTENSION)DeviceExtension;
 #ifdef DBG
     InterlockedDecrement((LONG volatile*)&adaptExt->srb_cnt);
@@ -1446,6 +1461,21 @@ CompleteRequestWithStatus(
     IN UCHAR status
     )
 {
+    PCDB cdb = SRB_CDB(Srb);
+    PADAPTER_EXTENSION adaptExt= (PADAPTER_EXTENSION)DeviceExtension;
+    UCHAR OpCode = cdb->CDB6GENERIC.OperationCode;
+
+    if (( adaptExt->check_condition == TRUE ) &&
+        ( !CHECKFLAG(Srb->SrbFlags ,SRB_FLAGS_DISABLE_AUTOSENSE)) &&
+        ( SRB_FUNCTION(Srb) == SRB_FUNCTION_EXECUTE_SCSI ) &&
+	( status == SRB_STATUS_SUCCESS ) &&
+	( OpCode != SCSIOP_INQUIRY ) &&
+        ( OpCode != SCSIOP_REPORT_LUNS )) {
+            if (SetSenseInfo(Srb, SCSI_SENSE_UNIT_ATTENTION, SCSI_ADSENSE_PARAMETERS_CHANGED, SCSI_SENSEQ_CAPACITY_DATA_CHANGED)) {
+                status = SRB_STATUS_ERROR | SRB_STATUS_AUTOSENSE_VALID;
+                adaptExt->check_condition = FALSE;
+            }
+    }
     SRB_SET_SRB_STATUS(Srb, status);
     CompleteSRB(DeviceExtension,
                 Srb);

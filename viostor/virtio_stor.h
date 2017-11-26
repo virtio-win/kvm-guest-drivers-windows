@@ -179,6 +179,7 @@ typedef struct _ADAPTER_EXTENSION {
     ULONG                 srb_cnt;
     ULONG                 inqueue_cnt;
 #endif
+    BOOLEAN               check_condition;
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
 typedef struct _VRING_DESC_ALIAS
