@@ -31,8 +31,9 @@
 * SUCH DAMAGE.
 *
 * Copyright Rusty Russell IBM Corporation 2007. */
-#include <linux/types.h>
-#include <linux/virtio_types.h>
+
+#include "linux/types.h"
+#include "linux/virtio_types.h"
 
 #pragma warning (push)
 #pragma warning (disable:4200)
