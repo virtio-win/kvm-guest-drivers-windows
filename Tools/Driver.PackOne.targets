@@ -143,9 +143,14 @@ Related features:
   </PropertyGroup>
 
   <!-- $(PackOne_SourcePath) and $(PackOne_DestinationPath) -->
-  <PropertyGroup>
-    <PackOne_SourcePath>objfre_$(TargetOS)_$(TargetArch)\$(PackOne_SourcePathArch)</PackOne_SourcePath>
-    <PackOne_DestinationPath>$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)</PackOne_DestinationPath>
+  <PropertyGroup Condition="$(Configuration.EndsWith('Debug'))"> 
+    <PackOne_SourcePath Condition="$(PackOne_SourcePath)==''">objchk_$(TargetOS)_$(TargetArch)\$(PackOne_SourcePathArch)</PackOne_SourcePath>
+    <PackOne_DestinationPath Condition="$(PackOne_DestinationPath)==''">$(PackOne_DestinationPrefix)Install_Debug\$(TargetOS)\$(TargetArch)</PackOne_DestinationPath>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="!$(Configuration.EndsWith('Debug'))"> 
+    <PackOne_SourcePath Condition="$(PackOne_SourcePath)==''">objfre_$(TargetOS)_$(TargetArch)\$(PackOne_SourcePathArch)</PackOne_SourcePath>
+    <PackOne_DestinationPath Condition="$(PackOne_DestinationPath)==''">$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)</PackOne_DestinationPath>
   </PropertyGroup>
 
   <!-- $(PackOne_CopyWdf) and $(PackOne_WdfCoinstaller) -->
