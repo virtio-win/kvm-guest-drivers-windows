@@ -119,8 +119,11 @@ u64 virtio_get_features(VirtIODevice *vdev)
 NTSTATUS virtio_set_features(VirtIODevice *vdev, u64 features)
 {
     unsigned char dev_status;
-    NTSTATUS status = vdev->device->set_features(vdev, features);
+    NTSTATUS status;
 
+    vdev->event_suppression_enabled = virtio_is_feature_enabled(features, VIRTIO_RING_F_EVENT_IDX);
+
+    status = vdev->device->set_features(vdev, features);
     if (!NT_SUCCESS(status)) {
         return status;
     }
