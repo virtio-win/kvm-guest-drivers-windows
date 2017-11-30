@@ -158,14 +158,6 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
         pQueues);
     pWdfDriver->pQueueParams = NULL;
 
-    if (NT_SUCCESS(status)) {
-        /* set interrupt suppression flags */
-        for (i = 0; i < nQueues; i++) {
-            virtio_set_queue_event_suppression(
-                pQueues[i],
-                pQueueParams[i].bEnableInterruptSuppression);
-        }
-    }
     return status;
 }
 
@@ -207,8 +199,7 @@ NTSTATUS VirtIOWdfInitQueuesCB(PVIRTIO_WDF_DRIVER pWdfDriver,
             break;
         }
 
-        /* set the desired queue vector and suppression flag */
-        QueueParam.bEnableInterruptSuppression = false;
+        /* set the desired queue vector */
         QueueParam.Interrupt = NULL;
 
         pQueueParamFunc(pWdfDriver, i, &QueueParam);
@@ -225,10 +216,6 @@ NTSTATUS VirtIOWdfInitQueuesCB(PVIRTIO_WDF_DRIVER pWdfDriver,
                 break;
             }
         }
-
-        virtio_set_queue_event_suppression(
-            vq,
-            QueueParam.bEnableInterruptSuppression);
 
         /* pass the virtqueue pointer to the caller */
         pSetQueueFunc(pWdfDriver, i, vq);

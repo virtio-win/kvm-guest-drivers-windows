@@ -25,7 +25,6 @@ struct virtqueue {
     unsigned int num_added_since_kick;
     u16 first_unused;
     u16 last_used;
-    bool event_suppression_enabled;
     void *notification_addr;
     void (*notification_cb)(struct virtqueue *vq);
     void *opaque[];

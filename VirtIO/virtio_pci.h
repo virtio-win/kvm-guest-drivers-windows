@@ -241,6 +241,9 @@ struct virtio_device
     // true if the device uses MSI interrupts
     bool msix_used;
 
+    // true if the VIRTIO_RING_F_EVENT_IDX feature flag has been negotiated
+    bool event_suppression_enabled;
+
     // internal device operations, implemented separately for legacy and modern
     const struct virtio_device_ops *device;
 
@@ -349,12 +352,11 @@ void virtio_delete_queue(struct virtqueue *vq);
 void virtio_delete_queues(VirtIODevice *vdev);
 
 /* Driver API: virtqueue query and manipulation
- * virtio_set_queue_event_suppression controls the virtqueue notification logic, see
- * the VIRTIO_RING_F_EVENT_IDX feature bit for more details. virtio_get_queue_descriptor_size
+ * virtio_get_queue_descriptor_size
  * is useful in situations where the driver has to prepare for the memory allocation
  * performed by virtio_reserve_queue_memory beforehand.
  */
-void virtio_set_queue_event_suppression(struct virtqueue *vq, bool enable);
+#define virtio_set_queue_event_suppression(vq, enable) // Will be removed
 
 u32 virtio_get_queue_size(struct virtqueue *vq);
 unsigned long virtio_get_indirect_page_capacity();

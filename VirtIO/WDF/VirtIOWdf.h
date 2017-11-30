@@ -39,7 +39,7 @@ typedef struct virtio_wdf_queue_param {
     /* interrupt associated with the queue */
     WDFINTERRUPT            Interrupt;
 
-    /* old-style interrupt suppression, see virtio 1.0 spec § 2.4.7 */
+    /* will be removed */
     bool                    bEnableInterruptSuppression;
 } VIRTIO_WDF_QUEUE_PARAM , *PVIRTIO_WDF_QUEUE_PARAM;
 
