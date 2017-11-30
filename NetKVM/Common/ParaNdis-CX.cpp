@@ -89,16 +89,14 @@ BOOLEAN CParaNdisCX::SendControlMessage(
         if (0 <= m_VirtQueue.AddBuf(sg, nOut, 1, (PVOID)1, NULL, 0))
         {
             UINT len;
-            void *p;
-            /* Control messages are processed synchronously in QEMU, so upon kick_buf return, the response message
-              has been already inserted in the queue */
+
             m_VirtQueue.Kick();
-            p = m_VirtQueue.GetBuf(&len);
-            if (!p)
+            while (!m_VirtQueue.GetBuf(&len))
             {
-                DPrintf(0, ("%s - ERROR: get_buf failed\n", __FUNCTION__));
+                UINT interval = 1;
+                NdisStallExecution(interval);
             }
-            else if (len != sizeof(virtio_net_ctrl_ack))
+            if (len != sizeof(virtio_net_ctrl_ack))
             {
                 DPrintf(0, ("%s - ERROR: wrong len %d\n", __FUNCTION__, len));
             }
