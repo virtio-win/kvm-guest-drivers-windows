@@ -374,7 +374,6 @@ VIOSerialGetQueueParamCallback(
 {
     PPORTS_DEVICE pContext = CONTAINING_RECORD(pVDevice, PORTS_DEVICE, VDevice);
 
-    pQueueParam->bEnableInterruptSuppression = false;
     if (uQueueIndex == 2 || uQueueIndex == 3) {
         // control queues
         pQueueParam->Interrupt = pContext->WdfInterrupt;
