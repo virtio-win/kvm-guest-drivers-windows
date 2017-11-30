@@ -41,7 +41,7 @@
 static inline u16 get_unused_desc(struct virtqueue *vq)
 {
     u16 idx = vq->first_unused;
-    ASSERT(vq->vring.desc[idx].flags & VIRTQ_DESC_F_NEXT);
+    ASSERT(vq->num_unused > 0);
 
     vq->first_unused = vq->vring.desc[idx].next;
     vq->num_unused--;
