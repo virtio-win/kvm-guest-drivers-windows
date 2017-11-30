@@ -408,11 +408,9 @@ VIOInputInitAllQueues(
     VIRTIO_WDF_QUEUE_PARAM params[2];
 
     // event
-    params[0].bEnableInterruptSuppression = false;
     params[0].Interrupt = pContext->QueuesInterrupt;
 
     // status
-    params[1].bEnableInterruptSuppression = false;
     params[1].Interrupt = pContext->QueuesInterrupt;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
