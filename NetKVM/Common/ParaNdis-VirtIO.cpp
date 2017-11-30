@@ -90,6 +90,7 @@ void CPciBar::Unmap(NDIS_HANDLE DrvHandle)
                 m_BaseVA,
                 m_uSize);
         }
+        m_BaseVA = nullptr;
     }
 }
 
