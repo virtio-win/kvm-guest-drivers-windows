@@ -115,7 +115,6 @@ NTSTATUS VirtRngEvtDeviceD0Entry(IN WDFDEVICE Device,
     status = VirtIOWdfSetDriverFeatures(&context->VDevice, u64GuestFeatures);
     if (NT_SUCCESS(status))
     {
-        param.bEnableInterruptSuppression = false;
         param.Interrupt = context->WdfInterrupt;
 
         status = VirtIOWdfInitQueues(&context->VDevice, 1, &context->VirtQueue, &param);
