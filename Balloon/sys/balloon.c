@@ -54,15 +54,12 @@ BalloonInit(
     WdfObjectAcquireLock(WdfDevice);
 
     // inflate
-    params[0].bEnableInterruptSuppression = false;
     params[0].Interrupt = devCtx->WdfInterrupt;
 
     // deflate
-    params[1].bEnableInterruptSuppression = false;
     params[1].Interrupt = devCtx->WdfInterrupt;
 
     // stats
-    params[2].bEnableInterruptSuppression = false;
     params[2].Interrupt = devCtx->WdfInterrupt;
 
     u64HostFeatures = VirtIOWdfGetDeviceFeatures(&devCtx->VDevice);
