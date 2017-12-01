@@ -587,6 +587,10 @@ VirtIoHwInitialize(
         guestFeatures |= (1ULL << VIRTIO_RING_F_EVENT_IDX);
     }
 
+    if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC)) {
+        guestFeatures |= (1ULL << VIRTIO_RING_F_INDIRECT_DESC);
+    }
+
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH)) {
         guestFeatures |= (1ULL << VIRTIO_BLK_F_FLUSH);
     }
