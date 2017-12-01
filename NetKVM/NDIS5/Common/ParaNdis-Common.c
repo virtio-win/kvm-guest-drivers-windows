@@ -1106,7 +1106,7 @@ static int PrepareReceiveBuffers(PARANDIS_ADAPTER *pContext)
 static NDIS_STATUS FindNetQueues(PARANDIS_ADAPTER *pContext)
 {
     struct virtqueue *queues[3];
-    unsigned i, nvqs = pContext->bHasControlQueue ? 3 : 2;
+    unsigned nvqs = pContext->bHasControlQueue ? 3 : 2;
     NTSTATUS status;
 
     // We work with two or three virtqueues, 0 - receive, 1 - send, 2 - control
@@ -1117,13 +1117,6 @@ static NDIS_STATUS FindNetQueues(PARANDIS_ADAPTER *pContext)
     if (!NT_SUCCESS(status)) {
        DPrintf(0, ("[%s] virtio_find_queues failed with %x\n", __FUNCTION__, status));
        return NTStatusToNdisStatus(status);
-    }
-
-    // set interrupt suppression flags
-    for (i = 0; i < nvqs; i++) {
-        virtio_set_queue_event_suppression(
-          queues[i],
-          pContext->bDoPublishIndices);
     }
 
     pContext->NetReceiveQueue = queues[0];
