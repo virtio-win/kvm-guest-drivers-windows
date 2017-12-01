@@ -30,8 +30,7 @@ bool CParaNdisCX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 
     return m_VirtQueue.Create(DeviceQueueIndex,
         &m_Context->IODevice,
-        m_Context->MiniportHandle,
-        m_Context->bDoPublishIndices ? true : false);
+        m_Context->MiniportHandle);
 }
 
 BOOLEAN CParaNdisCX::SendControlMessage(

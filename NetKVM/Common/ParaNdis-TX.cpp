@@ -302,7 +302,6 @@ bool CParaNdisTX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     return m_VirtQueue.Create(DeviceQueueIndex,
         &m_Context->IODevice,
         m_Context->MiniportHandle,
-        m_Context->bDoPublishIndices ? true : false,
         m_Context->maxFreeTxDescriptors,
         m_Context->nVirtioHeaderSize,
         m_Context) &&

@@ -367,7 +367,6 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bGuestChecksumSupported;
     BOOLEAN                 bControlQueueSupported;
     BOOLEAN                 bUseMergedBuffers;
-    BOOLEAN                 bDoPublishIndices;
     BOOLEAN                 bSurprizeRemoved;
     BOOLEAN                 bUsingMSIX;
     BOOLEAN                 bUseIndirect;
