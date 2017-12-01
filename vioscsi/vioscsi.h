@@ -106,8 +106,6 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_SCSI_S_HEAD                     2
 #define VIRTIO_SCSI_S_ACA                      3
 
-#define VIRTIO_RING_F_INDIRECT_DESC            28
-
 #define VIRTIO_SCSI_CONTROL_QUEUE              0
 #define VIRTIO_SCSI_EVENTS_QUEUE               1
 #define VIRTIO_SCSI_REQUEST_QUEUE_0            2

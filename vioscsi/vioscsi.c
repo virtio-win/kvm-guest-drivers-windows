@@ -619,6 +619,9 @@ ENTER_FN();
     if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX)) {
         guestFeatures |= (1ULL << VIRTIO_RING_F_EVENT_IDX);
     }
+    if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC)) {
+        guestFeatures |= (1ULL << VIRTIO_RING_F_INDIRECT_DESC);
+    }
     if (CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_CHANGE)) {
         guestFeatures |= (1ULL << VIRTIO_SCSI_F_CHANGE);
     }
