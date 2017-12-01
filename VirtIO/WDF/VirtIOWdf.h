@@ -38,9 +38,6 @@
 typedef struct virtio_wdf_queue_param {
     /* interrupt associated with the queue */
     WDFINTERRUPT            Interrupt;
-
-    /* will be removed */
-    bool                    bEnableInterruptSuppression;
 } VIRTIO_WDF_QUEUE_PARAM , *PVIRTIO_WDF_QUEUE_PARAM;
 
 /* Data associated with a WDF virtio driver, usually declared as

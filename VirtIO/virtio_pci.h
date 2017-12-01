@@ -356,7 +356,6 @@ void virtio_delete_queues(VirtIODevice *vdev);
  * is useful in situations where the driver has to prepare for the memory allocation
  * performed by virtio_reserve_queue_memory beforehand.
  */
-#define virtio_set_queue_event_suppression(vq, enable) // Will be removed
 
 u32 virtio_get_queue_size(struct virtqueue *vq);
 unsigned long virtio_get_indirect_page_capacity();
