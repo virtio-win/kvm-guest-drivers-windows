@@ -22,8 +22,7 @@ bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 
     if (!m_VirtQueue.Create(DeviceQueueIndex,
         &m_Context->IODevice,
-        m_Context->MiniportHandle,
-        m_Context->bDoPublishIndices ? true : false))
+        m_Context->MiniportHandle))
     {
         DPrintf(0, ("CParaNdisRX::Create - virtqueue creation failed\n"));
         return false;

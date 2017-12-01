@@ -88,7 +88,6 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry stdLsoV2ip6;
     tConfigurationEntry PriorityVlanTagging;
     tConfigurationEntry VlanId;
-    tConfigurationEntry PublishIndices;
     tConfigurationEntry MTU;
     tConfigurationEntry NumberOfHandledRXPacketsInDPC;
 #if PARANDIS_SUPPORT_RSS
@@ -122,7 +121,6 @@ static const tConfigurationEntries defaultConfiguration =
     { "*LsoV2IPv6", 1, 0, 1 },
     { "*PriorityVLANTag", 3, 0, 3},
     { "VlanId", 0, 0, MAX_VLAN_ID},
-    { "PublishIndices", 1, 0, 1},
     { "MTU", 1500, 576, 65500},
     { "NumberOfHandledRXPacketsInDPC", MAX_RX_LOOPS, 1, 10000},
 #if PARANDIS_SUPPORT_RSS
@@ -252,7 +250,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             GetConfigurationEntry(cfg, &pConfiguration->stdLsoV2ip6);
             GetConfigurationEntry(cfg, &pConfiguration->PriorityVlanTagging);
             GetConfigurationEntry(cfg, &pConfiguration->VlanId);
-            GetConfigurationEntry(cfg, &pConfiguration->PublishIndices);
             GetConfigurationEntry(cfg, &pConfiguration->MTU);
             GetConfigurationEntry(cfg, &pConfiguration->NumberOfHandledRXPacketsInDPC);
 #if PARANDIS_SUPPORT_RSS
@@ -716,7 +713,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
         pContext->bUseMergedBuffers = AckFeature(pContext, VIRTIO_NET_F_MRG_RXBUF);
         pContext->nVirtioHeaderSize = (pContext->bUseMergedBuffers) ? sizeof(virtio_net_hdr_mrg_rxbuf) : sizeof(virtio_net_hdr);
-        pContext->bDoPublishIndices = AckFeature(pContext, VIRTIO_RING_F_EVENT_IDX);
+        AckFeature(pContext, VIRTIO_RING_F_EVENT_IDX);
     }
     else
     {

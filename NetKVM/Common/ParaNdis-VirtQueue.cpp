@@ -33,11 +33,7 @@ void CVirtQueue::Renew()
         &m_VirtQueue);
     pContext->pPageAllocator = nullptr;
 
-    if (NT_SUCCESS(status))
-    {
-        virtio_set_queue_event_suppression(m_VirtQueue, m_UsePublishedIndices);
-    }
-    else
+    if (!NT_SUCCESS(status))
     {
         DPrintf(0, ("[%s] - queue setup failed for index %u with error %x\n", __FUNCTION__, m_Index, status));
         m_VirtQueue = nullptr;
@@ -46,8 +42,7 @@ void CVirtQueue::Renew()
 
 bool CVirtQueue::Create(UINT Index,
     VirtIODevice *IODevice,
-    NDIS_HANDLE DrvHandle,
-    bool UsePublishedIndices)
+    NDIS_HANDLE DrvHandle)
 {
     m_DrvHandle = DrvHandle;
     m_Index = Index;
@@ -57,8 +52,6 @@ bool CVirtQueue::Create(UINT Index,
         DPrintf(0, ("[%s] - shared memory creation failed\n", __FUNCTION__));
         return false;
     }
-
-    m_UsePublishedIndices = UsePublishedIndices;
 
     NETKVM_ASSERT(m_VirtQueue == nullptr);
 
@@ -131,12 +124,11 @@ void CTXVirtQueue::FreeBuffers()
 bool CTXVirtQueue::Create(UINT Index,
     VirtIODevice *IODevice,
     NDIS_HANDLE DrvHandle,
-    bool UsePublishedIndices,
     ULONG MaxBuffers,
     ULONG HeaderSize,
     PPARANDIS_ADAPTER Context)
 {
-    if (!CVirtQueue::Create(Index, IODevice, DrvHandle, UsePublishedIndices)) {
+    if (!CVirtQueue::Create(Index, IODevice, DrvHandle)) {
         return false;
     }
 

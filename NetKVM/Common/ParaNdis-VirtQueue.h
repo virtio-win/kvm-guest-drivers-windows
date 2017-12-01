@@ -152,7 +152,6 @@ public:
         : m_DrvHandle(NULL)
         , m_Index(0xFFFFFFFF)
         , m_IODevice(NULL)
-        , m_UsePublishedIndices(false)
     {}
 
     virtual ~CVirtQueue()
@@ -162,8 +161,7 @@ public:
 
     bool Create(UINT Index,
         VirtIODevice *IODevice,
-        NDIS_HANDLE DrvHandle,
-        bool UsePublishedIndices);
+        NDIS_HANDLE DrvHandle);
 
     ULONG GetRingSize()
     { return virtio_get_queue_size(m_VirtQueue); }
@@ -232,7 +230,6 @@ private:
     VirtIODevice *m_IODevice;
 
     CNdisSharedMemory m_SharedMemory;
-    bool m_UsePublishedIndices;
     struct virtqueue *m_VirtQueue = nullptr;
 
     CVirtQueue(const CVirtQueue&) = delete;
@@ -252,7 +249,6 @@ public:
     bool Create(UINT Index,
         VirtIODevice *IODevice,
         NDIS_HANDLE DrvHandle,
-        bool UsePublishedIndices,
         ULONG MaxBuffers,
         ULONG HeaderSize,
         PPARANDIS_ADAPTER Context);
