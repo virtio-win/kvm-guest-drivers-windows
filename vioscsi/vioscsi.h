@@ -315,6 +315,9 @@ typedef struct _ADAPTER_EXTENSION {
     SCSI_WMILIB_CONTEXT   WmiLibContext;
     ULONGLONG             hba_id;
     PUCHAR                ser_num;
+    ULONGLONG             wwn;
+    ULONGLONG             port_wwn;
+    ULONG                 port_idx;
     UCHAR                 ven_id[8 + 1];
     UCHAR                 prod_id[16 + 1];
     UCHAR                 rev_id[4 + 1];
@@ -349,5 +352,20 @@ typedef struct {
 #define SPC3_SCSI_SENSEQ_PARAMETERS_CHANGED                 0x0
 #define SPC3_SCSI_SENSEQ_MODE_PARAMETERS_CHANGED            0x01
 #define SPC3_SCSI_SENSEQ_CAPACITY_DATA_HAS_CHANGED          0x09
+
+typedef enum VIOSCSI_VPD_CODE_SET {
+    VioscsiVpdCodeSetBinary = 1,
+    VioscsiVpdCodeSetAscii = 2,
+    VioscsiVpdCodeSetSASBinary = 0x61,
+} VIOSCSI_VPD_CODE_SET, *PVIOSCSI_VPD_CODE_SET;
+
+typedef enum VIOSCSI_VPD_IDENTIFIER_TYPE {
+    VioscsiVpdIdentifierTypeVendorSpecific = 0,
+    VioscsiVpdIdentifierTypeVendorId = 1,
+    VioscsiVpdIdentifierTypeEUI64 = 2,
+    VioscsiVpdIdentifierTypeFCPHName = 3,
+    VioscsiVpdIdentifierTypeFCTargetPortPHName = 0x93,
+    VioscsiVpdIdentifierTypeFCTargetPortRelativeTargetPort = 0x94,
+} VIOSCSI_VPD_IDENTIFIER_TYPE, *PVIOSCSI_VPD_IDENTIFIER_TYPE;
 
 #endif ___VIOSCSI__H__

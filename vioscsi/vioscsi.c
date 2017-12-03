@@ -1695,6 +1695,71 @@ ENTER_FN();
 EXIT_FN();
 }
 
+UCHAR
+ParseIdentificationDescr(
+    IN PVOID  DeviceExtension,
+    IN PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr,
+    IN UCHAR PageLength
+)
+{
+    PADAPTER_EXTENSION    adaptExt;
+    UCHAR CodeSet = 0;
+    UCHAR IdentifierType = 0;
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ENTER_FN();
+    if (IdentificationDescr) {
+        CodeSet = (UCHAR)(((PCHAR)IdentificationDescr)[0]);
+        IdentifierType = (UCHAR)(((PCHAR)IdentificationDescr)[1]);
+        switch (IdentifierType) {
+        case VioscsiVpdIdentifierTypeVendorSpecific: {
+            if (CodeSet == VioscsiVpdCodeSetAscii) {
+                if (IdentificationDescr->IdentifierLength > 0 && adaptExt->ser_num == NULL) {
+                    int ln = min(64, IdentificationDescr->IdentifierLength);
+                    ULONG Status =
+                        StorPortAllocatePool(DeviceExtension,
+                            ln + 1,
+                            VIOSCSI_POOL_TAG,
+                            (PVOID*)&adaptExt->ser_num);
+                    if (NT_SUCCESS(Status)) {
+                        StorPortMoveMemory(adaptExt->ser_num, IdentificationDescr->Identifier, ln);
+                        adaptExt->ser_num[ln] = '\0';
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("serial number %s\n", adaptExt->ser_num));
+                    }
+                }
+            }
+        }
+        break;
+        case VioscsiVpdIdentifierTypeFCPHName: {
+            if ((CodeSet == VioscsiVpdCodeSetBinary) && (IdentificationDescr->IdentifierLength == sizeof(ULONGLONG))) {
+                REVERSE_BYTES_QUAD(&adaptExt->wwn, IdentificationDescr->Identifier);
+                RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("wwn %llu\n", (ULONGLONG)adaptExt->wwn));
+            }
+        }
+        break;
+        case VioscsiVpdIdentifierTypeFCTargetPortPHName: {
+            if ((CodeSet == VioscsiVpdCodeSetSASBinary) && (IdentificationDescr->IdentifierLength == sizeof(ULONGLONG))) {
+                REVERSE_BYTES_QUAD(&adaptExt->port_wwn, IdentificationDescr->Identifier);
+                RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("port wwn %llu\n", (ULONGLONG)adaptExt->port_wwn));
+            }
+        }
+        break;
+        case VioscsiVpdIdentifierTypeFCTargetPortRelativeTargetPort: {
+            if ((CodeSet == VioscsiVpdCodeSetSASBinary) && (IdentificationDescr->IdentifierLength == sizeof(ULONG))) {
+                REVERSE_BYTES(&adaptExt->port_idx, IdentificationDescr->Identifier);
+                RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("port index %lu\n", (ULONG)adaptExt->port_idx));
+            }
+        }
+        break;
+        default:
+            RhelDbgPrint(TRACE_LEVEL_ERROR, ("Unsupported IdentifierType = %x!\n", IdentifierType));
+            break;
+        }
+        return IdentificationDescr->IdentifierLength;
+    }
+    EXIT_FN();
+    return 0;
+}
+
 VOID
 VioScsiSaveInquiryData(
     IN PVOID  DeviceExtension,
@@ -1746,6 +1811,22 @@ ENTER_FN();
             }
             break;
             case VPD_DEVICE_IDENTIFIERS: {
+                PVPD_IDENTIFICATION_PAGE IdentificationPage;
+                PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr;
+                UCHAR PageLength = 0;
+                IdentificationPage = (PVPD_IDENTIFICATION_PAGE)dataBuffer;
+                PageLength = IdentificationPage->PageLength;
+                if (PageLength >= sizeof(VPD_IDENTIFICATION_DESCRIPTOR)) {
+                    UCHAR IdentifierLength = 0;
+                    IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
+                    do {
+                        UCHAR offset = 0;
+                        IdentifierLength = ParseIdentificationDescr(DeviceExtension, IdentificationDescr, PageLength);
+                        offset = sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + IdentifierLength;
+                        PageLength -= min(PageLength, offset);
+                        IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)((ULONG_PTR)IdentificationDescr + offset);
+                    } while (PageLength);
+                }
             }
             break;
         }
