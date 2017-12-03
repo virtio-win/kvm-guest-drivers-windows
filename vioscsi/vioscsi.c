@@ -45,9 +45,9 @@
 #include "resources.h"
 #include "..\Tools\vendor.ver"
 
-#define VIOSCSI_SETUP_GUID_INDEX 0
-#define VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX 1
-#define VIOSCSI_MS_PORT_INFORM_GUID_INDEX 2
+#define VIOSCSI_SETUP_GUID_INDEX               0
+#define VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX   1
+#define VIOSCSI_MS_PORT_INFORM_GUID_INDEX      2
 
 BOOLEAN IsCrashDumpMode;
 
@@ -228,9 +228,9 @@ GUID VioScsiWmiPortInformationMethodsGuid = MS_SM_PortInformationMethodsGuid;
 
 SCSIWMIGUIDREGINFO VioScsiGuidList[] =
 {
-   { &VioScsiWmiExtendedInfoGuid, 1, 0 },
+   { &VioScsiWmiExtendedInfoGuid,            1, 0 },
    { &VioScsiWmiAdapterInformationQueryGuid, 1, 0 },
-   { &VioScsiWmiPortInformationMethodsGuid, 1, 0 },
+   { &VioScsiWmiPortInformationMethodsGuid,  1, 0 },
 };
 
 #define VioScsiGuidCount (sizeof(VioScsiGuidList) / sizeof(SCSIWMIGUIDREGINFO))
