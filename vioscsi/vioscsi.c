@@ -1923,9 +1923,17 @@ ENTER_FN();
         break;
         case VIOSCSI_MS_PORT_INFORM_GUID_INDEX:
         {
-            RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->VIOSCSI_MS_PORT_INFORM_GUID_INDEX ERROR\n"));
-            break;
+            size = sizeof(ULONG);
+            if (OutBufferSize < size)
+            {
+                status = SRB_STATUS_DATA_OVERRUN;
+                RhelDbgPrint(TRACE_LEVEL_WARNING, ("-->VIOSCSI_MS_PORT_INFORM_GUID_INDEX out buffer too small %d %d\n", OutBufferSize, size));
+                break;
+            }
+            *InstanceLengthArray = size;
+            status = SRB_STATUS_SUCCESS;
         }
+        break;
         default:
         {
             status = SRB_STATUS_ERROR;
