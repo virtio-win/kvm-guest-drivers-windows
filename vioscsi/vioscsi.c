@@ -235,6 +235,46 @@ SCSIWMIGUIDREGINFO VioScsiGuidList[] =
 
 #define VioScsiGuidCount (sizeof(VioScsiGuidList) / sizeof(SCSIWMIGUIDREGINFO))
 
+void CopyUnicodeString(void* _pDest, const void* _pSrc, size_t _maxlength)
+{
+     PUSHORT _pDestTemp = _pDest;
+     USHORT  _length = _maxlength - sizeof(USHORT);
+     *_pDestTemp++ = _length;
+     _length = (USHORT)min(wcslen(_pSrc)*sizeof(WCHAR), _length);
+     memcpy(_pDestTemp, _pSrc, _length);
+}
+
+void CopyAnsiToUnicodeString(void* _pDest, const void* _pSrc, size_t _maxlength)
+{
+    PUSHORT _pDestTemp = _pDest;
+    PWCHAR  dst;
+    PCHAR   src = (PCHAR)_pSrc;
+    USHORT  _length = _maxlength - sizeof(USHORT);
+    *_pDestTemp++ = _length;
+    dst = (PWCHAR)_pDestTemp;
+    _length = (USHORT)min(strlen((const char*)_pSrc) * sizeof(WCHAR), _length);
+    _length /= sizeof(WCHAR);
+    while (_length) {
+        *dst++ = *src++;
+        --_length;
+    };
+}
+
+USHORT CopyBufferToAnsiString(void* _pDest, const void* _pSrc, const char delimiter, size_t _maxlength)
+{
+    PCHAR  dst = (PCHAR)_pDest;
+    PCHAR   src = (PCHAR)_pSrc;
+    USHORT  _length = _maxlength;
+
+    while (_length && (*src != ' ')) {
+        *dst++ = *src++;
+        --_length;
+    };
+    *dst = '\0';
+    return _length;
+}
+
+
 
 ULONG
 DriverEntry(
@@ -1664,95 +1704,61 @@ VioScsiSaveInquiryData(
     PVOID           dataBuffer;
     PADAPTER_EXTENSION    adaptExt;
     PCDB cdb;
-    PINQUIRYDATA InquiryData;
     ULONG dataLen;
-
+    UCHAR SrbStatus = SRB_STATUS_SUCCESS;
 ENTER_FN();
-    RhelDbgPrint(TRACE_LEVEL_FATAL, ("<-->VioScsiSaveInquiryData\n"));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<-->VioScsiSaveInquiryData\n"));
 
     if (!Srb)
         return;
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
     cdb      = SRB_CDB(Srb);
     if (!cdb)
         return;
+
+    SRB_GET_SCSI_STATUS(Srb, SrbStatus);
+    if (SrbStatus == SRB_STATUS_ERROR)
+        return;
+
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     dataBuffer = SRB_DATA_BUFFER(Srb);
-    InquiryData = (PINQUIRYDATA)dataBuffer;
     dataLen = SRB_DATA_TRANSFER_LENGTH(Srb);
-    switch (cdb->CDB6INQUIRY3.PageCode) {
-        case VPD_SERIAL_NUMBER: {
-            PVPD_SERIAL_NUMBER_PAGE SerialPage;
-            SerialPage = (PVPD_SERIAL_NUMBER_PAGE)dataBuffer;
-            RhelDbgPrint(TRACE_LEVEL_FATAL, ("VPD_SERIAL_NUMBER PageLength = %d\n", SerialPage->PageLength));
-            if (SerialPage->PageLength > 0 && adaptExt->ser_num == NULL) {
-                int ln = min (64, SerialPage->PageLength);
-                ULONG Status =
-                             StorPortAllocatePool(DeviceExtension,
-                             ln + 1,
-                             VIOSCSI_POOL_TAG,
-                             (PVOID*)&adaptExt->ser_num);
-                if (NT_SUCCESS(Status)) {
-                    StorPortMoveMemory(adaptExt->ser_num, SerialPage->SerialNumber, ln);
-                    adaptExt->ser_num[ln] = '\0';
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("serial number %s\n", adaptExt->ser_num));
+
+    if (cdb->CDB6INQUIRY3.EnableVitalProductData == 1) {
+        switch (cdb->CDB6INQUIRY3.PageCode) {
+            case VPD_SERIAL_NUMBER: {
+                PVPD_SERIAL_NUMBER_PAGE SerialPage;
+                SerialPage = (PVPD_SERIAL_NUMBER_PAGE)dataBuffer;
+                RhelDbgPrint(TRACE_LEVEL_FATAL, ("VPD_SERIAL_NUMBER PageLength = %d\n", SerialPage->PageLength));
+                if (SerialPage->PageLength > 0 && adaptExt->ser_num == NULL) {
+                    int ln = min(64, SerialPage->PageLength);
+                    ULONG Status =
+                        StorPortAllocatePool(DeviceExtension,
+                            ln + 1,
+                            VIOSCSI_POOL_TAG,
+                            (PVOID*)&adaptExt->ser_num);
+                    if (NT_SUCCESS(Status)) {
+                        StorPortMoveMemory(adaptExt->ser_num, SerialPage->SerialNumber, ln);
+                        adaptExt->ser_num[ln] = '\0';
+                        RhelDbgPrint(TRACE_LEVEL_FATAL, ("serial number %s\n", adaptExt->ser_num));
+                    }
                 }
             }
             break;
-        }
-        case VPD_DEVICE_IDENTIFIERS: {
-            PVPD_IDENTIFICATION_PAGE IdentificationPage;
-            PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr;
-            IdentificationPage = (PVPD_IDENTIFICATION_PAGE)dataBuffer;
-            if (IdentificationPage->PageLength >= sizeof(VPD_IDENTIFICATION_DESCRIPTOR)) {
-                IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
-                RhelDbgPrint(TRACE_LEVEL_FATAL, ("VPD_DEVICE_IDENTIFIERS CodeSet = %x IdentifierType = %x IdentifierLength= %d\n", IdentificationDescr->CodeSet, IdentificationDescr->IdentifierType, IdentificationDescr->IdentifierLength));
-                if (IdentificationDescr->IdentifierLength >= (sizeof(ULONGLONG)) && (IdentificationDescr->CodeSet == VpdCodeSetBinary)) {
-                    REVERSE_BYTES_QUAD(&adaptExt->hba_id, &IdentificationDescr->Identifier[8]);
-                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x  %llx\n",
-                                 IdentificationDescr->Identifier[0], IdentificationDescr->Identifier[1],
-                                 IdentificationDescr->Identifier[2], IdentificationDescr->Identifier[3],
-                                 IdentificationDescr->Identifier[4], IdentificationDescr->Identifier[5],
-                                 IdentificationDescr->Identifier[6], IdentificationDescr->Identifier[7],
-                                 IdentificationDescr->Identifier[8], IdentificationDescr->Identifier[9],
-                                 IdentificationDescr->Identifier[10], IdentificationDescr->Identifier[11],
-                                 IdentificationDescr->Identifier[12], IdentificationDescr->Identifier[13],
-                                 IdentificationDescr->Identifier[14], IdentificationDescr->Identifier[15],
-                                 adaptExt->hba_id));
-                }
+            case VPD_DEVICE_IDENTIFIERS: {
             }
             break;
         }
-        default:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("Unhandled page code %x\n", cdb->CDB6INQUIRY3.PageCode));
-            break;
     }
-
+    else if (cdb->CDB6INQUIRY3.PageCode == VPD_SUPPORTED_PAGES) {
+        PINQUIRYDATA InquiryData = (PINQUIRYDATA)dataBuffer;
+        if (InquiryData && dataLen) {
+            CopyBufferToAnsiString(adaptExt->ven_id, InquiryData->VendorId, ' ', sizeof(InquiryData->VendorId));
+            CopyBufferToAnsiString(adaptExt->prod_id, InquiryData->ProductId, ' ', sizeof(InquiryData->ProductId));
+            CopyBufferToAnsiString(adaptExt->rev_id, InquiryData->ProductRevisionLevel, ' ',sizeof(InquiryData->ProductRevisionLevel));
+        }
+    }
 EXIT_FN();
-}
-
-void CopyUnicodeString(void* _pDest, const void* _pSrc, size_t _maxlength)
-{
-     PUSHORT _pDestTemp = _pDest;
-     USHORT  _length = _maxlength - sizeof(USHORT);
-     *_pDestTemp++ = _length;
-     _length = (USHORT)min(wcslen(_pSrc)*sizeof(WCHAR), _length);
-     memcpy(_pDestTemp, _pSrc, _length);
-}
-
-void CopyAnsiToUnicodeString(void* _pDest, const void* _pSrc, size_t _maxlength)
-{
-    PUSHORT _pDestTemp = _pDest;
-    PWCHAR  dst;
-    PCHAR   src = (PCHAR)_pSrc;
-    USHORT  _length = _maxlength - sizeof(USHORT);
-    *_pDestTemp++ = _length;
-    dst = (PWCHAR)_pDestTemp;
-    _length = (USHORT)min(strlen((const char*)_pSrc) * sizeof(WCHAR), _length);
-    _length /= sizeof(WCHAR);
-    while (_length) {
-        *dst++ = *src++;
-        --_length;
-    };
 }
 
 BOOLEAN

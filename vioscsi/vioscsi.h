@@ -315,6 +315,9 @@ typedef struct _ADAPTER_EXTENSION {
     SCSI_WMILIB_CONTEXT   WmiLibContext;
     ULONGLONG             hba_id;
     PUCHAR                ser_num;
+    UCHAR                 ven_id[8 + 1];
+    UCHAR                 prod_id[16 + 1];
+    UCHAR                 rev_id[4 + 1];
 }ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
 
 #ifndef PCIX_TABLE_POINTER
