@@ -1861,7 +1861,7 @@ VioScsiQueryWmiDataBlock(
 ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)Context;
 
-    ASSERT(InstanceIndex == 0);
+    UNREFERENCED_PARAMETER(InstanceIndex);
 
     switch (GuidIndex)
     {
@@ -1878,8 +1878,8 @@ ENTER_FN();
                                      Buffer);
             *InstanceLengthArray = size;
             status = SRB_STATUS_SUCCESS;
-            break;
         }
+        break;
         case VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX:
         {
             PMS_SM_AdapterInformationQuery pOutBfr = (PMS_SM_AdapterInformationQuery)Buffer;
@@ -1891,7 +1891,7 @@ ENTER_FN();
                 break;
             }
 
-            memset(pOutBfr, 0, size);
+            RtlZeroMemory(pOutBfr, size);
             pOutBfr->UniqueAdapterId = adaptExt->hba_id;
             pOutBfr->HBAStatus = HBA_STATUS_OK;
             pOutBfr->NumberOfPorts = 1;
@@ -1907,16 +1907,20 @@ ENTER_FN();
             }
             CopyUnicodeString(pOutBfr->Model, MODEL, sizeof(pOutBfr->Model));
             CopyUnicodeString(pOutBfr->ModelDescription, MODELDESCRIPTION, sizeof(pOutBfr->ModelDescription));
-            CopyUnicodeString(pOutBfr->FirmwareVersion, FIRMWAREVERSION, sizeof(pOutBfr->FirmwareVersion));
+            CopyUnicodeString(pOutBfr->HardwareVersion, HARDWAREVERSION, sizeof(pOutBfr->ModelDescription));
+            CopyUnicodeString(pOutBfr->DriverVersion, DRIVERVERSION, sizeof(pOutBfr->DriverVersion));
+            CopyUnicodeString(pOutBfr->OptionROMVersion, OPTIONROMVERSION, sizeof(pOutBfr->OptionROMVersion));
+            CopyAnsiToUnicodeString(pOutBfr->FirmwareVersion, adaptExt->rev_id, sizeof(pOutBfr->FirmwareVersion));
             CopyUnicodeString(pOutBfr->DriverName, DRIVERNAME, sizeof(pOutBfr->DriverName));
             CopyUnicodeString(pOutBfr->HBASymbolicName, HBASYMBOLICNAME, sizeof(pOutBfr->HBASymbolicName));
-            CopyUnicodeString(pOutBfr->RedundantFirmwareVersion, FIRMWAREVERSION, sizeof(pOutBfr->RedundantFirmwareVersion));
+            CopyUnicodeString(pOutBfr->RedundantFirmwareVersion, REDUNDANTFIRMWAREVERSION, sizeof(pOutBfr->RedundantFirmwareVersion));
+            CopyUnicodeString(pOutBfr->RedundantOptionROMVersion, REDUNDANTOPTIONROMVERSION, sizeof(pOutBfr->RedundantOptionROMVersion));
             CopyUnicodeString(pOutBfr->MfgDomain, MFRDOMAIN, sizeof(pOutBfr->MfgDomain));
 
             *InstanceLengthArray = size;
             status = SRB_STATUS_SUCCESS;
-            break;
         }
+        break;
         case VIOSCSI_MS_PORT_INFORM_GUID_INDEX:
         {
             RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->VIOSCSI_MS_PORT_INFORM_GUID_INDEX ERROR\n"));
