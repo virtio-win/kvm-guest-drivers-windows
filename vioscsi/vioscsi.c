@@ -1963,22 +1963,23 @@ VioScsiExecuteWmiMethod(
     PADAPTER_EXTENSION      adaptExt = (PADAPTER_EXTENSION)Context;
     ULONG                   size = 0;
     UCHAR                   status = SRB_STATUS_SUCCESS;
+    UNREFERENCED_PARAMETER(InstanceIndex);
 
     ENTER_FN();
-    RhelDbgPrint(TRACE_LEVEL_FATAL, ("<-->VioScsiQueryWmiDataBlock\n"));
     switch (GuidIndex)
     {
         case VIOSCSI_SETUP_GUID_INDEX:
         {
             RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->VIOSCSI_SETUP_GUID_INDEX ERROR\n"));
-            break;
         }
+        break;
         case VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX:
         {
             PMS_SM_AdapterInformationQuery pOutBfr = (PMS_SM_AdapterInformationQuery)Buffer;
+            pOutBfr;
             RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX ERROR\n"));
-            break;
         }
+        break;
         case VIOSCSI_MS_PORT_INFORM_GUID_INDEX:
         {
             switch (MethodId)
@@ -1987,140 +1988,137 @@ VioScsiExecuteWmiMethod(
                 {
                     PSM_GetPortType_IN  pInBfr = (PSM_GetPortType_IN)Buffer;
                     PSM_GetPortType_OUT pOutBfr = (PSM_GetPortType_OUT)Buffer;
-
                     RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetPortType\n"));
                     size = SM_GetPortType_OUT_SIZE;
-
                     if (OutBufferSize < size)
                     {
                         status = SRB_STATUS_DATA_OVERRUN;
                         break;
                     }
-
                     if (InBufferSize < SM_GetPortType_IN_SIZE)
                     {
-                        status = SRB_STATUS_BAD_FUNCTION;
+                        status = SRB_STATUS_ERROR;
                         break;
                     }
-
-                    break;
+                    pOutBfr->HBAStatus = HBA_STATUS_OK;
+                    pOutBfr->PortType = HBA_PORTTYPE_SASDEVICE;
                 }
+                break;
                 case SM_GetAdapterPortAttributes:
                 {
                     PSM_GetAdapterPortAttributes_IN  pInBfr = (PSM_GetAdapterPortAttributes_IN)Buffer;
                     PSM_GetAdapterPortAttributes_OUT pOutBfr = (PSM_GetAdapterPortAttributes_OUT)Buffer;
-
+                    PMS_SMHBA_FC_Port pPortSpecificAttributes = NULL;
                     RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetAdapterPortAttributes\n"));
-                    size = SM_GetAdapterPortAttributes_OUT_SIZE;
-
+                    size = FIELD_OFFSET(SM_GetAdapterPortAttributes_OUT, PortAttributes) + FIELD_OFFSET(MS_SMHBA_PORTATTRIBUTES, PortSpecificAttributes) + sizeof(MS_SMHBA_FC_Port);
                     if (OutBufferSize < size)
                     {
                         status = SRB_STATUS_DATA_OVERRUN;
                         break;
                     }
-
                     if (InBufferSize < SM_GetAdapterPortAttributes_IN_SIZE)
                     {
-                        status = SRB_STATUS_BAD_FUNCTION;
+                        status = SRB_STATUS_ERROR;
                         break;
                     }
-
-                    break;
+                    pOutBfr->HBAStatus = HBA_STATUS_OK;
+                    CopyUnicodeString(pOutBfr->PortAttributes.OSDeviceName, MODEL, sizeof(pOutBfr->PortAttributes.OSDeviceName));
+                    pOutBfr->PortAttributes.PortState = HBA_PORTSTATE_ONLINE;
+                    pOutBfr->PortAttributes.PortType = HBA_PORTTYPE_SASDEVICE;
+                    pOutBfr->PortAttributes.PortSpecificAttributesSize = sizeof(MS_SMHBA_FC_Port);
+                    pPortSpecificAttributes = (PMS_SMHBA_FC_Port) pOutBfr->PortAttributes.PortSpecificAttributes;
+                    RtlZeroMemory(pPortSpecificAttributes, sizeof(MS_SMHBA_FC_Port));
+                    RtlMoveMemory(pPortSpecificAttributes->NodeWWN, &adaptExt->wwn, sizeof(pPortSpecificAttributes->NodeWWN));
+                    RtlMoveMemory(pPortSpecificAttributes->PortWWN, &adaptExt->port_wwn, sizeof(pPortSpecificAttributes->PortWWN));
+                    pPortSpecificAttributes->FcId = 0;
+                    pPortSpecificAttributes->PortSupportedClassofService = 0;
+//FIXME report PortSupportedFc4Types PortActiveFc4Types FabricName;
+                    pPortSpecificAttributes->NumberofDiscoveredPorts = 1;
+                    pPortSpecificAttributes->NumberofPhys = 1;
+                    CopyUnicodeString(pPortSpecificAttributes->PortSymbolicName, PORTSYMBOLICNAME, sizeof(pPortSpecificAttributes->PortSymbolicName));
                 }
-
+                break;
                 case SM_GetDiscoveredPortAttributes:
                 {
                     PSM_GetDiscoveredPortAttributes_IN  pInBfr = (PSM_GetDiscoveredPortAttributes_IN)Buffer;
                     PSM_GetDiscoveredPortAttributes_OUT pOutBfr = (PSM_GetDiscoveredPortAttributes_OUT)Buffer;
-
                     RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetDiscoveredPortAttributes\n"));
                     size = SM_GetDiscoveredPortAttributes_OUT_SIZE;
-
                     if (OutBufferSize < size)
                     {
                         status = SRB_STATUS_DATA_OVERRUN;
                         break;
                     }
-
                     if (InBufferSize < SM_GetDiscoveredPortAttributes_IN_SIZE)
                     {
-                        status = SRB_STATUS_BAD_FUNCTION;
+                        status = SRB_STATUS_ERROR;
                         break;
                     }
-
-                    break;
+                    pOutBfr->HBAStatus = HBA_STATUS_OK;
+                    CopyUnicodeString(pOutBfr->PortAttributes.OSDeviceName, MODEL, sizeof(pOutBfr->PortAttributes.OSDeviceName));
+                    pOutBfr->PortAttributes.PortState = HBA_PORTSTATE_ONLINE;
+                    pOutBfr->PortAttributes.PortType = HBA_PORTTYPE_SASDEVICE;
                 }
-
+                break;
                 case SM_GetPortAttributesByWWN:
                 {
                     PSM_GetPortAttributesByWWN_IN  pInBfr = (PSM_GetPortAttributesByWWN_IN)Buffer;
                     PSM_GetPortAttributesByWWN_OUT pOutBfr = (PSM_GetPortAttributesByWWN_OUT)Buffer;
-
                     RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetPortAttributesByWWN\n"));
                     size = SM_GetPortAttributesByWWN_OUT_SIZE;
-
                     if (OutBufferSize < size)
                     {
                         status = SRB_STATUS_DATA_OVERRUN;
                         break;
                     }
-
                     if (InBufferSize < SM_GetPortAttributesByWWN_IN_SIZE)
                     {
-                        status = SRB_STATUS_BAD_FUNCTION;
+                        status = SRB_STATUS_ERROR;
                         break;
                     }
-
-                    break;
+                    pOutBfr->HBAStatus = HBA_STATUS_OK;
+                    CopyUnicodeString(pOutBfr->PortAttributes.OSDeviceName, MODEL, sizeof(pOutBfr->PortAttributes.OSDeviceName));
+                    pOutBfr->PortAttributes.PortState = HBA_PORTSTATE_ONLINE;
+                    pOutBfr->PortAttributes.PortType = HBA_PORTTYPE_SASDEVICE;
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetPortAttributesByWWN Not Implemented Yet\n"));
                 }
-
+                break;
                 case SM_GetProtocolStatistics:
                 {
                     PSM_GetProtocolStatistics_IN  pInBfr = (PSM_GetProtocolStatistics_IN)Buffer;
                     PSM_GetProtocolStatistics_OUT pOutBfr = (PSM_GetProtocolStatistics_OUT)Buffer;
-
                     RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetProtocolStatistics\n"));
                     size = SM_GetProtocolStatistics_OUT_SIZE;
-
                     if (OutBufferSize < size)
                     {
                         status = SRB_STATUS_DATA_OVERRUN;
                         break;
                     }
-
                     if (InBufferSize < SM_GetProtocolStatistics_IN_SIZE)
                     {
-                        status = SRB_STATUS_BAD_FUNCTION;
+                        status = SRB_STATUS_ERROR;
                         break;
                     }
-
-                    break;
                 }
-
+                break;
                 case SM_GetPhyStatistics:
                 {
                     PSM_GetPhyStatistics_IN  pInBfr = (PSM_GetPhyStatistics_IN)Buffer;
                     PSM_GetPhyStatistics_OUT pOutBfr = (PSM_GetPhyStatistics_OUT)Buffer;
-
                     RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetPhyStatistics\n"));
-                    //FIXME
                     size = FIELD_OFFSET(SM_GetPhyStatistics_OUT, PhyCounter) + sizeof(LONGLONG);
                     if (OutBufferSize < size)
                     {
                         status = SRB_STATUS_DATA_OVERRUN;
                         break;
                     }
-
                     if (InBufferSize < SM_GetPhyStatistics_IN_SIZE)
                     {
-                        status = SRB_STATUS_BAD_FUNCTION;
+                        status = SRB_STATUS_ERROR;
                         break;
                     }
-
-                    break;
                 }
-
-
+                break;
                 case SM_GetFCPhyAttributes:
                 {
                     PSM_GetFCPhyAttributes_IN  pInBfr = (PSM_GetFCPhyAttributes_IN)Buffer;
@@ -2137,54 +2135,43 @@ VioScsiExecuteWmiMethod(
 
                     if (InBufferSize < SM_GetFCPhyAttributes_IN_SIZE)
                     {
-                        status = SRB_STATUS_BAD_FUNCTION;
+                        status = SRB_STATUS_ERROR;
                         break;
                     }
-
-                    break;
                 }
-
+                break;
                 case SM_GetSASPhyAttributes:
                 {
                     PSM_GetSASPhyAttributes_IN  pInBfr = (PSM_GetSASPhyAttributes_IN)Buffer;
                     PSM_GetSASPhyAttributes_OUT pOutBfr = (PSM_GetSASPhyAttributes_OUT)Buffer;
-
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetSASPhyAttributes\n"));
                     size = SM_GetSASPhyAttributes_OUT_SIZE;
-
                     if (OutBufferSize < size)
                     {
                         status = SRB_STATUS_DATA_OVERRUN;
                         break;
                     }
-
                     if (InBufferSize < SM_GetSASPhyAttributes_IN_SIZE)
                     {
-                        status = SRB_STATUS_BAD_FUNCTION;
+                        status = SRB_STATUS_ERROR;
                         break;
                     }
-
-                    break;
                 }
-
+                break;
                 case SM_RefreshInformation:
                 {
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_RefreshInformation\n"));
-                    break;
                 }
-
+                break;
                 default:
                     status = SRB_STATUS_INVALID_REQUEST;
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("--> ERROR Unknown MethodId = %lu\n", MethodId));
+                    RhelDbgPrint(TRACE_LEVEL_ERROR, ("--> ERROR Unknown MethodId = %lu\n", MethodId));
                     break;
             }
-            default:
-                status = SRB_STATUS_INVALID_REQUEST;
-                RhelDbgPrint(TRACE_LEVEL_FATAL, ("--> ERROR Unknown GuidIndex = %lu\n", GuidIndex));
-
-                break;
         }
-
+        break;
+        default:
+            status = SRB_STATUS_INVALID_REQUEST;
+            RhelDbgPrint(TRACE_LEVEL_ERROR, ("--> VioScsiExecuteWmiMethod Unsupported GuidIndex = %lu\n", GuidIndex));
+        break;
     }
     ScsiPortWmiPostProcess(RequestContext,
         status,
