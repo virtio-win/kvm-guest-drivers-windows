@@ -1365,6 +1365,7 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 
     pContext->RSSParameters.rwLock.~CNdisRWLock();
 #endif
+    pContext->m_StateMachine.NotifyHalted();
 
     if (pContext->bCXPathAllocated)
     {

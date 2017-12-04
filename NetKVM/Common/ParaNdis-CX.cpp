@@ -28,6 +28,8 @@ bool CParaNdisCX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
         return false;
     }
 
+    m_Context->m_CxStateMachine.Start();
+
     return m_VirtQueue.Create(DeviceQueueIndex,
         &m_Context->IODevice,
         m_Context->MiniportHandle,
@@ -89,6 +91,7 @@ BOOLEAN CParaNdisCX::SendControlMessage(
         if (0 <= m_VirtQueue.AddBuf(sg, nOut, 1, (PVOID)1, NULL, 0))
         {
             UINT len;
+            m_Context->m_CxStateMachine.RegisterOutstandingItem();
 
             m_VirtQueue.Kick();
             while (!m_VirtQueue.GetBuf(&len))
@@ -96,6 +99,8 @@ BOOLEAN CParaNdisCX::SendControlMessage(
                 UINT interval = 1;
                 NdisStallExecution(interval);
             }
+            m_Context->m_CxStateMachine.UnregisterOutstandingItem();
+
             if (len != sizeof(virtio_net_ctrl_ack))
             {
                 DPrintf(0, ("%s - ERROR: wrong len %d\n", __FUNCTION__, len));
