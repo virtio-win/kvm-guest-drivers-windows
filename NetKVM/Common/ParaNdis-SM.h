@@ -2,18 +2,21 @@
 
 #include "ParaNdis-Util.h"
 
-class CDataFlowStateMachine : public CPlacementAllocatable
+class CFlowStateMachine : public CPlacementAllocatable
 {
 public:
-    void Start()
+    virtual void Start()
     {
-        NETKVM_ASSERT(m_State == FlowState::Stopped);
+        if (m_State != FlowState::Stopped)
+        {
+            return;
+        }
         m_Counter.AddRef();
         m_State = FlowState::Running;
         m_Counter.ClearMask(StoppedMask);
     }
 
-    void Stop(NDIS_STATUS Reason = NDIS_STATUS_PAUSED)
+    virtual void Stop(NDIS_STATUS Reason = NDIS_STATUS_PAUSED)
     {
         NETKVM_ASSERT(m_State == FlowState::Running);
         m_State = FlowState::Stopping;
@@ -24,8 +27,8 @@ public:
         m_NoOutstandingItems.Wait();
     }
 
-    bool RegisterOutstandingItems(ULONG NumItems,
-                                  NDIS_STATUS *FailureReason = nullptr)
+    virtual bool RegisterOutstandingItems(ULONG NumItems,
+        NDIS_STATUS *FailureReason = nullptr)
     {
         auto value = m_Counter.AddRef(NumItems);
         if (value & StoppedMask)
@@ -44,7 +47,7 @@ public:
         return true;
     }
 
-    void UnregisterOutstandingItems(ULONG NumItems)
+    virtual void UnregisterOutstandingItems(ULONG NumItems)
     {
         NETKVM_ASSERT(m_State != FlowState::Stopped);
         LONG value = m_Counter.Release(NumItems);
@@ -64,19 +67,23 @@ public:
         }
     }
 
-    bool RegisterOutstandingItem()
-    { return RegisterOutstandingItems(1); }
+    virtual bool RegisterOutstandingItem()
+    {
+        return RegisterOutstandingItems(1);
+    }
 
-    void UnregisterOutstandingItem()
-    { UnregisterOutstandingItems(1); }
+    virtual void UnregisterOutstandingItem()
+    {
+        UnregisterOutstandingItems(1);
+    }
 
-    CDataFlowStateMachine() { m_Counter.SetMask(StoppedMask); }
-    ~CDataFlowStateMachine() = default;
-    CDataFlowStateMachine(const CDataFlowStateMachine&) = delete;
-    CDataFlowStateMachine& operator= (const CDataFlowStateMachine&) = delete;
+    CFlowStateMachine() { m_Counter.SetMask(StoppedMask); }
+    ~CFlowStateMachine() = default;
+    CFlowStateMachine(const CFlowStateMachine&) = delete;
+    CFlowStateMachine& operator= (const CFlowStateMachine&) = delete;
 
-private:
-    void CompleteStopping()
+protected:
+    virtual void CompleteStopping()
     {
         TPassiveSpinLocker lock(m_CompleteStoppingLock);
         if (m_State == FlowState::Stopping)
@@ -100,21 +107,56 @@ private:
     CNdisSpinLock m_CompleteStoppingLock;
     CNdisEvent m_NoOutstandingItems;
     NDIS_STATUS m_StopReason = NDIS_STATUS_PAUSED;
+};
 
+class CDataFlowStateMachine : public CFlowStateMachine
+{
+public:
+
+
+    CDataFlowStateMachine() { }
+    ~CDataFlowStateMachine() = default;
+    CDataFlowStateMachine(const CDataFlowStateMachine&) = delete;
+    CDataFlowStateMachine& operator= (const CDataFlowStateMachine&) = delete;
+
+private:
     DECLARE_CNDISLIST_ENTRY(CDataFlowStateMachine);
+};
+
+class CConfigFlowStateMachine : public CFlowStateMachine
+{
+public:
+
+
+    CConfigFlowStateMachine() { }
+    ~CConfigFlowStateMachine() = default;
+    CConfigFlowStateMachine(const CConfigFlowStateMachine&) = delete;
+    CConfigFlowStateMachine& operator= (const CConfigFlowStateMachine&) = delete;
+
+private:
+    DECLARE_CNDISLIST_ENTRY(CConfigFlowStateMachine);
 };
 
 class CMiniportStateMachine : public CPlacementAllocatable
 {
 public:
         void RegisterFlow(CDataFlowStateMachine &Flow)
-        { m_Flows.PushBack(&Flow); }
+        { m_DataFlows.PushBack(&Flow); }
 
         void UnregisterFlow(CDataFlowStateMachine &Flow)
-        { m_Flows.Remove(&Flow); }
+        { m_DataFlows.Remove(&Flow); }
+
+        void RegisterFlow(CConfigFlowStateMachine &Flow)
+        { m_ConfigFlows.PushBack(&Flow); }
+
+        void UnregisterFlow(CConfigFlowStateMachine &Flow)
+        { m_ConfigFlows.Remove(&Flow); }
 
         void NotifyInitialized()
-        { ChangeState(MiniportState::Paused, MiniportState::Halted); }
+        {
+            StartConfigFlows();
+            ChangeState(MiniportState::Paused, MiniportState::Halted);
+        }
 
         void NotifyShutdown()
         { ChangeState(MiniportState::Shutdown,
@@ -160,6 +202,10 @@ public:
             }
         }
 
+        void NotifyHalted()
+        {
+            StopConfigFlows(NDIS_STATUS_PAUSED); }
+
         CMiniportStateMachine() = default;
         ~CMiniportStateMachine() = default;
         CMiniportStateMachine(const CMiniportStateMachine&) = delete;
@@ -196,11 +242,18 @@ private:
     }
 
     void StartFlows()
-    { m_Flows.ForEach([](CDataFlowStateMachine* Flow) { Flow->Start(); }); }
+    { m_DataFlows.ForEach([](CDataFlowStateMachine* Flow) { Flow->Start(); }); }
 
     void StopFlows(NDIS_STATUS Reason)
-    { m_Flows.ForEach([Reason](CDataFlowStateMachine* Flow) { Flow->Stop(Reason); }); }
+    { m_DataFlows.ForEach([Reason](CDataFlowStateMachine* Flow) { Flow->Stop(Reason); }); }
+
+    void StartConfigFlows()
+    { m_ConfigFlows.ForEach([](CConfigFlowStateMachine* Flow) { Flow->Start(); }); }
+
+    void StopConfigFlows(NDIS_STATUS Reason)
+    { m_ConfigFlows.ForEach([Reason](CConfigFlowStateMachine* Flow) { Flow->Stop(Reason); }); }
 
     MiniportState m_State = MiniportState::Halted;
-    CNdisList<CDataFlowStateMachine, CRawAccess, CNonCountingObject> m_Flows;
+    CNdisList<CDataFlowStateMachine, CRawAccess, CNonCountingObject> m_DataFlows;
+    CNdisList<CConfigFlowStateMachine, CRawAccess, CNonCountingObject> m_ConfigFlows;
 };
