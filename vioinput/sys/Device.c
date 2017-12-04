@@ -570,6 +570,10 @@ VIOInputEvtDeviceD0Exit(
 
     PAGED_CODE();
 
+    // reset the device to make sure it's not processing the event queue anymore
+    virtio_device_reset(&pContext->VDevice.VIODevice);
+
+    // now with the queue stopped, free the buffers we've pushed to it
     if (pContext->EventQ)
     {
         while (buf = (PVIRTIO_INPUT_EVENT)virtqueue_detach_unused_buf(pContext->EventQ))
