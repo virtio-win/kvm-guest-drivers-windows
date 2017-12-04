@@ -183,8 +183,11 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
         new (&pContext->m_StateMachine) CMiniportStateMachine;
         new (&pContext->m_RxStateMachine) CDataFlowStateMachine;
+        new (&pContext->m_CxStateMachine) CConfigFlowStateMachine;
 
         pContext->m_StateMachine.RegisterFlow(pContext->m_RxStateMachine);
+        pContext->m_StateMachine.RegisterFlow(pContext->m_CxStateMachine);
+
 
         NdisZeroMemory(&miniportAttributes, sizeof(miniportAttributes));
         miniportAttributes.RegistrationAttributes.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES;
@@ -335,7 +338,10 @@ static NDIS_STATUS ParaNdis6_Initialize(
 #endif
 
         pContext->m_StateMachine.UnregisterFlow(pContext->m_RxStateMachine);
+        pContext->m_StateMachine.UnregisterFlow(pContext->m_CxStateMachine);
+        pContext->m_StateMachine.NotifyHalted();
 
+        pContext->m_CxStateMachine.~CConfigFlowStateMachine();
         pContext->m_RxStateMachine.~CDataFlowStateMachine();
         pContext->m_StateMachine.~CMiniportStateMachine();
 

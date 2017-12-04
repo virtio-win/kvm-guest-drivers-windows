@@ -396,6 +396,8 @@ typedef struct _tagPARANDIS_ADAPTER
 
     CMiniportStateMachine   m_StateMachine;
     CDataFlowStateMachine   m_RxStateMachine;
+    CConfigFlowStateMachine m_CxStateMachine;
+
 
     CGuestAnnouncePackets    guestAnnouncePackets;
 
