@@ -219,7 +219,7 @@ bool virtqueue_enable_cb(struct virtqueue *vq)
         vq->master_vring_avail.flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
         if (!vq->vdev->event_suppression_enabled)
         {
-            vq->vring.avail->flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
+            vq->vring.avail->flags = vq->master_vring_avail.flags;
         }
     }
 
@@ -238,7 +238,7 @@ bool virtqueue_enable_cb_delayed(struct virtqueue *vq)
         vq->master_vring_avail.flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
         if (!vq->vdev->event_suppression_enabled)
         {
-            vq->vring.avail->flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
+            vq->vring.avail->flags = vq->master_vring_avail.flags;
         }
     }
 
@@ -256,7 +256,7 @@ void virtqueue_disable_cb(struct virtqueue *vq)
         vq->master_vring_avail.flags |= VIRTQ_AVAIL_F_NO_INTERRUPT;
         if (!vq->vdev->event_suppression_enabled)
         {
-            vq->vring.avail->flags |= VIRTQ_AVAIL_F_NO_INTERRUPT;
+            vq->vring.avail->flags = vq->master_vring_avail.flags;
         }
     }
 }
