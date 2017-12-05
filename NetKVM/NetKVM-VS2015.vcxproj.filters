@@ -94,7 +94,7 @@
     <ClInclude Include="wlh\ParaNdis6_Driver.h">
       <Filter>Header Files\wlh</Filter>
     </ClInclude>
-    <ClInclude Include="ParaNdis_LockFreeQueue.h">
+    <ClInclude Include="Common\ParaNdis_LockFreeQueue.h">
       <Filter>Header Files\Common</Filter>
     </ClInclude>
   </ItemGroup>
