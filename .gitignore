@@ -8,6 +8,8 @@
 *.user
 *.sdf
 *.tmh
+*.bmf
+*.cat
 *.opensdf
 *.DVL.XML
 *.opendb
@@ -26,3 +28,4 @@ sdv
 sdv-map.h
 sdv-user.*
 SDV-default.xml
+netkvmmof.h
