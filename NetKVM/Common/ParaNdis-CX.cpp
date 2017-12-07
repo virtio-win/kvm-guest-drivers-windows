@@ -1,6 +1,10 @@
 #include "ndis56common.h"
 #include "virtio_net.h"
 #include "kdebugprint.h"
+#include "Trace.h"
+#ifdef NETKVM_WPP_ENABLED
+#include "ParaNdis-CX.tmh"
+#endif
 
 CParaNdisCX::CParaNdisCX()
 {

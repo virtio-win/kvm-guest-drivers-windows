@@ -1,6 +1,10 @@
 #include "ndis56common.h"
 #include "ParaNdis-VirtQueue.h"
 #include "kdebugprint.h"
+#include "Trace.h"
+#ifdef NETKVM_WPP_ENABLED
+#include "ParaNdis-VirtQueue.tmh"
+#endif
 
 bool CVirtQueue::AllocateQueueMemory()
 {

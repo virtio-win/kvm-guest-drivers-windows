@@ -28,6 +28,11 @@
  */
 #include "ndis56common.h"
 #include "ParaNdis_DebugHistory.h"
+#include "Trace.h"
+#ifdef NETKVM_WPP_ENABLED
+#include "ParaNdis-Debug.tmh"
+#endif
+
 
 extern "C"
 {

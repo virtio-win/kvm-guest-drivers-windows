@@ -29,6 +29,10 @@
 #include "ParaNdis6.h"
 #include "kdebugprint.h"
 #include "ParaNdis_DebugHistory.h"
+#include "Trace.h"
+#ifdef NETKVM_WPP_ENABLED
+#include "ParaNdis6-Impl.tmh"
+#endif
 
 static MINIPORT_DISABLE_INTERRUPT MiniportDisableInterruptEx;
 static MINIPORT_ENABLE_INTERRUPT MiniportEnableInterruptEx;

@@ -31,6 +31,10 @@
 #include "virtio_ring.h"
 #include "kdebugprint.h"
 #include "ParaNdis_DebugHistory.h"
+#include "Trace.h"
+#ifdef NETKVM_WPP_ENABLED
+#include "ParaNdis-Common.tmh"
+#endif
 
 static VOID ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext);
 
