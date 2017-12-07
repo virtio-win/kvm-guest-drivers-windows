@@ -61,7 +61,7 @@ bool CVirtQueue::Create(UINT Index,
     }
     else
     {
-        DPrintf(0, "[%s] - queue memory allocation failed\n", __FUNCTION__, Index);
+        DPrintf(0, "[%s] - queue memory allocation failed, index = %d\n", __FUNCTION__, Index);
     }
 
     return m_VirtQueue != nullptr;

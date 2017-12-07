@@ -104,7 +104,7 @@ bool CNBL::ParseBuffers()
 
     if(m_MaxDataLength == 0)
     {
-        DPrintf(0, "Empty NBL (%p) dropped\n", __FUNCTION__, m_NBL);
+        DPrintf(0, "[%s] - Empty NBL (%p) dropped\n", __FUNCTION__, m_NBL);
         return false;
     }
 

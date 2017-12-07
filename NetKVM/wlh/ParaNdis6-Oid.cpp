@@ -706,9 +706,9 @@ static void DumpOffloadStructure(NDIS_OFFLOAD *po, LPCSTR message)
     pul = (ULONG *)&po->Checksum.IPv4Receive;
     DPrintf(level, "CSV4RX:(%d,%d)\n", pul[0], pul[1]);
     pul = (ULONG *)&po->Checksum.IPv6Transmit;
-    DPrintf(level, "CSV6TX:(%d,%d)\n", pul[0], pul[1], pul[2], pul[3], pul[4]);
+    DPrintf(level, "CSV6TX:(%d,%d,%d,%d,%d)\n", pul[0], pul[1], pul[2], pul[3], pul[4]);
     pul = (ULONG *)&po->Checksum.IPv6Receive;
-    DPrintf(level, "CSV6RX:(%d,%d)\n", pul[0], pul[1], pul[2], pul[3], pul[4]);
+    DPrintf(level, "CSV6RX:(%d,%d,%d,%d,%d)\n", pul[0], pul[1], pul[2], pul[3], pul[4]);
     pul = (ULONG *)&po->LsoV1;
     DPrintf(level, "LSOV1 :(%d,%d,%d,%d)\n", pul[0], pul[1], pul[2], pul[3]);
     pul = (ULONG *)&po->LsoV2.IPv4;
