@@ -638,6 +638,11 @@
       <BasicRuntimeChecks Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">Default</BasicRuntimeChecks>
       <BufferSecurityCheck Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">false</BufferSecurityCheck>
     </ClCompile>
+    <ClCompile>
+      <WppEnabled>true</WppEnabled>
+      <WppScanConfigurationData>Common\Trace.h</WppScanConfigurationData>
+      <WppAdditionalOptions>%(WppAdditionalOptions)</WppAdditionalOptions>
+    </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)">
@@ -650,6 +655,7 @@
     <ClInclude Include="Common\DebugData.h" />
     <ClInclude Include="Common\ethernetutils.h" />
     <ClInclude Include="Common\ndis56common.h" />
+    <ClInclude Include="Common\Trace.h" />
     <ClInclude Include="Common\osdep.h" />
     <ClInclude Include="Common\ParaNdis-AbstractPath.h" />
     <ClInclude Include="Common\ParaNdis-CX.h" />

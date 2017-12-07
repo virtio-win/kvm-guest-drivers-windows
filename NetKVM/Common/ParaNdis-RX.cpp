@@ -1,6 +1,10 @@
 #include "ndis56common.h"
 #include "kdebugprint.h"
 #include "ParaNdis_DebugHistory.h"
+#include "Trace.h"
+#ifdef NETKVM_WPP_ENABLED
+#include "ParaNdis-RX.tmh"
+#endif
 
 CParaNdisRX::CParaNdisRX() : m_nReusedRxBuffersCounter(0), m_NetNofReceiveBuffers(0)
 {

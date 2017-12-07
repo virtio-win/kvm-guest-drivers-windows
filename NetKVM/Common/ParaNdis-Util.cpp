@@ -1,5 +1,9 @@
 #include "ParaNdis-Util.h"
 #include "ndis56common.h"
+#include "Trace.h"
+#ifdef NETKVM_WPP_ENABLED
+#include "ParaNdis-Util.tmh"
+#endif
 
 #ifdef DBG
 void NetKvmAssert(bool Statement, ULONG Code)

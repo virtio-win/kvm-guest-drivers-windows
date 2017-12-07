@@ -33,6 +33,10 @@
 #include "kdebugprint.h"
 #include "ParaNdis_DebugHistory.h"
 #include "netkvmmof.h"
+#include "Trace.h"
+#ifdef NETKVM_WPP_ENABLED
+#include "ParaNdis6-Oid.tmh"
+#endif
 
 static NDIS_IO_WORKITEM_FUNCTION OnSetPowerWorkItem;
 

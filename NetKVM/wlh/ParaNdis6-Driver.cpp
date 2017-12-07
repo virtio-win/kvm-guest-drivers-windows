@@ -40,6 +40,10 @@ sdkddkver.h before ntddk.h cause compilation failure in wdm.h and ntddk.h */
 #include "ParaNdis_Debug.h"
 #include "ParaNdis_DebugHistory.h"
 #include "ParaNdis6_Driver.h"
+#include "Trace.h"
+#ifdef NETKVM_WPP_ENABLED
+#include "ParaNdis6-Driver.tmh"
+#endif
 
 extern "C"
 {
@@ -408,6 +412,9 @@ static VOID ParaNdis6_Unload(IN PDRIVER_OBJECT pDriverObject)
     if (DriverHandle) NdisMDeregisterMiniportDriver(DriverHandle);
     DEBUG_EXIT_STATUS(2, 0);
     ParaNdis_DebugCleanup(pDriverObject);
+#ifdef NETKVM_WPP_ENABLED
+    WPP_CLEANUP(pDriverObject);
+#endif // WPP
 }
 
 /**********************************************************
@@ -1009,7 +1016,12 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
     LARGE_INTEGER SysTime;
 #endif DEBUG_TIMING
 
+#ifdef NETKVM_WPP_ENABLED
+    // Initialize WPP Tracing
+    WPP_INIT_TRACING(pDriverObject, pRegistryPath);
+#else
     ParaNdis_DebugInitialize();
+#endif
 
     DEBUG_ENTRY(0);
     DPrintf(0, __DATE__ " " __TIME__ "built %d.%d\n", NDIS_MINIPORT_MAJOR_VERSION, NDIS_MINIPORT_MINOR_VERSION);
@@ -1066,8 +1078,14 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
     if (status == NDIS_STATUS_SUCCESS)
     {
         RetrieveDriverConfiguration();
+        DEBUG_EXIT_STATUS(status ? 0 : 4, status);
     }
-    DEBUG_EXIT_STATUS(status ? 0 : 4, status);
+    else
+    {
+#ifdef NETKVM_WPP_ENABLED
+        WPP_CLEANUP(pDriverObject);
+#endif // WPP
+    }
     return status;
 }
 

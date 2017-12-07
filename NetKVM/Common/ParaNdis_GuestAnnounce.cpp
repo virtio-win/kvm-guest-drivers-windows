@@ -2,6 +2,10 @@
 #include "ParaNdis_GuestAnnounce.h"
 #include "ParaNdis6_Driver.h"
 #include "ethernetutils.h"
+#include "Trace.h"
+#ifdef NETKVM_WPP_ENABLED
+#include "ParaNdis_GuestAnnounce.tmh"
+#endif
 
 CGuestAnnouncePacketHolder::~CGuestAnnouncePacketHolder()
 {

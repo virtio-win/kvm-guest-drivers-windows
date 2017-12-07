@@ -1,6 +1,10 @@
 #include "ndis56common.h"
 #include "ParaNdis-AbstractPath.h"
 #include "kdebugprint.h"
+#include "Trace.h"
+#ifdef NETKVM_WPP_ENABLED
+#include "ParaNdis-AbstractPath.tmh"
+#endif
 
 NDIS_STATUS CParaNdisAbstractPath::SetupMessageIndex(u16 vector)
 {
