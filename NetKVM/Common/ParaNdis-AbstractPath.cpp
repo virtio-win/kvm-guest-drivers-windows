@@ -8,7 +8,7 @@ NDIS_STATUS CParaNdisAbstractPath::SetupMessageIndex(u16 vector)
 
     if (val != vector)
     {
-        DPrintf(0, "[%s] - read/write mismatch, %u vs %u\n", val, vector);
+        DPrintf(0, "[%s] - read/write mismatch, %u vs %u\n",__FUNCTION__ , val, vector);
         return NDIS_STATUS_DEVICE_FAILED;
     }
 

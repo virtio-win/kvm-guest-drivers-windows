@@ -611,7 +611,7 @@ InitializeMAC(PPARANDIS_ADAPTER pContext, PUCHAR pCurrentMAC)
     }
     else
     {
-        DPrintf(0, "No valid MAC configured\n", __FUNCTION__);
+        DPrintf(0, "[%s] - No valid MAC configured\n", __FUNCTION__);
         ETH_COPY_NETWORK_ADDRESS(pContext->CurrentMacAddress, pContext->PermanentMacAddress);
     }
 
