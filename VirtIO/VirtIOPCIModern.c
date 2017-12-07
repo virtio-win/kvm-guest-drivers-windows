@@ -59,7 +59,7 @@ static void *vio_modern_map_capability(VirtIODevice *vdev, int cap_offset,
     pci_read_config_dword(vdev, cap_offset + offsetof(struct virtio_pci_cap, length), &bar_length);
 
     if (start + minlen > bar_length) {
-        DPrintf(0, ("bar %i cap is not large enough to map %zu bytes at offset %u\n", bar, minlen, start));
+        DPrintf(0, "bar %i cap is not large enough to map %zu bytes at offset %u\n", bar, minlen, start);
         return NULL;
     }
 
@@ -67,7 +67,7 @@ static void *vio_modern_map_capability(VirtIODevice *vdev, int cap_offset,
     bar_offset += start;
 
     if (bar_offset & (alignment - 1)) {
-        DPrintf(0, ("bar %i offset %u not aligned to %u\n", bar, bar_offset, alignment));
+        DPrintf(0, "bar %i offset %u not aligned to %u\n", bar, bar_offset, alignment);
         return NULL;
     }
 
@@ -80,13 +80,13 @@ static void *vio_modern_map_capability(VirtIODevice *vdev, int cap_offset,
     }
 
     if (bar_offset + minlen > pci_get_resource_len(vdev, bar)) {
-        DPrintf(0, ("bar %i is not large enough to map %zu bytes at offset %u\n", bar, minlen, bar_offset));
+        DPrintf(0, "bar %i is not large enough to map %zu bytes at offset %u\n", bar, minlen, bar_offset);
         return NULL;
     }
 
     addr = pci_map_address_range(vdev, bar, bar_offset, bar_length);
     if (!addr) {
-        DPrintf(0, ("unable to map %u bytes at bar %i offset %u\n", bar_length, bar, bar_offset));
+        DPrintf(0, "unable to map %u bytes at bar %i offset %u\n", bar_length, bar, bar_offset);
     }
     return addr;
 }
@@ -269,7 +269,7 @@ static NTSTATUS vio_modern_query_vq_alloc(VirtIODevice *vdev,
     }
 
     if (num & (num - 1)) {
-        DPrintf(0, ("%p: bad queue size %u", vdev, num));
+        DPrintf(0, "%p: bad queue size %u", vdev, num);
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -338,12 +338,12 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue,
         /* offset should not wrap */
         if ((u64)off * vdev->notify_offset_multiplier + 2
             > vdev->notify_len) {
-            DPrintf(0, (
+            DPrintf(0,
                 "%p: bad notification offset %u (x %u) "
                 "for queue %u > %zd",
                 vdev,
                 off, vdev->notify_offset_multiplier,
-                index, vdev->notify_len));
+                index, vdev->notify_len);
             status = STATUS_INVALID_PARAMETER;
             goto err_map_notify;
         }
@@ -513,17 +513,17 @@ NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
 
     /* Check for a common config, if not found use legacy mode */
     if (!capabilities[VIRTIO_PCI_CAP_COMMON_CFG]) {
-        DPrintf(0, ("%s(%p): device not found\n", __FUNCTION__, vdev));
+        DPrintf(0, "%s(%p): device not found\n", __FUNCTION__, vdev);
         return STATUS_DEVICE_NOT_CONNECTED;
     }
 
     /* Check isr and notify caps, if not found fail */
     if (!capabilities[VIRTIO_PCI_CAP_ISR_CFG] || !capabilities[VIRTIO_PCI_CAP_NOTIFY_CFG]) {
-        DPrintf(0, ("%s(%p): missing capabilities %i/%i/%i\n",
+        DPrintf(0, "%s(%p): missing capabilities %i/%i/%i\n",
             __FUNCTION__, vdev,
             capabilities[VIRTIO_PCI_CAP_COMMON_CFG],
             capabilities[VIRTIO_PCI_CAP_ISR_CFG],
-            capabilities[VIRTIO_PCI_CAP_NOTIFY_CFG]));
+            capabilities[VIRTIO_PCI_CAP_NOTIFY_CFG]);
         return STATUS_INVALID_PARAMETER;
     }
 

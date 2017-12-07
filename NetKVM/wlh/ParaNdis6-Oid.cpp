@@ -86,7 +86,7 @@ static NDIS_STATUS RSSSetParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     ParaNdis_ResetRxClassification(pContext);
     if (status != NDIS_STATUS_SUCCESS)
     {
-        DPrintf(0, ("[%s] - RSS parameters setting failed\n", __FUNCTION__));
+        DPrintf(0, "[%s] - RSS parameters setting failed\n", __FUNCTION__);
     }
 
     if (status == NDIS_STATUS_SUCCESS)
@@ -96,7 +96,7 @@ static NDIS_STATUS RSSSetParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 
     if (status != NDIS_STATUS_SUCCESS)
     {
-        DPrintf(0, ("[%s] - RSS to queue mapping setup failed\n", __FUNCTION__));
+        DPrintf(0, "[%s] - RSS to queue mapping setup failed\n", __FUNCTION__);
     }
 
     return status;
@@ -396,7 +396,7 @@ static NDIS_STATUS OnSetVendorSpecific1(PARANDIS_ADAPTER *pContext, tOidDesc *pO
     NDIS_STATUS status = STATUS_SUCCESS;
     UNREFERENCED_PARAMETER(pContext);
     status = ParaNdis_OidSetCopy(pOid, &virtioDebugLevel, sizeof(virtioDebugLevel));
-    DPrintf(0, ("DebugLevel => %d\n", virtioDebugLevel));
+    DPrintf(0, "DebugLevel => %d\n", virtioDebugLevel);
     return status;
 }
 
@@ -540,11 +540,11 @@ NDIS_STATUS ParaNdis6_OidRequest(
     _oid.ulToDoFlags = Rules.Flags;
 
     ParaNdis_DebugHistory(pContext, hopOidRequest, NULL, pNdisRequest->DATA.SET_INFORMATION.Oid, pNdisRequest->RequestType, 1);
-    DPrintf(Rules.nEntryLevel, ("[%s] OID type %d, id 0x%X(%s) of %d\n", __FUNCTION__,
+    DPrintf(Rules.nEntryLevel, "[%s] OID type %d, id 0x%X(%s) of %d\n", __FUNCTION__,
                 pNdisRequest->RequestType,
                 pNdisRequest->DATA.SET_INFORMATION.Oid,
                 Rules.name,
-                pNdisRequest->DATA.SET_INFORMATION.InformationBufferLength));
+                pNdisRequest->DATA.SET_INFORMATION.InformationBufferLength);
 
     if (pContext->bSurprizeRemoved) status = NDIS_STATUS_NOT_ACCEPTED;
     else switch(pNdisRequest->RequestType)
@@ -587,13 +587,13 @@ NDIS_STATUS ParaNdis6_OidRequest(
                 }
                 else
                 {
-                    DPrintf(0, ("Error: Inconsistent OIDDB, oid %s\n", Rules.name));
+                    DPrintf(0, "Error: Inconsistent OIDDB, oid %s\n", Rules.name);
                 }
             }
             break;
         default:
-            DPrintf(Rules.nExitFailLevel, ("Error: Unsupported OID type %d, id 0x%X(%s)\n",
-                pNdisRequest->RequestType, Rules.oid, Rules.name));
+            DPrintf(Rules.nExitFailLevel, "Error: Unsupported OID type %d, id 0x%X(%s)\n",
+                pNdisRequest->RequestType, Rules.oid, Rules.name);
             status = NDIS_STATUS_NOT_SUPPORTED;
             break;
     }
@@ -601,8 +601,8 @@ NDIS_STATUS ParaNdis6_OidRequest(
     if (status != NDIS_STATUS_PENDING)
     {
         DPrintf(((status != NDIS_STATUS_SUCCESS) ? Rules.nExitFailLevel : Rules.nExitOKLevel),
-            ("[%s] OID type %d, id 0x%X(%s) (%X)\n", __FUNCTION__,
-            pNdisRequest->RequestType, Rules.oid, Rules.name, status));
+            "[%s] OID type %d, id 0x%X(%s) (%X)\n", __FUNCTION__,
+            pNdisRequest->RequestType, Rules.oid, Rules.name, status);
     }
     return status;
 }
@@ -635,7 +635,7 @@ static void OnSetPowerWorkItem(PVOID  WorkItemContext, NDIS_HANDLE  NdisIoWorkIt
 
         KeQueryTickCount(&TickCount);
         NdisGetCurrentSystemTime(&SysTime);
-        DPrintf(0, ("\n%s>> CPU #%d, perf-counter %I64d, tick count %I64d, NDIS_sys_time %I64d\n", __FUNCTION__, KeGetCurrentProcessorNumber(), KeQueryPerformanceCounter(NULL).QuadPart,TickCount.QuadPart, SysTime.QuadPart));
+        DPrintf(0, "\n%s>> CPU #%d, perf-counter %I64d, tick count %I64d, NDIS_sys_time %I64d\n", __FUNCTION__, KeGetCurrentProcessorNumber(), KeQueryPerformanceCounter(NULL).QuadPart,TickCount.QuadPart, SysTime.QuadPart);
     #endif
 
         if (pwi->state == NetDeviceStateD0)
@@ -667,7 +667,7 @@ NDIS_STATUS ParaNdis_OnSetPower(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 
     KeQueryTickCount(&TickCount);
     NdisGetCurrentSystemTime(&SysTime);
-    DPrintf(0, ("\n%s>> CPU #%d, perf-counter %I64d, tick count %I64d, NDIS_sys_time %I64d\n", __FUNCTION__, KeGetCurrentProcessorNumber(), KeQueryPerformanceCounter(NULL).QuadPart,TickCount.QuadPart, SysTime.QuadPart));
+    DPrintf(0, "\n%s>> CPU #%d, perf-counter %I64d, tick count %I64d, NDIS_sys_time %I64d\n", __FUNCTION__, KeGetCurrentProcessorNumber(), KeQueryPerformanceCounter(NULL).QuadPart,TickCount.QuadPart, SysTime.QuadPart);
 #endif
 
     DEBUG_ENTRY(0);
@@ -700,23 +700,23 @@ static void DumpOffloadStructure(NDIS_OFFLOAD *po, LPCSTR message)
 {
     int level = 1;
     ULONG *pul;
-    DPrintf(level, ("[%s](%s)\n", __FUNCTION__, message));
+    DPrintf(level, "[%s](%s)\n", __FUNCTION__, message);
     pul = (ULONG *)&po->Checksum.IPv4Transmit;
-    DPrintf(level, ("CSV4TX:(%d,%d)\n", pul[0], pul[1]));
+    DPrintf(level, "CSV4TX:(%d,%d)\n", pul[0], pul[1]);
     pul = (ULONG *)&po->Checksum.IPv4Receive;
-    DPrintf(level, ("CSV4RX:(%d,%d)\n", pul[0], pul[1]));
+    DPrintf(level, "CSV4RX:(%d,%d)\n", pul[0], pul[1]);
     pul = (ULONG *)&po->Checksum.IPv6Transmit;
-    DPrintf(level, ("CSV6TX:(%d,%d)\n", pul[0], pul[1], pul[2], pul[3], pul[4]));
+    DPrintf(level, "CSV6TX:(%d,%d)\n", pul[0], pul[1], pul[2], pul[3], pul[4]);
     pul = (ULONG *)&po->Checksum.IPv6Receive;
-    DPrintf(level, ("CSV6RX:(%d,%d)\n", pul[0], pul[1], pul[2], pul[3], pul[4]));
+    DPrintf(level, "CSV6RX:(%d,%d)\n", pul[0], pul[1], pul[2], pul[3], pul[4]);
     pul = (ULONG *)&po->LsoV1;
-    DPrintf(level, ("LSOV1 :(%d,%d,%d,%d)\n", pul[0], pul[1], pul[2], pul[3]));
+    DPrintf(level, "LSOV1 :(%d,%d,%d,%d)\n", pul[0], pul[1], pul[2], pul[3]);
     pul = (ULONG *)&po->LsoV2.IPv4;
-    DPrintf(level, ("LSO4V2:(%d,%d,%d)\n", pul[0], pul[1], pul[2]));
+    DPrintf(level, "LSO4V2:(%d,%d,%d)\n", pul[0], pul[1], pul[2]);
     pul = (ULONG *)&po->LsoV2.IPv6;
-    DPrintf(level, ("LSO6V2:(%d,%d,%d,%d)\n", pul[0], pul[1], pul[2], pul[3]));
+    DPrintf(level, "LSO6V2:(%d,%d,%d,%d)\n", pul[0], pul[1], pul[2], pul[3]);
 #ifdef PARANDIS_SUPPORT_RSC
-    DPrintf(level, ("RSC:(v4: %d, v6: %d)\n", po->Rsc.IPv4, po->Rsc.IPv6));
+    DPrintf(level, "RSC:(v4: %d, v6: %d)\n", po->Rsc.IPv4, po->Rsc.IPv6);
 #endif
 }
 
@@ -924,7 +924,7 @@ static void SendOffloadStatusIndication(PARANDIS_ADAPTER *pContext)
         indication.RequestId = pRequest->RequestId;
         indication.DestinationHandle = pRequest->RequestHandle;
     }
-    DPrintf(0, ("Indicating offload change"));
+    DPrintf(0, "Indicating offload change");
     NdisMIndicateStatusEx(pContext->MiniportHandle , &indication);
 }
 
@@ -939,10 +939,10 @@ static ULONG SetOffloadField(
 {
     if (!*pbFailed)
     {
-        DPrintf(0, ("[%s] IN %s %s: current=%d Supported %s Requested %s\n",
+        DPrintf(0, "[%s] IN %s %s: current=%d Supported %s Requested %s\n",
                 __FUNCTION__, name, isTx? "TX" : "RX", current,
                 MakeTxRxString(isSupportedTx, isSupportedRx),
-                MakeOffloadParameterString(TxRxValue)));
+                MakeOffloadParameterString(TxRxValue));
 
         switch(TxRxValue)
         {
@@ -988,7 +988,7 @@ static ULONG SetOffloadField(
             break;
         }
 
-        DPrintf(0, ("[%s] OUT %s %s: new=%d (%saccepted)\n", __FUNCTION__, name, isTx? "TX" : "RX", current, *pbFailed ? "NOT " : ""));
+        DPrintf(0, "[%s] OUT %s %s: new=%d (%saccepted)\n", __FUNCTION__, name, isTx? "TX" : "RX", current, *pbFailed ? "NOT " : "");
     }
     return current;
 }
@@ -1001,13 +1001,13 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
     tOffloadSettingsFlags fPresent = pContext->Offload.flags;
     tOffloadSettingsFlags *pf = &fPresent;
 
-    DPrintf(0, ("[%s] Requested: V4:IPCS=%s,TCPCS=%s,UDPCS=%s V6:TCPCS=%s,UDPCS=%s\n",
+    DPrintf(0, "[%s] Requested: V4:IPCS=%s,TCPCS=%s,UDPCS=%s V6:TCPCS=%s,UDPCS=%s\n",
                 __FUNCTION__,
                 MakeOffloadParameterString(pop->IPv4Checksum),
                 MakeOffloadParameterString(pop->TCPIPv4Checksum),
                 MakeOffloadParameterString(pop->UDPIPv4Checksum),
                 MakeOffloadParameterString(pop->TCPIPv6Checksum),
-                MakeOffloadParameterString(pop->UDPIPv6Checksum)));
+                MakeOffloadParameterString(pop->UDPIPv6Checksum));
 
     ParaNdis_ResetOffloadSettings(pContext, &fSupported, NULL);
     pf->fTxIPChecksum = SetOffloadField("TxIPChecksum", TRUE,
@@ -1050,12 +1050,12 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
         fSupported.fRxUDPv6Checksum, pop->UDPIPv6Checksum, &bFailed);
 
 
-    DPrintf(0, ("[%s] Result: TCPv4:%s,UDPv4:%s,IPCS:%s TCPv6:%s,UDPv6:%s\n", __FUNCTION__,
+    DPrintf(0, "[%s] Result: TCPv4:%s,UDPv4:%s,IPCS:%s TCPv6:%s,UDPv6:%s\n", __FUNCTION__,
         MakeTxRxString(pf->fTxTCPChecksum, pf->fRxTCPChecksum),
         MakeTxRxString(pf->fTxUDPChecksum, pf->fRxUDPChecksum),
         MakeTxRxString(pf->fTxIPChecksum, pf->fRxIPChecksum),
         MakeTxRxString(pf->fTxTCPv6Checksum, pf->fRxTCPv6Checksum),
-        MakeTxRxString(pf->fTxUDPv6Checksum, pf->fRxUDPv6Checksum))
+        MakeTxRxString(pf->fTxUDPv6Checksum, pf->fRxUDPv6Checksum)
         );
 
     if (NDIS_OFFLOAD_PARAMETERS_LSOV1_DISABLED == pop->LsoV1 || NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED == pop->LsoV2IPv4)
@@ -1089,8 +1089,8 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
         bFailed = TRUE;
     }
 
-    DPrintf(0, ("[%s] Result: LSO: v4 %d, v6 %d\n", __FUNCTION__, pf->fTxLso, pf->fTxLsov6));
-    DPrintf(0, ("[%s] Final: the request %saccepted\n", __FUNCTION__, bFailed ? "NOT " : ""));
+    DPrintf(0, "[%s] Result: LSO: v4 %d, v6 %d\n", __FUNCTION__, pf->fTxLso, pf->fTxLsov6);
+    DPrintf(0, "[%s] Final: the request %saccepted\n", __FUNCTION__, bFailed ? "NOT " : "");
 
     if (bFailed && pOid)
         return NDIS_STATUS_INVALID_PARAMETER;
@@ -1209,8 +1209,8 @@ NDIS_STATUS OnSetOffloadEncapsulation(PARANDIS_ADAPTER *pContext, tOidDesc *pOid
     {
         ULONG *pul = (ULONG *)&encaps;
         status = NDIS_STATUS_INVALID_PARAMETER;
-        DPrintf(1, ("[%s] %08lX, %08lX, %08lX, %08lX, %08lX, %08lX, %08lX\n", __FUNCTION__,
-                pul[0],pul[1],pul[2],pul[3],pul[4],pul[5],pul[6]));
+        DPrintf(1, "[%s] %08lX, %08lX, %08lX, %08lX, %08lX, %08lX, %08lX\n", __FUNCTION__,
+                pul[0],pul[1],pul[2],pul[3],pul[4],pul[5],pul[6]);
         if (encaps.Header.Size == sizeof(encaps) &&
             encaps.Header.Revision == NDIS_OFFLOAD_ENCAPSULATION_REVISION_1 &&
             encaps.Header.Type == NDIS_OBJECT_TYPE_OFFLOAD_ENCAPSULATION &&
@@ -1218,14 +1218,14 @@ NDIS_STATUS OnSetOffloadEncapsulation(PARANDIS_ADAPTER *pContext, tOidDesc *pOid
             (encaps.IPv6.Enabled != NDIS_OFFLOAD_SET_ON || (encaps.IPv6.EncapsulationType & NDIS_ENCAPSULATION_IEEE_802_3))
             )
          {
-            DPrintf(0, ("[%s] V4 types 0x%lX, header %d, enabled %d\n", __FUNCTION__,
+            DPrintf(0, "[%s] V4 types 0x%lX, header %d, enabled %d\n", __FUNCTION__,
                 encaps.IPv4.EncapsulationType,
                 encaps.IPv4.HeaderSize,
-                encaps.IPv4.Enabled));
-            DPrintf(0, ("[%s] V6 types 0x%lX, header %d, enabled %d\n", __FUNCTION__,
+                encaps.IPv4.Enabled);
+            DPrintf(0, "[%s] V6 types 0x%lX, header %d, enabled %d\n", __FUNCTION__,
                 encaps.IPv6.EncapsulationType,
                 encaps.IPv6.HeaderSize,
-                encaps.IPv6.Enabled));
+                encaps.IPv6.Enabled);
 
             if (encaps.IPv4.Enabled == NDIS_OFFLOAD_SET_ON && encaps.IPv6.Enabled == NDIS_OFFLOAD_SET_ON && 
                 encaps.IPv6.HeaderSize == encaps.IPv4.HeaderSize)
@@ -1332,10 +1332,10 @@ NDIS_STATUS OnSetLinkParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     if (status == NDIS_STATUS_SUCCESS)
     {
         status = NDIS_STATUS_NOT_ACCEPTED;
-        DPrintf(0, ("[%s] requested:\n", __FUNCTION__));
-        DPrintf(0, ("Tx speed 0x%X, Rx speed 0x%X\n", params.XmitLinkSpeed, params.RcvLinkSpeed));
-        DPrintf(0, ("Duplex %d, PauseFn %d, AutoNeg 0x%X\n",
-            params.MediaDuplexState, params.PauseFunctions, params.AutoNegotiationFlags));
+        DPrintf(0, "[%s] requested:\n", __FUNCTION__);
+        DPrintf(0, "Tx speed 0x%X, Rx speed 0x%X\n", params.XmitLinkSpeed, params.RcvLinkSpeed);
+        DPrintf(0, "Duplex %d, PauseFn %d, AutoNeg 0x%X\n",
+            params.MediaDuplexState, params.PauseFunctions, params.AutoNegotiationFlags);
     }
     return status;
 }

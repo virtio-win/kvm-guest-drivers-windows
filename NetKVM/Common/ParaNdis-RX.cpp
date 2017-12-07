@@ -60,7 +60,7 @@ int CParaNdisRX::PrepareReceiveBuffers()
     }
     /* TODO - NetMaxReceiveBuffers should take into account all queues */
     m_Context->NetMaxReceiveBuffers = m_NetNofReceiveBuffers;
-    DPrintf(0, ("[%s] MaxReceiveBuffers %d\n", __FUNCTION__, m_Context->NetMaxReceiveBuffers));
+    DPrintf(0, "[%s] MaxReceiveBuffers %d\n", __FUNCTION__, m_Context->NetMaxReceiveBuffers);
     m_Reinsert = true;
 
     return nRet;
@@ -168,8 +168,8 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
 
         if (m_NetNofReceiveBuffers > m_Context->NetMaxReceiveBuffers)
         {
-            DPrintf(0, (" Error: NetNofReceiveBuffers > NetMaxReceiveBuffers(%d>%d)\n",
-                m_NetNofReceiveBuffers, m_Context->NetMaxReceiveBuffers));
+            DPrintf(0, " Error: NetNofReceiveBuffers > NetMaxReceiveBuffers(%d>%d)\n",
+                m_NetNofReceiveBuffers, m_Context->NetMaxReceiveBuffers);
         }
 
         /* TODO - nReusedRXBuffers per queue or per context ?*/
@@ -182,7 +182,7 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
     else
     {
         /* TODO - NetMaxReceiveBuffers per queue or per context ?*/
-        DPrintf(0, ("FAILED TO REUSE THE BUFFER!!!!\n"));
+        DPrintf(0, "FAILED TO REUSE THE BUFFER!!!!\n");
         ParaNdis_FreeRxBufferDescriptor(m_Context, pBuffersDescriptor);
         m_Context->NetMaxReceiveBuffers--;
     }
@@ -286,7 +286,7 @@ void CParaNdisRX::PopulateQueue()
         else
         {
             /* TODO - NetMaxReceiveBuffers should take into account all queues */
-            DPrintf(0, ("FAILED TO REUSE THE BUFFER!!!!\n"));
+            DPrintf(0, "FAILED TO REUSE THE BUFFER!!!!\n");
             ParaNdis_FreeRxBufferDescriptor(m_Context, pBufferDescriptor);
             m_Context->NetMaxReceiveBuffers--;
         }

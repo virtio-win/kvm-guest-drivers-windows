@@ -51,14 +51,14 @@ void vio_legacy_dump_registers(VirtIODevice *vdev)
 {
     DPrintf(5, ("%s\n", __FUNCTION__));
 
-    DPrintf(0, ("[VIRTIO_PCI_HOST_FEATURES] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_HOST_FEATURES)));
-    DPrintf(0, ("[VIRTIO_PCI_GUEST_FEATURES] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_GUEST_FEATURES)));
-    DPrintf(0, ("[VIRTIO_PCI_QUEUE_PFN] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_PFN)));
-    DPrintf(0, ("[VIRTIO_PCI_QUEUE_NUM] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_NUM)));
-    DPrintf(0, ("[VIRTIO_PCI_QUEUE_SEL] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_SEL)));
-    DPrintf(0, ("[VIRTIO_PCI_QUEUE_NOTIFY] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_NOTIFY)));
-    DPrintf(0, ("[VIRTIO_PCI_STATUS] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_STATUS)));
-    DPrintf(0, ("[VIRTIO_PCI_ISR] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_ISR)));
+    DPrintf(0, "[VIRTIO_PCI_HOST_FEATURES] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_HOST_FEATURES));
+    DPrintf(0, "[VIRTIO_PCI_GUEST_FEATURES] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_GUEST_FEATURES));
+    DPrintf(0, "[VIRTIO_PCI_QUEUE_PFN] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_PFN));
+    DPrintf(0, "[VIRTIO_PCI_QUEUE_NUM] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_NUM));
+    DPrintf(0, "[VIRTIO_PCI_QUEUE_SEL] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_SEL));
+    DPrintf(0, "[VIRTIO_PCI_QUEUE_NOTIFY] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_NOTIFY));
+    DPrintf(0, "[VIRTIO_PCI_STATUS] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_STATUS));
+    DPrintf(0, "[VIRTIO_PCI_ISR] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_ISR));
 }
 
 static void vio_legacy_get_config(VirtIODevice * vdev,
@@ -70,7 +70,7 @@ static void vio_legacy_get_config(VirtIODevice * vdev,
     u8 *ptr = buf;
     unsigned i;
 
-    DPrintf(5, ("%s\n", __FUNCTION__));
+    DPrintf(5, "%s\n", __FUNCTION__);
 
     for (i = 0; i < len; i++) {
         ptr[i] = ioread8(vdev, ioaddr + i);
@@ -86,7 +86,7 @@ static void vio_legacy_set_config(VirtIODevice *vdev,
     const u8 *ptr = buf;
     unsigned i;
 
-    DPrintf(5, ("%s\n", __FUNCTION__));
+    DPrintf(5, "%s\n", __FUNCTION__);
 
     for (i = 0; i < len; i++) {
         iowrite8(vdev, ptr[i], ioaddr + i);
@@ -95,13 +95,13 @@ static void vio_legacy_set_config(VirtIODevice *vdev,
 
 static u8 vio_legacy_get_status(VirtIODevice *vdev)
 {
-    DPrintf(6, ("%s\n", __FUNCTION__));
+    DPrintf(6, "%s\n", __FUNCTION__);
     return ioread8(vdev, vdev->addr + VIRTIO_PCI_STATUS);
 }
 
 static void vio_legacy_set_status(VirtIODevice *vdev, u8 status)
 {
-    DPrintf(6, ("%s>>> %x\n", __FUNCTION__, status));
+    DPrintf(6, "%s>>> %x\n", __FUNCTION__, status);
     iowrite8(vdev, status, vdev->addr + VIRTIO_PCI_STATUS);
 }
 
