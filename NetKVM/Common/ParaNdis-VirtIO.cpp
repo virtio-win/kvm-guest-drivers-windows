@@ -43,12 +43,12 @@ PVOID CPciBar::GetVA(NDIS_HANDLE DrvHandle)
                 m_BasePA.LowPart,
                 m_uSize))
             {
-                DPrintf(6, ("[%s] mapped port BAR at %x\n", __FUNCTION__, m_BasePA.LowPart));
+                DPrintf(6, "[%s] mapped port BAR at %x\n", __FUNCTION__, m_BasePA.LowPart);
             }
             else
             {
                 m_BaseVA = nullptr;
-                DPrintf(0, ("[%s] failed to map port BAR at %x\n", __FUNCTION__, m_BasePA.LowPart));
+                DPrintf(0, "[%s] failed to map port BAR at %x\n", __FUNCTION__, m_BasePA.LowPart);
             }
         }
         else
@@ -59,12 +59,12 @@ PVOID CPciBar::GetVA(NDIS_HANDLE DrvHandle)
                 m_BasePA,
                 m_uSize))
             {
-                DPrintf(6, ("[%s] mapped memory BAR at %I64x\n", __FUNCTION__, m_BasePA.QuadPart));
+                DPrintf(6, "[%s] mapped memory BAR at %I64x\n", __FUNCTION__, m_BasePA.QuadPart);
             }
             else
             {
                 m_BaseVA = nullptr;
-                DPrintf(0, ("[%s] failed to map memory BAR at %I64x\n", __FUNCTION__, m_BasePA.QuadPart));
+                DPrintf(0, "[%s] failed to map memory BAR at %I64x\n", __FUNCTION__, m_BasePA.QuadPart);
             }
         }
     }
@@ -110,7 +110,7 @@ bool CPciResources::Init(NDIS_HANDLE DrvHandle, PNDIS_RESOURCE_LIST RList)
         sizeof(pci_config));
     if (read != sizeof(pci_config))
     {
-        DPrintf(0, ("[%s] could not read PCI config space\n", __FUNCTION__));
+        DPrintf(0, "[%s] could not read PCI config space\n", __FUNCTION__);
         return false;
     }
 
@@ -122,7 +122,7 @@ bool CPciResources::Init(NDIS_HANDLE DrvHandle, PNDIS_RESOURCE_LIST RList)
             PHYSICAL_ADDRESS Start = RList->PartialDescriptors[i].u.Port.Start;
             ULONG len = RList->PartialDescriptors[i].u.Port.Length;
             bar = virtio_get_bar_index(&pci_config, Start);
-            DPrintf(0, ("Found IO ports at %08lX(%d) bar %d\n", Start.LowPart, len, bar));
+            DPrintf(0, "Found IO ports at %08lX(%d) bar %d\n", Start.LowPart, len, bar);
             if (bar < 0)
             {
                 break;
@@ -134,7 +134,7 @@ bool CPciResources::Init(NDIS_HANDLE DrvHandle, PNDIS_RESOURCE_LIST RList)
             PHYSICAL_ADDRESS Start = RList->PartialDescriptors[i].u.Port.Start;
             ULONG len = RList->PartialDescriptors[i].u.Port.Length;
             bar = virtio_get_bar_index(&pci_config, Start);
-            DPrintf(0, ("Found IO memory at %08I64X(%d) bar %d\n", Start.QuadPart, len, bar));
+            DPrintf(0, "Found IO memory at %08I64X(%d) bar %d\n", Start.QuadPart, len, bar);
             if (bar < 0)
             {
                 break;
@@ -144,18 +144,18 @@ bool CPciResources::Init(NDIS_HANDLE DrvHandle, PNDIS_RESOURCE_LIST RList)
         else if (type == CmResourceTypeInterrupt)
         {
             m_InterruptFlags = RList->PartialDescriptors[i].Flags;
-            DPrintf(0, ("Found Interrupt vector %d, level %d, affinity 0x%X, flags %X\n",
+            DPrintf(0, "Found Interrupt vector %d, level %d, affinity 0x%X, flags %X\n",
                 RList->PartialDescriptors[i].u.Interrupt.Vector,
                 RList->PartialDescriptors[i].u.Interrupt.Level,
                 (ULONG)RList->PartialDescriptors[i].u.Interrupt.Affinity,
-                RList->PartialDescriptors[i].Flags));
+                RList->PartialDescriptors[i].Flags);
             interrupt_found = true;
         }
     }
 
     if (bar < 0 || !interrupt_found)
     {
-        DPrintf(0, ("[%s] resource enumeration failed\n", __FUNCTION__));
+        DPrintf(0, "[%s] resource enumeration failed\n", __FUNCTION__);
         return false;
     }
     return true;
@@ -185,7 +185,7 @@ PVOID CPciResources::GetMappedAddress(UINT bar, ULONG uOffset)
     }
     else
     {
-        DPrintf(0, ("[%s] failed to map BAR %d, offset %x\n", __FUNCTION__, bar, uOffset));
+        DPrintf(0, "[%s] failed to map BAR %d, offset %x\n", __FUNCTION__, bar, uOffset);
         return nullptr;
     }
 }
@@ -212,13 +212,13 @@ static u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
         NdisRawReadPortUlong(ulRegister, &ulValue);
     }
 
-    DPrintf(6, ("[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, ulValue));
+    DPrintf(6, "[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, ulValue);
     return ulValue;
 }
 
 static void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
 {
-    DPrintf(6, ("[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, ulValue));
+    DPrintf(6, "[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, ulValue);
 
     if (ulRegister & ~PORT_MASK) {
         NdisWriteRegisterUlong((PULONG)ulRegister, ulValue);
@@ -237,14 +237,14 @@ static u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
         NdisRawReadPortUchar(ulRegister, &bValue);
     }
 
-    DPrintf(6, ("[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, bValue));
+    DPrintf(6, "[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, bValue);
 
     return bValue;
 }
 
 static void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
 {
-    DPrintf(6, ("[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, bValue));
+    DPrintf(6, "[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, bValue);
 
     if (ulRegister & ~PORT_MASK) {
         NdisWriteRegisterUchar((PUCHAR)ulRegister, bValue);
@@ -263,7 +263,7 @@ static u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
         NdisRawReadPortUshort(ulRegister, &wValue);
     }
 
-    DPrintf(6, ("[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, wValue));
+    DPrintf(6, "[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, wValue);
 
     return wValue;
 }
@@ -282,7 +282,7 @@ static void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
     static int nCounterToFail = 0;
     static const int StartFail = 200, StopFail = 600;
     BOOLEAN bFail = FALSE;
-    DPrintf(6, ("%s> R[%x] = %x\n", __FUNCTION__, (ULONG)ulRegister, wValue));
+    DPrintf(6, "%s> R[%x] = %x\n", __FUNCTION__, (ULONG)ulRegister, wValue);
     if ((ulRegister & 0x1F) == 0x10)
     {
         nCounterToFail++;
@@ -291,7 +291,7 @@ static void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
     if (!bFail) NdisRawWritePortUshort(ulRegister, wValue);
     else
     {
-        DPrintf(0, ("%s> FAILING R[%x] = %x\n", __FUNCTION__, (ULONG)ulRegister, wValue));
+        DPrintf(0, "%s> FAILING R[%x] = %x\n", __FUNCTION__, (ULONG)ulRegister, wValue);
     }
 #endif
 }
@@ -310,11 +310,11 @@ static void *mem_alloc_contiguous_pages(void *context, size_t size)
 
     if (retVal)
     {
-        DPrintf(6, ("[%s] returning %p, size %x\n", __FUNCTION__, retVal, (ULONG)size));
+        DPrintf(6, "[%s] returning %p, size %x\n", __FUNCTION__, retVal, (ULONG)size);
     }
     else
     {
-        DPrintf(0, ("[%s] failed to allocate size %x\n", __FUNCTION__, (ULONG)size));
+        DPrintf(0, "[%s] failed to allocate size %x\n", __FUNCTION__, (ULONG)size);
     }
     return retVal;
 }
@@ -341,11 +341,11 @@ static ULONGLONG mem_get_physical_address(void *context, void *virt)
     {
         ULONGLONG retVal = pMem->GetPA().QuadPart + (uAddr - uBase);
 
-        DPrintf(6, ("[%s] translated %p to %I64X\n", __FUNCTION__, virt, retVal));
+        DPrintf(6, "[%s] translated %p to %I64X\n", __FUNCTION__, virt, retVal);
         return retVal;
     }
 
-    DPrintf(0, ("[%s] failed to translate %p\n", __FUNCTION__, virt));
+    DPrintf(0, "[%s] failed to translate %p\n", __FUNCTION__, virt);
     return 0;
 }
 
@@ -363,11 +363,11 @@ static void *mem_alloc_nonpaged_block(void *context, size_t size)
     if (retVal)
     {
         NdisZeroMemory(retVal, size);
-        DPrintf(6, ("[%s] returning %p, len %x\n", __FUNCTION__, retVal, (ULONG)size));
+        DPrintf(6, "[%s] returning %p, len %x\n", __FUNCTION__, retVal, (ULONG)size);
     }
     else
     {
-        DPrintf(0, ("[%s] failed to allocate size %x\n", __FUNCTION__, (ULONG)size));
+        DPrintf(0, "[%s] failed to allocate size %x\n", __FUNCTION__, (ULONG)size);
     }
     return retVal;
 }
@@ -377,7 +377,7 @@ static void mem_free_nonpaged_block(void *context, void *addr)
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)context;
 
     NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, addr, PARANDIS_MEMORY_TAG);
-    DPrintf(6, ("[%s] freed %p\n", __FUNCTION__, addr));
+    DPrintf(6, "[%s] freed %p\n", __FUNCTION__, addr);
 }
 
 static int PCIReadConfig(
@@ -397,12 +397,12 @@ static int PCIReadConfig(
 
     if (read == length)
     {
-        DPrintf(6, ("[%s] read %d bytes at %d\n", __FUNCTION__, read, where));
+        DPrintf(6, "[%s] read %d bytes at %d\n", __FUNCTION__, read, where);
         return 0;
     }
     else
     {
-        DPrintf(0, ("[%s] failed to read %d bytes at %d\n", __FUNCTION__, read, where));
+        DPrintf(0, "[%s] failed to read %d bytes at %d\n", __FUNCTION__, read, where);
         return -1;
     }
 }
@@ -430,7 +430,7 @@ static size_t pci_get_resource_len(void *context, int bar)
         return pContext->PciResources.GetBarSize(bar);
     }
 
-    DPrintf(0, ("[%s] queried invalid BAR %d\n", __FUNCTION__, bar));
+    DPrintf(0, "[%s] queried invalid BAR %d\n", __FUNCTION__, bar);
     return 0;
 }
 
@@ -445,7 +445,7 @@ static void *pci_map_address_range(void *context, int bar, size_t offset, size_t
         return pContext->PciResources.GetMappedAddress(bar, (ULONG)offset);
     } 
 
-    DPrintf(0, ("[%s] queried invalid BAR %d\n", __FUNCTION__, bar));
+    DPrintf(0, "[%s] queried invalid BAR %d\n", __FUNCTION__, bar);
     return nullptr;
 }
 

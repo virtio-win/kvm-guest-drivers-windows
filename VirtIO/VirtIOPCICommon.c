@@ -135,7 +135,7 @@ NTSTATUS virtio_set_features(VirtIODevice *vdev, u64 features)
     virtio_add_status(vdev, VIRTIO_CONFIG_S_FEATURES_OK);
     dev_status = vdev->device->get_status(vdev);
     if (!(dev_status & VIRTIO_CONFIG_S_FEATURES_OK)) {
-        DPrintf(0, ("virtio: device refuses features: %x\n", dev_status));
+        DPrintf(0, "virtio: device refuses features: %x\n", dev_status);
         status = STATUS_INVALID_PARAMETER;
     }
     return status;
@@ -394,7 +394,7 @@ bool vp_notify(struct virtqueue *vq)
     /* we write the queue's selector into the notification register to
      * signal the other end */
     iowrite16(vq->vdev, (unsigned short)vq->index, vq->notification_addr);
-    DPrintf(6, ("virtio: vp_notify vq->index = %x\n", vq->index));
+    DPrintf(6, "virtio: vp_notify vq->index = %x\n", vq->index);
     return true;
 }
 

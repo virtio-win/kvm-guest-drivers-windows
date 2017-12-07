@@ -22,8 +22,8 @@ bool CParaNdisCX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 
     if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, 512, &m_ControlData))
     {
-        DPrintf(0, ("CParaNdisCX::Create - ParaNdis_InitialAllocatePhysicalMemory failed for %u\n",
-            DeviceQueueIndex));
+        DPrintf(0, "CParaNdisCX::Create - ParaNdis_InitialAllocatePhysicalMemory failed for %u\n",
+            DeviceQueueIndex);
         m_ControlData.Virtual = nullptr;
         return false;
     }
@@ -102,34 +102,34 @@ BOOLEAN CParaNdisCX::SendControlMessage(
 
             if (len != sizeof(virtio_net_ctrl_ack))
             {
-                DPrintf(0, ("%s - ERROR: wrong len %d\n", __FUNCTION__, len));
+                DPrintf(0, "%s - ERROR: wrong len %d\n", __FUNCTION__, len);
             }
             else if (*(virtio_net_ctrl_ack *)(pBase + offset) != VIRTIO_NET_OK)
             {
-                DPrintf(0, ("%s - ERROR: error %d returned for class %d\n", __FUNCTION__, *(virtio_net_ctrl_ack *)(pBase + offset), cls));
+                DPrintf(0, "%s - ERROR: error %d returned for class %d\n", __FUNCTION__, *(virtio_net_ctrl_ack *)(pBase + offset), cls);
             }
             else
             {
                 // everything is OK
-                DPrintf(levelIfOK, ("%s OK(%d.%d,buffers of %d and %d) \n", __FUNCTION__, cls, cmd, size1, size2));
+                DPrintf(levelIfOK, "%s OK(%d.%d,buffers of %d and %d) \n", __FUNCTION__, cls, cmd, size1, size2);
                 bOK = TRUE;
             }
         }
         else
         {
-            DPrintf(0, ("%s - ERROR: add_buf failed\n", __FUNCTION__));
+            DPrintf(0, "%s - ERROR: add_buf failed\n", __FUNCTION__);
         }
     }
     else
     {
-        DPrintf(0, ("%s (buffer %d,%d) - ERROR: message too LARGE\n", __FUNCTION__, size1, size2));
+        DPrintf(0, "%s (buffer %d,%d) - ERROR: message too LARGE\n", __FUNCTION__, size1, size2);
     }
     return bOK;
 }
 
 NDIS_STATUS CParaNdisCX::SetupMessageIndex(u16 vector)
 {
-    DPrintf(0, ("[%s] Using message %u for controls\n", __FUNCTION__, vector));
+    DPrintf(0, "[%s] Using message %u for controls\n", __FUNCTION__, vector);
 
     virtio_set_config_vector(&m_Context->IODevice, vector);
 

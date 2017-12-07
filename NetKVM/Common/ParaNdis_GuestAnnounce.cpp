@@ -33,7 +33,7 @@ EthernetArpFrame *CGuestAnnouncePackets::CreateIPv4Packet(UINT32 IPV4)
     EthernetArpFrame *packet = (EthernetArpFrame *)ParaNdis_AllocateMemory(m_Context, sizeof(EthernetArpFrame));
     if (!packet)
     {
-        DPrintf(0, ("Error could not allocate buffer for arp packet!\n"));
+        DPrintf(0, "Error could not allocate buffer for arp packet!\n");
         return NULL;
     }
     packet->frame.ether_type = _byteswap_ushort(ETH_ETHER_TYPE_ARP);
@@ -60,7 +60,7 @@ EthernetNSMFrame *CGuestAnnouncePackets::CreateIPv6Packet(USHORT * IPV6)
     EthernetNSMFrame *packet = (EthernetNSMFrame *)ParaNdis_AllocateMemory(m_Context, sizeof(EthernetNSMFrame));
     if (!packet)
     {
-        DPrintf(0, ("Error could not allocate buffer for arp packet!\n"));
+        DPrintf(0, "Error could not allocate buffer for arp packet!\n");
         return NULL;
     }
     packet->frame.ether_type = _byteswap_ushort(ETH_ETHER_TYPE_IPV6);
@@ -94,14 +94,14 @@ VOID CGuestAnnouncePackets::CreateNBL(PVOID packet, UINT size, bool isIPV4)
     PMDL mdl = NdisAllocateMdl(m_Context->MiniportHandle, packet, size);
     if (!mdl)
     {
-        DPrintf(0, ("[%s] mdl allocation failed!\n", __FUNCTION__));
+        DPrintf(0, "[%s] mdl allocation failed!\n", __FUNCTION__);
         NdisFreeMemory(packet, 0, 0);
         return;
     }
     PNET_BUFFER_LIST nbl = NdisAllocateNetBufferAndNetBufferList(m_Context->BufferListsPool, 0, 0, mdl, 0, size);
     if (!nbl)
     {
-        DPrintf(0, ("[%s] nbl allocation failed!\n", __FUNCTION__));
+        DPrintf(0, "[%s] nbl allocation failed!\n", __FUNCTION__);
         NdisFreeMemory(packet, 0, 0);
         NdisFreeMdl(mdl);
         return;
@@ -110,7 +110,7 @@ VOID CGuestAnnouncePackets::CreateNBL(PVOID packet, UINT size, bool isIPV4)
     CGuestAnnouncePacketHolder *PacketHolder = new (m_Context->MiniportHandle) CGuestAnnouncePacketHolder(nbl, m_Context->MiniportHandle, isIPV4);
     if (!PacketHolder)
     {
-        DPrintf(0, ("[%s] Packet holder allocation failed!\n", __FUNCTION__));
+        DPrintf(0, "[%s] Packet holder allocation failed!\n", __FUNCTION__);
         NdisFreeNetBufferList(nbl);
         NdisFreeMdl(mdl);
         NdisFreeMemory(packet, 0, 0);
@@ -150,7 +150,7 @@ VOID CGuestAnnouncePackets::SendNBLs()
             NewNBL->MiniportReserved[0] = GratARPPacket;
             NewNBL->ParentNetBufferList = OriginalNBL;
             NdisInterlockedIncrement(&OriginalNBL->ChildRefCount);
-            DPrintf(1, ("[%s] ChildRefCount %d", __FUNCTION__, OriginalNBL->ChildRefCount));
+            DPrintf(1, "[%s] ChildRefCount %d", __FUNCTION__, OriginalNBL->ChildRefCount);
             ParaNdis6_SendNBLInternal(m_Context, NewNBL, 0, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
         }
     });
@@ -164,7 +164,7 @@ void CGuestAnnouncePackets::NblCompletionCallback(PNET_BUFFER_LIST NBL)
         auto OriginalNBL = GratARPPacket->GetNBL();
         NETKVM_ASSERT(NBL->ParentNetBufferList == OriginalNBL);
         NdisInterlockedDecrement(&OriginalNBL->ChildRefCount);
-        DPrintf(1, ("[%s] ChildRefCount %d, Child %s", __FUNCTION__, OriginalNBL->ChildRefCount, (NBL->ParentNetBufferList == OriginalNBL) ? "OK" : "Bad"));
+        DPrintf(1, "[%s] ChildRefCount %d, Child %s", __FUNCTION__, OriginalNBL->ChildRefCount, (NBL->ParentNetBufferList == OriginalNBL) ? "OK" : "Bad");
         NdisFreeCloneNetBufferList(NBL, cloneFlags);
         GratARPPacket->Release();
     }

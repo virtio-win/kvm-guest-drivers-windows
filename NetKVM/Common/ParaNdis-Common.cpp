@@ -136,7 +136,7 @@ static const tConfigurationEntries defaultConfiguration =
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
 {
     virtio_device_reset(&pContext->IODevice);
-    DPrintf(0, ("[%s] Done\n", __FUNCTION__));
+    DPrintf(0, "[%s] Done\n", __FUNCTION__);
 
     KeMemoryBarrier();
 
@@ -178,19 +178,19 @@ static void GetConfigurationEntry(NDIS_HANDLE cfg, tConfigurationEntry *pEntry)
         {
             statusName = "out of range";
         }
-        DPrintf(0, ("[%s] %s read for %s - current value = 0x%x, input value = 0x%x",
+        DPrintf(0, "[%s] %s read for %s - current value = 0x%x, input value = 0x%x",
             __FUNCTION__,
             statusName,
             pEntry->Name,
             pEntry->ulValue,
-            ulValue));
+            ulValue);
     }
     else
     {
-        DPrintf(0, ("[%s] nothing read for %s - current value = 0x%x",
+        DPrintf(0, "[%s] nothing read for %s - current value = 0x%x",
             __FUNCTION__,
             pEntry->Name,
-            pEntry->ulValue));
+            pEntry->ulValue);
     }
     if (name.Buffer) NdisFreeString(name);
 }
@@ -199,7 +199,7 @@ static void DisableLSOv4Permanently(PARANDIS_ADAPTER *pContext, LPCSTR procname,
 {
     if (pContext->Offload.flagsValue & osbT4Lso)
     {
-        DPrintf(0, ("[%s] Warning: %s", procname, reason));
+        DPrintf(0, "[%s] Warning: %s", procname, reason);
         pContext->Offload.flagsValue &= ~osbT4Lso;
         ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
     }
@@ -209,7 +209,7 @@ static void DisableLSOv6Permanently(PARANDIS_ADAPTER *pContext, LPCSTR procname,
 {
     if (pContext->Offload.flagsValue & osbT6Lso)
     {
-        DPrintf(0, ("[%s] Warning: %s\n", procname, reason));
+        DPrintf(0, "[%s] Warning: %s\n", procname, reason);
         pContext->Offload.flagsValue &= ~osbT6Lso;
         ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
     }
@@ -324,11 +324,11 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
                 }
                 else if (len && len != ETH_ALEN)
                 {
-                    DPrintf(0, ("[%s] MAC address has wrong length of %d\n", __FUNCTION__, len));
+                    DPrintf(0, "[%s] MAC address has wrong length of %d\n", __FUNCTION__, len);
                 }
                 else
                 {
-                    DPrintf(4, ("[%s] Nothing read for MAC, error %X\n", __FUNCTION__, status));
+                    DPrintf(4, "[%s] Nothing read for MAC, error %X\n", __FUNCTION__, status);
                 }
             }
             NdisCloseConfiguration(cfg);
@@ -408,7 +408,7 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
     {
         if (virtio_is_feature_enabled(pContext->u64HostFeatures, Features[i].bitmask))
         {
-            DPrintf(0, ("VirtIO Host Feature %s\n", Features[i].Name));
+            DPrintf(0, "VirtIO Host Feature %s\n", Features[i].Name);
         }
     }
 }
@@ -439,26 +439,26 @@ static void PrintStatistics(PARANDIS_ADAPTER *pContext)
         pContext->Statistics.ifHCInUcastPkts;
 
 #if 0 /* TODO - setup accessor functions*/
-    DPrintf(0, ("[Diag!%X] RX buffers at VIRTIO %d of %d\n",
+    DPrintf(0, "[Diag!%X] RX buffers at VIRTIO %d of %d\n",
         pContext->CurrentMacAddress[5],
         pContext->RXPath.m_NetNofReceiveBuffers,
-        pContext->NetMaxReceiveBuffers));
+        pContext->NetMaxReceiveBuffers);
 
-    DPrintf(0, ("[Diag!] TX desc available %d/%d, buf %d\n",
+    DPrintf(0, "[Diag!] TX desc available %d/%d, buf %d\n",
         pContext->TXPath.GetFreeTXDescriptors(),
         pContext->maxFreeTxDescriptors,
-        pContext->TXPath.GetFreeHWBuffers()));
+        pContext->TXPath.GetFreeHWBuffers());
 #endif
-    DPrintf(0, ("[Diag!] Bytes transmitted %I64u, received %I64u\n",
+    DPrintf(0, "[Diag!] Bytes transmitted %I64u, received %I64u\n",
         pContext->Statistics.ifHCOutOctets,
-        pContext->Statistics.ifHCInOctets));
-    DPrintf(0, ("[Diag!] Tx frames %I64u, CSO %d, LSO %d\n",
+        pContext->Statistics.ifHCInOctets);
+    DPrintf(0, "[Diag!] Tx frames %I64u, CSO %d, LSO %d\n",
         totalTxFrames,
         pContext->extraStatistics.framesCSOffload,
-        pContext->extraStatistics.framesLSO));
-    DPrintf(0, ("[Diag!] Rx frames %I64u, Rx.Pri %d, RxHwCS.OK %d, FiltOut %d\n",
+        pContext->extraStatistics.framesLSO);
+    DPrintf(0, "[Diag!] Rx frames %I64u, Rx.Pri %d, RxHwCS.OK %d, FiltOut %d\n",
         totalRxFrames, pContext->extraStatistics.framesRxPriority,
-        pContext->extraStatistics.framesRxCSHwOK, pContext->extraStatistics.framesFilteredOut));
+        pContext->extraStatistics.framesRxCSHwOK, pContext->extraStatistics.framesFilteredOut);
 }
 
 static
@@ -471,7 +471,7 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
 
     if(!pContext->bGuestChecksumSupported)
     {
-        DPrintf(0, ("[%s] Guest TSO cannot be enabled without guest checksum\n", __FUNCTION__) );
+        DPrintf(0, "[%s] Guest TSO cannot be enabled without guest checksum\n", __FUNCTION__);
         return;
     }
 
@@ -522,11 +522,11 @@ VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
                                       pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) &&
                                       bDynamicOffloadsPossible;
 
-    DPrintf(0, ("[%s] Guest TSO state: IP4=%d, IP6=%d, Dynamic=%d\n", __FUNCTION__,
-        pContext->RSC.bIPv4Enabled, pContext->RSC.bIPv6Enabled, pContext->RSC.bHasDynamicConfig) );
+    DPrintf(0, "[%s] Guest TSO state: IP4=%d, IP6=%d, Dynamic=%d\n", __FUNCTION__,
+        pContext->RSC.bIPv4Enabled, pContext->RSC.bIPv6Enabled, pContext->RSC.bHasDynamicConfig);
 
-    DPrintf(0, ("[%s] Guest QEMU RSC support state: Supported IP4=%d, Supported IP6=%d, Enabled IP4=%d, Enabled IP6=%d\n", __FUNCTION__,
-        pContext->RSC.bIPv4SupportedQEMU, pContext->RSC.bIPv6SupportedQEMU, pContext->RSC.bIPv4EnabledQEMU, pContext->RSC.bIPv6EnabledQEMU) );
+    DPrintf(0, "[%s] Guest QEMU RSC support state: Supported IP4=%d, Supported IP6=%d, Enabled IP4=%d, Enabled IP6=%d\n", __FUNCTION__,
+        pContext->RSC.bIPv4SupportedQEMU, pContext->RSC.bIPv6SupportedQEMU, pContext->RSC.bIPv4EnabledQEMU, pContext->RSC.bIPv6EnabledQEMU);
 #else
     UNREFERENCED_PARAMETER(pContext);
 #endif
@@ -550,8 +550,8 @@ InitializeMaxMTUConfig(PPARANDIS_ADAPTER pContext)
 static __inline void
 DumpMac(int dbg_level, const char* header_str, UCHAR* mac)
 {
-    DPrintf(dbg_level,("%s: %02x-%02x-%02x-%02x-%02x-%02x\n",
-        header_str, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]));
+    DPrintf(dbg_level,"%s: %02x-%02x-%02x-%02x-%02x-%02x\n",
+        header_str, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
 }
 
@@ -606,12 +606,12 @@ InitializeMAC(PPARANDIS_ADAPTER pContext, PUCHAR pCurrentMAC)
     //Read and validate configured MAC address
     if (ParaNdis_ValidateMacAddress(pCurrentMAC, TRUE))
     {
-        DPrintf(0, ("[%s] MAC address from configuration used\n", __FUNCTION__));
+        DPrintf(0, "[%s] MAC address from configuration used\n", __FUNCTION__);
         ETH_COPY_NETWORK_ADDRESS(pContext->CurrentMacAddress, pCurrentMAC);
     }
     else
     {
-        DPrintf(0, ("No valid MAC configured\n", __FUNCTION__));
+        DPrintf(0, "No valid MAC configured\n", __FUNCTION__);
         ETH_COPY_NETWORK_ADDRESS(pContext->CurrentMacAddress, pContext->PermanentMacAddress);
     }
 
@@ -680,7 +680,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
     {
         if (pContext->PciResources.GetInterruptFlags() & CM_RESOURCE_INTERRUPT_MESSAGE)
         {
-            DPrintf(0, ("[%s] Message interrupt assigned\n", __FUNCTION__));
+            DPrintf(0, "[%s] Message interrupt assigned\n", __FUNCTION__);
             pContext->bUsingMSIX = TRUE;
         }
 
@@ -691,7 +691,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
             pContext->bUsingMSIX ? true : false);
         if (!NT_SUCCESS(nt_status))
         {
-            DPrintf(0, ("[%s] virtio_device_initialize failed with %x\n", __FUNCTION__, nt_status));
+            DPrintf(0, "[%s] virtio_device_initialize failed with %x\n", __FUNCTION__, nt_status);
             status = NTStatusToNdisStatus(nt_status);
             DEBUG_EXIT_STATUS(0, status);
             return status;
@@ -704,7 +704,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
         if(pContext->bLinkDetectSupported) {
             virtio_get_config(&pContext->IODevice, ETH_ALEN, &linkStatus, sizeof(linkStatus));
             pContext->bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
-            DPrintf(0, ("[%s] Link status on driver startup: %d\n", __FUNCTION__, pContext->bConnected));
+            DPrintf(0, "[%s] Link status on driver startup: %d\n", __FUNCTION__, pContext->bConnected);
             pContext->bGuestAnnounceSupported = AckFeature(pContext, VIRTIO_NET_F_GUEST_ANNOUNCE);
         }
 
@@ -717,7 +717,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
     }
     else
     {
-        DPrintf(0, ("[%s] Error: Incomplete resources\n", __FUNCTION__));
+        DPrintf(0, "[%s] Error: Incomplete resources\n", __FUNCTION__);
         /* avoid deregistering if failed */
         status = NDIS_STATUS_RESOURCE_CONFLICT;
     }
@@ -752,7 +752,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
     if((pContext->Offload.flagsValue & dependentOptions) && !AckFeature(pContext, VIRTIO_NET_F_CSUM))
     {
-        DPrintf(0, ("[%s] Host does not support CSUM, disabling CS offload\n", __FUNCTION__) );
+        DPrintf(0, "[%s] Host does not support CSUM, disabling CS offload\n", __FUNCTION__);
         pContext->Offload.flagsValue &= ~dependentOptions;
     }
 
@@ -803,7 +803,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
         NTSTATUS nt_status = virtio_set_features(&pContext->IODevice, pContext->u64GuestFeatures);
         if (!NT_SUCCESS(nt_status))
         {
-            DPrintf(0, ("[%s] virtio_set_features failed with %x\n", __FUNCTION__, nt_status));
+            DPrintf(0, "[%s] virtio_set_features failed with %x\n", __FUNCTION__, nt_status);
             status = NTStatusToNdisStatus(nt_status);
         }
     }
@@ -832,17 +832,17 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
 {
     if (!pContext->bUsingMSIX)
     {
-        DPrintf(0, ("[%s] No MSIX, using 1 queue\n", __FUNCTION__));
+        DPrintf(0, "[%s] No MSIX, using 1 queue\n", __FUNCTION__);
         return 1;
     }
 
     if (pContext->bMultiQueue)
     {
-        DPrintf(0, ("[%s] Number of hardware queues = %d\n", __FUNCTION__, pContext->nHardwareQueues));
+        DPrintf(0, "[%s] Number of hardware queues = %d\n", __FUNCTION__, pContext->nHardwareQueues);
     }
     else
     {
-        DPrintf(0, ("[%s] - CTRL_MQ not acked, # of bundles set to 1\n", __FUNCTION__));
+        DPrintf(0, "[%s] - CTRL_MQ not acked, # of bundles set to 1\n", __FUNCTION__);
         return 1;
     }
 
@@ -852,17 +852,17 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
     USHORT nBundles = USHORT(((pContext->pMSIXInfoTable->MessageCount - 1) / 2)  & 0xFFFF);
     if (!nBundles && (pContext->pMSIXInfoTable->MessageCount == 1 || pContext->pMSIXInfoTable->MessageCount == 2))
     {
-        DPrintf(0, ("[%s] WARNING: Single MSIx interrupt allocated, performance will be reduced\n", __FUNCTION__));
+        DPrintf(0, "[%s] WARNING: Single MSIx interrupt allocated, performance will be reduced\n", __FUNCTION__);
         nBundles = 1;
     }
 
-    DPrintf(0, ("[%s] %lu CPUs reported\n", __FUNCTION__, nProcessors));
-    DPrintf(0, ("[%s] %lu MSIs, %u queues' bundles\n", __FUNCTION__, pContext->pMSIXInfoTable->MessageCount, nBundles));
+    DPrintf(0, "[%s] %lu CPUs reported\n", __FUNCTION__, nProcessors);
+    DPrintf(0, "[%s] %lu MSIs, %u queues' bundles\n", __FUNCTION__, pContext->pMSIXInfoTable->MessageCount, nBundles);
 
     USHORT nBundlesLimitByCPU = (pContext->nHardwareQueues < nProcessors) ? pContext->nHardwareQueues : nProcessors;
     nBundles = (nBundles < nBundlesLimitByCPU) ? nBundles : nBundlesLimitByCPU;
 
-    DPrintf(0, ("[%s] # of path bundles = %u\n", __FUNCTION__, nBundles));
+    DPrintf(0, "[%s] # of path bundles = %u\n", __FUNCTION__, nBundles);
 
     return nBundles;
 }
@@ -871,7 +871,7 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
 {
     if (!pContext->bUsingMSIX)
     {
-        DPrintf(0, ("[%s] No MSIX, using 1 queue\n", __FUNCTION__));
+        DPrintf(0, "[%s] No MSIX, using 1 queue\n", __FUNCTION__);
         return 1;
     }
 
@@ -898,7 +898,7 @@ static NDIS_STATUS SetupDPCTarget(PARANDIS_ADAPTER *pContext)
         status = KeGetProcessorNumberFromIndex(i, &procNumber);
         if (status != NDIS_STATUS_SUCCESS)
         {
-            DPrintf(0, ("[%s] - KeGetProcessorNumberFromIndex failed for index %lu - %d\n", __FUNCTION__, i, status));
+            DPrintf(0, "[%s] - KeGetProcessorNumberFromIndex failed for index %lu - %d\n", __FUNCTION__, i, status);
             return status;
         }
         ParaNdis_ProcessorNumberToGroupAffinity(&pContext->pPathBundles[i].rxPath.DPCAffinity, &procNumber);
@@ -939,7 +939,7 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
         PARANDIS_MEMORY_TAG, NormalPoolPriority);
     if (cpuIndexTable == nullptr)
     {
-        DPrintf(0, ("[%s] cpu index table allocation failed\n", __FUNCTION__));
+        DPrintf(0, "[%s] cpu index table allocation failed\n", __FUNCTION__);
         return NDIS_STATUS_RESOURCES;
     }
 
@@ -950,13 +950,13 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
         cpuIndex = pContext->pPathBundles[bundleIndex].rxPath.getCPUIndex();
         if (cpuIndex == INVALID_PROCESSOR_INDEX)
         {
-            DPrintf(0, ("[%s]  Invalid CPU index for path %u\n", __FUNCTION__, bundleIndex));
+            DPrintf(0, "[%s]  Invalid CPU index for path %u\n", __FUNCTION__, bundleIndex);
             NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
             return NDIS_STATUS_SOFT_ERRORS;
         }
         else if (cpuIndex >= cpuNumbers)
         {
-            DPrintf(0, ("[%s]  CPU index %lu exceeds CPU range %lu\n", __FUNCTION__, cpuIndex, cpuNumbers));
+            DPrintf(0, "[%s]  CPU index %lu exceeds CPU range %lu\n", __FUNCTION__, cpuIndex, cpuNumbers);
             NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
             return NDIS_STATUS_SOFT_ERRORS;
         }
@@ -966,13 +966,13 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
         }
     }
 
-    DPrintf(0, ("[%s] Entering, RSS table size = %lu, # of path bundles = %u. RSS2QueueLength = %u, RSS2QueueMap =0x%p\n",
+    DPrintf(0, "[%s] Entering, RSS table size = %lu, # of path bundles = %u. RSS2QueueLength = %u, RSS2QueueMap =0x%p\n",
         __FUNCTION__, rssTableSize, pContext->nPathBundles,
-        pContext->RSS2QueueLength, pContext->RSS2QueueMap));
+        pContext->RSS2QueueLength, pContext->RSS2QueueMap);
 
     if (pContext->RSS2QueueLength && pContext->RSS2QueueLength < rssTableSize)
     {
-        DPrintf(0, ("[%s] Freeing RSS2Queue Map\n", __FUNCTION__));
+        DPrintf(0, "[%s] Freeing RSS2Queue Map\n", __FUNCTION__);
         NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->RSS2QueueMap, PARANDIS_MEMORY_TAG);
         pContext->RSS2QueueLength = 0;
     }
@@ -984,7 +984,7 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
             PARANDIS_MEMORY_TAG, NormalPoolPriority);
         if (pContext->RSS2QueueMap == nullptr)
         {
-            DPrintf(0, ("[%s] - Allocating RSS to queue mapping failed\n", __FUNCTION__));
+            DPrintf(0, "[%s] - Allocating RSS to queue mapping failed\n", __FUNCTION__);
             NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
             return NDIS_STATUS_RESOURCES;
         }
@@ -1002,12 +1002,12 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
         cpuIndex = NdisProcessorNumberToIndex(pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex]);
         bundleIndex = cpuIndexTable[cpuIndex];
 
-        DPrintf(3, ("[%s] filling the relationship, rssIndex = %u, bundleIndex = %u\n", __FUNCTION__, rssIndex, bundleIndex));
-        DPrintf(3, ("[%s] RSS proc number %u/%u, bundle affinity %u/%u\n", __FUNCTION__,
+        DPrintf(3, "[%s] filling the relationship, rssIndex = %u, bundleIndex = %u\n", __FUNCTION__, rssIndex, bundleIndex);
+        DPrintf(3, "[%s] RSS proc number %u/%u, bundle affinity %u/%u\n", __FUNCTION__,
             pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Group,
             pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Number,
             pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Group,
-            pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Mask));
+            pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Mask);
 
         pContext->RSS2QueueMap[rssIndex] = pContext->pPathBundles + bundleIndex;
     }
@@ -1035,14 +1035,14 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     pContext->nPathBundles = DetermineQueueNumber(pContext);
     if (pContext->nPathBundles == 0)
     {
-        DPrintf(0, ("[%s] - no I/O paths\n", __FUNCTION__));
+        DPrintf(0, "[%s] - no I/O paths\n", __FUNCTION__);
         return NDIS_STATUS_RESOURCES;
     }
 
     NTSTATUS nt_status = virtio_reserve_queue_memory(&pContext->IODevice, nVirtIOQueues);
     if (!NT_SUCCESS(nt_status))
     {
-        DPrintf(0, ("[%s] - failed to reserve %u queues\n", __FUNCTION__, nVirtIOQueues));
+        DPrintf(0, "[%s] - failed to reserve %u queues\n", __FUNCTION__, nVirtIOQueues);
         return NTStatusToNdisStatus(nt_status);
     }
 
@@ -1054,7 +1054,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     }
     else
     {
-        DPrintf(0, ("[%s] The Control vQueue does not work!\n", __FUNCTION__));
+        DPrintf(0, "[%s] The Control vQueue does not work!\n", __FUNCTION__);
         pContext->bCtrlRXFiltersSupported = pContext->bCtrlRXExtraFiltersSupported = FALSE;
         pContext->bCtrlMACAddrSupported = pContext->bCtrlVLANFiltersSupported = FALSE;
         pContext->bCXPathCreated = FALSE;
@@ -1065,7 +1065,7 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         PARANDIS_MEMORY_TAG, NormalPoolPriority);
     if (pContext->pPathBundles == nullptr)
     {
-        DPrintf(0, ("[%s] Path bundles allocation failed\n", __FUNCTION__));
+        DPrintf(0, "[%s] Path bundles allocation failed\n", __FUNCTION__);
         return status;
     }
 
@@ -1078,14 +1078,14 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     {
         if (!pContext->pPathBundles[i].rxPath.Create(pContext, i * 2))
         {
-            DPrintf(0, ("%s: CParaNdisRX creation failed\n", __FUNCTION__));
+            DPrintf(0, "%s: CParaNdisRX creation failed\n", __FUNCTION__);
             return status;
         }
         pContext->pPathBundles[i].rxCreated = true;
 
         if (!pContext->pPathBundles[i].txPath.Create(pContext, i * 2 + 1))
         {
-            DPrintf(0, ("%s: CParaNdisTX creation failed\n", __FUNCTION__));
+            DPrintf(0, "%s: CParaNdisTX creation failed\n", __FUNCTION__);
             return status;
         }
         pContext->pPathBundles[i].txCreated = true;
@@ -1138,7 +1138,7 @@ void ParaNdis_DeviceConfigureRSC(PARANDIS_ADAPTER *pContext)
         ((pContext->RSC.bIPv4EnabledQEMU) ? ((UINT64)1 << VIRTIO_NET_F_GUEST_RSC4) : 0) |
         ((pContext->RSC.bIPv6EnabledQEMU) ? ((UINT64)1 << VIRTIO_NET_F_GUEST_RSC6) : 0);
 
-    DPrintf(0, ("Updating offload settings with %I64x", GuestOffloads));
+    DPrintf(0, "Updating offload settings with %I64x", GuestOffloads);
 
     ParaNdis_UpdateGuestOffloads(pContext, GuestOffloads);
 #else
@@ -1156,7 +1156,7 @@ NDIS_STATUS ParaNdis_DeviceConfigureMultiQueue(PARANDIS_ADAPTER *pContext)
         u16 nPaths = u16(pContext->nPathBundles);
         if (!pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET, &nPaths, sizeof(nPaths), NULL, 0, 2))
         {
-            DPrintf(0, ("[%s] - Sending MQ control message failed\n", __FUNCTION__));
+            DPrintf(0, "[%s] - Sending MQ control message failed\n", __FUNCTION__);
             status = NDIS_STATUS_DEVICE_FAILED;
         }
     }
@@ -1207,25 +1207,25 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
     DEBUG_ENTRY(0);
 
     status = ParaNdis_FinishSpecificInitialization(pContext);
-    DPrintf(0, ("[%s] ParaNdis_FinishSpecificInitialization passed, status = %d\n", __FUNCTION__, status));
+    DPrintf(0, "[%s] ParaNdis_FinishSpecificInitialization passed, status = %d\n", __FUNCTION__, status);
 
 
     if (status == NDIS_STATUS_SUCCESS)
     {
         status = ParaNdis_VirtIONetInit(pContext);
-        DPrintf(0, ("[%s] ParaNdis_VirtIONetInit passed, status = %d\n", __FUNCTION__, status));
+        DPrintf(0, "[%s] ParaNdis_VirtIONetInit passed, status = %d\n", __FUNCTION__, status);
     }
 
     if (status == NDIS_STATUS_SUCCESS && pContext->bUsingMSIX)
     {
         status = ParaNdis_ConfigureMSIXVectors(pContext);
-        DPrintf(0, ("[%s] ParaNdis_ConfigureMSIXVectors passed, status = %d\n", __FUNCTION__, status));
+        DPrintf(0, "[%s] ParaNdis_ConfigureMSIXVectors passed, status = %d\n", __FUNCTION__, status);
     }
 
     if (status == NDIS_STATUS_SUCCESS)
     {
         status = SetupDPCTarget(pContext);
-        DPrintf(0, ("[%s] SetupDPCTarget passed, status = %d\n", __FUNCTION__, status));
+        DPrintf(0, "[%s] SetupDPCTarget passed, status = %d\n", __FUNCTION__, status);
     }
 
     if (status == NDIS_STATUS_SUCCESS)
@@ -1308,7 +1308,7 @@ static void PreventDPCServicing(PARANDIS_ADAPTER *pContext)
         InterlockedDecrement(&pContext->counterDPCInside);
         if (inside > 1)
         {
-            DPrintf(0, ("[%s] waiting!\n", __FUNCTION__));
+            DPrintf(0, "[%s] waiting!\n", __FUNCTION__);
             NdisMSleep(20000);
         }
     } while (inside > 1);
@@ -1740,7 +1740,7 @@ void ParaNdis_ReuseRxNBLs(PNET_BUFFER_LIST pNBL)
     {
         PNET_BUFFER_LIST pTemp = pNBL;
         pRxNetDescriptor pBuffersDescriptor = (pRxNetDescriptor)pNBL->MiniportReserved[0];
-        DPrintf(3, ("  Returned NBL of pBuffersDescriptor %p!\n", pBuffersDescriptor));
+        DPrintf(3, "  Returned NBL of pBuffersDescriptor %p!\n", pBuffersDescriptor);
         pNBL = NET_BUFFER_LIST_NEXT_NBL(pNBL);
         NET_BUFFER_LIST_NEXT_NBL(pTemp) = NULL;
         NdisFreeNetBufferList(pTemp);
@@ -1863,7 +1863,7 @@ NDIS_STATUS ParaNdis_SetMulticastList(
         if (length)
             NdisMoveMemory(pContext->MulticastData.MulticastList, Buffer, length);
         pContext->MulticastData.nofMulticastEntries = length / ETH_ALEN;
-        DPrintf(1, ("[%s] New multicast list of %d bytes\n", __FUNCTION__, length));
+        DPrintf(1, "[%s] New multicast list of %d bytes\n", __FUNCTION__, length);
         *pBytesRead = length;
         status = NDIS_STATUS_SUCCESS;
     }
@@ -1902,7 +1902,7 @@ VOID ParaNdis_OnPnPEvent(
             break;
     }
     ParaNdis_DebugHistory(pContext, hopPnpEvent, NULL, pEvent, 0, 0);
-    DPrintf(0, ("[%s] (%s)\n", __FUNCTION__, pName));
+    DPrintf(0, "[%s] (%s)\n", __FUNCTION__, pName);
     if (pEvent == NdisDevicePnPEventSurpriseRemoved)
     {
         // on simulated surprise removal (under PnpTest) we need to reset the device
@@ -2044,7 +2044,7 @@ NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     NTSTATUS nt_status = virtio_set_features(&pContext->IODevice, pContext->u64GuestFeatures);
     if (!NT_SUCCESS(nt_status))
     {
-        DPrintf(0, ("[%s] virtio_set_features failed with %x\n", __FUNCTION__, nt_status));
+        DPrintf(0, "[%s] virtio_set_features failed with %x\n", __FUNCTION__, nt_status);
         return NTStatusToNdisStatus(nt_status);
     }
 

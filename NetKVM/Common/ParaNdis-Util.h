@@ -751,7 +751,7 @@ void ParaNdis_PrintTable(int DebugPrintLevel, TTable table, size_t Size, LPCSTR 
 
     if (RtlStringCbCatA(FullFormat, sizeof(FullFormat), Format) != STATUS_SUCCESS)
     {
-        DPrintf(0, ("[%s] - format concatenation failed for %s\n", __FUNCTION__, Format));
+        DPrintf(0, "[%s] - format concatenation failed for %s\n", __FUNCTION__, Format);
         return;
     }
 

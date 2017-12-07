@@ -196,7 +196,7 @@ VOID FillCPUMappingArray(
 
     if (RSSScalingSettings->FirstQueueIndirectionIndex == INVALID_INDIRECTION_INDEX)
     {
-        DPrintf(0, ("[%s] - CPU <-> queue assignment failed!", __FUNCTION__));
+        DPrintf(0, "[%s] - CPU <-> queue assignment failed!", __FUNCTION__);
         return;
     }
 
@@ -215,7 +215,7 @@ VOID FillCPUMappingArray(
 
     if (IndirectionTableChanged)
     {
-        DPrintf(0, ("[%s] Indirection table changed\n", __FUNCTION__));
+        DPrintf(0, "[%s] Indirection table changed\n", __FUNCTION__);
     }
 }
 
@@ -267,8 +267,8 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_RSS_PARAMS *RSSParameters,
     }
     else
     {
-        DPrintf(0, ("[%s] RSS Params: flags 0x%4.4x, hash information 0x%4.4lx\n",
-            __FUNCTION__, Params->Flags, Params->HashInformation));
+        DPrintf(0, "[%s] RSS Params: flags 0x%4.4x, hash information 0x%4.4lx\n",
+            __FUNCTION__, Params->Flags, Params->HashInformation);
 
         if (!(Params->Flags & NDIS_RSS_PARAM_FLAG_ITABLE_UNCHANGED))
         {
@@ -625,10 +625,10 @@ static void PrintIndirectionTable(const NDIS_RECEIVE_SCALE_PARAMETERS* Params)
 {
     ULONG IndirectionTableEntries = Params->IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
     
-    DPrintf(RSS_PRINT_LEVEL, ("Params: flags 0x%4.4x, hash information 0x%4.4lx\n",
-        Params->Flags, Params->HashInformation));
+    DPrintf(RSS_PRINT_LEVEL, "Params: flags 0x%4.4x, hash information 0x%4.4lx\n",
+        Params->Flags, Params->HashInformation);
 
-    DPrintf(RSS_PRINT_LEVEL, ("NDIS IndirectionTable[%lu]\n", IndirectionTableEntries));
+    DPrintf(RSS_PRINT_LEVEL, "NDIS IndirectionTable[%lu]\n", IndirectionTableEntries);
     ParaNdis_PrintTable<80, 20>(RSS_PRINT_LEVEL, (const PROCESSOR_NUMBER *)((char *)Params + Params->IndirectionTableOffset), IndirectionTableEntries,
         "%u/%u", [](const PROCESSOR_NUMBER *proc) { return proc->Group; }, [](const PROCESSOR_NUMBER *proc) { return proc->Number; });
 }
@@ -637,7 +637,7 @@ static void PrintIndirectionTable(const PARANDIS_SCALING_SETTINGS *RSSScalingSet
 {
     ULONG IndirectionTableEntries = RSSScalingSetting->IndirectionTableSize/ sizeof(PROCESSOR_NUMBER);
 
-    DPrintf(RSS_PRINT_LEVEL, ("Driver IndirectionTable[%lu]\n", IndirectionTableEntries));
+    DPrintf(RSS_PRINT_LEVEL, "Driver IndirectionTable[%lu]\n", IndirectionTableEntries);
     ParaNdis_PrintTable<80, 20>(RSS_PRINT_LEVEL, RSSScalingSetting->IndirectionTable, IndirectionTableEntries,
         "%u/%u", [](const PROCESSOR_NUMBER *proc) { return proc->Group; }, [](const PROCESSOR_NUMBER *proc) { return proc->Number; });
 }
@@ -647,16 +647,16 @@ static void PrintRSSSettings(const PPARANDIS_RSS_PARAMS RSSParameters)
 {
     ULONG CPUNumber = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
 
-    DPrintf(RSS_PRINT_LEVEL, ("%lu cpus, %d queues, first queue CPU index %ld",
+    DPrintf(RSS_PRINT_LEVEL, "%lu cpus, %d queues, first queue CPU index %ld",
         CPUNumber, RSSParameters->ReceiveQueuesNumber,
-        RSSParameters->RSSScalingSettings.FirstQueueIndirectionIndex));
+        RSSParameters->RSSScalingSettings.FirstQueueIndirectionIndex);
 
     PrintIndirectionTable(&RSSParameters->ActiveRSSScalingSettings);
 
-    DPrintf(RSS_PRINT_LEVEL, ("CPU mapping table[%u]: ", RSSParameters->ActiveRSSScalingSettings.CPUIndexMappingSize));
+    DPrintf(RSS_PRINT_LEVEL, "CPU mapping table[%u]: ", RSSParameters->ActiveRSSScalingSettings.CPUIndexMappingSize);
     ParaNdis_PrintCharArray(RSS_PRINT_LEVEL, RSSParameters->ActiveRSSScalingSettings.CPUIndexMapping, RSSParameters->ActiveRSSScalingSettings.CPUIndexMappingSize);
 
-    DPrintf(RSS_PRINT_LEVEL, ("Queue indirection table[%u]: ", RSSParameters->ReceiveQueuesNumber));
+    DPrintf(RSS_PRINT_LEVEL, "Queue indirection table[%u]: ", RSSParameters->ReceiveQueuesNumber);
     ParaNdis_PrintCharArray(RSS_PRINT_LEVEL, RSSParameters->ActiveRSSScalingSettings.QueueIndirectionTable, RSSParameters->ReceiveQueuesNumber);
 }
 

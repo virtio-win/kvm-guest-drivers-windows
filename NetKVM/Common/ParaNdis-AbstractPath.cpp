@@ -8,7 +8,7 @@ NDIS_STATUS CParaNdisAbstractPath::SetupMessageIndex(u16 vector)
 
     if (val != vector)
     {
-        DPrintf(0, ("[%s] - read/write mismatch, %u vs %u\n", val, vector));
+        DPrintf(0, "[%s] - read/write mismatch, %u vs %u\n", val, vector);
         return NDIS_STATUS_DEVICE_FAILED;
     }
 
@@ -25,7 +25,7 @@ ULONG CParaNdisAbstractPath::getCPUIndex()
     ULONG number = ParaNdis_GetIndexFromAffinity(DPCAffinity.Mask);
     if (number == INVALID_PROCESSOR_INDEX)
     {
-        DPrintf(0, ("[%s] : bad in-group processor index: mask 0x%lx\n", __FUNCTION__, (ULONG)DPCAffinity.Mask));
+        DPrintf(0, "[%s] : bad in-group processor index: mask 0x%lx\n", __FUNCTION__, (ULONG)DPCAffinity.Mask);
         NETKVM_ASSERT(FALSE);
         return INVALID_PROCESSOR_INDEX;
     }

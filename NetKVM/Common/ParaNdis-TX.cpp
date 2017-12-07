@@ -49,7 +49,7 @@ bool CNBL::ParsePriority()
 
     if (priorityInfo.TagHeader.CanonicalFormatId || !IsValidVlanId(m_Context, priorityInfo.TagHeader.VlanId))
     {
-        DPrintf(0, ("[%s] Discarded invalid priority tag %p\n", __FUNCTION__, priorityInfo.Value));
+        DPrintf(0, "[%s] Discarded invalid priority tag %p\n", __FUNCTION__, priorityInfo.Value);
         return false;
     }
     else if (priorityInfo.Value)
@@ -63,7 +63,7 @@ bool CNBL::ParsePriority()
         if (priorityInfo.Value)
         {
             m_TCI = static_cast<UINT16>(priorityInfo.TagHeader.UserPriority << 13 | priorityInfo.TagHeader.VlanId);
-            DPrintf(1, ("[%s] Populated priority tag %p\n", __FUNCTION__, priorityInfo.Value));
+            DPrintf(1, "[%s] Populated priority tag %p\n", __FUNCTION__, priorityInfo.Value);
         }
     }
 
@@ -104,7 +104,7 @@ bool CNBL::ParseBuffers()
 
     if(m_MaxDataLength == 0)
     {
-        DPrintf(0, ("Empty NBL (%p) dropped\n", __FUNCTION__, m_NBL));
+        DPrintf(0, "Empty NBL (%p) dropped\n", __FUNCTION__, m_NBL);
         return false;
     }
 
@@ -175,7 +175,7 @@ bool CNBL::ParseCSO(TClassPred IsClass, TOffloadPred IsOffload,
     {
         if(!IsSupported())
         {
-            DPrintf(0, ("[%s] %s request when it is not supported\n", __FUNCTION__, OffloadName));
+            DPrintf(0, "[%s] %s request when it is not supported\n", __FUNCTION__, OffloadName);
 #if FAIL_UNEXPECTED
             // ignore unexpected CS requests while this passes WHQL
             return false;
@@ -279,7 +279,7 @@ CParaNdisTX::~CParaNdisTX()
 
     m_SendQueue.~CLockFreeQueue();
 
-    DPrintf(1, ("Pools state %d-> NB: %d, NBL: %d\n", m_queueIndex, m_nbPool.GetCount(), m_nblPool.GetCount()));
+    DPrintf(1, "Pools state %d-> NB: %d, NBL: %d\n", m_queueIndex, m_nbPool.GetCount(), m_nblPool.GetCount());
     if (m_StateMachineRegistered)
     {
         m_Context->m_StateMachine.UnregisterFlow(m_StateMachine);
@@ -367,7 +367,7 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
             {
                 CompleteOutstandingInternalNBL(NBL);
             }
-            DPrintf(0, ("ERROR: Failed to allocate CNBL instance\n"));
+            DPrintf(0, "ERROR: Failed to allocate CNBL instance\n");
             continue;
         }
 
@@ -755,7 +755,7 @@ void CNB::PopulateIPLength(IPHeader *IpHeader, USHORT IpLength) const
     }
     else
     {
-        DPrintf(0, ("[%s] ERROR: Bad version of IP header!\n", __FUNCTION__));
+        DPrintf(0, "[%s] ERROR: Bad version of IP header!\n", __FUNCTION__);
     }
 }
 
@@ -795,7 +795,7 @@ USHORT CNB::QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const
     }
     else
     {
-        DPrintf(0, ("[%s] ERROR: NOT an IP packet - expected troubles!\n", __FUNCTION__));
+        DPrintf(0, "[%s] ERROR: NOT an IP packet - expected troubles!\n", __FUNCTION__);
         Res = 0;
     }
     return Res;

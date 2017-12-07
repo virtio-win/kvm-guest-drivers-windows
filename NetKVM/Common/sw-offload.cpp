@@ -211,7 +211,7 @@ ProcessTCPHeader(tTcpIpPacketParsingResult _res, PVOID pIpHeader, ULONG len, USH
     }
     else
     {
-        DPrintf(2, ("tcp: %d < min headers %d\n", len, tcpipDataAt));
+        DPrintf(2, "tcp: %d < min headers %d\n", len, tcpipDataAt);
         res.xxpFull = FALSE;
         res.xxpStatus = ppresXxpIncomplete;
     }
@@ -232,7 +232,7 @@ ProcessUDPHeader(tTcpIpPacketParsingResult _res, PVOID pIpHeader, ULONG len, USH
         res.xxpStatus = ppresXxpKnown;
         res.xxpFull = TRUE;
         // may be full or not, but the datagram length is known
-        DPrintf(2, ("udp: len %d, datagramLength %d\n", len, datagramLength));
+        DPrintf(2, "udp: len %d, datagramLength %d\n", len, datagramLength);
     }
     else
     {
@@ -268,8 +268,8 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
         }
         ipHeaderSize = (ver_len & 0xF) << 2;
         fullLength = swap_short(pIpHeader->v4.ip_length);
-        DPrintf(3, ("ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload length %d\n",
-            ip_version, ipHeaderSize, pIpHeader->v4.ip_protocol, fullLength, len));
+        DPrintf(3, "ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload length %d\n",
+            ip_version, ipHeaderSize, pIpHeader->v4.ip_protocol, fullLength, len);
 
         res.ipStatus = (ipHeaderSize >= sizeof(IPv4Header)) ? ppresIPV4 : ppresNotIP;
         if (res.ipStatus == ppresNotIP)
@@ -279,8 +279,8 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
 
         if (ipHeaderSize >= fullLength || ( verifyLength && len < fullLength))
         {
-            DPrintf(2, ("[%s] - truncated packet - ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload length %d, verify = %s\n", __FUNCTION__,
-                ip_version, ipHeaderSize, pIpHeader->v4.ip_protocol, fullLength, len, (verifyLength ? "true" : "false")));
+            DPrintf(2, "[%s] - truncated packet - ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload length %d, verify = %s\n", __FUNCTION__,
+                ip_version, ipHeaderSize, pIpHeader->v4.ip_protocol, fullLength, len, (verifyLength ? "true" : "false"));
             res.ipCheckSum = ppresIPTooShort;
             return res;
         }
@@ -348,7 +348,7 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
                     }
                     else
                     {
-                        DPrintf(0, ("[%s] ERROR: Break in the middle of ext. headers(len %d, hdr > %d)\n", __FUNCTION__, len, ipHeaderSize));
+                        DPrintf(0, "[%s] ERROR: Break in the middle of ext. headers(len %d, hdr > %d)\n", __FUNCTION__, len, ipHeaderSize);
                         res.ipStatus = ppresNotIP;
                         bParsingDone = TRUE;
                     }
@@ -364,13 +364,13 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
         }
         if ((ipHeaderSize <= MAX_SUPPORTED_IPV6_HEADERS) && (ipHeaderSize <= fullLength))
         {
-            DPrintf(3, ("ip_version %d, ipHeaderSize %d, protocol %d, iplen %d\n",
-                ip_version, ipHeaderSize, nextHeader, fullLength));
+            DPrintf(3, "ip_version %d, ipHeaderSize %d, protocol %d, iplen %d\n",
+                ip_version, ipHeaderSize, nextHeader, fullLength);
             res.ipHeaderSize = ipHeaderSize;
         }
         else
         {
-            DPrintf(0, ("[%s] ERROR: IP chain is too large (%d)\n", __FUNCTION__, ipHeaderSize));
+            DPrintf(0, "[%s] ERROR: IP chain is too large (%d)\n", __FUNCTION__, ipHeaderSize);
             res.ipStatus = ppresNotIP;
         }
     }
@@ -694,12 +694,12 @@ static __inline VOID PrintOutParsingResult(
     int level,
     LPCSTR procname)
 {
-    DPrintf(level, ("[%s] %s packet IPCS %s%s, checksum %s%s\n", procname,
+    DPrintf(level, "[%s] %s packet IPCS %s%s, checksum %s%s\n", procname,
         GetPacketCase(res),
         GetIPCSCase(res),
         res.fixedIpCS ? "(fixed)" : "",
         GetXxpCSCase(res),
-        res.fixedXxpCS ? "(fixed)" : ""));
+        res.fixedXxpCS ? "(fixed)" : "");
 }
 
 tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(

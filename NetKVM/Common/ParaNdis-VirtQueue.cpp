@@ -15,7 +15,7 @@ bool CVirtQueue::AllocateQueueMemory()
         &HeapSize);
     if (!NT_SUCCESS(status))
     {
-        DPrintf(0, ("[%s] virtio_query_queue_allocation(%d) failed with error %x\n", __FUNCTION__, m_Index, status));
+        DPrintf(0, "[%s] virtio_query_queue_allocation(%d) failed with error %x\n", __FUNCTION__, m_Index, status);
         return false;
     }
 
@@ -35,7 +35,7 @@ void CVirtQueue::Renew()
 
     if (!NT_SUCCESS(status))
     {
-        DPrintf(0, ("[%s] - queue setup failed for index %u with error %x\n", __FUNCTION__, m_Index, status));
+        DPrintf(0, "[%s] - queue setup failed for index %u with error %x\n", __FUNCTION__, m_Index, status);
         m_VirtQueue = nullptr;
     }
 }
@@ -49,7 +49,7 @@ bool CVirtQueue::Create(UINT Index,
     m_IODevice = IODevice;
     if (!m_SharedMemory.Create(DrvHandle))
     {
-        DPrintf(0, ("[%s] - shared memory creation failed\n", __FUNCTION__));
+        DPrintf(0, "[%s] - shared memory creation failed\n", __FUNCTION__);
         return false;
     }
 
@@ -61,7 +61,7 @@ bool CVirtQueue::Create(UINT Index,
     }
     else
     {
-        DPrintf(0, ("[%s] - queue memory allocation failed\n", __FUNCTION__, Index));
+        DPrintf(0, "[%s] - queue memory allocation failed\n", __FUNCTION__, Index);
     }
 
     return m_VirtQueue != nullptr;
@@ -108,7 +108,7 @@ bool CTXVirtQueue::PrepareBuffers()
     }
 
     m_FreeHWBuffers = m_TotalHWBuffers = NumBuffers;
-    DPrintf(0, ("[%s] available %d Tx descriptors\n", __FUNCTION__, m_TotalDescriptors));
+    DPrintf(0, "[%s] available %d Tx descriptors\n", __FUNCTION__, m_TotalDescriptors);
 
     return m_TotalDescriptors > 0;
 }
@@ -268,12 +268,12 @@ UINT CTXVirtQueue::ReleaseTransmitBuffers(CRawCNBList& listDone)
         m_DescriptorsInUse.Remove(TXDescriptor);
         if (!TXDescriptor->GetUsedBuffersNum())
         {
-            DPrintf(0, ("[%s] ERROR: nofUsedBuffers not set!\n", __FUNCTION__));
+            DPrintf(0, "[%s] ERROR: nofUsedBuffers not set!\n", __FUNCTION__);
         }
         m_FreeHWBuffers += TXDescriptor->GetUsedBuffersNum();
         listDone.PushBack(TXDescriptor->GetNB());
         m_Descriptors.Push(TXDescriptor);
-        DPrintf(3, ("[%s] Free Tx: desc %d, buff %d\n", __FUNCTION__, m_Descriptors.GetCount(), m_FreeHWBuffers));
+        DPrintf(3, "[%s] Free Tx: desc %d, buff %d\n", __FUNCTION__, m_Descriptors.GetCount(), m_FreeHWBuffers);
         ++i;
     }
     if (i)
@@ -281,7 +281,7 @@ UINT CTXVirtQueue::ReleaseTransmitBuffers(CRawCNBList& listDone)
         NdisGetCurrentSystemTime(&m_Context->LastTxCompletionTimeStamp);
         m_DoKickOnNoBuffer = true;
     }
-    DPrintf((i ? 3 : 5), ("[%s] returning i = %d\n", __FUNCTION__, i)); 
+    DPrintf((i ? 3 : 5), "[%s] returning i = %d\n", __FUNCTION__, i);
     return i;
 }
 

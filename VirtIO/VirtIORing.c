@@ -281,7 +281,7 @@ struct virtqueue *vring_new_virtqueue(
     u16 i;
 
     if (DESC_INDEX(num, num) != 0) {
-        DPrintf(0, ("Virtqueue length %u is not a power of 2\n", num));
+        DPrintf(0, "Virtqueue length %u is not a power of 2\n", num);
         return NULL;
     }
 

@@ -101,7 +101,7 @@ static VOID PostLinkState(PARANDIS_ADAPTER *pContext, NDIS_MEDIA_CONNECT_STATE c
     indication.StatusCode = NDIS_STATUS_LINK_STATE;
     indication.StatusBuffer = &state;
     indication.StatusBufferSize = sizeof(state);
-    DPrintf(0, ("Indicating %s\n", ConnectStateName(connectState)));
+    DPrintf(0, "Indicating %s\n", ConnectStateName(connectState));
     ParaNdis_DebugHistory(pContext, hopConnectIndication, NULL, connectState, 0, 0);
     NdisMIndicateStatusEx(pContext->MiniportHandle , &indication);
 }
@@ -160,7 +160,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
     if (!UnalignedAdapterContext)
     {
-        DPrintf(0, ("[%s] ERROR: Memory allocation failed!\n", __FUNCTION__));
+        DPrintf(0, "[%s] ERROR: Memory allocation failed!\n", __FUNCTION__);
         status = NDIS_STATUS_RESOURCES;
     }
 
@@ -210,7 +210,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
         status = NdisMSetMiniportAttributes(miniportAdapterHandle, &miniportAttributes);
         if (status != NDIS_STATUS_SUCCESS)
         {
-            DPrintf(0, ("[%s] ERROR: NdisMSetMiniportAttributes 1 failed (%X)!\n", __FUNCTION__, status));
+            DPrintf(0, "[%s] ERROR: NdisMSetMiniportAttributes 1 failed (%X)!\n", __FUNCTION__, status);
         }
     }
 
@@ -224,7 +224,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
         status = ParaNdis_InitializeContext(pContext, miniportInitParameters->AllocatedResources);
         if (status != NDIS_STATUS_SUCCESS)
         {
-            DPrintf(0, ("[%s] ERROR: ParaNdis6_InitializeContext failed (%X)!\n", __FUNCTION__, status));
+            DPrintf(0, "[%s] ERROR: ParaNdis6_InitializeContext failed (%X)!\n", __FUNCTION__, status);
         }
     }
 
@@ -289,7 +289,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
         new (&pContext->RSSParameters.rwLock) CNdisRWLock();
         if (!pContext->RSSParameters.rwLock.Create(pContext->MiniportHandle))
         {
-            DPrintf(0, ("RSS RW lock allocation failed\n"));
+            DPrintf(0, "RSS RW lock allocation failed\n");
             status = NDIS_STATUS_RESOURCES;
         }
 
@@ -317,7 +317,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
         status = NdisMSetMiniportAttributes(miniportAdapterHandle, &miniportAttributes);
         if (status != NDIS_STATUS_SUCCESS)
         {
-            DPrintf(0, ("[%s] ERROR: NdisMSetMiniportAttributes 2 failed (%X)!\n", __FUNCTION__, status));
+            DPrintf(0, "[%s] ERROR: NdisMSetMiniportAttributes 2 failed (%X)!\n", __FUNCTION__, status);
         }
     }
 
@@ -367,7 +367,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
             status = NdisMSetMiniportAttributes(miniportAdapterHandle, &miniportAttributes);
             if (status != NDIS_STATUS_SUCCESS)
             {
-                DPrintf(0, ("[%s] ERROR: NdisMSetMiniportAttributes 3 failed (%X)!\n", __FUNCTION__, status));
+                DPrintf(0, "[%s] ERROR: NdisMSetMiniportAttributes 3 failed (%X)!\n", __FUNCTION__, status);
             }
     }
 
@@ -667,7 +667,7 @@ static void PrintPRRL(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
 
     for (ULONG ix = 0; ix < prrl->AlternativeLists; ++ix)
     {
-        DPrintf(0, ("[%s] List # %ld, count %lu\n", __FUNCTION__, ix, list->Count));
+        DPrintf(0, "[%s] List # %ld, count %lu\n", __FUNCTION__, ix, list->Count);
         for (ULONG jx = 0; jx < list->Count; ++jx)
         {
             PIO_RESOURCE_DESCRIPTOR desc;
@@ -677,13 +677,13 @@ static void PrintPRRL(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
             switch (desc->Type)
             {
             case CmResourceTypePort:
-                DPrintf(0, ("CmResourceTypePort, align 0x%lx, length %lu, min/max 0x%llx/0x%llx\n", desc->u.Port.Alignment, desc->u.Port.Length, desc->u.Port.MinimumAddress, desc->u.Port.MaximumAddress));
+                DPrintf(0, "CmResourceTypePort, align 0x%lx, length %lu, min/max 0x%llx/0x%llx\n", desc->u.Port.Alignment, desc->u.Port.Length, desc->u.Port.MinimumAddress, desc->u.Port.MaximumAddress);
                 break;
             case CmResourceTypeInterrupt:
-                DPrintf(0, ("CmResourceTypeInterrupt, max/min 0x%lx/0x%lx affinity 0x%llx\n", desc->u.Interrupt.MinimumVector, desc->u.Interrupt.MaximumVector, desc->u.Interrupt.TargetedProcessors));
+                DPrintf(0, "CmResourceTypeInterrupt, max/min 0x%lx/0x%lx affinity 0x%llx\n", desc->u.Interrupt.MinimumVector, desc->u.Interrupt.MaximumVector, desc->u.Interrupt.TargetedProcessors);
                 break;
             case CmResourceTypeMemory:
-                DPrintf(0, ("CmResourceTypeMemory align %lu, length %lu, min 0x%llx, max 0x%llx\n", desc->u.Memory.Alignment, desc->u.Memory.Length, desc->u.Memory.MinimumAddress, desc->u.Memory.MaximumAddress));
+                DPrintf(0, "CmResourceTypeMemory align %lu, length %lu, min 0x%llx, max 0x%llx\n", desc->u.Memory.Alignment, desc->u.Memory.Length, desc->u.Memory.MinimumAddress, desc->u.Memory.MaximumAddress);
                 break;
             default: 
                 break;
@@ -724,7 +724,7 @@ static void SetupInterrruptAffinity(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
                 }
                 else
                 {
-                    DPrintf(0, ("[%s] - can't convert index %u into processor number\n", __FUNCTION__, procIndex));
+                    DPrintf(0, "[%s] - can't convert index %u into processor number\n", __FUNCTION__, procIndex);
                 }
 #else
                 desc->u.Interrupt.TargetedProcessors = 1i64 << procIndex;
@@ -776,7 +776,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
     if (QueueNumber > 2048)
         QueueNumber = 2048;
 
-    DPrintf(0, ("[%s]%s\n", __FUNCTION__, bRemoveMSIResources ? "(Remove MSI resources...)" : "(Don't remove MSI resources)"));
+    DPrintf(0, "[%s]%s\n", __FUNCTION__, bRemoveMSIResources ? "(Remove MSI resources...)" : "(Don't remove MSI resources)");
 
     newPrrl = (PIO_RESOURCE_REQUIREMENTS_LIST)NdisAllocateMemoryWithTagPriority(
             MiniportAddDeviceContext,
@@ -789,7 +789,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
     {
         ULONG n, offset;
         PVOID p = &prrl->List[0];
-        DPrintf(0, ("[%s] %d bytes, %d lists\n", __FUNCTION__, prrl->ListSize, prrl->AlternativeLists));
+        DPrintf(0, "[%s] %d bytes, %d lists\n", __FUNCTION__, prrl->ListSize, prrl->AlternativeLists);
         offset = RtlPointerToOffset(prrl, p);
         for (n = 0; n < prrl->AlternativeLists && offset < prrl->ListSize; ++n)
         {
@@ -798,7 +798,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
             if ((offset + sizeof(*pior)) < prrl->ListSize)
             {
                 IO_RESOURCE_DESCRIPTOR *pd = &pior->Descriptors[0];
-                DPrintf(0, ("[%s]+%d %d:%d descriptors follow\n", __FUNCTION__, offset, n, pior->Count));
+                DPrintf(0, "[%s]+%d %d:%d descriptors follow\n", __FUNCTION__, offset, n, pior->Count);
                 offset += RtlPointerToOffset(p, pd);
                 AddNewResourceList(&newRRLData, pior);
                 for (nDesc = 0; nDesc < pior->Count; ++nDesc)
@@ -809,8 +809,8 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
                         if (pd->Type == CmResourceTypeInterrupt)
                         {
                             nInterrupts++;
-                            DPrintf(0, ("[%s] CmResourceTypeInterrupt, min/max = %lx/%lx Option = 0x%lx, ShareDisposition = %u \n", __FUNCTION__, pd->u.Interrupt.MinimumVector, pd->u.Interrupt.MaximumVector,
-                                pd->Option, pd->ShareDisposition));
+                            DPrintf(0, "[%s] CmResourceTypeInterrupt, min/max = %lx/%lx Option = 0x%lx, ShareDisposition = %u \n", __FUNCTION__, pd->u.Interrupt.MinimumVector, pd->u.Interrupt.MaximumVector,
+                                pd->Option, pd->ShareDisposition);
                             if (pd->Flags & CM_RESOURCE_INTERRUPT_MESSAGE)
                             {
                                 MSIResourceListed = TRUE;
@@ -833,7 +833,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
                     pd = (IO_RESOURCE_DESCRIPTOR *)RtlOffsetToPointer(prrl, offset);
                 }
 
-                DPrintf(0, ("[%s] MSI resources %s listed\n", __FUNCTION__, MSIResourceListed ? "" : "not"));
+                DPrintf(0, "[%s] MSI resources %s listed\n", __FUNCTION__, MSIResourceListed ? "" : "not");
 
                 FinalizeResourceList(&newRRLData);
                 p = pd;
@@ -846,7 +846,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
     }
     if (bRemoveMSIResources && nRemoved)
     {
-        DPrintf(0, ("[%s] %d resources removed\n", __FUNCTION__, nRemoved));
+        DPrintf(0, "[%s] %d resources removed\n", __FUNCTION__, nRemoved);
     }
     return newPrrl;
 }
@@ -863,7 +863,7 @@ we just enumerate allocated resources and do not modify them.
 *******************************************************************/
 static NDIS_STATUS ParaNdis6_FilterResource(IN NDIS_HANDLE  MiniportAddDeviceContext, IN PIRP  Irp)
 {
-    DPrintf(0, ("[%s] entered\n", __FUNCTION__));
+    DPrintf(0, "[%s] entered\n", __FUNCTION__);
     PIO_RESOURCE_REQUIREMENTS_LIST prrl = (PIO_RESOURCE_REQUIREMENTS_LIST)(PVOID)Irp->IoStatus.Information;
 
     PrintPRRL(prrl);
@@ -878,7 +878,7 @@ static NDIS_STATUS ParaNdis6_FilterResource(IN NDIS_HANDLE  MiniportAddDeviceCon
     }
     else
     {
-        DPrintf(0, ("[%s] Resource requirement unchanged\n", __FUNCTION__));
+        DPrintf(0, "[%s] Resource requirement unchanged\n", __FUNCTION__);
     }
     return NDIS_STATUS_SUCCESS;
 }
@@ -933,7 +933,7 @@ static NDIS_STATUS ReadGlobalConfigurationEntry(NDIS_HANDLE cfg, const char *_na
     {
         statusName = "nothing";
     }
-    DPrintf(2, ("[%s] %s read for %s - 0x%x\n", __FUNCTION__, statusName, _name, *pValue));
+    DPrintf(2, "[%s] %s read for %s - 0x%x\n", __FUNCTION__, statusName, _name, *pValue);
     if (name.Buffer) NdisFreeString(name);
     return status;
 }
@@ -974,7 +974,7 @@ static NDIS_STATUS ParaNdis6x_DirectOidRequest(IN  NDIS_HANDLE miniportAdapterCo
 
     if (pContext->bSurprizeRemoved) status = NDIS_STATUS_NOT_ACCEPTED;
 
-    DPrintf(1, ("[%s] came %s\n", __FUNCTION__, ParaNdis_OidName(OidRequest->DATA.SET_INFORMATION.Oid)));
+    DPrintf(1, "[%s] came %s\n", __FUNCTION__, ParaNdis_OidName(OidRequest->DATA.SET_INFORMATION.Oid));
 
     return status;
 }
@@ -1012,7 +1012,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
     ParaNdis_DebugInitialize();
 
     DEBUG_ENTRY(0);
-    DPrintf(0, (__DATE__ " " __TIME__ "built %d.%d\n", NDIS_MINIPORT_MAJOR_VERSION, NDIS_MINIPORT_MINOR_VERSION));
+    DPrintf(0, __DATE__ " " __TIME__ "built %d.%d\n", NDIS_MINIPORT_MAJOR_VERSION, NDIS_MINIPORT_MINOR_VERSION);
 #ifdef DEBUG_TIMING
     KeQueryTickCount(&TickCount);
     NdisGetCurrentSystemTime(&SysTime);
