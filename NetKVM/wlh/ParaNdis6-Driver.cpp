@@ -677,13 +677,13 @@ static void PrintPRRL(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
             switch (desc->Type)
             {
             case CmResourceTypePort:
-                DPrintf(0, "CmResourceTypePort, align 0x%lx, length %lu, min/max 0x%llx/0x%llx\n", desc->u.Port.Alignment, desc->u.Port.Length, desc->u.Port.MinimumAddress, desc->u.Port.MaximumAddress);
+                DPrintf(0, "CmResourceTypePort, align 0x%lx, length %lu, min/max 0x%llx/0x%llx\n", desc->u.Port.Alignment, desc->u.Port.Length, desc->u.Port.MinimumAddress.QuadPart, desc->u.Port.MaximumAddress.QuadPart);
                 break;
             case CmResourceTypeInterrupt:
                 DPrintf(0, "CmResourceTypeInterrupt, max/min 0x%lx/0x%lx affinity 0x%llx\n", desc->u.Interrupt.MinimumVector, desc->u.Interrupt.MaximumVector, desc->u.Interrupt.TargetedProcessors);
                 break;
             case CmResourceTypeMemory:
-                DPrintf(0, "CmResourceTypeMemory align %lu, length %lu, min 0x%llx, max 0x%llx\n", desc->u.Memory.Alignment, desc->u.Memory.Length, desc->u.Memory.MinimumAddress, desc->u.Memory.MaximumAddress);
+                DPrintf(0, "CmResourceTypeMemory align %lu, length %lu, min 0x%llx, max 0x%llx\n", desc->u.Memory.Alignment, desc->u.Memory.Length, desc->u.Memory.MinimumAddress.QuadPart, desc->u.Memory.MaximumAddress.QuadPart);
                 break;
             default: 
                 break;
