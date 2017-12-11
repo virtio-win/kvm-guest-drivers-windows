@@ -498,7 +498,7 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
             DPrintf(0, "[%s] MSIX message%d=%08X=>%I64X\n",
                 __FUNCTION__, i,
                 pTable->MessageInfo[i].MessageData,
-                pTable->MessageInfo[i].MessageAddress);
+                pTable->MessageInfo[i].MessageAddress.QuadPart);
         }
         for (UINT j = 0; j < pContext->nPathBundles && status == NDIS_STATUS_SUCCESS; ++j)
         {
