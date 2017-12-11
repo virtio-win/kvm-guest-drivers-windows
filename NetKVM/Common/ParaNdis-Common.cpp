@@ -1003,7 +1003,7 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
         bundleIndex = cpuIndexTable[cpuIndex];
 
         DPrintf(3, "[%s] filling the relationship, rssIndex = %u, bundleIndex = %u\n", __FUNCTION__, rssIndex, bundleIndex);
-        DPrintf(3, "[%s] RSS proc number %u/%u, bundle affinity %u/%u\n", __FUNCTION__,
+        DPrintf(3, "[%s] RSS proc number %u/%u, bundle affinity %u/%llu\n", __FUNCTION__,
             pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Group,
             pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Number,
             pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Group,

@@ -303,7 +303,7 @@ VOID ParaNdis_OnBugCheck(
             RtlCopyMemory(&pDump->Guid, &ParaNdis_CrashGuid, sizeof(pDump->Guid));
             RtlCopyMemory(pDump->InBuffer, &BugCheckData.Location, dumpSize);
             pDump->OutBufferLength = dumpSize;
-            DPrintf(0, "[%s] written %d to %p\n", __FUNCTION__, (ULONG)BugCheckData.Location.Size, (UINT_PTR)BugCheckData.Location.Address );
+            DPrintf(0, "[%s] written %d to 0x%llx\n", __FUNCTION__, (ULONG)BugCheckData.Location.Size, (UINT_PTR)BugCheckData.Location.Address );
             DPrintf(0, "[%s] dump data (%d) at %p\n", __FUNCTION__, pDump->OutBufferLength, pDump->OutBuffer);
         }
     }
