@@ -716,7 +716,7 @@ static void DumpOffloadStructure(NDIS_OFFLOAD *po, LPCSTR message)
     pul = (ULONG *)&po->LsoV2.IPv6;
     DPrintf(level, "LSO6V2:(%d,%d,%d,%d)\n", pul[0], pul[1], pul[2], pul[3]);
 #ifdef PARANDIS_SUPPORT_RSC
-    DPrintf(level, "RSC:(v4: %d, v6: %d)\n", po->Rsc.IPv4, po->Rsc.IPv6);
+    DPrintf(level, "RSC:(IPv4: Enabled=%ul, IPv6: Enabled=%ul)\n", po->Rsc.IPv4.Enabled, po->Rsc.IPv6.Enabled);
 #endif
 }
 
@@ -1333,7 +1333,7 @@ NDIS_STATUS OnSetLinkParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     {
         status = NDIS_STATUS_NOT_ACCEPTED;
         DPrintf(0, "[%s] requested:\n", __FUNCTION__);
-        DPrintf(0, "Tx speed 0x%X, Rx speed 0x%X\n", params.XmitLinkSpeed, params.RcvLinkSpeed);
+        DPrintf(0, "Tx speed 0x%llx, Rx speed 0x%llx\n", params.XmitLinkSpeed, params.RcvLinkSpeed);
         DPrintf(0, "Duplex %d, PauseFn %d, AutoNeg 0x%X\n",
             params.MediaDuplexState, params.PauseFunctions, params.AutoNegotiationFlags);
     }

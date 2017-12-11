@@ -671,7 +671,7 @@ NDIS_STATUS ParaNdis_OnOidSetNetworkAddresses(PARANDIS_ADAPTER *pContext, tOidDe
                     }
                 }
                 DPrintf(0, "address %d, type %d, len %d (%s)\n",
-                    i, pna->AddressType, pna->AddressLength, TempString ? TempString : (const PUCHAR)"do not know");
+                    i, pna->AddressType, pna->AddressLength, TempString ? (PCHAR) TempString : "do not know");
                 if (TempString) NdisFreeMemory(TempString, 0, 0);
             }
             p += RTL_FIELD_SIZE(NETWORK_ADDRESS, AddressLength) + RTL_FIELD_SIZE(NETWORK_ADDRESS, AddressType);
