@@ -101,11 +101,20 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 
 #define BALLOON_MGMT_POOL_TAG 'mtlB'
 
+#ifndef _IRQL_requires_
+#define _IRQL_requires_(level)
+#endif
+
 EVT_WDF_DRIVER_DEVICE_ADD BalloonDeviceAdd;
 KSTART_ROUTINE            BalloonRoutine;
 DRIVER_INITIALIZE DriverEntry;
-EVT_WDF_OBJECT_CONTEXT_CLEANUP EvtDriverContextCleanup;
-EVT_WDF_DEVICE_CONTEXT_CLEANUP                 BalloonEvtDeviceContextCleanup;
+
+// Context cleanup callbacks generally run at IRQL <= DISPATCH_LEVEL but
+// WDFDRIVER and WDFDEVICE cleanup is guaranteed to run at PASSIVE_LEVEL.
+// Annotate the prototypes to make static analysis happy.
+EVT_WDF_OBJECT_CONTEXT_CLEANUP                 _IRQL_requires_(PASSIVE_LEVEL) EvtDriverContextCleanup;
+EVT_WDF_DEVICE_CONTEXT_CLEANUP                 _IRQL_requires_(PASSIVE_LEVEL) BalloonEvtDeviceContextCleanup;
+
 EVT_WDF_DEVICE_PREPARE_HARDWARE                BalloonEvtDevicePrepareHardware;
 EVT_WDF_DEVICE_RELEASE_HARDWARE                BalloonEvtDeviceReleaseHardware;
 EVT_WDF_DEVICE_D0_ENTRY                        BalloonEvtDeviceD0Entry;
