@@ -24,7 +24,7 @@ void ErrorHandler(char *s, int err)
     }
 
     FILE* pLog;
-    if (fopen_s(&pLog, "balloon.log", "a") == 0) {
+    if (fopen_s(&pLog, "balloon.log", "a") == 0 && pLog) {
         fprintf(pLog, "%s failed, error code = %d\n", s, err);
         fclose(pLog);
     }
@@ -227,7 +227,7 @@ BOOL ServiceControl(int ctrl)
 {
     SC_HANDLE service;
     SC_HANDLE scm;
-    BOOL res;
+    BOOL res = TRUE;
     SERVICE_STATUS status;
 
     scm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
@@ -276,6 +276,9 @@ BOOL GetConfiguration()
     }
 
     buffer = (LPQUERY_SERVICE_CONFIG)LocalAlloc(LPTR, 4096);
+    if (!buffer) {
+        ErrorHandler("LocalAlloc", GetLastError());
+    }
     res = QueryServiceConfig(service, buffer, 4096, &sizeNeeded);
     if (!res) {
         ErrorHandler("QueryServiceConfig", GetLastError());

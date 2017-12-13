@@ -29,7 +29,7 @@ ULONG
 _cdecl
 wmain(
     __in              ULONG argc,
-    __in_ecount(Argc) PWCHAR argv[]
+    __in_ecount(argc) PWCHAR argv[]
     )
 {
     if(argc == 2)

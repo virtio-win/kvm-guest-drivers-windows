@@ -228,7 +228,10 @@ void CService::GetStatus(SC_HANDLE service)
     SERVICE_STATUS status;
     DWORD CurrentState;
 
-    QueryServiceStatus(service, &status);
+    if (!QueryServiceStatus(service, &status)) {
+        printf("Failed to get service status.\n");
+        return;
+    }
 
     switch(status.dwCurrentState) {
         case SERVICE_RUNNING:
@@ -252,7 +255,7 @@ void CService::GetStatus(SC_HANDLE service)
             printf("Service is stopping...\n");
             break;
         default:
-            break;
+            return;
     }
     SendStatusToSCM(CurrentState, NO_ERROR, 0, 0, 0);
 }

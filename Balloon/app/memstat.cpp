@@ -25,7 +25,7 @@ BOOL CMemStat::Init()
                             COINIT_MULTITHREADED);
     if (FAILED(status)) {
         PrintMessage("Cannot initialize COM");
-        return status;
+        return FALSE;
     }
     initialized = TRUE;
 
@@ -119,18 +119,16 @@ BOOL CMemStat::Update()
         return FALSE;
     }
 
-    while(enumerator)
-    {
-        status = enumerator->Next(
-                             WBEM_INFINITE,
-                             1L,
-                             &memory,
-                             &retcnt
-                             );
-        if (retcnt == 0) {
-            break;
-        }
+    if (enumerator == NULL || FAILED(enumerator->Next(
+            WBEM_INFINITE,
+            1L,
+            &memory,
+            &retcnt))) {
+        PrintMessage("Cannot enumerate results");
+        return FALSE;
+    }
 
+    if (retcnt > 0) {
         status = memory->Get( 
                              L"PagesInputPerSec",
                              0,
