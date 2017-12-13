@@ -7,7 +7,7 @@ before_build:
   - powershell Start-BitsTransfer -Source https://download.microsoft.com/download/1/7/6/176909B0-50F2-4DF3-B29B-830A17EA7E38/CPDK_RELEASE_UPDATE/cpdksetup.exe -Destination C:\cpdksetup.exe
   - c:\cpdksetup.exe /quiet /norestart
 
-build_script: buildAll.bat
+build_script: build_AllNoSdv.bat
 
 skip_commits:
   message: /\[ci skip\]/
