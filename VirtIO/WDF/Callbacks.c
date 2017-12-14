@@ -42,7 +42,20 @@ static void *mem_alloc_contiguous_pages(void *context, size_t size)
     UNREFERENCED_PARAMETER(context);
 
     HighestAcceptable.QuadPart = 0xFFFFFFFFFF;
+#if defined(NTDDI_WIN8) && (NTDDI_VERSION >= NTDDI_WIN8)
+    {
+        PHYSICAL_ADDRESS Zero = { 0 };
+        ret = MmAllocateContiguousNodeMemory(
+            size,
+            Zero,
+            HighestAcceptable,
+            Zero,
+            PAGE_READWRITE,
+            MM_ANY_NODE_OK);
+    }
+#else
     ret = MmAllocateContiguousMemory(size, HighestAcceptable);
+#endif
     RtlZeroMemory(ret, size);
     return ret;
 }
@@ -127,7 +140,14 @@ static void *pci_map_address_range(void *context, int bar, size_t offset, size_t
     if (pBar) {
         if (pBar->pBase == NULL) {
             ASSERT(!pBar->bPortSpace);
+#if defined(NTDDI_WINTHRESHOLD) && (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
+            pBar->pBase = MmMapIoSpaceEx(
+                pBar->BasePA,
+                pBar->uLength,
+                PAGE_READWRITE | PAGE_NOCACHE);
+#else
             pBar->pBase = MmMapIoSpace(pBar->BasePA, pBar->uLength, MmNonCached);
+#endif
         }
         if (pBar->pBase != NULL && offset < pBar->uLength) {
             return (char *)pBar->pBase + offset;

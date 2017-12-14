@@ -41,7 +41,7 @@ NTSTATUS PCIAllocBars(WDFCMRESLIST ResourcesTranslated,
     int nListSize = WdfCmResourceListGetCount(ResourcesTranslated);
     int i;
     PVIRTIO_WDF_BAR pBar;
-    PCI_COMMON_HEADER PCIHeader;
+    PCI_COMMON_HEADER PCIHeader = { 0 };
 
     /* read the PCI config header */
     if (pWdfDriver->PCIBus.GetBusData(
