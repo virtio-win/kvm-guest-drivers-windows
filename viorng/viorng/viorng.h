@@ -72,6 +72,10 @@ typedef struct _DEVICE_CONTEXT {
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 
+#ifndef _IRQL_requires_
+#define _IRQL_requires_(level)
+#endif
+
 //
 // WDFDRIVER Events
 //
@@ -79,7 +83,11 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 DRIVER_INITIALIZE DriverEntry;
 EVT_WDF_DRIVER_DEVICE_ADD VirtRngEvtDeviceAdd;
 EVT_WDF_OBJECT_CONTEXT_CLEANUP VirtRngEvtDeviceContextCleanup;
-EVT_WDF_OBJECT_CONTEXT_CLEANUP VirtRngEvtDriverContextCleanup;
+
+// Context cleanup callbacks generally run at IRQL <= DISPATCH_LEVEL but
+// WDFDRIVER context cleanup is guaranteed to run at PASSIVE_LEVEL.
+// Annotate the prototype to make static analysis happy.
+EVT_WDF_OBJECT_CONTEXT_CLEANUP _IRQL_requires_(PASSIVE_LEVEL) VirtRngEvtDriverContextCleanup;
 
 EVT_WDF_DEVICE_PREPARE_HARDWARE VirtRngEvtDevicePrepareHardware;
 EVT_WDF_DEVICE_RELEASE_HARDWARE VirtRngEvtDeviceReleaseHardware;
