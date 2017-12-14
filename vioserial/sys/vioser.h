@@ -297,15 +297,27 @@ VIOSerialEnableInterruptQueue(IN struct virtqueue *vq);
 VOID
 VIOSerialDisableInterruptQueue(IN struct virtqueue *vq);
 
+#ifndef _IRQL_requires_
+#define _IRQL_requires_(level)
+#endif
+#ifndef _Analysis_assume_
+#define _Analysis_assume_(expr)
+#endif
+
 EVT_WDF_CHILD_LIST_CREATE_DEVICE VIOSerialDeviceListCreatePdo;
 EVT_WDF_CHILD_LIST_IDENTIFICATION_DESCRIPTION_COMPARE VIOSerialEvtChildListIdentificationDescriptionCompare;
 EVT_WDF_CHILD_LIST_IDENTIFICATION_DESCRIPTION_CLEANUP VIOSerialEvtChildListIdentificationDescriptionCleanup;
 EVT_WDF_CHILD_LIST_IDENTIFICATION_DESCRIPTION_DUPLICATE VIOSerialEvtChildListIdentificationDescriptionDuplicate;
-EVT_WDF_IO_QUEUE_IO_READ VIOSerialPortRead;
-EVT_WDF_IO_QUEUE_IO_WRITE VIOSerialPortWrite;
-EVT_WDF_IO_QUEUE_IO_STOP VIOSerialPortReadIoStop;
-EVT_WDF_IO_QUEUE_IO_STOP VIOSerialPortWriteIoStop;
-EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL VIOSerialPortDeviceControl;
+
+// IO queue callbacks generally run at IRQL <= DISPATCH_LEVEL but our port
+// devices use WdfExecutionLevelPassive so they are guaranteed to run at
+// PASSIVE_LEVEL. Annotate the prototypes to make static analysis happy.
+EVT_WDF_IO_QUEUE_IO_READ _IRQL_requires_(PASSIVE_LEVEL) VIOSerialPortRead;
+EVT_WDF_IO_QUEUE_IO_WRITE _IRQL_requires_(PASSIVE_LEVEL) VIOSerialPortWrite;
+EVT_WDF_IO_QUEUE_IO_STOP _IRQL_requires_(PASSIVE_LEVEL) VIOSerialPortReadIoStop;
+EVT_WDF_IO_QUEUE_IO_STOP _IRQL_requires_(PASSIVE_LEVEL) VIOSerialPortWriteIoStop;
+EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL _IRQL_requires_(PASSIVE_LEVEL) VIOSerialPortDeviceControl;
+
 EVT_WDF_DEVICE_FILE_CREATE VIOSerialPortCreate;
 EVT_WDF_FILE_CLOSE VIOSerialPortClose;
 
