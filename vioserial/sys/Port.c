@@ -856,6 +856,9 @@ VIOSerialPortDeviceControl(
               break;
            }
 
+           // minimum length guaranteed by WdfRequestRetrieveOutputBuffer above
+           _Analysis_assume_(length >= sizeof(VIRTIO_PORT_INFO));
+
            RtlZeroMemory(pport_info, sizeof(VIRTIO_PORT_INFO));
            pport_info->Id = pdoData->port->PortId;
            pport_info->OutVqFull = pdoData->port->OutVqFull;
@@ -1237,6 +1240,12 @@ VIOSerialEvtChildListIdentificationDescriptionDuplicate(
     dst->NameString.MaximumLength = src->NameString.MaximumLength;
     if (dst->NameString.Length)
     {
+        // The project compiles with POOL_NX_OPTIN=1 which makes NonPagedPool a
+        // run-time variable and prevents static analysis from knowing its
+        // value. This function runs at DISPATCH_LEVEL so the analyzer must be
+        // sure that we're not allocating from paged pool here.
+        _Analysis_assume_(NonPagedPool == NonPagedPoolNx);
+
         dst->NameString.Buffer = (PCHAR)ExAllocatePoolWithTag(
                                  NonPagedPool,
                                  dst->NameString.MaximumLength,
