@@ -59,10 +59,11 @@ static bool _NetKVMGetDeviceClassGuids(vector<GUID>& GUIDs)
             NETCO_DEBUG_PRINT(TEXT("SetupDiClassGuidsFromNameEx failed with code ") << dwErr);
             return false;
         }
+
+        GUIDs.insert(GUIDs.end(), &pguidDevClassPtr[0], &pguidDevClassPtr[dwNumGuids]);
+        delete[] pguidDevClassPtr;
     }
 
-    GUIDs.insert(GUIDs.end(), &pguidDevClassPtr[0], &pguidDevClassPtr[dwNumGuids]);
-    delete [] pguidDevClassPtr;
     return true;
 }
 
