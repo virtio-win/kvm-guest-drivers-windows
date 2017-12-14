@@ -64,6 +64,10 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 // Referenced in MSDN but not declared in SDK/WDK headers.
 #define DUMP_TYPE_FULL 1
 
+#ifndef _IRQL_requires_
+#define _IRQL_requires_(level)
+#endif
+
 //
 // Bug check callback registration functions.
 //
@@ -77,7 +81,11 @@ BOOLEAN PVPanicDeregisterBugCheckCallback();
 
 DRIVER_INITIALIZE DriverEntry;
 EVT_WDF_DRIVER_DEVICE_ADD PVPanicEvtDeviceAdd;
-EVT_WDF_OBJECT_CONTEXT_CLEANUP PVPanicEvtDriverContextCleanup;
+
+// Context cleanup callbacks generally run at IRQL <= DISPATCH_LEVEL but
+// WDFDRIVER context cleanup is guaranteed to run at PASSIVE_LEVEL.
+// Annotate the prototype to make static analysis happy.
+EVT_WDF_OBJECT_CONTEXT_CLEANUP _IRQL_requires_(PASSIVE_LEVEL) PVPanicEvtDriverContextCleanup;
 
 EVT_WDF_DEVICE_PREPARE_HARDWARE PVPanicEvtDevicePrepareHardware;
 EVT_WDF_DEVICE_RELEASE_HARDWARE PVPanicEvtDeviceReleaseHardware;
