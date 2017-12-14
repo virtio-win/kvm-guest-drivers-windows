@@ -34,7 +34,6 @@
 #pragma alloc_text(INIT, DriverEntry)
 #pragma alloc_text(PAGE, PVPanicEvtDeviceAdd)
 #pragma alloc_text(PAGE, PVPanicEvtDriverContextCleanup)
-#pragma alloc_text(PAGE, PVPanicEvtQueueDeviceControl)
 #endif
 
 NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
@@ -163,7 +162,7 @@ VOID PVPanicEvtDriverContextCleanup(IN WDFOBJECT DriverObject)
     PAGED_CODE();
 
     // Stop WPP tracing.
-    WPP_CLEANUP(WdfDriverWdmGetDriverObject(DriverObject));
+    WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)DriverObject));
 }
 
 VOID PVPanicEvtDeviceFileCreate(IN WDFDEVICE Device,
@@ -186,8 +185,6 @@ VOID PVPanicEvtQueueDeviceControl(IN WDFQUEUE Queue,
     ULONG    length = 0;
     PVOID    buffer;
     size_t   buffer_length;
-
-    PAGED_CODE();
 
     UNREFERENCED_PARAMETER(Queue);
     UNREFERENCED_PARAMETER(InputBufferLength);
