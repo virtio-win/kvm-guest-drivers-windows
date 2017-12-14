@@ -159,7 +159,10 @@ HIDKeyboardEventKeyToReportKey(
         else if (pKeyboardDesc->nKeysPressed == HID_KEYBOARD_KEY_SLOTS + 1)
         {
             // we just got into the "rolled over" state
-            RtlFillMemory(pKeyArray, HID_USAGE_KEYBOARD_ROLLOVER, HID_KEYBOARD_KEY_SLOTS);
+#pragma warning (push)
+#pragma warning (disable:28625) // C28625 heuristic triggered by "key" in the variable name
+            RtlFillMemory(pKeyArray, HID_KEYBOARD_KEY_SLOTS, HID_USAGE_KEYBOARD_ROLLOVER);
+#pragma warning (pop)
         }
     }
     else if (bReleased)

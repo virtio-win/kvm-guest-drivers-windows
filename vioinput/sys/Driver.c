@@ -35,7 +35,11 @@
 #endif
 
 DRIVER_INITIALIZE DriverEntry;
-EVT_WDF_OBJECT_CONTEXT_CLEANUP VIOInputEvtDriverContextCleanup;
+
+// Context cleanup callbacks generally run at IRQL <= DISPATCH_LEVEL but
+// WDFDRIVER context cleanup is guaranteed to run at PASSIVE_LEVEL.
+// Annotate the prototype to make static analysis happy.
+EVT_WDF_OBJECT_CONTEXT_CLEANUP _IRQL_requires_(PASSIVE_LEVEL) VIOInputEvtDriverContextCleanup;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (INIT, DriverEntry)
@@ -86,11 +90,11 @@ DriverEntry(
 
 VOID
 VIOInputEvtDriverContextCleanup(
-    IN WDFDRIVER Driver)
+    IN WDFOBJECT Driver)
 {
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
 
-    WPP_CLEANUP(WdfDriverWdmGetDriverObject(Driver));
+    WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)Driver));
 }

@@ -655,7 +655,7 @@ ULONG
 HIDKeyboardEventCodeToUsageCode(
     USHORT uEventCode)
 {
-    if (uEventCode < sizeof(ReportCodeToUsageCodeTable))
+    if (uEventCode < (sizeof(ReportCodeToUsageCodeTable) / sizeof(ReportCodeToUsageCodeTable[0])))
     {
         return ReportCodeToUsageCodeTable[uEventCode];
     }

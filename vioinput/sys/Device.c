@@ -283,6 +283,8 @@ VIOInputCreateChildPdo(
     DECLARE_CONST_UNICODE_STRING(deviceId, L"VIOINPUT\\REV_01");
     DECLARE_UNICODE_STRING_SIZE(buffer, 32);
 
+    PAGED_CODE();
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     pDeviceInit = WdfPdoInitAllocate(hDevice);
