@@ -77,7 +77,11 @@ BOOL CDevice::WriteEx(PVOID buf, size_t *size)
     assert( buf );
 
     ol.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-    assert( ol.hEvent );
+    if (!ol.hEvent)
+    {
+        printf("Event creation failed.\n");
+        return FALSE;
+    }
 
     res = WriteFile ( m_hDevice,
                       buf,
@@ -159,7 +163,11 @@ BOOL CDevice::ReadEx(PVOID buf, size_t *size)
     memset(buf, '\0', bytes);
 
     ol.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-    assert(ol.hEvent);
+    if (!ol.hEvent)
+    {
+        printf("Event creation failed.\n");
+        return FALSE;
+    }
 
     res = ReadFile ( m_hDevice,
                     buf,
