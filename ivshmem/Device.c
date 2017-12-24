@@ -87,17 +87,17 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
             ++deviceContext->interruptCount;
     }
 
-	if (deviceContext->interruptCount > 0)
-	{
-		deviceContext->interrupts = (WDFINTERRUPT*)ExAllocatePoolWithTag(NonPagedPool,
-			sizeof(WDFINTERRUPT) * deviceContext->interruptCount, 'sQRI');
+	  if (deviceContext->interruptCount > 0)
+	  {
+		  deviceContext->interrupts = (WDFINTERRUPT*)ExAllocatePoolWithTag(NonPagedPool,
+			  sizeof(WDFINTERRUPT) * deviceContext->interruptCount, 'sQRI');
 
-		if (!deviceContext->interrupts)
-		{
-			DEBUG_ERROR("Failed to allocate space for %d interrupts", deviceContext->interrupts);
-			return STATUS_INSUFFICIENT_RESOURCES;
-		}
-	}
+		  if (!deviceContext->interrupts)
+		  {
+			  DEBUG_ERROR("Failed to allocate space for %d interrupts", deviceContext->interrupts);
+			  return STATUS_INSUFFICIENT_RESOURCES;
+		  }
+	  }
 
     for (ULONG i = 0; i < resCount; ++i)
     {
