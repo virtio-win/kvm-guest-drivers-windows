@@ -33,6 +33,7 @@ static NTSTATUS ioctl_request_size(
 
 static NTSTATUS ioctl_request_mmap(
   const PDEVICE_CONTEXT DeviceContext,
+  const size_t          InputBufferLength,
   const size_t          OutputBufferLength,
   const WDFREQUEST      Request,
   size_t              * BytesReturned
@@ -107,7 +108,7 @@ IVSHMEMEvtIoDeviceControl(
           break;
 
         case IOCTL_IVSHMEM_REQUEST_MMAP:
-          status = ioctl_request_mmap(deviceContext, OutputBufferLength, Request, &bytesReturned);
+          status = ioctl_request_mmap(deviceContext, InputBufferLength, OutputBufferLength, Request, &bytesReturned);
           break;
 
         case IOCTL_IVSHMEM_RELEASE_MMAP:
@@ -231,6 +232,7 @@ static NTSTATUS ioctl_request_size(
 
 static NTSTATUS ioctl_request_mmap(
   const PDEVICE_CONTEXT DeviceContext,
+  const size_t          InputBufferLength,
   const size_t          OutputBufferLength,
   const WDFREQUEST      Request,
   size_t              * BytesReturned
@@ -239,6 +241,30 @@ static NTSTATUS ioctl_request_mmap(
   // only one mapping at a time is allowed
   if (DeviceContext->shmemMap)
     return STATUS_DEVICE_ALREADY_ATTACHED;
+
+  if (InputBufferLength != sizeof(IVSHMEM_MMAP_CONFIG))
+  {
+    DEBUG_ERROR("IOCTL_IVSHMEM_MMAP: Invalid input size, expected %u but got %u", sizeof(IVSHMEM_MMAP_CONFIG), InputBufferLength);
+    return STATUS_INVALID_BUFFER_SIZE;
+  }
+
+  PIVSHMEM_MMAP_CONFIG in;
+  if (!NT_SUCCESS(WdfRequestRetrieveInputBuffer(Request, InputBufferLength, (PVOID)&in, NULL)))
+  {
+    DEBUG_ERROR("%s", "IOCTL_IVSHMEM_MMAP: Failed to retrieve the input buffer");
+    return STATUS_INVALID_USER_BUFFER;
+  }
+
+  MEMORY_CACHING_TYPE cacheType;
+  switch (in->cacheMode)
+  {
+    case IVSHMEM_CACHE_NONCACHED    : cacheType = MmNonCached    ; break;
+    case IVSHMEM_CACHE_CACHED       : cacheType = MmCached       ; break;
+    case IVSHMEM_CACHE_WRITECOMBINED: cacheType = MmWriteCombined; break;
+    default:
+      DEBUG_ERROR("IOCTL_IVSHMEM_MMAP: Invalid cache mode: %u", in->cacheMode);
+      return STATUS_INVALID_PARAMETER;
+  }
 
 #ifdef _WIN64
   PIRP  irp = WdfRequestWdmGetIrp(Request);
@@ -266,7 +292,7 @@ static NTSTATUS ioctl_request_mmap(
     DeviceContext->shmemMap = MmMapLockedPagesSpecifyCache(
       DeviceContext->shmemMDL,
       UserMode,
-      MmWriteCombined,
+      cacheType,
       NULL,
       FALSE,
       NormalPagePriority | MdlMappingNoExecute
