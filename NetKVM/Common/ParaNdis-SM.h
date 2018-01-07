@@ -51,11 +51,16 @@ public:
     {
         NETKVM_ASSERT(m_State != FlowState::Stopped);
         LONG value = m_Counter.Release(NumItems);
-        if (value == StoppedMask)
+        CheckCompletion(value);
+    }
+
+    virtual void CheckCompletion(LONG Value)
+    {
+        if (Value == StoppedMask)
         {
             CompleteStopping();
         }
-        else if (value)
+        else if (Value)
         {
             // common case, data transfer (StoppedMask not set)
             // pausing or completing not last packet during pausing (StoppedMask set)
@@ -63,7 +68,7 @@ public:
         else
         {
             // illegal case
-            NETKVM_ASSERT(value != 0);
+            NETKVM_ASSERT(Value != 0);
         }
     }
 
