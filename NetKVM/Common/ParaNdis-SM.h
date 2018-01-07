@@ -132,6 +132,23 @@ class CConfigFlowStateMachine : public CFlowStateMachine
 {
 public:
 
+    void Stop(NDIS_STATUS Reason = NDIS_STATUS_PAUSED) override
+    {
+        bool started = m_State != FlowState::Stopped;
+        m_State = FlowState::Stopping;
+        m_StopReason = Reason;
+        m_NoOutstandingItems.Clear();
+        m_Counter.SetMask(StoppedMask);
+        if (started)
+        {
+            UnregisterOutstandingItem();
+        }
+        else
+        {
+            CheckCompletion(m_Counter);
+        }
+        m_NoOutstandingItems.Wait();
+    }
 
     CConfigFlowStateMachine() { }
     ~CConfigFlowStateMachine() = default;
