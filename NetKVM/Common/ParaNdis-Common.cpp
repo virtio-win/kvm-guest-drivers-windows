@@ -552,10 +552,10 @@ InitializeMaxMTUConfig(PPARANDIS_ADAPTER pContext)
 }
 
 static __inline void
-DumpMac(int dbg_level, const char* header_str, UCHAR* mac)
+DumpMac(int dbg_level, const char* calling_function, const char* header_str, UCHAR* mac)
 {
-    DPrintf(dbg_level,"%s: %02x-%02x-%02x-%02x-%02x-%02x\n",
-        header_str, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    DPrintf(dbg_level,"[%s] - %s: %02x-%02x-%02x-%02x-%02x-%02x\n",
+        calling_function, header_str, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
 }
 
@@ -590,7 +590,7 @@ InitializeMAC(PPARANDIS_ADAPTER pContext, PUCHAR pCurrentMAC)
 
         if (!ParaNdis_ValidateMacAddress(pContext->PermanentMacAddress, FALSE))
         {
-            DumpMac(0, "Invalid device MAC ignored", pContext->PermanentMacAddress);
+            DumpMac(0, __FUNCTION__, "Invalid device MAC ignored", pContext->PermanentMacAddress);
             NdisZeroMemory(pContext->PermanentMacAddress, sizeof(pContext->PermanentMacAddress));
         }
     }
@@ -603,9 +603,9 @@ InitializeMAC(PPARANDIS_ADAPTER pContext, PUCHAR pCurrentMAC)
         pContext->PermanentMacAddress[3] = 0x00;
         pContext->PermanentMacAddress[4] = 0x01;
         pContext->PermanentMacAddress[5] = 0x80 | (UCHAR)(pContext->ulUniqueID & 0xFF);
-        DumpMac(0, "No device MAC present, use default", pContext->PermanentMacAddress);
+        DumpMac(0, __FUNCTION__, "No device MAC present, use default", pContext->PermanentMacAddress);
     }
-    DumpMac(0, "Permanent device MAC", pContext->PermanentMacAddress);
+    DumpMac(0, __FUNCTION__, "Permanent device MAC", pContext->PermanentMacAddress);
 
     //Read and validate configured MAC address
     if (ParaNdis_ValidateMacAddress(pCurrentMAC, TRUE))
@@ -624,7 +624,7 @@ InitializeMAC(PPARANDIS_ADAPTER pContext, PUCHAR pCurrentMAC)
     //Else actual MAC address will be configured later via control queue
     SetDeviceMAC(pContext, pContext->CurrentMacAddress);
 
-    DumpMac(0, "Actual MAC", pContext->CurrentMacAddress);
+    DumpMac(0, __FUNCTION__, "Actual MAC", pContext->CurrentMacAddress);
 }
 
 static __inline void
