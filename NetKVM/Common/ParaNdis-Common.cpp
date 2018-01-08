@@ -712,6 +712,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
             pContext->bGuestAnnounceSupported = AckFeature(pContext, VIRTIO_NET_F_GUEST_ANNOUNCE);
         }
 
+        pContext->bControlQueueSupported = AckFeature(pContext, VIRTIO_NET_F_CTRL_VQ);
         InitializeMAC(pContext, CurrentMAC);
         InitializeMaxMTUConfig(pContext);
 
@@ -737,8 +738,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
 #endif
     if (pContext->ulPriorityVlanSetting)
         pContext->MaxPacketSize.nMaxFullSizeHwTx = pContext->MaxPacketSize.nMaxFullSizeOS + ETH_PRIORITY_HEADER_SIZE;
-
-    pContext->bControlQueueSupported = AckFeature(pContext, VIRTIO_NET_F_CTRL_VQ);
 
     pContext->bMultiQueue = pContext->bControlQueueSupported && AckFeature(pContext, VIRTIO_NET_F_MQ);
     if (pContext->bMultiQueue)
