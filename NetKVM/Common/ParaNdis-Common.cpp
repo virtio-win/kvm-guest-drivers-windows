@@ -722,8 +722,8 @@ NDIS_STATUS ParaNdis_InitializeContext(
     else
     {
         DPrintf(0, "[%s] Error: Incomplete resources\n", __FUNCTION__);
-        /* avoid deregistering if failed */
         status = NDIS_STATUS_RESOURCE_CONFLICT;
+        return status;
     }
 
     pContext->MaxPacketSize.nMaxFullSizeOS = pContext->MaxPacketSize.nMaxDataSize + ETH_HEADER_SIZE;
