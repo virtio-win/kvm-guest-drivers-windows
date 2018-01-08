@@ -562,7 +562,9 @@ DumpMac(int dbg_level, const char* calling_function, const char* header_str, UCH
 static __inline void
 SetDeviceMAC(PPARANDIS_ADAPTER pContext, PUCHAR pDeviceMAC)
 {
-    if (pContext->bCfgMACAddrSupported && !pContext->bCtrlMACAddrSupported)
+    if (pContext->bCfgMACAddrSupported &&
+        !pContext->bCtrlMACAddrSupported &&
+        !virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_F_VERSION_1))
     {
         virtio_set_config(
             &pContext->IODevice,
@@ -578,6 +580,7 @@ InitializeMAC(PPARANDIS_ADAPTER pContext, PUCHAR pCurrentMAC)
     //Acknowledge related features
     pContext->bCfgMACAddrSupported = AckFeature(pContext, VIRTIO_NET_F_MAC);
     pContext->bCtrlMACAddrSupported = pContext->bControlQueueSupported && AckFeature(pContext, VIRTIO_NET_F_CTRL_MAC_ADDR);
+    DPrintf(0, "[%s] - MAC address configuration options: configuration space %d, control queue %d", __FUNCTION__, pContext->bCfgMACAddrSupported, pContext->bCtrlMACAddrSupported);
 
     //Read and validate permanent MAC address
     if (pContext->bCfgMACAddrSupported)
@@ -607,15 +610,25 @@ InitializeMAC(PPARANDIS_ADAPTER pContext, PUCHAR pCurrentMAC)
     }
     DumpMac(0, __FUNCTION__, "Permanent device MAC", pContext->PermanentMacAddress);
 
-    //Read and validate configured MAC address
-    if (ParaNdis_ValidateMacAddress(pCurrentMAC, TRUE))
+    //In virtio 1.0 MAC in configuration space is read only
+    if (pContext->bCtrlMACAddrSupported ||
+        !virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_F_VERSION_1))
     {
-        DPrintf(0, "[%s] MAC address from configuration used\n", __FUNCTION__);
-        ETH_COPY_NETWORK_ADDRESS(pContext->CurrentMacAddress, pCurrentMAC);
+        //Read and validate configured MAC address.
+        if (ParaNdis_ValidateMacAddress(pCurrentMAC, TRUE))
+        {
+            DPrintf(0, "[%s] MAC address from configuration used\n", __FUNCTION__);
+            ETH_COPY_NETWORK_ADDRESS(pContext->CurrentMacAddress, pCurrentMAC);
+        }
+        else
+        {
+            DPrintf(0, "[%s] - No valid MAC configured\n", __FUNCTION__);
+            ETH_COPY_NETWORK_ADDRESS(pContext->CurrentMacAddress, pContext->PermanentMacAddress);
+        }
     }
     else
     {
-        DPrintf(0, "[%s] - No valid MAC configured\n", __FUNCTION__);
+        DPrintf(0, "[%s] MAC address from configuration will not be used. Setting MAC address through control queue is disabled.\n", __FUNCTION__);
         ETH_COPY_NETWORK_ADDRESS(pContext->CurrentMacAddress, pContext->PermanentMacAddress);
     }
 
