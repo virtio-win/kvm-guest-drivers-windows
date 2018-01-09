@@ -132,6 +132,40 @@ public:
         return entry;
     }
 
+    TEntryType *DequeueMC()
+    {
+        LONG consumer_head, consumer_next, producer_tail;
+        TEntryType *entry;
+
+        /* Critical section */
+        {
+            do {
+                consumer_head = m_ConsumerHead;
+                producer_tail = m_ProducerTail;
+                consumer_next = (consumer_head + 1) & m_ConsumerMask;
+
+                if (consumer_head == producer_tail) {
+                    return nullptr;
+                }
+            } while (InterlockedCompareExchange(&m_ConsumerHead, consumer_next, consumer_head) != consumer_head);
+
+            entry = m_PQueueRing[consumer_head];
+            KeMemoryBarrier();
+
+            /*
+            * If there are other enqueues in progress
+            * that preceded us, we need to wait for them
+            * to complete
+            */
+            while (m_ConsumerTail != consumer_head)
+            {
+            }
+
+            m_ConsumerTail = consumer_next;
+        }
+        return entry;
+    }
+
    /*
     * single-consumer peek operation
     * should be called under lock!
