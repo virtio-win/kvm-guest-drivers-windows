@@ -72,7 +72,7 @@ public:
     * multi-producer safe lock-free ring buffer enqueue
     */
 
-    BOOLEAN Enqueue(TEntryType *entry)
+    bool Enqueue(TEntryType *entry)
     {
         LONG producer_head, producer_next, consumer_tail;
         /* Critical section */
@@ -208,4 +208,128 @@ private:
     TEntryType **m_PQueueRing;
 
     PPARANDIS_ADAPTER m_Context;
+};
+
+
+template <typename TEntryType>
+class CLockFreeDynamicQueue : public CPlacementAllocatable
+{
+public:
+    CLockFreeDynamicQueue() : m_QueueFullListIsEmpty(TRUE), m_Size(0), m_ElementCount(0)
+    {}
+
+    BOOLEAN Create(PPARANDIS_ADAPTER pContext, INT size)
+    {
+        m_QueueFullListIsEmpty = TRUE;
+        m_Size = size;
+        m_ElementCount = 0;
+        return m_Queue.Create(pContext, size);
+    }
+
+    ~CLockFreeDynamicQueue()
+    {
+        m_Queue.~CLockFreeQueue();
+    }
+
+    // Multiple Producer Safe Enqueue
+    void Enqueue(TEntryType * entry)
+    {
+        InterlockedIncrement(&m_ElementCount);
+        if (!m_QueueFullListIsEmpty || !m_Queue.Enqueue(entry))
+        {
+            TPassiveSpinLocker LockedContext(m_QueueFullListLock);
+            m_QueueFullList.PushBack(entry);
+            InterlockedExchange(&m_QueueFullListIsEmpty, m_QueueFullList.IsEmpty());
+        }
+    }
+
+    // Single consumer Dequeue, a lock is needed when using this method
+
+    TEntryType *Dequeue()
+    {
+        TEntryType * ptr = m_Queue.Dequeue();
+        DecrementCount(ptr != nullptr);
+        return ptr;
+    }
+
+    // Multiple consumer Dequeue
+
+    TEntryType *DequeueMC()
+    {
+        TEntryType * ptr = m_Queue.DequeueMC();
+        DecrementCount(ptr != nullptr);
+        return ptr;
+    }
+
+    TEntryType *Peek()
+    {
+        return m_Queue.Peek();
+    }
+
+    BOOLEAN IsEmpty()
+    {
+        return m_Queue.IsEmpty();
+    }
+
+    BOOLEAN IsPowerOfTwo(INT x)
+    {
+        return m_Queue.IsPowerOfTwo(x);
+    }
+
+private:
+
+    void CallFillQueue()
+    {
+        if (m_AccessCount > m_Size)
+        {
+            FillQueue();
+        }
+    }
+
+    void DecrementCount(BOOLEAN increment)
+    {
+        if (increment)
+        {
+            InterlockedDecrement(&m_ElementCount);
+            FillQueue();
+        }
+    }
+
+    bool FillQueue()
+    {
+        bool res = FALSE;
+        TEntryType *entry = nullptr;
+
+        if (!m_QueueFullListIsEmpty)
+        {
+            TPassiveSpinLocker LockedContext(m_QueueFullListLock);
+            do
+            {
+                entry = m_QueueFullList.Pop();
+                if (entry != nullptr)
+                {
+                    res = m_Queue.Enqueue(entry);
+                    if (!res)
+                    {
+                        m_QueueFullList.Push(entry);
+                    }
+                } else
+                {
+                    break;
+                }
+            } while (res);
+
+            InterlockedExchange(&m_QueueFullListIsEmpty, m_QueueFullList.IsEmpty());
+        }
+        return res;
+    }
+
+    CLockFreeQueue<TEntryType> m_Queue;
+
+
+    CNdisList<TEntryType, CRawAccess, CNonCountingObject> m_QueueFullList;
+    CNdisSpinLock m_QueueFullListLock;
+    volatile LONG m_QueueFullListIsEmpty;
+    volatile LONG m_ElementCount;
+    volatile LONG m_Size;
 };
