@@ -201,7 +201,7 @@ private:
 
 typedef CNdisList<CNBL, CRawAccess, CNonCountingObject> CRawCNBLList;
 
-typedef CLockFreeQueue<CNBL> CLockFreeCNBLQueue;
+typedef CLockFreeDynamicQueue<CNBL> CLockFreeCNBLQueue;
 
 class CParaNdisTX : public CParaNdisTemplatePath<CTXVirtQueue>, public CNdisAllocatable<CParaNdisTX, 'XTHR'>
 {
@@ -250,15 +250,8 @@ private:
 
     bool HaveMappedNBLs() { return !m_SendQueue.IsEmpty(); }
 
-    CNBL *PopMappedNBL()
-    {
-        CNBL *nbl = PopMappedToSendNBL();
-        nbl = nbl == nullptr ? m_SendQueueFullList.Pop() : nbl;
-        return nbl;
-    }
-
-    CNBL *PopMappedToSendNBL() { return m_SendQueue.Dequeue(); }
-    CNBL *PeekMappedToSendNBL() { return m_SendQueue.Peek(); }
+    CNBL *PopMappedNBL() { return m_SendQueue.Dequeue(); }
+    CNBL *PeekMappedNBL() { return m_SendQueue.Peek(); }
     void PushMappedNBL(CNBL *NBLHolder) { m_SendQueue.Enqueue(NBLHolder); }
 
     CDataFlowStateMachine m_StateMachine;
@@ -268,9 +261,6 @@ private:
     CNdisRefCounter m_DpcWaiting;
 
     CLockFreeCNBLQueue m_SendQueue;
-    CRawCNBLList m_SendQueueFullList;
-    CNdisSpinLock m_SendQueueFullListLock;
-    volatile LONG m_SendQueueFullListIsEmpty;
 
     CRawCNBLList m_WaitingList;
     CNdisSpinLock m_WaitingListLock;
