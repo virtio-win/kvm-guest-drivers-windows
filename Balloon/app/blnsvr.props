@@ -10,4 +10,8 @@ Enabling and customizing virtio build features
     <Feature_AlwaysDefaultVendor>false</Feature_AlwaysDefaultVendor>
     <CopyrightStrings>BalloonCopyrightStrings</CopyrightStrings>
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Win10 Release' OR '$(Configuration)'=='Win10 Debug'">
+	<DriverTargetPlatform>Desktop</DriverTargetPlatform>
+  </PropertyGroup>
 </Project>
