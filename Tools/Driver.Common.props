@@ -32,6 +32,7 @@ Common property definitions used by all drivers:
   <PropertyGroup Condition="'$(Configuration)'=='Win10 Release' OR '$(Configuration)'=='Win10 Debug'">
     <_NT_TARGET_MAJ>100</_NT_TARGET_MAJ>
     <TargetOS>Win10</TargetOS>
+	<DriverTargetPlatform>Universal</DriverTargetPlatform>
     <InfArch>$(TargetArch).10.0</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Win8.1 Release' OR '$(Configuration)'=='Win8.1 Debug'">
