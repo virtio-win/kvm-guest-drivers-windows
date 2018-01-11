@@ -61,6 +61,37 @@ NTSTATUS IVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit)
     return status;
 }
 
+PVOID IVSHMEMMmMapIoSpace(
+    _In_ PHYSICAL_ADDRESS PhysicalAddress,
+    _In_ SIZE_T NumberOfBytes
+    )
+{
+    typedef
+    PVOID
+    (*PFN_MM_MAP_IO_SPACE_EX) (
+        _In_ PHYSICAL_ADDRESS PhysicalAddress,
+        _In_ SIZE_T NumberOfBytes,
+        _In_ ULONG Protect
+        );
+
+    UNICODE_STRING         name;
+    PFN_MM_MAP_IO_SPACE_EX pMmMapIoSpaceEx;
+
+    RtlInitUnicodeString(&name, L"MmMapIoSpaceEx");
+    pMmMapIoSpaceEx = (PFN_MM_MAP_IO_SPACE_EX) (ULONG_PTR)MmGetSystemRoutineAddress(&name);
+
+    if (pMmMapIoSpaceEx != NULL){
+        // Call WIN10 API if available
+        return pMmMapIoSpaceEx(PhysicalAddress,
+                               NumberOfBytes,
+                               PAGE_READWRITE | PAGE_NOCACHE);
+    }
+
+    #pragma warning(suppress: 30029)
+    return MmMapIoSpace(PhysicalAddress, NumberOfBytes, MmNonCached);
+}
+
+
 NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIST ResourcesRaw, _In_ WDFCMRESLIST ResourcesTranslated)
 {
     PAGED_CODE();
@@ -122,10 +153,9 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
                     break;
                 }
 
-                deviceContext->devRegisters = (PIVSHMEMDeviceRegisters)MmMapIoSpaceEx(
+                deviceContext->devRegisters = (PIVSHMEMDeviceRegisters)IVSHMEMMmMapIoSpace(
                     descriptor->u.Memory.Start,
-                    descriptor->u.Memory.Length,
-                    PAGE_READWRITE | PAGE_NOCACHE);
+                    descriptor->u.Memory.Length);
 
                 if (!deviceContext->devRegisters)
                 {
