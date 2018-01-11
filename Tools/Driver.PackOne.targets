@@ -159,6 +159,7 @@ Related features:
     <PackOne_WdfCoinstaller Condition="'$(UseLegacyDDK)'=='true'">$(LegacyDDKDir)\redist\wdf\$(TargetArch)\WdfCoInstaller01009.dll</PackOne_WdfCoinstaller>
     <PackOne_WdfCoinstaller Condition="'$(TargetOS)'=='Win7'">$(WDKContentRoot)\redist\wdf\$(PackOne_WdfArch)\WdfCoInstaller01009.dll</PackOne_WdfCoinstaller>
     <PackOne_WdfCoinstaller Condition="'$(TargetOS)'=='Win8'">$(WDKContentRoot)\redist\wdf\$(PackOne_WdfArch)\WdfCoInstaller01011.dll</PackOne_WdfCoinstaller>
+    <PackOne_WdfCoinstaller Condition="'$(TargetOS)'=='Win8.1'"></PackOne_WdfCoinstaller>
     <PackOne_WdfCoinstaller Condition="'$(TargetOS)'=='Win10'"></PackOne_WdfCoinstaller>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Feature_UsingWDF)'=='false' OR '$(PackOne_WdfCoinstaller)'==''">
