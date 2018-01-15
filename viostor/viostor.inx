@@ -49,8 +49,8 @@ viostor_Files_Driver = 12
 %VENDOR%   = VioStor,NT$ARCH$
 
 [VioStor.NT$ARCH$]
-%VioStorScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_0002_INX_SUBSYS_VENDOR_ID&REV_00
-%VioStorScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1042&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01
+%VioStorScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1001&SUBSYS_0002_INX_SUBSYS_VENDOR_ID&REV_00, PCI\VEN_1AF4&DEV_1001
+%VioStorScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1042&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01, PCI\VEN_1AF4&DEV_1042
 
 ;
 ; General installation section

@@ -49,8 +49,8 @@ vioscsi_Files_Driver = 12
 %VENDOR%   = VirtioScsi,NT$ARCH$
 
 [VirtioScsi.NT$ARCH$]
-%VirtioScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1004&SUBSYS_0008_INX_SUBSYS_VENDOR_ID&REV_00
-%VirtioScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1048&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01
+%VirtioScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1004&SUBSYS_0008_INX_SUBSYS_VENDOR_ID&REV_00, PCI\VEN_1AF4&DEV_1004
+%VirtioScsi.DeviceDesc% = scsi_inst, PCI\VEN_1AF4&DEV_1048&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01, PCI\VEN_1AF4&DEV_1048
 
 ;
 ; General installation section

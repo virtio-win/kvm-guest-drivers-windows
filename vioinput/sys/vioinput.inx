@@ -56,7 +56,7 @@ WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with
 ;
 ; Hw Id is PCI\VEN_1AF4&DEV_1052&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&CC_090200&REV_01
 ;
-%VirtioInput.DeviceDesc%=VirtioInput_Device, PCI\VEN_1AF4&DEV_1052&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01
+%VirtioInput.DeviceDesc%=VirtioInput_Device, PCI\VEN_1AF4&DEV_1052&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01, PCI\VEN_1AF4&DEV_1052
 %VirtioInput.ChildDesc%=VirtioInput_Child, VIOINPUT\REV_01
 
 [VirtioInput_Device.NT]
