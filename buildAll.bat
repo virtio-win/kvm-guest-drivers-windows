@@ -10,6 +10,7 @@ if errorlevel 1 goto :fail
 call tools\build.bat ivshmem\ivshmem.vcxproj "Win10_SDV" %*
 if errorlevel 1 goto :fail
 
+
 for %%D in (pciserial fwcfg packaging Q35) do (
   pushd %%D
   call buildAll.bat
