@@ -88,15 +88,7 @@ HKR, Ndi\params\*RscIPv6,             Optional,            0, "0"
 HKR, Ndi\params\*RscIPv6\enum,        "0",                 0, "Disabled"
 HKR, Ndi\params\*RscIPv6\enum,        "1",                 0, "Enabled"
 
-[Parameters] 
- 
-HKR, Ndi\Params\ConnectRate,        ParamDesc,  0,          %ConnectRate% 
-HKR, Ndi\Params\ConnectRate,        Default,    0,          "10000" 
-HKR, Ndi\Params\ConnectRate,        type,       0,          "enum" 
-HKR, Ndi\Params\ConnectRate\enum,   "10",       0,          %10M% 
-HKR, Ndi\Params\ConnectRate\enum,   "100",      0,          %100M% 
-HKR, Ndi\Params\ConnectRate\enum,   "1000",     0,          %1G% 
-HKR, Ndi\Params\ConnectRate\enum,   "10000",    0,          %10G% 
+[Parameters]
  
 HKR, Ndi\Params\Priority,           ParamDesc,  0,          %Priority% 
 HKR, Ndi\Params\Priority,           Default,    0,          "1" 
@@ -286,8 +278,7 @@ VENDOR = "INX_COMPANY"
 kvmnet6.DeviceDesc        = "INX_PREFIX_VENDORVirtIO Ethernet Adapter"
 kvmnet6.Service.DispName    = "INX_PREFIX_VENDORVirtIO Ethernet Adapter Service"
 DiskId1 = "INX_PREFIX_VENDORVirtIO Ethernet Adapter Driver Disk #1"
-NetworkAddress = "Assign MAC" 
-ConnectRate = "Init.ConnectionRate(Mb)" 
+NetworkAddress = "Assign MAC"
 Priority = "Init.Do802.1PQ" 
 MTU = "Init.MTUSize" 
 TxCapacity = "Init.MaxTxBuffers" 

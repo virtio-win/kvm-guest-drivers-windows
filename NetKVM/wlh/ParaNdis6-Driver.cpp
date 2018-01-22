@@ -89,10 +89,12 @@ static VOID PostLinkState(PARANDIS_ADAPTER *pContext, NDIS_MEDIA_CONNECT_STATE c
     state.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
     state.Header.Size = NDIS_SIZEOF_LINK_STATE_REVISION_1;
     state.MediaConnectState = connectState;
-    state.MediaDuplexState = MediaDuplexStateFull;
+    state.MediaDuplexState = connectState == MediaConnectStateConnected ?
+        pContext->LinkProperties.DuplexState :
+        MediaDuplexStateUnknown;
     state.RcvLinkSpeed = state.XmitLinkSpeed =
         connectState == MediaConnectStateConnected ?
-            PARANDIS_MAXIMUM_RECEIVE_SPEED :
+        pContext->LinkProperties.Speed :
             NDIS_LINK_SPEED_UNKNOWN;
     state.PauseFunctions = NdisPauseFunctionsUnsupported;
 
@@ -260,13 +262,14 @@ static NDIS_STATUS ParaNdis6_Initialize(
         miniportAttributes.GeneralAttributes.MtuSize = pContext->MaxPacketSize.nMaxDataSize;
         miniportAttributes.GeneralAttributes.LookaheadSize = pContext->MaxPacketSize.nMaxFullSizeOS;
         miniportAttributes.GeneralAttributes.MaxXmitLinkSpeed =
-        miniportAttributes.GeneralAttributes.MaxRcvLinkSpeed  =  PARANDIS_FORMAL_LINK_SPEED;
+        miniportAttributes.GeneralAttributes.MaxRcvLinkSpeed  = PARANDIS_MAXIMUM_LINK_SPEED;
         miniportAttributes.GeneralAttributes.MediaConnectState =
             pContext->bConnected ? MediaConnectStateConnected : MediaConnectStateDisconnected;
         miniportAttributes.GeneralAttributes.XmitLinkSpeed =
         miniportAttributes.GeneralAttributes.RcvLinkSpeed = pContext->bConnected ?
-            PARANDIS_FORMAL_LINK_SPEED : NDIS_LINK_SPEED_UNKNOWN;
-        miniportAttributes.GeneralAttributes.MediaDuplexState = MediaDuplexStateFull;
+            pContext->LinkProperties.Speed : NDIS_LINK_SPEED_UNKNOWN;
+        miniportAttributes.GeneralAttributes.MediaDuplexState = pContext->bConnected ?
+            pContext->LinkProperties.DuplexState : MediaDuplexStateUnknown;
         miniportAttributes.GeneralAttributes.MacOptions =
                     NDIS_MAC_OPTION_COPY_LOOKAHEAD_DATA |       /* NIC has no internal loopback support */
                     NDIS_MAC_OPTION_TRANSFERS_NOT_PEND  |       /* Must be set since using  NdisMIndicateReceivePacket */

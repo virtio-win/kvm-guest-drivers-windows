@@ -150,8 +150,7 @@ struct CPUPathBundle : public CPlacementAllocatable {
 
 #define PARANDIS_MULTICAST_LIST_SIZE        32
 #define PARANDIS_MEMORY_TAG                 '5muQ'
-#define PARANDIS_FORMAL_LINK_SPEED          (pContext->ulFormalLinkSpeed)
-#define PARANDIS_MAXIMUM_RECEIVE_SPEED      PARANDIS_FORMAL_LINK_SPEED
+#define PARANDIS_MAXIMUM_LINK_SPEED         10000000000 // 10Gbps link speed
 #define PARANDIS_MIN_LSO_SEGMENTS           2
 // reported
 #define PARANDIS_MAX_LSO_SIZE               0xF800
@@ -271,6 +270,12 @@ typedef struct _tagMaxPacketSize
     UINT nMaxFullSizeOsRx;
 }tMaxPacketSize;
 
+typedef struct _tagLinkProperties
+{
+    ULONGLONG Speed;
+    NET_IF_MEDIA_DUPLEX_STATE DuplexState;
+}tLinkProperties;
+
 #define MAX_HW_RX_PACKET_SIZE (MAX_IP4_DATAGRAM_SIZE + ETH_HEADER_SIZE + ETH_PRIORITY_HEADER_SIZE)
 #define MAX_OS_RX_PACKET_SIZE (MAX_IP4_DATAGRAM_SIZE + ETH_HEADER_SIZE)
 
@@ -364,6 +369,7 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                 bLinkDetectSupported;
     BOOLEAN                 bGuestAnnounceSupported;
     BOOLEAN                 bMaxMTUConfigSupported;
+    BOOLEAN                 bLinkPropertiesConfigSupported;
     BOOLEAN                 bGuestChecksumSupported;
     BOOLEAN                 bControlQueueSupported;
     BOOLEAN                 bUseMergedBuffers;
@@ -384,9 +390,9 @@ typedef struct _tagPARANDIS_ADAPTER
     LONG                    counterDPCInside;
     ULONG                   ulPriorityVlanSetting;
     ULONG                   VlanId;
-    ULONGLONG               ulFormalLinkSpeed;
     ULONG                   ulEnableWakeup;
     tMaxPacketSize          MaxPacketSize;
+    tLinkProperties         LinkProperties;
     ULONG                   ulUniqueID;
     UCHAR                   PermanentMacAddress[ETH_ALEN];
     UCHAR                   CurrentMacAddress[ETH_ALEN];
