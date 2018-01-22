@@ -444,14 +444,14 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
         case OID_GEN_LINK_SPEED:
             {
                 /* units are 100 bps */
-                ul64LinkSpeed = PARANDIS_FORMAL_LINK_SPEED / 100;
+                ul64LinkSpeed = PARANDIS_MAXIMUM_LINK_SPEED / 100;
                 pInfo = &ul64LinkSpeed;
                 ulSize = sizeof(ul64LinkSpeed);
             }
             break;
         case OID_GEN_LINK_SPEED_EX:
             {
-                ULONG64 speed = pContext->bConnected ? PARANDIS_FORMAL_LINK_SPEED : NDIS_LINK_SPEED_UNKNOWN;
+                ULONG64 speed = pContext->bConnected ? pContext->LinkProperties.Speed : NDIS_LINK_SPEED_UNKNOWN;
                 u.LinkSpeed.RcvLinkSpeed = speed;
                 u.LinkSpeed.XmitLinkSpeed = speed;
                 pInfo = &u.LinkSpeed;

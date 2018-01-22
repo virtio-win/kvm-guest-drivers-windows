@@ -74,7 +74,6 @@ typedef struct _tagConfigurationEntry
 typedef struct _tagConfigurationEntries
 {
     tConfigurationEntry PrioritySupport;
-    tConfigurationEntry ConnectRate;
     tConfigurationEntry isLogEnabled;
     tConfigurationEntry debugLevel;
     tConfigurationEntry TxCapacity;
@@ -107,7 +106,6 @@ typedef struct _tagConfigurationEntries
 static const tConfigurationEntries defaultConfiguration =
 {
     { "Priority",       0,  0,  1 },
-    { "ConnectRate",    100,10,10000 },
     { "DoLog",          1,  0,  1 },
     { "DebugLevel",     2,  0,  8 },
     { "TxCapacity",     1024,   16, 1024 },
@@ -237,7 +235,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
         {
             GetConfigurationEntry(cfg, &pConfiguration->isLogEnabled);
             GetConfigurationEntry(cfg, &pConfiguration->debugLevel);
-            GetConfigurationEntry(cfg, &pConfiguration->ConnectRate);
             GetConfigurationEntry(cfg, &pConfiguration->PrioritySupport);
             GetConfigurationEntry(cfg, &pConfiguration->TxCapacity);
             GetConfigurationEntry(cfg, &pConfiguration->RxCapacity);
@@ -271,8 +268,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             pContext->NetMaxReceiveBuffers = pConfiguration->RxCapacity.ulValue;
             pContext->uNumberOfHandledRXPacketsInDPC = pConfiguration->NumberOfHandledRXPacketsInDPC.ulValue;
             pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;
-            pContext->ulFormalLinkSpeed  = pConfiguration->ConnectRate.ulValue;
-            pContext->ulFormalLinkSpeed *= 1000000;
             pContext->Offload.flagsValue = 0;
             // TX caps: 1 - TCP, 2 - UDP, 4 - IP, 8 - TCPv6, 16 - UDPv6
             if (pConfiguration->OffloadTxChecksum.ulValue & 1) pContext->Offload.flagsValue |= osbT4TcpChecksum | osbT4TcpOptionsChecksum;
@@ -551,6 +546,73 @@ InitializeMaxMTUConfig(PPARANDIS_ADAPTER pContext)
     }
 }
 
+static void
+InitializeLinkPropertiesConfig(PPARANDIS_ADAPTER pContext)
+{
+    INT32 speed;
+    UINT8 duplexState;
+
+    char *MediaDuplexStates[] =
+    {
+        "unknown",
+        "half",
+        "full"
+    };
+
+    pContext->bLinkPropertiesConfigSupported = AckFeature(pContext, VIRTIO_NET_F_SPEED_DUPLEX);
+
+    if (pContext->bLinkPropertiesConfigSupported)
+    {
+        virtio_get_config(
+            &pContext->IODevice,
+            offsetof(virtio_net_config, speed),
+            &speed,
+            sizeof(__u32));
+        virtio_get_config(
+            &pContext->IODevice,
+            offsetof(virtio_net_config, duplex),
+            &duplexState,
+            sizeof(__u8));
+
+        if (speed == VIRTIO_NET_SPEED_UNKNOWN)
+        {
+            pContext->LinkProperties.Speed = NDIS_LINK_SPEED_UNKNOWN;
+        }
+        else
+        {
+            pContext->LinkProperties.Speed = speed * 1000000;
+        }
+
+        if (duplexState == VIRTIO_NET_DUPLEX_HALF)
+        {
+            pContext->LinkProperties.DuplexState = MediaDuplexStateHalf;
+        }
+        else if (duplexState == VIRTIO_NET_DUPLEX_FULL)
+        {
+            pContext->LinkProperties.DuplexState = MediaDuplexStateFull;
+        }
+        else
+        {
+            pContext->LinkProperties.DuplexState = MediaDuplexStateUnknown;
+        }
+
+        DPrintf(0, "[%s] Link properties from virtio configuration used.\n", __FUNCTION__);
+    }
+    else
+    {
+        // Default link properties
+        pContext->LinkProperties.Speed = PARANDIS_MAXIMUM_LINK_SPEED;
+        pContext->LinkProperties.DuplexState = MediaDuplexStateFull;
+
+        DPrintf(0, "[%s] Link properties from configuration will not be used. Using default link properties.\n",
+            __FUNCTION__);
+    }
+
+    DPrintf(0, "[%s] Speed=%llu Bit/s, Duplex=%s\n", __FUNCTION__,
+        pContext->LinkProperties.Speed, MediaDuplexStates[pContext->LinkProperties.DuplexState]);
+}
+
+
 static __inline void
 DumpMac(int dbg_level, const char* calling_function, const char* header_str, UCHAR* mac)
 {
@@ -724,6 +786,8 @@ NDIS_STATUS ParaNdis_InitializeContext(
             DPrintf(0, "[%s] Link status on driver startup: %d\n", __FUNCTION__, pContext->bConnected);
             pContext->bGuestAnnounceSupported = AckFeature(pContext, VIRTIO_NET_F_GUEST_ANNOUNCE);
         }
+
+        InitializeLinkPropertiesConfig(pContext);
 
         pContext->bControlQueueSupported = AckFeature(pContext, VIRTIO_NET_F_CTRL_VQ);
         InitializeMAC(pContext, CurrentMAC);

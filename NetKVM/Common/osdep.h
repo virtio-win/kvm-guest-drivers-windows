@@ -41,6 +41,12 @@
 #if ((OSVERSION_MASK & NTDDI_VERSION) == NTDDI_VISTA)
 #define NDIS_PROTOCOL_ID_IP6            0x03
 
+#ifdef  _WIN64
+#define offsetof(s,f)   ((size_t)((ptrdiff_t)&(((s *)0)->f)))
+#else
+#define offsetof(s,f)   ((size_t)&(((s *)0)->f))
+#endif
+
 typedef struct _NETWORK_ADDRESS_IP6 {
     USHORT      sin6_port;
     ULONG       sin6_flowinfo;
