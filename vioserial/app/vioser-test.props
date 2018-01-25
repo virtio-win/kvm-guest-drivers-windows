@@ -1,0 +1,12 @@
+<!--
+***********************************************************************************************
+viser-test.props
+Enabling and customizing virtio build features
+***********************************************************************************************
+-->
+
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" TreatAsLocalProperty="Platform">
+  <PropertyGroup Condition="'$(Configuration)'=='Win10 Release' OR '$(Configuration)'=='Win10 Debug'">
+	<DriverTargetPlatform>Desktop</DriverTargetPlatform>
+  </PropertyGroup>
+</Project>
