@@ -27,6 +27,11 @@ public:
         m_NoOutstandingItems.Wait();
     }
 
+    virtual void SupriseRemove()
+    {
+        m_State = FlowState::SurpriseRemoved;
+    }
+
     virtual bool RegisterOutstandingItems(ULONG NumItems,
         NDIS_STATUS *FailureReason = nullptr)
     {
@@ -104,7 +109,8 @@ protected:
     {
         Running,
         Stopping,
-        Stopped
+        Stopped,
+        SurpriseRemoved
     };
 
     CNdisRefCounter m_Counter;
@@ -194,7 +200,9 @@ public:
         void NotifyPaused()
         {
             StopFlows(NDIS_STATUS_PAUSED);
-            ChangeState(MiniportState::Paused, MiniportState::Running);
+            ChangeState(MiniportState::Paused,
+                MiniportState::Running,
+                MiniportState::SurpriseRemoved);
         }
 
         void NotifyResumed()
@@ -209,6 +217,17 @@ public:
                 ChangeState(MiniportState::Paused, MiniportState::Suspended);
             }
 
+        }
+
+        void NotifySupriseRemoved()
+        {
+            UpdateFlowsOnSurpriseRemove();
+            ChangeState(MiniportState::SurpriseRemoved,
+            MiniportState::Halted,
+            MiniportState::Paused,
+            MiniportState::Running,
+            MiniportState::Suspended,
+            MiniportState::FastSuspend);
         }
 
         void NotifySuspended()
@@ -241,7 +260,8 @@ private:
         Paused,
         Shutdown,
         Suspended,
-        FastSuspend
+        FastSuspend,
+        SurpriseRemoved
     };
 
     bool IsInState(MiniportState State) const
@@ -274,6 +294,12 @@ private:
 
     void StopConfigFlows(NDIS_STATUS Reason)
     { m_ConfigFlows.ForEach([Reason](CConfigFlowStateMachine* Flow) { Flow->Stop(Reason); }); }
+
+    void UpdateFlowsOnSurpriseRemove()
+    {
+        m_DataFlows.ForEach([](CDataFlowStateMachine* Flow) { Flow->SupriseRemove(); });
+        m_ConfigFlows.ForEach([](CConfigFlowStateMachine* Flow) { Flow->SupriseRemove(); });
+    }
 
     MiniportState m_State = MiniportState::Halted;
     CNdisList<CDataFlowStateMachine, CRawAccess, CNonCountingObject> m_DataFlows;
