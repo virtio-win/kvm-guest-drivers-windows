@@ -580,7 +580,7 @@ InitializeLinkPropertiesConfig(PPARANDIS_ADAPTER pContext)
         }
         else
         {
-            pContext->LinkProperties.Speed = speed * 1000000;
+            pContext->LinkProperties.Speed = ((ULONGLONG)speed) * 1000000;
         }
 
         if (duplexState == VIRTIO_NET_DUPLEX_HALF)
