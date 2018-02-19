@@ -150,7 +150,8 @@ struct CPUPathBundle : public CPlacementAllocatable {
 
 #define PARANDIS_MULTICAST_LIST_SIZE        32
 #define PARANDIS_MEMORY_TAG                 '5muQ'
-#define PARANDIS_MAXIMUM_LINK_SPEED         10000000000 // 10Gbps link speed
+#define PARANDIS_DEFAULT_LINK_SPEED         10000000000  // 10Gbps link speed
+#define PARANDIS_MAXIMUM_LINK_SPEED         100000000000 // 100Gbps link speed
 #define PARANDIS_MIN_LSO_SEGMENTS           2
 // reported
 #define PARANDIS_MAX_LSO_SIZE               0xF800
