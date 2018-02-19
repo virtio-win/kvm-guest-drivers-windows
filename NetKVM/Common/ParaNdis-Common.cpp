@@ -601,7 +601,7 @@ InitializeLinkPropertiesConfig(PPARANDIS_ADAPTER pContext)
     else
     {
         // Default link properties
-        pContext->LinkProperties.Speed = PARANDIS_MAXIMUM_LINK_SPEED;
+        pContext->LinkProperties.Speed = PARANDIS_DEFAULT_LINK_SPEED;
         pContext->LinkProperties.DuplexState = MediaDuplexStateFull;
 
         DPrintf(0, "[%s] Link properties from configuration will not be used. Using default link properties.\n",
