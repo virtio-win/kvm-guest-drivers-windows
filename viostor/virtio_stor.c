@@ -287,6 +287,7 @@ VirtIoFindAdapter(
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     adaptExt->system_io_bus_number = ConfigInfo->SystemIoBusNumber;
+    adaptExt->slot_number = ConfigInfo->SlotNumber;
     adaptExt->dump_mode  = IsCrashDumpMode;
 
     ConfigInfo->Master                 = TRUE;
@@ -1211,30 +1212,54 @@ RhelScsiGetInquiryData(
     else if ((cdb->CDB6INQUIRY3.PageCode == VPD_DEVICE_IDENTIFIERS) &&
              (cdb->CDB6INQUIRY3.EnableVitalProductData == 1)) {
 
-        PVPD_IDENTIFICATION_PAGE IdentificationPage;
-        PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr;
+        PVPD_IDENTIFICATION_PAGE       IdentificationPage = NULL;
+        PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr = NULL;
+        ULONG                          len = 0;
+
+        len = sizeof(VPD_IDENTIFICATION_PAGE) + sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + BLOCK_SERIAL_STRLEN;
+
+        if (SRB_DATA_TRANSFER_LENGTH(Srb) < len) {
+           return SRB_STATUS_DATA_OVERRUN;
+        }
+
         IdentificationPage = (PVPD_IDENTIFICATION_PAGE)SRB_DATA_BUFFER(Srb);
         memset(IdentificationPage, 0, sizeof(VPD_IDENTIFICATION_PAGE));
         IdentificationPage->PageCode = VPD_DEVICE_IDENTIFIERS;
-        IdentificationPage->PageLength = sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + 8;
 
         IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
-        memset(IdentificationDescr, 0, sizeof(VPD_IDENTIFICATION_DESCRIPTOR));
-        IdentificationDescr->CodeSet = VpdCodeSetBinary;
-        IdentificationDescr->IdentifierType = VpdIdentifierTypeEUI64;
-        IdentificationDescr->IdentifierLength = 8;
-        IdentificationDescr->Identifier[0] = '1';
-        IdentificationDescr->Identifier[1] = 'A';
-        IdentificationDescr->Identifier[2] = 'F';
-        IdentificationDescr->Identifier[3] = '4';
-        IdentificationDescr->Identifier[4] = '1';
-        IdentificationDescr->Identifier[5] = '0';
-        IdentificationDescr->Identifier[6] = '0';
-        IdentificationDescr->Identifier[7] = '1';
+        memset(IdentificationDescr, 0, sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + BLOCK_SERIAL_STRLEN);
 
-        SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_IDENTIFICATION_PAGE) +
-                                     IdentificationPage->PageLength));
+        if (!adaptExt->sn_ok || adaptExt->sn[0] == 0) {
+           IdentificationDescr->CodeSet = VpdCodeSetBinary;
+           IdentificationDescr->IdentifierType = VpdIdentifierTypeEUI64;
+           IdentificationDescr->Identifier[0] = (adaptExt->pci_config.VendorID >> 12) & 0xF;
+           IdentificationDescr->Identifier[1] = (adaptExt->pci_config.VendorID >> 8) & 0xF;
+           IdentificationDescr->Identifier[2] = (adaptExt->pci_config.VendorID >> 4) & 0xF;
+           IdentificationDescr->Identifier[3] = adaptExt->pci_config.VendorID & 0xF;
+           IdentificationDescr->Identifier[4] = (adaptExt->pci_config.DeviceID >> 12) & 0xF;
+           IdentificationDescr->Identifier[5] = (adaptExt->pci_config.DeviceID >> 8) & 0xF;
+           IdentificationDescr->Identifier[6] = (adaptExt->pci_config.DeviceID >> 4) & 0xF;
+           IdentificationDescr->Identifier[7] = adaptExt->pci_config.DeviceID & 0xF;
+           IdentificationDescr->Identifier[8] = (adaptExt->system_io_bus_number >> 12) & 0xF;
+           IdentificationDescr->Identifier[9] = (adaptExt->system_io_bus_number >> 8) & 0xF;
+           IdentificationDescr->Identifier[10] = (adaptExt->system_io_bus_number >> 4) & 0xF;
+           IdentificationDescr->Identifier[11] = adaptExt->system_io_bus_number & 0xF;
+           IdentificationDescr->Identifier[12] = (adaptExt->slot_number >> 12) & 0xF;
+           IdentificationDescr->Identifier[13] = (adaptExt->slot_number >> 8) & 0xF;
+           IdentificationDescr->Identifier[14] = (adaptExt->slot_number >> 4) & 0xF;
+           IdentificationDescr->Identifier[15] = adaptExt->slot_number & 0xF;
+        } else {
+           IdentificationDescr->CodeSet = VpdCodeSetAscii;
+           IdentificationDescr->IdentifierType = VpdIdentifierTypeFCPHName;
+           StorPortMoveMemory(&IdentificationDescr->Identifier, &adaptExt->sn, BLOCK_SERIAL_STRLEN);
+        }
 
+        IdentificationDescr->IdentifierLength = BLOCK_SERIAL_STRLEN;
+        IdentificationPage->PageLength = (UCHAR)(FIELD_OFFSET(VPD_IDENTIFICATION_PAGE, Descriptors) +
+                    FIELD_OFFSET(VPD_IDENTIFICATION_DESCRIPTOR, Identifier) +
+                    IdentificationDescr->IdentifierLength);
+
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, len);
     }
     else if (dataLen > sizeof(INQUIRYDATA)) {
         StorPortMoveMemory(InquiryData, &adaptExt->inquiry_data, sizeof(INQUIRYDATA));
