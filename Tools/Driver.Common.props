@@ -18,6 +18,10 @@ Common property definitions used by all drivers:
     <LegacyDDKDir>$(DDKINSTALLROOT)$(DDKVER)</LegacyDDKDir>
   </PropertyGroup>
 
+  <PropertyGroup Label="Globals">
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+
   <!-- $(TargetArch) -->
   <PropertyGroup Condition="'$(Platform)'=='Win32'">
     <TargetArch>x86</TargetArch>
