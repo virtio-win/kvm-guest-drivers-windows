@@ -40,6 +40,23 @@ Disabling the WPP tracing and using plain "kdprint" can be done by simply commen
 10. Click the **>>** to the right of **Set Flags and Level**.
 11. Put the right values, follow the "Obtaining the providers control GUID, enabled flags and level" section.
 
+## Getting Driver Binary Traces using Logman (for sending trace logs to developers) ##
+
+* Copy Tools/Trace subfolder from the driver SOURCE TREE (not netkvm's Tools folder) to the target machine
+* Run netkvm.bat as administrator
+* Follow instructions
+* Collect the etl file
+
+## Converting binary trace file (.etl) to text using .pdb file from a suitable build ##
+
+* Copy tracefmt.exe and tracepdb.exe from WDK install location on build machine
+  (usually C:\Program Files (x86)\Windows Kits\8.1\bin\x64\tracefmt.exe)
+  to Trace folder on the target machine
+* Run the parseTrace.bat script as follows:
+  parseTrace.bat <The suitable pdp file for build> <The collected etl file>
+* Please note that the tracefmt.exe and tracepdb.exe should be in the same folder
+  as the parseTrace.bat.
+
 ## Obtaining the providers control GUID enabled flags and level ##
 
 1. Copy the script located in "Tools/getpdbinfo.bat" to any empty folder.
