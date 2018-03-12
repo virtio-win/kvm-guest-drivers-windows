@@ -46,7 +46,7 @@
 // DEBUG_ENTRY and DEBUG_EXIT_STATUS MACROS.
 //
 // begin_wpp config
-// USEPREFIX (DPrintf, "%!STDPREFIX!");
+// USEPREFIX (DPrintf, "%!STDPREFIX! %!FUNC!");
 // FUNC DPrintf{Flags=TRACE_DRIVER}(LEVEL, MSG, ...);
 //
 // USEPREFIX (DEBUG_ENTRY, "%!STDPREFIX! %!FUNC!");
