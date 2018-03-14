@@ -325,7 +325,11 @@ HIDMouseProbe(
     DynamicArrayReserve(&AxisMap, AXIS_MAP_INITIAL_LENGTH * 2 * sizeof(ULONG));
 
     // Windows won't drive a mouse without at least the X and Y relative axes
-    if (InputCfgDataHasBit(pRelAxes, REL_X) && InputCfgDataHasBit(pRelAxes, REL_Y))
+    if (InputCfgDataHasBit(pRelAxes, REL_X) && InputCfgDataHasBit(pRelAxes, REL_Y)
+#ifdef EXPOSE_ABS_AXES_WITH_BUTTONS_AS_MOUSE
+        || (pMouseDesc->uNumOfButtons > 0 && InputCfgDataHasBit(pAbsAxes, ABS_X) && InputCfgDataHasBit(pAbsAxes, ABS_Y))
+#endif // EXPOSE_ABS_AXES_WITH_BUTTONS_AS_MOUSE
+        )
     {
         for (i = 0; i < pRelAxes->size; i++)
         {
@@ -391,7 +395,7 @@ HIDMouseProbe(
     }
 
 #ifdef EXPOSE_ABS_AXES_WITH_BUTTONS_AS_MOUSE
-    if (uNumOfRelAxes == 0 &&
+    if ((!InputCfgDataHasBit(pRelAxes, REL_X) || !InputCfgDataHasBit(pRelAxes, REL_Y)) &&
         pMouseDesc->uNumOfButtons > 0 &&
         InputCfgDataHasBit(pAbsAxes, ABS_X) && InputCfgDataHasBit(pAbsAxes, ABS_Y))
     {
