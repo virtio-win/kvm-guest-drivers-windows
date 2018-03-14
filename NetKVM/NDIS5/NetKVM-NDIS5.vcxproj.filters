@@ -33,4 +33,9 @@
   <ItemGroup>
     <None Include="wxp\netkvm.inf" />
   </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="wxp\parandis.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
 </Project>
