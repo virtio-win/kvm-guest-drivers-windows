@@ -5,32 +5,16 @@
       <Configuration>WinXP Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="WinXP Debug|Win32">
-      <Configuration>WinXP Debug</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Win2k3 Release|Win32">
       <Configuration>Win2k3 Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win2k3 Debug|Win32">
-      <Configuration>Win2k3 Debug</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="WinXP Release|x64">
       <Configuration>WinXP Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="WinXP Debug|x64">
-      <Configuration>WinXP Debug</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Win2k3 Release|x64">
       <Configuration>Win2k3 Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win2k3 Debug|x64">
-      <Configuration>Win2k3 Debug</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
@@ -88,33 +72,17 @@
     <OutDir>objfre_wxp_x86\i386\</OutDir>
     <IntDir>objfre_wxp_x86\i386\</IntDir>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Debug|Win32'">
-    <OutDir>objchk_wxp_x86\i386\</OutDir>
-    <IntDir>objchk_wxp_x86\i386\</IntDir>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|Win32'">
     <OutDir>objfre_wnet_x86\i386\</OutDir>
     <IntDir>objfre_wnet_x86\i386\</IntDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Debug|Win32'">
-    <OutDir>objchk_wnet_x86\i386\</OutDir>
-    <IntDir>objchk_wnet_x86\i386\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Release|x64'">
     <OutDir>objfre_wxp_amd64\amd64\</OutDir>
     <IntDir>objfre_wxp_amd64\amd64\</IntDir>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WinXP Debug|x64'">
-    <OutDir>objchk_wxp_amd64\amd64\</OutDir>
-    <IntDir>objchk_wxp_amd64\amd64\</IntDir>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|x64'">
     <OutDir>objfre_wnet_amd64\amd64\</OutDir>
     <IntDir>objfre_wnet_amd64\amd64\</IntDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Debug|x64'">
-    <OutDir>objchk_wnet_amd64\amd64\</OutDir>
-    <IntDir>objchk_wnet_amd64\amd64\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
