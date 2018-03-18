@@ -60,6 +60,8 @@
 /* v1.0 compliant. */
 #define VIRTIO_F_VERSION_1              32
 
+#define VIRTIO_F_IOMMU_PLATFORM         33
+
 // if this number is not equal to desc size, queue creation fails
 #define SIZE_OF_SINGLE_INDIRECT_DESC    16
 
