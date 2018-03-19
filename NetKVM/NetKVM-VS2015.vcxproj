@@ -353,6 +353,7 @@
     <ClInclude Include="Common\DebugData.h" />
     <ClInclude Include="Common\ethernetutils.h" />
     <ClInclude Include="Common\ndis56common.h" />
+    <ClInclude Include="Common\Parandis_DesignPatterns.h" />
     <ClInclude Include="Common\Trace.h" />
     <ClInclude Include="Common\osdep.h" />
     <ClInclude Include="Common\ParaNdis-AbstractPath.h" />
