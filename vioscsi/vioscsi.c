@@ -649,6 +649,11 @@ ENTER_FN();
     if (CHECKBIT(adaptExt->features, VIRTIO_F_ANY_LAYOUT)) {
         guestFeatures |= (1ULL << VIRTIO_F_ANY_LAYOUT);
     }
+#if (WINVER == 0x0A00)
+    if (CHECKBIT(adaptExt->features, VIRTIO_F_IOMMU_PLATFORM)) {
+        guestFeatures |= (1ULL << VIRTIO_F_IOMMU_PLATFORM);
+    }
+#endif
     if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX)) {
         guestFeatures |= (1ULL << VIRTIO_RING_F_EVENT_IDX);
     }
