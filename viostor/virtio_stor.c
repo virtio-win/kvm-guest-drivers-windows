@@ -573,6 +573,12 @@ VirtIoHwInitialize(
         guestFeatures |= (1ULL << VIRTIO_F_VERSION_1);
     }
 
+#if (WINVER == 0x0A00)
+    if (CHECKBIT(adaptExt->features, VIRTIO_F_IOMMU_PLATFORM)) {
+        guestFeatures |= (1ULL << VIRTIO_F_IOMMU_PLATFORM);
+    }
+#endif
+
     if (CHECKBIT(adaptExt->features, VIRTIO_F_ANY_LAYOUT)) {
         guestFeatures |= (1ULL << VIRTIO_F_ANY_LAYOUT);
     }
