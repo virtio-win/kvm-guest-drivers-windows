@@ -27,6 +27,8 @@
  * SUCH DAMAGE.
  */
 
+#define WPP_EVENT_TRACING
+
 //
 // Define the tracing flags.
 //
