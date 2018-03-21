@@ -1,6 +1,13 @@
 #pragma once
 
 #include "ParaNdis-Util.h"
+#include "Parandis_DesignPatterns.h"
+
+enum SMNotifications {
+    Started,
+    stopped,
+    SupriseRemoved
+};
 
 class CFlowStateMachine : public CPlacementAllocatable
 {
@@ -166,7 +173,7 @@ private:
     DECLARE_CNDISLIST_ENTRY(CConfigFlowStateMachine);
 };
 
-class CMiniportStateMachine : public CPlacementAllocatable
+class CMiniportStateMachine : public CPlacementAllocatable, public CObservee<SMNotifications>
 {
 public:
         void RegisterFlow(CDataFlowStateMachine &Flow)
