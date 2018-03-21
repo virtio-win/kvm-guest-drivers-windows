@@ -302,6 +302,8 @@ bool CParaNdisTX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     m_nbPool.Create(Context->MiniportHandle);
     m_nblPool.Create(Context->MiniportHandle);
 
+    CreatePath();
+
     return m_VirtQueue.Create(DeviceQueueIndex,
         &m_Context->IODevice,
         m_Context->MiniportHandle,
