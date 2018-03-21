@@ -104,6 +104,14 @@ public:
         return !This->m_VirtQueue.Restart();
     }
 
+    /* We get notified by the state machine on suprise removal */
+    void Notify(SMNotifications message) override
+    {
+        if (message == SupriseRemoved)
+        {
+            m_VirtQueue.DoNotTouchHardware();
+        }
+    }
 protected:
     CNdisSpinLock m_Lock;
     bool m_ObserverAdded;

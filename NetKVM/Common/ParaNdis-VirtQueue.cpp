@@ -11,6 +11,11 @@ bool CVirtQueue::AllocateQueueMemory()
     USHORT NumEntries;
     ULONG RingSize, HeapSize;
 
+    if (!CanTouchHardware())
+    {
+        return false;
+    }
+
     NTSTATUS status = virtio_query_queue_allocation(
         m_IODevice,
         m_Index,
@@ -29,6 +34,11 @@ bool CVirtQueue::AllocateQueueMemory()
 void CVirtQueue::Renew()
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)m_IODevice->DeviceContext;
+
+    if (!CanTouchHardware())
+    {
+        return;
+    }
 
     pContext->pPageAllocator = &m_SharedMemory;
     NTSTATUS status = virtio_find_queue(
@@ -51,6 +61,7 @@ bool CVirtQueue::Create(UINT Index,
     m_DrvHandle = DrvHandle;
     m_Index = Index;
     m_IODevice = IODevice;
+
     if (!m_SharedMemory.Create(DrvHandle))
     {
         DPrintf(0, "[%s] - shared memory creation failed\n", __FUNCTION__);
