@@ -1,5 +1,6 @@
 #pragma once
 #include "ParaNdis-VirtQueue.h"
+#include "Parandis_DesignPatterns.h"
 
 class CParaNdisAbstractPath
 {
@@ -71,7 +72,7 @@ protected:
 };
 
 
-template <class VQ> class CParaNdisTemplatePath : public CParaNdisAbstractPath {
+template <class VQ> class CParaNdisTemplatePath : public CParaNdisAbstractPath, public CObserver<SMNotifications>{
 public:
     CParaNdisTemplatePath() {
         m_pVirtQueue = &m_VirtQueue;
