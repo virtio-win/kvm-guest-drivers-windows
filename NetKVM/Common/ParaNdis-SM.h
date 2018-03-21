@@ -305,8 +305,10 @@ private:
 
     void UpdateFlowsOnSurpriseRemove()
     {
+        SMNotifications msg = SupriseRemoved;
         m_DataFlows.ForEach([](CDataFlowStateMachine* Flow) { Flow->SupriseRemove(); });
         m_ConfigFlows.ForEach([](CConfigFlowStateMachine* Flow) { Flow->SupriseRemove(); });
+        NotifyAll(msg);
     }
 
     MiniportState m_State = MiniportState::Halted;

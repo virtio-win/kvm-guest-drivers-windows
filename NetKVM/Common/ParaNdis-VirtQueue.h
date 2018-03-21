@@ -152,6 +152,7 @@ public:
         : m_DrvHandle(NULL)
         , m_Index(0xFFFFFFFF)
         , m_IODevice(NULL)
+        , m_CanTouchHardware(true)
     {}
 
     virtual ~CVirtQueue()
@@ -170,8 +171,21 @@ public:
 
     void Shutdown()
     {
-        virtqueue_shutdown(m_VirtQueue);
+        if (CanTouchHardware())
+        {
+            virtqueue_shutdown(m_VirtQueue);
+        }
         Delete();
+    }
+
+    void DoNotTouchHardware()
+    {
+        m_CanTouchHardware = false;
+    }
+
+    bool CanTouchHardware()
+    {
+        return m_CanTouchHardware;
     }
 
     u16 SetMSIVector(u16 vector);
@@ -225,6 +239,8 @@ protected:
 private:
     bool AllocateQueueMemory();
     void Delete();
+
+    bool m_CanTouchHardware;
 
     UINT m_Index;
     VirtIODevice *m_IODevice;
