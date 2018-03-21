@@ -74,10 +74,22 @@ protected:
 
 template <class VQ> class CParaNdisTemplatePath : public CParaNdisAbstractPath, public CObserver<SMNotifications>{
 public:
-    CParaNdisTemplatePath() {
+    CParaNdisTemplatePath() : m_ObserverAdded(false) {
         m_pVirtQueue = &m_VirtQueue;
     }
 
+    bool CreatePath()
+    {
+        m_ObserverAdded = m_Context->m_StateMachine.Add(this) > 0;
+        return true;
+    }
+
+    ~CParaNdisTemplatePath() {
+        if (m_ObserverAdded)
+        {
+            m_Context->m_StateMachine.Remove(this);
+        }
+    }
 
     void Shutdown()
     {
@@ -94,6 +106,6 @@ public:
 
 protected:
     CNdisSpinLock m_Lock;
-
+    bool m_ObserverAdded;
     VQ m_VirtQueue;
 };

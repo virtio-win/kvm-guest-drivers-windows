@@ -36,6 +36,8 @@ bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 
     PrepareReceiveBuffers();
 
+    CreatePath();
+
     return true;
 }
 
