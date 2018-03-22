@@ -12,8 +12,8 @@ IF [%ETLFile%] == [] (
     GOTO PRINT_HELP_TEXT
 )
 
-IF EXIST [%PDPFile%] (
-    IF EXIST [%ETLFile%] (
+IF EXIST "%PDPFile%" (
+    IF EXIST "%ETLFile%" (
         tracepdb -f %PDPFile%
         tracefmt.exe -display -p . %ETLFile%
         IF !ERRORLEVEL! NEQ 0 EXIT /B 1
