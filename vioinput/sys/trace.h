@@ -26,11 +26,11 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#include <evntrace.h>
+#include "kdebugprint.h"
 
 #if !defined(EVENT_TRACING)
 
-#include "kdebugprint.h"
+#if !defined(EVENT_TRACING)
 
 extern ULONG driverDebugFlags;
 extern int driverDebugLevel;
@@ -96,7 +96,26 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regi
         WPP_DEFINE_BIT(DBG_HW_ACCESS)        /* bit 12 = 0x00001000 */ \
         )
 
-#define WPP_LEVEL_FLAGS_LOGGER(lvl,flags) WPP_LEVEL_LOGGER(flags)
-#define WPP_LEVEL_FLAGS_ENABLED(lvl, flags) (WPP_LEVEL_ENABLED(flags) && WPP_CONTROL(WPP_BIT_ ## flags).Level  >= lvl)
+#define WPP_FLAG_LEVEL_LOGGER(flag, level) \
+    WPP_LEVEL_LOGGER(flag)
+
+#define WPP_FLAG_LEVEL_ENABLED(flag, level) \
+    (WPP_LEVEL_ENABLED(flag) && WPP_CONTROL(WPP_BIT_ ## flag).Level >= level)
+
+#define WPP_LEVEL_FLAGS_LOGGER(lvl,flags) \
+    WPP_LEVEL_LOGGER(flags)
+
+#define WPP_LEVEL_FLAGS_ENABLED(lvl, flags) \
+    (WPP_LEVEL_ENABLED(flags) && WPP_CONTROL(WPP_BIT_ ## flags).Level >= lvl)
+
+ //
+ // This comment block is scanned by the trace preprocessor to define our
+ // Trace function.
+ //
+ // begin_wpp config
+ // FUNC Trace{FLAG=MYDRIVER_ALL_INFO}(LEVEL, MSG, ...);
+ // FUNC TraceEvents(LEVEL, FLAGS, MSG, ...);
+ // end_wpp
+ //
 
 #endif
