@@ -149,7 +149,7 @@ VIOSerialRemovePort(
     if (status == STATUS_NO_SUCH_DEVICE)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-            "A device which does not exist was specified.\n", status);
+            "A device which does not exist was specified: 0x%x\n", status);
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
@@ -1138,8 +1138,9 @@ VIOSerialPortSymbolicNameWork(
                                  );
            if (!NT_SUCCESS(status))
            {
+               /* It is safe to print the buffer as follows as RtlUnicodeStringPrints inserts null terminated character */
               TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-                "WdfDeviceCreateSymbolicLink %ws failed 0x%x\n", &symbolicLinkName, status);
+                "WdfDeviceCreateSymbolicLink %ws failed 0x%x\n", symbolicLinkName.Buffer, status);
               break;
            }
         }
