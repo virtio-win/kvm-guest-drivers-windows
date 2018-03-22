@@ -28,7 +28,7 @@
  */
 #include "kdebugprint.h"
 
-#if !defined(EVENT_TRACING)
+#define EVENT_TRACING
 
 #if !defined(EVENT_TRACING)
 
