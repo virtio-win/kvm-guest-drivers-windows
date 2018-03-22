@@ -1,5 +1,9 @@
 #include "precomp.h"
 
+#if defined(EVENT_TRACING)
+#include "queue.tmh"
+#endif
+
 #ifdef USE_BALLOON_SERVICE
 
 EVT_WDF_IO_QUEUE_IO_WRITE BalloonIoWrite;
