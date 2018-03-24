@@ -216,6 +216,10 @@ DriverEntry(
      */
     hwInitData.NumberOfAccessRanges     = PCI_TYPE0_ADDRESSES;
     hwInitData.MapBuffers               = STOR_MAP_NON_READ_WRITE_BUFFERS;
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    hwInitData.SrbTypeFlags = SRB_TYPE_FLAG_STORAGE_REQUEST_BLOCK;
+#endif
+
     initResult = StorPortInitialize(DriverObject,
                                     RegistryPath,
                                     &hwInitData,
@@ -769,10 +773,15 @@ VirtIoStartIo(
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     SRB_SET_SCSI_STATUS(((PSRB_TYPE)Srb), ScsiStatus);
 
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s Srb = 0x%p\n", __FUNCTION__, Srb));
+
     switch (SRB_FUNCTION(Srb)) {
-        case SRB_FUNCTION_EXECUTE_SCSI:
-        case SRB_FUNCTION_IO_CONTROL: {
+        case SRB_FUNCTION_EXECUTE_SCSI: {
             break;
+        }
+        case SRB_FUNCTION_IO_CONTROL: {
+            CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
+            return TRUE;
         }
         case SRB_FUNCTION_PNP:
         case SRB_FUNCTION_POWER:
@@ -805,8 +814,12 @@ VirtIoStartIo(
         }
     }
 
-    if (!cdb)
-        return FALSE;
+    if (!cdb) {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s no CDB (%p) Function %x, OperationCode %x\n", __FUNCTION__, Srb, SRB_FUNCTION(Srb), cdb->CDB6GENERIC.OperationCode));
+        CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_BAD_FUNCTION);
+        return TRUE;
+    }
+
     switch (cdb->CDB6GENERIC.OperationCode) {
         case SCSIOP_MODE_SENSE: {
             UCHAR SrbStatus = RhelScsiGetModeSense(DeviceExtension, (PSRB_TYPE)Srb);
@@ -1045,6 +1058,9 @@ VirtIoBuildIo(
     cdb      = SRB_CDB(Srb);
     srbExt   = SRB_EXTENSION(Srb);
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("%s Srb = 0x%p\n", __FUNCTION__, Srb));
+
 #ifdef DBG
     InterlockedIncrement((LONG volatile*)&adaptExt->srb_cnt);
 #endif
@@ -1059,8 +1075,21 @@ VirtIoBuildIo(
     srbExt->cpu = (UCHAR)cpu;
 #endif
 
+    if ( SrbGetSrbFunction(Srb) != SRB_FUNCTION_EXECUTE_SCSI )
+    {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s Srb = 0x%p Function = 0x%x\n", __FUNCTION__, Srb, SrbGetSrbFunction(Srb)));
+        SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
+        return TRUE;
+    }
+
+
     if (!cdb)
-        return FALSE;
+    {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s no CDB ( Srb = 0x%p on %d::%d::%d FUnction = 0x%x)\n", __FUNCTION__, Srb, SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), SrbGetSrbFunction(Srb)));
+        SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
+        return TRUE;
+    }
+
     switch (cdb->CDB6GENERIC.OperationCode) {
         case SCSIOP_READ:
         case SCSIOP_WRITE:
@@ -1095,9 +1124,14 @@ VirtIoBuildIo(
     }
 
     sgList = StorPortGetScatterGatherList(DeviceExtension, Srb);
-    if (!sgList)
+    if (!sgList) {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s no SGL\n", __FUNCTION__));
+        CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_BAD_FUNCTION);
         return FALSE;
+    }
+
     sgMaxElements = min((MAX_PHYS_SEGMENTS + 1), sgList->NumberOfElements);
+
     for (i = 0, sgElement = 1; i < sgMaxElements; i++, sgElement++) {
         srbExt->vbr.sg[sgElement].physAddr = sgList->List[i].PhysicalAddress;
         srbExt->vbr.sg[sgElement].length   = sgList->List[i].Length;
@@ -1487,20 +1521,24 @@ CompleteRequestWithStatus(
     IN UCHAR status
     )
 {
-    PCDB cdb = SRB_CDB(Srb);
-    PADAPTER_EXTENSION adaptExt= (PADAPTER_EXTENSION)DeviceExtension;
-    UCHAR OpCode = cdb->CDB6GENERIC.OperationCode;
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if (( adaptExt->check_condition == TRUE ) &&
-        ( !CHECKFLAG(Srb->SrbFlags ,SRB_FLAGS_DISABLE_AUTOSENSE)) &&
-        ( SRB_FUNCTION(Srb) == SRB_FUNCTION_EXECUTE_SCSI ) &&
-	( status == SRB_STATUS_SUCCESS ) &&
-	( OpCode != SCSIOP_INQUIRY ) &&
-        ( OpCode != SCSIOP_REPORT_LUNS )) {
-            if (SetSenseInfo(Srb, SCSI_SENSE_UNIT_ATTENTION, SCSI_ADSENSE_PARAMETERS_CHANGED, SCSI_SENSEQ_CAPACITY_DATA_CHANGED)) {
-                status = SRB_STATUS_ERROR | SRB_STATUS_AUTOSENSE_VALID;
-                adaptExt->check_condition = FALSE;
+    if (( SRB_FUNCTION(Srb) == SRB_FUNCTION_EXECUTE_SCSI ) &&
+        ( adaptExt->check_condition == TRUE ) &&
+        ( status == SRB_STATUS_SUCCESS ) &&
+        ( !CHECKFLAG(SRB_FLAGS(Srb) ,SRB_FLAGS_DISABLE_AUTOSENSE) )) {
+        PCDB cdb = SRB_CDB(Srb);
+
+        if ( cdb != NULL ) {
+            UCHAR OpCode = cdb->CDB6GENERIC.OperationCode;
+	    if (( OpCode != SCSIOP_INQUIRY ) &&
+                ( OpCode != SCSIOP_REPORT_LUNS )) {
+                if (SetSenseInfo(Srb, SCSI_SENSE_UNIT_ATTENTION, SCSI_ADSENSE_PARAMETERS_CHANGED, SCSI_SENSEQ_CAPACITY_DATA_CHANGED)) {
+                    status = SRB_STATUS_ERROR | SRB_STATUS_AUTOSENSE_VALID;
+                    adaptExt->check_condition = FALSE;
+                }
             }
+        }
     }
     SRB_SET_SRB_STATUS(Srb, status);
     CompleteSRB(DeviceExtension,
