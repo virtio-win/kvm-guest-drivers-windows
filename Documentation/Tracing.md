@@ -1,5 +1,13 @@
 # WPP Tracing #
 
+## Advantages over KdPrint:
+
+* It can be enabled, disabled and filtered during runtime with minimal overhead by logging in real-time binary messages
+* Traces are are automatically included in the crash dumps
+* Logs can be easily collected using a script
+* Can be very useful for automating manual tests which use log's output
+* Time Stamps, Function names and some other useful data can be easily included into log
+
 ## Viewing the WPP trace messages in real-time ##
 
 1. Copy the driver's PDB file from the build folder to the target machine.
@@ -16,8 +24,8 @@
 
 ## Getting Driver Binary Traces using Logman (for sending trace logs to developers) ##
 
-* Copy Tools/Trace subfolder from the driver SOURCE TREE (not netkvm's Tools folder) to the target machine
-* Run netkvm.bat as administrator
+* Copy Tools/Trace subfolder from the root of the source code tree to the target machine
+* Run <driver_name>.bat as administrator (netkvm.bat for example)
 * Follow instructions
 * Collect the etl file
 
