@@ -1,0 +1,91 @@
+;
+; viocrypt.inf
+;
+
+[Version]
+Signature       = "$WINDOWS NT$"
+Class           = System
+ClassGuid       = {4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider        = %VENDOR%
+CatalogFile     = viocrypt.cat
+PnpLockdown     = 1
+DriverVer       = 01/01/2018,0.0.0.1 ; this line will be replaced with stampinf
+
+[DestinationDirs]
+DefaultDestDir = 12
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+viocrypt.sys  = 1,,
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%VENDOR%=viocrypt,NT$ARCH$
+
+[AddReg.MSI]
+HKR,Interrupt Management,,0x00000010
+HKR,Interrupt Management\MessageSignaledInterruptProperties,,0x00000010
+HKR,Interrupt Management\MessageSignaledInterruptProperties,MSISupported,0x00010001,1
+HKR,Interrupt Management\MessageSignaledInterruptProperties,MessageNumberLimit,0x00010001,1
+
+[viocrypt.NT$ARCH$]
+%viocrypt.DeviceDesc%=viocrypt_Device, PCI\VEN_1AF4&DEV_1054&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01, PCI\VEN_1AF4&DEV_1054
+
+[viocrypt_Device.NT]
+CopyFiles=Drivers_Dir
+
+[viocrypt_Device.NT.HW]
+AddReg = AddReg.MSI
+
+[Drivers_Dir]
+viocrypt.sys
+
+;-------------- Service installation
+[viocrypt_Device.NT.Services]
+AddService = viocrypt,%SPSVCINST_ASSOCSERVICE%, viocrypt_Service_Inst
+
+; -------------- viocrypt driver install sections
+[viocrypt_Service_Inst]
+DisplayName    = %viocrypt.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\viocrypt.sys
+
+;
+;--- viocrypt_Device Coinstaller installation ------
+;
+
+[DestinationDirs]
+viocrypt_Device_CoInstaller_CopyFiles = 11
+
+[viocrypt_Device.NT.CoInstallers]
+AddReg=viocrypt_Device_CoInstaller_AddReg
+CopyFiles=viocrypt_Device_CoInstaller_CopyFiles
+
+[viocrypt_Device_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[viocrypt_Device_CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[SourceDisksFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
+
+[viocrypt_Device.NT.Wdf]
+KmdfService =  viocrypt, viocrypt_wdfsect
+
+[viocrypt_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000002
+VENDOR              = "INX_COMPANY"
+DiskName            = "INX_PREFIX_VIRTIOVirtIO Crypto Installation Disk"
+viocrypt.DeviceDesc = "INX_PREFIX_VIRTIOVirtIO Crypto Device"
+viocrypt.SVCDESC     = "INX_PREFIX_VIRTIOVirtIO Crypto Service"
