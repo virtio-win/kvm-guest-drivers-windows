@@ -1,7 +1,7 @@
 ECHO off
 SETLOCAL EnableDelayedExpansion
 
-SET Filename=%1
+SET Filename=%1.etl
 SET Guid=%2
 SET DataCollector="virtiowin"
 
