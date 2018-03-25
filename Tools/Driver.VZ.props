@@ -32,6 +32,7 @@ VZ inf substitutions and versioning used by all drivers.
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'PVPanicCopyrightStrings'">2015</RHEL_COPYRIGHT_STARTING_YEAR>
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioInputCopyrightStrings'">2016</RHEL_COPYRIGHT_STARTING_YEAR>
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioRNGCopyrightStrings'">2014</RHEL_COPYRIGHT_STARTING_YEAR>
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioCryptCopyrightStrings'">2018</RHEL_COPYRIGHT_STARTING_YEAR>
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioScsiCopyrightStrings'">2012</RHEL_COPYRIGHT_STARTING_YEAR>
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioSerialCopyrightStrings'">2010</RHEL_COPYRIGHT_STARTING_YEAR>
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioStorCopyrightStrings'">2008</RHEL_COPYRIGHT_STARTING_YEAR>
