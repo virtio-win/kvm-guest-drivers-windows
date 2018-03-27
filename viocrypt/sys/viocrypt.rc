@@ -1,8 +1,5 @@
 /*
- * This file contains rhel vendor specific
- * resource (version) definitions for all drivers
- *
- * Copyright (c) 2017  Parallels IP Holdings GmbH
+ * Copyright (C) 2018 Red Hat, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,37 +25,16 @@
  * SUCH DAMAGE.
  */
 
-/*
- * These defines are only for Visual Studio built-in rc editor
- */
-#ifndef _NT_TARGET_MAJ
-    #define _NT_TARGET_MAJ 1
-    #define _RHEL_RELEASE_VERSION_ 20
-    #define _BUILD_MAJOR_VERSION_ 300
-    #define _BUILD_MINOR_VERSION_ 5800
-#endif
+#include <windows.h>
+#include <ntverp.h>
 
-/*
- * rhel versioning
- */
-#define VENDOR_VIRTIO_1            _NT_TARGET_MAJ
-#define VENDOR_VIRTIO_2            _RHEL_RELEASE_VERSION_
-#define VENDOR_VIRTIO_3            _BUILD_MAJOR_VERSION_
-#define VENDOR_VIRTIO_4            _BUILD_MINOR_VERSION_
+#include "..\..\Tools\vendor.ver"
 
-/*
- * rhel strings
- */
-#define VENDOR_VIRTIO_COPYRIGHT    "Copyright (C) " STRINGIFY(RHEL_COPYRIGHT_YEARS) " Red Hat, Inc."
-#define VENDOR_VIRTIO_COMPANY      "Red Hat,\040Inc."
-#define VENDOR_PREFIX              "Red Hat\040"
-#define VENDOR_PRODUCT_PREFIX      VENDOR_PREFIX
-#define QEMU_PRODUCT_PREFIX        "QEMU\040"
-#define VENDOR_DESC_PREFIX         VENDOR_PREFIX
-#define VENDOR_DESC_POSTFIX        ""
+#undef  VER_FILEDESCRIPTION_STR
+#undef  VER_INTERNALNAME_STR
 
-/*
- * remaining macro should be defined in project .rc file
- *
- * VENDOR_VIRTIO_PRODUCT, VER_FILEDESCRIPTION_STR, VER_INTERNALNAME_STR
- */
+#define VENDOR_VIRTIO_PRODUCT      VENDOR_PRODUCT_PREFIX "VirtIO Crypto Device"
+#define VER_FILEDESCRIPTION_STR    VENDOR_DESC_PREFIX "VIOCRYPT Driver" VENDOR_DESC_POSTFIX
+#define VER_INTERNALNAME_STR       "viocrypt.sys"
+
+#include "common.ver"
