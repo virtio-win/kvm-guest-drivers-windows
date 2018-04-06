@@ -32,6 +32,10 @@
 
 #include "precomp.h"
 
+#if defined(EVENT_TRACING)
+#include "memstat.tmh"
+#endif
+
 #ifndef USE_BALLOON_SERVICE
 
 #include "ntddkex.h"
