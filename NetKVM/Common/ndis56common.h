@@ -122,6 +122,20 @@ struct CPUPathBundle : public CPlacementAllocatable {
     bool        txCreated = false;
 
     CParaNdisCX *cxPath = NULL;
+
+    ~CPUPathBundle()
+    {
+        if (rxCreated)
+        {
+            rxPath.~CParaNdisRX();
+            rxCreated = false;
+        }
+        if (txCreated)
+        {
+            txPath.~CParaNdisTX();
+            txCreated = false;
+        }
+    }
 } ;
 
 // those stuff defined in NDIS
