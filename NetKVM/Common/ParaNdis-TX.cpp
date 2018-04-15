@@ -287,6 +287,7 @@ CParaNdisTX::~CParaNdisTX()
     if (m_StateMachineRegistered)
     {
         m_Context->m_StateMachine.UnregisterFlow(m_StateMachine);
+        m_StateMachineRegistered = false;
     }
 }
 

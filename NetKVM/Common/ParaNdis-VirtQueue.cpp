@@ -158,6 +158,7 @@ CTXVirtQueue::~CTXVirtQueue()
     if(m_SGTable != nullptr)
     {
         NdisFreeMemory(m_SGTable, 0, 0);
+        m_SGTable = nullptr;
     }
 
     FreeBuffers();
