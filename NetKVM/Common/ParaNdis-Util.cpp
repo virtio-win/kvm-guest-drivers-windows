@@ -32,6 +32,7 @@ CNdisSharedMemory::~CNdisSharedMemory()
     if(m_VA != nullptr)
     {
         NdisMFreeSharedMemory(m_DrvHandle, m_Size, m_IsCached, m_VA, m_PA);
+        m_VA = nullptr;
     }
 }
 
