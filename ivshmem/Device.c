@@ -96,10 +96,12 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
 {
     PAGED_CODE();
     DEBUG_INFO("%s", __FUNCTION__);
-
     PDEVICE_CONTEXT deviceContext;
     deviceContext = DeviceGetContext(Device);
 
+#if (NTDDI_VERSION < NTDDI_WIN8)
+    UNREFERENCED_PARAMETER(ResourcesRaw);
+#endif
     NTSTATUS result = STATUS_SUCCESS;
     int memIndex = 0;
 
@@ -118,17 +120,17 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
             ++deviceContext->interruptCount;
     }
 
-	  if (deviceContext->interruptCount > 0)
-	  {
-		  deviceContext->interrupts = (WDFINTERRUPT*)ExAllocatePoolWithTag(NonPagedPool,
-			  sizeof(WDFINTERRUPT) * deviceContext->interruptCount, 'sQRI');
+      if (deviceContext->interruptCount > 0)
+      {
+          deviceContext->interrupts = (WDFINTERRUPT*)ExAllocatePoolWithTag(NonPagedPool,
+              sizeof(WDFINTERRUPT) * deviceContext->interruptCount, 'sQRI');
 
-		  if (!deviceContext->interrupts)
-		  {
-			  DEBUG_ERROR("Failed to allocate space for %d interrupts", deviceContext->interrupts);
-			  return STATUS_INSUFFICIENT_RESOURCES;
-		  }
-	  }
+          if (!deviceContext->interrupts)
+          {
+              DEBUG_ERROR("Failed to allocate space for %d interrupts", deviceContext->interrupts);
+              return STATUS_INSUFFICIENT_RESOURCES;
+          }
+      }
 
     for (ULONG i = 0; i < resCount; ++i)
     {
@@ -170,14 +172,31 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
             {
                 deviceContext->shmemAddr.PhysicalAddress = descriptor->u.Memory.Start;
                 deviceContext->shmemAddr.NumberOfBytes = descriptor->u.Memory.Length;
+                DEBUG_INFO("memIndex = %d pa = %llx (%llx) size = %lx (%lx)", memIndex, descriptor->u.Memory.Start.QuadPart, deviceContext->shmemAddr.PhysicalAddress.QuadPart, descriptor->u.Memory.Length, deviceContext->shmemAddr.NumberOfBytes);
+
+#if (NTDDI_VERSION >= NTDDI_WIN8)
                 result = MmAllocateMdlForIoSpace(&deviceContext->shmemAddr, 1, &deviceContext->shmemMDL);
+#else
+                deviceContext->shmemAddr.VirtualAddress = MmMapIoSpace(deviceContext->shmemAddr.PhysicalAddress, deviceContext->shmemAddr.NumberOfBytes, MmNonCached);
+                if (deviceContext->shmemAddr.VirtualAddress) {
+                    deviceContext->shmemMDL = IoAllocateMdl(deviceContext->shmemAddr.VirtualAddress, (ULONG)deviceContext->shmemAddr.NumberOfBytes, FALSE, FALSE, NULL);
+                    if (!deviceContext->shmemMDL) {
+                        DEBUG_INFO("%s", "Call to IoAllocateMdl failed");
+                        result = STATUS_INSUFFICIENT_RESOURCES;
+                    }
+                }
+                else {
+                    DEBUG_INFO("%s", "Call to MmMapIoSpace failed");
+                    result = STATUS_INSUFFICIENT_RESOURCES;
+                }
+#endif
                 if (!NT_SUCCESS(result))
                 {
                     DEBUG_ERROR("%s", "Call to MmAllocateMdlForIoSpace failed");
                     break;
                 }
             }
-
+            DEBUG_INFO("memIndex = %d va = %p mdl = %p", memIndex, deviceContext->shmemAddr.VirtualAddress, deviceContext->shmemMDL);
             ++memIndex;
             continue;
         }
@@ -189,9 +208,10 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
             WDF_INTERRUPT_CONFIG_INIT(&irqConfig,
                 IVSHMEMInterruptISR,
                 IVSHMEMInterruptDPC);
+#if (NTDDI_VERSION >= NTDDI_WIN8)
             irqConfig.InterruptTranslated = descriptor;
             irqConfig.InterruptRaw = WdfCmResourceListGetDescriptor(ResourcesRaw, i);
-
+#endif
             NTSTATUS status = WdfInterruptCreate(Device, &irqConfig, WDF_NO_OBJECT_ATTRIBUTES,
                 &deviceContext->interrupts[deviceContext->interruptsUsed]);
 
@@ -211,15 +231,17 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
 
     if (NT_SUCCESS(result))
     {
-        if (!deviceContext->shmemMDL)
+        if (!deviceContext->shmemMDL) {
+            DEBUG_ERROR("%s", "shmemMDL == NULL");
             result = STATUS_DEVICE_HARDWARE_ERROR;
+        }
         else
         {
-            DEBUG_INFO("Shared Memory: %p, %u bytes", deviceContext->shmemAddr.PhysicalAddress, deviceContext->shmemAddr.NumberOfBytes);
+            DEBUG_INFO("Shared Memory: %llx, %lx bytes", deviceContext->shmemAddr.PhysicalAddress.QuadPart, deviceContext->shmemAddr.NumberOfBytes);
             DEBUG_INFO("Interrupts   : %d", deviceContext->interruptsUsed);
         }
     }
-
+    DEBUG_INFO("%s result 0x%x", __FUNCTION__, result);
     return result;
 }
 

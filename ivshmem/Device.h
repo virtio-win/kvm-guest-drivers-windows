@@ -26,6 +26,14 @@ typedef struct IVSHMEMEventListEntry
 }
 IVSHMEMEventListEntry, *PIVSHMEMEventListEntry;
 
+#if (NTDDI_VERSION < NTDDI_WIN8)
+typedef struct _MM_PHYSICAL_ADDRESS_LIST {
+    PHYSICAL_ADDRESS PhysicalAddress;
+    PVOID            VirtualAddress;
+    SIZE_T           NumberOfBytes;
+} MM_PHYSICAL_ADDRESS_LIST, *PMM_PHYSICAL_ADDRESS_LIST;
+#endif
+
 typedef struct _DEVICE_CONTEXT
 {
     PIVSHMEMDeviceRegisters devRegisters; // the device registers (BAR0)
