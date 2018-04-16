@@ -1,0 +1,89 @@
+;/*++
+;
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
+;
+;Module Name:
+;    fwcfg.inf
+;
+;Abstract:
+;
+;Installation Notes:
+;    Using Devcon: Type "devcon install fwcfg.inf ACPI\QEMU0002" to install
+;
+;--*/
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=System
+ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider=%VENDOR%
+DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
+CatalogFile=fwcfg.cat
+
+[DestinationDirs]
+DefaultDestDir = 12
+FwCfg_Device_CoInstaller_CopyFiles = 11
+
+; ================= Class section =====================
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+fwcfg.sys  = 1,,
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%VENDOR%=FwCfg,NT$ARCH$
+
+[FwCfg.NT$ARCH$]
+%FwCfg.DeviceDesc%=FwCfg_Device, ACPI\QEMU0002
+
+[FwCfg_Device.NT]
+CopyFiles=Drivers_Dir
+
+[Drivers_Dir]
+fwcfg.sys
+
+;-------------- Service installation
+[FwCfg_Device.NT.Services]
+AddService = FwCfg,%SPSVCINST_ASSOCSERVICE%, FwCfg_Service_Inst
+
+; -------------- FwCfg driver install sections
+[FwCfg_Service_Inst]
+DisplayName    = %FwCfg.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\fwcfg.sys
+
+;
+;--- FwCfg_Device Coinstaller installation ------
+;
+
+[FwCfg_Device.NT.CoInstallers]
+AddReg=FwCfg_Device_CoInstaller_AddReg
+CopyFiles=FwCfg_Device_CoInstaller_CopyFiles
+
+[FwCfg_Device_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[FwCfg_Device_CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[FwCfg_Device.NT.Wdf]
+KmdfService =  FwCfg, FwCfg_wdfsect
+[FwCfg_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000002
+VENDOR="INX_COMPANY"
+DiskName = "INX_PREFIX_QEMUQEMU FwCfg Installation Disk"
+FwCfg.DeviceDesc = "INX_PREFIX_QEMUQEMU FwCfg Device"
+FwCfg.SVCDESC = "INX_PREFIX_QEMUQEMU FwCfg Service"
