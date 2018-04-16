@@ -71,9 +71,12 @@ int main()
 
 		TEST_START("IOCTL_IVSHMEM_REQUEST_PEERID");
 		IVSHMEM_PEERID peer = 0;
-		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_PEERID, NULL, 0, &peer, sizeof(IVSHMEM_PEERID), NULL, NULL))
+		ULONG   ulReturnedLength = 0;
+
+		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_PEERID, NULL, 0, &peer, sizeof(IVSHMEM_PEERID), &ulReturnedLength, NULL))
 		{
 			TEST_FAIL("DeviceIoControl");
+			printf("Error 0x%x\n", GetLastError());
 			break;
 		}
 		TEST_PASS();
@@ -82,7 +85,7 @@ int main()
 
 		TEST_START("IOCTL_IVSHMEM_REQUEST_SIZE");
 		IVSHMEM_SIZE size = 0;
-		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_SIZE, NULL, 0, &size, sizeof(IVSHMEM_SIZE), NULL, NULL))
+		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_SIZE, NULL, 0, &size, sizeof(IVSHMEM_SIZE), &ulReturnedLength, NULL))
 		{
 			TEST_FAIL("DeviceIoControl");
 			break;
@@ -100,7 +103,7 @@ int main()
 		TEST_START("IOCTL_IVSHMEM_REQUEST_MMAP");
 		IVSHMEM_MMAP map;
 		ZeroMemory(&map, sizeof(IVSHMEM_MMAP));
-		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(IVSHMEM_MMAP), NULL, NULL))
+		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(IVSHMEM_MMAP), &ulReturnedLength, NULL))
 		{
 			TEST_FAIL("DeviceIoControl");
 			break;
@@ -120,7 +123,7 @@ int main()
 		TEST_PASS();
 
 		TEST_START("Mapping more then once fails");
-		if (DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(IVSHMEM_MMAP), NULL, NULL))
+		if (DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(IVSHMEM_MMAP), &ulReturnedLength, NULL))
 		{
 			TEST_FAIL("mapping succeeded, this should not happen!");
 			break;
@@ -134,7 +137,7 @@ int main()
 			TEST_FAIL("Failed to open second handle");
 			break;
 		}
-		if (DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(IVSHMEM_MMAP), NULL, NULL))
+		if (DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(IVSHMEM_MMAP), &ulReturnedLength, NULL))
 		{
 			TEST_FAIL("mapping succeeded, this should not happen!");
 			break;
@@ -146,7 +149,7 @@ int main()
 		IVSHMEM_RING ring;
 		ring.peerID = 0;
 		ring.vector = 0;
-		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_RING_DOORBELL, &ring, sizeof(IVSHMEM_RING), NULL, 0, NULL, NULL))
+		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_RING_DOORBELL, &ring, sizeof(IVSHMEM_RING), NULL, 0, &ulReturnedLength, NULL))
 		{
 			TEST_FAIL("DeviceIoControl");
 			break;
@@ -154,7 +157,7 @@ int main()
 		TEST_PASS();
 
 		TEST_START("IOCTL_IVSHMEM_RELEASE_MMAP");
-		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_RELEASE_MMAP, NULL, 0, NULL, 0, NULL, NULL))
+		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_RELEASE_MMAP, NULL, 0, NULL, 0, &ulReturnedLength, NULL))
 		{
 			TEST_FAIL("DeviceIoControl");
 			break;
@@ -169,7 +172,7 @@ int main()
 			TEST_FAIL("Failed to re-open handle");
 			break;
 		}
-		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(IVSHMEM_MMAP), NULL, NULL))
+		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(IVSHMEM_MMAP), &ulReturnedLength, NULL))
 		{
 			TEST_FAIL("Mapping failed!");
 			break;
@@ -185,7 +188,7 @@ int main()
 			TEST_FAIL("Failed to re-open handle");
 			break;
 		}
-		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(IVSHMEM_MMAP), NULL, NULL))
+		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(IVSHMEM_MMAP), &ulReturnedLength, NULL))
 		{
 			TEST_FAIL("Mapping failed!");
 			break;
@@ -216,7 +219,7 @@ int main()
 				TEST_FAIL("Failed to create the event");
 				break;
 			}
-			if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REGISTER_EVENT, &event, sizeof(IVSHMEM_EVENT), NULL, 0, NULL, NULL))
+			if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REGISTER_EVENT, &event, sizeof(IVSHMEM_EVENT), NULL, 0, &ulReturnedLength, NULL))
 			{
 				TEST_FAIL("Register event failed!");
 				CloseHandle(event.event);
