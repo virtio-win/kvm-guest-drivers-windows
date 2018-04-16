@@ -18,6 +18,6 @@ Enabling and customizing virtio build features
   </PropertyGroup>
 
   <ItemGroup>
-    <PackOne_UnsupportedOS Include="@(PackOne_UnsupportedOS);Wxp;Wnet;Wlh;Win7" />
+    <PackOne_UnsupportedOS Include="@(PackOne_UnsupportedOS);Wxp;Wnet;Wlh" />
   </ItemGroup>
 </Project>
