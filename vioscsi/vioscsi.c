@@ -506,7 +506,7 @@ ENTER_FN();
     }
 
     if(adaptExt->indirect) {
-        adaptExt->queue_depth = max(20, (queueLength / 4));
+        adaptExt->queue_depth = max(20, (queueLength));
     } else {
         adaptExt->queue_depth = queueLength / ConfigInfo->NumberOfPhysicalBreaks - 1;
     }
@@ -706,21 +706,16 @@ ENTER_FN();
             return FALSE;
         }
 
-        for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index) {
-              if ((adaptExt->num_queues > 1) &&
-                  (index >= VIRTIO_SCSI_REQUEST_QUEUE_0)) {
+        for (index = 0; index < adaptExt->num_queues; ++index) {
+              PREQUEST_LIST  element = &adaptExt->pending_list[index];
+              InitializeListHead(&element->srb_list);
+              KeInitializeSpinLock(&element->srb_list_lock);
 #ifdef USE_CPU_TO_VQ_MAP
-                  if (!CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
-                      adaptExt->cpu_to_vq_map[index - VIRTIO_SCSI_REQUEST_QUEUE_0] = (UCHAR)(index - VIRTIO_SCSI_REQUEST_QUEUE_0);
-                  }
-#endif // USE_CPU_TO_VQ_MAP
-#if (NTDDI_VERSION > NTDDI_WIN7)
-                  status = StorPortInitializeSListHead(DeviceExtension, &adaptExt->srb_list[index - VIRTIO_SCSI_REQUEST_QUEUE_0]); 
-                  if (status != STOR_STATUS_SUCCESS) {
-                     RhelDbgPrint(TRACE_LEVEL_FATAL, ("StorPortInitializeSListHead failed with status  0x%x\n", status));
-                  }
-#endif
+              if (!CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
+                  adaptExt->cpu_to_vq_map[index] = (UCHAR)(index - VIRTIO_SCSI_REQUEST_QUEUE_0);
               }
+#endif // USE_CPU_TO_VQ_MAP
+
         }
     }
     else
@@ -762,10 +757,9 @@ ENTER_FN();
 
             RhelDbgPrint(TRACE_LEVEL_FATAL, ("Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
                 perfData.Version, perfData.Flags, perfData.ConcurrentChannels, perfData.FirstRedirectionMessageNumber, perfData.LastRedirectionMessageNumber));
-            if (status == STOR_STATUS_SUCCESS) {
-                if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION)) {
-                    adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION;
-                }
+            if ( (status == STOR_STATUS_SUCCESS) &&
+                 (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION)) ) {
+                    adaptExt->perfFlags = STOR_PERF_DPC_REDIRECTION;
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES)) {
                     adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
                     perfData.FirstRedirectionMessageNumber = 3;
@@ -788,7 +782,7 @@ ENTER_FN();
                 }
 #endif
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
-                    adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO;
+//                    adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO;
                 }
                 perfData.Flags = adaptExt->perfFlags;
                 RhelDbgPrint(TRACE_LEVEL_FATAL, ("Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
@@ -860,7 +854,7 @@ ENTER_FN();
     }
     else
     {
-        return SendSRB(DeviceExtension, (PSRB_TYPE)Srb);
+        SendSRB(DeviceExtension, (PSRB_TYPE)Srb, FALSE, -1);
     }
 EXIT_FN();
     return TRUE;
@@ -1210,12 +1204,14 @@ VioScsiBuildIo(
     VirtIOSCSICmd         *cmd;
     UCHAR                 TargetId;
     UCHAR                 Lun;
+#ifdef USE_CPU_TO_VQ_MAP
 #if (NTDDI_VERSION >= NTDDI_WIN7)
     PROCESSOR_NUMBER ProcNumber;
     ULONG processor = KeGetCurrentProcessorNumberEx(&ProcNumber);
     ULONG cpu = ProcNumber.Number;
 #else
     ULONG cpu = KeGetCurrentProcessorNumber();
+#endif
 #endif
 
 ENTER_FN();
@@ -1235,12 +1231,13 @@ ENTER_FN();
         return FALSE;
     }
 
-//    RhelDbgPrint(TRACE_LEVEL_FATAL, ("<-->%s (%d::%d::%d)\n", DbgGetScsiOpStr(Srb), SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb)));
-//RhelDbgPrint(TRACE_LEVEL_FATAL, ("<-->%s (%d::%d::%d on %d)\n", DbgGetScsiOpStr(Srb), SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), cpu));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<-->%s (%d::%d::%d)\n", DbgGetScsiOpStr(Srb), SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb)));
 
     RtlZeroMemory(srbExt, sizeof(*srbExt));
     srbExt->Srb = Srb;
+#ifdef USE_CPU_TO_VQ_MAP
     srbExt->cpu = (UCHAR)cpu;
+#endif
     cmd = &srbExt->cmd;
     cmd->srb = (PVOID)Srb;
     cmd->req.cmd.lun[0] = 1;
@@ -1335,11 +1332,6 @@ ProcessQueue(
     STOR_LOCK_HANDLE    queueLock = { 0 };
     struct virtqueue    *vq;
     BOOLEAN             handleResponseInline;
-#ifdef USE_WORK_ITEM
-#if (NTDDI_VERSION > NTDDI_WIN7)
-    UCHAR               cnt = 0;
-#endif
-#endif
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     LIST_ENTRY          complete_list;
     PSRB_TYPE           Srb = NULL;
@@ -1361,7 +1353,7 @@ ENTER_FN();
             if (handleResponseInline) {
                 Srb = (PSRB_TYPE)(cmd->srb);
                 srbExt = SRB_EXTENSION(Srb);
-                InsertTailList(&complete_list, &srbExt->process_list_entry);
+                InsertTailList(&complete_list, &srbExt->list_entry);
             }
 #ifdef USE_WORK_ITEM
             else {
@@ -1387,6 +1379,8 @@ ENTER_FN();
     } while (!virtqueue_enable_cb(vq));
 
     VioScsiVQUnlock(DeviceExtension, MessageID, &queueLock, isr);
+
+    SendSRB(DeviceExtension, NULL, isr, MessageID);
 
     while (!IsListEmpty(&complete_list)) {
         srbExt = (PSRB_EXTENSION)RemoveHeadList(&complete_list);
@@ -1486,6 +1480,9 @@ ENTER_FN();
     {
         case SCSIOP_READ_CAPACITY:
         case SCSIOP_READ_CAPACITY16:
+           break;
+        case SCSIOP_INQUIRY:
+           VioScsiSaveInquiryData(DeviceExtension, Srb);
            if (!StorPortSetDeviceQueueDepth( DeviceExtension, SRB_PATH_ID(Srb),
                                      SRB_TARGET_ID(Srb), SRB_LUN(Srb),
                                      adaptExt->queue_depth)) {
@@ -1493,9 +1490,6 @@ ENTER_FN();
                           DeviceExtension,
                           adaptExt->queue_depth));
            }
-           break;
-        case SCSIOP_INQUIRY:
-            VioScsiSaveInquiryData(DeviceExtension, Srb);
            break;
         default:
            break;
@@ -1775,7 +1769,8 @@ ENTER_FN();
     if (!Srb)
         return;
 
-    cdb      = SRB_CDB(Srb);
+    cdb  = SRB_CDB(Srb);
+
     if (!cdb)
         return;
 
@@ -2142,6 +2137,7 @@ VioScsiExecuteWmiMethod(
                 {
                     PSM_GetSASPhyAttributes_IN  pInBfr = (PSM_GetSASPhyAttributes_IN)Buffer;
                     PSM_GetSASPhyAttributes_OUT pOutBfr = (PSM_GetSASPhyAttributes_OUT)Buffer;
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, ("-->SM_GetSASPhyAttributes\n"));
                     size = SM_GetSASPhyAttributes_OUT_SIZE;
                     if (OutBufferSize < size)
                     {
