@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fwcfg", "fwcfg.vcxproj", "{D9EF1144-4779-444C-ADD6-F733B749A862}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Win10 Release|x64 = Win10 Release|x64
+		Win7 Release|x64 = Win7 Release|x64
+		Win8 Release|x64 = Win8 Release|x64
+		Win8.1 Release|x64 = Win8.1 Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
+		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win10 Release|x64.Build.0 = Win10 Release|x64
+		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win7 Release|x64.ActiveCfg = Win7 Release|x64
+		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win7 Release|x64.Build.0 = Win7 Release|x64
+		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win8 Release|x64.ActiveCfg = Win8 Release|x64
+		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win8 Release|x64.Build.0 = Win8 Release|x64
+		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
+		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win8.1 Release|x64.Build.0 = Win8.1 Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
