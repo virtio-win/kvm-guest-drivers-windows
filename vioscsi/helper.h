@@ -115,10 +115,12 @@ SrbGetPnpInfo(_In_ PVOID Srb, ULONG* PnPFlags, ULONG* PnPAction) {
 #define SRB_SET_DATA_TRANSFER_LENGTH(Srb, Len) Srb->DataTransferLength = Len
 #endif
 
-BOOLEAN
+VOID
 SendSRB(
     IN PVOID DeviceExtension,
-    IN PSRB_TYPE Srb
+    IN PSRB_TYPE Srb,
+    IN BOOLEAN isr,
+    IN ULONG MessageID
     );
 
 BOOLEAN

@@ -232,12 +232,7 @@ typedef struct _VRING_DESC_ALIAS
 
 #pragma pack(1)
 typedef struct _SRB_EXTENSION {
-#ifdef USE_WORK_ITEM
-#if (NTDDI_VERSION > NTDDI_WIN7)
-    STOR_SLIST_ENTRY      list_entry;
-#endif
-#endif
-    LIST_ENTRY            process_list_entry;
+    LIST_ENTRY            list_entry;
     PSCSI_REQUEST_BLOCK   Srb;
     ULONG                 out;
     ULONG                 in;
@@ -245,8 +240,10 @@ typedef struct _SRB_EXTENSION {
     VirtIOSCSICmd         cmd;
     VIO_SG                sg[128];
     VRING_DESC_ALIAS      desc[VIRTIO_MAX_SG];
-    UCHAR                 cpu;
-    PVOID                 priv;
+    ULONG                 vq_num;
+#ifdef USE_CPU_TO_VQ_MAP
+    ULONG                 cpu;
+#endif // USE_CPU_TO_VQ_MAP
 }SRB_EXTENSION, * PSRB_EXTENSION;
 #pragma pack()
 
@@ -256,6 +253,11 @@ typedef struct {
     PSRB_EXTENSION        SrbExtension;
 }TMF_COMMAND, * PTMF_COMMAND;
 #pragma pack()
+
+typedef struct _REQUEST_LIST {
+    LIST_ENTRY            srb_list;
+    KSPIN_LOCK            srb_list_lock;
+} REQUEST_LIST, *PREQUEST_LIST;
 
 typedef struct virtio_bar {
     PHYSICAL_ADDRESS  BasePA;
@@ -304,9 +306,7 @@ typedef struct _ADAPTER_EXTENSION {
 #ifdef USE_CPU_TO_VQ_MAP
     UCHAR                 cpu_to_vq_map[MAX_CPU];
 #endif
-#if (NTDDI_VERSION > NTDDI_WIN7)
-    STOR_SLIST_HEADER     srb_list[MAX_CPU];
-#endif
+    REQUEST_LIST          pending_list[MAX_CPU];
     ULONG                 perfFlags;
     PGROUP_AFFINITY       pmsg_affinity;
     BOOLEAN               dpc_ok;
