@@ -263,7 +263,13 @@ public:
 
     TEntryType *Peek()
     {
-        return m_Queue.Peek();
+        TEntryType * element = m_Queue.Peek();
+        if (element == nullptr && !m_QueueFullListIsEmpty)
+        {
+            FillQueue();
+            element = m_Queue.Peek();
+        }
+        return element;
     }
 
     BOOLEAN IsEmpty()
