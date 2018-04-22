@@ -248,6 +248,11 @@ public:
     TEntryType *Dequeue()
     {
         TEntryType * ptr = m_Queue.Dequeue();
+        if (ptr == nullptr)
+        {
+            FillQueue();
+            ptr = m_Queue.Dequeue();
+        }
         DecrementCount(ptr != nullptr);
         return ptr;
     }
@@ -257,6 +262,11 @@ public:
     TEntryType *DequeueMC()
     {
         TEntryType * ptr = m_Queue.DequeueMC();
+        if (ptr == nullptr)
+        {
+            FillQueue();
+            ptr = m_Queue.DequeueMC();
+        }
         DecrementCount(ptr != nullptr);
         return ptr;
     }
@@ -292,12 +302,11 @@ private:
         }
     }
 
-    void DecrementCount(BOOLEAN increment)
+    void DecrementCount(BOOLEAN decrement)
     {
-        if (increment)
+        if (decrement)
         {
             InterlockedDecrement(&m_ElementCount);
-            FillQueue();
         }
     }
 
