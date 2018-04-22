@@ -380,9 +380,7 @@ public:
     ULONG Push(TEntryType *Entry)
     {
         CLockedContext<TAccessStrategy> LockedContext(*this);
-        InsertHeadList(&m_List, Entry->GetListEntry());
-        CounterIncrement();
-        return GetCount();
+        return Push_LockLess(Entry);
     }
 
     ULONG PushBack(TEntryType *Entry)
@@ -451,6 +449,14 @@ private:
         CounterDecrement();
         return TEntryType::GetByListEntry(RemoveHeadList(&m_List));
     }
+
+    ULONG Push_LockLess(TEntryType *Entry)
+    {
+        InsertHeadList(&m_List, Entry->GetListEntry());
+        CounterIncrement();
+        return GetCount();
+    }
+
 
     void Remove_LockLess(PLIST_ENTRY Entry)
     {
