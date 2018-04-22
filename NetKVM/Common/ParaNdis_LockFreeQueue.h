@@ -268,7 +268,7 @@ public:
 
     BOOLEAN IsEmpty()
     {
-        return m_Queue.IsEmpty();
+        return m_Queue.IsEmpty() ? (BOOLEAN) m_QueueFullListIsEmpty : FALSE;
     }
 
     BOOLEAN IsPowerOfTwo(INT x)
