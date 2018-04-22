@@ -377,6 +377,14 @@ public:
         return Pop_LockLess();
     }
 
+    TEntryType *Peek()
+    {
+        CLockedContext<TAccessStrategy> LockedContext(*this);
+        TEntryType * entry = Pop_LockLess();
+        Push_LockLess(entry);
+        return entry;
+    }
+
     ULONG Push(TEntryType *Entry)
     {
         CLockedContext<TAccessStrategy> LockedContext(*this);
