@@ -153,6 +153,13 @@ Common property definitions used by all drivers:
     </Link>
   </ItemDefinitionGroup>
 
+  <!-- WPP settings -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WppModuleName>$(TargetFileName)</WppModuleName>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
   <!-- Import vendor specific properties -->
   <Import Project="Driver.Vendor.props" />
 
