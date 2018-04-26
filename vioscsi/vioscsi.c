@@ -706,17 +706,13 @@ ENTER_FN();
             return FALSE;
         }
 
-        for (index = 0; index < adaptExt->num_queues; ++index) {
-              PREQUEST_LIST  element = &adaptExt->pending_list[index];
-              InitializeListHead(&element->srb_list);
-              KeInitializeSpinLock(&element->srb_list_lock);
 #ifdef USE_CPU_TO_VQ_MAP
-              if (!CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
-                  adaptExt->cpu_to_vq_map[index] = (UCHAR)(index - VIRTIO_SCSI_REQUEST_QUEUE_0);
-              }
-#endif // USE_CPU_TO_VQ_MAP
-
+        if (!CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
+            for (index = 0; index < adaptExt->num_queues; ++index) {
+                adaptExt->cpu_to_vq_map[index] = (UCHAR)(index);
+            }
         }
+#endif // USE_CPU_TO_VQ_MAP
     }
     else
     {
@@ -725,6 +721,12 @@ ENTER_FN();
         if (!InitializeVirtualQueues(adaptExt, adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0)) {
             return FALSE;
         }
+    }
+
+    for (index = 0; index < adaptExt->num_queues; ++index) {
+          PREQUEST_LIST  element = &adaptExt->pending_list[index];
+          InitializeListHead(&element->srb_list);
+          KeInitializeSpinLock(&element->srb_list_lock);
     }
 
     if (!adaptExt->dump_mode) {
