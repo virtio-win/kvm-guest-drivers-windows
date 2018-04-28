@@ -49,7 +49,13 @@ NTSTATUS FwCfgEvtDeviceD0Entry(IN WDFDEVICE Device,
     pVmci->paddr = ctx->vmci_data.note_pa;
     pVmci->size = sizeof(VMCI_ELF64_NOTE);
 
-    status = VMCoreInfoFillAndSend(ctx);
+    status = VMCoreInfoFill(ctx);
+    if (!NT_SUCCESS(status))
+    {
+        return status;
+    }
+
+    status = VMCoreInfoSend(ctx);
 
     return status;
 }

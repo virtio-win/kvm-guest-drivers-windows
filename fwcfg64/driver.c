@@ -13,9 +13,10 @@
 #pragma alloc_text(INIT, DriverEntry)
 #pragma alloc_text(PAGE, FwCfgEvtDeviceAdd)
 #pragma alloc_text(PAGE, FwCfgEvtDriverCleanup)
+#pragma alloc_text(PAGE, FwCfgEvtDeviceCleanup)
 #endif
 
-NTSTATUS VMCoreInfoFillAndSend(PDEVICE_CONTEXT ctx)
+NTSTATUS VMCoreInfoFill(PDEVICE_CONTEXT ctx)
 {
     NTSTATUS status;
     PUCHAR hdr_buf;
@@ -32,6 +33,23 @@ NTSTATUS VMCoreInfoFillAndSend(PDEVICE_CONTEXT ctx)
         TraceEvents(TRACE_LEVEL_ERROR, DBG_ALL, "Failed to obtain header");
         return status;
     }
+
+    /*
+     * Original KDBG pointer was saved in header by system.
+     * BugcheckParameter1 field is unused in live system and will be filled by QEMU.
+     * So the pointer to decoded KDBG can be stored in this field.
+     */
+    *(PULONG64)(hdr_buf + DUMP_HDR_OFFSET_BUGCHECK_PARAM1) = (ULONG64)ctx->kdbg;
+
+    return status;
+}
+
+NTSTATUS VMCoreInfoSend(PDEVICE_CONTEXT ctx)
+{
+    NTSTATUS status;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_ALL, "Sending header");
+
     status = FWCfgDmaSend(ctx->ioBase, ctx->vmci_data.vmci_pa, ctx->index,
                           sizeof(VMCOREINFO), ctx->dma_access, ctx->dma_access_pa);
 
@@ -45,6 +63,44 @@ VOID FwCfgEvtDriverCleanup(IN WDFOBJECT DriverObject)
     PAGED_CODE();
 
     WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)DriverObject));
+}
+
+NTSTATUS GetKdbg(PDEVICE_CONTEXT ctx)
+{
+    PUCHAR minidump;
+    ULONG32 kdbg_offset;
+    ULONG32 kdbg_size;
+    CONTEXT context = { 0 };
+    NTSTATUS status = STATUS_SUCCESS;
+
+    minidump = ExAllocatePoolWithTag(NonPagedPoolNx, 0x40000, 'pmdm');
+    if (!minidump)
+    {
+         return STATUS_MEMORY_NOT_ALLOCATED;
+    }
+
+    KeCapturePersistentThreadState(&context, NULL, 0, 0, 0, 0, 0, minidump);
+
+    kdbg_offset = *(PULONG32)(minidump + MINIDUMP_OFFSET_KDBG_OFFSET);
+    kdbg_size = *(PULONG32)(minidump + MINIDUMP_OFFSET_KDBG_SIZE);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT,
+        "KdDebuggerDataBlock size = %lx, offset = 0x%lx",
+        kdbg_size, kdbg_offset);
+
+    ctx->kdbg = ExAllocatePoolWithTag(NonPagedPoolNx, kdbg_size, 'gbdk');
+    if (!ctx->kdbg)
+    {
+        status = STATUS_MEMORY_NOT_ALLOCATED;
+        goto out_free_minidump;
+    }
+
+    memcpy(ctx->kdbg, minidump + kdbg_offset, kdbg_size);
+
+out_free_minidump:
+    ExFreePool(minidump);
+
+    return status;
 }
 
 static VOID FwCfgContextInit(PDEVICE_CONTEXT ctx)
@@ -63,6 +119,27 @@ static VOID FwCfgContextInit(PDEVICE_CONTEXT ctx)
 
     ctx->dma_access = &pcbuf_data->fwcfg_da;
     ctx->dma_access_pa = pcbuf_data_pa + FIELD_OFFSET(CBUF_DATA, fwcfg_da);
+}
+
+VOID PutKdbg(PDEVICE_CONTEXT ctx)
+{
+    if (ctx->kdbg)
+    {
+        ExFreePool(ctx->kdbg);
+        ctx->kdbg = NULL;
+        VMCoreInfoSend(ctx);
+    }
+}
+
+VOID FwCfgEvtDeviceCleanup(IN WDFOBJECT DeviceObject)
+{
+    PDEVICE_CONTEXT ctx;
+
+    PAGED_CODE();
+
+    ctx = GetDeviceContext((WDFDEVICE)DeviceObject);
+
+    PutKdbg(ctx);
 }
 
 NTSTATUS FwCfgEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
@@ -88,6 +165,7 @@ NTSTATUS FwCfgEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
+    attributes.EvtCleanupCallback = FwCfgEvtDeviceCleanup;
 
     status = WdfDeviceCreate(&DeviceInit, &attributes, &device);
 
@@ -112,7 +190,7 @@ NTSTATUS FwCfgEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
             "Failed to create DMA enabler");
         return status;
     }
-        
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT,
         "DMA enabler created");
 
@@ -126,6 +204,14 @@ NTSTATUS FwCfgEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
     }
 
     FwCfgContextInit(ctx);
+
+    status = GetKdbg(ctx);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+            "Failed to get KdDebuggerDataBlock");
+        return status;
+    }
 
     return STATUS_SUCCESS;
 }
