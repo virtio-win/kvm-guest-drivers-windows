@@ -13,7 +13,10 @@
 #define DUMP_TYPE_FULL          1
 #define VMCOREINFO_FORMAT_ELF   0x1
 #ifdef _AMD64_
-    #define DUMP_HDR_SIZE       (PAGE_SIZE * 2)
+    #define DUMP_HDR_SIZE                   (PAGE_SIZE * 2)
+    #define MINIDUMP_OFFSET_KDBG_OFFSET     (DUMP_HDR_SIZE + 0x70)
+    #define MINIDUMP_OFFSET_KDBG_SIZE       (DUMP_HDR_SIZE + 0x74)
+    #define DUMP_HDR_OFFSET_BUGCHECK_PARAM1 0x40
 #endif
 
 #define ROUND_UP(x, n) (((x) + (n) - 1) & (-(n)))
@@ -59,7 +62,17 @@ typedef struct DEVICE_CONTEXT {
     VMCI_DATA           vmci_data;
     FWCfgDmaAccess      *dma_access;
     LONGLONG            dma_access_pa;
+    PUCHAR              kdbg;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
+
+ULONG NTAPI KeCapturePersistentThreadState(PCONTEXT Context,
+                                           PKTHREAD Thread,
+                                           ULONG BugCheckCode,
+                                           ULONG BugCheckParameter1,
+                                           ULONG BugCheckParameter2,
+                                           ULONG BugCheckParameter3,
+                                           ULONG BugCheckParameter4,
+                                           PVOID VirtualAddress);
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 
@@ -73,4 +86,5 @@ EVT_WDF_DEVICE_RELEASE_HARDWARE FwCfgEvtDeviceReleaseHardware;
 EVT_WDF_DEVICE_D0_ENTRY FwCfgEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT FwCfgEvtDeviceD0Exit;
 
-NTSTATUS VMCoreInfoFillAndSend(PDEVICE_CONTEXT ctx);
+NTSTATUS VMCoreInfoFill(PDEVICE_CONTEXT ctx);
+NTSTATUS VMCoreInfoSend(PDEVICE_CONTEXT ctx);
