@@ -6,7 +6,9 @@
 enum SMNotifications {
     Started,
     stopped,
-    SupriseRemoved
+    SupriseRemoved,
+    NeedsReset,
+    PoweredOn
 };
 
 class CFlowStateMachine : public CPlacementAllocatable
@@ -213,6 +215,11 @@ public:
                 MiniportState::SurpriseRemoved);
         }
 
+        void NotifyPowerOn()
+        {
+            UpdateFlowsOnPowerOn();
+        }
+
         void NotifyResumed()
         {
             if (IsInState(MiniportState::FastSuspend))
@@ -236,6 +243,17 @@ public:
             MiniportState::Running,
             MiniportState::Suspended,
             MiniportState::FastSuspend);
+        }
+
+        void NotifyDeviceNeedsReset()
+        {
+            UpdateFlowsOnNeedsReset();
+            ChangeState(MiniportState::NeedsReset,
+                MiniportState::Halted,
+                MiniportState::Paused,
+                MiniportState::Running,
+                MiniportState::Suspended,
+                MiniportState::FastSuspend);
         }
 
         void NotifySuspended()
@@ -269,7 +287,8 @@ private:
         Shutdown,
         Suspended,
         FastSuspend,
-        SurpriseRemoved
+        SurpriseRemoved,
+        NeedsReset
     };
 
     bool IsInState(MiniportState State) const
@@ -305,9 +324,26 @@ private:
 
     void UpdateFlowsOnSurpriseRemove()
     {
-        SMNotifications msg = SupriseRemoved;
+        SMNotifications msg = SMNotifications::SupriseRemoved;
         m_DataFlows.ForEach([](CDataFlowStateMachine* Flow) { Flow->SupriseRemove(); });
         m_ConfigFlows.ForEach([](CConfigFlowStateMachine* Flow) { Flow->SupriseRemove(); });
+        UpdateFlowsOnEvent(msg);
+    }
+
+    void UpdateFlowsOnNeedsReset()
+    {
+        SMNotifications msg = SMNotifications::NeedsReset;
+        UpdateFlowsOnEvent(msg);
+    }
+
+    void UpdateFlowsOnPowerOn()
+    {
+        SMNotifications msg = SMNotifications::PoweredOn;
+        UpdateFlowsOnEvent(msg);
+    }
+
+    void UpdateFlowsOnEvent(SMNotifications msg)
+    {
         NotifyAll(msg);
     }
 

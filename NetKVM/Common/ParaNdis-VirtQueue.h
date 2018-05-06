@@ -183,6 +183,11 @@ public:
         m_CanTouchHardware = false;
     }
 
+    void AllowTouchHardware()
+    {
+        m_CanTouchHardware = true;
+    }
+
     bool CanTouchHardware()
     {
         return m_CanTouchHardware;
