@@ -1880,6 +1880,15 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
         }
         if (pContext->CXPath.WasInterruptReported())
         {
+            UINT8 status = 0;
+            status = ReadDeviceStatus(pContext);
+            if (virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_F_VERSION_1) &&
+                (status & VIRTIO_CONFIG_S_NEEDS_RESET))
+            {
+                pContext->m_StateMachine.NotifyDeviceNeedsReset();
+                pContext->bDeviceNeedsReset = TRUE;
+            }
+            ReadLinkState(pContext);
             if (pContext->bLinkDetectSupported)
             {
                 ReadLinkState(pContext);
@@ -2135,6 +2144,9 @@ NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, hopPowerOn, NULL, 1, 0, 0);
+
+    pContext->m_StateMachine.NotifyPowerOn();
+
     ParaNdis_ResetVirtIONetDevice(pContext);
     virtio_add_status(&pContext->IODevice, VIRTIO_CONFIG_S_ACKNOWLEDGE | VIRTIO_CONFIG_S_DRIVER);
     /* virtio_get_features must be called with any mask once upon device initialization:
