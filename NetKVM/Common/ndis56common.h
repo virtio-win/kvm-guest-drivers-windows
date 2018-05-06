@@ -453,6 +453,7 @@ typedef struct _tagPARANDIS_ADAPTER
     CParaNdisCX CXPath;
     BOOLEAN bCXPathAllocated;
     BOOLEAN bCXPathCreated;
+    BOOLEAN bDeviceNeedsReset;
 
     CPUPathBundle               *pPathBundles;
     UINT                        nPathBundles;

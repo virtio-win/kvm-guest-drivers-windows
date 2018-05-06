@@ -496,8 +496,10 @@ Required NDIS handler: happens unually each 2 second
 ***********************************************************/
 static BOOLEAN ParaNdis6_CheckForHang(NDIS_HANDLE miniportAdapterContext)
 {
-    UNREFERENCED_PARAMETER(miniportAdapterContext);
-    return FALSE;
+    PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
+    BOOLEAN ret = pContext->bDeviceNeedsReset;
+    pContext->bDeviceNeedsReset = FALSE;
+    return ret;
 }
 
 /**********************************************************
