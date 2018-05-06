@@ -1209,6 +1209,11 @@ static void ReadLinkState(PARANDIS_ADAPTER *pContext)
     }
 }
 
+static UINT8 ReadDeviceStatus(PARANDIS_ADAPTER *pContext)
+{
+    return (UINT8) virtio_get_status(&pContext->IODevice);
+}
+
 static VOID ParaNdis_AddDriverOKStatus(PPARANDIS_ADAPTER pContext)
 {
     pContext->bDeviceInitialized = TRUE;
