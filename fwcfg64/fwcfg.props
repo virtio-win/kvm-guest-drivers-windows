@@ -9,6 +9,7 @@ Enabling and customizing virtio build features
   <PropertyGroup>
     <Feature_AlwaysDefaultVendor>false</Feature_AlwaysDefaultVendor>
     <Feature_UsingWDF>true</Feature_UsingWDF>
+    <Feature_PackOne>true</Feature_PackOne>
     <Feature_LegacyStampInf>false</Feature_LegacyStampInf>
     <Feature_AdjustInfLegacy>false</Feature_AdjustInfLegacy>
     <Feature_AdjustInf>true</Feature_AdjustInf>
