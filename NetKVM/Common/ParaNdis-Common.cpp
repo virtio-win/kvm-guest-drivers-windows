@@ -791,6 +791,10 @@ NDIS_STATUS ParaNdis_InitializeContext(
             DPrintf(0, "[%s] Link status on driver startup: %d\n", __FUNCTION__, pContext->bConnected);
             pContext->bGuestAnnounceSupported = AckFeature(pContext, VIRTIO_NET_F_GUEST_ANNOUNCE);
         }
+        else
+        {
+            pContext->bConnected = TRUE;
+        }
 
         InitializeLinkPropertiesConfig(pContext);
 
@@ -1871,9 +1875,9 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
         }
         if (pContext->CXPath.WasInterruptReported())
         {
-            ReadLinkState(pContext);
             if (pContext->bLinkDetectSupported)
             {
+                ReadLinkState(pContext);
                 ParaNdis_SynchronizeLinkState(pContext);
             }
             if (pContext->bGuestAnnounceSupported && pContext->bGuestAnnounced)
