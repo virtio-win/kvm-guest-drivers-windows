@@ -732,6 +732,7 @@ static void SetupInterrruptAffinity(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
                     desc->Flags |= CM_RESOURCE_INTERRUPT_POLICY_INCLUDED;
                     desc->u.Interrupt.Group = procNumber.Group;
                     desc->u.Interrupt.TargetedProcessors = 1i64 << procNumber.Number;
+                    desc->u.Interrupt.AffinityPolicy = IrqPolicySpecifiedProcessors;
                 }
                 else
                 {
