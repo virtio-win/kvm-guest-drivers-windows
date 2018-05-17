@@ -707,6 +707,7 @@ static void SetupInterrruptAffinity(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
 {
     PIO_RESOURCE_LIST list;
     ULONG procIndex = 0;
+    int interruptDescNum = 0;
 
     list = prrl->List;
 
@@ -739,7 +740,7 @@ static void SetupInterrruptAffinity(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
 #else
                 desc->u.Interrupt.TargetedProcessors = 1i64 << procIndex;
 #endif
-                if (jx % 2 == 1)
+                if (interruptDescNum % 2 == 1)
                 {
                     procIndex++;
 
@@ -748,6 +749,7 @@ static void SetupInterrruptAffinity(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
                         procIndex = 0;
                     }
                 }
+                interruptDescNum++;
             }
         }
         list = (PIO_RESOURCE_LIST)(list->Descriptors + list->Count);
