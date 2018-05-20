@@ -733,6 +733,8 @@ static void SetupInterrruptAffinity(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
                     desc->u.Interrupt.Group = procNumber.Group;
                     desc->u.Interrupt.TargetedProcessors = 1i64 << procNumber.Number;
                     desc->u.Interrupt.AffinityPolicy = IrqPolicySpecifiedProcessors;
+                    DPrintf(0, "[%s]: Assigning CmResourceTypeInterrupt, min/max = %lx/%lx Option = 0x%lx, ShareDisposition = %u to #CPU = %d\n", __FUNCTION__,
+                        desc->u.Interrupt.MinimumVector, desc->u.Interrupt.MaximumVector, desc->Option, desc->ShareDisposition, procNumber.Number);
                 }
                 else
                 {
