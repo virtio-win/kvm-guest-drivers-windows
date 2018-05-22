@@ -1626,6 +1626,7 @@ VioStorCompleteRequest(
     PSRB_EXTENSION      srbExt = NULL;
     LIST_ENTRY          complete_list;
     UCHAR               srbStatus = SRB_STATUS_SUCCESS;
+#ifdef DBG
 #if (NTDDI_VERSION >= NTDDI_WIN7)
     PROCESSOR_NUMBER ProcNumber = { 0 };
     ULONG processor = KeGetCurrentProcessorNumberEx(&ProcNumber);
@@ -1633,7 +1634,7 @@ VioStorCompleteRequest(
 #else
     ULONG cpu = KeGetCurrentProcessorNumber();
 #endif
-
+#endif
     RhelDbgPrint(TRACE_LEVEL_VERBOSE,
                  ("--->%s : MessageID 0x%x\n", __FUNCTION__, MessageID));
 
