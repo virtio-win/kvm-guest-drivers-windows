@@ -396,25 +396,22 @@ VioStorVQLock(
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("--->%s MessageID = %d\n", __FUNCTION__, MessageID));
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    if (!isr) {
+        if (adaptExt->msix_enabled) {
+            if (adaptExt->num_queues > 1) {
 
-    if (!adaptExt->msix_enabled) {
-        if (!isr) {
-            StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, LockHandle);
-        }
-    }
-    else {
-        if ((adaptExt->num_queues == 1) ||
-            (!CHECKFLAG(adaptExt->perfFlags, STOR_PERF_CONCURRENT_CHANNELS))) {
-            if (!isr) {
+                NT_ASSERT(MessageID > 0);
+                NT_ASSERT(MessageID <= adaptExt->num_queues);
+                StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[MessageID - 1], LockHandle);
+            }
+            else {
                 ULONG oldIrql = 0;
                 StorPortAcquireMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), &oldIrql);
                 LockHandle->Context.OldIrql = (KIRQL)oldIrql;
             }
         }
         else {
-            NT_ASSERT(MessageID > 0);
-            NT_ASSERT(MessageID <= adaptExt->num_queues);
-            StorPortAcquireSpinLock(DeviceExtension, StartIoLock, &adaptExt->dpc[MessageID - 1], LockHandle);
+            StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, LockHandle);
         }
     }
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<---%s MessageID = %d\n", __FUNCTION__, MessageID));
@@ -432,22 +429,12 @@ VioStorVQUnlock(
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("--->%s MessageID = %d\n", __FUNCTION__, MessageID));
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if (!adaptExt->msix_enabled) {
-        if (!isr) {
+    if (!isr) {
+        if (adaptExt->num_queues > 1) {
             StorPortReleaseSpinLock(DeviceExtension, LockHandle);
-        }
-    }
-    else {
-        if ((adaptExt->num_queues == 1) ||
-            (!CHECKFLAG(adaptExt->perfFlags, STOR_PERF_CONCURRENT_CHANNELS))) {
-            if (!isr) {
-                StorPortReleaseMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), LockHandle->Context.OldIrql);
-            }
         }
         else {
-            NT_ASSERT(MessageID > 0);
-            NT_ASSERT(MessageID <= adaptExt->num_queues);
-            StorPortReleaseSpinLock(DeviceExtension, LockHandle);
+            StorPortReleaseMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), LockHandle->Context.OldIrql);
         }
     }
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<---%s MessageID = %d\n", __FUNCTION__, MessageID));
