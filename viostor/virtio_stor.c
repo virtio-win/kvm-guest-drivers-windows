@@ -1269,6 +1269,7 @@ RhelScsiGetInquiryData(
         IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
         memset(IdentificationDescr, 0, sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + BLOCK_SERIAL_STRLEN);
 
+#if (NTDDI_VERSION > NTDDI_WINBLUE)
         if (!adaptExt->sn_ok || adaptExt->sn[0] == 0) {
            IdentificationDescr->CodeSet = VpdCodeSetBinary;
            IdentificationDescr->IdentifierType = VpdIdentifierTypeEUI64;
@@ -1298,7 +1299,22 @@ RhelScsiGetInquiryData(
         IdentificationPage->PageLength = (UCHAR)(FIELD_OFFSET(VPD_IDENTIFICATION_PAGE, Descriptors) +
                     FIELD_OFFSET(VPD_IDENTIFICATION_DESCRIPTOR, Identifier) +
                     IdentificationDescr->IdentifierLength);
-
+#else
+        IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
+        memset(IdentificationDescr, 0, sizeof(VPD_IDENTIFICATION_DESCRIPTOR));
+        IdentificationDescr->CodeSet = VpdCodeSetBinary;
+        IdentificationDescr->IdentifierType = VpdIdentifierTypeEUI64;
+        IdentificationDescr->IdentifierLength = 8;
+        IdentificationDescr->Identifier[0] = (adaptExt->pci_config.VendorID >> 12) & 0xF;
+        IdentificationDescr->Identifier[1] = (adaptExt->pci_config.VendorID >> 8) & 0xF;
+        IdentificationDescr->Identifier[2] = (adaptExt->pci_config.VendorID >> 4) & 0xF;
+        IdentificationDescr->Identifier[3] = adaptExt->pci_config.VendorID & 0xF;
+        IdentificationDescr->Identifier[4] = (adaptExt->pci_config.DeviceID >> 12) & 0xF;
+        IdentificationDescr->Identifier[5] = (adaptExt->pci_config.DeviceID >> 8) & 0xF;
+        IdentificationDescr->Identifier[6] = (adaptExt->pci_config.DeviceID >> 4) & 0xF;
+        IdentificationDescr->Identifier[7] = adaptExt->pci_config.DeviceID & 0xF;
+        IdentificationPage->PageLength = sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + IdentificationDescr->IdentifierLength;
+#endif
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, len);
     }
     else if (dataLen > sizeof(INQUIRYDATA)) {
