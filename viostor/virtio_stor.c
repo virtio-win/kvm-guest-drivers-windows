@@ -1133,8 +1133,8 @@ VirtIoBuildIo(
     sgMaxElements = min((MAX_PHYS_SEGMENTS + 1), sgList->NumberOfElements);
 
     for (i = 0, sgElement = 1; i < sgMaxElements; i++, sgElement++) {
-        srbExt->vbr.sg[sgElement].physAddr = sgList->List[i].PhysicalAddress;
-        srbExt->vbr.sg[sgElement].length   = sgList->List[i].Length;
+        srbExt->sg[sgElement].physAddr = sgList->List[i].PhysicalAddress;
+        srbExt->sg[sgElement].length   = sgList->List[i].Length;
     }
 
     srbExt->vbr.out_hdr.sector = lba;
@@ -1152,11 +1152,11 @@ VirtIoBuildIo(
         srbExt->in = sgElement;
     }
 
-    srbExt->vbr.sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &dummy);
-    srbExt->vbr.sg[0].length = sizeof(srbExt->vbr.out_hdr);
+    srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &dummy);
+    srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
 
-    srbExt->vbr.sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &dummy);
-    srbExt->vbr.sg[sgElement].length = sizeof(srbExt->vbr.status);
+    srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &dummy);
+    srbExt->sg[sgElement].length = sizeof(srbExt->vbr.status);
 
     return TRUE;
 }

@@ -126,7 +126,6 @@ typedef struct virtio_blk_req {
     PVOID      req;
     blk_outhdr out_hdr;
     u8         status;
-    VIO_SG     sg[VIRTIO_MAX_SG];
 }blk_req, *pblk_req;
 
 typedef struct virtio_bar {
@@ -195,6 +194,7 @@ typedef struct _SRB_EXTENSION {
     ULONG                 in;
     ULONG                 MessageID;
     BOOLEAN               fua;
+    VIO_SG                sg[VIRTIO_MAX_SG];
     VRING_DESC_ALIAS      desc[VIRTIO_MAX_SG];
 #if DBG
     UCHAR                 cpu;
