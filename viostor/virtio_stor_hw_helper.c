@@ -431,11 +431,16 @@ VioStorVQUnlock(
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     if (!isr) {
-        if (adaptExt->num_queues > 1) {
-            StorPortReleaseSpinLock(DeviceExtension, LockHandle);
+        if (adaptExt->msix_enabled) {
+            if (adaptExt->num_queues > 1) {
+                StorPortReleaseSpinLock(DeviceExtension, LockHandle);
+            }
+            else {
+                StorPortReleaseMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), LockHandle->Context.OldIrql);
+            }
         }
         else {
-            StorPortReleaseMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), LockHandle->Context.OldIrql);
+            StorPortReleaseSpinLock(DeviceExtension, LockHandle);
         }
     }
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<---%s MessageID = %d\n", __FUNCTION__, MessageID));
