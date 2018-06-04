@@ -182,14 +182,6 @@ NTSTATUS FwCfgEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 
     FwCfgContextInit(ctx);
 
-    status = GetKdbg(ctx);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "Failed to get KdDebuggerDataBlock");
-        return status;
-    }
-
     return STATUS_SUCCESS;
 }
 

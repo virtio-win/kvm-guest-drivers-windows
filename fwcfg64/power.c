@@ -123,6 +123,14 @@ NTSTATUS FwCfgEvtDevicePrepareHardware(IN WDFDEVICE Device,
         return STATUS_BAD_DATA;
     }
 
+    status = GetKdbg(ctx);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+            "Failed to get KdDebuggerDataBlock");
+        return status;
+    }
+
     return STATUS_SUCCESS;
 }
 
