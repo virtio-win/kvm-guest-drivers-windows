@@ -77,10 +77,12 @@ RhelDoFlush(
         if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
            MessageId = param.MessageNumber;
            QueueNumber = MessageId - 1;
-           RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s srb %p, cpu %d :: QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",  __FUNCTION__, Srb, srbExt->cpu, QueueNumber, param.MessageNumber, param.ChannelNumber));
+           RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",
+                        Srb, QueueNumber, param.MessageNumber, param.ChannelNumber);
         }
         else {
-           RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortGetStartIoPerfParams failed. srb %p cpu %d status 0x%x.\n",__FUNCTION__, Srb, srbExt->cpu, status));
+           RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed. srb %p status 0x%x.\n",
+                        Srb, status);
            QueueNumber = 0;
            MessageId = 1;
         }
@@ -118,7 +120,7 @@ RhelDoFlush(
     }
     else {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s Can not add packet to queue %d.\n", __FUNCTION__, QueueNumber));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " Can not add packet to queue %d.\n", QueueNumber);
         StorPortBusy(DeviceExtension, 2);
     }
     if (notify) {
@@ -155,10 +157,12 @@ RhelDoReadWrite(PVOID DeviceExtension,
         if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
            MessageId = param.MessageNumber;
            QueueNumber = MessageId - 1;
-           RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s srb %p, cpu %d :: QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n", __FUNCTION__, Srb, srbExt->cpu, QueueNumber, param.MessageNumber, param.ChannelNumber));
+           RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",
+                        Srb, QueueNumber, param.MessageNumber, param.ChannelNumber);
         }
         else {
-           RhelDbgPrint(TRACE_LEVEL_ERROR, ("%s StorPortGetStartIoPerfParams failed srb %p cpu %d status 0x%x.\n", __FUNCTION__, Srb, srbExt->cpu, status));
+           RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed srb %p status 0x%x.\n",
+                        Srb, status);
            QueueNumber = 0;
            MessageId = 1;
         }
@@ -170,7 +174,7 @@ RhelDoReadWrite(PVOID DeviceExtension,
 
     srbExt->MessageID = MessageId;
     vq = adaptExt->vq[QueueNumber];
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<--->%s : QueueNumber 0x%x vq = %p\n", __FUNCTION__, QueueNumber, vq));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " QueueNumber 0x%x vq = %p\n", QueueNumber, vq);
 
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (virtqueue_add_buf(vq,
@@ -186,7 +190,7 @@ RhelDoReadWrite(PVOID DeviceExtension,
     }
     else {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s Can not add packet to queue %d.\n", __FUNCTION__, QueueNumber));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " Can not add packet to queue %d.\n", QueueNumber);
         StorPortBusy(DeviceExtension, 2);
     }
     if (notify) {
@@ -325,11 +329,11 @@ RhelGetDiskGeometry(
     adaptExt->features = virtio_get_features(&adaptExt->vdev);
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BARRIER)) {
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_BARRIER\n"));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_BLK_F_BARRIER\n");
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_RO)) {
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_RO\n"));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_BLK_F_RO\n");
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SIZE_MAX)) {
@@ -344,7 +348,7 @@ RhelGetDiskGeometry(
         virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, seg_max),
                           &v, sizeof(v));
         adaptExt->info.seg_max = v;
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_SEG_MAX = %d\n", adaptExt->info.seg_max));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_BLK_F_SEG_MAX = %d\n", adaptExt->info.seg_max);
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BLK_SIZE)) {
@@ -354,7 +358,7 @@ RhelGetDiskGeometry(
     } else {
         adaptExt->info.blk_size = SECTOR_SIZE;
     }
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_BLK_SIZE = %d\n", adaptExt->info.blk_size));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_BLK_F_BLK_SIZE = %d\n", adaptExt->info.blk_size);
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_GEOMETRY)) {
         virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, geometry),
@@ -362,31 +366,31 @@ RhelGetDiskGeometry(
         adaptExt->info.geometry.cylinders= vgeo.cylinders;
         adaptExt->info.geometry.heads    = vgeo.heads;
         adaptExt->info.geometry.sectors  = vgeo.sectors;
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("VIRTIO_BLK_F_GEOMETRY. cylinders = %d  heads = %d  sectors = %d\n", adaptExt->info.geometry.cylinders, adaptExt->info.geometry.heads, adaptExt->info.geometry.sectors));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_BLK_F_GEOMETRY. cylinders = %d  heads = %d  sectors = %d\n", adaptExt->info.geometry.cylinders, adaptExt->info.geometry.heads, adaptExt->info.geometry.sectors);
     }
 
     virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, capacity),
                       &cap, sizeof(cap));
     adaptExt->info.capacity = cap;
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("capacity = %08I64X\n", adaptExt->info.capacity));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " device capacity = %08I64X\n", adaptExt->info.capacity);
 
 
     if(CHECKBIT(adaptExt->features, VIRTIO_BLK_F_TOPOLOGY)) {
         virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, physical_block_exp),
                           &adaptExt->info.physical_block_exp, sizeof(adaptExt->info.physical_block_exp));
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("physical_block_exp = %d\n", adaptExt->info.physical_block_exp));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " physical_block_exp = %d\n", adaptExt->info.physical_block_exp);
 
         virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, alignment_offset),
                           &adaptExt->info.alignment_offset, sizeof(adaptExt->info.alignment_offset));
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("alignment_offset = %d\n", adaptExt->info.alignment_offset));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " alignment_offset = %d\n", adaptExt->info.alignment_offset);
 
         virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, min_io_size),
                           &adaptExt->info.min_io_size, sizeof(adaptExt->info.min_io_size));
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("min_io_size = %d\n", adaptExt->info.min_io_size));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " min_io_size = %d\n", adaptExt->info.min_io_size);
 
         virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, opt_io_size),
                           &adaptExt->info.opt_io_size, sizeof(adaptExt->info.opt_io_size));
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("opt_io_size = %d\n", adaptExt->info.opt_io_size));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " opt_io_size = %d\n", adaptExt->info.opt_io_size);
     }
 }
 
@@ -399,7 +403,7 @@ VioStorVQLock(
     )
 {
     PADAPTER_EXTENSION  adaptExt;
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("--->%s MessageID = %d\n", __FUNCTION__, MessageID));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ---> MessageID = %d isr = %d\n",  MessageID, isr);
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     if (!isr) {
@@ -420,7 +424,7 @@ VioStorVQLock(
             StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, LockHandle);
         }
     }
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<---%s MessageID = %d\n", __FUNCTION__, MessageID));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <--- MessageID = %d\n", MessageID);
 }
 
 VOID
@@ -432,7 +436,7 @@ VioStorVQUnlock(
     )
 {
     PADAPTER_EXTENSION  adaptExt;
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("--->%s MessageID = %d\n", __FUNCTION__, MessageID));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ---> MessageID = %d isr = %d\n", MessageID, isr);
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     if (!isr) {
@@ -448,5 +452,5 @@ VioStorVQUnlock(
             StorPortReleaseSpinLock(DeviceExtension, LockHandle);
         }
     }
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("<---%s MessageID = %d\n", __FUNCTION__, MessageID));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <--- MessageID = %d\n", MessageID);
 }
