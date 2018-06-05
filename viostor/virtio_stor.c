@@ -30,8 +30,15 @@
  * SUCH DAMAGE.
  */
 #include "virtio_stor.h"
+#if defined(EVENT_TRACING)
+#include "virtio_stor.tmh"
+#endif
 
 BOOLEAN IsCrashDumpMode;
+
+#ifdef EVENT_TRACING
+PVOID TraceContext;
+#endif
 
 #if (NTDDI_VERSION > NTDDI_WIN7)
 sp_DRIVER_INITIALIZE DriverEntry;
@@ -169,6 +176,15 @@ CompleteDPC(
     IN ULONG  MessageID
     );
 
+#ifdef EVENT_TRACING
+VOID WppCleanupRoutine(PVOID arg1) {
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, "WppCleanupRoutine\n");
+
+    WPP_CLEANUP(NULL, TraceContext);
+}
+#endif
+
+
 ULONG
 DriverEntry(
     IN PVOID  DriverObject,
@@ -179,13 +195,19 @@ DriverEntry(
     HW_INITIALIZATION_DATA hwInitData;
     ULONG                  initResult;
 
+#ifdef EVENT_TRACING
+    STORAGE_TRACE_INIT_INFO initInfo;
+#else
+//FIXME
+#ifdef DBG
     InitializeDebugPrints((PDRIVER_OBJECT)DriverObject, (PUNICODE_STRING)RegistryPath);
+#endif
+#endif
 
     RhelDbgPrint(TRACE_LEVEL_ERROR, ("Viostor driver started...built on %s %s\n", __DATE__, __TIME__));
     IsCrashDumpMode = FALSE;
     if (RegistryPath == NULL) {
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                     ("DriverEntry: Crash dump mode\n"));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("DriverEntry: Crash dump mode\n"));
         IsCrashDumpMode = TRUE;
     }
 
@@ -225,8 +247,24 @@ DriverEntry(
                                     &hwInitData,
                                     NULL);
 
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
-                 ("Initialize returned 0x%x\n", initResult));
+#ifdef EVENT_TRACING
+    TraceContext = NULL;
+
+    memset(&initInfo, 0, sizeof(STORAGE_TRACE_INIT_INFO));
+    initInfo.Size = sizeof(STORAGE_TRACE_INIT_INFO);
+    initInfo.DriverObject = DriverObject;
+    initInfo.NumErrorLogRecords = 5;
+    initInfo.TraceCleanupRoutine = WppCleanupRoutine;
+    initInfo.TraceContext = NULL;
+
+    WPP_INIT_TRACING(DriverObject, RegistryPath, &initInfo);
+
+    if (initInfo.TraceContext != NULL) {
+        TraceContext = initInfo.TraceContext;
+    }
+#endif
+
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("Initialize returned 0x%x\n", initResult));
 
     return initResult;
 }
@@ -331,8 +369,7 @@ VirtIoFindAdapter(
         if (accessRange->RangeLength != 0) {
             int iBar = virtio_get_bar_index(&adaptExt->pci_config, accessRange->RangeStart);
             if (iBar == -1) {
-                RhelDbgPrint(TRACE_LEVEL_FATAL,
-                             ("Cannot get index for BAR %I64d\n", accessRange->RangeStart.QuadPart));
+                RhelDbgPrint(TRACE_LEVEL_FATAL, ("Cannot get index for BAR %I64d\n", accessRange->RangeStart.QuadPart));
                 return FALSE;
             }
             adaptExt->pci_bars[iBar].BasePA = accessRange->RangeStart;
@@ -699,7 +736,7 @@ VirtIoHwInitialize(
 
             status = StorPortInitializePerfOpts(DeviceExtension, TRUE, &perfData);
 
-            RhelDbgPrint(TRACE_LEVEL_FATAL, ("Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
                 perfData.Version, perfData.Flags, perfData.ConcurrentChannels, perfData.FirstRedirectionMessageNumber, perfData.LastRedirectionMessageNumber));
             if (status == STOR_STATUS_SUCCESS) {
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION)) {
@@ -723,7 +760,7 @@ VirtIoHwInitialize(
                 }
 #endif
                 perfData.Flags = adaptExt->perfFlags;
-                RhelDbgPrint(TRACE_LEVEL_FATAL, ("Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
+                RhelDbgPrint(TRACE_LEVEL_VERBOSE, ("Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
                     perfData.Version, perfData.Flags, perfData.ConcurrentChannels, perfData.FirstRedirectionMessageNumber, perfData.LastRedirectionMessageNumber));
                 status = StorPortInitializePerfOpts(DeviceExtension, FALSE, &perfData);
                 if (status != STOR_STATUS_SUCCESS) {
@@ -1081,7 +1118,6 @@ VirtIoBuildIo(
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
         return TRUE;
     }
-
 
     if (!cdb)
     {
@@ -1547,7 +1583,7 @@ CompleteRequestWithStatus(
 
         if ( cdb != NULL ) {
             UCHAR OpCode = cdb->CDB6GENERIC.OperationCode;
-	    if (( OpCode != SCSIOP_INQUIRY ) &&
+            if (( OpCode != SCSIOP_INQUIRY ) &&
                 ( OpCode != SCSIOP_REPORT_LUNS )) {
                 if (SetSenseInfo(Srb, SCSI_SENSE_UNIT_ATTENTION, SCSI_ADSENSE_PARAMETERS_CHANGED, SCSI_SENSEQ_CAPACITY_DATA_CHANGED)) {
                     status = SRB_STATUS_ERROR | SRB_STATUS_AUTOSENSE_VALID;
