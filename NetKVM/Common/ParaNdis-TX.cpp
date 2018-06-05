@@ -399,11 +399,7 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
 
         if (m_DpcWaiting == 0)
         {
-#if NDIS_SUPPORT_NDIS620
-            NdisMQueueDpcEx(m_Context->InterruptHandle, m_messageIndex, &DPCAffinity, NULL);
-#else
-            NdisMQueueDpc(m_Context->InterruptHandle, 0, 1 << KeGetCurrentProcessorNumber(), NULL);
-#endif
+            DoPendingTasks(NBLHolder);
         }
     }
     else
@@ -623,31 +619,45 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList)
     return bRestartStatus;
 }
 
-bool CParaNdisTX::DoPendingTasks()
+bool CParaNdisTX::DoPendingTasks(CNBL *nblHolder)
 {
     PNET_BUFFER_LIST pNBLReturnNow = nullptr;
     bool bRestartQueueStatus = false;
+    bool bFromDpc = nblHolder == nullptr;
     CRawCNBList  nbToFree;
     CRawCNBLList completedNBLs;
 
-    m_DpcWaiting.AddRef();
+    if (bFromDpc)
+    {
+        m_DpcWaiting.AddRef();
+    }
 
-    DoWithTXLock([&] ()
-                 {
-                    m_VirtQueue.ProcessTXCompletions(nbToFree);
-                    m_DpcWaiting.Release();
+    DoWithTXLock([&]()
+    {
+        m_VirtQueue.ProcessTXCompletions(nbToFree);
 
-                    bRestartQueueStatus = SendMapped(TRUE, completedNBLs);
-                    if (bRestartQueueStatus)
-                    {
-                        // the call initiated by Send(), we can give up
-                        // and let pending DPC do the job instead of wait
-                        // if we can't enable interrupts on queue right now,
-                        // we can retrieve completed packets and try again
-                        m_VirtQueue.ProcessTXCompletions(nbToFree);
-                        bRestartQueueStatus = SendMapped(true, completedNBLs);
-                    }
-                 });
+        if (bFromDpc)
+        {
+            m_DpcWaiting.Release();
+        }
+
+        if (bFromDpc || 0 == (LONG)m_DpcWaiting)
+        {
+            bRestartQueueStatus = SendMapped(bFromDpc, completedNBLs);
+            if (bRestartQueueStatus)
+            {
+                // we can enter here only when we called from DPC
+                // if we can't enable interrupts on queue right now,
+                // we can retrieve completed packets and try again
+                m_VirtQueue.ProcessTXCompletions(nbToFree);
+                bRestartQueueStatus = SendMapped(true, completedNBLs);
+            }
+        } else
+        {
+            // the call initiated by Send(), we can give up
+            // and let pending DPC do the job instead of wait
+        }
+    });
 
     if (!nbToFree.IsEmpty() || !completedNBLs.IsEmpty())
     {

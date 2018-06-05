@@ -235,7 +235,7 @@ public:
     ULONG GetFreeHWBuffers()
     { return m_VirtQueue.GetFreeHWBuffers(); }
 
-    bool DoPendingTasks();
+    bool DoPendingTasks(CNBL *nblHolder);
 
     void CompleteOutstandingNBLChain(PNET_BUFFER_LIST NBL, ULONG Flags = 0);
     void CompleteOutstandingInternalNBL(PNET_BUFFER_LIST NBL, BOOLEAN UnregisterOutstanding = TRUE);
