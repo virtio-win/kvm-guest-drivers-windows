@@ -30,14 +30,7 @@
 #define ___VIOSTOR_UTILS_H___
 
 
-#include <ntddk.h>
-#include <storport.h>
-#include <stdarg.h>
-#include "kdebugprint.h"
-#include "evntrace.h"
-
-//#define DBG 1
-//#define COM_DEBUG 1
+#include "virtio_stor_trace.h"
 
 #define CHECKBIT(value, nbit) virtio_is_feature_enabled(value, nbit)
 #define CHECKFLAG(value, flag) ((value & (flag)) == flag)
@@ -46,27 +39,7 @@
 #define CACHE_LINE_SIZE 64
 #define ROUND_TO_CACHE_LINES(Size)  (((ULONG_PTR)(Size) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1))
 
-int
-_cdecl
-_vsnprintf(
-    char *buf,
-    size_t size,
-    const char *fmt,
-    va_list args
-    );
-#define vsnprintf _vsnprintf
-
-void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath);
-
-extern int nViostorDebugLevel;
-
-#if DBG
-#define RhelDbgPrint(level, line) \
-    if ((!bDebugPrint) || level > nViostorDebugLevel) {} \
-    else VirtioDebugPrintProc line
-#else
-#define RhelDbgPrint(level, line) 
-#endif
+void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath);
 
 VOID
 LogError(
