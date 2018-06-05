@@ -27,6 +27,7 @@
  * SUCH DAMAGE.
  */
 #include"virtio_stor_utils.h"
+#include "kdebugprint.h"
 #include <ntstrsafe.h>
 
 // Global debug printout level and enable\disable flag
@@ -35,6 +36,7 @@ int bDebugPrint;
 int nViostorDebugLevel;
 
 
+#if !defined(EVENT_TRACING)
 #if defined(COM_DEBUG)
 
 #define RHEL_DEBUG_PORT     ((PUCHAR)0x3F8)
@@ -93,9 +95,7 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regi
     virtioDebugLevel = 0;
     nViostorDebugLevel = TRACE_LEVEL_ERROR;//TRACE_LEVEL_VERBOSE;//
 
-#if defined(EVENT_TRACING)
-    VirtioDebugPrintProc = DebugPrintFuncWPP;
-#elif defined(PRINT_DEBUG)
+#if defined(PRINT_DEBUG)
     VirtioDebugPrintProc = DebugPrintFunc;
 #elif defined(COM_DEBUG)
     VirtioDebugPrintProc = DebugPrintFuncSerial;
@@ -105,3 +105,10 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regi
 }
 
 tDebugPrintFunc VirtioDebugPrintProc;
+#else
+#include "virtio_stor_trace.h"
+bDebugPrint = 1;
+virtioDebugLevel = 0xFF;
+nViostorDebugLevel = 0xFF;
+tDebugPrintFunc VirtioDebugPrintProc = DbgPrint;
+#endif

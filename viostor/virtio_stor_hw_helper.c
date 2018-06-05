@@ -32,6 +32,11 @@
 #include "virtio_stor_hw_helper.h"
 #include"virtio_stor_utils.h"
 
+#if defined(EVENT_TRACING)
+#include "virtio_stor_hw_helper.tmh"
+#endif
+
+
 
 #define SET_VA_PA() { ULONG len; va = adaptExt->indirect ? srbExt->desc : NULL; \
                       pa = va ? StorPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0; \

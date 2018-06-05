@@ -37,6 +37,10 @@
 #include "virtio_stor_hw_helper.h"
 #include "virtio_stor.h"
 
+#if defined(EVENT_TRACING)
+#include "virtio_pci.tmh"
+#endif
+
 /* The lower 64k of memory is never mapped so we can use the same routines
  * for both port I/O and memory access and use the address alone to decide
  * which space to use.

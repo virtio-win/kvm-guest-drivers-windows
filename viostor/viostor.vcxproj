@@ -251,6 +251,38 @@
       <Inputs>$(ProjectDir)viostor.DVL.XML</Inputs>
       <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viostor.DVL.XML</Outputs>
     </CustomBuildStep>
+    <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">true</WppEnabled>
+      <WppSearchString Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
+      </WppSearchString>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">virtio_stor_trace.h</WppScanConfigurationData>
+    </ClCompile>
+    <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">true</WppEnabled>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">virtio_stor_trace.h</WppScanConfigurationData>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+    </ClCompile>
+    <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">true</WppEnabled>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">virtio_stor_trace.h</WppScanConfigurationData>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+    </ClCompile>
+    <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">true</WppEnabled>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">virtio_stor_trace.h</WppScanConfigurationData>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+    </ClCompile>
+    <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">true</WppEnabled>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">virtio_stor_trace.h</WppScanConfigurationData>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+    </ClCompile>
+    <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">true</WppEnabled>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">virtio_stor_trace.h</WppScanConfigurationData>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+    </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
@@ -262,6 +294,7 @@
   <ItemGroup>
     <ClInclude Include="virtio_stor.h" />
     <ClInclude Include="virtio_stor_hw_helper.h" />
+    <ClInclude Include="virtio_stor_trace.h" />
     <ClInclude Include="virtio_stor_utils.h" />
   </ItemGroup>
   <ItemGroup>
