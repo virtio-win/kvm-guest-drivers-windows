@@ -33,8 +33,14 @@
  */
 #include "osdep.h"
 #include "virtio_pci.h"
-#include "utils.h"
-#include "vioscsi.h"
+//#include "utils.h"
+//#include "vioscsi.h"
+#include "helper.h"
+#include "trace.h"
+
+#if defined(EVENT_TRACING)
+#include "virtio_pci.tmh"
+#endif
 
 /* The lower 64k of memory is never mapped so we can use the same routines
  * for both port I/O and memory access and use the address alone to decide
@@ -107,7 +113,7 @@ static void *mem_alloc_contiguous_pages(void *context, size_t size)
         RtlZeroMemory(ptr, size);
         return ptr;
     } else {
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Ran out of memory in alloc_pages_exact(%Id)\n", size));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " Ran out of memory in alloc_pages_exact(%Id)\n", size);
         return NULL;
     }
 }

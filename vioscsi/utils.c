@@ -26,14 +26,19 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#include "utils.h"
-#include <ntstrsafe.h>
+
+#include "helper.h"
+#include "trace.h"
 
 int virtioDebugLevel;
 int bDebugPrint;
-int nViostorDebugLevel;
+int nVioscsiDebugLevel;
+
+
+#if !defined(EVENT_TRACING)
 
 #if defined(COM_DEBUG)
+#include <ntstrsafe.h>
 
 #define RHEL_DEBUG_PORT     ((PUCHAR)0x3F8)
 #define TEMP_BUFFER_SIZE    256
@@ -63,9 +68,7 @@ static void DebugPrintFuncSerial(const char *format, ...)
     }
     va_end(list);
 }
-#endif
-
-#if defined(PRINT_DEBUG)
+#elif defined(PRINT_DEBUG)
 static void DebugPrintFunc(const char *format, ...)
 {
     va_list list;
@@ -73,27 +76,21 @@ static void DebugPrintFunc(const char *format, ...)
     vDbgPrintEx(DPFLTR_DEFAULT_ID, 9 | DPFLTR_MASK, format, list);
     va_end(list);
 }
-#endif
-
-static void DebugPrintFuncWPP(const char *format, ...)
-{
-// TODO later, if needed
-}
-
+#else
 static void NoDebugPrintFunc(const char *format, ...)
 {
 
 }
+#endif
+
 void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath)
 {
     //TBD - Read nDebugLevel and bDebugPrint from the registry
     bDebugPrint = 1;
     virtioDebugLevel = 0;
-    nViostorDebugLevel = TRACE_LEVEL_ERROR;
+    nVioscsiDebugLevel = TRACE_LEVEL_ERROR;
 
-#if defined(EVENT_TRACING)
-    VirtioDebugPrintProc = DebugPrintFuncWPP;
-#elif defined(PRINT_DEBUG)
+#if defined(PRINT_DEBUG)
     VirtioDebugPrintProc = DebugPrintFunc;
 #elif defined(COM_DEBUG)
     VirtioDebugPrintProc = DebugPrintFuncSerial;
@@ -103,6 +100,12 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
 }
 
 tDebugPrintFunc VirtioDebugPrintProc;
+#else
+bDebugPrint = 1;
+virtioDebugLevel = 0xFF;
+nViostorDebugLevel = 0xFF;
+tDebugPrintFunc VirtioDebugPrintProc = DbgPrint;
+#endif
 
 char *DbgGetScsiOpStr(IN PSCSI_REQUEST_BLOCK Srb)
 {

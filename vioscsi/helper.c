@@ -29,8 +29,12 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+#include "trace.h"
 #include "helper.h"
-#include "utils.h"
+
+#if defined(EVENT_TRACING)
+#include "helper.tmh"
+#endif
 
 #define SET_VA_PA() { ULONG len; va = adaptExt->indirect ? srbExt->desc : NULL; \
                       pa = va ? StorPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0; \
@@ -57,7 +61,7 @@ SendSRB(
 
 ENTER_FN();
 
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s srb %p isr %d, MessageId %x.\n", __FUNCTION__, Srb, isr, MessageID));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " SRB %p isr %d, MessageId %x.\n", Srb, isr, MessageID);
 
     if (Srb) {
         if (adaptExt->num_queues > 1) {
@@ -71,7 +75,7 @@ ENTER_FN();
                 QueueNumber = MESSAGE_TO_QUEUE(param.MessageNumber);
             }
             else {
-                RhelDbgPrint(TRACE_LEVEL_ERROR, ("StorPortGetStartIoPerfParams failed srb %p status 0x%x MessageNumber %d.\n", Srb, status, param.MessageNumber));
+                RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed srb %p status 0x%x MessageNumber %d.\n", Srb, status, param.MessageNumber);
                 QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
             }
         }
@@ -92,17 +96,18 @@ ENTER_FN();
     srbExt = (PSRB_EXTENSION)ExInterlockedRemoveHeadList(&element->srb_list, &element->srb_list_lock);
 
     if (!srbExt) {
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " No SRB Ext after ExInterlockedRemoveHeadList QueueNumber (%d) \n", QueueNumber);
         return;
     }
 
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s ExInterlockedRemoveHeadList Srb %p srbExt %p, QueueNumber %d vq_num %d.\n", __FUNCTION__, srbExt->Srb, srbExt, QueueNumber, srbExt->vq_num));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " ExInterlockedRemoveHeadList SRB %p srbExt %p, QueueNumber %d vq_num %d.\n", srbExt->Srb, srbExt, QueueNumber, srbExt->vq_num);
 
     MessageID = QUEUE_TO_MESSAGE(QueueNumber);
 
     VioScsiVQLock(DeviceExtension, MessageID, &LockHandle, isr);
 
     while (srbExt) {
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("%s add packet to queue Srb = %p isr = %d.\n", __FUNCTION__, srbExt->Srb, isr));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " add packet to queue (%d) SRB = %p isr = %d.\n", QueueNumber, srbExt->Srb, isr);
         SET_VA_PA();
         if (virtqueue_add_buf(adaptExt->vq[QueueNumber],
                          &srbExt->sg[0],
@@ -112,7 +117,7 @@ ENTER_FN();
             srbExt = (PSRB_EXTENSION)ExInterlockedRemoveHeadList(&element->srb_list, &element->srb_list_lock);
         }
         else {
-            RhelDbgPrint(TRACE_LEVEL_FATAL, ("%s Can not add packet to queue Srb = %p .\n", __FUNCTION__, srbExt->Srb));
+            RhelDbgPrint(TRACE_LEVEL_FATAL, " can not add packet to queue (%d) SRB = %p .\n", QueueNumber, srbExt->Srb);
             ExInterlockedInsertHeadList(&element->srb_list, &srbExt->list_entry, &element->srb_list_lock);
             notify = TRUE;
             srbExt = NULL;
@@ -155,6 +160,7 @@ ENTER_FN();
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
         virtqueue_kick(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE]);
+EXIT_FN();
         return TRUE;
     }
     SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUSY);
@@ -249,43 +255,43 @@ ENTER_FN();
 
     virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, seg_max),
                       &adaptExt->scsi_config.seg_max, sizeof(adaptExt->scsi_config.seg_max));
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("seg_max %lu\n", adaptExt->scsi_config.seg_max));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " seg_max %lu\n", adaptExt->scsi_config.seg_max);
 
     virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, num_queues),
                       &adaptExt->scsi_config.num_queues, sizeof(adaptExt->scsi_config.num_queues));
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("num_queues %lu\n", adaptExt->scsi_config.num_queues));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " num_queues %lu\n", adaptExt->scsi_config.num_queues);
 
     virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_sectors),
                       &adaptExt->scsi_config.max_sectors, sizeof(adaptExt->scsi_config.max_sectors));
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_sectors %lu\n", adaptExt->scsi_config.max_sectors));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " max_sectors %lu\n", adaptExt->scsi_config.max_sectors);
 
     virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, cmd_per_lun),
                       &adaptExt->scsi_config.cmd_per_lun, sizeof(adaptExt->scsi_config.cmd_per_lun));
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("cmd_per_lun %lu\n", adaptExt->scsi_config.cmd_per_lun));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " cmd_per_lun %lu\n", adaptExt->scsi_config.cmd_per_lun);
 
     virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, event_info_size),
                       &adaptExt->scsi_config.event_info_size, sizeof(adaptExt->scsi_config.event_info_size));
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("seg_max %lu\n", adaptExt->scsi_config.seg_max));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " seg_max %lu\n", adaptExt->scsi_config.seg_max);
 
     virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, sense_size),
                       &adaptExt->scsi_config.sense_size, sizeof(adaptExt->scsi_config.sense_size));
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("event_info_size %lu\n", adaptExt->scsi_config.event_info_size));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " event_info_size %lu\n", adaptExt->scsi_config.event_info_size);
 
     virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, cdb_size),
                       &adaptExt->scsi_config.cdb_size, sizeof(adaptExt->scsi_config.cdb_size));
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("cdb_size %lu\n", adaptExt->scsi_config.cdb_size));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " cdb_size %lu\n", adaptExt->scsi_config.cdb_size);
 
     virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_channel),
                       &adaptExt->scsi_config.max_channel, sizeof(adaptExt->scsi_config.max_channel));
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_channel %u\n", adaptExt->scsi_config.max_channel));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " max_channel %u\n", adaptExt->scsi_config.max_channel);
 
     virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_target),
                       &adaptExt->scsi_config.max_target, sizeof(adaptExt->scsi_config.max_target));
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_target %u\n", adaptExt->scsi_config.max_target));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " max_target %u\n", adaptExt->scsi_config.max_target);
 
     virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, max_lun),
                       &adaptExt->scsi_config.max_lun, sizeof(adaptExt->scsi_config.max_lun));
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("max_lun %lu\n", adaptExt->scsi_config.max_lun));
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " max_lun %lu\n", adaptExt->scsi_config.max_lun);
 
 EXIT_FN();
 }
@@ -307,7 +313,7 @@ InitVirtIODevice(
         LogError(adaptExt,
                 SP_INTERNAL_ADAPTER_ERROR,
                 __LINE__);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("Failed to initialize virtio device, error %x\n", status));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " Failed to initialize virtio device, error %x\n", status);
         return FALSE;
     }
     return TRUE;
@@ -340,7 +346,7 @@ ENTER_FN();
         LogError(DeviceExtension,
                 SP_INTERNAL_ADAPTER_ERROR,
                 __LINE__);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, ("CANNOT READ PCI CONFIGURATION SPACE %d\n", pci_cfg_len));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " CANNOT READ PCI CONFIGURATION SPACE %d\n", pci_cfg_len);
         return FALSE;
     }
 
@@ -351,8 +357,9 @@ ENTER_FN();
         pPciComHeader = &adaptExt->pci_config;
         if ((pPciComHeader->Status & PCI_STATUS_CAPABILITIES_LIST) == 0)
         {
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("NO CAPABILITIES_LIST\n"));
-        } else
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " NO CAPABILITIES_LIST\n");
+        }
+        else
         {
             if ((pPciComHeader->HeaderType & (~PCI_MULTIFUNCTION)) == PCI_DEVICE_TYPE)
             {
@@ -362,23 +369,23 @@ ENTER_FN();
                     pMsixCapOffset = (PPCI_MSIX_CAPABILITY)&adaptExt->pci_config_buf[CapOffset];
                     if (pMsixCapOffset->Header.CapabilityID == PCI_CAPABILITY_ID_MSIX)
                     {
-                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageControl.TableSize = %d\n", pMsixCapOffset->MessageControl.TableSize));
-                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageControl.FunctionMask = %d\n", pMsixCapOffset->MessageControl.FunctionMask));
-                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageControl.MSIXEnable = %d\n", pMsixCapOffset->MessageControl.MSIXEnable));
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, "MessageControl.TableSize = %d\n", pMsixCapOffset->MessageControl.TableSize);
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, "MessageControl.FunctionMask = %d\n", pMsixCapOffset->MessageControl.FunctionMask);
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, "MessageControl.MSIXEnable = %d\n", pMsixCapOffset->MessageControl.MSIXEnable);
 
-                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("MessageTable = %p\n", pMsixCapOffset->MessageTable));
-                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("PBATable = %d\n", pMsixCapOffset->PBATable));
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MessageTable = %lu\n", pMsixCapOffset->MessageTable.TableOffset);
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " PBATable = %lu\n", pMsixCapOffset->PBATable.TableOffset);
                         adaptExt->msix_enabled = (pMsixCapOffset->MessageControl.MSIXEnable == 1);
                     } else
                     {
-                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("CapabilityID = %x, Next CapOffset = %x\n", pMsixCapOffset->Header.CapabilityID, CapOffset));
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " CapabilityID = %x, Next CapOffset = %x\n", pMsixCapOffset->Header.CapabilityID, CapOffset);
                     }
                     CapOffset = pMsixCapOffset->Header.Next;
                 }
-                RhelDbgPrint(TRACE_LEVEL_INFORMATION, ("msix_enabled = %d\n", adaptExt->msix_enabled));
+                RhelDbgPrint(TRACE_LEVEL_INFORMATION, " msix_enabled = %d\n", adaptExt->msix_enabled);
             } else
             {
-                RhelDbgPrint(TRACE_LEVEL_FATAL, ("NOT A PCI_DEVICE_TYPE\n"));
+                RhelDbgPrint(TRACE_LEVEL_FATAL, " NOT A PCI_DEVICE_TYPE\n");
             }
         }
     }
@@ -390,7 +397,7 @@ ENTER_FN();
             int iBar = virtio_get_bar_index(&adaptExt->pci_config, accessRange->RangeStart);
             if (iBar == -1) {
                 RhelDbgPrint(TRACE_LEVEL_FATAL,
-                             ("Cannot get index for BAR %I64d\n", accessRange->RangeStart.QuadPart));
+                             " Cannot get index for BAR %I64d\n", accessRange->RangeStart.QuadPart);
                 return FALSE;
             }
             adaptExt->pci_bars[iBar].BasePA = accessRange->RangeStart;
@@ -425,6 +432,7 @@ ENTER_FN();
                      0, 1,
                      eventNode, va, pa) >= 0){
         virtqueue_kick(adaptExt->vq[VIRTIO_SCSI_EVENTS_QUEUE]);
+EXIT_FN();
         return TRUE;
     }
 EXIT_ERR();
