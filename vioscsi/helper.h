@@ -34,12 +34,20 @@
 
 
 #include <ntddk.h>
-
 #include <storport.h>
 
 #include "osdep.h"
 #include "virtio_pci.h"
 #include "vioscsi.h"
+
+#define CHECKBIT(value, nbit) virtio_is_feature_enabled(value, nbit)
+#define CHECKFLAG(value, flag) ((value & (flag)) == flag)
+#define SETFLAG(value, flag) (value |= (flag))
+
+#define CACHE_LINE_SIZE 64
+#define ROUND_TO_CACHE_LINES(Size)  (((ULONG_PTR)(Size) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1))
+
+
 #if (NTDDI_VERSION > NTDDI_WIN7)
 #include <srbhelper.h>
 

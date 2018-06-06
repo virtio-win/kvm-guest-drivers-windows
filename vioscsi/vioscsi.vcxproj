@@ -216,6 +216,46 @@
       <Inputs>$(ProjectDir)vioscsi.DVL.XML</Inputs>
       <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\vioscsi.DVL.XML</Outputs>
     </CustomBuildStep>
+    <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">true</WppEnabled>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">trace.h</WppScanConfigurationData>
+    </ClCompile>
+    <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">true</WppEnabled>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">trace.h</WppScanConfigurationData>
+    </ClCompile>
+    <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">true</WppEnabled>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">trace.h</WppScanConfigurationData>
+    </ClCompile>
+    <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">true</WppEnabled>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">trace.h</WppScanConfigurationData>
+    </ClCompile>
+    <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">true</WppEnabled>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">trace.h</WppScanConfigurationData>
+    </ClCompile>
+    <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">true</WppEnabled>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">trace.h</WppScanConfigurationData>
+    </ClCompile>
+    <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">true</WppEnabled>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">trace.h</WppScanConfigurationData>
+    </ClCompile>
+    <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">true</WppEnabled>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">trace.h</WppScanConfigurationData>
+    </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <Inf Include="vioscsi.inx" />
@@ -226,7 +266,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="helper.h" />
-    <ClInclude Include="utils.h" />
+    <ClInclude Include="trace.h" />
     <ClInclude Include="vioscsi.h" />
   </ItemGroup>
   <ItemGroup>
