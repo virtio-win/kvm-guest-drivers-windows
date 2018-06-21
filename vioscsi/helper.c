@@ -59,7 +59,7 @@ SendSRB(
     ULONG               status = STOR_STATUS_SUCCESS;
     PREQUEST_LIST       element = NULL;
 
-ENTER_FN();
+ENTER_FN_SRB();
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " SRB %p isr %d, MessageId %x.\n", Srb, isr, MessageID);
 
@@ -138,7 +138,7 @@ ENTER_FN();
     }
 #endif
 #endif
-EXIT_FN();
+EXIT_FN_SRB();
 }
 
 BOOLEAN

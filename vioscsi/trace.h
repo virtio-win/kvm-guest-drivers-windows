@@ -79,6 +79,8 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
 #define ENTER_FN() RhelDbgPrint(TRACE_LEVEL_VERBOSE, " --> %s.\n",__FUNCTION__)
 #define EXIT_FN()  RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <-- %s.\n",__FUNCTION__)
 #define EXIT_ERR() RhelDbgPrint(TRACE_LEVEL_ERROR, " <--> %s (%d).\n", __FUNCTION__, __LINE__)
+#define ENTER_FN_SRB() RhelDbgPrint(TRACE_LEVEL_VERBOSE, " --> %s Srb = 0x%p.\n",__FUNCTION__, Srb)
+#define EXIT_FN_SRB()  RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <-- %s Srb = 0x%p.\n",__FUNCTION__, Srb)
 
 #else
 #include <stortrce.h>
@@ -108,12 +110,18 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
 // begin_wpp config
 // USEPREFIX (RhelDbgPrint, "%!STDPREFIX! %!FUNC!");
 // FUNC RhelDbgPrint(LEVEL, MSG, ...);
-// USEPREFIX (ENTER_FN, "%!STDPREFIX! %!FUNC!");
+// USEPREFIX (ENTER_FN, "%!STDPREFIX! ---> %!FUNC!");
 // FUNC ENTER_FN{LEVEL=TRACE_LEVEL_VERBOSE}(...);
-// USEPREFIX (EXIT_FN, "%!STDPREFIX! %!FUNC!");
+// USEPREFIX (EXIT_FN, "%!STDPREFIX! <--- %!FUNC!");
 // FUNC EXIT_FN{LEVEL=TRACE_LEVEL_VERBOSE}(...);
-// USEPREFIX (EXIT_ERR, "%!STDPREFIX! %!FUNC! ERROR line %d", __LINE__);
+// USEPREFIX (EXIT_ERR, "%!STDPREFIX! <--> %!FUNC! ERROR line %d", __LINE__);
 // FUNC EXIT_ERR{LEVEL=TRACE_LEVEL_ERROR}(...);
+
+// USEPREFIX (ENTER_FN_SRB(PVOID Srb), "%!STDPREFIX! ---> %!FUNC! 0x%p.", Srb);
+// FUNC ENTER_FN_SRB{LEVEL=TRACE_LEVEL_VERBOSE}(...);
+// USEPREFIX (EXIT_FN_SRB(PVOID Srb), "%!STDPREFIX! <--- %!FUNC! 0x%p.", Srb);
+// FUNC EXIT_FN_SRB{LEVEL=TRACE_LEVEL_VERBOSE}(...);
+
 // end_wpp
 
 #define WPP_CHECK_FOR_NULL_STRING

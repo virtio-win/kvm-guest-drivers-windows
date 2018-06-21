@@ -893,7 +893,7 @@ VioScsiStartIo(
     IN PSCSI_REQUEST_BLOCK Srb
     )
 {
-ENTER_FN();
+ENTER_FN_SRB();
     if (PreProcessRequest(DeviceExtension, (PSRB_TYPE)Srb))
     {
         CompleteRequest(DeviceExtension, (PSRB_TYPE)Srb);
@@ -902,7 +902,7 @@ ENTER_FN();
     {
         SendSRB(DeviceExtension, (PSRB_TYPE)Srb, FALSE, -1);
     }
-EXIT_FN();
+EXIT_FN_SRB();
     return TRUE;
 }
 
@@ -919,6 +919,8 @@ HandleResponse(
     PVOID senseInfoBuffer = NULL;
     UCHAR srbStatus = SRB_STATUS_SUCCESS;
     ULONG srbDataTransferLen = SRB_DATA_TRANSFER_LENGTH(Srb);
+
+ENTER_FN();
 
     switch (resp->response) {
     case VIRTIO_SCSI_S_OK:
@@ -992,6 +994,8 @@ HandleResponse(
     }
     SRB_SET_SRB_STATUS(Srb, srbStatus);
     CompleteRequest(DeviceExtension, Srb);
+
+EXIT_FN();
 }
 
 BOOLEAN
@@ -1261,7 +1265,7 @@ VioScsiBuildIo(
 #endif
 #endif
 
-ENTER_FN();
+ENTER_FN_SRB();
     cdb      = SRB_CDB(Srb);
     srbExt   = SRB_EXTENSION(Srb);
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
@@ -1335,7 +1339,7 @@ ENTER_FN();
     }
     srbExt->in = sgElement - srbExt->out;
 
-EXIT_FN();
+EXIT_FN_SRB();
     return TRUE;
 }
 
@@ -1481,7 +1485,7 @@ PreProcessRequest(
 {
     PADAPTER_EXTENSION adaptExt;
 
-ENTER_FN();
+ENTER_FN_SRB();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     switch (SRB_FUNCTION(Srb)) {
@@ -1500,7 +1504,7 @@ ENTER_FN();
             VioScsiIoControl(DeviceExtension, Srb);
             return TRUE;
     }
-EXIT_FN();
+EXIT_FN_SRB();
     return FALSE;
 }
 
@@ -1513,7 +1517,7 @@ PostProcessRequest(
     PCDB                  cdb;
     PADAPTER_EXTENSION    adaptExt;
 
-ENTER_FN();
+ENTER_FN_SRB();
     if (SRB_FUNCTION(Srb) != SRB_FUNCTION_EXECUTE_SCSI) {
         return;
     }
@@ -1542,7 +1546,7 @@ ENTER_FN();
            break;
 
     }
-EXIT_FN();
+EXIT_FN_SRB();
 }
 
 VOID
@@ -1551,12 +1555,12 @@ CompleteRequest(
     IN PSRB_TYPE Srb
     )
 {
-ENTER_FN();
+ENTER_FN_SRB();
     PostProcessRequest(DeviceExtension, Srb);
     StorPortNotification(RequestComplete,
                          DeviceExtension,
                          Srb);
-EXIT_FN();
+EXIT_FN_SRB();
 }
 
 VOID
@@ -1597,6 +1601,7 @@ TransportReset(
 {
     UCHAR TargetId = evt->lun[1];
     UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
+ENTER_FN();
 
     switch (evt->reason)
     {
@@ -1609,6 +1614,7 @@ TransportReset(
         default:
            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <--> Unsupport virtio scsi event reason 0x%x\n", evt->reason);
     }
+EXIT_FN();
 }
 
 VOID
@@ -1621,6 +1627,7 @@ ParamChange(
     UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
     UCHAR AdditionalSenseCode = (UCHAR)(evt->reason & 255);
     UCHAR AdditionalSenseCodeQualifier = (UCHAR)(evt->reason >> 8);
+ENTER_FN();
 
     if (AdditionalSenseCode == SCSI_ADSENSE_PARAMETERS_CHANGED && 
        (AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_PARAMETERS_CHANGED || 
@@ -1629,6 +1636,7 @@ ParamChange(
     {
         StorPortNotification( BusChangeDetected, DeviceExtension, 0);
     }
+EXIT_FN();
 }
 
 VOID
@@ -1666,7 +1674,7 @@ VioScsiWmiSrb(
     PADAPTER_EXTENSION    adaptExt;
     PSRB_WMI_DATA pSrbWmi = SRB_WMI_DATA(Srb);
 
-ENTER_FN();
+ENTER_FN_SRB();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     ASSERT(SRB_FUNCTION(Srb) == SRB_FUNCTION_WMI);
@@ -1699,7 +1707,7 @@ ENTER_FN();
         SRB_SET_SRB_STATUS(Srb, status);
     }
 
-EXIT_FN();
+EXIT_FN_SRB();
 }
 
 VOID
@@ -1712,7 +1720,7 @@ VioScsiIoControl(
     PVOID           srbDataBuffer = SRB_DATA_BUFFER(Srb);
     PADAPTER_EXTENSION    adaptExt;
 
-ENTER_FN();
+ENTER_FN_SRB();
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     srbControl = (PSRB_IO_CONTROL)srbDataBuffer;
@@ -1730,7 +1738,7 @@ ENTER_FN();
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> Unsupport control code 0x%x\n", srbControl->ControlCode);
             break;
     }
-EXIT_FN();
+EXIT_FN_SRB();
 }
 
 UCHAR
@@ -1809,7 +1817,7 @@ VioScsiSaveInquiryData(
     PCDB cdb;
     ULONG dataLen;
     UCHAR SrbStatus = SRB_STATUS_SUCCESS;
-ENTER_FN();
+ENTER_FN_SRB();
 
     if (!Srb)
         return;
@@ -1877,7 +1885,7 @@ ENTER_FN();
             CopyBufferToAnsiString(adaptExt->rev_id, InquiryData->ProductRevisionLevel, ' ',sizeof(InquiryData->ProductRevisionLevel));
         }
     }
-EXIT_FN();
+EXIT_FN_SRB();
 }
 
 BOOLEAN
