@@ -54,7 +54,7 @@ SendSRB(
     ULONGLONG           pa = 0;
     ULONG               QueueNumber = 0;
     ULONG               OldIrql = 0;
-    bool                notify = FALSE;
+    BOOLEAN             notify = FALSE;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
     PREQUEST_LIST       element = NULL;
@@ -113,7 +113,7 @@ ENTER_FN_SRB();
                          &srbExt->sg[0],
                          srbExt->out, srbExt->in,
                          &srbExt->cmd, va, pa) >= 0){
-            notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
+            notify  = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]) ? TRUE : notify;
             srbExt = (PSRB_EXTENSION)ExInterlockedRemoveHeadList(&element->srb_list, &element->srb_list_lock);
         }
         else {
