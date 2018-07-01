@@ -72,7 +72,7 @@ protected:
     CObservee() {}
 
 private:
-    CNdisList<CObserver<TNotifyObject>, CRawAccess, CNonCountingObject> m_ObserversList;
+    CNdisList<CObserver<TNotifyObject>, CRawAccess, CCountingObject> m_ObserversList;
 
     CObservee(const CObservee& observee);
     CObservee& operator=(const CObservee& observee);
