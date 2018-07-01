@@ -127,12 +127,10 @@ struct CPUPathBundle : public CPlacementAllocatable {
     {
         if (rxCreated)
         {
-            rxPath.~CParaNdisRX();
             rxCreated = false;
         }
         if (txCreated)
         {
-            txPath.~CParaNdisTX();
             txCreated = false;
         }
     }
