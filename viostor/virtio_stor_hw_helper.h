@@ -85,6 +85,7 @@ SrbGetPnpInfo(_In_ PVOID Srb, ULONG* PnPFlags, ULONG* PnPAction) {
 #define SRB_DATA_TRANSFER_LENGTH(Srb) SrbGetDataTransferLength(Srb)
 #define SRB_LENGTH(Srb) SrbGetSrbLength(Srb)
 #define SRB_WMI_DATA(Srb) (PSRBEX_DATA_WMI)SrbGetSrbExDataByType((PSTORAGE_REQUEST_BLOCK)Srb, SrbExDataTypeWmi)
+#define SRB_PNP_DATA(Srb) (PSRBEX_DATA_PNP)SrbGetSrbExDataByType((PSTORAGE_REQUEST_BLOCK)Srb, SrbExDataTypePnP)
 #define SRB_GET_SENSE_INFO(Srb, senseInfoBuffer, senseInfoBufferLen) SrbGetScsiData(Srb, NULL, NULL, NULL, &senseInfoBuffer, &senseInfoBufferLen)
 #define SRB_GET_SENSE_INFO_BUFFER(Srb, senseInfoBuffer) senseInfoBuffer = SrbGetSenseInfoBuffer(Srb)
 #define SRB_GET_SENSE_INFO_BUFFER_LENGTH(Srb, senseInfoBufferLength) senseInfoBufferLength = SrbGetSenseInfoBufferLength(Srb)
@@ -108,6 +109,7 @@ SrbGetPnpInfo(_In_ PVOID Srb, ULONG* PnPFlags, ULONG* PnPAction) {
 #define SRB_DATA_TRANSFER_LENGTH(Srb) Srb->DataTransferLength
 #define SRB_LENGTH(Srb) Srb->Lenght
 #define SRB_WMI_DATA(Srb) (PSCSI_WMI_REQUEST_BLOCK)Srb
+#define SRB_PNP_DATA(Srb) (PSCSI_PNP_REQUEST_BLOCK)Srb
 #define SRB_GET_SENSE_INFO(Srb, senseInfoBuffer, senseInfoBufferLen) senseInfoBuffer = Srb->SenseInfoBuffer;senseInfoBufferLen = Srb->SenseInfoBufferLength
 #define SRB_GET_SENSE_INFO_BUFFER(Srb, senseInfoBuffer)  senseInfoBuffer = Srb->SenseInfoBuffer
 #define SRB_GET_SENSE_INFO_BUFFER_LENGTH(Srb, senseInfoBufferLength) senseInfoBufferLength = Srb->SenseInfoBufferLength
