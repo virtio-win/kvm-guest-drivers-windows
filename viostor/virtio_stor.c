@@ -839,7 +839,25 @@ VirtIoStartIo(
             CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
             return TRUE;
         }
-        case SRB_FUNCTION_PNP:
+        case SRB_FUNCTION_PNP: {
+            UCHAR SrbStatus = SRB_STATUS_SUCCESS;
+            ULONG SrbPnPFlags;
+            ULONG PnPAction;
+            SRB_GET_PNP_INFO(Srb, SrbPnPFlags, PnPAction);
+            if ((SrbPnPFlags & SRB_PNP_FLAGS_ADAPTER_REQUEST) == 0) {
+                RhelDbgPrint(TRACE_LEVEL_FATAL, " not SRB_PNP_FLAGS_ADAPTER_REQUEST SrbPnPFlags = %d, PnPAction = %d\n", SrbPnPFlags, PnPAction);
+                if ((PnPAction == StorQueryCapabilities) && (SRB_DATA_TRANSFER_LENGTH(Srb) >= sizeof(STOR_DEVICE_CAPABILITIES))) {
+                    PSTOR_DEVICE_CAPABILITIES storCapabilities = (PSTOR_DEVICE_CAPABILITIES)SRB_DATA_BUFFER(Srb);
+                    RtlZeroMemory(storCapabilities, sizeof(*storCapabilities));
+                    storCapabilities->Removable = 1;
+                }
+                else {
+                    SrbStatus = SRB_STATUS_INVALID_REQUEST;
+                }
+            }
+            CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SrbStatus);
+            return TRUE;
+        }
         case SRB_FUNCTION_POWER:
         case SRB_FUNCTION_RESET_BUS:
         case SRB_FUNCTION_RESET_DEVICE:
