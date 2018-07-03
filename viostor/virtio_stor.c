@@ -1266,11 +1266,14 @@ RhelScsiGetInquiryData(
     )
 {
 
-    PINQUIRYDATA InquiryData;
-    ULONG dataLen;
+    PINQUIRYDATA InquiryData = NULL;
+    ULONG dataLen = 0;
     UCHAR SrbStatus = SRB_STATUS_INVALID_LUN;
     PCDB cdb = SRB_CDB(Srb);
-    PADAPTER_EXTENSION adaptExt;
+    PADAPTER_EXTENSION adaptExt = NULL;
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    STOR_UNIT_ATTRIBUTES attributes = {0};
+#endif
 
     if (!cdb)
         return SRB_STATUS_ERROR;
@@ -1389,6 +1392,21 @@ RhelScsiGetInquiryData(
         StorPortMoveMemory(InquiryData, &adaptExt->inquiry_data, dataLen);
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, dataLen);
     }
+
+    StorPortSetDeviceQueueDepth(DeviceExtension,
+        SRB_PATH_ID(Srb),
+        SRB_TARGET_ID(Srb),
+        SRB_LUN(Srb),
+        adaptExt->queue_depth);
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    attributes.DeviceAttentionSupported = 1;
+    attributes.AsyncNotificationSupported = 1;
+    attributes.D3ColdNotSupported = 1;
+
+    StorPortSetUnitAttributes(DeviceExtension,
+        (PSTOR_ADDRESS)&adaptExt->device_address,
+        attributes);
+#endif
 
     return SrbStatus;
 }
@@ -1525,12 +1543,7 @@ RhelScsiGetCapacity(
     PADAPTER_EXTENSION adaptExt= (PADAPTER_EXTENSION)DeviceExtension;
     PCDB cdb = SRB_CDB(Srb);
     UCHAR  PMI = 0;
-    BOOLEAN depthSet = StorPortSetDeviceQueueDepth(DeviceExtension,
-                                           SRB_PATH_ID(Srb),
-                                           SRB_TARGET_ID(Srb),
-                                           SRB_LUN(Srb),
-                                           adaptExt->queue_depth);
-    ASSERT(depthSet);
+
     if (!cdb)
         return SRB_STATUS_ERROR;
 
