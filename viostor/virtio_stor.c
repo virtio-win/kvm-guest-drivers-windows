@@ -1158,14 +1158,14 @@ VirtIoBuildIo(
 
     if (SRB_FUNCTION(Srb) != SRB_FUNCTION_EXECUTE_SCSI )
     {
-        RhelDbgPrint(TRACE_LEVEL_ERROR, " Srb = 0x%p Function = 0x%x\n", Srb, SRB_FUNCTION(Srb));
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Srb = 0x%p Function = 0x%x\n", Srb, SRB_FUNCTION(Srb));
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
         return TRUE;
     }
 
     if (!cdb)
     {
-        RhelDbgPrint(TRACE_LEVEL_ERROR, " no CDB ( Srb = 0x%p on %d::%d::%d FUnction = 0x%x)\n", Srb, SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), SRB_FUNCTION(Srb));
+        RhelDbgPrint(TRACE_LEVEL_ERROR, " no CDB ( Srb = 0x%p on %d::%d::%d Function = 0x%x)\n", Srb, SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), SRB_FUNCTION(Srb));
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
         return TRUE;
     }
@@ -1638,7 +1638,7 @@ CompleteRequestWithStatus(
     if (( SRB_FUNCTION(Srb) == SRB_FUNCTION_EXECUTE_SCSI ) &&
         ( adaptExt->check_condition == TRUE ) &&
         ( status == SRB_STATUS_SUCCESS ) &&
-        ( !CHECKFLAG(SRB_FLAGS(Srb) ,SRB_FLAGS_DISABLE_AUTOSENSE) )) {
+        ( !CHECKFLAG(SRB_FLAGS(Srb), SRB_FLAGS_DISABLE_AUTOSENSE) )) {
         PCDB cdb = SRB_CDB(Srb);
 
         if ( cdb != NULL ) {
