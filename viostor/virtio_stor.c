@@ -160,6 +160,12 @@ CompleteRequestWithStatus(
     IN UCHAR status
     );
 
+VOID
+FORCEINLINE
+DeviceChangeNotification(
+    IN PVOID DeviceExtension
+    );
+
 BOOLEAN
 FORCEINLINE
 SetSenseInfo(
@@ -968,7 +974,7 @@ VirtIoInterrupt(
         RhelGetDiskGeometry(DeviceExtension);
         isInterruptServiced = TRUE;
         adaptExt->check_condition = TRUE;
-        StorPortNotification( BusChangeDetected, DeviceExtension, 0);
+        DeviceChangeNotification(DeviceExtension);
     }
     if (!isInterruptServiced) {
         RhelDbgPrint(TRACE_LEVEL_ERROR, " was not serviced ISR status = %d\n", intReason);
@@ -1070,7 +1076,7 @@ VirtIoHwReinitialize(
 
     if (CHECKBIT((old_features ^ adaptExt->features), VIRTIO_BLK_F_RO)) {
         adaptExt->check_condition = TRUE;
-        StorPortNotification( BusChangeDetected, DeviceExtension, 0);
+        DeviceChangeNotification(DeviceExtension);
     }
     return TRUE;
 }
@@ -1213,7 +1219,7 @@ VirtIoMSInterruptRoutine (
         if (MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR) {
             RhelGetDiskGeometry(DeviceExtension);
             adaptExt->check_condition = TRUE;
-            StorPortNotification( BusChangeDetected, DeviceExtension, 0);
+            DeviceChangeNotification(DeviceExtension);
             return TRUE;
         }
     }
@@ -1591,6 +1597,26 @@ CompleteRequestWithStatus(
     SRB_SET_SRB_STATUS(Srb, status);
     CompleteSRB(DeviceExtension,
                 Srb);
+}
+
+VOID
+FORCEINLINE
+DeviceChangeNotification(
+    IN PVOID DeviceExtension
+)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    StorPortStateChangeDetected(DeviceExtension,
+                                STATE_CHANGE_LUN,
+                                (PSTOR_ADDRESS)&adaptExt->device_address,
+                                0,
+                                NULL,
+                                NULL);
+#else
+    StorPortNotification( BusChangeDetected, DeviceExtension, 0);
+#endif
+     RhelDbgPrint(TRACE_LEVEL_FATAL, " StorPortStateChangeDetected.\n");
 }
 
 BOOLEAN
