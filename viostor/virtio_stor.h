@@ -135,6 +135,12 @@ typedef struct virtio_bar {
     BOOLEAN           bPortSpace;
 } VIRTIO_BAR, *PVIRTIO_BAR;
 
+typedef struct _SENSE_INFO {
+    UCHAR senseKey;
+    UCHAR additionalSenseCode;
+    UCHAR additionalSenseCodeQualifier;
+} SENSE_INFO, *PSENSE_INFO;
+
 typedef struct _ADAPTER_EXTENSION {
     VirtIODevice          vdev;
 
@@ -172,11 +178,15 @@ typedef struct _ADAPTER_EXTENSION {
     ULONG                 perfFlags;
     PSTOR_DPC             dpc;
     BOOLEAN               dpc_ok;
+    BOOLEAN               check_condition;
+    SENSE_INFO            sense_info;
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    STOR_ADDR_BTL8        device_address;
+#endif
 #ifdef DBG
     ULONG                 srb_cnt;
     ULONG                 inqueue_cnt;
 #endif
-    BOOLEAN               check_condition;
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
 typedef struct _VRING_DESC_ALIAS
