@@ -427,6 +427,15 @@ VirtIoFindAdapter(
     }
 #endif
 
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    adaptExt->device_address.Type = STOR_ADDRESS_TYPE_BTL8;
+    adaptExt->device_address.Port = 0;
+    adaptExt->device_address.AddressLength = STOR_ADDR_BTL8_ADDRESS_LENGTH;
+    adaptExt->device_address.Path = 0;
+    adaptExt->device_address.Target = 0;
+    adaptExt->device_address.Lun = 0;
+#endif
+
     /* initialize the virtual device */
     res = InitVirtIODevice(DeviceExtension);
     if (res != SP_RETURN_FOUND) {
