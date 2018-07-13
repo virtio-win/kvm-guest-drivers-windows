@@ -1554,20 +1554,30 @@ RhelScsiGetCapacity(
 {
     UCHAR SrbStatus = SRB_STATUS_SUCCESS;
     PREAD_CAPACITY_DATA readCap;
+#if (NTDDI_VERSION >= NTDDI_WIN7)
+    PREAD_CAPACITY16_DATA readCapEx;
+#else
     PREAD_CAPACITY_DATA_EX readCapEx;
+#endif
     u64 lastLBA;
     EIGHT_BYTE lba;
     u64 blocksize;
     PADAPTER_EXTENSION adaptExt= (PADAPTER_EXTENSION)DeviceExtension;
     PCDB cdb = SRB_CDB(Srb);
+    ULONG srbdatalen = 0;
     UCHAR  PMI = 0;
 
     if (!cdb)
         return SRB_STATUS_ERROR;
 
     readCap = (PREAD_CAPACITY_DATA)SRB_DATA_BUFFER(Srb);
+#if (NTDDI_VERSION >= NTDDI_WIN7)
+    readCapEx = (PREAD_CAPACITY16_DATA)SRB_DATA_BUFFER(Srb);
+#else
     readCapEx = (PREAD_CAPACITY_DATA_EX)SRB_DATA_BUFFER(Srb);
+#endif
 
+    srbdatalen = SRB_DATA_TRANSFER_LENGTH(Srb);
     lba.AsULongLong = 0;
     if (cdb->CDB6GENERIC.OperationCode == SCSIOP_READ_CAPACITY16 ){
          PMI = cdb->READ_CAPACITY16.PMI & 1;
@@ -1590,7 +1600,7 @@ RhelScsiGetCapacity(
     lastLBA = adaptExt->info.capacity / (blocksize / SECTOR_SIZE) - 1;
     adaptExt->lastLBA = adaptExt->info.capacity;
 
-    if (SRB_DATA_TRANSFER_LENGTH(Srb) == sizeof(READ_CAPACITY_DATA)) {
+    if (srbdatalen == sizeof(READ_CAPACITY_DATA)) {
         if (lastLBA > 0xFFFFFFFF) {
             readCap->LogicalBlockAddress = (ULONG)-1;
         } else {
@@ -1600,12 +1610,18 @@ RhelScsiGetCapacity(
         REVERSE_BYTES(&readCap->BytesPerBlock,
                           &blocksize);
     } else {
-        ASSERT(SRB_DATA_TRANSFER_LENGTH(Srb) ==
-                          sizeof(READ_CAPACITY_DATA_EX));
         REVERSE_BYTES_QUAD(&readCapEx->LogicalBlockAddress.QuadPart,
                           &lastLBA);
         REVERSE_BYTES(&readCapEx->BytesPerBlock,
                           &blocksize);
+
+#if (NTDDI_VERSION >= NTDDI_WIN7)
+        if (srbdatalen >= (ULONG)FIELD_OFFSET(READ_CAPACITY16_DATA, Reserved3)) {
+            readCapEx->LogicalPerPhysicalExponent = adaptExt->info.physical_block_exp;
+            srbdatalen = FIELD_OFFSET(READ_CAPACITY16_DATA, Reserved3);
+            SRB_SET_DATA_TRANSFER_LENGTH(Srb, FIELD_OFFSET(READ_CAPACITY16_DATA, Reserved3));
+        }
+#endif
     }
     return SrbStatus;
 }
