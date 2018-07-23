@@ -168,7 +168,8 @@ void *virtqueue_get_buf(
     put_unused_desc_chain(vq, idx);
 
     vq->last_used++;
-    if (vq->vdev->event_suppression_enabled && virtqueue_is_interrupt_enabled(vq)) {
+
+    if (virtqueue_is_interrupt_enabled(vq)) {
         vring_used_event(&vq->vring) = vq->last_used;
         KeMemoryBarrier();
     }
@@ -217,10 +218,7 @@ bool virtqueue_enable_cb(struct virtqueue *vq)
 {
     if (!virtqueue_is_interrupt_enabled(vq)) {
         vq->master_vring_avail.flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
-        if (!vq->vdev->event_suppression_enabled)
-        {
-            vq->vring.avail->flags = vq->master_vring_avail.flags;
-        }
+        vq->vring.avail->flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
     }
 
     vring_used_event(&vq->vring) = vq->last_used;
@@ -236,10 +234,7 @@ bool virtqueue_enable_cb_delayed(struct virtqueue *vq)
 
     if (!virtqueue_is_interrupt_enabled(vq)) {
         vq->master_vring_avail.flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
-        if (!vq->vdev->event_suppression_enabled)
-        {
-            vq->vring.avail->flags = vq->master_vring_avail.flags;
-        }
+        vq->vring.avail->flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
     }
 
     /* Note that 3/4 is an arbitrary threshold */
@@ -254,10 +249,7 @@ void virtqueue_disable_cb(struct virtqueue *vq)
 {
     if (virtqueue_is_interrupt_enabled(vq)) {
         vq->master_vring_avail.flags |= VIRTQ_AVAIL_F_NO_INTERRUPT;
-        if (!vq->vdev->event_suppression_enabled)
-        {
-            vq->vring.avail->flags = vq->master_vring_avail.flags;
-        }
+        vq->vring.avail->flags |= VIRTQ_AVAIL_F_NO_INTERRUPT;
     }
 }
 
