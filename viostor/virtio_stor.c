@@ -461,7 +461,7 @@ VirtIoFindAdapter(
         ConfigInfo->NumberOfPhysicalBreaks = MAX_PHYS_SEGMENTS + 1;
     }
 
-    ConfigInfo->MaximumTransferLength = 0x00FFFFFF;
+    ConfigInfo->MaximumTransferLength = VIOBLK_MAX_TRANSFER;
 
     if(!adaptExt->dump_mode) {
         adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
@@ -1314,10 +1314,15 @@ RhelScsiGetInquiryData(
         SupportPages = (PVPD_SUPPORTED_PAGES_PAGE)SRB_DATA_BUFFER(Srb);
         memset(SupportPages, 0, sizeof(VPD_SUPPORTED_PAGES_PAGE));
         SupportPages->PageCode = VPD_SUPPORTED_PAGES;
-        SupportPages->PageLength = 3;
         SupportPages->SupportedPageList[0] = VPD_SUPPORTED_PAGES;
         SupportPages->SupportedPageList[1] = VPD_SERIAL_NUMBER;
         SupportPages->SupportedPageList[2] = VPD_DEVICE_IDENTIFIERS;
+#if (NTDDI_VERSION >= NTDDI_WIN7)
+        SupportPages->SupportedPageList[3] = VPD_BLOCK_LIMITS;
+        SupportPages->PageLength = 4;
+#else
+        SupportPages->PageLength = 3;
+#endif
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_SUPPORTED_PAGES_PAGE) + SupportPages->PageLength));
     }
     else if ((cdb->CDB6INQUIRY3.PageCode == VPD_SERIAL_NUMBER) &&
@@ -1403,6 +1408,27 @@ RhelScsiGetInquiryData(
 #endif
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, len);
     }
+#if (NTDDI_VERSION >= NTDDI_WIN7)
+    else if ((cdb->CDB6INQUIRY3.PageCode == VPD_BLOCK_LIMITS) &&
+             (cdb->CDB6INQUIRY3.EnableVitalProductData == 1) &&
+             (dataLen >= 0x14)) {
+
+        PVPD_BLOCK_LIMITS_PAGE LimitsPage;
+        ULONG max_io_size = VIOBLK_MAX_TRANSFER / adaptExt->info.size_max;
+        USHORT pageLen = 0x10;
+
+        LimitsPage = (PVPD_BLOCK_LIMITS_PAGE)SRB_DATA_BUFFER(Srb);
+        LimitsPage->DeviceType = DIRECT_ACCESS_DEVICE;
+        LimitsPage->DeviceTypeQualifier = DEVICE_CONNECTED;
+        LimitsPage->PageCode = VPD_BLOCK_LIMITS;
+        REVERSE_BYTES_SHORT(&LimitsPage->PageLength, &pageLen);
+        REVERSE_BYTES_SHORT(&LimitsPage->OptimalTransferLengthGranularity, &adaptExt->info.min_io_size);
+        REVERSE_BYTES(&LimitsPage->MaximumTransferLength, &max_io_size);
+        REVERSE_BYTES(&LimitsPage->OptimalTransferLength, &adaptExt->info.opt_io_size);
+
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, (FIELD_OFFSET(VPD_BLOCK_LIMITS_PAGE, Reserved0) + pageLen));
+    }
+#endif
     else if (dataLen > sizeof(INQUIRYDATA)) {
         StorPortMoveMemory(InquiryData, &adaptExt->inquiry_data, sizeof(INQUIRYDATA));
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(INQUIRYDATA)));

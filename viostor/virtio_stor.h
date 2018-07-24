@@ -84,6 +84,8 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define VIOBLK_POOL_TAG        'BoiV'
 
+#define VIOBLK_MAX_TRANSFER     0x00FFFFFF
+
 #pragma pack(1)
 typedef struct virtio_blk_config {
     /* The capacity (in 512-byte sectors). */
