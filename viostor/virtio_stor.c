@@ -1360,7 +1360,7 @@ RhelScsiGetInquiryData(
         IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
         memset(IdentificationDescr, 0, sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + BLOCK_SERIAL_STRLEN);
 
-#if (NTDDI_VERSION > NTDDI_WINBLUE)
+#if (NTDDI_VERSION >= NTDDI_WIN10)
         if (!adaptExt->sn_ok || adaptExt->sn[0] == 0) {
            IdentificationDescr->CodeSet = VpdCodeSetBinary;
            IdentificationDescr->IdentifierType = VpdIdentifierTypeEUI64;
