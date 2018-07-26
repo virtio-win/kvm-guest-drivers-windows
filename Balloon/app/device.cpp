@@ -3,7 +3,7 @@
 CDevice::CDevice()
 {
     m_pMemStat = NULL;
-    m_hService = NULL;
+    m_pService = NULL;
     m_hThread = NULL;
     m_evtInitialized = NULL;
     m_evtTerminate = NULL;
@@ -15,7 +15,7 @@ CDevice::~CDevice()
     Fini();
 }
 
-BOOL CDevice::Init(SERVICE_STATUS_HANDLE hService)
+BOOL CDevice::Init(CService *Service)
 {
     m_pMemStat = new CMemStat();
     if (!m_pMemStat || !m_pMemStat->Init()) {
@@ -37,7 +37,7 @@ BOOL CDevice::Init(SERVICE_STATUS_HANDLE hService)
         return FALSE;
     }
 
-    m_hService = hService;
+    m_pService = Service;
 
     return TRUE;
 }
@@ -61,7 +61,7 @@ VOID CDevice::Fini()
         m_evtTerminate = NULL;
     }
 
-    m_hService = NULL;
+    m_pService = NULL;
 
     delete m_pMemStat;
     m_pMemStat = NULL;
@@ -85,16 +85,8 @@ DWORD CDevice::Run()
         return GetLastError();
     }
 
-    DEV_BROADCAST_HANDLE filter;
-    HDEVNOTIFY devnotify;
-
-    ZeroMemory(&filter, sizeof(filter));
-    filter.dbch_size = sizeof(filter);
-    filter.dbch_devicetype = DBT_DEVTYP_HANDLE;
-    filter.dbch_handle = hDevice;
-
-    devnotify = RegisterDeviceNotification(m_hService, &filter,
-        DEVICE_NOTIFY_SERVICE_HANDLE);
+    NOTIFY_HANDLE devnotify = m_pService->RegisterDeviceHandleNotification(
+        hDevice);
 
     if (!devnotify) {
         DWORD err = GetLastError();
@@ -107,7 +99,7 @@ DWORD CDevice::Run()
 
     WriteLoop(hDevice);
 
-    UnregisterDeviceNotification(devnotify);
+    m_pService->UnregisterNotification(devnotify);
     CloseHandle(hDevice);
 
     return NO_ERROR;
@@ -200,6 +192,8 @@ DWORD WINAPI CDevice::DeviceThread(LPDWORD lParam)
     return pDev->Run();
 }
 
+#ifndef UNIVERSAL
+
 PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
 {
     HDEVINFO HardwareDeviceInfo;
@@ -281,3 +275,57 @@ PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
 
     return DevicePath;
 }
+
+#else // UNIVERSAL
+
+PTCHAR CDevice::GetDevicePath(IN LPGUID InterfaceGuid)
+{
+    PWSTR DeviceInterfaceList = NULL;
+    ULONG DeviceInterfaceListLength = 0;
+    PTCHAR DevicePath = NULL;
+    CONFIGRET cr;
+
+    do
+    {
+        cr = CM_Get_Device_Interface_List_Size(&DeviceInterfaceListLength,
+            InterfaceGuid, NULL, CM_GET_DEVICE_INTERFACE_LIST_PRESENT);
+
+        if (cr != CR_SUCCESS)
+        {
+            break;
+        }
+
+        if (DeviceInterfaceList != NULL)
+        {
+            HeapFree(GetProcessHeap(), 0, DeviceInterfaceList);
+        }
+
+        DeviceInterfaceList = (PWSTR)HeapAlloc(GetProcessHeap(),
+            HEAP_ZERO_MEMORY, DeviceInterfaceListLength * sizeof(WCHAR));
+
+        if (DeviceInterfaceList == NULL)
+        {
+            cr = CR_OUT_OF_MEMORY;
+            break;
+        }
+
+        cr = CM_Get_Device_Interface_List(InterfaceGuid, NULL,
+            DeviceInterfaceList, DeviceInterfaceListLength,
+            CM_GET_DEVICE_INTERFACE_LIST_PRESENT);
+
+    } while (cr == CR_BUFFER_SMALL);
+
+    if (cr == CR_SUCCESS)
+    {
+        DevicePath = _tcsdup(DeviceInterfaceList);
+    }
+
+    if (DeviceInterfaceList != NULL)
+    {
+        HeapFree(GetProcessHeap(), 0, DeviceInterfaceList);
+    }
+
+    return DevicePath;
+}
+
+#endif // UNIVERSAL
