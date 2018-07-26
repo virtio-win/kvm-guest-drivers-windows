@@ -25,7 +25,7 @@ DWORD __stdcall CService::HandlerExThunk(CService* service, DWORD ctlcode, DWORD
 
     case SERVICE_CONTROL_DEVICEEVENT:
     case SERVICE_CONTROL_HARDWAREPROFILECHANGE:
-        return service->ServiceHandleDeviceChange(evtype, (_DEV_BROADCAST_HEADER*) evdata);
+        return service->ServiceHandleDeviceChange(evtype);
 
     case SERVICE_CONTROL_POWEREVENT:
         return service->ServiceHandlePowerEvent(evtype, (DWORD)((DWORD_PTR) evdata));
@@ -94,10 +94,7 @@ void CService::StopService()
 
 void CService::terminate(DWORD error)
 {
-    if (m_hDevNotify) {
-        UnregisterDeviceNotification(m_hDevNotify);
-        m_hDevNotify = NULL;
-    }
+    UnregisterNotification(m_hDevNotify);
 
     if (m_evTerminate) {
         CloseHandle(m_evTerminate);
@@ -137,7 +134,7 @@ void CService::ServiceCtrlHandler(DWORD controlCode)
     SendStatusToSCM(m_Status, NO_ERROR, 0, 0, 0);
 }
 
-DWORD CService::ServiceHandleDeviceChange(DWORD evtype, _DEV_BROADCAST_HEADER* dbhdr)
+DWORD CService::ServiceHandleDeviceChange(DWORD evtype)
 {
     switch (evtype)
     {
@@ -180,22 +177,13 @@ void CService::ServiceMain(DWORD argc, LPTSTR *argv)
     }
 
     m_pDev = new CDevice();
-    if (!m_pDev || !m_pDev->Init(m_StatusHandle) || !m_pDev->Start()) {
+    if (!m_pDev || !m_pDev->Init(this) || !m_pDev->Start()) {
         terminate(GetLastError());
         return;
     }
 
-    DEV_BROADCAST_DEVICEINTERFACE filter;
-
-    ZeroMemory(&filter, sizeof(filter));
-    filter.dbcc_size = sizeof(filter);
-    filter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
-    filter.dbcc_classguid = GUID_DEVINTERFACE_BALLOON;
-
-    m_hDevNotify = RegisterDeviceNotification(m_StatusHandle, &filter,
-        DEVICE_NOTIFY_SERVICE_HANDLE);
-
-    if (!m_hDevNotify) {
+    m_hDevNotify = RegisterDeviceInterfaceNotification();
+    if (m_hDevNotify == NULL) {
         terminate(GetLastError());
         return;
     }
@@ -258,4 +246,134 @@ void CService::GetStatus(SC_HANDLE service)
             return;
     }
     SendStatusToSCM(CurrentState, NO_ERROR, 0, 0, 0);
+}
+
+#ifdef UNIVERSAL
+
+DWORD WINAPI CService::DeviceNotificationCallback(HCMNOTIFICATION Notify,
+    PVOID Context, CM_NOTIFY_ACTION Action, PCM_NOTIFY_EVENT_DATA EventData,
+    DWORD EventDataSize)
+{
+    CService *pThis = reinterpret_cast<CService *>(Context);
+    DWORD event = 0;
+
+    switch (Action)
+    {
+        case CM_NOTIFY_ACTION_DEVICEINTERFACEARRIVAL:
+            event = DBT_DEVICEARRIVAL;
+            break;
+
+        case CM_NOTIFY_ACTION_DEVICEQUERYREMOVE:
+            event = DBT_DEVICEQUERYREMOVE;
+            break;
+
+        case CM_NOTIFY_ACTION_DEVICEQUERYREMOVEFAILED:
+            event = DBT_DEVICEQUERYREMOVEFAILED;
+            break;
+
+        case CM_NOTIFY_ACTION_DEVICEREMOVECOMPLETE:
+            event = DBT_DEVICEREMOVECOMPLETE;
+            break;
+
+        default:
+            break;
+    }
+
+    if (event > 0)
+    {
+        pThis->ServiceHandleDeviceChange(event);
+    }
+
+    return ERROR_SUCCESS;
+}
+
+#endif // UNIVERSAL
+
+NOTIFY_HANDLE CService::RegisterDeviceInterfaceNotification()
+{
+    NOTIFY_HANDLE handle = NULL;
+
+#ifdef UNIVERSAL
+    CM_NOTIFY_FILTER filter;
+    CONFIGRET cr;
+
+    ::ZeroMemory(&filter, sizeof(filter));
+    filter.cbSize = sizeof(filter);
+    filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE;
+    filter.u.DeviceInterface.ClassGuid = GUID_DEVINTERFACE_BALLOON;
+
+    cr = CM_Register_Notification(&filter, this,
+        CService::DeviceNotificationCallback, &handle);
+
+    if (cr != CR_SUCCESS)
+    {
+        SetLastError(CM_MapCrToWin32Err(cr, ERROR_NOT_SUPPORTED));
+    }
+
+#else // UNIVERSAL
+    DEV_BROADCAST_DEVICEINTERFACE filter;
+
+    ZeroMemory(&filter, sizeof(filter));
+    filter.dbcc_size = sizeof(filter);
+    filter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
+    filter.dbcc_classguid = GUID_DEVINTERFACE_BALLOON;
+
+    handle = ::RegisterDeviceNotification(m_StatusHandle, &filter,
+        DEVICE_NOTIFY_SERVICE_HANDLE);
+#endif // UNIVERSAL
+
+    return handle;
+}
+
+NOTIFY_HANDLE CService::RegisterDeviceHandleNotification(HANDLE DeviceHandle)
+{
+    NOTIFY_HANDLE handle = NULL;
+
+#ifdef UNIVERSAL
+    CM_NOTIFY_FILTER filter;
+    CONFIGRET cr;
+
+    ::ZeroMemory(&filter, sizeof(filter));
+    filter.cbSize = sizeof(filter);
+    filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEHANDLE;
+    filter.u.DeviceHandle.hTarget = DeviceHandle;
+
+    cr = CM_Register_Notification(&filter, this,
+        CService::DeviceNotificationCallback, &handle);
+
+    if (cr != CR_SUCCESS)
+    {
+        SetLastError(CM_MapCrToWin32Err(cr, ERROR_NOT_SUPPORTED));
+    }
+#else // UNIVERSAL
+    DEV_BROADCAST_HANDLE filter;
+
+    ZeroMemory(&filter, sizeof(filter));
+    filter.dbch_size = sizeof(filter);
+    filter.dbch_devicetype = DBT_DEVTYP_HANDLE;
+    filter.dbch_handle = DeviceHandle;
+
+    handle = ::RegisterDeviceNotification(m_StatusHandle, &filter,
+        DEVICE_NOTIFY_SERVICE_HANDLE);
+#endif // UNIVERSAL
+
+    return handle;
+}
+
+BOOL CService::UnregisterNotification(NOTIFY_HANDLE Handle)
+{
+    BOOL ret;
+
+    if (Handle)
+    {
+#ifdef UNIVERSAL
+        CONFIGRET cr;
+        cr = CM_Unregister_Notification(Handle);
+        ret = (cr == CR_SUCCESS);
+#else // UNIVERSAL
+        ret = ::UnregisterDeviceNotification(Handle);
+#endif // UNIVERSAL
+    }
+
+    return ret;
 }

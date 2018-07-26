@@ -4,12 +4,13 @@
 #include <wtypes.h>
 
 class CMemStat;
+class CService;
 
 class CDevice {
 public:
     CDevice();
     ~CDevice();
-    BOOL Init(SERVICE_STATUS_HANDLE hService);
+    BOOL Init(CService *Service);
     VOID Fini();
     BOOL Start();
     VOID Stop();
@@ -21,7 +22,7 @@ private:
     static DWORD WINAPI DeviceThread(LPDWORD lParam);
     VOID WriteLoop(HANDLE hDevice);
     CMemStat* m_pMemStat;
-    SERVICE_STATUS_HANDLE m_hService;
+    CService *m_pService;
     HANDLE m_hThread;
     HANDLE m_evtInitialized;
     HANDLE m_evtTerminate;
