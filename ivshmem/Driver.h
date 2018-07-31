@@ -2,6 +2,12 @@
 #include <wdf.h>
 #include <initguid.h>
 
+#if (NTDOI_VERSION >= NTDOI_WIN8)
+#define IVSHMEM_NONPAGED_POOL NonPagedPoolNx
+#else
+#define IVSHMEM_NONPAGED_POOL NonPagedPool
+#endif
+
 #include "device.h"
 #include "queue.h"
 
