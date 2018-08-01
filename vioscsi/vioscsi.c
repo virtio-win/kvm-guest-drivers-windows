@@ -310,6 +310,12 @@ DriverEntry(
 #endif
 
     IsCrashDumpMode = FALSE;
+    RhelDbgPrint(TRACE_LEVEL_FATAL, " Vioscsi driver started...built on %s %s\n", __DATE__, __TIME__);
+    if (RegistryPath == NULL) {
+        IsCrashDumpMode = TRUE;
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Crash dump mode\n");
+    }
+
     RtlZeroMemory(&hwInitData, sizeof(HW_INITIALIZATION_DATA));
 
     hwInitData.HwInitializationDataSize = sizeof(HW_INITIALIZATION_DATA);
@@ -364,12 +370,6 @@ DriverEntry(
         TraceContext = initInfo.TraceContext;
     }
 #endif
-
-    RhelDbgPrint(TRACE_LEVEL_FATAL, " Vioscsi driver started...built on %s %s\n", __DATE__, __TIME__);
-    if (RegistryPath == NULL) {
-        IsCrashDumpMode = TRUE;
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Crash dump mode\n");
-    }
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE,
                  " Initialize returned 0x%x\n", initResult);
