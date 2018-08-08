@@ -300,9 +300,9 @@ static BOOLEAN MiniportMSIInterrupt(
     PARANDIS_STORE_LAST_INTERRUPT_TIMESTAMP(pContext);
 
     *TargetProcessors = 0;
+    *QueueDefaultInterruptDpc = FALSE;
 
     if (!pContext->bDeviceInitialized) {
-        *QueueDefaultInterruptDpc = FALSE;
         return TRUE;
     }
 
@@ -313,21 +313,26 @@ static BOOLEAN MiniportMSIInterrupt(
     path->DisableInterrupts();
     path->ReportInterrupt();
 
-
-#if NDIS_SUPPORT_NDIS620
-    if (path->DPCAffinity.Mask)
+    if (path->getMessageIndex() == pContext->CXPath.getMessageIndex())
     {
-        NdisMQueueDpcEx(pContext->InterruptHandle, MessageId, &path->DPCAffinity, NULL);
-        *QueueDefaultInterruptDpc = FALSE;
+        KeInsertQueueDpc(&pContext->CXPath.m_DPC, NULL, NULL);
     }
     else
     {
-        *QueueDefaultInterruptDpc = TRUE;
-    }
+#if NDIS_SUPPORT_NDIS620
+        if (path->DPCAffinity.Mask)
+        {
+            NdisMQueueDpcEx(pContext->InterruptHandle, MessageId, &path->DPCAffinity, NULL);
+        }
+        else
+        {
+            *QueueDefaultInterruptDpc = TRUE;
+        }
 #else
-    *TargetProcessors = (ULONG)path->DPCTargetProcessor;
-    *QueueDefaultInterruptDpc = TRUE;
+        *TargetProcessors = (ULONG)path->DPCTargetProcessor;
+        *QueueDefaultInterruptDpc = TRUE;
 #endif
+    }
 
     pContext->ulIrqReceived += 1;
     return true;
@@ -391,6 +396,26 @@ static VOID MiniportInterruptDPC(
 }
 
 /**********************************************************
+A CX procedure for MSI DPC handling
+Parameters:
+KDPC *  Dpc - The dpc structure for CX
+IN ULONG  MessageId - specific interrupt index
+***********************************************************/
+VOID MiniportMSIInterruptCXDpc(
+    struct _KDPC  *Dpc,
+    IN PVOID  MiniportInterruptContext,
+    IN PVOID                  NdisReserved1,
+    IN PVOID                  NdisReserved2
+)
+{
+    PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
+    ParaNdis_CXDPCWorkBody(pContext);
+    UNREFERENCED_PARAMETER(Dpc);
+    UNREFERENCED_PARAMETER(NdisReserved1);
+    UNREFERENCED_PARAMETER(NdisReserved2);
+}
+
+/**********************************************************
 NDIS-required procedure for MSI DPC handling
 Parameters:
     PVOID  MiniportInterruptContext (Adapter context)
@@ -416,7 +441,7 @@ static VOID MiniportMSIInterruptDpc(
     PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters = (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
 
     RxThrottleParameters->MoreNblsPending = 0;
-    requireDPCRescheduling = ParaNdis_DPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
+    requireDPCRescheduling = ParaNdis_RXTXDPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
 
     if (requireDPCRescheduling)
         {
