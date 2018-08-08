@@ -540,6 +540,8 @@ bool ParaNdis_DPCWorkBody(
     PARANDIS_ADAPTER *pContext,
     ULONG ulMaxPacketsToIndicate);
 
+void ParaNdis_CXDPCWorkBody(PARANDIS_ADAPTER *pContext);
+
 void ParaNdis_ReuseRxNBLs(PNET_BUFFER_LIST pNBL);
 
 #ifdef PARANDIS_SUPPORT_RSS
@@ -842,6 +844,17 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerifyFlat(
     SGBuffer.size = ulDataLength;
     return ParaNdis_CheckSumVerify(&SGBuffer, ulDataLength, 0, flags, verifyLength, caller);
 }
+
+VOID MiniportMSIInterruptCXDpc(
+    struct _KDPC  *Dpc,
+    IN PVOID  MiniportInterruptContext,
+    IN PVOID                  NdisReserved1,
+    IN PVOID                  NdisReserved2
+);
+
+bool ParaNdis_RXTXDPCWorkBody(PARANDIS_ADAPTER *pContext,
+    ULONG ulMaxPacketsToIndicate);
+
 
 USHORT CheckSumCalculator(PVOID buffer, ULONG len);
 

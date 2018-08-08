@@ -35,10 +35,16 @@ bool CParaNdisCX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     m_Context->m_CxStateMachine.Start();
 
     CreatePath();
+    InitDPC();
 
     return m_VirtQueue.Create(DeviceQueueIndex,
         &m_Context->IODevice,
         m_Context->MiniportHandle);
+}
+
+void CParaNdisCX::InitDPC()
+{
+    KeInitializeDpc(&m_DPC, MiniportMSIInterruptCXDpc, m_Context);
 }
 
 BOOLEAN CParaNdisCX::SendControlMessage(

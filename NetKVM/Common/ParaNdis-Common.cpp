@@ -1849,7 +1849,40 @@ void ParaNdis_ReuseRxNBLs(PNET_BUFFER_LIST pNBL)
     }
 }
 
-bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndicate)
+void ParaNdis_CXDPCWorkBody(PARANDIS_ADAPTER *pContext)
+{
+    InterlockedIncrement(&pContext->counterDPCInside);
+    if (pContext->bEnableInterruptHandlingDPC && pContext->CXPath.WasInterruptReported())
+    {
+        UINT8 status = 0;
+        status = ReadDeviceStatus(pContext);
+
+        if (virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_F_VERSION_1) &&
+            (status & VIRTIO_CONFIG_S_NEEDS_RESET))
+        {
+            DPrintf(0, "Received VIRTIO_CONFIG_S_NEEDS_RESET event");
+            pContext->m_StateMachine.NotifyDeviceNeedsReset();
+            pContext->bDeviceNeedsReset = TRUE;
+        }
+
+        ReadLinkState(pContext);
+        if (pContext->bLinkDetectSupported)
+        {
+            ReadLinkState(pContext);
+            ParaNdis_SynchronizeLinkState(pContext);
+        }
+        if (pContext->bGuestAnnounceSupported && pContext->bGuestAnnounced)
+        {
+            ParaNdis_SendGratuitousArpPacket(pContext);
+            pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_ANNOUNCE, VIRTIO_NET_CTRL_ANNOUNCE_ACK, NULL, 0, NULL, 0, 0);
+            pContext->bGuestAnnounced = FALSE;
+        }
+        pContext->CXPath.ClearInterruptReport();
+    }
+    InterlockedDecrement(&pContext->counterDPCInside);
+}
+
+bool ParaNdis_RXTXDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndicate)
 {
     bool stillRequiresProcessing = false;
     UINT numOfPacketsToIndicate = min(ulMaxPacketsToIndicate, pContext->uNumberOfHandledRXPacketsInDPC);
@@ -1881,31 +1914,6 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
         {
             stillRequiresProcessing = true;
         }
-        if (pContext->CXPath.WasInterruptReported())
-        {
-            UINT8 status = 0;
-            status = ReadDeviceStatus(pContext);
-            if (virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_F_VERSION_1) &&
-                (status & VIRTIO_CONFIG_S_NEEDS_RESET))
-            {
-                DPrintf(0,"Received VIRTIO_CONFIG_S_NEEDS_RESET event");
-                pContext->m_StateMachine.NotifyDeviceNeedsReset();
-                pContext->bDeviceNeedsReset = TRUE;
-            }
-            ReadLinkState(pContext);
-            if (pContext->bLinkDetectSupported)
-            {
-                ReadLinkState(pContext);
-                ParaNdis_SynchronizeLinkState(pContext);
-            }
-            if (pContext->bGuestAnnounceSupported && pContext->bGuestAnnounced)
-            {
-                ParaNdis_SendGratuitousArpPacket(pContext);
-                pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_ANNOUNCE, VIRTIO_NET_CTRL_ANNOUNCE_ACK, NULL, 0, NULL, 0, 0);
-                pContext->bGuestAnnounced = FALSE;
-            }
-            pContext->CXPath.ClearInterruptReport();
-        }
 
         if (pathBundle != nullptr && pathBundle->txPath.DoPendingTasks(nullptr))
         {
@@ -1913,6 +1921,14 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
         }
     }
     InterlockedDecrement(&pContext->counterDPCInside);
+
+    return stillRequiresProcessing;
+}
+
+bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndicate)
+{
+    bool stillRequiresProcessing = ParaNdis_RXTXDPCWorkBody(pContext, ulMaxPacketsToIndicate);
+    ParaNdis_CXDPCWorkBody(pContext);
 
     return stillRequiresProcessing;
 }

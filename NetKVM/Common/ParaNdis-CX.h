@@ -12,6 +12,8 @@ public:
 
     virtual NDIS_STATUS SetupMessageIndex(u16 vector);
 
+    void InitDPC();
+
     BOOLEAN CParaNdisCX::SendControlMessage(
         UCHAR cls,
         UCHAR cmd,
@@ -21,6 +23,8 @@ public:
         ULONG size2,
         int levelIfOK
         );
+
+    KDPC m_DPC;
 
 protected:
     tCompletePhysicalAddress m_ControlData;
