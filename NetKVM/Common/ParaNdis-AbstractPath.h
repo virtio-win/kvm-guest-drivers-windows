@@ -110,7 +110,7 @@ public:
         return !This->m_VirtQueue.Restart();
     }
 
-    /* We get notified by the state machine on suprise removal */
+    /* We get notified by the state machine on surprise removal */
     void Notify(SMNotifications message) override
     {
         if (message == SupriseRemoved)
