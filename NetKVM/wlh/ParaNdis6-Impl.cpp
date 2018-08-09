@@ -308,6 +308,8 @@ static BOOLEAN MiniportMSIInterrupt(
 
     CParaNdisAbstractPath *path = GetPathByMessageId(pContext, MessageId);
 
+    path->SetLastInterruptTimestamp(pContext->LastInterruptTimeStamp);
+
     path->DisableInterrupts();
     path->ReportInterrupt();
 
