@@ -1852,7 +1852,7 @@ void ParaNdis_ReuseRxNBLs(PNET_BUFFER_LIST pNBL)
 void ParaNdis_CXDPCWorkBody(PARANDIS_ADAPTER *pContext)
 {
     InterlockedIncrement(&pContext->counterDPCInside);
-    if (pContext->bEnableInterruptHandlingDPC && pContext->CXPath.WasInterruptReported())
+    if (pContext->bEnableInterruptHandlingDPC)
     {
         UINT8 status = 0;
         status = ReadDeviceStatus(pContext);
@@ -1877,7 +1877,6 @@ void ParaNdis_CXDPCWorkBody(PARANDIS_ADAPTER *pContext)
             pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_ANNOUNCE, VIRTIO_NET_CTRL_ANNOUNCE_ACK, NULL, 0, NULL, 0, 0);
             pContext->bGuestAnnounced = FALSE;
         }
-        pContext->CXPath.ClearInterruptReport();
     }
     InterlockedDecrement(&pContext->counterDPCInside);
 }
