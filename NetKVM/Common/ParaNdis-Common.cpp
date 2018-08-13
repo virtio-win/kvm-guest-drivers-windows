@@ -789,7 +789,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
             virtio_get_config(&pContext->IODevice, ETH_ALEN, &linkStatus, sizeof(linkStatus));
             pContext->bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
             DPrintf(0, "[%s] Link status on driver startup: %d\n", __FUNCTION__, pContext->bConnected);
-            pContext->bGuestAnnounceSupported = AckFeature(pContext, VIRTIO_NET_F_GUEST_ANNOUNCE);
         }
         else
         {
@@ -799,6 +798,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
         InitializeLinkPropertiesConfig(pContext);
 
         pContext->bControlQueueSupported = AckFeature(pContext, VIRTIO_NET_F_CTRL_VQ);
+        pContext->bGuestAnnounceSupported = pContext->bLinkDetectSupported && pContext->bControlQueueSupported && AckFeature(pContext, VIRTIO_NET_F_GUEST_ANNOUNCE);
         InitializeMAC(pContext, CurrentMAC);
         InitializeMaxMTUConfig(pContext);
 
