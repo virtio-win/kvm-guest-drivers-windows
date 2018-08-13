@@ -248,7 +248,6 @@ static BOOLEAN MiniportInterrupt(
     if (pContext->bCXPathCreated)
     {
         pContext->CXPath.DisableInterrupts();
-        pContext->CXPath.ReportInterrupt();
     }
     
     *QueueDefaultInterruptDpc = TRUE;
@@ -311,7 +310,6 @@ static BOOLEAN MiniportMSIInterrupt(
     path->SetLastInterruptTimestamp(pContext->LastInterruptTimeStamp);
 
     path->DisableInterrupts();
-    path->ReportInterrupt();
 
     if (path->getMessageIndex() == pContext->CXPath.getMessageIndex())
     {
