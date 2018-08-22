@@ -405,6 +405,15 @@ public:
         Remove_LockLess(Entry->GetListEntry());
     }
 
+    void EmptyList()
+    {
+        CLockedContext<TAccessStrategy> LockedContext(*this);
+        while (!IsListEmpty(&m_List))
+        {
+            Pop_LockLess();
+        }
+    }
+
     template <typename TFunctor>
     void ForEachDetached(TFunctor Functor)
     {
