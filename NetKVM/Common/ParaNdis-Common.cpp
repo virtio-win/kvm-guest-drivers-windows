@@ -1885,6 +1885,7 @@ bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndica
             if (virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_F_VERSION_1) &&
                 (status & VIRTIO_CONFIG_S_NEEDS_RESET))
             {
+                DPrintf(0,"Received VIRTIO_CONFIG_S_NEEDS_RESET event");
                 pContext->m_StateMachine.NotifyDeviceNeedsReset();
                 pContext->bDeviceNeedsReset = TRUE;
             }
