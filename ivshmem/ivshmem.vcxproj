@@ -220,6 +220,9 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ResourceCompile Include="ivshmem.rc" />
+  </ItemGroup>
+  <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
