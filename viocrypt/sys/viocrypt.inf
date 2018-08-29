@@ -13,12 +13,14 @@ DriverVer       = 01/01/2018,0.0.0.1 ; this line will be replaced with stampinf
 
 [DestinationDirs]
 DefaultDestDir = 12
+viocrypt_Device_CoInstaller_CopyFiles = 11
 
 [SourceDisksNames]
 1 = %DiskName%,,,""
 
 [SourceDisksFiles]
 viocrypt.sys  = 1,,
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 ;*****************************************
 ; Install Section
@@ -61,9 +63,6 @@ ServiceBinary  = %12%\viocrypt.sys
 ;--- viocrypt_Device Coinstaller installation ------
 ;
 
-[DestinationDirs]
-viocrypt_Device_CoInstaller_CopyFiles = 11
-
 [viocrypt_Device.NT.CoInstallers]
 AddReg=viocrypt_Device_CoInstaller_AddReg
 CopyFiles=viocrypt_Device_CoInstaller_CopyFiles
@@ -73,9 +72,6 @@ HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfC
 
 [viocrypt_Device_CoInstaller_CopyFiles]
 WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
-
-[SourceDisksFiles]
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 [viocrypt_Device.NT.Wdf]
 KmdfService =  viocrypt, viocrypt_wdfsect
