@@ -262,7 +262,11 @@ static CParaNdisAbstractPath *GetPathByMessageId(PARANDIS_ADAPTER *pContext, ULO
     CParaNdisAbstractPath *path = NULL;
 
     UINT bundleId = MessageId / 2;
-    if (pContext->CXPath.getMessageIndex() == MessageId)
+	if (pContext->CXPath.getMessageIndex() < MessageId)
+	{
+		path = NULL;
+	}
+	else if (pContext->CXPath.getMessageIndex() == MessageId)
     {
         path = &pContext->CXPath;
     }
@@ -307,6 +311,10 @@ static BOOLEAN MiniportMSIInterrupt(
     }
 
     CParaNdisAbstractPath *path = GetPathByMessageId(pContext, MessageId);
+	if (NULL == path) {
+		*QueueDefaultInterruptDpc = FALSE;
+		return TRUE;
+	}
 
     path->SetLastInterruptTimestamp(pContext->LastInterruptTimeStamp);
 
