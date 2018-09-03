@@ -1250,7 +1250,7 @@ VirtIoMSInterruptRoutine (
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if (MessageID > adaptExt->msix_vectors) {
+    if (MessageID > adaptExt->num_queues) {
         RhelDbgPrint(TRACE_LEVEL_ERROR, " MessageID = %d\n", MessageID);
         return FALSE;
     }
