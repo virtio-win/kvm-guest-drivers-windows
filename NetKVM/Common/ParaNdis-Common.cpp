@@ -2175,6 +2175,7 @@ NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     if (!NT_SUCCESS(nt_status))
     {
         DPrintf(0, "[%s] virtio_set_features failed with %x\n", __FUNCTION__, nt_status);
+        pContext->m_StateMachine.NotifyResumed();
         return NTStatusToNdisStatus(nt_status);
     }
 
