@@ -565,12 +565,12 @@ InitializeLinkPropertiesConfig(PPARANDIS_ADAPTER pContext)
     {
         virtio_get_config(
             &pContext->IODevice,
-            offsetof(virtio_net_config, speed),
+            FIELD_OFFSET(virtio_net_config, speed),
             &speed,
             sizeof(__u32));
         virtio_get_config(
             &pContext->IODevice,
-            offsetof(virtio_net_config, duplex),
+            FIELD_OFFSET(virtio_net_config, duplex),
             &duplexState,
             sizeof(__u8));
 
