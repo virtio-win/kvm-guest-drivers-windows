@@ -248,7 +248,6 @@ static BOOLEAN MiniportInterrupt(
     if (pContext->bCXPathCreated)
     {
         pContext->CXPath.DisableInterrupts();
-        pContext->CXPath.ReportInterrupt();
     }
     
     *QueueDefaultInterruptDpc = TRUE;
@@ -311,9 +310,6 @@ static BOOLEAN MiniportMSIInterrupt(
     path->SetLastInterruptTimestamp(pContext->LastInterruptTimeStamp);
 
     path->DisableInterrupts();
-    path->ReportInterrupt();
-
-
 #if NDIS_SUPPORT_NDIS620
     if (path->DPCAffinity.Mask)
     {
@@ -363,6 +359,10 @@ static VOID MiniportInterruptDPC(
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
     bool requiresDPCRescheduling;
 
+	if (pContext->bCXPathCreated)
+	{
+		pContext->CXPath.ReportInterrupt();
+	}
 #if NDIS_SUPPORT_NDIS620
     PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters = (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
     DEBUG_ENTRY(5);
@@ -412,6 +412,10 @@ static VOID MiniportMSIInterruptDpc(
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
     bool requireDPCRescheduling;
 
+	if (pContext->CXPath.getMessageIndex() == MessageId)
+	{
+		pContext->CXPath.ReportInterrupt();
+	}
 #if NDIS_SUPPORT_NDIS620
     PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters = (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
 
