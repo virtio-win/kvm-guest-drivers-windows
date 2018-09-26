@@ -380,8 +380,8 @@ static void mem_free_nonpaged_block(void *context, void *addr)
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)context;
 
-    NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, addr, PARANDIS_MEMORY_TAG);
     DPrintf(6, "[%s] freed %p\n", __FUNCTION__, addr);
+    NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, addr, PARANDIS_MEMORY_TAG);
 }
 
 static int PCIReadConfig(
