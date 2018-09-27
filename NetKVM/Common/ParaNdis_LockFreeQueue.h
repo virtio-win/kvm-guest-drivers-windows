@@ -317,6 +317,10 @@ private:
 
         if (!m_QueueFullListIsEmpty)
         {
+            /* LockedContext Locker will always be locked during all of it's lifetime,
+            especially when it's being destructed. SDV does not recognize that due to encapsulation
+            so the warning is suppressed*/
+#pragma warning(suppress: 26110)
             TPassiveSpinLocker LockedContext(m_QueueFullListLock);
             do
             {
