@@ -845,7 +845,7 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerifyFlat(
     return ParaNdis_CheckSumVerify(&SGBuffer, ulDataLength, 0, flags, verifyLength, caller);
 }
 
-VOID MiniportMSIInterruptCXDpc(
+VOID _Function_class_(KDEFERRED_ROUTINE) MiniportMSIInterruptCXDpc(
     struct _KDPC  *Dpc,
     IN PVOID  MiniportInterruptContext,
     IN PVOID                  NdisReserved1,
