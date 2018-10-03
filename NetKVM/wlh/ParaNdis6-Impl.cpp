@@ -399,7 +399,7 @@ Parameters:
 KDPC *  Dpc - The dpc structure for CX
 IN ULONG  MessageId - specific interrupt index
 ***********************************************************/
-VOID MiniportMSIInterruptCXDpc(
+VOID _Function_class_(KDEFERRED_ROUTINE) MiniportMSIInterruptCXDpc(
     struct _KDPC  *Dpc,
     IN PVOID  MiniportInterruptContext,
     IN PVOID                  NdisReserved1,
