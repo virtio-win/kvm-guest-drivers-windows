@@ -846,11 +846,29 @@ VOID NBLSet8021QInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_PAC
 
 #if PARANDIS_SUPPORT_RSC
 static __inline
-UINT PktGetTCPCoalescedSegmentsCount(PNET_PACKET_INFO PacketInfo, UINT nMaxTCPPayloadSize)
+UINT PktGetTCPCoalescedSegmentsCount(PPARANDIS_ADAPTER pContext,
+                                     PNET_PACKET_INFO PacketInfo,
+                                     UINT mss)
 {
-    // We have no corresponding data, following is a simulation
-    return PacketInfo->L2PayloadLen / nMaxTCPPayloadSize +
-        !!(PacketInfo->L2PayloadLen % nMaxTCPPayloadSize);
+    // We have no exact data from the device, but can evaluate the number
+    // of coalesced segments according to mss (max segment size) value
+    // provided in the packet header. It includes only size of
+    // TCP payload and TCP payload of final packet was earlier
+    // splitted over TCP segments with payload of mss bytes each
+    ULONG TcpHeaderOffset = PacketInfo->L2HdrLen + PacketInfo->L3HdrLen;
+    auto TCPHdr = reinterpret_cast<TCPHeader *>RtlOffsetToPointer(PacketInfo->headersBuffer, TcpHeaderOffset);
+    ULONG IpAndTcpHeaderSize = PacketInfo->L3HdrLen + TCP_HEADER_LENGTH(TCPHdr);
+    ULONG payloadLen = PacketInfo->L2PayloadLen - IpAndTcpHeaderSize;
+
+    // if we have meaningless value from the device, use
+    // the best estimation - max possible TCP payload
+    // nMaxDataSize (typically 1500) starts after ethernet header
+    ULONG maxMss = pContext->MaxPacketSize.nMaxDataSize - IpAndTcpHeaderSize;
+    if (mss > maxMss || mss == 0)
+    {
+        mss = maxMss;
+    }
+    return  payloadLen / mss + !!(payloadLen % mss);
 }
 
 static __inline
@@ -923,9 +941,10 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
 #if PARANDIS_SUPPORT_RSC
             if (!(pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) && (pHeader->hdr.gso_type != VIRTIO_NET_HDR_GSO_NONE))
             {
-                *pnCoalescedSegmentsCount = PktGetTCPCoalescedSegmentsCount(pPacketInfo, pContext->MaxPacketSize.nMaxDataSize);
+                *pnCoalescedSegmentsCount = PktGetTCPCoalescedSegmentsCount(pContext, pPacketInfo, pHeader->hdr.gso_size);
                 NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, 0);
-                DPrintf(1, "RSC host packet, datalen %d, GSO type %d\n", pPacketInfo->dataLength, pHeader->hdr.gso_type);
+                DPrintf(1, "RSC host packet, datalen %d, GSO type %d, mss %d, %d segments\n",
+                    pPacketInfo->dataLength, pHeader->hdr.gso_type, pHeader->hdr.gso_size, *pnCoalescedSegmentsCount);
                 pContext->extraStatistics.framesCoalescedHost++;
             }
             else if ((pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) && (pHeader->hdr.gso_type != VIRTIO_NET_HDR_RSC_NONE))
