@@ -240,7 +240,8 @@ RhelGetLba(
         case SCSIOP_READ:
         case SCSIOP_WRITE:
         case SCSIOP_READ_CAPACITY:
-        case SCSIOP_WRITE_VERIFY: {
+        case SCSIOP_WRITE_VERIFY:
+        case SCSIOP_VERIFY:{
             lba.Byte0 = Cdb->CDB10.LogicalBlockByte3;
             lba.Byte1 = Cdb->CDB10.LogicalBlockByte2;
             lba.Byte2 = Cdb->CDB10.LogicalBlockByte1;
@@ -263,7 +264,8 @@ RhelGetLba(
         case SCSIOP_READ16:
         case SCSIOP_WRITE16:
         case SCSIOP_READ_CAPACITY16:
-        case SCSIOP_WRITE_VERIFY16: {
+        case SCSIOP_WRITE_VERIFY16:
+        case SCSIOP_VERIFY16: {
             REVERSE_BYTES_QUAD(&lba, &Cdb->CDB16.LogicalBlock[0]);
         }
         break;
@@ -273,6 +275,44 @@ RhelGetLba(
         }
     }
     return (lba.AsULongLong * (adaptExt->info.blk_size / SECTOR_SIZE));
+}
+
+ULONG
+RhelGetSectors(
+    IN PVOID DeviceExtension,
+    IN PCDB Cdb
+)
+{
+    FOUR_BYTE sector;
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    sector.AsULong = 0UL;
+
+    switch (Cdb->CDB6GENERIC.OperationCode) {
+
+        case SCSIOP_READ:
+        case SCSIOP_WRITE:
+        case SCSIOP_READ_CAPACITY:
+        case SCSIOP_WRITE_VERIFY:
+        case SCSIOP_VERIFY:{
+            sector.Byte0 = Cdb->CDB10.TransferBlocksLsb;
+            sector.Byte1 = Cdb->CDB10.TransferBlocksMsb;
+        }
+        break;
+        case SCSIOP_READ16:
+        case SCSIOP_WRITE16:
+        case SCSIOP_READ_CAPACITY16:
+        case SCSIOP_WRITE_VERIFY16:
+        case SCSIOP_VERIFY16: {
+            REVERSE_BYTES(&sector, &Cdb->CDB16.TransferLength[0]);
+        }
+        break;
+        default: {
+            ASSERT(FALSE);
+            return (ULONGLONG)-1;
+        }
+    }
+    return (sector.AsULong * (adaptExt->info.blk_size / SECTOR_SIZE));
 }
 
 VOID

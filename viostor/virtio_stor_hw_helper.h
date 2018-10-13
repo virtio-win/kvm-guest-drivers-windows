@@ -144,6 +144,12 @@ RhelGetLba(
     IN PCDB Cdb
     );
 
+ULONG
+RhelGetSectors(
+    IN PVOID DeviceExtension,
+    IN PCDB Cdb
+    );
+
 VOID
 RhelGetSerialNumber(
     IN PVOID DeviceExtension

@@ -140,6 +140,12 @@ RhelScsiGetCapacity(
     );
 
 UCHAR
+RhelScsiVerify(
+    IN PVOID DeviceExtension,
+    IN OUT PSRB_TYPE Srb
+    );
+
+UCHAR
 RhelScsiReportLuns(
     IN PVOID DeviceExtension,
     IN OUT PSRB_TYPE Srb
@@ -950,10 +956,23 @@ VirtIoStartIo(
         case SCSIOP_RESERVE_UNIT10:
         case SCSIOP_RELEASE_UNIT:
         case SCSIOP_RELEASE_UNIT10:
-        case SCSIOP_VERIFY:
-        case SCSIOP_VERIFY16:
         case SCSIOP_MEDIUM_REMOVAL: {
             CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
+            return TRUE;
+        }
+        case SCSIOP_VERIFY:
+        case SCSIOP_VERIFY16: {
+            UCHAR SrbStatus = RhelScsiVerify(DeviceExtension, (PSRB_TYPE)Srb);
+            if (SrbStatus == SRB_STATUS_INVALID_REQUEST) {
+                SrbStatus = SRB_STATUS_ERROR;
+                adaptExt->sense_info.senseKey = SCSI_SENSE_ILLEGAL_REQUEST;
+                adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_INVALID_CDB;
+                adaptExt->sense_info.additionalSenseCodeQualifier = 0;
+                if (SetSenseInfo(DeviceExtension, (PSRB_TYPE)Srb)) {
+                    SrbStatus |= SRB_STATUS_AUTOSENSE_VALID;
+                }
+            }
+            CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SrbStatus);
             return TRUE;
         }
         case SCSIOP_SYNCHRONIZE_CACHE:
@@ -1648,6 +1667,31 @@ RhelScsiGetCapacity(
             SRB_SET_DATA_TRANSFER_LENGTH(Srb, FIELD_OFFSET(READ_CAPACITY16_DATA, Reserved3));
         }
 #endif
+    }
+    return SrbStatus;
+}
+
+UCHAR
+RhelScsiVerify(
+    IN PVOID DeviceExtension,
+    IN OUT PSRB_TYPE Srb
+)
+{
+    UCHAR SrbStatus = SRB_STATUS_SUCCESS;
+    ULONGLONG             lba;
+    ULONG                 blocks;
+    PADAPTER_EXTENSION adaptExt= (PADAPTER_EXTENSION)DeviceExtension;
+    PCDB cdb = SRB_CDB(Srb);
+    ULONG srbdatalen = 0;
+
+    if (!cdb)
+        return SRB_STATUS_ERROR;
+
+    lba = RhelGetLba(DeviceExtension, cdb);
+    blocks = RhelGetSectors(DeviceExtension, cdb);
+    if ((lba + blocks) >= adaptExt->lastLBA) {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, " lba = %llu lastLBA= %llu blocks = %lu\n", lba, adaptExt->lastLBA, blocks);
+        SrbStatus = SRB_STATUS_INVALID_REQUEST;
     }
     return SrbStatus;
 }
