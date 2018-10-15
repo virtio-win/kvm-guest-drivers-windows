@@ -555,7 +555,7 @@ InitializeLinkPropertiesConfig(PPARANDIS_ADAPTER pContext)
     INT32 speed;
     UINT8 duplexState;
 
-    char *MediaDuplexStates[] =
+    const char *MediaDuplexStates[] =
     {
         "unknown",
         "half",
