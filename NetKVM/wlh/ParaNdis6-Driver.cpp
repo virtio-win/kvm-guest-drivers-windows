@@ -262,7 +262,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
         miniportAttributes.GeneralAttributes.MtuSize = pContext->MaxPacketSize.nMaxDataSize;
         miniportAttributes.GeneralAttributes.LookaheadSize = pContext->MaxPacketSize.nMaxFullSizeOS;
         miniportAttributes.GeneralAttributes.MaxXmitLinkSpeed =
-        miniportAttributes.GeneralAttributes.MaxRcvLinkSpeed  = PARANDIS_MAXIMUM_LINK_SPEED;
+        miniportAttributes.GeneralAttributes.MaxRcvLinkSpeed  = pContext->LinkProperties.Speed;
         miniportAttributes.GeneralAttributes.MediaConnectState =
             pContext->bConnected ? MediaConnectStateConnected : MediaConnectStateDisconnected;
         miniportAttributes.GeneralAttributes.XmitLinkSpeed =

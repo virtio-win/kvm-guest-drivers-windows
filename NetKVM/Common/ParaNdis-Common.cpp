@@ -564,6 +564,10 @@ InitializeLinkPropertiesConfig(PPARANDIS_ADAPTER pContext)
 
     pContext->bLinkPropertiesConfigSupported = AckFeature(pContext, VIRTIO_NET_F_SPEED_DUPLEX);
 
+    // Default link properties
+    pContext->LinkProperties.Speed = PARANDIS_DEFAULT_LINK_SPEED;
+    pContext->LinkProperties.DuplexState = MediaDuplexStateFull;
+
     if (pContext->bLinkPropertiesConfigSupported)
     {
         virtio_get_config(
@@ -577,11 +581,10 @@ InitializeLinkPropertiesConfig(PPARANDIS_ADAPTER pContext)
             &duplexState,
             sizeof(__u8));
 
-        if (speed == VIRTIO_NET_SPEED_UNKNOWN)
-        {
-            pContext->LinkProperties.Speed = NDIS_LINK_SPEED_UNKNOWN;
-        }
-        else
+        DPrintf(0, "[%s] Link properties in virtio configuration: %d:%d\n",
+            __FUNCTION__, speed, duplexState);
+
+        if (speed != VIRTIO_NET_SPEED_UNKNOWN && speed)
         {
             pContext->LinkProperties.Speed = ((ULONGLONG)speed) * 1000000;
         }
@@ -594,21 +597,7 @@ InitializeLinkPropertiesConfig(PPARANDIS_ADAPTER pContext)
         {
             pContext->LinkProperties.DuplexState = MediaDuplexStateFull;
         }
-        else
-        {
-            pContext->LinkProperties.DuplexState = MediaDuplexStateUnknown;
-        }
 
-        DPrintf(0, "[%s] Link properties from virtio configuration used.\n", __FUNCTION__);
-    }
-    else
-    {
-        // Default link properties
-        pContext->LinkProperties.Speed = PARANDIS_DEFAULT_LINK_SPEED;
-        pContext->LinkProperties.DuplexState = MediaDuplexStateFull;
-
-        DPrintf(0, "[%s] Link properties from configuration will not be used. Using default link properties.\n",
-            __FUNCTION__);
     }
 
     DPrintf(0, "[%s] Speed=%llu Bit/s, Duplex=%s\n", __FUNCTION__,
