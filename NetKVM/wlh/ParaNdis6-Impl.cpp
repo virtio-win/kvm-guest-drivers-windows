@@ -932,6 +932,8 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
         {
             virtio_net_hdr_rsc *pHeader = (virtio_net_hdr_rsc *) pBuffersDesc->PhysicalPages[0].Virtual;
             tChecksumCheckResult csRes;
+            NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
+            qCSInfo.Value = NULL;
             pNBL->SourceHandle = pContext->MiniportHandle;
             NBLSetRSSInfo(pContext, pNBL, pPacketInfo);
             NBLSet8021QInfo(pContext, pNBL, pPacketInfo);
@@ -939,6 +941,9 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
             pNBL->MiniportReserved[0] = pBuffersDesc;
 
 #if PARANDIS_SUPPORT_RSC
+            csRes.value = 0;
+            csRes.flags.IpOK = true;
+            csRes.flags.TcpOK = true;
             if (!(pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) && (pHeader->hdr.gso_type != VIRTIO_NET_HDR_GSO_NONE))
             {
                 *pnCoalescedSegmentsCount = PktGetTCPCoalescedSegmentsCount(pContext, pPacketInfo, pHeader->hdr.gso_size);
@@ -946,6 +951,9 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
                 DPrintf(1, "RSC host packet, datalen %d, GSO type %d, mss %d, %d segments\n",
                     pPacketInfo->dataLength, pHeader->hdr.gso_type, pHeader->hdr.gso_size, *pnCoalescedSegmentsCount);
                 pContext->extraStatistics.framesCoalescedHost++;
+                // according to the spec the device does not calculate TCP checksum
+                qCSInfo.Receive.IpChecksumValueInvalid = true;
+                qCSInfo.Receive.TcpChecksumValueInvalid = true;
             }
             else if ((pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) && (pHeader->hdr.gso_type != VIRTIO_NET_HDR_RSC_NONE))
             {
@@ -953,6 +961,12 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
                 NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, pHeader->rsc_dup_acks);
                 DPrintf(1, "RSC win packet, datalen %d, GSO type %d\n", pPacketInfo->dataLength, pHeader->hdr.gso_type);
                 pContext->extraStatistics.framesCoalescedWindows++;
+                // QEMU implementation of RSC does not populate the checksum for TCPv6
+                if ((pHeader->hdr.flags & VIRTIO_NET_HDR_F_DATA_VALID) == 0)
+                {
+                    qCSInfo.Receive.IpChecksumValueInvalid = true;
+                    qCSInfo.Receive.TcpChecksumValueInvalid = true;
+                }
             }
             else
 #endif
@@ -963,20 +977,19 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
                     &pBuffersDesc->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE],
                     pPacketInfo,
                     nBytesStripped, TRUE);
-                if (csRes.value)
-                {
-                    NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
-                    qCSInfo.Value = NULL;
-                    qCSInfo.Receive.IpChecksumFailed = csRes.flags.IpFailed;
-                    qCSInfo.Receive.IpChecksumSucceeded = csRes.flags.IpOK;
-                    qCSInfo.Receive.TcpChecksumFailed = csRes.flags.TcpFailed;
-                    qCSInfo.Receive.TcpChecksumSucceeded = csRes.flags.TcpOK;
-                    qCSInfo.Receive.UdpChecksumFailed = csRes.flags.UdpFailed;
-                    qCSInfo.Receive.UdpChecksumSucceeded = csRes.flags.UdpOK;
-                    NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
-                    DPrintf(1, "Reporting CS %X->%X\n", csRes.value, (ULONG)(ULONG_PTR)qCSInfo.Value);
-                }
             }
+            if (csRes.value)
+            {
+                qCSInfo.Receive.IpChecksumFailed = csRes.flags.IpFailed;
+                qCSInfo.Receive.IpChecksumSucceeded = csRes.flags.IpOK;
+                qCSInfo.Receive.TcpChecksumFailed = csRes.flags.TcpFailed;
+                qCSInfo.Receive.TcpChecksumSucceeded = csRes.flags.TcpOK;
+                qCSInfo.Receive.UdpChecksumFailed = csRes.flags.UdpFailed;
+                qCSInfo.Receive.UdpChecksumSucceeded = csRes.flags.UdpOK;
+            }
+            NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
+            DPrintf(1, "Reporting CS %X->%X\n", csRes.value, (ULONG)(ULONG_PTR)qCSInfo.Value);
+
             pNBL->Status = NDIS_STATUS_SUCCESS;
 #if defined(ENABLE_HISTORY_LOG)
             {
