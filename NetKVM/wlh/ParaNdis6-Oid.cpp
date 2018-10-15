@@ -137,7 +137,6 @@ OIDENTRY(OID_GEN_MEDIA_SUPPORTED,               2,0,4, ohfQueryStat     ),
 OIDENTRY(OID_GEN_MEDIA_IN_USE,                  2,0,4, ohfQueryStat     ),
 OIDENTRY(OID_GEN_MAXIMUM_LOOKAHEAD,             2,0,4, ohfQuery         ),
 OIDENTRY(OID_GEN_MAXIMUM_FRAME_SIZE,            2,0,4, ohfQuery         ),
-OIDENTRY(OID_GEN_LINK_SPEED,                    2,0,4, ohfQuery         ),
 OIDENTRY(OID_GEN_TRANSMIT_BUFFER_SPACE,         2,0,4, ohfQueryStat     ),
 OIDENTRY(OID_GEN_RECEIVE_BUFFER_SPACE,          2,0,4, ohfQueryStat     ),
 OIDENTRY(OID_GEN_TRANSMIT_BLOCK_SIZE,           2,0,4, ohfQueryStat     ),
@@ -250,8 +249,6 @@ static NDIS_OID SupportedOids[] =
         OID_GEN_MEDIA_IN_USE,
         OID_GEN_MAXIMUM_LOOKAHEAD,
         OID_GEN_MAXIMUM_FRAME_SIZE,
-        OID_GEN_LINK_SPEED,
-        OID_GEN_LINK_SPEED_EX,
         OID_GEN_TRANSMIT_BUFFER_SPACE,
         OID_GEN_RECEIVE_BUFFER_SPACE,
         OID_GEN_TRANSMIT_BLOCK_SIZE,
@@ -435,29 +432,11 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     PVOID pInfo  = NULL;
     ULONG ulSize = 0;
     BOOLEAN bFreeInfo = FALSE;
-    LONGLONG ul64LinkSpeed = 0;
     NetKvm_Statistics wmiStatistics;
 
 #define SETINFO(field, value) pInfo = &u.##field; ulSize = sizeof(u.##field); u.##field = (value)
     switch(pOid->Oid)
     {
-        case OID_GEN_LINK_SPEED:
-            {
-                /* units are 100 bps */
-                ul64LinkSpeed = PARANDIS_MAXIMUM_LINK_SPEED / 100;
-                pInfo = &ul64LinkSpeed;
-                ulSize = sizeof(ul64LinkSpeed);
-            }
-            break;
-        case OID_GEN_LINK_SPEED_EX:
-            {
-                ULONG64 speed = pContext->bConnected ? pContext->LinkProperties.Speed : NDIS_LINK_SPEED_UNKNOWN;
-                u.LinkSpeed.RcvLinkSpeed = speed;
-                u.LinkSpeed.XmitLinkSpeed = speed;
-                pInfo = &u.LinkSpeed;
-                ulSize = sizeof(u.LinkSpeed);
-            }
-            break;
         case OID_GEN_STATISTICS:
             pInfo  = &pContext->Statistics;
             ulSize = sizeof(pContext->Statistics);
