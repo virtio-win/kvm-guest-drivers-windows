@@ -956,8 +956,6 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
             {
                 *pnCoalescedSegmentsCount = PktGetTCPCoalescedSegmentsCount(pContext, pPacketInfo, pHeader->hdr.gso_size);
                 NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, 0);
-                DPrintf(1, "RSC host packet, datalen %d, GSO type %d, mss %d, %d segments\n",
-                    pPacketInfo->dataLength, pHeader->hdr.gso_type, pHeader->hdr.gso_size, *pnCoalescedSegmentsCount);
                 pContext->extraStatistics.framesCoalescedHost++;
                 // according to the spec the device does not calculate TCP checksum
                 qCSInfo.Receive.IpChecksumValueInvalid = true;
@@ -967,7 +965,6 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
             {
                 *pnCoalescedSegmentsCount = pHeader->rsc_pkts;
                 NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, pHeader->rsc_dup_acks);
-                DPrintf(1, "RSC win packet, datalen %d, GSO type %d\n", pPacketInfo->dataLength, pHeader->hdr.gso_type);
                 pContext->extraStatistics.framesCoalescedWindows++;
                 // QEMU implementation of RSC does not populate the checksum for TCPv6
                 if ((pHeader->hdr.flags & VIRTIO_NET_HDR_F_DATA_VALID) == 0)
@@ -996,7 +993,9 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
                 qCSInfo.Receive.UdpChecksumSucceeded = csRes.flags.UdpOK;
             }
             NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
-            DPrintf(1, "Reporting CS %X->%X\n", csRes.value, (ULONG)(ULONG_PTR)qCSInfo.Value);
+            DPrintf(1, "datalen %d, GSO type/flags %d:%d, mss %d, %d segments, CS %X->%X\n",
+                pPacketInfo->dataLength, pHeader->hdr.gso_type, pHeader->hdr.flags, pHeader->hdr.gso_size,
+                *pnCoalescedSegmentsCount, csRes.value, (ULONG)(ULONG_PTR)qCSInfo.Value);
 
             pNBL->Status = NDIS_STATUS_SUCCESS;
 #if defined(ENABLE_HISTORY_LOG)
