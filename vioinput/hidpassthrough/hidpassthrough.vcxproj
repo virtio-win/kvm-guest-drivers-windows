@@ -33,7 +33,6 @@
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
     <SignMode>Off</SignMode>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
     <UseDebugLibraries>False</UseDebugLibraries>
     <DriverType>WDM</DriverType>
@@ -58,7 +57,6 @@
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <TargetVersion>Windows7</TargetVersion>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <Import Project="$(MSBuildProjectDirectory)\hidpassthrough.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <ImportGroup Label="PropertySheets">

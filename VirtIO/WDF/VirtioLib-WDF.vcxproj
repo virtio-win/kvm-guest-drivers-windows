@@ -84,7 +84,6 @@
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <TargetName>virtiolib_wdf</TargetName>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
     <DriverType>KMDF</DriverType>
   </PropertyGroup>
@@ -164,7 +163,6 @@
   <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'=='v140_xp'">
     <UseLegacyDDK>true</UseLegacyDDK>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
