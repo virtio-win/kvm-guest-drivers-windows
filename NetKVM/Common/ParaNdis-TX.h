@@ -241,6 +241,8 @@ public:
     void CompleteOutstandingInternalNBL(PNET_BUFFER_LIST NBL, BOOLEAN UnregisterOutstanding = TRUE);
 private:
 
+    virtual void Notify(SMNotifications message) override;
+
     bool SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList);
 
     bool FillQueue();

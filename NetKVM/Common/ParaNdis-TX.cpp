@@ -393,7 +393,7 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
 {
     NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 
-    if (NBLHolder->MappingSucceeded())
+    if (NBLHolder->MappingSucceeded() && m_VirtQueue.Alive())
     {
         m_SendQueue.Enqueue(NBLHolder);
 
@@ -492,6 +492,44 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList& completed)
     });
 
     return CompletedNBLs;
+}
+
+void CParaNdisTX::Notify(SMNotifications message)
+{
+    CRawCNBList  nbToFree;
+    CRawCNBLList completedNBLs;
+
+    __super::Notify(message);
+
+    if (message != SupriseRemoved)
+    {
+        // probably similar processing we'll do in case of reset
+        return;
+    }
+
+    CDpcIrqlRaiser OnDpc;
+
+    // pause follows after we return all the NBLs
+    DoWithTXLock([&]()
+    {
+        //
+        m_VirtQueue.ProcessTXCompletions(nbToFree, true);
+
+        while (HaveMappedNBLs())
+        {
+            CNBL *nbl = PopMappedNBL();
+            nbl->SetStatus(NDIS_STATUS_SEND_ABORTED);
+            completedNBLs.Push(nbl);
+            while (nbl->HaveMappedBuffers())
+            {
+                CNB *nb = nbl->PopMappedNB();
+                CNB::Destroy(nb);
+                nbl->NBComplete();
+            }
+        }
+    });
+
+    PostProcessPendingTask(nbToFree, completedNBLs);
 }
 
 PNET_BUFFER_LIST CParaNdisTX::BuildCancelList(PVOID CancelId)
