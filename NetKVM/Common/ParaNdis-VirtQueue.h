@@ -276,7 +276,9 @@ public:
 
     SubmitTxPacketResult SubmitPacket(CNB &NB);
 
-    void ProcessTXCompletions(CRawCNBList& listDone);
+    void ProcessTXCompletions(CRawCNBList& listDone, bool bKill = false);
+    bool Alive()
+    { return !m_Killed; }
 
     //TODO: Needs review/temporary?
     ULONG GetFreeTXDescriptors()
@@ -311,6 +313,7 @@ private:
 
     struct VirtIOBufferDescriptor *m_SGTable = nullptr;
     ULONG m_SGTableCapacity = 0;
+    bool  m_Killed = false;
 
     //TODO Temporary, must go way
     PPARANDIS_ADAPTER m_Context;
