@@ -272,6 +272,18 @@ SubmitTxPacketResult CTXVirtQueue::SubmitPacket(CNB &NB)
     return res;
 }
 
+void CTXVirtQueue::ReleaseOneBuffer(CTXDescriptor *TXDescriptor, CRawCNBList& listDone)
+{
+    if (!TXDescriptor->GetUsedBuffersNum())
+    {
+        DPrintf(0, "[%s] ERROR: nofUsedBuffers not set!\n", __FUNCTION__);
+    }
+    m_FreeHWBuffers += TXDescriptor->GetUsedBuffersNum();
+    listDone.PushBack(TXDescriptor->GetNB());
+    m_Descriptors.Push(TXDescriptor);
+    DPrintf(3, "[%s] Free Tx: desc %d, buff %d\n", __FUNCTION__, m_Descriptors.GetCount(), m_FreeHWBuffers);
+}
+
 UINT CTXVirtQueue::ReleaseTransmitBuffers(CRawCNBList& listDone)
 {
     UINT len, i = 0;
@@ -282,14 +294,7 @@ UINT CTXVirtQueue::ReleaseTransmitBuffers(CRawCNBList& listDone)
     while(NULL != (TXDescriptor = (CTXDescriptor *) GetBuf(&len)))
     {
         m_DescriptorsInUse.Remove(TXDescriptor);
-        if (!TXDescriptor->GetUsedBuffersNum())
-        {
-            DPrintf(0, "[%s] ERROR: nofUsedBuffers not set!\n", __FUNCTION__);
-        }
-        m_FreeHWBuffers += TXDescriptor->GetUsedBuffersNum();
-        listDone.PushBack(TXDescriptor->GetNB());
-        m_Descriptors.Push(TXDescriptor);
-        DPrintf(3, "[%s] Free Tx: desc %d, buff %d\n", __FUNCTION__, m_Descriptors.GetCount(), m_FreeHWBuffers);
+        ReleaseOneBuffer(TXDescriptor, listDone);
         ++i;
     }
     if (i)
