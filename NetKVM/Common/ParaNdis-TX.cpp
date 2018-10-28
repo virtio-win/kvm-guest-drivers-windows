@@ -619,9 +619,31 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList)
     return bRestartStatus;
 }
 
-bool CParaNdisTX::DoPendingTasks(CNBL *nblHolder)
+void CParaNdisTX::PostProcessPendingTask(
+    CRawCNBList& nbToFree,
+    CRawCNBLList& completedNBLs)
 {
     PNET_BUFFER_LIST pNBLReturnNow = nullptr;
+    if (!nbToFree.IsEmpty() || !completedNBLs.IsEmpty())
+    {
+        nbToFree.ForEachDetached([](CNB *NB)
+        {
+            CNBL *NBL = NB->GetParentNBL();
+            CNB::Destroy(NB);
+            NBL->NBComplete();
+        }
+        );
+
+        pNBLReturnNow = ProcessWaitingList(completedNBLs);
+        if (pNBLReturnNow)
+        {
+            CompleteOutstandingNBLChain(pNBLReturnNow, NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL);
+        }
+    }
+}
+
+bool CParaNdisTX::DoPendingTasks(CNBL *nblHolder)
+{
     bool bRestartQueueStatus = false;
     bool bFromDpc = nblHolder == nullptr;
     CRawCNBList  nbToFree;
@@ -659,22 +681,8 @@ bool CParaNdisTX::DoPendingTasks(CNBL *nblHolder)
         }
     });
 
-    if (!nbToFree.IsEmpty() || !completedNBLs.IsEmpty())
-    {
-        nbToFree.ForEachDetached([](CNB *NB)
-        {
-            CNBL *NBL = NB->GetParentNBL();
-            CNB::Destroy(NB);
-            NBL->NBComplete();
-        }
-        );
+    PostProcessPendingTask(nbToFree, completedNBLs);
 
-        pNBLReturnNow = ProcessWaitingList(completedNBLs);
-        if (pNBLReturnNow)
-        {
-            CompleteOutstandingNBLChain(pNBLReturnNow, NDIS_SEND_COMPLETE_FLAGS_DISPATCH_LEVEL);
-        }
-    }
     return bRestartQueueStatus;
 }
 
