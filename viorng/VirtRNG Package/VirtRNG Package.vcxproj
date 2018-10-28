@@ -54,7 +54,6 @@
     <DriverType>Package</DriverType>
     <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" Label="Configuration">
     <TargetVersion>Windows8</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -86,7 +85,6 @@
     <TargetVersion>Windows7</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <Import Project="$(MSBuildProjectDirectory)\viorng_pack.props" />
   <ImportGroup Label="ExtensionSettings">
