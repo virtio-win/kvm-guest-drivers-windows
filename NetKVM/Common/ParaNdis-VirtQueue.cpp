@@ -307,11 +307,22 @@ UINT CTXVirtQueue::ReleaseTransmitBuffers(CRawCNBList& listDone)
 }
 
 //TODO: Needs review
-void CTXVirtQueue::ProcessTXCompletions(CRawCNBList& listDone)
+void CTXVirtQueue::ProcessTXCompletions(CRawCNBList& listDone, bool bKill)
 {
     if (m_Descriptors.GetCount() < m_TotalDescriptors)
     {
-        ReleaseTransmitBuffers(listDone);
+        if (!bKill && !m_Killed)
+            ReleaseTransmitBuffers(listDone);
+        else
+        {
+            LPCSTR func = __FUNCTION__;
+            m_Killed = true;
+            m_DescriptorsInUse.ForEachDetached([&](CTXDescriptor *TXDescriptor)
+            {
+                DPrintf(0, "[%s] kill: releasing buffer\n", func);
+                ReleaseOneBuffer(TXDescriptor, listDone);
+            });
+        }
     }
 }
 
