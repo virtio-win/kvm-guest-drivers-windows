@@ -291,6 +291,7 @@ public:
 
 private:
     UINT ReleaseTransmitBuffers(CRawCNBList& listDone);
+    void ReleaseOneBuffer(CTXDescriptor *TXDescriptor, CRawCNBList& listDone);
     bool PrepareBuffers();
     void FreeBuffers();
     ULONG m_MaxBuffers;
