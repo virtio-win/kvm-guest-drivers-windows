@@ -245,6 +245,7 @@ private:
 
     bool FillQueue();
 
+    void PostProcessPendingTask(CRawCNBList& toFree, CRawCNBLList& completed);
     PNET_BUFFER_LIST ProcessWaitingList(CRawCNBLList& completed);
     PNET_BUFFER_LIST BuildCancelList(PVOID CancelId);
 
