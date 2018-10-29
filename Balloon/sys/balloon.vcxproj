@@ -101,17 +101,17 @@
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|Win32'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v141_xp</PlatformToolset>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v141_xp</PlatformToolset>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='WinXP Release|Win32'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v141_xp</PlatformToolset>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
@@ -136,24 +136,24 @@
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|x64'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v141_xp</PlatformToolset>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v141_xp</PlatformToolset>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='WinXP Release|x64'">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v141_xp</PlatformToolset>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
   </PropertyGroup>
-  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'!='v140_xp'">
+  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'!='v141_xp'">
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>KMDF</DriverType>
   </PropertyGroup>
-  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'=='v140_xp'">
+  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'=='v141_xp'">
     <UseLegacyDDK>true</UseLegacyDDK>
     <ConfigurationType>Application</ConfigurationType>
     <GenerateManifest>false</GenerateManifest>
@@ -254,7 +254,7 @@
       <AdditionalOptions>/osversion:6.1 %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v140_xp'">
+  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v141_xp'">
     <ClCompile>
       <DisableSpecificWarnings>4267;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>

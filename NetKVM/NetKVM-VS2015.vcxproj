@@ -80,7 +80,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v141_xp</PlatformToolset>
     <ConfigurationType>Application</ConfigurationType>
     <GenerateManifest>false</GenerateManifest>
     <UseLegacyDDK>true</UseLegacyDDK>
@@ -139,7 +139,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v141_xp</PlatformToolset>
     <ConfigurationType>Application</ConfigurationType>
     <GenerateManifest>false</GenerateManifest>
     <UseLegacyDDK>true</UseLegacyDDK>

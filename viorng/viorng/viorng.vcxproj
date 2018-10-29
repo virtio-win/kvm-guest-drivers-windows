@@ -62,7 +62,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v141_xp</PlatformToolset>
     <UseDebugLibraries>false</UseDebugLibraries>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
   </PropertyGroup>
@@ -86,7 +86,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v141_xp</PlatformToolset>
     <UseDebugLibraries>false</UseDebugLibraries>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
   </PropertyGroup>
@@ -96,12 +96,12 @@
     <UseDebugLibraries>false</UseDebugLibraries>
     <KMDF_VERSION_MINOR>15</KMDF_VERSION_MINOR>
   </PropertyGroup>
-  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'!='v140_xp'">
+  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'!='v141_xp'">
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>KMDF</DriverType>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
   </PropertyGroup>
-  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'=='v140_xp'">
+  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'=='v141_xp'">
     <UseLegacyDDK>true</UseLegacyDDK>
     <ConfigurationType>Application</ConfigurationType>
     <GenerateManifest>false</GenerateManifest>
@@ -147,7 +147,7 @@
       <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">..\..\VirtIO\objfre_win10_amd64\amd64;..\..\VirtIO\WDF\objfre_win10_amd64\amd64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v140_xp'">
+  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v141_xp'">
     <ClCompile>
       <DisableSpecificWarnings>4267;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
@@ -178,12 +178,12 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
-  <PropertyGroup Condition="'$(PlatformToolset)'!='v140_xp'">
+  <PropertyGroup Condition="'$(PlatformToolset)'!='v141_xp'">
     <!-- Works around a bug in WindowsDriver.Common.targets where WdfCoInstaller is spelled with lower-case i -->
     <KmdfCoinstaller>$(WDKContentRoot)redist\wdf\$(DDKPlatform)\WdfCoInstaller$(KMDF_VERSION_MAJOR_STRING)$(KMDF_VERSION_MINOR_STRING).dll</KmdfCoinstaller>
   </PropertyGroup>
   <Target Name="GetDriverProjectAttributes" Returns="@(DriverProjectAttributes)">
-    <ItemGroup Condition="'$(PlatformToolset)'=='v140_xp'">
+    <ItemGroup Condition="'$(PlatformToolset)'=='v141_xp'">
       <DriverProjectAttributes Include="$(ProjectGuid)">
         <DriverType>$(DriverType)</DriverType>
         <PlatformToolset>$(PlatformToolset)</PlatformToolset>
@@ -194,7 +194,7 @@
     </ItemGroup>
   </Target>
   <Target Name="GetPackageFiles" Returns="@(FullyQualifiedFilesToPackage)">
-    <ItemGroup Condition="'$(PlatformToolset)'=='v140_xp'">
+    <ItemGroup Condition="'$(PlatformToolset)'=='v141_xp'">
       <FilesToPackage Include="$(LegacyDDKDir)\redist\wdf\$(TargetArch)\WdfCoInstaller01009.dll" />
     </ItemGroup>
     <ConvertToAbsolutePath Paths="@(FilesToPackage)">
