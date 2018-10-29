@@ -83,24 +83,24 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v141_xp</PlatformToolset>
     <UseDebugLibraries>false</UseDebugLibraries>
     <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'" Label="Configuration">
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v141_xp</PlatformToolset>
     <UseDebugLibraries>false</UseDebugLibraries>
     <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
     <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
   </PropertyGroup>
-  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'!='v140_xp'">
+  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'!='v141_xp'">
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>KMDF</DriverType>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
   </PropertyGroup>
-  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'=='v140_xp'">
+  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'=='v141_xp'">
     <UseLegacyDDK>true</UseLegacyDDK>
     <ConfigurationType>Application</ConfigurationType>
     <GenerateManifest>false</GenerateManifest>
@@ -135,7 +135,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
     </Link>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v140_xp'">
+  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v141_xp'">
     <PreBuildEvent>
       <Command>
         tracewpp bugcheck.c power.c pvpanic.c -km -func:TraceEvents(LEVEL,FLAGS,MSG,...) -func:Hexdump(LEVEL,FLAGS,MSG,...) -gen:{km-WdfDefault.tpl}*.tmh -cfgdir:$(LegacyDDKDir)\bin\WppConfig\Rev1
@@ -172,12 +172,12 @@
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
-  <PropertyGroup Condition="'$(PlatformToolset)'!='v140_xp'">
+  <PropertyGroup Condition="'$(PlatformToolset)'!='v141_xp'">
     <!-- Works around a bug in WindowsDriver.Common.targets where WdfCoInstaller is spelled with lower-case i -->
     <KmdfCoinstaller>$(WDKContentRoot)redist\wdf\$(DDKPlatform)\WdfCoInstaller$(KMDF_VERSION_MAJOR_STRING)$(KMDF_VERSION_MINOR_STRING).dll</KmdfCoinstaller>
   </PropertyGroup>
   <Target Name="GetDriverProjectAttributes" Returns="@(DriverProjectAttributes)">
-    <ItemGroup Condition="'$(PlatformToolset)'=='v140_xp'">
+    <ItemGroup Condition="'$(PlatformToolset)'=='v141_xp'">
       <DriverProjectAttributes Include="$(ProjectGuid)">
         <DriverType>$(DriverType)</DriverType>
         <PlatformToolset>$(PlatformToolset)</PlatformToolset>
@@ -188,7 +188,7 @@
     </ItemGroup>
   </Target>
   <Target Name="GetPackageFiles" Returns="@(FullyQualifiedFilesToPackage)">
-    <ItemGroup Condition="'$(PlatformToolset)'=='v140_xp'">
+    <ItemGroup Condition="'$(PlatformToolset)'=='v141_xp'">
       <FilesToPackage Include="$(OutDir)\pvpanic.inf" />
       <FilesToPackage Include="$(OutDir)\WdfCoInstaller01009.dll" />
     </ItemGroup>

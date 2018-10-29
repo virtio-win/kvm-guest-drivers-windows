@@ -1,21 +1,25 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="WinXP Release|Win32">
       <Configuration>WinXP Release</Configuration>
       <Platform>Win32</Platform>
+      <PlatformToolset>v141_xp</PlatformToolset>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win2k3 Release|Win32">
       <Configuration>Win2k3 Release</Configuration>
       <Platform>Win32</Platform>
+      <PlatformToolset>v141_xp</PlatformToolset>
     </ProjectConfiguration>
     <ProjectConfiguration Include="WinXP Release|x64">
       <Configuration>WinXP Release</Configuration>
       <Platform>x64</Platform>
+      <PlatformToolset>v141_xp</PlatformToolset>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win2k3 Release|x64">
       <Configuration>Win2k3 Release</Configuration>
       <Platform>x64</Platform>
+      <PlatformToolset>v141_xp</PlatformToolset>
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
@@ -36,15 +40,13 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{FE1EF04E-D3BA-4E55-A70D-CC569B9EC93E}</ProjectGuid>
-    <TemplateGuid>{0a049372-4c4d-4ea0-a64e-dc6ad88ceca1}</TemplateGuid>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
-    <MinimumVisualStudioVersion>11.0</MinimumVisualStudioVersion>
     <Configuration>WinXP Release</Configuration>
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
   </PropertyGroup>
   <PropertyGroup Label="Globals">
     <RootNamespace>ndiscommon</RootNamespace>
     <VCTargetsPath Condition="'$(VCTargetsPath11)' != '' and '$(VisualStudioVersion)' == '11.0'">$(VCTargetsPath11)</VCTargetsPath>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <PropertyGroup Label="PropertySheets">
     <ConfigurationType>StaticLibrary</ConfigurationType>
@@ -54,10 +56,21 @@
     <DriverType>WDM</DriverType>
   </PropertyGroup>
   <PropertyGroup Label="Configuration">
-    <UseDebugLibraries>true</UseDebugLibraries>
+    <UseDebugLibraries>false</UseDebugLibraries>
     <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v140_xp</PlatformToolset>
     <UseLegacyDDK>true</UseLegacyDDK>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='WinXP Release|Win32'">
+    <PlatformToolset>v141</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='WinXP Release|x64'">
+    <PlatformToolset>v141</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|x64'">
+    <PlatformToolset>v141</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|Win32'">
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\..\..\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
