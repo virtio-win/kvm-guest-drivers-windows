@@ -161,14 +161,14 @@ if %BUILD_ARCH%==amd64 set BUILD_ARCH=x64
 set TARGET_VS_CONFIG="%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%|%BUILD_ARCH%"
 
 pushd %BUILD_DIR%
-call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x64
+call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" x86
 
 if /I "!TAG!"=="SDV" (
   echo Running SDV for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
   call :runsdv "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
 ) else (
   echo Building %BUILD_FILE%, configuration %TARGET_VS_CONFIG%, command %BUILD_COMMAND%
-  call %~dp0\callVisualStudio.bat 14 %BUILD_FILE% %BUILD_COMMAND% %TARGET_VS_CONFIG% /Out %BUILD_LOG_FILE%
+  call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\devenv.com" %BUILD_FILE% %BUILD_COMMAND% %TARGET_VS_CONFIG% /Out %BUILD_LOG_FILE%
 )
 popd
 endlocal

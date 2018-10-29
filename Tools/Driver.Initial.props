@@ -15,6 +15,10 @@ Common property definitions used by all drivers:
     <Message Importance="high" Text="Driver.Initial.props: _NT_TARGET_VERSION=$(_NT_TARGET_VERSION) SUBSYSTEM_NATVER=$(SUBSYSTEM_NATVER) mismatch=$(MidlTargetMismatch)" />
   </Target>
 
+  <PropertyGroup Label="Globals">
+    <SpectreMitigation>false</SpectreMitigation>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(TargetVersion)'=='Windows10'">
   <_NT_TARGET_VERSION>0x0A00</_NT_TARGET_VERSION>
   </PropertyGroup>
