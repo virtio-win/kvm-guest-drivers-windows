@@ -1,11 +1,18 @@
-image: Visual Studio 2015
+image: Visual Studio 2017
 
 version: build-{build}-{branch}
 
 before_build:
-  - ren "C:\Program Files (x86)\Windows Kits\10\include\00wdf" "wdf"
   - powershell Start-BitsTransfer -Source https://download.microsoft.com/download/1/7/6/176909B0-50F2-4DF3-B29B-830A17EA7E38/CPDK_RELEASE_UPDATE/cpdksetup.exe -Destination C:\cpdksetup.exe
   - c:\cpdksetup.exe /quiet /norestart
+  - powershell Start-BitsTransfer -Source https://download.microsoft.com/download/4/A/2/4A25C7D5-EFBE-4182-B6A9-AE6850409A78/GRMWDK_EN_7600_1.ISO -Destination c:\wdk7.iso
+  - powershell Mount-DiskImage c:\wdk7.iso
+  - powershell Get-Volume -FileSystemLabel WDK | findstr WDK > ddkinfo.txt
+  - for /F "tokens=1" %%a in (ddkinfo.txt) do set DDKINST=%%a:\wdk
+  - echo Win7 DDK is on %DDKINST%
+  - dir /b %DDKINST%\*.msi | findstr /i /v sampl > c:\ddklist.txt
+  - for /f %%f in (c:\ddklist.txt) do start /w msiexec /q /i %DDKINST%\%%f DEFAULT_INSTALL_DIR1=c:\winddk\7600.16385.1
+  - echo WDK installation done (result %errorlevel%)
 
 build_script: build_AllNoSdv.bat
 
