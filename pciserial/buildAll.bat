@@ -1,8 +1,6 @@
 setlocal
 call clean.bat
-rem call ..\Tools\SetVsEnv 14 x64
-
-call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x64
+call ..\Tools\SetVsEnv x86
 
 mkdir Install\rhel
 
