@@ -179,6 +179,8 @@ IF ERRORLEVEL 1 (
 goto :eof
 
 :runsdv
+set SDVLEGACY=1
+call "%~dp0\SetVsEnv.bat" x64
 msbuild.exe %BUILD_FILE% /t:clean /p:Configuration="%~1" /P:Platform=%2
 
 IF ERRORLEVEL 1 (
@@ -197,7 +199,7 @@ IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
 )
 
-msbuild.exe %BUILD_FILE% /t:sdv /p:inputs="/devenv /check" /p:Configuration="%~1" /P:platform=%2
+msbuild.exe %BUILD_FILE% /t:sdv /p:inputs="/check /devenv" /p:Configuration="%~1" /P:platform=%2
 
 IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
