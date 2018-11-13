@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.28010.2048
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "VirtIO", "VirtIO", "{6F38EDCB-7CFB-4CEA-8CE6-37A13ED41019}"
 EndProject
@@ -14,78 +14,98 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viostor", "viostor.vcxproj"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Vista Release|ARM64 = Vista Release|ARM64
 		Vista Release|x64 = Vista Release|x64
 		Vista Release|x86 = Vista Release|x86
+		Win10 Release|ARM64 = Win10 Release|ARM64
 		Win10 Release|x64 = Win10 Release|x64
 		Win10 Release|x86 = Win10 Release|x86
+		Win2k3 Release|ARM64 = Win2k3 Release|ARM64
 		Win2k3 Release|x64 = Win2k3 Release|x64
 		Win2k3 Release|x86 = Win2k3 Release|x86
+		Win7 Release|ARM64 = Win7 Release|ARM64
 		Win7 Release|x64 = Win7 Release|x64
 		Win7 Release|x86 = Win7 Release|x86
+		Win8 Release|ARM64 = Win8 Release|ARM64
 		Win8 Release|x64 = Win8 Release|x64
 		Win8 Release|x86 = Win8 Release|x86
+		Win8.1 Release|ARM64 = Win8.1 Release|ARM64
 		Win8.1 Release|x64 = Win8.1 Release|x64
 		Win8.1 Release|x86 = Win8.1 Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|ARM64.ActiveCfg = Vista Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x64.ActiveCfg = Vista Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x64.Build.0 = Vista Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x86.ActiveCfg = Vista Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x86.Build.0 = Vista Release|Win32
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x64.Build.0 = Win10 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x64.Deploy.0 = Win10 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x86.Build.0 = Win10 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x86.Deploy.0 = Win10 Release|Win32
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win2k3 Release|ARM64.ActiveCfg = Win2k3 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win2k3 Release|x64.ActiveCfg = Win2k3 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win2k3 Release|x64.Build.0 = Win2k3 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win2k3 Release|x86.ActiveCfg = Win2k3 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win2k3 Release|x86.Build.0 = Win2k3 Release|Win32
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win7 Release|ARM64.ActiveCfg = Win7 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win7 Release|x64.ActiveCfg = Win7 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win7 Release|x64.Build.0 = Win7 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win7 Release|x64.Deploy.0 = Win7 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win7 Release|x86.ActiveCfg = Win7 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win7 Release|x86.Build.0 = Win7 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win7 Release|x86.Deploy.0 = Win7 Release|Win32
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8 Release|ARM64.ActiveCfg = Win8 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8 Release|x64.ActiveCfg = Win8 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8 Release|x64.Build.0 = Win8 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8 Release|x64.Deploy.0 = Win8 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8 Release|x86.ActiveCfg = Win8 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8 Release|x86.Build.0 = Win8 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8 Release|x86.Deploy.0 = Win8 Release|Win32
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|ARM64.ActiveCfg = Win8.1 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x64.Build.0 = Win8.1 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x64.Deploy.0 = Win8.1 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x86.Deploy.0 = Win8.1 Release|Win32
+		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Vista Release|ARM64.ActiveCfg = Vista Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Vista Release|x64.ActiveCfg = Vista Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Vista Release|x64.Build.0 = Vista Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Vista Release|x86.ActiveCfg = Vista Release|Win32
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Vista Release|x86.Build.0 = Vista Release|Win32
+		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
+		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win10 Release|x64.Build.0 = Win10 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win10 Release|x64.Deploy.0 = Win10 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win10 Release|x86.Build.0 = Win10 Release|Win32
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win10 Release|x86.Deploy.0 = Win10 Release|Win32
+		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win2k3 Release|ARM64.ActiveCfg = Win2k3 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win2k3 Release|x64.ActiveCfg = Win2k3 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win2k3 Release|x64.Build.0 = Win2k3 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win2k3 Release|x86.ActiveCfg = Win2k3 Release|Win32
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win2k3 Release|x86.Build.0 = Win2k3 Release|Win32
+		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win7 Release|ARM64.ActiveCfg = Win7 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win7 Release|x64.ActiveCfg = Win7 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win7 Release|x64.Build.0 = Win7 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win7 Release|x64.Deploy.0 = Win7 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win7 Release|x86.ActiveCfg = Win7 Release|Win32
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win7 Release|x86.Build.0 = Win7 Release|Win32
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win7 Release|x86.Deploy.0 = Win7 Release|Win32
+		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8 Release|ARM64.ActiveCfg = Win8 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8 Release|x64.ActiveCfg = Win8 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8 Release|x64.Build.0 = Win8 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8 Release|x64.Deploy.0 = Win8 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8 Release|x86.ActiveCfg = Win8 Release|Win32
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8 Release|x86.Build.0 = Win8 Release|Win32
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8 Release|x86.Deploy.0 = Win8 Release|Win32
+		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|ARM64.ActiveCfg = Win8 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|x64.ActiveCfg = Win8 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|x64.Build.0 = Win8 Release|x64
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|x64.Deploy.0 = Win8 Release|x64
@@ -98,5 +118,8 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E} = {6F38EDCB-7CFB-4CEA-8CE6-37A13ED41019}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {08630A1A-93D4-432B-8B24-75C266C5C458}
 	EndGlobalSection
 EndGlobal
