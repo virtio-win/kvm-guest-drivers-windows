@@ -34,6 +34,9 @@ Common property definitions used by all drivers:
   <PropertyGroup Condition="'$(Platform)'=='x64'">
     <TargetArch>amd64</TargetArch>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)'=='ARM64'">
+    <TargetArch>ARM64</TargetArch>
+  </PropertyGroup>
 
   <!-- _NT_TARGET_MAJ is one of the components of driver version (always reflects target OS version) -->
   <!-- $(TargetOS) -->
