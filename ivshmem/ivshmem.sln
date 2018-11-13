@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25123.0
+# Visual Studio 15
+VisualStudioVersion = 15.0.28010.2048
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ivshmem", "ivshmem.vcxproj", "{03CA149C-ACBD-430E-A663-30D3A335F8A4}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -12,52 +12,67 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ivshmem-test", "test\ivshme
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Win10 Release|ARM64 = Win10 Release|ARM64
 		Win10 Release|x64 = Win10 Release|x64
 		Win10 Release|x86 = Win10 Release|x86
+		Win7 Release|ARM64 = Win7 Release|ARM64
 		Win7 Release|x64 = Win7 Release|x64
 		Win7 Release|x86 = Win7 Release|x86
+		Win8 Release|ARM64 = Win8 Release|ARM64
 		Win8 Release|x64 = Win8 Release|x64
 		Win8 Release|x86 = Win8 Release|x86
+		Win8.1 Release|ARM64 = Win8.1 Release|ARM64
 		Win8.1 Release|x64 = Win8.1 Release|x64
 		Win8.1 Release|x86 = Win8.1 Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
+		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
+		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win10 Release|ARM64.Deploy.0 = Win10 Release|ARM64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win10 Release|x64.Build.0 = Win10 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win10 Release|x64.Deploy.0 = Win10 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win10 Release|x86.Build.0 = Win10 Release|Win32
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win10 Release|x86.Deploy.0 = Win10 Release|Win32
+		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win7 Release|ARM64.ActiveCfg = Win7 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win7 Release|x64.ActiveCfg = Win7 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win7 Release|x64.Build.0 = Win7 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win7 Release|x64.Deploy.0 = Win7 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win7 Release|x86.ActiveCfg = Win7 Release|Win32
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win7 Release|x86.Build.0 = Win7 Release|Win32
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win7 Release|x86.Deploy.0 = Win7 Release|Win32
+		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8 Release|ARM64.ActiveCfg = Win8 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8 Release|x64.ActiveCfg = Win8 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8 Release|x64.Build.0 = Win8 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8 Release|x64.Deploy.0 = Win8 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8 Release|x86.ActiveCfg = Win8 Release|Win32
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8 Release|x86.Build.0 = Win8 Release|Win32
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8 Release|x86.Deploy.0 = Win8 Release|Win32
+		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8.1 Release|ARM64.ActiveCfg = Win8.1 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8.1 Release|x64.Build.0 = Win8.1 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8.1 Release|x64.Deploy.0 = Win8.1 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8.1 Release|x86.Deploy.0 = Win8.1 Release|Win32
+		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
+		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win10 Release|x64.Build.0 = Win10 Release|x64
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win10 Release|x86.Build.0 = Win10 Release|Win32
-		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win7 Release|x64.ActiveCfg = Win7 Release|x64
-		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win7 Release|x64.Build.0 = Win7 Release|x64
-		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win7 Release|x86.ActiveCfg = Win7 Release|Win32
-		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win7 Release|x86.Build.0 = Win7 Release|Win32
+		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win7 Release|ARM64.ActiveCfg = Win10 Release|x64
+		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win7 Release|x64.ActiveCfg = Win10 Release|x64
+		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win7 Release|x64.Build.0 = Win10 Release|x64
+		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win7 Release|x86.ActiveCfg = Win10 Release|Win32
+		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win7 Release|x86.Build.0 = Win10 Release|Win32
+		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win8 Release|ARM64.ActiveCfg = Win10 Release|x64
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win8 Release|x64.ActiveCfg = Win10 Release|x64
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win8 Release|x64.Build.0 = Win10 Release|x64
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win8 Release|x86.ActiveCfg = Win10 Release|Win32
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win8 Release|x86.Build.0 = Win10 Release|Win32
+		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win8.1 Release|ARM64.ActiveCfg = Win10 Release|x64
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win8.1 Release|x64.ActiveCfg = Win10 Release|x64
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win8.1 Release|x64.Build.0 = Win10 Release|x64
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win8.1 Release|x86.ActiveCfg = Win10 Release|Win32
@@ -65,5 +80,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D1028B91-5F69-44A1-ABB2-F0B99EBD3664}
 	EndGlobalSection
 EndGlobal
