@@ -53,6 +53,7 @@ if /I "%ARG%"=="64" set BUILD_ARCH=amd64& goto :argloop
 if /I "%ARG%"=="x64" set BUILD_ARCH=amd64& goto :argloop
 if /I "%ARG%"=="32" set BUILD_ARCH=x86& goto :argloop
 if /I "%ARG%"=="x86" set BUILD_ARCH=x86& goto :argloop
+if /I "%ARG%"=="ARM64" set BUILD_ARCH=ARM64& goto :argloop
 
 rem Assume that this is target OS version and split off the tag
 call :split_target_tag "%ARG%"
