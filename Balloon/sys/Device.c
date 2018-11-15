@@ -266,17 +266,18 @@ BalloonEvtDeviceContextCleanup(
         devCtx->pfns_table = NULL;
     }
 
-#ifndef USE_BALLOON_SERVICE
-    RtlFillMemory(devCtx->MemStats,
-        sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
-    if (devCtx->StatVirtQueue)
-    {
-        BalloonMemStats(Device);
-    }
-#endif // !USE_BALLOON_SERVICE
-
     if(devCtx->MemStats)
     {
+
+#ifndef USE_BALLOON_SERVICE
+        RtlFillMemory(devCtx->MemStats,
+            sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
+        if (devCtx->StatVirtQueue)
+        {
+            BalloonMemStats(Device);
+        }
+#endif // !USE_BALLOON_SERVICE
+
         ExFreePoolWithTag(
                    devCtx->MemStats,
                    BALLOON_MGMT_POOL_TAG
