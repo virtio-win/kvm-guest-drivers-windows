@@ -102,17 +102,24 @@ BOOLEAN CParaNdisCX::SendControlMessage(
         if (0 <= m_VirtQueue.AddBuf(sg, nOut, 1, (PVOID)1, NULL, 0))
         {
             UINT len;
+            void *p;
             m_Context->m_CxStateMachine.RegisterOutstandingItem();
 
             m_VirtQueue.Kick();
-            while (!m_VirtQueue.GetBuf(&len))
+            p = m_VirtQueue.GetBuf(&len);
+            for (int i = 0; i < 1000 && !p; ++i)
             {
                 UINT interval = 1;
                 NdisStallExecution(interval);
+                p = m_VirtQueue.GetBuf(&len);
             }
             m_Context->m_CxStateMachine.UnregisterOutstandingItem();
 
-            if (len != sizeof(virtio_net_ctrl_ack))
+            if (!p)
+            {
+                DPrintf(0, "%s - ERROR: get_buf failed\n", __FUNCTION__);
+            }
+            else if (len != sizeof(virtio_net_ctrl_ack))
             {
                 DPrintf(0, "%s - ERROR: wrong len %d\n", __FUNCTION__, len);
             }
