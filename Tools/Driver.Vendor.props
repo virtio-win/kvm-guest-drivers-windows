@@ -26,6 +26,9 @@ Set $(Feature_AlwaysDefaultVendor) to false and set $(_VENDOR_) to override.
   <PropertyGroup Condition="'$(TargetArch)'=='amd64'">
     <VerArch>x64</VerArch>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetArch)'=='ARM64'">
+    <VerArch>ARM64</VerArch>
+  </PropertyGroup>
 
   <Import Project="Driver.$(_VENDOR_).props" />
 
