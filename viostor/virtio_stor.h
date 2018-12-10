@@ -223,10 +223,6 @@ VirtIoInterrupt(
 #define SCSI_SENSEQ_CAPACITY_DATA_CHANGED        0x09
 #endif
 
-#ifndef NTDDI_WIN10
-#define NTDDI_WIN10                              0x0A000000
-#endif
-
 #ifdef MSI_SUPPORTED
 #ifndef PCIX_TABLE_POINTER
 typedef struct {
