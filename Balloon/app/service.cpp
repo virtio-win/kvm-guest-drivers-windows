@@ -287,6 +287,15 @@ DWORD WINAPI CService::DeviceNotificationCallback(HCMNOTIFICATION Notify,
     return ERROR_SUCCESS;
 }
 
+VOID WINAPI UnregisterNotificationWork(PTP_CALLBACK_INSTANCE Instance,
+    PVOID Context, PTP_WORK Work)
+{
+    HCMNOTIFICATION Handle = static_cast<HCMNOTIFICATION>(Context);
+
+    CM_Unregister_Notification(Handle);
+    CloseThreadpoolWork(Work);
+}
+
 #endif // UNIVERSAL
 
 NOTIFY_HANDLE CService::RegisterDeviceInterfaceNotification()
@@ -362,14 +371,20 @@ NOTIFY_HANDLE CService::RegisterDeviceHandleNotification(HANDLE DeviceHandle)
 
 BOOL CService::UnregisterNotification(NOTIFY_HANDLE Handle)
 {
-    BOOL ret;
+    BOOL ret = FALSE;
 
     if (Handle)
     {
 #ifdef UNIVERSAL
-        CONFIGRET cr;
-        cr = CM_Unregister_Notification(Handle);
-        ret = (cr == CR_SUCCESS);
+        PTP_WORK work;
+
+        work = CreateThreadpoolWork(UnregisterNotificationWork, Handle, NULL);
+        if (work != NULL)
+        {
+            SubmitThreadpoolWork(work);
+        }
+
+        ret = TRUE;
 #else // UNIVERSAL
         ret = ::UnregisterDeviceNotification(Handle);
 #endif // UNIVERSAL
