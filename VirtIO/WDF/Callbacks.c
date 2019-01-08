@@ -56,7 +56,9 @@ static void *mem_alloc_contiguous_pages(void *context, size_t size)
 #else
     ret = MmAllocateContiguousMemory(size, HighestAcceptable);
 #endif
-    RtlZeroMemory(ret, size);
+    if (ret != NULL) {
+        RtlZeroMemory(ret, size);
+    }
     return ret;
 }
 
