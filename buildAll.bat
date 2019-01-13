@@ -12,7 +12,9 @@ if errorlevel 1 goto :fail
 call tools\build.bat ivshmem\ivshmem.vcxproj "Win10_SDV" %*
 if errorlevel 1 goto :fail
 
+path %path%;C:\Program Files (x86)\Windows Kits\10\bin\x86\
 for %%D in (pciserial fwcfg packaging Q35) do (
+  echo building also %%D
   pushd %%D
   call buildAll.bat
   if errorlevel 1 goto :fail
