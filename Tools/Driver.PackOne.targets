@@ -135,6 +135,11 @@ Related features:
     <PackOne_OsMask>Server10_ARM64</PackOne_OsMask>
   </PropertyGroup>
 
+  <!-- $(PackOne_LocalTimeStamp) use this option for modern WDK only -->
+  <PropertyGroup Condition="'$(UseLegacyDDK)'!='true'">
+    <PackOne_LocalTimeStamp>/uselocaltime</PackOne_LocalTimeStamp>
+  </PropertyGroup>
+
   <!-- $(PackOne_SourcePathArch) and $(PackOne_WdfArch) -->
   <PropertyGroup Condition="'$(TargetArch)'=='x86'">
     <PackOne_SourcePathArch>i386</PackOne_SourcePathArch>
@@ -190,7 +195,7 @@ Related features:
     <Copy SourceFiles="@(PackOne_Files)"
           DestinationFolder="$(PackOne_DestinationPath)"/>
     <Message Text="Setting OS mask for: $(TargetOS) $(TargetArch) to $(PackOne_OsMask)" Importance="high"/>
-    <Exec Command="inf2cat /uselocaltime /driver:$(PackOne_DestinationPath) /os:$(PackOne_OsMask)" />
+    <Exec Command="inf2cat $(PackOne_LocalTimeStamp) /driver:$(PackOne_DestinationPath) /os:$(PackOne_OsMask)" />
   </Target>
 
 </Project>
