@@ -256,28 +256,35 @@ static BOOLEAN MiniportInterrupt(
     return true;
 }
 
+// This procedure must work the same way as
+// ParaNdis_ConfigureMSIXVectors when spreads vectors over RX/TX/CX pathes.
+// Returns respective TX or RX path if exists, then CX path if exists
+// (i.e. returns CX path only if it has dedicated vector)
+// otherwise (unlikely) returns NULL
 static CParaNdisAbstractPath *GetPathByMessageId(PARANDIS_ADAPTER *pContext, ULONG MessageId)
 {
-    CParaNdisAbstractPath *path = NULL;
-
+    CParaNdisAbstractPath *path;
     UINT bundleId = MessageId / 2;
-	if (pContext->CXPath.getMessageIndex() < MessageId)
-	{
-		path = NULL;
-	}
-	else if (pContext->CXPath.getMessageIndex() == MessageId)
+
+    if (bundleId < pContext->nPathBundles)
+    {
+        if (MessageId & 1)
+        {
+            path = &(pContext->pPathBundles[bundleId].rxPath);
+        }
+        else
+        {
+            path = &(pContext->pPathBundles[bundleId].txPath);
+        }
+    }
+    else if (pContext->CXPath.getMessageIndex() == MessageId)
     {
         path = &pContext->CXPath;
     }
-    else if (MessageId % 2)
-    {
-        path = &(pContext->pPathBundles[bundleId].rxPath);
-    }
     else
     {
-        path = &(pContext->pPathBundles[bundleId].txPath);
+        path = NULL;
     }
-
     return path;
 }
 
@@ -319,24 +326,15 @@ static BOOLEAN MiniportMSIInterrupt(
 
     path->DisableInterrupts();
 
-    if (path->getMessageIndex() == pContext->CXPath.getMessageIndex())
+    // emit DPC for processing of TX/RX or DPC for processing of CX path
+    // note that in case the CX shares vector with TX/RX the CX DPC is not
+    // scheduled and CX path is processed by ParaNdis_RXTXDPCWorkBody
+    // (see pContext->bSharedVectors for such case)
+    if (!path->FireDPC(MessageId))
     {
-        KeInsertQueueDpc(&pContext->CXPath.m_DPC, NULL, NULL);
-    }
-    else
-    {
-#if NDIS_SUPPORT_NDIS620
-        if (path->DPCAffinity.Mask)
-        {
-            NdisMQueueDpcEx(pContext->InterruptHandle, MessageId, &path->DPCAffinity, NULL);
-        }
-        else
-        {
-            *QueueDefaultInterruptDpc = TRUE;
-        }
-#else
-        *TargetProcessors = (ULONG)path->DPCTargetProcessor;
         *QueueDefaultInterruptDpc = TRUE;
+#if !NDIS_SUPPORT_NDIS620
+        *TargetProcessors = (ULONG)path->DPCTargetProcessor;
 #endif
     }
 
@@ -378,7 +376,7 @@ static VOID MiniportInterruptDPC(
     PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters = (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
     DEBUG_ENTRY(5);
     RxThrottleParameters->MoreNblsPending = 0;
-    requiresDPCRescheduling = ParaNdis_DPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
+    requiresDPCRescheduling = ParaNdis_RXTXDPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
     if (requiresDPCRescheduling)
         {
             GROUP_AFFINITY Affinity;
@@ -390,7 +388,7 @@ static VOID MiniportInterruptDPC(
     DEBUG_ENTRY(5);
     UNREFERENCED_PARAMETER(ReceiveThrottleParameters);
 
-    requiresDPCRescheduling = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
+    requiresDPCRescheduling = ParaNdis_RXTXDPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
     if (requiresDPCRescheduling)
     {
         DPrintf(4, "[%s] Queued additional DPC for %d\n", __FUNCTION__,  requiresDPCRescheduling);
@@ -459,7 +457,7 @@ static VOID MiniportMSIInterruptDpc(
 #else
     UNREFERENCED_PARAMETER(NdisReserved1);
 
-    requireDPCRescheduling = ParaNdis_DPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
+    requireDPCRescheduling = ParaNdis_RXTXDPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
     if (requireDPCRescheduling)
     {
         NdisMQueueDpc(pContext->InterruptHandle, MessageId, 1 << KeGetCurrentProcessorNumber(), MiniportDpcContext);
@@ -522,9 +520,8 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_RESOURCES;
     UINT i;
+    u16 nVectors = (u16)pContext->pMSIXInfoTable->MessageCount;
     PIO_INTERRUPT_MESSAGE_INFO pTable = pContext->pMSIXInfoTable;
-    bool bSingleVector = pContext->pMSIXInfoTable->MessageCount == 1;
-    bool bDoubleVectors = pContext->pMSIXInfoTable->MessageCount == 2;
     if (pTable && pTable->MessageCount)
     {
         status = NDIS_STATUS_SUCCESS;
@@ -543,7 +540,7 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
             status = pContext->pPathBundles[j].txPath.SetupMessageIndex(vector);
             if (status == NDIS_STATUS_SUCCESS)
             {
-                if (!bSingleVector && !bDoubleVectors) vector++;
+                if (nVectors > 1) vector++;
                 status = pContext->pPathBundles[j].rxPath.SetupMessageIndex(vector);
             }
             DPrintf(0, "[%s] Using messages %u/%u for RX/TX queue %u\n", __FUNCTION__,
@@ -554,22 +551,22 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
 
         if (status == NDIS_STATUS_SUCCESS && pContext->bCXPathCreated)
         {
+            u16 nVector;
             /*
             Usually there is own vector for control queue.
-            In corner case of single vector control queue uses the same vector as RX and TX
+            In corner case of one or two vectors control queue uses the same vector as RX or TX
+            and does not spawn its own DPC for processing
             */
-            if (bSingleVector)
+            if (nVectors < 3)
             {
-                status = pContext->CXPath.SetupMessageIndex(0);
-            }
-            else if (bDoubleVectors)
-            {
-                status = pContext->CXPath.SetupMessageIndex(1);
+                nVector = nVectors - 1;
+                pContext->bSharedVectors = TRUE;
             }
             else
             {
-                status = pContext->CXPath.SetupMessageIndex(2 * u16(pContext->nPathBundles));
+                nVector = 2 * u16(pContext->nPathBundles);
             }
+            status = pContext->CXPath.SetupMessageIndex(nVector);
         }
     }
 

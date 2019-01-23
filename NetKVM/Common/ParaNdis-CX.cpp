@@ -154,3 +154,10 @@ NDIS_STATUS CParaNdisCX::SetupMessageIndex(u16 vector)
 
     return CParaNdisAbstractPath::SetupMessageIndex(vector);
 }
+
+bool CParaNdisCX::FireDPC(ULONG messageId)
+{
+    DPrintf(0, "[%s] message %u\n", __FUNCTION__, messageId);
+    KeInsertQueueDpc(&m_DPC, NULL, NULL);
+    return TRUE;
+}
