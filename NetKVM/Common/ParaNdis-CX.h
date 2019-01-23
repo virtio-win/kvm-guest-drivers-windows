@@ -24,6 +24,7 @@ public:
         int levelIfOK
         );
 
+    bool FireDPC(ULONG messageId) override;
     KDPC m_DPC;
 
 protected:

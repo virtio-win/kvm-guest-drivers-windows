@@ -754,6 +754,10 @@ NDIS_STATUS ParaNdis_InitializeContext(
             DPrintf(0, "[%s] Message interrupt assigned\n", __FUNCTION__);
             pContext->bUsingMSIX = TRUE;
         }
+        else
+        {
+            pContext->bSharedVectors = TRUE;
+        }
 
         NTSTATUS nt_status = virtio_device_initialize(
             &pContext->IODevice,
@@ -937,7 +941,8 @@ static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
     USHORT nBundles = USHORT(((pContext->pMSIXInfoTable->MessageCount - 1) / 2)  & 0xFFFF);
     if (!nBundles && (pContext->pMSIXInfoTable->MessageCount == 1 || pContext->pMSIXInfoTable->MessageCount == 2))
     {
-        DPrintf(0, "[%s] WARNING: Single MSIx interrupt allocated, performance will be reduced\n", __FUNCTION__);
+        DPrintf(0, "[%s] WARNING: %d MSIX message(s), performance will be reduced\n",
+            __FUNCTION__, pContext->pMSIXInfoTable->MessageCount);
         nBundles = 1;
     }
 
@@ -1910,14 +1915,10 @@ bool ParaNdis_RXTXDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIn
     }
     InterlockedDecrement(&pContext->counterDPCInside);
 
-    return stillRequiresProcessing;
-}
-
-bool ParaNdis_DPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndicate)
-{
-    bool stillRequiresProcessing = ParaNdis_RXTXDPCWorkBody(pContext, ulMaxPacketsToIndicate);
-    ParaNdis_CXDPCWorkBody(pContext);
-
+    if (pContext->bSharedVectors && pathBundle)
+    {
+        ParaNdis_CXDPCWorkBody(pContext);
+    }
     return stillRequiresProcessing;
 }
 

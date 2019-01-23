@@ -67,6 +67,8 @@ public:
     KAFFINITY DPCTargetProcessor = 0;
 #endif
 
+    virtual bool FireDPC(ULONG messageId) = 0;
+
 protected:
     PPARANDIS_ADAPTER m_Context;
     CVirtQueue *m_pVirtQueue;
@@ -122,6 +124,20 @@ public:
         {
             m_VirtQueue.AllowTouchHardware();
         }
+    }
+
+    // this default implementation is for RX/TX queues
+    // CX queue shall redefine it
+    bool FireDPC(ULONG messageId) override
+    {
+#if NDIS_SUPPORT_NDIS620
+        if (DPCAffinity.Mask)
+        {
+            NdisMQueueDpcEx(m_Context->InterruptHandle, messageId, &DPCAffinity, NULL);
+            return TRUE;
+        }
+#endif
+        return FALSE;
     }
 protected:
     CNdisSpinLock m_Lock;
