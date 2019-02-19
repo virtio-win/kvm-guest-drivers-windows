@@ -121,10 +121,11 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
     //First page is for virtio header, size needs to be adjusted correspondingly
     p->BufferSGArray[0].length = m_Context->nVirtioHeaderSize;
 
+    ULONG indirectAreaOffset = ALIGN_UP(m_Context->nVirtioHeaderSize, ULONGLONG);
     //Pre-cache indirect area addresses
-    p->IndirectArea.Physical.QuadPart = p->PhysicalPages[0].Physical.QuadPart + m_Context->nVirtioHeaderSize;
-    p->IndirectArea.Virtual = RtlOffsetToPointer(p->PhysicalPages[0].Virtual, m_Context->nVirtioHeaderSize);
-    p->IndirectArea.size = PAGE_SIZE - m_Context->nVirtioHeaderSize;
+    p->IndirectArea.Physical.QuadPart = p->PhysicalPages[0].Physical.QuadPart + indirectAreaOffset;
+    p->IndirectArea.Virtual = RtlOffsetToPointer(p->PhysicalPages[0].Virtual, indirectAreaOffset);
+    p->IndirectArea.size = PAGE_SIZE - indirectAreaOffset;
 
     if (!ParaNdis_BindRxBufferToPacket(m_Context, p))
         goto error_exit;
