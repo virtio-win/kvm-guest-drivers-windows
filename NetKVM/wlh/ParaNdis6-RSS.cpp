@@ -240,30 +240,14 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_RSS_PARAMS *RSSParameters,
         return NDIS_STATUS_NOT_SUPPORTED;
 
     if (ParamsLength < sizeof(NDIS_RECEIVE_SCALE_PARAMETERS))
+    {
+        DPrintf(0, "[%s] invalid length (1)\n", __FUNCTION__);
         return NDIS_STATUS_INVALID_LENGTH;
+    }
 
     if (!(Params->Flags & NDIS_RSS_PARAM_FLAG_HASH_INFO_UNCHANGED) &&
         !IsValidHashInfo(Params->HashInformation))
         return NDIS_STATUS_INVALID_PARAMETER;
-
-    IndirectionTableEntries = Params->IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
-
-    if (!(Params->Flags & NDIS_RSS_PARAM_FLAG_ITABLE_UNCHANGED) &&
-        ( (Params->IndirectionTableSize > sizeof(RSSParameters->RSSScalingSettings.IndirectionTable)) ||
-          (ParamsLength < (Params->IndirectionTableOffset + Params->IndirectionTableSize)) ||
-          !IsPowerOfTwo(IndirectionTableEntries) )
-        )
-        return NDIS_STATUS_INVALID_LENGTH;
-
-    if (!(Params->Flags & NDIS_RSS_PARAM_FLAG_HASH_KEY_UNCHANGED) &&
-        ( (Params->HashSecretKeySize > sizeof(RSSParameters->RSSHashingSettings.HashSecretKey)) ||
-          (ParamsLength < (Params->HashSecretKeyOffset + Params->HashSecretKeySize)) )
-        )
-            return NDIS_STATUS_INVALID_LENGTH;
-
-    ProcessorMasksSize = Params->NumberOfProcessorMasks * Params->ProcessorMasksEntrySize;
-    if (ParamsLength < Params->ProcessorMasksOffset + ProcessorMasksSize)
-        return NDIS_STATUS_INVALID_LENGTH;
 
     if(Params->Flags & NDIS_RSS_PARAM_FLAG_DISABLE_RSS || (Params->HashInformation == 0))
     {
@@ -273,6 +257,34 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_RSS_PARAMS *RSSParameters,
     {
         DPrintf(0, "[%s] RSS Params: flags 0x%4.4x, hash information 0x%4.4lx\n",
             __FUNCTION__, Params->Flags, Params->HashInformation);
+
+        IndirectionTableEntries = Params->IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
+
+        if (!(Params->Flags & NDIS_RSS_PARAM_FLAG_ITABLE_UNCHANGED) &&
+            ((Params->IndirectionTableSize > sizeof(RSSParameters->RSSScalingSettings.IndirectionTable)) ||
+            (ParamsLength < (Params->IndirectionTableOffset + Params->IndirectionTableSize)) ||
+                !IsPowerOfTwo(IndirectionTableEntries))
+            )
+        {
+            DPrintf(0, "[%s] invalid length (2), flags %x\n", __FUNCTION__, Params->Flags);
+            return NDIS_STATUS_INVALID_LENGTH;
+        }
+
+        if (!(Params->Flags & NDIS_RSS_PARAM_FLAG_HASH_KEY_UNCHANGED) &&
+            ((Params->HashSecretKeySize > sizeof(RSSParameters->RSSHashingSettings.HashSecretKey)) ||
+            (ParamsLength < (Params->HashSecretKeyOffset + Params->HashSecretKeySize)))
+            )
+        {
+            DPrintf(0, "[%s] invalid length (3), flags %x\n", __FUNCTION__, Params->Flags);
+            return NDIS_STATUS_INVALID_LENGTH;
+        }
+
+        ProcessorMasksSize = Params->NumberOfProcessorMasks * Params->ProcessorMasksEntrySize;
+        if (ParamsLength < Params->ProcessorMasksOffset + ProcessorMasksSize)
+        {
+            DPrintf(0, "[%s] invalid length (4), flags %x\n", __FUNCTION__, Params->Flags);
+            return NDIS_STATUS_INVALID_LENGTH;
+        }
 
         if (!(Params->Flags & NDIS_RSS_PARAM_FLAG_ITABLE_UNCHANGED))
         {
