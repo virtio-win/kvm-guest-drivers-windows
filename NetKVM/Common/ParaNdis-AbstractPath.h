@@ -144,3 +144,12 @@ protected:
     bool m_ObserverAdded;
     VQ m_VirtQueue;
 };
+
+class CInactiveQueue : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementAllocatable
+{
+public:
+    CInactiveQueue() {}
+    ~CInactiveQueue() {}
+    void Create(PPARANDIS_ADAPTER Context, UINT Index);
+    bool m_bCreated = false;
+};

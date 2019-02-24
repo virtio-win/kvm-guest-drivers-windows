@@ -1186,6 +1186,27 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         pContext->pPathBundles[0].cxPath = &pContext->CXPath;
     }
 
+    // allocate inactive queues to avoid failure to start vhost
+    if (pContext->nPathBundles < pContext->nHardwareQueues)
+    {
+        UINT nInactiveQueues = (pContext->nHardwareQueues - pContext->nPathBundles) * 2;
+        pContext->inactiveQueueus = (CInactiveQueue *)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, nInactiveQueues * sizeof(CInactiveQueue),
+            PARANDIS_MEMORY_TAG, NormalPoolPriority);
+        if (pContext->inactiveQueueus)
+        {
+            pContext->nInactiveQueues = nInactiveQueues;
+            for (i = 0; i < pContext->nInactiveQueues; i++)
+            {
+                new (pContext->inactiveQueueus + i) CInactiveQueue();
+                pContext->inactiveQueueus[i].Create(pContext, pContext->nPathBundles * 2 + i);
+            }
+        }
+        else
+        {
+            pContext->nInactiveQueues = 0;
+        }
+    }
+
     status = NDIS_STATUS_SUCCESS;
 
     return status;
@@ -1389,6 +1410,14 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
         pContext->CXPath.Shutdown();
     }
 
+    for (i = 0; i < pContext->nInactiveQueues; i++)
+    {
+        if (pContext->inactiveQueueus[i].m_bCreated)
+        {
+            pContext->inactiveQueueus[i].Shutdown();
+        }
+    }
+
     PrintStatistics(pContext);
 }
 
@@ -1475,6 +1504,17 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
         }
         NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->pPathBundles, PARANDIS_MEMORY_TAG);
         pContext->pPathBundles = nullptr;
+    }
+
+    if (pContext->inactiveQueueus)
+    {
+        for (USHORT i = 0; i < pContext->nInactiveQueues; i++)
+        {
+            pContext->inactiveQueueus[i].~CInactiveQueue();
+        }
+        NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->inactiveQueueus, PARANDIS_MEMORY_TAG);
+        pContext->inactiveQueueus = nullptr;
+        pContext->nInactiveQueues = 0;
     }
 
     if (pContext->RSS2QueueMap)
@@ -2178,6 +2218,13 @@ NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     {
         pContext->CXPath.Renew();
     }
+    for (i = 0; i < pContext->nInactiveQueues; i++)
+    {
+        if (pContext->inactiveQueueus[i].m_bCreated)
+        {
+            pContext->inactiveQueueus[i].Renew();
+        }
+    }
 
     ParaNdis_RestoreDeviceConfigurationAfterReset(pContext);
 
@@ -2231,6 +2278,14 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     if (pContext->bCXPathCreated)
     {
         pContext->CXPath.Shutdown();
+    }
+
+    for (UINT i = 0; i < pContext->nInactiveQueues; i++)
+    {
+        if (pContext->inactiveQueueus[i].m_bCreated)
+        {
+            pContext->inactiveQueueus[i].Shutdown();
+        }
     }
 
     ParaNdis_DebugHistory(pContext, hopPowerOff, NULL, 0, 0, 0);

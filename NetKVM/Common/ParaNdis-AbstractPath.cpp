@@ -44,3 +44,12 @@ ULONG CParaNdisAbstractPath::getCPUIndex()
     return ParaNdis_GetIndexFromAffinity(DPCTargetProcessor);
 #endif
 }
+
+void CInactiveQueue::Create(PPARANDIS_ADAPTER Context, UINT Index)
+{
+    m_Context = Context;
+    m_queueIndex = (u16)Index;
+    CreatePath();
+    m_bCreated = m_VirtQueue.Create(Index, &m_Context->IODevice, m_Context->MiniportHandle);
+    DPrintf(0, "[%s]: index = %d %s\n", __FUNCTION__, Index, m_bCreated ? "OK" : "Failed");
+}

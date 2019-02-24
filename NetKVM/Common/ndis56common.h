@@ -458,6 +458,9 @@ typedef struct _tagPARANDIS_ADAPTER
     CPUPathBundle               *pPathBundles;
     UINT                        nPathBundles;
 
+    CInactiveQueue              *inactiveQueueus;
+    UINT                        nInactiveQueues;
+
     CPUPathBundle              **RSS2QueueMap;
     USHORT                      RSS2QueueLength;
 
