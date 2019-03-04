@@ -115,7 +115,7 @@ static UINT_PTR RawCheckSumCalculator(PVOID buffer, ULONG len)
 {
     UINT_PTR val = 0;
     PUCHAR ptr = (PUCHAR)buffer;
-#ifdef _WIN64
+#if defined(_WIN64) && !defined(_ARM64_)
     ULONG count = len >> 2;
     while (count--) {
         val += *(PUINT32)ptr;
@@ -123,6 +123,13 @@ static UINT_PTR RawCheckSumCalculator(PVOID buffer, ULONG len)
     }
     if (len & 2) {
         val += *(PUINT16)ptr;
+        ptr += 2;
+    }
+#elif defined(_ARM64_)
+    ULONG count = len >> 1;
+    while (count--) {
+        val += ptr[0];
+        val += ptr[1] << 8;
         ptr += 2;
     }
 #else
