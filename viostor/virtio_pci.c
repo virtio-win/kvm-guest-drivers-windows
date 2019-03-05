@@ -226,7 +226,7 @@ static void vdev_sleep(void *context, unsigned int msecs)
     UNREFERENCED_PARAMETER(context);
 
     /* We can't really sleep in a storage miniport so we just busy wait. */
-    KeStallExecutionProcessor(1000 * msecs);
+    StorPortStallExecution(1000 * msecs);
 }
 
 VirtIOSystemOps VioStorSystemOps = {
