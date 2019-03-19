@@ -182,6 +182,7 @@ typedef struct _ADAPTER_EXTENSION {
     BOOLEAN               dpc_ok;
     BOOLEAN               check_condition;
     SENSE_INFO            sense_info;
+    BOOLEAN               removed;
 #if (NTDDI_VERSION > NTDDI_WIN7)
     STOR_ADDR_BTL8        device_address;
 #endif
