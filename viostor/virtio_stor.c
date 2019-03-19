@@ -169,7 +169,8 @@ CompleteRequestWithStatus(
 VOID
 FORCEINLINE
 DeviceChangeNotification(
-    IN PVOID DeviceExtension
+    IN PVOID DeviceExtension,
+    IN BOOLEAN bLun
     );
 
 BOOLEAN
@@ -850,16 +851,24 @@ VirtIoStartIo(
             ULONG SrbPnPFlags;
             ULONG PnPAction;
             SRB_GET_PNP_INFO(Srb, SrbPnPFlags, PnPAction);
-            if ((SrbPnPFlags & SRB_PNP_FLAGS_ADAPTER_REQUEST) == 0) {
-                RhelDbgPrint(TRACE_LEVEL_FATAL, " not SRB_PNP_FLAGS_ADAPTER_REQUEST SrbPnPFlags = %d, PnPAction = %d\n", SrbPnPFlags, PnPAction);
-                if ((PnPAction == StorQueryCapabilities) && (SRB_DATA_TRANSFER_LENGTH(Srb) >= sizeof(STOR_DEVICE_CAPABILITIES))) {
+            RhelDbgPrint(TRACE_LEVEL_FATAL, " SrbPnPFlags = %d, PnPAction = %d\n", SrbPnPFlags, PnPAction);
+            switch (PnPAction) {
+            case StorQueryCapabilities:
+                if (CHECKFLAG(SrbPnPFlags, SRB_PNP_FLAGS_ADAPTER_REQUEST) &&
+                    (SRB_DATA_TRANSFER_LENGTH(Srb) >= sizeof(STOR_DEVICE_CAPABILITIES))) {
                     PSTOR_DEVICE_CAPABILITIES storCapabilities = (PSTOR_DEVICE_CAPABILITIES)SRB_DATA_BUFFER(Srb);
                     RtlZeroMemory(storCapabilities, sizeof(*storCapabilities));
                     storCapabilities->Removable = 1;
                 }
-                else {
-                    SrbStatus = SRB_STATUS_INVALID_REQUEST;
-                }
+                break;
+            case StorRemoveDevice:
+            case StorSurpriseRemoval:
+                adaptExt->removed = TRUE;
+                DeviceChangeNotification(DeviceExtension, FALSE);
+                break;
+            default:
+                RhelDbgPrint(TRACE_LEVEL_FATAL, " Unsupported PnPAction SrbPnPFlags = %d, PnPAction = %d\n", SrbPnPFlags, PnPAction);
+                SrbStatus = SRB_STATUS_INVALID_REQUEST;
             }
             CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SrbStatus);
             return TRUE;
@@ -1015,6 +1024,10 @@ VirtIoInterrupt(
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " IRQL (%d)\n", KeGetCurrentIrql());
+    if (adaptExt->removed == TRUE) {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, " Interrupt on removed device)");
+        return FALSE;
+    }
     intReason = virtio_read_isr_status(&adaptExt->vdev);
     if ( intReason == 1 || adaptExt->dump_mode ) {
         if (!CompleteDPC(DeviceExtension, 1)) {
@@ -1028,7 +1041,7 @@ VirtIoInterrupt(
         adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
         adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
         adaptExt->check_condition = TRUE;
-        DeviceChangeNotification(DeviceExtension);
+        DeviceChangeNotification(DeviceExtension, TRUE);
     }
     if (!isInterruptServiced) {
         RhelDbgPrint(TRACE_LEVEL_ERROR, " was not serviced ISR status = %d\n", intReason);
@@ -1084,7 +1097,9 @@ VirtIoAdapterControl(
     }
     case ScsiStopAdapter: {
         RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ScsiStopAdapter\n");
-        RhelShutDown(DeviceExtension);
+        if (adaptExt->removed == TRUE) {
+            RhelShutDown(DeviceExtension);
+        }
         status = ScsiAdapterControlSuccess;
         break;
     }
@@ -1096,6 +1111,7 @@ VirtIoAdapterControl(
            RhelDbgPrint(TRACE_LEVEL_FATAL, " ScsiRestartAdapter Cannot reinitialize HW\n");
            break;
         }
+        adaptExt->removed = FALSE;
         status = ScsiAdapterControlSuccess;
         break;
     }
@@ -1137,7 +1153,7 @@ VirtIoHwReinitialize(
         adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_ADSENSE_NO_SENSE;
 #endif
         adaptExt->check_condition = TRUE;
-        DeviceChangeNotification(DeviceExtension);
+        DeviceChangeNotification(DeviceExtension, TRUE);
     }
     return TRUE;
 }
@@ -1168,7 +1184,7 @@ VirtIoBuildIo(
 #ifdef DBG
     InterlockedIncrement((LONG volatile*)&adaptExt->srb_cnt);
 #endif
-    if(SRB_PATH_ID(Srb) || SRB_TARGET_ID(Srb) || SRB_LUN(Srb)) {
+    if(SRB_PATH_ID(Srb) || SRB_TARGET_ID(Srb) || SRB_LUN(Srb) || ((adaptExt->removed == TRUE))) {
         CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_NO_DEVICE);
         return FALSE;
     }
@@ -1269,7 +1285,7 @@ VirtIoMSInterruptRoutine (
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if (MessageID > adaptExt->num_queues) {
+    if (MessageID > adaptExt->num_queues || adaptExt->removed == TRUE) {
         RhelDbgPrint(TRACE_LEVEL_ERROR, " MessageID = %d\n", MessageID);
         return FALSE;
     }
@@ -1283,7 +1299,7 @@ VirtIoMSInterruptRoutine (
             adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
             adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
             adaptExt->check_condition = TRUE;
-            DeviceChangeNotification(DeviceExtension);
+            DeviceChangeNotification(DeviceExtension, TRUE);
             return TRUE;
         }
     }
@@ -1707,18 +1723,20 @@ CompleteRequestWithStatus(
 VOID
 FORCEINLINE
 DeviceChangeNotification(
-    IN PVOID DeviceExtension
+    IN PVOID DeviceExtension,
+    IN BOOLEAN bLun
 )
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 #if (NTDDI_VERSION > NTDDI_WIN7)
     StorPortStateChangeDetected(DeviceExtension,
-                                STATE_CHANGE_LUN,
+                                bLun ? STATE_CHANGE_LUN : STATE_CHANGE_BUS,
                                 (PSTOR_ADDRESS)&adaptExt->device_address,
                                 0,
                                 NULL,
                                 NULL);
 #else
+    bLun;
     StorPortNotification( BusChangeDetected, DeviceExtension, 0);
 #endif
      RhelDbgPrint(TRACE_LEVEL_FATAL, " StorPortStateChangeDetected.\n");
