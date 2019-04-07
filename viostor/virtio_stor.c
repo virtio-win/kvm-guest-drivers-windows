@@ -905,8 +905,7 @@ VirtIoStartIo(
     }
 
     if (!cdb) {
-        RhelDbgPrint(TRACE_LEVEL_ERROR, " no CDB (%p) Function %x, OperationCode %x\n",
-                    Srb, SRB_FUNCTION(Srb), cdb->CDB6GENERIC.OperationCode);
+        RhelDbgPrint(TRACE_LEVEL_ERROR, " no CDB (%p) Function %x\n", Srb, SRB_FUNCTION(Srb));
         CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_BAD_FUNCTION);
         return TRUE;
     }
