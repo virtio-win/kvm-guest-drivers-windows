@@ -83,6 +83,7 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
 #define EXIT_FN_SRB()  RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <-- %s Srb = 0x%p.\n",__FUNCTION__, Srb)
 
 #else
+#pragma warning(disable: 28170)
 #include <stortrce.h>
 
 // {194051B2-14C7-4987-A0E9-154377C58882}
