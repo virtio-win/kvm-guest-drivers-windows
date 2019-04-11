@@ -422,6 +422,7 @@ bool CTXHeaders::Allocate()
     {
         auto VA = m_HeadersBuffer.GetVA();
         auto PA = m_HeadersBuffer.GetPA();
+        ULONG prioSize = ALIGN_UP(ETH_PRIORITY_HEADER_SIZE, ULONGLONG);
 
         //Headers buffer layout:
         //    Priority header
@@ -429,7 +430,7 @@ bool CTXHeaders::Allocate()
         //    Ethernet headers
 
         m_VlanHeaderVA   = VA;
-        m_VirtioHeaderVA = RtlOffsetToPointer(m_VlanHeaderVA, ETH_PRIORITY_HEADER_SIZE);
+        m_VirtioHeaderVA = RtlOffsetToPointer(m_VlanHeaderVA, prioSize);
         m_EthHeaderVA    = RtlOffsetToPointer(m_VirtioHeaderVA, m_VirtioHdrSize);
         m_IPHeadersVA    = RtlOffsetToPointer(m_EthHeaderVA, ETH_HEADER_SIZE);
 
@@ -438,7 +439,7 @@ bool CTXHeaders::Allocate()
         m_EthHeaderPA.QuadPart    = PA.QuadPart + RtlPointerToOffset(VA, m_EthHeaderVA);
         m_IPHeadersPA.QuadPart    = PA.QuadPart + RtlPointerToOffset(VA, m_IPHeadersVA);
 
-        m_MaxEthHeadersSize = m_HeadersBuffer.GetSize() - ETH_PRIORITY_HEADER_SIZE - m_VirtioHdrSize;
+        m_MaxEthHeadersSize = m_HeadersBuffer.GetSize() - prioSize - m_VirtioHdrSize;
 
         return true;
     }
