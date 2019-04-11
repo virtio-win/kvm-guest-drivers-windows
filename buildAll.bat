@@ -21,8 +21,15 @@ for %%D in (pciserial fwcfg packaging Q35) do (
   popd
 )
 
+for /R %%f in (*.dvl.xml) do call :process_xml %%f
+
 exit /B 0
 
 :fail
 
 exit /B 1
+
+:process_xml
+echo creating "%~dpn1-compat%~x1"
+findstr /v /c:"General.Checksum" "%~1" > "%~dpn1-compat%~x1"
+goto :eof
