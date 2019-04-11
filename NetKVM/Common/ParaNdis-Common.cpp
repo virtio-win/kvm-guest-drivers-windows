@@ -1531,7 +1531,7 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacke
         if(!(pContext->PacketFilter & NDIS_PACKET_TYPE_DIRECTED))
             return FALSE;
 
-        ETH_COMPARE_NETWORK_ADDRESSES_EQ(pPacketInfo->ethDestAddr, pContext->CurrentMacAddress, &Res);
+        ETH_COMPARE_NETWORK_ADDRESSES_EQ_SAFE(pPacketInfo->ethDestAddr, pContext->CurrentMacAddress, &Res);
         return !Res;
     }
 
@@ -1551,7 +1551,7 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacke
         ULONG Res;
         PUCHAR CurrMcastAddr = &pContext->MulticastData.MulticastList[i*ETH_ALEN];
 
-        ETH_COMPARE_NETWORK_ADDRESSES_EQ(pPacketInfo->ethDestAddr, CurrMcastAddr, &Res);
+        ETH_COMPARE_NETWORK_ADDRESSES_EQ_SAFE(pPacketInfo->ethDestAddr, CurrMcastAddr, &Res);
 
         if(!Res)
             return TRUE;

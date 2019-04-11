@@ -224,5 +224,10 @@ static __inline USHORT swap_short(USHORT us)
     return (us << 8) | (us >> 8);
 }
 
+#if !defined(_ARM64_)
+#define ETH_COMPARE_NETWORK_ADDRESSES_EQ_SAFE ETH_COMPARE_NETWORK_ADDRESSES_EQ
+#else
+#define ETH_COMPARE_NETWORK_ADDRESSES_EQ_SAFE(a1, a2, res) *(res) = RtlCompareMemory((a1), (a2), ETH_ALEN) != ETH_ALEN
+#endif
 
 #endif
