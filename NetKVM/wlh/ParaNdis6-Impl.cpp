@@ -935,7 +935,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
 
         if (pNBL)
         {
-            virtio_net_hdr_rsc *pHeader = (virtio_net_hdr_rsc *) pBuffersDesc->PhysicalPages[0].Virtual;
+            virtio_net_hdr_mrg_rxbuf *pHeader = (virtio_net_hdr_mrg_rxbuf *) pBuffersDesc->PhysicalPages[0].Virtual;
             tChecksumCheckResult csRes;
             NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
             qCSInfo.Value = NULL;
@@ -949,26 +949,24 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
             csRes.value = 0;
             csRes.flags.IpOK = true;
             csRes.flags.TcpOK = true;
-            if (!(pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) && (pHeader->hdr.gso_type != VIRTIO_NET_HDR_GSO_NONE))
+            if (pHeader->hdr.gso_type != VIRTIO_NET_HDR_GSO_NONE)
             {
-                *pnCoalescedSegmentsCount = PktGetTCPCoalescedSegmentsCount(pContext, pPacketInfo, pHeader->hdr.gso_size);
+                USHORT nDupAcks = 0;
+                if (pHeader->hdr.flags & VIRTIO_NET_HDR_F_RSC_INFO)
+                {
+                    *pnCoalescedSegmentsCount = pHeader->hdr.rsc_ext_num_packets;
+                    nDupAcks = pHeader->hdr.rsc_ext_num_dupacks;
+                    pContext->extraStatistics.framesCoalescedWindows++;
+                }
+                else
+                {
+                    *pnCoalescedSegmentsCount = PktGetTCPCoalescedSegmentsCount(pContext, pPacketInfo, pHeader->hdr.gso_size);
+                    pContext->extraStatistics.framesCoalescedHost++;
+                }
                 NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, 0);
-                pContext->extraStatistics.framesCoalescedHost++;
                 // according to the spec the device does not calculate TCP checksum
                 qCSInfo.Receive.IpChecksumValueInvalid = true;
                 qCSInfo.Receive.TcpChecksumValueInvalid = true;
-            }
-            else if ((pContext->RSC.bIPv4SupportedQEMU || pContext->RSC.bIPv6SupportedQEMU) && (pHeader->hdr.gso_type != VIRTIO_NET_HDR_RSC_NONE))
-            {
-                *pnCoalescedSegmentsCount = pHeader->rsc_pkts;
-                NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, pHeader->rsc_dup_acks);
-                pContext->extraStatistics.framesCoalescedWindows++;
-                // QEMU implementation of RSC does not populate the checksum for TCPv6
-                if ((pHeader->hdr.flags & VIRTIO_NET_HDR_F_DATA_VALID) == 0)
-                {
-                    qCSInfo.Receive.IpChecksumValueInvalid = true;
-                    qCSInfo.Receive.TcpChecksumValueInvalid = true;
-                }
             }
             else
 #endif
