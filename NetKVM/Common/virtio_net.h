@@ -56,8 +56,10 @@
 #define VIRTIO_NET_F_MQ	22	/* Device supports Receive Flow
 					 * Steering */
 #define VIRTIO_NET_F_CTRL_MAC_ADDR 23	/* Set MAC address */
-#define VIRTIO_NET_F_GUEST_RSC4 41	/* Guest can handle coalesced IPv4 tcp packets. */
-#define VIRTIO_NET_F_GUEST_RSC6 42	/* Guest can handle coalesced IPv6 tcp packets. */
+
+#define VIRTIO_NET_F_GUEST_RSC4_DONT_USE	41	/* reserved */
+#define VIRTIO_NET_F_GUEST_RSC6_DONT_USE	42	/* reserved */
+#define VIRTIO_NET_F_RSC_EXT	  61
 
 #define VIRTIO_NET_F_SPEED_DUPLEX 63	/* Device set linkspeed and duplex */
 
@@ -108,14 +110,12 @@ struct virtio_net_config {
 struct virtio_net_hdr_v1 {
 #define VIRTIO_NET_HDR_F_NEEDS_CSUM	1	/* Use csum_start, csum_offset */
 #define VIRTIO_NET_HDR_F_DATA_VALID	2	/* Csum is valid */
-	__u8 flags;
+#define VIRTIO_NET_HDR_F_RSC_INFO	4	/* rsc_ext data in csum_ fields */
+        __u8 flags;
 #define VIRTIO_NET_HDR_GSO_NONE		0	/* Not a GSO frame */
 #define VIRTIO_NET_HDR_GSO_TCPV4	1	/* GSO frame, IPv4 TCP (TSO) */
 #define VIRTIO_NET_HDR_GSO_UDP		3	/* GSO frame, IPv4 UDP (UFO) */
 #define VIRTIO_NET_HDR_GSO_TCPV6	4	/* GSO frame, IPv6 TCP */
-#define VIRTIO_NET_HDR_RSC_NONE	5	/* No packets coalesced */
-#define VIRTIO_NET_HDR_RSC_TCPV4	6	/* IPv4 TCP coalesced */
-#define VIRTIO_NET_HDR_RSC_TCPV6	7	/* IPv6 TCP coalesced */
 #define VIRTIO_NET_HDR_GSO_ECN		0x80	/* TCP has ECN set */
 	__u8 gso_type;
 	__virtio16 hdr_len;	/* Ethernet + IP + tcp/udp hdrs */
@@ -124,14 +124,9 @@ struct virtio_net_hdr_v1 {
 	__virtio16 csum_offset;	/* Offset after that to place checksum */
 	__virtio16 num_buffers;	/* Number of merged rx buffers */
 };
+#define rsc_ext_num_packets		csum_start
+#define rsc_ext_num_dupacks		csum_offset
 
-/* This is the header to use when either one or both of GUEST_RSC4/6
- * features have been negotiated. */
-struct virtio_net_hdr_rsc {
-	struct virtio_net_hdr_v1 hdr;
-	__virtio16 rsc_pkts;	/* Number of coalesced packets */
-	__virtio16 rsc_dup_acks;	/* Duplicated ack packets */
-};
 
 #ifndef VIRTIO_NET_NO_LEGACY
 /* This header comes first in the scatter-gather list.
