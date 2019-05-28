@@ -1,3 +1,689 @@
+Date    12 Apr 2019
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm191
+
+Fixed bugs:
+
+BZ 1691209: [virtio-win] SDV/DVL related fixes
+
+
+Date    10 Apr 2019
+
+Back to upstream track
+
+Fixed bugs:
+
+BZ 1691209: [viostor][vioscsi] SDV/DVL related fixes
+
+
+Date    5 Mar 2019
+
+Bugs:
+
+BZ 1666940: [netkvm] Fix functionality with single MSIX vector
+BZ 1549577: [virtio-wdf] Check physical memory allocation in virtio library for NULL
+BZ 546821: [Balloon] device hot-unplug fails when service is running
+
+Date    10 Dec 2018
+
+Bugs:
+
+Bz 1428641: [viostor] Windows guest physical block size change to 512 after installation with the size 4096
+BZ 1633087: [viostor] experimental fix - incorrect virtio-win driver version shown in sigverif log file
+
+New Features:
+netkvm: add project directory to include path
+netkvm: return queued TX packets on hot unplug
+netkvm: split code of DoPendingTasks to allow code reuse
+netkvm: introduce 'kill' flow of TX queue
+netkvm: split ReleaseTransmitBuffers code to allow code reuse
+viostor: add placeholder for VPD_BLOCK_LIMITS (0xB0) VPD page reporting
+
+
+Date    18 Oct 2018
+tag     mm182
+
+Bugs:
+
+BZ 1546821: [balloon] use universal api in window 10 build
+
+New Features:
+viostor: handle VERIFY(16) requests properly
+netkvm: set proper checksum info when indicating coalesced packets
+netkvm: fix support for speed/duplex configuration
+netkvm: Calculate number of coalesced segments correctly
+NetKVM: Implement VIRTIO_CONFIG_S_NEEDS_RESET as needed by spec
+
+
+Date    02 Aug 2018
+
+Bugs:
+
+BZ 1609228: [vioscsi] Fix for  guest can not generate dump file regression
+
+
+Date    29 Jul 2018
+
+Bugs:
+
+BZ 1599631: [NetKVM] Revert "NetKVM: Set AffinityPolicy to IrqPolicySpecifiedProcessors"
+    
+
+Date    25 Jul 2018
+
+Bugs:
+
+BZ 1607275: [viostor] win2008 viostor driver loading failed during guest installation when -smp>2
+
+
+Date    11 Jul 2018
+
+New Features:
+
+viostor always report SCSI_ADSENSE_NO_SENSE as ascq on write-protected media'
+
+Date    04 Jul 2018
+
+Bugs:
+BZ#1577708: NetKVM Fix E2EPerf WHQL test failure
+
+Date    03 Jul 2018
+
+New Features:
+
+viostor: rework SRB_FUNCTION_PNP handler to report device as removable
+NetKVM:  PathBundle: Don't call destructor for RX/TX
+NetKVM:  Observee: Make list countable
+vioscsi: Fix bug in vq notification path
+
+Date    12 Jun 2018
+
+Bugs:
+BZ 1569329: [virtio-win] copyright show 2017 in all inf, sys, license files
+
+WPP for virtio-scsi and virtio-blk evice drivers
+NetKVM: TX: Drop heavy DPC scheduling
+viostor fix bsod when only one vq is active (BZ#1566298 comment#24)
+
+
+Date    25 May 2018
+
+Bugs:
+BZ 1566298: [viostor] unattended installation failure on unpartitioned image when using virtio_blk
+
+New Features:
+
+NetKVM: Fixing behaviour when VIRTIO_NET_F_STATUS is off
+viostor: move sgl to SRB extension
+viostor: redesign vq lock/unlock routines
+NetKVM: Log interrupt vector to CPU mapping
+NetKVM: Set AffinityPolicy to IrqPolicySpecifiedProcessors
+NetKVM: Correctly assign vecotrs to CPUs
+
+
+Date    26 Apr 2018
+
+
+BZ 1568739: [vioscsi] Fix for Bug 1568739 - Win7/win2008 guest BSOD after the first
+    reboot when installing os with virtio_scsi
+
+Date    17 Apr 2018
+
+Bugs:
+BZ 1539256: [vioscsi] to support ACK of VIRTIO_F_IOMMU_PLATFORM
+BZ 1530210: [viostor] to support ACK of VIRTIO_F_IOMMU_PLATFORM
+BZ 1549587: [NetKVM] to support ACK of VIRTIO_F_IOMMU_PLATFORM
+BZ 1549577: [virtiovib] Add VIRTIO_F_IOMMU_PLATFORM feature bit definition
+
+
+New Features:
+
+WPP for viorng, balloon, input, and serial.
+Storage Request Block SRB type for viostor.
+Increasing the size of queue depth for vioscsi.
+
+Date    20 Mar 2018
+
+Bugs:
+
+BZ 1551918: [viorng] Lack of viorng* files in virtio-win-prewhql-0.1-148
+
+Date    06 Mar 2018
+
+Bugs:
+
+BZ 1549455: [viostor] Event ID: 158 is logged on Win10/WS2016 when two or more virtio-blk disks attached to VM
+BZ 1537430: [NetKvm] Import LinkSpeed/Duplex configs from the hypervisor
+BZ 1351089: [NetKvm] Don't set MAC address using configuration space in virtio 1.0 device
+
+New Features:
+All drivers for Windows 10 will be built for "Universal" target platform
+
+Date    04 Dec 2017
+
+Revert
+
+Virtio: Use Publish indices according to spec
+VirtioRing: Don't enable event suppression by default
+
+
+Date    03 Dec 2017
+
+Fixed bugs:
+BZ 1168064: [viostor]Resuming guest from S4 with 'readonly = on' within CLI will induce improper results.
+BZ 1518095: [viostor] Online enlarging data image size does not work properly 
+
+New Features:
+
+vioscsi: partial implementation of MS_SM_PortInformationMethods class methods
+vioserial: Send VIRTIO_CONSOLE_PORT_OPEN (0) on port D0 exit
+NetKVM: Fix TX OID_GEN_TRANSMIT_QUEUE_LENGTH stats reported to Windows
+Virtio: Use Publish indices according to spec
+VirtioRing: Don't enable event suppression by default
+NetKVM: Use NdisGetSharedDataAlignment to align miniport's adapter con
+
+Date    14 Nov 2017
+
+Fixed bugs:
+BZ 1480139: [virtio-win] Switch to BSD license
+
+New Features:
+
+VirtIO: Change vp_notify debug print to a higher level
+NetKVM: Handle case where we have 2 msi vectors
+NetKVM: Use correct function name in debug print
+NetKVM: Remove unused DPrintf parameter
+balloon: Add missing spin lock release to error path
+balloon: Don't call virtqueue_notify while holding queue locks
+serial: change timeout for KeDelayExecutionThread
+serial: Replace KeStallExecutionProcessor with KeDelayExecutionThread
+serial: remove unused variable
+NetKVM: TX: Kick ring when full
+serial: remove RETRY_THRESHOLD limit from c_ovq poll loop
+viostor/vioscsi: Changes to keep "Static Driver Verification" (SDV) happy.
+Net-KVM: Fix a typo in the configuration entry settings
+Net-KVM: Fix a typo
+balloon: Don't create invalid VARIANTs
+vioscsi: Eliminate MSI_SUPPORTED
+vioscsi: Eliminate INDIRECT_SUPPORTED
+viostor: Eliminate INDIRECT_SUPPORTED
+
+
+Date    10 Aug 2017
+
+New Features:
+Switch to BSD license
+
+Date    20 Jul 2017
+
+Fixed bugs:
+
+BZ 1458626: [NetKVM] Send clone of original announcement NBL
+    
+
+Date    04 Jul 2017
+
+Fixed bugs:
+
+BZ 1451978: [NetKVM] latest virtio driver (network) for Windows drops lots of packets 
+
+
+Date    01 Jun 2017
+
+Fixed bugs:
+
+BZ 1456403: [NetKVM] Implement MTU report feature of the virtio-net device
+BZ 1455488: [vioser][ovmf] Guest occured BSOD when hotunplug virtio-serial-pci.
+
+
+Date    22 May 2017
+
+Fixed bugs:
+
+BZ 1393772: [smbus] Add null driver for SM Bus Controller
+
+Date    10 May 2017
+
+Fixed bugs:
+
+BZ 1443019: [pciserial] Add a pci-serial (1x only) .inf for RHEL
+BZ 1438410: [NetKVM]    Add VlanId property to no_RSS and no_RSC Inf files
+
+Date    30 Apr 2017
+
+Fixed bugs:
+
+BZ 1369353: [balloon] backport available memory stat support. Trying to mimic what si_mem_available 
+            does in Linux. AvailPhys is the sum of memory in free, zero and standby list.CacheBytes 
+            is the current size of the system file cache.
+BZ 1442322: [viostor] Cannot enlarge/shrink disk with virtio-blk-pci device.
+BZ 1438410: [NetKVM] Add VlanId property to Inf file
+
+
+Date    27 Mar 2017
+
+Fixed bugs:
+BZ 1419900: [vioser] BSOD of vioser.sys on Win10 in S0->S4->S0 flow
+
+Date    14 Mar 2017
+
+Fixed bugs:
+
+BZ 1429807: [netkvm] guests bsod(d1) when running job "NDISTest 6.0 - [1 Machine] - 1c_FaultHandling"
+
+
+Date    26 Feb 2017
+
+Fixed bugs:
+
+BZ 1303510: [virtio-win] Change the copyright on all the Windows drivers to "2017" in virtio-win-prewhql build
+
+New Features:
+
+NetKVM: Implement VIRTIO_NET_F_GUEST_ANNOUNCE feature
+NetKVM: Make miniportShutdown return immediately on "NdisShutdownBugCheck"
+
+
+Date    12 Feb 2017
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm152
+
+Fixed bugs:
+
+BZ 1369353: [balloon] backport available memory stat support
+BZ 1419785: [balloon] Guest WIN8-32 occured BSOD in job "DF - PNP Stop (Rebalance) Device Test (Certification)"
+
+New Features:
+pvpanic: Add IOCTL_GET_CRASH_DUMP_HEADER
+vioinput: Use viohidkmdf.sys instead of mshidkmdf.sys
+
+
+Date    29 Jan 2017
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm151
+
+Fixed bugs:
+BZ 1403550: [viostor] Add multi-queue support 
+
+New Features:
+
+viostor: WinXP related code has been removed.
+
+
+Date    15 Jan 2017
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm150
+
+Fixed bugs:
+BZ 1395790: [vioscsi] BSOD when adding CPU to live Windows Server 2012R2 guest
+BZ 1410964: [viostor] 4K virtual drives broken on Windows
+
+New Features:
+
+NetKVM: Fix 1c_IOCTLCoverage test failure
+NetKVM: Fix RX kick timing
+vioscsi: Fix verifier and debug spew due to worker exiting with affinity set. By default the workers have no affinity. We set it to the specific cpu, but KeSetSystemAffinityThreadEx returns 0, as there was no affinity. You still have to KeSetSystemAffinityThreadEx before you exit and reset it back to 0.
+balloon: Fix completion-cancellation races
+netkvm: Optimize checksum routine on 64-bit
+
+
+Date    15 Dec 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm149
+
+New Features:
+
+NetKVM Return correct info for OID_TCP_OFFLOAD_PARAMETERS
+Balloon: Fix blnsvr race conditions
+NetKvm: Support WMI commands
+NetKvm: Use fewer virtio receive SG descriptors
+NetKvm: Fix race of changing of RSS parameters and TX
+virtiolib: Fix uninitialized variable in VirtIOWdfFinalizeFeatures
+
+
+Date    02 Nov 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm148
+
+Fixed bugs:
+BZ 1389445: [virtiolib] VirtIO definition of bool as int used by all drivers
+            that use VirtIO library, except (currently) netkvm which is C++
+            and uses bool as fundamental C++ type.
+BZ 1389125: [viostor] - extend viostor driver with STORAGE_REQUEST_BLOCK support
+
+New Features:
+NetKVM performance optimization
+fwcfg: Rename driver files fwcfg -> qemufwcfg
+
+Date    25 Oct 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm147
+
+New Features:
+New build system
+
+Date    10 Aug 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm146
+
+New Features:
+NetKVM fix SDV problems
+Debug targets
+
+Date    04 Aug 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm145
+
+Fixed bugs:
+
+BZ 1361501: [Balloon] fix "vcruntime120.dll is missing"
+BZ 1359626: [NetKVM] RSC and RSS parameters should be set according to OS version
+
+
+Date    29 Jul 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm144
+
+Fixed bugs:
+BZ 1356363: [viorng] cannot install viorng driver on win2008-32/64 (build 122)
+BZ 1352432: [vioscsi] Win2012-64&R2 guest occurred bsod(d1) when whql test DPWLK- Hot-Replace - Device Test 
+            - Verify driver support for D3 power state
+BZ 1358125: [viostor] Virtio 1.0 driver didn't work on win10 with q35 machine type
+
+Date    25 Jul 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm143
+
+Fixed bugs:
+
+BZ 1349724: [viostor] fix bus reset. related to Bug 1349724 - [virtio-win][viostor][whql] 
+            cannot pass whql test Bus Reset Test on win2008R2
+BZ 1246993: [virtio-win]  add Server10 to the Windows version list. fix for Bug 1246993
+BZ 1356422: [virtiolib] fix 'code integrity checks' verifier crash
+
+New Features:
+Enable RSC in INF file
+Enable dynamic RSC offload based on QEMU implementation
+Use new RSC information fields in virtio_net_hdr_v1
+Add RSC related definitions based on virtio 1.0 spec to virtio_net.h
+
+
+Date    12 Jul 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm142
+
+Fixed bugs:
+
+BZ 1352517: fix bsod on several pnp whql tests (again).
+BZ 1352809: [viorng] wrong dervier version for virtio-win-prewhql-121
+BZ 1352432: [vioscsi] Win2012-64&R2 guest occurred bsod(d1) when whql test DPWLK- Hot-Replace
+BZ 1234741: [vioscsi] win2012 guest bsod(c9) when whql test DPWLK-HotAdd(1104) job
+
+Date    28 Jun 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm141
+
+
+Date    22 Jun 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm140
+
+Adding missed bits after sync with Win10 branch.
+
+Date    21 Jun 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm139
+
+New Features:
+Sync with Win10 branch
+
+Date    30 May 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm138
+
+Fixed bugs:
+BZ 1293249: [Balloon] Fix IOCTL_GET_INFORMATION regression
+
+New Features:
+Enable RSC
+Fix IPv6 offload support with SLIRP
+Fix MPE HCK test problems
+
+Date    08 Apr 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm137
+
+Fixed bugs:
+BZ 1321903 [vioscsi]:  Windows 10 Installer stuck at Getting files ready for installation with Virtio SCSI
+
+New Features:
+Trying out the new build system.
+
+Date    18 Feb 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm135
+
+New Features:
+vioserial - code rework and cleanup
+general - switching signing back to SHA-1
+
+Date    04 Feb 2016
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm133
+
+Fixed bugs:
+
+
+BZ 1303510: [virtio-win] Change the copyright on all the Windows drivers to "2016" in virtio-win-prewhql build
+BZ 1122364: [vioserial] Complete pending write request on port removal
+BZ 1296099: [vioserial] Fix race in read cancellation logic
+BZ 1293249: [vioserial] Fix IOCTL_GET_INFORMATION,
+
+
+New Features:
+vioserial - add simple benchmarking tool
+balloon - fix memory statistics reporting
+
+Date    15 Dec 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm132
+
+Fixed bugs:
+
+BZ 1284769: [viostor] Windows XP installer stucks installing with virtio-drivers
+BZ 1245957: [viostor] [WHQL][viostor][data-plane]it could not generate dump file on WIN2008-32/64 via WLK while running Crash Dump job
+BZ 1289406: [vioser] Cannot install vioser driver successfully
+
+
+New features:
+Redesigned lock and unlock routines for vioscsi device driver.
+
+Date    18 Nov 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm131
+
+Fixed bugs:
+
+
+BZ 1013336: NetKVM: BSoD occurs when running NDISTest6.5 -[2 Machine] - MPE_Ethernet job on windows 2012 (Win10)
+BZ 1273791: NetKVM: Do not touch control queue before status VIRTIO_CONFIG_S_DRIVER_OK is raised
+BZ 1270149: NetKVM: Check guest network link status of virtio nic with status=on failed (build 110)
+BZ 1263193: NetKVM: BSoD occurs when boot the win2012R2 guest with "-smp 64"(netkvm driver installed)
+BZ 1256626: NetKVM: windows guest(win7/win10) CTRL_VLAN=on/off does not support for virtio-net-pci
+
+New features:
+
+Some changes toward virtio 1.0 support.
+Redesigned cpu to vq mapping mechanism for vioscsi device driver.
+Added support for STORAGE_REQUEST_BLOCK handling for vioscsi device driver.
+
+Date    10 Aug 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm129
+
+Fixed bugs:
+
+Bz 1250854 [vioscsi]The job named crash dump failed on windows 2008 -32/64 platform
+
+Date    01 Aug 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm128
+
+Fixed bugs:
+
+
+BZ 1183423#c10 Change the copyright on all the Windows drivers to "2015" in virtio-win-prewhql build
+BZ 1248977 - [virtio-win][vioscsi] Cannot install vioscsi driver on win7-32&win2008-32 with build107
+
+
+Date    30 Jul 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm127
+
+Fixed bugs:
+
+BZ 1234751 [virtio-win][vioscsi]win2012R2 guest bsod(d1) when whql test DPWLK-HotAdd(1104) job
+BZ 1234741 [virtio-win][vioscsi]win2012 guest bsod(c9) when whql test DPWLK-HotAdd(1104) job
+BZ 1234507 vioserial crash due to completing a cancellable request
+
+
+Date    21 Jul 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm126
+
+Fixed bugs:
+
+BZ 1237024  NetKVM Fix payload length calculation in IPv6 header
+BZ 1183423  Change the copyright on all the Windows drivers to "2015" in virtio-win-prewhql build
+BZ 1243229  [virtio-win][scsi][windows 10]win10 and win2016 guests bsod with D1 when run job "Bus Reset Test"
+BZ 1217799  Distribute *.oem, LICENSE, COPYING in -prewhql build
+BZ 1228967  [virtio-win][whql][viostor]job "Flush Test" failed on all guests with build 105
+
+
+Date    03 Jun 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm125
+
+Fixed bugs:
+
+BZ 1223426 NetKVM Fix for performance degradation with multi-queue
+BZ 1227164 viostor/vioscsi is not digital signed by Redhat
+
+
+Date    24 May 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm124
+
+Fixed bugs:
+
+BZ 1214568 vioscsi Add WMI facility to check the virito-scsi mq enabled
+BZ 1172920 vioser  bsod on shutdown after device was unplugged
+BZ 954183  NetKVM  Clean-up SDV run results during clean.bat execution
+BZ 1067249 balloon device can't be removed when service is running
+BZ 1190960 NetKVM  [mq]job failed due to "Received some net buffer lists out of order" w/ 4 queues
+BZ 1067225 viostor Windows guest performing out-of-bounds accesses on virtio device
+BZ 1195487 viostor Windows guest performing out-of-bounds accesses on virtio device
+
+New features:
+Fixed VS2015 compilation warnings.
+
+Date    12 Apr 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm123
+
+Fixed bugs:
+
+BZ 1210166 vioscsi - Add multiqueue support to Windows virtio-scsi driver.
+BZ 996479  pvpanic - RFE:pvpanic driver for windows guest
+BZ 954183  NetKVM - Static driver verifier fails with NetKVM
+BZ 1190960 NetKVM - job failed due to "Received some net buffer lists out of order" w/ 4 queues 
+BZ 1190968 NetKVM - job "NDISTest 6.0 - [1 Machine] - 1c_Mini6RSSOids" last for hours and never stop w/ 4 queues
+
+
+Date    10 March 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm122
+
+Fixed bugs:
+
+BZ 1195920 virtio-scsi - Windows 2012 R2 using virtio-scsi driver with Direct LUNs causes BSODs
+BZ 1183423 NetKVM - Change the copyright on all the Windows drivers to 2015. Missed part
+BZ 954183  NetKVM - Static driver verifier fails with NetKVM
+
+
+Date    2 March 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm121
+
+Fixed bugs:
+
+BZ 1188790 NetKVM: Freeing SG list on detaching internal object: it is illegal to free SG list after TX packets acknowledgment
+BZ 1136602 NetKVM: Free spinlocks on failure
+BZ 1183423 [common] - Change the copyright on all the Windows drivers to 2015
+BZ 1184430 [viostor] - enable event index feature in Windows virtio-blk driver
+BZ 1067225 [viostor] - Windows guest performing out-of-bounds accesses on virtio device
+
+New Features:
+
+Add a test wrapper for iperf
+
+Date    13 Jan 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm120
+
+Fixed bugs:
+
+BZ 1147239: NetKVM NetKVM with 2012R2 fails the HCK tests
+
+Date    08 Jan 2015
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm119
+
+Fixed bugs:
+
+BZ 1142737: interface status is '2', but expect status is '7' after set_link NIC off
+BZ 1177063: Balloon fixed bsod on s3/s4 when service was running.
+BZ 1159754: Nic device doesn't work when guest is running in IRQ mode 
+BZ 1067249: Balloon fix a regression caused by f542c3f1.
+
+BZ 1154419: NetKVM NetKVM fails HCK test for 2008R2, single CPU
+BZ 1169718: NetKVM Checking the length only on read
+
+BZ 1173323: NetKVM iperf stalls the NetKVM driver
+BZ 1154420: NetKVM ParaNdis6_SendNetBufferList
+BZ 1147239: NetKVM NetKVM with 2012R2 fails the HCK tests
+
+Date    04 Dec 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm116
+
+Fixed bugs:
+
+BZ 1168483 NetKVM: Setting minimal MTU value to 576
+BZ 1167231: balloon: stop service on shutdown notification.
+BZ 1158013: RNG: fix device's hardware id
+
+Date    01 Dec 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm115
+
+Fixed bugs:
+
+BZ 1151912: RNG fix whql failure due to registeration error.
+BZ 1154419: NetKVM  Memory corruption in RSS->queue mapping.
+
+RNG: replaced message box with setup api logging.
+NetKvmCo: fix setting string registry keys.
+
+Date    19 Nov 2014
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm114
+
+Fixed bugs:
+
+BZ 1156259: Win7-64 guest BSOD(0x000000A0) when doing s4 
+
+
 Date    30 Sep 2014
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm113
