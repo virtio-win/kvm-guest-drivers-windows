@@ -243,6 +243,7 @@ HIDMouseProbe(
     NTSTATUS status = STATUS_SUCCESS;
     UCHAR i, uValue;
     ULONG uFeatureBitsUsed = 0, uNumOfRelAxes = 0, uNumOfAbsAxes = 0;
+    BOOLEAN bHasRelXY;
     SIZE_T cbFeatureBytes = 0, cbButtonBytes;
     SIZE_T cbInitialHidSize = pHidDesc->Size;
     DYNAMIC_ARRAY AxisMap = { NULL };
@@ -324,8 +325,9 @@ HIDMouseProbe(
     HIDAppend2(pHidDesc, HID_TAG_USAGE_PAGE, HID_USAGE_PAGE_GENERIC);
     DynamicArrayReserve(&AxisMap, AXIS_MAP_INITIAL_LENGTH * 2 * sizeof(ULONG));
 
+    bHasRelXY = InputCfgDataHasBit(pRelAxes, REL_X) && InputCfgDataHasBit(pRelAxes, REL_Y);
     // Windows won't drive a mouse without at least the X and Y relative axes
-    if (InputCfgDataHasBit(pRelAxes, REL_X) && InputCfgDataHasBit(pRelAxes, REL_Y)
+    if (bHasRelXY
 #ifdef EXPOSE_ABS_AXES_WITH_BUTTONS_AS_MOUSE
         || (pMouseDesc->uNumOfButtons > 0 && InputCfgDataHasBit(pAbsAxes, ABS_X) && InputCfgDataHasBit(pAbsAxes, ABS_Y))
 #endif // EXPOSE_ABS_AXES_WITH_BUTTONS_AS_MOUSE
@@ -339,8 +341,8 @@ HIDMouseProbe(
                 ULONG uAxisCode = 0;
                 switch (uRelCode)
                 {
-                case REL_X: uAxisCode = HID_USAGE_GENERIC_X; break;
-                case REL_Y: uAxisCode = HID_USAGE_GENERIC_Y; break;
+                case REL_X: uAxisCode = bHasRelXY ? HID_USAGE_GENERIC_X : 0; break;
+                case REL_Y: uAxisCode = bHasRelXY ? HID_USAGE_GENERIC_Y : 0; break;
                 case REL_Z: uAxisCode = HID_USAGE_GENERIC_Z; break;
                 case REL_RX: uAxisCode = HID_USAGE_GENERIC_RX; break;
                 case REL_RY: uAxisCode = HID_USAGE_GENERIC_RY; break;
@@ -395,7 +397,7 @@ HIDMouseProbe(
     }
 
 #ifdef EXPOSE_ABS_AXES_WITH_BUTTONS_AS_MOUSE
-    if ((!InputCfgDataHasBit(pRelAxes, REL_X) || !InputCfgDataHasBit(pRelAxes, REL_Y)) &&
+    if (!bHasRelXY &&
         pMouseDesc->uNumOfButtons > 0 &&
         InputCfgDataHasBit(pAbsAxes, ABS_X) && InputCfgDataHasBit(pAbsAxes, ABS_Y))
     {
