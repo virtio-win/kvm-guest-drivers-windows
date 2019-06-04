@@ -684,6 +684,14 @@ VirtIoHwInitialize(
         guestFeatures |= (1ULL << VIRTIO_BLK_F_MQ);
     }
 
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD)) {
+        guestFeatures |= (1ULL << VIRTIO_BLK_F_DISCARD);
+    }
+
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_WRITE_ZEROES)) {
+        guestFeatures |= (1ULL << VIRTIO_BLK_F_WRITE_ZEROES);
+    }
+
     if (!NT_SUCCESS(virtio_set_features(&adaptExt->vdev, guestFeatures))) {
         RhelDbgPrint(TRACE_LEVEL_FATAL, " virtio_set_features failed\n");
         return FALSE;
@@ -995,6 +1003,16 @@ VirtIoStartIo(
             }
             return TRUE;
         }
+#if (NTDDI_VERSION > NTDDI_WIN7)
+        case SCSIOP_UNMAP: {
+            SRB_SET_SRB_STATUS(Srb, SRB_STATUS_PENDING);
+            if (!RhelDoUnMap(DeviceExtension, (PSRB_TYPE)Srb)) {
+                RhelDbgPrint(TRACE_LEVEL_FATAL, "RhelDoUnMap failed.\n");
+                CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_ERROR);
+            }
+            return TRUE;
+        }
+#endif
     }
 
     if (cdb->CDB12.OperationCode == SCSIOP_REPORT_LUNS) {
@@ -1351,11 +1369,17 @@ RhelScsiGetInquiryData(
         SupportPages->SupportedPageList[0] = VPD_SUPPORTED_PAGES;
         SupportPages->SupportedPageList[1] = VPD_SERIAL_NUMBER;
         SupportPages->SupportedPageList[2] = VPD_DEVICE_IDENTIFIERS;
+        SupportPages->PageLength = 3;
 #if (NTDDI_VERSION >= NTDDI_WIN7)
         SupportPages->SupportedPageList[3] = VPD_BLOCK_LIMITS;
         SupportPages->PageLength = 4;
-#else
-        SupportPages->PageLength = 3;
+#if (NTDDI_VERSION > NTDDI_WIN7)
+        if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD)) {
+            SupportPages->SupportedPageList[4] = VPD_BLOCK_DEVICE_CHARACTERISTICS;
+            SupportPages->SupportedPageList[5] = VPD_LOGICAL_BLOCK_PROVISIONING;
+            SupportPages->PageLength = 6;
+        }
+#endif
 #endif
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_SUPPORTED_PAGES_PAGE) + SupportPages->PageLength));
     }
@@ -1416,13 +1440,63 @@ RhelScsiGetInquiryData(
         LimitsPage->DeviceType = DIRECT_ACCESS_DEVICE;
         LimitsPage->DeviceTypeQualifier = DEVICE_CONNECTED;
         LimitsPage->PageCode = VPD_BLOCK_LIMITS;
-        REVERSE_BYTES_SHORT(&LimitsPage->PageLength, &pageLen);
         REVERSE_BYTES_SHORT(&LimitsPage->OptimalTransferLengthGranularity, &adaptExt->info.min_io_size);
         REVERSE_BYTES(&LimitsPage->MaximumTransferLength, &max_io_size);
         REVERSE_BYTES(&LimitsPage->OptimalTransferLength, &adaptExt->info.opt_io_size);
-
+#if (NTDDI_VERSION > NTDDI_WIN7)
+        if ((CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD)) &&
+            (dataLen >= 0x14)) {
+            ULONG opt_unmap_granularity = 8;
+            pageLen = 0x3c;
+            REVERSE_BYTES(&LimitsPage->MaximumUnmapLBACount, &adaptExt->info.max_discard_sectors);
+            REVERSE_BYTES(&LimitsPage->MaximumUnmapBlockDescriptorCount, &adaptExt->info.max_discard_seg);
+            REVERSE_BYTES(&LimitsPage->OptimalUnmapGranularity, &opt_unmap_granularity);
+            REVERSE_BYTES(&LimitsPage->UnmapGranularityAlignment, &adaptExt->info.discard_sector_alignment);
+            LimitsPage->UGAValid = adaptExt->info.discard_sector_alignment ? 1 : 0;
+        }
+#endif
+        REVERSE_BYTES_SHORT(&LimitsPage->PageLength, &pageLen);
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, (FIELD_OFFSET(VPD_BLOCK_LIMITS_PAGE, Reserved0) + pageLen));
     }
+
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    else if ((cdb->CDB6INQUIRY3.PageCode == VPD_BLOCK_DEVICE_CHARACTERISTICS) &&
+             (cdb->CDB6INQUIRY3.EnableVitalProductData == 1) &&
+             (dataLen >= 0x08)) {
+
+        PVPD_BLOCK_DEVICE_CHARACTERISTICS_PAGE CharacteristicsPage;
+
+        CharacteristicsPage = (PVPD_BLOCK_DEVICE_CHARACTERISTICS_PAGE)SRB_DATA_BUFFER(Srb);
+        CharacteristicsPage->DeviceType = DIRECT_ACCESS_DEVICE;
+        CharacteristicsPage->DeviceTypeQualifier = DEVICE_CONNECTED;
+        CharacteristicsPage->PageCode = VPD_BLOCK_DEVICE_CHARACTERISTICS;
+        CharacteristicsPage->PageLength = 0x3C;
+        CharacteristicsPage->MediumRotationRateMsb = 0;
+        CharacteristicsPage->MediumRotationRateLsb = 0;
+        CharacteristicsPage->NominalFormFactor = 0;
+    }
+    else if ((cdb->CDB6INQUIRY3.PageCode == VPD_LOGICAL_BLOCK_PROVISIONING) &&
+             (cdb->CDB6INQUIRY3.EnableVitalProductData == 1) &&
+             (dataLen >= 0x08)) {
+
+        PVPD_LOGICAL_BLOCK_PROVISIONING_PAGE ProvisioningPage;
+        USHORT pageLen = 0x04;
+
+        ProvisioningPage = (PVPD_LOGICAL_BLOCK_PROVISIONING_PAGE)SRB_DATA_BUFFER(Srb);
+        ProvisioningPage->DeviceType = DIRECT_ACCESS_DEVICE;
+        ProvisioningPage->DeviceTypeQualifier = DEVICE_CONNECTED;
+        ProvisioningPage->PageCode = VPD_LOGICAL_BLOCK_PROVISIONING;
+        REVERSE_BYTES_SHORT(&ProvisioningPage->PageLength, &pageLen);
+
+        ProvisioningPage->DP = 0;
+        ProvisioningPage->LBPRZ = 0;
+        ProvisioningPage->LBPWS10 = 0;
+        ProvisioningPage->LBPWS = 0;
+        ProvisioningPage->LBPU = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD) ? 1 : 0;
+        ProvisioningPage->ProvisioningType = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD) ? PROVISIONING_TYPE_THIN : PROVISIONING_TYPE_RESOURCE;
+    }
+
+#endif
 #endif
     else if (dataLen > sizeof(INQUIRYDATA)) {
         StorPortMoveMemory(InquiryData, &adaptExt->inquiry_data, sizeof(INQUIRYDATA));
@@ -1640,6 +1714,8 @@ RhelScsiGetCapacity(
         if (srbdatalen >= (ULONG)FIELD_OFFSET(READ_CAPACITY16_DATA, Reserved3)) {
             readCapEx->LogicalPerPhysicalExponent = adaptExt->info.physical_block_exp;
             srbdatalen = FIELD_OFFSET(READ_CAPACITY16_DATA, Reserved3);
+            readCapEx->LBPME = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD) ? 1 : 0;
+            readCapEx->LBPRZ = 0;
             SRB_SET_DATA_TRANSFER_LENGTH(Srb, FIELD_OFFSET(READ_CAPACITY16_DATA, Reserved3));
         }
 #endif
