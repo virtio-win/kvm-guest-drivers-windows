@@ -133,6 +133,14 @@ RhelDoFlush(
     BOOLEAN bIsr
     );
 
+#if (NTDDI_VERSION > NTDDI_WIN7)
+BOOLEAN
+RhelDoUnMap(
+    IN PVOID DeviceExtension,
+    IN PSRB_TYPE Srb
+    );
+#endif
+
 VOID
 RhelShutDown(
     IN PVOID DeviceExtension

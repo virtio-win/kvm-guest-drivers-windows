@@ -55,6 +55,8 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_BLK_F_TOPOLOGY   10      /* Topology information is available */
 #define VIRTIO_BLK_F_CONFIG_WCE 11      /* Writeback mode available in config */
 #define VIRTIO_BLK_F_MQ         12      /* support more than one vq */
+#define VIRTIO_BLK_F_DISCARD    13      /* DISCARD is supported */
+#define VIRTIO_BLK_F_WRITE_ZEROES 14    /* WRITE ZEROES is supported */
 
 /* These two define direction. */
 #define VIRTIO_BLK_T_IN         0
@@ -63,14 +65,20 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_BLK_T_SCSI_CMD   2
 #define VIRTIO_BLK_T_FLUSH      4
 #define VIRTIO_BLK_T_GET_ID     8
+#define VIRTIO_BLK_T_DISCARD    11
+#define VIRTIO_BLK_T_WRITE_ZEROES   13
+
+#define VIRTIO_BLK_WRITE_ZEROES_FLAG_UNMAP   0x00000001
 
 #define VIRTIO_BLK_S_OK         0
 #define VIRTIO_BLK_S_IOERR      1
 #define VIRTIO_BLK_S_UNSUPP     2
 
 #define SECTOR_SIZE             512
+#define SECTOR_SHIFT            9
 #define IO_PORT_LENGTH          0x40
-#define MAX_CPU                 256
+#define MAX_CPU                 256u
+#define MAX_DISCARD_SEGMENTS    256u
 
 #define VIRTIO_BLK_QUEUE_LAST   MAX_CPU
 
@@ -111,6 +119,39 @@ typedef struct virtio_blk_config {
     u8 unused;
     /* number of vqs, only available when VIRTIO_BLK_F_MQ is set */
     u16 num_queues;
+
+    /* the next 3 entries are guarded by VIRTIO_BLK_F_DISCARD */
+    /*
+     * The maximum discard sectors (in 512-byte sectors) for
+     * one segment.
+     */
+    u32 max_discard_sectors;
+    /*
+     * The maximum number of discard segments in a
+     * discard command.
+     */
+    u32 max_discard_seg;
+    /* Discard commands must be aligned to this number of sectors. */
+    u32 discard_sector_alignment;
+
+    /* the next 3 entries are guarded by VIRTIO_BLK_F_WRITE_ZEROES */
+    /*
+     * The maximum number of write zeroes sectors (in 512-byte sectors) in
+     * one segment.
+     */
+    u32 max_write_zeroes_sectors;
+    /*
+     * The maximum number of segments in a write zeroes
+     * command.
+     */
+    u32 max_write_zeroes_seg;
+    /*
+     * Set if a VIRTIO_BLK_T_WRITE_ZEROES request may result in the
+     * deallocation of one or more of the sectors.
+     */
+    u8 write_zeroes_may_unmap;
+
+    u8 unused1[3];
 }blk_config, *pblk_config;
 #pragma pack()
 
@@ -122,6 +163,16 @@ typedef struct virtio_blk_outhdr {
     /* Sector (ie. 512 byte offset) */
     u64 sector;
 }blk_outhdr, *pblk_outhdr;
+
+/* Discard/write zeroes range for each request. */
+typedef struct virtio_blk_discard_write_zeroes {
+    /* discard/write zeroes start sector */
+    u64 sector;
+    /* number of discard/write zeroes sectors */
+    u32 num_sectors;
+    /* flags for this range */
+    u32 flags;
+}blk_discard_write_zeroes, *pblk_discard_write_zeroes;
 
 typedef struct virtio_blk_req {
     LIST_ENTRY list_entry;
@@ -185,6 +236,7 @@ typedef struct _ADAPTER_EXTENSION {
     BOOLEAN               removed;
 #if (NTDDI_VERSION > NTDDI_WIN7)
     STOR_ADDR_BTL8        device_address;
+    blk_discard_write_zeroes blk_discard[16];
 #endif
 #ifdef DBG
     ULONG                 srb_cnt;
