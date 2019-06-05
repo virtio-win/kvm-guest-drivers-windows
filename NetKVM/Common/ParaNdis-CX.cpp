@@ -107,7 +107,7 @@ BOOLEAN CParaNdisCX::SendControlMessage(
 
             m_VirtQueue.Kick();
             p = m_VirtQueue.GetBuf(&len);
-            for (int i = 0; i < 1000 && !p; ++i)
+            for (int i = 0; i < 500000 && !p; ++i)
             {
                 UINT interval = 1;
                 NdisStallExecution(interval);
