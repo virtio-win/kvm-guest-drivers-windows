@@ -1,3 +1,18 @@
+Date    07 Jum 2019
+repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+tag     mm192
+
+Fixed bugs:
+
+BZ 1672541: [virtio-win] No need for appveyor yaml for the project
+
+New Features:
+
+netkvm: Increase timeout of control command completion
+viostor: add preliminary support for discard (unmap) command
+vioinput: Fix mistakes in commit 4c9942754912
+netkvm: RSC support according to virtio spec
+
 Date    12 Apr 2019
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm191
