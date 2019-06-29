@@ -10,13 +10,17 @@
 *
 */
 
-#include "ParaNdis-Util.h"
 #include "kdebugprint.h"
 
 // Undefine for disabling WPP tracing
 #if ((OSVERSION_MASK & NTDDI_VERSION) > NTDDI_VISTA)
 #define NETKVM_WPP_ENABLED
 #endif
+
+#ifndef NETKVM_WPP_ENABLED
+#define TraceNoPrefix DPrintf
+#endif
+
 //
 // Define the tracing flags.
 //
@@ -54,5 +58,7 @@
 //
 // USEPREFIX (DEBUG_EXIT_STATUS, "%!STDPREFIX! %!FUNC! status = 0x%x", STATUS);
 // FUNC DEBUG_EXIT_STATUS{Flags=TRACE_DRIVER}(LEVEL, STATUS);
+//
+// FUNC TraceNoPrefix{Flags=TRACE_DRIVER}(LEVEL, MSG, ...);
 // end_wpp
 //

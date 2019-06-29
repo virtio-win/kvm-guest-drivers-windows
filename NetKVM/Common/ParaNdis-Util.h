@@ -754,6 +754,9 @@ ULONG FORCEINLINE ParaNdis_GetCurrentCPUIndex()
 #endif
 }
 
+// for template in Parandis-Util.h ONLY
+void Parandis_UtilOnly_Trace(LONG level, LPCSTR s1, LPCSTR s2 = NULL);
+
 template <size_t PrintWidth, size_t ColumnWidth, typename TTable, typename... AccessorsFuncs>
 void ParaNdis_PrintTable(int DebugPrintLevel, TTable table, size_t Size, LPCSTR Format, AccessorsFuncs... Accessors)
 {
@@ -765,7 +768,7 @@ void ParaNdis_PrintTable(int DebugPrintLevel, TTable table, size_t Size, LPCSTR 
 
     if (RtlStringCbCatA(FullFormat, sizeof(FullFormat), Format) != STATUS_SUCCESS)
     {
-        DPrintf(0, "[%s] - format concatenation failed for %s\n", __FUNCTION__, Format);
+        Parandis_UtilOnly_Trace(0, __FUNCTION__, Format);
         return;
     }
 
@@ -785,7 +788,7 @@ void ParaNdis_PrintTable(int DebugPrintLevel, TTable table, size_t Size, LPCSTR 
             LinePos += ColumnWidth;
 
         }
-        DPrintf(DebugPrintLevel, ("%s", Line));
+        Parandis_UtilOnly_Trace(DebugPrintLevel, Line);
         memset(Line, ' ', sizeof(Line));
         Line[PrintWidth] = 0;
         LinePos = Line;
