@@ -1,5 +1,5 @@
-#include "ParaNdis-Util.h"
 #include "ndis56common.h"
+#include "kdebugprint.h"
 #include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
 #include "ParaNdis-Util.tmh"
@@ -107,4 +107,16 @@ ULONG ParaNdis_GetSystemCPUCount()
 #endif
 
     return nProcessors;
+}
+
+void Parandis_UtilOnly_Trace(LONG level, LPCSTR s1, LPCSTR s2)
+{
+    if (!s2)
+    {
+        TraceNoPrefix(level, "%s", s1);
+    }
+    else
+    {
+        TraceNoPrefix(level, "[%s] - format concatenation failed for %s", s1, s2);
+    }
 }
