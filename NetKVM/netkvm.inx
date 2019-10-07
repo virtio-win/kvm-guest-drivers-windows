@@ -233,13 +233,6 @@ HKR, Ndi\Params\*UDPChecksumOffloadIPv6\enum,   "2",    0,      %Rx%
 HKR, Ndi\Params\*UDPChecksumOffloadIPv6\enum,   "1",    0,      %Tx% 
 HKR, Ndi\Params\*UDPChecksumOffloadIPv6\enum,   "0",    0,      %Disable% 
  
-HKR, Ndi\params\NumberOfHandledRXPacketsInDPC,       ParamDesc,  0,          %NumberOfHandledRXPacketsInDPC% 
-HKR, Ndi\params\NumberOfHandledRXPacketsInDPC,       type,       0,          "long" 
-HKR, Ndi\params\NumberOfHandledRXPacketsInDPC,       default,    0,          "1000" 
-HKR, Ndi\params\NumberOfHandledRXPacketsInDPC,       min,        0,          "1" 
-HKR, Ndi\params\NumberOfHandledRXPacketsInDPC,       max,        0,          "10000" 
-HKR, Ndi\params\NumberOfHandledRXPacketsInDPC,       step,       0,          "1" 
- 
 [kvmnet6.CopyFiles] 
 netkvm.sys,,,2 
  
@@ -291,7 +284,6 @@ DebugLevel = "Logging.Level"
 Tx = "Tx Enabled"; 
 Rx = "Rx Enabled"; 
 TxRx = "Rx & Tx Enabled"; 
-NumberOfHandledRXPacketsInDPC = "TestOnly.RXThrottle" 
 Std.LsoV2IPv4 = "Large Send Offload V2 (IPv4)" 
 Std.LsoV2IPv6 = "Large Send Offload V2 (IPv6)" 
 Std.UDPChecksumOffloadIPv4 = "UDP Checksum Offload (IPv4)" 
