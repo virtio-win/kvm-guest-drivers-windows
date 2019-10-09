@@ -102,14 +102,16 @@ static ULARGE_INTEGER Counters[_LastCounter];
  */
 static BOOLEAN bBasicInfoWarning = FALSE;
 static BOOLEAN bPerfInfoWarning = FALSE;
+static BOOLEAN bCacheInfoWarning = FALSE;
 NTSTATUS GatherKernelStats(BALLOON_STAT stats[VIRTIO_BALLOON_S_NR])
 {
     SYSTEM_BASIC_INFORMATION basicInfo;
     SYSTEM_PERFORMANCE_INFORMATION perfInfo;
+    SYSTEM_FILECACHE_INFORMATION cacheInfo;
     ULONG outLen = 0;
     NTSTATUS ntStatus;
     ULONG idx = 0;
-    UINT64 SoftFaults;
+    UINT64 SoftFaults, AvailBytes;
 
     RtlZeroMemory(&basicInfo,sizeof(basicInfo));
     RtlZeroMemory(&perfInfo,sizeof(perfInfo));
@@ -144,6 +146,21 @@ NTSTATUS GatherKernelStats(BALLOON_STAT stats[VIRTIO_BALLOON_S_NR])
             sizeof(perfInfo), outLen);
     }
 
+    ntStatus = ZwQuerySystemInformation(SystemFileCacheInformationEx, &cacheInfo, sizeof(cacheInfo), &outLen);
+    if(!NT_SUCCESS(ntStatus))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
+            "GatherKernelStats (SystemFileCacheInformationEx) failed 0x%08x (outLen=0x%x)\n", ntStatus, outLen);
+        return ntStatus;
+    }
+
+    if ((!bCacheInfoWarning)&&(outLen != sizeof(cacheInfo))) {
+        bCacheInfoWarning = TRUE;
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
+            "GatherKernelStats (SystemFileCacheInformationEx) expected outLen=0x%08x returned with 0x%0x",
+            sizeof(cacheInfo), outLen);
+    }
+
     #define UpdateNoOverflow(x) UpdateOverflowFreeCounter(&Counters[_##x],perfInfo.##x)
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_SWAP_IN,  UpdateNoOverflow(PageReadCount) << PAGE_SHIFT);
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_SWAP_OUT,
@@ -152,8 +169,17 @@ NTSTATUS GatherKernelStats(BALLOON_STAT stats[VIRTIO_BALLOON_S_NR])
                  UpdateNoOverflow(CacheTransitionCount) + UpdateNoOverflow(DemandZeroCount);
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MAJFLT,   UpdateNoOverflow(PageReadCount));
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MINFLT,   SoftFaults);
-    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MEMFREE,  U32_2_S64(perfInfo.AvailablePages) << PAGE_SHIFT);
+    AvailBytes = U32_2_S64(perfInfo.AvailablePages) << PAGE_SHIFT;
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MEMFREE,  AvailBytes);
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_MEMTOT,   U32_2_S64(basicInfo.NumberOfPhysicalPages) << PAGE_SHIFT);
+
+    if (cacheInfo.Flags & QUOTA_LIMITS_HARDWS_MIN_ENABLE &&
+        cacheInfo.CurrentSize > (cacheInfo.MinimumWorkingSet << PAGE_SHIFT))
+    {
+        cacheInfo.CurrentSize -= cacheInfo.MinimumWorkingSet << PAGE_SHIFT;
+    }
+
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_AVAIL, AvailBytes + (UINT64)cacheInfo.CurrentSize/2);
     #undef UpdateNoOverflow
 
     return ntStatus;
