@@ -26,7 +26,7 @@ neTKVMRegAccess::neTKVMRegAccess(HKEY hNewPrKey, LPCTSTR lpzNewRegPath)
 
 neTKVMRegAccess::~neTKVMRegAccess()
 {
-    delete m_lpsRegPath;
+    free(m_lpsRegPath);
 }
 
 VOID neTKVMRegAccess::SetPrimaryKey(HKEY hNewPrKey)
@@ -36,7 +36,7 @@ VOID neTKVMRegAccess::SetPrimaryKey(HKEY hNewPrKey)
 
 BOOL neTKVMRegAccess::SetRegPath(LPCTSTR lpzNewRegPath)
 {
-    delete m_lpsRegPath;
+    free(m_lpsRegPath);
 
     if (!lpzNewRegPath)
     {
