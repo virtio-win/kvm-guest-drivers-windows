@@ -122,6 +122,7 @@ neTKVMRegParam *neTKVMRegParam::GetParam(neTKVMRegAccess &DevParamsRegKey, LPCTS
 
         if (Param->ValidateValue(Param->GetValue().c_str()) == false)
         {
+            delete Param;
             throw neTKVMRegParamBadRegistryException();
         }
     }
