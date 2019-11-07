@@ -228,6 +228,7 @@ VIOSerialEvtDevicePrepareHardware(
     }
 
     pContext->consoleConfig.max_nr_ports = 1;
+    pContext->DmaGroupTag = 0xD0000000;
 
     u64HostFeatures = VirtIOWdfGetDeviceFeatures(&pContext->VDevice);
 
@@ -459,7 +460,8 @@ VOID VIOSerialShutDownAllQueues(IN WDFOBJECT WdfDevice)
 NTSTATUS
 VIOSerialFillQueue(
     IN struct virtqueue *vq,
-    IN WDFSPINLOCK Lock
+    IN WDFSPINLOCK Lock,
+    IN ULONG id
 )
 {
     NTSTATUS     status = STATUS_SUCCESS;
@@ -469,7 +471,7 @@ VIOSerialFillQueue(
 
     for (;;)
     {
-        buf = VIOSerialAllocateBuffer(PAGE_SIZE);
+        buf = VIOSerialAllocateSinglePageBuffer(vq->vdev, id);
         if(buf == NULL)
         {
            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSerialAllocateBuffer failed\n");
@@ -483,9 +485,12 @@ VIOSerialFillQueue(
         status = VIOSerialAddInBuf(vq, buf);
         if(!NT_SUCCESS(status))
         {
-           VIOSerialFreeBuffer(buf);
-           WdfSpinLockRelease(Lock);
-           break;
+            /* nothing to protect in VIOSerialFreeBuffer
+             * better to run it on PASSIVE to free the DMA block
+             */
+            WdfSpinLockRelease(Lock);
+            VIOSerialFreeBuffer(buf);
+            break;
         }
         WdfSpinLockRelease(Lock);
     }
@@ -531,7 +536,7 @@ VIOSerialEvtDeviceD0Entry(
         status = VIOSerialInitAllQueues(Device);
         if (NT_SUCCESS(status) && pContext->isHostMultiport)
         {
-            status = VIOSerialFillQueue(pContext->c_ivq, pContext->CInVqLock);
+            status = VIOSerialFillQueue(pContext->c_ivq, pContext->CInVqLock, pContext->DmaGroupTag);
         }
 
         if (!NT_SUCCESS(status))
@@ -561,6 +566,8 @@ VIOSerialEvtDeviceD0Exit(
     VIOSerialDrainQueue(pContext->c_ivq);
 
     VIOSerialShutDownAllQueues(Device);
+
+    VirtIOWdfDeviceFreeDmaMemoryByTag(&pContext->VDevice.VIODevice, pContext->DmaGroupTag);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 

@@ -9,11 +9,13 @@
 #define QUEUE_DESCRIPTORS 128
 
 PPORT_BUFFER
-VIOSerialAllocateBuffer(
-    IN size_t buf_size
+VIOSerialAllocateSinglePageBuffer(
+    IN VirtIODevice *vdev,
+    IN ULONG id
 )
 {
     PPORT_BUFFER buf;
+    ULONG buf_size = PAGE_SIZE;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
 
@@ -27,21 +29,25 @@ VIOSerialAllocateBuffer(
         TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "ExAllocatePoolWithTag failed, %s::%d\n", __FUNCTION__, __LINE__);
         return NULL;
     }
-    buf->va_buf = ExAllocatePoolWithTag(
-                                 NonPagedPool,
-                                 buf_size,
-                                 VIOSERIAL_DRIVER_MEMORY_TAG
-                                 );
+    buf->va_buf = VirtIOWdfDeviceAllocDmaMemory(vdev, buf_size, id);
     if(buf->va_buf == NULL)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "ExAllocatePoolWithTag failed, %s::%d\n", __FUNCTION__, __LINE__);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "VirtIOWdfDeviceAllocDmaMemory failed, %s::%d\n", __FUNCTION__, __LINE__);
         ExFreePoolWithTag(buf, VIOSERIAL_DRIVER_MEMORY_TAG);
         return NULL;
     }
-    buf->pa_buf = MmGetPhysicalAddress(buf->va_buf);
+    buf->pa_buf = VirtIOWdfDeviceGetPhysicalAddress(vdev, buf->va_buf);
+    if (!buf->pa_buf.QuadPart) {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "VirtIOWdfDeviceGetPhysicalAddress failed, %s::%d\n", __FUNCTION__, __LINE__);
+        VirtIOWdfDeviceFreeDmaMemory(vdev, buf->va_buf);
+        ExFreePoolWithTag(buf, VIOSERIAL_DRIVER_MEMORY_TAG);
+        return NULL;
+    }
+
     buf->len = 0;
     buf->offset = 0;
     buf->size = buf_size;
+    buf->vdev = vdev;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
     return buf;
@@ -115,7 +121,7 @@ VIOSerialFreeBuffer(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s  buf = %p, buf->va_buf = %p\n", __FUNCTION__, buf, buf->va_buf);
     if (buf->va_buf)
     {
-        ExFreePoolWithTag(buf->va_buf, VIOSERIAL_DRIVER_MEMORY_TAG);
+        VirtIOWdfDeviceFreeDmaMemory(buf->vdev, buf->va_buf);
         buf->va_buf = NULL;
     }
     ExFreePoolWithTag(buf, VIOSERIAL_DRIVER_MEMORY_TAG);
