@@ -33,7 +33,6 @@
 #include "virtio_pci.h"
 #include "VirtIOWdf.h"
 #include "private.h"
-
 #include <wdmguid.h>
 
 extern VirtIOSystemOps VirtIOWdfSystemOps;
@@ -45,9 +44,12 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
                              ULONG MemoryTag)
 {
     NTSTATUS status = STATUS_SUCCESS;
+    WDF_DMA_ENABLER_CONFIG dmaEnablerConfig;
+    WDF_OBJECT_ATTRIBUTES  attributes;
 
     RtlZeroMemory(pWdfDriver, sizeof(*pWdfDriver));
     pWdfDriver->MemoryTag = MemoryTag;
+    pWdfDriver->bLegacyMode = TRUE;
 
     /* get the PCI bus interface */
     status = WdfFdoQueryForInterface(
@@ -69,6 +71,26 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
 
     /* set up resources */
     status = PCIAllocBars(ResourcesTranslated, pWdfDriver);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
+    /* set max transfer size to 256M, should be enough for any purpose */
+    /* number of SG fragments is unlimited */
+    WDF_DMA_ENABLER_CONFIG_INIT(&dmaEnablerConfig, WdfDmaProfileScatterGather64Duplex, 0xFFFFFFF);
+    status = WdfDmaEnablerCreate(Device, &dmaEnablerConfig, WDF_NO_OBJECT_ATTRIBUTES, &pWdfDriver->DmaEnabler);
+    if (NT_SUCCESS(status)) {
+        WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+        DPrintf(0, "%s DMA enabler ready (alignment %d), pWdfDriver %p\n", __FUNCTION__,
+            WdfDeviceGetAlignmentRequirement(Device) + 1, pWdfDriver);
+        attributes.ParentObject = Device;
+        status = WdfCollectionCreate(&attributes, &pWdfDriver->MemoryBlockCollection);
+    }
+
+    if (NT_SUCCESS(status)) {
+        status = WdfSpinLockCreate(&attributes, &pWdfDriver->DmaSpinlock);
+    }
+
     if (!NT_SUCCESS(status)) {
         return status;
     }

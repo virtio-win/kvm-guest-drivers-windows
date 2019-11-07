@@ -34,13 +34,17 @@
 #include "VirtIOWdf.h"
 #include "private.h"
 
+#define LEGACY_DMA_SUPPORTED
+
 static void *mem_alloc_contiguous_pages(void *context, size_t size)
 {
-    PHYSICAL_ADDRESS HighestAcceptable;
     void *ret;
-
-    UNREFERENCED_PARAMETER(context);
-
+    PVIRTIO_WDF_DRIVER pWdfDriver = context;
+    if (!pWdfDriver->bLegacyMode) {
+        return VirtIOWdfDeviceAllocDmaMemory(&pWdfDriver->VIODevice, size, 0);
+    }
+#if defined(LEGACY_DMA_SUPPORTED)
+    PHYSICAL_ADDRESS HighestAcceptable;
     HighestAcceptable.QuadPart = 0xFFFFFFFFFF;
 #if defined(NTDDI_WIN8) && (NTDDI_VERSION >= NTDDI_WIN8)
     {
@@ -59,21 +63,41 @@ static void *mem_alloc_contiguous_pages(void *context, size_t size)
     if (ret != NULL) {
         RtlZeroMemory(ret, size);
     }
+#else
+    ret = NULL;
+#endif
     return ret;
 }
 
 static void mem_free_contiguous_pages(void *context, void *virt)
 {
-    UNREFERENCED_PARAMETER(context);
+    PVIRTIO_WDF_DRIVER pWdfDriver = context;
+    if (!pWdfDriver->bLegacyMode) {
+        VirtIOWdfDeviceFreeDmaMemory(&pWdfDriver->VIODevice, virt);
+        return;
+    }
 
+#if defined(LEGACY_DMA_SUPPORTED)
     MmFreeContiguousMemory(virt);
+#endif
 }
 
 static ULONGLONG mem_get_physical_address(void *context, void *virt)
 {
-    UNREFERENCED_PARAMETER(context);
-
-    PHYSICAL_ADDRESS pa = MmGetPhysicalAddress(virt);
+    PVIRTIO_WDF_DRIVER pWdfDriver = context;
+    PHYSICAL_ADDRESS pa;
+    if (!pWdfDriver->bLegacyMode) {
+        pa = VirtIOWdfDeviceGetPhysicalAddress(&pWdfDriver->VIODevice, virt);
+    } else {
+        pa.QuadPart = 0;
+#if defined(LEGACY_DMA_SUPPORTED)
+        pa = MmGetPhysicalAddress(virt);
+        return pa.QuadPart;
+#endif
+    }
+    if (!pa.QuadPart) {
+        DPrintf(0, "%s WARNING: got zero physical address\n", __FUNCTION__);
+    }
     return pa.QuadPart;
 }
 

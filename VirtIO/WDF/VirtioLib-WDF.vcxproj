@@ -63,6 +63,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Dma.c" />
     <ClCompile Include="MemPortIO.c" />
     <ClCompile Include="VirtIOWdf.c" />
     <ClCompile Include="PCI.c" />
