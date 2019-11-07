@@ -101,6 +101,8 @@ typedef struct _tagPortDevice
 
     BOOLEAN             DeviceOK;
     UINT                DeviceId;
+    ULONG               DmaGroupTag;
+
 } PORTS_DEVICE, *PPORTS_DEVICE;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(PORTS_DEVICE, GetPortsDevice)
@@ -124,6 +126,7 @@ typedef struct _tagPortBuffer
     size_t              size;
     size_t              len;
     size_t              offset;
+    VirtIODevice        *vdev;
 } PORT_BUFFER, * PPORT_BUFFER;
 
 typedef struct _WriteBufferEntry
@@ -146,6 +149,7 @@ typedef struct _tagVioSerialPort
     WDFSPINLOCK         OutVqLock;
     ANSI_STRING         NameString;
     UINT                PortId;
+    ULONG               DmaGroupTag;
     UINT                DeviceId;
     BOOLEAN             OutVqFull;
     BOOLEAN             HostConnected;
@@ -186,7 +190,8 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DRIVER_CONTEXT, GetDriverContext)
 NTSTATUS
 VIOSerialFillQueue(
     IN struct virtqueue *vq,
-    IN WDFSPINLOCK Lock
+    IN WDFSPINLOCK Lock,
+    IN ULONG id /* unique id to free all the blocks related to the queue */
 );
 
 VOID
@@ -225,8 +230,9 @@ VIOSerialFillReadBufLocked(
 );
 
 PPORT_BUFFER
-VIOSerialAllocateBuffer(
-    IN size_t buf_size
+VIOSerialAllocateSinglePageBuffer(
+    IN VirtIODevice *vdev,
+    IN ULONG id
 );
 
 VOID

@@ -96,6 +96,7 @@ VIOSerialAddPort(
                                  );
 
     port.PortId = id;
+    port.DmaGroupTag = 0xC0000000 | id;
     port.DeviceId = pContext->DeviceId;
     port.NameString.Buffer = NULL;
     port.NameString.Length = 0;
@@ -1264,6 +1265,7 @@ VIOSerialEvtChildListIdentificationDescriptionDuplicate(
     }
     dst->DeviceId = src->DeviceId;
     dst->PortId = src->PortId;
+    dst->DmaGroupTag = src->DmaGroupTag;
 
     dst->OutVqFull = src->OutVqFull;
     dst->HostConnected = src->HostConnected;
@@ -1418,7 +1420,7 @@ NTSTATUS VIOSerialPortEvtDeviceD0Entry(
         return STATUS_NOT_FOUND;
     }
 
-    status = VIOSerialFillQueue(GetInQueue(port), port->InBufLock);
+    status = VIOSerialFillQueue(GetInQueue(port), port->InBufLock, port->DmaGroupTag);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
@@ -1474,6 +1476,8 @@ VIOSerialPortEvtDeviceD0Exit(
     VIOSerialReclaimConsumedBuffers(Port);
 
     VIOSerialDrainQueue(GetInQueue(Port));
+
+    VirtIOWdfDeviceFreeDmaMemoryByTag(GetInQueue(Port)->vdev, Port->DmaGroupTag);
 
     iter = PopEntryList(&Port->WriteBuffersList);
     while (iter != NULL)
