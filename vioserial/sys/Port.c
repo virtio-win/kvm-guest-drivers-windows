@@ -11,7 +11,6 @@ EVT_WDF_WORKITEM VIOSerialPortSymbolicNameWork;
 EVT_WDF_WORKITEM VIOSerialPortPnpNotifyWork;
 EVT_WDF_WORKITEM VIOSerialInitPortConsoleWork;
 EVT_WDF_REQUEST_CANCEL VIOSerialPortReadRequestCancel;
-EVT_WDF_REQUEST_CANCEL VIOSerialPortWriteRequestCancel;
 EVT_WDF_DEVICE_D0_ENTRY VIOSerialPortEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT VIOSerialPortEvtDeviceD0Exit;
 
@@ -675,7 +674,6 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
 {
     NTSTATUS status;
     PVOID InBuf;
-    PVOID buffer;
     PVIOSERIAL_PORT Port;
     PWRITE_BUFFER_ENTRY entry;
     WDFDEVICE Device;
@@ -712,61 +710,41 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
         return;
     }
 
-    buffer = ExAllocatePoolWithTag(NonPagedPool, Length,
-        VIOSERIAL_DRIVER_MEMORY_TAG);
-
-    if (buffer == NULL)
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Failed to allocate.\n");
-        WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
-        return;
-    }
-
     Context = GetDriverContext(WdfDeviceGetDriver(Device));
     status = WdfMemoryCreateFromLookaside(Context->WriteBufferLookaside, &EntryHandle);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
             "Failed to allocate write buffer entry: %x.\n", status);
-        ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
         WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
         return;
     }
 
-    status = WdfRequestMarkCancelableEx(Request,
-        VIOSerialPortWriteRequestCancel);
+    /* We make Write request cancellable only after we successfully
+     * started DMA transaction, otherwise it is complicated to discard it
+     */
 
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
-            "Failed to mark request as cancelable: %x\n", status);
-        ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
-        WdfObjectDelete(EntryHandle);
-        WdfRequestComplete(Request, status);
-        return;
-    }
-
-    RtlCopyMemory(buffer, InBuf, Length);
     WdfRequestSetInformation(Request, (ULONG_PTR)Length);
 
     entry = (PWRITE_BUFFER_ENTRY)WdfMemoryGetBuffer(EntryHandle, NULL);
     entry->EntryHandle = EntryHandle;
-    entry->Buffer = buffer;
+    entry->OriginalWriteBuffer = InBuf;
+    entry->OriginalWriteBufferSize = Length;
     entry->Request = Request;
+    entry->dmaTransaction = NULL;
 
-    if (VIOSerialSendBuffers(Port, entry, Length) <= 0)
+    if (VIOSerialSendBuffers(Port, entry) == 0)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
             "Failed to send user's buffer.\n");
 
-        ExFreePoolWithTag(buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
+        if (entry->dmaTransaction) {
+            VirtIOWdfDeviceDmaTxComplete(GetOutQueue(Port)->vdev, entry->dmaTransaction);
+        }
         WdfObjectDelete(EntryHandle);
 
-        if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
-        {
-            WdfRequestComplete(Request, Port->Removed ?
-                STATUS_INVALID_DEVICE_STATE : STATUS_INSUFFICIENT_RESOURCES);
-        }
+        WdfRequestComplete(Request, Port->Removed ?
+            STATUS_INVALID_DEVICE_STATE : STATUS_INSUFFICIENT_RESOURCES);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,"<-- %s\n", __FUNCTION__);
@@ -798,7 +776,7 @@ VOID VIOSerialPortWriteRequestCancel(IN WDFREQUEST Request)
         WdfIoQueueGetDevice(WdfRequestGetIoQueue(Request)))->port;
     PSINGLE_LIST_ENTRY iter;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s Request: 0x%p\n",
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "--> %s Request: 0x%p\n",
         __FUNCTION__, Request);
 
     // synchronize with VIOSerialReclaimConsumedBuffers because the pending
@@ -818,7 +796,7 @@ VOID VIOSerialPortWriteRequestCancel(IN WDFREQUEST Request)
 
     WdfRequestCompleteWithInformation(Request, STATUS_CANCELLED, 0L);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -1485,7 +1463,10 @@ VIOSerialPortEvtDeviceD0Exit(
         PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter,
             WRITE_BUFFER_ENTRY, ListEntry);
 
-        ExFreePoolWithTag(entry->Buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
+        if (entry->dmaTransaction) {
+            VirtIOWdfDeviceDmaTxComplete(GetOutQueue(Port)->vdev, entry->dmaTransaction);
+        }
+
         WdfObjectDelete(entry->EntryHandle);
 
         iter = PopEntryList(&Port->WriteBuffersList);

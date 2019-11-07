@@ -8,6 +8,8 @@
 // Number of descriptors that queue contains.
 #define QUEUE_DESCRIPTORS 128
 
+static BOOLEAN DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params);
+
 PPORT_BUFFER
 VIOSerialAllocateSinglePageBuffer(
     IN VirtIODevice *vdev,
@@ -54,49 +56,66 @@ VIOSerialAllocateSinglePageBuffer(
 }
 
 size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port,
-                            IN PWRITE_BUFFER_ENTRY Entry,
-                            IN size_t Length)
+                            IN PWRITE_BUFFER_ENTRY Entry)
 {
     struct virtqueue *vq = GetOutQueue(Port);
+    VIRTIO_DMA_TRANSACTION_PARAMS params;
+    RtlZeroMemory(&params, sizeof(params));
+    params.allocationTag = VIOSERIAL_DRIVER_MEMORY_TAG;
+    params.param1 = Port;
+    params.param2 = Entry;
+    params.buffer = Entry->OriginalWriteBuffer;
+    params.size = (ULONG)Entry->OriginalWriteBufferSize;
+    return !!VirtIOWdfDeviceDmaTxAsync(vq->vdev, &params, DmaWriteCallback);
+}
+
+BOOLEAN
+DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
+{
+    PVIOSERIAL_PORT Port = params->param1;
+    NTSTATUS status = STATUS_INSUFFICIENT_RESOURCES;
+    PWRITE_BUFFER_ENTRY Entry = params->param2;
+    struct virtqueue *vq = GetOutQueue(Port);
     struct VirtIOBufferDescriptor sg[QUEUE_DESCRIPTORS];
-    PVOID buffer = Entry->Buffer;
-    size_t length = Length;
-    int out = 0, prepared = 0;
-    int ret;
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,
-        "--> %s Buffer: %p Length: %d\n", __FUNCTION__, Entry->Buffer, Length);
-
-    if (BYTES_TO_PAGES(Length) > QUEUE_DESCRIPTORS)
-    {
-        return 0;
+    int prepared = 0, ret;
+    ULONG i = 0;
+    if (!params->sgList || params->sgList->NumberOfElements > QUEUE_DESCRIPTORS) {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "%s sgList problem\n", __FUNCTION__);
+        goto error;
     }
-
-    while (length > 0)
+    for (i = 0; i < params->sgList->NumberOfElements; ++i)
     {
-        sg[out].physAddr = MmGetPhysicalAddress(buffer);
-        sg[out].length = min(length, PAGE_SIZE);
-
-        buffer = (PVOID)((LONG_PTR)buffer + sg[out].length);
-        length -= sg[out].length;
-        out += 1;
+        sg[i].physAddr = params->sgList->Elements[i].Address;
+        sg[i].length = params->sgList->Elements[i].Length;
     }
-
     WdfSpinLockAcquire(Port->OutVqLock);
 
-    ret = virtqueue_add_buf(vq, sg, out, 0, Entry->Buffer, NULL, 0);
+    ret = virtqueue_add_buf(vq, sg, params->sgList->NumberOfElements, 0, Entry, NULL, 0);
 
     if (ret >= 0)
     {
         prepared = virtqueue_kick_prepare(vq);
         PushEntryList(&Port->WriteBuffersList, &Entry->ListEntry);
+        Entry->dmaTransaction = params->transaction;
     }
     else
     {
         Port->OutVqFull = TRUE;
-        Length = 0;
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
             "Error adding buffer to queue (ret = %d)\n", ret);
+        WdfSpinLockRelease(Port->OutVqLock);
+        goto error;
+    }
+
+    status = WdfRequestMarkCancelableEx(Entry->Request,
+        VIOSerialPortWriteRequestCancel);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
+            "Failed to mark request as cancelable: %x\n", status);
+        WdfSpinLockRelease(Port->OutVqLock);
+        goto error;
     }
 
     WdfSpinLockRelease(Port->OutVqLock);
@@ -107,9 +126,15 @@ size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port,
         virtqueue_notify(vq);
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s ok\n", __FUNCTION__);
+    return TRUE;
 
-    return Length;
+error:
+    VirtIOWdfDeviceDmaTxComplete(vq->vdev, params->transaction);
+    WdfRequestComplete(Entry->Request, status);
+    WdfObjectDelete(Entry->EntryHandle);
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "<-- %s error\n", __FUNCTION__);
+    return FALSE;
 }
 
 VOID
@@ -210,7 +235,7 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
                 PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter->Next,
                     WRITE_BUFFER_ENTRY, ListEntry);
 
-                if (buffer == entry->Buffer)
+                if (buffer == entry)
                 {
                     if (entry->Request != NULL)
                     {
@@ -250,14 +275,15 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
         PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter,
             WRITE_BUFFER_ENTRY, ListEntry);
 
+        if (entry->dmaTransaction) {
+            VirtIOWdfDeviceDmaTxComplete(vq->vdev, entry->dmaTransaction);
+        }
         request = entry->Request;
         if (request != NULL)
         {
             WdfRequestCompleteWithInformation(request, STATUS_SUCCESS,
                 WdfRequestGetInformation(request));
         }
-
-        ExFreePoolWithTag(entry->Buffer, VIOSERIAL_DRIVER_MEMORY_TAG);
         WdfObjectDelete(entry->EntryHandle);
     };
 

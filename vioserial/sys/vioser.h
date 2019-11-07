@@ -134,7 +134,9 @@ typedef struct _WriteBufferEntry
     SINGLE_LIST_ENTRY ListEntry;
     WDFMEMORY EntryHandle;
     WDFREQUEST Request;
-    PVOID Buffer;
+    PVOID      OriginalWriteBuffer;
+    SIZE_T     OriginalWriteBufferSize;
+    WDFDMATRANSACTION dmaTransaction;
 } WRITE_BUFFER_ENTRY, *PWRITE_BUFFER_ENTRY;
 
 typedef struct _tagVioSerialPort
@@ -218,8 +220,7 @@ VIOSerialReclaimConsumedBuffers(
 size_t
 VIOSerialSendBuffers(
     IN PVIOSERIAL_PORT Port,
-    IN PWRITE_BUFFER_ENTRY Entry,
-    IN size_t Length
+    IN PWRITE_BUFFER_ENTRY Entry
 );
 
 SSIZE_T
@@ -323,6 +324,7 @@ EVT_WDF_IO_QUEUE_IO_WRITE _IRQL_requires_(PASSIVE_LEVEL) VIOSerialPortWrite;
 EVT_WDF_IO_QUEUE_IO_STOP _IRQL_requires_(PASSIVE_LEVEL) VIOSerialPortReadIoStop;
 EVT_WDF_IO_QUEUE_IO_STOP _IRQL_requires_(PASSIVE_LEVEL) VIOSerialPortWriteIoStop;
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL _IRQL_requires_(PASSIVE_LEVEL) VIOSerialPortDeviceControl;
+EVT_WDF_REQUEST_CANCEL VIOSerialPortWriteRequestCancel;
 
 EVT_WDF_DEVICE_FILE_CREATE VIOSerialPortCreate;
 EVT_WDF_FILE_CLOSE VIOSerialPortClose;
