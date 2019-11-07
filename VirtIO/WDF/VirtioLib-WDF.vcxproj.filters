@@ -27,6 +27,9 @@
     <ClCompile Include="MemPortIO.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Dma.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="VirtioWDF.h">

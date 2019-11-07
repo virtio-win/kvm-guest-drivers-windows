@@ -33,6 +33,7 @@
 
 #include <Ntddk.h>
 #include <wdf.h>
+#include "kdebugprint.h"
 
 typedef struct virtio_wdf_bar {
     SINGLE_LIST_ENTRY ListEntry;
@@ -70,3 +71,24 @@ int PCIReadConfig(PVIRTIO_WDF_DRIVER pWdfDriver,
 NTSTATUS PCIRegisterInterrupt(WDFINTERRUPT Interrupt);
 
 u16 PCIGetMSIInterruptVector(WDFINTERRUPT Interrupt);
+
+typedef struct virtio_wdf_memory_block_context {
+    PVOID               pVirtualAddress;
+    PHYSICAL_ADDRESS    PhysicalAddress;
+    WDFCOMMONBUFFER     WdfBuffer;
+    size_t              Length;
+    ULONG               groupTag;
+    BOOLEAN             bToBeDeleted;
+} VIRTIO_WDF_MEMORY_BLOCK_CONTEXT, *PVIRTIO_WDF_MEMORY_BLOCK_CONTEXT;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIRTIO_WDF_MEMORY_BLOCK_CONTEXT, GetMemoryBlockContext)
+
+typedef struct virtio_wdf_dma_transaction_context {
+    VIRTIO_DMA_TRANSACTION_PARAMS   parameters;
+    VirtIOWdfDmaTransactionCallback callback;
+    PMDL                            mdl;
+    PVOID                           buffer;
+    LONG                            refCount;
+} VIRTIO_WDF_DMA_TRANSACTION_CONTEXT, *PVIRTIO_WDF_DMA_TRANSACTION_CONTEXT;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIRTIO_WDF_DMA_TRANSACTION_CONTEXT, GetDmaTransactionContext)
