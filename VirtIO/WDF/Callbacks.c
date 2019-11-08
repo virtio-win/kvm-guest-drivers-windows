@@ -34,7 +34,7 @@
 #include "VirtIOWdf.h"
 #include "private.h"
 
-#define LEGACY_DMA_SUPPORTED
+//#define LEGACY_DMA_SUPPORTED
 
 static void *mem_alloc_contiguous_pages(void *context, size_t size)
 {
