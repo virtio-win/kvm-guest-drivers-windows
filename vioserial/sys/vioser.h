@@ -102,7 +102,8 @@ typedef struct _tagPortDevice
     BOOLEAN             DeviceOK;
     UINT                DeviceId;
     ULONG               DmaGroupTag;
-
+    PVIRTIO_DMA_MEMORY_SLICED
+                        ControlDmaBlock;
 } PORTS_DEVICE, *PPORTS_DEVICE;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(PORTS_DEVICE, GetPortsDevice)

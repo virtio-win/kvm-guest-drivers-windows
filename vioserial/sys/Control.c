@@ -25,22 +25,27 @@ VIOSerialSendCtrlMsg(
     struct virtqueue *vq;
     UINT len;
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
-    VIRTIO_CONSOLE_CONTROL cpkt;
+    VIRTIO_CONSOLE_CONTROL *cpkt;
 
-    if (!pContext->isHostMultiport)
+    if (!pContext->isHostMultiport || !pContext->ControlDmaBlock)
     {
         return;
     }
 
     vq = pContext->c_ovq;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s vq = %p\n", __FUNCTION__, vq);
+    cpkt = pContext->ControlDmaBlock->get_slice(pContext->ControlDmaBlock, &sg.physAddr);
+    if (!cpkt) {
 
-    cpkt.id = id;
-    cpkt.event = event;
-    cpkt.value = value;
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "<-- %s can't get a slice\n", __FUNCTION__);
+        return;
+    }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s vq = %p, &cmd %p\n", __FUNCTION__, vq, cpkt);
 
-    sg.physAddr = MmGetPhysicalAddress(&cpkt);
+    cpkt->id = id;
+    cpkt->event = event;
+    cpkt->value = value;
+
     sg.length = sizeof(cpkt);
 
     WdfWaitLockAcquire(pContext->COutVqLock, NULL);
@@ -55,6 +60,8 @@ VIOSerialSendCtrlMsg(
         }
     }
     WdfWaitLockRelease(pContext->COutVqLock);
+
+    pContext->ControlDmaBlock->return_slice(pContext->ControlDmaBlock, cpkt);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 }

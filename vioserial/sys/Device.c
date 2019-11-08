@@ -187,6 +187,7 @@ VIOSerialEvtDeviceAdd(
 
     pContext = GetPortsDevice(hDevice);
     pContext->DeviceId = gDeviceCount++;
+    pContext->ControlDmaBlock = NULL;
 
     busInfo.BusTypeGuid = GUID_DEVCLASS_PORT_DEVICE;
     busInfo.LegacyBusType = PNPBus;
@@ -539,6 +540,12 @@ VIOSerialEvtDeviceD0Entry(
             status = VIOSerialFillQueue(pContext->c_ivq, pContext->CInVqLock, pContext->DmaGroupTag);
         }
 
+        if (NT_SUCCESS(status)) {
+            pContext->ControlDmaBlock = VirtIOWdfDeviceAllocDmaMemorySliced(
+                &pContext->VDevice.VIODevice,
+                PAGE_SIZE, sizeof(VIRTIO_CONSOLE_CONTROL));
+        }
+
         if (!NT_SUCCESS(status))
         {
             pContext->DeviceOK = FALSE;
@@ -569,6 +576,10 @@ VIOSerialEvtDeviceD0Exit(
 
     VirtIOWdfDeviceFreeDmaMemoryByTag(&pContext->VDevice.VIODevice, pContext->DmaGroupTag);
 
+    if (pContext->ControlDmaBlock) {
+        pContext->ControlDmaBlock->destroy(pContext->ControlDmaBlock);
+        pContext->ControlDmaBlock = NULL;
+    }
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 
     return STATUS_SUCCESS;
