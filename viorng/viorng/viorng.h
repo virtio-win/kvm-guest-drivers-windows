@@ -52,8 +52,6 @@ typedef struct _ReadBufferEntry
 {
     SINGLE_LIST_ENTRY ListEntry;
     WDFREQUEST Request;
-    PVOID Buffer;
-
 } READ_BUFFER_ENTRY, *PREAD_BUFFER_ENTRY;
 
 typedef struct _DEVICE_CONTEXT {
@@ -67,7 +65,8 @@ typedef struct _DEVICE_CONTEXT {
     // Hold a list of allocated buffers which were put into the virt queue
     // and was not returned yet.
     SINGLE_LIST_ENTRY   ReadBuffersList;
-
+    void *              SingleBufferVA;
+    PHYSICAL_ADDRESS    SingleBufferPA;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);

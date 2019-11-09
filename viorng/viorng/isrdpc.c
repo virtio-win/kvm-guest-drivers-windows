@@ -125,7 +125,7 @@ VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
 
         TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
             "Got %p Request: %p Buffer: %p",
-            entry, entry->Request, entry->Buffer);
+            entry, entry->Request, context->SingleBufferVA);
 
         iter = &context->ReadBuffersList;
         while (iter->Next != NULL)
@@ -137,7 +137,7 @@ VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
             {
                 TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
                     "Delete %p Request: %p Buffer: %p",
-                    entry, entry->Request, entry->Buffer);
+                    entry, entry->Request, context->SingleBufferVA);
 
                 iter->Next = current->ListEntry.Next;
                 break;
@@ -167,7 +167,7 @@ VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
             if (NT_SUCCESS(status))
             {
                 length = min(length, (unsigned)bufferLen);
-                RtlCopyMemory(buffer, entry->Buffer, length);
+                RtlCopyMemory(buffer, context->SingleBufferVA, length);
 
                 TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC,
                     "Complete Request: %p Length: %d", entry->Request, length);
@@ -183,7 +183,6 @@ VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
             }
         }
 
-        ExFreePoolWithTag(entry->Buffer, VIRT_RNG_MEMORY_TAG);
         ExFreePoolWithTag(entry, VIRT_RNG_MEMORY_TAG);
     }
 

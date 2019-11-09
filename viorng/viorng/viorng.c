@@ -149,6 +149,8 @@ NTSTATUS VirtRngEvtDeviceAdd(IN WDFDRIVER Driver,
         return status;
     }
 
+    // IMPORTANT: we have single 4K RX buffer that used for any read request
+    // so do not change the WdfIoQueueDispatchSequential!
     WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchSequential);
     queueConfig.EvtIoRead = VirtRngEvtIoRead;
     queueConfig.EvtIoStop = VirtRngEvtIoStop;
@@ -192,7 +194,6 @@ VOID VirtRngEvtDeviceContextCleanup(IN WDFOBJECT DeviceObject)
         PREAD_BUFFER_ENTRY entry = CONTAINING_RECORD(iter,
             READ_BUFFER_ENTRY, ListEntry);
 
-        ExFreePoolWithTag(entry->Buffer, VIRT_RNG_MEMORY_TAG);
         ExFreePoolWithTag(entry, VIRT_RNG_MEMORY_TAG);
 
         iter = PopEntryList(&context->ReadBuffersList);
