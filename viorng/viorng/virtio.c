@@ -28,6 +28,7 @@
  */
 
 #include "viorng.h"
+#include <ntstrsafe.h>
 
 #include "virtio.tmh"
 
@@ -36,8 +37,22 @@ static void NoDebugPrintFunc(const char *format, ...)
     UNREFERENCED_PARAMETER(format);
 }
 
-typedef void (*tDebugPrintFunc)(const char *format, ...);
-tDebugPrintFunc VirtioDebugPrintProc = NoDebugPrintFunc;
+static void DebugPrintFuncWPP(const char *format, ...)
+{
+    char buf[256];
+    NTSTATUS status;
+    va_list list;
+    va_start(list, format);
+    status = RtlStringCbVPrintfA(buf, sizeof(buf), format, list);
+    if (status == STATUS_SUCCESS)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_ALL, "%s", buf);
+    }
+    va_end(list);
+}
 
-int virtioDebugLevel = 0;
-int bDebugPrint = 0;
+typedef void (*tDebugPrintFunc)(const char *format, ...);
+tDebugPrintFunc VirtioDebugPrintProc = DebugPrintFuncWPP;
+
+int virtioDebugLevel = 1;
+int bDebugPrint = 1;
