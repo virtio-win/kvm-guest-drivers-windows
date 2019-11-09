@@ -131,6 +131,12 @@ NTSTATUS VirtRngEvtDeviceD0Entry(IN WDFDEVICE Device,
             "VirtIOWdfInitQueues failed with %x\n", status);
     }
 
+    context->SingleBufferVA = VirtIOWdfDeviceAllocDmaMemory(&context->VDevice.VIODevice, PAGE_SIZE, 0);
+    if (context->SingleBufferVA)
+    {
+        context->SingleBufferPA = VirtIOWdfDeviceGetPhysicalAddress(&context->VDevice.VIODevice, context->SingleBufferVA);
+    }
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "<-- %!FUNC!");
 
     return status;
@@ -149,6 +155,11 @@ NTSTATUS VirtRngEvtDeviceD0Exit(IN WDFDEVICE Device,
     PAGED_CODE();
 
     VirtIOWdfDestroyQueues(&context->VDevice);
+
+    if (context->SingleBufferVA)
+    {
+        VirtIOWdfDeviceFreeDmaMemory(&context->VDevice.VIODevice, context->SingleBufferVA);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "<-- %!FUNC!");
 

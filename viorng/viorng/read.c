@@ -55,27 +55,17 @@ static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context,
     }
 
     length = min(Length, PAGE_SIZE);
-    entry->Buffer = ExAllocatePoolWithTag(NonPagedPool, length,
-        VIRT_RNG_MEMORY_TAG);
-
-    if (entry->Buffer == NULL)
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
-            "Failed to allocate a read buffer.");
-        ExFreePoolWithTag(entry, VIRT_RNG_MEMORY_TAG);
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
 
     entry->Request = Request;
 
-    sg.physAddr = MmGetPhysicalAddress(entry->Buffer);
+    sg.physAddr = Context->SingleBufferPA;
     sg.length = (unsigned)length;
 
     WdfSpinLockAcquire(Context->VirtQueueLock);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
         "Push %p Request: %p Buffer: %p",
-        entry, entry->Request, entry->Buffer);
+        entry, entry->Request, Context->SingleBufferVA);
 
     PushEntryList(&Context->ReadBuffersList, &entry->ListEntry);
 
@@ -89,13 +79,12 @@ static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context,
 
         TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
             "Pop %p Request: %p Buffer: %p",
-            entry, entry->Request, entry->Buffer);
+            entry, entry->Request, Context->SingleBufferVA);
 
         removed = PopEntryList(&Context->ReadBuffersList);
         NT_ASSERT(entry == CONTAINING_RECORD(
             removed, READ_BUFFER_ENTRY, ListEntry));
 
-        ExFreePoolWithTag(entry->Buffer, VIRT_RNG_MEMORY_TAG);
         ExFreePoolWithTag(entry, VIRT_RNG_MEMORY_TAG);
 
         WdfSpinLockRelease(Context->VirtQueueLock);
@@ -130,6 +119,14 @@ VOID VirtRngEvtIoRead(IN WDFQUEUE Queue,
         TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
             "WdfRequestRetrieveOutputBuffer failed: %!STATUS!", status);
         WdfRequestComplete(Request, status);
+        return;
+    }
+
+    if (!context->SingleBufferPA.QuadPart || !context->SingleBufferVA)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
+            "The RX buffer is not allocated!");
+        WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
         return;
     }
 
