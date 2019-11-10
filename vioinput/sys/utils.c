@@ -84,7 +84,16 @@ static void DebugPrintFunc(const char *format, ...)
 
 static void DebugPrintFuncWPP(const char *format, ...)
 {
-    UNREFERENCED_PARAMETER(format);
+    char buf[256];
+    NTSTATUS status;
+    va_list list;
+    va_start(list, format);
+    status = RtlStringCbVPrintfA(buf, sizeof(buf), format, list);
+    if (status == STATUS_SUCCESS)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "%s", buf);
+    }
+    va_end(list);
 }
 
 static void NoDebugPrintFunc(const char *format, ...)
@@ -112,7 +121,7 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regi
 
     bDebugPrint = 1;
     driverDebugLevel = TRACE_LEVEL_INFORMATION;
-    virtioDebugLevel = -1;
+    virtioDebugLevel = 1;
 }
 
 tDebugPrintFunc VirtioDebugPrintProc;
