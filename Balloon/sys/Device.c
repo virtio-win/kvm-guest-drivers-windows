@@ -82,6 +82,14 @@ BalloonDeviceAdd(
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
     attributes.EvtCleanupCallback = BalloonEvtDeviceContextCleanup;
 
+    /* The driver initializes all the queues under lock of
+     * WDF object of the device. If we use default execution
+     * level, this lock is spinlock and common blocks required
+     * for queues can't be allocated on DISPATCH. So, we change
+     * the execution level to PASSIVE -> the lock is fast mutex
+     */
+    attributes.ExecutionLevel = WdfExecutionLevelPassive;
+
 #ifdef USE_BALLOON_SERVICE
     attributes.SynchronizationScope = WdfSynchronizationScopeDevice;
 
