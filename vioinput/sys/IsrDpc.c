@@ -154,7 +154,10 @@ VIOInputQueuesInterruptDpc(
         ProcessInputEvent(pContext, pEvent);
 
         // add the buffer back to the queue
-        VIOInputAddInBuf(pContext->EventQ, pEvent);
+        VIOInputAddInBuf(
+            pContext->EventQ,
+            pEvent,
+            VirtIOWdfDeviceGetPhysicalAddress(&pContext->VDevice.VIODevice, pEvent));
     }
     WdfSpinLockRelease(pContext->EventQLock);
 
@@ -168,7 +171,7 @@ VIOInputQueuesInterruptDpc(
         }
 
         // free the buffer
-        ExFreePoolWithTag(pEventReq, VIOINPUT_DRIVER_MEMORY_TAG);
+        pContext->StatusQMemBlock->return_slice(pContext->StatusQMemBlock, pEventReq);
     }
     WdfSpinLockRelease(pContext->StatusQLock);
 

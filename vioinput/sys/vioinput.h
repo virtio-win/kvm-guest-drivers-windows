@@ -104,6 +104,9 @@ typedef struct _tagInputDevice
     WDFSPINLOCK            EventQLock;
     WDFSPINLOCK            StatusQLock;
 
+    PVIRTIO_DMA_MEMORY_SLICED EventQMemBlock;
+    PVIRTIO_DMA_MEMORY_SLICED StatusQMemBlock;
+
     WDFQUEUE               IoctlQueue;
     WDFQUEUE               HidQueue;
 
@@ -258,21 +261,20 @@ typedef struct virtio_input_event_with_request
 #define LED_CHARGING  0x0a
 
 NTSTATUS
-VIOInputFillQueue(
-    IN struct virtqueue *vq,
-    IN WDFSPINLOCK Lock
-);
+VIOInputFillEventQueue(PINPUT_DEVICE pContext);
 
 NTSTATUS
 VIOInputAddInBuf(
     IN struct virtqueue *vq,
-    IN PVIRTIO_INPUT_EVENT buf
+    IN PVIRTIO_INPUT_EVENT buf,
+    IN PHYSICAL_ADDRESS pa
 );
 
 NTSTATUS
 VIOInputAddOutBuf(
     IN struct virtqueue *vq,
-    IN PVIRTIO_INPUT_EVENT buf
+    IN PVIRTIO_INPUT_EVENT buf,
+    IN PHYSICAL_ADDRESS pa
 );
 
 NTSTATUS
