@@ -101,7 +101,7 @@ BalloonInit(
 
                 devCtx->StatVirtQueue = vqs[2];
 
-                sg.physAddr = MmGetPhysicalAddress(devCtx->MemStats);
+                sg.physAddr = VirtIOWdfDeviceGetPhysicalAddress(&devCtx->VDevice.VIODevice, devCtx->MemStats);
                 sg.length = sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR;
 
                 if (virtqueue_add_buf(
@@ -279,7 +279,7 @@ BalloonTellHost(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    sg.physAddr = MmGetPhysicalAddress(devCtx->pfns_table);
+    sg.physAddr = VirtIOWdfDeviceGetPhysicalAddress(&devCtx->VDevice.VIODevice, devCtx->pfns_table);
     sg.length = sizeof(devCtx->pfns_table[0]) * devCtx->num_pfns;
 
     WdfSpinLockAcquire(devCtx->InfDefQueueLock);
@@ -342,7 +342,7 @@ BalloonMemStats(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    sg.physAddr = MmGetPhysicalAddress(devCtx->MemStats);
+    sg.physAddr = VirtIOWdfDeviceGetPhysicalAddress(&devCtx->VDevice.VIODevice, devCtx->MemStats);
     sg.length = sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR;
 
     WdfSpinLockAcquire(devCtx->StatQueueLock);
