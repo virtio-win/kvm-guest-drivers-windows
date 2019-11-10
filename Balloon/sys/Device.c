@@ -164,35 +164,9 @@ BalloonDeviceAdd(
                       0
                       );
     devCtx->bListInitialized = TRUE;
-    devCtx->pfns_table = (PPFN_NUMBER)
-              ExAllocatePoolWithTag(
-                      NonPagedPool,
-                      PAGE_SIZE,
-                      BALLOON_MGMT_POOL_TAG
-                      );
+    devCtx->pfns_table = NULL;
+    devCtx->MemStats = NULL;
 
-    if(devCtx->pfns_table == NULL)
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"ExAllocatePoolWithTag failed\n");
-        status = STATUS_INSUFFICIENT_RESOURCES;
-        return status;
-    }
-
-    devCtx->MemStats = (PBALLOON_STAT)
-              ExAllocatePoolWithTag(
-                      NonPagedPool,
-                      sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR,
-                      BALLOON_MGMT_POOL_TAG
-                      );
-
-    if(devCtx->MemStats == NULL)
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,"ExAllocatePoolWithTag failed\n");
-        status = STATUS_INSUFFICIENT_RESOURCES;
-        return status;
-    }
-
-    RtlFillMemory (devCtx->MemStats, sizeof (BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
 
     KeInitializeEvent(&devCtx->HostAckEvent,
                       SynchronizationEvent,
@@ -265,33 +239,7 @@ BalloonEvtDeviceContextCleanup(
         ExDeleteNPagedLookasideList(&devCtx->LookAsideList);
         devCtx->bListInitialized = FALSE;
     }
-    if(devCtx->pfns_table)
-    {
-        ExFreePoolWithTag(
-                   devCtx->pfns_table,
-                   BALLOON_MGMT_POOL_TAG
-                   );
-        devCtx->pfns_table = NULL;
-    }
 
-    if(devCtx->MemStats)
-    {
-
-#ifndef USE_BALLOON_SERVICE
-        RtlFillMemory(devCtx->MemStats,
-            sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
-        if (devCtx->StatVirtQueue)
-        {
-            BalloonMemStats(Device);
-        }
-#endif // !USE_BALLOON_SERVICE
-
-        ExFreePoolWithTag(
-                   devCtx->MemStats,
-                   BALLOON_MGMT_POOL_TAG
-                   );
-        devCtx->MemStats = NULL;
-    }
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
 }
 
@@ -324,6 +272,34 @@ BalloonEvtDevicePrepareHardware(
         TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "VirtIOWdfInitialize failed with %x\n", status);
     }
 
+    if (NT_SUCCESS(status))
+    {
+        devCtx->MemStats = (PBALLOON_STAT)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice, PAGE_SIZE, BALLOON_MGMT_POOL_TAG);
+    }
+
+    if (devCtx->MemStats)
+    {
+        RtlFillMemory(devCtx->MemStats, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to allocate MemStats block\n");
+        status = STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    /* use BALLOON_MGMT_POOL_TAG also for tagging common memory blocks */
+    if (NT_SUCCESS(status))
+    {
+        devCtx->pfns_table = (PPFN_NUMBER)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice, PAGE_SIZE, BALLOON_MGMT_POOL_TAG);
+    }
+
+    if (devCtx->pfns_table == NULL)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "Failed to allocate PFNS_TABLE block\n");
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        return status;
+    }
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return status;
 }
@@ -343,6 +319,10 @@ BalloonEvtDeviceReleaseHardware (
     PAGED_CODE();
 
     devCtx = GetDeviceContext(Device);
+
+    VirtIOWdfDeviceFreeDmaMemoryByTag(&devCtx->VDevice.VIODevice, BALLOON_MGMT_POOL_TAG);
+    devCtx->MemStats = NULL;
+    devCtx->pfns_table = NULL;
 
     VirtIOWdfShutdown(&devCtx->VDevice);
 
