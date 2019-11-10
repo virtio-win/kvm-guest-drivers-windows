@@ -247,10 +247,11 @@ HIDKeyboardSendStatus(
 {
     PVIRTIO_INPUT_EVENT_WITH_REQUEST pEvent;
     NTSTATUS status;
+    PHYSICAL_ADDRESS pa;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
-    pEvent = VIOInputAlloc(sizeof(VIRTIO_INPUT_EVENT_WITH_REQUEST));
+    pEvent = pContext->StatusQMemBlock->get_slice(pContext->StatusQMemBlock, &pa);
     if (pEvent == NULL)
     {
         status = STATUS_INSUFFICIENT_RESOURCES;
@@ -263,8 +264,12 @@ HIDKeyboardSendStatus(
         pEvent->Request = Request;
 
         WdfSpinLockAcquire(pContext->StatusQLock);
-        status = VIOInputAddOutBuf(pContext->StatusQ, &pEvent->Event);
+        status = VIOInputAddOutBuf(pContext->StatusQ, &pEvent->Event, pa);
         WdfSpinLockRelease(pContext->StatusQLock);
+        if (!NT_SUCCESS(status))
+        {
+            pContext->StatusQMemBlock->return_slice(pContext->StatusQMemBlock, pEvent);
+        }
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);

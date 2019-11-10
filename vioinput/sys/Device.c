@@ -145,6 +145,8 @@ VIOInputEvtDeviceAdd(
 
     pContext = GetDeviceContext(hDevice);
 
+    pContext->EventQMemBlock = pContext->StatusQMemBlock = NULL;
+
     WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(
         &queueConfig,
         WdfIoQueueDispatchParallel);
@@ -206,6 +208,20 @@ VIOInputEvtDeviceAdd(
     return status;
 }
 
+static void VIOInputFreeMemBlocks(PINPUT_DEVICE pContext)
+{
+    if (pContext->EventQMemBlock)
+    {
+        pContext->EventQMemBlock->destroy(pContext->EventQMemBlock);
+        pContext->EventQMemBlock = NULL;
+    }
+    if (pContext->StatusQMemBlock)
+    {
+        pContext->StatusQMemBlock->destroy(pContext->StatusQMemBlock);
+        pContext->StatusQMemBlock = NULL;
+    }
+}
+
 NTSTATUS
 VIOInputEvtDevicePrepareHardware(
     IN WDFDEVICE Device,
@@ -231,6 +247,16 @@ VIOInputEvtDevicePrepareHardware(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VirtIOWdfInitialize failed with %x\n", status);
         return status;
+    }
+
+    pContext->EventQMemBlock = VirtIOWdfDeviceAllocDmaMemorySliced(
+        &pContext->VDevice.VIODevice, PAGE_SIZE, sizeof(VIRTIO_INPUT_EVENT));
+    pContext->StatusQMemBlock = VirtIOWdfDeviceAllocDmaMemorySliced(
+        &pContext->VDevice.VIODevice, PAGE_SIZE, sizeof(VIRTIO_INPUT_EVENT_WITH_REQUEST));
+
+    if (!pContext->EventQMemBlock || !pContext->StatusQMemBlock) {
+        VIOInputFreeMemBlocks(pContext);
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
 
     hostFeatures = VirtIOWdfGetDeviceFeatures(&pContext->VDevice);
@@ -261,6 +287,11 @@ VIOInputEvtDevicePrepareHardware(
         {
             pContext->bChildPdoCreated = TRUE;
         }
+    }
+
+    if (!NT_SUCCESS(status))
+    {
+        VIOInputFreeMemBlocks(pContext);
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
@@ -394,6 +425,8 @@ VIOInputEvtDeviceReleaseHardware(
 
     VIOInputFree(&pContext->HidReportDescriptor);
 
+    VIOInputFreeMemBlocks(pContext);
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
@@ -445,34 +478,28 @@ VIOInputShutDownAllQueues(IN WDFOBJECT WdfDevice)
 }
 
 NTSTATUS
-VIOInputFillQueue(
-    IN struct virtqueue *vq,
-    IN WDFSPINLOCK Lock)
+VIOInputFillEventQueue(PINPUT_DEVICE pContext)
 {
     NTSTATUS status = STATUS_SUCCESS;
     PVIRTIO_INPUT_EVENT buf = NULL;
-
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "--> %s\n", __FUNCTION__);
 
     for (;;)
     {
-        buf = (PVIRTIO_INPUT_EVENT)ExAllocatePoolWithTag(
-            NonPagedPool,
-            sizeof(VIRTIO_INPUT_EVENT),
-            VIOINPUT_DRIVER_MEMORY_TAG
-            );
+        PHYSICAL_ADDRESS pa;
+        buf = pContext->EventQMemBlock->get_slice(pContext->EventQMemBlock, &pa);
         if (buf == NULL)
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIRTIO_INPUT_EVENT alloc failed\n");
             return STATUS_INSUFFICIENT_RESOURCES;
         }
 
-        WdfSpinLockAcquire(Lock);
-        status = VIOInputAddInBuf(vq, buf);
-        WdfSpinLockRelease(Lock);
+        WdfSpinLockAcquire(pContext->EventQLock);
+        status = VIOInputAddInBuf(pContext->EventQ, buf, pa);
+        WdfSpinLockRelease(pContext->EventQLock);
         if (!NT_SUCCESS(status))
         {
-            ExFreePoolWithTag(buf, VIOINPUT_DRIVER_MEMORY_TAG);
+            pContext->EventQMemBlock->return_slice(pContext->EventQMemBlock, buf);
             break;
         }
     }
@@ -484,12 +511,13 @@ static NTSTATUS
 VIOInputAddBuf(
     IN struct virtqueue *vq,
     IN PVIRTIO_INPUT_EVENT buf,
+    IN PHYSICAL_ADDRESS pa,
     IN BOOLEAN out)
 {
     NTSTATUS  status = STATUS_SUCCESS;
     struct VirtIOBufferDescriptor sg;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s  buf = %p\n", __FUNCTION__, buf);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s  buf = %p, pa %I64x\n", __FUNCTION__, buf, pa.QuadPart);
     if (buf == NULL)
     {
         ASSERT(0);
@@ -501,7 +529,7 @@ VIOInputAddBuf(
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    sg.physAddr = MmGetPhysicalAddress(buf);
+    sg.physAddr = pa;
     sg.length = sizeof(VIRTIO_INPUT_EVENT);
 
     if (0 > virtqueue_add_buf(vq, &sg, (out ? 1 : 0), (out ? 0 : 1), buf, NULL, 0))
@@ -518,17 +546,20 @@ VIOInputAddBuf(
 NTSTATUS
 VIOInputAddInBuf(
     IN struct virtqueue *vq,
-    IN PVIRTIO_INPUT_EVENT buf)
+    IN PVIRTIO_INPUT_EVENT buf,
+    IN PHYSICAL_ADDRESS pa)
 {
-    return VIOInputAddBuf(vq, buf, FALSE);
+    return VIOInputAddBuf(vq, buf, pa, FALSE);
 }
 
 NTSTATUS
 VIOInputAddOutBuf(
     IN struct virtqueue *vq,
-    IN PVIRTIO_INPUT_EVENT buf)
+    IN PVIRTIO_INPUT_EVENT buf,
+    IN PHYSICAL_ADDRESS pa)
 {
-    return VIOInputAddBuf(vq, buf, TRUE);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "%s %p\n", __FUNCTION__, buf);
+    return VIOInputAddBuf(vq, buf, pa, TRUE);
 }
 
 NTSTATUS
@@ -547,7 +578,7 @@ VIOInputEvtDeviceD0Entry(
     if (NT_SUCCESS(status))
     {
         VirtIOWdfSetDriverOK(&pContext->VDevice);
-        VIOInputFillQueue(pContext->EventQ, pContext->EventQLock);
+        VIOInputFillEventQueue(pContext);
     }
     else
     {
@@ -580,7 +611,7 @@ VIOInputEvtDeviceD0Exit(
     {
         while (buf = (PVIRTIO_INPUT_EVENT)virtqueue_detach_unused_buf(pContext->EventQ))
         {
-            ExFreePoolWithTag(buf, VIOINPUT_DRIVER_MEMORY_TAG);
+            pContext->EventQMemBlock->return_slice(pContext->EventQMemBlock, buf);
         }
     }
     VIOInputShutDownAllQueues(Device);
