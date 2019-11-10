@@ -86,11 +86,21 @@ static void DebugPrintFunc(const char *format, ...)
 }
 #endif
 
+#if defined(EVENT_TRACING)
 static void DebugPrintFuncWPP(const char *format, ...)
 {
-    // TODO later, if needed
-    UNREFERENCED_PARAMETER(format);
+    char buf[256];
+    NTSTATUS status;
+    va_list list;
+    va_start(list, format);
+    status = RtlStringCbVPrintfA(buf, sizeof(buf), format, list);
+    if (status == STATUS_SUCCESS)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "%s", buf);
+    }
+    va_end(list);
 }
+#endif
 
 static void NoDebugPrintFunc(const char *format, ...)
 {
