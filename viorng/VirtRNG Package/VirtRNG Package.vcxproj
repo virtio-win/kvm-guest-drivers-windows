@@ -156,6 +156,9 @@
     <FilesToPackage Include="..\cng\um\$(IntDir)viorngum.pdb">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
+    <FilesToPackage Include="..\test\$(Platform)\Release\viorngtest.exe">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\viorng\viorng.vcxproj">
