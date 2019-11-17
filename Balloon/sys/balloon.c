@@ -64,14 +64,6 @@ BalloonInit(
 
     u64HostFeatures = VirtIOWdfGetDeviceFeatures(&devCtx->VDevice);
 
-    if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_F_VERSION_1))
-    {
-        virtio_feature_enable(u64GuestFeatures, VIRTIO_F_VERSION_1);
-    }
-    if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_F_ANY_LAYOUT))
-    {
-        virtio_feature_enable(u64GuestFeatures, VIRTIO_F_ANY_LAYOUT);
-    }
     if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_BALLOON_F_STATS_VQ))
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
@@ -85,7 +77,7 @@ BalloonInit(
         nvqs = 2;
     }
 
-    status = VirtIOWdfSetDriverFeatures(&devCtx->VDevice, u64GuestFeatures);
+    status = VirtIOWdfSetDriverFeatures(&devCtx->VDevice, u64GuestFeatures, 0);
     if (NT_SUCCESS(status))
     {
         // initialize 2 or 3 queues

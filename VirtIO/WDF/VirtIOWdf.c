@@ -116,8 +116,31 @@ ULONGLONG VirtIOWdfGetDeviceFeatures(PVIRTIO_WDF_DRIVER pWdfDriver)
 }
 
 NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver,
-                                    ULONGLONG uFeatures)
+                                    ULONGLONG uPrivateFeaturesOn,
+                                    ULONGLONG uFeaturesOff)
 {
+    ULONGLONG uFeatures = 0, uDeviceFeatures = VirtIOWdfGetDeviceFeatures(pWdfDriver);
+    char drvTag[sizeof(pWdfDriver->MemoryTag) + 1];
+
+    drvTag[sizeof(pWdfDriver->MemoryTag)] = 0;
+    RtlCopyMemory(drvTag, &pWdfDriver->MemoryTag, sizeof(pWdfDriver->MemoryTag));
+
+    if (virtio_is_feature_enabled(uDeviceFeatures, VIRTIO_F_VERSION_1)) {
+        virtio_feature_enable(uFeatures, VIRTIO_F_VERSION_1);
+    }
+    if (virtio_is_feature_enabled(uDeviceFeatures, VIRTIO_F_ANY_LAYOUT)) {
+        virtio_feature_enable(uFeatures, VIRTIO_F_ANY_LAYOUT);
+    }
+
+    if ((uDeviceFeatures & uPrivateFeaturesOn) != uPrivateFeaturesOn) {
+        DPrintf(0, "%s(%s) FAILED features %I64X != %I64X\n", __FUNCTION__,
+            drvTag, uPrivateFeaturesOn, (uDeviceFeatures & uPrivateFeaturesOn));
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    uFeatures |= uPrivateFeaturesOn;
+    uFeatures &= ~uFeaturesOff;
+
     /* make sure that we always follow the status bit-setting protocol */
     u8 status = virtio_get_status(&pWdfDriver->VIODevice);
     if (!(status & VIRTIO_CONFIG_S_ACKNOWLEDGE)) {
@@ -135,6 +158,14 @@ NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver,
 static NTSTATUS VirtIOWdfFinalizeFeatures(PVIRTIO_WDF_DRIVER pWdfDriver)
 {
     NTSTATUS status = STATUS_SUCCESS;
+
+    if (!pWdfDriver->uFeatures) {
+        /* specific driver does not have any special features requirements */
+        status = VirtIOWdfSetDriverFeatures(pWdfDriver, 0, 0);
+    }
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
 
     u8 dev_status = virtio_get_status(&pWdfDriver->VIODevice);
     if (!(dev_status & VIRTIO_CONFIG_S_ACKNOWLEDGE)) {

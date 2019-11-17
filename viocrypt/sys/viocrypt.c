@@ -293,24 +293,11 @@ NTSTATUS VioCryptDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE Pr
     PDEVICE_CONTEXT context = GetDeviceContext(Device);
     VIRTIO_WDF_QUEUE_PARAM param;
     struct virtqueue *queues[1];
-    u64 u64HostFeatures, u64GuestFeatures = 0;
 
     Trace(TRACE_LEVEL_VERBOSE, "[%s] from D%d", __FUNCTION__, PreviousState - WdfPowerDeviceD0);
 
     PAGED_CODE();
 
-    u64HostFeatures = VirtIOWdfGetDeviceFeatures(&context->VDevice);
-
-    if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_F_VERSION_1))
-    {
-        virtio_feature_enable(u64GuestFeatures, VIRTIO_F_VERSION_1);
-    }
-    if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_F_ANY_LAYOUT))
-    {
-        virtio_feature_enable(u64GuestFeatures, VIRTIO_F_ANY_LAYOUT);
-    }
-
-    status = VirtIOWdfSetDriverFeatures(&context->VDevice, u64GuestFeatures);
     if (NT_SUCCESS(status))
     {
         param.Interrupt = context->WdfInterrupt;
