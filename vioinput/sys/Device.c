@@ -230,7 +230,6 @@ VIOInputEvtDevicePrepareHardware(
 {
     PINPUT_DEVICE pContext = GetDeviceContext(Device);
     NTSTATUS status = STATUS_SUCCESS;
-    u64 hostFeatures, guestFeatures = 0;
 
     UNREFERENCED_PARAMETER(ResourcesRaw);
     PAGED_CODE();
@@ -258,17 +257,6 @@ VIOInputEvtDevicePrepareHardware(
         VIOInputFreeMemBlocks(pContext);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
-
-    hostFeatures = VirtIOWdfGetDeviceFeatures(&pContext->VDevice);
-    if (virtio_is_feature_enabled(hostFeatures, VIRTIO_F_VERSION_1))
-    {
-        virtio_feature_enable(guestFeatures, VIRTIO_F_VERSION_1);
-    }
-    if (virtio_is_feature_enabled(hostFeatures, VIRTIO_F_ANY_LAYOUT))
-    {
-        virtio_feature_enable(guestFeatures, VIRTIO_F_ANY_LAYOUT);
-    }
-    VirtIOWdfSetDriverFeatures(&pContext->VDevice, guestFeatures);
 
     // Figure out what kind of input device this is and build a
     // corresponding HID report descriptor.

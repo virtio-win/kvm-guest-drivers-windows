@@ -87,10 +87,16 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
  * EvtDeviceD0Entry callback. If the device is reset and re-initialized
  * (D0 exit, then D0 entry) and VirtIOWdfSetDriverFeatures is not called,
  * the same features are automatically negotiated.
+ * If the driver does not have any specific requirements for features
+ * it may skip call to VirtIOWdfSetDriverFeatures, then features
+ * VIRTIO_F_VERSION_1 and VIRTIO_F_ANY_LAYOUT
+ * are negotiated automatically according to device deatures upon
+ * call to VirtIOWdfInitQueues or VirtIOWdfInitQueuesCB
  */
 ULONGLONG VirtIOWdfGetDeviceFeatures(PVIRTIO_WDF_DRIVER pWdfDriver);
 NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver,
-                                    ULONGLONG uFeatures);
+                                    ULONGLONG uPrivateFeaturesOn,
+                                    ULONGLONG uFeaturesOff);
 
 /* Queue discovery entry points. Must be called after each device reset as
  * there is no way to reinitialize or reset individual queues. The CB
