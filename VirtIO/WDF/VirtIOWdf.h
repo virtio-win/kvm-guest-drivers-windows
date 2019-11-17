@@ -89,7 +89,7 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
  * the same features are automatically negotiated.
  * If the driver does not have any specific requirements for features
  * it may skip call to VirtIOWdfSetDriverFeatures, then features
- * VIRTIO_F_VERSION_1 and VIRTIO_F_ANY_LAYOUT
+ * VIRTIO_F_VERSION_1, VIRTIO_F_ANY_LAYOUT, VIRTIO_F_IOMMU_PLATFORM
  * are negotiated automatically according to device deatures upon
  * call to VirtIOWdfInitQueues or VirtIOWdfInitQueuesCB
  */
