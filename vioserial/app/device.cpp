@@ -15,10 +15,10 @@ CDevice::~CDevice()
     }
 }
 
-BOOL CDevice::Init(BOOL ovrl)
+BOOL CDevice::Init(BOOL ovrl, UINT index)
 {
     PWCHAR DevicePath = NULL;
-    if ((DevicePath = GetDevicePath((LPGUID)&GUID_VIOSERIAL_PORT)) != NULL)
+    if ((DevicePath = GetDevicePath(index, (LPGUID)&GUID_VIOSERIAL_PORT)) != NULL)
     {
         m_hDevice = CreateFile(DevicePath,
                              GENERIC_WRITE | GENERIC_READ,
@@ -263,7 +263,7 @@ BOOL CDevice::GetInfo(PVOID buf, size_t *size)
     return res;
 }
 
-PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
+PTCHAR CDevice::GetDevicePath(UINT index, IN  LPGUID InterfaceGuid )
 {
     HDEVINFO HardwareDeviceInfo;
     SP_DEVICE_INTERFACE_DATA DeviceInterfaceData;
@@ -289,7 +289,7 @@ PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
     bResult = SetupDiEnumDeviceInterfaces(HardwareDeviceInfo,
                              0,
                              InterfaceGuid,
-                             0,
+                             index,
                              &DeviceInterfaceData
                              );
 
