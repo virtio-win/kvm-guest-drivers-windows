@@ -22,7 +22,7 @@ class CDevice {
 public:
     CDevice();
     ~CDevice();
-    BOOL     Init(BOOL ovrl);
+    BOOL     Init(BOOL ovrl, UINT index);
     BOOL     Write(PVOID buf, size_t* size);
     BOOL     WriteEx(PVOID buf, size_t* size);
     BOOL     Read(PVOID buf, size_t* size);
@@ -30,7 +30,7 @@ public:
     BOOL     GetInfo(PVOID buf, size_t* size);
 protected:
     HANDLE   m_hDevice;
-    PTCHAR   GetDevicePath( IN  LPGUID InterfaceGuid );
+    PTCHAR   GetDevicePath(UINT index, IN  LPGUID InterfaceGuid );
 };
 
 #endif
