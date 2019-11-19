@@ -30,6 +30,8 @@
 
 #if defined(EVENT_TRACING)
 #include "utils.tmh"
+#else
+#define PRINT_DEBUG
 #endif
 
 int nDebugLevel = 0;
