@@ -107,6 +107,8 @@ static void NoDebugPrintFunc(const char *format, ...)
 
 void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath)
 {
+    WPP_INIT_TRACING(DriverObject, RegistryPath);
+
     virtioDebugLevel = 1;
     driverDebugLevel = TRACE_LEVEL_INFORMATION;
     //TODO - Read nDebugLevel and bDebugPrint from the registry

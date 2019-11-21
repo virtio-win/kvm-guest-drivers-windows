@@ -73,9 +73,7 @@ extern int driverDebugLevel;
 if (level > driverDebugLevel || !bDebugPrint || !(driverDebugFlags & flags)) {} \
 else VirtioDebugPrintProc(message, __VA_ARGS__)
 
-void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath);
-
-#define WPP_INIT_TRACING InitializeDebugPrints
+#define WPP_INIT_TRACING(a,b)
 #define WPP_CLEANUP(DriverObject)
 
 #else
@@ -122,4 +120,5 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regi
 
 #endif
 
+void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath);
 
