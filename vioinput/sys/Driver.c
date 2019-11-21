@@ -59,7 +59,7 @@ DriverEntry(
 #if (NTDDI_VERSION > NTDDI_WIN7)
     ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
 #endif
-    WPP_INIT_TRACING(DriverObject, RegistryPath);
+    InitializeDebugPrints(DriverObject, RegistryPath);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
         "Virtio-input driver started...built on %s %s\n", __DATE__, __TIME__);
