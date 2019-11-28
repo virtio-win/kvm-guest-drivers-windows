@@ -43,6 +43,7 @@ VZ inf substitutions and versioning used by all drivers.
     <VZ_COPYRIGHT_STARTING_YEAR>2016</VZ_COPYRIGHT_STARTING_YEAR>
     <VZ_COPYRIGHT_STARTING_YEAR  Condition="'$(CopyrightStrings)' == 'IvshmemCopyrightStrings'">2017</VZ_COPYRIGHT_STARTING_YEAR>
     <VZ_COPYRIGHT_STARTING_YEAR  Condition="'$(CopyrightStrings)' == 'FwCfgCopyrightStrings'">2018</VZ_COPYRIGHT_STARTING_YEAR>
+    <VZ_COPYRIGHT_STARTING_YEAR  Condition="'$(CopyrightStrings)' == 'VioSocketCopyrightStrings'">2019</VZ_COPYRIGHT_STARTING_YEAR>
   </PropertyGroup>
 
   <!-- Copyright years -->
