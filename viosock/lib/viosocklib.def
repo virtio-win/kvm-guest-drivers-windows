@@ -1,0 +1,6 @@
+
+LIBRARY "viosocklib"
+
+EXPORTS
+
+	WSPStartup

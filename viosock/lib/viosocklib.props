@@ -1,0 +1,15 @@
+<!--
+***********************************************************************************************
+viosock.props
+Enabling and customizing virtio build features
+***********************************************************************************************
+-->
+
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" TreatAsLocalProperty="Platform">
+  <PropertyGroup>
+    <Feature_AlwaysDefaultVendor>false</Feature_AlwaysDefaultVendor>
+    <Feature_PackOne>false</Feature_PackOne>
+    <PackOne_DestinationPrefix>..\</PackOne_DestinationPrefix>
+    <CopyrightStrings>VioSocketCopyrightStrings</CopyrightStrings>
+  </PropertyGroup>
+</Project>
