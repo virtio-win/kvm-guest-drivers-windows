@@ -34,6 +34,7 @@
 #include "virtio.h"
 #include "kdebugprint.h"
 #include "virtio_ring.h"
+#include "windows\virtio_ring_allocation.h"
 
 #define DESC_INDEX(num, i) ((i) & ((num) - 1))
 
@@ -338,11 +339,13 @@ void *virtqueue_detach_unused_buf(struct virtqueue *vq)
     return opaque;
 }
 
-/* Returns the base size of the virtqueue structure (add sizeof(void *) times the number
- * of elements to get the the full size) */
-unsigned int vring_control_block_size()
+/* Returns the size of the virtqueue structure including
+ * additional size for per-descriptor data */
+unsigned int vring_control_block_size(u16 qsize, bool packed)
 {
-    return sizeof(struct virtqueue);
+    unsigned int res = sizeof(struct virtqueue);
+    res += sizeof(void *) * qsize;
+    return res;
 }
 
 /* Negotiates virtio transport features */

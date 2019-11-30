@@ -9,6 +9,6 @@ struct virtqueue *vring_new_virtqueue(unsigned int index,
     void (*notify)(struct virtqueue *),
     void *control);
 
-unsigned int vring_control_block_size();
+unsigned int vring_control_block_size(u16 qsize, bool packed);
 
 #endif /* _VIRTIO_RING_ALLOCATION_H */
