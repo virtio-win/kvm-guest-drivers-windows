@@ -275,7 +275,7 @@ static NTSTATUS vio_modern_query_vq_alloc(VirtIODevice *vdev,
 
     *pNumEntries = num;
     *pRingSize = (unsigned long)vring_pci_size(num);
-    *pHeapSize = vring_control_block_size() + sizeof(void *) * num;
+    *pHeapSize = vring_control_block_size(num, false);
 
     return STATUS_SUCCESS;
 }
