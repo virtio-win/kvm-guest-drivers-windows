@@ -244,6 +244,9 @@ struct virtio_device
     // true if the VIRTIO_RING_F_EVENT_IDX feature flag has been negotiated
     bool event_suppression_enabled;
 
+    // true if the VIRTIO_F_RING_PACKED feature flag has been negotiated
+    bool packed_ring;
+
     // internal device operations, implemented separately for legacy and modern
     const struct virtio_device_ops *device;
 
