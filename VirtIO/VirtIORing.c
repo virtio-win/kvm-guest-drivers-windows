@@ -440,7 +440,7 @@ static void virtqueue_shutdown_split(struct virtqueue *_vq)
     unsigned int vring_align = _vq->vdev->addr ? PAGE_SIZE : SMP_CACHE_BYTES;
 
     RtlZeroMemory(pages, vring_size_split(num, vring_align));
-    (void)vring_new_virtqueue(
+    (void)vring_new_virtqueue_split(
         _vq->index,
         vq->vring.num,
         vring_align,
@@ -483,7 +483,7 @@ unsigned int vring_control_block_size(u16 qsize, bool packed)
 }
 
 /* Initializes a new virtqueue using already allocated memory */
-struct virtqueue *vring_new_virtqueue(
+struct virtqueue *vring_new_virtqueue_split(
     unsigned int index,                 /* virtqueue index */
     unsigned int num,                   /* virtqueue size (always a power of 2) */
     unsigned int vring_align,           /* vring alignment requirement */

@@ -237,10 +237,10 @@ static u16 vio_modern_set_queue_vector(struct virtqueue *vq, u16 vector)
     return ioread16(vdev, &cfg->queue_msix_vector);
 }
 
-static size_t vring_pci_size(u16 num)
+static size_t vring_pci_size(u16 num, bool packed)
 {
     /* We only need a cacheline separation. */
-    return (size_t)ROUND_TO_PAGES(vring_size(num, SMP_CACHE_BYTES, false));
+    return (size_t)ROUND_TO_PAGES(vring_size(num, SMP_CACHE_BYTES, packed));
 }
 
 static NTSTATUS vio_modern_query_vq_alloc(VirtIODevice *vdev,
@@ -274,8 +274,8 @@ static NTSTATUS vio_modern_query_vq_alloc(VirtIODevice *vdev,
     }
 
     *pNumEntries = num;
-    *pRingSize = (unsigned long)vring_pci_size(num);
-    *pHeapSize = vring_control_block_size(num, false);
+    *pRingSize = (unsigned long)vring_pci_size(num, vdev->packed_ring);
+    *pHeapSize = vring_control_block_size(num, vdev->packed_ring);
 
     return STATUS_SUCCESS;
 }
@@ -303,7 +303,7 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue,
     off = ioread16(vdev, &cfg->queue_notify_off);
 
     /* try to allocate contiguous pages, scale down on failure */
-    while (!(info->queue = mem_alloc_contiguous_pages(vdev, vring_pci_size(info->num)))) {
+    while (!(info->queue = mem_alloc_contiguous_pages(vdev, vring_pci_size(info->num, vdev->packed_ring)))) {
         if (info->num > 0) {
             info->num /= 2;
         } else {
@@ -317,9 +317,16 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue,
     }
 
     /* create the vring */
-    vq = vring_new_virtqueue(index, info->num,
-        SMP_CACHE_BYTES, vdev,
-        info->queue, vp_notify, vq_addr);
+    if (vdev->packed_ring) {
+        vq = vring_new_virtqueue_packed(index, info->num,
+            SMP_CACHE_BYTES, vdev,
+            info->queue, vp_notify, vq_addr);
+    } else {
+        vq = vring_new_virtqueue_split(index, info->num,
+            SMP_CACHE_BYTES, vdev,
+            info->queue, vp_notify, vq_addr);
+    }
+
     if (!vq) {
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto err_new_queue;
