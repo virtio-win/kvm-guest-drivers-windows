@@ -473,7 +473,11 @@ static void *virtqueue_detach_unused_buf_split(struct virtqueue *_vq)
  * additional size for per-descriptor data */
 unsigned int vring_control_block_size(u16 qsize, bool packed)
 {
-    unsigned int res = sizeof(struct virtqueue_split);
+    unsigned int res;
+    if (packed) {
+        return vring_control_block_size_packed(qsize);
+    }
+    res = sizeof(struct virtqueue_split);
     res += sizeof(void *) * qsize;
     return res;
 }
@@ -551,7 +555,7 @@ u32 virtio_get_indirect_page_capacity()
 unsigned long vring_size(unsigned int num, unsigned long align, bool packed)
 {
     if (packed) {
-        return vring_size_split(num, align);
+        return vring_size_packed(num, align);
     } else {
         return vring_size_split(num, align);
     }
