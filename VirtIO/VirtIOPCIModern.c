@@ -240,7 +240,7 @@ static u16 vio_modern_set_queue_vector(struct virtqueue *vq, u16 vector)
 static size_t vring_pci_size(u16 num)
 {
     /* We only need a cacheline separation. */
-    return (size_t)ROUND_TO_PAGES(vring_size(num, SMP_CACHE_BYTES));
+    return (size_t)ROUND_TO_PAGES(vring_size(num, SMP_CACHE_BYTES, false));
 }
 
 static NTSTATUS vio_modern_query_vq_alloc(VirtIODevice *vdev,

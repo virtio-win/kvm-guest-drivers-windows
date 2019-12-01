@@ -164,7 +164,7 @@ static NTSTATUS vio_legacy_query_vq_alloc(VirtIODevice *vdev,
         return STATUS_NOT_FOUND;
     }
 
-    ring_size = ROUND_TO_PAGES(vring_size(num, VIRTIO_PCI_VRING_ALIGN));
+    ring_size = ROUND_TO_PAGES(vring_size(num, VIRTIO_PCI_VRING_ALIGN, false));
     data_size = ROUND_TO_PAGES(vring_control_block_size(num, false));
 
     *pNumEntries = num;
@@ -203,7 +203,7 @@ static NTSTATUS vio_legacy_setup_vq(struct virtqueue **queue,
     vq = vring_new_virtqueue(index, info->num,
         VIRTIO_PCI_VRING_ALIGN, vdev,
         info->queue, vp_notify,
-        (u8 *)info->queue + ROUND_TO_PAGES(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN)));
+        (u8 *)info->queue + ROUND_TO_PAGES(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN, false)));
     if (!vq) {
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto err_activate_queue;
