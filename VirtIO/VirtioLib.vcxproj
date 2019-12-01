@@ -66,6 +66,7 @@
     <ClCompile Include="VirtIOPCICommon.c" />
     <ClCompile Include="VirtIOPCILegacy.c" />
     <ClCompile Include="VirtIOPCIModern.c" />
+    <ClCompile Include="VirtIORing-Packed.c" />
     <ClCompile Include="VirtIORing.c" />
   </ItemGroup>
   <ItemGroup>

@@ -13,6 +13,9 @@
     <ClCompile Include="VirtIORing.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="VirtIORing-Packed.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="linux\types.h">
