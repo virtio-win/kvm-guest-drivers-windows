@@ -431,43 +431,6 @@ BOOLEAN virtqueue_is_interrupt_enabled(struct virtqueue *_vq)
     return !(vq->master_vring_avail.flags & VIRTQ_AVAIL_F_NO_INTERRUPT);
 }
 
-/* Initializes a new virtqueue using already allocated memory */
-struct virtqueue *vring_new_virtqueue(
-    unsigned int index,                 /* virtqueue index */
-    unsigned int num,                   /* virtqueue size (always a power of 2) */
-    unsigned int vring_align,           /* vring alignment requirement */
-    VirtIODevice *vdev,                 /* the virtio device owning the queue */
-    void *pages,                        /* vring memory */
-    void (*notify)(struct virtqueue *), /* notification callback */
-    void *control)                      /* virtqueue memory */
-{
-    struct virtqueue_split *vq = splitvq(control);
-    u16 i;
-
-    if (DESC_INDEX(num, num) != 0) {
-        DPrintf(0, "Virtqueue length %u is not a power of 2\n", num);
-        return NULL;
-    }
-
-    RtlZeroMemory(vq, sizeof(*vq) + num * sizeof(void *));
-
-    vring_init(&vq->vring, num, pages, vring_align);
-    vq->vq.vdev = vdev;
-    vq->vq.notification_cb = notify;
-    vq->vq.index = index;
-
-    /* Build a linked list of unused descriptors */
-    vq->num_unused = num;
-    vq->first_unused = 0;
-    for (i = 0; i < num - 1; i++) {
-        vq->vring.desc[i].flags = VIRTQ_DESC_F_NEXT;
-        vq->vring.desc[i].next = i + 1;
-    }
-    vq->vq.avail_va = vq->vring.avail;
-    vq->vq.used_va = vq->vring.used;
-    return &vq->vq;
-}
-
 /* Re-initializes an already initialized virtqueue */
 void virtqueue_shutdown(struct virtqueue *_vq)
 {
@@ -513,6 +476,43 @@ unsigned int vring_control_block_size(u16 qsize, bool packed)
     unsigned int res = sizeof(struct virtqueue_split);
     res += sizeof(void *) * qsize;
     return res;
+}
+
+/* Initializes a new virtqueue using already allocated memory */
+struct virtqueue *vring_new_virtqueue(
+    unsigned int index,                 /* virtqueue index */
+    unsigned int num,                   /* virtqueue size (always a power of 2) */
+    unsigned int vring_align,           /* vring alignment requirement */
+    VirtIODevice *vdev,                 /* the virtio device owning the queue */
+    void *pages,                        /* vring memory */
+    void(*notify)(struct virtqueue *), /* notification callback */
+    void *control)                      /* virtqueue memory */
+{
+    struct virtqueue_split *vq = splitvq(control);
+    u16 i;
+
+    if (DESC_INDEX(num, num) != 0) {
+        DPrintf(0, "Virtqueue length %u is not a power of 2\n", num);
+        return NULL;
+    }
+
+    RtlZeroMemory(vq, sizeof(*vq) + num * sizeof(void *));
+
+    vring_init(&vq->vring, num, pages, vring_align);
+    vq->vq.vdev = vdev;
+    vq->vq.notification_cb = notify;
+    vq->vq.index = index;
+
+    /* Build a linked list of unused descriptors */
+    vq->num_unused = num;
+    vq->first_unused = 0;
+    for (i = 0; i < num - 1; i++) {
+        vq->vring.desc[i].flags = VIRTQ_DESC_F_NEXT;
+        vq->vring.desc[i].next = i + 1;
+    }
+    vq->vq.avail_va = vq->vring.avail;
+    vq->vq.used_va = vq->vring.used;
+    return &vq->vq;
 }
 
 /* Negotiates virtio transport features */
