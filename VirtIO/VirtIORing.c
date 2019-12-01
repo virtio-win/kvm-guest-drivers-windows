@@ -222,7 +222,7 @@ static inline void put_unused_desc_chain(struct virtqueue_split *vq, u16 idx)
 }
 
 /* Adds a buffer to a virtqueue, returns 0 on success, negative number on error */
-int virtqueue_add_buf(
+static int virtqueue_add_buf_split(
     struct virtqueue *_vq,    /* the queue */
     struct scatterlist sg[], /* sg array of length out + in */
     unsigned int out,        /* number of driver->device buffer descriptors in sg */
@@ -300,7 +300,7 @@ int virtqueue_add_buf(
 }
 
 /* Gets the opaque pointer associated with a returned buffer, or NULL if no buffer is available */
-void *virtqueue_get_buf(
+static void *virtqueue_get_buf_split(
     struct virtqueue *_vq, /* the queue */
     unsigned int *len)    /* number of bytes returned by the device */
 {
@@ -335,14 +335,14 @@ void *virtqueue_get_buf(
 }
 
 /* Returns true if at least one returned buffer is available, false otherwise */
-BOOLEAN virtqueue_has_buf(struct virtqueue *_vq)
+static BOOLEAN virtqueue_has_buf_split(struct virtqueue *_vq)
 {
     struct virtqueue_split *vq = splitvq(_vq);
     return (vq->last_used != vq->vring.used->idx);
 }
 
 /* Returns true if the device should be notified, false otherwise */
-bool virtqueue_kick_prepare(struct virtqueue *_vq)
+static bool virtqueue_kick_prepare_split(struct virtqueue *_vq)
 {
     struct virtqueue_split *vq = splitvq(_vq);
     bool wrap_around;
@@ -363,7 +363,7 @@ bool virtqueue_kick_prepare(struct virtqueue *_vq)
 }
 
 /* Notifies the device even if it's not necessary according to the event suppression logic */
-void virtqueue_kick_always(struct virtqueue *_vq)
+static void virtqueue_kick_always_split(struct virtqueue *_vq)
 {
     struct virtqueue_split *vq = splitvq(_vq);
     KeMemoryBarrier();
@@ -373,7 +373,7 @@ void virtqueue_kick_always(struct virtqueue *_vq)
 
 /* Enables interrupts on a virtqueue and returns false if the queue has at least one returned
  * buffer available to be fetched by virtqueue_get_buf, true otherwise */
-bool virtqueue_enable_cb(struct virtqueue *_vq)
+static bool virtqueue_enable_cb_split(struct virtqueue *_vq)
 {
     struct virtqueue_split *vq = splitvq(_vq);
     if (!virtqueue_is_interrupt_enabled(_vq)) {
@@ -391,7 +391,7 @@ bool virtqueue_enable_cb(struct virtqueue *_vq)
 
 /* Enables interrupts on a virtqueue after ~3/4 of the currently pushed buffers have been
  * returned, returns false if this condition currently holds, false otherwise */
-bool virtqueue_enable_cb_delayed(struct virtqueue *_vq)
+static bool virtqueue_enable_cb_delayed_split(struct virtqueue *_vq)
 {
     struct virtqueue_split *vq = splitvq(_vq);
     u16 bufs;
@@ -412,7 +412,7 @@ bool virtqueue_enable_cb_delayed(struct virtqueue *_vq)
 }
 
 /* Disables interrupts on a virtqueue */
-void virtqueue_disable_cb(struct virtqueue *_vq)
+static void virtqueue_disable_cb_split(struct virtqueue *_vq)
 {
     struct virtqueue_split *vq = splitvq(_vq);
     if (virtqueue_is_interrupt_enabled(_vq)) {
@@ -425,14 +425,14 @@ void virtqueue_disable_cb(struct virtqueue *_vq)
 }
 
 /* Returns true if interrupts are enabled on a virtqueue, false otherwise */
-BOOLEAN virtqueue_is_interrupt_enabled(struct virtqueue *_vq)
+static BOOLEAN virtqueue_is_interrupt_enabled_split(struct virtqueue *_vq)
 {
     struct virtqueue_split *vq = splitvq(_vq);
     return !(vq->master_vring_avail.flags & VIRTQ_AVAIL_F_NO_INTERRUPT);
 }
 
 /* Re-initializes an already initialized virtqueue */
-void virtqueue_shutdown(struct virtqueue *_vq)
+static void virtqueue_shutdown_split(struct virtqueue *_vq)
 {
     struct virtqueue_split *vq = splitvq(_vq);
     unsigned int num = vq->vring.num;
@@ -452,7 +452,7 @@ void virtqueue_shutdown(struct virtqueue *_vq)
 
 /* Gets the opaque pointer associated with a not-yet-returned buffer, or NULL if no buffer is available
  * to aid drivers with cleaning up all data on virtqueue shutdown */
-void *virtqueue_detach_unused_buf(struct virtqueue *_vq)
+static void *virtqueue_detach_unused_buf_split(struct virtqueue *_vq)
 {
     struct virtqueue_split *vq = splitvq(_vq);
     u16 idx;
@@ -512,6 +512,17 @@ struct virtqueue *vring_new_virtqueue(
     }
     vq->vq.avail_va = vq->vring.avail;
     vq->vq.used_va = vq->vring.used;
+    vq->vq.add_buf = virtqueue_add_buf_split;
+    vq->vq.detach_unused_buf = virtqueue_detach_unused_buf_split;
+    vq->vq.disable_cb = virtqueue_disable_cb_split;
+    vq->vq.enable_cb = virtqueue_enable_cb_split;
+    vq->vq.enable_cb_delayed = virtqueue_enable_cb_delayed_split;
+    vq->vq.get_buf = virtqueue_get_buf_split;
+    vq->vq.has_buf = virtqueue_has_buf_split;
+    vq->vq.is_interrupt_enabled = virtqueue_is_interrupt_enabled_split;
+    vq->vq.kick_always = virtqueue_kick_always_split;
+    vq->vq.kick_prepare = virtqueue_kick_prepare_split;
+    vq->vq.shutdown = virtqueue_shutdown_split;
     return &vq->vq;
 }
 
