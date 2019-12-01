@@ -38,8 +38,28 @@
 
 #define DESC_INDEX(num, i) ((i) & ((num) - 1))
 
-/* Returns the index of the first unused descriptor */
-static inline u16 get_unused_desc(struct virtqueue *vq)
+#pragma warning (push)
+#pragma warning (disable:4200)
+struct virtqueue_split {
+    struct virtqueue vq;
+    struct vring vring;
+    struct {
+        u16 flags;
+        u16 idx;
+    } master_vring_avail;
+    unsigned int num_unused;
+    unsigned int num_added_since_kick;
+    u16 first_unused;
+    u16 last_used;
+    void *opaque[];
+};
+
+#define splitvq(vq) ((struct virtqueue_split *)vq)
+
+#pragma warning (pop)
+
+ /* Returns the index of the first unused descriptor */
+static inline u16 get_unused_desc(struct virtqueue_split *vq)
 {
     u16 idx = vq->first_unused;
     ASSERT(vq->num_unused > 0);
@@ -50,7 +70,7 @@ static inline u16 get_unused_desc(struct virtqueue *vq)
 }
 
 /* Marks the descriptor chain starting at index idx as unused */
-static inline void put_unused_desc_chain(struct virtqueue *vq, u16 idx)
+static inline void put_unused_desc_chain(struct virtqueue_split *vq, u16 idx)
 {
     u16 start = idx;
 
@@ -69,7 +89,7 @@ static inline void put_unused_desc_chain(struct virtqueue *vq, u16 idx)
 
 /* Adds a buffer to a virtqueue, returns 0 on success, negative number on error */
 int virtqueue_add_buf(
-    struct virtqueue *vq,    /* the queue */
+    struct virtqueue *_vq,    /* the queue */
     struct scatterlist sg[], /* sg array of length out + in */
     unsigned int out,        /* number of driver->device buffer descriptors in sg */
     unsigned int in,         /* number of device->driver buffer descriptors in sg */
@@ -77,6 +97,7 @@ int virtqueue_add_buf(
     void *va_indirect,       /* VA of the indirect page or NULL */
     ULONGLONG phys_indirect) /* PA of the indirect page or 0 */
 {
+    struct virtqueue_split *vq = splitvq(_vq);
     struct vring *vring = &vq->vring;
     unsigned int i;
     u16 idx;
@@ -146,9 +167,10 @@ int virtqueue_add_buf(
 
 /* Gets the opaque pointer associated with a returned buffer, or NULL if no buffer is available */
 void *virtqueue_get_buf(
-    struct virtqueue *vq, /* the queue */
+    struct virtqueue *_vq, /* the queue */
     unsigned int *len)    /* number of bytes returned by the device */
 {
+    struct virtqueue_split *vq = splitvq(_vq);
     void *opaque;
     u16 idx;
 
@@ -169,7 +191,7 @@ void *virtqueue_get_buf(
     put_unused_desc_chain(vq, idx);
 
     vq->last_used++;
-    if (vq->vdev->event_suppression_enabled && virtqueue_is_interrupt_enabled(vq)) {
+    if (_vq->vdev->event_suppression_enabled && virtqueue_is_interrupt_enabled(_vq)) {
         vring_used_event(&vq->vring) = vq->last_used;
         KeMemoryBarrier();
     }
@@ -179,14 +201,16 @@ void *virtqueue_get_buf(
 }
 
 /* Returns true if at least one returned buffer is available, false otherwise */
-BOOLEAN virtqueue_has_buf(struct virtqueue *vq)
+BOOLEAN virtqueue_has_buf(struct virtqueue *_vq)
 {
+    struct virtqueue_split *vq = splitvq(_vq);
     return (vq->last_used != vq->vring.used->idx);
 }
 
 /* Returns true if the device should be notified, false otherwise */
-bool virtqueue_kick_prepare(struct virtqueue *vq)
+bool virtqueue_kick_prepare(struct virtqueue *_vq)
 {
+    struct virtqueue_split *vq = splitvq(_vq);
     bool wrap_around;
     u16 old, new;
     KeMemoryBarrier();
@@ -197,7 +221,7 @@ bool virtqueue_kick_prepare(struct virtqueue *vq)
     new = vq->master_vring_avail.idx;
     vq->num_added_since_kick = 0;
 
-    if (vq->vdev->event_suppression_enabled) {
+    if (_vq->vdev->event_suppression_enabled) {
         return wrap_around || (bool)vring_need_event(vring_avail_event(&vq->vring), new, old);
     } else {
         return !(vq->vring.used->flags & VIRTQ_USED_F_NO_NOTIFY);
@@ -205,20 +229,22 @@ bool virtqueue_kick_prepare(struct virtqueue *vq)
 }
 
 /* Notifies the device even if it's not necessary according to the event suppression logic */
-void virtqueue_kick_always(struct virtqueue *vq)
+void virtqueue_kick_always(struct virtqueue *_vq)
 {
+    struct virtqueue_split *vq = splitvq(_vq);
     KeMemoryBarrier();
     vq->num_added_since_kick = 0;
-    virtqueue_notify(vq);
+    virtqueue_notify(_vq);
 }
 
 /* Enables interrupts on a virtqueue and returns false if the queue has at least one returned
  * buffer available to be fetched by virtqueue_get_buf, true otherwise */
-bool virtqueue_enable_cb(struct virtqueue *vq)
+bool virtqueue_enable_cb(struct virtqueue *_vq)
 {
-    if (!virtqueue_is_interrupt_enabled(vq)) {
+    struct virtqueue_split *vq = splitvq(_vq);
+    if (!virtqueue_is_interrupt_enabled(_vq)) {
         vq->master_vring_avail.flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
-        if (!vq->vdev->event_suppression_enabled)
+        if (!_vq->vdev->event_suppression_enabled)
         {
             vq->vring.avail->flags = vq->master_vring_avail.flags;
         }
@@ -231,13 +257,14 @@ bool virtqueue_enable_cb(struct virtqueue *vq)
 
 /* Enables interrupts on a virtqueue after ~3/4 of the currently pushed buffers have been
  * returned, returns false if this condition currently holds, false otherwise */
-bool virtqueue_enable_cb_delayed(struct virtqueue *vq)
+bool virtqueue_enable_cb_delayed(struct virtqueue *_vq)
 {
+    struct virtqueue_split *vq = splitvq(_vq);
     u16 bufs;
 
-    if (!virtqueue_is_interrupt_enabled(vq)) {
+    if (!virtqueue_is_interrupt_enabled(_vq)) {
         vq->master_vring_avail.flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
-        if (!vq->vdev->event_suppression_enabled)
+        if (!_vq->vdev->event_suppression_enabled)
         {
             vq->vring.avail->flags = vq->master_vring_avail.flags;
         }
@@ -251,11 +278,12 @@ bool virtqueue_enable_cb_delayed(struct virtqueue *vq)
 }
 
 /* Disables interrupts on a virtqueue */
-void virtqueue_disable_cb(struct virtqueue *vq)
+void virtqueue_disable_cb(struct virtqueue *_vq)
 {
-    if (virtqueue_is_interrupt_enabled(vq)) {
+    struct virtqueue_split *vq = splitvq(_vq);
+    if (virtqueue_is_interrupt_enabled(_vq)) {
         vq->master_vring_avail.flags |= VIRTQ_AVAIL_F_NO_INTERRUPT;
-        if (!vq->vdev->event_suppression_enabled)
+        if (!_vq->vdev->event_suppression_enabled)
         {
             vq->vring.avail->flags = vq->master_vring_avail.flags;
         }
@@ -263,8 +291,9 @@ void virtqueue_disable_cb(struct virtqueue *vq)
 }
 
 /* Returns true if interrupts are enabled on a virtqueue, false otherwise */
-BOOLEAN virtqueue_is_interrupt_enabled(struct virtqueue *vq)
+BOOLEAN virtqueue_is_interrupt_enabled(struct virtqueue *_vq)
 {
+    struct virtqueue_split *vq = splitvq(_vq);
     return !(vq->master_vring_avail.flags & VIRTQ_AVAIL_F_NO_INTERRUPT);
 }
 
@@ -278,7 +307,7 @@ struct virtqueue *vring_new_virtqueue(
     void (*notify)(struct virtqueue *), /* notification callback */
     void *control)                      /* virtqueue memory */
 {
-    struct virtqueue *vq = (struct virtqueue *)control;
+    struct virtqueue_split *vq = splitvq(control);
     u16 i;
 
     if (DESC_INDEX(num, num) != 0) {
@@ -289,9 +318,9 @@ struct virtqueue *vring_new_virtqueue(
     RtlZeroMemory(vq, sizeof(*vq) + num * sizeof(void *));
 
     vring_init(&vq->vring, num, pages, vring_align);
-    vq->vdev = vdev;
-    vq->notification_cb = notify;
-    vq->index = index;
+    vq->vq.vdev = vdev;
+    vq->vq.notification_cb = notify;
+    vq->vq.index = index;
 
     /* Build a linked list of unused descriptors */
     vq->num_unused = num;
@@ -300,31 +329,35 @@ struct virtqueue *vring_new_virtqueue(
         vq->vring.desc[i].flags = VIRTQ_DESC_F_NEXT;
         vq->vring.desc[i].next = i + 1;
     }
-    return vq;
+    vq->vq.avail_va = vq->vring.avail;
+    vq->vq.used_va = vq->vring.used;
+    return &vq->vq;
 }
 
 /* Re-initializes an already initialized virtqueue */
-void virtqueue_shutdown(struct virtqueue *vq)
+void virtqueue_shutdown(struct virtqueue *_vq)
 {
+    struct virtqueue_split *vq = splitvq(_vq);
     unsigned int num = vq->vring.num;
     void *pages = vq->vring.desc;
-    unsigned int vring_align = vq->vdev->addr ? PAGE_SIZE : SMP_CACHE_BYTES;
+    unsigned int vring_align = _vq->vdev->addr ? PAGE_SIZE : SMP_CACHE_BYTES;
 
     RtlZeroMemory(pages, vring_size(num, vring_align));
     (void)vring_new_virtqueue(
-        vq->index,
+        _vq->index,
         vq->vring.num,
         vring_align,
-        vq->vdev,
+        _vq->vdev,
         pages,
-        vq->notification_cb,
+        _vq->notification_cb,
         vq);
 }
 
 /* Gets the opaque pointer associated with a not-yet-returned buffer, or NULL if no buffer is available
  * to aid drivers with cleaning up all data on virtqueue shutdown */
-void *virtqueue_detach_unused_buf(struct virtqueue *vq)
+void *virtqueue_detach_unused_buf(struct virtqueue *_vq)
 {
+    struct virtqueue_split *vq = splitvq(_vq);
     u16 idx;
     void *opaque = NULL;
 
@@ -343,7 +376,7 @@ void *virtqueue_detach_unused_buf(struct virtqueue *vq)
  * additional size for per-descriptor data */
 unsigned int vring_control_block_size(u16 qsize, bool packed)
 {
-    unsigned int res = sizeof(struct virtqueue);
+    unsigned int res = sizeof(struct virtqueue_split);
     res += sizeof(void *) * qsize;
     return res;
 }

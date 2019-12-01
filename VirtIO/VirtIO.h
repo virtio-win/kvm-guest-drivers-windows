@@ -11,25 +11,14 @@ struct VirtIOBufferDescriptor {
 };
 
 /* Represents one virtqueue; only data pointed to by the vring structure is exposed to the host */
-#pragma warning (push)
-#pragma warning (disable:4200)
 struct virtqueue {
     VirtIODevice *vdev;
-    struct vring vring;
-    struct {
-        u16 flags;
-        u16 idx;
-    } master_vring_avail;
     unsigned int index;
-    unsigned int num_unused;
-    unsigned int num_added_since_kick;
-    u16 first_unused;
-    u16 last_used;
-    void *notification_addr;
-    void (*notification_cb)(struct virtqueue *vq);
-    void *opaque[];
+    void         (*notification_cb)(struct virtqueue *vq);
+    void         *notification_addr;
+    void         *avail_va;
+    void         *used_va;
 };
-#pragma warning (pop)
 
 int virtqueue_add_buf(struct virtqueue *vq,
                       struct scatterlist sg[],
