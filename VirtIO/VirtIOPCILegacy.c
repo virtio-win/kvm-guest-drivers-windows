@@ -200,7 +200,7 @@ static NTSTATUS vio_legacy_setup_vq(struct virtqueue **queue,
         vdev->addr + VIRTIO_PCI_QUEUE_PFN);
 
     /* create the vring */
-    vq = vring_new_virtqueue(index, info->num,
+    vq = vring_new_virtqueue_split(index, info->num,
         VIRTIO_PCI_VRING_ALIGN, vdev,
         info->queue, vp_notify,
         (u8 *)info->queue + ROUND_TO_PAGES(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN, false)));
