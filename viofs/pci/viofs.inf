@@ -1,0 +1,101 @@
+;/*++
+;
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
+;
+;Module Name:
+;    viofs.inf
+;
+;Abstract:
+;
+;Installation Notes:
+;    Using Devcon: Type "devcon install viofs.inf PCI\VEN_1AF4&DEV_105A&SUBSYS_0004_INX_SUBSYS_VENDOR_ID&REV_00" to install
+;
+;--*/
+
+[Version]
+Signature       = "$WINDOWS NT$"
+Class           = System
+ClassGuid       = {4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider        = %VENDOR%
+CatalogFile     = viofs.cat
+PnpLockdown     = 1
+DriverVer       = 01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
+
+[DestinationDirs]
+DefaultDestDir = 12
+VirtFs_Wdf_CoInstaller_CopyFiles = 11
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+viofs.sys = 1,,
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll = 1 ; make sure the number matches with SourceDisksNames
+
+; ---------------
+; Install Section
+; ---------------
+
+[Manufacturer]
+%VENDOR% = Standard,NT$ARCH$
+
+[Standard.NT$ARCH$]
+%VirtFs.DeviceDesc% = VirtFs_Device, PCI\VEN_1AF4&DEV_105A&SUBSYS_0004_INX_SUBSYS_VENDOR_ID&REV_00, PCI\VEN_1AF4&DEV_105A
+
+[VirtFs_Device.NT]
+CopyFiles = VirtFs_CopyFiles
+
+[VirtFs_Device.NT.HW]
+AddReg = VirtFs_AddReg
+
+[VirtFs_CopyFiles]
+viofs.sys
+
+[VirtFs_AddReg]
+HKR,Interrupt Management,,0x00000010
+HKR,Interrupt Management\MessageSignaledInterruptProperties,,0x00000010
+HKR,Interrupt Management\MessageSignaledInterruptProperties,MSISupported,0x00010001,1
+HKR,Interrupt Management\MessageSignaledInterruptProperties,MessageNumberLimit,0x00010001,1
+
+; --------------------
+; Service Installation
+; --------------------
+
+[VirtFs_Device.NT.Services]
+AddService = VirtFs,0x00000002,VirtFs_Service_Install
+
+[VirtFs_Service_Install]
+DisplayName    = %VirtFs.Service%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\viofs.sys
+LoadOrderGroup = Extended Base
+
+; -------------------------------------
+; WDF & Device CoInstaller Installation
+; -------------------------------------
+
+[VirtFs_Device.NT.CoInstallers]
+AddReg=VirtFs_Wdf_CoInstaller_AddReg
+CopyFiles=VirtFs_Wdf_CoInstaller_CopyFiles
+
+[VirtFs_Wdf_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, \
+    "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[VirtFs_Wdf_CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[VirtFs_Device.NT.Wdf]
+KmdfService = VirtFs, VirtFs_wdfsect
+
+[VirtFs_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[Strings]
+VENDOR              = "INX_COMPANY"
+DiskName            = "INX_PREFIX_VIRTIOVirtIO FS Installation Disk"
+VirtFs.DeviceDesc   = "INX_PREFIX_VIRTIOVirtIO FS Device"
+VirtFs.Service      = "INX_PREFIX_VIRTIOVirtIO FS Service"
