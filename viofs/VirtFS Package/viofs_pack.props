@@ -1,0 +1,14 @@
+<!--
+***********************************************************************************************
+viofs_pack.props
+Enabling and customizing virtio build features
+***********************************************************************************************
+-->
+
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" TreatAsLocalProperty="Platform">
+  <PropertyGroup>
+    <Feature_AlwaysDefaultVendor>false</Feature_AlwaysDefaultVendor>
+    <Feature_AdjustInf>true</Feature_AdjustInf>
+    <CopyrightStrings>VioFSCopyrightStrings</CopyrightStrings>
+  </PropertyGroup>
+</Project>
