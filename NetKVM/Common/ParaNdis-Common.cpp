@@ -858,6 +858,10 @@ NDIS_STATUS ParaNdis_InitializeContext(
         pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_v1);
         pContext->bAnyLayout = true;
         DPrintf(0, "[%s] Assuming VIRTIO_F_ANY_LAYOUT for V1 device\n", __FUNCTION__);
+        if (AckFeature(pContext, VIRTIO_F_RING_PACKED))
+        {
+            DPrintf(0, "[%s] Using PACKED ring\n", __FUNCTION__);
+        }
     }
 
     if (pContext->bControlQueueSupported)
