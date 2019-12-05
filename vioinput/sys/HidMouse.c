@@ -440,6 +440,11 @@ HIDMouseProbe(
                     // we specify the minimum and maximum per-axis
                     HIDAppend2(pHidDesc, HID_TAG_LOGICAL_MINIMUM, AbsInfo.min);
                     HIDAppend2(pHidDesc, HID_TAG_LOGICAL_MAXIMUM, AbsInfo.max);
+                    if (AbsInfo.min != 0 || AbsInfo.max != MAXSHORT)
+                    {
+                        HIDAppend2(pHidDesc, HID_TAG_PHYSICAL_MINIMUM, 0);
+                        HIDAppend2(pHidDesc, HID_TAG_PHYSICAL_MAXIMUM, 0x7fff);
+                    }
 
                     HIDAppend2(pHidDesc, HID_TAG_REPORT_SIZE, 0x10); // 2 bytes
                     HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, 0x01);
