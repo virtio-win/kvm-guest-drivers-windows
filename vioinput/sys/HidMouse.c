@@ -73,6 +73,16 @@ typedef struct _tagInputClassMouse
     ULONG  uFlags;
 } INPUT_CLASS_MOUSE, *PINPUT_CLASS_MOUSE;
 
+static UCHAR FORCEINLINE TrimRelative(long val)
+{
+    if (val < -127) {
+        return (UCHAR)(-127);
+    } else if (val > 127) {
+        return 127;
+    }
+    return (UCHAR)val;
+}
+
 static NTSTATUS
 HIDMouseEventToReport(
     PINPUT_CLASS_COMMON pClass,
@@ -108,7 +118,7 @@ HIDMouseEventToReport(
                     else
 #endif // EXPOSE_ABS_AXES_WITH_BUTTONS_AS_MOUSE
                     {
-                        pReport[pMouseDesc->cbAxisOffset + pMap[1]] = (UCHAR)pEvent->value;
+                        pReport[pMouseDesc->cbAxisOffset + pMap[1]] = TrimRelative((long)pEvent->value);
                     }
                     pClass->bDirty = TRUE;
                     break;
