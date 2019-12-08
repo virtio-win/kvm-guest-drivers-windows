@@ -713,9 +713,6 @@ VOID ParaNdis_FreePhysicalMemory(
     PARANDIS_ADAPTER *pContext,
     tCompletePhysicalAddress *pAddresses);
 
-void ParaNdis_UnbindRxBufferFromPacket(
-    pRxNetDescriptor p);
-
 void ParaNdis_RestoreDeviceConfigurationAfterReset(
     PARANDIS_ADAPTER *pContext);
 
