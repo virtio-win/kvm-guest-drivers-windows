@@ -663,6 +663,18 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
         status = NDIS_STATUS_RESOURCES;
     }
 
+#if defined(NETKVM_COPY_RX_DATA)
+    if (status == NDIS_STATUS_SUCCESS)
+    {
+        PoolParams.DataSize = pContext->MaxPacketSize.nMaxFullSizeOsRx;
+        pContext->BufferListsPoolForArm = NdisAllocateNetBufferListPool(pContext->MiniportHandle, &PoolParams);
+        if (!pContext->BufferListsPoolForArm)
+        {
+            status = NDIS_STATUS_RESOURCES;
+        }
+    }
+#endif
+
     if (status == NDIS_STATUS_SUCCESS)
     {
         status = NdisMRegisterInterruptEx(pContext->MiniportHandle, pContext, &mic, &pContext->InterruptHandle);
@@ -738,6 +750,11 @@ VOID ParaNdis_FinalizeCleanup(PARANDIS_ADAPTER *pContext)
     {
         NdisFreeNetBufferListPool(pContext->BufferListsPool);
         pContext->BufferListsPool = NULL;
+    }
+    if (pContext->BufferListsPoolForArm)
+    {
+        NdisFreeNetBufferListPool(pContext->BufferListsPoolForArm);
+        pContext->BufferListsPoolForArm = NULL;
     }
     if (pContext->DmaHandle)
     {
@@ -854,6 +871,48 @@ VOID NBLSetRSCInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL,
 }
 #endif
 
+#if defined(NETKVM_COPY_RX_DATA)
+static PNET_BUFFER_LIST CloneNblFreeOriginalForArm(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST original, PVOID bufferDesc)
+{
+    PNET_BUFFER_LIST pNewNbl;
+    if (!original)
+    {
+        return NULL;
+    }
+    pNewNbl = NdisAllocateNetBufferList(pContext->BufferListsPoolForArm, 0, NULL);
+    if (pNewNbl)
+    {
+        PNET_BUFFER src = NET_BUFFER_LIST_FIRST_NB(original);
+        PNET_BUFFER dest = NET_BUFFER_LIST_FIRST_NB(pNewNbl);
+        ULONG done = 0;
+        NET_BUFFER_DATA_LENGTH(dest) = NET_BUFFER_DATA_LENGTH(src);
+        NET_BUFFER_DATA_OFFSET(dest) = 0;
+        NET_BUFFER_CURRENT_MDL_OFFSET(dest) = 0;
+        NdisCopyFromNetBufferToNetBuffer(dest, 0, NET_BUFFER_DATA_LENGTH(src), src, 0, &done);
+        if (done == NET_BUFFER_DATA_LENGTH(src))
+        {
+            NdisCopyReceiveNetBufferListInfo(pNewNbl, original);
+            pNewNbl->MiniportReserved[0] = bufferDesc;
+        }
+        else
+        {
+            DPrintf(0, "[%s] ERROR: Can't copy data to NBL (%d != %d)\n",
+                __FUNCTION__, done, NET_BUFFER_DATA_LENGTH(src));
+            NdisFreeNetBufferList(pNewNbl);
+            pNewNbl = NULL;
+        }
+    }
+    else
+    {
+        DPrintf(0, "[%s] ERROR: Can't allocate NBL\n", __FUNCTION__);
+    }
+    NdisFreeNetBufferList(original);
+    return pNewNbl;
+}
+#else
+#define CloneNblFreeOriginalForArm(ctx, org, bufDesc) (org)
+#endif
+
 /**********************************************************
 NDIS6 implementation of packet indication
 
@@ -962,9 +1021,8 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(
 #endif
         }
     }
-    return pNBL;
+    return CloneNblFreeOriginalForArm(pContext, pNBL, pBuffersDesc);
 }
-
 
 /**********************************************************
 NDIS procedure of returning us buffer of previously indicated packets
