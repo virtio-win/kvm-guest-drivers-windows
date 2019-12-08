@@ -713,10 +713,6 @@ VOID ParaNdis_FreePhysicalMemory(
     PARANDIS_ADAPTER *pContext,
     tCompletePhysicalAddress *pAddresses);
 
-BOOLEAN ParaNdis_BindRxBufferToPacket(
-    PARANDIS_ADAPTER *pContext,
-    pRxNetDescriptor p);
-
 void ParaNdis_UnbindRxBufferFromPacket(
     pRxNetDescriptor p);
 
