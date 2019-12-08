@@ -537,11 +537,6 @@ void ParaNdis_CXDPCWorkBody(PARANDIS_ADAPTER *pContext);
 
 void ParaNdis_ReuseRxNBLs(PNET_BUFFER_LIST pNBL);
 
-#ifdef PARANDIS_SUPPORT_RSS
-VOID ParaNdis_ResetRxClassification(
-    PARANDIS_ADAPTER *pContext);
-#endif
-
 NDIS_STATUS ParaNdis_SetMulticastList(
     PARANDIS_ADAPTER *pContext,
     PVOID Buffer,

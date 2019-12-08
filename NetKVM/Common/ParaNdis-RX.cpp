@@ -367,3 +367,25 @@ BOOLEAN CParaNdisRX::RestartQueue()
                                              RestartQueueSynchronously,
                                              this);
 }
+
+#ifdef PARANDIS_SUPPORT_RSS
+VOID ParaNdis_ResetRxClassification(PARANDIS_ADAPTER *pContext)
+{
+    ULONG i;
+
+    for (i = PARANDIS_FIRST_RSS_RECEIVE_QUEUE; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
+    {
+        PPARANDIS_RECEIVE_QUEUE pCurrQueue = &pContext->ReceiveQueues[i];
+        NdisAcquireSpinLock(&pCurrQueue->Lock);
+
+        while (!IsListEmpty(&pCurrQueue->BuffersList))
+        {
+            PLIST_ENTRY pListEntry = RemoveHeadList(&pCurrQueue->BuffersList);
+            pRxNetDescriptor pBufferDescriptor = CONTAINING_RECORD(pListEntry, RxNetDescriptor, ReceiveQueueListEntry);
+            ParaNdis_ReceiveQueueAddBuffer(&pBufferDescriptor->Queue->UnclassifiedPacketsQueue(), pBufferDescriptor);
+        }
+
+        NdisReleaseSpinLock(&pCurrQueue->Lock);
+    }
+}
+#endif
