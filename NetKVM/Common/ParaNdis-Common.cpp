@@ -1583,14 +1583,6 @@ VOID ParaNdis_QueueRSSDpc(PARANDIS_ADAPTER *pContext, ULONG MessageIndex, PGROUP
 #endif
 }
 
-
-VOID ParaNdis_ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescriptor pBuffer)
-{
-    NdisInterlockedInsertTailList(  &pQueue->BuffersList,
-                                    &pBuffer->ReceiveQueueListEntry,
-                                    &pQueue->Lock);
-}
-
 static __inline
 pRxNetDescriptor ReceiveQueueGetBuffer(PPARANDIS_RECEIVE_QUEUE pQueue)
 {

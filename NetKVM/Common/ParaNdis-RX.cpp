@@ -6,6 +6,13 @@
 #include "ParaNdis-RX.tmh"
 #endif
 
+static FORCEINLINE VOID ParaNdis_ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescriptor pBuffer)
+{
+    NdisInterlockedInsertTailList(&pQueue->BuffersList,
+        &pBuffer->ReceiveQueueListEntry,
+        &pQueue->Lock);
+}
+
 static void ParaNdis_UnbindRxBufferFromPacket(
     pRxNetDescriptor p)
 {
