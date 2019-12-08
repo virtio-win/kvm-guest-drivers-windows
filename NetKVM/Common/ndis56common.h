@@ -569,10 +569,6 @@ CCHAR ParaNdis_GetScalingDataForPacket(
 NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext);
 #endif
 
-VOID ParaNdis_ReceiveQueueAddBuffer(
-    PPARANDIS_RECEIVE_QUEUE pQueue,
-    pRxNetDescriptor pBuffer);
-
 VOID ParaNdis_ProcessorNumberToGroupAffinity(
     PGROUP_AFFINITY Affinity,
     const PPROCESSOR_NUMBER Processor);
@@ -596,10 +592,6 @@ CCHAR ParaNdis_GetScalingDataForPacket(
     PARANDIS_ADAPTER *pContext,
     PNET_PACKET_INFO pPacketInfo,
     PPROCESSOR_NUMBER pTargetProcessor);
-
-VOID ParaNdis_ReceiveQueueAddBuffer(
-    PPARANDIS_RECEIVE_QUEUE pQueue,
-    pRxNetDescriptor pBuffer);
 
 VOID ParaNdis_ProcessorNumberToGroupAffinity(
     PGROUP_AFFINITY Affinity,
