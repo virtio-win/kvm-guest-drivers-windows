@@ -746,23 +746,6 @@ VOID ParaNdis_FinalizeCleanup(PARANDIS_ADAPTER *pContext)
     }
 }
 
-void ParaNdis_UnbindRxBufferFromPacket(
-    pRxNetDescriptor p)
-{
-    PMDL NextMdlLinkage = p->Holder;
-    ULONG ulPageDescIndex = PARANDIS_FIRST_RX_DATA_PAGE;
-
-    while(NextMdlLinkage != NULL)
-    {
-        PMDL pThisMDL = NextMdlLinkage;
-        NextMdlLinkage = NDIS_MDL_LINKAGE(pThisMDL);
-
-        NdisAdjustMdlLength(pThisMDL, p->PhysicalPages[ulPageDescIndex].size);
-        NdisFreeMdl(pThisMDL);
-        ulPageDescIndex++;
-    }
-}
-
 static
 void ParaNdis_AdjustRxBufferHolderLength(
     pRxNetDescriptor p,
