@@ -54,3 +54,8 @@ private:
     int PrepareReceiveBuffers();
     pRxNetDescriptor CreateRxDescriptorOnInit();
 };
+
+#ifdef PARANDIS_SUPPORT_RSS
+VOID ParaNdis_ResetRxClassification(
+    PARANDIS_ADAPTER *pContext);
+#endif
