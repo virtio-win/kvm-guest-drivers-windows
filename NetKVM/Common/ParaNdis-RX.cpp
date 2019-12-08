@@ -6,6 +6,21 @@
 #include "ParaNdis-RX.tmh"
 #endif
 
+static void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p)
+{
+    ULONG i;
+
+    ParaNdis_UnbindRxBufferFromPacket(p);
+    for (i = 0; i < p->BufferSGLength; i++)
+    {
+        ParaNdis_FreePhysicalMemory(pContext, &p->PhysicalPages[i]);
+    }
+
+    if (p->BufferSGArray) NdisFreeMemory(p->BufferSGArray, 0, 0);
+    if (p->PhysicalPages) NdisFreeMemory(p->PhysicalPages, 0, 0);
+    NdisFreeMemory(p, 0, 0);
+}
+
 CParaNdisRX::CParaNdisRX() : m_nReusedRxBuffersCounter(0), m_NetNofReceiveBuffers(0)
 {
     InitializeListHead(&m_NetReceiveBuffers);
