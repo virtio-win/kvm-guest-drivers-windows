@@ -84,6 +84,10 @@ extern "C"
 #define _Function_class_(x)
 #endif
 
+#if defined(_ARM64_)
+#define NETKVM_COPY_RX_DATA
+#endif
+
 #include "ParaNdis-SM.h"
 #include "ParaNdis-RSS.h"
 
@@ -362,6 +366,7 @@ typedef struct _tagPARANDIS_ADAPTER
     NDIS_HANDLE             MiniportHandle;
     NDIS_HANDLE             InterruptHandle;
     NDIS_HANDLE             BufferListsPool;
+    NDIS_HANDLE             BufferListsPoolForArm;
 
     CPciResources           PciResources;
     VirtIODevice            IODevice;
