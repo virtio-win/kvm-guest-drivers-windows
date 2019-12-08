@@ -6,6 +6,33 @@
 #include "ParaNdis-RX.tmh"
 #endif
 
+static BOOLEAN ParaNdis_BindRxBufferToPacket(
+    PARANDIS_ADAPTER *pContext,
+    pRxNetDescriptor p)
+{
+    ULONG i;
+    PMDL *NextMdlLinkage = &p->Holder;
+
+    for (i = PARANDIS_FIRST_RX_DATA_PAGE; i < p->BufferSGLength; i++)
+    {
+        *NextMdlLinkage = NdisAllocateMdl(
+            pContext->MiniportHandle,
+            p->PhysicalPages[i].Virtual,
+            p->PhysicalPages[i].size);
+        if (*NextMdlLinkage == NULL) goto error_exit;
+
+        NextMdlLinkage = &(NDIS_MDL_LINKAGE(*NextMdlLinkage));
+    }
+    *NextMdlLinkage = NULL;
+
+    return TRUE;
+
+error_exit:
+
+    ParaNdis_UnbindRxBufferFromPacket(p);
+    return FALSE;
+}
+
 static void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p)
 {
     ULONG i;
