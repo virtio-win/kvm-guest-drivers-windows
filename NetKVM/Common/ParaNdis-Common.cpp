@@ -874,21 +874,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
     return status;
 }
 
-void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p)
-{
-    ULONG i;
-
-    ParaNdis_UnbindRxBufferFromPacket(p);
-    for(i = 0; i < p->BufferSGLength; i++)
-    {
-        ParaNdis_FreePhysicalMemory(pContext, &p->PhysicalPages[i]);
-    }
-
-    if(p->BufferSGArray) NdisFreeMemory(p->BufferSGArray, 0, 0);
-    if(p->PhysicalPages) NdisFreeMemory(p->PhysicalPages, 0, 0);
-    NdisFreeMemory(p, 0, 0);
-}
-
 #if PARANDIS_SUPPORT_RSS
 static USHORT DetermineQueueNumber(PARANDIS_ADAPTER *pContext)
 {

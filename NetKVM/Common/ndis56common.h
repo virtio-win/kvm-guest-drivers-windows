@@ -557,10 +557,6 @@ VOID ParaNdis_VirtIODisableIrqSynchronized(
     PARANDIS_ADAPTER *pContext,
     ULONG interruptSource);
 
-void ParaNdis_FreeRxBufferDescriptor(
-    PARANDIS_ADAPTER *pContext,
-    pRxNetDescriptor p);
-
 BOOLEAN ParaNdis_PerformPacketAnalysis(
 #if PARANDIS_SUPPORT_RSS
     PPARANDIS_RSS_PARAMS RSSParameters,
@@ -600,11 +596,6 @@ ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq)
 {
     return virtqueue_is_interrupt_enabled(_vq);
 }
-
-
-void ParaNdis_FreeRxBufferDescriptor(
-    PARANDIS_ADAPTER *pContext,
-    pRxNetDescriptor p);
 
 CCHAR ParaNdis_GetScalingDataForPacket(
     PARANDIS_ADAPTER *pContext,
