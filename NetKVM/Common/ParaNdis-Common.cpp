@@ -1769,7 +1769,9 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathBundle *pathBundle, ULO
         pathBundle->rxPath.UnclassifiedPacketsQueue().Ownership.Release();
     }
 
-    if (pathBundle != nullptr)
+    // we do not need to make a check of rx queue restart etc. if we already know
+    // that we need to respawn the DPC to get more data from the queue
+    if (pathBundle != nullptr && res == 0)
     {
         res |= pathBundle->rxPath.RestartQueue() |
                ReceiveQueueHasBuffers(&pathBundle->rxPath.UnclassifiedPacketsQueue());
