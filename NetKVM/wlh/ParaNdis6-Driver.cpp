@@ -1030,9 +1030,8 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 #ifdef NETKVM_WPP_ENABLED
     // Initialize WPP Tracing
     WPP_INIT_TRACING(pDriverObject, pRegistryPath);
-#else
-    ParaNdis_DebugInitialize();
 #endif
+    ParaNdis_DebugInitialize();
 
     DEBUG_ENTRY(0);
     DPrintf(0, __DATE__ " " __TIME__ "built %d.%d\n", NDIS_MINIPORT_MAJOR_VERSION, NDIS_MINIPORT_MINOR_VERSION);
@@ -1093,6 +1092,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
     }
     else
     {
+        ParaNdis_DebugCleanup(pDriverObject);
 #ifdef NETKVM_WPP_ENABLED
         WPP_CLEANUP(pDriverObject);
 #endif // WPP
