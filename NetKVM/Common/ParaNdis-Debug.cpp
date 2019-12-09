@@ -108,6 +108,8 @@ static KeRegisterBugCheckReasonCallbackType BugCheckRegisterCallback = KeRegiste
 static KeDeregisterBugCheckReasonCallbackType BugCheckDeregisterCallback = KeDeregisterBugCheckReasonCallbackDummyProc;
 KBUGCHECK_REASON_CALLBACK_RECORD CallbackRecord;
 
+#ifndef NETKVM_WPP_ENABLED
+
 static void NetKVMDebugPrint(const char *fmt, ...)
 {
     va_list list;
@@ -140,6 +142,20 @@ static void NetKVMDebugPrint(const char *fmt, ...)
     va_end(list);
 }
 
+#else
+
+static void NetKVMDebugPrint(const char *fmt, ...)
+{
+    va_list list;
+    va_start(list, fmt);
+    char buf[256];
+    buf[0] = 0;
+    _vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, list);
+    TraceNoPrefix(0, "%s", buf);
+}
+
+#endif
+
 tDebugPrintFunc VirtioDebugPrintProc = NetKVMDebugPrint;
 
 void ParaNdis_DebugInitialize()
@@ -154,8 +170,10 @@ void ParaNdis_DebugInitialize()
     NdisInitUnicodeString(&usPrint, L"vDbgPrintEx");
     NdisInitUnicodeString(&usRegister, L"KeRegisterBugCheckReasonCallback");
     NdisInitUnicodeString(&usDeregister, L"KeDeregisterBugCheckReasonCallback");
+#ifndef NETKVM_WPP_ENABLED
     pd = MmGetSystemRoutineAddress(&usPrint);
     if (pd) PrintProcedure = (vDbgPrintExType)pd;
+#endif
     pr = MmGetSystemRoutineAddress(&usRegister);
     pd = MmGetSystemRoutineAddress(&usDeregister);
     if (pr && pd)
