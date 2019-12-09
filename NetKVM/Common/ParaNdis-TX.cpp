@@ -882,15 +882,13 @@ bool CNB::CopyHeaders(PVOID Destination, ULONG MaxSize, ULONG &HeadersLength, UL
     }
     else if (m_ParentNBL->IsUdpCSO())
     {
-        Copy(Destination, MaxSize);
+        HeadersLength = Copy(Destination, MaxSize);
         L4HeaderOffset = QueryL4HeaderOffset(Destination, m_Context->Offload.ipHeaderOffset);
-        HeadersLength = L4HeaderOffset + sizeof(UDPHeader);
     }
     else if (m_ParentNBL->IsIPHdrCSO())
     {
-        Copy(Destination, MaxSize);
-        HeadersLength = QueryL4HeaderOffset(Destination, m_Context->Offload.ipHeaderOffset);
-        L4HeaderOffset = HeadersLength;
+        HeadersLength = Copy(Destination, MaxSize);
+        L4HeaderOffset = QueryL4HeaderOffset(Destination, m_Context->Offload.ipHeaderOffset);
     }
     else
     {
