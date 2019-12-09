@@ -855,6 +855,8 @@ NDIS_STATUS ParaNdis_InitializeContext(
     if (AckFeature(pContext, VIRTIO_F_VERSION_1))
     {
         pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_v1);
+        pContext->bAnyLayout = true;
+        DPrintf(0, "[%s] Assuming VIRTIO_F_ANY_LAYOUT for V1 device\n", __FUNCTION__);
     }
 
     if (pContext->bControlQueueSupported)
