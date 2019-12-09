@@ -959,7 +959,7 @@ bool CNB::BindToDescriptor(CTXDescriptor &Descriptor)
     return FillDescriptorSGList(Descriptor, HeadersLength);
 }
 
-bool CNB::Copy(PVOID Dst, ULONG Length) const
+ULONG CNB::Copy(PVOID Dst, ULONG Length) const
 {
     ULONG CurrOffset = NET_BUFFER_CURRENT_MDL_OFFSET(m_NB);
     ULONG Copied = 0;
@@ -992,5 +992,5 @@ bool CNB::Copy(PVOID Dst, ULONG Length) const
         CurrOffset = 0;
     }
 
-    return (Copied == Length);
+    return Copied;
 }
