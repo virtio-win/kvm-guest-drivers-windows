@@ -52,7 +52,7 @@ public:
 
     bool BindToDescriptor(CTXDescriptor &Descriptor);
 private:
-    bool Copy(PVOID Dst, ULONG Length) const;
+    ULONG Copy(PVOID Dst, ULONG Length) const;
     bool CopyHeaders(PVOID Destination, ULONG MaxSize, ULONG &HeadersLength, ULONG &L4HeaderOffset) const;
     void BuildPriorityHeader(PETH_HEADER EthHeader, PVLAN_HEADER VlanHeader) const;
     void PrepareOffloads(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength, ULONG L4HeaderOffset) const;
