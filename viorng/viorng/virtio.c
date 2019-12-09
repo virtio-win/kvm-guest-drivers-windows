@@ -32,11 +32,6 @@
 
 #include "virtio.tmh"
 
-static void NoDebugPrintFunc(const char *format, ...)
-{
-    UNREFERENCED_PARAMETER(format);
-}
-
 static void DebugPrintFuncWPP(const char *format, ...)
 {
     char buf[256];
