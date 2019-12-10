@@ -25,6 +25,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosock-test", "viosock-tes
 		{C65DA065-5828-45CF-89DB-FC4F21BC9E05} = {C65DA065-5828-45CF-89DB-FC4F21BC9E05}
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{35C26DD2-14C2-4F0A-AEA2-179C57EBE5DC}"
+	ProjectSection(SolutionItems) = preProject
+		inc\vio_sockets.h = inc\vio_sockets.h
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Win10 Debug|ARM64 = Win10 Debug|ARM64
