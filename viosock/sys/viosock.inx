@@ -66,7 +66,7 @@ HKR,Interrupt Management\MessageSignaledInterruptProperties,MessageNumberLimit,0
 viosock.sys
 
 [VirtioSocket_Lib_CopyFiles]
-;viosocklib.dll
+viosocklib.dll
 
 ;-------------- Service installation
 

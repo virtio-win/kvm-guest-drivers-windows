@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Win7 Debug|Win32">
+      <Configuration>Win7 Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8 Debug|Win32">
+      <Configuration>Win8 Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win10 Debug|Win32">
+      <Configuration>Win10 Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win7 Release|Win32">
+      <Configuration>Win7 Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8 Release|Win32">
+      <Configuration>Win8 Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win10 Release|Win32">
+      <Configuration>Win10 Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win7 Debug|x64">
+      <Configuration>Win7 Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8 Debug|x64">
+      <Configuration>Win8 Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win10 Debug|x64">
+      <Configuration>Win10 Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win7 Release|x64">
+      <Configuration>Win7 Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8 Release|x64">
+      <Configuration>Win8 Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win10 Release|x64">
+      <Configuration>Win10 Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win10 Debug|ARM64">
+      <Configuration>Win10 Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win10 Release|ARM64">
+      <Configuration>Win10 Release</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\sys\viosock.vcxproj">
+      <Project>{c65da065-5828-45cf-89db-fc4f21bc9e05}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{3F2854A7-A604-4006-A79B-9EAFC63015B8}</ProjectGuid>
+    <TemplateGuid>{4605da2c-74a5-4865-98e1-152ef136825f}</TemplateGuid>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
+    <Platform Condition="'$(Platform)' == ''">Win32</Platform>
+    <RootNamespace>ViosockPackage</RootNamespace>
+    <ProjectName>ViosockPackage</ProjectName>
+    <SignMode>Off</SignMode>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Utility</ConfigurationType>
+    <DriverType>Package</DriverType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(Configuration.EndsWith('Debug'))" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <LinkIncremental>true</LinkIncremental>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Platform)'=='x64'">
+  </PropertyGroup>
+  <Import Project="$(MSBuildProjectDirectory)\viosock_pack.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
+    <OutDir>$(ProjectDir)..\Install\win7\x86\</OutDir>
+    <Inf2CatWindowsVersionList>7_X86</Inf2CatWindowsVersionList>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
+    <OutDir>$(ProjectDir)..\Install\win8\x86\</OutDir>
+    <Inf2CatWindowsVersionList>8_X86</Inf2CatWindowsVersionList>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
+    <OutDir>$(ProjectDir)..\Install\win10\x86\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
+    <OutDir>$(ProjectDir)..\Install\win7\amd64\</OutDir>
+    <Inf2CatWindowsVersionList>7_X64,Server2008R2_X64</Inf2CatWindowsVersionList>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+    <OutDir>$(ProjectDir)..\Install\win8\amd64\</OutDir>
+    <Inf2CatWindowsVersionList>8_X64,Server8_X64</Inf2CatWindowsVersionList>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
+    <OutDir>$(ProjectDir)..\Install\win10\amd64\</OutDir>
+    <Inf2CatWindowsVersionList>Server10_$(DDKPlatform);$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">
+    <OutDir>$(ProjectDir)..\Install\win10\ARM64\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
+    <OutDir>$(ProjectDir)..\Install_Debug\win7\x86\</OutDir>
+    <Inf2CatWindowsVersionList>7_X86</Inf2CatWindowsVersionList>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
+    <OutDir>$(ProjectDir)..\Install_Debug\win8\x86\</OutDir>
+    <Inf2CatWindowsVersionList>8_X86</Inf2CatWindowsVersionList>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">
+    <OutDir>$(ProjectDir)..\Install_Debug\win10\x86\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+    <OutDir>$(ProjectDir)..\Install_Debug\win7\amd64\</OutDir>
+    <Inf2CatWindowsVersionList>7_X64,Server2008R2_X64</Inf2CatWindowsVersionList>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
+    <OutDir>$(ProjectDir)..\Install_Debug\win8\amd64\</OutDir>
+    <Inf2CatWindowsVersionList>8_X64,Server8_X64</Inf2CatWindowsVersionList>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">
+    <OutDir>$(ProjectDir)..\Install_Debug\win10\amd64\</OutDir>
+    <Inf2CatWindowsVersionList>Server10_$(DDKPlatform);$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|ARM64'">
+    <OutDir>$(ProjectDir)..\Install_Debug\win10\ARM64\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup>
+    <PackageDir>$(OutDir)</PackageDir>
+    <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup />
+  <PropertyGroup>
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <HardwareIdString />
+    <CommandLine />
+    <DeployFiles />
+    <EnableVerifier>False</EnableVerifier>
+    <AllDrivers>False</AllDrivers>
+    <VerifyProjectOutput>True</VerifyProjectOutput>
+    <VerifyDrivers />
+    <VerifyFlags>133563</VerifyFlags>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(Platform)'!='x64'">
+    <LibFiles Include="..\lib\$(PlatformTarget)\$(ConfigurationName)\viosocklib.dll">
+      <OutLib>viosocklib.dll</OutLib>
+    </LibFiles>
+    <LibFiles Include="..\lib\$(PlatformTarget)\$(ConfigurationName)\viosocklib.pdb">
+      <OutLib>viosocklib.pdb</OutLib>
+    </LibFiles>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Platform)'=='x64'">
+    <LibFiles Include="..\lib\x64\$(ConfigurationName)\viosocklib.dll">
+      <OutLib>viosocklib_x64.dll</OutLib>
+    </LibFiles>
+    <LibFiles Include="..\lib\x64\$(ConfigurationName)\viosocklib.pdb">
+      <OutLib>viosocklib_x64.pdb</OutLib>
+    </LibFiles>
+    <LibFiles Include="..\lib\x86\$(ConfigurationName)\viosocklib.dll">
+      <OutLib>viosocklib_x86.dll</OutLib>
+    </LibFiles>
+    <LibFiles Include="..\lib\x86\$(ConfigurationName)\viosocklib.pdb">
+      <OutLib>viosocklib_x86.pdb</OutLib>
+    </LibFiles>
+  </ItemGroup>
+  <Target Name="CopyLibFiles" BeforeTargets="InfVerif">
+    <Message Text="Copy $(LibFiles)."/>
+    <Copy
+      SourceFiles="@(LibFiles)"
+      DestinationFiles="@(LibFiles->'$(PackageDir)%(OutLib)')"
+    />
+  </Target>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
