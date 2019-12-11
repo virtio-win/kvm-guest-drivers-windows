@@ -133,6 +133,7 @@
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <TargetName>viosock</TargetName>
     <TargetExt>.sys</TargetExt>
+    <EnableInf2cat>false</EnableInf2cat>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <OutDir>objfre_win8_x86\i386\</OutDir>
@@ -216,12 +217,14 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <FilesToPackage Include="$(TargetPath)" />
-    <FilesToPackage Include="@(Inf->'%(CopyOutput)')" Condition="'@(Inf)'!=''" />
+    <Inf Include="$(SourceInfFile)">
+      <ExcludeFromPackage>true</ExcludeFromPackage>
+    </Inf>
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="viosock.inx" />
-    <Inf Include="viosock_wow.inx" />
+    <FilesToPackage Include="$(TargetPath)" />
+    <FilesToPackage Include="$(OutDir)$(TargetName).pdb" />
+    <FilesToPackage Include="$(OutDir)$(TargetInfFile)" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="precomp.h" />

@@ -68,10 +68,10 @@ HKR,Interrupt Management\MessageSignaledInterruptProperties,MessageNumberLimit,0
 viosock.sys
 
 [VirtioSocket_Lib_CopyFiles]
-;viosocklib.dll,viosocklib_x64.dll,,0x00004000   ;  COPYFLG_IN_USE_TRY_RENAME
+viosocklib.dll,viosocklib_x64.dll,,0x00004000   ;  COPYFLG_IN_USE_TRY_RENAME
 
 [VirtioSocket_Lib_CopyFiles.WOW64]
-;viosocklib.dll,viosocklib_x86.dll,,0x00004000   ;  COPYFLG_IN_USE_TRY_RENAME
+viosocklib.dll,viosocklib_x86.dll,,0x00004000   ;  COPYFLG_IN_USE_TRY_RENAME
 
 ;-------------- Service installation
 
