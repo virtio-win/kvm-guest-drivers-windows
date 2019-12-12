@@ -79,10 +79,8 @@ void FreeVirtFsRequest(IN PVIRTIO_FS_REQUEST Request);
 typedef struct _DEVICE_CONTEXT {
 
     VIRTIO_WDF_DRIVER   VDevice;
+    UINT32              RequestQueues;
     struct virtqueue    **VirtQueues;
-
-	VIRTIO_FS_CONFIG	Config;
-    WCHAR               Tag[MAX_FILE_SYSTEM_NAME + 1];
 
     WDFINTERRUPT        WdfInterrupt;
     WDFSPINLOCK         *VirtQueueLocks;
