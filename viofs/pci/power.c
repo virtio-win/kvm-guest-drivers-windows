@@ -75,42 +75,22 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
 	VirtIOWdfSetDriverFeatures(&context->VDevice, GuestFeatures);
 
-    VirtIOWdfDeviceGet(&context->VDevice,
-        FIELD_OFFSET(VIRTIO_FS_CONFIG, Tag),
-        &context->Config.Tag,
-        sizeof(context->Config.Tag));
-
-    status = RtlUTF8ToUnicodeN(context->Tag, sizeof(context->Tag), NULL,
-        context->Config.Tag, sizeof(context->Config.Tag));
-
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER,
-            "Failed to convert config tag: %!STATUS!", status);
-        status = STATUS_SUCCESS;
-    }
-    else
-    {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
-            "Config tag: %s Tag: %S", context->Config.Tag, context->Tag);
-    }
-
 	VirtIOWdfDeviceGet(&context->VDevice,
 		FIELD_OFFSET(VIRTIO_FS_CONFIG, RequestQueues),
-		&context->Config.RequestQueues,
-		sizeof(context->Config.RequestQueues));
+		&context->RequestQueues,
+		sizeof(context->RequestQueues));
 
 	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
-		"Request queues: %d", context->Config.RequestQueues);
+		"Request queues: %d", context->RequestQueues);
 
 	context->VirtQueues = ExAllocatePoolWithTag(NonPagedPool,
-		context->Config.RequestQueues * sizeof(struct virtqueue*),
+		context->RequestQueues * sizeof(struct virtqueue*),
 		VIRT_FS_MEMORY_TAG);
 
 	if (context->VirtQueues != NULL)
 	{
 		RtlZeroMemory(context->VirtQueues,
-			context->Config.RequestQueues * sizeof(struct virtqueue*));
+			context->RequestQueues * sizeof(struct virtqueue*));
 	}
 	else
 	{
@@ -123,7 +103,7 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
     if (NT_SUCCESS(status))
     {
         context->VirtQueueLocks = ExAllocatePoolWithTag(NonPagedPool,
-            context->Config.RequestQueues * sizeof(WDFSPINLOCK),
+            context->RequestQueues * sizeof(WDFSPINLOCK),
             VIRT_FS_MEMORY_TAG);
     }
 
@@ -133,7 +113,7 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
         WDFSPINLOCK *lock;
         ULONG i;
 
-        for (i = 0; i < context->Config.RequestQueues; i++)
+        for (i = 0; i < context->RequestQueues; i++)
         {
             lock = &context->VirtQueueLocks[i];
 
@@ -210,7 +190,7 @@ NTSTATUS VirtFsEvtDeviceD0Entry(IN WDFDEVICE Device,
 	param.Interrupt = context->WdfInterrupt;
 
 	status = VirtIOWdfInitQueues(&context->VDevice,
-		context->Config.RequestQueues, context->VirtQueues, &param);
+		context->RequestQueues, context->VirtQueues, &param);
 
     if (NT_SUCCESS(status))
     {

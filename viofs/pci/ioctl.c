@@ -180,27 +180,71 @@ static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
     return STATUS_SUCCESS;
 }
 
-VOID VirtFsEvtIoDeviceControl(IN WDFQUEUE Queue,
-                              IN WDFREQUEST Request,
-                              IN size_t OutputBufferLength,
-                              IN size_t InputBufferLength,
-                              IN ULONG IoControlCode)
+static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context,
+    IN WDFREQUEST Request,
+    IN size_t OutputBufferLength)
 {
-    PDEVICE_CONTEXT context = GetDeviceContext(WdfIoQueueGetDevice(Queue));
+    NTSTATUS status;
+    WCHAR WideTag[MAX_FILE_SYSTEM_NAME];
+    BYTE *out_buf;
+    char tag[MAX_FILE_SYSTEM_NAME];
+    size_t size;
+
+    VirtIOWdfDeviceGet(&Context->VDevice,
+        FIELD_OFFSET(VIRTIO_FS_CONFIG, Tag),
+        &tag, sizeof(tag));
+
+    status = RtlUTF8ToUnicodeN(WideTag, sizeof(WideTag), NULL,
+        tag, sizeof(tag));
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER,
+            "Failed to convert config tag: %!STATUS!", status);
+        status = STATUS_SUCCESS;
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
+            "Config tag: %s Tag: %S", tag, WideTag);
+    }
+
+    size = (wcslen(WideTag) + 1) * sizeof(WCHAR);
+
+    if (OutputBufferLength < size)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Insufficient out buffer");
+        WdfRequestComplete(Request, STATUS_BUFFER_TOO_SMALL);
+        return;
+    }
+
+    status = WdfRequestRetrieveOutputBuffer(Request, size, &out_buf, NULL);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL,
+            "WdfRequestRetrieveOutputBuffer failed");
+        return;
+    }
+
+    RtlCopyMemory(out_buf, WideTag, size);
+    WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, size);
+}
+
+static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
+    IN WDFREQUEST Request,
+    IN size_t OutputBufferLength,
+    IN size_t InputBufferLength)
+{
     WDFMEMORY handle;
     NTSTATUS status;
     PVIRTIO_FS_REQUEST fs_req;
     PVOID in_buf_va;
     PUCHAR in_buf, out_buf;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL,
-        "--> %!FUNC! Queue: %p Request: %p IoCtrl: %x InLen: %Iu OutLen: %Iu",
-        Queue, Request, IoControlCode, InputBufferLength, OutputBufferLength);
-
     if (InputBufferLength < sizeof(struct fuse_in_header))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Insufficient in buffer");
-        status = STATUS_INVALID_PARAMETER;
+        status = STATUS_BUFFER_TOO_SMALL;
         goto complete_wdf_req_no_fs_req;
     }
 
@@ -208,7 +252,7 @@ VOID VirtFsEvtIoDeviceControl(IN WDFQUEUE Queue,
         (OutputBufferLength < sizeof(struct fuse_out_header)))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Insufficient out buffer");
-        status = STATUS_INVALID_PARAMETER;
+        status = STATUS_BUFFER_TOO_SMALL;
         goto complete_wdf_req_no_fs_req;
     }
 
@@ -224,7 +268,7 @@ VOID VirtFsEvtIoDeviceControl(IN WDFQUEUE Queue,
 
     status = WdfRequestRetrieveOutputBuffer(Request, OutputBufferLength,
         &out_buf, NULL);
- 
+
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL,
@@ -232,7 +276,7 @@ VOID VirtFsEvtIoDeviceControl(IN WDFQUEUE Queue,
         goto complete_wdf_req_no_fs_req;
     }
 
-    status = WdfMemoryCreateFromLookaside(context->RequestsLookaside,
+    status = WdfMemoryCreateFromLookaside(Context->RequestsLookaside,
         &handle);
 
     if (!NT_SUCCESS(status))
@@ -274,7 +318,7 @@ VOID VirtFsEvtIoDeviceControl(IN WDFQUEUE Queue,
 
     RtlCopyMemory(in_buf_va, in_buf, InputBufferLength);
     MmUnmapLockedPages(in_buf_va, fs_req->InputBuffer);
-    
+
     status = WdfRequestMarkCancelableEx(Request, VirtFsEvtRequestCancel);
     if (!NT_SUCCESS(status))
     {
@@ -283,7 +327,7 @@ VOID VirtFsEvtIoDeviceControl(IN WDFQUEUE Queue,
         goto complete_wdf_req;
     }
 
-    status = VirtFsEnqueueRequest(context, fs_req);
+    status = VirtFsEnqueueRequest(Context, fs_req);
     if (!NT_SUCCESS(status))
     {
         if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
@@ -292,7 +336,7 @@ VOID VirtFsEvtIoDeviceControl(IN WDFQUEUE Queue,
         }
     }
 
-    goto end;
+    return;
 
 complete_wdf_req:
     FreeVirtFsRequest(fs_req);
@@ -301,8 +345,35 @@ complete_wdf_req_no_fs_req:
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL,
         "Complete Request: %p Status: %!STATUS!", Request, status);
     WdfRequestComplete(Request, status);
+}
 
-end:
+VOID VirtFsEvtIoDeviceControl(IN WDFQUEUE Queue,
+                              IN WDFREQUEST Request,
+                              IN size_t OutputBufferLength,
+                              IN size_t InputBufferLength,
+                              IN ULONG IoControlCode)
+{
+    PDEVICE_CONTEXT context = GetDeviceContext(WdfIoQueueGetDevice(Queue));
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL,
+        "--> %!FUNC! Queue: %p Request: %p IoCtrl: %x InLen: %Iu OutLen: %Iu",
+        Queue, Request, IoControlCode, InputBufferLength, OutputBufferLength);
+
+    switch (IoControlCode)
+    {
+        case IOCTL_VIRTFS_GET_VOLUME_NAME:
+            HandleGetVolumeName(context, Request, OutputBufferLength);
+            break;
+
+        case IOCTL_VIRTFS_FUSE_REQUEST:
+            HandleSubmitFuseRequest(context, Request, OutputBufferLength,
+                InputBufferLength);
+            break;
+
+        default:
+            break;
+    }
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "<-- %!FUNC!");
 }
 

@@ -41,7 +41,7 @@ NTSTATUS VirtFsEvtInterruptEnable(IN WDFINTERRUPT Interrupt,
 
     context = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
 
-	for (ULONG i = 0; i < context->Config.RequestQueues; i++)
+	for (ULONG i = 0; i < context->RequestQueues; i++)
 	{
 		struct virtqueue *vq = context->VirtQueues[i];
 
@@ -65,7 +65,7 @@ NTSTATUS VirtFsEvtInterruptDisable(IN WDFINTERRUPT Interrupt,
 
     context = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
 
-	for (ULONG i = 0; i < context->Config.RequestQueues; i++)
+	for (ULONG i = 0; i < context->RequestQueues; i++)
 	{
 		struct virtqueue *vq = context->VirtQueues[i];
 
@@ -91,8 +91,7 @@ BOOLEAN VirtFsEvtInterruptIsr(IN WDFINTERRUPT Interrupt, IN ULONG MessageId)
     WDF_INTERRUPT_INFO_INIT(&info);
     WdfInterruptGetInfo(context->WdfInterrupt, &info);
 
-    if ((info.MessageSignaled &&
-			(MessageId < context->Config.RequestQueues)) ||
+    if ((info.MessageSignaled && (MessageId < context->RequestQueues)) ||
         VirtIOWdfGetISRStatus(&context->VDevice))
     {
         WdfInterruptQueueDpcForIsr(Interrupt);
@@ -230,7 +229,7 @@ VOID VirtFsEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
 	WdfInterruptGetInfo(context->WdfInterrupt, &info);
 
 	if ((info.MessageSignaled == TRUE) &&
-		(info.MessageNumber < context->Config.RequestQueues))
+		(info.MessageNumber < context->RequestQueues))
 	{
 		vq = context->VirtQueues[info.MessageNumber];
         vq_lock = context->VirtQueueLocks[info.MessageNumber];
@@ -242,7 +241,7 @@ VOID VirtFsEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
 	}
 	else
 	{
-		for (i = 0; i < context->Config.RequestQueues; i++)
+		for (i = 0; i < context->RequestQueues; i++)
 		{
 			vq = context->VirtQueues[i];
             vq_lock = context->VirtQueueLocks[i];
