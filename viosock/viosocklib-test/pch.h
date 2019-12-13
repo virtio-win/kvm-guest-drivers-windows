@@ -14,5 +14,9 @@
 #include <windows.h>
 #include <winsock2.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <ws2spi.h>
+
+#include "..\inc\vio_sockets.h"
 
 #endif //PCH_H
