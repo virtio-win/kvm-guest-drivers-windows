@@ -185,10 +185,12 @@ static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context,
     IN size_t OutputBufferLength)
 {
     NTSTATUS status;
-    WCHAR WideTag[MAX_FILE_SYSTEM_NAME];
+    WCHAR WideTag[MAX_FILE_SYSTEM_NAME + 1];
     BYTE *out_buf;
     char tag[MAX_FILE_SYSTEM_NAME];
     size_t size;
+
+    RtlZeroMemory(WideTag, sizeof(WideTag));
 
     VirtIOWdfDeviceGet(&Context->VDevice,
         FIELD_OFFSET(VIRTIO_FS_CONFIG, Tag),
