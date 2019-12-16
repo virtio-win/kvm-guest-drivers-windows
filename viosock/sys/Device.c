@@ -41,7 +41,6 @@ EVT_WDF_DEVICE_D0_EXIT              VIOSockEvtDeviceD0Exit;
 EVT_WDF_DEVICE_D0_ENTRY_POST_INTERRUPTS_ENABLED VIOSockEvtDeviceD0EntryPostInterruptsEnabled;
 
 static NTSTATUS VIOSockInitInterrupt(IN WDFDEVICE hDevice);
-static NTSTATUS VIOSockInitDma(IN WDFDEVICE hDevice);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSockEvtDeviceAdd)
@@ -91,37 +90,6 @@ VIOSockInitInterrupt(
             "Failed to create interrupt: %x\n", status);
         return status;
     }
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
-    return status;
-}
-
-static
-NTSTATUS
-VIOSockInitDma(
-    IN WDFDEVICE hDevice)
-{
-    NTSTATUS                    status = STATUS_SUCCESS;
-    PDEVICE_CONTEXT             pContext = NULL;
-    WDF_DMA_ENABLER_CONFIG      dmaEnablerConfig;
-    SIZE_T                      maxLengthSupported;
-    WDF_OBJECT_ATTRIBUTES       attributes;
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
-
-    pContext = GetDeviceContext(hDevice);
-
-    WDF_DMA_ENABLER_CONFIG_INIT(&dmaEnablerConfig, WdfDmaProfileScatterGather64, VIOSOCK_DMA_TRX_LEN);
-    status = WdfDmaEnablerCreate(hDevice, &dmaEnablerConfig,
-        WDF_NO_OBJECT_ATTRIBUTES, &pContext->DmaEnabler);
-
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "WdfDmaEnablerCreate failed - 0x%x\n", status);
-        return status;
-    }
-
-    WdfDmaEnablerSetMaximumScatterGatherElements(pContext->DmaEnabler, VIOSOCK_DMA_TRX_PAGES);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return status;
@@ -219,13 +187,6 @@ VIOSockEvtDeviceAdd(
         return status;
     }
 
-    status = VIOSockInitDma(hDevice);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSockInitDma failed - 0x%x\n", status);
-        return status;
-    }
-
     status = VIOSockInitInterrupt(hDevice);
     if(!NT_SUCCESS(status))
     {
@@ -267,23 +228,17 @@ VIOSockEvtDevicePrepareHardware(
 
     u64HostFeatures = VirtIOWdfGetDeviceFeatures(&pContext->VDevice);
 
-    if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_F_VERSION_1))
-    {
-        virtio_feature_enable(u64GuestFeatures, VIRTIO_F_VERSION_1);
-    }
-    if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_F_ANY_LAYOUT))
-    {
-        virtio_feature_enable(u64GuestFeatures, VIRTIO_F_ANY_LAYOUT);
-    }
     if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_RING_F_INDIRECT_DESC))
     {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Enable indirect feature.\n");
+
         virtio_feature_enable(u64GuestFeatures, VIRTIO_RING_F_INDIRECT_DESC);
     }
 
-    status = VirtIOWdfSetDriverFeatures(&pContext->VDevice, u64GuestFeatures);
+    status = VirtIOWdfSetDriverFeatures(&pContext->VDevice, u64GuestFeatures, 0);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Setting VIRTIO_CONFIG_S_FAILED flag\n");
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "VirtIOWdfSetDriverFeatures failed: %x\n", status);
         VirtIOWdfSetDriverFailed(&pContext->VDevice);
     }
     else
