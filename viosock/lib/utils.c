@@ -1,6 +1,7 @@
 /*
- * Placeholder for the provider init functions
+ * This file contains various logger routines
  *
+ * Copyright (c) 2010-2019 Red Hat, Inc.
  * Copyright (c) 2019 Virtuozzo International GmbH
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,35 +27,40 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-
 #include "precomp.h"
-#include "viosocklib.h"
 
 #if defined(EVENT_TRACING)
-#include "viosocklib.tmh"
+#include "utils.tmh"
 #endif
 
-_Must_inspect_result_
-int
-WSPAPI
-WSPStartup(
-    _In_ WORD wVersionRequested,
-    _In_ LPWSPDATA lpWSPData,
-    _In_ LPWSAPROTOCOL_INFOW lpProtocolInfo,
-    _In_ WSPUPCALLTABLE UpcallTable,
-    _Out_ LPWSPPROC_TABLE lpProcTable
-)
+// Global debug printout level and enable\disable flag
+BOOL g_bDebugPrint;
+int g_DebugLevel;
+ULONG g_DebugFlags;
+
+#if !defined(EVENT_TRACING)
+
+#define     TEMP_BUFFER_SIZE        256
+
+void DebugPrintProc(const char *format, ...)
 {
-    UNREFERENCED_PARAMETER(wVersionRequested);
-    UNREFERENCED_PARAMETER(lpWSPData);
-    UNREFERENCED_PARAMETER(lpProtocolInfo);
-    UNREFERENCED_PARAMETER(UpcallTable);
-    UNREFERENCED_PARAMETER(lpProcTable);
+    char buf[256];
+    va_list list;
+    va_start(list, format);
+    if (StringCbVPrintfA(buf, sizeof(buf), format, list) == S_OK)
+    {
+        OutputDebugStringA(buf);
+    }
+    va_end(list);
+}
+#endif
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+void InitDebugPrints()
+{
+    WPP_INIT_TRACING(NULL);
+    //TODO - Read nDebugLevel and bDebugPrint from the registry
+    g_DebugFlags = 0xffffffff;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
-
-//     HMODULE hNtDll=Get
-    return WSASYSNOTREADY;
+    g_bDebugPrint = 1;
+    g_DebugLevel = TRACE_LEVEL_INFORMATION;
 }
