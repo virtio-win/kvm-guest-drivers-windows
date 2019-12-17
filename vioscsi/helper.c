@@ -36,7 +36,7 @@
 #include "helper.tmh"
 #endif
 
-#define SET_VA_PA() { ULONG len; va = adaptExt->indirect ? srbExt->desc : NULL; \
+#define SET_VA_PA() { ULONG len; va = adaptExt->indirect ? srbExt->pdesc : NULL; \
                       pa = va ? StorPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0; \
                     }
 
@@ -110,7 +110,7 @@ ENTER_FN_SRB();
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " add packet to queue (%d) SRB = %p isr = %d.\n", QueueNumber, srbExt->Srb, isr);
         SET_VA_PA();
         if (virtqueue_add_buf(adaptExt->vq[QueueNumber],
-                         &srbExt->sg[0],
+                         srbExt->psgl,
                          srbExt->out, srbExt->in,
                          &srbExt->cmd, va, pa) >= 0){
             notify  = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]) ? TRUE : notify;
@@ -156,7 +156,7 @@ SynchronizedTMFRoutine(
 ENTER_FN();
     SET_VA_PA();
     if (virtqueue_add_buf(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE],
-                     &srbExt->sg[0],
+                     srbExt->psgl,
                      srbExt->out, srbExt->in,
                      &srbExt->cmd, va, pa) >= 0){
         virtqueue_kick(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE]);
@@ -208,12 +208,12 @@ ENTER_FN();
     cmd->req.tmf.subtype = VIRTIO_SCSI_T_TMF_LOGICAL_UNIT_RESET;
 
     sgElement = 0;
-    srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->req.tmf, &fragLen);
-    srbExt->sg[sgElement].length   = sizeof(cmd->req.tmf);
+    srbExt->psgl[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->req.tmf, &fragLen);
+    srbExt->psgl[sgElement].length   = sizeof(cmd->req.tmf);
     sgElement++;
     srbExt->out = sgElement;
-    srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->resp.tmf, &fragLen);
-    srbExt->sg[sgElement].length = sizeof(cmd->resp.tmf);
+    srbExt->psgl[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->resp.tmf, &fragLen);
+    srbExt->psgl[sgElement].length = sizeof(cmd->resp.tmf);
     sgElement++;
     srbExt->in = sgElement - srbExt->out;
     StorPortPause(DeviceExtension, 60);
