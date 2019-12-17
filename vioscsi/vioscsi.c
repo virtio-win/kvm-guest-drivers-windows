@@ -439,6 +439,10 @@ ENTER_FN();
     adaptExt->scsi_config.seg_max = MAX_PHYS_SEGMENTS + 1;
     GetScsiConfig(DeviceExtension);
 
+    if(!adaptExt->dump_mode) {
+        adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
+    }
+
     ConfigInfo->NumberOfBuses               = 1;//(UCHAR)adaptExt->num_queues;
     ConfigInfo->MaximumNumberOfTargets      = min((UCHAR)adaptExt->scsi_config.max_target, 255/*SCSI_MAXIMUM_TARGETS_PER_BUS*/);
     ConfigInfo->MaximumNumberOfLogicalUnits = min((UCHAR)adaptExt->scsi_config.max_lun, SCSI_MAXIMUM_LUNS_PER_TARGET);
@@ -446,7 +450,14 @@ ENTER_FN();
     if(adaptExt->dump_mode) {
         ConfigInfo->NumberOfPhysicalBreaks  = 8;
     } else {
-        ConfigInfo->NumberOfPhysicalBreaks  = min((MAX_PHYS_SEGMENTS + 1), adaptExt->scsi_config.seg_max);
+        ConfigInfo->NumberOfPhysicalBreaks  = MAX_PHYS_SEGMENTS + 1;
+        ConfigInfo->MaximumTransferLength = 0x00FFFFFF;
+#if (NTDDI_VERSION > NTDDI_WIN7)
+        if (adaptExt->indirect) {
+            ConfigInfo->NumberOfPhysicalBreaks = MAX_PHYS_INDIRECT_SEGMENTS + 1;
+            ConfigInfo->MaximumTransferLength = SP_UNINITIALIZED_VALUE;
+        }
+#endif
     }
     ConfigInfo->MaximumTransferLength       = 0x00FFFFFF;
 
@@ -537,12 +548,8 @@ ENTER_FN();
             (max_queues + VIRTIO_SCSI_REQUEST_QUEUE_0) * virtio_get_queue_descriptor_size());
     }
 
-    if(!adaptExt->dump_mode) {
-        adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
-    }
-
     if(adaptExt->indirect) {
-        adaptExt->queue_depth = max(20, (queueLength));
+        adaptExt->queue_depth = queueLength;
     } else {
         adaptExt->queue_depth = queueLength / ConfigInfo->NumberOfPhysicalBreaks - 1;
     }
@@ -1003,27 +1010,32 @@ VioScsiInterrupt(
     IN PVOID DeviceExtension
     )
 {
-    PVirtIOSCSICmd      cmd;
-    PVirtIOSCSIEventNode evtNode;
-    unsigned int        len;
-    PADAPTER_EXTENSION  adaptExt;
+    PVirtIOSCSICmd      cmd = NULL;
+    PVirtIOSCSIEventNode evtNode = NULL;
+    unsigned int        len = 0;
+    PADAPTER_EXTENSION  adaptExt = NULL;
     BOOLEAN             isInterruptServiced = FALSE;
-    PSRB_TYPE           Srb;
+    PSRB_TYPE           Srb = NULL;
     ULONG               intReason = 0;
+    LIST_ENTRY          complete_list;
+    PSRB_EXTENSION      srbExt = NULL;
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " IRQL (%d)\n", KeGetCurrentIrql());
     intReason = virtio_read_isr_status(&adaptExt->vdev);
+    InitializeListHead(&complete_list);
 
     if (intReason == 1 || adaptExt->dump_mode) {
         struct virtqueue *vq = adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0];
         isInterruptServiced = TRUE;
 
-        virtqueue_disable_cb(vq);
         do {
+            virtqueue_disable_cb(vq);
             while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(vq, &len)) != NULL) {
-                HandleResponse(DeviceExtension, cmd);
+                Srb = (PSRB_TYPE)(cmd->srb);
+                srbExt = SRB_EXTENSION(Srb);
+                InsertTailList(&complete_list, &srbExt->list_entry);
             }
         } while (!virtqueue_enable_cb(vq));
 
@@ -1064,6 +1076,12 @@ VioScsiInterrupt(
            SynchronizedKickEventRoutine(DeviceExtension, evtNode);
         }
     }
+
+    while (!IsListEmpty(&complete_list)) {
+        srbExt = (PSRB_EXTENSION)RemoveHeadList(&complete_list);
+        HandleResponse(DeviceExtension, &srbExt->cmd);
+    }
+
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " isInterruptServiced = %d\n", isInterruptServiced);
     return isInterruptServiced;
 }
@@ -1286,6 +1304,10 @@ ENTER_FN_SRB();
 
     RtlZeroMemory(srbExt, sizeof(*srbExt));
     srbExt->Srb = Srb;
+    srbExt->psgl = srbExt->vio_sg;
+    srbExt->pdesc = srbExt->desc_alias;
+
+    srbExt->allocated = 0;
 #ifdef USE_CPU_TO_VQ_MAP
     srbExt->cpu = (UCHAR)cpu;
 #endif
@@ -1304,8 +1326,8 @@ ENTER_FN_SRB();
     }
 
     sgElement = 0;
-    srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->req.cmd, &fragLen);
-    srbExt->sg[sgElement].length   = sizeof(cmd->req.cmd);
+    srbExt->psgl[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->req.cmd, &fragLen);
+    srbExt->psgl[sgElement].length   = sizeof(cmd->req.cmd);
     sgElement++;
 
     sgList = StorPortGetScatterGatherList(DeviceExtension, Srb);
@@ -1313,17 +1335,56 @@ ENTER_FN_SRB();
     {
         sgMaxElements = sgList->NumberOfElements;
 
+#if (NTDDI_VERSION > NTDDI_WIN7)
+        if (sgMaxElements > MAX_PHYS_SEGMENTS && adaptExt->indirect)
+        {
+            PHYSICAL_ADDRESS Low;
+            PHYSICAL_ADDRESS High;
+            PHYSICAL_ADDRESS Alighn;
+            ULONG Status =   STATUS_SUCCESS;
+            srbExt->allocated = sgMaxElements + 3;
+
+            Status = StorPortAllocatePool(DeviceExtension,
+                                    sizeof(VIO_SG) * (srbExt->allocated),
+                                    VIOSCSI_POOL_TAG,
+                                    (PVOID*)&srbExt->psgl);
+            if (!NT_SUCCESS(Status)) {
+                RhelDbgPrint(TRACE_LEVEL_FATAL, " FAILED to allocate pool with status 0x%x\n", Status);
+                return FALSE;
+            }
+
+            memcpy(srbExt->psgl, srbExt->vio_sg, sizeof(VIO_SG));
+            Low.QuadPart = 0;
+            High.QuadPart = (-1);
+            Alighn.QuadPart = 0;
+            Status = StorPortAllocateContiguousMemorySpecifyCacheNode(
+                                    DeviceExtension,
+                                    sizeof(VRING_DESC_ALIAS) * (srbExt->allocated),
+                                    Low, High, Alighn,
+                                    MmCached,
+                                    MM_ANY_NODE_OK,
+                                    (PVOID*)&srbExt->pdesc);
+            if (!NT_SUCCESS(Status)) {
+                RhelDbgPrint(TRACE_LEVEL_FATAL, " FAILED to allocate contiguous memory with status 0x%x\n", Status);
+                StorPortFreePool(DeviceExtension, srbExt->psgl);
+                srbExt->allocated = 0;
+                srbExt->psgl = srbExt->vio_sg;
+                return FALSE;
+            }
+        }
+#endif
+
         if((SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT) == SRB_FLAGS_DATA_OUT) {
             for (i = 0; i < sgMaxElements; i++, sgElement++) {
-                srbExt->sg[sgElement].physAddr = sgList->List[i].PhysicalAddress;
-                srbExt->sg[sgElement].length = sgList->List[i].Length;
+                srbExt->psgl[sgElement].physAddr = sgList->List[i].PhysicalAddress;
+                srbExt->psgl[sgElement].length = sgList->List[i].Length;
                 srbExt->Xfer += sgList->List[i].Length;
             }
         }
     }
     srbExt->out = sgElement;
-    srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->resp.cmd, &fragLen);
-    srbExt->sg[sgElement].length = sizeof(cmd->resp.cmd);
+    srbExt->psgl[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->resp.cmd, &fragLen);
+    srbExt->psgl[sgElement].length = sizeof(cmd->resp.cmd);
     sgElement++;
     if (sgList)
     {
@@ -1331,8 +1392,8 @@ ENTER_FN_SRB();
 
         if((SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT) != SRB_FLAGS_DATA_OUT) {
             for (i = 0; i < sgMaxElements; i++, sgElement++) {
-                srbExt->sg[sgElement].physAddr = sgList->List[i].PhysicalAddress;
-                srbExt->sg[sgElement].length = sgList->List[i].Length;
+                srbExt->psgl[sgElement].physAddr = sgList->List[i].PhysicalAddress;
+                srbExt->psgl[sgElement].length = sgList->List[i].Length;
                 srbExt->Xfer += sgList->List[i].Length;
             }
         }
@@ -1514,9 +1575,11 @@ PostProcessRequest(
     IN PSRB_TYPE Srb
     )
 {
-    PCDB                  cdb;
-    PADAPTER_EXTENSION    adaptExt;
-
+    PCDB                  cdb = NULL;
+    PADAPTER_EXTENSION    adaptExt = NULL;
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    PSRB_EXTENSION        srbExt = NULL;
+#endif
 ENTER_FN_SRB();
     if (SRB_FUNCTION(Srb) != SRB_FUNCTION_EXECUTE_SCSI) {
         return;
@@ -1546,6 +1609,16 @@ ENTER_FN_SRB();
            break;
 
     }
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    srbExt = SRB_EXTENSION(Srb);
+    if (srbExt && (srbExt->allocated > 0)) {
+        StorPortFreePool(DeviceExtension, srbExt->psgl);
+        StorPortFreeContiguousMemorySpecifyCache(DeviceExtension, srbExt->pdesc, sizeof(VRING_DESC_ALIAS) * (srbExt->allocated), MmCached);
+        srbExt->allocated = 0;
+        srbExt->psgl = srbExt->vio_sg;
+        srbExt->pdesc = srbExt->desc_alias;
+    }
+#endif
 EXIT_FN_SRB();
 }
 
