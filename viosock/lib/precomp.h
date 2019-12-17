@@ -1,5 +1,5 @@
 /*
- * Placeholder for the provider init functions
+ * Pre-compiled header file for viosock protocol provider.
  *
  * Copyright (c) 2019 Virtuozzo International GmbH
  *
@@ -27,34 +27,18 @@
  * SUCH DAMAGE.
  */
 
-#include "precomp.h"
-#include "viosocklib.h"
+#ifndef PRECOMP_H
+#define PRECOMP_H
 
-#if defined(EVENT_TRACING)
-#include "viosocklib.tmh"
-#endif
+#include <tchar.h>
+#include <windows.h>
+#include <winsock2.h>
+#include <strsafe.h>
+#include <ws2spi.h>
+#include <winternl.h>
 
-_Must_inspect_result_
-int
-WSPAPI
-WSPStartup(
-    _In_ WORD wVersionRequested,
-    _In_ LPWSPDATA lpWSPData,
-    _In_ LPWSAPROTOCOL_INFOW lpProtocolInfo,
-    _In_ WSPUPCALLTABLE UpcallTable,
-    _Out_ LPWSPPROC_TABLE lpProcTable
-)
-{
-    UNREFERENCED_PARAMETER(wVersionRequested);
-    UNREFERENCED_PARAMETER(lpWSPData);
-    UNREFERENCED_PARAMETER(lpProtocolInfo);
-    UNREFERENCED_PARAMETER(UpcallTable);
-    UNREFERENCED_PARAMETER(lpProcTable);
+#include "..\sys\public.h"
+#include "..\inc\vio_sockets.h"
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
-
-//     HMODULE hNtDll=Get
-    return WSASYSNOTREADY;
-}
+#include "trace.h"
+#endif //PRECOMP_H

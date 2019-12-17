@@ -106,6 +106,9 @@
   <PropertyGroup Label="UserMacros" />
   <ItemDefinitionGroup>
     <ClCompile>
+      <WppEnabled>true</WppEnabled>
+      <WppDllMacro>true</WppDllMacro>
+      <WppScanConfigurationData Condition="'%(ClCompile. ScanConfigurationData)'  == ''">trace.h</WppScanConfigurationData>
       <PrecompiledHeader />
       <WarningLevel>Level4</WarningLevel>
       <PreprocessorDefinitions>WIN32;_WINDOWS;_USRDLL;VIOSOCKLIB_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -114,6 +117,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ModuleDefinitionFile>$(TargetName).def</ModuleDefinitionFile>
+      <AdditionalDependencies>advapi32.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="$(Configuration.EndsWith('Release'))">
@@ -140,12 +144,18 @@
   <ItemGroup>
     <ClCompile Include="dllmain.c" />
     <ClCompile Include="viosocklib.c" />
+    <ClCompile Include="utils.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="viosocklib.def" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="viosocklib.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="viosocklib.h" />
+    <ClInclude Include="trace.h" />
+    <ClInclude Include="precomp.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.targets" />
