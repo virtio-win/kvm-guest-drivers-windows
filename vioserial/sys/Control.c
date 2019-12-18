@@ -46,7 +46,7 @@ VIOSerialSendCtrlMsg(
     cpkt->event = event;
     cpkt->value = value;
 
-    sg.length = sizeof(cpkt);
+    sg.length = sizeof(*cpkt);
 
     WdfWaitLockAcquire(pContext->COutVqLock, NULL);
     if(0 <= virtqueue_add_buf(vq, &sg, 1, 0, &cpkt, NULL, 0))
