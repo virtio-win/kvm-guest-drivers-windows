@@ -113,7 +113,7 @@
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
     <TargetVersion>Windows7</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
+    <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <TargetVersion>Windows7</TargetVersion>
@@ -153,7 +153,7 @@
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <TargetVersion>Windows7</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
+    <KMDF_VERSION_MINOR>9</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <TargetVersion>Windows7</TargetVersion>
