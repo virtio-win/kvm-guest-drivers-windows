@@ -270,6 +270,7 @@ BalloonEvtDevicePrepareHardware(
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "VirtIOWdfInitialize failed with %x\n", status);
+        return status;
     }
 
     if (NT_SUCCESS(status))
