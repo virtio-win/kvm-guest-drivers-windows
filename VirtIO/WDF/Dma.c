@@ -208,6 +208,10 @@ void VirtIOWdfDeviceFreeDmaMemoryByTag(VirtIODevice *vdev, ULONG groupTag)
         DPrintf(0, "%s FAILED(default tag)\n", __FUNCTION__);
         return;
     }
+    if (!vdev->DeviceContext) {
+        DPrintf(0, "%s was not initialized\n", __FUNCTION__);
+        return;
+    }
     while (FindCommonBufferByTag(vdev->DeviceContext, groupTag));
 }
 
