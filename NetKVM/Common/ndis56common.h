@@ -576,15 +576,6 @@ VOID ParaNdis_ProcessorNumberToGroupAffinity(
     PGROUP_AFFINITY Affinity,
     const PPROCESSOR_NUMBER Processor);
 
-VOID ParaNdis_QueueRSSDpc(
-    PARANDIS_ADAPTER *pContext,
-    PGROUP_AFFINITY pTargetAffinity);
-
-
-
-
-
-
 static __inline BOOLEAN
 ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq)
 {
