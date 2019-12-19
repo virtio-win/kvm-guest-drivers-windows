@@ -112,7 +112,7 @@ static NDIS_STATUS RSSSetReceiveHash(   PARANDIS_ADAPTER *pContext, tOidDesc *pO
     if (!pContext->bRSSOffloadSupported)
         return NDIS_STATUS_NOT_SUPPORTED;
 
-    status = ParaNdis6_RSSSetReceiveHash(   &pContext->RSSParameters,
+    status = ParaNdis6_RSSSetReceiveHash(pContext,
                                         (NDIS_RECEIVE_HASH_PARAMETERS*) pOid->InformationBuffer,
                                         pOid->InformationBufferLength,
                                         pOid->pBytesRead);

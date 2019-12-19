@@ -353,11 +353,12 @@ ULONG ParaNdis6_QueryReceiveHash(const PARANDIS_RSS_PARAMS *RSSParameters,
     return sizeof(RSSHashKeyParameters->ReceiveHashParameters) + RSSHashKeyParameters->ReceiveHashParameters.HashSecretKeySize;
 }
 
-NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_RSS_PARAMS *RSSParameters,
+NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_ADAPTER *pContext,
                                         const NDIS_RECEIVE_HASH_PARAMETERS* Params,
                                         UINT ParamsLength,
                                         PUINT ParamsBytesRead)
 {
+    PARANDIS_RSS_PARAMS *RSSParameters = &pContext->RSSParameters;
     CNdisPassiveWriteAutoLock autoLock(RSSParameters->rwLock);
 
     if (ParamsLength < sizeof(NDIS_RECEIVE_HASH_PARAMETERS))
