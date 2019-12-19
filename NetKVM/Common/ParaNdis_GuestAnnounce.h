@@ -25,8 +25,6 @@ private:
     DECLARE_CNDISLIST_ENTRY(CGuestAnnouncePacketHolder);
 };
 
-typedef struct _tagPARANDIS_ADAPTER PARANDIS_ADAPTER;
-
 class CGuestAnnouncePackets : public CPlacementAllocatable
 {
 private:
