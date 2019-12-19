@@ -278,6 +278,26 @@ static FORCEINLINE CCHAR ParaNdis_GetScalingDataForPacket(PARANDIS_ADAPTER *pCon
 }
 #endif
 
+static FORCEINLINE BOOLEAN ParaNdis_PerformPacketAnalysis(
+#if PARANDIS_SUPPORT_RSS
+    PPARANDIS_RSS_PARAMS RSSParameters,
+#endif
+    PNET_PACKET_INFO PacketInfo,
+    PVOID HeadersBuffer,
+    ULONG DataLength)
+{
+    if (!ParaNdis_AnalyzeReceivedPacket(HeadersBuffer, DataLength, PacketInfo))
+        return FALSE;
+
+#if PARANDIS_SUPPORT_RSS
+    if (RSSParameters->RSSMode != PARANDIS_RSS_DISABLED)
+    {
+        ParaNdis6_RSSAnalyzeReceivedPacket(RSSParameters, HeadersBuffer, PacketInfo);
+    }
+#endif
+    return TRUE;
+}
+
 VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 {
     pRxNetDescriptor pBufferDescriptor;
