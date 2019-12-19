@@ -13,6 +13,7 @@ static void PrintIndirectionTable(const NDIS_RECEIVE_SCALE_PARAMETERS* Params);
 static void PrintIndirectionTable(const PARANDIS_SCALING_SETTINGS *RSSScalingSetting);
 
 static void PrintRSSSettings(PPARANDIS_RSS_PARAMS RSSParameters);
+static NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext);
 
 static VOID ApplySettings(PPARANDIS_RSS_PARAMS RSSParameters,
         PARANDIS_RSS_MODE NewRSSMode,
