@@ -117,8 +117,6 @@ static NDIS_STATUS RSSSetReceiveHash(   PARANDIS_ADAPTER *pContext, tOidDesc *pO
                                         pOid->InformationBufferLength,
                                         pOid->pBytesRead);
 
-    ParaNdis_ResetRxClassification(pContext);
-
     return status;
 }
 
