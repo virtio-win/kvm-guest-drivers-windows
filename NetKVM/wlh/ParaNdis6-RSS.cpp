@@ -136,15 +136,11 @@ CCHAR FindReceiveQueueForCurrentCpu(PPARANDIS_SCALING_SETTINGS RSSScalingSetting
 }
 
 static
-BOOLEAN AllocateCPUMappingArray(NDIS_HANDLE NdisHandle, PPARANDIS_SCALING_SETTINGS RSSScalingSettings)
+BOOLEAN AllocateCPUMappingArray(PARANDIS_ADAPTER *pContext, PPARANDIS_SCALING_SETTINGS RSSScalingSettings)
 {
     ULONG i;
     ULONG CPUNumber = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
-    PCHAR NewCPUMappingArray = (PCHAR) NdisAllocateMemoryWithTagPriority(
-                                                                            NdisHandle,
-                                                                            sizeof(CCHAR) * CPUNumber,
-                                                                            PARANDIS_MEMORY_TAG,
-                                                                            NormalPoolPriority);
+    PCHAR NewCPUMappingArray = (PCHAR)ParaNdis_AllocateMemory(pContext, sizeof(CCHAR) * CPUNumber);
 
     if(!NewCPUMappingArray)
         return FALSE;
@@ -292,7 +288,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
         {
             PrintIndirectionTable(Params);
 
-            if(!AllocateCPUMappingArray(pContext->MiniportHandle, &RSSParameters->RSSScalingSettings))
+            if(!AllocateCPUMappingArray(pContext, &RSSParameters->RSSScalingSettings))
                 return NDIS_STATUS_RESOURCES;
 
             RSSParameters->RSSScalingSettings.IndirectionTableSize = Params->IndirectionTableSize;
