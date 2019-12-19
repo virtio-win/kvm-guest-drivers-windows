@@ -1480,19 +1480,6 @@ CCHAR GetReceiveQueueForCurrentCPU(PARANDIS_ADAPTER *pContext)
 #endif
 }
 
-VOID ParaNdis_QueueRSSDpc(PARANDIS_ADAPTER *pContext, ULONG MessageIndex, PGROUP_AFFINITY pTargetAffinity)
-{
-#if PARANDIS_SUPPORT_RSS
-    NdisMQueueDpcEx(pContext->InterruptHandle, MessageIndex, pTargetAffinity, NULL);
-#else
-    UNREFERENCED_PARAMETER(pContext);
-    UNREFERENCED_PARAMETER(MessageIndex);
-    UNREFERENCED_PARAMETER(pTargetAffinity);
-
-    NETKVM_ASSERT(FALSE);
-#endif
-}
-
 static __inline
 pRxNetDescriptor ReceiveQueueGetBuffer(PPARANDIS_RECEIVE_QUEUE pQueue)
 {
