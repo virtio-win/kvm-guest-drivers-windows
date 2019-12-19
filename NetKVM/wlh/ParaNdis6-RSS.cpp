@@ -223,12 +223,12 @@ VOID FillCPUMappingArray(
     }
 }
 
-NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_RSS_PARAMS *RSSParameters,
+NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
                                         const NDIS_RECEIVE_SCALE_PARAMETERS* Params,
                                         UINT ParamsLength,
-                                        PUINT ParamsBytesRead,
-                                        NDIS_HANDLE NdisHandle)
+                                        PUINT ParamsBytesRead)
 {
+    PARANDIS_RSS_PARAMS *RSSParameters = &pContext->RSSParameters;
     ULONG ProcessorMasksSize;
     ULONG IndirectionTableEntries;
 
@@ -290,7 +290,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_RSS_PARAMS *RSSParameters,
         {
             PrintIndirectionTable(Params);
 
-            if(!AllocateCPUMappingArray(NdisHandle, &RSSParameters->RSSScalingSettings))
+            if(!AllocateCPUMappingArray(pContext->MiniportHandle, &RSSParameters->RSSScalingSettings))
                 return NDIS_STATUS_RESOURCES;
 
             RSSParameters->RSSScalingSettings.IndirectionTableSize = Params->IndirectionTableSize;

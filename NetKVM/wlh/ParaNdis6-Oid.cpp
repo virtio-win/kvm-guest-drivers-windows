@@ -82,11 +82,10 @@ static NDIS_STATUS RSSSetParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 
     CNdisPassiveWriteAutoLock autoLock(pContext->RSSParameters.rwLock);
 
-    status = ParaNdis6_RSSSetParameters(&pContext->RSSParameters,
+    status = ParaNdis6_RSSSetParameters(pContext,
                                         (NDIS_RECEIVE_SCALE_PARAMETERS*) pOid->InformationBuffer,
                                         pOid->InformationBufferLength,
-                                        pOid->pBytesRead,
-                                        pContext->MiniportHandle);
+                                        pOid->pBytesRead);
     ParaNdis_ResetRxClassification(pContext);
     if (status != NDIS_STATUS_SUCCESS)
     {
