@@ -80,26 +80,13 @@ static NDIS_STATUS RSSSetParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     if (!pContext->bRSSOffloadSupported)
         return NDIS_STATUS_NOT_SUPPORTED;
 
-    CNdisPassiveWriteAutoLock autoLock(pContext->RSSParameters.rwLock);
-
     status = ParaNdis6_RSSSetParameters(pContext,
                                         (NDIS_RECEIVE_SCALE_PARAMETERS*) pOid->InformationBuffer,
                                         pOid->InformationBufferLength,
                                         pOid->pBytesRead);
-    ParaNdis_ResetRxClassification(pContext);
     if (status != NDIS_STATUS_SUCCESS)
     {
         DPrintf(0, "[%s] - RSS parameters setting failed\n", __FUNCTION__);
-    }
-
-    if (status == NDIS_STATUS_SUCCESS)
-    {
-        status = ParaNdis_SetupRSSQueueMap(pContext);
-    }
-
-    if (status != NDIS_STATUS_SUCCESS)
-    {
-        DPrintf(0, "[%s] - RSS to queue mapping setup failed\n", __FUNCTION__);
     }
 
     return status;

@@ -234,6 +234,8 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
 
     *ParamsBytesRead = 0;
 
+    CNdisPassiveWriteAutoLock autoLock(RSSParameters->rwLock);
+
     if((RSSParameters->RSSMode == PARANDIS_RSS_HASHING) &&
         !(Params->Flags & NDIS_RSS_PARAM_FLAG_DISABLE_RSS) &&
         (Params->HashInformation != 0))
@@ -325,7 +327,10 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
     }
 
     *ParamsBytesRead += sizeof(NDIS_RECEIVE_SCALE_PARAMETERS);
-    return NDIS_STATUS_SUCCESS;
+
+    ParaNdis_ResetRxClassification(pContext);
+
+    return ParaNdis_SetupRSSQueueMap(pContext);
 }
 
 ULONG ParaNdis6_QueryReceiveHash(const PARANDIS_RSS_PARAMS *RSSParameters,
