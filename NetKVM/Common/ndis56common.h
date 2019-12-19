@@ -591,11 +591,6 @@ VOID ParaNdis_ProcessorNumberToGroupAffinity(
     PGROUP_AFFINITY Affinity,
     const PPROCESSOR_NUMBER Processor);
 
-VOID ParaNdis_QueueRSSDpc(
-    PARANDIS_ADAPTER *pContext,
-    ULONG MessageIndex,
-    PGROUP_AFFINITY pTargetAffinity);
-
 VOID ParaNdis_OnPnPEvent(
     PARANDIS_ADAPTER *pContext,
     NDIS_DEVICE_PNP_EVENT pEvent,

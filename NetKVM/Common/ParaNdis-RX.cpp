@@ -266,6 +266,13 @@ VOID CParaNdisRX::KickRXRing()
     m_VirtQueue.Kick();
 }
 
+#if PARANDIS_SUPPORT_RSS
+static FORCEINLINE VOID ParaNdis_QueueRSSDpc(PARANDIS_ADAPTER *pContext, ULONG MessageIndex, PGROUP_AFFINITY pTargetAffinity)
+{
+    NdisMQueueDpcEx(pContext->InterruptHandle, MessageIndex, pTargetAffinity, NULL);
+}
+#endif
+
 VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 {
     pRxNetDescriptor pBufferDescriptor;
