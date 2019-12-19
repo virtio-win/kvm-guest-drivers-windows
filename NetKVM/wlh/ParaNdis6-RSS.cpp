@@ -413,6 +413,8 @@ NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_ADAPTER *pContext,
                 &RSSParameters->ReceiveHashingSettings, NULL);
     }
 
+    ParaNdis_ResetRxClassification(pContext);
+
     return NDIS_STATUS_SUCCESS;
 }
 
