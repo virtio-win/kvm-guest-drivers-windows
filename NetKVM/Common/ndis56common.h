@@ -567,11 +567,6 @@ BOOLEAN ParaNdis_PerformPacketAnalysis(
     PVOID HeadersBuffer,
     ULONG DataLength);
 
-CCHAR ParaNdis_GetScalingDataForPacket(
-    PARANDIS_ADAPTER *pContext,
-    PNET_PACKET_INFO pPacketInfo,
-    PPROCESSOR_NUMBER pTargetProcessor);
-
 VOID ParaNdis_ProcessorNumberToGroupAffinity(
     PGROUP_AFFINITY Affinity,
     const PPROCESSOR_NUMBER Processor);
