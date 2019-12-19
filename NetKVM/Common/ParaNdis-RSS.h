@@ -62,8 +62,6 @@ typedef struct _tagRSS_HASH_KEY_PARAMETERS
     CCHAR                               HashSecretKey[NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2];
 } RSS_HASH_KEY_PARAMETERS;
 
-NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext);
-
 ULONG ParaNdis6_QueryReceiveHash(const PARANDIS_RSS_PARAMS *RSSParameters, RSS_HASH_KEY_PARAMETERS *RSSHashKeyParameters);
 
 NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
