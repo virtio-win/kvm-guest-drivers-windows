@@ -88,6 +88,8 @@ extern "C"
 #define NETKVM_COPY_RX_DATA
 #endif
 
+typedef struct _tagPARANDIS_ADAPTER PARANDIS_ADAPTER;
+
 #include "ParaNdis-SM.h"
 #include "ParaNdis-RSS.h"
 
