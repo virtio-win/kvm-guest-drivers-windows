@@ -582,15 +582,6 @@ ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq)
     return virtqueue_is_interrupt_enabled(_vq);
 }
 
-CCHAR ParaNdis_GetScalingDataForPacket(
-    PARANDIS_ADAPTER *pContext,
-    PNET_PACKET_INFO pPacketInfo,
-    PPROCESSOR_NUMBER pTargetProcessor);
-
-VOID ParaNdis_ProcessorNumberToGroupAffinity(
-    PGROUP_AFFINITY Affinity,
-    const PPROCESSOR_NUMBER Processor);
-
 VOID ParaNdis_OnPnPEvent(
     PARANDIS_ADAPTER *pContext,
     NDIS_DEVICE_PNP_EVENT pEvent,
