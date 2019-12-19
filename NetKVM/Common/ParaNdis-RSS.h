@@ -71,7 +71,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
                                         UINT ParamsLength,
                                         PUINT ParamsBytesRead);
 
-NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_RSS_PARAMS *RSSParameters,
+NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_ADAPTER *pContext,
                                         const NDIS_RECEIVE_HASH_PARAMETERS* Params,
                                         UINT ParamsLength,
                                         PUINT ParamsBytesRead);
