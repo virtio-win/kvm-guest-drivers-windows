@@ -559,9 +559,14 @@ VOID ParaNdis_VirtIODisableIrqSynchronized(
     PARANDIS_ADAPTER *pContext,
     ULONG interruptSource);
 
-VOID ParaNdis_ProcessorNumberToGroupAffinity(
+static __inline VOID ParaNdis_ProcessorNumberToGroupAffinity(
     PGROUP_AFFINITY Affinity,
-    const PPROCESSOR_NUMBER Processor);
+    const PPROCESSOR_NUMBER Processor)
+{
+    Affinity->Group = Processor->Group;
+    Affinity->Mask = 1;
+    Affinity->Mask <<= Processor->Number;
+}
 
 static __inline BOOLEAN
 ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq)
