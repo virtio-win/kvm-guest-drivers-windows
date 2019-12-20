@@ -1427,13 +1427,6 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacke
     return FALSE;
 }
 
-VOID ParaNdis_ProcessorNumberToGroupAffinity(PGROUP_AFFINITY Affinity, const PPROCESSOR_NUMBER Processor)
-{
-    Affinity->Group = Processor->Group;
-    Affinity->Mask = 1;
-    Affinity->Mask <<= Processor->Number;
-}
-
 static __inline
 CCHAR GetReceiveQueueForCurrentCPU(PARANDIS_ADAPTER *pContext)
 {
