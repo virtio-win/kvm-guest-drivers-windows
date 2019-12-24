@@ -438,6 +438,7 @@ ENTER_FN();
     adaptExt->scsi_config.num_queues = 1;
     adaptExt->scsi_config.seg_max = MAX_PHYS_SEGMENTS + 1;
     GetScsiConfig(DeviceExtension);
+    SetGuestFeatures(DeviceExtension);
 
     ConfigInfo->NumberOfBuses               = 1;//(UCHAR)adaptExt->num_queues;
     ConfigInfo->MaximumNumberOfTargets      = min((UCHAR)adaptExt->scsi_config.max_target, 255/*SCSI_MAXIMUM_TARGETS_PER_BUS*/);
@@ -535,10 +536,6 @@ ENTER_FN();
     {
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(
             (max_queues + VIRTIO_SCSI_REQUEST_QUEUE_0) * virtio_get_queue_descriptor_size());
-    }
-
-    if(!adaptExt->dump_mode) {
-        adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
     }
 
     if(adaptExt->indirect) {
@@ -671,7 +668,6 @@ VioScsiHwInitialize(
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     ULONG              i;
-    ULONGLONG          guestFeatures = 0;
     ULONG              index;
 
     PERF_CONFIGURATION_DATA perfData = { 0 };
@@ -679,33 +675,6 @@ VioScsiHwInitialize(
     MESSAGE_INTERRUPT_INFORMATION msi_info = { 0 };
     
 ENTER_FN();
-    if (CHECKBIT(adaptExt->features, VIRTIO_F_VERSION_1)) {
-        guestFeatures |= (1ULL << VIRTIO_F_VERSION_1);
-    }
-    if (CHECKBIT(adaptExt->features, VIRTIO_F_ANY_LAYOUT)) {
-        guestFeatures |= (1ULL << VIRTIO_F_ANY_LAYOUT);
-    }
-#if (WINVER == 0x0A00)
-    if (CHECKBIT(adaptExt->features, VIRTIO_F_IOMMU_PLATFORM)) {
-        guestFeatures |= (1ULL << VIRTIO_F_IOMMU_PLATFORM);
-    }
-#endif
-    if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX)) {
-        guestFeatures |= (1ULL << VIRTIO_RING_F_EVENT_IDX);
-    }
-    if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC)) {
-        guestFeatures |= (1ULL << VIRTIO_RING_F_INDIRECT_DESC);
-    }
-    if (CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_CHANGE)) {
-        guestFeatures |= (1ULL << VIRTIO_SCSI_F_CHANGE);
-    }
-    if (CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_HOTPLUG)) {
-        guestFeatures |= (1ULL << VIRTIO_SCSI_F_HOTPLUG);
-    }
-    if (!NT_SUCCESS(virtio_set_features(&adaptExt->vdev, guestFeatures))) {
-        RhelDbgPrint(TRACE_LEVEL_FATAL, " virtio_set_features failed\n");
-        return FALSE;
-    }
 
     adaptExt->msix_vectors = 0;
     adaptExt->pageOffset = 0;
@@ -884,6 +853,7 @@ VioScsiHwReinitialize(
     if (!InitVirtIODevice(DeviceExtension)) {
         return FALSE;
     }
+    SetGuestFeatures(DeviceExtension);
     return VioScsiHwInitialize(DeviceExtension);
 }
 
@@ -2265,6 +2235,7 @@ ENTER_FN();
     extInfo->QueuesCount = (UCHAR)adaptExt->num_queues;
     extInfo->Indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
     extInfo->EventIndex = CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX);
+    extInfo->RingPacked = CHECKBIT(adaptExt->features, VIRTIO_F_RING_PACKED);
     extInfo->DpcRedirection = CHECKFLAG(adaptExt->perfFlags, STOR_PERF_DPC_REDIRECTION);
     extInfo->ConcurrentChannels = CHECKFLAG(adaptExt->perfFlags, STOR_PERF_CONCURRENT_CHANNELS);
     extInfo->InterruptMsgRanges = CHECKFLAG(adaptExt->perfFlags, STOR_PERF_INTERRUPT_MESSAGE_RANGES);
