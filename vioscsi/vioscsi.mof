@@ -20,4 +20,5 @@ class VioScsiExtendedInfoGuid
     [read, WmiDataId(6), WmiVersion(1)] boolean ConcurrentChannels;
     [read, WmiDataId(7), WmiVersion(1)] boolean InterruptMsgRanges;
     [read, WmiDataId(8), WmiVersion(1)] boolean CompletionDuringStartIo;
+    [read, WmiDataId(9), WmiVersion(1)] boolean RingPacked;
 };
