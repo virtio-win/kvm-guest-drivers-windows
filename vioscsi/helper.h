@@ -151,6 +151,10 @@ VOID
 GetScsiConfig(
     IN PVOID DeviceExtension
     );
+VOID
+SetGuestFeatures(
+    IN PVOID DeviceExtension
+    );
 
 BOOLEAN
 InitVirtIODevice(

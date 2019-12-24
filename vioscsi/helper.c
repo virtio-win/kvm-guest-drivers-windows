@@ -296,6 +296,53 @@ ENTER_FN();
 EXIT_FN();
 }
 
+
+VOID
+SetGuestFeatures(
+    IN PVOID DeviceExtension
+)
+{
+    ULONGLONG          guestFeatures = 0;
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+ENTER_FN();
+
+    if (CHECKBIT(adaptExt->features, VIRTIO_F_VERSION_1)) {
+        guestFeatures |= (1ULL << VIRTIO_F_VERSION_1);
+        if (CHECKBIT(adaptExt->features, VIRTIO_F_RING_PACKED)) {
+            guestFeatures |= (1ULL << VIRTIO_F_RING_PACKED);
+        }
+    }
+    if (CHECKBIT(adaptExt->features, VIRTIO_F_ANY_LAYOUT)) {
+        guestFeatures |= (1ULL << VIRTIO_F_ANY_LAYOUT);
+    }
+#if (WINVER == 0x0A00)
+    if (CHECKBIT(adaptExt->features, VIRTIO_F_IOMMU_PLATFORM)) {
+        guestFeatures |= (1ULL << VIRTIO_F_IOMMU_PLATFORM);
+    }
+#endif
+    if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX)) {
+        guestFeatures |= (1ULL << VIRTIO_RING_F_EVENT_IDX);
+    }
+    if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC)) {
+        guestFeatures |= (1ULL << VIRTIO_RING_F_INDIRECT_DESC);
+        if(!adaptExt->dump_mode) {
+            adaptExt->indirect = TRUE;
+        }
+    }
+    if (CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_CHANGE)) {
+        guestFeatures |= (1ULL << VIRTIO_SCSI_F_CHANGE);
+    }
+    if (CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_HOTPLUG)) {
+        guestFeatures |= (1ULL << VIRTIO_SCSI_F_HOTPLUG);
+    }
+    if (!NT_SUCCESS(virtio_set_features(&adaptExt->vdev, guestFeatures))) {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " virtio_set_features failed\n");
+    }
+
+EXIT_FN();
+}
+
+
 BOOLEAN
 InitVirtIODevice(
     IN PVOID DeviceExtension
