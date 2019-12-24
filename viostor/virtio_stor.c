@@ -139,6 +139,11 @@ RhelScsiGetCapacity(
     IN OUT PSRB_TYPE Srb
     );
 
+VOID
+RhelSetGuestFeatures(
+    IN PVOID DeviceExtension
+);
+
 UCHAR
 RhelScsiVerify(
     IN PVOID DeviceExtension,
@@ -357,10 +362,6 @@ VirtIoFindAdapter(
     ConfigInfo->InterruptSynchronizationMode=InterruptSynchronizePerMessage;
 #endif
 
-    ConfigInfo->NumberOfBuses               = 1;
-    ConfigInfo->MaximumNumberOfTargets      = 1;
-    ConfigInfo->MaximumNumberOfLogicalUnits = 1;
-
     pci_cfg_len = StorPortGetBusData(
         DeviceExtension,
         PCIConfiguration,
@@ -450,6 +451,11 @@ VirtIoFindAdapter(
     }
 
     RhelGetDiskGeometry(DeviceExtension);
+    RhelSetGuestFeatures(DeviceExtension);
+
+    ConfigInfo->NumberOfBuses               = 1;
+    ConfigInfo->MaximumNumberOfTargets      = 1;
+    ConfigInfo->MaximumNumberOfLogicalUnits = 1;
 
     ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH) ? TRUE : FALSE;
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_BLK_F_WCACHE = %d\n", ConfigInfo->CachesData);
@@ -614,24 +620,19 @@ static BOOLEAN InitializeVirtualQueues(PADAPTER_EXTENSION adaptExt)
     return TRUE;
 }
 
-BOOLEAN
-VirtIoHwInitialize(
+VOID
+RhelSetGuestFeatures(
     IN PVOID DeviceExtension
-    )
+)
 {
-    PADAPTER_EXTENSION adaptExt;
-    BOOLEAN            ret = FALSE;
     ULONGLONG          guestFeatures = 0;
-    PERF_CONFIGURATION_DATA perfData = { 0 };
-    ULONG              status = STOR_STATUS_SUCCESS;
-#ifdef MSI_SUPPORTED
-    MESSAGE_INTERRUPT_INFORMATION msi_info = { 0 };
-#endif
-
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     if (CHECKBIT(adaptExt->features, VIRTIO_F_VERSION_1)) {
         guestFeatures |= (1ULL << VIRTIO_F_VERSION_1);
+        if (CHECKBIT(adaptExt->features, VIRTIO_F_RING_PACKED)) {
+            guestFeatures |= (1ULL << VIRTIO_F_RING_PACKED);
+        }
     }
 
 #if (WINVER == 0x0A00)
@@ -694,9 +695,27 @@ VirtIoHwInitialize(
 
     if (!NT_SUCCESS(virtio_set_features(&adaptExt->vdev, guestFeatures))) {
         RhelDbgPrint(TRACE_LEVEL_FATAL, " virtio_set_features failed\n");
-        return FALSE;
+        return;
     }
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Host Features %llu gust features %llu\n", adaptExt->features, guestFeatures);
+}
+
+BOOLEAN
+VirtIoHwInitialize(
+    IN PVOID DeviceExtension
+    )
+{
+    PADAPTER_EXTENSION adaptExt;
+    BOOLEAN            ret = FALSE;
+    ULONGLONG          guestFeatures = 0;
+    PERF_CONFIGURATION_DATA perfData = { 0 };
+    ULONG              status = STOR_STATUS_SUCCESS;
+#ifdef MSI_SUPPORTED
+    MESSAGE_INTERRUPT_INFORMATION msi_info = { 0 };
+#endif
+
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
 
     adaptExt->msix_vectors = 0;
     adaptExt->pageOffset = 0;
@@ -1156,6 +1175,7 @@ VirtIoHwReinitialize(
         return FALSE;
     }
     RhelGetDiskGeometry(DeviceExtension);
+    RhelSetGuestFeatures(DeviceExtension);
 
     if (!VirtIoHwInitialize(DeviceExtension)) {
         return FALSE;
