@@ -842,11 +842,6 @@ VirtIoHwInitialize(
         virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
     }
 
-    if(!adaptExt->dump_mode && !adaptExt->sn_ok)
-    {
-        RhelGetSerialNumber(DeviceExtension);
-    }
-
     return ret;
 }
 
@@ -945,7 +940,9 @@ VirtIoStartIo(
         }
         case SCSIOP_INQUIRY: {
             UCHAR SrbStatus = RhelScsiGetInquiryData(DeviceExtension, (PSRB_TYPE)Srb);
-            CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SrbStatus);
+            if (SRB_STATUS_PENDING != SrbStatus) {
+                CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SrbStatus);
+            }
             return TRUE;
         }
 
@@ -1409,12 +1406,17 @@ RhelScsiGetInquiryData(
         PVPD_SERIAL_NUMBER_PAGE SerialPage;
         SerialPage = (PVPD_SERIAL_NUMBER_PAGE)SRB_DATA_BUFFER(Srb);
         SerialPage->PageCode = VPD_SERIAL_NUMBER;
+
         if (!adaptExt->sn_ok) {
-           SerialPage->PageLength = 1;
-           SerialPage->SerialNumber[0] = '0';
-        } else {
-           SerialPage->PageLength = BLOCK_SERIAL_STRLEN;
-           StorPortMoveMemory(&SerialPage->SerialNumber, &adaptExt->sn, BLOCK_SERIAL_STRLEN);
+            RhelGetSerialNumber(DeviceExtension, Srb);
+            SerialPage->PageLength = 1;
+            SerialPage->SerialNumber[0] = '0';
+            SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_SERIAL_NUMBER_PAGE) + SerialPage->PageLength));
+            return SRB_STATUS_PENDING;
+        }
+        else {
+            SerialPage->PageLength = BLOCK_SERIAL_STRLEN;
+            StorPortMoveMemory(&SerialPage->SerialNumber, &adaptExt->sn, BLOCK_SERIAL_STRLEN);
         }
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_SERIAL_NUMBER_PAGE) + SerialPage->PageLength));
     }
@@ -1947,6 +1949,20 @@ VioStorCompleteRequest(
         Srb = (PSRB_TYPE)vbr->req;
         if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
             adaptExt->sn_ok = TRUE;
+            if (Srb) {
+                PCDB cdb = SRB_CDB((PSRB_TYPE)(Srb));
+                if ((cdb->CDB6INQUIRY3.PageCode == VPD_SERIAL_NUMBER) &&
+                    (cdb->CDB6INQUIRY3.EnableVitalProductData == 1)) {
+                    PVPD_SERIAL_NUMBER_PAGE SerialPage;
+
+                    SerialPage = (PVPD_SERIAL_NUMBER_PAGE)SRB_DATA_BUFFER(Srb);
+                    SerialPage->PageCode = VPD_SERIAL_NUMBER;
+                    SerialPage->PageLength = BLOCK_SERIAL_STRLEN;
+                    StorPortMoveMemory(&SerialPage->SerialNumber, &adaptExt->sn, BLOCK_SERIAL_STRLEN);
+                    SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_SERIAL_NUMBER_PAGE) + SerialPage->PageLength));
+                    CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
+                }
+            }
             continue;
         }
         if (Srb) {
