@@ -453,7 +453,8 @@ RhelGetSectors(
 
 VOID
 RhelGetSerialNumber(
-    IN PVOID DeviceExtension
+    IN PVOID DeviceExtension,
+    IN PSRB_TYPE Srb
 )
 {
     ULONG               QueueNumber = 0;
@@ -468,6 +469,7 @@ RhelGetSerialNumber(
     MessageId = 1;
     vq = adaptExt->vq[QueueNumber];
 
+    adaptExt->vbr.req = Srb;
     adaptExt->vbr.out_hdr.type = VIRTIO_BLK_T_GET_ID | VIRTIO_BLK_T_IN;
     adaptExt->vbr.out_hdr.sector = 0;
     adaptExt->vbr.out_hdr.ioprio = 0;
