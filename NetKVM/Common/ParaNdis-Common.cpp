@@ -1105,9 +1105,18 @@ void ParaNdis_DeviceConfigureRSC(PARANDIS_ADAPTER *pContext)
         ((pContext->RSC.bIPv6Enabled) ? (1 << VIRTIO_NET_F_GUEST_TSO6) : 0) |
         ((pContext->RSC.bQemuSupported) ? (1LL << VIRTIO_NET_F_RSC_EXT) : 0);
 
-    DPrintf(0, "Updating offload settings with %I64x", GuestOffloads);
-
-    ParaNdis_UpdateGuestOffloads(pContext, GuestOffloads);
+    if (pContext->RSC.bHasDynamicConfig)
+    {
+        DPrintf(0, "Updating offload settings with %I64x\n", GuestOffloads);
+        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_GUEST_OFFLOADS, VIRTIO_NET_CTRL_GUEST_OFFLOADS_SET,
+            &GuestOffloads,
+            sizeof(GuestOffloads),
+            NULL, 0, 2);
+    }
+    else
+    {
+        DPrintf(0, "ERROR: Can't update offload settings dynamically!");
+    }
 #else
 UNREFERENCED_PARAMETER(pContext);
 #endif /* PARANDIS_SUPPORT_RSC */
@@ -1922,20 +1931,6 @@ ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext)
                            NULL, 0, 4);
     }
 }
-
-#if PARANDIS_SUPPORT_RSC
-VOID
-ParaNdis_UpdateGuestOffloads(PARANDIS_ADAPTER *pContext, UINT64 Offloads)
-{
-    if (pContext->RSC.bHasDynamicConfig)
-    {
-        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_GUEST_OFFLOADS, VIRTIO_NET_CTRL_GUEST_OFFLOADS_SET,
-                           &Offloads,
-                           sizeof(Offloads),
-                           NULL, 0, 2);
-    }
-}
-#endif
 
 NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 {

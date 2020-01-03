@@ -600,12 +600,8 @@ VOID ParaNdis_PowerOff(
     PARANDIS_ADAPTER *pContext
 );
 
-#if PARANDIS_SUPPORT_RSC
-VOID ParaNdis_UpdateGuestOffloads(
-    PARANDIS_ADAPTER *pContext,
-    UINT64 Offloads
-);
-#endif
+void ParaNdis_DeviceConfigureRSC(PARANDIS_ADAPTER *pContext);
+
 void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsFlags *pDest, PULONG from);
 
 tChecksumCheckResult ParaNdis_CheckRxChecksum(

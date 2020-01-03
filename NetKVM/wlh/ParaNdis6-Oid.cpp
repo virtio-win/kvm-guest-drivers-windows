@@ -1075,7 +1075,6 @@ static
 NDIS_STATUS OnSetRSCParameters(PPARANDIS_ADAPTER pContext, PNDIS_OFFLOAD_PARAMETERS op)
 {
 #if PARANDIS_SUPPORT_RSC
-    UINT64 GuestOffloads;
 
     if(op->Header.Revision != NDIS_OFFLOAD_PARAMETERS_REVISION_3)
         return NDIS_STATUS_SUCCESS;
@@ -1094,12 +1093,7 @@ NDIS_STATUS OnSetRSCParameters(PPARANDIS_ADAPTER pContext, PNDIS_OFFLOAD_PARAMET
     if(op->RscIPv6 != NDIS_OFFLOAD_PARAMETERS_NO_CHANGE)
         pContext->RSC.bIPv6Enabled = (op->RscIPv6 == NDIS_OFFLOAD_PARAMETERS_RSC_ENABLED);
 
-    GuestOffloads = (1 << VIRTIO_NET_F_GUEST_CSUM) |
-        ((pContext->RSC.bIPv4Enabled) ? (1 << VIRTIO_NET_F_GUEST_TSO4) : 0) |
-        ((pContext->RSC.bIPv6Enabled) ? (1 << VIRTIO_NET_F_GUEST_TSO6) : 0) |
-        ((pContext->RSC.bQemuSupported) ? (1LL << VIRTIO_NET_F_RSC_EXT) : 0);
-
-    ParaNdis_UpdateGuestOffloads(pContext, GuestOffloads);
+    ParaNdis_DeviceConfigureRSC(pContext);
 #else
     UNREFERENCED_PARAMETER(pContext);
     UNREFERENCED_PARAMETER(op);
