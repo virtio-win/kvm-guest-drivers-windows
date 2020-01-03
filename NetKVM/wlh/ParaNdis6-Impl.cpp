@@ -85,7 +85,7 @@ NDIS_HANDLE ParaNdis_OpenNICConfiguration(PARANDIS_ADAPTER *pContext)
     DEBUG_ENTRY(2);
     co.Header.Type = NDIS_OBJECT_TYPE_CONFIGURATION_OBJECT;
     co.Header.Revision = NDIS_CONFIGURATION_OBJECT_REVISION_1;
-    co.Header.Size = sizeof(co);
+    co.Header.Size = NDIS_SIZEOF_CONFIGURATION_OBJECT_REVISION_1;
     co.Flags = 0;
     co.NdisHandle = pContext->MiniportHandle;
     status = NdisOpenConfigurationEx(&co, &cfg);
@@ -649,7 +649,7 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
         mic.MessageInterruptDpcHandler = MiniportMSIInterruptDpc;
     }
     PoolParams.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
-    PoolParams.Header.Size = sizeof(PoolParams);
+    PoolParams.Header.Size = NDIS_SIZEOF_NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
     PoolParams.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
     PoolParams.ProtocolId = NDIS_PROTOCOL_ID_DEFAULT;
     PoolParams.fAllocateNetBuffer = TRUE;
@@ -695,7 +695,7 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
         NDIS_SG_DMA_DESCRIPTION sgDesc;
         sgDesc.Header.Type = NDIS_OBJECT_TYPE_SG_DMA_DESCRIPTION;
         sgDesc.Header.Revision = NDIS_SG_DMA_DESCRIPTION_REVISION_1;
-        sgDesc.Header.Size = sizeof(sgDesc);
+        sgDesc.Header.Size = NDIS_SIZEOF_SG_DMA_DESCRIPTION_REVISION_1;
         sgDesc.Flags = NDIS_SG_DMA_64_BIT_ADDRESS;
         sgDesc.MaximumPhysicalMapping = 0x10000; // 64K
         sgDesc.ProcessSGListHandler = ProcessSGListHandler;

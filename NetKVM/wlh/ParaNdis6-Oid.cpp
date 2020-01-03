@@ -448,7 +448,7 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 
         case OID_GEN_INTERRUPT_MODERATION:
             u.InterruptModeration.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
-            u.InterruptModeration.Header.Size = sizeof(u.InterruptModeration);
+            u.InterruptModeration.Header.Size = NDIS_SIZEOF_INTERRUPT_MODERATION_PARAMETERS_REVISION_1;
             u.InterruptModeration.Header.Revision = NDIS_INTERRUPT_MODERATION_PARAMETERS_REVISION_1;
             u.InterruptModeration.Flags = 0;
             u.InterruptModeration.InterruptModeration = NdisInterruptModerationNotSupported;
@@ -1225,7 +1225,7 @@ NDIS_STATUS ParaNdis6_GetRegistrationOffloadInfo(
     {
         poa->Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES;
         poa->Header.Revision = NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES_REVISION_1;
-        poa->Header.Size = sizeof(*poa);
+        poa->Header.Size = NDIS_SIZEOF_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES_REVISION_1;
         poa->DefaultOffloadConfiguration = &pContext->ReportedOffloadConfiguration;
         poa->HardwareOffloadCapabilities = &pContext->ReportedOffloadCapabilities;
         DumpOffloadStructure(poa->HardwareOffloadCapabilities, "Initial Capabilities");
