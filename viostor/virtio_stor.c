@@ -1950,7 +1950,7 @@ VioStorCompleteRequest(
         if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
             adaptExt->sn_ok = TRUE;
             if (Srb) {
-                PCDB cdb = SRB_CDB((PSRB_TYPE)(Srb));
+                PCDB cdb = SRB_CDB(Srb);
                 if ((cdb->CDB6INQUIRY3.PageCode == VPD_SERIAL_NUMBER) &&
                     (cdb->CDB6INQUIRY3.EnableVitalProductData == 1)) {
                     PVPD_SERIAL_NUMBER_PAGE SerialPage;
