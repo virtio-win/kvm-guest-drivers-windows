@@ -554,6 +554,24 @@ VOID RSSCalcHash_Unsafe(
             return;
         }
 
+#if (NDIS_SUPPORT_NDIS680)
+        if (packetInfo->isUDP && (hashTypes & NDIS_HASH_UDP_IPV4))
+        {
+            IPv4Header *pIpHeader = (IPv4Header *)RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen);
+            UDPHeader *pUDPHeader = (UDPHeader *)RtlOffsetToPointer(pIpHeader, packetInfo->L3HdrLen);
+
+            sgBuff[0].chunkPtr = RtlOffsetToPointer(pIpHeader, FIELD_OFFSET(IPv4Header, ip_src));
+            sgBuff[0].chunkLen = RTL_FIELD_SIZE(IPv4Header, ip_src) + RTL_FIELD_SIZE(IPv4Header, ip_dest);
+            sgBuff[1].chunkPtr = RtlOffsetToPointer(pUDPHeader, FIELD_OFFSET(UDPHeader, udp_src));
+            sgBuff[1].chunkLen = RTL_FIELD_SIZE(UDPHeader, udp_src) + RTL_FIELD_SIZE(UDPHeader, udp_dest);
+
+            packetInfo->RSSHash.Value = ToeplitzHash(sgBuff, 2, RSSParameters->ActiveHashingSettings.HashSecretKey);
+            packetInfo->RSSHash.Type = NDIS_HASH_UDP_IPV4;
+            packetInfo->RSSHash.Function = NdisHashFunctionToeplitz;
+            return;
+        }
+#endif
+
         if(hashTypes & NDIS_HASH_IPV4)
         {
             sgBuff[0].chunkPtr = RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen + FIELD_OFFSET(IPv4Header, ip_src));
@@ -587,6 +605,26 @@ VOID RSSCalcHash_Unsafe(
                 return;
             }
         }
+
+#if (NDIS_SUPPORT_NDIS680)
+        if (packetInfo->isUDP && (hashTypes & (NDIS_HASH_UDP_IPV6 | NDIS_HASH_UDP_IPV6_EX)))
+        {
+            IPv6Header *pIpHeader = (IPv6Header *)RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen);
+            UDPHeader  *pUDPHeader = (UDPHeader *)RtlOffsetToPointer(pIpHeader, packetInfo->L3HdrLen);
+
+            sgBuff[0].chunkPtr = (PCHAR)GetIP6SrcAddrForHash(dataBuffer, packetInfo, hashTypes);
+            sgBuff[0].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_src_address);
+            sgBuff[1].chunkPtr = (PCHAR)GetIP6DstAddrForHash(dataBuffer, packetInfo, hashTypes);
+            sgBuff[1].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_dst_address);
+            sgBuff[2].chunkPtr = RtlOffsetToPointer(pUDPHeader, FIELD_OFFSET(UDPHeader, udp_src));
+            sgBuff[2].chunkLen = RTL_FIELD_SIZE(UDPHeader, udp_src) + RTL_FIELD_SIZE(UDPHeader, udp_dest);
+
+            packetInfo->RSSHash.Value = ToeplitzHash(sgBuff, 3, RSSParameters->ActiveHashingSettings.HashSecretKey);
+            packetInfo->RSSHash.Type = (hashTypes & NDIS_HASH_UDP_IPV6_EX) ? NDIS_HASH_UDP_IPV6_EX : NDIS_HASH_UDP_IPV6;
+            packetInfo->RSSHash.Function = NdisHashFunctionToeplitz;
+            return;
+        }
+#endif
 
         if(hashTypes & (NDIS_HASH_IPV6 | NDIS_HASH_IPV6_EX))
         {
