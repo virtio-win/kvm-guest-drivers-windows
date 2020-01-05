@@ -59,13 +59,8 @@ static VOID CleanupRSSParameters(PARANDIS_RSS_PARAMS *RSSParameters)
 static VOID InitRSSCapabilities(NDIS_RECEIVE_SCALE_CAPABILITIES *RSSCapabilities, ULONG RSSReceiveQueuesNumber)
 {
     RSSCapabilities->Header.Type = NDIS_OBJECT_TYPE_RSS_CAPABILITIES;
-#if (NDIS_SUPPORT_NDIS630)
-    RSSCapabilities->Header.Revision = NDIS_RECEIVE_SCALE_CAPABILITIES_REVISION_2;
-    RSSCapabilities->Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_2;
-#else
     RSSCapabilities->Header.Revision = NDIS_RECEIVE_SCALE_CAPABILITIES_REVISION_1;
     RSSCapabilities->Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_1;
-#endif
     RSSCapabilities->CapabilitiesFlags =    NDIS_RSS_CAPS_MESSAGE_SIGNALED_INTERRUPTS |
                                         NDIS_RSS_CAPS_CLASSIFICATION_AT_ISR |
                                         NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4 |
@@ -75,7 +70,17 @@ static VOID InitRSSCapabilities(NDIS_RECEIVE_SCALE_CAPABILITIES *RSSCapabilities
     RSSCapabilities->NumberOfInterruptMessages = 1;
     RSSCapabilities->NumberOfReceiveQueues = RSSReceiveQueuesNumber;
 #if (NDIS_SUPPORT_NDIS630)
+    RSSCapabilities->Header.Revision = NDIS_RECEIVE_SCALE_CAPABILITIES_REVISION_2;
+    RSSCapabilities->Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_2;
     RSSCapabilities->NumberOfIndirectionTableEntries = NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2 / sizeof(PROCESSOR_NUMBER);
+#endif
+#if (NDIS_SUPPORT_NDIS680)
+    if (CheckNdisVersion(6, 80))
+    {
+        RSSCapabilities->CapabilitiesFlags |= NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV4 | NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6 | NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6_EX;
+        RSSCapabilities->Header.Revision = NDIS_RECEIVE_SCALE_CAPABILITIES_REVISION_3;
+        RSSCapabilities->Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_3;
+    }
 #endif
 }
 
@@ -99,13 +104,15 @@ static BOOLEAN IsValidHashInfo(ULONG HashInformation)
 
     ULONG ulHashType = NDIS_RSS_HASH_TYPE_FROM_HASH_INFO(HashInformation);
     ULONG ulHashFunction = NDIS_RSS_HASH_FUNC_FROM_HASH_INFO(HashInformation);
-
+    ULONG ulAllowedHashTypes = NDIS_HASH_IPV4 | NDIS_HASH_TCP_IPV4 | NDIS_HASH_IPV6 | NDIS_HASH_TCP_IPV6 |
+                                 NDIS_HASH_IPV6_EX | NDIS_HASH_TCP_IPV6_EX;
+#if (NDIS_SUPPORT_NDIS680)
+    ulAllowedHashTypes |= NDIS_HASH_UDP_IPV4 | NDIS_HASH_UDP_IPV6 | NDIS_HASH_UDP_IPV6_EX;
+#endif
     if (HashInformation == 0)
         return TRUE;
 
-    if (HASH_FLAGS_COMBINATION(ulHashType, NDIS_HASH_IPV4 | NDIS_HASH_TCP_IPV4 |
-                                           NDIS_HASH_IPV6 | NDIS_HASH_TCP_IPV6 |
-                                           NDIS_HASH_IPV6_EX | NDIS_HASH_TCP_IPV6_EX))
+    if (HASH_FLAGS_COMBINATION(ulHashType, ulAllowedHashTypes))
         return ulHashFunction == NdisHashFunctionToeplitz;
 
     return FALSE;
