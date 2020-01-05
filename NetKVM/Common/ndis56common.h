@@ -88,6 +88,24 @@ extern "C"
 #define NETKVM_COPY_RX_DATA
 #endif
 
+typedef struct _tagRunTimeNdisVersion
+{
+    UCHAR major;
+    UCHAR minor;
+}tRunTimeNdisVersion;
+
+extern const tRunTimeNdisVersion& ParandisVersion;
+
+/* true if NDIS version is at least major.minor */
+static bool FORCEINLINE CheckNdisVersion(UCHAR major, UCHAR minor)
+{
+    if (ParandisVersion.major == major)
+    {
+        return ParandisVersion.minor >= minor;
+    }
+    return ParandisVersion.major > major;
+}
+
 typedef struct _tagPARANDIS_ADAPTER PARANDIS_ADAPTER;
 
 #include "ParaNdis-SM.h"
