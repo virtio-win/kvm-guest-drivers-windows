@@ -1109,7 +1109,13 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
     chars.DirectOidRequestHandler       = ParaNdis6x_DirectOidRequest;
     chars.CancelDirectOidRequestHandler = ParaNdis6x_CancelDirectOidRequest;
 #endif
-
+#if NDIS_SUPPORT_NDIS680
+    if (CheckNdisVersion(6, 80))
+    {
+        chars.Header.Revision = NDIS_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_3;
+        chars.Header.Size = NDIS_SIZEOF_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_3;
+    }
+#endif
     status = NdisMRegisterMiniportDriver(
             pDriverObject,
             pRegistryPath,
