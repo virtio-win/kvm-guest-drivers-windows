@@ -400,6 +400,7 @@ typedef struct _tagPARANDIS_ADAPTER
     u64                     u64GuestFeatures;
     BOOLEAN                 bConnected;
     BOOLEAN                 bGuestAnnounced;
+    NDIS_PHYSICAL_MEDIUM    physicalMediaType;
     NDIS_MEDIA_CONNECT_STATE fCurrentLinkState;
     BOOLEAN                 bEnableInterruptHandlingDPC;
     BOOLEAN                 bDoSupportPriority;

@@ -73,6 +73,7 @@ typedef struct _tagConfigurationEntry
 
 typedef struct _tagConfigurationEntries
 {
+    tConfigurationEntry PhysicalMediaType;
     tConfigurationEntry PrioritySupport;
     tConfigurationEntry isLogEnabled;
     tConfigurationEntry debugLevel;
@@ -105,6 +106,7 @@ typedef struct _tagConfigurationEntries
 
 static const tConfigurationEntries defaultConfiguration =
 {
+    { "*PhysicalMediaType", 0,  0,  0xff },
     { "Priority",       0,  0,  1 },
     { "DoLog",          1,  0,  1 },
     { "DebugLevel",     2,  0,  8 },
@@ -233,6 +235,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
         cfg = ParaNdis_OpenNICConfiguration(pContext);
         if (cfg)
         {
+            GetConfigurationEntry(cfg, &pConfiguration->PhysicalMediaType);
             GetConfigurationEntry(cfg, &pConfiguration->isLogEnabled);
             GetConfigurationEntry(cfg, &pConfiguration->debugLevel);
             GetConfigurationEntry(cfg, &pConfiguration->PrioritySupport);
@@ -264,6 +267,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
 
             bDebugPrint = pConfiguration->isLogEnabled.ulValue;
             virtioDebugLevel = pConfiguration->debugLevel.ulValue;
+            pContext->physicalMediaType = (NDIS_PHYSICAL_MEDIUM)pConfiguration->PhysicalMediaType.ulValue;
             pContext->maxFreeTxDescriptors = pConfiguration->TxCapacity.ulValue;
             pContext->NetMaxReceiveBuffers = pConfiguration->RxCapacity.ulValue;
             pContext->uNumberOfHandledRXPacketsInDPC = pConfiguration->NumberOfHandledRXPacketsInDPC.ulValue;
