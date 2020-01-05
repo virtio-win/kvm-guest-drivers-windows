@@ -227,6 +227,22 @@ VOID FillCPUMappingArray(
     }
 }
 
+static ULONG MinimalRssParametersLength(const NDIS_RECEIVE_SCALE_PARAMETERS* Params)
+{
+    if (Params->Header.Revision == NDIS_RECEIVE_SCALE_PARAMETERS_REVISION_2)
+    {
+        return NDIS_SIZEOF_RECEIVE_SCALE_PARAMETERS_REVISION_2;
+    }
+#if (NDIS_SUPPORT_NDIS660)
+    // we can receive structure rev.3
+    if (Params->Header.Revision == NDIS_RECEIVE_SCALE_PARAMETERS_REVISION_3)
+    {
+        return NDIS_SIZEOF_RECEIVE_SCALE_PARAMETERS_REVISION_3;
+    }
+#endif
+    return sizeof(*Params);
+}
+
 NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
                                         const NDIS_RECEIVE_SCALE_PARAMETERS* Params,
                                         UINT ParamsLength,
@@ -235,25 +251,39 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
     PARANDIS_RSS_PARAMS *RSSParameters = &pContext->RSSParameters;
     ULONG ProcessorMasksSize;
     ULONG IndirectionTableEntries;
+    ULONG minimalLength;
 
     *ParamsBytesRead = 0;
 
-    CNdisPassiveWriteAutoLock autoLock(RSSParameters->rwLock);
+    if (ParamsLength < sizeof(Params->Header))
+    {
+        DPrintf(0, "[%s] invalid length %d!\n", __FUNCTION__, ParamsLength);
+        return NDIS_STATUS_INVALID_LENGTH;
+    }
 
-    if((RSSParameters->RSSMode == PARANDIS_RSS_HASHING) &&
+    minimalLength = MinimalRssParametersLength(Params);
+
+    if (ParamsLength < minimalLength)
+    {
+        DPrintf(0, "[%s] invalid length (1) %d < %d!\n", __FUNCTION__, ParamsLength, minimalLength);
+        *ParamsBytesRead = sizeof(Params->Header);
+        return NDIS_STATUS_INVALID_LENGTH;
+    }
+
+    if ((RSSParameters->RSSMode == PARANDIS_RSS_HASHING) &&
         !(Params->Flags & NDIS_RSS_PARAM_FLAG_DISABLE_RSS) &&
         (Params->HashInformation != 0))
-        return NDIS_STATUS_NOT_SUPPORTED;
-
-    if (ParamsLength < sizeof(NDIS_RECEIVE_SCALE_PARAMETERS))
     {
-        DPrintf(0, "[%s] invalid length (1)\n", __FUNCTION__);
-        return NDIS_STATUS_INVALID_LENGTH;
+        return NDIS_STATUS_NOT_SUPPORTED;
     }
 
     if (!(Params->Flags & NDIS_RSS_PARAM_FLAG_HASH_INFO_UNCHANGED) &&
         !IsValidHashInfo(Params->HashInformation))
+    {
         return NDIS_STATUS_INVALID_PARAMETER;
+    }
+
+    CNdisPassiveWriteAutoLock autoLock(RSSParameters->rwLock);
 
     if(Params->Flags & NDIS_RSS_PARAM_FLAG_DISABLE_RSS || (Params->HashInformation == 0))
     {
@@ -330,8 +360,14 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
                     &RSSParameters->RSSScalingSettings);
     }
 
-    *ParamsBytesRead += sizeof(NDIS_RECEIVE_SCALE_PARAMETERS);
-
+    *ParamsBytesRead += minimalLength;
+#if (NDIS_SUPPORT_NDIS680)
+    if (CheckNdisVersion(6, 80))
+    {
+        // simplify this on Win10
+        *ParamsBytesRead = ParamsLength;
+    }
+#endif
     ParaNdis_ResetRxClassification(pContext);
 
     return ParaNdis_SetupRSSQueueMap(pContext);
