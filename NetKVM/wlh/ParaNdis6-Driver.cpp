@@ -260,7 +260,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
         miniportAttributes.GeneralAttributes.PowerManagementCapabilities = &power60Caps;
 #endif
         miniportAttributes.GeneralAttributes.MediaType = NdisMedium802_3;
-        miniportAttributes.GeneralAttributes.PhysicalMediumType = NdisPhysicalMedium802_3;
+        miniportAttributes.GeneralAttributes.PhysicalMediumType = pContext->physicalMediaType;
         miniportAttributes.GeneralAttributes.MtuSize = pContext->MaxPacketSize.nMaxDataSize;
         miniportAttributes.GeneralAttributes.LookaheadSize = pContext->MaxPacketSize.nMaxFullSizeOS;
         miniportAttributes.GeneralAttributes.MaxXmitLinkSpeed =
