@@ -72,6 +72,8 @@ ULONG bDisableMSI = FALSE;
 
 static NDIS_HANDLE      DriverHandle;
 static LONG             gID = 0;
+static tRunTimeNdisVersion _ParandisVersion;
+const tRunTimeNdisVersion& ParandisVersion = _ParandisVersion;
 
 static const char *ConnectStateName(NDIS_MEDIA_CONNECT_STATE state)
 {
@@ -1018,6 +1020,36 @@ extern "C"
 DRIVER_INITIALIZE DriverEntry;
 }
 
+static void SetRuntimeNdisVersion()
+{
+#if (NDIS_SUPPORT_NDIS650)
+    ULONG ul = NdisGetVersion();
+    UCHAR major = (UCHAR)(ul >> 16);
+    UCHAR minor = ul & 0xff;
+    DPrintf(0, "system NDIS is %d.%d\n", major, minor);
+    if (major > NDIS_MINIPORT_MAJOR_VERSION)
+    {
+        major = NDIS_MINIPORT_MAJOR_VERSION;
+        minor = NDIS_MINIPORT_MINOR_VERSION;
+    }
+    if (minor > NDIS_MINIPORT_MINOR_VERSION)
+    {
+        minor = NDIS_MINIPORT_MINOR_VERSION;
+    }
+    if (minor < NDIS_MINIPORT_MINOR_VERSION)
+    {
+        minor = 30;
+    }
+    _ParandisVersion.major = major;
+    _ParandisVersion.minor = minor;
+
+    DPrintf(0, "runtime NDIS as %d.%d\n", major, minor);
+#else
+    _ParandisVersion.major = NDIS_MINIPORT_MAJOR_VERSION;
+    _ParandisVersion.minor = NDIS_MINIPORT_MINOR_VERSION;
+#endif
+}
+
 NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath)
 {
     NDIS_STATUS                             status = NDIS_STATUS_FAILURE;
@@ -1034,20 +1066,20 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
     ParaNdis_DebugInitialize();
 
     DEBUG_ENTRY(0);
-    DPrintf(0, __DATE__ " " __TIME__ "built %d.%d\n", NDIS_MINIPORT_MAJOR_VERSION, NDIS_MINIPORT_MINOR_VERSION);
+    DPrintf(0, __DATE__ " " __TIME__ " built %d.%d\n", NDIS_MINIPORT_MAJOR_VERSION, NDIS_MINIPORT_MINOR_VERSION);
 #ifdef DEBUG_TIMING
     KeQueryTickCount(&TickCount);
     NdisGetCurrentSystemTime(&SysTime);
     DPrintf(0, ("\n%s>> CPU #%d, perf-counter %I64d, tick count %I64d, NDIS_sys_time %I64d\n", __FUNCTION__, KeGetCurrentProcessorNumber(), KeQueryPerformanceCounter(NULL).QuadPart,TickCount.QuadPart, SysTime.QuadPart));
 #endif
-
+    SetRuntimeNdisVersion();
     NdisZeroMemory(&chars, sizeof(chars));
 
     chars.Header.Type      = NDIS_OBJECT_TYPE_MINIPORT_DRIVER_CHARACTERISTICS;
     chars.Header.Revision  = NDIS_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_1;
     chars.Header.Size      = NDIS_SIZEOF_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_1;
-    chars.MajorNdisVersion = NDIS_MINIPORT_MAJOR_VERSION;
-    chars.MinorNdisVersion = NDIS_MINIPORT_MINOR_VERSION;
+    chars.MajorNdisVersion = _ParandisVersion.major;
+    chars.MinorNdisVersion = _ParandisVersion.minor;
     /* stupid thing, they are at least short */
     chars.MajorDriverVersion = (UCHAR)(PARANDIS_MAJOR_DRIVER_VERSION & 0xFF);
     chars.MinorDriverVersion = (UCHAR)(PARANDIS_MINOR_DRIVER_VERSION & 0xFF);

@@ -305,14 +305,14 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
         break;
 
     case OID_GEN_VENDOR_DRIVER_VERSION:
-        SETINFO(ul, (NDIS_MINIPORT_MAJOR_VERSION << 16) | NDIS_MINIPORT_MINOR_VERSION);
+        SETINFO(ul, ((ULONG)ParandisVersion.major << 16) | ParandisVersion.minor);
         break;
     case OID_GEN_CURRENT_PACKET_FILTER:
         pInfo = &pContext->PacketFilter;
         ulSize = sizeof(pContext->PacketFilter);
         break;
     case OID_GEN_DRIVER_VERSION:
-        SETINFO(us, ((NDIS_MINIPORT_MAJOR_VERSION << 8) | NDIS_MINIPORT_MINOR_VERSION));
+        SETINFO(us, ((USHORT)ParandisVersion.major << 8) | ParandisVersion.minor);
         break;
     case OID_GEN_MAC_OPTIONS:
         {
