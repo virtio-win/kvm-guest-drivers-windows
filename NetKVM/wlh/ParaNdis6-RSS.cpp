@@ -44,6 +44,8 @@ static VOID InitRSSParameters(PARANDIS_RSS_PARAMS *RSSParameters, CCHAR RSSRecei
 {
     NdisZeroMemory(RSSParameters, sizeof(*RSSParameters));
     RSSParameters->ReceiveQueuesNumber = RSSReceiveQueuesNumber;
+    RSSParameters->RSSScalingSettings.DefaultQueue = PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
+    RSSParameters->ActiveRSSScalingSettings.DefaultQueue = PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
 }
 
 static VOID CleanupRSSParameters(PARANDIS_RSS_PARAMS *RSSParameters)
@@ -686,13 +688,15 @@ CCHAR ParaNdis6_RSSGetScalingDataForPacket(
     }
     else if (packetInfo->RSSHash.Type == 0)
     {
-        targetQueue = PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
+        targetQueue = RSSParameters->ActiveRSSScalingSettings.DefaultQueue;
+        *targetProcessor = RSSParameters->ActiveRSSScalingSettings.DefaultProcessor;
     }
     else
     {
         ULONG indirectionIndex = packetInfo->RSSHash.Value & RSSParameters->ActiveRSSScalingSettings.RSSHashMask;
 
         targetQueue = RSSParameters->ActiveRSSScalingSettings.QueueIndirectionTable[indirectionIndex];
+
         if (targetQueue == PARANDIS_RECEIVE_NO_QUEUE)
         {
             targetQueue = PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
@@ -749,9 +753,10 @@ static void PrintRSSSettings(const PPARANDIS_RSS_PARAMS RSSParameters)
 {
     ULONG CPUNumber = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
 
-    DPrintf(RSS_PRINT_LEVEL, "%lu cpus, %d queues, first queue CPU index %ld",
+    DPrintf(RSS_PRINT_LEVEL, "%lu cpus, %d queues, first queue CPU index %ld, default queue %d\n",
         CPUNumber, RSSParameters->ReceiveQueuesNumber,
-        RSSParameters->RSSScalingSettings.FirstQueueIndirectionIndex);
+        RSSParameters->RSSScalingSettings.FirstQueueIndirectionIndex,
+        RSSParameters->RSSScalingSettings.DefaultQueue);
 
     PrintIndirectionTable(&RSSParameters->ActiveRSSScalingSettings);
 
