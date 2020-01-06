@@ -146,6 +146,22 @@ CCHAR FindReceiveQueueForCurrentCpu(PPARANDIS_SCALING_SETTINGS RSSScalingSetting
 }
 
 static
+void SetDefaultQueue(PPARANDIS_SCALING_SETTINGS RSSScalingSettings, ULONG idx)
+{
+    if (idx < RSSScalingSettings->CPUIndexMappingSize)
+    {
+        NTSTATUS status;
+        status = KeGetProcessorNumberFromIndex(idx, &RSSScalingSettings->DefaultProcessor);
+        if (NT_SUCCESS(status))
+        {
+            RSSScalingSettings->DefaultQueue = RSSScalingSettings->CPUIndexMapping[idx];
+            return;
+        }
+    }
+    RSSScalingSettings->DefaultQueue = PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
+}
+
+static
 BOOLEAN AllocateCPUMappingArray(PARANDIS_ADAPTER *pContext, PPARANDIS_SCALING_SETTINGS RSSScalingSettings)
 {
     ULONG i;
@@ -293,6 +309,20 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
     }
     else
     {
+        BOOLEAN bHasDefaultCPU = false;
+        ULONG defaultCPUIndex = INVALID_PROCESSOR_INDEX;
+#if (NDIS_SUPPORT_NDIS660)
+        // we can receive structure rev.3
+        if (Params->Header.Revision >= NDIS_RECEIVE_SCALE_PARAMETERS_REVISION_3 &&
+           !(Params->Flags & NDIS_RSS_PARAM_FLAG_DEFAULT_PROCESSOR_UNCHANGED))
+        {
+            PROCESSOR_NUMBER num = Params->DefaultProcessorNumber;
+            bHasDefaultCPU = true;
+            defaultCPUIndex = KeGetProcessorIndexFromNumber(&num);
+            TraceNoPrefix(0, "[%s] has default CPU idx %d\n", __FUNCTION__, defaultCPUIndex);
+        }
+#endif
+
         DPrintf(0, "[%s] RSS Params: flags 0x%4.4x, hash information 0x%4.4lx\n",
             __FUNCTION__, Params->Flags, Params->HashInformation);
 
@@ -340,7 +370,19 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
             *ParamsBytesRead += ProcessorMasksSize;
 
             FillCPUMappingArray(&RSSParameters->RSSScalingSettings, RSSParameters->ReceiveQueuesNumber);
+
+            if (bHasDefaultCPU)
+            {
+                SetDefaultQueue(&RSSParameters->RSSScalingSettings, defaultCPUIndex);
+            }
             PrintRSSSettings(RSSParameters);
+        }
+        else if (bHasDefaultCPU)
+        {
+            SetDefaultQueue(&RSSParameters->ActiveRSSScalingSettings, defaultCPUIndex);
+            RSSParameters->RSSScalingSettings.DefaultQueue = RSSParameters->ActiveRSSScalingSettings.DefaultQueue;
+            RSSParameters->RSSScalingSettings.DefaultProcessor = RSSParameters->ActiveRSSScalingSettings.DefaultProcessor;
+            TraceNoPrefix(0, "[%s] default queue -> %d\n", __FUNCTION__, RSSParameters->ActiveRSSScalingSettings.DefaultQueue);
         }
 
         if (!(Params->Flags & NDIS_RSS_PARAM_FLAG_HASH_INFO_UNCHANGED))
