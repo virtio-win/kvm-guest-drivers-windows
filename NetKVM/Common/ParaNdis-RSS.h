@@ -38,6 +38,9 @@ typedef struct _tagPARANDIS_SCALING_SETTINGS
     ULONG          CPUIndexMappingSize;
 
     LONG           FirstQueueIndirectionIndex;
+
+    PROCESSOR_NUMBER DefaultProcessor;
+    CCHAR          DefaultQueue;
 } PARANDIS_SCALING_SETTINGS, *PPARANDIS_SCALING_SETTINGS;
 
 typedef struct _tagPARANDIS_RSS_PARAMS
