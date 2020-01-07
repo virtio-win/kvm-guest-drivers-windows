@@ -317,6 +317,10 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
            !(Params->Flags & NDIS_RSS_PARAM_FLAG_DEFAULT_PROCESSOR_UNCHANGED))
         {
             PROCESSOR_NUMBER num = Params->DefaultProcessorNumber;
+            // due to unknown reason the Reserved field might be not zero
+            // (we see it on Win10.18362), this causes KeGetProcessorIndexFromNumber
+            // to return INVALID_PROCESSOR_INDEX
+            num.Reserved = 0;
             bHasDefaultCPU = true;
             defaultCPUIndex = KeGetProcessorIndexFromNumber(&num);
             TraceNoPrefix(0, "[%s] has default CPU idx %d\n", __FUNCTION__, defaultCPUIndex);
