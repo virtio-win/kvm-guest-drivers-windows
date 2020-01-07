@@ -319,11 +319,15 @@ BalloonEvtDeviceReleaseHardware (
 
     PAGED_CODE();
 
+    WdfObjectAcquireLock(Device);
+
     devCtx = GetDeviceContext(Device);
 
     VirtIOWdfDeviceFreeDmaMemoryByTag(&devCtx->VDevice.VIODevice, BALLOON_MGMT_POOL_TAG);
     devCtx->MemStats = NULL;
     devCtx->pfns_table = NULL;
+
+    WdfObjectReleaseLock(Device);
 
     VirtIOWdfShutdown(&devCtx->VDevice);
 
@@ -655,10 +659,12 @@ BalloonEvtFileClose(
     // synchronize with the device to make sure it doesn't exit D0 from underneath us
     WdfObjectAcquireLock(Device);
 
-    RtlFillMemory(devCtx->MemStats,
-        sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
+    if (devCtx->MemStats)
+    {
+        RtlFillMemory(devCtx->MemStats, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
+    }
 
-    if (devCtx->StatVirtQueue)
+    if (devCtx->StatVirtQueue && devCtx->MemStats)
     {
         BalloonMemStats(Device);
     }
