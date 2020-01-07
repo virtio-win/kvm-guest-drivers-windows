@@ -337,7 +337,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS680_MINIPORT=1;NTDDI_VERSION=0xA0000004</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
     <ResourceCompile>
