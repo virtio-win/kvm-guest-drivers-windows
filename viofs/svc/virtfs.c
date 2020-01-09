@@ -1446,6 +1446,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
             Remains = read_out->hdr.len - sizeof(struct fuse_out_header);
             if (Remains == 0)
             {
+                // A successful request with no data means no more entries.
                 break;
             }
 
@@ -1471,7 +1472,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
                 if (FileNameLength > 0)
                 {
                     DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) +
-                        (FileNameLength + 1) * sizeof(WCHAR));
+                        FileNameLength * sizeof(WCHAR));
 
                     SetFileInfo(&DirEntryPlus->entry_out.attr,
                         &DirInfo->FileInfo);
@@ -1553,8 +1554,8 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
 
         ZeroMemory(DirInfoBuf, sizeof(DirInfoBuf));
 
-        // Not using FspPosixMapPosixToWindowsPath so we can do an in-place
-        // mapping.
+        // Not using FspPosixMapPosixToWindowsPath so we can do the conversion
+        // in-place.
         FileNameLength = MultiByteToWideChar(CP_UTF8, 0, dirent->dirent.name,
             dirent->dirent.namelen, DirInfo->FileNameBuf, MAX_PATH);
         
@@ -1563,7 +1564,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         if (FileNameLength > 0)
         {
             DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) +
-                (FileNameLength + 1) * sizeof(WCHAR));
+                FileNameLength * sizeof(WCHAR));
 
             SetFileInfo(&dirent->entry_out.attr, &DirInfo->FileInfo);
             
@@ -1686,7 +1687,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 //    VolumeParams.PassQueryDirectoryPattern = 1;
     VolumeParams.FlushAndPurgeOnCleanup = 1;
     VolumeParams.UmFileContextIsUserContext2 = 1;
-    VolumeParams.DirectoryMarkerAsNextOffset = 1;
+//    VolumeParams.DirectoryMarkerAsNextOffset = 1;
     if (VolumePrefix != NULL)
     {
         wcscpy_s(VolumeParams.Prefix,
