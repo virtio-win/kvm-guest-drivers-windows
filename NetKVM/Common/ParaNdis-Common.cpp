@@ -408,6 +408,7 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
         {VIRTIO_F_RING_PACKED, "VIRTIO_F_RING_PACKED"},
         {VIRTIO_NET_F_CTRL_GUEST_OFFLOADS, "VIRTIO_NET_F_CTRL_GUEST_OFFLOADS" },
         {VIRTIO_NET_F_RSC_EXT, "VIRTIO_NET_F_RSC_EXT" },
+        {VIRTIO_NET_F_RSS, "VIRTIO_NET_F_RSS" },
     };
     UINT i;
     for (i = 0; i < sizeof(Features)/sizeof(Features[0]); ++i)
