@@ -86,6 +86,19 @@ static VOID InitRSSCapabilities(NDIS_RECEIVE_SCALE_CAPABILITIES *RSSCapabilities
 #endif
 }
 
+BOOLEAN ParaNdis6_IsDeviceRSSCapable(PARANDIS_ADAPTER *pContext)
+{
+    BOOLEAN bResult = (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_IPv4) &&
+        pContext->DeviceRSSCapabilities.MaxIndirectEntries >= NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2 / sizeof(PROCESSOR_NUMBER) &&
+        pContext->DeviceRSSCapabilities.MaxKeySize >= NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2;
+    DPrintf(0, "[%s] Device RSS support: key of %d, table of %d, hashes %X = %s\n", __FUNCTION__,
+        pContext->DeviceRSSCapabilities.MaxKeySize,
+        pContext->DeviceRSSCapabilities.MaxIndirectEntries,
+        pContext->DeviceRSSCapabilities.SupportedHashes,
+        bResult ? "OK" : "Not enough");
+    return bResult;
+}
+
 NDIS_RECEIVE_SCALE_CAPABILITIES* ParaNdis6_RSSCreateConfiguration(PARANDIS_RSS_PARAMS *RSSParameters,
                                                                   NDIS_RECEIVE_SCALE_CAPABILITIES *RSSCapabilities,
                                                                   CCHAR RSSReceiveQueuesNumber)

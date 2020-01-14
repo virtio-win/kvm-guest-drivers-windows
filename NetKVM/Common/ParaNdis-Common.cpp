@@ -816,6 +816,22 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
 #if PARANDIS_SUPPORT_RSS
     pContext->bMultiQueue = pContext->bControlQueueSupported && AckFeature(pContext, VIRTIO_NET_F_MQ);
+    if (virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_RSS) && pContext->bControlQueueSupported)
+    {
+        struct virtio_net_config cfg = {};
+        virtio_get_config(&pContext->IODevice, FIELD_OFFSET(struct virtio_net_config, duplex), &cfg.duplex, 8);
+        pContext->DeviceRSSCapabilities.SupportedHashes = cfg.supported_hash_types;
+        pContext->DeviceRSSCapabilities.MaxKeySize = cfg.rss_max_key_size;
+        pContext->DeviceRSSCapabilities.MaxIndirectEntries = cfg.rss_max_indirection_table_length;
+        if (ParaNdis6_IsDeviceRSSCapable(pContext))
+        {
+            pContext->bRSSSupportedByDevice = AckFeature(pContext, VIRTIO_NET_F_RSS);
+        }
+    }
+    if (pContext->bRSSSupportedByDevice)
+    {
+        pContext->bMultiQueue = true;
+    }
     if (pContext->bMultiQueue)
     {
         virtio_get_config(&pContext->IODevice, ETH_ALEN + sizeof(USHORT), &pContext->nHardwareQueues,
@@ -1127,6 +1143,24 @@ UNREFERENCED_PARAMETER(pContext);
 #endif /* PARANDIS_SUPPORT_RSC */
 }
 
+static NDIS_STATUS SetInitialDeviceRSS(PARANDIS_ADAPTER *pContext)
+{
+    NDIS_STATUS status;
+    struct virtio_net_rss_config cfg = {};
+    max_tx_vq(&cfg) = (USHORT)pContext->nPathBundles;
+    DPrintf(0, "[%s]\n", __FUNCTION__);
+    if (!pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ,
+        VIRTIO_NET_CTRL_MQ_RSS_CONFIG, &cfg, sizeof(cfg), NULL, 0, 2))
+    {
+        status = NDIS_STATUS_DEVICE_FAILED;
+    }
+    else
+    {
+        status = NDIS_STATUS_SUCCESS;
+    }
+    return status;
+}
+
 NDIS_STATUS ParaNdis_DeviceConfigureMultiQueue(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
@@ -1134,8 +1168,14 @@ NDIS_STATUS ParaNdis_DeviceConfigureMultiQueue(PARANDIS_ADAPTER *pContext)
 
     if (pContext->nPathBundles > 1)
     {
+        bool bHasMQ = pContext->u64GuestFeatures & (1LL << VIRTIO_NET_F_MQ);
         u16 nPaths = u16(pContext->nPathBundles);
-        if (!pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET, &nPaths, sizeof(nPaths), NULL, 0, 2))
+        if (pContext->bRSSSupportedByDevice)
+        {
+            status = SetInitialDeviceRSS(pContext);
+        }
+        else if (bHasMQ &&
+                 !pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET, &nPaths, sizeof(nPaths), NULL, 0, 2))
         {
             DPrintf(0, "[%s] - Sending MQ control message failed\n", __FUNCTION__);
             status = NDIS_STATUS_DEVICE_FAILED;
