@@ -113,6 +113,98 @@ VOID ParaNdis6_RSSCleanupConfiguration(PARANDIS_RSS_PARAMS *RSSParameters)
     CleanupRSSParameters(RSSParameters);
 }
 
+static ULONG TranslateHashTypes(ULONG hashSettings)
+{
+    ULONG val = 0;
+    val |= (hashSettings & NDIS_HASH_IPV4) ? VIRTIO_NET_RSS_HASH_TYPE_IPv4 : 0;
+    val |= (hashSettings & NDIS_HASH_TCP_IPV4) ? VIRTIO_NET_RSS_HASH_TYPE_TCPv4 : 0;
+    val |= (hashSettings & NDIS_HASH_IPV6) ? VIRTIO_NET_RSS_HASH_TYPE_IPv6 : 0;
+    val |= (hashSettings & NDIS_HASH_IPV6_EX) ? VIRTIO_NET_RSS_HASH_TYPE_IP_EX : 0;
+    val |= (hashSettings & NDIS_HASH_TCP_IPV6) ? VIRTIO_NET_RSS_HASH_TYPE_TCPv6 : 0;
+    val |= (hashSettings & NDIS_HASH_TCP_IPV6_EX) ? VIRTIO_NET_RSS_HASH_TYPE_TCP_EX : 0;
+#if (NDIS_SUPPORT_NDIS680)
+    val |= (hashSettings & NDIS_HASH_UDP_IPV4) ? VIRTIO_NET_RSS_HASH_TYPE_UDPv4 : 0;
+    val |= (hashSettings & NDIS_HASH_UDP_IPV6) ? VIRTIO_NET_RSS_HASH_TYPE_UDPv6 : 0;
+    val |= (hashSettings & NDIS_HASH_UDP_IPV6_EX) ? VIRTIO_NET_RSS_HASH_TYPE_UDP_EX : 0;
+#endif
+    TraceNoPrefix(0, "[%s] 0x%X -> 0x%X", __FUNCTION__, hashSettings, val);
+    return val;
+}
+
+static USHORT ResolveQueue(PARANDIS_ADAPTER *pContext, PPROCESSOR_NUMBER proc, USHORT *fallback)
+{
+    GROUP_AFFINITY a;
+    ParaNdis_ProcessorNumberToGroupAffinity(&a, proc);
+    USHORT n;
+    for (n = 0; n < pContext->nPathBundles; ++n)
+    {
+        const GROUP_AFFINITY& b = pContext->pPathBundles[n].rxPath.DPCAffinity;
+        if (a.Group == b.Group && a.Mask == b.Mask)
+        {
+            return n;
+        }
+    }
+    // the CPU is not used by any queue
+    n = (*fallback)++;
+    if (*fallback >= pContext->nPathBundles)
+    {
+        *fallback = 0;
+    }
+    TraceNoPrefix(0, "[%s] fallback CPU %d.%d -> Q%d", __FUNCTION__, proc->Group, proc->Number, n);
+    return n;
+}
+
+static void SetDeviceRSSSettings(PARANDIS_ADAPTER *pContext)
+{
+    if (!pContext->bRSSSupportedByDevice)
+    {
+        return;
+    }
+    if (pContext->RSSParameters.RSSMode == PARANDIS_RSS_DISABLED)
+    {
+        virtio_net_rss_config cfg = {};
+        cfg.max_tx_vq = (USHORT)pContext->nPathBundles;
+        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_RSS_CONFIG, &cfg, sizeof(cfg), NULL, 0, 2);
+    }
+    else
+    {
+        virtio_net_rss_config *cfg;
+        USHORT fallbackQueue = 0;
+        USHORT indirection_table_len = pContext->RSSParameters.ActiveRSSScalingSettings.IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
+        UCHAR hash_key_len = (UCHAR)pContext->RSSParameters.ActiveHashingSettings.HashSecretKeySize;
+        ULONG config_size = virtio_net_rss_config_size(indirection_table_len, hash_key_len);
+        cfg = (virtio_net_rss_config *)ParaNdis_AllocateMemory(pContext, config_size);
+        if (!cfg)
+        {
+            return;
+        }
+        cfg->indirection_table_mask = indirection_table_len - 1;
+        cfg->unclassified_queue = ResolveQueue(pContext, &pContext->RSSParameters.ActiveRSSScalingSettings.DefaultProcessor, &fallbackQueue);
+        for (USHORT i = 0; i < indirection_table_len; ++i)
+        {
+            cfg->indirection_table[i] = ResolveQueue(pContext,
+                pContext->RSSParameters.ActiveRSSScalingSettings.IndirectionTable + i,
+                &fallbackQueue);
+        }
+        TraceNoPrefix(0, "[%s] Translated indirections: (len = %d)\n", __FUNCTION__, indirection_table_len);
+        ParaNdis_PrintTable<80, 10>(0, cfg->indirection_table, indirection_table_len, "%d", [](const __u16 *p) {  return *p; });
+        max_tx_vq(cfg) = (USHORT)pContext->nPathBundles;
+        hash_key_length(cfg) = hash_key_len;
+        for (USHORT i = 0; i < hash_key_len; ++i)
+        {
+            hash_key_data(cfg, i) = pContext->RSSParameters.ActiveHashingSettings.HashSecretKey[i];
+        }
+        TraceNoPrefix(0, "[%s] RSS key: (len = %d)\n", __FUNCTION__, hash_key_len);
+        ParaNdis_PrintTable<80, 10>(0, (hash_key_length_ptr(cfg) + 1), hash_key_len, "%X", [](const __u8 *p) {  return *p; });
+
+        cfg->hash_types = TranslateHashTypes(pContext->RSSParameters.ActiveHashingSettings.HashInformation);
+
+        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_RSS_CONFIG, cfg, config_size, NULL, 0, 2);
+
+        NdisFreeMemory(cfg, NULL, 0);
+    }
+}
+
 static BOOLEAN IsValidHashInfo(ULONG HashInformation)
 {
 #define HASH_FLAGS_COMBINATION(Type, Flags) ( ((Type) & (Flags)) && !((Type) & ~(Flags)) )
@@ -431,7 +523,14 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
 #endif
     ParaNdis_ResetRxClassification(pContext);
 
-    return ParaNdis_SetupRSSQueueMap(pContext);
+    NDIS_STATUS status = ParaNdis_SetupRSSQueueMap(pContext);
+
+    if (NT_SUCCESS(status))
+    {
+        SetDeviceRSSSettings(pContext);
+    }
+
+    return status;
 }
 
 ULONG ParaNdis6_QueryReceiveHash(const PARANDIS_RSS_PARAMS *RSSParameters,
@@ -520,6 +619,8 @@ NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_ADAPTER *pContext,
     }
 
     ParaNdis_ResetRxClassification(pContext);
+
+    SetDeviceRSSSettings(pContext);
 
     return NDIS_STATUS_SUCCESS;
 }
