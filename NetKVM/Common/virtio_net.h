@@ -59,6 +59,7 @@
 
 #define VIRTIO_NET_F_GUEST_RSC4_DONT_USE	41	/* reserved */
 #define VIRTIO_NET_F_GUEST_RSC6_DONT_USE	42	/* reserved */
+#define VIRTIO_NET_F_RSS    	  60
 #define VIRTIO_NET_F_RSC_EXT	  61
 
 #define VIRTIO_NET_F_SPEED_DUPLEX 63	/* Device set linkspeed and duplex */
@@ -93,12 +94,27 @@ struct virtio_net_config {
 	* Any other value stands for unknown.
 	*/
 	__u8 duplex;
+
+    __u8  rss_max_key_size;
+    __u16 rss_max_indirection_table_length;
+    __u32 supported_hash_types;
+
 } __attribute__((packed));
 
 #define VIRTIO_NET_DUPLEX_UNKNOWN                      0xff
 #define VIRTIO_NET_DUPLEX_HALF                         0x00
 #define VIRTIO_NET_DUPLEX_FULL                         0x01
 #define VIRTIO_NET_SPEED_UNKNOWN                       -1
+
+#define VIRTIO_NET_RSS_HASH_TYPE_IPv4              (1 << 0)
+#define VIRTIO_NET_RSS_HASH_TYPE_TCPv4             (1 << 1)
+#define VIRTIO_NET_RSS_HASH_TYPE_UDPv4             (1 << 2)
+#define VIRTIO_NET_RSS_HASH_TYPE_IPv6              (1 << 3)
+#define VIRTIO_NET_RSS_HASH_TYPE_TCPv6             (1 << 4)
+#define VIRTIO_NET_RSS_HASH_TYPE_UDPv6             (1 << 5)
+#define VIRTIO_NET_RSS_HASH_TYPE_IP_EX             (1 << 6)
+#define VIRTIO_NET_RSS_HASH_TYPE_TCP_EX            (1 << 7)
+#define VIRTIO_NET_RSS_HASH_TYPE_UDP_EX            (1 << 8)
 
 /*
  * This header comes first in the scatter-gather list.  If you don't
@@ -247,14 +263,38 @@ struct virtio_net_ctrl_mac {
  * Accordingly, driver should not transmit new packets  on virtqueues other than
  * specified.
  */
-struct virtio_net_ctrl_mq {
-	__virtio16 virtqueue_pairs;
-};
 
 #define VIRTIO_NET_CTRL_MQ   4
  #define VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET        0
- #define VIRTIO_NET_CTRL_MQ_VQ_PAIRS_MIN        1
- #define VIRTIO_NET_CTRL_MQ_VQ_PAIRS_MAX        0x8000
+ #define VIRTIO_NET_CTRL_MQ_RSS_CONFIG          1
+
+/* for VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET */
+struct virtio_net_ctrl_mq {
+    __virtio16 virtqueue_pairs;
+};
+#define VIRTIO_NET_CTRL_MQ_VQ_PAIRS_MIN        1
+#define VIRTIO_NET_CTRL_MQ_VQ_PAIRS_MAX        0x8000
+
+/* for VIRTIO_NET_CTRL_MQ_RSS_CONFIG */
+struct virtio_net_rss_config {
+    __u32 hash_types;
+    __u16 indirection_table_mask;
+    __u16 unclassified_queue;
+    /* [indirection_table_mask + 1] */
+    __u16 indirection_table[1];
+    __u16 max_tx_vq;
+    __u8 hash_key_length;
+    __u8 hash_key_data[1];
+};
+
+#define virtio_net_rss_config_size(indirection_table_len, key_size) ( \
+    sizeof(struct virtio_net_rss_config) + \
+    sizeof(__u16) * (indirection_table_len) \
+     + (key_size) + 1)
+#define max_tx_vq(cfg) (cfg)->indirection_table[(cfg)->indirection_table_mask + 1]
+#define hash_key_length_ptr(cfg) ((__u8 *)(&max_tx_vq(cfg) + 1))
+#define hash_key_length(cfg) (*hash_key_length_ptr(cfg))
+#define hash_key_data(cfg, i) *(hash_key_length_ptr(cfg) + 1 + (i))
 
 /*
 * Control network offloads
