@@ -77,6 +77,8 @@ NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_ADAPTER *pContext,
                                         UINT ParamsLength,
                                         PUINT ParamsBytesRead);
 
+BOOLEAN ParaNdis6_IsDeviceRSSCapable(PARANDIS_ADAPTER *pContext);
+
 VOID ParaNdis6_RSSCleanupConfiguration(PARANDIS_RSS_PARAMS *RSSParameters);
 
 NDIS_RECEIVE_SCALE_CAPABILITIES* ParaNdis6_RSSCreateConfiguration(PARANDIS_RSS_PARAMS *RSSParameters,

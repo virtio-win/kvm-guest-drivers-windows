@@ -495,6 +495,7 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                     bOffloadv4Enabled;
     BOOLEAN                     bOffloadv6Enabled;
     BOOLEAN                     bDeviceInitialized;
+    BOOLEAN                     bRSSSupportedByDevice;
 
 #if PARANDIS_SUPPORT_RSS
     BOOLEAN                     bRSSOffloadSupported;
@@ -502,6 +503,12 @@ typedef struct _tagPARANDIS_ADAPTER
     NDIS_RECEIVE_SCALE_CAPABILITIES RSSCapabilities;
     PARANDIS_RSS_PARAMS         RSSParameters;
     CCHAR                       RSSMaxQueuesNumber;
+    struct
+    {
+        ULONG                   SupportedHashes;
+        USHORT                  MaxIndirectEntries;
+        UCHAR                   MaxKeySize;
+    } DeviceRSSCapabilities;
 #endif
 
 #if PARANDIS_SUPPORT_RSC
