@@ -171,7 +171,7 @@ public:
 
     void Shutdown()
     {
-        if (CanTouchHardware())
+        if (m_VirtQueue && CanTouchHardware())
         {
             virtqueue_shutdown(m_VirtQueue);
         }
