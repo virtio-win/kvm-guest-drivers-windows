@@ -540,17 +540,6 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     return Status;
 }
 
-static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM *FileSystem,
-                                PWSTR VolumeLabel,
-                                FSP_FSCTL_VOLUME_INFO *VolumeInfo)
-{
-    UNREFERENCED_PARAMETER(FileSystem);
-    UNREFERENCED_PARAMETER(VolumeLabel);
-    UNREFERENCED_PARAMETER(VolumeInfo);
-
-    return STATUS_INVALID_DEVICE_REQUEST;
-}
-
 static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
                                   PWSTR FileName,
                                   PUINT32 PFileAttributes,
@@ -1591,7 +1580,6 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
 static FSP_FILE_SYSTEM_INTERFACE VirtFsInterface =
 {
     .GetVolumeInfo = GetVolumeInfo,
-    .SetVolumeLabel = SetVolumeLabel_,
     .GetSecurityByName = GetSecurityByName,
     .Create = Create,
     .Open = Open,
