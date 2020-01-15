@@ -245,12 +245,11 @@ static NTSTATUS VirtFsFuseRequest(HANDLE Device,
     NTSTATUS Status = STATUS_SUCCESS;
     DWORD BytesReturned = 0;
     BOOL Result;
-    struct fuse_out_header *hdr = OutBuffer;
+    struct fuse_in_header *in_hdr = InBuffer;
+    struct fuse_out_header *out_hdr = OutBuffer;
 
-    DBG(">>req: %d unique: %Iu len: %u",
-        ((struct fuse_in_header *)InBuffer)->opcode,
-        ((struct fuse_in_header *)InBuffer)->unique,
-        ((struct fuse_in_header *)InBuffer)->len);
+    DBG(">>req: %d unique: %Iu len: %u", in_hdr->opcode, in_hdr->unique,
+        in_hdr->len);
 
     Result = DeviceIoControl(Device, IOCTL_VIRTFS_FUSE_REQUEST,
         InBuffer, InBufferSize, OutBuffer, OutBufferSize,
@@ -261,9 +260,10 @@ static NTSTATUS VirtFsFuseRequest(HANDLE Device,
         return FspNtStatusFromWin32(GetLastError());
     }
 
-    DBG("<<len=%u error=%d unique=%Iu", hdr->len, hdr->error, hdr->unique);
+    DBG("<<len: %u error: %d unique: %Iu", out_hdr->len, out_hdr->error,
+        out_hdr->unique);
 
-    if (BytesReturned != hdr->len)
+    if (BytesReturned != out_hdr->len)
     {
         DBG("BytesReturned != hdr->len");
     }
@@ -275,9 +275,9 @@ static NTSTATUS VirtFsFuseRequest(HANDLE Device,
         // XXX return STATUS_UNSUCCESSFUL;
     }
 
-    if (hdr->error < 0)
+    if (out_hdr->error < 0)
     {
-        switch (hdr->error)
+        switch (out_hdr->error)
         {
             case -EPERM:
                 Status = STATUS_ACCESS_DENIED;
