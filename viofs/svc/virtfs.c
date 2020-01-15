@@ -1186,9 +1186,10 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
         return Status;
     }
 
-    if (FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+    // Would be nice to know why the size of an empty directory is 40.
+    if ((FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+        (FileInfo.FileSize > 40))
     {
-        // XXX How to check if a directory is not empty?
         return STATUS_DIRECTORY_NOT_EMPTY;
     }
 
