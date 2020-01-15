@@ -81,9 +81,7 @@ BOOLEAN ParaNdis6_IsDeviceRSSCapable(PARANDIS_ADAPTER *pContext);
 
 VOID ParaNdis6_RSSCleanupConfiguration(PARANDIS_RSS_PARAMS *RSSParameters);
 
-NDIS_RECEIVE_SCALE_CAPABILITIES* ParaNdis6_RSSCreateConfiguration(PARANDIS_RSS_PARAMS *RSSParameters,
-                                                                  NDIS_RECEIVE_SCALE_CAPABILITIES *RSSCapabilities,
-                                                                  CCHAR RSSMaxQueuesNumber);
+NDIS_RECEIVE_SCALE_CAPABILITIES* ParaNdis6_RSSCreateConfiguration(PARANDIS_ADAPTER *pContext);
 
 struct _tagNET_PACKET_INFO;
 

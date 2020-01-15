@@ -58,19 +58,34 @@ static VOID CleanupRSSParameters(PARANDIS_RSS_PARAMS *RSSParameters)
 
 }
 
-static VOID InitRSSCapabilities(NDIS_RECEIVE_SCALE_CAPABILITIES *RSSCapabilities, ULONG RSSReceiveQueuesNumber)
+static VOID InitRSSCapabilities(PARANDIS_ADAPTER *pContext)
 {
+    NDIS_RECEIVE_SCALE_CAPABILITIES *RSSCapabilities = &pContext->RSSCapabilities;
     RSSCapabilities->Header.Type = NDIS_OBJECT_TYPE_RSS_CAPABILITIES;
     RSSCapabilities->Header.Revision = NDIS_RECEIVE_SCALE_CAPABILITIES_REVISION_1;
     RSSCapabilities->Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_1;
     RSSCapabilities->CapabilitiesFlags =    NDIS_RSS_CAPS_MESSAGE_SIGNALED_INTERRUPTS |
                                         NDIS_RSS_CAPS_CLASSIFICATION_AT_ISR |
-                                        NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4 |
-                                        NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6 |
-                                        NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6_EX |
                                         NdisHashFunctionToeplitz;
+    if (pContext->bRSSSupportedByDevice)
+    {
+        ULONG flags = 0;
+        flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_TCPv4) ?
+            NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4 : 0;
+        flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_TCPv6) ?
+            NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6 : 0;
+        flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_TCP_EX) ?
+            NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6_EX : 0;
+        RSSCapabilities->CapabilitiesFlags |= flags;
+    }
+    else
+    {
+        RSSCapabilities->CapabilitiesFlags |= NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4 |
+                                              NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6 |
+                                              NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6_EX;
+    }
     RSSCapabilities->NumberOfInterruptMessages = 1;
-    RSSCapabilities->NumberOfReceiveQueues = RSSReceiveQueuesNumber;
+    RSSCapabilities->NumberOfReceiveQueues = pContext->RSSMaxQueuesNumber;
 #if (NDIS_SUPPORT_NDIS630)
     RSSCapabilities->Header.Revision = NDIS_RECEIVE_SCALE_CAPABILITIES_REVISION_2;
     RSSCapabilities->Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_2;
@@ -79,9 +94,25 @@ static VOID InitRSSCapabilities(NDIS_RECEIVE_SCALE_CAPABILITIES *RSSCapabilities
 #if (NDIS_SUPPORT_NDIS680)
     if (CheckNdisVersion(6, 80))
     {
-        RSSCapabilities->CapabilitiesFlags |= NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV4 | NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6 | NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6_EX;
         RSSCapabilities->Header.Revision = NDIS_RECEIVE_SCALE_CAPABILITIES_REVISION_3;
         RSSCapabilities->Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_3;
+        if (pContext->bRSSSupportedByDevice)
+        {
+            ULONG flags = 0;
+            flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_UDPv4) ?
+                NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV4 : 0;
+            flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_UDPv6) ?
+                NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6 : 0;
+            flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_UDP_EX) ?
+                NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6_EX : 0;
+            RSSCapabilities->CapabilitiesFlags |= flags;
+        }
+        else
+        {
+            RSSCapabilities->CapabilitiesFlags |= NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV4 |
+                                                  NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6 |
+                                                  NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6_EX;
+        }
     }
 #endif
 }
@@ -99,13 +130,11 @@ BOOLEAN ParaNdis6_IsDeviceRSSCapable(PARANDIS_ADAPTER *pContext)
     return bResult;
 }
 
-NDIS_RECEIVE_SCALE_CAPABILITIES* ParaNdis6_RSSCreateConfiguration(PARANDIS_RSS_PARAMS *RSSParameters,
-                                                                  NDIS_RECEIVE_SCALE_CAPABILITIES *RSSCapabilities,
-                                                                  CCHAR RSSReceiveQueuesNumber)
+NDIS_RECEIVE_SCALE_CAPABILITIES* ParaNdis6_RSSCreateConfiguration(PARANDIS_ADAPTER *pContext)
 {
-    InitRSSParameters(RSSParameters, RSSReceiveQueuesNumber);
-    InitRSSCapabilities(RSSCapabilities, RSSReceiveQueuesNumber);
-    return RSSCapabilities;
+    InitRSSParameters(&pContext->RSSParameters, pContext->RSSMaxQueuesNumber);
+    InitRSSCapabilities(pContext);
+    return &pContext->RSSCapabilities;
 }
 
 VOID ParaNdis6_RSSCleanupConfiguration(PARANDIS_RSS_PARAMS *RSSParameters)

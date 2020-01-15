@@ -288,10 +288,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
         if (pContext->bRSSOffloadSupported)
         {
             miniportAttributes.GeneralAttributes.RecvScaleCapabilities =
-                ParaNdis6_RSSCreateConfiguration(
-                                                &pContext->RSSParameters,
-                                                &pContext->RSSCapabilities,
-                                                pContext->RSSMaxQueuesNumber);
+                ParaNdis6_RSSCreateConfiguration(pContext);
             pContext->bRSSInitialized = TRUE;
         }
 
