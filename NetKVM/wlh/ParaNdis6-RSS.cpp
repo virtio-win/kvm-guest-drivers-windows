@@ -920,10 +920,10 @@ static void PrintRSSSettings(const PPARANDIS_RSS_PARAMS RSSParameters)
 
     PrintIndirectionTable(&RSSParameters->ActiveRSSScalingSettings);
 
-    DPrintf(RSS_PRINT_LEVEL, "CPU mapping table[%u]: ", RSSParameters->ActiveRSSScalingSettings.CPUIndexMappingSize);
+    DPrintf(RSS_PRINT_LEVEL, "CPU mapping table[%u]:\n", RSSParameters->ActiveRSSScalingSettings.CPUIndexMappingSize);
     ParaNdis_PrintCharArray(RSS_PRINT_LEVEL, RSSParameters->ActiveRSSScalingSettings.CPUIndexMapping, RSSParameters->ActiveRSSScalingSettings.CPUIndexMappingSize);
 
-    DPrintf(RSS_PRINT_LEVEL, "Queue indirection table[%u]: ", RSSParameters->ReceiveQueuesNumber);
+    DPrintf(RSS_PRINT_LEVEL, "Queue indirection table[%u]:\n", RSSParameters->ReceiveQueuesNumber);
     ParaNdis_PrintCharArray(RSS_PRINT_LEVEL, RSSParameters->ActiveRSSScalingSettings.QueueIndirectionTable, RSSParameters->ReceiveQueuesNumber);
 }
 
