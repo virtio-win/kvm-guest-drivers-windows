@@ -113,7 +113,7 @@ void Parandis_UtilOnly_Trace(LONG level, LPCSTR s1, LPCSTR s2)
 {
     if (!s2)
     {
-        TraceNoPrefix(level, "%s", s1);
+        TraceNoPrefix(level, "%s\n", s1);
     }
     else
     {
