@@ -57,7 +57,7 @@
 #endif
 
 #define DBG(format, ...) \
-    fprintf(stderr, "*** %s: " format "\n", __FUNCTION__, __VA_ARGS__)
+    FspDebugLog("*** %s: " format "\n", __FUNCTION__, __VA_ARGS__)
 
 #define SafeHeapFree(p) if (p != NULL) { HeapFree(GetProcessHeap(), 0, p); }
 
@@ -67,6 +67,7 @@ typedef struct
     
     HANDLE  Device;
 
+    UINT32  MaxWrite;
     UINT32  OwnerUid;
     UINT32  OwnerGid;
 
