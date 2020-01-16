@@ -183,13 +183,13 @@ static USHORT ResolveQueue(PARANDIS_ADAPTER *pContext, PPROCESSOR_NUMBER proc, U
     return n;
 }
 
-static void SetDeviceRSSSettings(PARANDIS_ADAPTER *pContext)
+static void SetDeviceRSSSettings(PARANDIS_ADAPTER *pContext, bool bForceOff = false)
 {
     if (!pContext->bRSSSupportedByDevice)
     {
         return;
     }
-    if (pContext->RSSParameters.RSSMode == PARANDIS_RSS_DISABLED)
+    if (pContext->RSSParameters.RSSMode == PARANDIS_RSS_DISABLED || bForceOff)
     {
         virtio_net_rss_config cfg = {};
         cfg.max_tx_vq = (USHORT)pContext->nPathBundles;
@@ -1048,6 +1048,20 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
 
     NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
     return NDIS_STATUS_SUCCESS;
+}
+
+void ParaNdis6_EnableDeviceRssSupport(PARANDIS_ADAPTER *pContext, BOOLEAN b)
+{
+    if (!b)
+    {
+        SetDeviceRSSSettings(pContext, true);
+        pContext->bRSSSupportedByDevice = false;
+    }
+    else
+    {
+        pContext->bRSSSupportedByDevice = pContext->bRSSSupportedByDevicePersistent;
+        SetDeviceRSSSettings(pContext);
+    }
 }
 
 #endif
