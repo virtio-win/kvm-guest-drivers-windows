@@ -286,8 +286,20 @@ static NTSTATUS VirtFsFuseRequest(HANDLE Device, LPVOID InBuffer,
             case -EBADF:
                 Status = STATUS_OBJECT_NAME_INVALID;
                 break;
+            case -ENOMEM:
+                Status = STATUS_INSUFFICIENT_RESOURCES;
+                break;
             case -EINVAL:
                 Status = STATUS_INVALID_PARAMETER;
+                break;
+            case -ENAMETOOLONG:
+                Status = STATUS_NAME_TOO_LONG;
+                break;
+            case -ENOSYS:
+                Status = STATUS_NOT_IMPLEMENTED;
+                break;
+            case -EOPNOTSUPP:
+                Status = STATUS_NOT_SUPPORTED;
                 break;
             default:
                 Status = STATUS_UNSUCCESSFUL;
