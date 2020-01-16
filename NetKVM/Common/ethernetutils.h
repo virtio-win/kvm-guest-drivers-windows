@@ -93,8 +93,16 @@ typedef struct _tagIPv4Header {
     UCHAR       ip_ttl;                // Time to live
     UCHAR       ip_protocol;           // Protocol
     USHORT      ip_xsum;               // Header checksum
-    ULONG       ip_src;                // Source IP address
-    ULONG       ip_dest;               // Destination IP address
+    union
+    {
+        ULONG       ip_src;                // Source IP address
+        UCHAR       ip_srca[4];
+    };
+    union
+    {
+        ULONG       ip_dest;               // Destination IP address
+        UCHAR       ip_desta[4];
+    };
 } IPv4Header;
 
 // IPv6 Header RFC 2460 (40 bytes)
