@@ -49,10 +49,10 @@
 /* Any address  for  binding, equivalent of INADDR_ANY.  This works for the svm_cid field of
  * sockaddr_vm and indicates the context ID of the current endpoint.
  */
-#define VMADDR_CID_ANY -1U
+#define VMADDR_CID_ANY ((ULONG64)-1)
 
 /* Bind to any available port.  Works for the svm_port field of sockaddr_vm. */
-#define VMADDR_PORT_ANY -1U
+#define VMADDR_PORT_ANY ((USHORT)-1)
 
 /* Use this as the destination CID in an address when referring to the hypervisor.*/
 #define VMADDR_CID_HYPERVISOR 0
