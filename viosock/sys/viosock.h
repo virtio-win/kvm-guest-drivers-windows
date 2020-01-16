@@ -65,7 +65,6 @@ typedef struct _VIRTIO_VSOCK_HDR {
     ULONG32 fwd_cnt;
 }VIRTIO_VSOCK_HDR, *PVIRTIO_VSOCK_HDR;
 
-
 typedef enum _VIRTIO_VSOCK_EVENT_ID {
     VIRTIO_VSOCK_EVENT_TRANSPORT_RESET = 0,
 }VIRTIO_VSOCK_EVENT_ID;
@@ -84,6 +83,9 @@ EVT_WDF_INTERRUPT_DPC                           VIOSockWdfInterruptDpc;
 EVT_WDF_INTERRUPT_ENABLE                        VIOSockInterruptEnable;
 EVT_WDF_INTERRUPT_DISABLE                       VIOSockInterruptDisable;
 
+EVT_WDF_DEVICE_FILE_CREATE VIOSockCreate;
+EVT_WDF_FILE_CLOSE VIOSockClose;
+
 typedef struct virtqueue VIOSOCK_VQ, *PVIOSOCK_VQ;
 typedef struct VirtIOBufferDescriptor VIOSOCK_SG_DESC, *PVIOSOCK_SG_DESC;
 
@@ -97,7 +99,7 @@ typedef struct _DEVICE_CONTEXT {
 
     WDFINTERRUPT        WdfInterrupt;
 
-    WDFDMAENABLER       DmaEnabler;
+    WDFCOLLECTION   SocketList;
 
     WDFQUEUE            IoCtlQueue;
 
@@ -105,6 +107,23 @@ typedef struct _DEVICE_CONTEXT {
  } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
+
+
+typedef struct _SOCKET_CONTEXT {
+
+    ULONG64 dst_cid;
+    ULONG32 src_port;
+    ULONG32 dst_port;
+    ULONG32 flags;
+    ULONG32 buf_alloc;
+    ULONG32 fwd_cnt;
+
+    ULONG State;
+    WDFFILEOBJECT ListenSocket;
+    BOOLEAN IsControl;
+} SOCKET_CONTEXT, *PSOCKET_CONTEXT;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(SOCKET_CONTEXT, GetSocketContext);
 
 #define VIOSOCK_DRIVER_MEMORY_TAG (ULONG)'cosV'
 

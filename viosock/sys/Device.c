@@ -52,9 +52,6 @@ static NTSTATUS VIOSockInitInterrupt(IN WDFDEVICE hDevice);
 
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL VIOSockDeviceControl;
 
-EVT_WDF_DEVICE_FILE_CREATE VIOSockCreate;
-EVT_WDF_FILE_CLOSE VIOSockClose;
-
 static
 NTSTATUS
 VIOSockInitInterrupt(
@@ -101,12 +98,12 @@ VIOSockEvtDeviceAdd(
     IN PWDFDEVICE_INIT DeviceInit)
 {
     NTSTATUS                     status = STATUS_SUCCESS;
-    WDF_OBJECT_ATTRIBUTES        attributes;
+    WDF_OBJECT_ATTRIBUTES        deviceAttributes, fileAttributes, collectionAttributes;
     WDFDEVICE                    hDevice;
     WDF_PNPPOWER_EVENT_CALLBACKS PnpPowerCallbacks;
     PDEVICE_CONTEXT              pContext = NULL;
-    WDF_IO_QUEUE_CONFIG          queueConfig;
     WDF_FILEOBJECT_CONFIG        fileConfig;
+    WDF_IO_QUEUE_CONFIG          queueConfig;
 
     DECLARE_CONST_UNICODE_STRING(usDeviceName, VIOSOCK_DEVICE_NAME);
     DECLARE_CONST_UNICODE_STRING(usDosDeviceName, VIOSOCK_SYMLINK_NAME);
@@ -117,6 +114,7 @@ VIOSockEvtDeviceAdd(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
+    // Configure Pnp/power callbacks
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&PnpPowerCallbacks);
     PnpPowerCallbacks.EvtDevicePrepareHardware = VIOSockEvtDevicePrepareHardware;
     PnpPowerCallbacks.EvtDeviceReleaseHardware = VIOSockEvtDeviceReleaseHardware;
@@ -125,8 +123,10 @@ VIOSockEvtDeviceAdd(
     PnpPowerCallbacks.EvtDeviceD0EntryPostInterruptsEnabled = VIOSockEvtDeviceD0EntryPostInterruptsEnabled;
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &PnpPowerCallbacks);
 
+    // Set DirectIO mode
     WdfDeviceInitSetIoType(DeviceInit, WdfDeviceIoDirect);
 
+    // Set device name (for kernel mode clients)
     status = WdfDeviceInitAssignName(DeviceInit, &usDeviceName);
     if (!NT_SUCCESS(status))
     {
@@ -134,10 +134,23 @@ VIOSockEvtDeviceAdd(
         return status;
     }
 
-    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
-    attributes.SynchronizationScope = WdfSynchronizationScopeDevice;
+    // Configure file object callbacks
+    WDF_FILEOBJECT_CONFIG_INIT(
+        &fileConfig,
+        VIOSockCreate,
+        VIOSockClose,
+        WDF_NO_EVENT_CALLBACK // Cleanup
+    );
+    fileConfig.FileObjectClass = WdfFileObjectWdfCanUseFsContext;
 
-    status = WdfDeviceCreate(&DeviceInit, &attributes, &hDevice);
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&fileAttributes, SOCKET_CONTEXT);
+
+    WdfDeviceInitSetFileObjectConfig(DeviceInit, &fileConfig, &fileAttributes);
+
+    // Create device
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, DEVICE_CONTEXT);
+
+    status = WdfDeviceCreate(&DeviceInit, &deviceAttributes, &hDevice);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDeviceCreate failed - 0x%x\n", status);
@@ -168,6 +181,18 @@ VIOSockEvtDeviceAdd(
 
     pContext = GetDeviceContext(hDevice);
 
+    // Create collection for socket objects
+    WDF_OBJECT_ATTRIBUTES_INIT(&collectionAttributes);
+    collectionAttributes.ParentObject = hDevice;
+
+    status = WdfCollectionCreate(&collectionAttributes, &pContext->SocketList);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfCollectionCreate failed - 0x%x\n", status);
+        return status;
+    }
+
+    // Create sequential queue for IoCtl requests
     WDF_IO_QUEUE_CONFIG_INIT(&queueConfig,
         WdfIoQueueDispatchSequential
     );
@@ -184,6 +209,17 @@ VIOSockEvtDeviceAdd(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
             "WdfIoQueueCreate failed (IoCtrl Queue): 0x%x\n", status);
+        return status;
+    }
+
+    status = WdfDeviceConfigureRequestDispatching(hDevice,
+        pContext->IoCtlQueue,
+        WdfRequestTypeDeviceControl);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+            "WdfDeviceConfigureRequestDispatching failed (IoCtrl Queue): 0x%x\n", status);
         return status;
     }
 
@@ -405,39 +441,4 @@ VIOSockDeviceControl(
 
     WdfRequestCompleteWithInformation(Request, status, length);
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
-}
-
-VOID
-VIOSockCreate(
-    IN WDFDEVICE WdfDevice,
-    IN WDFREQUEST Request,
-    IN WDFFILEOBJECT FileObject
-)
-{
-    PDEVICE_CONTEXT pContext = GetDeviceContext(WdfDevice);
-    NTSTATUS                status = STATUS_SUCCESS;
-
-    UNREFERENCED_PARAMETER(FileObject);
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
-        "%s\n", __FUNCTION__);
-
-    WdfRequestComplete(Request, status);
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
-        "<-- %s\n", __FUNCTION__);
-}
-
-VOID
-VIOSockClose(
-    IN WDFFILEOBJECT FileObject
-)
-{
-    PDEVICE_CONTEXT pContext = GetDeviceContext(WdfFileObjectGetDevice(FileObject));
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
-        "--> %s\n", __FUNCTION__);
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
-        "<-- %s\n", __FUNCTION__);
 }
