@@ -67,9 +67,11 @@ static NDIS_STATUS OnSetOffloadEncapsulation(PARANDIS_ADAPTER *pContext, tOidDes
 static NDIS_STATUS OnSetLinkParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 static NDIS_STATUS OnSetVendorSpecific1(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 static NDIS_STATUS OnSetVendorSpecific2(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
+static NDIS_STATUS OnSetVendorSpecific3(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 
 #define OID_VENDOR_1                    0xff010201
 #define OID_VENDOR_2                    0xff010202
+#define OID_VENDOR_3                    0xff010203
 
 #if PARANDIS_SUPPORT_RSS
 
@@ -199,6 +201,7 @@ OIDENTRYPROC(OID_TCP_OFFLOAD_PARAMETERS,        0,0,0, ohfSet | ohfSetMoreOK | o
 OIDENTRYPROC(OID_OFFLOAD_ENCAPSULATION,         0,0,0, ohfQuerySet, OnSetOffloadEncapsulation),
 OIDENTRYPROC(OID_VENDOR_1,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific1),
 OIDENTRYPROC(OID_VENDOR_2,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific2),
+OIDENTRYPROC(OID_VENDOR_3,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific3),
 
 #if PARANDIS_SUPPORT_RSS
     OIDENTRYPROC(OID_GEN_RECEIVE_SCALE_PARAMETERS,  0,0,0, ohfSet | ohfSetMoreOK, RSSSetParameters),
@@ -271,6 +274,7 @@ static NDIS_OID SupportedOids[] =
         OID_GEN_SUPPORTED_GUIDS,
         OID_VENDOR_1,
         OID_VENDOR_2,
+        OID_VENDOR_3,
 #endif
         OID_OFFLOAD_ENCAPSULATION,
         OID_TCP_OFFLOAD_PARAMETERS,
@@ -283,10 +287,11 @@ static NDIS_OID SupportedOids[] =
 #endif
 };
 
-static const NDIS_GUID supportedGUIDs[]
+static const NDIS_GUID supportedGUIDs[] =
 {
     { NetKvm_LoggingGuid,    OID_VENDOR_1, NetKvm_Logging_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE },
-    { NetKvm_StatisticsGuid, OID_VENDOR_2, NetKvm_Statistics_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE }
+    { NetKvm_StatisticsGuid, OID_VENDOR_2, NetKvm_Statistics_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE },
+    { NetKvm_RssDiagnosticsGuid, OID_VENDOR_3, NetKvm_RssDiagnostics_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE },
 };
 
 /**********************************************************
@@ -364,6 +369,12 @@ ULONG ParaNdis6_GetSupportedStatisticsFlags()
     return SupportedStatisticsFlags;
 }
 
+static void ResetRssStatistics(PARANDIS_ADAPTER *pContext)
+{
+    pContext->extraStatistics.framesRSSHits = 0;
+    pContext->extraStatistics.framesRSSMisses = 0;
+    pContext->extraStatistics.framesRSSUnclassified = 0;
+}
 
 /**********************************************************
 OID support information for miniport registration
@@ -395,6 +406,28 @@ static NDIS_STATUS OnSetVendorSpecific2(PARANDIS_ADAPTER *pContext, tOidDesc *pO
     return status;
 }
 
+static NDIS_STATUS OnSetVendorSpecific3(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
+{
+    ULONG temp = 0;
+    NDIS_STATUS status;
+    UNREFERENCED_PARAMETER(pContext);
+    status = ParaNdis_OidSetCopy(pOid, &temp, sizeof(temp));
+#if PARANDIS_SUPPORT_RSS
+    switch (temp)
+    {
+        case 0:
+            ParaNdis6_EnableDeviceRssSupport(pContext, false);
+            break;
+        case 1:
+            ParaNdis6_EnableDeviceRssSupport(pContext, true);
+            break;
+        default:
+            break;
+    }
+#endif
+    ResetRssStatistics(pContext);
+    return status;
+}
 /*****************************************************************
 Handles NDIS6 specific OID, all the rest handled by common handler
 *****************************************************************/
@@ -417,6 +450,7 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     ULONG ulSize = 0;
     BOOLEAN bFreeInfo = FALSE;
     NetKvm_Statistics wmiStatistics;
+    NetKvm_RssDiagnostics rssDiag;
 
 #define SETINFO(field, value) pInfo = &u.##field; ulSize = sizeof(u.##field); u.##field = (value)
     switch(pOid->Oid)
@@ -445,7 +479,15 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             wmiStatistics.rxCoalescedWin = pContext->extraStatistics.framesCoalescedWindows;
             wmiStatistics.rxCoalescedHost = pContext->extraStatistics.framesCoalescedHost;
             break;
-
+        case OID_VENDOR_3:
+            pInfo = &rssDiag;
+            ulSize = sizeof(rssDiag);
+            rssDiag.DeviceSupport = pContext->bRSSSupportedByDevice;
+            rssDiag.rxUnclassified = pContext->extraStatistics.framesRSSUnclassified;
+            rssDiag.rxMissed = pContext->extraStatistics.framesRSSMisses;
+            rssDiag.rxHits = pContext->extraStatistics.framesRSSHits;
+            ResetRssStatistics(pContext);
+            break;
         case OID_GEN_INTERRUPT_MODERATION:
             u.InterruptModeration.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
             u.InterruptModeration.Header.Size = NDIS_SIZEOF_INTERRUPT_MODERATION_PARAMETERS_REVISION_1;
