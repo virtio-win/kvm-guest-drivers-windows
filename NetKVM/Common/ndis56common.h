@@ -496,6 +496,7 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                     bOffloadv6Enabled;
     BOOLEAN                     bDeviceInitialized;
     BOOLEAN                     bRSSSupportedByDevice;
+    BOOLEAN                     bRSSSupportedByDevicePersistent;
 
 #if PARANDIS_SUPPORT_RSS
     BOOLEAN                     bRSSOffloadSupported;

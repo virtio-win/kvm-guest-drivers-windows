@@ -826,6 +826,7 @@ NDIS_STATUS ParaNdis_InitializeContext(
         if (ParaNdis6_IsDeviceRSSCapable(pContext))
         {
             pContext->bRSSSupportedByDevice = AckFeature(pContext, VIRTIO_NET_F_RSS);
+            pContext->bRSSSupportedByDevicePersistent = pContext->bRSSSupportedByDevice;
         }
     }
     if (pContext->bRSSSupportedByDevice)
