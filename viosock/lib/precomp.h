@@ -36,6 +36,7 @@
 #include <strsafe.h>
 #include <ws2spi.h>
 #include <winternl.h>
+#include <crtdbg.h>
 
 #include "..\sys\public.h"
 #include "..\inc\vio_sockets.h"
