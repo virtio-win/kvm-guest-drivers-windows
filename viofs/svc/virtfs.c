@@ -90,10 +90,8 @@ static int64_t GetUniqueIdentifier()
     return InterlockedIncrement64(&uniq);
 }
 
-static void FUSE_HEADER_INIT(struct fuse_in_header *hdr,
-                             uint32_t opcode,
-                             uint64_t nodeid,
-                             uint32_t datalen)
+static void FUSE_HEADER_INIT(struct fuse_in_header *hdr, uint32_t opcode,
+    uint64_t nodeid, uint32_t datalen)
 {
     hdr->len = sizeof(*hdr) + datalen;
     hdr->opcode = opcode;
@@ -212,8 +210,7 @@ static UINT32 PosixUnixModeToAttributes(uint32_t mode)
     return Attributes;
 }
 
-static VOID SetFileInfo(struct fuse_attr *attr,
-                        FSP_FSCTL_FILE_INFO *FileInfo)
+static VOID SetFileInfo(struct fuse_attr *attr, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     FileInfo->FileAttributes = PosixUnixModeToAttributes(attr->mode);
     FileInfo->ReparseTag = 0;
@@ -237,11 +234,8 @@ static VOID SetFileInfo(struct fuse_attr *attr,
         attr->uid, attr->gid, attr->rdev, attr->blksize);
 }
 
-static NTSTATUS VirtFsFuseRequest(HANDLE Device,
-                                  LPVOID InBuffer,
-                                  DWORD InBufferSize,
-                                  LPVOID OutBuffer,
-                                  DWORD OutBufferSize)
+static NTSTATUS VirtFsFuseRequest(HANDLE Device, LPVOID InBuffer,
+    DWORD InBufferSize, LPVOID OutBuffer, DWORD OutBufferSize)
 {
     NTSTATUS Status = STATUS_SUCCESS;
     DWORD BytesReturned = 0;
@@ -305,12 +299,8 @@ static NTSTATUS VirtFsFuseRequest(HANDLE Device,
 }
 
 static NTSTATUS VirtFsCreateFile(VIRTFS *VirtFs,
-                                 VIRTFS_FILE_CONTEXT *FileContext,
-                                 UINT32 GrantedAccess,
-                                 CHAR *FileName,
-                                 UINT64 Parent,
-                                 UINT32 Mode,
-                                 FSP_FSCTL_FILE_INFO *FileInfo)
+    VIRTFS_FILE_CONTEXT *FileContext, UINT32 GrantedAccess, CHAR *FileName,
+    UINT64 Parent, UINT32 Mode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     NTSTATUS Status;
     FUSE_CREATE_IN create_in;
@@ -363,11 +353,8 @@ static NTSTATUS VirtFsCreateFile(VIRTFS *VirtFs,
 }
 
 static NTSTATUS VirtFsCreateDir(VIRTFS *VirtFs,
-                                VIRTFS_FILE_CONTEXT *FileContext,
-                                CHAR *FileName,
-                                UINT64 Parent,
-                                UINT32 Mode,
-                                FSP_FSCTL_FILE_INFO *FileInfo)
+    VIRTFS_FILE_CONTEXT *FileContext, CHAR *FileName, UINT64 Parent,
+    UINT32 Mode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     NTSTATUS Status;
     FUSE_MKDIR_IN mkdir_in;
@@ -411,10 +398,8 @@ static VOID SubmitDeleteRequest(HANDLE Device,
         &unlink_out, sizeof(unlink_out));
 }
 
-static NTSTATUS SubmitLookupRequest(HANDLE Device,
-                                    uint64_t parent,
-                                    char *filename,
-                                    FUSE_LOOKUP_OUT *LookupOut)
+static NTSTATUS SubmitLookupRequest(HANDLE Device, uint64_t parent,
+    char *filename, FUSE_LOOKUP_OUT *LookupOut)
 {
     NTSTATUS Status;
     FUSE_LOOKUP_IN lookup_in;
@@ -500,11 +485,9 @@ static NTSTATUS VirtFsLookupFileName(HANDLE Device, PWSTR FileName,
     return Status;
 }
 
-static NTSTATUS GetFileInfoInternal(HANDLE Device,
-                                    uint64_t nodeid,
-                                    uint64_t fh,
-                                    FSP_FSCTL_FILE_INFO *FileInfo,
-                                    PSECURITY_DESCRIPTOR *SecurityDescriptor)
+static NTSTATUS GetFileInfoInternal(HANDLE Device, uint64_t nodeid,
+    uint64_t fh, FSP_FSCTL_FILE_INFO *FileInfo,
+    PSECURITY_DESCRIPTOR *SecurityDescriptor)
 {
     NTSTATUS Status;
     FUSE_GETATTR_IN getattr_in;
@@ -545,7 +528,7 @@ static NTSTATUS GetFileInfoInternal(HANDLE Device,
 }
 
 static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
-                              FSP_FSCTL_VOLUME_INFO *VolumeInfo)
+    FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     DWORD BytesReturned;
@@ -583,11 +566,9 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     return Status;
 }
 
-static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
-                                  PWSTR FileName,
-                                  PUINT32 PFileAttributes,
-                                  PSECURITY_DESCRIPTOR SecurityDescriptor,
-                                  SIZE_T *PSecurityDescriptorSize)
+static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
+    PUINT32 PFileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor,
+    SIZE_T *PSecurityDescriptorSize)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     PSECURITY_DESCRIPTOR Security = NULL;
@@ -648,15 +629,10 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     return Status;
 }
 
-static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
-                       PWSTR FileName,
-                       UINT32 CreateOptions,
-                       UINT32 GrantedAccess,
-                       UINT32 FileAttributes,
-                       PSECURITY_DESCRIPTOR SecurityDescriptor,
-                       UINT64 AllocationSize,
-                       PVOID *PFileContext,
-                       FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
+    UINT32 CreateOptions, UINT32 GrantedAccess, UINT32 FileAttributes,
+    PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
+    PVOID *PFileContext, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext;
@@ -731,12 +707,9 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     return Status;
 }
 
-static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
-                     PWSTR FileName,
-                     UINT32 CreateOptions,
-                     UINT32 GrantedAccess,
-                     PVOID *PFileContext,
-                     FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
+    UINT32 CreateOptions, UINT32 GrantedAccess, PVOID *PFileContext,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext;
@@ -817,11 +790,8 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
-                          PVOID FileContext0,
-                          UINT32 FileAttributes,
-                          BOOLEAN ReplaceFileAttributes,
-                          UINT64 AllocationSize,
-                          FSP_FSCTL_FILE_INFO *FileInfo)
+    PVOID FileContext0, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes,
+    UINT64 AllocationSize, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
@@ -850,10 +820,8 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
         FileContext->FileHandle, FileInfo, NULL);
 }
 
-static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
-                    PVOID FileContext0,
-                    PWSTR FileName,
-                    ULONG Flags)
+static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
+    PWSTR FileName, ULONG Flags)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
@@ -939,12 +907,8 @@ static VOID Close(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0)
     SafeHeapFree(FileContext);
 }
 
-static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
-                     PVOID FileContext0,
-                     PVOID Buffer,
-                     UINT64 Offset,
-                     ULONG Length,
-                     PULONG PBytesTransferred)
+static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
+    PVOID Buffer, UINT64 Offset, ULONG Length, PULONG PBytesTransferred)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
@@ -1001,15 +965,10 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
-                      PVOID FileContext0,
-                      PVOID Buffer,
-                      UINT64 Offset,
-                      ULONG Length,
-                      BOOLEAN WriteToEndOfFile,
-                      BOOLEAN ConstrainedIo,
-                      PULONG PBytesTransferred,
-                      FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
+    PVOID Buffer, UINT64 Offset, ULONG Length, BOOLEAN WriteToEndOfFile,
+    BOOLEAN ConstrainedIo, PULONG PBytesTransferred,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
@@ -1092,9 +1051,8 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
         FileContext->FileHandle, FileInfo, NULL);
 }
 
-NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem,
-               PVOID FileContext0,
-               FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
@@ -1124,9 +1082,8 @@ NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem,
         FileContext->FileHandle, FileInfo, NULL);
 }
 
-static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
-                            PVOID FileContext0,
-                            FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
@@ -1137,14 +1094,9 @@ static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
         FileContext->FileHandle, FileInfo, NULL);
 }
 
-static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
-                             PVOID FileContext0,
-                             UINT32 FileAttributes,
-                             UINT64 CreationTime,
-                             UINT64 LastAccessTime,
-                             UINT64 LastWriteTime,
-                             UINT64 ChangeTime,
-                             FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
+    UINT32 FileAttributes, UINT64 CreationTime, UINT64 LastAccessTime,
+    UINT64 LastWriteTime, UINT64 ChangeTime, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
@@ -1195,11 +1147,8 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
         FileContext->FileHandle, FileInfo, NULL);
 }
 
-static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
-                            PVOID FileContext0,
-                            UINT64 NewSize,
-                            BOOLEAN SetAllocationSize,
-                            FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
+    UINT64 NewSize, BOOLEAN SetAllocationSize, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
@@ -1231,9 +1180,8 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
         FileContext->FileHandle, FileInfo, NULL);
 }
 
-static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
-                          PVOID FileContext0,
-                          PWSTR FileName)
+static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
+    PWSTR FileName)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     PVIRTFS_FILE_CONTEXT FileContext = FileContext0;
@@ -1260,11 +1208,8 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
     return Status;
 }
 
-static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
-                       PVOID FileContext0,
-                       PWSTR FileName,
-                       PWSTR NewFileName,
-                       BOOLEAN ReplaceIfExists)
+static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
+    PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
@@ -1346,10 +1291,8 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
         rename_in->hdr.len, &rename_out, sizeof(rename_out));
 }
 
-static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
-                            PVOID FileContext0,
-                            PSECURITY_DESCRIPTOR SecurityDescriptor,
-                            SIZE_T *PSecurityDescriptorSize)
+static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
+    PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     PVIRTFS_FILE_CONTEXT FileContext = FileContext0;
@@ -1387,10 +1330,9 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
-                            PVOID FileContext0,
-                            SECURITY_INFORMATION SecurityInformation,
-                            PSECURITY_DESCRIPTOR ModificationDescriptor)
+static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
+    SECURITY_INFORMATION SecurityInformation,
+    PSECURITY_DESCRIPTOR ModificationDescriptor)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     PVIRTFS_FILE_CONTEXT FileContext = FileContext0;
@@ -1461,13 +1403,9 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     return Status;
 }
 
-static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
-                              PVOID FileContext0,
-                              PWSTR Pattern,
-                              PWSTR Marker,
-                              PVOID Buffer,
-                              ULONG BufferLength,
-                              PULONG PBytesTransferred)
+static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
+    PWSTR Pattern, PWSTR Marker, PVOID Buffer, ULONG BufferLength,
+    PULONG PBytesTransferred)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
@@ -1721,10 +1659,8 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS SvcControl(FSP_SERVICE *Service,
-                           ULONG Control,
-                           ULONG EventType,
-                           PVOID EventData)
+static NTSTATUS SvcControl(FSP_SERVICE *Service, ULONG Control,
+    ULONG EventType, PVOID EventData)
 {
     UNREFERENCED_PARAMETER(Service);
     UNREFERENCED_PARAMETER(Control);
