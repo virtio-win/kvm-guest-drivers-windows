@@ -1013,9 +1013,10 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
+    ULONG WriteSize;
+    NTSTATUS Status;
     FUSE_WRITE_IN *write_in;
     FUSE_WRITE_OUT write_out;
-    NTSTATUS Status;
 
     DBG("Buffer: %p Offset: %Iu Length: %u WriteToEndOfFile: %d "
         "ConstrainedIo: %d", Buffer, Offset, Length, WriteToEndOfFile,
@@ -1043,44 +1044,48 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
         }
     }
 
-    write_in = HeapAlloc(GetProcessHeap(), 0, sizeof(*write_in) + Length);
+    WriteSize = min(Length, VirtFs->MaxWrite);
+
+    write_in = HeapAlloc(GetProcessHeap(), 0, sizeof(*write_in) + WriteSize);
     if (write_in == NULL)
     {
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    FUSE_HEADER_INIT(&write_in->hdr, FUSE_WRITE, FileContext->NodeId,
-        sizeof(struct fuse_write_in) + Length);
-    
-    write_in->write.fh = FileContext->FileHandle;
-    write_in->write.offset = Offset;
-    write_in->write.size = Length;
-    write_in->write.write_flags = 0;
-    write_in->write.lock_owner = 0;
-    write_in->write.flags = 0;
-
-    if (Buffer != NULL)
+    do
     {
-        CopyMemory(write_in->buf, Buffer, Length);
-    }
+        FUSE_HEADER_INIT(&write_in->hdr, FUSE_WRITE, FileContext->NodeId,
+            sizeof(struct fuse_write_in) + WriteSize);
 
-    Status = VirtFsFuseRequest(VirtFs->Device, write_in,
-        write_in->hdr.len, &write_out, sizeof(write_out));
+        write_in->write.fh = FileContext->FileHandle;
+        write_in->write.offset = Offset + *PBytesTransferred;
+        write_in->write.size = WriteSize;
+        write_in->write.write_flags = 0;
+        write_in->write.lock_owner = 0;
+        write_in->write.flags = 0;
+
+        CopyMemory(write_in->buf, (BYTE*)Buffer + *PBytesTransferred,
+            WriteSize);
+
+        Status = VirtFsFuseRequest(VirtFs->Device, write_in,
+            write_in->hdr.len, &write_out, sizeof(write_out));
+
+        if (!NT_SUCCESS(Status))
+        {
+            break;
+        }
+
+        *PBytesTransferred += write_out.write.size;
+        Length -= write_out.write.size;
+        WriteSize = min(Length, VirtFs->MaxWrite);
+    }
+    while (Length > 0);
 
     SafeHeapFree(write_in);
 
     if (!NT_SUCCESS(Status))
     {
-        if (PBytesTransferred != NULL)
-        {
-            *PBytesTransferred = 0;
-        }
         return Status;
-    }
-
-    if (PBytesTransferred != NULL)
-    {
-        *PBytesTransferred = write_out.write.size;
     }
 
     return GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
@@ -1649,6 +1654,8 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         VirtFsDelete(VirtFs);
         return Status;
     }
+
+    VirtFs->MaxWrite = init_out.init.max_write;
 
     GetSystemTimeAsFileTime(&FileTime);
 
