@@ -26,4 +26,15 @@ class NetKvm_Statistics : MSNdis
     [read,write,WmiDataId(6)] uint32 txChecksumOffload;
 };
 
+[Dynamic : ToInstance, Provider("WMIProv"), WMI,
+guid("{7C03D07F-52FA-4C2F-8A85-9F24D575C518}")]
+class NetKvm_RssDiagnostics : MSNdis
+{
+    [key, read] string InstanceName;
+    [read] boolean Active;
+    [read,write,WmiDataId(1)] uint32 DeviceSupport;
+    [read,write,WmiDataId(2)] uint32 rxHits;
+    [read,write,WmiDataId(3)] uint32 rxMissed;
+    [read,write,WmiDataId(4)] uint32 rxUnclassified;
+};
 
