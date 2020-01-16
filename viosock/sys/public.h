@@ -29,7 +29,7 @@
 #if !defined(PUBLIC_H)
 #define PUBLIC_H
 
-#define  VIOSOCK_NAME L"\\\\.\\Viosock"
+#define  VIOSOCK_NAME L"\\??\\Viosock"
 #define  VIOSOCK_SYMLINK_NAME L"\\DosDevices\\Viosock"
 
  // {6B58DC1F-01C3-440F-BE1C-B95D000F1FF5}
@@ -44,5 +44,15 @@ typedef struct _VIRTIO_VSOCK_CONFIG {
 
 #define VIRTIO_VSOCK_HOST_CID   2
 
+// typedef enum _VIRTIO_VSOCK_EA_TYPE
+// {
+//     VSOCK_TYPE_NEW=0,
+//     VSOCK_TYPE_ACCEPT=1,
+//     VSOCK_TYPE_INVALID
+// }VIRTIO_VSOCK_EA_TYPE;
+
+typedef struct _VIRTIO_VSOCK_PARAMS {
+    ULONGLONG Socket;
+}VIRTIO_VSOCK_PARAMS, *PVIRTIO_VSOCK_PARAMS;
 
 #endif /* PUBLIC_H */
