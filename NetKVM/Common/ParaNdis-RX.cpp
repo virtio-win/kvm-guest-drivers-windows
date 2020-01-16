@@ -347,6 +347,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
         if (nTargetReceiveQueueNum == PARANDIS_RECEIVE_UNCLASSIFIED_PACKET)
         {
             ParaNdis_ReceiveQueueAddBuffer(&m_UnclassifiedPacketsQueue, pBufferDescriptor);
+            m_Context->extraStatistics.framesRSSUnclassified++;
         }
         else
         {
@@ -356,6 +357,11 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
             {
                 ParaNdis_ProcessorNumberToGroupAffinity(&TargetAffinity, &TargetProcessor);
                 ParaNdis_QueueRSSDpc(m_Context, m_messageIndex, &TargetAffinity);
+                m_Context->extraStatistics.framesRSSMisses++;
+            }
+            else
+            {
+                m_Context->extraStatistics.framesRSSHits++;
             }
         }
 #else
