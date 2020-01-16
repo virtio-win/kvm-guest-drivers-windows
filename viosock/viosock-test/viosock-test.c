@@ -2,38 +2,126 @@
 //
 
 #include "pch.h"
-#include "..\sys\public.h"
+#include "socket.h"
 
-BOOL
-GetConfig(
-    HANDLE hViosock,
-    PVIRTIO_VSOCK_CONFIG pConfig
-)
+ULONG64
+GetGuestCid()
 {
-    DWORD dwBytes;
-    return DeviceIoControl(hViosock, IOCTL_GET_CONFIG, NULL, 0, pConfig, sizeof(*pConfig), &dwBytes, NULL);
+    ULONG64 uRes = VMADDR_CID_ANY;
+    SOCKET hViosock = VIOSockCreateSocket(NULL);
+    VIRTIO_VSOCK_CONFIG vsConfig;
+
+    _tprintf(L"--> %s\n", TEXT(__FUNCTION__));
+
+    if (hViosock == INVALID_SOCKET)
+    {
+        _tprintf(L"VIOSockCreateSocket error: %d\n", GetLastError());
+        return uRes;
+    }
+
+    if (VIOSockGetConfig(hViosock, &vsConfig))
+        uRes = vsConfig.guest_cid;
+    else
+        _tprintf(L"VIOSockGetConfig error: %d\n", GetLastError());
+
+    VIOSockCloseSocket(hViosock);
+
+    _tprintf(L"<-- %s\n", TEXT(__FUNCTION__));
+    return uRes;
+}
+
+ULONG64
+GetGuestCidFromNewSocket()
+{
+    ULONG64 uRes = VMADDR_CID_ANY;
+    SOCKET hViosock;
+    VIRTIO_VSOCK_CONFIG vsConfig;
+    VIRTIO_VSOCK_PARAMS SocketParams = { 0 };
+
+    _tprintf(L"--> %s\n", TEXT(__FUNCTION__));
+
+    hViosock = VIOSockCreateSocket(&SocketParams);
+    if (hViosock == INVALID_SOCKET)
+    {
+        _tprintf(L"VIOSockCreateSocket(new) error: %d\n", GetLastError());
+        return uRes;
+    }
+
+    if (VIOSockGetConfig(hViosock, &vsConfig))
+    {
+        uRes = vsConfig.guest_cid;
+    }
+    else
+        _tprintf(L"VIOSockGetConfig error: %d\n", GetLastError());
+
+    VIOSockCloseSocket(hViosock);
+
+    _tprintf(L"<-- %s\n", TEXT(__FUNCTION__));
+    return uRes;
+}
+
+ULONG64
+GetGuestCidFromAcceptSocket()
+{
+    ULONG64 uRes = VMADDR_CID_ANY;
+    SOCKET hListenSock, hAcceptSocket;
+    VIRTIO_VSOCK_CONFIG vsConfig;
+    VIRTIO_VSOCK_PARAMS SocketParams = { 0 };
+
+    _tprintf(L"--> %s\n", TEXT(__FUNCTION__));
+
+    hListenSock = VIOSockCreateSocket(&SocketParams);
+    if (hListenSock == INVALID_SOCKET)
+    {
+        _tprintf(L"VIOSockCreateSocket(new) error: %d\n", GetLastError());
+        return uRes;
+    }
+
+    SocketParams.Socket = hListenSock;
+    hAcceptSocket = VIOSockCreateSocket(&SocketParams);
+    if (hAcceptSocket == INVALID_SOCKET)
+    {
+        _tprintf(L"VIOSockCreateSocket(accept) error: %d\n", GetLastError());
+        VIOSockCloseSocket(hListenSock);
+        return uRes;
+    }
+
+    if (VIOSockGetConfig(hAcceptSocket, &vsConfig))
+    {
+        uRes = vsConfig.guest_cid;
+    }
+    else
+        _tprintf(L"VIOSockGetConfig error: %d\n", GetLastError());
+
+    VIOSockCloseSocket(hAcceptSocket);
+    VIOSockCloseSocket(hListenSock);
+
+    _tprintf(L"<-- %s\n", TEXT(__FUNCTION__));
+    return uRes;
 }
 
 #define TEST_PORT 2222
 
-VIRTIO_VSOCK_CONFIG g_Config;
-
 int __cdecl main()
 {
-    HANDLE hViosock =
-        CreateFile(VIOSOCK_NAME, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    ULONG64 uGuestCid = GetGuestCid();
 
-    if (hViosock == INVALID_HANDLE_VALUE)
+    if (uGuestCid != VMADDR_CID_ANY)
     {
-        _tprintf(L"Can't open %s, error: %d\n", VIOSOCK_NAME, GetLastError());
-        return 1;
+        _tprintf(L"GetGuestCid cid: %d\n", (DWORD)uGuestCid);
     }
 
-    if (GetConfig(hViosock, &g_Config))
-        _tprintf(L"Guest cid: %d\n", (DWORD)g_Config.guest_cid);
-    else
-        _tprintf(L"Can't get config, error: %d\n", GetLastError());
+    uGuestCid = GetGuestCidFromNewSocket();
+    if (uGuestCid != VMADDR_CID_ANY)
+    {
+        _tprintf(L"GetGuestCidFromNewSocket cid: %d\n", (DWORD)uGuestCid);
+    }
 
-    CloseHandle(hViosock);
+    uGuestCid = GetGuestCidFromAcceptSocket();
+    if (uGuestCid != VMADDR_CID_ANY)
+    {
+        _tprintf(L"GetGuestCidFromAcceptSocket cid: %d\n", (DWORD)uGuestCid);
+    }
+
     return 0;
 }
