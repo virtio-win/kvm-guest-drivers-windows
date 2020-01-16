@@ -1186,7 +1186,7 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
         return Status;
     }
 
-    return GetFileInfoInternal(FileSystem, FileContext->NodeId,
+    return GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
         FileContext->FileHandle, FileInfo, NULL);
 }
 
@@ -1222,7 +1222,7 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
         return Status;
     }
 
-    return GetFileInfoInternal(FileSystem, FileContext->NodeId,
+    return GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
         FileContext->FileHandle, FileInfo, NULL);
 }
 
@@ -1395,7 +1395,7 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
 
     DBG("fh: %Iu nodeid: %Iu", FileContext->FileHandle, FileContext->NodeId);
 
-    Status = GetFileInfoInternal(VirtFs->FileSystem, FileContext->NodeId,
+    Status = GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
         FileContext->FileHandle, NULL, &FileSecurity);
 
     if (!NT_SUCCESS(Status))
