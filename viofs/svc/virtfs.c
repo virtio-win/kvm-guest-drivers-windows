@@ -495,6 +495,11 @@ static NTSTATUS GetFileInfoInternal(HANDLE Device, uint64_t nodeid,
 
     DBG("fh: %Iu nodeid: %Iu", fh, nodeid);
 
+    if ((FileInfo != NULL) && (SecurityDescriptor != NULL))
+    {
+        return STATUS_INVALID_PARAMETER;
+    }
+
     FUSE_HEADER_INIT(&getattr_in.hdr, FUSE_GETATTR, nodeid,
         sizeof(getattr_in.getattr));
 
@@ -820,67 +825,6 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
         FileContext->FileHandle, FileInfo, NULL);
 }
 
-static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
-    PWSTR FileName, ULONG Flags)
-{
-    VIRTFS *VirtFs = FileSystem->UserContext;
-    VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
-    NTSTATUS Status;
-    char *filename, *fullpath;
-    uint64_t parent;
-
-    DBG("\"%S\" Flags: 0x%02x", FileName, Flags);
-
-    if (FileName == NULL)
-    {
-        return;
-    }
-
-    Status = FspPosixMapWindowsToPosixPath(FileName + 1, &fullpath);
-    if (!NT_SUCCESS(Status))
-    {
-        FspPosixDeletePath(fullpath);
-        return;
-    }
-
-    Status = PathWalkthough(VirtFs->Device, fullpath, &filename, &parent);
-    if (!NT_SUCCESS(Status))
-    {
-        FspPosixDeletePath(fullpath);
-        return;
-    }
-
-    if (Flags & FspCleanupDelete)
-    {
-        SubmitDeleteRequest(VirtFs->Device, FileContext, filename, parent);
-    }
-    else
-    {
-        if (Flags & FspCleanupSetAllocationSize)
-        {
-
-        }
-        if (Flags & FspCleanupSetArchiveBit)
-        {
-
-        }
-        if (Flags & FspCleanupSetLastAccessTime)
-        {
-
-        }
-        if (Flags & FspCleanupSetLastWriteTime)
-        {
-
-        }
-        if (Flags & FspCleanupSetChangeTime)
-        {
-
-        }
-    }
-
-    FspPosixDeletePath(fullpath);
-}
-
 static VOID Close(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
@@ -1113,8 +1057,11 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     ZeroMemory(&setattr_in.setattr, sizeof(setattr_in.setattr));
     
-    setattr_in.setattr.valid = FATTR_FH;
-    setattr_in.setattr.fh = FileContext->FileHandle;
+    if (FileContext->FileHandle != 0)
+    {
+        setattr_in.setattr.valid = FATTR_FH;
+        setattr_in.setattr.fh = FileContext->FileHandle;
+    }
 
     if (LastAccessTime != 0)
     {
@@ -1122,13 +1069,17 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         FspPosixFileTimeToUnixTime(LastAccessTime,
             (void *)&setattr_in.setattr.atime);
     }
-    if (LastWriteTime != 0)
+    if ((LastWriteTime != 0) || (ChangeTime != 0))
     {
+        if (LastWriteTime == 0)
+        {
+            LastWriteTime = ChangeTime;
+        }
         setattr_in.setattr.valid |= FATTR_MTIME;
         FspPosixFileTimeToUnixTime(LastWriteTime,
             (void *)&setattr_in.setattr.mtime);
     }
-    if (ChangeTime != 0)
+    if (CreationTime != 0)
     {
         setattr_in.setattr.valid |= FATTR_CTIME;
         FspPosixFileTimeToUnixTime(CreationTime,
@@ -1145,6 +1096,72 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     return GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
         FileContext->FileHandle, FileInfo, NULL);
+}
+
+static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
+    PWSTR FileName, ULONG Flags)
+{
+    VIRTFS *VirtFs = FileSystem->UserContext;
+    VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
+    UINT64 LastAccessTime, LastWriteTime;
+    FILETIME CurrentTime;
+    NTSTATUS Status;
+    char *filename, *fullpath;
+    uint64_t parent;
+
+    DBG("\"%S\" Flags: 0x%02x", FileName, Flags);
+
+    if (FileName == NULL)
+    {
+        return;
+    }
+
+    Status = FspPosixMapWindowsToPosixPath(FileName + 1, &fullpath);
+    if (!NT_SUCCESS(Status))
+    {
+        FspPosixDeletePath(fullpath);
+        return;
+    }
+
+    Status = PathWalkthough(VirtFs->Device, fullpath, &filename, &parent);
+    if (!NT_SUCCESS(Status))
+    {
+        FspPosixDeletePath(fullpath);
+        return;
+    }
+
+    if (Flags & FspCleanupDelete)
+    {
+        SubmitDeleteRequest(VirtFs->Device, FileContext, filename, parent);
+    }
+    else
+    {
+        GetSystemTimeAsFileTime(&CurrentTime);
+        LastAccessTime = LastWriteTime = 0;
+
+        if (Flags & FspCleanupSetAllocationSize)
+        {
+
+        }
+        if (Flags & FspCleanupSetArchiveBit)
+        {
+
+        }
+        if (Flags & FspCleanupSetLastAccessTime)
+        {
+            LastAccessTime = ((PLARGE_INTEGER)&CurrentTime)->QuadPart;
+        }
+        if ((Flags & FspCleanupSetLastWriteTime) ||
+            (Flags & FspCleanupSetChangeTime))
+        {
+            LastWriteTime = ((PLARGE_INTEGER)&CurrentTime)->QuadPart;
+        }
+
+        (VOID)SetBasicInfo(FileSystem, FileContext0, 0, 0, LastAccessTime,
+            LastWriteTime, 0, NULL);
+    }
+
+    FspPosixDeletePath(fullpath);
 }
 
 static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
