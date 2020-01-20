@@ -98,9 +98,9 @@ bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
         return false;
     }
 
-    m_nReusedRxBuffersLimit = m_Context->NetMaxReceiveBuffers / 4 + 1;
-
     PrepareReceiveBuffers();
+
+    m_nReusedRxBuffersLimit = m_Context->NetMaxReceiveBuffers / 4 + 1;
 
     CreatePath();
 
