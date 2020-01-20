@@ -207,6 +207,9 @@ ENTER_FN();
     cmd->req.tmf.type = VIRTIO_SCSI_T_TMF;
     cmd->req.tmf.subtype = VIRTIO_SCSI_T_TMF_LOGICAL_UNIT_RESET;
 
+    srbExt->psgl = srbExt->vio_sg;
+    srbExt->pdesc = srbExt->desc_alias;
+    srbExt->allocated = 0;
     sgElement = 0;
     srbExt->psgl[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->req.tmf, &fragLen);
     srbExt->psgl[sgElement].length   = sizeof(cmd->req.tmf);
