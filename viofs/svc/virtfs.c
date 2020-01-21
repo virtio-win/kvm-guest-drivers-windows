@@ -1440,7 +1440,6 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
     BYTE DirInfoBuf[sizeof(FSP_FSCTL_DIR_INFO) + MAX_PATH * sizeof(WCHAR)];
     FSP_FSCTL_DIR_INFO *DirInfo = (FSP_FSCTL_DIR_INFO *)DirInfoBuf;
-    BYTE ReadOutBuf[sizeof(struct fuse_out_header) + ALLOCATION_UNIT];
     struct fuse_direntplus *DirEntryPlus;
     NTSTATUS Status = STATUS_SUCCESS;
     UINT64 Offset = 0;
@@ -1448,7 +1447,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     BOOLEAN Result;
     int FileNameLength;
     FUSE_READ_IN read_in;
-    FUSE_READ_OUT *read_out = (FUSE_READ_OUT *)ReadOutBuf;
+    FUSE_READ_OUT *read_out;
 
     DBG("Pattern: %S Marker: %S BufferLength: %u",
         Pattern ? Pattern : TEXT("(null)"), Marker ? Marker : TEXT("(null)"),
@@ -1456,77 +1455,93 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     Result = FspFileSystemAcquireDirectoryBuffer(&FileContext->DirBuffer,
         Marker == NULL, &Status);
-    
-    if (Result)
+
+    if (Result == TRUE)
     {
-        for (;;)
+        read_out = HeapAlloc(GetProcessHeap(), 0,
+            sizeof(struct fuse_out_header) + BufferLength * 2);
+
+        if (read_out != NULL)
         {
-            FUSE_HEADER_INIT(&read_in.hdr, FUSE_READDIRPLUS,
-                FileContext->NodeId, sizeof(read_in.read));
-
-            read_in.read.fh = FileContext->FileHandle;
-            read_in.read.offset = Offset;
-            read_in.read.size = ALLOCATION_UNIT;
-            read_in.read.read_flags = 0;
-            read_in.read.lock_owner = 0;
-            read_in.read.flags = 0;
-
-            Status = VirtFsFuseRequest(VirtFs->Device, &read_in,
-                sizeof(read_in), read_out, sizeof(ReadOutBuf));
-
-            if (!NT_SUCCESS(Status))
+            for (;;)
             {
-                break;
-            }
+                FUSE_HEADER_INIT(&read_in.hdr, FUSE_READDIRPLUS,
+                    FileContext->NodeId, sizeof(read_in.read));
 
-            Remains = read_out->hdr.len - sizeof(struct fuse_out_header);
-            if (Remains == 0)
-            {
-                // A successful request with no data means no more entries.
-                break;
-            }
+                read_in.read.fh = FileContext->FileHandle;
+                read_in.read.offset = Offset;
+                read_in.read.size = BufferLength * 2;
+                read_in.read.read_flags = 0;
+                read_in.read.lock_owner = 0;
+                read_in.read.flags = 0;
 
-            DirEntryPlus = (struct fuse_direntplus *)read_out->buf;
+                Status = VirtFsFuseRequest(VirtFs->Device, &read_in,
+                    sizeof(read_in), read_out,
+                    sizeof(struct fuse_out_header) + read_in.read.size);
 
-            while (Remains > sizeof(struct fuse_direntplus))
-            {
-                DBG("ino=%Iu off=%Iu namelen=%u type=%u name=%s",
-                    DirEntryPlus->dirent.ino, DirEntryPlus->dirent.off,
-                    DirEntryPlus->dirent.namelen, DirEntryPlus->dirent.type,
-                    DirEntryPlus->dirent.name);
-
-                ZeroMemory(DirInfoBuf, sizeof(DirInfoBuf));
-
-                // Not using FspPosixMapPosixToWindowsPath so we can do the
-                // conversion in-place.
-                FileNameLength = MultiByteToWideChar(CP_UTF8, 0,
-                    DirEntryPlus->dirent.name, DirEntryPlus->dirent.namelen,
-                    DirInfo->FileNameBuf, MAX_PATH);
-
-                DBG("\"%S\" (%d)", DirInfo->FileNameBuf, FileNameLength);
-
-                if (FileNameLength > 0)
+                if (!NT_SUCCESS(Status))
                 {
-                    DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) +
-                        FileNameLength * sizeof(WCHAR));
-
-                    SetFileInfo(&DirEntryPlus->entry_out.attr,
-                        &DirInfo->FileInfo);
-
-                    Result = FspFileSystemFillDirectoryBuffer(
-                        &FileContext->DirBuffer, DirInfo, &Status);
-
-                    if (Result == FALSE)
-                    {
-                        break;
-                    }
+                    break;
                 }
 
-                Offset = DirEntryPlus->dirent.off;
-                Remains -= FUSE_DIRENTPLUS_SIZE(DirEntryPlus);
-                DirEntryPlus = (struct fuse_direntplus *)(
-                    (PBYTE)DirEntryPlus + FUSE_DIRENTPLUS_SIZE(DirEntryPlus));
+                Remains = read_out->hdr.len - sizeof(struct fuse_out_header);
+                if (Remains == 0)
+                {
+                    // A successful request with no data means no more
+                    // entries.
+                    break;
+                }
+
+                DirEntryPlus = (struct fuse_direntplus *)read_out->buf;
+
+                while (Remains > sizeof(struct fuse_direntplus))
+                {
+                    DBG("ino=%Iu off=%Iu namelen=%u type=%u name=%s",
+                        DirEntryPlus->dirent.ino, DirEntryPlus->dirent.off,
+                        DirEntryPlus->dirent.namelen,
+                        DirEntryPlus->dirent.type, DirEntryPlus->dirent.name);
+
+                    ZeroMemory(DirInfoBuf, sizeof(DirInfoBuf));
+
+                    // Not using FspPosixMapPosixToWindowsPath so we can do
+                    // the conversion in-place.
+                    FileNameLength = MultiByteToWideChar(CP_UTF8, 0,
+                        DirEntryPlus->dirent.name,
+                        DirEntryPlus->dirent.namelen, DirInfo->FileNameBuf,
+                        MAX_PATH);
+
+                    DBG("\"%S\" (%d)", DirInfo->FileNameBuf, FileNameLength);
+
+                    if (FileNameLength > 0)
+                    {
+                        DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) +
+                            FileNameLength * sizeof(WCHAR));
+
+                        SetFileInfo(&DirEntryPlus->entry_out.attr,
+                            &DirInfo->FileInfo);
+
+                        Result = FspFileSystemFillDirectoryBuffer(
+                            &FileContext->DirBuffer, DirInfo, &Status);
+
+                        if (Result == FALSE)
+                        {
+                            break;
+                        }
+                    }
+
+                    Offset = DirEntryPlus->dirent.off;
+                    Remains -= FUSE_DIRENTPLUS_SIZE(DirEntryPlus);
+                    DirEntryPlus = (struct fuse_direntplus *)(
+                        (PBYTE)DirEntryPlus +
+                        FUSE_DIRENTPLUS_SIZE(DirEntryPlus));
+                }
             }
+
+            SafeHeapFree(read_out);
+        }
+        else
+        {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
         }
 
         FspFileSystemReleaseDirectoryBuffer(&FileContext->DirBuffer);
