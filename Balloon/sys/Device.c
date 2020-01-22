@@ -510,14 +510,18 @@ BalloonInterruptIsr(
 
     UNREFERENCED_PARAMETER( MessageID );
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
     Device = WdfInterruptGetDevice(WdfInterrupt);
     devCtx = GetDeviceContext(Device);
 
     if (VirtIOWdfGetISRStatus(&devCtx->VDevice) > 0)
     {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
         WdfInterruptQueueDpcForIsr( WdfInterrupt );
         return TRUE;
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s No Isr indicated\n", __FUNCTION__);
     }
     return FALSE;
 }
@@ -622,6 +626,7 @@ BalloonInterruptEnable(
 
     devCtx = GetDeviceContext(WdfDevice);
     EnableInterrupt(WdfInterrupt, devCtx);
+    BalloonInterruptIsr(WdfInterrupt, 0);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
