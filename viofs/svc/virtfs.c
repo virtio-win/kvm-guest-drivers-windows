@@ -40,17 +40,17 @@
 #include <aclapi.h>
 #include <fcntl.h>
 #include <initguid.h>
+#include <lm.h>
 #include <setupapi.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <wtsapi32.h>
 
 #include "virtfs.h"
 #include "fusereq.h"
 
 #define FS_SERVICE_NAME TEXT("VirtIO-FS")
 #define ALLOCATION_UNIT 4096
-#define OWNER_UID       197609 // 544 // 501
-#define OWNER_GID       197121 // 514
 
 #if !defined(O_DIRECTORY)
 #define O_DIRECTORY 0x200000
@@ -67,7 +67,14 @@ typedef struct
     
     HANDLE  Device;
 
+    // A write request buffer size must not exceed this value.
     UINT32  MaxWrite;
+
+    // Uid/Gid used to describe files' owner on the guest side.
+    UINT32  LocalUid;
+    UINT32  LocalGid;
+
+    // Uid/Gid used to describe files' owner on the host side.
     UINT32  OwnerUid;
     UINT32  OwnerGid;
 
@@ -190,6 +197,41 @@ static NTSTATUS FindDeviceInterface(PHANDLE Device)
     }
 
     return STATUS_SUCCESS;
+}
+
+static VOID UpdateLocalUidGid(VIRTFS *VirtFs, DWORD SessionId)
+{
+    PWSTR UserName = NULL;
+    LPUSER_INFO_3 UserInfo = NULL;
+    DWORD BytesReturned;
+    NET_API_STATUS Status;
+    BOOL Result;
+
+    Result = WTSQuerySessionInformation(WTS_CURRENT_SERVER_HANDLE, SessionId,
+        WTSUserName, &UserName, &BytesReturned);
+
+    if (Result == TRUE)
+    {
+        Status = NetUserGetInfo(NULL, UserName, 3, (LPBYTE *)&UserInfo);
+
+        if (Status == NERR_Success)
+        {
+            // Use an account from local machine's user DB as the file's
+            // owner (0x30000 + RID).
+            VirtFs->LocalUid = UserInfo->usri3_user_id + 0x30000;
+            VirtFs->LocalGid = UserInfo->usri3_primary_group_id + 0x30000;
+        }
+
+        if (UserInfo != NULL)
+        {
+            NetApiBufferFree(UserInfo);
+        }
+    }
+
+    if (UserName != NULL)
+    {
+        WTSFreeMemory(UserName);
+    }
 }
 
 static UINT32 PosixUnixModeToAttributes(uint32_t mode)
@@ -497,7 +539,7 @@ static NTSTATUS VirtFsLookupFileName(HANDLE Device, PWSTR FileName,
     return Status;
 }
 
-static NTSTATUS GetFileInfoInternal(HANDLE Device, uint64_t nodeid,
+static NTSTATUS GetFileInfoInternal(VIRTFS *VirtFs, uint64_t nodeid,
     uint64_t fh, FSP_FSCTL_FILE_INFO *FileInfo,
     PSECURITY_DESCRIPTOR *SecurityDescriptor)
 {
@@ -522,8 +564,8 @@ static NTSTATUS GetFileInfoInternal(HANDLE Device, uint64_t nodeid,
         getattr_in.getattr.getattr_flags |= FUSE_GETATTR_FH;
     }
         
-    Status = VirtFsFuseRequest(Device, &getattr_in, sizeof(getattr_in),
-        &getattr_out, sizeof(getattr_out));
+    Status = VirtFsFuseRequest(VirtFs->Device, &getattr_in,
+        sizeof(getattr_in), &getattr_out, sizeof(getattr_out));
 
     if (NT_SUCCESS(Status))
     {
@@ -536,8 +578,9 @@ static NTSTATUS GetFileInfoInternal(HANDLE Device, uint64_t nodeid,
 
         if (SecurityDescriptor != NULL)
         {
-            Status = FspPosixMapPermissionsToSecurityDescriptor(OWNER_UID,
-                OWNER_GID, attr->mode, SecurityDescriptor);
+            Status = FspPosixMapPermissionsToSecurityDescriptor(
+                VirtFs->LocalUid, VirtFs->LocalGid, attr->mode,
+                SecurityDescriptor);
         }
     }
 
@@ -611,8 +654,8 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
             *PFileAttributes = PosixUnixModeToAttributes(attr->mode);
         }
 
-        Status = FspPosixMapPermissionsToSecurityDescriptor(OWNER_UID,
-            OWNER_GID, attr->mode, &Security);
+        Status = FspPosixMapPermissionsToSecurityDescriptor(VirtFs->LocalUid,
+            VirtFs->LocalGid, attr->mode, &Security);
 
         if (NT_SUCCESS(Status))
         {
@@ -820,7 +863,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
 
     if (ReplaceFileAttributes == FALSE)
     {
-        Status = GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
+        Status = GetFileInfoInternal(VirtFs, FileContext->NodeId,
             FileContext->FileHandle, FileInfo, NULL);
 
         if (!NT_SUCCESS(Status))
@@ -833,7 +876,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
 
     // XXX Call SetBasicInfo and SetFileSize?
 
-    return GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
+    return GetFileInfoInternal(VirtFs, FileContext->NodeId,
         FileContext->FileHandle, FileInfo, NULL);
 }
 
@@ -940,7 +983,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     if (ConstrainedIo)
     {
-        Status = GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
+        Status = GetFileInfoInternal(VirtFs, FileContext->NodeId,
             FileContext->FileHandle, FileInfo, NULL);
 
         if (!NT_SUCCESS(Status))
@@ -1003,7 +1046,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return Status;
     }
 
-    return GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
+    return GetFileInfoInternal(VirtFs, FileContext->NodeId,
         FileContext->FileHandle, FileInfo, NULL);
 }
 
@@ -1034,7 +1077,7 @@ static NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return Status;
     }
 
-    return GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
+    return GetFileInfoInternal(VirtFs, FileContext->NodeId,
         FileContext->FileHandle, FileInfo, NULL);
 }
 
@@ -1046,7 +1089,7 @@ static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     DBG("fh: %Iu nodeid: %Iu", FileContext->FileHandle, FileContext->NodeId);
 
-    return GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
+    return GetFileInfoInternal(VirtFs, FileContext->NodeId,
         FileContext->FileHandle, FileInfo, NULL);
 }
 
@@ -1106,7 +1149,7 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return Status;
     }
 
-    return GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
+    return GetFileInfoInternal(VirtFs, FileContext->NodeId,
         FileContext->FileHandle, FileInfo, NULL);
 }
 
@@ -1205,7 +1248,7 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return Status;
     }
 
-    return GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
+    return GetFileInfoInternal(VirtFs, FileContext->NodeId,
         FileContext->FileHandle, FileInfo, NULL);
 }
 
@@ -1219,7 +1262,7 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     DBG("\"%S\"", FileName);
  
-    Status = GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
+    Status = GetFileInfoInternal(VirtFs, FileContext->NodeId,
         FileContext->FileHandle, &FileInfo, NULL);
 
     if (!NT_SUCCESS(Status))
@@ -1331,7 +1374,7 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     DBG("fh: %Iu nodeid: %Iu", FileContext->FileHandle, FileContext->NodeId);
 
-    Status = GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
+    Status = GetFileInfoInternal(VirtFs, FileContext->NodeId,
         FileContext->FileHandle, NULL, &Security);
 
     if (!NT_SUCCESS(Status))
@@ -1371,7 +1414,7 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     DBG("fh: %Iu nodeid: %Iu", FileContext->FileHandle, FileContext->NodeId);
 
-    Status = GetFileInfoInternal(VirtFs->Device, FileContext->NodeId,
+    Status = GetFileInfoInternal(VirtFs, FileContext->NodeId,
         FileContext->FileHandle, NULL, &FileSecurity);
 
     if (!NT_SUCCESS(Status))
@@ -1582,6 +1625,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
     VIRTFS *VirtFs;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+    DWORD SessionId;
 //    PWSTR MountPoint = L"C:\\Shared Folders\\mytag";
     FILETIME FileTime;
     NTSTATUS Status;
@@ -1638,6 +1682,12 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     }
 
     VirtFs->MaxWrite = init_out.init.max_write;
+
+    SessionId = WTSGetActiveConsoleSessionId();
+    if (SessionId != 0xFFFFFFFF)
+    {
+        UpdateLocalUidGid(VirtFs, SessionId);
+    }
 
     GetSystemTimeAsFileTime(&FileTime);
 
@@ -1706,10 +1756,25 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
 static NTSTATUS SvcControl(FSP_SERVICE *Service, ULONG Control,
     ULONG EventType, PVOID EventData)
 {
-    UNREFERENCED_PARAMETER(Service);
-    UNREFERENCED_PARAMETER(Control);
-    UNREFERENCED_PARAMETER(EventType);
-    UNREFERENCED_PARAMETER(EventData);
+    VIRTFS *VirtFs = Service->UserContext;
+    PWTSSESSION_NOTIFICATION SessionNotification;
+
+    switch (Control)
+    {
+        case SERVICE_CONTROL_DEVICEEVENT:
+            break;
+
+        case SERVICE_CONTROL_SESSIONCHANGE:
+            SessionNotification = (PWTSSESSION_NOTIFICATION)EventData;
+            if (EventType == WTS_SESSION_LOGON)
+            {
+                UpdateLocalUidGid(VirtFs, SessionNotification->dwSessionId);
+            }
+            break;
+
+        default:
+            break;
+    }
 
     return STATUS_SUCCESS;
 }
