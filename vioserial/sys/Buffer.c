@@ -112,10 +112,15 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
 
     if (!NT_SUCCESS(status))
     {
+        /* complete the request only */
+        WDFREQUEST req = Entry->Request;
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
-            "Failed to mark request as cancelable: %x\n", status);
+            "Failed to mark request %p as cancelable: %x\n", req, status);
+        Entry->Request = NULL;
         WdfSpinLockRelease(Port->OutVqLock);
-        goto error;
+        WdfRequestComplete(req, status);
+        /* the rest will be freed on packet completion */
+        return FALSE;
     }
 
     WdfSpinLockRelease(Port->OutVqLock);
