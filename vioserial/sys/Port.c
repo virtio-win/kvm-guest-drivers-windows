@@ -1435,8 +1435,8 @@ VIOSerialPortEvtDeviceD0Exit(
     PVIOSERIAL_PORT Port = RawPdoSerialPortGetData(Device)->port;
     PSINGLE_LIST_ENTRY iter;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s TargetState: %d\n",
-        __FUNCTION__, TargetState);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s port 0x%X -> D%d\n",
+        __FUNCTION__, Port->PortId, TargetState - WdfPowerDeviceD0);
 
     Port->Removed = TRUE;
 
