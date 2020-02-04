@@ -680,13 +680,15 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue,
     PDRIVER_CONTEXT Context;
     WDFMEMORY EntryHandle;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,
-        "--> %s Request: %p Length: %d\n", __FUNCTION__, Request, Length);
-
     PAGED_CODE();
 
     Device = WdfIoQueueGetDevice(Queue);
     Port = RawPdoSerialPortGetData(Device)->port;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE,
+        "--> %s Request: %p Length: %d, port 0x%X\n", __FUNCTION__,
+        Request, Length, Port->PortId);
+
     if (Port->Removed)
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_WRITE,
