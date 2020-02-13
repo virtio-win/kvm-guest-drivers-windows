@@ -1629,36 +1629,82 @@ static FSP_FILE_SYSTEM_INTERFACE VirtFsInterface =
     .ReadDirectory = ReadDirectory
 };
 
+static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
+{
+    wchar_t *endp;
+    ULONG ul = wcstol(w, &endp, 0);
+    return L'\0' != w[0] && L'\0' == *endp ? ul : deflt;
+}
+
 static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
-    VIRTFS *VirtFs;
+#define argtos(v) if (arge > ++argp) v = *argp; else goto usage
+#define argtol(v) if (arge > ++argp) v = wcstol_deflt(*argp, v); \
+    else goto usage
+
+    wchar_t **argp, **arge;
     WCHAR VolumePrefix[MAX_PATH];
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+    PWSTR DebugLogFile = 0;
+    ULONG DebugFlags = 0;
+    HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
+    PWSTR MountPoint = NULL;
+    VIRTFS *VirtFs;
     DWORD SessionId;
-//    PWSTR MountPoint = L"C:\\Shared Folders\\mytag";
     FILETIME FileTime;
     NTSTATUS Status;
     FUSE_INIT_IN init_in;
     FUSE_INIT_OUT init_out;
 
-    UNREFERENCED_PARAMETER(argc);
-    UNREFERENCED_PARAMETER(argv);
+    for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
+    {
+        if (L'-' != argp[0][0])
+        {
+            break;
+        }
 
-    // PWSTR* ProfilePath;
-    // HRESULT Result;
-    // Result = SHGetKnownFolderPath(FOLDERID_Profile, KF_FLAG_DEFAULT, NULL,
-    //      &ProfilePath);
-    // if (FAILED(Result))
-    // {
-    // }
-    // CoTaskMemFree(ProfilePath);
+        switch (argp[0][1])
+        {
+            case L'?':
+                goto usage;
+            case L'd':
+                argtol(DebugFlags);
+                break;
+            case L'D':
+                argtos(DebugLogFile);
+                break;
+            default:
+                goto usage;
+        }
+    }
 
-    //PathMakeSystemFolder();
+    if (arge > argp)
+    {
+        goto usage;
+    }
 
-    PWSTR VolumePrefix = L"\\foo\\bar";
-//    PWSTR PassThrough = L"foo";
-    PWSTR MountPoint = L"Z:";
-//    PWSTR MountPoint = NULL;
+    if (DebugLogFile != 0)
+    {
+        if (0 == wcscmp(L"-", DebugLogFile))
+        {
+            DebugLogHandle = GetStdHandle(STD_ERROR_HANDLE);
+        }
+        else
+        {
+            DebugLogHandle = CreateFileW(DebugLogFile, FILE_APPEND_DATA,
+                FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_ALWAYS,
+                FILE_ATTRIBUTE_NORMAL, 0);
+        }
+
+        if (DebugLogHandle == INVALID_HANDLE_VALUE)
+        {
+            FspServiceLog(EVENTLOG_ERROR_TYPE,
+                TEXT("Can not open debug log file."));
+            goto usage;
+        }
+
+        FspDebugLogSetHandle(DebugLogHandle);
+    }
 
     VirtFs = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*VirtFs));
     if (VirtFs == NULL)
@@ -1737,9 +1783,8 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         return Status;
     }
 
-    FspDebugLogSetHandle(GetStdHandle(STD_ERROR_HANDLE));
-    FspFileSystemSetDebugLog(VirtFs->FileSystem, (UINT32)(-1));
-    
+    FspFileSystemSetDebugLog(VirtFs->FileSystem, DebugFlags);
+
     VirtFs->FileSystem->UserContext = Service->UserContext = VirtFs;
 
     Status = FspFileSystemSetMountPoint(VirtFs->FileSystem, MountPoint);
@@ -1754,6 +1799,21 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     }
 
     return Status;
+
+usage:
+    static wchar_t usage[] = L""
+        "Usage: %s OPTIONS\n"
+        "\n"
+        "options:\n"
+        "    -d DebugFlags       [-1: enable all debug logs]\n"
+        "    -D DebugLogFile     [file path; use - for stderr]\n";
+
+    FspServiceLog(EVENTLOG_ERROR_TYPE, usage, FS_SERVICE_NAME);
+
+    return STATUS_UNSUCCESSFUL;
+
+#undef argtos
+#undef argtol
 }
 
 static NTSTATUS SvcStop(FSP_SERVICE *Service)
