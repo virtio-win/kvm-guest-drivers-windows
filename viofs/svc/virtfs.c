@@ -587,24 +587,28 @@ static NTSTATUS GetFileInfoInternal(VIRTFS *VirtFs, uint64_t nodeid,
     return Status;
 }
 
+static VOID GetVolumeName(HANDLE Device, PWSTR VolumeName,
+    DWORD VolumeNameSize)
+{
+    DWORD BytesReturned;
+    BOOL Result;
+
+    Result = DeviceIoControl(Device, IOCTL_VIRTFS_GET_VOLUME_NAME, NULL, 0,
+        VolumeName, VolumeNameSize, &BytesReturned, NULL);
+
+    if (Result == FALSE)
+    {
+        lstrcpy(VolumeName, L"Default");
+    }
+}
+
 static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
-    DWORD BytesReturned;
     NTSTATUS Status;
-    BOOL Result;
     FUSE_STATFS_IN statfs_in;
     FUSE_STATFS_OUT statfs_out;
-
-    Result = DeviceIoControl(VirtFs->Device, IOCTL_VIRTFS_GET_VOLUME_NAME,
-        NULL, 0, VolumeInfo->VolumeLabel, sizeof(VolumeInfo->VolumeLabel),
-        &BytesReturned, NULL);
-
-    if (Result == FALSE)
-    {
-        lstrcpy(VolumeInfo->VolumeLabel, L"VirtFS");
-    }
 
     FUSE_HEADER_INIT(&statfs_in.hdr, FUSE_STATFS, FUSE_ROOT_ID, 0);
 
@@ -617,6 +621,10 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
 
         VolumeInfo->TotalSize = kstatfs->bsize * kstatfs->blocks;
         VolumeInfo->FreeSize = kstatfs->bsize * kstatfs->bavail;
+
+        GetVolumeName(VirtFs->Device, VolumeInfo->VolumeLabel,
+            sizeof(VolumeInfo->VolumeLabel));
+
         VolumeInfo->VolumeLabelLength = 
             (UINT16)(wcslen(VolumeInfo->VolumeLabel) * sizeof(WCHAR));
     }
@@ -1624,6 +1632,7 @@ static FSP_FILE_SYSTEM_INTERFACE VirtFsInterface =
 static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
     VIRTFS *VirtFs;
+    WCHAR VolumePrefix[MAX_PATH];
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     DWORD SessionId;
 //    PWSTR MountPoint = L"C:\\Shared Folders\\mytag";
@@ -1663,6 +1672,10 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         VirtFsDelete(VirtFs);
         return Status;
     }
+
+    lstrcpy(VolumePrefix, L"\\VirtFS\\");
+    GetVolumeName(VirtFs->Device, VolumePrefix + lstrlen(VolumePrefix),
+        sizeof(VolumePrefix) - (lstrlen(VolumePrefix) * sizeof(WCHAR)));
 
     FUSE_HEADER_INIT(&init_in.hdr, FUSE_INIT, FUSE_ROOT_ID,
         sizeof(init_in.init));
