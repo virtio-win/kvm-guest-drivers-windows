@@ -444,10 +444,6 @@ ENTER_FN();
         adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
     }
 
-    if(!adaptExt->dump_mode) {
-        adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
-    }
-
     ConfigInfo->NumberOfBuses               = 1;//(UCHAR)adaptExt->num_queues;
     ConfigInfo->MaximumNumberOfTargets      = min((UCHAR)adaptExt->scsi_config.max_target, 255/*SCSI_MAXIMUM_TARGETS_PER_BUS*/);
     ConfigInfo->MaximumNumberOfLogicalUnits = min((UCHAR)adaptExt->scsi_config.max_lun, SCSI_MAXIMUM_LUNS_PER_TARGET);
@@ -1964,7 +1960,7 @@ ENTER_FN();
     {
         case VIOSCSI_SETUP_GUID_INDEX:
         {
-            size = sizeof(VioScsiExtendedInfo) - 1;
+            size = VioScsiExtendedInfo_SIZE;
             if (OutBufferSize < size)
             {
                 status = SRB_STATUS_DATA_OVERRUN;

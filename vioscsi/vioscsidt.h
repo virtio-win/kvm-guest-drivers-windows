@@ -61,6 +61,6 @@ typedef struct _VioScsiExtendedInfo
 
 } VioScsiExtendedInfo, *PVioScsiExtendedInfo;
 
-#define VioScsiExtendedInfo_SIZE (FIELD_OFFSET(VioScsiExtendedInfo, CompletionDuringStartIo) + VioScsiExtendedInfo_CompletionDuringStartIo_SIZE)
+#define VioScsiExtendedInfo_SIZE (FIELD_OFFSET(VioScsiExtendedInfo, RingPacked) + VioScsiExtendedInfo_RingPacked_SIZE)
 
 #endif
