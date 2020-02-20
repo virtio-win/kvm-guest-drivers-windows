@@ -2,6 +2,7 @@
 
 call :rmdir Install
 call :rmdir Install_Debug
+call :rmdir Release
 call :rmfiles *.log
 call :rmfiles *.err
 call :cleandir
@@ -10,6 +11,11 @@ pushd pci
 call :cleandir
 for /D %%D IN (objchk_*) do call call :rmdir %%D
 for /D %%D IN (objfre_*) do call call :rmdir %%D
+popd
+
+pushd svc
+call :rmdir Release
+call :cleandir
 popd
 
 pushd "VirtFS Package"

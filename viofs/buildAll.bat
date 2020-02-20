@@ -1,1 +1,1 @@
-@call ..\tools\build.bat viofs.sln "Wlh Win7 Win8 Win10" %*
+@call ..\tools\build.bat viofs.sln "Win8 Win10" %*
