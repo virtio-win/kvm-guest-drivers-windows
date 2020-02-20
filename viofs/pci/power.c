@@ -73,7 +73,7 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
 		virtio_feature_enable(GuestFeatures, VIRTIO_F_ANY_LAYOUT);
 	}
 
-	VirtIOWdfSetDriverFeatures(&context->VDevice, GuestFeatures);
+	VirtIOWdfSetDriverFeatures(&context->VDevice, GuestFeatures, 0ULL);
 
 	VirtIOWdfDeviceGet(&context->VDevice,
 		FIELD_OFFSET(VIRTIO_FS_CONFIG, RequestQueues),
