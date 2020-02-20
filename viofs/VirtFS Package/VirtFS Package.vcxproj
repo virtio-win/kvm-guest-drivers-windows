@@ -139,7 +139,40 @@
     <PackageDir>$(OutDir)</PackageDir>
   </PropertyGroup>
   <ItemGroup>
-    <FilesToPackage Include="..\pci\$(IntDir)viofs.pdb">
+    <FilesToPackage Include="..\pci\Win32\Win8 Release\viofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\pci\x64\Win8 Release\viofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\Release\virtfs.exe" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\Release\virtfs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\x64\Release\virtfs.exe" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\x64\Release\virtfs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\pci\Win32\Win10 Release\viofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\pci\x64\Win10 Release\viofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\Release\virtfs.exe" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\Release\virtfs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\x64\Release\virtfs.exe" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\x64\Release\virtfs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
   </ItemGroup>
