@@ -17,6 +17,9 @@
     <ClInclude Include="notifier.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="speed-test.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="device.cpp">
@@ -26,6 +29,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="notifier.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="speed-test.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
