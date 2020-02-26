@@ -306,6 +306,7 @@ static void LogRedirectedPacket(pRxNetDescriptor pBufferDescriptor)
     LPCSTR packetType = "Unknown";
     IPv4Header *pIp4Header = NULL;
     TCPHeader  *pTcpHeader = NULL;
+    UDPHeader  *pUdpHeader = NULL;
     //IPv6Header *pIp6Header = NULL;
     switch (pi->RSSHash.Type)
     {
@@ -330,6 +331,19 @@ static void LogRedirectedPacket(pRxNetDescriptor pBufferDescriptor)
     case NDIS_HASH_IPV6:
         packetType = "TCP_IPV6";
         break;
+#if (NDIS_SUPPORT_NDIS680)
+    case NDIS_HASH_UDP_IPV4:
+        packetType = "UDP_IPV4";
+        pIp4Header = (IPv4Header *)RtlOffsetToPointer(pi->headersBuffer, pi->L2HdrLen);
+        pUdpHeader = (UDPHeader *)RtlOffsetToPointer(pIp4Header, pi->L3HdrLen);
+        break;
+    case NDIS_HASH_UDP_IPV6:
+        packetType = "UDP_IPV6";
+        break;
+    case NDIS_HASH_UDP_IPV6_EX:
+        packetType = "UDP_IPV6EX";
+        break;
+#endif
     default:
         break;
     }
@@ -340,6 +354,14 @@ static void LogRedirectedPacket(pRxNetDescriptor pBufferDescriptor)
             RtlUshortByteSwap(pTcpHeader->tcp_src),
             pIp4Header->ip_desta[0], pIp4Header->ip_desta[1], pIp4Header->ip_desta[2], pIp4Header->ip_desta[3],
             RtlUshortByteSwap(pTcpHeader->tcp_dest));
+    }
+    else if (pUdpHeader)
+    {
+        TraceNoPrefix(0, "%s: %s %d.%d.%d.%d:%d->%d.%d.%d.%d:%d\n", __FUNCTION__, packetType,
+            pIp4Header->ip_srca[0], pIp4Header->ip_srca[1], pIp4Header->ip_srca[2], pIp4Header->ip_srca[3],
+            RtlUshortByteSwap(pUdpHeader->udp_src),
+            pIp4Header->ip_desta[0], pIp4Header->ip_desta[1], pIp4Header->ip_desta[2], pIp4Header->ip_desta[3],
+            RtlUshortByteSwap(pUdpHeader->udp_dest));
     }
     else if (pIp4Header)
     {
