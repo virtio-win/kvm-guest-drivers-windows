@@ -1,6 +1,10 @@
+#include "speed-test.h"
+
+#ifndef linux
+
 #include "device.h"
 #include "assert.h"
-#include "speed-test.h"
+
 
 #pragma warning(default:4201)
 
@@ -298,3 +302,13 @@ wmain(
     delete m_pDev;
     return 0;
 }
+
+#else
+
+int main()
+{
+    speed_test(false);
+    return 0;
+}
+
+#endif
