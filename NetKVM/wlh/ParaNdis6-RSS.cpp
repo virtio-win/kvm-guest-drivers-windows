@@ -201,15 +201,18 @@ static USHORT ResolveQueue(PARANDIS_ADAPTER *pContext, PPROCESSOR_NUMBER proc, U
 
 static void SetDeviceRSSSettings(PARANDIS_ADAPTER *pContext, bool bForceOff = false)
 {
-    if (!pContext->bRSSSupportedByDevice)
+    if (!pContext->bRSSSupportedByDevice && !pContext->bHashReportedByDevice)
     {
         return;
     }
+    UCHAR command = pContext->bRSSSupportedByDevice ?
+        VIRTIO_NET_CTRL_MQ_RSS_CONFIG : VIRTIO_NET_CTRL_MQ_HASH_CONFIG;
+
     if (pContext->RSSParameters.RSSMode == PARANDIS_RSS_DISABLED || bForceOff)
     {
         virtio_net_rss_config cfg = {};
         cfg.max_tx_vq = (USHORT)pContext->nPathBundles;
-        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_RSS_CONFIG, &cfg, sizeof(cfg), NULL, 0, 2);
+        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, command, &cfg, sizeof(cfg), NULL, 0, 2);
     }
     else
     {
@@ -217,7 +220,12 @@ static void SetDeviceRSSSettings(PARANDIS_ADAPTER *pContext, bool bForceOff = fa
         USHORT fallbackQueue = 0;
         USHORT indirection_table_len = pContext->RSSParameters.ActiveRSSScalingSettings.IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
         UCHAR hash_key_len = (UCHAR)pContext->RSSParameters.ActiveHashingSettings.HashSecretKeySize;
-        ULONG config_size = virtio_net_rss_config_size(indirection_table_len, hash_key_len);
+        ULONG config_size;
+        if (!pContext->bRSSSupportedByDevice)
+        {
+            indirection_table_len = 1;
+        }
+        config_size = virtio_net_rss_config_size(indirection_table_len, hash_key_len);
         cfg = (virtio_net_rss_config *)ParaNdis_AllocateMemory(pContext, config_size);
         if (!cfg)
         {
@@ -244,7 +252,7 @@ static void SetDeviceRSSSettings(PARANDIS_ADAPTER *pContext, bool bForceOff = fa
 
         cfg->hash_types = TranslateHashTypes(pContext->RSSParameters.ActiveHashingSettings.HashInformation);
 
-        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_RSS_CONFIG, cfg, config_size, NULL, 0, 2);
+        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ, command, cfg, config_size, NULL, 0, 2);
 
         NdisFreeMemory(cfg, NULL, 0);
     }
