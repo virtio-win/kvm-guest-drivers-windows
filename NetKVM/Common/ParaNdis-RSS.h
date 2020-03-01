@@ -45,6 +45,8 @@ typedef struct _tagPARANDIS_SCALING_SETTINGS
 
 typedef struct _tagPARANDIS_RSS_PARAMS
 {
+    PARANDIS_ADAPTER *pContext;
+
     CCHAR             ReceiveQueuesNumber;
 
     PARANDIS_RSS_MODE RSSMode;

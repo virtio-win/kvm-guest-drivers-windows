@@ -40,10 +40,12 @@ static VOID ApplySettings(PPARANDIS_RSS_PARAMS RSSParameters,
     }
 }
 
-static VOID InitRSSParameters(PARANDIS_RSS_PARAMS *RSSParameters, CCHAR RSSReceiveQueuesNumber)
+static VOID InitRSSParameters(PARANDIS_ADAPTER *pContext)
 {
+    PARANDIS_RSS_PARAMS *RSSParameters = &pContext->RSSParameters;
     NdisZeroMemory(RSSParameters, sizeof(*RSSParameters));
-    RSSParameters->ReceiveQueuesNumber = RSSReceiveQueuesNumber;
+    RSSParameters->pContext = pContext;
+    RSSParameters->ReceiveQueuesNumber = pContext->RSSMaxQueuesNumber;
     RSSParameters->RSSScalingSettings.DefaultQueue = PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
     RSSParameters->ActiveRSSScalingSettings.DefaultQueue = PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
 }
@@ -132,7 +134,7 @@ BOOLEAN ParaNdis6_IsDeviceRSSCapable(PARANDIS_ADAPTER *pContext)
 
 NDIS_RECEIVE_SCALE_CAPABILITIES* ParaNdis6_RSSCreateConfiguration(PARANDIS_ADAPTER *pContext)
 {
-    InitRSSParameters(&pContext->RSSParameters, pContext->RSSMaxQueuesNumber);
+    InitRSSParameters(pContext);
     InitRSSCapabilities(pContext);
     return &pContext->RSSCapabilities;
 }
