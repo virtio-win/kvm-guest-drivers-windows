@@ -59,6 +59,7 @@
 
 #define VIRTIO_NET_F_GUEST_RSC4_DONT_USE	41	/* reserved */
 #define VIRTIO_NET_F_GUEST_RSC6_DONT_USE	42	/* reserved */
+#define VIRTIO_NET_F_HASH_REPORT  57
 #define VIRTIO_NET_F_RSS    	  60
 #define VIRTIO_NET_F_RSC_EXT	  61
 
@@ -116,6 +117,18 @@ struct virtio_net_config {
 #define VIRTIO_NET_RSS_HASH_TYPE_TCP_EX            (1 << 7)
 #define VIRTIO_NET_RSS_HASH_TYPE_UDP_EX            (1 << 8)
 
+#define VIRTIO_NET_HASH_REPORT_NONE            0
+#define VIRTIO_NET_HASH_REPORT_IPv4            1
+#define VIRTIO_NET_HASH_REPORT_TCPv4           2
+#define VIRTIO_NET_HASH_REPORT_UDPv4           3
+#define VIRTIO_NET_HASH_REPORT_IPv6            4
+#define VIRTIO_NET_HASH_REPORT_TCPv6           5
+#define VIRTIO_NET_HASH_REPORT_UDPv6           6
+#define VIRTIO_NET_HASH_REPORT_IPv6_EX         7
+#define VIRTIO_NET_HASH_REPORT_TCPv6_EX        8
+#define VIRTIO_NET_HASH_REPORT_UDPv6_EX        9
+#define VIRTIO_NET_HASH_REPORT_MAX             VIRTIO_NET_HASH_REPORT_UDPv6_EX
+
 /*
  * This header comes first in the scatter-gather list.  If you don't
  * specify GSO or CSUM features, you can simply ignore the header.
@@ -143,6 +156,12 @@ struct virtio_net_hdr_v1 {
 #define rsc_ext_num_packets		csum_start
 #define rsc_ext_num_dupacks		csum_offset
 
+struct virtio_net_hdr_v1_hash {
+    struct virtio_net_hdr_v1 h;
+    __virtio32 hash_value;
+    __virtio16 hash_report;
+    __virtio16 reserved;
+};
 
 #ifndef VIRTIO_NET_NO_LEGACY
 /* This header comes first in the scatter-gather list.
@@ -267,6 +286,7 @@ struct virtio_net_ctrl_mac {
 #define VIRTIO_NET_CTRL_MQ   4
  #define VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET        0
  #define VIRTIO_NET_CTRL_MQ_RSS_CONFIG          1
+ #define VIRTIO_NET_CTRL_MQ_HASH_CONFIG         2
 
 /* for VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET */
 struct virtio_net_ctrl_mq {

@@ -500,6 +500,7 @@ typedef struct _tagPARANDIS_ADAPTER
     BOOLEAN                     bDeviceInitialized;
     BOOLEAN                     bRSSSupportedByDevice;
     BOOLEAN                     bRSSSupportedByDevicePersistent;
+    BOOLEAN                     bHashReportedByDevice;
 
 #if PARANDIS_SUPPORT_RSS
     BOOLEAN                     bRSSOffloadSupported;

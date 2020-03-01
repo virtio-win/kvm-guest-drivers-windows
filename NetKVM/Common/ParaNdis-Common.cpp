@@ -409,6 +409,7 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
         {VIRTIO_NET_F_CTRL_GUEST_OFFLOADS, "VIRTIO_NET_F_CTRL_GUEST_OFFLOADS" },
         {VIRTIO_NET_F_RSC_EXT, "VIRTIO_NET_F_RSC_EXT" },
         {VIRTIO_NET_F_RSS, "VIRTIO_NET_F_RSS" },
+        {VIRTIO_NET_F_HASH_REPORT, "VIRTIO_NET_F_HASH_REPORT" },
     };
     UINT i;
     for (i = 0; i < sizeof(Features)/sizeof(Features[0]); ++i)
@@ -816,17 +817,27 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
 #if PARANDIS_SUPPORT_RSS
     pContext->bMultiQueue = pContext->bControlQueueSupported && AckFeature(pContext, VIRTIO_NET_F_MQ);
-    if (virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_RSS) && pContext->bControlQueueSupported)
+    bool bRSS = virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_RSS);
+    bool bHash = virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_HASH_REPORT);
+
+    if ((bHash || bRSS) && pContext->bControlQueueSupported && virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_F_VERSION_1))
     {
         struct virtio_net_config cfg = {};
         virtio_get_config(&pContext->IODevice, FIELD_OFFSET(struct virtio_net_config, duplex), &cfg.duplex, 8);
         pContext->DeviceRSSCapabilities.SupportedHashes = cfg.supported_hash_types;
         pContext->DeviceRSSCapabilities.MaxKeySize = cfg.rss_max_key_size;
         pContext->DeviceRSSCapabilities.MaxIndirectEntries = cfg.rss_max_indirection_table_length;
-        if (ParaNdis6_IsDeviceRSSCapable(pContext))
+
+        ParaNdis6_CheckDeviceRSSCapabilities(pContext, bRSS, bHash);
+
+        if (bRSS)
         {
             pContext->bRSSSupportedByDevice = AckFeature(pContext, VIRTIO_NET_F_RSS);
             pContext->bRSSSupportedByDevicePersistent = pContext->bRSSSupportedByDevice;
+        }
+        if (bHash)
+        {
+            pContext->bHashReportedByDevice = AckFeature(pContext, VIRTIO_NET_F_HASH_REPORT);
         }
     }
     if (pContext->bRSSSupportedByDevice)
@@ -877,7 +888,9 @@ NDIS_STATUS ParaNdis_InitializeContext(
     pContext->bAnyLayout = AckFeature(pContext, VIRTIO_F_ANY_LAYOUT);
     if (AckFeature(pContext, VIRTIO_F_VERSION_1))
     {
-        pContext->nVirtioHeaderSize = sizeof(virtio_net_hdr_v1);
+        pContext->nVirtioHeaderSize = pContext->bHashReportedByDevice ?
+            sizeof(virtio_net_hdr_v1_hash) : sizeof(virtio_net_hdr_v1);
+
         pContext->bAnyLayout = true;
         DPrintf(0, "[%s] Assuming VIRTIO_F_ANY_LAYOUT for V1 device\n", __FUNCTION__);
         if (AckFeature(pContext, VIRTIO_F_RING_PACKED))
