@@ -374,6 +374,7 @@ static void ResetRssStatistics(PARANDIS_ADAPTER *pContext)
     pContext->extraStatistics.framesRSSHits = 0;
     pContext->extraStatistics.framesRSSMisses = 0;
     pContext->extraStatistics.framesRSSUnclassified = 0;
+    pContext->extraStatistics.framesRSSError = 0;
 }
 
 /**********************************************************
@@ -486,6 +487,7 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             rssDiag.rxUnclassified = pContext->extraStatistics.framesRSSUnclassified;
             rssDiag.rxMissed = pContext->extraStatistics.framesRSSMisses;
             rssDiag.rxHits = pContext->extraStatistics.framesRSSHits;
+            rssDiag.rxErrors = pContext->extraStatistics.framesRSSError;
             ResetRssStatistics(pContext);
             break;
         case OID_GEN_INTERRUPT_MODERATION:

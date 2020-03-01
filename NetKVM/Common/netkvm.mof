@@ -36,5 +36,6 @@ class NetKvm_RssDiagnostics : MSNdis
     [read,write,WmiDataId(2)] uint32 rxHits;
     [read,write,WmiDataId(3)] uint32 rxMissed;
     [read,write,WmiDataId(4)] uint32 rxUnclassified;
+    [read,write,WmiDataId(5)] uint32 rxErrors;
 };
 

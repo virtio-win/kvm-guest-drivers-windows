@@ -459,6 +459,7 @@ typedef struct _tagPARANDIS_ADAPTER
         ULONG framesRSSHits;
         ULONG framesRSSMisses;
         ULONG framesRSSUnclassified;
+        ULONG framesRSSError;
     } extraStatistics;
 
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
