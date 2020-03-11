@@ -1719,7 +1719,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         return Status;
     }
 
-    lstrcpy(VolumePrefix, L"\\VirtFS\\");
+    lstrcpy(VolumePrefix, L"\\VirtioFS\\");
     GetVolumeName(VirtFs->Device, VolumePrefix + lstrlen(VolumePrefix),
         sizeof(VolumePrefix) - (lstrlen(VolumePrefix) * sizeof(WCHAR)));
 
