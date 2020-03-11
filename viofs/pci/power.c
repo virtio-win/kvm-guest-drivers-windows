@@ -44,7 +44,7 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
 {
     PDEVICE_CONTEXT context = GetDeviceContext(Device);
     NTSTATUS status = STATUS_SUCCESS;
-	u64 HostFeatures, GuestFeatures = 0;
+    u64 HostFeatures, GuestFeatures = 0;
 
     UNREFERENCED_PARAMETER(Resources);
 
@@ -54,51 +54,51 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
     PAGED_CODE();
 
     status = VirtIOWdfInitialize(&context->VDevice, Device,
-		ResourcesTranslated, NULL, VIRT_FS_MEMORY_TAG);
+        ResourcesTranslated, NULL, VIRT_FS_MEMORY_TAG);
 
-	if (!NT_SUCCESS(status))
+    if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-			"VirtIOWdfInitialize failed with %!STATUS!", status);
+            "VirtIOWdfInitialize failed with %!STATUS!", status);
     }
 
-	HostFeatures = VirtIOWdfGetDeviceFeatures(&context->VDevice);
+    HostFeatures = VirtIOWdfGetDeviceFeatures(&context->VDevice);
 
-	if (virtio_is_feature_enabled(HostFeatures, VIRTIO_F_VERSION_1))
-	{
-		virtio_feature_enable(GuestFeatures, VIRTIO_F_VERSION_1);
-	}
-	if (virtio_is_feature_enabled(HostFeatures, VIRTIO_F_ANY_LAYOUT))
-	{
-		virtio_feature_enable(GuestFeatures, VIRTIO_F_ANY_LAYOUT);
-	}
+    if (virtio_is_feature_enabled(HostFeatures, VIRTIO_F_VERSION_1))
+    {
+        virtio_feature_enable(GuestFeatures, VIRTIO_F_VERSION_1);
+    }
+    if (virtio_is_feature_enabled(HostFeatures, VIRTIO_F_ANY_LAYOUT))
+    {
+        virtio_feature_enable(GuestFeatures, VIRTIO_F_ANY_LAYOUT);
+    }
 
-	VirtIOWdfSetDriverFeatures(&context->VDevice, GuestFeatures, 0ULL);
+    VirtIOWdfSetDriverFeatures(&context->VDevice, GuestFeatures, 0ULL);
 
-	VirtIOWdfDeviceGet(&context->VDevice,
-		FIELD_OFFSET(VIRTIO_FS_CONFIG, RequestQueues),
-		&context->RequestQueues,
-		sizeof(context->RequestQueues));
+    VirtIOWdfDeviceGet(&context->VDevice,
+        FIELD_OFFSET(VIRTIO_FS_CONFIG, RequestQueues),
+        &context->RequestQueues,
+        sizeof(context->RequestQueues));
 
-	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
-		"Request queues: %d", context->RequestQueues);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
+        "Request queues: %d", context->RequestQueues);
 
-	context->VirtQueues = ExAllocatePoolWithTag(NonPagedPool,
-		context->RequestQueues * sizeof(struct virtqueue*),
-		VIRT_FS_MEMORY_TAG);
+    context->VirtQueues = ExAllocatePoolWithTag(NonPagedPool,
+        context->RequestQueues * sizeof(struct virtqueue*),
+        VIRT_FS_MEMORY_TAG);
 
-	if (context->VirtQueues != NULL)
-	{
-		RtlZeroMemory(context->VirtQueues,
-			context->RequestQueues * sizeof(struct virtqueue*));
-	}
-	else
-	{
-		TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-			"Failed to allocate request queues");
+    if (context->VirtQueues != NULL)
+    {
+        RtlZeroMemory(context->VirtQueues,
+            context->RequestQueues * sizeof(struct virtqueue*));
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
+            "Failed to allocate request queues");
 
-		status = STATUS_INSUFFICIENT_RESOURCES;
-	}
+        status = STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     if (NT_SUCCESS(status))
     {
@@ -156,11 +156,11 @@ NTSTATUS VirtFsEvtDeviceReleaseHardware(IN WDFDEVICE Device,
 
     VirtIOWdfShutdown(&context->VDevice);
 
-	if (context->VirtQueues != NULL)
-	{
-		ExFreePoolWithTag(context->VirtQueues, VIRT_FS_MEMORY_TAG);
-		context->VirtQueues = NULL;
-	}
+    if (context->VirtQueues != NULL)
+    {
+        ExFreePoolWithTag(context->VirtQueues, VIRT_FS_MEMORY_TAG);
+        context->VirtQueues = NULL;
+    }
 
     if (context->VirtQueueLocks != NULL)
     {
@@ -187,10 +187,10 @@ NTSTATUS VirtFsEvtDeviceD0Entry(IN WDFDEVICE Device,
 
     PAGED_CODE();
 
-	param.Interrupt = context->WdfInterrupt;
+    param.Interrupt = context->WdfInterrupt;
 
-	status = VirtIOWdfInitQueues(&context->VDevice,
-		context->RequestQueues, context->VirtQueues, &param);
+    status = VirtIOWdfInitQueues(&context->VDevice,
+        context->RequestQueues, context->VirtQueues, &param);
 
     if (NT_SUCCESS(status))
     {
