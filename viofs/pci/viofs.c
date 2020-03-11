@@ -71,7 +71,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 }
 
 NTSTATUS VirtFsEvtDeviceAdd(IN WDFDRIVER Driver,
-							IN PWDFDEVICE_INIT DeviceInit)
+                            IN PWDFDEVICE_INIT DeviceInit)
 {
     NTSTATUS status;
     WDFDEVICE device;
