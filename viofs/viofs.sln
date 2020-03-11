@@ -20,7 +20,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtioLib", "..\VirtIO\Virt
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtioLib-WDF", "..\VirtIO\WDF\VirtioLib-WDF.vcxproj", "{EC1B7990-EA6A-45FE-836C-2F050F6BB632}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "virtfs", "svc\virtfs.vcxproj", "{9D87E5A8-84AE-4775-90B5-CC75CA420670}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "virtiofs", "svc\virtiofs.vcxproj", "{9D87E5A8-84AE-4775-90B5-CC75CA420670}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
