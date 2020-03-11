@@ -49,7 +49,7 @@
 
 typedef struct _VIRTIO_FS_CONFIG
 {
-	CHAR Tag[MAX_FILE_SYSTEM_NAME];
+    CHAR Tag[MAX_FILE_SYSTEM_NAME];
     UINT32 RequestQueues;
 
 } VIRTIO_FS_CONFIG, *PVIRTIO_FS_CONFIG;
@@ -64,11 +64,11 @@ typedef struct _VIRTIO_FS_REQUEST
 
     WDFREQUEST Request;
 
-	// Device-readable part.
+    // Device-readable part.
     PMDL InputBuffer;
     size_t InputBufferLength;
 
-	// Device-writable part.
+    // Device-writable part.
     PMDL OutputBuffer;
     size_t OutputBufferLength;
 
