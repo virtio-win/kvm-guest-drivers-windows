@@ -289,6 +289,50 @@ USHORT CopyBufferToAnsiString(void* _pDest, const void* _pSrc, const char delimi
     return _length;
 }
 
+#if (NTDDI_VERSION > NTDDI_WIN7)
+BOOLEAN VioScsiReadRegistry(
+    IN PVOID DeviceExtension
+)
+{
+    BOOLEAN Ret = FALSE;
+    ULONG Len = sizeof(ULONG);
+    UCHAR* pBuf = NULL;
+    PADAPTER_EXTENSION adaptExt;
+
+
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    pBuf = StorPortAllocateRegistryBuffer(DeviceExtension, &Len);
+    if (pBuf == NULL) {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, "StorPortAllocateRegistryBuffer failed to allocate buffer\n");
+        return FALSE;
+    }
+
+    memset(pBuf, 0, sizeof(ULONG));
+
+    Ret = StorPortRegistryRead(DeviceExtension,
+                               MAX_PH_BREAKS ,
+                               1,
+                               MINIPORT_REG_DWORD,
+                               pBuf,
+                               &Len);
+
+    if ((Ret == FALSE) || (Len == 0)) {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, "StorPortRegistryRead returned 0x%x, Len = %d\n", Ret, Len);
+        return FALSE;
+    }
+
+    StorPortCopyMemory((PVOID)(&adaptExt->max_physical_breaks),
+           (PVOID)pBuf,
+           sizeof(ULONG));
+    adaptExt->max_physical_breaks = min(
+                                        max(SCSI_MINIMUM_PHYSICAL_BREAKS, adaptExt->max_physical_breaks),
+                                        SCSI_MAXIMUM_PHYSICAL_BREAKS);
+
+    StorPortFreeRegistryBuffer(DeviceExtension, pBuf );
+
+    return TRUE;
+}
+#endif
 
 
 ULONG
@@ -449,18 +493,18 @@ ENTER_FN();
     ConfigInfo->MaximumNumberOfLogicalUnits = min((UCHAR)adaptExt->scsi_config.max_lun, SCSI_MAXIMUM_LUNS_PER_TARGET);
 
     if(adaptExt->dump_mode) {
-        ConfigInfo->NumberOfPhysicalBreaks  = 8;
+        ConfigInfo->NumberOfPhysicalBreaks  = SCSI_MINIMUM_PHYSICAL_BREAKS;
     } else {
-        ConfigInfo->NumberOfPhysicalBreaks  = MAX_PHYS_SEGMENTS + 1;
-        ConfigInfo->MaximumTransferLength = 0x00FFFFFF;
+        adaptExt->max_physical_breaks = MAX_PHYS_SEGMENTS;
 #if (NTDDI_VERSION > NTDDI_WIN7)
         if (adaptExt->indirect) {
-            ConfigInfo->NumberOfPhysicalBreaks = MAX_PHYS_INDIRECT_SEGMENTS + 1;
-            ConfigInfo->MaximumTransferLength = SP_UNINITIALIZED_VALUE;
+            VioScsiReadRegistry(DeviceExtension);
         }
 #endif
+        ConfigInfo->NumberOfPhysicalBreaks = adaptExt->max_physical_breaks + 1;
     }
-    ConfigInfo->MaximumTransferLength       = 0x00FFFFFF;
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " NumberOfPhysicalBreaks %d\n", ConfigInfo->NumberOfPhysicalBreaks);
+    ConfigInfo->MaximumTransferLength = SP_UNINITIALIZED_VALUE;
 
 #if (NTDDI_VERSION >= NTDDI_WIN7)
     num_cpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
@@ -2317,6 +2361,7 @@ ENTER_FN();
     extInfo->ConcurrentChannels = CHECKFLAG(adaptExt->perfFlags, STOR_PERF_CONCURRENT_CHANNELS);
     extInfo->InterruptMsgRanges = CHECKFLAG(adaptExt->perfFlags, STOR_PERF_INTERRUPT_MESSAGE_RANGES);
     extInfo->CompletionDuringStartIo = CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO);
+    extInfo->PhysicalBreaks = adaptExt->max_physical_breaks;
 
 EXIT_FN();
 }
