@@ -43,7 +43,7 @@ static int GetVirtQueueIndex(IN PDEVICE_CONTEXT Context)
     return index;
 }
 
-static SIZE_T GetRequiredScatterGatterSize(IN PVIRTIO_FS_REQUEST Request)
+static SIZE_T GetRequiredScatterGatherSize(IN PVIRTIO_FS_REQUEST Request)
 {
     SIZE_T n;
     
@@ -70,7 +70,7 @@ static PMDL VirtFsAllocatePages(IN SIZE_T TotalBytes)
         MM_DONT_ZERO_ALLOCATION | MM_ALLOCATE_FULLY_REQUIRED);
 }
 
-static int FillScatterGatterFromMdl(OUT struct scatterlist sg[],
+static int FillScatterGatherFromMdl(OUT struct scatterlist sg[],
                                     IN PMDL Mdl,
                                     IN size_t Length)
 {
@@ -115,7 +115,7 @@ static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
     vq = Context->VirtQueues[vq_index];
     vq_lock = Context->VirtQueueLocks[vq_index];
 
-    sg_size = GetRequiredScatterGatterSize(Request);
+    sg_size = GetRequiredScatterGatherSize(Request);
     sg = ExAllocatePoolWithTag(NonPagedPool,
         sg_size * sizeof(struct scatterlist), VIRT_FS_MEMORY_TAG);
 
@@ -126,9 +126,9 @@ static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    out_num = FillScatterGatterFromMdl(sg, Request->InputBuffer,
+    out_num = FillScatterGatherFromMdl(sg, Request->InputBuffer,
         Request->InputBufferLength);
-    in_num = FillScatterGatterFromMdl(sg + out_num, Request->OutputBuffer,
+    in_num = FillScatterGatherFromMdl(sg + out_num, Request->OutputBuffer,
         Request->OutputBufferLength);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "Push %p Request: %p",
