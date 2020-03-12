@@ -54,13 +54,18 @@ typedef struct _VioScsiExtendedInfo
     #define VioScsiExtendedInfo_CompletionDuringStartIo_SIZE sizeof(BOOLEAN)
     #define VioScsiExtendedInfo_CompletionDuringStartIo_ID 8
 
-    //
+    // 
     BOOLEAN RingPacked;
     #define VioScsiExtendedInfo_RingPacked_SIZE sizeof(BOOLEAN)
     #define VioScsiExtendedInfo_RingPacked_ID 9
 
+    // 
+    ULONG PhysicalBreaks;
+    #define VioScsiExtendedInfo_PhysicalBreaks_SIZE sizeof(ULONG)
+    #define VioScsiExtendedInfo_PhysicalBreaks_ID 10
+
 } VioScsiExtendedInfo, *PVioScsiExtendedInfo;
 
-#define VioScsiExtendedInfo_SIZE (FIELD_OFFSET(VioScsiExtendedInfo, RingPacked) + VioScsiExtendedInfo_RingPacked_SIZE)
+#define VioScsiExtendedInfo_SIZE (FIELD_OFFSET(VioScsiExtendedInfo, PhysicalBreaks) + VioScsiExtendedInfo_PhysicalBreaks_SIZE)
 
 #endif

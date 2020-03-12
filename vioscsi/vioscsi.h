@@ -54,6 +54,9 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define IO_PORT_LENGTH          0x40
 #define MAX_CPU                 256
 
+#define MAX_PH_BREAKS           "PhysicalBreaks"
+
+
 /* Feature Bits */
 #define VIRTIO_SCSI_F_INOUT                    0
 #define VIRTIO_SCSI_F_HOTPLUG                  1
@@ -314,7 +317,7 @@ typedef struct _ADAPTER_EXTENSION {
     PGROUP_AFFINITY       pmsg_affinity;
     BOOLEAN               dpc_ok;
     PSTOR_DPC             dpc;
-
+    ULONG                 max_physical_breaks;
     SCSI_WMILIB_CONTEXT   WmiLibContext;
     ULONGLONG             hba_id;
     PUCHAR                ser_num;
