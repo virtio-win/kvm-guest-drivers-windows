@@ -28,7 +28,6 @@
  */
 
 #include "viofs.h"
-
 #include "power.tmh"
 
 #ifdef ALLOC_PRAGMA
@@ -64,16 +63,8 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     HostFeatures = VirtIOWdfGetDeviceFeatures(&context->VDevice);
 
-    if (virtio_is_feature_enabled(HostFeatures, VIRTIO_F_VERSION_1))
-    {
-        virtio_feature_enable(GuestFeatures, VIRTIO_F_VERSION_1);
-    }
-    if (virtio_is_feature_enabled(HostFeatures, VIRTIO_F_ANY_LAYOUT))
-    {
-        virtio_feature_enable(GuestFeatures, VIRTIO_F_ANY_LAYOUT);
-    }
-
-    VirtIOWdfSetDriverFeatures(&context->VDevice, GuestFeatures, 0ULL);
+    VirtIOWdfSetDriverFeatures(&context->VDevice, GuestFeatures,
+        VIRTIO_F_IOMMU_PLATFORM);
 
     VirtIOWdfDeviceGet(&context->VDevice,
         FIELD_OFFSET(VIRTIO_FS_CONFIG, RequestQueues),
@@ -123,7 +114,7 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
             status = WdfSpinLockCreate(&attributes, lock);
             if (!NT_SUCCESS(status))
             {
-                TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
                     "WdfSpinLockCreate failed");
                 break;
             }
