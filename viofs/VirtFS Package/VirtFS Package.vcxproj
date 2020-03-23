@@ -99,16 +99,25 @@
     <FilesToPackage Include="..\pci\x64\Win8 Release\viofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\Release\virtiofs.exe" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
+    <FilesToPackage Include="..\svc\Release\virtiofs.exe" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\Release\virtiofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
+    <FilesToPackage Include="..\svc\Release\virtiofs.exe" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\x64\Release\virtiofs.exe" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+    <FilesToPackage Include="..\svc\Release\virtiofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\x64\Release\virtiofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+    <FilesToPackage Include="..\svc\Release\virtiofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\svc\x64\Release\virtiofs.exe" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\svc\x64\Release\virtiofs.exe" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
+      <PackageRelativeDirectory>.</PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="..\svc\x64\Release\virtiofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
     <FilesToPackage Include="..\pci\Win32\Win10 Release\viofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
@@ -117,16 +126,7 @@
     <FilesToPackage Include="..\pci\x64\Win10 Release\viofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\Release\virtiofs.exe" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\Release\virtiofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\x64\Release\virtiofs.exe" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\x64\Release\virtiofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
+    <FilesToPackage Include="..\svc\x64\Release\virtiofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
   </ItemGroup>
