@@ -56,6 +56,12 @@
 #define O_DIRECTORY 0x200000
 #endif
 
+// Some of the constants defined in Windows doesn't match the values that are
+// used in Linux. Don't try just to understand, just redefine them to match.
+#undef O_EXCL
+
+#define O_EXCL      0200
+
 #define DBG(format, ...) \
     FspDebugLog("*** %s: " format "\n", __FUNCTION__, __VA_ARGS__)
 
@@ -331,6 +337,9 @@ static NTSTATUS VirtFsFuseRequest(HANDLE Device, LPVOID InBuffer,
             case -ENOMEM:
                 Status = STATUS_INSUFFICIENT_RESOURCES;
                 break;
+            case -EEXIST:
+                Status = STATUS_OBJECT_NAME_COLLISION;
+                break;
             case -EINVAL:
                 Status = STATUS_INVALID_PARAMETER;
                 break;
@@ -389,6 +398,8 @@ static NTSTATUS VirtFsCreateFile(VIRTFS *VirtFs,
     {
         create_in.create.flags |= O_APPEND;
     }
+
+    create_in.create.flags |= O_EXCL;
 
     DBG("create_in.create.flags: 0x%08x", create_in.create.flags);
     DBG("create_in.create.mode: 0x%08x", create_in.create.mode);
