@@ -331,6 +331,9 @@ static NTSTATUS VirtFsFuseRequest(HANDLE Device, LPVOID InBuffer,
             case -ENOMEM:
                 Status = STATUS_INSUFFICIENT_RESOURCES;
                 break;
+            case -EEXIST:
+                Status = STATUS_OBJECT_NAME_COLLISION;
+                break;
             case -EINVAL:
                 Status = STATUS_INVALID_PARAMETER;
                 break;
@@ -389,6 +392,8 @@ static NTSTATUS VirtFsCreateFile(VIRTFS *VirtFs,
     {
         create_in.create.flags |= O_APPEND;
     }
+
+    create_in.create.flags |= 0200; /* O_EXCL value in Linux is 0200. */
 
     DBG("create_in.create.flags: 0x%08x", create_in.create.flags);
     DBG("create_in.create.mode: 0x%08x", create_in.create.mode);
