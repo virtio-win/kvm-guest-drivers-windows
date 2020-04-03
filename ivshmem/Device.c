@@ -184,6 +184,8 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
                         DEBUG_INFO("%s", "Call to IoAllocateMdl failed");
                         result = STATUS_INSUFFICIENT_RESOURCES;
                     }
+
+                    MmBuildMdlForNonPagedPool(deviceContext->shmemMDL);
                 }
                 else {
                     DEBUG_INFO("%s", "Call to MmMapIoSpace failed");
