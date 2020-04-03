@@ -101,9 +101,11 @@ int main()
 		printf("Size: %I64u\n", size);
 
 		TEST_START("IOCTL_IVSHMEM_REQUEST_MMAP");
+		IVSHMEM_MMAP_CONFIG config;
+		config.cacheMode = IVSHMEM_CACHE_NONCACHED;
 		IVSHMEM_MMAP map;
 		ZeroMemory(&map, sizeof(IVSHMEM_MMAP));
-		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(IVSHMEM_MMAP), &ulReturnedLength, NULL))
+		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, &config, sizeof(IVSHMEM_MMAP_CONFIG), &map, sizeof(IVSHMEM_MMAP), &ulReturnedLength, NULL))
 		{
 			TEST_FAIL("DeviceIoControl");
 			break;
