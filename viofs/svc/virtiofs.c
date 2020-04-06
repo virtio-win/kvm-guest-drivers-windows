@@ -544,27 +544,25 @@ static NTSTATUS VirtFsLookupFileName(HANDLE Device, PWSTR FileName,
     return Status;
 }
 
-static NTSTATUS GetFileInfoInternal(VIRTFS *VirtFs, uint64_t nodeid,
-    uint64_t fh, FSP_FSCTL_FILE_INFO *FileInfo,
+static NTSTATUS GetFileInfoInternal(VIRTFS *VirtFs,
+    PVIRTFS_FILE_CONTEXT FileContext, FSP_FSCTL_FILE_INFO *FileInfo,
     PSECURITY_DESCRIPTOR *SecurityDescriptor)
 {
     NTSTATUS Status;
     FUSE_GETATTR_IN getattr_in;
     FUSE_GETATTR_OUT getattr_out;
 
-    DBG("fh: %Iu nodeid: %Iu", fh, nodeid);
-
     if ((FileInfo != NULL) && (SecurityDescriptor != NULL))
     {
         return STATUS_INVALID_PARAMETER;
     }
 
-    FUSE_HEADER_INIT(&getattr_in.hdr, FUSE_GETATTR, nodeid,
+    FUSE_HEADER_INIT(&getattr_in.hdr, FUSE_GETATTR, FileContext->NodeId,
         sizeof(getattr_in.getattr));
 
-    getattr_in.getattr.fh = fh;
+    getattr_in.getattr.fh = FileContext->FileHandle;
     getattr_in.getattr.getattr_flags = 0;
-    if (fh != 0)
+    if (getattr_in.getattr.fh != 0)
     {
         getattr_in.getattr.getattr_flags |= FUSE_GETATTR_FH;
     }
@@ -876,9 +874,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
 
     if (ReplaceFileAttributes == FALSE)
     {
-        Status = GetFileInfoInternal(VirtFs, FileContext->NodeId,
-            FileContext->FileHandle, FileInfo, NULL);
-
+        Status = GetFileInfoInternal(VirtFs, FileContext, FileInfo, NULL);
         if (!NT_SUCCESS(Status))
         {
             return Status;
@@ -889,8 +885,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
 
     // XXX Call SetBasicInfo and SetFileSize?
 
-    return GetFileInfoInternal(VirtFs, FileContext->NodeId,
-        FileContext->FileHandle, FileInfo, NULL);
+    return GetFileInfoInternal(VirtFs, FileContext, FileInfo, NULL);
 }
 
 static VOID Close(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0)
@@ -996,9 +991,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     if (ConstrainedIo)
     {
-        Status = GetFileInfoInternal(VirtFs, FileContext->NodeId,
-            FileContext->FileHandle, FileInfo, NULL);
-
+        Status = GetFileInfoInternal(VirtFs, FileContext, FileInfo, NULL);
         if (!NT_SUCCESS(Status))
         {
             return Status;
@@ -1059,8 +1052,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return Status;
     }
 
-    return GetFileInfoInternal(VirtFs, FileContext->NodeId,
-        FileContext->FileHandle, FileInfo, NULL);
+    return GetFileInfoInternal(VirtFs, FileContext, FileInfo, NULL);
 }
 
 static NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
@@ -1090,8 +1082,7 @@ static NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return Status;
     }
 
-    return GetFileInfoInternal(VirtFs, FileContext->NodeId,
-        FileContext->FileHandle, FileInfo, NULL);
+    return GetFileInfoInternal(VirtFs, FileContext, FileInfo, NULL);
 }
 
 static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
@@ -1102,8 +1093,7 @@ static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     DBG("fh: %Iu nodeid: %Iu", FileContext->FileHandle, FileContext->NodeId);
 
-    return GetFileInfoInternal(VirtFs, FileContext->NodeId,
-        FileContext->FileHandle, FileInfo, NULL);
+    return GetFileInfoInternal(VirtFs, FileContext, FileInfo, NULL);
 }
 
 static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
@@ -1162,8 +1152,7 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return Status;
     }
 
-    return GetFileInfoInternal(VirtFs, FileContext->NodeId,
-        FileContext->FileHandle, FileInfo, NULL);
+    return GetFileInfoInternal(VirtFs, FileContext, FileInfo, NULL);
 }
 
 static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
@@ -1261,8 +1250,7 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return Status;
     }
 
-    return GetFileInfoInternal(VirtFs, FileContext->NodeId,
-        FileContext->FileHandle, FileInfo, NULL);
+    return GetFileInfoInternal(VirtFs, FileContext, FileInfo, NULL);
 }
 
 static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
@@ -1275,9 +1263,7 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     DBG("\"%S\"", FileName);
  
-    Status = GetFileInfoInternal(VirtFs, FileContext->NodeId,
-        FileContext->FileHandle, &FileInfo, NULL);
-
+    Status = GetFileInfoInternal(VirtFs, FileContext, &FileInfo, NULL);
     if (!NT_SUCCESS(Status))
     {
         return Status;
@@ -1387,9 +1373,7 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     DBG("fh: %Iu nodeid: %Iu", FileContext->FileHandle, FileContext->NodeId);
 
-    Status = GetFileInfoInternal(VirtFs, FileContext->NodeId,
-        FileContext->FileHandle, NULL, &Security);
-
+    Status = GetFileInfoInternal(VirtFs, FileContext, NULL, &Security);
     if (!NT_SUCCESS(Status))
     {
         *PSecurityDescriptorSize = 0;
@@ -1427,9 +1411,7 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     DBG("fh: %Iu nodeid: %Iu", FileContext->FileHandle, FileContext->NodeId);
 
-    Status = GetFileInfoInternal(VirtFs, FileContext->NodeId,
-        FileContext->FileHandle, NULL, &FileSecurity);
-
+    Status = GetFileInfoInternal(VirtFs, FileContext, NULL, &FileSecurity);
     if (!NT_SUCCESS(Status))
     {
         SafeHeapFree(FileSecurity);
