@@ -158,7 +158,7 @@ RhelGetSectors(
     IN PCDB Cdb
     );
 
-VOID
+BOOLEAN
 RhelGetSerialNumber(
     IN PVOID DeviceExtension,
     IN PSRB_TYPE Srb);
