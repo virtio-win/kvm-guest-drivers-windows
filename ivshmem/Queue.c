@@ -36,7 +36,8 @@ static NTSTATUS ioctl_request_mmap(
     const size_t          InputBufferLength,
     const size_t          OutputBufferLength,
     const WDFREQUEST      Request,
-    size_t              * BytesReturned
+    size_t              * BytesReturned,
+    BOOLEAN               ForKernel
 );
 
 static NTSTATUS ioctl_release_mmap(
@@ -108,9 +109,11 @@ IVSHMEMEvtIoDeviceControl(
             break;
 
         case IOCTL_IVSHMEM_REQUEST_MMAP:
-            status = ioctl_request_mmap(deviceContext, InputBufferLength, OutputBufferLength, Request, &bytesReturned);
+            status = ioctl_request_mmap(deviceContext, InputBufferLength, OutputBufferLength, Request, &bytesReturned, FALSE);
             break;
-
+        case IOCTL_IVSHMEM_REQUEST_KMAP:
+            status = ioctl_request_mmap(deviceContext, InputBufferLength, OutputBufferLength, Request, &bytesReturned, TRUE);
+            break;
         case IOCTL_IVSHMEM_RELEASE_MMAP:
             status = ioctl_release_mmap(deviceContext, Request, &bytesReturned);
             break;
@@ -235,7 +238,8 @@ static NTSTATUS ioctl_request_mmap(
     const size_t          InputBufferLength,
     const size_t          OutputBufferLength,
     const WDFREQUEST      Request,
-    size_t              * BytesReturned
+    size_t              * BytesReturned,
+    BOOLEAN               ForKernel
 )
 {
     // only one mapping at a time is allowed
@@ -291,7 +295,7 @@ static NTSTATUS ioctl_request_mmap(
     {
         DeviceContext->shmemMap = MmMapLockedPagesSpecifyCache(
           DeviceContext->shmemMDL,
-          UserMode,
+          ForKernel ? KernelMode : UserMode,
           cacheType,
           NULL,
           FALSE,
