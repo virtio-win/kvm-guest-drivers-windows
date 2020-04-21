@@ -90,6 +90,9 @@ typedef struct
 
 } VIRTFS_FILE_CONTEXT, *PVIRTFS_FILE_CONTEXT;
 
+static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
+    UINT64 NewSize, BOOLEAN SetAllocationSize, FSP_FSCTL_FILE_INFO *FileInfo);
+
 static int64_t GetUniqueIdentifier()
 {
     static int64_t uniq = 1;
@@ -357,7 +360,8 @@ static NTSTATUS VirtFsFuseRequest(HANDLE Device, LPVOID InBuffer,
 
 static NTSTATUS VirtFsCreateFile(VIRTFS *VirtFs,
     VIRTFS_FILE_CONTEXT *FileContext, UINT32 GrantedAccess, CHAR *FileName,
-    UINT64 Parent, UINT32 Mode, FSP_FSCTL_FILE_INFO *FileInfo)
+    UINT64 Parent, UINT32 Mode, UINT64 AllocationSize,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
     NTSTATUS Status;
     FUSE_CREATE_IN create_in;
@@ -405,7 +409,16 @@ static NTSTATUS VirtFsCreateFile(VIRTFS *VirtFs,
     {
         FileContext->NodeId = create_out.entry.nodeid;
         FileContext->FileHandle = create_out.open.fh;
-        SetFileInfo(&create_out.entry.attr, FileInfo);
+
+        if (AllocationSize > 0)
+        {
+            Status = SetFileSize(VirtFs->FileSystem, FileContext,
+                AllocationSize, TRUE, FileInfo);
+        }
+        else
+        {
+            SetFileInfo(&create_out.entry.attr, FileInfo);
+        }
     }
 
     return Status;
@@ -762,7 +775,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
     else
     {
         Status = VirtFsCreateFile(VirtFs, FileContext, GrantedAccess,
-            filename, parent, Mode, FileInfo);
+            filename, parent, Mode, AllocationSize, FileInfo);
     }
 
     FspPosixDeletePath(fullpath);
@@ -1227,23 +1240,45 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
     NTSTATUS Status;
-    FUSE_SETATTR_IN setattr_in;
-    FUSE_SETATTR_OUT setattr_out;
-
-    UNREFERENCED_PARAMETER(SetAllocationSize);
 
     DBG("NewSize: %Iu SetAllocationSize: %d", NewSize, SetAllocationSize);
     DBG("fh: %Iu nodeid: %Iu", FileContext->FileHandle, FileContext->NodeId);
 
-    FUSE_HEADER_INIT(&setattr_in.hdr, FUSE_SETATTR, FileContext->NodeId,
-        sizeof(setattr_in.setattr));
+    if (SetAllocationSize == TRUE)
+    {
+        FUSE_FALLOCATE_IN falloc_in;
+        FUSE_FALLOCATE_OUT falloc_out;
 
-    ZeroMemory(&setattr_in.setattr, sizeof(setattr_in.setattr));
-    setattr_in.setattr.valid = FATTR_SIZE;
-    setattr_in.setattr.size = NewSize;
+        FUSE_HEADER_INIT(&falloc_in.hdr, FUSE_FALLOCATE, FileContext->NodeId,
+            sizeof(struct fuse_fallocate_in));
 
-    Status = VirtFsFuseRequest(VirtFs->Device, &setattr_in,
-        sizeof(setattr_in), &setattr_out, sizeof(setattr_out));
+        falloc_in.hdr.uid = VirtFs->OwnerUid;
+        falloc_in.hdr.gid = VirtFs->OwnerGid;
+
+        falloc_in.falloc.fh = FileContext->FileHandle;
+        falloc_in.falloc.offset = 0;
+        falloc_in.falloc.length = NewSize;
+        falloc_in.falloc.mode = 0x01; /* FALLOC_FL_KEEP_SIZE */
+        falloc_in.falloc.padding = 0;
+
+        Status = VirtFsFuseRequest(VirtFs->Device, &falloc_in, falloc_in.hdr.len,
+            &falloc_out, sizeof(falloc_out));
+    }
+    else
+    {
+        FUSE_SETATTR_IN setattr_in;
+        FUSE_SETATTR_OUT setattr_out;
+
+        FUSE_HEADER_INIT(&setattr_in.hdr, FUSE_SETATTR, FileContext->NodeId,
+            sizeof(setattr_in.setattr));
+
+        ZeroMemory(&setattr_in.setattr, sizeof(setattr_in.setattr));
+        setattr_in.setattr.valid = FATTR_SIZE;
+        setattr_in.setattr.size = NewSize;
+
+        Status = VirtFsFuseRequest(VirtFs->Device, &setattr_in,
+            sizeof(setattr_in), &setattr_out, sizeof(setattr_out));
+    }
 
     if (!NT_SUCCESS(Status))
     {
