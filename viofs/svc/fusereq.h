@@ -227,3 +227,16 @@ typedef struct
     struct fuse_entry_out   entry;
 
 } FUSE_MKDIR_OUT;
+
+typedef struct
+{
+    struct fuse_in_header       hdr;
+    struct fuse_fallocate_in    falloc;
+
+} FUSE_FALLOCATE_IN;
+
+typedef struct
+{
+    struct fuse_out_header  hdr;
+
+} FUSE_FALLOCATE_OUT;
