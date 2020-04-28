@@ -1,5 +1,86 @@
-Date    07 Jum 2019
-repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
+Date    22 Apr 2020
+tag     mm201
+
+Fixed bugs:
+
+BZ#1821560: [viostor] driver does not return correct serial number length.
+
+New Features:
+
+[vioscsi] introduce the registry key to make munber of physical breakes adjustable
+
+Date    19 Feb 2020
+tag     mm200
+
+Fixed bugs:
+
+BZ#1802452: [vioscsi] WMI facility check virito-scsi num_queues failed
+
+Date    12 Feb 2020
+tag     mm199
+
+Fixed bugs:
+
+BZ#1794609: [vioserial] Fix error flow on Write request
+BZ#1553633: [balloon] process the ISR status at startup
+    
+Date    22 jan 2020
+tag     mm198
+
+Fixed bugs:
+
+BZ#1791147: [vioscsi]: BSOD when running Bus Reset Test
+BZ#1791153: [netkvm]: avoid crash on second virtqueue shutdown
+    
+Date    10 Jan 2010
+tag     mm197
+
+New Features:
+Remove WinXP. WNET and Win7 from the list of build targets since we have no vailed SHA-1 certificate anymore.
+
+Date    9 Jan 2020
+tag     mm196
+
+Fixed bugs:
+
+BZ 1787022: [vioscsi] Windows virtio-scsi driver performs poorly when reading/writing big data blocks.
+BZ 1788042: [balloon] synchronize ReleaseHardware with EvtFileClose
+    
+New Features:
+Packed ring support. 
+
+Date    19 Dec 2019
+tag     mm195
+
+Fixed bugs:
+
+BZ 1783906: [virtio-wdf]  
+    VirtIOWdfDeviceFreeDmaMemoryByTag can be called when the device
+    failed the initialization of Wdf DMA API. Do not do anything
+    in such case.
+
+BZ 1783953: [virtio-wdf]
+    Wrong KMDF version during library compilation causes
+    failure in initialization of DMA enabler.
+
+BZ 1783880: [vioserial}]
+    Wrong command length causes loss of functionality of x86 driver.
+
+
+Date    12 Dec 2019
+tag     mm194
+
+Fixed bugs:
+
+BZ 1745818: [netkvm] Remove TestOnly.RXThrottle parameter from INF
+
+New Features:
+
+Added code for IOMMU support
+
+
+
+Date    07 Jun 2019
 tag     mm192
 
 Fixed bugs:
@@ -14,7 +95,6 @@ vioinput: Fix mistakes in commit 4c9942754912
 netkvm: RSC support according to virtio spec
 
 Date    12 Apr 2019
-repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm191
 
 Fixed bugs:
