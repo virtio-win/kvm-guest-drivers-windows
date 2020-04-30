@@ -17,6 +17,7 @@ call :rmdir Install
 call :rmdir Install_Debug
 call :rmdir x64
 call :rmdir x86
+call :rmdir ARM64
 call :rmfiles build.err build.log buildfre_*.log buildchk_*.log msbuild.log
 call :rmfiles netkvm.DVL.XML SDV-default.xml sdv-user.sdv
 
