@@ -32,4 +32,5 @@ goto rmfiles
 :cleandir
 call :rmdir Win32
 call :rmdir x64
+call :rmdir ARM64
 goto :eof

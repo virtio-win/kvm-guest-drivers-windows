@@ -8,6 +8,7 @@ rmdir /S /Q Release
 rmdir /S /Q Debug\x86
 rmdir /S /Q Debug\amd64
 rmdir /S /Q Debug
+rmdir /S /Q x64
 
 del /F *.log *.wrn *.err
 
