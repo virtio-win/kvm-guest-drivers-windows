@@ -192,6 +192,12 @@ CompleteDPC(
     IN ULONG  MessageID
     );
 
+VOID
+ReportDeviceIdentifier(
+    IN PVOID DeviceExtension,
+    IN PSRB_TYPE Srb
+    );
+
 #ifdef EVENT_TRACING
 VOID WppCleanupRoutine(PVOID arg1) {
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " WppCleanupRoutine\n");
@@ -1454,33 +1460,7 @@ RhelScsiGetInquiryData(
             return SRB_STATUS_PENDING;
         }
 
-        len = strlen(adaptExt->sn);
-
-        if (len) {
-            IdentificationDescr->IdentifierLength = min(BLOCK_SERIAL_STRLEN, len);
-            IdentificationDescr->CodeSet = VpdCodeSetAscii;
-            IdentificationDescr->IdentifierType = VpdIdentifierTypeVendorSpecific;
-            StorPortCopyMemory(&IdentificationDescr->Identifier, &adaptExt->sn, IdentificationDescr->IdentifierLength);
-        }
-        else {
-            IdentificationDescr->CodeSet = VpdCodeSetBinary;
-            IdentificationDescr->IdentifierType = VpdIdentifierTypeEUI64;
-            IdentificationDescr->IdentifierLength = 8;
-            IdentificationDescr->Identifier[0] = (adaptExt->system_io_bus_number >> 12) & 0xF;
-            IdentificationDescr->Identifier[1] = (adaptExt->system_io_bus_number >> 8) & 0xF;
-            IdentificationDescr->Identifier[2] = (adaptExt->system_io_bus_number >> 4) & 0xF;
-            IdentificationDescr->Identifier[3] = adaptExt->system_io_bus_number & 0xF;
-            IdentificationDescr->Identifier[4] = (adaptExt->slot_number >> 12) & 0xF;
-            IdentificationDescr->Identifier[5] = (adaptExt->slot_number >> 8) & 0xF;
-            IdentificationDescr->Identifier[6] = (adaptExt->slot_number >> 4) & 0xF;
-            IdentificationDescr->Identifier[7] = adaptExt->slot_number & 0xF;
-        }
-
-        IdentificationPage->PageLength = sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + IdentificationDescr->IdentifierLength;
-
-        SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_IDENTIFICATION_PAGE) +
-                                     IdentificationPage->PageLength));
-
+        ReportDeviceIdentifier(DeviceExtension, Srb);
     }
 #if (NTDDI_VERSION >= NTDDI_WIN7)
     else if ((cdb->CDB6INQUIRY3.PageCode == VPD_BLOCK_LIMITS) &&
@@ -1923,6 +1903,43 @@ CompleteDPC(
     return FALSE;
 }
 
+VOID
+ReportDeviceIdentifier(
+    IN PVOID DeviceExtension,
+    IN PSRB_TYPE Srb
+    )
+{
+    PVPD_IDENTIFICATION_PAGE       IdentificationPage = NULL;
+    PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr = NULL;
+    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    UCHAR len = strlen(adaptExt->sn);
+
+    IdentificationPage = (PVPD_IDENTIFICATION_PAGE)SRB_DATA_BUFFER(Srb);
+    IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
+    if (len) {
+        IdentificationDescr->IdentifierLength = min(BLOCK_SERIAL_STRLEN, len);
+        IdentificationDescr->CodeSet = VpdCodeSetAscii;
+        IdentificationDescr->IdentifierType = VpdIdentifierTypeVendorSpecific;
+        StorPortCopyMemory(&IdentificationDescr->Identifier, &adaptExt->sn, IdentificationDescr->IdentifierLength);
+    }
+    else {
+        IdentificationDescr->CodeSet = VpdCodeSetBinary;
+        IdentificationDescr->IdentifierType = VpdIdentifierTypeEUI64;
+        IdentificationDescr->IdentifierLength = 8;
+        IdentificationDescr->Identifier[0] = (adaptExt->system_io_bus_number >> 12) & 0xF;
+        IdentificationDescr->Identifier[1] = (adaptExt->system_io_bus_number >> 8) & 0xF;
+        IdentificationDescr->Identifier[2] = (adaptExt->system_io_bus_number >> 4) & 0xF;
+        IdentificationDescr->Identifier[3] = adaptExt->system_io_bus_number & 0xF;
+        IdentificationDescr->Identifier[4] = (adaptExt->slot_number >> 12) & 0xF;
+        IdentificationDescr->Identifier[5] = (adaptExt->slot_number >> 8) & 0xF;
+        IdentificationDescr->Identifier[6] = (adaptExt->slot_number >> 4) & 0xF;
+        IdentificationDescr->Identifier[7] = adaptExt->slot_number & 0xF;
+    }
+    IdentificationPage->PageLength = sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + IdentificationDescr->IdentifierLength;
+    SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_IDENTIFICATION_PAGE) +
+        IdentificationPage->PageLength));
+}
+
 UCHAR DeviceToSrbStatus(UCHAR status)
 {
     switch (status) {
@@ -2007,34 +2024,7 @@ VioStorCompleteRequest(
                 else if ((cdb->CDB6INQUIRY3.PageCode == VPD_DEVICE_IDENTIFIERS) &&
                     (cdb->CDB6INQUIRY3.EnableVitalProductData == 1))
                 {
-                    PVPD_IDENTIFICATION_PAGE       IdentificationPage = NULL;
-                    PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr = NULL;
-                    UCHAR len = strlen(adaptExt->sn);
-
-                    IdentificationPage = (PVPD_IDENTIFICATION_PAGE)SRB_DATA_BUFFER(Srb);
-                    IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
-                    if (len) {
-                        IdentificationDescr->IdentifierLength = min(BLOCK_SERIAL_STRLEN, len);
-                        IdentificationDescr->CodeSet = VpdCodeSetAscii;
-                        IdentificationDescr->IdentifierType = VpdIdentifierTypeVendorSpecific;
-                        StorPortCopyMemory(&IdentificationDescr->Identifier, &adaptExt->sn, IdentificationDescr->IdentifierLength);
-                    }
-                    else {
-                        IdentificationDescr->CodeSet = VpdCodeSetBinary;
-                        IdentificationDescr->IdentifierType = VpdIdentifierTypeEUI64;
-                        IdentificationDescr->IdentifierLength = 8;
-                        IdentificationDescr->Identifier[0] = (adaptExt->system_io_bus_number >> 12) & 0xF;
-                        IdentificationDescr->Identifier[1] = (adaptExt->system_io_bus_number >> 8) & 0xF;
-                        IdentificationDescr->Identifier[2] = (adaptExt->system_io_bus_number >> 4) & 0xF;
-                        IdentificationDescr->Identifier[3] = adaptExt->system_io_bus_number & 0xF;
-                        IdentificationDescr->Identifier[4] = (adaptExt->slot_number >> 12) & 0xF;
-                        IdentificationDescr->Identifier[5] = (adaptExt->slot_number >> 8) & 0xF;
-                        IdentificationDescr->Identifier[6] = (adaptExt->slot_number >> 4) & 0xF;
-                        IdentificationDescr->Identifier[7] = adaptExt->slot_number & 0xF;
-                    }
-                    IdentificationPage->PageLength = sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + IdentificationDescr->IdentifierLength;
-                    SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_IDENTIFICATION_PAGE) +
-                                     IdentificationPage->PageLength));
+                    ReportDeviceIdentifier(DeviceExtension, Srb);
                     CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
                 }
             }
