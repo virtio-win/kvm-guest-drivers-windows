@@ -2001,6 +2001,10 @@ VioStorCompleteRequest(
             adaptExt->sn_ok = TRUE;
             if (Srb) {
                 PCDB cdb = SRB_CDB(Srb);
+
+                if (!cdb)
+                    continue;
+
                 if ((cdb->CDB6INQUIRY3.PageCode == VPD_SERIAL_NUMBER) &&
                     (cdb->CDB6INQUIRY3.EnableVitalProductData == 1)) {
                     PVPD_SERIAL_NUMBER_PAGE SerialPage;

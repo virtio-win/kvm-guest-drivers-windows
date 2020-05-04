@@ -398,6 +398,7 @@ RhelGetSerialNumber(
     srbExt->sg[2].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
     srbExt->sg[2].length   = sizeof(srbExt->vbr.status);
 
+    VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (virtqueue_add_buf(vq,
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
