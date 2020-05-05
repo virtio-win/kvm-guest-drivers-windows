@@ -143,6 +143,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.c" />
+    <ClCompile Include="native.c" />
     <ClCompile Include="viosocklib.c" />
     <ClCompile Include="utils.c" />
   </ItemGroup>

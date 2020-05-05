@@ -34,6 +34,189 @@
 #include "Socket.tmh"
 #endif
 
+NTSTATUS
+VIOSockBind(
+    IN WDFREQUEST   Request
+);
+#ifdef ALLOC_PRAGMA
+#pragma alloc_text (PAGE, VIOSockCreate)
+#pragma alloc_text (PAGE, VIOSockClose)
+
+#pragma alloc_text (PAGE, VIOSockBind)
+
+#pragma alloc_text (PAGE, VIOSockDeviceControl)
+#endif
+
+//////////////////////////////////////////////////////////////////////////
+NTSTATUS
+VIOSockBoundListInit(
+    IN WDFDEVICE hDevice
+)
+{
+    NTSTATUS                status;
+    PDEVICE_CONTEXT         pContext = GetDeviceContext(hDevice);
+    WDF_OBJECT_ATTRIBUTES   collectionAttributes;
+
+    // Create collection for socket objects
+    WDF_OBJECT_ATTRIBUTES_INIT(&collectionAttributes);
+    collectionAttributes.ParentObject = hDevice;
+
+    status = WdfCollectionCreate(&collectionAttributes, &pContext->BoundList);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfCollectionCreate failed - 0x%x\n", status);
+    }
+    else
+    {
+        WDF_OBJECT_ATTRIBUTES   lockAttributes;
+
+        WDF_OBJECT_ATTRIBUTES_INIT(&lockAttributes);
+        lockAttributes.ParentObject = hDevice;
+        status = WdfSpinLockCreate(&lockAttributes, &pContext->BoundLock);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfSpinLockCreate failed - 0x%x\n", status);
+        }
+    }
+    return status;
+}
+
+NTSTATUS
+VIOSockBoundAdd(
+    IN PSOCKET_CONTEXT pSocket,
+    IN ULONG32         svm_port
+)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
+    static ULONG32  uSvmPort;
+    ULONG           uSeed = (ULONG)(ULONG_PTR)pSocket;
+    NTSTATUS        status;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
+    if (svm_port == VMADDR_PORT_ANY)
+    {
+        BOOLEAN bFound = FALSE;
+        ULONG i;
+
+        for (i = 0; i < MAX_PORT_RETRIES; ++i)
+        {
+            if (!uSvmPort)
+                uSvmPort = RtlRandomEx((PULONG)&uSeed);
+
+            if (uSvmPort == VMADDR_PORT_ANY)
+            {
+                uSvmPort = 0;
+                continue;
+            }
+
+            if (uSvmPort <= LAST_RESERVED_PORT)
+                uSvmPort += LAST_RESERVED_PORT + 1;
+
+            svm_port = uSvmPort++;
+
+            if (!VIOSockBoundFindByPort(pContext, svm_port))
+            {
+                bFound = TRUE;
+                break;
+            }
+        }
+
+        if (!bFound)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "No ports available\n");
+            return STATUS_NOT_FOUND;
+        }
+    }
+    else
+    {
+        if (VIOSockBoundFindByPort(pContext, svm_port))
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Local port %u is already in use\n", svm_port);
+            return STATUS_ADDRESS_ALREADY_ASSOCIATED;
+        }
+    }
+
+    pSocket->src_port = svm_port;
+
+    WdfSpinLockAcquire(pContext->BoundLock);
+    status = WdfCollectionAdd(pContext->BoundList, pSocket->ThisSocket);
+    if (NT_SUCCESS(status))
+        VIOSockSetFlag(pSocket, SOCK_BOUND);
+    WdfSpinLockRelease(pContext->BoundLock);
+    return status;
+}
+
+__inline
+VOID
+VIOSockBoundRemove(
+    IN PSOCKET_CONTEXT pSocket
+)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContext(WdfFileObjectGetDevice(pSocket->ThisSocket));
+
+    WdfSpinLockAcquire(pContext->BoundLock);
+    if (VIOSockIsFlag(pSocket, SOCK_BOUND))
+    {
+        WdfCollectionRemove(pContext->BoundList, pSocket->ThisSocket);
+        VIOSockResetFlag(pSocket, SOCK_BOUND);
+    }
+    WdfSpinLockRelease(pContext->BoundLock);
+}
+
+typedef
+BOOLEAN
+(*PSOCKET_CALLBACK)(
+    IN PSOCKET_CONTEXT pSocket,
+    IN PVOID pCallbackContext
+    );
+
+PSOCKET_CONTEXT
+VIOSockBoundEnum(
+    IN PDEVICE_CONTEXT  pContext,
+    IN PSOCKET_CALLBACK pEnumCallback,
+    IN PVOID            pCallbackContext
+)
+{
+    PSOCKET_CONTEXT pSocket = NULL;
+    ULONG i, ItemCount;
+
+    WdfSpinLockAcquire(pContext->BoundLock);
+    ItemCount = WdfCollectionGetCount(pContext->BoundList);
+    for (i = 0; i < ItemCount; ++i)
+    {
+        PSOCKET_CONTEXT pCurrentSocket = GetSocketContext(WdfCollectionGetItem(pContext->BoundList, i));
+
+        if (pEnumCallback(pCurrentSocket, pCallbackContext))
+        {
+            pSocket = pCurrentSocket;
+            break;
+        }
+    }
+    WdfSpinLockRelease(pContext->BoundLock);
+
+    return pSocket;
+}
+
+static
+BOOLEAN
+VIOSockBoundFindByPortCallback(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN PVOID            pCallbackContext
+)
+{
+    return pSocket->src_port == (ULONG32)(ULONG_PTR)pCallbackContext;
+}
+
+PSOCKET_CONTEXT
+VIOSockBoundFindByPort(
+    IN PDEVICE_CONTEXT pContext,
+    IN ULONG32         ulSrcPort
+)
+{
+    return VIOSockBoundEnum(pContext, VIOSockBoundFindByPortCallback, (PVOID)ulSrcPort);
+}
+
 VOID
 VIOSockCreate(
     IN WDFDEVICE WdfDevice,
@@ -143,7 +326,7 @@ VIOSockCreate(
     else
     {
         //Create socket for config retrieving only
-        pSocket->IsControl = TRUE;
+        VIOSockSetFlag(pSocket, SOCK_CONTROL);
     }
 
     WdfRequestComplete(Request, status);
@@ -163,18 +346,115 @@ VIOSockClose(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
         "--> %s\n", __FUNCTION__);
 
+    if (VIOSockIsFlag(pSocket, SOCK_CONTROL))
+        return;
+
     if (pSocket->ListenSocket)
     {
         WdfObjectDereference(pSocket->ListenSocket);
         pSocket->ListenSocket = WDF_NO_HANDLE;
     }
 
-    if (!pSocket->IsControl)
-    {
         //TODO: lock collection
         WdfCollectionRemove(pContext->SocketList, FileObject);
-    }
+
+
+    VIOSockBoundRemove(pSocket);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
         "<-- %s\n", __FUNCTION__);
+}
+
+__inline
+BOOLEAN
+VIOSockIsGuestAddrValid(
+    IN PSOCKADDR_VM    pAddr
+)
+{
+    return (pAddr->svm_family == AF_VSOCK) &&
+        (pAddr->svm_cid != VMADDR_CID_HYPERVISOR) &&
+        (pAddr->svm_cid != VMADDR_CID_RESERVED) &&
+        (pAddr->svm_cid != VMADDR_CID_HOST);
+}
+
+static
+NTSTATUS
+VIOSockBind(
+    IN WDFREQUEST   Request
+)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromRequest(Request);
+    PSOCKADDR_VM    pAddr;
+    SIZE_T          stAddrLen;
+    NTSTATUS        status;
+    static ULONG32  uSvmPort;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pAddr), &pAddr, &stAddrLen);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
+        return status;
+    }
+
+    // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
+    _Analysis_assume_(stAddrLen >= sizeof(*pAddr));
+
+    if (!VIOSockIsGuestAddrValid(pAddr))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid addr to bind, cid: %u, port: %u\n", pAddr->svm_cid, pAddr->svm_port);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (pAddr->svm_cid != (ULONG32)pContext->Config.guest_cid &&
+        pAddr->svm_cid != VMADDR_CID_ANY)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid cid: %u\n", pAddr->svm_cid);
+        return STATUS_INVALID_PARAMETER;
+
+    }
+
+    status = VIOSockBoundAdd(pSocket, pAddr->svm_port);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockBoundAdd failed: 0x%x\n", status);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+
+    return status;
+}
+
+NTSTATUS
+VIOSockDeviceControl(
+    IN WDFREQUEST Request,
+    IN ULONG      IoControlCode,
+    IN OUT size_t *pLength
+)
+{
+    NTSTATUS status = STATUS_SUCCESS;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+
+    *pLength = 0;
+
+    switch (IoControlCode)
+    {
+    case IOCTL_SOCKET_BIND:
+        status = VIOSockBind(Request);
+        break;
+
+    default:
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "Invalid socket ioctl\n");
+        status = STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+    return status;
 }

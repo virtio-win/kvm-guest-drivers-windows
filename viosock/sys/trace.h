@@ -68,6 +68,7 @@ extern int driverDebugLevel;
 #define DBG_LOCKS               0x00000400
 #define DBG_QUEUEING            0x00000800
 #define DBG_HW_ACCESS           0x00001000
+#define DBG_SOCKET              0x00002000
 
 #define TraceEvents(level, flags, message, ...) \
 if (level > driverDebugLevel || !bDebugPrint || !(driverDebugFlags & flags)) {} \
@@ -100,6 +101,7 @@ else VirtioDebugPrintProc(message, __VA_ARGS__)
         WPP_DEFINE_BIT(DBG_LOCKS)            /* bit 10 = 0x00000400 */ \
         WPP_DEFINE_BIT(DBG_QUEUEING)         /* bit 11 = 0x00000800 */ \
         WPP_DEFINE_BIT(DBG_HW_ACCESS)        /* bit 12 = 0x00001000 */ \
+        WPP_DEFINE_BIT(DBG_SOCKET)           /* bit 13 = 0x00002000 */ \
         )
 
 #define WPP_FLAG_LEVEL_LOGGER(flag, level) \

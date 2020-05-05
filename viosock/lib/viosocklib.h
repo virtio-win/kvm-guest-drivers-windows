@@ -41,6 +41,30 @@
 }
 #endif
 
+HANDLE
+VIOSockOpenFile(
+    _In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams,
+    _Out_ LPINT lpErrno
+);
+
+BOOL
+VIOSockDeviceControl(
+    _In_ SOCKET s,
+    _In_ DWORD dwIoControlCode,
+    _In_reads_bytes_opt_(nInBufferSize) LPVOID lpInBuffer,
+    _In_ DWORD nInBufferSize,
+    _Out_writes_bytes_to_opt_(nOutBufferSize, *lpBytesReturned) LPVOID lpOutBuffer,
+    _In_ DWORD nOutBufferSize,
+    _Out_opt_ LPDWORD lpBytesReturned,
+    _Out_ LPINT lpErrno
+);
+
+INT
+NtStatusToWsaError(
+    NTSTATUS Status
+);
+
+//////////////////////////////////////////////////////////////////////////
 _Must_inspect_result_
 SOCKET
 WSPAPI
