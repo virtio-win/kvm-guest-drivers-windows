@@ -34,6 +34,20 @@
 #include "native.tmh"
 #endif
 
+NTSTATUS
+NTAPI
+NtWriteFile(
+    _In_ HANDLE FileHandle,
+    _In_opt_ HANDLE Event,
+    _In_opt_ PIO_APC_ROUTINE ApcRoutine,
+    _In_opt_ PVOID ApcContext,
+    _Out_ PIO_STATUS_BLOCK IoStatusBlock,
+    _In_reads_bytes_(Length) PVOID Buffer,
+    _In_ ULONG Length,
+    _In_opt_ PLARGE_INTEGER ByteOffset,
+    _In_opt_ PULONG Key
+);
+
 #define STATUS_SUCCESS                   ((NTSTATUS)0x00000000L)
 #define STATUS_CANT_WAIT                 ((NTSTATUS)0xC00000D8L)
 #define STATUS_CONNECTION_RESET          ((NTSTATUS)0xC000020DL)
@@ -159,3 +173,45 @@ VIOSockDeviceControl(
     return bRes;
 }
 
+BOOL
+VIOSockWriteFile(
+    _In_ SOCKET s,
+    _In_reads_bytes_opt_(nNumberOfBytesToWrite) LPVOID lpBuffer,
+    _In_ DWORD nNumberOfBytesToWrite,
+    _Out_opt_ LPDWORD lpNumberOfBytesWritten,
+    _Out_ LPINT lpErrno
+)
+{
+    BOOL bRes = TRUE;
+    NTSTATUS status;
+    IO_STATUS_BLOCK iosb = { 0 };
+    LARGE_INTEGER liBytesOffset = { 0 };
+
+    if (lpNumberOfBytesWritten)
+        *lpNumberOfBytesWritten = 0;
+
+    status = NtWriteFile((HANDLE)s, NULL, NULL, NULL,
+        &iosb, lpBuffer, nNumberOfBytesToWrite,
+        &liBytesOffset, NULL);
+
+    if (status == STATUS_PENDING)
+    {
+        WaitForSingleObject((HANDLE)s, INFINITE);
+        status = iosb.Status;
+    }
+
+    if (NT_SUCCESS(status))
+    {
+        if(lpNumberOfBytesWritten)
+            *lpNumberOfBytesWritten = (DWORD)iosb.Information;
+
+    }
+    else
+    {
+        *lpErrno = NtStatusToWsaError(status);
+        bRes = FALSE;
+    }
+
+    return bRes;
+}
+//

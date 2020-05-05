@@ -37,6 +37,7 @@
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSockTxVqInit)
 #pragma alloc_text (PAGE, VIOSockTxVqCleanup)
+#pragma alloc_text (PAGE, VIOSockWriteQueueInit)
 #endif
 
 #define VIOSOCK_DMA_TX_PAGES BYTES_TO_PAGES(VIRTIO_VSOCK_MAX_PKT_BUF_SIZE)
@@ -73,6 +74,8 @@ typedef struct _VIOSOCK_TX_ENTRY {
     ULONG32         flags;
 }VIOSOCK_TX_ENTRY, *PVIOSOCK_TX_ENTRY;
 
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_TX_ENTRY, GetRequestTxContext);
+
 VOID
 VIOSockTxDequeue(
     PDEVICE_CONTEXT pContext
@@ -107,7 +110,6 @@ VIOSockTxVqInit(
     NTSTATUS status = STATUS_SUCCESS;
     USHORT uNumEntries;
     ULONG uRingSize, uHeapSize, uBufferSize;
-    WDF_OBJECT_ATTRIBUTES attributes, memAttributes;
 
     PAGED_CODE();
 
@@ -125,30 +127,6 @@ VIOSockTxVqInit(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Allocating sliced buffer of %u bytes for %u Tx packets\n",
         uBufferSize, uNumEntries);
-
-    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-    attributes.ParentObject = pContext->ThisDevice;
-    status = WdfSpinLockCreate(
-        &attributes,
-        &pContext->TxLock
-    );
-
-    WDF_OBJECT_ATTRIBUTES_INIT(&memAttributes);
-    memAttributes.ParentObject = pContext->ThisDevice;
-
-    status = WdfLookasideListCreate(&memAttributes,
-        sizeof(VIOSOCK_TX_ENTRY), NonPagedPoolNx,
-        &memAttributes, VIOSOCK_DRIVER_MEMORY_TAG,
-        &pContext->TxMemoryList);
-
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfLookasideListCreate failed: 0x%x\n", status);
-        return status;
-    }
-
-    InitializeListHead(&pContext->TxList);
 
     pContext->TxPktSliced = VirtIOWdfDeviceAllocDmaMemorySliced(&pContext->VDevice.VIODevice,
         uBufferSize, sizeof(VIOSOCK_TX_PKT));
@@ -250,6 +228,13 @@ VIOSockTxPktInsert(
         {
             sg[i + 1].length = SgList->Elements[i].Length;
             sg[i + 1].physAddr = SgList->Elements[i].Address;
+
+            uPktLen += SgList->Elements[i].Length;
+            if (uPktLen >= pPkt->Header.len)
+            {
+                sg[++i].length -= uPktLen - pPkt->Header.len;
+                break;
+            }
         }
         uElements += i;
     }
@@ -488,6 +473,26 @@ VIOSockTxPutCredit(
     pSocket->tx_cnt -= uCredit;
 }
 
+static
+VOID
+VIOSockTxEnqueueCancel(
+    IN WDFREQUEST Request
+)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
+    PVIOSOCK_TX_ENTRY pTxEntry = GetRequestTxContext(Request);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    WdfSpinLockAcquire(pContext->TxLock);
+    RemoveEntryList(&pTxEntry->ListEntry);
+    VIOSockTxPutCredit(pSocket, pTxEntry->len);
+    WdfSpinLockRelease(pContext->TxLock);
+
+    WdfRequestComplete(Request, STATUS_CANCELLED);
+}
+
 NTSTATUS
 VIOSockTxEnqueue(
     IN PSOCKET_CONTEXT  pSocket,
@@ -523,6 +528,9 @@ VIOSockTxEnqueue(
     }
     else
     {
+        pTxEntry = GetRequestTxContext(Request);
+        pTxEntry->Request = Request;
+        pTxEntry->Memory = WDF_NO_HANDLE;
     }
 
     if (!NT_SUCCESS(status))
@@ -551,6 +559,16 @@ VIOSockTxEnqueue(
 
     if (Request != WDF_NO_HANDLE)
     {
+        pTxEntry->len = uLen;
+        status = WdfRequestMarkCancelableEx(Request, VIOSockTxEnqueueCancel);
+        if (!NT_SUCCESS(status))
+        {
+            ASSERT(status == STATUS_CANCELLED);
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "WdfRequestMarkCancelableEx failed: 0x%x\n", status);
+            VIOSockTxPutCredit(pSocket, pTxEntry->len);
+            WdfSpinLockRelease(pContext->TxLock);
+            return status;
+        }
     }
 
     InsertTailList(&pContext->TxList, &pTxEntry->ListEntry);
@@ -563,4 +581,168 @@ VIOSockTxEnqueue(
 }
 
 //////////////////////////////////////////////////////////////////////////
-//
+static
+VOID
+VIOSockWriteEnqueue(
+    IN PDEVICE_CONTEXT pContext,
+    IN WDFREQUEST      Request,
+    IN size_t          stLength
+
+)
+{
+    NTSTATUS                status;
+    WDF_OBJECT_ATTRIBUTES   attributes;
+    PSOCKET_CONTEXT         pSocket = GetSocketContextFromRequest(Request);
+    PVIOSOCK_TX_ENTRY       pRequest;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    if (stLength > VIRTIO_VSOCK_MAX_PKT_BUF_SIZE)
+        stLength = VIRTIO_VSOCK_MAX_PKT_BUF_SIZE;
+
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(
+        &attributes,
+        VIOSOCK_TX_ENTRY
+    );
+    status = WdfObjectAllocateContext(
+        Request,
+        &attributes,
+        &pRequest
+    );
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfObjectAllocateContext failed: 0x%x\n", status);
+
+        WdfRequestComplete(Request, status);
+        return;
+    }
+    else
+    {
+        pRequest->len = (ULONG32)stLength;
+    }
+
+    status = VIOSockSendWrite(pSocket, Request);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "VIOSockSendWrite failed: 0x%x\n", status);
+        WdfRequestComplete(Request, status);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+}
+
+static
+VOID
+VIOSockWrite(
+    IN WDFQUEUE Queue,
+    IN WDFREQUEST Request,
+    IN size_t Length
+)
+{
+    VIOSockWriteEnqueue(GetDeviceContext(WdfIoQueueGetDevice(Queue)), Request, Length);
+}
+
+static
+VOID
+VIOSockWriteIoStop(IN WDFQUEUE Queue,
+    IN WDFREQUEST Request,
+    IN ULONG ActionFlags)
+{
+    if (ActionFlags & WdfRequestStopActionSuspend)
+    {
+        WdfRequestStopAcknowledge(Request, FALSE);
+    }
+    else if (ActionFlags & WdfRequestStopActionPurge)
+    {
+        if (ActionFlags & WdfRequestStopRequestCancelable)
+        {
+            if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
+            {
+                WdfRequestComplete(Request, STATUS_CANCELLED);
+            }
+        }
+    }
+}
+
+NTSTATUS
+VIOSockWriteQueueInit(
+    IN WDFDEVICE hDevice
+)
+{
+    PDEVICE_CONTEXT              pContext = GetDeviceContext(hDevice);
+    WDF_IO_QUEUE_CONFIG          queueConfig;
+    NTSTATUS status;
+    WDF_OBJECT_ATTRIBUTES lockAttributes, memAttributes;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&lockAttributes);
+    lockAttributes.ParentObject = pContext->ThisDevice;
+
+    status = WdfSpinLockCreate(
+        &lockAttributes,
+        &pContext->TxLock
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfSpinLockCreate failed: 0x%x\n", status);
+        return FALSE;
+    }
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&memAttributes);
+    memAttributes.ParentObject = pContext->ThisDevice;
+
+    status = WdfLookasideListCreate(&memAttributes,
+        sizeof(VIOSOCK_TX_ENTRY), NonPagedPoolNx,
+        &memAttributes, VIOSOCK_DRIVER_MEMORY_TAG,
+        &pContext->TxMemoryList);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+            "WdfLookasideListCreate failed: 0x%x\n", status);
+        return status;
+    }
+
+    InitializeListHead(&pContext->TxList);
+
+    WDF_IO_QUEUE_CONFIG_INIT(&queueConfig,
+        WdfIoQueueDispatchParallel
+    );
+
+    queueConfig.EvtIoWrite = VIOSockWrite;
+    queueConfig.EvtIoStop = VIOSockWriteIoStop;
+    queueConfig.AllowZeroLengthRequests = WdfFalse;
+
+    status = WdfIoQueueCreate(hDevice,
+        &queueConfig,
+        WDF_NO_OBJECT_ATTRIBUTES,
+        &pContext->WriteQueue
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
+            "WdfIoQueueCreate failed (Write Queue): 0x%x\n", status);
+        return status;
+    }
+
+    status = WdfDeviceConfigureRequestDispatching(hDevice,
+        pContext->WriteQueue,
+        WdfRequestTypeWrite);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
+            "WdfDeviceConfigureRequestDispatching failed (Write Queue): 0x%x\n", status);
+        return status;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+
+    return STATUS_SUCCESS;
+}
