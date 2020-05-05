@@ -88,6 +88,8 @@ typedef struct VirtIOBufferDescriptor VIOSOCK_SG_DESC, *PVIOSOCK_SG_DESC;
 #define VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE	(1024 * 4)
 #define VIRTIO_VSOCK_MAX_PKT_BUF_SIZE		(1024 * 64)
 
+#define VIRTIO_VSOCK_MAX_EVENTS 8
+
 #define VIOSOCK_DEVICE_NAME L"\\Device\\Viosock"
 
 typedef struct _DEVICE_CONTEXT {
@@ -102,13 +104,17 @@ typedef struct _DEVICE_CONTEXT {
     PHYSICAL_ADDRESS            RxPktPA;
     ULONG                       RxPktNum;
 
-    PVIOSOCK_VQ                 EvtVq;
-
     //Send packets
     WDFSPINLOCK                 TxLock;
     PVIOSOCK_VQ                 TxVq;
     PVIRTIO_DMA_MEMORY_SLICED   TxPktSliced;
     ULONG                       TxPktNum;       //Num of slices in TxPktSliced
+
+    //Events
+    PVIOSOCK_VQ                 EvtVq;
+    PVIRTIO_VSOCK_EVENT         EvtVA;
+    PHYSICAL_ADDRESS            EvtPA;
+    ULONG                       EvtRstOccured;
 
     WDFINTERRUPT                WdfInterrupt;
 
@@ -190,6 +196,23 @@ VIOSockRxVqCleanup(
 
 VOID
 VIOSockRxVqProcess(
+    IN PDEVICE_CONTEXT pContext
+);
+
+//////////////////////////////////////////////////////////////////////////
+//Event functions
+NTSTATUS
+VIOSockEvtVqInit(
+    IN PDEVICE_CONTEXT pContext
+);
+
+VOID
+VIOSockEvtVqCleanup(
+    IN PDEVICE_CONTEXT pContext
+);
+
+VOID
+VIOSockEvtVqProcess(
     IN PDEVICE_CONTEXT pContext
 );
 
