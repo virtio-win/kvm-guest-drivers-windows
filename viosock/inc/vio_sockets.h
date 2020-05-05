@@ -49,21 +49,21 @@
 /* Any address  for  binding, equivalent of INADDR_ANY.  This works for the svm_cid field of
  * sockaddr_vm and indicates the context ID of the current endpoint.
  */
-#define VMADDR_CID_ANY ((ULONG64)-1)
+#define VMADDR_CID_ANY          (-1)
 
 /* Bind to any available port.  Works for the svm_port field of sockaddr_vm. */
-#define VMADDR_PORT_ANY ((USHORT)-1)
+#define VMADDR_PORT_ANY         (-1)
 
 /* Use this as the destination CID in an address when referring to the hypervisor.*/
-#define VMADDR_CID_HYPERVISOR 0
+#define VMADDR_CID_HYPERVISOR   0
 
 /* Reserved, must not be used. */
-#define VMADDR_CID_RESERVED 1
+#define VMADDR_CID_RESERVED     1
 
 /* Use this as the destination CID in an address when referring to the host
  * (any process other than the hypervisor).
  */
-#define VMADDR_CID_HOST 2
+#define VMADDR_CID_HOST         2
 
 /* Address structure for virtio vsockets. The address family should be set to
  * AF_VSOCK.  The structure members should all align on their natural

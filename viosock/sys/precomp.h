@@ -28,7 +28,7 @@
  */
 #include <stddef.h>
 #include <stdarg.h>
-#include <ntddk.h>
+#include <ntifs.h>
 #include <wdf.h>
 #define NTSTRSAFE_LIB
 #include <ntstrsafe.h>
@@ -44,3 +44,5 @@
 #include "VirtIOWdf.h"
 
 #include "trace.h"
+
+#include "..\inc\vio_sockets.h"

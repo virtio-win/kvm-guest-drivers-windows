@@ -115,28 +115,6 @@ WSPStartup(
     return ERROR_SUCCESS;
 }
 
-INT
-NtStatusToWsaError(
-    NTSTATUS Status
-)
-{
-    INT wsaError = (NT_SUCCESS(Status)) ? ERROR_SUCCESS : WSASYSNOTREADY;
-    switch (Status)
-    {
-    case STATUS_INVALID_PARAMETER:
-        wsaError = WSAEINVAL;
-        break;
-    case STATUS_TIMEOUT:
-        wsaError = WSAETIMEDOUT;
-        break;
-        //     case STATUS_ACCESS_DENIED:
-        //         wsaError = WSAEACCES;
-        //         break;
-    }
-
-    return wsaError;
-}
-
 _Must_inspect_result_
 SOCKET
 WSPAPI
@@ -222,16 +200,23 @@ VIOSockBind(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
+    int iRes = ERROR_SUCCESS;
 
-    UNREFERENCED_PARAMETER(name);
-    UNREFERENCED_PARAMETER(namelen);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    if (namelen < sizeof(SOCKADDR_VM))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Invalid namelen\n");
+        *lpErrno = WSAEFAULT;
+        return SOCKET_ERROR;
+    }
 
-    *lpErrno = WSAVERNOTSUPPORTED;
+    if (!VIOSockDeviceControl(s, IOCTL_SOCKET_BIND, (PVOID)name, (DWORD)namelen, NULL, 0, NULL, lpErrno))
+    {
+        iRes = SOCKET_ERROR;
+    }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
 }
 
@@ -280,7 +265,7 @@ VIOSockCloseSocket(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = 0;
+    int iRes = ERROR_SUCCESS;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
@@ -289,7 +274,7 @@ VIOSockCloseSocket(
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "CloseHandle failed, socket: %p\n", (PVOID)s);
 
         *lpErrno = WSAEINVAL;
-        iRes = -1;
+        iRes = SOCKET_ERROR;
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
@@ -843,55 +828,6 @@ VIOSockShutdown(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
-}
-
-typedef struct _FILE_FULL_EA_INFORMATION {
-    ULONG NextEntryOffset;
-    UCHAR Flags;
-    UCHAR EaNameLength;
-    USHORT EaValueLength;
-    CHAR EaName[1];
-} FILE_FULL_EA_INFORMATION, *PFILE_FULL_EA_INFORMATION;
-
-HANDLE
-VIOSockOpenFile(
-    _In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams,
-    _Out_ LPINT lpErrno
-)
-{
-    HANDLE hFile = INVALID_HANDLE_VALUE;
-    NTSTATUS Status;
-    OBJECT_ATTRIBUTES oa;
-    IO_STATUS_BLOCK iosb = { 0 };
-    UNICODE_STRING usDeviceName = RTL_CONSTANT_STRING(VIOSOCK_NAME);
-
-    UCHAR EaBuffer[sizeof(FILE_FULL_EA_INFORMATION) + sizeof(*pSocketParams)] = { 0 };
-    PFILE_FULL_EA_INFORMATION pEaBuffer = (PFILE_FULL_EA_INFORMATION)EaBuffer;
-
-    if (pSocketParams)
-    {
-        pEaBuffer->EaNameLength = sizeof(FILE_FULL_EA_INFORMATION) -
-            FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) - sizeof(UCHAR);
-        pEaBuffer->EaValueLength = sizeof(*pSocketParams);
-        memcpy(&EaBuffer[sizeof(FILE_FULL_EA_INFORMATION)], pSocketParams, sizeof(*pSocketParams));
-    }
-    else
-        pEaBuffer = NULL;
-
-    InitializeObjectAttributes(&oa, &usDeviceName, OBJ_CASE_INSENSITIVE, NULL, NULL);
-
-    Status = NtCreateFile(&hFile, FILE_GENERIC_READ | FILE_GENERIC_WRITE, &oa, &iosb, 0, 0,
-        FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_OPEN, FILE_NON_DIRECTORY_FILE, pEaBuffer,
-        pEaBuffer ? sizeof(EaBuffer) : 0);
-
-    if (!NT_SUCCESS(Status))
-    {
-        _ASSERT(hFile == INVALID_HANDLE_VALUE);
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "NtCreateFile failed: %x\n", Status);
-        *lpErrno = NtStatusToWsaError(Status);
-    }
-
-    return hFile;
 }
 
 _Must_inspect_result_

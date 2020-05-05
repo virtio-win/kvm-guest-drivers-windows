@@ -40,7 +40,13 @@ EVT_WDF_DEVICE_D0_ENTRY             VIOSockEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT              VIOSockEvtDeviceD0Exit;
 EVT_WDF_DEVICE_D0_ENTRY_POST_INTERRUPTS_ENABLED VIOSockEvtDeviceD0EntryPostInterruptsEnabled;
 
-static NTSTATUS VIOSockInitInterrupt(IN WDFDEVICE hDevice);
+EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL  VIOSockEvtIoDeviceControl;
+
+NTSTATUS
+VIOSockDeviceGetConfig(
+    IN WDFREQUEST   Request,
+    OUT size_t      *pLength
+);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSockEvtDeviceAdd)
@@ -48,9 +54,11 @@ static NTSTATUS VIOSockInitInterrupt(IN WDFDEVICE hDevice);
 #pragma alloc_text (PAGE, VIOSockEvtDeviceReleaseHardware)
 #pragma alloc_text (PAGE, VIOSockEvtDeviceD0Exit)
 #pragma alloc_text (PAGE, VIOSockEvtDeviceD0EntryPostInterruptsEnabled)
+
+#pragma alloc_text (PAGE, VIOSockEvtIoDeviceControl)
 #endif
 
-EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL VIOSockDeviceControl;
+static NTSTATUS VIOSockInitInterrupt(IN WDFDEVICE hDevice);
 
 static
 NTSTATUS
@@ -249,6 +257,13 @@ VIOSockEvtDeviceAdd(
         return status;
     }
 
+    status = VIOSockBoundListInit(hDevice);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSockBoundListInit failed - 0x%x\n", status);
+        return status;
+    }
+
     pContext = GetDeviceContext(hDevice);
 
     pContext->ThisDevice = hDevice;
@@ -266,9 +281,9 @@ VIOSockEvtDeviceAdd(
 
     // Create sequential queue for IoCtl requests
     WDF_IO_QUEUE_CONFIG_INIT(&queueConfig,
-        WdfIoQueueDispatchSequential
+        WdfIoQueueDispatchParallel
     );
-    queueConfig.EvtIoDeviceControl = VIOSockDeviceControl;
+    queueConfig.EvtIoDeviceControl = VIOSockEvtIoDeviceControl;
     queueConfig.AllowZeroLengthRequests = WdfFalse;
 
     status = WdfIoQueueCreate(hDevice,
@@ -448,7 +463,7 @@ VIOSockEvtDeviceD0EntryPostInterruptsEnabled(
 }
 
 VOID
-VIOSockDeviceControl(
+VIOSockEvtIoDeviceControl(
     IN WDFQUEUE   Queue,
     IN WDFREQUEST Request,
     IN size_t     OutputBufferLength,
@@ -458,7 +473,7 @@ VIOSockDeviceControl(
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(WdfIoQueueGetDevice(Queue));
 
-    size_t                  length = 0;
+    size_t                  Length = 0;
     NTSTATUS                status = STATUS_SUCCESS;
     PVIRTIO_VSOCK_HDR       pVsockHdr = NULL;
     PVIRTIO_VSOCK_CONFIG    pConfig = NULL;
@@ -475,7 +490,7 @@ VIOSockDeviceControl(
 
     case IOCTL_GET_CONFIG:
     {
-        status = WdfRequestRetrieveOutputBuffer(Request, sizeof(VIRTIO_VSOCK_CONFIG), (PVOID*)&pConfig, &length);
+        status = WdfRequestRetrieveOutputBuffer(Request, sizeof(VIRTIO_VSOCK_CONFIG), (PVOID*)&pConfig, &Length);
         if (!NT_SUCCESS(status))
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
@@ -484,7 +499,7 @@ VIOSockDeviceControl(
         }
 
         // minimum length guaranteed by WdfRequestRetrieveOutputBuffer above
-        _Analysis_assume_(length >= sizeof(VIRTIO_VSOCK_CONFIG));
+        _Analysis_assume_(Length >= sizeof(VIRTIO_VSOCK_CONFIG));
 
         *pConfig = pContext->Config;
         status = STATUS_SUCCESS;
@@ -493,10 +508,22 @@ VIOSockDeviceControl(
     }
 
     default:
-        status = STATUS_INVALID_DEVICE_REQUEST;
-        break;
+        if (IsControlRequest(Request))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "Invalid device type\n");
+            status = STATUS_INVALID_DEVICE_REQUEST;
+        }
+        else
+        {
+            status = VIOSockDeviceControl(
+                Request,
+                IoControlCode,
+                &Length);
+        }
     }
 
-    WdfRequestCompleteWithInformation(Request, status, length);
+    if (status != STATUS_PENDING)
+        WdfRequestCompleteWithInformation(Request, status, Length);
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 }

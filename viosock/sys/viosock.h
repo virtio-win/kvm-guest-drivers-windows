@@ -90,6 +90,10 @@ typedef struct VirtIOBufferDescriptor VIOSOCK_SG_DESC, *PVIOSOCK_SG_DESC;
 
 #define VIRTIO_VSOCK_MAX_EVENTS 8
 
+#define LAST_RESERVED_PORT  1023
+#define MAX_PORT_RETRIES    24
+//////////////////////////////////////////////////////////////////////////
+
 #define VIOSOCK_DEVICE_NAME L"\\Device\\Viosock"
 
 typedef struct _DEVICE_CONTEXT {
@@ -118,6 +122,9 @@ typedef struct _DEVICE_CONTEXT {
 
     WDFINTERRUPT                WdfInterrupt;
 
+    WDFSPINLOCK                 BoundLock;
+    WDFCOLLECTION               BoundList;
+
     WDFCOLLECTION               SocketList;
 
     WDFQUEUE                    IoCtlQueue;
@@ -127,10 +134,14 @@ typedef struct _DEVICE_CONTEXT {
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 
+#define SOCK_CONTROL    0x01
+#define SOCK_BOUND      0x02
 
 typedef struct _SOCKET_CONTEXT {
 
     WDFFILEOBJECT   ThisSocket;
+
+    volatile LONG   Flags;
 
     ULONG64 dst_cid;
     ULONG32 src_port;
@@ -141,12 +152,22 @@ typedef struct _SOCKET_CONTEXT {
 
     ULONG State;
     WDFFILEOBJECT ListenSocket;
-    BOOLEAN IsControl;
 } SOCKET_CONTEXT, *PSOCKET_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(SOCKET_CONTEXT, GetSocketContext);
 
+#define VIOSockIsFlag(s,f) ((s)->Flags & (f))
+#define VIOSockSetFlag(s,f) (InterlockedOr(&(s)->Flags, (f)) & (f))
+#define VIOSockResetFlag(s,f) (InterlockedAnd(&(s)->Flags, ~(f)) & (f))
+
+#define GetSocketContextFromRequest(r) GetSocketContext(WdfRequestGetFileObject((r)))
+
+#define GetDeviceContextFromRequest(r) GetDeviceContext(WdfFileObjectGetDevice(WdfRequestGetFileObject((r))))
+
 #define GetDeviceContextFromSocket(s) GetDeviceContext(WdfFileObjectGetDevice((s)->ThisSocket))
+
+#define IsControlRequest(r) VIOSockIsFlag(GetSocketContextFromRequest(r), SOCK_CONTROL)
+
 //////////////////////////////////////////////////////////////////////////
 //Device functions
 
@@ -163,6 +184,28 @@ EVT_WDF_INTERRUPT_DISABLE   VIOSockInterruptDisable;
 EVT_WDF_DEVICE_FILE_CREATE  VIOSockCreate;
 EVT_WDF_FILE_CLOSE          VIOSockClose;
 
+NTSTATUS
+VIOSockDeviceControl(
+    IN WDFREQUEST Request,
+    IN ULONG      IoControlCode,
+    IN OUT size_t *pLength
+);
+NTSTATUS
+VIOSockBoundListInit(
+    IN WDFDEVICE hDevice
+);
+
+NTSTATUS
+VIOSockBoundAdd(
+    IN PSOCKET_CONTEXT pSocket,
+    IN ULONG32         svm_port
+);
+
+PSOCKET_CONTEXT
+VIOSockBoundFindByPort(
+    IN PDEVICE_CONTEXT pContext,
+    IN ULONG32         ulSrcPort
+);
 //////////////////////////////////////////////////////////////////////////
 //Tx functions
 
