@@ -720,19 +720,39 @@ VIOSockSend(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
+    int iRes = ERROR_SUCCESS;
+    DWORD i;
 
-    UNREFERENCED_PARAMETER(lpBuffers);
-    UNREFERENCED_PARAMETER(dwBufferCount);
-    UNREFERENCED_PARAMETER(lpNumberOfBytesSent);
     UNREFERENCED_PARAMETER(dwFlags);
-    UNREFERENCED_PARAMETER(lpOverlapped);
-    UNREFERENCED_PARAMETER(lpCompletionRoutine);
     UNREFERENCED_PARAMETER(lpThreadId);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
+    if (lpOverlapped || lpCompletionRoutine)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Overlapped sockets not supported\n");
+        *lpErrno = WSAEOPNOTSUPP;
+        return SOCKET_ERROR;
+    }
+
+    *lpNumberOfBytesSent = 0;
+
+    for (i = 0; i < dwBufferCount; ++i)
+    {
+        DWORD dwNumberOfBytesWritten;
+
+        if (!VIOSockWriteFile(s, lpBuffers[i].buf, lpBuffers[i].len, &dwNumberOfBytesWritten, lpErrno))
+        {
+            iRes = SOCKET_ERROR;
+            break;
+        }
+
+        *lpNumberOfBytesSent += dwNumberOfBytesWritten;
+        if (dwNumberOfBytesWritten != lpBuffers[i].len)
+        {
+            break;
+        }
+    }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
@@ -774,24 +794,14 @@ VIOSockSendTo(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
-
-    UNREFERENCED_PARAMETER(lpBuffers);
-    UNREFERENCED_PARAMETER(dwBufferCount);
-    UNREFERENCED_PARAMETER(lpNumberOfBytesSent);
-    UNREFERENCED_PARAMETER(dwFlags);
     UNREFERENCED_PARAMETER(lpTo);
     UNREFERENCED_PARAMETER(iTolen);
-    UNREFERENCED_PARAMETER(lpOverlapped);
-    UNREFERENCED_PARAMETER(lpCompletionRoutine);
-    UNREFERENCED_PARAMETER(lpThreadId);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
-    return iRes;
+    return VIOSockSend(s, lpBuffers, dwBufferCount,
+        lpNumberOfBytesSent, dwFlags, lpOverlapped,
+        lpCompletionRoutine, lpThreadId, lpErrno);
 }
 
 int

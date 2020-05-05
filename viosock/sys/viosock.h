@@ -109,6 +109,8 @@ typedef struct _DEVICE_CONTEXT {
     ULONG                       RxPktNum;
 
     //Send packets
+    WDFQUEUE                    WriteQueue;
+
     WDFSPINLOCK                 TxLock;
     PVIOSOCK_VQ                 TxVq;
     PVIRTIO_DMA_MEMORY_SLICED   TxPktSliced;
@@ -246,6 +248,11 @@ VIOSockPendedRequestGet(
 
 //////////////////////////////////////////////////////////////////////////
 //Tx functions
+
+NTSTATUS
+VIOSockWriteQueueInit(
+    IN WDFDEVICE hDevice
+);
 
 NTSTATUS
 VIOSockTxVqInit(

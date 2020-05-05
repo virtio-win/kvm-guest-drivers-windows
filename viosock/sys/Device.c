@@ -310,6 +310,15 @@ VIOSockEvtDeviceAdd(
         return status;
     }
 
+    // Create parallel queue for Write requests
+    status = VIOSockWriteQueueInit(hDevice);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+            "VIOSockWriteQueueInit failed (Write Queue): 0x%x\n", status);
+        return status;
+    }
+
     status = VIOSockInitInterrupt(hDevice);
     if(!NT_SUCCESS(status))
     {

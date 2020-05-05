@@ -59,6 +59,15 @@ VIOSockDeviceControl(
     _Out_ LPINT lpErrno
 );
 
+BOOL
+VIOSockWriteFile(
+    _In_ SOCKET s,
+    _In_reads_bytes_opt_(nNumberOfBytesToWrite) LPVOID lpBuffer,
+    _In_ DWORD nNumberOfBytesToWrite,
+    _Out_opt_ LPDWORD lpNumberOfBytesWritten,
+    _Out_ LPINT lpErrno
+);
+
 INT
 NtStatusToWsaError(
     NTSTATUS Status
