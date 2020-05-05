@@ -41,21 +41,28 @@ VIOSockInterruptIsr(
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
     WDF_INTERRUPT_INFO info;
+    BOOLEAN serviced;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
 
     WDF_INTERRUPT_INFO_INIT(&info);
     WdfInterruptGetInfo(Interrupt, &info);
 
-    if (VirtIOWdfGetISRStatus(&pContext->VDevice) > 0)
+    // Schedule a DPC if the device is using message-signaled interrupts, or
+    // if the device ISR status is enabled.
+    if (info.MessageSignaled || VirtIOWdfGetISRStatus(&pContext->VDevice))
     {
         WdfInterruptQueueDpcForIsr(Interrupt);
-        return TRUE;
+        serviced = TRUE;
+    }
+    else
+    {
+        serviced = FALSE;
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT,"<-- %s, interrupt not serviced\n", __FUNCTION__);
 
-    return FALSE;
+    return serviced;
 }
 
 VOID
@@ -65,12 +72,8 @@ VIOSockInterruptDpc(
 {
     WDFDEVICE Device = WdfInterruptGetDevice(Interrupt);
     PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
-    WDF_INTERRUPT_INFO info;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
-
-    WDF_INTERRUPT_INFO_INIT(&info);
-    WdfInterruptGetInfo(pContext->WdfInterrupt, &info);
 
     // handle the Event queue
     VIOSockEvtVqProcess(pContext);

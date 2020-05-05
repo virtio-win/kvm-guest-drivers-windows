@@ -193,6 +193,64 @@ VIOSockRxVqInit(
     return status;
 }
 
+static
+VOID
+VIOSockRxPktHandleConnecting(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN PVIOSOCK_RX_PKT  pPkt
+)
+{
+    WDFREQUEST  PendedRequest;
+    NTSTATUS    status;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
+    status = VIOSockPendedRequestGet(pSocket, &PendedRequest);
+
+    if (NT_SUCCESS(status))
+    {
+        if (PendedRequest == WDF_NO_HANDLE)
+        {
+            status = STATUS_CANCELLED;
+        }
+        else
+        {
+            switch (pPkt->Header.op)
+            {
+            case VIRTIO_VSOCK_OP_RESPONSE:
+                VIOSockStateSet(pSocket, VIOSOCK_STATE_CONNECTED);
+                status = STATUS_SUCCESS;
+                break;
+            case VIRTIO_VSOCK_OP_INVALID:
+                if (PendedRequest != WDF_NO_HANDLE)
+                {
+                    status = VIOSockPendedRequestSet(pSocket, PendedRequest);
+                    if (NT_SUCCESS(status))
+                        PendedRequest = WDF_NO_HANDLE;
+                }
+                break;
+            case VIRTIO_VSOCK_OP_RST:
+                status = STATUS_CONNECTION_RESET;
+                break;
+            default:
+                status = STATUS_CONNECTION_INVALID;
+            }
+        }
+    }
+
+    if (!NT_SUCCESS(status))
+    {
+        VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
+        if (pPkt->Header.op != VIRTIO_VSOCK_OP_RST)
+            VIOSockSendReset(pSocket, TRUE);
+    }
+
+    if (PendedRequest)
+        WdfRequestComplete(PendedRequest, status);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+}
+
 VOID
 VIOSockRxVqProcess(
     IN PDEVICE_CONTEXT pContext
@@ -245,14 +303,38 @@ VIOSockRxVqProcess(
     {
         pPkt = CONTAINING_RECORD(pCurrentEntry, VIOSOCK_RX_PKT, ListEntry);
 
+        //find socket
+        pSocket = VIOSockBoundFindByPort(pContext, pPkt->Header.dst_port);
+
+        if (!pSocket)
+        {
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Socket for packet is not exists\n");
+            WdfSpinLockAcquire(pContext->RxLock);
+            VIOSockRxPktInsert(pContext, pPkt);
+            WdfSpinLockRelease(pContext->RxLock);
+            virtqueue_kick(pContext->RxVq);
+            continue;
+        }
+
+
         //Update CID in case it has changed after a transport reset event
         //pContext->Config.guest_cid = (ULONG32)pPkt->Header.dst_cid;
         ASSERT(pContext->Config.guest_cid == (ULONG32)pPkt->Header.dst_cid);
+
+        switch (pSocket->State)
+        {
+        case VIOSOCK_STATE_CONNECTING:
+            VIOSockRxPktHandleConnecting(pSocket, pPkt);
+            break;
+        default:
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid socket state for Rx packet\n");
+        }
 
         //reinsert handled packet
         WdfSpinLockAcquire(pContext->RxLock);
         VIOSockRxPktInsert(pContext, pPkt);
         WdfSpinLockRelease(pContext->RxLock);
+        virtqueue_kick(pContext->RxVq);
     };
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
