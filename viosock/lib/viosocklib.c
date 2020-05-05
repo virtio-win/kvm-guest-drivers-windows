@@ -1,5 +1,5 @@
 /*
- * Placeholder for the provider init functions
+ * Placeholder for the provider functions
  *
  * Copyright (c) 2019 Virtuozzo International GmbH
  *
@@ -294,20 +294,30 @@ VIOSockConnect(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
+    int iRes = ERROR_SUCCESS;
 
-    UNREFERENCED_PARAMETER(name);
-    UNREFERENCED_PARAMETER(namelen);
     UNREFERENCED_PARAMETER(lpCallerData);
     UNREFERENCED_PARAMETER(lpCalleeData);
     UNREFERENCED_PARAMETER(lpSQOS);
     UNREFERENCED_PARAMETER(lpGQOS);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    if (namelen < sizeof(SOCKADDR_VM))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Invalid namelen\n");
+        *lpErrno = WSAEFAULT;
+        return SOCKET_ERROR;
+    }
+
+    if (!VIOSockDeviceControl(s, IOCTL_SOCKET_CONNECT, (PVOID)name, (DWORD)namelen, NULL, 0, NULL, lpErrno))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        iRes = SOCKET_ERROR;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
 }
 

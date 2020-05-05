@@ -134,6 +134,15 @@ typedef struct _DEVICE_CONTEXT {
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 
+typedef enum _VIOSOCK_STATE
+{
+    VIOSOCK_STATE_CLOSE = 0,
+    VIOSOCK_STATE_CONNECTING = 1,
+    VIOSOCK_STATE_CONNECTED = 2,
+    VIOSOCK_STATE_CLOSING = 3,
+    VIOSOCK_STATE_LISTEN = 4,
+}VIOSOCK_STATE;
+
 #define SOCK_CONTROL    0x01
 #define SOCK_BOUND      0x02
 
@@ -150,7 +159,9 @@ typedef struct _SOCKET_CONTEXT {
     ULONG32 buf_alloc;
     ULONG32 fwd_cnt;
 
-    ULONG State;
+    WDFSPINLOCK     StateLock;
+    volatile VIOSOCK_STATE   State;
+
     WDFFILEOBJECT ListenSocket;
 } SOCKET_CONTEXT, *PSOCKET_CONTEXT;
 
@@ -206,6 +217,13 @@ VIOSockBoundFindByPort(
     IN PDEVICE_CONTEXT pContext,
     IN ULONG32         ulSrcPort
 );
+VIOSOCK_STATE
+VIOSockStateSet(
+    IN PSOCKET_CONTEXT pSocket,
+    IN VIOSOCK_STATE   NewState
+);
+
+#define VIOSockStateGet(s) ((s)->State)
 //////////////////////////////////////////////////////////////////////////
 //Tx functions
 
