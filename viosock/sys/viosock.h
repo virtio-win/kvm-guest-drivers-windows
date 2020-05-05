@@ -96,7 +96,12 @@ typedef struct _DEVICE_CONTEXT {
 
     WDFDEVICE                   ThisDevice;
 
+    WDFSPINLOCK                 RxLock;
     PVIOSOCK_VQ                 RxVq;
+    PVOID                       RxPktVA;        //contiguous array of VIOSOCK_RX_PKT
+    PHYSICAL_ADDRESS            RxPktPA;
+    ULONG                       RxPktNum;
+
     PVIOSOCK_VQ                 EvtVq;
 
     //Send packets
@@ -170,5 +175,22 @@ VIOSockTxVqProcess(
     IN PDEVICE_CONTEXT pContext
 );
 
+//////////////////////////////////////////////////////////////////////////
+//Rx functions
+
+NTSTATUS
+VIOSockRxVqInit(
+    IN PDEVICE_CONTEXT pContext
+);
+
+VOID
+VIOSockRxVqCleanup(
+    IN PDEVICE_CONTEXT pContext
+);
+
+VOID
+VIOSockRxVqProcess(
+    IN PDEVICE_CONTEXT pContext
+);
 
 #endif /* VIOSOCK_H */

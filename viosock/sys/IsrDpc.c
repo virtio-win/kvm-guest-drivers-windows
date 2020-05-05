@@ -64,15 +64,18 @@ VIOSockInterruptDpc(
     IN WDFOBJECT AssociatedObject)
 {
     WDFDEVICE Device = WdfInterruptGetDevice(Interrupt);
-    PDEVICE_CONTEXT Context = GetDeviceContext(Device);
+    PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
     WDF_INTERRUPT_INFO info;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
 
     WDF_INTERRUPT_INFO_INIT(&info);
-    WdfInterruptGetInfo(Context->WdfInterrupt, &info);
+    WdfInterruptGetInfo(pContext->WdfInterrupt, &info);
+    // handle the Read queue
+    VIOSockRxVqProcess(pContext);
+
     // handle the Write queue
-    VIOSockTxVqProcess(Context);
+    VIOSockTxVqProcess(pContext);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
 }
@@ -82,11 +85,14 @@ VIOSockInterruptEnable(
     IN WDFINTERRUPT Interrupt,
     IN WDFDEVICE AssociatedDevice)
 {
-    PDEVICE_CONTEXT Context = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
+    PDEVICE_CONTEXT pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
 
     UNREFERENCED_PARAMETER(AssociatedDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
+
+    virtqueue_enable_cb(pContext->RxVq);
+    virtqueue_kick(pContext->RxVq);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
@@ -97,13 +103,16 @@ VIOSockInterruptDisable(
     IN WDFINTERRUPT Interrupt,
     IN WDFDEVICE AssociatedDevice)
 {
-    PDEVICE_CONTEXT Context = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
+    PDEVICE_CONTEXT pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
     UNREFERENCED_PARAMETER(AssociatedDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
 
-    if (Context->TxVq)
-        virtqueue_disable_cb(Context->TxVq);
+    if (pContext->TxVq)
+        virtqueue_disable_cb(pContext->TxVq);
+
+    if (pContext->RxVq)
+        virtqueue_disable_cb(pContext->RxVq);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;

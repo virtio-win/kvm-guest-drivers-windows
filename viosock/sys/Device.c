@@ -120,6 +120,9 @@ VIOSockQueuesInit(
         return status;
     }
     pContext->RxVq = vqs[VIOSOCK_VQ_RX];
+    status = VIOSockRxVqInit(pContext);
+    if (!NT_SUCCESS(status))
+        return status;
 
     pContext->TxVq = vqs[VIOSOCK_VQ_TX];
     status = VIOSockTxVqInit(pContext);
@@ -144,6 +147,9 @@ VIOSockQueuesCleanup(
     ULONG uBufferSize;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+
+    if (pContext->RxVq)
+        VIOSockRxVqCleanup(pContext);
 
     if (pContext->TxVq)
         VIOSockTxVqCleanup(pContext);
