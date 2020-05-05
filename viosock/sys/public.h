@@ -44,6 +44,10 @@ typedef struct _VIRTIO_VSOCK_CONFIG {
 
 #define VIRTIO_VSOCK_HOST_CID   2
 
+typedef enum _VIRTIO_VSOCK_TYPE {
+    VIRTIO_VSOCK_TYPE_STREAM = 1,
+}VIRTIO_VSOCK_TYPE;
+
 // typedef enum _VIRTIO_VSOCK_EA_TYPE
 // {
 //     VSOCK_TYPE_NEW=0,

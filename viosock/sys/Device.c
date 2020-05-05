@@ -92,6 +92,66 @@ VIOSockInitInterrupt(
     return status;
 }
 
+static
+NTSTATUS
+VIOSockQueuesInit(
+    IN WDFDEVICE hDevice)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContext(hDevice);
+    NTSTATUS status = STATUS_SUCCESS;
+    VIRTIO_WDF_QUEUE_PARAM params[VIOSOCK_VQ_MAX];
+    PVIOSOCK_VQ vqs[VIOSOCK_VQ_MAX];
+
+    ULONG uBufferSize;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+
+    // rx
+    params[VIOSOCK_VQ_RX].Interrupt = pContext->WdfInterrupt;
+    // tx
+    params[VIOSOCK_VQ_TX].Interrupt = pContext->WdfInterrupt;
+    // event
+    params[VIOSOCK_VQ_EVT].Interrupt = pContext->WdfInterrupt;
+
+    status = VirtIOWdfInitQueues(&pContext->VDevice, VIOSOCK_VQ_MAX, vqs, params);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VirtIOWdfInitQueues failed: 0x%x\n", status);
+        return status;
+    }
+    pContext->RxVq = vqs[VIOSOCK_VQ_RX];
+
+    pContext->TxVq = vqs[VIOSOCK_VQ_TX];
+    status = VIOSockTxVqInit(pContext);
+    if (!NT_SUCCESS(status))
+        return status;
+
+    pContext->EvtVq = vqs[VIOSOCK_VQ_EVT];
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+
+    return status;
+}
+
+static
+VOID
+VIOSockQueuesCleanup(
+    IN WDFDEVICE hDevice)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContext(hDevice);
+    NTSTATUS status = STATUS_SUCCESS;
+
+    ULONG uBufferSize;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+
+    if (pContext->TxVq)
+        VIOSockTxVqCleanup(pContext);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+}
+
+//////////////////////////////////////////////////////////////////////////
 NTSTATUS
 VIOSockEvtDeviceAdd(
     IN WDFDRIVER Driver,
@@ -180,6 +240,8 @@ VIOSockEvtDeviceAdd(
     }
 
     pContext = GetDeviceContext(hDevice);
+
+    pContext->ThisDevice = hDevice;
 
     // Create collection for socket objects
     WDF_OBJECT_ATTRIBUTES_INIT(&collectionAttributes);
@@ -277,31 +339,6 @@ VIOSockEvtDevicePrepareHardware(
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "VirtIOWdfSetDriverFeatures failed: %x\n", status);
         VirtIOWdfSetDriverFailed(&pContext->VDevice);
     }
-    else
-    {
-        VIRTIO_WDF_QUEUE_PARAM params[3];
-        PVIOSOCK_VQ vqs[3];
-
-        // rx
-        params[0].Interrupt = pContext->WdfInterrupt;
-        // tx
-        params[1].Interrupt = pContext->WdfInterrupt;
-        // event
-        params[2].Interrupt = pContext->WdfInterrupt;
-
-        status = VirtIOWdfInitQueues(&pContext->VDevice, 3, vqs, params);
-        if (NT_SUCCESS(status))
-        {
-            pContext->RxQueue = vqs[0];
-            pContext->TxQueue = vqs[1];
-            pContext->EvtQueue = vqs[2];
-        }
-        else
-        {
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Setting VIRTIO_CONFIG_S_FAILED flag\n");
-            VirtIOWdfSetDriverFailed(&pContext->VDevice);
-       }
-    }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return status;
@@ -338,6 +375,13 @@ VIOSockEvtDeviceD0Entry(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
+    status = VIOSockQueuesInit(Device);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIOSockQueuesInit failed: 0x%x\n", status);
+        return status;
+    }
+
     VirtIOWdfDeviceGet(&pContext->VDevice,
         0,
         &pContext->Config,
@@ -359,10 +403,12 @@ VIOSockEvtDeviceD0Exit(
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
 
+    PAGED_CODE();
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s TargetState: %d\n",
         __FUNCTION__, TargetState);
 
-    PAGED_CODE();
+    VIOSockQueuesCleanup(Device);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 

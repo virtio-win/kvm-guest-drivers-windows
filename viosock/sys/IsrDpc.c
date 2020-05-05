@@ -71,6 +71,8 @@ VIOSockInterruptDpc(
 
     WDF_INTERRUPT_INFO_INIT(&info);
     WdfInterruptGetInfo(Context->WdfInterrupt, &info);
+    // handle the Write queue
+    VIOSockTxVqProcess(Context);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
 }
@@ -99,6 +101,9 @@ VIOSockInterruptDisable(
     UNREFERENCED_PARAMETER(AssociatedDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
+
+    if (Context->TxVq)
+        virtqueue_disable_cb(Context->TxVq);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;

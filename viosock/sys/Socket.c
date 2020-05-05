@@ -58,6 +58,7 @@ VIOSockCreate(
     }
 
     pSocket = GetSocketContext(FileObject);
+    pSocket->ThisSocket = FileObject;
 
     WDF_REQUEST_PARAMETERS_INIT(&parameters);
 

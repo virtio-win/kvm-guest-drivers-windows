@@ -31,6 +31,8 @@
 #define VIOSOCK_H
 #include "public.h"
 
+#define VIOSOCK_DRIVER_MEMORY_TAG (ULONG)'cosV'
+
 #pragma pack (push)
 #pragma pack (1)
 
@@ -75,41 +77,49 @@ typedef struct _VIRTIO_VSOCK_EVENT {
 
 #pragma pack (pop)
 
-EVT_WDF_DRIVER_DEVICE_ADD VIOSockEvtDeviceAdd;
-
-EVT_WDF_INTERRUPT_ISR                           VIOSockInterruptIsr;
-EVT_WDF_INTERRUPT_DPC                           VIOSockInterruptDpc;
-EVT_WDF_INTERRUPT_DPC                           VIOSockWdfInterruptDpc;
-EVT_WDF_INTERRUPT_ENABLE                        VIOSockInterruptEnable;
-EVT_WDF_INTERRUPT_DISABLE                       VIOSockInterruptDisable;
-
-EVT_WDF_DEVICE_FILE_CREATE VIOSockCreate;
-EVT_WDF_FILE_CLOSE VIOSockClose;
-
 typedef struct virtqueue VIOSOCK_VQ, *PVIOSOCK_VQ;
 typedef struct VirtIOBufferDescriptor VIOSOCK_SG_DESC, *PVIOSOCK_SG_DESC;
 
+#define VIOSOCK_VQ_RX  0
+#define VIOSOCK_VQ_TX  1
+#define VIOSOCK_VQ_EVT 2
+#define VIOSOCK_VQ_MAX 3
+
+#define VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE	(1024 * 4)
+#define VIRTIO_VSOCK_MAX_PKT_BUF_SIZE		(1024 * 64)
+
+#define VIOSOCK_DEVICE_NAME L"\\Device\\Viosock"
+
 typedef struct _DEVICE_CONTEXT {
 
-    VIRTIO_WDF_DRIVER   VDevice;
+    VIRTIO_WDF_DRIVER           VDevice;
 
-    PVIOSOCK_VQ    RxQueue;
-    PVIOSOCK_VQ    TxQueue;
-    PVIOSOCK_VQ    EvtQueue;
+    WDFDEVICE                   ThisDevice;
 
-    WDFINTERRUPT        WdfInterrupt;
+    PVIOSOCK_VQ                 RxVq;
+    PVIOSOCK_VQ                 EvtVq;
 
-    WDFCOLLECTION   SocketList;
+    //Send packets
+    WDFSPINLOCK                 TxLock;
+    PVIOSOCK_VQ                 TxVq;
+    PVIRTIO_DMA_MEMORY_SLICED   TxPktSliced;
+    ULONG                       TxPktNum;       //Num of slices in TxPktSliced
 
-    WDFQUEUE            IoCtlQueue;
+    WDFINTERRUPT                WdfInterrupt;
+
+    WDFCOLLECTION               SocketList;
+
+    WDFQUEUE                    IoCtlQueue;
 
     VIRTIO_VSOCK_CONFIG Config;
- } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
+} DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 
 
 typedef struct _SOCKET_CONTEXT {
+
+    WDFFILEOBJECT   ThisSocket;
 
     ULONG64 dst_cid;
     ULONG32 src_port;
@@ -125,11 +135,40 @@ typedef struct _SOCKET_CONTEXT {
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(SOCKET_CONTEXT, GetSocketContext);
 
-#define VIOSOCK_DRIVER_MEMORY_TAG (ULONG)'cosV'
+#define GetDeviceContextFromSocket(s) GetDeviceContext(WdfFileObjectGetDevice((s)->ThisSocket))
+//////////////////////////////////////////////////////////////////////////
+//Device functions
 
-#define  VIOSOCK_DEVICE_NAME L"\\Device\\Viosock"
+EVT_WDF_DRIVER_DEVICE_ADD   VIOSockEvtDeviceAdd;
 
-#define VIOSOCK_DMA_TRX_LEN 0x10000
-#define VIOSOCK_DMA_TRX_PAGES (VIOSOCK_DMA_TRX_LEN/PAGE_SIZE+1)
+EVT_WDF_INTERRUPT_ISR       VIOSockInterruptIsr;
+EVT_WDF_INTERRUPT_DPC       VIOSockInterruptDpc;
+EVT_WDF_INTERRUPT_DPC       VIOSockWdfInterruptDpc;
+EVT_WDF_INTERRUPT_ENABLE    VIOSockInterruptEnable;
+EVT_WDF_INTERRUPT_DISABLE   VIOSockInterruptDisable;
+
+//////////////////////////////////////////////////////////////////////////
+//Socket functions
+EVT_WDF_DEVICE_FILE_CREATE  VIOSockCreate;
+EVT_WDF_FILE_CLOSE          VIOSockClose;
+
+//////////////////////////////////////////////////////////////////////////
+//Tx functions
+
+NTSTATUS
+VIOSockTxVqInit(
+    IN PDEVICE_CONTEXT pContext
+);
+
+VOID
+VIOSockTxVqCleanup(
+    IN PDEVICE_CONTEXT pContext
+);
+
+VOID
+VIOSockTxVqProcess(
+    IN PDEVICE_CONTEXT pContext
+);
+
 
 #endif /* VIOSOCK_H */
