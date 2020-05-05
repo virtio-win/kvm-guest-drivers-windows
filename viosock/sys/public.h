@@ -46,6 +46,7 @@ DEFINE_GUID(GUID_DEVINTERFACE_VIOSOCK,
 
 //socket ioctls
 #define IOCTL_SOCKET_BIND               DEFINE_SOCKET_IOCTL(1)
+#define IOCTL_SOCKET_CONNECT            DEFINE_SOCKET_IOCTL(2)
 
 typedef struct _VIRTIO_VSOCK_CONFIG {
     ULONG64 guest_cid;

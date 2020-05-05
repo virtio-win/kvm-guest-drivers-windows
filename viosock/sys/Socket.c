@@ -38,11 +38,17 @@ NTSTATUS
 VIOSockBind(
     IN WDFREQUEST   Request
 );
+
+NTSTATUS
+VIOSockConnect(
+    IN WDFREQUEST   Request
+);
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSockCreate)
 #pragma alloc_text (PAGE, VIOSockClose)
 
 #pragma alloc_text (PAGE, VIOSockBind)
+#pragma alloc_text (PAGE, VIOSockConnect)
 
 #pragma alloc_text (PAGE, VIOSockDeviceControl)
 #endif
@@ -217,6 +223,43 @@ VIOSockBoundFindByPort(
     return VIOSockBoundEnum(pContext, VIOSockBoundFindByPortCallback, (PVOID)ulSrcPort);
 }
 
+VIOSOCK_STATE
+VIOSockStateSet(
+    IN PSOCKET_CONTEXT pSocket,
+    IN VIOSOCK_STATE   NewState
+)
+{
+    VIOSOCK_STATE PrevState;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "%u --> %u\n", pSocket->State, NewState);
+
+
+    PrevState = InterlockedExchange((PLONG)&pSocket->State, NewState);
+
+    if (PrevState != NewState)
+    {
+        if (PrevState == VIOSOCK_STATE_CLOSING)
+        {
+            ASSERT(NewState == VIOSOCK_STATE_CLOSE);
+        }
+        else if (NewState == VIOSOCK_STATE_CONNECTED)
+        {
+            ASSERT(PrevState == VIOSOCK_STATE_CONNECTING || IsLoopbackSocket(pSocket));
+        }
+    }
+
+    return PrevState;
+}
+
+__inline
+BOOLEAN
+VIOSockIsBound(
+    IN PSOCKET_CONTEXT pSocket
+)
+{
+    return pSocket->src_port != VMADDR_PORT_ANY;
+}
+
 VOID
 VIOSockCreate(
     IN WDFDEVICE WdfDevice,
@@ -228,6 +271,7 @@ VIOSockCreate(
     PSOCKET_CONTEXT pSocket;
     NTSTATUS                status = STATUS_SUCCESS;
     WDF_REQUEST_PARAMETERS parameters;
+    WDF_OBJECT_ATTRIBUTES   lockAttributes;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
         "%s\n", __FUNCTION__);
@@ -242,6 +286,16 @@ VIOSockCreate(
 
     pSocket = GetSocketContext(FileObject);
     pSocket->ThisSocket = FileObject;
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&lockAttributes);
+    lockAttributes.ParentObject = FileObject;
+    status = WdfSpinLockCreate(&lockAttributes, &pSocket->StateLock);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfSpinLockCreate failed - 0x%x\n", status);
+        WdfRequestComplete(Request, status);
+        return;
+    }
 
     WDF_REQUEST_PARAMETERS_INIT(&parameters);
 
@@ -377,6 +431,19 @@ VIOSockIsGuestAddrValid(
         (pAddr->svm_cid != VMADDR_CID_HOST);
 }
 
+__inline
+BOOLEAN
+VIOSockIsHostAddrValid(
+    IN PSOCKADDR_VM    pAddr,
+    IN ULONG32         ulSrcCid
+)
+{
+    return (pAddr->svm_family == AF_VSOCK) &&
+        (pAddr->svm_cid == VMADDR_CID_HYPERVISOR ||
+            pAddr->svm_cid == VMADDR_CID_HOST ||
+            pAddr->svm_cid == ulSrcCid);
+}
+
 static
 NTSTATUS
 VIOSockBind(
@@ -429,6 +496,67 @@ VIOSockBind(
     return status;
 }
 
+static
+NTSTATUS
+VIOSockConnect(
+    IN WDFREQUEST   Request
+)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromRequest(Request);
+    PSOCKADDR_VM    pAddr;
+    SIZE_T          stAddrLen;
+    NTSTATUS        status;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pAddr), &pAddr, &stAddrLen);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
+        return status;
+    }
+
+    // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
+    _Analysis_assume_(stAddrLen >= sizeof(*pAddr));
+
+    if(!VIOSockIsHostAddrValid(pAddr, (ULONG32)pContext->Config.guest_cid))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid addr to connect, cid: %u, port: %u\n", pAddr->svm_cid, pAddr->svm_port);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (!VIOSockIsBound(pSocket))
+    {
+        //autobind
+        status = VIOSockBoundAdd(pSocket, VMADDR_PORT_ANY);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "VIOSockBoundAdd failed: 0x%x\n", status);
+            return STATUS_INVALID_PARAMETER;
+        }
+    }
+
+    pSocket->dst_cid = pAddr->svm_cid;
+    pSocket->dst_port = pAddr->svm_port;
+
+    VIOSockStateSet(pSocket, VIOSOCK_STATE_CONNECTING);
+
+    //TODO: send connect request
+    //status = VIOSockSendConnect(pSocket);
+
+    if (!NT_SUCCESS(status))
+    {
+        VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+
+    return status;
+}
+
 NTSTATUS
 VIOSockDeviceControl(
     IN WDFREQUEST Request,
@@ -449,7 +577,9 @@ VIOSockDeviceControl(
     case IOCTL_SOCKET_BIND:
         status = VIOSockBind(Request);
         break;
-
+    case IOCTL_SOCKET_CONNECT:
+        status = VIOSockConnect(Request);
+        break;
     default:
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "Invalid socket ioctl\n");
         status = STATUS_INVALID_DEVICE_REQUEST;
