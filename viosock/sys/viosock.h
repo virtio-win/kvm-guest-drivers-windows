@@ -113,6 +113,8 @@ typedef struct _DEVICE_CONTEXT {
     PVIOSOCK_VQ                 TxVq;
     PVIRTIO_DMA_MEMORY_SLICED   TxPktSliced;
     ULONG                       TxPktNum;       //Num of slices in TxPktSliced
+    LIST_ENTRY                  TxList;
+    WDFLOOKASIDE                TxMemoryList;
 
     //Events
     PVIOSOCK_VQ                 EvtVq;
@@ -152,15 +154,20 @@ typedef struct _SOCKET_CONTEXT {
 
     volatile LONG   Flags;
 
-    ULONG64 dst_cid;
-    ULONG32 src_port;
-    ULONG32 dst_port;
-    ULONG32 flags;
-    ULONG32 buf_alloc;
-    ULONG32 fwd_cnt;
+    ULONG32         dst_cid;
+    ULONG32         src_port;
+    ULONG32         dst_port;
 
     WDFSPINLOCK     StateLock;
     volatile VIOSOCK_STATE   State;
+
+    ULONG32         buf_alloc;
+    ULONG32         fwd_cnt;
+    ULONG32         last_fwd_cnt;
+
+    ULONG32         peer_buf_alloc;
+    ULONG32         peer_fwd_cnt;
+    ULONG32         tx_cnt;
 
     WDFFILEOBJECT ListenSocket;
 } SOCKET_CONTEXT, *PSOCKET_CONTEXT;
@@ -241,6 +248,27 @@ VOID
 VIOSockTxVqProcess(
     IN PDEVICE_CONTEXT pContext
 );
+
+NTSTATUS
+VIOSockTxEnqueue(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN VIRTIO_VSOCK_OP  Op,
+    IN ULONG32          Flags OPTIONAL,
+    IN BOOLEAN          Reply,
+    IN WDFREQUEST       Request OPTIONAL
+);
+
+#define VIOSockSendCreditUpdate(s) VIOSockTxEnqueue(s, VIRTIO_VSOCK_OP_CREDIT_UPDATE, 0, FALSE, WDF_NO_HANDLE)
+
+#define VIOSockSendConnect(s) VIOSockTxEnqueue(s, VIRTIO_VSOCK_OP_REQUEST, 0, FALSE, WDF_NO_HANDLE)
+
+#define VIOSockSendShutdown(s, f) VIOSockTxEnqueue(s, VIRTIO_VSOCK_OP_SHUTDOWN, f, FALSE, WDF_NO_HANDLE)
+
+#define VIOSockSendWrite(s, rq) VIOSockTxEnqueue(s, VIRTIO_VSOCK_OP_RW, 0, FALSE, rq)
+
+#define VIOSockSendReset(s, r) VIOSockTxEnqueue(s, VIRTIO_VSOCK_OP_RST, 0, r, WDF_NO_HANDLE)
+
+#define VIOSockSendResponse(s) VIOSockTxEnqueue(s, VIRTIO_VSOCK_OP_RESPONSE, 0, TRUE, WDF_NO_HANDLE)
 
 //////////////////////////////////////////////////////////////////////////
 //Rx functions
