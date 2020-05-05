@@ -528,6 +528,12 @@ VIOSockConnect(
         return STATUS_INVALID_PARAMETER;
     }
 
+    if (VIOSockStateGet(pSocket) != VIOSOCK_STATE_CLOSE)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid socket state: %u\n", pSocket->State);
+        return STATUS_INVALID_PARAMETER;
+    }
+
     if (!VIOSockIsBound(pSocket))
     {
         //autobind
@@ -544,8 +550,7 @@ VIOSockConnect(
 
     VIOSockStateSet(pSocket, VIOSOCK_STATE_CONNECTING);
 
-    //TODO: send connect request
-    //status = VIOSockSendConnect(pSocket);
+    status = VIOSockSendConnect(pSocket);
 
     if (!NT_SUCCESS(status))
     {
