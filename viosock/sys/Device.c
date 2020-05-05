@@ -130,6 +130,7 @@ VIOSockQueuesInit(
         return status;
 
     pContext->EvtVq = vqs[VIOSOCK_VQ_EVT];
+    status = VIOSockEvtVqInit(pContext);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 
@@ -153,6 +154,9 @@ VIOSockQueuesCleanup(
 
     if (pContext->TxVq)
         VIOSockTxVqCleanup(pContext);
+
+    if (pContext->EvtVq)
+        VIOSockEvtVqCleanup(pContext);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
@@ -430,12 +434,14 @@ VIOSockEvtDeviceD0EntryPostInterruptsEnabled(
     PDEVICE_CONTEXT    pContext = GetDeviceContext(WdfDevice);
     UNREFERENCED_PARAMETER(PreviousState);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
-
     PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Setting VIRTIO_CONFIG_S_DRIVER_OK flag\n");
     VirtIOWdfSetDriverOK(&pContext->VDevice);
+
+    ASSERT(pContext->RxVq && pContext->EvtVq);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;

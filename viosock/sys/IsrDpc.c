@@ -71,6 +71,10 @@ VIOSockInterruptDpc(
 
     WDF_INTERRUPT_INFO_INIT(&info);
     WdfInterruptGetInfo(pContext->WdfInterrupt, &info);
+
+    // handle the Event queue
+    VIOSockEvtVqProcess(pContext);
+
     // handle the Read queue
     VIOSockRxVqProcess(pContext);
 
@@ -90,6 +94,9 @@ VIOSockInterruptEnable(
     UNREFERENCED_PARAMETER(AssociatedDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
+
+    virtqueue_enable_cb(pContext->EvtVq);
+    virtqueue_kick(pContext->EvtVq);
 
     virtqueue_enable_cb(pContext->RxVq);
     virtqueue_kick(pContext->RxVq);
@@ -113,6 +120,9 @@ VIOSockInterruptDisable(
 
     if (pContext->RxVq)
         virtqueue_disable_cb(pContext->RxVq);
+
+    if (pContext->EvtVq)
+        virtqueue_disable_cb(pContext->EvtVq);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;

@@ -238,6 +238,7 @@
   <ItemGroup>
     <ClCompile Include="Device.c" />
     <ClCompile Include="Driver.c" />
+    <ClCompile Include="Evt.c" />
     <ClCompile Include="IsrDpc.c" />
     <ClCompile Include="Socket.c" />
     <ClCompile Include="Rx.c" />
