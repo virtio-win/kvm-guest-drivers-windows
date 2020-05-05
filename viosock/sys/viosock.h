@@ -160,6 +160,7 @@ typedef struct _SOCKET_CONTEXT {
 
     WDFSPINLOCK     StateLock;
     volatile VIOSOCK_STATE   State;
+    WDFREQUEST      PendedRequest;
 
     ULONG32         buf_alloc;
     ULONG32         fwd_cnt;
@@ -231,6 +232,18 @@ VIOSockStateSet(
 );
 
 #define VIOSockStateGet(s) ((s)->State)
+NTSTATUS
+VIOSockPendedRequestSet(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN WDFREQUEST       Request
+);
+
+NTSTATUS
+VIOSockPendedRequestGet(
+    IN  PSOCKET_CONTEXT pSocket,
+    OUT WDFREQUEST      *Request
+);
+
 //////////////////////////////////////////////////////////////////////////
 //Tx functions
 

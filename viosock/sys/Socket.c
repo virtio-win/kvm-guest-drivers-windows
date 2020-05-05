@@ -260,6 +260,78 @@ VIOSockIsBound(
     return pSocket->src_port != VMADDR_PORT_ANY;
 }
 
+//////////////////////////////////////////////////////////////////////////
+static
+VOID
+VIOSockPendedRequestCancel(
+    IN WDFREQUEST Request
+)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
+    WdfObjectDereference(Request);
+    pSocket->PendedRequest = WDF_NO_HANDLE;
+
+    WdfRequestComplete(Request, STATUS_CANCELLED);
+}
+
+NTSTATUS
+VIOSockPendedRequestSet(
+    IN PSOCKET_CONTEXT pSocket,
+    IN WDFREQUEST Request
+)
+{
+    NTSTATUS status;
+
+    ASSERT(pSocket->PendedRequest == WDF_NO_HANDLE);
+    pSocket->PendedRequest = Request;
+    WdfObjectReference(Request);
+
+    status = WdfRequestMarkCancelableEx(pSocket->PendedRequest, VIOSockPendedRequestCancel);
+    if (!NT_SUCCESS(status))
+    {
+        ASSERT(status == STATUS_CANCELLED);
+        pSocket->PendedRequest = WDF_NO_HANDLE;
+        WdfObjectDereference(Request);
+
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Pended request canceled\n");
+    }
+    return status;
+}
+
+NTSTATUS
+VIOSockPendedRequestGet(
+    IN  PSOCKET_CONTEXT pSocket,
+    OUT WDFREQUEST *Request
+)
+{
+    NTSTATUS    status = STATUS_SUCCESS;;
+
+    *Request = pSocket->PendedRequest;
+    if (*Request != WDF_NO_HANDLE)
+    {
+        status = WdfRequestUnmarkCancelable(*Request);
+        ASSERT(NT_SUCCESS(status));
+        if (!NT_SUCCESS(status))
+        {
+            ASSERT(status == STATUS_CANCELLED && pSocket->PendedRequest == WDF_NO_HANDLE);
+            *Request = WDF_NO_HANDLE; //do not complete canceled request
+            status = STATUS_CANCELLED;
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Pended request canceled\n");
+        }
+        else
+        {
+            WdfObjectDereference(*Request);
+            pSocket->PendedRequest = WDF_NO_HANDLE;
+        }
+    }
+
+    return status;
+}
+
+//////////////////////////////////////////////////////////////////////////
 VOID
 VIOSockCreate(
     IN WDFDEVICE WdfDevice,
@@ -550,11 +622,21 @@ VIOSockConnect(
 
     VIOSockStateSet(pSocket, VIOSOCK_STATE_CONNECTING);
 
+    status = VIOSockPendedRequestSet(pSocket, Request);
+    if (!NT_SUCCESS(status))
+    {
+        return status;
+    }
+
     status = VIOSockSendConnect(pSocket);
 
     if (!NT_SUCCESS(status))
     {
         VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
+        if (!NT_SUCCESS(VIOSockPendedRequestGet(pSocket, &Request)))
+        {
+            status = STATUS_PENDING; //do not complete canceled request
+        }
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
