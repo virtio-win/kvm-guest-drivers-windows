@@ -67,6 +67,11 @@ VIOSockGetSockOpt(
     OUT size_t      *pLength
 );
 
+NTSTATUS
+VIOSockSetSockOpt(
+    IN WDFREQUEST   Request
+);
+
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSockCreateStub)
 #pragma alloc_text (PAGE, VIOSockClose)
@@ -77,6 +82,7 @@ VIOSockGetSockOpt(
 #pragma alloc_text (PAGE, VIOSockGetPeerName)
 #pragma alloc_text (PAGE, VIOSockGetSockName)
 #pragma alloc_text (PAGE, VIOSockGetSockOpt)
+#pragma alloc_text (PAGE, VIOSockSetSockOpt)
 
 #pragma alloc_text (PAGE, VIOSockDeviceControl)
 #endif
@@ -1653,6 +1659,149 @@ VIOSockGetSockOpt(
     return status;
 }
 
+__inline
+VOID
+VIOSockSetLinger(
+    IN PSOCKET_CONTEXT pSocket,
+    IN PLINGER         pLinger
+)
+{
+    if (pLinger->l_onoff)
+    {
+        VIOSockSetFlag(pSocket, SOCK_LINGER);
+        pSocket->LingerTime = pLinger->l_linger;
+    }
+    else
+        VIOSockResetFlag(pSocket, SOCK_LINGER);
+}
+
+static
+VOID
+VIOSockRxUpdateBufferSize(
+    IN PSOCKET_CONTEXT pSocket,
+    IN ULONG           uBufferSize
+)
+{
+    if (uBufferSize > pSocket->BufferMaxSize)
+        uBufferSize = pSocket->BufferMaxSize;
+
+    if (uBufferSize < pSocket->BufferMinSize)
+        uBufferSize = pSocket->BufferMinSize;
+
+    if (uBufferSize != pSocket->buf_alloc)
+    {
+        pSocket->buf_alloc = uBufferSize;
+        VIOSockSendCreditUpdate(pSocket);
+    }
+}
+
+static
+NTSTATUS
+VIOSockSetSockOpt(
+    IN WDFREQUEST   Request
+)
+{
+    PSOCKET_CONTEXT     pSocket = GetSocketContextFromRequest(Request);
+    PVIRTIO_VSOCK_OPT   pOpt;
+    SIZE_T              stOptLen;
+    PVOID               pOptVal;
+    NTSTATUS            status;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pOpt), &pOpt, &stOptLen);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
+        return status;
+    }
+
+    // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
+    _Analysis_assume_(stOptLen >= sizeof(*pOpt));
+
+    if (!pOpt->optlen || !pOpt->optval)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid *optval\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+#ifdef _WIN64
+    if (WdfRequestIsFrom32BitProcess(Request))
+    {
+        pOptVal = Ptr32ToPtr((void * POINTER_32)(ULONG)pOpt->optval);
+    }
+    else
+#endif //_WIN64
+    {
+        pOptVal = (PVOID)pOpt->optval;
+    }
+
+    if (WdfRequestGetRequestorMode(Request) == UserMode)
+    {
+        WDFMEMORY   Memory;
+        status = WdfRequestProbeAndLockUserBufferForRead(Request, pOptVal, pOpt->optlen, &Memory);
+
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestProbeAndLockUserBufferForRead failed: 0x%x\n", status);
+            return status;
+        }
+        pOptVal = WdfMemoryGetBuffer(Memory, NULL);
+
+    }
+
+    switch (pOpt->optname)
+    {
+    case SO_LINGER:
+        if (pOpt->optlen < sizeof(LINGER))
+        {
+            status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+
+        VIOSockSetLinger(pSocket, (PLINGER)pOptVal);
+        break;
+
+    case SO_VM_SOCKETS_BUFFER_SIZE:
+        if (pOpt->optlen < sizeof(ULONG))
+        {
+            status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+
+        VIOSockRxUpdateBufferSize(pSocket, *(PULONG)pOptVal);
+        break;
+
+    case SO_VM_SOCKETS_BUFFER_MAX_SIZE:
+        if (pOpt->optlen < sizeof(ULONG))
+        {
+            status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+
+        pSocket->BufferMaxSize = *(PULONG)pOptVal;
+        VIOSockRxUpdateBufferSize(pSocket, pSocket->buf_alloc);
+        break;
+
+    case SO_VM_SOCKETS_BUFFER_MIN_SIZE:
+        if (pOpt->optlen < sizeof(ULONG))
+        {
+            status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+
+        pSocket->BufferMinSize = *(PULONG)pOptVal;
+        VIOSockRxUpdateBufferSize(pSocket, pSocket->buf_alloc);
+        break;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+
+    return status;
+}
+
 NTSTATUS
 VIOSockDeviceControl(
     IN WDFREQUEST Request,
@@ -1699,6 +1848,9 @@ VIOSockDeviceControl(
         break;
     case IOCTL_SOCKET_GET_SOCK_OPT:
         status = VIOSockGetSockOpt(Request, pLength);
+        break;
+    case IOCTL_SOCKET_SET_SOCK_OPT:
+        status = VIOSockSetSockOpt(Request);
         break;
     default:
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "Invalid socket ioctl\n");

@@ -947,18 +947,31 @@ VIOSockSetSockOpt(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
+    int iRes = ERROR_SUCCESS;
+    VIRTIO_VSOCK_OPT Opt = { 0 };
 
-    UNREFERENCED_PARAMETER(level);
-    UNREFERENCED_PARAMETER(optname);
-    UNREFERENCED_PARAMETER(optval);
-    UNREFERENCED_PARAMETER(optlen);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    if (!optlen)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid optlen\n");
+        *lpErrno = WSAEINVAL;
+        return SOCKET_ERROR;
+    }
 
-    *lpErrno = WSAVERNOTSUPPORTED;
+    Opt.level = level;
+    Opt.optname = optname;
+    Opt.optval = (ULONGLONG)optval;
+    Opt.optlen = optlen;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    if (!VIOSockDeviceControl(s, IOCTL_SOCKET_SET_SOCK_OPT,
+        &Opt, sizeof(Opt), NULL, 0, NULL, lpErrno))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        iRes = SOCKET_ERROR;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
 }
 
