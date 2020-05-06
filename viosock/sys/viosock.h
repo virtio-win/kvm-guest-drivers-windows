@@ -173,6 +173,8 @@ typedef enum _VIOSOCK_STATE
 #define SOCK_BOUND      0x02
 #define SOCK_LINGER     0x04
 #define SOCK_NON_BLOCK  0x08
+#define SOCK_LOOPBACK   0x10
+
 typedef struct _VIOSOCK_ACCEPT_ENTRY
 {
     LIST_ENTRY      ListEntry;
@@ -238,6 +240,7 @@ typedef struct _SOCKET_CONTEXT {
     ULONG32         tx_cnt;
 
     USHORT          LingerTime;
+    WDFFILEOBJECT   LoopbackSocket;
 
 } SOCKET_CONTEXT, *PSOCKET_CONTEXT;
 
@@ -254,6 +257,8 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(SOCKET_CONTEXT, GetSocketContext);
 #define GetDeviceContextFromSocket(s) GetDeviceContext(WdfFileObjectGetDevice((s)->ThisSocket))
 
 #define IsControlRequest(r) VIOSockIsFlag(GetSocketContextFromRequest(r), SOCK_CONTROL)
+
+#define IsLoopbackSocket(s) (VIOSockIsFlag(s,SOCK_LOOPBACK))
 
 //////////////////////////////////////////////////////////////////////////
 //Device functions
@@ -486,6 +491,37 @@ VIOSockSendResetNoSock(
     IN PVIRTIO_VSOCK_HDR pHeader
 );
 
+//TxLock+
+__inline
+ULONG32
+VIOSockTxGetCredit(
+    IN PSOCKET_CONTEXT pSocket,
+    IN ULONG32 uCredit
+
+)
+{
+    ULONG32 uRet;
+
+    uRet = pSocket->peer_buf_alloc - (pSocket->tx_cnt - pSocket->peer_fwd_cnt);
+    if (uRet > uCredit)
+        uRet = uCredit;
+    pSocket->tx_cnt += uRet;
+    return uRet;
+}
+
+
+//TxLock+
+__inline
+VOID
+VIOSockTxPutCredit(
+    IN PSOCKET_CONTEXT pSocket,
+    IN ULONG32 uCredit
+
+)
+{
+    pSocket->tx_cnt -= uCredit;
+}
+
 __inline
 LONG
 VIOSockTxHasSpace(
@@ -537,6 +573,14 @@ VIOSockRxVqProcess(
     IN PDEVICE_CONTEXT pContext
 );
 
+NTSTATUS
+VIOSockRxRequestEnqueueCb(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN WDFREQUEST       Request,
+    IN ULONG            Length
+);
+
+//SRxLock+
 __inline
 ULONG
 VIOSockRxHasData(
@@ -587,6 +631,22 @@ VIOSockEvtVqCleanup(
 VOID
 VIOSockEvtVqProcess(
     IN PDEVICE_CONTEXT pContext
+);
+
+//////////////////////////////////////////////////////////////////////////
+BOOLEAN
+VIOSockLoopbackAcceptDequeue(
+    IN PSOCKET_CONTEXT pAcceptSocket,
+    IN PVIOSOCK_ACCEPT_ENTRY pAcceptEntry
+);
+
+NTSTATUS
+VIOSockLoopbackTxEnqueue(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN VIRTIO_VSOCK_OP  Op,
+    IN ULONG32          Flags OPTIONAL,
+    IN WDFREQUEST       Request OPTIONAL,
+    IN ULONG            Length OPTIONAL
 );
 
 #endif /* VIOSOCK_H */
