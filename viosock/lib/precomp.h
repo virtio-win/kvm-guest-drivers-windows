@@ -33,6 +33,7 @@
 #include <tchar.h>
 #include <windows.h>
 #include <winsock2.h>
+#include <mswsock.h>
 #include <strsafe.h>
 #include <ws2spi.h>
 #include <winternl.h>

@@ -622,23 +622,51 @@ VIOSockIoctl(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
+    int iRes = ERROR_SUCCESS;
+    VIRTIO_VSOCK_IOCTL_IN InParams;
 
-    UNREFERENCED_PARAMETER(dwIoControlCode);
-    UNREFERENCED_PARAMETER(lpvInBuffer);
-    UNREFERENCED_PARAMETER(cbInBuffer);
-    UNREFERENCED_PARAMETER(lpvOutBuffer);
-    UNREFERENCED_PARAMETER(cbOutBuffer);
-    UNREFERENCED_PARAMETER(lpcbBytesReturned);
-    UNREFERENCED_PARAMETER(lpOverlapped);
-    UNREFERENCED_PARAMETER(lpCompletionRoutine);
     UNREFERENCED_PARAMETER(lpThreadId);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
+    if (lpOverlapped || lpCompletionRoutine)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Overlapped sockets not supported\n");
+        *lpErrno = WSAEOPNOTSUPP;
+        return SOCKET_ERROR;
+    }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    if (dwIoControlCode == SIO_BSP_HANDLE ||
+//        dwIoControlCode == SIO_BSP_HANDLE_POLL ||
+        dwIoControlCode == SIO_BSP_HANDLE_SELECT)
+    {
+        if (lpvOutBuffer&&cbOutBuffer >= sizeof(s))
+        {
+            *(SOCKET*)lpvOutBuffer = s;
+            if (lpcbBytesReturned)
+                *lpcbBytesReturned = sizeof(s);
+            return ERROR_SUCCESS;
+        }
+        else
+        {
+            *lpErrno = WSAEFAULT;
+            return SOCKET_ERROR;
+        }
+    }
+
+
+    InParams.dwIoControlCode = dwIoControlCode;
+    InParams.lpvInBuffer = (ULONGLONG)lpvInBuffer;
+    InParams.cbInBuffer = cbInBuffer;
+
+    if (!VIOSockDeviceControl(s, IOCTL_SOCKET_IOCTL,
+        &InParams, sizeof(InParams), lpvOutBuffer, cbOutBuffer, lpcbBytesReturned, lpErrno))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        iRes = SOCKET_ERROR;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
 }
 
