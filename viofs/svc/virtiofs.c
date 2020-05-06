@@ -261,16 +261,34 @@ static UINT32 PosixUnixModeToAttributes(uint32_t mode)
     return Attributes;
 }
 
+static VOID FileTimeToUnixTime(UINT64 FileTime, uint64_t *time,
+    uint32_t *nsec)
+{
+    __int3264 UnixTime[2];
+    FspPosixFileTimeToUnixTime(FileTime, UnixTime);
+    *time = UnixTime[0];
+    *nsec = (uint32_t)UnixTime[1];
+}
+
+static VOID UnixTimeToFileTime(uint64_t time, uint32_t nsec,
+    PUINT64 PFileTime)
+{
+    __int3264 UnixTime[2];
+    UnixTime[0] = time;
+    UnixTime[1] = nsec;
+    FspPosixUnixTimeToFileTime(UnixTime, PFileTime);
+}
+
 static VOID SetFileInfo(struct fuse_attr *attr, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     FileInfo->FileAttributes = PosixUnixModeToAttributes(attr->mode);
     FileInfo->ReparseTag = 0;
     FileInfo->AllocationSize = attr->blocks * attr->blksize;
     FileInfo->FileSize = attr->size;
-    FspPosixUnixTimeToFileTime((void *)&attr->ctime, &FileInfo->CreationTime);
-    FspPosixUnixTimeToFileTime((void *)&attr->atime,
+    UnixTimeToFileTime(attr->ctime, attr->ctimensec, &FileInfo->CreationTime);
+    UnixTimeToFileTime(attr->atime, attr->atimensec,
         &FileInfo->LastAccessTime);
-    FspPosixUnixTimeToFileTime((void *)&attr->mtime,
+    UnixTimeToFileTime(attr->mtime, attr->mtimensec,
         &FileInfo->LastWriteTime);
     FileInfo->ChangeTime = FileInfo->LastWriteTime;
     FileInfo->IndexNumber = 0;
@@ -1143,8 +1161,8 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     if (LastAccessTime != 0)
     {
         setattr_in.setattr.valid |= FATTR_ATIME;
-        FspPosixFileTimeToUnixTime(LastAccessTime,
-            (void *)&setattr_in.setattr.atime);
+        FileTimeToUnixTime(LastAccessTime, &setattr_in.setattr.atime,
+            &setattr_in.setattr.atimensec);
     }
     if ((LastWriteTime != 0) || (ChangeTime != 0))
     {
@@ -1153,14 +1171,14 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
             LastWriteTime = ChangeTime;
         }
         setattr_in.setattr.valid |= FATTR_MTIME;
-        FspPosixFileTimeToUnixTime(LastWriteTime,
-            (void *)&setattr_in.setattr.mtime);
+        FileTimeToUnixTime(LastWriteTime, &setattr_in.setattr.mtime,
+            &setattr_in.setattr.mtimensec);
     }
     if (CreationTime != 0)
     {
         setattr_in.setattr.valid |= FATTR_CTIME;
-        FspPosixFileTimeToUnixTime(CreationTime,
-            (void *)&setattr_in.setattr.ctime);
+        FileTimeToUnixTime(CreationTime, &setattr_in.setattr.ctime,
+            &setattr_in.setattr.ctimensec);
     }
 
     Status = VirtFsFuseRequest(VirtFs->Device, &setattr_in,
