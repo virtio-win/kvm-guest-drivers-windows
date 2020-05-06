@@ -866,13 +866,16 @@ VIOSockShutdown(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
-
-    UNREFERENCED_PARAMETER(how);
+    int iRes = ERROR_SUCCESS;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
+    if (!VIOSockDeviceControl(s, IOCTL_SOCKET_SHUTDOWN,
+        &how, (DWORD)sizeof(how), NULL, 0, NULL, lpErrno))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        iRes = SOCKET_ERROR;
+    }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
