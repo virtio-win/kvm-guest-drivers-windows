@@ -200,6 +200,11 @@ typedef struct _SOCKET_CONTEXT {
     ULONG32         PeerShutdown;
     ULONG32         Shutdown;
 
+    PKEVENT         EventObject;
+    ULONG           EventsMask;
+    ULONG           Events;
+    NTSTATUS        EventsStatus[FD_MAX_EVENTS];
+
     WDFSPINLOCK     RxLock;
     LIST_ENTRY      RxCbList;
     PCHAR           RxCbReadPtr;    //read ptr in first CB
@@ -350,6 +355,64 @@ VIOSockAcceptRemovePkt(
     IN PSOCKET_CONTEXT      pListenSocket,
     IN PVIRTIO_VSOCK_HDR    pPkt
 );
+
+/*
+ * WinSock 2 extension -- bit values and indices for FD_XXX network events
+ */
+#define FD_READ_BIT      0
+#define FD_READ          (1 << FD_READ_BIT)
+#define FD_WRITE_BIT     1
+#define FD_WRITE         (1 << FD_WRITE_BIT)
+#define FD_OOB_BIT       2
+#define FD_OOB           (1 << FD_OOB_BIT)
+#define FD_ACCEPT_BIT    3
+#define FD_ACCEPT        (1 << FD_ACCEPT_BIT)
+#define FD_CONNECT_BIT   4
+#define FD_CONNECT       (1 << FD_CONNECT_BIT)
+#define FD_CLOSE_BIT     5
+#define FD_CLOSE         (1 << FD_CLOSE_BIT)
+#define FD_QOS_BIT       6
+#define FD_QOS           (1 << FD_QOS_BIT)
+#define FD_GROUP_QOS_BIT 7
+#define FD_GROUP_QOS     (1 << FD_GROUP_QOS_BIT)
+#define FD_ROUTING_INTERFACE_CHANGE_BIT 8
+#define FD_ROUTING_INTERFACE_CHANGE     (1 << FD_ROUTING_INTERFACE_CHANGE_BIT)
+#define FD_ADDRESS_LIST_CHANGE_BIT 9
+#define FD_ADDRESS_LIST_CHANGE     (1 << FD_ADDRESS_LIST_CHANGE_BIT)
+
+__inline
+VOID
+VIOSockEventSetBit(
+    IN PSOCKET_CONTEXT pSocket,
+    IN ULONG uSetBit,
+    IN NTSTATUS Status
+)
+{
+    ULONG uEvent = (1 << uSetBit);
+    BOOLEAN bSetEvent;
+
+    //TODO: lock events
+    bSetEvent = !!(~pSocket->Events & uEvent & pSocket->EventsMask);
+
+    pSocket->Events |= uEvent;
+    pSocket->EventsStatus[uSetBit] = Status;
+
+    if (bSetEvent && pSocket->EventObject)
+        KeSetEvent(pSocket->EventObject, IO_NO_INCREMENT, FALSE);
+}
+
+__inline
+VOID
+VIOSockEventClearBit(
+    IN PSOCKET_CONTEXT pSocket,
+    IN ULONG uClearBit
+)
+{
+    ULONG uEvent = (1 << uClearBit);
+
+    //TODO: lock events
+    pSocket->Events &= ~uEvent;
+}
 
 //////////////////////////////////////////////////////////////////////////
 //Tx functions

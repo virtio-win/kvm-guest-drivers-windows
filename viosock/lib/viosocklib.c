@@ -381,14 +381,41 @@ VIOSockEnumNetworkEvents(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
-
-    UNREFERENCED_PARAMETER(hEventObject);
-    UNREFERENCED_PARAMETER(lpNetworkEvents);
+    int iRes = ERROR_SUCCESS;
+    DWORD dwBytesReturned;
+    ULONGLONG ulEvent = (ULONG_PTR)hEventObject;
+    VIRTIO_VSOCK_NETWORK_EVENTS NetEvents = { 0 };
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
+    
+    if (!VIOSockDeviceControl(s, IOCTL_SOCKET_ENUM_NET_EVENTS,
+        (PVOID)&ulEvent, (DWORD)sizeof(ulEvent),
+        &NetEvents, sizeof(NetEvents), &dwBytesReturned, lpErrno))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        iRes = SOCKET_ERROR;
+    }
+    else if (dwBytesReturned != sizeof(NetEvents))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid output len: %d\n", dwBytesReturned);
+        *lpErrno = WSAEINVAL;
+        iRes = SOCKET_ERROR;
+    }
+    else
+    {
+        DWORD i;
+        lpNetworkEvents->lNetworkEvents = NetEvents.NetworkEvents;
+        for (i = 0; i < FD_MAX_EVENTS; ++i)
+        {
+            if (NetEvents.NetworkEvents & 1)
+                lpNetworkEvents->iErrorCode[i] = NtStatusToWsaError(NetEvents.Status[i]);
+            else
+                lpNetworkEvents->iErrorCode[i] = ERROR_SUCCESS;
+
+            NetEvents.NetworkEvents >>= 1;
+        }
+    }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
@@ -403,14 +430,21 @@ VIOSockEventSelect(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
-
-    UNREFERENCED_PARAMETER(hEventObject);
-    UNREFERENCED_PARAMETER(lNetworkEvents);
+    int iRes = ERROR_SUCCESS;
+    VIRTIO_VSOCK_EVENT_SELECT EventSelect;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
+    EventSelect.hEventObject = (ULONG_PTR)hEventObject;
+    EventSelect.lNetworkEvents = lNetworkEvents;
+
+    if (!VIOSockDeviceControl(s, IOCTL_SOCKET_EVENT_SELECT,
+        &EventSelect, (DWORD)sizeof(EventSelect),
+        NULL, 0, NULL, lpErrno))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        iRes = SOCKET_ERROR;
+    }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
