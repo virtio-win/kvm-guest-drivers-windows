@@ -442,6 +442,13 @@ VIOSockTxDequeue(
                 VIOSockTxPktFree(pContext, pPkt);
                 break;
             }
+
+            if (bReply)
+            {
+                LONG lVal = --pContext->QueuedReply;
+
+                bRestartRx = (lVal + 1 == pContext->RxPktNum);
+            }
         }
     }
 
@@ -449,6 +456,9 @@ VIOSockTxDequeue(
 
     if (bKick)
         virtqueue_kick(pContext->TxVq);
+
+    if (bRestartRx)
+        VIOSockRxVqProcess(pContext);
 
 }
 
@@ -609,6 +619,9 @@ VIOSockTxEnqueue(
             return status;
         }
     }
+
+    if (pTxEntry->reply)
+        pContext->QueuedReply++;
 
     InsertTailList(&pContext->TxList, &pTxEntry->ListEntry);
     WdfSpinLockRelease(pContext->TxLock);

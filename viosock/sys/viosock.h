@@ -135,6 +135,7 @@ typedef struct _DEVICE_CONTEXT {
     ULONG                       TxPktNum;       //Num of slices in TxPktSliced
     LIST_ENTRY                  TxList;
     WDFLOOKASIDE                TxMemoryList;
+    LONG                        QueuedReply;
 
     //Events
     PVIOSOCK_VQ                 EvtVq;
@@ -494,6 +495,15 @@ VIOSockTxSpaceUpdate(
     pSocket->peer_buf_alloc = pPkt->buf_alloc;
     pSocket->peer_fwd_cnt = pPkt->fwd_cnt;
     return VIOSockTxHasSpace(pSocket);
+}
+
+__inline
+BOOLEAN
+VIOSockTxMoreReplies(
+    IN PDEVICE_CONTEXT  pContext
+)
+{
+    return pContext->QueuedReply < (LONG)pContext->RxPktNum;
 }
 
 //////////////////////////////////////////////////////////////////////////
