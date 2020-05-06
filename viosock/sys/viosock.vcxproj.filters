@@ -19,9 +19,8 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="viosock.inx">
-      <Filter>Driver Files</Filter>
-    </Inf>
+    <Inf Include="$(SourceInfFile)" />
+    <Inf Include="$(SourceInfFile)" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="precomp.h">
@@ -53,6 +52,18 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="utils.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Evt.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Socket.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Rx.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Tx.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
