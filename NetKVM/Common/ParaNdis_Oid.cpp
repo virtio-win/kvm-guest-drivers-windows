@@ -30,7 +30,7 @@
 #include "kdebugprint.h"
 #include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
-#include "ParaNdis-Oid.tmh"
+#include "ParaNdis_Oid.tmh"
 #endif
 
 static const char VendorName[] = "Red Hat";

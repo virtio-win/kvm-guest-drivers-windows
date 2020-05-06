@@ -42,7 +42,7 @@ sdkddkver.h before ntddk.h cause compilation failure in wdm.h and ntddk.h */
 #include "ParaNdis6_Driver.h"
 #include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
-#include "ParaNdis6-Driver.tmh"
+#include "ParaNdis6_Driver.tmh"
 #endif
 
 extern "C"

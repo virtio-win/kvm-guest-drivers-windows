@@ -2,7 +2,7 @@
 #include "kdebugprint.h"
 #include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
-#include "ParaNdis6-RSS.tmh"
+#include "ParaNdis6_RSS.tmh"
 #endif
 
 #if PARANDIS_SUPPORT_RSS

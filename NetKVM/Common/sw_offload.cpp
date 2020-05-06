@@ -30,7 +30,7 @@
 #include "kdebugprint.h"
 #include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
-#include "sw-offload.tmh"
+#include "sw_offload.tmh"
 #endif
 
 // till IP header size is 8 bit
