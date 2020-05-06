@@ -903,14 +903,31 @@ VIOSockClose(
     IN WDFFILEOBJECT FileObject
 )
 {
-    PDEVICE_CONTEXT pContext = GetDeviceContext(WdfFileObjectGetDevice(FileObject));
     PSOCKET_CONTEXT pSocket = GetSocketContext(FileObject);
+    WDFREQUEST Request;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
-        "--> %s\n", __FUNCTION__);
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_CREATE_CLOSE, "--> %s\n", __FUNCTION__);
 
     if (VIOSockIsFlag(pSocket, SOCK_CONTROL))
         return;
+
+    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED ||
+        VIOSockStateGet(pSocket) == VIOSOCK_STATE_CLOSING)
+    {
+        /* Already received SHUTDOWN from peer, reply with RST */
+        if ((pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_MASK) == VIRTIO_VSOCK_SHUTDOWN_MASK)
+        {
+            VIOSockSendReset(pSocket, FALSE);
+        }
+        else if ((pSocket->Shutdown & VIRTIO_VSOCK_SHUTDOWN_MASK) != VIRTIO_VSOCK_SHUTDOWN_MASK)
+        {
+            VIOSockSendShutdown(pSocket, VIRTIO_VSOCK_SHUTDOWN_MASK);
+        }
+    }
+
+    //TODO: wait for circuit close
 
     if (pSocket->EventObject)
     {
@@ -925,8 +942,14 @@ VIOSockClose(
 
     VIOSockBoundRemove(pSocket);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE,
-        "<-- %s\n", __FUNCTION__);
+    VIOSockPendedRequestGetLocked(pSocket, &Request);
+    if (Request != WDF_NO_HANDLE)
+    {
+        WdfRequestComplete(Request, STATUS_CANCELLED);
+    }
+    VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
 }
 
 __inline
