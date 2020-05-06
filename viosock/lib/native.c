@@ -105,13 +105,13 @@ typedef struct _FILE_FULL_EA_INFORMATION {
 } FILE_FULL_EA_INFORMATION, *PFILE_FULL_EA_INFORMATION;
 
 HANDLE
-VIOSockOpenFile(
+VIOSockCreateFile(
     _In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams,
     _Out_ LPINT lpErrno
 )
 {
     HANDLE hFile = INVALID_HANDLE_VALUE;
-    NTSTATUS Status;
+    NTSTATUS status;
     OBJECT_ATTRIBUTES oa;
     IO_STATUS_BLOCK iosb = { 0 };
     UNICODE_STRING usDeviceName = RTL_CONSTANT_STRING(VIOSOCK_NAME);
@@ -131,15 +131,16 @@ VIOSockOpenFile(
 
     InitializeObjectAttributes(&oa, &usDeviceName, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
-    Status = NtCreateFile(&hFile, FILE_GENERIC_READ | FILE_GENERIC_WRITE, &oa, &iosb, 0, 0,
+    status = NtCreateFile(&hFile, FILE_GENERIC_READ | FILE_GENERIC_WRITE, &oa, &iosb, 0, 0,
         FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_OPEN, FILE_NON_DIRECTORY_FILE, pEaBuffer,
         pEaBuffer ? sizeof(EaBuffer) : 0);
 
-    if (!NT_SUCCESS(Status))
+    if (!NT_SUCCESS(status))
     {
         _ASSERT(hFile == INVALID_HANDLE_VALUE);
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "NtCreateFile failed: %x\n", Status);
-        *lpErrno = NtStatusToWsaError(Status);
+        hFile = INVALID_HANDLE_VALUE;
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "NtCreateFile failed: %x\n", status);
+        *lpErrno = NtStatusToWsaError(status);
     }
 
     return hFile;

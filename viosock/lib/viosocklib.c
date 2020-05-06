@@ -127,17 +127,46 @@ VIOSockAccept(
     _Out_ LPINT lpErrno
 )
 {
+    HANDLE hFile;
+    VIRTIO_VSOCK_PARAMS SocketParams = { 0 };
+
     UNREFERENCED_PARAMETER(addr);
     UNREFERENCED_PARAMETER(addrlen);
     UNREFERENCED_PARAMETER(lpfnCondition);
     UNREFERENCED_PARAMETER(dwCallbackData);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
-    return INVALID_SOCKET;
+    if (s == 0 || s == INVALID_SOCKET)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Invalid listen socket\n");
+        *lpErrno = WSAEINVAL;
+        return INVALID_SOCKET;
+    }
+
+    SocketParams.Socket = s;
+
+    hFile = VIOSockCreateFile(&SocketParams, lpErrno);
+    if (INVALID_HANDLE_VALUE == hFile)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockOpenFile failed: %u\n", *lpErrno);
+        return INVALID_SOCKET;
+    }
+
+    s = g_UpcallTable.lpWPUModifyIFSHandle(g_ProtocolInfo.dwCatalogEntryId, (SOCKET)hFile, lpErrno);
+    if (INVALID_SOCKET == s)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "g_UpcallTable.lpWPUModifyIFSHandle failed: %u\n", *lpErrno);
+        CloseHandle(hFile);
+    }
+    else
+    {
+        //TODO: get socket peer name
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    return s;
 }
 
 INT
@@ -907,17 +936,28 @@ VIOSockSocket(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    if (af != AF_VSOCK || type != SOCK_STREAM || protocol != 0)
+    if (af != AF_VSOCK || protocol != 0)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid parameters\n");
         *lpErrno = WSAEINVAL;
         return INVALID_SOCKET;
     }
 
-    hFile = VIOSockOpenFile(&SocketParams, lpErrno);
+    if (type == SOCK_STREAM)
+    {
+        SocketParams.Type = VIRTIO_VSOCK_TYPE_STREAM;
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Unsupported socket type\n");
+        *lpErrno = WSAEINVAL;
+        return INVALID_SOCKET;
+    }
+
+    hFile = VIOSockCreateFile(&SocketParams, lpErrno);
     if (INVALID_HANDLE_VALUE == hFile)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockCreateSocket failed: %u\n", *lpErrno);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockCreateFile failed: %u\n", *lpErrno);
         return INVALID_SOCKET;
     }
 

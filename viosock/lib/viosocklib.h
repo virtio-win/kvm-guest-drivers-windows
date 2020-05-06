@@ -42,7 +42,7 @@
 #endif
 
 HANDLE
-VIOSockOpenFile(
+VIOSockCreateFile(
     _In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams,
     _Out_ LPINT lpErrno
 );

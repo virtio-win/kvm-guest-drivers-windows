@@ -61,16 +61,11 @@ typedef enum _VIRTIO_VSOCK_TYPE {
     VIRTIO_VSOCK_TYPE_STREAM = 1,
 }VIRTIO_VSOCK_TYPE;
 
-// typedef enum _VIRTIO_VSOCK_EA_TYPE
-// {
-//     VSOCK_TYPE_NEW=0,
-//     VSOCK_TYPE_ACCEPT=1,
-//     VSOCK_TYPE_INVALID
-// }VIRTIO_VSOCK_EA_TYPE;
-
 typedef struct _VIRTIO_VSOCK_PARAMS {
-    ULONGLONG Socket;
+    ULONGLONG           Socket;
+    VIRTIO_VSOCK_TYPE   Type;
 }VIRTIO_VSOCK_PARAMS, *PVIRTIO_VSOCK_PARAMS;
+
 #ifndef MSG_PEEK
 #define MSG_PEEK        0x2
 #endif
@@ -83,5 +78,12 @@ typedef struct _VIRTIO_VSOCK_READ_PARAMS
 {
     ULONG   Flags;
 }VIRTIO_VSOCK_READ_PARAMS,*PVIRTIO_VSOCK_READ_PARAMS;
+
+//microsecs to 100-nanosec intervals
+#define USEC_TO_NANO(us) ((us) * 10)
+//millisecs to 100-nanosec intervals
+#define MSEC_TO_NANO(ms) (USEC_TO_NANO(ms) * 1000)
+//secs to 100-nanosec intervals
+#define SEC_TO_NANO(s) (MSEC_TO_NANO(s) * 1000)
 
 #endif /* PUBLIC_H */
