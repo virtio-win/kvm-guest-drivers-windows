@@ -55,6 +55,7 @@ VIOSockDeviceGetConfig(
 #pragma alloc_text (PAGE, VIOSockEvtDeviceD0Exit)
 #pragma alloc_text (PAGE, VIOSockEvtDeviceD0EntryPostInterruptsEnabled)
 
+#pragma alloc_text (PAGE, VIOSockDeviceGetConfig)
 #pragma alloc_text (PAGE, VIOSockEvtIoDeviceControl)
 #endif
 
@@ -490,6 +491,39 @@ VIOSockEvtDeviceD0EntryPostInterruptsEnabled(
     return STATUS_SUCCESS;
 }
 
+static
+NTSTATUS
+VIOSockDeviceGetConfig(
+    IN WDFREQUEST   Request,
+    OUT size_t      *pLength
+)
+{
+    PVIRTIO_VSOCK_CONFIG    pConfig = NULL;
+    NTSTATUS                status;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+
+    status = WdfRequestRetrieveOutputBuffer(Request, sizeof(VIRTIO_VSOCK_CONFIG), (PVOID*)&pConfig, pLength);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
+            "WdfRequestRetrieveOutputBuffer failed 0x%x\n", status);
+        return status;
+    }
+
+    // minimum length guaranteed by WdfRequestRetrieveOutputBuffer above
+    _Analysis_assume_(*pLength >= sizeof(VIRTIO_VSOCK_CONFIG));
+
+    *pConfig = GetDeviceContextFromRequest(Request)->Config;
+    *pLength = sizeof(*pConfig);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+
+    return STATUS_SUCCESS;
+}
+
 VOID
 VIOSockEvtIoDeviceControl(
     IN WDFQUEUE   Queue,
@@ -499,41 +533,22 @@ VIOSockEvtIoDeviceControl(
     IN ULONG      IoControlCode
 )
 {
-    PDEVICE_CONTEXT pContext = GetDeviceContext(WdfIoQueueGetDevice(Queue));
-
-    size_t                  Length = 0;
-    NTSTATUS                status = STATUS_SUCCESS;
-    PVIRTIO_VSOCK_HDR       pVsockHdr = NULL;
-    PVIRTIO_VSOCK_CONFIG    pConfig = NULL;
+    size_t          Length = 0;
+    NTSTATUS        status = STATUS_SUCCESS;
 
     PAGED_CODE();
-
-    UNREFERENCED_PARAMETER(InputBufferLength);
-    UNREFERENCED_PARAMETER(OutputBufferLength);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
 
     switch (IoControlCode)
     {
-
     case IOCTL_GET_CONFIG:
-    {
-        status = WdfRequestRetrieveOutputBuffer(Request, sizeof(VIRTIO_VSOCK_CONFIG), (PVOID*)&pConfig, &Length);
-        if (!NT_SUCCESS(status))
-        {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
-                "WdfRequestRetrieveOutputBuffer failed 0x%x\n", status);
-            break;
-        }
-
-        // minimum length guaranteed by WdfRequestRetrieveOutputBuffer above
-        _Analysis_assume_(Length >= sizeof(VIRTIO_VSOCK_CONFIG));
-
-        *pConfig = pContext->Config;
-        status = STATUS_SUCCESS;
-
+        status = VIOSockDeviceGetConfig(Request, &Length);
         break;
-    }
+
+    case IOCTL_SELECT:
+        status = VIOSockSelect(Request, &Length);
+        break;
 
     default:
         if (IsControlRequest(Request))

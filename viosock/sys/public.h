@@ -43,6 +43,7 @@ DEFINE_GUID(GUID_DEVINTERFACE_VIOSOCK,
 
 //device ioctls
 #define IOCTL_GET_CONFIG                DEFINE_DEVICE_IOCTL(1)
+#define IOCTL_SELECT                    DEFINE_DEVICE_IOCTL(2)
 
 //socket ioctls
 #define IOCTL_SOCKET_BIND               DEFINE_SOCKET_IOCTL(1)
@@ -123,6 +124,22 @@ typedef struct _VIRTIO_VSOCK_IOCTL_IN {
     ULONG       cbInBuffer;
     ULONGLONG   lpvInBuffer;
 }VIRTIO_VSOCK_IOCTL_IN, *PVIRTIO_VSOCK_IOCTL_IN;
+
+#ifndef FD_SETSIZE
+#define FD_SETSIZE      64
+#endif /* FD_SETSIZE */
+
+typedef struct _VIRTIO_VSOCK_FD_SET {
+    UINT        fd_count;               /* how many are SET? */
+    ULONGLONG   fd_array[FD_SETSIZE];   /* an array of SOCKETs */
+} VIRTIO_VSOCK_FD_SET, *PVIRTIO_VSOCK_FD_SET;
+
+typedef struct _VIRTIO_VSOCK_SELECT {
+    VIRTIO_VSOCK_FD_SET ReadFds;
+    VIRTIO_VSOCK_FD_SET WriteFds;
+    VIRTIO_VSOCK_FD_SET ExceptFds;
+    LARGE_INTEGER       Timeout;
+}VIRTIO_VSOCK_SELECT, *PVIRTIO_VSOCK_SELECT;
 
 
 #endif /* PUBLIC_H */
