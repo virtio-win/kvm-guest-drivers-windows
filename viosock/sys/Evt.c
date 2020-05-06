@@ -190,7 +190,6 @@ VIOSockEvtVqProcess(
 
     if (bNotify)
     {
-        //TODO: change device state, close connections
         VirtIOWdfDeviceGet(&pContext->VDevice,
             0,
             &pContext->Config,
@@ -198,6 +197,9 @@ VIOSockEvtVqProcess(
 
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS,
             "New guest_cid %lld\n", pContext->Config.guest_cid);
+
+        VIOSockHandleTransportReset(pContext);
+
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);

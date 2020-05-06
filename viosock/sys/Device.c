@@ -59,11 +59,11 @@ VIOSockDeviceGetConfig(
 #pragma alloc_text (PAGE, VIOSockEvtIoDeviceControl)
 #endif
 
-static NTSTATUS VIOSockInitInterrupt(IN WDFDEVICE hDevice);
+static NTSTATUS VIOSockInterruptInit(IN WDFDEVICE hDevice);
 
 static
 NTSTATUS
-VIOSockInitInterrupt(
+VIOSockInterruptInit(
     IN WDFDEVICE hDevice)
 {
     WDF_OBJECT_ATTRIBUTES        attributes;
@@ -339,10 +339,11 @@ VIOSockEvtDeviceAdd(
             "VIOSockReadQueueInit failed (Read Queue): 0x%x\n", status);
         return status;
     }
-    status = VIOSockInitInterrupt(hDevice);
+
+    status = VIOSockInterruptInit(hDevice);
     if(!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSockInitInterrupt failed - 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSockInterruptInit failed - 0x%x\n", status);
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
@@ -374,7 +375,7 @@ VIOSockEvtDevicePrepareHardware(
         VIOSOCK_DRIVER_MEMORY_TAG);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VirtIOWdfInitialize failed with %x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VirtIOWdfInitialize failed with 0x%x\n", status);
         return status;
     }
 
@@ -390,7 +391,7 @@ VIOSockEvtDevicePrepareHardware(
     status = VirtIOWdfSetDriverFeatures(&pContext->VDevice, u64GuestFeatures, 0);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "VirtIOWdfSetDriverFeatures failed: %x\n", status);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "VirtIOWdfSetDriverFeatures failed: 0x%x\n", status);
         VirtIOWdfSetDriverFailed(&pContext->VDevice);
     }
 

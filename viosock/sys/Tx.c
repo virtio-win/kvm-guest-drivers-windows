@@ -446,7 +446,8 @@ VIOSockTxDequeue(
             if (bReply)
             {
                 LONG lVal = --pContext->QueuedReply;
-
+                
+                /* Do we now have resources to resume rx processing? */
                 bRestartRx = (lVal + 1 == pContext->RxPktNum);
             }
         }
