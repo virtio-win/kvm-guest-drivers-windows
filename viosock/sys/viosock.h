@@ -107,6 +107,9 @@ typedef struct _DEVICE_CONTEXT {
     PVOID                       RxPktVA;        //contiguous array of VIOSOCK_RX_PKT
     PHYSICAL_ADDRESS            RxPktPA;
     ULONG                       RxPktNum;
+    WDFLOOKASIDE                RxCbBufferMemoryList;
+    SINGLE_LIST_ENTRY           RxCbBuffers;    //list or Rx buffers
+    ULONG                       RxCbBuffersNum;
 
     //Send packets
     WDFQUEUE                    WriteQueue;
@@ -162,6 +165,7 @@ typedef struct _SOCKET_CONTEXT {
 
     WDFSPINLOCK     StateLock;
     volatile VIOSOCK_STATE   State;
+    //WDFSPINLOCK     RxLock;
     WDFREQUEST      PendedRequest;
 
     ULONG32         buf_alloc;
