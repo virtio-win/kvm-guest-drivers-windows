@@ -262,8 +262,20 @@ VIOSockPendedRequestSet(
 );
 
 NTSTATUS
+VIOSockPendedRequestSetLocked(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN WDFREQUEST       Request
+);
+
+NTSTATUS
 VIOSockPendedRequestGet(
     IN  PSOCKET_CONTEXT pSocket,
+    OUT WDFREQUEST      *Request
+);
+
+NTSTATUS
+VIOSockPendedRequestGetLocked(
+    IN PSOCKET_CONTEXT  pSocket,
     OUT WDFREQUEST      *Request
 );
 

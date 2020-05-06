@@ -531,7 +531,7 @@ VIOSockRxPktHandleConnecting(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    status = VIOSockPendedRequestGet(pSocket, &PendedRequest);
+    status = VIOSockPendedRequestGetLocked(pSocket, &PendedRequest);
 
     if (NT_SUCCESS(status))
     {
@@ -550,7 +550,7 @@ VIOSockRxPktHandleConnecting(
             case VIRTIO_VSOCK_OP_INVALID:
                 if (PendedRequest != WDF_NO_HANDLE)
                 {
-                    status = VIOSockPendedRequestSet(pSocket, PendedRequest);
+                    status = VIOSockPendedRequestSetLocked(pSocket, PendedRequest);
                     if (NT_SUCCESS(status))
                         PendedRequest = WDF_NO_HANDLE;
                 }
@@ -1245,6 +1245,16 @@ VIOSockReadSocketIoStop(IN WDFQUEUE Queue,
 
         if (ActionFlags & WdfRequestStopRequestCancelable)
         {
+            PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+
+            WdfSpinLockAcquire(pSocket->RxLock);
+            if (pSocket->PendedRequest == Request)
+            {
+                pSocket->PendedRequest = WDF_NO_HANDLE;
+                WdfObjectDereference(Request);
+            }
+            WdfSpinLockRelease(pSocket->RxLock);
+
             if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
             {
                 WdfRequestComplete(Request, STATUS_CANCELLED);
