@@ -403,23 +403,23 @@
     <ResourceCompile Include="wlh\Parandis6.rc" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Common\ParaNdis-AbstractPath.cpp" />
-    <ClCompile Include="Common\ParaNdis-Common.cpp" />
-    <ClCompile Include="Common\ParaNdis-CX.cpp" />
-    <ClCompile Include="Common\ParaNdis-Debug.cpp" />
-    <ClCompile Include="Common\ParaNdis-Oid.cpp" />
-    <ClCompile Include="Common\ParaNdis-RX.cpp" />
-    <ClCompile Include="Common\ParaNdis-TX.cpp" />
+    <ClCompile Include="Common\ParaNdis_AbstractPath.cpp" />
+    <ClCompile Include="Common\ParaNdis_Common.cpp" />
+    <ClCompile Include="Common\ParaNdis_CX.cpp" />
+    <ClCompile Include="Common\ParaNdis_Debug.cpp" />
+    <ClCompile Include="Common\ParaNdis_Oid.cpp" />
+    <ClCompile Include="Common\ParaNdis_RX.cpp" />
+    <ClCompile Include="Common\ParaNdis_TX.cpp" />
     <ClInclude Include="Common\ParaNdis-SM.h" />
-    <ClCompile Include="Common\ParaNdis-Util.cpp" />
-    <ClCompile Include="Common\ParaNdis-VirtIO.cpp" />
-    <ClCompile Include="Common\ParaNdis-VirtQueue.cpp" />
+    <ClCompile Include="Common\ParaNdis_Util.cpp" />
+    <ClCompile Include="Common\ParaNdis_VirtIO.cpp" />
+    <ClCompile Include="Common\ParaNdis_VirtQueue.cpp" />
     <ClCompile Include="Common\ParaNdis_GuestAnnounce.cpp" />
-    <ClCompile Include="Common\sw-offload.cpp" />
-    <ClCompile Include="wlh\ParaNdis6-Driver.cpp" />
-    <ClCompile Include="wlh\ParaNdis6-Impl.cpp" />
-    <ClCompile Include="wlh\ParaNdis6-Oid.cpp" />
-    <ClCompile Include="wlh\ParaNdis6-RSS.cpp" />
+    <ClCompile Include="Common\sw_offload.cpp" />
+    <ClCompile Include="wlh\ParaNdis6_Driver.cpp" />
+    <ClCompile Include="wlh\ParaNdis6_Impl.cpp" />
+    <ClCompile Include="wlh\ParaNdis6_Oid.cpp" />
+    <ClCompile Include="wlh\ParaNdis6_RSS.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="tools\cleanemptystrings.vbs" />

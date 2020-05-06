@@ -31,7 +31,7 @@
 #include "ParaNdis_DebugHistory.h"
 #include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
-#include "ParaNdis6-Impl.tmh"
+#include "ParaNdis6_Impl.tmh"
 #endif
 
 static MINIPORT_DISABLE_INTERRUPT MiniportDisableInterruptEx;

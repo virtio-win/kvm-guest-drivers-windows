@@ -110,52 +110,52 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="wlh\ParaNdis6-Driver.cpp">
+    <ClCompile Include="wlh\ParaNdis6_Driver.cpp">
       <Filter>Source Files\wlh</Filter>
     </ClCompile>
-    <ClCompile Include="wlh\ParaNdis6-Impl.cpp">
+    <ClCompile Include="wlh\ParaNdis6_Impl.cpp">
       <Filter>Source Files\wlh</Filter>
     </ClCompile>
-    <ClCompile Include="wlh\ParaNdis6-Oid.cpp">
+    <ClCompile Include="wlh\ParaNdis6_Oid.cpp">
       <Filter>Source Files\wlh</Filter>
     </ClCompile>
-    <ClCompile Include="wlh\ParaNdis6-RSS.cpp">
+    <ClCompile Include="wlh\ParaNdis6_RSS.cpp">
       <Filter>Source Files\wlh</Filter>
     </ClCompile>
-    <ClCompile Include="Common\ParaNdis-AbstractPath.cpp">
+    <ClCompile Include="Common\ParaNdis_AbstractPath.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="Common\ParaNdis-Common.cpp">
+    <ClCompile Include="Common\ParaNdis_Common.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="Common\ParaNdis-CX.cpp">
+    <ClCompile Include="Common\ParaNdis_CX.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="Common\ParaNdis-Debug.cpp">
+    <ClCompile Include="Common\ParaNdis_Debug.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="Common\ParaNdis-Oid.cpp">
+    <ClCompile Include="Common\ParaNdis_Oid.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="Common\ParaNdis-RX.cpp">
+    <ClCompile Include="Common\ParaNdis_RX.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="Common\ParaNdis-TX.cpp">
+    <ClCompile Include="Common\ParaNdis_TX.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
     <ClInclude Include="Common\ParaNdis-SM.h">
       <Filter>Source Files\Common</Filter>
     </ClInclude>
-    <ClCompile Include="Common\ParaNdis-Util.cpp">
+    <ClCompile Include="Common\ParaNdis_Util.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="Common\ParaNdis-VirtQueue.cpp">
+    <ClCompile Include="Common\ParaNdis_VirtQueue.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="Common\sw-offload.cpp">
+    <ClCompile Include="Common\sw_offload.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="Common\ParaNdis-VirtIO.cpp">
+    <ClCompile Include="Common\ParaNdis_VirtIO.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
     <ClCompile Include="Common\ParaNdis_GuestAnnounce.cpp">

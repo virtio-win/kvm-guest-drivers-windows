@@ -3,7 +3,7 @@
 #include "ParaNdis_DebugHistory.h"
 #include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
-#include "ParaNdis-RX.tmh"
+#include "ParaNdis_RX.tmh"
 #endif
 
 static FORCEINLINE VOID ParaNdis_ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescriptor pBuffer)

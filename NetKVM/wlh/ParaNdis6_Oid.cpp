@@ -35,7 +35,7 @@
 #include "netkvmmof.h"
 #include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
-#include "ParaNdis6-Oid.tmh"
+#include "ParaNdis6_Oid.tmh"
 #endif
 
 static NDIS_IO_WORKITEM_FUNCTION OnSetPowerWorkItem;

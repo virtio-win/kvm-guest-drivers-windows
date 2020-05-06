@@ -32,7 +32,7 @@
 #include "ParaNdis-VirtIO.h"
 #include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
-#include "ParaNdis-VirtIO.tmh"
+#include "ParaNdis_VirtIO.tmh"
 #endif
 
 PVOID CPciBar::GetVA(NDIS_HANDLE DrvHandle)

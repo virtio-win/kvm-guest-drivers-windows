@@ -3,7 +3,7 @@
 #include "kdebugprint.h"
 #include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
-#include "ParaNdis-CX.tmh"
+#include "ParaNdis_CX.tmh"
 #endif
 
 CParaNdisCX::CParaNdisCX()

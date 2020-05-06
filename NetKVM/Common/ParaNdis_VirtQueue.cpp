@@ -3,7 +3,7 @@
 #include "kdebugprint.h"
 #include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
-#include "ParaNdis-VirtQueue.tmh"
+#include "ParaNdis_VirtQueue.tmh"
 #endif
 
 bool CVirtQueue::AllocateQueueMemory()
