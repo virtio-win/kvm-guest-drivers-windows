@@ -47,6 +47,7 @@ DEFINE_GUID(GUID_DEVINTERFACE_VIOSOCK,
 //socket ioctls
 #define IOCTL_SOCKET_BIND               DEFINE_SOCKET_IOCTL(1)
 #define IOCTL_SOCKET_CONNECT            DEFINE_SOCKET_IOCTL(2)
+#define IOCTL_SOCKET_READ               CTL_CODE(FILE_DEVICE_SOCKET, 0x800|(3), METHOD_OUT_DIRECT, FILE_READ_ACCESS)
 
 typedef struct _VIRTIO_VSOCK_CONFIG {
     ULONG64 guest_cid;
@@ -68,5 +69,17 @@ typedef enum _VIRTIO_VSOCK_TYPE {
 typedef struct _VIRTIO_VSOCK_PARAMS {
     ULONGLONG Socket;
 }VIRTIO_VSOCK_PARAMS, *PVIRTIO_VSOCK_PARAMS;
+#ifndef MSG_PEEK
+#define MSG_PEEK        0x2
+#endif
+
+#ifndef MSG_WAITALL
+#define MSG_WAITALL     0x8
+#endif
+
+typedef struct _VIRTIO_VSOCK_READ_PARAMS
+{
+    ULONG   Flags;
+}VIRTIO_VSOCK_READ_PARAMS,*PVIRTIO_VSOCK_READ_PARAMS;
 
 #endif /* PUBLIC_H */

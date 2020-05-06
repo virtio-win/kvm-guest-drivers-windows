@@ -369,6 +369,14 @@ VIOSockCreate(
         return;
     }
 
+    status = VIOSockReadSocketQueueInit(pSocket);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSockReadSocketQueueInit failed - 0x%x\n", status);
+        WdfRequestComplete(Request, status);
+        return;
+    }
+
     WDF_REQUEST_PARAMETERS_INIT(&parameters);
 
     //check EA presents
@@ -666,6 +674,9 @@ VIOSockDeviceControl(
         break;
     case IOCTL_SOCKET_CONNECT:
         status = VIOSockConnect(Request);
+        break;
+    case IOCTL_SOCKET_READ:
+        status = VIOSockReadWithFlags(Request);
         break;
     default:
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "Invalid socket ioctl\n");
