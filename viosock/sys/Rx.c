@@ -36,7 +36,10 @@
 
 #define VIOSOCK_DMA_RX_PAGES    1           //contiguous buffer
 
+#define VIOSOCK_BYTES_TO_MERGE  128         //max bytes to merge with prev buffer
+
 #define VIOSOCK_CB_ENTRIES(n) ((n)+(n>>1))  //default chained buffer queue size
+
  //Chained Buffer entry
 typedef struct _VIOSOCK_RX_CB
 {
@@ -332,6 +335,77 @@ VIOSockRxPktInsert(
     return TRUE;
 }
 
+__inline
+VOID
+VIOSockRxPktListProcess(
+    IN PDEVICE_CONTEXT pContext
+)
+{
+    PSINGLE_LIST_ENTRY pListEntry;
+
+    while (pListEntry = PopEntryList(&pContext->RxPktList))
+    {
+        PVIOSOCK_RX_PKT pPkt = CONTAINING_RECORD(pListEntry, VIOSOCK_RX_PKT, ListEntry);
+
+        if (!VIOSockRxPktInsert(pContext, pPkt))
+        {
+            PushEntryList(&pContext->RxPktList, &pPkt->ListEntry);
+            break;
+        }
+    }
+}
+
+__inline
+VOID
+VIOSockRxPktInsertOrPostpone(
+    IN PDEVICE_CONTEXT pContext,
+    IN PVIOSOCK_RX_PKT pPkt
+)
+{
+    bool bNotify = false;
+    WdfSpinLockAcquire(pContext->RxLock);
+    if (!VIOSockRxPktInsert(pContext, pPkt))
+    {
+        //postpone packet
+        PushEntryList(&pContext->RxPktList, &pPkt->ListEntry);
+    }
+    else
+    {
+        VIOSockRxPktListProcess(pContext);
+        bNotify = virtqueue_kick_prepare(pContext->RxVq);
+    }
+    WdfSpinLockRelease(pContext->RxLock);
+
+    if (bNotify)
+        virtqueue_notify(pContext->RxVq);
+}
+
+__inline
+BOOLEAN
+VIOSockRxPktInc(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN ULONG            uPktLen
+)
+{
+    if (pSocket->RxBytes + uPktLen > pSocket->buf_alloc)
+        return FALSE;
+
+    pSocket->RxBytes += uPktLen;
+    return TRUE;
+
+}
+
+__inline
+VOID
+VIOSockRxPktDec(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN ULONG            uPktLen
+)
+{
+    pSocket->RxBytes -= uPktLen;
+    pSocket->fwd_cnt += uPktLen;
+}
+
 VOID
 VIOSockRxVqCleanup(
     IN PDEVICE_CONTEXT pContext
@@ -351,6 +425,11 @@ VIOSockRxVqCleanup(
         VIOSockRxPktCleanup(pContext, pPkt);
     }
 
+
+    while (pListEntry = PopEntryList(&pContext->RxPktList))
+    {
+        VIOSockRxPktCleanup(pContext, CONTAINING_RECORD(pListEntry, VIOSOCK_RX_PKT, ListEntry));
+    }
     WdfSpinLockRelease(pContext->RxLock);
 
     VIOSockRxCbCleanup(pContext);
@@ -377,6 +456,8 @@ VIOSockRxVqInit(
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+
+    pContext->RxPktList.Next = NULL;
 
     status = virtio_query_queue_allocation(&pContext->VDevice.VIODevice, VIOSOCK_VQ_RX,
         &uNumEntries, &uRingSize, &uHeapSize);
@@ -496,6 +577,101 @@ VIOSockRxPktHandleConnecting(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 }
 
+static
+BOOLEAN
+VIOSockRxPktEnqueueCb(
+    IN PSOCKET_CONTEXT pSocket,
+    IN PVIOSOCK_RX_PKT pPkt
+)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
+    PVIOSOCK_RX_CB pCurrentCb = NULL;
+    ULONG BufferFree, PktLen;
+    BOOLEAN bRes = FALSE;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    ASSERT(pPkt && pPkt->Buffer && pPkt->Header.len);
+
+    PktLen = pPkt->Header.len;
+
+    //Merge buffers
+    WdfSpinLockAcquire(pSocket->RxLock);
+    if (!IsListEmpty(&pSocket->RxCbList) && PktLen <= VIOSOCK_BYTES_TO_MERGE)
+    {
+        pCurrentCb = CONTAINING_RECORD(pSocket->RxCbList.Blink, VIOSOCK_RX_CB, ListEntry);
+
+        BufferFree = VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE - pCurrentCb->DataLen;
+
+        if (BufferFree >= PktLen)
+        {
+            if (VIOSockRxPktInc(pSocket, PktLen))
+            {
+                memcpy((PCHAR)pCurrentCb->BufferVA + pCurrentCb->DataLen, pPkt->Buffer->BufferVA, PktLen);
+                pCurrentCb->DataLen += PktLen;
+            }
+            else
+            {
+                TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Rx buffer full, drop packet\n");
+            }
+            //just leave buffer with pkt
+            WdfSpinLockRelease(pSocket->RxLock);
+            return FALSE;
+        }
+    }
+    else
+    {
+        bRes = TRUE;    //Scan read queue
+    }
+
+    //Enqueue buffer
+    if (VIOSockRxPktInc(pSocket, PktLen))
+    {
+        pPkt->Buffer->DataLen = PktLen;
+        InsertTailList(&pSocket->RxCbList, &pPkt->Buffer->ListEntry);
+        pSocket->RxBuffers++;
+        pPkt->Buffer = NULL; //remove buffer from pkt
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Rx buffer full, drop packet\n");
+        bRes = FALSE;
+    }
+
+    WdfSpinLockRelease(pSocket->RxLock);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+    return bRes;
+}
+
+static
+VOID
+VIOSockRxPktHandleConnected(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN PVIOSOCK_RX_PKT  pPkt
+)
+{
+    NTSTATUS    status = STATUS_SUCCESS;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
+    switch (pPkt->Header.op)
+    {
+    case VIRTIO_VSOCK_OP_RW:
+        if (VIOSockRxPktEnqueueCb(pSocket, pPkt))
+        {
+            VIOSockReadDequeueCb(pSocket, WDF_NO_HANDLE);
+        }
+        break;
+    case VIRTIO_VSOCK_OP_SHUTDOWN:
+    case VIRTIO_VSOCK_OP_RST:
+        VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSING);
+        break;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+}
+
 VOID
 VIOSockRxVqProcess(
     IN PDEVICE_CONTEXT pContext
@@ -554,10 +730,7 @@ VIOSockRxVqProcess(
         if (!pSocket)
         {
             TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Socket for packet is not exists\n");
-            WdfSpinLockAcquire(pContext->RxLock);
-            VIOSockRxPktInsert(pContext, pPkt);
-            WdfSpinLockRelease(pContext->RxLock);
-            virtqueue_kick(pContext->RxVq);
+            VIOSockRxPktInsertOrPostpone(pContext, pPkt);
             continue;
         }
 
@@ -571,15 +744,14 @@ VIOSockRxVqProcess(
         case VIOSOCK_STATE_CONNECTING:
             VIOSockRxPktHandleConnecting(pSocket, pPkt);
             break;
+        case VIOSOCK_STATE_CONNECTED:
+            VIOSockRxPktHandleConnected(pSocket, pPkt);
         default:
             TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid socket state for Rx packet\n");
         }
 
         //reinsert handled packet
-        WdfSpinLockAcquire(pContext->RxLock);
-        VIOSockRxPktInsert(pContext, pPkt);
-        WdfSpinLockRelease(pContext->RxLock);
-        virtqueue_kick(pContext->RxVq);
+        VIOSockRxPktInsertOrPostpone(pContext, pPkt);
     };
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
@@ -740,12 +912,320 @@ VIOSockReadQueueInit(
 }
 
 static
+NTSTATUS
+VIOSockReadGetRequestParameters(
+    IN WDFREQUEST       Request,
+    OUT PVOID           *pBuffer,
+    OUT ULONG           *pLength,
+    OUT ULONG           *pFlags
+)
+{
+    NTSTATUS        status;
+    WDF_REQUEST_PARAMETERS  parameters;
+    size_t  stLength;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    WDF_REQUEST_PARAMETERS_INIT(&parameters);
+    WdfRequestGetParameters(Request, &parameters);
+
+    if (parameters.Type == WdfRequestTypeDeviceControl)
+    {
+        *pFlags = (ULONG)WdfRequestGetInformation(Request);
+        WdfRequestSetInformation(Request, 0);
+    }
+    else
+        *pFlags = 0;
+
+    status = WdfRequestRetrieveOutputBuffer(Request, 0, pBuffer, &stLength);
+    if (!NT_SUCCESS(status))
+    {
+        ASSERT(FALSE);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
+            "WdfRequestRetrieveOutputBuffer failed: 0x%x\n", status);
+    }
+    else
+    {
+        *pLength = (ULONG)stLength;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+
+    return status;
+}
+
+//SRxLock-
+VOID
+VIOSockReadDequeueCb(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN WDFREQUEST       ReadRequest OPTIONAL
+)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
+    NTSTATUS        status;
+    ULONG           ReadRequestFlags = 0;
+    PCHAR           ReadRequestPtr = NULL;
+    ULONG           ReadRequestFree, ReadRequestLength;
+    PVIOSOCK_RX_CB  pCurrentCb;
+    LIST_ENTRY      *pCurrentItem;
+    ULONG           FreeSpace;
+    BOOLEAN         bSetBit, bStop = FALSE, bPend = FALSE;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    WdfSpinLockAcquire(pSocket->RxLock);
+
+    if (VIOSockRxHasData(pSocket) ||
+        VIOSockStateGet(pSocket) != VIOSOCK_STATE_CONNECTED)
+    {
+        if (ReadRequest != WDF_NO_HANDLE)
+        {
+            status = VIOSockReadGetRequestParameters(
+                ReadRequest,
+                &ReadRequestPtr,
+                &ReadRequestLength,
+                &ReadRequestFlags);
+
+            ReadRequestFree = ReadRequestLength;
+        }
+        else
+        {
+            status = VIOSockPendedRequestGet(pSocket, &ReadRequest);
+            if (!NT_SUCCESS(status))
+            {
+                TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Pended Read request canceled\n");
+                status = STATUS_SUCCESS; //do not complete canceled request
+                ASSERT(ReadRequest == WDF_NO_HANDLE);
+            }
+            else if (ReadRequest != WDF_NO_HANDLE)
+            {
+                ReadRequestPtr = pSocket->ReadRequestPtr;
+                ReadRequestFree = pSocket->ReadRequestFree;
+                ReadRequestLength = pSocket->ReadRequestLength;
+                ReadRequestFlags = pSocket->ReadRequestFlags;
+            }
+        }
+
+        if (ReadRequest == WDF_NO_HANDLE || !NT_SUCCESS(status))
+        {
+            bStop = TRUE;
+        }
+        else if (!VIOSockRxHasData(pSocket))
+        {
+            VIOSOCK_STATE State = VIOSockStateGet(pSocket);
+
+            //complete request
+            bStop = TRUE;
+            if (State != VIOSOCK_STATE_CONNECTED)
+            {
+                //TODO: set appropriate status
+                if (State == VIOSOCK_STATE_CONNECTING)
+                    status = STATUS_CONNECTION_DISCONNECTED;
+                else if (State == VIOSOCK_STATE_LISTEN)
+                    status = STATUS_INVALID_PARAMETER;
+                else
+                    status = STATUS_SUCCESS; //return zero bytes on closing/close
+            }
+            else
+            {
+                ASSERT(FALSE);
+                bPend = TRUE;
+            }
+        }
+    }
+    else
+    {
+        bPend = TRUE;
+    }
+
+    if (bPend)
+    {
+        bStop = TRUE;
+
+        ASSERT(ReadRequest != WDF_NO_HANDLE);
+        if (ReadRequest != WDF_NO_HANDLE)
+        {
+            status = VIOSockReadGetRequestParameters(
+                ReadRequest,
+                &pSocket->ReadRequestPtr,
+                &pSocket->ReadRequestLength,
+                &pSocket->ReadRequestFlags);
+
+            if (NT_SUCCESS(status))
+            {
+                pSocket->ReadRequestFree = pSocket->ReadRequestLength;
+                status = VIOSockPendedRequestSet(pSocket, ReadRequest);
+                if (NT_SUCCESS(status))
+                {
+                    ReadRequest = WDF_NO_HANDLE;
+                }
+            }
+        }
+    }
+
+    if (ReadRequest == WDF_NO_HANDLE || bStop)
+    {
+        WdfSpinLockRelease(pSocket->RxLock);
+
+        if (ReadRequest != WDF_NO_HANDLE)
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "Complete request without CB dequeue: 0x%x\n", status);
+            WdfRequestComplete(ReadRequest, status);
+        }
+        else
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "No read request available\n");
+        }
+        return;
+    }
+
+    ASSERT(ReadRequestPtr);
+
+    //process chained buffer
+    for (pCurrentItem = pSocket->RxCbList.Flink;
+        pCurrentItem != &pSocket->RxCbList;
+        pCurrentItem = pCurrentItem->Flink)
+    {
+        //peek the first buffer
+        pCurrentCb = CONTAINING_RECORD(pCurrentItem, VIOSOCK_RX_CB, ListEntry);
+
+        if (!pSocket->RxCbReadPtr)
+        {
+            pSocket->RxCbReadPtr = pCurrentCb->BufferVA;
+            pSocket->RxCbReadLen = pCurrentCb->DataLen;
+        }
+
+        //can we copy the whole buffer?
+        if (ReadRequestFree >= pSocket->RxCbReadLen)
+        {
+            memcpy(ReadRequestPtr, pSocket->RxCbReadPtr, pSocket->RxCbReadLen);
+
+            //update request buffer
+            ReadRequestPtr += pSocket->RxCbReadLen;
+            ReadRequestFree -= pSocket->RxCbReadLen;
+
+
+            if (!(ReadRequestFlags & MSG_PEEK))
+            {
+                VIOSockRxPktDec(pSocket, pCurrentCb->DataLen);
+
+                ASSERT(pCurrentItem->Blink == &pSocket->RxCbList);
+                RemoveEntryList(pCurrentItem);
+                pCurrentItem = &pSocket->RxCbList; //set current item pointer to the list head
+
+                VIOSockRxCbPushLocked(pContext, pCurrentCb);
+
+            }
+
+            pSocket->RxCbReadPtr = NULL;
+            pSocket->RxCbReadLen = 0;
+        }
+        else
+        {
+            memcpy(ReadRequestPtr, pSocket->RxCbReadPtr, ReadRequestFree);
+
+            ReadRequestFree = 0;
+
+            if (!(ReadRequestFlags & MSG_PEEK))
+            {
+                //update buffer entry
+                pSocket->RxCbReadPtr += ReadRequestLength;
+                pSocket->RxCbReadLen -= ReadRequestLength;
+            }
+
+            break;
+        }
+    }
+
+    if (!ReadRequestFree || ReadRequestFlags & MSG_PEEK)
+    {
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "Should complete request\n");
+    }
+    else if (ReadRequestLength == ReadRequestFree || ReadRequestFlags & MSG_WAITALL)
+    {
+        //pend request
+        ASSERT(!(ReadRequestFlags & MSG_PEEK));
+        pSocket->ReadRequestPtr = ReadRequestPtr;
+        pSocket->ReadRequestFree = ReadRequestFree;
+        pSocket->ReadRequestLength = ReadRequestLength;
+        pSocket->ReadRequestFlags = ReadRequestFlags;
+
+        status = VIOSockPendedRequestSet(pSocket, ReadRequest);
+        if (!NT_SUCCESS(status))
+        {
+            ASSERT(status == STATUS_CANCELLED);
+            if (status == STATUS_CANCELLED)
+                ReadRequest = WDF_NO_HANDLE; //already completed
+
+            ReadRequestLength = ReadRequestFree = 0;
+        }
+        else
+            ReadRequest = WDF_NO_HANDLE;
+    }
+
+    FreeSpace = pSocket->buf_alloc - (pSocket->fwd_cnt - pSocket->last_fwd_cnt);
+
+    WdfSpinLockRelease(pSocket->RxLock);
+
+    if (FreeSpace < VIRTIO_VSOCK_MAX_PKT_BUF_SIZE)
+        VIOSockSendCreditUpdate(pSocket);
+
+    if (ReadRequest != WDF_NO_HANDLE)
+    {
+        ASSERT(pSocket->PendedRequest == WDF_NO_HANDLE);
+        //pSocket->ReadRequestPtr = NULL;
+        //pSocket->ReadRequestFree = 0;
+
+        WdfRequestCompleteWithInformation(ReadRequest, status, ReadRequestLength - ReadRequestFree);
+        status = STATUS_MORE_ENTRIES;
+    }
+    else
+        status = STATUS_SUCCESS;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+}
+
+VOID
+VIOSockReadCleanupCb(
+    IN PSOCKET_CONTEXT pSocket
+)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
+    PVIOSOCK_RX_CB  pCurrentCb;
+    LIST_ENTRY      LoopbackList;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    InitializeListHead(&LoopbackList);
+
+    WdfSpinLockAcquire(pSocket->RxLock);
+
+    pSocket->RxCbReadLen = 0;
+    pSocket->RxCbReadPtr = NULL;
+
+    //process chained buffer
+    while (!IsListEmpty(&pSocket->RxCbList))
+    {
+        //peek the first buffer
+        pCurrentCb = CONTAINING_RECORD(RemoveHeadList(&pSocket->RxCbList), VIOSOCK_RX_CB, ListEntry);
+
+        VIOSockRxCbPushLocked(pContext, pCurrentCb);
+    }
+
+    WdfSpinLockRelease(pSocket->RxLock);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+}
+
+static
 VOID
 VIOSockReadSocketIoDefault(
     IN WDFQUEUE Queue,
     IN WDFREQUEST Request
 )
 {
+    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    VIOSockReadDequeueCb(pSocket, Request);
 }
 
 static

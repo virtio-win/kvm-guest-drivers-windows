@@ -109,6 +109,7 @@ typedef struct _DEVICE_CONTEXT {
     PVIOSOCK_VQ                 RxVq;
     PVOID                       RxPktVA;        //contiguous array of VIOSOCK_RX_PKT
     PHYSICAL_ADDRESS            RxPktPA;
+    SINGLE_LIST_ENTRY           RxPktList;      //postponed requests
     ULONG                       RxPktNum;
     WDFLOOKASIDE                RxCbBufferMemoryList;
     SINGLE_LIST_ENTRY           RxCbBuffers;    //list or Rx buffers
@@ -168,8 +169,19 @@ typedef struct _SOCKET_CONTEXT {
 
     WDFSPINLOCK     StateLock;
     volatile VIOSOCK_STATE   State;
-    //WDFSPINLOCK     RxLock;
+
+    WDFSPINLOCK     RxLock;
+    LIST_ENTRY      RxCbList;
+    PCHAR           RxCbReadPtr;    //read ptr in first CB
+    ULONG           RxCbReadLen;    //remaining bytes in first CB
+    ULONG           RxBytes;        //used bytes in rx buffer
+    ULONG           RxBuffers;      //used rx buffers (for debug)
+
     WDFQUEUE        ReadQueue;
+    PCHAR           ReadRequestPtr;
+    ULONG           ReadRequestFree;
+    ULONG           ReadRequestLength;
+    ULONG           ReadRequestFlags;
 
     WDFREQUEST      PendedRequest;
 
@@ -317,6 +329,15 @@ VIOSockRxVqProcess(
     IN PDEVICE_CONTEXT pContext
 );
 
+__inline
+ULONG
+VIOSockRxHasData(
+    IN PSOCKET_CONTEXT pSocket
+)
+{
+    return pSocket->RxBytes;
+}
+
 NTSTATUS
 VIOSockReadQueueInit(
     IN WDFDEVICE hDevice
@@ -324,6 +345,17 @@ VIOSockReadQueueInit(
 
 NTSTATUS
 VIOSockReadSocketQueueInit(
+    IN PSOCKET_CONTEXT pSocket
+);
+
+VOID
+VIOSockReadDequeueCb(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN WDFREQUEST       ReadRequest OPTIONAL
+);
+
+VOID
+VIOSockReadCleanupCb(
     IN PSOCKET_CONTEXT pSocket
 );
 
