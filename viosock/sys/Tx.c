@@ -392,19 +392,24 @@ VIOSockTxDequeue(
 
                 WdfSpinLockRelease(pContext->TxLock);
 
-                params.req = pTxEntry->Request;
+                status = VIOSockTxValidateSocketState(pSocket);
 
-                params.param1 = pPkt;
-                params.param2 = pSocket;
-
-                //create transaction
-                if (!VirtIOWdfDeviceDmaTxAsync(&pContext->VDevice.VIODevice, &params, VIOSockTxDequeueCallback))
+                if (NT_SUCCESS(status))
                 {
-                    if (params.transaction)
-                        VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, params.transaction);
-                    status = STATUS_INSUFFICIENT_RESOURCES;
-                    WdfRequestComplete(pTxEntry->Request, STATUS_INSUFFICIENT_RESOURCES);
-                    VIOSockTxPktFree(pContext, pPkt);
+                    params.req = pTxEntry->Request;
+
+                    params.param1 = pPkt;
+                    params.param2 = pSocket;
+
+                    //create transaction
+                    if (!VirtIOWdfDeviceDmaTxAsync(&pContext->VDevice.VIODevice, &params, VIOSockTxDequeueCallback))
+                    {
+                        if (params.transaction)
+                            VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, params.transaction);
+                        status = STATUS_INSUFFICIENT_RESOURCES;
+                        WdfRequestComplete(pTxEntry->Request, STATUS_INSUFFICIENT_RESOURCES);
+                        VIOSockTxPktFree(pContext, pPkt);
+                    }
                 }
 
                 if (!NT_SUCCESS(status))
@@ -498,6 +503,31 @@ VIOSockTxEnqueueCancel(
 }
 
 NTSTATUS
+VIOSockTxValidateSocketState(
+    PSOCKET_CONTEXT pSocket
+)
+{
+    NTSTATUS status;
+
+    WdfSpinLockAcquire(pSocket->StateLock);
+    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CLOSING &&
+        (pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_RCV ||
+            pSocket->Shutdown & VIRTIO_VSOCK_SHUTDOWN_SEND))
+    {
+        status = STATUS_GRACEFUL_DISCONNECT;
+    }
+    else if (VIOSockStateGet(pSocket) != VIOSOCK_STATE_CONNECTED)
+    {
+        status = STATUS_CONNECTION_INVALID;
+    }
+    else
+        status = STATUS_SUCCESS;
+    WdfSpinLockRelease(pSocket->StateLock);
+
+    return status;
+}
+
+NTSTATUS
 VIOSockTxEnqueue(
     IN PSOCKET_CONTEXT  pSocket,
     IN VIRTIO_VSOCK_OP  Op,
@@ -532,9 +562,14 @@ VIOSockTxEnqueue(
     }
     else
     {
-        pTxEntry = GetRequestTxContext(Request);
-        pTxEntry->Request = Request;
-        pTxEntry->Memory = WDF_NO_HANDLE;
+        status = VIOSockTxValidateSocketState(pSocket);
+
+        if (NT_SUCCESS(status))
+        {
+            pTxEntry = GetRequestTxContext(Request);
+            pTxEntry->Request = Request;
+            pTxEntry->Memory = WDF_NO_HANDLE;
+        }
     }
 
     if (!NT_SUCCESS(status))
