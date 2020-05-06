@@ -99,6 +99,7 @@ typedef struct VirtIOBufferDescriptor VIOSOCK_SG_DESC, *PVIOSOCK_SG_DESC;
 #define VSOCK_DEFAULT_BUFFER_SIZE           (1024 * 256)
 #define VSOCK_DEFAULT_BUFFER_MAX_SIZE       (1024 * 256)
 #define VSOCK_DEFAULT_BUFFER_MIN_SIZE       128
+
 #define VIRTIO_VSOCK_MAX_EVENTS 8
 
 #define LAST_RESERVED_PORT  1023
@@ -281,6 +282,11 @@ NTSTATUS
 VIOSockSelect(
     IN WDFREQUEST Request,
     IN OUT size_t *pLength
+);
+
+VOID
+VIOSockHandleTransportReset(
+    IN PDEVICE_CONTEXT pContext
 );
 
 NTSTATUS

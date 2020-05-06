@@ -1133,6 +1133,8 @@ VIOSockConnect(
         }
     }
 
+    VIOSockEventClearBit(pSocket, FD_CONNECT_BIT);
+
     pSocket->dst_cid = pAddr->svm_cid;
     pSocket->dst_port = pAddr->svm_port;
 
@@ -2197,4 +2199,25 @@ VIOSockSelect(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 
     return STATUS_SUCCESS;
+}
+
+VOID
+VIOSockHandleTransportReset(
+    IN PDEVICE_CONTEXT pContext
+)
+{
+    WDFFILEOBJECT Socket;
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+
+    while (WDF_NO_HANDLE != (Socket = WdfCollectionGetFirstItem(pContext->ConnectedList)))
+    {
+        PSOCKET_CONTEXT pCurrentSocket = GetSocketContext(Socket);
+
+        ASSERT(VIOSockStateGet(pCurrentSocket) == VIOSOCK_STATE_CONNECTED);
+
+        VIOSockStateSet(pCurrentSocket, VIOSOCK_STATE_CLOSE);
+        VIOSockEventSetBit(pCurrentSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
