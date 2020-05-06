@@ -49,6 +49,12 @@ VIOSockListen(
     IN WDFREQUEST   Request
 );
 
+NTSTATUS
+VIOSockGetPeerName(
+    IN WDFREQUEST   Request,
+    OUT size_t      *pLength
+);
+
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSockCreateStub)
 #pragma alloc_text (PAGE, VIOSockClose)
@@ -56,6 +62,7 @@ VIOSockListen(
 #pragma alloc_text (PAGE, VIOSockBind)
 #pragma alloc_text (PAGE, VIOSockConnect)
 #pragma alloc_text (PAGE, VIOSockListen)
+#pragma alloc_text (PAGE, VIOSockGetPeerName)
 
 #pragma alloc_text (PAGE, VIOSockDeviceControl)
 #endif
@@ -1394,6 +1401,44 @@ VIOSockEventSelect(
     return STATUS_SUCCESS;
 }
 
+static
+NTSTATUS
+VIOSockGetPeerName(
+    IN WDFREQUEST   Request,
+    OUT size_t      *pLength
+)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    PSOCKADDR_VM    pAddr;
+    SIZE_T          stAddrLen;
+    NTSTATUS        status;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+
+    status = WdfRequestRetrieveOutputBuffer(Request, sizeof(*pAddr), &pAddr, &stAddrLen);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveOutputBuffer failed: 0x%x\n", status);
+        return status;
+    }
+
+    // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
+    _Analysis_assume_(stAddrLen >= sizeof(*pAddr));
+
+    //TODO: check socket state
+    RtlZeroBytes(pAddr, sizeof(*pAddr));
+    pAddr->svm_family = AF_VSOCK;
+    pAddr->svm_cid = pSocket->dst_cid;
+    pAddr->svm_port = pSocket->dst_port;
+    *pLength = sizeof(*pAddr);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+
+    return STATUS_SUCCESS;
+}
+
 NTSTATUS
 VIOSockDeviceControl(
     IN WDFREQUEST Request,
@@ -1431,6 +1476,9 @@ VIOSockDeviceControl(
         break;
     case IOCTL_SOCKET_EVENT_SELECT:
         status = VIOSockEventSelect(Request);
+        break;
+    case IOCTL_SOCKET_GET_PEER_NAME:
+        status = VIOSockGetPeerName(Request, pLength);
         break;
     default:
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "Invalid socket ioctl\n");
