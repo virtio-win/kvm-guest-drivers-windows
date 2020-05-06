@@ -369,6 +369,16 @@ VIOSockCreate(
         return;
     }
 
+    WDF_OBJECT_ATTRIBUTES_INIT(&lockAttributes);
+    lockAttributes.ParentObject = FileObject;
+    status = WdfSpinLockCreate(&lockAttributes, &pSocket->RxLock);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfSpinLockCreate failed - 0x%x\n", status);
+        WdfRequestComplete(Request, status);
+        return;
+    }
+
     status = VIOSockReadSocketQueueInit(pSocket);
     if (!NT_SUCCESS(status))
     {
@@ -376,6 +386,10 @@ VIOSockCreate(
         WdfRequestComplete(Request, status);
         return;
     }
+
+    InitializeListHead(&pSocket->RxCbList);
+    pSocket->RxBytes = 0;
+
 
     WDF_REQUEST_PARAMETERS_INIT(&parameters);
 
@@ -489,9 +503,11 @@ VIOSockClose(
         pSocket->ListenSocket = WDF_NO_HANDLE;
     }
 
-        //TODO: lock collection
-        WdfCollectionRemove(pContext->SocketList, FileObject);
+    //TODO: lock collection
+    WdfCollectionRemove(pContext->SocketList, FileObject);
 
+
+    VIOSockReadCleanupCb(pSocket);
 
     VIOSockBoundRemove(pSocket);
 
