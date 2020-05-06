@@ -177,20 +177,16 @@ VIOSockAddressToString(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
-
     UNREFERENCED_PARAMETER(lpsaAddress);
     UNREFERENCED_PARAMETER(dwAddressLength);
     UNREFERENCED_PARAMETER(lpProtocolInfo);
     UNREFERENCED_PARAMETER(lpszAddressString);
     UNREFERENCED_PARAMETER(lpdwAddressStringLength);
+    UNREFERENCED_PARAMETER(lpErrno);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
-    return iRes;
+    return ERROR_SUCCESS;
 }
 
 int
@@ -208,12 +204,10 @@ VIOSockAsyncSelect(
     UNREFERENCED_PARAMETER(hWnd);
     UNREFERENCED_PARAMETER(wMsg);
     UNREFERENCED_PARAMETER(lEvent);
+    UNREFERENCED_PARAMETER(lpErrno);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
 }
 
@@ -252,14 +246,11 @@ VIOSockCancelBlockingCall(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
+    UNREFERENCED_PARAMETER(lpErrno);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
-    return iRes;
+    return ERROR_SUCCESS;
 }
 
 int
@@ -356,17 +347,13 @@ VIOSockDuplicateSocket(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
-
     UNREFERENCED_PARAMETER(dwProcessId);
     UNREFERENCED_PARAMETER(lpProtocolInfo);
+    UNREFERENCED_PARAMETER(lpErrno);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
-    return iRes;
+    return ERROR_SUCCESS;
 }
 
 int
@@ -458,19 +445,15 @@ VIOSockGetOverlappedResult(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
-
     UNREFERENCED_PARAMETER(lpOverlapped);
     UNREFERENCED_PARAMETER(lpcbTransfer);
     UNREFERENCED_PARAMETER(fWait);
     UNREFERENCED_PARAMETER(lpdwFlags);
+    UNREFERENCED_PARAMETER(lpErrno);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
-    return iRes;
+    return ERROR_SUCCESS;
 }
 
 int
@@ -593,17 +576,14 @@ VIOSockGetQOSByName(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
-
+    UNREFERENCED_PARAMETER(s);
     UNREFERENCED_PARAMETER(lpQOSName);
     UNREFERENCED_PARAMETER(lpQOS);
+    UNREFERENCED_PARAMETER(lpErrno);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
-    return iRes;
+    return ERROR_SUCCESS;
 }
 
 int
@@ -691,13 +671,11 @@ VIOSockJoinLeaf(
     UNREFERENCED_PARAMETER(lpSQOS);
     UNREFERENCED_PARAMETER(lpGQOS);
     UNREFERENCED_PARAMETER(dwFlags);
+    UNREFERENCED_PARAMETER(lpErrno);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
-    return INVALID_SOCKET;
+    return ERROR_SUCCESS;
 }
 
 int
@@ -798,16 +776,12 @@ VIOSockRecvDisconnect(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
-
     UNREFERENCED_PARAMETER(lpInboundDisconnectData);
+    UNREFERENCED_PARAMETER(lpErrno);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
-    return iRes;
+    return ERROR_SUCCESS;
 }
 
 int
@@ -1034,16 +1008,12 @@ VIOSockSendDisconnect(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
-
     UNREFERENCED_PARAMETER(lpOutboundDisconnectData);
+    UNREFERENCED_PARAMETER(lpErrno);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
-    return iRes;
+    return ERROR_SUCCESS;
 }
 
 int
@@ -1204,18 +1174,14 @@ VIOSockStringToAddress(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
-
     UNREFERENCED_PARAMETER(AddressString);
     UNREFERENCED_PARAMETER(AddressFamily);
     UNREFERENCED_PARAMETER(lpProtocolInfo);
     UNREFERENCED_PARAMETER(lpAddress);
     UNREFERENCED_PARAMETER(lpAddressLength);
+    UNREFERENCED_PARAMETER(lpErrno);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
-    return iRes;
+    return ERROR_SUCCESS;
 }
