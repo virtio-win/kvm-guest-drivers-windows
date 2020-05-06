@@ -814,6 +814,8 @@ VIOSockRxVqProcess(
         //pContext->Config.guest_cid = (ULONG32)pPkt->Header.dst_cid;
         ASSERT(pContext->Config.guest_cid == (ULONG32)pPkt->Header.dst_cid);
 
+        VIOSockTxSpaceUpdate(pSocket, &pPkt->Header);
+
         switch (pSocket->State)
         {
         case VIOSOCK_STATE_CONNECTING:
