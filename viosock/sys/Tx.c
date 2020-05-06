@@ -165,7 +165,8 @@ VIOSockTxPktAlloc(
 {
     PHYSICAL_ADDRESS PA;
     PVIOSOCK_TX_PKT pPkt;
-    PSOCKET_CONTEXT pSocket = GetSocketContext(pTxEntry->Socket);
+    PSOCKET_CONTEXT pSocket = (pTxEntry->Socket != WDF_NO_HANDLE) ?
+        GetSocketContext(pTxEntry->Socket) : NULL;
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
 
     ASSERT(pContext->TxPktSliced);
@@ -174,13 +175,16 @@ VIOSockTxPktAlloc(
     {
         pPkt->PhysAddr = PA;
         pPkt->Transaction = WDF_NO_HANDLE;
-        VIOSockRxIncTxPkt(pSocket, &pPkt->Header);
+        if (pSocket)
+        {
+            VIOSockRxIncTxPkt(pSocket, &pPkt->Header);
+        }
         pPkt->Header.src_cid = pContext->Config.guest_cid;
         pPkt->Header.dst_cid = pTxEntry->dst_cid;
         pPkt->Header.src_port = pTxEntry->src_port;
         pPkt->Header.dst_port = pTxEntry->dst_port;
         pPkt->Header.len = pTxEntry->len;
-        pPkt->Header.type = VIRTIO_VSOCK_TYPE_STREAM;
+        pPkt->Header.type = (USHORT)pSocket->type;
         pPkt->Header.op = pTxEntry->op;
         pPkt->Header.flags = pTxEntry->flags;
 
@@ -745,4 +749,52 @@ VIOSockWriteQueueInit(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 
     return STATUS_SUCCESS;
+}
+
+//////////////////////////////////////////////////////////////////////////
+NTSTATUS
+VIOSockSendResetNoSock(
+    IN PDEVICE_CONTEXT pContext,
+    IN PVIRTIO_VSOCK_HDR pHeader
+)
+{
+    PVIOSOCK_TX_ENTRY   pTxEntry;
+    NTSTATUS            status;
+    WDFMEMORY           Memory;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    /* Send RST only if the original pkt is not a RST pkt */
+    if (pHeader->op == VIRTIO_VSOCK_OP_RST)
+        return STATUS_SUCCESS;
+
+    status = WdfMemoryCreateFromLookaside(pContext->TxMemoryList, &Memory);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfMemoryCreateFromLookaside failed: 0x%x\n", status);
+        return status;
+    }
+
+    pTxEntry = WdfMemoryGetBuffer(Memory, NULL);
+    pTxEntry->Memory = Memory;
+    pTxEntry->Request = WDF_NO_HANDLE;
+    pTxEntry->len = 0;
+
+    pTxEntry->src_port = pHeader->dst_port;
+    pTxEntry->dst_cid = pHeader->src_cid;
+    pTxEntry->dst_port = pHeader->src_port;
+
+    pTxEntry->Socket = WDF_NO_HANDLE;
+    pTxEntry->op = VIRTIO_VSOCK_OP_RST;
+    pTxEntry->reply = FALSE;
+    pTxEntry->flags = 0;
+
+    WdfSpinLockAcquire(pContext->TxLock);
+    InsertTailList(&pContext->TxList, &pTxEntry->ListEntry);
+    WdfSpinLockRelease(pContext->TxLock);
+
+    VIOSockTxVqProcess(pContext);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+    return status;
 }

@@ -395,6 +395,12 @@ VIOSockTxEnqueue(
 
 #define VIOSockSendResponse(s) VIOSockTxEnqueue(s, VIRTIO_VSOCK_OP_RESPONSE, 0, TRUE, WDF_NO_HANDLE)
 
+NTSTATUS
+VIOSockSendResetNoSock(
+    IN PDEVICE_CONTEXT pContext,
+    IN PVIRTIO_VSOCK_HDR pHeader
+);
+
 //////////////////////////////////////////////////////////////////////////
 //Rx functions
 
