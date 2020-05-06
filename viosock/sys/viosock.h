@@ -102,6 +102,9 @@ typedef struct _DEVICE_CONTEXT {
 
     WDFDEVICE                   ThisDevice;
 
+    //Recv packets
+    WDFQUEUE                    ReadQueue;
+
     WDFSPINLOCK                 RxLock;
     PVIOSOCK_VQ                 RxVq;
     PVOID                       RxPktVA;        //contiguous array of VIOSOCK_RX_PKT
@@ -166,6 +169,8 @@ typedef struct _SOCKET_CONTEXT {
     WDFSPINLOCK     StateLock;
     volatile VIOSOCK_STATE   State;
     //WDFSPINLOCK     RxLock;
+    WDFQUEUE        ReadQueue;
+
     WDFREQUEST      PendedRequest;
 
     ULONG32         buf_alloc;
@@ -310,6 +315,21 @@ VIOSockRxVqCleanup(
 VOID
 VIOSockRxVqProcess(
     IN PDEVICE_CONTEXT pContext
+);
+
+NTSTATUS
+VIOSockReadQueueInit(
+    IN WDFDEVICE hDevice
+);
+
+NTSTATUS
+VIOSockReadSocketQueueInit(
+    IN PSOCKET_CONTEXT pSocket
+);
+
+NTSTATUS
+VIOSockReadWithFlags(
+    IN WDFREQUEST Request
 );
 
 //////////////////////////////////////////////////////////////////////////

@@ -81,7 +81,8 @@ VIOSockRxCbCleanup(
 #pragma alloc_text (PAGE, VIOSockRxCbInit)
 #pragma alloc_text (PAGE, VIOSockRxCbCleanup)
 #pragma alloc_text (PAGE, VIOSockRxVqInit)
-
+#pragma alloc_text (PAGE, VIOSockReadQueueInit)
+#pragma alloc_text (PAGE, VIOSockReadSocketQueueInit)
 #endif
 
 //////////////////////////////////////////////////////////////////////////
@@ -372,25 +373,10 @@ VIOSockRxVqInit(
     NTSTATUS status = STATUS_SUCCESS;
     USHORT uNumEntries;
     ULONG uRingSize, uHeapSize, uBufferSize;
-    WDF_OBJECT_ATTRIBUTES attributes;
 
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
-
-    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-    attributes.ParentObject = pContext->ThisDevice;
-
-    status = WdfSpinLockCreate(
-        &attributes,
-        &pContext->RxLock
-    );
-
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfSpinLockCreate failed: 0x%x\n", status);
-        return FALSE;
-    }
 
     status = virtio_query_queue_allocation(&pContext->VDevice.VIODevice, VIOSOCK_VQ_RX,
         &uNumEntries, &uRingSize, &uHeapSize);
@@ -599,4 +585,242 @@ VIOSockRxVqProcess(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
 
+//////////////////////////////////////////////////////////////////////////
+static
+VOID
+VIOSockRead(
+    IN WDFQUEUE Queue,
+    IN WDFREQUEST Request,
+    IN size_t Length
+)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    NTSTATUS status;
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+    //check Request
+    if (VIOSockIsFlag(pSocket, SOCK_CONTROL))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Invalid read request\n");
+        WdfRequestComplete(Request, STATUS_INVALID_DEVICE_REQUEST);
+        return;
+    }
+
+    status = WdfRequestForwardToIoQueue(Request, pSocket->ReadQueue);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestForwardToIoQueue failed: 0x%x\n", status);
+        WdfRequestComplete(Request, status);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+}
+
+NTSTATUS
+VIOSockReadWithFlags(
+    IN WDFREQUEST Request
+)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    NTSTATUS status;
+    PVIRTIO_VSOCK_READ_PARAMS pReadParams;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    //validate request
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pReadParams), &pReadParams, NULL);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
+            "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
+    }
+    else if (pReadParams->Flags & ~(MSG_PEEK | MSG_WAITALL))
+    {
+
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_READ,
+            "Unsupported flags: 0x%x\n", pReadParams->Flags & ~(MSG_PEEK | MSG_WAITALL));
+        status = STATUS_NOT_SUPPORTED;
+    }
+    else if ((pReadParams->Flags & (MSG_PEEK | MSG_WAITALL)) == (MSG_PEEK | MSG_WAITALL))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_READ,
+            "Incompatible flags: 0x%x\n", MSG_PEEK | MSG_WAITALL);
+        status = STATUS_NOT_SUPPORTED;
+    }
+    else
+    {
+        PVOID pBuffer;
+        status = WdfRequestRetrieveOutputBuffer(Request, 0, &pBuffer, NULL);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
+                "WdfRequestRetrieveOutputBuffer failed: 0x%x\n", status);
+        }
+        else
+            WdfRequestSetInformation(Request, pReadParams->Flags);
+    }
+
+    if (NT_SUCCESS(status))
+    {
+        status = WdfRequestForwardToIoQueue(Request, pSocket->ReadQueue);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestForwardToIoQueue failed: 0x%x\n", status);
+        }
+        else
+            status = STATUS_PENDING;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+    return status;
+}
+
+NTSTATUS
+VIOSockReadQueueInit(
+    IN WDFDEVICE hDevice
+)
+{
+    PDEVICE_CONTEXT              pContext = GetDeviceContext(hDevice);
+    WDF_IO_QUEUE_CONFIG          queueConfig;
+    NTSTATUS status;
+    WDF_OBJECT_ATTRIBUTES attributes;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    attributes.ParentObject = pContext->ThisDevice;
+
+    status = WdfSpinLockCreate(
+        &attributes,
+        &pContext->RxLock
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfSpinLockCreate failed: 0x%x\n", status);
+        return FALSE;
+    }
+
+    WDF_IO_QUEUE_CONFIG_INIT(&queueConfig,
+        WdfIoQueueDispatchParallel
+    );
+
+    queueConfig.EvtIoRead = VIOSockRead;
+    queueConfig.AllowZeroLengthRequests = WdfFalse;
+
+    status = WdfIoQueueCreate(hDevice,
+        &queueConfig,
+        WDF_NO_OBJECT_ATTRIBUTES,
+        &pContext->ReadQueue
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
+            "WdfIoQueueCreate failed (Read Queue): 0x%x\n", status);
+        return status;
+    }
+
+    status = WdfDeviceConfigureRequestDispatching(hDevice,
+        pContext->ReadQueue,
+        WdfRequestTypeRead);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
+            "WdfDeviceConfigureRequestDispatching failed (Read Queue): 0x%x\n", status);
+        return status;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+
+    return STATUS_SUCCESS;
+}
+
+static
+VOID
+VIOSockReadSocketIoDefault(
+    IN WDFQUEUE Queue,
+    IN WDFREQUEST Request
+)
+{
+}
+
+static
+VOID
+VIOSockReadSocketIoStop(IN WDFQUEUE Queue,
+    IN WDFREQUEST Request,
+    IN ULONG ActionFlags)
+{
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    if (ActionFlags & WdfRequestStopActionSuspend)
+    {
+        WdfRequestStopAcknowledge(Request, FALSE);
+    }
+    else if (ActionFlags & WdfRequestStopActionPurge)
+    {
+
+        if (ActionFlags & WdfRequestStopRequestCancelable)
+        {
+            if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
+            {
+                WdfRequestComplete(Request, STATUS_CANCELLED);
+            }
+        }
+    }
+
+}
+
+NTSTATUS
+VIOSockReadSocketQueueInit(
+    IN PSOCKET_CONTEXT pSocket
+)
+{
+    WDFDEVICE               hDevice = WdfFileObjectGetDevice(pSocket->ThisSocket);
+    PDEVICE_CONTEXT         pContext = GetDeviceContext(hDevice);
+    WDF_OBJECT_ATTRIBUTES   queueAttributes;
+    WDF_IO_QUEUE_CONFIG     queueConfig;
+    NTSTATUS status;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    WDF_IO_QUEUE_CONFIG_INIT(&queueConfig,
+        WdfIoQueueDispatchSequential
+    );
+
+    queueConfig.EvtIoDefault = VIOSockReadSocketIoDefault;
+    queueConfig.EvtIoStop = VIOSockReadSocketIoStop;
+    queueConfig.AllowZeroLengthRequests = WdfFalse;
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&queueAttributes);
+    queueAttributes.ParentObject = pSocket->ThisSocket;
+
+    status = WdfIoQueueCreate(hDevice,
+        &queueConfig,
+        &queueAttributes,
+        &pSocket->ReadQueue
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
+            "WdfIoQueueCreate failed (Socket Read Queue): 0x%x\n", status);
+        return status;
+    }
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
+            "WdfIoQueueReadyNotify failed (Socket Read Queue): 0x%x\n", status);
+        return status;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+
+    return STATUS_SUCCESS;
+}

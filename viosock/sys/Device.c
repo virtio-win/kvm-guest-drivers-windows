@@ -319,6 +319,14 @@ VIOSockEvtDeviceAdd(
         return status;
     }
 
+    // Create parallel queue for Read requests
+    status = VIOSockReadQueueInit(hDevice);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+            "VIOSockReadQueueInit failed (Read Queue): 0x%x\n", status);
+        return status;
+    }
     status = VIOSockInitInterrupt(hDevice);
     if(!NT_SUCCESS(status))
     {

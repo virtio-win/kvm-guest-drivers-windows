@@ -68,6 +68,15 @@ VIOSockWriteFile(
     _Out_ LPINT lpErrno
 );
 
+BOOL
+VIOSockReadFile(
+    _In_ SOCKET s,
+    _Out_writes_bytes_to_opt_(nNumberOfBytesToRead, *lpNumberOfBytesRead) __out_data_source(FILE) LPVOID lpBuffer,
+    _In_ DWORD nNumberOfBytesToRead,
+    _Out_opt_ LPDWORD lpNumberOfBytesRead,
+    _Out_ LPINT lpErrno
+);
+
 INT
 NtStatusToWsaError(
     NTSTATUS Status

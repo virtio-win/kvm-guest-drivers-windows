@@ -605,19 +605,54 @@ VIOSockRecv(
     _In_ LPINT lpErrno
 )
 {
-    int iRes = -1;
+    int iRes = ERROR_SUCCESS;
+    DWORD i;
 
-    UNREFERENCED_PARAMETER(lpBuffers);
-    UNREFERENCED_PARAMETER(dwBufferCount);
-    UNREFERENCED_PARAMETER(lpNumberOfBytesRecvd);
     UNREFERENCED_PARAMETER(lpFlags);
-    UNREFERENCED_PARAMETER(lpOverlapped);
-    UNREFERENCED_PARAMETER(lpCompletionRoutine);
     UNREFERENCED_PARAMETER(lpThreadId);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
+    if (lpOverlapped || lpCompletionRoutine)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Overlapped sockets not supported\n");
+        *lpErrno = WSAEOPNOTSUPP;
+        return SOCKET_ERROR;
+    }
+
+    *lpNumberOfBytesRecvd = 0;
+
+    if (!dwBufferCount)
+        return ERROR_SUCCESS;
+
+    for (i = 0; i < dwBufferCount; ++i)
+    {
+        DWORD dwNumberOfBytesRead;
+        if (*lpFlags)
+        {
+            VIRTIO_VSOCK_READ_PARAMS ReadParams;
+            ReadParams.Flags = *lpFlags;
+
+            if (!VIOSockDeviceControl(s, IOCTL_SOCKET_READ,
+                &ReadParams, (DWORD)sizeof(ReadParams),
+                lpBuffers[i].buf, lpBuffers[i].len, &dwNumberOfBytesRead, lpErrno))
+            {
+                TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+                iRes = SOCKET_ERROR;
+            }
+        }
+        else if (!VIOSockReadFile(s, lpBuffers[i].buf, lpBuffers[i].len, &dwNumberOfBytesRead, lpErrno))
+        {
+            iRes = SOCKET_ERROR;
+            break;
+        }
+
+        *lpNumberOfBytesRecvd += dwNumberOfBytesRead;
+        if (dwNumberOfBytesRead != lpBuffers[i].len)
+        {
+            break;
+        }
+    }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
@@ -659,24 +694,17 @@ VIOSockRecvFrom(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
-
-    UNREFERENCED_PARAMETER(lpBuffers);
-    UNREFERENCED_PARAMETER(dwBufferCount);
-    UNREFERENCED_PARAMETER(lpNumberOfBytesRecvd);
-    UNREFERENCED_PARAMETER(lpFlags);
-    UNREFERENCED_PARAMETER(lpFrom);
-    UNREFERENCED_PARAMETER(lpFromlen);
-    UNREFERENCED_PARAMETER(lpOverlapped);
-    UNREFERENCED_PARAMETER(lpCompletionRoutine);
-    UNREFERENCED_PARAMETER(lpThreadId);
-
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
+    if (VIOSockGetPeerName(s, lpFrom, lpFromlen, lpErrno) == SOCKET_ERROR)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "VIOSockGetPeerName failed: %u\n", *lpErrno);
+        return SOCKET_ERROR;
+    }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
-    return iRes;
+    return VIOSockRecv(s, lpBuffers, dwBufferCount,
+        lpNumberOfBytesRecvd, lpFlags, lpOverlapped,
+        lpCompletionRoutine, lpThreadId, lpErrno);
 }
 
 int
