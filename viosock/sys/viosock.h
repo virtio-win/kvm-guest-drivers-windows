@@ -170,6 +170,7 @@ typedef enum _VIOSOCK_STATE
 #define SOCK_CONTROL    0x01
 #define SOCK_BOUND      0x02
 #define SOCK_LINGER     0x04
+#define SOCK_NON_BLOCK  0x08
 typedef struct _VIOSOCK_ACCEPT_ENTRY
 {
     LIST_ENTRY      ListEntry;

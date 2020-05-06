@@ -536,7 +536,8 @@ VIOSockRxPktHandleConnecting(
 
     if (NT_SUCCESS(status))
     {
-        if (PendedRequest == WDF_NO_HANDLE)
+        if (PendedRequest == WDF_NO_HANDLE &&
+            !VIOSockIsFlag(pSocket, SOCK_NON_BLOCK))
         {
             status = STATUS_CANCELLED;
         }
@@ -1078,6 +1079,7 @@ VIOSockReadDequeueCb(
     WdfSpinLockAcquire(pSocket->RxLock);
 
     if (VIOSockRxHasData(pSocket) ||
+        VIOSockIsFlag(pSocket, SOCK_NON_BLOCK) ||
         VIOSockStateGet(pSocket) != VIOSOCK_STATE_CONNECTED)
     {
         if (ReadRequest != WDF_NO_HANDLE)
@@ -1129,6 +1131,10 @@ VIOSockReadDequeueCb(
                     status = STATUS_INVALID_PARAMETER;
                 else
                     status = STATUS_SUCCESS; //return zero bytes on closing/close
+            }
+            else if (VIOSockIsFlag(pSocket, SOCK_NON_BLOCK))
+            {
+                status = STATUS_CANT_WAIT;
             }
             else
             {
