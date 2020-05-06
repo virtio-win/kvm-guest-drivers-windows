@@ -573,6 +573,7 @@ VIOSockAcceptEnqueuePkt(
         WdfSpinLockAcquire(pListenSocket->RxLock);
         InsertTailList(&pListenSocket->AcceptList, &pAccept->ListEntry);
         WdfSpinLockRelease(pListenSocket->RxLock);
+        VIOSockEventSetBit(pListenSocket, FD_ACCEPT_BIT, STATUS_SUCCESS);
         status = STATUS_PENDING;
     }
     else
@@ -612,7 +613,8 @@ static
 BOOLEAN
 VIOSockAcceptDequeue(
     IN PSOCKET_CONTEXT  pListenSocket,
-    IN PSOCKET_CONTEXT  pAcceptSocket
+    IN PSOCKET_CONTEXT  pAcceptSocket,
+    OUT PBOOLEAN        pbSetBit
 )
 {
     BOOLEAN bAccepted = FALSE;
@@ -628,10 +630,13 @@ VIOSockAcceptDequeue(
             : RemoveHeadList(&pListenSocket->AcceptList);
         WdfSpinLockRelease(pListenSocket->RxLock);
 
+        *pbSetBit = FALSE;
         if (pListEntry)
         {
             PVIOSOCK_ACCEPT_ENTRY pAccept = CONTAINING_RECORD(pListEntry, VIOSOCK_ACCEPT_ENTRY, ListEntry);
             LONG lAcceptPended = InterlockedDecrement(&pListenSocket->AcceptPended);
+
+            *pbSetBit = !!lAcceptPended;
 
             pAcceptSocket->dst_cid = pAccept->dst_cid;
             pAcceptSocket->dst_port = pAccept->dst_port;
@@ -716,12 +721,15 @@ VIOSockAccept(
         }
         else
         {
-            BOOLEAN bDequeued = FALSE;
+            BOOLEAN bDequeued = FALSE, bSetBit = FALSE;
 
-            if (VIOSockAcceptDequeue(pListenSocket, pAcceptSocket))
+            VIOSockEventClearBit(pListenSocket, FD_ACCEPT_BIT);
+
+            if (VIOSockAcceptDequeue(pListenSocket, pAcceptSocket, &bSetBit))
             {
                 VIOSockStateSet(pAcceptSocket, VIOSOCK_STATE_CONNECTED);
                 status = VIOSockSendResponse(pAcceptSocket);
+                VIOSockEventSetBit(pListenSocket, FD_ACCEPT_BIT, status);
             }
             else
             {
@@ -903,6 +911,12 @@ VIOSockClose(
 
     if (VIOSockIsFlag(pSocket, SOCK_CONTROL))
         return;
+
+    if (pSocket->EventObject)
+    {
+        ObDereferenceObject(pSocket->EventObject);
+        pSocket->EventObject = NULL;
+    }
 
     if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_LISTEN)
         VIOSockAcceptCleanup(pSocket);
@@ -1192,6 +1206,163 @@ VIOSockListen(
 
     return status;
 }
+__inline
+PKEVENT
+VIOSockGetEventFromHandle(
+    IN HANDLE hEvent
+)
+{
+    PKEVENT pEvent = NULL;
+
+    ObReferenceObjectByHandle(hEvent, STANDARD_RIGHTS_REQUIRED, *ExEventObjectType,
+        KernelMode, (PVOID)&pEvent, NULL);
+
+    return pEvent;
+}
+
+static
+NTSTATUS
+VIOSockEnumNetEvents(
+    IN WDFREQUEST   Request,
+    OUT size_t      *pLength
+)
+{
+    PSOCKET_CONTEXT     pSocket = GetSocketContextFromRequest(Request);
+    PULONGLONG          pEventObject;
+    SIZE_T              stEventObjectLen;
+    PVIRTIO_VSOCK_NETWORK_EVENTS  lpNetworkEvents;
+    SIZE_T              stNetworkEventsLen;
+    NTSTATUS            status;
+    HANDLE              hEvent = NULL;
+    PKEVENT             pEvent = NULL;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pEventObject), &pEventObject, &stEventObjectLen);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
+        return status;
+    }
+
+    // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
+    _Analysis_assume_(stEventObjectLen >= sizeof(*pEventObject));
+
+    status = WdfRequestRetrieveOutputBuffer(Request, sizeof(*lpNetworkEvents), &lpNetworkEvents, &stNetworkEventsLen);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveOutputBuffer failed: 0x%x\n", status);
+        return status;
+    }
+
+    // minimum length guaranteed by WdfRequestRetrieveOutputBuffer above
+    _Analysis_assume_(stNetworkEventsLen >= sizeof(*lpNetworkEvents));
+
+#ifdef _WIN64
+    if (WdfRequestIsFrom32BitProcess(Request))
+    {
+        hEvent = Handle32ToHandle((void * POINTER_32)(ULONG)*pEventObject);
+    }
+    else
+#endif //_WIN64
+    {
+        hEvent = (HANDLE)(ULONG_PTR)*pEventObject;
+    }
+
+    if (hEvent)
+    {
+        pEvent = VIOSockGetEventFromHandle(hEvent);
+        if (!pEvent)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "VIOSockGetEventFromHandle failed\n");
+            return STATUS_INVALID_PARAMETER;
+        }
+    }
+
+    WdfSpinLockAcquire(pSocket->StateLock);
+    if (pEvent)
+    {
+        KeClearEvent(pEvent);
+        ObDereferenceObject(pEvent);
+    }
+
+    lpNetworkEvents->NetworkEvents = pSocket->Events & pSocket->EventsMask;
+    RtlCopyMemory(lpNetworkEvents->Status, pSocket->EventsStatus, sizeof(pSocket->EventsStatus));
+    pSocket->Events = 0;
+    WdfSpinLockRelease(pSocket->StateLock);
+
+    *pLength = sizeof(*lpNetworkEvents);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+
+    return STATUS_SUCCESS;
+}
+
+static
+NTSTATUS
+VIOSockEventSelect(
+    IN WDFREQUEST   Request
+)
+{
+    PSOCKET_CONTEXT             pSocket = GetSocketContextFromRequest(Request);
+    PVIRTIO_VSOCK_EVENT_SELECT  pEventSelect;
+    SIZE_T                      stEventSelectLen;
+    NTSTATUS                    status;
+    PKEVENT                     pEvent = NULL;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pEventSelect), &pEventSelect, &stEventSelectLen);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
+        return status;
+    }
+
+    // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
+    _Analysis_assume_(stEventSelectLen >= sizeof(*pEventSelect));
+
+    if (pEventSelect->lNetworkEvents)
+    {
+        HANDLE  hEvent;
+
+#ifdef _WIN64
+        if (WdfRequestIsFrom32BitProcess(Request))
+        {
+            hEvent = Handle32ToHandle((void * POINTER_32)pEventSelect->hEventObject);
+        }
+        else
+#endif //_WIN64
+        {
+            hEvent = (HANDLE)pEventSelect->hEventObject;
+        }
+
+        if (!hEvent)
+        {
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid hEventObject\n");
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        pEvent = VIOSockGetEventFromHandle(hEvent);
+        if (!pEvent)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "VIOSockGetEventFromHandle failed\n");
+            return STATUS_INVALID_PARAMETER;
+        }
+    }
+
+    WdfSpinLockAcquire(pSocket->StateLock);
+    pSocket->EventsMask = pEventSelect->lNetworkEvents;
+    if (pSocket->EventObject)
+        ObDereferenceObject(pSocket->EventObject);
+    pSocket->Events = 0;
+    pSocket->EventObject = pEvent;
+    WdfSpinLockRelease(pSocket->StateLock);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+
+    return STATUS_SUCCESS;
+}
 
 NTSTATUS
 VIOSockDeviceControl(
@@ -1224,6 +1395,12 @@ VIOSockDeviceControl(
         break;
     case IOCTL_SOCKET_LISTEN:
         status = VIOSockListen(Request);
+        break;
+    case IOCTL_SOCKET_ENUM_NET_EVENTS:
+        status = VIOSockEnumNetEvents(Request, pLength);
+        break;
+    case IOCTL_SOCKET_EVENT_SELECT:
+        status = VIOSockEventSelect(Request);
         break;
     default:
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "Invalid socket ioctl\n");

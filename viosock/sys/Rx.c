@@ -523,7 +523,8 @@ static
 VOID
 VIOSockRxPktHandleConnecting(
     IN PSOCKET_CONTEXT  pSocket,
-    IN PVIOSOCK_RX_PKT  pPkt
+    IN PVIOSOCK_RX_PKT  pPkt,
+    IN BOOLEAN          bTxHasSpace
 )
 {
     WDFREQUEST  PendedRequest;
@@ -545,6 +546,9 @@ VIOSockRxPktHandleConnecting(
             {
             case VIRTIO_VSOCK_OP_RESPONSE:
                 VIOSockStateSet(pSocket, VIOSOCK_STATE_CONNECTED);
+                VIOSockEventSetBit(pSocket, FD_CONNECT_BIT, STATUS_SUCCESS);
+                if (bTxHasSpace)
+                    VIOSockEventSetBit(pSocket, FD_WRITE_BIT, STATUS_SUCCESS);
                 status = STATUS_SUCCESS;
                 break;
             case VIRTIO_VSOCK_OP_INVALID:
@@ -566,6 +570,7 @@ VIOSockRxPktHandleConnecting(
 
     if (!NT_SUCCESS(status))
     {
+        VIOSockEventSetBit(pSocket, FD_CONNECT_BIT, status);
         VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
         if (pPkt->Header.op != VIRTIO_VSOCK_OP_RST)
             VIOSockSendReset(pSocket, TRUE);
@@ -648,7 +653,8 @@ static
 VOID
 VIOSockRxPktHandleConnected(
     IN PSOCKET_CONTEXT  pSocket,
-    IN PVIOSOCK_RX_PKT  pPkt
+    IN PVIOSOCK_RX_PKT  pPkt,
+    IN BOOLEAN          bTxHasSpace
 )
 {
     NTSTATUS    status = STATUS_SUCCESS;
@@ -660,7 +666,14 @@ VIOSockRxPktHandleConnected(
     case VIRTIO_VSOCK_OP_RW:
         if (VIOSockRxPktEnqueueCb(pSocket, pPkt))
         {
+            VIOSockEventSetBit(pSocket, FD_READ_BIT, STATUS_SUCCESS);
             VIOSockReadDequeueCb(pSocket, WDF_NO_HANDLE);
+        }
+        break;//TODO: Remove break?
+    case VIRTIO_VSOCK_OP_CREDIT_UPDATE:
+        if (bTxHasSpace)
+        {
+            VIOSockEventSetBit(pSocket, FD_WRITE_BIT, STATUS_SUCCESS);
         }
         break;
     case VIRTIO_VSOCK_OP_SHUTDOWN:
@@ -673,6 +686,7 @@ VIOSockRxPktHandleConnected(
     case VIRTIO_VSOCK_OP_RST:
         VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSING);
         VIOSockShutdownFromPeer(pSocket, VIRTIO_VSOCK_SHUTDOWN_MASK);
+        VIOSockEventSetBit(pSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
         break;
     }
 
@@ -786,6 +800,8 @@ VIOSockRxVqProcess(
     //complete buffers
     while ((pCurrentEntry = PopEntryList(&CompletionList)) != NULL)
     {
+        BOOLEAN bTxHasSpace;
+
         pPkt = CONTAINING_RECORD(pCurrentEntry, VIOSOCK_RX_PKT, ListEntry);
 
         //find socket
@@ -814,15 +830,15 @@ VIOSockRxVqProcess(
         //pContext->Config.guest_cid = (ULONG32)pPkt->Header.dst_cid;
         ASSERT(pContext->Config.guest_cid == (ULONG32)pPkt->Header.dst_cid);
 
-        VIOSockTxSpaceUpdate(pSocket, &pPkt->Header);
+        bTxHasSpace = !!VIOSockTxSpaceUpdate(pSocket, &pPkt->Header);
 
         switch (pSocket->State)
         {
         case VIOSOCK_STATE_CONNECTING:
-            VIOSockRxPktHandleConnecting(pSocket, pPkt);
+            VIOSockRxPktHandleConnecting(pSocket, pPkt, bTxHasSpace);
             break;
         case VIOSOCK_STATE_CONNECTED:
-            VIOSockRxPktHandleConnected(pSocket, pPkt);
+            VIOSockRxPktHandleConnected(pSocket, pPkt, bTxHasSpace);
             break;
         case VIOSOCK_STATE_CLOSING:
             VIOSockRxPktHandleDisconnecting(pSocket, pPkt);
@@ -918,6 +934,8 @@ VIOSockReadWithFlags(
 
     if (NT_SUCCESS(status))
     {
+        VIOSockEventClearBit(pSocket, FD_READ_BIT);
+
         status = WdfRequestForwardToIoQueue(Request, pSocket->ReadQueue);
         if (!NT_SUCCESS(status))
         {
@@ -1064,6 +1082,8 @@ VIOSockReadDequeueCb(
     {
         if (ReadRequest != WDF_NO_HANDLE)
         {
+            VIOSockEventClearBit(pSocket, FD_READ_BIT);
+
             status = VIOSockReadGetRequestParameters(
                 ReadRequest,
                 &ReadRequestPtr,
@@ -1247,9 +1267,13 @@ VIOSockReadDequeueCb(
             ReadRequest = WDF_NO_HANDLE;
     }
 
+    bSetBit = (ReadRequest != WDF_NO_HANDLE && VIOSockRxHasData(pSocket));
     FreeSpace = pSocket->buf_alloc - (pSocket->fwd_cnt - pSocket->last_fwd_cnt);
 
     WdfSpinLockRelease(pSocket->RxLock);
+
+    if (bSetBit)
+        VIOSockEventSetBit(pSocket, FD_READ_BIT, STATUS_SUCCESS);
 
     if (FreeSpace < VIRTIO_VSOCK_MAX_PKT_BUF_SIZE)
         VIOSockSendCreditUpdate(pSocket);
