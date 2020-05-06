@@ -761,6 +761,7 @@ VIOSockRxVqProcess(
     SINGLE_LIST_ENTRY   CompletionList;
     PSINGLE_LIST_ENTRY  pCurrentEntry;
     PSOCKET_CONTEXT     pSocket = NULL;
+    BOOLEAN             bStop = FALSE;
 
     NTSTATUS            status;
 
@@ -775,6 +776,15 @@ VIOSockRxVqProcess(
 
         while (TRUE)
         {
+            if (!VIOSockTxMoreReplies(pContext)) {
+                /* Stop rx until the device processes already
+                 * pending replies.  Leave rx virtqueue
+                 * callbacks disabled.
+                 */
+                bStop = TRUE;
+                break;
+            }
+
             pPkt = (PVIOSOCK_RX_PKT)virtqueue_get_buf(pContext->RxVq, &len);
             if (!pPkt)
                 break;
@@ -794,7 +804,7 @@ VIOSockRxVqProcess(
             //"complete" buffers later
             PushEntryList(&CompletionList, &pPkt->ListEntry);
         }
-    } while (!virtqueue_enable_cb(pContext->RxVq));
+    } while (!virtqueue_enable_cb(pContext->RxVq) && !bStop);
 
     WdfSpinLockRelease(pContext->RxLock);
 
