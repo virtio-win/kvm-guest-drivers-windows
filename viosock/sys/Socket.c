@@ -1018,6 +1018,13 @@ VIOSockBind(
 
     }
 
+    if (VIOSockStateGet(pSocket) != VIOSOCK_STATE_CLOSE ||
+        VIOSockIsBound(pSocket))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid socket state: %u\n", VIOSockStateGet(pSocket));
+        return STATUS_INVALID_PARAMETER;
+    }
+
     status = VIOSockBoundAdd(pSocket, pAddr->svm_port);
     if (!NT_SUCCESS(status))
     {

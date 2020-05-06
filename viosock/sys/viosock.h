@@ -438,6 +438,11 @@ VIOSockTxVqProcess(
 );
 
 NTSTATUS
+VIOSockTxValidateSocketState(
+    PSOCKET_CONTEXT pSocket
+);
+
+NTSTATUS
 VIOSockTxEnqueue(
     IN PSOCKET_CONTEXT  pSocket,
     IN VIRTIO_VSOCK_OP  Op,
