@@ -54,6 +54,7 @@ DEFINE_GUID(GUID_DEVINTERFACE_VIOSOCK,
 #define IOCTL_SOCKET_EVENT_SELECT       DEFINE_SOCKET_IOCTL(7)
 #define IOCTL_SOCKET_GET_PEER_NAME      DEFINE_SOCKET_IOCTL(8)
 #define IOCTL_SOCKET_GET_SOCK_NAME      DEFINE_SOCKET_IOCTL(9)
+#define IOCTL_SOCKET_GET_SOCK_OPT       DEFINE_SOCKET_IOCTL(10)
 
 typedef struct _VIRTIO_VSOCK_CONFIG {
     ULONG64 guest_cid;
@@ -107,6 +108,13 @@ typedef struct _VIRTIO_VSOCK_EVENT_SELECT {
     ULONGLONG   hEventObject;
     long        lNetworkEvents;
 }VIRTIO_VSOCK_EVENT_SELECT, *PVIRTIO_VSOCK_EVENT_SELECT;
+
+typedef struct _VIRTIO_VSOCK_OPT {
+    int         level;
+    int         optname;
+    ULONGLONG   optval;
+    int         optlen;
+}VIRTIO_VSOCK_OPT, *PVIRTIO_VSOCK_OPT;
 
 
 #endif /* PUBLIC_H */

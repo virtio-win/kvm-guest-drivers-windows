@@ -169,6 +169,7 @@ typedef enum _VIOSOCK_STATE
 
 #define SOCK_CONTROL    0x01
 #define SOCK_BOUND      0x02
+#define SOCK_LINGER     0x04
 typedef struct _VIOSOCK_ACCEPT_ENTRY
 {
     LIST_ENTRY      ListEntry;
@@ -233,6 +234,7 @@ typedef struct _SOCKET_CONTEXT {
     ULONG32         peer_fwd_cnt;
     ULONG32         tx_cnt;
 
+    USHORT          LingerTime;
 
 } SOCKET_CONTEXT, *PSOCKET_CONTEXT;
 
