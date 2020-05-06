@@ -183,8 +183,19 @@ IF ERRORLEVEL 1 (
 )
 goto :eof
 
-:runsdv
+:configure_sdv
+echo Set SDV mode to LEGACY
 set SDVLEGACY=1
+if not exist "%~dp1\build.sdv.config" goto :eof
+echo Checking SDV configuration for %1
+findstr /i legacy "%~dp1\build.sdv.config"
+IF NOT ERRORLEVEL 1 goto :eof
+echo Using MODERN SDV mode
+set SDVLEGACY=
+goto :eof
+
+:runsdv
+call :configure_sdv %BUILD_FILE%
 call "%~dp0\SetVsEnv.bat" x64
 msbuild.exe %BUILD_FILE% /t:clean /p:Configuration="%~1" /P:Platform=%2
 
