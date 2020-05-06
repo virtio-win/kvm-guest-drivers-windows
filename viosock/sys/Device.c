@@ -176,7 +176,7 @@ VIOSockEvtDeviceAdd(
     IN PWDFDEVICE_INIT DeviceInit)
 {
     NTSTATUS                     status = STATUS_SUCCESS;
-    WDF_OBJECT_ATTRIBUTES        deviceAttributes, fileAttributes, collectionAttributes;
+    WDF_OBJECT_ATTRIBUTES        deviceAttributes, fileAttributes, memAttributes;
     WDFDEVICE                    hDevice;
     WDF_PNPPOWER_EVENT_CALLBACKS PnpPowerCallbacks;
     PDEVICE_CONTEXT              pContext = NULL;
@@ -215,7 +215,7 @@ VIOSockEvtDeviceAdd(
     // Configure file object callbacks
     WDF_FILEOBJECT_CONFIG_INIT(
         &fileConfig,
-        VIOSockCreate,
+        VIOSockCreateStub,
         VIOSockClose,
         WDF_NO_EVENT_CALLBACK // Cleanup
     );
@@ -264,18 +264,29 @@ VIOSockEvtDeviceAdd(
         return status;
     }
 
+    status = VIOSockConnectedListInit(hDevice);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSockConnectedListInit failed - 0x%x\n", status);
+        return status;
+    }
+
     pContext = GetDeviceContext(hDevice);
 
     pContext->ThisDevice = hDevice;
 
-    // Create collection for socket objects
-    WDF_OBJECT_ATTRIBUTES_INIT(&collectionAttributes);
-    collectionAttributes.ParentObject = hDevice;
+    WDF_OBJECT_ATTRIBUTES_INIT(&memAttributes);
+    memAttributes.ParentObject = hDevice;
 
-    status = WdfCollectionCreate(&collectionAttributes, &pContext->SocketList);
+    status = WdfLookasideListCreate(&memAttributes,
+        sizeof(VIOSOCK_ACCEPT_ENTRY), NonPagedPoolNx,
+        &memAttributes, VIOSOCK_DRIVER_MEMORY_TAG,
+        &pContext->AcceptMemoryList);
+
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfCollectionCreate failed - 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+            "WdfLookasideListCreate failed: 0x%x\n", status);
         return status;
     }
 

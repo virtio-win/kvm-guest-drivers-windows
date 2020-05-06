@@ -714,7 +714,23 @@ VIOSockRxPktHandleListen(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    //TODO: add accept info to listen socket
+    if (pPkt->Header.op == VIRTIO_VSOCK_OP_RST)
+    {
+        //remove pended accept
+        VIOSockAcceptRemovePkt(pSocket, &pPkt->Header);
+    }
+    else if (pPkt->Header.op != VIRTIO_VSOCK_OP_REQUEST)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid packet: %u\n", pPkt->Header.op);
+        return;
+    }
+
+    status = VIOSockAcceptEnqueuePkt(pSocket, &pPkt->Header);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockAcceptEnqueuePkt failed: 0x%x\n", status);
+    }
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 }
 
@@ -771,7 +787,12 @@ VIOSockRxVqProcess(
         pPkt = CONTAINING_RECORD(pCurrentEntry, VIOSOCK_RX_PKT, ListEntry);
 
         //find socket
-        pSocket = VIOSockBoundFindByPort(pContext, pPkt->Header.dst_port);
+        pSocket = VIOSockConnectedFindByRxPkt(pContext, &pPkt->Header);
+        if (!pSocket)
+        {
+            //no connected socket for incoming packet
+            pSocket = VIOSockBoundFindByPort(pContext, pPkt->Header.dst_port);
+        }
 
         if (!pSocket)
         {

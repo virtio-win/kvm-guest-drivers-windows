@@ -95,6 +95,10 @@ typedef struct VirtIOBufferDescriptor VIOSOCK_SG_DESC, *PVIOSOCK_SG_DESC;
 #define VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE	(1024 * 4)
 #define VIRTIO_VSOCK_MAX_PKT_BUF_SIZE		(1024 * 64)
 
+#define VSOCK_DEFAULT_CONNECT_TIMEOUT       MSEC_TO_NANO(2 * 1000)
+#define VSOCK_DEFAULT_BUFFER_SIZE           (1024 * 256)
+#define VSOCK_DEFAULT_BUFFER_MAX_SIZE       (1024 * 256)
+#define VSOCK_DEFAULT_BUFFER_MIN_SIZE       128
 #define VIRTIO_VSOCK_MAX_EVENTS 8
 
 #define LAST_RESERVED_PORT  1023
@@ -142,8 +146,10 @@ typedef struct _DEVICE_CONTEXT {
 
     WDFSPINLOCK                 BoundLock;
     WDFCOLLECTION               BoundList;
+    WDFSPINLOCK                 ConnectedLock;
+    WDFCOLLECTION               ConnectedList;
 
-    WDFCOLLECTION               SocketList;
+    WDFLOOKASIDE                AcceptMemoryList;
 
     WDFQUEUE                    IoCtlQueue;
 
@@ -163,6 +169,16 @@ typedef enum _VIOSOCK_STATE
 
 #define SOCK_CONTROL    0x01
 #define SOCK_BOUND      0x02
+typedef struct _VIOSOCK_ACCEPT_ENTRY
+{
+    LIST_ENTRY      ListEntry;
+    WDFMEMORY       Memory;
+    WDFFILEOBJECT   ConnectSocket;
+    ULONG32         dst_cid;
+    ULONG32         dst_port;
+    ULONG32         peer_buf_alloc;
+    ULONG32         peer_fwd_cnt;
+}VIOSOCK_ACCEPT_ENTRY, *PVIOSOCK_ACCEPT_ENTRY;
 
 typedef struct _SOCKET_CONTEXT {
 
@@ -170,12 +186,17 @@ typedef struct _SOCKET_CONTEXT {
 
     volatile LONG   Flags;
 
+    VIRTIO_VSOCK_TYPE  type;
+
     ULONG32         dst_cid;
     ULONG32         src_port;
     ULONG32         dst_port;
 
     WDFSPINLOCK     StateLock;
     volatile VIOSOCK_STATE   State;
+    LARGE_INTEGER   ConnectTimeout;
+    ULONG32         BufferMinSize;
+    ULONG32         BufferMaxSize;
     ULONG32         PeerShutdown;
     ULONG32         Shutdown;
 
@@ -197,6 +218,7 @@ typedef struct _SOCKET_CONTEXT {
     //RxLock
     LIST_ENTRY      AcceptList;
     LONG            Backlog;
+    volatile LONG   AcceptPended;
 
     ULONG32         buf_alloc;
     ULONG32         fwd_cnt;
@@ -206,7 +228,7 @@ typedef struct _SOCKET_CONTEXT {
     ULONG32         peer_fwd_cnt;
     ULONG32         tx_cnt;
 
-    WDFFILEOBJECT ListenSocket;
+
 } SOCKET_CONTEXT, *PSOCKET_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(SOCKET_CONTEXT, GetSocketContext);
@@ -236,7 +258,7 @@ EVT_WDF_INTERRUPT_DISABLE   VIOSockInterruptDisable;
 
 //////////////////////////////////////////////////////////////////////////
 //Socket functions
-EVT_WDF_DEVICE_FILE_CREATE  VIOSockCreate;
+EVT_WDF_DEVICE_FILE_CREATE  VIOSockCreateStub;
 EVT_WDF_FILE_CLOSE          VIOSockClose;
 
 NTSTATUS
@@ -261,6 +283,24 @@ VIOSockBoundFindByPort(
     IN PDEVICE_CONTEXT pContext,
     IN ULONG32         ulSrcPort
 );
+
+PSOCKET_CONTEXT
+VIOSockBoundFindByFile(
+    IN PDEVICE_CONTEXT pContext,
+    IN PFILE_OBJECT pFileObject
+);
+
+NTSTATUS
+VIOSockConnectedListInit(
+    IN WDFDEVICE hDevice
+);
+
+PSOCKET_CONTEXT
+VIOSockConnectedFindByRxPkt(
+    IN PDEVICE_CONTEXT      pContext,
+    IN PVIRTIO_VSOCK_HDR    pPkt
+);
+
 VIOSOCK_STATE
 VIOSockStateSet(
     IN PSOCKET_CONTEXT pSocket,
@@ -297,6 +337,18 @@ NTSTATUS
 VIOSockPendedRequestGetLocked(
     IN PSOCKET_CONTEXT  pSocket,
     OUT WDFREQUEST      *Request
+);
+
+NTSTATUS
+VIOSockAcceptEnqueuePkt(
+    IN PSOCKET_CONTEXT      pListenSocket,
+    IN PVIRTIO_VSOCK_HDR    pPkt
+);
+
+VOID
+VIOSockAcceptRemovePkt(
+    IN PSOCKET_CONTEXT      pListenSocket,
+    IN PVIRTIO_VSOCK_HDR    pPkt
 );
 
 //////////////////////////////////////////////////////////////////////////
