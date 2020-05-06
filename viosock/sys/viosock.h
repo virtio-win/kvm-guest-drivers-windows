@@ -401,6 +401,30 @@ VIOSockSendResetNoSock(
     IN PVIRTIO_VSOCK_HDR pHeader
 );
 
+__inline
+LONG
+VIOSockTxHasSpace(
+    IN PSOCKET_CONTEXT pSocket
+)
+{
+    LONG lBytes = (LONG)pSocket->peer_buf_alloc - (pSocket->tx_cnt - pSocket->peer_fwd_cnt);
+    if (lBytes < 0)
+        lBytes = 0;
+    return lBytes;
+}
+
+__inline
+LONG
+VIOSockTxSpaceUpdate(
+    IN PSOCKET_CONTEXT pSocket,
+    IN PVIRTIO_VSOCK_HDR pPkt
+)
+{
+    pSocket->peer_buf_alloc = pPkt->buf_alloc;
+    pSocket->peer_fwd_cnt = pPkt->fwd_cnt;
+    return VIOSockTxHasSpace(pSocket);
+}
+
 //////////////////////////////////////////////////////////////////////////
 //Rx functions
 
