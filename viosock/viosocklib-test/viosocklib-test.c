@@ -2,7 +2,159 @@
 //
 
 #include "pch.h"
-#include "installprov.h"
+#include "..\inc\install.h"
+
+#define DEST_PORT   1025
+
+VOID
+PrintProtocolInfo(
+    LPWSAPROTOCOL_INFO pProtocolInfo
+)
+{
+    _tprintf(_T("szProtocol: %s\n\
+\tdwServiceFlags1: 0x%x\n\
+\tdwServiceFlags2: 0x%x\n\
+\tdwServiceFlags3: 0x%x\n\
+\tdwServiceFlags4: 0x%x\n\
+\tdwProviderFlags: 0x%x\n\
+\tProviderId: {%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}\n\
+\tdwCatalogEntryId: %u\n\
+\tProtocolChain.ChainLen: %u\n\
+\tiVersion: %d\n\
+\tiAddressFamily: %d\n\
+\tiMaxSockAddr: %d\n\
+\tiMinSockAddr: %d\n\
+\tiSocketType: %d\n\
+\tiProtocol: %d\n\
+\tiProtocolMaxOffset: %d\n\
+\tiNetworkByteOrder: %d\n\
+\tiSecurityScheme: %d\n\
+\tdwMessageSize: %u\n\
+\tdwProviderReserved: %u\n\n"),
+pProtocolInfo->szProtocol,
+pProtocolInfo->dwServiceFlags1,
+pProtocolInfo->dwServiceFlags2,
+pProtocolInfo->dwServiceFlags3,
+pProtocolInfo->dwServiceFlags4,
+pProtocolInfo->dwProviderFlags,
+pProtocolInfo->ProviderId.Data1,
+pProtocolInfo->ProviderId.Data2,
+pProtocolInfo->ProviderId.Data3,
+pProtocolInfo->ProviderId.Data4[0],
+pProtocolInfo->ProviderId.Data4[1],
+pProtocolInfo->ProviderId.Data4[2],
+pProtocolInfo->ProviderId.Data4[3],
+pProtocolInfo->ProviderId.Data4[4],
+pProtocolInfo->ProviderId.Data4[5],
+pProtocolInfo->ProviderId.Data4[6],
+pProtocolInfo->ProviderId.Data4[7],
+pProtocolInfo->dwCatalogEntryId,
+pProtocolInfo->ProtocolChain.ChainLen,
+pProtocolInfo->iVersion,
+pProtocolInfo->iAddressFamily,
+pProtocolInfo->iMaxSockAddr,
+pProtocolInfo->iMinSockAddr,
+pProtocolInfo->iSocketType,
+pProtocolInfo->iProtocol,
+pProtocolInfo->iProtocolMaxOffset,
+pProtocolInfo->iNetworkByteOrder,
+pProtocolInfo->iSecurityScheme,
+pProtocolInfo->dwMessageSize,
+pProtocolInfo->dwProviderReserved
+);
+}
+
+#ifdef AMD64
+BOOL
+EnumProtocols32()
+{
+    BOOL bRes = FALSE;
+    DWORD lpdwBufferLength = 0;
+    INT iErrno, iRes = WSCEnumProtocols32(NULL, NULL, &lpdwBufferLength, &iErrno);
+
+    if (iRes == ERROR_SUCCESS || iErrno != WSAENOBUFS)
+    {
+        _tprintf(_T("WSCEnumProtocols32 (query size) failed: %d\n"), iErrno);
+        SetLastError(iErrno);
+    }
+    else
+    {
+        LPWSAPROTOCOL_INFO pProtocolList = malloc(lpdwBufferLength);
+
+        if (pProtocolList)
+        {
+            int iProtos = WSCEnumProtocols32(NULL, pProtocolList, &lpdwBufferLength, &iErrno);
+            if (iProtos == SOCKET_ERROR)
+            {
+                _tprintf(_T("WSCEnumProtocols32 (get list) failed: %d\n"), iErrno);
+                SetLastError(iErrno);
+            }
+            else
+            {
+                int i;
+
+                _tprintf(_T("--------WOW Protocol list:--------\n"));
+                for (i = 0; i < iProtos; ++i)
+                    PrintProtocolInfo(&pProtocolList[i]);
+
+                bRes = TRUE;
+            }
+            free(pProtocolList);
+        }
+        else
+        {
+            _tprintf(_T("malloc failed: %d\n"), GetLastError());
+        }
+    }
+    return bRes;
+}
+#endif //AMD64
+
+BOOL
+EnumProtocols()
+{
+    BOOL bRes = FALSE;
+    DWORD lpdwBufferLength = 0;
+    INT iErrno, iRes = WSCEnumProtocols(NULL, NULL, &lpdwBufferLength, &iErrno);
+
+    if (iRes == ERROR_SUCCESS || iErrno != WSAENOBUFS)
+    {
+        _tprintf(_T("WSCEnumProtocols (query size) failed: %d\n"), iErrno);
+        SetLastError(iErrno);
+    }
+    else
+    {
+        LPWSAPROTOCOL_INFO pProtocolList = malloc(lpdwBufferLength);
+
+        if (pProtocolList)
+        {
+            int iProtos = WSCEnumProtocols(NULL, pProtocolList, &lpdwBufferLength, &iErrno);
+            if (iProtos == SOCKET_ERROR)
+            {
+                _tprintf(_T("WSCEnumProtocols (get list) failed: %d\n"), iErrno);
+                SetLastError(iErrno);
+            }
+            else
+            {
+                int i;
+
+                _tprintf(_T("Protocol list:\n"));
+                for (i = 0; i < iProtos; ++i)
+                    PrintProtocolInfo(&pProtocolList[i]);
+#ifdef AMD64
+                bRes = EnumProtocols32();
+#else //AMD64
+                bRes = TRUE;
+#endif //AMD64
+            }
+        }
+        else
+        {
+            _tprintf(_T("malloc failed: %d\n"), GetLastError());
+        }
+    }
+    return bRes;
+}
 
 VOID
 Usage()
@@ -370,12 +522,47 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
     {
     case _T('i'):
         if (!InstallProtocol())
+        {
+            switch (GetLastError())
+            {
+            case WSAEACCES:
+                _tprintf(_T("Access denied. Protocol not registered, administrative rights required.\n"));
+                break;
+            case ERROR_NOT_SUPPORTED:
+                _tprintf(_T("Protocol not registered, use x64 app to register both x86 and x64 protocol libraries\n"));
+                break;
+            default:
+                _tprintf(_T("InstallProtocol failed: %d\n"), GetLastError());
+            }
             iRes = 2;
+        }
+        else
+        {
+            _tprintf(_T("Protocol registered.\n"));
+        }
         break;
 
     case _T('d'):
         if (!DeinstallProtocol())
+        {
+            switch (GetLastError())
+            {
+            case WSAEACCES:
+                _tprintf(_T("Access denied. Protocol not unregistered, administrative rights required.\n"));
+                break;
+            case ERROR_NOT_SUPPORTED:
+                _tprintf(_T("Protocol not unregistered, use x64 app to unregister both x86 and x64 protocol libraries\n"));
+                break;
+            default:
+                _tprintf(_T("DeinstallProtocol failed: %d\n"), GetLastError());
+            }
+
             iRes = 3;
+        }
+        else
+        {
+            _tprintf(_T("Protocol unregistered.\n"));
+        }
         break;
 
     case _T('e'):

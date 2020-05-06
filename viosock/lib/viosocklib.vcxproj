@@ -117,7 +117,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ModuleDefinitionFile>$(TargetName).def</ModuleDefinitionFile>
-      <AdditionalDependencies>advapi32.lib;ntdll.lib</AdditionalDependencies>
+      <AdditionalDependencies>ws2_32.lib;advapi32.lib;ntdll.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="$(Configuration.EndsWith('Release'))">
@@ -143,6 +143,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.c" />
+    <ClCompile Include="install.c" />
     <ClCompile Include="native.c" />
     <ClCompile Include="viosocklib.c" />
     <ClCompile Include="utils.c" />
