@@ -421,12 +421,14 @@ VIOSockStateSet(
         if (PrevState == VIOSOCK_STATE_CLOSING)
         {
             ASSERT(NewState == VIOSOCK_STATE_CLOSE);
-            VIOSockConnectedRemove(pSocket);
+            if(!IsLoopbackSocket(pSocket))
+                VIOSockConnectedRemove(pSocket);
         }
         else if (NewState == VIOSOCK_STATE_CONNECTED)
         {
             ASSERT(PrevState == VIOSOCK_STATE_CONNECTING || IsLoopbackSocket(pSocket));
-            VIOSockConnectedAdd(pSocket);
+            if (!IsLoopbackSocket(pSocket))
+                VIOSockConnectedAdd(pSocket);
         }
     }
 
@@ -679,6 +681,16 @@ VIOSockAcceptDequeue(
             PVIOSOCK_ACCEPT_ENTRY pAccept = CONTAINING_RECORD(pListEntry, VIOSOCK_ACCEPT_ENTRY, ListEntry);
             LONG lAcceptPended = InterlockedDecrement(&pListenSocket->AcceptPended);
 
+            //loopback connect
+            if (pAccept->ConnectSocket != WDF_NO_HANDLE)
+            {
+                if (!VIOSockLoopbackAcceptDequeue(pAcceptSocket, pAccept))
+                {
+                    WdfObjectDelete(pAccept->Memory);
+                    continue;
+                }
+            }
+
             *pbSetBit = !!lAcceptPended;
 
             pAcceptSocket->dst_cid = pAccept->dst_cid;
@@ -827,6 +839,7 @@ VIOSockCreate(
 
     pSocket = GetSocketContext(FileObject);
     pSocket->ThisSocket = FileObject;
+    pSocket->LoopbackSocket = WDF_NO_HANDLE;
 
     WDF_OBJECT_ATTRIBUTES_INIT(&lockAttributes);
     lockAttributes.ParentObject = FileObject;
@@ -982,6 +995,9 @@ VIOSockClose(
         ObDereferenceObject(pSocket->EventObject);
         pSocket->EventObject = NULL;
     }
+
+    if (pSocket->LoopbackSocket != WDF_NO_HANDLE)
+        WdfObjectDereference(pSocket->LoopbackSocket);
 
     if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_LISTEN)
         VIOSockAcceptCleanup(pSocket);
@@ -1148,6 +1164,11 @@ VIOSockConnect(
             return status;
         }
     }
+
+    if (pAddr->svm_cid == (ULONG32)pContext->Config.guest_cid)
+        VIOSockSetFlag(pSocket, SOCK_LOOPBACK);
+    else
+        VIOSockResetFlag(pSocket, SOCK_LOOPBACK);
 
     status = VIOSockSendConnect(pSocket);
 

@@ -52,8 +52,12 @@ typedef struct _VIOSOCK_RX_CB
     PHYSICAL_ADDRESS    BufferPA;   //common buffer PA
 
     ULONG               DataLen;    //Valid data len (pkt.header.len)
+    WDFREQUEST          Request;    //Write request for loopback
     WDFMEMORY           Memory;
 }VIOSOCK_RX_CB, *PVIOSOCK_RX_CB;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_RX_CB, GetRequestRxContext);
+
 typedef struct _VIOSOCK_RX_PKT
 {
     VIRTIO_VSOCK_HDR    Header;
@@ -189,6 +193,60 @@ VIOSockRxCbAdd(
     }
     return pCb;
 }
+
+static
+PVIOSOCK_RX_CB
+VIOSockRxCbEntryForRequest(
+    IN PDEVICE_CONTEXT  pContext,
+    IN WDFREQUEST       Request,
+    IN ULONG            Length
+)
+{
+    NTSTATUS                status;
+    WDF_OBJECT_ATTRIBUTES   attributes;
+    PVIOSOCK_RX_CB          pCb = NULL;
+
+    ASSERT(Request != WDF_NO_HANDLE);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(
+        &attributes,
+        VIOSOCK_RX_CB
+    );
+    status = WdfObjectAllocateContext(
+        Request,
+        &attributes,
+        &pCb
+    );
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfObjectAllocateContext failed: 0x%x\n", status);
+        return NULL;
+    }
+
+    pCb->Memory = WDF_NO_HANDLE;
+    pCb->BufferPA.QuadPart = 0;
+    InitializeListHead(&pCb->ListEntry);
+
+    status = WdfRequestRetrieveInputBuffer(Request, 0, &pCb->BufferVA, NULL);
+    if (NT_SUCCESS(status))
+    {
+        pCb->Request = Request;
+        pCb->DataLen = (ULONG)Length;
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfRequestRetrieveOutputBuffer failed: 0x%x\n", status);
+        pCb = NULL;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+
+    return pCb;
+}
+
+//-
 static
 BOOLEAN
 VIOSockRxCbInit(
@@ -309,6 +367,8 @@ VIOSockRxPktInsert(
             return FALSE;
         }
     }
+
+    ASSERT(pPkt->Buffer->Request == WDF_NO_HANDLE);
 
     pPKtPA.QuadPart = pContext->RxPktPA.QuadPart +
         (ULONGLONG)((PCHAR)pPkt - (PCHAR)pContext->RxPktVA);
@@ -650,6 +710,74 @@ VIOSockRxPktEnqueueCb(
     return bRes;
 }
 
+static
+VOID
+VIOSockRxRequestCancelCb(
+    IN WDFREQUEST Request
+)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    PVIOSOCK_RX_CB  pCb = GetRequestRxContext(Request);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    WdfSpinLockAcquire(pSocket->RxLock);
+    RemoveEntryList(&pCb->ListEntry);
+    WdfSpinLockRelease(pSocket->RxLock);
+
+    WdfRequestComplete(Request, STATUS_CANCELLED);
+}
+
+//SRxLock-
+NTSTATUS
+VIOSockRxRequestEnqueueCb(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN WDFREQUEST       Request,
+    IN ULONG            Length
+)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
+    PVIOSOCK_RX_CB  pCurrentCb = NULL;
+    ULONG           BufferFree;
+    NTSTATUS        status;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    pCurrentCb = VIOSockRxCbEntryForRequest(pContext, Request, Length);
+    if (!pCurrentCb)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+
+    WdfSpinLockAcquire(pSocket->RxLock);
+
+    //Enqueue buffer
+    if (VIOSockRxPktInc(pSocket, pCurrentCb->DataLen))
+    {
+        status = WdfRequestMarkCancelableEx(Request, VIOSockRxRequestCancelCb);
+        if (NT_SUCCESS(status))
+        {
+            InsertTailList(&pSocket->RxCbList, &pCurrentCb->ListEntry);
+            pSocket->RxBuffers++;
+            status = STATUS_SUCCESS;
+        }
+        else
+        {
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Loopback request canceled\n");
+        }
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Rx buffer full, drop packet\n");
+        status = STATUS_BUFFER_TOO_SMALL;
+    }
+
+    WdfSpinLockRelease(pSocket->RxLock);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+    return status;
+}
+
+//SRxLock-
 static
 VOID
 VIOSockRxPktHandleConnected(
@@ -1080,7 +1208,7 @@ VIOSockReadDequeueCb(
     PCHAR           ReadRequestPtr = NULL;
     ULONG           ReadRequestFree, ReadRequestLength;
     PVIOSOCK_RX_CB  pCurrentCb;
-    LIST_ENTRY      *pCurrentItem;
+    LIST_ENTRY      LoopbackList, *pCurrentItem;
     ULONG           FreeSpace;
     BOOLEAN         bSetBit, bStop = FALSE, bPend = FALSE;
 
@@ -1201,6 +1329,8 @@ VIOSockReadDequeueCb(
 
     ASSERT(ReadRequestPtr);
 
+    InitializeListHead(&LoopbackList);
+
     //process chained buffer
     for (pCurrentItem = pSocket->RxCbList.Flink;
         pCurrentItem != &pSocket->RxCbList;
@@ -1208,6 +1338,20 @@ VIOSockReadDequeueCb(
     {
         //peek the first buffer
         pCurrentCb = CONTAINING_RECORD(pCurrentItem, VIOSOCK_RX_CB, ListEntry);
+
+        if (pCurrentCb->Request != WDF_NO_HANDLE)
+        {
+            status = WdfRequestUnmarkCancelable(pCurrentCb->Request);
+            if (!NT_SUCCESS(status))
+            {
+                ASSERT(status == STATUS_CANCELLED);
+                RemoveEntryList(&pCurrentCb->ListEntry);
+                pSocket->RxCbReadPtr = NULL;
+                pSocket->RxCbReadLen = 0;
+                TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Loopback request canceled\n");
+                continue;
+            }
+        }
 
         if (!pSocket->RxCbReadPtr)
         {
@@ -1233,7 +1377,10 @@ VIOSockReadDequeueCb(
                 RemoveEntryList(pCurrentItem);
                 pCurrentItem = &pSocket->RxCbList; //set current item pointer to the list head
 
-                VIOSockRxCbPushLocked(pContext, pCurrentCb);
+                if (pCurrentCb->Request != WDF_NO_HANDLE)
+                    InsertTailList(&LoopbackList, &pCurrentCb->ListEntry); //complete loopback requests later
+                else
+                    VIOSockRxCbPushLocked(pContext, pCurrentCb);
 
             }
 
@@ -1253,6 +1400,19 @@ VIOSockReadDequeueCb(
                 pSocket->RxCbReadLen -= ReadRequestLength;
             }
 
+            if (pCurrentCb->Request != WDF_NO_HANDLE)
+            {
+                status = WdfRequestMarkCancelableEx(pCurrentCb->Request, VIOSockRxRequestCancelCb);
+                if (!NT_SUCCESS(status))
+                {
+                    TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Loopback request canceled\n");
+                    pSocket->RxCbReadPtr = NULL;
+                    pSocket->RxCbReadLen = 0;
+                    RemoveEntryList(pCurrentItem);
+                    pCurrentCb->DataLen -= pSocket->RxCbReadLen;
+                    InsertTailList(&LoopbackList, &pCurrentCb->ListEntry); //complete loopback requests later
+                }
+            }
             break;
         }
     }
@@ -1306,6 +1466,13 @@ VIOSockReadDequeueCb(
     else
         status = STATUS_SUCCESS;
 
+    //complete loopback
+    while (!IsListEmpty(&LoopbackList))
+    {
+        pCurrentCb = CONTAINING_RECORD(RemoveHeadList(&LoopbackList), VIOSOCK_RX_CB, ListEntry);
+        WdfRequestCompleteWithInformation(pCurrentCb->Request, STATUS_SUCCESS, pCurrentCb->DataLen);
+    }
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
 }
 
@@ -1333,10 +1500,29 @@ VIOSockReadCleanupCb(
         //peek the first buffer
         pCurrentCb = CONTAINING_RECORD(RemoveHeadList(&pSocket->RxCbList), VIOSOCK_RX_CB, ListEntry);
 
-        VIOSockRxCbPushLocked(pContext, pCurrentCb);
+        if (pCurrentCb->Request)
+        {
+            NTSTATUS status = WdfRequestUnmarkCancelable(pCurrentCb->Request);
+            if (!NT_SUCCESS(status))
+            {
+                ASSERT(status == STATUS_CANCELLED);
+                TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Loopback request canceled\n");
+            }
+            else
+                InsertTailList(&LoopbackList, &pCurrentCb->ListEntry); //complete loopback requests later
+        }
+        else
+            VIOSockRxCbPushLocked(pContext, pCurrentCb);
     }
 
     WdfSpinLockRelease(pSocket->RxLock);
+
+    //complete loopback
+    while (!IsListEmpty(&LoopbackList))
+    {
+        pCurrentCb = CONTAINING_RECORD(RemoveHeadList(&LoopbackList), VIOSOCK_RX_CB, ListEntry);
+        WdfRequestComplete(pCurrentCb->Request, STATUS_CANCELLED);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
 }

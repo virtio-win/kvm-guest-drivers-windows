@@ -464,35 +464,6 @@ VIOSockTxDequeue(
 }
 
 //////////////////////////////////////////////////////////////////////////
-__inline
-ULONG32
-VIOSockTxGetCredit(
-    IN PSOCKET_CONTEXT pSocket,
-    IN ULONG32 uCredit
-
-)
-{
-    ULONG32 uRet;
-
-    uRet = pSocket->peer_buf_alloc - (pSocket->tx_cnt - pSocket->peer_fwd_cnt);
-    if (uRet > uCredit)
-        uRet = uCredit;
-    pSocket->tx_cnt += uRet;
-    return uRet;
-}
-
-
-__inline
-VOID
-VIOSockTxPutCredit(
-    IN PSOCKET_CONTEXT pSocket,
-    IN ULONG32 uCredit
-
-)
-{
-    pSocket->tx_cnt -= uCredit;
-}
-
 static
 VOID
 VIOSockTxEnqueueCancel(
@@ -554,6 +525,10 @@ VIOSockTxEnqueue(
     WDFMEMORY           Memory = WDF_NO_HANDLE;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    if (IsLoopbackSocket(pSocket))
+        return VIOSockLoopbackTxEnqueue(pSocket, Op, Flags, Request,
+        (Request == WDF_NO_HANDLE) ? 0 : GetRequestTxContext(Request)->len);
 
     if (Request == WDF_NO_HANDLE)
     {
