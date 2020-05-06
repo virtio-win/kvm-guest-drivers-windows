@@ -276,6 +276,13 @@ VIOSockDeviceControl(
     IN ULONG      IoControlCode,
     IN OUT size_t *pLength
 );
+
+NTSTATUS
+VIOSockSelect(
+    IN WDFREQUEST Request,
+    IN OUT size_t *pLength
+);
+
 NTSTATUS
 VIOSockBoundListInit(
     IN WDFDEVICE hDevice

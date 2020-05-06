@@ -839,6 +839,50 @@ VIOSockRecvFrom(
         lpCompletionRoutine, lpThreadId, lpErrno);
 }
 
+static
+int
+CopyFromFdSet(
+    _Out_ VIRTIO_VSOCK_FD_SET *Dst,
+    _In_ fd_set *Src
+)
+{
+    UINT i;
+
+    if (!Src)
+        return 0;
+
+    if (Src->fd_count > FD_SETSIZE)
+        return SOCKET_ERROR;
+
+    Dst->fd_count = Src->fd_count;
+    for (i = 0; i < Dst->fd_count; ++i)
+    {
+        Dst->fd_array[i] = (ULONGLONG)(ULONG_PTR)Src->fd_array[i];
+    }
+
+    return Dst->fd_count;
+}
+
+static
+int
+CopyToFdSet(
+    _Out_ fd_set *Dst,
+    _In_ VIRTIO_VSOCK_FD_SET *Src
+)
+{
+    UINT i;
+
+    _ASSERT(Src->fd_count <= FD_SETSIZE && Src->fd_count <= Dst->fd_count);
+
+    Dst->fd_count = Src->fd_count;
+    for (i = 0; i < Dst->fd_count; ++i)
+    {
+        Dst->fd_array[i] = (SOCKET)(ULONG_PTR)Src->fd_array[i];
+    }
+
+    return Dst->fd_count;
+}
+
 int
 WSPAPI
 VIOSockSelect(
@@ -850,19 +894,83 @@ VIOSockSelect(
     _Out_ LPINT lpErrno
 )
 {
-    int iRes = -1;
+    int iRes = 0, iReadCount, iWriteCount, iExceptCount;
+    VIRTIO_VSOCK_SELECT Select = { 0 };
+    HANDLE hFile;
+    DWORD dwBytesReturned;
 
     UNREFERENCED_PARAMETER(nfds);
-    UNREFERENCED_PARAMETER(readfds);
-    UNREFERENCED_PARAMETER(writefds);
-    UNREFERENCED_PARAMETER(exceptfds);
-    UNREFERENCED_PARAMETER(timeout);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    *lpErrno = WSAVERNOTSUPPORTED;
+    iReadCount = CopyFromFdSet(&Select.ReadFds, readfds);
+    if (iReadCount == SOCKET_ERROR)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid readfds parameter\n");
+        *lpErrno = WSAEINVAL;
+        return SOCKET_ERROR;
+    }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    iWriteCount = CopyFromFdSet(&Select.WriteFds, writefds);
+    if (iWriteCount == SOCKET_ERROR)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid writefds parameter\n");
+        *lpErrno = WSAEINVAL;
+        return SOCKET_ERROR;
+    }
+
+    iExceptCount = CopyFromFdSet(&Select.ExceptFds, exceptfds);
+    if (iExceptCount == SOCKET_ERROR)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid exceptfds parameter\n");
+        *lpErrno = WSAEINVAL;
+        return SOCKET_ERROR;
+    }
+
+    if ((iReadCount + iWriteCount + iExceptCount) > FD_SETSIZE)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Input set is too large\n");
+        *lpErrno = WSAEINVAL;
+        return SOCKET_ERROR;
+    }
+
+    if (timeout)
+    {
+        //timeout in 100-ns intervals
+        Select.Timeout.QuadPart = -(SEC_TO_NANO((LONGLONG)timeout->tv_sec) + USEC_TO_NANO(timeout->tv_usec));
+    }
+
+    hFile = VIOSockCreateFile(NULL, lpErrno);
+    if (hFile != INVALID_HANDLE_VALUE)
+    {
+        if (!VIOSockDeviceControl((SOCKET)hFile, IOCTL_SELECT,
+            &Select, sizeof(Select), &Select, sizeof(Select), &dwBytesReturned, lpErrno))
+        {
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+            iRes = SOCKET_ERROR;
+        }
+        else if (dwBytesReturned == sizeof(Select))
+        {
+            iRes = CopyToFdSet(readfds, &Select.ReadFds) +
+                CopyToFdSet(writefds, &Select.WriteFds) +
+                CopyToFdSet(exceptfds, &Select.ExceptFds);
+        }
+        else
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid output len: %u\n", dwBytesReturned);
+            *lpErrno = WSAEINVAL;
+            iRes = SOCKET_ERROR;
+        }
+
+        CloseHandle(hFile);
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockCreateFile failed: %d\n", *lpErrno);
+        iRes = SOCKET_ERROR;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
 }
 
