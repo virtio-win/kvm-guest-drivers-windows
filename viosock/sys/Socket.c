@@ -72,6 +72,12 @@ VIOSockSetSockOpt(
     IN WDFREQUEST   Request
 );
 
+NTSTATUS
+VIOSockIoctl(
+    IN WDFREQUEST   Request,
+    OUT size_t      *pLength
+);
+
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSockCreateStub)
 #pragma alloc_text (PAGE, VIOSockClose)
@@ -83,6 +89,7 @@ VIOSockSetSockOpt(
 #pragma alloc_text (PAGE, VIOSockGetSockName)
 #pragma alloc_text (PAGE, VIOSockGetSockOpt)
 #pragma alloc_text (PAGE, VIOSockSetSockOpt)
+#pragma alloc_text (PAGE, VIOSockIoctl)
 
 #pragma alloc_text (PAGE, VIOSockDeviceControl)
 #endif
@@ -1802,6 +1809,136 @@ VIOSockSetSockOpt(
     return status;
 }
 
+#define IOCPARM_MASK    0x7f            /* parameters must be < 128 bytes */
+#define IOC_VOID        0x20000000      /* no parameters */
+#define IOC_OUT         0x40000000      /* copy out parameters */
+#define IOC_IN          0x80000000      /* copy in parameters */
+
+#define _IOR(x,y,t)     (IOC_OUT|(((long)sizeof(t)&IOCPARM_MASK)<<16)|((x)<<8)|(y))
+#define _IOW(x,y,t)     (IOC_IN|(((long)sizeof(t)&IOCPARM_MASK)<<16)|((x)<<8)|(y))
+
+#define FIONREAD    _IOR('f', 127, ULONG) /* get # bytes to read */
+#define FIONBIO     _IOW('f', 126, ULONG) /* set/clear non-blocking i/o */
+
+#define IOC_WS2                       0x08000000
+
+#define _WSAIO(x,y)                   (IOC_VOID|(x)|(y))
+#define _WSAIOR(x,y)                  (IOC_OUT|(x)|(y))
+
+#define SIO_ADDRESS_LIST_QUERY        _WSAIOR(IOC_WS2,22)
+#define SIO_ADDRESS_LIST_CHANGE       _WSAIO(IOC_WS2,23)
+
+static
+NTSTATUS
+VIOSockIoctl(
+    IN WDFREQUEST   Request,
+    OUT size_t      *pLength
+)
+{
+    PSOCKET_CONTEXT     pSocket = GetSocketContextFromRequest(Request);
+    PVIRTIO_VSOCK_IOCTL_IN pInParams;
+    SIZE_T              stInParamsLen;
+    PVOID               lpvOutBuffer = NULL;
+    SIZE_T              stOutBufferLen = 0;
+    NTSTATUS            status;
+    PVOID               lpvInBuffer = NULL;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pInParams), &pInParams, &stInParamsLen);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
+        return status;
+    }
+
+    // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
+    _Analysis_assume_(stInParamsLen >= sizeof(*pInParams));
+
+    if (pInParams->dwIoControlCode == FIONREAD ||
+        pInParams->dwIoControlCode == SIO_ADDRESS_LIST_QUERY)
+    {
+        status = WdfRequestRetrieveOutputBuffer(Request, 0, &lpvOutBuffer, &stOutBufferLen);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveOutputBuffer failed: 0x%x\n", status);
+            return status;
+        }
+    }
+
+    if (pInParams->cbInBuffer)
+    {
+#ifdef _WIN64
+        if (WdfRequestIsFrom32BitProcess(Request))
+        {
+            lpvInBuffer = Ptr32ToPtr((void * POINTER_32)(ULONG)pInParams->lpvInBuffer);
+        }
+        else
+#endif //_WIN64
+        {
+            lpvInBuffer = (PVOID)pInParams->lpvInBuffer;
+        }
+
+        if (lpvInBuffer)
+        {
+            if (WdfRequestGetRequestorMode(Request) == UserMode)
+            {
+                WDFMEMORY   Memory;
+                status = WdfRequestProbeAndLockUserBufferForRead(Request, lpvInBuffer, pInParams->cbInBuffer, &Memory);
+
+                if (!NT_SUCCESS(status))
+                {
+                    TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestProbeAndLockUserBufferForRead failed: 0x%x\n", status);
+                    return status;
+                }
+                lpvInBuffer = WdfMemoryGetBuffer(Memory, NULL);
+
+            }
+        }
+        else
+            status = STATUS_INVALID_PARAMETER;
+    }
+
+    if (NT_SUCCESS(status))
+    {
+        switch (pInParams->dwIoControlCode)
+        {
+        case FIONREAD:
+            if (stOutBufferLen >= sizeof(ULONG))
+            {
+                *(PULONG)lpvOutBuffer = VIOSockRxHasData(pSocket);
+                *pLength = sizeof(ULONG);
+                status = STATUS_SUCCESS;
+            }
+            else
+                status = STATUS_INVALID_PARAMETER;
+            break;
+
+        case FIONBIO:
+            if (pInParams->cbInBuffer >= sizeof(ULONG))
+            {
+                status = STATUS_INVALID_DEVICE_REQUEST;
+            }
+            else
+                status = STATUS_INVALID_PARAMETER;
+            break;
+
+            //TODO: implement address list change
+        case SIO_ADDRESS_LIST_QUERY:
+        case SIO_ADDRESS_LIST_CHANGE:
+        default:
+            status = STATUS_NOT_SUPPORTED;
+            break;
+        }
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+
+    return status;
+}
+
 NTSTATUS
 VIOSockDeviceControl(
     IN WDFREQUEST Request,
@@ -1851,6 +1988,9 @@ VIOSockDeviceControl(
         break;
     case IOCTL_SOCKET_SET_SOCK_OPT:
         status = VIOSockSetSockOpt(Request);
+        break;
+    case IOCTL_SOCKET_IOCTL:
+        status = VIOSockIoctl(Request, pLength);
         break;
     default:
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "Invalid socket ioctl\n");
