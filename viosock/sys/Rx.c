@@ -701,6 +701,23 @@ VIOSockRxPktHandleDisconnecting(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 }
+
+static
+VOID
+VIOSockRxPktHandleListen(
+    IN PSOCKET_CONTEXT pSocket,
+    IN PVIOSOCK_RX_PKT pPkt
+)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
+    NTSTATUS    status;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
+    //TODO: add accept info to listen socket
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+}
+
 VOID
 VIOSockRxVqProcess(
     IN PDEVICE_CONTEXT pContext
@@ -778,6 +795,9 @@ VIOSockRxVqProcess(
             break;
         case VIOSOCK_STATE_CLOSING:
             VIOSockRxPktHandleDisconnecting(pSocket, pPkt);
+            break;
+        case VIOSOCK_STATE_LISTEN:
+            VIOSockRxPktHandleListen(pSocket, pPkt);
             break;
         default:
             TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid socket state for Rx packet\n");
