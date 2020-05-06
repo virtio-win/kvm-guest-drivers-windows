@@ -786,6 +786,45 @@ VIOSockShutdown(
     return status;
 }
 
+static
+NTSTATUS
+VIOSockListen(
+    IN WDFREQUEST   Request
+)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    int             *pBacklog;
+    SIZE_T          stBacklogLen;
+    NTSTATUS        status;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pBacklog), &pBacklog, &stBacklogLen);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
+        return status;
+    }
+
+    // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
+    _Analysis_assume_(stBacklogLen >= sizeof(*pBacklog));
+
+    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CLOSE)
+    {
+        pSocket->Backlog = *pBacklog;
+        InitializeListHead(&pSocket->AcceptList);
+        VIOSockStateSet(pSocket, VIOSOCK_STATE_LISTEN);
+    }
+    else
+        status = STATUS_INVALID_PARAMETER;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+
+    return status;
+}
+
 NTSTATUS
 VIOSockDeviceControl(
     IN WDFREQUEST Request,
@@ -814,6 +853,9 @@ VIOSockDeviceControl(
         break;
     case IOCTL_SOCKET_SHUTDOWN:
         status = VIOSockShutdown(Request);
+        break;
+    case IOCTL_SOCKET_LISTEN:
+        status = VIOSockListen(Request);
         break;
     default:
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "Invalid socket ioctl\n");

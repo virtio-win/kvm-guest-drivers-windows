@@ -194,6 +194,10 @@ typedef struct _SOCKET_CONTEXT {
 
     WDFREQUEST      PendedRequest;
 
+    //RxLock
+    LIST_ENTRY      AcceptList;
+    LONG            Backlog;
+
     ULONG32         buf_alloc;
     ULONG32         fwd_cnt;
     ULONG32         last_fwd_cnt;
