@@ -767,13 +767,18 @@ VIOSockAccept(
             }
             else
             {
-                if (pListenSocket->PendedRequest == WDF_NO_HANDLE)
-                    status = VIOSockPendedRequestSetLocked(pListenSocket, Request);
+                if (VIOSockIsFlag(pListenSocket, SOCK_NON_BLOCK))
+                    status = STATUS_CANT_WAIT;
                 else
-                    status = STATUS_DEVICE_BUSY;
+                {
+                    if (pListenSocket->PendedRequest == WDF_NO_HANDLE)
+                        status = VIOSockPendedRequestSetLocked(pListenSocket, Request);
+                    else
+                        status = STATUS_DEVICE_BUSY;
 
-                if (NT_SUCCESS(status))
-                    status = STATUS_PENDING;
+                    if (NT_SUCCESS(status))
+                        status = STATUS_PENDING;
+                }
             }
         }
     }
@@ -1124,10 +1129,13 @@ VIOSockConnect(
 
     VIOSockStateSet(pSocket, VIOSOCK_STATE_CONNECTING);
 
-    status = VIOSockPendedRequestSetLocked(pSocket, Request);
-    if (!NT_SUCCESS(status))
+    if (!VIOSockIsFlag(pSocket, SOCK_NON_BLOCK))
     {
-        return status;
+        status = VIOSockPendedRequestSetLocked(pSocket, Request);
+        if (!NT_SUCCESS(status))
+        {
+            return status;
+        }
     }
 
     status = VIOSockSendConnect(pSocket);
@@ -1135,11 +1143,16 @@ VIOSockConnect(
     if (!NT_SUCCESS(status))
     {
         VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
-        if (!NT_SUCCESS(VIOSockPendedRequestGetLocked(pSocket, &Request)))
+        if (!VIOSockIsFlag(pSocket, SOCK_NON_BLOCK))
         {
-            status = STATUS_PENDING; //do not complete canceled request
+            if (!NT_SUCCESS(VIOSockPendedRequestGetLocked(pSocket, &Request)))
+            {
+                status = STATUS_PENDING; //do not complete canceled request
+            }
         }
     }
+    else
+        status = VIOSockIsFlag(pSocket, SOCK_NON_BLOCK) ? STATUS_CANT_WAIT : STATUS_PENDING;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 
@@ -1364,6 +1377,23 @@ VIOSockEnumNetEvents(
 
 static
 NTSTATUS
+VIOSockSetNonBlocking(
+    IN PSOCKET_CONTEXT pSocket,
+    IN BOOLEAN bNonBlocking
+)
+{
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
+    if (!VIOSockSetFlag(pSocket, SOCK_NON_BLOCK))
+    {
+        VIOSockReadDequeueCb(pSocket, WDF_NO_HANDLE);
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static
+NTSTATUS
 VIOSockEventSelect(
     IN WDFREQUEST   Request
 )
@@ -1414,6 +1444,8 @@ VIOSockEventSelect(
             return STATUS_INVALID_PARAMETER;
         }
     }
+
+    VIOSockSetNonBlocking(pSocket, TRUE);
 
     WdfSpinLockAcquire(pSocket->StateLock);
     pSocket->EventsMask = pEventSelect->lNetworkEvents;
@@ -1919,7 +1951,7 @@ VIOSockIoctl(
         case FIONBIO:
             if (pInParams->cbInBuffer >= sizeof(ULONG))
             {
-                status = STATUS_INVALID_DEVICE_REQUEST;
+                status = VIOSockSetNonBlocking(pSocket, !!(*(PULONG)lpvInBuffer));
             }
             else
                 status = STATUS_INVALID_PARAMETER;
