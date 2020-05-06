@@ -36,21 +36,252 @@
 
 #define VIOSOCK_DMA_RX_PAGES    1           //contiguous buffer
 
+#define VIOSOCK_CB_ENTRIES(n) ((n)+(n>>1))  //default chained buffer queue size
+ //Chained Buffer entry
+typedef struct _VIOSOCK_RX_CB
+{
+    union {
+        SINGLE_LIST_ENTRY   FreeListEntry;
+        LIST_ENTRY          ListEntry;      //Request buffer list
+    };
+
+    PVOID               BufferVA;   //common buffer of VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE bytes
+    PHYSICAL_ADDRESS    BufferPA;   //common buffer PA
+
+    ULONG               DataLen;    //Valid data len (pkt.header.len)
+    WDFMEMORY           Memory;
+}VIOSOCK_RX_CB, *PVIOSOCK_RX_CB;
 typedef struct _VIOSOCK_RX_PKT
 {
     VIRTIO_VSOCK_HDR    Header;
+    PVIOSOCK_RX_CB      Buffer;     //Chained buffer
     union {
         BYTE IndirectDescs[SIZE_OF_SINGLE_INDIRECT_DESC * (1 + VIOSOCK_DMA_RX_PAGES)]; //Header + buffer
         SINGLE_LIST_ENTRY ListEntry;
     };
 }VIOSOCK_RX_PKT, *PVIOSOCK_RX_PKT;
 
+PVIOSOCK_RX_CB
+VIOSockRxCbAdd(
+    IN PDEVICE_CONTEXT pContext
+);
+
+BOOLEAN
+VIOSockRxCbInit(
+    IN PDEVICE_CONTEXT  pContext
+);
+
+VOID
+VIOSockRxCbCleanup(
+    IN PDEVICE_CONTEXT pContext
+);
+
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text (PAGE, VIOSockRxCbAdd)
+#pragma alloc_text (PAGE, VIOSockRxCbInit)
+#pragma alloc_text (PAGE, VIOSockRxCbCleanup)
 #pragma alloc_text (PAGE, VIOSockRxVqInit)
-#pragma alloc_text (PAGE, VIOSockRxVqCleanup)
+
 #endif
 
 //////////////////////////////////////////////////////////////////////////
+#define VIOSockRxCbPush(c,b) PushEntryList(&(c)->RxCbBuffers, &(b)->FreeListEntry)
+
+__inline
+VOID
+VIOSockRxCbPushLocked(
+    PDEVICE_CONTEXT pContext,
+    PVIOSOCK_RX_CB pCb
+)
+{
+    WdfSpinLockAcquire(pContext->RxLock);
+    VIOSockRxCbPush(pContext, pCb);
+    WdfSpinLockRelease(pContext->RxLock);
+}
+
+__inline
+PVIOSOCK_RX_CB
+VIOSockRxCbPop(
+    IN PDEVICE_CONTEXT pContext
+)
+{
+    PSINGLE_LIST_ENTRY pListEntry = PopEntryList(&pContext->RxCbBuffers);
+
+    if (pListEntry)
+    {
+        return CONTAINING_RECORD(pListEntry, VIOSOCK_RX_CB, FreeListEntry);
+    }
+
+    return NULL;
+}
+__inline
+VOID
+VIOSockRxCbFree(
+    IN PDEVICE_CONTEXT pContext,
+    IN PVIOSOCK_RX_CB pCb
+)
+{
+    ASSERT(pCb && pCb->BufferVA);
+
+    ASSERT(pCb->BufferPA.QuadPart && pCb->Request == WDF_NO_HANDLE);
+
+    if (pCb->BufferPA.QuadPart)
+        VirtIOWdfDeviceFreeDmaMemory(&pContext->VDevice.VIODevice, pCb->BufferVA);
+
+    WdfObjectDelete(pCb->Memory);
+}
+static
+PVIOSOCK_RX_CB
+VIOSockRxCbAdd(
+    IN PDEVICE_CONTEXT pContext
+)
+{
+    NTSTATUS        status;
+    PVIOSOCK_RX_CB  pCb = NULL;
+    WDFMEMORY       Memory;
+
+    PAGED_CODE();
+
+    status = WdfMemoryCreateFromLookaside(pContext->RxCbBufferMemoryList, &Memory);
+    if (NT_SUCCESS(status))
+    {
+        pCb = WdfMemoryGetBuffer(Memory, NULL);
+
+        RtlZeroMemory(pCb, sizeof(*pCb));
+
+        pCb->Memory = Memory;
+        pCb->BufferVA = VirtIOWdfDeviceAllocDmaMemory(&pContext->VDevice.VIODevice,
+            VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE, VIOSOCK_DRIVER_MEMORY_TAG);
+
+        if (!pCb->BufferVA)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
+                "VirtIOWdfDeviceAllocDmaMemory(%u bytes for Rx buffer) failed\n", VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE);
+            WdfObjectDelete(pCb->Memory);
+            pCb = NULL;
+        }
+        else
+        {
+            pCb->BufferPA = VirtIOWdfDeviceGetPhysicalAddress(&pContext->VDevice.VIODevice,
+                pCb->BufferVA);
+
+            ASSERT(pCb->BufferPA.QuadPart);
+
+            if (!pCb->BufferPA.QuadPart)
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VirtIOWdfDeviceGetPhysicalAddress failed\n");
+                VIOSockRxCbFree(pContext, pCb);
+                pCb = NULL;
+            }
+            else
+            {
+                VIOSockRxCbPushLocked(pContext, pCb);
+            }
+        }
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "WdfMemoryCreateFromLookaside failed: 0x%x\n", status);
+    }
+    return pCb;
+}
+static
+BOOLEAN
+VIOSockRxCbInit(
+    IN PDEVICE_CONTEXT  pContext
+)
+{
+    ULONG i;
+    BOOLEAN bRes = TRUE;
+    WDF_OBJECT_ATTRIBUTES lockAttributes, memAttributes;
+    NTSTATUS status;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    PAGED_CODE();
+
+    pContext->RxCbBuffersNum = VIOSOCK_CB_ENTRIES(pContext->RxPktNum);
+
+    if (pContext->RxCbBuffersNum < pContext->RxPktNum)
+        pContext->RxCbBuffersNum = pContext->RxPktNum;
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&memAttributes);
+    memAttributes.ParentObject = pContext->ThisDevice;
+
+    status = WdfLookasideListCreate(&memAttributes,
+        sizeof(VIOSOCK_RX_CB), NonPagedPoolNx,
+        &memAttributes, VIOSOCK_DRIVER_MEMORY_TAG,
+        &pContext->RxCbBufferMemoryList);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+            "WdfLookasideListCreate failed: 0x%x\n", status);
+        return FALSE;
+    }
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ,
+        "Initialize chained buffer with %u entries\n", pContext->RxCbBuffersNum);
+
+    pContext->RxCbBuffers.Next = NULL;
+
+    for (i = 0; i < pContext->RxCbBuffersNum; ++i)
+    {
+        if (!VIOSockRxCbAdd(pContext))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
+                "VIOSockRxCbAdd failed, cleanup chained buffer\n");
+            bRes = FALSE;
+            break;
+        }
+    }
+
+    if (!bRes)
+        VIOSockRxCbCleanup(pContext);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+    return bRes;
+}
+
+static
+VOID
+VIOSockRxCbCleanup(
+    IN PDEVICE_CONTEXT pContext
+)
+{
+    PVIOSOCK_RX_CB pCb;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    //no need to lock
+    while (pCb = VIOSockRxCbPop(pContext))
+    {
+        VIOSockRxCbFree(pContext, pCb);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+}
+
+//////////////////////////////////////////////////////////////////////////
+__inline
+VOID
+VIOSockRxPktCleanup(
+    IN PDEVICE_CONTEXT pContext,
+    IN PVIOSOCK_RX_PKT pPkt
+)
+{
+    ASSERT(pPkt);
+
+    if (pPkt->Buffer)
+    {
+        VIOSockRxCbPush(pContext, pPkt->Buffer);
+        pPkt->Buffer = NULL;
+    }
+}
+
+C_ASSERT((VIOSOCK_DMA_RX_PAGES + 1) == 2);
 static
 BOOLEAN
 VIOSockRxPktInsert(
@@ -65,11 +296,24 @@ VIOSockRxPktInsert(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
+    if (!pPkt->Buffer)
+    {
+        pPkt->Buffer = VIOSockRxCbPop(pContext);
+        if (!pPkt->Buffer)
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "VIOSockRxCbPop returns NULL\n");
+            return FALSE;
+        }
+    }
+
     pPKtPA.QuadPart = pContext->RxPktPA.QuadPart +
         (ULONGLONG)((PCHAR)pPkt - (PCHAR)pContext->RxPktVA);
 
     sg[0].length = sizeof(VIRTIO_VSOCK_HDR);
     sg[0].physAddr.QuadPart = pPKtPA.QuadPart + FIELD_OFFSET(VIOSOCK_RX_PKT, Header);
+
+    sg[1].length = VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE;
+    sg[1].physAddr.QuadPart = pPkt->Buffer->BufferPA.QuadPart;
 
     ret = virtqueue_add_buf(pContext->RxVq, sg, 0, 2, pPkt, &pPkt->IndirectDescs,
         pPKtPA.QuadPart + FIELD_OFFSET(VIOSOCK_RX_PKT, IndirectDescs));
@@ -79,6 +323,7 @@ VIOSockRxPktInsert(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
             "Error adding buffer to Rx queue (ret = %d)\n", ret);
+        VIOSockRxPktCleanup(pContext, pPkt);
         return FALSE;
     }
 
@@ -94,11 +339,20 @@ VIOSockRxVqCleanup(
     PVIOSOCK_RX_PKT pPkt;
     PSINGLE_LIST_ENTRY pListEntry;
 
-    PAGED_CODE();
-
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     ASSERT(pContext->RxVq && pContext->RxPktVA);
+
+    //drain queue
+    WdfSpinLockAcquire(pContext->RxLock);
+    while (pPkt = (PVIOSOCK_RX_PKT)virtqueue_detach_unused_buf(pContext->RxVq))
+    {
+        VIOSockRxPktCleanup(pContext, pPkt);
+    }
+
+    WdfSpinLockRelease(pContext->RxLock);
+
+    VIOSockRxCbCleanup(pContext);
 
     if (pContext->RxPktVA)
     {
@@ -164,7 +418,7 @@ VIOSockRxVqInit(
             "VirtIOWdfDeviceAllocDmaMemory(%u bytes for RxPackets) failed\n", uBufferSize);
         status = STATUS_INSUFFICIENT_RESOURCES;
     }
-    else
+    else if (VIOSockRxCbInit(pContext))
     {
         ULONG i;
         PVIOSOCK_RX_PKT RxPktVA = (PVIOSOCK_RX_PKT)pContext->RxPktVA;
@@ -182,6 +436,11 @@ VIOSockRxVqInit(
                 break;
             }
         }
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VIOSockRxCbInit failed\n");
+        status = STATUS_UNSUCCESSFUL;
     }
 
     if (!NT_SUCCESS(status))
