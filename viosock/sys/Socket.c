@@ -700,6 +700,92 @@ VIOSockConnect(
     return status;
 }
 
+BOOLEAN
+VIOSockShutdownFromPeer(
+    PSOCKET_CONTEXT pSocket,
+    ULONG uFlags
+)
+{
+    BOOLEAN bRes;
+    ULONG32 uDrain;
+
+    WdfSpinLockAcquire(pSocket->StateLock);
+
+    uDrain = ~pSocket->PeerShutdown & uFlags;
+    pSocket->PeerShutdown |= uFlags;
+    bRes = (pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_MASK) == VIRTIO_VSOCK_SHUTDOWN_MASK;
+
+    WdfSpinLockRelease(pSocket->StateLock);
+
+    if (uDrain & VIRTIO_VSOCK_SHUTDOWN_SEND)
+        VIOSockReadDequeueCb(pSocket, WDF_NO_HANDLE);
+    if (uDrain & VIRTIO_VSOCK_SHUTDOWN_RCV)
+    {
+        //TODO: dequeue requests for current socket only
+        //        VIOSockTxDequeue(GetDeviceContextFromSocket(pSocket));
+    }
+
+    return bRes;
+}
+
+static
+NTSTATUS
+VIOSockShutdown(
+    IN WDFREQUEST   Request
+)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    int             *pHow;
+    SIZE_T          stHowLen;
+    NTSTATUS        status;
+    BOOLEAN         bSend = FALSE;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pHow), &pHow, &stHowLen);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
+        return status;
+    }
+
+    // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
+    _Analysis_assume_(stHowLen >= sizeof(*pHow));
+
+    /* User level uses SD_RECEIVE (0) and SD_SEND (1), but the kernel uses
+    * VIRTIO_VSOCK_SHUTDOWN_RCV (1) and VIRTIO_VSOCK_SHUTDOWN_SEND (2),
+    * so we must increment mode here like the other address families do.
+    * Note also that the increment makes SD_BOTH (2) into
+    * RCV_SHUTDOWN | SEND_SHUTDOWN (3), which is what we want.
+    */
+
+    *pHow++;
+    if ((*pHow & ~VIRTIO_VSOCK_SHUTDOWN_MASK) || !*pHow)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid shutdown flags: %u\n", *pHow);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    WdfSpinLockAcquire(pSocket->StateLock);
+    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED)
+    {
+        pSocket->Shutdown |= *pHow;
+        bSend = TRUE;
+    }
+    else
+        status = STATUS_CONNECTION_DISCONNECTED;
+    WdfSpinLockRelease(pSocket->StateLock);
+
+    if (bSend)
+    {
+        status = VIOSockSendShutdown(pSocket, *pHow);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+
+    return status;
+}
+
 NTSTATUS
 VIOSockDeviceControl(
     IN WDFREQUEST Request,
@@ -725,6 +811,9 @@ VIOSockDeviceControl(
         break;
     case IOCTL_SOCKET_READ:
         status = VIOSockReadWithFlags(Request);
+        break;
+    case IOCTL_SOCKET_SHUTDOWN:
+        status = VIOSockShutdown(Request);
         break;
     default:
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "Invalid socket ioctl\n");

@@ -664,14 +664,43 @@ VIOSockRxPktHandleConnected(
         }
         break;
     case VIRTIO_VSOCK_OP_SHUTDOWN:
+        if (VIOSockShutdownFromPeer(pSocket,
+            pPkt->Header.flags & VIRTIO_VSOCK_SHUTDOWN_MASK))
+        {
+            VIOSockSendReset(pSocket, FALSE);
+        }
+        break;
     case VIRTIO_VSOCK_OP_RST:
         VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSING);
+        VIOSockShutdownFromPeer(pSocket, VIRTIO_VSOCK_SHUTDOWN_MASK);
         break;
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 }
 
+static
+VOID
+VIOSockRxPktHandleDisconnecting(
+    IN PSOCKET_CONTEXT pSocket,
+    IN PVIOSOCK_RX_PKT pPkt
+)
+{
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
+    if (pPkt->Header.op == VIRTIO_VSOCK_OP_RST)
+    {
+        VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
+        VIOSockShutdownFromPeer(pSocket, VIRTIO_VSOCK_SHUTDOWN_MASK);
+
+//         if (pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_MASK != VIRTIO_VSOCK_SHUTDOWN_MASK)
+//         {
+//             VIOSockEventSetBit(pSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
+//         }
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+}
 VOID
 VIOSockRxVqProcess(
     IN PDEVICE_CONTEXT pContext
@@ -746,6 +775,10 @@ VIOSockRxVqProcess(
             break;
         case VIOSOCK_STATE_CONNECTED:
             VIOSockRxPktHandleConnected(pSocket, pPkt);
+            break;
+        case VIOSOCK_STATE_CLOSING:
+            VIOSockRxPktHandleDisconnecting(pSocket, pPkt);
+            break;
         default:
             TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid socket state for Rx packet\n");
         }

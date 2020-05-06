@@ -54,6 +54,13 @@ typedef enum _VIRTIO_VSOCK_OP {
     VIRTIO_VSOCK_OP_CREDIT_REQUEST = 7,
 }VIRTIO_VSOCK_OP;
 
+/* VIRTIO_VSOCK_OP_SHUTDOWN flags values */
+enum virtio_vsock_shutdown {
+    VIRTIO_VSOCK_SHUTDOWN_RCV = 1,
+    VIRTIO_VSOCK_SHUTDOWN_SEND = 2,
+    VIRTIO_VSOCK_SHUTDOWN_MASK = VIRTIO_VSOCK_SHUTDOWN_RCV | VIRTIO_VSOCK_SHUTDOWN_SEND,
+};
+
 typedef struct _VIRTIO_VSOCK_HDR {
     ULONG64 src_cid;
     ULONG64 dst_cid;
@@ -169,6 +176,8 @@ typedef struct _SOCKET_CONTEXT {
 
     WDFSPINLOCK     StateLock;
     volatile VIOSOCK_STATE   State;
+    ULONG32         PeerShutdown;
+    ULONG32         Shutdown;
 
     WDFSPINLOCK     RxLock;
     LIST_ENTRY      RxCbList;
@@ -255,6 +264,13 @@ VIOSockStateSet(
 );
 
 #define VIOSockStateGet(s) ((s)->State)
+
+BOOLEAN
+VIOSockShutdownFromPeer(
+    PSOCKET_CONTEXT pSocket,
+    ULONG uFlags
+);
+
 NTSTATUS
 VIOSockPendedRequestSet(
     IN PSOCKET_CONTEXT  pSocket,
