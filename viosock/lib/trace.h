@@ -56,7 +56,7 @@ extern int g_DebugLevel;
 //
 #define DBG_INIT                0x00000001
 #define DBG_SOCKET              0x00000002
-#define DBG_RESERVED1           0x00000004
+#define DBG_INSTALL             0x00000004
 #define DBG_RESERVED2           0x00000008
 #define DBG_RESERVED3           0x00000010
 
@@ -81,7 +81,7 @@ void DebugPrintProc(const char *format, ...);
     WPP_DEFINE_CONTROL_GUID(VioSockTraceGuid,(0A3BB318,098D,44CF,B9D9,10737393CD9B), \
         WPP_DEFINE_BIT(DBG_INIT)             /* bit  0 = 0x00000001 */ \
         WPP_DEFINE_BIT(DBG_SOCKET)           /* bit  1 = 0x00000002 */ \
-        WPP_DEFINE_BIT(DBG_RESERVED1)        /* bit  2 = 0x00000004 */ \
+        WPP_DEFINE_BIT(DBG_INSTALL)          /* bit  2 = 0x00000004 */ \
         WPP_DEFINE_BIT(DBG_RESERVED2)        /* bit  3 = 0x00000008 */ \
         WPP_DEFINE_BIT(DBG_RESERVED3)        /* bit  4 = 0x00000010 */ \
         )
