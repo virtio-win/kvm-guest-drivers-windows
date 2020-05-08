@@ -40,6 +40,7 @@ sdkddkver.h before ntddk.h cause compilation failure in wdm.h and ntddk.h */
 #include "ParaNdis_Debug.h"
 #include "ParaNdis_DebugHistory.h"
 #include "ParaNdis6_Driver.h"
+#include "ParaNdis_Protocol.h"
 #include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
 #include "ParaNdis6_Driver.tmh"
@@ -381,6 +382,14 @@ static NDIS_STATUS ParaNdis6_Initialize(
     {
         pContext->m_StateMachine.NotifyInitialized();
         ParaNdis_DebugRegisterMiniport(pContext, TRUE);
+        ParaNdis_ProtocolRegisterAdapter(pContext);
+    }
+    else
+    {
+        // In rare case of initialization failure we need to unregister the protocol.
+        // Pass dummy value that in no case can be a valid adapter pointer
+        PARANDIS_ADAPTER *pDummy = (PARANDIS_ADAPTER *)(ULONG_PTR)1;
+        ParaNdis_ProtocolUnregisterAdapter(pDummy, true);
     }
 
     DEBUG_EXIT_STATUS(status ? 0 : 2, status);
@@ -397,6 +406,7 @@ static VOID ParaNdis6_Halt(NDIS_HANDLE miniportAdapterContext, NDIS_HALT_ACTION 
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, hopHalt, NULL, 1, haltAction, 0);
+    ParaNdis_ProtocolUnregisterAdapter(pContext);
     ParaNdis_CleanupContext(pContext);
     ParaNdis_DebugHistory(pContext, hopHalt, NULL, 0, 0, 0);
     ParaNdis_DebugRegisterMiniport(pContext, FALSE);
@@ -465,6 +475,10 @@ static VOID ParaNdis6_SendNetBufferLists(
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     UNREFERENCED_PARAMETER(portNumber);
     UNREFERENCED_PARAMETER(flags);
+    if (ParaNdis_ProtocolSend(pContext, pNBL))
+    {
+        return;
+    }
 #ifdef PARANDIS_SUPPORT_RSS
     CNdisPassiveReadAutoLock autoLock(pContext->RSSParameters.rwLock);
     if (pContext->RSS2QueueMap != nullptr)
@@ -508,16 +522,42 @@ VOID ParaNdis6_ReturnNetBufferLists(
     ULONG returnFlags)
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
-
-    auto NumNBLs = ParaNdis_CountNBLs(pNBL);
+    PNET_BUFFER_LIST netkvmHead = NULL, sriovHead = NULL;
+    PNET_BUFFER_LIST *netkvmTail = &netkvmHead, *sriovTail = &sriovHead;
+    ULONG nofNetkvm = 0, nofSriov = 0;
 
     UNREFERENCED_PARAMETER(returnFlags);
-
     DEBUG_ENTRY(5);
 
-    ParaNdis_ReuseRxNBLs(pNBL);
+    while (pNBL)
+    {
+        PNET_BUFFER_LIST next = NET_BUFFER_LIST_NEXT_NBL(pNBL);
+        if (pNBL->NdisPoolHandle == pContext->BufferListsPool)
+        {
+            *netkvmTail = pNBL;
+            netkvmTail = &NET_BUFFER_LIST_NEXT_NBL(pNBL);
+            nofNetkvm++;
+        }
+        else
+        {
+            *sriovTail = pNBL;
+            sriovTail = &NET_BUFFER_LIST_NEXT_NBL(pNBL);
+            nofSriov++;
+        }
+        NET_BUFFER_LIST_NEXT_NBL(pNBL) = NULL;
+        pNBL = next;
+    }
 
-    pContext->m_RxStateMachine.UnregisterOutstandingItems(NumNBLs);
+    if (nofNetkvm)
+    {
+        ParaNdis_ReuseRxNBLs(netkvmHead);
+        pContext->m_RxStateMachine.UnregisterOutstandingItems(nofNetkvm);
+    }
+
+    if (nofSriov)
+    {
+        ParaNdis_ProtocolReturnNbls(pContext, sriovHead, nofSriov);
+    }
 }
 
 /**********************************************************
@@ -1162,6 +1202,10 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 #ifdef NETKVM_WPP_ENABLED
         WPP_CLEANUP(pDriverObject);
 #endif // WPP
+    }
+    if (NT_SUCCESS(status))
+    {
+        ParaNdis_ProtocolInitialize(DriverHandle);
     }
     return status;
 }

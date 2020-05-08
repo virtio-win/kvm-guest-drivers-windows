@@ -1,0 +1,13 @@
+HKCR
+{
+    NoRemove CLSID
+    {
+        ForceRemove {F69513F1-8E1A-4F35-82D9-046406970E6D} = s 'NetKVM SR-IOV Notify Object'
+        {
+            InProcServer32 = s '%MODULE%'
+            {
+                val ThreadingModel = s 'Both'
+            }
+        }
+    }
+}

@@ -361,6 +361,7 @@
     <ClInclude Include="Common\ethernetutils.h" />
     <ClInclude Include="Common\ndis56common.h" />
     <ClInclude Include="Common\Parandis_DesignPatterns.h" />
+    <ClInclude Include="Common\ParaNdis_Protocol.h" />
     <ClInclude Include="Common\Trace.h" />
     <ClInclude Include="Common\osdep.h" />
     <ClInclude Include="Common\ParaNdis-AbstractPath.h" />
@@ -390,6 +391,7 @@
     <ClCompile Include="Common\ParaNdis_CX.cpp" />
     <ClCompile Include="Common\ParaNdis_Debug.cpp" />
     <ClCompile Include="Common\ParaNdis_Oid.cpp" />
+    <ClCompile Include="Common\ParaNdis_Protocol.cpp" />
     <ClCompile Include="Common\ParaNdis_RX.cpp" />
     <ClCompile Include="Common\ParaNdis_TX.cpp" />
     <ClInclude Include="Common\ParaNdis-SM.h" />
