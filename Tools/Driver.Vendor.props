@@ -17,7 +17,7 @@ Set $(Feature_AlwaysDefaultVendor) to false and set $(_VENDOR_) to override.
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <_VENDOR_ Condition="'$(_VENDOR_)'=='' OR '$(Feature_AlwaysDefaultVendor)'!='false'">RHEL</_VENDOR_>
-    <COPYRIGHT_CURRENT_YEAR>2019</COPYRIGHT_CURRENT_YEAR>
+    <COPYRIGHT_CURRENT_YEAR>2020</COPYRIGHT_CURRENT_YEAR>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TargetArch)'=='x86'">
