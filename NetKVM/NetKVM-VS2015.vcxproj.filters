@@ -103,6 +103,9 @@
     <ClInclude Include="Common\Parandis_DesignPatterns.h">
       <Filter>Header Files\Common</Filter>
     </ClInclude>
+    <ClInclude Include="Common\ParaNdis_Protocol.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="wlh\Parandis6.rc">
@@ -161,6 +164,9 @@
     <ClCompile Include="Common\ParaNdis_GuestAnnounce.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
+    <ClCompile Include="Common\ParaNdis_Protocol.cpp">
+      <Filter>Source Files\Common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="tools\cleanemptystrings.vbs">
@@ -171,6 +177,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <Inf Include="$(SourceInfFile)" />
     <Inf Include="$(SourceInfFile)" />
     <Inf Include="$(SourceInfFile)" />
     <Inf Include="$(SourceInfFile)" />
