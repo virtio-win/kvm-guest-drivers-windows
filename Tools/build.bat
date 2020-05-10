@@ -209,13 +209,13 @@ IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
 )
 
-msbuild.exe %BUILD_FILE% /p:Configuration="%~1" /P:Platform=%2 /P:RunCodeAnalysisOnce=True
+msbuild.exe %BUILD_FILE% /t:sdv /p:inputs="/check /devenv" /p:Configuration="%~1" /P:platform=%2
 
 IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
 )
 
-msbuild.exe %BUILD_FILE% /t:sdv /p:inputs="/check /devenv" /p:Configuration="%~1" /P:platform=%2
+msbuild.exe %BUILD_FILE% /p:Configuration="%~1" /P:Platform=%2 /P:RunCodeAnalysisOnce=True
 
 IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
