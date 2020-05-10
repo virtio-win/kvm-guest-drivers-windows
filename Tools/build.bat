@@ -188,7 +188,7 @@ echo Set SDV mode to LEGACY
 set SDVLEGACY=1
 if not exist "%~dp1\build.sdv.config" goto :eof
 echo Checking SDV configuration for %1
-findstr /i legacy "%~dp1\build.sdv.config"
+findstr /b /i legacy "%~dp1\build.sdv.config"
 IF NOT ERRORLEVEL 1 goto :eof
 echo Using MODERN SDV mode
 set SDVLEGACY=
