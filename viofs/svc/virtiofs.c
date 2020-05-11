@@ -1337,7 +1337,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
-    FUSE_RENAME_IN *rename_in;
+    FUSE_RENAME2_IN *rename2_in;
     FUSE_RENAME_OUT rename_out;
     NTSTATUS Status;
     char *oldname, *newname, *oldfullpath, *newfullpath;
@@ -1385,34 +1385,43 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     DBG("old: %s (%d) new: %s (%d)", oldname, oldname_size, newname,
         newname_size);
 
-    rename_in = HeapAlloc(GetProcessHeap(), 0, sizeof(*rename_in) +
+    rename2_in = HeapAlloc(GetProcessHeap(), 0, sizeof(*rename2_in) +
         oldname_size + newname_size);
 
-    if (rename_in == NULL)
+    if (rename2_in == NULL)
     {
         FspPosixDeletePath(oldfullpath);
         FspPosixDeletePath(newfullpath);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    FUSE_HEADER_INIT(&rename_in->hdr, FUSE_RENAME, oldparent,
-        sizeof(rename_in->rename) + oldname_size + newname_size);
+    FUSE_HEADER_INIT(&rename2_in->hdr, FUSE_RENAME2, oldparent,
+        sizeof(rename2_in->rename) + oldname_size + newname_size);
 
-    rename_in->rename.newdir = newparent;
+    rename2_in->rename.newdir = newparent;
 
-    CopyMemory(rename_in->names, oldname, oldname_size);
-    CopyMemory(rename_in->names + oldname_size, newname, newname_size);
+    // It is not allowed to rename to an existing directory even when
+    // ReplaceIfExists is set.
+    rename2_in->rename.flags = ((FileContext->IsDirectory == FALSE) &&
+        (ReplaceIfExists == TRUE)) ? 0 : (1 << 0) /* RENAME_NOREPLACE */;
+
+    CopyMemory(rename2_in->names, oldname, oldname_size);
+    CopyMemory(rename2_in->names + oldname_size, newname, newname_size);
 
     FspPosixDeletePath(oldfullpath);
     FspPosixDeletePath(newfullpath);
 
-    if (ReplaceIfExists == TRUE)
+    Status = VirtFsFuseRequest(VirtFs->Device, rename2_in,
+        rename2_in->hdr.len, &rename_out, sizeof(rename_out));
+
+    // Fix to expected error when renaming a directory to existing directory.
+    if ((FileContext->IsDirectory == TRUE) && (ReplaceIfExists == TRUE) &&
+        (Status == STATUS_OBJECT_NAME_COLLISION))
     {
-        // XXX check Linux's behavior and fix to match.
+        Status = STATUS_ACCESS_DENIED;
     }
 
-    return VirtFsFuseRequest(VirtFs->Device, rename_in,
-        rename_in->hdr.len, &rename_out, sizeof(rename_out));
+    return Status;
 }
 
 static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
