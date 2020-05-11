@@ -43,6 +43,15 @@ extern "C"
 int virtioDebugLevel = 0;
 int bDebugPrint = 1;
 
+/* Crash callback support makes SDV to skip all the tests
+ * of NDIS entry points and report them as 'Not applicable'
+ * Leave it enabled for 8.1 and private builds without WPP
+ */
+//#define ENABLE_CRASH_CALLBACK       1
+#if !NDIS_SUPPORT_NDIS680 || !defined(NETKVM_WPP_ENABLED)
+#define ENABLE_CRASH_CALLBACK       1
+#endif
+
 static NDIS_SPIN_LOCK CrashLock;
 
 static KBUGCHECK_REASON_CALLBACK_ROUTINE ParaNdis_OnBugCheck;
@@ -162,7 +171,7 @@ void ParaNdis_DebugInitialize()
 {
     NDIS_STRING usRegister, usDeregister, usPrint;
     PVOID pr, pd;
-    BOOLEAN res;
+    BOOLEAN res = false;
 
     NdisAllocateSpinLock(&CrashLock);
     KeInitializeCallbackRecord(&CallbackRecord);
@@ -181,7 +190,9 @@ void ParaNdis_DebugInitialize()
         BugCheckRegisterCallback = (KeRegisterBugCheckReasonCallbackType)pr;
         BugCheckDeregisterCallback = (KeDeregisterBugCheckReasonCallbackType)pd;
     }
+#if ENABLE_CRASH_CALLBACK
     res = BugCheckRegisterCallback(&CallbackRecord, ParaNdis_OnBugCheck, KbCallbackSecondaryDumpData, (const PUCHAR)"NetKvm");
+#endif
     DPrintf(0, "[%s] Crash callback %sregistered\n", __FUNCTION__, res ? "" : "NOT ");
 }
 
@@ -265,6 +276,7 @@ void ParaNdis_DebugRegisterMiniport(PARANDIS_ADAPTER *pContext, BOOLEAN bRegiste
     NdisReleaseSpinLock(&CrashLock);
 }
 
+#if ENABLE_CRASH_CALLBACK
 static UINT FillDataOnBugCheck()
 {
     UINT i, n = 0;
@@ -331,6 +343,7 @@ VOID ParaNdis_OnBugCheck(
         }
     }
 }
+#endif
 
 #if defined(ENABLE_HISTORY_LOG)
 void ParaNdis_DebugHistory(
