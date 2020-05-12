@@ -382,6 +382,7 @@ InitHW(
 ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     adaptExt->system_io_bus_number = ConfigInfo->SystemIoBusNumber;
+    adaptExt->slot_number = ConfigInfo->SlotNumber;
 
     /* read PCI config space */
     pci_cfg_len = StorPortGetBusData(

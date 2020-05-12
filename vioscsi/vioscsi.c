@@ -236,6 +236,11 @@ VioScsiSaveInquiryData(
     IN OUT PSRB_TYPE Srb
     );
 
+VOID
+VioScsiPatchInquiryData(
+    IN PVOID  DeviceExtension,
+    IN OUT PSRB_TYPE Srb
+    );
 
 GUID VioScsiWmiExtendedInfoGuid = VioScsiWmi_ExtendedInfo_Guid;
 GUID VioScsiWmiAdapterInformationQueryGuid = MS_SM_AdapterInformationQueryGuid;
@@ -1615,6 +1620,7 @@ ENTER_FN_SRB();
            break;
         case SCSIOP_INQUIRY:
            VioScsiSaveInquiryData(DeviceExtension, Srb);
+           VioScsiPatchInquiryData(DeviceExtension, Srb);
            if (!StorPortSetDeviceQueueDepth( DeviceExtension, SRB_PATH_ID(Srb),
                                      SRB_TARGET_ID(Srb), SRB_LUN(Srb),
                                      adaptExt->queue_depth)) {
@@ -1845,8 +1851,8 @@ ParseIdentificationDescr(
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     ENTER_FN();
     if (IdentificationDescr) {
-        CodeSet = (UCHAR)(((PCHAR)IdentificationDescr)[0]);
-        IdentifierType = (UCHAR)(((PCHAR)IdentificationDescr)[1]);
+        CodeSet = IdentificationDescr->CodeSet;//(UCHAR)(((PCHAR)IdentificationDescr)[0]);
+        IdentifierType = IdentificationDescr->IdentifierType;//(UCHAR)(((PCHAR)IdentificationDescr)[1]);
         switch (IdentifierType) {
         case VioscsiVpdIdentifierTypeVendorSpecific: {
             if (CodeSet == VioscsiVpdCodeSetAscii) {
@@ -1977,6 +1983,72 @@ ENTER_FN_SRB();
         }
     }
 EXIT_FN_SRB();
+}
+
+VOID
+VioScsiPatchInquiryData(
+    IN PVOID  DeviceExtension,
+    IN OUT PSRB_TYPE Srb
+)
+{
+    PVOID           dataBuffer;
+    PADAPTER_EXTENSION    adaptExt;
+    PCDB cdb;
+    ULONG dataLen;
+    UCHAR SrbStatus = SRB_STATUS_SUCCESS;
+    ENTER_FN_SRB();
+
+    if (!Srb)
+        return;
+
+    cdb = SRB_CDB(Srb);
+
+    if (!cdb)
+        return;
+
+    SRB_GET_SCSI_STATUS(Srb, SrbStatus);
+    if (SrbStatus == SRB_STATUS_ERROR)
+        return;
+
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    dataBuffer = SRB_DATA_BUFFER(Srb);
+    dataLen = SRB_DATA_TRANSFER_LENGTH(Srb);
+
+    if (cdb->CDB6INQUIRY3.EnableVitalProductData == 1) {
+        switch (cdb->CDB6INQUIRY3.PageCode) {
+            case VPD_DEVICE_IDENTIFIERS: {
+                PVPD_IDENTIFICATION_PAGE IdentificationPage;
+                PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr;
+                UCHAR PageLength = 0;
+                IdentificationPage = (PVPD_IDENTIFICATION_PAGE)dataBuffer;
+                PageLength = IdentificationPage->PageLength;
+                if (dataLen >= (sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + sizeof(VPD_IDENTIFICATION_PAGE) + 8) &&
+                    PageLength <= sizeof(VPD_IDENTIFICATION_PAGE)) {
+                    UCHAR IdentifierLength = 0;
+                    IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
+                    if (IdentificationDescr->IdentifierLength == 0)
+                    {
+                        IdentificationDescr->CodeSet = VpdCodeSetBinary;
+                        IdentificationDescr->IdentifierType = VpdIdentifierTypeEUI64;
+                        IdentificationDescr->IdentifierLength = 8;
+                        IdentificationDescr->Identifier[0] = (adaptExt->system_io_bus_number >> 12) & 0xF;
+                        IdentificationDescr->Identifier[1] = (adaptExt->system_io_bus_number >> 8) & 0xF;
+                        IdentificationDescr->Identifier[2] = (adaptExt->system_io_bus_number >> 4) & 0xF;
+                        IdentificationDescr->Identifier[3] = adaptExt->system_io_bus_number & 0xF;
+                        IdentificationDescr->Identifier[4] = (adaptExt->slot_number >> 12) & 0xF;
+                        IdentificationDescr->Identifier[5] = (adaptExt->slot_number >> 8) & 0xF;
+                        IdentificationDescr->Identifier[6] = (adaptExt->slot_number >> 4) & 0xF;
+                        IdentificationDescr->Identifier[7] = adaptExt->slot_number & 0xF;
+                        IdentificationPage->PageLength = sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + IdentificationDescr->IdentifierLength;
+                        SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_IDENTIFICATION_PAGE) +
+                            IdentificationPage->PageLength));
+                    }
+                }
+            }
+            break;
+        }
+    }
+    EXIT_FN_SRB();
 }
 
 BOOLEAN

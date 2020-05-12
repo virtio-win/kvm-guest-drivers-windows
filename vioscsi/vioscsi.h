@@ -292,6 +292,7 @@ typedef struct _ADAPTER_EXTENSION {
     };
     VIRTIO_BAR            pci_bars[PCI_TYPE0_ADDRESSES];
     ULONG                 system_io_bus_number;
+    ULONG                 slot_number;
 
     ULONG                 queue_depth;
     BOOLEAN               dump_mode;
