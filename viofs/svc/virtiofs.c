@@ -957,6 +957,8 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     DBG("Offset: %Iu Length: %u", Offset, Length);
     DBG("fh: %Iu nodeid: %Iu", FileContext->FileHandle, FileContext->NodeId);
 
+    *PBytesTransferred = 0;
+
     read_out = HeapAlloc(GetProcessHeap(), 0, sizeof(*read_out) + Length);
     if (read_out == NULL)
     {
@@ -977,30 +979,29 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     if (!NT_SUCCESS(Status))
     {
-        if (PBytesTransferred != NULL)
-        {
-            *PBytesTransferred = 0;
-        }
         SafeHeapFree(read_out);
         return Status;
     }
 
-    if (PBytesTransferred != NULL)
+    *PBytesTransferred = read_out->hdr.len - sizeof(struct fuse_out_header);
+
+    // A successful read with no bytes read mean file offset is at or past the
+    // end of file.
+    if (*PBytesTransferred == 0)
     {
-        *PBytesTransferred = read_out->hdr.len -
-            sizeof(struct fuse_out_header);
-
-        if (Buffer != NULL)
-        {
-            CopyMemory(Buffer, read_out->buf, *PBytesTransferred);
-        }
-
-        DBG("BytesTransferred: %d", *PBytesTransferred);
+        Status = STATUS_END_OF_FILE;
     }
+
+    if (Buffer != NULL)
+    {
+        CopyMemory(Buffer, read_out->buf, *PBytesTransferred);
+    }
+
+    DBG("BytesTransferred: %d", *PBytesTransferred);
 
     SafeHeapFree(read_out);
 
-    return STATUS_SUCCESS;
+    return Status;
 }
 
 static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
