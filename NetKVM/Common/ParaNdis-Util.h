@@ -161,6 +161,25 @@ private:
     CNdisSpinLock& operator= (const CNdisSpinLock&) = delete;
 };
 
+class CNdisMutex
+{
+public:
+    CNdisMutex()
+    {
+        NDIS_INIT_MUTEX(&m_Mutex);
+    }
+    void Lock()
+    {
+        NDIS_WAIT_FOR_MUTEX(&m_Mutex);
+    }
+    void Unlock()
+    {
+        NDIS_RELEASE_MUTEX(&m_Mutex);
+    }
+private:
+    KMUTEX m_Mutex;
+};
+
 template <typename T>
 class CLockedContext
 {
@@ -320,6 +339,17 @@ public:
 private:
     CNdisSpinLock m_Lock;
 };
+
+class CMutexProtectedAccess
+{
+public:
+    void Lock() { m_Mutex.Lock(); }
+    void Unlock() { m_Mutex.Unlock(); }
+private:
+    CNdisMutex m_Mutex;
+};
+
+typedef CLockedContext<CMutexProtectedAccess> CMutexLockedContext;
 
 class CRawAccess
 {
