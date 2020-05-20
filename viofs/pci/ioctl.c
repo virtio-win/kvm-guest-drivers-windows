@@ -383,10 +383,18 @@ VOID VirtFsEvtIoStop(IN WDFQUEUE Queue,
                      IN WDFREQUEST Request,
                      IN ULONG ActionFlags)
 {
-    UNREFERENCED_PARAMETER(Queue);
+    PDEVICE_CONTEXT context = GetDeviceContext(WdfIoQueueGetDevice(Queue));
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL,
-        "--> %!FUNC! Request: %p", Request);
+        "--> %!FUNC! Request: %p ActionFlags: 0x%08x", Request, ActionFlags);
+
+    if (ActionFlags & WdfRequestStopRequestCancelable)
+    {
+        if (WdfRequestUnmarkCancelable(Request) == STATUS_CANCELLED)
+        {
+            goto request_cancelled;
+        }
+    }
 
     if (ActionFlags & WdfRequestStopActionSuspend)
     {
@@ -394,12 +402,29 @@ VOID VirtFsEvtIoStop(IN WDFQUEUE Queue,
     }
     else if (ActionFlags & WdfRequestStopActionPurge)
     {
-        if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
+        PSINGLE_LIST_ENTRY iter;
+
+        WdfSpinLockAcquire(context->RequestsLock);
+        iter = &context->RequestsList;
+        while (iter->Next != NULL)
         {
-            WdfRequestComplete(Request , STATUS_CANCELLED);
-        }
+            PVIRTIO_FS_REQUEST removed = CONTAINING_RECORD(iter->Next,
+                VIRTIO_FS_REQUEST, ListEntry);
+
+            if (Request == removed->Request)
+            {
+                removed->Request = NULL;
+                break;
+            }
+
+            iter = iter->Next;
+        };
+        WdfSpinLockRelease(context->RequestsLock);
+
+        WdfRequestComplete(Request, STATUS_CANCELLED);
     }
 
+request_cancelled:
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "<-- %!FUNC!");
 }
 
