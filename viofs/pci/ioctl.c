@@ -373,6 +373,7 @@ VOID VirtFsEvtIoDeviceControl(IN WDFQUEUE Queue,
             break;
 
         default:
+            WdfRequestComplete(Request, STATUS_INVALID_DEVICE_REQUEST);
             break;
     }
 
