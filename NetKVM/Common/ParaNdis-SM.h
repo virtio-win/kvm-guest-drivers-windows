@@ -27,8 +27,7 @@ public:
 
     virtual void Stop(NDIS_STATUS Reason = NDIS_STATUS_PAUSED)
     {
-        NETKVM_ASSERT(m_State == FlowState::Running ||
-            m_State == FlowState::SurpriseRemoved);
+        NETKVM_ASSERT(m_State == FlowState::Running);
         m_State = FlowState::Stopping;
         m_StopReason = Reason;
         m_NoOutstandingItems.Clear();
@@ -39,7 +38,7 @@ public:
 
     virtual void SupriseRemove()
     {
-        m_State = FlowState::SurpriseRemoved;
+        m_SurpriseRemoved = true;
     }
 
     virtual bool RegisterOutstandingItems(ULONG NumItems,
@@ -119,8 +118,7 @@ protected:
     {
         Running,
         Stopping,
-        Stopped,
-        SurpriseRemoved
+        Stopped
     };
 
     CNdisRefCounter m_Counter;
@@ -128,6 +126,7 @@ protected:
     CNdisSpinLock m_CompleteStoppingLock;
     CNdisEvent m_NoOutstandingItems;
     NDIS_STATUS m_StopReason = NDIS_STATUS_PAUSED;
+    bool m_SurpriseRemoved = false;
 };
 
 class CDataFlowStateMachine : public CFlowStateMachine
