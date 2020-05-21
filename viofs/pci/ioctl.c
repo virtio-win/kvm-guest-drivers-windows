@@ -225,6 +225,7 @@ static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context,
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL,
             "WdfRequestRetrieveOutputBuffer failed");
+        WdfRequestComplete(Request, status);
         return;
     }
 
@@ -250,8 +251,7 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
         goto complete_wdf_req_no_fs_req;
     }
 
-    if ((OutputBufferLength > 0) &&
-        (OutputBufferLength < sizeof(struct fuse_out_header)))
+    if (OutputBufferLength < sizeof(struct fuse_out_header))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Insufficient out buffer");
         status = STATUS_BUFFER_TOO_SMALL;
@@ -293,15 +293,10 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
     fs_req->Request = Request;
     fs_req->InputBuffer = VirtFsAllocatePages(InputBufferLength);
     fs_req->InputBufferLength = InputBufferLength;
+    fs_req->OutputBuffer = VirtFsAllocatePages(OutputBufferLength);
+    fs_req->OutputBufferLength = OutputBufferLength;
 
-    if (OutputBufferLength > 0)
-    {
-        fs_req->OutputBuffer = VirtFsAllocatePages(OutputBufferLength);
-        fs_req->OutputBufferLength = OutputBufferLength;
-    }
-
-    if ((fs_req->InputBuffer == NULL) ||
-        ((OutputBufferLength > 0) && (fs_req->OutputBuffer == NULL)))
+    if ((fs_req->InputBuffer == NULL) || (fs_req->OutputBuffer == NULL))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Data allocation failed");
         status = STATUS_INSUFFICIENT_RESOURCES;
