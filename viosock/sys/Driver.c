@@ -36,16 +36,22 @@
 
 DRIVER_INITIALIZE DriverEntry;
 
+// Context cleanup callbacks generally run at IRQL <= DISPATCH_LEVEL but
+// WDFDRIVER context cleanup is guaranteed to run at PASSIVE_LEVEL.
+// Annotate the prototype to make static analysis happy.
+EVT_WDF_OBJECT_CONTEXT_CLEANUP _IRQL_requires_(PASSIVE_LEVEL) VIOSockEvtDriverContextCleanup;
+
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (INIT, DriverEntry)
+#pragma alloc_text (PAGE, VIOSockEvtDriverContextCleanup)
 #endif
-
 
 NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
                      IN PUNICODE_STRING RegistryPath)
 {
     NTSTATUS               status = STATUS_SUCCESS;
     WDF_DRIVER_CONFIG      config;
+    WDF_OBJECT_ATTRIBUTES  attributes;
     WDFDRIVER              Driver;
 
 #if (NTDDI_VERSION > NTDDI_WIN7)
@@ -56,12 +62,15 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
         "VirtioSocket driver started...built on %s %s\n", __DATE__, __TIME__);
 
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    attributes.EvtCleanupCallback = VIOSockEvtDriverContextCleanup;
+
     WDF_DRIVER_CONFIG_INIT(&config,VIOSockEvtDeviceAdd);
     config.DriverPoolTag  = VIOSOCK_DRIVER_MEMORY_TAG;
 
     status = WdfDriverCreate(DriverObject,
                              RegistryPath,
-                             WDF_NO_OBJECT_ATTRIBUTES,
+                             &attributes,
                              &config,
                              &Driver);
 
@@ -75,3 +84,16 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return status;
 }
+
+VOID
+VIOSockEvtDriverContextCleanup(
+    IN WDFOBJECT Driver
+)
+{
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
+
+    WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)Driver));
+}
+
