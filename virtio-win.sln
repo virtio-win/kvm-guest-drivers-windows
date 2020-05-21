@@ -1,4 +1,3 @@
-﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.28010.2048
@@ -242,7 +241,7 @@ Global
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|ARM64.ActiveCfg = Win8.1 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x64.Build.0 = Win8.1 Release|x64
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|x64
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.WinXP Release|ARM64.ActiveCfg = WinXP Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.WinXP Release|x64.ActiveCfg = WinXP Release|x64
@@ -291,7 +290,7 @@ Global
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win8.1 Release|ARM64.ActiveCfg = Win8.1 Release|x64
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win8.1 Release|x64.Build.0 = Win8.1 Release|x64
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|x64
+		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.WinXP Release|ARM64.ActiveCfg = WinXP Release|x64
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.WinXP Release|x64.ActiveCfg = WinXP Release|x64
@@ -830,7 +829,7 @@ Global
 		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.Win8.1 Release|ARM64.ActiveCfg = Win8.1 Release|x64
 		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
 		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.Win8.1 Release|x64.Build.0 = Win8.1 Release|x64
-		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|x64
+		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
 		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.WinXP Release|ARM64.ActiveCfg = Win8.1 Release|x64
 		{29D5D8BA-071A-464F-89DF-C0B4EE99F141}.WinXP Release|x64.ActiveCfg = Win8.1 Release|x64
@@ -874,7 +873,7 @@ Global
 		{7F794CE4-EFAC-4C54-AEEC-7873510C36EA}.Win8.1 Release|ARM64.ActiveCfg = Win8.1 Release|x64
 		{7F794CE4-EFAC-4C54-AEEC-7873510C36EA}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
 		{7F794CE4-EFAC-4C54-AEEC-7873510C36EA}.Win8.1 Release|x64.Build.0 = Win8.1 Release|x64
-		{7F794CE4-EFAC-4C54-AEEC-7873510C36EA}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|x64
+		{7F794CE4-EFAC-4C54-AEEC-7873510C36EA}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
 		{7F794CE4-EFAC-4C54-AEEC-7873510C36EA}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 		{7F794CE4-EFAC-4C54-AEEC-7873510C36EA}.WinXP Release|ARM64.ActiveCfg = Win8.1 Release|x64
 		{7F794CE4-EFAC-4C54-AEEC-7873510C36EA}.WinXP Release|x64.ActiveCfg = Win8.1 Release|x64
@@ -1079,7 +1078,7 @@ Global
 		{09672FE6-A18C-4B3B-B1DC-1C7C1F61F9B4}.Win8.1 Release|ARM64.ActiveCfg = Header|x64
 		{09672FE6-A18C-4B3B-B1DC-1C7C1F61F9B4}.Win8.1 Release|x64.ActiveCfg = Header|x64
 		{09672FE6-A18C-4B3B-B1DC-1C7C1F61F9B4}.Win8.1 Release|x64.Build.0 = Header|x64
-		{09672FE6-A18C-4B3B-B1DC-1C7C1F61F9B4}.Win8.1 Release|x86.ActiveCfg = Header|x64
+		{09672FE6-A18C-4B3B-B1DC-1C7C1F61F9B4}.Win8.1 Release|x86.ActiveCfg = Header|Win32
 		{09672FE6-A18C-4B3B-B1DC-1C7C1F61F9B4}.Win8.1 Release|x86.Build.0 = Header|Win32
 		{09672FE6-A18C-4B3B-B1DC-1C7C1F61F9B4}.WinXP Release|ARM64.ActiveCfg = Header|x64
 		{09672FE6-A18C-4B3B-B1DC-1C7C1F61F9B4}.WinXP Release|x64.ActiveCfg = Header|x64
