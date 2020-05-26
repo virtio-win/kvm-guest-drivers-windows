@@ -491,6 +491,36 @@ static VOID ParaNdis6_SendNetBufferLists(
 }
 
 /**********************************************************
+NDIS procedure of returning us buffer of previously indicated packets
+Parameters:
+    context
+    PNET_BUFFER_LIST pNBL - list of buffers to free
+    returnFlags - is dpc
+
+The procedure frees:
+received buffer descriptors back to list of RX buffers
+all the allocated MDL structures
+all the received NBLs back to our pool
+***********************************************************/
+VOID ParaNdis6_ReturnNetBufferLists(
+    NDIS_HANDLE miniportAdapterContext,
+    PNET_BUFFER_LIST pNBL,
+    ULONG returnFlags)
+{
+    PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
+
+    auto NumNBLs = ParaNdis_CountNBLs(pNBL);
+
+    UNREFERENCED_PARAMETER(returnFlags);
+
+    DEBUG_ENTRY(5);
+
+    ParaNdis_ReuseRxNBLs(pNBL);
+
+    pContext->m_RxStateMachine.UnregisterOutstandingItems(NumNBLs);
+}
+
+/**********************************************************
 Required NDIS handler: happens unually each 2 second
 ***********************************************************/
 static BOOLEAN ParaNdis6_CheckForHang(NDIS_HANDLE miniportAdapterContext)
