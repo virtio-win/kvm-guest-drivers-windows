@@ -129,7 +129,7 @@ OIDENTRY(OID_GEN_TRANSMIT_BLOCK_SIZE,           2,0,4, ohfQueryStat     ),
 OIDENTRY(OID_GEN_RECEIVE_BLOCK_SIZE,            2,0,4, ohfQueryStat     ),
 OIDENTRY(OID_GEN_VENDOR_ID,                     2,0,4, ohfQueryStat     ),
 OIDENTRY(OID_GEN_VENDOR_DESCRIPTION,            2,2,4, ohfQueryStat     ),
-OIDENTRYPROC(OID_GEN_CURRENT_PACKET_FILTER,     2,0,4, ohfQuerySet, ParaNdis_OnSetPacketFilter),
+OIDENTRYPROC(OID_GEN_CURRENT_PACKET_FILTER,     2,0,4, ohfQuerySet | ohfSetPropagate, ParaNdis_OnSetPacketFilter),
 OIDENTRYPROC(OID_GEN_CURRENT_LOOKAHEAD,         2,0,4, ohfQuerySet, ParaNdis_OnSetLookahead),
 OIDENTRY(OID_GEN_DRIVER_VERSION,                2,0,4, ohfQuery         ),
 OIDENTRY(OID_GEN_MAXIMUM_TOTAL_SIZE,            2,0,4, ohfQueryStat     ),
@@ -176,7 +176,7 @@ OIDENTRYPROC(OID_PNP_REMOVE_WAKE_UP_PATTERN,    2,0,4, ohfSet,          ParaNdis
 OIDENTRYPROC(OID_PNP_ENABLE_WAKE_UP,            2,0,4, ohfQuerySet,     ParaNdis_OnEnableWakeup),
 OIDENTRY(OID_802_3_PERMANENT_ADDRESS,           2,0,4, ohfQueryStat     ),
 OIDENTRY(OID_802_3_CURRENT_ADDRESS,             2,0,4, ohfQueryStat     ),
-OIDENTRYPROC(OID_802_3_MULTICAST_LIST,          2,0,4, ohfQuerySet,     ParaNdis_OnOidSetMulticastList),
+OIDENTRYPROC(OID_802_3_MULTICAST_LIST,          2,0,4, ohfQuerySet | ohfSetPropagate, ParaNdis_OnOidSetMulticastList),
 OIDENTRY(OID_802_3_MAXIMUM_LIST_SIZE,           2,0,4, ohfQueryStat     ),
 OIDENTRY(OID_802_3_MAC_OPTIONS,                 2,4,4, 0                ),
 OIDENTRY(OID_802_3_RCV_ERROR_ALIGNMENT,         2,4,4, ohfQueryStat3264 ),
@@ -594,6 +594,12 @@ NDIS_STATUS ParaNdis6_OidRequest(
                     _oid.pBytesWritten = &pNdisRequest->DATA.SET_INFORMATION.BytesRead;
                     _oid.pBytesNeeded = &pNdisRequest->DATA.SET_INFORMATION.BytesNeeded;
                     _oid.pBytesRead = &pNdisRequest->DATA.SET_INFORMATION.BytesRead;
+                    // if we need to propagate the OID we need to do that before we
+                    // call original handler to be sure the original request is still alive
+                    if (Rules.Flags & ohfSetPropagate)
+                    {
+                        ParaNdis_PropagateOid(pContext, _oid.Oid, _oid.InformationBuffer, _oid.InformationBufferLength);
+                    }
                     status = Rules.OidSetProc(pContext, &_oid);
                 }
                 else
