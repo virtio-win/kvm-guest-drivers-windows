@@ -338,7 +338,7 @@ public:
             _In_  PNET_BUFFER_LIST        NetBufferList,
             _In_  ULONG                   SendCompleteFlags)
         {
-            TraceNoPrefix(0, "[SendNetBufferListsCompleteHandler] ctx %p\n", ProtocolBindingContext);
+            TraceNoPrefix(2, "[SendNetBufferListsCompleteHandler] ctx %p\n", ProtocolBindingContext);
             CProtocolBinding *binding = (CProtocolBinding *)ProtocolBindingContext;
             binding->OnSendCompletion(NetBufferList, SendCompleteFlags);
         };
@@ -662,7 +662,7 @@ void CProtocolBinding::OnReceive(PNET_BUFFER_LIST Nbls, ULONG NofNbls, ULONG Fla
     {
         if (m_BoundAdapter)
         {
-            TraceNoPrefix(0, "[%s] %d NBLs\n", __FUNCTION__, NofNbls);
+            TraceNoPrefix(1, "[%s] %d NBLs\n", __FUNCTION__, NofNbls);
             NdisMIndicateReceiveNetBufferLists(
                 m_BoundAdapter->MiniportHandle, Nbls,
                 NDIS_DEFAULT_PORT_NUMBER, NofNbls, Flags);
@@ -688,7 +688,7 @@ void ParaNdis_ProtocolReturnNbls(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST pN
     CProtocolBinding *pb = (CProtocolBinding *)ParaNdis_ReferenceBinding(pContext);
     if (pb)
     {
-        TraceNoPrefix(0, "[%s] %d NBLs\n", __FUNCTION__, numNBLs);
+        TraceNoPrefix(1, "[%s] %d NBLs\n", __FUNCTION__, numNBLs);
         pb->ReturnNbls(pNBL, numNBLs);
         ParaNdis_DereferenceBinding(pContext);
     }
@@ -771,7 +771,7 @@ bool CProtocolBinding::Send(PNET_BUFFER_LIST Nbl, ULONG Count)
         current->SourceHandle = m_BindingHandle;
         current = NET_BUFFER_LIST_NEXT_NBL(current);
     }
-    TraceNoPrefix(0, "[%s] %d nbls", __FUNCTION__, Count);
+    TraceNoPrefix(1, "[%s] %d nbls\n", __FUNCTION__, Count);
     NdisSendNetBufferLists(m_BindingHandle, Nbl, NDIS_DEFAULT_PORT_NUMBER, 0);
     return true;
 }
@@ -791,7 +791,7 @@ void CProtocolBinding::OnSendCompletion(PNET_BUFFER_LIST Nbls, ULONG Flags)
 {
     ULONG errors;
     ULONG count = CountNblsAndErrors(Nbls, errors);
-    TraceNoPrefix(0, "[%s] %d nbls(%d errors)", __FUNCTION__, count, errors);
+    TraceNoPrefix(errors != 0 ? 0 : 1, "[%s] %d nbls(%d errors)\n", __FUNCTION__, count, errors);
     RetrieveSourceHandle(Nbls);
     NdisMSendNetBufferListsComplete(m_BoundAdapter->MiniportHandle, Nbls, Flags);
     m_TxStateMachine.UnregisterOutstandingItems(count);
