@@ -207,7 +207,7 @@ public:
     }
     NDIS_STATUS Bind(PNDIS_BIND_PARAMETERS BindParameters);
     NDIS_STATUS Unbind(NDIS_HANDLE UnbindContext);
-    void CheckCapabilities(PNDIS_BIND_PARAMETERS) { }
+    void QueryCapabilities(PNDIS_BIND_PARAMETERS);
     void Complete(NDIS_STATUS Status)
     {
         m_Status = Status;
@@ -279,6 +279,51 @@ private:
     PARANDIS_ADAPTER *m_BoundAdapter;
     CNdisEvent m_Event;
     NDIS_STATUS m_Status;
+    struct
+    {
+        UCHAR NdisMinor;
+        ULONG MtuSize;
+        struct {
+            ULONG queues;
+            ULONG vectors;
+            ULONG tableSize;
+            bool  v4;
+            bool  v6;
+            bool  v6ex;
+        } rss;
+        struct
+        {
+            bool v4;
+            bool v6;
+        } rsc;
+        struct
+        {
+            struct
+            {
+                ULONG maxPayload;
+                ULONG minSegments;
+            } v4;
+            struct
+            {
+                ULONG maxPayload;
+                ULONG minSegments;
+                bool  extHeaders;
+                bool  tcpOptions;
+            } v6;
+        } lsov2;
+        struct
+        {
+            bool ip;
+            bool tcp;
+            bool udp;
+        } checksumTx;
+        struct
+        {
+            bool ip;
+            bool tcp;
+            bool udp;
+        } checksumRx;
+    } m_Capabilies = {};
 };
 
 static CParaNdisProtocol *ProtocolData = NULL;
@@ -604,7 +649,7 @@ NDIS_STATUS CProtocolBinding::Bind(PNDIS_BIND_PARAMETERS BindParameters)
         Unbind(m_BindContext);
     }
 
-    CheckCapabilities(BindParameters);
+    QueryCapabilities(BindParameters);
 
     if (NT_SUCCESS(status))
     {
@@ -838,6 +883,87 @@ VOID ParaNdis_PropagateOid(PARANDIS_ADAPTER *pContext, NDIS_OID oid, PVOID buffe
         return;
     }
     pb->SetOidAsync(oid, buffer, length);
+}
+
+void CProtocolBinding::QueryCapabilities(PNDIS_BIND_PARAMETERS BindParameters)
+{
+    // if split enabled, it is NDIS 6.10 at least
+    m_Capabilies.MtuSize = BindParameters->MtuSize;
+    if (BindParameters->HDSplitCurrentConfig)
+    {
+        ULONG flags = BindParameters->HDSplitCurrentConfig->CurrentCapabilities;
+        if (flags & NDIS_HD_SPLIT_CAPS_SUPPORTS_HEADER_DATA_SPLIT)
+        {
+            struct
+            {
+                bool ipv4opt;
+                bool tcpopt;
+                bool ipv6ext;
+                ULONG maxHeader;
+                ULONG backfill;
+            } hds;
+            hds.ipv4opt = flags & NDIS_HD_SPLIT_CAPS_SUPPORTS_IPV4_OPTIONS;
+            hds.tcpopt = flags & NDIS_HD_SPLIT_CAPS_SUPPORTS_TCP_OPTIONS;
+            hds.ipv6ext = flags & NDIS_HD_SPLIT_CAPS_SUPPORTS_IPV6_EXTENSION_HEADERS;
+            hds.maxHeader = BindParameters->HDSplitCurrentConfig->MaxHeaderSize;
+            hds.backfill = BindParameters->HDSplitCurrentConfig->BackfillSize;
+            m_Capabilies.NdisMinor = 10;
+            TraceNoPrefix(0, "[%s] HDS: ipv4opt:%d, ipv6ext:%d, tcpopt:%d, max header:%d, backfill %d\n",
+                __FUNCTION__, hds.ipv4opt, hds.ipv6ext, hds.tcpopt, hds.maxHeader, hds.backfill);
+        }
+    }
+    // If RSS has table size, it is 6.30 at least
+    if (BindParameters->RcvScaleCapabilities)
+    {
+        ULONG flags = BindParameters->RcvScaleCapabilities->CapabilitiesFlags;
+        m_Capabilies.rss.v4 = flags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4;
+        m_Capabilies.rss.v6 = flags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6;
+        m_Capabilies.rss.v6ex = flags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6_EX;
+        m_Capabilies.rss.queues = BindParameters->RcvScaleCapabilities->NumberOfReceiveQueues;
+        m_Capabilies.rss.vectors = BindParameters->RcvScaleCapabilities->NumberOfInterruptMessages;
+        if (BindParameters->RcvScaleCapabilities->Header.Revision > NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_1)
+        {
+            m_Capabilies.NdisMinor = 30;
+            m_Capabilies.rss.tableSize = BindParameters->RcvScaleCapabilities->NumberOfIndirectionTableEntries;
+        }
+        TraceNoPrefix(0, "[%s] RSS: v4:%d,v6:%d,v6ex:%d, queues:%d, vectors:%d, max table:%d\n", __FUNCTION__,
+            m_Capabilies.rss.v4, m_Capabilies.rss.v6, m_Capabilies.rss.v6ex,
+            m_Capabilies.rss.queues, m_Capabilies.rss.vectors, m_Capabilies.rss.tableSize);
+    }
+    else
+    {
+        TraceNoPrefix(0, "[%s] No RSS capabilies\n", __FUNCTION__);
+    }
+    // If RSC enabled, it is 6.30 at least
+    if (BindParameters->DefaultOffloadConfiguration)
+    {
+        PNDIS_OFFLOAD doc = BindParameters->DefaultOffloadConfiguration;
+        m_Capabilies.rsc.v4 = doc->Rsc.IPv4.Enabled;
+        m_Capabilies.rsc.v6 = doc->Rsc.IPv6.Enabled;
+        if (m_Capabilies.rsc.v4 || m_Capabilies.rsc.v6)
+        {
+            m_Capabilies.NdisMinor = 30;
+        }
+        m_Capabilies.lsov2.v4.maxPayload = doc->LsoV2.IPv4.MaxOffLoadSize;
+        m_Capabilies.lsov2.v4.minSegments = doc->LsoV2.IPv4.MinSegmentCount;
+        m_Capabilies.lsov2.v6.maxPayload = doc->LsoV2.IPv6.MaxOffLoadSize;
+        m_Capabilies.lsov2.v6.minSegments = doc->LsoV2.IPv6.MinSegmentCount;
+        m_Capabilies.lsov2.v6.extHeaders = doc->LsoV2.IPv6.IpExtensionHeadersSupported;
+        m_Capabilies.lsov2.v6.tcpOptions = doc->LsoV2.IPv6.TcpOptionsSupported;
+        TraceNoPrefix(0, "[%s] LSOv2: v4: min segments %d, max payload %d\n", __FUNCTION__,
+            m_Capabilies.lsov2.v4.minSegments, m_Capabilies.lsov2.v4.maxPayload);
+        TraceNoPrefix(0, "[%s] LSOv2: v6: min segments %d, max payload %d, tcp opt:%d, extHeaders:%d\n",
+            __FUNCTION__,
+            m_Capabilies.lsov2.v6.minSegments, m_Capabilies.lsov2.v6.maxPayload,
+            m_Capabilies.lsov2.v6.tcpOptions, m_Capabilies.lsov2.v6.extHeaders);
+        TraceNoPrefix(0, "[%s] RSC: v4:%d, v6:%d\n", __FUNCTION__,
+            m_Capabilies.rsc.v4, m_Capabilies.rsc.v6);
+    }
+    else
+    {
+        TraceNoPrefix(0, "[%s] No offload capabilies\n", __FUNCTION__);
+    }
+    TraceNoPrefix(0, "[%s] Best guess for NDIS revision: 6.%d\n", __FUNCTION__, m_Capabilies.NdisMinor);
 }
 
 #else
