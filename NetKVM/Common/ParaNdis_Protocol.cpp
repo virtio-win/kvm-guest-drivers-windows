@@ -286,6 +286,7 @@ public:
     void SetOidAsync(ULONG oid, PVOID data, ULONG size);
     void SetOid(ULONG oid, PVOID data, ULONG size);
 private:
+    void OnOpStateChange(bool State);
     void OnLastReferenceGone() override;
     CParaNdisProtocol& m_Protocol;
     NDIS_HANDLE m_BindContext;
@@ -339,6 +340,35 @@ private:
             bool udp;
         } checksumRx;
     } m_Capabilies = {};
+    class COperationWorkItem : public CNdisAllocatable<COperationWorkItem, 'IWRP'>
+    {
+    public:
+        COperationWorkItem(CProtocolBinding  *Binding, bool State, NDIS_HANDLE AdapterHandle);
+        ~COperationWorkItem();
+        bool Run()
+        {
+            if (m_Handle)
+            {
+                NdisQueueIoWorkItem(m_Handle, [](PVOID WorkItemContext, NDIS_HANDLE NdisIoWorkItemHandle)
+                {
+                    COperationWorkItem *wi = (COperationWorkItem *)WorkItemContext;
+                    UNREFERENCED_PARAMETER(NdisIoWorkItemHandle);
+                    wi->Fired();
+                }, this);
+            }
+            return m_Handle;
+        }
+        void Fired()
+        {
+            m_Binding->OnOpStateChange(m_State);
+            Destroy(this, m_Binding->m_BindingHandle);
+        }
+    private:
+        NDIS_HANDLE       m_Handle;
+        CProtocolBinding  *m_Binding;
+        bool              m_State;
+    };
+    friend class COperationWorkItem;
 };
 
 static CParaNdisProtocol *ProtocolData = NULL;
@@ -587,6 +617,7 @@ public:
     }
     NDIS_HANDLE DriverHandle() const { return m_DriverHandle; }
     NDIS_HANDLE ProtocolHandle() const { return m_ProtocolHandle; }
+    operator CMutexProtectedAccess& () { return m_Mutex; }
 private:
     CNdisList<CAdapterEntry, CRawAccess, CCountingObject> m_Adapters;
     // there are procedures with several operations on the list,
@@ -979,6 +1010,35 @@ void CProtocolBinding::QueryCapabilities(PNDIS_BIND_PARAMETERS BindParameters)
         TraceNoPrefix(0, "[%s] No offload capabilies\n", __FUNCTION__);
     }
     TraceNoPrefix(0, "[%s] Best guess for NDIS revision: 6.%d\n", __FUNCTION__, m_Capabilies.NdisMinor);
+}
+
+CProtocolBinding::COperationWorkItem::COperationWorkItem(CProtocolBinding  *Binding, bool State, NDIS_HANDLE AdapterHandle) :
+    m_State(State), m_Binding(Binding)
+{
+    TraceNoPrefix(0, "[%s]\n", __FUNCTION__);
+    m_Handle = NdisAllocateIoWorkItem(AdapterHandle);
+    m_Binding->AddRef();
+    m_Binding->m_Protocol.AddRef();
+}
+
+CProtocolBinding::COperationWorkItem::~COperationWorkItem()
+{
+    TraceNoPrefix(0, "[%s]\n", __FUNCTION__);
+    if (m_Handle)
+    {
+        NdisFreeIoWorkItem(m_Handle);
+    }
+    m_Binding->m_Protocol.Release();
+    m_Binding->Release();
+}
+
+void CProtocolBinding::OnOpStateChange(bool State)
+{
+    CMutexLockedContext protect(m_Protocol);
+    if (State && !m_Started && m_BoundAdapter)
+    {
+        OnAdapterAttached();
+    }
 }
 
 #else
