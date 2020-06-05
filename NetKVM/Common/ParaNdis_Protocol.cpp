@@ -225,36 +225,50 @@ public:
     // called under protocol mutex from NETKVM's Halt()
     void OnAdapterHalted()
     {
-        m_TxStateMachine.Stop();
-        m_RxStateMachine.Stop();
+        if (m_Started)
+        {
+            m_TxStateMachine.Stop();
+            m_RxStateMachine.Stop();
+        }
+        m_Started = false;
         m_BoundAdapter = NULL;
+    }
+    // called under protocol mutex
+    void OnAdapterAttached()
+    {
+        SetOid(OID_GEN_CURRENT_PACKET_FILTER, &m_BoundAdapter->PacketFilter, sizeof(m_BoundAdapter->PacketFilter));
+        if (m_BoundAdapter->MulticastData.nofMulticastEntries)
+        {
+            SetOid(OID_802_3_MULTICAST_LIST, m_BoundAdapter->MulticastData.MulticastList,
+                ETH_ALEN * m_BoundAdapter->MulticastData.nofMulticastEntries);
+        }
+        // TODO: some other OIDs?
+
+        m_BoundAdapter->m_StateMachine.NotifyBindSriov(this);
+        m_TxStateMachine.Start();
+        m_RxStateMachine.Start();
+        m_Started = true;
     }
     // called under protocol mutex
     // when netkvm adapter comes and binding present
     // when binding to VFIO comes and netkvm adapter present
-    void OnAdapterAttach(PARANDIS_ADAPTER *Adapter)
+    void OnAdapterFound(PARANDIS_ADAPTER *Adapter)
     {
-        TraceNoPrefix(0, "[%s] Found failover adapter %p\n", __FUNCTION__, Adapter);
-        SetOid(OID_GEN_CURRENT_PACKET_FILTER, &Adapter->PacketFilter, sizeof(Adapter->PacketFilter));
-        if (Adapter->MulticastData.nofMulticastEntries)
-        {
-            SetOid(OID_802_3_MULTICAST_LIST, Adapter->MulticastData.MulticastList,
-                ETH_ALEN * Adapter->MulticastData.nofMulticastEntries);
-        }
-        // TODO: some other OIDs?
-
+        TraceNoPrefix(0, "[%s] %p\n", __FUNCTION__, Adapter);
         m_BoundAdapter = Adapter;
-        Adapter->m_StateMachine.NotifyBindSriov(this);
-        m_TxStateMachine.Start();
-        m_RxStateMachine.Start();
+        OnAdapterAttached();
     }
     // called under protocol mutex before close VFIO adapter
     void OnAdapterDetach()
     {
-        m_TxStateMachine.Stop();
-        m_RxStateMachine.Stop();
-        m_BoundAdapter->m_StateMachine.NotifyUnbindSriov();
-        ParaNdis_SendGratuitousArpPacket(m_BoundAdapter);
+        if (m_Started)
+        {
+            m_TxStateMachine.Stop();
+            m_RxStateMachine.Stop();
+            m_BoundAdapter->m_StateMachine.NotifyUnbindSriov();
+            ParaNdis_SendGratuitousArpPacket(m_BoundAdapter);
+            m_Started = false;
+        }
         m_BoundAdapter = NULL;
     }
     void OnStatusIndication(PNDIS_STATUS_INDICATION StatusIndication)
@@ -278,6 +292,7 @@ private:
     NDIS_HANDLE m_BindingHandle;
     PARANDIS_ADAPTER *m_BoundAdapter;
     CNdisEvent m_Event;
+    bool       m_Started = false;
     NDIS_STATUS m_Status;
     struct
     {
@@ -848,7 +863,7 @@ void CAdapterEntry::Notifier(PVOID Binding, NotifyEvent Event, PARANDIS_ADAPTER 
     switch (Event)
     {
         case Arrival:
-            pb->OnAdapterAttach(Adapter);
+            pb->OnAdapterFound(Adapter);
             break;
         case Removal:
             pb->OnAdapterHalted();
