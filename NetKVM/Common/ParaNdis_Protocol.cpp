@@ -231,11 +231,14 @@ public:
             m_RxStateMachine.Stop();
         }
         m_Started = false;
+        CPassiveSpinLockedContext lock(m_OpStateLock);
         m_BoundAdapter = NULL;
     }
     // called under protocol mutex
+    // when VFIO adapter enters operational state
     void OnAdapterAttached()
     {
+        TraceNoPrefix(0, "[%s] %p\n", __FUNCTION__, m_BoundAdapter);
         SetOid(OID_GEN_CURRENT_PACKET_FILTER, &m_BoundAdapter->PacketFilter, sizeof(m_BoundAdapter->PacketFilter));
         if (m_BoundAdapter->MulticastData.nofMulticastEntries)
         {
@@ -255,9 +258,24 @@ public:
     void OnAdapterFound(PARANDIS_ADAPTER *Adapter)
     {
         TraceNoPrefix(0, "[%s] %p\n", __FUNCTION__, Adapter);
+        if (!CheckCompatibility(Adapter))
+        {
+            return;
+        }
         m_BoundAdapter = Adapter;
-        OnAdapterAttached();
+        if (!m_Operational)
+        {
+            ULONG millies = 100;
+            NdisMSleep(millies * 1000);
+        }
+        if (m_Operational)
+        {
+            OnAdapterAttached();
+        } else {
+            TraceNoPrefix(0, "[%s] WARNING: the adapter is not in operational state!\n", __FUNCTION__);
+        }
     }
+
     // called under protocol mutex before close VFIO adapter
     void OnAdapterDetach()
     {
@@ -269,11 +287,51 @@ public:
             ParaNdis_SendGratuitousArpPacket(m_BoundAdapter);
             m_Started = false;
         }
+        CPassiveSpinLockedContext lock(m_OpStateLock);
         m_BoundAdapter = NULL;
+    }
+    bool CheckCompatibility(const PARANDIS_ADAPTER *Adapter)
+    {
+        if (m_Capabilies.MtuSize != Adapter->MaxPacketSize.nMaxDataSize)
+        {
+            TraceNoPrefix(0, "[%s] MTU size is not compatible: %d != %d\n", __FUNCTION__,
+                m_Capabilies.MtuSize, Adapter->MaxPacketSize.nMaxDataSize);
+            return false;
+        }
+        return true;
     }
     void OnStatusIndication(PNDIS_STATUS_INDICATION StatusIndication)
     {
-        TraceNoPrefix(0, "[%s] code %X\n", __FUNCTION__, StatusIndication->StatusCode);
+        switch (StatusIndication->StatusCode)
+        {
+            case NDIS_STATUS_OPER_STATUS:
+                {
+                    NDIS_OPER_STATE *st = (NDIS_OPER_STATE *)StatusIndication->StatusBuffer;
+                    if (StatusIndication->StatusBufferSize >= sizeof(*st))
+                    {
+                        bool state = st->OperationalStatus == NET_IF_OPER_STATUS_UP;
+                        if (state != m_Operational)
+                        {
+                            m_Operational = state;
+                            TraceNoPrefix(0, "[%s] the adapter is %sperational\n",
+                                __FUNCTION__, m_Operational ? "O" : "NOT O");
+                            CPassiveSpinLockedContext lock(m_OpStateLock);
+                            if (m_BoundAdapter)
+                            {
+                                auto wi = new (m_BindingHandle)COperationWorkItem(this, state, m_BoundAdapter->MiniportHandle);
+                                if (wi && !wi->Run())
+                                {
+                                    wi->Destroy(wi, m_BindingHandle);
+                                }
+                            }
+                        }
+                    }
+                }
+                break;
+            default:
+                TraceNoPrefix(0, "[%s] code %X\n", __FUNCTION__, StatusIndication->StatusCode);
+                break;
+        }
     }
     void OnPnPEvent(PNET_PNP_EVENT_NOTIFICATION NetPnPEventNotification)
     {
@@ -291,8 +349,12 @@ private:
     CParaNdisProtocol& m_Protocol;
     NDIS_HANDLE m_BindContext;
     NDIS_HANDLE m_BindingHandle;
+    // set under protocol mutex
+    // clear under protocol mutex and m_OpStateLock
     PARANDIS_ADAPTER *m_BoundAdapter;
     CNdisEvent m_Event;
+    bool       m_Operational = false;
+    // set and clear under protocol mutex
     bool       m_Started = false;
     NDIS_STATUS m_Status;
     struct
@@ -340,6 +402,7 @@ private:
             bool udp;
         } checksumRx;
     } m_Capabilies = {};
+    CNdisSpinLock m_OpStateLock;
     class COperationWorkItem : public CNdisAllocatable<COperationWorkItem, 'IWRP'>
     {
     public:
