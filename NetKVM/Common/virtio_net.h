@@ -62,7 +62,7 @@
 #define VIRTIO_NET_F_HASH_REPORT  57
 #define VIRTIO_NET_F_RSS    	  60
 #define VIRTIO_NET_F_RSC_EXT	  61
-
+#define VIRTIO_NET_F_STANDBY      62
 #define VIRTIO_NET_F_SPEED_DUPLEX 63	/* Device set linkspeed and duplex */
 
 #ifndef VIRTIO_NET_NO_LEGACY
