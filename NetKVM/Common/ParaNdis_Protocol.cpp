@@ -461,6 +461,7 @@ public:
             _In_ PNDIS_BIND_PARAMETERS BindParameters)
         {
             TraceNoPrefix(0, "[BindAdapterHandlerEx] binding %p\n", BindContext);
+            ParaNdis_ProtocolActive();
             return ((CParaNdisProtocol *)ProtocolDriverContext)->OnBindAdapter(BindContext, BindParameters);
         };
         pchs.OpenAdapterCompleteHandlerEx = [](

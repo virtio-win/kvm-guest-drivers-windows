@@ -73,8 +73,19 @@ ULONG bDisableMSI = FALSE;
 
 static NDIS_HANDLE      DriverHandle;
 static LONG             gID = 0;
+static bool             ProtocolActive;
 static tRunTimeNdisVersion _ParandisVersion;
 const tRunTimeNdisVersion& ParandisVersion = _ParandisVersion;
+
+static bool FORCEINLINE IsProtocolActive(PARANDIS_ADAPTER *pContext)
+{
+    static const bool UseStandByFeature = false;
+    if (!UseStandByFeature)
+    {
+        return ProtocolActive;
+    }
+    return virtio_is_feature_enabled(pContext->u64GuestFeatures, VIRTIO_NET_F_STANDBY);
+}
 
 static const char *ConnectStateName(NDIS_MEDIA_CONNECT_STATE state)
 {
@@ -475,7 +486,7 @@ static VOID ParaNdis6_SendNetBufferLists(
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     UNREFERENCED_PARAMETER(portNumber);
     UNREFERENCED_PARAMETER(flags);
-    if (ParaNdis_ProtocolSend(pContext, pNBL))
+    if (IsProtocolActive(pContext) && ParaNdis_ProtocolSend(pContext, pNBL))
     {
         return;
     }
@@ -528,6 +539,14 @@ VOID ParaNdis6_ReturnNetBufferLists(
 
     UNREFERENCED_PARAMETER(returnFlags);
     DEBUG_ENTRY(5);
+
+    if (!IsProtocolActive(pContext))
+    {
+        nofNetkvm = ParaNdis_CountNBLs(pNBL);
+        ParaNdis_ReuseRxNBLs(pNBL);
+        pContext->m_RxStateMachine.UnregisterOutstandingItems(nofNetkvm);
+        return;
+    }
 
     while (pNBL)
     {
@@ -1208,6 +1227,11 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
         ParaNdis_ProtocolInitialize(DriverHandle);
     }
     return status;
+}
+
+VOID ParaNdis_ProtocolActive()
+{
+    ProtocolActive = true;
 }
 
 VOID ParaNdis6_SendNBLInternal(NDIS_HANDLE miniportAdapterContext, PNET_BUFFER_LIST pNBL, NDIS_PORT_NUMBER portNumber, ULONG flags)
