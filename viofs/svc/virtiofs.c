@@ -1027,14 +1027,23 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         ConstrainedIo);
     DBG("fh: %Iu nodeid: %Iu", FileContext->FileHandle, FileContext->NodeId);
 
-    if (ConstrainedIo)
+    // Both these cases requires knowing the actual file size.
+    if ((WriteToEndOfFile == TRUE) || (ConstrainedIo == TRUE))
     {
         Status = GetFileInfoInternal(VirtFs, FileContext, FileInfo, NULL);
         if (!NT_SUCCESS(Status))
         {
             return Status;
         }
+    }
 
+    if (WriteToEndOfFile == TRUE)
+    {
+        Offset = FileInfo->FileSize;
+    }
+
+    if (ConstrainedIo == TRUE)
+    {
         if (Offset >= FileInfo->FileSize)
         {
             return STATUS_SUCCESS;
