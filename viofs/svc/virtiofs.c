@@ -261,6 +261,33 @@ static UINT32 PosixUnixModeToAttributes(uint32_t mode)
     return Attributes;
 }
 
+static uint32_t AccessToUnixFlags(UINT32 GrantedAccess)
+{
+    uint32_t flags;
+
+    switch (GrantedAccess & (FILE_READ_DATA | FILE_WRITE_DATA))
+    {
+        case FILE_WRITE_DATA:
+            flags = O_WRONLY;
+            break;
+        case FILE_READ_DATA | FILE_WRITE_DATA:
+            flags = O_RDWR;
+            break;
+        case FILE_READ_DATA:
+            __fallthrough;
+        default:
+            flags = O_RDONLY;
+            break;
+    }
+
+    if ((GrantedAccess & FILE_APPEND_DATA) && (flags == 0))
+    {
+        flags = O_RDWR;
+    }
+
+    return flags;
+}
+
 static VOID FileTimeToUnixTime(UINT64 FileTime, uint64_t *time,
     uint32_t *nsec)
 {
@@ -400,28 +427,7 @@ static NTSTATUS VirtFsCreateFile(VIRTFS *VirtFs,
     lstrcpyA(create_in.name, FileName);
     create_in.create.mode = Mode;
     create_in.create.umask = 0;
-
-    switch (GrantedAccess & (FILE_READ_DATA | FILE_WRITE_DATA))
-    {
-        case FILE_WRITE_DATA:
-            create_in.create.flags = O_WRONLY;
-            break;
-        case FILE_READ_DATA | FILE_WRITE_DATA:
-            create_in.create.flags = O_RDWR;
-            break;
-        case FILE_READ_DATA:
-            __fallthrough;
-        default:
-            create_in.create.flags = O_RDONLY;
-            break;
-    }
-
-    if (GrantedAccess & FILE_APPEND_DATA)
-    {
-        create_in.create.flags |= O_APPEND;
-    }
-
-    create_in.create.flags |= O_EXCL;
+    create_in.create.flags = AccessToUnixFlags(GrantedAccess) | O_EXCL;
 
     DBG("create_in.create.flags: 0x%08x", create_in.create.flags);
     DBG("create_in.create.mode: 0x%08x", create_in.create.mode);
@@ -850,30 +856,11 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
         (FileContext->IsDirectory == TRUE) ? FUSE_OPENDIR : FUSE_OPEN,
         lookup_out.entry.nodeid, sizeof(open_in.open));
 
-    switch (GrantedAccess & (FILE_READ_DATA | FILE_WRITE_DATA))
-    {
-        case FILE_WRITE_DATA:
-            open_in.open.flags = O_WRONLY;
-            break;
-        case FILE_READ_DATA | FILE_WRITE_DATA:
-            open_in.open.flags = O_RDWR;
-            break;
-        case FILE_READ_DATA:
-            open_in.open.flags = O_RDONLY;
-            break;
-        default:
-            open_in.open.flags = 0;
-            break;
-    }
+    open_in.open.flags = AccessToUnixFlags(GrantedAccess);
 
     if (FileContext->IsDirectory == TRUE)
     {
         open_in.open.flags |= O_DIRECTORY;
-    }
-
-    if (GrantedAccess & FILE_APPEND_DATA)
-    {
-        open_in.open.flags |= O_APPEND;
     }
 
     Status = VirtFsFuseRequest(VirtFs->Device, &open_in, sizeof(open_in),
