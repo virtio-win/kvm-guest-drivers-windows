@@ -59,8 +59,12 @@
 // Some of the constants defined in Windows doesn't match the values that are
 // used in Linux. Don't try just to understand, just redefine them to match.
 #undef O_EXCL
+#undef S_IFMT
+#undef S_IFDIR
 
 #define O_EXCL      0200
+#define S_IFMT      0170000
+#define S_IFDIR     040000
 
 #define DBG(format, ...) \
     FspDebugLog("*** %s: " format "\n", __FUNCTION__, __VA_ARGS__)
@@ -254,8 +258,13 @@ static UINT32 PosixUnixModeToAttributes(uint32_t mode)
             break;
 
         default:
-            Attributes = FILE_ATTRIBUTE_NORMAL;
+            Attributes = FILE_ATTRIBUTE_ARCHIVE;
             break;
+    }
+
+    if (!!(mode & 0222) == FALSE)
+    {
+        Attributes |= FILE_ATTRIBUTE_READONLY;
     }
 
     return Attributes;
@@ -469,7 +478,7 @@ static NTSTATUS VirtFsCreateDir(VIRTFS *VirtFs,
     mkdir_in.hdr.gid = VirtFs->OwnerGid;
 
     lstrcpyA(mkdir_in.name, FileName);
-    mkdir_in.mkdir.mode = Mode;
+    mkdir_in.mkdir.mode = Mode | 0111; /* ---x--x--x */
     mkdir_in.mkdir.umask = 0;
 
     Status = VirtFsFuseRequest(VirtFs->Device, &mkdir_in, mkdir_in.hdr.len,
@@ -751,9 +760,11 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext;
     NTSTATUS Status;
-    UINT32 Mode = 0;
+    UINT32 Mode = 0664 /* -rw-rw-r-- */;
     char *filename, *fullpath;
     uint64_t parent;
+
+    UNREFERENCED_PARAMETER(SecurityDescriptor);
 
     DBG("\"%S\" CreateOptions: 0x%08x GrantedAccess: 0x%08x "
         "FileAttributes: 0x%08x AllocationSize: %Iu", FileName,
@@ -784,17 +795,9 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
 
     FileContext->IsDirectory = !!(CreateOptions & FILE_DIRECTORY_FILE);
 
-    if (SecurityDescriptor != NULL)
+    if (!!(FileAttributes & FILE_ATTRIBUTE_READONLY) == TRUE)
     {
-        UINT32 Uid, Gid;
-
-        Status = FspPosixMapSecurityDescriptorToPermissions(
-            SecurityDescriptor, &Uid, &Gid, &Mode);
-
-        if (!NT_SUCCESS(Status))
-        {
-            Mode = 0400 | 0200; /* S_IRUSR | S_IWUSR */
-        }
+        Mode &= ~0222;
     }
 
     if (FileContext->IsDirectory == TRUE)
