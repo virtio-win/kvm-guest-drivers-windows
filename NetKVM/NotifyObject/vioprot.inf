@@ -28,7 +28,7 @@ CatalogFile  = vioprot.cat
 [Install]
 AddReg=Inst_Ndi
 Characteristics=0x0
-CopyFiles=Copy.Dll
+CopyFiles=Copy.Exec
 
 ;-------------------------------------------------------------------------
 ; Ndi installation support
@@ -45,22 +45,15 @@ HKR,Ndi\Interfaces, LowerRange,,"ndis5,ndis5_prot"
 ; Service installation support
 ;-------------------------------------------------------------------------
 [Install.Services]
-AddService=netkvmp,,NETKVMP.ServiceInst,NETKVMP.EventLog
+AddService=netkvmp,,NETKVMP.ServiceInst
 
 [NETKVMP.ServiceInst]
 DisplayName     = %NETKVMP_Desc%
-ServiceType     = 1 ;SERVICE_KERNEL_DRIVER
+ServiceType     = 16 ;SERVICE_WIN32_OWN_PROCESS
 StartType       = 3 ;SERVICE_DEMAND_START
 ErrorControl    = 1 ;SERVICE_ERROR_NORMAL
-ServiceBinary   = %12%\netkvm.sys
+ServiceBinary   = %11%\netkvmp.exe
 Description     = %NETKVMP_Desc%
-
-[NETKVMP.EventLog]
-AddReg = NETKVMP.EventLog.Reg
-
-[NETKVMP.EventLog.Reg]
-HKR, , EventMessageFile, 0x20000, "%%SystemRoot%%\System32\netevent.dll"
-HKR, , TypesSupported,   0x10001, 7
 
 [Install.Remove.Services]
 DelService=netkvmp,0x200 ;SPSVCINST_STOPSERVICE
@@ -73,15 +66,17 @@ DelService=netkvmp,0x200 ;SPSVCINST_STOPSERVICE
 
 [SourceDisksFiles]
 netkvmno.dll=1
+netkvmp.exe=1
 
 [DestinationDirs]
-Copy.Dll    = 11    ; %windir%\System32
+Copy.Exec    = 11    ; %windir%\System32
 
 ;-------------------------------------------------------------------------
 ; Files to Copy/Delete - Referenced by Install and Remove sections above
 ;-------------------------------------------------------------------------
-[Copy.Dll]
+[Copy.Exec]
 netkvmno.dll,,,2    ; COPYFLG_NOSKIP
+netkvmp.exe,,,2     ; COPYFLG_NOSKIP
 
 [Strings]
 VENDOR = "INX_COMPANY"

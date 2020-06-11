@@ -314,12 +314,16 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <PostBuildEvent>
-      <Command>xcopy /y /q $(PlatformTarget)\$(ConfigurationName)\vioprot.inf $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
+      <Command>
+xcopy /y /q $(PlatformTarget)\$(ConfigurationName)\vioprot.inf $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
 xcopy /y /q $(PlatformTarget)\$(ConfigurationName)\netkvmno.dll $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
 xcopy /y /q $(PlatformTarget)\$(ConfigurationName)\netkvmno.pdb $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
+xcopy /y /q ..\ProtocolService\$(PlatformTarget)\Release\netkvmp.exe $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
+xcopy /y /q ..\ProtocolService\$(PlatformTarget)\Release\netkvmp.pdb $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
+
 cd $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)
-echo Signing DLL
-signtool sign /a /fd sha256 /tr "http://sha256timestamp.ws.symantec.com/sha256/timestamp" netkvmno.dll
+echo Signing executables
+signtool sign /a /fd sha256 /tr "http://sha256timestamp.ws.symantec.com/sha256/timestamp" netkvmno.dll netkvmp.exe
 echo Generating CAT file
 inf2cat /driver:. /os:$(Inf2CatWindowsVersionList)
 echo Signing CAT file
