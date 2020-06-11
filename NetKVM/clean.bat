@@ -21,14 +21,11 @@ call :rmdir ARM64
 call :rmfiles build.err build.log buildfre_*.log buildchk_*.log msbuild.log
 call :rmfiles netkvm.DVL.XML SDV-default.xml sdv-user.sdv
 
-pushd CoInstaller
-call clean.bat
-popd
+for %%d in (CoInstaller NDIS5 Mof NotifyObject ProtocolService) do call :subdir %%d
+goto :eof
 
-pushd NDIS5
+:subdir
+pushd %1
 call clean.bat
 popd
-
-pushd Mof
-call clean.bat
-popd
+goto :eof
