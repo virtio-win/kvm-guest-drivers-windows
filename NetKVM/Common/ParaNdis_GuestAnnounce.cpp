@@ -155,7 +155,7 @@ VOID CGuestAnnouncePackets::SendNBLs()
             NewNBL->ParentNetBufferList = OriginalNBL;
             NdisInterlockedIncrement(&OriginalNBL->ChildRefCount);
             DPrintf(1, "[%s] ChildRefCount %d", __FUNCTION__, OriginalNBL->ChildRefCount);
-            ParaNdis6_SendNBLInternal(m_Context, NewNBL, 0, NDIS_SEND_FLAGS_DISPATCH_LEVEL);
+            ParaNdis6_SendNBLInternal(m_Context, NewNBL, 0, 0);
         }
     });
 }
