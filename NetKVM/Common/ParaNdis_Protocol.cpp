@@ -587,7 +587,9 @@ public:
         CAdapterEntry *e = new (m_DriverHandle)CAdapterEntry(pContext);
         if (e)
         {
-            TraceNoPrefix(0, "[%s] new entry %p for adapter %p\n", func, e, pContext);
+            UCHAR *mac = pContext->CurrentMacAddress;
+            TraceNoPrefix(0, "[%s] new entry %p for adapter %p, mac %02X-%02X-%02X-%02X-%02X-%02X\n",
+                func, e, pContext, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
             m_Adapters.PushBack(e);
         }
     }
@@ -651,7 +653,8 @@ public:
         CAdapterEntry *e = new (m_DriverHandle)CAdapterEntry(Binding, MacAddress);
         if (e)
         {
-            TraceNoPrefix(0, "[%s] new entry %p for binding %p\n", func, e, Binding);
+            TraceNoPrefix(0, "[%s] new entry %p for binding %p, mac %02X-%02X-%02X-%02X-%02X-%02X\n",
+                func, e, Binding, MacAddress[0], MacAddress[1], MacAddress[2], MacAddress[3], MacAddress[4], MacAddress[5]);
             m_Adapters.PushBack(e);
         }
     }
