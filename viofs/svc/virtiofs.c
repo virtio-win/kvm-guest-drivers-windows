@@ -52,6 +52,8 @@
 #define FS_SERVICE_NAME TEXT("VirtIO-FS")
 #define ALLOCATION_UNIT 4096
 
+#define INVALID_FILE_HANDLE ((uint64_t)(-1))
+
 // Some of the constants defined in Windows doesn't match the values that are
 // used in Linux. Don't try just to understand, just redefine them to match.
 #undef O_DIRECTORY
@@ -610,12 +612,13 @@ static NTSTATUS GetFileInfoInternal(VIRTFS *VirtFs,
     FUSE_HEADER_INIT(&getattr_in.hdr, FUSE_GETATTR, FileContext->NodeId,
         sizeof(getattr_in.getattr));
 
-    getattr_in.getattr.fh = FileContext->FileHandle;
-    getattr_in.getattr.getattr_flags = 0;
-    if (getattr_in.getattr.fh != 0)
+    if (FileContext->FileHandle != INVALID_FILE_HANDLE)
     {
+        getattr_in.getattr.fh = FileContext->FileHandle;
         getattr_in.getattr.getattr_flags |= FUSE_GETATTR_FH;
     }
+
+    getattr_in.getattr.getattr_flags = 0;
         
     Status = VirtFsFuseRequest(VirtFs->Device, &getattr_in,
         sizeof(getattr_in), &getattr_out, sizeof(getattr_out));
@@ -792,6 +795,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
     }
 
     FileContext->IsDirectory = !!(CreateOptions & FILE_DIRECTORY_FILE);
+    FileContext->FileHandle = INVALID_FILE_HANDLE;
 
     if (!!(FileAttributes & FILE_ATTRIBUTE_READONLY) == TRUE)
     {
@@ -1150,9 +1154,9 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     ZeroMemory(&setattr_in.setattr, sizeof(setattr_in.setattr));
     
-    if (FileContext->FileHandle != 0)
+    if (FileContext->FileHandle != INVALID_FILE_HANDLE)
     {
-        setattr_in.setattr.valid = FATTR_FH;
+        setattr_in.setattr.valid |= FATTR_FH;
         setattr_in.setattr.fh = FileContext->FileHandle;
     }
 
