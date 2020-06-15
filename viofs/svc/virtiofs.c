@@ -52,16 +52,14 @@
 #define FS_SERVICE_NAME TEXT("VirtIO-FS")
 #define ALLOCATION_UNIT 4096
 
-#if !defined(O_DIRECTORY)
-#define O_DIRECTORY 0x200000
-#endif
-
 // Some of the constants defined in Windows doesn't match the values that are
 // used in Linux. Don't try just to understand, just redefine them to match.
+#undef O_DIRECTORY
 #undef O_EXCL
 #undef S_IFMT
 #undef S_IFDIR
 
+#define O_DIRECTORY 0200000
 #define O_EXCL      0200
 #define S_IFMT      0170000
 #define S_IFDIR     040000
