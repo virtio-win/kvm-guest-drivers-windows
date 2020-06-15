@@ -1145,8 +1145,6 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     FUSE_SETATTR_IN setattr_in;
     FUSE_SETATTR_OUT setattr_out;
 
-    UNREFERENCED_PARAMETER(FileAttributes);
-
     DBG("fh: %Iu nodeid: %Iu", FileContext->FileHandle, FileContext->NodeId);
 
     FUSE_HEADER_INIT(&setattr_in.hdr, FUSE_SETATTR, FileContext->NodeId,
@@ -1154,10 +1152,27 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     ZeroMemory(&setattr_in.setattr, sizeof(setattr_in.setattr));
     
-    if (FileContext->FileHandle != INVALID_FILE_HANDLE)
+    if ((FileContext->IsDirectory == FALSE) &&
+        (FileContext->FileHandle != INVALID_FILE_HANDLE))
     {
         setattr_in.setattr.valid |= FATTR_FH;
         setattr_in.setattr.fh = FileContext->FileHandle;
+    }
+
+    if (FileAttributes != INVALID_FILE_ATTRIBUTES)
+    {
+        setattr_in.setattr.valid |= FATTR_MODE;
+        setattr_in.setattr.mode = 0664 /* -rw-rw-r-- */;
+
+        if (!!(FileAttributes & FILE_ATTRIBUTE_READONLY) == TRUE)
+        {
+            setattr_in.setattr.mode &= ~0222;
+        }
+
+        if (!!(FileAttributes & FILE_ATTRIBUTE_DIRECTORY) == TRUE)
+        {
+            setattr_in.setattr.mode |= 040111;
+        }
     }
 
     if (LastAccessTime != 0)
