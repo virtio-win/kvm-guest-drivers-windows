@@ -340,7 +340,7 @@ public:
     CFlowStateMachine m_RxStateMachine;
     CFlowStateMachine m_TxStateMachine;
     bool Send(PNET_BUFFER_LIST Nbl, ULONG Count);
-    void ReturnNbls(PNET_BUFFER_LIST pNBL, ULONG numNBLs);
+    void ReturnNbls(PNET_BUFFER_LIST pNBL, ULONG numNBLs, ULONG flags);
     void SetOidAsync(ULONG oid, PVOID data, ULONG size);
     void SetOid(ULONG oid, PVOID data, ULONG size);
 private:
@@ -824,30 +824,37 @@ void CProtocolBinding::OnReceive(PNET_BUFFER_LIST Nbls, ULONG NofNbls, ULONG Fla
             NdisMIndicateReceiveNetBufferLists(
                 m_BoundAdapter->MiniportHandle, Nbls,
                 NDIS_DEFAULT_PORT_NUMBER, NofNbls, Flags);
-            bDrop = false;
         }
+        else
+        {
+            // should never happen
+            TraceNoPrefix(0, "[%s] ERROR: dropped %d NBLs\n", __FUNCTION__, NofNbls);
+            ReturnNbls(Nbls, NofNbls, 0);
+        }
+        bDrop = false;
     }
     if (bDrop)
     {
         TraceNoPrefix(0, "[%s] dropped %d NBLs\n", __FUNCTION__, NofNbls);
-        NdisReturnNetBufferLists(m_BindingHandle, Nbls, 0);
+        NdisReturnNetBufferLists(m_BindingHandle, Nbls,
+            (Flags & NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL) ? NDIS_RETURN_FLAGS_DISPATCH_LEVEL : 0);
     }
 }
 
-void CProtocolBinding::ReturnNbls(PNET_BUFFER_LIST pNBL, ULONG numNBLs)
+void CProtocolBinding::ReturnNbls(PNET_BUFFER_LIST pNBL, ULONG numNBLs, ULONG flags)
 {
-    NdisReturnNetBufferLists(m_BindingHandle, pNBL, 0);
+    NdisReturnNetBufferLists(m_BindingHandle, pNBL, flags);
     m_RxStateMachine.UnregisterOutstandingItems(numNBLs);
 }
 
-void ParaNdis_ProtocolReturnNbls(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST pNBL, ULONG numNBLs)
+void ParaNdis_ProtocolReturnNbls(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST pNBL, ULONG numNBLs, ULONG flags)
 {
     // ensure the adapter has a binding and if yes, reference it
     CProtocolBinding *pb = (CProtocolBinding *)ParaNdis_ReferenceBinding(pContext);
     if (pb)
     {
         TraceNoPrefix(1, "[%s] %d NBLs\n", __FUNCTION__, numNBLs);
-        pb->ReturnNbls(pNBL, numNBLs);
+        pb->ReturnNbls(pNBL, numNBLs, flags);
         ParaNdis_DereferenceBinding(pContext);
     }
     else
@@ -1115,6 +1122,6 @@ void ParaNdis_ProtocolRegisterAdapter(PARANDIS_ADAPTER *) { }
 void ParaNdis_ProtocolInitialize(NDIS_HANDLE) { }
 bool ParaNdis_ProtocolSend(PARANDIS_ADAPTER *, PNET_BUFFER_LIST) { return false; }
 void ParaNdis_PropagateOid(PARANDIS_ADAPTER *, NDIS_OID, PVOID, UINT) { }
-void ParaNdis_ProtocolReturnNbls(PARANDIS_ADAPTER *, PNET_BUFFER_LIST, ULONG) { }
+void ParaNdis_ProtocolReturnNbls(PARANDIS_ADAPTER *, PNET_BUFFER_LIST, ULONG, ULONG) { }
 
 #endif //NDIS_SUPPORT_NDIS630
