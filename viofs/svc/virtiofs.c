@@ -71,6 +71,8 @@
 
 #define SafeHeapFree(p) if (p != NULL) { HeapFree(GetProcessHeap(), 0, p); }
 
+#define ReadAndExecute(x) ((x) | (((x) & 0444) >> 2))
+
 typedef struct
 {
     FSP_FILE_SYSTEM *FileSystem;
@@ -635,8 +637,8 @@ static NTSTATUS GetFileInfoInternal(VIRTFS *VirtFs,
         if (SecurityDescriptor != NULL)
         {
             Status = FspPosixMapPermissionsToSecurityDescriptor(
-                VirtFs->LocalUid, VirtFs->LocalGid, attr->mode,
-                SecurityDescriptor);
+                VirtFs->LocalUid, VirtFs->LocalGid,
+                ReadAndExecute(attr->mode), SecurityDescriptor);
         }
     }
 
@@ -719,7 +721,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
         }
 
         Status = FspPosixMapPermissionsToSecurityDescriptor(VirtFs->LocalUid,
-            VirtFs->LocalGid, attr->mode, &Security);
+            VirtFs->LocalGid, ReadAndExecute(attr->mode), &Security);
 
         if (NT_SUCCESS(Status))
         {
