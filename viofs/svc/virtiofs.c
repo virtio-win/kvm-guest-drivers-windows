@@ -321,7 +321,7 @@ static VOID SetFileInfo(struct fuse_attr *attr, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     FileInfo->FileAttributes = PosixUnixModeToAttributes(attr->mode);
     FileInfo->ReparseTag = 0;
-    FileInfo->AllocationSize = attr->blocks * attr->blksize;
+    FileInfo->AllocationSize = attr->blocks * 512;
     FileInfo->FileSize = attr->size;
     UnixTimeToFileTime(attr->ctime, attr->ctimensec, &FileInfo->CreationTime);
     UnixTimeToFileTime(attr->atime, attr->atimensec,
