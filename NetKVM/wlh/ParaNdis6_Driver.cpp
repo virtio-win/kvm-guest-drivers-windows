@@ -537,7 +537,6 @@ VOID ParaNdis6_ReturnNetBufferLists(
     PNET_BUFFER_LIST *netkvmTail = &netkvmHead, *sriovTail = &sriovHead;
     ULONG nofNetkvm = 0, nofSriov = 0;
 
-    UNREFERENCED_PARAMETER(returnFlags);
     DEBUG_ENTRY(5);
 
     if (!IsProtocolActive(pContext))
@@ -575,7 +574,7 @@ VOID ParaNdis6_ReturnNetBufferLists(
 
     if (nofSriov)
     {
-        ParaNdis_ProtocolReturnNbls(pContext, sriovHead, nofSriov);
+        ParaNdis_ProtocolReturnNbls(pContext, sriovHead, nofSriov, returnFlags);
     }
 }
 
