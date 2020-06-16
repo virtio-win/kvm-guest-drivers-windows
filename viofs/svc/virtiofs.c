@@ -102,6 +102,10 @@ typedef struct
 
 } VIRTFS_FILE_CONTEXT, *PVIRTFS_FILE_CONTEXT;
 
+static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
+    UINT32 FileAttributes, UINT64 CreationTime, UINT64 LastAccessTime,
+    UINT64 LastWriteTime, UINT64 ChangeTime, FSP_FSCTL_FILE_INFO *FileInfo);
+
 static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     UINT64 NewSize, BOOLEAN SetAllocationSize, FSP_FSCTL_FILE_INFO *FileInfo);
 
@@ -903,20 +907,33 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
         "AllocationSize: %Iu", FileAttributes, ReplaceFileAttributes,
         AllocationSize);
 
-    if (ReplaceFileAttributes == FALSE)
+    if ((FileAttributes != 0) && (FileAttributes != INVALID_FILE_ATTRIBUTES))
     {
-        Status = GetFileInfoInternal(VirtFs, FileContext, FileInfo, NULL);
-        if (!NT_SUCCESS(Status))
+        if (ReplaceFileAttributes == FALSE)
         {
-            return Status;
+            Status = GetFileInfoInternal(VirtFs, FileContext, FileInfo, NULL);
+            if (!NT_SUCCESS(Status))
+            {
+                return Status;
+            }
+
+            FileAttributes |= FileInfo->FileAttributes;
         }
 
-        FileAttributes |= FileInfo->FileAttributes;
+        if ((FileAttributes != FileInfo->FileAttributes))
+        {
+            Status = SetBasicInfo(FileSystem, FileContext0, FileAttributes,
+                0LL, 0LL, 0LL, 0LL, FileInfo);
+
+            if (!NT_SUCCESS(Status))
+            {
+                return Status;
+            }
+        }
     }
 
-    // XXX Call SetBasicInfo and SetFileSize?
-
-    return GetFileInfoInternal(VirtFs, FileContext, FileInfo, NULL);
+    return SetFileSize(FileSystem, FileContext0, AllocationSize, FALSE,
+        FileInfo);
 }
 
 static VOID Close(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0)
