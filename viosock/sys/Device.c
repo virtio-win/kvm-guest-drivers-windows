@@ -102,9 +102,37 @@ VIOSockInterruptInit(
 }
 
 static
+VOID
+VIOSockQueuesCleanup(
+    IN WDFDEVICE hDevice
+)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContext(hDevice);
+    NTSTATUS status = STATUS_SUCCESS;
+
+    ULONG uBufferSize;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+
+    if (pContext->RxVq)
+        VIOSockRxVqCleanup(pContext);
+
+    if (pContext->TxVq)
+        VIOSockTxVqCleanup(pContext);
+
+    if (pContext->EvtVq)
+        VIOSockEvtVqCleanup(pContext);
+
+    VirtIOWdfDestroyQueues(&pContext->VDevice);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+}
+
+static
 NTSTATUS
 VIOSockQueuesInit(
-    IN WDFDEVICE hDevice)
+    IN WDFDEVICE hDevice
+)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(hDevice);
     NTSTATUS status = STATUS_SUCCESS;
@@ -128,53 +156,40 @@ VIOSockQueuesInit(
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VirtIOWdfInitQueues failed: 0x%x\n", status);
         return status;
     }
+
     pContext->RxVq = vqs[VIOSOCK_VQ_RX];
     status = VIOSockRxVqInit(pContext);
-    if (!NT_SUCCESS(status))
-        return status;
+    if (NT_SUCCESS(status))
+    {
+        pContext->TxVq = vqs[VIOSOCK_VQ_TX];
+        status = VIOSockTxVqInit(pContext);
+        if (NT_SUCCESS(status))
+        {
+            pContext->EvtVq = vqs[VIOSOCK_VQ_EVT];
+            status = VIOSockEvtVqInit(pContext);
+            if (!NT_SUCCESS(status))
+                pContext->EvtVq = NULL;
+        }
+        else
+            pContext->TxVq = NULL;
+    }
+    else
+        pContext->RxVq = NULL;
 
-    pContext->TxVq = vqs[VIOSOCK_VQ_TX];
-    status = VIOSockTxVqInit(pContext);
     if (!NT_SUCCESS(status))
-        return status;
-
-    pContext->EvtVq = vqs[VIOSOCK_VQ_EVT];
-    status = VIOSockEvtVqInit(pContext);
+        VIOSockQueuesCleanup(hDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 
     return status;
 }
 
-static
-VOID
-VIOSockQueuesCleanup(
-    IN WDFDEVICE hDevice)
-{
-    PDEVICE_CONTEXT pContext = GetDeviceContext(hDevice);
-    NTSTATUS status = STATUS_SUCCESS;
-
-    ULONG uBufferSize;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
-
-    if (pContext->RxVq)
-        VIOSockRxVqCleanup(pContext);
-
-    if (pContext->TxVq)
-        VIOSockTxVqCleanup(pContext);
-
-    if (pContext->EvtVq)
-        VIOSockEvtVqCleanup(pContext);
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
-}
-
 //////////////////////////////////////////////////////////////////////////
 NTSTATUS
 VIOSockEvtDeviceAdd(
     IN WDFDRIVER Driver,
-    IN PWDFDEVICE_INIT DeviceInit)
+    IN PWDFDEVICE_INIT DeviceInit
+)
 {
     NTSTATUS                     status = STATUS_SUCCESS;
     WDF_OBJECT_ATTRIBUTES        deviceAttributes, fileAttributes, memAttributes;
