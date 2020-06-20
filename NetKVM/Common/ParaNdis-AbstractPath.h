@@ -120,7 +120,7 @@ public:
         {
             m_VirtQueue.DoNotTouchHardware();
         }
-        else if (PoweredOn)
+        else if (message == PoweredOn)
         {
             m_VirtQueue.AllowTouchHardware();
         }
