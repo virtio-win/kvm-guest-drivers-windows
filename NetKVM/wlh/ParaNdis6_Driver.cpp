@@ -391,7 +391,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
     if (pContext && status == NDIS_STATUS_SUCCESS)
     {
-        pContext->m_StateMachine.NotifyInitialized();
+        pContext->m_StateMachine.NotifyInitialized(pContext);
         ParaNdis_DebugRegisterMiniport(pContext, TRUE);
         ParaNdis_ProtocolRegisterAdapter(pContext);
     }
