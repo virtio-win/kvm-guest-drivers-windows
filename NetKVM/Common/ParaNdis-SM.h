@@ -235,10 +235,12 @@ public:
         void UnregisterFlow(CConfigFlowStateMachine &Flow)
         { m_ConfigFlows.Remove(&Flow); }
 
-        void NotifyInitialized()
+        void NotifyInitialized(PVOID AdapterContext)
         {
             StartConfigFlows();
             ChangeState(MiniportState::Paused, MiniportState::Halted);
+            m_BindingToSriov.SetAdapterContext(AdapterContext);
+            Add(&m_BindingToSriov);
         }
 
         void NotifyShutdown()
