@@ -208,6 +208,18 @@ private:
     PVOID m_Value;
 };
 
+class CBindingToSriov : public CFlowStateMachineWithPointer, public CObserver<SMNotifications>
+{
+public:
+    void SetAdapterContext(PVOID Context)
+    {
+        m_Context = Context;
+    }
+private:
+    void Notify(SMNotifications message) override;
+    PVOID m_Context = NULL;
+};
+
 class CMiniportStateMachine : public CPlacementAllocatable, public CObservee<SMNotifications>
 {
 public:
@@ -405,5 +417,5 @@ private:
     MiniportState m_State = MiniportState::Halted;
     CNdisList<CDataFlowStateMachine, CRawAccess, CNonCountingObject> m_DataFlows;
     CNdisList<CConfigFlowStateMachine, CRawAccess, CNonCountingObject> m_ConfigFlows;
-    CFlowStateMachineWithPointer m_BindingToSriov;
+    CBindingToSriov m_BindingToSriov;
 };

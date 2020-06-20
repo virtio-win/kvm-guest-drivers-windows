@@ -1237,3 +1237,16 @@ VOID ParaNdis6_SendNBLInternal(NDIS_HANDLE miniportAdapterContext, PNET_BUFFER_L
 {
     ParaNdis6_SendNetBufferLists(miniportAdapterContext, pNBL, portNumber, flags);
 }
+
+void CBindingToSriov::Notify(SMNotifications msg)
+{
+    PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)m_Context;
+    if (msg == SMNotifications::PoweredOn)
+    {
+        ParaNdis_ProtocolRegisterAdapter(pContext);
+    }
+    if (msg == SMNotifications::PoweringOff)
+    {
+        ParaNdis_ProtocolUnregisterAdapter(pContext, false);
+    }
+}
