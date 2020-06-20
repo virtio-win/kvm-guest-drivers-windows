@@ -417,7 +417,7 @@ static VOID ParaNdis6_Halt(NDIS_HANDLE miniportAdapterContext, NDIS_HALT_ACTION 
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, hopHalt, NULL, 1, haltAction, 0);
-    ParaNdis_ProtocolUnregisterAdapter(pContext);
+    ParaNdis_ProtocolUnregisterAdapter(pContext, true);
     ParaNdis_CleanupContext(pContext);
     ParaNdis_DebugHistory(pContext, hopHalt, NULL, 0, 0, 0);
     ParaNdis_DebugRegisterMiniport(pContext, FALSE);
