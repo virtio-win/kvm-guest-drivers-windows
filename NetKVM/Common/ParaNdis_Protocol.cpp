@@ -615,20 +615,20 @@ public:
             }
             return false;
         });
-        bool bDelete = true;
+        bool bNoMore = true;
         m_Adapters.ForEach([&](CAdapterEntry *e)
         {
             if (e->m_Adapter)
             {
                 TraceNoPrefix(0, "[%s] existing entry %p for adapter %p\n", func, e, pContext);
-                bDelete = false;
+                bNoMore = false;
             }
         });
-        if (bDelete)
+        if (bNoMore)
         {
             TraceNoPrefix(0, "[%s] no more adapters\n", func);
         }
-        return bDelete;
+        return bNoMore;
     }
     void AddBinding(UCHAR *MacAddress, PVOID Binding)
     {
@@ -714,11 +714,11 @@ void ParaNdis_ProtocolRegisterAdapter(PARANDIS_ADAPTER *pContext)
     ProtocolData->AddAdapter(pContext);
 }
 
-void ParaNdis_ProtocolUnregisterAdapter(PARANDIS_ADAPTER *pContext)
+void ParaNdis_ProtocolUnregisterAdapter(PARANDIS_ADAPTER *pContext, bool UnregisterOnLast)
 {
     if (!ProtocolData)
         return;
-    if (ProtocolData->RemoveAdapter(pContext))
+    if (ProtocolData->RemoveAdapter(pContext) && UnregisterOnLast)
     {
         ProtocolData->Release();
         ProtocolData = NULL;
@@ -1117,7 +1117,7 @@ void CProtocolBinding::OnOpStateChange(bool State)
 
 #else
 
-void ParaNdis_ProtocolUnregisterAdapter(PARANDIS_ADAPTER *) { }
+void ParaNdis_ProtocolUnregisterAdapter(PARANDIS_ADAPTER *, bool) { }
 void ParaNdis_ProtocolRegisterAdapter(PARANDIS_ADAPTER *) { }
 void ParaNdis_ProtocolInitialize(NDIS_HANDLE) { }
 bool ParaNdis_ProtocolSend(PARANDIS_ADAPTER *, PNET_BUFFER_LIST) { return false; }
