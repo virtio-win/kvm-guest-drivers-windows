@@ -8,7 +8,8 @@ enum SMNotifications {
     stopped,
     SupriseRemoved,
     NeedsReset,
-    PoweredOn
+    PoweredOn,
+    PoweringOff
 };
 
 class CFlowStateMachine : public CPlacementAllocatable
@@ -299,6 +300,7 @@ public:
             {
                 ChangeState(MiniportState::Suspended, MiniportState::Paused);
             }
+            UpdateFlowsOnEvent(SMNotifications::PoweringOff);
         }
 
         void NotifyHalted()
