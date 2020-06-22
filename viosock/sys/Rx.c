@@ -68,11 +68,6 @@ typedef struct _VIOSOCK_RX_PKT
     };
 }VIOSOCK_RX_PKT, *PVIOSOCK_RX_PKT;
 
-PVIOSOCK_RX_CB
-VIOSockRxCbAdd(
-    IN PDEVICE_CONTEXT pContext
-);
-
 BOOLEAN
 VIOSockRxCbInit(
     IN PDEVICE_CONTEXT  pContext
@@ -84,7 +79,6 @@ VIOSockRxCbCleanup(
 );
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (PAGE, VIOSockRxCbAdd)
 #pragma alloc_text (PAGE, VIOSockRxCbInit)
 #pragma alloc_text (PAGE, VIOSockRxCbCleanup)
 #pragma alloc_text (PAGE, VIOSockRxVqInit)
@@ -147,8 +141,6 @@ VIOSockRxCbAdd(
     NTSTATUS        status;
     PVIOSOCK_RX_CB  pCb = NULL;
     WDFMEMORY       Memory;
-
-    PAGED_CODE();
 
     status = WdfMemoryCreateFromLookaside(pContext->RxCbBufferMemoryList, &Memory);
     if (NT_SUCCESS(status))
