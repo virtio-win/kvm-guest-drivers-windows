@@ -100,7 +100,7 @@ public:
     {
         NdisZeroMemory(&m_Request, sizeof(m_Request));
         PVOID data = this;
-        NdisMoveMemory(m_Request.SourceReserved, &data, sizeof(data));
+        NdisMoveMemory(m_Request.SourceReserved, &data, sizeof(PVOID));
         m_Request.Header.Type = NDIS_OBJECT_TYPE_OID_REQUEST;
         m_Request.Header.Revision = NDIS_OID_REQUEST_REVISION_1;
         m_Request.Header.Size = NDIS_SIZEOF_OID_REQUEST_REVISION_1;
@@ -216,7 +216,7 @@ public:
     void OidComplete(PNDIS_OID_REQUEST OidRequest, NDIS_STATUS Status)
     {
         PVOID data;
-        NdisMoveMemory(&data, OidRequest->SourceReserved, sizeof(data));
+        NdisMoveMemory(&data, OidRequest->SourceReserved, sizeof(PVOID));
         COidWrapper *pOid = (COidWrapper *)data;
         pOid->Complete(Status);
     }
