@@ -109,6 +109,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\WinFsp\lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>netapi32.lib;wtsapi32.lib;setupapi.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>winfsp-$(PlatformTarget).dll</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -127,6 +128,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>netapi32.lib;wtsapi32.lib;setupapi.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>winfsp-$(PlatformTarget).dll</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -145,6 +147,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>netapi32.lib;wtsapi32.lib;setupapi.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>winfsp-$(PlatformTarget).dll</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -169,6 +172,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>netapi32.lib;wtsapi32.lib;setupapi.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\WinFsp\lib</AdditionalLibraryDirectories>
+      <DelayLoadDLLs>winfsp-$(PlatformTarget).dll</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
