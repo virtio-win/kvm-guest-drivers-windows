@@ -1734,12 +1734,11 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     else goto usage
 
     wchar_t **argp, **arge;
-    WCHAR VolumePrefix[MAX_PATH];
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     PWSTR DebugLogFile = 0;
     ULONG DebugFlags = 0;
     HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
-    PWSTR MountPoint = NULL;
+    PWSTR MountPoint = TEXT("*");
     VIRTFS *VirtFs;
     DWORD SessionId;
     FILETIME FileTime;
@@ -1763,6 +1762,9 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
                 break;
             case L'D':
                 argtos(DebugLogFile);
+                break;
+            case L'm':
+                argtos(MountPoint);
                 break;
             default:
                 goto usage;
@@ -1810,10 +1812,6 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         return Status;
     }
 
-    lstrcpy(VolumePrefix, L"\\VirtioFS\\");
-    GetVolumeName(VirtFs->Device, VolumePrefix + lstrlen(VolumePrefix),
-        sizeof(VolumePrefix) - (lstrlen(VolumePrefix) * sizeof(WCHAR)));
-
     FUSE_HEADER_INIT(&init_in.hdr, FUSE_INIT, FUSE_ROOT_ID,
         sizeof(init_in.init));
 
@@ -1857,15 +1855,10 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     VolumeParams.FlushAndPurgeOnCleanup = 1;
     VolumeParams.UmFileContextIsUserContext2 = 1;
 //    VolumeParams.DirectoryMarkerAsNextOffset = 1;
-    if (VolumePrefix != NULL)
-    {
-        wcscpy_s(VolumeParams.Prefix,
-            sizeof(VolumeParams.Prefix) / sizeof(WCHAR), VolumePrefix);
-    }
     wcscpy_s(VolumeParams.FileSystemName,
         sizeof(VolumeParams.FileSystemName) / sizeof(WCHAR), FS_SERVICE_NAME);
 
-    Status = FspFileSystemCreate(TEXT(FSP_FSCTL_NET_DEVICE_NAME),
+    Status = FspFileSystemCreate(TEXT(FSP_FSCTL_DISK_DEVICE_NAME),
         &VolumeParams, &VirtFsInterface, &VirtFs->FileSystem);
 
     if (!NT_SUCCESS(Status))
@@ -1878,10 +1871,17 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 
     VirtFs->FileSystem->UserContext = Service->UserContext = VirtFs;
 
-    Status = FspFileSystemSetMountPoint(VirtFs->FileSystem, MountPoint);
+    Status = FspFileSystemSetMountPoint(VirtFs->FileSystem,
+        (lstrcmp(MountPoint, TEXT("*")) == 0) ? NULL : MountPoint);
+
     if (NT_SUCCESS(Status))
     {
         Status = FspFileSystemStartDispatcher(VirtFs->FileSystem, 0);
+    }
+    else
+    {
+        FspServiceLog(EVENTLOG_ERROR_TYPE,
+            TEXT("Failed to mount virtio-fs file system."));
     }
 
     if (!NT_SUCCESS(Status))
@@ -1897,7 +1897,8 @@ usage:
         "\n"
         "options:\n"
         "    -d DebugFlags       [-1: enable all debug logs]\n"
-        "    -D DebugLogFile     [file path; use - for stderr]\n";
+        "    -D DebugLogFile     [file path; use - for stderr]\n"
+        "    -m MountPoint       [X:|* (required if no UNC prefix)]\n";
 
     FspServiceLog(EVENTLOG_ERROR_TYPE, usage, FS_SERVICE_NAME);
 
