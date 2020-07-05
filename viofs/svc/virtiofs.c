@@ -46,7 +46,7 @@
 #include <sys/stat.h>
 #include <wtsapi32.h>
 
-#include "virtfs.h"
+#include "virtiofs.h"
 #include "fusereq.h"
 
 #define FS_SERVICE_NAME TEXT("VirtIO-FS")
