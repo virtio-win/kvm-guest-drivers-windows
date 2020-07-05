@@ -37,7 +37,7 @@
 
 #include "trace.h"
 #include "osdep.h"
-#include "virtfs.h"
+#include "virtiofs.h"
 #include "virtio_pci.h"
 #include "virtio.h"
 #include "VirtIOWdf.h"
