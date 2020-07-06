@@ -71,6 +71,8 @@ public:
             Add(L"ven_8086&dev_1515");  // Intel X540 Virtual Function
             Add(L"ven_8086&dev_10ca");  // Intel 82576 Virtual Function
             Add(L"ven_8086&dev_15a8");  // Intel Ethernet Connection X552
+            Add(L"ven_8086&dev_154c");  // Intel 700 Series VF
+            Add(L"ven_8086&dev_10ed");  // Intel 82599 VF
             Add(L"ven_15b3&dev_101a");  // Mellanox MT28800 Family
         }
         for (UINT i = 0; i < GetCount(); ++i)
