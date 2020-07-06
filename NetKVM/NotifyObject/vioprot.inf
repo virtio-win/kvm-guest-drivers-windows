@@ -1,8 +1,11 @@
-;-------------------------------------------------------------------------
-; VIOPROT.INF -- VirtIO NetKVM Protocol Driver
-;
-; Copyright (c) 2020 Oracle and/or its affiliates.
-;-------------------------------------------------------------------------
+;-----------------------------------
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
+;-----------------------------------
+;          vioprot.inf
+;-----------------------------------
+;       VIRTIO network protocol
+;-----------------------------------
 
 [version]
 Signature   = "$Windows NT$"
@@ -80,6 +83,6 @@ netkvmp.exe,,,2     ; COPYFLG_NOSKIP
 
 [Strings]
 VENDOR = "INX_COMPANY"
-DiskDescription = "VirtIO NetKVM Protocol Driver Disk"
-NETKVMP_Desc = "VirtIO NetKVM Protocol Driver"
-NETKVMP_HelpText = "A driver to support SRIOV for VirtIO network devices"
+DiskDescription = "INX_PREFIX_VENDORVirtIO NetKVM Protocol Driver Disk"
+NETKVMP_Desc = "INX_PREFIX_VENDORVirtIO NetKVM Protocol Driver"
+NETKVMP_HelpText = "A driver to support SRIOV Failover for VirtIO network devices"
