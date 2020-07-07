@@ -767,7 +767,8 @@ NDIS_STATUS ParaNdis_InitializeContext(
         DumpVirtIOFeatures(pContext);
 
         // Enable VIRTIO_F_IOMMU_PLATFORM feature on Windows 10 and Windows Server 2016
-#if (WINVER == 0x0A00)
+        // Do not enable it on arm64 yet.
+#if (WINVER == 0x0A00) && !defined(_ARM64_)
         AckFeature(pContext, VIRTIO_F_IOMMU_PLATFORM);
 #endif
         AckFeature(pContext, VIRTIO_NET_F_STANDBY);
@@ -785,11 +786,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
         InitializeLinkPropertiesConfig(pContext);
 
-#if !defined(_ARM64_)
-        pContext->bControlQueueSupported = AckFeature(pContext, VIRTIO_NET_F_CTRL_VQ);
-#else
-        DPrintf(0, "[%s] Control queue disabled for ARM64\n", __FUNCTION__);
-#endif
         pContext->bGuestAnnounceSupported = pContext->bLinkDetectSupported && pContext->bControlQueueSupported && AckFeature(pContext, VIRTIO_NET_F_GUEST_ANNOUNCE);
         InitializeMAC(pContext, CurrentMAC);
         InitializeMaxMTUConfig(pContext);

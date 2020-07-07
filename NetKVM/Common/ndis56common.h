@@ -84,10 +84,6 @@ extern "C"
 #define _Function_class_(x)
 #endif
 
-#if defined(_ARM64_)
-#define NETKVM_COPY_RX_DATA
-#endif
-
 typedef struct _tagRunTimeNdisVersion
 {
     UCHAR major;
