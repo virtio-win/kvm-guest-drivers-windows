@@ -23,7 +23,19 @@ bool CNdisSharedMemory::Allocate(ULONG Size, bool IsCached)
 {
     m_Size = Size;
     m_IsCached = IsCached;
+#if defined(_ARM64_)
+    /*
+     * On Windows on Arm, do not use NdisMAllocateSharedMemory.
+     * TODO: Figure out a neater way to allocate memory in those cases.
+     */
+    LARGE_INTEGER bound1, bound2;
+    bound1.QuadPart = 0;
+    bound2.QuadPart = MAXUINT64;
+    m_VA = MmAllocateContiguousMemorySpecifyCache(m_Size, bound1, bound2, bound1, MmCached);
+    m_PA = MmGetPhysicalAddress(m_VA);
+#else
     NdisMAllocateSharedMemory(m_DrvHandle, Size, m_IsCached, &m_VA, &m_PA);
+#endif
     return m_VA != nullptr;
 }
 
@@ -31,7 +43,11 @@ CNdisSharedMemory::~CNdisSharedMemory()
 {
     if(m_VA != nullptr)
     {
+#if defined(_ARM64_)
+        MmFreeContiguousMemorySpecifyCache(m_VA, m_Size, MmCached);
+#else
         NdisMFreeSharedMemory(m_DrvHandle, m_Size, m_IsCached, m_VA, m_PA);
+#endif
         m_VA = nullptr;
     }
 }

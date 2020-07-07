@@ -110,12 +110,25 @@ BOOLEAN ParaNdis_InitialAllocatePhysicalMemory(
     ULONG ulSize,
     tCompletePhysicalAddress *pAddresses)
 {
+#if defined(_ARM64_)
+    UNREFERENCED_PARAMETER(pContext);
+    /*
+     * On Windows on Arm, do not use NdisMAllocateSharedMemory.
+     * TODO: Figure out a neater way to allocate memory in those cases.
+     */
+    LARGE_INTEGER bound1, bound2;
+    bound1.QuadPart = 0;
+    bound2.QuadPart = MAXUINT64;
+    pAddresses->Virtual = MmAllocateContiguousMemorySpecifyCache(ulSize, bound1, bound2, bound1, MmCached);
+    pAddresses->Physical = MmGetPhysicalAddress(pAddresses->Virtual);
+#else
     NdisMAllocateSharedMemory(
         pContext->MiniportHandle,
         ulSize,
         TRUE,
         &pAddresses->Virtual,
         &pAddresses->Physical);
+#endif
     if (pAddresses->Virtual != NULL)
     {
         pAddresses->size = ulSize;
@@ -137,12 +150,17 @@ VOID ParaNdis_FreePhysicalMemory(
     PARANDIS_ADAPTER *pContext,
     tCompletePhysicalAddress *pAddresses)
 {
+#if defined(_ARM64_)
+    UNREFERENCED_PARAMETER(pContext);
+    MmFreeContiguousMemorySpecifyCache(pAddresses->Virtual, pAddresses->size, MmCached);
+#else
     NdisMFreeSharedMemory(
         pContext->MiniportHandle,
         pAddresses->size,
         TRUE,
         pAddresses->Virtual,
         pAddresses->Physical);
+#endif
 }
 
 #if (NDIS_SUPPORT_NDIS620)
