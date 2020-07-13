@@ -180,6 +180,9 @@ NTSTATUS GatherKernelStats(BALLOON_STAT stats[VIRTIO_BALLOON_S_NR])
     }
 
     UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_AVAIL, AvailBytes + (UINT64)cacheInfo.CurrentSize/2);
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_CACHES, (UINT64)cacheInfo.CurrentSize);
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_HTLB_PGALLOC, 0);
+    UpdateStat(&stats[idx++], VIRTIO_BALLOON_S_HTLB_PGFAIL, 0);
     #undef UpdateNoOverflow
 
     return ntStatus;

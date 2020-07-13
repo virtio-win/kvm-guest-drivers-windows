@@ -221,7 +221,17 @@ BOOL CMemStat::Update()
             var_val = (ULONGLONG)var_val - minCacheSize;
         }
         m_Stats[idx].tag = VIRTIO_BALLOON_S_AVAIL;
-        m_Stats[idx].val = statex.ullAvailPhys + (ULONGLONG)var_val/2;
+        m_Stats[idx++].val = statex.ullAvailPhys + (ULONGLONG)var_val/2;
+
+        m_Stats[idx].tag = VIRTIO_BALLOON_S_CACHES;
+        m_Stats[idx++].val = (ULONGLONG)var_val;
+
+        m_Stats[idx].tag = VIRTIO_BALLOON_S_HTLB_PGALLOC;
+        m_Stats[idx++].val = 0;
+
+        m_Stats[idx].tag = VIRTIO_BALLOON_S_HTLB_PGFAIL;
+        m_Stats[idx++].val = 0;
     }
+
     return TRUE;
 }
