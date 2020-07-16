@@ -110,7 +110,7 @@ public:
     }
     virtual void Complete(NDIS_STATUS status)
     {
-        TraceNoPrefix(0, "[%s] %s\n", __FUNCTION__, ParaNdis_OidName(m_Request.DATA.SET_INFORMATION.Oid));
+        TraceNoPrefix(0, "[%s] %s = %X\n", __FUNCTION__, ParaNdis_OidName(m_Request.DATA.SET_INFORMATION.Oid), status);
         m_Status = status;
         m_Event.Notify();
     }
@@ -344,6 +344,9 @@ public:
     void SetOidAsync(ULONG oid, PVOID data, ULONG size);
     void SetOid(ULONG oid, PVOID data, ULONG size);
 private:
+    void QueryCurrentOffload();
+    void QueryCurrentRSS();
+    bool QueryOid(ULONG oid, PVOID data, ULONG size);
     void OnOpStateChange(bool State);
     void OnLastReferenceGone() override;
     CParaNdisProtocol& m_Protocol;
@@ -763,6 +766,8 @@ NDIS_STATUS CProtocolBinding::Bind(PNDIS_BIND_PARAMETERS BindParameters)
     }
 
     QueryCapabilities(BindParameters);
+    QueryCurrentOffload();
+    QueryCurrentRSS();
 
     if (NT_SUCCESS(status))
     {
@@ -861,6 +866,78 @@ void ParaNdis_ProtocolReturnNbls(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST pN
     {
         TraceNoPrefix(0, "[%s] ERROR: Can't return %d NBL\n", __FUNCTION__, numNBLs);
     }
+}
+
+void CProtocolBinding::QueryCurrentOffload()
+{
+    NDIS_OFFLOAD current;
+    current.Header.Type = NDIS_OBJECT_TYPE_OFFLOAD;
+    current.Header.Revision = NDIS_OFFLOAD_REVISION_3;
+    current.Header.Size = NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_3;
+    if (!QueryOid(OID_TCP_OFFLOAD_CURRENT_CONFIG, &current, sizeof(current)))
+    {
+        return;
+    }
+    NDIS_TCP_IP_CHECKSUM_OFFLOAD& cso = current.Checksum;
+    TraceNoPrefix(0, "[%s] Checksum4 RX: ip %d%c, tcp %d%c, udp %d\n", __FUNCTION__,
+        cso.IPv4Receive.IpChecksum, cso.IPv4Receive.IpOptionsSupported ? '+' : ' ',
+        cso.IPv4Receive.TcpChecksum, cso.IPv4Receive.TcpOptionsSupported ? '+' : ' ',
+        cso.IPv4Receive.UdpChecksum);
+    TraceNoPrefix(0, "[%s] Checksum4 TX: ip %d%c, tcp %d%c, udp %d\n", __FUNCTION__,
+        cso.IPv4Transmit.IpChecksum, cso.IPv4Transmit.IpOptionsSupported ? '+' : ' ',
+        cso.IPv4Transmit.TcpChecksum, cso.IPv4Transmit.TcpOptionsSupported ? '+' : ' ',
+        cso.IPv4Transmit.UdpChecksum);
+    TraceNoPrefix(0, "[%s] Checksum6 RX: ipx %d, tcp %d%c, udp %d\n", __FUNCTION__,
+        cso.IPv6Receive.IpExtensionHeadersSupported,
+        cso.IPv6Receive.TcpChecksum, cso.IPv6Receive.TcpOptionsSupported ? '+' : ' ',
+        cso.IPv6Receive.UdpChecksum);
+    TraceNoPrefix(0, "[%s] Checksum6 TX: ipx %d, tcp %d%c, udp %d\n", __FUNCTION__,
+        cso.IPv6Transmit.IpExtensionHeadersSupported,
+        cso.IPv6Transmit.TcpChecksum, cso.IPv6Transmit.TcpOptionsSupported ? '+' : ' ',
+        cso.IPv6Transmit.UdpChecksum);
+    NDIS_TCP_RECV_SEG_COALESCE_OFFLOAD& rsc = current.Rsc;
+    TraceNoPrefix(0, "[%s] RSCv4 %d, RSCv6 %d\n", __FUNCTION__, rsc.IPv4.Enabled, rsc.IPv6.Enabled);
+}
+
+void CProtocolBinding::QueryCurrentRSS()
+{
+    struct RSSQuery : public CNdisAllocatable<RSSQuery, 'QORP'>
+    {
+        RSSQuery()
+        {
+            RtlZeroMemory(&rsp, sizeof(rsp));
+            rsp.Header.Type = NDIS_OBJECT_TYPE_RSS_PARAMETERS;
+            rsp.Header.Revision = NDIS_RECEIVE_SCALE_PARAMETERS_REVISION_2;
+            rsp.Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_PARAMETERS_REVISION_2;
+        }
+        NDIS_RECEIVE_SCALE_PARAMETERS rsp;
+        UCHAR key[NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_1];
+        UCHAR indirection[NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2];
+    };
+    auto current = new (m_Protocol.DriverHandle()) RSSQuery;
+    if (!current) {
+        return;
+    }
+    if (QueryOid(OID_GEN_RECEIVE_SCALE_PARAMETERS, current, sizeof(*current)))
+    {
+        TraceNoPrefix(0, "[%s] RSS hash info %X\n", __FUNCTION__, current->rsp.HashInformation);
+    }
+    current->Destroy(current, m_Protocol.DriverHandle());
+}
+
+bool CProtocolBinding::QueryOid(ULONG oid, PVOID data, ULONG size)
+{
+    COidWrapper *p = new (m_Protocol.DriverHandle()) COidWrapper(NdisRequestQueryInformation, oid);
+    if (!p)
+    {
+        return false;
+    }
+    p->m_Request.DATA.SET_INFORMATION.InformationBuffer = data;
+    p->m_Request.DATA.SET_INFORMATION.InformationBufferLength = size;
+    p->Run(m_BindingHandle);
+    NTSTATUS status = p->Status();
+    p->Destroy(p, m_Protocol.DriverHandle());
+    return NT_SUCCESS(status);
 }
 
 void CProtocolBinding::SetOid(ULONG oid, PVOID data, ULONG size)
