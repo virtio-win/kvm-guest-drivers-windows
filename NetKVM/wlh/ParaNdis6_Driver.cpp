@@ -398,9 +398,8 @@ static NDIS_STATUS ParaNdis6_Initialize(
     else
     {
         // In rare case of initialization failure we need to unregister the protocol.
-        // Pass dummy value that in no case can be a valid adapter pointer
-        PARANDIS_ADAPTER *pDummy = (PARANDIS_ADAPTER *)(ULONG_PTR)1;
-        ParaNdis_ProtocolUnregisterAdapter(pDummy, true);
+        // Use dummy adapter context
+        ParaNdis_ProtocolUnregisterAdapter();
     }
 
     DEBUG_EXIT_STATUS(status ? 0 : 2, status);
@@ -417,7 +416,7 @@ static VOID ParaNdis6_Halt(NDIS_HANDLE miniportAdapterContext, NDIS_HALT_ACTION 
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, hopHalt, NULL, 1, haltAction, 0);
-    ParaNdis_ProtocolUnregisterAdapter(pContext, true);
+    ParaNdis_ProtocolUnregisterAdapter(pContext);
     ParaNdis_CleanupContext(pContext);
     ParaNdis_DebugHistory(pContext, hopHalt, NULL, 0, 0, 0);
     ParaNdis_DebugRegisterMiniport(pContext, FALSE);
@@ -435,6 +434,9 @@ static VOID ParaNdis6_Unload(IN PDRIVER_OBJECT pDriverObject)
     if (DriverHandle) NdisMDeregisterMiniportDriver(DriverHandle);
     DEBUG_EXIT_STATUS(2, 0);
     ParaNdis_DebugCleanup(pDriverObject);
+    /* Happens only in very special test with driver verifier, but needed */
+    ParaNdis_ProtocolUnregisterAdapter();
+
 #ifdef NETKVM_WPP_ENABLED
     WPP_CLEANUP(pDriverObject);
 #endif // WPP
