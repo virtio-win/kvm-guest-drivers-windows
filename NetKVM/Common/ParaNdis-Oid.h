@@ -71,7 +71,8 @@ typedef enum _tageOidHelperFlags {
     ohfQueryStat3264    = 8 | ohfQueryStat,         // convert 64 to 32 on query stat
     ohfSetLessOK        = 16,                       // on set: if buffer is smaller, cleanup and copy
     ohfSetMoreOK        = 32,                       // on set: if buffer is larger, copy anyway
-    ohfSetPropagate     = 64,                       // on set: also propagate to the teamed adapter
+    ohfSetPropagatePre  = 64,                       // on set: also propagate to the teamed adapter before processing
+    ohfSetPropagatePost = 128,                      // on set: also propagate to the teamed adapter after processing succeeds
 } eOidHelperFlags;
 
 
