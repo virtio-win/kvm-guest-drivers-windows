@@ -40,6 +40,8 @@
 #include "ParaNdis_Protocol.tmh"
 #endif
 
+#define GUESS_VERSION(a, b) (a) = max((a), (b))
+
 static PVOID ParaNdis_ReferenceBinding(PARANDIS_ADAPTER *pContext)
 {
     return pContext->m_StateMachine.ReferenceSriovBinding();
@@ -1104,7 +1106,7 @@ void CProtocolBinding::QueryCapabilities(PNDIS_BIND_PARAMETERS BindParameters)
             hds.ipv6ext = flags & NDIS_HD_SPLIT_CAPS_SUPPORTS_IPV6_EXTENSION_HEADERS;
             hds.maxHeader = BindParameters->HDSplitCurrentConfig->MaxHeaderSize;
             hds.backfill = BindParameters->HDSplitCurrentConfig->BackfillSize;
-            m_Capabilies.NdisMinor = 10;
+            GUESS_VERSION(m_Capabilies.NdisMinor, 10);
             TraceNoPrefix(0, "[%s] HDS: ipv4opt:%d, ipv6ext:%d, tcpopt:%d, max header:%d, backfill %d\n",
                 __FUNCTION__, hds.ipv4opt, hds.ipv6ext, hds.tcpopt, hds.maxHeader, hds.backfill);
         }
@@ -1118,9 +1120,12 @@ void CProtocolBinding::QueryCapabilities(PNDIS_BIND_PARAMETERS BindParameters)
         m_Capabilies.rss.v6ex = flags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6_EX;
         m_Capabilies.rss.queues = BindParameters->RcvScaleCapabilities->NumberOfReceiveQueues;
         m_Capabilies.rss.vectors = BindParameters->RcvScaleCapabilities->NumberOfInterruptMessages;
+        if (flags & NDIS_RSS_CAPS_USING_MSI_X) {
+            GUESS_VERSION(m_Capabilies.NdisMinor, 20);
+        }
         if (BindParameters->RcvScaleCapabilities->Header.Revision > NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_1)
         {
-            m_Capabilies.NdisMinor = 30;
+            GUESS_VERSION(m_Capabilies.NdisMinor, 30);
             m_Capabilies.rss.tableSize = BindParameters->RcvScaleCapabilities->NumberOfIndirectionTableEntries;
         }
         TraceNoPrefix(0, "[%s] RSS: v4:%d,v6:%d,v6ex:%d, queues:%d, vectors:%d, max table:%d\n", __FUNCTION__,
@@ -1139,7 +1144,7 @@ void CProtocolBinding::QueryCapabilities(PNDIS_BIND_PARAMETERS BindParameters)
         m_Capabilies.rsc.v6 = doc->Rsc.IPv6.Enabled;
         if (m_Capabilies.rsc.v4 || m_Capabilies.rsc.v6)
         {
-            m_Capabilies.NdisMinor = 30;
+            GUESS_VERSION(m_Capabilies.NdisMinor, 30);
         }
         m_Capabilies.lsov2.v4.maxPayload = doc->LsoV2.IPv4.MaxOffLoadSize;
         m_Capabilies.lsov2.v4.minSegments = doc->LsoV2.IPv4.MinSegmentCount;
