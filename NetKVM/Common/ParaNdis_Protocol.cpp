@@ -255,9 +255,12 @@ public:
             SetOid(OID_802_3_MULTICAST_LIST, m_BoundAdapter->MulticastData.MulticastList,
                 ETH_ALEN * m_BoundAdapter->MulticastData.nofMulticastEntries);
         }
-        // TODO: some other OIDs?
-
         m_BoundAdapter->m_StateMachine.NotifyBindSriov(this);
+
+        ParaNdis_PropagateOid(m_BoundAdapter, OID_GEN_RECEIVE_SCALE_PARAMETERS, NULL, 0);
+
+        QueryCurrentRSS();
+
         m_TxStateMachine.Start();
         m_RxStateMachine.Start();
         m_Started = true;
