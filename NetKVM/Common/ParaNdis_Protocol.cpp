@@ -258,6 +258,7 @@ public:
         m_BoundAdapter->m_StateMachine.NotifyBindSriov(this);
 
         ParaNdis_PropagateOid(m_BoundAdapter, OID_GEN_RECEIVE_SCALE_PARAMETERS, NULL, 0);
+        ParaNdis_PropagateOid(m_BoundAdapter, OID_OFFLOAD_ENCAPSULATION, NULL, 0);
 
         QueryCurrentRSS();
 
@@ -357,6 +358,7 @@ public:
     void SetOidAsync(ULONG oid, PVOID data, ULONG size);
     void SetOid(ULONG oid, PVOID data, ULONG size);
     void SetRSS();
+    void SetOffloadEncapsulation();
 private:
     void QueryCurrentOffload();
     void QueryCurrentRSS();
@@ -1098,6 +1100,9 @@ VOID ParaNdis_PropagateOid(PARANDIS_ADAPTER *pContext, NDIS_OID oid, PVOID buffe
         case OID_GEN_RECEIVE_SCALE_PARAMETERS:
             pb->SetRSS();
             break;
+        case OID_OFFLOAD_ENCAPSULATION:
+            pb->SetOffloadEncapsulation();
+            break;
         default:
             pb->SetOidAsync(oid, buffer, length);
             break;
@@ -1274,6 +1279,56 @@ void CProtocolBinding::SetRSS()
         TraceNoPrefix(0, "[%s] Using hash info %X\n", __FUNCTION__, current->rsp.HashInformation);
         p->Run(m_BindingHandle);
     } else {
+        ParaNdis_DereferenceBinding(m_BoundAdapter);
+    }
+    if (current) {
+        current->Destroy(current, m_Protocol.DriverHandle());
+    }
+}
+
+void CProtocolBinding::SetOffloadEncapsulation()
+{
+    bool bSkip = !m_Capabilies.lsov2.v4.maxPayload && !m_Capabilies.lsov2.v6.maxPayload;
+    COidWrapperAsync *p = NULL;
+    struct EncapSet : public CNdisAllocatable<EncapSet, 'EORP'>
+    {
+        NDIS_OFFLOAD_ENCAPSULATION e;
+    };
+    auto current = new (m_Protocol.DriverHandle()) EncapSet;
+    bSkip = !current || bSkip;
+    if (!bSkip) {
+        RtlZeroMemory(current, sizeof(*current));
+        current->e.Header.Type = NDIS_OBJECT_TYPE_OFFLOAD_ENCAPSULATION;
+        current->e.Header.Revision = NDIS_OFFLOAD_ENCAPSULATION_REVISION_1;
+        current->e.Header.Size = NDIS_SIZEOF_OFFLOAD_ENCAPSULATION_REVISION_1;
+        current->e.IPv4.EncapsulationType = NDIS_ENCAPSULATION_IEEE_802_3;
+        current->e.IPv6.EncapsulationType = NDIS_ENCAPSULATION_IEEE_802_3;
+        if (m_BoundAdapter->bOffloadv4Enabled && m_Capabilies.lsov2.v4.maxPayload) {
+            current->e.IPv4.Enabled = NDIS_OFFLOAD_SET_ON;
+            current->e.IPv4.HeaderSize = m_BoundAdapter->Offload.ipHeaderOffset;
+        } else {
+            current->e.IPv4.Enabled = NDIS_OFFLOAD_SET_OFF;
+            current->e.IPv4.HeaderSize = 0;
+        }
+        if (m_BoundAdapter->bOffloadv6Enabled && m_Capabilies.lsov2.v6.maxPayload) {
+            current->e.IPv6.Enabled = NDIS_OFFLOAD_SET_ON;
+            current->e.IPv6.HeaderSize = m_BoundAdapter->Offload.ipHeaderOffset;
+        }
+        else {
+            current->e.IPv6.Enabled = NDIS_OFFLOAD_SET_OFF;
+            current->e.IPv6.HeaderSize = 0;
+        }
+
+        p = new (m_Protocol.DriverHandle()) COidWrapperAsync(m_BoundAdapter, NdisRequestSetInformation, OID_OFFLOAD_ENCAPSULATION, current, sizeof(*current));
+        if (!p) {
+            bSkip = true;
+        }
+    }
+    if (!bSkip) {
+        TraceNoPrefix(0, "[%s] Using v4:%d, v6:%d\n", __FUNCTION__, current->e.IPv4.HeaderSize, current->e.IPv6.HeaderSize);
+        p->Run(m_BindingHandle);
+    }
+    else {
         ParaNdis_DereferenceBinding(m_BoundAdapter);
     }
     if (current) {

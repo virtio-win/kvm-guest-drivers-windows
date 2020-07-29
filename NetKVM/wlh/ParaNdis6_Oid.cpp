@@ -198,7 +198,7 @@ OIDENTRYPROC(OID_GEN_LINK_PARAMETERS,           2,0,4, ohfSet, OnSetLinkParamete
 OIDENTRY(OID_IP4_OFFLOAD_STATS,                 4,4,4, 0),
 OIDENTRY(OID_IP6_OFFLOAD_STATS,                 4,4,4, 0),
 OIDENTRYPROC(OID_TCP_OFFLOAD_PARAMETERS,        0,0,0, ohfSet | ohfSetMoreOK | ohfSetLessOK, OnSetOffloadParameters),
-OIDENTRYPROC(OID_OFFLOAD_ENCAPSULATION,         0,0,0, ohfQuerySet, OnSetOffloadEncapsulation),
+OIDENTRYPROC(OID_OFFLOAD_ENCAPSULATION,         0,0,0, ohfQuerySet | ohfSetPropagatePost, OnSetOffloadEncapsulation),
 OIDENTRYPROC(OID_VENDOR_1,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific1),
 OIDENTRYPROC(OID_VENDOR_2,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific2),
 OIDENTRYPROC(OID_VENDOR_3,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific3),
