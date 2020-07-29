@@ -353,6 +353,7 @@ public:
     void ReturnNbls(PNET_BUFFER_LIST pNBL, ULONG numNBLs, ULONG flags);
     void SetOidAsync(ULONG oid, PVOID data, ULONG size);
     void SetOid(ULONG oid, PVOID data, ULONG size);
+    void SetRSS();
 private:
     void QueryCurrentOffload();
     void QueryCurrentRSS();
@@ -1089,7 +1090,15 @@ VOID ParaNdis_PropagateOid(PARANDIS_ADAPTER *pContext, NDIS_OID oid, PVOID buffe
     {
         return;
     }
-    pb->SetOidAsync(oid, buffer, length);
+    switch (oid)
+    {
+        case OID_GEN_RECEIVE_SCALE_PARAMETERS:
+            pb->SetRSS();
+            break;
+        default:
+            pb->SetOidAsync(oid, buffer, length);
+            break;
+    }
 }
 
 void CProtocolBinding::QueryCapabilities(PNDIS_BIND_PARAMETERS BindParameters)
@@ -1202,6 +1211,70 @@ void CProtocolBinding::OnOpStateChange(bool State)
     if (State && !m_Started && m_BoundAdapter)
     {
         OnAdapterAttached();
+    }
+}
+
+// Do not call this procedure directly, only via ParaNdis_PropagateOid
+// as it is asynchronous and will call ParaNdis_DereferenceBinding
+void CProtocolBinding::SetRSS()
+{
+    bool bSkip = !m_Capabilies.rss.queues;
+    COidWrapperAsync *p = NULL;
+    struct RSSSet : public CNdisAllocatable<RSSSet, 'SORP'>
+    {
+        NDIS_RECEIVE_SCALE_PARAMETERS rsp;
+        UCHAR key[NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_1];
+        UCHAR indirection[NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2];
+    };
+    auto current = new (m_Protocol.DriverHandle()) RSSSet;
+    bSkip = !current || bSkip;
+    if (!bSkip) {
+        RtlZeroMemory(current, sizeof(*current));
+        current->rsp.Header.Type = NDIS_OBJECT_TYPE_RSS_PARAMETERS;
+        current->rsp.Header.Revision = NDIS_RECEIVE_SCALE_PARAMETERS_REVISION_2;
+        current->rsp.Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_PARAMETERS_REVISION_2;
+        switch (m_BoundAdapter->RSSParameters.RSSMode)
+        {
+            case PARANDIS_RSS_FULL:
+            case PARANDIS_RSS_HASHING:
+                current->rsp.HashInformation = m_BoundAdapter->RSSParameters.ActiveHashingSettings.HashInformation;
+                current->rsp.HashSecretKeyOffset = FIELD_OFFSET(RSSSet, key);
+                current->rsp.HashSecretKeySize = m_BoundAdapter->RSSParameters.ActiveHashingSettings.HashSecretKeySize;
+                RtlMoveMemory(current->key,
+                    m_BoundAdapter->RSSParameters.ActiveHashingSettings.HashSecretKey,
+                    current->rsp.HashSecretKeySize);
+                current->rsp.IndirectionTableOffset = FIELD_OFFSET(RSSSet, indirection);
+                current->rsp.IndirectionTableSize = m_BoundAdapter->RSSParameters.ActiveRSSScalingSettings.IndirectionTableSize;
+                RtlMoveMemory(current->indirection,
+                    m_BoundAdapter->RSSParameters.ActiveRSSScalingSettings.IndirectionTable,
+                    current->rsp.IndirectionTableSize);
+                break;
+            default:
+                current->rsp.Flags = NDIS_RSS_PARAM_FLAG_DISABLE_RSS;
+                break;
+        }
+#if (NDIS_SUPPORT_NDIS680)
+        current->rsp.HashInformation &= ~(NDIS_HASH_UDP_IPV4 | NDIS_HASH_UDP_IPV6 | NDIS_HASH_UDP_IPV6_EX);
+#endif // (NDIS_SUPPORT_NDIS680)
+        if (!m_Capabilies.rss.v6ex) {
+            current->rsp.HashInformation &= ~(NDIS_HASH_IPV6_EX | NDIS_HASH_TCP_IPV6_EX);
+        }
+        if (!m_Capabilies.rss.v6) {
+            current->rsp.HashInformation &= ~(NDIS_HASH_IPV6 | NDIS_HASH_TCP_IPV6);
+        }
+        p = new (m_Protocol.DriverHandle()) COidWrapperAsync(m_BoundAdapter, NdisRequestSetInformation, OID_GEN_RECEIVE_SCALE_PARAMETERS, current, sizeof(*current));
+        if (!p){
+            bSkip = true;
+        }
+    }
+    if (!bSkip) {
+        TraceNoPrefix(0, "[%s] Using hash info %X\n", __FUNCTION__, current->rsp.HashInformation);
+        p->Run(m_BindingHandle);
+    } else {
+        ParaNdis_DereferenceBinding(m_BoundAdapter);
+    }
+    if (current) {
+        current->Destroy(current, m_Protocol.DriverHandle());
     }
 }
 
