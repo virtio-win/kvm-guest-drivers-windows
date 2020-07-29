@@ -112,7 +112,15 @@ public:
     }
     virtual void Complete(NDIS_STATUS status)
     {
-        TraceNoPrefix(0, "[%s] %s = %X\n", __FUNCTION__, ParaNdis_OidName(m_Request.DATA.SET_INFORMATION.Oid), status);
+        LPCSTR reqType = m_Request.RequestType == NdisRequestSetInformation ? "Set" : "Query";
+        if (status) {
+            TraceNoPrefix(0, "[%s] (%s)%s = %X\n", __FUNCTION__, reqType, ParaNdis_OidName(m_Request.DATA.SET_INFORMATION.Oid), status);
+        }
+        else {
+            TraceNoPrefix(0, "[%s] (%s)%s OK, %d bytes\n", __FUNCTION__, reqType,
+                ParaNdis_OidName(m_Request.DATA.SET_INFORMATION.Oid),
+                m_Request.DATA.QUERY_INFORMATION.BytesWritten);
+        }
         m_Status = status;
         m_Event.Notify();
     }
