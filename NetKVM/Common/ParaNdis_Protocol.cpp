@@ -179,11 +179,11 @@ public:
     void Complete(NDIS_STATUS status) override
     {
         __super::Complete(status);
-        ParaNdis_DereferenceBinding(m_Adapter);
         Destroy(this, m_Handle);
     }
     ~COidWrapperAsync()
     {
+        ParaNdis_DereferenceBinding(m_Adapter);
         if (m_Data)
         {
             NdisFreeMemoryWithTagPriority(m_Handle, m_Data, DataTag);
