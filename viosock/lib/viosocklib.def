@@ -6,3 +6,4 @@ EXPORTS
 	WSPStartup
 	InstallProtocol
 	DeinstallProtocol
+	ViosockCoInstaller

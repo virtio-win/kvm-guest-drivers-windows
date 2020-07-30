@@ -33,6 +33,8 @@ RHEL inf substitutions and versioning used by all drivers.
 
     <!-- RHEL uses a user-mode service to collect memory statistics -->
     <USE_BALLOON_SERVICE>1</USE_BALLOON_SERVICE>
+    <!-- Using coinstaller to register viosock socket provider -->
+    <USE_VIOSOCK_COINSTALLER>1</USE_VIOSOCK_COINSTALLER>
   </PropertyGroup>
 
   <PropertyGroup>

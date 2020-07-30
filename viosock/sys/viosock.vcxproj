@@ -112,14 +112,9 @@
     <TargetVersion>Windows10</TargetVersion>
     <KMDF_VERSION_MINOR>15</KMDF_VERSION_MINOR>
   </PropertyGroup>
-  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'!='v141_xp'">
+  <PropertyGroup Label="PropertySheets">
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>KMDF</DriverType>
-  </PropertyGroup>
-  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'=='v141_xp'">
-    <UseLegacyDDK>true</UseLegacyDDK>
-    <ConfigurationType>Application</ConfigurationType>
-    <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\viosock.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
@@ -128,6 +123,15 @@
   <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <PropertyGroup Label="Configuration">
+    <SourceInfFile Condition="'$(USE_VIOSOCK_COINSTALLER)'!=''">viosock_co.inx</SourceInfFile>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Platform)'=='x64'">
+    <SourceInfFile Condition="'$(USE_VIOSOCK_COINSTALLER)'!=''">viosock_wow_co.inx</SourceInfFile>
+  </PropertyGroup>
+  <PropertyGroup Label="PropertySheets">
+    <DriverTargetPlatform Condition="'$(USE_VIOSOCK_COINSTALLER)'!=''">Desktop</DriverTargetPlatform>
+  </PropertyGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
@@ -210,11 +214,6 @@
       <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">..\..\VirtIO\objfre_win10_x86\i386\;..\..\VirtIO\WDF\objfre_win10_x86\i386\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|ARM64'">..\..\VirtIO\objfre_win10_arm64\arm64\;..\..\VirtIO\WDF\objfre_win10_arm64\arm64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v141_xp'">
-    <ClCompile>
-      <DisableSpecificWarnings>4267;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-    </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <Inf Include="$(SourceInfFile)">
