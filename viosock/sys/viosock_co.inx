@@ -1,0 +1,111 @@
+;/*++
+;
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
+;
+;Module Name:
+;    viosock.inf
+;
+;Abstract:
+;
+;Installation Notes:
+;    Using Devcon: Type "devcon install viosock.inf PCI\VEN_1AF4&DEV_1012&SUBSYS_0013_INX_SUBSYS_VENDOR_ID&REV_00" or
+;                       "devcon install viosock.inf PCI\VEN_14F4&DEV_1053&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01" to install.
+;
+;--*/
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=System
+ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider=%VENDOR%
+DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
+CatalogFile=viosock.cat
+DriverPackageType = PlugAndPlay
+DriverPackageDisplayName = %VirtioSocket.DeviceDesc%
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = 12
+VirtioSocket_Device_CoInstaller_CopyFiles = 11
+VirtioSocket_Lib_CopyFiles = 11
+
+[SourceDisksFiles]
+viosock.sys  = 1,,
+viosocklib.dll = 1
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll = 1 ; make sure the number matches with SourceDisksNames
+
+[SourceDisksNames]
+1 = %DiskId1%,,,""
+
+;*****************************************
+; viosock  Install Section
+;*****************************************
+
+[Manufacturer]
+%VENDOR%=VirtioSocket,NT$ARCH$
+
+[VirtioSocket.NT$ARCH$]
+;
+; Hw Ids are PCI\VEN_1AF4&DEV_1012&SUBSYS_0013_INX_SUBSYS_VENDOR_ID&REV_00 and
+;            PCI\VEN_14F4&DEV_1053&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01
+;
+%VirtioSocket.DeviceDesc%=VirtioSocket_Device, PCI\VEN_1AF4&DEV_1012&SUBSYS_0013_INX_SUBSYS_VENDOR_ID&REV_00, PCI\VEN_1AF4&DEV_1012
+%VirtioSocket.DeviceDesc%=VirtioSocket_Device, PCI\VEN_14F4&DEV_1053&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01, PCI\VEN_1AF4&DEV_1053
+
+[VirtioSocket_Device.NT]
+CopyFiles=Drivers_Dir,VirtioSocket_Lib_CopyFiles
+
+[VirtioSocket_Device.NT.HW]
+AddReg=VirtioSocket_AddReg
+
+[VirtioSocket_AddReg]
+HKR,Interrupt Management,,0x00000010
+HKR,Interrupt Management\MessageSignaledInterruptProperties,,0x00000010
+HKR,Interrupt Management\MessageSignaledInterruptProperties,MSISupported,0x00010001,1
+HKR,Interrupt Management\MessageSignaledInterruptProperties,MessageNumberLimit,0x00010001,1
+
+[Drivers_Dir]
+viosock.sys
+
+[VirtioSocket_Lib_CopyFiles]
+viosocklib.dll
+
+;-------------- Service installation
+
+[VirtioSocket_Device.NT.Services]
+AddService = VirtioSocket, 0x00000002, VirtioSocket_Service_Inst
+
+; -------------- VirtioSocket driver install sections
+[VirtioSocket_Service_Inst]
+DisplayName    = %VirtioSocket.ServiceDesc%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\viosock.sys
+
+;--- VirtioSocket_Device Coinstaller installation ------
+;
+
+[VirtioSocket_Device.NT.CoInstallers]
+AddReg=VirtioSocket_Device_CoInstaller_AddReg
+CopyFiles=VirtioSocket_Device_CoInstaller_CopyFiles
+
+[VirtioSocket_Device_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000,"viosocklib.dll,ViosockCoInstaller", \
+    "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[VirtioSocket_Device_CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[VirtioSocket_Device.NT.Wdf]
+KmdfService =  VirtioSocket, VirtioSocket_wdfsect
+
+[VirtioSocket_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[Strings]
+VENDOR = "INX_COMPANY"
+DiskId1 = "INX_PREFIX_VIRTIOVirtIO Socket Installation Disk #1"
+VirtioSocket.DeviceDesc = "INX_PREFIX_VIRTIOVirtIO Socket Driver"
+VirtioSocket.ServiceDesc = "INX_PREFIX_VIRTIOVirtIO Socket Service"
