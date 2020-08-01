@@ -288,6 +288,7 @@ public:
         m_BoundAdapter->m_StateMachine.NotifyBindSriov(this);
 
         ParaNdis_PropagateOid(m_BoundAdapter, OID_GEN_RECEIVE_SCALE_PARAMETERS, NULL, 0);
+        ParaNdis_PropagateOid(m_BoundAdapter, OID_TCP_OFFLOAD_PARAMETERS, NULL, 0);
         ParaNdis_PropagateOid(m_BoundAdapter, OID_OFFLOAD_ENCAPSULATION, NULL, 0);
 
         QueryCurrentRSS();
@@ -395,6 +396,7 @@ public:
     void SetOid(ULONG oid, PVOID data, ULONG size);
     void SetRSS();
     void SetOffloadEncapsulation();
+    void SetOffloadParameters();
 private:
     void QueryCurrentOffload();
     void QueryCurrentRSS();
@@ -1121,6 +1123,9 @@ VOID ParaNdis_PropagateOid(PARANDIS_ADAPTER *pContext, NDIS_OID oid, PVOID buffe
         case OID_OFFLOAD_ENCAPSULATION:
             pb->SetOffloadEncapsulation();
             break;
+        case OID_TCP_OFFLOAD_PARAMETERS:
+            pb->SetOffloadParameters();
+            break;
         default:
             pb->SetOidAsync(oid, buffer, length);
             break;
@@ -1344,6 +1349,74 @@ void CProtocolBinding::SetOffloadEncapsulation()
     }
     if (!bSkip) {
         TraceNoPrefix(0, "[%s] Using v4:%d, v6:%d\n", __FUNCTION__, current->e.IPv4.HeaderSize, current->e.IPv6.HeaderSize);
+        p->Run(m_BindingHandle);
+    }
+    else {
+        ParaNdis_DereferenceBinding(m_BoundAdapter);
+    }
+    if (current) {
+        current->Destroy(current, m_Protocol.DriverHandle());
+    }
+}
+
+static UCHAR ChecksumSetting(int Tx, int Rx)
+{
+    const UCHAR values[4] =
+    {
+        NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED,
+        NDIS_OFFLOAD_PARAMETERS_TX_ENABLED_RX_DISABLED,
+        NDIS_OFFLOAD_PARAMETERS_RX_ENABLED_TX_DISABLED,
+        NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED
+    };
+    Tx = Tx ? 1 : 0;
+    Rx = Rx ? 2 : 0;
+    return values[Tx + Rx];
+}
+
+void CProtocolBinding::SetOffloadParameters()
+{
+    bool bSkip = false;
+    COidWrapperAsync *p = NULL;
+    struct OffloadParam : public CNdisAllocatable<OffloadParam, 'EORP'>
+    {
+        NDIS_OFFLOAD_PARAMETERS o;
+    };
+    auto current = new (m_Protocol.DriverHandle()) OffloadParam;
+    bSkip = !current || bSkip;
+    if (!bSkip) {
+        tOffloadSettingsFlags f = m_BoundAdapter->Offload.flags;
+        RtlZeroMemory(current, sizeof(*current));
+        current->o.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+        current->o.Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_2;
+        current->o.Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_2;
+        if (m_Capabilies.rsc.v4) {
+            current->o.Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_3;
+            current->o.Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_3;
+        }
+        current->o.RscIPv4 = m_BoundAdapter->RSC.bIPv4Enabled ?
+            NDIS_OFFLOAD_PARAMETERS_RSC_ENABLED : NDIS_OFFLOAD_PARAMETERS_RSC_DISABLED;
+        current->o.RscIPv6 = m_BoundAdapter->RSC.bIPv6Enabled ?
+            NDIS_OFFLOAD_PARAMETERS_RSC_ENABLED : NDIS_OFFLOAD_PARAMETERS_RSC_DISABLED;
+        if (m_Capabilies.lsov2.v4.maxPayload) {
+            current->o.LsoV2IPv4 = f.fTxLso ? NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED : NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
+        }
+        if (m_Capabilies.lsov2.v6.maxPayload) {
+            current->o.LsoV2IPv6 = f.fTxLsov6 ? NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED : NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
+        }
+        current->o.IPv4Checksum = ChecksumSetting(f.fTxIPChecksum, f.fRxIPChecksum);
+        current->o.TCPIPv4Checksum = ChecksumSetting(f.fTxTCPChecksum, f.fRxTCPChecksum);
+        current->o.TCPIPv6Checksum = ChecksumSetting(f.fTxTCPv6Checksum, f.fRxTCPv6Checksum);
+        current->o.UDPIPv4Checksum = ChecksumSetting(f.fTxUDPChecksum, f.fRxUDPChecksum);
+        current->o.UDPIPv6Checksum = ChecksumSetting(f.fTxUDPv6Checksum, f.fRxUDPv6Checksum);
+
+        p = new (m_Protocol.DriverHandle()) COidWrapperAsync(m_BoundAdapter, NdisRequestSetInformation, OID_TCP_OFFLOAD_PARAMETERS, current, sizeof(*current));
+        if (!p) {
+            bSkip = true;
+        }
+    }
+    if (!bSkip) {
+        TraceNoPrefix(0, "[%s] Using Rsc v4:%d, v6:%d\n", __FUNCTION__, current->o.RscIPv4, current->o.RscIPv6);
+        TraceNoPrefix(0, "[%s] Using LsoV2 v4:%d, v6:%d\n", __FUNCTION__, current->o.LsoV2IPv4, current->o.LsoV2IPv6);
         p->Run(m_BindingHandle);
     }
     else {
