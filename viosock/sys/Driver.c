@@ -65,7 +65,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
     attributes.EvtCleanupCallback = VIOSockEvtDriverContextCleanup;
 
-    WDF_DRIVER_CONFIG_INIT(&config,VIOSockEvtDeviceAdd);
+    WDF_DRIVER_CONFIG_INIT(&config, VIOSockEvtDeviceAdd);
     config.DriverPoolTag  = VIOSOCK_DRIVER_MEMORY_TAG;
 
     status = WdfDriverCreate(DriverObject,
