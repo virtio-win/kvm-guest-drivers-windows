@@ -78,6 +78,11 @@ VIOSockRxCbCleanup(
     IN PDEVICE_CONTEXT pContext
 );
 
+EVT_WDF_IO_QUEUE_IO_READ    VIOSockRead;
+EVT_WDF_IO_QUEUE_IO_DEFAULT VIOSockReadSocketIoDefault;
+EVT_WDF_IO_QUEUE_IO_STOP    VIOSockReadSocketIoStop;
+EVT_WDF_REQUEST_CANCEL      VIOSockRxRequestCancelCb;
+
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSockRxCbInit)
 #pragma alloc_text (PAGE, VIOSockRxCbCleanup)
@@ -754,7 +759,8 @@ VIOSockRxRequestEnqueueCb(
         }
         else
         {
-            TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Loopback request canceled\n");
+            ASSERT(status == STATUS_CANCELLED);
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Loopback request canceled: 0x%x\n", status);
         }
     }
     else
@@ -1331,43 +1337,48 @@ VIOSockReadDequeueCb(
         //peek the first buffer
         pCurrentCb = CONTAINING_RECORD(pCurrentItem, VIOSOCK_RX_CB, ListEntry);
 
-        if (pCurrentCb->Request != WDF_NO_HANDLE)
+        if (pCurrentCb->Request != WDF_NO_HANDLE) //only loopback buffers have request assigned
         {
             status = WdfRequestUnmarkCancelable(pCurrentCb->Request);
+
+            //STATUS_CANCELLED means cancellation is in progress,
+            //cancel routine will remove from list and complete current request,
+            //we should just skip it
             if (!NT_SUCCESS(status))
             {
                 ASSERT(status == STATUS_CANCELLED);
-                RemoveEntryList(&pCurrentCb->ListEntry);
+                TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Loopback request is canceling: 0x%x\n", status);
+
                 pSocket->RxCbReadPtr = NULL;
                 pSocket->RxCbReadLen = 0;
-                TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Loopback request canceled\n");
                 continue;
             }
         }
 
+        //set socket read data pointer
         if (!pSocket->RxCbReadPtr)
         {
             pSocket->RxCbReadPtr = pCurrentCb->BufferVA;
             pSocket->RxCbReadLen = pCurrentCb->DataLen;
         }
 
-        //can we copy the whole buffer?
+        //can we copy the whole CB?
         if (ReadRequestFree >= pSocket->RxCbReadLen)
         {
             memcpy(ReadRequestPtr, pSocket->RxCbReadPtr, pSocket->RxCbReadLen);
 
-            //update request buffer
+            //update request buffer data ptr
             ReadRequestPtr += pSocket->RxCbReadLen;
             ReadRequestFree -= pSocket->RxCbReadLen;
 
-
             if (!(ReadRequestFlags & MSG_PEEK))
             {
+                PLIST_ENTRY pPrevItem = pCurrentItem->Blink;
+
                 VIOSockRxPktDec(pSocket, pCurrentCb->DataLen);
 
-                ASSERT(pCurrentItem->Blink == &pSocket->RxCbList);
                 RemoveEntryList(pCurrentItem);
-                pCurrentItem = &pSocket->RxCbList; //set current item pointer to the list head
+                pCurrentItem = pPrevItem;
 
                 if (pCurrentCb->Request != WDF_NO_HANDLE)
                     InsertTailList(&LoopbackList, &pCurrentCb->ListEntry); //complete loopback requests later
@@ -1379,7 +1390,7 @@ VIOSockReadDequeueCb(
             pSocket->RxCbReadPtr = NULL;
             pSocket->RxCbReadLen = 0;
         }
-        else
+        else //request buffer is not big enough
         {
             memcpy(ReadRequestPtr, pSocket->RxCbReadPtr, ReadRequestFree);
 
@@ -1387,22 +1398,32 @@ VIOSockReadDequeueCb(
 
             if (!(ReadRequestFlags & MSG_PEEK))
             {
-                //update buffer entry
+                //update current CB data ptr
                 pSocket->RxCbReadPtr += ReadRequestLength;
                 pSocket->RxCbReadLen -= ReadRequestLength;
             }
 
             if (pCurrentCb->Request != WDF_NO_HANDLE)
             {
+                //Postpone incomplete loopback request.
                 status = WdfRequestMarkCancelableEx(pCurrentCb->Request, VIOSockRxRequestCancelCb);
+
+                //WdfRequestMarkCancelableEx returns STATUS_CANCELLED if request has Canceled bit set
+                //(was canceled after Unmark and before this call). In this case caller has to complete
+                //request.
+                //WARNING! SDV marks pCurrentCb->Request as INVALID despite of return status, but request still VALID
+                //if status == STATUS_CANCELLED
                 if (!NT_SUCCESS(status))
                 {
-                    TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Loopback request canceled\n");
+                    ASSERT(status == STATUS_CANCELLED);
+                    TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Loopback request is canceled: 0x%x\n", status);
+
+                    RemoveEntryList(pCurrentItem);
                     pSocket->RxCbReadPtr = NULL;
                     pSocket->RxCbReadLen = 0;
-                    RemoveEntryList(pCurrentItem);
-                    pCurrentCb->DataLen -= pSocket->RxCbReadLen;
-                    InsertTailList(&LoopbackList, &pCurrentCb->ListEntry); //complete loopback requests later
+
+                    pCurrentCb->DataLen = 0;
+                    InsertTailList(&LoopbackList, &pCurrentCb->ListEntry); //complete canceled loopback request later
                 }
             }
             break;
@@ -1411,7 +1432,7 @@ VIOSockReadDequeueCb(
 
     if (!ReadRequestFree || ReadRequestFlags & MSG_PEEK)
     {
-        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "Should complete request\n");
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "Should complete read request\n");
     }
     else if (ReadRequestLength == ReadRequestFree || ReadRequestFlags & MSG_WAITALL)
     {
@@ -1449,20 +1470,20 @@ VIOSockReadDequeueCb(
     if (ReadRequest != WDF_NO_HANDLE)
     {
         ASSERT(pSocket->PendedRequest == WDF_NO_HANDLE);
-        //pSocket->ReadRequestPtr = NULL;
-        //pSocket->ReadRequestFree = 0;
 
         WdfRequestCompleteWithInformation(ReadRequest, status, ReadRequestLength - ReadRequestFree);
-        status = STATUS_MORE_ENTRIES;
     }
-    else
-        status = STATUS_SUCCESS;
 
-    //complete loopback
+    //complete loopback requests (succeed and canceled)
     while (!IsListEmpty(&LoopbackList))
     {
         pCurrentCb = CONTAINING_RECORD(RemoveHeadList(&LoopbackList), VIOSOCK_RX_CB, ListEntry);
-        WdfRequestCompleteWithInformation(pCurrentCb->Request, STATUS_SUCCESS, pCurrentCb->DataLen);
+
+        //NOTE! SDV thinks we are completing INVALID request marked as cancelable,
+        //but request is appeared in this list only if WdfRequestMarkCancelableEx failed
+        WdfRequestCompleteWithInformation(pCurrentCb->Request,
+            pCurrentCb->DataLen ? STATUS_SUCCESS : STATUS_CANCELLED,
+            pCurrentCb->DataLen);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
@@ -1532,9 +1553,11 @@ VIOSockReadSocketIoDefault(
 
 static
 VOID
-VIOSockReadSocketIoStop(IN WDFQUEUE Queue,
+VIOSockReadSocketIoStop(
+    IN WDFQUEUE Queue,
     IN WDFREQUEST Request,
-    IN ULONG ActionFlags)
+    IN ULONG ActionFlags
+)
 {
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
 

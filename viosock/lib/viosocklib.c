@@ -716,12 +716,15 @@ VIOSockRecv(
 )
 {
     int iRes = ERROR_SUCCESS;
-    DWORD i;
+    DWORD i, dwNumberOfBytesRecvd = 0;
 
     UNREFERENCED_PARAMETER(lpFlags);
     UNREFERENCED_PARAMETER(lpThreadId);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+
+    if (lpNumberOfBytesRecvd)
+        *lpNumberOfBytesRecvd = 0;
 
     if (lpOverlapped || lpCompletionRoutine)
     {
@@ -729,8 +732,6 @@ VIOSockRecv(
         *lpErrno = WSAEOPNOTSUPP;
         return SOCKET_ERROR;
     }
-
-    *lpNumberOfBytesRecvd = 0;
 
     if (!dwBufferCount)
         return ERROR_SUCCESS;
@@ -757,12 +758,15 @@ VIOSockRecv(
             break;
         }
 
-        *lpNumberOfBytesRecvd += dwNumberOfBytesRead;
+        dwNumberOfBytesRecvd += dwNumberOfBytesRead;
         if (dwNumberOfBytesRead != lpBuffers[i].len)
         {
             break;
         }
     }
+
+    if (lpNumberOfBytesRecvd)
+        *lpNumberOfBytesRecvd = dwNumberOfBytesRecvd;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
@@ -802,10 +806,13 @@ VIOSockRecvFrom(
 {
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    if (VIOSockGetPeerName(s, lpFrom, lpFromlen, lpErrno) == SOCKET_ERROR)
+    if (lpFrom && lpFromlen)
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "VIOSockGetPeerName failed: %u\n", *lpErrno);
-        return SOCKET_ERROR;
+        if (VIOSockGetPeerName(s, lpFrom, lpFromlen, lpErrno) == SOCKET_ERROR)
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "VIOSockGetPeerName failed: %u\n", *lpErrno);
+            return SOCKET_ERROR;
+        }
     }
 
     return VIOSockRecv(s, lpBuffers, dwBufferCount,
@@ -817,7 +824,7 @@ static
 int
 CopyFromFdSet(
     _Out_ VIRTIO_VSOCK_FD_SET *Dst,
-    _In_ fd_set *Src
+    _In_opt_ fd_set *Src
 )
 {
     UINT i;
@@ -840,11 +847,14 @@ CopyFromFdSet(
 static
 int
 CopyToFdSet(
-    _Out_ fd_set *Dst,
+    _Out_opt_ fd_set *Dst,
     _In_ VIRTIO_VSOCK_FD_SET *Src
 )
 {
     UINT i;
+
+    if (!Dst)
+        return 0;
 
     _ASSERT(Src->fd_count <= FD_SETSIZE && Src->fd_count <= Dst->fd_count);
 
@@ -963,12 +973,15 @@ VIOSockSend(
 )
 {
     int iRes = ERROR_SUCCESS;
-    DWORD i;
+    DWORD i, dwNumberOfBytesSent = 0;
 
     UNREFERENCED_PARAMETER(dwFlags);
     UNREFERENCED_PARAMETER(lpThreadId);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+
+    if (lpNumberOfBytesSent)
+        *lpNumberOfBytesSent = 0;
 
     if (lpOverlapped || lpCompletionRoutine)
     {
@@ -976,8 +989,6 @@ VIOSockSend(
         *lpErrno = WSAEOPNOTSUPP;
         return SOCKET_ERROR;
     }
-
-    *lpNumberOfBytesSent = 0;
 
     for (i = 0; i < dwBufferCount; ++i)
     {
@@ -989,12 +1000,15 @@ VIOSockSend(
             break;
         }
 
-        *lpNumberOfBytesSent += dwNumberOfBytesWritten;
+        dwNumberOfBytesSent += dwNumberOfBytesWritten;
         if (dwNumberOfBytesWritten != lpBuffers[i].len)
         {
             break;
         }
     }
+
+    if (lpNumberOfBytesSent)
+        *lpNumberOfBytesSent = dwNumberOfBytesSent;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;

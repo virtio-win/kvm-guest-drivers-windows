@@ -34,6 +34,11 @@
 #include "Tx.tmh"
 #endif
 
+EVT_WDF_IO_QUEUE_IO_WRITE   VIOSockWrite;
+EVT_WDF_IO_QUEUE_IO_STOP    VIOSockWriteIoStop;
+EVT_WDF_REQUEST_CANCEL      VIOSockTxEnqueueCancel;
+
+
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSockTxVqInit)
 #pragma alloc_text (PAGE, VIOSockTxVqCleanup)
@@ -72,6 +77,7 @@ typedef struct _VIOSOCK_TX_ENTRY {
     USHORT          op;
     BOOLEAN         reply;
     ULONG32         flags;
+    USHORT          type;
 }VIOSOCK_TX_ENTRY, *PVIOSOCK_TX_ENTRY;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_TX_ENTRY, GetRequestTxContext);
@@ -160,14 +166,12 @@ VIOSockRxIncTxPkt(
 static
 PVIOSOCK_TX_PKT
 VIOSockTxPktAlloc(
+    IN PDEVICE_CONTEXT pContext,
     IN PVIOSOCK_TX_ENTRY pTxEntry
 )
 {
     PHYSICAL_ADDRESS PA;
     PVIOSOCK_TX_PKT pPkt;
-    PSOCKET_CONTEXT pSocket = (pTxEntry->Socket != WDF_NO_HANDLE) ?
-        GetSocketContext(pTxEntry->Socket) : NULL;
-    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
 
     ASSERT(pContext->TxPktSliced);
     pPkt = pContext->TxPktSliced->get_slice(pContext->TxPktSliced, &PA);
@@ -175,19 +179,18 @@ VIOSockTxPktAlloc(
     {
         pPkt->PhysAddr = PA;
         pPkt->Transaction = WDF_NO_HANDLE;
-        if (pSocket)
+        if (pTxEntry->Socket != WDF_NO_HANDLE)
         {
-            VIOSockRxIncTxPkt(pSocket, &pPkt->Header);
+            VIOSockRxIncTxPkt(GetSocketContext(pTxEntry->Socket), &pPkt->Header);
         }
         pPkt->Header.src_cid = pContext->Config.guest_cid;
         pPkt->Header.dst_cid = pTxEntry->dst_cid;
         pPkt->Header.src_port = pTxEntry->src_port;
         pPkt->Header.dst_port = pTxEntry->dst_port;
         pPkt->Header.len = pTxEntry->len;
-        pPkt->Header.type = (USHORT)pSocket->type;
+        pPkt->Header.type = pTxEntry->type;
         pPkt->Header.op = pTxEntry->op;
         pPkt->Header.flags = pTxEntry->flags;
-
     }
     return pPkt;
 }
@@ -369,8 +372,7 @@ VIOSockTxDequeue(
     {
         PVIOSOCK_TX_ENTRY   pTxEntry = CONTAINING_RECORD(pContext->TxList.Flink,
             VIOSOCK_TX_ENTRY, ListEntry);
-        PSOCKET_CONTEXT     pSocket = GetSocketContext(pTxEntry->Socket);
-        PVIOSOCK_TX_PKT     pPkt = VIOSockTxPktAlloc(pTxEntry);
+        PVIOSOCK_TX_PKT     pPkt = VIOSockTxPktAlloc(pContext, pTxEntry);
         NTSTATUS            status;
 
         //can't allocate packet, stop dequeue
@@ -383,11 +385,13 @@ VIOSockTxDequeue(
 
         if (pTxEntry->Request)
         {
+            ASSERT(pTxEntry->Socket != WDF_NO_HANDLE);
             ASSERT(pTxEntry->len && !bReply);
             status = WdfRequestUnmarkCancelable(pTxEntry->Request);
 
             if (NT_SUCCESS(status))
             {
+                PSOCKET_CONTEXT pSocket = GetSocketContext(pTxEntry->Socket);
                 VIRTIO_DMA_TRANSACTION_PARAMS params = { 0 };
 
                 WdfSpinLockRelease(pContext->TxLock);
@@ -446,7 +450,7 @@ VIOSockTxDequeue(
             if (bReply)
             {
                 LONG lVal = --pContext->QueuedReply;
-                
+
                 /* Do we now have resources to resume rx processing? */
                 bRestartRx = (lVal + 1 == pContext->RxPktNum);
             }
@@ -566,6 +570,7 @@ VIOSockTxEnqueue(
     pTxEntry->src_port = pSocket->src_port;
     pTxEntry->dst_cid = pSocket->dst_cid;
     pTxEntry->dst_port = pSocket->dst_port;
+    pTxEntry->type = (USHORT)pSocket->type;
     pTxEntry->op = Op;
     pTxEntry->reply = Reply;
     pTxEntry->flags = Flags;
@@ -589,10 +594,11 @@ VIOSockTxEnqueue(
         if (!NT_SUCCESS(status))
         {
             ASSERT(status == STATUS_CANCELLED);
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "WdfRequestMarkCancelableEx failed: 0x%x\n", status);
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_WRITE, "Write request canceled: 0x%x\n", status);
+
             VIOSockTxPutCredit(pSocket, pTxEntry->len);
             WdfSpinLockRelease(pContext->TxLock);
-            return status;
+            return status; //caller completes failed requests
         }
     }
 
@@ -673,9 +679,11 @@ VIOSockWrite(
 
 static
 VOID
-VIOSockWriteIoStop(IN WDFQUEUE Queue,
+VIOSockWriteIoStop(
+    IN WDFQUEUE Queue,
     IN WDFREQUEST Request,
-    IN ULONG ActionFlags)
+    IN ULONG ActionFlags
+)
 {
     if (ActionFlags & WdfRequestStopActionSuspend)
     {
@@ -807,6 +815,7 @@ VIOSockSendResetNoSock(
     pTxEntry->src_port = pHeader->dst_port;
     pTxEntry->dst_cid = pHeader->src_cid;
     pTxEntry->dst_port = pHeader->src_port;
+    pTxEntry->type = pHeader->type;
 
     pTxEntry->Socket = WDF_NO_HANDLE;
     pTxEntry->op = VIRTIO_VSOCK_OP_RST;

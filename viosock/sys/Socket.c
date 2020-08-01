@@ -78,6 +78,21 @@ VIOSockIoctl(
     OUT size_t      *pLength
 );
 
+NTSTATUS
+VIOSockAccept(
+    IN HANDLE       hListenSocket,
+    IN WDFREQUEST   Request
+);
+
+NTSTATUS
+VIOSockCreate(
+    IN WDFDEVICE WdfDevice,
+    IN WDFREQUEST Request,
+    IN WDFFILEOBJECT FileObject
+);
+
+EVT_WDF_REQUEST_CANCEL VIOSockPendedRequestCancel;
+
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSockCreateStub)
 #pragma alloc_text (PAGE, VIOSockClose)
@@ -90,6 +105,8 @@ VIOSockIoctl(
 #pragma alloc_text (PAGE, VIOSockGetSockOpt)
 #pragma alloc_text (PAGE, VIOSockSetSockOpt)
 #pragma alloc_text (PAGE, VIOSockIoctl)
+#pragma alloc_text (PAGE, VIOSockAccept)
+#pragma alloc_text (PAGE, VIOSockCreate)
 
 #pragma alloc_text (PAGE, VIOSockDeviceControl)
 #pragma alloc_text (PAGE, VIOSockSelect)
@@ -482,7 +499,7 @@ VIOSockPendedRequestSet(
         pSocket->PendedRequest = WDF_NO_HANDLE;
         WdfObjectDereference(Request);
 
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Pended request canceled\n");
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Pended request canceled: 0x%x\n", status);
     }
     return status;
 }
@@ -648,10 +665,12 @@ VIOSockAcceptRemovePkt(
             ASSERT(pAccept->ConnectSocket == WDF_NO_HANDLE);
             RemoveEntryList(pCurrentEntry);
             InterlockedDecrement(&pListenSocket->AcceptPended);
-        break;
+            WdfObjectDelete(pAccept->Memory);
+            break;
         }
     }
     WdfSpinLockRelease(pListenSocket->RxLock);
+
 }
 
 static
