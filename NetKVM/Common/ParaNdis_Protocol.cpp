@@ -197,6 +197,36 @@ private:
     PARANDIS_ADAPTER *m_Adapter;
 };
 
+static void PrintOffload(LPCSTR caller, NDIS_OFFLOAD& current)
+{
+    TraceNoPrefix(0, "[%s] Offload data v%d:\n", caller, current.Header.Revision);
+    NDIS_TCP_LARGE_SEND_OFFLOAD_V2& lso = current.LsoV2;
+    TraceNoPrefix(0, "LSOv2: v4 e:%X seg:%d, v6 e:%X seg:%d iph:%d opt:%d\n",
+        lso.IPv4.Encapsulation, lso.IPv4.MaxOffLoadSize,
+        lso.IPv6.Encapsulation, lso.IPv6.MaxOffLoadSize, lso.IPv6.IpExtensionHeadersSupported, lso.IPv6.TcpOptionsSupported);
+    NDIS_TCP_IP_CHECKSUM_OFFLOAD& cso = current.Checksum;
+    TraceNoPrefix(0, "Checksum4 RX: ip %d%c, tcp %d%c, udp %d\n",
+        cso.IPv4Receive.IpChecksum, cso.IPv4Receive.IpOptionsSupported ? '+' : ' ',
+        cso.IPv4Receive.TcpChecksum, cso.IPv4Receive.TcpOptionsSupported ? '+' : ' ',
+        cso.IPv4Receive.UdpChecksum);
+    TraceNoPrefix(0, "Checksum4 TX: ip %d%c, tcp %d%c, udp %d\n",
+        cso.IPv4Transmit.IpChecksum, cso.IPv4Transmit.IpOptionsSupported ? '+' : ' ',
+        cso.IPv4Transmit.TcpChecksum, cso.IPv4Transmit.TcpOptionsSupported ? '+' : ' ',
+        cso.IPv4Transmit.UdpChecksum);
+    TraceNoPrefix(0, "Checksum6 RX: ipx %d, tcp %d%c, udp %d\n",
+        cso.IPv6Receive.IpExtensionHeadersSupported,
+        cso.IPv6Receive.TcpChecksum, cso.IPv6Receive.TcpOptionsSupported ? '+' : ' ',
+        cso.IPv6Receive.UdpChecksum);
+    TraceNoPrefix(0, "Checksum6 TX: ipx %d, tcp %d%c, udp %d\n",
+        cso.IPv6Transmit.IpExtensionHeadersSupported,
+        cso.IPv6Transmit.TcpChecksum, cso.IPv6Transmit.TcpOptionsSupported ? '+' : ' ',
+        cso.IPv6Transmit.UdpChecksum);
+    if (current.Header.Revision > NDIS_OFFLOAD_REVISION_2) {
+        NDIS_TCP_RECV_SEG_COALESCE_OFFLOAD& rsc = current.Rsc;
+        TraceNoPrefix(0, "RSCv4 %d, RSCv6 %d\n", rsc.IPv4.Enabled, rsc.IPv6.Enabled);
+    }
+}
+
 class CParaNdisProtocol;
 
 class CProtocolBinding : public CNdisAllocatable<CProtocolBinding, 'TORP'>, public CRefCountingObject
@@ -340,6 +370,12 @@ public:
                             }
                         }
                     }
+                }
+                break;
+            case NDIS_STATUS_TASK_OFFLOAD_CURRENT_CONFIG:
+                {
+                    NDIS_OFFLOAD *o = (NDIS_OFFLOAD *)StatusIndication->StatusBuffer;
+                    PrintOffload(__FUNCTION__, *o);
                 }
                 break;
             default:
@@ -894,25 +930,7 @@ void CProtocolBinding::QueryCurrentOffload()
     {
         return;
     }
-    NDIS_TCP_IP_CHECKSUM_OFFLOAD& cso = current.Checksum;
-    TraceNoPrefix(0, "[%s] Checksum4 RX: ip %d%c, tcp %d%c, udp %d\n", __FUNCTION__,
-        cso.IPv4Receive.IpChecksum, cso.IPv4Receive.IpOptionsSupported ? '+' : ' ',
-        cso.IPv4Receive.TcpChecksum, cso.IPv4Receive.TcpOptionsSupported ? '+' : ' ',
-        cso.IPv4Receive.UdpChecksum);
-    TraceNoPrefix(0, "[%s] Checksum4 TX: ip %d%c, tcp %d%c, udp %d\n", __FUNCTION__,
-        cso.IPv4Transmit.IpChecksum, cso.IPv4Transmit.IpOptionsSupported ? '+' : ' ',
-        cso.IPv4Transmit.TcpChecksum, cso.IPv4Transmit.TcpOptionsSupported ? '+' : ' ',
-        cso.IPv4Transmit.UdpChecksum);
-    TraceNoPrefix(0, "[%s] Checksum6 RX: ipx %d, tcp %d%c, udp %d\n", __FUNCTION__,
-        cso.IPv6Receive.IpExtensionHeadersSupported,
-        cso.IPv6Receive.TcpChecksum, cso.IPv6Receive.TcpOptionsSupported ? '+' : ' ',
-        cso.IPv6Receive.UdpChecksum);
-    TraceNoPrefix(0, "[%s] Checksum6 TX: ipx %d, tcp %d%c, udp %d\n", __FUNCTION__,
-        cso.IPv6Transmit.IpExtensionHeadersSupported,
-        cso.IPv6Transmit.TcpChecksum, cso.IPv6Transmit.TcpOptionsSupported ? '+' : ' ',
-        cso.IPv6Transmit.UdpChecksum);
-    NDIS_TCP_RECV_SEG_COALESCE_OFFLOAD& rsc = current.Rsc;
-    TraceNoPrefix(0, "[%s] RSCv4 %d, RSCv6 %d\n", __FUNCTION__, rsc.IPv4.Enabled, rsc.IPv6.Enabled);
+    PrintOffload(__FUNCTION__, current);
 }
 
 void CProtocolBinding::QueryCurrentRSS()
