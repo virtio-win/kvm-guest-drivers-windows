@@ -135,7 +135,7 @@
   </PropertyGroup>
   <PropertyGroup>
     <PackageDir>$(OutDir)</PackageDir>
-    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <IntDir>$(Platform)\$(Configuration.Replace(' ',''))\</IntDir>
   </PropertyGroup>
   <PropertyGroup>
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
