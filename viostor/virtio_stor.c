@@ -588,6 +588,17 @@ VirtIoFindAdapter(
     }
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Page-aligned area at %p, size = %d\n", adaptExt->pageAllocationVa, adaptExt->pageAllocationSize);
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Pool area at %p, size = %d\n", adaptExt->poolAllocationVa, adaptExt->poolAllocationSize);
+#if (NTDDI_VERSION > NTDDI_WIN7)
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " pmsg_affinity = %p\n",adaptExt->pmsg_affinity);
+    if (!adaptExt->dump_mode && (adaptExt->num_queues > 1) && (adaptExt->pmsg_affinity == NULL)) {
+        ULONG Status =
+        StorPortAllocatePool(DeviceExtension,
+                             sizeof(GROUP_AFFINITY) * (adaptExt->num_queues + 1),
+                             VIOBLK_POOL_TAG,
+                             (PVOID*)&adaptExt->pmsg_affinity);
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " pmsg_affinity = %p Status = %lu\n",adaptExt->pmsg_affinity, Status);
+    }
+#endif
 
     return SP_RETURN_FOUND;
 }
@@ -811,9 +822,24 @@ VirtIoHwInitialize(
 //                if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION_CURRENT_CPU)) {
 //                    adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION_CURRENT_CPU;
 //                }
+                if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
+                    RtlZeroMemory((PCHAR)adaptExt->pmsg_affinity, sizeof (GROUP_AFFINITY)* (adaptExt->num_queues + 1));
+                    adaptExt->perfFlags |= STOR_PERF_ADV_CONFIG_LOCALITY;
+                    perfData.MessageTargets = adaptExt->pmsg_affinity;
+                }
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
                     adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO;
                 }
+#ifndef STOR_PERF_VERSION_4
+#define STOR_PERF_VERSION_4 0x00000004
+#endif
+
+#if (STOR_PERF_VERSION > STOR_PERF_VERSION_4)
+                if (CHECKFLAG(perfData.Flags, STOR_PERF_NO_SGL)) {
+                    adaptExt->perfFlags |= STOR_PERF_NO_SGL;
+                }
+#endif
+
 #endif
                 perfData.Flags = adaptExt->perfFlags;
                 RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
