@@ -377,6 +377,15 @@ public:
                 {
                     NDIS_OFFLOAD *o = (NDIS_OFFLOAD *)StatusIndication->StatusBuffer;
                     PrintOffload(__FUNCTION__, *o);
+                    if (o->Header.Revision > NDIS_OFFLOAD_REVISION_3)
+                    {
+                        UCHAR knownMinor = m_Capabilies.NdisMinor;
+                        GUESS_VERSION(m_Capabilies.NdisMinor, 30);
+                        if (m_Capabilies.NdisMinor != knownMinor)
+                        {
+                            TraceNoPrefix(0, "[%s] Best guess for NDIS revision: 6.%d\n", __FUNCTION__, m_Capabilies.NdisMinor);
+                        }
+                    }
                 }
                 break;
             default:
@@ -1389,7 +1398,7 @@ void CProtocolBinding::SetOffloadParameters()
         current->o.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
         current->o.Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_2;
         current->o.Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_2;
-        if (m_Capabilies.rsc.v4) {
+        if (m_Capabilies.NdisMinor >= 30) {
             current->o.Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_3;
             current->o.Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_3;
         }
