@@ -13,6 +13,8 @@ Enabling and customizing virtio build features
     <Feature_LegacyStampInf>true</Feature_LegacyStampInf>
     <Feature_AdjustInfLegacy>true</Feature_AdjustInfLegacy>
     <Feature_AdjustInf>true</Feature_AdjustInf>
+    <Feature_LegacyStampInf>true</Feature_LegacyStampInf>
+    <Feature_GenerateInf>true</Feature_GenerateInf>
     <!-- $(SourceInfFile) is already defined in .vcxproj -->
     <CopyrightStrings>NetKVMCopyrightStrings</CopyrightStrings>
   </PropertyGroup>

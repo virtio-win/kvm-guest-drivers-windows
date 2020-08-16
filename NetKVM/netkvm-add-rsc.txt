@@ -1,0 +1,13 @@
+HKR, Ndi\params\*RscIPv4,        ParamDesc,            0, "Recv Segment Coalescing (IPv4)"
+HKR, Ndi\params\*RscIPv4,        Type,                 0, "enum"
+HKR, Ndi\params\*RscIPv4,        Default,              0, "1"
+HKR, Ndi\params\*RscIPv4,        Optional,             0, "0"
+HKR, Ndi\params\*RscIPv4\enum,   "0",                  0, "Disabled"
+HKR, Ndi\params\*RscIPv4\enum,   "1",                  0, "Enabled"
+
+HKR, Ndi\params\*RscIPv6,        ParamDesc,            0, "Recv Segment Coalescing (IPv6)"
+HKR, Ndi\params\*RscIPv6,        Type,                 0, "enum"
+HKR, Ndi\params\*RscIPv6,        Default,              0, "1"
+HKR, Ndi\params\*RscIPv6,        Optional,             0, "0"
+HKR, Ndi\params\*RscIPv6\enum,   "0",                  0, "Disabled"
+HKR, Ndi\params\*RscIPv6\enum,   "1",                  0, "Enabled"
