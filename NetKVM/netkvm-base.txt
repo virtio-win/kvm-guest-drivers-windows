@@ -88,12 +88,12 @@ HKR, Ndi\params\DebugLevel,         min,        0,          "0"
 HKR, Ndi\params\DebugLevel,         max,        0,          "8"
 HKR, Ndi\params\DebugLevel,         step,       0,          "1"
 
-HKR, Ndi\params\MTU,                ParamDesc,  0,          %MTU%
-HKR, Ndi\params\MTU,                type,       0,          "long"
-HKR, Ndi\params\MTU,                default,    0,          "1500"
-HKR, Ndi\params\MTU,                min,        0,          "576"
-HKR, Ndi\params\MTU,                max,        0,          "65500"
-HKR, Ndi\params\MTU,                step,       0,          "1"
+HKR, Ndi\params\*JumboPacket,       ParamDesc,  0,          %JumboPacket%
+HKR, Ndi\params\*JumboPacket,       type,       0,          "long"
+HKR, Ndi\params\*JumboPacket,       default,    0,          "1514"
+HKR, Ndi\params\*JumboPacket,       min,        0,          "590"
+HKR, Ndi\params\*JumboPacket,       max,        0,          "65500"
+HKR, Ndi\params\*JumboPacket,       step,       0,          "1"
 
 HKR, Ndi\params\TxCapacity,         ParamDesc,  0,          %TxCapacity%
 HKR, Ndi\params\TxCapacity,         type,       0,          "enum"
@@ -238,7 +238,7 @@ kvmnet6.Service.DispName    = "INX_PREFIX_VENDORVirtIO Ethernet Adapter Service"
 DiskId1 = "INX_PREFIX_VENDORVirtIO Ethernet Adapter Driver Disk #1"
 NetworkAddress = "Assign MAC"
 Priority = "Init.Do802.1PQ"
-MTU = "Init.MTUSize"
+JumboPacket = "Jumbo Packet"
 TxCapacity = "Init.MaxTxBuffers"
 RxCapacity = "Init.MaxRxBuffers"
 Offload.TxChecksum = "Offload.Tx.Checksum"

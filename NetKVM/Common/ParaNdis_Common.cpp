@@ -92,7 +92,7 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry stdLsoV2ip6;
     tConfigurationEntry PriorityVlanTagging;
     tConfigurationEntry VlanId;
-    tConfigurationEntry MTU;
+    tConfigurationEntry JumboPacket;
     tConfigurationEntry NumberOfHandledRXPacketsInDPC;
 #if PARANDIS_SUPPORT_RSS
     tConfigurationEntry RSSOffloadSupported;
@@ -125,7 +125,7 @@ static const tConfigurationEntries defaultConfiguration =
     { "*LsoV2IPv6", 1, 0, 1 },
     { "*PriorityVLANTag", 3, 0, 3},
     { "VlanId", 0, 0, MAX_VLAN_ID},
-    { "MTU", 1500, 576, 65500},
+    { "*JumboPacket", 1514, 590, 65500},
     { "NumberOfHandledRXPacketsInDPC", MAX_RX_LOOPS, 1, 10000},
 #if PARANDIS_SUPPORT_RSS
     { "*RSS", 1, 0, 1},
@@ -254,7 +254,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             GetConfigurationEntry(cfg, &pConfiguration->stdLsoV2ip6);
             GetConfigurationEntry(cfg, &pConfiguration->PriorityVlanTagging);
             GetConfigurationEntry(cfg, &pConfiguration->VlanId);
-            GetConfigurationEntry(cfg, &pConfiguration->MTU);
+            GetConfigurationEntry(cfg, &pConfiguration->JumboPacket);
             GetConfigurationEntry(cfg, &pConfiguration->NumberOfHandledRXPacketsInDPC);
 #if PARANDIS_SUPPORT_RSS
             GetConfigurationEntry(cfg, &pConfiguration->RSSOffloadSupported);
@@ -300,7 +300,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             pContext->InitialOffloadParameters.LsoV2IPv6 = (UCHAR)pConfiguration->stdLsoV2ip6.ulValue;
             pContext->ulPriorityVlanSetting = pConfiguration->PriorityVlanTagging.ulValue;
             pContext->VlanId = pConfiguration->VlanId.ulValue & 0xfff;
-            pContext->MaxPacketSize.nMaxDataSize = pConfiguration->MTU.ulValue;
+            pContext->MaxPacketSize.nMaxDataSize = pConfiguration->JumboPacket.ulValue - ETH_HEADER_SIZE;
 #if PARANDIS_SUPPORT_RSS
             pContext->bRSSOffloadSupported = pConfiguration->RSSOffloadSupported.ulValue ? TRUE : FALSE;
             pContext->RSSMaxQueuesNumber = (CCHAR) pConfiguration->NumRSSQueues.ulValue;
