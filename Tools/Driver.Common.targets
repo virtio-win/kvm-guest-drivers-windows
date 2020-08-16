@@ -13,6 +13,7 @@ Features (all features are false by default):
      $(SourceInfFile) is required for Legacy case
   3. $(Feature_LegacyStampInf) - executes stampinf tool for Legacy DDK
   4. $(Feature_PackOne) - Import Driver.PackOne.targets
+  5. $(Feature_GenerateInf) - the project provides GenerateInf script that creates INF file
 ***********************************************************************************************
 -->
 <Project ToolVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
@@ -87,7 +88,18 @@ Invoking the task:
     </Task>
   </UsingTask>
 
-  <!-- Adjust inf (for WDK) -->
+  <!-- Generate inf files -->
+  <Target Condition="'$(Feature_GenerateInf)'=='true' AND '@(Inf)' != ''" Name="GenerateInf" BeforeTargets="StampInf">
+    <Message Text="GenerateInf: $(SourceInfFile)" Importance="high" />
+    <Exec Command="$(ProjectDir)GenerateInf $(SourceInfFile)"/>
+  </Target>
+
+  <Target Condition="'$(Feature_GenerateInf)'=='true' AND '$(UseLegacyDDK)'=='true'" Name="GenerateInfLegacy" BeforeTargets="AdjustInf_LegacyDDK">
+    <Message Text="GenerateInf: $(SourceInfFile)" Importance="high" />
+    <Exec Command="$(ProjectDir)GenerateInf $(SourceInfFile)"/>
+  </Target>
+
+ <!-- Adjust inf (for WDK) -->
   <Target Condition="'$(Feature_AdjustInf)'=='true' AND '$(UseLegacyDDK)'!='true' AND '@(Inf)' != ''" Name="AdjustInf_WDK" AfterTargets="StampInf" BeforeTargets="InfVerif">
     <Message Text="AdjustInf_WDK: for %(Inf.FullPath) stamped as %(Inf.CopyOutput)" Importance="high" />
     <SubstituteFileContent Condition="'%(Inf.ExcludedFromBuild)'!='true'" SourceFiles="%(Inf.CopyOutput)" Substitutions="@(Substitution)" />
