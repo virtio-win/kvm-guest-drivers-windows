@@ -4,9 +4,10 @@ orbs:
   win: circleci/windows@2.2.0 # The Windows orb give you everything you need to start using the Windows executor.
 
 jobs:
-  build: # name of your job
+  build:
     executor:
-      name: win/default # executor type
+      name: win/default
+      shell: powershell.exe
       size: "medium" # resource class, can be "medium", "large", "xlarge", "2xlarge", defaults to "medium" if not specified
 
     steps:
