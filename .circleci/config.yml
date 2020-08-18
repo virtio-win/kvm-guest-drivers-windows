@@ -20,6 +20,6 @@ jobs:
 workflows:
   version: 2
 
-  build-and-test:
+  build:
     jobs:
       - build
