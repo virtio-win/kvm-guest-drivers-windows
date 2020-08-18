@@ -14,5 +14,5 @@ jobs:
       # Commands are run in a Windows virtual machine environment
       - checkout
       - run:
-        - name: "Set VS env vars"
-        - command: "C:\\ProgramFiles (x86)\\Microsoft Visual Studio\\2019\\Community\\Common7\\Tools\\VsDevCmd.bat"
+        name: "Set VS env vars"
+        command: "C:\\ProgramFiles (x86)\\Microsoft Visual Studio\\2019\\Community\\Common7\\Tools\\VsDevCmd.bat"
