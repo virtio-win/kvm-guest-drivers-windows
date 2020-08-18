@@ -5,14 +5,12 @@
 
 class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementAllocatable {
 public:
-    CParaNdisCX();
+    CParaNdisCX(PPARANDIS_ADAPTER Context);
     ~CParaNdisCX();
 
-    bool Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex);
+    bool Create(UINT DeviceQueueIndex);
 
     virtual NDIS_STATUS SetupMessageIndex(u16 vector);
-
-    void InitDPC();
 
     BOOLEAN CParaNdisCX::SendControlMessage(
         UCHAR cls,

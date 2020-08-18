@@ -1041,9 +1041,9 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         return NTStatusToNdisStatus(nt_status);
     }
 
-    new (&pContext->CXPath) CParaNdisCX();
+    new (&pContext->CXPath) CParaNdisCX(pContext);
     pContext->bCXPathAllocated = TRUE;
-    if (pContext->bControlQueueSupported && pContext->CXPath.Create(pContext, 2 * pContext->nHardwareQueues))
+    if (pContext->bControlQueueSupported && pContext->CXPath.Create(2 * pContext->nHardwareQueues))
     {
         pContext->bCXPathCreated = TRUE;
     }
