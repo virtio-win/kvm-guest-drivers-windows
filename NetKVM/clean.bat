@@ -20,6 +20,7 @@ call :rmdir x86
 call :rmdir ARM64
 call :rmfiles build.err build.log buildfre_*.log buildchk_*.log msbuild.log
 call :rmfiles netkvm.DVL.XML SDV-default.xml sdv-user.sdv
+call :rmfiles *.inx
 
 for %%d in (CoInstaller NDIS5 Mof NotifyObject ProtocolService) do call :subdir %%d
 goto :eof
