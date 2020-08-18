@@ -15,4 +15,4 @@ jobs:
       - checkout
       - run:
         - name: "Set VS env vars"
-        - command: "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\Community\Common7\Tools\VsDevCmd.bat" -arch=amd64
+        - command: "C:\\ProgramFiles (x86)\\Microsoft Visual Studio\\2019\Community\\Common7\\Tools\VsDevCmd.bat" -arch=amd64
