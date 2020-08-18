@@ -6,9 +6,11 @@
 #include "ParaNdis_CX.tmh"
 #endif
 
-CParaNdisCX::CParaNdisCX()
+CParaNdisCX::CParaNdisCX(PPARANDIS_ADAPTER Context)
 {
+    m_Context = Context;
     m_ControlData.Virtual = nullptr;
+    KeInitializeDpc(&m_DPC, MiniportMSIInterruptCXDpc, m_Context);
 }
 
 CParaNdisCX::~CParaNdisCX()
@@ -19,9 +21,8 @@ CParaNdisCX::~CParaNdisCX()
     }
 }
 
-bool CParaNdisCX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
+bool CParaNdisCX::Create(UINT DeviceQueueIndex)
 {
-    m_Context = Context;
     m_queueIndex = (u16)DeviceQueueIndex;
 
     if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, 512, &m_ControlData))
@@ -35,16 +36,10 @@ bool CParaNdisCX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     m_Context->m_CxStateMachine.Start();
 
     CreatePath();
-    InitDPC();
 
     return m_VirtQueue.Create(DeviceQueueIndex,
         &m_Context->IODevice,
         m_Context->MiniportHandle);
-}
-
-void CParaNdisCX::InitDPC()
-{
-    KeInitializeDpc(&m_DPC, MiniportMSIInterruptCXDpc, m_Context);
 }
 
 BOOLEAN CParaNdisCX::SendControlMessage(
