@@ -102,7 +102,7 @@ static bool FORCEINLINE CheckNdisVersion(UCHAR major, UCHAR minor)
     return ParandisVersion.major > major;
 }
 
-typedef struct _tagPARANDIS_ADAPTER PARANDIS_ADAPTER;
+typedef struct _PARANDIS_ADAPTER PARANDIS_ADAPTER;
 
 #include "ParaNdis-SM.h"
 #include "ParaNdis-RSS.h"
@@ -376,7 +376,7 @@ struct _tagRxNetDescriptor {
     CParaNdisRX*                   Queue;
 };
 
-typedef struct _tagPARANDIS_ADAPTER
+struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
 {
     NDIS_HANDLE             DriverHandle;
     NDIS_HANDLE             MiniportHandle;
@@ -534,9 +534,10 @@ typedef struct _tagPARANDIS_ADAPTER
     PVOID                   UnalignedAdapterContext;
     ULONG                   UnalignedAdapterContextSize;
 
-    _tagPARANDIS_ADAPTER(const _tagPARANDIS_ADAPTER&) = delete;
-    _tagPARANDIS_ADAPTER& operator= (const _tagPARANDIS_ADAPTER&) = delete;
-}PARANDIS_ADAPTER, *PPARANDIS_ADAPTER;
+    _PARANDIS_ADAPTER(const _PARANDIS_ADAPTER&) = delete;
+    _PARANDIS_ADAPTER& operator= (const _PARANDIS_ADAPTER&) = delete;
+};
+typedef _PARANDIS_ADAPTER PARANDIS_ADAPTER, *PPARANDIS_ADAPTER;
 
 typedef BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) (*tSynchronizedProcedure)(PVOID context);
 
