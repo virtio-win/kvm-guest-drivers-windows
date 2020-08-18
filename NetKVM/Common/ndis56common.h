@@ -531,9 +531,6 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     } RSC;
 #endif
 
-    PVOID                   UnalignedAdapterContext;
-    ULONG                   UnalignedAdapterContextSize;
-
     _PARANDIS_ADAPTER(const _PARANDIS_ADAPTER&) = delete;
     _PARANDIS_ADAPTER& operator= (const _PARANDIS_ADAPTER&) = delete;
 };

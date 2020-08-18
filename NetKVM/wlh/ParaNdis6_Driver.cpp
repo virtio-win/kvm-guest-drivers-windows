@@ -162,23 +162,19 @@ static NDIS_STATUS ParaNdis6_Initialize(
 {
     NDIS_MINIPORT_ADAPTER_ATTRIBUTES        miniportAttributes = {};
     NDIS_STATUS  status = NDIS_STATUS_SUCCESS;
-    PARANDIS_ADAPTER *pContext = nullptr;
-    PVOID UnalignedAdapterContext = nullptr;
-    ULONG UnalignedAdapterContextSize;
+    PARANDIS_ADAPTER *pContext;
 
     UNREFERENCED_PARAMETER(miniportDriverContext);
     DEBUG_ENTRY(0);
-    /* allocate context structure and align it to cache boundary */
-    UnalignedAdapterContextSize = sizeof(PARANDIS_ADAPTER) + NdisGetSharedDataAlignment();
 
-    UnalignedAdapterContext =
+    pContext = (PARANDIS_ADAPTER *)
         NdisAllocateMemoryWithTagPriority(
             miniportAdapterHandle,
-            UnalignedAdapterContextSize,
+            sizeof(*pContext),
             PARANDIS_MEMORY_TAG,
             NormalPoolPriority);
 
-    if (!UnalignedAdapterContext)
+    if (!pContext)
     {
         DPrintf(0, "[%s] ERROR: Memory allocation failed!\n", __FUNCTION__);
         status = NDIS_STATUS_RESOURCES;
@@ -186,15 +182,10 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
     if (status == NDIS_STATUS_SUCCESS)
     {
-        NdisZeroMemory(UnalignedAdapterContext, UnalignedAdapterContextSize);
-
-        pContext = (PARANDIS_ADAPTER *)ALIGN_UP_POINTER_BY(UnalignedAdapterContext, NdisGetSharedDataAlignment());
+        NdisZeroMemory(pContext, sizeof(*pContext));
 
         /* This call is for Static Driver Verifier only - has no real functionality*/
         __sdv_save_adapter_context((PVOID*)&pContext);
-
-        pContext->UnalignedAdapterContext = UnalignedAdapterContext;
-        pContext->UnalignedAdapterContextSize = UnalignedAdapterContextSize;
 
         /* set mandatory fields which Common use */
         pContext->ulUniqueID = NdisInterlockedIncrement(&gID);
@@ -363,7 +354,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
         pContext->m_RxStateMachine.~CDataFlowStateMachine();
         pContext->m_StateMachine.~CMiniportStateMachine();
 
-        NdisFreeMemory(pContext->UnalignedAdapterContext, 0, 0);
+        NdisFreeMemory(pContext, 0, 0);
         pContext = NULL;
     }
 
@@ -373,7 +364,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
         if (status != NDIS_STATUS_SUCCESS)
         {
             ParaNdis_CleanupContext(pContext);
-            NdisFreeMemory(pContext->UnalignedAdapterContext, 0, 0);
+            NdisFreeMemory(pContext, 0, 0);
             pContext = NULL;
         }
     }
@@ -420,7 +411,7 @@ static VOID ParaNdis6_Halt(NDIS_HANDLE miniportAdapterContext, NDIS_HALT_ACTION 
     ParaNdis_CleanupContext(pContext);
     ParaNdis_DebugHistory(pContext, hopHalt, NULL, 0, 0, 0);
     ParaNdis_DebugRegisterMiniport(pContext, FALSE);
-    NdisFreeMemory(pContext->UnalignedAdapterContext, 0, 0);
+    NdisFreeMemory(pContext, 0, 0);
     DEBUG_EXIT_STATUS(2, 0);
 }
 
