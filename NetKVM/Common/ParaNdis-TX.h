@@ -10,7 +10,6 @@
 class CNB;
 class CParaNdisTX;
 
-typedef struct _tagPARANDIS_ADAPTER *PPARANDIS_ADAPTER;
 class CNBL;
 
 class CNB : public CNdisAllocatableViaHelper<CNB>

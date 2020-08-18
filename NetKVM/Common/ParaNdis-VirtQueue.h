@@ -15,7 +15,7 @@ extern "C"
 
 class CNB;
 class CTXVirtQueue;
-typedef struct _tagPARANDIS_ADAPTER *PPARANDIS_ADAPTER;
+typedef struct _PARANDIS_ADAPTER *PPARANDIS_ADAPTER;
 
 typedef enum
 {
