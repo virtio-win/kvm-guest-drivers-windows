@@ -486,7 +486,6 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
 #define PARANDIS_RECEIVE_NO_QUEUE  (-2)
 
     CParaNdisCX CXPath;
-    BOOLEAN bCXPathAllocated = false;
     BOOLEAN bCXPathCreated = false;
     BOOLEAN bSharedVectors = false;
     BOOLEAN bDeviceNeedsReset = false;

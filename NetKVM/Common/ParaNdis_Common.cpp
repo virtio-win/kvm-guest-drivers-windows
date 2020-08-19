@@ -1039,7 +1039,6 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         return NTStatusToNdisStatus(nt_status);
     }
 
-    pContext->bCXPathAllocated = TRUE;
     if (pContext->bControlQueueSupported && pContext->CXPath.Create(2 * pContext->nHardwareQueues))
     {
         pContext->bCXPathCreated = TRUE;
@@ -1050,7 +1049,6 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         pContext->bCtrlRXFiltersSupported = pContext->bCtrlRXExtraFiltersSupported = FALSE;
         pContext->bCtrlMACAddrSupported = pContext->bCtrlVLANFiltersSupported = FALSE;
         pContext->bCXPathCreated = FALSE;
-
     }
 
     pContext->pPathBundles = (CPUPathBundle *)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, pContext->nPathBundles * sizeof(*pContext->pPathBundles),
@@ -1380,12 +1378,6 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     pContext->RSSParameters.rwLock.~CNdisRWLock();
 #endif
     pContext->m_StateMachine.NotifyHalted();
-
-    if (pContext->bCXPathAllocated)
-    {
-        pContext->CXPath.~CParaNdisCX();
-        pContext->bCXPathAllocated = false;
-    }
 
     if (pContext->pPathBundles != NULL)
     {
