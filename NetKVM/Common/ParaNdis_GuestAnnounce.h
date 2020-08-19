@@ -32,9 +32,16 @@ private:
     PARANDIS_ADAPTER *m_Context;
 public:
     CGuestAnnouncePackets(PARANDIS_ADAPTER *pContext) : m_Context(pContext) {};
-    ~CGuestAnnouncePackets()
+    // The object must be Clear()-ed before destruction
+    // It uses NBLs from PARANDIS_ADAPTER's pool and must return NBLs before
+    // the pool is destroyed
+    void Clear()
     {
         m_packets.ForEachDetached([](CGuestAnnouncePacketHolder *GratARPPacket) { GratARPPacket->Release(); });
+    }
+    ~CGuestAnnouncePackets()
+    {
+        Clear();
     }
     VOID DestroyIPV4NBLs()
     {
