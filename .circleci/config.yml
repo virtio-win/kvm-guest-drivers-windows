@@ -7,7 +7,7 @@ jobs:
   build:
     executor:
       name: win/default
-      shell: powershell.exe
+      shell: cmd.exe
       size: "medium" # resource class, can be "medium", "large", "xlarge", "2xlarge", defaults to "medium" if not specified
 
     steps:
@@ -15,7 +15,7 @@ jobs:
       - checkout
       - run:
         name: "Set VS env vars"
-        command: & "dir C:\"
+        command: "dir C:\"
 #          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Community\Common7\Tools\VsDevCmd.bat"
 
 workflows:
