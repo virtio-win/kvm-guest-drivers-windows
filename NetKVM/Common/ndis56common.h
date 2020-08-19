@@ -388,7 +388,7 @@ struct _tagRxNetDescriptor {
 
 struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
 {
-    _PARANDIS_ADAPTER() : guestAnnouncePackets(this), CXPath(this) {}
+    _PARANDIS_ADAPTER() : guestAnnouncePackets(this), CXPath(this), RSSParameters(this) {}
     NDIS_HANDLE             DriverHandle = NULL;
     NDIS_HANDLE             MiniportHandle = NULL;
     NDIS_HANDLE             InterruptHandle = NULL;
@@ -512,7 +512,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     BOOLEAN                     bRSSOffloadSupported = false;
     BOOLEAN                     bRSSInitialized = false;
     NDIS_RECEIVE_SCALE_CAPABILITIES RSSCapabilities = {};
-    PARANDIS_RSS_PARAMS         RSSParameters = {};
+    PARANDIS_RSS_PARAMS         RSSParameters;
     CCHAR                       RSSMaxQueuesNumber = 0;
     struct
     {
@@ -520,6 +520,8 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
         USHORT                  MaxIndirectEntries;
         UCHAR                   MaxKeySize;
     } DeviceRSSCapabilities = {};
+#else
+    PARANDIS_RSS_PARAMS         RSSParameters;
 #endif
 
 #if PARANDIS_SUPPORT_RSC

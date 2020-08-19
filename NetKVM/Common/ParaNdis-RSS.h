@@ -43,23 +43,27 @@ typedef struct _tagPARANDIS_SCALING_SETTINGS
     CCHAR          DefaultQueue;
 } PARANDIS_SCALING_SETTINGS, *PPARANDIS_SCALING_SETTINGS;
 
-typedef struct _tagPARANDIS_RSS_PARAMS
+class PARANDIS_RSS_PARAMS
 {
-    PARANDIS_ADAPTER *pContext;
-
+public:
+    PARANDIS_RSS_PARAMS(PARANDIS_ADAPTER *pContext) : m_pContext(pContext) { }
     CCHAR             ReceiveQueuesNumber;
 
-    PARANDIS_RSS_MODE RSSMode;
+    PARANDIS_RSS_MODE RSSMode = PARANDIS_RSS_DISABLED;
 
-    PARANDIS_HASHING_SETTINGS ReceiveHashingSettings;
-    PARANDIS_HASHING_SETTINGS RSSHashingSettings;
-    PARANDIS_SCALING_SETTINGS RSSScalingSettings;
+    PARANDIS_HASHING_SETTINGS ReceiveHashingSettings = {};
+    PARANDIS_HASHING_SETTINGS RSSHashingSettings = {};
+    PARANDIS_SCALING_SETTINGS RSSScalingSettings = {};
 
-    PARANDIS_HASHING_SETTINGS ActiveHashingSettings;
-    PARANDIS_SCALING_SETTINGS ActiveRSSScalingSettings;
+    PARANDIS_HASHING_SETTINGS ActiveHashingSettings = {};
+    PARANDIS_SCALING_SETTINGS ActiveRSSScalingSettings = {};
 
     mutable CNdisRWLock                 rwLock;
-} PARANDIS_RSS_PARAMS, *PPARANDIS_RSS_PARAMS;
+
+private:
+    PARANDIS_ADAPTER *m_pContext;
+};
+typedef PARANDIS_RSS_PARAMS *PPARANDIS_RSS_PARAMS;
 
 typedef struct _tagRSS_HASH_KEY_PARAMETERS
 {
@@ -104,6 +108,12 @@ CCHAR ParaNdis6_RSSGetCurrentCpuReceiveQueue(PARANDIS_RSS_PARAMS *RSSParameters)
 #else
 
 #define PARANDIS_RSS_MAX_RECEIVE_QUEUES (0)
+class PARANDIS_RSS_PARAMS
+{
+public:
+    PARANDIS_RSS_PARAMS(PARANDIS_ADAPTER *pContext) { }
+
+};
 
 #endif
 
