@@ -712,9 +712,7 @@ Initializes the context structure
 Major variables, received from NDIS on initialization, must be be set before this call
 (for ex. pContext->MiniportHandle)
 
-If this procedure fails, no need to call
-    ParaNdis_CleanupContext
-
+If this procedure fails, it is safe to call ParaNdis_CleanupContext
 
 Parameters:
 Return value:
@@ -1352,7 +1350,7 @@ Frees all the resources allocated when the context initialized,
 Parameters:
     context
 ***********************************************************/
-VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
+static VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 {
     /* disable any interrupt generation */
     if (pContext->bDeviceInitialized)
@@ -2176,4 +2174,9 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
 void ParaNdis_PrintCharArray(int DebugPrintLevel, const CCHAR *data, size_t length)
 {
     ParaNdis_PrintTable<80, 10>(DebugPrintLevel, data, length, "%d", [](const CCHAR *p) {  return *p; });
+}
+
+_PARANDIS_ADAPTER::~_PARANDIS_ADAPTER()
+{
+    ParaNdis_CleanupContext(this);
 }

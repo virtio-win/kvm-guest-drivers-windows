@@ -316,7 +316,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
         status = ParaNdis_FinishInitialization(pContext);
         if (status != NDIS_STATUS_SUCCESS)
         {
-            ParaNdis_CleanupContext(pContext);
             pContext->Destroy(pContext, pContext->MiniportHandle);
             pContext = NULL;
         }
@@ -361,7 +360,6 @@ static VOID ParaNdis6_Halt(NDIS_HANDLE miniportAdapterContext, NDIS_HALT_ACTION 
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, hopHalt, NULL, 1, haltAction, 0);
     ParaNdis_ProtocolUnregisterAdapter(pContext);
-    ParaNdis_CleanupContext(pContext);
     ParaNdis_DebugHistory(pContext, hopHalt, NULL, 0, 0, 0);
     ParaNdis_DebugRegisterMiniport(pContext, FALSE);
     pContext->Destroy(pContext, pContext->MiniportHandle);
