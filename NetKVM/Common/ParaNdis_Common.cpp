@@ -1408,7 +1408,6 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 
     virtio_device_shutdown(&pContext->IODevice);
 
-    pContext->PciResources.~CPciResources();
 }
 
 
