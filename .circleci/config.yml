@@ -1,0 +1,24 @@
+version: 2.1 # Use version 2.1 to enable orb usage.
+
+orbs:
+  win: circleci/windows@2.2.0 # The Windows orb give you everything you need to start using the Windows executor.
+
+jobs:
+  build:
+    executor:
+      name: win/default
+      shell: cmd.exe
+      size: "medium" # resource class, can be "medium", "large", "xlarge", "2xlarge", defaults to "medium" if not specified
+
+    steps:
+      # Commands are run in a Windows virtual machine environment
+      - checkout
+      - run: "C:\\Program\ Files\ (x86)\\Microsoft\ Visual\ Studio\\2019\\Community\\Common7\\Tools\\VsDevCmd.bat"
+      - run: 'msbuild .\vioscsi\vioscsi.sln -p:Configuration="Win10\ Release" -p:Platform=x64'
+
+workflows:
+  version: 2
+
+  build:
+    jobs:
+      - build
