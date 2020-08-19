@@ -73,6 +73,10 @@ void __CRTDECL operator delete[](void *) throw()
 #ifdef RW_LOCK_62
 bool CNdisRWLock::Create(NDIS_HANDLE miniportHandle) {
     m_pLock = NdisAllocateRWLock(miniportHandle);
+    if (!m_pLock)
+    {
+        DPrintf(0, "RSS RW lock allocation failed\n");
+    }
     return m_pLock != 0;
 }
 #endif

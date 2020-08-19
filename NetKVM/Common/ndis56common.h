@@ -510,7 +510,6 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
 
 #if PARANDIS_SUPPORT_RSS
     BOOLEAN                     bRSSOffloadSupported = false;
-    BOOLEAN                     bRSSInitialized = false;
     NDIS_RECEIVE_SCALE_CAPABILITIES RSSCapabilities = {};
     PARANDIS_RSS_PARAMS         RSSParameters;
     CCHAR                       RSSMaxQueuesNumber = 0;

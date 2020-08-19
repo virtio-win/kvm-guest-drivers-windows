@@ -46,7 +46,9 @@ typedef struct _tagPARANDIS_SCALING_SETTINGS
 class PARANDIS_RSS_PARAMS
 {
 public:
-    PARANDIS_RSS_PARAMS(PARANDIS_ADAPTER *pContext) : m_pContext(pContext) { }
+    PARANDIS_RSS_PARAMS(PARANDIS_ADAPTER *pContext);
+    ~PARANDIS_RSS_PARAMS();
+    bool              FailedInitialization;
     CCHAR             ReceiveQueuesNumber;
 
     PARANDIS_RSS_MODE RSSMode = PARANDIS_RSS_DISABLED;
@@ -87,8 +89,6 @@ void ParaNdis6_CheckDeviceRSSCapabilities(PARANDIS_ADAPTER *pContext, bool& bRss
 /* for engineering tests only */
 void ParaNdis6_EnableDeviceRssSupport(PARANDIS_ADAPTER *pContext, BOOLEAN b);
 
-VOID ParaNdis6_RSSCleanupConfiguration(PARANDIS_RSS_PARAMS *RSSParameters);
-
 NDIS_RECEIVE_SCALE_CAPABILITIES* ParaNdis6_RSSCreateConfiguration(PARANDIS_ADAPTER *pContext);
 
 struct _tagNET_PACKET_INFO;
@@ -112,7 +112,7 @@ class PARANDIS_RSS_PARAMS
 {
 public:
     PARANDIS_RSS_PARAMS(PARANDIS_ADAPTER *pContext) { }
-
+    bool              FailedInitialization = false;
 };
 
 #endif
