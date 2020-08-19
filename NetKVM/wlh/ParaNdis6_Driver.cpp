@@ -167,12 +167,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
     UNREFERENCED_PARAMETER(miniportDriverContext);
     DEBUG_ENTRY(0);
 
-    pContext = (PARANDIS_ADAPTER *)
-        NdisAllocateMemoryWithTagPriority(
-            miniportAdapterHandle,
-            sizeof(*pContext),
-            PARANDIS_MEMORY_TAG,
-            NormalPoolPriority);
+    pContext = new (miniportAdapterHandle) PARANDIS_ADAPTER;
 
     if (!pContext)
     {
@@ -182,8 +177,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
     if (status == NDIS_STATUS_SUCCESS)
     {
-        NdisZeroMemory(pContext, sizeof(*pContext));
-
         /* This call is for Static Driver Verifier only - has no real functionality*/
         __sdv_save_adapter_context((PVOID*)&pContext);
 
@@ -192,13 +185,8 @@ static NDIS_STATUS ParaNdis6_Initialize(
         pContext->DriverHandle = DriverHandle;
         pContext->MiniportHandle = miniportAdapterHandle;
 
-        new (&pContext->m_StateMachine) CMiniportStateMachine;
-        new (&pContext->m_RxStateMachine) CDataFlowStateMachine;
-        new (&pContext->m_CxStateMachine) CConfigFlowStateMachine;
-
         pContext->m_StateMachine.RegisterFlow(pContext->m_RxStateMachine);
         pContext->m_StateMachine.RegisterFlow(pContext->m_CxStateMachine);
-
 
         NdisZeroMemory(&miniportAttributes, sizeof(miniportAttributes));
         miniportAttributes.RegistrationAttributes.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES;
@@ -350,11 +338,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
         pContext->m_StateMachine.UnregisterFlow(pContext->m_CxStateMachine);
         pContext->m_StateMachine.NotifyHalted();
 
-        pContext->m_CxStateMachine.~CConfigFlowStateMachine();
-        pContext->m_RxStateMachine.~CDataFlowStateMachine();
-        pContext->m_StateMachine.~CMiniportStateMachine();
-
-        NdisFreeMemory(pContext, 0, 0);
+        pContext->Destroy(pContext, pContext->MiniportHandle);
         pContext = NULL;
     }
 
@@ -364,7 +348,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
         if (status != NDIS_STATUS_SUCCESS)
         {
             ParaNdis_CleanupContext(pContext);
-            NdisFreeMemory(pContext, 0, 0);
+            pContext->Destroy(pContext, pContext->MiniportHandle);
             pContext = NULL;
         }
     }
@@ -411,7 +395,7 @@ static VOID ParaNdis6_Halt(NDIS_HANDLE miniportAdapterContext, NDIS_HALT_ACTION 
     ParaNdis_CleanupContext(pContext);
     ParaNdis_DebugHistory(pContext, hopHalt, NULL, 0, 0, 0);
     ParaNdis_DebugRegisterMiniport(pContext, FALSE);
-    NdisFreeMemory(pContext, 0, 0);
+    pContext->Destroy(pContext, pContext->MiniportHandle);
     DEBUG_EXIT_STATUS(2, 0);
 }
 
