@@ -378,61 +378,62 @@ struct _tagRxNetDescriptor {
 
 struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
 {
-    NDIS_HANDLE             DriverHandle;
-    NDIS_HANDLE             MiniportHandle;
-    NDIS_HANDLE             InterruptHandle;
-    NDIS_HANDLE             BufferListsPool;
-    NDIS_HANDLE             BufferListsPoolForArm;
+    _PARANDIS_ADAPTER() : guestAnnouncePackets(this), CXPath(this) {}
+    NDIS_HANDLE             DriverHandle = NULL;
+    NDIS_HANDLE             MiniportHandle = NULL;
+    NDIS_HANDLE             InterruptHandle = NULL;
+    NDIS_HANDLE             BufferListsPool = NULL;
+    NDIS_HANDLE             BufferListsPoolForArm = NULL;
 
     CPciResources           PciResources;
-    VirtIODevice            IODevice;
-    CNdisSharedMemory       *pPageAllocator;
+    VirtIODevice            IODevice = {};
+    CNdisSharedMemory       *pPageAllocator = NULL;
 
-    LARGE_INTEGER           LastTxCompletionTimeStamp;
+    LARGE_INTEGER           LastTxCompletionTimeStamp = {};
 #ifdef PARANDIS_DEBUG_INTERRUPTS
-    LARGE_INTEGER           LastInterruptTimeStamp;
+    LARGE_INTEGER           LastInterruptTimeStamp = {};
 #endif
-    u64                     u64HostFeatures;
-    u64                     u64GuestFeatures;
-    BOOLEAN                 bConnected;
-    BOOLEAN                 bGuestAnnounced;
+    u64                     u64HostFeatures = 0;
+    u64                     u64GuestFeatures = 0;
+    BOOLEAN                 bConnected = false;
+    BOOLEAN                 bGuestAnnounced = false;
     NDIS_PHYSICAL_MEDIUM    physicalMediaType;
     NDIS_MEDIA_CONNECT_STATE fCurrentLinkState;
-    BOOLEAN                 bEnableInterruptHandlingDPC;
-    BOOLEAN                 bDoSupportPriority;
-    BOOLEAN                 bLinkDetectSupported;
-    BOOLEAN                 bGuestAnnounceSupported;
-    BOOLEAN                 bMaxMTUConfigSupported;
-    BOOLEAN                 bLinkPropertiesConfigSupported;
-    BOOLEAN                 bGuestChecksumSupported;
-    BOOLEAN                 bControlQueueSupported;
-    BOOLEAN                 bUseMergedBuffers;
-    BOOLEAN                 bSurprizeRemoved;
-    BOOLEAN                 bUsingMSIX;
-    BOOLEAN                 bUseIndirect;
-    BOOLEAN                 bAnyLayout;
-    BOOLEAN                 bCtrlRXFiltersSupported;
-    BOOLEAN                 bCtrlRXExtraFiltersSupported;
-    BOOLEAN                 bCtrlVLANFiltersSupported;
-    BOOLEAN                 bCtrlMACAddrSupported;
-    BOOLEAN                 bCfgMACAddrSupported;
-    BOOLEAN                 bMultiQueue;
-    USHORT                  nHardwareQueues;
-    ULONG                   ulCurrentVlansFilterSet;
-    tMulticastData          MulticastData;
-    UINT                    uNumberOfHandledRXPacketsInDPC;
-    LONG                    counterDPCInside;
-    ULONG                   ulPriorityVlanSetting;
-    ULONG                   VlanId;
-    ULONG                   ulEnableWakeup;
-    tMaxPacketSize          MaxPacketSize;
-    tLinkProperties         LinkProperties;
-    ULONG                   ulUniqueID;
-    UCHAR                   PermanentMacAddress[ETH_ALEN];
-    UCHAR                   CurrentMacAddress[ETH_ALEN];
-    ULONG                   PacketFilter;
-    ULONG                   DummyLookAhead;
-    ULONG                   nVirtioHeaderSize;
+    BOOLEAN                 bEnableInterruptHandlingDPC = false;
+    BOOLEAN                 bDoSupportPriority = false;
+    BOOLEAN                 bLinkDetectSupported = false;
+    BOOLEAN                 bGuestAnnounceSupported = false;
+    BOOLEAN                 bMaxMTUConfigSupported = false;
+    BOOLEAN                 bLinkPropertiesConfigSupported = false;
+    BOOLEAN                 bGuestChecksumSupported = false;
+    BOOLEAN                 bControlQueueSupported = false;
+    BOOLEAN                 bUseMergedBuffers = false;
+    BOOLEAN                 bSurprizeRemoved = false;
+    BOOLEAN                 bUsingMSIX = false;
+    BOOLEAN                 bUseIndirect = false;
+    BOOLEAN                 bAnyLayout = false;
+    BOOLEAN                 bCtrlRXFiltersSupported = false;
+    BOOLEAN                 bCtrlRXExtraFiltersSupported = false;
+    BOOLEAN                 bCtrlVLANFiltersSupported = false;
+    BOOLEAN                 bCtrlMACAddrSupported = false;
+    BOOLEAN                 bCfgMACAddrSupported = false;
+    BOOLEAN                 bMultiQueue = false;
+    USHORT                  nHardwareQueues = false;
+    ULONG                   ulCurrentVlansFilterSet = false;
+    tMulticastData          MulticastData = {};
+    UINT                    uNumberOfHandledRXPacketsInDPC = 0;
+    LONG                    counterDPCInside = 0;
+    ULONG                   ulPriorityVlanSetting = 0;
+    ULONG                   VlanId = 0;
+    ULONG                   ulEnableWakeup = 0;
+    tMaxPacketSize          MaxPacketSize = {};
+    tLinkProperties         LinkProperties = {};
+    ULONG                   ulUniqueID = 0;
+    UCHAR                   PermanentMacAddress[ETH_ALEN] = {};
+    UCHAR                   CurrentMacAddress[ETH_ALEN] = {};
+    ULONG                   PacketFilter = 0;
+    ULONG                   DummyLookAhead = 0;
+    ULONG                   nVirtioHeaderSize = 0;
 
     CMiniportStateMachine   m_StateMachine;
     CDataFlowStateMachine   m_RxStateMachine;
@@ -442,7 +443,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     CGuestAnnouncePackets    guestAnnouncePackets;
 
     /* send part */
-    NDIS_STATISTICS_INFO    Statistics;
+    NDIS_STATISTICS_INFO    Statistics = {};
     struct
     {
         ULONG framesCSOffload;
@@ -456,16 +457,16 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
         ULONG framesRSSMisses;
         ULONG framesRSSUnclassified;
         ULONG framesRSSError;
-    } extraStatistics;
+    } extraStatistics = {};
 
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
-    UINT                    maxFreeTxDescriptors;
+    UINT                    maxFreeTxDescriptors = 0;
     /* total of Rx buffer in turnaround */
-    UINT                    NetMaxReceiveBuffers;
-    UINT                    nPnpEventIndex;
-    NDIS_DEVICE_PNP_EVENT   PnpEvents[16];
-    tOffloadSettings        Offload;
-    NDIS_OFFLOAD_PARAMETERS InitialOffloadParameters;
+    UINT                    NetMaxReceiveBuffers = 0;
+    UINT                    nPnpEventIndex = 0;
+    NDIS_DEVICE_PNP_EVENT   PnpEvents[16] = {};
+    tOffloadSettings        Offload = {};
+    NDIS_OFFLOAD_PARAMETERS InitialOffloadParameters = {};
 
 #ifdef PARANDIS_SUPPORT_RSS
     PARANDIS_RECEIVE_QUEUE      ReceiveQueues[PARANDIS_RSS_MAX_RECEIVE_QUEUES];
@@ -476,41 +477,41 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
 #define PARANDIS_RECEIVE_NO_QUEUE  (-2)
 
     CParaNdisCX CXPath;
-    BOOLEAN bCXPathAllocated;
-    BOOLEAN bCXPathCreated;
-    BOOLEAN bSharedVectors;
-    BOOLEAN bDeviceNeedsReset;
+    BOOLEAN bCXPathAllocated = false;
+    BOOLEAN bCXPathCreated = false;
+    BOOLEAN bSharedVectors = false;
+    BOOLEAN bDeviceNeedsReset = false;
 
-    CPUPathBundle               *pPathBundles;
-    UINT                        nPathBundles;
+    CPUPathBundle               *pPathBundles = NULL;
+    UINT                        nPathBundles = 0;
 
-    CPUPathBundle              **RSS2QueueMap;
-    USHORT                      RSS2QueueLength;
+    CPUPathBundle              **RSS2QueueMap = NULL;
+    USHORT                      RSS2QueueLength = 0;
 
-    PIO_INTERRUPT_MESSAGE_INFO  pMSIXInfoTable;
-    NDIS_HANDLE                 DmaHandle;
-    ULONG                       ulIrqReceived;
-    NDIS_OFFLOAD                ReportedOffloadCapabilities;
-    NDIS_OFFLOAD                ReportedOffloadConfiguration;
-    BOOLEAN                     bOffloadv4Enabled;
-    BOOLEAN                     bOffloadv6Enabled;
-    BOOLEAN                     bDeviceInitialized;
-    BOOLEAN                     bRSSSupportedByDevice;
-    BOOLEAN                     bRSSSupportedByDevicePersistent;
-    BOOLEAN                     bHashReportedByDevice;
+    PIO_INTERRUPT_MESSAGE_INFO  pMSIXInfoTable = NULL;
+    NDIS_HANDLE                 DmaHandle = NULL;
+    ULONG                       ulIrqReceived = 0;
+    NDIS_OFFLOAD                ReportedOffloadCapabilities = {};
+    NDIS_OFFLOAD                ReportedOffloadConfiguration = {};
+    BOOLEAN                     bOffloadv4Enabled = false;
+    BOOLEAN                     bOffloadv6Enabled = false;
+    BOOLEAN                     bDeviceInitialized = false;
+    BOOLEAN                     bRSSSupportedByDevice = false;
+    BOOLEAN                     bRSSSupportedByDevicePersistent = false;
+    BOOLEAN                     bHashReportedByDevice = false;
 
 #if PARANDIS_SUPPORT_RSS
-    BOOLEAN                     bRSSOffloadSupported;
-    BOOLEAN                     bRSSInitialized;
-    NDIS_RECEIVE_SCALE_CAPABILITIES RSSCapabilities;
-    PARANDIS_RSS_PARAMS         RSSParameters;
-    CCHAR                       RSSMaxQueuesNumber;
+    BOOLEAN                     bRSSOffloadSupported = false;
+    BOOLEAN                     bRSSInitialized = false;
+    NDIS_RECEIVE_SCALE_CAPABILITIES RSSCapabilities = {};
+    PARANDIS_RSS_PARAMS         RSSParameters = {};
+    CCHAR                       RSSMaxQueuesNumber = 0;
     struct
     {
         ULONG                   SupportedHashes;
         USHORT                  MaxIndirectEntries;
         UCHAR                   MaxKeySize;
-    } DeviceRSSCapabilities;
+    } DeviceRSSCapabilities = {};
 #endif
 
 #if PARANDIS_SUPPORT_RSC
@@ -528,7 +529,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
             LARGE_INTEGER           CoalescedOctets;
             LARGE_INTEGER           CoalesceEvents;
         }                           Statistics;
-    } RSC;
+    } RSC = {};
 #endif
 
     _PARANDIS_ADAPTER(const _PARANDIS_ADAPTER&) = delete;
