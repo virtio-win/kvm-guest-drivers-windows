@@ -1371,18 +1371,6 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 
     ParaNdis_FinalizeCleanup(pContext);
 
-#ifdef PARANDIS_SUPPORT_RSS
-    if (pContext->ReceiveQueuesInitialized)
-    {
-        ULONG i;
-
-        for(i = 0; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
-        {
-            NdisFreeSpinLock(&pContext->ReceiveQueues[i].Lock);
-        }
-    }
-#endif
-
 #if PARANDIS_SUPPORT_RSS
     if (pContext->bRSSInitialized)
     {
