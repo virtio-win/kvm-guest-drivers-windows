@@ -15,8 +15,8 @@ jobs:
       - checkout
       - run:
         name: "Set VS env vars"
-        command: |
-          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Community\Common7\Tools\VsDevCmd.bat"
+        command: | & "dir C:\"
+#          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Community\Common7\Tools\VsDevCmd.bat"
 
 workflows:
   version: 2
