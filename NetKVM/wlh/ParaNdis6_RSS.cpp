@@ -43,8 +43,6 @@ static VOID ApplySettings(PPARANDIS_RSS_PARAMS RSSParameters,
 static VOID InitRSSParameters(PARANDIS_ADAPTER *pContext)
 {
     PARANDIS_RSS_PARAMS *RSSParameters = &pContext->RSSParameters;
-    NdisZeroMemory(RSSParameters, sizeof(*RSSParameters));
-    RSSParameters->pContext = pContext;
     RSSParameters->ReceiveQueuesNumber = pContext->RSSMaxQueuesNumber;
     RSSParameters->RSSScalingSettings.DefaultQueue = PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
     RSSParameters->ActiveRSSScalingSettings.DefaultQueue = PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
