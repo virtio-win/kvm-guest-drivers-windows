@@ -736,8 +736,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
     pContext->fCurrentLinkState = MediaConnectStateUnknown;
 
-    new (&pContext->guestAnnouncePackets) CGuestAnnouncePackets(pContext);
-
     if (pContext->PciResources.Init(pContext->MiniportHandle, pResourceList))
     {
         if (pContext->PciResources.GetInterruptFlags() & CM_RESOURCE_INTERRUPT_MESSAGE)
@@ -1041,7 +1039,6 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         return NTStatusToNdisStatus(nt_status);
     }
 
-    new (&pContext->CXPath) CParaNdisCX(pContext);
     pContext->bCXPathAllocated = TRUE;
     if (pContext->bControlQueueSupported && pContext->CXPath.Create(2 * pContext->nHardwareQueues))
     {
