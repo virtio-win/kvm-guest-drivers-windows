@@ -1368,8 +1368,6 @@ static VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
     ParaNdis_SetLinkState(pContext, MediaConnectStateUnknown);
     VirtIONetRelease(pContext);
 
-    pContext->guestAnnouncePackets.~CGuestAnnouncePackets();
-
     ParaNdis_FinalizeCleanup(pContext);
 
     pContext->m_StateMachine.NotifyHalted();
@@ -2178,5 +2176,6 @@ void ParaNdis_PrintCharArray(int DebugPrintLevel, const CCHAR *data, size_t leng
 
 _PARANDIS_ADAPTER::~_PARANDIS_ADAPTER()
 {
+    guestAnnouncePackets.Clear();
     ParaNdis_CleanupContext(this);
 }
