@@ -121,12 +121,22 @@ typedef struct _tagRxNetDescriptor  RxNetDescriptor, *pRxNetDescriptor;
 
 static __inline BOOLEAN ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq);
 
-typedef struct _tagPARANDIS_RECEIVE_QUEUE
+struct PARANDIS_RECEIVE_QUEUE
 {
+    PARANDIS_RECEIVE_QUEUE()
+    {
+        InitializeListHead(&BuffersList);
+        NdisAllocateSpinLock(&Lock);
+    }
+    ~PARANDIS_RECEIVE_QUEUE()
+    {
+        NdisFreeSpinLock(&Lock);
+    }
     NDIS_SPIN_LOCK          Lock;
     LIST_ENTRY              BuffersList;
     COwnership              Ownership;
-} PARANDIS_RECEIVE_QUEUE, *PPARANDIS_RECEIVE_QUEUE;
+};
+typedef PARANDIS_RECEIVE_QUEUE *PPARANDIS_RECEIVE_QUEUE;
 
 #include "ParaNdis-TX.h"
 #include "ParaNdis-RX.h"
@@ -470,7 +480,6 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
 
 #ifdef PARANDIS_SUPPORT_RSS
     PARANDIS_RECEIVE_QUEUE      ReceiveQueues[PARANDIS_RSS_MAX_RECEIVE_QUEUES];
-    BOOLEAN                     ReceiveQueuesInitialized;
 #define PARANDIS_FIRST_RSS_RECEIVE_QUEUE    (0)
 #endif
 #define PARANDIS_RECEIVE_UNCLASSIFIED_PACKET (-1)

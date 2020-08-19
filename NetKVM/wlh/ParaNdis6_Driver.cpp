@@ -289,14 +289,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
             DPrintf(0, "RSS RW lock allocation failed\n");
             status = NDIS_STATUS_RESOURCES;
         }
-
-        for(ULONG i = 0; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
-        {
-            NdisAllocateSpinLock(&pContext->ReceiveQueues[i].Lock);
-            InitializeListHead(&pContext->ReceiveQueues[i].BuffersList);
-        }
-
-        pContext->ReceiveQueuesInitialized = TRUE;
 #endif
 
         miniportAttributes.GeneralAttributes.AccessType = NET_IF_ACCESS_BROADCAST;
@@ -322,16 +314,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
     {
 #if PARANDIS_SUPPORT_RSS
         pContext->RSSParameters.rwLock.~CNdisRWLock();
-
-        if (pContext->ReceiveQueuesInitialized)
-        {
-            ULONG i;
-
-            for (i = 0; i < ARRAYSIZE(pContext->ReceiveQueues); i++)
-            {
-                NdisFreeSpinLock(&pContext->ReceiveQueues[i].Lock);
-            }
-        }
 #endif
 
         pContext->m_StateMachine.UnregisterFlow(pContext->m_RxStateMachine);
