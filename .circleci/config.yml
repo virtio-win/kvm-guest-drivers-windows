@@ -13,7 +13,7 @@ jobs:
     steps:
       # Commands are run in a Windows virtual machine environment
       - checkout
-      - run: "C:\\Program\ Files\ (x86)\\Microsoft\ Visual\ Studio\\2019\\Community\\Common7\\Tools\\VsDevCmd.bat"
+      - run: "C:\\Program\ Files\ (x86)\\Microsoft\ Visual\ Studio\\2019\\Community\\Common7\\Tools\\VsDevCmd.bat" -arch=amd64
 
 workflows:
   version: 2
