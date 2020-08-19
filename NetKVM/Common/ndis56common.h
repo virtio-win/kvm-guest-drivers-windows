@@ -389,6 +389,7 @@ struct _tagRxNetDescriptor {
 struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
 {
     _PARANDIS_ADAPTER() : guestAnnouncePackets(this), CXPath(this), RSSParameters(this) {}
+    ~_PARANDIS_ADAPTER();
     NDIS_HANDLE             DriverHandle = NULL;
     NDIS_HANDLE             MiniportHandle = NULL;
     NDIS_HANDLE             InterruptHandle = NULL;
@@ -571,9 +572,6 @@ NDIS_STATUS ParaNdis_FinishInitialization(
     PARANDIS_ADAPTER *pContext);
 
 NDIS_STATUS ParaNdis_ConfigureMSIXVectors(
-    PARANDIS_ADAPTER *pContext);
-
-VOID ParaNdis_CleanupContext(
     PARANDIS_ADAPTER *pContext);
 
 void ParaNdis_CXDPCWorkBody(PARANDIS_ADAPTER *pContext);
