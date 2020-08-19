@@ -15,7 +15,7 @@ jobs:
       - checkout
       - run:
         name: "Set VS env vars"
-        command: "dir C:\"
+        command: echo "Hello World"
         
 
 workflows:
