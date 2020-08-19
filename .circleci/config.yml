@@ -7,7 +7,7 @@ jobs:
   build:
     executor:
       name: win/default
-      shell: cmd.exe
+      shell: powershell.exe
       size: "medium" # resource class, can be "medium", "large", "xlarge", "2xlarge", defaults to "medium" if not specified
 
     steps:
@@ -15,7 +15,7 @@ jobs:
       - checkout
       - run:
         name: "Set VS env vars"
-        command: echo "Hello World"
+        command: echo Hello
         
 
 workflows:
