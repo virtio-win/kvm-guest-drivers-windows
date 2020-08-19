@@ -732,6 +732,11 @@ NDIS_STATUS ParaNdis_InitializeContext(
 
     DEBUG_ENTRY(0);
 
+    if (pContext->RSSParameters.FailedInitialization)
+    {
+        return NDIS_STATUS_RESOURCES;
+    }
+
     ReadNicConfiguration(pContext, CurrentMAC);
 
     pContext->fCurrentLinkState = MediaConnectStateUnknown;
@@ -1369,14 +1374,6 @@ VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 
     ParaNdis_FinalizeCleanup(pContext);
 
-#if PARANDIS_SUPPORT_RSS
-    if (pContext->bRSSInitialized)
-    {
-        ParaNdis6_RSSCleanupConfiguration(&pContext->RSSParameters);
-    }
-
-    pContext->RSSParameters.rwLock.~CNdisRWLock();
-#endif
     pContext->m_StateMachine.NotifyHalted();
 
     if (pContext->pPathBundles != NULL)

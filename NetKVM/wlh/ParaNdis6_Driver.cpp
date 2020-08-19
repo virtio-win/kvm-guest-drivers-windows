@@ -280,17 +280,8 @@ static NDIS_STATUS ParaNdis6_Initialize(
         {
             miniportAttributes.GeneralAttributes.RecvScaleCapabilities =
                 ParaNdis6_RSSCreateConfiguration(pContext);
-            pContext->bRSSInitialized = TRUE;
-        }
-
-        new (&pContext->RSSParameters.rwLock) CNdisRWLock();
-        if (!pContext->RSSParameters.rwLock.Create(pContext->MiniportHandle))
-        {
-            DPrintf(0, "RSS RW lock allocation failed\n");
-            status = NDIS_STATUS_RESOURCES;
         }
 #endif
-
         miniportAttributes.GeneralAttributes.AccessType = NET_IF_ACCESS_BROADCAST;
         miniportAttributes.GeneralAttributes.DirectionType = NET_IF_DIRECTION_SENDRECEIVE;
         miniportAttributes.GeneralAttributes.IfType = IF_TYPE_ETHERNET_CSMACD;
@@ -312,10 +303,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
     if (pContext && status != NDIS_STATUS_SUCCESS && status != NDIS_STATUS_PENDING)
     {
-#if PARANDIS_SUPPORT_RSS
-        pContext->RSSParameters.rwLock.~CNdisRWLock();
-#endif
-
         pContext->m_StateMachine.UnregisterFlow(pContext->m_RxStateMachine);
         pContext->m_StateMachine.UnregisterFlow(pContext->m_CxStateMachine);
         pContext->m_StateMachine.NotifyHalted();
