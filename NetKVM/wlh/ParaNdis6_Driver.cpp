@@ -1109,7 +1109,7 @@ DRIVER_INITIALIZE DriverEntry;
 
 static void SetRuntimeNdisVersion()
 {
-#if (NDIS_SUPPORT_NDIS650)
+#if (NDIS_SUPPORT_NDIS680)
     ULONG ul = NdisGetVersion();
     UCHAR major = (UCHAR)(ul >> 16);
     UCHAR minor = ul & 0xff;
@@ -1119,13 +1119,17 @@ static void SetRuntimeNdisVersion()
         major = NDIS_MINIPORT_MAJOR_VERSION;
         minor = NDIS_MINIPORT_MINOR_VERSION;
     }
-    if (minor > NDIS_MINIPORT_MINOR_VERSION)
-    {
-        minor = NDIS_MINIPORT_MINOR_VERSION;
-    }
-    if (minor < NDIS_MINIPORT_MINOR_VERSION)
+    else if (minor < NDIS_MINIPORT_MINOR_VERSION)
     {
         minor = 30;
+    }
+    else if (minor == 83)
+    {
+        // temporary workaround: ack 6.83
+    }
+    else if (minor > NDIS_MINIPORT_MINOR_VERSION)
+    {
+        minor = NDIS_MINIPORT_MINOR_VERSION;
     }
     _ParandisVersion.major = major;
     _ParandisVersion.minor = minor;
