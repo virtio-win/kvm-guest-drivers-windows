@@ -928,15 +928,28 @@ static void SendOffloadStatusIndication(PARANDIS_ADAPTER *pContext)
 {
     NDIS_STATUS_INDICATION  indication;
     PNDIS_OID_REQUEST pRequest = NULL;
-    NDIS_OFFLOAD offload = pContext->ReportedOffloadConfiguration;
+    struct
+    {
+        NDIS_OFFLOAD offload;
+        ULONG padding[7];
+    } data;
     NdisZeroMemory(&indication, sizeof(indication));
+    data.offload = pContext->ReportedOffloadConfiguration;
     indication.Header.Type = NDIS_OBJECT_TYPE_STATUS_INDICATION;
     indication.Header.Revision = NDIS_STATUS_INDICATION_REVISION_1;
     indication.Header.Size = NDIS_SIZEOF_STATUS_INDICATION_REVISION_1;
     indication.SourceHandle = pContext->MiniportHandle;
     indication.StatusCode = NDIS_STATUS_TASK_OFFLOAD_CURRENT_CONFIG;
-    indication.StatusBuffer = &offload;
-    indication.StatusBufferSize = sizeof(offload);
+    indication.StatusBuffer = &data;
+    indication.StatusBufferSize = data.offload.Header.Size;
+    if (CheckNdisVersion(6, 83))
+    {
+        // ugly workaround for LSO test on 1903
+        RtlZeroMemory(data.padding, sizeof(data.padding));
+        indication.StatusBufferSize = sizeof(data);
+        data.offload.Header.Size = sizeof(data);
+        data.offload.Header.Revision = 6;
+    }
     // we shall not do that for offload indications,
     // it is only for case we return NDIS_STATUS_INDICATION_REQUIRED from OID Handler
     // if (pOid) pRequest = (PNDIS_OID_REQUEST)pOid->Reserved;
