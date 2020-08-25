@@ -805,14 +805,16 @@ VIOSockRxPktHandleConnected(
         break;
     case VIRTIO_VSOCK_OP_SHUTDOWN:
         if (VIOSockShutdownFromPeer(pSocket,
-            pPkt->Header.flags & VIRTIO_VSOCK_SHUTDOWN_MASK))
+            pPkt->Header.flags & VIRTIO_VSOCK_SHUTDOWN_MASK) &&
+            !VIOSockRxHasData(pSocket) &&
+            !VIOSockIsDone(pSocket))
         {
             VIOSockSendReset(pSocket, FALSE);
+            VIOSockDoClose(pSocket);
         }
         break;
     case VIRTIO_VSOCK_OP_RST:
-        VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSING);
-        VIOSockShutdownFromPeer(pSocket, VIRTIO_VSOCK_SHUTDOWN_MASK);
+        VIOSockDoClose(pSocket);
         VIOSockEventSetBit(pSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
         break;
     }
@@ -831,8 +833,7 @@ VIOSockRxPktHandleDisconnecting(
 
     if (pPkt->Header.op == VIRTIO_VSOCK_OP_RST)
     {
-        VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
-        VIOSockShutdownFromPeer(pSocket, VIRTIO_VSOCK_SHUTDOWN_MASK);
+        VIOSockDoClose(pSocket);
 
 //         if (pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_MASK != VIRTIO_VSOCK_SHUTDOWN_MASK)
 //         {
@@ -1261,7 +1262,8 @@ VIOSockReadDequeueCb(
             if (State != VIOSOCK_STATE_CONNECTED)
             {
                 //TODO: set appropriate status
-                if (State == VIOSOCK_STATE_CONNECTING)
+                if (State == VIOSOCK_STATE_CONNECTING ||
+                    State == VIOSOCK_STATE_CLOSING)
                     status = STATUS_CONNECTION_DISCONNECTED;
                 else if (State == VIOSOCK_STATE_LISTEN)
                     status = STATUS_INVALID_PARAMETER;
