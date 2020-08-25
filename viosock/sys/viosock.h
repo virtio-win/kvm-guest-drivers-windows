@@ -95,6 +95,7 @@ typedef struct VirtIOBufferDescriptor VIOSOCK_SG_DESC, *PVIOSOCK_SG_DESC;
 #define VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE	(1024 * 4)
 #define VIRTIO_VSOCK_MAX_PKT_BUF_SIZE		(1024 * 64)
 
+#define VSOCK_CLOSE_TIMEOUT                 (8 * 1000)
 #define VSOCK_DEFAULT_CONNECT_TIMEOUT       MSEC_TO_NANO(2 * 1000)
 #define VSOCK_DEFAULT_BUFFER_SIZE           (1024 * 256)
 #define VSOCK_DEFAULT_BUFFER_MAX_SIZE       (1024 * 256)
@@ -205,6 +206,8 @@ typedef struct _SOCKET_CONTEXT {
     ULONG32         BufferMaxSize;
     ULONG32         PeerShutdown;
     ULONG32         Shutdown;
+
+    KEVENT          CloseEvent;
 
     PKEVENT         EventObject;
     ULONG           EventsMask;
@@ -341,6 +344,20 @@ VIOSockShutdownFromPeer(
     PSOCKET_CONTEXT pSocket,
     ULONG uFlags
 );
+
+VOID
+VIOSockDoClose(
+    PSOCKET_CONTEXT pSocket
+);
+
+__inline
+BOOLEAN
+VIOSockIsDone(
+    PSOCKET_CONTEXT pSocket
+)
+{
+    return !!KeReadStateEvent(&pSocket->CloseEvent);
+}
 
 NTSTATUS
 VIOSockPendedRequestSet(

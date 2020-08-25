@@ -878,6 +878,8 @@ VIOSockCreate(
         return status;
     }
 
+    KeInitializeEvent(&pSocket->CloseEvent, NotificationEvent, FALSE);
+
     WDF_REQUEST_PARAMETERS_INIT(&parameters);
 
     //check EA presents
@@ -979,6 +981,21 @@ VIOSockCreateStub(
 }
 
 VOID
+VIOSockDoClose(
+    PSOCKET_CONTEXT pSocket
+)
+{
+    pSocket->PeerShutdown = VIRTIO_VSOCK_SHUTDOWN_MASK;
+
+    if (!VIOSockRxHasData(pSocket))
+    {
+        VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSING);
+    }
+
+    KeSetEvent(&pSocket->CloseEvent, IO_NO_INCREMENT, FALSE);
+}
+
+VOID
 VIOSockClose(
     IN WDFFILEOBJECT FileObject
 )
@@ -1001,13 +1018,29 @@ VIOSockClose(
         {
             VIOSockSendReset(pSocket, FALSE);
         }
-        else if ((pSocket->Shutdown & VIRTIO_VSOCK_SHUTDOWN_MASK) != VIRTIO_VSOCK_SHUTDOWN_MASK)
+        else
         {
-            VIOSockSendShutdown(pSocket, VIRTIO_VSOCK_SHUTDOWN_MASK);
+            LARGE_INTEGER liTimeout;
+
+            if ((pSocket->Shutdown & VIRTIO_VSOCK_SHUTDOWN_MASK) != VIRTIO_VSOCK_SHUTDOWN_MASK)
+            {
+                VIOSockSendShutdown(pSocket, VIRTIO_VSOCK_SHUTDOWN_MASK);
+            }
+
+            liTimeout.QuadPart = WDF_ABS_TIMEOUT_IN_MS(VIOSockIsFlag(pSocket, SOCK_LINGER) ?
+                pSocket->LingerTime * 1000 : VSOCK_CLOSE_TIMEOUT);
+
+            if (KeWaitForSingleObject(&pSocket->CloseEvent, Executive, KernelMode, FALSE, &liTimeout) == STATUS_TIMEOUT)
+            {
+                VIOSockSendReset(pSocket, FALSE);
+
+                pSocket->PeerShutdown = VIRTIO_VSOCK_SHUTDOWN_MASK;
+
+//                 if (VIOSockRxHasData(pSocket))
+//                     VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSING);
+            }
         }
     }
-
-    //TODO: wait for circuit close
 
     if (pSocket->EventObject)
     {
@@ -1227,13 +1260,13 @@ VIOSockShutdownFromPeer(
 
     WdfSpinLockRelease(pSocket->StateLock);
 
-    if (uDrain & VIRTIO_VSOCK_SHUTDOWN_SEND)
-        VIOSockReadDequeueCb(pSocket, WDF_NO_HANDLE);
-    if (uDrain & VIRTIO_VSOCK_SHUTDOWN_RCV)
-    {
-        //TODO: dequeue requests for current socket only
-        //        VIOSockTxDequeue(GetDeviceContextFromSocket(pSocket));
-    }
+//     if (uDrain & VIRTIO_VSOCK_SHUTDOWN_SEND)
+//         VIOSockReadDequeueCb(pSocket, WDF_NO_HANDLE);
+//     if (uDrain & VIRTIO_VSOCK_SHUTDOWN_RCV)
+//     {
+//         //TODO: dequeue requests for current socket only
+//         //        VIOSockTxDequeue(GetDeviceContextFromSocket(pSocket));
+//     }
 
     return bRes;
 }

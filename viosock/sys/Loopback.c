@@ -330,14 +330,15 @@ VIOSockLoopbackHandleConnected(
         break;
     case VIRTIO_VSOCK_OP_SHUTDOWN:
         if (VIOSockShutdownFromPeer(pDestSocket,
-            Flags & VIRTIO_VSOCK_SHUTDOWN_MASK))
+            Flags & VIRTIO_VSOCK_SHUTDOWN_MASK) &&
+            !VIOSockRxHasData(pDestSocket) &&
+            !VIOSockIsDone(pDestSocket))
         {
             VIOSockSendReset(pDestSocket, FALSE);
         }
         break;
     case VIRTIO_VSOCK_OP_RST:
-        VIOSockStateSet(pDestSocket, VIOSOCK_STATE_CLOSING);
-        VIOSockShutdownFromPeer(pDestSocket, VIRTIO_VSOCK_SHUTDOWN_MASK);
+        VIOSockDoClose(pDestSocket);
         VIOSockEventSetBit(pDestSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
         break;
     }
@@ -357,7 +358,7 @@ VIOSockLoopbackHandleDisconnecting(
 
     if (Op == VIRTIO_VSOCK_OP_RST)
     {
-        VIOSockStateSet(pDestSocket, VIOSOCK_STATE_CLOSE);
+        VIOSockDoClose(pDestSocket);
         //         if (pDestSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_MASK != VIRTIO_VSOCK_SHUTDOWN_MASK)
         //         {
         //             VIOSockEventSetBit(pDestSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
