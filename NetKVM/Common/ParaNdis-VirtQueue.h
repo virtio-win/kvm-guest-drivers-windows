@@ -238,6 +238,8 @@ public:
     void DisableInterrupts()
     { virtqueue_disable_cb(m_VirtQueue); }
 
+    bool IsValid() const { return m_VirtQueue != nullptr; }
+
 protected:
     NDIS_HANDLE m_DrvHandle;
 

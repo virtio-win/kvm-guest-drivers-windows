@@ -55,7 +55,8 @@ BOOLEAN CParaNdisCX::SendControlMessage(
     BOOLEAN bOK = FALSE;
     CLockedContext<CNdisSpinLock> autoLock(m_Lock);
 
-    if (m_ControlData.Virtual && m_ControlData.size > (size1 + size2 + 16))
+    if (m_ControlData.Virtual && m_ControlData.size > (size1 + size2 + 16) &&
+        m_VirtQueue.IsValid() && m_VirtQueue.CanTouchHardware())
     {
         struct VirtIOBufferDescriptor sg[4];
         PUCHAR pBase = (PUCHAR)m_ControlData.Virtual;
