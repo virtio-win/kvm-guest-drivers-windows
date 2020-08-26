@@ -201,12 +201,14 @@ typedef struct _SOCKET_CONTEXT {
 
     WDFSPINLOCK     StateLock;
     volatile VIOSOCK_STATE   State;
-    LARGE_INTEGER   ConnectTimeout;
+    LONGLONG        ConnectTimeout;
     ULONG32         BufferMinSize;
     ULONG32         BufferMaxSize;
     ULONG32         PeerShutdown;
     ULONG32         Shutdown;
 
+    WDFTIMER        ConnectTimer;
+    LONGLONG        DueTime;
     KEVENT          CloseEvent;
 
     PKEVENT         EventObject;
@@ -571,6 +573,13 @@ VIOSockTxMoreReplies(
 {
     return pContext->QueuedReply < (LONG)pContext->RxPktNum;
 }
+
+VOID
+VIOSockTxCancel(
+    PDEVICE_CONTEXT pContext,
+    PSOCKET_CONTEXT pSocket,
+    NTSTATUS        Status
+);
 
 //////////////////////////////////////////////////////////////////////////
 //Rx functions

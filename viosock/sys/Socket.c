@@ -92,6 +92,8 @@ VIOSockCreate(
 );
 
 EVT_WDF_REQUEST_CANCEL VIOSockPendedRequestCancel;
+EVT_WDF_TIMER          VIOSockConnectTimerFunc;
+
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSockCreateStub)
@@ -472,6 +474,9 @@ VIOSockPendedRequestCancel(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
+    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTING)
+        WdfTimerStop(pSocket->ConnectTimer, FALSE);
+
     WdfSpinLockAcquire(pSocket->RxLock);
     WdfObjectDereference(Request);
     pSocket->PendedRequest = WDF_NO_HANDLE;
@@ -843,7 +848,8 @@ VIOSockCreate(
     PSOCKET_CONTEXT         pSocket;
     NTSTATUS                status = STATUS_SUCCESS;
     WDF_REQUEST_PARAMETERS  parameters;
-    WDF_OBJECT_ATTRIBUTES   lockAttributes;
+    WDF_OBJECT_ATTRIBUTES   Attributes;
+    WDF_TIMER_CONFIG        timerConfig;
 
     PAGED_CODE();
 
@@ -860,21 +866,34 @@ VIOSockCreate(
     pSocket->ThisSocket = FileObject;
     pSocket->LoopbackSocket = WDF_NO_HANDLE;
 
-    WDF_OBJECT_ATTRIBUTES_INIT(&lockAttributes);
-    lockAttributes.ParentObject = FileObject;
-    status = WdfSpinLockCreate(&lockAttributes, &pSocket->StateLock);
+    WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
+    Attributes.ParentObject = FileObject;
+    status = WdfSpinLockCreate(&Attributes, &pSocket->StateLock);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfSpinLockCreate failed - 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "WdfSpinLockCreate failed (StateLock) - 0x%x\n", status);
         return status;
     }
 
-    WDF_OBJECT_ATTRIBUTES_INIT(&lockAttributes);
-    lockAttributes.ParentObject = FileObject;
-    status = WdfSpinLockCreate(&lockAttributes, &pSocket->RxLock);
+    WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
+    Attributes.ParentObject = FileObject;
+    status = WdfSpinLockCreate(&Attributes, &pSocket->RxLock);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfSpinLockCreate failed - 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "WdfSpinLockCreate failed (RxLock) - 0x%x\n", status);
+        return status;
+    }
+
+    WDF_TIMER_CONFIG_INIT(&timerConfig, VIOSockConnectTimerFunc);
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
+    Attributes.ParentObject = pSocket->ThisSocket;
+
+    status = WdfTimerCreate(&timerConfig, &Attributes, &pSocket->ConnectTimer);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE,
+            "WdfTimerCreate failed: 0x%x\n", status);
         return status;
     }
 
@@ -941,7 +960,7 @@ VIOSockCreate(
                 {
                     pSocket->type = pParams->Type;
 
-                    pSocket->ConnectTimeout.QuadPart = VSOCK_DEFAULT_CONNECT_TIMEOUT;
+                    pSocket->ConnectTimeout = VSOCK_DEFAULT_CONNECT_TIMEOUT;
                     pSocket->BufferMinSize = VSOCK_DEFAULT_BUFFER_MIN_SIZE;
                     pSocket->BufferMaxSize = VSOCK_DEFAULT_BUFFER_MAX_SIZE;
 
@@ -1215,6 +1234,7 @@ VIOSockConnect(
         {
             return status;
         }
+        WdfTimerStart(pSocket->ConnectTimer, pSocket->ConnectTimeout);
     }
 
     if (pAddr->svm_cid == (ULONG32)pContext->Config.guest_cid)
@@ -1229,6 +1249,7 @@ VIOSockConnect(
         VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
         if (!VIOSockIsFlag(pSocket, SOCK_NON_BLOCK))
         {
+            WdfTimerStop(pSocket->ConnectTimer, TRUE);
             if (!NT_SUCCESS(VIOSockPendedRequestGetLocked(pSocket, &Request)))
             {
                 status = STATUS_PENDING; //do not complete canceled request
@@ -1633,6 +1654,16 @@ typedef struct  _LINGER {
 
 #define SOCK_STREAM     1
 
+/*
+ * Structure used in select() call, taken from the BSD file sys/time.h.
+ */
+struct timeval {
+    long    tv_sec;         /* seconds */
+    long    tv_usec;        /* and microseconds */
+};
+
+#define USEC_PER_SEC    1000000L
+
 static
 NTSTATUS
 VIOSockGetSockOpt(
@@ -1770,6 +1801,22 @@ VIOSockGetSockOpt(
         pOpt->optlen = sizeof(ULONG);
         break;
 
+    case SO_VM_SOCKETS_CONNECT_TIMEOUT:
+        if (pOpt->optlen < sizeof(struct timeval))
+        {
+            status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+        else
+        {
+            struct timeval* tv = (struct timeval*)pOptVal;
+
+            tv->tv_sec = (long)NANO_TO_SEC(pSocket->ConnectTimeout);
+            tv->tv_usec = (long)NANO_TO_USEC(pSocket->ConnectTimeout - SEC_TO_NANO((LONGLONG)tv->tv_sec));
+
+            pOpt->optlen = sizeof(*tv);
+        }
+        break;
     default:
         status = STATUS_NOT_SUPPORTED;
     }
@@ -1918,6 +1965,28 @@ VIOSockSetSockOpt(
         pSocket->BufferMinSize = *(PULONG)pOptVal;
         VIOSockRxUpdateBufferSize(pSocket, pSocket->buf_alloc);
         break;
+
+    case SO_VM_SOCKETS_CONNECT_TIMEOUT:
+        if (pOpt->optlen < sizeof(struct timeval))
+        {
+            status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+        else
+        {
+            struct timeval *tv = (struct timeval*)pOptVal;
+
+            if (tv->tv_sec >= 0 && tv->tv_usec < USEC_PER_SEC &&
+                tv->tv_sec < (LONG_MAX / 1000 - 1))
+            {
+                pSocket->ConnectTimeout = SEC_TO_NANO(tv->tv_sec) + USEC_TO_NANO(tv->tv_usec);
+            }
+
+            if (!pSocket->ConnectTimeout)
+                pSocket->ConnectTimeout = VSOCK_DEFAULT_CONNECT_TIMEOUT;
+        }
+        break;
+
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
@@ -2293,4 +2362,26 @@ VIOSockHandleTransportReset(
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+}
+
+//////////////////////////////////////////////////////////////////////////
+VOID
+VIOSockConnectTimerFunc(
+    WDFTIMER Timer
+)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContext(WdfTimerGetParentObject(Timer));
+    WDFREQUEST PendedRequest;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
+    ASSERT(VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTING);
+
+    if (NT_SUCCESS(VIOSockPendedRequestGetLocked(pSocket, &PendedRequest)) &&
+        PendedRequest != WDF_NO_HANDLE)
+    {
+        WdfRequestComplete(PendedRequest, STATUS_TIMEOUT);
+//        VIOSockTxCancel(GetDeviceContextFromSocket(pSocket), pSocket, STATUS_TIMEOUT);
+    }
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 }

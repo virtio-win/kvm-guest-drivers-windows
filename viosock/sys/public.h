@@ -94,6 +94,13 @@ typedef struct _VIRTIO_VSOCK_READ_PARAMS
 //secs to 100-nanosec intervals
 #define SEC_TO_NANO(s) (MSEC_TO_NANO(s) * 1000)
 
+//100-nanosec intervals to microsecs
+#define NANO_TO_USEC(ns) ((ns) / 10)
+//100-nanosec intervals to millisecs
+#define NANO_TO_MSEC(ns) (NANO_TO_USEC(ns) / 1000)
+//100-nanosec intervals to secs
+#define NANO_TO_SEC(ns) (NANO_TO_MSEC(ns) / 1000)
+
 #ifndef FD_MAX_EVENTS
 #define FD_MAX_EVENTS    10
 #endif
