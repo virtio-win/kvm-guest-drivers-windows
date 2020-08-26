@@ -70,6 +70,13 @@
 
 #define SO_VM_SOCKETS_BUFFER_MAX_SIZE   0x6002
 
+ /* Option name for STREAM socket connection timeout.  Use as the option name
+  * in setsockopt(3) or getsockopt(3) to set or get the connection
+  * timeout for a STREAM socket.
+  */
+
+#define SO_VM_SOCKETS_CONNECT_TIMEOUT   0x6006
+
 /* Any address  for  binding, equivalent of INADDR_ANY.  This works for the svm_cid field of
  * sockaddr_vm and indicates the context ID of the current endpoint.
  */

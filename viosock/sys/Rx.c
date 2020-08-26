@@ -635,7 +635,10 @@ VIOSockRxPktHandleConnecting(
     }
 
     if (PendedRequest)
+    {
+        WdfTimerStop(pSocket->ConnectTimer, TRUE);
         WdfRequestComplete(PendedRequest, status);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 }

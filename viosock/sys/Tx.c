@@ -467,6 +467,61 @@ VIOSockTxDequeue(
 
 }
 
+VOID
+VIOSockTxCancel(
+    PDEVICE_CONTEXT pContext,
+    PSOCKET_CONTEXT pSocket,
+    NTSTATUS        Status
+)
+{
+    LONG lCnt = 0;
+    PLIST_ENTRY CurrentEntry;
+    LIST_ENTRY  CompletionList;
+
+    InitializeListHead(&CompletionList);
+
+    WdfSpinLockAcquire(pContext->TxLock);
+
+    for (CurrentEntry = pContext->TxList.Flink;
+        CurrentEntry != &pContext->TxList;
+        CurrentEntry = CurrentEntry->Flink)
+    {
+        PVIOSOCK_TX_ENTRY   pTxEntry = CONTAINING_RECORD(CurrentEntry,
+            VIOSOCK_TX_ENTRY, ListEntry);
+
+        if (pTxEntry->Socket == pSocket->ThisSocket)
+        {
+            CurrentEntry = CurrentEntry->Blink;
+
+            RemoveEntryList(&pTxEntry->ListEntry);
+            InsertTailList(&CompletionList, &pTxEntry->ListEntry); //complete later
+        }
+    }
+    WdfSpinLockRelease(pContext->TxLock);
+
+    while (!IsListEmpty(&CompletionList))
+    {
+        PVIOSOCK_TX_ENTRY   pTxEntry = CONTAINING_RECORD(RemoveHeadList(&CompletionList),
+            VIOSOCK_TX_ENTRY, ListEntry);
+
+        if (pTxEntry->Request)
+            WdfRequestComplete(pTxEntry->Request, Status);
+
+        if (pTxEntry->reply)
+            ++lCnt;
+
+        WdfObjectDelete(pTxEntry->Memory);
+    }
+
+    if (lCnt)
+    {
+        pContext->QueuedReply -= lCnt;
+        if (pContext->QueuedReply + lCnt >= (LONG)pContext->RxPktNum &&
+            pContext->QueuedReply < (LONG)pContext->RxPktNum)
+            VIOSockRxVqProcess(pContext);
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////
 static
 VOID
