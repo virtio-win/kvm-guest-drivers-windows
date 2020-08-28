@@ -97,3 +97,40 @@ VIOSockEvtDriverContextCleanup(
     WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)Driver));
 }
 
+VOID
+VIOSockTimerStart(
+    IN PVIOSOCK_TIMER   pTimer,
+    IN LONGLONG         Timeout
+)
+{
+    LARGE_INTEGER liTicks;
+    BOOLEAN bSetTimer = FALSE;
+
+    if (!Timeout)
+        return;
+
+    KeQueryTickCount(&liTicks);
+
+    ++pTimer->StartRefs;
+
+    if (pTimer->StartTime)
+    {
+        LONGLONG Remaining;
+
+        ASSERT(pTimer->Timeout);
+
+        Remaining = pTimer->Timeout -
+            (liTicks.QuadPart - pTimer->StartTime) * KeQueryTimeIncrement();
+        if (Remaining > Timeout + VIOSOCK_TIMER_TOLERANCE)
+            bSetTimer = TRUE;
+    }
+    else
+        bSetTimer = TRUE;
+
+    if (bSetTimer)
+    {
+        pTimer->StartTime = liTicks.QuadPart;
+        pTimer->Timeout = Timeout;
+        WdfTimerStart(pTimer->Timer, -Timeout);
+    }
+}

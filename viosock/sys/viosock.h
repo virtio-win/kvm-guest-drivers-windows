@@ -106,6 +106,14 @@ typedef struct VirtIOBufferDescriptor VIOSOCK_SG_DESC, *PVIOSOCK_SG_DESC;
 #define LAST_RESERVED_PORT  1023
 #define MAX_PORT_RETRIES    24
 //////////////////////////////////////////////////////////////////////////
+#define VIOSOCK_TIMER_TOLERANCE MSEC_TO_NANO(50)
+typedef struct _VIOSOCK_TIMER
+{
+    WDFTIMER    Timer;
+    LONGLONG    StartTime; //ticks when timer started
+    LONGLONG    Timeout;   //timeout in 100ns
+    ULONG       StartRefs;
+}VIOSOCK_TIMER,*PVIOSOCK_TIMER;
 
 #define VIOSOCK_DEVICE_NAME L"\\Device\\Viosock"
 
@@ -124,9 +132,9 @@ typedef struct _DEVICE_CONTEXT {
     PHYSICAL_ADDRESS            RxPktPA;
     SINGLE_LIST_ENTRY           RxPktList;      //postponed requests
     ULONG                       RxPktNum;
+    ULONG                       RxCbBuffersNum;
     WDFLOOKASIDE                RxCbBufferMemoryList;
     SINGLE_LIST_ENTRY           RxCbBuffers;    //list or Rx buffers
-    ULONG                       RxCbBuffersNum;
 
     //Send packets
     WDFQUEUE                    WriteQueue;
@@ -135,9 +143,10 @@ typedef struct _DEVICE_CONTEXT {
     PVIOSOCK_VQ                 TxVq;
     PVIRTIO_DMA_MEMORY_SLICED   TxPktSliced;
     ULONG                       TxPktNum;       //Num of slices in TxPktSliced
+    LONG                        QueuedReply;
     LIST_ENTRY                  TxList;
     WDFLOOKASIDE                TxMemoryList;
-    LONG                        QueuedReply;
+    VIOSOCK_TIMER               TxTimer;
 
     //Events
     PVIOSOCK_VQ                 EvtVq;
@@ -202,6 +211,7 @@ typedef struct _SOCKET_CONTEXT {
     WDFSPINLOCK     StateLock;
     volatile VIOSOCK_STATE   State;
     LONGLONG        ConnectTimeout;
+    ULONG           SendTimeout;
     ULONG32         BufferMinSize;
     ULONG32         BufferMaxSize;
     ULONG32         PeerShutdown;
@@ -674,5 +684,84 @@ VIOSockLoopbackTxEnqueue(
     IN WDFREQUEST       Request OPTIONAL,
     IN ULONG            Length OPTIONAL
 );
+
+//////////////////////////////////////////////////////////////////////////
+__inline
+NTSTATUS
+VIOSockTimerCreate(
+    IN PVIOSOCK_TIMER   pTimer,
+    IN WDFOBJECT        ParentObject,
+    IN PFN_WDF_TIMER    EvtTimerFunc
+)
+{
+    WDF_OBJECT_ATTRIBUTES   Attributes;
+    WDF_TIMER_CONFIG        timerConfig;
+
+    pTimer->Timeout = 0;
+    pTimer->StartTime = 0;
+    pTimer->StartRefs = 0;
+
+    WDF_TIMER_CONFIG_INIT(&timerConfig, EvtTimerFunc);
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
+    Attributes.ParentObject = ParentObject;
+
+    return WdfTimerCreate(&timerConfig, &Attributes, &pTimer->Timer);
+}
+
+VOID
+VIOSockTimerStart(
+    IN PVIOSOCK_TIMER   pTimer,
+    IN LONGLONG         Timeout
+);
+
+__inline
+VOID
+VIOSockTimerSet(
+    IN PVIOSOCK_TIMER   pTimer,
+    IN LONGLONG         Timeout
+)
+{
+    LARGE_INTEGER liTicks;
+
+    if (!Timeout || Timeout == LONGLONG_MAX)
+    {
+        ASSERT(!pTimer->StartRefs);
+        pTimer->StartTime = 0;
+        pTimer->Timeout = 0;
+        return;
+    }
+
+    KeQueryTickCount(&liTicks);
+
+    pTimer->StartTime = liTicks.QuadPart;
+    pTimer->Timeout = Timeout;
+    WdfTimerStart(pTimer->Timer, -Timeout);
+}
+
+__inline
+VOID
+VIOSockTimerCancel(
+    IN PVIOSOCK_TIMER pTimer
+)
+{
+    WdfTimerStop(pTimer->Timer, FALSE);
+    pTimer->Timeout = 0;
+    pTimer->StartTime = 0;
+}
+
+__inline
+VOID
+VIOSockTimerDeref(
+    IN PVIOSOCK_TIMER   pTimer,
+    IN BOOLEAN          bStop
+)
+{
+    ASSERT(pTimer->StartRefs);
+    if (--pTimer->StartRefs == 0 && bStop)
+        VIOSockTimerCancel(pTimer);
+}
+
+//////////////////////////////////////////////////////////////////////////
 
 #endif /* VIOSOCK_H */
