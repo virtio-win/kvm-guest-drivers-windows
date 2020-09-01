@@ -649,6 +649,55 @@ static NTSTATUS GetFileInfoInternal(VIRTFS *VirtFs,
     return Status;
 }
 
+static NTSTATUS IsEmptyDirectory(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileContext0)
+{
+    VIRTFS *VirtFs = FileSystem->UserContext;
+    VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
+    BYTE ReadOutBuf[0x1000];
+    struct fuse_dirent *DirEntry;
+    NTSTATUS Status = STATUS_SUCCESS;
+    UINT32 Entries;
+    UINT32 Remains;
+    FUSE_READ_IN read_in;
+    FUSE_READ_OUT *read_out = (FUSE_READ_OUT *)ReadOutBuf;
+
+    FUSE_HEADER_INIT(&read_in.hdr, FUSE_READDIR, FileContext->NodeId,
+        sizeof(read_in.read));
+
+    read_in.read.fh = FileContext->FileHandle;
+    read_in.read.offset = 0;
+    read_in.read.size = sizeof(ReadOutBuf) - sizeof(struct fuse_out_header);
+    read_in.read.read_flags = 0;
+    read_in.read.lock_owner = 0;
+    read_in.read.flags = 0;
+
+    Status = VirtFsFuseRequest(VirtFs->Device, &read_in, sizeof(read_in),
+        read_out, sizeof(struct fuse_out_header) + read_in.read.size);
+
+    if (NT_SUCCESS(Status))
+    {
+        Entries = 0;
+        Remains = read_out->hdr.len - sizeof(struct fuse_out_header);
+        DirEntry = (struct fuse_dirent *)read_out->buf;
+
+        while (Remains > sizeof(struct fuse_dirent))
+        {
+            if (++Entries > 2)
+            {
+                Status = STATUS_DIRECTORY_NOT_EMPTY;
+                break;
+            }
+
+            Remains -= FUSE_DIRENT_SIZE(DirEntry);
+            DirEntry = (struct fuse_dirent *)((PBYTE)DirEntry +
+                FUSE_DIRENT_SIZE(DirEntry));
+        }
+    }
+
+    return Status;
+}
+
 static VOID GetVolumeName(HANDLE Device, PWSTR VolumeName,
     DWORD VolumeNameSize)
 {
@@ -1351,24 +1400,14 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     PWSTR FileName)
 {
-    VIRTFS *VirtFs = FileSystem->UserContext;
     PVIRTFS_FILE_CONTEXT FileContext = FileContext0;
-    FSP_FSCTL_FILE_INFO FileInfo;
-    NTSTATUS Status;
+    NTSTATUS Status = STATUS_SUCCESS;
 
     DBG("\"%S\"", FileName);
- 
-    Status = GetFileInfoInternal(VirtFs, FileContext, &FileInfo, NULL);
-    if (!NT_SUCCESS(Status))
-    {
-        return Status;
-    }
 
-    // Would be nice to know why the size of an empty directory is 40.
-    if ((FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
-        (FileInfo.FileSize > 40))
+    if (FileContext->IsDirectory == TRUE)
     {
-        return STATUS_DIRECTORY_NOT_EMPTY;
+        Status = IsEmptyDirectory(FileSystem, FileContext0);
     }
 
     return Status;
