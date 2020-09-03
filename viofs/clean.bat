@@ -3,9 +3,13 @@
 call :rmdir Install
 call :rmdir Install_Debug
 call :rmdir Release
+call :rmdir pci\sdv
 call :rmfiles *.log
 call :rmfiles *.err
 call :cleandir
+del pci\smvbuild.log
+del pci\smvstats.txt
+del pci\viofs.DVL.XML
 
 pushd pci
 call :cleandir
