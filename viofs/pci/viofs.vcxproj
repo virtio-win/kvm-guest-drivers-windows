@@ -118,8 +118,8 @@
     <TargetExt>.sys</TargetExt>
   </PropertyGroup>
   <PropertyGroup>
-    <IntDir>$(Platform)\$(Configuration)\</IntDir>
-    <OutDir>$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(Platform)\$(Configuration.Replace(' ',''))\</IntDir>
+    <OutDir>$(Platform)\$(Configuration.Replace(' ',''))\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <Inf2CatWindowsVersionList>Server10_$(DDKPlatform);$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
