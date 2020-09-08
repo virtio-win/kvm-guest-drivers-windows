@@ -24,7 +24,7 @@ DriverVer       = 01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 
 [DestinationDirs]
 DefaultDestDir = 12
-VirtFs_Wdf_CoInstaller_CopyFiles = 11
+VirtioFs_Wdf_CoInstaller_CopyFiles = 11
 
 [SourceDisksNames]
 1 = %DiskName%,,,""
@@ -41,18 +41,18 @@ WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll = 1 ; make sure the number matches wi
 %VENDOR% = Standard,NT$ARCH$
 
 [Standard.NT$ARCH$]
-%VirtFs.DeviceDesc% = VirtFs_Device, PCI\VEN_1AF4&DEV_105A&SUBSYS_0004_INX_SUBSYS_VENDOR_ID&REV_00, PCI\VEN_1AF4&DEV_105A
+%VirtioFs.DeviceDesc% = VirtioFs_Device, PCI\VEN_1AF4&DEV_105A&SUBSYS_0004_INX_SUBSYS_VENDOR_ID&REV_00, PCI\VEN_1AF4&DEV_105A
 
-[VirtFs_Device.NT]
-CopyFiles = VirtFs_CopyFiles
+[VirtioFs_Device.NT]
+CopyFiles = VirtioFs_CopyFiles
 
-[VirtFs_Device.NT.HW]
-AddReg = VirtFs_AddReg
+[VirtioFs_Device.NT.HW]
+AddReg = VirtioFs_AddReg
 
-[VirtFs_CopyFiles]
+[VirtioFs_CopyFiles]
 viofs.sys
 
-[VirtFs_AddReg]
+[VirtioFs_AddReg]
 HKR,Interrupt Management,,0x00000010
 HKR,Interrupt Management\MessageSignaledInterruptProperties,,0x00000010
 HKR,Interrupt Management\MessageSignaledInterruptProperties,MSISupported,0x00010001,1
@@ -62,11 +62,11 @@ HKR,Interrupt Management\MessageSignaledInterruptProperties,MessageNumberLimit,0
 ; Service Installation
 ; --------------------
 
-[VirtFs_Device.NT.Services]
-AddService = VirtFs,0x00000002,VirtFs_Service_Install
+[VirtioFs_Device.NT.Services]
+AddService = VirtioFsDrv,0x00000002,VirtioFs_Service_Install
 
-[VirtFs_Service_Install]
-DisplayName    = %VirtFs.Service%
+[VirtioFs_Service_Install]
+DisplayName    = %VirtioFs.Service%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
@@ -77,25 +77,25 @@ LoadOrderGroup = Extended Base
 ; WDF & Device CoInstaller Installation
 ; -------------------------------------
 
-[VirtFs_Device.NT.CoInstallers]
-AddReg=VirtFs_Wdf_CoInstaller_AddReg
-CopyFiles=VirtFs_Wdf_CoInstaller_CopyFiles
+[VirtioFs_Device.NT.CoInstallers]
+AddReg=VirtioFs_Wdf_CoInstaller_AddReg
+CopyFiles=VirtioFs_Wdf_CoInstaller_CopyFiles
 
-[VirtFs_Wdf_CoInstaller_AddReg]
+[VirtioFs_Wdf_CoInstaller_AddReg]
 HKR,,CoInstallers32,0x00010000, \
     "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
 
-[VirtFs_Wdf_CoInstaller_CopyFiles]
+[VirtioFs_Wdf_CoInstaller_CopyFiles]
 WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
 
-[VirtFs_Device.NT.Wdf]
-KmdfService = VirtFs, VirtFs_wdfsect
+[VirtioFs_Device.NT.Wdf]
+KmdfService = VirtioFsDrv, VirtioFs_wdfsect
 
-[VirtFs_wdfsect]
+[VirtioFs_wdfsect]
 KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
 VENDOR              = "INX_COMPANY"
 DiskName            = "INX_PREFIX_VIRTIOVirtIO FS Installation Disk"
-VirtFs.DeviceDesc   = "INX_PREFIX_VIRTIOVirtIO FS Device"
-VirtFs.Service      = "INX_PREFIX_VIRTIOVirtIO FS Service"
+VirtioFs.DeviceDesc = "INX_PREFIX_VIRTIOVirtIO FS Device"
+VirtioFs.Service    = "INX_PREFIX_VIRTIOVirtIO FS Driver"
