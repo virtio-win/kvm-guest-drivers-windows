@@ -106,8 +106,12 @@ VIOSockTimerStart(
     LARGE_INTEGER liTicks;
     BOOLEAN bSetTimer = FALSE;
 
-    if (!Timeout)
+    if (!Timeout || Timeout == LONGLONG_MAX)
         return;
+
+    ASSERT(Timeout > VIOSOCK_TIMER_TOLERANCE);
+    if (Timeout <= VIOSOCK_TIMER_TOLERANCE)
+        Timeout = VIOSOCK_TIMER_TOLERANCE + 1;
 
     KeQueryTickCount(&liTicks);
 
