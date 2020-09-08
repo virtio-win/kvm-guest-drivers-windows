@@ -212,6 +212,7 @@ typedef struct _SOCKET_CONTEXT {
     volatile VIOSOCK_STATE   State;
     LONGLONG        ConnectTimeout;
     ULONG           SendTimeout;
+    ULONG           RecvTimeout;
     ULONG32         BufferMinSize;
     ULONG32         BufferMaxSize;
     ULONG32         PeerShutdown;
@@ -238,6 +239,7 @@ typedef struct _SOCKET_CONTEXT {
     ULONG           ReadRequestFree;
     ULONG           ReadRequestLength;
     ULONG           ReadRequestFlags;
+    VIOSOCK_TIMER   ReadTimer;
 
     WDFREQUEST      PendedRequest;
 
@@ -732,6 +734,10 @@ VIOSockTimerSet(
         return;
     }
 
+    ASSERT(Timeout > VIOSOCK_TIMER_TOLERANCE);
+    if (Timeout <= VIOSOCK_TIMER_TOLERANCE)
+        Timeout = VIOSOCK_TIMER_TOLERANCE + 1;
+
     KeQueryTickCount(&liTicks);
 
     pTimer->StartTime = liTicks.QuadPart;
@@ -762,6 +768,18 @@ VIOSockTimerDeref(
         VIOSockTimerCancel(pTimer);
 }
 
+__inline
+LONGLONG
+VIOSockTimerPassed(
+    IN PVIOSOCK_TIMER pTimer
+)
+{
+    LARGE_INTEGER liTicks;
+
+    KeQueryTickCount(&liTicks);
+
+    return (liTicks.QuadPart - pTimer->StartTime) * KeQueryTimeIncrement();
+}
 //////////////////////////////////////////////////////////////////////////
 
 #endif /* VIOSOCK_H */

@@ -964,6 +964,7 @@ VIOSockCreate(
                     pSocket->BufferMinSize = VSOCK_DEFAULT_BUFFER_MIN_SIZE;
                     pSocket->BufferMaxSize = VSOCK_DEFAULT_BUFFER_MAX_SIZE;
                     pSocket->SendTimeout = LONG_MAX;
+                    pSocket->RecvTimeout = LONG_MAX;
 
                     pSocket->buf_alloc = VSOCK_DEFAULT_BUFFER_SIZE;
                 }
@@ -1780,6 +1781,17 @@ VIOSockGetSockOpt(
         pOpt->optlen = sizeof(ULONG);
         break;
 
+    case SO_RCVTIMEO:
+        if (pOpt->optlen < sizeof(ULONG))
+        {
+            status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+
+        *(PULONG)pOptVal = pSocket->RecvTimeout;
+        pOpt->optlen = sizeof(ULONG);
+        break;
+
     case SO_VM_SOCKETS_BUFFER_SIZE:
         if (pOpt->optlen < sizeof(ULONG))
         {
@@ -1954,6 +1966,16 @@ VIOSockSetSockOpt(
         }
 
         pSocket->SendTimeout = *(PULONG)pOptVal;
+        break;
+
+    case SO_RCVTIMEO:
+        if (pOpt->optlen < sizeof(ULONG))
+        {
+            status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+
+        pSocket->RecvTimeout = *(PULONG)pOptVal;
         break;
 
     case SO_VM_SOCKETS_BUFFER_SIZE:
