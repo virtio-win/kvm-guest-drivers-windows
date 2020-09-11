@@ -887,7 +887,7 @@ VIOSockSelect(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    iReadCount = CopyFromFdSet(&Select.ReadFds, readfds);
+    iReadCount = CopyFromFdSet(&Select.Fdss[FDSET_READ], readfds);
     if (iReadCount == SOCKET_ERROR)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid readfds parameter\n");
@@ -895,7 +895,7 @@ VIOSockSelect(
         return SOCKET_ERROR;
     }
 
-    iWriteCount = CopyFromFdSet(&Select.WriteFds, writefds);
+    iWriteCount = CopyFromFdSet(&Select.Fdss[FDSET_WRITE], writefds);
     if (iWriteCount == SOCKET_ERROR)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid writefds parameter\n");
@@ -903,7 +903,7 @@ VIOSockSelect(
         return SOCKET_ERROR;
     }
 
-    iExceptCount = CopyFromFdSet(&Select.ExceptFds, exceptfds);
+    iExceptCount = CopyFromFdSet(&Select.Fdss[FDSET_EXCPT], exceptfds);
     if (iExceptCount == SOCKET_ERROR)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid exceptfds parameter\n");
@@ -921,7 +921,7 @@ VIOSockSelect(
     if (timeout)
     {
         //timeout in 100-ns intervals
-        Select.Timeout.QuadPart = -(SEC_TO_NANO((LONGLONG)timeout->tv_sec) + USEC_TO_NANO(timeout->tv_usec));
+        Select.Timeout = -(SEC_TO_NANO((LONGLONG)timeout->tv_sec) + USEC_TO_NANO(timeout->tv_usec));
     }
 
     hFile = VIOSockCreateFile(NULL, lpErrno);
@@ -935,9 +935,9 @@ VIOSockSelect(
         }
         else if (dwBytesReturned == sizeof(Select))
         {
-            iRes = CopyToFdSet(readfds, &Select.ReadFds) +
-                CopyToFdSet(writefds, &Select.WriteFds) +
-                CopyToFdSet(exceptfds, &Select.ExceptFds);
+            iRes = CopyToFdSet(readfds, &Select.Fdss[FDSET_READ]) +
+                CopyToFdSet(writefds, &Select.Fdss[FDSET_WRITE]) +
+                CopyToFdSet(exceptfds, &Select.Fdss[FDSET_EXCPT]);
         }
         else
         {
