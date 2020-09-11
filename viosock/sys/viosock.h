@@ -163,9 +163,15 @@ typedef struct _DEVICE_CONTEXT {
 
     WDFLOOKASIDE                AcceptMemoryList;
 
+    LIST_ENTRY                  SelectList;
+    WDFWAITLOCK                 SelectLock;
+    volatile LONG               SelectInProgress;
+    WDFWORKITEM                 SelectWorkitem;
+    VIOSOCK_TIMER               SelectTimer;
+
     WDFQUEUE                    IoCtlQueue;
 
-    VIRTIO_VSOCK_CONFIG Config;
+    VIRTIO_VSOCK_CONFIG         Config;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
@@ -259,6 +265,7 @@ typedef struct _SOCKET_CONTEXT {
     USHORT          LingerTime;
     WDFFILEOBJECT   LoopbackSocket;
 
+    volatile LONG   SelectRefs[FDSET_MAX];
 } SOCKET_CONTEXT, *PSOCKET_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(SOCKET_CONTEXT, GetSocketContext);
@@ -300,10 +307,11 @@ VIOSockDeviceControl(
     IN OUT size_t *pLength
 );
 
-NTSTATUS
-VIOSockSelect(
-    IN WDFREQUEST Request,
-    IN OUT size_t *pLength
+WDFFILEOBJECT
+VIOSockGetSocketFromHandle(
+    IN PDEVICE_CONTEXT pContext,
+    IN ULONGLONG       uSocket,
+    IN BOOLEAN         bIs32BitProcess
 );
 
 VOID
@@ -409,6 +417,11 @@ VIOSockAcceptRemovePkt(
     IN PVIRTIO_VSOCK_HDR    pPkt
 );
 
+VOID
+VIOSockSelectRun(
+    IN PSOCKET_CONTEXT pSocket
+);
+
 /*
  * WinSock 2 extension -- bit values and indices for FD_XXX network events
  */
@@ -449,6 +462,8 @@ VIOSockEventSetBit(
 
     pSocket->Events |= uEvent;
     pSocket->EventsStatus[uSetBit] = Status;
+
+    VIOSockSelectRun(pSocket);
 
     if (bSetEvent && pSocket->EventObject)
         KeSetEvent(pSocket->EventObject, IO_NO_INCREMENT, FALSE);

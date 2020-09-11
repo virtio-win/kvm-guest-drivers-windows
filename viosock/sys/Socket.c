@@ -111,7 +111,6 @@ EVT_WDF_TIMER          VIOSockConnectTimerFunc;
 #pragma alloc_text (PAGE, VIOSockCreate)
 
 #pragma alloc_text (PAGE, VIOSockDeviceControl)
-#pragma alloc_text (PAGE, VIOSockSelect)
 #endif
 
 //////////////////////////////////////////////////////////////////////////
@@ -2230,7 +2229,6 @@ VIOSockDeviceControl(
     return status;
 }
 
-
 WDFFILEOBJECT
 VIOSockGetSocketFromHandle(
     IN PDEVICE_CONTEXT pContext,
@@ -2268,123 +2266,13 @@ VIOSockGetSocketFromHandle(
         ObDereferenceObject(pFileObj);
 
         if (pSocket)
+        {
+            WdfObjectReference(pSocket->ThisSocket);
             return pSocket->ThisSocket;
+        }
     }
 
     return WDF_NO_HANDLE;
-}
-
-NTSTATUS
-VIOSockSelect(
-    IN WDFREQUEST Request,
-    IN OUT size_t *pLength
-)
-{
-    PDEVICE_CONTEXT         pContext = GetDeviceContextFromRequest(Request);
-    PVIRTIO_VSOCK_SELECT    pSelect;
-    SIZE_T                  stSelectLen;
-    NTSTATUS                status;
-    BOOLEAN                 bIs32BitProcess = FALSE;
-    ULONG                   i, j;
-
-    PAGED_CODE();
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
-
-    *pLength = 0;
-
-    status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pSelect), &pSelect, &stSelectLen);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
-        return status;
-    }
-
-    // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
-    _Analysis_assume_(stSelectLen >= sizeof(*pSelect));
-
-    status = WdfRequestRetrieveOutputBuffer(Request, sizeof(*pSelect), &pSelect, &stSelectLen);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveOutputBuffer failed: 0x%x\n", status);
-        return status;
-    }
-
-    // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
-    _Analysis_assume_(stSelectLen >= sizeof(*pSelect));
-
-    if (FD_SETSIZE < pSelect->ReadFds.fd_count +
-        pSelect->WriteFds.fd_count +
-        pSelect->ExceptFds.fd_count)
-    {
-        return STATUS_INVALID_PARAMETER;
-    }
-
-#ifdef _WIN64
-    bIs32BitProcess = WdfRequestIsFrom32BitProcess(Request);
-#endif //_WIN64
-
-    //TODO: handle select with wait and timeout
-    for (i = 0, j = 0; i < pSelect->ReadFds.fd_count; ++i)
-    {
-        ULONGLONG hSocket = pSelect->ReadFds.fd_array[i];
-        if (hSocket)
-        {
-            WDFFILEOBJECT Socket = VIOSockGetSocketFromHandle(pContext, hSocket, bIs32BitProcess);
-            if (Socket != WDF_NO_HANDLE)
-            {
-                PSOCKET_CONTEXT pSocket = GetSocketContext(Socket);
-                if (pSocket->Events & (FD_ACCEPT_BIT | FD_READ_BIT | FD_CLOSE_BIT))
-                {
-                    pSelect->ReadFds.fd_array[j++] = hSocket;
-                }
-            }
-        }
-    }
-    pSelect->ReadFds.fd_count = j;
-
-    for (i = 0, j = 0; i < pSelect->WriteFds.fd_count; ++i)
-    {
-        ULONGLONG hSocket = pSelect->WriteFds.fd_array[i];
-        if (hSocket)
-        {
-            WDFFILEOBJECT Socket = VIOSockGetSocketFromHandle(pContext, hSocket, bIs32BitProcess);
-            if (Socket != WDF_NO_HANDLE)
-            {
-                PSOCKET_CONTEXT pSocket = GetSocketContext(Socket);
-                if (pSocket->Events & (FD_CONNECT_BIT | FD_WRITE_BIT))
-                {
-                    pSelect->WriteFds.fd_array[j++] = hSocket;
-                }
-            }
-        }
-    }
-    pSelect->WriteFds.fd_count = j;
-
-    for (i = 0, j = 0; i < pSelect->ExceptFds.fd_count; ++i)
-    {
-        ULONGLONG hSocket = pSelect->ExceptFds.fd_array[i];
-        if (hSocket)
-        {
-            WDFFILEOBJECT Socket = VIOSockGetSocketFromHandle(pContext, hSocket, bIs32BitProcess);
-            if (Socket != WDF_NO_HANDLE)
-            {
-                PSOCKET_CONTEXT pSocket = GetSocketContext(Socket);
-                if ((pSocket->Events & FD_CONNECT_BIT) &&
-                    !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT]))
-                {
-                    pSelect->ExceptFds.fd_array[j++] = hSocket;
-                }
-            }
-        }
-    }
-    pSelect->ExceptFds.fd_count = j;
-
-    *pLength = sizeof(*pSelect);
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
-
-    return STATUS_SUCCESS;
 }
 
 VOID

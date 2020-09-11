@@ -136,16 +136,22 @@ typedef struct _VIRTIO_VSOCK_IOCTL_IN {
 #define FD_SETSIZE      64
 #endif /* FD_SETSIZE */
 
+typedef enum _VIRTIO_VSOCK_FDSET_TYPE
+{
+    FDSET_READ,
+    FDSET_WRITE,
+    FDSET_EXCPT,
+    FDSET_MAX
+}VIRTIO_VSOCK_FDSET_TYPE;
+
 typedef struct _VIRTIO_VSOCK_FD_SET {
     UINT        fd_count;               /* how many are SET? */
     ULONGLONG   fd_array[FD_SETSIZE];   /* an array of SOCKETs */
 } VIRTIO_VSOCK_FD_SET, *PVIRTIO_VSOCK_FD_SET;
 
 typedef struct _VIRTIO_VSOCK_SELECT {
-    VIRTIO_VSOCK_FD_SET ReadFds;
-    VIRTIO_VSOCK_FD_SET WriteFds;
-    VIRTIO_VSOCK_FD_SET ExceptFds;
-    LARGE_INTEGER       Timeout;
+    VIRTIO_VSOCK_FD_SET Fdss[FDSET_MAX];
+    LONGLONG            Timeout;
 }VIRTIO_VSOCK_SELECT, *PVIRTIO_VSOCK_SELECT;
 
 
