@@ -172,6 +172,7 @@ ViosockCoInstaller(
     switch (InstallFunction)
     {
     case DIF_INSTALLDEVICE:
+        DeinstallProtocol();
         if (!InstallProtocol())
             error = GetLastError();
         break;
