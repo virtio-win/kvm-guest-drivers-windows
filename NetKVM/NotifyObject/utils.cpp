@@ -74,6 +74,7 @@ public:
             Add(L"ven_8086&dev_154c");  // Intel 700 Series VF
             Add(L"ven_8086&dev_10ed");  // Intel 82599 VF
             Add(L"ven_15b3&dev_101a");  // Mellanox MT28800 Family
+            Add(L"ven_14e4&dev_16dc");  // Broadcom NetXtreme-E Virtual Function
         }
         for (UINT i = 0; i < GetCount(); ++i)
         {
