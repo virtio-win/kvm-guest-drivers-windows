@@ -109,8 +109,18 @@ EVT_WDF_TIMER               VIOSockReadTimerFunc;
 #endif
 
 //////////////////////////////////////////////////////////////////////////
-#define VIOSockRxCbPush(c,b) PushEntryList(&(c)->RxCbBuffers, &(b)->FreeListEntry)
+_Requires_lock_held_(pContext->RxLock)
+__inline
+VOID
+VIOSockRxCbPush(
+    PDEVICE_CONTEXT pContext,
+    PVIOSOCK_RX_CB pCb
+)
+{
+    PushEntryList(&pContext->RxCbBuffers, &pCb->FreeListEntry);
+}
 
+_Requires_lock_not_held_(pContext->RxLock)
 __inline
 VOID
 VIOSockRxCbPushLocked(
@@ -123,6 +133,7 @@ VIOSockRxCbPushLocked(
     WdfSpinLockRelease(pContext->RxLock);
 }
 
+_Requires_lock_held_(pContext->RxLock)
 __inline
 PVIOSOCK_RX_CB
 VIOSockRxCbPop(
@@ -138,6 +149,7 @@ VIOSockRxCbPop(
 
     return NULL;
 }
+
 __inline
 VOID
 VIOSockRxCbFree(
@@ -154,15 +166,17 @@ VIOSockRxCbFree(
 
     WdfObjectDelete(pCb->Memory);
 }
+
 static
-PVIOSOCK_RX_CB
+BOOLEAN
 VIOSockRxCbAdd(
     IN PDEVICE_CONTEXT pContext
 )
 {
     NTSTATUS        status;
-    PVIOSOCK_RX_CB  pCb = NULL;
+    PVIOSOCK_RX_CB  pCb;
     WDFMEMORY       Memory;
+    BOOLEAN         bRes = FALSE;
 
     status = WdfMemoryCreateFromLookaside(pContext->RxCbBufferMemoryList, &Memory);
     if (NT_SUCCESS(status))
@@ -180,7 +194,6 @@ VIOSockRxCbAdd(
             TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
                 "VirtIOWdfDeviceAllocDmaMemory(%u bytes for Rx buffer) failed\n", VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE);
             WdfObjectDelete(pCb->Memory);
-            pCb = NULL;
         }
         else
         {
@@ -193,11 +206,12 @@ VIOSockRxCbAdd(
             {
                 TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VirtIOWdfDeviceGetPhysicalAddress failed\n");
                 VIOSockRxCbFree(pContext, pCb);
-                pCb = NULL;
             }
             else
             {
-                VIOSockRxCbPushLocked(pContext, pCb);
+                //no need to lock, init call
+                VIOSockRxCbPush(pContext, pCb);
+                bRes = TRUE;
             }
         }
     }
@@ -205,7 +219,8 @@ VIOSockRxCbAdd(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "WdfMemoryCreateFromLookaside failed: 0x%x\n", status);
     }
-    return pCb;
+
+    return bRes;
 }
 
 static
@@ -260,7 +275,6 @@ VIOSockRxCbEntryForRequest(
     return pCb;
 }
 
-//-
 static
 BOOLEAN
 VIOSockRxCbInit(
@@ -272,9 +286,9 @@ VIOSockRxCbInit(
     WDF_OBJECT_ATTRIBUTES lockAttributes, memAttributes;
     NTSTATUS status;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
-
     PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
 
     pContext->RxCbBuffersNum = VIOSOCK_CB_ENTRIES(pContext->RxPktNum);
 
@@ -291,7 +305,7 @@ VIOSockRxCbInit(
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
             "WdfLookasideListCreate failed: 0x%x\n", status);
         return FALSE;
     }
@@ -358,6 +372,8 @@ VIOSockRxPktCleanup(
 }
 
 C_ASSERT((VIOSOCK_DMA_RX_PAGES + 1) == 2);
+
+_Requires_lock_held_(pContext->RxLock)
 static
 BOOLEAN
 VIOSockRxPktInsert(
@@ -409,6 +425,7 @@ VIOSockRxPktInsert(
     return TRUE;
 }
 
+_Requires_lock_held_(pContext->RxLock)
 __inline
 VOID
 VIOSockRxPktListProcess(
@@ -429,6 +446,7 @@ VIOSockRxPktListProcess(
     }
 }
 
+_Requires_lock_not_held_(pContext->RxLock)
 __inline
 VOID
 VIOSockRxPktInsertOrPostpone(
@@ -454,6 +472,7 @@ VIOSockRxPktInsertOrPostpone(
         virtqueue_notify(pContext->RxVq);
 }
 
+_Requires_lock_held_(pSocket->RxLock)
 __inline
 BOOLEAN
 VIOSockRxPktInc(
@@ -469,6 +488,7 @@ VIOSockRxPktInc(
 
 }
 
+_Requires_lock_held_(pSocket->RxLock)
 __inline
 VOID
 VIOSockRxPktDec(
@@ -593,6 +613,7 @@ VIOSockRxVqInit(
     return status;
 }
 
+_Requires_lock_not_held_(pSocket->StateLock)
 static
 VOID
 VIOSockRxPktHandleConnecting(
@@ -620,11 +641,13 @@ VIOSockRxPktHandleConnecting(
             switch (pPkt->Header.op)
             {
             case VIRTIO_VSOCK_OP_RESPONSE:
+                WdfSpinLockAcquire(pSocket->StateLock);
                 VIOSockStateSet(pSocket, VIOSOCK_STATE_CONNECTED);
                 VIOSockEventSetBit(pSocket, FD_CONNECT_BIT, STATUS_SUCCESS);
                 if (bTxHasSpace)
                     VIOSockEventSetBit(pSocket, FD_WRITE_BIT, STATUS_SUCCESS);
                 status = STATUS_SUCCESS;
+                WdfSpinLockRelease(pSocket->StateLock);
                 break;
             case VIRTIO_VSOCK_OP_INVALID:
                 if (PendedRequest != WDF_NO_HANDLE)
@@ -645,8 +668,10 @@ VIOSockRxPktHandleConnecting(
 
     if (!NT_SUCCESS(status))
     {
+        WdfSpinLockAcquire(pSocket->StateLock);
         VIOSockEventSetBit(pSocket, FD_CONNECT_BIT, status);
         VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
+        WdfSpinLockRelease(pSocket->StateLock);
         if (pPkt->Header.op != VIRTIO_VSOCK_OP_RST)
             VIOSockSendReset(pSocket, TRUE);
     }
@@ -660,6 +685,7 @@ VIOSockRxPktHandleConnecting(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 }
 
+_Requires_lock_not_held_(pSocket->RxLock)
 static
 BOOLEAN
 VIOSockRxPktEnqueueCb(
@@ -727,6 +753,7 @@ VIOSockRxPktEnqueueCb(
     return bRes;
 }
 
+_Requires_lock_not_held_(pSocket->RxLock)
 static
 VOID
 VIOSockRxRequestCancelCb(
@@ -745,7 +772,7 @@ VIOSockRxRequestCancelCb(
     WdfRequestComplete(Request, STATUS_CANCELLED);
 }
 
-//SRxLock-
+_Requires_lock_not_held_(pSocket->RxLock)
 NTSTATUS
 VIOSockRxRequestEnqueueCb(
     IN PSOCKET_CONTEXT  pSocket,
@@ -795,7 +822,6 @@ VIOSockRxRequestEnqueueCb(
     return status;
 }
 
-//SRxLock-
 static
 VOID
 VIOSockRxPktHandleConnected(
@@ -813,14 +839,14 @@ VIOSockRxPktHandleConnected(
     case VIRTIO_VSOCK_OP_RW:
         if (VIOSockRxPktEnqueueCb(pSocket, pPkt))
         {
-            VIOSockEventSetBit(pSocket, FD_READ_BIT, STATUS_SUCCESS);
+            VIOSockEventSetBitLocked(pSocket, FD_READ_BIT, STATUS_SUCCESS);
             VIOSockReadDequeueCb(pSocket, WDF_NO_HANDLE);
         }
-        break;//TODO: Remove break?
+        break;
     case VIRTIO_VSOCK_OP_CREDIT_UPDATE:
         if (bTxHasSpace)
         {
-            VIOSockEventSetBit(pSocket, FD_WRITE_BIT, STATUS_SUCCESS);
+            VIOSockEventSetBitLocked(pSocket, FD_WRITE_BIT, STATUS_SUCCESS);
         }
         break;
     case VIRTIO_VSOCK_OP_SHUTDOWN:
@@ -835,7 +861,7 @@ VIOSockRxPktHandleConnected(
         break;
     case VIRTIO_VSOCK_OP_RST:
         VIOSockDoClose(pSocket);
-        VIOSockEventSetBit(pSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
+        VIOSockEventSetBitLocked(pSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
         break;
     }
 
@@ -1016,32 +1042,20 @@ VIOSockRxVqProcess(
 }
 
 //////////////////////////////////////////////////////////////////////////
+_Requires_lock_not_held_(pSocket->RxLock)
 static
-VOID
-VIOSockRead(
-    IN WDFQUEUE Queue,
-    IN WDFREQUEST Request,
-    IN size_t Length
+NTSTATUS
+VIOSockReadForward(
+    IN PSOCKET_CONTEXT pSocket,
+    IN WDFREQUEST Request
 )
 {
-    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
     NTSTATUS status;
     BOOLEAN bTimer = FALSE;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
-    //check Request
-    if (VIOSockIsFlag(pSocket, SOCK_CONTROL))
-    {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Invalid read request\n");
-        WdfRequestComplete(Request, STATUS_INVALID_DEVICE_REQUEST);
-        return;
-    }
-
-    //TODO: lock socket
     if (!VIOSockIsFlag(pSocket, SOCK_NON_BLOCK) &&
         pSocket->RecvTimeout != LONG_MAX)
     {
-
         PVIOSOCK_RX_CONTEXT pRequest;
         WDF_OBJECT_ATTRIBUTES attributes;
 
@@ -1057,26 +1071,61 @@ VIOSockRead(
         if (!NT_SUCCESS(status))
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfObjectAllocateContext failed: 0x%x\n", status);
-
-            WdfRequestComplete(Request, status);
-            return;
+            return status;
         }
 
         pRequest->Timeout = WDF_ABS_TIMEOUT_IN_MS(pSocket->RecvTimeout);
         pRequest->Counter = 0;
+
+        WdfSpinLockAcquire(pSocket->RxLock);
         VIOSockTimerStart(&pSocket->ReadTimer, pRequest->Timeout);
+        WdfSpinLockRelease(pSocket->RxLock);
+
         bTimer = TRUE;
     }
+
+    VIOSockEventClearBit(pSocket, FD_READ_BIT);
 
     status = WdfRequestForwardToIoQueue(Request, pSocket->ReadQueue);
     if (!NT_SUCCESS(status))
     {
 
         TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestForwardToIoQueue failed: 0x%x\n", status);
-        WdfRequestComplete(Request, status);
         if (bTimer)
+        {
+            WdfSpinLockAcquire(pSocket->RxLock);
             VIOSockTimerDeref(&pSocket->ReadTimer, TRUE);
+            WdfSpinLockRelease(pSocket->RxLock);
+        }
     }
+
+    return status;
+}
+
+static
+VOID
+VIOSockRead(
+    IN WDFQUEUE Queue,
+    IN WDFREQUEST Request,
+    IN size_t Length
+)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    NTSTATUS status;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+    //check Request
+    if (VIOSockIsFlag(pSocket, SOCK_CONTROL))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Invalid read request\n");
+        WdfRequestComplete(Request, STATUS_INVALID_DEVICE_REQUEST);
+        return;
+    }
+
+    status = VIOSockReadForward(pSocket, Request);
+
+    if (!NT_SUCCESS(status))
+        WdfRequestComplete(Request, status);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
 }
@@ -1127,14 +1176,7 @@ VIOSockReadWithFlags(
 
     if (NT_SUCCESS(status))
     {
-        VIOSockEventClearBit(pSocket, FD_READ_BIT);
-
-        status = WdfRequestForwardToIoQueue(Request, pSocket->ReadQueue);
-        if (!NT_SUCCESS(status))
-        {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestForwardToIoQueue failed: 0x%x\n", status);
-        }
-        else
+        if (NT_SUCCESS(VIOSockReadForward(pSocket, Request)))
             status = STATUS_PENDING;
     }
 
@@ -1249,7 +1291,6 @@ VIOSockReadGetRequestParameters(
     return status;
 }
 
-//SRxLock-
 VOID
 VIOSockReadDequeueCb(
     IN PSOCKET_CONTEXT  pSocket,

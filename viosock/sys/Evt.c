@@ -40,6 +40,7 @@
 #pragma alloc_text (PAGE, VIOSockEvtVqCleanup)
 #endif
 
+_IRQL_requires_max_(DISPATCH_LEVEL)
 static
 BOOLEAN
 VIOSockEvtPktInsert(
@@ -85,7 +86,6 @@ VIOSockEvtVqCleanup(
     //drain queue
     while (virtqueue_detach_unused_buf(pContext->EvtVq));
 
-    //process??
     if (pContext->EvtVA)
     {
         VirtIOWdfDeviceFreeDmaMemory(&pContext->VDevice.VIODevice, pContext->EvtVA);

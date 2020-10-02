@@ -864,6 +864,8 @@ VIOSockSelectWorkitem(
         PLIST_ENTRY CurrentItem;
         BOOLEAN     bRemove;
 
+        InterlockedExchange(&pContext->SelectInProgress, 1);
+
         InitializeListHead(&CompletionList);
 
         WdfWaitLockAcquire(pContext->SelectLock, NULL);
@@ -944,7 +946,7 @@ VIOSockSelectWorkitem(
             WdfRequestComplete(WdfObjectContextGetObject(pPkt), pPkt->Status);
         }
 
-    } while (InterlockedExchange(&pContext->SelectInProgress, 0) != 1);
+    } while (InterlockedCompareExchange(&pContext->SelectInProgress, 0, 1) != 1);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "<-- %s\n", __FUNCTION__);
 }

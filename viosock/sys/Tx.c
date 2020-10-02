@@ -58,7 +58,7 @@ typedef struct _VIOSOCK_TX_PKT
         BYTE IndirectDescs[SIZE_OF_SINGLE_INDIRECT_DESC * (1 + VIOSOCK_DMA_TX_PAGES)]; //Header + sglist
         struct
         {
-            SINGLE_LIST_ENTRY ListEntry;
+            LIST_ENTRY ListEntry;
             WDFREQUEST Request;
         };
     };
@@ -85,6 +85,7 @@ typedef struct _VIOSOCK_TX_ENTRY {
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_TX_ENTRY, GetRequestTxContext);
 
+_Requires_lock_not_held_(pContext->TxLock)
 VOID
 VIOSockTxDequeue(
     PDEVICE_CONTEXT pContext
@@ -154,18 +155,7 @@ VIOSockTxVqInit(
     return status;
 }
 
-__inline
-VOID
-VIOSockRxIncTxPkt(
-    IN PSOCKET_CONTEXT pSocket,
-    IN OUT PVIRTIO_VSOCK_HDR pPkt
-)
-{
-    pSocket->last_fwd_cnt = pSocket->fwd_cnt;
-    pPkt->fwd_cnt = pSocket->fwd_cnt;
-    pPkt->buf_alloc = pSocket->buf_alloc;
-}
-
+_Requires_lock_held_(pContext->TxLock)
 static
 PVIOSOCK_TX_PKT
 VIOSockTxPktAlloc(
@@ -198,9 +188,18 @@ VIOSockTxPktAlloc(
     return pPkt;
 }
 
-#define VIOSockTxPktFree(cx,va) (cx)->TxPktSliced->return_slice((cx)->TxPktSliced, va)
+_Requires_lock_held_(pContext->TxLock)
+__inline
+VOID
+VIOSockTxPktFree(
+    IN PDEVICE_CONTEXT pContext,
+    IN PVIOSOCK_TX_PKT pPkt
+)
+{
+    pContext->TxPktSliced->return_slice(pContext->TxPktSliced, pPkt);
+}
 
-//TxLock+
+_Requires_lock_held_(pContext->TxLock)
 static
 BOOLEAN
 VIOSockTxPktInsert(
@@ -269,7 +268,6 @@ VIOSockTxPktInsert(
     return TRUE;
 }
 
-//TxLock-
 VOID
 VIOSockTxVqProcess(
     IN PDEVICE_CONTEXT pContext
@@ -277,14 +275,13 @@ VIOSockTxVqProcess(
 {
     PVIOSOCK_TX_PKT pPkt;
     UINT len;
-    SINGLE_LIST_ENTRY CompletionList;
-    PSINGLE_LIST_ENTRY CurrentItem;
+    LIST_ENTRY CompletionList, *CurrentItem;
     NTSTATUS status;
     WDFREQUEST Request;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
-    CompletionList.Next = NULL;
+    InitializeListHead(&CompletionList);
 
     WdfSpinLockAcquire(pContext->TxLock);
     do
@@ -298,7 +295,7 @@ VIOSockTxVqProcess(
                 pPkt->Request = WdfDmaTransactionGetRequest(pPkt->Transaction);
 
                 //postpone to complete transaction
-                PushEntryList(&CompletionList, &pPkt->ListEntry);
+                InsertTailList(&CompletionList, &pPkt->ListEntry);
             }
             else
             {
@@ -311,25 +308,31 @@ VIOSockTxVqProcess(
 
     WdfSpinLockRelease(pContext->TxLock);
 
-    while ((CurrentItem = PopEntryList(&CompletionList)) != NULL)
+    for (CurrentItem = CompletionList.Flink;
+        CurrentItem != &CompletionList;
+        CurrentItem = CurrentItem->Flink)
     {
         pPkt = CONTAINING_RECORD(CurrentItem, VIOSOCK_TX_PKT, ListEntry);
 
-        if (pPkt->Transaction != WDF_NO_HANDLE)
-        {
-            VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, pPkt->Transaction);
-            if (pPkt->Request != WDF_NO_HANDLE)
-                WdfRequestCompleteWithInformation(pPkt->Request, STATUS_SUCCESS, pPkt->Header.len);
-        }
-        VIOSockTxPktFree(pContext, pPkt);
+        VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, pPkt->Transaction);
+        if (pPkt->Request != WDF_NO_HANDLE)
+            WdfRequestCompleteWithInformation(pPkt->Request, STATUS_SUCCESS, pPkt->Header.len);
     };
+
+    //cleanup pkt locked
+    WdfSpinLockAcquire(pContext->TxLock);
+    while (!IsListEmpty(&CompletionList))
+    {
+        VIOSockTxPktFree(pContext, CONTAINING_RECORD(RemoveHeadList(&CompletionList), VIOSOCK_TX_PKT, ListEntry));
+    };
+    WdfSpinLockRelease(pContext->TxLock);
 
     VIOSockTxDequeue(pContext);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 }
 
-
+_IRQL_requires_max_(DISPATCH_LEVEL)
 static
 BOOLEAN
 VIOSockTxDequeueCallback(
@@ -342,13 +345,14 @@ VIOSockTxDequeueCallback(
 
     WdfSpinLockAcquire(pContext->TxLock);
     bRes = VIOSockTxPktInsert(pContext, pPkt, pParams);
+    if (!bRes)
+        VIOSockTxPktFree(pContext, pPkt);
     WdfSpinLockRelease(pContext->TxLock);
 
     if (!bRes)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "VIOSockTxPktInsert failed\n");
 
-        VIOSockTxPktFree(pContext, pPkt);
         VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, pParams->transaction);
         WdfRequestComplete(pParams->req, STATUS_INSUFFICIENT_RESOURCES);
     }
@@ -368,6 +372,9 @@ VIOSockTxDequeue(
 {
     static volatile LONG    lInProgress;
     BOOLEAN                 bKick = FALSE, bReply, bRestartRx = FALSE;
+
+    if (InterlockedCompareExchange(&lInProgress, 1, 0) == 1)
+        return; //one running instance allowed
 
     WdfSpinLockAcquire(pContext->TxLock);
 
@@ -417,18 +424,16 @@ VIOSockTxDequeue(
                         if (params.transaction)
                             VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, params.transaction);
                         status = STATUS_INSUFFICIENT_RESOURCES;
-                        WdfRequestComplete(pTxEntry->Request, STATUS_INSUFFICIENT_RESOURCES);
-                        VIOSockTxPktFree(pContext, pPkt);
                     }
                 }
 
                 if (!NT_SUCCESS(status))
-                {
                     WdfRequestComplete(pTxEntry->Request, status);
-                    VIOSockTxPktFree(pContext, pPkt);
-                }
 
                 WdfSpinLockAcquire(pContext->TxLock);
+
+                if (!NT_SUCCESS(status))
+                    VIOSockTxPktFree(pContext, pPkt);
             }
             else
             {
@@ -462,6 +467,8 @@ VIOSockTxDequeue(
             }
         }
     }
+
+    InterlockedExchange(&lInProgress, 0);
 
     WdfSpinLockRelease(pContext->TxLock);
 
@@ -644,17 +651,16 @@ VIOSockTxEnqueue(
     pTxEntry->flags = Flags;
     pTxEntry->Timeout = 0;
 
-    WdfSpinLockAcquire(pContext->TxLock);
-
     uLen = VIOSockTxGetCredit(pSocket, pTxEntry->len);
     if (pTxEntry->len && !uLen)
     {
         ASSERT(pTxEntry->Request);
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "No free space on peer\n");
 
-        WdfSpinLockRelease(pContext->TxLock);
         return STATUS_BUFFER_TOO_SMALL;
     }
+
+    WdfSpinLockAcquire(pContext->TxLock);
 
     if (Request != WDF_NO_HANDLE)
     {
@@ -692,13 +698,13 @@ VIOSockTxEnqueue(
 //////////////////////////////////////////////////////////////////////////
 static
 VOID
-VIOSockWriteEnqueue(
-    IN PDEVICE_CONTEXT pContext,
-    IN WDFREQUEST      Request,
-    IN size_t          stLength
-
+VIOSockWrite(
+    IN WDFQUEUE Queue,
+    IN WDFREQUEST Request,
+    IN size_t Length
 )
 {
+    PDEVICE_CONTEXT         pContext = GetDeviceContext(WdfIoQueueGetDevice(Queue));
     NTSTATUS                status;
     WDF_OBJECT_ATTRIBUTES   attributes;
     PSOCKET_CONTEXT         pSocket = GetSocketContextFromRequest(Request);
@@ -706,8 +712,8 @@ VIOSockWriteEnqueue(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
-    if (stLength > VIRTIO_VSOCK_MAX_PKT_BUF_SIZE)
-        stLength = VIRTIO_VSOCK_MAX_PKT_BUF_SIZE;
+    if (Length > VIRTIO_VSOCK_MAX_PKT_BUF_SIZE)
+        Length = VIRTIO_VSOCK_MAX_PKT_BUF_SIZE;
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(
         &attributes,
@@ -727,7 +733,7 @@ VIOSockWriteEnqueue(
     }
     else
     {
-        pRequest->len = (ULONG32)stLength;
+        pRequest->len = (ULONG32)Length;
     }
 
     status = VIOSockSendWrite(pSocket, Request);
@@ -739,17 +745,6 @@ VIOSockWriteEnqueue(
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
-}
-
-static
-VOID
-VIOSockWrite(
-    IN WDFQUEUE Queue,
-    IN WDFREQUEST Request,
-    IN size_t Length
-)
-{
-    VIOSockWriteEnqueue(GetDeviceContext(WdfIoQueueGetDevice(Queue)), Request, Length);
 }
 
 static

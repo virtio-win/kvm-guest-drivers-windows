@@ -35,7 +35,7 @@
 #endif
 
 
- //SRxLock-
+_Requires_lock_not_held_(pSocket->RxLock)
 static
 NTSTATUS
 VIOSockLoopbackAcceptEnqueue(
@@ -88,7 +88,7 @@ VIOSockLoopbackAcceptEnqueue(
             WdfObjectReference(pAcceptSocket->LoopbackSocket);
             VIOSockSetFlag(pAcceptSocket, SOCK_LOOPBACK);
 
-            VIOSockStateSet(pAcceptSocket, VIOSOCK_STATE_CONNECTED);
+            VIOSockStateSetLocked(pAcceptSocket, VIOSOCK_STATE_CONNECTED);
             VIOSockSendResponse(pAcceptSocket);
             WdfRequestComplete(PendedRequest, STATUS_SUCCESS);
             return STATUS_SUCCESS;
@@ -150,40 +150,7 @@ VIOSockLoopbackAcceptDequeue(
 }
 
 //////////////////////////////////////////////////////////////////////////
-//TxLock-
-__inline
-ULONG32
-VIOSockTxGetCreditLocked(
-    IN PSOCKET_CONTEXT pSocket,
-    IN ULONG32 uCredit
-
-)
-{
-    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
-    ULONG32 uRet;
-
-    WdfSpinLockAcquire(pContext->TxLock);
-    uRet = VIOSockTxGetCredit(pSocket, uCredit);
-    WdfSpinLockRelease(pContext->TxLock);
-    return uRet;
-}
-
-//TxLock-
-__inline
-VOID
-VIOSockTxPutCreditLocked(
-    IN PSOCKET_CONTEXT pSocket,
-    IN ULONG32 uCredit
-
-)
-{
-    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
-
-    WdfSpinLockAcquire(pContext->TxLock);
-    VIOSockTxPutCredit(pSocket, uCredit);
-    WdfSpinLockRelease(pContext->TxLock);
-}
-
+_Requires_lock_not_held_(pDstSocket->StateLock)
 __inline
 LONG
 VIOSockLoopbackTxSpaceUpdate(
@@ -191,9 +158,18 @@ VIOSockLoopbackTxSpaceUpdate(
     IN PSOCKET_CONTEXT pSrcSocket
 )
 {
+    LONG uSpace;
+
+    WdfSpinLockAcquire(pDstSocket->StateLock);
+
+    pSrcSocket->last_fwd_cnt = pSrcSocket->fwd_cnt;
+
     pDstSocket->peer_buf_alloc = pSrcSocket->buf_alloc;
     pDstSocket->peer_fwd_cnt = pSrcSocket->fwd_cnt;
-    return VIOSockTxHasSpace(pDstSocket);
+    uSpace = VIOSockTxHasSpace(pDstSocket);
+    WdfSpinLockRelease(pDstSocket->StateLock);
+
+    return uSpace;
 }
 
 static
@@ -210,14 +186,19 @@ VIOSockLoopbackConnect(
 
     ASSERT(pSocket->State == VIOSOCK_STATE_CONNECTING);
 
-    if (pListenSocket && VIOSockStateGet(pListenSocket) == VIOSOCK_STATE_LISTEN)
+    if (pListenSocket)
     {
-        //TODO: Increase buf_alloc for loopback?
-        status = VIOSockLoopbackAcceptEnqueue(pListenSocket, pSocket);
-        if (!NT_SUCCESS(status))
+        if(VIOSockStateGet(pListenSocket) == VIOSOCK_STATE_LISTEN)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockLoopbackAcceptEnqueue failed: 0x%x\n", status);
+            //TODO: Increase buf_alloc for loopback?
+            status = VIOSockLoopbackAcceptEnqueue(pListenSocket, pSocket);
+            if (!NT_SUCCESS(status))
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockLoopbackAcceptEnqueue failed: 0x%x\n", status);
+            }
         }
+        else
+            status = STATUS_CONNECTION_RESET;
     }
     else
         status = STATUS_CONNECTION_RESET;
@@ -226,6 +207,7 @@ VIOSockLoopbackConnect(
     return status;
 }
 
+_Requires_lock_not_held_(pSocket->StateLock)
 static
 NTSTATUS
 VIOSockLoopbackHandleConnecting(
@@ -259,10 +241,12 @@ VIOSockLoopbackHandleConnecting(
                 pDestSocket->LoopbackSocket = pSrcSocket->ThisSocket;
                 WdfObjectReference(pDestSocket->LoopbackSocket);
 
+                WdfSpinLockAcquire(pDestSocket->StateLock);
                 VIOSockStateSet(pDestSocket, VIOSOCK_STATE_CONNECTED);
                 VIOSockEventSetBit(pDestSocket, FD_CONNECT_BIT, STATUS_SUCCESS);
                 if (bTxHasSpace)
                     VIOSockEventSetBit(pDestSocket, FD_WRITE_BIT, STATUS_SUCCESS);
+                WdfSpinLockRelease(pDestSocket->StateLock);
                 status = STATUS_SUCCESS;
                 break;
             case VIRTIO_VSOCK_OP_INVALID:
@@ -284,8 +268,10 @@ VIOSockLoopbackHandleConnecting(
 
     if (!NT_SUCCESS(status))
     {
+        WdfSpinLockAcquire(pDestSocket->StateLock);
         VIOSockEventSetBit(pDestSocket, FD_CONNECT_BIT, status);
         VIOSockStateSet(pDestSocket, VIOSOCK_STATE_CLOSE);
+        WdfSpinLockRelease(pDestSocket->StateLock);
         if (Op != VIRTIO_VSOCK_OP_RST)
             VIOSockSendReset(pDestSocket, FALSE);
     }
@@ -318,14 +304,14 @@ VIOSockLoopbackHandleConnected(
         status = VIOSockRxRequestEnqueueCb(pDestSocket, Request, Length);
         if (NT_SUCCESS(status))
         {
-            VIOSockEventSetBit(pDestSocket, FD_READ_BIT, STATUS_SUCCESS);
+            VIOSockEventSetBitLocked(pDestSocket, FD_READ_BIT, STATUS_SUCCESS);
             VIOSockReadDequeueCb(pDestSocket, NULL);
         }
-        break;//TODO: Remove break?
+        break;
     case VIRTIO_VSOCK_OP_CREDIT_UPDATE:
         if (bTxHasSpace)
         {
-            VIOSockEventSetBit(pDestSocket, FD_WRITE_BIT, STATUS_SUCCESS);
+            VIOSockEventSetBitLocked(pDestSocket, FD_WRITE_BIT, STATUS_SUCCESS);
         }
         break;
     case VIRTIO_VSOCK_OP_SHUTDOWN:
@@ -335,11 +321,12 @@ VIOSockLoopbackHandleConnected(
             !VIOSockIsDone(pDestSocket))
         {
             VIOSockSendReset(pDestSocket, FALSE);
+            VIOSockDoClose(pDestSocket);
         }
         break;
     case VIRTIO_VSOCK_OP_RST:
         VIOSockDoClose(pDestSocket);
-        VIOSockEventSetBit(pDestSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
+        VIOSockEventSetBitLocked(pDestSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
         break;
     }
 
@@ -394,7 +381,7 @@ VIOSockLoopbackTxEnqueue(
             return status;
     }
 
-    uCredit = VIOSockTxGetCreditLocked(pSocket, Length);
+    uCredit = VIOSockTxGetCredit(pSocket, Length);
     if (Length && !uCredit)
     {
         return STATUS_BUFFER_TOO_SMALL;
@@ -415,7 +402,6 @@ VIOSockLoopbackTxEnqueue(
         return status;
     }
 
-    pSocket->last_fwd_cnt = pSocket->fwd_cnt;
     bTxHasSpace = !!VIOSockLoopbackTxSpaceUpdate(pLoopbackSocket, pSocket);
 
     switch (pLoopbackSocket->State)
@@ -439,7 +425,7 @@ VIOSockLoopbackTxEnqueue(
 
     if (!NT_SUCCESS(status))
     {
-        VIOSockTxPutCreditLocked(pSocket, uCredit);
+        VIOSockTxPutCredit(pSocket, uCredit);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
