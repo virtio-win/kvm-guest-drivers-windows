@@ -666,7 +666,7 @@ VIOSockRxPktHandleConnecting(
                 }
                 break;
             case VIRTIO_VSOCK_OP_RST:
-                status = STATUS_CONNECTION_RESET;
+                status = STATUS_CONNECTION_REFUSED;
                 break;
             default:
                 status = STATUS_CONNECTION_INVALID;
@@ -1137,7 +1137,7 @@ VIOSockRead(
     if (VIOSockIsFlag(pSocket, SOCK_CONTROL))
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Invalid read request\n");
-        WdfRequestComplete(Request, STATUS_INVALID_DEVICE_REQUEST);
+        WdfRequestComplete(Request, STATUS_NOT_SOCKET);
         return;
     }
 
@@ -1391,30 +1391,25 @@ VIOSockReadDequeueCb(
         }
         else if (!VIOSockRxHasData(pSocket))
         {
-            VIOSOCK_STATE State = VIOSockStateGet(pSocket);
-
             //complete request
             bStop = TRUE;
-            if (State != VIOSOCK_STATE_CONNECTED)
+
+            status = VIOSockStateValidate(pSocket, FALSE);
+
+            if (NT_SUCCESS(status))
             {
-                //TODO: set appropriate status
-                if (State == VIOSOCK_STATE_CONNECTING ||
-                    State == VIOSOCK_STATE_CLOSING)
-                    status = STATUS_CONNECTION_DISCONNECTED;
-                else if (State == VIOSOCK_STATE_LISTEN)
-                    status = STATUS_INVALID_PARAMETER;
+                if (VIOSockIsFlag(pSocket, SOCK_NON_BLOCK))
+                {
+                    status = STATUS_CANT_WAIT;
+                }
                 else
-                    status = STATUS_SUCCESS; //return zero bytes on closing/close
+                {
+                    ASSERT(FALSE);
+                    bPend = TRUE;
+                }
             }
-            else if (VIOSockIsFlag(pSocket, SOCK_NON_BLOCK))
-            {
-                status = STATUS_CANT_WAIT;
-            }
-            else
-            {
-                ASSERT(FALSE);
-                bPend = TRUE;
-            }
+            else if (status == STATUS_REMOTE_DISCONNECT)
+                status = STATUS_SUCCESS; //return zero bytes on peer shutdown
         }
     }
     else

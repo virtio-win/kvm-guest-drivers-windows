@@ -622,8 +622,8 @@ VIOSockEvtIoDeviceControl(
     default:
         if (IsControlRequest(Request))
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "Invalid device type\n");
-            status = STATUS_INVALID_DEVICE_REQUEST;
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid device type\n");
+            status = STATUS_NOT_SOCKET;
         }
         else
         {

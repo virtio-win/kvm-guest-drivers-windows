@@ -241,7 +241,7 @@ typedef struct _SOCKET_CONTEXT {
     _Guarded_by_(RxLock) LIST_ENTRY      RxCbList;
     _Guarded_by_(RxLock) PCHAR           RxCbReadPtr;    //read ptr in first CB
     _Guarded_by_(RxLock) ULONG           RxCbReadLen;    //remaining bytes in first CB
-    _Guarded_by_(RxLock) ULONG           RxBytes;        //used bytes in rx buffer
+    _Guarded_by_(RxLock) volatile ULONG           RxBytes;        //used bytes in rx buffer
     _Guarded_by_(RxLock) ULONG           RxBuffers;      //used rx buffers (for debug)
 
     WDFQUEUE        ReadQueue;
@@ -519,8 +519,9 @@ VIOSockTxVqProcess(
 
 _Requires_lock_not_held_(pSocket->StateLock)
 NTSTATUS
-VIOSockTxValidateSocketState(
-    PSOCKET_CONTEXT pSocket
+VIOSockStateValidate(
+    PSOCKET_CONTEXT pSocket,
+    BOOLEAN         bTx
 );
 
 _Requires_lock_not_held_(pContext->TxLock)
@@ -677,7 +678,6 @@ VIOSockRxRequestEnqueueCb(
     IN ULONG            Length
 );
 
-//SRxLock+
 __inline
 ULONG
 VIOSockRxHasData(
