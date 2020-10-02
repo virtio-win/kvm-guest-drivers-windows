@@ -146,7 +146,7 @@ VIOSockQueuesCleanup(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     if (pContext->RxVq)
         VIOSockRxVqCleanup(pContext);
@@ -159,7 +159,7 @@ VIOSockQueuesCleanup(
 
     VirtIOWdfDestroyQueues(&pContext->VDevice);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
 
 static
@@ -177,7 +177,7 @@ VIOSockQueuesInit(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     // rx
     params[VIOSOCK_VQ_RX].Interrupt = pContext->WdfInterrupt;
@@ -215,7 +215,7 @@ VIOSockQueuesInit(
     if (!NT_SUCCESS(status))
         VIOSockQueuesCleanup(hDevice);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 
     return status;
 }
@@ -426,7 +426,7 @@ VIOSockEvtDevicePrepareHardware(
     UNREFERENCED_PARAMETER(ResourcesRaw);
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     status = VirtIOWdfInitialize(
         &pContext->VDevice,
@@ -452,11 +452,11 @@ VIOSockEvtDevicePrepareHardware(
     status = VirtIOWdfSetDriverFeatures(&pContext->VDevice, u64GuestFeatures, 0);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "VirtIOWdfSetDriverFeatures failed: 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VirtIOWdfSetDriverFeatures failed: 0x%x\n", status);
         VirtIOWdfSetDriverFailed(&pContext->VDevice);
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return status;
 }
 
@@ -471,11 +471,11 @@ VIOSockEvtDeviceReleaseHardware(
     UNREFERENCED_PARAMETER(ResourcesTranslated);
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     VirtIOWdfShutdown(&pContext->VDevice);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 
@@ -493,7 +493,7 @@ VIOSockEvtDeviceD0Entry(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     status = VIOSockQueuesInit(Device);
     if (!NT_SUCCESS(status))
@@ -510,7 +510,7 @@ VIOSockEvtDeviceD0Entry(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
         "guest_cid %lld\n", pContext->Config.guest_cid);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
 
     return status;
 }
@@ -526,12 +526,12 @@ VIOSockEvtDeviceD0Exit(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s TargetState: %d\n",
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP,"--> %s TargetState: %d\n",
         __FUNCTION__, TargetState);
 
     VIOSockQueuesCleanup(Device);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
 
     return STATUS_SUCCESS;
 }
@@ -548,14 +548,14 @@ VIOSockEvtDeviceD0EntryPostInterruptsEnabled(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Setting VIRTIO_CONFIG_S_DRIVER_OK flag\n");
     VirtIOWdfSetDriverOK(&pContext->VDevice);
 
     ASSERT(pContext->RxVq && pContext->EvtVq);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 

@@ -80,7 +80,7 @@ VIOSockInterruptInit(
         return status;
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return status;
 }
 
@@ -149,7 +149,7 @@ VIOSockInterruptEnable(
 
     UNREFERENCED_PARAMETER(AssociatedDevice);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
 
     virtqueue_enable_cb(pContext->EvtVq);
     virtqueue_kick(pContext->EvtVq);
@@ -157,7 +157,7 @@ VIOSockInterruptEnable(
     virtqueue_enable_cb(pContext->RxVq);
     virtqueue_kick(pContext->RxVq);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 
@@ -170,7 +170,7 @@ VIOSockInterruptDisable(
     PDEVICE_CONTEXT pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
     UNREFERENCED_PARAMETER(AssociatedDevice);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
 
     if (pContext->TxVq)
         virtqueue_disable_cb(pContext->TxVq);
@@ -181,6 +181,6 @@ VIOSockInterruptDisable(
     if (pContext->EvtVq)
         virtqueue_disable_cb(pContext->EvtVq);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }

@@ -487,8 +487,8 @@ VIOSockStateSet(
 {
     VIOSOCK_STATE PrevState;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "%u --> %u\n", pSocket->State, NewState);
-
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Socket %d, %!State! --> %!State!\n",
+        pSocket->SocketId, pSocket->State, NewState);
 
     PrevState = InterlockedExchange((PLONG)&pSocket->State, NewState);
 
@@ -938,7 +938,10 @@ VIOSockCreate(
 
     pSocket = GetSocketContext(FileObject);
     pSocket->ThisSocket = FileObject;
+    pSocket->SocketId = InterlockedIncrement(&pContext->SocketId);
     pSocket->LoopbackSocket = WDF_NO_HANDLE;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Socket %d initializing\n", pSocket->SocketId);
 
     WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
     Attributes.ParentObject = FileObject;
@@ -1080,6 +1083,8 @@ VIOSockDoClose(
     PSOCKET_CONTEXT pSocket
 )
 {
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
     pSocket->PeerShutdown = VIRTIO_VSOCK_SHUTDOWN_MASK;
 
     if (!VIOSockRxHasData(pSocket))
@@ -1088,6 +1093,8 @@ VIOSockDoClose(
     }
 
     KeSetEvent(&pSocket->CloseEvent, IO_NO_INCREMENT, FALSE);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -1108,6 +1115,8 @@ VIOSockClose(
     if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED ||
         VIOSockStateGet(pSocket) == VIOSOCK_STATE_CLOSING)
     {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "Socket %d, peershutdown: %x\n", pSocket->SocketId, pSocket->PeerShutdown);
+
         /* Already received SHUTDOWN from peer, reply with RST */
         if ((pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_MASK) == VIRTIO_VSOCK_SHUTDOWN_MASK)
         {
@@ -1159,6 +1168,8 @@ VIOSockClose(
         WdfRequestComplete(Request, STATUS_CANCELLED);
     }
     VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Socket %d closed\n", pSocket->SocketId);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
 }

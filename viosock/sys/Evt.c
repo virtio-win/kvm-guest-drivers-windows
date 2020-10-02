@@ -52,7 +52,7 @@ VIOSockEvtPktInsert(
     VIOSOCK_SG_DESC sg;
     int ret;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     sg.length = sizeof(VIRTIO_VSOCK_EVENT);
     sg.physAddr.QuadPart = pContext->EvtPA.QuadPart +
@@ -68,7 +68,7 @@ VIOSockEvtPktInsert(
         return FALSE;
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return TRUE;
 }
 
@@ -79,7 +79,7 @@ VIOSockEvtVqCleanup(
 {
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     ASSERT(pContext->EvtVq && pContext->EvtVA);
 
@@ -93,7 +93,7 @@ VIOSockEvtVqCleanup(
     }
 
     pContext->EvtVq = NULL;
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
 
 NTSTATUS
@@ -106,7 +106,7 @@ VIOSockEvtVqInit(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     uBufferSize = sizeof(VIRTIO_VSOCK_EVENT) * VIRTIO_VSOCK_MAX_EVENTS;
 
@@ -144,7 +144,7 @@ VIOSockEvtVqInit(
             VIOSockEvtVqCleanup(pContext);
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 
     return status;
 }
