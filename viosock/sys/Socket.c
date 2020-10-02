@@ -45,7 +45,23 @@ VIOSockConnect(
 );
 
 NTSTATUS
+VIOSockShutdown(
+    IN WDFREQUEST   Request
+);
+
+NTSTATUS
 VIOSockListen(
+    IN WDFREQUEST   Request
+);
+
+NTSTATUS
+VIOSockEnumNetEvents(
+    IN WDFREQUEST   Request,
+    OUT size_t      *pLength
+);
+
+NTSTATUS
+VIOSockEventSelect(
     IN WDFREQUEST   Request
 );
 
@@ -96,12 +112,18 @@ EVT_WDF_TIMER          VIOSockConnectTimerFunc;
 
 
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text (PAGE, VIOSockBoundListInit)
+#pragma alloc_text (PAGE, VIOSockConnectedListInit)
+
 #pragma alloc_text (PAGE, VIOSockCreateStub)
 #pragma alloc_text (PAGE, VIOSockClose)
 
 #pragma alloc_text (PAGE, VIOSockBind)
 #pragma alloc_text (PAGE, VIOSockConnect)
+#pragma alloc_text (PAGE, VIOSockShutdown)
 #pragma alloc_text (PAGE, VIOSockListen)
+#pragma alloc_text (PAGE, VIOSockEnumNetEvents)
+#pragma alloc_text (PAGE, VIOSockEventSelect)
 #pragma alloc_text (PAGE, VIOSockGetPeerName)
 #pragma alloc_text (PAGE, VIOSockGetSockName)
 #pragma alloc_text (PAGE, VIOSockGetSockOpt)
@@ -122,6 +144,8 @@ VIOSockBoundListInit(
     NTSTATUS                status;
     PDEVICE_CONTEXT         pContext = GetDeviceContext(hDevice);
     WDF_OBJECT_ATTRIBUTES   collectionAttributes;
+
+    PAGED_CODE();
 
     // Create collection for socket objects
     WDF_OBJECT_ATTRIBUTES_INIT(&collectionAttributes);
@@ -343,6 +367,8 @@ VIOSockConnectedListInit(
     PDEVICE_CONTEXT         pContext = GetDeviceContext(hDevice);
     WDF_OBJECT_ATTRIBUTES   collectionAttributes;
 
+    PAGED_CODE();
+
     // Create collection for socket objects
     WDF_OBJECT_ATTRIBUTES_INIT(&collectionAttributes);
     collectionAttributes.ParentObject = hDevice;
@@ -423,6 +449,7 @@ VIOSockConnectedEnum(
     return pSocket;
 }
 
+static
 BOOLEAN
 VIOSockConnectedFindByRxPktCallback(
     IN PSOCKET_CONTEXT  pSocket,
@@ -1349,6 +1376,8 @@ VIOSockShutdown(
     SIZE_T          stHowLen;
     NTSTATUS        status;
 
+    PAGED_CODE();
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pHow), &pHow, &stHowLen);
@@ -1481,6 +1510,8 @@ VIOSockEnumNetEvents(
     HANDLE              hEvent = NULL;
     PKEVENT             pEvent = NULL;
 
+    PAGED_CODE();
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pEventObject), &pEventObject, &stEventObjectLen);
@@ -1586,6 +1617,8 @@ VIOSockEventSelect(
     SIZE_T                      stEventSelectLen;
     NTSTATUS                    status;
     PKEVENT                     pEvent = NULL;
+
+    PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
 

@@ -45,6 +45,15 @@ EVT_WDF_REQUEST_CANCEL              VIOSockSelectCancel;
 EVT_WDF_WORKITEM                    VIOSockSelectWorkitem;
 EVT_WDF_TIMER                       VIOSockSelectTimerFunc;
 
+VOID
+VIOSockQueuesCleanup(
+    IN WDFDEVICE hDevice
+);
+
+NTSTATUS
+VIOSockQueuesInit(
+    IN WDFDEVICE hDevice
+);
 
 NTSTATUS
 VIOSockDeviceGetConfig(
@@ -105,8 +114,12 @@ VIOSockSelect(
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSockEvtDeviceAdd)
+#pragma alloc_text (PAGE, VIOSockQueuesCleanup)
+#pragma alloc_text (PAGE, VIOSockQueuesInit)
+
 #pragma alloc_text (PAGE, VIOSockEvtDevicePrepareHardware)
 #pragma alloc_text (PAGE, VIOSockEvtDeviceReleaseHardware)
+#pragma alloc_text (PAGE, VIOSockEvtDeviceD0Entry)
 #pragma alloc_text (PAGE, VIOSockEvtDeviceD0Exit)
 #pragma alloc_text (PAGE, VIOSockEvtDeviceD0EntryPostInterruptsEnabled)
 
@@ -120,48 +133,6 @@ VIOSockSelect(
 #pragma alloc_text (PAGE, VIOSockSelect)
 #endif
 
-static NTSTATUS VIOSockInterruptInit(IN WDFDEVICE hDevice);
-
-static
-NTSTATUS
-VIOSockInterruptInit(
-    IN WDFDEVICE hDevice)
-{
-    WDF_OBJECT_ATTRIBUTES        attributes;
-    WDF_INTERRUPT_CONFIG         interruptConfig;
-    PDEVICE_CONTEXT              pContext = GetDeviceContext(hDevice);
-    NTSTATUS                     status = STATUS_SUCCESS;
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
-
-    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-    WDF_INTERRUPT_CONFIG_INIT(
-                              &interruptConfig,
-                              VIOSockInterruptIsr,
-                              VIOSockInterruptDpc
-                              );
-
-    interruptConfig.EvtInterruptEnable = VIOSockInterruptEnable;
-    interruptConfig.EvtInterruptDisable = VIOSockInterruptDisable;
-
-    status = WdfInterruptCreate(
-                                 hDevice,
-                                 &interruptConfig,
-                                 &attributes,
-                                 &pContext->WdfInterrupt
-                                 );
-
-    if (!NT_SUCCESS (status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
-            "Failed to create interrupt: %x\n", status);
-        return status;
-    }
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
-    return status;
-}
-
 static
 VOID
 VIOSockQueuesCleanup(
@@ -172,6 +143,8 @@ VIOSockQueuesCleanup(
     NTSTATUS status = STATUS_SUCCESS;
 
     ULONG uBufferSize;
+
+    PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
@@ -201,6 +174,8 @@ VIOSockQueuesInit(
     PVIOSOCK_VQ vqs[VIOSOCK_VQ_MAX];
 
     ULONG uBufferSize;
+
+    PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
@@ -435,6 +410,7 @@ VIOSockEvtDeviceAdd(
     return status;
 }
 
+static
 NTSTATUS
 VIOSockEvtDevicePrepareHardware(
     IN WDFDEVICE Device,
@@ -484,6 +460,7 @@ VIOSockEvtDevicePrepareHardware(
     return status;
 }
 
+static
 NTSTATUS
 VIOSockEvtDeviceReleaseHardware(
     IN WDFDEVICE Device,
@@ -502,6 +479,7 @@ VIOSockEvtDeviceReleaseHardware(
     return STATUS_SUCCESS;
 }
 
+static
 NTSTATUS
 VIOSockEvtDeviceD0Entry(
     IN  WDFDEVICE Device,
@@ -512,6 +490,8 @@ VIOSockEvtDeviceD0Entry(
     PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
 
     UNREFERENCED_PARAMETER(PreviousState);
+
+    PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
@@ -535,6 +515,7 @@ VIOSockEvtDeviceD0Entry(
     return status;
 }
 
+static
 NTSTATUS
 VIOSockEvtDeviceD0Exit(
     IN  WDFDEVICE Device,
@@ -555,6 +536,7 @@ VIOSockEvtDeviceD0Exit(
     return STATUS_SUCCESS;
 }
 
+static
 NTSTATUS
 VIOSockEvtDeviceD0EntryPostInterruptsEnabled(
     IN  WDFDEVICE WdfDevice,
@@ -610,6 +592,7 @@ VIOSockDeviceGetConfig(
     return STATUS_SUCCESS;
 }
 
+static
 VOID
 VIOSockEvtIoDeviceControl(
     IN WDFQUEUE   Queue,
