@@ -127,26 +127,28 @@ typedef struct _DEVICE_CONTEXT {
     WDFQUEUE                    ReadQueue;
 
     WDFSPINLOCK                 RxLock;
-    PVIOSOCK_VQ                 RxVq;
+    _Guarded_by_(RxLock) PVIOSOCK_VQ                 RxVq;
     PVOID                       RxPktVA;        //contiguous array of VIOSOCK_RX_PKT
     PHYSICAL_ADDRESS            RxPktPA;
-    SINGLE_LIST_ENTRY           RxPktList;      //postponed requests
+    _Guarded_by_(RxLock) SINGLE_LIST_ENTRY           RxPktList;      //postponed requests
     ULONG                       RxPktNum;
     ULONG                       RxCbBuffersNum;
     WDFLOOKASIDE                RxCbBufferMemoryList;
-    SINGLE_LIST_ENTRY           RxCbBuffers;    //list or Rx buffers
+    _Guarded_by_(RxLock) SINGLE_LIST_ENTRY           RxCbBuffers;    //list or Rx buffers
 
     //Send packets
     WDFQUEUE                    WriteQueue;
 
     WDFSPINLOCK                 TxLock;
-    PVIOSOCK_VQ                 TxVq;
-    PVIRTIO_DMA_MEMORY_SLICED   TxPktSliced;
+    _Guarded_by_(TxLock) PVIOSOCK_VQ                 TxVq;
+    _Guarded_by_(TxLock) PVIRTIO_DMA_MEMORY_SLICED   TxPktSliced;
     ULONG                       TxPktNum;       //Num of slices in TxPktSliced
-    LONG                        QueuedReply;
-    LIST_ENTRY                  TxList;
+    _Guarded_by_(TxLock) LONG                        QueuedReply;
+    _Guarded_by_(TxLock) LIST_ENTRY                  TxList;
+    _Guarded_by_(TxLock) VIOSOCK_TIMER               TxTimer;
     WDFLOOKASIDE                TxMemoryList;
-    VIOSOCK_TIMER               TxTimer;
+
+    WDFLOOKASIDE                AcceptMemoryList;
 
     //Events
     PVIOSOCK_VQ                 EvtVq;
@@ -154,22 +156,21 @@ typedef struct _DEVICE_CONTEXT {
     PHYSICAL_ADDRESS            EvtPA;
     ULONG                       EvtRstOccured;
 
-    WDFINTERRUPT                WdfInterrupt;
-
     WDFSPINLOCK                 BoundLock;
-    WDFCOLLECTION               BoundList;
+    _Guarded_by_(BoundLock) WDFCOLLECTION               BoundList;
+
     WDFSPINLOCK                 ConnectedLock;
-    WDFCOLLECTION               ConnectedList;
+    _Guarded_by_(ConnectedLock) WDFCOLLECTION               ConnectedList;
 
-    WDFLOOKASIDE                AcceptMemoryList;
-
-    LIST_ENTRY                  SelectList;
     WDFWAITLOCK                 SelectLock;
-    volatile LONG               SelectInProgress;
+    _Guarded_by_(SelectLock) LIST_ENTRY                  SelectList;
+    _Interlocked_ volatile LONG               SelectInProgress;
     WDFWORKITEM                 SelectWorkitem;
-    VIOSOCK_TIMER               SelectTimer;
+    _Guarded_by_(SelectLock) VIOSOCK_TIMER               SelectTimer;
 
     WDFQUEUE                    IoCtlQueue;
+
+    WDFINTERRUPT                WdfInterrupt;
 
     VIRTIO_VSOCK_CONFIG         Config;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
@@ -206,7 +207,7 @@ typedef struct _SOCKET_CONTEXT {
 
     WDFFILEOBJECT   ThisSocket;
 
-    volatile LONG   Flags;
+    _Interlocked_ volatile LONG             Flags;
 
     VIRTIO_VSOCK_TYPE  type;
 
@@ -215,7 +216,7 @@ typedef struct _SOCKET_CONTEXT {
     ULONG32         dst_port;
 
     WDFSPINLOCK     StateLock;
-    volatile VIOSOCK_STATE   State;
+    _Interlocked_ volatile VIOSOCK_STATE    State;
     LONGLONG        ConnectTimeout;
     ULONG           SendTimeout;
     ULONG           RecvTimeout;
@@ -225,42 +226,41 @@ typedef struct _SOCKET_CONTEXT {
     ULONG32         Shutdown;
 
     WDFTIMER        ConnectTimer;
-    LONGLONG        DueTime;
+    _Guarded_by_(RxLock) LONGLONG        DueTime;
     KEVENT          CloseEvent;
 
-    PKEVENT         EventObject;
-    ULONG           EventsMask;
-    ULONG           Events;
-    NTSTATUS        EventsStatus[FD_MAX_EVENTS];
+    _Guarded_by_(StateLock) PKEVENT         EventObject;
+    _Guarded_by_(StateLock) ULONG           EventsMask;
+    _Guarded_by_(StateLock) ULONG           Events;
+    _Guarded_by_(StateLock) NTSTATUS        EventsStatus[FD_MAX_EVENTS];
 
-    WDFSPINLOCK     RxLock;
-    LIST_ENTRY      RxCbList;
-    PCHAR           RxCbReadPtr;    //read ptr in first CB
-    ULONG           RxCbReadLen;    //remaining bytes in first CB
-    ULONG           RxBytes;        //used bytes in rx buffer
-    ULONG           RxBuffers;      //used rx buffers (for debug)
+    WDFSPINLOCK     RxLock;         //accept list lock for listen socket
+    _Guarded_by_(RxLock) LIST_ENTRY      RxCbList;
+    _Guarded_by_(RxLock) PCHAR           RxCbReadPtr;    //read ptr in first CB
+    _Guarded_by_(RxLock) ULONG           RxCbReadLen;    //remaining bytes in first CB
+    _Guarded_by_(RxLock) ULONG           RxBytes;        //used bytes in rx buffer
+    _Guarded_by_(RxLock) ULONG           RxBuffers;      //used rx buffers (for debug)
 
     WDFQUEUE        ReadQueue;
-    PCHAR           ReadRequestPtr;
-    ULONG           ReadRequestFree;
-    ULONG           ReadRequestLength;
-    ULONG           ReadRequestFlags;
-    VIOSOCK_TIMER   ReadTimer;
+    _Guarded_by_(RxLock) PCHAR           ReadRequestPtr;
+    _Guarded_by_(RxLock) ULONG           ReadRequestFree;
+    _Guarded_by_(RxLock) ULONG           ReadRequestLength;
+    _Guarded_by_(RxLock) ULONG           ReadRequestFlags;
+    _Guarded_by_(RxLock) VIOSOCK_TIMER   ReadTimer;
 
-    WDFREQUEST      PendedRequest;
+    _Guarded_by_(RxLock) WDFREQUEST      PendedRequest;
 
-    //RxLock
-    LIST_ENTRY      AcceptList;
+    _Guarded_by_(RxLock) LIST_ENTRY      AcceptList;
     LONG            Backlog;
-    volatile LONG   AcceptPended;
+    _Interlocked_ volatile LONG   AcceptPended;
 
     ULONG32         buf_alloc;
-    ULONG32         fwd_cnt;
+    _Guarded_by_(RxLock) ULONG32         fwd_cnt;
     ULONG32         last_fwd_cnt;
 
-    ULONG32         peer_buf_alloc;
-    ULONG32         peer_fwd_cnt;
-    ULONG32         tx_cnt;
+    _Guarded_by_(StateLock) ULONG32         peer_buf_alloc;
+    _Guarded_by_(StateLock) ULONG32         peer_fwd_cnt;
+    _Guarded_by_(StateLock) ULONG32         tx_cnt;
 
     USHORT          LingerTime;
     WDFFILEOBJECT   LoopbackSocket;
@@ -337,6 +337,12 @@ VIOSockBoundFindByPort(
 );
 
 PSOCKET_CONTEXT
+VIOSockBoundFindByPortUnlocked(
+    IN PDEVICE_CONTEXT pContext,
+    IN ULONG32         ulSrcPort
+);
+
+PSOCKET_CONTEXT
 VIOSockBoundFindByFile(
     IN PDEVICE_CONTEXT pContext,
     IN PFILE_OBJECT pFileObject
@@ -353,14 +359,23 @@ VIOSockConnectedFindByRxPkt(
     IN PVIRTIO_VSOCK_HDR    pPkt
 );
 
+_Requires_lock_held_(pSocket->StateLock)
 VIOSOCK_STATE
 VIOSockStateSet(
     IN PSOCKET_CONTEXT pSocket,
     IN VIOSOCK_STATE   NewState
 );
 
+_Requires_lock_not_held_(pSocket->StateLock)
+VIOSOCK_STATE
+VIOSockStateSetLocked(
+    IN PSOCKET_CONTEXT pSocket,
+    IN VIOSOCK_STATE   NewState
+);
+
 #define VIOSockStateGet(s) ((s)->State)
 
+_Requires_lock_not_held_(pSocket->StateLock)
 BOOLEAN
 VIOSockShutdownFromPeer(
     PSOCKET_CONTEXT pSocket,
@@ -381,42 +396,49 @@ VIOSockIsDone(
     return !!KeReadStateEvent(&pSocket->CloseEvent);
 }
 
+_Requires_lock_held_(pSocket->RxLock)
 NTSTATUS
 VIOSockPendedRequestSet(
     IN PSOCKET_CONTEXT  pSocket,
     IN WDFREQUEST       Request
 );
 
+_Requires_lock_not_held_(pSocket->RxLock)
 NTSTATUS
 VIOSockPendedRequestSetLocked(
     IN PSOCKET_CONTEXT  pSocket,
     IN WDFREQUEST       Request
 );
 
+_Requires_lock_held_(pSocket->RxLock)
 NTSTATUS
 VIOSockPendedRequestGet(
     IN  PSOCKET_CONTEXT pSocket,
     OUT WDFREQUEST      *Request
 );
 
+_Requires_lock_not_held_(pSocket->RxLock)
 NTSTATUS
 VIOSockPendedRequestGetLocked(
     IN PSOCKET_CONTEXT  pSocket,
     OUT WDFREQUEST      *Request
 );
 
+_Requires_lock_not_held_(pListenSocket->RxLock)
 NTSTATUS
 VIOSockAcceptEnqueuePkt(
     IN PSOCKET_CONTEXT      pListenSocket,
     IN PVIRTIO_VSOCK_HDR    pPkt
 );
 
+_Requires_lock_not_held_(pListenSocket->RxLock)
 VOID
 VIOSockAcceptRemovePkt(
     IN PSOCKET_CONTEXT      pListenSocket,
     IN PVIRTIO_VSOCK_HDR    pPkt
 );
 
+_IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 VIOSockSelectRun(
     IN PSOCKET_CONTEXT pSocket
@@ -446,41 +468,28 @@ VIOSockSelectRun(
 #define FD_ADDRESS_LIST_CHANGE_BIT 9
 #define FD_ADDRESS_LIST_CHANGE     (1 << FD_ADDRESS_LIST_CHANGE_BIT)
 
-__inline
+_Requires_lock_not_held_(pSocket->StateLock)
 VOID
 VIOSockEventSetBit(
     IN PSOCKET_CONTEXT pSocket,
     IN ULONG uSetBit,
     IN NTSTATUS Status
-)
-{
-    ULONG uEvent = (1 << uSetBit);
-    BOOLEAN bSetEvent;
+);
 
-    //TODO: lock events
-    bSetEvent = !!(~pSocket->Events & uEvent & pSocket->EventsMask);
+_Requires_lock_not_held_(pSocket->StateLock)
+VOID
+VIOSockEventSetBitLocked(
+    IN PSOCKET_CONTEXT pSocket,
+    IN ULONG uSetBit,
+    IN NTSTATUS Status
+);
 
-    pSocket->Events |= uEvent;
-    pSocket->EventsStatus[uSetBit] = Status;
-
-    VIOSockSelectRun(pSocket);
-
-    if (bSetEvent && pSocket->EventObject)
-        KeSetEvent(pSocket->EventObject, IO_NO_INCREMENT, FALSE);
-}
-
-__inline
+_Requires_lock_not_held_(pSocket->StateLock)
 VOID
 VIOSockEventClearBit(
     IN PSOCKET_CONTEXT pSocket,
     IN ULONG uClearBit
-)
-{
-    ULONG uEvent = (1 << uClearBit);
-
-    //TODO: lock events
-    pSocket->Events &= ~uEvent;
-}
+);
 
 //////////////////////////////////////////////////////////////////////////
 //Tx functions
@@ -500,16 +509,19 @@ VIOSockTxVqCleanup(
     IN PDEVICE_CONTEXT pContext
 );
 
+_Requires_lock_not_held_(pContext->TxLock)
 VOID
 VIOSockTxVqProcess(
     IN PDEVICE_CONTEXT pContext
 );
 
+_Requires_lock_not_held_(pSocket->StateLock)
 NTSTATUS
 VIOSockTxValidateSocketState(
     PSOCKET_CONTEXT pSocket
 );
 
+_Requires_lock_not_held_(pContext->TxLock)
 NTSTATUS
 VIOSockTxEnqueue(
     IN PSOCKET_CONTEXT  pSocket,
@@ -531,13 +543,14 @@ VIOSockTxEnqueue(
 
 #define VIOSockSendResponse(s) VIOSockTxEnqueue(s, VIRTIO_VSOCK_OP_RESPONSE, 0, TRUE, WDF_NO_HANDLE)
 
+_Requires_lock_not_held_(pContext->TxLock)
 NTSTATUS
 VIOSockSendResetNoSock(
     IN PDEVICE_CONTEXT pContext,
     IN PVIRTIO_VSOCK_HDR pHeader
 );
 
-//TxLock+
+_Requires_lock_not_held_(pSocket->StateLock)
 __inline
 ULONG32
 VIOSockTxGetCredit(
@@ -548,15 +561,17 @@ VIOSockTxGetCredit(
 {
     ULONG32 uRet;
 
+    WdfSpinLockAcquire(pSocket->StateLock);
     uRet = pSocket->peer_buf_alloc - (pSocket->tx_cnt - pSocket->peer_fwd_cnt);
     if (uRet > uCredit)
         uRet = uCredit;
     pSocket->tx_cnt += uRet;
+    WdfSpinLockRelease(pSocket->StateLock);
+
     return uRet;
 }
 
-
-//TxLock+
+_Requires_lock_not_held_(pSocket->StateLock)
 __inline
 VOID
 VIOSockTxPutCredit(
@@ -565,9 +580,12 @@ VIOSockTxPutCredit(
 
 )
 {
+    WdfSpinLockAcquire(pSocket->StateLock);
     pSocket->tx_cnt -= uCredit;
+    WdfSpinLockRelease(pSocket->StateLock);
 }
 
+_Requires_lock_held_(pSocket->StateLock)
 __inline
 LONG
 VIOSockTxHasSpace(
@@ -580,6 +598,7 @@ VIOSockTxHasSpace(
     return lBytes;
 }
 
+_Requires_lock_not_held_(pSocket->StateLock)
 __inline
 LONG
 VIOSockTxSpaceUpdate(
@@ -587,9 +606,15 @@ VIOSockTxSpaceUpdate(
     IN PVIRTIO_VSOCK_HDR pPkt
 )
 {
+    LONG uSpace;
+
+    WdfSpinLockAcquire(pSocket->StateLock);
     pSocket->peer_buf_alloc = pPkt->buf_alloc;
     pSocket->peer_fwd_cnt = pPkt->fwd_cnt;
-    return VIOSockTxHasSpace(pSocket);
+    uSpace = VIOSockTxHasSpace(pSocket);
+    WdfSpinLockRelease(pSocket->StateLock);
+
+    return uSpace;
 }
 
 __inline
@@ -601,6 +626,7 @@ VIOSockTxMoreReplies(
     return pContext->QueuedReply < (LONG)pContext->RxPktNum;
 }
 
+_Requires_lock_not_held_(pContext->TxLock)
 VOID
 VIOSockTxCancel(
     PDEVICE_CONTEXT pContext,
@@ -621,6 +647,22 @@ VIOSockRxVqCleanup(
     IN PDEVICE_CONTEXT pContext
 );
 
+_Requires_lock_not_held_(pSocket->StateLock)
+__inline
+VOID
+VIOSockRxIncTxPkt(
+    IN PSOCKET_CONTEXT pSocket,
+    IN OUT PVIRTIO_VSOCK_HDR pPkt
+)
+{
+    WdfSpinLockAcquire(pSocket->StateLock);
+    pSocket->last_fwd_cnt = pSocket->fwd_cnt;
+    pPkt->fwd_cnt = pSocket->fwd_cnt;
+    pPkt->buf_alloc = pSocket->buf_alloc;
+    WdfSpinLockRelease(pSocket->StateLock);
+}
+
+_Requires_lock_not_held_(pContext->RxLock)
 VOID
 VIOSockRxVqProcess(
     IN PDEVICE_CONTEXT pContext
@@ -653,12 +695,14 @@ VIOSockReadSocketQueueInit(
     IN PSOCKET_CONTEXT pSocket
 );
 
+_Requires_lock_not_held_(pSocket->RxLock)
 VOID
 VIOSockReadDequeueCb(
     IN PSOCKET_CONTEXT  pSocket,
     IN WDFREQUEST       ReadRequest OPTIONAL
 );
 
+_Requires_lock_not_held_(pSocket->RxLock)
 VOID
 VIOSockReadCleanupCb(
     IN PSOCKET_CONTEXT pSocket
@@ -671,16 +715,19 @@ VIOSockReadWithFlags(
 
 //////////////////////////////////////////////////////////////////////////
 //Event functions
+_IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 VIOSockEvtVqInit(
     IN PDEVICE_CONTEXT pContext
 );
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
 VIOSockEvtVqCleanup(
     IN PDEVICE_CONTEXT pContext
 );
 
+_IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 VIOSockEvtVqProcess(
     IN PDEVICE_CONTEXT pContext
