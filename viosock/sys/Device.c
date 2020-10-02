@@ -265,6 +265,14 @@ VIOSockEvtDeviceAdd(
         return status;
     }
 
+    // Set device access (for user mode clients)
+    status = WdfDeviceInitAssignSDDLString(DeviceInit, &SDDL_DEVOBJ_SYS_ALL_ADM_RWX_WORLD_RW_RES_R);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDeviceInitAssignSDDLString failed - 0x%x\n", status);
+        return status;
+    }
+
     // Configure file object callbacks
     WDF_FILEOBJECT_CONFIG_INIT(
         &fileConfig,
@@ -471,7 +479,7 @@ VIOSockEvtDeviceReleaseHardware(
     UNREFERENCED_PARAMETER(ResourcesTranslated);
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     VirtIOWdfShutdown(&pContext->VDevice);
 
@@ -526,7 +534,7 @@ VIOSockEvtDeviceD0Exit(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP,"--> %s TargetState: %d\n",
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s TargetState: %d\n",
         __FUNCTION__, TargetState);
 
     VIOSockQueuesCleanup(Device);
@@ -622,7 +630,7 @@ VIOSockEvtIoDeviceControl(
     default:
         if (IsControlRequest(Request))
         {
-            TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid device type\n");
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid socket type\n");
             status = STATUS_NOT_SOCKET;
         }
         else

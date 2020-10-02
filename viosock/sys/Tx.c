@@ -482,7 +482,7 @@ VIOSockTxDequeue(
 
             if (bReply)
             {
-                LONG lVal = --pContext->QueuedReply;
+                LONG lVal = --pContext->TxQueuedReply;
 
                 /* Do we now have resources to resume rx processing? */
                 bRestartRx = (lVal + 1 == pContext->RxPktNum);
@@ -513,6 +513,7 @@ VIOSockTxCancel(
     LONG lCnt = 0;
     PLIST_ENTRY CurrentEntry;
     LIST_ENTRY  CompletionList;
+    BOOLEAN     bProcessVq = FALSE;
 
     InitializeListHead(&CompletionList);
 
@@ -534,8 +535,20 @@ VIOSockTxCancel(
 
             if (pTxEntry->Timeout)
                 VIOSockTimerDeref(&pContext->TxTimer, TRUE);
+
+            if (pTxEntry->reply)
+                ++lCnt;
         }
     }
+
+    if (lCnt)
+    {
+        pContext->TxQueuedReply -= lCnt;
+        if (pContext->TxQueuedReply + lCnt >= (LONG)pContext->RxPktNum &&
+            pContext->TxQueuedReply < (LONG)pContext->RxPktNum)
+            bProcessVq = TRUE;
+    }
+
     WdfSpinLockRelease(pContext->TxLock);
 
     while (!IsListEmpty(&CompletionList))
@@ -546,18 +559,12 @@ VIOSockTxCancel(
         if (pTxEntry->Request)
             WdfRequestComplete(pTxEntry->Request, Status);
 
-        if (pTxEntry->reply)
-            ++lCnt;
-
         WdfObjectDelete(pTxEntry->Memory);
     }
 
-    if (lCnt)
+    if (bProcessVq)
     {
-        pContext->QueuedReply -= lCnt;
-        if (pContext->QueuedReply + lCnt >= (LONG)pContext->RxPktNum &&
-            pContext->QueuedReply < (LONG)pContext->RxPktNum)
-            VIOSockRxVqProcess(pContext);
+        VIOSockRxVqProcess(pContext);
     }
 }
 
@@ -684,7 +691,7 @@ VIOSockTxEnqueue(
     }
 
     if (pTxEntry->reply)
-        pContext->QueuedReply++;
+        pContext->TxQueuedReply++;
 
     InsertTailList(&pContext->TxList, &pTxEntry->ListEntry);
     WdfSpinLockRelease(pContext->TxLock);
@@ -714,7 +721,7 @@ VIOSockWrite(
 
     if (IsControlRequest(Request))
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_WRITE, "Invalid device type\n");
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_WRITE, "Invalid socket %d for write\n", pSocket->SocketId);
 
         WdfRequestComplete(Request, STATUS_NOT_SOCKET);
         return;

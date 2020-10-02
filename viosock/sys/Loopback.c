@@ -184,7 +184,7 @@ VIOSockLoopbackConnect(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    ASSERT(pSocket->State == VIOSOCK_STATE_CONNECTING);
+    ASSERT(VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTING);
 
     if (pListenSocket)
     {
