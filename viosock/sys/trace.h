@@ -125,6 +125,8 @@ else VirtioDebugPrintProc(message, __VA_ARGS__)
  // begin_wpp config
  // FUNC Trace{FLAG=MYDRIVER_ALL_INFO}(LEVEL, MSG, ...);
  // FUNC TraceEvents(LEVEL, FLAGS, MSG, ...);
+ // CUSTOM_TYPE(State,ItemListLong(CLOSE, CONNECTING, CONNECTED, CLOSING, LISTEN));
+ // CUSTOM_TYPE(Op,ItemListShort(INVALID, REQUEST, RESPONSE, RST, SHUTDOWN, RW, CREDIT_UPDATE, CREDIT_REQUEST));
  // end_wpp
  //
 

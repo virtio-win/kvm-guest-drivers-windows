@@ -254,6 +254,13 @@ VIOSockTxPktInsert(
         phys_indirect = pPkt->PhysAddr.QuadPart + FIELD_OFFSET(VIOSOCK_TX_PKT, IndirectDescs);
     }
 
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "Send packet %!Op! (%d:%d --> %d:%d), len: %d, flags: %d, buf_alloc: %d, fwd_cnt: %d\n",
+        pPkt->Header.op,
+        (ULONG)pPkt->Header.src_cid, pPkt->Header.src_port,
+        (ULONG)pPkt->Header.dst_cid, pPkt->Header.dst_port,
+        pPkt->Header.len, pPkt->Header.flags, pPkt->Header.buf_alloc, pPkt->Header.fwd_cnt);
+
     ret = virtqueue_add_buf(pContext->TxVq, sg, uElements, 0, pPkt, va_indirect, phys_indirect);
 
     ASSERT(ret >= 0);
@@ -290,6 +297,10 @@ VIOSockTxVqProcess(
 
         while ((pPkt = (PVIOSOCK_TX_PKT)virtqueue_get_buf(pContext->TxVq, &len)) != NULL)
         {
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "Free packet %!Op! (%d:%d --> %d:%d)\n",
+                pPkt->Header.op, (ULONG)pPkt->Header.src_cid, pPkt->Header.src_port,
+                (ULONG)pPkt->Header.dst_cid, pPkt->Header.dst_port);
+
             if (pPkt->Transaction != WDF_NO_HANDLE)
             {
                 pPkt->Request = WdfDmaTransactionGetRequest(pPkt->Transaction);
@@ -343,6 +354,8 @@ VIOSockTxDequeueCallback(
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket((PSOCKET_CONTEXT)pParams->param2);
     BOOLEAN         bRes;
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+
     WdfSpinLockAcquire(pContext->TxLock);
     bRes = VIOSockTxPktInsert(pContext, pPkt, pParams);
     if (!bRes)
@@ -361,6 +374,8 @@ VIOSockTxDequeueCallback(
         virtqueue_kick(pContext->TxVq);
     }
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+
     return bRes;
 }
 
@@ -373,8 +388,13 @@ VIOSockTxDequeue(
     static volatile LONG    lInProgress;
     BOOLEAN                 bKick = FALSE, bReply, bRestartRx = FALSE;
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
     if (InterlockedCompareExchange(&lInProgress, 1, 0) == 1)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "Another instance of VIOSockTxDequeue already running, stop tx dequeue\n");
         return; //one running instance allowed
+    }
 
     WdfSpinLockAcquire(pContext->TxLock);
 
@@ -478,6 +498,7 @@ VIOSockTxDequeue(
     if (bRestartRx)
         VIOSockRxVqProcess(pContext);
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -740,7 +761,8 @@ VIOSockWrite(
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "VIOSockSendWrite failed: 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "VIOSockSendWrite failed for socket %d: 0x%x\n",
+            pSocket->SocketId, status);
         WdfRequestComplete(Request, status);
     }
 

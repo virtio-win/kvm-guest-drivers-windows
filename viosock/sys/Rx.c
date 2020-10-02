@@ -724,6 +724,7 @@ VIOSockRxPktEnqueueCb(
         {
             if (VIOSockRxPktInc(pSocket, PktLen))
             {
+                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "RxCb merged: %d + %d bytes\n", pCurrentCb->DataLen, PktLen);
                 memcpy((PCHAR)pCurrentCb->BufferVA + pCurrentCb->DataLen, pPkt->Buffer->BufferVA, PktLen);
                 pCurrentCb->DataLen += PktLen;
             }
@@ -748,6 +749,7 @@ VIOSockRxPktEnqueueCb(
         InsertTailList(&pSocket->RxCbList, &pPkt->Buffer->ListEntry);
         pSocket->RxBuffers++;
         pPkt->Buffer = NULL; //remove buffer from pkt
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "RxCb enqueued: %d bytes\n", PktLen);
     }
     else
     {
@@ -975,12 +977,18 @@ VIOSockRxVqProcess(
             if (len < sizeof(pPkt->Header) ||
                 len > sizeof(pPkt->Header) + pPkt->Header.len)
             {
-                TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Short/Long packet\n");
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Short/Long packet (%d)\n", len);
                 VIOSockRxPktInsert(pContext, pPkt);
                 continue;
             }
 
             ASSERT(pPkt->Header.len == len - sizeof(pPkt->Header));
+
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "Recv packet %!Op! (%d:%d <-- %d:%d), len: %d, flags: %d, buf_alloc: %d, fwd_cnt: %d\n",
+                pPkt->Header.op,
+                (ULONG)pPkt->Header.dst_cid, pPkt->Header.dst_port,
+                (ULONG)pPkt->Header.src_cid, pPkt->Header.src_port,
+                pPkt->Header.len, pPkt->Header.flags, pPkt->Header.buf_alloc, pPkt->Header.fwd_cnt);
 
             //"complete" buffers later
             PushEntryList(&CompletionList, &pPkt->ListEntry);
@@ -1001,12 +1009,13 @@ VIOSockRxVqProcess(
         if (!pSocket)
         {
             //no connected socket for incoming packet
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "No connected socket found\n");
             pSocket = VIOSockBoundFindByPort(pContext, pPkt->Header.dst_port);
         }
 
         if (pSocket && pSocket->type != pPkt->Header.type)
         {
-            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Invalid socket state or type\n");
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Invalid socket %d type\n", pSocket->SocketId);
             pSocket = NULL;
         }
         if (!pSocket)
@@ -1018,9 +1027,10 @@ VIOSockRxVqProcess(
         }
 
 
-        //Update CID in case it has changed after a transport reset event
-        //pContext->Config.guest_cid = (ULONG32)pPkt->Header.dst_cid;
         ASSERT(pContext->Config.guest_cid == (ULONG32)pPkt->Header.dst_cid);
+
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Socket %d found, state %!State!\n",
+            pSocket->SocketId, VIOSockStateGet(pSocket));
 
         bTxHasSpace = !!VIOSockTxSpaceUpdate(pSocket, &pPkt->Header);
 
@@ -1039,7 +1049,8 @@ VIOSockRxVqProcess(
             VIOSockRxPktHandleListen(pSocket, pPkt);
             break;
         default:
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid socket state for Rx packet\n");
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET,
+                "Invalid socket %d state for Rx packet %d\n", pSocket->SocketId, pPkt->Header.op);
         }
 
         //reinsert handled packet
@@ -1358,6 +1369,7 @@ VIOSockReadDequeueCb(
             }
             else if (ReadRequest != WDF_NO_HANDLE)
             {
+                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "Pended Read request found\n");
                 pRequest = GetRequestRxContext(ReadRequest);
 
                 if (pRequest && pRequest->Timeout)
@@ -1431,6 +1443,8 @@ VIOSockReadDequeueCb(
                     status = VIOSockPendedRequestSet(pSocket, ReadRequest);
                     if (NT_SUCCESS(status))
                     {
+                        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "Read request pended\n");
+
                         if(pRequest)
                             VIOSockTimerStart(&pSocket->ReadTimer, pRequest->Timeout);
                         ReadRequest = WDF_NO_HANDLE;
@@ -1448,7 +1462,7 @@ VIOSockReadDequeueCb(
 
         if (ReadRequest != WDF_NO_HANDLE)
         {
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "Complete request without CB dequeue: 0x%x\n", status);
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "Complete request without CB dequeue: %!STATUS!\n", status);
             WdfRequestComplete(ReadRequest, status);
         }
         else
@@ -1692,7 +1706,10 @@ VIOSockReadSocketIoDefault(
 )
 {
     PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
     VIOSockReadDequeueCb(pSocket, Request);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
 }
 
 static

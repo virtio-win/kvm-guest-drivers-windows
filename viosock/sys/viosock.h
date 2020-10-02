@@ -172,6 +172,8 @@ typedef struct _DEVICE_CONTEXT {
 
     WDFINTERRUPT                WdfInterrupt;
 
+    _Interlocked_ volatile LONG             SocketId; //for debug
+
     VIRTIO_VSOCK_CONFIG         Config;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
@@ -208,6 +210,7 @@ typedef struct _SOCKET_CONTEXT {
     WDFFILEOBJECT   ThisSocket;
 
     _Interlocked_ volatile LONG             Flags;
+    LONG            SocketId; //for debug
 
     VIRTIO_VSOCK_TYPE  type;
 
