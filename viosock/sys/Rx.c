@@ -88,6 +88,11 @@ VIOSockRxCbInit(
     IN PDEVICE_CONTEXT  pContext
 );
 
+BOOLEAN
+VIOSockRxCbAdd(
+    IN PDEVICE_CONTEXT pContext
+);
+
 VOID
 VIOSockRxCbCleanup(
     IN PDEVICE_CONTEXT pContext
@@ -102,6 +107,7 @@ EVT_WDF_TIMER               VIOSockReadTimerFunc;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSockRxCbInit)
+#pragma alloc_text (PAGE, VIOSockRxCbAdd)
 #pragma alloc_text (PAGE, VIOSockRxCbCleanup)
 #pragma alloc_text (PAGE, VIOSockRxVqInit)
 #pragma alloc_text (PAGE, VIOSockReadQueueInit)
@@ -177,6 +183,8 @@ VIOSockRxCbAdd(
     PVIOSOCK_RX_CB  pCb;
     WDFMEMORY       Memory;
     BOOLEAN         bRes = FALSE;
+
+    PAGED_CODE();
 
     status = WdfMemoryCreateFromLookaside(pContext->RxCbBufferMemoryList, &Memory);
     if (NT_SUCCESS(status))

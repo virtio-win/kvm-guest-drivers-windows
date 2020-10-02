@@ -289,11 +289,10 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(SOCKET_CONTEXT, GetSocketContext);
 
 EVT_WDF_DRIVER_DEVICE_ADD   VIOSockEvtDeviceAdd;
 
-EVT_WDF_INTERRUPT_ISR       VIOSockInterruptIsr;
-EVT_WDF_INTERRUPT_DPC       VIOSockInterruptDpc;
-EVT_WDF_INTERRUPT_DPC       VIOSockWdfInterruptDpc;
-EVT_WDF_INTERRUPT_ENABLE    VIOSockInterruptEnable;
-EVT_WDF_INTERRUPT_DISABLE   VIOSockInterruptDisable;
+NTSTATUS
+VIOSockInterruptInit(
+    IN WDFDEVICE hDevice
+);
 
 //////////////////////////////////////////////////////////////////////////
 //Socket functions
