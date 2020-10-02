@@ -429,7 +429,9 @@ VIOSockTxDequeue(
 
                 WdfSpinLockRelease(pContext->TxLock);
 
-                status = VIOSockTxValidateSocketState(pSocket);
+                status = VIOSockStateValidate(pSocket, TRUE);
+                if (status == STATUS_REMOTE_DISCONNECT)
+                    status = STATUS_LOCAL_DISCONNECT;
 
                 if (NT_SUCCESS(status))
                 {
@@ -585,31 +587,6 @@ VIOSockTxEnqueueCancel(
 }
 
 NTSTATUS
-VIOSockTxValidateSocketState(
-    PSOCKET_CONTEXT pSocket
-)
-{
-    NTSTATUS status;
-
-    WdfSpinLockAcquire(pSocket->StateLock);
-    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CLOSING &&
-        (pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_RCV ||
-            pSocket->Shutdown & VIRTIO_VSOCK_SHUTDOWN_SEND))
-    {
-        status = STATUS_GRACEFUL_DISCONNECT;
-    }
-    else if (VIOSockStateGet(pSocket) != VIOSOCK_STATE_CONNECTED)
-    {
-        status = STATUS_CONNECTION_INVALID;
-    }
-    else
-        status = STATUS_SUCCESS;
-    WdfSpinLockRelease(pSocket->StateLock);
-
-    return status;
-}
-
-NTSTATUS
 VIOSockTxEnqueue(
     IN PSOCKET_CONTEXT  pSocket,
     IN VIRTIO_VSOCK_OP  Op,
@@ -648,7 +625,9 @@ VIOSockTxEnqueue(
     }
     else
     {
-        status = VIOSockTxValidateSocketState(pSocket);
+        status = VIOSockStateValidate(pSocket, TRUE);
+        if (status == STATUS_REMOTE_DISCONNECT)
+            status = STATUS_LOCAL_DISCONNECT;
 
         if (NT_SUCCESS(status))
         {
@@ -732,6 +711,14 @@ VIOSockWrite(
     PVIOSOCK_TX_ENTRY       pRequest;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    if (IsControlRequest(Request))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_WRITE, "Invalid device type\n");
+
+        WdfRequestComplete(Request, STATUS_NOT_SOCKET);
+        return;
+    }
 
     if (Length > VIRTIO_VSOCK_MAX_PKT_BUF_SIZE)
         Length = VIRTIO_VSOCK_MAX_PKT_BUF_SIZE;

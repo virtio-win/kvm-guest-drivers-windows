@@ -110,4 +110,7 @@ typedef struct sockaddr_vm
 
 #define IOCTL_VM_SOCKETS_GET_LOCAL_CID		_IO(7, 0xb9)
 
+#define STATUS_NOT_SOCKET               ((NTSTATUS)0xE0040001L)
+#define STATUS_CONNECTION_ESTABLISHING  ((NTSTATUS)0xE0040002L)
+
 #endif /* _VIO_SOCKETS_H */

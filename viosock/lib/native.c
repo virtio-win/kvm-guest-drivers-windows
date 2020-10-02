@@ -64,16 +64,26 @@ NtReadFile(
 
 
 #define STATUS_SUCCESS                   ((NTSTATUS)0x00000000L)
-#define STATUS_CANT_WAIT                 ((NTSTATUS)0xC00000D8L)
-#define STATUS_CONNECTION_RESET          ((NTSTATUS)0xC000020DL)
 #define STATUS_UNSUCCESSFUL              ((NTSTATUS)0xC0000001L)
+#define STATUS_ACCESS_DENIED             ((NTSTATUS)0xC0000022L)
+#define STATUS_INSUFFICIENT_RESOURCES    ((NTSTATUS)0xC000009AL)
+#define STATUS_NOT_SUPPORTED             ((NTSTATUS)0xC00000BBL)
+#define STATUS_CANT_WAIT                 ((NTSTATUS)0xC00000D8L)
+#define STATUS_INVALID_ADDRESS_COMPONENT ((NTSTATUS)0xC0000207L)
+#define STATUS_ADDRESS_ALREADY_ASSOCIATED ((NTSTATUS)0xC0000238L)
+#define STATUS_INVALID_CONNECTION        ((NTSTATUS)0xC0000140L)
+#define STATUS_CONNECTION_ACTIVE         ((NTSTATUS)0xC000023BL)
+#define STATUS_CONNECTION_REFUSED        ((NTSTATUS)0xC0000236L)
+#define STATUS_CONNECTION_RESET          ((NTSTATUS)0xC000020DL)
+#define STATUS_LOCAL_DISCONNECT          ((NTSTATUS)0xC000013BL)
+#define STATUS_HOST_UNREACHABLE          ((NTSTATUS)0xC000023DL)
 
 INT
 NtStatusToWsaError(
     _In_ NTSTATUS Status
 )
 {
-    INT wsaError = (NT_SUCCESS(Status)) ? ERROR_SUCCESS : WSASYSNOTREADY;
+    INT wsaError = (NT_SUCCESS(Status)) ? ERROR_SUCCESS : ERROR_INTERNAL_ERROR;
     switch (Status)
     {
     case STATUS_INVALID_PARAMETER:
@@ -88,9 +98,46 @@ NtStatusToWsaError(
     case STATUS_CONNECTION_RESET:
         wsaError = WSAECONNRESET;
         break;
-        //     case STATUS_ACCESS_DENIED:
-        //         wsaError = WSAEACCES;
-        //         break;
+    case STATUS_INVALID_CONNECTION:
+        wsaError = WSAENOTCONN;
+        break;
+    case STATUS_ACCESS_DENIED:
+        wsaError = WSAEACCES;
+        break;
+    case STATUS_NOT_SUPPORTED:
+        wsaError = WSAEPROTONOSUPPORT;
+        break;
+    case STATUS_NOT_SOCKET:
+        wsaError = WSAENOTSOCK;
+        break;
+    case STATUS_ADDRESS_ALREADY_ASSOCIATED:
+        wsaError = WSAEADDRINUSE;
+        break;
+    case STATUS_INVALID_ADDRESS_COMPONENT:
+        wsaError = WSAEADDRNOTAVAIL;
+        break;
+    case STATUS_CONNECTION_ACTIVE:
+        wsaError = WSAEISCONN;
+        break;
+    case STATUS_CONNECTION_ESTABLISHING:
+        wsaError = WSAEALREADY;
+        break;
+    case STATUS_LOCAL_DISCONNECT:
+        wsaError = WSAESHUTDOWN;
+        break;
+    case STATUS_INSUFFICIENT_RESOURCES:
+        wsaError = WSAENOBUFS;
+        break;
+    case STATUS_CONNECTION_REFUSED:
+        wsaError = WSAECONNREFUSED;
+        break;
+    case STATUS_HOST_UNREACHABLE:
+        wsaError = WSAEHOSTUNREACH;
+        break;
+
+    //TODO: remove default later
+    default:
+        wsaError = Status;
     }
 
     return wsaError;

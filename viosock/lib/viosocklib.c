@@ -224,7 +224,7 @@ VIOSockBind(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    if (namelen < sizeof(SOCKADDR_VM))
+    if (namelen < sizeof(SOCKADDR_VM) || !name)
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Invalid namelen\n");
         *lpErrno = WSAEFAULT;
@@ -750,10 +750,12 @@ VIOSockRecv(
             {
                 TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
                 iRes = SOCKET_ERROR;
+                break;
             }
         }
         else if (!VIOSockReadFile(s, lpBuffers[i].buf, lpBuffers[i].len, &dwNumberOfBytesRead, lpErrno))
         {
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockReadFile failed: %d\n", *lpErrno);
             iRes = SOCKET_ERROR;
             break;
         }
@@ -1143,8 +1145,15 @@ VIOSockSocket(
 
     if (af != AF_VSOCK || protocol != 0)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid parameters\n");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid AF!\n");
         *lpErrno = WSAEINVAL;
+        return INVALID_SOCKET;
+    }
+
+    if (protocol != 0)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Unsupported protocol\n");
+        *lpErrno = WSAEPROTOTYPE;
         return INVALID_SOCKET;
     }
 
@@ -1154,8 +1163,8 @@ VIOSockSocket(
     }
     else
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Unsupported socket type\n");
-        *lpErrno = WSAEINVAL;
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Unsupported socket type\n");
+        *lpErrno = WSAESOCKTNOSUPPORT;
         return INVALID_SOCKET;
     }
 

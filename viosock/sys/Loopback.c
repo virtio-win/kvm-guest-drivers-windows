@@ -376,7 +376,10 @@ VIOSockLoopbackTxEnqueue(
     if (Request != WDF_NO_HANDLE)
     {
         ASSERT(Length);
-        status = VIOSockTxValidateSocketState(pSocket);
+        status = VIOSockStateValidate(pSocket, TRUE);
+        if (status == STATUS_REMOTE_DISCONNECT)
+            status = STATUS_LOCAL_DISCONNECT;
+
         if (!NT_SUCCESS(status))
             return status;
     }

@@ -221,7 +221,7 @@ VIOSockBoundAdd(
         if (!bFound)
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "No ports available\n");
-            status = STATUS_NOT_FOUND;
+            status = STATUS_INSUFFICIENT_RESOURCES;
         }
     }
     else
@@ -868,10 +868,14 @@ VIOSockAccept(
 
         ObDereferenceObject(pFileObj);
 
-        if (!pListenSocket || VIOSockStateGet(pListenSocket) != VIOSOCK_STATE_LISTEN)
+        if (!pListenSocket)
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Listen socket not found\n");
-            status = STATUS_INVALID_DEVICE_STATE;
+            status = STATUS_NOT_SOCKET;
+        }
+        else if (VIOSockStateGet(pListenSocket) != VIOSOCK_STATE_LISTEN)
+        {
+            status = STATUS_INVALID_PARAMETER;
         }
         else
         {
@@ -905,7 +909,7 @@ VIOSockAccept(
     else
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "ObReferenceObjectByHandle failed: 0x%x\n", status);
-        status = STATUS_INVALID_PARAMETER;
+        status = STATUS_NOT_SOCKET;
     }
     return status;
 }
@@ -932,8 +936,8 @@ VIOSockCreate(
     ASSERT(FileObject);
     if (WDF_NO_HANDLE == FileObject)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE,"NULL FileObject\n");
-        return status;
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "NULL FileObject\n");
+        return STATUS_UNSUCCESSFUL;
     }
 
     pSocket = GetSocketContext(FileObject);
@@ -1031,7 +1035,7 @@ VIOSockCreate(
                 if (pParams->Type != VIRTIO_VSOCK_TYPE_STREAM)
                 {
                     TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "Unsupported socket type: %u\n", pSocket->type);
-                    status = STATUS_INVALID_PARAMETER;
+                    status = STATUS_NOT_SUPPORTED;
                 }
                 else
                 {
@@ -1229,22 +1233,26 @@ VIOSockBind(
     if (!VIOSockIsGuestAddrValid(pAddr))
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid addr to bind, cid: %u, port: %u\n", pAddr->svm_cid, pAddr->svm_port);
-        return STATUS_INVALID_PARAMETER;
+        return STATUS_INVALID_ADDRESS_COMPONENT;
     }
 
     if (pAddr->svm_cid != (ULONG32)pContext->Config.guest_cid &&
         pAddr->svm_cid != VMADDR_CID_ANY)
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid cid: %u\n", pAddr->svm_cid);
-        return STATUS_INVALID_PARAMETER;
-
+        return STATUS_INVALID_ADDRESS_COMPONENT;
     }
 
-    if (VIOSockStateGet(pSocket) != VIOSOCK_STATE_CLOSE ||
-        VIOSockIsBound(pSocket))
+    if (VIOSockIsBound(pSocket))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Socket %d already bound\n", pSocket->SocketId);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (VIOSockStateGet(pSocket) != VIOSOCK_STATE_CLOSE)
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid socket state: %u\n", VIOSockStateGet(pSocket));
-        return STATUS_INVALID_PARAMETER;
+        return STATUS_UNSUCCESSFUL;
     }
 
     status = VIOSockBoundAdd(pSocket, pAddr->svm_port);
@@ -1287,13 +1295,29 @@ VIOSockConnect(
     if(!VIOSockIsHostAddrValid(pAddr, (ULONG32)pContext->Config.guest_cid))
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid addr to connect, cid: %u, port: %u\n", pAddr->svm_cid, pAddr->svm_port);
-        return STATUS_INVALID_PARAMETER;
+        return STATUS_INVALID_ADDRESS_COMPONENT;
     }
 
-    if (VIOSockStateGet(pSocket) != VIOSOCK_STATE_CLOSE)
+    switch (VIOSockStateGet(pSocket))
+    {
+    case VIOSOCK_STATE_CONNECTING:
+        status = STATUS_CONNECTION_ESTABLISHING;
+        break;
+    case VIOSOCK_STATE_CONNECTED:
+    case VIOSOCK_STATE_CLOSING:
+        status = STATUS_CONNECTION_ACTIVE;
+        break;
+    case VIOSOCK_STATE_LISTEN:
+        status = STATUS_INVALID_PARAMETER;
+        break;
+    default:
+        status = STATUS_SUCCESS;
+    }
+
+    if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid socket state: %u\n", pSocket->State);
-        return STATUS_INVALID_PARAMETER;
+        return status;
     }
 
     if (!VIOSockIsBound(pSocket))
@@ -1303,7 +1327,7 @@ VIOSockConnect(
         if (!NT_SUCCESS(status))
         {
             TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "VIOSockBoundAdd failed: 0x%x\n", status);
-            return STATUS_INVALID_PARAMETER;
+            return status;
         }
     }
 
@@ -1320,6 +1344,7 @@ VIOSockConnect(
         status = VIOSockPendedRequestSetLocked(pSocket, Request);
         if (!NT_SUCCESS(status))
         {
+            VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
             return status;
         }
         WdfTimerStart(pSocket->ConnectTimer, pSocket->ConnectTimeout);
@@ -1362,9 +1387,11 @@ VIOSockShutdownFromPeer(
     BOOLEAN bRes;
     ULONG32 uDrain;
 
+    WdfSpinLockAcquire(pSocket->StateLock);
     uDrain = ~pSocket->PeerShutdown & uFlags;
     pSocket->PeerShutdown |= uFlags;
     bRes = (pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_MASK) == VIRTIO_VSOCK_SHUTDOWN_MASK;
+    WdfSpinLockRelease(pSocket->StateLock);
 
 //     if (uDrain & VIRTIO_VSOCK_SHUTDOWN_SEND)
 //         VIOSockReadDequeueCb(pSocket, WDF_NO_HANDLE);
@@ -1374,6 +1401,42 @@ VIOSockShutdownFromPeer(
 //     }
 
     return bRes;
+}
+
+_Requires_lock_not_held_(pSocket->StateLock)
+static
+NTSTATUS
+VIOSockStateValidateShutdown(
+    PSOCKET_CONTEXT pSocket,
+    ULONG32 uHow
+)
+{
+    NTSTATUS status;
+
+    WdfSpinLockAcquire(pSocket->StateLock);
+
+    if ((pSocket->Shutdown & uHow) == uHow)
+    {
+        status = STATUS_LOCAL_DISCONNECT;
+    }
+    else if(pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_MASK)
+    {
+        status = STATUS_SUCCESS;
+    }
+    else if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CLOSING)
+    {
+        status = STATUS_CONNECTION_RESET;
+    }
+    else if (VIOSockStateGet(pSocket) != VIOSOCK_STATE_CONNECTED)
+    {
+        status = STATUS_CONNECTION_INVALID;
+    }
+    else
+        status = STATUS_SUCCESS;
+
+    WdfSpinLockRelease(pSocket->StateLock);
+
+    return status;
 }
 
 static
@@ -1415,13 +1478,17 @@ VIOSockShutdown(
         return STATUS_INVALID_PARAMETER;
     }
 
-    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED)
+    status = VIOSockStateValidateShutdown(pSocket, *pHow);
+
+    if (NT_SUCCESS(status))
     {
-        pSocket->Shutdown |= *pHow;
+        pSocket->Shutdown |= (ULONG32)*pHow;
         status = VIOSockSendShutdown(pSocket, *pHow);
     }
-    else
-        status = STATUS_CONNECTION_DISCONNECTED;
+    else if (status == STATUS_LOCAL_DISCONNECT)
+    {
+        status = STATUS_SUCCESS;
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 
@@ -1455,13 +1522,18 @@ VIOSockListen(
 
     if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CLOSE)
     {
-        pSocket->Backlog = *pBacklog;
-        InitializeListHead(&pSocket->AcceptList);
-        //no lock required
-        VIOSockStateSet(pSocket, VIOSOCK_STATE_LISTEN);
+        if (VIOSockIsBound(pSocket))
+        {
+            pSocket->Backlog = *pBacklog;
+            InitializeListHead(&pSocket->AcceptList);
+            //no lock required
+            VIOSockStateSet(pSocket, VIOSOCK_STATE_LISTEN);
+        }
+        else
+            status = STATUS_INVALID_PARAMETER;
     }
     else
-        status = STATUS_INVALID_PARAMETER;
+        status = STATUS_CONNECTION_ACTIVE;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 
@@ -2387,6 +2459,53 @@ VIOSockDeviceControl(
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+    return status;
+}
+
+NTSTATUS
+VIOSockStateValidate(
+    PSOCKET_CONTEXT pSocket,
+    BOOLEAN         bTx
+)
+{
+    NTSTATUS status;
+    BOOLEAN bIsShutdown, bIsPeerShutdown;
+
+    WdfSpinLockAcquire(pSocket->StateLock);
+
+    if (bTx)
+    {
+
+        bIsShutdown = pSocket->Shutdown & VIRTIO_VSOCK_SHUTDOWN_SEND;
+        bIsPeerShutdown = pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_RCV;
+    }
+    else
+    {
+        bIsShutdown = pSocket->Shutdown & VIRTIO_VSOCK_SHUTDOWN_RCV;
+        bIsPeerShutdown = pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_SEND;
+    }
+
+    if (bIsShutdown)
+    {
+        status = STATUS_LOCAL_DISCONNECT;
+    }
+    else if (bIsPeerShutdown)
+    {
+        status = STATUS_REMOTE_DISCONNECT;
+    }
+    else if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CLOSING)
+    {
+        status = STATUS_CONNECTION_RESET;
+    }
+    else if (VIOSockStateGet(pSocket) != VIOSOCK_STATE_CONNECTED)
+    {
+        status = STATUS_CONNECTION_INVALID;
+    }
+    else
+        status = STATUS_SUCCESS;
+
+    WdfSpinLockRelease(pSocket->StateLock);
+
     return status;
 }
 
