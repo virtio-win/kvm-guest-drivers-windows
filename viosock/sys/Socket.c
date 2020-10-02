@@ -458,7 +458,8 @@ VIOSockConnectedFindByRxPktCallback(
 {
     PVIRTIO_VSOCK_HDR    pPkt = (PVIRTIO_VSOCK_HDR)pCallbackContext;
     return (pPkt->src_cid == pSocket->dst_cid &&
-        pPkt->src_port == pSocket->dst_port);
+        pPkt->src_port == pSocket->dst_port &&
+        pPkt->dst_port == pSocket->src_port);
 }
 
 PSOCKET_CONTEXT
@@ -494,9 +495,10 @@ VIOSockStateSet(
 
     if (PrevState != NewState)
     {
-        if (PrevState == VIOSOCK_STATE_CLOSING)
+        if (NewState == VIOSOCK_STATE_CLOSE &&
+            (PrevState == VIOSOCK_STATE_CONNECTED ||
+            PrevState == VIOSOCK_STATE_CLOSING))
         {
-            ASSERT(NewState == VIOSOCK_STATE_CLOSE);
             if(!IsLoopbackSocket(pSocket))
                 VIOSockConnectedRemove(pSocket);
         }
@@ -926,8 +928,6 @@ VIOSockCreate(
     PSOCKET_CONTEXT         pSocket;
     NTSTATUS                status = STATUS_SUCCESS;
     WDF_REQUEST_PARAMETERS  parameters;
-    WDF_OBJECT_ATTRIBUTES   Attributes;
-    WDF_TIMER_CONFIG        timerConfig;
 
     PAGED_CODE();
 
@@ -943,42 +943,6 @@ VIOSockCreate(
     pSocket = GetSocketContext(FileObject);
     pSocket->ThisSocket = FileObject;
     pSocket->SocketId = InterlockedIncrement(&pContext->SocketId);
-    pSocket->LoopbackSocket = WDF_NO_HANDLE;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Socket %d initializing\n", pSocket->SocketId);
-
-    WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
-    Attributes.ParentObject = FileObject;
-    status = WdfSpinLockCreate(&Attributes, &pSocket->StateLock);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "WdfSpinLockCreate failed (StateLock) - 0x%x\n", status);
-        return status;
-    }
-
-    WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
-    Attributes.ParentObject = FileObject;
-    status = WdfSpinLockCreate(&Attributes, &pSocket->RxLock);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "WdfSpinLockCreate failed (RxLock) - 0x%x\n", status);
-        return status;
-    }
-
-    WDF_TIMER_CONFIG_INIT(&timerConfig, VIOSockConnectTimerFunc);
-
-    WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
-    Attributes.ParentObject = pSocket->ThisSocket;
-
-    status = WdfTimerCreate(&timerConfig, &Attributes, &pSocket->ConnectTimer);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE,
-            "WdfTimerCreate failed: 0x%x\n", status);
-        return status;
-    }
-
-    KeInitializeEvent(&pSocket->CloseEvent, NotificationEvent, FALSE);
 
     WDF_REQUEST_PARAMETERS_INIT(&parameters);
 
@@ -994,9 +958,34 @@ VIOSockCreate(
 
         if (EaBuffer->EaValueLength >= sizeof(VIRTIO_VSOCK_PARAMS))
         {
-            HANDLE hListenSocket;
-            PVIRTIO_VSOCK_PARAMS pParams = (PVIRTIO_VSOCK_PARAMS)((PCHAR)EaBuffer +
+            WDF_OBJECT_ATTRIBUTES   Attributes;
+            WDF_TIMER_CONFIG        timerConfig;
+            HANDLE                  hListenSocket;
+            PVIRTIO_VSOCK_PARAMS    pParams = (PVIRTIO_VSOCK_PARAMS)((PCHAR)EaBuffer +
                 (FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + 1 + EaBuffer->EaNameLength));
+
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Socket %d (%p) initializing\n",
+                pSocket->SocketId, pSocket->ThisSocket);
+
+            WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
+            Attributes.ParentObject = FileObject;
+            status = WdfSpinLockCreate(&Attributes, &pSocket->StateLock);
+            if (!NT_SUCCESS(status))
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "WdfSpinLockCreate failed (StateLock) - 0x%x\n", status);
+                return status;
+            }
+
+            WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
+            Attributes.ParentObject = FileObject;
+            status = WdfSpinLockCreate(&Attributes, &pSocket->RxLock);
+            if (!NT_SUCCESS(status))
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "WdfSpinLockCreate failed (RxLock) - 0x%x\n", status);
+                return status;
+            }
+
+            KeInitializeEvent(&pSocket->CloseEvent, NotificationEvent, FALSE);
 
             pSocket->src_port = VMADDR_PORT_ANY;//set unbound state
             pSocket->dst_port = VMADDR_PORT_ANY;
@@ -1004,15 +993,7 @@ VIOSockCreate(
 
             pSocket->State = VIOSOCK_STATE_CLOSE;
             pSocket->PendedRequest = WDF_NO_HANDLE;
-
-            status = VIOSockReadSocketQueueInit(pSocket);
-            if (!NT_SUCCESS(status))
-            {
-                return status;
-            }
-
-            InitializeListHead(&pSocket->RxCbList);
-            pSocket->RxBytes = 0;
+            pSocket->LoopbackSocket = WDF_NO_HANDLE;
 
 #ifdef _WIN64
             if (WdfRequestIsFrom32BitProcess(Request))
@@ -1039,6 +1020,28 @@ VIOSockCreate(
                 }
                 else
                 {
+                    WDF_TIMER_CONFIG_INIT(&timerConfig, VIOSockConnectTimerFunc);
+
+                    WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
+                    Attributes.ParentObject = pSocket->ThisSocket;
+
+                    status = WdfTimerCreate(&timerConfig, &Attributes, &pSocket->ConnectTimer);
+                    if (!NT_SUCCESS(status))
+                    {
+                        TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE,
+                            "WdfTimerCreate failed: 0x%x\n", status);
+                        return status;
+                    }
+
+                    status = VIOSockReadSocketQueueInit(pSocket);
+                    if (!NT_SUCCESS(status))
+                    {
+                        return status;
+                    }
+
+                    InitializeListHead(&pSocket->RxCbList);
+                    pSocket->RxBytes = 0;
+
                     pSocket->type = pParams->Type;
 
                     pSocket->ConnectTimeout = VSOCK_DEFAULT_CONNECT_TIMEOUT;
@@ -1059,8 +1062,12 @@ VIOSockCreate(
     }
     else
     {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Control socket %d (%p) initializing\n",
+            pSocket->SocketId, pSocket->ThisSocket);
+
         //Socket for select and config retrieve
         VIOSockSetFlag(pSocket, SOCK_CONTROL);
+        status = STATUS_SUCCESS;
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_CREATE_CLOSE,"<-- %s\n", __FUNCTION__);
@@ -1114,7 +1121,12 @@ VIOSockClose(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_CREATE_CLOSE, "--> %s\n", __FUNCTION__);
 
     if (VIOSockIsFlag(pSocket, SOCK_CONTROL))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Control socket %d closed\n", pSocket->SocketId);
         return;
+    }
+
+    VIOSockBoundRemove(pSocket);
 
     if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED ||
         VIOSockStateGet(pSocket) == VIOSOCK_STATE_CLOSING)
@@ -1124,7 +1136,8 @@ VIOSockClose(
         /* Already received SHUTDOWN from peer, reply with RST */
         if ((pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_MASK) == VIRTIO_VSOCK_SHUTDOWN_MASK)
         {
-            VIOSockSendReset(pSocket, FALSE);
+            if(VIOSockStateGet(pSocket) != VIOSOCK_STATE_CLOSING)
+                VIOSockSendReset(pSocket, FALSE);
         }
         else
         {
@@ -1135,21 +1148,26 @@ VIOSockClose(
                 VIOSockSendShutdown(pSocket, VIRTIO_VSOCK_SHUTDOWN_MASK);
             }
 
-            liTimeout.QuadPart = WDF_ABS_TIMEOUT_IN_MS(VIOSockIsFlag(pSocket, SOCK_LINGER) ?
-                pSocket->LingerTime * 1000 : VSOCK_CLOSE_TIMEOUT);
+            liTimeout.QuadPart = -(VSOCK_CLOSE_TIMEOUT + (VIOSockIsFlag(pSocket, SOCK_LINGER) ?
+                WDF_ABS_TIMEOUT_IN_SEC(pSocket->LingerTime) : 0));
 
             if (KeWaitForSingleObject(&pSocket->CloseEvent, Executive, KernelMode, FALSE, &liTimeout) == STATUS_TIMEOUT)
             {
+                TraceEvents(TRACE_LEVEL_WARNING, DBG_CREATE_CLOSE, "Socket %d, close timeout expires\n", pSocket->SocketId);
+
                 VIOSockSendReset(pSocket, FALSE);
-
-                pSocket->PeerShutdown = VIRTIO_VSOCK_SHUTDOWN_MASK;
-
-//                 if (VIOSockRxHasData(pSocket))
-//                     VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSING);
+                VIOSockDoClose(pSocket);
             }
         }
     }
 
+    VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
+
+    VIOSockPendedRequestGetLocked(pSocket, &Request);
+    if (Request != WDF_NO_HANDLE)
+    {
+        WdfRequestComplete(Request, STATUS_CANCELLED);
+    }
     if (pSocket->EventObject)
     {
         ObDereferenceObject(pSocket->EventObject);
@@ -1163,15 +1181,6 @@ VIOSockClose(
         VIOSockAcceptCleanup(pSocket);
     else
         VIOSockReadCleanupCb(pSocket);
-
-    VIOSockBoundRemove(pSocket);
-
-    VIOSockPendedRequestGetLocked(pSocket, &Request);
-    if (Request != WDF_NO_HANDLE)
-    {
-        WdfRequestComplete(Request, STATUS_CANCELLED);
-    }
-    VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Socket %d closed\n", pSocket->SocketId);
 
@@ -1347,10 +1356,10 @@ VIOSockConnect(
             VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
             return status;
         }
-        WdfTimerStart(pSocket->ConnectTimer, pSocket->ConnectTimeout);
+        WdfTimerStart(pSocket->ConnectTimer, -pSocket->ConnectTimeout);
     }
 
-    if (pAddr->svm_cid == (ULONG32)pContext->Config.guest_cid)
+    if (pSocket->dst_cid == (ULONG32)pContext->Config.guest_cid)
         VIOSockSetFlag(pSocket, SOCK_LOOPBACK);
     else
         VIOSockResetFlag(pSocket, SOCK_LOOPBACK);
@@ -1471,7 +1480,7 @@ VIOSockShutdown(
     * RCV_SHUTDOWN | SEND_SHUTDOWN (3), which is what we want.
     */
 
-    *pHow++;
+    (*pHow)++;
     if ((*pHow & ~VIRTIO_VSOCK_SHUTDOWN_MASK) || !*pHow)
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid shutdown flags: %u\n", *pHow);
@@ -1825,12 +1834,16 @@ VIOSockGetPeerName(
     // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
     _Analysis_assume_(stAddrLen >= sizeof(*pAddr));
 
-    //TODO: check socket state
-    RtlZeroBytes(pAddr, sizeof(*pAddr));
-    pAddr->svm_family = AF_VSOCK;
-    pAddr->svm_cid = pSocket->dst_cid;
-    pAddr->svm_port = pSocket->dst_port;
-    *pLength = sizeof(*pAddr);
+    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED)
+    {
+        RtlZeroBytes(pAddr, sizeof(*pAddr));
+        pAddr->svm_family = AF_VSOCK;
+        pAddr->svm_cid = pSocket->dst_cid;
+        pAddr->svm_port = pSocket->dst_port;
+        *pLength = sizeof(*pAddr);
+    }
+    else
+        status = STATUS_INVALID_DEVICE_STATE;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 
@@ -1864,12 +1877,16 @@ VIOSockGetSockName(
     // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
     _Analysis_assume_(stAddrLen >= sizeof(*pAddr));
 
-    //TODO: check socket state
-    RtlZeroBytes(pAddr, sizeof(*pAddr));
-    pAddr->svm_family = AF_VSOCK;
-    pAddr->svm_cid = (ULONG32)pContext->Config.guest_cid;
-    pAddr->svm_port = pSocket->src_port;
-    *pLength = sizeof(*pAddr);
+    if (VIOSockIsBound(pSocket))
+    {
+        RtlZeroBytes(pAddr, sizeof(*pAddr));
+        pAddr->svm_family = AF_VSOCK;
+        pAddr->svm_cid = (ULONG32)pContext->Config.guest_cid;
+        pAddr->svm_port = pSocket->src_port;
+        *pLength = sizeof(*pAddr);
+    }
+    else
+        status = STATUS_INVALID_DEVICE_STATE;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 
@@ -2094,8 +2111,8 @@ VIOSockSetLinger(
 {
     if (pLinger->l_onoff)
     {
-        VIOSockSetFlag(pSocket, SOCK_LINGER);
         pSocket->LingerTime = pLinger->l_linger;
+        VIOSockSetFlag(pSocket, SOCK_LINGER);
     }
     else
         VIOSockResetFlag(pSocket, SOCK_LINGER);
@@ -2251,15 +2268,18 @@ VIOSockSetSockOpt(
         else
         {
             struct timeval *tv = (struct timeval*)pOptVal;
+            LONGLONG llTimeout = 0;
 
             if (tv->tv_sec >= 0 && tv->tv_usec < USEC_PER_SEC &&
                 tv->tv_sec < (LONG_MAX / 1000 - 1))
             {
-                pSocket->ConnectTimeout = SEC_TO_NANO(tv->tv_sec) + USEC_TO_NANO(tv->tv_usec);
+                llTimeout = SEC_TO_NANO(tv->tv_sec) + USEC_TO_NANO(tv->tv_usec);
             }
 
-            if (!pSocket->ConnectTimeout)
-                pSocket->ConnectTimeout = VSOCK_DEFAULT_CONNECT_TIMEOUT;
+            if (!llTimeout)
+                llTimeout = VSOCK_DEFAULT_CONNECT_TIMEOUT;
+
+            pSocket->ConnectTimeout = llTimeout;
         }
         break;
 

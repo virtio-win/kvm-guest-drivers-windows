@@ -64,7 +64,8 @@ typedef struct _VIOSOCK_RX_PKT
     PVIOSOCK_RX_CB      Buffer;     //Chained buffer
     union {
         BYTE IndirectDescs[SIZE_OF_SINGLE_INDIRECT_DESC * (1 + VIOSOCK_DMA_RX_PAGES)]; //Header + buffer
-        SINGLE_LIST_ENTRY ListEntry;
+        SINGLE_LIST_ENTRY   RxPktListEntry;
+        LIST_ENTRY          CompletionListEntry;
     };
 }VIOSOCK_RX_PKT, *PVIOSOCK_RX_PKT;
 
@@ -444,11 +445,11 @@ VIOSockRxPktListProcess(
 
     while (pListEntry = PopEntryList(&pContext->RxPktList))
     {
-        PVIOSOCK_RX_PKT pPkt = CONTAINING_RECORD(pListEntry, VIOSOCK_RX_PKT, ListEntry);
+        PVIOSOCK_RX_PKT pPkt = CONTAINING_RECORD(pListEntry, VIOSOCK_RX_PKT, RxPktListEntry);
 
         if (!VIOSockRxPktInsert(pContext, pPkt))
         {
-            PushEntryList(&pContext->RxPktList, &pPkt->ListEntry);
+            PushEntryList(&pContext->RxPktList, &pPkt->RxPktListEntry);
             break;
         }
     }
@@ -467,7 +468,7 @@ VIOSockRxPktInsertOrPostpone(
     if (!VIOSockRxPktInsert(pContext, pPkt))
     {
         //postpone packet
-        PushEntryList(&pContext->RxPktList, &pPkt->ListEntry);
+        PushEntryList(&pContext->RxPktList, &pPkt->RxPktListEntry);
     }
     else
     {
@@ -530,7 +531,7 @@ VIOSockRxVqCleanup(
 
     while (pListEntry = PopEntryList(&pContext->RxPktList))
     {
-        VIOSockRxPktCleanup(pContext, CONTAINING_RECORD(pListEntry, VIOSOCK_RX_PKT, ListEntry));
+        VIOSockRxPktCleanup(pContext, CONTAINING_RECORD(pListEntry, VIOSOCK_RX_PKT, RxPktListEntry));
     }
     WdfSpinLockRelease(pContext->RxLock);
 
@@ -686,7 +687,7 @@ VIOSockRxPktHandleConnecting(
 
     if (PendedRequest)
     {
-        WdfTimerStop(pSocket->ConnectTimer, TRUE);
+        WdfTimerStop(pSocket->ConnectTimer, FALSE);
         WdfRequestComplete(PendedRequest, status);
     }
 
@@ -941,7 +942,7 @@ VIOSockRxVqProcess(
 {
     PVIOSOCK_RX_PKT     pPkt;
     UINT                len;
-    SINGLE_LIST_ENTRY   CompletionList;
+    LIST_ENTRY          CompletionList;
     PSINGLE_LIST_ENTRY  pCurrentEntry;
     PSOCKET_CONTEXT     pSocket = NULL;
     BOOLEAN             bStop = FALSE;
@@ -950,7 +951,7 @@ VIOSockRxVqProcess(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    CompletionList.Next = NULL;
+    InitializeListHead(&CompletionList);
 
     WdfSpinLockAcquire(pContext->RxLock);
     do
@@ -991,18 +992,18 @@ VIOSockRxVqProcess(
                 pPkt->Header.len, pPkt->Header.flags, pPkt->Header.buf_alloc, pPkt->Header.fwd_cnt);
 
             //"complete" buffers later
-            PushEntryList(&CompletionList, &pPkt->ListEntry);
+            InsertTailList(&CompletionList, &pPkt->CompletionListEntry);
         }
     } while (!virtqueue_enable_cb(pContext->RxVq) && !bStop);
 
     WdfSpinLockRelease(pContext->RxLock);
 
     //complete buffers
-    while ((pCurrentEntry = PopEntryList(&CompletionList)) != NULL)
+    while (!IsListEmpty(&CompletionList))
     {
         BOOLEAN bTxHasSpace;
 
-        pPkt = CONTAINING_RECORD(pCurrentEntry, VIOSOCK_RX_PKT, ListEntry);
+        pPkt = CONTAINING_RECORD(RemoveHeadList(&CompletionList), VIOSOCK_RX_PKT, CompletionListEntry);
 
         //find socket
         pSocket = VIOSockConnectedFindByRxPkt(pContext, &pPkt->Header);
@@ -1034,7 +1035,7 @@ VIOSockRxVqProcess(
 
         bTxHasSpace = !!VIOSockTxSpaceUpdate(pSocket, &pPkt->Header);
 
-        switch (pSocket->State)
+        switch (VIOSockStateGet(pSocket))
         {
         case VIOSOCK_STATE_CONNECTING:
             VIOSockRxPktHandleConnecting(pSocket, pPkt, bTxHasSpace);
@@ -1136,7 +1137,7 @@ VIOSockRead(
     //check Request
     if (VIOSockIsFlag(pSocket, SOCK_CONTROL))
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Invalid read request\n");
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Invalid socket %d for read\n", pSocket->SocketId);
         WdfRequestComplete(Request, STATUS_NOT_SOCKET);
         return;
     }

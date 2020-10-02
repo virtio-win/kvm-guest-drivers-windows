@@ -95,8 +95,8 @@ typedef struct VirtIOBufferDescriptor VIOSOCK_SG_DESC, *PVIOSOCK_SG_DESC;
 #define VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE	(1024 * 4)
 #define VIRTIO_VSOCK_MAX_PKT_BUF_SIZE		(1024 * 64)
 
-#define VSOCK_CLOSE_TIMEOUT                 (8 * 1000)
-#define VSOCK_DEFAULT_CONNECT_TIMEOUT       MSEC_TO_NANO(2 * 1000)
+#define VSOCK_CLOSE_TIMEOUT                 SEC_TO_NANO(8)
+#define VSOCK_DEFAULT_CONNECT_TIMEOUT       SEC_TO_NANO(2)
 #define VSOCK_DEFAULT_BUFFER_SIZE           (1024 * 256)
 #define VSOCK_DEFAULT_BUFFER_MAX_SIZE       (1024 * 256)
 #define VSOCK_DEFAULT_BUFFER_MIN_SIZE       128
@@ -143,7 +143,7 @@ typedef struct _DEVICE_CONTEXT {
     _Guarded_by_(TxLock) PVIOSOCK_VQ                 TxVq;
     _Guarded_by_(TxLock) PVIRTIO_DMA_MEMORY_SLICED   TxPktSliced;
     ULONG                       TxPktNum;       //Num of slices in TxPktSliced
-    _Guarded_by_(TxLock) LONG                        QueuedReply;
+    _Guarded_by_(TxLock) LONG                        TxQueuedReply;
     _Guarded_by_(TxLock) LIST_ENTRY                  TxList;
     _Guarded_by_(TxLock) VIOSOCK_TIMER               TxTimer;
     WDFLOOKASIDE                TxMemoryList;
@@ -626,7 +626,7 @@ VIOSockTxMoreReplies(
     IN PDEVICE_CONTEXT  pContext
 )
 {
-    return pContext->QueuedReply < (LONG)pContext->RxPktNum;
+    return pContext->TxQueuedReply < (LONG)pContext->RxPktNum;
 }
 
 _Requires_lock_not_held_(pContext->TxLock)
