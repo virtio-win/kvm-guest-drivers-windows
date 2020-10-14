@@ -1351,27 +1351,38 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     NTSTATUS Status;
 
     DBG("NewSize: %I64u SetAllocationSize: %d", NewSize, SetAllocationSize);
-    DBG("fh: %I64u nodeid: %I64u", FileContext->FileHandle, FileContext->NodeId);
+    DBG("fh: %I64u nodeid: %I64u", FileContext->FileHandle,
+        FileContext->NodeId);
 
     if (SetAllocationSize == TRUE)
     {
-        FUSE_FALLOCATE_IN falloc_in;
-        FUSE_FALLOCATE_OUT falloc_out;
+        if (NewSize > 0)
+        {
+            FUSE_FALLOCATE_IN falloc_in;
+            FUSE_FALLOCATE_OUT falloc_out;
 
-        FUSE_HEADER_INIT(&falloc_in.hdr, FUSE_FALLOCATE, FileContext->NodeId,
-            sizeof(struct fuse_fallocate_in));
+            FUSE_HEADER_INIT(&falloc_in.hdr, FUSE_FALLOCATE,
+                FileContext->NodeId, sizeof(struct fuse_fallocate_in));
 
-        falloc_in.hdr.uid = VirtFs->OwnerUid;
-        falloc_in.hdr.gid = VirtFs->OwnerGid;
+            falloc_in.hdr.uid = VirtFs->OwnerUid;
+            falloc_in.hdr.gid = VirtFs->OwnerGid;
 
-        falloc_in.falloc.fh = FileContext->FileHandle;
-        falloc_in.falloc.offset = 0;
-        falloc_in.falloc.length = NewSize;
-        falloc_in.falloc.mode = 0x01; /* FALLOC_FL_KEEP_SIZE */
-        falloc_in.falloc.padding = 0;
+            falloc_in.falloc.fh = FileContext->FileHandle;
+            falloc_in.falloc.offset = 0;
+            falloc_in.falloc.length = NewSize;
+            falloc_in.falloc.mode = 0x01; /* FALLOC_FL_KEEP_SIZE */
+            falloc_in.falloc.padding = 0;
 
-        Status = VirtFsFuseRequest(VirtFs->Device, &falloc_in, falloc_in.hdr.len,
-            &falloc_out, sizeof(falloc_out));
+            Status = VirtFsFuseRequest(VirtFs->Device, &falloc_in,
+                falloc_in.hdr.len, &falloc_out, sizeof(falloc_out));
+        }
+        else
+        {
+            // fallocate on host fails when len is less than or equal to 0.
+            // So ignore the request and report success. This fix a failure
+            // to create a new file through Windows Explorer.
+            Status = STATUS_SUCCESS;
+        }
     }
     else
     {
