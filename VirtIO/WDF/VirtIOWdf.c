@@ -131,8 +131,8 @@ NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver,
     if (virtio_is_feature_enabled(uDeviceFeatures, VIRTIO_F_ANY_LAYOUT)) {
         virtio_feature_enable(uFeatures, VIRTIO_F_ANY_LAYOUT);
     }
-    if (virtio_is_feature_enabled(uDeviceFeatures, VIRTIO_F_IOMMU_PLATFORM)) {
-        virtio_feature_enable(uFeatures, VIRTIO_F_IOMMU_PLATFORM);
+    if (virtio_is_feature_enabled(uDeviceFeatures, VIRTIO_F_ACCESS_PLATFORM)) {
+        virtio_feature_enable(uFeatures, VIRTIO_F_ACCESS_PLATFORM);
     }
 
     if ((uDeviceFeatures & uPrivateFeaturesOn) != uPrivateFeaturesOn) {

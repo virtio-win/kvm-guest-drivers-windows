@@ -653,8 +653,8 @@ RhelSetGuestFeatures(
     }
 
 #if (WINVER == 0x0A00)
-    if (CHECKBIT(adaptExt->features, VIRTIO_F_IOMMU_PLATFORM)) {
-        guestFeatures |= (1ULL << VIRTIO_F_IOMMU_PLATFORM);
+    if (CHECKBIT(adaptExt->features, VIRTIO_F_ACCESS_PLATFORM)) {
+        guestFeatures |= (1ULL << VIRTIO_F_ACCESS_PLATFORM);
     }
 #endif
 
