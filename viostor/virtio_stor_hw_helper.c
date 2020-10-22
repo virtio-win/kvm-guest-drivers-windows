@@ -268,8 +268,8 @@ RhelDoUnMap(
         REVERSE_BYTES(&blockDescrLbaCount, BlockDescriptors[i].LbaCount);
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, "Count %d BlockDescrCount = %d blockDescrStartingLba = %llu blockDescrLbaCount = %lu\n",
                      i, BlockDescrCount, blockDescrStartingLba, blockDescrLbaCount);
-        adaptExt->blk_discard[i].sector = blockDescrStartingLba;
-        adaptExt->blk_discard[i].num_sectors = blockDescrLbaCount;
+        adaptExt->blk_discard[i].sector = blockDescrStartingLba * (adaptExt->info.blk_size / SECTOR_SIZE);
+        adaptExt->blk_discard[i].num_sectors = blockDescrLbaCount * (adaptExt->info.blk_size / SECTOR_SIZE);
         adaptExt->blk_discard[i].flags = 0;
     }
 
