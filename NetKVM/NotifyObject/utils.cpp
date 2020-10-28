@@ -75,6 +75,8 @@ public:
             Add(L"ven_8086&dev_10ed");  // Intel 82599 VF
             Add(L"ven_15b3&dev_101a");  // Mellanox MT28800 Family
             Add(L"ven_14e4&dev_16dc");  // Broadcom NetXtreme-E Virtual Function
+            Add(L"ven_14e4&dev_16af");  // Broadcom NetXtreme II BCM57810 Virtual Function
+            Add(L"bdrv\\l2ndv&pci_16af14e4"); // Broadcom NetXtreme II BCM57810 Virtual Function (QLogic miniport driver)
         }
         for (UINT i = 0; i < GetCount(); ++i)
         {
