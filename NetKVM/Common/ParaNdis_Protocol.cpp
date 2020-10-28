@@ -52,6 +52,26 @@ static void ParaNdis_DereferenceBinding(PARANDIS_ADAPTER *pContext)
     pContext->m_StateMachine.DereferenceSriovBinding();
 }
 
+class CInternalNblEntry : public CNdisAllocatable<CInternalNblEntry, 'NORP'>
+{
+public:
+    CInternalNblEntry(PNET_BUFFER_LIST Nbl) : m_Nbl(Nbl), m_KeepReserved(Nbl->MiniportReserved[0]) { }
+    bool Match(PNET_BUFFER_LIST Nbl)
+    {
+        if (Nbl == m_Nbl)
+        {
+            Nbl->MiniportReserved[0] = m_KeepReserved;
+            TraceNoPrefix(0, "[%s] restored %p:%p\n", __FUNCTION__, Nbl, m_KeepReserved);
+            return true;
+        }
+        return false;
+    }
+private:
+    PVOID m_KeepReserved;
+    PNET_BUFFER_LIST m_Nbl;
+    DECLARE_CNDISLIST_ENTRY(CInternalNblEntry);
+};
+
 class CAdapterEntry : public CNdisAllocatable<CAdapterEntry, '1ORP'>
 {
 public:
@@ -411,6 +431,21 @@ private:
     void QueryCurrentRSS();
     bool QueryOid(ULONG oid, PVOID data, ULONG size);
     void OnOpStateChange(bool State);
+    void CompleteInternalNbl(PNET_BUFFER_LIST Nbl)
+    {
+        m_InternalNbls.ForEachDetachedIf(
+            [Nbl](CInternalNblEntry *e)
+            {
+                return e->Match(Nbl);
+            },
+            [&](CInternalNblEntry *e)
+            {
+                e->Destroy(e, m_BindingHandle);
+                CGuestAnnouncePackets::NblCompletionCallback(Nbl);
+                return false;
+            }
+        );
+    }
     void OnLastReferenceGone() override;
     CParaNdisProtocol& m_Protocol;
     NDIS_HANDLE m_BindContext;
@@ -469,6 +504,7 @@ private:
         } checksumRx;
     } m_Capabilies = {};
     CNdisSpinLock m_OpStateLock;
+    CNdisList<CInternalNblEntry, CLockedAccess, CNonCountingObject> m_InternalNbls;
     class COperationWorkItem : public CNdisAllocatable<COperationWorkItem, 'IWRP'>
     {
     public:
@@ -1046,11 +1082,29 @@ bool CProtocolBinding::Send(PNET_BUFFER_LIST Nbl, ULONG Count)
         return false;
     }
     PNET_BUFFER_LIST current = Nbl;
+
+    if (!CallCompletionForNBL(m_BoundAdapter, Nbl))
+    {
+        CInternalNblEntry *e = new (m_BindingHandle)CInternalNblEntry(Nbl);
+        if (!e)
+        {
+            m_TxStateMachine.UnregisterOutstandingItems(Count);
+            return false;
+        }
+        m_InternalNbls.PushBack(e);
+        TraceNoPrefix(0, "[%s] internal NBL %p, reserved %p\n",
+            __FUNCTION__, Nbl, Nbl->MiniportReserved[0]);
+    }
+
     while (current)
     {
         if (!KeepSourceHandleInContext(current))
         {
             RetrieveSourceHandle(Nbl, current);
+            if (!CallCompletionForNBL(m_BoundAdapter, Nbl))
+            {
+                CompleteInternalNbl(Nbl);
+            }
             m_TxStateMachine.UnregisterOutstandingItems(Count);
             // TODO: can we transmit the packets via NETKVM???
             return false;
@@ -1063,24 +1117,42 @@ bool CProtocolBinding::Send(PNET_BUFFER_LIST Nbl, ULONG Count)
     return true;
 }
 
-static ULONG CountNblsAndErrors(PNET_BUFFER_LIST NBL, ULONG& errors)
-{
-    ULONG result;
-    for (result = 0, errors = 0; NBL != nullptr; NBL = NET_BUFFER_LIST_NEXT_NBL(NBL), result++)
-    {
-        if (NET_BUFFER_LIST_STATUS(NBL) != NDIS_STATUS_SUCCESS)
-            errors++;
-    }
-    return result;
-}
-
 void CProtocolBinding::OnSendCompletion(PNET_BUFFER_LIST Nbls, ULONG Flags)
 {
-    ULONG errors;
-    ULONG count = CountNblsAndErrors(Nbls, errors);
-    TraceNoPrefix(errors != 0 ? 0 : 1, "[%s] %d nbls(%d errors)\n", __FUNCTION__, count, errors);
+    PNET_BUFFER_LIST *pCurrent = &Nbls;
+    PNET_BUFFER_LIST current = Nbls;
+    ULONG errors = 0, count = 0;
+
     RetrieveSourceHandle(Nbls);
-    NdisMSendNetBufferListsComplete(m_BoundAdapter->MiniportHandle, Nbls, Flags);
+
+    while (current)
+    {
+        count++;
+        if (NET_BUFFER_LIST_STATUS(current) != NDIS_STATUS_SUCCESS)
+            errors++;
+        if (!CallCompletionForNBL(m_BoundAdapter, current))
+        {
+            // remove the NBL from the chain
+            PNET_BUFFER_LIST toFree = current;
+            TraceNoPrefix(0, "[%s] internal NBL %p, reserved %p\n", __FUNCTION__, toFree, toFree->MiniportReserved[0]);
+            *pCurrent = NET_BUFFER_LIST_NEXT_NBL(current);
+            NET_BUFFER_LIST_NEXT_NBL(toFree) = NULL;
+            // return the NBL to the owner
+            CompleteInternalNbl(toFree);
+        }
+        else
+        {
+            pCurrent = &NET_BUFFER_LIST_NEXT_NBL(*pCurrent);
+        }
+        current = *pCurrent;
+    }
+
+    TraceNoPrefix(errors != 0 ? 0 : 1, "[%s] %d nbls(%d errors)\n", __FUNCTION__, count, errors);
+
+    if (Nbls)
+    {
+        NdisMSendNetBufferListsComplete(m_BoundAdapter->MiniportHandle, Nbls, Flags);
+    }
     m_TxStateMachine.UnregisterOutstandingItems(count);
 }
 
