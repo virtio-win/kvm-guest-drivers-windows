@@ -176,5 +176,5 @@ void CGuestAnnouncePackets::NblCompletionCallback(PNET_BUFFER_LIST NBL)
 
 bool CallCompletionForNBL(PARANDIS_ADAPTER * pContext, PNET_BUFFER_LIST NBL)
 {
-    return !(NBL->SourceHandle == pContext->MiniportHandle && ParaNdis_CountNBLs(NBL) == 1);
+    return !(NBL->SourceHandle == pContext->MiniportHandle);
 }
