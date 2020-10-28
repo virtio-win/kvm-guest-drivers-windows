@@ -226,11 +226,6 @@ public:
         return m_Queue.Create(pContext, size);
     }
 
-    ~CLockFreeDynamicQueue()
-    {
-        m_Queue.~CLockFreeQueue();
-    }
-
     // Multiple Producer Safe Enqueue
     void Enqueue(TEntryType * entry)
     {
