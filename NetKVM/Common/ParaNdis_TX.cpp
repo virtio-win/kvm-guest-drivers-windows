@@ -281,8 +281,6 @@ CParaNdisTX::~CParaNdisTX()
         NBL = m_SendQueue.Dequeue();
     }
 
-    m_SendQueue.~CLockFreeDynamicQueue();
-
     DPrintf(1, "Pools state %d-> NB: %d, NBL: %d\n", m_queueIndex, m_nbPool.GetCount(), m_nblPool.GetCount());
     if (m_StateMachineRegistered)
     {
