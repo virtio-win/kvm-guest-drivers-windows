@@ -408,6 +408,16 @@ public:
                     }
                 }
                 break;
+            case NDIS_STATUS_LINK_STATE:
+                {
+                    const char *states[] = { "Unknown", "Connected", "Disconnected" };
+                    NDIS_LINK_STATE *ls = (NDIS_LINK_STATE *)StatusIndication->StatusBuffer;
+                    ULONG state = ls->MediaConnectState;
+                    TraceNoPrefix(0, "[%s] link state %s(%d)\n", __FUNCTION__,
+                        state <= MediaConnectStateDisconnected ? states[state] : "Invalid",
+                        state);
+                }
+                break;
             default:
                 TraceNoPrefix(0, "[%s] code %X\n", __FUNCTION__, StatusIndication->StatusCode);
                 break;
