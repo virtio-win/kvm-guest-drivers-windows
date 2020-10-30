@@ -52,6 +52,31 @@ static void ParaNdis_DereferenceBinding(PARANDIS_ADAPTER *pContext)
     pContext->m_StateMachine.DereferenceSriovBinding();
 }
 
+static void TracePnpId(PDEVICE_OBJECT pdo, PARANDIS_ADAPTER *Adapter)
+{
+    if (!pdo)
+    {
+        return;
+    }
+    ULONG length = 0;
+    NTSTATUS status = IoGetDeviceProperty(pdo, DevicePropertyHardwareID, 0, NULL, &length);
+    if (!length)
+    {
+        return;
+    }
+    char *buffer = (char *)ParaNdis_AllocateMemory(Adapter, length);
+    if (!buffer)
+    {
+        return;
+    }
+    status = IoGetDeviceProperty(pdo, DevicePropertyHardwareID, length, buffer, &length);
+    if (NT_SUCCESS(status))
+    {
+        TraceNoPrefix(0, "PnpId %S", (LPCWSTR)buffer);
+    }
+    NdisFreeMemory(buffer, 0, 0);
+}
+
 class CInternalNblEntry : public CNdisAllocatable<CInternalNblEntry, 'NORP'>
 {
 public:
@@ -323,6 +348,7 @@ public:
     void OnAdapterFound(PARANDIS_ADAPTER *Adapter)
     {
         TraceNoPrefix(0, "[%s] %p\n", __FUNCTION__, Adapter);
+        TracePnpId(m_Pdo, Adapter);
         if (!CheckCompatibility(Adapter))
         {
             return;
@@ -467,6 +493,7 @@ private:
     bool       m_Operational = false;
     // set and clear under protocol mutex
     bool       m_Started = false;
+    PDEVICE_OBJECT m_Pdo = NULL;
     NDIS_STATUS m_Status;
     struct
     {
@@ -845,6 +872,8 @@ NDIS_STATUS CProtocolBinding::Bind(PNDIS_BIND_PARAMETERS BindParameters)
     NET_FRAME_TYPE frameTypes[2] = { NDIS_ETH_TYPE_802_1X, NDIS_ETH_TYPE_802_1Q };
 
     AddRef();
+
+    m_Pdo = BindParameters->PhysicalDeviceObject;
 
     openParams.Header.Type = NDIS_OBJECT_TYPE_OPEN_PARAMETERS;
     openParams.Header.Revision = NDIS_OPEN_PARAMETERS_REVISION_1;
