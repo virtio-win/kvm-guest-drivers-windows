@@ -82,6 +82,7 @@ NTSTATUS PVPanicEvtDevicePrepareHardware(IN WDFDEVICE Device,
                     context->IoBaseAddress =
                         (PVOID)(ULONG_PTR)desc->u.Port.Start.QuadPart;
                 }
+                PvPanicPortAddress = (PUCHAR)context->IoBaseAddress;
 
                 break;
             }
@@ -101,6 +102,7 @@ NTSTATUS PVPanicEvtDevicePrepareHardware(IN WDFDEVICE Device,
     if ((features & (PVPANIC_PANICKED | PVPANIC_CRASHLOADED))
                        == (PVPANIC_PANICKED | PVPANIC_CRASHLOADED))
     {
+        bSupportCrashLoaded = TRUE;
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
             "PVPANIC_PANICKED and PVPANIC_CRASHLOADED notification features are supported.");
     }

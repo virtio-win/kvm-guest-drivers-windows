@@ -47,6 +47,10 @@
 // IOCTLs supported by the symbolic link object.
 #define IOCTL_GET_CRASH_DUMP_HEADER CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
 
+PUCHAR PvPanicPortAddress;
+BOOLEAN bEmitCrashLoadedEvent;
+BOOLEAN bSupportCrashLoaded;
+
 typedef struct _DEVICE_CONTEXT {
 
     // HW Resources.
