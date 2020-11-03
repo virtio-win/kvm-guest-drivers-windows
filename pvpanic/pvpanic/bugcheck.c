@@ -36,22 +36,22 @@ KBUGCHECK_CALLBACK_ROUTINE PVPanicOnBugCheck;
 
 VOID PVPanicOnBugCheck(IN PVOID Buffer, IN ULONG Length)
 {
-	if ((Buffer != NULL) && (Length == sizeof(PVOID)))
-	{
-		PUCHAR PortAddress = (PUCHAR)Buffer;
-		WRITE_PORT_UCHAR(PortAddress, (UCHAR)(PVPANIC_PANICKED));
-	}
+    if ((Buffer != NULL) && (Length == sizeof(PVOID)))
+    {
+        PUCHAR PortAddress = (PUCHAR)Buffer;
+        WRITE_PORT_UCHAR(PortAddress, (UCHAR)(PVPANIC_PANICKED));
+    }
 }
 
 BOOLEAN PVPanicRegisterBugCheckCallback(IN PVOID PortAddress)
 {
-	KeInitializeCallbackRecord(&CallbackRecord);
+    KeInitializeCallbackRecord(&CallbackRecord);
 
-	return KeRegisterBugCheckCallback(&CallbackRecord, PVPanicOnBugCheck,
-		(PVOID)PortAddress, sizeof(PVOID), (PUCHAR)("PVPanic"));
+    return KeRegisterBugCheckCallback(&CallbackRecord, PVPanicOnBugCheck,
+        (PVOID)PortAddress, sizeof(PVOID), (PUCHAR)("PVPanic"));
 }
 
 BOOLEAN PVPanicDeregisterBugCheckCallback()
 {
-	return KeDeregisterBugCheckCallback(&CallbackRecord);
+    return KeDeregisterBugCheckCallback(&CallbackRecord);
 }
