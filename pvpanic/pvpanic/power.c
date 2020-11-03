@@ -98,7 +98,18 @@ NTSTATUS PVPanicEvtDevicePrepareHardware(IN WDFDEVICE Device,
     }
 
     features = READ_PORT_UCHAR((PUCHAR)(context->IoBaseAddress));
-    if ((features & PVPANIC_PANICKED) != PVPANIC_PANICKED)
+    if ((features & (PVPANIC_PANICKED | PVPANIC_CRASHLOADED))
+                       == (PVPANIC_PANICKED | PVPANIC_CRASHLOADED))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
+            "PVPANIC_PANICKED and PVPANIC_CRASHLOADED notification features are supported.");
+    }
+    else if ((features & PVPANIC_PANICKED) == PVPANIC_PANICKED)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
+            "PVPANIC_PANICKED notification feature is supported.");
+    }
+    else
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
             "Panic notification feature is not supported.");
