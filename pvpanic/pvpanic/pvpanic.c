@@ -92,6 +92,10 @@ NTSTATUS PVPanicEvtDeviceAdd(IN WDFDRIVER Driver,
 
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpPowerCallbacks);
 
+    PvPanicPortAddress = NULL;
+    bEmitCrashLoadedEvent = FALSE;
+    bSupportCrashLoaded = FALSE;
+
     pnpPowerCallbacks.EvtDevicePrepareHardware = PVPanicEvtDevicePrepareHardware;
     pnpPowerCallbacks.EvtDeviceReleaseHardware = PVPanicEvtDeviceReleaseHardware;
     pnpPowerCallbacks.EvtDeviceD0Entry = PVPanicEvtDeviceD0Entry;

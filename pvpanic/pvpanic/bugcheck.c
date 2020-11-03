@@ -31,27 +31,71 @@
 #include "bugcheck.tmh"
 
 static KBUGCHECK_CALLBACK_RECORD CallbackRecord;
+static KBUGCHECK_REASON_CALLBACK_RECORD DumpCallbackRecord;
 
 KBUGCHECK_CALLBACK_ROUTINE PVPanicOnBugCheck;
+KBUGCHECK_REASON_CALLBACK_ROUTINE PVPanicOnDumpBugCheck;
 
 VOID PVPanicOnBugCheck(IN PVOID Buffer, IN ULONG Length)
 {
-    if ((Buffer != NULL) && (Length == sizeof(PVOID)))
+    //Trigger the PVPANIC_PANICKED event if the crash dump isn't enabled,
+    if ((Buffer != NULL) && (Length == sizeof(PVOID)) && !bEmitCrashLoadedEvent)
     {
         PUCHAR PortAddress = (PUCHAR)Buffer;
         WRITE_PORT_UCHAR(PortAddress, (UCHAR)(PVPANIC_PANICKED));
     }
 }
 
+VOID PVPanicOnDumpBugCheck(
+    KBUGCHECK_CALLBACK_REASON Reason,
+    PKBUGCHECK_REASON_CALLBACK_RECORD Record,
+    PVOID Data,
+    ULONG Length)
+{
+    UNREFERENCED_PARAMETER(Data);
+    UNREFERENCED_PARAMETER(Length);
+
+    //Trigger the PVPANIC_CRASHLOADED event before the crash dump.
+    if ((PvPanicPortAddress != NULL) && (Reason == KbCallbackDumpIo) && !bEmitCrashLoadedEvent)
+    {
+        WRITE_PORT_UCHAR(PvPanicPortAddress, (UCHAR)(PVPANIC_CRASHLOADED));
+        bEmitCrashLoadedEvent = TRUE;
+    }
+    //Deregister BugCheckReasonCallback after PVPANIC_CRASHLOADED is triggered.
+    if (bEmitCrashLoadedEvent)
+        KeDeregisterBugCheckReasonCallback(Record);
+}
+
 BOOLEAN PVPanicRegisterBugCheckCallback(IN PVOID PortAddress)
 {
-    KeInitializeCallbackRecord(&CallbackRecord);
+    BOOLEAN bBugCheck;
 
-    return KeRegisterBugCheckCallback(&CallbackRecord, PVPanicOnBugCheck,
-        (PVOID)PortAddress, sizeof(PVOID), (PUCHAR)("PVPanic"));
+    KeInitializeCallbackRecord(&CallbackRecord);
+    KeInitializeCallbackRecord(&DumpCallbackRecord);
+
+    bBugCheck = KeRegisterBugCheckCallback(&CallbackRecord, PVPanicOnBugCheck,
+                  (PVOID)PortAddress, sizeof(PVOID), (PUCHAR)("PVPanic"));
+    if (bSupportCrashLoaded)
+    {
+        BOOLEAN bReasonBugCheck;
+        bReasonBugCheck = KeRegisterBugCheckReasonCallback(&DumpCallbackRecord,
+                  PVPanicOnDumpBugCheck, KbCallbackDumpIo, (PUCHAR)("PVPanic"));
+        return bBugCheck && bReasonBugCheck;
+    }
+    return bBugCheck;
 }
 
 BOOLEAN PVPanicDeregisterBugCheckCallback()
 {
-    return KeDeregisterBugCheckCallback(&CallbackRecord);
+    BOOLEAN bBugCheck;
+
+    bBugCheck = KeDeregisterBugCheckCallback(&CallbackRecord);
+    if (bSupportCrashLoaded)
+    {
+        BOOLEAN bReasonBugCheck;
+        bReasonBugCheck = KeDeregisterBugCheckReasonCallback(&DumpCallbackRecord);
+        return bBugCheck && bReasonBugCheck;
+    }
+
+    return bBugCheck;
 }
