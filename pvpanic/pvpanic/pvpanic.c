@@ -78,7 +78,7 @@ NTSTATUS PVPanicEvtDeviceAdd(IN WDFDRIVER Driver,
     NTSTATUS status;
     WDFDEVICE device;
     WDF_PNPPOWER_EVENT_CALLBACKS pnpPowerCallbacks;
-	WDF_FILEOBJECT_CONFIG fileConfig;
+    WDF_FILEOBJECT_CONFIG fileConfig;
     WDF_OBJECT_ATTRIBUTES attributes;
     WDF_IO_QUEUE_CONFIG queueConfig;
     PDEVICE_CONTEXT context;
@@ -94,18 +94,18 @@ NTSTATUS PVPanicEvtDeviceAdd(IN WDFDRIVER Driver,
 
     pnpPowerCallbacks.EvtDevicePrepareHardware = PVPanicEvtDevicePrepareHardware;
     pnpPowerCallbacks.EvtDeviceReleaseHardware = PVPanicEvtDeviceReleaseHardware;
-	pnpPowerCallbacks.EvtDeviceD0Entry = PVPanicEvtDeviceD0Entry;
-	pnpPowerCallbacks.EvtDeviceD0Exit = PVPanicEvtDeviceD0Exit;
+    pnpPowerCallbacks.EvtDeviceD0Entry = PVPanicEvtDeviceD0Entry;
+    pnpPowerCallbacks.EvtDeviceD0Exit = PVPanicEvtDeviceD0Exit;
 
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
 
-	WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
 
-	WDF_FILEOBJECT_CONFIG_INIT(&fileConfig, PVPanicEvtDeviceFileCreate,
-		WDF_NO_EVENT_CALLBACK, WDF_NO_EVENT_CALLBACK);
+    WDF_FILEOBJECT_CONFIG_INIT(&fileConfig, PVPanicEvtDeviceFileCreate,
+        WDF_NO_EVENT_CALLBACK, WDF_NO_EVENT_CALLBACK);
 
-	WdfDeviceInitSetFileObjectConfig(DeviceInit, &fileConfig,
-		WDF_NO_OBJECT_ATTRIBUTES);
+    WdfDeviceInitSetFileObjectConfig(DeviceInit, &fileConfig,
+        WDF_NO_OBJECT_ATTRIBUTES);
 
     status = WdfDeviceCreate(&DeviceInit, &attributes, &device);
     if (!NT_SUCCESS(status))
@@ -166,13 +166,13 @@ VOID PVPanicEvtDriverContextCleanup(IN WDFOBJECT DriverObject)
 }
 
 VOID PVPanicEvtDeviceFileCreate(IN WDFDEVICE Device,
-								IN WDFREQUEST Request,
-								IN WDFFILEOBJECT FileObject)
+                                IN WDFREQUEST Request,
+                                IN WDFFILEOBJECT FileObject)
 {
-	UNREFERENCED_PARAMETER(Device);
-	UNREFERENCED_PARAMETER(FileObject);
+    UNREFERENCED_PARAMETER(Device);
+    UNREFERENCED_PARAMETER(FileObject);
 
-	WdfRequestComplete(Request, STATUS_SUCCESS);
+    WdfRequestComplete(Request, STATUS_SUCCESS);
 }
 
 VOID PVPanicEvtQueueDeviceControl(IN WDFQUEUE Queue,
