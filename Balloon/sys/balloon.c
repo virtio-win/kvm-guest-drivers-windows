@@ -270,6 +270,11 @@ BalloonTellHost(
     bool                do_notify;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+    if (devCtx->SurpriseRemoval)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "<-- %s Skipped\n", __FUNCTION__);
+        return;
+    }
 
     sg.physAddr = VirtIOWdfDeviceGetPhysicalAddress(&devCtx->VDevice.VIODevice, devCtx->pfns_table);
     sg.length = sizeof(devCtx->pfns_table[0]) * devCtx->num_pfns;

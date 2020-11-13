@@ -63,6 +63,7 @@ typedef struct _DEVICE_CONTEXT {
     PUCHAR                  PortBase;
     ULONG                   PortCount;
     BOOLEAN                 PortMapped;
+    BOOLEAN                 SurpriseRemoval;
     PKEVENT                 evLowMem;
     HANDLE                  hLowMem;
     VIRTIO_WDF_DRIVER       VDevice;
@@ -120,6 +121,7 @@ EVT_WDF_DEVICE_RELEASE_HARDWARE                BalloonEvtDeviceReleaseHardware;
 EVT_WDF_DEVICE_D0_ENTRY                        BalloonEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT                         BalloonEvtDeviceD0Exit;
 EVT_WDF_DEVICE_D0_EXIT_PRE_INTERRUPTS_DISABLED BalloonEvtDeviceD0ExitPreInterruptsDisabled;
+EVT_WDF_DEVICE_SURPRISE_REMOVAL                BalloonEvtDeviceSurpriseRemoval;
 EVT_WDF_INTERRUPT_ISR                          BalloonInterruptIsr;
 EVT_WDF_INTERRUPT_DPC                          BalloonInterruptDpc;
 EVT_WDF_INTERRUPT_ENABLE                       BalloonInterruptEnable;

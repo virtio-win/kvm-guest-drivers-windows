@@ -43,6 +43,7 @@
 #pragma alloc_text(PAGE, BalloonEvtDeviceD0ExitPreInterruptsDisabled)
 #pragma alloc_text(PAGE, BalloonDeviceAdd)
 #pragma alloc_text(PAGE, BalloonCloseWorkerThread)
+#pragma alloc_text(PAGE, BalloonEvtDeviceSurpriseRemoval)
 #endif // ALLOC_PRAGMA
 
 #define LOMEMEVENTNAME L"\\KernelObjects\\LowMemoryCondition"
@@ -76,6 +77,7 @@ BalloonDeviceAdd(
     pnpPowerCallbacks.EvtDeviceD0Entry              = BalloonEvtDeviceD0Entry;
     pnpPowerCallbacks.EvtDeviceD0Exit               = BalloonEvtDeviceD0Exit;
     pnpPowerCallbacks.EvtDeviceD0ExitPreInterruptsDisabled = BalloonEvtDeviceD0ExitPreInterruptsDisabled;
+    pnpPowerCallbacks.EvtDeviceSurpriseRemoval = BalloonEvtDeviceSurpriseRemoval;
 
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
 
@@ -147,6 +149,7 @@ BalloonDeviceAdd(
         return status;
     }
 
+    devCtx->SurpriseRemoval = FALSE;
     devCtx->bShutDown = FALSE;
     devCtx->num_pages = 0;
     devCtx->PageListHead.Next = NULL;
@@ -497,6 +500,15 @@ BalloonEvtDeviceD0ExitPreInterruptsDisabled(
        BalloonSetSize(Device, devCtx->num_pages);
     }
     return STATUS_SUCCESS;
+}
+
+VOID
+BalloonEvtDeviceSurpriseRemoval(IN WDFDEVICE Device)
+{
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    devCtx->SurpriseRemoval = TRUE;
+    KeSetEvent(&devCtx->HostAckEvent, EVENT_INCREMENT, FALSE);
 }
 
 BOOLEAN
