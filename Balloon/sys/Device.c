@@ -507,6 +507,9 @@ BalloonEvtDeviceSurpriseRemoval(IN WDFDEVICE Device)
 {
     PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
+
+    PAGED_CODE();
+
     devCtx->SurpriseRemoval = TRUE;
     KeSetEvent(&devCtx->HostAckEvent, EVENT_INCREMENT, FALSE);
 }
