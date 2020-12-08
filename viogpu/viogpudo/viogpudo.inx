@@ -1,0 +1,98 @@
+;/*++
+;
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
+;
+; viogpudo.inf
+;
+
+[Version]
+Signature="$Windows NT$"
+Class=Display
+ClassGUID={4d36e968-e325-11ce-bfc1-08002be10318}
+Provider=%RHEL%
+DriverVer= 09/05/2018, 1.01.01.0001
+CatalogFile=viogpudo.cat
+
+[DestinationDirs]
+DefaultDestDir = 12
+
+
+[SourceDisksNames]
+1 = %DiskId1%,,,""
+
+[SourceDisksFiles]
+viogpudo.sys = 1,,
+
+
+[Manufacturer]
+%RHEL%=RHEL,NT$ARCH$
+
+[RHEL.NT$ARCH$]
+%VioGpuDod.DeviceDesc% = VioGpuDod_Inst, PCI\VEN_1AF4&DEV_1050&SUBSYS_11001AF4&REV_01
+
+[VioGpuDod_Files_Driver]
+viogpudo.sys,,,2
+
+[VioGpuDod_Inst]
+Include=msdv.inf
+FeatureScore=F9
+CopyFiles=VioGpuDod_Files_Driver
+AddReg=VioGpuDod_DeviceSettings
+
+
+[VioGpuDod_Inst.Services]
+AddService = VioGpuDod,0x00000002,VioGpuDod_Service_Inst, VioGpuDod_EventLog_Inst
+
+[VioGpuDod_Inst.HW]
+AddReg = VioGpuDod_PCI_MSIX
+
+
+[VioGpuDod_Service_Inst]
+ServiceType = %SERVICE_KERNEL_DRIVER%
+StartType = %SERVICE_DEMAND_START%
+ErrorControl = %SERVICE_ERROR_IGNORE%
+ServiceBinary = %12%\viogpudo.sys
+
+[VioGpuDod_EventLog_Inst]
+AddReg = VioGpuDod_EventLog_Inst.AddReg
+
+[VioGpuDod_EventLog_Inst.AddReg]
+HKR,,EventMessageFile,%REG_EXPAND_SZ%,"%%SystemRoot%%\System32\IoLogMsg.dll"
+HKR,,TypesSupported,%REG_DWORD%,7
+
+[VioGpuDod_DeviceSettings]
+HKR,, VgaCompatible,               %REG_DWORD%, 0
+
+[VioGpuDod_PCI_MSIX]
+HKR, "Interrupt Management",, 0x00000010
+HKR, "Interrupt Management\MessageSignaledInterruptProperties",, 0x00000010
+HKR, "Interrupt Management\MessageSignaledInterruptProperties", MSISupported, 0x00010001, 1
+HKR, "Interrupt Management\MessageSignaledInterruptProperties", MessageNumberLimit, 0x00010001, 16
+HKR, "Interrupt Management\Affinity Policy",, 0x00000010
+HKR, "Interrupt Management\Affinity Policy", DevicePolicy, 0x00010001, 5
+HKR, "Interrupt Management\Affinity Policy", DevicePriority, 0x00010001, 3
+
+[Strings]
+
+;  *******Localizable Strings*******
+diskId1 = "Red Hat VirtIO GPU controller Installation Disk"
+VioGpuDod.DeviceDesc = "Red Hat VirtIO GPU DOD controller"
+RHEL = "Red Hat, Inc."
+
+;  *******Non Localizable Strings*******
+SERVICE_BOOT_START = 0x0
+SERVICE_SYSTEM_START = 0x1
+SERVICE_AUTO_START = 0x2
+SERVICE_DEMAND_START = 0x3
+SERVICE_DISABLED = 0x4
+
+SERVICE_KERNEL_DRIVER = 0x1
+SERVICE_ERROR_IGNORE = 0x0
+SERVICE_ERROR_NORMAL = 0x1
+SERVICE_ERROR_SEVERE = 0x2
+SERVICE_ERROR_CRITICAL = 0x3
+
+REG_MULTI_SZ   = 0x00010000
+REG_EXPAND_SZ = 0x00020000
+REG_DWORD = 0x00010001
