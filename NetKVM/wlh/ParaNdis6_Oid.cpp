@@ -213,11 +213,11 @@ OIDENTRYPROC(OID_VENDOR_3,                      0,0,0, ohfQueryStat | ohfSet | o
 
 #if NDIS_SUPPORT_NDIS620
 // here should be NDIS 6.20 specific OIDs (mostly power management related)
-// OID_PM_CURRENT_CAPABILITIES - not requred, supported by NDIS
+// OID_PM_CURRENT_CAPABILITIES - not required, supported by NDIS
 // OID_PM_PARAMETERS - mandatory
 // OID_PM_ADD_WOL_PATTERN - mandatory
 // OID_PM_REMOVE_WOL_PATTERN - mandatory
-// OID_PM_WOL_PATTERN_LIST - not requred, supported by NDIS
+// OID_PM_WOL_PATTERN_LIST - not required, supported by NDIS
 // OID_PM_ADD_PROTOCOL_OFFLOAD - mandatory
 // OID_PM_GET_PROTOCOL_OFFLOAD - mandatory
 // OID_PM_REMOVE_PROTOCOL_OFFLOAD - mandatory
