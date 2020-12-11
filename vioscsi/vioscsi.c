@@ -330,7 +330,7 @@ BOOLEAN VioScsiReadRegistry(
            (PVOID)pBuf,
            sizeof(ULONG));
     adaptExt->max_physical_breaks = min(
-                                        max(SCSI_MINIMUM_PHYSICAL_BREAKS, adaptExt->max_physical_breaks),
+                                        max(SCSI_MINIMUM_PHYSICAL_BREAKS, adaptExt->max_physical_breaks + 1),
                                         SCSI_MAXIMUM_PHYSICAL_BREAKS);
 
     StorPortFreeRegistryBuffer(DeviceExtension, pBuf );
@@ -500,13 +500,20 @@ ENTER_FN();
     if(adaptExt->dump_mode) {
         ConfigInfo->NumberOfPhysicalBreaks  = SCSI_MINIMUM_PHYSICAL_BREAKS;
     } else {
-        adaptExt->max_physical_breaks = MAX_PHYS_SEGMENTS;
+        adaptExt->max_physical_breaks = min(
+                                            max(SCSI_MINIMUM_PHYSICAL_BREAKS,
+                                                /* Say NumberOfPhysicalBreaks of 64 is required, it won't work
+                                                   if we optimize the user-input requirement to 65. So just
+                                                   let the user choose whether to use 64 or 33 and save him
+                                                   or her from unnecessary calculation */
+                                                adaptExt->scsi_config.max_sectors << SECTOR_SHIFT >> PAGE_SHIFT),
+                                            MAX_PHYS_SEGMENTS + 1);
 #if (NTDDI_VERSION > NTDDI_WIN7)
         if (adaptExt->indirect) {
             VioScsiReadRegistry(DeviceExtension);
         }
 #endif
-        ConfigInfo->NumberOfPhysicalBreaks = adaptExt->max_physical_breaks + 1;
+        ConfigInfo->NumberOfPhysicalBreaks = adaptExt->max_physical_breaks;
     }
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " NumberOfPhysicalBreaks %d\n", ConfigInfo->NumberOfPhysicalBreaks);
     ConfigInfo->MaximumTransferLength = SP_UNINITIALIZED_VALUE;
