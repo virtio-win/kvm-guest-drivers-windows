@@ -1996,6 +1996,10 @@ static NTSTATUS SvcControl(FSP_SERVICE *Service, ULONG Control,
 
 int wmain(int argc, wchar_t **argv)
 {
+    FSP_SERVICE *Service;
+    NTSTATUS Result;
+    ULONG ExitCode;
+
     UNREFERENCED_PARAMETER(argc);
     UNREFERENCED_PARAMETER(argv);
 
@@ -2004,5 +2008,29 @@ int wmain(int argc, wchar_t **argv)
         return ERROR_DELAY_LOAD_FAILED;
     }
 
-    return FspServiceRun(FS_SERVICE_NAME, SvcStart, SvcStop, SvcControl);
+    Result = FspServiceCreate(FS_SERVICE_NAME, SvcStart, SvcStop, SvcControl,
+        &Service);
+
+    if (!NT_SUCCESS(Result))
+    {
+        FspServiceLog(EVENTLOG_ERROR_TYPE,
+            L"The service %s cannot be created (Status=%lx).",
+            FS_SERVICE_NAME, Result);
+        return FspWin32FromNtStatus(Result);
+    }
+    FspServiceAllowConsoleMode(Service);
+    FspServiceAcceptControl(Service, SERVICE_ACCEPT_SESSIONCHANGE);
+    Result = FspServiceLoop(Service);
+    ExitCode = FspServiceGetExitCode(Service);
+    FspServiceDelete(Service);
+
+    if (!NT_SUCCESS(Result))
+    {
+        FspServiceLog(EVENTLOG_ERROR_TYPE,
+            L"The service %s has failed to run (Status=%lx).",
+            FS_SERVICE_NAME, Result);
+        return FspWin32FromNtStatus(Result);
+    }
+
+    return ExitCode;
 }
