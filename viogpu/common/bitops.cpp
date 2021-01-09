@@ -1,4 +1,7 @@
 #include "bitops.h"
+#if !DBG
+#include "bitops.tmh"
+#endif
 
 #pragma code_seg(push)
 #pragma code_seg()
@@ -183,7 +186,7 @@ VOID BltBits(
 #pragma prefast(suppress: __WARNING_EXCEPTIONEXECUTEHANDLER, "try/except is only able to protect against user-mode errors and these are the only errors we try to catch here");
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        DbgPrint(TRACE_LEVEL_ERROR, ("Either dst (0x%I64x) or src (0x%I64x) bits encountered exception during access.\n", pDst->pBits, pSrc->pBits));
+        DbgPrint(TRACE_LEVEL_ERROR, ("Either dst (0x%p) or src (0x%p) bits encountered exception during access.\n", pDst->pBits, pSrc->pBits));
     }
 }
 

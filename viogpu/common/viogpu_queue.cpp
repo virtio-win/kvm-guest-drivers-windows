@@ -29,6 +29,9 @@
 
 #include "helper.h"
 #include "baseobj.h"
+#if !DBG
+#include "viogpu_queue.tmh"
+#endif
 
 static BOOLEAN BuildSGElement(VirtIOBufferDescriptor* sg, PVOID buf, ULONG size)
 {
@@ -534,7 +537,7 @@ UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
                 outcnt++;
                 sgleft--;
                 if (sgleft == 0) {
-                    DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s no more sgelenamt spots left %d %d\n", __FUNCTION__, outcnt));
+                    DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s no more sgelenamt spots left %d\n", __FUNCTION__, outcnt));
                     return 0;
                 }
             }
@@ -991,12 +994,12 @@ BOOLEAN VioGpuObj::Init(_In_ UINT size, VioGpuMemSegment *pSegment)
     size = pages * PAGE_SIZE;
     if (size > pSegment->GetSize())
     {
-        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s segment size too small = %d (%d)\n", __FUNCTION__, m_pSegment->GetSize(), size));
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s segment size too small = %Iu (%u)\n", __FUNCTION__, m_pSegment->GetSize(), size));
         return FALSE;
     }
     m_pSegment = pSegment;
     m_Size = size;
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s size = %d\n", __FUNCTION__, m_Size));
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s size = %Iu\n", __FUNCTION__, m_Size));
     return TRUE;
 }
 
@@ -1060,6 +1063,6 @@ PGPU_VBUFFER CrsrQueue::DequeueCursor(_Out_ UINT* len)
     {
         *len = 0;
     }
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s buf %p len = %u\n", __FUNCTION__, buf, len));
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s buf %p len = %u\n", __FUNCTION__, buf, *len));
     return buf;
 }

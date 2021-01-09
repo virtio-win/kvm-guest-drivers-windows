@@ -32,6 +32,10 @@
 #include "helper.h"
 #include "baseobj.h"
 
+#if !DBG
+#include "driver.tmh"
+#endif
+
 #pragma code_seg(push)
 #pragma code_seg("INIT")
 
@@ -42,7 +46,7 @@ int bBreakAlways;
 
 tDebugPrintFunc VirtioDebugPrintProc;
 
-
+#ifdef DBG
 void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath)
 {
     UNREFERENCED_PARAMETER(DriverObject);
@@ -52,7 +56,6 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
     nDebugLevel = TRACE_LEVEL_NONE;
     bBreakAlways = 0;
 
-#ifdef DBG
     bDebugPrint = 1;
     virtioDebugLevel = 0x5;
     bBreakAlways = 1;
@@ -62,8 +65,8 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
 #elif defined(PRINT_DEBUG)
     VirtioDebugPrintProc = DebugPrintFuncKdPrint;
 #endif
-#endif
 }
+#endif
 
 
 extern "C"
@@ -73,9 +76,9 @@ DriverEntry(
     _In_  UNICODE_STRING* pRegistryPath)
 {
     PAGED_CODE();
-    //    VioGpuDbgBreak();
+    WPP_INIT_TRACING(pDriverObject, pRegistryPath);
 
-    InitializeDebugPrints(pDriverObject, pRegistryPath);
+    //    VioGpuDbgBreak();
     DbgPrint(TRACE_LEVEL_FATAL, ("---> KMDOD build on on %s %s\n", __DATE__, __TIME__));
 
     KMDDOD_INITIALIZATION_DATA InitialData = { 0 };
@@ -135,6 +138,7 @@ VioGpuDodUnload(VOID)
 {
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_INFORMATION, ("<--> %s\n", __FUNCTION__));
+    WPP_CLEANUP(NULL);
 }
 
 NTSTATUS
@@ -148,7 +152,7 @@ VioGpuDodAddDevice(
     if ((pPhysicalDeviceObject == NULL) ||
         (ppDeviceContext == NULL))
     {
-        DbgPrint(TRACE_LEVEL_ERROR, ("One of pPhysicalDeviceObject (0x%I64x), ppDeviceContext (0x%I64x) is NULL",
+        DbgPrint(TRACE_LEVEL_ERROR, ("One of pPhysicalDeviceObject (%p), ppDeviceContext (%p) is NULL",
             pPhysicalDeviceObject, ppDeviceContext));
         return STATUS_INVALID_PARAMETER;
     }

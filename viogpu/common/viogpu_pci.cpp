@@ -25,6 +25,9 @@
 #include "helper.h"
 #include "viogpu.h"
 #include "..\viogpudo\viogpudo.h"
+#if !DBG
+#include "viogpu_pci.tmh"
+#endif
 
 
 u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
