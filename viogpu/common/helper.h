@@ -51,6 +51,7 @@ extern "C" {
     #include <winerror.h>
 
     #include <wingdi.h>
+    #include <stdarg.h>
 
     #include <winddi.h>
     #include <ntddvdeo.h>
@@ -63,6 +64,7 @@ extern "C" {
 
     #include <dispmprt.h>
 
+    #include "trace.h"
     #include "osdep.h"
     #include "virtio_pci.h"
     #include "virtio.h"
@@ -88,44 +90,6 @@ extern "C" {
 #define VIOGPUTAG                  'OIVg'
 
 extern VirtIOSystemOps VioGpuSystemOps;
-
-//#define DBG
-
-#ifdef DBG
-#define PRINT_DEBUG 1
-//#define COM_DEBUG 1
-
-extern int nDebugLevel;
-extern int bBreakAlways;
-
-void DebugPrintFuncSerial(const char *format, ...);
-void DebugPrintFuncKdPrint(const char *format, ...);
-
-#define DbgPrint(level, line) \
-    if (level > nDebugLevel) {} \
-    else VirtioDebugPrintProc line;
-#define VioGpuDbgBreak()\
-    if (KD_DEBUGGER_ENABLED && !KD_DEBUGGER_NOT_PRESENT && bBreakAlways) DbgBreakPoint();
-#else
-#define DbgPrint(level, line)
-#define VioGpuDbgBreak()
-#endif
-
-
-
-
-#ifndef TRACE_LEVEL_INFORMATION
-#define TRACE_LEVEL_NONE        0   // Tracing is not on
-#define TRACE_LEVEL_FATAL       1   // Abnormal exit or termination
-#define TRACE_LEVEL_ERROR       2   // Severe errors that need logging
-#define TRACE_LEVEL_WARNING     3   // Warnings such as allocation failure
-#define TRACE_LEVEL_INFORMATION 4   // Includes non-error cases(e.g.,Entry-Exit)
-#define TRACE_LEVEL_VERBOSE     5   // Detailed traces from intermediate steps
-#define TRACE_LEVEL_RESERVED6   6
-#define TRACE_LEVEL_RESERVED7   7
-#define TRACE_LEVEL_RESERVED8   8
-#define TRACE_LEVEL_RESERVED9   9
-#endif // TRACE_LEVEL_INFORMATION
 
 #define VIOGPU_LOG_ASSERTION0(Msg) NT_ASSERT(FALSE)
 #define VIOGPU_LOG_ASSERTION1(Msg,Param1) NT_ASSERT(FALSE)

@@ -29,6 +29,9 @@
 
 #include "helper.h"
 #include "baseobj.h"
+#if !DBG
+#include "viogpu_idr.tmh"
+#endif
 
 VioGpuIdr::VioGpuIdr()
 {
