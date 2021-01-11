@@ -557,7 +557,7 @@ ENTER_FN();
             adaptExt->num_queues = max_queues;
         }
     }
-    
+
 
     /* This function is our only chance to allocate memory for the driver; allocations are not
      * possible later on. Even worse, the only allocation mechanism guaranteed to work in all
@@ -733,7 +733,7 @@ VioScsiHwInitialize(
     PERF_CONFIGURATION_DATA perfData = { 0 };
     ULONG              status = STOR_STATUS_SUCCESS;
     MESSAGE_INTERRUPT_INFORMATION msi_info = { 0 };
-    
+
 ENTER_FN();
 
     adaptExt->msix_vectors = 0;
@@ -1040,27 +1040,14 @@ VioScsiInterrupt(
     BOOLEAN             isInterruptServiced = FALSE;
     PSRB_TYPE           Srb = NULL;
     ULONG               intReason = 0;
-    LIST_ENTRY          complete_list;
-    PSRB_EXTENSION      srbExt = NULL;
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " IRQL (%d)\n", KeGetCurrentIrql());
     intReason = virtio_read_isr_status(&adaptExt->vdev);
-    InitializeListHead(&complete_list);
 
     if (intReason == 1 || adaptExt->dump_mode) {
-        struct virtqueue *vq = adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0];
         isInterruptServiced = TRUE;
-
-        do {
-            virtqueue_disable_cb(vq);
-            while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(vq, &len)) != NULL) {
-                Srb = (PSRB_TYPE)(cmd->srb);
-                srbExt = SRB_EXTENSION(Srb);
-                InsertTailList(&complete_list, &srbExt->list_entry);
-            }
-        } while (!virtqueue_enable_cb(vq));
 
         if (adaptExt->tmf_infly) {
            while((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE], &len)) != NULL) {
@@ -1098,11 +1085,16 @@ VioScsiInterrupt(
            }
            SynchronizedKickEventRoutine(DeviceExtension, evtNode);
         }
-    }
 
-    while (!IsListEmpty(&complete_list)) {
-        srbExt = (PSRB_EXTENSION)RemoveHeadList(&complete_list);
-        HandleResponse(DeviceExtension, &srbExt->cmd);
+        if (!adaptExt->dump_mode && adaptExt->dpc_ok)
+        {
+            StorPortIssueDpc(DeviceExtension,
+                &adaptExt->dpc[0],
+                ULongToPtr(QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)),
+                ULongToPtr(QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)));
+        }
+        else
+            ProcessQueue(DeviceExtension, QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0), TRUE);
     }
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " isInterruptServiced = %d\n", isInterruptServiced);
@@ -1726,9 +1718,9 @@ ParamChange(
     UCHAR AdditionalSenseCodeQualifier = (UCHAR)(evt->reason >> 8);
 ENTER_FN();
 
-    if (AdditionalSenseCode == SCSI_ADSENSE_PARAMETERS_CHANGED && 
-       (AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_PARAMETERS_CHANGED || 
-        AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_MODE_PARAMETERS_CHANGED || 
+    if (AdditionalSenseCode == SCSI_ADSENSE_PARAMETERS_CHANGED &&
+       (AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_PARAMETERS_CHANGED ||
+        AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_MODE_PARAMETERS_CHANGED ||
         AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_CAPACITY_DATA_HAS_CHANGED))
     {
         StorPortNotification( BusChangeDetected, DeviceExtension, 0);
