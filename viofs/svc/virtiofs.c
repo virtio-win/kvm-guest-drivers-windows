@@ -1513,6 +1513,8 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         Status = STATUS_ACCESS_DENIED;
     }
 
+    SafeHeapFree(rename2_in);
+
     return Status;
 }
 
