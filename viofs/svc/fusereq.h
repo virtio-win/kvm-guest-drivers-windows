@@ -240,3 +240,16 @@ typedef struct
     struct fuse_out_header  hdr;
 
 } FUSE_FALLOCATE_OUT;
+
+typedef struct
+{
+    struct fuse_in_header   hdr;
+
+} FUSE_READLINK_IN, *PFUSE_READLINK_IN;
+
+typedef struct
+{
+    struct fuse_out_header  hdr;
+    char                    name[MAX_PATH];
+
+} FUSE_READLINK_OUT, *PFUSE_READLINK_OUT;
