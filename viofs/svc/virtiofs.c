@@ -926,16 +926,16 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
         return Status;
     }
 
+    FspPosixDeletePath(fullpath);
+
     FileContext = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
         sizeof(*FileContext));
 
     if (FileContext == NULL)
     {
-        FspPosixDeletePath(fullpath);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    FileContext->IsDirectory = !!(CreateOptions & FILE_DIRECTORY_FILE);
     FileContext->FileHandle = INVALID_FILE_HANDLE;
 
     if (!!(FileAttributes & FILE_ATTRIBUTE_READONLY) == TRUE)
@@ -943,18 +943,25 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
         Mode &= ~0222;
     }
 
-    if (FileContext->IsDirectory == TRUE)
+    if (CreateOptions & FILE_DIRECTORY_FILE)
     {
+        FileContext->IsDirectory = TRUE;
+
         Status = VirtFsCreateDir(VirtFs, FileContext, filename, parent, Mode,
             FileInfo);
+    }
+    else if (CreateOptions & FILE_OPEN_REPARSE_POINT)
+    {
+        // The actual symbolic link will be created later in the
+        // SetReparsePoint callback.
+        FileInfo->FileAttributes |= FILE_ATTRIBUTE_REPARSE_POINT;
+        FileInfo->ReparseTag = IO_REPARSE_TAG_SYMLINK;
     }
     else
     {
         Status = VirtFsCreateFile(VirtFs, FileContext, GrantedAccess,
             filename, parent, Mode, AllocationSize, FileInfo);
     }
-
-    FspPosixDeletePath(fullpath);
 
     if (!NT_SUCCESS(Status))
     {
@@ -1844,6 +1851,89 @@ static NTSTATUS ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
         ResolveLastPathComponent, PIoStatus, Buffer, PSize);
 }
 
+static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileContext, PWSTR FileName, PVOID Buffer, SIZE_T Size)
+{
+    VIRTFS *VirtFs = FileSystem->UserContext;
+    PREPARSE_DATA_BUFFER ReparseData = Buffer;
+    FUSE_SYMLINK_IN *symlink_in;
+    FUSE_SYMLINK_OUT symlink_out;
+    WCHAR TargetName[MAX_PATH];
+    USHORT TargetLength;
+    NTSTATUS Status;
+    char *filename, *linkname, *targetname;
+    int linkname_len, targetname_len;
+    uint64_t parent;
+
+    UNREFERENCED_PARAMETER(FileContext);
+    UNREFERENCED_PARAMETER(Size);
+
+    DBG("\"%S\"", FileName);
+
+    CopyMemory(TargetName,
+        ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
+            (ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset /
+                sizeof(WCHAR)),
+        ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength);
+
+    TargetLength =
+        ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength /
+        sizeof(WCHAR);
+
+    TargetName[TargetLength] = TEXT('\0');
+
+    Status = FspPosixMapWindowsToPosixPath(TargetName, &targetname);
+    if (!NT_SUCCESS(Status))
+    {
+        FspPosixDeletePath(targetname);
+        return Status;
+    }
+
+    Status = PathWalkthough(VirtFs->Device, targetname, &filename, &parent);
+    if (!NT_SUCCESS(Status))
+    {
+        FspPosixDeletePath(targetname);
+        return Status;
+    }
+
+    Status = FspPosixMapWindowsToPosixPath(FileName + 1, &linkname);
+    if (!NT_SUCCESS(Status))
+    {
+        FspPosixDeletePath(targetname);
+        FspPosixDeletePath(linkname);
+        return Status;
+    }
+
+    linkname_len = lstrlenA(linkname) + 1;
+    targetname_len = lstrlenA(targetname) + 1;
+
+    symlink_in = HeapAlloc(GetProcessHeap(), 0, sizeof(*symlink_in) +
+        linkname_len + targetname_len);
+
+    if (symlink_in == NULL)
+    {
+        FspPosixDeletePath(targetname);
+        FspPosixDeletePath(linkname);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    FUSE_HEADER_INIT(&symlink_in->hdr, FUSE_SYMLINK, parent,
+        linkname_len + targetname_len);
+
+    CopyMemory(symlink_in->names, linkname, linkname_len);
+    CopyMemory(symlink_in->names + linkname_len, targetname, targetname_len);
+
+    FspPosixDeletePath(targetname);
+    FspPosixDeletePath(linkname);
+
+    Status = VirtFsFuseRequest(VirtFs->Device, symlink_in,
+        symlink_in->hdr.len, &symlink_out, sizeof(symlink_out));
+
+    SafeHeapFree(symlink_in);
+
+    return Status;
+}
+
 static FSP_FILE_SYSTEM_INTERFACE VirtFsInterface =
 {
     .GetVolumeInfo = GetVolumeInfo,
@@ -1864,7 +1954,8 @@ static FSP_FILE_SYSTEM_INTERFACE VirtFsInterface =
     .GetSecurity = GetSecurity,
     .SetSecurity = SetSecurity,
     .ReadDirectory = ReadDirectory,
-    .ResolveReparsePoints = ResolveReparsePoints
+    .ResolveReparsePoints = ResolveReparsePoints,
+    .SetReparsePoint = SetReparsePoint
 };
 
 static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
