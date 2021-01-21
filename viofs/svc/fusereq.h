@@ -253,3 +253,17 @@ typedef struct
     char                    name[MAX_PATH];
 
 } FUSE_READLINK_OUT, *PFUSE_READLINK_OUT;
+
+typedef struct
+{
+    struct fuse_in_header   hdr;
+    char                    names[];
+
+} FUSE_SYMLINK_IN;
+
+typedef struct
+{
+    struct fuse_out_header  hdr;
+    struct fuse_entry_out   entry;
+
+} FUSE_SYMLINK_OUT;
