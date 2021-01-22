@@ -1926,6 +1926,18 @@ ENTER_FN_SRB();
 
     if (cdb->CDB6INQUIRY3.EnableVitalProductData == 1) {
         switch (cdb->CDB6INQUIRY3.PageCode) {
+            case VPD_SUPPORTED_PAGES: {
+                PVPD_SUPPORTED_PAGES_PAGE SupportPages;
+                SupportPages = (PVPD_SUPPORTED_PAGES_PAGE)SRB_DATA_BUFFER(Srb);
+                memset(SupportPages, 0, sizeof(VPD_SUPPORTED_PAGES_PAGE));
+                SupportPages->PageCode = VPD_SUPPORTED_PAGES;
+                SupportPages->SupportedPageList[0] = VPD_SUPPORTED_PAGES;
+                SupportPages->SupportedPageList[1] = VPD_SERIAL_NUMBER;
+                SupportPages->SupportedPageList[2] = VPD_DEVICE_IDENTIFIERS;
+                SupportPages->PageLength = 3;
+                SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_SUPPORTED_PAGES_PAGE) + SupportPages->PageLength));
+            }
+            break;
             case VPD_SERIAL_NUMBER: {
                 PVPD_SERIAL_NUMBER_PAGE SerialPage;
                 SerialPage = (PVPD_SERIAL_NUMBER_PAGE)dataBuffer;
