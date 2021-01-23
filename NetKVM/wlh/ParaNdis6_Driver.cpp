@@ -544,6 +544,7 @@ static NDIS_STATUS ParaNdis6_Reset(
         PBOOLEAN  pAddressingReset)
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
+    DEBUG_ENTRY(0);
     ParaNdis_PowerOff(pContext);
     ParaNdis_PowerOn(pContext);
     *pAddressingReset = FALSE;
