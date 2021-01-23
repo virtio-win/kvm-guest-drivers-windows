@@ -28,7 +28,10 @@ public:
 
     virtual void Stop(NDIS_STATUS Reason = NDIS_STATUS_PAUSED)
     {
-        NETKVM_ASSERT(m_State == FlowState::Running);
+        if (m_State != FlowState::Running)
+        {
+            return;
+        }
         m_State = FlowState::Stopping;
         m_StopReason = Reason;
         m_NoOutstandingItems.Clear();
