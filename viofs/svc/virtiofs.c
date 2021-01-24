@@ -624,10 +624,15 @@ static NTSTATUS VirtFsLookupFileName(HANDLE Device, PWSTR FileName,
 
     if (lstrcmp(FileName, TEXT("\\")) == 0)
     {
-        FileName = TEXT("\\.");
+        FileName = TEXT(".");
+    }
+    else if (FileName[0] == TEXT('\\'))
+    {
+        // Skip slash if exist.
+        FileName += 1;
     }
 
-    Status = FspPosixMapWindowsToPosixPath(FileName + 1, &fullpath);
+    Status = FspPosixMapWindowsToPosixPath(FileName, &fullpath);
     if (!NT_SUCCESS(Status))
     {
         FspPosixDeletePath(fullpath);
@@ -1936,6 +1941,32 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     return Status;
 }
 
+static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileContext, PWSTR FileName, FSP_FSCTL_DIR_INFO *DirInfo)
+{
+    VIRTFS *VirtFs = FileSystem->UserContext;
+    FUSE_LOOKUP_OUT lookup_out;
+    NTSTATUS Status;
+
+    UNREFERENCED_PARAMETER(FileContext);
+
+    DBG("\"%S\"", FileName);
+
+    Status = VirtFsLookupFileName(VirtFs->Device, FileName, &lookup_out);
+    if (NT_SUCCESS(Status))
+    {
+        DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) +
+            wcslen(FileName) * sizeof(WCHAR));
+
+        SetFileInfo(&lookup_out.entry.attr, &DirInfo->FileInfo);
+
+        CopyMemory(DirInfo->FileNameBuf, FileName,
+            DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
+    }
+
+    return Status;
+}
+
 static FSP_FILE_SYSTEM_INTERFACE VirtFsInterface =
 {
     .GetVolumeInfo = GetVolumeInfo,
@@ -1957,7 +1988,8 @@ static FSP_FILE_SYSTEM_INTERFACE VirtFsInterface =
     .SetSecurity = SetSecurity,
     .ReadDirectory = ReadDirectory,
     .ResolveReparsePoints = ResolveReparsePoints,
-    .SetReparsePoint = SetReparsePoint
+    .SetReparsePoint = SetReparsePoint,
+    .GetDirInfoByName = GetDirInfoByName
 };
 
 static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
@@ -2094,6 +2126,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     VolumeParams.ReparsePointsAccessCheck = 0;
     VolumeParams.PostCleanupWhenModifiedOnly = 1;
 //    VolumeParams.PassQueryDirectoryPattern = 1;
+    VolumeParams.PassQueryDirectoryFileName = 1;
     VolumeParams.FlushAndPurgeOnCleanup = 1;
     VolumeParams.UmFileContextIsUserContext2 = 1;
 //    VolumeParams.DirectoryMarkerAsNextOffset = 1;
