@@ -483,7 +483,9 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
         case OID_VENDOR_3:
             pInfo = &rssDiag;
             ulSize = sizeof(rssDiag);
+            // bit 0 - RSS supported, bit 1 - Hash supported
             rssDiag.DeviceSupport = pContext->bRSSSupportedByDevice;
+            rssDiag.DeviceSupport += 2 * pContext->bHashReportedByDevice;
             rssDiag.rxUnclassified = pContext->extraStatistics.framesRSSUnclassified;
             rssDiag.rxMissed = pContext->extraStatistics.framesRSSMisses;
             rssDiag.rxHits = pContext->extraStatistics.framesRSSHits;
