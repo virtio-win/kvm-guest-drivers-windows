@@ -1,7 +1,9 @@
 @echo off
 call tools\build.bat virtio-win.sln Win10 ARM64
 if errorlevel 1 goto :fail
-call tools\build.bat virtio-win.sln "Wxp Wnet Wlh Win7 Win8 Win8.1 Win10" %*
+if "%VIRTIO_WIN_NO_LEGACY%"=="" call tools\build.bat virtio-win.sln "Wxp Wnet Wlh Win7" %*
+if errorlevel 1 goto :fail
+call tools\build.bat virtio-win.sln "Win8 Win8.1 Win10" %*
 if errorlevel 1 goto :fail
 call tools\build.bat NetKVM\NetKVM-VS2015.vcxproj "Win10_SDV" %*
 if errorlevel 1 goto :fail
