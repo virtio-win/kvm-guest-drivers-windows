@@ -21,6 +21,7 @@ Common property definitions used by all drivers:
     <DDKINSTALLROOT Condition="'$(DDKINSTALLROOT)' == ''">C:\WINDDK\</DDKINSTALLROOT>
     <DDKVER Condition="'$(DDKVER)' == ''">7600.16385.1</DDKVER>
     <LegacyDDKDir>$(DDKINSTALLROOT)$(DDKVER)</LegacyDDKDir>
+    <INF_ARCH_FOR_WIN10>6.3</INF_ARCH_FOR_WIN10>
   </PropertyGroup>
 
   <PropertyGroup Label="Globals">
@@ -38,6 +39,10 @@ Common property definitions used by all drivers:
     <TargetArch>ARM64</TargetArch>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(WIN10_INF_DIFX_COMPAT)'=='' OR '$(WIN10_INF_DIFX_COMPAT)'=='0'">
+    <INF_ARCH_FOR_WIN10>10.0</INF_ARCH_FOR_WIN10>
+  </PropertyGroup>
+
   <!-- _NT_TARGET_MAJ is one of the components of driver version (always reflects target OS version) -->
   <!-- $(TargetOS) -->
   <!-- InfArch turns into the TargetOS inf file directive -->
@@ -45,7 +50,7 @@ Common property definitions used by all drivers:
     <_NT_TARGET_MAJ>100</_NT_TARGET_MAJ>
     <TargetOS>Win10</TargetOS>
 	<DriverTargetPlatform>Universal</DriverTargetPlatform>
-    <InfArch>$(TargetArch).10.0</InfArch>
+    <InfArch>$(TargetArch).$(INF_ARCH_FOR_WIN10)</InfArch>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Win8.1 Release' OR '$(Configuration)'=='Win8.1 Debug'">
     <_NT_TARGET_MAJ>63</_NT_TARGET_MAJ>
