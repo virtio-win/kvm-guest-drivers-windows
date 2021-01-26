@@ -18,7 +18,7 @@
     <ProjectGuid>{87AEE822-FF8B-4743-A567-8B46F4FA6D99}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>ivshmemtest</RootNamespace>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
     <ProjectName>ivshmem-test</ProjectName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'" Label="Configuration">

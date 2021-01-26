@@ -86,7 +86,7 @@
     <ProjectGuid>{F93779E1-51C1-4D12-9DC6-28FF6EB5589B}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>viocryptprov</RootNamespace>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <PropertyGroup>
     <OutDir>$(Platform)\$(Configuration)\</OutDir>

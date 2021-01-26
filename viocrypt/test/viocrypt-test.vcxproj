@@ -102,7 +102,7 @@
     <ProjectGuid>{DD9D3949-C1BC-426F-BFDA-D9310B8F9E3F}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>viocrypttest</RootNamespace>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
     <SpectreMitigation>false</SpectreMitigation>
   </PropertyGroup>
   <PropertyGroup>
