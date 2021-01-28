@@ -62,7 +62,7 @@ HKR,,EventMessageFile,%REG_EXPAND_SZ%,"%%SystemRoot%%\System32\IoLogMsg.dll"
 HKR,,TypesSupported,%REG_DWORD%,7
 
 [VioGpuDod_DeviceSettings]
-HKR,, VgaCompatible,               %REG_DWORD%, 0
+HKR,, HWCursor,                    %REG_DWORD%, 0
 
 [VioGpuDod_PCI_MSIX]
 HKR, "Interrupt Management",, 0x00000010
