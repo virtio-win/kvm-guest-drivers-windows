@@ -41,7 +41,9 @@ static UINT g_InstanceId = 0;
 PAGED_CODE_SEG_BEGIN
 VioGpuDod::VioGpuDod(_In_ DEVICE_OBJECT* pPhysicalDeviceObject) : m_pPhysicalDevice(pPhysicalDeviceObject),
 m_MonitorPowerState(PowerDeviceD0),
-m_AdapterPowerState(PowerDeviceD0)
+m_AdapterPowerState(PowerDeviceD0),
+m_pHWDevice(NULL),
+m_bVgaDevice(FALSE)
 {
     PAGED_CODE();
 
@@ -52,7 +54,6 @@ m_AdapterPowerState(PowerDeviceD0)
     RtlZeroMemory(&m_DeviceInfo, sizeof(m_DeviceInfo));
     RtlZeroMemory(m_CurrentModes, sizeof(m_CurrentModes));
     RtlZeroMemory(&m_PointerShape, sizeof(m_PointerShape));
-    m_pHWDevice = NULL;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
@@ -87,11 +88,11 @@ BOOLEAN VioGpuDod::CheckHardware()
         DbgPrint(TRACE_LEVEL_ERROR, ("DxgkCbReadDeviceSpace failed with status 0x%X\n", Status));
         return FALSE;
     }
-
     DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s VendorId = 0x%04X DeviceId = 0x%04X\n", __FUNCTION__, Header.VendorID, Header.DeviceID));
     if (Header.VendorID == REDHAT_PCI_VENDOR_ID &&
         Header.DeviceID == 0x1050)
     {
+        m_bVgaDevice = (Header.SubClass == PCI_SUBCLASS_VID_VGA_CTLR);
         return TRUE;
     }
 
@@ -149,7 +150,7 @@ NTSTATUS VioGpuDod::StartDevice(_In_  DXGK_START_INFO*   pDxgkStartInfo,
         return Status;
     }
 
-    if (m_pHWDevice->IsPrimaryDevice())
+    if (IsVgaDevice())
     {
         Status = m_DxgkInterface.DxgkCbAcquirePostDisplayOwnership(m_DxgkInterface.DeviceHandle, &m_SystemDisplayInfo);
     }
@@ -428,7 +429,7 @@ NTSTATUS VioGpuDod::QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO* pQuery
             pDriverCaps->PointerCaps.Color = 1;
             pDriverCaps->PointerCaps.MaskedColor = 0;
         }
-        pDriverCaps->SupportNonVGA = m_pHWDevice->IsPrimaryDevice();
+        pDriverCaps->SupportNonVGA = IsVgaDevice();
         pDriverCaps->SupportSmoothRotation = TRUE;
         DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s 1\n", __FUNCTION__));
         return STATUS_SUCCESS;
@@ -1867,7 +1868,6 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod* pVioGpuDod) : IVioGpuAdapter(pVioGp
     m_CurrentMode = 0;
     m_Id = g_InstanceId;
     g_InstanceId++;
-    m_bPrimary = FALSE;
     m_pFrameBuf = NULL;
     m_pCursorBuf = NULL;
     m_PendingWorks = 0;
@@ -2192,7 +2192,6 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
     req_size = max(0x800000, req_size);
 
     if (fb_pa.QuadPart != 0LL) {
-        m_bPrimary = TRUE;
         pDispInfo->PhysicAddress = fb_pa;
     }
 

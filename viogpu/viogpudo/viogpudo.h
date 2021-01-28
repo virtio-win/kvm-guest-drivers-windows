@@ -108,7 +108,6 @@ public:
     virtual NTSTATUS SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPointerShape, _In_ CONST CURRENT_MODE* pModeCur) = 0;
     virtual NTSTATUS SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION* pSetPointerPosition, _In_ CONST CURRENT_MODE* pModeCur) = 0;
     ULONG GetInstanceId(void) { return m_Id; }
-    BOOLEAN IsPrimaryDevice() { return m_bPrimary; }
     VioGpuDod* GetVioGpu(void) { return m_pVioGpuDod; }
     virtual PBYTE GetEdidData(UINT Idx) = 0;
     virtual PHYSICAL_ADDRESS GetFrameBufferPA(void) = 0;
@@ -124,7 +123,6 @@ protected:
     ULONG  m_Id;
     BYTE m_EDIDs[MAX_CHILDREN][EDID_V1_BLOCK_SIZE];
     BOOLEAN m_bEDID;
-    BOOLEAN m_bPrimary;
 };
 
 class VioGpuAdapter :
@@ -224,6 +222,7 @@ private:
     D3DDDI_VIDEO_PRESENT_SOURCE_ID m_SystemDisplaySourceId;
     DXGKARG_SETPOINTERSHAPE m_PointerShape;
     IVioGpuAdapter* m_pHWDevice;
+    BOOLEAN m_bVgaDevice;
 public:
     VioGpuDod(_In_ DEVICE_OBJECT* pPhysicalDeviceObject);
     ~VioGpuDod(void);
@@ -292,6 +291,7 @@ public:
     PDXGKRNL_INTERFACE GetDxgkInterface(void) { return &m_DxgkInterface; }
 private:
     BOOLEAN CheckHardware();
+    BOOLEAN IsVgaDevice(void) { return m_bVgaDevice; }
     NTSTATUS WriteRegistryString(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PCSTR pszValue);
     NTSTATUS WriteRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PDWORD pdwValue);
     NTSTATUS SetSourceModeAndPath(CONST D3DKMDT_VIDPN_SOURCE_MODE* pSourceMode,
