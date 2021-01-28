@@ -37,13 +37,32 @@
 
 #include <ws2def.h>
 
-/*VSOCK address family value*/
-#ifndef AF_VSOCK
-#define AF_VSOCK    40
+#define  VIOSOCK_NAME L"\\??\\Viosock"
+
+#ifdef _WINBASE_
+
+#ifndef IOCTL_GET_AF
+#define IOCTL_GET_AF    0x0801300C
 #endif
 
-#ifndef PF_VSOCK
-#define PF_VSOCK    AF_VSOCK
+__inline
+ADDRESS_FAMILY
+ViosockGetAF()
+{
+    DWORD dwAF = AF_UNSPEC;
+    HANDLE hDevice = CreateFileW(VIOSOCK_NAME, GENERIC_READ, FILE_SHARE_READ,
+        NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+
+    if (hDevice != INVALID_HANDLE_VALUE)
+    {
+        DWORD dwReturned;
+        if (!DeviceIoControl(hDevice, IOCTL_GET_AF, NULL, 0, &dwAF, sizeof(dwAF),&dwReturned, NULL))
+            dwAF = AF_UNSPEC;
+
+        CloseHandle(hDevice);
+    }
+    return (ADDRESS_FAMILY)dwAF;
+}
 #endif
 
 /* Option name for STREAM socket buffer size.  Use as the option name in

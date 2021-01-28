@@ -327,6 +327,7 @@ SocketConnectTest(
 {
     SOCKET sock = INVALID_SOCKET;
     WSADATA wsaData = { 0 };
+    ADDRESS_FAMILY AF;
 
     int iRes = WSAStartup(MAKEWORD(2, 2), &wsaData);
 
@@ -336,13 +337,21 @@ SocketConnectTest(
         return 1;
     }
 
+    AF = ViosockGetAF();
+    if (AF == AF_UNSPEC)
+    {
+        _tprintf(_T("ViosockGetAF failed: %d\n"), GetLastError());
+        return 3;
+    }
+
     _tprintf(_T("socket(AF_VSOCK, SOCK_STREAM, 0)\n"));
-    sock = socket(AF_VSOCK, SOCK_STREAM, 0);
+    sock = socket(AF, SOCK_STREAM, 0);
     if (sock != INVALID_SOCKET)
     {
         if (addr->svm_cid == VMADDR_CID_ANY)
             addr->svm_cid = VMADDR_CID_HOST;
 
+        addr->svm_family = AF;
         if (ERROR_SUCCESS == connect(sock, (struct sockaddr*)addr, sizeof(*addr)))
         {
             PVOID Buffer;
@@ -391,6 +400,7 @@ SocketListenTest(
 {
     SOCKET sock = INVALID_SOCKET;
     WSADATA wsaData = { 0 };
+    ADDRESS_FAMILY AF;
 
     int iRes = WSAStartup(MAKEWORD(2, 2), &wsaData);
 
@@ -406,10 +416,19 @@ SocketListenTest(
         return 2;
     }
 
+    AF = ViosockGetAF();
+    if (AF == AF_UNSPEC)
+    {
+        _tprintf(_T("ViosockGetAF failed: %d\n"), GetLastError());
+        return 3;
+    }
+
     _tprintf(_T("socket(AF_VSOCK, SOCK_STREAM, 0)\n"));
-    sock = socket(AF_VSOCK, SOCK_STREAM, 0);
+    sock = socket(AF, SOCK_STREAM, 0);
     if (sock != INVALID_SOCKET)
     {
+        addr->svm_family = AF;
+
         if (ERROR_SUCCESS == bind(sock, (struct sockaddr*)addr, sizeof(*addr)))
         {
             if (ERROR_SUCCESS == listen(sock, 10))
@@ -502,7 +521,6 @@ ParseAddr(
         }
     }
 
-    addr->svm_family = AF_VSOCK;
     return TRUE;
 }
 

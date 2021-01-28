@@ -29,7 +29,6 @@
 #if !defined(PUBLIC_H)
 #define PUBLIC_H
 
-#define  VIOSOCK_NAME L"\\??\\Viosock"
 #define  VIOSOCK_SYMLINK_NAME L"\\DosDevices\\Viosock"
 
  // {6B58DC1F-01C3-440F-BE1C-B95D000F1FF5}
@@ -44,6 +43,7 @@ DEFINE_GUID(GUID_DEVINTERFACE_VIOSOCK,
 //device ioctls
 #define IOCTL_GET_CONFIG                DEFINE_DEVICE_IOCTL(1)
 #define IOCTL_SELECT                    DEFINE_DEVICE_IOCTL(2)
+#define IOCTL_GET_AF                    DEFINE_DEVICE_IOCTL(3)
 
 //socket ioctls
 #define IOCTL_SOCKET_BIND               DEFINE_SOCKET_IOCTL(1)
@@ -58,6 +58,15 @@ DEFINE_GUID(GUID_DEVINTERFACE_VIOSOCK,
 #define IOCTL_SOCKET_GET_SOCK_OPT       DEFINE_SOCKET_IOCTL(10)
 #define IOCTL_SOCKET_SET_SOCK_OPT       DEFINE_SOCKET_IOCTL(11)
 #define IOCTL_SOCKET_IOCTL              DEFINE_SOCKET_IOCTL(12)
+
+/*VSOCK address family value*/
+#ifndef AF_VSOCK
+#define AF_VSOCK    40
+#endif
+
+#ifndef PF_VSOCK
+#define PF_VSOCK    AF_VSOCK
+#endif
 
 typedef struct _VIRTIO_VSOCK_CONFIG {
     ULONG32 guest_cid;
