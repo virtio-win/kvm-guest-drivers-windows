@@ -40,7 +40,8 @@ typedef struct
 {
     UINT DriverStarted : 1;
     UINT HardwareInit : 1;
-    UINT Unused : 30;
+    UINT PointerEnabled : 1;
+    UINT Unused : 29;
 } DRIVER_STATUS_FLAG;
 
 #pragma pack(pop)
@@ -91,7 +92,6 @@ public:
     USHORT GetModeNumber(USHORT idx) { return m_ModeNumbers[idx]; }
     USHORT GetCurrentModeIndex(void) { return m_CurrentMode; }
     VOID SetCurrentModeIndex(USHORT idx) { m_CurrentMode = idx; }
-    virtual BOOLEAN EnablePointer(void) = 0;
     virtual NTSTATUS ExecutePresentDisplayOnly(_In_ BYTE*             DstAddr,
         _In_ UINT              DstBitPerPixel,
         _In_ BYTE*             SrcAddr,
@@ -136,7 +136,6 @@ public:
     NTSTATUS SetPowerState(DXGK_DEVICE_INFO* pDeviceInfo, DEVICE_POWER_STATE DevicePowerState, CURRENT_MODE* pCurrentMode);
     NTSTATUS HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMATION* pDispInfo);
     NTSTATUS HWClose(void);
-    BOOLEAN EnablePointer(void) { return TRUE; }
     NTSTATUS ExecutePresentDisplayOnly(_In_ BYTE*       DstAddr,
         _In_ UINT              DstBitPerPixel,
         _In_ BYTE*             SrcAddr,
@@ -240,6 +239,14 @@ public:
     {
         m_Flags.HardwareInit = init;
     }
+    BOOLEAN IsPointerEnabled() const
+    {
+        return m_Flags.PointerEnabled;
+    }
+    void SetPointerEnabled(BOOLEAN Enabled)
+    {
+        m_Flags.PointerEnabled = Enabled;
+    }
 #pragma code_seg(pop)
 
     NTSTATUS StartDevice(_In_  DXGK_START_INFO*   pDxgkStartInfo,
@@ -294,6 +301,7 @@ private:
     BOOLEAN IsVgaDevice(void) { return m_bVgaDevice; }
     NTSTATUS WriteRegistryString(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PCSTR pszValue);
     NTSTATUS WriteRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PDWORD pdwValue);
+    NTSTATUS ReadRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _Inout_ PDWORD pdwValue);
     NTSTATUS SetSourceModeAndPath(CONST D3DKMDT_VIDPN_SOURCE_MODE* pSourceMode,
         CONST D3DKMDT_VIDPN_PRESENT_PATH* pPath);
     NTSTATUS AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODES* CONST pRecommendMonitorModes);
