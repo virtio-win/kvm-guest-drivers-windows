@@ -61,6 +61,12 @@ VIOSockDeviceGetConfig(
     OUT size_t      *pLength
 );
 
+NTSTATUS
+VIOSockDeviceGetAf(
+    IN WDFREQUEST   Request,
+    OUT size_t      *pLength
+);
+
 typedef struct _VIOSOCK_SELECT_HANDLE
 {
     ULONGLONG       hSocket;
@@ -124,6 +130,7 @@ VIOSockSelect(
 #pragma alloc_text (PAGE, VIOSockEvtDeviceD0EntryPostInterruptsEnabled)
 
 #pragma alloc_text (PAGE, VIOSockDeviceGetConfig)
+#pragma alloc_text (PAGE, VIOSockDeviceGetAf)
 #pragma alloc_text (PAGE, VIOSockEvtIoDeviceControl)
 #pragma alloc_text (PAGE, VIOSockSelectInit)
 #pragma alloc_text (PAGE, VIOSockSelectCleanupFds)
@@ -601,6 +608,39 @@ VIOSockDeviceGetConfig(
 }
 
 static
+NTSTATUS
+VIOSockDeviceGetAf(
+    IN WDFREQUEST   Request,
+    OUT size_t      *pLength
+)
+{
+    PULONG                  pulAF = NULL;
+    NTSTATUS                status;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+
+    status = WdfRequestRetrieveOutputBuffer(Request, sizeof(*pulAF), (PVOID*)&pulAF, pLength);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
+            "WdfRequestRetrieveOutputBuffer failed 0x%x\n", status);
+        return status;
+    }
+
+    // minimum length guaranteed by WdfRequestRetrieveOutputBuffer above
+    _Analysis_assume_(*pLength >= sizeof(*pulAF));
+
+    *pulAF = AF_VSOCK;
+    *pLength = sizeof(*pulAF);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+
+    return STATUS_SUCCESS;
+}
+
+static
 VOID
 VIOSockEvtIoDeviceControl(
     IN WDFQUEUE   Queue,
@@ -625,6 +665,10 @@ VIOSockEvtIoDeviceControl(
 
     case IOCTL_SELECT:
         status = VIOSockSelect(Request, &Length);
+        break;
+
+    case IOCTL_GET_AF:
+        status = VIOSockDeviceGetAf(Request, &Length);
         break;
 
     default:
