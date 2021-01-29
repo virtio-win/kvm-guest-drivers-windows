@@ -709,11 +709,19 @@ public:
         {
             if (e->MatchMac(pContext->CurrentMacAddress))
             {
-                TraceNoPrefix(0, "[%s] found entry %p for adapter %p\n", func, e, pContext);
-                e->m_Adapter = pContext;
-                e->NotifyAdapterArrival();
-                Done = true;
-                return false;
+                if (!e->m_Adapter)
+                {
+                    TraceNoPrefix(0, "[%s] found entry %p for adapter %p\n", func, e, pContext);
+                    e->m_Adapter = pContext;
+                    e->NotifyAdapterArrival();
+                    Done = true;
+                    return false;
+                }
+                else
+                {
+                    TraceNoPrefix(0, "[%s] duplicated MAC entry %p for adapter %p, existing %p\n",
+                        func, e, pContext, e->m_Adapter);
+                }
             }
             return true;
         });
@@ -759,7 +767,7 @@ public:
         {
             if (e->m_Adapter)
             {
-                TraceNoPrefix(0, "[%s] existing entry %p for adapter %p\n", func, e, pContext);
+                TraceNoPrefix(0, "[%s] still present entry %p for adapter %p\n", func, e, e->m_Adapter);
                 bNoMore = false;
             }
         });
@@ -1198,6 +1206,11 @@ void CProtocolBinding::OnSendCompletion(PNET_BUFFER_LIST Nbls, ULONG Flags)
 void CAdapterEntry::Notifier(PVOID Binding, NotifyEvent Event, PARANDIS_ADAPTER *Adapter)
 {
     CProtocolBinding *pb = (CProtocolBinding *)Binding;
+    if (!pb)
+    {
+        TraceNoPrefix(0, "[%s] No binding present, skip the notification\n", __FUNCTION__);
+        return;
+    }
     switch (Event)
     {
         case Arrival:
