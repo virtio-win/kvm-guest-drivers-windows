@@ -41,7 +41,8 @@ typedef struct
     UINT DriverStarted : 1;
     UINT HardwareInit : 1;
     UINT PointerEnabled : 1;
-    UINT Unused : 29;
+    UINT VgaDevice : 1;
+    UINT Unused : 28;
 } DRIVER_STATUS_FLAG;
 
 #pragma pack(pop)
@@ -221,7 +222,6 @@ private:
     D3DDDI_VIDEO_PRESENT_SOURCE_ID m_SystemDisplaySourceId;
     DXGKARG_SETPOINTERSHAPE m_PointerShape;
     IVioGpuAdapter* m_pHWDevice;
-    BOOLEAN m_bVgaDevice;
 public:
     VioGpuDod(_In_ DEVICE_OBJECT* pPhysicalDeviceObject);
     ~VioGpuDod(void);
@@ -246,6 +246,14 @@ public:
     void SetPointerEnabled(BOOLEAN Enabled)
     {
         m_Flags.PointerEnabled = Enabled;
+    }
+    BOOLEAN IsVgaDevice(void) const
+    {
+        return m_Flags.VgaDevice;
+    }
+    void SetVgaDevice(BOOLEAN Vga)
+    {
+        m_Flags.VgaDevice = Vga;
     }
 #pragma code_seg(pop)
 
@@ -298,7 +306,6 @@ public:
     PDXGKRNL_INTERFACE GetDxgkInterface(void) { return &m_DxgkInterface; }
 private:
     BOOLEAN CheckHardware();
-    BOOLEAN IsVgaDevice(void) { return m_bVgaDevice; }
     NTSTATUS WriteRegistryString(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PCSTR pszValue);
     NTSTATUS WriteRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PDWORD pdwValue);
     NTSTATUS ReadRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _Inout_ PDWORD pdwValue);
