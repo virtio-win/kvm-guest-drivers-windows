@@ -42,8 +42,7 @@ PAGED_CODE_SEG_BEGIN
 VioGpuDod::VioGpuDod(_In_ DEVICE_OBJECT* pPhysicalDeviceObject) : m_pPhysicalDevice(pPhysicalDeviceObject),
 m_MonitorPowerState(PowerDeviceD0),
 m_AdapterPowerState(PowerDeviceD0),
-m_pHWDevice(NULL),
-m_bVgaDevice(FALSE)
+m_pHWDevice(NULL)
 {
     PAGED_CODE();
 
@@ -92,7 +91,7 @@ BOOLEAN VioGpuDod::CheckHardware()
     if (Header.VendorID == REDHAT_PCI_VENDOR_ID &&
         Header.DeviceID == 0x1050)
     {
-        m_bVgaDevice = (Header.SubClass == PCI_SUBCLASS_VID_VGA_CTLR);
+        SetVgaDevice(Header.SubClass == PCI_SUBCLASS_VID_VGA_CTLR);
         return TRUE;
     }
 
