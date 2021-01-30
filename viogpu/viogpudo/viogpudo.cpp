@@ -1767,35 +1767,32 @@ NTSTATUS VioGpuDod::WriteRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCW
     return Status;
 }
 
-NTSTATUS VioGpuDod::ReadRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PDWORD pdwValue)
+NTSTATUS VioGpuDod::ReadRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _Inout_ PDWORD pdwValue)
 {
     PAGED_CODE();
 
     NTSTATUS Status = STATUS_SUCCESS;
     UNICODE_STRING UnicodeStrValueName;
     ULONG ulRes;
+    UCHAR Buf[sizeof(KEY_VALUE_PARTIAL_INFORMATION) + sizeof(DWORD)];
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     RtlInitUnicodeString(&UnicodeStrValueName, pszwValueName);
-    struct
-    {
-        KEY_VALUE_PARTIAL_INFORMATION Info;
-        UCHAR Buf[32];
-    } Buf;
 
     Status = ZwQueryValueKey(DevInstRegKeyHandle,
         &UnicodeStrValueName,
         KeyValuePartialInformation,
-        &Buf.Info,
+        Buf,
         sizeof(Buf),
         &ulRes);
 
     if (Status == STATUS_SUCCESS)
     {
-        if (Buf.Info.Type == REG_DWORD)
+        if (((PKEY_VALUE_PARTIAL_INFORMATION)Buf)->Type == REG_DWORD &&
+            (((PKEY_VALUE_PARTIAL_INFORMATION)Buf)->DataLength == sizeof(DWORD)))
         {
             ASSERT(Buf.Info.DataLength == sizeof(DWORD));
-            *pdwValue = *((PDWORD)Buf.Info.Data);
+            *pdwValue = *((PDWORD) &(((PKEY_VALUE_PARTIAL_INFORMATION)Buf)->Data));
         }
         else
         {
@@ -1833,44 +1830,50 @@ NTSTATUS VioGpuDod::SetRegisterInfo(_In_ ULONG Id, DWORD MemSize)
         return Status;
     }
 
-    Status = WriteRegistryString(DevInstRegKeyHandle, L"HardwareInformation.ChipType", StrHWInfoChipType);
-    if (!NT_SUCCESS(Status))
-    {
-        DbgPrint(TRACE_LEVEL_ERROR, ("WriteRegistryString failed for PDO: 0x%p, Status: 0x%X", m_pPhysicalDevice, Status));
-        return Status;
-    }
+    do {
+        Status = WriteRegistryString(DevInstRegKeyHandle, L"HardwareInformation.ChipType", StrHWInfoChipType);
+        if (!NT_SUCCESS(Status))
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("WriteRegistryString failed for ChipType with Status: 0x%X", Status));
+            break;
+        }
 
-    Status = WriteRegistryString(DevInstRegKeyHandle, L"HardwareInformation.DacType", StrHWInfoDacType);
-    if (!NT_SUCCESS(Status))
-    {
-        return Status;
-    }
+        Status = WriteRegistryString(DevInstRegKeyHandle, L"HardwareInformation.DacType", StrHWInfoDacType);
+        if (!NT_SUCCESS(Status))
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("WriteRegistryString failed DacType with Status: 0x%X", Status));
+            break;
+        }
 
-    Status = WriteRegistryString(DevInstRegKeyHandle, L"HardwareInformation.AdapterString", StrHWInfoAdapterString);
-    if (!NT_SUCCESS(Status))
-    {
-        return Status;
-    }
+        Status = WriteRegistryString(DevInstRegKeyHandle, L"HardwareInformation.AdapterString", StrHWInfoAdapterString);
+        if (!NT_SUCCESS(Status))
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("WriteRegistryString failed for AdapterString with Status: 0x%X", Status));
+            break;
+        }
 
-    Status = WriteRegistryString(DevInstRegKeyHandle, L"HardwareInformation.BiosString", StrHWInfoBiosString);
-    if (!NT_SUCCESS(Status))
-    {
-        return Status;
-    }
+        Status = WriteRegistryString(DevInstRegKeyHandle, L"HardwareInformation.BiosString", StrHWInfoBiosString);
+        if (!NT_SUCCESS(Status))
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("WriteRegistryString failed for BiosString with Status: 0x%X", Status));
+            break;
+        }
 
-    DWORD MemorySize = MemSize;
-    Status = WriteRegistryDWORD(DevInstRegKeyHandle, L"HardwareInformation.MemorySize", &MemorySize);
-    if (!NT_SUCCESS(Status))
-    {
-        return Status;
-    }
+        DWORD MemorySize = MemSize;
+        Status = WriteRegistryDWORD(DevInstRegKeyHandle, L"HardwareInformation.MemorySize", &MemorySize);
+        if (!NT_SUCCESS(Status))
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("WriteRegistryDWORD failed for MemorySize with Status: 0x%X", Status));
+            break;
+        }
 
-    DWORD DeviceId = Id;
-    Status = WriteRegistryDWORD(DevInstRegKeyHandle, L"VioGpuAdapterID", &DeviceId);
-    if (!NT_SUCCESS(Status))
-    {
-        return Status;
-    }
+        DWORD DeviceId = Id;
+        Status = WriteRegistryDWORD(DevInstRegKeyHandle, L"VioGpuAdapterID", &DeviceId);
+        if (!NT_SUCCESS(Status))
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("WriteRegistryDWORD failed for VioGpuAdapterID with Status: 0x%X", Status));
+        }
+    } while (0);
 
     ZwClose(DevInstRegKeyHandle);
 
@@ -1935,8 +1938,7 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod* pVioGpuDod) : IVioGpuAdapter(pVioGp
     m_ModeCount = 0;
     m_ModeNumbers = NULL;
     m_CurrentMode = 0;
-    m_Id = g_InstanceId;
-    g_InstanceId++;
+    m_Id = g_InstanceId++;
     m_pFrameBuf = NULL;
     m_pCursorBuf = NULL;
     m_PendingWorks = 0;
@@ -1963,6 +1965,7 @@ VioGpuAdapter::~VioGpuAdapter(void)
     m_CustomMode = 0;
     m_ModeCount = 0;
     m_Id = 0;
+    g_InstanceId--;
     DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s\n", __FUNCTION__));
 }
 
