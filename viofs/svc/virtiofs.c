@@ -628,7 +628,7 @@ static NTSTATUS VirtFsLookupFileName(HANDLE Device, PWSTR FileName,
     }
     else if (FileName[0] == TEXT('\\'))
     {
-        // Skip slash if exist.
+        // Skip backslash if exist.
         FileName += 1;
     }
 
