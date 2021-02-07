@@ -777,6 +777,23 @@ public:
         }
         return bNoMore;
     }
+    bool FindAdapterPdo(PDEVICE_OBJECT Pdo)
+    {
+        bool found = false;
+        m_Adapters.ForEach([&](CAdapterEntry *e)
+        {
+            if (e->m_Adapter) {
+                PDEVICE_OBJECT pdo = NULL;
+                NdisMGetDeviceProperty(e->m_Adapter->MiniportHandle, &pdo, NULL, NULL, NULL, NULL);
+                if (pdo == Pdo) {
+                    found = true;
+                    return false;
+                }
+            }
+            return true;
+        });
+        return found;
+    }
     void AddBinding(UCHAR *MacAddress, PVOID Binding)
     {
         LPCSTR func = __FUNCTION__;
@@ -788,6 +805,12 @@ public:
         {
             if (!e->MatchMac(MacAddress)) {
                 return true;
+            }
+            if (e->m_Binding) {
+                TraceNoPrefix(0, "[%s] already present binding %p with adapter %p\n",
+                    func, e->m_Binding, e->m_Adapter);
+                Done = true;
+                return false;
             }
             e->m_Binding = Binding;
             e->NotifyAdapterArrival();
@@ -882,6 +905,12 @@ NDIS_STATUS CProtocolBinding::Bind(PNDIS_BIND_PARAMETERS BindParameters)
     AddRef();
 
     m_Pdo = BindParameters->PhysicalDeviceObject;
+    if (m_Protocol.FindAdapterPdo(m_Pdo))
+    {
+        TraceNoPrefix(0, "[%s] rejected binding to NETKVM instance\n", __FUNCTION__);
+        Unbind(m_BindContext);
+        return NDIS_STATUS_NOT_SUPPORTED;
+    }
 
     openParams.Header.Type = NDIS_OBJECT_TYPE_OPEN_PARAMETERS;
     openParams.Header.Revision = NDIS_OPEN_PARAMETERS_REVISION_1;
