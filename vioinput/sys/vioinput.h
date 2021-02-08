@@ -83,6 +83,7 @@ typedef struct _tagInputClassCommon
     // the HID report is dirty and should be sent up
     BOOLEAN bDirty;
 
+    NTSTATUS(*GetFeatureFunc)(struct _tagInputClassCommon* pClass, PHID_XFER_PACKET pFeaturePkt);
     NTSTATUS(*EventToReportFunc)(struct _tagInputClassCommon *pClass, PVIRTIO_INPUT_EVENT pEvent);
     NTSTATUS(*ReportToEventFunc)(struct _tagInputClassCommon *pClass, struct _tagInputDevice *pContext,
                                  WDFREQUEST Request, PUCHAR pReport, ULONG cbReport);
@@ -91,6 +92,7 @@ typedef struct _tagInputClassCommon
 } INPUT_CLASS_COMMON, *PINPUT_CLASS_COMMON;
 
 #define MAX_INPUT_CLASS_COUNT 5
+#define REPORTID_FEATURE_TABLET_MAX_COUNT (MAX_INPUT_CLASS_COUNT+1)
 
 typedef struct _tagInputDevice
 {
