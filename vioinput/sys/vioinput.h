@@ -84,6 +84,7 @@ typedef struct _tagInputClassCommon
     BOOLEAN bDirty;
 
     NTSTATUS(*GetFeatureFunc)(struct _tagInputClassCommon* pClass, PHID_XFER_PACKET pFeaturePkt);
+    NTSTATUS(*EventToCollectFunc)(struct _tagInputClassCommon* pClass, PVIRTIO_INPUT_EVENT pEvent);
     NTSTATUS(*EventToReportFunc)(struct _tagInputClassCommon *pClass, PVIRTIO_INPUT_EVENT pEvent);
     NTSTATUS(*ReportToEventFunc)(struct _tagInputClassCommon *pClass, struct _tagInputDevice *pContext,
                                  WDFREQUEST Request, PUCHAR pReport, ULONG cbReport);
@@ -248,6 +249,9 @@ typedef struct virtio_input_event_with_request
 #define ABS_TILT_X    0x1a
 #define ABS_TILT_Y    0x1b
 #define ABS_MISC      0x28
+
+// Synchronization events
+#define SYN_REPORT    0x00
 
 // LED codes
 #define LED_NUML      0x00

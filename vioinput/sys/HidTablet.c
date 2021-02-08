@@ -115,6 +115,35 @@ HIDTabletGetFeature(
 }
 
 static NTSTATUS
+HIDTabletEventToCollect(
+    PINPUT_CLASS_COMMON pClass,
+    PVIRTIO_INPUT_EVENT pEvent)
+{
+    UNREFERENCED_PARAMETER(pClass);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    switch (pEvent->type)
+    {
+    case EV_SYN:
+        switch (pEvent->code)
+        {
+        case SYN_REPORT:
+            break;
+        default:
+            break;
+        }
+        break;
+    default:
+        break;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS
 HIDTabletEventToReport(
     PINPUT_CLASS_COMMON pClass,
     PVIRTIO_INPUT_EVENT pEvent)
@@ -262,6 +291,7 @@ HIDTabletProbe(
     }
 
     pTabletDesc->Common.GetFeatureFunc = HIDTabletGetFeature;
+    pTabletDesc->Common.EventToCollectFunc = HIDTabletEventToCollect;
     pTabletDesc->Common.EventToReportFunc = HIDTabletEventToReport;
     pTabletDesc->Common.uReportID = (UCHAR)(pContext->uNumOfClasses + 1);
 
