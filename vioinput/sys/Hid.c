@@ -160,6 +160,42 @@ EvtIoDeviceControl(
         }
         break;
 
+    case IOCTL_HID_GET_FEATURE:
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "IOCTL_HID_GET_FEATURE\n");
+
+        WDF_REQUEST_PARAMETERS_INIT(&params);
+        WdfRequestGetParameters(Request, &params);
+
+        if (params.Parameters.DeviceIoControl.OutputBufferLength < sizeof(HID_XFER_PACKET))
+        {
+            status = STATUS_BUFFER_TOO_SMALL;
+        } else
+        {
+            PHID_XFER_PACKET pFeaturePkt = (PHID_XFER_PACKET)WdfRequestWdmGetIrp(Request)->UserBuffer;
+
+            if (pFeaturePkt == NULL)
+            {
+                status = STATUS_INVALID_DEVICE_REQUEST;
+            } else
+            {
+                ULONG i;
+
+                status = STATUS_NOT_IMPLEMENTED;
+                for (i = 0; i < pContext->uNumOfClasses; i++)
+                {
+                    if (pContext->InputClasses[i]->GetFeatureFunc)
+                    {
+                        status = pContext->InputClasses[i]->GetFeatureFunc(pContext->InputClasses[i], pFeaturePkt);
+                        if (!NT_SUCCESS(status))
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        break;
+
     default:
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_IOCTLS,
                     "Unrecognized IOCTL %d\n", IoControlCode);

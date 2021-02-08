@@ -46,6 +46,12 @@ typedef struct _tagInputClassTabletSlot
     USHORT uAxisX;
     USHORT uAxisY;
 } INPUT_CLASS_TABLET_SLOT, * PINPUT_CLASS_TABLET_SLOT;
+
+typedef struct _tagInputClassTabletFeatureMaxContact
+{
+    UCHAR uReportID;
+    UCHAR uMaxContacts;
+}INPUT_CLASS_TABLET_FEATURE_MAX_CONTACT, * PINPUT_CLASS_TABLET_FEATURE_MAX_CONTACT;
 #pragma pack(pop)
 
 typedef struct _tagInputClassTablet
@@ -73,6 +79,40 @@ typedef struct _tagInputClassTablet
      * +---------------+-+-+-+-+-+------------+----------+---------------+
      */
 } INPUT_CLASS_TABLET, *PINPUT_CLASS_TABLET;
+
+static NTSTATUS
+HIDTabletGetFeature(
+    PINPUT_CLASS_COMMON pClass,
+    PHID_XFER_PACKET pFeaturePkt)
+{
+    PINPUT_CLASS_TABLET pTabletDesc = (PINPUT_CLASS_TABLET)pClass;
+    UCHAR uReportID = *(PUCHAR)pFeaturePkt->reportBuffer;
+    NTSTATUS status = STATUS_SUCCESS;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    switch (uReportID)
+    {
+    case REPORTID_FEATURE_TABLET_MAX_COUNT:
+        if (pFeaturePkt->reportBufferLen >= sizeof(INPUT_CLASS_TABLET_FEATURE_MAX_CONTACT))
+        {
+            PINPUT_CLASS_TABLET_FEATURE_MAX_CONTACT pFtrReport = (PINPUT_CLASS_TABLET_FEATURE_MAX_CONTACT)pFeaturePkt->reportBuffer;
+
+            pFtrReport->uMaxContacts = (UCHAR)pTabletDesc->uMaxContacts;
+        } else
+        {
+            status = STATUS_BUFFER_TOO_SMALL;
+        }
+        break;
+    default:
+        status = STATUS_INVALID_PARAMETER;
+        break;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
+
+    return status;
+}
 
 static NTSTATUS
 HIDTabletEventToReport(
@@ -221,6 +261,7 @@ HIDTabletProbe(
         pAxes->u.bitmap[i] = uNonButtons;
     }
 
+    pTabletDesc->Common.GetFeatureFunc = HIDTabletGetFeature;
     pTabletDesc->Common.EventToReportFunc = HIDTabletEventToReport;
     pTabletDesc->Common.uReportID = (UCHAR)(pContext->uNumOfClasses + 1);
 
@@ -313,6 +354,11 @@ HIDTabletProbe(
 
     HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER_CONTACT_COUNT);
     HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
+
+    // IOCTL_HID_GET_FEATURE will query the report for maximum count
+    HIDAppend2(pHidDesc, HID_TAG_REPORT_ID, REPORTID_FEATURE_TABLET_MAX_COUNT);
+    HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER_CONTACT_COUNT_MAX);
+    HIDAppend2(pHidDesc, HID_TAG_FEATURE, HID_DATA_FLAG_VARIABLE | HID_DATA_FLAG_CONSTANT);
 
     HIDAppend1(pHidDesc, HID_TAG_END_COLLECTION); //HID_COLLECTION_APPLICATION
 
