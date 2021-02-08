@@ -261,6 +261,13 @@ ProcessInputEvent(
         // send report(s) up
         for (i = 0; i < pContext->uNumOfClasses; i++)
         {
+            // Ask each class if any collection needs before report
+            if (pContext->InputClasses[i]->EventToCollectFunc)
+            {
+                pContext->InputClasses[i]->EventToCollectFunc(
+                    pContext->InputClasses[i],
+                    pEvent);
+            }
             CompleteHIDQueueRequest(pContext, pContext->InputClasses[i]);
         }
     }
