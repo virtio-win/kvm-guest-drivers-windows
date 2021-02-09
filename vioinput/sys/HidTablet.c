@@ -69,6 +69,7 @@ typedef struct _tagInputClassTablet
     INPUT_CLASS_COMMON Common;
     BOOLEAN bMT;
     BOOLEAN bIdentifiableMT;
+    BOOLEAN bMscTs;
     ULONG uMaxContacts;
     ULONG uLastMTSlot;
     PINPUT_CLASS_TABLET_SLOT pContactStat;
@@ -76,7 +77,7 @@ typedef struct _tagInputClassTablet
 
     /*
      * HID Tablet report layout:
-     * Total size in bytes: 1 + 7 * numContacts + 1
+     * Total size in bytes: 1 + 7 * numContacts + 1 + 4
      * +---------------+-+-+-+-+-+---------------+----------+------------+
      * | Byte Offset   |7|6|5|4|3|     2         |    1     |     0      |
      * +---------------+-+-+-+-+-+---------------+----------+------------+
@@ -90,6 +91,7 @@ typedef struct _tagInputClassTablet
      * | ...           |                                                 |
      * | (n-1)*7+[1,7] |                   Contact n-1                   |
      * | n*7+1         |                  Contact Count                  |
+     * | n*7+[2,5]     |                    Scan Time                    |
      * +---------------+-+-+-+-+-+------------+----------+---------------+
      */
 } INPUT_CLASS_TABLET, *PINPUT_CLASS_TABLET;
@@ -355,6 +357,21 @@ HIDTabletEventToReport(
             pClass->bDirty = TRUE;
         }
         break;
+    case EV_MSC:
+        switch (pEvent->code)
+        {
+        case MSC_TIMESTAMP:
+            if (pTabletDesc->bMscTs)
+            {
+                PLONG pScanTime = (PLONG)&pReport[HID_REPORT_DATA_OFFSET + sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts + 1];
+                // Convert MSC_TIMESTAMP microseconds to 100 microseconds
+                *pScanTime = ((ULONG)pEvent->value / 100);
+            }
+            break;
+        default:
+            break;
+        }
+        break;
     case EV_SYN:
         switch (pEvent->code)
         {
@@ -451,7 +468,8 @@ HIDTabletProbe(
     PINPUT_DEVICE pContext,
     PDYNAMIC_ARRAY pHidDesc,
     PVIRTIO_INPUT_CFG_DATA pAxes,
-    PVIRTIO_INPUT_CFG_DATA pButtons)
+    PVIRTIO_INPUT_CFG_DATA pButtons,
+    PVIRTIO_INPUT_CFG_DATA pMisc)
 {
     PINPUT_CLASS_TABLET pTabletDesc = NULL;
     NTSTATUS status = STATUS_SUCCESS;
@@ -470,6 +488,7 @@ HIDTabletProbe(
 
     pTabletDesc->bMT = FALSE;
     pTabletDesc->bIdentifiableMT = FALSE;
+    pTabletDesc->bMscTs = FALSE;
     pTabletDesc->uMaxContacts = 1;
     pTabletDesc->uLastMTSlot = 0;
 
@@ -526,6 +545,18 @@ HIDTabletProbe(
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Tablet axes not found\n");
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;
+    }
+
+    for (i = 0; i < pMisc->size; i++)
+    {
+        while (DecodeNextBit(&pMisc->u.bitmap[i], &uValue))
+        {
+            UCHAR msc_event = uValue + 8 * i;
+            if (msc_event == MSC_TIMESTAMP)
+            {
+                pTabletDesc->bMscTs = TRUE;
+            }
+        }
     }
 
     /*
@@ -716,6 +747,25 @@ HIDTabletProbe(
     HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER_CONTACT_COUNT);
     HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
 
+    // Scan time, 4 bytes
+    if (pTabletDesc->bMscTs)
+    {
+        HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER_SCAN_TIME);
+        HIDAppend2(pHidDesc, HID_TAG_UNIT_EXPONENT, 0x0A); // 10^(-4), 100 us
+        HIDAppend2(pHidDesc, HID_TAG_UNIT, 0x1001);        // Time system in unit of s
+        HIDAppend2(pHidDesc, HID_TAG_LOGICAL_MAXIMUM, LONG_MAX);
+        HIDAppend2(pHidDesc, HID_TAG_REPORT_SIZE, 0x20);
+        HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, 0x01);
+        HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
+
+        // Restore for subsequent item
+        HIDAppend2(pHidDesc, HID_TAG_UNIT_EXPONENT, 0x00);
+        HIDAppend2(pHidDesc, HID_TAG_UNIT, 0x00);
+        HIDAppend2(pHidDesc, HID_TAG_LOGICAL_MAXIMUM, pTabletDesc->uMaxContacts);
+        HIDAppend2(pHidDesc, HID_TAG_REPORT_SIZE, 0x08);
+        HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, 0x01);
+    }
+
     // IOCTL_HID_GET_FEATURE will query the report for maximum count
     HIDAppend2(pHidDesc, HID_TAG_REPORT_ID, REPORTID_FEATURE_TABLET_MAX_COUNT);
     HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER_CONTACT_COUNT_MAX);
@@ -729,7 +779,8 @@ HIDTabletProbe(
     pTabletDesc->Common.cbHidReportSize =
         1 + // report ID
         sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts + // max contacts * per-contact packet. See INPUT_CLASS_TABLET_SLOT and INPUT_CLASS_TABLET for layout details.
-        1 // Actual contact count
+        1 + // Actual contact count
+        (pTabletDesc->bMscTs ? sizeof(LONG) : 0) // Scan time
         ;
 
     // register the tablet class

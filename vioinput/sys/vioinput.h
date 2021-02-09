@@ -197,6 +197,7 @@ typedef struct virtio_input_event_with_request
 #define EV_KEY        0x01
 #define EV_REL        0x02
 #define EV_ABS        0x03
+#define EV_MSC        0x04
 #define EV_LED        0x11
 
 // Button codes
@@ -270,6 +271,9 @@ typedef struct virtio_input_event_with_request
 // Synchronization events
 #define SYN_REPORT    0x00
 #define SYN_MT_REPORT 0x02
+
+// Misc events
+#define MSC_TIMESTAMP 0x05
 
 // LED codes
 #define LED_NUML      0x00
@@ -430,7 +434,8 @@ HIDTabletProbe(
     PINPUT_DEVICE pContext,
     PDYNAMIC_ARRAY pHidDesc,
     PVIRTIO_INPUT_CFG_DATA pAxes,
-    PVIRTIO_INPUT_CFG_DATA pButtons
+    PVIRTIO_INPUT_CFG_DATA pButtons,
+    PVIRTIO_INPUT_CFG_DATA pMisc
 );
 
 NTSTATUS
