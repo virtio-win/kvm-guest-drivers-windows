@@ -67,6 +67,7 @@ typedef struct _tagInputClassTabletTrackingID
 typedef struct _tagInputClassTablet
 {
     INPUT_CLASS_COMMON Common;
+    BOOLEAN bMT;
     BOOLEAN bIdentifiableMT;
     ULONG uMaxContacts;
     ULONG uLastMTSlot;
@@ -151,6 +152,7 @@ HIDTabletEventToCollect(
              *   thus the first valid contact may not always 1st in pContactStat.
              *   So check and find the actual contacts to report, copy to final
              *   report buffer and set bDirty.
+             * Anonymous MT already sets bDirty when seeing SYN_MT_REPORT.
              */
             if (pTabletDesc->bIdentifiableMT)
             {
@@ -207,13 +209,22 @@ HIDTabletEventToReport(
     {
     case EV_ABS:
         // MT
-        if (pTabletDesc->bIdentifiableMT)
+        if (pTabletDesc->bMT)
         {
             /*
              * For identifiable MT, contact events are firstly saved into
              *   pContactStat then copied to report buffer by valid tracking ID.
+             * For anonymous MT, contact event are directly saved into report
+             *   buffer one by one on seeing SYN_MT_REPORT.
              */
-            pReportSlot = &pTabletDesc->pContactStat[pTabletDesc->uLastMTSlot];
+            if (pTabletDesc->bIdentifiableMT)
+            {
+                pReportSlot = &pTabletDesc->pContactStat[pTabletDesc->uLastMTSlot];
+            }
+            else
+            {
+                pReportSlot = &((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[pTabletDesc->uLastMTSlot];
+            }
             switch (pEvent->code)
             {
             case ABS_MT_SLOT:
@@ -241,6 +252,22 @@ HIDTabletEventToReport(
                     USHORT* pPos = (pEvent->code == ABS_MT_POSITION_X ? &pReportSlot->uAxisX : &pReportSlot->uAxisY);
 
                     *pPos = (USHORT)pEvent->value;
+
+                    /*
+                     * For anonymous MT, contact ID for each contact is
+                     *   fixed at initializing the report memory. Seeing
+                     *   a position update indicates the contact down.
+                     *   Slot index will be increased on SYN_MT_REPORT.
+                     * However receiving less position update can only
+                     *   indicate some contact up, but don't know which.
+                     *   That's why it's called anonymous MT. Thus clear
+                     *   the uFlags after each report done on SYN_REPORT
+                     *   so that can restart the check from new round.
+                     */
+                    if (pTabletDesc->bMT && !pTabletDesc->bIdentifiableMT)
+                    {
+                        pReportSlot->uFlags |= 0x01;
+                    }
                 }
                 break;
             case ABS_MT_TRACKING_ID:
@@ -309,7 +336,7 @@ HIDTabletEventToReport(
         }
 
         // MT will set bDirty before reporting at EV_SYN so drop all bits here.
-        if (pTabletDesc->bIdentifiableMT)
+        if (pTabletDesc->bMT)
         {
             uBits = 0x00;
         }
@@ -338,6 +365,7 @@ HIDTabletEventToReport(
              * For MT, clear the number of contacts to report so that up-to-date
              *   number can be re-count before reporting on next EV_SYN.
              *   For identifiable MT, clear pending tracking ID.
+             *   For anonymous MT, reset uLastMTSlot and all contacts state.
              */
             if (pTabletDesc->bIdentifiableMT)
             {
@@ -350,6 +378,42 @@ HIDTabletEventToReport(
                     }
                 }
                 pReport[HID_REPORT_DATA_OFFSET + sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] = 0;
+            }
+            else if (pTabletDesc->bMT)
+            {
+                // Reset to 1st slot so that can restart the check from new round
+                pTabletDesc->uLastMTSlot = 0;
+                /*
+                 * Unlike identifiable MT, there is no ABS_MT_TRACKING_ID
+                 *   to denote a contact up. A contact up can be
+                 *   identified if receiving less SYN_MT_REPORT before
+                 *   SYN_REPORT. Mark all contacts as up here and position
+                 *   update will set correct state.
+                 */
+                for (uNumContacts = 0; uNumContacts < pTabletDesc->uMaxContacts; uNumContacts++)
+                {
+                    ((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[uNumContacts].uFlags &= ~0x01;
+                }
+            }
+            break;
+        case SYN_MT_REPORT:
+            /*
+             * Anonymous MT won't use MT_SLOT/MT_TRACKING_ID for each contacts,
+             * so move to next slot when seeing SYN_MT_REPORT. If case of
+             * overflow, round uLastMTSlot the 1st but keep number of contacts.
+             */
+            if (pTabletDesc->bMT && !pTabletDesc->bIdentifiableMT)
+            {
+                ++pTabletDesc->uLastMTSlot;
+                if (pTabletDesc->uLastMTSlot <= pTabletDesc->uMaxContacts)
+                {
+                    ++pReport[HID_REPORT_DATA_OFFSET + sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts];
+                }
+                if (++pTabletDesc->uLastMTSlot >= pTabletDesc->uMaxContacts)
+                {
+                    pTabletDesc->uLastMTSlot = 0;
+                }
+                pClass->bDirty = TRUE;
             }
             break;
         default:
@@ -404,6 +468,7 @@ HIDTabletProbe(
         goto Exit;
     }
 
+    pTabletDesc->bMT = FALSE;
     pTabletDesc->bIdentifiableMT = FALSE;
     pTabletDesc->uMaxContacts = 1;
     pTabletDesc->uLastMTSlot = 0;
@@ -433,10 +498,12 @@ HIDTabletProbe(
                         " Limit to (%d). Consider to increase MT_MAX_MAXCONTACT if necessary.\n",
                         AbsInfo.max + 1, MT_MAX_MAXCONTACT, MT_MAX_MAXCONTACT);
                 }
+                pTabletDesc->bMT = TRUE;
                 pTabletDesc->bIdentifiableMT = TRUE;
             }
             else if ((uAxisCode >= ABS_MT_TOUCH_MAJOR) && (uAxisCode <= ABS_MT_TOOL_Y))
             {
+                pTabletDesc->bMT = TRUE;
                 if (uAxisCode == ABS_MT_POSITION_X || uAxisCode == ABS_MT_POSITION_Y)
                 {
                     uNumOfMTAbsAxes++;
@@ -461,8 +528,27 @@ HIDTabletProbe(
         goto Exit;
     }
 
-    if (pTabletDesc->bIdentifiableMT && uNumOfMTAbsAxes != 2)
+    /*
+     * MT could be type A (anonymous contacts) or type B (identifiable contacts)
+     * For anonymous MT, seeing another SYN_MT_REPORT indicates a new contact
+     *   in same report.
+     * For identifiable MT, ABS_MT_SLOT and ABS_MT_TRACKING_ID are used to
+     *   identify the contact number and identity.
+     * If we got type A, uMaxContacts can't be parsed from ABS_MT_SLOT thus
+     *   limit to MT_DEFAULT_MAXCONTACT.
+     */
+    if (!pTabletDesc->bIdentifiableMT && pTabletDesc->bMT)
     {
+        pTabletDesc->uMaxContacts = MT_DEFAULT_MAXCONTACT;
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
+            "Type A (anonymous contacts) MT maximum contacts is limited to (%d)."
+            " Consider to increase MT_DEFAULT_MAXCONTACT if necessary.\n",
+            MT_DEFAULT_MAXCONTACT);
+    }
+
+    if (pTabletDesc->bMT && uNumOfMTAbsAxes != 2)
+    {
+        pTabletDesc->bMT = FALSE;
         pTabletDesc->bIdentifiableMT = FALSE;
         pTabletDesc->uMaxContacts = 1;
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
@@ -479,11 +565,12 @@ HIDTabletProbe(
     }
 
     // Simulate as ST for test
+    //pTabletDesc->bMT = FALSE;
     //pTabletDesc->bIdentifiableMT = FALSE;
     //pTabletDesc->uMaxContacts = 1;
 
     // Allocate and all contact status for MT
-    if (pTabletDesc->bIdentifiableMT)
+    if (pTabletDesc->bMT)
     {
         pTabletDesc->pContactStat = VIOInputAlloc(sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts);
         if (pTabletDesc->pContactStat == NULL)
@@ -534,11 +621,11 @@ HIDTabletProbe(
     pTabletDesc->Common.uReportID = (UCHAR)(pContext->uNumOfClasses + 1);
 
     HIDAppend2(pHidDesc, HID_TAG_USAGE_PAGE, HID_USAGE_PAGE_DIGITIZER);
-    HIDAppend2(pHidDesc, HID_TAG_USAGE, pTabletDesc->bIdentifiableMT ? HID_USAGE_TOUCH_SCREEN : HID_USAGE_DIGITIZER);
+    HIDAppend2(pHidDesc, HID_TAG_USAGE, pTabletDesc->bMT ? HID_USAGE_TOUCH_SCREEN : HID_USAGE_DIGITIZER);
 
     HIDAppend2(pHidDesc, HID_TAG_COLLECTION, HID_COLLECTION_APPLICATION);
     HIDAppend2(pHidDesc, HID_TAG_REPORT_ID, pTabletDesc->Common.uReportID);
-    HIDAppend2(pHidDesc, HID_TAG_USAGE, pTabletDesc->bIdentifiableMT ? HID_USAGE_DIGITIZER_FINGER : HID_USAGE_DIGITIZER_STYLUS);
+    HIDAppend2(pHidDesc, HID_TAG_USAGE, pTabletDesc->bMT ? HID_USAGE_DIGITIZER_FINGER : HID_USAGE_DIGITIZER_STYLUS);
 
     for (uNumContacts = 0; uNumContacts < pTabletDesc->uMaxContacts; uNumContacts++)
     {
@@ -559,7 +646,7 @@ HIDTabletProbe(
         HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
 
         // Only simluate finger down/up for MT
-        if (!pTabletDesc->bIdentifiableMT)
+        if (!pTabletDesc->bMT)
         {
             // in range flag, one bit
             HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER_IN_RANGE);
@@ -572,7 +659,7 @@ HIDTabletProbe(
 
         // padding
         HIDAppend2(pHidDesc, HID_TAG_LOGICAL_MAXIMUM, 0x00);
-        HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, pTabletDesc->bIdentifiableMT ? 0x07 : 0x05);
+        HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, pTabletDesc->bMT ? 0x07 : 0x05);
         HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE | HID_DATA_FLAG_CONSTANT);
 
         // Contact Identifier, 2 bytes
@@ -653,11 +740,21 @@ HIDTabletProbe(
 
         /*
          * For ST, the number of contacts to report is always 1.
+         * For anonymous MT, the number of contats to report is always the max contacts.
          * For identifiable MT, the number of contacts to report is counted at SYN_REPORT.
          */
         if (pTabletDesc->bIdentifiableMT)
         {
             pReport[HID_REPORT_DATA_OFFSET + sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] = 0;
+        }
+        else if (pTabletDesc->bMT)
+        {
+            pReport[HID_REPORT_DATA_OFFSET + sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] = (UCHAR)pTabletDesc->uMaxContacts;
+            // Assign a different contact ID for anonymous MT
+            for (uNumContacts = 0; uNumContacts < pTabletDesc->uMaxContacts; uNumContacts++)
+            {
+                ((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[uNumContacts].uContactID = (USHORT)(uNumContacts + 1);
+            }
         }
         else
         {

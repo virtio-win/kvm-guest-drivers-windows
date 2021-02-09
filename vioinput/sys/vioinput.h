@@ -269,6 +269,7 @@ typedef struct virtio_input_event_with_request
 
 // Synchronization events
 #define SYN_REPORT    0x00
+#define SYN_MT_REPORT 0x02
 
 // LED codes
 #define LED_NUML      0x00
