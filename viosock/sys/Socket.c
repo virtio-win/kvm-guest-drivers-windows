@@ -861,8 +861,8 @@ VIOSockAccept(
 
     PAGED_CODE();
 
-    status = ObReferenceObjectByHandle(hListenSocket, STANDARD_RIGHTS_REQUIRED, *IoFileObjectType,
-        KernelMode, (PVOID)&pFileObj, NULL);
+    status = ObReferenceObjectByHandle(hListenSocket, FILE_READ_ACCESS, *IoFileObjectType,
+        WdfRequestGetRequestorMode(Request), (PVOID)&pFileObj, NULL);
 
     if (NT_SUCCESS(status))
     {
@@ -872,7 +872,7 @@ VIOSockAccept(
 
         if (!pListenSocket)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Listen socket not found\n");
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Listen socket not found\n");
             status = STATUS_NOT_SOCKET;
         }
         else if (VIOSockStateGet(pListenSocket) != VIOSOCK_STATE_LISTEN)
