@@ -38,6 +38,10 @@
 #include "HidTablet.tmh"
 #endif
 
+ // Defined in drivers/hid/hid-multitouch.c
+#define MT_DEFAULT_MAXCONTACT 10
+#define MT_MAX_MAXCONTACT     250
+
 #pragma pack(push,1)
 typedef struct _tagInputClassTabletSlot
 {
@@ -54,11 +58,20 @@ typedef struct _tagInputClassTabletFeatureMaxContact
 }INPUT_CLASS_TABLET_FEATURE_MAX_CONTACT, * PINPUT_CLASS_TABLET_FEATURE_MAX_CONTACT;
 #pragma pack(pop)
 
+typedef struct _tagInputClassTabletTrackingID
+{
+    LONG uID;
+    BOOLEAN bPendingDel;
+} INPUT_CLASS_TABLET_TRACKING_ID, * PINPUT_CLASS_TABLET_TRACKING_ID;
+
 typedef struct _tagInputClassTablet
 {
     INPUT_CLASS_COMMON Common;
+    BOOLEAN bIdentifiableMT;
     ULONG uMaxContacts;
     ULONG uLastMTSlot;
+    PINPUT_CLASS_TABLET_SLOT pContactStat;
+    PINPUT_CLASS_TABLET_TRACKING_ID pTrackingID;
 
     /*
      * HID Tablet report layout:
@@ -119,7 +132,10 @@ HIDTabletEventToCollect(
     PINPUT_CLASS_COMMON pClass,
     PVIRTIO_INPUT_EVENT pEvent)
 {
-    UNREFERENCED_PARAMETER(pClass);
+    PINPUT_CLASS_TABLET pTabletDesc = (PINPUT_CLASS_TABLET)pClass;
+    PUCHAR pReport = pClass->pHidReport;
+    PINPUT_CLASS_TABLET_SLOT pReportSlot;
+    ULONG uNumContacts;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
 
@@ -129,6 +145,35 @@ HIDTabletEventToCollect(
         switch (pEvent->code)
         {
         case SYN_REPORT:
+            /*
+             * For identifiable MT, bDirty isn't set when handling MT events but
+             *   only states are saved. First touching contact may lift first
+             *   thus the first valid contact may not always 1st in pContactStat.
+             *   So check and find the actual contacts to report, copy to final
+             *   report buffer and set bDirty.
+             */
+            if (pTabletDesc->bIdentifiableMT)
+            {
+                UCHAR uContacts = 0;
+
+                pReport[HID_REPORT_DATA_OFFSET + sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] = uContacts;
+                for (uNumContacts = 0; uNumContacts < pTabletDesc->uMaxContacts; uNumContacts++)
+                {
+                    if (pTabletDesc->pTrackingID[uNumContacts].uID != -1)
+                    {
+                        RtlCopyMemory(
+                            &((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[uContacts++],
+                            &pTabletDesc->pContactStat[uNumContacts],
+                            sizeof(INPUT_CLASS_TABLET_SLOT));
+                    }
+                }
+
+                if (uContacts)
+                {
+                    pReport[HID_REPORT_DATA_OFFSET + sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] = uContacts;
+                    pClass->bDirty = TRUE;
+                }
+            }
             break;
         default:
             break;
@@ -153,6 +198,7 @@ HIDTabletEventToReport(
     PUSHORT pAxisReport;
     PINPUT_CLASS_TABLET_SLOT pReportSlot;
     UCHAR uBits;
+    ULONG uNumContacts;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
 
@@ -160,24 +206,88 @@ HIDTabletEventToReport(
     switch (pEvent->type)
     {
     case EV_ABS:
-        /*
-         * ST always fills ABS_X/ABS_Y and EV_KEY in 1st slot while
-         * uLastMTSlot remains unchanged for all events.
-         */
-        pReportSlot = &((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[pTabletDesc->uLastMTSlot];
-        switch (pEvent->code)
+        // MT
+        if (pTabletDesc->bIdentifiableMT)
         {
-        case ABS_X:
-        case ABS_Y:
+            /*
+             * For identifiable MT, contact events are firstly saved into
+             *   pContactStat then copied to report buffer by valid tracking ID.
+             */
+            pReportSlot = &pTabletDesc->pContactStat[pTabletDesc->uLastMTSlot];
+            switch (pEvent->code)
             {
-                USHORT* pPos = (pEvent->code == ABS_X ? &pReportSlot->uAxisX : &pReportSlot->uAxisY);
+            case ABS_MT_SLOT:
+                /*
+                 * Subsequent identifiable MT event will re-use last set MT_SLOT
+                 *   until new slot arrives so we need save it for later usage
+                 *   and keep using uLastMTSlot as current slot for other operation.
+                 * Only identifiable MT will send MT_SLOT. Still add protection
+                 *   in case back-end somehow goes wrong.
+                 */
+                if (pTabletDesc->bIdentifiableMT)
+                {
+                    if (pEvent->value < pTabletDesc->uMaxContacts)
+                    {
+                        pTabletDesc->uLastMTSlot = (ULONG)pEvent->value;
+                    } else
+                    {
+                        pTabletDesc->uLastMTSlot = 0;
+                    }
+                }
+                break;
+            case ABS_MT_POSITION_X:
+            case ABS_MT_POSITION_Y:
+                {
+                    USHORT* pPos = (pEvent->code == ABS_MT_POSITION_X ? &pReportSlot->uAxisX : &pReportSlot->uAxisY);
 
-                *pPos = (USHORT)pEvent->value;
-                pClass->bDirty = TRUE;
+                    *pPos = (USHORT)pEvent->value;
+                }
+                break;
+            case ABS_MT_TRACKING_ID:
+                /*
+                 * Check if negative tracking ID for actual contact up & down.
+                 * Contact ID is bind to slot until changed, save it to operate
+                 * subsequent MT event. In case of negative tracking ID, don't
+                 * mark as unused slot with -1 but mark as pending only so that
+                 * the contact can be reported lift up on EN_SYN and unset then.
+                 */
+                if ((LONG)pEvent->value < 0)
+                {
+                    pTabletDesc->pTrackingID[pTabletDesc->uLastMTSlot].bPendingDel = TRUE;
+                    pReportSlot->uFlags &= ~0x01;
+                } else
+                {
+                    pTabletDesc->pTrackingID[pTabletDesc->uLastMTSlot].uID = (LONG)pEvent->value;
+                    pReportSlot->uContactID = (USHORT)pEvent->value;
+                    pReportSlot->uFlags |= 0x01;
+                }
+                break;
+            default:
+                break;
             }
-            break;
-        default:
-            break;
+        }
+        else
+        // ST
+        {
+            /*
+             * ST always fills ABS_X/ABS_Y and EV_KEY in 1st slot while
+             * uLastMTSlot remains unchanged for all events.
+             */
+            pReportSlot = &((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[pTabletDesc->uLastMTSlot];
+            switch (pEvent->code)
+            {
+            case ABS_X:
+            case ABS_Y:
+                {
+                    USHORT* pPos = (pEvent->code == ABS_X ? &pReportSlot->uAxisX : &pReportSlot->uAxisY);
+
+                    *pPos = (USHORT)pEvent->value;
+                    pClass->bDirty = TRUE;
+                }
+                break;
+            default:
+                break;
+            }
         }
         break;
     case EV_KEY:
@@ -197,6 +307,13 @@ HIDTabletEventToReport(
             uBits = 0x00;
             break;
         }
+
+        // MT will set bDirty before reporting at EV_SYN so drop all bits here.
+        if (pTabletDesc->bIdentifiableMT)
+        {
+            uBits = 0x00;
+        }
+
         if (uBits)
         {
             pReportSlot = &((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[pTabletDesc->uLastMTSlot];
@@ -211,10 +328,58 @@ HIDTabletEventToReport(
             pClass->bDirty = TRUE;
         }
         break;
+    case EV_SYN:
+        switch (pEvent->code)
+        {
+        case SYN_REPORT:
+            /*
+             * Post-processing SYN_REPORT after done reporting.
+             * For ST, the num of contacts to report is always 1 so nothing to do.
+             * For MT, clear the number of contacts to report so that up-to-date
+             *   number can be re-count before reporting on next EV_SYN.
+             *   For identifiable MT, clear pending tracking ID.
+             */
+            if (pTabletDesc->bIdentifiableMT)
+            {
+                for (uNumContacts = 0; uNumContacts < pTabletDesc->uMaxContacts; uNumContacts++)
+                {
+                    if (pTabletDesc->pTrackingID[uNumContacts].bPendingDel)
+                    {
+                        pTabletDesc->pTrackingID[uNumContacts].uID = -1;
+                        pTabletDesc->pTrackingID[uNumContacts].bPendingDel = FALSE;
+                    }
+                }
+                pReport[HID_REPORT_DATA_OFFSET + sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] = 0;
+            }
+            break;
+        default:
+            break;
+        }
+        break;
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
+}
+
+static VOID
+HIDTabletCleanup(
+    PINPUT_CLASS_COMMON pClass)
+{
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+
+    PINPUT_CLASS_TABLET pTabletDesc = (PINPUT_CLASS_TABLET)pClass;
+
+    if (pTabletDesc->pContactStat)
+    {
+        VIOInputFree(&pTabletDesc->pContactStat);
+    }
+    if (pTabletDesc->pTrackingID)
+    {
+        VIOInputFree(&pTabletDesc->pTrackingID);
+    }
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
 }
 
 NTSTATUS
@@ -227,7 +392,7 @@ HIDTabletProbe(
     PINPUT_CLASS_TABLET pTabletDesc = NULL;
     NTSTATUS status = STATUS_SUCCESS;
     UCHAR i, uValue;
-    ULONG uAxisCode, uNumOfAbsAxes = 0, uNumContacts = 0;
+    ULONG uAxisCode, uNumOfAbsAxes = 0, uNumOfMTAbsAxes = 0, uNumContacts = 0;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
@@ -239,6 +404,7 @@ HIDTabletProbe(
         goto Exit;
     }
 
+    pTabletDesc->bIdentifiableMT = FALSE;
     pTabletDesc->uMaxContacts = 1;
     pTabletDesc->uLastMTSlot = 0;
 
@@ -253,6 +419,33 @@ HIDTabletProbe(
             {
                 uNumOfAbsAxes++;
             }
+            else if (uAxisCode == ABS_MT_SLOT)
+            {
+                struct virtio_input_absinfo AbsInfo;
+                GetAbsAxisInfo(pContext, uAxisCode, &AbsInfo);
+
+                pTabletDesc->uMaxContacts = AbsInfo.max + 1;
+                if (pTabletDesc->uMaxContacts > MT_MAX_MAXCONTACT)
+                {
+                    pTabletDesc->uMaxContacts = MT_MAX_MAXCONTACT;
+                    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
+                        "Type B (identifiable contacts) MT back end report more contacts (%d) than front end can support (%d)."
+                        " Limit to (%d). Consider to increase MT_MAX_MAXCONTACT if necessary.\n",
+                        AbsInfo.max + 1, MT_MAX_MAXCONTACT, MT_MAX_MAXCONTACT);
+                }
+                pTabletDesc->bIdentifiableMT = TRUE;
+            }
+            else if ((uAxisCode >= ABS_MT_TOUCH_MAJOR) && (uAxisCode <= ABS_MT_TOOL_Y))
+            {
+                if (uAxisCode == ABS_MT_POSITION_X || uAxisCode == ABS_MT_POSITION_Y)
+                {
+                    uNumOfMTAbsAxes++;
+                }
+                if (uAxisCode == ABS_MT_TRACKING_ID)
+                {
+                    pTabletDesc->bIdentifiableMT = TRUE;
+                }
+            }
             else
             {
                 uNonAxes |= (1 << uValue);
@@ -266,6 +459,50 @@ HIDTabletProbe(
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Tablet axes not found\n");
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;
+    }
+
+    if (pTabletDesc->bIdentifiableMT && uNumOfMTAbsAxes != 2)
+    {
+        pTabletDesc->bIdentifiableMT = FALSE;
+        pTabletDesc->uMaxContacts = 1;
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
+            "Got MT abs info but doesn't have ABS_MT_POSITION_X and ABS_MT_POSITION_Y, fall back to ST\n");
+    }
+
+    if (pTabletDesc->uMaxContacts > MT_MAX_MAXCONTACT)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
+            "Backend report more maximum contacts (%d) than frontend can support (%d), limit to (%d)."
+            " Consider to increase MT_MAX_MAXCONTACT if necessary.\n",
+            pTabletDesc->uMaxContacts, MT_MAX_MAXCONTACT, MT_MAX_MAXCONTACT);
+        pTabletDesc->uMaxContacts = MT_MAX_MAXCONTACT;
+    }
+
+    // Simulate as ST for test
+    //pTabletDesc->bIdentifiableMT = FALSE;
+    //pTabletDesc->uMaxContacts = 1;
+
+    // Allocate and all contact status for MT
+    if (pTabletDesc->bIdentifiableMT)
+    {
+        pTabletDesc->pContactStat = VIOInputAlloc(sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts);
+        if (pTabletDesc->pContactStat == NULL)
+        {
+            status = STATUS_INSUFFICIENT_RESOURCES;
+            goto Exit;
+        }
+        pTabletDesc->pTrackingID = VIOInputAlloc(sizeof(INPUT_CLASS_TABLET_TRACKING_ID) * pTabletDesc->uMaxContacts);
+        if (pTabletDesc->pTrackingID == NULL)
+        {
+            status = STATUS_INSUFFICIENT_RESOURCES;
+            goto Exit;
+        }
+
+        for (uNumContacts = 0; uNumContacts < pTabletDesc->uMaxContacts; uNumContacts++)
+        {
+            pTabletDesc->pTrackingID[uNumContacts].uID = -1;
+            pTabletDesc->pTrackingID[uNumContacts].bPendingDel = FALSE;
+        }
     }
 
     // claim our buttons from the pAxes bitmap
@@ -293,14 +530,15 @@ HIDTabletProbe(
     pTabletDesc->Common.GetFeatureFunc = HIDTabletGetFeature;
     pTabletDesc->Common.EventToCollectFunc = HIDTabletEventToCollect;
     pTabletDesc->Common.EventToReportFunc = HIDTabletEventToReport;
+    pTabletDesc->Common.CleanupFunc = HIDTabletCleanup;
     pTabletDesc->Common.uReportID = (UCHAR)(pContext->uNumOfClasses + 1);
 
     HIDAppend2(pHidDesc, HID_TAG_USAGE_PAGE, HID_USAGE_PAGE_DIGITIZER);
-    HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER);
+    HIDAppend2(pHidDesc, HID_TAG_USAGE, pTabletDesc->bIdentifiableMT ? HID_USAGE_TOUCH_SCREEN : HID_USAGE_DIGITIZER);
 
     HIDAppend2(pHidDesc, HID_TAG_COLLECTION, HID_COLLECTION_APPLICATION);
     HIDAppend2(pHidDesc, HID_TAG_REPORT_ID, pTabletDesc->Common.uReportID);
-    HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER_STYLUS);
+    HIDAppend2(pHidDesc, HID_TAG_USAGE, pTabletDesc->bIdentifiableMT ? HID_USAGE_DIGITIZER_FINGER : HID_USAGE_DIGITIZER_STYLUS);
 
     for (uNumContacts = 0; uNumContacts < pTabletDesc->uMaxContacts; uNumContacts++)
     {
@@ -320,17 +558,21 @@ HIDTabletProbe(
         HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER_TIP_SWITCH);
         HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
 
-        // in range flag, one bit
-        HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER_IN_RANGE);
-        HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
+        // Only simluate finger down/up for MT
+        if (!pTabletDesc->bIdentifiableMT)
+        {
+            // in range flag, one bit
+            HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER_IN_RANGE);
+            HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
 
-        // barrel switch, one bit
-        HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER_BARREL_SWITCH);
-        HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
+            // barrel switch, one bit
+            HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER_BARREL_SWITCH);
+            HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
+        }
 
         // padding
         HIDAppend2(pHidDesc, HID_TAG_LOGICAL_MAXIMUM, 0x00);
-        HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, 0x05);
+        HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, pTabletDesc->bIdentifiableMT ? 0x07 : 0x05);
         HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE | HID_DATA_FLAG_CONSTANT);
 
         // Contact Identifier, 2 bytes
@@ -346,7 +588,9 @@ HIDTabletProbe(
         HIDAppend2(pHidDesc, HID_TAG_UNIT, 0x11);          // Linear Centimeter
 
         // 2 bytes each axis
-        for (uAxisCode = ABS_X; uAxisCode <= ABS_Y; uAxisCode++)
+        for (uAxisCode = (uNumOfMTAbsAxes ? ABS_MT_POSITION_X : ABS_X);
+             uAxisCode <= (uNumOfMTAbsAxes ? (ULONG)ABS_MT_POSITION_Y : ABS_Y);
+             uAxisCode++)
         {
             struct virtio_input_absinfo AbsInfo;
             GetAbsAxisInfo(pContext, uAxisCode, &AbsInfo);
@@ -366,7 +610,7 @@ HIDTabletProbe(
                 (AbsInfo.res == 0) ? AbsInfo.max : (AbsInfo.max * 10 / AbsInfo.res));
 
             HIDAppend2(pHidDesc, HID_TAG_USAGE,
-                (uAxisCode == ABS_X ? HID_USAGE_GENERIC_X : HID_USAGE_GENERIC_Y));
+                ((uAxisCode == ABS_X || uAxisCode == ABS_MT_POSITION_X) ? HID_USAGE_GENERIC_X : HID_USAGE_GENERIC_Y));
 
             HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
         }
@@ -409,13 +653,30 @@ HIDTabletProbe(
 
         /*
          * For ST, the number of contacts to report is always 1.
+         * For identifiable MT, the number of contacts to report is counted at SYN_REPORT.
          */
-        pReport[HID_REPORT_DATA_OFFSET + sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] = 1;
+        if (pTabletDesc->bIdentifiableMT)
+        {
+            pReport[HID_REPORT_DATA_OFFSET + sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] = 0;
+        }
+        else
+        {
+            ((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[0].uContactID = 1;
+            pReport[HID_REPORT_DATA_OFFSET + sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] = 1;
+        }
     }
 
 Exit:
-    if (!NT_SUCCESS(status) && pTabletDesc != NULL)
+    if (!NT_SUCCESS(status) && pTabletDesc)
     {
+        if (pTabletDesc->pContactStat)
+        {
+            VIOInputFree(&pTabletDesc->pContactStat);
+        }
+        if (pTabletDesc->pTrackingID)
+        {
+            VIOInputFree(&pTabletDesc->pTrackingID);
+        }
         VIOInputFree(&pTabletDesc);
     }
 
