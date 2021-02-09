@@ -49,6 +49,8 @@ typedef struct _tagInputClassTabletSlot
     USHORT uContactID;
     USHORT uAxisX;
     USHORT uAxisY;
+    USHORT uTouchWidth;
+    USHORT uTouchHeight;
 } INPUT_CLASS_TABLET_SLOT, * PINPUT_CLASS_TABLET_SLOT;
 
 typedef struct _tagInputClassTabletFeatureMaxContact
@@ -77,22 +79,24 @@ typedef struct _tagInputClassTablet
 
     /*
      * HID Tablet report layout:
-     * Total size in bytes: 1 + 7 * numContacts + 1 + 4
-     * +---------------+-+-+-+-+-+---------------+----------+------------+
-     * | Byte Offset   |7|6|5|4|3|     2         |    1     |     0      |
-     * +---------------+-+-+-+-+-+---------------+----------+------------+
-     * | 0             |                    Report ID                    |
-     * | i*7+1         |   Pad   | Barrel Switch | In-range | Tip Switch |
-     * | i*7+[2,3]     |                    Contact ID                   |
-     * | i*7+[4,5]     |                      x-axis                     |
-     * | i*7+[6,7]     |                      y-axis                     |
-     * | (i+1)*7+[1,7] |                   Contact i+1                   |
-     * | (i+2)*7+[1,7] |                   Contact i+2                   |
-     * | ...           |                                                 |
-     * | (n-1)*7+[1,7] |                   Contact n-1                   |
-     * | n*7+1         |                  Contact Count                  |
-     * | n*7+[2,5]     |                    Scan Time                    |
-     * +---------------+-+-+-+-+-+------------+----------+---------------+
+     * Total size in bytes: 1 + 11 * numContacts + 1 + 4
+     * +-----------------+-+-+-+-+-+---------------+----------+------------+
+     * | Byte Offset     |7|6|5|4|3|     2         |    1     |     0      |
+     * +-----------------+-+-+-+-+-+---------------+----------+------------+
+     * | 0               |                    Report ID                    |
+     * | i*11+1          |   Pad   | Barrel Switch | In-range | Tip Switch |
+     * | i*11+[2,3]      |                    Contact ID                   |
+     * | i*11+[4,5]      |                      x-axis                     |
+     * | i*11+[6,7]      |                      y-axis                     |
+     * | i*11+[8,9]      |                    touch width                  |
+     * | i*11+[10,11]    |                   touch height                  |
+     * | (i+1)*11+[1,11] |                   Contact i+1                   |
+     * | (i+2)*11+[1,11] |                   Contact i+2                   |
+     * | ...             |                                                 |
+     * | (n-1)*11+[1,11] |                   Contact n-1                   |
+     * | n*11+1          |                  Contact Count                  |
+     * | n*11+[2,5]      |                    Scan Time                    |
+     * +-----------------+-+-+-+-+-+------------+----------+---------------+
      */
 } INPUT_CLASS_TABLET, *PINPUT_CLASS_TABLET;
 
@@ -247,6 +251,12 @@ HIDTabletEventToReport(
                         pTabletDesc->uLastMTSlot = 0;
                     }
                 }
+                break;
+            case ABS_MT_TOUCH_MAJOR:
+                pReportSlot->uTouchWidth = (USHORT)pEvent->value;
+                break;
+            case ABS_MT_TOUCH_MINOR:
+                pReportSlot->uTouchHeight = (USHORT)pEvent->value;
                 break;
             case ABS_MT_POSITION_X:
             case ABS_MT_POSITION_Y:
@@ -475,6 +485,7 @@ HIDTabletProbe(
     NTSTATUS status = STATUS_SUCCESS;
     UCHAR i, uValue;
     ULONG uAxisCode, uNumOfAbsAxes = 0, uNumOfMTAbsAxes = 0, uNumContacts = 0;
+    BOOLEAN bContactWidth = FALSE, bContactHeight = FALSE;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
@@ -530,6 +541,14 @@ HIDTabletProbe(
                 if (uAxisCode == ABS_MT_TRACKING_ID)
                 {
                     pTabletDesc->bIdentifiableMT = TRUE;
+                }
+                if (uAxisCode == ABS_MT_TOUCH_MAJOR)
+                {
+                    bContactWidth = TRUE;
+                }
+                if (uAxisCode == ABS_MT_TOUCH_MINOR)
+                {
+                    bContactHeight = TRUE;
                 }
             }
             else
@@ -620,6 +639,8 @@ HIDTabletProbe(
         {
             pTabletDesc->pTrackingID[uNumContacts].uID = -1;
             pTabletDesc->pTrackingID[uNumContacts].bPendingDel = FALSE;
+            pTabletDesc->pContactStat[uNumContacts].uTouchWidth = 1;
+            pTabletDesc->pContactStat[uNumContacts].uTouchHeight = 1;
         }
     }
 
@@ -660,6 +681,8 @@ HIDTabletProbe(
 
     for (uNumContacts = 0; uNumContacts < pTabletDesc->uMaxContacts; uNumContacts++)
     {
+        struct virtio_input_absinfo AbsInfo = {0}, XAbsInfo = { 0 }, YAbsInfo = { 0 };
+
         // Collection Logical for all contacts for reporting in hybrid mode
         HIDAppend2(pHidDesc, HID_TAG_COLLECTION, HID_COLLECTION_LOGICAL);
 
@@ -710,11 +733,19 @@ HIDTabletProbe(
              uAxisCode <= (uNumOfMTAbsAxes ? (ULONG)ABS_MT_POSITION_Y : ABS_Y);
              uAxisCode++)
         {
-            struct virtio_input_absinfo AbsInfo;
             GetAbsAxisInfo(pContext, uAxisCode, &AbsInfo);
 
             TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got abs axis %d, min %d, max %d\n",
                 uAxisCode, AbsInfo.min, AbsInfo.max);
+
+            if (uAxisCode == ABS_X || uAxisCode == ABS_MT_POSITION_X)
+            {
+                RtlCopyMemory(&XAbsInfo, &AbsInfo, sizeof(XAbsInfo));
+            }
+            else
+            {
+                RtlCopyMemory(&YAbsInfo, &AbsInfo, sizeof(YAbsInfo));
+            }
 
             // Device Class Definition for HID 1.11, 6.2.2.7
             // Resolution = (Logical Maximum - Logical Minimum) /
@@ -730,6 +761,47 @@ HIDTabletProbe(
             HIDAppend2(pHidDesc, HID_TAG_USAGE,
                 ((uAxisCode == ABS_X || uAxisCode == ABS_MT_POSITION_X) ? HID_USAGE_GENERIC_X : HID_USAGE_GENERIC_Y));
 
+            HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
+        }
+
+        // 2 bytes for contact width/height
+        HIDAppend2(pHidDesc, HID_TAG_USAGE_PAGE, HID_USAGE_PAGE_DIGITIZER);
+        /*
+         * If the MT device report ABS_MT_TOUCH_MAJOR/ABS_MT_TOUCH_MINOR
+         * use its min/max/res. Otherwise, re-use them as reported from X/Y.
+         */
+        for (uAxisCode = ABS_MT_TOUCH_MAJOR; uAxisCode <= ABS_MT_TOUCH_MINOR; uAxisCode++)
+        {
+            if (uAxisCode == ABS_MT_TOUCH_MAJOR)
+            {
+                HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER_CONTACT_WIDTH);
+                if (bContactWidth)
+                {
+                    GetAbsAxisInfo(pContext, HID_USAGE_DIGITIZER_CONTACT_WIDTH, &AbsInfo);
+                }
+                else
+                {
+                    RtlCopyMemory(&AbsInfo, &XAbsInfo, sizeof(AbsInfo));
+                }
+            }
+            else
+            {
+                HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER_CONTACT_HEIGHT);
+                if (bContactHeight)
+                {
+                    GetAbsAxisInfo(pContext, HID_USAGE_DIGITIZER_CONTACT_HEIGHT, &AbsInfo);
+                }
+                else
+                {
+                    RtlCopyMemory(&AbsInfo, &YAbsInfo, sizeof(AbsInfo));
+                }
+            }
+            HIDAppend2(pHidDesc, HID_TAG_LOGICAL_MINIMUM, AbsInfo.min);
+            HIDAppend2(pHidDesc, HID_TAG_LOGICAL_MAXIMUM, AbsInfo.max);
+            HIDAppend2(pHidDesc, HID_TAG_PHYSICAL_MINIMUM,
+                (AbsInfo.res == 0) ? AbsInfo.min : (AbsInfo.min * 10 / AbsInfo.res));
+            HIDAppend2(pHidDesc, HID_TAG_PHYSICAL_MAXIMUM,
+                (AbsInfo.res == 0) ? AbsInfo.max : (AbsInfo.max * 10 / AbsInfo.res));
             HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
         }
 
@@ -811,6 +883,11 @@ HIDTabletProbe(
         {
             ((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[0].uContactID = 1;
             pReport[HID_REPORT_DATA_OFFSET + sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] = 1;
+        }
+        for (uNumContacts = 0; uNumContacts < pTabletDesc->uMaxContacts; uNumContacts++)
+        {
+            ((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[uNumContacts].uTouchWidth = 1;
+            ((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[uNumContacts].uTouchHeight = 1;
         }
     }
 
