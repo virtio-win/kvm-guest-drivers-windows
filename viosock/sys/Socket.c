@@ -94,6 +94,12 @@ VIOSockIoctl(
     OUT size_t      *pLength
 );
 
+typedef union _VIOSOCK_PENDED_CONTEXT {
+    WDFFILEOBJECT ParentSocket;
+}VIOSOCK_PENDED_CONTEXT, *PVIOSOCK_PENDED_CONTEXT;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_PENDED_CONTEXT, GetRequestPendedContext);
+
 NTSTATUS
 VIOSockAccept(
     IN HANDLE       hListenSocket,
@@ -546,11 +552,22 @@ VIOSockPendedRequestCancel(
 )
 {
     PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    WDFFILEOBJECT ParentSocket = WDF_NO_HANDLE;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTING)
         WdfTimerStop(pSocket->ConnectTimer, FALSE);
+    else
+    {
+        PVIOSOCK_PENDED_CONTEXT pRequest = GetRequestPendedContext(Request);
+        if (pRequest)
+            ParentSocket = pRequest->ParentSocket;
+        if (ParentSocket != WDF_NO_HANDLE)
+            pSocket = GetSocketContext(ParentSocket);
+    }
+
+    ASSERT(pSocket && pSocket->PendedRequest == Request);
 
     WdfSpinLockAcquire(pSocket->RxLock);
     WdfObjectDereference(Request);
@@ -567,10 +584,42 @@ VIOSockPendedRequestSet(
 )
 {
     NTSTATUS status;
+    PSOCKET_CONTEXT pRequestSocket = GetSocketContextFromRequest(Request);
+    PVIOSOCK_PENDED_CONTEXT pRequest = NULL;
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
+    ASSERT(pSocket && pRequestSocket);
     ASSERT(pSocket->PendedRequest == WDF_NO_HANDLE);
-    pSocket->PendedRequest = Request;
+
+    //store parent socket handle
+    if (pRequestSocket != pSocket)
+    {
+        WDF_OBJECT_ATTRIBUTES attributes;
+
+        WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(
+            &attributes,
+            VIOSOCK_PENDED_CONTEXT
+        );
+
+        status = WdfObjectAllocateContext(
+            Request,
+            &attributes,
+            &pRequest
+        );
+
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "WdfObjectAllocateContext failed: 0x%x\n", status);
+            return status;
+        }
+
+        ASSERT(pRequest->ParentSocket == WDF_NO_HANDLE || pRequest->ParentSocket == pSocket->ThisSocket);
+        pRequest->ParentSocket = pSocket->ThisSocket;
+    }
+
     WdfObjectReference(Request);
+    pSocket->PendedRequest = Request;
 
     status = WdfRequestMarkCancelableEx(pSocket->PendedRequest, VIOSockPendedRequestCancel);
     if (!NT_SUCCESS(status))
@@ -607,6 +656,8 @@ VIOSockPendedRequestGet(
 {
     NTSTATUS    status = STATUS_SUCCESS;;
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
     *Request = pSocket->PendedRequest;
     if (*Request != WDF_NO_HANDLE)
     {
@@ -621,6 +672,8 @@ VIOSockPendedRequestGet(
         }
         else
         {
+            ASSERT(GetRequestPendedContext(*Request) == NULL || GetRequestPendedContext(*Request)->ParentSocket);
+
             WdfObjectDereference(*Request);
             pSocket->PendedRequest = WDF_NO_HANDLE;
         }
@@ -882,6 +935,9 @@ VIOSockAccept(
         else
         {
             BOOLEAN bDequeued = FALSE, bSetBit = FALSE;
+
+            if (VIOSockIsFlag(pListenSocket, SOCK_NON_BLOCK))
+                VIOSockSetFlag(pAcceptSocket, SOCK_NON_BLOCK);
 
             VIOSockEventClearBit(pListenSocket, FD_ACCEPT_BIT);
 
