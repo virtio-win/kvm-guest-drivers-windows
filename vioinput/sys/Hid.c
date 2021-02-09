@@ -458,7 +458,7 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
 {
     DYNAMIC_ARRAY ReportDescriptor = { NULL };
     NTSTATUS status = STATUS_SUCCESS;
-    VIRTIO_INPUT_CFG_DATA KeyData, RelData, AbsData, LedData;
+    VIRTIO_INPUT_CFG_DATA KeyData, RelData, AbsData, LedData, MscData;
     SIZE_T cbReportDescriptor;
     UCHAR i, uReportID = 0;
 
@@ -492,6 +492,16 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
         VirtIOWdfDeviceGet(
             &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
             &AbsData.u.bitmap[i], 1);
+    }
+
+    // Misc config
+    MscData.size = SelectInputConfig(pContext, VIRTIO_INPUT_CFG_EV_BITS, EV_MSC);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got EV_MSC bits size %d\n", MscData.size);
+    for (i = 0; i < MscData.size; i++)
+    {
+        VirtIOWdfDeviceGet(
+            &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
+            &MscData.u.bitmap[i], 1);
     }
 
     // if we have any relative axes, we'll expose a mouse device
@@ -531,7 +541,8 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
             pContext,
             &ReportDescriptor,
             &AbsData,
-            &KeyData);
+            &KeyData,
+            &MscData);
         if (!NT_SUCCESS(status))
         {
             goto Exit;
