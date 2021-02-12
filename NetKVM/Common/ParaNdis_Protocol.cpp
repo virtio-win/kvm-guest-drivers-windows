@@ -941,6 +941,9 @@ NDIS_STATUS CProtocolBinding::Bind(PNDIS_BIND_PARAMETERS BindParameters)
     }
     else
     {
+        ULONG val = 0;
+        // make the VF silent
+        SetOid(OID_GEN_CURRENT_PACKET_FILTER, &val, sizeof(val));
         QueryCapabilities(BindParameters);
         QueryCurrentOffload();
         QueryCurrentRSS();
