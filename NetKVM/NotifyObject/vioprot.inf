@@ -78,8 +78,8 @@ Copy.Exec    = 11    ; %windir%\System32
 ; Files to Copy/Delete - Referenced by Install and Remove sections above
 ;-------------------------------------------------------------------------
 [Copy.Exec]
-netkvmno.dll,,,2    ; COPYFLG_NOSKIP
-netkvmp.exe,,,2     ; COPYFLG_NOSKIP
+netkvmno.dll,,,0x00004002     ; COPYFLG_NOSKIP | COPYFLG_IN_USE_RENAME
+netkvmp.exe,,,0x00004002      ; COPYFLG_NOSKIP | COPYFLG_IN_USE_RENAME
 
 [Strings]
 VENDOR = "INX_COMPANY"
