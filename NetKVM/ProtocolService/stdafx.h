@@ -18,3 +18,6 @@
 #include "Log.h"
 #include "Names.h"
 #include "Service.h"
+#include "CProcessRunner.h"
+
+void ProcessProtocolUninstall();
