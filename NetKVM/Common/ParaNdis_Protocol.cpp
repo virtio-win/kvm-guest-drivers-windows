@@ -939,15 +939,14 @@ NDIS_STATUS CProtocolBinding::Bind(PNDIS_BIND_PARAMETERS BindParameters)
         TraceNoPrefix(0, "[%s] %p, failed %X\n", __FUNCTION__, this, status);
         Unbind(m_BindContext);
     }
-
-    QueryCapabilities(BindParameters);
-    QueryCurrentOffload();
-    QueryCurrentRSS();
-
-    if (NT_SUCCESS(status))
+    else
     {
+        QueryCapabilities(BindParameters);
+        QueryCurrentOffload();
+        QueryCurrentRSS();
         m_Protocol.AddBinding(BindParameters->CurrentMacAddress, this);
     }
+
     Release();
 
     return status;
