@@ -5,6 +5,8 @@ if /i "%1"=="debug" goto debug
 if /i "%1"=="stat" goto stat
 if /i "%1"=="reset" goto reset
 if /i "%1"=="rss" goto rss_set
+if /i "%1"=="qfo" goto failover_query
+if /i "%1"=="efo" goto failover_end
 goto help
 :debug
 call :dowmic netkvm_logging set level=%2
@@ -27,6 +29,15 @@ if "%2"=="" goto rss
 call :dowmic NetKvm_RssDiagnostics set DeviceSupport=%2
 goto :eof
 
+:failover_query
+call :dowmic NetKvm_Standby get /value
+goto :eof
+
+:failover_end
+call :dowmic NetKvm_Standby set value=0
+goto :eof
+
+
 :dowmic
 wmic /namespace:\\root\wmi path %*
 goto :eof
@@ -39,5 +50,7 @@ echo stat                   Retrieves internal statistics
 echo reset                  Resets internal statistics
 echo rss                    Query RSS statistics
 echo rss 0/1                Disable/enable RSS device support
+echo qfo                    Query failover setting
+echo efo                    End failover command (do not use)
 goto :eof
 
