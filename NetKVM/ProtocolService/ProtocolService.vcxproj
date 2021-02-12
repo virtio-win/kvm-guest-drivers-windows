@@ -15,15 +15,18 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CProcessRunner.h" />
     <ClInclude Include="Log.h" />
     <ClInclude Include="Names.h" />
     <ClInclude Include="Service.h" />
     <ClInclude Include="stdafx.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="guid.cpp" />
     <ClCompile Include="Names.cpp" />
     <ClCompile Include="ProtocolService.cpp" />
     <ClCompile Include="Service.cpp" />
+    <ClCompile Include="uninstall.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ProtocolService.rc" />
