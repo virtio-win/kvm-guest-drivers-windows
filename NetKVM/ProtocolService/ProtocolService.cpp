@@ -52,25 +52,36 @@ protected:
         }
         return res;
     }
-#if 0
     virtual bool OnStop() override
     {
+        CProcessRunner runner(false, 0);
+        CString cmd = BinaryPath();
+        cmd += _T(" x");
+        runner.RunProcess(cmd);
         return true;
     }
-#endif
 };
 
 static CProtocolServiceImplementation DummyService;
 
 int __cdecl main(int argc, char **argv)
 {
+    CStringA s;
+    if (argc > 1)
+    {
+       s = argv[1];
+       if (!s.CompareNoCase("x"))
+       {
+           ProcessProtocolUninstall();
+           return 0;
+       }
+    }
     if (CServiceImplementation::CheckInMain())
     {
         return 0;
     }
-    if (argc > 1)
+    if (!s.IsEmpty())
     {
-        CStringA s = argv[1];
         if (!s.CompareNoCase("i"))
         {
             if (!DummyService.Installed())
