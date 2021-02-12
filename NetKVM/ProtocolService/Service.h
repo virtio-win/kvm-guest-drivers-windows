@@ -259,11 +259,7 @@ public:
     }
     bool Install()
     {
-        CString s;
-        HMODULE hModule = GetModuleHandleW(NULL);
-        WCHAR path[MAX_PATH];
-        GetModuleFileName(hModule, path, MAX_PATH);
-        s = path;
+        CString s = BinaryPath();
         CServiceManager mgr;
         bool b = mgr.Install(ServiceName(), s);
         return b;
@@ -282,6 +278,15 @@ public:
     static const CAtlArray<CServiceImplementation *>& Registered()
     {
         return m_Registered;
+    }
+    CString BinaryPath()
+    {
+        CString s;
+        HMODULE hModule = GetModuleHandle(NULL);
+        WCHAR path[MAX_PATH];
+        GetModuleFileName(hModule, path, MAX_PATH);
+        s = path;
+        return s;
     }
 protected:
     CString m_Name;
