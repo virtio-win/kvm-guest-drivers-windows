@@ -33,6 +33,7 @@
 #include "kdebugprint.h"
 #include "ParaNdis_DebugHistory.h"
 #include "netkvmmof.h"
+#include "virtio_pci.h"
 #include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
 #include "ParaNdis6_Oid.tmh"
@@ -68,10 +69,12 @@ static NDIS_STATUS OnSetLinkParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOi
 static NDIS_STATUS OnSetVendorSpecific1(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 static NDIS_STATUS OnSetVendorSpecific2(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 static NDIS_STATUS OnSetVendorSpecific3(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
+static NDIS_STATUS OnSetVendorSpecific4(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 
 #define OID_VENDOR_1                    0xff010201
 #define OID_VENDOR_2                    0xff010202
 #define OID_VENDOR_3                    0xff010203
+#define OID_VENDOR_4                    0xff010204
 
 #if PARANDIS_SUPPORT_RSS
 
@@ -202,6 +205,7 @@ OIDENTRYPROC(OID_OFFLOAD_ENCAPSULATION,         0,0,0, ohfQuerySet | ohfSetPropa
 OIDENTRYPROC(OID_VENDOR_1,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific1),
 OIDENTRYPROC(OID_VENDOR_2,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific2),
 OIDENTRYPROC(OID_VENDOR_3,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific3),
+OIDENTRYPROC(OID_VENDOR_4,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific4),
 
 #if PARANDIS_SUPPORT_RSS
     OIDENTRYPROC(OID_GEN_RECEIVE_SCALE_PARAMETERS,  0,0,0, ohfSet | ohfSetPropagatePost | ohfSetMoreOK, RSSSetParameters),
@@ -275,6 +279,7 @@ static NDIS_OID SupportedOids[] =
         OID_VENDOR_1,
         OID_VENDOR_2,
         OID_VENDOR_3,
+        OID_VENDOR_4,
 #endif
         OID_OFFLOAD_ENCAPSULATION,
         OID_TCP_OFFLOAD_PARAMETERS,
@@ -292,6 +297,7 @@ static const NDIS_GUID supportedGUIDs[] =
     { NetKvm_LoggingGuid,    OID_VENDOR_1, NetKvm_Logging_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE },
     { NetKvm_StatisticsGuid, OID_VENDOR_2, NetKvm_Statistics_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE },
     { NetKvm_RssDiagnosticsGuid, OID_VENDOR_3, NetKvm_RssDiagnostics_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE },
+    { NetKvm_StandbyGuid, OID_VENDOR_4, NetKvm_Standby_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE },
 };
 
 /**********************************************************
@@ -429,6 +435,28 @@ static NDIS_STATUS OnSetVendorSpecific3(PARANDIS_ADAPTER *pContext, tOidDesc *pO
     ResetRssStatistics(pContext);
     return status;
 }
+
+static NDIS_STATUS OnSetVendorSpecific4(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
+{
+    ULONG temp = 0;
+    NDIS_STATUS status;
+    status = ParaNdis_OidSetCopy(pOid, &temp, sizeof(temp));
+    switch (temp)
+    {
+        case 0:
+            // inform VIOPROT uninstalled
+            if (virtio_is_feature_enabled(pContext->u64GuestFeatures, VIRTIO_NET_F_STANDBY))
+            {
+                pContext->bSuppressLinkUp = true;
+                ParaNdis_SynchronizeLinkState(pContext);
+            }
+            break;
+        default:
+            break;
+    }
+    return status;
+}
+
 /*****************************************************************
 Handles NDIS6 specific OID, all the rest handled by common handler
 *****************************************************************/
@@ -436,6 +464,7 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
     union _tagtemp
     {
+        ULONG                                   StandbySupported;
         NDIS_LINK_SPEED                         LinkSpeed;
         NDIS_INTERRUPT_MODERATION_PARAMETERS    InterruptModeration;
         NDIS_LINK_PARAMETERS                    LinkParameters;
@@ -491,6 +520,11 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             rssDiag.rxHits = pContext->extraStatistics.framesRSSHits;
             rssDiag.rxErrors = pContext->extraStatistics.framesRSSError;
             ResetRssStatistics(pContext);
+            break;
+        case OID_VENDOR_4:
+            u.StandbySupported = virtio_is_feature_enabled(pContext->u64GuestFeatures, VIRTIO_NET_F_STANDBY);
+            pInfo = &u.StandbySupported;
+            ulSize = sizeof(u.StandbySupported);
             break;
         case OID_GEN_INTERRUPT_MODERATION:
             u.InterruptModeration.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
