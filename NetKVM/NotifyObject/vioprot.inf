@@ -48,12 +48,12 @@ HKR,Ndi\Interfaces, LowerRange,,"ndis5,ndis5_prot"
 ; Service installation support
 ;-------------------------------------------------------------------------
 [Install.Services]
-AddService=netkvmp,,NETKVMP.ServiceInst
+AddService=netkvmp,0x800,NETKVMP.ServiceInst ;SPSVCSINST_STARTSERVICE
 
 [NETKVMP.ServiceInst]
 DisplayName     = %NETKVMP_Desc%
 ServiceType     = 16 ;SERVICE_WIN32_OWN_PROCESS
-StartType       = 3 ;SERVICE_DEMAND_START
+StartType       = 2 ;SERVICE_AUTO_START
 ErrorControl    = 1 ;SERVICE_ERROR_NORMAL
 ServiceBinary   = %11%\netkvmp.exe
 Description     = %NETKVMP_Desc%
