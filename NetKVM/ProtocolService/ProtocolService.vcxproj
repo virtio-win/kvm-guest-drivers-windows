@@ -38,6 +38,7 @@
     <RootNamespace>ProtocolService</RootNamespace>
     <CopyrightStrings>NetKVMCopyrightStrings</CopyrightStrings>
     <TargetName>netkvmp</TargetName>
+    <UseOfMfc>Static</UseOfMfc>
     <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -88,6 +89,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);onecoreuap.lib</AdditionalDependencies>
+      <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
     <PreBuildEvent>
       <Command>echo _NT_TARGET_MAJ=$(_NT_TARGET_MAJ)
@@ -103,6 +105,7 @@ echo _BUILD_MINOR_VERSION_=$(_BUILD_MINOR_VERSION_)
     </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);onecoreuap.lib</AdditionalDependencies>
+      <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
     <PreBuildEvent>
       <Command>echo _NT_TARGET_MAJ=$(_NT_TARGET_MAJ)
@@ -118,6 +121,7 @@ echo _BUILD_MINOR_VERSION_=$(_BUILD_MINOR_VERSION_)
     </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);onecoreuap.lib</AdditionalDependencies>
+      <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
     <PreBuildEvent>
       <Command>echo _NT_TARGET_MAJ=$(_NT_TARGET_MAJ)
