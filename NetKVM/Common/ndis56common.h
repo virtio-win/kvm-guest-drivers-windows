@@ -407,6 +407,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     u64                     u64HostFeatures = 0;
     u64                     u64GuestFeatures = 0;
     BOOLEAN                 bConnected = false;
+    BOOLEAN                 bSuppressLinkUp = false;
     BOOLEAN                 bGuestAnnounced = false;
     NDIS_PHYSICAL_MEDIUM    physicalMediaType;
     NDIS_MEDIA_CONNECT_STATE fCurrentLinkState;
