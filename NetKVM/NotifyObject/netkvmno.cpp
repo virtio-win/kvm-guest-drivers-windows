@@ -196,6 +196,11 @@ HRESULT CNotifyObject::EnableVFBindings(INetCfgComponent *pNetCfgCom,
             ReleaseObj(pNetCfgBindPath);
             pNetCfgBindPath = NULL;
             hResult = pEnumNetCfgBindPath->Next(1, &pNetCfgBindPath, &ulNum);
+            if (hResult == S_FALSE) {
+                // last one reached
+                hResult = S_OK;
+                break;
+            }
         }
         ReleaseObj(pEnumNetCfgBindPath);
     }
