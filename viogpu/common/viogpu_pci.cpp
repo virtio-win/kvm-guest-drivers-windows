@@ -128,7 +128,7 @@ void *mem_alloc_nonpaged_block(void *context, size_t size)
 {
     UNREFERENCED_PARAMETER(context);
     PVOID ptr = ExAllocatePoolWithTag(
-        NonPagedPool,
+        NonPagedPoolNx,
         size,
         VIOGPUTAG);
     if (ptr) {
