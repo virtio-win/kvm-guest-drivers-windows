@@ -1543,9 +1543,7 @@ static void ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
     {
         PNET_PACKET_INFO pPacketInfo = &pBufferDescriptor->PacketInfo;
 
-        if( !pContext->bSurprizeRemoved &&
-            pContext->bConnected &&
-            ShallPassPacket(pContext, pPacketInfo))
+        if(ParaNdis_IsTxRxPossible(pContext) && ShallPassPacket(pContext, pPacketInfo))
         {
             UINT nCoalescedSegmentsCount;
             PNET_BUFFER_LIST packet = ParaNdis_PrepareReceivedPacket(pContext, pBufferDescriptor, &nCoalescedSegmentsCount);

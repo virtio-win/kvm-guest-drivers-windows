@@ -1071,10 +1071,10 @@ NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext)
     return status;
 }
 
-BOOLEAN ParaNdis_IsSendPossible(PARANDIS_ADAPTER *pContext)
+BOOLEAN ParaNdis_IsTxRxPossible(PARANDIS_ADAPTER *pContext)
 {
     BOOLEAN b;
-    b =  !pContext->bSurprizeRemoved && pContext->bConnected;
+    b = !pContext->bSurprizeRemoved && pContext->fCurrentLinkState == MediaConnectStateConnected;
     return b;
 }
 

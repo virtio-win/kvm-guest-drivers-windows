@@ -375,7 +375,7 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
         }
 
         if(NBLHolder->Prepare() &&
-           ParaNdis_IsSendPossible(m_Context))
+           ParaNdis_IsTxRxPossible(m_Context))
         {
             NBLHolder->StartMapping();
         }
@@ -580,7 +580,7 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList)
     bool bRestartStatus = false;
     bool HaveBuffers = true;
 
-    if(ParaNdis_IsSendPossible(m_Context))
+    if(ParaNdis_IsTxRxPossible(m_Context))
     {
 
         while (HaveBuffers && HaveMappedNBLs())
