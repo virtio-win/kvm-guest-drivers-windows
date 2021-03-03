@@ -1202,6 +1202,7 @@ void CProtocolBinding::OnSendCompletion(PNET_BUFFER_LIST Nbls, ULONG Flags)
     PNET_BUFFER_LIST *pCurrent = &Nbls;
     PNET_BUFFER_LIST current = Nbls;
     ULONG errors = 0, count = 0;
+    int level;
 
     RetrieveSourceHandle(Nbls);
 
@@ -1227,7 +1228,8 @@ void CProtocolBinding::OnSendCompletion(PNET_BUFFER_LIST Nbls, ULONG Flags)
         current = *pCurrent;
     }
 
-    TraceNoPrefix(errors != 0 ? 0 : 1, "[%s] %d nbls(%d errors)\n", __FUNCTION__, count, errors);
+    level = errors ? 0 : 1;
+    TraceNoPrefix(level, "[%s] %d nbls(%d errors)\n", __FUNCTION__, count, errors);
 
     if (Nbls)
     {
