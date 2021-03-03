@@ -710,6 +710,21 @@ static NDIS_STATUS NTStatusToNdisStatus(NTSTATUS nt_status) {
     }
 }
 
+static void ReadLinkState(PARANDIS_ADAPTER *pContext)
+{
+    if (pContext->bLinkDetectSupported)
+    {
+        USHORT linkStatus = 0;
+        virtio_get_config(&pContext->IODevice, ETH_ALEN, &linkStatus, sizeof(linkStatus));
+        pContext->bConnected = !!(linkStatus & VIRTIO_NET_S_LINK_UP);
+        pContext->bGuestAnnounced = !!(linkStatus & VIRTIO_NET_S_ANNOUNCE);
+    }
+    else
+    {
+        pContext->bConnected = TRUE;
+    }
+}
+
 /**********************************************************
 Initializes the context structure
 Major variables, received from NDIS on initialization, must be be set before this call
@@ -1095,21 +1110,6 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     status = NDIS_STATUS_SUCCESS;
 
     return status;
-}
-
-static void ReadLinkState(PARANDIS_ADAPTER *pContext)
-{
-    if (pContext->bLinkDetectSupported)
-    {
-        USHORT linkStatus = 0;
-        virtio_get_config(&pContext->IODevice, ETH_ALEN, &linkStatus, sizeof(linkStatus));
-        pContext->bConnected = !!(linkStatus & VIRTIO_NET_S_LINK_UP);
-        pContext->bGuestAnnounced = !!(linkStatus & VIRTIO_NET_S_ANNOUNCE);
-    }
-    else
-    {
-        pContext->bConnected = TRUE;
-    }
 }
 
 static UINT8 ReadDeviceStatus(PARANDIS_ADAPTER *pContext)
