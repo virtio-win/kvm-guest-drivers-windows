@@ -264,13 +264,19 @@ static NDIS_STATUS ParaNdis6_Initialize(
         miniportAttributes.GeneralAttributes.LookaheadSize = pContext->MaxPacketSize.nMaxFullSizeOS;
         miniportAttributes.GeneralAttributes.MaxXmitLinkSpeed =
         miniportAttributes.GeneralAttributes.MaxRcvLinkSpeed  = pContext->LinkProperties.Speed;
-        miniportAttributes.GeneralAttributes.MediaConnectState =
-            pContext->bConnected ? MediaConnectStateConnected : MediaConnectStateDisconnected;
-        miniportAttributes.GeneralAttributes.XmitLinkSpeed =
-        miniportAttributes.GeneralAttributes.RcvLinkSpeed = pContext->bConnected ?
-            pContext->LinkProperties.Speed : NDIS_LINK_SPEED_UNKNOWN;
-        miniportAttributes.GeneralAttributes.MediaDuplexState = pContext->bConnected ?
-            pContext->LinkProperties.DuplexState : MediaDuplexStateUnknown;
+        miniportAttributes.GeneralAttributes.MediaConnectState = pContext->fCurrentLinkState;
+        if (pContext->fCurrentLinkState == MediaConnectStateConnected)
+        {
+            miniportAttributes.GeneralAttributes.XmitLinkSpeed =
+                miniportAttributes.GeneralAttributes.RcvLinkSpeed = pContext->LinkProperties.Speed;
+            miniportAttributes.GeneralAttributes.MediaDuplexState = pContext->LinkProperties.DuplexState;
+        }
+        else
+        {
+            miniportAttributes.GeneralAttributes.XmitLinkSpeed =
+                miniportAttributes.GeneralAttributes.RcvLinkSpeed = NDIS_LINK_SPEED_UNKNOWN;
+            miniportAttributes.GeneralAttributes.MediaDuplexState = MediaDuplexStateUnknown;
+        }
         miniportAttributes.GeneralAttributes.MacOptions =
                     NDIS_MAC_OPTION_COPY_LOOKAHEAD_DATA |       /* NIC has no internal loopback support */
                     NDIS_MAC_OPTION_TRANSFERS_NOT_PEND  |       /* Must be set since using  NdisMIndicateReceivePacket */
