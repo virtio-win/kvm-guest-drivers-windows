@@ -713,7 +713,8 @@ VOID ParaNdis_DeviceFiltersUpdateVlanId(
     PARANDIS_ADAPTER *pContext);
 
 VOID ParaNdis_SynchronizeLinkState(
-    PARANDIS_ADAPTER *pContext);
+    PARANDIS_ADAPTER *pContext,
+    bool bReport = true);
 
 VOID ParaNdis_SendGratuitousArpPacket(
     PARANDIS_ADAPTER *pContext);

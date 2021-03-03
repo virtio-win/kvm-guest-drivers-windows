@@ -137,10 +137,18 @@ VOID ParaNdis_SetLinkState(PARANDIS_ADAPTER *pContext, NDIS_MEDIA_CONNECT_STATE 
     }
 }
 
-VOID ParaNdis_SynchronizeLinkState(PARANDIS_ADAPTER *pContext)
+VOID ParaNdis_SynchronizeLinkState(PARANDIS_ADAPTER *pContext, bool bReport)
 {
     BOOLEAN connected = pContext->bConnected && !pContext->bSuppressLinkUp;
-    ParaNdis_SetLinkState(pContext, connected ? MediaConnectStateConnected : MediaConnectStateDisconnected);
+    NDIS_MEDIA_CONNECT_STATE state = connected ? MediaConnectStateConnected : MediaConnectStateDisconnected;
+    if (bReport)
+    {
+        ParaNdis_SetLinkState(pContext, state);
+    }
+    else
+    {
+        pContext->fCurrentLinkState = state;
+    }
 }
 
 VOID ParaNdis_SendGratuitousArpPacket(PARANDIS_ADAPTER *pContext)
