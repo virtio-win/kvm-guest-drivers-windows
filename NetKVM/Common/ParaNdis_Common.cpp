@@ -742,7 +742,6 @@ NDIS_STATUS ParaNdis_InitializeContext(
     PNDIS_RESOURCE_LIST pResourceList)
 {
     NDIS_STATUS status = NDIS_STATUS_SUCCESS;
-    USHORT linkStatus = 0;
     UCHAR CurrentMAC[ETH_ALEN] = {0};
     ULONG dependentOptions;
 
@@ -792,15 +791,10 @@ NDIS_STATUS ParaNdis_InitializeContext(
         pContext->bSuppressLinkUp = AckFeature(pContext, VIRTIO_NET_F_STANDBY);
 
         pContext->bLinkDetectSupported = AckFeature(pContext, VIRTIO_NET_F_STATUS);
-        if(pContext->bLinkDetectSupported) {
-            virtio_get_config(&pContext->IODevice, ETH_ALEN, &linkStatus, sizeof(linkStatus));
-            pContext->bConnected = (linkStatus & VIRTIO_NET_S_LINK_UP) != 0;
-            DPrintf(0, "[%s] Link status on driver startup: %d\n", __FUNCTION__, pContext->bConnected);
-        }
-        else
-        {
-            pContext->bConnected = TRUE;
-        }
+        ReadLinkState(pContext);
+        DPrintf(0, "[%s] Link status on driver startup: %d\n", __FUNCTION__, pContext->bConnected);
+        pContext->bGuestAnnounced = false;
+        ParaNdis_SynchronizeLinkState(pContext, false);
 
         InitializeLinkPropertiesConfig(pContext);
         pContext->bControlQueueSupported = AckFeature(pContext, VIRTIO_NET_F_CTRL_VQ);
