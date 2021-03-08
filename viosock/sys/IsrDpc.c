@@ -80,7 +80,6 @@ VIOSockInterruptInit(
         return status;
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return status;
 }
 
@@ -111,7 +110,7 @@ VIOSockInterruptIsr(
         serviced = FALSE;
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT,"<-- %s, interrupt not serviced\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-- %s, serviced: %s\n", __FUNCTION__, serviced ? "TRUE" : "FALSE");
 
     return serviced;
 }
@@ -135,8 +134,6 @@ VIOSockInterruptDpc(
 
     // handle the Write queue
     VIOSockTxVqProcess(pContext);
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
 }
 
 static

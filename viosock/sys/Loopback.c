@@ -48,6 +48,8 @@ VIOSockLoopbackAcceptEnqueue(
     WDFMEMORY       Memory;
     LONG            lAcceptPended;
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
     lAcceptPended = InterlockedIncrement(&pListenSocket->AcceptPended);
     if (lAcceptPended > pListenSocket->Backlog)
     {
@@ -118,7 +120,12 @@ VIOSockLoopbackAcceptEnqueue(
         status = STATUS_PENDING;
     }
     else
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "WdfMemoryCreateFromLookaside failed: 0x%x\n", status);
         InterlockedDecrement(&pListenSocket->AcceptPended);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 
     return status;
 }
@@ -132,6 +139,8 @@ VIOSockLoopbackAcceptDequeue(
     PSOCKET_CONTEXT pConnectSocket = GetSocketContext(pAcceptEntry->ConnectSocket);
     BOOLEAN bRes = TRUE;
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
     if (pConnectSocket->State == VIOSOCK_STATE_CONNECTING)
     {
         //link accepted socket to connecting one
@@ -142,10 +151,10 @@ VIOSockLoopbackAcceptDequeue(
     {
         ASSERT(FALSE);
         //skip accept entry
-        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
         WdfObjectDereference(pAcceptEntry->ConnectSocket);
         bRes = FALSE;
     }
+
     return bRes;
 }
 
@@ -203,7 +212,7 @@ VIOSockLoopbackConnect(
     else
         status = STATUS_CONNECTION_RESET;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
     return status;
 }
 
@@ -279,7 +288,7 @@ VIOSockLoopbackHandleConnecting(
     if (PendedRequest)
         WdfRequestComplete(PendedRequest, status);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
     return status;
 }
 
@@ -330,7 +339,7 @@ VIOSockLoopbackHandleConnected(
         break;
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
     return status;
 }
 
@@ -351,8 +360,6 @@ VIOSockLoopbackHandleDisconnecting(
         //             VIOSockEventSetBit(pDestSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
         //         }
     }
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 }
 
 NTSTATUS
@@ -381,12 +388,17 @@ VIOSockLoopbackTxEnqueue(
             status = STATUS_LOCAL_DISCONNECT;
 
         if (!NT_SUCCESS(status))
+        {
+
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "VIOSockStateValidate failed, status: 0x%x\n", status);
             return status;
+        }
     }
 
     uCredit = VIOSockTxGetCredit(pSocket, Length);
     if (Length && !uCredit)
     {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "VIOSockTxGetCredit failed\n");
         return STATUS_BUFFER_TOO_SMALL;
     }
 
@@ -400,6 +412,7 @@ VIOSockLoopbackTxEnqueue(
         else
         {
             ASSERT(FALSE);
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "no Loopback socket\n");
             status = STATUS_UNSUCCESSFUL;
         }
         return status;
