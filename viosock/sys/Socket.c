@@ -739,23 +739,13 @@ VIOSockAcceptEnqueuePkt(
 
             InterlockedDecrement(&pListenSocket->AcceptPended);
 
-            pAcceptSocket->type = pListenSocket->type;
-
-            pAcceptSocket->src_port = pListenSocket->src_port;
-
-            pAcceptSocket->ConnectTimeout = pListenSocket->ConnectTimeout;
-            pAcceptSocket->BufferMinSize = pListenSocket->BufferMinSize;
-            pAcceptSocket->BufferMaxSize = pListenSocket->BufferMaxSize;
-
-            pAcceptSocket->buf_alloc = pListenSocket->buf_alloc;
-
             pAcceptSocket->dst_cid = (ULONG32)pPkt->src_cid;
             pAcceptSocket->dst_port = pPkt->src_port;
             pAcceptSocket->peer_buf_alloc = pPkt->src_port;
             pAcceptSocket->peer_fwd_cnt = pPkt->fwd_cnt;
 
-            VIOSockStateSetLocked(pAcceptSocket, VIOSOCK_STATE_CONNECTED);
-            VIOSockSendResponse(pAcceptSocket);
+            VIOSockAcceptInitSocket(pAcceptSocket, pListenSocket);
+
             WdfRequestComplete(PendedRequest, STATUS_SUCCESS);
             return STATUS_SUCCESS;
         }
@@ -822,6 +812,33 @@ VIOSockAcceptRemovePkt(
 
 }
 
+NTSTATUS
+VIOSockAcceptInitSocket(
+    PSOCKET_CONTEXT pAcceptSocket,
+    PSOCKET_CONTEXT pListenSocket
+)
+{
+    NTSTATUS status = STATUS_SUCCESS;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
+    pAcceptSocket->type = pListenSocket->type;
+
+    pAcceptSocket->src_port = pListenSocket->src_port;
+
+    pAcceptSocket->ConnectTimeout = pListenSocket->ConnectTimeout;
+    pAcceptSocket->BufferMinSize = pListenSocket->BufferMinSize;
+    pAcceptSocket->BufferMaxSize = pListenSocket->BufferMaxSize;
+
+    pAcceptSocket->buf_alloc = pListenSocket->buf_alloc;
+
+    VIOSockStateSetLocked(pAcceptSocket, VIOSOCK_STATE_CONNECTED);
+    status = VIOSockSendResponse(pAcceptSocket);
+    VIOSockEventSetBit(pListenSocket, FD_ACCEPT_BIT, status);
+
+    return status;
+}
+
 _Requires_lock_not_held_(pListenSocket->RxLock)
 static
 BOOLEAN
@@ -867,15 +884,7 @@ VIOSockAcceptDequeue(
             pAcceptSocket->peer_buf_alloc = pAccept->peer_buf_alloc;
             pAcceptSocket->peer_fwd_cnt = pAccept->peer_fwd_cnt;
 
-            pAcceptSocket->type = pListenSocket->type;
-
-            pAcceptSocket->src_port = pListenSocket->src_port;
-
-            pAcceptSocket->ConnectTimeout = pListenSocket->ConnectTimeout;
-            pAcceptSocket->BufferMinSize = pListenSocket->BufferMinSize;
-            pAcceptSocket->BufferMaxSize = pListenSocket->BufferMaxSize;
-
-            pAcceptSocket->buf_alloc = pListenSocket->buf_alloc;
+            VIOSockAcceptInitSocket(pAcceptSocket, pListenSocket);
 
             WdfObjectDelete(pAccept->Memory);
             bAccepted = TRUE;
@@ -961,13 +970,7 @@ VIOSockAccept(
 
             VIOSockEventClearBit(pListenSocket, FD_ACCEPT_BIT);
 
-            if (VIOSockAcceptDequeue(pListenSocket, pAcceptSocket, &bSetBit))
-            {
-                VIOSockStateSetLocked(pAcceptSocket, VIOSOCK_STATE_CONNECTED);
-                status = VIOSockSendResponse(pAcceptSocket);
-                VIOSockEventSetBit(pListenSocket, FD_ACCEPT_BIT, status);
-            }
-            else
+            if (!VIOSockAcceptDequeue(pListenSocket, pAcceptSocket, &bSetBit))
             {
                 if (VIOSockIsFlag(pListenSocket, SOCK_NON_BLOCK))
                     status = STATUS_CANT_WAIT;

@@ -426,6 +426,12 @@ VIOSockPendedRequestGetLocked(
     OUT WDFREQUEST      *Request
 );
 
+NTSTATUS
+VIOSockAcceptInitSocket(
+	PSOCKET_CONTEXT pAcceptSocket,
+	PSOCKET_CONTEXT pListenSocket
+);
+
 _Requires_lock_not_held_(pListenSocket->RxLock)
 NTSTATUS
 VIOSockAcceptEnqueuePkt(
