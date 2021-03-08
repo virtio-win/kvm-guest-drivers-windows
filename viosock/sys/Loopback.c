@@ -70,16 +70,6 @@ VIOSockLoopbackAcceptEnqueue(
 
             InterlockedDecrement(&pListenSocket->AcceptPended);
 
-            pAcceptSocket->type = pListenSocket->type;
-
-            pAcceptSocket->src_port = pListenSocket->src_port;
-
-            pAcceptSocket->ConnectTimeout = pListenSocket->ConnectTimeout;
-            pAcceptSocket->BufferMinSize = pListenSocket->BufferMinSize;
-            pAcceptSocket->BufferMaxSize = pListenSocket->BufferMaxSize;
-
-            pAcceptSocket->buf_alloc = pListenSocket->buf_alloc;
-
             pAcceptSocket->dst_cid = pContext->Config.guest_cid;
             pAcceptSocket->dst_port = pConnectSocket->src_port;
             pAcceptSocket->peer_buf_alloc = pConnectSocket->buf_alloc;
@@ -90,8 +80,8 @@ VIOSockLoopbackAcceptEnqueue(
             WdfObjectReference(pAcceptSocket->LoopbackSocket);
             VIOSockSetFlag(pAcceptSocket, SOCK_LOOPBACK);
 
-            VIOSockStateSetLocked(pAcceptSocket, VIOSOCK_STATE_CONNECTED);
-            VIOSockSendResponse(pAcceptSocket);
+            VIOSockAcceptInitSocket(pAcceptSocket, pListenSocket);
+
             WdfRequestComplete(PendedRequest, STATUS_SUCCESS);
             return STATUS_SUCCESS;
         }
