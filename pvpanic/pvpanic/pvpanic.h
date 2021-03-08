@@ -49,7 +49,7 @@
 
 PUCHAR PvPanicPortAddress;
 BOOLEAN bEmitCrashLoadedEvent;
-BOOLEAN bSupportCrashLoaded;
+UCHAR   SupportedFeature;
 
 typedef struct _DEVICE_CONTEXT {
 
@@ -78,8 +78,8 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 // Bug check callback registration functions.
 //
 
-BOOLEAN PVPanicRegisterBugCheckCallback(IN PVOID PortAddress);
-BOOLEAN PVPanicDeregisterBugCheckCallback();
+VOID PVPanicRegisterBugCheckCallback(IN PVOID PortAddress);
+VOID PVPanicDeregisterBugCheckCallback();
 
 //
 // WDFDRIVER events.

@@ -66,36 +66,57 @@ VOID PVPanicOnDumpBugCheck(
         KeDeregisterBugCheckReasonCallback(Record);
 }
 
-BOOLEAN PVPanicRegisterBugCheckCallback(IN PVOID PortAddress)
+VOID PVPanicRegisterBugCheckCallback(IN PVOID PortAddress)
 {
     BOOLEAN bBugCheck;
 
     KeInitializeCallbackRecord(&CallbackRecord);
     KeInitializeCallbackRecord(&DumpCallbackRecord);
 
-    bBugCheck = KeRegisterBugCheckCallback(&CallbackRecord, PVPanicOnBugCheck,
-                  (PVOID)PortAddress, sizeof(PVOID), (PUCHAR)("PVPanic"));
-    if (bSupportCrashLoaded)
+    if (SupportedFeature & PVPANIC_PANICKED)
     {
-        BOOLEAN bReasonBugCheck;
-        bReasonBugCheck = KeRegisterBugCheckReasonCallback(&DumpCallbackRecord,
-                  PVPanicOnDumpBugCheck, KbCallbackDumpIo, (PUCHAR)("PVPanic"));
-        return bBugCheck && bReasonBugCheck;
+        bBugCheck = KeRegisterBugCheckCallback(&CallbackRecord, PVPanicOnBugCheck,
+                    (PVOID)PortAddress, sizeof(PVOID), (PUCHAR)("PVPanic"));
+        if (!bBugCheck)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
+                "Failed to register bug check callback function.");
+        }
     }
-    return bBugCheck;
+
+    if (SupportedFeature & PVPANIC_CRASHLOADED)
+    {
+        bBugCheck = KeRegisterBugCheckReasonCallback(&DumpCallbackRecord,
+                    PVPanicOnDumpBugCheck, KbCallbackDumpIo, (PUCHAR)("PVPanic"));
+        if (!bBugCheck)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
+                "Failed to register bug check reason callback function.");
+        }
+    }
 }
 
-BOOLEAN PVPanicDeregisterBugCheckCallback()
+VOID PVPanicDeregisterBugCheckCallback()
 {
     BOOLEAN bBugCheck;
 
-    bBugCheck = KeDeregisterBugCheckCallback(&CallbackRecord);
-    if (bSupportCrashLoaded)
+    if (SupportedFeature & PVPANIC_PANICKED)
     {
-        BOOLEAN bReasonBugCheck;
-        bReasonBugCheck = KeDeregisterBugCheckReasonCallback(&DumpCallbackRecord);
-        return bBugCheck && bReasonBugCheck;
+        bBugCheck = KeDeregisterBugCheckCallback(&CallbackRecord);
+        if (!bBugCheck)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
+                "Failed to unregister bug check callback function.");
+        }
     }
 
-    return bBugCheck;
+    if (SupportedFeature & PVPANIC_CRASHLOADED)
+    {
+        bBugCheck = KeDeregisterBugCheckReasonCallback(&DumpCallbackRecord);
+        if (!bBugCheck)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
+                "Failed to unregister bug check reason callback function.");
+        }
+    }
 }
