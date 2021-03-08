@@ -120,14 +120,21 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regi
 #else
     VirtioDebugPrintProc = NoDebugPrintFunc;
 #endif
-    driverDebugFlags = 0xffffffff;
 
     UNREFERENCED_PARAMETER(DriverObject);
     UNREFERENCED_PARAMETER(RegistryPath);
 
     bDebugPrint = 1;
-    driverDebugLevel = TRACE_LEVEL_INFORMATION;
     virtioDebugLevel = 1;
+
+#if !defined(EVENT_TRACING)
+    driverDebugFlags = 0xffffffff;
+#if DBG
+    driverDebugLevel = TRACE_LEVEL_VERBOSE;
+#else
+    driverDebugLevel = TRACE_LEVEL_INFORMATION;
+#endif
+#endif
 }
 
 tDebugPrintFunc VirtioDebugPrintProc;

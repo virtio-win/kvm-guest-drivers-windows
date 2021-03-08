@@ -150,7 +150,6 @@ VIOSockTxVqInit(
     }
 
     pContext->TxPktNum = uNumEntries;
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 
     return status;
 }
@@ -364,7 +363,7 @@ VIOSockTxDequeueCallback(
 
     if (!bRes)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "VIOSockTxPktInsert failed\n");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VIOSockTxPktInsert failed\n");
 
         VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, pParams->transaction);
         WdfRequestComplete(pParams->req, STATUS_INSUFFICIENT_RESOURCES);
@@ -373,8 +372,6 @@ VIOSockTxDequeueCallback(
     {
         virtqueue_kick(pContext->TxVq);
     }
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 
     return bRes;
 }
@@ -514,6 +511,8 @@ VIOSockTxCancel(
     PLIST_ENTRY CurrentEntry;
     LIST_ENTRY  CompletionList;
     BOOLEAN     bProcessVq = FALSE;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
     InitializeListHead(&CompletionList);
 

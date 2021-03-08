@@ -165,8 +165,6 @@ VIOSockQueuesCleanup(
         VIOSockEvtVqCleanup(pContext);
 
     VirtIOWdfDestroyQueues(&pContext->VDevice);
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
 
 static
@@ -490,7 +488,6 @@ VIOSockEvtDeviceReleaseHardware(
 
     VirtIOWdfShutdown(&pContext->VDevice);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 
@@ -525,8 +522,6 @@ VIOSockEvtDeviceD0Entry(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
         "guest_cid %lld\n", pContext->Config.guest_cid);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
-
     return status;
 }
 
@@ -545,8 +540,6 @@ VIOSockEvtDeviceD0Exit(
         __FUNCTION__, TargetState);
 
     VIOSockQueuesCleanup(Device);
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
 
     return STATUS_SUCCESS;
 }
@@ -570,7 +563,6 @@ VIOSockEvtDeviceD0EntryPostInterruptsEnabled(
 
     ASSERT(pContext->RxVq && pContext->EvtVq);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
 
@@ -601,8 +593,6 @@ VIOSockDeviceGetConfig(
 
     *pConfig = GetDeviceContextFromRequest(Request)->Config;
     *pLength = sizeof(*pConfig);
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 
     return STATUS_SUCCESS;
 }
@@ -635,7 +625,7 @@ VIOSockDeviceGetAf(
     *pulAF = AF_VSOCK;
     *pLength = sizeof(*pulAF);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s, AF: %d\n", __FUNCTION__, *pulAF);
 
     return STATUS_SUCCESS;
 }
@@ -689,7 +679,7 @@ VIOSockEvtIoDeviceControl(
     if (status != STATUS_PENDING)
         WdfRequestCompleteWithInformation(Request, status, Length);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -776,13 +766,11 @@ VIOSockSelectCleanupPkt(
     IN PVIOSOCK_SELECT_PKT pPkt
 )
 {
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "--> %s, status: 0x%08x\n", __FUNCTION__, pPkt->Status);
 
     VIOSockSelectCleanupFds(pPkt, FDSET_READ, 0);
     VIOSockSelectCleanupFds(pPkt, FDSET_WRITE, pPkt->FdCount[FDSET_READ]);
     VIOSockSelectCleanupFds(pPkt, FDSET_EXCPT, pPkt->FdCount[FDSET_READ] + pPkt->FdCount[FDSET_WRITE]);
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "<-- %s\n", __FUNCTION__);
 }
 
 static
@@ -855,8 +843,6 @@ VIOSockSelectCheckPkt(
             pFds->fd_array[pFds->fd_count++] = pHandleSet[i].hSocket;
         }
     }
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "<-- %s\n", __FUNCTION__);
 
     return pPkt->pSelect->Fdss[FDSET_READ].fd_count ||
         pPkt->pSelect->Fdss[FDSET_WRITE].fd_count ||
@@ -1015,10 +1001,10 @@ VIOSockSelectRun(
 
     if (bRun && InterlockedIncrement(&pContext->SelectInProgress) == 1)
     {
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "Enqueue workitem\n");
         WdfWorkItemEnqueue(pContext->SelectWorkitem);
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "<-- %s\n", __FUNCTION__);
 }
 
 static
@@ -1133,7 +1119,7 @@ VIOSockSelect(
         VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_EXCPT,
             pPkt->FdCount[FDSET_READ] + pPkt->FdCount[FDSET_WRITE]))
     {
-        status = VIOSockSelectCheckPkt(pPkt) ? STATUS_SUCCESS : STATUS_PENDING;
+        pPkt->Status = status = VIOSockSelectCheckPkt(pPkt) ? STATUS_SUCCESS : STATUS_PENDING;
     }
     else
     {

@@ -260,6 +260,8 @@ VIOSockBoundRemove(
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(WdfFileObjectGetDevice(pSocket->ThisSocket));
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
     WdfSpinLockAcquire(pContext->BoundLock);
     if (VIOSockResetFlag(pSocket, SOCK_BOUND))
     {
@@ -554,7 +556,7 @@ VIOSockPendedRequestCancel(
     PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
     WDFFILEOBJECT ParentSocket = WDF_NO_HANDLE;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, Request: %p\n", __FUNCTION__, Request);
 
     if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTING)
         WdfTimerStop(pSocket->ConnectTimer, FALSE);
@@ -568,6 +570,8 @@ VIOSockPendedRequestCancel(
     }
 
     ASSERT(pSocket && pSocket->PendedRequest == Request);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "Socket %d\n", pSocket->SocketId);
 
     WdfSpinLockAcquire(pSocket->RxLock);
     WdfObjectDereference(Request);
@@ -587,7 +591,7 @@ VIOSockPendedRequestSet(
     PSOCKET_CONTEXT pRequestSocket = GetSocketContextFromRequest(Request);
     PVIOSOCK_PENDED_CONTEXT pRequest = NULL;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, Socket %d, Request %p\n", __FUNCTION__, pSocket->SocketId, Request);
 
     ASSERT(pSocket && pRequestSocket);
     ASSERT(pSocket->PendedRequest == WDF_NO_HANDLE);
@@ -601,6 +605,8 @@ VIOSockPendedRequestSet(
             &attributes,
             VIOSOCK_PENDED_CONTEXT
         );
+
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "Linking pended request to parent socket\n");
 
         status = WdfObjectAllocateContext(
             Request,
@@ -656,7 +662,7 @@ VIOSockPendedRequestGet(
 {
     NTSTATUS    status = STATUS_SUCCESS;;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, Socket %d\n", __FUNCTION__, pSocket->SocketId);
 
     *Request = pSocket->PendedRequest;
     if (*Request != WDF_NO_HANDLE)
@@ -678,6 +684,8 @@ VIOSockPendedRequestGet(
             pSocket->PendedRequest = WDF_NO_HANDLE;
         }
     }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, pended request: %p\n", __FUNCTION__, *Request);
 
     return status;
 }
@@ -708,6 +716,8 @@ VIOSockAcceptEnqueuePkt(
     NTSTATUS        status;
     WDFMEMORY       Memory;
     LONG            lAcceptPended;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     lAcceptPended = InterlockedIncrement(&pListenSocket->AcceptPended);
     if (lAcceptPended > pListenSocket->Backlog)
@@ -772,8 +782,12 @@ VIOSockAcceptEnqueuePkt(
         status = STATUS_PENDING;
     }
     else
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "WdfMemoryCreateFromLookaside failed: 0x%x\n", status);
         InterlockedDecrement(&pListenSocket->AcceptPended);
+    }
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return status;
 }
 
@@ -784,6 +798,8 @@ VIOSockAcceptRemovePkt(
 )
 {
     PLIST_ENTRY pCurrentEntry;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     WdfSpinLockAcquire(pListenSocket->RxLock);
     for (pCurrentEntry = pListenSocket->AcceptList.Flink;
@@ -868,7 +884,7 @@ VIOSockAcceptDequeue(
             break;
     } while (!bAccepted);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, accepted: %d\n", __FUNCTION__, bAccepted);
 
     return bAccepted;
 }
@@ -881,6 +897,8 @@ VIOSockAcceptCleanup(
 )
 {
     WDFREQUEST PendedRequest;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     WdfSpinLockAcquire(pListenSocket->RxLock);
     while (!IsListEmpty(&pListenSocket->AcceptList))
@@ -913,6 +931,8 @@ VIOSockAccept(
     PFILE_OBJECT    pFileObj;
 
     PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     status = ObReferenceObjectByHandle(hListenSocket, FILE_READ_ACCESS, *IoFileObjectType,
         WdfRequestGetRequestorMode(Request), (PVOID)&pFileObj, NULL);
@@ -969,6 +989,8 @@ VIOSockAccept(
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "ObReferenceObjectByHandle failed: 0x%x\n", status);
         status = STATUS_NOT_SOCKET;
     }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
     return status;
 }
 
@@ -1160,8 +1182,6 @@ VIOSockDoClose(
     }
 
     KeSetEvent(&pSocket->CloseEvent, IO_NO_INCREMENT, FALSE);
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 }
 
 VOID
@@ -1283,7 +1303,7 @@ VIOSockBind(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pAddr), &pAddr, &stAddrLen);
     if (!NT_SUCCESS(status))
@@ -1297,26 +1317,26 @@ VIOSockBind(
 
     if (!VIOSockIsGuestAddrValid(pAddr))
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid addr to bind, cid: %u, port: %u\n", pAddr->svm_cid, pAddr->svm_port);
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Invalid addr to bind, cid: %u, port: %u\n", pAddr->svm_cid, pAddr->svm_port);
         return STATUS_INVALID_ADDRESS_COMPONENT;
     }
 
     if (pAddr->svm_cid != (ULONG32)pContext->Config.guest_cid &&
         pAddr->svm_cid != VMADDR_CID_ANY)
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid cid: %u\n", pAddr->svm_cid);
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Invalid cid: %u\n", pAddr->svm_cid);
         return STATUS_INVALID_ADDRESS_COMPONENT;
     }
 
     if (VIOSockIsBound(pSocket))
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Socket %d already bound\n", pSocket->SocketId);
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Socket %d already bound\n", pSocket->SocketId);
         return STATUS_INVALID_PARAMETER;
     }
 
     if (VIOSockStateGet(pSocket) != VIOSOCK_STATE_CLOSE)
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid socket state: %u\n", VIOSockStateGet(pSocket));
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Invalid socket state: %u\n", VIOSockStateGet(pSocket));
         return STATUS_UNSUCCESSFUL;
     }
 
@@ -1326,7 +1346,7 @@ VIOSockBind(
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockBoundAdd failed: 0x%x\n", status);
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 
     return status;
 }
@@ -1345,7 +1365,7 @@ VIOSockConnect(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pAddr), &pAddr, &stAddrLen);
     if (!NT_SUCCESS(status))
@@ -1359,7 +1379,7 @@ VIOSockConnect(
 
     if(!VIOSockIsHostAddrValid(pAddr, (ULONG32)pContext->Config.guest_cid))
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid addr to connect, cid: %u, port: %u\n", pAddr->svm_cid, pAddr->svm_port);
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Invalid addr to connect, cid: %u, port: %u\n", pAddr->svm_cid, pAddr->svm_port);
         return STATUS_INVALID_ADDRESS_COMPONENT;
     }
 
@@ -1381,7 +1401,7 @@ VIOSockConnect(
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid socket state: %u\n", pSocket->State);
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Invalid socket state: %u\n", pSocket->State);
         return status;
     }
 
@@ -1416,7 +1436,10 @@ VIOSockConnect(
     }
 
     if (pSocket->dst_cid == (ULONG32)pContext->Config.guest_cid)
+    {
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "Connect to local socket (loopback)\n");
         VIOSockSetFlag(pSocket, SOCK_LOOPBACK);
+    }
     else
         VIOSockResetFlag(pSocket, SOCK_LOOPBACK);
 
@@ -1438,7 +1461,7 @@ VIOSockConnect(
     else
         status = VIOSockIsFlag(pSocket, SOCK_NON_BLOCK) ? STATUS_CANT_WAIT : STATUS_PENDING;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
 
     return status;
 }
@@ -1464,6 +1487,8 @@ VIOSockShutdownFromPeer(
 //     {
 //         //TODO: dequeue requests for current socket only
 //     }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, bRes: %u\n", __FUNCTION__, bRes);
 
     return bRes;
 }
@@ -1501,6 +1526,8 @@ VIOSockStateValidateShutdown(
 
     WdfSpinLockRelease(pSocket->StateLock);
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
+
     return status;
 }
 
@@ -1517,7 +1544,7 @@ VIOSockShutdown(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pHow), &pHow, &stHowLen);
     if (!NT_SUCCESS(status))
@@ -1539,7 +1566,7 @@ VIOSockShutdown(
     (*pHow)++;
     if ((*pHow & ~VIRTIO_VSOCK_SHUTDOWN_MASK) || !*pHow)
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid shutdown flags: %u\n", *pHow);
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Invalid shutdown flags: %u\n", *pHow);
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -1554,8 +1581,6 @@ VIOSockShutdown(
     {
         status = STATUS_SUCCESS;
     }
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 
     return status;
 }
@@ -1573,7 +1598,7 @@ VIOSockListen(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pBacklog), &pBacklog, &stBacklogLen);
     if (!NT_SUCCESS(status))
@@ -1599,8 +1624,6 @@ VIOSockListen(
     }
     else
         status = STATUS_CONNECTION_ACTIVE;
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 
     return status;
 }
@@ -1660,7 +1683,7 @@ VIOSockEnumNetEvents(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pEventObject), &pEventObject, &stEventObjectLen);
     if (!NT_SUCCESS(status))
@@ -1698,22 +1721,20 @@ VIOSockEnumNetEvents(
         pEvent = VIOSockGetEventFromHandle(hEvent);
         if (!pEvent)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "VIOSockGetEventFromHandle failed\n");
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockGetEventFromHandle failed\n");
             return STATUS_INVALID_PARAMETER;
         }
     }
 
     if (pEvent && pEvent != pSocket->EventObject)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "Invalid event handle\n");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid event handle\n");
         return STATUS_INVALID_PARAMETER;
     }
 
     VIOSockEventUnregister(pSocket, lpNetworkEvents, pEvent);
 
     *pLength = sizeof(*lpNetworkEvents);
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 
     return STATUS_SUCCESS;
 }
@@ -1725,7 +1746,7 @@ VIOSockSetNonBlocking(
     IN BOOLEAN bNonBlocking
 )
 {
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, bNonBlocking: %u\n", __FUNCTION__, bNonBlocking);
 
     if (!VIOSockSetFlag(pSocket, SOCK_NON_BLOCK))
     {
@@ -1768,7 +1789,7 @@ VIOSockEventSelect(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pEventSelect), &pEventSelect, &stEventSelectLen);
     if (!NT_SUCCESS(status))
@@ -1804,7 +1825,7 @@ VIOSockEventSelect(
         pEvent = VIOSockGetEventFromHandle(hEvent);
         if (!pEvent)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "VIOSockGetEventFromHandle failed\n");
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockGetEventFromHandle failed\n");
             return STATUS_INVALID_PARAMETER;
         }
     }
@@ -1812,8 +1833,6 @@ VIOSockEventSelect(
     VIOSockSetNonBlocking(pSocket, TRUE);
 
     VIOSockEventRegister(pSocket, pEventSelect->lNetworkEvents, pEvent);
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 
     return STATUS_SUCCESS;
 }
@@ -1827,6 +1846,8 @@ VIOSockEventSetBit(
 {
     ULONG uEvent = (1 << uSetBit);
     BOOLEAN bSetEvent;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, uSetBit: 0x%x\n", __FUNCTION__, uSetBit);
 
     bSetEvent = !!(~pSocket->Events & uEvent & pSocket->EventsMask);
 
@@ -1859,6 +1880,8 @@ VIOSockEventClearBit(
 {
     ULONG uEvent = (1 << uClearBit);
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, uClearBit: 0x%x\n", __FUNCTION__, uClearBit);
+
     WdfSpinLockAcquire(pSocket->StateLock);
     pSocket->Events &= ~uEvent;
     WdfSpinLockRelease(pSocket->StateLock);
@@ -1878,7 +1901,7 @@ VIOSockGetPeerName(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveOutputBuffer(Request, sizeof(*pAddr), &pAddr, &stAddrLen);
     if (!NT_SUCCESS(status))
@@ -1901,8 +1924,6 @@ VIOSockGetPeerName(
     else
         status = STATUS_INVALID_DEVICE_STATE;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
-
     return STATUS_SUCCESS;
 }
 
@@ -1921,7 +1942,7 @@ VIOSockGetSockName(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveOutputBuffer(Request, sizeof(*pAddr), &pAddr, &stAddrLen);
     if (!NT_SUCCESS(status))
@@ -1943,8 +1964,6 @@ VIOSockGetSockName(
     }
     else
         status = STATUS_INVALID_DEVICE_STATE;
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 
     return STATUS_SUCCESS;
 }
@@ -1986,7 +2005,7 @@ VIOSockGetSockOpt(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pOpt), &pOpt, &stOptLen);
     if (!NT_SUCCESS(status))
@@ -2037,6 +2056,8 @@ VIOSockGetSockOpt(
         }
         pOptVal = WdfMemoryGetBuffer(Memory, NULL);
     }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "OptName: 0x%04x\n", pOpt->optname);
 
     switch (pOpt->optname)
     {
@@ -2153,7 +2174,7 @@ VIOSockGetSockOpt(
     if (NT_SUCCESS(status))
         *pLength = sizeof(*pOpt);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
 
     return status;
 }
@@ -2208,7 +2229,7 @@ VIOSockSetSockOpt(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pOpt), &pOpt, &stOptLen);
     if (!NT_SUCCESS(status))
@@ -2250,6 +2271,8 @@ VIOSockSetSockOpt(
         pOptVal = WdfMemoryGetBuffer(Memory, NULL);
 
     }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "OptName: 0x%04x\n", pOpt->optname);
 
     switch (pOpt->optname)
     {
@@ -2341,7 +2364,7 @@ VIOSockSetSockOpt(
 
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
 
     return status;
 }
@@ -2382,7 +2405,7 @@ VIOSockIoctl(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pInParams), &pInParams, &stInParamsLen);
     if (!NT_SUCCESS(status))
@@ -2440,6 +2463,8 @@ VIOSockIoctl(
 
     if (NT_SUCCESS(status))
     {
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "dwIoControlCode: 0x%08x\n", pInParams->dwIoControlCode);
+
         switch (pInParams->dwIoControlCode)
         {
         case FIONREAD:
@@ -2471,7 +2496,7 @@ VIOSockIoctl(
         }
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
 
     return status;
 }
@@ -2487,7 +2512,8 @@ VIOSockDeviceControl(
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s, code: 0x%08x, socket %d\n",
+        __FUNCTION__, IoControlCode, GetSocketContextFromRequest(Request)->SocketId);
 
     *pLength = 0;
 
@@ -2534,7 +2560,7 @@ VIOSockDeviceControl(
         status = STATUS_INVALID_DEVICE_REQUEST;
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
     return status;
 }
 
@@ -2581,6 +2607,8 @@ VIOSockStateValidate(
         status = STATUS_SUCCESS;
 
     WdfSpinLockRelease(pSocket->StateLock);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
 
     return status;
 }
@@ -2671,5 +2699,4 @@ VIOSockConnectTimerFunc(
         WdfRequestComplete(PendedRequest, STATUS_TIMEOUT);
 //        VIOSockTxCancel(GetDeviceContextFromSocket(pSocket), pSocket, STATUS_TIMEOUT);
     }
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 }

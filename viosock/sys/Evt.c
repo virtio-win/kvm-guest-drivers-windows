@@ -68,7 +68,6 @@ VIOSockEvtPktInsert(
         return FALSE;
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return TRUE;
 }
 
@@ -93,7 +92,6 @@ VIOSockEvtVqCleanup(
     }
 
     pContext->EvtVq = NULL;
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
 
 NTSTATUS

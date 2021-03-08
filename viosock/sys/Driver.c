@@ -92,7 +92,7 @@ VIOSockEvtDriverContextCleanup(
 {
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)Driver));
 }
@@ -105,6 +105,8 @@ VIOSockTimerStart(
 {
     LARGE_INTEGER liTicks;
     BOOLEAN bSetTimer = FALSE;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     if (!Timeout || Timeout == LONGLONG_MAX)
         return;
