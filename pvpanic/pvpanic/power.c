@@ -43,7 +43,6 @@ NTSTATUS PVPanicEvtDevicePrepareHardware(IN WDFDEVICE Device,
 {
     PDEVICE_CONTEXT context = GetDeviceContext(Device);
     PCM_PARTIAL_RESOURCE_DESCRIPTOR desc;
-    UCHAR features;
     ULONG i;
 
     UNREFERENCED_PARAMETER(Resources);
@@ -98,18 +97,15 @@ NTSTATUS PVPanicEvtDevicePrepareHardware(IN WDFDEVICE Device,
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    features = READ_PORT_UCHAR((PUCHAR)(context->IoBaseAddress));
-    if ((features & (PVPANIC_PANICKED | PVPANIC_CRASHLOADED))
-                       == (PVPANIC_PANICKED | PVPANIC_CRASHLOADED))
-    {
-        bSupportCrashLoaded = TRUE;
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
-            "PVPANIC_PANICKED and PVPANIC_CRASHLOADED notification features are supported.");
-    }
-    else if ((features & PVPANIC_PANICKED) == PVPANIC_PANICKED)
+    SupportedFeature = READ_PORT_UCHAR((PUCHAR)(context->IoBaseAddress));
+    if (SupportedFeature & (PVPANIC_PANICKED | PVPANIC_CRASHLOADED))
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
-            "PVPANIC_PANICKED notification feature is supported.");
+            "PVPANIC_PANICKED notification feature %s supported.",
+            (SupportedFeature & PVPANIC_PANICKED) ? "is" : "is not");
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
+            "PVPANIC_CRASHLOADED notification feature %s supported.",
+            (SupportedFeature & PVPANIC_CRASHLOADED) ? "is" : "is not");
     }
     else
     {
@@ -157,11 +153,7 @@ NTSTATUS PVPanicEvtDeviceD0Entry(IN WDFDEVICE Device,
 
     PAGED_CODE();
 
-    if (PVPanicRegisterBugCheckCallback(context->IoBaseAddress) == FALSE)
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-            "Failed to register bug check callback function.");
-    }
+    PVPanicRegisterBugCheckCallback(context->IoBaseAddress);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "<-- %!FUNC!");
 
@@ -179,11 +171,7 @@ NTSTATUS PVPanicEvtDeviceD0Exit(IN WDFDEVICE Device,
 
     PAGED_CODE();
 
-    if (PVPanicDeregisterBugCheckCallback() == FALSE)
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-            "Failed to unregister bug check callback function.");
-    }
+    PVPanicDeregisterBugCheckCallback();
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "<-- %!FUNC!");
 
