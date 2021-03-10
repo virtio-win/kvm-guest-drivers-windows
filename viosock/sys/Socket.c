@@ -512,7 +512,7 @@ VIOSockStateSet(
         }
         else if (NewState == VIOSOCK_STATE_CONNECTED)
         {
-            ASSERT(PrevState == VIOSOCK_STATE_CONNECTING);
+            ASSERT(PrevState == VIOSOCK_STATE_CONNECTING || PrevState == VIOSOCK_STATE_CLOSE);
             if (!NT_SUCCESS(VIOSockConnectedAdd(pSocket)))
             {
                 TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockConnectedAdd failed\n");
@@ -746,7 +746,7 @@ VIOSockAcceptEnqueuePkt(
             pAcceptSocket->dst_port = pPkt->src_port;
             pAcceptSocket->peer_buf_alloc = pPkt->src_port;
             pAcceptSocket->peer_fwd_cnt = pPkt->fwd_cnt;
-            
+
             VIOSockAcceptInitSocket(pAcceptSocket, pListenSocket);
 
             WdfRequestComplete(PendedRequest, STATUS_SUCCESS);
@@ -1078,6 +1078,15 @@ VIOSockCreate(
             pSocket->PendedRequest = WDF_NO_HANDLE;
             pSocket->LoopbackSocket = WDF_NO_HANDLE;
 
+            status = VIOSockReadSocketQueueInit(pSocket);
+            if (!NT_SUCCESS(status))
+            {
+                return status;
+            }
+
+            InitializeListHead(&pSocket->RxCbList);
+            pSocket->RxBytes = 0;
+
 #ifdef _WIN64
             if (WdfRequestIsFrom32BitProcess(Request))
             {
@@ -1103,15 +1112,6 @@ VIOSockCreate(
                 }
                 else
                 {
-                    status = VIOSockReadSocketQueueInit(pSocket);
-                    if (!NT_SUCCESS(status))
-                    {
-                        return status;
-                    }
-
-                    InitializeListHead(&pSocket->RxCbList);
-                    pSocket->RxBytes = 0;
-
                     pSocket->type = pParams->Type;
 
                     pSocket->ConnectTimeout = VSOCK_DEFAULT_CONNECT_TIMEOUT;
