@@ -458,8 +458,8 @@ SocketListenTest(
                             _tprintf(_T("AddBufferToFile failed: %d\n"), WSAGetLastError());
                         }
 
-                        BufferLen = sizeof("Recv: OK") - 1;
-                        Send(aSock, "Recv: OK", &BufferLen);
+                        BufferLen = sizeof("OK") - 1;
+                        Send(aSock, "OK", &BufferLen);
                     }
 
                     shutdown(aSock, SD_BOTH);
