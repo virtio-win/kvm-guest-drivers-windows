@@ -270,12 +270,14 @@ static NDIS_STATUS ParaNdis6_Initialize(
             miniportAttributes.GeneralAttributes.XmitLinkSpeed =
                 miniportAttributes.GeneralAttributes.RcvLinkSpeed = pContext->LinkProperties.Speed;
             miniportAttributes.GeneralAttributes.MediaDuplexState = pContext->LinkProperties.DuplexState;
+            DPrintf(0, "[%s] Initially connected @%d Mbps\n", __FUNCTION__, (ULONG)(pContext->LinkProperties.Speed / 1000000));
         }
         else
         {
             miniportAttributes.GeneralAttributes.XmitLinkSpeed =
                 miniportAttributes.GeneralAttributes.RcvLinkSpeed = NDIS_LINK_SPEED_UNKNOWN;
             miniportAttributes.GeneralAttributes.MediaDuplexState = MediaDuplexStateUnknown;
+            DPrintf(0, "[%s] Initially not connected\n", __FUNCTION__);
         }
         miniportAttributes.GeneralAttributes.MacOptions =
                     NDIS_MAC_OPTION_COPY_LOOKAHEAD_DATA |       /* NIC has no internal loopback support */
