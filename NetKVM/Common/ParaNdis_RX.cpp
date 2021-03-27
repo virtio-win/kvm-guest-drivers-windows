@@ -322,10 +322,10 @@ static void LogRedirectedPacket(pRxNetDescriptor pBufferDescriptor)
         packetType = "TCP_IPV6EX";
         break;
     case NDIS_HASH_IPV6_EX:
-        packetType = "TCP_IPV6EX";
+        packetType = "IPV6EX";
         break;
     case NDIS_HASH_IPV6:
-        packetType = "TCP_IPV6";
+        packetType = "IPV6";
         break;
 #if (NDIS_SUPPORT_NDIS680)
     case NDIS_HASH_UDP_IPV4:
