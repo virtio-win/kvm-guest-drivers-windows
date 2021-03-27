@@ -717,9 +717,9 @@ static __inline
 IPV6_ADDRESS* GetIP6SrcAddrForHash(
                             PVOID dataBuffer,
                             PNET_PACKET_INFO packetInfo,
-                            ULONG hashTypes)
+                            bool xEnabled)
 {
-    return ((hashTypes & (NDIS_HASH_TCP_IPV6_EX | NDIS_HASH_IPV6_EX)) && packetInfo->ip6HomeAddrOffset)
+    return (xEnabled && packetInfo->ip6HomeAddrOffset)
         ? (IPV6_ADDRESS*) RtlOffsetToPointer(dataBuffer, packetInfo->ip6HomeAddrOffset)
         : (IPV6_ADDRESS*) RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen + FIELD_OFFSET(IPv6Header, ip6_src_address));
 }
@@ -728,9 +728,9 @@ static __inline
 IPV6_ADDRESS* GetIP6DstAddrForHash(
                             PVOID dataBuffer,
                             PNET_PACKET_INFO packetInfo,
-                            ULONG hashTypes)
+                            bool xEnabled)
 {
-    return ((hashTypes & (NDIS_HASH_TCP_IPV6_EX | NDIS_HASH_IPV6_EX)) && packetInfo->ip6DestAddrOffset)
+    return (xEnabled && packetInfo->ip6DestAddrOffset)
         ? (IPV6_ADDRESS*) RtlOffsetToPointer(dataBuffer, packetInfo->ip6DestAddrOffset)
         : (IPV6_ADDRESS*) RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen + FIELD_OFFSET(IPv6Header, ip6_dst_address));
 }
@@ -799,16 +799,17 @@ VOID RSSCalcHash_Unsafe(
             {
                 IPv6Header *pIpHeader =  (IPv6Header *) RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen);
                 TCPHeader  *pTCPHeader = (TCPHeader *) RtlOffsetToPointer(pIpHeader, packetInfo->L3HdrLen);
+                bool xEnabled = (hashTypes & NDIS_HASH_TCP_IPV6_EX) != 0;
 
-                sgBuff[0].chunkPtr = (PCHAR) GetIP6SrcAddrForHash(dataBuffer, packetInfo, hashTypes);
+                sgBuff[0].chunkPtr = (PCHAR) GetIP6SrcAddrForHash(dataBuffer, packetInfo, xEnabled);
                 sgBuff[0].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_src_address);
-                sgBuff[1].chunkPtr = (PCHAR) GetIP6DstAddrForHash(dataBuffer, packetInfo, hashTypes);
+                sgBuff[1].chunkPtr = (PCHAR) GetIP6DstAddrForHash(dataBuffer, packetInfo, xEnabled);
                 sgBuff[1].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_dst_address);
                 sgBuff[2].chunkPtr = RtlOffsetToPointer(pTCPHeader, FIELD_OFFSET(TCPHeader, tcp_src));
                 sgBuff[2].chunkLen = RTL_FIELD_SIZE(TCPHeader, tcp_src) + RTL_FIELD_SIZE(TCPHeader, tcp_dest);
 
                 packetInfo->RSSHash.Value = ToeplitzHash(sgBuff, 3, RSSParameters->ActiveHashingSettings.HashSecretKey);
-                packetInfo->RSSHash.Type = (hashTypes & NDIS_HASH_TCP_IPV6_EX) ? NDIS_HASH_TCP_IPV6_EX : NDIS_HASH_TCP_IPV6;
+                packetInfo->RSSHash.Type = xEnabled ? NDIS_HASH_TCP_IPV6_EX : NDIS_HASH_TCP_IPV6;
                 packetInfo->RSSHash.Function = NdisHashFunctionToeplitz;
                 return;
             }
@@ -819,16 +820,17 @@ VOID RSSCalcHash_Unsafe(
         {
             IPv6Header *pIpHeader = (IPv6Header *)RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen);
             UDPHeader  *pUDPHeader = (UDPHeader *)RtlOffsetToPointer(pIpHeader, packetInfo->L3HdrLen);
+            bool xEnabled = (hashTypes & NDIS_HASH_UDP_IPV6_EX) != 0;
 
-            sgBuff[0].chunkPtr = (PCHAR)GetIP6SrcAddrForHash(dataBuffer, packetInfo, hashTypes);
+            sgBuff[0].chunkPtr = (PCHAR)GetIP6SrcAddrForHash(dataBuffer, packetInfo, xEnabled);
             sgBuff[0].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_src_address);
-            sgBuff[1].chunkPtr = (PCHAR)GetIP6DstAddrForHash(dataBuffer, packetInfo, hashTypes);
+            sgBuff[1].chunkPtr = (PCHAR)GetIP6DstAddrForHash(dataBuffer, packetInfo, xEnabled);
             sgBuff[1].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_dst_address);
             sgBuff[2].chunkPtr = RtlOffsetToPointer(pUDPHeader, FIELD_OFFSET(UDPHeader, udp_src));
             sgBuff[2].chunkLen = RTL_FIELD_SIZE(UDPHeader, udp_src) + RTL_FIELD_SIZE(UDPHeader, udp_dest);
 
             packetInfo->RSSHash.Value = ToeplitzHash(sgBuff, 3, RSSParameters->ActiveHashingSettings.HashSecretKey);
-            packetInfo->RSSHash.Type = (hashTypes & NDIS_HASH_UDP_IPV6_EX) ? NDIS_HASH_UDP_IPV6_EX : NDIS_HASH_UDP_IPV6;
+            packetInfo->RSSHash.Type = xEnabled ? NDIS_HASH_UDP_IPV6_EX : NDIS_HASH_UDP_IPV6;
             packetInfo->RSSHash.Function = NdisHashFunctionToeplitz;
             return;
         }
@@ -836,13 +838,15 @@ VOID RSSCalcHash_Unsafe(
 
         if(hashTypes & (NDIS_HASH_IPV6 | NDIS_HASH_IPV6_EX))
         {
-            sgBuff[0].chunkPtr = (PCHAR) GetIP6SrcAddrForHash(dataBuffer, packetInfo, hashTypes);
+            bool xEnabled = (hashTypes & NDIS_HASH_IPV6_EX) != 0;
+
+            sgBuff[0].chunkPtr = (PCHAR) GetIP6SrcAddrForHash(dataBuffer, packetInfo, xEnabled);
             sgBuff[0].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_src_address);
-            sgBuff[1].chunkPtr = (PCHAR) GetIP6DstAddrForHash(dataBuffer, packetInfo, hashTypes);
+            sgBuff[1].chunkPtr = (PCHAR) GetIP6DstAddrForHash(dataBuffer, packetInfo, xEnabled);
             sgBuff[1].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_dst_address);
 
             packetInfo->RSSHash.Value = ToeplitzHash(sgBuff, 2, RSSParameters->ActiveHashingSettings.HashSecretKey);
-            packetInfo->RSSHash.Type = (hashTypes & NDIS_HASH_IPV6_EX) ? NDIS_HASH_IPV6_EX : NDIS_HASH_IPV6;
+            packetInfo->RSSHash.Type = xEnabled ? NDIS_HASH_IPV6_EX : NDIS_HASH_IPV6;
             packetInfo->RSSHash.Function = NdisHashFunctionToeplitz;
             return;
         }
