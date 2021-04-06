@@ -57,6 +57,7 @@
     <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
     <SignMode>Off</SignMode>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+    <TargetInfFile>netkvm.inf</TargetInfFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
@@ -78,7 +79,6 @@
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win7_x86\i386</DEP_LIB_PATH>
     <SourceInfFile>netkvm_no_RSC.inx</SourceInfFile>
-    <TargetInfFile>netkvm.inf</TargetInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'" Label="Configuration">
@@ -103,7 +103,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win8_x86\i386</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inx</SourceInfFile>
+    <SourceInfFile>netkvm_no_USO.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" Label="Configuration">
@@ -114,7 +114,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win8_x86\i386</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inx</SourceInfFile>
+    <SourceInfFile>netkvm_no_USO.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'" Label="Configuration">
@@ -148,7 +148,6 @@
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win7_amd64\amd64</DEP_LIB_PATH>
     <SourceInfFile>netkvm_no_RSC.inx</SourceInfFile>
-    <TargetInfFile>netkvm.inf</TargetInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'" Label="Configuration">
@@ -173,7 +172,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win8_amd64\amd64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inx</SourceInfFile>
+    <SourceInfFile>netkvm_no_USO.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" Label="Configuration">
@@ -184,7 +183,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win8_amd64\amd64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inx</SourceInfFile>
+    <SourceInfFile>netkvm_no_USO.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\NetKVM-VS2015.props" />
