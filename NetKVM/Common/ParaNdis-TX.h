@@ -56,6 +56,7 @@ private:
     void BuildPriorityHeader(PETH_HEADER EthHeader, PVLAN_HEADER VlanHeader) const;
     void PrepareOffloads(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength, ULONG L4HeaderOffset) const;
     void SetupLSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const;
+    void SetupUSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const;
     USHORT QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const;
     void DoIPHdrCSO(PVOID EthHeaders, ULONG HeadersLength) const;
     void SetupCSO(virtio_net_hdr *VirtioHeader, ULONG L4HeaderOffset) const;
@@ -130,6 +131,18 @@ public:
     { return m_TCI; }
     bool IsLSO()
     { return (m_LsoInfo.Value != nullptr); }
+#if PARANDIS_SUPPORT_USO
+    bool IsUSO()
+    { return (m_UsoInfo.Value != nullptr); }
+    ULONG UsoMSS()
+    { return m_UsoInfo.Transmit.MSS; }
+    ULONG UsoHeaderOffset()
+    { return m_UsoInfo.Transmit.UdpHeaderOffset; }
+#else
+    bool IsUSO() { return false; }
+    ULONG UsoMSS() { return 0; }
+    ULONG UsoHeaderOffset() { return 0; }
+#endif
     bool IsTcpCSO()
     { return m_CsoInfo.Transmit.TcpChecksum; }
     bool IsUdpCSO()
@@ -152,6 +165,7 @@ private:
     bool ParseBuffers();
     bool ParseOffloads();
     bool ParseLSO();
+    bool ParseUSO();
     bool NeedsLSO();
     ULONG LsoTcpHeaderOffset()
     { return m_LsoInfo.LsoV2Transmit.TcpHeaderOffset; }
@@ -189,7 +203,9 @@ private:
 
     NDIS_TCP_LARGE_SEND_OFFLOAD_NET_BUFFER_LIST_INFO m_LsoInfo;
     NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO m_CsoInfo;
-
+#if PARANDIS_SUPPORT_USO
+    NDIS_UDP_SEGMENTATION_OFFLOAD_NET_BUFFER_LIST_INFO m_UsoInfo;
+#endif
     CAllocationHelper<CNB> *m_NBAllocator;
 
     CNBL(const CNBL&) = delete;
