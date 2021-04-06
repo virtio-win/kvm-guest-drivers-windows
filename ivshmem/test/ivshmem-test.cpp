@@ -7,7 +7,7 @@
 #define TEST_PASS() printf("PASS\n")
 #define TEST_FAIL(reason) printf("FAIL - %s\n", reason)
 
-int main()
+int __cdecl main()
 {
 	HDEVINFO deviceInfoSet;
 	DWORD    deviceIndex;
