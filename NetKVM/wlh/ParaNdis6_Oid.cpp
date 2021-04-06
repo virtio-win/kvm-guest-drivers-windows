@@ -1087,8 +1087,8 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
     tOffloadSettingsFlags fPresent = pContext->Offload.flags;
     tOffloadSettingsFlags *pf = &fPresent;
 
-    DPrintf(0, "[%s] Requested: V4:IPCS=%s,TCPCS=%s,UDPCS=%s V6:TCPCS=%s,UDPCS=%s\n",
-                __FUNCTION__,
+    DPrintf(0, "[%s] Requested v%d: V4:IPCS=%s,TCPCS=%s,UDPCS=%s V6:TCPCS=%s,UDPCS=%s\n",
+                __FUNCTION__, pop->Header.Revision,
                 MakeOffloadParameterString(pop->IPv4Checksum),
                 MakeOffloadParameterString(pop->TCPIPv4Checksum),
                 MakeOffloadParameterString(pop->UDPIPv4Checksum),
@@ -1175,8 +1175,40 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
         bFailed = TRUE;
     }
 
-    DPrintf(0, "[%s] Result: LSO: v4 %d, v6 %d\n", __FUNCTION__, pf->fTxLso, pf->fTxLsov6);
-    DPrintf(0, "[%s] Final: the request %saccepted\n", __FUNCTION__, bFailed ? "NOT " : "");
+    DPrintf(0, "[%s] Result(%s): LSO: v4 %d, v6 %d\n", __FUNCTION__,
+        bFailed ? "Bad" : "OK",
+        pf->fTxLso, pf->fTxLsov6);
+
+#if NDIS_SUPPORT_NDIS683
+    if (pop->Header.Revision >= NDIS_OFFLOAD_PARAMETERS_REVISION_5 &&
+        pop->Header.Size >= NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_5)
+    {
+        if (NDIS_OFFLOAD_PARAMETERS_USO_DISABLED == pop->UdpSegmentation.IPv4)
+        {
+            pf->fUsov4 = 0;
+        }
+        else if (NDIS_OFFLOAD_PARAMETERS_USO_ENABLED == pop->UdpSegmentation.IPv4)
+        {
+            if (fSupported.fUsov4) pf->fUsov4 = 1;
+            else
+                bFailed = TRUE;
+        }
+
+        if (NDIS_OFFLOAD_PARAMETERS_USO_DISABLED == pop->UdpSegmentation.IPv6)
+        {
+            pf->fUsov6 = 0;
+        }
+        else if (NDIS_OFFLOAD_PARAMETERS_USO_ENABLED == pop->UdpSegmentation.IPv6)
+        {
+            if (fSupported.fUsov6) pf->fUsov6 = 1;
+            else
+                bFailed = TRUE;
+        }
+    }
+#endif
+
+    DPrintf(0, "[%s] Result (%s): USO: v4 %d, v6 %d\n", __FUNCTION__,
+        bFailed ? "Bad" : "OK", pf->fUsov4, pf->fUsov6);
 
     if (bFailed && pOid)
         return NDIS_STATUS_INVALID_PARAMETER;
