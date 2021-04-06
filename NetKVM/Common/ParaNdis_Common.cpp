@@ -102,6 +102,10 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry RSCIPv4Supported;
     tConfigurationEntry RSCIPv6Supported;
 #endif
+#if PARANDIS_SUPPORT_USO
+    tConfigurationEntry USOv4Supported;
+    tConfigurationEntry USOv6Supported;
+#endif
 }tConfigurationEntries;
 
 static const tConfigurationEntries defaultConfiguration =
@@ -134,6 +138,10 @@ static const tConfigurationEntries defaultConfiguration =
 #if PARANDIS_SUPPORT_RSC
     { "*RscIPv4", 1, 0, 1},
     { "*RscIPv6", 1, 0, 1},
+#endif
+#if PARANDIS_SUPPORT_USO
+    { "*UsoIPv4", 1, 0, 1},
+    { "*UsoIPv6", 1, 0, 1},
 #endif
 };
 
@@ -264,6 +272,10 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             GetConfigurationEntry(cfg, &pConfiguration->RSCIPv4Supported);
             GetConfigurationEntry(cfg, &pConfiguration->RSCIPv6Supported);
 #endif
+#if PARANDIS_SUPPORT_USO
+            GetConfigurationEntry(cfg, &pConfiguration->USOv4Supported);
+            GetConfigurationEntry(cfg, &pConfiguration->USOv6Supported);
+#endif
 
             bDebugPrint = pConfiguration->isLogEnabled.ulValue;
             virtioDebugLevel = pConfiguration->debugLevel.ulValue;
@@ -290,6 +302,10 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             /* full packet size that can be configured as GSO for VIRTIO is short */
             /* NDIS test fails sometimes fails on segments 50-60K */
             pContext->Offload.maxPacketSize = PARANDIS_MAX_LSO_SIZE;
+            /* InitialOffloadParameters is used only internally */
+            pContext->InitialOffloadParameters.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+            pContext->InitialOffloadParameters.Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_1;
+            pContext->InitialOffloadParameters.Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_1;
             pContext->InitialOffloadParameters.IPv4Checksum = (UCHAR)pConfiguration->stdIpcsV4.ulValue;
             pContext->InitialOffloadParameters.TCPIPv4Checksum = (UCHAR)pConfiguration->stdTcpcsV4.ulValue;
             pContext->InitialOffloadParameters.TCPIPv6Checksum = (UCHAR)pConfiguration->stdTcpcsV6.ulValue;
@@ -298,6 +314,22 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             pContext->InitialOffloadParameters.LsoV1 = (UCHAR)pConfiguration->stdLsoV1.ulValue;
             pContext->InitialOffloadParameters.LsoV2IPv4 = (UCHAR)pConfiguration->stdLsoV2ip4.ulValue;
             pContext->InitialOffloadParameters.LsoV2IPv6 = (UCHAR)pConfiguration->stdLsoV2ip6.ulValue;
+#if PARANDIS_SUPPORT_USO
+            pContext->InitialOffloadParameters.Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_5;
+            pContext->InitialOffloadParameters.Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_5;
+            if (pConfiguration->USOv4Supported.ulValue)
+            {
+                // Uncomment later
+                // pContext->InitialOffloadParameters.UdpSegmentation.IPv4 = (UCHAR)pConfiguration->USOv4Supported.ulValue;
+                // pContext->Offload.flagsValue |= osbT4Uso;
+            }
+            if (pConfiguration->USOv6Supported.ulValue)
+            {
+                // Uncomment later
+                // pContext->InitialOffloadParameters.UdpSegmentation.IPv6 = (UCHAR)pConfiguration->USOv6Supported.ulValue;
+                // pContext->Offload.flagsValue |= osbT6Uso;
+            }
+#endif
             pContext->ulPriorityVlanSetting = pConfiguration->PriorityVlanTagging.ulValue;
             pContext->VlanId = pConfiguration->VlanId.ulValue & 0xfff;
             pContext->MaxPacketSize.nMaxDataSize = pConfiguration->JumboPacket.ulValue - ETH_HEADER_SIZE;
@@ -374,6 +406,9 @@ void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsF
     pDest->fRxTCPv6Options = !!(*from & osbT6RxTCPOptionsChecksum);
     pDest->fRxUDPv6Checksum = !!(*from & osbT6RxUDPChecksum);
     pDest->fRxIPv6Ext = !!(*from & osbT6RxIpExtChecksum);
+
+    pDest->fUsov4 = !!(*from & osbT4Uso);
+    pDest->fUsov6 = !!(*from & osbT6Uso);
 }
 
 static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
@@ -892,6 +927,30 @@ NDIS_STATUS ParaNdis_InitializeContext(
     if (pContext->Offload.flags.fTxLsov6 && !AckFeature(pContext, VIRTIO_NET_F_HOST_TSO6))
     {
         DisableLSOv6Permanently(pContext, __FUNCTION__, "Host does not support TSOv6");
+    }
+
+    if (pContext->Offload.flags.fUsov4 || pContext->Offload.flags.fUsov6)
+    {
+        LPCSTR message = NULL;
+        if (!CheckNdisVersion(6, 83))
+        {
+            message = "NDIS before 1903";
+        }
+        else if (virtio_is_feature_enabled(pContext->u64GuestFeatures, VIRTIO_NET_F_STANDBY))
+        {
+            message = "failover configuration";
+        }
+        else if (!AckFeature(pContext, VIRTIO_NET_F_HOST_USO))
+        {
+            message = "host without USO support";
+        }
+        if (message)
+        {
+            DPrintf(0, "[%s] USO is disabled due to %s\n", __FUNCTION__, message);
+            pContext->Offload.flagsValue &= ~osbT4Uso;
+            pContext->Offload.flagsValue &= ~osbT6Uso;
+            ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
+        }
     }
 
     pContext->bUseIndirect = AckFeature(pContext, VIRTIO_RING_F_INDIRECT_DESC);
