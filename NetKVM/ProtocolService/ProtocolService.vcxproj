@@ -41,7 +41,6 @@
     <RootNamespace>ProtocolService</RootNamespace>
     <CopyrightStrings>NetKVMCopyrightStrings</CopyrightStrings>
     <TargetName>netkvmp</TargetName>
-    <UseOfMfc>Static</UseOfMfc>
     <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
