@@ -37,10 +37,6 @@ set BUILD_SPEC=
 set BUILD_ARCH=
 set BUILD_FAILED=
 
-set VSFLAVOR=Professional
-if exist "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\devenv.com" set VSFLAVOR=Community
-echo USING !VSFLAVOR! Visual Studio
-
 rem Parse arguments
 :argloop
 shift /2
@@ -166,14 +162,13 @@ if %BUILD_ARCH%==amd64 set BUILD_ARCH=x64
 set TARGET_VS_CONFIG="%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%|%BUILD_ARCH%"
 
 pushd %BUILD_DIR%
-call "%~dp0\SetVsEnv.bat" x86
 
 if /I "!TAG!"=="SDV" (
   echo Running SDV for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
   call :runsdv "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
 ) else (
   echo Building %BUILD_FILE%, configuration %TARGET_VS_CONFIG%, command %BUILD_COMMAND%
-  call "C:\Program Files (x86)\Microsoft Visual Studio\2017\!VSFLAVOR!\Common7\IDE\devenv.com" %BUILD_FILE% %BUILD_COMMAND% %TARGET_VS_CONFIG% /Out %BUILD_LOG_FILE%
+  call :runbuild "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
 )
 popd
 endlocal
@@ -181,6 +176,16 @@ endlocal
 IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
 )
+goto :eof
+
+:runbuild:
+:: %1 - configuration (as "Win10 Release")
+:: %2 - platform      (as x64)
+:: %3 - build command (as "/Build")
+set __TARGET__=%BUILD_COMMAND:/=%
+::(n)ormal(d)etailed,(disg)nostic
+set __VERBOSITY__=n
+msbuild.exe %BUILD_FILE% /t:%__TARGET__% /p:Configuration="%~1" /P:Platform=%2 -fileLoggerParameters:Verbosity=%__VERBOSITY__%;LogFile=%BUILD_LOG_FILE%
 goto :eof
 
 :configure_sdv
@@ -196,7 +201,6 @@ goto :eof
 
 :runsdv
 call :configure_sdv %BUILD_FILE%
-call "%~dp0\SetVsEnv.bat" x64
 msbuild.exe %BUILD_FILE% /t:clean /p:Configuration="%~1" /P:Platform=%2
 
 IF ERRORLEVEL 1 (
