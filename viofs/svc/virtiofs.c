@@ -110,6 +110,9 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     UINT64 NewSize, BOOLEAN SetAllocationSize, FSP_FSCTL_FILE_INFO *FileInfo);
 
+static VOID FixReparsePointAttributes(VIRTFS *VirtFs, uint64_t nodeid,
+    UINT32 *PFileAttributes);
+
 static int64_t GetUniqueIdentifier()
 {
     static int64_t uniq = 1;
@@ -254,7 +257,8 @@ static VOID UpdateLocalUidGid(VIRTFS *VirtFs, DWORD SessionId)
     }
 }
 
-static UINT32 PosixUnixModeToAttributes(uint32_t mode)
+static UINT32 PosixUnixModeToAttributes(VIRTFS *VirtFs, uint64_t nodeid,
+    uint32_t mode)
 {
     UINT32 Attributes;
 
@@ -271,6 +275,11 @@ static UINT32 PosixUnixModeToAttributes(uint32_t mode)
         default:
             Attributes = FILE_ATTRIBUTE_ARCHIVE;
             break;
+    }
+
+    if (Attributes & FILE_ATTRIBUTE_REPARSE_POINT)
+    {
+        FixReparsePointAttributes(VirtFs, nodeid, &Attributes);
     }
 
     if (!!(mode & 0222) == FALSE)
@@ -326,9 +335,14 @@ static VOID UnixTimeToFileTime(uint64_t time, uint32_t nsec,
     FspPosixUnixTimeToFileTime(UnixTime, PFileTime);
 }
 
-static VOID SetFileInfo(struct fuse_attr *attr, FSP_FSCTL_FILE_INFO *FileInfo)
+static VOID SetFileInfo(VIRTFS *VirtFs, struct fuse_entry_out *entry,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    FileInfo->FileAttributes = PosixUnixModeToAttributes(attr->mode);
+    struct fuse_attr *attr = &entry->attr;
+
+    FileInfo->FileAttributes = PosixUnixModeToAttributes(VirtFs,
+        entry->nodeid, attr->mode);
+    
     if (FileInfo->FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
     {
         FileInfo->ReparseTag = IO_REPARSE_TAG_SYMLINK;
@@ -476,7 +490,7 @@ static NTSTATUS VirtFsCreateFile(VIRTFS *VirtFs,
         }
         else
         {
-            SetFileInfo(&create_out.entry.attr, FileInfo);
+            SetFileInfo(VirtFs, &create_out.entry, FileInfo);
         }
     }
 
@@ -507,7 +521,7 @@ static NTSTATUS VirtFsCreateDir(VIRTFS *VirtFs,
     if (NT_SUCCESS(Status))
     {
         FileContext->NodeId = mkdir_out.entry.nodeid;
-        SetFileInfo(&mkdir_out.entry.attr, FileInfo);
+        SetFileInfo(VirtFs, &mkdir_out.entry, FileInfo);
     }
 
     return Status;
@@ -650,6 +664,38 @@ static NTSTATUS VirtFsLookupFileName(HANDLE Device, PWSTR FileName,
     return Status;
 }
 
+static VOID FixReparsePointAttributes(VIRTFS *VirtFs, uint64_t nodeid,
+    UINT32 *PFileAttributes)
+{
+    WCHAR SubstituteName[MAX_PATH];
+    USHORT SubstituteNameLength = 0;
+    UINT32 FileAttributes;
+    NTSTATUS Status;
+    FUSE_LOOKUP_OUT lookup_out;
+
+    Status = SubmitReadLinkRequest(VirtFs->Device, nodeid, SubstituteName,
+        &SubstituteNameLength);
+
+    if (NT_SUCCESS(Status))
+    {
+        Status = VirtFsLookupFileName(VirtFs->Device, SubstituteName,
+            &lookup_out);
+
+        if (NT_SUCCESS(Status))
+        {
+            struct fuse_attr *attr = &lookup_out.entry.attr;
+
+            FileAttributes = PosixUnixModeToAttributes(VirtFs,
+                lookup_out.entry.nodeid, attr->mode);
+
+            if (FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            {
+                *PFileAttributes |= FILE_ATTRIBUTE_DIRECTORY;
+            }
+        }
+    }
+}
+
 static NTSTATUS GetFileInfoInternal(VIRTFS *VirtFs,
     PVIRTFS_FILE_CONTEXT FileContext, FSP_FSCTL_FILE_INFO *FileInfo,
     PSECURITY_DESCRIPTOR *SecurityDescriptor)
@@ -683,7 +729,13 @@ static NTSTATUS GetFileInfoInternal(VIRTFS *VirtFs,
 
         if (FileInfo != NULL)
         {
-            SetFileInfo(attr, FileInfo);
+            struct fuse_entry_out entry;
+
+            ZeroMemory(&entry, sizeof(entry));
+            entry.nodeid = FileContext->NodeId;
+            entry.attr = *attr;
+
+            SetFileInfo(VirtFs, &entry, FileInfo);
         }
 
         if (SecurityDescriptor != NULL)
@@ -861,7 +913,8 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
 
         if (PFileAttributes != NULL)
         {
-            *PFileAttributes = PosixUnixModeToAttributes(attr->mode);
+            *PFileAttributes = PosixUnixModeToAttributes(VirtFs,
+                lookup_out.entry.nodeid, attr->mode);
         }
 
         Status = FspPosixMapPermissionsToSecurityDescriptor(VirtFs->LocalUid,
@@ -955,13 +1008,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
         Status = VirtFsCreateDir(VirtFs, FileContext, filename, parent, Mode,
             FileInfo);
     }
-    else if (CreateOptions & FILE_OPEN_REPARSE_POINT)
-    {
-        // The actual symbolic link will be created later in the
-        // SetReparsePoint callback.
-        FileInfo->FileAttributes |= FILE_ATTRIBUTE_REPARSE_POINT;
-        FileInfo->ReparseTag = IO_REPARSE_TAG_SYMLINK;
-    }
     else
     {
         Status = VirtFsCreateFile(VirtFs, FileContext, GrantedAccess,
@@ -1035,7 +1081,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
         FileContext->FileHandle = open_out.open.fh;
     }
 
-    SetFileInfo(&lookup_out.entry.attr, FileInfo);
+    SetFileInfo(VirtFs, &lookup_out.entry, FileInfo);
     FileContext->NodeId = lookup_out.entry.nodeid;
     *PFileContext = FileContext;
 
@@ -1809,7 +1855,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
                         DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) +
                             FileNameLength * sizeof(WCHAR));
 
-                        SetFileInfo(&DirEntryPlus->entry_out.attr,
+                        SetFileInfo(VirtFs, &DirEntryPlus->entry_out,
                             &DirInfo->FileInfo);
 
                         Result = FspFileSystemFillDirectoryBuffer(
@@ -1876,6 +1922,8 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     UNREFERENCED_PARAMETER(Size);
 
     DBG("\"%S\"", FileName);
+
+    Cleanup(FileSystem, FileContext, FileName, FspCleanupDelete);
 
     CopyMemory(TargetName,
         ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
@@ -1958,7 +2006,7 @@ static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
         DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) +
             wcslen(FileName) * sizeof(WCHAR));
 
-        SetFileInfo(&lookup_out.entry.attr, &DirInfo->FileInfo);
+        SetFileInfo(VirtFs, &lookup_out.entry, &DirInfo->FileInfo);
 
         CopyMemory(DirInfo->FileNameBuf, FileName,
             DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
