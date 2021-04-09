@@ -162,6 +162,7 @@ if %BUILD_ARCH%==amd64 set BUILD_ARCH=x64
 set TARGET_VS_CONFIG="%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%|%BUILD_ARCH%"
 
 pushd %BUILD_DIR%
+call "%~dp0\SetVsEnv.bat" x86
 
 if /I "!TAG!"=="SDV" (
   echo Running SDV for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
