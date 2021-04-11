@@ -35,7 +35,7 @@ distribute the drivers with Windows Update, see the
 [Microsoft publishing restrictions][ms-publishing] for more details.
 
 [fedora-virtio]:https://docs.fedoraproject.org/en-US/quick-docs/creating-windows-virtual-machines-using-virtio-drivers/index.html
-[wiki-building]:https://github.com/virtio-win/kvm-guest-drivers-windows/wiki/Building-the-drivers
+[wiki-building]:https://github.com/virtio-win/kvm-guest-drivers-windows/wiki/Building-the-drivers-using-EWDK-1903-2004
 [ms-signing]:https://docs.microsoft.com/en-us/windows-hardware/drivers/install/installing-test-signed-driver-packages
 [ms-publishing]:https://docs.microsoft.com/en-us/windows-hardware/drivers/dashboard/publishing-restrictions
 - - - -
