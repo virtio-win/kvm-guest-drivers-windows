@@ -1913,6 +1913,13 @@ NTSTATUS VioGpuDod::GetRegisterInfo(void)
     }
 
     value = 0;
+    Status = ReadRegistryDWORD(DevInstRegKeyHandle, L"FlexResolution", &value);
+    if (NT_SUCCESS(Status))
+    {
+        SetFlexResolution(!!value);
+    }
+
+    value = 0;
     Status = ReadRegistryDWORD(DevInstRegKeyHandle, L"UsePhysicalMemory", &value);
     if (!NT_SUCCESS(Status))
     {
@@ -2868,10 +2875,10 @@ void VioGpuAdapter::SetCustomDisplay(_In_ USHORT xres, _In_ USHORT yres)
         DbgPrint(TRACE_LEVEL_WARNING, ("%s: (%dx%d) less than (%dx%d)\n", __FUNCTION__,
             xres, yres, MIN_WIDTH_SIZE, MIN_HEIGHT_SIZE));
     }
-    tmpModeInfo.XResolution = max(MIN_WIDTH_SIZE, xres);
-    tmpModeInfo.YResolution = max(MIN_HEIGHT_SIZE, yres);
+    tmpModeInfo.XResolution = m_pVioGpuDod->IsFlexResolution() ? xres : max(MIN_WIDTH_SIZE, xres);
+    tmpModeInfo.YResolution = m_pVioGpuDod->IsFlexResolution() ? yres : max(MIN_HEIGHT_SIZE, yres);
 
-    m_CustomMode = (USHORT)((m_CustomMode == m_ModeCount - 1) ? m_ModeCount - 2 : m_ModeCount - 1);
+    m_CustomMode = (USHORT)(m_ModeCount - 1);
 
     DbgPrint(TRACE_LEVEL_FATAL, ("%s - %d (%dx%d)\n", __FUNCTION__, m_CustomMode, tmpModeInfo.XResolution, tmpModeInfo.YResolution));
 
@@ -2928,7 +2935,7 @@ NTSTATUS VioGpuAdapter::GetModeList(DXGK_DISPLAY_INFORMATION* pDispInfo)
     USHORT CurrentMode;
 
     for (CurrentMode = 0, SuitableModeCount = 0;
-        CurrentMode < ModeCount - 2;
+        CurrentMode < ModeCount - 1;
         CurrentMode++)
     {
 
@@ -2959,21 +2966,21 @@ NTSTATUS VioGpuAdapter::GetModeList(DXGK_DISPLAY_INFORMATION* pDispInfo)
 
     m_CustomMode = SuitableModeCount;
     for (CurrentMode = SuitableModeCount;
-        CurrentMode < SuitableModeCount + 2;
+        CurrentMode < SuitableModeCount + 1;
         CurrentMode++)
     {
         m_ModeNumbers[CurrentMode] = CurrentMode;
         memcpy(&m_ModeInfo[CurrentMode], &m_ModeInfo[m_CurrentMode], sizeof(VIDEO_MODE_INFORMATION));
     }
 
-    m_ModeCount = SuitableModeCount + 2;
+    m_ModeCount = SuitableModeCount + 1;
     DbgPrint(TRACE_LEVEL_INFORMATION, ("ModeCount filtered %d\n", m_ModeCount));
 
     GetDisplayInfo();
 
     for (ULONG idx = 0; idx < GetModeCount(); idx++)
     {
-        DbgPrint(TRACE_LEVEL_FATAL, ("type %x, XRes = %d, YRes = %d\n",
+        DbgPrint(TRACE_LEVEL_FATAL, ("type %d, XRes = %d, YRes = %d\n",
             m_ModeNumbers[idx],
             m_ModeInfo[idx].VisScreenWidth,
             m_ModeInfo[idx].VisScreenHeight));
