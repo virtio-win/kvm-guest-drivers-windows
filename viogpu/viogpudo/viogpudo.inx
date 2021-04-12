@@ -63,6 +63,7 @@ HKR,,TypesSupported,%REG_DWORD%,7
 
 [VioGpuDod_DeviceSettings]
 HKR,, HWCursor,                    %REG_DWORD%, 0
+HKR,, FlexResolution,              %REG_DWORD%, 1
 HKR,, UsePhysicalMemory,           %REG_DWORD%, 0
 
 [VioGpuDod_PCI_MSIX]

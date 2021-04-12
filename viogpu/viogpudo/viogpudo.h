@@ -42,8 +42,9 @@ typedef struct
     UINT HardwareInit : 1;
     UINT PointerEnabled : 1;
     UINT VgaDevice : 1;
+    UINT FlexResolution : 1;
     UINT UsePhysicalMemory : 1;
-    UINT Unused : 27;
+    UINT Unused : 26;
 } DRIVER_STATUS_FLAG;
 
 #pragma pack(pop)
@@ -261,6 +262,14 @@ public:
     void SetVgaDevice(BOOLEAN Vga)
     {
         m_Flags.VgaDevice = Vga;
+    }
+    BOOLEAN IsFlexResolution(void) const
+    {
+        return m_Flags.FlexResolution;
+    }
+    void SetFlexResolution(BOOLEAN FlexRes)
+    {
+        m_Flags.FlexResolution = FlexRes;
     }
     BOOLEAN IsUsePhysicalMemory() const
     {
