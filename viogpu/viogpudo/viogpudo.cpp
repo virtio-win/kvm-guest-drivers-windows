@@ -3027,7 +3027,6 @@ BOOLEAN VioGpuAdapter::InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, 
             break;
         default:
             serviced = FALSE;
-            DbgPrint(TRACE_LEVEL_FATAL, ("---> %s Unknown Interrupt Reason MessageNumber%d\n", __FUNCTION__, isrstat));
         }
     }
 
