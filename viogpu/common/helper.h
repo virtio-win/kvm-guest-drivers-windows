@@ -74,6 +74,7 @@ extern "C" {
     #include "viogpu.h"
     #include "viogpu_queue.h"
     #include "viogpu_idr.h"
+    #include "viogpum.h"
 }
 
 #define MAX_CHILDREN               1

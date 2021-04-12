@@ -108,6 +108,7 @@ public:
     virtual VOID BlackOutScreen(CURRENT_MODE* pCurrentMod) = 0;
     virtual NTSTATUS SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPointerShape, _In_ CONST CURRENT_MODE* pModeCur) = 0;
     virtual NTSTATUS SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION* pSetPointerPosition, _In_ CONST CURRENT_MODE* pModeCur) = 0;
+    virtual NTSTATUS Escape(_In_ CONST DXGKARG_ESCAPE* pEscap) = 0;
     ULONG GetInstanceId(void) { return m_Id; }
     VioGpuDod* GetVioGpu(void) { return m_pVioGpuDod; }
     virtual PBYTE GetEdidData(UINT Idx) = 0;
@@ -154,6 +155,7 @@ public:
     VOID ResetDevice(VOID);
     NTSTATUS SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPointerShape, _In_ CONST CURRENT_MODE* pModeCur);
     NTSTATUS SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION* pSetPointerPosition, _In_ CONST CURRENT_MODE* pModeCur);
+    NTSTATUS Escape(_In_ CONST DXGKARG_ESCAPE* pEscap);
     CPciResources* GetPciResources(void) { return &m_PciResources; }
     BOOLEAN IsMSIEnabled() { return m_PciResources.IsMSIEnabled(); }
     PHYSICAL_ADDRESS GetFrameBufferPA(void) { return  m_PciResources.GetPciBar(0)->GetPA(); }
@@ -161,7 +163,7 @@ public:
 protected:
 private:
     NTSTATUS VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION* pDispInfo);
-    void SetVideoModeInfo(UINT Idx, PGPU_DISP_MODE pModeInfo);
+    void SetVideoModeInfo(UINT Idx, PVIOGPU_DISP_MODE pModeInfo);
     void VioGpuAdapterClose(void);
     NTSTATUS GetModeList(DXGK_DISPLAY_INFORMATION* pDispInfo);
     BOOLEAN AckFeature(UINT64 Feature);
@@ -283,6 +285,7 @@ public:
     NTSTATUS QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO* pQueryAdapterInfo);
     NTSTATUS SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION* pSetPointerPosition);
     NTSTATUS SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPointerShape);
+    NTSTATUS Escape(_In_ CONST DXGKARG_ESCAPE* pEscape);
     NTSTATUS PresentDisplayOnly(_In_ CONST DXGKARG_PRESENT_DISPLAYONLY* pPresentDisplayOnly);
     NTSTATUS QueryInterface(_In_ CONST PQUERY_INTERFACE     QueryInterface);
     NTSTATUS IsSupportedVidPn(_Inout_ DXGKARG_ISSUPPORTEDVIDPN* pIsSupportedVidPn);

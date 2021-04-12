@@ -326,14 +326,13 @@ NTSTATUS VioGpuDod::QueryChildRelations(_Out_writes_bytes_(ChildRelationsSize) D
     VIOGPU_ASSERT(pChildRelations != NULL);
 
     ULONG ChildRelationsCount = (ChildRelationsSize / sizeof(DXGK_CHILD_DESCRIPTOR)) - 1;
-    ULONG DeviceId = m_pHWDevice->GetInstanceId();
     VIOGPU_ASSERT(ChildRelationsCount <= MAX_CHILDREN);
 
     for (UINT ChildIndex = 0; ChildIndex < ChildRelationsCount; ++ChildIndex)
     {
         pChildRelations[ChildIndex].ChildDeviceType = TypeVideoOutput;
-        pChildRelations[ChildIndex].ChildCapabilities.HpdAwareness = (DeviceId == 0) ? HpdAwarenessAlwaysConnected : HpdAwarenessInterruptible;
-        pChildRelations[ChildIndex].ChildCapabilities.Type.VideoOutput.InterfaceTechnology = (DeviceId == 0) ? D3DKMDT_VOT_INTERNAL : D3DKMDT_VOT_HD15;
+        pChildRelations[ChildIndex].ChildCapabilities.HpdAwareness = IsVgaDevice() ? HpdAwarenessAlwaysConnected : HpdAwarenessInterruptible;
+        pChildRelations[ChildIndex].ChildCapabilities.Type.VideoOutput.InterfaceTechnology = IsVgaDevice() ? D3DKMDT_VOT_INTERNAL : D3DKMDT_VOT_HD15;
         pChildRelations[ChildIndex].ChildCapabilities.Type.VideoOutput.MonitorOrientationAwareness = D3DKMDT_MOA_NONE;
         pChildRelations[ChildIndex].ChildCapabilities.Type.VideoOutput.SupportsSdtvModes = FALSE;
         pChildRelations[ChildIndex].AcpiUid = 0;
@@ -477,6 +476,17 @@ NTSTATUS VioGpuDod::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPoin
         return m_pHWDevice->SetPointerShape(pSetPointerShape, &m_CurrentModes[pSetPointerShape->VidPnSourceId]);
     }
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS VioGpuDod::Escape(_In_ CONST DXGKARG_ESCAPE* pEscape)
+{
+    PAGED_CODE();
+
+    VIOGPU_ASSERT(pEscape != NULL);
+
+    DbgPrint(TRACE_LEVEL_INFORMATION, ("<---> %s Flags = %d\n", __FUNCTION__, pEscape->Flags.Value));
+
+    return m_pHWDevice->Escape(pEscape);
 }
 
 NTSTATUS VioGpuDod::PresentDisplayOnly(_In_ CONST DXGKARG_PRESENT_DISPLAYONLY* pPresentDisplayOnly)
@@ -2649,6 +2659,53 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
     return STATUS_UNSUCCESSFUL;
 }
 
+NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE* pEscape)
+{
+    PAGED_CODE();
+    PVIOGPU_ESCAPE  pVioGpuEscape = (PVIOGPU_ESCAPE) pEscape->pPrivateDriverData;
+    NTSTATUS        status = STATUS_SUCCESS;
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    UINT size = pEscape->PrivateDriverDataSize;
+    if (size < sizeof(PVIOGPU_ESCAPE))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("%s buffer too small %d, should be at least %d\n", __FUNCTION__,
+            pEscape->PrivateDriverDataSize, size));
+        return STATUS_INVALID_BUFFER_SIZE;
+    }
+
+    switch (pVioGpuEscape->Type) {
+    case VIOGPU_GET_DEVICE_ID: {
+        CreateResolutionEvent();
+        size = sizeof(ULONG);
+        if (pVioGpuEscape->DataLength < size) {
+            DbgPrint(TRACE_LEVEL_ERROR, ("%s buffer too small %d, should be at least %d\n", __FUNCTION__,
+                pVioGpuEscape->DataLength, size));
+            return STATUS_INVALID_BUFFER_SIZE;
+        }
+        pVioGpuEscape->Id = m_Id;
+        break;
+    }
+    case VIOGPU_GET_CUSTOM_RESOLUTION: {
+        size = sizeof(VIOGPU_DISP_MODE);
+        if (pVioGpuEscape->DataLength < size) {
+            DbgPrint(TRACE_LEVEL_ERROR, ("%s buffer too small %d, should be at least %d\n", __FUNCTION__,
+                pVioGpuEscape->DataLength, size));
+            return STATUS_INVALID_BUFFER_SIZE;
+        }
+        pVioGpuEscape->Resolution.XResolution = (USHORT)m_ModeInfo[m_CustomMode].VisScreenWidth;
+        pVioGpuEscape->Resolution.YResolution = (USHORT)m_ModeInfo[m_CustomMode].VisScreenHeight;
+        break;
+    }
+    default:
+        DbgPrint(TRACE_LEVEL_ERROR, ("%s: invalid Escape type 0x%x\n", __FUNCTION__, pVioGpuEscape->Type));
+        status = STATUS_INVALID_PARAMETER;
+    }
+
+    return status;
+}
+
 BOOLEAN VioGpuAdapter::GetDisplayInfo(void)
 {
     PAGED_CODE();
@@ -2721,7 +2778,7 @@ BOOLEAN VioGpuAdapter::GetEdids(void)
 }
 
 
-GPU_DISP_MODE gpu_disp_modes[16] =
+VIOGPU_DISP_MODE gpu_disp_modes[16] =
 {
     {640, 480},
     {800, 600},
@@ -2759,7 +2816,7 @@ void VioGpuAdapter::AddEdidModes(void)
 }
 
 
-void VioGpuAdapter::SetVideoModeInfo(UINT Idx, PGPU_DISP_MODE pModeInfo)
+void VioGpuAdapter::SetVideoModeInfo(UINT Idx, PVIOGPU_DISP_MODE pModeInfo)
 {
     PAGED_CODE();
 
@@ -2798,7 +2855,7 @@ void VioGpuAdapter::SetCustomDisplay(_In_ USHORT xres, _In_ USHORT yres)
 {
     PAGED_CODE();
 
-    GPU_DISP_MODE tmpModeInfo = { 0 };
+    VIOGPU_DISP_MODE tmpModeInfo = { 0 };
 
     if (xres < MIN_WIDTH_SIZE || yres < MIN_HEIGHT_SIZE) {
         DbgPrint(TRACE_LEVEL_WARNING, ("%s: (%dx%d) less than (%dx%d)\n", __FUNCTION__,
@@ -2868,18 +2925,18 @@ NTSTATUS VioGpuAdapter::GetModeList(DXGK_DISPLAY_INFORMATION* pDispInfo)
         CurrentMode++)
     {
 
-        PGPU_DISP_MODE tmpModeInfo = &gpu_disp_modes[CurrentMode];
+        PVIOGPU_DISP_MODE pModeInfo = &gpu_disp_modes[CurrentMode];
 
         DbgPrint(TRACE_LEVEL_INFORMATION, ("%s: modes[%d] x_res = %d, y_res = %d\n",
-            __FUNCTION__, CurrentMode, tmpModeInfo->XResolution, tmpModeInfo->YResolution));
+            __FUNCTION__, CurrentMode, pModeInfo->XResolution, pModeInfo->YResolution));
 
-        if (tmpModeInfo->XResolution >= pDispInfo->Width &&
-            tmpModeInfo->YResolution >= pDispInfo->Height)
+        if (pModeInfo->XResolution >= pDispInfo->Width &&
+            pModeInfo->YResolution >= pDispInfo->Height)
         {
             m_ModeNumbers[SuitableModeCount] = SuitableModeCount;
-            SetVideoModeInfo(SuitableModeCount, tmpModeInfo);
-            if (tmpModeInfo->XResolution == NOM_WIDTH_SIZE &&
-                tmpModeInfo->YResolution == NOM_HEIGHT_SIZE)
+            SetVideoModeInfo(SuitableModeCount, pModeInfo);
+            if (pModeInfo->XResolution == NOM_WIDTH_SIZE &&
+                pModeInfo->YResolution == NOM_HEIGHT_SIZE)
             {
                 m_CurrentMode = SuitableModeCount;
             }
@@ -2992,8 +3049,10 @@ void VioGpuAdapter::ThreadWorkRoutine(void)
 
         if (m_bStopWorkThread) {
             PsTerminateSystemThread(STATUS_SUCCESS);
+            break;
         }
         ConfigChanged();
+        NotifyResolutionEvent();
     }
 }
 

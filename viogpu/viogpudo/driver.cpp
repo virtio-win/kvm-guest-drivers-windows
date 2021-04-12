@@ -101,6 +101,7 @@ DriverEntry(
     InitialData.DxgkDdiQueryAdapterInfo = VioGpuDodQueryAdapterInfo;
     InitialData.DxgkDdiSetPointerPosition = VioGpuDodSetPointerPosition;
     InitialData.DxgkDdiSetPointerShape = VioGpuDodSetPointerShape;
+    InitialData.DxgkDdiEscape = VioGpuDodEscape;
     InitialData.DxgkDdiIsSupportedVidPn = VioGpuDodIsSupportedVidPn;
     InitialData.DxgkDdiRecommendFunctionalVidPn = VioGpuDodRecommendFunctionalVidPn;
     InitialData.DxgkDdiEnumVidPnCofuncModality = VioGpuDodEnumVidPnCofuncModality;
@@ -355,6 +356,26 @@ VioGpuDodSetPointerShape(
         return STATUS_UNSUCCESSFUL;
     }
     return pVioGpuDod->SetPointerShape(pSetPointerShape);
+}
+
+NTSTATUS
+APIENTRY
+VioGpuDodEscape(
+    _In_ CONST HANDLE                 hAdapter,
+    _In_ CONST DXGKARG_ESCAPE*        pEscape
+    )
+{
+    PAGED_CODE();
+    VIOGPU_ASSERT_CHK(hAdapter != NULL);
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<---> %s\n", __FUNCTION__));
+
+    VioGpuDod* pVioGpuDod = reinterpret_cast<VioGpuDod*>(hAdapter);
+    if (!pVioGpuDod->IsDriverActive())
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<---> %s VioGpu (%p) is being called when not active!\n", __FUNCTION__, pVioGpuDod));
+        return STATUS_UNSUCCESSFUL;
+    }
+    return pVioGpuDod->Escape(pEscape);
 }
 
 NTSTATUS
