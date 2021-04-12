@@ -1992,7 +1992,6 @@ VioGpuAdapter::~VioGpuAdapter(void)
     m_CustomMode = 0;
     m_ModeCount = 0;
     m_Id = 0;
-    g_InstanceId--;
     DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s\n", __FUNCTION__));
 }
 
