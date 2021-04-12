@@ -183,7 +183,9 @@ private:
     void ConfigChanged(void);
     NTSTATUS VirtIoDeviceInit(void);
     PBYTE GetEdidData(UINT Idx);
-
+    VOID CreateResolutionEvent(VOID);
+    VOID NotifyResolutionEvent(VOID);
+    VOID CloseResolutionEvent(VOID);
 private:
     VirtIODevice m_VioDev;
     CPciResources m_PciResources;
@@ -203,6 +205,8 @@ private:
     KEVENT m_ConfigUpdateEvent;
     PETHREAD m_pWorkThread;
     BOOLEAN m_bStopWorkThread;
+    PKEVENT m_ResolutionEvent;
+    HANDLE m_ResolutionEventHandle;
 };
 
 class VioGpuDod {
