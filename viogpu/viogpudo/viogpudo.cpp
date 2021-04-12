@@ -1905,11 +1905,18 @@ NTSTATUS VioGpuDod::GetRegisterInfo(void)
         return Status;
     }
 
-    DWORD enabled = 0;
-    Status = ReadRegistryDWORD(DevInstRegKeyHandle, L"HWCursor", &enabled);
+    DWORD value = 0;
+    Status = ReadRegistryDWORD(DevInstRegKeyHandle, L"HWCursor", &value);
     if (NT_SUCCESS(Status))
     {
-        SetPointerEnabled(!!enabled);
+        SetPointerEnabled(!!value);
+    }
+
+    value = 0;
+    Status = ReadRegistryDWORD(DevInstRegKeyHandle, L"UsePhysicalMemory", &value);
+    if (!NT_SUCCESS(Status))
+    {
+        SetUsePhysicalMemory(!!value);
     }
 
     ZwClose(DevInstRegKeyHandle);
@@ -2326,20 +2333,20 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
     PHYSICAL_ADDRESS fb_pa = m_PciResources.GetPciBar(0)->GetPA();
     UINT fb_size = (UINT)m_PciResources.GetPciBar(0)->GetSize();
     UINT req_size = pDispInfo->Pitch * pDispInfo->Height;
-    req_size = max(req_size, fb_size);
-//FIXME!!! update and validate size properly
-    req_size = max(0x800000, req_size);
-
+//FIXME
+    req_size = 2048 * 2048 * 4;
     if (fb_pa.QuadPart != 0LL) {
         pDispInfo->PhysicAddress = fb_pa;
     }
 
-    if (fb_pa.QuadPart == 0 || fb_size < req_size) {
-        fb_pa.QuadPart = 0;
-        fb_size = req_size;
+    if (!m_pVioGpuDod->IsUsePhysicalMemory() ||
+        fb_pa.QuadPart == 0 || 
+        fb_size < req_size) {
+        fb_pa.QuadPart = 0LL;
+        fb_size = max (req_size, fb_size);
     }
 
-    if (!m_FrameSegment.Init(req_size, NULL))
+    if (!m_FrameSegment.Init(fb_size, &fb_pa))
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("%s failed to allocate FB memory segment\n", __FUNCTION__));
         status = STATUS_INSUFFICIENT_RESOURCES;

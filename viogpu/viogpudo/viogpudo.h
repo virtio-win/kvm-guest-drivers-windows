@@ -42,7 +42,8 @@ typedef struct
     UINT HardwareInit : 1;
     UINT PointerEnabled : 1;
     UINT VgaDevice : 1;
-    UINT Unused : 28;
+    UINT UsePhysicalMemory : 1;
+    UINT Unused : 27;
 } DRIVER_STATUS_FLAG;
 
 #pragma pack(pop)
@@ -260,6 +261,14 @@ public:
     void SetVgaDevice(BOOLEAN Vga)
     {
         m_Flags.VgaDevice = Vga;
+    }
+    BOOLEAN IsUsePhysicalMemory() const
+    {
+        return m_Flags.UsePhysicalMemory;
+    }
+    void SetUsePhysicalMemory(BOOLEAN enable)
+    {
+        m_Flags.UsePhysicalMemory = enable;
     }
 #pragma code_seg(pop)
 

@@ -840,7 +840,8 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_ PPHYSICAL_ADDRESS pPAddr)
     UINT sglsize = sizeof(SCATTER_GATHER_LIST) + (sizeof(SCATTER_GATHER_ELEMENT) * pages);
     size = pages * PAGE_SIZE;
 
-    if (pPAddr == NULL) {
+    if ((pPAddr == NULL) ||
+        pPAddr->QuadPart == 0LL) {
         m_pVAddr = new (NonPagedPoolNx) BYTE[size];
         RtlZeroMemory(m_pVAddr, size);
 
@@ -851,17 +852,13 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_ PPHYSICAL_ADDRESS pPAddr)
         }
         m_bSystemMemory = TRUE;
     }
-    else if (pPAddr->QuadPart) {
+    else {
         NTSTATUS Status = MapFrameBuffer(*pPAddr, size, &m_pVAddr);
         if (!NT_SUCCESS(Status)) {
             DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s MapFrameBuffer failed with Status: 0x%X\n", __FUNCTION__, Status));
             return FALSE;
         }
         m_bMapped = TRUE;
-    }
-    else {
-        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Invalid address\n", __FUNCTION__));
-        return FALSE;
     }
 
     m_pMdl = IoAllocateMdl(m_pVAddr, size, FALSE, FALSE, NULL);
