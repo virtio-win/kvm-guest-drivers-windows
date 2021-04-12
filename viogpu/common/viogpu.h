@@ -216,12 +216,6 @@ typedef struct virtio_gpu_object {
 }GPU_OBJECT, *PGPU_OBJECT;
 #pragma pack()
 
-#pragma pack(1)
-typedef struct virtio_gpu_display_mode {
-    USHORT XResolution;
-    USHORT YResolution;
-}GPU_DISP_MODE, *PGPU_DISP_MODE;
-#pragma pack()
 
 #pragma pack(1)
 typedef struct virtio_gpu_cursor_pos {
