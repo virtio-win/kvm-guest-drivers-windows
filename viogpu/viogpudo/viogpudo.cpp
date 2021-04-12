@@ -32,6 +32,7 @@
 #include "viogpudo.h"
 #include "baseobj.h"
 #include "bitops.h"
+#include "viogpum.h"
 #if !DBG
 #include "viogpudo.tmh"
 #endif
@@ -1946,12 +1947,15 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod* pVioGpuDod) : IVioGpuAdapter(pVioGp
         FALSE);
     m_bStopWorkThread = FALSE;
     m_pWorkThread = NULL;
+    m_ResolutionEvent = NULL;
+    m_ResolutionEventHandle = NULL;
 }
 
 VioGpuAdapter::~VioGpuAdapter(void)
 {
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_FATAL, ("---> %s 0x%p\n", __FUNCTION__, this));
+    CloseResolutionEvent();
     DestroyCursor();
     DestroyFrameBufferObj(TRUE);
     VioGpuAdapterClose();
@@ -2173,6 +2177,60 @@ PBYTE VioGpuAdapter::GetEdidData(UINT Id)
     PAGED_CODE();
 
     return m_bEDID ? m_EDIDs[Id] : (PBYTE)(&g_gpu_edid);//.data;
+}
+
+VOID VioGpuAdapter::CreateResolutionEvent(VOID)
+{
+    if (m_ResolutionEvent != NULL &&
+        m_ResolutionEventHandle != NULL)
+    {
+        return;
+    }
+    DECLARE_UNICODE_STRING_SIZE(DeviceNumber, 10);
+    DECLARE_UNICODE_STRING_SIZE(EventName, 256);
+
+    RtlIntegerToUnicodeString(m_Id, 10, &DeviceNumber);
+    NTSTATUS status = RtlUnicodeStringPrintf(
+        &EventName,
+        L"%ws%ws%ws",
+        BASE_NAMED_OBJECTS,
+        RESOLUTION_EVENT_NAME,
+        DeviceNumber.Buffer
+    );
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("RtlUnicodeStringPrintf failed 0x%x\n", status));
+        return;
+    }
+    m_ResolutionEvent = IoCreateNotificationEvent(&EventName, &m_ResolutionEventHandle);
+    if (m_ResolutionEvent == NULL) {
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--> %s\n", __FUNCTION__));
+        return;
+    }
+    KeClearEvent(m_ResolutionEvent);
+    ObReferenceObject(m_ResolutionEvent);
+}
+
+VOID VioGpuAdapter::NotifyResolutionEvent(VOID)
+{
+    if (m_ResolutionEvent != NULL) {
+        DbgPrint(TRACE_LEVEL_ERROR, ("NotifyResolutionEvent\n"));
+        KeSetEvent(m_ResolutionEvent, IO_NO_INCREMENT, FALSE);
+        KeClearEvent(m_ResolutionEvent);
+    }
+}
+
+VOID VioGpuAdapter::CloseResolutionEvent(VOID)
+{
+    if (m_ResolutionEventHandle != NULL) {
+        ZwClose(m_ResolutionEventHandle);
+        m_ResolutionEventHandle = NULL;
+    }
+
+    if (m_ResolutionEvent != NULL) {
+        ObDereferenceObject(m_ResolutionEvent);
+        m_ResolutionEvent = NULL;
+    }
 }
 
 NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMATION* pDispInfo)
