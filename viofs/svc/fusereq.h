@@ -202,6 +202,14 @@ typedef struct
 typedef struct
 {
     struct fuse_in_header   hdr;
+    struct fuse_rename_in   rename;
+    char                    names[];
+
+} FUSE_RENAME_IN;
+
+typedef struct
+{
+    struct fuse_in_header   hdr;
     struct fuse_rename2_in  rename;
     char                    names[];
 

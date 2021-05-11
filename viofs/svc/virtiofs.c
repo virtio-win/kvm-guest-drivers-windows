@@ -605,6 +605,69 @@ static NTSTATUS SubmitReadLinkRequest(HANDLE Device, UINT64 NodeId,
     return Status;
 }
 
+static NTSTATUS SubmitRenameRequest(HANDLE Device, uint64_t oldparent,
+    uint64_t newparent, char *oldname, int oldname_size, char *newname,
+    int newname_size)
+{
+    FUSE_RENAME_IN *rename_in;
+    FUSE_RENAME_OUT rename_out;
+    NTSTATUS Status;
+
+    rename_in = HeapAlloc(GetProcessHeap(), 0, sizeof(*rename_in) +
+        oldname_size + newname_size);
+
+    if (rename_in == NULL)
+    {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    FUSE_HEADER_INIT(&rename_in->hdr, FUSE_RENAME, oldparent,
+        sizeof(rename_in->rename) + oldname_size + newname_size);
+
+    rename_in->rename.newdir = newparent;
+    CopyMemory(rename_in->names, oldname, oldname_size);
+    CopyMemory(rename_in->names + oldname_size, newname, newname_size);
+
+    Status = VirtFsFuseRequest(Device, rename_in, rename_in->hdr.len,
+        &rename_out, sizeof(rename_out));
+
+    SafeHeapFree(rename_in);
+
+    return Status;
+}
+
+static NTSTATUS SubmitRename2Request(HANDLE Device, uint64_t oldparent,
+    uint64_t newparent, char *oldname, int oldname_size, char *newname,
+    int newname_size, uint32_t flags)
+{
+    FUSE_RENAME2_IN *rename2_in;
+    FUSE_RENAME_OUT rename_out;
+    NTSTATUS Status;
+
+    rename2_in = HeapAlloc(GetProcessHeap(), 0, sizeof(*rename2_in) +
+        oldname_size + newname_size);
+
+    if (rename2_in == NULL)
+    {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    FUSE_HEADER_INIT(&rename2_in->hdr, FUSE_RENAME2, oldparent,
+        sizeof(rename2_in->rename) + oldname_size + newname_size);
+
+    rename2_in->rename.newdir = newparent;
+    rename2_in->rename.flags = flags;
+    CopyMemory(rename2_in->names, oldname, oldname_size);
+    CopyMemory(rename2_in->names + oldname_size, newname, newname_size);
+
+    Status = VirtFsFuseRequest(Device, rename2_in, rename2_in->hdr.len,
+        &rename_out, sizeof(rename_out));
+
+    SafeHeapFree(rename2_in);
+
+    return Status;
+}
+
 static NTSTATUS PathWalkthough(HANDLE Device, CHAR *FullPath,
     CHAR **FileName, UINT64 *Parent)
 {
@@ -1597,12 +1660,11 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
-    FUSE_RENAME2_IN *rename2_in;
-    FUSE_RENAME_OUT rename_out;
     NTSTATUS Status;
     char *oldname, *newname, *oldfullpath, *newfullpath;
     int oldname_size, newname_size;
     uint64_t oldparent, newparent;
+    uint32_t flags;
 
     DBG("\"%S\" -> \"%S\" ReplaceIfExist: %d", FileName, NewFileName,
         ReplaceIfExists);
@@ -1642,37 +1704,24 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     oldname_size = lstrlenA(oldname) + 1;
     newname_size = lstrlenA(newname) + 1;
 
-    DBG("old: %s (%d) new: %s (%d)", oldname, oldname_size, newname,
-        newname_size);
-
-    rename2_in = HeapAlloc(GetProcessHeap(), 0, sizeof(*rename2_in) +
-        oldname_size + newname_size);
-
-    if (rename2_in == NULL)
-    {
-        FspPosixDeletePath(oldfullpath);
-        FspPosixDeletePath(newfullpath);
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-
-    FUSE_HEADER_INIT(&rename2_in->hdr, FUSE_RENAME2, oldparent,
-        sizeof(rename2_in->rename) + oldname_size + newname_size);
-
-    rename2_in->rename.newdir = newparent;
-
     // It is not allowed to rename to an existing directory even when
     // ReplaceIfExists is set.
-    rename2_in->rename.flags = ((FileContext->IsDirectory == FALSE) &&
+    flags = ((FileContext->IsDirectory == FALSE) &&
         (ReplaceIfExists == TRUE)) ? 0 : (1 << 0) /* RENAME_NOREPLACE */;
 
-    CopyMemory(rename2_in->names, oldname, oldname_size);
-    CopyMemory(rename2_in->names + oldname_size, newname, newname_size);
+    DBG("old: %s (%d) new: %s (%d) flags: %d", oldname, oldname_size, newname,
+        newname_size, flags);
 
-    FspPosixDeletePath(oldfullpath);
-    FspPosixDeletePath(newfullpath);
+    Status = SubmitRename2Request(VirtFs->Device, oldparent, newparent,
+        oldname, oldname_size, newname, newname_size, flags);
 
-    Status = VirtFsFuseRequest(VirtFs->Device, rename2_in,
-        rename2_in->hdr.len, &rename_out, sizeof(rename_out));
+    // Rename2 fails on NFS shared folder with EINVAL error. So retry to
+    // rename the file without the flags.
+    if (Status == STATUS_INVALID_PARAMETER)
+    {
+        Status = SubmitRenameRequest(VirtFs->Device, oldparent, newparent,
+            oldname, oldname_size, newname, newname_size);
+    }
 
     // Fix to expected error when renaming a directory to existing directory.
     if ((FileContext->IsDirectory == TRUE) && (ReplaceIfExists == TRUE) &&
@@ -1681,7 +1730,8 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         Status = STATUS_ACCESS_DENIED;
     }
 
-    SafeHeapFree(rename2_in);
+    FspPosixDeletePath(oldfullpath);
+    FspPosixDeletePath(newfullpath);
 
     return Status;
 }
