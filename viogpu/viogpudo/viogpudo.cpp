@@ -176,7 +176,7 @@ NTSTATUS VioGpuDod::StartDevice(_In_  DXGK_START_INFO*   pDxgkStartInfo,
         m_SystemDisplayInfo.Width = NOM_WIDTH_SIZE;
         m_SystemDisplayInfo.Height = NOM_HEIGHT_SIZE;
         m_SystemDisplayInfo.ColorFormat = D3DDDIFMT_X8R8G8B8;
-        m_SystemDisplayInfo.Pitch = BPPFromPixelFormat(m_CurrentModes[0].DispInfo.ColorFormat) / BITS_PER_BYTE;
+        m_SystemDisplayInfo.Pitch = (BPPFromPixelFormat(m_SystemDisplayInfo.ColorFormat) / BITS_PER_BYTE) * m_SystemDisplayInfo.Width;
         m_SystemDisplayInfo.TargetId = 0;
         if (m_SystemDisplayInfo.PhysicAddress.QuadPart == 0LL) {
             m_SystemDisplayInfo.PhysicAddress = m_pHWDevice->GetFrameBufferPA();
@@ -185,7 +185,7 @@ NTSTATUS VioGpuDod::StartDevice(_In_  DXGK_START_INFO*   pDxgkStartInfo,
 
     m_CurrentModes[0].DispInfo.Width = max(MIN_WIDTH_SIZE, m_SystemDisplayInfo.Width);
     m_CurrentModes[0].DispInfo.Height = max(MIN_HEIGHT_SIZE, m_SystemDisplayInfo.Height);
-    m_CurrentModes[0].DispInfo.ColorFormat = D3DDDIFMT_X8R8G8B8;// D3DDDIFMT_A8R8G8B8;
+    m_CurrentModes[0].DispInfo.ColorFormat = D3DDDIFMT_X8R8G8B8;
     m_CurrentModes[0].DispInfo.Pitch = (BPPFromPixelFormat(m_CurrentModes[0].DispInfo.ColorFormat) / BITS_PER_BYTE) * m_CurrentModes[0].DispInfo.Width;
     m_CurrentModes[0].DispInfo.TargetId = 0;
     if (m_CurrentModes[0].DispInfo.PhysicAddress.QuadPart == 0LL && m_SystemDisplayInfo.PhysicAddress.QuadPart != 0LL) {
@@ -509,6 +509,12 @@ NTSTATUS VioGpuDod::PresentDisplayOnly(_In_ CONST DXGKARG_PRESENT_DISPLAYONLY* p
     {
         DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Source is not visiable\n", __FUNCTION__));
         return STATUS_SUCCESS;
+    }
+
+    if (!m_CurrentModes[pPresentDisplayOnly->VidPnSourceId].Flags.FrameBufferIsActive)
+    {
+        DbgPrint(TRACE_LEVEL_WARNING, ("<--- %s Frame Buffer is Not active\n", __FUNCTION__));
+        return STATUS_UNSUCCESSFUL;
     }
 
     m_CurrentModes[pPresentDisplayOnly->VidPnSourceId].ZeroedOutStart.QuadPart = 0;
