@@ -1,5 +1,5 @@
 @echo off
-call tools\build.bat virtio-win.sln Win10 ARM64
+if "%VIRTIO_WIN_NO_ARM%"=="" call tools\build.bat virtio-win.sln Win10 ARM64
 if errorlevel 1 goto :fail
 if "%VIRTIO_WIN_NO_LEGACY%"=="" call tools\build.bat virtio-win.sln "Wxp Wnet Wlh Win7" %*
 if errorlevel 1 goto :fail
