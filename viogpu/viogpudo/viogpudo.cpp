@@ -2210,6 +2210,8 @@ PBYTE VioGpuAdapter::GetEdidData(UINT Id)
 
 VOID VioGpuAdapter::CreateResolutionEvent(VOID)
 {
+    PAGED_CODE();
+
     if (m_ResolutionEvent != NULL &&
         m_ResolutionEventHandle != NULL)
     {
@@ -2242,6 +2244,8 @@ VOID VioGpuAdapter::CreateResolutionEvent(VOID)
 
 VOID VioGpuAdapter::NotifyResolutionEvent(VOID)
 {
+    PAGED_CODE();
+
     if (m_ResolutionEvent != NULL) {
         DbgPrint(TRACE_LEVEL_ERROR, ("NotifyResolutionEvent\n"));
         KeSetEvent(m_ResolutionEvent, IO_NO_INCREMENT, FALSE);
@@ -2251,6 +2255,8 @@ VOID VioGpuAdapter::NotifyResolutionEvent(VOID)
 
 VOID VioGpuAdapter::CloseResolutionEvent(VOID)
 {
+    PAGED_CODE();
+
     if (m_ResolutionEventHandle != NULL) {
         ZwClose(m_ResolutionEventHandle);
         m_ResolutionEventHandle = NULL;
