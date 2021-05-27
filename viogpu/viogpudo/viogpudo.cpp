@@ -3217,16 +3217,10 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset)
     if (m_pFrameBuf != NULL)
     {
         resid = (UINT)m_pFrameBuf->GetId();
-        //if (bReset == TRUE) {
-        //    m_CtrlQueue.SetScanout(0/*FIXME m_Id*/, resid, 1024, 768, 0, 0);
-        //    m_CtrlQueue.TransferToHost2D(resid, 0, 1024, 768, 0, 0, NULL);
-        //    m_CtrlQueue.ResFlush(resid, 1024, 768, 0, 0);
-        //}
-//        m_CtrlQueue.SetScanout(0/*FIXME m_Id*/, resid, 1024, 768, 0, 0);
         m_CtrlQueue.InvalBacking(resid);
         m_CtrlQueue.UnrefResource(resid);
         if (bReset == TRUE) {
-            m_CtrlQueue.SetScanout(0/*FIXME m_Id*/, 0, 0, 0, 0, 0);
+            m_CtrlQueue.SetScanout(0, 0, 0, 0, 0, 0);
         }
         delete m_pFrameBuf;
         m_pFrameBuf = NULL;
