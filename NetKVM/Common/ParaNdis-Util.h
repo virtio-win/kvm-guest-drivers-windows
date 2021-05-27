@@ -130,25 +130,25 @@ public:
         NdisFreeSpinLock(&m_Lock);
     }
 
-    _Ndis_acquires_exclusive_lock_(this->m_Lock)
+    _Ndis_acquires_exclusive_lock_(this->m_Lock.SpinLock)
         void Lock()
     {
         NdisAcquireSpinLock(&m_Lock);
     }
 
-    _Ndis_releases_lock_(this->m_Lock)
+    _Ndis_releases_lock_(this->m_Lock.SpinLock)
         void Unlock()
     {
         NdisReleaseSpinLock(&m_Lock);
     }
 
-    _Ndis_acquires_exclusive_lock_(this->m_Lock)
+    _Ndis_acquires_exclusive_lock_(this->m_Lock.SpinLock)
         void LockDPR()
     {
         NETKVM_ASSERT(NDIS_CURRENT_IRQL() == DISPATCH_LEVEL);
         NdisDprAcquireSpinLock(&m_Lock);
     }
-    _Ndis_releases_lock_(this->m_Lock)
+    _Ndis_releases_lock_(this->m_Lock.SpinLock)
         void UnlockDPR()
     {
         NETKVM_ASSERT(NDIS_CURRENT_IRQL() == DISPATCH_LEVEL);
@@ -184,7 +184,8 @@ template <typename T>
 class CLockedContext
 {
 public:
-    _Ndis_acquires_exclusive_lock_(this->m_LockObject)
+    _IRQL_raises_(DISPATCH_LEVEL)
+    _IRQL_saves_global_(OldIrql, this->m_LockObject)
     CLockedContext(T &LockObject, BOOLEAN Autolock = TRUE)
         : m_LockObject(LockObject), m_Autolock(Autolock)
     {
@@ -194,7 +195,7 @@ public:
         }
     }
 
-    _Ndis_releases_lock_(this->m_LockObject)
+    _IRQL_restores_global_(OldIrql, this->m_LockObject)
         ~CLockedContext()
     {
         if (m_Autolock)
@@ -332,9 +333,9 @@ private:
 class CLockedAccess
 {
 public:
-    _Ndis_acquires_exclusive_lock_(this->m_Lock)
+    _Ndis_acquires_exclusive_lock_(this->m_Lock.m_Lock.SpinLock)
     void Lock() { m_Lock.Lock(); }
-    _Ndis_releases_lock_(this->m_Lock)
+    _Ndis_releases_lock_(this->m_Lock.m_Lock.SpinLock)
     void Unlock() { m_Lock.Unlock(); }
 private:
     CNdisSpinLock m_Lock;
