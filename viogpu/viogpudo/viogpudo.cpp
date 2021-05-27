@@ -2913,7 +2913,7 @@ NTSTATUS VioGpuAdapter::GetModeList(DXGK_DISPLAY_INFORMATION* pDispInfo)
     while ((gpu_disp_modes[ModeCount].XResolution >= MIN_WIDTH_SIZE) &&
         (gpu_disp_modes[ModeCount].YResolution >= MIN_HEIGHT_SIZE)) ModeCount++;
 
-    ModeCount += 2;
+    ModeCount += 1;
     m_ModeInfo = new (PagedPool) VIDEO_MODE_INFORMATION[ModeCount];
     if (!m_ModeInfo)
     {
