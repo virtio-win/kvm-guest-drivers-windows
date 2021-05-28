@@ -843,13 +843,13 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_ PPHYSICAL_ADDRESS pPAddr)
     if ((pPAddr == NULL) ||
         pPAddr->QuadPart == 0LL) {
         m_pVAddr = new (NonPagedPoolNx) BYTE[size];
-        RtlZeroMemory(m_pVAddr, size);
 
         if (!m_pVAddr)
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("%s insufficient resources to allocate %x bytes\n", __FUNCTION__, size));
             return FALSE;
         }
+        RtlZeroMemory(m_pVAddr, size);
         m_bSystemMemory = TRUE;
     }
     else {
