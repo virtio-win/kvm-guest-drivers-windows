@@ -7,7 +7,8 @@ for /d %%x in (objchk_*) do rmdir /S /Q %%x
 rmdir /S /Q .\sdv
 rmdir /S /Q .\sdv.temp
 
-del /F *.log *.wrn *.err *.sdf
+del /F *.log *.wrn *.err *.sdf *.sdv *.xml
 del viogpudo.dvl.xml
+del build.sdv.config
 del sdv-map.h
 
