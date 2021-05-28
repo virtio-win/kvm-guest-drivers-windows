@@ -136,15 +136,18 @@ public:
         _In_ void* data,
         _In_ void* va_indirect,
         _In_ ULONGLONG phys_indirect)
-    { return virtqueue_add_buf(m_pVirtQueue, sg, out_num, in_num, data,
-          va_indirect, phys_indirect); }
+    {
+        return m_pVirtQueue ?  virtqueue_add_buf(m_pVirtQueue, sg, out_num, in_num, data,
+            va_indirect, phys_indirect) : 0;
+    }
     void* GetBuf(_Out_ UINT* len)
-    { return virtqueue_get_buf(m_pVirtQueue, len); }
+    {
+        return m_pVirtQueue ? virtqueue_get_buf(m_pVirtQueue, len) : NULL;
+    }
     void Kick()
-    { virtqueue_kick_always(m_pVirtQueue); }
-    BOOLEAN EnableInterrupt(void) { return (virtqueue_enable_cb(m_pVirtQueue) ? TRUE : FALSE); }
-    VOID DisableInterrupt(void) { virtqueue_disable_cb(m_pVirtQueue); }
-    BOOLEAN InterruptEnabled(void) { return virtqueue_is_interrupt_enabled(m_pVirtQueue); }
+    { if (m_pVirtQueue) virtqueue_kick_always(m_pVirtQueue); }
+    bool EnableInterrupt(void) { return m_pVirtQueue ? virtqueue_enable_cb(m_pVirtQueue) : false; }
+    VOID DisableInterrupt(void) { if (m_pVirtQueue) virtqueue_disable_cb(m_pVirtQueue); }
     UINT QueryAllocation();
     void SetGpuBuf(_In_ VioGpuBuf* pbuf) { m_pBuf = pbuf;}
     void ReleaseBuffer(PGPU_VBUFFER buf);

@@ -60,7 +60,10 @@ VioGpuQueue::~VioGpuQueue()
 
 void VioGpuQueue::Close(void)
 {
+    KIRQL SavedIrql;
+    Lock(&SavedIrql);
     m_pVirtQueue = NULL;
+    Unlock(SavedIrql);
 }
 
 BOOLEAN  VioGpuQueue::Init(
@@ -562,9 +565,8 @@ UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
 
     Lock(&SavedIrql);
     ret = AddBuf(&sg[0], outcnt, incnt, buf, NULL, 0);
-    Unlock(SavedIrql);
-
     Kick();
+    Unlock(SavedIrql);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s ret = %d\n", __FUNCTION__, ret));
 
@@ -1040,8 +1042,8 @@ UINT CrsrQueue::QueueCursor(PGPU_VBUFFER buf)
     ASSERT(outcnt);
     Lock(&SavedIrql);
     ret = AddBuf(&sg[0], outcnt, 0, buf, NULL, 0);
-    Unlock(SavedIrql);
     Kick();
+    Unlock(SavedIrql);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s vbuf = %p outcnt = %d, ret = %d\n", __FUNCTION__, buf, outcnt, ret));
     return res;
