@@ -292,6 +292,13 @@
   <ItemGroup>
     <Inf Include="viogpudo.inx" />
   </ItemGroup>
+<!--  <ItemGroup Condition="'$(BUILD_RESOLUTIONS_USERMODE)'!=''"> -->
+  <ItemGroup>
+    <PackOne_Files Include="..\viogpuap\$(OutDir)viogpuap.exe"/>
+    <PackOne_Files Include="..\viogpuap\$(OutDir)viogpuap.pdb"/>
+    <PackOne_Files Include="..\viogpusc\$(OutDir)vgpusrv.exe"/>
+    <PackOne_Files Include="..\viogpusc\$(OutDir)vgpusrv.pdb"/>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.targets" />
   <ImportGroup Label="ExtensionTargets">
