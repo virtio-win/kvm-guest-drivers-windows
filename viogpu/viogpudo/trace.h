@@ -1,11 +1,5 @@
 #pragma once
 
-//#include <ntddk.h>
-//#include <evntrace.h> // For TRACE_LEVEL definitions
-//#include <stdarg.h>
-//#include "kdebugprint.h"
-
-
 //#define DBG 1
 
 #ifndef TRACE_LEVEL_INFORMATION
