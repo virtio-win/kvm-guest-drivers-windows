@@ -10,3 +10,10 @@ cd viogpudo
 call clean.bat
 cd ..
 
+cd viogpuap
+call clean.bat
+cd ..
+
+cd viogpusc
+call clean.bat
+cd ..
