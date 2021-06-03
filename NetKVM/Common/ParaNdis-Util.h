@@ -628,7 +628,7 @@ bool __inline ParaNdis_IsPassive()
 #error  Read/Write lock not supported by NDIS before 6.0
 #endif
 
-class CNdisRWLockState 
+class CNdisRWLockState
 {
 private:
 #ifdef RW_LOCK_60
@@ -644,7 +644,7 @@ class CNdisRWLock : public CPlacementAllocatable
 {
 public:
 #ifdef RW_LOCK_60
-    bool Create(NDIS_HANDLE) 
+    bool Create(NDIS_HANDLE)
     {
         NdisInitializeReadWriteLock(&m_lock);
         return true;
@@ -655,7 +655,7 @@ public:
     bool Create(NDIS_HANDLE miniportHandle);
 #endif
 
-    ~CNdisRWLock() 
+    ~CNdisRWLock()
     {
 #ifdef RW_LOCK_62
         if (m_pLock != nullptr)
@@ -746,7 +746,7 @@ private:
 #endif
 };
 
-template <void (CNdisRWLock::*Acquire)(CNdisRWLockState&), void (CNdisRWLock::*Release)(CNdisRWLockState&)>   class CNdisAutoRWLock 
+template <void (CNdisRWLock::*Acquire)(CNdisRWLockState&), void (CNdisRWLock::*Release)(CNdisRWLockState&)>   class CNdisAutoRWLock
 {
 public:
     _Ndis_acquires_lock_(_, this->lock)
@@ -756,7 +756,7 @@ public:
     }
 
     _Ndis_releases_lock_(this->lock)
-    ~CNdisAutoRWLock() 
+    ~CNdisAutoRWLock()
     {
         (lock.*Release)(lockState);
     }
