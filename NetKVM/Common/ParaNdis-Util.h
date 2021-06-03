@@ -692,7 +692,9 @@ public:
         NdisReleaseReadWriteLock(&m_lock, &lockState.m_state);
 #endif
 #ifdef RW_LOCK_62
+#pragma warning(disable:26110)
         NdisReleaseRWLock(m_pLock, &lockState.m_state);
+#pragma warning(default:26110)
 #endif
     }
 
@@ -729,7 +731,9 @@ public:
         NdisDprReleaseReadWriteLock(&m_lock, &lockState.m_state);
 #endif
 #ifdef RW_LOCK_62
+#pragma warning(disable:26110)
         NdisReleaseRWLock(m_pLock, &lockState.m_state);
+#pragma warning(default:26110)
 #endif
     }
 
