@@ -1990,17 +1990,26 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileContext, PWSTR FileName, FSP_FSCTL_DIR_INFO *DirInfo)
+    PVOID FileContext0, PWSTR FileName, FSP_FSCTL_DIR_INFO *DirInfo)
 {
     VIRTFS *VirtFs = FileSystem->UserContext;
+    VIRTFS_FILE_CONTEXT *FileContext = FileContext0;
     FUSE_LOOKUP_OUT lookup_out;
     NTSTATUS Status;
-
-    UNREFERENCED_PARAMETER(FileContext);
+    char *filename;
 
     DBG("\"%S\"", FileName);
 
-    Status = VirtFsLookupFileName(VirtFs->Device, FileName, &lookup_out);
+    Status = FspPosixMapWindowsToPosixPath(FileName, &filename);
+    if (!NT_SUCCESS(Status))
+    {
+        FspPosixDeletePath(filename);
+        return Status;
+    }
+
+    Status = SubmitLookupRequest(VirtFs->Device, FileContext->NodeId,
+        filename, &lookup_out);
+
     if (NT_SUCCESS(Status))
     {
         DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) +
@@ -2011,6 +2020,8 @@ static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
         CopyMemory(DirInfo->FileNameBuf, FileName,
             DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
     }
+
+    FspPosixDeletePath(filename);
 
     return Status;
 }
