@@ -113,6 +113,9 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 static VOID FixReparsePointAttributes(VIRTFS *VirtFs, uint64_t nodeid,
     UINT32 *PFileAttributes);
 
+static NTSTATUS VirtFsLookupFileName(HANDLE Device, PWSTR FileName,
+    FUSE_LOOKUP_OUT *LookupOut);
+
 static int64_t GetUniqueIdentifier()
 {
     static int64_t uniq = 1;
@@ -605,6 +608,8 @@ static NTSTATUS SubmitReadLinkRequest(HANDLE Device, UINT64 NodeId,
 static NTSTATUS PathWalkthough(HANDLE Device, CHAR *FullPath,
     CHAR **FileName, UINT64 *Parent)
 {
+    WCHAR SubstituteName[MAX_PATH];
+    USHORT SubstituteNameLength = 0;
     NTSTATUS Status = STATUS_SUCCESS;
     FUSE_LOOKUP_OUT LookupOut;
     CHAR *Separator;
@@ -620,6 +625,23 @@ static NTSTATUS PathWalkthough(HANDLE Device, CHAR *FullPath,
         if (!NT_SUCCESS(Status))
         {
             break;
+        }
+
+        if ((LookupOut.entry.attr.mode & S_IFLNK) == S_IFLNK)
+        {
+            Status = SubmitReadLinkRequest(Device, LookupOut.entry.nodeid,
+                SubstituteName, &SubstituteNameLength);
+
+            if (!NT_SUCCESS(Status))
+            {
+                break;
+            }
+
+            Status = VirtFsLookupFileName(Device, SubstituteName, &LookupOut);
+            if (!NT_SUCCESS(Status))
+            {
+                break;
+            }
         }
 
         *Parent = LookupOut.entry.nodeid;
