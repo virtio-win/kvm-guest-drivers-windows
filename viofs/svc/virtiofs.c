@@ -55,7 +55,7 @@
 #define INVALID_FILE_HANDLE ((uint64_t)(-1))
 
 // Some of the constants defined in Windows doesn't match the values that are
-// used in Linux. Don't try just to understand, just redefine them to match.
+// used in Linux. Don't try to understand, just redefine them to match.
 #undef O_DIRECTORY
 #undef O_EXCL
 #undef S_IFMT
