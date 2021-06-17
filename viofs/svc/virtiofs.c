@@ -637,6 +637,8 @@ static NTSTATUS PathWalkthough(HANDLE Device, CHAR *FullPath,
                 break;
             }
 
+            SubstituteName[SubstituteNameLength] = L'\0';
+
             Status = VirtFsLookupFileName(Device, SubstituteName, &LookupOut);
             if (!NT_SUCCESS(Status))
             {
