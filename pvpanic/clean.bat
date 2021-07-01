@@ -11,6 +11,10 @@ call :cleandir
 for /D %%D IN (objchk_*) do call call :rmdir %%D
 for /D %%D IN (objfre_*) do call call :rmdir %%D
 call :rmfiles *.tmh
+call :rmdir .\sdv
+call :rmdir .\sdv.temp
+call :rmfiles *.dvl.xml
+call :rmfiles sdv-map.h
 popd
 
 pushd "PVPanic Package"
