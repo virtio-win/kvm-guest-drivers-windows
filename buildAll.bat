@@ -11,8 +11,25 @@ call tools\build.bat vioscsi\vioscsi.vcxproj "Win8_SDV Win10_SDV" %*
 if errorlevel 1 goto :fail
 call tools\build.bat viostor\viostor.vcxproj "Win8_SDV Win10_SDV" %*
 if errorlevel 1 goto :fail
+if "%VIRTIO_WIN_SDV_2022%"=="" goto :nosdv2022
+call tools\build.bat Balloon\sys\balloon.vcxproj "Win10_SDV" %*
+if errorlevel 1 goto :fail
+call tools\build.bat fwcfg64\fwcfg.vcxproj "Win10_SDV" %*
+if errorlevel 1 goto :fail
 call tools\build.bat ivshmem\ivshmem.vcxproj "Win10_SDV" %*
 if errorlevel 1 goto :fail
+call tools\build.bat pvpanic\pvpanic\pvpanic.vcxproj "Win10_SDV" %*
+if errorlevel 1 goto :fail
+call tools\build.bat viocrypt\sys\viocrypt.vcxproj "Win10_SDV" %*
+if errorlevel 1 goto :fail
+call tools\build.bat viorng\viorng\viorng.vcxproj "Win10_SDV" %*
+if errorlevel 1 goto :fail
+call tools\build.bat vioserial\sys\vioser.vcxproj "Win10_SDV" %*
+if errorlevel 1 goto :fail
+call tools\build.bat viosock\sys\viosock.vcxproj "Win10_SDV" %*
+if errorlevel 1 goto :fail
+
+:nosdv2022
 
 path %path%;C:\Program Files (x86)\Windows Kits\10\bin\x86\
 for %%D in (pciserial fwcfg packaging Q35) do (
