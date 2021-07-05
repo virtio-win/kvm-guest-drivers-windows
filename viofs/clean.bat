@@ -10,6 +10,7 @@ call :cleandir
 del pci\smvbuild.log
 del pci\smvstats.txt
 del pci\viofs.DVL.XML
+del pci\viofs.DVL-compat.XML
 
 pushd pci
 call :cleandir

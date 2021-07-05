@@ -9,6 +9,7 @@ rmdir /S /Q .\sdv.temp
 
 del /F *.log *.wrn *.err *.sdf *.sdv *.xml
 del viogpudo.dvl.xml
+del viogpudo.dvl-compat.xml
 del build.sdv.config
 del sdv-map.h
 
