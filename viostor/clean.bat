@@ -9,5 +9,6 @@ rmdir /S /Q .\sdv.temp
 
 del /F *.log *.wrn *.err *.sdf
 del viostor.dvl.xml
+del viostor.dvl-compat.xml
 del sdv-map.h
 

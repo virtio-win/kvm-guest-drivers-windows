@@ -10,6 +10,7 @@ rmdir /S /Q .\sdv.temp
 
 del /F *.log *.wrn *.err
 del *.dvl.xml
+del *.dvl-compat.xml
 del sdv-map.h
 del sdv-user.sdv
 del SDV-default.xml

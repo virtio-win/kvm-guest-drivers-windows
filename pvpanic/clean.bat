@@ -14,6 +14,7 @@ call :rmfiles *.tmh
 call :rmdir .\sdv
 call :rmdir .\sdv.temp
 call :rmfiles *.dvl.xml
+call :rmfiles *.dvl-compat.xml
 call :rmfiles sdv-map.h
 popd
 

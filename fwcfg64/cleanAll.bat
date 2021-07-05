@@ -9,6 +9,7 @@ del /F *.log *.wrn *.err
 
 rmdir /S /Q Install
 del *.dvl.xml
+del *.dvl-compat.xml
 del sdv-map.h
 del sdv-user.sdv
 del SDV-default.xml
