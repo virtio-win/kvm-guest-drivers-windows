@@ -331,7 +331,7 @@ BOOLEAN VioScsiReadRegistry(
            sizeof(ULONG));
     adaptExt->max_physical_breaks = min(
                                         max(SCSI_MINIMUM_PHYSICAL_BREAKS, adaptExt->max_physical_breaks),
-                                        SCSI_MAXIMUM_PHYSICAL_BREAKS);
+                                        MAX_PHYS_SEGMENTS);
 
     StorPortFreeRegistryBuffer(DeviceExtension, pBuf );
 
@@ -1348,46 +1348,7 @@ ENTER_FN_SRB();
     sgList = StorPortGetScatterGatherList(DeviceExtension, Srb);
     if (sgList)
     {
-        sgMaxElements = sgList->NumberOfElements;
-
-#if (NTDDI_VERSION > NTDDI_WIN7)
-        if (sgMaxElements > MAX_PHYS_SEGMENTS && adaptExt->indirect)
-        {
-            PHYSICAL_ADDRESS Low;
-            PHYSICAL_ADDRESS High;
-            PHYSICAL_ADDRESS Alighn;
-            ULONG Status =   STATUS_SUCCESS;
-            srbExt->allocated = sgMaxElements + 3;
-
-            Status = StorPortAllocatePool(DeviceExtension,
-                                    sizeof(VIO_SG) * (srbExt->allocated),
-                                    VIOSCSI_POOL_TAG,
-                                    (PVOID*)&srbExt->psgl);
-            if (!NT_SUCCESS(Status)) {
-                RhelDbgPrint(TRACE_LEVEL_FATAL, " FAILED to allocate pool with status 0x%x\n", Status);
-                return FALSE;
-            }
-
-            memcpy(srbExt->psgl, srbExt->vio_sg, sizeof(VIO_SG));
-            Low.QuadPart = 0;
-            High.QuadPart = (-1);
-            Alighn.QuadPart = 0;
-            Status = StorPortAllocateContiguousMemorySpecifyCacheNode(
-                                    DeviceExtension,
-                                    sizeof(VRING_DESC_ALIAS) * (srbExt->allocated),
-                                    Low, High, Alighn,
-                                    MmCached,
-                                    MM_ANY_NODE_OK,
-                                    (PVOID*)&srbExt->pdesc);
-            if (!NT_SUCCESS(Status)) {
-                RhelDbgPrint(TRACE_LEVEL_FATAL, " FAILED to allocate contiguous memory with status 0x%x\n", Status);
-                StorPortFreePool(DeviceExtension, srbExt->psgl);
-                srbExt->allocated = 0;
-                srbExt->psgl = srbExt->vio_sg;
-                return FALSE;
-            }
-        }
-#endif
+        sgMaxElements = min((MAX_PHYS_SEGMENTS + 1), sgList->NumberOfElements);
 
         if((SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT) == SRB_FLAGS_DATA_OUT) {
             for (i = 0; i < sgMaxElements; i++, sgElement++) {
@@ -1397,13 +1358,14 @@ ENTER_FN_SRB();
             }
         }
     }
+
     srbExt->out = sgElement;
     srbExt->psgl[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->resp.cmd, &fragLen);
     srbExt->psgl[sgElement].length = sizeof(cmd->resp.cmd);
     sgElement++;
     if (sgList)
     {
-        sgMaxElements = sgList->NumberOfElements;
+        sgMaxElements = min((MAX_PHYS_SEGMENTS + 1), sgList->NumberOfElements);
 
         if((SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT) != SRB_FLAGS_DATA_OUT) {
             for (i = 0; i < sgMaxElements; i++, sgElement++) {
