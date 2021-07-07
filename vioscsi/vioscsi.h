@@ -51,6 +51,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_MAX_SG            (3+MAX_PHYS_SEGMENTS)
 
 #define SECTOR_SIZE             512
+#define SECTOR_SHIFT            9
 #define IO_PORT_LENGTH          0x40
 #define MAX_CPU                 256
 
