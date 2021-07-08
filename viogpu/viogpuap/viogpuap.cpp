@@ -37,10 +37,12 @@ wmain(
 
     m_pMgr->Close();
     delete m_pMgr;
+    m_pMgr = NULL;
 
     if (pClient) {
         pClient->Close();
         delete pClient;
         pClient = NULL;
     }
+    return 0;
 }
