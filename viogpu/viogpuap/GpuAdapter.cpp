@@ -10,7 +10,8 @@ GpuAdapter::GpuAdapter(const std::wstring LinkName) :
     m_PathArrayElements(0),
     m_ModeInfoArrayElements(0),
     m_pDisplayPathInfo(NULL),
-    m_pDisplayModeInfo(NULL)
+    m_pDisplayModeInfo(NULL),
+    m_Flag(None)
 {
     m_DeviceName = LinkName;
     PrintMessage(L"%ws %ws\n", __FUNCTIONW__, m_DeviceName.c_str());
@@ -259,10 +260,15 @@ void GpuAdapter::Close()
         m_hThread = NULL;
     }
 
-    CloseHandle(m_hStopEvent);
-    m_hStopEvent = NULL;
-    CloseHandle(m_hResolutionEvent);
-    m_hResolutionEvent = NULL;
+    if (m_hStopEvent) {
+        CloseHandle(m_hStopEvent);
+        m_hStopEvent = NULL;
+    }
+
+    if (m_hResolutionEvent) {
+        CloseHandle(m_hResolutionEvent);
+        m_hResolutionEvent = NULL;
+    }
 
     if (m_hAdapter) {
         D3DKMT_CLOSEADAPTER close = { m_hAdapter };

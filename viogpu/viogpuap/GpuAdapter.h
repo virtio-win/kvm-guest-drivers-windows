@@ -1,6 +1,6 @@
 #pragma once
 
-enum Status { Active, Reset };
+enum Status { None, Active, Reset };
 
 
 class GpuAdapter
@@ -11,7 +11,10 @@ public:
     Status GetStatus(void) { return m_Flag; }
     void SetStatus(Status flag) { m_Flag = flag; }
 private:
+#pragma warning( push )
+#pragma warning(disable: 26495)
     GpuAdapter() { ; }
+#pragma warning( pop )
     static DWORD WINAPI ServiceThread(GpuAdapter*);
     void Run();
     void Init();
