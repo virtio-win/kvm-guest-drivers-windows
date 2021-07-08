@@ -1322,7 +1322,6 @@ ENTER_FN_SRB();
     srbExt->psgl = srbExt->vio_sg;
     srbExt->pdesc = srbExt->desc_alias;
 
-    srbExt->allocated = 0;
 #ifdef USE_CPU_TO_VQ_MAP
     srbExt->cpu = (UCHAR)cpu;
 #endif
@@ -1587,16 +1586,6 @@ ENTER_FN_SRB();
            break;
 
     }
-#if (NTDDI_VERSION > NTDDI_WIN7)
-    srbExt = SRB_EXTENSION(Srb);
-    if (srbExt && (srbExt->allocated > 0)) {
-        StorPortFreePool(DeviceExtension, srbExt->psgl);
-        StorPortFreeContiguousMemorySpecifyCache(DeviceExtension, srbExt->pdesc, sizeof(VRING_DESC_ALIAS) * (srbExt->allocated), MmCached);
-        srbExt->allocated = 0;
-        srbExt->psgl = srbExt->vio_sg;
-        srbExt->pdesc = srbExt->desc_alias;
-    }
-#endif
 EXIT_FN_SRB();
 }
 

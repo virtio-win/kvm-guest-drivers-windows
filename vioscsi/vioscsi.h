@@ -245,7 +245,6 @@ typedef struct _SRB_EXTENSION {
     ULONG                 Xfer;
     VirtIOSCSICmd         cmd;
     ULONG                 vq_num;
-    ULONG                 allocated;
     PVIO_SG               psgl;
     PVRING_DESC_ALIAS     pdesc;
     VIO_SG                vio_sg[VIRTIO_MAX_SG];

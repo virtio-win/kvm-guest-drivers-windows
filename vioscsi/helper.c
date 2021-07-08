@@ -209,7 +209,6 @@ ENTER_FN();
 
     srbExt->psgl = srbExt->vio_sg;
     srbExt->pdesc = srbExt->desc_alias;
-    srbExt->allocated = 0;
     sgElement = 0;
     srbExt->psgl[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->req.tmf, &fragLen);
     srbExt->psgl[sgElement].length   = sizeof(cmd->req.tmf);
