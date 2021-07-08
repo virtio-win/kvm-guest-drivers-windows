@@ -2352,13 +2352,17 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
     UINT fb_size = (UINT)m_PciResources.GetPciBar(0)->GetSize();
     UINT req_size = pDispInfo->Pitch * pDispInfo->Height;
 //FIXME
-    req_size = 2048 * 2048 * 4;
+#if NTDDI_VERSION > NTDDI_WINBLUE
+    req_size = 0x1000000;
+#else
+    req_size = 0x800000;
+#endif
     if (fb_pa.QuadPart != 0LL) {
         pDispInfo->PhysicAddress = fb_pa;
     }
 
     if (!m_pVioGpuDod->IsUsePhysicalMemory() ||
-        fb_pa.QuadPart == 0 || 
+        fb_pa.QuadPart == 0 ||
         fb_size < req_size) {
         fb_pa.QuadPart = 0LL;
         fb_size = max (req_size, fb_size);
@@ -2805,13 +2809,17 @@ BOOLEAN VioGpuAdapter::GetEdids(void)
 
 VIOGPU_DISP_MODE gpu_disp_modes[16] =
 {
+#if NTDDI_VERSION > NTDDI_WINBLUE
     {640, 480},
     {800, 600},
+#endif
     {1024, 768},
+    {1280, 1024},
+    {1920, 1080},
+#if NTDDI_VERSION > NTDDI_WINBLUE
+    {2560, 1600},
+#endif
     {0, 0},
-    //    {1280, 1024},
-    //    {1920, 1080},
-    //    {2560, 1600, VGPU_BPP},
 };
 
 
@@ -2846,14 +2854,13 @@ void VioGpuAdapter::SetVideoModeInfo(UINT Idx, PVIOGPU_DISP_MODE pModeInfo)
     PAGED_CODE();
 
     PVIDEO_MODE_INFORMATION pMode = NULL;
-    UINT bytes_pp = (VGPU_BPP + 7) / 8;
 
     pMode = &m_ModeInfo[Idx];
     pMode->Length = sizeof(VIDEO_MODE_INFORMATION);
     pMode->ModeIndex = Idx;
     pMode->VisScreenWidth = pModeInfo->XResolution;
     pMode->VisScreenHeight = pModeInfo->YResolution;
-    pMode->ScreenStride = (pModeInfo->XResolution * bytes_pp + 3) & ~0x3;
+    pMode->ScreenStride = (pModeInfo->XResolution * 4 + 3) & ~0x3;
 }
 
 NTSTATUS VioGpuAdapter::UpdateChildStatus(BOOLEAN connect)
