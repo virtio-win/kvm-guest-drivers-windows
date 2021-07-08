@@ -41,13 +41,13 @@ bool PipeServer::Init()
     }
 
     m_hPipe = ::CreateNamedPipe(
-            m_sPipeName.c_str(), 
-            PIPE_ACCESS_DUPLEX, 
+            m_sPipeName.c_str(),
+            PIPE_ACCESS_DUPLEX,
             PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
-            PIPE_UNLIMITED_INSTANCES,  
+            PIPE_UNLIMITED_INSTANCES,
+            DATA_BUFFER_SIZE,
             DATA_BUFFER_SIZE, 
-            DATA_BUFFER_SIZE, 
-            NMPWAIT_USE_DEFAULT_WAIT, 
+            NMPWAIT_USE_DEFAULT_WAIT,
             NULL);
 
     if(INVALID_HANDLE_VALUE == m_hPipe) {
@@ -115,8 +115,8 @@ void PipeServer::Close()
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    ::FlushFileBuffers(m_hPipe); 
-    ::DisconnectNamedPipe(m_hPipe); 
+    ::FlushFileBuffers(m_hPipe);
+    ::DisconnectNamedPipe(m_hPipe);
     ::CloseHandle(m_hPipe);
     m_hPipe = INVALID_HANDLE_VALUE;
     ::CloseHandle(m_hThread);
@@ -133,7 +133,7 @@ bool PipeServer::Read()
     int left = DATA_BUFFER_SIZE * sizeof(wchar_t);
     do {
 
-        bFinishedRead = ::ReadFile( 
+        bFinishedRead = ::ReadFile(
             m_hPipe,
             &m_buffer[read],
             left,
@@ -300,8 +300,8 @@ void PipeClient::Close()
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    ::FlushFileBuffers(m_hPipe); 
-    ::DisconnectNamedPipe(m_hPipe); 
+    ::FlushFileBuffers(m_hPipe);
+    ::DisconnectNamedPipe(m_hPipe);
     ::CloseHandle(m_hPipe);
     m_hPipe = INVALID_HANDLE_VALUE;
     ::CloseHandle(m_hThread);
