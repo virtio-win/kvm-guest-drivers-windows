@@ -9,12 +9,14 @@ CSession::CSession(ULONG Id) : m_PipeServer(NULL)
 
     ZeroMemory(&m_SessionInfo, sizeof(m_SessionInfo));
     m_SessionInfo.SessionId = Id;
+    ZeroMemory(&m_ProcessInfo, sizeof(m_ProcessInfo));
 }
 
 
 CSession::~CSession(void)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
+    Close();
 }
 
 bool CSession::Init(void)
@@ -35,9 +37,11 @@ bool CSession::Init(void)
 void CSession::Close(void)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
-
-    m_PipeServer->Close();
-    m_PipeServer = NULL;
+    if (m_PipeServer) {
+        m_PipeServer->Close();
+        delete m_PipeServer;
+        m_PipeServer = NULL;
+    }
 }
 
 void CSession::Pause(void)
