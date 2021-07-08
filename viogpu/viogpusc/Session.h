@@ -8,7 +8,7 @@ class CSession
 {
 public:
     CSession(ULONG Id);
-    virtual ~CSession(void);
+    ~CSession(void);
     bool Init(void);
     void Close(void);
     void Pause(void);
