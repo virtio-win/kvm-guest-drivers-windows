@@ -102,38 +102,41 @@ DWORD WINAPI GpuAdaptersMgr::ServiceThread(GpuAdaptersMgr* ptr)
 void GpuAdaptersMgr::Run()
 {
     MSG Msg;
-    WNDCLASSEX wc;
+    WNDCLASSEX wc = {0};
+    HINSTANCE hInstance = reinterpret_cast<HINSTANCE>(GetModuleHandle(0));
 
     wc.cbSize = sizeof(WNDCLASSEX);
     wc.style = 0;
     wc.lpfnWndProc = GlobalWndProc;
     wc.cbClsExtra = 0;
     wc.cbWndExtra = 0;
-    wc.hInstance = reinterpret_cast<HINSTANCE>(GetModuleHandle(0));
-    wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hInstance = hInstance;
+    wc.hCursor = NULL;
+    wc.hIcon = NULL;
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wc.lpszMenuName = NULL;
     wc.lpszClassName = WIN_CLASS_NAME;
-    wc.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
+    wc.hIconSm = NULL;
 
     if (!RegisterClassEx(&wc))
     {
         PrintMessage(L"Window Registration Failed!\n");
+        return;
     }
 
     m_hWnd = CreateWindowEx(
-        WS_EX_CLIENTEDGE,
+        WS_EX_TOOLWINDOW,
         WIN_CLASS_NAME,
         NULL,
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-        NULL, NULL, NULL, NULL
+        WS_POPUP,
+        0, 0, 0, 0,
+        HWND_DESKTOP, NULL, hInstance, NULL
     );
 
     if (m_hWnd == NULL)
     {
         PrintMessage(L"Window Creation Failed!\n");
+        return;
     }
 
     SetWindowLongPtr(m_hWnd, GWLP_USERDATA, (LONG_PTR)(this));
