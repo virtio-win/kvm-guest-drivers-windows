@@ -95,8 +95,6 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define VIOBLK_POOL_TAG        'BoiV'
 
-#define VIOBLK_MAX_TRANSFER     MAX_PHYS_SEGMENTS * PAGE_SIZE
-
 #pragma pack(1)
 typedef struct virtio_blk_config {
     /* The capacity (in 512-byte sectors). */
@@ -237,6 +235,7 @@ typedef struct _ADAPTER_EXTENSION {
     BOOLEAN               check_condition;
     SENSE_INFO            sense_info;
     BOOLEAN               removed;
+    ULONG                 max_tx_length;
 #if (NTDDI_VERSION > NTDDI_WIN7)
     PGROUP_AFFINITY       pmsg_affinity;
     STOR_ADDR_BTL8        device_address;
