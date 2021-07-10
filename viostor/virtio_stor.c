@@ -474,20 +474,26 @@ VirtIoFindAdapter(
         &adaptExt->pageAllocationSize,
         &adaptExt->poolAllocationSize);
 
-    if(adaptExt->dump_mode) {
-        ConfigInfo->NumberOfPhysicalBreaks = 8;
-    } else {
-        ConfigInfo->NumberOfPhysicalBreaks = MAX_PHYS_SEGMENTS + 1;
-    }
-
-    ConfigInfo->MaximumTransferLength = VIOBLK_MAX_TRANSFER;
-
     if(!adaptExt->dump_mode) {
         adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
     }
+
+    if(adaptExt->dump_mode) {
+        ConfigInfo->NumberOfPhysicalBreaks = SCSI_MINIMUM_PHYSICAL_BREAKS;
+    } else {
+        ConfigInfo->NumberOfPhysicalBreaks = MAX_PHYS_SEGMENTS;
+    }
+
     if(adaptExt->indirect) {
         adaptExt->queue_depth = queueLength;
+    } else {
+        ConfigInfo->NumberOfPhysicalBreaks = max(SCSI_MINIMUM_PHYSICAL_BREAKS, (queueLength / 4));
+        adaptExt->queue_depth = max(((queueLength / ConfigInfo->NumberOfPhysicalBreaks) - 1), 1);
     }
+
+    ConfigInfo->MaximumTransferLength = ConfigInfo->NumberOfPhysicalBreaks * PAGE_SIZE;
+    ConfigInfo->NumberOfPhysicalBreaks++;
+    adaptExt->max_tx_length = ConfigInfo->MaximumTransferLength;
 
 #ifdef MSI_SUPPORTED
 #if (NTDDI_VERSION >= NTDDI_WIN7)
@@ -1494,7 +1500,7 @@ RhelScsiGetInquiryData(
              (dataLen >= 0x14)) {
 
         PVPD_BLOCK_LIMITS_PAGE LimitsPage;
-        ULONG max_io_size = VIOBLK_MAX_TRANSFER / adaptExt->info.size_max;
+        ULONG max_io_size = adaptExt->max_tx_length / adaptExt->info.size_max;
         USHORT pageLen = 0x10;
 
         LimitsPage = (PVPD_BLOCK_LIMITS_PAGE)SRB_DATA_BUFFER(Srb);
