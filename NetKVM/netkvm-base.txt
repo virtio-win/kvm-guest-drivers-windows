@@ -89,11 +89,11 @@ HKR, Ndi\params\DebugLevel,         max,        0,          "8"
 HKR, Ndi\params\DebugLevel,         step,       0,          "1"
 
 HKR, Ndi\params\*JumboPacket,       ParamDesc,  0,          %JumboPacket%
-HKR, Ndi\params\*JumboPacket,       type,       0,          "long"
+HKR, Ndi\params\*JumboPacket,       type,       0,          "enum"
 HKR, Ndi\params\*JumboPacket,       default,    0,          "1514"
-HKR, Ndi\params\*JumboPacket,       min,        0,          "590"
-HKR, Ndi\params\*JumboPacket,       max,        0,          "65500"
-HKR, Ndi\params\*JumboPacket,       step,       0,          "1"
+HKR, Ndi\params\*JumboPacket\enum,  "1514",     0,          "1514"
+HKR, Ndi\params\*JumboPacket\enum,  "4088",     0,          "4088"
+HKR, Ndi\params\*JumboPacket\enum,  "9014",     0,          "9014"
 
 HKR, Ndi\params\TxCapacity,         ParamDesc,  0,          %TxCapacity%
 HKR, Ndi\params\TxCapacity,         type,       0,          "enum"
