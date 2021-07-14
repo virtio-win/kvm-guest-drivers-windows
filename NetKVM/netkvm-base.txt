@@ -73,7 +73,7 @@ HKR, Ndi\params\VlanID,         ParamDesc,  0,          %VLan_ID%
 HKR, Ndi\params\VlanID,         type,       0,          "int"
 HKR, Ndi\params\VlanID,         default,    0,          "0"
 HKR, Ndi\params\VlanID,         min,        0,          "0"
-HKR, Ndi\params\VlanID,         max,        0,          "4095"
+HKR, Ndi\params\VlanID,         max,        0,          "4094"
 
 HKR, Ndi\Params\DoLog,              ParamDesc,  0,          %EnableLogging%
 HKR, Ndi\Params\DoLog,              Default,    0,          "1"

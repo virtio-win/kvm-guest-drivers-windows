@@ -40,7 +40,7 @@ static VOID ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext);
 
 static __inline pRxNetDescriptor ReceiveQueueGetBuffer(PPARANDIS_RECEIVE_QUEUE pQueue);
 
-#define MAX_VLAN_ID     4095
+#define MAX_VLAN_ID     4094
 
 /**********************************************************
 Validates MAC address
@@ -1899,8 +1899,8 @@ static VOID SetAllVlanFilters(PARANDIS_ADAPTER *pContext, BOOLEAN bOn)
 /*
     possible values of filter set (pContext->ulCurrentVlansFilterSet):
     0 - all disabled
-    1..4095 - one selected enabled
-    4096 - all enabled
+    1..4094 - one selected enabled
+    4095 - all enabled
     Note that only 0th vlan can't be enabled
 */
 VOID ParaNdis_DeviceFiltersUpdateVlanId(PARANDIS_ADAPTER *pContext)
