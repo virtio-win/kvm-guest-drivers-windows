@@ -129,7 +129,7 @@ static const tConfigurationEntries defaultConfiguration =
     { "NumberOfHandledRXPacketsInDPC", MAX_RX_LOOPS, 1, 10000},
 #if PARANDIS_SUPPORT_RSS
     { "*RSS", 1, 0, 1},
-    { "*NumRssQueues", 8, 1, PARANDIS_RSS_MAX_RECEIVE_QUEUES},
+    { "*NumRssQueues", 16, 1, PARANDIS_RSS_MAX_RECEIVE_QUEUES},
 #endif
 #if PARANDIS_SUPPORT_RSC
     { "*RscIPv4", 1, 0, 1},
