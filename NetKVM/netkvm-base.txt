@@ -70,7 +70,7 @@ HKR, Ndi\Params\*PriorityVLANTag\enum,      "1",        0,          %PriorityOnl
 HKR, Ndi\Params\*PriorityVLANTag\enum,      "0",        0,          %Disable%
 
 HKR, Ndi\params\VlanID,         ParamDesc,  0,          %VLan_ID%
-HKR, Ndi\params\VlanID,         type,       0,          "int"
+HKR, Ndi\params\VlanID,         type,       0,          "long"
 HKR, Ndi\params\VlanID,         default,    0,          "0"
 HKR, Ndi\params\VlanID,         min,        0,          "0"
 HKR, Ndi\params\VlanID,         max,        0,          "4094"
