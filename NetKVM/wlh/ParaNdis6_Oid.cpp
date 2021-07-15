@@ -775,6 +775,15 @@ static void DumpOffloadStructure(NDIS_OFFLOAD *po, LPCSTR message)
 #ifdef PARANDIS_SUPPORT_RSC
     DPrintf(level, "RSC:(IPv4: Enabled=%ul, IPv6: Enabled=%ul)\n", po->Rsc.IPv4.Enabled, po->Rsc.IPv6.Enabled);
 #endif
+#ifdef PARANDIS_SUPPORT_USO
+    if (po->Header.Revision >= NDIS_OFFLOAD_REVISION_6)
+    {
+        pul = (ULONG *)&po->UdpSegmentation.IPv4;
+        DPrintf(level, "USO4:(%d,%d,%d)\n", pul[0], pul[1], pul[2]);
+        pul = (ULONG *)&po->UdpSegmentation.IPv6;
+        DPrintf(level, "USO6:(%d,%d,%d,%d)\n", pul[0], pul[1], pul[2], pul[3]);
+    }
+#endif
 }
 
 #define OFFLOAD_FEATURE_SUPPORT(flag) (flag) ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED
@@ -789,6 +798,13 @@ static void FillOffloadStructure(NDIS_OFFLOAD *po, tOffloadSettingsFlags f)
 #if (NDIS_SUPPORT_NDIS630)
     po->Header.Revision = NDIS_OFFLOAD_REVISION_3;
     po->Header.Size = NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_3;
+#if (NDIS_SUPPORT_NDIS683)
+    if (CheckNdisVersion(6, 83))
+    {
+        po->Header.Revision = NDIS_OFFLOAD_REVISION_6;
+        po->Header.Size = NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_6;
+    }
+#endif
 #else
     po->Header.Revision = NDIS_OFFLOAD_REVISION_1;
     po->Header.Size = NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_1;
@@ -833,6 +849,19 @@ static void FillOffloadStructure(NDIS_OFFLOAD *po, tOffloadSettingsFlags f)
     plso2->IPv6.MaxOffLoadSize = f.fTxLsov6 ? PARANDIS_MAX_LSO_SIZE : 0;
     plso2->IPv6.MinSegmentCount = f.fTxLsov6 ? PARANDIS_MIN_LSO_SEGMENTS : 0;
     plso2->IPv6.TcpOptionsSupported = f.fTxLsov6TCP ? NDIS_OFFLOAD_SUPPORTED : NDIS_OFFLOAD_NOT_SUPPORTED;
+
+#if (NDIS_SUPPORT_NDIS683)
+    if (CheckNdisVersion(6, 83))
+    {
+        po->UdpSegmentation.IPv4.Encapsulation = f.fUsov4 ? NDIS_ENCAPSULATION_IEEE_802_3 : NDIS_ENCAPSULATION_NOT_SUPPORTED;
+        po->UdpSegmentation.IPv4.MaxOffLoadSize = f.fUsov4 ? PARANDIS_MAX_LSO_SIZE : 0;
+        po->UdpSegmentation.IPv4.MinSegmentCount = f.fUsov4 ? PARANDIS_MIN_LSO_SEGMENTS : 0;
+
+        po->UdpSegmentation.IPv6.Encapsulation = f.fUsov6 ? NDIS_ENCAPSULATION_IEEE_802_3 : NDIS_ENCAPSULATION_NOT_SUPPORTED;
+        po->UdpSegmentation.IPv6.MaxOffLoadSize = f.fUsov6 ? PARANDIS_MAX_LSO_SIZE : 0;
+        po->UdpSegmentation.IPv6.MinSegmentCount = f.fUsov6 ? PARANDIS_MIN_LSO_SEGMENTS : 0;
+    }
+#endif
 }
 
 void ParaNdis6_FillOffloadConfiguration(PARANDIS_ADAPTER *pContext)
@@ -1058,8 +1087,8 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
     tOffloadSettingsFlags fPresent = pContext->Offload.flags;
     tOffloadSettingsFlags *pf = &fPresent;
 
-    DPrintf(0, "[%s] Requested: V4:IPCS=%s,TCPCS=%s,UDPCS=%s V6:TCPCS=%s,UDPCS=%s\n",
-                __FUNCTION__,
+    DPrintf(0, "[%s] Requested v%d: V4:IPCS=%s,TCPCS=%s,UDPCS=%s V6:TCPCS=%s,UDPCS=%s\n",
+                __FUNCTION__, pop->Header.Revision,
                 MakeOffloadParameterString(pop->IPv4Checksum),
                 MakeOffloadParameterString(pop->TCPIPv4Checksum),
                 MakeOffloadParameterString(pop->UDPIPv4Checksum),
@@ -1146,8 +1175,40 @@ static NDIS_STATUS ApplyOffloadConfiguration(PARANDIS_ADAPTER *pContext,
         bFailed = TRUE;
     }
 
-    DPrintf(0, "[%s] Result: LSO: v4 %d, v6 %d\n", __FUNCTION__, pf->fTxLso, pf->fTxLsov6);
-    DPrintf(0, "[%s] Final: the request %saccepted\n", __FUNCTION__, bFailed ? "NOT " : "");
+    DPrintf(0, "[%s] Result(%s): LSO: v4 %d, v6 %d\n", __FUNCTION__,
+        bFailed ? "Bad" : "OK",
+        pf->fTxLso, pf->fTxLsov6);
+
+#if NDIS_SUPPORT_NDIS683
+    if (pop->Header.Revision >= NDIS_OFFLOAD_PARAMETERS_REVISION_5 &&
+        pop->Header.Size >= NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_5)
+    {
+        if (NDIS_OFFLOAD_PARAMETERS_USO_DISABLED == pop->UdpSegmentation.IPv4)
+        {
+            pf->fUsov4 = 0;
+        }
+        else if (NDIS_OFFLOAD_PARAMETERS_USO_ENABLED == pop->UdpSegmentation.IPv4)
+        {
+            if (fSupported.fUsov4) pf->fUsov4 = 1;
+            else
+                bFailed = TRUE;
+        }
+
+        if (NDIS_OFFLOAD_PARAMETERS_USO_DISABLED == pop->UdpSegmentation.IPv6)
+        {
+            pf->fUsov6 = 0;
+        }
+        else if (NDIS_OFFLOAD_PARAMETERS_USO_ENABLED == pop->UdpSegmentation.IPv6)
+        {
+            if (fSupported.fUsov6) pf->fUsov6 = 1;
+            else
+                bFailed = TRUE;
+        }
+    }
+#endif
+
+    DPrintf(0, "[%s] Result (%s): USO: v4 %d, v6 %d\n", __FUNCTION__,
+        bFailed ? "Bad" : "OK", pf->fUsov4, pf->fUsov6);
 
     if (bFailed && pOid)
         return NDIS_STATUS_INVALID_PARAMETER;
@@ -1234,6 +1295,10 @@ void ParaNdis6_ApplyOffloadPersistentConfiguration(PARANDIS_ADAPTER *pContext)
     pContext->InitialOffloadParameters.TCPIPv6Checksum++;
     pContext->InitialOffloadParameters.UDPIPv4Checksum++;
     pContext->InitialOffloadParameters.UDPIPv6Checksum++;
+#if (NDIS_SUPPORT_NDIS683)
+    pContext->InitialOffloadParameters.UdpSegmentation.IPv4++;
+    pContext->InitialOffloadParameters.UdpSegmentation.IPv6++;
+#endif
 
     ApplyOffloadConfiguration(pContext,&pContext->InitialOffloadParameters, NULL);
     ParaNdis6_FillOffloadCapabilities(pContext);

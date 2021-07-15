@@ -16,6 +16,9 @@ CNBL::CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentT
     m_NBL->Scratch = this;
     m_LsoInfo.Value = NET_BUFFER_LIST_INFO(m_NBL, TcpLargeSendNetBufferListInfo);
     m_CsoInfo.Value = NET_BUFFER_LIST_INFO(m_NBL, TcpIpChecksumNetBufferListInfo);
+#if PARANDIS_SUPPORT_USO
+    m_UsoInfo.Value = NET_BUFFER_LIST_INFO(m_NBL, UdpSegmentationOffloadInfo);
+#endif
     ParaNdis_DebugNBLIn(NBL, m_LogIndex);
 }
 
@@ -168,6 +171,26 @@ bool CNBL::ParseLSO()
     return true;
 }
 
+#if PARANDIS_SUPPORT_USO
+bool CNBL::ParseUSO()
+{
+    if (m_MaxDataLength > PARANDIS_MAX_LSO_SIZE + LsoTcpHeaderOffset() + sizeof(UDPHeader))
+        return false;
+    if (!m_UsoInfo.Transmit.MSS || !m_UsoInfo.Transmit.UdpHeaderOffset)
+        return false;
+    if (m_UsoInfo.Transmit.IPVersion == NDIS_UDP_SEGMENTATION_OFFLOAD_IPV4 && !m_Context->Offload.flags.fUsov4)
+        return false;
+    if (m_UsoInfo.Transmit.IPVersion == NDIS_UDP_SEGMENTATION_OFFLOAD_IPV6 && !m_Context->Offload.flags.fUsov6)
+        return false;
+    return true;
+}
+#else
+bool CNBL::ParseUSO()
+{
+    return false;
+}
+#endif
+
 template <typename TClassPred, typename TOffloadPred, typename TSupportedPred>
 bool CNBL::ParseCSO(TClassPred IsClass, TOffloadPred IsOffload,
                     TSupportedPred IsSupported, LPSTR OffloadName)
@@ -194,6 +217,13 @@ bool CNBL::ParseOffloads()
     if (IsLSO())
     {
         if(!ParseLSO())
+        {
+            return false;
+        }
+    }
+    else if (IsUSO())
+    {
+        if (!ParseUSO())
         {
             return false;
         }
@@ -802,6 +832,32 @@ void CNB::SetupLSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloa
     }
 }
 
+void CNB::SetupUSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const
+{
+    PopulateIPLength(reinterpret_cast<IPHeader*>(IpHeader), static_cast<USHORT>(EthPayloadLength));
+
+    tTcpIpPacketParsingResult packetReview;
+    packetReview = ParaNdis_CheckSumVerifyFlat(reinterpret_cast<IPv4Header*>(IpHeader), EthPayloadLength,
+        pcrIpChecksum | pcrFixIPChecksum | pcrUdpChecksum | pcrFixPHChecksum,
+        FALSE,
+        __FUNCTION__);
+
+    if (packetReview.xxpCheckSum == ppresPCSOK || packetReview.fixedXxpCS)
+    {
+        auto IpHeaderOffset = m_Context->Offload.ipHeaderOffset;
+        auto VHeader = static_cast<virtio_net_hdr*>(VirtioHeader);
+        auto PriorityHdrLen = (m_ParentNBL->TCI() != 0) ? ETH_PRIORITY_HEADER_SIZE : 0;
+
+        VHeader->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
+        VHeader->gso_type = VIRTIO_NET_HDR_GSO_UDP_L4;
+        VHeader->hdr_len = (USHORT)(packetReview.XxpIpHeaderSize + IpHeaderOffset + PriorityHdrLen);
+        VHeader->gso_size = (USHORT)m_ParentNBL->UsoMSS();
+        VHeader->csum_start = (USHORT)(m_ParentNBL->UsoHeaderOffset() + PriorityHdrLen);
+        VHeader->csum_offset = UDP_CHECKSUM_OFFSET;
+        DPrintf(0, "[%s] mss %d, hdr %d, total %d!\n", __FUNCTION__, VHeader->gso_size, VHeader->hdr_len, GetDataLength());
+    }
+}
+
 USHORT CNB::QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const
 {
     USHORT Res;
@@ -878,6 +934,12 @@ bool CNB::CopyHeaders(PVOID Destination, ULONG MaxSize, ULONG &HeadersLength, UL
         HeadersLength = L4HeaderOffset + sizeof(TCPHeader);
         Copy(Destination, HeadersLength);
     }
+    else if (m_ParentNBL->IsUSO())
+    {
+        L4HeaderOffset = m_ParentNBL->UsoHeaderOffset();
+        HeadersLength = L4HeaderOffset + sizeof(UDPHeader);
+        HeadersLength = Copy(Destination, HeadersLength);
+    }
     else if (m_ParentNBL->IsUdpCSO())
     {
         HeadersLength = Copy(Destination, MaxSize);
@@ -915,6 +977,10 @@ void CNB::PrepareOffloads(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG Et
     if (m_ParentNBL->IsLSO())
     {
         SetupLSO(VirtioHeader, IpHeader, EthPayloadLength);
+    }
+    else if (m_ParentNBL->IsUSO())
+    {
+        SetupUSO(VirtioHeader, IpHeader, EthPayloadLength);
     }
     else if (m_ParentNBL->IsTcpCSO() || m_ParentNBL->IsUdpCSO())
     {

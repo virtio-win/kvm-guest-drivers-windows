@@ -55,6 +55,10 @@ extern "C"
 {
 #include "osdep.h"
 
+#if NDIS_SUPPORT_NDIS683
+#define PARANDIS_SUPPORT_USO 1
+#endif
+
 #if NDIS_SUPPORT_NDIS630
 #define PARANDIS_SUPPORT_RSC 1
 #endif
@@ -242,6 +246,8 @@ typedef enum _tagOffloadSettingsBit
     osbT6RxTCPOptionsChecksum = (1 << 21),
     osbT6RxUDPChecksum = (1 << 22),
     osbT6RxIpExtChecksum = (1 << 23),
+    osbT4Uso = (1 << 24),
+    osbT6Uso = (1 << 25),
 }tOffloadSettingsBit;
 
 typedef struct _tagOffloadSettingsFlags
@@ -254,6 +260,7 @@ typedef struct _tagOffloadSettingsFlags
     int fTxLso              : 1;
     int fTxLsoIP            : 1;
     int fTxLsoTCP           : 1;
+
     int fRxIPChecksum       : 1;
     int fRxTCPChecksum      : 1;
     int fRxUDPChecksum      : 1;
@@ -262,6 +269,7 @@ typedef struct _tagOffloadSettingsFlags
     int fTxTCPv6Checksum    : 1;
     int fTxUDPv6Checksum    : 1;
     int fTxTCPv6Options     : 1;
+
     int fTxIPv6Ext          : 1;
     int fTxLsov6            : 1;
     int fTxLsov6IP          : 1;
@@ -270,6 +278,9 @@ typedef struct _tagOffloadSettingsFlags
     int fRxUDPv6Checksum    : 1;
     int fRxTCPv6Options     : 1;
     int fRxIPv6Ext          : 1;
+
+    int fUsov4              : 1;
+    int fUsov6              : 1;
 }tOffloadSettingsFlags;
 
 
