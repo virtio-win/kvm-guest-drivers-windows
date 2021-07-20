@@ -9,7 +9,7 @@
 ;Abstract:
 ;
 ;Installation Notes:
-;    Using Devcon: Type "devcon install viofs.inf PCI\VEN_1AF4&DEV_105A&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_00" to install
+;    Using Devcon: Type "devcon install viofs.inf PCI\VEN_1AF4&DEV_105A&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01" to install
 ;
 ;--*/
 
@@ -41,7 +41,7 @@ WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll = 1 ; make sure the number matches wi
 %VENDOR% = Standard,NT$ARCH$
 
 [Standard.NT$ARCH$]
-%VirtioFs.DeviceDesc% = VirtioFs_Device, PCI\VEN_1AF4&DEV_105A&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_00, PCI\VEN_1AF4&DEV_105A
+%VirtioFs.DeviceDesc% = VirtioFs_Device, PCI\VEN_1AF4&DEV_105A&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01, PCI\VEN_1AF4&DEV_105A
 
 [VirtioFs_Device.NT]
 CopyFiles = VirtioFs_CopyFiles
