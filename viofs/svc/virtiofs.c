@@ -594,7 +594,9 @@ static NTSTATUS SubmitReadLinkRequest(HANDLE Device, UINT64 NodeId,
         int namelen = readlink_out.hdr.len - sizeof(readlink_out.hdr);
 
         *SubstituteNameLength = (USHORT)MultiByteToWideChar(CP_UTF8, 0,
-            readlink_out.name, namelen, SubstituteName, MAX_PATH);
+            readlink_out.name, namelen, SubstituteName, MAX_PATH - 1);
+
+        SubstituteName[*SubstituteNameLength] = L'\0';
 
         if (*SubstituteNameLength == 0)
         {
@@ -636,8 +638,6 @@ static NTSTATUS PathWalkthough(HANDLE Device, CHAR *FullPath,
             {
                 break;
             }
-
-            SubstituteName[SubstituteNameLength] = L'\0';
 
             Status = VirtFsLookupFileName(Device, SubstituteName, &LookupOut);
             if (!NT_SUCCESS(Status))
