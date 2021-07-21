@@ -960,6 +960,8 @@ ULONG CNB::Copy(PVOID Dst, ULONG Length) const
     ULONG CurrOffset = NET_BUFFER_CURRENT_MDL_OFFSET(m_NB);
     ULONG Copied = 0;
 
+    Length = min(Length, NET_BUFFER_DATA_LENGTH(m_NB));
+
     for (PMDL CurrMDL = NET_BUFFER_CURRENT_MDL(m_NB);
          CurrMDL != nullptr && Copied < Length;
          CurrMDL = CurrMDL->Next)
