@@ -1,0 +1,30 @@
+<!--
+***********************************************************************************************
+Driver.Platform.props
+Should be imported before Microsoft.Cpp.Default.props and after
+PlatformToolset defined (if needed) for configurations. The very
+beginning of Driver.Common.props is an ideal place.
+Common PlatformTools definitions used by all projects:
+
+***********************************************************************************************
+-->
+
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" TreatAsLocalProperty="Platform">
+
+  <!-- Ugly but simple PlatformToolset selector -->
+  <PropertyGroup>
+  <VisualStudioVersionMajor>$(VisualStudioVersion.Split('.')[0])</VisualStudioVersionMajor>
+  </PropertyGroup>
+
+  <PropertyGroup>
+  <VisualStudioToolset>v141</VisualStudioToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(VisualStudioVersionMajor)'=='16'">
+  <VisualStudioToolset>v142</VisualStudioToolset>
+  </PropertyGroup>
+
+  <PropertyGroup Condition= "'$(PlatformToolset)'=='' OR '$(PlatformToolset)'=='AutoVSToolset'">
+  <PlatformToolset>$(VisualStudioToolset)</PlatformToolset>
+  </PropertyGroup>
+
+</Project>
