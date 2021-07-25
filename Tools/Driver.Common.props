@@ -12,6 +12,7 @@ Common property definitions used by all drivers:
 
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" TreatAsLocalProperty="Platform">
 
+  <Import Project="Driver.Platform.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="Driver.Initial.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
