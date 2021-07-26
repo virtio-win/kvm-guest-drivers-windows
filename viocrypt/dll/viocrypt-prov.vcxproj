@@ -87,7 +87,7 @@
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>viocryptprov</RootNamespace>
     <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>AutoVSToolset</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup>
     <OutDir>$(Platform)\$(Configuration)\</OutDir>
