@@ -8,7 +8,7 @@
 #include <devguid.h>
 #include <cfgmgr32.h>
 #include <winternl.h>
-#include <..\km\d3dkmthk.h>
+#include <d3dkmthk.h>
 //#include <d3d10umddi.h>
 
 #include <list>
