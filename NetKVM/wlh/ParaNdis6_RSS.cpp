@@ -963,19 +963,20 @@ static void PrintIndirectionTable(const PARANDIS_SCALING_SETTINGS *RSSScalingSet
 static void PrintRSSSettings(const PPARANDIS_RSS_PARAMS RSSParameters)
 {
     ULONG CPUNumber = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
+    PARANDIS_SCALING_SETTINGS *scaling = &RSSParameters->RSSScalingSettings;
 
     DPrintf(RSS_PRINT_LEVEL, "%lu cpus, %d queues, first queue CPU index %ld, default queue %d\n",
         CPUNumber, RSSParameters->ReceiveQueuesNumber,
-        RSSParameters->RSSScalingSettings.FirstQueueIndirectionIndex,
-        RSSParameters->RSSScalingSettings.DefaultQueue);
+        scaling->FirstQueueIndirectionIndex,
+        scaling->DefaultQueue);
 
-    PrintIndirectionTable(&RSSParameters->ActiveRSSScalingSettings);
+    PrintIndirectionTable(scaling);
 
-    DPrintf(RSS_PRINT_LEVEL, "CPU mapping table[%u]:\n", RSSParameters->ActiveRSSScalingSettings.CPUIndexMappingSize);
-    ParaNdis_PrintCharArray(RSS_PRINT_LEVEL, RSSParameters->ActiveRSSScalingSettings.CPUIndexMapping, RSSParameters->ActiveRSSScalingSettings.CPUIndexMappingSize);
+    DPrintf(RSS_PRINT_LEVEL, "CPU mapping table[%u]:\n", scaling->CPUIndexMappingSize);
+    ParaNdis_PrintCharArray(RSS_PRINT_LEVEL, scaling->CPUIndexMapping, scaling->CPUIndexMappingSize);
 
     DPrintf(RSS_PRINT_LEVEL, "Queue indirection table[%u]:\n", RSSParameters->ReceiveQueuesNumber);
-    ParaNdis_PrintCharArray(RSS_PRINT_LEVEL, RSSParameters->ActiveRSSScalingSettings.QueueIndirectionTable, RSSParameters->ReceiveQueuesNumber);
+    ParaNdis_PrintCharArray(RSS_PRINT_LEVEL, scaling->QueueIndirectionTable, RSSParameters->ReceiveQueuesNumber);
 }
 
 NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
