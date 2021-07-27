@@ -259,35 +259,145 @@ typedef struct virtio_gpu_resp_edid {
 
 #define EDID_V1_BLOCK_SIZE         128
 
-typedef struct _edid_v1 {
-    UCHAR Header[8];
+
+#pragma pack(push)
+#pragma pack(1)
+
+typedef struct _FEATURES_SUPPORT {
+    UCHAR DefaultGTF                   : 1;
+    UCHAR PreferredTimingNode          : 1;
+    UCHAR StandardDefaultColorSpace    : 1;
+    UCHAR DisplayType                  : 2;
+    UCHAR ActiveOff                    : 1;
+    UCHAR Suspend                      : 1;
+    UCHAR Standby                      : 1;
+} FEATURES_SUPPORT, *PFEATURES_SUPPORT;
+
+typedef struct _COLOR_CHARACTERISTICS {
+    UCHAR GreenYLow                    : 2;
+    UCHAR GreenXLow                    : 2;
+    UCHAR RedYLow                      : 2;
+    UCHAR RedXLow                      : 2;
+    UCHAR WhiteYLow                    : 2;
+    UCHAR WhiteXLow                    : 2;
+    UCHAR BlueYLow                     : 2;
+    UCHAR BlueXLow                     : 2;
+    UCHAR RedX;
+    UCHAR RedY;
+    UCHAR GreenX;
+    UCHAR GreenY;
+    UCHAR BlueX;
+    UCHAR BlueY;
+    UCHAR WhiteX;
+    UCHAR WhiteY;
+} COLOR_CHARACTERISTICS, *PCOLOR_CHARACTERISTICS;
+
+typedef struct _ESTABLISHED_TIMINGS {
+    UCHAR Timing_800x600_60            : 1;
+    UCHAR Timing_800x600_56            : 1;
+    UCHAR Timing_640x480_75            : 1;
+    UCHAR Timing_640x480_72            : 1;
+    UCHAR Timing_640x480_67            : 1;
+    UCHAR Timing_640x480_60            : 1;
+    UCHAR Timing_720x400_88            : 1;
+    UCHAR Timing_720x400_70            : 1;
+
+    UCHAR Timing_1280x1024_75          : 1;
+    UCHAR Timing_1024x768_75           : 1;
+    UCHAR Timing_1024x768_70           : 1;
+    UCHAR Timing_1024x768_60           : 1;
+    UCHAR Timing_1024x768_87           : 1;
+    UCHAR Timing_832x624_75            : 1;
+    UCHAR Timing_800x600_75            : 1;
+    UCHAR Timing_800x600_72            : 1;
+} ESTABLISHED_TIMINGS, *PESTABLISHED_TIMINGS;
+
+typedef union _VIDEO_INPUT_DEFINITION {
+    typedef struct _DIGITAL {
+        UCHAR DviStandard              : 4;
+        UCHAR ColorBitDepth            : 3;
+        UCHAR Digital                  : 1;
+    } DIGITAL;
+    typedef struct _ANALOG {
+        UCHAR VSyncSerration           : 1;
+        UCHAR GreenVideoSync           : 1;
+        UCHAR VompositeSync            : 1;
+        UCHAR SeparateSync             : 1;
+        UCHAR BlankToBlackSetup        : 1;
+        UCHAR SignalLevelStandard      : 2;
+        UCHAR Digital                  : 1;
+    } ANALOG;
+} VIDEO_INPUT_DEFINITION, * PVIDEO_INPUT_DEFINITION;
+
+typedef struct _MANUFACTURER_TIMINGS {
+    UCHAR Reserved                     : 7;
+    UCHAR Timing_1152x870_75           : 1;
+} MANUFACTURER_TIMINGS, * PMANUFACTURER_TIMINGS;
+
+typedef struct _STANDARD_TIMING_DESCRIPTOR {
+    UCHAR HorizontalActivePixels;
+    UCHAR RefreshRate                  : 6;
+    UCHAR ImageAspectRatio             : 2;
+} STANDARD_TIMING_DESCRIPTOR, *PSTANDARD_TIMING_DESCRIPTOR;
+
+typedef struct _EDID_DETAILED_DESCRIPTOR {
+    USHORT PixelClock;
+    UCHAR HorizontalActiveLow;
+    UCHAR HorizontalBlankingLow;
+    UCHAR HorizontalBlankingHigh       : 4;
+    UCHAR horizontalActiveHigh         : 4;
+    UCHAR VerticalActiveLow;
+    UCHAR VerticalBlankingLow;
+    UCHAR VerticalBlankingHigh         : 4;
+    UCHAR VerticalActiveHigh           : 4;
+    UCHAR HorizontalSyncOffsetLow;
+    UCHAR HorizontalSyncPulseWidthLow;
+    UCHAR VerticalSyncPulseWidthLow    : 4;
+    UCHAR VerticalSyncOffsetLow        : 4;
+    UCHAR VerticalSyncPulseWidthHigh   : 2;
+    UCHAR VerticalSyncOffsetHigh       : 2;
+    UCHAR HorizontalSyncPulseWidthHigh : 2;
+    UCHAR HorizontalSyncOffsetHigh     : 2;
+    UCHAR HorizontalImageSizeLow;
+    UCHAR VerticalImageSizeLow;
+    UCHAR VerticalImageSizeHigh        : 4;
+    UCHAR HorizontalImageSizeHigh      : 4;
+    UCHAR HorizontalBorder;
+    UCHAR VerticalBorder;
+    UCHAR StereoModeLow                : 1;
+    UCHAR SignalPulsePolarity          : 1;
+    UCHAR SignalSerrationPolarity      : 1;
+    UCHAR SignalSync                   : 2;
+    UCHAR StereoModeHigh               : 2;
+    UCHAR Interlaced                   : 1;
+}EDID_DETAILED_DESCRIPTOR, *PEDID_DETAILED_DESCRIPTOR;
+#pragma pack(pop)
+
+
+typedef struct _EDID_DATA_V1 {
+    UCHAR Header [8];
     UCHAR VendorID[2];
     UCHAR ProductID[2];
     UCHAR SerialNumber[4];
     UCHAR WeekYearMFG[2];
     UCHAR Version[1];
     UCHAR Revision[1];
-    UCHAR Middle[34];
-    UCHAR Descriptor1[18]; // starts at 0x0036
-    UCHAR Descriptor2[18]; // starts at 0x0048
-    UCHAR Descriptor3[18]; // starts at 0x005A
-    UCHAR Descriptor4[18]; // starts at 0x006C
-    UCHAR ExtensionFlag[1];
-    UCHAR Checksum[1];
-}EDID_V1, *PEDID_V1;
-
-#pragma pack(push, 1)
-typedef struct virtio_gpu_edid {
-    union {
-        EDID_V1 edid;
-        UCHAR data[EDID_V1_BLOCK_SIZE];
-    };
-} GPU_EDID, *PGPU_EDID;
-#pragma pack(pop)
+    VIDEO_INPUT_DEFINITION VideoInputDefinition;
+    UCHAR  MaximumHorizontalImageSize;
+    UCHAR  MaximumVerticallImageSize;
+    UCHAR  DisplayTransferCharacteristics;
+    FEATURES_SUPPORT FeaturesSupport;
+    COLOR_CHARACTERISTICS ColorCharacteristics;
+    ESTABLISHED_TIMINGS EstablishedTimings;
+    MANUFACTURER_TIMINGS ManufacturerTimings;
+    STANDARD_TIMING_DESCRIPTOR StandardTimings [8];
+    EDID_DETAILED_DESCRIPTOR EDIDDetailedTimings [4];
+    UCHAR ExtensionFlag;
+    UCHAR Checksum;
+} EDID_DATA_V1, * PEDID_DATA_V1;
 
 #define VIRTIO_GPU_F_VIRGL 0
 #define VIRTIO_GPU_F_EDID  1
-
 
 #define ISR_REASON_DISPLAY 1
 #define ISR_REASON_CURSOR  2

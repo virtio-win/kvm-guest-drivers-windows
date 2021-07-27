@@ -2162,32 +2162,45 @@ BOOLEAN VioGpuAdapter::AckFeature(UINT64 Feature)
     return FALSE;
 }
 
-static EDID_V1 g_gpu_edid = {
-    {0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF ,0xFF, 0x00},
-    {0x49, 0x14},
-    {0x34, 0x12},
-    {0x00, 0x00, 0x00, 0x00},
-    {0xff, 0x1d},
-    0x01, 0x04,
-    {0xa3, 0x00, 0x00, 0x78, 0x22, 0xEE, 0x95,
-    0xA3, 0x54, 0x4C, 0x99, 0x26, 0x0F, 0x50, 0x54,
-    0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01,
-    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-    0x01, 0x01, 0x01},
-    {0x6c, 0x20, 0x80, 0x30, 0x42, 0x00, 0x32,
-    0x30, 0x40, 0xc0, 0x13, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x1e},
-    {0x00, 0x00, 0x00, 0xFD, 0x00,
-    0x32, 0x7D, 0x1E, 0xA0, 0x78, 0x01, 0x0A, 0x20,
-    0x20 ,0x20, 0x20, 0x20, 0x20},
-    {0x00, 0x00, 0x00, 0x10, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00},
-    {0x00, 0x00, 0x00, 0x10, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00},
-    0x00,
-    0x00,
+static UCHAR g_gpu_edid[EDID_V1_BLOCK_SIZE] = {
+    0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF ,0xFF, 0x00, // Header
+    0x49, 0x14,                                     // Manufacturef Id
+    0x34, 0x12,                                     // Manufacturef product code
+    0x00, 0x00, 0x00, 0x00,                         // serial number
+    0xff, 0x1d,                                     // year of manufacture
+    0x01,                                           // EDID version
+    0x04,                                           // EDID revision
+    0xa3,                                           // VideoInputDefinition digital, 8-bit, HDMI
+    0x00,                                           //MaximumHorizontalImageSize
+    0x00,                                           //MaximumVerticallImageSize
+    0x78,                                           //DisplayTransferCharacteristics
+    0x22,                                           //FeatureSupport
+    0xEE, 0x95, 0xA3, 0x54, 0x4C,                   //ColorCharacteristics
+    0x99, 0x26, 0x0F, 0x50, 0x54,
+    0x00, 0x00,                                     //EstablishedTimings
+    0x00,                                           //ManufacturerTimings
+    0x01, 0x01,                                     //StandardTimings[8]
+    0x01, 0x01,
+    0x01, 0x01,
+    0x01, 0x01,
+    0x01, 0x01,
+    0x01, 0x01,
+    0x01, 0x01,
+    0x01, 0x01,
+    0x6c, 0x20, 0x80, 0x30, 0x42, 0x00,             // Descriptor 1
+    0x32, 0x30, 0x40, 0xc0, 0x13, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x1e,
+    0x00, 0x00, 0x00, 0xFD, 0x00, 0x32,             // Descriptor 2
+    0x7d, 0x1e, 0xa0, 0x78, 0x01, 0x0a,
+    0x20, 0x20 ,0x20, 0x20, 0x20, 0x20,
+    0x00, 0x00, 0x00, 0x10, 0x00, 0x00,             // Descriptor 3
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x10, 0x00, 0x00,             // Descriptor 4
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00,                                           // Number of Extentions
+    0x00                                            // CheckSum
 };
 
 NTSTATUS VioGpuAdapter::VirtIoDeviceInit()
@@ -2205,7 +2218,7 @@ PBYTE VioGpuAdapter::GetEdidData(UINT Id)
 {
     PAGED_CODE();
 
-    return m_bEDID ? m_EDIDs[Id] : (PBYTE)(&g_gpu_edid);//.data;
+    return m_bEDID ? m_EDIDs[Id] : (PBYTE)(g_gpu_edid);
 }
 
 VOID VioGpuAdapter::CreateResolutionEvent(VOID)
@@ -2777,13 +2790,13 @@ void VioGpuAdapter::FixEdid(void)
     PAGED_CODE();
 
     UCHAR Sum = 0;
-    ULONG i;
-    PUCHAR pdata = (PBYTE)&g_gpu_edid;//.data;
+    PEDID_DATA_V1 pdata = (PEDID_DATA_V1)g_gpu_edid;
 
-    g_gpu_edid.Checksum[0] = 0;
-    for (i = 0; i < EDID_V1_BLOCK_SIZE; i++)
-        Sum += pdata[i];
-    g_gpu_edid.Checksum[0] = -Sum;
+    pdata->Checksum = 0;
+    for (ULONG i = 0; i < EDID_V1_BLOCK_SIZE; i++) {
+        Sum += g_gpu_edid[i];
+    }
+    pdata->Checksum = -Sum;
 }
 
 BOOLEAN VioGpuAdapter::GetEdids(void)
@@ -2826,20 +2839,26 @@ VIOGPU_DISP_MODE gpu_disp_modes[16] =
 void VioGpuAdapter::AddEdidModes(void)
 {
     PAGED_CODE();
-    //    BYTE byte35 = GetEdidData(0)[35];
-    BYTE byte36 = GetEdidData(0)[36];
-    BYTE byte37 = GetEdidData(0)[37];
+    ESTABLISHED_TIMINGS est_timing = ((PEDID_DATA_V1)(GetEdidData(0)))->EstablishedTimings;
+    MANUFACTURER_TIMINGS manufact_timing = ((PEDID_DATA_V1)(GetEdidData(0)))->ManufacturerTimings;
     int modecount = 0;
     while (gpu_disp_modes[modecount].XResolution != 0 && gpu_disp_modes[modecount].XResolution != 0) modecount++;
-    if (byte36 & 0x20) {
+    VioGpuDbgBreak();
+#if NTDDI_VERSION > NTDDI_WINBLUE
+    if (est_timing.Timing_720x400_88 || est_timing.Timing_720x400_70) {
+        gpu_disp_modes[modecount].XResolution = 720; gpu_disp_modes[modecount].YResolution = 400;
+        modecount++;
+    }
+#endif
+    if (est_timing.Timing_832x624_75) {
         gpu_disp_modes[modecount].XResolution = 832; gpu_disp_modes[modecount].YResolution = 624;
         modecount++;
     }
-    if (byte36 & 0x01) {
+    if (est_timing.Timing_1280x1024_75) {
         gpu_disp_modes[modecount].XResolution = 1280; gpu_disp_modes[modecount].YResolution = 1024;
         modecount++;
     }
-    if (byte37 & 0x80) {
+    if (manufact_timing.Timing_1152x870_75) {
         gpu_disp_modes[modecount].XResolution = 1152; gpu_disp_modes[modecount].YResolution = 870;
         modecount++;
     }
