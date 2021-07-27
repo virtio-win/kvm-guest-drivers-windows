@@ -446,9 +446,10 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
         return NDIS_STATUS_NOT_SUPPORTED;
     }
 
-    if (!(Params->Flags & NDIS_RSS_PARAM_FLAG_HASH_INFO_UNCHANGED) &&
+    if (!(Params->Flags & (NDIS_RSS_PARAM_FLAG_HASH_INFO_UNCHANGED | NDIS_RSS_PARAM_FLAG_DISABLE_RSS)) &&
         !IsValidHashInfo(Params->HashInformation))
     {
+        DPrintf(0, "[%s] invalid: flags %X, hash info %X!\n", __FUNCTION__, Params->Flags, Params->HashInformation);
         return NDIS_STATUS_INVALID_PARAMETER;
     }
 
