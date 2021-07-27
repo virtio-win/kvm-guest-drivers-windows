@@ -461,7 +461,6 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
     }
     else
     {
-        BOOLEAN bHasDefaultCPU = false;
         ULONG defaultCPUIndex = INVALID_PROCESSOR_INDEX;
 #if (NDIS_SUPPORT_NDIS660)
         // we can receive structure rev.3
@@ -473,7 +472,6 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
             // (we see it on Win10.18362), this causes KeGetProcessorIndexFromNumber
             // to return INVALID_PROCESSOR_INDEX
             num.Reserved = 0;
-            bHasDefaultCPU = true;
             defaultCPUIndex = KeGetProcessorIndexFromNumber(&num);
             TraceNoPrefix(0, "[%s] has default CPU idx %d\n", __FUNCTION__, defaultCPUIndex);
         }
@@ -527,17 +525,13 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
 
             FillCPUMappingArray(&RSSParameters->RSSScalingSettings, RSSParameters->ReceiveQueuesNumber);
 
-            if (bHasDefaultCPU)
-            {
-                SetDefaultQueue(&RSSParameters->RSSScalingSettings, defaultCPUIndex);
-            }
+            SetDefaultQueue(&RSSParameters->RSSScalingSettings, defaultCPUIndex);
+
             PrintRSSSettings(RSSParameters);
         }
-        else if (bHasDefaultCPU)
+        else
         {
-            SetDefaultQueue(&RSSParameters->ActiveRSSScalingSettings, defaultCPUIndex);
-            RSSParameters->RSSScalingSettings.DefaultQueue = RSSParameters->ActiveRSSScalingSettings.DefaultQueue;
-            RSSParameters->RSSScalingSettings.DefaultProcessor = RSSParameters->ActiveRSSScalingSettings.DefaultProcessor;
+            SetDefaultQueue(&RSSParameters->RSSScalingSettings, defaultCPUIndex);
             TraceNoPrefix(0, "[%s] default queue -> %d\n", __FUNCTION__, RSSParameters->ActiveRSSScalingSettings.DefaultQueue);
         }
 
