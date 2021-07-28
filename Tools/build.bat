@@ -29,6 +29,7 @@ set SUPPORTED_BUILD_SPECS=WinXP_wxp Win2k3_wnet Vista_wlh Win7_win7 Win8_win8 Wi
 set BUILD_TARGETS=%~2
 set BUILD_DIR=%~dp1
 set BUILD_FILE=%~nx1
+set BUILD_NAME=%~n1
 
 rem We do an incremental Release build for all specs and all archs by default
 set BUILD_FLAVOR=Release
@@ -189,6 +190,34 @@ set __VERBOSITY__=n
 msbuild.exe %BUILD_FILE% /t:%__TARGET__% /p:Configuration="%~1" /P:Platform=%2 -fileLoggerParameters:Verbosity=%__VERBOSITY__%;LogFile=%BUILD_LOG_FILE%
 goto :eof
 
+:run_semmle
+if "%SEMMLE_HOME%"=="" (
+  echo "Semmle path is not configured, skipping"
+  goto :eof
+)
+
+echo "Removing previously created rules database"
+rmdir /s/q semmle_db
+
+echo "Creating rules database for %BUILD_FILE%"
+echo msbuild.exe %BUILD_FILE% /t:rebuild /p:Configuration="%~1" /P:Platform=%2 > semmle_bld.bat
+call %SEMMLE_HOME%\codeql\codeql.exe database create -l=cpp -c "semmle_bld.bat" semmle_db -j 0
+call del semmle_bld.bat
+
+IF ERRORLEVEL 1 (
+  set BUILD_FAILED=1
+  goto :eof
+)
+
+echo "Analyzing rules database for %BUILD_FILE%"
+call %SEMMLE_HOME%\codeql\codeql.exe database analyze semmle_db "%SEMMLE_HOME%\Windows-Driver-Developer-Supplemental-Tools\codeql\windows-drivers\suites\windows_driver_mustfix.qls" --format=sarifv2.1.0 --output="%BUILD_NAME%.sarif" -j 0 --rerun
+
+IF ERRORLEVEL 1 (
+  set BUILD_FAILED=1
+)
+
+goto :eof
+
 :configure_sdv
 echo Set SDV mode to LEGACY
 set SDVLEGACY=1
@@ -217,6 +246,11 @@ IF ERRORLEVEL 1 (
 
 msbuild.exe %BUILD_FILE% /t:sdv /p:inputs="/check /devenv" /p:Configuration="%~1" /P:platform=%2
 
+IF ERRORLEVEL 1 (
+  set BUILD_FAILED=1
+)
+
+call :run_semmle %1 %2
 IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
 )
