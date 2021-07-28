@@ -53,6 +53,11 @@ CopyFiles=Drivers_Dir
 [Drivers_Dir]
 balloon.sys
 
+[BALLOON_Device.NT.HW]
+AddReg=BALLOON_SD
+
+[BALLOON_SD]
+HKR,,Security,,"D:P(A;;GA;;;SY)"
 
 ;-------------- Service installation
 [BALLOON_Device.NT.Services]
