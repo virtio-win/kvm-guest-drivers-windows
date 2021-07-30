@@ -18,8 +18,10 @@ call :rmdir Install_Debug
 call :rmdir x64
 call :rmdir x86
 call :rmdir ARM64
+call :rmdir codeql_db
 call :rmfiles build.err build.log buildfre_*.log buildchk_*.log msbuild.log
 call :rmfiles netkvm.DVL.XML netkvm.DVL-compat.XML SDV-default.xml sdv-user.sdv
+call :rmfiles *.sarif codeql.build.bat
 call :rmfiles *.inx
 
 for %%d in (CoInstaller NDIS5 Mof NotifyObject ProtocolService) do call :subdir %%d
