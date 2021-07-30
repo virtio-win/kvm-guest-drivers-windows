@@ -201,7 +201,7 @@ rmdir /s/q semmle_db
 
 echo "Creating rules database for %BUILD_FILE%"
 echo msbuild.exe %BUILD_FILE% /t:rebuild /p:Configuration="%~1" /P:Platform=%2 > semmle_bld.bat
-call %SEMMLE_HOME%\codeql\codeql.exe database create -l=cpp -c "semmle_bld.bat" semmle_db -j 0
+call %SEMMLE_HOME%\codeql\codeql.cmd database create -l=cpp -c "semmle_bld.bat" semmle_db -j 0
 call del semmle_bld.bat
 
 IF ERRORLEVEL 1 (
@@ -210,12 +210,7 @@ IF ERRORLEVEL 1 (
 )
 
 echo "Analyzing rules database for %BUILD_FILE%"
-call %SEMMLE_HOME%\codeql\codeql.exe database analyze semmle_db "%SEMMLE_HOME%\Windows-Driver-Developer-Supplemental-Tools\codeql\windows-drivers\suites\windows_driver_mustfix.qls" --format=sarifv2.1.0 --output="%BUILD_NAME%.sarif" -j 0 --rerun
-
-IF ERRORLEVEL 1 (
-  set BUILD_FAILED=1
-)
-
+call %SEMMLE_HOME%\codeql\codeql.cmd database analyze semmle_db "%SEMMLE_HOME%\Windows-Driver-Developer-Supplemental-Tools\codeql\windows-drivers\suites\windows_driver_recommended.qls" --format=sarifv2.1.0 --output="%BUILD_NAME%.sarif" -j 0 --rerun
 goto :eof
 
 :configure_sdv
