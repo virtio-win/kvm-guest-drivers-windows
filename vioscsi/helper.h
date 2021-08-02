@@ -35,6 +35,8 @@
 
 #include <ntddk.h>
 #include <storport.h>
+#include <ntddscsi.h>
+
 
 #include "osdep.h"
 #include "virtio_pci.h"
