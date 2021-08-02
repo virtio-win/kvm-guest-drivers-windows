@@ -45,6 +45,10 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_SCSI_CDB_SIZE   32
 #define VIRTIO_SCSI_SENSE_SIZE 96
 
+#ifndef NTDDI_WINTHRESHOLD
+#define NTDDI_WINTHRESHOLD                  0x0A000000  /* ABRACADABRA_THRESHOLD */
+#endif
+
 #if (NTDDI_VERSION > NTDDI_WIN7)
 #define MAX_PHYS_SEGMENTS       512
 #else
@@ -330,6 +334,9 @@ typedef struct _ADAPTER_EXTENSION {
     UCHAR                 ven_id[8 + 1];
     UCHAR                 prod_id[16 + 1];
     UCHAR                 rev_id[4 + 1];
+#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
+    ULONGLONG             fw_ver;
+#endif
 }ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
 
 #ifndef PCIX_TABLE_POINTER

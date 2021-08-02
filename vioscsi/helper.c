@@ -317,7 +317,7 @@ ENTER_FN();
     if (CHECKBIT(adaptExt->features, VIRTIO_F_ANY_LAYOUT)) {
         guestFeatures |= (1ULL << VIRTIO_F_ANY_LAYOUT);
     }
-#if (WINVER == 0x0A00)
+#if (NTDDI_VERSION >=NTDDI_WINTHRESHOLD)
     if (CHECKBIT(adaptExt->features, VIRTIO_F_ACCESS_PLATFORM)) {
         guestFeatures |= (1ULL << VIRTIO_F_ACCESS_PLATFORM);
     }

@@ -662,6 +662,10 @@ ENTER_FN();
     }
 #endif
 
+#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
+    adaptExt->fw_ver = '0';
+#endif
+
 EXIT_FN();
     return SP_RETURN_FOUND;
 }
