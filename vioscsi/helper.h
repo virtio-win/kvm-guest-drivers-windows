@@ -234,6 +234,13 @@ VioScsiPoolAlloc(
     IN SIZE_T size
     );
 
+#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
+VOID FirmwareRequest(
+    IN PVOID DeviceExtension,
+    IN PSRB_TYPE Srb
+    );
+#endif
+
 extern VirtIOSystemOps VioScsiSystemOps;
 
 #endif ___HELPER_H___
