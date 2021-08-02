@@ -550,3 +550,120 @@ ENTER_FN();
     }
 EXIT_FN();
 }
+
+#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
+VOID FirmwareRequest(
+    IN PVOID DeviceExtension,
+    IN PSRB_TYPE Srb
+    )
+{
+    PADAPTER_EXTENSION  adaptExt;
+    PSRB_EXTENSION      srbExt   = NULL;
+    ULONG                   dataLen = 0;
+    PSRB_IO_CONTROL         srbControl = NULL;
+    PFIRMWARE_REQUEST_BLOCK firmwareRequest = NULL;
+ENTER_FN();
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    srbExt = SRB_EXTENSION(Srb);
+    srbControl = (PSRB_IO_CONTROL)SRB_DATA_BUFFER(Srb);
+    dataLen = SRB_DATA_TRANSFER_LENGTH(Srb);
+    if (dataLen < (sizeof(SRB_IO_CONTROL) + sizeof(FIRMWARE_REQUEST_BLOCK))) {
+        srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
+        SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
+        RhelDbgPrint(TRACE_LEVEL_FATAL,
+                         " FirmwareRequest Bad Block Length  %ul\n", dataLen);
+        return;
+    }
+
+    firmwareRequest = (PFIRMWARE_REQUEST_BLOCK)(srbControl + 1);
+    switch (firmwareRequest->Function) {
+
+    case FIRMWARE_FUNCTION_GET_INFO: {
+        PSTORAGE_FIRMWARE_INFO_V2   firmwareInfo;
+        firmwareInfo = (PSTORAGE_FIRMWARE_INFO_V2)((PUCHAR)srbControl + firmwareRequest->DataBufferOffset);
+        RhelDbgPrint(TRACE_LEVEL_FATAL,
+                         " FIRMWARE_FUNCTION_GET_INFO \n");
+        if ((firmwareInfo->Version >= STORAGE_FIRMWARE_INFO_STRUCTURE_VERSION_V2) ||
+            (firmwareInfo->Size >= sizeof(STORAGE_FIRMWARE_INFO_V2))) {
+            firmwareInfo->Version = STORAGE_FIRMWARE_INFO_STRUCTURE_VERSION_V2;
+            firmwareInfo->Size = sizeof(STORAGE_FIRMWARE_INFO_V2);
+
+            firmwareInfo->UpgradeSupport = TRUE;
+
+            firmwareInfo->SlotCount = 1;
+            firmwareInfo->ActiveSlot = 0;
+            firmwareInfo->PendingActivateSlot = STORAGE_FIRMWARE_INFO_INVALID_SLOT;
+            firmwareInfo->FirmwareShared = FALSE;
+            firmwareInfo->ImagePayloadAlignment = PAGE_SIZE;
+            firmwareInfo->ImagePayloadMaxSize = PAGE_SIZE;
+
+            if (firmwareRequest->DataBufferLength >= (sizeof(STORAGE_FIRMWARE_INFO_V2) + sizeof(STORAGE_FIRMWARE_SLOT_INFO_V2))) {
+                firmwareInfo->Slot[0].SlotNumber = 0;
+                firmwareInfo->Slot[0].ReadOnly = FALSE;
+                StorPortCopyMemory(&firmwareInfo->Slot[0].Revision, &adaptExt->fw_ver, sizeof (adaptExt->fw_ver));
+                srbControl->ReturnCode = FIRMWARE_STATUS_SUCCESS;
+            } else {
+                firmwareRequest->DataBufferLength = sizeof(STORAGE_FIRMWARE_INFO_V2) + sizeof(STORAGE_FIRMWARE_SLOT_INFO_V2);
+                srbControl->ReturnCode = FIRMWARE_STATUS_OUTPUT_BUFFER_TOO_SMALL;
+            }
+            SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
+        }
+        else {
+            RhelDbgPrint(TRACE_LEVEL_FATAL,
+                         " Wrong Version %ul or Size %ul\n", firmwareInfo->Version, firmwareInfo->Size);
+            srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
+            SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
+        }
+    }
+    break;
+    case FIRMWARE_FUNCTION_DOWNLOAD: {
+        PSTORAGE_FIRMWARE_DOWNLOAD_V2   firmwareDwnld;
+        firmwareDwnld = (PSTORAGE_FIRMWARE_DOWNLOAD_V2)((PUCHAR)srbControl + firmwareRequest->DataBufferOffset);
+        RhelDbgPrint(TRACE_LEVEL_FATAL,
+            " FIRMWARE_FUNCTION_DOWNLOAD \n");
+        if ((firmwareDwnld->Version >= STORAGE_FIRMWARE_DOWNLOAD_STRUCTURE_VERSION_V2) ||
+            (firmwareDwnld->Size >= sizeof(STORAGE_FIRMWARE_DOWNLOAD_V2))) {
+            firmwareDwnld->Version = STORAGE_FIRMWARE_DOWNLOAD_STRUCTURE_VERSION_V2;
+            firmwareDwnld->Size = sizeof(STORAGE_FIRMWARE_DOWNLOAD_V2);
+            adaptExt->fw_ver++;
+            srbControl->ReturnCode = FIRMWARE_STATUS_SUCCESS;
+            SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
+        }
+        else {
+            RhelDbgPrint(TRACE_LEVEL_FATAL,
+                " Wrong Version %ul or Size %ul\n", firmwareDwnld->Version, firmwareDwnld->Size);
+            srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
+            SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
+        }
+    }
+    break;
+    case FIRMWARE_FUNCTION_ACTIVATE: {
+        PSTORAGE_FIRMWARE_ACTIVATE firmwareActivate;
+        firmwareActivate = (PSTORAGE_FIRMWARE_ACTIVATE)((PUCHAR)srbControl + firmwareRequest->DataBufferOffset);
+        if ((firmwareActivate->Version == STORAGE_FIRMWARE_ACTIVATE_STRUCTURE_VERSION) ||
+            (firmwareActivate->Size >= sizeof(STORAGE_FIRMWARE_ACTIVATE))) {
+            firmwareActivate->Version = STORAGE_FIRMWARE_ACTIVATE_STRUCTURE_VERSION;
+            firmwareActivate->Size = sizeof(STORAGE_FIRMWARE_ACTIVATE);
+            srbControl->ReturnCode = FIRMWARE_STATUS_SUCCESS;
+            SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
+        }
+        else {
+            RhelDbgPrint(TRACE_LEVEL_FATAL,
+                " Wrong Version %ul or Size %ul\n", firmwareActivate->Version, firmwareActivate->Size);
+            srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
+            SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
+        }
+        RhelDbgPrint(TRACE_LEVEL_FATAL,
+            " FIRMWARE_FUNCTION_ACTIVATE \n");
+    }
+    break;
+    default:
+        RhelDbgPrint(TRACE_LEVEL_FATAL,
+                     " Unsupported Function %ul\n", firmwareRequest->Function);
+        SRB_SET_SRB_STATUS(Srb, SRB_STATUS_INVALID_REQUEST);
+        break;
+    }
+EXIT_FN();
+}
+
+#endif
