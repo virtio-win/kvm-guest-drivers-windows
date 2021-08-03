@@ -192,6 +192,13 @@ CompleteDPC(
     IN ULONG  MessageID
     );
 
+#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
+UCHAR FirmwareRequest(
+    IN PVOID DeviceExtension,
+    IN PSRB_TYPE Srb
+    );
+#endif
+
 VOID
 ReportDeviceIdentifier(
     IN PVOID DeviceExtension,
@@ -903,7 +910,22 @@ VirtIoStartIo(
             break;
         }
         case SRB_FUNCTION_IO_CONTROL: {
-            CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
+            PVOID           srbDataBuffer = SRB_DATA_BUFFER(Srb);
+            PSRB_IO_CONTROL srbControl = (PSRB_IO_CONTROL)srbDataBuffer;
+            UCHAR srbStatus = SRB_STATUS_SUCCESS;
+            switch (srbControl->ControlCode) {
+#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
+            case IOCTL_SCSI_MINIPORT_FIRMWARE:
+                srbStatus = FirmwareRequest(DeviceExtension, (PSRB_TYPE)Srb);
+                RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> IOCTL_SCSI_MINIPORT_FIRMWARE\n");
+                break;
+#endif
+            default:
+                RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> Unsupport control code 0x%x\n", srbControl->ControlCode);
+                break;
+            }
+
+            CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, srbStatus);
             return TRUE;
         }
         case SRB_FUNCTION_PNP: {
@@ -2150,3 +2172,13 @@ VioStorPoolAlloc(
     RhelDbgPrint(TRACE_LEVEL_FATAL, "Ran out of memory in VioStorPoolAlloc(%Id)\n", size);
     return NULL;
 }
+
+#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
+UCHAR FirmwareRequest(
+    IN PVOID DeviceExtension,
+    IN PSRB_TYPE Srb
+    )
+{
+    return SRB_STATUS_SUCCESS;
+}
+#endif

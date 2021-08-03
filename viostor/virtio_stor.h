@@ -33,6 +33,7 @@
 
 #include <ntddk.h>
 #include <storport.h>
+#include <ntddscsi.h>
 
 #include "osdep.h"
 #include "virtio_pci.h"
@@ -277,6 +278,10 @@ VirtIoInterrupt(
 
 #ifndef SCSI_SENSEQ_CAPACITY_DATA_CHANGED
 #define SCSI_SENSEQ_CAPACITY_DATA_CHANGED        0x09
+#endif
+
+#ifndef NTDDI_WINTHRESHOLD
+#define NTDDI_WINTHRESHOLD                  0x0A000000  /* ABRACADABRA_THRESHOLD */
 #endif
 
 #ifdef MSI_SUPPORTED
