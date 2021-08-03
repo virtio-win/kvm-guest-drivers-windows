@@ -96,6 +96,10 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define VIOBLK_POOL_TAG        'BoiV'
 
+#ifndef NTDDI_WINTHRESHOLD
+#define NTDDI_WINTHRESHOLD                  0x0A000000  /* ABRACADABRA_THRESHOLD */
+#endif
+
 #pragma pack(1)
 typedef struct virtio_blk_config {
     /* The capacity (in 512-byte sectors). */
@@ -242,6 +246,9 @@ typedef struct _ADAPTER_EXTENSION {
     STOR_ADDR_BTL8        device_address;
     blk_discard_write_zeroes blk_discard[16];
 #endif
+#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
+    ULONGLONG             fw_ver;
+#endif
 #ifdef DBG
     ULONG                 srb_cnt;
     ULONG                 inqueue_cnt;
@@ -278,10 +285,6 @@ VirtIoInterrupt(
 
 #ifndef SCSI_SENSEQ_CAPACITY_DATA_CHANGED
 #define SCSI_SENSEQ_CAPACITY_DATA_CHANGED        0x09
-#endif
-
-#ifndef NTDDI_WINTHRESHOLD
-#define NTDDI_WINTHRESHOLD                  0x0A000000  /* ABRACADABRA_THRESHOLD */
 #endif
 
 #ifdef MSI_SUPPORTED
