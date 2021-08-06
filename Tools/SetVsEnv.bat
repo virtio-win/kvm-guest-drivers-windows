@@ -1,4 +1,7 @@
 @echo off
+if "%CODEQL_HOME%"=="" set CODEQL_HOME=c:\codeql-home
+set CODEQL_BIN=%CODEQL_HOME%\codeql\codeql.cmd
+
 if not "%EnterpriseWDK%"=="" goto ready
 if "%EWDK1903_DIR%"=="" set EWDK1903_DIR=c:\ewdk1903
 call :add_path "%EWDK1903_DIR%\Program Files\Microsoft Visual Studio\2019\BuildTools\VC\Redist\MSVC\14.20.27508\onecore\x86\Microsoft.VC141.OPENMP\vcomp140.dll"
