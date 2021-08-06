@@ -55,6 +55,7 @@
     <ProjectGuid>{D572573A-7D73-404D-8DFA-7727278C242E}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>viogpusc</RootNamespace>
+    <SignMode>Off</SignMode>
     <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
