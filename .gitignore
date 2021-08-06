@@ -12,8 +12,10 @@
 *.cat
 *.opensdf
 *.DVL.XML
+*.DVL-compat.XML
 *.opendb
 *.VC.db
+vc*.pdb
 *objchk_*
 *objfre_*
 *Win*Debug*
