@@ -30,3 +30,6 @@ sdv-user.*
 SDV-default.xml
 netkvmmof.h
 .vs
+codeql.build.bat
+codeql_db
+*.sarif
