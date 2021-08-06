@@ -29,6 +29,7 @@ set SUPPORTED_BUILD_SPECS=WinXP_wxp Win2k3_wnet Vista_wlh Win7_win7 Win8_win8 Wi
 set BUILD_TARGETS=%~2
 set BUILD_DIR=%~dp1
 set BUILD_FILE=%~nx1
+set BUILD_NAME=%~n1
 
 rem We do an incremental Release build for all specs and all archs by default
 set BUILD_FLAVOR=Release
@@ -167,6 +168,14 @@ call "%~dp0\SetVsEnv.bat" x86
 if /I "!TAG!"=="SDV" (
   echo Running SDV for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
   call :runsdv "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
+  if not "%VIRTIO_WIN_RUN_CODEQL%"=="" (
+    if "%TARGET_PROJ_CONFIG%"=="Win10" (
+      echo Running CodeQL for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
+      call :runql "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
+    ) else (
+      echo Skipping CodeQL for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
+    )
+  )
   call :runca "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
   call :rundvl "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
 ) else (
@@ -205,6 +214,31 @@ IF ERRORLEVEL 1 (
 )
 
 msbuild.exe %BUILD_FILE% /t:sdv /p:inputs="/check /devenv" /p:Configuration="%~1" /P:platform=%2
+
+IF ERRORLEVEL 1 (
+  set BUILD_FAILED=1
+)
+
+goto :eof
+
+:runql
+
+echo "Removing previously created rules database"
+rmdir /s/q codeql_db
+
+echo call "%~dp0\SetVsEnv.bat" x86 > %~dp1\codeql.build.bat
+echo msbuild.exe %~dp1\%BUILD_FILE% /t:rebuild /p:Configuration="%~1" /P:Platform=%2 >> %~dp1\codeql.build.bat
+
+call %CODEQL_BIN% database create -l=cpp -s=%~dp1 -c "%~dp1\codeql.build.bat" %~dp1\codeql_db -j 0
+
+IF ERRORLEVEL 1 (
+  set CODEQL_FAILED=1
+  set BUILD_FAILED=1
+)
+
+IF "%CODEQL_FAILED%" NEQ "1" (
+  call %CODEQL_BIN% database analyze %~dp1\codeql_db windows_driver_recommended.qls --format=sarifv2.1.0 --output=%~dp1\%BUILD_NAME%.sarif -j 0
+)
 
 IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
