@@ -167,6 +167,8 @@ call "%~dp0\SetVsEnv.bat" x86
 if /I "!TAG!"=="SDV" (
   echo Running SDV for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
   call :runsdv "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
+  call :runca "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
+  call :rundvl "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
 ) else (
   echo Building %BUILD_FILE%, configuration %TARGET_VS_CONFIG%, command %BUILD_COMMAND%
   call :runbuild "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
@@ -208,12 +210,18 @@ IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
 )
 
+goto :eof
+
+:runca
 msbuild.exe %BUILD_FILE% /p:Configuration="%~1" /P:Platform=%2 /P:RunCodeAnalysisOnce=True
 
 IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
 )
 
+goto :eof
+
+:rundvl
 msbuild.exe %BUILD_FILE% /t:dvl /p:Configuration="%~1" /P:platform=%2
 
 IF ERRORLEVEL 1 (
