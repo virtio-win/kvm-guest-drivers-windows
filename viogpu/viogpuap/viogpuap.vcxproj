@@ -55,6 +55,7 @@
     <ProjectGuid>{8C2B5F43-18E2-41B6-AEBC-8B6704F7FCC6}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>viogpuap</RootNamespace>
+    <SignMode>Off</SignMode>
     <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
