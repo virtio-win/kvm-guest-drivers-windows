@@ -189,19 +189,7 @@ set __VERBOSITY__=n
 msbuild.exe %BUILD_FILE% /t:%__TARGET__% /p:Configuration="%~1" /P:Platform=%2 -fileLoggerParameters:Verbosity=%__VERBOSITY__%;LogFile=%BUILD_LOG_FILE%
 goto :eof
 
-:configure_sdv
-echo Set SDV mode to LEGACY
-set SDVLEGACY=1
-if not exist "%~dp1\build.sdv.config" goto :eof
-echo Checking SDV configuration for %1
-findstr /b /i legacy "%~dp1\build.sdv.config"
-IF NOT ERRORLEVEL 1 goto :eof
-echo Using MODERN SDV mode
-set SDVLEGACY=
-goto :eof
-
 :runsdv
-call :configure_sdv %BUILD_FILE%
 msbuild.exe %BUILD_FILE% /t:clean /p:Configuration="%~1" /P:Platform=%2
 
 IF ERRORLEVEL 1 (
