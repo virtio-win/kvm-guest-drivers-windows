@@ -72,7 +72,7 @@ NTSTATUS GetKdbg(PDEVICE_CONTEXT ctx)
     CONTEXT context = { 0 };
     NTSTATUS status = STATUS_SUCCESS;
 
-    minidump = ExAllocatePoolWithTag(NonPagedPoolNx, 0x40000, 'pmdm');
+    minidump = ExAllocatePoolUninitialized(NonPagedPoolNx, 0x40000, 'pmdm');
     if (!minidump)
     {
          return STATUS_MEMORY_NOT_ALLOCATED;
@@ -87,7 +87,7 @@ NTSTATUS GetKdbg(PDEVICE_CONTEXT ctx)
         "KdDebuggerDataBlock size = %lx, offset = 0x%lx",
         kdbg_size, kdbg_offset);
 
-    ctx->kdbg = ExAllocatePoolWithTag(NonPagedPoolNx, kdbg_size, 'gbdk');
+    ctx->kdbg = ExAllocatePoolUninitialized(NonPagedPoolNx, kdbg_size, 'gbdk');
     if (!ctx->kdbg)
     {
         status = STATUS_MEMORY_NOT_ALLOCATED;
