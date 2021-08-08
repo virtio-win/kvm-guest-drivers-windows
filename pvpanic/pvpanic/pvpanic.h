@@ -40,13 +40,6 @@
 #define PVPANIC_PANICKED        (1 << PVPANIC_F_PANICKED)
 #define PVPANIC_CRASHLOADED     (1 << PVPANIC_F_CRASHLOADED)
 
-// Name of the symbolic link object exposed in the guest.
-// The file name visible to user space is "\\.\PVPanicDevice".
-#define PVPANIC_DOS_DEVICE_NAME L"\\DosDevices\\Global\\PVPanicDevice"
-
-// IOCTLs supported by the symbolic link object.
-#define IOCTL_GET_CRASH_DUMP_HEADER CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
-
 PUCHAR PvPanicPortAddress;
 BOOLEAN bEmitCrashLoadedEvent;
 UCHAR   SupportedFeature;
@@ -58,17 +51,9 @@ typedef struct _DEVICE_CONTEXT {
     ULONG               IoRange;
     BOOLEAN             MappedPort;
 
-    // IOCTL request queue.
-    WDFQUEUE            IoctlQueue;
-
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
-
-#define PVPANIC_DRIVER_MEMORY_TAG (ULONG)'npVP'
-
-// Referenced in MSDN but not declared in SDK/WDK headers.
-#define DUMP_TYPE_FULL 1
 
 #ifndef _IRQL_requires_
 #define _IRQL_requires_(level)
@@ -99,4 +84,3 @@ EVT_WDF_DEVICE_D0_ENTRY PVPanicEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT PVPanicEvtDeviceD0Exit;
 
 EVT_WDF_DEVICE_FILE_CREATE PVPanicEvtDeviceFileCreate;
-EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL PVPanicEvtQueueDeviceControl;
