@@ -92,7 +92,7 @@ UINT32 FWCfgGetEntriesNum(PVOID ioBase)
 NTSTATUS FWCfgFindEntry(PVOID ioBase, const char *name,
                         PUSHORT index, ULONG size)
 {
-    UINT16 i;
+    UINT32 i;
     UINT32 total = FWCfgGetEntriesNum(ioBase);
     FWCfgFile f;
 
