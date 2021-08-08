@@ -67,7 +67,6 @@ HW_ADAPTER_CONTROL   VioScsiAdapterControl;
 HW_INTERRUPT         VioScsiInterrupt;
 HW_DPC_ROUTINE       VioScsiCompleteDpcRoutine;
 HW_PASSIVE_INITIALIZE_ROUTINE         VioScsiIoPassiveInitializeRoutine;
-HW_WORKITEM          VioScsiWorkItemCallback;
 HW_MESSAGE_SIGNALED_INTERRUPT_ROUTINE VioScsiMSInterrupt;
 #endif
 
@@ -1423,17 +1422,12 @@ ProcessQueue(
     ULONG               index = MESSAGE_TO_QUEUE(MessageID) - VIRTIO_SCSI_REQUEST_QUEUE_0;
     STOR_LOCK_HANDLE    queueLock = { 0 };
     struct virtqueue    *vq;
-    BOOLEAN             handleResponseInline;
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     LIST_ENTRY          complete_list;
     PSRB_TYPE           Srb = NULL;
     PSRB_EXTENSION      srbExt = NULL;
 ENTER_FN();
-#ifdef USE_WORK_ITEM
-    handleResponseInline = (adaptExt->num_queues == 1);
-#else
-    handleResponseInline = TRUE;
-#endif
+
     vq = adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + index];
     InitializeListHead(&complete_list);
 
@@ -1442,31 +1436,9 @@ ENTER_FN();
     do {
         virtqueue_disable_cb(vq);
         while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(vq, &len)) != NULL) {
-            if (handleResponseInline) {
-                Srb = (PSRB_TYPE)(cmd->srb);
-                srbExt = SRB_EXTENSION(Srb);
-                InsertTailList(&complete_list, &srbExt->list_entry);
-            }
-#ifdef USE_WORK_ITEM
-            else {
-#if (NTDDI_VERSION > NTDDI_WIN7)
-                PSRB_TYPE Srb = (PSRB_TYPE)(cmd->srb);
-                PSRB_EXTENSION srbExt = SRB_EXTENSION(Srb);
-                ULONG status = STOR_STATUS_SUCCESS;
-                PSTOR_SLIST_ENTRY Result = NULL;
-                VioScsiVQUnlock(DeviceExtension, MessageID, &queueLock, isr);
-                srbExt->priv = (PVOID)cmd;
-                status = StorPortInterlockedPushEntrySList(DeviceExtension, &adaptExt->srb_list[index], &srbExt->list_entry, &Result);
-                if (status != STOR_STATUS_SUCCESS) {
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, " StorPortInterlockedPushEntrySList failed with status 0x%x\n\n", status);
-                }
-                cnt++;
-                VioScsiVQLock(DeviceExtension, MessageID, &queueLock, isr);
-#else
-                NT_ASSERT(0);
-#endif
-            }
-#endif
+            Srb = (PSRB_TYPE)(cmd->srb);
+            srbExt = SRB_EXTENSION(Srb);
+            InsertTailList(&complete_list, &srbExt->list_entry);
         }
     } while (!virtqueue_enable_cb(vq));
 
@@ -1479,25 +1451,6 @@ ENTER_FN();
         HandleResponse(DeviceExtension, &srbExt->cmd);
     }
 
-#ifdef USE_WORK_ITEM
-#if (NTDDI_VERSION > NTDDI_WIN7)
-    if (cnt) {
-       ULONG status = STOR_STATUS_SUCCESS;
-       PVOID Worker = NULL;
-       status = StorPortInitializeWorker(DeviceExtension, &Worker);
-       if (status != STOR_STATUS_SUCCESS) {
-          RhelDbgPrint(TRACE_LEVEL_FATAL, " StorPortInitializeWorker failed with status 0x%x\n\n", status);
-//FIXME   VioScsiWorkItemCallback
-          return;
-       }
-       status = StorPortQueueWorkItem(DeviceExtension, &VioScsiWorkItemCallback, Worker, ULongToPtr(MessageID));
-       if (status != STOR_STATUS_SUCCESS) {
-          RhelDbgPrint(TRACE_LEVEL_FATAL, " StorPortQueueWorkItem failed with status 0x%x\n\n", status);
-//FIXME   VioScsiWorkItemCallback
-       }
-    }
-#endif
-#endif
 EXIT_FN();
 }
 
@@ -2390,70 +2343,3 @@ ENTER_FN();
 
 EXIT_FN();
 }
-
-#ifdef USE_WORK_ITEM
-#if (NTDDI_VERSION > NTDDI_WIN7)
-VOID
-VioScsiWorkItemCallback(
-    _In_ PVOID DeviceExtension,
-    _In_opt_ PVOID Context,
-    _In_ PVOID Worker
-    )
-{
-    ULONG MessageId = PtrToUlong(Context);
-    ULONG status = STOR_STATUS_SUCCESS;
-    ULONG index = MESSAGE_TO_QUEUE(MessageId) - VIRTIO_SCSI_REQUEST_QUEUE_0;
-    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    PSTOR_SLIST_ENTRY   listEntryRev, listEntry;
-ENTER_FN();
-    status = StorPortInterlockedFlushSList(DeviceExtension, &adaptExt->srb_list[index], &listEntryRev);
-    if ((status == STOR_STATUS_SUCCESS) && (listEntryRev != NULL)) {
-        KAFFINITY old_affinity, new_affinity;
-        old_affinity = new_affinity = 0;
-#if 1
-        listEntry = listEntryRev;
-#else
-        listEntry = NULL;
-        while (listEntryRev != NULL) {
-            next = listEntryRev->Next;
-            listEntryRev->Next = listEntry;
-            listEntry = listEntryRev;
-            listEntryRev = next;
-        }
-#endif
-        while(listEntry)
-        {
-            PVirtIOSCSICmd  cmd = NULL;
-            PSRB_TYPE Srb = NULL;
-            PSRB_EXTENSION srbExt = NULL;
-            PSTOR_SLIST_ENTRY next = listEntry->Next;
-            srbExt = CONTAINING_RECORD(listEntry,
-                        SRB_EXTENSION, list_entry);
-
-            ASSERT(srExt);
-            Srb = (PSRB_TYPE)(srbExt->Srb);
-            cmd = (PVirtIOSCSICmd)srbExt->priv;
-            ASSERT(cmd);
-            if (new_affinity == 0) {
-                new_affinity = ((KAFFINITY)1) << srbExt->cpu;
-                old_affinity = KeSetSystemAffinityThreadEx(new_affinity);
-            }
-            HandleResponse(DeviceExtension, cmd);
-            listEntry = next;
-        }
-        if (new_affinity != 0) {
-            KeRevertToUserAffinityThreadEx(old_affinity);
-        }
-    }
-    else if (status != STOR_STATUS_SUCCESS) {
-       RhelDbgPrint(TRACE_LEVEL_FATAL, " StorPortInterlockedPushEntrySList failed with status 0x%x\n\n", status);
-    }
-
-    status = StorPortFreeWorker(DeviceExtension, Worker);
-    if (status != STOR_STATUS_SUCCESS) {
-       RhelDbgPrint(TRACE_LEVEL_FATAL, " StorPortFreeWorker failed with status 0x%x\n\n", status);
-    }
-EXIT_FN();
-}
-#endif
-#endif
