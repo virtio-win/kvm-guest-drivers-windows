@@ -129,15 +129,6 @@ ENTER_FN_SRB();
     if (notify) {
         virtqueue_notify(adaptExt->vq[QueueNumber]);
     }
-#ifdef USE_WORK_ITEM
-#if (NTDDI_VERSION > NTDDI_WIN7)
-    if (adaptExt->num_queues > 1) {
-        if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
-            ProcessQueue(DeviceExtension, MessageId, FALSE);
-        }
-    }
-#endif
-#endif
 EXIT_FN_SRB();
 }
 
@@ -327,9 +318,6 @@ ENTER_FN();
     }
     if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC)) {
         guestFeatures |= (1ULL << VIRTIO_RING_F_INDIRECT_DESC);
-        if(!adaptExt->dump_mode) {
-            adaptExt->indirect = TRUE;
-        }
     }
     if (CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_CHANGE)) {
         guestFeatures |= (1ULL << VIRTIO_SCSI_F_CHANGE);
@@ -370,7 +358,7 @@ InitVirtIODevice(
 
 BOOLEAN
 InitHW(
-    IN PVOID DeviceExtension, 
+    IN PVOID DeviceExtension,
     IN PPORT_CONFIGURATION_INFORMATION ConfigInfo
     )
 {
@@ -493,7 +481,7 @@ EXIT_ERR();
 BOOLEAN
 KickEvent(
     IN PVOID DeviceExtension,
-    IN PVirtIOSCSIEventNode EventNode 
+    IN PVirtIOSCSIEventNode EventNode
     )
 {
     PADAPTER_EXTENSION adaptExt;

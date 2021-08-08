@@ -165,7 +165,7 @@ InitVirtIODevice(
 
 BOOLEAN
 InitHW(
-    IN PVOID DeviceExtension, 
+    IN PVOID DeviceExtension,
     IN PPORT_CONFIGURATION_INFORMATION ConfigInfo
     );
 
@@ -179,7 +179,7 @@ LogError(
 BOOLEAN
 KickEvent(
     IN PVOID DeviceExtension,
-    IN PVirtIOSCSIEventNode event 
+    IN PVirtIOSCSIEventNode event
     );
 
 BOOLEAN
