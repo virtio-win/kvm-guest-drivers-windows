@@ -247,7 +247,7 @@ IF ERRORLEVEL 1 (
 goto :eof
 
 :runca
-msbuild.exe %BUILD_FILE% /p:Configuration="%~1" /P:Platform=%2 /P:RunCodeAnalysisOnce=True
+msbuild.exe %BUILD_FILE% /p:Configuration="%~1" /P:Platform=%2 /P:RunCodeAnalysisOnce=True -fileLoggerParameters:LogFile=%~dp1\%BUILD_NAME%.CodeAnalysis.log
 
 IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
