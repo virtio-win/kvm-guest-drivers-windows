@@ -280,18 +280,18 @@ VIOSerialEvtDevicePrepareHardware(
     }
 
     nr_ports = pContext->consoleConfig.max_nr_ports;
-    pContext->in_vqs = (struct virtqueue**)ExAllocatePoolWithTag(
+    pContext->in_vqs = (struct virtqueue**)ExAllocatePoolUninitialized(
                                  NonPagedPool,
                                  nr_ports * sizeof(struct virtqueue*),
                                  VIOSERIAL_DRIVER_MEMORY_TAG);
 
     if(pContext->in_vqs == NULL)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,"ExAllocatePoolWithTag failed\n");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "ExAllocatePoolUninitialized failed\n");
         return STATUS_INSUFFICIENT_RESOURCES;
     }
     memset(pContext->in_vqs, 0, nr_ports * sizeof(struct virtqueue*));
-    pContext->out_vqs = (struct virtqueue**)ExAllocatePoolWithTag(
+    pContext->out_vqs = (struct virtqueue**)ExAllocatePoolUninitialized(
                                  NonPagedPool,
                                  nr_ports * sizeof(struct virtqueue*),
                                  VIOSERIAL_DRIVER_MEMORY_TAG
@@ -299,7 +299,7 @@ VIOSerialEvtDevicePrepareHardware(
 
     if(pContext->out_vqs == NULL)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "ExAllocatePoolWithTag failed\n");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "ExAllocatePoolUninitialized failed\n");
         return STATUS_INSUFFICIENT_RESOURCES;
     }
     memset(pContext->out_vqs, 0, nr_ports * sizeof(struct virtqueue*));

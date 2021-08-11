@@ -21,14 +21,14 @@ VIOSerialAllocateSinglePageBuffer(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
 
-    buf = ExAllocatePoolWithTag(
+    buf = ExAllocatePoolUninitialized(
                                  NonPagedPool,
                                  sizeof(PORT_BUFFER),
                                  VIOSERIAL_DRIVER_MEMORY_TAG
                                  );
     if (buf == NULL)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "ExAllocatePoolWithTag failed, %s::%d\n", __FUNCTION__, __LINE__);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "ExAllocatePoolUninitialized failed, %s::%d\n", __FUNCTION__, __LINE__);
         return NULL;
     }
     buf->va_buf = VirtIOWdfDeviceAllocDmaMemory(vdev, buf_size, id);
@@ -145,7 +145,7 @@ VIOSerialFreeBuffer(
 VOID VIOSerialProcessInputBuffers(IN PVIOSERIAL_PORT Port)
 {
     NTSTATUS status;
-    ULONG Read;
+    ULONG Read = 0;
     WDFREQUEST Request = NULL;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
