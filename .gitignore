@@ -35,3 +35,4 @@ netkvmmof.h
 codeql.build.bat
 codeql_db
 *.sarif
+*CodeAnalysis.log
