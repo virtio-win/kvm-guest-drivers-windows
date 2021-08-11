@@ -980,7 +980,7 @@ VIOSerialPortCreateName(
         length = buf->len - buf->offset - sizeof(VIRTIO_CONSOLE_CONTROL);
         port->NameString.Length = (USHORT)( length );
         port->NameString.MaximumLength = port->NameString.Length + 1;
-        port->NameString.Buffer = (PCHAR)ExAllocatePoolWithTag(
+        port->NameString.Buffer = (PCHAR)ExAllocatePoolUninitialized(
                                  NonPagedPool,
                                  port->NameString.MaximumLength,
                                  VIOSERIAL_DRIVER_MEMORY_TAG
@@ -1158,7 +1158,7 @@ VIOSerialPortPnpNotifyWork(
     if (NT_SUCCESS(status))
     {
         notification = (PTARGET_DEVICE_CUSTOM_NOTIFICATION)
-                       ExAllocatePoolWithTag(NonPagedPool,
+                       ExAllocatePoolUninitialized(NonPagedPool,
                                  requiredSize,
                                  VIOSERIAL_DRIVER_MEMORY_TAG);
 
@@ -1228,7 +1228,7 @@ VIOSerialEvtChildListIdentificationDescriptionDuplicate(
         // sure that we're not allocating from paged pool here.
         _Analysis_assume_(NonPagedPool == NonPagedPoolNx);
 
-        dst->NameString.Buffer = (PCHAR)ExAllocatePoolWithTag(
+        dst->NameString.Buffer = (PCHAR)ExAllocatePoolUninitialized(
                                  NonPagedPool,
                                  dst->NameString.MaximumLength,
                                  VIOSERIAL_DRIVER_MEMORY_TAG
