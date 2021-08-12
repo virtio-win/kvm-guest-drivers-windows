@@ -1352,29 +1352,36 @@ VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue,
 
     TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
-    WdfSpinLockAcquire(pport->OutVqLock);
-    if (ActionFlags & WdfRequestStopActionSuspend)
+    if (WdfRequestUnmarkCancelable(Request) == STATUS_CANCELLED)
+    {
+        WdfRequestStopAcknowledge(Request, FALSE);
+    }
+    else if (ActionFlags & WdfRequestStopActionSuspend)
     {
         WdfRequestStopAcknowledge(Request, FALSE);
     }
     else if (ActionFlags & WdfRequestStopActionPurge)
     {
-        if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
+        PSINGLE_LIST_ENTRY iter;
+
+        WdfSpinLockAcquire(pport->OutVqLock);
+        iter = &pport->WriteBuffersList;
+        while ((iter = iter->Next) != NULL)
         {
-            PSINGLE_LIST_ENTRY iter = &pport->WriteBuffersList;
-            while ((iter = iter->Next) != NULL)
+            PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
+            if (entry->Request == Request)
             {
-                PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
-                if (entry->Request == Request)
-                {
-                    entry->Request = NULL;
-                    break;
-                }
+                entry->Request = NULL;
+                break;
             }
-            WdfRequestComplete(Request, STATUS_OBJECT_NO_LONGER_EXISTS);
         }
+        WdfRequestComplete(Request, STATUS_OBJECT_NO_LONGER_EXISTS);
+        WdfSpinLockRelease(pport->OutVqLock);
     }
-    WdfSpinLockRelease(pport->OutVqLock);
+    else
+    {
+        WdfRequestComplete(Request, STATUS_UNSUCCESSFUL);
+    }
 
     TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 }
