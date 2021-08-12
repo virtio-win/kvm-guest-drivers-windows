@@ -142,7 +142,7 @@ VOID VirtRngEvtIoRead(IN WDFQUEUE Queue,
     status = VirtQueueAddBuffer(context, Request, Length);
     if (!NT_SUCCESS(status))
     {
-        if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
+        if (NT_SUCCESS(WdfRequestUnmarkCancelable(Request)))
         {
             WdfRequestComplete(Request, status);
         }
