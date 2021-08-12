@@ -44,7 +44,7 @@ static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context,
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %!FUNC!");
 
-    entry = (PREAD_BUFFER_ENTRY)ExAllocatePoolWithTag(NonPagedPool,
+    entry = (PREAD_BUFFER_ENTRY)ExAllocatePoolUninitialized(NonPagedPool,
         sizeof(READ_BUFFER_ENTRY), VIRT_RNG_MEMORY_TAG);
 
     if (entry == NULL)
