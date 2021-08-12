@@ -1346,37 +1346,37 @@ VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue,
                               IN WDFREQUEST Request,
                               IN ULONG ActionFlags)
 {
-   PRAWPDO_VIOSERIAL_PORT pdoData = RawPdoSerialPortGetData(
-      WdfIoQueueGetDevice(Queue));
-   PVIOSERIAL_PORT pport = pdoData->port;
+    PRAWPDO_VIOSERIAL_PORT pdoData = RawPdoSerialPortGetData(
+        WdfIoQueueGetDevice(Queue));
+    PVIOSERIAL_PORT pport = pdoData->port;
 
-   TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
-   WdfSpinLockAcquire(pport->OutVqLock);
-   if (ActionFlags & WdfRequestStopActionSuspend)
-   {
-      WdfRequestStopAcknowledge(Request, FALSE);
-   }
-   else if (ActionFlags & WdfRequestStopActionPurge)
-   {
-      if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
-      {
-         PSINGLE_LIST_ENTRY iter = &pport->WriteBuffersList;
-         while ((iter = iter->Next) != NULL)
-         {
-            PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
-            if (entry->Request == Request)
+    WdfSpinLockAcquire(pport->OutVqLock);
+    if (ActionFlags & WdfRequestStopActionSuspend)
+    {
+        WdfRequestStopAcknowledge(Request, FALSE);
+    }
+    else if (ActionFlags & WdfRequestStopActionPurge)
+    {
+        if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
+        {
+            PSINGLE_LIST_ENTRY iter = &pport->WriteBuffersList;
+            while ((iter = iter->Next) != NULL)
             {
-               entry->Request = NULL;
-               break;
+                PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
+                if (entry->Request == Request)
+                {
+                    entry->Request = NULL;
+                    break;
+                }
             }
-         }
-         WdfRequestComplete(Request, STATUS_OBJECT_NO_LONGER_EXISTS);
-      }
-   }
-   WdfSpinLockRelease(pport->OutVqLock);
+            WdfRequestComplete(Request, STATUS_OBJECT_NO_LONGER_EXISTS);
+        }
+    }
+    WdfSpinLockRelease(pport->OutVqLock);
 
-   TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 }
 
 NTSTATUS VIOSerialPortEvtDeviceD0Entry(
