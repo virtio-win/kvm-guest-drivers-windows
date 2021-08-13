@@ -253,7 +253,7 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
         PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter,
             WRITE_BUFFER_ENTRY, ListEntry);
 
-        if (entry->dmaTransaction) {
+        if (vq != NULL && entry->dmaTransaction) {
             VirtIOWdfDeviceDmaTxComplete(vq->vdev, entry->dmaTransaction);
         }
         request = entry->Request;
