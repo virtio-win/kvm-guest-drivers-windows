@@ -448,7 +448,7 @@ HIDJoystickProbe(
 
 static inline PVOID VIOInputAlloc(SIZE_T cbNumberOfBytes)
 {
-    PVOID pPtr = ExAllocatePoolWithTag(
+    PVOID pPtr = ExAllocatePoolUninitialized(
         NonPagedPool,
         cbNumberOfBytes,
         VIOINPUT_DRIVER_MEMORY_TAG);
