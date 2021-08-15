@@ -488,7 +488,7 @@ HIDKeyboardProbe(
         }
 
         // allocate and initialize a buffer holding the last seen output report
-        pKeyboardDesc->pLastOutputReport = ExAllocatePoolWithTag(
+        pKeyboardDesc->pLastOutputReport = ExAllocatePoolUninitialized(
             NonPagedPool,
             pKeyboardDesc->cbOutputReport,
             VIOINPUT_DRIVER_MEMORY_TAG);

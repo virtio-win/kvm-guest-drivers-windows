@@ -49,7 +49,7 @@ BOOLEAN DynamicArrayReserve(PDYNAMIC_ARRAY pArray, SIZE_T cbSize)
         // initial allocation
         pArray->Size = 0;
         pArray->MaxSize = cbSize;
-        pArray->Ptr = ExAllocatePoolWithTag(
+        pArray->Ptr = ExAllocatePoolUninitialized(
             NonPagedPool,
             pArray->MaxSize,
             VIOINPUT_DRIVER_MEMORY_TAG);
@@ -69,7 +69,7 @@ BOOLEAN DynamicArrayReserve(PDYNAMIC_ARRAY pArray, SIZE_T cbSize)
         {
             pArray->MaxSize *= 2;
         }
-        pArray->Ptr = ExAllocatePoolWithTag(
+        pArray->Ptr = ExAllocatePoolUninitialized(
             NonPagedPool,
             pArray->MaxSize,
             VIOINPUT_DRIVER_MEMORY_TAG);
