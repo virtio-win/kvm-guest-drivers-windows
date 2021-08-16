@@ -637,7 +637,7 @@ VIOSockRxPktHandleConnecting(
     if (NT_SUCCESS(status))
     {
         if (PendedRequest == WDF_NO_HANDLE &&
-            !VIOSockIsFlag(pSocket, SOCK_NON_BLOCK))
+            !VIOSockIsNonBlocking(pSocket))
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "No PendedRequest found\n");
             status = STATUS_CANCELLED;
@@ -1067,7 +1067,7 @@ VIOSockReadForward(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    if (!VIOSockIsFlag(pSocket, SOCK_NON_BLOCK) &&
+    if (!VIOSockIsNonBlocking(pSocket) &&
         pSocket->RecvTimeout != LONG_MAX)
     {
         PVIOSOCK_RX_CONTEXT pRequest;
@@ -1334,7 +1334,7 @@ VIOSockReadDequeueCb(
     }
 
     if (VIOSockRxHasData(pSocket) ||
-        VIOSockIsFlag(pSocket, SOCK_NON_BLOCK) ||
+        VIOSockIsNonBlocking(pSocket) ||
         VIOSockStateGet(pSocket) != VIOSOCK_STATE_CONNECTED)
     {
         if (ReadRequest != WDF_NO_HANDLE)
@@ -1389,7 +1389,7 @@ VIOSockReadDequeueCb(
 
             if (NT_SUCCESS(status))
             {
-                if (VIOSockIsFlag(pSocket, SOCK_NON_BLOCK))
+                if (VIOSockIsNonBlocking(pSocket))
                 {
                     status = STATUS_CANT_WAIT;
                 }

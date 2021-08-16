@@ -226,7 +226,7 @@ VIOSockLoopbackHandleConnecting(
     if (NT_SUCCESS(status))
     {
         if (PendedRequest == WDF_NO_HANDLE &&
-            !VIOSockIsFlag(pDestSocket, SOCK_NON_BLOCK))
+            !VIOSockIsNonBlocking(pDestSocket))
         {
             status = STATUS_CANCELLED;
         }

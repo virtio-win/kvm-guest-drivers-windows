@@ -277,6 +277,8 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(SOCKET_CONTEXT, GetSocketContext);
 #define VIOSockSetFlag(s,f) (InterlockedOr(&(s)->Flags, (f)) & (f))
 #define VIOSockResetFlag(s,f) (InterlockedAnd(&(s)->Flags, ~(f)) & (f))
 
+#define VIOSockIsNonBlocking(s) VIOSockIsFlag((s), SOCK_NON_BLOCK)
+
 #define GetSocketContextFromRequest(r) GetSocketContext(WdfRequestGetFileObject((r)))
 
 #define GetDeviceContextFromRequest(r) GetDeviceContext(WdfFileObjectGetDevice(WdfRequestGetFileObject((r))))
@@ -428,8 +430,8 @@ VIOSockPendedRequestGetLocked(
 
 NTSTATUS
 VIOSockAcceptInitSocket(
-	PSOCKET_CONTEXT pAcceptSocket,
-	PSOCKET_CONTEXT pListenSocket
+    PSOCKET_CONTEXT pAcceptSocket,
+    PSOCKET_CONTEXT pListenSocket
 );
 
 _Requires_lock_not_held_(pListenSocket->RxLock)
