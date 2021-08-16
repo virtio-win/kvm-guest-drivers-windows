@@ -968,14 +968,14 @@ VIOSockAccept(
         {
             BOOLEAN bDequeued = FALSE, bSetBit = FALSE;
 
-            if (VIOSockIsFlag(pListenSocket, SOCK_NON_BLOCK))
+            if (VIOSockIsNonBlocking(pListenSocket))
                 VIOSockSetFlag(pAcceptSocket, SOCK_NON_BLOCK);
 
             VIOSockEventClearBit(pListenSocket, FD_ACCEPT_BIT);
 
             if (!VIOSockAcceptDequeue(pListenSocket, pAcceptSocket, &bSetBit))
             {
-                if (VIOSockIsFlag(pListenSocket, SOCK_NON_BLOCK))
+                if (VIOSockIsNonBlocking(pListenSocket))
                     status = STATUS_CANT_WAIT;
                 else
                 {
@@ -1435,7 +1435,7 @@ VIOSockConnect(
     //no lock required
     VIOSockStateSet(pSocket, VIOSOCK_STATE_CONNECTING);
 
-    if (!VIOSockIsFlag(pSocket, SOCK_NON_BLOCK))
+    if (!VIOSockIsNonBlocking(pSocket))
     {
         status = VIOSockPendedRequestSetLocked(pSocket, Request);
         if (!NT_SUCCESS(status))
@@ -1460,7 +1460,7 @@ VIOSockConnect(
     {
         //no lock required
         VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
-        if (!VIOSockIsFlag(pSocket, SOCK_NON_BLOCK))
+        if (!VIOSockIsNonBlocking(pSocket))
         {
             WdfTimerStop(pSocket->ConnectTimer, TRUE);
             if (!NT_SUCCESS(VIOSockPendedRequestGetLocked(pSocket, &Request)))
@@ -1470,7 +1470,7 @@ VIOSockConnect(
         }
     }
     else
-        status = VIOSockIsFlag(pSocket, SOCK_NON_BLOCK) ? STATUS_CANT_WAIT : STATUS_PENDING;
+        status = VIOSockIsNonBlocking(pSocket) ? STATUS_CANT_WAIT : STATUS_PENDING;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
 
