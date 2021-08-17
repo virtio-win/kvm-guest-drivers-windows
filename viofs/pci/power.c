@@ -74,7 +74,7 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
         "Request queues: %d", context->RequestQueues);
 
-    context->VirtQueues = ExAllocatePoolWithTag(NonPagedPool,
+    context->VirtQueues = ExAllocatePoolUninitialized(NonPagedPool,
         context->RequestQueues * sizeof(struct virtqueue*),
         VIRT_FS_MEMORY_TAG);
 
@@ -93,7 +93,7 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     if (NT_SUCCESS(status))
     {
-        context->VirtQueueLocks = ExAllocatePoolWithTag(NonPagedPool,
+        context->VirtQueueLocks = ExAllocatePoolUninitialized(NonPagedPool,
             context->RequestQueues * sizeof(WDFSPINLOCK),
             VIRT_FS_MEMORY_TAG);
     }
