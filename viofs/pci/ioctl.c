@@ -384,15 +384,11 @@ VOID VirtFsEvtIoStop(IN WDFQUEUE Queue,
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL,
         "--> %!FUNC! Request: %p ActionFlags: 0x%08x", Request, ActionFlags);
 
-    if (ActionFlags & WdfRequestStopRequestCancelable)
+    if (WdfRequestUnmarkCancelable(Request) == STATUS_CANCELLED)
     {
-        if (WdfRequestUnmarkCancelable(Request) == STATUS_CANCELLED)
-        {
-            goto request_cancelled;
-        }
+        WdfRequestStopAcknowledge(Request, FALSE);
     }
-
-    if (ActionFlags & WdfRequestStopActionSuspend)
+    else if (ActionFlags & WdfRequestStopActionSuspend)
     {
         WdfRequestStopAcknowledge(Request, FALSE);
     }
@@ -419,8 +415,11 @@ VOID VirtFsEvtIoStop(IN WDFQUEUE Queue,
 
         WdfRequestComplete(Request, STATUS_CANCELLED);
     }
+    else
+    {
+        WdfRequestComplete(Request, STATUS_UNSUCCESSFUL);
+    }
 
-request_cancelled:
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "<-- %!FUNC!");
 }
 
