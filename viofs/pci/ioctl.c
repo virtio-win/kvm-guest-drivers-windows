@@ -327,7 +327,9 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
     status = VirtFsEnqueueRequest(Context, fs_req);
     if (!NT_SUCCESS(status))
     {
-        if (WdfRequestUnmarkCancelable(Request) != STATUS_CANCELLED)
+        status = WdfRequestUnmarkCancelable(Request);
+        __analysis_assume(status != STATUS_NOT_SUPPORTED);
+        if (status != STATUS_CANCELLED)
         {
             goto complete_wdf_req;
         }
