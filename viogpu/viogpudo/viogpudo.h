@@ -80,7 +80,9 @@ class VioGpuDod;
 
 class IVioGpuAdapter {
 public:
-    IVioGpuAdapter(_In_ VioGpuDod* pVioGpuDod) { m_pVioGpuDod = pVioGpuDod; m_bEDID = FALSE; }
+    IVioGpuAdapter(_In_ VioGpuDod* pVioGpuDod) : m_pVioGpuDod(pVioGpuDod),
+        m_ModeInfo(NULL), m_ModeCount(0), m_CurrentMode(0), m_CustomMode(0),
+        m_Id(0), m_bEDID(FALSE) { RtlZeroMemory(m_EDIDs, sizeof(m_EDIDs)); }
     virtual ~IVioGpuAdapter(void) { ; }
     virtual NTSTATUS SetCurrentMode(ULONG Mode, CURRENT_MODE* pCurrentBddMode) = 0;
     virtual NTSTATUS SetPowerState(DXGK_DEVICE_INFO* pDeviceInfo, DEVICE_POWER_STATE DevicePowerState, CURRENT_MODE* pCurrentMode) = 0;

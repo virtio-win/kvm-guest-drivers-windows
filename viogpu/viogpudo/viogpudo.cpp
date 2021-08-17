@@ -1405,8 +1405,7 @@ NTSTATUS VioGpuDod::CommitVidPn(_In_ CONST DXGKARG_COMMITVIDPN* CONST pCommitVid
 
 CommitVidPnExit:
 
-    NTSTATUS TempStatus;
-    UNREFERENCED_PARAMETER(TempStatus);
+    NTSTATUS TempStatus = STATUS_SUCCESS;
 
     if ((pVidPnSourceModeSetInterface != NULL) &&
         (hVidPnSourceModeSet != 0) &&
@@ -1757,7 +1756,7 @@ NTSTATUS VioGpuDod::WriteRegistryString(_In_ HANDLE DevInstRegKeyHandle, _In_ PC
     return Status;
 }
 
-NTSTATUS VioGpuDod::WriteRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _Inout_ PDWORD pdwValue)
+NTSTATUS VioGpuDod::WriteRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PDWORD pdwValue)
 {
     PAGED_CODE();
 
@@ -1826,7 +1825,7 @@ NTSTATUS VioGpuDod::ReadRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWS
     return Status;
 }
 
-NTSTATUS VioGpuDod::SetRegisterInfo(_In_ ULONG Id, DWORD MemSize)
+NTSTATUS VioGpuDod::SetRegisterInfo(_In_ ULONG Id, _In_ DWORD MemSize)
 {
     PAGED_CODE();
 
@@ -1963,7 +1962,7 @@ PAGED_CODE_SEG_BEGIN
 VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod* pVioGpuDod) : IVioGpuAdapter(pVioGpuDod)
 {
     PAGED_CODE();
-
+    RtlZeroMemory(&m_VioDev, sizeof(m_VioDev));
     m_ModeInfo = NULL;
     m_ModeCount = 0;
     m_ModeNumbers = NULL;
@@ -1979,6 +1978,8 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod* pVioGpuDod) : IVioGpuAdapter(pVioGp
     m_pWorkThread = NULL;
     m_ResolutionEvent = NULL;
     m_ResolutionEventHandle = NULL;
+    m_u32NumCapsets = 0;
+    m_u32NumScanouts = 0;
 }
 
 VioGpuAdapter::~VioGpuAdapter(void)
@@ -2443,6 +2444,16 @@ BOOLEAN FindUpdateRect(
 
     UNREFERENCED_PARAMETER(Rotation);
     BOOLEAN updated = FALSE;
+
+    if (pUpdateRect == NULL) return FALSE;
+
+    if (NumMoves == 0 && NumDirtyRects == 0) {
+        pUpdateRect->bottom = 0;
+        pUpdateRect->left = 0;
+        pUpdateRect->right = 0;
+        pUpdateRect->top = 0;
+    }
+
     for (ULONG i = 0; i < NumMoves; i++)
     {
         PRECT  pRect = &pMoves[i].DestRect;
@@ -2593,7 +2604,7 @@ VOID VioGpuAdapter::BlackOutScreen(CURRENT_MODE* pCurrentMod)
 
         if (pDst)
         {
-            RtlZeroMemory(pDst, ScreenHeight * ScreenPitch);
+            RtlZeroMemory(pDst, (ULONGLONG)ScreenHeight * ScreenPitch);
         }
 
 //FIXME!!! rotation
@@ -3015,7 +3026,7 @@ NTSTATUS VioGpuAdapter::GetModeList(DXGK_DISPLAY_INFORMATION* pDispInfo)
 
     GetDisplayInfo();
 
-    for (ULONG idx = 0; idx < GetModeCount(); idx++)
+    for (ULONG idx = 0; idx < ModeCount; idx++)
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("type %d, XRes = %d, YRes = %d\n",
             m_ModeNumbers[idx],
