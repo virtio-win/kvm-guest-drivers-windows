@@ -39,7 +39,7 @@ GetPitches(
     }
 }
 
-BYTE* GetRowStart(_In_ CONST BLT_INFO* pBltInfo, CONST RECT* pRect)
+BYTE* GetRowStart(_In_ CONST BLT_INFO* pBltInfo, _In_ CONST RECT* pRect)
 {
     BYTE* pRet = NULL;
     LONG OffLeft = pRect->left + pBltInfo->Offset.x;
@@ -49,23 +49,23 @@ BYTE* GetRowStart(_In_ CONST BLT_INFO* pBltInfo, CONST RECT* pRect)
     switch (pBltInfo->Rotation) {
     case D3DKMDT_VPPR_IDENTITY:
         pRet = ((BYTE*)pBltInfo->pBits +
-            OffTop * pBltInfo->Pitch +
-            OffLeft * BytesPerPixel);
+            (ULONGLONG)OffTop * pBltInfo->Pitch +
+            (ULONGLONG)OffLeft * BytesPerPixel);
         break;
     case D3DKMDT_VPPR_ROTATE90:
         pRet = ((BYTE*)pBltInfo->pBits +
-            (pBltInfo->Height - 1 - OffLeft) * pBltInfo->Pitch +
-            OffTop * BytesPerPixel);
+            ((ULONGLONG)pBltInfo->Height - 1 - OffLeft) * pBltInfo->Pitch +
+            (ULONGLONG)OffTop * BytesPerPixel);
         break;
     case D3DKMDT_VPPR_ROTATE180:
         pRet = ((BYTE*)pBltInfo->pBits +
-            (pBltInfo->Height - 1 - OffTop) * pBltInfo->Pitch +
-            (pBltInfo->Width - 1 - OffLeft) * BytesPerPixel);
+            ((ULONGLONG)pBltInfo->Height - 1 - OffTop) * pBltInfo->Pitch +
+            ((ULONGLONG)pBltInfo->Width - 1 - OffLeft) * BytesPerPixel);
         break;
     case D3DKMDT_VPPR_ROTATE270:
-        pRet = ((BYTE*)pBltInfo->pBits +
-            OffLeft * pBltInfo->Pitch +
-            (pBltInfo->Width - 1 - OffTop) * BytesPerPixel);
+        pRet = ((PBYTE)pBltInfo->pBits +
+            (ULONGLONG)OffLeft * pBltInfo->Pitch +
+            ((ULONGLONG)pBltInfo->Width - 1 - OffTop) * BytesPerPixel);
         break;
     default:
     {
@@ -77,9 +77,9 @@ BYTE* GetRowStart(_In_ CONST BLT_INFO* pBltInfo, CONST RECT* pRect)
 }
 
 VOID CopyBitsGeneric(
-    BLT_INFO* pDst,
-    CONST BLT_INFO* pSrc,
-    UINT  NumRects,
+    _In_  BLT_INFO* pDst,
+    _In_ CONST BLT_INFO* pSrc,
+    _In_ UINT  NumRects,
     _In_reads_(NumRects) CONST RECT *pRects)
 {
     LONG DstPixelPitch = 0;
@@ -129,9 +129,9 @@ VOID CopyBitsGeneric(
 
 
 VOID CopyBits32_32(
-    BLT_INFO* pDst,
-    CONST BLT_INFO* pSrc,
-    UINT  NumRects,
+    _In_ BLT_INFO* pDst,
+    _In_ CONST BLT_INFO* pSrc,
+    _In_ UINT  NumRects,
     _In_reads_(NumRects) CONST RECT *pRects)
 {
     VIOGPU_ASSERT((pDst->BitsPerPel == 32) &&
@@ -151,11 +151,11 @@ VOID CopyBits32_32(
         UINT NumRows = pRect->bottom - pRect->top;
         UINT BytesToCopy = NumPixels * 4;
         BYTE* pStartDst = ((BYTE*)pDst->pBits +
-            (pRect->top + pDst->Offset.y) * pDst->Pitch +
-            (pRect->left + pDst->Offset.x) * 4);
+            ((ULONGLONG)pRect->top + pDst->Offset.y) * pDst->Pitch +
+            ((ULONGLONG)pRect->left + pDst->Offset.x) * 4);
         CONST BYTE* pStartSrc = ((BYTE*)pSrc->pBits +
-            (pRect->top + pSrc->Offset.y) * pSrc->Pitch +
-            (pRect->left + pSrc->Offset.x) * 4);
+            ((ULONGLONG)pRect->top + pSrc->Offset.y) * pSrc->Pitch +
+            ((ULONGLONG)pRect->left + pSrc->Offset.x) * 4);
 
         for (UINT i = 0; i < NumRows; ++i) {
             RtlCopyMemory(pStartDst, pStartSrc, BytesToCopy);
@@ -168,9 +168,9 @@ VOID CopyBits32_32(
 
 
 VOID BltBits(
-    BLT_INFO* pDst,
-    CONST BLT_INFO* pSrc,
-    UINT  NumRects,
+    _In_ BLT_INFO* pDst,
+    _In_ CONST BLT_INFO* pSrc,
+    _In_ UINT  NumRects,
     _In_reads_(NumRects) CONST RECT *pRects)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
@@ -190,7 +190,7 @@ VOID BltBits(
     }
 }
 
-UINT BPPFromPixelFormat(D3DDDIFORMAT Format)
+UINT BPPFromPixelFormat(_In_ D3DDDIFORMAT Format)
 {
     switch (Format)
     {
