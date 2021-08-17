@@ -13,6 +13,7 @@ ClassGUID={4d36e968-e325-11ce-bfc1-08002be10318}
 Provider=%RHEL%
 DriverVer= 09/05/2018, 1.01.01.0001
 CatalogFile=viogpudo.cat
+PnpLockdown     = 1
 
 [DestinationDirs]
 DefaultDestDir = 12
