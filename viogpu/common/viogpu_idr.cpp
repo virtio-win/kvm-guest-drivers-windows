@@ -38,6 +38,7 @@ VioGpuIdr::VioGpuIdr()
     m_uStartIndex = 0;
     m_IdBitMap.SizeOfBitMap = 0;
     m_IdBitMap.Buffer = NULL;
+    ExInitializeFastMutex(&m_IdBitMapMutex);
 }
 
 VioGpuIdr::~VioGpuIdr()
@@ -51,11 +52,11 @@ BOOLEAN VioGpuIdr::Init(
     PUCHAR buf = NULL;
     BOOLEAN ret = FALSE;
     m_uStartIndex = start;
-    ExInitializeFastMutex(&m_IdBitMapMutex);
 
     VIOGPU_ASSERT(m_IdBitMap.Buffer == NULL);
     Lock();
     buf = new (NonPagedPoolNx) UCHAR[PAGE_SIZE];
+    RtlZeroMemory(buf, (PAGE_SIZE * sizeof(UCHAR)));
     if (buf) {
         RtlInitializeBitMap(&m_IdBitMap,
             (PULONG)buf,
@@ -98,7 +99,7 @@ ULONG VioGpuIdr::GetId(VOID)
     return id;
 }
 
-VOID VioGpuIdr::PutId(ULONG id)
+VOID VioGpuIdr::PutId(_In_ ULONG id)
 {
     ASSERT(id >= m_uStartIndex);
     ASSERT(id <= (CHAR_BIT * PAGE_SIZE));
