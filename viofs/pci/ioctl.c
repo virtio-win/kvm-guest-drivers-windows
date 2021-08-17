@@ -116,7 +116,7 @@ static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
     vq_lock = Context->VirtQueueLocks[vq_index];
 
     sg_size = GetRequiredScatterGatherSize(Request);
-    sg = ExAllocatePoolWithTag(NonPagedPool,
+    sg = ExAllocatePoolUninitialized(NonPagedPool,
         sg_size * sizeof(struct scatterlist), VIRT_FS_MEMORY_TAG);
 
     if (sg == NULL)
