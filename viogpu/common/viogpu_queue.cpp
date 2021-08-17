@@ -104,12 +104,14 @@ void VioGpuQueue::Lock(KIRQL* Irql)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-void VioGpuQueue::Unlock(KIRQL SavedIrql)
+_IRQL_requires_(DISPATCH_LEVEL)
+_IRQL_restores_global_(OldIrql, Irql)
+void VioGpuQueue::Unlock(KIRQL Irql)
 {
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s at IRQL %d\n", __FUNCTION__, SavedIrql));
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s at IRQL %d\n", __FUNCTION__, Irql));
 
-    if (SavedIrql < DISPATCH_LEVEL) {
-        KeReleaseSpinLock(&m_SpinLock, SavedIrql);
+    if (Irql < DISPATCH_LEVEL) {
+        KeReleaseSpinLock(&m_SpinLock, Irql);
     }
     else {
         KeReleaseSpinLockFromDpcLevel(&m_SpinLock);
@@ -154,8 +156,11 @@ PVOID CtrlQueue::AllocCmd(PGPU_VBUFFER* buf, int sz)
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
-    PGPU_VBUFFER vbuf;
-    vbuf = m_pBuf->GetBuf(sz, sizeof(GPU_CTRL_HDR), NULL);
+    if (buf == NULL || sz == 0 ) {
+        return NULL;
+    }
+
+    PGPU_VBUFFER vbuf = m_pBuf->GetBuf(sz, sizeof(GPU_CTRL_HDR), NULL);
     ASSERT(vbuf);
     *buf = vbuf;
 
@@ -324,7 +329,7 @@ BOOLEAN CtrlQueue::GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid)
 
     PGPU_CMD_GET_EDID cmd = (PGPU_CMD_GET_EDID)buf->buf;
     PGPU_RESP_EDID resp = (PGPU_RESP_EDID)buf->resp_buf;
-    PUCHAR resp_edit = resp->edid + (id * EDID_V1_BLOCK_SIZE);
+    PUCHAR resp_edit = (PUCHAR)(resp->edid + (ULONGLONG)id * EDID_V1_BLOCK_SIZE);
     if (resp->hdr.type != VIRTIO_GPU_RESP_OK_EDID)
     {
         DbgPrint(TRACE_LEVEL_VERBOSE, (" %s type = %x: disabled\n", __FUNCTION__, resp->hdr.type));
@@ -608,10 +613,6 @@ BOOLEAN VioGpuBuf::Init(_In_ UINT cnt)
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
-    InitializeListHead(&m_FreeBufs);
-    InitializeListHead(&m_InUseBufs);
-    KeInitializeSpinLock(&m_SpinLock);
-
     for (UINT i = 0; i < cnt; ++i) {
         PGPU_VBUFFER pvbuf = reinterpret_cast<PGPU_VBUFFER>
             (new (NonPagedPoolNx) BYTE[VBUFFER_SIZE]);
@@ -689,7 +690,7 @@ void VioGpuBuf::Close(void)
 PGPU_VBUFFER VioGpuBuf::GetBuf(
     _In_ int size,
     _In_ int resp_size,
-    _In_ void *resp_buf)
+    _In_opt_ void *resp_buf)
 {
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
@@ -789,6 +790,9 @@ VioGpuBuf::VioGpuBuf()
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
+    InitializeListHead(&m_FreeBufs);
+    InitializeListHead(&m_InUseBufs);
+    KeInitializeSpinLock(&m_SpinLock);
     m_uCount = 0;
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
@@ -816,6 +820,7 @@ VioGpuMemSegment::VioGpuMemSegment(void)
     m_pMdl = NULL;
     m_bSystemMemory = FALSE;
     m_bMapped = FALSE;
+    m_Size = 0;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
@@ -830,7 +835,7 @@ VioGpuMemSegment::~VioGpuMemSegment(void)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_ PPHYSICAL_ADDRESS pPAddr)
+BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr)
 {
     PAGED_CODE();
 
@@ -968,6 +973,7 @@ VioGpuObj::VioGpuObj(void)
 
     m_uiHwRes = 0;
     m_pSegment = NULL;
+    m_Size = 0;
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }

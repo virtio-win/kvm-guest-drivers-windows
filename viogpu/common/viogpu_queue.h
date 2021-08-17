@@ -68,7 +68,7 @@ public:
     PGPU_VBUFFER GetBuf(
         _In_ int size,
         _In_ int resp_size,
-        _In_ void *resp_buf);
+        _In_opt_ void *resp_buf);
     void FreeBuf(
         _In_ PGPU_VBUFFER pbuf);
     BOOLEAN Init(_In_ UINT cnt);
@@ -90,7 +90,7 @@ public:
     PVOID GetVirtualAddress(void) { return m_pVAddr; }
     PHYSICAL_ADDRESS GetPhysicalAddress(void);
     PSCATTER_GATHER_LIST GetSGList(void) { return m_pSGList; }
-    BOOLEAN Init(_In_ UINT size, _In_ PPHYSICAL_ADDRESS pPAddr);
+    BOOLEAN Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr);
     BOOLEAN IsSystemMemory(void) { return m_bSystemMemory; }
     void Close(void);
 private:
@@ -134,7 +134,7 @@ public:
         _In_ UINT out_num,
         _In_ UINT in_num,
         _In_ void* data,
-        _In_ void* va_indirect,
+        _In_opt_ void* va_indirect,
         _In_ ULONGLONG phys_indirect)
     {
         return m_pVirtQueue ?  virtqueue_add_buf(m_pVirtQueue, sg, out_num, in_num, data,
@@ -142,7 +142,11 @@ public:
     }
     void* GetBuf(_Out_ UINT* len)
     {
-        return m_pVirtQueue ? virtqueue_get_buf(m_pVirtQueue, len) : NULL;
+        if (m_pVirtQueue ) {
+            return virtqueue_get_buf(m_pVirtQueue, len);
+        }
+        *len = 0;
+        return NULL;
     }
     void Kick()
     { if (m_pVirtQueue) virtqueue_kick_always(m_pVirtQueue); }
