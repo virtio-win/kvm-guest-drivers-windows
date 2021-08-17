@@ -88,7 +88,7 @@ static int FillScatterGatherFromMdl(OUT struct scatterlist sg[],
         {
             len = (ULONG)(min(Length, PAGE_SIZE));
             Length -= len;
-            sg[i].physAddr.QuadPart = (ULONGLONG)(*(pfn + j)) << PAGE_SHIFT;
+            sg[i].physAddr.QuadPart = (ULONGLONG)pfn[j] << PAGE_SHIFT;
             sg[i].length = len;
             i += 1;
         }
