@@ -760,7 +760,6 @@ VIOSockRxPktEnqueueCb(
     return bRes;
 }
 
-_Requires_lock_not_held_(pSocket->RxLock)
 static
 VOID
 VIOSockRxRequestCancelCb(
@@ -924,6 +923,7 @@ VIOSockRxPktHandleListen(
     }
 }
 
+_Requires_lock_not_held_(pContext->RxLock)
 VOID
 VIOSockRxVqProcess(
     IN PDEVICE_CONTEXT pContext
@@ -1300,6 +1300,7 @@ VIOSockReadGetRequestParameters(
     return status;
 }
 
+_Requires_lock_not_held_(pSocket->RxLock)
 VOID
 VIOSockReadDequeueCb(
     IN PSOCKET_CONTEXT  pSocket,
@@ -1307,10 +1308,10 @@ VIOSockReadDequeueCb(
 )
 {
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
-    NTSTATUS        status;
+    NTSTATUS        status = STATUS_SUCCESS;
     ULONG           ReadRequestFlags = 0;
     PCHAR           ReadRequestPtr = NULL;
-    ULONG           ReadRequestFree, ReadRequestLength;
+    ULONG           ReadRequestFree = 0, ReadRequestLength = 0;
     PVIOSOCK_RX_CB  pCurrentCb;
     LIST_ENTRY      LoopbackList, *pCurrentItem;
     ULONG           FreeSpace;
@@ -1626,6 +1627,7 @@ VIOSockReadDequeueCb(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
 }
 
+_Requires_lock_not_held_(pSocket->RxLock)
 VOID
 VIOSockReadCleanupCb(
     IN PSOCKET_CONTEXT pSocket

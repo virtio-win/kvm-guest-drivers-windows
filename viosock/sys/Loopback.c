@@ -35,7 +35,7 @@
 #endif
 
 
-_Requires_lock_not_held_(pSocket->RxLock)
+_Requires_lock_not_held_(pListenSocket->RxLock)
 static
 NTSTATUS
 VIOSockLoopbackAcceptEnqueue(
@@ -206,7 +206,7 @@ VIOSockLoopbackConnect(
     return status;
 }
 
-_Requires_lock_not_held_(pSocket->StateLock)
+_Requires_lock_not_held_(pDestSocket->StateLock)
 static
 NTSTATUS
 VIOSockLoopbackHandleConnecting(

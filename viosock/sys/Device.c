@@ -810,7 +810,7 @@ VIOSockSelectCheckPkt(
     for (i = 0; i < pPkt->FdCount[FDSET_READ]; ++i)
     {
         PSOCKET_CONTEXT pSocket = GetSocketContext(pHandleSet[i].Socket);
-        if (pSocket->Events & (FD_ACCEPT_BIT | FD_READ_BIT | FD_CLOSE_BIT))
+        if (pSocket->Events & (FD_ACCEPT | FD_READ | FD_CLOSE))
         {
             pFds->fd_array[pFds->fd_count++] = pHandleSet[i].hSocket;
         }
@@ -823,8 +823,8 @@ VIOSockSelectCheckPkt(
     for (i = 0; i < pPkt->FdCount[FDSET_WRITE]; ++i)
     {
         PSOCKET_CONTEXT pSocket = GetSocketContext(pHandleSet[i].Socket);
-        if (pSocket->Events & FD_WRITE_BIT ||
-            (pSocket->Events & FD_CONNECT_BIT) && NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT]))
+        if (pSocket->Events & FD_WRITE ||
+            (pSocket->Events & FD_CONNECT) && NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]))
         {
             pFds->fd_array[pFds->fd_count++] = pHandleSet[i].hSocket;
         }
@@ -837,8 +837,8 @@ VIOSockSelectCheckPkt(
     for (i = 0; i < pPkt->FdCount[FDSET_EXCPT]; ++i)
     {
         PSOCKET_CONTEXT pSocket = GetSocketContext(pHandleSet[i].Socket);
-        if ((pSocket->Events & FD_CONNECT_BIT) &&
-            !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT]))
+        if ((pSocket->Events & FD_CONNECT) &&
+            !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]))
         {
             pFds->fd_array[pFds->fd_count++] = pHandleSet[i].hSocket;
         }
@@ -972,6 +972,7 @@ VIOSockSelectWorkitem(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "<-- %s\n", __FUNCTION__);
 }
 
+_IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 VIOSockSelectRun(
     IN PSOCKET_CONTEXT pSocket
@@ -984,19 +985,19 @@ VIOSockSelectRun(
 
     if (pSocket->SelectRefs[FDSET_READ])
     {
-        bRun |= pSocket->Events & (FD_ACCEPT_BIT | FD_READ_BIT | FD_CLOSE_BIT);
+        bRun |= pSocket->Events & (FD_ACCEPT | FD_READ | FD_CLOSE);
     }
 
     if (pSocket->SelectRefs[FDSET_WRITE])
     {
-        bRun |= pSocket->Events & FD_WRITE_BIT ||
-            (pSocket->Events & FD_CONNECT_BIT) && NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT]);
+        bRun |= pSocket->Events & FD_WRITE ||
+            (pSocket->Events & FD_CONNECT) && NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]);
     }
 
     if (pSocket->SelectRefs[FDSET_EXCPT])
     {
-        bRun |= (pSocket->Events & FD_CONNECT_BIT) &&
-            !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT]);
+        bRun |= (pSocket->Events & FD_CONNECT) &&
+            !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]);
     }
 
     if (bRun && InterlockedIncrement(&pContext->SelectInProgress) == 1)
