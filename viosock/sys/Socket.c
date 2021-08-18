@@ -488,6 +488,7 @@ VIOSockConnectedFindByFile(
     return VIOSockConnectedEnum(pContext, VIOSockFindByFileCallback, pFileObject);
 }
 
+_Requires_lock_held_(pSocket->StateLock)
 VIOSOCK_STATE
 VIOSockStateSet(
     IN PSOCKET_CONTEXT pSocket,
@@ -524,6 +525,7 @@ VIOSockStateSet(
     return PrevState;
 }
 
+_Requires_lock_not_held_(pSocket->StateLock)
 VIOSOCK_STATE
 VIOSockStateSetLocked(
     IN PSOCKET_CONTEXT pSocket,
@@ -722,6 +724,7 @@ VIOSockPendedRequestGet(
 }
 
 //////////////////////////////////////////////////////////////////////////
+_Requires_lock_not_held_(pListenSocket->RxLock)
 NTSTATUS
 VIOSockAcceptEnqueuePkt(
     IN PSOCKET_CONTEXT      pListenSocket,
@@ -797,6 +800,7 @@ VIOSockAcceptEnqueuePkt(
     return status;
 }
 
+_Requires_lock_not_held_(pListenSocket->RxLock)
 VOID
 VIOSockAcceptRemovePkt(
     IN PSOCKET_CONTEXT      pListenSocket,
@@ -1058,7 +1062,7 @@ VIOSockCreate(
             WDF_OBJECT_ATTRIBUTES   Attributes;
             HANDLE                  hListenSocket;
             PVIRTIO_VSOCK_PARAMS    pParams = (PVIRTIO_VSOCK_PARAMS)((PCHAR)EaBuffer +
-                (FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + 1 + EaBuffer->EaNameLength));
+                ((ULONG_PTR)UFIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + 1 + EaBuffer->EaNameLength));
 
             TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Socket %d (%p) initializing\n",
                 pSocket->SocketId, pSocket->ThisSocket);
@@ -1476,6 +1480,7 @@ VIOSockConnect(
     return status;
 }
 
+_Requires_lock_not_held_(pSocket->StateLock)
 BOOLEAN
 VIOSockShutdownFromPeer(
     PSOCKET_CONTEXT pSocket,
@@ -1847,6 +1852,7 @@ VIOSockEventSelect(
     return STATUS_SUCCESS;
 }
 
+_Requires_lock_not_held_(pSocket->StateLock)
 VOID
 VIOSockEventSetBit(
     IN PSOCKET_CONTEXT pSocket,
@@ -1870,6 +1876,7 @@ VIOSockEventSetBit(
         KeSetEvent(pSocket->EventObject, IO_NO_INCREMENT, FALSE);
 }
 
+_Requires_lock_not_held_(pSocket->StateLock)
 VOID
 VIOSockEventSetBitLocked(
     IN PSOCKET_CONTEXT pSocket,
@@ -1882,6 +1889,7 @@ VIOSockEventSetBitLocked(
     WdfSpinLockRelease(pSocket->StateLock);
 }
 
+_Requires_lock_not_held_(pSocket->StateLock)
 VOID
 VIOSockEventClearBit(
     IN PSOCKET_CONTEXT pSocket,
@@ -2574,6 +2582,7 @@ VIOSockDeviceControl(
     return status;
 }
 
+_Requires_lock_not_held_(pSocket->StateLock)
 NTSTATUS
 VIOSockStateValidate(
     PSOCKET_CONTEXT pSocket,

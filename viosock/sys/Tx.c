@@ -274,6 +274,7 @@ VIOSockTxPktInsert(
     return TRUE;
 }
 
+_Requires_lock_not_held_(pContext->TxLock)
 VOID
 VIOSockTxVqProcess(
     IN PDEVICE_CONTEXT pContext
@@ -376,6 +377,7 @@ VIOSockTxDequeueCallback(
     return bRes;
 }
 
+_Requires_lock_not_held_(pContext->TxLock)
 static
 VOID
 VIOSockTxDequeue(
@@ -500,6 +502,7 @@ VIOSockTxDequeue(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 }
 
+_Requires_lock_not_held_(pContext->TxLock)
 VOID
 VIOSockTxCancel(
     PDEVICE_CONTEXT pContext,
@@ -877,6 +880,7 @@ VIOSockWriteQueueInit(
 }
 
 //////////////////////////////////////////////////////////////////////////
+_Requires_lock_not_held_(pContext->TxLock)
 NTSTATUS
 VIOSockSendResetNoSock(
     IN PDEVICE_CONTEXT pContext,

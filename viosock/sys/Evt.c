@@ -71,6 +71,7 @@ VIOSockEvtPktInsert(
     return TRUE;
 }
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
 VIOSockEvtVqCleanup(
     IN PDEVICE_CONTEXT pContext
@@ -94,6 +95,7 @@ VIOSockEvtVqCleanup(
     pContext->EvtVq = NULL;
 }
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 VIOSockEvtVqInit(
     IN PDEVICE_CONTEXT pContext
@@ -147,6 +149,7 @@ VIOSockEvtVqInit(
     return status;
 }
 
+_IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 VIOSockEvtVqProcess(
     IN PDEVICE_CONTEXT pContext

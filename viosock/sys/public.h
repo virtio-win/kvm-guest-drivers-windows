@@ -97,14 +97,14 @@ typedef struct _VIRTIO_VSOCK_READ_PARAMS
 }VIRTIO_VSOCK_READ_PARAMS,*PVIRTIO_VSOCK_READ_PARAMS;
 
 //microsecs to 100-nanosec intervals
-#define USEC_TO_NANO(us) ((us) * 10)
+#define USEC_TO_NANO(us) ((LONGLONG)(us) * 10)
 //millisecs to 100-nanosec intervals
 #define MSEC_TO_NANO(ms) (USEC_TO_NANO(ms) * 1000)
 //secs to 100-nanosec intervals
 #define SEC_TO_NANO(s) (MSEC_TO_NANO(s) * 1000)
 
 //100-nanosec intervals to microsecs
-#define NANO_TO_USEC(ns) ((ns) / 10)
+#define NANO_TO_USEC(ns) ((LONGLONG)(ns) / 10)
 //100-nanosec intervals to millisecs
 #define NANO_TO_MSEC(ns) (NANO_TO_USEC(ns) / 1000)
 //100-nanosec intervals to secs

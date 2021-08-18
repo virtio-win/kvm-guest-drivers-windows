@@ -575,7 +575,6 @@ VIOSockStateValidate(
     BOOLEAN         bTx
 );
 
-_Requires_lock_not_held_(pContext->TxLock)
 NTSTATUS
 VIOSockTxEnqueue(
     IN PSOCKET_CONTEXT  pSocket,
@@ -722,6 +721,7 @@ VIOSockRxVqProcess(
     IN PDEVICE_CONTEXT pContext
 );
 
+_Requires_lock_not_held_(pSocket->RxLock)
 NTSTATUS
 VIOSockRxRequestEnqueueCb(
     IN PSOCKET_CONTEXT  pSocket,
