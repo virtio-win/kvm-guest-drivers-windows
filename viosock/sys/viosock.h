@@ -228,8 +228,6 @@ typedef struct _SOCKET_CONTEXT {
     ULONG32         PeerShutdown;
     ULONG32         Shutdown;
 
-    WDFTIMER        ConnectTimer;
-    _Guarded_by_(RxLock) LONGLONG        DueTime;
     KEVENT          CloseEvent;
 
     _Guarded_by_(StateLock) PKEVENT         EventObject;
@@ -252,6 +250,7 @@ typedef struct _SOCKET_CONTEXT {
     _Guarded_by_(RxLock) VIOSOCK_TIMER   ReadTimer;
 
     _Guarded_by_(RxLock) WDFREQUEST      PendedRequest;
+    VIOSOCK_TIMER        PendedTimer;
 
     _Guarded_by_(RxLock) LIST_ENTRY      AcceptList;
     LONG            Backlog;
@@ -402,31 +401,75 @@ VIOSockIsDone(
 
 _Requires_lock_held_(pSocket->RxLock)
 NTSTATUS
-VIOSockPendedRequestSet(
+VIOSockPendedRequestSetEx(
     IN PSOCKET_CONTEXT  pSocket,
-    IN WDFREQUEST       Request
+    IN WDFREQUEST Request,
+    IN LONGLONG Timeout,
+    IN BOOLEAN Resume
 );
 
+#define VIOSockPendedRequestSet(s,r,t) VIOSockPendedRequestSetEx(s,r,t,FALSE)
+
 _Requires_lock_not_held_(pSocket->RxLock)
+__inline
 NTSTATUS
 VIOSockPendedRequestSetLocked(
     IN PSOCKET_CONTEXT  pSocket,
+    IN WDFREQUEST Request,
+    IN LONGLONG Timeout
+)
+{
+    NTSTATUS status;
+
+    WdfSpinLockAcquire(pSocket->RxLock);
+    status = VIOSockPendedRequestSet(pSocket, Request, Timeout);
+    WdfSpinLockRelease(pSocket->RxLock);
+
+    return status;
+}
+
+#define VIOSockPendedRequestSetResume(s,r) VIOSockPendedRequestSetEx(s,r,0,TRUE)
+
+_Requires_lock_not_held_(pSocket->RxLock)
+__inline
+NTSTATUS
+VIOSockPendedRequestSetResumeLocked(
+    IN PSOCKET_CONTEXT  pSocket,
     IN WDFREQUEST       Request
-);
+)
+{
+    NTSTATUS status;
+
+    WdfSpinLockAcquire(pSocket->RxLock);
+    status = VIOSockPendedRequestSetResume(pSocket, Request);
+    WdfSpinLockRelease(pSocket->RxLock);
+
+    return status;
+}
 
 _Requires_lock_held_(pSocket->RxLock)
 NTSTATUS
 VIOSockPendedRequestGet(
-    IN  PSOCKET_CONTEXT pSocket,
+    IN PSOCKET_CONTEXT  pSocket,
     OUT WDFREQUEST      *Request
 );
 
+__inline
 _Requires_lock_not_held_(pSocket->RxLock)
 NTSTATUS
 VIOSockPendedRequestGetLocked(
     IN PSOCKET_CONTEXT  pSocket,
     OUT WDFREQUEST      *Request
-);
+)
+{
+    NTSTATUS status;
+
+    WdfSpinLockAcquire(pSocket->RxLock);
+    status = VIOSockPendedRequestGet(pSocket, Request);
+    WdfSpinLockRelease(pSocket->RxLock);
+
+    return status;
+}
 
 NTSTATUS
 VIOSockAcceptInitSocket(
@@ -852,6 +895,36 @@ VIOSockTimerPassed(
 
     return (liTicks.QuadPart - pTimer->StartTime) * KeQueryTimeIncrement();
 }
+
+__inline
+BOOLEAN
+VIOSockTimerSuspend(
+    IN PVIOSOCK_TIMER pTimer
+)
+{
+    if (WdfTimerStop(pTimer->Timer, FALSE))
+    {
+        return pTimer->Timeout > VIOSockTimerPassed(pTimer) + VIOSOCK_TIMER_TOLERANCE;
+    }
+    return TRUE;
+}
+
+__inline
+BOOLEAN
+VIOSockTimerResume(
+    IN PVIOSOCK_TIMER pTimer
+)
+{
+    LONGLONG llTimeout = VIOSockTimerPassed(pTimer);
+
+    if (pTimer->Timeout > llTimeout + VIOSOCK_TIMER_TOLERANCE)
+    {
+        VIOSockTimerSet(pTimer, pTimer->Timeout - llTimeout);
+        return TRUE;
+    }
+    return FALSE;
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 #endif /* VIOSOCK_H */

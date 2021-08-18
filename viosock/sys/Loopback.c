@@ -251,7 +251,7 @@ VIOSockLoopbackHandleConnecting(
             case VIRTIO_VSOCK_OP_INVALID:
                 if (PendedRequest != WDF_NO_HANDLE)
                 {
-                    status = VIOSockPendedRequestSetLocked(pDestSocket, PendedRequest);
+                    status = VIOSockPendedRequestSetResumeLocked(pDestSocket, PendedRequest);
                     if (NT_SUCCESS(status))
                         PendedRequest = WDF_NO_HANDLE;
                 }
