@@ -179,6 +179,9 @@
     <OutDir>objchk_win10_arm64\arm64\</OutDir>
     <IntDir>objchk_win10_arm64\arm64\</IntDir>
   </PropertyGroup>
+  <PropertyGroup>
+    <CustomBuildAfterTargets>dvl</CustomBuildAfterTargets>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <WppEnabled>true</WppEnabled>
@@ -189,6 +192,11 @@
       <PreprocessorDefinitions>%(PreprocessorDefinitions);POOL_NX_OPTIN=1</PreprocessorDefinitions>
       <DisableSpecificWarnings>4603;4627;4986;4987;4996;6387;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
+    <CustomBuildStep>
+      <Command>copy /Y $(ProjectDir)viosock.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)</Command>
+      <Inputs>$(ProjectDir)viosock.DVL.XML</Inputs>
+      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viosock.DVL.XML</Outputs>
+    </CustomBuildStep>
     <Link>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
