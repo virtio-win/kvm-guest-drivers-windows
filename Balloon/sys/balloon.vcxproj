@@ -247,6 +247,9 @@
     <OutDir>objfre_wxp_amd64\amd64\</OutDir>
     <IntDir>objfre_wxp_amd64\amd64\</IntDir>
   </PropertyGroup>
+  <PropertyGroup>
+    <CustomBuildAfterTargets>dvl</CustomBuildAfterTargets>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <WppEnabled>true</WppEnabled>
@@ -257,6 +260,11 @@
       <PreprocessorDefinitions>%(PreprocessorDefinitions);POOL_NX_OPTIN=1</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(USE_BALLOON_SERVICE)'!=''">%(PreprocessorDefinitions);USE_BALLOON_SERVICE</PreprocessorDefinitions>
     </ClCompile>
+    <CustomBuildStep>
+      <Command>copy /Y $(ProjectDir)balloon.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)</Command>
+      <Inputs>$(ProjectDir)balloon.DVL.XML</Inputs>
+      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\balloon.DVL.XML</Outputs>
+    </CustomBuildStep>
     <Link>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

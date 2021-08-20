@@ -472,6 +472,7 @@
     <OutDir>$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(Platform)\$(Configuration)\</IntDir>
     <TargetExt>.sys</TargetExt>
+    <CustomBuildAfterTargets>dvl</CustomBuildAfterTargets>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
@@ -479,6 +480,11 @@
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);..\..\VirtIO;..\..\VirtIO\WDF</AdditionalIncludeDirectories>
       <WppScanConfigurationData>WppTrace.h</WppScanConfigurationData>
     </ClCompile>
+    <CustomBuildStep>
+      <Command>copy /Y $(ProjectDir)viocrypt.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)</Command>
+      <Inputs>$(ProjectDir)viocrypt.DVL.XML</Inputs>
+      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viocrypt.DVL.XML</Outputs>
+    </CustomBuildStep>
     <Link>
       <AdditionalDependencies>virtiolib.lib;virtiolib_wdf.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">..\..\VirtIO\objchk_wlh_x86\i386;..\..\VirtIO\WDF\objchk_wlh_x86\i386;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
