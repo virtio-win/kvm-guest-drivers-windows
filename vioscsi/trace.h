@@ -84,6 +84,7 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
 
 #else
 #pragma warning(disable: 28170)
+#pragma warning(disable: 28251)
 #include <stortrce.h>
 
 // {194051B2-14C7-4987-A0E9-154377C58882}
