@@ -23,6 +23,7 @@ DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 CatalogFile=viostor.cat
 DriverPackageType = PlugAndPlay
 DriverPackageDisplayName = %VioStorScsi.DeviceDesc%
+PnpLockdown=1
 
 ;
 ; Source file information

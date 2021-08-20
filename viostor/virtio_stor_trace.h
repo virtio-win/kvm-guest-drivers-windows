@@ -75,6 +75,7 @@ extern int nViostorDebugLevel;
 
 #else
 #pragma warning(disable: 28170)
+#pragma warning(disable: 28251)
 #include <stortrce.h>
 
 #define WPP_CONTROL_GUIDS \
