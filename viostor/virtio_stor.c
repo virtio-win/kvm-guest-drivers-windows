@@ -574,7 +574,7 @@ VirtIoFindAdapter(
     if (max_queues > MAX_QUEUES_PER_DEVICE_DEFAULT)
     {
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(
-            (max_queues) * virtio_get_queue_descriptor_size());
+            (ULONGLONG)(max_queues) * virtio_get_queue_descriptor_size());
     }
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " breaks_number = %x  queue_depth = %x\n",
@@ -606,7 +606,7 @@ VirtIoFindAdapter(
     if (!adaptExt->dump_mode && (adaptExt->num_queues > 1) && (adaptExt->pmsg_affinity == NULL)) {
         ULONG Status =
         StorPortAllocatePool(DeviceExtension,
-                             sizeof(GROUP_AFFINITY) * (adaptExt->num_queues + 1),
+                             sizeof(GROUP_AFFINITY) * ((ULONGLONG)adaptExt->num_queues + 1),
                              VIOBLK_POOL_TAG,
                              (PVOID*)&adaptExt->pmsg_affinity);
         RhelDbgPrint(TRACE_LEVEL_FATAL, " pmsg_affinity = %p Status = %lu\n",adaptExt->pmsg_affinity, Status);
@@ -839,7 +839,7 @@ VirtIoHwInitialize(
 //                    adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION_CURRENT_CPU;
 //                }
                 if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
-                    RtlZeroMemory((PCHAR)adaptExt->pmsg_affinity, sizeof (GROUP_AFFINITY)* (adaptExt->num_queues + 1));
+                    RtlZeroMemory((PCHAR)adaptExt->pmsg_affinity, sizeof (GROUP_AFFINITY) * ((ULONGLONG)adaptExt->num_queues + 1));
                     adaptExt->perfFlags |= STOR_PERF_ADV_CONFIG_LOCALITY;
                     perfData.MessageTargets = adaptExt->pmsg_affinity;
                 }
