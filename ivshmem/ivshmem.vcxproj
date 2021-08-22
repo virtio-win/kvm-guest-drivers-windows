@@ -215,9 +215,9 @@
       <PreprocessorDefinitions>POOL_NX_OPTIN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <CustomBuildStep>
-      <Command>copy /Y $(ProjectDir)ivshmem.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)</Command>
+      <Command>copy /Y $(ProjectDir)ivshmem.DVL.XML $(ProjectDir)$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)</Command>
       <Inputs>$(ProjectDir)ivshmem.DVL.XML</Inputs>
-      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\ivshmem.DVL.XML</Outputs>
+      <Outputs>$(ProjectDir)$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)\ivshmem.DVL.XML</Outputs>
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">

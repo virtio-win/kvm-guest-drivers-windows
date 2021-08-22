@@ -143,9 +143,9 @@
       <AdditionalOptions>/kernel %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <CustomBuildStep>
-      <Command>copy /Y $(ProjectDir)pvpanic.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)</Command>
+      <Command>copy /Y $(ProjectDir)pvpanic.DVL.XML $(ProjectDir)$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)</Command>
       <Inputs>$(ProjectDir)pvpanic.DVL.XML</Inputs>
-      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\pvpanic.DVL.XML</Outputs>
+      <Outputs>$(ProjectDir)$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)\pvpanic.DVL.XML</Outputs>
     </CustomBuildStep>
     <Link>
       <OptimizeReferences>true</OptimizeReferences>
