@@ -481,9 +481,9 @@
       <WppScanConfigurationData>WppTrace.h</WppScanConfigurationData>
     </ClCompile>
     <CustomBuildStep>
-      <Command>copy /Y $(ProjectDir)viocrypt.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)</Command>
+      <Command>copy /Y $(ProjectDir)viocrypt.DVL.XML $(ProjectDir)$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)</Command>
       <Inputs>$(ProjectDir)viocrypt.DVL.XML</Inputs>
-      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viocrypt.DVL.XML</Outputs>
+      <Outputs>$(ProjectDir)$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)\viocrypt.DVL.XML</Outputs>
     </CustomBuildStep>
     <Link>
       <AdditionalDependencies>virtiolib.lib;virtiolib_wdf.lib;%(AdditionalDependencies)</AdditionalDependencies>

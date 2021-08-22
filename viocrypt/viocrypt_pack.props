@@ -9,6 +9,7 @@ Enabling and customizing virtio build features
   <PropertyGroup>
     <Feature_AlwaysDefaultVendor>false</Feature_AlwaysDefaultVendor>
     <Feature_AdjustInf>true</Feature_AdjustInf>
+    <PackOne_DestinationPrefix>..\</PackOne_DestinationPrefix>
     <CopyrightStrings>VioCryptCopyrightStrings</CopyrightStrings>
   </PropertyGroup>
 </Project>
