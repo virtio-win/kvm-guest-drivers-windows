@@ -146,9 +146,9 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <CustomBuildStep>
-      <Command>copy /Y $(ProjectDir)viogpudo.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)</Command>
+      <Command>copy /Y $(ProjectDir)viogpudo.DVL.XML $(ProjectDir)$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)</Command>
       <Inputs>$(ProjectDir)viogpudo.DVL.XML</Inputs>
-      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viogpudo.DVL.XML</Outputs>
+      <Outputs>$(ProjectDir)$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)\viogpudo.DVL.XML</Outputs>
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">

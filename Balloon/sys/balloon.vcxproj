@@ -261,9 +261,9 @@
       <PreprocessorDefinitions Condition="'$(USE_BALLOON_SERVICE)'!=''">%(PreprocessorDefinitions);USE_BALLOON_SERVICE</PreprocessorDefinitions>
     </ClCompile>
     <CustomBuildStep>
-      <Command>copy /Y $(ProjectDir)balloon.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)</Command>
+      <Command>copy /Y $(ProjectDir)balloon.DVL.XML $(ProjectDir)$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)</Command>
       <Inputs>$(ProjectDir)balloon.DVL.XML</Inputs>
-      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\balloon.DVL.XML</Outputs>
+      <Outputs>$(ProjectDir)$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)\balloon.DVL.XML</Outputs>
     </CustomBuildStep>
     <Link>
       <OptimizeReferences>true</OptimizeReferences>

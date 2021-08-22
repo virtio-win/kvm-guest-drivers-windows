@@ -12,6 +12,7 @@ Enabling and customizing virtio build features
     <Feature_LegacyStampInf>true</Feature_LegacyStampInf>
     <Feature_AdjustInfLegacy>true</Feature_AdjustInfLegacy>
     <Feature_AdjustInf>true</Feature_AdjustInf>
+    <PackOne_DestinationPrefix>..\</PackOne_DestinationPrefix>
     <CopyrightStrings>VioSocketCopyrightStrings</CopyrightStrings>
   </PropertyGroup>
 </Project>
