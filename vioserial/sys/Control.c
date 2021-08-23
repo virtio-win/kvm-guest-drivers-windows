@@ -152,7 +152,7 @@ VIOSerialHandleCtrlMsg(
         case VIRTIO_CONSOLE_CONSOLE_PORT:
            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
                        "VIRTIO_CONSOLE_CONSOLE_PORT id = %d value = %u\n", cpkt->id, cpkt->value);
-           if (cpkt->value)
+           if (port && cpkt->value)
            {
               VIOSerialInitPortConsole(Device,port);
            }
