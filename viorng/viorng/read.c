@@ -167,7 +167,7 @@ VOID VirtRngEvtIoStop(IN WDFQUEUE Queue,
     }
     else if (ActionFlags & WdfRequestStopActionSuspend)
     {
-        WdfRequestStopAcknowledge(Request, FALSE);
+        WdfRequestStopAcknowledge(Request, TRUE);
     }
     else if (ActionFlags & WdfRequestStopActionPurge)
     {
