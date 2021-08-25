@@ -183,6 +183,7 @@ VIOSockTxPktAlloc(
         pPkt->Header.type = pTxEntry->type;
         pPkt->Header.op = pTxEntry->op;
         pPkt->Header.flags = pTxEntry->flags;
+        InterlockedIncrement(&pContext->TxPktAllocated);
     }
     return pPkt;
 }
@@ -196,6 +197,7 @@ VIOSockTxPktFree(
 )
 {
     pContext->TxPktSliced->return_slice(pContext->TxPktSliced, pPkt);
+    InterlockedDecrement(&pContext->TxPktAllocated);
 }
 
 _Requires_lock_held_(pContext->TxLock)
@@ -409,6 +411,7 @@ VIOSockTxDequeue(
             break;
 
         RemoveHeadList(&pContext->TxList);
+        InterlockedDecrement(&pContext->TxEnqueued);
 
         bReply = pTxEntry->reply;
 
@@ -474,8 +477,11 @@ VIOSockTxDequeue(
             {
                 ASSERT(FALSE);
                 TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VIOSockTxPktInsert failed\n");
+
                 InsertHeadList(&pContext->TxList, &pTxEntry->ListEntry);
+                InterlockedIncrement(&pContext->TxEnqueued);
                 VIOSockTxPktFree(pContext, pPkt);
+                bReply = FALSE;
                 break;
             }
 
@@ -682,6 +688,10 @@ VIOSockTxEnqueue(
 
             VIOSockTxPutCredit(pSocket, pTxEntry->len);
             WdfSpinLockRelease(pContext->TxLock);
+
+            if (pTxEntry->Memory != WDF_NO_HANDLE)
+                WdfObjectDelete(pTxEntry->Memory);
+
             return status; //caller completes failed requests
         }
 
@@ -695,7 +705,9 @@ VIOSockTxEnqueue(
     if (pTxEntry->reply)
         pContext->TxQueuedReply++;
 
+    InterlockedIncrement(&pContext->TxEnqueued);
     InsertTailList(&pContext->TxList, &pTxEntry->ListEntry);
+
     WdfSpinLockRelease(pContext->TxLock);
 
     VIOSockTxVqProcess(pContext);
@@ -705,6 +717,22 @@ VIOSockTxEnqueue(
 }
 
 //////////////////////////////////////////////////////////////////////////
+static
+BOOLEAN
+VIOSockWriteIsAvailable(
+    PDEVICE_CONTEXT pContext,
+    PSOCKET_CONTEXT pSocket
+)
+{
+    if (VIOSockIsNonBlocking(pSocket))
+    {
+        //do not enqueue request for non-blocking socket if queue if full
+        if (pContext->TxEnqueued + pContext->TxPktAllocated >= pContext->TxPktNum)
+            return FALSE;
+    }
+    return TRUE;
+}
+
 static
 VOID
 VIOSockWrite(
@@ -753,7 +781,11 @@ VIOSockWrite(
         pRequest->len = (ULONG32)Length;
     }
 
-    status = VIOSockSendWrite(pSocket, Request);
+    if (IsLoopbackSocket(pSocket) || VIOSockWriteIsAvailable(pContext, pSocket))
+        status = VIOSockSendWrite(pSocket, Request);
+    else
+        status = STATUS_CANT_WAIT;
+
 
     if (!NT_SUCCESS(status))
     {
@@ -827,7 +859,7 @@ VIOSockWriteQueueInit(
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
             "WdfLookasideListCreate failed: 0x%x\n", status);
         return status;
     }
@@ -959,7 +991,9 @@ VIOSockTxTimerFunc(
             {
                 CurrentEntry = CurrentEntry->Blink;
                 RemoveEntryList(&pTxEntry->ListEntry);
+                InterlockedDecrement(&pContext->TxEnqueued);
 
+                ASSERT(pTxEntry->Request);
                 if (pTxEntry->Request)
                 {
                     NTSTATUS status = WdfRequestUnmarkCancelable(pTxEntry->Request);

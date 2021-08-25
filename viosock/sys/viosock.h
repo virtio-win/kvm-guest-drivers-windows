@@ -142,11 +142,13 @@ typedef struct _DEVICE_CONTEXT {
     WDFSPINLOCK                 TxLock;
     _Guarded_by_(TxLock) PVIOSOCK_VQ                 TxVq;
     _Guarded_by_(TxLock) PVIRTIO_DMA_MEMORY_SLICED   TxPktSliced;
-    ULONG                       TxPktNum;       //Num of slices in TxPktSliced
+    LONG                       TxPktNum;       //Num of slices in TxPktSliced
     _Guarded_by_(TxLock) LONG                        TxQueuedReply;
     _Guarded_by_(TxLock) LIST_ENTRY                  TxList;
     _Guarded_by_(TxLock) VIOSOCK_TIMER               TxTimer;
     WDFLOOKASIDE                TxMemoryList;
+    _Interlocked_ volatile LONG               TxEnqueued;
+    _Interlocked_ volatile LONG               TxPktAllocated;
 
     WDFLOOKASIDE                AcceptMemoryList;
 
