@@ -173,13 +173,13 @@ static USHORT ResolveQueue(PARANDIS_ADAPTER *pContext, PPROCESSOR_NUMBER proc, U
 {
     GROUP_AFFINITY a;
     ParaNdis_ProcessorNumberToGroupAffinity(&a, proc);
-    USHORT n;
+    UINT n;
     for (n = 0; n < pContext->nPathBundles; ++n)
     {
         const GROUP_AFFINITY& b = pContext->pPathBundles[n].rxPath.DPCAffinity;
         if (a.Group == b.Group && a.Mask == b.Mask)
         {
-            return n;
+            return (USHORT)n;
         }
     }
     // the CPU is not used by any queue
@@ -189,7 +189,7 @@ static USHORT ResolveQueue(PARANDIS_ADAPTER *pContext, PPROCESSOR_NUMBER proc, U
         *fallback = 0;
     }
     TraceNoPrefix(0, "[%s] fallback CPU %d.%d -> Q%d", __FUNCTION__, proc->Group, proc->Number, n);
-    return n;
+    return (USHORT)n;
 }
 
 static void SetDeviceRSSSettings(PARANDIS_ADAPTER *pContext, bool bForceOff = false)
@@ -341,10 +341,11 @@ VOID FillCPUMappingArray(
     ULONG i;
     CCHAR ReceiveQueue = PARANDIS_FIRST_RSS_RECEIVE_QUEUE;
     auto IndirectionTableChanged = false;
+    ULONG indirectionTableLen = RSSScalingSettings->IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
 
     RSSScalingSettings->FirstQueueIndirectionIndex = INVALID_INDIRECTION_INDEX;
 
-    for (i = 0; i < RSSScalingSettings->IndirectionTableSize/sizeof(PROCESSOR_NUMBER); i++)
+    for (i = 0; i < indirectionTableLen; i++)
     {
         PPROCESSOR_NUMBER ProcNum = &RSSScalingSettings->IndirectionTable[i];
         ULONG CurrProcIdx = KeGetProcessorIndexFromNumber(ProcNum);
@@ -377,7 +378,7 @@ VOID FillCPUMappingArray(
         return;
     }
 
-    for (i = 0; i < RSSScalingSettings->IndirectionTableSize / sizeof(PROCESSOR_NUMBER); i++)
+    for (i = 0; i < indirectionTableLen; i++)
     {
         if (RSSScalingSettings->QueueIndirectionTable[i] == PARANDIS_RECEIVE_NO_QUEUE)
         {
@@ -975,7 +976,8 @@ static void PrintRSSSettings(const PPARANDIS_RSS_PARAMS RSSParameters)
 
 NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
 {
-    USHORT rssIndex, bundleIndex;
+    ULONG rssIndex;
+    UINT bundleIndex;
     ULONG cpuIndex;
     ULONG rssTableSize = pContext->RSSParameters.RSSScalingSettings.IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
 
@@ -1013,7 +1015,7 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
         }
         else
         {
-            cpuIndexTable[cpuIndex] = bundleIndex;
+            cpuIndexTable[cpuIndex] = (USHORT)bundleIndex;
         }
     }
 
