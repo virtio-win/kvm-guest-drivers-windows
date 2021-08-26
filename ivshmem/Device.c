@@ -290,7 +290,10 @@ NTSTATUS IVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
     {
         _Analysis_assume_(entry != NULL);
         PIVSHMEMEventListEntry event = CONTAINING_RECORD(entry, IVSHMEMEventListEntry, ListEntry);
-        ObDereferenceObject(event->event);
+        if (event->event)
+        {
+            ObDereferenceObject(event->event);
+        }
         event->owner  = NULL;
         event->event  = NULL;
         event->vector = 0;
