@@ -559,6 +559,7 @@ VIOSockTxVqInit(
     IN PDEVICE_CONTEXT pContext
 );
 
+_Requires_lock_not_held_(pContext->TxLock)
 VOID
 VIOSockTxVqCleanup(
     IN PDEVICE_CONTEXT pContext
@@ -685,8 +686,18 @@ _Requires_lock_not_held_(pContext->TxLock)
 VOID
 VIOSockTxCancel(
     PDEVICE_CONTEXT pContext,
-    PSOCKET_CONTEXT pSocket,
+    WDFFILEOBJECT   Socket,
     NTSTATUS        Status
+);
+
+VOID
+VIOSockWriteIoSuspend(
+    IN PDEVICE_CONTEXT pContext
+);
+
+VOID
+VIOSockWriteIoRestart(
+    IN PDEVICE_CONTEXT pContext
 );
 
 //////////////////////////////////////////////////////////////////////////
