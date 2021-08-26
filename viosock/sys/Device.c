@@ -39,6 +39,8 @@ EVT_WDF_DEVICE_RELEASE_HARDWARE     VIOSockEvtDeviceReleaseHardware;
 EVT_WDF_DEVICE_D0_ENTRY             VIOSockEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT              VIOSockEvtDeviceD0Exit;
 EVT_WDF_DEVICE_D0_ENTRY_POST_INTERRUPTS_ENABLED VIOSockEvtDeviceD0EntryPostInterruptsEnabled;
+EVT_WDF_DEVICE_SELF_MANAGED_IO_SUSPEND          VIOSockEvtDeviceSelfManagedIoSuspend;
+EVT_WDF_DEVICE_SELF_MANAGED_IO_RESTART          VIOSockEvtDeviceSelfManagedIoRestart;
 
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL  VIOSockEvtIoDeviceControl;
 EVT_WDF_REQUEST_CANCEL              VIOSockSelectCancel;
@@ -121,13 +123,11 @@ VIOSockSelect(
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VIOSockEvtDeviceAdd)
 #pragma alloc_text (PAGE, VIOSockQueuesCleanup)
-#pragma alloc_text (PAGE, VIOSockQueuesInit)
 
 #pragma alloc_text (PAGE, VIOSockEvtDevicePrepareHardware)
 #pragma alloc_text (PAGE, VIOSockEvtDeviceReleaseHardware)
-#pragma alloc_text (PAGE, VIOSockEvtDeviceD0Entry)
 #pragma alloc_text (PAGE, VIOSockEvtDeviceD0Exit)
-#pragma alloc_text (PAGE, VIOSockEvtDeviceD0EntryPostInterruptsEnabled)
+#pragma alloc_text (PAGE, VIOSockEvtDeviceSelfManagedIoSuspend)
 
 #pragma alloc_text (PAGE, VIOSockDeviceGetConfig)
 #pragma alloc_text (PAGE, VIOSockDeviceGetAf)
@@ -179,8 +179,6 @@ VIOSockQueuesInit(
     PVIOSOCK_VQ vqs[VIOSOCK_VQ_MAX];
 
     ULONG uBufferSize;
-
-    PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
@@ -257,6 +255,8 @@ VIOSockEvtDeviceAdd(
     PnpPowerCallbacks.EvtDeviceD0Entry         = VIOSockEvtDeviceD0Entry;
     PnpPowerCallbacks.EvtDeviceD0Exit          = VIOSockEvtDeviceD0Exit;
     PnpPowerCallbacks.EvtDeviceD0EntryPostInterruptsEnabled = VIOSockEvtDeviceD0EntryPostInterruptsEnabled;
+    PnpPowerCallbacks.EvtDeviceSelfManagedIoSuspend = VIOSockEvtDeviceSelfManagedIoSuspend;
+    PnpPowerCallbacks.EvtDeviceSelfManagedIoRestart = VIOSockEvtDeviceSelfManagedIoRestart;
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &PnpPowerCallbacks);
 
     // Set DirectIO mode
@@ -503,8 +503,6 @@ VIOSockEvtDeviceD0Entry(
 
     UNREFERENCED_PARAMETER(PreviousState);
 
-    PAGED_CODE();
-
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     status = VIOSockQueuesInit(Device);
@@ -554,14 +552,41 @@ VIOSockEvtDeviceD0EntryPostInterruptsEnabled(
     PDEVICE_CONTEXT    pContext = GetDeviceContext(WdfDevice);
     UNREFERENCED_PARAMETER(PreviousState);
 
-    PAGED_CODE();
-
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Setting VIRTIO_CONFIG_S_DRIVER_OK flag\n");
     VirtIOWdfSetDriverOK(&pContext->VDevice);
 
     ASSERT(pContext->RxVq && pContext->EvtVq);
+
+    return STATUS_SUCCESS;
+}
+
+
+NTSTATUS
+VIOSockEvtDeviceSelfManagedIoSuspend(
+    IN WDFDEVICE Device
+)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
+
+    PAGED_CODE();
+
+    VIOSockWriteIoSuspend(pContext);
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+VIOSockEvtDeviceSelfManagedIoRestart(
+    IN WDFDEVICE Device
+)
+{
+
+    PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
+
+
+    VIOSockWriteIoRestart(pContext);
 
     return STATUS_SUCCESS;
 }
