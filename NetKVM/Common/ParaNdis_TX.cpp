@@ -1033,7 +1033,7 @@ ULONG CNB::Copy(PVOID Dst, ULONG Length) const
          CurrMDL = CurrMDL->Next)
     {
         ULONG CurrLen;
-        PVOID CurrAddr;
+        PVOID CurrAddr = nullptr;
 
 #if NDIS_SUPPORT_NDIS620
         NdisQueryMdl(CurrMDL, &CurrAddr, &CurrLen, MM_PAGE_PRIORITY(LowPagePriority | MdlMappingNoExecute));

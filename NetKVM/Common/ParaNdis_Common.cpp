@@ -1430,7 +1430,7 @@ static VOID ParaNdis_CleanupContext(PARANDIS_ADAPTER *pContext)
 
     if (pContext->pPathBundles != NULL)
     {
-        USHORT i;
+        UINT i;
 
         for (i = 0; i < pContext->nPathBundles; i++)
         {
