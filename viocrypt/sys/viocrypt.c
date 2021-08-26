@@ -37,6 +37,8 @@
 #pragma alloc_text(PAGE, VioCryptDeviceAdd)
 #pragma alloc_text(PAGE, VioCryptDriverContextCleanup)
 #pragma alloc_text(PAGE, VioCryptDevicePrepareHardware)
+#pragma alloc_text(PAGE, VioCryptDeviceReleaseHardware)
+#pragma alloc_text(PAGE, VioCryptDeviceD0Exit)
 #endif
 
 NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
@@ -295,8 +297,6 @@ NTSTATUS VioCryptDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE Pr
     struct virtqueue *queues[1];
 
     Trace(TRACE_LEVEL_VERBOSE, "[%s] from D%d", __FUNCTION__, PreviousState - WdfPowerDeviceD0);
-
-    PAGED_CODE();
 
     if (NT_SUCCESS(status))
     {
