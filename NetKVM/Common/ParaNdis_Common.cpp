@@ -1937,7 +1937,7 @@ static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)
                         &u32UniCastEntries,
                         sizeof(u32UniCastEntries),
                         &pContext->MulticastData,
-                        sizeof(pContext->MulticastData.nofMulticastEntries) + pContext->MulticastData.nofMulticastEntries * ETH_ALEN,
+                        sizeof(pContext->MulticastData.nofMulticastEntries) + (ULONGLONG)pContext->MulticastData.nofMulticastEntries * ETH_ALEN,
                         2);
 }
 

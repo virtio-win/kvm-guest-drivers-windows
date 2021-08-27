@@ -715,9 +715,11 @@ IPV6_ADDRESS* GetIP6SrcAddrForHash(
                             PNET_PACKET_INFO packetInfo,
                             bool xEnabled)
 {
+    ULONG offset = packetInfo->L2HdrLen + FIELD_OFFSET(IPv6Header, ip6_src_address);
+
     return (xEnabled && packetInfo->ip6HomeAddrOffset)
         ? (IPV6_ADDRESS*) RtlOffsetToPointer(dataBuffer, packetInfo->ip6HomeAddrOffset)
-        : (IPV6_ADDRESS*) RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen + FIELD_OFFSET(IPv6Header, ip6_src_address));
+        : (IPV6_ADDRESS*) RtlOffsetToPointer(dataBuffer, offset);
 }
 
 static __inline
@@ -726,9 +728,11 @@ IPV6_ADDRESS* GetIP6DstAddrForHash(
                             PNET_PACKET_INFO packetInfo,
                             bool xEnabled)
 {
+    ULONG offset = packetInfo->L2HdrLen + FIELD_OFFSET(IPv6Header, ip6_dst_address);
+
     return (xEnabled && packetInfo->ip6DestAddrOffset)
         ? (IPV6_ADDRESS*) RtlOffsetToPointer(dataBuffer, packetInfo->ip6DestAddrOffset)
-        : (IPV6_ADDRESS*) RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen + FIELD_OFFSET(IPv6Header, ip6_dst_address));
+        : (IPV6_ADDRESS*) RtlOffsetToPointer(dataBuffer, offset);
 }
 
 static
@@ -778,7 +782,9 @@ VOID RSSCalcHash_Unsafe(
 
         if(hashTypes & NDIS_HASH_IPV4)
         {
-            sgBuff[0].chunkPtr = RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen + FIELD_OFFSET(IPv4Header, ip_src));
+            ULONG chunkOffset = packetInfo->L2HdrLen + FIELD_OFFSET(IPv4Header, ip_src);
+
+            sgBuff[0].chunkPtr = RtlOffsetToPointer(dataBuffer, chunkOffset);
             sgBuff[0].chunkLen = RTL_FIELD_SIZE(IPv4Header, ip_src) + RTL_FIELD_SIZE(IPv4Header, ip_dest);
 
             packetInfo->RSSHash.Value = ToeplitzHash(sgBuff, 1, RSSParameters->ActiveHashingSettings.HashSecretKey);
