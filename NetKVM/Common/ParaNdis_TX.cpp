@@ -567,7 +567,7 @@ PNET_BUFFER_LIST CParaNdisTX::BuildCancelList(PVOID CancelId)
     CNBL* NBL = nullptr;
 
     NBL = PopMappedNBL();
-    do
+    while (NBL)
     {
         if (NBL->MatchCancelID(CancelId) && !NBL->HaveDetachedBuffers())
         {
@@ -578,7 +578,7 @@ PNET_BUFFER_LIST CParaNdisTX::BuildCancelList(PVOID CancelId)
             CanceledNBLs = RawNBL;
         }
         NBL = PopMappedNBL();
-    } while (NBL);
+    }
 
     return CanceledNBLs;
 }
