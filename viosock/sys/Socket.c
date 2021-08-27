@@ -1765,8 +1765,8 @@ VIOSockSetNonBlocking(
 
     if (!VIOSockSetFlag(pSocket, SOCK_NON_BLOCK))
     {
-        VIOSockReadDequeueCb(pSocket, WDF_NO_HANDLE);
-        //TODO: process blocked Tx if any
+        VIOSockReadProcessDequeueCb(pSocket);
+        VIOSockTxCancel(GetDeviceContextFromSocket(pSocket), pSocket->ThisSocket, STATUS_CANT_WAIT);
     }
 
     return STATUS_SUCCESS;

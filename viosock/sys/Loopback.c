@@ -304,7 +304,7 @@ VIOSockLoopbackHandleConnected(
         if (NT_SUCCESS(status))
         {
             VIOSockEventSetBitLocked(pDestSocket, FD_READ_BIT, STATUS_SUCCESS);
-            VIOSockReadDequeueCb(pDestSocket, NULL);
+            VIOSockReadProcessDequeueCb(pDestSocket);
         }
         break;
     case VIRTIO_VSOCK_OP_CREDIT_UPDATE:

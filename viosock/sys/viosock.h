@@ -239,16 +239,10 @@ typedef struct _SOCKET_CONTEXT {
 
     WDFSPINLOCK     RxLock;         //accept list lock for listen socket
     _Guarded_by_(RxLock) LIST_ENTRY      RxCbList;
-    _Guarded_by_(RxLock) PCHAR           RxCbReadPtr;    //read ptr in first CB
-    _Guarded_by_(RxLock) ULONG           RxCbReadLen;    //remaining bytes in first CB
     _Guarded_by_(RxLock) volatile ULONG           RxBytes;        //used bytes in rx buffer
     _Guarded_by_(RxLock) ULONG           RxBuffers;      //used rx buffers (for debug)
 
     WDFQUEUE        ReadQueue;
-    _Guarded_by_(RxLock) PCHAR           ReadRequestPtr;
-    _Guarded_by_(RxLock) ULONG           ReadRequestFree;
-    _Guarded_by_(RxLock) ULONG           ReadRequestLength;
-    _Guarded_by_(RxLock) ULONG           ReadRequestFlags;
     _Guarded_by_(RxLock) VIOSOCK_TIMER   ReadTimer;
 
     _Guarded_by_(RxLock) WDFREQUEST      PendedRequest;
@@ -708,6 +702,7 @@ VIOSockRxVqInit(
     IN PDEVICE_CONTEXT pContext
 );
 
+_Requires_lock_not_held_(pContext->RxLock)
 VOID
 VIOSockRxVqCleanup(
     IN PDEVICE_CONTEXT pContext
@@ -762,11 +757,19 @@ VIOSockReadSocketQueueInit(
 );
 
 _Requires_lock_not_held_(pSocket->RxLock)
-VOID
+BOOLEAN
 VIOSockReadDequeueCb(
-    IN PSOCKET_CONTEXT  pSocket,
-    IN WDFREQUEST       ReadRequest OPTIONAL
+    IN PSOCKET_CONTEXT  pSocket
 );
+
+_Requires_lock_not_held_(pSocket->RxLock)
+__inline
+VIOSockReadProcessDequeueCb(
+    IN PSOCKET_CONTEXT pSocket
+)
+{
+    while (VIOSockReadDequeueCb(pSocket));
+}
 
 _Requires_lock_not_held_(pSocket->RxLock)
 VOID
