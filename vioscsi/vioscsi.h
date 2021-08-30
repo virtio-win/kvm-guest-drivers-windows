@@ -49,6 +49,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define NTDDI_WINTHRESHOLD                  0x0A000000  /* ABRACADABRA_THRESHOLD */
 #endif
 
+#define PHYS_SEGMENTS           32
 #if (NTDDI_VERSION > NTDDI_WIN7)
 #define MAX_PHYS_SEGMENTS       512
 #else

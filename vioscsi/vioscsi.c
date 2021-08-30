@@ -500,9 +500,10 @@ ENTER_FN();
     if(adaptExt->dump_mode) {
         ConfigInfo->NumberOfPhysicalBreaks  = SCSI_MINIMUM_PHYSICAL_BREAKS;
     } else {
-        adaptExt->max_physical_breaks = MAX_PHYS_SEGMENTS;
+        adaptExt->max_physical_breaks = PHYS_SEGMENTS;
 #if (NTDDI_VERSION > NTDDI_WIN7)
         if (adaptExt->indirect) {
+            adaptExt->max_physical_breaks = MAX_PHYS_SEGMENTS;
             VioScsiReadRegistry(DeviceExtension);
         }
 #endif
@@ -1351,7 +1352,7 @@ ENTER_FN_SRB();
     sgList = StorPortGetScatterGatherList(DeviceExtension, Srb);
     if (sgList)
     {
-        sgMaxElements = min((MAX_PHYS_SEGMENTS + 1), sgList->NumberOfElements);
+        sgMaxElements = min((adaptExt->max_physical_breaks + 1), sgList->NumberOfElements);
 
         if((SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT) == SRB_FLAGS_DATA_OUT) {
             for (i = 0; i < sgMaxElements; i++, sgElement++) {
@@ -1368,7 +1369,7 @@ ENTER_FN_SRB();
     sgElement++;
     if (sgList)
     {
-        sgMaxElements = min((MAX_PHYS_SEGMENTS + 1), sgList->NumberOfElements);
+        sgMaxElements = min((adaptExt->max_physical_breaks + 1), sgList->NumberOfElements);
 
         if((SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT) != SRB_FLAGS_DATA_OUT) {
             for (i = 0; i < sgMaxElements; i++, sgElement++) {
