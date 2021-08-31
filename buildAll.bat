@@ -42,6 +42,8 @@ call tools\build.bat viosock\sys\viosock.vcxproj "Win10_SDV" %*
 if errorlevel 1 goto :fail
 call tools\build.bat viofs\pci\viofs.vcxproj "Win10_SDV" %*
 if errorlevel 1 goto :fail
+call tools\build.bat vioinput\sys\vioinput.vcxproj "Win10_SDV" %*
+if errorlevel 1 goto :fail
 
 :nosdv2022
 
