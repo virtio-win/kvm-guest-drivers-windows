@@ -585,7 +585,6 @@ VIOSockEvtDeviceSelfManagedIoRestart(
 
     PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
 
-
     VIOSockWriteIoRestart(pContext);
 
     return STATUS_SUCCESS;
@@ -935,8 +934,7 @@ VIOSockSelectWorkitem(
                 bRemove = TRUE;
                 pPkt->Status = STATUS_CANCELLED;
             }
-
-            if (VIOSockSelectCheckPkt(pPkt))
+            else if (VIOSockSelectCheckPkt(pPkt))
             {
                 bRemove = TRUE;
                 pPkt->Status = STATUS_SUCCESS;
@@ -980,7 +978,8 @@ VIOSockSelectWorkitem(
             }
         }
 
-        VIOSockTimerSet(&pContext->SelectTimer, Timeout);
+        if(Timeout!=LONGLONG_MAX)
+            VIOSockTimerSet(&pContext->SelectTimer, Timeout);
 
         WdfWaitLockRelease(pContext->SelectLock);
 
@@ -1140,45 +1139,46 @@ VIOSockSelect(
         return status;
     }
 
-    if (VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_READ, 0) &&
-        VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_WRITE, pPkt->FdCount[FDSET_READ]) &&
-        VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_EXCPT,
+    if (!VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_READ, 0) ||
+        !VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_WRITE, pPkt->FdCount[FDSET_READ]) ||
+        !VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_EXCPT,
             pPkt->FdCount[FDSET_READ] + pPkt->FdCount[FDSET_WRITE]))
-    {
-        pPkt->Status = status = VIOSockSelectCheckPkt(pPkt) ? STATUS_SUCCESS : STATUS_PENDING;
-    }
-    else
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_SELECT, "VIOSockSelectCopyFds failed\n");
         status = STATUS_INVALID_HANDLE;
     }
 
-    if (status == STATUS_SUCCESS)
-        *pLength = sizeof(*pSelect);
-
-    if (status != STATUS_PENDING)
-        VIOSockSelectCleanupPkt(pPkt);
-    else
+    if (NT_SUCCESS(status))
     {
         WdfWaitLockAcquire(pContext->SelectLock, NULL);
 
-        status = WdfRequestMarkCancelableEx(Request, VIOSockSelectCancel);
+        pPkt->Status = status = VIOSockSelectCheckPkt(pPkt) ? STATUS_SUCCESS : STATUS_PENDING;
 
-        ASSERT(NT_SUCCESS(status) || status == STATUS_CANCELLED);
-
-        if (NT_SUCCESS(status))
+        if (status == STATUS_PENDING)
         {
-            status = STATUS_PENDING;
+            status = WdfRequestMarkCancelableEx(Request, VIOSockSelectCancel);
 
-            InsertTailList(&pContext->SelectList, &pPkt->ListEntry);
-            pPkt->Timeout = pSelect->Timeout;
+            ASSERT(NT_SUCCESS(status) || status == STATUS_CANCELLED);
 
-            if (pPkt->Timeout)
-                VIOSockTimerStart(&pContext->SelectTimer, pPkt->Timeout);
+            if (NT_SUCCESS(status))
+            {
+                status = STATUS_PENDING;
+
+                InsertTailList(&pContext->SelectList, &pPkt->ListEntry);
+                pPkt->Timeout = pSelect->Timeout;
+
+                if (pPkt->Timeout)
+                    VIOSockTimerStart(&pContext->SelectTimer, pPkt->Timeout);
+            }
         }
+        else
+            *pLength = sizeof(*pSelect);
 
         WdfWaitLockRelease(pContext->SelectLock);
     }
+
+    if (status != STATUS_PENDING)
+        VIOSockSelectCleanupPkt(pPkt);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "<-- %s\n", __FUNCTION__);
 

@@ -508,6 +508,7 @@ VIOSockTxDequeue(
             {
                 ASSERT(status == STATUS_CANCELLED);
                 TraceEvents(TRACE_LEVEL_WARNING, DBG_WRITE, "Write request canceled\n");
+                InitializeListHead(&pTxEntry->ListEntry);//cancellation routine removes element from the list
             }
         }
         else
@@ -557,7 +558,7 @@ VIOSockTxDequeue(
 
 _Requires_lock_not_held_(pContext->TxLock)
 VOID
-VIOSockTxCancel(
+VIOSockTxCleanup(
     PDEVICE_CONTEXT pContext,
     WDFFILEOBJECT   Socket,
     NTSTATUS        Status
@@ -566,7 +567,7 @@ VIOSockTxCancel(
     LONG lCnt = 0;
     PLIST_ENTRY CurrentEntry;
     LIST_ENTRY  CompletionList;
-    BOOLEAN     bProcessVq = FALSE;
+    BOOLEAN     bProcessVq = FALSE, bAlwaysTrue = TRUE;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
@@ -583,9 +584,15 @@ VIOSockTxCancel(
 
         if (Socket == WDF_NO_HANDLE || pTxEntry->Socket == Socket)
         {
-            CurrentEntry = CurrentEntry->Blink;
+            if (pTxEntry->Request)
+            {
+                if (!NT_SUCCESS(WdfRequestUnmarkCancelable(pTxEntry->Request)))
+                    continue;
+            }
 
+            CurrentEntry = CurrentEntry->Blink;
             RemoveEntryList(&pTxEntry->ListEntry);
+
             InsertTailList(&CompletionList, &pTxEntry->ListEntry); //complete later
 
             if (pTxEntry->Timeout)
@@ -606,16 +613,24 @@ VIOSockTxCancel(
 
     WdfSpinLockRelease(pContext->TxLock);
 
-    while (!IsListEmpty(&CompletionList))
+    //Static Driver Verifier(SDV) tracks only one request, and when SDV unwinds the loop,
+    //it treats completion of the second request as another completion of the first request.
+    //The 'assume' below causes SDV to skip loop analysis.
+    __analysis_assume(bAlwaysTrue == FALSE);
+
+    if (bAlwaysTrue)
     {
-        PVIOSOCK_TX_ENTRY   pTxEntry = CONTAINING_RECORD(RemoveHeadList(&CompletionList),
-            VIOSOCK_TX_ENTRY, ListEntry);
+        while (!IsListEmpty(&CompletionList))
+        {
+            PVIOSOCK_TX_ENTRY pTxEntry = CONTAINING_RECORD(RemoveHeadList(&CompletionList),
+                VIOSOCK_TX_ENTRY, ListEntry);
 
-        if (pTxEntry->Request)
-            WdfRequestComplete(pTxEntry->Request, Status);
+            if (pTxEntry->Request)
+                WdfRequestComplete(pTxEntry->Request, Status);
 
-        if (pTxEntry->Memory)
-            WdfObjectDelete(pTxEntry->Memory);
+            if (pTxEntry->Memory)
+                WdfObjectDelete(pTxEntry->Memory);
+        }
     }
 
     if (bProcessVq)
@@ -899,6 +914,13 @@ VIOSockWriteQueueInit(
     queueConfig.AllowZeroLengthRequests = WdfFalse;
     queueConfig.PowerManaged = WdfFalse;
 
+    //
+    // By default, Static Driver Verifier (SDV) displays a warning if it
+    // doesn't find the EvtIoStop callback on a power-managed queue.
+    // The 'assume' below causes SDV to suppress this warning.
+    //
+    // No need to handle EvtIoStop:
+
     __analysis_assume(queueConfig.EvtIoStop != 0);
     status = WdfIoQueueCreate(hDevice,
         &queueConfig,
@@ -946,7 +968,7 @@ VIOSockWriteIoSuspend(
     //stop handling write requests and cleanup queue
     WdfIoQueuePurge(pContext->WriteQueue, NULL, WDF_NO_HANDLE);
 
-    VIOSockTxCancel(pContext, WDF_NO_HANDLE, STATUS_INVALID_DEVICE_STATE);
+    VIOSockTxCleanup(pContext, WDF_NO_HANDLE, STATUS_INVALID_DEVICE_STATE);
 }
 
 VOID
@@ -1017,7 +1039,7 @@ VIOSockTxTimerFunc(
     PLIST_ENTRY CurrentEntry;
     LONGLONG Timeout = LONGLONG_MAX;
     LIST_ENTRY CompletionList;
-    BOOLEAN SetTimer = FALSE;
+    BOOLEAN SetTimer = FALSE, bAlwaysTrue = TRUE;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
@@ -1054,6 +1076,7 @@ VIOSockTxTimerFunc(
                     {
                         ASSERT(status == STATUS_CANCELLED);
                         TraceEvents(TRACE_LEVEL_WARNING, DBG_WRITE, "Write request canceled\n");
+                        InitializeListHead(&pTxEntry->ListEntry);//cancellation routine removes element from the list
                     }
                 }
                 else
@@ -1080,12 +1103,20 @@ VIOSockTxTimerFunc(
 
     WdfSpinLockRelease(pContext->TxLock);
 
-    while (!IsListEmpty(&CompletionList))
-    {
-        PVIOSOCK_TX_ENTRY pTxEntry = CONTAINING_RECORD(RemoveHeadList(&CompletionList),
-            VIOSOCK_TX_ENTRY, ListEntry);
+    //Static Driver Verifier(SDV) tracks only one request, and when SDV unwinds the loop,
+    //it treats completion of the second request as another completion of the first request.
+    //The 'assume' below causes SDV to skip loop analysis.
+    __analysis_assume(bAlwaysTrue == FALSE);
 
-        WdfRequestComplete(pTxEntry->Request, STATUS_TIMEOUT);
+    if (bAlwaysTrue)
+    {
+        while (!IsListEmpty(&CompletionList))
+        {
+            PVIOSOCK_TX_ENTRY pTxEntry = CONTAINING_RECORD(RemoveHeadList(&CompletionList),
+                VIOSOCK_TX_ENTRY, ListEntry);
+
+            WdfRequestComplete(pTxEntry->Request, STATUS_TIMEOUT);
+        }
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);

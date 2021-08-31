@@ -678,7 +678,7 @@ VIOSockTxMoreReplies(
 
 _Requires_lock_not_held_(pContext->TxLock)
 VOID
-VIOSockTxCancel(
+VIOSockTxCleanup(
     PDEVICE_CONTEXT pContext,
     WDFFILEOBJECT   Socket,
     NTSTATUS        Status
