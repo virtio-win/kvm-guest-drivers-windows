@@ -308,8 +308,8 @@ HIDJoystickProbe(
 
     // calculate the joystick HID report size
     pJoystickDesc->Common.cbHidReportSize =
-        1 +                 // report ID
-        uNumOfAbsAxes * 4 + // axes
+        1ll +                 // report ID
+        uNumOfAbsAxes * 4ll + // axes
         cbButtonBytes;      // buttons
 
     // register the joystick class
