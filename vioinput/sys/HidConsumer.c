@@ -159,7 +159,7 @@ HIDConsumerProbe(
     pConsumerDesc->Common.uReportID = (UCHAR)(pContext->uNumOfClasses + 1);
 
     // allocate and initialize the pControlMap
-    pConsumerDesc->cbControlMapLen = uMaxKeyCode + 1;
+    pConsumerDesc->cbControlMapLen = (SIZE_T)uMaxKeyCode + 1;
     pConsumerDesc->pControlMap = VIOInputAlloc(pConsumerDesc->cbControlMapLen * sizeof(ULONG));
     if (pConsumerDesc->pControlMap == NULL)
     {
@@ -221,7 +221,7 @@ HIDConsumerProbe(
 
     // calculate the consumer HID report size
     pConsumerDesc->Common.cbHidReportSize =
-        HID_REPORT_DATA_OFFSET +
+        (SIZE_T)HID_REPORT_DATA_OFFSET +
         (pConsumerDesc->uNumOfControls + 7) / 8;
 
     // register the consumer class

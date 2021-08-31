@@ -468,7 +468,7 @@ HIDKeyboardProbe(
     if (bGotLed)
     {
         ULONG uNumOfLEDs = uMaxLed + 1;
-        pKeyboardDesc->cbOutputReport = HID_REPORT_DATA_OFFSET + (uNumOfLEDs + 7) / 8;
+        pKeyboardDesc->cbOutputReport = (SIZE_T)HID_REPORT_DATA_OFFSET + (uNumOfLEDs + 7) / 8;
 
         // one bit per LED as usual in a keyboard device
         HIDAppend2(pHidDesc, HID_TAG_REPORT_SIZE, 0x01);
