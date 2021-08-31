@@ -1207,6 +1207,7 @@ VIOSockClose(
 {
     PSOCKET_CONTEXT pSocket = GetSocketContext(FileObject);
     WDFREQUEST Request;
+    VIOSOCK_STATE PrevState;
 
     PAGED_CODE();
 
@@ -1253,13 +1254,14 @@ VIOSockClose(
         }
     }
 
-    VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
+    PrevState = VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
 
     VIOSockPendedRequestGetLocked(pSocket, &Request);
     if (Request != WDF_NO_HANDLE)
     {
         WdfRequestComplete(Request, STATUS_CANCELLED);
     }
+
     if (pSocket->EventObject)
     {
         ObDereferenceObject(pSocket->EventObject);
@@ -1269,10 +1271,14 @@ VIOSockClose(
     if (pSocket->LoopbackSocket != WDF_NO_HANDLE)
         WdfObjectDereference(pSocket->LoopbackSocket);
 
-    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_LISTEN)
+    if (PrevState == VIOSOCK_STATE_LISTEN)
         VIOSockAcceptCleanup(pSocket);
     else
+    {
+        VIOSockTxCleanup(GetDeviceContextFromSocket(pSocket), pSocket->ThisSocket, STATUS_CONNECTION_DISCONNECTED);
         VIOSockReadCleanupCb(pSocket);
+    }
+
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Socket %d closed\n", pSocket->SocketId);
 
@@ -1765,8 +1771,8 @@ VIOSockSetNonBlocking(
 
     if (!VIOSockSetFlag(pSocket, SOCK_NON_BLOCK))
     {
+        VIOSockTxCleanup(GetDeviceContextFromSocket(pSocket), pSocket->ThisSocket, STATUS_CANT_WAIT);
         VIOSockReadProcessDequeueCb(pSocket);
-        VIOSockTxCancel(GetDeviceContextFromSocket(pSocket), pSocket->ThisSocket, STATUS_CANT_WAIT);
     }
 
     return STATUS_SUCCESS;
