@@ -1162,7 +1162,7 @@ static void RetrieveSourceHandle(PNET_BUFFER_LIST start, PNET_BUFFER_LIST stopAt
 
 bool CProtocolBinding::Send(PNET_BUFFER_LIST Nbl, ULONG Count)
 {
-    if (!m_TxStateMachine.RegisterOutstandingItems(Count))
+    if (Nbl == NULL || !m_TxStateMachine.RegisterOutstandingItems(Count))
     {
         return false;
     }
