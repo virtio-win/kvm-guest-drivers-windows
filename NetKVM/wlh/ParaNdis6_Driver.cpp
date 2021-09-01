@@ -1176,6 +1176,11 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
     if (status == NDIS_STATUS_SUCCESS)
     {
         RetrieveDriverConfiguration();
+        status = ParaNdis_ProtocolInitialize(DriverHandle);
+    }
+
+    if (status == NDIS_STATUS_SUCCESS)
+    {
         DEBUG_EXIT_STATUS(4, status);
     }
     else
@@ -1185,10 +1190,6 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 #ifdef NETKVM_WPP_ENABLED
         WPP_CLEANUP(pDriverObject);
 #endif // WPP
-    }
-    if (NT_SUCCESS(status))
-    {
-        ParaNdis_ProtocolInitialize(DriverHandle);
     }
     return status;
 }

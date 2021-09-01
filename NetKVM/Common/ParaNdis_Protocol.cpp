@@ -591,6 +591,9 @@ public:
         m_DriverHandle(DriverHandle),
         m_ProtocolHandle(NULL)
     {
+    }
+    NDIS_STATUS RegisterDriver()
+    {
         NDIS_PROTOCOL_DRIVER_CHARACTERISTICS pchs = {};
         pchs.Name = NDIS_STRING_CONST("netkvmp");
         //pchs.Name = NDIS_STRING_CONST("NDISPROT");
@@ -684,6 +687,7 @@ public:
         };
         NDIS_STATUS status = NdisRegisterProtocolDriver(this, &pchs, &m_ProtocolHandle);
         TraceNoPrefix(0, "[%s] Registering protocol %wZ = %X\n", __FUNCTION__, &pchs.Name, status);
+        return status;
     }
     ~CParaNdisProtocol()
     {
@@ -875,13 +879,20 @@ private:
     }
 };
 
-void ParaNdis_ProtocolInitialize(NDIS_HANDLE DriverHandle)
+NDIS_STATUS ParaNdis_ProtocolInitialize(NDIS_HANDLE DriverHandle)
 {
     if (ProtocolData)
     {
-        return;
+        return NDIS_STATUS_SUCCESS;
     }
     ProtocolData = new (DriverHandle) CParaNdisProtocol(DriverHandle);
+    NDIS_STATUS status = ProtocolData->RegisterDriver();
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        ProtocolData->Destroy(ProtocolData, DriverHandle);
+        ProtocolData = NULL;
+    }
+    return status;
 }
 
 void ParaNdis_ProtocolRegisterAdapter(PARANDIS_ADAPTER *pContext)
@@ -1604,7 +1615,7 @@ void CProtocolBinding::SetOffloadParameters()
 
 void ParaNdis_ProtocolUnregisterAdapter(PARANDIS_ADAPTER *, bool) { }
 void ParaNdis_ProtocolRegisterAdapter(PARANDIS_ADAPTER *) { }
-void ParaNdis_ProtocolInitialize(NDIS_HANDLE) { }
+NDIS_STATUS ParaNdis_ProtocolInitialize(NDIS_HANDLE) { }
 bool ParaNdis_ProtocolSend(PARANDIS_ADAPTER *, PNET_BUFFER_LIST) { return false; }
 void ParaNdis_PropagateOid(PARANDIS_ADAPTER *, NDIS_OID, PVOID, UINT) { }
 void ParaNdis_ProtocolReturnNbls(PARANDIS_ADAPTER *, PNET_BUFFER_LIST, ULONG, ULONG) { }
