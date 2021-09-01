@@ -28,6 +28,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 	ProjectSection(SolutionItems) = preProject
 		inc\install.h = inc\install.h
 		inc\vio_sockets.h = inc\vio_sockets.h
+		inc\vio_wsk.h = inc\vio_wsk.h
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosocklib-test", "viosocklib-test\viosocklib-test.vcxproj", "{2CFBBF52-9646-4E42-9E43-9CEE50735254}"
@@ -37,8 +38,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosocklib-test", "viosockl
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ViosockPackage", "ViosockPackage\ViosockPackage.vcxproj", "{3F2854A7-A604-4006-A79B-9EAFC63015B8}"
 	ProjectSection(ProjectDependencies) = postProject
+		{96FDD976-0035-4E24-A61B-E93BED675101} = {96FDD976-0035-4E24-A61B-E93BED675101}
 		{315D93F9-0F5C-4ACD-AFB1-96B1E62559BC} = {315D93F9-0F5C-4ACD-AFB1-96B1E62559BC}
 	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosockwsk", "wsk\wsk.vcxproj", "{96FDD976-0035-4E24-A61B-E93BED675101}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -300,6 +304,46 @@ Global
 		{3F2854A7-A604-4006-A79B-9EAFC63015B8}.Win8 Release|x86.ActiveCfg = Win8 Release|Win32
 		{3F2854A7-A604-4006-A79B-9EAFC63015B8}.Win8 Release|x86.Build.0 = Win8 Release|Win32
 		{3F2854A7-A604-4006-A79B-9EAFC63015B8}.Win8 Release|x86.Deploy.0 = Win8 Release|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Debug|ARM64.ActiveCfg = Win10 Debug|ARM64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Debug|ARM64.Build.0 = Win10 Debug|ARM64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Debug|ARM64.Deploy.0 = Win10 Debug|ARM64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Debug|x64.ActiveCfg = Win10 Debug|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Debug|x64.Build.0 = Win10 Debug|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Debug|x64.Deploy.0 = Win10 Debug|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Debug|x86.ActiveCfg = Win10 Debug|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Debug|x86.Build.0 = Win10 Debug|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Release|ARM64.Deploy.0 = Win10 Release|ARM64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Release|x64.Build.0 = Win10 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Release|x64.Deploy.0 = Win10 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win10 Release|x86.Build.0 = Win10 Release|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win7 Debug|ARM64.ActiveCfg = Win10 Debug|ARM64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win7 Debug|x64.ActiveCfg = Win7 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win7 Debug|x64.Build.0 = Win7 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win7 Debug|x64.Deploy.0 = Win7 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win7 Debug|x86.ActiveCfg = Win7 Release|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win7 Debug|x86.Build.0 = Win7 Release|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win7 Release|ARM64.ActiveCfg = Win7 Release|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win7 Release|x64.ActiveCfg = Win7 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win7 Release|x64.Build.0 = Win7 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win7 Release|x64.Deploy.0 = Win7 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win7 Release|x86.ActiveCfg = Win7 Release|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win7 Release|x86.Build.0 = Win7 Release|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8 Debug|ARM64.ActiveCfg = Win10 Debug|ARM64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8 Debug|x64.ActiveCfg = Win8 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8 Debug|x64.Build.0 = Win8 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8 Debug|x64.Deploy.0 = Win8 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8 Debug|x86.ActiveCfg = Win8 Release|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8 Debug|x86.Build.0 = Win8 Release|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8 Release|ARM64.ActiveCfg = Win8 Release|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8 Release|x64.ActiveCfg = Win8 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8 Release|x64.Build.0 = Win8 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8 Release|x64.Deploy.0 = Win8 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8 Release|x86.ActiveCfg = Win8 Release|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8 Release|x86.Build.0 = Win8 Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

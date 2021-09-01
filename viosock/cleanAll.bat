@@ -21,6 +21,11 @@ pushd viosocklib-test
 call cleanAll.bat
 popd
 
+
 pushd "ViosockPackage"
+call cleanAll.bat
+popd
+
+pushd wsk
 call cleanAll.bat
 popd
