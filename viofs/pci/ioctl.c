@@ -234,6 +234,11 @@ static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context,
     WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, size);
 }
 
+_Post_writable_byte_size_(_Size)
+void* CopyBuffer(void* _Dst, void const* _Src, size_t _Size) {
+    return RtlCopyMemory(_Dst, _Src, _Size);
+}
+
 static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
     IN WDFREQUEST Request,
     IN size_t OutputBufferLength,
@@ -314,7 +319,7 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
         goto complete_wdf_req;
     }
 
-    RtlCopyMemory(in_buf_va, in_buf, InputBufferLength);
+    CopyBuffer(in_buf_va, in_buf, InputBufferLength);
     MmUnmapLockedPages(in_buf_va, fs_req->InputBuffer);
 
     status = WdfRequestMarkCancelableEx(Request, VirtFsEvtRequestCancel);
