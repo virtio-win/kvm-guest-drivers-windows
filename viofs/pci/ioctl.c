@@ -186,6 +186,7 @@ static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context,
 {
     NTSTATUS status;
     WCHAR WideTag[MAX_FILE_SYSTEM_NAME + 1];
+    ULONG WideTagActualSize;
     BYTE *out_buf;
     char tag[MAX_FILE_SYSTEM_NAME];
     size_t size;
@@ -196,7 +197,7 @@ static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context,
         FIELD_OFFSET(VIRTIO_FS_CONFIG, Tag),
         &tag, sizeof(tag));
 
-    status = RtlUTF8ToUnicodeN(WideTag, sizeof(WideTag), NULL,
+    status = RtlUTF8ToUnicodeN(WideTag, sizeof(WideTag), &WideTagActualSize,
         tag, sizeof(tag));
 
     if (!NT_SUCCESS(status))
