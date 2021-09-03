@@ -196,6 +196,8 @@ NTSTATUS StatInitializeWorkItem(
     WDF_WORKITEM_CONFIG     workitemConfig;
     PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
 
+    PAGED_CODE();
+
     RtlZeroMemory(Counters, sizeof(Counters));
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
