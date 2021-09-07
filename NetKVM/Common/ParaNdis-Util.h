@@ -389,7 +389,7 @@ protected:
         template<typename type, typename AnyAccess, typename AnyStrategy>               \
         friend class CNdisList;                                                         \
                                                                                         \
-        LIST_ENTRY m_ListEntry
+        LIST_ENTRY m_ListEntry{}
 
 
 template <typename TEntryType, typename TAccessStrategy, typename TCountingStrategy>
