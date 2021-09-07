@@ -43,7 +43,7 @@ private:
     LIST_ENTRY              m_NetReceiveBuffers;
     UINT                    m_NetNofReceiveBuffers;
 
-    UINT m_nReusedRxBuffersCounter, m_nReusedRxBuffersLimit;
+    UINT m_nReusedRxBuffersCounter, m_nReusedRxBuffersLimit = 0;
 
     bool m_Reinsert = true;
 
