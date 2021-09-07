@@ -205,8 +205,8 @@ typedef struct _IPv6NSMOverEthernetPacket {
 
 // This struct is used for calculating the checksum
 typedef struct _ICMPv6PseudoHeader {
-    ipv6_address source_address;
-    ipv6_address destination_address;
+    ipv6_address source_address{};
+    ipv6_address destination_address{};
     UINT32 icmpv6_length;
     UINT16 zeropad0 = 0;
     UINT8 zeropad1 = 0;

@@ -68,7 +68,7 @@ public:
 
 private:
     CNdisSharedMemory m_HeadersBuffer;
-    ULONG m_VirtioHdrSize;
+    ULONG m_VirtioHdrSize = 0;
 
     PVOID m_VlanHeaderVA = nullptr;
     PVOID m_VirtioHeaderVA = nullptr;
@@ -80,7 +80,7 @@ private:
     PHYSICAL_ADDRESS m_EthHeaderPA = PHYSICAL_ADDRESS();
     PHYSICAL_ADDRESS m_IPHeadersPA = PHYSICAL_ADDRESS();
 
-    ULONG m_MaxEthHeadersSize;
+    ULONG m_MaxEthHeadersSize = 0;
 
     CTXHeaders(const CTXHeaders&) = delete;
     CTXHeaders& operator= (const CTXHeaders&) = delete;
@@ -129,12 +129,12 @@ public:
 private:
     CTXHeaders m_Headers;
     CNdisSharedMemory m_IndirectArea;
-    bool m_Indirect;
-    bool m_AnyLayout;
+    bool m_Indirect = false;
+    bool m_AnyLayout = false;
 
-    struct VirtIOBufferDescriptor *m_VirtioSGL;
-    ULONG m_VirtioSGLSize;
-    ULONG m_CurrVirtioSGLEntry;
+    struct VirtIOBufferDescriptor *m_VirtioSGL = nullptr;
+    ULONG m_VirtioSGLSize = 0;
+    ULONG m_CurrVirtioSGLEntry = 0;
 
     ULONG m_UsedBuffersNum = 0;
     CNB *m_NB = nullptr;
@@ -298,8 +298,8 @@ private:
     void ReleaseOneBuffer(CTXDescriptor *TXDescriptor, CRawCNBList& listDone);
     bool PrepareBuffers();
     void FreeBuffers();
-    ULONG m_MaxBuffers;
-    ULONG m_HeaderSize;
+    ULONG m_MaxBuffers = 0;
+    ULONG m_HeaderSize = 0;
 
     void KickQueueOnOverflow();
     void UpdateTXStats(const CNB &NB, CTXDescriptor &Descriptor);
@@ -318,5 +318,5 @@ private:
     bool  m_Killed = false;
 
     //TODO Temporary, must go way
-    PPARANDIS_ADAPTER m_Context;
+    PPARANDIS_ADAPTER m_Context = nullptr;
 };

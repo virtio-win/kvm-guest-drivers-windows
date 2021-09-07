@@ -1437,9 +1437,9 @@ void CProtocolBinding::SetRSS()
     COidWrapperAsync *p = NULL;
     struct RSSSet : public CNdisAllocatable<RSSSet, 'SORP'>
     {
-        NDIS_RECEIVE_SCALE_PARAMETERS rsp;
-        UCHAR key[NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_1];
-        UCHAR indirection[NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2];
+        NDIS_RECEIVE_SCALE_PARAMETERS rsp{};
+        UCHAR key[NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_1]{};
+        UCHAR indirection[NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2]{};
     };
     auto current = new (m_Protocol.DriverHandle()) RSSSet;
     bSkip = !current || bSkip;
@@ -1499,7 +1499,7 @@ void CProtocolBinding::SetOffloadEncapsulation()
     COidWrapperAsync *p = NULL;
     struct EncapSet : public CNdisAllocatable<EncapSet, 'EORP'>
     {
-        NDIS_OFFLOAD_ENCAPSULATION e;
+        NDIS_OFFLOAD_ENCAPSULATION e{};
     };
     auto current = new (m_Protocol.DriverHandle()) EncapSet;
     bSkip = !current || bSkip;
@@ -1563,7 +1563,7 @@ void CProtocolBinding::SetOffloadParameters()
     COidWrapperAsync *p = NULL;
     struct OffloadParam : public CNdisAllocatable<OffloadParam, 'EORP'>
     {
-        NDIS_OFFLOAD_PARAMETERS o;
+        NDIS_OFFLOAD_PARAMETERS o{};
     };
     auto current = new (m_Protocol.DriverHandle()) OffloadParam;
     bSkip = !current || bSkip;
