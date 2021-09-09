@@ -29,6 +29,7 @@
  */
 #pragma once
 
+#define _NO_CRT_STDIO_INLINE
 #include <ndis.h>
 #include <Ntstrsafe.h>
 
