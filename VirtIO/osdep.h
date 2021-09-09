@@ -16,7 +16,9 @@
 
 #include <ntddk.h>
 
+#if !defined(ENOSPC)
 #define ENOSPC 1
+#endif
 
 #if !defined(__cplusplus) && !defined(bool)
 // Important note: in MSFT C++ bool length is 1 bytes
