@@ -172,6 +172,9 @@ Common property definitions used by all drivers:
     <ClCompile>
       <WppModuleName>$(TargetFileName)</WppModuleName>
     </ClCompile>
+    <DriverSign>
+      <FileDigestAlgorithm>sha256</FileDigestAlgorithm>
+    </DriverSign>
   </ItemDefinitionGroup>
 
   <!-- Enable CETCompat for vs >= 2019 or EWDK >= 2004 -->
