@@ -1078,11 +1078,15 @@ static void SetRuntimeNdisVersion()
         major = NDIS_MINIPORT_MAJOR_VERSION;
         minor = NDIS_MINIPORT_MINOR_VERSION;
     }
-    else if (minor > NDIS_MINIPORT_MINOR_VERSION)
+    else if (minor >= NDIS_MINIPORT_MINOR_VERSION)
     {
         minor = NDIS_MINIPORT_MINOR_VERSION;
     }
-    else if (minor < NDIS_MINIPORT_MINOR_VERSION && minor >= 80)
+    else if (minor >= 83)
+    {
+        minor = 83;
+    }
+    else if (minor >= 80)
     {
         minor = 80;
     }
