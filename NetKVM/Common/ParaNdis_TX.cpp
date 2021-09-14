@@ -624,17 +624,17 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList)
 
                 switch (result)
                 {
-                case SUBMIT_NO_PLACE_IN_QUEUE:
+                case SubmitTxPacketResult::SUBMIT_NO_PLACE_IN_QUEUE:
                     NBLHolder->PushMappedNB(NBHolder);
                     HaveBuffers = false;
                     // break the loop, allow to kick and free some buffers
                     break;
 
-                case SUBMIT_FAILURE:
+                case SubmitTxPacketResult::SUBMIT_FAILURE:
                     __fallthrough;
-                case SUBMIT_SUCCESS:
+                case SubmitTxPacketResult::SUBMIT_SUCCESS:
                     __fallthrough;
-                case SUBMIT_PACKET_TOO_LARGE:
+                case SubmitTxPacketResult::SUBMIT_PACKET_TOO_LARGE:
                     // if this NBL finished?
                     if (!NBLHolder->HaveMappedBuffers())
                     {
@@ -650,7 +650,7 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList)
                         // no, keep it in the queue
                     }
 
-                    if (result == SUBMIT_SUCCESS)
+                    if (result == SubmitTxPacketResult::SUBMIT_SUCCESS)
                     {
                         SentOutSomeBuffers = true;
                     }

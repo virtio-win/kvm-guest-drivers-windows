@@ -233,34 +233,34 @@ SubmitTxPacketResult CTXVirtQueue::SubmitPacket(CNB &NB)
     if (!m_Descriptors.GetCount())
     {
         KickQueueOnOverflow();
-        return SUBMIT_NO_PLACE_IN_QUEUE;
+        return SubmitTxPacketResult::SUBMIT_NO_PLACE_IN_QUEUE;
     }
 
     auto TXDescriptor = m_Descriptors.Pop();
     if (!NB.BindToDescriptor(*TXDescriptor))
     {
         m_Descriptors.Push(TXDescriptor);
-        return SUBMIT_FAILURE;
+        return SubmitTxPacketResult::SUBMIT_FAILURE;
     }
 
     auto res = TXDescriptor->Enqueue(this, m_TotalHWBuffers, m_FreeHWBuffers);
 
     switch (res)
     {
-        case SUBMIT_NO_PLACE_IN_QUEUE:
+        case SubmitTxPacketResult::SUBMIT_NO_PLACE_IN_QUEUE:
         {
             KickQueueOnOverflow();
             //Fall-through
             __fallthrough;
         }
-        case SUBMIT_PACKET_TOO_LARGE:
+        case SubmitTxPacketResult::SUBMIT_PACKET_TOO_LARGE:
             __fallthrough;
-        case SUBMIT_FAILURE:
+        case SubmitTxPacketResult::SUBMIT_FAILURE:
         {
             m_Descriptors.Push(TXDescriptor);
             break;
         }
-        case SUBMIT_SUCCESS:
+        case SubmitTxPacketResult::SUBMIT_SUCCESS:
         {
             m_FreeHWBuffers -= TXDescriptor->GetUsedBuffersNum();
             m_DescriptorsInUse.PushBack(TXDescriptor);
@@ -343,12 +343,12 @@ SubmitTxPacketResult CTXDescriptor::Enqueue(CTXVirtQueue *Queue, ULONG TotalDesc
 
     if (m_UsedBuffersNum > TotalDescriptors)
     {
-        return SUBMIT_PACKET_TOO_LARGE;
+        return SubmitTxPacketResult::SUBMIT_PACKET_TOO_LARGE;
     }
 
     if (FreeDescriptors < m_UsedBuffersNum)
     {
-        return SUBMIT_NO_PLACE_IN_QUEUE;
+        return SubmitTxPacketResult::SUBMIT_NO_PLACE_IN_QUEUE;
     }
 
     if (0 <= Queue->AddBuf(m_VirtioSGL,
@@ -358,10 +358,10 @@ SubmitTxPacketResult CTXDescriptor::Enqueue(CTXVirtQueue *Queue, ULONG TotalDesc
                            m_IndirectArea.GetVA(),
                            m_IndirectArea.GetPA().QuadPart))
     {
-        return SUBMIT_SUCCESS;
+        return SubmitTxPacketResult::SUBMIT_SUCCESS;
     }
 
-    return SUBMIT_FAILURE;
+    return SubmitTxPacketResult::SUBMIT_FAILURE;
 }
 
 bool CTXDescriptor::AddDataChunk(const PHYSICAL_ADDRESS &PA, ULONG Length)
