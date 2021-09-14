@@ -106,6 +106,9 @@
     <ClInclude Include="Common\ParaNdis_Protocol.h">
       <Filter>Header Files\Common</Filter>
     </ClInclude>
+    <ClInclude Include="Common\ParaNdis-SM.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="wlh\Parandis6.rc">
@@ -146,9 +149,6 @@
     <ClCompile Include="Common\ParaNdis_TX.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClInclude Include="Common\ParaNdis-SM.h">
-      <Filter>Source Files\Common</Filter>
-    </ClInclude>
     <ClCompile Include="Common\ParaNdis_Util.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
