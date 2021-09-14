@@ -529,7 +529,7 @@ void CParaNdisTX::Notify(SMNotifications message)
 
     __super::Notify(message);
 
-    if (message != SupriseRemoved)
+    if (message != SMNotifications::SupriseRemoved)
     {
         // probably similar processing we'll do in case of reset
         return;
