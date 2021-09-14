@@ -351,7 +351,7 @@ public:
         CMiniportStateMachine& operator= (const CMiniportStateMachine&) = delete;
 
 private:
-    using MiniportState = enum
+    enum class MiniportState
     {
         Halted,
         Running,
