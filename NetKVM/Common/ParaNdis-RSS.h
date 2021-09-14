@@ -9,7 +9,7 @@
 
 #define PARANDIS_RSS_MAX_RECEIVE_QUEUES (32)
 
-typedef enum _tagPARANDIS_RSS_MODE
+typedef enum class _tagPARANDIS_RSS_MODE
 {
     PARANDIS_RSS_DISABLED = 0,
     PARANDIS_RSS_HASHING  = 1,
@@ -51,7 +51,7 @@ public:
     bool              FailedInitialization;
     CCHAR             ReceiveQueuesNumber;
 
-    PARANDIS_RSS_MODE RSSMode = PARANDIS_RSS_DISABLED;
+    PARANDIS_RSS_MODE RSSMode = PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED;
 
     PARANDIS_HASHING_SETTINGS ReceiveHashingSettings = {};
     PARANDIS_HASHING_SETTINGS RSSHashingSettings = {};

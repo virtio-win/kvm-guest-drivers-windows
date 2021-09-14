@@ -24,11 +24,11 @@ static VOID ApplySettings(PPARANDIS_RSS_PARAMS RSSParameters,
 
     RSSParameters->RSSMode = NewRSSMode;
 
-    if(NewRSSMode != PARANDIS_RSS_DISABLED)
+    if(NewRSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED)
     {
         RSSParameters->ActiveHashingSettings = *ReceiveHashingSettings;
 
-        if(NewRSSMode == PARANDIS_RSS_FULL)
+        if(NewRSSMode == PARANDIS_RSS_MODE::PARANDIS_RSS_FULL)
         {
             if(RSSParameters->ActiveRSSScalingSettings.CPUIndexMapping != NULL)
                 NdisFreeMemory(RSSParameters->ActiveRSSScalingSettings.CPUIndexMapping, 0, 0);
@@ -201,7 +201,7 @@ static void SetDeviceRSSSettings(PARANDIS_ADAPTER *pContext, bool bForceOff = fa
     UCHAR command = pContext->bRSSSupportedByDevice ?
         VIRTIO_NET_CTRL_MQ_RSS_CONFIG : VIRTIO_NET_CTRL_MQ_HASH_CONFIG;
 
-    if (pContext->RSSParameters.RSSMode == PARANDIS_RSS_DISABLED || bForceOff)
+    if (pContext->RSSParameters.RSSMode == PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED || bForceOff)
     {
         virtio_net_rss_config cfg = {};
         cfg.max_tx_vq = (USHORT)pContext->nPathBundles;
@@ -440,7 +440,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
         return NDIS_STATUS_INVALID_LENGTH;
     }
 
-    if ((RSSParameters->RSSMode == PARANDIS_RSS_HASHING) &&
+    if ((RSSParameters->RSSMode == PARANDIS_RSS_MODE::PARANDIS_RSS_HASHING) &&
         !(Params->Flags & NDIS_RSS_PARAM_FLAG_DISABLE_RSS) &&
         (Params->HashInformation != 0))
     {
@@ -458,7 +458,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
 
     if(Params->Flags & NDIS_RSS_PARAM_FLAG_DISABLE_RSS || (Params->HashInformation == 0))
     {
-        ApplySettings(RSSParameters, PARANDIS_RSS_DISABLED, NULL, NULL);
+        ApplySettings(RSSParameters, PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED, NULL, NULL);
     }
     else
     {
@@ -550,7 +550,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
         }
 
         ApplySettings(RSSParameters,
-                    PARANDIS_RSS_FULL,
+                    PARANDIS_RSS_MODE::PARANDIS_RSS_FULL,
                     &RSSParameters->RSSHashingSettings,
                     &RSSParameters->RSSScalingSettings);
     }
@@ -586,7 +586,7 @@ ULONG ParaNdis6_QueryReceiveHash(const PARANDIS_RSS_PARAMS *RSSParameters,
     RSSHashKeyParameters->ReceiveHashParameters.Header.Size  = NDIS_SIZEOF_RECEIVE_HASH_PARAMETERS_REVISION_1;
     RSSHashKeyParameters->ReceiveHashParameters.HashInformation = RSSParameters->ReceiveHashingSettings.HashInformation;
 
-    if(RSSParameters->RSSMode == PARANDIS_RSS_HASHING)
+    if(RSSParameters->RSSMode == PARANDIS_RSS_MODE::PARANDIS_RSS_HASHING)
         RSSHashKeyParameters->ReceiveHashParameters.Flags = NDIS_RECEIVE_HASH_FLAG_ENABLE_HASH;
 
     RSSHashKeyParameters->ReceiveHashParameters.HashSecretKeySize = RSSParameters->ReceiveHashingSettings.HashSecretKeySize;
@@ -613,7 +613,7 @@ NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_ADAPTER *pContext,
 
     *ParamsBytesRead += sizeof(NDIS_RECEIVE_HASH_PARAMETERS);
 
-    if (RSSParameters->RSSMode == PARANDIS_RSS_FULL)
+    if (RSSParameters->RSSMode == PARANDIS_RSS_MODE::PARANDIS_RSS_FULL)
     {
         //Here we check that originator doesn't try to enable hashing while full RSS is on.
         //Disable hashing abd clear parameters is legitimate operation hovewer
@@ -652,11 +652,11 @@ NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_ADAPTER *pContext,
         *ParamsBytesRead += Params->HashSecretKeySize;
     }
 
-    if(RSSParameters->RSSMode != PARANDIS_RSS_FULL)
+    if(RSSParameters->RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_FULL)
     {
         ApplySettings(RSSParameters,
                 ((Params->Flags & NDIS_RECEIVE_HASH_FLAG_ENABLE_HASH) && (Params->HashInformation != 0))
-                    ? PARANDIS_RSS_HASHING : PARANDIS_RSS_DISABLED,
+                    ? PARANDIS_RSS_MODE::PARANDIS_RSS_HASHING : PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED,
                 &RSSParameters->ReceiveHashingSettings, NULL);
     }
 
@@ -879,7 +879,7 @@ VOID ParaNdis6_RSSAnalyzeReceivedPacket(
 {
     CNdisDispatchReadAutoLock autoLock(RSSParameters->rwLock);
 
-    if(RSSParameters->RSSMode != PARANDIS_RSS_DISABLED)
+    if(RSSParameters->RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED)
     {
         RSSCalcHash_Unsafe(RSSParameters, dataBuffer, packetInfo);
     }
@@ -893,7 +893,7 @@ CCHAR ParaNdis6_RSSGetScalingDataForPacket(
     CCHAR targetQueue;
     CNdisDispatchReadAutoLock autoLock(RSSParameters->rwLock);
 
-    if (RSSParameters->RSSMode != PARANDIS_RSS_FULL || 
+    if (RSSParameters->RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_FULL || 
         RSSParameters->ActiveRSSScalingSettings.FirstQueueIndirectionIndex == INVALID_INDIRECTION_INDEX)
     {
         targetQueue = PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
@@ -927,7 +927,7 @@ CCHAR ParaNdis6_RSSGetCurrentCpuReceiveQueue(PARANDIS_RSS_PARAMS *RSSParameters)
     CCHAR res;
     CNdisDispatchReadAutoLock autoLock(RSSParameters->rwLock);
 
-    if(RSSParameters->RSSMode != PARANDIS_RSS_FULL)
+    if(RSSParameters->RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_FULL)
     {
         res = PARANDIS_RECEIVE_NO_QUEUE;
     }

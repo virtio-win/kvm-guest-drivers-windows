@@ -286,7 +286,7 @@ static FORCEINLINE BOOLEAN ParaNdis_PerformPacketAnalysis(
         return FALSE;
 
 #if PARANDIS_SUPPORT_RSS
-    if (RSSParameters->RSSMode != PARANDIS_RSS_DISABLED)
+    if (RSSParameters->RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED)
     {
         ParaNdis6_RSSAnalyzeReceivedPacket(RSSParameters, HeadersBuffer, PacketInfo);
     }

@@ -816,7 +816,7 @@ VOID NBLSetRSSInfo(PPARANDIS_ADAPTER pContext, PNET_BUFFER_LIST pNBL, PNET_PACKE
     CNdisRWLockState lockState;
 
     pContext->RSSParameters.rwLock.acquireReadDpr(lockState);
-    if(pContext->RSSParameters.RSSMode != PARANDIS_RSS_DISABLED)
+    if(pContext->RSSParameters.RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED)
     {
         NET_BUFFER_LIST_SET_HASH_TYPE    (pNBL, PacketInfo->RSSHash.Type);
         NET_BUFFER_LIST_SET_HASH_FUNCTION(pNBL, PacketInfo->RSSHash.Function);
