@@ -3,7 +3,7 @@
 #include "ParaNdis-Util.h"
 #include "Parandis_DesignPatterns.h"
 
-enum SMNotifications {
+enum class SMNotifications {
     Started,
     stopped,
     SupriseRemoved,

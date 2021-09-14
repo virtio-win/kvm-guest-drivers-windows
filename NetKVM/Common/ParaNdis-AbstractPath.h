@@ -116,11 +116,11 @@ public:
        device needs a reset*/
     void Notify(SMNotifications message) override
     {
-        if (message == SupriseRemoved || message == NeedsReset)
+        if (message == SMNotifications::SupriseRemoved || message == SMNotifications::NeedsReset)
         {
             m_VirtQueue.DoNotTouchHardware();
         }
-        else if (message == PoweredOn)
+        else if (message == SMNotifications::PoweredOn)
         {
             m_VirtQueue.AllowTouchHardware();
         }
