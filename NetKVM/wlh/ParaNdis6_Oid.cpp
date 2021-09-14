@@ -586,7 +586,7 @@ NDIS_STATUS ParaNdis6_OidRequest(
     ParaNdis_GetOidSupportRules(pNdisRequest->DATA.SET_INFORMATION.Oid, &Rules, OidsDB);
     _oid.ulToDoFlags = Rules.Flags;
 
-    ParaNdis_DebugHistory(pContext, hopOidRequest, NULL, pNdisRequest->DATA.SET_INFORMATION.Oid, pNdisRequest->RequestType, 1);
+    ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopOidRequest, NULL, pNdisRequest->DATA.SET_INFORMATION.Oid, pNdisRequest->RequestType, 1);
     DPrintf(Rules.nEntryLevel, "[%s] OID type %d, id 0x%X(%s) of %d\n", __FUNCTION__,
                 pNdisRequest->RequestType,
                 pNdisRequest->DATA.SET_INFORMATION.Oid,
@@ -654,7 +654,7 @@ NDIS_STATUS ParaNdis6_OidRequest(
             status = NDIS_STATUS_NOT_SUPPORTED;
             break;
     }
-    ParaNdis_DebugHistory(pContext, hopOidRequest, NULL, pNdisRequest->DATA.SET_INFORMATION.Oid, status, 0);
+    ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopOidRequest, NULL, pNdisRequest->DATA.SET_INFORMATION.Oid, status, 0);
     if (status != NDIS_STATUS_PENDING)
     {
         DPrintf(((status != NDIS_STATUS_SUCCESS) ? Rules.nExitFailLevel : Rules.nExitOKLevel),
@@ -705,7 +705,7 @@ static void OnSetPowerWorkItem(PVOID  WorkItemContext, NDIS_HANDLE  NdisIoWorkIt
         }
         NdisFreeMemory(pwi, 0, 0);
         NdisFreeIoWorkItem(NdisIoWorkItemHandle);
-        ParaNdis_DebugHistory(pContext, hopOidRequest, NULL, pRequest->DATA.SET_INFORMATION.Oid, status, 2);
+        ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopOidRequest, NULL, pRequest->DATA.SET_INFORMATION.Oid, status, 2);
         NdisMOidRequestComplete(pContext->MiniportHandle, pRequest, status);
     }
 }

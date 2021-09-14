@@ -35,7 +35,7 @@
 #ifndef PARANDIS_DEBUG_DATA_H
 #define PARANDIS_DEBUG_DATA_H
 
-typedef enum _etagHistoryLogOperation
+typedef enum class _etagHistoryLogOperation
 {
     hopPowerOff,                // common::PowerOff, 1/0 - entry/exit (none, entry, none, none)
     hopPowerOn,                 // common::PowerOn, 1/0 - entry/exit (none, entry, none, none)
