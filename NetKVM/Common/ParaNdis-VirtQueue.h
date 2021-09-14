@@ -17,7 +17,7 @@ class CNB;
 class CTXVirtQueue;
 typedef struct _PARANDIS_ADAPTER *PPARANDIS_ADAPTER;
 
-typedef enum
+typedef enum class _tagSubmitTxPacketResult
 {
     SUBMIT_SUCCESS = 0,
     SUBMIT_PACKET_TOO_LARGE,
