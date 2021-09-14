@@ -118,7 +118,7 @@ protected:
 
     enum { StoppedMask = 0x40000000 };
 
-    using FlowState = enum
+    enum class FlowState
     {
         Running,
         Stopping,
