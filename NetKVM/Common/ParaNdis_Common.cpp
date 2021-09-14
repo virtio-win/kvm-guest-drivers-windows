@@ -1895,7 +1895,7 @@ VOID ParaNdis_OnPnPEvent(
         default:
             break;
     }
-    ParaNdis_DebugHistory(pContext, hopPnpEvent, NULL, pEvent, 0, 0);
+    ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopPnpEvent, NULL, pEvent, 0, 0);
     DPrintf(0, "[%s] (%s)\n", __FUNCTION__, pName);
     if (pEvent == NdisDevicePnPEventSurpriseRemoved)
     {
@@ -2016,7 +2016,7 @@ NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     UINT i;
 
     DEBUG_ENTRY(0);
-    ParaNdis_DebugHistory(pContext, hopPowerOn, NULL, 1, 0, 0);
+    ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopPowerOn, NULL, 1, 0, 0);
 
     pContext->m_StateMachine.NotifyPowerOn();
 
@@ -2055,7 +2055,7 @@ NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 
     pContext->m_StateMachine.NotifyResumed();
 
-    ParaNdis_DebugHistory(pContext, hopPowerOn, NULL, 0, 0, 0);
+    ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopPowerOn, NULL, 0, 0, 0);
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -2063,7 +2063,7 @@ NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
 {
     DEBUG_ENTRY(0);
-    ParaNdis_DebugHistory(pContext, hopPowerOff, NULL, 1, 0, 0);
+    ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopPowerOff, NULL, 1, 0, 0);
 
     pContext->m_StateMachine.NotifySuspended();
 
@@ -2097,7 +2097,7 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
         pContext->CXPath.Shutdown();
     }
 
-    ParaNdis_DebugHistory(pContext, hopPowerOff, NULL, 0, 0, 0);
+    ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopPowerOff, NULL, 0, 0, 0);
 }
 
 void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext)

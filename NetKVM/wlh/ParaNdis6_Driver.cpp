@@ -122,7 +122,7 @@ static VOID PostLinkState(PARANDIS_ADAPTER *pContext, NDIS_MEDIA_CONNECT_STATE c
     indication.StatusBuffer = &state;
     indication.StatusBufferSize = sizeof(state);
     DPrintf(0, "Indicating %s\n", ConnectStateName(connectState));
-    ParaNdis_DebugHistory(pContext, hopConnectIndication, NULL, connectState, 0, 0);
+    ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopConnectIndication, NULL, connectState, 0, 0);
     NdisMIndicateStatusEx(pContext->MiniportHandle , &indication);
 }
 
@@ -374,9 +374,9 @@ static VOID ParaNdis6_Halt(NDIS_HANDLE miniportAdapterContext, NDIS_HALT_ACTION 
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     DEBUG_ENTRY(0);
-    ParaNdis_DebugHistory(pContext, hopHalt, NULL, 1, haltAction, 0);
+    ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopHalt, NULL, 1, haltAction, 0);
     ParaNdis_ProtocolUnregisterAdapter(pContext);
-    ParaNdis_DebugHistory(pContext, hopHalt, NULL, 0, 0, 0);
+    ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopHalt, NULL, 0, 0, 0);
     ParaNdis_DebugRegisterMiniport(pContext, FALSE);
     pContext->Destroy(pContext, pContext->MiniportHandle);
     DEBUG_EXIT_STATUS(2, 0);
