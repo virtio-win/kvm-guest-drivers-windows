@@ -5,7 +5,7 @@
 
 enum class SMNotifications {
     Started,
-    stopped,
+    Stopped,
     SupriseRemoved,
     NeedsReset,
     PoweredOn,
