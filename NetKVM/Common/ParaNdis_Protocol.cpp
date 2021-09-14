@@ -116,20 +116,20 @@ public:
     }
     void NotifyAdapterRemoval()
     {
-        Notifier(m_Binding, Removal);
+        Notifier(m_Binding, NotifyEvent::Removal);
     }
     void NotifyAdapterArrival()
     {
-        Notifier(m_Binding, Arrival, m_Adapter);
+        Notifier(m_Binding, NotifyEvent::Arrival, m_Adapter);
     }
     void NotifyAdapterDetach()
     {
-        Notifier(m_Binding, Detach);
+        Notifier(m_Binding, NotifyEvent::Detach);
     }
     PARANDIS_ADAPTER *m_Adapter;
     PVOID m_Binding;
 private:
-    enum NotifyEvent
+    enum class NotifyEvent
     {
         Arrival,
         Removal,
@@ -1264,13 +1264,13 @@ void CAdapterEntry::Notifier(PVOID Binding, NotifyEvent Event, PARANDIS_ADAPTER 
     }
     switch (Event)
     {
-        case Arrival:
+        case NotifyEvent::Arrival:
             pb->OnAdapterFound(Adapter);
             break;
-        case Removal:
+        case NotifyEvent::Removal:
             pb->OnAdapterHalted();
             break;
-        case Detach:
+        case NotifyEvent::Detach:
             pb->OnAdapterDetach();
             break;
         default:
