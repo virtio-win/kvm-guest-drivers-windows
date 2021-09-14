@@ -1439,8 +1439,8 @@ void CProtocolBinding::SetRSS()
         current->rsp.Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_PARAMETERS_REVISION_2;
         switch (m_BoundAdapter->RSSParameters.RSSMode)
         {
-            case PARANDIS_RSS_FULL:
-            case PARANDIS_RSS_HASHING:
+            case PARANDIS_RSS_MODE::PARANDIS_RSS_FULL:
+            case PARANDIS_RSS_MODE::PARANDIS_RSS_HASHING:
                 current->rsp.HashInformation = m_BoundAdapter->RSSParameters.ActiveHashingSettings.HashInformation;
                 current->rsp.HashSecretKeyOffset = FIELD_OFFSET(RSSSet, key);
                 current->rsp.HashSecretKeySize = m_BoundAdapter->RSSParameters.ActiveHashingSettings.HashSecretKeySize;
