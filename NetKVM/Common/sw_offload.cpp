@@ -564,7 +564,7 @@ VerifyTcpChecksum(
         res.xxpCheckSum = static_cast<ULONG>(CompareNetCheckSumOnEndSystem(phcs, saved) ? ppResult::ppresPCSOK : ppResult::ppresCSBad);
         if (res.xxpCheckSum != ppResult::ppresPCSOK || whatToFix)
         {
-            if (whatToFix & pcrFixPHChecksum)
+            if (whatToFix & tPacketOffloadRequest::pcrFixPHChecksum)
             {
                 if (ulDataLength >= (ULONG)(res.ipHeaderSize + sizeof(*pTcpHeader)))
                 {
@@ -582,7 +582,7 @@ VerifyTcpChecksum(
                 if (CompareNetCheckSumOnEndSystem(pTcpHeader->tcp_xsum, saved))
                     res.xxpCheckSum = static_cast<ULONG>(ppResult::ppresCSOK);
 
-                if (!(whatToFix & pcrFixXxpChecksum))
+                if (!(whatToFix & tPacketOffloadRequest::pcrFixXxpChecksum))
                     pTcpHeader->tcp_xsum = saved;
                 else
                     res.fixedXxpCS =
@@ -633,7 +633,7 @@ VerifyUdpChecksum(
     {
         phcs = CalculateIpPseudoHeaderChecksum(pIpHeader, res, xxpHeaderAndPayloadLen);
         res.xxpCheckSum = static_cast<ULONG>(CompareNetCheckSumOnEndSystem(phcs, saved) ? ppResult::ppresPCSOK : ppResult::ppresCSBad);
-        if (whatToFix & pcrFixPHChecksum)
+        if (whatToFix & tPacketOffloadRequest::pcrFixPHChecksum)
         {
             if (ulDataLength >= (ULONG)(res.ipHeaderSize + sizeof(UDPHeader)))
             {
@@ -643,7 +643,7 @@ VerifyUdpChecksum(
             else
                 res.xxpStatus = static_cast<ULONG>(ppResult::ppresXxpIncomplete);
         }
-        else if (res.xxpCheckSum != ppResult::ppresPCSOK || (whatToFix & pcrFixXxpChecksum))
+        else if (res.xxpCheckSum != ppResult::ppresPCSOK || (whatToFix & tPacketOffloadRequest::pcrFixXxpChecksum))
         {
             if (res.xxpFull)
             {
@@ -652,7 +652,7 @@ VerifyUdpChecksum(
                 if (CompareNetCheckSumOnEndSystem(pUdpHeader->udp_xsum, saved))
                     res.xxpCheckSum = static_cast<ULONG>(ppResult::ppresCSOK);
 
-                if (!(whatToFix & pcrFixXxpChecksum))
+                if (!(whatToFix & tPacketOffloadRequest::pcrFixXxpChecksum))
                     pUdpHeader->udp_xsum = saved;
                 else
                     res.fixedXxpCS =
@@ -731,22 +731,24 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(
 
     if (res.ipStatus == ppResult::ppresIPV4)
     {
-        if (flags & pcrIpChecksum)
-            res = VerifyIpChecksum(&pIpHeader->v4, res, (flags & pcrFixIPChecksum) != 0);
+        if (flags & tPacketOffloadRequest::pcrIpChecksum)
+            res = VerifyIpChecksum(&pIpHeader->v4, res, (flags & tPacketOffloadRequest::pcrFixIPChecksum) != 0);
         if(res.xxpStatus == ppResult::ppresXxpKnown)
         {
             if (res.TcpUdp == ppResult::ppresIsTCP) /* TCP */
             {
-                if(flags & pcrTcpV4Checksum)
+                if(flags & tPacketOffloadRequest::pcrTcpV4Checksum)
                 {
-                    res = VerifyTcpChecksum(pDataPages, ulDataLength, ulStartOffset, res, flags & (pcrFixPHChecksum | pcrFixTcpV4Checksum));
+                    res = VerifyTcpChecksum(pDataPages, ulDataLength, ulStartOffset, res, flags & 
+                        (tPacketOffloadRequest::pcrFixPHChecksum | tPacketOffloadRequest::pcrFixTcpV4Checksum));
                 }
             }
             else /* UDP */
             {
-                if (flags & pcrUdpV4Checksum)
+                if (flags & tPacketOffloadRequest::pcrUdpV4Checksum)
                 {
-                    res = VerifyUdpChecksum(pDataPages, ulDataLength, ulStartOffset, res, flags & (pcrFixPHChecksum | pcrFixUdpV4Checksum));
+                    res = VerifyUdpChecksum(pDataPages, ulDataLength, ulStartOffset, res, flags & 
+                        (tPacketOffloadRequest::pcrFixPHChecksum | tPacketOffloadRequest::pcrFixUdpV4Checksum));
                 }
             }
         }
@@ -757,16 +759,18 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(
         {
             if (res.TcpUdp == ppResult::ppresIsTCP) /* TCP */
             {
-                if(flags & pcrTcpV6Checksum)
+                if(flags & tPacketOffloadRequest::pcrTcpV6Checksum)
                 {
-                    res = VerifyTcpChecksum(pDataPages, ulDataLength, ulStartOffset, res, flags & (pcrFixPHChecksum | pcrFixTcpV6Checksum));
+                    res = VerifyTcpChecksum(pDataPages, ulDataLength, ulStartOffset, res, flags & 
+                        (tPacketOffloadRequest::pcrFixPHChecksum | tPacketOffloadRequest::pcrFixTcpV6Checksum));
                 }
             }
             else /* UDP */
             {
-                if (flags & pcrUdpV6Checksum)
+                if (flags & tPacketOffloadRequest::pcrUdpV6Checksum)
                 {
-                    res = VerifyUdpChecksum(pDataPages, ulDataLength, ulStartOffset, res, flags & (pcrFixPHChecksum | pcrFixUdpV6Checksum));
+                    res = VerifyUdpChecksum(pDataPages, ulDataLength, ulStartOffset, res, flags & 
+                        (tPacketOffloadRequest::pcrFixPHChecksum | tPacketOffloadRequest::pcrFixUdpV6Checksum));
                 }
             }
         }
