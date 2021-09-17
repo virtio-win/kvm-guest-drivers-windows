@@ -210,12 +210,12 @@ ProcessTCPHeader(tTcpIpPacketParsingResult _res, PVOID pIpHeader, ULONG len, USH
     ULONG tcpipDataAt;
     tTcpIpPacketParsingResult res = _res;
     tcpipDataAt = ipHeaderSize + sizeof(TCPHeader);
-    res.TcpUdp = ppresIsTCP;
+    res.TcpUdp = static_cast<ULONG>(ppResult::ppresIsTCP);
 
     if (len >= tcpipDataAt)
     {
         TCPHeader *pTcpHeader = (TCPHeader *)RtlOffsetToPointer(pIpHeader, ipHeaderSize);
-        res.xxpStatus = ppresXxpKnown;
+        res.xxpStatus = static_cast<ULONG>(ppResult::ppresXxpKnown);
         res.xxpFull = TRUE;
         tcpipDataAt = ipHeaderSize + TCP_HEADER_LENGTH(pTcpHeader);
         res.XxpIpHeaderSize = tcpipDataAt;
@@ -224,7 +224,7 @@ ProcessTCPHeader(tTcpIpPacketParsingResult _res, PVOID pIpHeader, ULONG len, USH
     {
         DPrintf(2, "tcp: %d < min headers %d\n", len, tcpipDataAt);
         res.xxpFull = FALSE;
-        res.xxpStatus = ppresXxpIncomplete;
+        res.xxpStatus = static_cast<ULONG>(ppResult::ppresXxpIncomplete);
     }
     return res;
 }
@@ -234,13 +234,13 @@ ProcessUDPHeader(tTcpIpPacketParsingResult _res, PVOID pIpHeader, ULONG len, USH
 {
     tTcpIpPacketParsingResult res = _res;
     ULONG udpDataStart = ipHeaderSize + sizeof(UDPHeader);
-    res.TcpUdp = ppresIsUDP;
+    res.TcpUdp = static_cast<ULONG>(ppResult::ppresIsUDP);
     res.XxpIpHeaderSize = udpDataStart;
     if (len >= udpDataStart)
     {
         UDPHeader *pUdpHeader = (UDPHeader *)RtlOffsetToPointer(pIpHeader, ipHeaderSize);
         USHORT datagramLength = swap_short(pUdpHeader->udp_length);
-        res.xxpStatus = ppresXxpKnown;
+        res.xxpStatus = static_cast<ULONG>(ppResult::ppresXxpKnown);
         res.xxpFull = TRUE;
         // may be full or not, but the datagram length is known
         DPrintf(2, "udp: len %d, datagramLength %d\n", len, datagramLength);
@@ -248,7 +248,7 @@ ProcessUDPHeader(tTcpIpPacketParsingResult _res, PVOID pIpHeader, ULONG len, USH
     else
     {
         res.xxpFull = FALSE;
-        res.xxpStatus = ppresXxpIncomplete;
+        res.xxpStatus = static_cast<ULONG>(ppResult::ppresXxpIncomplete);
     }
     return res;
 }
@@ -261,7 +261,7 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
 
     if (len < 4)
     {
-        res.ipStatus = ppresNotIP;
+        res.ipStatus = static_cast<ULONG>(ppResult::ppresNotIP);
         return res;
     }
 
@@ -274,7 +274,7 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
     {
         if (len < sizeof(IPv4Header))
         {
-            res.ipStatus = ppresNotIP;
+            res.ipStatus = static_cast<ULONG>(ppResult::ppresNotIP);
             return res;
         }
         ipHeaderSize = (ver_len & 0xF) << 2;
@@ -282,8 +282,8 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
         DPrintf(3, "ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload length %d\n",
             ip_version, ipHeaderSize, pIpHeader->v4.ip_protocol, fullLength, len);
 
-        res.ipStatus = (ipHeaderSize >= sizeof(IPv4Header)) ? ppresIPV4 : ppresNotIP;
-        if (res.ipStatus == ppresNotIP)
+        res.ipStatus = static_cast<ULONG>((ipHeaderSize >= sizeof(IPv4Header)) ? ppResult::ppresIPV4 : ppResult::ppresNotIP);
+        if (res.ipStatus == ppResult::ppresNotIP)
         {
             return res;
         }
@@ -292,7 +292,7 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
         {
             DPrintf(2, "[%s] - truncated packet - ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload length %d, verify = %s\n", __FUNCTION__,
                 ip_version, ipHeaderSize, pIpHeader->v4.ip_protocol, fullLength, len, (verifyLength ? "true" : "false"));
-            res.ipCheckSum = ppresIPTooShort;
+            res.ipCheckSum = static_cast<ULONG>(ppResult::ppresIPTooShort);
             return res;
         }
     }
@@ -300,21 +300,21 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
     {
         if (len < sizeof(IPv6Header))
         {
-            res.ipStatus = ppresNotIP;
+            res.ipStatus = static_cast<ULONG>(ppResult::ppresNotIP);
             return res;
         }
 
         UCHAR nextHeader = pIpHeader->v6.ip6_next_header;
         BOOLEAN bParsingDone = FALSE;
         ipHeaderSize = sizeof(pIpHeader->v6);
-        res.ipStatus = ppresIPV6;
-        res.ipCheckSum = ppresCSOK;
+        res.ipStatus = static_cast<ULONG>(ppResult::ppresIPV6);
+        res.ipCheckSum = static_cast<ULONG>(ppResult::ppresCSOK);
         fullLength = swap_short(pIpHeader->v6.ip6_payload_len);
         fullLength += ipHeaderSize;
 
         if (verifyLength && (len < fullLength))
         {
-            res.ipStatus = ppresNotIP;
+            res.ipStatus = static_cast<ULONG>(ppResult::ppresNotIP);
             return res;
         }
         while (nextHeader != 59)
@@ -324,15 +324,15 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
             {
                 case PROTOCOL_TCP:
                     bParsingDone = TRUE;
-                    res.xxpStatus = ppresXxpKnown;
-                    res.TcpUdp = ppresIsTCP;
+                    res.xxpStatus = static_cast<ULONG>(ppResult::ppresXxpKnown);
+                    res.TcpUdp = static_cast<ULONG>(ppResult::ppresIsTCP);
                     res.xxpFull = len >= fullLength ? 1 : 0;
                     res = ProcessTCPHeader(res, pIpHeader, len, ipHeaderSize);
                     break;
                 case PROTOCOL_UDP:
                     bParsingDone = TRUE;
-                    res.xxpStatus = ppresXxpKnown;
-                    res.TcpUdp = ppresIsUDP;
+                    res.xxpStatus = static_cast<ULONG>(ppResult::ppresXxpKnown);
+                    res.TcpUdp = static_cast<ULONG>(ppResult::ppresIsUDP);
                     res.xxpFull = len >= fullLength ? 1 : 0;
                     res = ProcessUDPHeader(res, pIpHeader, len, ipHeaderSize);
                     break;
@@ -360,13 +360,13 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
                     else
                     {
                         DPrintf(0, "[%s] ERROR: Break in the middle of ext. headers(len %d, hdr > %d)\n", __FUNCTION__, len, ipHeaderSize);
-                        res.ipStatus = ppresNotIP;
+                        res.ipStatus = static_cast<ULONG>(ppResult::ppresNotIP);
                         bParsingDone = TRUE;
                     }
                     break;
                     //any other protocol
                 default:
-                    res.xxpStatus = ppresXxpOther;
+                    res.xxpStatus = static_cast<ULONG>(ppResult::ppresXxpOther);
                     bParsingDone = TRUE;
                     break;
             }
@@ -382,16 +382,16 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
         else
         {
             DPrintf(0, "[%s] ERROR: IP chain is too large (%d)\n", __FUNCTION__, ipHeaderSize);
-            res.ipStatus = ppresNotIP;
+            res.ipStatus = static_cast<ULONG>(ppResult::ppresNotIP);
         }
     }
     else
     {
-        res.ipStatus = ppresNotIP;
+        res.ipStatus = static_cast<ULONG>(ppResult::ppresNotIP);
         return res;
     }
 
-    if (res.ipStatus == ppresIPV4)
+    if (res.ipStatus == ppResult::ppresIPV4)
     {
         res.ipHeaderSize = ipHeaderSize;
 
@@ -410,7 +410,7 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
             }
             break;
         default:
-            res.xxpStatus = ppresXxpOther;
+            res.xxpStatus = static_cast<ULONG>(ppResult::ppresXxpOther);
             break;
         }
     }
@@ -419,13 +419,13 @@ QualifyIpPacket(IPHeader *pIpHeader, ULONG len, BOOLEAN verifyLength)
 
 static __inline USHORT GetXxpHeaderAndPayloadLen(IPHeader *pIpHeader, tTcpIpPacketParsingResult res)
 {
-    if (res.ipStatus == ppresIPV4)
+    if (res.ipStatus == ppResult::ppresIPV4)
     {
         USHORT headerLength = IP_HEADER_LENGTH(&pIpHeader->v4);
         USHORT len = swap_short(pIpHeader->v4.ip_length);
         return len - headerLength;
     }
-    if (res.ipStatus == ppresIPV6)
+    if (res.ipStatus == ppResult::ppresIPV6)
     {
         USHORT fullLength = swap_short(pIpHeader->v6.ip6_payload_len);
         return fullLength + sizeof(pIpHeader->v6) - (USHORT)res.ipHeaderSize;
@@ -470,9 +470,9 @@ static __inline USHORT CalculateIpPseudoHeaderChecksum(IPHeader *pIpHeader,
                                                        tTcpIpPacketParsingResult res,
                                                        USHORT headerAndPayloadLen)
 {
-    if (res.ipStatus == ppresIPV4)
+    if (res.ipStatus == ppResult::ppresIPV4)
         return CalculateIpv4PseudoHeaderChecksum(&pIpHeader->v4, headerAndPayloadLen);
-    if (res.ipStatus == ppresIPV6)
+    if (res.ipStatus == ppResult::ppresIPV6)
         return CalculateIpv6PseudoHeaderChecksum(&pIpHeader->v6, headerAndPayloadLen);
     return 0;
 }
@@ -506,15 +506,16 @@ VerifyIpChecksum(
     BOOLEAN bFix)
 {
     tTcpIpPacketParsingResult res = known;
-    if (res.ipCheckSum != ppresIPTooShort)
+    if (res.ipCheckSum != ppResult::ppresIPTooShort)
     {
         USHORT saved = pIpHeader->ip_xsum;
         CalculateIpChecksum(pIpHeader);
-        res.ipCheckSum = CompareNetCheckSumOnEndSystem(pIpHeader->ip_xsum, saved) ? ppresCSOK : ppresCSBad;
+        res.ipCheckSum = static_cast<ULONG>(
+            CompareNetCheckSumOnEndSystem(pIpHeader->ip_xsum, saved) ? ppResult::ppresCSOK : ppResult::ppresCSBad);
         if (!bFix)
             pIpHeader->ip_xsum = saved;
         else
-            res.fixedIpCS = res.ipCheckSum == ppresCSBad;
+            res.fixedIpCS = res.ipCheckSum == ppResult::ppresCSBad;
     }
     return res;
 }
@@ -560,18 +561,18 @@ VerifyTcpChecksum(
     if (ulDataLength >= res.ipHeaderSize)
     {
         phcs = CalculateIpPseudoHeaderChecksum(pIpHeader, res, xxpHeaderAndPayloadLen);
-        res.xxpCheckSum = CompareNetCheckSumOnEndSystem(phcs, saved) ?  ppresPCSOK : ppresCSBad;
-        if (res.xxpCheckSum != ppresPCSOK || whatToFix)
+        res.xxpCheckSum = static_cast<ULONG>(CompareNetCheckSumOnEndSystem(phcs, saved) ? ppResult::ppresPCSOK : ppResult::ppresCSBad);
+        if (res.xxpCheckSum != ppResult::ppresPCSOK || whatToFix)
         {
             if (whatToFix & pcrFixPHChecksum)
             {
                 if (ulDataLength >= (ULONG)(res.ipHeaderSize + sizeof(*pTcpHeader)))
                 {
                     pTcpHeader->tcp_xsum = phcs;
-                    res.fixedXxpCS = res.xxpCheckSum != ppresPCSOK;
+                    res.fixedXxpCS = res.xxpCheckSum != ppResult::ppresPCSOK;
                 }
                 else
-                    res.xxpStatus = ppresXxpIncomplete;
+                    res.xxpStatus = static_cast<ULONG>(ppResult::ppresXxpIncomplete);
             }
             else if (res.xxpFull)
             {
@@ -579,17 +580,17 @@ VerifyTcpChecksum(
                 pTcpHeader->tcp_xsum = phcs;
                 CalculateTcpChecksumGivenPseudoCS(pTcpHeader, pDataPages, ulStartOffset + res.ipHeaderSize, xxpHeaderAndPayloadLen);
                 if (CompareNetCheckSumOnEndSystem(pTcpHeader->tcp_xsum, saved))
-                    res.xxpCheckSum = ppresCSOK;
+                    res.xxpCheckSum = static_cast<ULONG>(ppResult::ppresCSOK);
 
                 if (!(whatToFix & pcrFixXxpChecksum))
                     pTcpHeader->tcp_xsum = saved;
                 else
                     res.fixedXxpCS =
-                        res.xxpCheckSum == ppresCSBad || res.xxpCheckSum == ppresPCSOK;
+                        res.xxpCheckSum == ppResult::ppresCSBad || res.xxpCheckSum == ppResult::ppresPCSOK;
             }
             else if (whatToFix)
             {
-                res.xxpStatus = ppresXxpIncomplete;
+                res.xxpStatus = static_cast<ULONG>(ppResult::ppresXxpIncomplete);
             }
         }
         else if (res.xxpFull)
@@ -599,12 +600,12 @@ VerifyTcpChecksum(
             // in such rare case we give a priority to TCP CS
             CalculateTcpChecksumGivenPseudoCS(pTcpHeader, pDataPages, ulStartOffset + res.ipHeaderSize, xxpHeaderAndPayloadLen);
             if (CompareNetCheckSumOnEndSystem(pTcpHeader->tcp_xsum, saved))
-                res.xxpCheckSum = ppresCSOK;
+                res.xxpCheckSum = static_cast<ULONG>(ppResult::ppresCSOK);
             pTcpHeader->tcp_xsum = saved;
         }
     }
     else
-        res.ipCheckSum = ppresIPTooShort;
+        res.ipCheckSum = static_cast<ULONG>(ppResult::ppresIPTooShort);
     return res;
 }
 
@@ -631,34 +632,34 @@ VerifyUdpChecksum(
     if (ulDataLength >= res.ipHeaderSize)
     {
         phcs = CalculateIpPseudoHeaderChecksum(pIpHeader, res, xxpHeaderAndPayloadLen);
-        res.xxpCheckSum = CompareNetCheckSumOnEndSystem(phcs, saved) ?  ppresPCSOK : ppresCSBad;
+        res.xxpCheckSum = static_cast<ULONG>(CompareNetCheckSumOnEndSystem(phcs, saved) ? ppResult::ppresPCSOK : ppResult::ppresCSBad);
         if (whatToFix & pcrFixPHChecksum)
         {
             if (ulDataLength >= (ULONG)(res.ipHeaderSize + sizeof(UDPHeader)))
             {
                 pUdpHeader->udp_xsum = phcs;
-                res.fixedXxpCS = res.xxpCheckSum != ppresPCSOK;
+                res.fixedXxpCS = res.xxpCheckSum != ppResult::ppresPCSOK;
             }
             else
-                res.xxpStatus = ppresXxpIncomplete;
+                res.xxpStatus = static_cast<ULONG>(ppResult::ppresXxpIncomplete);
         }
-        else if (res.xxpCheckSum != ppresPCSOK || (whatToFix & pcrFixXxpChecksum))
+        else if (res.xxpCheckSum != ppResult::ppresPCSOK || (whatToFix & pcrFixXxpChecksum))
         {
             if (res.xxpFull)
             {
                 pUdpHeader->udp_xsum = phcs;
                 CalculateUdpChecksumGivenPseudoCS(pUdpHeader, pDataPages, ulStartOffset + res.ipHeaderSize, xxpHeaderAndPayloadLen);
                 if (CompareNetCheckSumOnEndSystem(pUdpHeader->udp_xsum, saved))
-                    res.xxpCheckSum = ppresCSOK;
+                    res.xxpCheckSum = static_cast<ULONG>(ppResult::ppresCSOK);
 
                 if (!(whatToFix & pcrFixXxpChecksum))
                     pUdpHeader->udp_xsum = saved;
                 else
                     res.fixedXxpCS =
-                        res.xxpCheckSum == ppresCSBad || res.xxpCheckSum == ppresPCSOK;
+                        res.xxpCheckSum == ppResult::ppresCSBad || res.xxpCheckSum == ppResult::ppresPCSOK;
             }
             else
-                res.xxpCheckSum = ppresXxpIncomplete;
+                res.xxpCheckSum = static_cast<ULONG>(ppResult::ppresXxpIncomplete);
         }
         else if (res.xxpFull)
         {
@@ -667,12 +668,12 @@ VerifyUdpChecksum(
             // in such rare case we give a priority to UDP CS
             CalculateUdpChecksumGivenPseudoCS(pUdpHeader, pDataPages, ulStartOffset + res.ipHeaderSize, xxpHeaderAndPayloadLen);
             if (CompareNetCheckSumOnEndSystem(pUdpHeader->udp_xsum, saved))
-                res.xxpCheckSum = ppresCSOK;
+                res.xxpCheckSum = static_cast<ULONG>(ppResult::ppresCSOK);
             pUdpHeader->udp_xsum = saved;
         }
     }
     else
-        res.ipCheckSum = ppresIPTooShort;
+        res.ipCheckSum = static_cast<ULONG>(ppResult::ppresIPTooShort);
 
     return res;
 }
@@ -680,11 +681,12 @@ VerifyUdpChecksum(
 static LPCSTR __inline GetPacketCase(tTcpIpPacketParsingResult res)
 {
     static const char *const IPCaseName[4] = { "not tested", "Non-IP", "IPv4", "IPv6" };
-    if (res.xxpStatus == ppresXxpKnown) return res.TcpUdp == ppresIsTCP ? 
-        (res.ipStatus == ppresIPV4 ? "TCPv4" : "TCPv6") : 
-        (res.ipStatus == ppresIPV4 ? "UDPv4" : "UDPv6");
-    if (res.xxpStatus == ppresXxpIncomplete) return res.TcpUdp == ppresIsTCP ? "Incomplete TCP" : "Incomplete UDP";
-    if (res.xxpStatus == ppresXxpOther) return "IP";
+    if (res.xxpStatus == ppResult::ppresXxpKnown) return res.TcpUdp == ppResult::ppresIsTCP ? 
+        (res.ipStatus == ppResult::ppresIPV4 ? "TCPv4" : "TCPv6") : 
+        (res.ipStatus == ppResult::ppresIPV4 ? "UDPv4" : "UDPv6");
+    if (res.xxpStatus == ppResult::ppresXxpIncomplete) 
+        return res.TcpUdp == ppResult::ppresIsTCP ? "Incomplete TCP" : "Incomplete UDP";
+    if (res.xxpStatus == ppResult::ppresXxpOther) return "IP";
     return  IPCaseName[res.ipStatus];
 }
 
@@ -724,16 +726,16 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(
     IPHeader *pIpHeader = (IPHeader *) RtlOffsetToPointer(pDataPages[0].Virtual, ulStartOffset);
 
     tTcpIpPacketParsingResult res = QualifyIpPacket(pIpHeader, ulDataLength, verifyLength);
-    if (res.ipStatus == ppresNotIP || res.ipCheckSum == ppresIPTooShort)
+    if (res.ipStatus == ppResult::ppresNotIP || res.ipCheckSum == ppResult::ppresIPTooShort)
         return res;
 
-    if (res.ipStatus == ppresIPV4)
+    if (res.ipStatus == ppResult::ppresIPV4)
     {
         if (flags & pcrIpChecksum)
             res = VerifyIpChecksum(&pIpHeader->v4, res, (flags & pcrFixIPChecksum) != 0);
-        if(res.xxpStatus == ppresXxpKnown)
+        if(res.xxpStatus == ppResult::ppresXxpKnown)
         {
-            if (res.TcpUdp == ppresIsTCP) /* TCP */
+            if (res.TcpUdp == ppResult::ppresIsTCP) /* TCP */
             {
                 if(flags & pcrTcpV4Checksum)
                 {
@@ -749,11 +751,11 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(
             }
         }
     }
-    else if (res.ipStatus == ppresIPV6)
+    else if (res.ipStatus == ppResult::ppresIPV6)
     {
-        if(res.xxpStatus == ppresXxpKnown)
+        if(res.xxpStatus == ppResult::ppresXxpKnown)
         {
-            if (res.TcpUdp == ppresIsTCP) /* TCP */
+            if (res.TcpUdp == ppResult::ppresIsTCP) /* TCP */
             {
                 if(flags & pcrTcpV6Checksum)
                 {
