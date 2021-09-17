@@ -787,7 +787,7 @@ typedef union _tagTcpIpPacketParsingResult
     ULONG value;
 }tTcpIpPacketParsingResult;
 
-typedef enum _tagPacketOffloadRequest
+typedef enum class _tagPacketOffloadRequest
 {
     pcrIpChecksum  = (1 << 0),
     pcrTcpV4Checksum = (1 << 1),
@@ -809,6 +809,31 @@ typedef enum _tagPacketOffloadRequest
     pcrPriorityTag = (1 << 13),
     pcrNoIndirect  = (1 << 14)
 }tPacketOffloadRequest;
+
+inline ULONG operator |(tPacketOffloadRequest a, tPacketOffloadRequest b)
+{
+    return static_cast<ULONG>(a) | static_cast<ULONG>(b);
+}
+
+inline ULONG operator |(ULONG a, tPacketOffloadRequest b)
+{
+    return a | static_cast<ULONG>(b);
+}
+
+inline ULONG& operator |=(ULONG& a, tPacketOffloadRequest b)
+{
+    return a |= static_cast<ULONG>(b);
+}
+
+inline ULONG operator &(tPacketOffloadRequest a, tPacketOffloadRequest b)
+{
+    return static_cast<ULONG>(a) & static_cast<ULONG>(b);
+}
+
+inline ULONG operator &(ULONG a, tPacketOffloadRequest b)
+{
+    return a & static_cast<ULONG>(b);
+}
 
 // sw offload
 

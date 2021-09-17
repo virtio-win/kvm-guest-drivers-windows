@@ -2128,20 +2128,20 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
     //VIRTIO_NET_HDR_F_NEEDS_CSUM - we need to calculate TCP/UDP CS
     //VIRTIO_NET_HDR_F_DATA_VALID - host tells us TCP/UDP CS is OK
 
-    if (f.fRxIPChecksum) flagsToCalculate |= pcrIpChecksum; // check only
+    if (f.fRxIPChecksum) flagsToCalculate |= tPacketOffloadRequest::pcrIpChecksum; // check only
 
     if (!(virtioFlags & VIRTIO_NET_HDR_F_DATA_VALID))
     {
         if (virtioFlags & VIRTIO_NET_HDR_F_NEEDS_CSUM)
         {
-            flagsToCalculate |= pcrFixXxpChecksum | pcrTcpChecksum | pcrUdpChecksum;
+            flagsToCalculate |= tPacketOffloadRequest::pcrFixXxpChecksum | tPacketOffloadRequest::pcrTcpChecksum | tPacketOffloadRequest::pcrUdpChecksum;
         }
         else
         {
-            if (f.fRxTCPChecksum) flagsToCalculate |= pcrTcpV4Checksum;
-            if (f.fRxUDPChecksum) flagsToCalculate |= pcrUdpV4Checksum;
-            if (f.fRxTCPv6Checksum) flagsToCalculate |= pcrTcpV6Checksum;
-            if (f.fRxUDPv6Checksum) flagsToCalculate |= pcrUdpV6Checksum;
+            if (f.fRxTCPChecksum) flagsToCalculate |= tPacketOffloadRequest::pcrTcpV4Checksum;
+            if (f.fRxUDPChecksum) flagsToCalculate |= tPacketOffloadRequest::pcrUdpV4Checksum;
+            if (f.fRxTCPv6Checksum) flagsToCalculate |= tPacketOffloadRequest::pcrTcpV6Checksum;
+            if (f.fRxUDPv6Checksum) flagsToCalculate |= tPacketOffloadRequest::pcrUdpV6Checksum;
         }
     }
 

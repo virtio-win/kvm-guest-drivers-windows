@@ -813,7 +813,8 @@ void CNB::SetupLSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloa
 
     tTcpIpPacketParsingResult packetReview;
     packetReview = ParaNdis_CheckSumVerifyFlat(reinterpret_cast<IPv4Header*>(IpHeader), EthPayloadLength,
-                                               pcrIpChecksum | pcrFixIPChecksum | pcrTcpChecksum | pcrFixPHChecksum,
+                                               tPacketOffloadRequest::pcrIpChecksum | tPacketOffloadRequest::pcrFixIPChecksum |
+                                               tPacketOffloadRequest::pcrTcpChecksum | tPacketOffloadRequest::pcrFixPHChecksum,
                                                FALSE,
                                                __FUNCTION__);
 
@@ -838,7 +839,8 @@ void CNB::SetupUSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloa
 
     tTcpIpPacketParsingResult packetReview;
     packetReview = ParaNdis_CheckSumVerifyFlat(reinterpret_cast<IPv4Header*>(IpHeader), EthPayloadLength,
-        pcrIpChecksum | pcrFixIPChecksum | pcrUdpChecksum | pcrFixPHChecksum,
+        tPacketOffloadRequest::pcrIpChecksum | tPacketOffloadRequest::pcrFixIPChecksum | 
+        tPacketOffloadRequest::pcrUdpChecksum | tPacketOffloadRequest::pcrFixPHChecksum,
         FALSE,
         __FUNCTION__);
 
@@ -888,8 +890,8 @@ void CNB::DoIPHdrCSO(PVOID IpHeader, ULONG EthPayloadLength) const
 {
     ParaNdis_CheckSumVerifyFlat(IpHeader,
                                 EthPayloadLength,
-                                pcrIpChecksum | pcrFixIPChecksum, FALSE,
-                                __FUNCTION__);
+                                tPacketOffloadRequest::pcrIpChecksum | tPacketOffloadRequest::pcrFixIPChecksum,
+                                FALSE, __FUNCTION__);
 }
 
 bool CNB::FillDescriptorSGList(CTXDescriptor &Descriptor, ULONG ParsedHeadersLength) const
