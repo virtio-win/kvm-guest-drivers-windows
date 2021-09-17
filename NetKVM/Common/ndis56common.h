@@ -736,7 +736,7 @@ VOID ParaNdis_SetLinkState(
 
 #endif //-OFFLOAD_UNIT_TEST
 
-typedef enum _tagppResult
+typedef enum class _tagppResult
 {
     ppresNotTested = 0,
     ppresNotIP     = 1,
@@ -752,6 +752,16 @@ typedef enum _tagppResult
     ppresIsTCP         = 0,
     ppresIsUDP         = 1,
 }ppResult;
+
+inline bool operator ==(ULONG a, ppResult b)
+{
+    return a == static_cast<ULONG>(b);
+}
+
+inline bool operator !=(ULONG a, ppResult b)
+{
+    return a != static_cast<ULONG>(b);
+}
 
 typedef union _tagTcpIpPacketParsingResult
 {

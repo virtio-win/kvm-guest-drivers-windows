@@ -817,14 +817,14 @@ void CNB::SetupLSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloa
                                                FALSE,
                                                __FUNCTION__);
 
-    if (packetReview.xxpCheckSum == ppresPCSOK || packetReview.fixedXxpCS)
+    if (packetReview.xxpCheckSum == ppResult::ppresPCSOK || packetReview.fixedXxpCS)
     {
         auto IpHeaderOffset = m_Context->Offload.ipHeaderOffset;
         auto VHeader = static_cast<virtio_net_hdr*>(VirtioHeader);
         auto PriorityHdrLen = (m_ParentNBL->TCI() != 0) ? ETH_PRIORITY_HEADER_SIZE : 0;
 
         VHeader->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
-        VHeader->gso_type = packetReview.ipStatus == ppresIPV4 ? VIRTIO_NET_HDR_GSO_TCPV4 : VIRTIO_NET_HDR_GSO_TCPV6;
+        VHeader->gso_type = packetReview.ipStatus == ppResult::ppresIPV4 ? VIRTIO_NET_HDR_GSO_TCPV4 : VIRTIO_NET_HDR_GSO_TCPV6;
         VHeader->hdr_len = (USHORT)(packetReview.XxpIpHeaderSize + IpHeaderOffset + PriorityHdrLen);
         VHeader->gso_size = (USHORT)m_ParentNBL->MSS();
         VHeader->csum_start = (USHORT)(m_ParentNBL->TCPHeaderOffset() + PriorityHdrLen);
@@ -842,7 +842,7 @@ void CNB::SetupUSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloa
         FALSE,
         __FUNCTION__);
 
-    if (packetReview.xxpCheckSum == ppresPCSOK || packetReview.fixedXxpCS)
+    if (packetReview.xxpCheckSum == ppResult::ppresPCSOK || packetReview.fixedXxpCS)
     {
         auto IpHeaderOffset = m_Context->Offload.ipHeaderOffset;
         auto VHeader = static_cast<virtio_net_hdr*>(VirtioHeader);
@@ -863,7 +863,7 @@ USHORT CNB::QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const
     USHORT Res;
     auto ppr = ParaNdis_ReviewIPPacket(RtlOffsetToPointer(PacketData, IpHeaderOffset),
                                        GetDataLength(), FALSE, __FUNCTION__);
-    if (ppr.ipStatus != ppresNotIP)
+    if (ppr.ipStatus != ppResult::ppresNotIP)
     {
         Res = static_cast<USHORT>(IpHeaderOffset + ppr.ipHeaderSize);
     }

@@ -2154,10 +2154,10 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
     else
     {
         ppr.value = 0;
-        ppr.ipStatus = ppresNotIP;
+        ppr.ipStatus = static_cast<ULONG>(ppResult::ppresNotIP);
     }
 
-    if (ppr.ipCheckSum == ppresIPTooShort || ppr.xxpStatus == ppresXxpIncomplete)
+    if (ppr.ipCheckSum == ppResult::ppresIPTooShort || ppr.xxpStatus == ppResult::ppresXxpIncomplete)
     {
         res.flags.IpOK = FALSE;
         res.flags.IpFailed = TRUE;
@@ -2167,23 +2167,23 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
     if (virtioFlags & VIRTIO_NET_HDR_F_DATA_VALID)
     {
         pContext->extraStatistics.framesRxCSHwOK++;
-        ppr.xxpCheckSum = ppresCSOK;
+        ppr.xxpCheckSum = static_cast<ULONG>(ppResult::ppresCSOK);
     }
 
-    if (ppr.ipStatus == ppresIPV4 && !ppr.IsFragment)
+    if (ppr.ipStatus == ppResult::ppresIPV4 && !ppr.IsFragment)
     {
         if (f.fRxIPChecksum)
         {
-            res.flags.IpOK =  ppr.ipCheckSum == ppresCSOK;
-            res.flags.IpFailed = ppr.ipCheckSum == ppresCSBad;
+            res.flags.IpOK =  ppr.ipCheckSum == ppResult::ppresCSOK;
+            res.flags.IpFailed = ppr.ipCheckSum == ppResult::ppresCSBad;
         }
-        if(ppr.xxpStatus == ppresXxpKnown)
+        if(ppr.xxpStatus == ppResult::ppresXxpKnown)
         {
-            if(ppr.TcpUdp == ppresIsTCP) /* TCP */
+            if(ppr.TcpUdp == ppResult::ppresIsTCP) /* TCP */
             {
                 if (f.fRxTCPChecksum)
                 {
-                    res.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+                    res.flags.TcpOK = ppr.xxpCheckSum == ppResult::ppresCSOK || ppr.fixedXxpCS;
                     res.flags.TcpFailed = !res.flags.TcpOK;
                 }
             }
@@ -2191,21 +2191,21 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
             {
                 if (f.fRxUDPChecksum)
                 {
-                    res.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+                    res.flags.UdpOK = ppr.xxpCheckSum == ppResult::ppresCSOK || ppr.fixedXxpCS;
                     res.flags.UdpFailed = !res.flags.UdpOK;
                 }
             }
         }
     }
-    else if (ppr.ipStatus == ppresIPV6)
+    else if (ppr.ipStatus == ppResult::ppresIPV6)
     {
-        if(ppr.xxpStatus == ppresXxpKnown)
+        if(ppr.xxpStatus == ppResult::ppresXxpKnown)
         {
-            if(ppr.TcpUdp == ppresIsTCP) /* TCP */
+            if(ppr.TcpUdp == ppResult::ppresIsTCP) /* TCP */
             {
                 if (f.fRxTCPv6Checksum)
                 {
-                    res.flags.TcpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+                    res.flags.TcpOK = ppr.xxpCheckSum == ppResult::ppresCSOK || ppr.fixedXxpCS;
                     res.flags.TcpFailed = !res.flags.TcpOK;
                 }
             }
@@ -2213,7 +2213,7 @@ tChecksumCheckResult ParaNdis_CheckRxChecksum(
             {
                 if (f.fRxUDPv6Checksum)
                 {
-                    res.flags.UdpOK = ppr.xxpCheckSum == ppresCSOK || ppr.fixedXxpCS;
+                    res.flags.UdpOK = ppr.xxpCheckSum == ppResult::ppresCSOK || ppr.fixedXxpCS;
                     res.flags.UdpFailed = !res.flags.UdpOK;
                 }
             }
