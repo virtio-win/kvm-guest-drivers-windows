@@ -955,6 +955,8 @@ BOOLEAN AnalyzeIP6Hdr(
         case PROTOCOL_UDP:
             __fallthrough;
         case IP6_HDR_FRAGMENT:
+            __fallthrough;
+        case IP6_HDR_ESP:
             return TRUE;
         case IP6_HDR_DESTINATION:
             {
@@ -986,8 +988,6 @@ BOOLEAN AnalyzeIP6Hdr(
             }
             break;
         case IP6_HDR_HOP_BY_HOP:
-            __fallthrough;
-        case IP6_HDR_ESP:
             __fallthrough;
         case IP6_HDR_AUTHENTICATION:
             __fallthrough;
