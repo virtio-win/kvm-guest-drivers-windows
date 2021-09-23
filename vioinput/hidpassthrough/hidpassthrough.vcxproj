@@ -105,6 +105,9 @@
     <OutDir>objfre_win7_amd64\amd64\</OutDir>
     <IntDir>objfre_win7_amd64\amd64\</IntDir>
   </PropertyGroup>
+  <PropertyGroup>
+    <CustomBuildAfterTargets>dvl</CustomBuildAfterTargets>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);POOL_NX_OPTIN=1</PreprocessorDefinitions>
@@ -118,6 +121,11 @@
       <Version>6.1</Version>
       <AdditionalOptions>/osversion:6.1 %(AdditionalOptions)</AdditionalOptions>
     </Link>
+    <CustomBuildStep>
+      <Command>copy /Y $(ProjectDir)viohidkmdf.DVL.XML $(ProjectDir)$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)</Command>
+      <Inputs>$(ProjectDir)viohidkmdf.DVL.XML</Inputs>
+      <Outputs>$(ProjectDir)$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)\viohidkmdf.DVL.XML</Outputs>
+    </CustomBuildStep>
     <PostBuildEvent>
       <Command>
         mkdir ..\Install\$(TargetOS)\$(TargetArch)
