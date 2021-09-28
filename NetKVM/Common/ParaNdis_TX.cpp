@@ -424,11 +424,22 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
     if (NBLHolder->MappingSucceeded() && m_VirtQueue.Alive())
     {
         m_SendQueue.Enqueue(NBLHolder);
-
-        if (m_DpcWaiting == 0)
-        {
-            DoPendingTasks(NBLHolder);
+        // do not do anything if there is dpc processing for this TX
+        if (m_DpcWaiting) {
+            return;
         }
+
+#if defined(ENABLE_COMPLETE_FROM_SEND)
+        DoPendingTasks(NBLHolder);
+#else
+        CRawCNBList  nbToFree;
+        CRawCNBLList completedNBLs;
+        {
+            TDPCSpinLocker LockedContext(m_Lock);
+            SendMapped(false, completedNBLs);
+        }
+        PostProcessPendingTask(nbToFree, completedNBLs);
+#endif
     }
     else
     {
