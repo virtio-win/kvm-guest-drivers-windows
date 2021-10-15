@@ -20,6 +20,7 @@ ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
 Provider=%VENDOR%
 CatalogFile=ivshmem.cat
 DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
+PnpLockDown=1
 
 [DestinationDirs]
 DefaultDestDir = 12
