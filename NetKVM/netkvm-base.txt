@@ -18,6 +18,7 @@ Provider=%VENDOR%
 DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 DriverPackageType = PlugAndPlay
 DriverPackageDisplayName = %kvmnet6.DeviceDesc%
+PnpLockDown=1
 
 [Manufacturer]
 %VENDOR% = NetKVM, NT$ARCH$
