@@ -78,6 +78,10 @@ StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %12%\viorng.sys
 LoadOrderGroup = Extended Base
+AddReg         = DmaRemappingCompatible.Reg
+
+[DmaRemappingCompatible.Reg]
+HKR,Parameters,DmaRemappingCompatible,0x00010001,1
 
 ; -------------------------
 ; RNG Provider Installation
