@@ -210,7 +210,6 @@ ErrorControl    = 1 ;%SERVICE_ERROR_NORMAL%
 ServiceBinary   = %12%\netkvm.sys
 LoadOrderGroup  = NDIS
 AddReg          = TextModeFlags.Reg
-AddReg          = DmaRemappingCompatible.Reg
 
 [kvmnet6.EventLog]
 AddReg = kvmnet6.AddEventLog.Reg
@@ -223,9 +222,6 @@ HKR, , TypesSupported,   0x00010001, 7
 HKR,,TextModeFlags,0x00010001, 0x0001
 HKR,Parameters,DisableMSI,,"0"
 HKR,Parameters,EarlyDebug,,"3"
-
-[DmaRemappingCompatible.Reg]
-HKR,Parameters,DmaRemappingCompatible,0x00010001,1
 
 [SourceDisksNames]
 1 = %DiskId1%,,,""
