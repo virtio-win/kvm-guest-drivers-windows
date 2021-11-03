@@ -21,14 +21,6 @@
       <Configuration>Win10 Release</Configuration>
       <Platform>ARM64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Win2k3 Release|Win32">
-      <Configuration>Win2k3 Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win2k3 Release|x64">
-      <Configuration>Win2k3 Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Win7 Release|Win32">
       <Configuration>Win7 Release</Configuration>
       <Platform>Win32</Platform>
@@ -100,14 +92,6 @@
     <CharacterSet>Unicode</CharacterSet>
     <TargetVersion>Windows7</TargetVersion>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|Win32'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141_xp</PlatformToolset>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
-    <TargetVersion>Windows7</TargetVersion>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -167,14 +151,6 @@
     <CharacterSet>Unicode</CharacterSet>
     <TargetVersion>Windows7</TargetVersion>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141_xp</PlatformToolset>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
-    <TargetVersion>Windows7</TargetVersion>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -215,12 +191,6 @@
     <IntDir>objfre_wlh_x86\i386\</IntDir>
     <IncludePath>$(VC_IncludePath);$(WindowsSdk_71A_IncludePath);$(ProjectDir)win</IncludePath>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|Win32'">
-    <LinkIncremental>false</LinkIncremental>
-    <OutDir>objfre_wnet_x86\i386\</OutDir>
-    <IntDir>objfre_wnet_x86\i386\</IntDir>
-    <IncludePath>$(VC_IncludePath);$(WindowsSdk_71A_IncludePath);$(ProjectDir)win</IncludePath>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>objfre_win8_amd64\amd64\</OutDir>
@@ -249,12 +219,6 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>objfre_wlh_amd64\amd64\</OutDir>
     <IntDir>objfre_wlh_amd64\amd64\</IntDir>
-    <IncludePath>$(VC_IncludePath);$(WindowsSdk_71A_IncludePath);$(ProjectDir)win</IncludePath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|x64'">
-    <LinkIncremental>false</LinkIncremental>
-    <OutDir>objfre_wnet_amd64\amd64\</OutDir>
-    <IntDir>objfre_wnet_amd64\amd64\</IntDir>
     <IncludePath>$(VC_IncludePath);$(WindowsSdk_71A_IncludePath);$(ProjectDir)win</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup>
