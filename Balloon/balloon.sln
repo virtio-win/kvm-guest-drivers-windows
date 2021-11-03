@@ -41,9 +41,6 @@ Global
 		Win8.1 Release|ARM64 = Win8.1 Release|ARM64
 		Win8.1 Release|x64 = Win8.1 Release|x64
 		Win8.1 Release|x86 = Win8.1 Release|x86
-		WinXP Release|ARM64 = WinXP Release|ARM64
-		WinXP Release|x64 = WinXP Release|x64
-		WinXP Release|x86 = WinXP Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|ARM64.ActiveCfg = Vista Release|x64
@@ -85,11 +82,6 @@ Global
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x86.Deploy.0 = Win8.1 Release|Win32
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.WinXP Release|ARM64.ActiveCfg = WinXP Release|x64
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.WinXP Release|x64.ActiveCfg = WinXP Release|x64
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.WinXP Release|x64.Build.0 = WinXP Release|x64
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.WinXP Release|x86.ActiveCfg = WinXP Release|Win32
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.WinXP Release|x86.Build.0 = WinXP Release|Win32
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Vista Release|ARM64.ActiveCfg = Vista Release|x64
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Vista Release|x64.ActiveCfg = Vista Release|x64
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Vista Release|x64.Build.0 = Vista Release|x64
@@ -129,11 +121,6 @@ Global
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win8.1 Release|x86.Deploy.0 = Win8.1 Release|Win32
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.WinXP Release|ARM64.ActiveCfg = WinXP Release|x64
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.WinXP Release|x64.ActiveCfg = WinXP Release|x64
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.WinXP Release|x64.Build.0 = WinXP Release|x64
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.WinXP Release|x86.ActiveCfg = WinXP Release|Win32
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.WinXP Release|x86.Build.0 = WinXP Release|Win32
 		{B3402316-94F7-4526-AD07-870DEE0E660C}.Vista Release|ARM64.ActiveCfg = Vista Release|x64
 		{B3402316-94F7-4526-AD07-870DEE0E660C}.Vista Release|x64.ActiveCfg = Vista Release|x64
 		{B3402316-94F7-4526-AD07-870DEE0E660C}.Vista Release|x64.Build.0 = Vista Release|x64
@@ -173,11 +160,6 @@ Global
 		{B3402316-94F7-4526-AD07-870DEE0E660C}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
 		{B3402316-94F7-4526-AD07-870DEE0E660C}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 		{B3402316-94F7-4526-AD07-870DEE0E660C}.Win8.1 Release|x86.Deploy.0 = Win8.1 Release|Win32
-		{B3402316-94F7-4526-AD07-870DEE0E660C}.WinXP Release|ARM64.ActiveCfg = WinXP Release|x64
-		{B3402316-94F7-4526-AD07-870DEE0E660C}.WinXP Release|x64.ActiveCfg = WinXP Release|x64
-		{B3402316-94F7-4526-AD07-870DEE0E660C}.WinXP Release|x64.Build.0 = WinXP Release|x64
-		{B3402316-94F7-4526-AD07-870DEE0E660C}.WinXP Release|x86.ActiveCfg = WinXP Release|Win32
-		{B3402316-94F7-4526-AD07-870DEE0E660C}.WinXP Release|x86.Build.0 = WinXP Release|Win32
 		{B953395B-010B-432C-AFCD-6C4F6553905F}.Vista Release|ARM64.ActiveCfg = Vista Release|x64
 		{B953395B-010B-432C-AFCD-6C4F6553905F}.Vista Release|x64.ActiveCfg = Vista Release|x64
 		{B953395B-010B-432C-AFCD-6C4F6553905F}.Vista Release|x64.Build.0 = Vista Release|x64
@@ -209,11 +191,6 @@ Global
 		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win8.1 Release|x64.Build.0 = Release|x64
 		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win8.1 Release|x86.ActiveCfg = Release|Win32
 		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win8.1 Release|x86.Build.0 = Release|Win32
-		{B953395B-010B-432C-AFCD-6C4F6553905F}.WinXP Release|ARM64.ActiveCfg = WinXP Release|x64
-		{B953395B-010B-432C-AFCD-6C4F6553905F}.WinXP Release|x64.ActiveCfg = WinXP Release|x64
-		{B953395B-010B-432C-AFCD-6C4F6553905F}.WinXP Release|x64.Build.0 = WinXP Release|x64
-		{B953395B-010B-432C-AFCD-6C4F6553905F}.WinXP Release|x86.ActiveCfg = WinXP Release|Win32
-		{B953395B-010B-432C-AFCD-6C4F6553905F}.WinXP Release|x86.Build.0 = WinXP Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
