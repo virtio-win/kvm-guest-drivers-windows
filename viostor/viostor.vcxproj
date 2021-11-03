@@ -21,10 +21,6 @@
       <Configuration>Win7 Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Win2k3 Release|Win32">
-      <Configuration>Win2k3 Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Vista Release|Win32">
       <Configuration>Vista Release</Configuration>
       <Platform>Win32</Platform>
@@ -35,10 +31,6 @@
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win7 Release|x64">
       <Configuration>Win7 Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win2k3 Release|x64">
-      <Configuration>Win2k3 Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Vista Release|x64">
@@ -78,11 +70,6 @@
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <SourceInfFile>viostor.inx</SourceInfFile>
   </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|Win32'">
-    <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v141_xp</PlatformToolset>
-    <SourceInfFile>viostor_no_msi.inx</SourceInfFile>
-  </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <TargetVersion>Windows7</TargetVersion>
     <PlatformToolset>v141_xp</PlatformToolset>
@@ -107,11 +94,6 @@
     <TargetVersion>Windows7</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <SourceInfFile>viostor.inx</SourceInfFile>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|x64'">
-    <TargetVersion>Windows7</TargetVersion>
-    <PlatformToolset>v141_xp</PlatformToolset>
-    <SourceInfFile>viostor_no_msi.inx</SourceInfFile>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <TargetVersion>Windows7</TargetVersion>
@@ -152,10 +134,6 @@
     <OutDir>objfre_win7_x86\i386\</OutDir>
     <IntDir>objfre_win7_x86\i386\</IntDir>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|Win32'">
-    <OutDir>objfre_wnet_x86\i386\</OutDir>
-    <IntDir>objfre_wnet_x86\i386\</IntDir>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
     <OutDir>objfre_wlh_x86\i386\</OutDir>
     <IntDir>objfre_wlh_x86\i386\</IntDir>
@@ -175,10 +153,6 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <OutDir>objfre_win7_amd64\amd64\</OutDir>
     <IntDir>objfre_win7_amd64\amd64\</IntDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win2k3 Release|x64'">
-    <OutDir>objfre_wnet_amd64\amd64\</OutDir>
-    <IntDir>objfre_wnet_amd64\amd64\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
     <OutDir>objfre_wlh_amd64\amd64\</OutDir>
@@ -243,14 +217,6 @@
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Vista Release'">
     <ClCompile>
       <PreprocessorDefinitions>MSI_SUPPORTED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
-    <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);storport.lib</AdditionalDependencies>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)'=='Win2k3 Release'">
-    <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);storport.lib</AdditionalDependencies>
