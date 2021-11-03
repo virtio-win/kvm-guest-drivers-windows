@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31702.278
@@ -14,9 +14,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtioLib", "..\VirtIO\Virt
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Vista Release|ARM64 = Vista Release|ARM64
-		Vista Release|x64 = Vista Release|x64
-		Vista Release|x86 = Vista Release|x86
 		Win10 Release|ARM64 = Win10 Release|ARM64
 		Win10 Release|x64 = Win10 Release|x64
 		Win10 Release|x86 = Win10 Release|x86
@@ -31,11 +28,6 @@ Global
 		Win8.1 Release|x86 = Win8.1 Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{1530C86E-90C0-4270-B3A2-0FB90152CA48}.Vista Release|ARM64.ActiveCfg = Vista Release|x64
-		{1530C86E-90C0-4270-B3A2-0FB90152CA48}.Vista Release|x64.ActiveCfg = Vista Release|x64
-		{1530C86E-90C0-4270-B3A2-0FB90152CA48}.Vista Release|x64.Build.0 = Vista Release|x64
-		{1530C86E-90C0-4270-B3A2-0FB90152CA48}.Vista Release|x86.ActiveCfg = Vista Release|Win32
-		{1530C86E-90C0-4270-B3A2-0FB90152CA48}.Vista Release|x86.Build.0 = Vista Release|Win32
 		{1530C86E-90C0-4270-B3A2-0FB90152CA48}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
 		{1530C86E-90C0-4270-B3A2-0FB90152CA48}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
 		{1530C86E-90C0-4270-B3A2-0FB90152CA48}.Win10 Release|ARM64.Deploy.0 = Win10 Release|ARM64
@@ -66,11 +58,6 @@ Global
 		{1530C86E-90C0-4270-B3A2-0FB90152CA48}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
 		{1530C86E-90C0-4270-B3A2-0FB90152CA48}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 		{1530C86E-90C0-4270-B3A2-0FB90152CA48}.Win8.1 Release|x86.Deploy.0 = Win8.1 Release|Win32
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|ARM64.ActiveCfg = Vista Release|x64
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x64.ActiveCfg = Vista Release|x64
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x64.Build.0 = Vista Release|x64
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x86.ActiveCfg = Vista Release|Win32
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x86.Build.0 = Vista Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|ARM64.Deploy.0 = Win10 Release|ARM64
