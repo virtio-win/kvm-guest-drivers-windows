@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31702.278
@@ -33,8 +33,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viorngtest", "test\viorngte
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Vista Release|x64 = Vista Release|x64
-		Vista Release|x86 = Vista Release|x86
 		Win10 Release|x64 = Win10 Release|x64
 		Win10 Release|x86 = Win10 Release|x86
 		Win7 Release|x64 = Win7 Release|x64
@@ -45,10 +43,6 @@ Global
 		Win8.1 Release|x86 = Win8.1 Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{4471A5F4-C884-4EBA-8241-FEBBECE181CF}.Vista Release|x64.ActiveCfg = Vista Release|x64
-		{4471A5F4-C884-4EBA-8241-FEBBECE181CF}.Vista Release|x64.Build.0 = Vista Release|x64
-		{4471A5F4-C884-4EBA-8241-FEBBECE181CF}.Vista Release|x86.ActiveCfg = Vista Release|Win32
-		{4471A5F4-C884-4EBA-8241-FEBBECE181CF}.Vista Release|x86.Build.0 = Vista Release|Win32
 		{4471A5F4-C884-4EBA-8241-FEBBECE181CF}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
 		{4471A5F4-C884-4EBA-8241-FEBBECE181CF}.Win10 Release|x64.Build.0 = Win10 Release|x64
 		{4471A5F4-C884-4EBA-8241-FEBBECE181CF}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
@@ -63,11 +57,6 @@ Global
 		{4471A5F4-C884-4EBA-8241-FEBBECE181CF}.Win8 Release|x86.Build.0 = Win8 Release|Win32
 		{4471A5F4-C884-4EBA-8241-FEBBECE181CF}.Win8.1 Release|x64.ActiveCfg = Win8 Release|x64
 		{4471A5F4-C884-4EBA-8241-FEBBECE181CF}.Win8.1 Release|x86.ActiveCfg = Win8 Release|Win32
-		{EF874D69-710D-4B5D-AFDA-4A3E912B5838}.Vista Release|x64.ActiveCfg = Vista Release|x64
-		{EF874D69-710D-4B5D-AFDA-4A3E912B5838}.Vista Release|x64.Build.0 = Vista Release|x64
-		{EF874D69-710D-4B5D-AFDA-4A3E912B5838}.Vista Release|x86.ActiveCfg = Vista Release|Win32
-		{EF874D69-710D-4B5D-AFDA-4A3E912B5838}.Vista Release|x86.Build.0 = Vista Release|Win32
-		{EF874D69-710D-4B5D-AFDA-4A3E912B5838}.Vista Release|x86.Deploy.0 = Vista Release|Win32
 		{EF874D69-710D-4B5D-AFDA-4A3E912B5838}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
 		{EF874D69-710D-4B5D-AFDA-4A3E912B5838}.Win10 Release|x64.Build.0 = Win10 Release|x64
 		{EF874D69-710D-4B5D-AFDA-4A3E912B5838}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
@@ -82,10 +71,6 @@ Global
 		{EF874D69-710D-4B5D-AFDA-4A3E912B5838}.Win8 Release|x86.Build.0 = Win8 Release|Win32
 		{EF874D69-710D-4B5D-AFDA-4A3E912B5838}.Win8.1 Release|x64.ActiveCfg = Win8 Release|x64
 		{EF874D69-710D-4B5D-AFDA-4A3E912B5838}.Win8.1 Release|x86.ActiveCfg = Win8 Release|Win32
-		{E81CB0C6-F255-4A79-B972-8E49D15D957E}.Vista Release|x64.ActiveCfg = Vista Release|x64
-		{E81CB0C6-F255-4A79-B972-8E49D15D957E}.Vista Release|x64.Build.0 = Vista Release|x64
-		{E81CB0C6-F255-4A79-B972-8E49D15D957E}.Vista Release|x86.ActiveCfg = Vista Release|Win32
-		{E81CB0C6-F255-4A79-B972-8E49D15D957E}.Vista Release|x86.Build.0 = Vista Release|Win32
 		{E81CB0C6-F255-4A79-B972-8E49D15D957E}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
 		{E81CB0C6-F255-4A79-B972-8E49D15D957E}.Win10 Release|x64.Build.0 = Win10 Release|x64
 		{E81CB0C6-F255-4A79-B972-8E49D15D957E}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
@@ -100,10 +85,6 @@ Global
 		{E81CB0C6-F255-4A79-B972-8E49D15D957E}.Win8 Release|x86.Build.0 = Win8 Release|Win32
 		{E81CB0C6-F255-4A79-B972-8E49D15D957E}.Win8.1 Release|x64.ActiveCfg = Win8 Release|x64
 		{E81CB0C6-F255-4A79-B972-8E49D15D957E}.Win8.1 Release|x86.ActiveCfg = Win8 Release|Win32
-		{5B7EA7DB-A573-48E0-86A0-70E044F78869}.Vista Release|x64.ActiveCfg = Vista Release|x64
-		{5B7EA7DB-A573-48E0-86A0-70E044F78869}.Vista Release|x64.Build.0 = Vista Release|x64
-		{5B7EA7DB-A573-48E0-86A0-70E044F78869}.Vista Release|x86.ActiveCfg = Vista Release|Win32
-		{5B7EA7DB-A573-48E0-86A0-70E044F78869}.Vista Release|x86.Build.0 = Vista Release|Win32
 		{5B7EA7DB-A573-48E0-86A0-70E044F78869}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
 		{5B7EA7DB-A573-48E0-86A0-70E044F78869}.Win10 Release|x64.Build.0 = Win10 Release|x64
 		{5B7EA7DB-A573-48E0-86A0-70E044F78869}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
@@ -118,10 +99,6 @@ Global
 		{5B7EA7DB-A573-48E0-86A0-70E044F78869}.Win8 Release|x86.Build.0 = Win8 Release|Win32
 		{5B7EA7DB-A573-48E0-86A0-70E044F78869}.Win8.1 Release|x64.ActiveCfg = Win8 Release|x64
 		{5B7EA7DB-A573-48E0-86A0-70E044F78869}.Win8.1 Release|x86.ActiveCfg = Win8 Release|Win32
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x64.ActiveCfg = Vista Release|x64
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x64.Build.0 = Vista Release|x64
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x86.ActiveCfg = Vista Release|Win32
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x86.Build.0 = Vista Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x64.Build.0 = Win10 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
@@ -136,10 +113,6 @@ Global
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8 Release|x86.Build.0 = Win8 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Vista Release|x64.ActiveCfg = Vista Release|x64
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Vista Release|x64.Build.0 = Vista Release|x64
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Vista Release|x86.ActiveCfg = Vista Release|Win32
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Vista Release|x86.Build.0 = Vista Release|Win32
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win10 Release|x64.Build.0 = Win10 Release|x64
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
@@ -154,10 +127,6 @@ Global
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win8 Release|x86.Build.0 = Win8 Release|Win32
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
-		{8CB5D2D4-F3EA-4568-89A8-DCD332BDCF4E}.Vista Release|x64.ActiveCfg = Release|x64
-		{8CB5D2D4-F3EA-4568-89A8-DCD332BDCF4E}.Vista Release|x64.Build.0 = Release|x64
-		{8CB5D2D4-F3EA-4568-89A8-DCD332BDCF4E}.Vista Release|x86.ActiveCfg = Release|Win32
-		{8CB5D2D4-F3EA-4568-89A8-DCD332BDCF4E}.Vista Release|x86.Build.0 = Release|Win32
 		{8CB5D2D4-F3EA-4568-89A8-DCD332BDCF4E}.Win10 Release|x64.ActiveCfg = Release|x64
 		{8CB5D2D4-F3EA-4568-89A8-DCD332BDCF4E}.Win10 Release|x64.Build.0 = Release|x64
 		{8CB5D2D4-F3EA-4568-89A8-DCD332BDCF4E}.Win10 Release|x86.ActiveCfg = Release|Win32
