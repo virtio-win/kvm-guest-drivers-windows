@@ -23,9 +23,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "blnsvr", "app\blnsvr.vcxpro
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Vista Release|ARM64 = Vista Release|ARM64
-		Vista Release|x64 = Vista Release|x64
-		Vista Release|x86 = Vista Release|x86
 		Win10 Release|ARM64 = Win10 Release|ARM64
 		Win10 Release|x64 = Win10 Release|x64
 		Win10 Release|x86 = Win10 Release|x86
@@ -40,11 +37,6 @@ Global
 		Win8.1 Release|x86 = Win8.1 Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|ARM64.ActiveCfg = Vista Release|x64
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x64.ActiveCfg = Vista Release|x64
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x64.Build.0 = Vista Release|x64
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x86.ActiveCfg = Vista Release|Win32
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Vista Release|x86.Build.0 = Vista Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
@@ -74,11 +66,6 @@ Global
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win8.1 Release|x86.Deploy.0 = Win8.1 Release|Win32
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Vista Release|ARM64.ActiveCfg = Vista Release|x64
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Vista Release|x64.ActiveCfg = Vista Release|x64
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Vista Release|x64.Build.0 = Vista Release|x64
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Vista Release|x86.ActiveCfg = Vista Release|Win32
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Vista Release|x86.Build.0 = Vista Release|Win32
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
@@ -108,11 +95,6 @@ Global
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win8.1 Release|x86.Deploy.0 = Win8.1 Release|Win32
-		{B3402316-94F7-4526-AD07-870DEE0E660C}.Vista Release|ARM64.ActiveCfg = Vista Release|x64
-		{B3402316-94F7-4526-AD07-870DEE0E660C}.Vista Release|x64.ActiveCfg = Vista Release|x64
-		{B3402316-94F7-4526-AD07-870DEE0E660C}.Vista Release|x64.Build.0 = Vista Release|x64
-		{B3402316-94F7-4526-AD07-870DEE0E660C}.Vista Release|x86.ActiveCfg = Vista Release|Win32
-		{B3402316-94F7-4526-AD07-870DEE0E660C}.Vista Release|x86.Build.0 = Vista Release|Win32
 		{B3402316-94F7-4526-AD07-870DEE0E660C}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
 		{B3402316-94F7-4526-AD07-870DEE0E660C}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
 		{B3402316-94F7-4526-AD07-870DEE0E660C}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
@@ -142,11 +124,6 @@ Global
 		{B3402316-94F7-4526-AD07-870DEE0E660C}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
 		{B3402316-94F7-4526-AD07-870DEE0E660C}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 		{B3402316-94F7-4526-AD07-870DEE0E660C}.Win8.1 Release|x86.Deploy.0 = Win8.1 Release|Win32
-		{B953395B-010B-432C-AFCD-6C4F6553905F}.Vista Release|ARM64.ActiveCfg = Vista Release|x64
-		{B953395B-010B-432C-AFCD-6C4F6553905F}.Vista Release|x64.ActiveCfg = Vista Release|x64
-		{B953395B-010B-432C-AFCD-6C4F6553905F}.Vista Release|x64.Build.0 = Vista Release|x64
-		{B953395B-010B-432C-AFCD-6C4F6553905F}.Vista Release|x86.ActiveCfg = Vista Release|Win32
-		{B953395B-010B-432C-AFCD-6C4F6553905F}.Vista Release|x86.Build.0 = Vista Release|Win32
 		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
 		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
 		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
