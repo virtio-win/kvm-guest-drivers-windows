@@ -29,9 +29,6 @@ Global
 		Win10 Release|ARM64 = Win10 Release|ARM64
 		Win10 Release|x64 = Win10 Release|x64
 		Win10 Release|x86 = Win10 Release|x86
-		Win2k3 Release|ARM64 = Win2k3 Release|ARM64
-		Win2k3 Release|x64 = Win2k3 Release|x64
-		Win2k3 Release|x86 = Win2k3 Release|x86
 		Win7 Release|ARM64 = Win7 Release|ARM64
 		Win7 Release|x64 = Win7 Release|x64
 		Win7 Release|x86 = Win7 Release|x86
@@ -56,11 +53,6 @@ Global
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x86.Build.0 = Win10 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x86.Deploy.0 = Win10 Release|Win32
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win2k3 Release|ARM64.ActiveCfg = Win2k3 Release|x64
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win2k3 Release|x64.ActiveCfg = Win2k3 Release|x64
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win2k3 Release|x64.Build.0 = Win2k3 Release|x64
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win2k3 Release|x86.ActiveCfg = Win2k3 Release|Win32
-		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win2k3 Release|x86.Build.0 = Win2k3 Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win7 Release|ARM64.ActiveCfg = Win7 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win7 Release|x64.ActiveCfg = Win7 Release|x64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win7 Release|x64.Build.0 = Win7 Release|x64
@@ -95,11 +87,6 @@ Global
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win10 Release|x86.Build.0 = Win10 Release|Win32
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win10 Release|x86.Deploy.0 = Win10 Release|Win32
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win2k3 Release|ARM64.ActiveCfg = Win2k3 Release|x64
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win2k3 Release|x64.ActiveCfg = Win2k3 Release|x64
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win2k3 Release|x64.Build.0 = Win2k3 Release|x64
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win2k3 Release|x86.ActiveCfg = Win2k3 Release|Win32
-		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win2k3 Release|x86.Build.0 = Win2k3 Release|Win32
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win7 Release|ARM64.ActiveCfg = Win7 Release|x64
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win7 Release|x64.ActiveCfg = Win7 Release|x64
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win7 Release|x64.Build.0 = Win7 Release|x64
@@ -134,11 +121,6 @@ Global
 		{023DE679-5B3F-423F-88C4-714A12F3D864}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
 		{023DE679-5B3F-423F-88C4-714A12F3D864}.Win10 Release|x86.Build.0 = Win10 Release|Win32
 		{023DE679-5B3F-423F-88C4-714A12F3D864}.Win10 Release|x86.Deploy.0 = Win10 Release|Win32
-		{023DE679-5B3F-423F-88C4-714A12F3D864}.Win2k3 Release|ARM64.ActiveCfg = Win2k3 Release|x64
-		{023DE679-5B3F-423F-88C4-714A12F3D864}.Win2k3 Release|x64.ActiveCfg = Win2k3 Release|x64
-		{023DE679-5B3F-423F-88C4-714A12F3D864}.Win2k3 Release|x64.Build.0 = Win2k3 Release|x64
-		{023DE679-5B3F-423F-88C4-714A12F3D864}.Win2k3 Release|x86.ActiveCfg = Win2k3 Release|Win32
-		{023DE679-5B3F-423F-88C4-714A12F3D864}.Win2k3 Release|x86.Build.0 = Win2k3 Release|Win32
 		{023DE679-5B3F-423F-88C4-714A12F3D864}.Win7 Release|ARM64.ActiveCfg = Win7 Release|x64
 		{023DE679-5B3F-423F-88C4-714A12F3D864}.Win7 Release|x64.ActiveCfg = Win7 Release|x64
 		{023DE679-5B3F-423F-88C4-714A12F3D864}.Win7 Release|x64.Build.0 = Win7 Release|x64
@@ -171,11 +153,6 @@ Global
 		{EF30BBDE-57AE-48F8-BACD-3C3F8C45E64C}.Win10 Release|x64.Build.0 = Win10 Release|x64
 		{EF30BBDE-57AE-48F8-BACD-3C3F8C45E64C}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
 		{EF30BBDE-57AE-48F8-BACD-3C3F8C45E64C}.Win10 Release|x86.Build.0 = Win10 Release|Win32
-		{EF30BBDE-57AE-48F8-BACD-3C3F8C45E64C}.Win2k3 Release|ARM64.ActiveCfg = Win2k3 Release|x64
-		{EF30BBDE-57AE-48F8-BACD-3C3F8C45E64C}.Win2k3 Release|x64.ActiveCfg = Win2k3 Release|x64
-		{EF30BBDE-57AE-48F8-BACD-3C3F8C45E64C}.Win2k3 Release|x64.Build.0 = Win2k3 Release|x64
-		{EF30BBDE-57AE-48F8-BACD-3C3F8C45E64C}.Win2k3 Release|x86.ActiveCfg = Win2k3 Release|Win32
-		{EF30BBDE-57AE-48F8-BACD-3C3F8C45E64C}.Win2k3 Release|x86.Build.0 = Win2k3 Release|Win32
 		{EF30BBDE-57AE-48F8-BACD-3C3F8C45E64C}.Win7 Release|ARM64.ActiveCfg = Win7 Release|x64
 		{EF30BBDE-57AE-48F8-BACD-3C3F8C45E64C}.Win7 Release|x64.ActiveCfg = Win7 Release|x64
 		{EF30BBDE-57AE-48F8-BACD-3C3F8C45E64C}.Win7 Release|x64.Build.0 = Win7 Release|x64
