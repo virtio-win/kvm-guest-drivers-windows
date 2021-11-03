@@ -168,13 +168,15 @@ call "%~dp0\SetVsEnv.bat" x86
 if /I "!TAG!"=="SDV" (
   echo Running SDV for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
   call :runsdv "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
-  if not "%VIRTIO_WIN_RUN_CODEQL%"=="" (
+  if exist "%CODEQL_BIN%" (
     if "%TARGET_PROJ_CONFIG%"=="Win10" (
       echo Running CodeQL for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
       call :runql "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
     ) else (
       echo Skipping CodeQL for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
     )
+  ) else (
+      echo CodeQL binary is missing!
   )
   call :runca "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
   call :rundvl "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
