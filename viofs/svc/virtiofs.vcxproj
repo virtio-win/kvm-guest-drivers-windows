@@ -101,7 +101,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\WinFsp\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>netapi32.lib;wtsapi32.lib;setupapi.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>CfgMgr32.lib;netapi32.lib;wtsapi32.lib;setupapi.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>winfsp-$(PlatformTarget).dll</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
@@ -120,7 +120,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>netapi32.lib;wtsapi32.lib;setupapi.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>CfgMgr32.lib;netapi32.lib;wtsapi32.lib;setupapi.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>winfsp-$(PlatformTarget).dll</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
@@ -139,7 +139,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>netapi32.lib;wtsapi32.lib;setupapi.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>CfgMgr32.lib;netapi32.lib;wtsapi32.lib;setupapi.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>winfsp-$(PlatformTarget).dll</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
@@ -163,7 +163,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>netapi32.lib;wtsapi32.lib;setupapi.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>CfgMgr32.lib;netapi32.lib;wtsapi32.lib;setupapi.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\WinFsp\lib</AdditionalLibraryDirectories>
       <DelayLoadDLLs>winfsp-$(PlatformTarget).dll</DelayLoadDLLs>
     </Link>
