@@ -50,11 +50,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #endif
 
 #define PHYS_SEGMENTS           32
-#if (NTDDI_VERSION > NTDDI_WIN7)
 #define MAX_PHYS_SEGMENTS       512
-#else
-#define MAX_PHYS_SEGMENTS       64
-#endif
 #define VIOSCSI_POOL_TAG        'SoiV'
 #define VIRTIO_MAX_SG            (1+1+MAX_PHYS_SEGMENTS+1) //cmd + resp + (MAX_PHYS_SEGMENTS + extra_page)
 

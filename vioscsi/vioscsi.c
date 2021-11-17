@@ -56,7 +56,6 @@
 
 BOOLEAN IsCrashDumpMode;
 
-#if (NTDDI_VERSION > NTDDI_WIN7)
 sp_DRIVER_INITIALIZE DriverEntry;
 HW_INITIALIZE        VioScsiHwInitialize;
 HW_BUILDIO           VioScsiBuildIo;
@@ -68,8 +67,6 @@ HW_INTERRUPT         VioScsiInterrupt;
 HW_DPC_ROUTINE       VioScsiCompleteDpcRoutine;
 HW_PASSIVE_INITIALIZE_ROUTINE         VioScsiIoPassiveInitializeRoutine;
 HW_MESSAGE_SIGNALED_INTERRUPT_ROUTINE VioScsiMSInterrupt;
-#endif
-
 
 #ifdef EVENT_TRACING
 PVOID TraceContext = NULL;
@@ -293,7 +290,6 @@ USHORT CopyBufferToAnsiString(void* _pDest, const void* _pSrc, const char delimi
     return _length;
 }
 
-#if (NTDDI_VERSION > NTDDI_WIN7)
 BOOLEAN VioScsiReadRegistry(
     IN PVOID DeviceExtension
 )
@@ -336,8 +332,6 @@ BOOLEAN VioScsiReadRegistry(
 
     return TRUE;
 }
-#endif
-
 
 ULONG
 DriverEntry(
@@ -392,10 +386,7 @@ DriverEntry(
     hwInitData.NumberOfAccessRanges     = PCI_TYPE0_ADDRESSES;
     hwInitData.MapBuffers               = STOR_MAP_NON_READ_WRITE_BUFFERS;
 
-#if (NTDDI_VERSION > NTDDI_WIN7)
-    /* Specify support/use SRB Extension for Windows 8 and up */
     hwInitData.SrbTypeFlags = SRB_TYPE_FLAG_STORAGE_REQUEST_BLOCK;
-#endif
 
     initResult = StorPortInitialize(DriverObject,
                                     RegistryPath,
@@ -463,11 +454,7 @@ ENTER_FN();
     ConfigInfo->ScatterGather               = TRUE;
     ConfigInfo->DmaWidth                    = Width32Bits;
     ConfigInfo->Dma32BitAddresses           = TRUE;
-#if (NTDDI_VERSION > NTDDI_WIN7)
     ConfigInfo->Dma64BitAddresses           = SCSI_DMA64_MINIPORT_FULL64BIT_SUPPORTED;
-#else
-    ConfigInfo->Dma64BitAddresses           = TRUE;
-#endif
     ConfigInfo->WmiDataProvider             = TRUE;
     ConfigInfo->AlignmentMask               = 0x3;
     ConfigInfo->MapBuffers                  = STOR_MAP_NON_READ_WRITE_BUFFERS;
@@ -500,27 +487,21 @@ ENTER_FN();
         ConfigInfo->NumberOfPhysicalBreaks  = SCSI_MINIMUM_PHYSICAL_BREAKS;
     } else {
         adaptExt->max_physical_breaks = PHYS_SEGMENTS;
-#if (NTDDI_VERSION > NTDDI_WIN7)
         if (adaptExt->indirect) {
             adaptExt->max_physical_breaks = MAX_PHYS_SEGMENTS;
             VioScsiReadRegistry(DeviceExtension);
         }
-#endif
         ConfigInfo->NumberOfPhysicalBreaks = adaptExt->max_physical_breaks + 1;
     }
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " NumberOfPhysicalBreaks %d\n", ConfigInfo->NumberOfPhysicalBreaks);
     ConfigInfo->MaximumTransferLength = SP_UNINITIALIZED_VALUE;
 
-#if (NTDDI_VERSION >= NTDDI_WIN7)
     num_cpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
     max_cpus = KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS);
     /* Set num_cpus and max_cpus to some sane values, to keep "Static Driver Verification" happy */
     num_cpus = max(1, num_cpus);
     max_cpus = max(1, max_cpus);
-#else
-    num_cpus = KeQueryActiveProcessorCount(NULL);
-    max_cpus = KeQueryMaximumProcessorCount();
-#endif
+
     adaptExt->num_queues = adaptExt->scsi_config.num_queues;
     if (adaptExt->dump_mode || !adaptExt->msix_enabled)
     {
@@ -533,12 +514,7 @@ ENTER_FN();
     }
     else
     {
-//FIXME
-#if (NTDDI_VERSION > NTDDI_WIN7)
         adaptExt->num_queues = num_cpus;
-#else
-        adaptExt->num_queues = 1;
-#endif
     }
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus);
@@ -603,16 +579,11 @@ ENTER_FN();
     } else {
         adaptExt->queue_depth = queueLength / ConfigInfo->NumberOfPhysicalBreaks - 1;
     }
-#if (NTDDI_VERSION > NTDDI_WIN7)
     ConfigInfo->MaxIOsPerLun = adaptExt->queue_depth * adaptExt->num_queues;
     ConfigInfo->InitialLunQueueDepth = ConfigInfo->MaxIOsPerLun;
     if (ConfigInfo->MaxIOsPerLun * ConfigInfo->MaximumNumberOfTargets > ConfigInfo->MaxNumberOfIO) {
         ConfigInfo->MaxNumberOfIO = ConfigInfo->MaxIOsPerLun * ConfigInfo->MaximumNumberOfTargets;
     }
-#else
-    // Prior to win8, lun queue depth must be at most 254.
-    adaptExt->queue_depth = min(254, adaptExt->queue_depth);
-#endif
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " breaks_number = %x  queue_depth = %x\n",
                 ConfigInfo->NumberOfPhysicalBreaks,
@@ -650,17 +621,15 @@ ENTER_FN();
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Page-aligned area at %p, size = %d\n", adaptExt->pageAllocationVa, adaptExt->pageAllocationSize);
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Pool area at %p, size = %d\n", adaptExt->poolAllocationVa, adaptExt->poolAllocationSize);
 
-#if (NTDDI_VERSION > NTDDI_WIN7)
-    RhelDbgPrint(TRACE_LEVEL_FATAL, " pmsg_affinity = %p\n",adaptExt->pmsg_affinity);
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " pmsg_affinity = %p\n",adaptExt->pmsg_affinity);
     if (!adaptExt->dump_mode && (adaptExt->num_queues > 1) && (adaptExt->pmsg_affinity == NULL)) {
         ULONG Status =
         StorPortAllocatePool(DeviceExtension,
                              sizeof(GROUP_AFFINITY) * ((ULONGLONG)adaptExt->num_queues + 3),
                              VIOSCSI_POOL_TAG,
                              (PVOID*)&adaptExt->pmsg_affinity);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, " pmsg_affinity = %p Status = %lu\n",adaptExt->pmsg_affinity, Status);
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " pmsg_affinity = %p Status = %lu\n",adaptExt->pmsg_affinity, Status);
     }
-#endif
 
 #if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
     adaptExt->fw_ver = '0';
@@ -812,7 +781,6 @@ ENTER_FN();
     if (!adaptExt->dump_mode)
     {
         if ((adaptExt->num_queues > 1) && (adaptExt->perfFlags == 0)) {
-#if 1
             perfData.Version = STOR_PERF_VERSION;
             perfData.Size = sizeof(PERF_CONFIGURATION_DATA);
 
@@ -835,24 +803,20 @@ ENTER_FN();
                         RtlZeroMemory((PCHAR)adaptExt->pmsg_affinity, sizeof (GROUP_AFFINITY) * ((ULONGLONG)adaptExt->num_queues + 3));
                         adaptExt->perfFlags |= STOR_PERF_ADV_CONFIG_LOCALITY;
                         perfData.MessageTargets = adaptExt->pmsg_affinity;
-#if (NTDDI_VERSION > NTDDI_WIN7)
                         if (CHECKFLAG(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS)) {
                             adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS;
                             perfData.ConcurrentChannels = adaptExt->num_queues;
                         }
-#endif
                     }
                 }
-#if (NTDDI_VERSION > NTDDI_WIN7)
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION_CURRENT_CPU)) {
 //                    adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION_CURRENT_CPU;
                 }
-#endif
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
 //                    adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO;
                 }
                 perfData.Flags = adaptExt->perfFlags;
-                RhelDbgPrint(TRACE_LEVEL_FATAL, "Applied PerfOpts Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
+                RhelDbgPrint(TRACE_LEVEL_INFORMATION, "Applied PerfOpts Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
                             perfData.Version,
                             perfData.Flags,
                             perfData.ConcurrentChannels,
@@ -867,7 +831,6 @@ ENTER_FN();
             else {
                 RhelDbgPrint(TRACE_LEVEL_INFORMATION, " StorPortInitializePerfOpts get failed with status = 0x%x\n", status);
             }
-#endif
         }
         if (!adaptExt->dpc_ok && !StorPortEnablePassiveInitialization(DeviceExtension, VioScsiPassiveInitializeRoutine)) {
             RhelDbgPrint(TRACE_LEVEL_FATAL, " StorPortEnablePassiveInitialization FAILED\n");
@@ -1242,7 +1205,7 @@ ENTER_FN();
         break;
     }
     default:
-        RhelDbgPrint(TRACE_LEVEL_FATAL, " Unsupported ControlType %d\n", ControlType);
+        RhelDbgPrint(TRACE_LEVEL_ERROR, " Unsupported ControlType %d\n", ControlType);
         break;
     }
 
@@ -1474,9 +1437,7 @@ PostProcessRequest(
 {
     PCDB                  cdb = NULL;
     PADAPTER_EXTENSION    adaptExt = NULL;
-#if (NTDDI_VERSION > NTDDI_WIN7)
     PSRB_EXTENSION        srbExt = NULL;
-#endif
 ENTER_FN_SRB();
     if (SRB_FUNCTION(Srb) != SRB_FUNCTION_EXECUTE_SCSI) {
         return;
@@ -1531,7 +1492,6 @@ LogError(
     IN ULONG UniqueId
     )
 {
-#if (NTDDI_VERSION > NTDDI_WIN7)
     STOR_LOG_EVENT_DETAILS logEvent;
     ULONG sz = 0;
     RtlZeroMemory( &logEvent, sizeof(logEvent) );
@@ -1543,15 +1503,6 @@ LogError(
     logEvent.DumpDataSize              = sizeof(UniqueId);
     logEvent.DumpData                  = &UniqueId;
     StorPortLogSystemEvent( DeviceExtension, &logEvent, &sz );
-#else
-    StorPortLogError(DeviceExtension,
-                         NULL,
-                         0,
-                         0,
-                         0,
-                         ErrorCode,
-                         UniqueId);
-#endif
 }
 
 VOID
@@ -1689,7 +1640,7 @@ ENTER_FN_SRB();
     switch (srbControl->ControlCode) {
         case IOCTL_SCSI_MINIPORT_NOT_QUORUM_CAPABLE:
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_ERROR);
-            RhelDbgPrint(TRACE_LEVEL_FATAL, " <--> Signature = %02x %02x %02x %02x %02x %02x %02x %02x\n",
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> Signature = %02x %02x %02x %02x %02x %02x %02x %02x\n",
                 srbControl->Signature[0], srbControl->Signature[1], srbControl->Signature[2], srbControl->Signature[3],
                 srbControl->Signature[4], srbControl->Signature[5], srbControl->Signature[6], srbControl->Signature[7]);
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> IOCTL_SCSI_MINIPORT_NOT_QUORUM_CAPABLE\n");
@@ -1807,7 +1758,7 @@ ENTER_FN_SRB();
             case VPD_SERIAL_NUMBER: {
                 PVPD_SERIAL_NUMBER_PAGE SerialPage;
                 SerialPage = (PVPD_SERIAL_NUMBER_PAGE)dataBuffer;
-                RhelDbgPrint(TRACE_LEVEL_FATAL, " VPD_SERIAL_NUMBER PageLength = %d\n", SerialPage->PageLength);
+                RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VPD_SERIAL_NUMBER PageLength = %d\n", SerialPage->PageLength);
                 if (SerialPage->PageLength > 0 && adaptExt->ser_num == NULL) {
                     int ln = min(64, SerialPage->PageLength);
                     ULONG Status =
@@ -1818,7 +1769,7 @@ ENTER_FN_SRB();
                     if (NT_SUCCESS(Status)) {
                         StorPortMoveMemory(adaptExt->ser_num, SerialPage->SerialNumber, ln);
                         adaptExt->ser_num[ln] = '\0';
-                        RhelDbgPrint(TRACE_LEVEL_FATAL, " serial number %s\n", adaptExt->ser_num);
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " serial number %s\n", adaptExt->ser_num);
                     }
                 }
             }
@@ -2049,14 +2000,14 @@ VioScsiExecuteWmiMethod(
     {
         case VIOSCSI_SETUP_GUID_INDEX:
         {
-            RhelDbgPrint(TRACE_LEVEL_FATAL, " --> VIOSCSI_SETUP_GUID_INDEX ERROR\n");
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> VIOSCSI_SETUP_GUID_INDEX ERROR\n");
         }
         break;
         case VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX:
         {
             PMS_SM_AdapterInformationQuery pOutBfr = (PMS_SM_AdapterInformationQuery)Buffer;
             pOutBfr;
-            RhelDbgPrint(TRACE_LEVEL_FATAL, " --> VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX ERROR\n");
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX ERROR\n");
         }
         break;
         case VIOSCSI_MS_PORT_INFORM_GUID_INDEX:
@@ -2067,7 +2018,7 @@ VioScsiExecuteWmiMethod(
                 {
                     PSM_GetPortType_IN  pInBfr = (PSM_GetPortType_IN)Buffer;
                     PSM_GetPortType_OUT pOutBfr = (PSM_GetPortType_OUT)Buffer;
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, " --> SM_GetPortType\n");
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetPortType\n");
                     size = SM_GetPortType_OUT_SIZE;
                     if (OutBufferSize < size)
                     {
@@ -2088,7 +2039,7 @@ VioScsiExecuteWmiMethod(
                     PSM_GetAdapterPortAttributes_IN  pInBfr = (PSM_GetAdapterPortAttributes_IN)Buffer;
                     PSM_GetAdapterPortAttributes_OUT pOutBfr = (PSM_GetAdapterPortAttributes_OUT)Buffer;
                     PMS_SMHBA_FC_Port pPortSpecificAttributes = NULL;
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, " --> SM_GetAdapterPortAttributes\n");
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetAdapterPortAttributes\n");
                     size = FIELD_OFFSET(SM_GetAdapterPortAttributes_OUT, PortAttributes) + FIELD_OFFSET(MS_SMHBA_PORTATTRIBUTES, PortSpecificAttributes) + sizeof(MS_SMHBA_FC_Port);
                     if (OutBufferSize < size)
                     {
@@ -2121,7 +2072,7 @@ VioScsiExecuteWmiMethod(
                 {
                     PSM_GetDiscoveredPortAttributes_IN  pInBfr = (PSM_GetDiscoveredPortAttributes_IN)Buffer;
                     PSM_GetDiscoveredPortAttributes_OUT pOutBfr = (PSM_GetDiscoveredPortAttributes_OUT)Buffer;
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, " --> SM_GetDiscoveredPortAttributes\n");
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetDiscoveredPortAttributes\n");
                     size = SM_GetDiscoveredPortAttributes_OUT_SIZE;
                     if (OutBufferSize < size)
                     {
@@ -2143,7 +2094,7 @@ VioScsiExecuteWmiMethod(
                 {
                     PSM_GetPortAttributesByWWN_IN  pInBfr = (PSM_GetPortAttributesByWWN_IN)Buffer;
                     PSM_GetPortAttributesByWWN_OUT pOutBfr = (PSM_GetPortAttributesByWWN_OUT)Buffer;
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, " --> SM_GetPortAttributesByWWN\n");
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetPortAttributesByWWN\n");
                     size = SM_GetPortAttributesByWWN_OUT_SIZE;
                     if (OutBufferSize < size)
                     {
@@ -2159,14 +2110,14 @@ VioScsiExecuteWmiMethod(
                     CopyUnicodeString(pOutBfr->PortAttributes.OSDeviceName, MODEL, sizeof(pOutBfr->PortAttributes.OSDeviceName));
                     pOutBfr->PortAttributes.PortState = HBA_PORTSTATE_ONLINE;
                     pOutBfr->PortAttributes.PortType = HBA_PORTTYPE_SASDEVICE;
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, " --> SM_GetPortAttributesByWWN Not Implemented Yet\n");
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetPortAttributesByWWN Not Implemented Yet\n");
                 }
                 break;
                 case SM_GetProtocolStatistics:
                 {
                     PSM_GetProtocolStatistics_IN  pInBfr = (PSM_GetProtocolStatistics_IN)Buffer;
                     PSM_GetProtocolStatistics_OUT pOutBfr = (PSM_GetProtocolStatistics_OUT)Buffer;
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, " --> SM_GetProtocolStatistics\n");
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetProtocolStatistics\n");
                     size = SM_GetProtocolStatistics_OUT_SIZE;
                     if (OutBufferSize < size)
                     {
@@ -2184,7 +2135,7 @@ VioScsiExecuteWmiMethod(
                 {
                     PSM_GetPhyStatistics_IN  pInBfr = (PSM_GetPhyStatistics_IN)Buffer;
                     PSM_GetPhyStatistics_OUT pOutBfr = (PSM_GetPhyStatistics_OUT)Buffer;
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, " --> SM_GetPhyStatistics\n");
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetPhyStatistics\n");
                     size = FIELD_OFFSET(SM_GetPhyStatistics_OUT, PhyCounter) + sizeof(LONGLONG);
                     if (OutBufferSize < size)
                     {
@@ -2203,7 +2154,7 @@ VioScsiExecuteWmiMethod(
                     PSM_GetFCPhyAttributes_IN  pInBfr = (PSM_GetFCPhyAttributes_IN)Buffer;
                     PSM_GetFCPhyAttributes_OUT pOutBfr = (PSM_GetFCPhyAttributes_OUT)Buffer;
 
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, " --> SM_GetFCPhyAttributes\n");
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetFCPhyAttributes\n");
                     size = SM_GetFCPhyAttributes_OUT_SIZE;
 
                     if (OutBufferSize < size)
@@ -2223,7 +2174,7 @@ VioScsiExecuteWmiMethod(
                 {
                     PSM_GetSASPhyAttributes_IN  pInBfr = (PSM_GetSASPhyAttributes_IN)Buffer;
                     PSM_GetSASPhyAttributes_OUT pOutBfr = (PSM_GetSASPhyAttributes_OUT)Buffer;
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, " --> SM_GetSASPhyAttributes\n");
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetSASPhyAttributes\n");
                     size = SM_GetSASPhyAttributes_OUT_SIZE;
                     if (OutBufferSize < size)
                     {

@@ -49,8 +49,6 @@
 #define CACHE_LINE_SIZE 64
 #define ROUND_TO_CACHE_LINES(Size)  (((ULONG_PTR)(Size) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1))
 
-
-#if (NTDDI_VERSION > NTDDI_WIN7)
 #include <srbhelper.h>
 
 // Note: SrbGetCdbLength is defined in srbhelper.h
@@ -100,30 +98,6 @@ SrbGetPnpInfo(_In_ PVOID Srb, ULONG* PnPFlags, ULONG* PnPAction) {
 #define SRB_SET_SRB_STATUS(Srb, status) SrbSetSrbStatus(Srb, status)
 #define SRB_GET_SRB_STATUS(Srb, status) status = SrbSetSrbStatus(Srb)
 #define SRB_SET_DATA_TRANSFER_LENGTH(Srb, Len) SrbSetDataTransferLength(Srb, Len)
-#else
-#define PSRB_TYPE PSCSI_REQUEST_BLOCK
-#define PSRB_WMI_DATA PSCSI_WMI_REQUEST_BLOCK
-#define PSTOR_DEVICE_CAPABILITIES_TYPE PSTOR_DEVICE_CAPABILITIES
-#define SRB_EXTENSION(Srb) (PSRB_EXTENSION)Srb->SrbExtension
-#define SRB_FUNCTION(Srb) Srb->Function
-#define SRB_CDB(Srb) (PCDB)&Srb->Cdb[0]
-#define SRB_CDB_LENGTH(Srb) Srb->CdbLength
-#define SRB_FLAGS(Srb) Srb->SrbFlags
-#define SRB_PATH_ID(Srb) Srb->PathId
-#define SRB_TARGET_ID(Srb) Srb->TargetId
-#define SRB_LUN(Srb) Srb->Lun
-#define SRB_DATA_BUFFER(Srb) Srb->DataBuffer
-#define SRB_DATA_TRANSFER_LENGTH(Srb) Srb->DataTransferLength
-#define SRB_LENGTH(Srb) Srb->Length
-#define SRB_WMI_DATA(Srb) (PSCSI_WMI_REQUEST_BLOCK)Srb
-#define SRB_GET_SENSE_INFO(Srb, senseInfoBuffer, senseInfoBufferLen) senseInfoBuffer = Srb->SenseInfoBuffer;senseInfoBufferLen = Srb->SenseInfoBufferLength
-#define SRB_GET_PNP_INFO(Srb, PnPFlags, PnPAction) PnPFlags = ((PSCSI_PNP_REQUEST_BLOCK)Srb)->SrbPnPFlags; PnPAction = ((PSCSI_PNP_REQUEST_BLOCK)Srb)->PnPAction
-#define SRB_SET_SCSI_STATUS(Srb, status) Srb->ScsiStatus = status
-#define SRB_GET_SCSI_STATUS(Srb, status) status = Srb->ScsiStatus
-#define SRB_SET_SRB_STATUS(Srb, status) Srb->SrbStatus = status
-#define SRB_GET_SRB_STATUS(Srb, status) status = Srb->SrbStatus
-#define SRB_SET_DATA_TRANSFER_LENGTH(Srb, Len) Srb->DataTransferLength = Len
-#endif
 
 VOID
 SendSRB(
