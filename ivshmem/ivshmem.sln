@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.28010.2048
@@ -15,9 +15,6 @@ Global
 		Win10 Release|ARM64 = Win10 Release|ARM64
 		Win10 Release|x64 = Win10 Release|x64
 		Win10 Release|x86 = Win10 Release|x86
-		Win7 Release|ARM64 = Win7 Release|ARM64
-		Win7 Release|x64 = Win7 Release|x64
-		Win7 Release|x86 = Win7 Release|x86
 		Win8 Release|ARM64 = Win8 Release|ARM64
 		Win8 Release|x64 = Win8 Release|x64
 		Win8 Release|x86 = Win8 Release|x86
@@ -35,13 +32,6 @@ Global
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win10 Release|x86.Build.0 = Win10 Release|Win32
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win10 Release|x86.Deploy.0 = Win10 Release|Win32
-		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win7 Release|ARM64.ActiveCfg = Win7 Release|x64
-		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win7 Release|x64.ActiveCfg = Win7 Release|x64
-		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win7 Release|x64.Build.0 = Win7 Release|x64
-		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win7 Release|x64.Deploy.0 = Win7 Release|x64
-		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win7 Release|x86.ActiveCfg = Win7 Release|Win32
-		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win7 Release|x86.Build.0 = Win7 Release|Win32
-		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win7 Release|x86.Deploy.0 = Win7 Release|Win32
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8 Release|ARM64.ActiveCfg = Win8 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8 Release|x64.ActiveCfg = Win8 Release|x64
 		{03CA149C-ACBD-430E-A663-30D3A335F8A4}.Win8 Release|x64.Build.0 = Win8 Release|x64
@@ -62,11 +52,6 @@ Global
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win10 Release|x64.Build.0 = Win10 Release|x64
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win10 Release|x86.Build.0 = Win10 Release|Win32
-		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win7 Release|ARM64.ActiveCfg = Win10 Release|x64
-		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win7 Release|x64.ActiveCfg = Win10 Release|x64
-		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win7 Release|x64.Build.0 = Win10 Release|x64
-		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win7 Release|x86.ActiveCfg = Win10 Release|Win32
-		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win7 Release|x86.Build.0 = Win10 Release|Win32
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win8 Release|ARM64.ActiveCfg = Win10 Release|x64
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win8 Release|x64.ActiveCfg = Win10 Release|x64
 		{87AEE822-FF8B-4743-A567-8B46F4FA6D99}.Win8 Release|x64.Build.0 = Win10 Release|x64
