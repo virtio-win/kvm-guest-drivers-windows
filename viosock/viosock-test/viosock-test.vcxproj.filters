@@ -18,12 +18,18 @@
     <ClInclude Include="pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="socket.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="viosock-test.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="pch.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="socket.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

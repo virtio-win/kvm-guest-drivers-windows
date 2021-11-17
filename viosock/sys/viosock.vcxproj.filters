@@ -21,6 +21,7 @@
   <ItemGroup>
     <Inf Include="$(SourceInfFile)" />
     <Inf Include="$(SourceInfFile)" />
+    <Inf Include="$(SourceInfFile)" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="precomp.h">
@@ -64,6 +65,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Tx.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Loopback.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

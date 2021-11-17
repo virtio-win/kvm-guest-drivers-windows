@@ -24,6 +24,12 @@
     <ClCompile Include="utils.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="install.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="native.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="viosocklib.def">

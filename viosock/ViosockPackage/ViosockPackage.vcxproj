@@ -1,20 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Win7 Debug|Win32">
-      <Configuration>Win7 Debug</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Win8 Debug|Win32">
       <Configuration>Win8 Debug</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win10 Debug|Win32">
       <Configuration>Win10 Debug</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win7 Release|Win32">
-      <Configuration>Win7 Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win8 Release|Win32">
@@ -25,20 +17,12 @@
       <Configuration>Win10 Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Win7 Debug|x64">
-      <Configuration>Win7 Debug</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Win8 Debug|x64">
       <Configuration>Win8 Debug</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win10 Debug|x64">
       <Configuration>Win10 Debug</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win7 Release|x64">
-      <Configuration>Win7 Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win8 Release|x64">
@@ -101,20 +85,12 @@
   <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
-    <OutDir>$(ProjectDir)..\Install\win7\x86\</OutDir>
-    <Inf2CatWindowsVersionList>7_X86</Inf2CatWindowsVersionList>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <OutDir>$(ProjectDir)..\Install\win8\x86\</OutDir>
     <Inf2CatWindowsVersionList>8_X86</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <OutDir>$(ProjectDir)..\Install\win10\x86\</OutDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
-    <OutDir>$(ProjectDir)..\Install\win7\amd64\</OutDir>
-    <Inf2CatWindowsVersionList>7_X64,Server2008R2_X64</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <OutDir>$(ProjectDir)..\Install\win8\amd64\</OutDir>
@@ -127,20 +103,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">
     <OutDir>$(ProjectDir)..\Install\win10\ARM64\</OutDir>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
-    <OutDir>$(ProjectDir)..\Install_Debug\win7\x86\</OutDir>
-    <Inf2CatWindowsVersionList>7_X86</Inf2CatWindowsVersionList>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
     <OutDir>$(ProjectDir)..\Install_Debug\win8\x86\</OutDir>
     <Inf2CatWindowsVersionList>8_X86</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">
     <OutDir>$(ProjectDir)..\Install_Debug\win10\x86\</OutDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
-    <OutDir>$(ProjectDir)..\Install_Debug\win7\amd64\</OutDir>
-    <Inf2CatWindowsVersionList>7_X64,Server2008R2_X64</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
     <OutDir>$(ProjectDir)..\Install_Debug\win8\amd64\</OutDir>
