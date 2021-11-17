@@ -1,4 +1,4 @@
 @echo off
-call ..\tools\build.bat fwcfg.sln "Win7" x64 %*
+call ..\tools\build.bat fwcfg.sln "Win8 Win8.1 Win10" x64 %*
 if errorlevel 1 goto :eof
-call build_NoLegacy.bat
+call ..\tools\build.bat fwcfg.vcxproj "Win10_SDV" %*
