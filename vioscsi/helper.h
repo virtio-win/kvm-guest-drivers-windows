@@ -102,9 +102,7 @@ SrbGetPnpInfo(_In_ PVOID Srb, ULONG* PnPFlags, ULONG* PnPAction) {
 VOID
 SendSRB(
     IN PVOID DeviceExtension,
-    IN PSRB_TYPE Srb,
-    IN BOOLEAN isr,
-    IN ULONG MessageID
+    IN PSRB_TYPE Srb
     );
 
 BOOLEAN
@@ -207,6 +205,12 @@ VioScsiPoolAlloc(
     IN PVOID DeviceExtension,
     IN SIZE_T size
     );
+
+VOID
+CompleteRequest(
+    IN PVOID DeviceExtension,
+    IN PSRB_TYPE Srb
+ );
 
 #if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
 VOID FirmwareRequest(
