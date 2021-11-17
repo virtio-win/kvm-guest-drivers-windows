@@ -13,14 +13,6 @@
       <Configuration>Win10 Release</Configuration>
       <Platform>ARM64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Win7 Release|Win32">
-      <Configuration>Win7 Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win7 Release|x64">
-      <Configuration>Win7 Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Win8 Release|Win32">
       <Configuration>Win8 Release</Configuration>
       <Platform>Win32</Platform>
@@ -60,17 +52,6 @@
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win10_x86\i386</DEP_LIB_PATH>
     <SourceInfFile>netkvm.inx</SourceInfFile>
-    <InstallRoot>$(ProjectDir)Install</InstallRoot>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'" Label="Configuration">
-    <TargetVersion>Windows7</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <ConfigurationType>Driver</ConfigurationType>
-    <DriverType>WDM</DriverType>
-    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
-    <DEP_LIB_PATH>objfre_win7_x86\i386</DEP_LIB_PATH>
-    <SourceInfFile>netkvm_no_RSC.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'" Label="Configuration">
@@ -115,17 +96,6 @@
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win10_arm64\arm64</DEP_LIB_PATH>
     <SourceInfFile>netkvm.inx</SourceInfFile>
-    <InstallRoot>$(ProjectDir)Install</InstallRoot>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'" Label="Configuration">
-    <TargetVersion>Windows7</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <ConfigurationType>Driver</ConfigurationType>
-    <DriverType>WDM</DriverType>
-    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
-    <DEP_LIB_PATH>objfre_win7_amd64\amd64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm_no_RSC.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'" Label="Configuration">
@@ -212,12 +182,6 @@
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
-    <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1</PreprocessorDefinitions>
-      <EnablePREfast>false</EnablePREfast>
-    </ClCompile>
-  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
     <ClCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
@@ -227,12 +191,6 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <ClCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
-      <EnablePREfast>false</EnablePREfast>
-    </ClCompile>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
-    <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS620_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
   </ItemDefinitionGroup>
