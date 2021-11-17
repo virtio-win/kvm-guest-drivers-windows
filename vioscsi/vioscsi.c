@@ -574,9 +574,7 @@ ENTER_FN();
     }
     ConfigInfo->MaxIOsPerLun = adaptExt->queue_depth * adaptExt->num_queues;
     ConfigInfo->InitialLunQueueDepth = ConfigInfo->MaxIOsPerLun;
-    if (ConfigInfo->MaxIOsPerLun * ConfigInfo->MaximumNumberOfTargets > ConfigInfo->MaxNumberOfIO) {
-        ConfigInfo->MaxNumberOfIO = ConfigInfo->MaxIOsPerLun * ConfigInfo->MaximumNumberOfTargets;
-    }
+    ConfigInfo->MaxNumberOfIO = ConfigInfo->MaxIOsPerLun;
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " breaks_number = %x  queue_depth = %x\n",
                 ConfigInfo->NumberOfPhysicalBreaks,
