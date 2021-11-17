@@ -1,14 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Vista Release|Win32">
-      <Configuration>Vista Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Vista Release|x64">
-      <Configuration>Vista Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Win10 Release|Win32">
       <Configuration>Win10 Release</Configuration>
       <Platform>Win32</Platform>
@@ -81,20 +73,6 @@
     <SourceInfFile>netkvm_no_RSC.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'" Label="Configuration">
-    <TargetVersion>Windows7</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141_xp</PlatformToolset>
-    <ConfigurationType>Application</ConfigurationType>
-    <GenerateManifest>false</GenerateManifest>
-    <UseLegacyDDK>true</UseLegacyDDK>
-    <PlatformTarget>x86</PlatformTarget>
-    <ConfigurationName>VistaRelease</ConfigurationName>
-    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
-    <DEP_LIB_PATH>objfre_wlh_x86\i386</DEP_LIB_PATH>
-    <SourceInfFile>netkvm_no_RSS.inx</SourceInfFile>
-    <InstallRoot>$(ProjectDir)Install</InstallRoot>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'" Label="Configuration">
     <TargetVersion>WindowsV6.3</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -148,20 +126,6 @@
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win7_amd64\amd64</DEP_LIB_PATH>
     <SourceInfFile>netkvm_no_RSC.inx</SourceInfFile>
-    <InstallRoot>$(ProjectDir)Install</InstallRoot>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'" Label="Configuration">
-    <TargetVersion>Windows7</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141_xp</PlatformToolset>
-    <ConfigurationType>Application</ConfigurationType>
-    <GenerateManifest>false</GenerateManifest>
-    <UseLegacyDDK>true</UseLegacyDDK>
-    <PlatformTarget>x64</PlatformTarget>
-    <ConfigurationName>VistaRelease</ConfigurationName>
-    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
-    <DEP_LIB_PATH>objfre_wlh_amd64\amd64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm_no_RSS.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'" Label="Configuration">
@@ -254,25 +218,6 @@
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
-    <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);.;Common</AdditionalIncludeDirectories>
-      <EnablePREfast>false</EnablePREfast>
-    </ClCompile>
-    <Link>
-      <AdditionalDependencies>ndis.lib;..\VirtIO\$(DEP_LIB_PATH)\virtiolib.lib;hal.lib;ntoskrnl.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <EntryPointSymbol>GsDriverEntry@8</EntryPointSymbol>
-      <OptimizeReferences>true</OptimizeReferences>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
-    </Link>
-    <PostBuildEvent>
-      <Command>
-        inf2cat /driver:$(OutDir) /os:Vista_X86 /uselocaltime
-        %(Command)
-      </Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
     <ClCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
@@ -296,25 +241,6 @@
       <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS630_MINIPORT=1</PreprocessorDefinitions>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
-    <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDIS60_MINIPORT=1</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);.;Common</AdditionalIncludeDirectories>
-      <EnablePREfast>false</EnablePREfast>
-    </ClCompile>
-    <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);ndis.lib;..\VirtIO\$(DEP_LIB_PATH)\virtiolib.lib</AdditionalDependencies>
-      <EntryPointSymbol>GsDriverEntry</EntryPointSymbol>
-      <OptimizeReferences>true</OptimizeReferences>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
-    </Link>
-    <PostBuildEvent>
-      <Command>
-        inf2cat /driver:$(OutDir) /os:Vista_X64 /uselocaltime
-        %(Command)
-      </Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <ClCompile>
