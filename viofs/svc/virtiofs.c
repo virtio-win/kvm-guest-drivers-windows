@@ -45,6 +45,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <wtsapi32.h>
+#include <cfgmgr32.h>
 
 #include "virtiofs.h"
 #include "fusereq.h"
@@ -76,9 +77,26 @@
 
 typedef struct
 {
+    HCMNOTIFICATION     Handle;
+    CRITICAL_SECTION    Lock;
+    BOOL                Unregister;
+    PTP_WORK            UnregWork;
+} VIRTFS_NOTIFICATION;
+
+typedef struct
+{
     FSP_FILE_SYSTEM *FileSystem;
-    
+
     HANDLE  Device;
+
+    ULONG   DebugFlags;
+
+    // Used to handle device arrive notification.
+    HCMNOTIFICATION     DevInterfaceNotification;
+    // Used to handle device remove notification.
+    VIRTFS_NOTIFICATION DevHandleNotification;
+
+    PWSTR   MountPoint;
 
     // A write request buffer size must not exceed this value.
     UINT32  MaxWrite;
@@ -116,6 +134,16 @@ static VOID FixReparsePointAttributes(VIRTFS *VirtFs, uint64_t nodeid,
 static NTSTATUS VirtFsLookupFileName(HANDLE Device, PWSTR FileName,
     FUSE_LOOKUP_OUT *LookupOut);
 
+static NTSTATUS VirtFsStart(VIRTFS *VirtFs);
+
+static VOID VirtFsDelete(VIRTFS *VirtFs);
+
+static DWORD FindDeviceInterface(PHANDLE Device);
+
+static DWORD WINAPI DeviceNotificationCallback(HCMNOTIFICATION Notify,
+    PVOID Context, CM_NOTIFY_ACTION Action, PCM_NOTIFY_EVENT_DATA EventData,
+    DWORD EventDataSize);
+
 static int64_t GetUniqueIdentifier()
 {
     static int64_t uniq = 1;
@@ -135,6 +163,197 @@ static void FUSE_HEADER_INIT(struct fuse_in_header *hdr, uint32_t opcode,
     hdr->pid = GetCurrentProcessId();
 }
 
+VOID WINAPI UnregisterNotificationWork(PTP_CALLBACK_INSTANCE Instance,
+    PVOID Context, PTP_WORK Work)
+{
+    VIRTFS_NOTIFICATION *Notification = Context;
+
+    UNREFERENCED_PARAMETER(Instance);
+    UNREFERENCED_PARAMETER(Work);
+
+    CM_Unregister_Notification(Notification->Handle);
+}
+
+static VOID VirtFsNotificationUnreg(VIRTFS_NOTIFICATION *Notification)
+{
+    BOOL ShouldUnregister = FALSE;
+
+    EnterCriticalSection(&Notification->Lock);
+
+    if (!Notification->Unregister)
+    {
+        Notification->Unregister = TRUE;
+        ShouldUnregister = TRUE;
+    }
+
+    LeaveCriticalSection(&Notification->Lock);
+
+    if (ShouldUnregister)
+    {
+        CM_Unregister_Notification(Notification->Handle);
+    }
+    else
+    {
+        WaitForThreadpoolWorkCallbacks(Notification->UnregWork, FALSE);
+    }
+}
+
+// Must be used instead of VirtFsNotificationUnreg when unregistering
+// device notification callback from itself.
+static VOID VirtFsNotificationAsyncUnreg(VIRTFS_NOTIFICATION *Notification)
+{
+    EnterCriticalSection(&Notification->Lock);
+
+    if (!Notification->Unregister)
+    {
+        Notification->Unregister = TRUE;
+        SubmitThreadpoolWork(Notification->UnregWork);
+    }
+
+    LeaveCriticalSection(&Notification->Lock);
+}
+
+static BOOL VirtFsNotificationCreate(VIRTFS_NOTIFICATION *Notification)
+{
+    InitializeCriticalSection(&Notification->Lock);
+
+    Notification->UnregWork = CreateThreadpoolWork(UnregisterNotificationWork,
+            Notification, NULL);
+    if (Notification->UnregWork == NULL)
+    {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+static VOID VirtFsNotificationDelete(VIRTFS_NOTIFICATION *Notification)
+{
+    CloseThreadpoolWork(Notification->UnregWork);
+    DeleteCriticalSection(&Notification->Lock);
+}
+
+static DWORD VirtFsRegDevHandleNotification(VIRTFS *VirtFs)
+{
+    HCMNOTIFICATION Handle = NULL;
+    CM_NOTIFY_FILTER Filter;
+    CONFIGRET ConfigRet;
+
+    ZeroMemory(&Filter, sizeof(Filter));
+    Filter.cbSize = sizeof(Filter);
+    Filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEHANDLE;
+    Filter.u.DeviceHandle.hTarget = VirtFs->Device;
+
+    ConfigRet = CM_Register_Notification(&Filter, VirtFs,
+            DeviceNotificationCallback, &Handle);
+
+    if (ConfigRet == CR_SUCCESS)
+    {
+        VirtFs->DevHandleNotification.Handle = Handle;
+        VirtFs->DevHandleNotification.Unregister = FALSE;
+    }
+
+    return CM_MapCrToWin32Err(ConfigRet, ERROR_NOT_SUPPORTED);
+}
+
+static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
+{
+    DWORD Error;
+    NTSTATUS Status;
+    VIRTFS_NOTIFICATION *Notification = &VirtFs->DevHandleNotification;
+
+    DBG("Notify = 0x%x", Notify);
+
+    // Wait for unregister work to end, if any.
+    WaitForThreadpoolWorkCallbacks(Notification->UnregWork, FALSE);
+
+    Error = FindDeviceInterface(&VirtFs->Device);
+    if (Error != ERROR_SUCCESS)
+    {
+        return Error;
+    }
+
+    Error = VirtFsRegDevHandleNotification(VirtFs);
+    if (Error != ERROR_SUCCESS)
+    {
+        goto out_close_handle;
+    }
+
+    Status = VirtFsStart(VirtFs);
+    if (!NT_SUCCESS(Status))
+    {
+        Error = FspWin32FromNtStatus(Status);
+        goto out_unreg_dh_notify;
+    }
+
+    return ERROR_SUCCESS;
+
+out_unreg_dh_notify:
+    VirtFsNotificationAsyncUnreg(&VirtFs->DevHandleNotification);
+out_close_handle:
+    CloseHandle(VirtFs->Device);
+
+    return Error;
+}
+
+static VOID VirtFsDevQueryRemove(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
+{
+    DBG("Notify = 0x%x", Notify);
+
+    FspFileSystemStopDispatcher(VirtFs->FileSystem);
+    VirtFsDelete(VirtFs);
+    VirtFsNotificationAsyncUnreg(&VirtFs->DevHandleNotification);
+}
+
+DWORD WINAPI DeviceNotificationCallback(HCMNOTIFICATION Notify,
+    PVOID Context, CM_NOTIFY_ACTION Action, PCM_NOTIFY_EVENT_DATA EventData,
+    DWORD EventDataSize)
+{
+    VIRTFS *VirtFs = Context;
+    DWORD Result = ERROR_SUCCESS;
+
+    UNREFERENCED_PARAMETER(EventData);
+    UNREFERENCED_PARAMETER(EventDataSize);
+
+    switch (Action)
+    {
+        case CM_NOTIFY_ACTION_DEVICEINTERFACEARRIVAL:
+        case CM_NOTIFY_ACTION_DEVICEQUERYREMOVEFAILED:
+            Result = VirtFsDevInterfaceArrival(VirtFs, Notify);
+            break;
+        case CM_NOTIFY_ACTION_DEVICEQUERYREMOVE:
+        case CM_NOTIFY_ACTION_DEVICEREMOVECOMPLETE:
+            VirtFsDevQueryRemove(VirtFs, Notify);
+            break;
+        default:
+            break;
+    }
+
+    return Result;
+}
+
+static DWORD VirtFsRegDevInterfaceNotification(VIRTFS *VirtFs)
+{
+    HCMNOTIFICATION Handle = NULL;
+    CM_NOTIFY_FILTER Filter;
+    CONFIGRET ConfigRet;
+
+    ZeroMemory(&Filter, sizeof(Filter));
+    Filter.cbSize = sizeof(Filter);
+    Filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE;
+    Filter.u.DeviceInterface.ClassGuid = GUID_DEVINTERFACE_VIRT_FS;
+
+    ConfigRet = CM_Register_Notification(&Filter, VirtFs,
+            DeviceNotificationCallback, &Handle);
+
+    if (ConfigRet == CR_SUCCESS)
+    {
+        VirtFs->DevInterfaceNotification = Handle;
+    }
+
+    return CM_MapCrToWin32Err(ConfigRet, ERROR_NOT_SUPPORTED);
+}
+
 static VOID VirtFsDelete(VIRTFS *VirtFs)
 {
     if (VirtFs->FileSystem != NULL)
@@ -148,11 +367,9 @@ static VOID VirtFsDelete(VIRTFS *VirtFs)
         CloseHandle(VirtFs->Device);
         VirtFs->Device = INVALID_HANDLE_VALUE;
     }
-
-    SafeHeapFree(VirtFs);
 }
 
-static NTSTATUS FindDeviceInterface(PHANDLE Device)
+static DWORD FindDeviceInterface(PHANDLE Device)
 {
     WCHAR DevicePath[MAX_PATH];
     HDEVINFO DevInfo;
@@ -161,13 +378,14 @@ static NTSTATUS FindDeviceInterface(PHANDLE Device)
     PSP_DEVICE_INTERFACE_DETAIL_DATA DevIfaceDetail = NULL;
     ULONG Length, RequiredLength = 0;
     BOOL Result;
+    DWORD Error;
 
     DevInfo = SetupDiGetClassDevs(&GUID_DEVINTERFACE_VIRT_FS, NULL, NULL,
         (DIGCF_PRESENT | DIGCF_DEVICEINTERFACE));
 
     if (DevInfo == INVALID_HANDLE_VALUE)
     {
-        return FspNtStatusFromWin32(GetLastError());;
+        return GetLastError();
     }
 
     DevIfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
@@ -177,8 +395,9 @@ static NTSTATUS FindDeviceInterface(PHANDLE Device)
 
     if (Result == FALSE)
     {
+        Error = GetLastError();
         SetupDiDestroyDeviceInfoList(DevInfo);
-        return FspNtStatusFromWin32(GetLastError());
+        return Error;
     }
 
     SetupDiGetDeviceInterfaceDetail(DevInfo, &DevIfaceData, NULL, 0,
@@ -187,8 +406,9 @@ static NTSTATUS FindDeviceInterface(PHANDLE Device)
     DevIfaceDetail = LocalAlloc(LMEM_FIXED, RequiredLength);
     if (DevIfaceDetail == NULL)
     {
+        Error = GetLastError();
         SetupDiDestroyDeviceInfoList(DevInfo);
-        return FspNtStatusFromWin32(GetLastError());
+        return Error;
     }
 
     DevIfaceDetail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
@@ -199,9 +419,10 @@ static NTSTATUS FindDeviceInterface(PHANDLE Device)
 
     if (Result == FALSE)
     {
+        Error = GetLastError();
         LocalFree(DevIfaceDetail);
         SetupDiDestroyDeviceInfoList(DevInfo);
-        return FspNtStatusFromWin32(GetLastError());
+        return Error;
     }
 
     wcscpy_s(DevicePath, sizeof(DevicePath) / sizeof(WCHAR),
@@ -219,10 +440,10 @@ static NTSTATUS FindDeviceInterface(PHANDLE Device)
 
     if (*Device == INVALID_HANDLE_VALUE)
     {
-        return FspNtStatusFromWin32(GetLastError());
+        return GetLastError();
     }
 
-    return STATUS_SUCCESS;
+    return ERROR_SUCCESS;
 }
 
 static VOID UpdateLocalUidGid(VIRTFS *VirtFs, DWORD SessionId)
@@ -2132,6 +2353,96 @@ static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
     return L'\0' != w[0] && L'\0' == *endp ? ul : deflt;
 }
 
+static NTSTATUS VirtFsStart(VIRTFS *VirtFs)
+{
+    NTSTATUS Status;
+    FUSE_INIT_IN init_in;
+    FUSE_INIT_OUT init_out;
+    DWORD SessionId;
+    FILETIME FileTime;
+    FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+
+    FUSE_HEADER_INIT(&init_in.hdr, FUSE_INIT, FUSE_ROOT_ID,
+        sizeof(init_in.init));
+
+    init_in.init.major = FUSE_KERNEL_VERSION;
+    init_in.init.minor = FUSE_KERNEL_MINOR_VERSION;
+    init_in.init.max_readahead = 0;
+    init_in.init.flags = FUSE_DO_READDIRPLUS;
+
+    Status = VirtFsFuseRequest(VirtFs->Device, &init_in, sizeof(init_in),
+        &init_out, sizeof(init_out));
+
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    VirtFs->MaxWrite = init_out.init.max_write;
+
+    SessionId = WTSGetActiveConsoleSessionId();
+    if (SessionId != 0xFFFFFFFF)
+    {
+        UpdateLocalUidGid(VirtFs, SessionId);
+    }
+
+    GetSystemTimeAsFileTime(&FileTime);
+
+    ZeroMemory(&VolumeParams, sizeof(VolumeParams));
+    VolumeParams.Version = sizeof(FSP_FSCTL_VOLUME_PARAMS);
+    VolumeParams.SectorSize = ALLOCATION_UNIT;
+    VolumeParams.SectorsPerAllocationUnit = 1;
+    VolumeParams.VolumeCreationTime = ((PLARGE_INTEGER)&FileTime)->QuadPart;
+//    VolumeParams.VolumeSerialNumber = 0;
+    VolumeParams.FileInfoTimeout = 1000;
+    VolumeParams.CaseSensitiveSearch = 1;
+    VolumeParams.CasePreservedNames = 1;
+    VolumeParams.UnicodeOnDisk = 1;
+    VolumeParams.PersistentAcls = 1;
+    VolumeParams.ReparsePoints = 1;
+    VolumeParams.ReparsePointsAccessCheck = 0;
+    VolumeParams.PostCleanupWhenModifiedOnly = 1;
+//    VolumeParams.PassQueryDirectoryPattern = 1;
+    VolumeParams.PassQueryDirectoryFileName = 1;
+    VolumeParams.FlushAndPurgeOnCleanup = 1;
+    VolumeParams.UmFileContextIsUserContext2 = 1;
+//    VolumeParams.DirectoryMarkerAsNextOffset = 1;
+    wcscpy_s(VolumeParams.FileSystemName,
+        sizeof(VolumeParams.FileSystemName) / sizeof(WCHAR), FS_SERVICE_NAME);
+
+    Status = FspFileSystemCreate(TEXT(FSP_FSCTL_DISK_DEVICE_NAME),
+        &VolumeParams, &VirtFsInterface, &VirtFs->FileSystem);
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+    VirtFs->FileSystem->UserContext = VirtFs;
+
+    FspFileSystemSetDebugLog(VirtFs->FileSystem, VirtFs->DebugFlags);
+
+    Status = FspFileSystemSetMountPoint(VirtFs->FileSystem,
+        lstrcmp(VirtFs->MountPoint, TEXT("*")) ? VirtFs->MountPoint : NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        goto out_del_fs;
+    }
+
+    Status = FspFileSystemStartDispatcher(VirtFs->FileSystem, 0);
+    if (!NT_SUCCESS(Status))
+    {
+        FspServiceLog(EVENTLOG_ERROR_TYPE,
+            TEXT("Failed to mount virtio-fs file system."));
+        goto out_del_fs;
+    }
+
+    return STATUS_SUCCESS;
+
+out_del_fs:
+    FspFileSystemDelete(VirtFs->FileSystem);
+
+    return Status;
+}
+
 static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
 #define argtos(v) if (arge > ++argp) v = *argp; else goto usage
@@ -2139,17 +2450,14 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     else goto usage
 
     wchar_t **argp, **arge;
-    FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     PWSTR DebugLogFile = 0;
     ULONG DebugFlags = 0;
     HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
     PWSTR MountPoint = TEXT("*");
+    SIZE_T MountPointSize;
     VIRTFS *VirtFs;
-    DWORD SessionId;
-    FILETIME FileTime;
     NTSTATUS Status;
-    FUSE_INIT_IN init_in;
-    FUSE_INIT_OUT init_out;
+    DWORD Error;
 
     for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
     {
@@ -2209,95 +2517,53 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     {
         return STATUS_INSUFFICIENT_RESOURCES;
     }
+    Service->UserContext = VirtFs;
 
-    Status = FindDeviceInterface(&VirtFs->Device);
+    VirtFs->DebugFlags = DebugFlags;
+
+    MountPointSize = (lstrlenW(MountPoint) + 1) * sizeof(WCHAR);
+    VirtFs->MountPoint = HeapAlloc(GetProcessHeap(), 0, MountPointSize);
+    if (MountPoint == NULL)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto out_free_virtfs;
+    }
+    CopyMemory(VirtFs->MountPoint, MountPoint, MountPointSize);
+
+    if (!VirtFsNotificationCreate(&VirtFs->DevHandleNotification))
+    {
+        Status = STATUS_UNSUCCESSFUL;
+        goto out_free_mpoint;
+    }
+
+    Error = VirtFsRegDevInterfaceNotification(VirtFs);
+    if (Error != ERROR_SUCCESS)
+    {
+        Status = FspNtStatusFromWin32(Error);
+        goto out_delete_dh_notify;
+    }
+
+    Error = FindDeviceInterface(&VirtFs->Device);
+    if (Error != ERROR_SUCCESS)
+    {
+        Status = FspNtStatusFromWin32(Error);
+        goto out_unreg_di_notify;
+    }
+
+    Error = VirtFsRegDevHandleNotification(VirtFs);
+    if (Error != ERROR_SUCCESS)
+    {
+        Status = FspNtStatusFromWin32(Error);
+        goto out_close_handle;
+    }
+
+    Status = VirtFsStart(VirtFs);
     if (!NT_SUCCESS(Status))
     {
-        VirtFsDelete(VirtFs);
-        return Status;
+        goto out_unreg_dh_notify;
     }
 
-    FUSE_HEADER_INIT(&init_in.hdr, FUSE_INIT, FUSE_ROOT_ID,
-        sizeof(init_in.init));
-
-    init_in.init.major = FUSE_KERNEL_VERSION;
-    init_in.init.minor = FUSE_KERNEL_MINOR_VERSION;
-    init_in.init.max_readahead = 0;
-    init_in.init.flags = FUSE_DO_READDIRPLUS;
-
-    Status = VirtFsFuseRequest(VirtFs->Device, &init_in, sizeof(init_in),
-        &init_out, sizeof(init_out));
-
-    if (!NT_SUCCESS(Status))
-    {
-        VirtFsDelete(VirtFs);
-        return Status;
-    }
-
-    VirtFs->MaxWrite = init_out.init.max_write;
-
-    SessionId = WTSGetActiveConsoleSessionId();
-    if (SessionId != 0xFFFFFFFF)
-    {
-        UpdateLocalUidGid(VirtFs, SessionId);
-    }
-
-    GetSystemTimeAsFileTime(&FileTime);
-
-    ZeroMemory(&VolumeParams, sizeof(VolumeParams));
-    VolumeParams.Version = sizeof(FSP_FSCTL_VOLUME_PARAMS);
-    VolumeParams.SectorSize = ALLOCATION_UNIT;
-    VolumeParams.SectorsPerAllocationUnit = 1;
-    VolumeParams.VolumeCreationTime = ((PLARGE_INTEGER)&FileTime)->QuadPart;
-//    VolumeParams.VolumeSerialNumber = 0;
-    VolumeParams.FileInfoTimeout = 1000;
-    VolumeParams.CaseSensitiveSearch = 1;
-    VolumeParams.CasePreservedNames = 1;
-    VolumeParams.UnicodeOnDisk = 1;
-    VolumeParams.PersistentAcls = 1;
-    VolumeParams.ReparsePoints = 1;
-    VolumeParams.ReparsePointsAccessCheck = 0;
-    VolumeParams.PostCleanupWhenModifiedOnly = 1;
-//    VolumeParams.PassQueryDirectoryPattern = 1;
-    VolumeParams.PassQueryDirectoryFileName = 1;
-    VolumeParams.FlushAndPurgeOnCleanup = 1;
-    VolumeParams.UmFileContextIsUserContext2 = 1;
-//    VolumeParams.DirectoryMarkerAsNextOffset = 1;
-    wcscpy_s(VolumeParams.FileSystemName,
-        sizeof(VolumeParams.FileSystemName) / sizeof(WCHAR), FS_SERVICE_NAME);
-
-    Status = FspFileSystemCreate(TEXT(FSP_FSCTL_DISK_DEVICE_NAME),
-        &VolumeParams, &VirtFsInterface, &VirtFs->FileSystem);
-
-    if (!NT_SUCCESS(Status))
-    {
-        VirtFsDelete(VirtFs);
-        return Status;
-    }
-
-    FspFileSystemSetDebugLog(VirtFs->FileSystem, DebugFlags);
-
-    VirtFs->FileSystem->UserContext = Service->UserContext = VirtFs;
-
-    Status = FspFileSystemSetMountPoint(VirtFs->FileSystem,
-        (lstrcmp(MountPoint, TEXT("*")) == 0) ? NULL : MountPoint);
-
-    if (NT_SUCCESS(Status))
-    {
-        Status = FspFileSystemStartDispatcher(VirtFs->FileSystem, 0);
-    }
-    else
-    {
-        FspServiceLog(EVENTLOG_ERROR_TYPE,
-            TEXT("Failed to mount virtio-fs file system."));
-    }
-
-    if (!NT_SUCCESS(Status))
-    {
-        VirtFsDelete(VirtFs);
-    }
-
-    return Status;
+    return STATUS_SUCCESS;
 
 usage:
     static wchar_t usage[] = L""
@@ -2312,6 +2578,21 @@ usage:
 
     return STATUS_UNSUCCESSFUL;
 
+out_unreg_dh_notify:
+    VirtFsNotificationUnreg(&VirtFs->DevHandleNotification);
+out_close_handle:
+    CloseHandle(VirtFs->Device);
+out_unreg_di_notify:
+    CM_Unregister_Notification(VirtFs->DevInterfaceNotification);
+out_delete_dh_notify:
+    VirtFsNotificationDelete(&VirtFs->DevHandleNotification);
+out_free_mpoint:
+    SafeHeapFree(VirtFs->MountPoint);
+out_free_virtfs:
+    SafeHeapFree(VirtFs);
+
+    return Status;
+
 #undef argtos
 #undef argtol
 }
@@ -2322,6 +2603,11 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
 
     FspFileSystemStopDispatcher(VirtFs->FileSystem);
     VirtFsDelete(VirtFs);
+    VirtFsNotificationUnreg(&VirtFs->DevHandleNotification);
+    VirtFsNotificationDelete(&VirtFs->DevHandleNotification);
+    CM_Unregister_Notification(VirtFs->DevInterfaceNotification);
+    SafeHeapFree(VirtFs->MountPoint);
+    SafeHeapFree(VirtFs);
 
     return STATUS_SUCCESS;
 }
