@@ -774,14 +774,6 @@ ENTER_FN();
         if (!InitializeVirtualQueues(adaptExt, adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0)) {
             return FALSE;
         }
-
-#ifdef USE_CPU_TO_VQ_MAP
-        if (!CHECKFLAG(adaptExt->perfFlags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
-            for (index = 0; index < adaptExt->num_queues; ++index) {
-                adaptExt->cpu_to_vq_map[index] = (UCHAR)(index);
-            }
-        }
-#endif // USE_CPU_TO_VQ_MAP
     }
     else
     {
@@ -871,23 +863,6 @@ ENTER_FN();
                     adaptExt->perfFlags = 0;
                     RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortInitializePerfOpts set failed with status = 0x%x\n", status);
                 }
-#ifdef USE_CPU_TO_VQ_MAP
-                else if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY)){
-                    UCHAR msg = 0;
-                    PGROUP_AFFINITY ga;
-                    UCHAR cpu = 0;
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, " Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
-                        perfData.Version, perfData.Flags, perfData.ConcurrentChannels, perfData.FirstRedirectionMessageNumber, perfData.LastRedirectionMessageNumber);
-                    for (msg = 0; msg < adaptExt->num_queues + 3; msg++) {
-                        ga = &adaptExt->pmsg_affinity[msg];
-                        if ( ga->Mask > 0 && msg > 2) {
-                            cpu = RtlFindLeastSignificantBit((ULONGLONG)ga->Mask);
-                            adaptExt->cpu_to_vq_map[cpu] = MESSAGE_TO_QUEUE(msg) - VIRTIO_SCSI_REQUEST_QUEUE_0;
-                            RhelDbgPrint(TRACE_LEVEL_FATAL, " msg = %d, mask = 0x%lx group = %hu cpu = %hu vq = %hu\n", msg, ga->Mask, ga->Group, cpu, adaptExt->cpu_to_vq_map[cpu]);
-                        }
-                    }
-                }
-#endif // USE_CPU_TO_VQ_MAP
             }
             else {
                 RhelDbgPrint(TRACE_LEVEL_INFORMATION, " StorPortInitializePerfOpts get failed with status = 0x%x\n", status);
@@ -1292,15 +1267,6 @@ VioScsiBuildIo(
     VirtIOSCSICmd         *cmd;
     UCHAR                 TargetId;
     UCHAR                 Lun;
-#ifdef USE_CPU_TO_VQ_MAP
-#if (NTDDI_VERSION >= NTDDI_WIN7)
-    PROCESSOR_NUMBER ProcNumber;
-    ULONG processor = KeGetCurrentProcessorNumberEx(&ProcNumber);
-    ULONG cpu = ProcNumber.Number;
-#else
-    ULONG cpu = KeGetCurrentProcessorNumber();
-#endif
-#endif
 
 ENTER_FN_SRB();
     cdb      = SRB_CDB(Srb);
@@ -1326,9 +1292,6 @@ ENTER_FN_SRB();
     srbExt->psgl = srbExt->vio_sg;
     srbExt->pdesc = srbExt->desc_alias;
 
-#ifdef USE_CPU_TO_VQ_MAP
-    srbExt->cpu = (UCHAR)cpu;
-#endif
     cmd = &srbExt->cmd;
     cmd->srb = (PVOID)Srb;
     cmd->req.cmd.lun[0] = 1;

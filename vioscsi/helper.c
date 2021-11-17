@@ -65,9 +65,6 @@ ENTER_FN_SRB();
 
     if (Srb) {
         if (adaptExt->num_queues > 1) {
-#ifdef USE_CPU_TO_VQ_MAP
-        QueueNumber = adaptExt->cpu_to_vq_map[srbExt->cpu] + VIRTIO_SCSI_REQUEST_QUEUE_0;
-#else // USE_CPU_TO_VQ_MAP
             STARTIO_PERFORMANCE_PARAMETERS param;
             param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
             status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
@@ -86,7 +83,6 @@ ENTER_FN_SRB();
         srbExt->vq_num = QueueNumber;
         element = &adaptExt->pending_list[QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0];
         ExInterlockedInsertTailList(&element->srb_list, &srbExt->list_entry, &element->srb_list_lock);
-#endif // USE_CPU_TO_VQ_MAP
     }
     else {
         QueueNumber = MESSAGE_TO_QUEUE(MessageID);

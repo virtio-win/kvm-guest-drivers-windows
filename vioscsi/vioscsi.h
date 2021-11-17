@@ -254,9 +254,6 @@ typedef struct _SRB_EXTENSION {
     PVRING_DESC_ALIAS     pdesc;
     VIO_SG                vio_sg[VIRTIO_MAX_SG];
     VRING_DESC_ALIAS      desc_alias[VIRTIO_MAX_SG];
-#ifdef USE_CPU_TO_VQ_MAP
-    ULONG                 cpu;
-#endif // USE_CPU_TO_VQ_MAP
 }SRB_EXTENSION, * PSRB_EXTENSION;
 #pragma pack()
 
@@ -317,9 +314,6 @@ typedef struct _ADAPTER_EXTENSION {
     PVirtIOSCSIEventNode  events;
 
     ULONG                 num_queues;
-#ifdef USE_CPU_TO_VQ_MAP
-    UCHAR                 cpu_to_vq_map[MAX_CPU];
-#endif
     REQUEST_LIST          pending_list[MAX_CPU];
     ULONG                 perfFlags;
     PGROUP_AFFINITY       pmsg_affinity;
