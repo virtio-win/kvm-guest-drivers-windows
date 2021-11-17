@@ -137,13 +137,6 @@ PostProcessRequest(
 
 VOID
 FORCEINLINE
-CompleteRequest(
-    IN PVOID DeviceExtension,
-    IN PSRB_TYPE Srb
-    );
-
-VOID
-FORCEINLINE
 DispatchQueue(
     IN PVOID DeviceExtension,
     IN ULONG MessageID
@@ -872,7 +865,7 @@ ENTER_FN_SRB();
     }
     else
     {
-        SendSRB(DeviceExtension, (PSRB_TYPE)Srb, FALSE, -1);
+        SendSRB(DeviceExtension, (PSRB_TYPE)Srb);
     }
 EXIT_FN_SRB();
     return TRUE;
@@ -1350,13 +1343,10 @@ ProcessQueue(
     STOR_LOCK_HANDLE    queueLock = { 0 };
     struct virtqueue    *vq;
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    LIST_ENTRY          complete_list;
     PSRB_TYPE           Srb = NULL;
     PSRB_EXTENSION      srbExt = NULL;
 ENTER_FN();
-
     vq = adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + index];
-    InitializeListHead(&complete_list);
 
     VioScsiVQLock(DeviceExtension, MessageID, &queueLock, isr);
 
@@ -1365,18 +1355,11 @@ ENTER_FN();
         while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(vq, &len)) != NULL) {
             Srb = (PSRB_TYPE)(cmd->srb);
             srbExt = SRB_EXTENSION(Srb);
-            InsertTailList(&complete_list, &srbExt->list_entry);
+            HandleResponse(DeviceExtension, cmd);
         }
     } while (!virtqueue_enable_cb(vq));
 
     VioScsiVQUnlock(DeviceExtension, MessageID, &queueLock, isr);
-
-    SendSRB(DeviceExtension, NULL, isr, MessageID);
-
-    while (!IsListEmpty(&complete_list)) {
-        srbExt = (PSRB_EXTENSION)RemoveHeadList(&complete_list);
-        HandleResponse(DeviceExtension, &srbExt->cmd);
-    }
 
 EXIT_FN();
 }

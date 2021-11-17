@@ -43,88 +43,80 @@
 VOID
 SendSRB(
     IN PVOID DeviceExtension,
-    IN PSRB_TYPE Srb,
-    IN BOOLEAN isr,
-    IN ULONG MessageID
+    IN PSRB_TYPE Srb
     )
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSRB_EXTENSION      srbExt   = NULL;
     PVOID               va = NULL;
     ULONGLONG           pa = 0;
-    ULONG               QueueNumber = 0;
-    ULONG               OldIrql = 0;
-    BOOLEAN             notify = FALSE;
+    ULONG               QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
-    PREQUEST_LIST       element = NULL;
-
+    ULONG MessageID;
+    int res = 0;
+    PREQUEST_LIST       element;
+    ULONG               index;
 ENTER_FN_SRB();
 
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " SRB %p isr %d, MessageId %x.\n", Srb, isr, MessageID);
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " SRB %p.\n", Srb);
 
-    if (Srb) {
-        if (adaptExt->num_queues > 1) {
-            STARTIO_PERFORMANCE_PARAMETERS param;
-            param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
-            status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
-            if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
-                QueueNumber = MESSAGE_TO_QUEUE(param.MessageNumber);
-            }
-            else {
-                RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed srb %p status 0x%x MessageNumber %d.\n", Srb, status, param.MessageNumber);
-                QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
-            }
+    if (!Srb)
+        return;
+
+    if (adaptExt->num_queues > 1) {
+        STARTIO_PERFORMANCE_PARAMETERS param;
+        param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
+        status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
+        if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
+            QueueNumber = MESSAGE_TO_QUEUE(param.MessageNumber);
+        } else {
+            RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed srb %p status 0x%x MessageNumber %d.\n", Srb, status, param.MessageNumber);
         }
-        else {
-            QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
-        }
-        srbExt = SRB_EXTENSION(Srb);
-        srbExt->vq_num = QueueNumber;
-        element = &adaptExt->pending_list[QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0];
-        ExInterlockedInsertTailList(&element->srb_list, &srbExt->list_entry, &element->srb_list_lock);
-    }
-    else {
-        QueueNumber = MESSAGE_TO_QUEUE(MessageID);
-        element = &adaptExt->pending_list[QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0];
     }
 
-    srbExt = (PSRB_EXTENSION)ExInterlockedRemoveHeadList(&element->srb_list, &element->srb_list_lock);
+    srbExt = SRB_EXTENSION(Srb);
 
     if (!srbExt) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " No SRB Ext after ExInterlockedRemoveHeadList QueueNumber (%d) \n", QueueNumber);
         return;
     }
 
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " ExInterlockedRemoveHeadList SRB %p srbExt %p, QueueNumber %d vq_num %d.\n", srbExt->Srb, srbExt, QueueNumber, srbExt->vq_num);
-
     MessageID = QUEUE_TO_MESSAGE(QueueNumber);
+    index = QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0;
 
-    VioScsiVQLock(DeviceExtension, MessageID, &LockHandle, isr);
-
-    while (srbExt) {
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " add packet to queue (%d) SRB = %p isr = %d.\n", QueueNumber, srbExt->Srb, isr);
-        SET_VA_PA();
-        if (virtqueue_add_buf(adaptExt->vq[QueueNumber],
-                         srbExt->psgl,
-                         srbExt->out, srbExt->in,
-                         &srbExt->cmd, va, pa) >= 0){
-            notify  = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]) ? TRUE : notify;
-            srbExt = (PSRB_EXTENSION)ExInterlockedRemoveHeadList(&element->srb_list, &element->srb_list_lock);
-        }
-        else {
-            RhelDbgPrint(TRACE_LEVEL_FATAL, " can not add packet to queue (%d) SRB = %p .\n", QueueNumber, srbExt->Srb);
-            ExInterlockedInsertHeadList(&element->srb_list, &srbExt->list_entry, &element->srb_list_lock);
-            notify = TRUE;
-            srbExt = NULL;
-        }
+    if (adaptExt->reset_in_progress) {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, "WHAT ATE YOU DOING SPB = %p ??\n", Srb);
+        SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUS_RESET);
+        CompleteRequest(DeviceExtension, Srb);
+        return;
     }
 
-    VioScsiVQUnlock(DeviceExtension, MessageID, &LockHandle, isr);
+    VioScsiVQLock(DeviceExtension, MessageID, &LockHandle, FALSE);
+    SET_VA_PA();
+    res = virtqueue_add_buf(adaptExt->vq[QueueNumber],
+        srbExt->psgl,
+        srbExt->out, srbExt->in,
+        &srbExt->cmd, va, pa);
 
-    if (notify) {
+    if (res >= 0) {
+        element = &adaptExt->processing_srbs[index];
+        InsertTailList(&element->srb_list, &srbExt->list_entry);
+        element->srb_cnt++;
+    }
+    VioScsiVQUnlock(DeviceExtension, MessageID, &LockHandle, FALSE);
+    if ( res >= 0){
+        if (virtqueue_kick_prepare(adaptExt->vq[QueueNumber])) {
+            virtqueue_notify(adaptExt->vq[QueueNumber]);
+        }
+    } else {
         virtqueue_notify(adaptExt->vq[QueueNumber]);
+        SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUSY);
+        StorPortBusy(DeviceExtension, 10);
+        CompleteRequest(DeviceExtension, Srb);
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " CompleteRequest queue (%d) SRB = %p Lun = %d TimeOut = %d.\n", QueueNumber, srbExt->Srb, SRB_LUN(Srb), Srb->TimeOutValue);
     }
+
 EXIT_FN_SRB();
 }
 
