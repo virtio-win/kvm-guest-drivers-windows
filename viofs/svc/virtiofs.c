@@ -91,6 +91,9 @@ typedef struct
 
     ULONG   DebugFlags;
 
+    // Service start rountine waits for this event until the device is found.
+    HANDLE  EvtDeviceFound;
+
     // Used to handle device arrive notification.
     HCMNOTIFICATION     DevInterfaceNotification;
     // Used to handle device remove notification.
@@ -295,8 +298,16 @@ static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
         goto out_unreg_dh_notify;
     }
 
+    if (SetEvent(VirtFs->EvtDeviceFound) == FALSE)
+    {
+        Error = GetLastError();
+        goto out_stop_virtfs;
+    }
+
     return ERROR_SUCCESS;
 
+out_stop_virtfs:
+    VirtFsStop(VirtFs);
 out_unreg_dh_notify:
     VirtFsNotificationAsyncUnreg(&VirtFs->DevHandleNotification);
 out_close_handle:
@@ -2539,18 +2550,35 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         goto out_free_mpoint;
     }
 
+    VirtFs->EvtDeviceFound = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (VirtFs->EvtDeviceFound == NULL)
+    {
+        Error = GetLastError();
+        Status = FspNtStatusFromWin32(Error);
+        goto out_delete_dh_notify;
+    }
+
     Error = VirtFsRegDevInterfaceNotification(VirtFs);
     if (Error != ERROR_SUCCESS)
     {
         Status = FspNtStatusFromWin32(Error);
-        goto out_delete_dh_notify;
+        goto out_close_event;
     }
 
     Error = FindDeviceInterface(&VirtFs->Device);
     if (Error != ERROR_SUCCESS)
     {
-        Status = FspNtStatusFromWin32(Error);
-        goto out_unreg_di_notify;
+        // Wait for device to be found by arrival notification callback.
+        Error = WaitForSingleObject(VirtFs->EvtDeviceFound, INFINITE);
+        if (Error == WAIT_OBJECT_0)
+        {
+            return STATUS_SUCCESS;
+        }
+        else
+        {
+            Status = STATUS_UNSUCCESSFUL;
+            goto out_unreg_di_notify;
+        }
     }
 
     Error = VirtFsRegDevHandleNotification(VirtFs);
@@ -2587,6 +2615,8 @@ out_close_handle:
     CloseHandle(VirtFs->Device);
 out_unreg_di_notify:
     CM_Unregister_Notification(VirtFs->DevInterfaceNotification);
+out_close_event:
+    CloseHandle(VirtFs->EvtDeviceFound);
 out_delete_dh_notify:
     VirtFsNotificationDelete(&VirtFs->DevHandleNotification);
 out_free_mpoint:
@@ -2608,6 +2638,7 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
     VirtFsNotificationUnreg(&VirtFs->DevHandleNotification);
     CloseDeviceInterface(VirtFs->Device);
     VirtFsNotificationDelete(&VirtFs->DevHandleNotification);
+    CloseHandle(VirtFs->EvtDeviceFound);
     CM_Unregister_Notification(VirtFs->DevInterfaceNotification);
     SafeHeapFree(VirtFs->MountPoint);
     SafeHeapFree(VirtFs);
