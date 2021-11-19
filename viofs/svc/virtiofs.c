@@ -136,8 +136,6 @@ static NTSTATUS VirtFsLookupFileName(HANDLE Device, PWSTR FileName,
 
 static NTSTATUS VirtFsStart(VIRTFS *VirtFs);
 
-static VOID VirtFsDelete(VIRTFS *VirtFs);
-
 static DWORD FindDeviceInterface(PHANDLE Device);
 
 static DWORD WINAPI DeviceNotificationCallback(HCMNOTIFICATION Notify,
@@ -256,6 +254,17 @@ static DWORD VirtFsRegDevHandleNotification(VIRTFS *VirtFs)
     return CM_MapCrToWin32Err(ConfigRet, ERROR_NOT_SUPPORTED);
 }
 
+static VOID VirtFsStop(VIRTFS *VirtFs)
+{
+    FspFileSystemStopDispatcher(VirtFs->FileSystem);
+
+    if (VirtFs->FileSystem != NULL)
+    {
+        FspFileSystemDelete(VirtFs->FileSystem);
+        VirtFs->FileSystem = NULL;
+    }
+}
+
 static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
 {
     DWORD Error;
@@ -296,13 +305,22 @@ out_close_handle:
     return Error;
 }
 
+static VOID CloseDeviceInterface(PHANDLE Device)
+{
+    if (*Device != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(*Device);
+        *Device = INVALID_HANDLE_VALUE;
+    }
+}
+
 static VOID VirtFsDevQueryRemove(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
 {
     DBG("Notify = 0x%x", Notify);
 
-    FspFileSystemStopDispatcher(VirtFs->FileSystem);
-    VirtFsDelete(VirtFs);
+    VirtFsStop(VirtFs);
     VirtFsNotificationAsyncUnreg(&VirtFs->DevHandleNotification);
+    CloseDeviceInterface(VirtFs->Device);
 }
 
 DWORD WINAPI DeviceNotificationCallback(HCMNOTIFICATION Notify,
@@ -352,21 +370,6 @@ static DWORD VirtFsRegDevInterfaceNotification(VIRTFS *VirtFs)
     }
 
     return CM_MapCrToWin32Err(ConfigRet, ERROR_NOT_SUPPORTED);
-}
-
-static VOID VirtFsDelete(VIRTFS *VirtFs)
-{
-    if (VirtFs->FileSystem != NULL)
-    {
-        FspFileSystemDelete(VirtFs->FileSystem);
-        VirtFs->FileSystem = NULL;
-    }
-
-    if (VirtFs->Device != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(VirtFs->Device);
-        VirtFs->Device = INVALID_HANDLE_VALUE;
-    }
 }
 
 static DWORD FindDeviceInterface(PHANDLE Device)
@@ -2601,9 +2604,9 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
 {
     VIRTFS *VirtFs = Service->UserContext;
 
-    FspFileSystemStopDispatcher(VirtFs->FileSystem);
-    VirtFsDelete(VirtFs);
+    VirtFsStop(VirtFs);
     VirtFsNotificationUnreg(&VirtFs->DevHandleNotification);
+    CloseDeviceInterface(VirtFs->Device);
     VirtFsNotificationDelete(&VirtFs->DevHandleNotification);
     CM_Unregister_Notification(VirtFs->DevInterfaceNotification);
     SafeHeapFree(VirtFs->MountPoint);
