@@ -30,17 +30,18 @@
 #ifndef ___VIOSTOR_TRACING_H___
 #define ___VIOSTOR_TRACING_H___
 
+//#define DBG 1
+
 #include <ntddk.h>
 #include <storport.h>
 #include <stdarg.h>
 
-//#define DBG 1
 //#define PRINT_DEBUG 1
 //#define COM_DEBUG 1
 
 
 
-#if !defined(DBG) && ((OSVERSION_MASK & NTDDI_VERSION) > NTDDI_VISTA)
+#if !defined(DBG)
 #define EVENT_TRACING 1
 #endif
 
@@ -69,8 +70,11 @@ extern int nViostorDebugLevel;
 #define RhelDbgPrint(Level, MSG, ...) \
     if ((!bDebugPrint) || Level > nViostorDebugLevel) {} \
     else VirtioDebugPrintProc (MSG, __VA_ARGS__)
+#define VioStorDbgBreak()\
+    if (KD_DEBUGGER_ENABLED && !KD_DEBUGGER_NOT_PRESENT) DbgBreakPoint();
 #else
-#define RhelDbgPrint(Level, MSG, ...) 
+#define RhelDbgPrint(Level, MSG, ...)
+#define VioStorDbgBreak()  {}
 #endif
 
 #else
