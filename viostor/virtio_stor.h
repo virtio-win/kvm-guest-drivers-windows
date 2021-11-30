@@ -87,11 +87,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define BLOCK_SERIAL_STRLEN     20
 
-#if (NTDDI_VERSION > NTDDI_WIN7)
 #define MAX_PHYS_SEGMENTS       512
-#else
-#define MAX_PHYS_SEGMENTS       64
-#endif
 #define VIRTIO_MAX_SG           (3+MAX_PHYS_SEGMENTS)
 
 #define VIOBLK_POOL_TAG        'BoiV'
@@ -241,11 +237,9 @@ typedef struct _ADAPTER_EXTENSION {
     SENSE_INFO            sense_info;
     BOOLEAN               removed;
     ULONG                 max_tx_length;
-#if (NTDDI_VERSION > NTDDI_WIN7)
     PGROUP_AFFINITY       pmsg_affinity;
     STOR_ADDR_BTL8        device_address;
     blk_discard_write_zeroes blk_discard[16];
-#endif
 #if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
     ULONGLONG             fw_ver;
 #endif
@@ -279,15 +273,6 @@ VirtIoInterrupt(
     IN PVOID DeviceExtension
     );
 
-#ifndef SCSI_SENSE_ERRORCODE_FIXED_CURRENT
-#define SCSI_SENSE_ERRORCODE_FIXED_CURRENT       0x70
-#endif
-
-#ifndef SCSI_SENSEQ_CAPACITY_DATA_CHANGED
-#define SCSI_SENSEQ_CAPACITY_DATA_CHANGED        0x09
-#endif
-
-#ifdef MSI_SUPPORTED
 #ifndef PCIX_TABLE_POINTER
 typedef struct {
   union {
@@ -312,7 +297,6 @@ typedef struct {
   PCIX_TABLE_POINTER      MessageTable;
   PCIX_TABLE_POINTER      PBATable;
 } PCI_MSIX_CAPABILITY, *PPCI_MSIX_CAPABILITY;
-#endif
 #endif
 
 #endif ___VIOSTOR__H__

@@ -198,17 +198,14 @@ RhelDoReadWrite(PVOID DeviceExtension,
         virtqueue_notify(vq);
     }
 
-#if (NTDDI_VERSION > NTDDI_WIN7)
     if (adaptExt->num_queues > 1) {
         if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
            VioStorCompleteRequest(DeviceExtension, MessageId, FALSE);
         }
     }
-#endif
     return result;
 }
 
-#if (NTDDI_VERSION > NTDDI_WIN7)
 BOOLEAN
 RhelDoUnMap(
     IN PVOID DeviceExtension,
@@ -337,8 +334,6 @@ RhelDoUnMap(
     return result;
 }
 
-#endif
-
 BOOLEAN
 RhelGetSerialNumber(
     IN PVOID DeviceExtension,
@@ -458,9 +453,7 @@ RhelGetLba(
         case SCSIOP_READ_CAPACITY:
         case SCSIOP_WRITE_VERIFY:
         case SCSIOP_VERIFY:
-#if (NTDDI_VERSION > NTDDI_WIN7)
         case SCSIOP_UNMAP:
-#endif
         {
             lba.Byte0 = Cdb->CDB10.LogicalBlockByte3;
             lba.Byte1 = Cdb->CDB10.LogicalBlockByte2;
