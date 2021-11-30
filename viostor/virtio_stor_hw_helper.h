@@ -169,6 +169,13 @@ VioStorVQUnlock(
     IN BOOLEAN isr
     );
 
+VOID
+CompleteRequestWithStatus(
+    IN PVOID DeviceExtension,
+    IN PSRB_TYPE Srb,
+    IN UCHAR status
+    );
+
 extern VirtIOSystemOps VioStorSystemOps;
 
 #endif ___VIOSTOR_HW_HELPER_H___
