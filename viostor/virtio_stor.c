@@ -161,14 +161,6 @@ CompleteSRB(
 
 VOID
 FORCEINLINE
-CompleteRequestWithStatus(
-    IN PVOID DeviceExtension,
-    IN PSRB_TYPE Srb,
-    IN UCHAR status
-    );
-
-VOID
-FORCEINLINE
 DeviceChangeNotification(
     IN PVOID DeviceExtension,
     IN BOOLEAN bLun
@@ -910,6 +902,8 @@ VirtIoStartIo(
             return TRUE;
         }
         case SRB_FUNCTION_POWER:
+            CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
+            return TRUE;
         case SRB_FUNCTION_RESET_BUS:
         case SRB_FUNCTION_RESET_DEVICE:
         case SRB_FUNCTION_RESET_LOGICAL_UNIT: {
@@ -1772,7 +1766,6 @@ CompleteSRB(
 }
 
 VOID
-FORCEINLINE
 CompleteRequestWithStatus(
     IN PVOID DeviceExtension,
     IN PSRB_TYPE Srb,
