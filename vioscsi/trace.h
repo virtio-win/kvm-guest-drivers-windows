@@ -30,15 +30,14 @@
 #ifndef ___TRACING_H___
 #define ___TRACING_H___
 
-#include <ntddk.h>
-#include <storport.h>
-#include <stdarg.h>
-#include "kdebugprint.h"
-
 //#define DBG 1
 //#define PRINT_DEBUG 1
 //#define COM_DEBUG 1
 
+#include <ntddk.h>
+#include <storport.h>
+#include <stdarg.h>
+#include "kdebugprint.h"
 
 char *DbgGetScsiOpStr(PSCSI_REQUEST_BLOCK Srb);
 
@@ -70,8 +69,11 @@ extern int nVioscsiDebugLevel;
 #define RhelDbgPrint(Level, MSG, ...) \
     if ((!bDebugPrint) || Level > nVioscsiDebugLevel) {} \
     else VirtioDebugPrintProc (MSG, __VA_ARGS__)
+#define VioScsiDbgBreak()\
+    if (KD_DEBUGGER_ENABLED && !KD_DEBUGGER_NOT_PRESENT) DbgBreakPoint();
 #else
 #define RhelDbgPrint(Level, MSG, ...) 
+#define VioScsiDbgBreak()
 #endif
 
 void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath);

@@ -546,7 +546,7 @@ ENTER_FN();
     if (dataLen < (sizeof(SRB_IO_CONTROL) + sizeof(FIRMWARE_REQUEST_BLOCK))) {
         srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
-        RhelDbgPrint(TRACE_LEVEL_FATAL,
+        RhelDbgPrint(TRACE_LEVEL_ERROR,
                          " FirmwareRequest Bad Block Length  %ul\n", dataLen);
         return;
     }
@@ -557,7 +557,7 @@ ENTER_FN();
     case FIRMWARE_FUNCTION_GET_INFO: {
         PSTORAGE_FIRMWARE_INFO_V2   firmwareInfo;
         firmwareInfo = (PSTORAGE_FIRMWARE_INFO_V2)((PUCHAR)srbControl + firmwareRequest->DataBufferOffset);
-        RhelDbgPrint(TRACE_LEVEL_FATAL,
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                          " FIRMWARE_FUNCTION_GET_INFO \n");
         if ((firmwareInfo->Version >= STORAGE_FIRMWARE_INFO_STRUCTURE_VERSION_V2) ||
             (firmwareInfo->Size >= sizeof(STORAGE_FIRMWARE_INFO_V2))) {
@@ -585,7 +585,7 @@ ENTER_FN();
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
         }
         else {
-            RhelDbgPrint(TRACE_LEVEL_FATAL,
+            RhelDbgPrint(TRACE_LEVEL_ERROR,
                          " Wrong Version %ul or Size %ul\n", firmwareInfo->Version, firmwareInfo->Size);
             srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
@@ -595,7 +595,7 @@ ENTER_FN();
     case FIRMWARE_FUNCTION_DOWNLOAD: {
         PSTORAGE_FIRMWARE_DOWNLOAD_V2   firmwareDwnld;
         firmwareDwnld = (PSTORAGE_FIRMWARE_DOWNLOAD_V2)((PUCHAR)srbControl + firmwareRequest->DataBufferOffset);
-        RhelDbgPrint(TRACE_LEVEL_FATAL,
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION,
             " FIRMWARE_FUNCTION_DOWNLOAD \n");
         if ((firmwareDwnld->Version >= STORAGE_FIRMWARE_DOWNLOAD_STRUCTURE_VERSION_V2) ||
             (firmwareDwnld->Size >= sizeof(STORAGE_FIRMWARE_DOWNLOAD_V2))) {
@@ -606,7 +606,7 @@ ENTER_FN();
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
         }
         else {
-            RhelDbgPrint(TRACE_LEVEL_FATAL,
+            RhelDbgPrint(TRACE_LEVEL_ERROR,
                 " Wrong Version %ul or Size %ul\n", firmwareDwnld->Version, firmwareDwnld->Size);
             srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
@@ -624,17 +624,17 @@ ENTER_FN();
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
         }
         else {
-            RhelDbgPrint(TRACE_LEVEL_FATAL,
+            RhelDbgPrint(TRACE_LEVEL_ERROR,
                 " Wrong Version %ul or Size %ul\n", firmwareActivate->Version, firmwareActivate->Size);
             srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
         }
-        RhelDbgPrint(TRACE_LEVEL_FATAL,
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
             " FIRMWARE_FUNCTION_ACTIVATE \n");
     }
     break;
     default:
-        RhelDbgPrint(TRACE_LEVEL_FATAL,
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                      " Unsupported Function %ul\n", firmwareRequest->Function);
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_INVALID_REQUEST);
         break;
