@@ -65,6 +65,7 @@ RhelDoFlush(
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
     struct virtqueue    *vq = NULL;
+    PREQUEST_LIST       element;
 
     SET_VA_PA();
 
@@ -107,12 +108,15 @@ RhelDoFlush(
     srbExt->sg[1].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
     srbExt->sg[1].length   = sizeof(srbExt->vbr.status);
 
+    element = &adaptExt->processing_srbs[QueueNumber];
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (virtqueue_add_buf(vq,
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->vbr, va, pa) >= 0) {
         notify = virtqueue_kick_prepare(vq);
+        InsertTailList(&element->srb_list, &srbExt->vbr.list_entry);
+        element->srb_cnt++;
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
         result = TRUE;
 #ifdef DBG
@@ -148,6 +152,7 @@ RhelDoReadWrite(PVOID DeviceExtension,
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
     struct virtqueue    *vq = NULL;
+    PREQUEST_LIST       element;
 
     SET_VA_PA();
 
@@ -172,17 +177,24 @@ RhelDoReadWrite(PVOID DeviceExtension,
         QueueNumber = 0;
         MessageId = 1;
     }
+    if (adaptExt->reset_in_progress) {
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
+        return TRUE;
+    }
 
     srbExt->MessageID = MessageId;
     vq = adaptExt->vq[QueueNumber];
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " QueueNumber 0x%x vq = %p\n", QueueNumber, vq);
 
+    element = &adaptExt->processing_srbs[QueueNumber];
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (virtqueue_add_buf(vq,
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->vbr, va, pa) >= 0) {
         notify = virtqueue_kick_prepare(vq);
+        InsertTailList(&element->srb_list, &srbExt->vbr.list_entry);
+        element->srb_cnt++;
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
 #ifdef DBG
         InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
@@ -225,6 +237,7 @@ RhelDoUnMap(
     PUNMAP_BLOCK_DESCRIPTOR BlockDescriptors = NULL;
     USHORT BlockDescrCount = 0;
     ULONG               fragLen = 0UL;
+    PREQUEST_LIST       element;
 
 
     PVOID               va = NULL;
@@ -310,12 +323,15 @@ RhelDoUnMap(
     vq = adaptExt->vq[QueueNumber];
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " QueueNumber 0x%x vq = %p type = %d\n", QueueNumber, vq, srbExt->vbr.out_hdr.type);
 
+    element = &adaptExt->processing_srbs[QueueNumber];
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (virtqueue_add_buf(vq,
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->vbr, va, pa) >= 0) {
         notify = virtqueue_kick_prepare(vq);
+        InsertTailList(&element->srb_list, &srbExt->vbr.list_entry);
+        element->srb_cnt++;
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
 #ifdef DBG
         InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
@@ -353,6 +369,7 @@ RhelGetSerialNumber(
     BOOLEAN             result = FALSE;
     BOOLEAN             notify = FALSE;
     ULONG               fragLen = 0UL;
+    PREQUEST_LIST       element;
 
     SET_VA_PA();
 
@@ -393,12 +410,15 @@ RhelGetSerialNumber(
     srbExt->sg[2].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
     srbExt->sg[2].length   = sizeof(srbExt->vbr.status);
 
+    element = &adaptExt->processing_srbs[QueueNumber];
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (virtqueue_add_buf(vq,
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
                      &srbExt->vbr, va, pa) >= 0) {
         notify = virtqueue_kick_prepare(vq);
+        InsertTailList(&element->srb_list, &srbExt->vbr.list_entry);
+        element->srb_cnt++;
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
         result = TRUE;
 #ifdef DBG
