@@ -251,8 +251,8 @@ typedef struct _ADAPTER_EXTENSION {
     ULONGLONG             fw_ver;
 #endif
 #ifdef DBG
-    ULONG                 srb_cnt;
-    ULONG                 inqueue_cnt;
+    LONG                  srb_cnt;
+    LONG                  inqueue_cnt;
 #endif
 }ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
