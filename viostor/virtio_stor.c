@@ -703,9 +703,9 @@ VirtIoHwInitialize(
     PERF_CONFIGURATION_DATA perfData = { 0 };
     ULONG              status = STOR_STATUS_SUCCESS;
     MESSAGE_INTERRUPT_INFORMATION msi_info = { 0 };
+    PREQUEST_LIST      element = NULL;
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-
 
     adaptExt->msix_vectors = 0;
     adaptExt->pageOffset = 0;
@@ -833,7 +833,59 @@ VirtIoHwInitialize(
         virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
     }
 
+    for (ULONG index = 0; index < adaptExt->num_queues; ++index) {
+          element = &adaptExt->processing_srbs[index];
+          InitializeListHead(&element->srb_list);
+          element->srb_cnt = 0;
+    }
+
+
     return ret;
+}
+
+VOID
+CompletePendingRequests(
+    IN PVOID DeviceExtension
+)
+{
+    PADAPTER_EXTENSION adaptExt;
+
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+#ifdef DBG
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, "CompletePendingRequests %d %d\n", adaptExt->srb_cnt, adaptExt->inqueue_cnt);
+#endif
+    if (!adaptExt->reset_in_progress)
+    {
+        adaptExt->reset_in_progress = TRUE;
+        StorPortPause(DeviceExtension, 10);
+
+        for (ULONG index = 0; index < adaptExt->num_queues; index++) {
+            PREQUEST_LIST element = &adaptExt->processing_srbs[index];
+            STOR_LOCK_HANDLE    LockHandle = { 0 };
+            VioStorVQLock(DeviceExtension, index, &LockHandle, FALSE);
+            while (!IsListEmpty(&element->srb_list)) {
+                PLIST_ENTRY entry = RemoveHeadList(&element->srb_list);
+                if (entry) {
+                    pblk_req req = CONTAINING_RECORD(entry, blk_req, list_entry);
+                    PSCSI_REQUEST_BLOCK  currSrb = (PSCSI_REQUEST_BLOCK)req->req;
+                    PSRB_EXTENSION currSrbExt = SRB_EXTENSION(currSrb);
+                    if (currSrb) {
+                        CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)currSrb, SRB_STATUS_BUS_RESET);
+                        element->srb_cnt--;
+                    }
+                }
+            }
+            if (element->srb_cnt) {
+                element->srb_cnt = 0;
+            }
+            VioStorVQUnlock(DeviceExtension, index, &LockHandle, FALSE);
+        }
+        StorPortResume(DeviceExtension);
+    }
+    else {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, "RESET IN THE PROGRESS !!!!\n");
+    }
+    adaptExt->reset_in_progress = FALSE;
 }
 
 BOOLEAN
@@ -907,6 +959,7 @@ VirtIoStartIo(
         case SRB_FUNCTION_RESET_BUS:
         case SRB_FUNCTION_RESET_DEVICE:
         case SRB_FUNCTION_RESET_LOGICAL_UNIT: {
+            CompletePendingRequests(DeviceExtension);
             CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
 #ifdef DBG
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " RESET (%p) Function %x Cnt %d InQueue %d\n",
@@ -1089,9 +1142,11 @@ VirtIoResetBus(
     IN ULONG PathId
     )
 {
-    UNREFERENCED_PARAMETER( DeviceExtension );
     UNREFERENCED_PARAMETER( PathId );
-    RhelDbgPrint(TRACE_LEVEL_ERROR, "<---->\n");
+    PADAPTER_EXTENSION  adaptExt;
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    CompletePendingRequests(DeviceExtension);
     return TRUE;
 }
 
@@ -1932,86 +1987,102 @@ VioStorCompleteRequest(
     pblk_req            vbr = NULL;
     PSRB_TYPE           Srb = NULL;
     PSRB_EXTENSION      srbExt = NULL;
-    LIST_ENTRY          complete_list;
     UCHAR               srbStatus = SRB_STATUS_SUCCESS;
+    PREQUEST_LIST       element = NULL;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ---> MessageID 0x%x\n", MessageID);
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     vq = adaptExt->vq[QueueNumber];
-
-    InitializeListHead(&complete_list);
+    element = &adaptExt->processing_srbs[QueueNumber];
 
     VioStorVQLock(DeviceExtension, MessageID, &queueLock, bIsr);
     do {
         virtqueue_disable_cb(vq);
         while ((vbr = (pblk_req)virtqueue_get_buf(vq, &len)) != NULL) {
-            InsertTailList(&complete_list, &vbr->list_entry);
+            PLIST_ENTRY le = NULL;
+            BOOLEAN bFound = FALSE;
+            Srb = (PSTORAGE_REQUEST_BLOCK)vbr->req;
 #ifdef DBG
             InterlockedDecrement((LONG volatile*)&adaptExt->inqueue_cnt);
 #endif
+            for (le = element->srb_list.Flink; le != &element->srb_list && !bFound; le = le->Flink)
+            {
+                pblk_req req = CONTAINING_RECORD(le, blk_req, list_entry);
+
+                if (Srb) {
+                    srbExt = SRB_EXTENSION(Srb);
+                    PSTORAGE_REQUEST_BLOCK  currSrb = (PSTORAGE_REQUEST_BLOCK)req->req;
+                    PSRB_EXTENSION currSrbExt = SRB_EXTENSION(currSrb);
+                    if (currSrbExt == srbExt && (PSRB_TYPE)currSrb == Srb)
+                    {
+                        RemoveEntryList(le);
+                        element->srb_cnt--;
+                        bFound = TRUE;
+                        break;
+                    }
+                }
+            }
+
+            if (bFound && vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
+                adaptExt->sn_ok = TRUE;
+                if (Srb) {
+                    PCDB cdb = SRB_CDB(Srb);
+
+                    if (!cdb)
+                        continue;
+
+                    if ((cdb->CDB6INQUIRY3.PageCode == VPD_SERIAL_NUMBER) &&
+                        (cdb->CDB6INQUIRY3.EnableVitalProductData == 1)) {
+                        PVPD_SERIAL_NUMBER_PAGE SerialPage;
+                        ULONG dataLen = SRB_DATA_TRANSFER_LENGTH(Srb);
+                        UCHAR len = strlen(adaptExt->sn);
+
+                        SerialPage = (PVPD_SERIAL_NUMBER_PAGE)SRB_DATA_BUFFER(Srb);
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, "dataLen = %d\n", dataLen);
+                        RtlZeroMemory(SerialPage, dataLen);
+                        SerialPage->DeviceType = DIRECT_ACCESS_DEVICE;
+                        SerialPage->DeviceTypeQualifier = DEVICE_CONNECTED;
+                        SerialPage->PageCode = VPD_SERIAL_NUMBER;
+
+                        SerialPage->PageLength = min(BLOCK_SERIAL_STRLEN, len);
+                        StorPortCopyMemory(&SerialPage->SerialNumber, &adaptExt->sn, SerialPage->PageLength);
+                        RhelDbgPrint(TRACE_LEVEL_FATAL, "PageLength = %d (%d)\n", SerialPage->PageLength, len);
+
+                        SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_SERIAL_NUMBER_PAGE) + SerialPage->PageLength));
+                        CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
+                    }
+                    else if ((cdb->CDB6INQUIRY3.PageCode == VPD_DEVICE_IDENTIFIERS) &&
+                        (cdb->CDB6INQUIRY3.EnableVitalProductData == 1))
+                    {
+                        ReportDeviceIdentifier(DeviceExtension, Srb);
+                        CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
+                    }
+                }
+                continue;
+            }
+            if (bFound && Srb) {
+                srbExt = SRB_EXTENSION(Srb);
+                srbStatus = DeviceToSrbStatus(vbr->status);
+                RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageId %lu.\n",
+                    Srb, QueueNumber, MessageID);
+                if (srbExt && srbExt->fua == TRUE) {
+                    SRB_SET_SRB_STATUS(Srb, SRB_STATUS_PENDING);
+                    if (!RhelDoFlush(DeviceExtension, Srb, TRUE, bIsr)) {
+                        CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_ERROR);
+                    }
+                    srbExt->fua = FALSE;
+                }
+                else {
+                    CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, srbStatus);
+                }
+            }
+
         }
     } while (!virtqueue_enable_cb(vq));
+
     VioStorVQUnlock(DeviceExtension, MessageID, &queueLock, bIsr);
-
-    while (!IsListEmpty(&complete_list)) {
-        vbr = (pblk_req)RemoveHeadList(&complete_list);
-        Srb = (PSRB_TYPE)vbr->req;
-        if (vbr->out_hdr.type == VIRTIO_BLK_T_GET_ID) {
-            adaptExt->sn_ok = TRUE;
-            if (Srb) {
-                PCDB cdb = SRB_CDB(Srb);
-
-                if (!cdb)
-                    continue;
-
-                if ((cdb->CDB6INQUIRY3.PageCode == VPD_SERIAL_NUMBER) &&
-                    (cdb->CDB6INQUIRY3.EnableVitalProductData == 1)) {
-                    PVPD_SERIAL_NUMBER_PAGE SerialPage;
-                    ULONG dataLen = SRB_DATA_TRANSFER_LENGTH(Srb);
-                    UCHAR len = strlen(adaptExt->sn);
-
-                    SerialPage = (PVPD_SERIAL_NUMBER_PAGE)SRB_DATA_BUFFER(Srb);
-                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, "dataLen = %d\n", dataLen);
-                    RtlZeroMemory(SerialPage, dataLen);
-                    SerialPage->DeviceType = DIRECT_ACCESS_DEVICE;
-                    SerialPage->DeviceTypeQualifier = DEVICE_CONNECTED;
-                    SerialPage->PageCode = VPD_SERIAL_NUMBER;
-
-                    SerialPage->PageLength = min(BLOCK_SERIAL_STRLEN, len);
-                    StorPortCopyMemory(&SerialPage->SerialNumber, &adaptExt->sn, SerialPage->PageLength);
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, "PageLength = %d (%d)\n", SerialPage->PageLength, len);
-
-                    SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_SERIAL_NUMBER_PAGE) + SerialPage->PageLength));
-                    CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
-                }
-                else if ((cdb->CDB6INQUIRY3.PageCode == VPD_DEVICE_IDENTIFIERS) &&
-                    (cdb->CDB6INQUIRY3.EnableVitalProductData == 1))
-                {
-                    ReportDeviceIdentifier(DeviceExtension, Srb);
-                    CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
-                }
-            }
-            continue;
-        }
-        if (Srb) {
-            srbExt = SRB_EXTENSION(Srb);
-            srbStatus = DeviceToSrbStatus(vbr->status);
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageId %lu, srbExt->MessageId %lu.\n",
-                        Srb, QueueNumber, MessageID, srbExt->MessageID);
-            if (srbExt->fua == TRUE) {
-                SRB_SET_SRB_STATUS(Srb, SRB_STATUS_PENDING);
-                if (!RhelDoFlush(DeviceExtension, Srb, TRUE, bIsr)) {
-                    CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_ERROR);
-                }
-                srbExt->fua = FALSE;
-            }
-            else {
-                CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, srbStatus);
-            }
-        }
-    }
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <--- MessageID 0x%x\n", MessageID);
 }

@@ -196,6 +196,11 @@ typedef struct _SENSE_INFO {
     UCHAR additionalSenseCodeQualifier;
 } SENSE_INFO, *PSENSE_INFO;
 
+typedef struct _REQUEST_LIST {
+    LIST_ENTRY            srb_list;
+    ULONG                 srb_cnt;
+} REQUEST_LIST, *PREQUEST_LIST;
+
 typedef struct _ADAPTER_EXTENSION {
     VirtIODevice          vdev;
 
@@ -240,6 +245,8 @@ typedef struct _ADAPTER_EXTENSION {
     PGROUP_AFFINITY       pmsg_affinity;
     STOR_ADDR_BTL8        device_address;
     blk_discard_write_zeroes blk_discard[16];
+    REQUEST_LIST          processing_srbs[MAX_CPU];
+    BOOLEAN               reset_in_progress;
 #if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
     ULONGLONG             fw_ver;
 #endif
