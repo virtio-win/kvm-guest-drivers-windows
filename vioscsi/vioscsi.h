@@ -245,9 +245,8 @@ typedef struct _SRB_EXTENSION {
     ULONG                 in;
     ULONG                 Xfer;
     VirtIOSCSICmd         cmd;
-    ULONG                 vq_num;
-    PVIO_SG               psgl;
-    PVRING_DESC_ALIAS     pdesc;
+    PVIO_SG POINTER_ALIGN psgl;
+    PVRING_DESC_ALIAS POINTER_ALIGN pdesc;
     VIO_SG                vio_sg[VIRTIO_MAX_SG];
     VRING_DESC_ALIAS      desc_alias[VIRTIO_MAX_SG];
 }SRB_EXTENSION, * PSRB_EXTENSION;
@@ -262,7 +261,7 @@ typedef struct {
 
 typedef struct _REQUEST_LIST {
     LIST_ENTRY            srb_list;
-    KSPIN_LOCK            srb_list_lock;
+    ULONG                 srb_cnt;
 } REQUEST_LIST, *PREQUEST_LIST;
 
 typedef struct virtio_bar {
@@ -310,7 +309,7 @@ typedef struct _ADAPTER_EXTENSION {
     PVirtIOSCSIEventNode  events;
 
     ULONG                 num_queues;
-    REQUEST_LIST          pending_list[MAX_CPU];
+    REQUEST_LIST          processing_srbs[MAX_CPU];
     ULONG                 perfFlags;
     PGROUP_AFFINITY       pmsg_affinity;
     BOOLEAN               dpc_ok;
@@ -325,6 +324,7 @@ typedef struct _ADAPTER_EXTENSION {
     UCHAR                 ven_id[8 + 1];
     UCHAR                 prod_id[16 + 1];
     UCHAR                 rev_id[4 + 1];
+    BOOLEAN               reset_in_progress;
 #if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
     ULONGLONG             fw_ver;
 #endif
