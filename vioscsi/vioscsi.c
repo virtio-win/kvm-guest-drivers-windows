@@ -699,7 +699,7 @@ VioScsiHwInitialize(
     PERF_CONFIGURATION_DATA perfData = { 0 };
     ULONG              status = STOR_STATUS_SUCCESS;
     MESSAGE_INTERRUPT_INFORMATION msi_info = { 0 };
-
+    PREQUEST_LIST  element;
 ENTER_FN();
 
     adaptExt->msix_vectors = 0;
@@ -747,9 +747,9 @@ ENTER_FN();
     }
 
     for (index = 0; index < adaptExt->num_queues; ++index) {
-          PREQUEST_LIST  element = &adaptExt->pending_list[index];
+          element = &adaptExt->processing_srbs[index];
           InitializeListHead(&element->srb_list);
-          KeInitializeSpinLock(&element->srb_list_lock);
+          element->srb_cnt = 0;
     }
 
     if (!adaptExt->dump_mode) {
@@ -1345,6 +1345,8 @@ ProcessQueue(
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSRB_TYPE           Srb = NULL;
     PSRB_EXTENSION      srbExt = NULL;
+    PREQUEST_LIST element = &adaptExt->processing_srbs[index];
+
 ENTER_FN();
     vq = adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + index];
 
@@ -1353,9 +1355,30 @@ ENTER_FN();
     do {
         virtqueue_disable_cb(vq);
         while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(vq, &len)) != NULL) {
+            PLIST_ENTRY le = NULL;
+            BOOLEAN bFound = FALSE;
+
             Srb = (PSRB_TYPE)(cmd->srb);
+            if (!Srb)
+                continue;
+
             srbExt = SRB_EXTENSION(Srb);
-            HandleResponse(DeviceExtension, cmd);
+            for (le = element->srb_list.Flink; le != &element->srb_list && !bFound; le = le->Flink)
+            {
+                PSRB_EXTENSION currSrbExt = CONTAINING_RECORD(le, SRB_EXTENSION, list_entry);
+                PSCSI_REQUEST_BLOCK  currSrb = currSrbExt->Srb;
+
+                if (currSrbExt == srbExt && (PSRB_TYPE)currSrb == Srb)
+                {
+                    RemoveEntryList(le);
+                    bFound = TRUE;
+                    element->srb_cnt--;
+                    break;
+                }
+            }
+            if (bFound) {
+                HandleResponse(DeviceExtension, cmd);
+            }
         }
     } while (!virtqueue_enable_cb(vq));
 
@@ -1380,6 +1403,54 @@ ENTER_FN();
 EXIT_FN();
 }
 
+VOID
+CompletePendingRequests(
+    IN PVOID DeviceExtension
+    )
+{
+    PADAPTER_EXTENSION adaptExt;
+    ULONG QueuNum;
+    ULONG MsgId;
+
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    if (!adaptExt->reset_in_progress)
+    {
+        adaptExt->reset_in_progress = TRUE;
+        StorPortPause(DeviceExtension, 10);
+
+        for (ULONG index = 0; index < adaptExt->num_queues; index++) {
+            PREQUEST_LIST element = &adaptExt->processing_srbs[index];
+            STOR_LOCK_HANDLE    LockHandle = { 0 };
+            RhelDbgPrint(TRACE_LEVEL_FATAL, "queue %d cnt %d\n", index, element->srb_cnt);
+            QueuNum = index + VIRTIO_SCSI_REQUEST_QUEUE_0;
+            MsgId = QUEUE_TO_MESSAGE(QueuNum);
+            VioScsiVQLock(DeviceExtension, MsgId, &LockHandle, FALSE);
+            while (!IsListEmpty(&element->srb_list)) {
+                PLIST_ENTRY entry = RemoveHeadList(&element->srb_list);
+                if (entry) {
+                    PSRB_EXTENSION currSrbExt = CONTAINING_RECORD(entry, SRB_EXTENSION, list_entry);
+                    PSCSI_REQUEST_BLOCK  currSrb = currSrbExt->Srb;
+                    if (currSrb) {
+                        SRB_SET_SRB_STATUS(currSrb, SRB_STATUS_BUS_RESET);
+                        CompleteRequest(DeviceExtension, (PSRB_TYPE)currSrb);
+                        element->srb_cnt--;
+                    }
+                }
+            }
+            if (element->srb_cnt) {
+                element->srb_cnt = 0;
+            }
+            VioScsiVQUnlock(DeviceExtension, MsgId, &LockHandle, FALSE);
+        }
+        StorPortResume(DeviceExtension);
+    }
+    else {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, "RESET IN THE PROGRESS !!!!\n");
+    }
+    adaptExt->reset_in_progress = FALSE;
+}
+
 BOOLEAN
 FORCEINLINE
 PreProcessRequest(
@@ -1395,12 +1466,17 @@ ENTER_FN_SRB();
     switch (SRB_FUNCTION(Srb)) {
         case SRB_FUNCTION_PNP:
         case SRB_FUNCTION_POWER:
-        case SRB_FUNCTION_RESET_BUS:
-        case SRB_FUNCTION_RESET_DEVICE:
-        case SRB_FUNCTION_RESET_LOGICAL_UNIT: {
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
             return TRUE;
-        }
+
+        case SRB_FUNCTION_RESET_BUS:
+        case SRB_FUNCTION_RESET_DEVICE:
+        case SRB_FUNCTION_RESET_LOGICAL_UNIT:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, "SRB_FUNCTION_RESET_LOGICAL_UNIT %d::%d::%d\n", SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb));
+            CompletePendingRequests(DeviceExtension);
+            SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
+            return TRUE;
+
         case SRB_FUNCTION_WMI:
             VioScsiWmiSrb(DeviceExtension, Srb);
             return TRUE;
