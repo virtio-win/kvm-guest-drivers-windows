@@ -349,7 +349,7 @@ VirtIoFindAdapter(
     ConfigInfo->ScatterGather          = TRUE;
     ConfigInfo->DmaWidth               = Width32Bits;
     ConfigInfo->Dma32BitAddresses      = TRUE;
-    ConfigInfo->Dma64BitAddresses      = TRUE;
+    ConfigInfo->Dma64BitAddresses      = SCSI_DMA64_MINIPORT_FULL64BIT_SUPPORTED;
     ConfigInfo->WmiDataProvider        = FALSE;
     ConfigInfo->AlignmentMask          = 0x3;
     ConfigInfo->MapBuffers             = STOR_MAP_NON_READ_WRITE_BUFFERS;
@@ -627,7 +627,7 @@ RhelSetGuestFeatures(
         }
     }
 
-#if (WINVER == 0x0A00)
+#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
     if (CHECKBIT(adaptExt->features, VIRTIO_F_ACCESS_PLATFORM)) {
         guestFeatures |= (1ULL << VIRTIO_F_ACCESS_PLATFORM);
     }
