@@ -485,9 +485,13 @@ ENTER_FN();
             VioScsiReadRegistry(DeviceExtension);
         }
         ConfigInfo->NumberOfPhysicalBreaks = adaptExt->max_physical_breaks + 1;
+        if (adaptExt->scsi_config.max_sectors > 0 && adaptExt->scsi_config.max_sectors != 0xFFFF) {
+            ConfigInfo->NumberOfPhysicalBreaks = min (ConfigInfo->NumberOfPhysicalBreaks, adaptExt->scsi_config.max_sectors);
+            adaptExt->max_physical_breaks = ConfigInfo->NumberOfPhysicalBreaks - 1;
+        }
     }
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " NumberOfPhysicalBreaks %d\n", ConfigInfo->NumberOfPhysicalBreaks);
-    ConfigInfo->MaximumTransferLength = SP_UNINITIALIZED_VALUE;
+    ConfigInfo->MaximumTransferLength = ConfigInfo->NumberOfPhysicalBreaks * PAGE_SIZE;
 
     num_cpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
     max_cpus = KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS);
