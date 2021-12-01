@@ -862,7 +862,8 @@ CompletePendingRequests(
         for (ULONG index = 0; index < adaptExt->num_queues; index++) {
             PREQUEST_LIST element = &adaptExt->processing_srbs[index];
             STOR_LOCK_HANDLE    LockHandle = { 0 };
-            VioStorVQLock(DeviceExtension, index, &LockHandle, FALSE);
+            ULONG               MessageID = index + 1;
+            VioStorVQLock(DeviceExtension, MessageID, &LockHandle, FALSE);
             while (!IsListEmpty(&element->srb_list)) {
                 PLIST_ENTRY entry = RemoveHeadList(&element->srb_list);
                 if (entry) {
@@ -878,7 +879,7 @@ CompletePendingRequests(
             if (element->srb_cnt) {
                 element->srb_cnt = 0;
             }
-            VioStorVQUnlock(DeviceExtension, index, &LockHandle, FALSE);
+            VioStorVQUnlock(DeviceExtension, MessageID, &LockHandle, FALSE);
         }
         StorPortResume(DeviceExtension);
     }

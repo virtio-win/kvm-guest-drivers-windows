@@ -92,6 +92,10 @@ RhelDoFlush(
         QueueNumber = 0;
         MessageId = 1;
     }
+    if (adaptExt->reset_in_progress) {
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
+        return TRUE;
+    }
 
     srbExt->MessageID = MessageId;
     vq = adaptExt->vq[QueueNumber];
@@ -109,7 +113,9 @@ RhelDoFlush(
     srbExt->sg[1].length   = sizeof(srbExt->vbr.status);
 
     element = &adaptExt->processing_srbs[QueueNumber];
-    VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+    if (!resend) {
+        VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+    }
     if (virtqueue_add_buf(vq,
                      &srbExt->sg[0],
                      srbExt->out, srbExt->in,
@@ -117,14 +123,18 @@ RhelDoFlush(
         notify = virtqueue_kick_prepare(vq);
         InsertTailList(&element->srb_list, &srbExt->vbr.list_entry);
         element->srb_cnt++;
-        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+        if (!resend) {
+            VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+        }
         result = TRUE;
 #ifdef DBG
         InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
 #endif
     }
     else {
-        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+        if (!resend) {
+            VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+        }
         RhelDbgPrint(TRACE_LEVEL_ERROR, " Can not add packet to queue %d.\n", QueueNumber);
         StorPortBusy(DeviceExtension, 2);
     }
@@ -318,6 +328,10 @@ RhelDoUnMap(
         QueueNumber = 0;
         MessageId = 1;
     }
+    if (adaptExt->reset_in_progress) {
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
+        return TRUE;
+    }
 
     srbExt->MessageID = MessageId;
     vq = adaptExt->vq[QueueNumber];
@@ -389,6 +403,10 @@ RhelGetSerialNumber(
            RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed srb %p status 0x%x.\n",
                         Srb, status);
         }
+    }
+    if (adaptExt->reset_in_progress) {
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
+        return TRUE;
     }
 
     vq = adaptExt->vq[QueueNumber];
