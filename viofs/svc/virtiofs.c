@@ -331,7 +331,7 @@ static VOID VirtFsDevQueryRemove(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
 
     VirtFsStop(VirtFs);
     VirtFsNotificationAsyncUnreg(&VirtFs->DevHandleNotification);
-    CloseDeviceInterface(VirtFs->Device);
+    CloseDeviceInterface(&VirtFs->Device);
 }
 
 DWORD WINAPI DeviceNotificationCallback(HCMNOTIFICATION Notify,
@@ -2636,7 +2636,7 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
 
     VirtFsStop(VirtFs);
     VirtFsNotificationUnreg(&VirtFs->DevHandleNotification);
-    CloseDeviceInterface(VirtFs->Device);
+    CloseDeviceInterface(&VirtFs->Device);
     VirtFsNotificationDelete(&VirtFs->DevHandleNotification);
     CloseHandle(VirtFs->EvtDeviceFound);
     CM_Unregister_Notification(VirtFs->DevInterfaceNotification);
