@@ -169,7 +169,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="virtiofs.c" />
+    <ClCompile Include="virtiofs.cpp">
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="fusereq.h" />
