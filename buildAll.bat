@@ -19,9 +19,9 @@ call tools\build.bat virtio-win.sln "Win8 Win8.1 Win10" %*
 if errorlevel 1 goto :fail
 call tools\build.bat NetKVM\NetKVM-VS2015.vcxproj "Win10_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat vioscsi\vioscsi.vcxproj "Win8_SDV Win10_SDV" %*
+call tools\build.bat vioscsi\vioscsi.vcxproj "Win10_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat viostor\viostor.vcxproj "Win8_SDV Win10_SDV" %*
+call tools\build.bat viostor\viostor.vcxproj "Win10_SDV" %*
 if errorlevel 1 goto :fail
 if "%VIRTIO_WIN_SDV_2022%"=="" goto :nosdv2022
 call tools\build.bat Balloon\sys\balloon.vcxproj "Win10_SDV" %*
