@@ -68,5 +68,5 @@ exit /B 1
 
 :process_xml
 echo creating "%~dpn1-compat%~x1"
-findstr /v /c:"General.Checksum" "%~1" > "%~dpn1-compat%~x1"
+findstr /v /c:"General.Checksum" "%~1" | findstr /v /c:".Semmle." > "%~dpn1-compat%~x1"
 goto :eof
