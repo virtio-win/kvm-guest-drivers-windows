@@ -163,9 +163,14 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup>
     <CustomBuildStep>
-      <Command>copy /Y $(ProjectDir)vioscsi.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)</Command>
-      <Inputs>$(ProjectDir)vioscsi.DVL.XML</Inputs>
-      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\vioscsi.DVL.XML</Outputs>
+      <Command>
+        copy /Y $(ProjectDir)vioscsi.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)
+        copy /Y $(IntDir)vc.nativecodeanalysis.all.xml $(ProjectDir)
+        call "..\Tools\dvl1903.bat" "$(ProjectDir)\$(IntDir)" "$(TargetName)" "$(Configuration)" "$(Platform)"
+        copy /Y $(ProjectDir)vioscsi.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\vioscsi.DVL-win10.XML
+      </Command>
+      <Inputs>$(IntDir)vc.nativecodeanalysis.all.xml;$(ProjectDir)vioscsi.DVL.XML</Inputs>
+      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\vioscsi.DVL.XML;$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\vioscsi.DVL-win10.XML</Outputs>
     </CustomBuildStep>
     <ClCompile>
       <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">true</WppEnabled>

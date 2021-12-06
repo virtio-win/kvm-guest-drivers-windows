@@ -220,9 +220,14 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup>
     <CustomBuildStep>
-      <Command>copy /Y $(ProjectDir)NetKVM.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)</Command>
-      <Inputs>$(ProjectDir)NetKVM.DVL.XML</Inputs>
-      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\NetKVM.DVL.XML</Outputs>
+      <Command>
+        copy /Y $(ProjectDir)NetKVM.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)
+        copy /Y $(IntDir)vc.nativecodeanalysis.all.xml $(ProjectDir)
+        call "..\Tools\dvl1903.bat" "$(ProjectDir)\$(IntDir)" "$(TargetName)" "$(Configuration)" "$(Platform)"
+        copy /Y $(ProjectDir)NetKVM.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\NetKVM.DVL-win10.XML
+      </Command>
+      <Inputs>$(IntDir)vc.nativecodeanalysis.all.xml;$(ProjectDir)NetKVM.DVL.XML</Inputs>
+      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\NetKVM.DVL.XML;$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\NetKVM.DVL-win10.XML</Outputs>
     </CustomBuildStep>
     <ClCompile />
     <ClCompile />

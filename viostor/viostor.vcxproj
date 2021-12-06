@@ -152,9 +152,14 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup>
     <CustomBuildStep>
-      <Command>copy /Y $(ProjectDir)viostor.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)</Command>
-      <Inputs>$(ProjectDir)viostor.DVL.XML</Inputs>
-      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viostor.DVL.XML</Outputs>
+      <Command>
+        copy /Y $(ProjectDir)viostor.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)
+        copy /Y $(IntDir)vc.nativecodeanalysis.all.xml $(ProjectDir)
+        call "..\Tools\dvl1903.bat" "$(ProjectDir)\$(IntDir)" "$(TargetName)" "$(Configuration)" "$(Platform)"
+        copy /Y $(ProjectDir)viostor.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viostor.DVL-win10.XML
+      </Command>
+      <Inputs>$(IntDir)vc.nativecodeanalysis.all.xml;$(ProjectDir)viostor.DVL.XML</Inputs>
+      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viostor.DVL.XML;$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viostor.DVL-win10.XML</Outputs>
     </CustomBuildStep>
     <ClCompile>
       <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">true</WppEnabled>
