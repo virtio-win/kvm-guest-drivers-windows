@@ -274,3 +274,16 @@ typedef struct
     struct fuse_entry_out   entry;
 
 } FUSE_SYMLINK_OUT;
+
+typedef struct
+{
+    struct fuse_in_header   hdr;
+    struct fuse_forget_in   forget;
+
+} FUSE_FORGET_IN, * PFUSE_FORGET_IN;
+
+typedef struct
+{
+    struct fuse_out_header  hdr;
+
+} FUSE_FORGET_OUT, * PFUSE_FORGET_OUT;
