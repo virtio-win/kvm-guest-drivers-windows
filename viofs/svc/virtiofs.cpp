@@ -47,6 +47,8 @@
 #include <wtsapi32.h>
 #include <cfgmgr32.h>
 
+#include <map>
+
 #include "virtiofs.h"
 #include "fusereq.h"
 
@@ -112,6 +114,8 @@ typedef struct
     UINT32  OwnerUid;
     UINT32  OwnerGid;
 
+    // Maps NodeId to its Nlookup counter.
+    std::map<UINT64, UINT64> LookupMap;
 } VIRTFS;
 
 typedef struct
@@ -266,6 +270,8 @@ static VOID VirtFsStop(VIRTFS *VirtFs)
         FspFileSystemDelete(VirtFs->FileSystem);
         VirtFs->FileSystem = NULL;
     }
+
+    VirtFs->LookupMap.clear();
 }
 
 static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
@@ -722,6 +728,12 @@ static NTSTATUS VirtFsCreateFile(VIRTFS *VirtFs,
         FileContext->NodeId = create_out.entry.nodeid;
         FileContext->FileHandle = create_out.open.fh;
 
+        // Newly created file has nlookup = 1
+        if (!VirtFs->LookupMap.emplace(FileContext->NodeId, 1).second)
+        {
+            return STATUS_UNSUCCESSFUL;
+        }
+
         if (AllocationSize > 0)
         {
             Status = SetFileSize(VirtFs->FileSystem, FileContext,
@@ -760,10 +772,50 @@ static NTSTATUS VirtFsCreateDir(VIRTFS *VirtFs,
     if (NT_SUCCESS(Status))
     {
         FileContext->NodeId = mkdir_out.entry.nodeid;
+
+        // Newly created directory has nlookup = 1
+        if (!VirtFs->LookupMap.emplace(FileContext->NodeId, 1).second)
+        {
+            return STATUS_UNSUCCESSFUL;
+        }
+
         SetFileInfo(VirtFs, &mkdir_out.entry, FileInfo);
     }
 
     return Status;
+}
+
+static VOID VirtFsLookupMapNewOrIncNode(VIRTFS *VirtFs, UINT64 NodeId)
+{
+    auto EmplaceResult = VirtFs->LookupMap.emplace(NodeId, 1);
+
+    if (!EmplaceResult.second)
+    {
+        EmplaceResult.first->second += 1;
+    }
+}
+
+static UINT64 VirtFsLookupMapPopNode(VIRTFS* VirtFs, UINT64 NodeId)
+{
+    auto Item = VirtFs->LookupMap.extract(NodeId);
+
+    return Item.empty() ? 0 : Item.mapped();
+}
+
+static VOID SubmitForgetRequest(HANDLE Device, UINT64 NodeId, UINT64 Nlookup)
+{
+    FUSE_FORGET_IN forget_in;
+    FUSE_FORGET_OUT forget_out;
+
+    DBG("NodeId: %lu Nlookup: %lu", NodeId, Nlookup);
+
+    FUSE_HEADER_INIT(&forget_in.hdr, FUSE_FORGET, NodeId,
+        sizeof(forget_in.forget));
+
+    forget_in.forget.nlookup = Nlookup;
+
+    VirtFsFuseRequest(Device, &forget_in, forget_in.hdr.len,
+        &forget_out, sizeof(forget_out));
 }
 
 static VOID SubmitDeleteRequest(VIRTFS *VirtFs,
@@ -771,6 +823,7 @@ static VOID SubmitDeleteRequest(VIRTFS *VirtFs,
 {
     FUSE_UNLINK_IN unlink_in;
     FUSE_UNLINK_OUT unlink_out;
+    UINT64 Nlookup = VirtFsLookupMapPopNode(VirtFs, FileContext->NodeId);
 
     FUSE_HEADER_INIT(&unlink_in.hdr,
         FileContext->IsDirectory ? FUSE_RMDIR : FUSE_UNLINK, Parent,
@@ -780,6 +833,8 @@ static VOID SubmitDeleteRequest(VIRTFS *VirtFs,
 
     (VOID)VirtFsFuseRequest(VirtFs->Device, &unlink_in, unlink_in.hdr.len,
         &unlink_out, sizeof(unlink_out));
+
+    SubmitForgetRequest(VirtFs->Device, FileContext->NodeId, Nlookup);
 }
 
 static NTSTATUS SubmitLookupRequest(VIRTFS *VirtFs, uint64_t parent,
@@ -799,6 +854,8 @@ static NTSTATUS SubmitLookupRequest(VIRTFS *VirtFs, uint64_t parent,
     if (NT_SUCCESS(Status))
     {
         struct fuse_attr *attr = &LookupOut->entry.attr;
+
+        VirtFsLookupMapNewOrIncNode(VirtFs, LookupOut->entry.nodeid);
 
         DBG("nodeid=%I64u ino=%I64u size=%I64u blocks=%I64u atime=%I64u mtime=%I64u "
             "ctime=%I64u atimensec=%u mtimensec=%u ctimensec=%u mode=%x "
@@ -2178,6 +2235,13 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
                         }
                     }
 
+                    if (wcscmp(DirInfo->FileNameBuf, L".") &&
+                        wcscmp(DirInfo->FileNameBuf, L".."))
+                    {
+                        VirtFsLookupMapNewOrIncNode(VirtFs,
+                            DirEntryPlus->entry_out.nodeid);
+                    }
+
                     Offset = DirEntryPlus->dirent.off;
                     Remains -= FUSE_DIRENTPLUS_SIZE(DirEntryPlus);
                     DirEntryPlus = (struct fuse_direntplus *)(
@@ -2535,6 +2599,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     }
     Service->UserContext = VirtFs;
 
+    new (&VirtFs->LookupMap) std::map<UINT64, UINT64>();
     VirtFs->DebugFlags = DebugFlags;
 
     VirtFs->MountPoint = _wcsdup(MountPoint);
@@ -2622,6 +2687,7 @@ out_delete_dh_notify:
 out_free_mpoint:
     free(VirtFs->MountPoint);
 out_free_virtfs:
+    VirtFs->LookupMap.~map();
     SafeHeapFree(VirtFs);
 
     return Status;
@@ -2641,6 +2707,7 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
     CloseHandle(VirtFs->EvtDeviceFound);
     CM_Unregister_Notification(VirtFs->DevInterfaceNotification);
     free(VirtFs->MountPoint);
+    VirtFs->LookupMap.~map();
     SafeHeapFree(VirtFs);
 
     return STATUS_SUCCESS;
