@@ -169,7 +169,6 @@ typedef struct
 {
     struct fuse_out_header  hdr;
     struct fuse_write_out   write;
-    char                    buf[];
 
 } FUSE_WRITE_OUT, *PFUSE_WRITE_OUT;
 
