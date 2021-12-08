@@ -134,7 +134,7 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 static VOID FixReparsePointAttributes(VIRTFS *VirtFs, uint64_t nodeid,
     UINT32 *PFileAttributes);
 
-static NTSTATUS VirtFsLookupFileName(HANDLE Device, PWSTR FileName,
+static NTSTATUS VirtFsLookupFileName(VIRTFS *VirtFs, PWSTR FileName,
     FUSE_LOOKUP_OUT *LookupOut);
 
 static NTSTATUS VirtFsStart(VIRTFS *VirtFs);
@@ -766,7 +766,7 @@ static NTSTATUS VirtFsCreateDir(VIRTFS *VirtFs,
     return Status;
 }
 
-static VOID SubmitDeleteRequest(HANDLE Device,
+static VOID SubmitDeleteRequest(VIRTFS *VirtFs,
     VIRTFS_FILE_CONTEXT *FileContext, CHAR *FileName, UINT64 Parent)
 {
     FUSE_UNLINK_IN unlink_in;
@@ -778,11 +778,11 @@ static VOID SubmitDeleteRequest(HANDLE Device,
 
     lstrcpyA(unlink_in.name, FileName);
 
-    (VOID)VirtFsFuseRequest(Device, &unlink_in, unlink_in.hdr.len,
+    (VOID)VirtFsFuseRequest(VirtFs->Device, &unlink_in, unlink_in.hdr.len,
         &unlink_out, sizeof(unlink_out));
 }
 
-static NTSTATUS SubmitLookupRequest(HANDLE Device, uint64_t parent,
+static NTSTATUS SubmitLookupRequest(VIRTFS *VirtFs, uint64_t parent,
     char *filename, FUSE_LOOKUP_OUT *LookupOut)
 {
     NTSTATUS Status;
@@ -793,7 +793,7 @@ static NTSTATUS SubmitLookupRequest(HANDLE Device, uint64_t parent,
 
     lstrcpyA(lookup_in.name, filename);
 
-    Status = VirtFsFuseRequest(Device, &lookup_in, lookup_in.hdr.len,
+    Status = VirtFsFuseRequest(VirtFs->Device, &lookup_in, lookup_in.hdr.len,
         LookupOut, sizeof(*LookupOut));
 
     if (NT_SUCCESS(Status))
@@ -906,7 +906,7 @@ static NTSTATUS SubmitRename2Request(HANDLE Device, uint64_t oldparent,
     return Status;
 }
 
-static NTSTATUS PathWalkthough(HANDLE Device, CHAR *FullPath,
+static NTSTATUS PathWalkthough(VIRTFS *VirtFs, CHAR *FullPath,
     CHAR **FileName, UINT64 *Parent)
 {
     WCHAR SubstituteName[MAX_PATH];
@@ -922,7 +922,7 @@ static NTSTATUS PathWalkthough(HANDLE Device, CHAR *FullPath,
     {
         *Separator = '\0';
 
-        Status = SubmitLookupRequest(Device, *Parent, *FileName, &LookupOut);
+        Status = SubmitLookupRequest(VirtFs, *Parent, *FileName, &LookupOut);
         if (!NT_SUCCESS(Status))
         {
             break;
@@ -930,15 +930,15 @@ static NTSTATUS PathWalkthough(HANDLE Device, CHAR *FullPath,
 
         if ((LookupOut.entry.attr.mode & S_IFLNK) == S_IFLNK)
         {
-            Status = SubmitReadLinkRequest(Device, LookupOut.entry.nodeid,
-                SubstituteName, &SubstituteNameLength);
+            Status = SubmitReadLinkRequest(VirtFs->Device,
+                LookupOut.entry.nodeid, SubstituteName, &SubstituteNameLength);
 
             if (!NT_SUCCESS(Status))
             {
                 break;
             }
 
-            Status = VirtFsLookupFileName(Device, SubstituteName, &LookupOut);
+            Status = VirtFsLookupFileName(VirtFs, SubstituteName, &LookupOut);
             if (!NT_SUCCESS(Status))
             {
                 break;
@@ -952,7 +952,7 @@ static NTSTATUS PathWalkthough(HANDLE Device, CHAR *FullPath,
     return Status;
 }
 
-static NTSTATUS VirtFsLookupFileName(HANDLE Device, PWSTR FileName,
+static NTSTATUS VirtFsLookupFileName(VIRTFS *VirtFs, PWSTR FileName,
     FUSE_LOOKUP_OUT *LookupOut)
 {
     NTSTATUS Status;
@@ -976,10 +976,10 @@ static NTSTATUS VirtFsLookupFileName(HANDLE Device, PWSTR FileName,
         return Status;
     }
 
-    Status = PathWalkthough(Device, fullpath, &filename, &parent);
+    Status = PathWalkthough(VirtFs, fullpath, &filename, &parent);
     if (NT_SUCCESS(Status))
     {
-        Status = SubmitLookupRequest(Device, parent, filename, LookupOut);
+        Status = SubmitLookupRequest(VirtFs, parent, filename, LookupOut);
     }
 
     FspPosixDeletePath(fullpath);
@@ -1001,8 +1001,7 @@ static VOID FixReparsePointAttributes(VIRTFS *VirtFs, uint64_t nodeid,
 
     if (NT_SUCCESS(Status))
     {
-        Status = VirtFsLookupFileName(VirtFs->Device, SubstituteName,
-            &lookup_out);
+        Status = VirtFsLookupFileName(VirtFs, SubstituteName, &lookup_out);
 
         if (NT_SUCCESS(Status))
         {
@@ -1151,7 +1150,7 @@ static NTSTATUS GetReparsePointByName(FSP_FILE_SYSTEM *FileSystem,
     UNREFERENCED_PARAMETER(IsDirectory);
     UNREFERENCED_PARAMETER(PSize);
 
-    Status = VirtFsLookupFileName(VirtFs->Device, FileName, &lookup_out);
+    Status = VirtFsLookupFileName(VirtFs, FileName, &lookup_out);
     if (!NT_SUCCESS(Status))
     {
         return Status;
@@ -1223,7 +1222,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
 
     DBG("\"%S\"", FileName);
 
-    Status = VirtFsLookupFileName(VirtFs->Device, FileName, &lookup_out);
+    Status = VirtFsLookupFileName(VirtFs, FileName, &lookup_out);
     if (NT_SUCCESS(Status))
     {
         struct fuse_attr *attr = &lookup_out.entry.attr;
@@ -1300,7 +1299,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
         return Status;
     }
 
-    Status = PathWalkthough(VirtFs->Device, fullpath, &filename, &parent);
+    Status = PathWalkthough(VirtFs, fullpath, &filename, &parent);
     if (!NT_SUCCESS(Status) && (Status != STATUS_OBJECT_NAME_NOT_FOUND))
     {
         FspPosixDeletePath(fullpath);
@@ -1370,7 +1369,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    Status = VirtFsLookupFileName(VirtFs->Device, FileName, &lookup_out);
+    Status = VirtFsLookupFileName(VirtFs, FileName, &lookup_out);
     if (!NT_SUCCESS(Status))
     {
         SafeHeapFree(FileContext);
@@ -1771,7 +1770,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return;
     }
 
-    Status = PathWalkthough(VirtFs->Device, fullpath, &filename, &parent);
+    Status = PathWalkthough(VirtFs, fullpath, &filename, &parent);
     if (!NT_SUCCESS(Status))
     {
         FspPosixDeletePath(fullpath);
@@ -1780,7 +1779,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     if (Flags & FspCleanupDelete)
     {
-        SubmitDeleteRequest(VirtFs->Device, FileContext, filename, parent);
+        SubmitDeleteRequest(VirtFs, FileContext, filename, parent);
     }
     else
     {
@@ -1923,7 +1922,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return Status;
     }
 
-    Status = PathWalkthough(VirtFs->Device, oldfullpath, &oldname, &oldparent);
+    Status = PathWalkthough(VirtFs, oldfullpath, &oldname, &oldparent);
     if (!NT_SUCCESS(Status))
     {
         FspPosixDeletePath(oldfullpath);
@@ -1931,7 +1930,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return Status;
     }
 
-    Status = PathWalkthough(VirtFs->Device, newfullpath, &newname, &newparent);
+    Status = PathWalkthough(VirtFs, newfullpath, &newname, &newparent);
     if (!NT_SUCCESS(Status))
     {
         FspPosixDeletePath(oldfullpath);
@@ -2256,7 +2255,7 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
         return Status;
     }
 
-    Status = PathWalkthough(VirtFs->Device, targetname, &filename, &parent);
+    Status = PathWalkthough(VirtFs, targetname, &filename, &parent);
     if (!NT_SUCCESS(Status))
     {
         FspPosixDeletePath(targetname);
@@ -2319,7 +2318,7 @@ static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
         return Status;
     }
 
-    Status = SubmitLookupRequest(VirtFs->Device, FileContext->NodeId,
+    Status = SubmitLookupRequest(VirtFs, FileContext->NodeId,
         filename, &lookup_out);
 
     if (NT_SUCCESS(Status))
