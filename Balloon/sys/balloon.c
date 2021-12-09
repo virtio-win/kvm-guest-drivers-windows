@@ -311,7 +311,7 @@ BalloonTellHost(
 
 VOID
 BalloonTerm(
-    IN WDFOBJECT    WdfDevice
+    IN WDFOBJECT WdfDevice
     )
 {
     PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
