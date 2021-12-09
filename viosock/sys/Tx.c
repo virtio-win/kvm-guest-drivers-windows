@@ -34,9 +34,9 @@
 #include "Tx.tmh"
 #endif
 
-EVT_WDF_IO_QUEUE_IO_WRITE   VIOSockWrite;
-EVT_WDF_REQUEST_CANCEL      VIOSockTxEnqueueCancel;
-EVT_WDF_TIMER               VIOSockTxTimerFunc;
+EVT_WDF_IO_QUEUE_IO_WRITE  VIOSockWrite;
+EVT_WDF_REQUEST_CANCEL     VIOSockTxEnqueueCancel;
+EVT_WDF_TIMER              VIOSockTxTimerFunc;
 
 
 #ifdef ALLOC_PRAGMA
