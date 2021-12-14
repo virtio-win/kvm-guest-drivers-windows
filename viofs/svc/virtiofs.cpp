@@ -48,6 +48,7 @@
 #include <cfgmgr32.h>
 
 #include <map>
+#include <string>
 
 #include "virtiofs.h"
 #include "fusereq.h"
@@ -85,38 +86,45 @@ typedef struct
     PTP_WORK            UnregWork;
 } VIRTFS_NOTIFICATION;
 
-typedef struct
+struct VIRTFS
 {
-    FSP_FILE_SYSTEM *FileSystem;
+    FSP_FILE_SYSTEM *FileSystem{ NULL };
 
-    HANDLE  Device;
+    HANDLE  Device{ NULL };
 
-    ULONG   DebugFlags;
+    ULONG   DebugFlags{ 0 };
 
     // Service start rountine waits for this event until the device is found.
-    HANDLE  EvtDeviceFound;
+    HANDLE  EvtDeviceFound{ NULL };
 
     // Used to handle device arrive notification.
-    HCMNOTIFICATION     DevInterfaceNotification;
+    HCMNOTIFICATION     DevInterfaceNotification{ NULL };
     // Used to handle device remove notification.
-    VIRTFS_NOTIFICATION DevHandleNotification;
+    VIRTFS_NOTIFICATION DevHandleNotification{};
 
-    PWSTR   MountPoint;
+    std::wstring MountPoint{ L"*" };
 
     // A write request buffer size must not exceed this value.
-    UINT32  MaxWrite;
+    UINT32  MaxWrite{ 0 };
 
     // Uid/Gid used to describe files' owner on the guest side.
-    UINT32  LocalUid;
-    UINT32  LocalGid;
+    UINT32  LocalUid{ 0 };
+    UINT32  LocalGid{ 0 };
 
     // Uid/Gid used to describe files' owner on the host side.
-    UINT32  OwnerUid;
-    UINT32  OwnerGid;
+    UINT32  OwnerUid{ 0 };
+    UINT32  OwnerGid{ 0 };
 
     // Maps NodeId to its Nlookup counter.
-    std::map<UINT64, UINT64> LookupMap;
-} VIRTFS;
+    std::map<UINT64, UINT64> LookupMap{};
+
+    VIRTFS(ULONG DebugFlags, const std::wstring& MountPoint);
+};
+
+VIRTFS::VIRTFS(ULONG DebugFlags, const std::wstring& MountPoint)
+    : DebugFlags{ DebugFlags }, MountPoint{ MountPoint }
+{
+}
 
 typedef struct
 {
@@ -2501,7 +2509,7 @@ static NTSTATUS VirtFsStart(VIRTFS *VirtFs)
     FspFileSystemSetDebugLog(VirtFs->FileSystem, VirtFs->DebugFlags);
 
     Status = FspFileSystemSetMountPoint(VirtFs->FileSystem,
-        lstrcmp(VirtFs->MountPoint, TEXT("*")) ? VirtFs->MountPoint : NULL);
+        (VirtFs->MountPoint == L"*") ? NULL : (PWSTR)VirtFs->MountPoint.c_str());
     if (!NT_SUCCESS(Status))
     {
         goto out_del_fs;
@@ -2523,20 +2531,16 @@ out_del_fs:
     return Status;
 }
 
-static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
+static NTSTATUS ParseArgs(ULONG argc, PWSTR *argv,
+    ULONG& DebugFlags, std::wstring& DebugLogFile, std::wstring& MountPoint)
 {
 #define argtos(v) if (arge > ++argp) v = *argp; else goto usage
 #define argtol(v) if (arge > ++argp) v = wcstol_deflt(*argp, v); \
     else goto usage
 
     wchar_t **argp, **arge;
-    PWSTR DebugLogFile = 0;
-    ULONG DebugFlags = 0;
-    HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
-    PWSTR MountPoint = (PWSTR)L"*";
-    VIRTFS *VirtFs;
-    NTSTATUS Status;
-    DWORD Error;
+    PWSTR DebugLogFileStr = NULL;
+    PWSTR MountPointStr = NULL;
 
     for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
     {
@@ -2553,10 +2557,10 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
                 argtol(DebugFlags);
                 break;
             case L'D':
-                argtos(DebugLogFile);
+                argtos(DebugLogFileStr);
                 break;
             case L'm':
-                argtos(MountPoint);
+                argtos(MountPointStr);
                 break;
             default:
                 goto usage;
@@ -2568,51 +2572,101 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         goto usage;
     }
 
-    if (DebugLogFile != 0)
+    if (DebugLogFileStr != NULL)
     {
-        if (0 == wcscmp(L"-", DebugLogFile))
-        {
-            DebugLogHandle = GetStdHandle(STD_ERROR_HANDLE);
-        }
-        else
-        {
-            DebugLogHandle = CreateFileW(DebugLogFile, FILE_APPEND_DATA,
-                FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_ALWAYS,
-                FILE_ATTRIBUTE_NORMAL, 0);
-        }
-
-        if (DebugLogHandle == INVALID_HANDLE_VALUE)
-        {
-            FspServiceLog(EVENTLOG_ERROR_TYPE,
-                (PWSTR)L"Can not open debug log file.");
-            goto usage;
-        }
-
-        FspDebugLogSetHandle(DebugLogHandle);
+        DebugLogFile.assign(DebugLogFileStr);
     }
 
-    VirtFs = (VIRTFS *)HeapAlloc(GetProcessHeap(),
-                HEAP_ZERO_MEMORY, sizeof(*VirtFs));
-    if (VirtFs == NULL)
+    if (MountPointStr != NULL)
+    {
+        MountPoint.assign(MountPointStr);
+    }
+
+    return STATUS_SUCCESS;
+
+#undef argtos
+#undef argtol
+
+usage:
+    static wchar_t usage[] = L""
+        "Usage: %s OPTIONS\n"
+        "\n"
+        "options:\n"
+        "    -d DebugFlags       [-1: enable all debug logs]\n"
+        "    -D DebugLogFile     [file path; use - for stderr]\n"
+        "    -m MountPoint       [X:|* (required if no UNC prefix)]\n";
+
+    FspServiceLog(EVENTLOG_ERROR_TYPE, usage, FS_SERVICE_NAME);
+
+    return STATUS_UNSUCCESSFUL;
+}
+
+static NTSTATUS DebugLogSet(const std::wstring& DebugLogFile)
+{
+    HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
+
+    if (DebugLogFile == L"-")
+    {
+        DebugLogHandle = GetStdHandle(STD_ERROR_HANDLE);
+    }
+    else
+    {
+        DebugLogHandle = CreateFileW(DebugLogFile.c_str(), FILE_APPEND_DATA,
+            FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL, 0);
+    }
+
+    if (DebugLogHandle == INVALID_HANDLE_VALUE)
+    {
+        FspServiceLog(EVENTLOG_ERROR_TYPE,
+            (PWSTR)L"Can not open debug log file.");
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    FspDebugLogSetHandle(DebugLogHandle);
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
+{
+    std::wstring DebugLogFile{};
+    ULONG DebugFlags = 0;
+    std::wstring MountPoint{ L"*" };
+    VIRTFS *VirtFs;
+    NTSTATUS Status;
+    DWORD Error;
+
+    Status = ParseArgs(argc, argv, DebugFlags, DebugLogFile, MountPoint);
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    if (!DebugLogFile.empty())
+    {
+        Status = DebugLogSet(DebugLogFile);
+        if (!NT_SUCCESS(Status))
+        {
+            return Status;
+        }
+    }
+
+    try
+    {
+        VirtFs = new VIRTFS(DebugFlags, MountPoint);
+    }
+    catch (std::bad_alloc)
     {
         return STATUS_INSUFFICIENT_RESOURCES;
     }
+
     Service->UserContext = VirtFs;
-
-    new (&VirtFs->LookupMap) std::map<UINT64, UINT64>();
-    VirtFs->DebugFlags = DebugFlags;
-
-    VirtFs->MountPoint = _wcsdup(MountPoint);
-    if (VirtFs->MountPoint == NULL)
-    {
-        Status = STATUS_INSUFFICIENT_RESOURCES;
-        goto out_free_virtfs;
-    }
 
     if (!VirtFsNotificationCreate(&VirtFs->DevHandleNotification))
     {
         Status = STATUS_UNSUCCESSFUL;
-        goto out_free_mpoint;
+        goto out_free_virtfs;
     }
 
     VirtFs->EvtDeviceFound = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -2661,19 +2715,6 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 
     return STATUS_SUCCESS;
 
-usage:
-    static wchar_t usage[] = L""
-        "Usage: %s OPTIONS\n"
-        "\n"
-        "options:\n"
-        "    -d DebugFlags       [-1: enable all debug logs]\n"
-        "    -D DebugLogFile     [file path; use - for stderr]\n"
-        "    -m MountPoint       [X:|* (required if no UNC prefix)]\n";
-
-    FspServiceLog(EVENTLOG_ERROR_TYPE, usage, FS_SERVICE_NAME);
-
-    return STATUS_UNSUCCESSFUL;
-
 out_unreg_dh_notify:
     VirtFsNotificationUnreg(&VirtFs->DevHandleNotification);
 out_close_handle:
@@ -2684,16 +2725,10 @@ out_close_event:
     CloseHandle(VirtFs->EvtDeviceFound);
 out_delete_dh_notify:
     VirtFsNotificationDelete(&VirtFs->DevHandleNotification);
-out_free_mpoint:
-    free(VirtFs->MountPoint);
 out_free_virtfs:
-    VirtFs->LookupMap.~map();
-    SafeHeapFree(VirtFs);
+    delete VirtFs;
 
     return Status;
-
-#undef argtos
-#undef argtol
 }
 
 static NTSTATUS SvcStop(FSP_SERVICE *Service)
@@ -2706,9 +2741,7 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
     VirtFsNotificationDelete(&VirtFs->DevHandleNotification);
     CloseHandle(VirtFs->EvtDeviceFound);
     CM_Unregister_Notification(VirtFs->DevInterfaceNotification);
-    free(VirtFs->MountPoint);
-    VirtFs->LookupMap.~map();
-    SafeHeapFree(VirtFs);
+    delete VirtFs;
 
     return STATUS_SUCCESS;
 }
