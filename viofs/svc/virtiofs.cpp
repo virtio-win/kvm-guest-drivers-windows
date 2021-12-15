@@ -54,6 +54,7 @@
 #include "fusereq.h"
 
 #define FS_SERVICE_NAME TEXT("VirtIO-FS")
+#define FS_SERVICE_REGKEY   TEXT("Software\\") FS_SERVICE_NAME
 #define ALLOCATION_UNIT 4096
 
 #define INVALID_FILE_HANDLE ((uint64_t)(-1))
@@ -2601,6 +2602,65 @@ usage:
     return STATUS_UNSUCCESSFUL;
 }
 
+static DWORD VirtFsRegistryGetDword(PCWSTR ValueName, DWORD& Value)
+{
+    LSTATUS Status;
+    DWORD Val;
+    DWORD ValSize = sizeof(Val);
+
+    Status = RegGetValue(HKEY_LOCAL_MACHINE, FS_SERVICE_REGKEY, ValueName,
+        RRF_RT_REG_DWORD, NULL, &Val, &ValSize);
+    if (Status == ERROR_SUCCESS)
+    {
+        Value = Val;
+    }
+
+    return Status;
+}
+
+static DWORD VirtFsRegistryGetString(PCWSTR ValueName, std::wstring& Str)
+{
+    LSTATUS Status;
+    DWORD BufSize = 0;
+    PWSTR Buf;
+
+    // Determine required buffer size
+    Status = RegGetValue(HKEY_LOCAL_MACHINE, FS_SERVICE_REGKEY, ValueName,
+        RRF_RT_REG_SZ, NULL, NULL, &BufSize);
+    if (Status != ERROR_SUCCESS)
+    {
+        return Status;
+    }
+
+    try
+    {
+        Buf = new WCHAR[BufSize];
+    }
+    catch (std::bad_alloc)
+    {
+        return ERROR_NO_SYSTEM_RESOURCES;
+    }
+
+    Status = RegGetValue(HKEY_LOCAL_MACHINE, FS_SERVICE_REGKEY, ValueName,
+        RRF_RT_REG_SZ, NULL, Buf, &BufSize);
+    if (Status == ERROR_SUCCESS)
+    {
+        Str.assign(Buf);
+    }
+
+    delete[] Buf;
+
+    return Status;
+}
+
+static VOID ParseRegistry(ULONG& DebugFlags, std::wstring& DebugLogFile,
+    std::wstring& MountPoint)
+{
+    VirtFsRegistryGetDword(L"DebugFlags", DebugFlags);
+    VirtFsRegistryGetString(L"DebugLogFile", DebugLogFile);
+    VirtFsRegistryGetString(L"MountPoint", MountPoint);
+}
+
 static NTSTATUS DebugLogSet(const std::wstring& DebugLogFile)
 {
     HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
@@ -2634,10 +2694,18 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
     ULONG DebugFlags = 0;
     std::wstring MountPoint{ L"*" };
     VIRTFS *VirtFs;
-    NTSTATUS Status;
+    NTSTATUS Status = STATUS_SUCCESS;
     DWORD Error;
 
-    Status = ParseArgs(argc, argv, DebugFlags, DebugLogFile, MountPoint);
+    if (argc > 1)
+    {
+        Status = ParseArgs(argc, argv, DebugFlags, DebugLogFile, MountPoint);
+    }
+    else
+    {
+        ParseRegistry(DebugFlags, DebugLogFile, MountPoint);
+    }
+
     if (!NT_SUCCESS(Status))
     {
         return Status;
