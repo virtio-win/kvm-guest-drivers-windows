@@ -17,6 +17,11 @@
     #define MINIDUMP_OFFSET_KDBG_OFFSET     (DUMP_HDR_SIZE + 0x70)
     #define MINIDUMP_OFFSET_KDBG_SIZE       (DUMP_HDR_SIZE + 0x74)
     #define DUMP_HDR_OFFSET_BUGCHECK_PARAM1 0x40
+#else
+    #define DUMP_HDR_SIZE                   (PAGE_SIZE)
+    #define MINIDUMP_OFFSET_KDBG_OFFSET     (DUMP_HDR_SIZE + 0x58)
+    #define MINIDUMP_OFFSET_KDBG_SIZE       (DUMP_HDR_SIZE + 0x5c)
+    #define DUMP_HDR_OFFSET_BUGCHECK_PARAM1 0x2c
 #endif
 
 #define ROUND_UP(x, n) (((x) + (n) - 1) & (-(n)))

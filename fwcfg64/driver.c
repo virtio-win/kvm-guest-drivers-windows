@@ -38,7 +38,11 @@ NTSTATUS VMCoreInfoFill(PDEVICE_CONTEXT ctx)
      * BugcheckParameter1 field is unused in live system and will be filled by QEMU.
      * So the pointer to decoded KDBG can be stored in this field.
      */
+#ifdef _AMD64_
     *(PULONG64)(hdr_buf + DUMP_HDR_OFFSET_BUGCHECK_PARAM1) = (ULONG64)ctx->kdbg;
+#else
+    *(PULONG32)(hdr_buf + DUMP_HDR_OFFSET_BUGCHECK_PARAM1) = (ULONG32)ctx->kdbg;
+#endif
 
     return status;
 }
