@@ -76,11 +76,12 @@ NTSTATUS GetKdbg(PDEVICE_CONTEXT ctx)
     CONTEXT context = { 0 };
     NTSTATUS status = STATUS_SUCCESS;
 
-    minidump = ExAllocatePoolUninitialized(NonPagedPoolNx, 0x40000, 'pmdm');
+    minidump = ExAllocatePoolUninitialized(NonPagedPoolNx, MINIDUMP_BUFFER_SIZE, 'pmdm');
     if (!minidump)
     {
-         return STATUS_MEMORY_NOT_ALLOCATED;
+        return STATUS_MEMORY_NOT_ALLOCATED;
     }
+    memset(minidump, 0, MINIDUMP_BUFFER_SIZE);
 
     KeCapturePersistentThreadState(&context, NULL, 0, 0, 0, 0, 0, minidump);
 
@@ -90,6 +91,16 @@ NTSTATUS GetKdbg(PDEVICE_CONTEXT ctx)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT,
         "KdDebuggerDataBlock size = %lx, offset = 0x%lx",
         kdbg_size, kdbg_offset);
+
+    /*
+     * KeCapturePersistentThreadState is supposed to save Small Memory Dump to the buffer.
+     * But since it is undocumented function, the driver should check actual output data.
+     */
+    if (kdbg_size == 0 || (kdbg_offset + kdbg_size) > MINIDUMP_BUFFER_SIZE)
+    {
+        status = STATUS_INVALID_BUFFER_SIZE;
+        goto out_free_minidump;
+    }
 
     ctx->kdbg = ExAllocatePoolUninitialized(NonPagedPoolNx, kdbg_size, 'gbdk');
     if (!ctx->kdbg)
