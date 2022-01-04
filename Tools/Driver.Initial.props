@@ -24,8 +24,5 @@ Common property definitions used by all drivers:
   <PropertyGroup Condition="'$(TargetVersion)'=='Windows8'">
     <_NT_TARGET_VERSION>0x0602</_NT_TARGET_VERSION>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(TargetVersion)'=='Windows7'">
-    <_NT_TARGET_VERSION>0x0601</_NT_TARGET_VERSION>
-  </PropertyGroup>
 
 </Project>

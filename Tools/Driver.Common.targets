@@ -94,11 +94,6 @@ Invoking the task:
     <Exec Command="$(ProjectDir)GenerateInf $(SourceInfFile)"/>
   </Target>
 
-  <Target Condition="'$(Feature_GenerateInf)'=='true' AND '$(UseLegacyDDK)'=='true'" Name="GenerateInfLegacy" BeforeTargets="AdjustInf_LegacyDDK">
-    <Message Text="GenerateInf: $(SourceInfFile)" Importance="high" />
-    <Exec Command="$(ProjectDir)GenerateInf $(SourceInfFile)"/>
-  </Target>
-
  <!-- Adjust inf (for WDK) -->
   <Target Condition="'$(Feature_AdjustInf)'=='true' AND '$(UseLegacyDDK)'!='true' AND '@(Inf)' != ''" Name="AdjustInf_WDK" AfterTargets="StampInf" BeforeTargets="InfVerif">
     <Message Text="AdjustInf_WDK: for %(Inf.FullPath) stamped as %(Inf.CopyOutput)" Importance="high" />
@@ -106,22 +101,8 @@ Invoking the task:
     <Copy Condition="'$(TargetInfFile)' != ''" SourceFiles="%(Inf.CopyOutput)" DestinationFiles="$(OutDir)$(TargetInfFile)"/>
   </Target>
 
-  <!-- Adjust inf (for Legacy DDK) -->
-  <Target Condition="'$(Feature_AdjustInfLegacy)'=='true' AND '$(UseLegacyDDK)'=='true'" Name="AdjustInf_LegacyDDK" BeforeTargets="PreBuildEvent">
-    <Message Text="AdjustInf_LegacyDDK: for $(SourceInfFile) to $(OutDir)$(TargetName).inf" Importance="high"/>
-    <Copy SourceFiles="$(SourceInfFile)" DestinationFiles="$(OutDir)$(TargetName).inf"/>
-    <SubstituteFileContent SourceFiles="$(OutDir)$(TargetName).inf" Substitutions="@(Substitution)"/>
-  </Target>
-
-  <!-- Stampinf (for Legacy DDK) -->
-  <Target Condition="'$(Feature_LegacyStampInf)'=='true' AND '$(UseLegacyDDK)'=='true'" Name="StampInf_LegacyDDK" AfterTargets="AdjustInf_LegacyDDK" BeforeTargets="PreBuildEvent">
-    <Message Text="StampInf_LegacyDDK: for $(OutDir)$(TargetName).inf with Feature_UsingWDF=$(Feature_UsingWDF) and STAMPINF_VERSION=$(STAMPINF_VERSION)" Importance="high"/>
-    <Exec Condition="'$(Feature_UsingWDF)'=='false'" Command="stampinf -f $(OutDir)$(TargetName).inf -a $(InfArch) -v $(STAMPINF_VERSION) -d *"/>
-    <Exec Condition="'$(Feature_UsingWDF)'=='true'" Command="stampinf -f $(OutDir)$(TargetName).inf -a $(InfArch) -k 1.9 -v $(STAMPINF_VERSION) -d *"/>
-  </Target>
-
   <!-- Subsystem vendor ID validation -->
-  <Target Condition="'$(SUBSYSTEM_VENDOR_ID.ToUpper())'=='1AF4' AND '$(_VENDOR_)'!='RHEL'" Name="ValidateSubsystemVendor" AfterTargets="AdjustInf_WDK;AdjustInf_LegacyDDK">
+  <Target Condition="'$(SUBSYSTEM_VENDOR_ID.ToUpper())'=='1AF4' AND '$(_VENDOR_)'!='RHEL'" Name="ValidateSubsystemVendor" AfterTargets="AdjustInf_WDK">
     <Warning Text="Subsystem vendor ID $(SUBSYSTEM_VENDOR_ID) is reserved by Red Hat. Please change it by definining SUBSYSTEM_VENDOR_ID in Driver.$(_VENDOR_).props." />
   </Target>
 
