@@ -100,9 +100,6 @@
     <TargetVersion>Windows10</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
   </PropertyGroup>
-  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'=='v141_xp'">
-    <UseLegacyDDK>true</UseLegacyDDK>
-  </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
@@ -143,14 +140,6 @@
       <AdditionalOptions>/kernel %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel>Level3</WarningLevel>
       <DisableLanguageExtensions>false</DisableLanguageExtensions>
-    </ClCompile>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v141_xp'">
-    <ClCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <Optimization Condition="$(Configuration.EndsWith('Release'))">Full</Optimization>
-      <Optimization Condition="$(Configuration.EndsWith('Debug'))">Disabled</Optimization>
-      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
