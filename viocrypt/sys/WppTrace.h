@@ -63,10 +63,3 @@
 // FUNC DbgPrint{FLAG=TRACE_DRIVER}(LEVEL, (MSG, ...));
 // end_wpp
 //
-
-#if (NTDDI_VERSION < NTDDI_WIN7)
-#define NO_WPP
-#define Trace(...) {}
-#define WPP_INIT_TRACING(a,b)
-#define WPP_CLEANUP(a)
-#endif
