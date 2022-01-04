@@ -68,11 +68,6 @@
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>Miniport</DriverType>
   </PropertyGroup>
-  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'=='v141_xp'">
-    <UseLegacyDDK>true</UseLegacyDDK>
-    <ConfigurationType>Application</ConfigurationType>
-    <GenerateManifest>false</GenerateManifest>
-  </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\viostor.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -124,15 +119,6 @@
     <ResourceCompile>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..\Inc</AdditionalIncludeDirectories>
     </ResourceCompile>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v141_xp'">
-    <ClCompile>
-      <DisableSpecificWarnings>4267;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-    </ClCompile>
-    <Link>
-      <EntryPointSymbol Condition="'$(Platform)'=='Win32'">GsDriverEntry@8</EntryPointSymbol>
-      <EntryPointSymbol Condition="'$(Platform)'=='x64'">GsDriverEntry</EntryPointSymbol>
-    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Win8 Release'">
     <ClCompile>
