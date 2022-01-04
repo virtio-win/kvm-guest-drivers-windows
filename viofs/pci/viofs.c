@@ -43,10 +43,8 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
     WDF_DRIVER_CONFIG config;
     WDF_OBJECT_ATTRIBUTES attributes;
 
-#if (NTDDI_VERSION > NTDDI_WIN7)
     ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
-#endif
-
+    
     // Initialize the WPP tracing.
     WPP_INIT_TRACING(DriverObject, RegistryPath);
 
