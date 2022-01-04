@@ -170,17 +170,6 @@
         xcopy /y /q $(ProjectDir)CoInstaller\readme.doc $(InstallRoot)\$(TargetOS)\$(TargetArch)\
       </Command>
     </PostBuildEvent>
-    <PostBuildEvent Condition="'$(UseLegacyDDK)'=='true'">
-      <Command>
-        xcopy /y /q $(OutDir)netkvm.inf $(InstallRoot)\$(TargetOS)\$(TargetArch)\
-        xcopy /y /q $(OutDir)netkvm.pdb $(InstallRoot)\$(TargetOS)\$(TargetArch)\
-        xcopy /y /q $(OutDir)netkvm.cat $(InstallRoot)\$(TargetOS)\$(TargetArch)\
-        xcopy /y /q $(OutDir)netkvm.sys $(InstallRoot)\$(TargetOS)\$(TargetArch)\
-        xcopy /y /q $(ProjectDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(InstallRoot)\$(TargetOS)\$(TargetArch)\
-        xcopy /y /q $(ProjectDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.pdb $(InstallRoot)\$(TargetOS)\$(TargetArch)\
-        xcopy /y /q $(ProjectDir)CoInstaller\readme.doc $(InstallRoot)\$(TargetOS)\$(TargetArch)\
-      </Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
     <ClCompile>

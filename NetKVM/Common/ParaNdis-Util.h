@@ -13,8 +13,6 @@ void NetKvmAssert(bool Statement, ULONG Code);
 #define NETKVM_ASSERT(x) for(;;) break
 #endif
 
-#if ((OSVERSION_MASK & NTDDI_VERSION) > NTDDI_VISTA)
-
 #define _Ndis_acquires_lock_(type, lock)     \
     _Acquires##type##lock_(lock)             \
     _IRQL_raises_(DISPATCH_LEVEL)            \
@@ -27,16 +25,6 @@ void NetKvmAssert(bool Statement, ULONG Code);
 
 #define _Ndis_acquires_exclusive_lock_(lock) _Ndis_acquires_lock_(_exclusive_, lock)
 #define _Ndis_acquires_shared_lock_(lock) _Ndis_acquires_lock_(_shared_, lock)
-
-#else
-
-// most annotations are not available when building for downlevel
-#define _Ndis_acquires_lock_(type, lock)
-#define _Ndis_releases_lock_(lock)
-#define _Ndis_acquires_exclusive_lock_(lock)
-#define _Ndis_acquires_shared_lock_(lock)
-
-#endif
 
 class CNdisAllocatableBase
 {
@@ -510,19 +498,15 @@ class CDpcIrqlRaiser
 {
 public:
 
-#if ((OSVERSION_MASK & NTDDI_VERSION) > NTDDI_VISTA)
     _IRQL_requires_max_(DISPATCH_LEVEL)
     _IRQL_raises_(DISPATCH_LEVEL)
     _IRQL_saves_global_(OldIrql, this->m_OriginalIRQL)
-#endif
     CDpcIrqlRaiser()
         : m_OriginalIRQL(KeRaiseIrqlToDpcLevel())
     { }
 
-#if ((OSVERSION_MASK & NTDDI_VERSION) > NTDDI_VISTA)
     _IRQL_requires_(DISPATCH_LEVEL)
     _IRQL_restores_global_(OldIrql, this->m_OriginalIRQL)
-#endif
     ~CDpcIrqlRaiser()
     { KeLowerIrql(m_OriginalIRQL); }
     CDpcIrqlRaiser(const CDpcIrqlRaiser&) = delete;

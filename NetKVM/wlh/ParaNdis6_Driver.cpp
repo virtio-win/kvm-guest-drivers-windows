@@ -30,9 +30,7 @@
 as NT_PROCESSOR_GROUP has to be defined before ntddk.h->wdm.h and including
 sdkddkver.h before ntddk.h cause compilation failure in wdm.h and ntddk.h */
 
-#if NTDDI_VERSION > 0x06000400
 #define NT_PROCESSOR_GROUPS
-#endif
 
 #include "ParaNdis6.h"
 #include "ParaNdis-Oid.h"
@@ -68,7 +66,6 @@ extern "C"
 }
 
 
-//#define NO_VISTA_POWER_MANAGEMENT
 ULONG bDisableMSI = FALSE;
 
 static NDIS_HANDLE      DriverHandle;
@@ -206,9 +203,8 @@ static NDIS_STATUS ParaNdis6_Initialize(
             // NDIS_MINIPORT_ATTRIBUTES_SURPRISE_REMOVE_OK
             NDIS_MINIPORT_ATTRIBUTES_HARDWARE_DEVICE |
             NDIS_MINIPORT_ATTRIBUTES_BUS_MASTER;
-#ifndef NO_VISTA_POWER_MANAGEMENT
+
         miniportAttributes.RegistrationAttributes.AttributeFlags |= NDIS_MINIPORT_ATTRIBUTES_NO_HALT_ON_SUSPEND;
-#endif
 #if NDIS_SUPPORT_NDIS630
         miniportAttributes.RegistrationAttributes.AttributeFlags |= NDIS_MINIPORT_ATTRIBUTES_NO_PAUSE_ON_SUSPEND;
 #endif
@@ -241,9 +237,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
 #if NDIS_SUPPORT_NDIS620
         NDIS_PM_CAPABILITIES power620Caps;
 #endif
-#ifdef NO_VISTA_POWER_MANAGEMENT
-        pPowerCaps = NULL;
-#endif
+
         ParaNdis_FillPowerCapabilities(&power60Caps);
 
         NdisZeroMemory(&miniportAttributes, sizeof(miniportAttributes));
