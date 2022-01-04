@@ -65,11 +65,6 @@
     <DriverType>KMDF</DriverType>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
   </PropertyGroup>
-  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'=='v141_xp'">
-    <UseLegacyDDK>true</UseLegacyDDK>
-    <ConfigurationType>Application</ConfigurationType>
-    <GenerateManifest>false</GenerateManifest>
-  </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\pvpanic.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -108,23 +103,6 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
     </Link>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v141_xp'">
-    <PreBuildEvent>
-      <Command>
-        tracewpp bugcheck.c power.c pvpanic.c -km -func:TraceEvents(LEVEL,FLAGS,MSG,...) -func:Hexdump(LEVEL,FLAGS,MSG,...) -gen:{km-WdfDefault.tpl}*.tmh -cfgdir:$(LegacyDDKDir)\bin\WppConfig\Rev1
-      </Command>
-    </PreBuildEvent>
-    <PostBuildEvent>
-      <Command Condition="'$(Platform)'=='Win32'">
-        copy "$(LegacyDDKDir)\redist\wdf\x86\WdfCoInstaller01009.dll" "$(OutDir)"
-        copy pvpanic.inf "$(OutDir)\pvpanic.inf"
-      </Command>
-      <Command Condition="'$(Platform)'=='x64'">
-        copy "$(LegacyDDKDir)\redist\wdf\amd64\WdfCoInstaller01009.dll" "$(OutDir)"
-        copy pvpanic.inf "$(OutDir)\pvpanic.inf"
-      </Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
     <FilesToPackage Include="@(Inf->'%(CopyOutput)')" Condition="'@(Inf)'!=''" />
@@ -150,21 +128,8 @@
     <KmdfCoinstaller>$(WDKContentRoot)redist\wdf\$(DDKPlatform)\WdfCoInstaller$(KMDF_VERSION_MAJOR_STRING)$(KMDF_VERSION_MINOR_STRING).dll</KmdfCoinstaller>
   </PropertyGroup>
   <Target Name="GetDriverProjectAttributes" Returns="@(DriverProjectAttributes)">
-    <ItemGroup Condition="'$(PlatformToolset)'=='v141_xp'">
-      <DriverProjectAttributes Include="$(ProjectGuid)">
-        <DriverType>$(DriverType)</DriverType>
-        <PlatformToolset>$(PlatformToolset)</PlatformToolset>
-        <IsKernelModeToolset>$(IsKernelModeToolset)</IsKernelModeToolset>
-        <IsUserModeToolset>$(IsUserModeToolset)</IsUserModeToolset>
-        <ProjectPath>$(MSBuildProjectFullPath)</ProjectPath>
-      </DriverProjectAttributes>
-    </ItemGroup>
   </Target>
   <Target Name="GetPackageFiles" Returns="@(FullyQualifiedFilesToPackage)">
-    <ItemGroup Condition="'$(PlatformToolset)'=='v141_xp'">
-      <FilesToPackage Include="$(OutDir)\pvpanic.inf" />
-      <FilesToPackage Include="$(OutDir)\WdfCoInstaller01009.dll" />
-    </ItemGroup>
     <ConvertToAbsolutePath Paths="@(FilesToPackage)">
       <Output TaskParameter="AbsolutePaths" ItemName="FullyQualifiedFilesToPackage" />
     </ConvertToAbsolutePath>
