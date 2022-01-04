@@ -28,9 +28,7 @@
  */
 #include "kdebugprint.h"
 
-#if ((OSVERSION_MASK & NTDDI_VERSION) > NTDDI_VISTA)
 #define EVENT_TRACING
-#endif
 
 #if !defined(EVENT_TRACING)
 
