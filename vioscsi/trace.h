@@ -41,7 +41,7 @@
 
 char *DbgGetScsiOpStr(PSCSI_REQUEST_BLOCK Srb);
 
-#if !defined(DBG) && ((OSVERSION_MASK & NTDDI_VERSION) > NTDDI_VISTA)
+#if !defined(DBG)
 #define EVENT_TRACING 1
 #endif
 
