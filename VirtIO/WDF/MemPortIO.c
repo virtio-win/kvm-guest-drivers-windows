@@ -39,11 +39,7 @@
 #define PORT_MASK 0xFFFF
 
 /* READ_REGISTER_* and WRITE_REGISTER_* take volatile ptr in newer DDKs */
-#if NTDDI_VERSION >= NTDDI_WIN7
 #define _VOLATILE volatile
-#else
-#define _VOLATILE
-#endif
 
 #define READ_PORT_OR_REGISTER(address, width)                       \
     (address & ~PORT_MASK) ?                                        \
