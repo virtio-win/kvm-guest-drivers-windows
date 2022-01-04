@@ -13,9 +13,7 @@
 #include "kdebugprint.h"
 
 // Undefine for disabling WPP tracing
-#if ((OSVERSION_MASK & NTDDI_VERSION) > NTDDI_VISTA)
 #define NETKVM_WPP_ENABLED
-#endif
 
 #ifndef NETKVM_WPP_ENABLED
 #define TraceNoPrefix DPrintf

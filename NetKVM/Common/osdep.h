@@ -33,29 +33,6 @@
 #include <ndis.h>
 #include <Ntstrsafe.h>
 
-#if NTDDI_VERSION <= NTDDI_VISTASP1
-#define _Requires_lock_held_(lock)
-#define _Acquires_shared_lock_(lock)
-#define _Acquires_exclusive_lock_(lock)
-#endif
-
-#if ((OSVERSION_MASK & NTDDI_VERSION) == NTDDI_VISTA)
-#define NDIS_PROTOCOL_ID_IP6            0x03
-
-#ifdef  _WIN64
-#define offsetof(s,f)   ((size_t)((ptrdiff_t)&(((s *)0)->f)))
-#else
-#define offsetof(s,f)   ((size_t)&(((s *)0)->f))
-#endif
-
-typedef struct _NETWORK_ADDRESS_IP6 {
-    USHORT      sin6_port;
-    ULONG       sin6_flowinfo;
-    USHORT      sin6_addr[8];
-    ULONG       sin6_scope_id;
-} NETWORK_ADDRESS_IP6, *PNETWORK_ADDRESS_IP6;
-#endif
-
 #ifndef PARANDIS_MAJOR_DRIVER_VERSION
 #error PARANDIS_MAJOR_DRIVER_VERSION not defined
 #endif
