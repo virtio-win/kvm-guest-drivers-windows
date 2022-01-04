@@ -56,9 +56,8 @@ DriverEntry(
     WDF_OBJECT_ATTRIBUTES attributes;
     WDFDRIVER             driver;
 
-#if (NTDDI_VERSION > NTDDI_WIN7)
     ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
-#endif
+
     InitializeDebugPrints(DriverObject, RegistryPath);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
