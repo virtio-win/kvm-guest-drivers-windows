@@ -61,11 +61,6 @@
     <DriverType>KMDF</DriverType>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
   </PropertyGroup>
-  <PropertyGroup Label="PropertySheets" Condition="'$(PlatformToolset)'=='v141_xp'">
-    <UseLegacyDDK>true</UseLegacyDDK>
-    <ConfigurationType>Application</ConfigurationType>
-    <GenerateManifest>false</GenerateManifest>
-  </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\viorng.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -111,16 +106,6 @@
       <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">..\..\VirtIO\objfre_win10_amd64\amd64;..\..\VirtIO\WDF\objfre_win10_amd64\amd64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(PlatformToolset)'=='v141_xp'">
-    <ClCompile>
-      <DisableSpecificWarnings>4267;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-    </ClCompile>
-    <PreBuildEvent>
-      <Command>
-        tracewpp isrdpc.c power.c read.c biorng.c virtio.c viorng.c -km -func:TraceEvents(LEVEL,FLAGS,MSG,...) -gen:{km-WdfDefault.tpl}*.tmh -cfgdir:$(LegacyDDKDir)\bin\WppConfig\Rev1
-      </Command>
-    </PreBuildEvent>
-  </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
     <FilesToPackage Include="@(Inf->'%(CopyOutput)')" Condition="'@(Inf)'!=''" />
@@ -147,20 +132,8 @@
     <KmdfCoinstaller>$(WDKContentRoot)redist\wdf\$(DDKPlatform)\WdfCoInstaller$(KMDF_VERSION_MAJOR_STRING)$(KMDF_VERSION_MINOR_STRING).dll</KmdfCoinstaller>
   </PropertyGroup>
   <Target Name="GetDriverProjectAttributes" Returns="@(DriverProjectAttributes)">
-    <ItemGroup Condition="'$(PlatformToolset)'=='v141_xp'">
-      <DriverProjectAttributes Include="$(ProjectGuid)">
-        <DriverType>$(DriverType)</DriverType>
-        <PlatformToolset>$(PlatformToolset)</PlatformToolset>
-        <IsKernelModeToolset>$(IsKernelModeToolset)</IsKernelModeToolset>
-        <IsUserModeToolset>$(IsUserModeToolset)</IsUserModeToolset>
-        <ProjectPath>$(MSBuildProjectFullPath)</ProjectPath>
-      </DriverProjectAttributes>
-    </ItemGroup>
   </Target>
   <Target Name="GetPackageFiles" Returns="@(FullyQualifiedFilesToPackage)">
-    <ItemGroup Condition="'$(PlatformToolset)'=='v141_xp'">
-      <FilesToPackage Include="$(LegacyDDKDir)\redist\wdf\$(TargetArch)\WdfCoInstaller01009.dll" />
-    </ItemGroup>
     <ConvertToAbsolutePath Paths="@(FilesToPackage)">
       <Output TaskParameter="AbsolutePaths" ItemName="FullyQualifiedFilesToPackage" />
     </ConvertToAbsolutePath>
