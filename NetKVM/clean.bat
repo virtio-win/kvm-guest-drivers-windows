@@ -24,7 +24,7 @@ call :rmfiles netkvm.DVL.XML netkvm.DVL-compat.XML SDV-default.xml sdv-user.sdv
 call :rmfiles *.sarif codeql.build.bat
 call :rmfiles *.inx
 
-for %%d in (CoInstaller NDIS5 Mof NotifyObject ProtocolService) do call :subdir %%d
+for %%d in (CoInstaller Mof NotifyObject ProtocolService) do call :subdir %%d
 goto :eof
 
 :subdir
