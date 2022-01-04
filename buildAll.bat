@@ -1,19 +1,7 @@
 @echo off
-:: In order to enable legacy OS builds use on build machine
-:: set VIRTIO_WIN_BUILD_LEGACY=win7
-:: set VIRTIO_WIN_BUILD_LEGACY=Win7,wlh (currently does not work)
-:: set VIRTIO_WIN_BUILD_LEGACY=Win7,wlh,wxp,wnet (currently does not work)
 
 if "%VIRTIO_WIN_NO_ARM%"=="" call tools\build.bat virtio-win.sln Win10 ARM64
 if errorlevel 1 goto :fail
-
-for %%a in (Win7 Wxp Wnet Wlh) do (
-	echo %VIRTIO_WIN_BUILD_LEGACY% | findstr /i %%a
-	if not errorlevel 1 (
-		call tools\build.bat virtio-win.sln "%%a" %*
-		if errorlevel 1 goto :fail
-	)
-)
 
 call tools\build.bat virtio-win.sln "Win8 Win8.1 Win10" %*
 if errorlevel 1 goto :fail

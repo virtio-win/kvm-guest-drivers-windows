@@ -24,7 +24,7 @@ rem This is a list of supported build target specifications A_B where A is the
 rem VS project configuration name and B is the corresponding platform identifier
 rem used in log file names and intermediate directory names. Either of the two can
 rem be used in the <target_os_version> command line argument.
-set SUPPORTED_BUILD_SPECS=WinXP_wxp Win2k3_wnet Vista_wlh Win7_win7 Win8_win8 Win8.1_win81 Win10_win10
+set SUPPORTED_BUILD_SPECS=Win8_win8 Win8.1_win81 Win10_win10
 
 set BUILD_TARGETS=%~2
 set BUILD_DIR=%~dp1
@@ -137,9 +137,6 @@ for /f "tokens=2 delims=_" %%T in ("%1") do (
 for /f "tokens=3 delims=_" %%T in ("%1") do (
   set TAG=%%T
 )
-
-rem There is no 64-bit XP build
-if /I "%1"=="WinXP_wxp" if /I "%BUILD_ARCH%"=="amd64" goto :eof
 
 if /I "!TAG!"=="SDV" (
   rem There is no 32-bit SDV build
