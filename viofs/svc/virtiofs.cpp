@@ -1361,7 +1361,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
     Status = FspPosixMapWindowsToPosixPath(FileName + 1, &fullpath);
     if (!NT_SUCCESS(Status))
     {
-        FspPosixDeletePath(fullpath);
         return Status;
     }
 
@@ -1372,13 +1371,12 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
         return Status;
     }
 
-    FspPosixDeletePath(fullpath);
-
     FileContext = (VIRTFS_FILE_CONTEXT *)HeapAlloc(GetProcessHeap(),
             HEAP_ZERO_MEMORY, sizeof(*FileContext));
 
     if (FileContext == NULL)
     {
+        FspPosixDeletePath(fullpath);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -1401,6 +1399,8 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
         Status = VirtFsCreateFile(VirtFs, FileContext, GrantedAccess,
             filename, parent, Mode, AllocationSize, FileInfo);
     }
+
+    FspPosixDeletePath(fullpath);
 
     if (!NT_SUCCESS(Status))
     {
