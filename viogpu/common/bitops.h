@@ -24,20 +24,16 @@ BYTE* GetRowStart(
 VOID CopyBitsGeneric(
     _In_ BLT_INFO* pDst,
     _In_ CONST BLT_INFO* pSrc,
-    _In_ UINT  NumRects,
-    _In_reads_(NumRects) CONST RECT *pRects);
+    _In_ CONST RECT *pRect);
 
 VOID CopyBits32_32(
     _In_ BLT_INFO* pDst,
     _In_ CONST BLT_INFO* pSrc,
-    _In_ UINT  NumRects,
-    _In_reads_(NumRects) CONST RECT *pRects);
+    _In_ CONST RECT *pRect);
 
 VOID BltBits(
     _In_ BLT_INFO* pDst,
     _In_ CONST BLT_INFO* pSrc,
-    _In_ UINT  NumRects,
-    _In_reads_(NumRects) CONST RECT *pRects);
-
+    _In_ CONST RECT *pRects);
 
 UINT BPPFromPixelFormat(_In_ D3DDDIFORMAT Format);
