@@ -79,60 +79,53 @@ BYTE* GetRowStart(_In_ CONST BLT_INFO* pBltInfo, _In_ CONST RECT* pRect)
 VOID CopyBitsGeneric(
     _In_  BLT_INFO* pDst,
     _In_ CONST BLT_INFO* pSrc,
-    _In_ UINT  NumRects,
-    _In_reads_(NumRects) CONST RECT *pRects)
+    _In_ CONST RECT *pRect)
 {
     LONG DstPixelPitch = 0;
     LONG DstRowPitch = 0;
     LONG SrcPixelPitch = 0;
     LONG SrcRowPitch = 0;
 
-    DbgPrint(TRACE_LEVEL_FATAL, ("---> %s NumRects = %d Dst = %p Src = %p\n", __FUNCTION__, NumRects, pDst->pBits, pSrc->pBits));
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s Dst = %p Src = %p\n", __FUNCTION__, pDst->pBits, pSrc->pBits));
 
     GetPitches(pDst, &DstPixelPitch, &DstRowPitch);
     GetPitches(pSrc, &SrcPixelPitch, &SrcRowPitch);
 
-    for (UINT iRect = 0; iRect < NumRects; iRect++) {
-        CONST RECT* pRect = &pRects[iRect];
 
-        VIOGPU_ASSERT(pRect->right >= pRect->left);
-        VIOGPU_ASSERT(pRect->bottom >= pRect->top);
+    VIOGPU_ASSERT(pRect->right >= pRect->left);
+    VIOGPU_ASSERT(pRect->bottom >= pRect->top);
 
-        UINT NumPixels = pRect->right - pRect->left;
-        UINT NumRows = pRect->bottom - pRect->top;
+    UINT NumPixels = pRect->right - pRect->left;
+    UINT NumRows = pRect->bottom - pRect->top;
 
-        BYTE* pDstRow = GetRowStart(pDst, pRect);
-        CONST BYTE* pSrcRow = GetRowStart(pSrc, pRect);
+    BYTE* pDstRow = GetRowStart(pDst, pRect);
+    CONST BYTE* pSrcRow = GetRowStart(pSrc, pRect);
 
-        for (UINT y = 0; y < NumRows; y++) {
-            BYTE* pDstPixel = pDstRow;
-            CONST BYTE* pSrcPixel = pSrcRow;
+    for (UINT y = 0; y < NumRows; y++) {
+        BYTE* pDstPixel = pDstRow;
+        CONST BYTE* pSrcPixel = pSrcRow;
 
-            for (UINT x = 0; x < NumPixels; x++) {
-                if (pDst->BitsPerPel == 32 && pSrc->BitsPerPel == 32) {
-                    UINT32* pDstPixelAs32 = (UINT32*)pDstPixel;
-                    UINT32* pSrcPixelAs32 = (UINT32*)pSrcPixel;
-                    *pDstPixelAs32 = *pSrcPixelAs32;
-                }
-                else {
-                    VioGpuDbgBreak();
-                }
-                pDstPixel += DstPixelPitch;
-                pSrcPixel += SrcPixelPitch;
+        for (UINT x = 0; x < NumPixels; x++) {
+            if (pDst->BitsPerPel == 32 && pSrc->BitsPerPel == 32) {
+                UINT32* pDstPixelAs32 = (UINT32*)pDstPixel;
+                UINT32* pSrcPixelAs32 = (UINT32*)pSrcPixel;
+                *pDstPixelAs32 = *pSrcPixelAs32;
             }
-
-            pDstRow += DstRowPitch;
-            pSrcRow += SrcRowPitch;
+            else {
+                VioGpuDbgBreak();
+            }
+            pDstPixel += DstPixelPitch;
+            pSrcPixel += SrcPixelPitch;
         }
+        pDstRow += DstRowPitch;
+        pSrcRow += SrcRowPitch;
     }
 }
-
 
 VOID CopyBits32_32(
     _In_ BLT_INFO* pDst,
     _In_ CONST BLT_INFO* pSrc,
-    _In_ UINT  NumRects,
-    _In_reads_(NumRects) CONST RECT *pRects)
+    _In_ CONST RECT *pRect)
 {
     VIOGPU_ASSERT((pDst->BitsPerPel == 32) &&
         (pSrc->BitsPerPel == 32));
@@ -141,46 +134,40 @@ VOID CopyBits32_32(
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
-    for (UINT iRect = 0; iRect < NumRects; iRect++) {
-        CONST RECT* pRect = &pRects[iRect];
+    VIOGPU_ASSERT(pRect->right >= pRect->left);
+    VIOGPU_ASSERT(pRect->bottom >= pRect->top);
 
-        VIOGPU_ASSERT(pRect->right >= pRect->left);
-        VIOGPU_ASSERT(pRect->bottom >= pRect->top);
+    UINT NumPixels = pRect->right - pRect->left;
+    UINT NumRows = pRect->bottom - pRect->top;
+    UINT BytesToCopy = NumPixels * 4;
+    BYTE* pStartDst = ((BYTE*)pDst->pBits +
+        ((ULONGLONG)pRect->top + pDst->Offset.y) * pDst->Pitch +
+        ((ULONGLONG)pRect->left + pDst->Offset.x) * 4);
+    CONST BYTE* pStartSrc = ((BYTE*)pSrc->pBits +
+        ((ULONGLONG)pRect->top + pSrc->Offset.y) * pSrc->Pitch +
+        ((ULONGLONG)pRect->left + pSrc->Offset.x) * 4);
 
-        UINT NumPixels = pRect->right - pRect->left;
-        UINT NumRows = pRect->bottom - pRect->top;
-        UINT BytesToCopy = NumPixels * 4;
-        BYTE* pStartDst = ((BYTE*)pDst->pBits +
-            ((ULONGLONG)pRect->top + pDst->Offset.y) * pDst->Pitch +
-            ((ULONGLONG)pRect->left + pDst->Offset.x) * 4);
-        CONST BYTE* pStartSrc = ((BYTE*)pSrc->pBits +
-            ((ULONGLONG)pRect->top + pSrc->Offset.y) * pSrc->Pitch +
-            ((ULONGLONG)pRect->left + pSrc->Offset.x) * 4);
-
-        for (UINT i = 0; i < NumRows; ++i) {
-            RtlCopyMemory(pStartDst, pStartSrc, BytesToCopy);
-            pStartDst += pDst->Pitch;
-            pStartSrc += pSrc->Pitch;
-        }
+    for (UINT i = 0; i < NumRows; ++i) {
+        RtlCopyMemory(pStartDst, pStartSrc, BytesToCopy);
+        pStartDst += pDst->Pitch;
+        pStartSrc += pSrc->Pitch;
     }
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
 
 VOID BltBits(
     _In_ BLT_INFO* pDst,
     _In_ CONST BLT_INFO* pSrc,
-    _In_ UINT  NumRects,
-    _In_reads_(NumRects) CONST RECT *pRects)
+    _In_ CONST RECT *pRect)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     __try {
         if (pDst->Rotation == D3DKMDT_VPPR_IDENTITY &&
             pSrc->Rotation == D3DKMDT_VPPR_IDENTITY) {
-            CopyBits32_32(pDst, pSrc, NumRects, pRects);
+            CopyBits32_32(pDst, pSrc, pRect);
         }
         else {
-            CopyBitsGeneric(pDst, pSrc, NumRects, pRects);
+            CopyBitsGeneric(pDst, pSrc, pRect);
         }
     }
 #pragma prefast(suppress: __WARNING_EXCEPTIONEXECUTEHANDLER, "try/except is only able to protect against user-mode errors and these are the only errors we try to catch here");

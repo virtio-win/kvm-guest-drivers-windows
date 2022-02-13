@@ -1710,7 +1710,6 @@ VOID VioGpuDod::SystemDisplayWrite(_In_reads_bytes_(SourceHeight * SourceStride)
 
     BltBits(&DstBltInfo,
         &SrcBltInfo,
-        1,
         &Rect);
 
 }
@@ -2548,7 +2547,6 @@ NTSTATUS VioGpuAdapter::ExecutePresentDisplayOnly(
         RECT*  pDestRect = &pMoves[i].DestRect;
         BltBits(&DstBltInfo,
             &SrcBltInfo,
-            1,
             pDestRect);
     }
 
@@ -2557,7 +2555,6 @@ NTSTATUS VioGpuAdapter::ExecutePresentDisplayOnly(
         RECT*  pRect = &pDirtyRect[i];
         BltBits(&DstBltInfo,
             &SrcBltInfo,
-            1,
             pRect);
     }
     if (!FindUpdateRect(NumMoves, pMoves, NumDirtyRects, pDirtyRect, Rotation, &updrect))
@@ -3333,7 +3330,6 @@ BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPoin
 
     BltBits(&DstBltInfo,
         &SrcBltInfo,
-        1,
         &Rect);
 
     m_CtrlQueue.TransferToHost2D(resid, 0, pSetPointerShape->Width, pSetPointerShape->Height, 0, 0, NULL);
