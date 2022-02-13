@@ -2786,11 +2786,9 @@ void VioGpuAdapter::ProcessEdid(void)
 
     if (virtio_is_feature_enabled(m_u64HostFeatures, VIRTIO_GPU_F_EDID)) {
         GetEdids();
-        AddEdidModes();
     }
-    else {
-        FixEdid();
-    }
+    FixEdid();
+    AddEdidModes();
 }
 
 void VioGpuAdapter::FixEdid(void)
@@ -2798,13 +2796,16 @@ void VioGpuAdapter::FixEdid(void)
     PAGED_CODE();
 
     UCHAR Sum = 0;
-    PEDID_DATA_V1 pdata = (PEDID_DATA_V1)g_gpu_edid;
-
-    pdata->Checksum = 0;
+    PUCHAR buf = GetEdidData(0);;
+    PEDID_DATA_V1 pdata = (PEDID_DATA_V1)buf;
+    pdata->MaximumHorizontalImageSize[0] = 0;
+    pdata->MaximumVerticallImageSize[0] = 0;
+    pdata->ExtensionFlag[0] = 0;
+    pdata->Checksum[0] = 0;
     for (ULONG i = 0; i < EDID_V1_BLOCK_SIZE; i++) {
-        Sum += g_gpu_edid[i];
+        Sum += buf[i];
     }
-    pdata->Checksum = -Sum;
+    pdata->Checksum[0] = -Sum;
 }
 
 BOOLEAN VioGpuAdapter::GetEdids(void)

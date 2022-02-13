@@ -382,18 +382,18 @@ typedef struct _EDID_DATA_V1 {
     UCHAR WeekYearMFG[2];
     UCHAR Version[1];
     UCHAR Revision[1];
-    VIDEO_INPUT_DEFINITION VideoInputDefinition;
-    UCHAR  MaximumHorizontalImageSize;
-    UCHAR  MaximumVerticallImageSize;
-    UCHAR  DisplayTransferCharacteristics;
+    VIDEO_INPUT_DEFINITION VideoInputDefinition[1];
+    UCHAR  MaximumHorizontalImageSize[1];
+    UCHAR  MaximumVerticallImageSize[1];
+    UCHAR  DisplayTransferCharacteristics[1];
     FEATURES_SUPPORT FeaturesSupport;
     COLOR_CHARACTERISTICS ColorCharacteristics;
     ESTABLISHED_TIMINGS EstablishedTimings;
     MANUFACTURER_TIMINGS ManufacturerTimings;
     STANDARD_TIMING_DESCRIPTOR StandardTimings [8];
     EDID_DETAILED_DESCRIPTOR EDIDDetailedTimings [4];
-    UCHAR ExtensionFlag;
-    UCHAR Checksum;
+    UCHAR ExtensionFlag[1];
+    UCHAR Checksum[1];
 } EDID_DATA_V1, * PEDID_DATA_V1;
 
 #define VIRTIO_GPU_F_VIRGL 0
