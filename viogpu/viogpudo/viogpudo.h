@@ -66,14 +66,7 @@ typedef struct _CURRENT_MODE
         UINT Unused : 27;
     } Flags;
 
-    PHYSICAL_ADDRESS ZeroedOutStart;
-    PHYSICAL_ADDRESS ZeroedOutEnd;
-
-    union
-    {
-        VOID*                            Ptr;
-        ULONG64                          Force8Bytes;
-    } FrameBuffer;
+    PVOID FrameBuffer;
 } CURRENT_MODE;
 
 class VioGpuDod;
@@ -81,7 +74,7 @@ class VioGpuDod;
 class IVioGpuAdapter {
 public:
     IVioGpuAdapter(_In_ VioGpuDod* pVioGpuDod) : m_pVioGpuDod(pVioGpuDod),
-        m_ModeInfo(NULL), m_ModeCount(0), m_CurrentMode(0), m_CustomMode(0),
+        m_ModeInfo(NULL), m_ModeCount(0), m_CurrentModeIndex(0), m_CustomModeIndex(0),
         m_Id(0), m_bEDID(FALSE) { RtlZeroMemory(m_EDIDs, sizeof(m_EDIDs)); }
     virtual ~IVioGpuAdapter(void) { ; }
     virtual NTSTATUS SetCurrentMode(ULONG Mode, CURRENT_MODE* pCurrentBddMode) = 0;
@@ -95,8 +88,8 @@ public:
     virtual ULONG GetModeCount(void) = 0;
     PVIDEO_MODE_INFORMATION GetModeInfo(UINT idx) { return &m_ModeInfo[idx]; }
     USHORT GetModeNumber(USHORT idx) { return m_ModeNumbers[idx]; }
-    USHORT GetCurrentModeIndex(void) { return m_CurrentMode; }
-    VOID SetCurrentModeIndex(USHORT idx) { m_CurrentMode = idx; }
+    USHORT GetCurrentModeIndex(void) { return m_CurrentModeIndex; }
+    VOID SetCurrentModeIndex(USHORT idx) { m_CurrentModeIndex = idx; }
     virtual NTSTATUS ExecutePresentDisplayOnly(_In_ BYTE*             DstAddr,
         _In_ UINT              DstBitPerPixel,
         _In_ BYTE*             SrcAddr,
@@ -124,8 +117,8 @@ protected:
     PVIDEO_MODE_INFORMATION m_ModeInfo;
     ULONG m_ModeCount;
     PUSHORT m_ModeNumbers;
-    USHORT m_CurrentMode;
-    USHORT m_CustomMode;
+    USHORT m_CurrentModeIndex;
+    USHORT m_CustomModeIndex;
     ULONG  m_Id;
     BYTE m_EDIDs[MAX_CHILDREN][EDID_V1_BLOCK_SIZE];
     BOOLEAN m_bEDID;
@@ -179,7 +172,7 @@ private:
     NTSTATUS UpdateChildStatus(BOOLEAN connect);
     void SetCustomDisplay(_In_ USHORT xres,
         _In_ USHORT yres);
-    void CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE* pCurrentMode);
+    BOOLEAN CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE* pCurrentMode);
     void DestroyFrameBufferObj(BOOLEAN bReset);
     BOOLEAN CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPointerShape, _In_ CONST CURRENT_MODE* pCurrentMode);
     void DestroyCursor(void);
@@ -225,11 +218,10 @@ private:
     DEVICE_POWER_STATE m_AdapterPowerState;
     DRIVER_STATUS_FLAG m_Flags;
 
-    CURRENT_MODE m_CurrentModes[MAX_VIEWS];
+    CURRENT_MODE m_CurrentMode;
 
     DXGK_DISPLAY_INFORMATION m_SystemDisplayInfo;
 
-    D3DDDI_VIDEO_PRESENT_SOURCE_ID m_SystemDisplaySourceId;
     DXGKARG_SETPOINTERSHAPE m_PointerShape;
     IVioGpuAdapter* m_pHWDevice;
 public:
@@ -346,7 +338,6 @@ private:
         D3DKMDT_HVIDPNTARGETMODESET hVidPnTargetModeSet,
         _In_opt_ CONST D3DKMDT_VIDPN_SOURCE_MODE* pVidPnPinnedSourceModeInfo,
         D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId);
-    D3DDDI_VIDEO_PRESENT_SOURCE_ID FindSourceForTarget(D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId, BOOLEAN DefaultToZero);
     NTSTATUS IsVidPnSourceModeFieldsValid(CONST D3DKMDT_VIDPN_SOURCE_MODE* pSourceMode) const;
     NTSTATUS IsVidPnPathFieldsValid(CONST D3DKMDT_VIDPN_PRESENT_PATH* pPath) const;
     NTSTATUS SetRegisterInfo(_In_ ULONG Id, _In_ DWORD MemSize);
