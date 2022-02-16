@@ -374,7 +374,7 @@ NTSTATUS VioGpuDod::QueryChildStatus(_Inout_ DXGK_CHILD_STATUS* pChildStatus,
     }
 }
 
-NTSTATUS VioGpuDod::QueryDeviceDescriptor(_In_    ULONG                   ChildUid,
+NTSTATUS VioGpuDod::QueryDeviceDescriptor(_In_  ULONG ChildUid,
     _Inout_ DXGK_DEVICE_DESCRIPTOR* pDeviceDescriptor)
 {
     PAGED_CODE();
@@ -384,7 +384,7 @@ NTSTATUS VioGpuDod::QueryDeviceDescriptor(_In_    ULONG                   ChildU
     VIOGPU_ASSERT(ChildUid < MAX_CHILDREN);
     PBYTE edid = NULL;
 
-    edid = m_pHWDevice->GetEdidData(ChildUid);
+    edid = m_pHWDevice->GetEdidData();
 
     if (!edid)
     {
@@ -1907,10 +1907,17 @@ NTSTATUS VioGpuDod::GetRegisterInfo(void)
     return Status;
 }
 
-VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod* pVioGpuDod) : IVioGpuAdapter(pVioGpuDod)
+VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod* pVioGpuDod) // : IVioGpuAdapter(pVioGpuDod)
 {
     PAGED_CODE();
     RtlZeroMemory(&m_VioDev, sizeof(m_VioDev));
+    m_pVioGpuDod = pVioGpuDod;
+    m_CurrentModeIndex = 0;
+    m_CustomModeIndex = 0;
+    RtlZeroMemory(m_EDIDs, sizeof(m_EDIDs));
+    m_bEDID = FALSE;
+
+
     m_ModeInfo = NULL;
     m_ModeCount = 0;
     m_ModeNumbers = NULL;
@@ -2162,11 +2169,11 @@ NTSTATUS VioGpuAdapter::VirtIoDeviceInit()
         m_PciResources.IsMSIEnabled());
 }
 
-PBYTE VioGpuAdapter::GetEdidData(UINT Id)
+PBYTE VioGpuAdapter::GetEdidData()
 {
     PAGED_CODE();
 
-    return m_bEDID ? m_EDIDs[Id] : (PBYTE)(g_gpu_edid);
+    return m_bEDID ? m_EDIDs : (PBYTE)(g_gpu_edid);
 }
 
 VOID VioGpuAdapter::CreateResolutionEvent(VOID)
@@ -2744,7 +2751,7 @@ void VioGpuAdapter::FixEdid(void)
     PAGED_CODE();
 
     UCHAR Sum = 0;
-    PUCHAR buf = GetEdidData(0);;
+    PUCHAR buf = GetEdidData();;
     PEDID_DATA_V1 pdata = (PEDID_DATA_V1)buf;
     pdata->MaximumHorizontalImageSize[0] = 0;
     pdata->MaximumVerticallImageSize[0] = 0;
@@ -2766,7 +2773,7 @@ BOOLEAN VioGpuAdapter::GetEdids(void)
 
     for (UINT32 i = 0; i < m_u32NumScanouts; i++) {
         if (m_CtrlQueue.AskEdidInfo(&vbuf, i) &&
-            m_CtrlQueue.GetEdidInfo(vbuf, i, m_EDIDs[i])) {
+            m_CtrlQueue.GetEdidInfo(vbuf, i, m_EDIDs)) {
             m_bEDID = TRUE;
         }
         m_CtrlQueue.ReleaseBuffer(vbuf);
@@ -2796,8 +2803,8 @@ VIOGPU_DISP_MODE gpu_disp_modes[16] =
 void VioGpuAdapter::AddEdidModes(void)
 {
     PAGED_CODE();
-    ESTABLISHED_TIMINGS est_timing = ((PEDID_DATA_V1)(GetEdidData(0)))->EstablishedTimings;
-    MANUFACTURER_TIMINGS manufact_timing = ((PEDID_DATA_V1)(GetEdidData(0)))->ManufacturerTimings;
+    ESTABLISHED_TIMINGS est_timing = ((PEDID_DATA_V1)(GetEdidData()))->EstablishedTimings;
+    MANUFACTURER_TIMINGS manufact_timing = ((PEDID_DATA_V1)(GetEdidData()))->ManufacturerTimings;
     int modecount = 0;
     while (gpu_disp_modes[modecount].XResolution != 0 && gpu_disp_modes[modecount].XResolution != 0) modecount++;
     VioGpuDbgBreak();

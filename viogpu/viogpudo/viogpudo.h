@@ -71,61 +71,7 @@ typedef struct _CURRENT_MODE
 
 class VioGpuDod;
 
-class IVioGpuAdapter {
-public:
-    IVioGpuAdapter(_In_ VioGpuDod* pVioGpuDod) : m_pVioGpuDod(pVioGpuDod),
-        m_ModeInfo(NULL), m_ModeCount(0), m_CurrentModeIndex(0), m_CustomModeIndex(0),
-        m_Id(0), m_bEDID(FALSE) { RtlZeroMemory(m_EDIDs, sizeof(m_EDIDs)); }
-    virtual ~IVioGpuAdapter(void) { ; }
-    virtual NTSTATUS SetCurrentMode(ULONG Mode, CURRENT_MODE* pCurrentBddMode) = 0;
-    virtual NTSTATUS SetPowerState(DXGK_DEVICE_INFO* pDeviceInfo, DEVICE_POWER_STATE DevicePowerState, CURRENT_MODE* pCurrentMode) = 0;
-    virtual NTSTATUS HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMATION* pDispInfo) = 0;
-    virtual NTSTATUS HWClose(void) = 0;
-    virtual BOOLEAN InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, _In_  ULONG MessageNumber) = 0;
-    virtual VOID DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface) = 0;
-    virtual VOID ResetDevice(void) = 0;
-
-    virtual ULONG GetModeCount(void) = 0;
-    PVIDEO_MODE_INFORMATION GetModeInfo(UINT idx) { return &m_ModeInfo[idx]; }
-    USHORT GetModeNumber(USHORT idx) { return m_ModeNumbers[idx]; }
-    USHORT GetCurrentModeIndex(void) { return m_CurrentModeIndex; }
-    VOID SetCurrentModeIndex(USHORT idx) { m_CurrentModeIndex = idx; }
-    virtual NTSTATUS ExecutePresentDisplayOnly(_In_ BYTE*             DstAddr,
-        _In_ UINT              DstBitPerPixel,
-        _In_ BYTE*             SrcAddr,
-        _In_ UINT              SrcBytesPerPixel,
-        _In_ LONG              SrcPitch,
-        _In_ ULONG             NumMoves,
-        _In_ D3DKMT_MOVE_RECT* pMoves,
-        _In_ ULONG             NumDirtyRects,
-        _In_ RECT*             pDirtyRect,
-        _In_ D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation,
-        _In_ const CURRENT_MODE* pModeCur) = 0;
-
-    virtual VOID BlackOutScreen(CURRENT_MODE* pCurrentMod) = 0;
-    virtual NTSTATUS SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPointerShape, _In_ CONST CURRENT_MODE* pModeCur) = 0;
-    virtual NTSTATUS SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION* pSetPointerPosition, _In_ CONST CURRENT_MODE* pModeCur) = 0;
-    virtual NTSTATUS Escape(_In_ CONST DXGKARG_ESCAPE* pEscap) = 0;
-    ULONG GetInstanceId(void) { return m_Id; }
-    VioGpuDod* GetVioGpu(void) { return m_pVioGpuDod; }
-    virtual PBYTE GetEdidData(UINT Idx) = 0;
-    virtual PHYSICAL_ADDRESS GetFrameBufferPA(void) = 0;
-protected:
-    virtual NTSTATUS GetModeList(DXGK_DISPLAY_INFORMATION* pDispInfo) = 0;
-protected:
-    VioGpuDod* m_pVioGpuDod;
-    PVIDEO_MODE_INFORMATION m_ModeInfo;
-    ULONG m_ModeCount;
-    PUSHORT m_ModeNumbers;
-    USHORT m_CurrentModeIndex;
-    USHORT m_CustomModeIndex;
-    ULONG  m_Id;
-    BYTE m_EDIDs[MAX_CHILDREN][EDID_V1_BLOCK_SIZE];
-    BOOLEAN m_bEDID;
-};
-
-class VioGpuAdapter :
-    public IVioGpuAdapter
+class VioGpuAdapter
 {
 public:
     VioGpuAdapter(_In_ VioGpuDod* pVioGpuDod);
@@ -157,6 +103,14 @@ public:
     BOOLEAN IsMSIEnabled() { return m_PciResources.IsMSIEnabled(); }
     PHYSICAL_ADDRESS GetFrameBufferPA(void) { return  m_PciResources.GetPciBar(0)->GetPA(); }
 
+    PVIDEO_MODE_INFORMATION GetModeInfo(UINT idx) { return &m_ModeInfo[idx]; }
+    USHORT GetModeNumber(USHORT idx) { return m_ModeNumbers[idx]; }
+    USHORT GetCurrentModeIndex(void) { return m_CurrentModeIndex; }
+    VOID SetCurrentModeIndex(USHORT idx) { m_CurrentModeIndex = idx; }
+    VioGpuDod* GetVioGpu(void) { return m_pVioGpuDod; }
+    ULONG GetInstanceId(void) { return m_Id; }
+    PBYTE GetEdidData(void);
+
 protected:
 private:
     NTSTATUS VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION* pDispInfo);
@@ -181,11 +135,20 @@ private:
     void ThreadWorkRoutine(void);
     void ConfigChanged(void);
     NTSTATUS VirtIoDeviceInit(void);
-    PBYTE GetEdidData(UINT Idx);
     VOID CreateResolutionEvent(VOID);
     VOID NotifyResolutionEvent(VOID);
     VOID CloseResolutionEvent(VOID);
 private:
+    VioGpuDod* m_pVioGpuDod;
+    PVIDEO_MODE_INFORMATION m_ModeInfo;
+    ULONG m_ModeCount;
+    PUSHORT m_ModeNumbers;
+    USHORT m_CurrentModeIndex;
+    USHORT m_CustomModeIndex;
+    ULONG  m_Id;
+    BYTE m_EDIDs[EDID_V1_BLOCK_SIZE];
+    BOOLEAN m_bEDID;
+
     VirtIODevice m_VioDev;
     CPciResources m_PciResources;
     UINT64 m_u64HostFeatures;
@@ -223,7 +186,7 @@ private:
     DXGK_DISPLAY_INFORMATION m_SystemDisplayInfo;
 
     DXGKARG_SETPOINTERSHAPE m_PointerShape;
-    IVioGpuAdapter* m_pHWDevice;
+    VioGpuAdapter* m_pHWDevice;
 public:
     VioGpuDod(_In_ DEVICE_OBJECT* pPhysicalDeviceObject);
     ~VioGpuDod(void);

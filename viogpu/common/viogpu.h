@@ -403,5 +403,3 @@ typedef struct _EDID_DATA_V1 {
 #define ISR_REASON_CURSOR  2
 #define ISR_REASON_CHANGE  4
 
-class IVioGpuAdapter;
-class VioGpuAdapter;
