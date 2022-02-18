@@ -252,11 +252,11 @@ ENTER_FN();
 
     virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, event_info_size),
                       &adaptExt->scsi_config.event_info_size, sizeof(adaptExt->scsi_config.event_info_size));
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " seg_max %lu\n", adaptExt->scsi_config.seg_max);
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " event_info_size %lu\n", adaptExt->scsi_config.event_info_size);
 
     virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, sense_size),
                       &adaptExt->scsi_config.sense_size, sizeof(adaptExt->scsi_config.sense_size));
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " event_info_size %lu\n", adaptExt->scsi_config.event_info_size);
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " sense_size %lu\n", adaptExt->scsi_config.sense_size);
 
     virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, cdb_size),
                       &adaptExt->scsi_config.cdb_size, sizeof(adaptExt->scsi_config.cdb_size));
