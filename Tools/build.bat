@@ -11,7 +11,7 @@ rem   Debug, dbg, chk       .. to build Debug rather than the default release fl
 rem   amd64, x64, 64        .. to build only 64-bit driver
 rem   x86, 32               .. to build only 32-bit driver
 rem   /Option               .. build command to pass to VS, for example /Rebuild
-rem   Win7, Win8, Win10..   .. target OS version
+rem   Win8, Win8.1, Win10   .. target OS version
 rem
 rem By default the script performs an incremental build of both 32-bit and 64-bit
 rem release drivers for all supported target OSes.
@@ -196,23 +196,23 @@ goto :eof
 set __TARGET__=%BUILD_COMMAND:/=%
 ::(n)ormal(d)etailed,(disg)nostic
 set __VERBOSITY__=n
-msbuild.exe %BUILD_FILE% /t:%__TARGET__% /p:Configuration="%~1" /P:Platform=%2 -fileLoggerParameters:Verbosity=%__VERBOSITY__%;LogFile=%BUILD_LOG_FILE%
+msbuild.exe -maxCpuCount %BUILD_FILE% /t:%__TARGET__% /p:Configuration="%~1" /P:Platform=%2 -fileLoggerParameters:Verbosity=%__VERBOSITY__%;LogFile=%BUILD_LOG_FILE%
 goto :eof
 
 :runsdv
-msbuild.exe %BUILD_FILE% /t:clean /p:Configuration="%~1" /P:Platform=%2
+msbuild.exe -maxCpuCount %BUILD_FILE% /t:clean /p:Configuration="%~1" /P:Platform=%2
 
 IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
 )
 
-msbuild.exe %BUILD_FILE% /t:sdv /p:inputs="/clean" /p:Configuration="%~1" /P:platform=%2
+msbuild.exe -maxCpuCount %BUILD_FILE% /t:sdv /p:inputs="/clean" /p:Configuration="%~1" /P:platform=%2
 
 IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
 )
 
-msbuild.exe %BUILD_FILE% /t:sdv /p:inputs="/check /devenv" /p:Configuration="%~1" /P:platform=%2
+msbuild.exe -maxCpuCount %BUILD_FILE% /t:sdv /p:inputs="/check /devenv" /p:Configuration="%~1" /P:platform=%2
 
 IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
@@ -226,7 +226,7 @@ echo "Removing previously created rules database"
 rmdir /s/q codeql_db
 
 echo call "%~dp0\SetVsEnv.bat" x86 > %~dp1\codeql.build.bat
-echo msbuild.exe %~dp1\%BUILD_FILE% /t:rebuild /p:Configuration="%~1" /P:Platform=%2 >> %~dp1\codeql.build.bat
+echo msbuild.exe -maxCpuCount %~dp1\%BUILD_FILE% /t:rebuild /p:Configuration="%~1" /P:Platform=%2 >> %~dp1\codeql.build.bat
 
 call %CODEQL_BIN% database create -l=cpp -s=%~dp1 -c "%~dp1\codeql.build.bat" %~dp1\codeql_db -j 0
 
@@ -246,7 +246,7 @@ IF ERRORLEVEL 1 (
 goto :eof
 
 :runca
-msbuild.exe %BUILD_FILE% /p:Configuration="%~1" /P:Platform=%2 /P:RunCodeAnalysisOnce=True -fileLoggerParameters:LogFile=%~dp1\%BUILD_NAME%.CodeAnalysis.log
+msbuild.exe -maxCpuCount %BUILD_FILE% /p:Configuration="%~1" /P:Platform=%2 /P:RunCodeAnalysisOnce=True -fileLoggerParameters:LogFile=%~dp1\%BUILD_NAME%.CodeAnalysis.log
 
 IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
@@ -255,7 +255,7 @@ IF ERRORLEVEL 1 (
 goto :eof
 
 :rundvl
-msbuild.exe %BUILD_FILE% /t:dvl /p:Configuration="%~1" /P:platform=%2
+msbuild.exe -maxCpuCount %BUILD_FILE% /t:dvl /p:Configuration="%~1" /P:platform=%2
 
 IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
