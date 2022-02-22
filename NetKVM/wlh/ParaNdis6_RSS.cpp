@@ -26,9 +26,10 @@ static VOID ApplySettings(PPARANDIS_RSS_PARAMS RSSParameters,
 
     if(NewRSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED)
     {
-        RSSParameters->ActiveHashingSettings = *ReceiveHashingSettings;
+        if (ReceiveHashingSettings != NULL)
+            RSSParameters->ActiveHashingSettings = *ReceiveHashingSettings;
 
-        if(NewRSSMode == PARANDIS_RSS_MODE::PARANDIS_RSS_FULL)
+        if(NewRSSMode == PARANDIS_RSS_MODE::PARANDIS_RSS_FULL && ReceiveScalingSettings != NULL)
         {
             if(RSSParameters->ActiveRSSScalingSettings.CPUIndexMapping != NULL)
                 NdisFreeMemory(RSSParameters->ActiveRSSScalingSettings.CPUIndexMapping, 0, 0);
@@ -532,7 +533,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
         }
         else
         {
-            SetDefaultQueue(&RSSParameters->RSSScalingSettings, defaultCPUIndex);
+            SetDefaultQueue(&RSSParameters->ActiveRSSScalingSettings, defaultCPUIndex);
             TraceNoPrefix(0, "[%s] default queue -> %d\n", __FUNCTION__, RSSParameters->ActiveRSSScalingSettings.DefaultQueue);
         }
 
@@ -551,8 +552,8 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
 
         ApplySettings(RSSParameters,
                     PARANDIS_RSS_MODE::PARANDIS_RSS_FULL,
-                    &RSSParameters->RSSHashingSettings,
-                    &RSSParameters->RSSScalingSettings);
+                    (!(Params->Flags & NDIS_RSS_PARAM_FLAG_HASH_INFO_UNCHANGED) || !(Params->Flags & NDIS_RSS_PARAM_FLAG_HASH_KEY_UNCHANGED)) ? &RSSParameters->RSSHashingSettings : NULL,
+                    (!(Params->Flags & NDIS_RSS_PARAM_FLAG_ITABLE_UNCHANGED)) ? &RSSParameters->RSSScalingSettings : NULL);
     }
 
     *ParamsBytesRead += minimalLength;
