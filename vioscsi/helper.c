@@ -233,6 +233,7 @@ GetScsiConfig(
 ENTER_FN();
 
     adaptExt->features = virtio_get_features(&adaptExt->vdev);
+    adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
 
     virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(VirtIOSCSIConfig, seg_max),
                       &adaptExt->scsi_config.seg_max, sizeof(adaptExt->scsi_config.seg_max));

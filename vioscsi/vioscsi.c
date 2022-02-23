@@ -283,7 +283,7 @@ USHORT CopyBufferToAnsiString(void* _pDest, const void* _pSrc, const char delimi
     return _length;
 }
 
-BOOLEAN VioScsiReadRegistry(
+BOOLEAN VioScsiReadRegistryPhysicalBreaks(
     IN PVOID DeviceExtension
 )
 {
@@ -462,36 +462,44 @@ ENTER_FN();
         return SP_RETURN_NOT_FOUND;
     }
 
-    /* Set num_queues and seg_max to some sane values, to keep "Static Driver Verification" happy */
+    /* Initialize the following variables to temporary values to keep
+     * Static Driver Verification happy. These values will be immediately
+     * reconfigured within GetScsiConfig below, which will retrieve the runtime
+     * values advertised by the underlying device.
+     */
     adaptExt->scsi_config.num_queues = 1;
-    adaptExt->scsi_config.seg_max = MAX_PHYS_SEGMENTS + 1;
+    adaptExt->scsi_config.seg_max    = SCSI_MINIMUM_PHYSICAL_BREAKS;
+    adaptExt->indirect               = FALSE;
     GetScsiConfig(DeviceExtension);
     SetGuestFeatures(DeviceExtension);
 
-    if(!adaptExt->dump_mode) {
-        adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
-    }
-
-    ConfigInfo->NumberOfBuses               = 1;//(UCHAR)adaptExt->num_queues;
+    ConfigInfo->NumberOfBuses               = 1;
     ConfigInfo->MaximumNumberOfTargets      = min((UCHAR)adaptExt->scsi_config.max_target, 255/*SCSI_MAXIMUM_TARGETS_PER_BUS*/);
     ConfigInfo->MaximumNumberOfLogicalUnits = min((UCHAR)adaptExt->scsi_config.max_lun, SCSI_MAXIMUM_LUNS_PER_TARGET);
+    ConfigInfo->MaximumTransferLength       = SP_UNINITIALIZED_VALUE;       // Unlimited
+    ConfigInfo->NumberOfPhysicalBreaks      = SCSI_MINIMUM_PHYSICAL_BREAKS; // 16
 
-    if(adaptExt->dump_mode) {
-        ConfigInfo->NumberOfPhysicalBreaks  = SCSI_MINIMUM_PHYSICAL_BREAKS;
-    } else {
-        adaptExt->max_physical_breaks = PHYS_SEGMENTS;
-        if (adaptExt->indirect) {
-            adaptExt->max_physical_breaks = MAX_PHYS_SEGMENTS;
-            VioScsiReadRegistry(DeviceExtension);
+    if (!adaptExt->dump_mode) {
+        adaptExt->max_physical_breaks = adaptExt->indirect ? MAX_PHYS_SEGMENTS : PHYS_SEGMENTS;
+
+        /* Allow user to override max_physical_breaks via reg key
+         * [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\vioscsi\Parameters\Device]
+         * "PhysicalBreaks"={dword value here}
+         */
+        VioScsiReadRegistryPhysicalBreaks(DeviceExtension);
+
+        if (adaptExt->scsi_config.max_sectors > 0 &&
+            adaptExt->scsi_config.max_sectors != 0xFFFF &&
+            adaptExt->max_physical_breaks * PAGE_SIZE > adaptExt->scsi_config.max_sectors * SECTOR_SIZE) {
+
+            adaptExt->max_physical_breaks = adaptExt->scsi_config.max_sectors * SECTOR_SIZE / PAGE_SIZE;
         }
         ConfigInfo->NumberOfPhysicalBreaks = adaptExt->max_physical_breaks + 1;
-        if (adaptExt->scsi_config.max_sectors > 0 && adaptExt->scsi_config.max_sectors != 0xFFFF) {
-            ConfigInfo->NumberOfPhysicalBreaks = min (ConfigInfo->NumberOfPhysicalBreaks, adaptExt->scsi_config.max_sectors);
-            adaptExt->max_physical_breaks = ConfigInfo->NumberOfPhysicalBreaks - 1;
-        }
+        ConfigInfo->MaximumTransferLength  = adaptExt->max_physical_breaks * PAGE_SIZE;
     }
+
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " NumberOfPhysicalBreaks %d\n", ConfigInfo->NumberOfPhysicalBreaks);
-    ConfigInfo->MaximumTransferLength = ConfigInfo->NumberOfPhysicalBreaks * PAGE_SIZE;
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MaximumTransferLength %d\n", ConfigInfo->MaximumTransferLength);
 
     num_cpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
     max_cpus = KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS);
