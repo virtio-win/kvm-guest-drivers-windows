@@ -32,9 +32,10 @@
 
 EVT_WDF_REQUEST_CANCEL VirtFsEvtRequestCancel;
 
-static int GetVirtQueueIndex(IN PDEVICE_CONTEXT Context)
+static inline int GetVirtQueueIndex(IN PDEVICE_CONTEXT Context,
+                                    IN BOOLEAN HighPrio)
 {
-    int index = 0;
+    int index = HighPrio ? VQ_TYPE_HIPRIO : VQ_TYPE_REQUEST;
 
     UNREFERENCED_PARAMETER(Context);
     
@@ -99,7 +100,8 @@ static int FillScatterGatherFromMdl(OUT struct scatterlist sg[],
 }
 
 static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
-                                     IN PVIRTIO_FS_REQUEST Request)
+                                     IN PVIRTIO_FS_REQUEST Request,
+                                     IN BOOLEAN HighPrio)
 {
     WDFSPINLOCK vq_lock;
     struct virtqueue *vq;
@@ -111,7 +113,7 @@ static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "--> %!FUNC!");
 
-    vq_index = GetVirtQueueIndex(Context);
+    vq_index = GetVirtQueueIndex(Context, HighPrio);
     vq = Context->VirtQueues[vq_index];
     vq_lock = Context->VirtQueueLocks[vq_index];
 
@@ -239,6 +241,13 @@ void* CopyBuffer(void* _Dst, void const* _Src, size_t _Size) {
     return RtlCopyMemory(_Dst, _Src, _Size);
 }
 
+static inline BOOLEAN VirtFsOpcodeIsHighPrio(IN UINT32 Opcode)
+{
+    return (Opcode == FUSE_FORGET) ||
+           (Opcode == FUSE_INTERRUPT) ||
+           (Opcode == FUSE_BATCH_FORGET);
+}
+
 static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
     IN WDFREQUEST Request,
     IN size_t OutputBufferLength,
@@ -248,7 +257,8 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
     NTSTATUS status;
     PVIRTIO_FS_REQUEST fs_req;
     PVOID in_buf_va;
-    PUCHAR in_buf, out_buf;
+    PVOID in_buf, out_buf;
+    BOOLEAN hiprio;
 
     if (InputBufferLength < sizeof(struct fuse_in_header))
     {
@@ -330,7 +340,9 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
         goto complete_wdf_req;
     }
 
-    status = VirtFsEnqueueRequest(Context, fs_req);
+    hiprio = VirtFsOpcodeIsHighPrio(((struct fuse_in_header *)in_buf)->opcode);
+
+    status = VirtFsEnqueueRequest(Context, fs_req, hiprio);
     if (!NT_SUCCESS(status))
     {
         status = WdfRequestUnmarkCancelable(Request);

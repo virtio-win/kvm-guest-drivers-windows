@@ -119,14 +119,17 @@ NTSTATUS VirtFsEvtDeviceAdd(IN WDFDRIVER Driver,
     interruptConfig.EvtInterruptEnable = VirtFsEvtInterruptEnable;
     interruptConfig.EvtInterruptDisable = VirtFsEvtInterruptDisable;
 
-    status = WdfInterruptCreate(device, &interruptConfig,
-        WDF_NO_OBJECT_ATTRIBUTES, &context->WdfInterrupt);
-
-    if (!NT_SUCCESS(status))
+    for (ULONG idx = 0; idx < ARRAYSIZE(context->WdfInterrupt); idx++)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfInterruptCreate failed: %!STATUS!", status);
-        return status;
+        status = WdfInterruptCreate(device, &interruptConfig,
+            WDF_NO_OBJECT_ATTRIBUTES, &context->WdfInterrupt[idx]);
+
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
+                "WdfInterruptCreate #%ul failed: %!STATUS!", idx, status);
+            return status;
+        }
     }
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
