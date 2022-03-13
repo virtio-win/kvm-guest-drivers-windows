@@ -47,6 +47,12 @@
 
 #define MAX_FILE_SYSTEM_NAME 36
 
+enum {
+    VQ_TYPE_HIPRIO = 0,
+    VQ_TYPE_REQUEST = 1,
+    VQ_TYPE_MAX = 2
+};
+
 typedef struct _VIRTIO_FS_CONFIG
 {
     CHAR Tag[MAX_FILE_SYSTEM_NAME];
@@ -79,10 +85,10 @@ void FreeVirtFsRequest(IN PVIRTIO_FS_REQUEST Request);
 typedef struct _DEVICE_CONTEXT {
 
     VIRTIO_WDF_DRIVER   VDevice;
-    UINT32              RequestQueues;
+    UINT32              NumQueues;
     struct virtqueue    **VirtQueues;
 
-    WDFINTERRUPT        WdfInterrupt;
+    WDFINTERRUPT        WdfInterrupt[VQ_TYPE_MAX];
     WDFSPINLOCK         *VirtQueueLocks;
 
     WDFLOOKASIDE        RequestsLookaside;

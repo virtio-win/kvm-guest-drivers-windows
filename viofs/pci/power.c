@@ -44,6 +44,7 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
     PDEVICE_CONTEXT context = GetDeviceContext(Device);
     NTSTATUS status = STATUS_SUCCESS;
     u64 HostFeatures, GuestFeatures = 0;
+    UINT32 RequestQueues;
 
     UNREFERENCED_PARAMETER(Resources);
 
@@ -68,20 +69,24 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     VirtIOWdfDeviceGet(&context->VDevice,
         FIELD_OFFSET(VIRTIO_FS_CONFIG, RequestQueues),
-        &context->RequestQueues,
-        sizeof(context->RequestQueues));
+        &RequestQueues,
+        sizeof(RequestQueues));
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
-        "Request queues: %d", context->RequestQueues);
+        "Request queues: %d", RequestQueues);
+
+    // #0 - high priority queue
+    // #1 - request queue
+    context->NumQueues = 2;
 
     context->VirtQueues = ExAllocatePoolUninitialized(NonPagedPool,
-        context->RequestQueues * sizeof(struct virtqueue*),
+        context->NumQueues * sizeof(struct virtqueue*),
         VIRT_FS_MEMORY_TAG);
 
     if (context->VirtQueues != NULL)
     {
         RtlZeroMemory(context->VirtQueues,
-            context->RequestQueues * sizeof(struct virtqueue*));
+            context->NumQueues * sizeof(struct virtqueue*));
     }
     else
     {
@@ -94,7 +99,7 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
     if (NT_SUCCESS(status))
     {
         context->VirtQueueLocks = ExAllocatePoolUninitialized(NonPagedPool,
-            context->RequestQueues * sizeof(WDFSPINLOCK),
+            context->NumQueues * sizeof(WDFSPINLOCK),
             VIRT_FS_MEMORY_TAG);
     }
 
@@ -104,7 +109,7 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
         WDFSPINLOCK *lock;
         ULONG i;
 
-        for (i = 0; i < context->RequestQueues; i++)
+        for (i = 0; i < context->NumQueues; i++)
         {
             lock = &context->VirtQueueLocks[i];
 
@@ -169,7 +174,7 @@ NTSTATUS VirtFsEvtDeviceD0Entry(IN WDFDEVICE Device,
 {
     NTSTATUS status = STATUS_SUCCESS;
     PDEVICE_CONTEXT context = GetDeviceContext(Device);
-    VIRTIO_WDF_QUEUE_PARAM param;
+    VIRTIO_WDF_QUEUE_PARAM params[VQ_TYPE_MAX];
 
     UNREFERENCED_PARAMETER(PreviousState);
 
@@ -178,10 +183,11 @@ NTSTATUS VirtFsEvtDeviceD0Entry(IN WDFDEVICE Device,
 
     PAGED_CODE();
 
-    param.Interrupt = context->WdfInterrupt;
+    params[VQ_TYPE_HIPRIO].Interrupt = context->WdfInterrupt[VQ_TYPE_HIPRIO];
+    params[VQ_TYPE_REQUEST].Interrupt = context->WdfInterrupt[VQ_TYPE_REQUEST];
 
     status = VirtIOWdfInitQueues(&context->VDevice,
-        context->RequestQueues, context->VirtQueues, &param);
+        context->NumQueues, context->VirtQueues, params);
 
     if (NT_SUCCESS(status))
     {
