@@ -1450,12 +1450,8 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
             (FileContext->IsDirectory == TRUE) ? FUSE_OPENDIR : FUSE_OPEN,
             lookup_out.entry.nodeid, sizeof(open_in.open));
 
-        open_in.open.flags = AccessToUnixFlags(GrantedAccess);
-
-        if (FileContext->IsDirectory == TRUE)
-        {
-            open_in.open.flags |= O_DIRECTORY;
-        }
+        open_in.open.flags = FileContext->IsDirectory ?
+            (O_RDONLY | O_DIRECTORY) : AccessToUnixFlags(GrantedAccess);
 
         Status = VirtFsFuseRequest(VirtFs->Device, &open_in, sizeof(open_in),
             &open_out, sizeof(open_out));
