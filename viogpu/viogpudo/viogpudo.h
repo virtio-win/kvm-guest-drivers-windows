@@ -44,7 +44,8 @@ typedef struct
     UINT VgaDevice : 1;
     UINT FlexResolution : 1;
     UINT UsePhysicalMemory : 1;
-    UINT Unused : 26;
+    UINT UsePresentProgress : 1;
+    UINT Unused : 25;
 } DRIVER_STATUS_FLAG;
 
 #pragma pack(pop)
@@ -235,6 +236,14 @@ public:
     void SetUsePhysicalMemory(BOOLEAN enable)
     {
         m_Flags.UsePhysicalMemory = enable;
+    }
+    BOOLEAN IsUsePresentProgress() const
+    {
+        return m_Flags.UsePresentProgress;
+    }
+    void SetUsePresentProgress(BOOLEAN enable)
+    {
+        m_Flags.UsePresentProgress = enable;
     }
 #pragma code_seg(pop)
 
