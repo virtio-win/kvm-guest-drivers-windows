@@ -2336,6 +2336,10 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
         pDispInfo->PhysicAddress = fb_pa;
     }
 
+    if (fb_size < req_size) {
+        m_pVioGpuDod->SetUsePhysicalMemory(FALSE);
+    }
+
     if (!m_pVioGpuDod->IsUsePhysicalMemory() ||
         fb_pa.QuadPart == 0 ||
         fb_size < req_size) {
