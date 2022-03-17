@@ -1902,6 +1902,13 @@ NTSTATUS VioGpuDod::GetRegisterInfo(void)
         SetUsePhysicalMemory(!!value);
     }
 
+    value = 0;
+    Status = ReadRegistryDWORD(DevInstRegKeyHandle, L"UsePresentProgress", &value);
+    if (!NT_SUCCESS(Status))
+    {
+        SetUsePresentProgress(!!value);
+    }
+
     ZwClose(DevInstRegKeyHandle);
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return Status;
@@ -3032,8 +3039,17 @@ BOOLEAN VioGpuAdapter::InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, 
         }
     }
 
-
     if (serviced) {
+        if (m_pVioGpuDod->IsUsePresentProgress() &&
+            (intReason & ISR_REASON_DISPLAY) == ISR_REASON_DISPLAY) {
+            DXGKARGCB_NOTIFY_INTERRUPT_DATA NotifyInterrupt = {};
+            NotifyInterrupt.InterruptType = DXGK_INTERRUPT_DISPLAYONLY_PRESENT_PROGRESS;
+            NotifyInterrupt.DisplayOnlyPresentProgress.VidPnSourceId = 0;
+
+            NotifyInterrupt.DisplayOnlyPresentProgress.ProgressId = DXGK_PRESENT_DISPLAYONLY_PROGRESS_ID_COMPLETE;
+            pDxgkInterface->DxgkCbNotifyInterrupt(pDxgkInterface->DeviceHandle, &NotifyInterrupt);
+        }
+
         InterlockedOr((PLONG)&m_PendingWorks, intReason);
         pDxgkInterface->DxgkCbQueueDpc(pDxgkInterface->DeviceHandle);
     }
