@@ -429,8 +429,8 @@ NTSTATUS VioGpuDod::QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO* pQuery
         if (IsPointerEnabled()) {
             pDriverCaps->MaxPointerWidth = POINTER_SIZE;
             pDriverCaps->MaxPointerHeight = POINTER_SIZE;
-            pDriverCaps->PointerCaps.Value = 0;
             pDriverCaps->PointerCaps.Color = 1;
+            pDriverCaps->PointerCaps.MaskedColor = 1;
         }
         pDriverCaps->SupportNonVGA = IsVgaDevice();
         pDriverCaps->SupportSmoothRotation = TRUE;
@@ -2596,6 +2596,11 @@ NTSTATUS VioGpuAdapter::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSet
         pSetPointerShape->XHot,
         pSetPointerShape->YHot));
 
+    if (pSetPointerShape->Flags.Monochrome) {
+        VioGpuDbgBreak();
+        return STATUS_UNSUCCESSFUL;
+    }
+
     DestroyCursor();
     if (CreateCursor(pSetPointerShape, pModeCur))
     {
@@ -2619,7 +2624,6 @@ NTSTATUS VioGpuAdapter::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSet
         VioGpuDbgBreak();
     }
     DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Failed to create cursor\n", __FUNCTION__));
-    VioGpuDbgBreak();
     return STATUS_UNSUCCESSFUL;
 }
 
@@ -3245,12 +3249,11 @@ BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPoin
     UINT resid, format, size;
     VioGpuObj* obj;
     PAGED_CODE();
-    UNREFERENCED_PARAMETER(pCurrentMode);
     DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s - %d: (%d x %d - %d) (%d + %d)\n", __FUNCTION__, m_Id,
         pSetPointerShape->Width, pSetPointerShape->Height, pSetPointerShape->Pitch, pSetPointerShape->XHot, pSetPointerShape->YHot));
     ASSERT(m_pCursorBuf == NULL);
     size = POINTER_SIZE * POINTER_SIZE * 4;
-    format = ColorFormat(pCurrentMode->DispInfo.ColorFormat);
+    format = ColorFormat(D3DDDIFMT_A8R8G8B8);
     DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s - (%x -> %x)\n", __FUNCTION__, pCurrentMode->DispInfo.ColorFormat, format));
     resid = (UINT)m_Idr.GetId();
     m_CtrlQueue.CreateResource(resid, format, POINTER_SIZE, POINTER_SIZE);
