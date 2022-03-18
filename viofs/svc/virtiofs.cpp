@@ -87,6 +87,16 @@ typedef struct
     PTP_WORK            UnregWork;
 } VIRTFS_NOTIFICATION;
 
+typedef struct
+{
+    PVOID   DirBuffer;
+    BOOLEAN IsDirectory;
+
+    uint64_t NodeId;
+    uint64_t FileHandle;
+
+} VIRTFS_FILE_CONTEXT, *PVIRTFS_FILE_CONTEXT;
+
 struct VIRTFS
 {
     FSP_FILE_SYSTEM *FileSystem{ NULL };
@@ -120,22 +130,14 @@ struct VIRTFS
     std::map<UINT64, UINT64> LookupMap{};
 
     VIRTFS(ULONG DebugFlags, const std::wstring& MountPoint);
+    NTSTATUS SubmitOpenRequest(UINT32 GrantedAccess,
+        VIRTFS_FILE_CONTEXT *FileContext);
 };
 
 VIRTFS::VIRTFS(ULONG DebugFlags, const std::wstring& MountPoint)
     : DebugFlags{ DebugFlags }, MountPoint{ MountPoint }
 {
 }
-
-typedef struct
-{
-    PVOID   DirBuffer;
-    BOOLEAN IsDirectory;
-
-    uint64_t NodeId;
-    uint64_t FileHandle;
-
-} VIRTFS_FILE_CONTEXT, *PVIRTFS_FILE_CONTEXT;
 
 static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     UINT32 FileAttributes, UINT64 CreationTime, UINT64 LastAccessTime,
@@ -1340,6 +1342,33 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
     return Status;
 }
 
+NTSTATUS VIRTFS::SubmitOpenRequest(UINT32 GrantedAccess,
+    VIRTFS_FILE_CONTEXT *FileContext)
+{
+    NTSTATUS Status;
+    FUSE_OPEN_IN open_in;
+    FUSE_OPEN_OUT open_out;
+
+    FUSE_HEADER_INIT(&open_in.hdr,
+        FileContext->IsDirectory ? FUSE_OPENDIR : FUSE_OPEN,
+        FileContext->NodeId, sizeof(open_in.open));
+
+    open_in.open.flags = FileContext->IsDirectory ?
+        (O_RDONLY | O_DIRECTORY) : AccessToUnixFlags(GrantedAccess);
+
+    Status = VirtFsFuseRequest(Device, &open_in, sizeof(open_in),
+        &open_out, sizeof(open_out));
+
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    FileContext->FileHandle = open_out.open.fh;
+
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
     UINT32 CreateOptions, UINT32 GrantedAccess, UINT32 FileAttributes,
     PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
@@ -1393,6 +1422,11 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
 
         Status = VirtFsCreateDir(VirtFs, FileContext, filename, parent, Mode,
             FileInfo);
+
+        if (NT_SUCCESS(Status))
+        {
+            Status = VirtFs->SubmitOpenRequest(GrantedAccess, FileContext);
+        }
     }
     else
     {
@@ -1421,8 +1455,6 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
     VIRTFS_FILE_CONTEXT *FileContext;
     NTSTATUS Status;
     FUSE_LOOKUP_OUT lookup_out;
-    FUSE_OPEN_IN open_in;
-    FUSE_OPEN_OUT open_out;
 
     DBG("\"%S\" CreateOptions: 0x%08x GrantedAccess: 0x%08x", FileName,
         CreateOptions, GrantedAccess);
@@ -1442,31 +1474,20 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
         return Status;
     }
 
+    FileContext->NodeId = lookup_out.entry.nodeid;
+
     if ((lookup_out.entry.attr.mode & S_IFLNK) != S_IFLNK)
     {
         FileContext->IsDirectory = !!(lookup_out.entry.attr.mode & S_IFDIR);
-
-        FUSE_HEADER_INIT(&open_in.hdr,
-            (FileContext->IsDirectory == TRUE) ? FUSE_OPENDIR : FUSE_OPEN,
-            lookup_out.entry.nodeid, sizeof(open_in.open));
-
-        open_in.open.flags = FileContext->IsDirectory ?
-            (O_RDONLY | O_DIRECTORY) : AccessToUnixFlags(GrantedAccess);
-
-        Status = VirtFsFuseRequest(VirtFs->Device, &open_in, sizeof(open_in),
-            &open_out, sizeof(open_out));
-
+        Status = VirtFs->SubmitOpenRequest(GrantedAccess, FileContext);
         if (!NT_SUCCESS(Status))
         {
             SafeHeapFree(FileContext);
             return Status;
         }
-
-        FileContext->FileHandle = open_out.open.fh;
     }
 
     SetFileInfo(VirtFs, &lookup_out.entry, FileInfo);
-    FileContext->NodeId = lookup_out.entry.nodeid;
     *PFileContext = FileContext;
 
     return Status;
