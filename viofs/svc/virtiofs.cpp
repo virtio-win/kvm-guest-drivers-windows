@@ -130,6 +130,8 @@ struct VIRTFS
     std::map<UINT64, UINT64> LookupMap{};
 
     VIRTFS(ULONG DebugFlags, const std::wstring& MountPoint);
+    NTSTATUS Start();
+    NTSTATUS SubmitInitRequest();
     NTSTATUS SubmitOpenRequest(UINT32 GrantedAccess,
         VIRTFS_FILE_CONTEXT *FileContext);
 };
@@ -151,8 +153,6 @@ static VOID FixReparsePointAttributes(VIRTFS *VirtFs, uint64_t nodeid,
 
 static NTSTATUS VirtFsLookupFileName(VIRTFS *VirtFs, PWSTR FileName,
     FUSE_LOOKUP_OUT *LookupOut);
-
-static NTSTATUS VirtFsStart(VIRTFS *VirtFs);
 
 static DWORD FindDeviceInterface(PHANDLE Device);
 
@@ -308,7 +308,7 @@ static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
         goto out_close_handle;
     }
 
-    Status = VirtFsStart(VirtFs);
+    Status = VirtFs->Start();
     if (!NT_SUCCESS(Status))
     {
         Error = FspWin32FromNtStatus(Status);
@@ -2459,14 +2459,11 @@ static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
     return L'\0' != w[0] && L'\0' == *endp ? ul : deflt;
 }
 
-static NTSTATUS VirtFsStart(VIRTFS *VirtFs)
+NTSTATUS VIRTFS::SubmitInitRequest()
 {
     NTSTATUS Status;
     FUSE_INIT_IN init_in;
     FUSE_INIT_OUT init_out;
-    DWORD SessionId;
-    FILETIME FileTime;
-    FSP_FSCTL_VOLUME_PARAMS VolumeParams;
 
     FUSE_HEADER_INIT(&init_in.hdr, FUSE_INIT, FUSE_ROOT_ID,
         sizeof(init_in.init));
@@ -2476,20 +2473,35 @@ static NTSTATUS VirtFsStart(VIRTFS *VirtFs)
     init_in.init.max_readahead = 0;
     init_in.init.flags = FUSE_DO_READDIRPLUS;
 
-    Status = VirtFsFuseRequest(VirtFs->Device, &init_in, sizeof(init_in),
+    Status = VirtFsFuseRequest(Device, &init_in, sizeof(init_in),
         &init_out, sizeof(init_out));
-
     if (!NT_SUCCESS(Status))
     {
         return Status;
     }
 
-    VirtFs->MaxWrite = init_out.init.max_write;
+    MaxWrite = init_out.init.max_write;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS VIRTFS::Start()
+{
+    NTSTATUS Status;
+    DWORD SessionId;
+    FILETIME FileTime;
+    FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+
+    Status = SubmitInitRequest();
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
 
     SessionId = WTSGetActiveConsoleSessionId();
     if (SessionId != 0xFFFFFFFF)
     {
-        UpdateLocalUidGid(VirtFs, SessionId);
+        UpdateLocalUidGid(this, SessionId);
     }
 
     GetSystemTimeAsFileTime(&FileTime);
@@ -2517,23 +2529,23 @@ static NTSTATUS VirtFsStart(VIRTFS *VirtFs)
         sizeof(VolumeParams.FileSystemName) / sizeof(WCHAR), FS_SERVICE_NAME);
 
     Status = FspFileSystemCreate((PWSTR)TEXT(FSP_FSCTL_DISK_DEVICE_NAME),
-        &VolumeParams, &VirtFsInterface, &VirtFs->FileSystem);
+        &VolumeParams, &VirtFsInterface, &FileSystem);
     if (!NT_SUCCESS(Status))
     {
         return Status;
     }
-    VirtFs->FileSystem->UserContext = VirtFs;
+    FileSystem->UserContext = this;
 
-    FspFileSystemSetDebugLog(VirtFs->FileSystem, VirtFs->DebugFlags);
+    FspFileSystemSetDebugLog(FileSystem, DebugFlags);
 
-    Status = FspFileSystemSetMountPoint(VirtFs->FileSystem,
-        (VirtFs->MountPoint == L"*") ? NULL : (PWSTR)VirtFs->MountPoint.c_str());
+    Status = FspFileSystemSetMountPoint(FileSystem,
+        (MountPoint == L"*") ? NULL : (PWSTR)MountPoint.c_str());
     if (!NT_SUCCESS(Status))
     {
         goto out_del_fs;
     }
 
-    Status = FspFileSystemStartDispatcher(VirtFs->FileSystem, 0);
+    Status = FspFileSystemStartDispatcher(FileSystem, 0);
     if (!NT_SUCCESS(Status))
     {
         FspServiceLog(EVENTLOG_ERROR_TYPE,
@@ -2544,7 +2556,7 @@ static NTSTATUS VirtFsStart(VIRTFS *VirtFs)
     return STATUS_SUCCESS;
 
 out_del_fs:
-    FspFileSystemDelete(VirtFs->FileSystem);
+    FspFileSystemDelete(FileSystem);
 
     return Status;
 }
@@ -2792,7 +2804,7 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
         goto out_close_handle;
     }
 
-    Status = VirtFsStart(VirtFs);
+    Status = VirtFs->Start();
     if (!NT_SUCCESS(Status))
     {
         goto out_unreg_dh_notify;
