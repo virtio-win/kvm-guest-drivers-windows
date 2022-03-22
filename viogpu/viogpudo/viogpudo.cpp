@@ -1897,14 +1897,14 @@ NTSTATUS VioGpuDod::GetRegisterInfo(void)
 
     value = 0;
     Status = ReadRegistryDWORD(DevInstRegKeyHandle, L"UsePhysicalMemory", &value);
-    if (!NT_SUCCESS(Status))
+    if (NT_SUCCESS(Status))
     {
         SetUsePhysicalMemory(!!value);
     }
 
     value = 0;
     Status = ReadRegistryDWORD(DevInstRegKeyHandle, L"UsePresentProgress", &value);
-    if (!NT_SUCCESS(Status))
+    if (NT_SUCCESS(Status))
     {
         SetUsePresentProgress(!!value);
     }
@@ -2601,8 +2601,7 @@ NTSTATUS VioGpuAdapter::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSet
         return STATUS_UNSUCCESSFUL;
     }
 
-    DestroyCursor();
-    if (CreateCursor(pSetPointerShape, pModeCur))
+    if (UpdateCursor(pSetPointerShape, pModeCur))
     {
         PGPU_UPDATE_CURSOR crsr;
         PGPU_VBUFFER vbuf;
@@ -3251,7 +3250,7 @@ BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPoin
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s - %d: (%d x %d - %d) (%d + %d)\n", __FUNCTION__, m_Id,
         pSetPointerShape->Width, pSetPointerShape->Height, pSetPointerShape->Pitch, pSetPointerShape->XHot, pSetPointerShape->YHot));
-    ASSERT(m_pCursorBuf == NULL);
+
     size = POINTER_SIZE * POINTER_SIZE * 4;
     format = ColorFormat(D3DDDIFMT_A8R8G8B8);
     DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s - (%x -> %x)\n", __FUNCTION__, pCurrentMode->DispInfo.ColorFormat, format));
@@ -3272,14 +3271,25 @@ BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPoin
         delete obj;
         return FALSE;
     }
-
     m_pCursorBuf = obj;
+    return TRUE;
+}
 
+BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPointerShape, _In_ CONST CURRENT_MODE* pCurrentMode)
+{
+    PAGED_CODE();
     RECT Rect;
     Rect.left = 0;
     Rect.top = 0;
     Rect.right = Rect.left + pSetPointerShape->Width;
     Rect.bottom = Rect.top + pSetPointerShape->Height;
+
+    if ((m_pCursorBuf == NULL) &&
+        !CreateCursor(pSetPointerShape, pCurrentMode)) {
+            VioGpuDbgBreak();
+            DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Cannot create cursor\n", __FUNCTION__));
+            return FALSE;
+    }
 
     BLT_INFO DstBltInfo;
     DstBltInfo.pBits = m_pCursorBuf->GetVirtualAddress();
@@ -3312,7 +3322,7 @@ BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPoin
         &SrcBltInfo,
         &Rect);
 
-    m_CtrlQueue.TransferToHost2D(resid, 0, pSetPointerShape->Width, pSetPointerShape->Height, 0, 0, NULL);
+    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(), 0, pSetPointerShape->Width, pSetPointerShape->Height, 0, 0, NULL);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;
