@@ -65,8 +65,8 @@ HKR,,TypesSupported,%REG_DWORD%,7
 [VioGpuDod_DeviceSettings]
 HKR,, HWCursor,                    %REG_DWORD%, 0
 HKR,, FlexResolution,              %REG_DWORD%, 1
-HKR,, UsePhysicalMemory,           %REG_DWORD%, 0
-HKR,, UsePresentProgress,          %REG_DWORD%, 0
+HKR,, UsePhysicalMemory,           %REG_DWORD%, 1
+HKR,, UsePresentProgress,          %REG_DWORD%, 1
 
 [VioGpuDod_PCI_MSIX]
 HKR, "Interrupt Management",, 0x00000010

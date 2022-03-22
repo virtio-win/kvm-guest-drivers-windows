@@ -130,6 +130,7 @@ private:
     BOOLEAN CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE* pCurrentMode);
     void DestroyFrameBufferObj(BOOLEAN bReset);
     BOOLEAN CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPointerShape, _In_ CONST CURRENT_MODE* pCurrentMode);
+    BOOLEAN UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPointerShape, _In_ CONST CURRENT_MODE* pCurrentMode);
     void DestroyCursor(void);
     BOOLEAN GpuObjectAttach(UINT res_id, VioGpuObj* obj);
     void static ThreadWork(_In_ PVOID Context);
