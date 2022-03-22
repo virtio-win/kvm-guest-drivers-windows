@@ -1588,7 +1588,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     read_in.read.lock_owner = 0;
     read_in.read.flags = 0;
 
-    FUSE_HEADER_INIT(&read_in.hdr, FUSE_READ, FileContext->NodeId, Length);
+    FUSE_HEADER_INIT(&read_in.hdr, FUSE_READ, FileContext->NodeId, sizeof(read_in.read));
 
     Status = VirtFsFuseRequest(VirtFs->Device, &read_in, sizeof(read_in),
         read_out, sizeof(*read_out) + Length);
