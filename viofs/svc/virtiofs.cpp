@@ -56,6 +56,8 @@
 #define FS_SERVICE_NAME TEXT("VirtIO-FS")
 #define FS_SERVICE_REGKEY   TEXT("Software\\") FS_SERVICE_NAME
 #define ALLOCATION_UNIT 4096
+#define PAGE_SZ_4K  4096
+#define FUSE_DEFAULT_MAX_PAGES_PER_REQ  32
 
 #define INVALID_FILE_HANDLE ((uint64_t)(-1))
 
@@ -115,6 +117,7 @@ struct VIRTFS
 
     std::wstring MountPoint{ L"*" };
 
+    UINT32  MaxPages{ 0 };
     // A write request buffer size must not exceed this value.
     UINT32  MaxWrite{ 0 };
 
@@ -1565,52 +1568,72 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 {
     VIRTFS *VirtFs = (VIRTFS *)FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = (VIRTFS_FILE_CONTEXT *)FileContext0;
-    FUSE_READ_IN read_in;
     FUSE_READ_OUT *read_out;
-    NTSTATUS Status;
+    NTSTATUS Status = STATUS_SUCCESS;
+    // Host page size is unknown, but it can't be less than 4KiB
+    UINT32 BufSize = min(VirtFs->MaxPages * PAGE_SZ_4K, Length);
+    PUCHAR Buf = (PUCHAR)Buffer;
 
     DBG("Offset: %I64u Length: %u", Offset, Length);
     DBG("fh: %I64u nodeid: %I64u", FileContext->FileHandle, FileContext->NodeId);
 
     *PBytesTransferred = 0;
 
+    if (Buffer == NULL)
+    {
+        return STATUS_INVALID_PARAMETER;
+    }
+
     read_out = (FUSE_READ_OUT *)HeapAlloc(GetProcessHeap(), 0,
-            sizeof(*read_out) + Length);
+            sizeof(*read_out) + BufSize);
     if (read_out == NULL)
     {
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    read_in.read.fh = FileContext->FileHandle;
-    read_in.read.offset = Offset;
-    read_in.read.size = Length;
-    read_in.read.read_flags = 0;
-    read_in.read.lock_owner = 0;
-    read_in.read.flags = 0;
-
-    FUSE_HEADER_INIT(&read_in.hdr, FUSE_READ, FileContext->NodeId, sizeof(read_in.read));
-
-    Status = VirtFsFuseRequest(VirtFs->Device, &read_in, sizeof(read_in),
-        read_out, sizeof(*read_out) + Length);
-
-    if (!NT_SUCCESS(Status))
+    while (Length)
     {
-        SafeHeapFree(read_out);
-        return Status;
-    }
+        UINT32 Size = min(Length, BufSize);
+        FUSE_READ_IN read_in;
+        UINT32 OutSize;
 
-    *PBytesTransferred = read_out->hdr.len - sizeof(struct fuse_out_header);
+        read_in.read.fh = FileContext->FileHandle;
+        read_in.read.offset = Offset;
+        read_in.read.size = Size;
+        read_in.read.read_flags = 0;
+        read_in.read.lock_owner = 0;
+        read_in.read.flags = 0;
 
-    // A successful read with no bytes read mean file offset is at or past the
-    // end of file.
-    if (*PBytesTransferred == 0)
-    {
-        Status = STATUS_END_OF_FILE;
-    }
+        FUSE_HEADER_INIT(&read_in.hdr, FUSE_READ, FileContext->NodeId,
+            sizeof(read_in.read));
 
-    if (Buffer != NULL)
-    {
-        CopyMemory(Buffer, read_out->buf, *PBytesTransferred);
+        Status = VirtFsFuseRequest(VirtFs->Device, &read_in, sizeof(read_in),
+            read_out, sizeof(*read_out) + Size);
+        if (!NT_SUCCESS(Status))
+        {
+            SafeHeapFree(read_out);
+            return Status;
+        }
+
+        OutSize = read_out->hdr.len - sizeof(struct fuse_out_header);
+        CopyMemory(Buf, read_out->buf, OutSize);
+        *PBytesTransferred += OutSize;
+
+        // A successful read with no bytes read means file offset is at or past
+        // the end of file.
+        if (OutSize == 0)
+        {
+            Status = STATUS_END_OF_FILE;
+        }
+
+        if (OutSize < Size)
+        {
+            break;
+        }
+
+        Buf    += OutSize;
+        Offset += OutSize;
+        Length -= OutSize;
     }
 
     DBG("BytesTransferred: %d", *PBytesTransferred);
@@ -2471,7 +2494,7 @@ NTSTATUS VIRTFS::SubmitInitRequest()
     init_in.init.major = FUSE_KERNEL_VERSION;
     init_in.init.minor = FUSE_KERNEL_MINOR_VERSION;
     init_in.init.max_readahead = 0;
-    init_in.init.flags = FUSE_DO_READDIRPLUS;
+    init_in.init.flags = FUSE_DO_READDIRPLUS | FUSE_MAX_PAGES;
 
     Status = VirtFsFuseRequest(Device, &init_in, sizeof(init_in),
         &init_out, sizeof(init_out));
@@ -2481,6 +2504,8 @@ NTSTATUS VIRTFS::SubmitInitRequest()
     }
 
     MaxWrite = init_out.init.max_write;
+    MaxPages = init_out.init.max_pages ?
+        init_out.init.max_pages : FUSE_DEFAULT_MAX_PAGES_PER_REQ;
 
     return STATUS_SUCCESS;
 }
