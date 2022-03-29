@@ -592,7 +592,7 @@ RhelGetDiskGeometry(
                           &v, sizeof(v));
         adaptExt->info.size_max = v;
     } else {
-        adaptExt->info.size_max = SECTOR_SIZE;
+        adaptExt->info.size_max = PAGE_SIZE;
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SEG_MAX)) {

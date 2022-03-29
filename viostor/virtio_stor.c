@@ -475,6 +475,14 @@ VirtIoFindAdapter(
         ConfigInfo->NumberOfPhysicalBreaks = max(SCSI_MINIMUM_PHYSICAL_BREAKS, (queueLength / 4));
         adaptExt->queue_depth = max(((queueLength / ConfigInfo->NumberOfPhysicalBreaks) - 1), 1);
     }
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SEG_MAX)) {
+        ULONG size_max = adaptExt->info.size_max;
+        ULONG seg_max = adaptExt->info.seg_max;
+        if ((size_max > 0) && (seg_max > 0)) {
+            seg_max = (ULONG)((ULONGLONG)seg_max * size_max) / (ROUND_TO_PAGES(size_max));
+            ConfigInfo->NumberOfPhysicalBreaks = seg_max - 1;
+        }
+    }
 
     ConfigInfo->MaximumTransferLength = ConfigInfo->NumberOfPhysicalBreaks * PAGE_SIZE;
     ConfigInfo->NumberOfPhysicalBreaks++;
@@ -1506,7 +1514,7 @@ RhelScsiGetInquiryData(
              (dataLen >= 0x14)) {
 
         PVPD_BLOCK_LIMITS_PAGE LimitsPage;
-        ULONG max_io_size = adaptExt->max_tx_length / adaptExt->info.size_max;
+        ULONG max_io_size = adaptExt->max_tx_length / adaptExt->info.blk_size;
         USHORT pageLen = 0x10;
 
         LimitsPage = (PVPD_BLOCK_LIMITS_PAGE)SRB_DATA_BUFFER(Srb);
