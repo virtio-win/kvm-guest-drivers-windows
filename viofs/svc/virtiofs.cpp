@@ -279,13 +279,14 @@ static DWORD VirtFsRegDevHandleNotification(VIRTFS *VirtFs)
 
 VOID VIRTFS::Stop()
 {
-    FspFileSystemStopDispatcher(FileSystem);
-
-    if (FileSystem != NULL)
+    if (FileSystem == NULL)
     {
-        FspFileSystemDelete(FileSystem);
-        FileSystem = NULL;
+        return;
     }
+
+    FspFileSystemStopDispatcher(FileSystem);
+    FspFileSystemDelete(FileSystem);
+    FileSystem = NULL;
 
     LookupMap.clear();
 
