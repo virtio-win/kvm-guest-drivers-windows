@@ -2919,7 +2919,8 @@ int wmain(int argc, wchar_t **argv)
         return FspWin32FromNtStatus(Result);
     }
     FspServiceAllowConsoleMode(Service);
-    FspServiceAcceptControl(Service, SERVICE_ACCEPT_SESSIONCHANGE);
+    FspServiceAcceptControl(Service, SERVICE_ACCEPT_SESSIONCHANGE |
+        SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN);
     Result = FspServiceLoop(Service);
     ExitCode = FspServiceGetExitCode(Service);
     FspServiceDelete(Service);
