@@ -287,3 +287,13 @@ typedef struct
     struct fuse_out_header  hdr;
 
 } FUSE_FORGET_OUT, * PFUSE_FORGET_OUT;
+
+typedef struct
+{
+    struct fuse_in_header   hdr;
+} FUSE_DESTROY_IN;
+
+typedef struct
+{
+    struct fuse_out_header  hdr;
+} FUSE_DESTROY_OUT;
