@@ -134,6 +134,7 @@ struct VIRTFS
 
     VIRTFS(ULONG DebugFlags, const std::wstring& MountPoint);
     NTSTATUS Start();
+    VOID Stop();
     NTSTATUS SubmitInitRequest();
     NTSTATUS SubmitOpenRequest(UINT32 GrantedAccess,
         VIRTFS_FILE_CONTEXT *FileContext);
@@ -275,17 +276,17 @@ static DWORD VirtFsRegDevHandleNotification(VIRTFS *VirtFs)
     return CM_MapCrToWin32Err(ConfigRet, ERROR_NOT_SUPPORTED);
 }
 
-static VOID VirtFsStop(VIRTFS *VirtFs)
+VOID VIRTFS::Stop()
 {
-    FspFileSystemStopDispatcher(VirtFs->FileSystem);
+    FspFileSystemStopDispatcher(FileSystem);
 
-    if (VirtFs->FileSystem != NULL)
+    if (FileSystem != NULL)
     {
-        FspFileSystemDelete(VirtFs->FileSystem);
-        VirtFs->FileSystem = NULL;
+        FspFileSystemDelete(FileSystem);
+        FileSystem = NULL;
     }
 
-    VirtFs->LookupMap.clear();
+    LookupMap.clear();
 }
 
 static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
@@ -327,7 +328,7 @@ static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
     return ERROR_SUCCESS;
 
 out_stop_virtfs:
-    VirtFsStop(VirtFs);
+    VirtFs->Stop();
 out_unreg_dh_notify:
     VirtFsNotificationAsyncUnreg(&VirtFs->DevHandleNotification);
 out_close_handle:
@@ -349,7 +350,7 @@ static VOID VirtFsDevQueryRemove(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
 {
     DBG("Notify = 0x%x", Notify);
 
-    VirtFsStop(VirtFs);
+    VirtFs->Stop();
     VirtFsNotificationAsyncUnreg(&VirtFs->DevHandleNotification);
     CloseDeviceInterface(&VirtFs->Device);
 }
@@ -2857,7 +2858,7 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
 {
     VIRTFS *VirtFs = (VIRTFS *)Service->UserContext;
 
-    VirtFsStop(VirtFs);
+    VirtFs->Stop();
     VirtFsNotificationUnreg(&VirtFs->DevHandleNotification);
     CloseDeviceInterface(&VirtFs->Device);
     VirtFsNotificationDelete(&VirtFs->DevHandleNotification);
