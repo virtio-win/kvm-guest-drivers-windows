@@ -138,6 +138,7 @@ struct VIRTFS
     NTSTATUS SubmitInitRequest();
     NTSTATUS SubmitOpenRequest(UINT32 GrantedAccess,
         VIRTFS_FILE_CONTEXT *FileContext);
+    NTSTATUS SubmitDestroyRequest();
 };
 
 VIRTFS::VIRTFS(ULONG DebugFlags, const std::wstring& MountPoint)
@@ -287,6 +288,8 @@ VOID VIRTFS::Stop()
     }
 
     LookupMap.clear();
+
+    SubmitDestroyRequest();
 }
 
 static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
@@ -2507,6 +2510,24 @@ NTSTATUS VIRTFS::SubmitInitRequest()
     MaxWrite = init_out.init.max_write;
     MaxPages = init_out.init.max_pages ?
         init_out.init.max_pages : FUSE_DEFAULT_MAX_PAGES_PER_REQ;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS VIRTFS::SubmitDestroyRequest()
+{
+    NTSTATUS Status;
+    FUSE_DESTROY_IN destroy_in;
+    FUSE_DESTROY_OUT destroy_out;
+
+    FUSE_HEADER_INIT(&destroy_in.hdr, FUSE_DESTROY, FUSE_ROOT_ID, 0);
+
+    Status = VirtFsFuseRequest(Device, &destroy_in, sizeof(destroy_in),
+        &destroy_out, sizeof(destroy_out));
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
 
     return STATUS_SUCCESS;
 }
