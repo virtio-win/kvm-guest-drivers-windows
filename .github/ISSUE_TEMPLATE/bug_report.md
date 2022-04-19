@@ -28,9 +28,9 @@ If applicable, add screenshots to help explain your problem.
  - libvirt XML file
 
 **VM:**
- - Windows version or commit hash that was used to build the driver
+ - Windows version
  - Which driver has a problem
- - Driver version
+ - Driver version or commit hash that was used to build the driver
 
 
 **Additional context**
