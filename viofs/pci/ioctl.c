@@ -236,9 +236,8 @@ static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context,
     WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, size);
 }
 
-_Post_writable_byte_size_(_Size)
-void* CopyBuffer(void* _Dst, void const* _Src, size_t _Size) {
-    return RtlCopyMemory(_Dst, _Src, _Size);
+void CopyBuffer(void* _Dst, void const* _Src, size_t _Size) {
+    RtlCopyMemory(_Dst, _Src, _Size);
 }
 
 static inline BOOLEAN VirtFsOpcodeIsHighPrio(IN UINT32 Opcode)
