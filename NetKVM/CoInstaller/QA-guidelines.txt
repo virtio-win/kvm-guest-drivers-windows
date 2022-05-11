@@ -1,0 +1,15 @@
+# NetKVMConfig testing guide and test cases
+
+Since NetKVMConfig provides command line interface for all its features testing may be automated by the means of simple script (windows batch file, jscript, PowerShell script, etc). Script is to execute commands and compare result output to some predefined “etalon” output.
+
+Most important test cases list:
+1.	Register/Unregister works as expected;
+2.	netsh netkvm show devices shown all devices present in system and does not show devices that are configured but virtually not plugged in; does not show non-NetKVM devices;
+3.	netsh netkvm restart works as expected, i.e. sequentially disables and enables correct device;
+4.	netsh netkvm show parameters lists all parameters of correct device
+5.	netsh netkvm show paraminfo lists correct information for parameters of all basic types: enumeration, int, long int, text (see INF file format documentation available at http://msdn.microsoft.com/en-us/library/ff570842%28v=VS.85%29.aspx for details)
+6.	netsh netkvm getparam read value correctly for for parameters of all basic types (see testcase description for netsh netkvm show paraminfo)
+7.	netsh netkvm setparam changes value correctly for parameters of all basic types (see testcase description for netsh netkvm show paraminfo), perform type validation i.e. does not allow to assign parameter value of wrong type.
+
+	Keep in mind that in order for the changed parameters to take effect netsh netkvm restart should be executed.
+	Also if advanced tab of device manager is opened during parameters change – it will not update itself automatically. Close and reopen it to see the change.
