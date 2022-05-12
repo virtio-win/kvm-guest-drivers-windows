@@ -157,7 +157,7 @@ static const ULONG ReportCodeToUsageCodeTable[] =
     /* KEY_PAUSE */              0x48,
     /* KEY_SCALE */              0x00,
     /* KEY_KPCOMMA */            0x85,
-    /* KEY_HANGEUL */            0x90,
+    /* KEY_HANGUL */             0x90,
     /* KEY_HANJA */              0x91,
     /* KEY_YEN */                0x89,
     /* KEY_LEFTMETA */           0xE3,
