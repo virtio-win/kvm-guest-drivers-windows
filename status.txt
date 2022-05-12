@@ -1475,7 +1475,7 @@ Fixed bugs:
 Bug 799248 - [netkvm]Add a space between "RedHat" in netkvm,sys Product name
 Bug 713643 - backport checksum optimization for virtio_net
 Bug 770499 - Press 'i' cause vioser-test stop working
-Bug 799264 - WHQL][Block]BSOD happened in job "CHOAS-Concurrent Hardware And OS Test"
+Bug 799264 - WHQL][Block]BSOD happened in job "CHAOS-Concurrent Hardware And OS Test"
 Bug 799190 - [WHQL][Block]Job "Sleep Stress with IO" and Common Scenario Stress with IO" 
              stopped with prompt error on win2k8-R2/win2k8/win7.
 Bug 799182 - [WHQL][Block]Job of "Sleep Stress with IO" and Common Scenario Stress with IO" 
