@@ -1419,7 +1419,7 @@ CompletePendingRequests(
     )
 {
     PADAPTER_EXTENSION adaptExt;
-    ULONG QueuNum;
+    ULONG QueueNum;
     ULONG MsgId;
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
@@ -1433,8 +1433,8 @@ CompletePendingRequests(
             PREQUEST_LIST element = &adaptExt->processing_srbs[index];
             STOR_LOCK_HANDLE    LockHandle = { 0 };
             RhelDbgPrint(TRACE_LEVEL_FATAL, "queue %d cnt %d\n", index, element->srb_cnt);
-            QueuNum = index + VIRTIO_SCSI_REQUEST_QUEUE_0;
-            MsgId = QUEUE_TO_MESSAGE(QueuNum);
+            QueueNum = index + VIRTIO_SCSI_REQUEST_QUEUE_0;
+            MsgId = QUEUE_TO_MESSAGE(QueueNum);
             VioScsiVQLock(DeviceExtension, MsgId, &LockHandle, FALSE);
             while (!IsListEmpty(&element->srb_list)) {
                 PLIST_ENTRY entry = RemoveHeadList(&element->srb_list);
