@@ -228,7 +228,7 @@ Bugs:
 BZ 1539256: [vioscsi] to support ACK of VIRTIO_F_IOMMU_PLATFORM
 BZ 1530210: [viostor] to support ACK of VIRTIO_F_IOMMU_PLATFORM
 BZ 1549587: [NetKVM] to support ACK of VIRTIO_F_IOMMU_PLATFORM
-BZ 1549577: [virtiovib] Add VIRTIO_F_IOMMU_PLATFORM feature bit definition
+BZ 1549577: [virtiolib] Add VIRTIO_F_IOMMU_PLATFORM feature bit definition
 
 
 New Features:
