@@ -152,7 +152,7 @@ NTSTATUS PCIRegisterInterrupt(WDFINTERRUPT Interrupt)
             &attributes,
             &context);
         if (status == STATUS_OBJECT_NAME_EXISTS) {
-            /* this is fine, we want to reuse the pre-existing context */
+            /* this is fine, we want to reuse the preexisting context */
             status = STATUS_SUCCESS;
         }
     }
