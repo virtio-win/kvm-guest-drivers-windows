@@ -874,7 +874,7 @@ Fixed bugs:
 
 Bug 1096505 [netkvm] packet submission refactoring
 Bug 1100308 [netkvm] Fixing DPC suspend flag race condition
-Bug 1054640 [netkvm] On cotext destruction, return to the unused queue buffers,
+Bug 1054640 [netkvm] On context destruction, return to the unused queue buffers,
                      retained in per-processor queue but not submitted to the upper layer
 
 
