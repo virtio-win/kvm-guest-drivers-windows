@@ -982,7 +982,7 @@ static NTSTATUS SubmitRename2Request(HANDLE Device, uint64_t oldparent,
     return Status;
 }
 
-static NTSTATUS PathWalkthough(VIRTFS *VirtFs, CHAR *FullPath,
+static NTSTATUS PathWalkthrough(VIRTFS *VirtFs, CHAR *FullPath,
     CHAR **FileName, UINT64 *Parent)
 {
     WCHAR SubstituteName[MAX_PATH];
@@ -1052,7 +1052,7 @@ static NTSTATUS VirtFsLookupFileName(VIRTFS *VirtFs, PWSTR FileName,
         return Status;
     }
 
-    Status = PathWalkthough(VirtFs, fullpath, &filename, &parent);
+    Status = PathWalkthrough(VirtFs, fullpath, &filename, &parent);
     if (NT_SUCCESS(Status))
     {
         Status = SubmitLookupRequest(VirtFs, parent, filename, LookupOut);
@@ -1401,7 +1401,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
         return Status;
     }
 
-    Status = PathWalkthough(VirtFs, fullpath, &filename, &parent);
+    Status = PathWalkthrough(VirtFs, fullpath, &filename, &parent);
     if (!NT_SUCCESS(Status) && (Status != STATUS_OBJECT_NAME_NOT_FOUND))
     {
         FspPosixDeletePath(fullpath);
@@ -1881,7 +1881,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return;
     }
 
-    Status = PathWalkthough(VirtFs, fullpath, &filename, &parent);
+    Status = PathWalkthrough(VirtFs, fullpath, &filename, &parent);
     if (!NT_SUCCESS(Status))
     {
         FspPosixDeletePath(fullpath);
@@ -2033,7 +2033,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return Status;
     }
 
-    Status = PathWalkthough(VirtFs, oldfullpath, &oldname, &oldparent);
+    Status = PathWalkthrough(VirtFs, oldfullpath, &oldname, &oldparent);
     if (!NT_SUCCESS(Status))
     {
         FspPosixDeletePath(oldfullpath);
@@ -2041,7 +2041,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return Status;
     }
 
-    Status = PathWalkthough(VirtFs, newfullpath, &newname, &newparent);
+    Status = PathWalkthrough(VirtFs, newfullpath, &newname, &newparent);
     if (!NT_SUCCESS(Status))
     {
         FspPosixDeletePath(oldfullpath);
@@ -2373,7 +2373,7 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
         return Status;
     }
 
-    Status = PathWalkthough(VirtFs, targetname, &filename, &parent);
+    Status = PathWalkthrough(VirtFs, targetname, &filename, &parent);
     if (!NT_SUCCESS(Status))
     {
         FspPosixDeletePath(targetname);
