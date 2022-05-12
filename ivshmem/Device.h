@@ -49,7 +49,7 @@ typedef struct _DEVICE_CONTEXT
 
     KSPIN_LOCK                 eventListLock;           // spinlock for the below event list
     IVSHMEMEventListEntry      eventBuffer[MAX_EVENTS]; // buffer of pre-allocated events
-    UINT16                     eventBufferUsed;         // number of events currenty in use
+    UINT16                     eventBufferUsed;         // number of events currently in use
     LIST_ENTRY                 eventList;               // pending events to fire
 }
 DEVICE_CONTEXT, *PDEVICE_CONTEXT;
