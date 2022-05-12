@@ -173,7 +173,7 @@ static VOID MiniportDisableInterruptEx(IN PVOID MiniportInterruptContext)
     DEBUG_ENTRY(0);
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)MiniportInterruptContext;
 
-    /* TODO - make sure that interrups are not reenabled by the DPC callback*/
+    /* TODO - make sure that interrupts are not reenabled by the DPC callback*/
     for (UINT i = 0; i < pContext->nPathBundles; i++)
     {
         pContext->pPathBundles[i].txPath.DisableInterrupts();
