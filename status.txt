@@ -848,7 +848,7 @@ tag     mm107
 
 Fixed bugs:
 
-BZ 1096505: NetKVM Cosmetic fixs - tab removed with spaces
+BZ 1096505: NetKVM Cosmetic fixes - tab removed with spaces
 BZ 1112712: NetKVM Initialize CVirtQueue first before making internal calculati
 BZ 1051886: NetKVM  Fix linker options for Vista\Windows Server 2008.
 BZ 1109027: NetKVM  Fix empty friendly name if only one adapter is present
