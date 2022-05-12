@@ -1070,7 +1070,7 @@ Fixed bugs:
 BZ#889941 - [virtio-win][scsi] virtio_scsi driver performs bad during large buffers transfer
 BZ#950611 Guest offloads configuration via control queue
 BZ#978296 Incorrect link state indications in PM_PowerStateTransition
-BZ#982940 - Remove old hack for 1G adapter that internaly keeps the speed as 1001
+BZ#982940 - Remove old hack for 1G adapter that internally keeps the speed as 1001
 
 New Features:
 MSI interrupts support for viocsi.
