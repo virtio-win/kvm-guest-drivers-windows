@@ -390,10 +390,10 @@ public:
     }
     bool CheckCompatibility(const PARANDIS_ADAPTER *Adapter)
     {
-        if (m_Capabilies.MtuSize != Adapter->MaxPacketSize.nMaxDataSize)
+        if (m_Capabilities.MtuSize != Adapter->MaxPacketSize.nMaxDataSize)
         {
             TraceNoPrefix(0, "[%s] MTU size is not compatible: %d != %d\n", __FUNCTION__,
-                m_Capabilies.MtuSize, Adapter->MaxPacketSize.nMaxDataSize);
+                m_Capabilities.MtuSize, Adapter->MaxPacketSize.nMaxDataSize);
             return false;
         }
         return true;
@@ -432,11 +432,11 @@ public:
                     PrintOffload(__FUNCTION__, *o);
                     if (o->Header.Revision > NDIS_OFFLOAD_REVISION_3)
                     {
-                        UCHAR knownMinor = m_Capabilies.NdisMinor;
-                        GUESS_VERSION(m_Capabilies.NdisMinor, 30);
-                        if (m_Capabilies.NdisMinor != knownMinor)
+                        UCHAR knownMinor = m_Capabilities.NdisMinor;
+                        GUESS_VERSION(m_Capabilities.NdisMinor, 30);
+                        if (m_Capabilities.NdisMinor != knownMinor)
                         {
-                            TraceNoPrefix(0, "[%s] Best guess for NDIS revision: 6.%d\n", __FUNCTION__, m_Capabilies.NdisMinor);
+                            TraceNoPrefix(0, "[%s] Best guess for NDIS revision: 6.%d\n", __FUNCTION__, m_Capabilities.NdisMinor);
                         }
                     }
                 }
@@ -546,7 +546,7 @@ private:
             bool tcp;
             bool udp;
         } checksumRx;
-    } m_Capabilies = {};
+    } m_Capabilities = {};
     CNdisSpinLock m_OpStateLock;
     CNdisList<CInternalNblEntry, CLockedAccess, CNonCountingObject> m_InternalNbls;
     class COperationWorkItem : public CNdisAllocatable<COperationWorkItem, 'IWRP'>
@@ -1319,7 +1319,7 @@ VOID ParaNdis_PropagateOid(PARANDIS_ADAPTER *pContext, NDIS_OID oid, PVOID buffe
 void CProtocolBinding::QueryCapabilities(PNDIS_BIND_PARAMETERS BindParameters)
 {
     // if split enabled, it is NDIS 6.10 at least
-    m_Capabilies.MtuSize = BindParameters->MtuSize;
+    m_Capabilities.MtuSize = BindParameters->MtuSize;
     if (BindParameters->HDSplitCurrentConfig)
     {
         ULONG flags = BindParameters->HDSplitCurrentConfig->CurrentCapabilities;
@@ -1338,7 +1338,7 @@ void CProtocolBinding::QueryCapabilities(PNDIS_BIND_PARAMETERS BindParameters)
             hds.ipv6ext = flags & NDIS_HD_SPLIT_CAPS_SUPPORTS_IPV6_EXTENSION_HEADERS;
             hds.maxHeader = BindParameters->HDSplitCurrentConfig->MaxHeaderSize;
             hds.backfill = BindParameters->HDSplitCurrentConfig->BackfillSize;
-            GUESS_VERSION(m_Capabilies.NdisMinor, 10);
+            GUESS_VERSION(m_Capabilities.NdisMinor, 10);
             TraceNoPrefix(0, "[%s] HDS: ipv4opt:%d, ipv6ext:%d, tcpopt:%d, max header:%d, backfill %d\n",
                 __FUNCTION__, hds.ipv4opt, hds.ipv6ext, hds.tcpopt, hds.maxHeader, hds.backfill);
         }
@@ -1347,57 +1347,57 @@ void CProtocolBinding::QueryCapabilities(PNDIS_BIND_PARAMETERS BindParameters)
     if (BindParameters->RcvScaleCapabilities)
     {
         ULONG flags = BindParameters->RcvScaleCapabilities->CapabilitiesFlags;
-        m_Capabilies.rss.v4 = flags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4;
-        m_Capabilies.rss.v6 = flags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6;
-        m_Capabilies.rss.v6ex = flags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6_EX;
-        m_Capabilies.rss.queues = BindParameters->RcvScaleCapabilities->NumberOfReceiveQueues;
-        m_Capabilies.rss.vectors = BindParameters->RcvScaleCapabilities->NumberOfInterruptMessages;
+        m_Capabilities.rss.v4 = flags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4;
+        m_Capabilities.rss.v6 = flags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6;
+        m_Capabilities.rss.v6ex = flags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6_EX;
+        m_Capabilities.rss.queues = BindParameters->RcvScaleCapabilities->NumberOfReceiveQueues;
+        m_Capabilities.rss.vectors = BindParameters->RcvScaleCapabilities->NumberOfInterruptMessages;
         if (flags & NDIS_RSS_CAPS_USING_MSI_X) {
-            GUESS_VERSION(m_Capabilies.NdisMinor, 20);
+            GUESS_VERSION(m_Capabilities.NdisMinor, 20);
         }
         if (BindParameters->RcvScaleCapabilities->Header.Revision > NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_1)
         {
-            GUESS_VERSION(m_Capabilies.NdisMinor, 30);
-            m_Capabilies.rss.tableSize = BindParameters->RcvScaleCapabilities->NumberOfIndirectionTableEntries;
+            GUESS_VERSION(m_Capabilities.NdisMinor, 30);
+            m_Capabilities.rss.tableSize = BindParameters->RcvScaleCapabilities->NumberOfIndirectionTableEntries;
         }
         TraceNoPrefix(0, "[%s] RSS: v4:%d,v6:%d,v6ex:%d, queues:%d, vectors:%d, max table:%d\n", __FUNCTION__,
-            m_Capabilies.rss.v4, m_Capabilies.rss.v6, m_Capabilies.rss.v6ex,
-            m_Capabilies.rss.queues, m_Capabilies.rss.vectors, m_Capabilies.rss.tableSize);
+            m_Capabilities.rss.v4, m_Capabilities.rss.v6, m_Capabilities.rss.v6ex,
+            m_Capabilities.rss.queues, m_Capabilities.rss.vectors, m_Capabilities.rss.tableSize);
     }
     else
     {
-        TraceNoPrefix(0, "[%s] No RSS capabilies\n", __FUNCTION__);
+        TraceNoPrefix(0, "[%s] No RSS capabilities\n", __FUNCTION__);
     }
     // If RSC enabled, it is 6.30 at least
     if (BindParameters->DefaultOffloadConfiguration)
     {
         PNDIS_OFFLOAD doc = BindParameters->DefaultOffloadConfiguration;
-        m_Capabilies.rsc.v4 = doc->Rsc.IPv4.Enabled;
-        m_Capabilies.rsc.v6 = doc->Rsc.IPv6.Enabled;
-        if (m_Capabilies.rsc.v4 || m_Capabilies.rsc.v6)
+        m_Capabilities.rsc.v4 = doc->Rsc.IPv4.Enabled;
+        m_Capabilities.rsc.v6 = doc->Rsc.IPv6.Enabled;
+        if (m_Capabilities.rsc.v4 || m_Capabilities.rsc.v6)
         {
-            GUESS_VERSION(m_Capabilies.NdisMinor, 30);
+            GUESS_VERSION(m_Capabilities.NdisMinor, 30);
         }
-        m_Capabilies.lsov2.v4.maxPayload = doc->LsoV2.IPv4.MaxOffLoadSize;
-        m_Capabilies.lsov2.v4.minSegments = doc->LsoV2.IPv4.MinSegmentCount;
-        m_Capabilies.lsov2.v6.maxPayload = doc->LsoV2.IPv6.MaxOffLoadSize;
-        m_Capabilies.lsov2.v6.minSegments = doc->LsoV2.IPv6.MinSegmentCount;
-        m_Capabilies.lsov2.v6.extHeaders = doc->LsoV2.IPv6.IpExtensionHeadersSupported;
-        m_Capabilies.lsov2.v6.tcpOptions = doc->LsoV2.IPv6.TcpOptionsSupported;
+        m_Capabilities.lsov2.v4.maxPayload = doc->LsoV2.IPv4.MaxOffLoadSize;
+        m_Capabilities.lsov2.v4.minSegments = doc->LsoV2.IPv4.MinSegmentCount;
+        m_Capabilities.lsov2.v6.maxPayload = doc->LsoV2.IPv6.MaxOffLoadSize;
+        m_Capabilities.lsov2.v6.minSegments = doc->LsoV2.IPv6.MinSegmentCount;
+        m_Capabilities.lsov2.v6.extHeaders = doc->LsoV2.IPv6.IpExtensionHeadersSupported;
+        m_Capabilities.lsov2.v6.tcpOptions = doc->LsoV2.IPv6.TcpOptionsSupported;
         TraceNoPrefix(0, "[%s] LSOv2: v4: min segments %d, max payload %d\n", __FUNCTION__,
-            m_Capabilies.lsov2.v4.minSegments, m_Capabilies.lsov2.v4.maxPayload);
+            m_Capabilities.lsov2.v4.minSegments, m_Capabilities.lsov2.v4.maxPayload);
         TraceNoPrefix(0, "[%s] LSOv2: v6: min segments %d, max payload %d, tcp opt:%d, extHeaders:%d\n",
             __FUNCTION__,
-            m_Capabilies.lsov2.v6.minSegments, m_Capabilies.lsov2.v6.maxPayload,
-            m_Capabilies.lsov2.v6.tcpOptions, m_Capabilies.lsov2.v6.extHeaders);
+            m_Capabilities.lsov2.v6.minSegments, m_Capabilities.lsov2.v6.maxPayload,
+            m_Capabilities.lsov2.v6.tcpOptions, m_Capabilities.lsov2.v6.extHeaders);
         TraceNoPrefix(0, "[%s] RSC: v4:%d, v6:%d\n", __FUNCTION__,
-            m_Capabilies.rsc.v4, m_Capabilies.rsc.v6);
+            m_Capabilities.rsc.v4, m_Capabilities.rsc.v6);
     }
     else
     {
-        TraceNoPrefix(0, "[%s] No offload capabilies\n", __FUNCTION__);
+        TraceNoPrefix(0, "[%s] No offload capabilities\n", __FUNCTION__);
     }
-    TraceNoPrefix(0, "[%s] Best guess for NDIS revision: 6.%d\n", __FUNCTION__, m_Capabilies.NdisMinor);
+    TraceNoPrefix(0, "[%s] Best guess for NDIS revision: 6.%d\n", __FUNCTION__, m_Capabilities.NdisMinor);
 }
 
 CProtocolBinding::COperationWorkItem::COperationWorkItem(CProtocolBinding  *Binding, bool State, NDIS_HANDLE AdapterHandle) :
@@ -1433,7 +1433,7 @@ void CProtocolBinding::OnOpStateChange(bool State)
 // as it is asynchronous and will call ParaNdis_DereferenceBinding
 void CProtocolBinding::SetRSS()
 {
-    bool bSkip = !m_Capabilies.rss.queues;
+    bool bSkip = !m_Capabilities.rss.queues;
     COidWrapperAsync *p = NULL;
     struct RSSSet : public CNdisAllocatable<RSSSet, 'SORP'>
     {
@@ -1471,10 +1471,10 @@ void CProtocolBinding::SetRSS()
 #if (NDIS_SUPPORT_NDIS680)
         current->rsp.HashInformation &= ~(NDIS_HASH_UDP_IPV4 | NDIS_HASH_UDP_IPV6 | NDIS_HASH_UDP_IPV6_EX);
 #endif // (NDIS_SUPPORT_NDIS680)
-        if (!m_Capabilies.rss.v6ex) {
+        if (!m_Capabilities.rss.v6ex) {
             current->rsp.HashInformation &= ~(NDIS_HASH_IPV6_EX | NDIS_HASH_TCP_IPV6_EX);
         }
-        if (!m_Capabilies.rss.v6) {
+        if (!m_Capabilities.rss.v6) {
             current->rsp.HashInformation &= ~(NDIS_HASH_IPV6 | NDIS_HASH_TCP_IPV6);
         }
         p = new (m_Protocol.DriverHandle()) COidWrapperAsync(m_BoundAdapter, NdisRequestSetInformation, OID_GEN_RECEIVE_SCALE_PARAMETERS, current, sizeof(*current));
@@ -1495,7 +1495,7 @@ void CProtocolBinding::SetRSS()
 
 void CProtocolBinding::SetOffloadEncapsulation()
 {
-    bool bSkip = !m_Capabilies.lsov2.v4.maxPayload && !m_Capabilies.lsov2.v6.maxPayload;
+    bool bSkip = !m_Capabilities.lsov2.v4.maxPayload && !m_Capabilities.lsov2.v6.maxPayload;
     COidWrapperAsync *p = NULL;
     struct EncapSet : public CNdisAllocatable<EncapSet, 'EORP'>
     {
@@ -1510,14 +1510,14 @@ void CProtocolBinding::SetOffloadEncapsulation()
         current->e.Header.Size = NDIS_SIZEOF_OFFLOAD_ENCAPSULATION_REVISION_1;
         current->e.IPv4.EncapsulationType = NDIS_ENCAPSULATION_IEEE_802_3;
         current->e.IPv6.EncapsulationType = NDIS_ENCAPSULATION_IEEE_802_3;
-        if (m_BoundAdapter->bOffloadv4Enabled && m_Capabilies.lsov2.v4.maxPayload) {
+        if (m_BoundAdapter->bOffloadv4Enabled && m_Capabilities.lsov2.v4.maxPayload) {
             current->e.IPv4.Enabled = NDIS_OFFLOAD_SET_ON;
             current->e.IPv4.HeaderSize = m_BoundAdapter->Offload.ipHeaderOffset;
         } else {
             current->e.IPv4.Enabled = NDIS_OFFLOAD_SET_OFF;
             current->e.IPv4.HeaderSize = 0;
         }
-        if (m_BoundAdapter->bOffloadv6Enabled && m_Capabilies.lsov2.v6.maxPayload) {
+        if (m_BoundAdapter->bOffloadv6Enabled && m_Capabilities.lsov2.v6.maxPayload) {
             current->e.IPv6.Enabled = NDIS_OFFLOAD_SET_ON;
             current->e.IPv6.HeaderSize = m_BoundAdapter->Offload.ipHeaderOffset;
         }
@@ -1573,7 +1573,7 @@ void CProtocolBinding::SetOffloadParameters()
         current->o.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
         current->o.Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_2;
         current->o.Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_2;
-        if (m_Capabilies.NdisMinor >= 30) {
+        if (m_Capabilities.NdisMinor >= 30) {
             current->o.Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_3;
             current->o.Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_3;
         }
@@ -1581,10 +1581,10 @@ void CProtocolBinding::SetOffloadParameters()
             NDIS_OFFLOAD_PARAMETERS_RSC_ENABLED : NDIS_OFFLOAD_PARAMETERS_RSC_DISABLED;
         current->o.RscIPv6 = m_BoundAdapter->RSC.bIPv6Enabled ?
             NDIS_OFFLOAD_PARAMETERS_RSC_ENABLED : NDIS_OFFLOAD_PARAMETERS_RSC_DISABLED;
-        if (m_Capabilies.lsov2.v4.maxPayload) {
+        if (m_Capabilities.lsov2.v4.maxPayload) {
             current->o.LsoV2IPv4 = f.fTxLso ? NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED : NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
         }
-        if (m_Capabilies.lsov2.v6.maxPayload) {
+        if (m_Capabilities.lsov2.v6.maxPayload) {
             current->o.LsoV2IPv6 = f.fTxLsov6 ? NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED : NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
         }
         current->o.IPv4Checksum = ChecksumSetting(f.fTxIPChecksum, f.fRxIPChecksum);
