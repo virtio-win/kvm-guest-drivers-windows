@@ -328,7 +328,7 @@ Date    01 Jun 2017
 Fixed bugs:
 
 BZ 1456403: [NetKVM] Implement MTU report feature of the virtio-net device
-BZ 1455488: [vioser][ovmf] Guest occured BSOD when hotunplug virtio-serial-pci.
+BZ 1455488: [vioser][ovmf] Guest occurred BSOD when hotunplug virtio-serial-pci.
 
 
 Date    22 May 2017
@@ -386,7 +386,7 @@ tag     mm152
 Fixed bugs:
 
 BZ 1369353: [balloon] backport available memory stat support
-BZ 1419785: [balloon] Guest WIN8-32 occured BSOD in job "DF - PNP Stop (Rebalance) Device Test (Certification)"
+BZ 1419785: [balloon] Guest WIN8-32 occurred BSOD in job "DF - PNP Stop (Rebalance) Device Test (Certification)"
 
 New Features:
 pvpanic: Add IOCTL_GET_CRASH_DUMP_HEADER

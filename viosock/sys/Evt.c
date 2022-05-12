@@ -179,7 +179,7 @@ VIOSockEvtVqProcess(
                 if (pEvt->id == VIRTIO_VSOCK_EVENT_TRANSPORT_RESET)
                 {
                     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Reset event occurred\n");
-                    ++pContext->EvtRstOccured;
+                    ++pContext->EvtRstOccurred;
                     bNotify = TRUE;
                 }
             }

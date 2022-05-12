@@ -156,7 +156,7 @@ typedef struct _DEVICE_CONTEXT {
     PVIOSOCK_VQ                 EvtVq;
     PVIRTIO_VSOCK_EVENT         EvtVA;
     PHYSICAL_ADDRESS            EvtPA;
-    ULONG                       EvtRstOccured;
+    ULONG                       EvtRstOccurred;
 
     WDFSPINLOCK                 BoundLock;
     _Guarded_by_(BoundLock) WDFCOLLECTION               BoundList;
