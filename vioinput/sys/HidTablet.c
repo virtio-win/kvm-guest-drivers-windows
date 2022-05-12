@@ -863,7 +863,7 @@ HIDTabletProbe(
 
         /*
          * For ST, the number of contacts to report is always 1.
-         * For anonymous MT, the number of contats to report is always the max contacts.
+         * For anonymous MT, the number of contacts to report is always the max contacts.
          * For identifiable MT, the number of contacts to report is counted at SYN_REPORT.
          */
         if (pTabletDesc->bIdentifiableMT)
