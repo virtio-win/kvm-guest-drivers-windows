@@ -839,7 +839,7 @@ Fixed bugs:
 BZ 1066808: balloon fix old stats rema
 BZ 1081436: viorng  fix bsod after resuming
 BZ 1116573: viorng  use wdf 1.9 for old
-BZ  950611: NetKvm  Disable RSC until host suppor
+BZ  950611: NetKvm  Disable RSC until host support
 
 
 Date    08 Jul 2014
