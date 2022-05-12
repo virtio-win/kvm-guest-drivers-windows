@@ -1403,7 +1403,7 @@ Date    20 July 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm53
 
-Experimental - Win8 support for VirtIO, NetKvm, viostor, and vioscsi progects.
+Experimental - Win8 support for VirtIO, NetKvm, viostor, and vioscsi projects.
 
 
 Date    3 July 2012
