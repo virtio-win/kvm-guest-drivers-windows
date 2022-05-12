@@ -33,7 +33,7 @@ GOTO EIXT_SCRIPT
 ECHO.
 ECHO This script collects data from the wpp trace prints without the
 ECHO need of any external files. It must be executed with administrator
-ECHO priviledges and provided with an output filename for the etl file and
+ECHO privileges and provided with an output filename for the etl file and
 ECHO the GUID fot the WPP trace provider of the driver as parameters in this
 ECHO order.
 
