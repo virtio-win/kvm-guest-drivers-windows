@@ -169,7 +169,7 @@ Usage()
 \t/c - perform connect-send-recv cycle\n\
 \t/l - perform listen-accept-recv-send cycle\n\
 \t\tport - port number\n\
-\t\tfilepath - full path to file to stor recieved or send stored data\n\
+\t\tfilepath - full path to file to stor received or send stored data\n\
 "));
 }
 
