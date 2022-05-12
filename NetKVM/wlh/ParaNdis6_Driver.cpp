@@ -533,7 +533,7 @@ VOID ParaNdis6_ReturnNetBufferLists(
 }
 
 /**********************************************************
-Required NDIS handler: happens unually each 2 second
+Required NDIS handler: happens usually each 2 second
 ***********************************************************/
 static BOOLEAN ParaNdis6_CheckForHang(NDIS_HANDLE miniportAdapterContext)
 {
