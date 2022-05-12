@@ -2172,7 +2172,7 @@ static UCHAR g_gpu_edid[EDID_V1_BLOCK_SIZE] = {
     0x04,                                           // EDID revision
     0xa3,                                           // VideoInputDefinition digital, 8-bit, HDMI
     0x00,                                           //MaximumHorizontalImageSize
-    0x00,                                           //MaximumVerticallImageSize
+    0x00,                                           //MaximumVerticalImageSize
     0x78,                                           //DisplayTransferCharacteristics
     0x22,                                           //FeatureSupport
     0xEE, 0x95, 0xA3, 0x54, 0x4C,                   //ColorCharacteristics
@@ -2799,7 +2799,7 @@ void VioGpuAdapter::FixEdid(void)
     PUCHAR buf = GetEdidData(0);;
     PEDID_DATA_V1 pdata = (PEDID_DATA_V1)buf;
     pdata->MaximumHorizontalImageSize[0] = 0;
-    pdata->MaximumVerticallImageSize[0] = 0;
+    pdata->MaximumVerticalImageSize[0] = 0;
     pdata->ExtensionFlag[0] = 0;
     pdata->Checksum[0] = 0;
     for (ULONG i = 0; i < EDID_V1_BLOCK_SIZE; i++) {

@@ -384,7 +384,7 @@ typedef struct _EDID_DATA_V1 {
     UCHAR Revision[1];
     VIDEO_INPUT_DEFINITION VideoInputDefinition[1];
     UCHAR  MaximumHorizontalImageSize[1];
-    UCHAR  MaximumVerticallImageSize[1];
+    UCHAR  MaximumVerticalImageSize[1];
     UCHAR  DisplayTransferCharacteristics[1];
     FEATURES_SUPPORT FeaturesSupport;
     COLOR_CHARACTERISTICS ColorCharacteristics;
