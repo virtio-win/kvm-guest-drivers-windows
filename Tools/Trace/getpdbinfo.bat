@@ -7,10 +7,10 @@ if not exist %1 goto ERROR
 
 tracepdb.exe -f %1 -c > NUL
 for /F "tokens=* USEBACKQ" %%F in (`findstr /R "guid(\"{.*}\")," %~n1.mof`) do (
-    set guidline=%%F
+    set guideline=%%F
 )
 
-set guid=%guidline:~7,36%
+set guid=%guideline:~7,36%
 echo | set /p="%guid%" | clip
 echo The provider's control GUID is copied to clipboard!
 
