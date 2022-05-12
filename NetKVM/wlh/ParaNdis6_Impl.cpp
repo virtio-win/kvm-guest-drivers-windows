@@ -257,7 +257,7 @@ static BOOLEAN MiniportInterrupt(
 }
 
 // This procedure must work the same way as
-// ParaNdis_ConfigureMSIXVectors when spreads vectors over RX/TX/CX pathes.
+// ParaNdis_ConfigureMSIXVectors when spreads vectors over RX/TX/CX paths.
 // Returns respective TX or RX path if exists, then CX path if exists
 // (i.e. returns CX path only if it has dedicated vector)
 // otherwise (unlikely) returns NULL
