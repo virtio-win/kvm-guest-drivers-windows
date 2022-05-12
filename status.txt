@@ -1423,7 +1423,7 @@ Fixed bugs:
 Bug 828275 - Implement and test control queue in virtio-simulator environment.
 Bug 828275 - Initial implementation of RX filtering using QEMU
 
-Bug 768795 - BSOD when excercising Balloon Driver
+Bug 768795 - BSOD when exercising Balloon Driver
 Bug 816452 - Uninstall balloon driver from Device Manager leads to BSOD after changing balloon 
              value in monitor.
 Bug 803633 - balloon does not work after s3 or s4
