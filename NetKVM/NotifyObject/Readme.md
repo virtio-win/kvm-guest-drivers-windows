@@ -43,7 +43,7 @@ new adapter):
 If the adapter's PnP ID matches the list of supported ones, the notify
 object unbinds it from all the protocols and binds only to VIOPROT.
 It there is NETKVM adapter with the MAC address identical to one of
-checked netwrok adapter, these 2 adapters with the same MAC address
+checked network adapter, these 2 adapters with the same MAC address
 will be 'teamed' (subject to compatibility check) and the NETKVM uses
 the teamed adapter for RX and TX.
 
