@@ -1412,7 +1412,7 @@ tag     mm52
 
 Fixed bugs:
 
-Bug 800752 - Fixing syncronyzation between DPC and Read.
+Bug 800752 - Fixing synchronization between DPC and Read.
 
 Date    13 June 2012
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
