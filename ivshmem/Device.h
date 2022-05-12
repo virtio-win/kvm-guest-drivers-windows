@@ -39,7 +39,7 @@ typedef struct _DEVICE_CONTEXT
     PIVSHMEMDeviceRegisters devRegisters; // the device registers (BAR0)
 
     MM_PHYSICAL_ADDRESS_LIST   shmemAddr;               // physical address of the shared memory (BAR2)
-    PMDL                       shmemMDL;                // memory discriptor list of the shared memory
+    PMDL                       shmemMDL;                // memory descriptor list of the shared memory
     PVOID                      shmemMap;                // memory mapping of the shared memory
     WDFFILEOBJECT              owner;                   // the file object that currently owns the mapping
     UINT16                     interruptCount;          // the number of interrupt entries allocated
