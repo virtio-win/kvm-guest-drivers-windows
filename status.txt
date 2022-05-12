@@ -1306,7 +1306,7 @@ tag     mm61
 Fixed bugs:
 Bug 837758 - Disable virtio serial driver from device
     manager hit BSOD After send data from host and guest.
-Bug 842961 [Job Id 1710]BSOD occurs dueing running
+Bug 842961 [Job Id 1710]BSOD occurs while running
     "WDF Fault injection Logo Testing" job.
 Bug 824814 - [virtio-win][viostor]Online enlarging data
     image size does not work.
