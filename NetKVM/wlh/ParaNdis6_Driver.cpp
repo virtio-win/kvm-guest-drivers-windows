@@ -749,7 +749,7 @@ static void PrintPRRL(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
     }
 }
 
-static void SetupInterrruptAffinity(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
+static void SetupInterruptAffinity(PIO_RESOURCE_REQUIREMENTS_LIST prrl)
 {
     PIO_RESOURCE_LIST list;
     ULONG procIndex = 0;
@@ -902,7 +902,7 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(
     }
     if (!bRemoveMSIResources)
     {
-        SetupInterrruptAffinity(newPrrl);
+        SetupInterruptAffinity(newPrrl);
     }
     if (bRemoveMSIResources && nRemoved)
     {
