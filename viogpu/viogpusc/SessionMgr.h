@@ -13,7 +13,7 @@ public:
     DWORD SessionChange(DWORD evtype, PVOID evdata);
     SESSION_STATUS GetSessionStatus(UINT Indx);
     void SetSessionStatus(UINT Indx, SESSION_STATUS status);
-    HANDLE GetSessioinProcess(UINT Indx);
+    HANDLE GetSessionProcess(UINT Indx);
     void SetSessionProcess(UINT Indx, HANDLE Handle);
 private:
     CSession* FindSession(ULONG Indx, bool bCreate = false);

@@ -106,7 +106,7 @@ void CSessionMgr::SetSessionStatus(UINT Indx, SESSION_STATUS status)
     }
 }
 
-HANDLE CSessionMgr::GetSessioinProcess(UINT Indx)
+HANDLE CSessionMgr::GetSessionProcess(UINT Indx)
 { 
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
