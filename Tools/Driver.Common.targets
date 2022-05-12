@@ -103,7 +103,7 @@ Invoking the task:
 
   <!-- Subsystem vendor ID validation -->
   <Target Condition="'$(SUBSYSTEM_VENDOR_ID.ToUpper())'=='1AF4' AND '$(_VENDOR_)'!='RHEL'" Name="ValidateSubsystemVendor" AfterTargets="AdjustInf_WDK">
-    <Warning Text="Subsystem vendor ID $(SUBSYSTEM_VENDOR_ID) is reserved by Red Hat. Please change it by definining SUBSYSTEM_VENDOR_ID in Driver.$(_VENDOR_).props." />
+    <Warning Text="Subsystem vendor ID $(SUBSYSTEM_VENDOR_ID) is reserved by Red Hat. Please change it by defining SUBSYSTEM_VENDOR_ID in Driver.$(_VENDOR_).props." />
   </Target>
 
   <!-- Imports -->
