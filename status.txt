@@ -1362,7 +1362,7 @@ BZ #843325 - [virtio-win][balloon]Guest memory can not continue evicting after e
 BZ #837324 - viostor reports support for FUA, but does not implement it.
 
 BZ #806223 - [virtio-win][serial] guest BSOD when doing s3 while virtio-serial in use.
-BZ #714908 - [virtio-win][serial] virtio-serial is disfunctiona after S3
+BZ #714908 - [virtio-win][serial] virtio-serial is dysfunctional after S3
 BZ #814896 - [virtio-win][serial] virtio-serial does not work after s4 in win7-32/64 bit guests
 BZ #823818 - [virtio-win][compatibility]Guest freeze After terminating the virtserialport receiving 
              side in the host
@@ -1520,7 +1520,7 @@ Fixed bugs:
 Bug 713130 - event index support in virtio and vhost-net
 Bug 713643 - backport checksum optimization for virtio_net
 Bug 753723 - Backport serial number support for virtio-blk devices
-Bug 714908 - virtio-serial is disfunctional after S3
+Bug 714908 - virtio-serial is dysfunctional after S3
 
 Date    24 November 2011
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
