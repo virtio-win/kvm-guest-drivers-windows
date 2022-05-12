@@ -26,7 +26,7 @@ void GpuAdapter::UpdateDisplayConfig(void)
     ClearDisplayConfig();
 
     if (FAILED(HRESULT_FROM_WIN32(::GetDisplayConfigBufferSizes(filter, &m_PathArrayElements, &m_ModeInfoArrayElements)))) {
-        PrintMessage(L"GetDisplayConfigBufferSizes faled\n");
+        PrintMessage(L"GetDisplayConfigBufferSizes failed\n");
         return;
     }
 
