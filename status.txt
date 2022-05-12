@@ -1319,7 +1319,7 @@ tag     mm60
 
 Fixed bugs:
 [NetKVM] BZ #859882 - Fixing performance with current checksum offload settings. If Windows send 
-	an IP packet with 0 pachet lenth in offload scenarios - the driver will populate the 
+	an IP packet with 0 pachet length in offload scenarios - the driver will populate the 
 	length field with packet field.
 
 

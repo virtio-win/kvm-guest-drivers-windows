@@ -45,7 +45,7 @@
 #include <srbhelper.h>
 
 FORCEINLINE ULONG
-SrbGetCdbLenght(_In_ PVOID Srb) {
+SrbGetCdbLength(_In_ PVOID Srb) {
     ULONG CdbLen32 = 0;
     UCHAR CdbLen8 = 0;
     SrbGetScsiData(Srb, &CdbLen8, &CdbLen32, NULL, NULL, NULL);
@@ -75,7 +75,7 @@ SrbGetPnpInfo(_In_ PVOID Srb, ULONG* PnPFlags, ULONG* PnPAction) {
 #define SRB_EXTENSION(Srb) SrbGetMiniportContext(Srb)
 #define SRB_FUNCTION(Srb) SrbGetSrbFunction(Srb)
 #define SRB_CDB(Srb) SrbGetCdb(Srb)
-#define SRB_CDB_LENGTH(Srb) SrbGetCdbLenght(Srb)
+#define SRB_CDB_LENGTH(Srb) SrbGetCdbLength(Srb)
 #define SRB_FLAGS(Srb) SrbGetSrbFlags(Srb)
 #define SRB_PATH_ID(Srb) SrbGetPathId(Srb)
 #define SRB_TARGET_ID(Srb) SrbGetTargetId(Srb)
