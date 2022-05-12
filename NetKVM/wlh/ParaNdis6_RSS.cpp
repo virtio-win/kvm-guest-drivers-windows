@@ -617,7 +617,7 @@ NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_ADAPTER *pContext,
     if (RSSParameters->RSSMode == PARANDIS_RSS_MODE::PARANDIS_RSS_FULL)
     {
         //Here we check that originator doesn't try to enable hashing while full RSS is on.
-        //Disable hashing abd clear parameters is legitimate operation hovewer
+        //Disable hashing abd clear parameters is legitimate operation however
         if(Params->Flags & NDIS_RECEIVE_HASH_FLAG_ENABLE_HASH)
         {
             if(!(Params->Flags & NDIS_RECEIVE_HASH_FLAG_HASH_INFO_UNCHANGED) && (Params->HashInformation != 0))
