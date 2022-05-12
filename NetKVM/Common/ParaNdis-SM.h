@@ -6,7 +6,7 @@
 enum class SMNotifications {
     Started,
     Stopped,
-    SupriseRemoved,
+    SurpriseRemoved,
     NeedsReset,
     PoweredOn,
     PoweringOff
@@ -40,7 +40,7 @@ public:
         m_NoOutstandingItems.Wait();
     }
 
-    virtual void SupriseRemove()
+    virtual void SurpriseRemove()
     {
         m_SurpriseRemoved = true;
     }
@@ -284,7 +284,7 @@ public:
 
         }
 
-        void NotifySupriseRemoved()
+        void NotifySurpriseRemoved()
         {
             UpdateFlowsOnSurpriseRemove();
             ChangeState(MiniportState::SurpriseRemoved,
@@ -396,9 +396,9 @@ private:
 
     void UpdateFlowsOnSurpriseRemove()
     {
-        SMNotifications msg = SMNotifications::SupriseRemoved;
-        m_DataFlows.ForEach([](CDataFlowStateMachine* Flow) { Flow->SupriseRemove(); });
-        m_ConfigFlows.ForEach([](CConfigFlowStateMachine* Flow) { Flow->SupriseRemove(); });
+        SMNotifications msg = SMNotifications::SurpriseRemoved;
+        m_DataFlows.ForEach([](CDataFlowStateMachine* Flow) { Flow->SurpriseRemove(); });
+        m_ConfigFlows.ForEach([](CConfigFlowStateMachine* Flow) { Flow->SurpriseRemove(); });
         UpdateFlowsOnEvent(msg);
     }
 

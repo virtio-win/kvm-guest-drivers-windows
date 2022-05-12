@@ -112,11 +112,11 @@ public:
         return !This->m_VirtQueue.Restart();
     }
 
-    /* We get notified by the state machine on suprise removal or when the
+    /* We get notified by the state machine on surprise removal or when the
        device needs a reset*/
     void Notify(SMNotifications message) override
     {
-        if (message == SMNotifications::SupriseRemoved || message == SMNotifications::NeedsReset)
+        if (message == SMNotifications::SurpriseRemoved || message == SMNotifications::NeedsReset)
         {
             m_VirtQueue.DoNotTouchHardware();
         }

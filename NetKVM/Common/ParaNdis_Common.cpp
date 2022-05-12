@@ -1902,7 +1902,7 @@ VOID ParaNdis_OnPnPEvent(
         // on simulated surprise removal (under PnpTest) we need to reset the device
         // to prevent any access of device queues to memory buffers
         pContext->bSurprizeRemoved = TRUE;
-        pContext->m_StateMachine.NotifySupriseRemoved();
+        pContext->m_StateMachine.NotifySurpriseRemoved();
         ParaNdis_ResetVirtIONetDevice(pContext);
     }
     pContext->PnpEvents[pContext->nPnpEventIndex++] = pEvent;
