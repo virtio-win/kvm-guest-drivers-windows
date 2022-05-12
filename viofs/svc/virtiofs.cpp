@@ -107,7 +107,7 @@ struct VIRTFS
 
     ULONG   DebugFlags{ 0 };
 
-    // Service start rountine waits for this event until the device is found.
+    // Service start routine waits for this event until the device is found.
     HANDLE  EvtDeviceFound{ NULL };
 
     // Used to handle device arrive notification.
