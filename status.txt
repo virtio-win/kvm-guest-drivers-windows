@@ -1376,7 +1376,7 @@ tag     mm55
 Fixed bugs:
 BZ #838010 Fixing static code analysis tools
     errors for Balloon.
-BZ:834179 - Reverting previos fix and applying correct
+BZ:834179 - Reverting previous fix and applying correct
     padding on RX path that is needed due to guest to guest transfer of small
     packets.
 
