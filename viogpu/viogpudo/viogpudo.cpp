@@ -2164,8 +2164,8 @@ BOOLEAN VioGpuAdapter::AckFeature(UINT64 Feature)
 
 static UCHAR g_gpu_edid[EDID_V1_BLOCK_SIZE] = {
     0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF ,0xFF, 0x00, // Header
-    0x49, 0x14,                                     // Manufacturef Id
-    0x34, 0x12,                                     // Manufacturef product code
+    0x49, 0x14,                                     // Manufacturer Id
+    0x34, 0x12,                                     // Manufacturer product code
     0x00, 0x00, 0x00, 0x00,                         // serial number
     0xff, 0x1d,                                     // year of manufacture
     0x01,                                           // EDID version
