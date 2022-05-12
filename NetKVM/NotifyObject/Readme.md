@@ -26,7 +26,7 @@ the VIOPROT protocol driver is installed:
    by the VM anymore. But because the VF is present and has the same
    MAC address as the virtio-net device it is possible that the PF
    will drop the traffic that comes from the virtio-net via its TAP
-   as the network patckets usually have the same source MAC address
+   as the network packets usually have the same source MAC address
    as the VF. So, it is highly recommended to change the MAC address
    of the VF as soon as it is hidden on the VM PCI bus.
 5. When the migration is done QEMU attaches a new VF to the PCI bus
