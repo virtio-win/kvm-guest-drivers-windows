@@ -1364,7 +1364,7 @@ BZ #837324 - viostor reports support for FUA, but does not implement it.
 BZ #806223 - [virtio-win][serial] guest BSOD when doing s3 while virtio-serial in use.
 BZ #714908 - [virtio-win][serial] virtio-serial is disfunctiona after S3
 BZ #814896 - [virtio-win][serial] virtio-serial does not work after s4 in win7-32/64 bit guests
-BZ #823818 - [virtio-win][compatibilty]Guest freeze After terminating the virtserialport receiving 
+BZ #823818 - [virtio-win][compatibility]Guest freeze After terminating the virtserialport receiving 
              side in the host
 BZ #819412 - [virtio-win][serial]qemu complains "Unexpected port id 1 for device virtio-serial0.0"
              when hotunplug serial while RHEV-Agent service running in the guest
@@ -1395,7 +1395,7 @@ Bz:837321 Report guest FLUSH (WCE) feature
 Bug 819457 - windows 2k8r2sp1 guests hang after running over
     10 days in a stressed host
 
-Bug 823818 - [virtio-win][compatibilty]Guest freeze After terminating
+Bug 823818 - [virtio-win][compatibility]Guest freeze After terminating
     the virtserialport receiving side in the host
 Bug 840932 - BSOD in RHEV 3 on Windows 7 guest, Bugcheck code 0x9F
 
