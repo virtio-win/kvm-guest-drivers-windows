@@ -7,7 +7,7 @@ BZ#1821560: [viostor] driver does not return correct serial number length.
 
 New Features:
 
-[vioscsi] introduce the registry key to make munber of physical breaks adjustable
+[vioscsi] introduce the registry key to make number of physical breaks adjustable
 
 Date    19 Feb 2020
 tag     mm200
