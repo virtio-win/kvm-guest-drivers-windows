@@ -1164,7 +1164,7 @@ repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drive
 tag     mm77
 
 Fixed bugs:
-[NetKVM] BZ#904808 Initlal RSC implementation
+[NetKVM] BZ#904808 Initial RSC implementation
 
 
 Date    18 Mar 2013
