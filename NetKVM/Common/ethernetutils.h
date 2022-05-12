@@ -52,7 +52,7 @@ typedef struct _ETH_HEADER
 } ETH_HEADER, *PETH_HEADER;
 
 // note that in this project VLAN header (for both TX and RX) does not describe
-// 802.1Q header, but 4-bytes structure following Ethetnet header, i.e
+// 802.1Q header, but 4-bytes structure following Ethernet header, i.e
 // 2-bytes TCI field and 2-bytes real protocol information
 typedef struct _VLAN_HEADER
 {
