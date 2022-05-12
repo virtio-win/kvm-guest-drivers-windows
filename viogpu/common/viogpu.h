@@ -321,7 +321,7 @@ typedef union _VIDEO_INPUT_DEFINITION {
     typedef struct _ANALOG {
         UCHAR VSyncSerration           : 1;
         UCHAR GreenVideoSync           : 1;
-        UCHAR VompositeSync            : 1;
+        UCHAR CompositeSync            : 1;
         UCHAR SeparateSync             : 1;
         UCHAR BlankToBlackSetup        : 1;
         UCHAR SignalLevelStandard      : 2;
