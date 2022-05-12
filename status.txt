@@ -213,7 +213,7 @@ viostor: move sgl to SRB extension
 viostor: redesign vq lock/unlock routines
 NetKVM: Log interrupt vector to CPU mapping
 NetKVM: Set AffinityPolicy to IrqPolicySpecifiedProcessors
-NetKVM: Correctly assign vecotrs to CPUs
+NetKVM: Correctly assign vectors to CPUs
 
 
 Date    26 Apr 2018
