@@ -337,7 +337,7 @@ BOOLEAN CtrlQueue::GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid)
     }
     if (cmd->scanout != id)
     {
-        DbgPrint(TRACE_LEVEL_VERBOSE, (" %s invalid scaout = %x\n", __FUNCTION__, cmd->scanout));
+        DbgPrint(TRACE_LEVEL_VERBOSE, (" %s invalid scanout = %x\n", __FUNCTION__, cmd->scanout));
         return FALSE;
     }
 
