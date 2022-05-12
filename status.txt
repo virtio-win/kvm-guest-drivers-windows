@@ -764,7 +764,7 @@ tag     mm115
 
 Fixed bugs:
 
-BZ 1151912: RNG fix whql failure due to registeration error.
+BZ 1151912: RNG fix whql failure due to registration error.
 BZ 1154419: NetKVM  Memory corruption in RSS->queue mapping.
 
 RNG: replaced message box with setup api logging.
