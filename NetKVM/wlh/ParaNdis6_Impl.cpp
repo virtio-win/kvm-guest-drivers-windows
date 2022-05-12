@@ -1081,7 +1081,7 @@ BOOLEAN ParaNdis_IsTxRxPossible(PARANDIS_ADAPTER *pContext)
 /**********************************************************
 NDIS required handler for run-time allocation of scatter-gather list
 Parameters:
-pSGL - scatter-hather list of elements (possible NULL when called directly)
+pSGL - scatter-gather list of elements (possible NULL when called directly)
 Context - (tNetBufferEntry *) for specific NET_BUFFER in NBL
 Called on DPC (DDK claims it)
 ***********************************************************/
