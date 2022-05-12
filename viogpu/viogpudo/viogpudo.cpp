@@ -507,7 +507,7 @@ NTSTATUS VioGpuDod::PresentDisplayOnly(_In_ CONST DXGKARG_PRESENT_DISPLAYONLY* p
     if ((m_MonitorPowerState > PowerDeviceD0) ||
         (m_CurrentModes[pPresentDisplayOnly->VidPnSourceId].Flags.SourceNotVisible))
     {
-        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Source is not visiable\n", __FUNCTION__));
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Source is not visible\n", __FUNCTION__));
         return STATUS_SUCCESS;
     }
 
@@ -2676,7 +2676,7 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
             (UINT)pSetPointerPosition->Y > pModeCur->SrcModeHeight ||
             pSetPointerPosition->X < 0 ||
             pSetPointerPosition->Y < 0) {
-            DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s (%d - %d) Visiable = %d Value = %x VidPnSourceId = %d\n",
+            DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s (%d - %d) Visible = %d Value = %x VidPnSourceId = %d\n",
                 __FUNCTION__,
                 pSetPointerPosition->X,
                 pSetPointerPosition->Y,
@@ -2687,7 +2687,7 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
             crsr->pos.y = 0;
         }
         else {
-            DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s (%d - %d) Visiable = %d Value = %x VidPnSourceId = %d posX = %d, psY = %d\n",
+            DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s (%d - %d) Visible = %d Value = %x VidPnSourceId = %d posX = %d, psY = %d\n",
                 __FUNCTION__,
                 pSetPointerPosition->X,
                 pSetPointerPosition->Y,
