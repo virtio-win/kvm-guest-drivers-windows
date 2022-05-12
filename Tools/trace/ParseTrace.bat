@@ -32,8 +32,8 @@ ECHO.
 ECHO This script parses the collected data from an etl file. The script
 ECHO has two parameters in the following order:
 ECHO.
-ECHO * Path for the symbols file (.pdb) for the sutiable driver build
-ECHO * Path for the trace file (.etl) for the sutiable driver
+ECHO * Path for the symbols file (.pdb) for the suitable driver build
+ECHO * Path for the trace file (.etl) for the suitable driver
 ECHO.
 ECHO For the script to run it requires the presence of two tools in the local
 ECHO directory; Tracepdb.exe and Tracefmt.exe, both tools can be found in the path:
