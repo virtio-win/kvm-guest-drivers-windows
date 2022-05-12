@@ -699,7 +699,7 @@ HIDTabletProbe(
         HIDAppend2(pHidDesc, HID_TAG_USAGE, HID_USAGE_DIGITIZER_TIP_SWITCH);
         HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
 
-        // Only simluate finger down/up for MT
+        // Only simulate finger down/up for MT
         if (!pTabletDesc->bMT)
         {
             // in range flag, one bit
