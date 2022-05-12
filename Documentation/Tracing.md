@@ -3,7 +3,7 @@
 ## Advantages over KdPrint:
 
 * It can be enabled, disabled and filtered during runtime with minimal overhead by logging in real-time binary messages
-* Traces are are automatically included in the crash dumps
+* Traces are automatically included in the crash dumps
 * Logs can be easily collected using a script
 * Can be very useful for automating manual tests which use log's output
 * Time Stamps, Function names and some other useful data can be easily included into log
