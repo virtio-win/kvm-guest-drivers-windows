@@ -12,4 +12,4 @@ https://msdn.microsoft.com/en-us/library/ms171474.aspx - % batching
 https://msdn.microsoft.com/en-us/library/ms228229.aspx - % batching
 https://msdn.microsoft.com/en-us/library/ms171476.aspx - -> transforms
 https://msdn.microsoft.com/en-us/library/bb383819.aspx - special characters @,%,$
-https://msdn.microsoft.com/en-us/library/dd997067.aspx - comparing propetires and items
+https://msdn.microsoft.com/en-us/library/dd997067.aspx - comparing properties and items
