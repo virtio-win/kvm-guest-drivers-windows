@@ -791,7 +791,7 @@ VirtIoHwInitialize(
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES)) {
                     adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
                     perfData.FirstRedirectionMessageNumber = 1;
-                    perfData.LastRedirectionMessageNumber = adaptExt->msix_vectors - 1;
+                    perfData.LastRedirectionMessageNumber = adaptExt->num_queues - 1;
                 }
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS)) {
                     adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS;
