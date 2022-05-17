@@ -919,7 +919,7 @@ VirtIoStartIo(
         case SRB_FUNCTION_IO_CONTROL: {
             PVOID           srbDataBuffer = SRB_DATA_BUFFER(Srb);
             PSRB_IO_CONTROL srbControl = (PSRB_IO_CONTROL)srbDataBuffer;
-            UCHAR srbStatus = SRB_STATUS_SUCCESS;
+            UCHAR srbStatus = SRB_STATUS_INVALID_REQUEST;
             switch (srbControl->ControlCode) {
 #if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
             case IOCTL_SCSI_MINIPORT_FIRMWARE:
