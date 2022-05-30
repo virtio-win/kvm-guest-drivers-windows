@@ -64,8 +64,10 @@ typedef struct _DEVICE_CONTEXT {
     ULONG                   PortCount;
     BOOLEAN                 PortMapped;
     BOOLEAN                 SurpriseRemoval;
+#ifndef BALLOON_INFLATE_IGNORE_LOWMEM
     PKEVENT                 evLowMem;
     HANDLE                  hLowMem;
+#endif // !BALLOON_INFLATE_IGNORE_LOWMEM
     VIRTIO_WDF_DRIVER       VDevice;
     PVIOQUEUE               InfVirtQueue;
     PVIOQUEUE               DefVirtQueue;
@@ -246,6 +248,7 @@ BalloonRoutine(
     IN PVOID pContext
     );
 
+#ifndef BALLOON_INFLATE_IGNORE_LOWMEM
 __inline BOOLEAN
 IsLowMemory(
     IN WDFOBJECT    WdfDevice
@@ -265,6 +268,7 @@ IsLowMemory(
     }
     return FALSE;
 }
+#endif // !BALLOON_INFLATE_IGNORE_LOWMEM
 
 #ifdef USE_BALLOON_SERVICE
 NTSTATUS
