@@ -150,6 +150,7 @@
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);POOL_NX_OPTIN=1</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(USE_BALLOON_SERVICE)'!=''">%(PreprocessorDefinitions);USE_BALLOON_SERVICE</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(BALLOON_INFLATE_IGNORE_LOWMEM)'!=''">%(PreprocessorDefinitions);BALLOON_INFLATE_IGNORE_LOWMEM</PreprocessorDefinitions>
     </ClCompile>
     <CustomBuildStep>
       <Command>copy /Y $(ProjectDir)balloon.DVL.XML $(ProjectDir)$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)</Command>

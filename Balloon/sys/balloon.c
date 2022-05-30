@@ -151,12 +151,14 @@ BalloonFill(
 
     ctx->num_pfns = 0;
 
+#ifndef BALLOON_INFLATE_IGNORE_LOWMEM
     if (IsLowMemory(WdfDevice))
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
             "Low memory. Allocated pages: %d\n", ctx->num_pages);
         return;
     }
+#endif // !BALLOON_INFLATE_IGNORE_LOWMEM
 
     num = min(num, PAGE_SIZE / sizeof(PFN_NUMBER));
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS,

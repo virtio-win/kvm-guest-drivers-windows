@@ -46,8 +46,10 @@
 #pragma alloc_text(PAGE, BalloonEvtDeviceSurpriseRemoval)
 #endif // ALLOC_PRAGMA
 
+#ifndef BALLOON_INFLATE_IGNORE_LOWMEM
 #define LOMEMEVENTNAME L"\\KernelObjects\\LowMemoryCondition"
 DECLARE_CONST_UNICODE_STRING(evLowMemString, LOMEMEVENTNAME);
+#endif // !BALLOON_INFLATE_IGNORE_LOWMEM
 
 
 NTSTATUS
@@ -438,8 +440,10 @@ BalloonEvtDeviceD0Entry(
            "BalloonCreateWorkerThread failed with status 0x%08x\n", status);
     } 
 
+#ifndef BALLOON_INFLATE_IGNORE_LOWMEM
     devCtx->evLowMem = IoCreateNotificationEvent(
         (PUNICODE_STRING)&evLowMemString, &devCtx->hLowMem);
+#endif // !BALLOON_INFLATE_IGNORE_LOWMEM
 
     return status;
 }
@@ -458,11 +462,13 @@ BalloonEvtDeviceD0Exit(
 
     PAGED_CODE();
 
+#ifndef BALLOON_INFLATE_IGNORE_LOWMEM
     if (devCtx->evLowMem)
     {
         ZwClose(devCtx->hLowMem);
         devCtx->evLowMem = NULL;
     }
+#endif // !BALLOON_INFLATE_IGNORE_LOWMEM
 
 #ifndef USE_BALLOON_SERVICE
    /*
