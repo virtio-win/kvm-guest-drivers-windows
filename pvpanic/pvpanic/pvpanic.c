@@ -66,6 +66,10 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
     }
     else
     {
+        PvPanicPortOrMemAddress = NULL;
+        bEmitCrashLoadedEvent = FALSE;
+        bIsPCI = FALSE;
+        SupportedFeature = 0;
         TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<-- %!FUNC!");
     }
 
@@ -88,10 +92,6 @@ NTSTATUS PVPanicEvtDeviceAdd(IN WDFDRIVER Driver,
     PAGED_CODE();
 
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpPowerCallbacks);
-
-    PvPanicPortAddress = NULL;
-    bEmitCrashLoadedEvent = FALSE;
-    SupportedFeature = 0;
 
     pnpPowerCallbacks.EvtDevicePrepareHardware = PVPanicEvtDevicePrepareHardware;
     pnpPowerCallbacks.EvtDeviceReleaseHardware = PVPanicEvtDeviceReleaseHardware;

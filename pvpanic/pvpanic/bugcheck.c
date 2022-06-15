@@ -41,8 +41,10 @@ VOID PVPanicOnBugCheck(IN PVOID Buffer, IN ULONG Length)
     //Trigger the PVPANIC_PANICKED event if the crash dump isn't enabled,
     if ((Buffer != NULL) && (Length == sizeof(PVOID)) && !bEmitCrashLoadedEvent)
     {
-        PUCHAR PortAddress = (PUCHAR)Buffer;
-        WRITE_PORT_UCHAR(PortAddress, (UCHAR)(PVPANIC_PANICKED));
+        if (bIsPCI)
+            *(PUCHAR)Buffer = (UCHAR)(PVPANIC_PANICKED);
+        else
+            WRITE_PORT_UCHAR((PUCHAR)Buffer, (UCHAR)(PVPANIC_PANICKED));
     }
 }
 
@@ -56,9 +58,13 @@ VOID PVPanicOnDumpBugCheck(
     UNREFERENCED_PARAMETER(Length);
 
     //Trigger the PVPANIC_CRASHLOADED event before the crash dump.
-    if ((PvPanicPortAddress != NULL) && (Reason == KbCallbackDumpIo) && !bEmitCrashLoadedEvent)
+    if ((PvPanicPortOrMemAddress != NULL) && (Reason == KbCallbackDumpIo) && !bEmitCrashLoadedEvent)
     {
-        WRITE_PORT_UCHAR(PvPanicPortAddress, (UCHAR)(PVPANIC_CRASHLOADED));
+        if (bIsPCI)
+            *PvPanicPortOrMemAddress = (UCHAR)(PVPANIC_CRASHLOADED);
+        else
+            WRITE_PORT_UCHAR(PvPanicPortOrMemAddress, (UCHAR)(PVPANIC_CRASHLOADED));
+
         bEmitCrashLoadedEvent = TRUE;
     }
     //Deregister BugCheckReasonCallback after PVPANIC_CRASHLOADED is triggered.
@@ -66,7 +72,7 @@ VOID PVPanicOnDumpBugCheck(
         KeDeregisterBugCheckReasonCallback(Record);
 }
 
-VOID PVPanicRegisterBugCheckCallback(IN PVOID PortAddress)
+VOID PVPanicRegisterBugCheckCallback(IN PVOID PortAddress, PUCHAR Component)
 {
     BOOLEAN bBugCheck;
 
@@ -76,7 +82,7 @@ VOID PVPanicRegisterBugCheckCallback(IN PVOID PortAddress)
     if (SupportedFeature & PVPANIC_PANICKED)
     {
         bBugCheck = KeRegisterBugCheckCallback(&CallbackRecord, PVPanicOnBugCheck,
-                    (PVOID)PortAddress, sizeof(PVOID), (PUCHAR)("PVPanic"));
+                    (PVOID)PortAddress, sizeof(PVOID), Component);
         if (!bBugCheck)
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
@@ -87,7 +93,7 @@ VOID PVPanicRegisterBugCheckCallback(IN PVOID PortAddress)
     if (SupportedFeature & PVPANIC_CRASHLOADED)
     {
         bBugCheck = KeRegisterBugCheckReasonCallback(&DumpCallbackRecord,
-                    PVPanicOnDumpBugCheck, KbCallbackDumpIo, (PUCHAR)("PVPanic"));
+                    PVPanicOnDumpBugCheck, KbCallbackDumpIo, Component);
         if (!bBugCheck)
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,

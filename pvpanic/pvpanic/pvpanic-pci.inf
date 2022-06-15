@@ -1,0 +1,91 @@
+;/*++
+;
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
+;
+;Module Name:
+;    pvpanic-pci.inf
+;
+;Abstract:
+;
+;Installation Notes:
+;    Using Devcon: Type "devcon install pvpanic-pci.inf PCI\VEN_1B36&DEV_0011&SUBSYS_11001AF4&REV_01" to install
+;
+;--*/
+
+[Version]
+Signature       = "$WINDOWS NT$"
+Class           = System
+ClassGuid       = {4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider        = %VENDOR%
+DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
+CatalogFile     = pvpanic.cat
+PnpLockdown     = 1
+
+[DestinationDirs]
+DefaultDestDir = 12
+PVPanic_Device_CoInstaller_CopyFiles = 11
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+pvpanic.sys = 1,,
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
+
+; ---------------
+; Install Section
+; ---------------
+
+[Manufacturer]
+%VENDOR% = PVPanic,NT$ARCH$
+
+[PVPanic.NT$ARCH$]
+%PVPanic.DeviceDesc% = PVPanic_Device, PCI\VEN_1B36&DEV_0011&SUBSYS_11001AF4&REV_01
+
+[PVPanic_Device.NT]
+CopyFiles = PVPanic_CopyFiles
+
+[PVPanic_CopyFiles]
+pvpanic.sys
+
+; --------------------
+; Service Installation
+; --------------------
+
+[PVPanic_Device.NT.Services]
+AddService = PVPanic,0x00000002,PVPanic_Service_Install
+
+[PVPanic_Service_Install]
+DisplayName    = %PVPanic.Service%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\pvpanic.sys
+LoadOrderGroup = Extended Base
+
+; ----------------
+; WDF Installation
+; ----------------
+
+[PVPanic_Device.NT.CoInstallers]
+AddReg=PVPanic_Device_CoInstaller_AddReg
+CopyFiles=PVPanic_Device_CoInstaller_CopyFiles
+
+[PVPanic_Device_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[PVPanic_Device_CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[PVPanic_Device.NT.Wdf]
+KmdfService = PVPanic, PVPanic_wdfsect
+
+[PVPanic_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[Strings]
+VENDOR = "INX_COMPANY"
+DiskName            = "INX_PREFIX_QEMUQEMU PVPanic Installation Disk"
+PVPanic.DeviceDesc  = "INX_PREFIX_QEMUQEMU PVPanic PCI Device"
+PVPanic.Service     = "INX_PREFIX_QEMUQEMU PVPanic PCI Driver Service"
