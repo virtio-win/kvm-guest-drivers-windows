@@ -30,6 +30,8 @@
 #include "viofs.h"
 #include "ioctl.tmh"
 
+#define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
+
 EVT_WDF_REQUEST_CANCEL VirtFsEvtRequestCancel;
 
 static inline int GetVirtQueueIndex(IN PDEVICE_CONTEXT Context,
@@ -48,8 +50,8 @@ static SIZE_T GetRequiredScatterGatherSize(IN PVIRTIO_FS_REQUEST Request)
 {
     SIZE_T n;
     
-    n = ((Request->InputBufferLength / PAGE_SIZE) + 1) + 
-        ((Request->OutputBufferLength / PAGE_SIZE) + 1);
+    n = DIV_ROUND_UP(Request->InputBufferLength, PAGE_SIZE) +
+        DIV_ROUND_UP(Request->OutputBufferLength, PAGE_SIZE);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "Required SG Size: %Iu", n);
 
