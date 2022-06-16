@@ -112,6 +112,8 @@ static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
     int vq_index;
     int ret;
     int out_num, in_num;
+    void *indirect_va = NULL;
+    ULONGLONG indirect_pa = 0;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "--> %!FUNC!");
 
@@ -142,8 +144,16 @@ static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
     PushEntryList(&Context->RequestsList, &Request->ListEntry);
     WdfSpinLockRelease(Context->RequestsLock);
 
+    if (2 < sg_size && sg_size <= VIRT_FS_INDIRECT_AREA_CAPACITY &&
+        Context->UseIndirect && !HighPrio)
+    {
+        indirect_va = Context->IndirectVA;
+        indirect_pa = (ULONGLONG)Context->IndirectPA.QuadPart;
+    }
+
     WdfSpinLockAcquire(vq_lock);
-    ret = virtqueue_add_buf(vq, sg, out_num, in_num, Request, NULL, 0);
+    ret = virtqueue_add_buf(vq, sg, out_num, in_num, Request,
+        indirect_va, indirect_pa);
     if (ret < 0)
     {
         PSINGLE_LIST_ENTRY iter;
@@ -346,6 +356,8 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
     status = VirtFsEnqueueRequest(Context, fs_req, hiprio);
     if (!NT_SUCCESS(status))
     {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL,
+            "VirtFsEnqueueRequest failed: %!STATUS!", status);
         status = WdfRequestUnmarkCancelable(Request);
         __analysis_assume(status != STATUS_NOT_SUPPORTED);
         if (status != STATUS_CANCELLED)

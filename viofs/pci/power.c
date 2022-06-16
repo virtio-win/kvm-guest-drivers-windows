@@ -37,6 +37,23 @@
 #pragma alloc_text(PAGE, VirtFsEvtDeviceD0Exit)
 #endif
 
+static BOOLEAN VirtFsAllocIndirectArea(PDEVICE_CONTEXT context)
+{
+    VirtIODevice *dev = &context->VDevice.VIODevice;
+
+    context->IndirectVA = VirtIOWdfDeviceAllocDmaMemory(dev,
+        VIRT_FS_INDIRECT_AREA_PAGES * PAGE_SIZE, 0);
+    if (context->IndirectVA == NULL)
+    {
+        return FALSE;
+    }
+
+    context->IndirectPA = VirtIOWdfDeviceGetPhysicalAddress(dev,
+        context->IndirectVA);
+
+    return TRUE;
+}
+
 NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
                                         IN WDFCMRESLIST Resources,
                                         IN WDFCMRESLIST ResourcesTranslated)
@@ -63,6 +80,16 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
     }
 
     HostFeatures = VirtIOWdfGetDeviceFeatures(&context->VDevice);
+
+    if (virtio_is_feature_enabled(HostFeatures, VIRTIO_RING_F_INDIRECT_DESC))
+    {
+        virtio_feature_enable(GuestFeatures, VIRTIO_RING_F_INDIRECT_DESC);
+        context->UseIndirect = TRUE;
+    }
+    else
+    {
+        context->UseIndirect = FALSE;
+    }
 
     VirtIOWdfSetDriverFeatures(&context->VDevice, GuestFeatures,
 		VIRTIO_F_ACCESS_PLATFORM);
@@ -128,6 +155,16 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
         status = STATUS_INSUFFICIENT_RESOURCES;
     }
 
+    if (context->UseIndirect && NT_SUCCESS(status))
+    {
+        if (VirtFsAllocIndirectArea(context) == FALSE)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
+                "Failed to allocate indirect area");
+            status = STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER,
         "<-- %!FUNC! Status: %!STATUS!", status);
 
@@ -146,6 +183,13 @@ NTSTATUS VirtFsEvtDeviceReleaseHardware(IN WDFDEVICE Device,
     PAGED_CODE();
 
     VirtIOWdfShutdown(&context->VDevice);
+
+    if (context->UseIndirect && context->IndirectVA != NULL)
+    {
+        VirtIOWdfDeviceFreeDmaMemory(&context->VDevice.VIODevice,
+            context->IndirectVA);
+        context->IndirectVA = NULL;
+    }
 
     if (context->VirtQueues != NULL)
     {

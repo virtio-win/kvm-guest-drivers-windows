@@ -47,6 +47,11 @@
 
 #define MAX_FILE_SYSTEM_NAME 36
 
+#define VIRT_FS_INDIRECT_AREA_PAGES 2
+#define VIRT_FS_INDIRECT_PAGE_CAPACITY 256
+#define VIRT_FS_INDIRECT_AREA_CAPACITY (VIRT_FS_INDIRECT_AREA_PAGES * \
+                                        VIRT_FS_INDIRECT_PAGE_CAPACITY)
+
 enum {
     VQ_TYPE_HIPRIO = 0,
     VQ_TYPE_REQUEST = 1,
@@ -87,6 +92,9 @@ typedef struct _DEVICE_CONTEXT {
     VIRTIO_WDF_DRIVER   VDevice;
     UINT32              NumQueues;
     struct virtqueue    **VirtQueues;
+    BOOLEAN             UseIndirect;
+    PVOID               IndirectVA;
+    PHYSICAL_ADDRESS    IndirectPA;
 
     WDFINTERRUPT        WdfInterrupt[VQ_TYPE_MAX];
     WDFSPINLOCK         *VirtQueueLocks;
