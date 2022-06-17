@@ -79,19 +79,14 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
     // #1 - request queue
     context->NumQueues = 2;
 
-    context->VirtQueues = ExAllocatePoolUninitialized(NonPagedPool,
-        context->NumQueues * sizeof(struct virtqueue*),
+    context->VirtQueues = ExAllocatePoolZero(NonPagedPool,
+        context->NumQueues * sizeof(struct virtqueue *),
         VIRT_FS_MEMORY_TAG);
 
-    if (context->VirtQueues != NULL)
-    {
-        RtlZeroMemory(context->VirtQueues,
-            context->NumQueues * sizeof(struct virtqueue*));
-    }
-    else
+    if (context->VirtQueues == NULL)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-            "Failed to allocate request queues");
+            "Failed to allocate queues");
 
         status = STATUS_INSUFFICIENT_RESOURCES;
     }
