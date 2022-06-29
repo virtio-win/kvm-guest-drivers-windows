@@ -116,6 +116,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <Inf Include="..\pvpanic\pvpanic-pci.inf" />
     <Inf Include="..\pvpanic\pvpanic.inf" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
