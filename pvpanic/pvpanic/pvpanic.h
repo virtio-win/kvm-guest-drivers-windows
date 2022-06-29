@@ -40,8 +40,17 @@
 #define PVPANIC_PANICKED        (1 << PVPANIC_F_PANICKED)
 #define PVPANIC_CRASHLOADED     (1 << PVPANIC_F_CRASHLOADED)
 
-PUCHAR PvPanicPortAddress;
+// The bit of supported bus type.
+#define PVPANIC_F_ISA      0
+#define PVPANIC_F_PCI      1
+
+// The bus type value.
+#define PVPANIC_ISA        (1 << PVPANIC_F_ISA)
+#define PVPANIC_PCI        (1 << PVPANIC_F_PCI)
+
+PUCHAR PvPanicPortOrMemAddress;
 BOOLEAN bEmitCrashLoadedEvent;
+UCHAR   BusType;
 UCHAR   SupportedFeature;
 
 typedef struct _DEVICE_CONTEXT {
@@ -50,6 +59,8 @@ typedef struct _DEVICE_CONTEXT {
     PVOID               IoBaseAddress;
     ULONG               IoRange;
     BOOLEAN             MappedPort;
+    PVOID               MemBaseAddress;
+    ULONG               MemRange;
 
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
@@ -63,7 +74,7 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 // Bug check callback registration functions.
 //
 
-VOID PVPanicRegisterBugCheckCallback(IN PVOID PortAddress);
+VOID PVPanicRegisterBugCheckCallback(IN PVOID PortAddress, PUCHAR Component);
 VOID PVPanicDeregisterBugCheckCallback();
 
 //
