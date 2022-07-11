@@ -29,7 +29,7 @@
 
 #pragma warning(push)
 // '<anonymous-tag>' : structure was padded due to alignment specifier
-#pragma warning(disable: 4324) 
+#pragma warning(disable: 4324)
 // nonstandard extension used : nameless struct / union
 #pragma warning(disable: 4201)
 // potentially uninitialized local variable 'Size' used
@@ -486,39 +486,78 @@ static DWORD FindDeviceInterface(PHANDLE Device)
     return ERROR_SUCCESS;
 }
 
+static NTSTATUS FspToolGetTokenInfo(HANDLE Token,
+   TOKEN_INFORMATION_CLASS TokenInformationClass, PVOID *PInfo)
+{
+   PVOID Info = 0;
+   DWORD Size;
+   NTSTATUS Result;
+
+   if (GetTokenInformation(Token, TokenInformationClass, 0, 0, &Size))
+   {
+      Result = STATUS_INVALID_PARAMETER;
+      goto exit;
+   }
+
+   if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+   {
+      Result = FspNtStatusFromWin32(GetLastError());
+      goto exit;
+   }
+
+   Info = HeapAlloc(GetProcessHeap(), 0, Size);
+   if (0 == Info)
+   {
+      Result = STATUS_INSUFFICIENT_RESOURCES;
+      goto exit;
+   }
+
+   if (!GetTokenInformation(Token, TokenInformationClass, Info, Size, &Size))
+   {
+      Result = FspNtStatusFromWin32(GetLastError());
+      goto exit;
+   }
+
+   *PInfo = Info;
+   Result = STATUS_SUCCESS;
+
+ exit :
+   if (!NT_SUCCESS(Result))
+      SafeHeapFree(Info);
+
+   return Result;
+}
+
 static VOID UpdateLocalUidGid(VIRTFS *VirtFs, DWORD SessionId)
 {
-    PWSTR UserName = NULL;
-    LPUSER_INFO_3 UserInfo = NULL;
-    DWORD BytesReturned;
-    NET_API_STATUS Status;
-    BOOL Result;
+    NTSTATUS Result;
 
-    Result = WTSQuerySessionInformation(WTS_CURRENT_SERVER_HANDLE, SessionId,
-        WTSUserName, &UserName, &BytesReturned);
+    HANDLE Token = 0;
+    TOKEN_USER *Uinfo = NULL;
+    TOKEN_PRIMARY_GROUP *Ginfo = NULL;
 
-    if (Result == TRUE)
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &Token))
     {
-        Status = NetUserGetInfo(NULL, UserName, 3, (LPBYTE *)&UserInfo);
-
-        if (Status == NERR_Success)
-        {
-            // Use an account from local machine's user DB as the file's
-            // owner (0x30000 + RID).
-            VirtFs->LocalUid = UserInfo->usri3_user_id + 0x30000;
-            VirtFs->LocalGid = UserInfo->usri3_primary_group_id + 0x30000;
-        }
-
-        if (UserInfo != NULL)
-        {
-            NetApiBufferFree(UserInfo);
-        }
+        VirtFs->LocalUid = 0;
+        VirtFs->LocalGid = 0;
+        return;
     }
 
-    if (UserName != NULL)
-    {
-        WTSFreeMemory(UserName);
-    }
+    Result = FspToolGetTokenInfo(Token, TokenUser, (PVOID*)&Uinfo);
+    if (!NT_SUCCESS(Result))
+       goto exit;
+
+    Result = FspToolGetTokenInfo(Token, TokenPrimaryGroup, (PVOID*)&Ginfo);
+    if (!NT_SUCCESS(Result))
+       goto exit;
+
+    Result = FspPosixMapSidToUid(Uinfo->User.Sid, &(VirtFs->LocalUid));
+    Result = FspPosixMapSidToUid(Ginfo->PrimaryGroup, &(VirtFs->LocalGid));
+
+exit:
+    SafeHeapFree(Uinfo);
+    SafeHeapFree(Ginfo);
+    CloseHandle(Token);
 }
 
 static UINT32 PosixUnixModeToAttributes(VIRTFS *VirtFs, uint64_t nodeid,
