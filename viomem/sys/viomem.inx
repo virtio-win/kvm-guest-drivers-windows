@@ -1,0 +1,102 @@
+;/*++
+;
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
+;
+;Module Name:
+;    VIOMEM.INF
+;
+;Abstract:
+;
+;Installation Notes: 
+;    Using Devcon: Type "devcon install VIOMEM.inf PCI\VEN_1AF4&DEV_1058&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01" to install                       
+;
+;--*/
+
+[Version]
+Signature="$WINDOWS NT$"
+;Class=System
+;ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
+Class=MTD
+ClassGuid={4d36e970-e325-11ce-bfc1-08002be10318}
+Provider=%VENDOR%
+DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
+CatalogFile=viomem.cat
+DriverPackageType = PlugAndPlay
+DriverPackageDisplayName = %VIOMEM.DeviceDesc%
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = 12
+VIOMEM_Device_CoInstaller_CopyFiles = 11
+
+[SourceDisksNames]
+1 = %DiskId1%,,,""
+
+[SourceDisksFiles]
+viomem.sys  = 1,,
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
+
+;*****************************************
+; VIOMEM  Install Section
+;*****************************************
+
+[Manufacturer]
+%VENDOR%=Standard,NT$ARCH$
+
+[Standard.NT$ARCH$]
+;%VIOMEM.DeviceDesc%=VIOMEM_Device, PCI\VEN_1AF4&DEV_1002&SUBSYS_0005_INX_SUBSYS_VENDOR_ID&REV_00, PCI\VEN_1AF4&DEV_1002
+%VIOMEM.DeviceDesc%=VIOMEM_Device, PCI\VEN_1AF4&DEV_1058&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01, PCI\VEN_1AF4&DEV_1058
+
+[VIOMEM_Device.NT]
+CopyFiles=Drivers_Dir
+
+[Drivers_Dir]
+viomem.sys
+
+;-------------- Service installation
+[VIOMEM_Device.NT.Services]
+AddService = VIOMEM,%SPSVCINST_ASSOCSERVICE%, VIOMEM_Service_Inst, VIOMEM_Logging_Inst
+
+; -------------- VIOMEM driver install sections
+[VIOMEM_Service_Inst]
+DisplayName    = %VIOMEM.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START 
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\viomem.sys
+
+; -------------- VIOMEM driver eventlog install sections
+[VIOMEM_Logging_Inst]
+AddReg = VIOMEM_Logging_Inst_AddReg
+
+[VIOMEM_Logging_Inst_AddReg]
+HKR,,EventMessageFile,0x00020000,"%%SystemRoot%%\System32\IoLogMsg.dll;%%SystemRoot%%\System32\drivers\viomem.sys"
+HKR,,TypesSupported,0x00010001,7
+
+;--- VIOMEM_Device Coinstaller installation ------
+;
+
+[VIOMEM_Device.NT.CoInstallers]
+AddReg=VIOMEM_Device_CoInstaller_AddReg
+CopyFiles=VIOMEM_Device_CoInstaller_CopyFiles
+
+[VIOMEM_Device_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[VIOMEM_Device_CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[VIOMEM_Device.NT.Wdf]
+KmdfService =  VIOMEM, VIOMEM_wdfsect
+[VIOMEM_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000002
+VENDOR = "INX_COMPANY"
+DiskId1 = "INX_PREFIX_VIRTIOVirtIO Viomem Installation Disk #1"
+VIOMEM.DeviceDesc = "INX_PREFIX_VIRTIOVirtIO Viomem Driver"
+VIOMEM.SVCDESC = "INX_PREFIX_VIRTIOVirtIO Viomem Service"
+ClassName       = "INX_PREFIX_VIRTIOVirtIO Viomem Device"
