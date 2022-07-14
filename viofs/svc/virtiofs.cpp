@@ -130,8 +130,6 @@ struct VIRTFS
     UINT32  OwnerUid{ 0 };
     UINT32  OwnerGid{ 0 };
 
-    BOOL IsRunningAsLocalSystem{ false };
-
     // Maps NodeId to its Nlookup counter.
     std::map<UINT64, UINT64> LookupMap{};
 
@@ -539,22 +537,15 @@ static VOID UpdateLocalUidGid(VIRTFS *VirtFs, DWORD SessionId)
     TOKEN_USER *Uinfo{ NULL };
     TOKEN_PRIMARY_GROUP *Ginfo{ NULL };
 
-    if (VirtFs->IsRunningAsLocalSystem)
+    if (!WTSQueryUserToken(SessionId, &Token))
     {
-        if (!WTSQueryUserToken(SessionId, &Token))
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &Token))
         {
             VirtFs->LocalUid = 0;
             VirtFs->LocalGid = 0;
-            DBG("Failed to open a process token as LocalSystem; Error=%d", GetLastError());
+            DBG("Failed to open a process token; Error=%d", GetLastError());
             return;
         }
-    }
-    else if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &Token))
-    {
-        VirtFs->LocalUid = 0;
-        VirtFs->LocalGid = 0;
-        DBG("Failed to open a process token; Error=%d", GetLastError());
-        return;
     }
 
     Result = FspToolGetTokenInfo(Token, TokenUser, (PVOID *)&Uinfo);
@@ -2590,7 +2581,6 @@ NTSTATUS VIRTFS::SubmitDestroyRequest()
 
 NTSTATUS VIRTFS::Start()
 {
-    HANDLE Token{ NULL };
     NTSTATUS Status;
     DWORD SessionId;
     FILETIME FileTime;
@@ -2605,18 +2595,6 @@ NTSTATUS VIRTFS::Start()
     SessionId = WTSGetActiveConsoleSessionId();
     if (SessionId != 0xFFFFFFFF)
     {
-        // Will fail if we are not the LocalSystem user.
-        IsRunningAsLocalSystem = WTSQueryUserToken(SessionId, &Token);
-
-        if (IsRunningAsLocalSystem)
-        {
-            CloseHandle(Token);
-        }
-        else
-        {
-            DBG("The service %s was not run as the LocalSytem user", FS_SERVICE_NAME);
-        }
-
         UpdateLocalUidGid(this, SessionId);
     }
     else
