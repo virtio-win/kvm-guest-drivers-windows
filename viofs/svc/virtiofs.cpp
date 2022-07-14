@@ -130,12 +130,14 @@ struct VIRTFS
     UINT32  OwnerUid{ 0 };
     UINT32  OwnerGid{ 0 };
 
+    BOOL HideFilesStartingWithDot{ true };
     BOOL IsRunningAsLocalSystem{ false };
 
     // Maps NodeId to its Nlookup counter.
     std::map<UINT64, UINT64> LookupMap{};
 
-    VIRTFS(ULONG DebugFlags, const std::wstring& MountPoint);
+    VIRTFS(ULONG DebugFlags, const std::wstring& MountPoint,
+           BOOL HideFilesStartingWithDot);
     NTSTATUS Start();
     VOID Stop();
     NTSTATUS SubmitInitRequest();
@@ -144,8 +146,11 @@ struct VIRTFS
     NTSTATUS SubmitDestroyRequest();
 };
 
-VIRTFS::VIRTFS(ULONG DebugFlags, const std::wstring& MountPoint)
-    : DebugFlags{ DebugFlags }, MountPoint{ MountPoint }
+VIRTFS::VIRTFS(ULONG debugFlags, const std::wstring& mountPoint,
+               BOOL hideFilesStartingWithDot)
+    : DebugFlags{ debugFlags }
+    , MountPoint{ mountPoint }
+    , HideFilesStartingWithDot{ hideFilesStartingWithDot }
 {
 }
 
@@ -654,6 +659,23 @@ static VOID UnixTimeToFileTime(uint64_t time, uint32_t nsec,
     FspPosixUnixTimeToFileTime(UnixTime, PFileTime);
 }
 
+static VOID CheckSetFileHidden(VIRTFS *VirtFs, CHAR *FileName, FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    // if len(FileName) == 0 then FileName[0] == '\0'
+    if (VirtFs->HideFilesStartingWithDot && (FileName[0] == '.'))
+    {
+        FileInfo->FileAttributes |= FILE_ATTRIBUTE_HIDDEN;
+    }
+}
+
+static VOID CheckSetFileHidden(VIRTFS *VirtFs, WCHAR *FileName, FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    if (VirtFs->HideFilesStartingWithDot && (FileName[0] == L'.'))
+    {
+        FileInfo->FileAttributes |= FILE_ATTRIBUTE_HIDDEN;
+    }
+}
+
 static VOID SetFileInfo(VIRTFS *VirtFs, struct fuse_entry_out *entry,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
@@ -816,6 +838,7 @@ static NTSTATUS VirtFsCreateFile(VIRTFS *VirtFs,
         else
         {
             SetFileInfo(VirtFs, &create_out.entry, FileInfo);
+            CheckSetFileHidden(VirtFs, FileName, FileInfo);
         }
     }
 
@@ -854,6 +877,7 @@ static NTSTATUS VirtFsCreateDir(VIRTFS *VirtFs,
         }
 
         SetFileInfo(VirtFs, &mkdir_out.entry, FileInfo);
+        CheckSetFileHidden(VirtFs, FileName, FileInfo);
     }
 
     return Status;
@@ -1551,6 +1575,8 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
     }
 
     SetFileInfo(VirtFs, &lookup_out.entry, FileInfo);
+    CheckSetFileHidden(VirtFs, FileName, FileInfo);
+
     *PFileContext = FileContext;
 
     return Status;
@@ -2335,6 +2361,8 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
                         SetFileInfo(VirtFs, &DirEntryPlus->entry_out,
                             &DirInfo->FileInfo);
 
+                        CheckSetFileHidden(VirtFs, DirInfo->FileNameBuf, &DirInfo->FileInfo);
+
                         Result = FspFileSystemFillDirectoryBuffer(
                             &FileContext->DirBuffer, DirInfo, &Status);
 
@@ -2500,6 +2528,8 @@ static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
             wcslen(FileName) * sizeof(WCHAR));
 
         SetFileInfo(VirtFs, &lookup_out.entry, &DirInfo->FileInfo);
+
+        CheckSetFileHidden(VirtFs, FileName, &DirInfo->FileInfo);
 
         CopyMemory(DirInfo->FileNameBuf, FileName,
             DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
@@ -2803,11 +2833,15 @@ static DWORD VirtFsRegistryGetString(PCWSTR ValueName, std::wstring& Str)
 }
 
 static VOID ParseRegistry(ULONG& DebugFlags, std::wstring& DebugLogFile,
-    std::wstring& MountPoint)
+    std::wstring& MountPoint, BOOL& HideFilesStartingWithDot)
 {
     VirtFsRegistryGetDword(L"DebugFlags", DebugFlags);
     VirtFsRegistryGetString(L"DebugLogFile", DebugLogFile);
     VirtFsRegistryGetString(L"MountPoint", MountPoint);
+
+    ULONG hideStuff = 1;
+    VirtFsRegistryGetDword(L"HideFilesStartingWithDot", hideStuff);
+    HideFilesStartingWithDot = (hideStuff != 0);
 }
 
 static NTSTATUS DebugLogSet(const std::wstring& DebugLogFile)
@@ -2845,6 +2879,7 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
     VIRTFS *VirtFs;
     NTSTATUS Status{ STATUS_SUCCESS };
     DWORD Error;
+    BOOL HideFilesStartingWithDot{ true };
 
     if (argc > 1)
     {
@@ -2852,7 +2887,8 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
     }
     else
     {
-        ParseRegistry(DebugFlags, DebugLogFile, MountPoint);
+        ParseRegistry(DebugFlags, DebugLogFile, MountPoint,
+                      HideFilesStartingWithDot);
     }
 
     if (!NT_SUCCESS(Status))
@@ -2871,7 +2907,7 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 
     try
     {
-        VirtFs = new VIRTFS(DebugFlags, MountPoint);
+        VirtFs = new VIRTFS(DebugFlags, MountPoint, HideFilesStartingWithDot);
     }
     catch (std::bad_alloc)
     {
