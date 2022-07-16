@@ -572,9 +572,10 @@ VirtIoFindAdapter(
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Pool area at %p, size = %d\n", adaptExt->poolAllocationVa, adaptExt->poolAllocationSize);
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " pmsg_affinity = %p\n",adaptExt->pmsg_affinity);
     if (!adaptExt->dump_mode && (adaptExt->num_queues > 1) && (adaptExt->pmsg_affinity == NULL)) {
+        adaptExt->num_affinity = adaptExt->num_queues + 1;
         ULONG Status =
         StorPortAllocatePool(DeviceExtension,
-                             sizeof(GROUP_AFFINITY) * ((ULONGLONG)adaptExt->num_queues + 1),
+                             sizeof(GROUP_AFFINITY) * (ULONGLONG)adaptExt->num_affinity,
                              VIOBLK_POOL_TAG,
                              (PVOID*)&adaptExt->pmsg_affinity);
         RhelDbgPrint(TRACE_LEVEL_FATAL, " pmsg_affinity = %p Status = %lu\n",adaptExt->pmsg_affinity, Status);
@@ -791,7 +792,8 @@ VirtIoHwInitialize(
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES)) {
                     adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
                     perfData.FirstRedirectionMessageNumber = 1;
-                    perfData.LastRedirectionMessageNumber = adaptExt->msix_vectors - 1;
+                    perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber + adaptExt->num_queues - 1;
+                    ASSERT(perfData.lastRedirectionMessageNumber < adaptExt->num_affinity);
                 }
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS)) {
                     adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS;
