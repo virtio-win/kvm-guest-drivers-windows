@@ -243,6 +243,7 @@ typedef struct _ADAPTER_EXTENSION {
     BOOLEAN               removed;
     ULONG                 max_tx_length;
     PGROUP_AFFINITY       pmsg_affinity;
+    ULONG                 num_affinity;
     STOR_ADDR_BTL8        device_address;
     blk_discard_write_zeroes blk_discard[16];
     REQUEST_LIST          processing_srbs[MAX_CPU];
