@@ -312,6 +312,7 @@ typedef struct _ADAPTER_EXTENSION {
     REQUEST_LIST          processing_srbs[MAX_CPU];
     ULONG                 perfFlags;
     PGROUP_AFFINITY       pmsg_affinity;
+    ULONG                 num_affinity;
     BOOLEAN               dpc_ok;
     PSTOR_DPC             dpc;
     ULONG                 max_physical_breaks;

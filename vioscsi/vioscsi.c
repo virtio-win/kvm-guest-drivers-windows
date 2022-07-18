@@ -626,9 +626,10 @@ ENTER_FN();
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " pmsg_affinity = %p\n",adaptExt->pmsg_affinity);
     if (!adaptExt->dump_mode && (adaptExt->num_queues > 1) && (adaptExt->pmsg_affinity == NULL)) {
+        adaptExt->num_affinity = adaptExt->num_queues + 3;
         ULONG Status =
         StorPortAllocatePool(DeviceExtension,
-                             sizeof(GROUP_AFFINITY) * ((ULONGLONG)adaptExt->num_queues + 3),
+                             sizeof(GROUP_AFFINITY) * (ULONGLONG)adaptExt->num_affinity,
                              VIOSCSI_POOL_TAG,
                              (PVOID*)&adaptExt->pmsg_affinity);
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " pmsg_affinity = %p Status = %lu\n",adaptExt->pmsg_affinity, Status);
@@ -802,6 +803,7 @@ ENTER_FN();
                     adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
                     perfData.FirstRedirectionMessageNumber = 3;
                     perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber + adaptExt->num_queues - 1;
+                    ASSERT(perfData.LastRedirectionMessageNumber < adaptExt->num_affinity);
                     if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY)) {
                         RtlZeroMemory((PCHAR)adaptExt->pmsg_affinity, sizeof (GROUP_AFFINITY) * ((ULONGLONG)adaptExt->num_queues + 3));
                         adaptExt->perfFlags |= STOR_PERF_ADV_CONFIG_LOCALITY;
