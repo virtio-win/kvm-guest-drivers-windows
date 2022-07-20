@@ -17,6 +17,10 @@ pushd wsk
 call cleanAll.bat
 popd
 
+pushd viosock-wsk-test
+call cleanAll.bat
+popd
+
 pushd viosock-test
 call cleanAll.bat
 popd
