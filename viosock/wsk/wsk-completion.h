@@ -27,84 +27,58 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _WSK_UTILS_H
-#define _WSK_UTILS_H
+#ifndef __WSK_COMPLETION_H__
+#define __WSK_COMPLETION_H__
 
-#ifdef _MSC_VER
-#pragma once
-#endif //_MSC_VER
 
 
 #include "..\inc\vio_wsk.h"
-#include "viowsk.h"
 
 
-_Must_inspect_result_
-NTSTATUS
-VioWskIrpAcquire(
-    _In_opt_ PVIOWSK_SOCKET Socket,
-    _Inout_                 PIRP Irp
+
+typedef enum _EWSKState {
+    wsksUndefined,
+    wsksSingleIOCTL,
+    wsksFinished,
+} EWSKState, * PEWSKState;
+
+typedef struct _VIOSOCKET_COMPLETION_CONTEXT {
+    volatile LONG ReferenceCount;
+    PVIOWSK_SOCKET Socket;
+    PDEVICE_OBJECT DeviceObject;
+    EWSKState State;
+    PIRP MasterIrp;
+    PIO_STATUS_BLOCK IoStatusBlock;
+    ULONG_PTR IOSBInformation;
+    int UseIOSBInformation : 1;
+} VIOSOCKET_COMPLETION_CONTEXT, * PVIOSOCKET_COMPLETION_CONTEXT;
+
+
+
+PVIOSOCKET_COMPLETION_CONTEXT
+WskCompContextAlloc(
+    _In_ EWSKState            State,
+    _In_ PVIOWSK_SOCKET       Socket,
+    _In_opt_ PIRP             MasterIrp,
+    _In_opt_ PIO_STATUS_BLOCK IoStatusBlock
 );
 
 void
-VioWskIrpRelease(
-    _In_opt_ PVIOWSK_SOCKET Socket,
-    _In_                    PIRP Irp
-);
-
-NTSTATUS
-VioWskIrpComplete(
-    _Inout_opt_ PVIOWSK_SOCKET Socket,
-    _In_ PIRP                  Irp,
-    _In_ NTSTATUS              Status,
-    _In_ ULONG_PTR             Information
+WskCompContextReference(
+    _Inout_ PVIOSOCKET_COMPLETION_CONTEXT CompContext
 );
 
 void
-VioWskIrpFree(
-    _Inout_ PIRP            Irp,
-    _In_opt_ PDEVICE_OBJECT DeviceObject,
-    _In_ BOOLEAN            Completion
+WskCompContextDereference(
+    _Inout_ PVIOSOCKET_COMPLETION_CONTEXT CompContext
 );
 
-_Must_inspect_result_
 NTSTATUS
-VioWskAddressPartToString(
-    _In_ ULONG            Value,
-    _Out_ PUNICODE_STRING String
+WskCompContextSendIrp(
+    _Inout_ PVIOSOCKET_COMPLETION_CONTEXT CompContext,
+    _In_ PIRP                             Irp
 );
 
-_Must_inspect_result_
-NTSTATUS
-VioWskStringToAddressPart(
-    _In_ PUNICODE_STRING String,
-    _Out_ PULONG         Value
-);
-
-_Must_inspect_result_
-NTSTATUS
-VioWskSocketIOCTL(
-    _In_ PVIOWSK_SOCKET        Socket,
-    _In_ ULONG                 ControlCode,
-    _In_opt_ PVOID             InputBuffer,
-    _In_ ULONG                 InputBufferLength,
-    _Out_opt_ PVOID            OutputBuffer,
-    _In_ ULONG                 OutputBufferLength,
-    _Inout_opt_ PIRP           Irp,
-    _Out_opt_ PIO_STATUS_BLOCK IoStatusBlock
-);
-
-_Must_inspect_result_
-NTSTATUS
-VioWskSocketBuildIOCTL(
-    _In_ PVIOWSK_SOCKET Socket,
-    _In_ ULONG          ControlCode,
-    _In_opt_ PVOID      InputBuffer,
-    _In_ ULONG          InputBufferLength,
-    _In_opt_ PVOID      OutputBuffer,
-    _In_ ULONG          OutputBufferLength,
-    _Out_ PIRP*         Irp
-);
 
 
 #endif
