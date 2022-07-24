@@ -29,9 +29,9 @@
 
 #include "precomp.h"
 #include "..\inc\debug-utils.h"
-#include "viowsk-internal.h"
 #include "viowsk.h"
 #include "..\inc\vio_wsk.h"
+#include "viowsk-internal.h"
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VioWskRegister)

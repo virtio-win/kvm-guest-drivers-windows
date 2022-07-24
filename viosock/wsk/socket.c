@@ -28,7 +28,11 @@
  */
 
 #include "precomp.h"
+#include "..\inc\debug-utils.h"
 #include "viowsk.h"
+#include "wsk-utils.h"
+#include "viowsk-internal.h"
+#include "wsk-workitem.h"
 #include "..\inc\vio_wsk.h"
 
 NTSTATUS
@@ -280,9 +284,41 @@ VioWskCloseSocket(
     _Inout_ PIRP     Irp
 )
 {
-    UNREFERENCED_PARAMETER(Socket);
+    PWSK_WORKITEM WorkItem = NULL;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PVIOWSK_SOCKET pSocket = CONTAINING_RECORD(Socket, VIOWSK_SOCKET, WskSocket);
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; Irp=0x%p", Socket, Irp);
 
-    return VioWskCompleteIrp(Irp, STATUS_NOT_IMPLEMENTED, 0);
+    if (KeGetCurrentIrql() > PASSIVE_LEVEL)
+    {
+        WorkItem = WskWorkItemAlloc(wskwitCloseSocket, Irp);
+        if (!WorkItem)
+        {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            goto CompleteIrp;
+        }
+
+        WorkItem->Specific.CloseSocket.Socket = Socket;
+        WskWorkItemQueue(WorkItem);
+        Status = STATUS_PENDING;
+        goto Exit;
+	}
+
+    Status = VioWskIrpAcquire(pSocket, Irp);
+    if (!NT_SUCCESS(Status))
+    {
+        pSocket = NULL;
+        goto CompleteIrp;
+    }
+ 
+    Status = VioWskCloseSocketInternal(pSocket, Irp);
+    pSocket = NULL;
+
+CompleteIrp:
+	VioWskIrpComplete(pSocket, Irp, Status, 0);
+Exit:
+	DEBUG_EXIT_FUNCTION("0x%x", Status);
+	return Status;
 }
 
 NTSTATUS
