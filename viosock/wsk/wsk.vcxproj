@@ -29,6 +29,7 @@
   <ItemGroup>
     <ClInclude Include="..\inc\debug-utils.h" />
     <ClInclude Include="precomp.h" />
+    <ClInclude Include="viowsk-internal.h" />
     <ClInclude Include="viowsk.h" />
   </ItemGroup>
   <ItemGroup>

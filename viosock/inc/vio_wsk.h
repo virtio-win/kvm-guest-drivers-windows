@@ -70,6 +70,22 @@ VioWskQueryProviderCharacteristics(
     _Out_ PWSK_PROVIDER_CHARACTERISTICS WskProviderCharacteristics
 );
 
+_Must_inspect_result_
+NTSTATUS
+VioWskModuleInit(
+    _In_ PDRIVER_OBJECT     DriverObject,
+    _In_ PUNICODE_STRING    RegistryPath,
+    _In_opt_ PDEVICE_OBJECT DeviceObject
+);
+
+VOID
+VioWskModuleFinit(
+    VOID
+);
+
+
+
+
 #ifdef  __cplusplus
 }
 #endif
