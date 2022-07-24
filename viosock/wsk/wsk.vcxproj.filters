@@ -24,6 +24,9 @@
     <ClInclude Include="..\inc\debug-utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="viowsk-internal.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="provider.c">

@@ -40,6 +40,11 @@ typedef struct _VIOWSK_REG_CONTEXT
 {
     PVOID ClientContext;
     WSK_CLIENT_DISPATCH ClientDispatch;
+    volatile LONG NPICount;
+    ERESOURCE NPILock;
+    UNICODE_STRING VIOSockLinkName;
+    PDEVICE_OBJECT VIOSockDevice;
+    PFILE_OBJECT VIOSockMainFileObject;
 }VIOWSK_REG_CONTEXT,*PVIOWSK_REG_CONTEXT;
 
 #define VIOWSK_PROVIDER_VERSION 1
