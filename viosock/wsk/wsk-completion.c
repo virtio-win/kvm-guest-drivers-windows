@@ -101,6 +101,12 @@ WskGeneralIrpCompletion(
         if (Ctx->IoStatusBlock)
             *Ctx->IoStatusBlock = irpStatus;
 
+        if (Ctx->BytesReturned)
+            *Ctx->BytesReturned = irpStatus.Information;
+
+        if (Ctx->Event)
+            KeSetEvent(Ctx->Event, IO_NO_INCREMENT, FALSE);
+
         if (Ctx->MasterIrp)
         {
             if (!Ctx->UseIOSBInformation)
