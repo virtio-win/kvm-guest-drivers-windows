@@ -26,6 +26,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+
 #include <stddef.h>
 #include <stdarg.h>
 #include <ntifs.h>
@@ -39,5 +40,6 @@
 #include <ntintsafe.h>
 #include <wsk.h>
 
+#include "..\inc\debug-utils.h"
 #include "..\sys\public.h"
 #include "..\inc\vio_sockets.h"

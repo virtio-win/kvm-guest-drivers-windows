@@ -27,6 +27,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\inc\debug-utils.h" />
     <ClInclude Include="precomp.h" />
     <ClInclude Include="viowsk.h" />
   </ItemGroup>
