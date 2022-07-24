@@ -430,10 +430,25 @@ VioWskGetRemoteAddress(
     _Inout_ PIRP     Irp
 )
 {
-    UNREFERENCED_PARAMETER(Socket);
-    UNREFERENCED_PARAMETER(RemoteAddress);
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PVIOWSK_SOCKET pSocket = CONTAINING_RECORD(Socket, VIOWSK_SOCKET, WskSocket);
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; RemoteAddress=0x%p; Irp=0x%p", Socket, RemoteAddress, Irp);
 
-    return VioWskCompleteIrp(Irp, STATUS_NOT_IMPLEMENTED, 0);
+    Status = VioWskIrpAcquire(pSocket, Irp);
+    if (!NT_SUCCESS(Status))
+    {
+        pSocket = NULL;
+        goto CompleteIrp;
+    }
+
+	Status = VioWskSocketIOCTL(pSocket, IOCTL_SOCKET_GET_PEER_NAME, NULL, 0, RemoteAddress, sizeof(SOCKADDR_VM), Irp, NULL);
+    Irp = NULL;
+CompleteIrp:
+    if (Irp)
+        VioWskIrpComplete(pSocket, Irp, Status, 0);
+
+    DEBUG_EXIT_FUNCTION("0x%x", Status);
+    return Status;
 }
 
 NTSTATUS
