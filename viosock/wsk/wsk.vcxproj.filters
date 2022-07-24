@@ -30,6 +30,9 @@
     <ClInclude Include="wsk-utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="wsk-workitem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="provider.c">
@@ -42,6 +45,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="wsk-utils.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="socket-internal.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="wsk-workitem.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

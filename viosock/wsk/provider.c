@@ -31,6 +31,8 @@
 #include "viowsk.h"
 #include "..\inc\debug-utils.h"
 #include "wsk-utils.h"
+#include "viowsk-internal.h"
+#include "wsk-workitem.h"
 #include "..\inc\vio_wsk.h"
 
 #ifdef ALLOC_PRAGMA
@@ -39,100 +41,6 @@
 #pragma alloc_text (PAGE, VioWskGetNameInfo)
 #endif
 
-static
-NTSTATUS
-VioWskSocketInternal(
-    _In_ PWSK_CLIENT              Client,
-    _In_ ULONG                    Flags,
-    _In_opt_ PVOID                SocketContext,
-    _In_opt_ CONST VOID          *Dispatch,
-    _In_opt_ PEPROCESS            OwningProcess,
-    _In_opt_ PETHREAD             OwningThread,
-    _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
-    _Out_ PVIOWSK_SOCKET         *pNewSocket,
-    _Out_ PBOOLEAN                CompleteIrp
-)
-{
-    PWSK_CLIENT_LISTEN_DISPATCH pListenDispatch = NULL;
-    PWSK_CLIENT_CONNECTION_DISPATCH pConnectionDispatch = NULL;
-    PVIOWSK_SOCKET pSocket;
-    NTSTATUS Status;
-    PVOID pProviderDispatch;
-    SIZE_T ProviderDispatchSize;
-
-    UNREFERENCED_PARAMETER(Client);
-    UNREFERENCED_PARAMETER(OwningProcess);
-    UNREFERENCED_PARAMETER(OwningThread);
-    UNREFERENCED_PARAMETER(SecurityDescriptor);
-
-    ASSERT(pNewSocket&&CompleteIrp);
-
-    *pNewSocket = NULL;
-    *CompleteIrp = FALSE;
-
-    switch (Flags)
-    {
-    case WSK_FLAG_BASIC_SOCKET:
-        pProviderDispatch = &gBasicDispatch;
-        ProviderDispatchSize = sizeof(gBasicDispatch);
-        break;
-    case WSK_FLAG_LISTEN_SOCKET:
-        pListenDispatch = (PWSK_CLIENT_LISTEN_DISPATCH)Dispatch;
-        pProviderDispatch = &gListenDispatch;
-        ProviderDispatchSize = sizeof(gListenDispatch);
-        break;
-    case WSK_FLAG_CONNECTION_SOCKET:
-        pConnectionDispatch = (PWSK_CLIENT_CONNECTION_DISPATCH)Dispatch;
-        pProviderDispatch = &gConnectionDispatch;
-        ProviderDispatchSize = sizeof(gConnectionDispatch);
-        break;
-    case WSK_FLAG_DATAGRAM_SOCKET:
-        *CompleteIrp = TRUE;
-        return STATUS_NOT_SUPPORTED;
-
-#if (NTDDI_VERSION >= NTDDI_WIN10_RS2)
-    case WSK_FLAG_STREAM_SOCKET:
-        if (Dispatch)
-        {
-            pListenDispatch = (PWSK_CLIENT_LISTEN_DISPATCH)((PWSK_CLIENT_STREAM_DISPATCH)Dispatch)->Listen;
-            pConnectionDispatch = (PWSK_CLIENT_CONNECTION_DISPATCH)((PWSK_CLIENT_STREAM_DISPATCH)Dispatch)->Connect;
-        }
-        pProviderDispatch = &gStreamDispatch;
-        ProviderDispatchSize = sizeof(gStreamDispatch);
-        break;
-#endif // if (NTDDI_VERSION >= NTDDI_WIN10_RS2)
-    default:
-        return STATUS_INVALID_PARAMETER;
-    }
-
-    *CompleteIrp = TRUE;
-
-    pSocket = ExAllocatePoolUninitialized(NonPagedPoolNx, sizeof(VIOWSK_SOCKET), VIOSOCK_WSK_MEMORY_TAG);
-    if (pSocket)
-    {
-        RtlZeroMemory(pSocket, sizeof(VIOWSK_SOCKET));
-
-        pSocket->SocketContext = SocketContext;
-        pSocket->Type = Flags;
-
-        if (pListenDispatch)
-            RtlCopyMemory(&pSocket->ListenDispatch, pListenDispatch, sizeof(*pListenDispatch));
-
-        if (pConnectionDispatch)
-            RtlCopyMemory(&pSocket->ConnectionDispatch, pConnectionDispatch, sizeof(*pConnectionDispatch));
-
-        RtlCopyMemory(&pSocket->ProviderDispatch, pProviderDispatch, ProviderDispatchSize);
-        pSocket->WskSocket.Dispatch = &pSocket->ProviderDispatch;
-
-        //TODO: Open socket
-        *pNewSocket = pSocket;
-        Status = STATUS_SUCCESS;
-    }
-    else
-        Status = STATUS_INSUFFICIENT_RESOURCES;
-
-    return Status;
-}
 
 NTSTATUS
 WSKAPI
@@ -150,25 +58,46 @@ VioWskSocket(
     _Inout_ PIRP                  Irp
     )
 {
-    PVIOWSK_SOCKET pSocket;
-    NTSTATUS Status;
-    BOOLEAN CompleteIrp;
+	PWSK_WORKITEM WorkItem = NULL;
+	PVIOWSK_SOCKET pSocket = NULL;
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
+	DEBUG_ENTER_FUNCTION("Client=0x%p; AddressFamily=%u; SocketType=%u; Protocol=%u; Flags=0x%x; SocketContext=0x%p; Dispatch=0x%p; OwningProcess=0x%p; OwningThread=0x%p; SecurityDescriptor=0x%p; Irp=0x%p", Client, AddressFamily, SocketType, Protocol, Flags, SocketContext, Dispatch, OwningProcess, OwningThread, SecurityDescriptor, Irp);
 
-    if (!Client || !Irp)
-        return STATUS_INVALID_PARAMETER;
+	_At_((void*)Irp->IoStatus.Information, __drv_allocatesMem(Mem))
 
-    if (AddressFamily != AF_VSOCK || SocketType != SOCK_STREAM || Protocol != 0)
-        return VioWskCompleteIrp(Irp, STATUS_NOT_SUPPORTED, 0);
+	if (KeGetCurrentIrql() > PASSIVE_LEVEL) {
+		WorkItem = WskWorkItemAlloc(wskwitSocket, Irp);
+		if (!WorkItem) {
+			Status = STATUS_INSUFFICIENT_RESOURCES;
+			goto CompleteIrp;
+		}
 
-    Status = VioWskSocketInternal(Client, Flags, SocketContext, Dispatch, OwningProcess,
-        OwningThread, SecurityDescriptor, &pSocket, &CompleteIrp);
+		WorkItem->Specific.Socket.AddressFamily = AddressFamily;
+		WorkItem->Specific.Socket.Client = Client;
+		WorkItem->Specific.Socket.Dispatch = Dispatch;
+		WorkItem->Specific.Socket.Flags = Flags;
+		WorkItem->Specific.Socket.OwningProcess = OwningProcess;
+		WorkItem->Specific.Socket.OwningThread = OwningThread;
+		WorkItem->Specific.Socket.Protocol = Protocol;
+		WorkItem->Specific.Socket.SecurityDescriptor = SecurityDescriptor;
+		WorkItem->Specific.Socket.SocketContext = SocketContext;
+		WorkItem->Specific.Socket.SocketType = SocketType;
+		WskWorkItemQueue(WorkItem);
+		Status = STATUS_PENDING;
+		goto Exit;
+	}
 
-    if (CompleteIrp)
-        VioWskCompleteIrp(Irp, Status, (ULONG_PTR)pSocket);
+	Status = VioWskSocketInternal(Client, NULL, Flags, SocketContext, Dispatch, OwningProcess,
+		OwningThread, SecurityDescriptor, &pSocket);
 
-    return Status;
+CompleteIrp:
+	VioWskIrpComplete(NULL, Irp, Status, (ULONG_PTR)pSocket);
+Exit:
+	DEBUG_EXIT_FUNCTION("0x%x", Status);
+	return Status;
 }
 
+_At_(Irp->IoStatus.Information, __drv_allocatesMem(Mem))
 NTSTATUS
 WSKAPI
 VioWskSocketConnect(
@@ -186,31 +115,25 @@ VioWskSocketConnect(
     _Inout_ PIRP                                   Irp
 )
 {
-    PVIOWSK_SOCKET pSocket;
-    NTSTATUS Status;
-    BOOLEAN CompleteIrp;
+    PVIOWSK_SOCKET pSocket = NULL;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
+    UNREFERENCED_PARAMETER(Client);
+    UNREFERENCED_PARAMETER(SocketType);
+    UNREFERENCED_PARAMETER(Protocol);
     UNREFERENCED_PARAMETER(LocalAddress);
     UNREFERENCED_PARAMETER(RemoteAddress);
     UNREFERENCED_PARAMETER(Flags);
+    UNREFERENCED_PARAMETER(SocketContext);
+    UNREFERENCED_PARAMETER(Dispatch);
+    UNREFERENCED_PARAMETER(OwningProcess);
+    UNREFERENCED_PARAMETER(OwningThread);
+    UNREFERENCED_PARAMETER(SecurityDescriptor);
 
-    if (!Client || !Irp)
-        return STATUS_INVALID_PARAMETER;
+    Status = STATUS_NOT_IMPLEMENTED;
+    VioWskCompleteIrp(Irp, Status, (ULONG_PTR)pSocket);
 
-    if (SocketType != SOCK_STREAM || Protocol != 0)
-        return VioWskCompleteIrp(Irp, STATUS_NOT_SUPPORTED, 0);
-
-    Status = VioWskSocketInternal(Client, WSK_FLAG_CONNECTION_SOCKET, SocketContext,
-        Dispatch, OwningProcess, OwningThread, SecurityDescriptor, &pSocket, &CompleteIrp);
-
-    if (NT_SUCCESS(Status))
-    {
-        //TODO: bind and connect
-    }
-
-    if (CompleteIrp)
-        VioWskCompleteIrp(Irp, Status, (ULONG_PTR)pSocket);
-
+    DEBUG_EXIT_FUNCTION("0x%x", Status);
     return Status;
 }
 

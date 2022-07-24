@@ -32,12 +32,15 @@
     <ClInclude Include="viowsk-internal.h" />
     <ClInclude Include="viowsk.h" />
     <ClInclude Include="wsk-utils.h" />
+    <ClInclude Include="wsk-workitem.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="provider.c" />
+    <ClCompile Include="socket-internal.c" />
     <ClCompile Include="socket.c" />
     <ClCompile Include="viowsk.c" />
     <ClCompile Include="wsk-utils.c" />
+    <ClCompile Include="wsk-workitem.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{96FDD976-0035-4E24-A61B-E93BED675101}</ProjectGuid>
