@@ -31,6 +31,7 @@
     <ClInclude Include="precomp.h" />
     <ClInclude Include="viowsk-internal.h" />
     <ClInclude Include="viowsk.h" />
+    <ClInclude Include="wsk-completion.h" />
     <ClInclude Include="wsk-utils.h" />
     <ClInclude Include="wsk-workitem.h" />
   </ItemGroup>
@@ -39,6 +40,7 @@
     <ClCompile Include="socket-internal.c" />
     <ClCompile Include="socket.c" />
     <ClCompile Include="viowsk.c" />
+    <ClCompile Include="wsk-completion.c" />
     <ClCompile Include="wsk-utils.c" />
     <ClCompile Include="wsk-workitem.c" />
   </ItemGroup>

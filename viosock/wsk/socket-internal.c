@@ -92,6 +92,25 @@ _VioSocketCreate(
 }
 
 
+static
+NTSTATUS
+_ConfigIrpComplete(
+    PDEVICE_OBJECT DeviceObject,
+    PIRP Irp,
+    PVOID Context
+)
+{
+    NTSTATUS status = STATUS_UNSUCCESSFUL;
+    PKEVENT event = (PKEVENT)Context;
+    DEBUG_ENTER_FUNCTION("DeviceObject=0x%p; Irp=0x%p; Context=0x%p", DeviceObject, Irp, Context);
+
+    KeSetEvent(event, IO_NO_INCREMENT, FALSE);
+    status = STATUS_MORE_PROCESSING_REQUIRED;
+
+    DEBUG_EXIT_FUNCTION("0x%x", status);
+    return status;
+}
+
 
 _Must_inspect_result_
 NTSTATUS
@@ -116,7 +135,6 @@ VioWskSocketInternal(
     VIRTIO_VSOCK_CONFIG SocketConfig;
     PIRP ConfigIrp = NULL;
     KEVENT ConfigEvent;
-    IO_STATUS_BLOCK ConfigIosb;
     DEBUG_ENTER_FUNCTION("Client=0x%p; ListenSocket=0x%p; Flags=0x%x; SocketContext=0x%p; Dispatch=0x%p; OwningProcess=0x%p; OwningThread=0x%p; SecurityDescriptor=0x%p; pNewSocket=0x%p", Client, ListenSocket, Flags, SocketContext, Dispatch, OwningProcess, OwningThread, SecurityDescriptor, pNewSocket);
 
     PAGED_CODE();
@@ -191,33 +209,38 @@ VioWskSocketInternal(
         goto FreeSocket;
 
     KeInitializeEvent(&ConfigEvent, NotificationEvent, FALSE);
-    ConfigIrp = IoBuildDeviceIoControlRequest(IOCTL_GET_CONFIG, pContext->VIOSockDevice, NULL, 0, &SocketConfig, sizeof(SocketConfig), FALSE, &ConfigEvent, &ConfigIosb);
+    IoInitializeRemoveLock(&pSocket->CloseRemoveLock, VIOSOCK_WSK_MEMORY_TAG, 0, 0x7FFFFFFF);
+    ConfigIrp = IoAllocateIrp(1, FALSE);
     if (!ConfigIrp)
     {
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto CloseSocket;
     }
 
-    ObReferenceObject(pSocket->FileObject);
-    ConfigIrp->Tail.Overlay.OriginalFileObject = pSocket->FileObject;
-    IoGetNextIrpStackLocation(ConfigIrp)->FileObject = pSocket->FileObject;
-    Status = IoCallDriver(pContext->VIOSockDevice, ConfigIrp);
-    if (Status == STATUS_PENDING) {
-        KeWaitForSingleObject(&ConfigEvent, Executive, KernelMode, FALSE, NULL);
-        Status = ConfigIosb.Status;
-    }
+    IoSetCompletionRoutine(ConfigIrp, _ConfigIrpComplete, &ConfigEvent, TRUE, TRUE, TRUE);
+    Status = VioWskIrpAcquire(pSocket, ConfigIrp);
+    if (!NT_SUCCESS(Status))
+        goto FreeConfigIrp;
 
-    if (NT_SUCCESS(Status) && ConfigIosb.Information < sizeof(SocketConfig))
+    Status = VioWskSocketIOCTL(pSocket, IOCTL_GET_CONFIG, NULL, 0, &SocketConfig, sizeof(SocketConfig), ConfigIrp, NULL);
+    if (Status == STATUS_PENDING)
+    { 
+        KeWaitForSingleObject(&ConfigEvent, Executive, KernelMode, FALSE, NULL);
+        Status = ConfigIrp->IoStatus.Status;
+    }
+    
+    if (NT_SUCCESS(Status) && ConfigIrp->IoStatus.Information < sizeof(SocketConfig))
         Status = STATUS_INVALID_PARAMETER;
 
     if (!NT_SUCCESS(Status))
-        goto CloseSocket;
+        goto FreeConfigIrp;
 
     pSocket->GuestId = SocketConfig.guest_cid;
-    IoInitializeRemoveLock(&pSocket->CloseRemoveLock, VIOSOCK_WSK_MEMORY_TAG, 0, 0x7FFFFFFF);
     *pNewSocket = pSocket;
     pSocket = NULL;
 
+FreeConfigIrp:
+    IoFreeIrp(ConfigIrp);
 CloseSocket:
     if (pSocket)
     {
