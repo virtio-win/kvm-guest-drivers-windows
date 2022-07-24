@@ -39,6 +39,8 @@
 typedef enum _EWSKState {
     wsksUndefined,
     wsksSingleIOCTL,
+    wsksSend,
+    wsksReceive,
     wsksFinished,
 } EWSKState, * PEWSKState;
 
@@ -53,6 +55,13 @@ typedef struct _VIOSOCKET_COMPLETION_CONTEXT {
     PKEVENT Event;
     ULONG_PTR IOSBInformation;
     int UseIOSBInformation : 1;
+    union {
+        struct {
+            PMDL NextMdl;
+            ULONG CurrentMdlSize;
+            ULONG LastMdlSize;
+        } Transfer;
+    } Specific;
 } VIOSOCKET_COMPLETION_CONTEXT, * PVIOSOCKET_COMPLETION_CONTEXT;
 
 

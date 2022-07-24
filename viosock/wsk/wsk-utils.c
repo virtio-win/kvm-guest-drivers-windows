@@ -390,3 +390,178 @@ Exit:
 	DEBUG_EXIT_FUNCTION("0x%x, *Irp=0x%p", Status, *Irp);
 	return Status;
 }
+
+
+_Must_inspect_result_
+NTSTATUS
+VioWskSocketReadWrite(
+    _In_ PVIOWSK_SOCKET Socket,
+    const WSK_BUF      *Buffers,
+    _In_ UCHAR          MajorFunction,
+    _Inout_ PIRP        Irp
+)
+{
+    PIRP OpIrp = NULL;
+    ULONG firstMdlLength = 0;
+    ULONG lastMdlLength = 0;
+    EWSKState state = wsksUndefined;
+    PVIOWSK_REG_CONTEXT pContext = NULL;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PWSK_REGISTRATION Registraction = NULL;
+    PVIOSOCKET_COMPLETION_CONTEXT CompContext = NULL;
+	DEBUG_ENTER_FUNCTION("Sockect=0x%p; Buffers=0x%p; MajorFunction=%u; Irp=0x%p", Socket, Buffers, MajorFunction, Irp);
+
+    Registraction = (PWSK_REGISTRATION)Socket->Client;
+    pContext = (PVIOWSK_REG_CONTEXT)Registraction->ReservedRegistrationContext;
+    Status = WskBufferValidate(Buffers, &firstMdlLength, &lastMdlLength);
+    if (!NT_SUCCESS(Status))
+        goto CompleteParentIrp;
+
+    switch (MajorFunction)
+    {
+    case IRP_MJ_READ:
+        state = wsksReceive;
+        break;
+    case IRP_MJ_WRITE:
+        state = wsksSend;
+        break;
+    default:
+        Status = STATUS_INVALID_PARAMETER_3;
+        goto CompleteParentIrp;
+        break;
+    }
+
+    Status = VioWskSocketBuildReadWriteSingleMdl(Socket, Buffers->Mdl, Buffers->Offset, firstMdlLength, MajorFunction, &OpIrp);
+    if (!NT_SUCCESS(Status))
+        goto CompleteParentIrp;
+
+    CompContext = WskCompContextAlloc(state, Socket, Irp, NULL);
+    if (!CompContext)
+        goto FreeOpIrp;
+
+    CompContext->Specific.Transfer.CurrentMdlSize = firstMdlLength;
+    CompContext->Specific.Transfer.LastMdlSize = lastMdlLength;
+    CompContext->Specific.Transfer.NextMdl = Buffers->Mdl->Next;
+    Status = WskCompContextSendIrp(CompContext, OpIrp);
+    WskCompContextDereference(CompContext);
+    if (NT_SUCCESS(Status))
+        OpIrp = NULL;
+        
+    Irp = NULL;
+
+FreeOpIrp:
+    if (OpIrp)
+        VioWskIrpFree(OpIrp, NULL, FALSE);
+CompleteParentIrp:
+    if (Irp)
+        VioWskIrpComplete(Socket, Irp, Status, 0);
+
+    DEBUG_EXIT_FUNCTION("0x%x", Status);
+    return Status;
+}
+
+
+_Must_inspect_result_
+NTSTATUS
+VioWskSocketBuildReadWriteSingleMdl(
+    _In_ PVIOWSK_SOCKET Socket,
+    _In_ PMDL           Mdl,
+    _In_ ULONG          Offset,
+    _In_ ULONG          Length,
+    _In_ UCHAR          MajorFunction,
+    _Out_ PIRP         *Irp
+)
+{
+    PIRP OpIrp = NULL;
+    PVOID mdlBuffer = NULL;
+    LARGE_INTEGER StartingOffset = { 0 };
+    PIO_STACK_LOCATION IrpStack = NULL;
+    PVIOWSK_REG_CONTEXT pContext = NULL;
+    PWSK_REGISTRATION Registraction = NULL;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; Mdl=0x%p; MajorFunction=%u; Offset=%u; Length=%u; Irp=0x%p", Socket, Mdl, Offset, Length, MajorFunction, Irp);
+
+    Registraction = (PWSK_REGISTRATION)Socket->Client;
+    pContext = (PVIOWSK_REG_CONTEXT)Registraction->ReservedRegistrationContext;
+    mdlBuffer = MmGetSystemAddressForMdlSafe(Mdl, NormalPagePriority);
+    if (!mdlBuffer)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    OpIrp = IoBuildAsynchronousFsdRequest(MajorFunction, pContext->VIOSockDevice, (PUCHAR)mdlBuffer + Offset, Length, &StartingOffset, NULL);
+    if (!OpIrp)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    IrpStack = IoGetNextIrpStackLocation(OpIrp);
+    IrpStack->DeviceObject = pContext->VIOSockDevice;
+    IrpStack->FileObject = Socket->FileObject;
+    *Irp = OpIrp;
+    Status = STATUS_SUCCESS;
+
+Exit:
+    DEBUG_EXIT_FUNCTION("0x%x, *Irp=0x%p", Status, *Irp);
+    return Status;
+}
+
+
+NTSTATUS
+WskBufferValidate(
+    _In_ const WSK_BUF* Buffer,
+    _Out_ PULONG FirstMdlLength,
+    _Out_ PULONG LastMdlLength
+)
+{
+    PMDL mdl = NULL;
+    ULONG offset = 0;
+    SIZE_T length = 0;
+    ULONG mdlLength = 0;
+    NTSTATUS status = STATUS_UNSUCCESSFUL;
+    DEBUG_ENTER_FUNCTION("Buffer=0x%p; FirstMdlLength=0x%p; LastMdlLength=0x%p", Buffer, FirstMdlLength, LastMdlLength);
+
+    *FirstMdlLength = 0;
+    *LastMdlLength = 0;
+    status = STATUS_SUCCESS;
+    length = Buffer->Length;
+    offset = Buffer->Offset;
+    mdl = Buffer->Mdl;
+    if (mdl != NULL)
+    {
+        mdlLength = MmGetMdlByteCount(mdl);
+        if (offset <= mdlLength)
+        {
+            while (TRUE)
+            {
+                ULONG effectiveLength = mdlLength - offset;
+
+                if (length < effectiveLength)
+                    effectiveLength = (ULONG)length;
+
+                if (mdl == Buffer->Mdl)
+                    *FirstMdlLength = effectiveLength;
+                    
+                mdl = mdl->Next;
+                length -= effectiveLength;
+                if (length == 0 || mdl == NULL)
+                {
+                    *LastMdlLength = effectiveLength;
+                    break;
+                }
+
+                mdlLength = MmGetMdlByteCount(mdl);
+                offset = 0;
+            }
+        }
+        else status = STATUS_INVALID_PARAMETER;
+    }
+    else if (length != 0)
+        status = STATUS_INVALID_PARAMETER;
+
+    DEBUG_EXIT_FUNCTION("0x%x, *FirstMdlLength=%u, *LastMdlLength=%u", status, *FirstMdlLength, *LastMdlLength);
+    return status;
+}
+
