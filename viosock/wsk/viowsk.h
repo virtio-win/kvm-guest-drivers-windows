@@ -152,6 +152,8 @@ VioWskCompleteIrp(
 typedef struct _VIOWSK_SOCKET
 {
     WSK_SOCKET WskSocket;
+    volatile LONG RequestCount;
+    IO_REMOVE_LOCK CloseRemoveLock;
     PVOID SocketContext;
     ULONG Type;
     WSK_CLIENT_LISTEN_DISPATCH ListenDispatch;
