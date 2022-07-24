@@ -49,6 +49,8 @@ typedef struct _VIOSOCKET_COMPLETION_CONTEXT {
     EWSKState State;
     PIRP MasterIrp;
     PIO_STATUS_BLOCK IoStatusBlock;
+    PSIZE_T BytesReturned;
+    PKEVENT Event;
     ULONG_PTR IOSBInformation;
     int UseIOSBInformation : 1;
 } VIOSOCKET_COMPLETION_CONTEXT, * PVIOSOCKET_COMPLETION_CONTEXT;
