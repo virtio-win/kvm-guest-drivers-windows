@@ -107,4 +107,34 @@ VioWskSocketBuildIOCTL(
 );
 
 
+_Must_inspect_result_
+NTSTATUS
+VioWskSocketReadWrite(
+    _In_ PVIOWSK_SOCKET Socket,
+    const WSK_BUF      *Buffers,
+    _In_ UCHAR          MajorFunction,
+    _Inout_ PIRP        Irp
+);
+
+
+_Must_inspect_result_
+NTSTATUS
+VioWskSocketBuildReadWriteSingleMdl(
+    _In_ PVIOWSK_SOCKET Socket,
+    _In_ PMDL           Mdl,
+    _In_ ULONG          Offset,
+    _In_ ULONG          Length,
+    _In_ UCHAR          MajorFunction,
+    _Out_ PIRP*         Irp
+);
+
+
+NTSTATUS
+WskBufferValidate(
+    _In_ const WSK_BUF* Buffer,
+    _Out_ PULONG FirstMdlLength,
+    _Out_ PULONG LastMdlLength
+);
+
+
 #endif

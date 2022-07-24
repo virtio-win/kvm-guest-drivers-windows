@@ -66,6 +66,8 @@ WskGeneralIrpCompletion(
     _In_ PVOID          Context
 )
 {
+    PIRP NextIrp = NULL;
+    NTSTATUS NextIrpStatus = STATUS_UNSUCCESSFUL;
     EWSKState opState;
     PVIOSOCKET_COMPLETION_CONTEXT Ctx = (PVIOSOCKET_COMPLETION_CONTEXT)Context;
     DEBUG_ENTER_FUNCTION("DeviceObject=0x%p; Irp=0x%p; Context=0x%p", DeviceObject, Irp, Context);
@@ -85,6 +87,30 @@ WskGeneralIrpCompletion(
         case wsksSingleIOCTL:
             memcpy(Irp->UserBuffer, Irp->AssociatedIrp.SystemBuffer, Irp->IoStatus.Information);
             opState = wsksFinished;
+            break;
+        case wsksSend:
+            if (Ctx->Specific.Transfer.NextMdl &&
+                (Irp->IoStatus.Information == Ctx->Specific.Transfer.CurrentMdlSize))
+            {
+                PMDL NextMdl = Ctx->Specific.Transfer.NextMdl;
+
+                Ctx->Specific.Transfer.CurrentMdlSize = NextMdl->Next ? MmGetMdlByteCount(NextMdl) : Ctx->Specific.Transfer.LastMdlSize;
+                 Irp->IoStatus.Status = VioWskSocketBuildReadWriteSingleMdl(Ctx->Socket, NextMdl, 0, Ctx->Specific.Transfer.CurrentMdlSize, IRP_MJ_WRITE, &NextIrp);
+                 if (!NT_SUCCESS(Irp->IoStatus.Status))
+                     break;
+
+                 Ctx->Specific.Transfer.NextMdl = NextMdl->Next;
+                NextIrpStatus = WskCompContextSendIrp(Ctx, NextIrp);
+                if (!NT_SUCCESS(NextIrpStatus)) {
+                    Irp->IoStatus.Status = NextIrpStatus;
+                    Ctx->MasterIrp = NULL;
+                    VioWskIrpFree(NextIrp, DeviceObject, FALSE);
+                }
+            }
+            else opState = wsksFinished;
+
+            Ctx->IOSBInformation += Irp->IoStatus.Information;
+            Ctx->UseIOSBInformation = 1;
             break;
         default:
             opState = wsksFinished;
