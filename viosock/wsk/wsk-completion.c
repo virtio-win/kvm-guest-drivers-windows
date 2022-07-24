@@ -88,6 +88,9 @@ WskGeneralIrpCompletion(
             memcpy(Irp->UserBuffer, Irp->AssociatedIrp.SystemBuffer, Irp->IoStatus.Information);
             opState = wsksFinished;
             break;
+        case wsksReceive:
+            opState = wsksFinished;
+            break;
         case wsksSend:
             if (Ctx->Specific.Transfer.NextMdl &&
                 (Irp->IoStatus.Information == Ctx->Specific.Transfer.CurrentMdlSize))

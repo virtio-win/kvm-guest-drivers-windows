@@ -627,11 +627,31 @@ VioWskReceive(
     _Inout_ PIRP     Irp
 )
 {
-    UNREFERENCED_PARAMETER(Socket);
-    UNREFERENCED_PARAMETER(Buffer);
-    UNREFERENCED_PARAMETER(Flags);
+    PVIOWSK_SOCKET pSocket = NULL;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; Buffer=0x%p; Flags=0x%x; Irp=0x%p", Socket, Buffer, Flags, Irp);
 
-    return VioWskCompleteIrp(Irp, STATUS_NOT_IMPLEMENTED, 0);
+    if (Flags != 0) {
+        Status = STATUS_NOT_SUPPORTED;
+        goto CompleteIrp;
+    }
+
+    pSocket = CONTAINING_RECORD(Socket, VIOWSK_SOCKET, WskSocket);
+    Status = VioWskIrpAcquire(pSocket, Irp);
+    if (!NT_SUCCESS(Status)) {
+        pSocket = NULL;
+        goto CompleteIrp;
+    }
+
+    Status = VioWskSocketReadWrite(pSocket, Buffer, IRP_MJ_READ, Irp);
+    Irp = NULL;
+
+CompleteIrp:
+    if (Irp)
+	    VioWskIrpComplete(pSocket, Irp, Status, 0);
+
+    DEBUG_EXIT_FUNCTION("0x%x", Status);
+    return Status;
 }
 
 NTSTATUS
