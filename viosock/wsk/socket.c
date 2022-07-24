@@ -414,11 +414,32 @@ VioWskConnect(
     _Inout_ PIRP     Irp
 )
 {
-    UNREFERENCED_PARAMETER(Socket);
-    UNREFERENCED_PARAMETER(RemoteAddress);
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    SOCKADDR_VM VMRemoteAddr;
+    PVIOWSK_SOCKET pSocket = CONTAINING_RECORD(Socket, VIOWSK_SOCKET, WskSocket);
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; RemoteAddress=0x%p; Flags=0x%x; Irp=0x%p", Socket, RemoteAddress, Flags, Irp);
+
     UNREFERENCED_PARAMETER(Flags);
 
-    return VioWskCompleteIrp(Irp, STATUS_NOT_IMPLEMENTED, 0);
+    VMRemoteAddr = *(PSOCKADDR_VM)RemoteAddress;
+    if (VMRemoteAddr.svm_cid == VMADDR_CID_ANY)
+        VMRemoteAddr.svm_cid = pSocket->GuestId;
+
+    Status = VioWskIrpAcquire(pSocket, Irp);
+    if (!NT_SUCCESS(Status))
+    {
+        pSocket = NULL;
+        goto CompleteIrp;
+    }
+
+    Status = VioWskSocketIOCTL(pSocket, IOCTL_SOCKET_CONNECT, &VMRemoteAddr, sizeof(VMRemoteAddr), NULL, 0, Irp, NULL);
+    Irp = NULL;
+CompleteIrp:
+    if (Irp)
+        VioWskIrpComplete(pSocket, Irp, Status, 0);
+
+    DEBUG_EXIT_FUNCTION("0x%x", Status);
+    return Status;
 }
 
 
