@@ -27,6 +27,9 @@
     <ClInclude Include="viowsk-internal.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="wsk-utils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="provider.c">
@@ -36,6 +39,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="viowsk.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="wsk-utils.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
