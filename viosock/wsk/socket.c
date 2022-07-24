@@ -32,6 +32,7 @@
 #include "viowsk.h"
 #include "wsk-utils.h"
 #include "viowsk-internal.h"
+#include "wsk-completion.h"
 #include "wsk-workitem.h"
 #include "..\inc\vio_wsk.h"
 
@@ -383,10 +384,25 @@ VioWskGetLocalAddress(
     _Inout_ PIRP     Irp
 )
 {
-    UNREFERENCED_PARAMETER(Socket);
-    UNREFERENCED_PARAMETER(LocalAddress);
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PVIOWSK_SOCKET pSocket = CONTAINING_RECORD(Socket, VIOWSK_SOCKET, WskSocket);
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; LocalAddress=0x%p; Irp=0x%p", Socket, LocalAddress, Irp);
 
-    return VioWskCompleteIrp(Irp, STATUS_NOT_IMPLEMENTED, 0);
+    Status = VioWskIrpAcquire(pSocket, Irp);
+    if (!NT_SUCCESS(Status))
+    {
+        pSocket = NULL;
+        goto CompleteIrp;
+    }
+
+    Status = VioWskSocketIOCTL(pSocket, IOCTL_SOCKET_GET_SOCK_NAME, NULL, 0, LocalAddress, sizeof(SOCKADDR_VM), Irp, NULL);
+    Irp = NULL;
+CompleteIrp:
+    if (Irp)
+        VioWskIrpComplete(pSocket, Irp, Status, 0);
+
+    DEBUG_EXIT_FUNCTION("0x%x", Status);
+    return Status;
 }
 
 NTSTATUS
