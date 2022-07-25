@@ -464,14 +464,121 @@ VioWskAccept(
     _Inout_ PIRP                                   Irp
 )
 {
-    UNREFERENCED_PARAMETER(ListenSocket);
-    UNREFERENCED_PARAMETER(Flags);
-    UNREFERENCED_PARAMETER(AcceptSocketContext);
-    UNREFERENCED_PARAMETER(AcceptSocketDispatch);
-    UNREFERENCED_PARAMETER(LocalAddress);
-    UNREFERENCED_PARAMETER(RemoteAddress);
+    PIRP AddrIrp = NULL;
+    PIRP CloseIrp = NULL;
+    PWSK_WORKITEM CloseWorkItem = NULL;
+    BOOLEAN acceptSocketAcquired = FALSE;
+    PWSK_WORKITEM WorkItem = NULL;
+    PVIOSOCKET_COMPLETION_CONTEXT CompContext = NULL;
+    PVIOWSK_SOCKET pSocket = NULL;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PVIOWSK_SOCKET pListenSocket = CONTAINING_RECORD(ListenSocket, VIOWSK_SOCKET, WskSocket);
+    DEBUG_ENTER_FUNCTION("ListenSocket=0x%p; Flags=0x%x; AcceptSocketContext=0x%p; AcceptSocketDispatch=0x%p; LocalAddress=0x%p; RemoteAddress=0x%p; Irp=0x%p", ListenSocket, Flags, AcceptSocketContext, AcceptSocketDispatch, LocalAddress, RemoteAddress, Irp);
 
-    return VioWskCompleteIrp(Irp, STATUS_NOT_IMPLEMENTED, 0);
+    Status = VioWskIrpAcquire(pListenSocket, Irp);
+    if (!NT_SUCCESS(Status))
+    {
+        pListenSocket = NULL;
+        goto CompleteIrp;
+    }
+
+    if (KeGetCurrentIrql() > PASSIVE_LEVEL)
+    {
+        WorkItem = WskWorkItemAlloc(wskwitAccept, Irp);
+        if (!WorkItem)
+        {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            goto CompleteIrp;
+        }
+
+        WorkItem->Specific.Accept.AcceptSocketContext = AcceptSocketContext;
+        WorkItem->Specific.Accept.AcceptSocketDispatch = AcceptSocketDispatch;
+        WorkItem->Specific.Accept.Flags = Flags;
+        WorkItem->Specific.Accept.ListenSocket = ListenSocket;
+        WorkItem->Specific.Accept.LocalAddress = LocalAddress;
+        WorkItem->Specific.Accept.RemoteAddress = RemoteAddress;
+        WskWorkItemQueue(WorkItem);
+        Status = STATUS_PENDING;
+        goto Exit;
+    }
+
+    CloseIrp = IoAllocateIrp(1, FALSE);
+    if (!CloseIrp)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto CompleteIrp;
+	}
+
+	CloseWorkItem = WskWorkItemAlloc(wskwitCloseSocket, CloseIrp);
+	if (!CloseWorkItem)
+	{
+		Status = STATUS_INSUFFICIENT_RESOURCES;
+		goto FreeCloseIrp;
+	}
+
+    CloseIrp = NULL;
+    Status = VioWskSocketInternal(pListenSocket->Client, pListenSocket, Flags, AcceptSocketContext, AcceptSocketDispatch, NULL, NULL, NULL, &pSocket);
+    if (!NT_SUCCESS(Status))
+        goto FreeCloseWorkItem;
+
+    if (LocalAddress || RemoteAddress)
+    {
+        Status = VioWskIrpAcquire(pSocket, Irp);
+        if (!NT_SUCCESS(Status))
+            goto CloseNewSocket;
+
+        acceptSocketAcquired = TRUE;
+        Status = VioWskSocketBuildIOCTL(pSocket, (LocalAddress ? IOCTL_SOCKET_GET_SOCK_NAME : IOCTL_SOCKET_GET_PEER_NAME), NULL, 0, (LocalAddress ? LocalAddress : RemoteAddress), sizeof(SOCKADDR_VM), &AddrIrp);
+        if (!NT_SUCCESS(Status))
+        {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            goto CloseNewSocket;
+        }
+
+        CloseWorkItem->Specific.CloseSocket.Socket = &pSocket->WskSocket;
+        CompContext = WskCompContextAlloc((LocalAddress ? wsksAcceptLocal : wsksAcceptRemote), pSocket, Irp, NULL);
+        if (!CompContext)
+        {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            goto FreeAddrIrp;
+        }
+
+        VioWskIrpRelease(pListenSocket, Irp);
+        Irp = NULL;
+        CompContext->Specific.Accept.LocalAddress = LocalAddress;
+        CompContext->Specific.Accept.RemoteAddress = RemoteAddress;
+        CompContext->Specific.Accept.Socket = &pSocket->WskSocket;
+        CompContext->Specific.Accept.CloseWorkItem = CloseWorkItem;
+        Status = WskCompContextSendIrp(CompContext, AddrIrp);
+        WskCompContextDereference(CompContext);
+        if (NT_SUCCESS(Status))
+        {
+            CloseWorkItem = NULL;
+            AddrIrp = NULL;
+        }
+     }
+
+FreeAddrIrp:
+    if (AddrIrp)
+        VioWskIrpFree(AddrIrp, NULL, FALSE);
+CloseNewSocket:
+    if (!NT_SUCCESS(Status))
+    {
+        VioWskCloseSocketInternal(pSocket, (acceptSocketAcquired ? Irp : NULL));
+        pSocket = NULL;
+    }
+FreeCloseWorkItem:
+    if (CloseWorkItem)
+        WskWorkItemFree(CloseWorkItem);
+FreeCloseIrp:
+    if (CloseIrp)
+        VioWskIrpFree(CloseIrp, NULL, FALSE);
+CompleteIrp:
+    if (Irp)
+        VioWskIrpComplete(pListenSocket, Irp, Status, (ULONG_PTR)pSocket);
+Exit:
+    DEBUG_EXIT_FUNCTION("0x%x", Status);
+    return Status;
 }
 
 NTSTATUS

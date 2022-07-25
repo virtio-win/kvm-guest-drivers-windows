@@ -88,6 +88,40 @@ WskGeneralIrpCompletion(
             memcpy(Irp->UserBuffer, Irp->AssociatedIrp.SystemBuffer, Irp->IoStatus.Information);
             opState = wsksFinished;
             break;
+        case wsksAcceptLocal:
+            memcpy(Ctx->Specific.Accept.LocalAddress, Irp->AssociatedIrp.SystemBuffer, sizeof(SOCKADDR_VM));
+            if (Ctx->Specific.Accept.RemoteAddress)
+            {
+                Irp->IoStatus.Status = VioWskSocketBuildIOCTL(Ctx->Socket, IOCTL_SOCKET_GET_PEER_NAME, NULL, 0, Ctx->Specific.Accept.RemoteAddress, sizeof(SOCKADDR_VM), &NextIrp);
+                if (!NT_SUCCESS(Irp->IoStatus.Status))
+                    break;
+
+                Ctx->State = wsksAcceptRemote;
+                NextIrpStatus = WskCompContextSendIrp(Ctx, NextIrp);
+                if (!NT_SUCCESS(NextIrpStatus))
+                {
+					Irp->IoStatus.Status = NextIrpStatus;
+                    Ctx->MasterIrp = NULL;
+                    VioWskIrpFree(NextIrp, NULL, FALSE);
+			    }
+            }
+			else
+            {
+                opState = wsksFinished;
+                WskWorkItemFree(Ctx->Specific.Accept.CloseWorkItem);
+                Ctx->Specific.Accept.CloseWorkItem = NULL;
+                Ctx->IOSBInformation = (ULONG_PTR)Ctx->Specific.Accept.Socket;
+                Ctx->UseIOSBInformation = 1;
+            }
+            break;
+        case wsksAcceptRemote:
+            memcpy(Ctx->Specific.Accept.RemoteAddress, Irp->AssociatedIrp.SystemBuffer, sizeof(SOCKADDR_VM));
+            opState = wsksFinished;
+            WskWorkItemFree(Ctx->Specific.Accept.CloseWorkItem);
+            Ctx->Specific.Accept.CloseWorkItem = NULL;
+            Ctx->IOSBInformation = (ULONG_PTR)Ctx->Specific.Accept.Socket;
+            Ctx->UseIOSBInformation = 1;
+            break;
         case wsksDisconnected:
             opState = wsksFinished;
             break;
@@ -146,6 +180,15 @@ WskGeneralIrpCompletion(
     VioWskIrpFree(Irp, Ctx->DeviceObject, TRUE);
     if (!NT_SUCCESS(irpStatus.Status) ||
         opState == wsksFinished) {
+        if (Ctx->State == wsksAcceptLocal ||
+            Ctx->State == wsksAcceptRemote) {
+            if (Ctx->Specific.Accept.CloseWorkItem)
+            {
+                WskWorkItemQueue(Ctx->Specific.Accept.CloseWorkItem);
+                Ctx->Specific.Accept.CloseWorkItem = NULL;
+            }
+        }
+
         if (Ctx->IoStatusBlock)
             *Ctx->IoStatusBlock = irpStatus;
 

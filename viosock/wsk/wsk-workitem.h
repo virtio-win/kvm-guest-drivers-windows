@@ -105,6 +105,10 @@ WskWorkItemQueue(
     _In_ PWSK_WORKITEM WorkItem
 );
 
+void
+WskWorkItemFree(
+    _In_ PWSK_WORKITEM WorkItem
+);
 
 
 #endif

@@ -30,6 +30,7 @@
 #include "precomp.h"
 #include "..\inc\debug-utils.h"
 #include "viowsk.h"
+#include "wsk-utils.h"
 #include "..\inc\vio_wsk.h"
 #include "viowsk-internal.h"
 #include "wsk-workitem.h"
@@ -82,6 +83,10 @@ _ProcessWorkItem(
             WorkItem->Irp);
         break;
     case wskwitAccept:
+    {
+        PVIOWSK_SOCKET ListenSocket = NULL;
+
+        ListenSocket = CONTAINING_RECORD(WorkItem->Specific.Accept.ListenSocket, VIOWSK_SOCKET, WskSocket);
         VioWskAccept(
             WorkItem->Specific.Accept.ListenSocket,
             WorkItem->Specific.Accept.Flags,
@@ -90,7 +95,8 @@ _ProcessWorkItem(
             WorkItem->Specific.Accept.LocalAddress,
             WorkItem->Specific.Accept.RemoteAddress,
             WorkItem->Irp);
-        break;
+        VioWskIrpRelease(ListenSocket, WorkItem->Irp);
+    } break;
     default:
         ASSERT(FALSE);
         break;
@@ -181,6 +187,21 @@ WskWorkItemQueue(
     if (WorkItem->IoMethod)
         IoQueueWorkItemEx((PIO_WORKITEM)WorkItem->IoWorkItem, _IoWskRoutine, DelayedWorkQueue, WorkItem);
     else ExQueueWorkItem(&WorkItem->ExWorkItem, DelayedWorkQueue);
+
+    DEBUG_EXIT_FUNCTION_VOID();
+    return;
+}
+
+void
+WskWorkItemFree(
+    _In_ PWSK_WORKITEM WorkItem
+)
+{
+    if (WorkItem->IoMethod)
+        IoUninitializeWorkItem((PIO_WORKITEM)WorkItem->IoWorkItem);
+
+    IoFreeIrp(WorkItem->Irp);
+    ExFreePoolWithTag(WorkItem, VIOSOCK_WSK_MEMORY_TAG);
 
     DEBUG_EXIT_FUNCTION_VOID();
     return;
