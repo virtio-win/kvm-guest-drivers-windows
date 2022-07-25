@@ -45,6 +45,8 @@ typedef enum _EWSKState {
     wsksDisconnected,
     wsksAcceptLocal,
     wsksAcceptRemote,
+    wsksBind,
+    wsksListen,
     wsksFinished,
 } EWSKState, * PEWSKState;
 

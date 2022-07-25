@@ -88,6 +88,26 @@ WskGeneralIrpCompletion(
             memcpy(Irp->UserBuffer, Irp->AssociatedIrp.SystemBuffer, Irp->IoStatus.Information);
             opState = wsksFinished;
             break;
+        case wsksBind:
+            if (Ctx->Socket->Type == WSK_FLAG_LISTEN_SOCKET)
+            {
+                ULONG SendLog = 128;
+
+                Irp->IoStatus.Status = VioWskSocketBuildIOCTL(Ctx->Socket, IOCTL_SOCKET_LISTEN, &SendLog, sizeof(SendLog), NULL, 0, &NextIrp);
+                if (!NT_SUCCESS(Irp->IoStatus.Status))
+                    break;
+
+                Ctx->State = wsksListen;
+                NextIrpStatus = WskCompContextSendIrp(Ctx, NextIrp);
+                if (!NT_SUCCESS(NextIrpStatus))
+                {
+                    Irp->IoStatus.Status = NextIrpStatus;
+                    Ctx->MasterIrp = NULL;
+                    VioWskIrpFree(NextIrp, NULL, FALSE);
+                }
+            }
+ 			else opState = wsksFinished;
+			break;
         case wsksAcceptLocal:
             memcpy(Ctx->Specific.Accept.LocalAddress, Irp->AssociatedIrp.SystemBuffer, sizeof(SOCKADDR_VM));
             if (Ctx->Specific.Accept.RemoteAddress)
@@ -122,6 +142,7 @@ WskGeneralIrpCompletion(
             Ctx->IOSBInformation = (ULONG_PTR)Ctx->Specific.Accept.Socket;
             Ctx->UseIOSBInformation = 1;
             break;
+        case wsksListen:
         case wsksDisconnected:
             opState = wsksFinished;
             break;

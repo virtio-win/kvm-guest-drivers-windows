@@ -445,11 +445,47 @@ VioWskBind(
     _Inout_ PIRP     Irp
 )
 {
-    UNREFERENCED_PARAMETER(Socket);
-    UNREFERENCED_PARAMETER(LocalAddress);
+    PIRP BindIrp = NULL;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PVIOWSK_SOCKET pSocket = CONTAINING_RECORD(Socket, VIOWSK_SOCKET, WskSocket);
+    PVIOSOCKET_COMPLETION_CONTEXT CompContext = NULL;
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; LocalAddress=0x%p; Flags=0x%x; Irp=0x%p", Socket, LocalAddress, Flags, Irp);
+
     UNREFERENCED_PARAMETER(Flags);
 
-    return VioWskCompleteIrp(Irp, STATUS_NOT_IMPLEMENTED, 0);
+    Status = VioWskIrpAcquire(pSocket, Irp);
+    if (!NT_SUCCESS(Status))
+    {
+        pSocket = NULL;
+        goto Complete;
+    }
+
+    Status = VioWskSocketBuildIOCTL(pSocket, IOCTL_SOCKET_BIND, LocalAddress, sizeof(SOCKADDR_VM), NULL, 0, &BindIrp);
+    if (!NT_SUCCESS(Status))
+        goto Complete;
+
+    CompContext = WskCompContextAlloc(wsksBind, pSocket, Irp, NULL);
+    if (!CompContext)
+    {
+		Status = STATUS_INSUFFICIENT_RESOURCES;
+		goto FreeBindirp;
+	}
+
+    Status = WskCompContextSendIrp(CompContext, BindIrp);
+    WskCompContextDereference(CompContext);
+    if (NT_SUCCESS(Status))
+        BindIrp = NULL;
+
+    Irp = NULL;
+FreeBindirp:
+    if (BindIrp)
+        VioWskIrpFree(BindIrp, NULL, FALSE);
+Complete:
+    if (Irp)
+        VioWskIrpComplete(pSocket, Irp, Status, 0);
+
+	DEBUG_EXIT_FUNCTION("0x%x", Status);
+	return Status;
 }
 
 NTSTATUS
