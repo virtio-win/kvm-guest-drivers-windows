@@ -33,7 +33,7 @@
 
 
 #include "..\inc\vio_wsk.h"
-
+#include "wsk-workitem.h"
 
 
 typedef enum _EWSKState {
@@ -43,6 +43,8 @@ typedef enum _EWSKState {
     wsksReceive,
     wsksDisconnect,
     wsksDisconnected,
+    wsksAcceptLocal,
+    wsksAcceptRemote,
     wsksFinished,
 } EWSKState, * PEWSKState;
 
@@ -58,6 +60,12 @@ typedef struct _VIOSOCKET_COMPLETION_CONTEXT {
     ULONG_PTR IOSBInformation;
     int UseIOSBInformation : 1;
     union {
+        struct {
+            PWSK_SOCKET Socket;
+            PSOCKADDR LocalAddress;
+            PSOCKADDR RemoteAddress;
+            PWSK_WORKITEM CloseWorkItem;
+        } Accept;
         struct {
             PMDL NextMdl;
             ULONG CurrentMdlSize;
