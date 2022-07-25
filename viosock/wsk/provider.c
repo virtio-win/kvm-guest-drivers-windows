@@ -150,6 +150,9 @@ VioWskControlClient(
     _Inout_opt_ PIRP                    Irp
 )
 {
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    DEBUG_ENTER_FUNCTION("Client=0x%p; ControlCode=0x%x; InputSize=%zu; InputBuffer=0x%p; OutputSize=%zu; OutputBuffer=0x%p; OutputSizeReturned=0x%p; Irp=0x%p", Client, ControlCode, InputSize, InputBuffer, OutputSize, OutputBuffer, OutputSizeReturned, Irp);
+
     UNREFERENCED_PARAMETER(Client);
     UNREFERENCED_PARAMETER(ControlCode);
     UNREFERENCED_PARAMETER(InputSize);
@@ -158,7 +161,14 @@ VioWskControlClient(
     UNREFERENCED_PARAMETER(OutputBuffer);
     UNREFERENCED_PARAMETER(OutputSizeReturned);
 
-    return VioWskCompleteIrp(Irp, STATUS_NOT_IMPLEMENTED, 0);
+    Status = STATUS_NOT_IMPLEMENTED;
+    if (Irp)
+    {
+        VioWskIrpComplete(NULL, Irp, Status, 0);
+    }
+
+    DEBUG_EXIT_FUNCTION("0x%x", Status);
+    return Status;
 }
 
 _At_(*Result, __drv_allocatesMem(Mem))
