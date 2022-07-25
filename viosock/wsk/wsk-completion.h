@@ -41,6 +41,8 @@ typedef enum _EWSKState {
     wsksSingleIOCTL,
     wsksSend,
     wsksReceive,
+    wsksDisconnect,
+    wsksDisconnected,
     wsksFinished,
 } EWSKState, * PEWSKState;
 

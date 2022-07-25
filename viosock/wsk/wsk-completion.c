@@ -88,10 +88,14 @@ WskGeneralIrpCompletion(
             memcpy(Irp->UserBuffer, Irp->AssociatedIrp.SystemBuffer, Irp->IoStatus.Information);
             opState = wsksFinished;
             break;
+        case wsksDisconnected:
+            opState = wsksFinished;
+            break;
         case wsksReceive:
             opState = wsksFinished;
             break;
         case wsksSend:
+         case wsksDisconnect:
             if (Ctx->Specific.Transfer.NextMdl &&
                 (Irp->IoStatus.Information == Ctx->Specific.Transfer.CurrentMdlSize))
             {
@@ -110,6 +114,21 @@ WskGeneralIrpCompletion(
                     VioWskIrpFree(NextIrp, DeviceObject, FALSE);
                 }
             }
+			else if (opState == wsksDisconnect) {
+                ULONG How = 2; // SD_BOTH
+
+                Irp->IoStatus.Status = VioWskSocketBuildIOCTL(Ctx->Socket, IOCTL_SOCKET_SHUTDOWN, &How, sizeof(How), NULL, 0, &NextIrp);
+               if (!NT_SUCCESS(Irp->IoStatus.Status))
+                   break;
+
+                Ctx->State = wsksDisconnected;
+                NextIrpStatus = WskCompContextSendIrp(Ctx, NextIrp);
+                if (!NT_SUCCESS(NextIrpStatus)) {
+                    Irp->IoStatus.Status = NextIrpStatus;
+                    Ctx->MasterIrp = NULL;
+                    VioWskIrpFree(NextIrp, NULL, FALSE);
+                }
+			}
             else opState = wsksFinished;
 
             Ctx->IOSBInformation += Irp->IoStatus.Information;

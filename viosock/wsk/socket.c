@@ -663,11 +663,69 @@ VioWskDisconnect(
     _Inout_ PIRP      Irp
 )
 {
-    UNREFERENCED_PARAMETER(Socket);
-    UNREFERENCED_PARAMETER(Buffer);
-    UNREFERENCED_PARAMETER(Flags);
+    PIRP SendIrp = NULL;
+    ULONG How = 2; // SD_BOTH
+    ULONG firstMdlLength = 0;
+    ULONG lastMdlLength = 0;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PVIOSOCKET_COMPLETION_CONTEXT CompContext = NULL;
+    PVIOWSK_SOCKET pSocket = CONTAINING_RECORD(Socket, VIOWSK_SOCKET, WskSocket);
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; Buffer=0x%p; Flags=0x%x; Irp=0x%p", Socket, Buffer, Flags, Irp);
 
-    return VioWskCompleteIrp(Irp, STATUS_NOT_IMPLEMENTED, 0);
+    if (Flags != 0)
+    {
+        Status = STATUS_NOT_SUPPORTED;
+        pSocket = NULL;
+        goto CompleteIrp;
+    }
+
+    Status = VioWskIrpAcquire(pSocket, Irp);
+    if (!NT_SUCCESS(Status))
+    {
+        pSocket = NULL;
+        goto CompleteIrp;
+    }
+
+    if (!Buffer || !Buffer->Mdl || Buffer->Length == 0 || (Flags & WSK_FLAG_ABORTIVE))
+    {
+        Status = VioWskSocketIOCTL(pSocket, IOCTL_SOCKET_SHUTDOWN, &How, sizeof(How), NULL, 0, Irp, NULL);
+        Irp = NULL;
+        goto CompleteIrp;
+    }
+
+    Status = WskBufferValidate(Buffer, &firstMdlLength, &lastMdlLength);
+    if (!NT_SUCCESS(Status))
+        goto CompleteIrp;
+
+    Status = VioWskSocketBuildReadWriteSingleMdl(pSocket, Buffer->Mdl, Buffer->Offset, firstMdlLength, IRP_MJ_WRITE, &SendIrp);
+    if (!NT_SUCCESS(Status))
+        goto CompleteIrp;
+ 
+    CompContext = WskCompContextAlloc(wsksDisconnect, pSocket, Irp, NULL);
+    if (!CompContext) {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto FreeSendIrp;
+    }
+
+    CompContext->Specific.Transfer.CurrentMdlSize = firstMdlLength;
+    CompContext->Specific.Transfer.LastMdlSize = lastMdlLength;
+    CompContext->Specific.Transfer.NextMdl = Buffer->Mdl->Next;
+    Status = WskCompContextSendIrp(CompContext, SendIrp);
+    WskCompContextDereference(CompContext);
+    if (NT_SUCCESS(Status))
+        SendIrp = NULL;
+
+    Irp = NULL;
+
+FreeSendIrp:
+    if (SendIrp)
+        VioWskIrpFree(SendIrp, NULL, FALSE);
+CompleteIrp:
+    if (Irp)
+        VioWskIrpComplete(pSocket, Irp, Status, 0);
+
+    DEBUG_EXIT_FUNCTION("0x%x", Status);
+    return Status;
 }
 
 NTSTATUS
