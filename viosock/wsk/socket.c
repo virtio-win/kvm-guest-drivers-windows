@@ -626,11 +626,27 @@ VioWskInspectComplete(
     _Inout_ PIRP            Irp
 )
 {
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PVIOWSK_SOCKET pSocket = CONTAINING_RECORD(ListenSocket, VIOWSK_SOCKET, WskSocket);
+    DEBUG_ENTER_FUNCTION("ListenSocket=0x%p; InspectID=0x%p; Action=%u; Irp=0x%p", ListenSocket, InspectID, Action, Irp);
+
     UNREFERENCED_PARAMETER(ListenSocket);
     UNREFERENCED_PARAMETER(InspectID);
     UNREFERENCED_PARAMETER(Action);
 
-    return VioWskCompleteIrp(Irp, STATUS_NOT_IMPLEMENTED, 0);
+    Status = VioWskIrpAcquire(pSocket, Irp);
+    if (!NT_SUCCESS(Status))
+    {
+        pSocket = NULL;
+        goto CompleteIrp;
+    }
+
+    Status = STATUS_NOT_IMPLEMENTED;
+CompleteIrp:
+    VioWskIrpComplete(pSocket, Irp, Status, 0);
+
+    DEBUG_EXIT_FUNCTION("0x%x", Status);
+    return Status;
 }
 
 NTSTATUS
@@ -894,12 +910,27 @@ VioWskConnectEx(
     _Inout_ PIRP      Irp
 )
 {
-    UNREFERENCED_PARAMETER(Socket);
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PVIOWSK_SOCKET pSocket = CONTAINING_RECORD(Socket, VIOWSK_SOCKET, WskSocket);
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; RemoteAddress=0x%p; Buffer=0x%p; Flags=0x%x; Irp=0x%p", Socket, RemoteAddress, Buffer, Flags, Irp);
+
     UNREFERENCED_PARAMETER(RemoteAddress);
     UNREFERENCED_PARAMETER(Buffer);
     UNREFERENCED_PARAMETER(Flags);
 
-    return VioWskCompleteIrp(Irp, STATUS_NOT_IMPLEMENTED, 0);
+    Status = VioWskIrpAcquire(pSocket, Irp);
+    if (!NT_SUCCESS(Status))
+    {
+        pSocket = NULL;
+        goto CompleteIrp;
+    }
+
+    Status = STATUS_NOT_IMPLEMENTED;
+CompleteIrp:
+    VioWskIrpComplete(pSocket, Irp, Status, 0);
+
+    DEBUG_EXIT_FUNCTION("0x%x", Status);
+    return Status;
 }
 
 NTSTATUS
@@ -913,13 +944,28 @@ VioWskSendEx(
     _Inout_ PIRP     Irp
 )
 {
-    UNREFERENCED_PARAMETER(Socket);
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PVIOWSK_SOCKET pSocket = CONTAINING_RECORD(Socket, VIOWSK_SOCKET, WskSocket);
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; Buffer=0x%p; Flags=0x%x; ControlInfoLength=%u; ControlInfo=0x%p; Irp=0x%p", Socket, Buffer, Flags, ControlInfoLength, ControlInfo, Irp);
+
     UNREFERENCED_PARAMETER(Buffer);
     UNREFERENCED_PARAMETER(Flags);
     UNREFERENCED_PARAMETER(ControlInfoLength);
     UNREFERENCED_PARAMETER(ControlInfo);
 
-    return VioWskCompleteIrp(Irp, STATUS_NOT_IMPLEMENTED, 0);
+    Status = VioWskIrpAcquire(pSocket, Irp);
+    if (!NT_SUCCESS(Status))
+    {
+        pSocket = NULL;
+        goto CompleteIrp;
+    }
+
+    Status = STATUS_NOT_IMPLEMENTED;
+CompleteIrp:
+    VioWskIrpComplete(pSocket, Irp, Status, 0);
+
+    DEBUG_EXIT_FUNCTION("0x%x", Status);
+    return Status;
 }
 
 NTSTATUS
@@ -934,14 +980,29 @@ VioWskReceiveEx(
     _Inout_ PIRP       Irp
 )
 {
-    UNREFERENCED_PARAMETER(Socket);
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PVIOWSK_SOCKET pSocket = CONTAINING_RECORD(Socket, VIOWSK_SOCKET, WskSocket);
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; Buffer=0x%p; Flags=0x%x; ControlInfoLength=0x%p; ControlInfo=0x%p; ControlFlags=0x%p; Irp=0x%p", Socket, Buffer, Flags, ControlInfoLength, ControlInfo, ControlFlags, Irp);
+
     UNREFERENCED_PARAMETER(Buffer);
     UNREFERENCED_PARAMETER(Flags);
     UNREFERENCED_PARAMETER(ControlInfoLength);
     UNREFERENCED_PARAMETER(ControlInfo);
     UNREFERENCED_PARAMETER(ControlFlags);
 
-    return VioWskCompleteIrp(Irp, STATUS_NOT_IMPLEMENTED, 0);
+    Status = VioWskIrpAcquire(pSocket, Irp);
+    if (!NT_SUCCESS(Status))
+    {
+        pSocket = NULL;
+        goto CompleteIrp;
+    }
+
+    Status = STATUS_NOT_IMPLEMENTED;
+CompleteIrp:
+    VioWskIrpComplete(pSocket, Irp, Status, 0);
+
+    DEBUG_EXIT_FUNCTION("0x%x", Status);
+    return Status;
 }
 
 NTSTATUS
@@ -951,7 +1012,21 @@ VioWskListen(
     _Inout_ PIRP     Irp
 )
 {
-    UNREFERENCED_PARAMETER(Socket);
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PVIOWSK_SOCKET pSocket = CONTAINING_RECORD(Socket, VIOWSK_SOCKET, WskSocket);
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; Irp=0x%p", Socket, Irp);
 
-    return VioWskCompleteIrp(Irp, STATUS_NOT_IMPLEMENTED, 0);
+    Status = VioWskIrpAcquire(pSocket, Irp);
+    if (!NT_SUCCESS(Status))
+    {
+        pSocket = NULL;
+        goto CompleteIrp;
+    }
+
+    Status = STATUS_NOT_IMPLEMENTED;
+CompleteIrp:
+    VioWskIrpComplete(pSocket, Irp, Status, 0);
+
+    DEBUG_EXIT_FUNCTION("0x%x", Status);
+    return Status;
 }
