@@ -2571,13 +2571,11 @@ out_del_fs:
 static NTSTATUS ParseArgs(ULONG argc, PWSTR *argv,
     ULONG& DebugFlags, std::wstring& DebugLogFile, std::wstring& MountPoint)
 {
-#define argtos(v) if (arge > ++argp) v = *argp; else goto usage
+#define argtos(v) if (arge > ++argp && *argp) v.assign(*argp); else goto usage
 #define argtol(v) if (arge > ++argp) v = wcstol_deflt(*argp, v); \
     else goto usage
 
     wchar_t **argp, **arge;
-    PWSTR DebugLogFileStr = NULL;
-    PWSTR MountPointStr = NULL;
 
     for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
     {
@@ -2594,10 +2592,10 @@ static NTSTATUS ParseArgs(ULONG argc, PWSTR *argv,
                 argtol(DebugFlags);
                 break;
             case L'D':
-                argtos(DebugLogFileStr);
+                argtos(DebugLogFile);
                 break;
             case L'm':
-                argtos(MountPointStr);
+                argtos(MountPoint);
                 break;
             default:
                 goto usage;
@@ -2607,16 +2605,6 @@ static NTSTATUS ParseArgs(ULONG argc, PWSTR *argv,
     if (arge > argp)
     {
         goto usage;
-    }
-
-    if (DebugLogFileStr != NULL)
-    {
-        DebugLogFile.assign(DebugLogFileStr);
-    }
-
-    if (MountPointStr != NULL)
-    {
-        MountPoint.assign(MountPointStr);
     }
 
     return STATUS_SUCCESS;
