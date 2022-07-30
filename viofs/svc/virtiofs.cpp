@@ -122,8 +122,9 @@ struct VIRTFS
     UINT32  MaxWrite{ 0 };
 
     // Uid/Gid used to describe files' owner on the guest side.
-    UINT32  LocalUid{ 0 };
-    UINT32  LocalGid{ 0 };
+    // Equals to well-known SID 'Everyone' by default.
+    UINT32  LocalUid{ 0x10100 };
+    UINT32  LocalGid{ 0x10100 };
 
     // Uid/Gid used to describe files' owner on the host side.
     UINT32  OwnerUid{ 0 };
