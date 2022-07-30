@@ -46,7 +46,6 @@
 #include <sys/stat.h>
 #include <wtsapi32.h>
 #include <cfgmgr32.h>
-#include <securitybaseapi.h>
 
 #include <map>
 #include <string>
@@ -129,8 +128,6 @@ struct VIRTFS
     // Uid/Gid used to describe files' owner on the host side.
     UINT32  OwnerUid{ 0 };
     UINT32  OwnerGid{ 0 };
-
-    BOOL IsRunningAsLocalSystem{ false };
 
     // Maps NodeId to its Nlookup counter.
     std::map<UINT64, UINT64> LookupMap{};
@@ -487,93 +484,6 @@ static DWORD FindDeviceInterface(PHANDLE Device)
     }
 
     return ERROR_SUCCESS;
-}
-
-static NTSTATUS FspToolGetTokenInfo(HANDLE Token,
-    TOKEN_INFORMATION_CLASS TokenInformationClass, PVOID *PInfo)
-{
-    PVOID Info{ NULL };
-    DWORD Size;
-    NTSTATUS Result;
-
-    if (GetTokenInformation(Token, TokenInformationClass, 0, 0, &Size))
-    {
-        Result = STATUS_INVALID_PARAMETER;
-        goto exit;
-    }
-
-    if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
-    {
-        Result = FspNtStatusFromWin32(GetLastError());
-        goto exit;
-    }
-
-    Info = HeapAlloc(GetProcessHeap(), 0, Size);
-    if (NULL == Info)
-    {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
-    }
-
-    if (!GetTokenInformation(Token, TokenInformationClass, Info, Size, &Size))
-    {
-        Result = FspNtStatusFromWin32(GetLastError());
-        goto exit;
-    }
-
-    *PInfo = Info;
-    Result = STATUS_SUCCESS;
-
-exit:
-    if (!NT_SUCCESS(Result))
-        SafeHeapFree(Info);
-
-    return Result;
-}
-
-static VOID UpdateLocalUidGid(VIRTFS *VirtFs, DWORD SessionId)
-{
-    NTSTATUS Result;
-
-    HANDLE Token{ NULL };
-    TOKEN_USER *Uinfo{ NULL };
-    TOKEN_PRIMARY_GROUP *Ginfo{ NULL };
-
-    if (VirtFs->IsRunningAsLocalSystem)
-    {
-        if (!WTSQueryUserToken(SessionId, &Token))
-        {
-            VirtFs->LocalUid = 0;
-            VirtFs->LocalGid = 0;
-            DBG("Failed to open a process token as LocalSystem; Error=%d", GetLastError());
-            return;
-        }
-    }
-    else if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &Token))
-    {
-        VirtFs->LocalUid = 0;
-        VirtFs->LocalGid = 0;
-        DBG("Failed to open a process token; Error=%d", GetLastError());
-        return;
-    }
-
-    Result = FspToolGetTokenInfo(Token, TokenUser, (PVOID *)&Uinfo);
-    if (!NT_SUCCESS(Result))
-       goto exit;
-
-    Result = FspToolGetTokenInfo(Token, TokenPrimaryGroup, (PVOID *)&Ginfo);
-    if (!NT_SUCCESS(Result))
-       goto exit;
-
-    Result = FspPosixMapSidToUid(Uinfo->User.Sid, &(VirtFs->LocalUid));
-    Result = FspPosixMapSidToUid(Ginfo->PrimaryGroup, &(VirtFs->LocalGid));
-
-    DBG("Local UID=%u, local GID=%u", VirtFs->LocalUid, VirtFs->LocalGid);
-
-exit:
-    SafeHeapFree(Uinfo);
-    SafeHeapFree(Ginfo);
-    CloseHandle(Token);
 }
 
 static UINT32 PosixUnixModeToAttributes(VIRTFS *VirtFs, uint64_t nodeid,
@@ -2590,9 +2500,7 @@ NTSTATUS VIRTFS::SubmitDestroyRequest()
 
 NTSTATUS VIRTFS::Start()
 {
-    HANDLE Token{ NULL };
     NTSTATUS Status;
-    DWORD SessionId;
     FILETIME FileTime;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
 
@@ -2600,28 +2508,6 @@ NTSTATUS VIRTFS::Start()
     if (!NT_SUCCESS(Status))
     {
         return Status;
-    }
-
-    SessionId = WTSGetActiveConsoleSessionId();
-    if (SessionId != 0xFFFFFFFF)
-    {
-        // Will fail if we are not the LocalSystem user.
-        IsRunningAsLocalSystem = WTSQueryUserToken(SessionId, &Token);
-
-        if (IsRunningAsLocalSystem)
-        {
-            CloseHandle(Token);
-        }
-        else
-        {
-            DBG("The service %s was not run as the LocalSytem user", FS_SERVICE_NAME);
-        }
-
-        UpdateLocalUidGid(this, SessionId);
-    }
-    else
-    {
-        DBG("Failed to get SessionID!");
     }
 
     GetSystemTimeAsFileTime(&FileTime);
@@ -2966,20 +2852,13 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
 static NTSTATUS SvcControl(FSP_SERVICE *Service, ULONG Control,
     ULONG EventType, PVOID EventData)
 {
-    VIRTFS *VirtFs = (VIRTFS *)Service->UserContext;
-    PWTSSESSION_NOTIFICATION SessionNotification;
+    UNREFERENCED_PARAMETER(Service);
+    UNREFERENCED_PARAMETER(EventType);
+    UNREFERENCED_PARAMETER(EventData);
 
     switch (Control)
     {
         case SERVICE_CONTROL_DEVICEEVENT:
-            break;
-
-        case SERVICE_CONTROL_SESSIONCHANGE:
-            SessionNotification = (PWTSSESSION_NOTIFICATION)EventData;
-            if (EventType == WTS_SESSION_LOGON)
-            {
-                UpdateLocalUidGid(VirtFs, SessionNotification->dwSessionId);
-            }
             break;
 
         default:
@@ -3014,8 +2893,7 @@ int wmain(int argc, wchar_t **argv)
         return FspWin32FromNtStatus(Result);
     }
     FspServiceAllowConsoleMode(Service);
-    FspServiceAcceptControl(Service, SERVICE_ACCEPT_SESSIONCHANGE |
-        SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN);
+    FspServiceAcceptControl(Service, SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN);
     Result = FspServiceLoop(Service);
     ExitCode = FspServiceGetExitCode(Service);
     FspServiceDelete(Service);
