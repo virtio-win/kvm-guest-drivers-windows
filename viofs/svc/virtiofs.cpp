@@ -147,6 +147,19 @@ VIRTFS::VIRTFS(ULONG DebugFlags, const std::wstring& MountPoint)
 {
 }
 
+template <typename EF>
+class scope_exit
+{
+    EF exit_func;
+
+public:
+    scope_exit(EF&& exit_func) : exit_func{ exit_func } {};
+    ~scope_exit()
+    {
+        exit_func();
+    }
+};
+
 static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     UINT32 FileAttributes, UINT64 CreationTime, UINT64 LastAccessTime,
     UINT64 LastWriteTime, UINT64 ChangeTime, FSP_FSCTL_FILE_INFO *FileInfo);
