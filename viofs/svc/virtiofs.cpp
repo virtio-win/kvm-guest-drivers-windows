@@ -424,33 +424,26 @@ static DWORD VirtFsRegDevInterfaceNotification(VIRTFS *VirtFs)
 
 static DWORD FindDeviceInterface(PHANDLE Device)
 {
-    WCHAR DevicePath[MAX_PATH];
     HDEVINFO DevInfo;
     SECURITY_ATTRIBUTES SecurityAttributes;
     SP_DEVICE_INTERFACE_DATA DevIfaceData;
     PSP_DEVICE_INTERFACE_DETAIL_DATA DevIfaceDetail = NULL;
     ULONG Length, RequiredLength = 0;
-    BOOL Result;
-    DWORD Error;
 
     DevInfo = SetupDiGetClassDevs(&GUID_DEVINTERFACE_VIRT_FS, NULL, NULL,
         (DIGCF_PRESENT | DIGCF_DEVICEINTERFACE));
-
     if (DevInfo == INVALID_HANDLE_VALUE)
     {
         return GetLastError();
     }
+    scope_exit devinfo_se([DevInfo] { SetupDiDestroyDeviceInfoList(DevInfo); });
 
     DevIfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
 
-    Result = SetupDiEnumDeviceInterfaces(DevInfo, 0,
-        &GUID_DEVINTERFACE_VIRT_FS, 0, &DevIfaceData);
-
-    if (Result == FALSE)
+    if (!SetupDiEnumDeviceInterfaces(DevInfo, 0,
+        &GUID_DEVINTERFACE_VIRT_FS, 0, &DevIfaceData))
     {
-        Error = GetLastError();
-        SetupDiDestroyDeviceInfoList(DevInfo);
-        return Error;
+        return GetLastError();
     }
 
     SetupDiGetDeviceInterfaceDetail(DevInfo, &DevIfaceData, NULL, 0,
@@ -460,38 +453,25 @@ static DWORD FindDeviceInterface(PHANDLE Device)
             RequiredLength);
     if (DevIfaceDetail == NULL)
     {
-        Error = GetLastError();
-        SetupDiDestroyDeviceInfoList(DevInfo);
-        return Error;
+        return GetLastError();
     }
+    scope_exit devifacedetail_se([DevIfaceDetail] { LocalFree(DevIfaceDetail); });
 
     DevIfaceDetail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
     Length = RequiredLength;
 
-    Result = SetupDiGetDeviceInterfaceDetail(DevInfo, &DevIfaceData,
-        DevIfaceDetail, Length, &RequiredLength, NULL);
-
-    if (Result == FALSE)
+    if (!SetupDiGetDeviceInterfaceDetail(DevInfo, &DevIfaceData,
+        DevIfaceDetail, Length, &RequiredLength, NULL))
     {
-        Error = GetLastError();
-        LocalFree(DevIfaceDetail);
-        SetupDiDestroyDeviceInfoList(DevInfo);
-        return Error;
+        return GetLastError();
     }
-
-    wcscpy_s(DevicePath, sizeof(DevicePath) / sizeof(WCHAR),
-        DevIfaceDetail->DevicePath);
-
-    LocalFree(DevIfaceDetail);
-    SetupDiDestroyDeviceInfoList(DevInfo);
 
     SecurityAttributes.nLength = sizeof(SecurityAttributes);
     SecurityAttributes.lpSecurityDescriptor = NULL;
     SecurityAttributes.bInheritHandle = FALSE;
 
-    *Device = CreateFile(DevicePath, GENERIC_READ | GENERIC_WRITE,
+    *Device = CreateFile(DevIfaceDetail->DevicePath, GENERIC_READ | GENERIC_WRITE,
         0, &SecurityAttributes, OPEN_EXISTING, 0L, NULL);
-
     if (*Device == INVALID_HANDLE_VALUE)
     {
         return GetLastError();
