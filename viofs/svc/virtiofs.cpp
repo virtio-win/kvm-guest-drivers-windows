@@ -378,7 +378,6 @@ DWORD WINAPI DeviceNotificationCallback(HCMNOTIFICATION Notify,
     DWORD EventDataSize)
 {
     VIRTFS *VirtFs = (VIRTFS *)Context;
-    DWORD Result = ERROR_SUCCESS;
 
     UNREFERENCED_PARAMETER(EventData);
     UNREFERENCED_PARAMETER(EventDataSize);
@@ -387,7 +386,7 @@ DWORD WINAPI DeviceNotificationCallback(HCMNOTIFICATION Notify,
     {
         case CM_NOTIFY_ACTION_DEVICEINTERFACEARRIVAL:
         case CM_NOTIFY_ACTION_DEVICEQUERYREMOVEFAILED:
-            Result = VirtFsDevInterfaceArrival(VirtFs, Notify);
+            VirtFsDevInterfaceArrival(VirtFs, Notify);
             break;
         case CM_NOTIFY_ACTION_DEVICEQUERYREMOVE:
         case CM_NOTIFY_ACTION_DEVICEREMOVECOMPLETE:
@@ -397,7 +396,7 @@ DWORD WINAPI DeviceNotificationCallback(HCMNOTIFICATION Notify,
             break;
     }
 
-    return Result;
+    return ERROR_SUCCESS;
 }
 
 static DWORD VirtFsRegDevInterfaceNotification(VIRTFS *VirtFs)
