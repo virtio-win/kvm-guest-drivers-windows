@@ -116,6 +116,7 @@ struct VIRTFS
     VIRTFS_NOTIFICATION DevHandleNotification{};
 
     std::wstring MountPoint{ L"*" };
+    std::wstring Tag{};
 
     UINT32  MaxPages{ 0 };
     // A write request buffer size must not exceed this value.
@@ -143,7 +144,7 @@ struct VIRTFS
 };
 
 VIRTFS::VIRTFS(ULONG DebugFlags, const std::wstring& MountPoint)
-    : DebugFlags{ DebugFlags }, MountPoint{ MountPoint }
+    : DebugFlags{ DebugFlags }, MountPoint{ MountPoint }, Tag{ Tag }
 {
 }
 
@@ -170,10 +171,12 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 static VOID FixReparsePointAttributes(VIRTFS *VirtFs, uint64_t nodeid,
     UINT32 *PFileAttributes);
 
+static VOID GetVolumeName(HANDLE Device, PWSTR VolumeName, DWORD VolumeNameSize);
+
 static NTSTATUS VirtFsLookupFileName(VIRTFS *VirtFs, PWSTR FileName,
     FUSE_LOOKUP_OUT *LookupOut);
 
-static DWORD FindDeviceInterface(PHANDLE Device);
+static DWORD FindDeviceInterface(PHANDLE Device, const std::wstring& Tag);
 
 static DWORD WINAPI DeviceNotificationCallback(HCMNOTIFICATION Notify,
     PVOID Context, CM_NOTIFY_ACTION Action, PCM_NOTIFY_EVENT_DATA EventData,
@@ -318,7 +321,7 @@ static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
     // Wait for unregister work to end, if any.
     WaitForThreadpoolWorkCallbacks(Notification->UnregWork, FALSE);
 
-    Error = FindDeviceInterface(&VirtFs->Device);
+    Error = FindDeviceInterface(&VirtFs->Device, VirtFs->Tag);
     if (Error != ERROR_SUCCESS)
     {
         return Error;
@@ -421,7 +424,7 @@ static DWORD VirtFsRegDevInterfaceNotification(VIRTFS *VirtFs)
     return CM_MapCrToWin32Err(ConfigRet, ERROR_NOT_SUPPORTED);
 }
 
-static DWORD FindDeviceInterface(PHANDLE Device)
+static DWORD FindDeviceInterface(PHANDLE Device, DWORD MemberIndex)
 {
     HDEVINFO DevInfo;
     SECURITY_ATTRIBUTES SecurityAttributes;
@@ -440,7 +443,7 @@ static DWORD FindDeviceInterface(PHANDLE Device)
     DevIfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
 
     if (!SetupDiEnumDeviceInterfaces(DevInfo, 0,
-        &GUID_DEVINTERFACE_VIRT_FS, 0, &DevIfaceData))
+        &GUID_DEVINTERFACE_VIRT_FS, MemberIndex, &DevIfaceData))
     {
         return GetLastError();
     }
@@ -477,6 +480,35 @@ static DWORD FindDeviceInterface(PHANDLE Device)
     }
 
     return ERROR_SUCCESS;
+}
+
+static DWORD FindDeviceInterface(PHANDLE Device, const std::wstring& Tag)
+{
+    if (Tag.empty())
+    {
+        return FindDeviceInterface(Device, 0);
+    }
+
+    for (DWORD MemberIndex = 0; ; MemberIndex++)
+    {
+        DWORD Error = FindDeviceInterface(Device, MemberIndex);
+        if (Error != ERROR_SUCCESS)
+        {
+            return Error;
+        }
+
+        WCHAR VolumeName[MAX_FILE_SYSTEM_NAME + 1];
+        GetVolumeName(*Device, VolumeName, sizeof(VolumeName));
+
+        if (Tag == VolumeName)
+        {
+            return ERROR_SUCCESS;
+        }
+        else
+        {
+            CloseHandle(*Device);
+        }
+    }
 }
 
 static UINT32 PosixUnixModeToAttributes(VIRTFS *VirtFs, uint64_t nodeid,
@@ -2561,7 +2593,8 @@ out_del_fs:
 }
 
 static NTSTATUS ParseArgs(ULONG argc, PWSTR *argv,
-    ULONG& DebugFlags, std::wstring& DebugLogFile, std::wstring& MountPoint)
+    ULONG& DebugFlags, std::wstring& DebugLogFile, std::wstring& MountPoint,
+    std::wstring& Tag)
 {
 #define argtos(v) if (arge > ++argp && *argp) v.assign(*argp); else goto usage
 #define argtol(v) if (arge > ++argp) v = wcstol_deflt(*argp, v); \
@@ -2589,6 +2622,9 @@ static NTSTATUS ParseArgs(ULONG argc, PWSTR *argv,
             case L'm':
                 argtos(MountPoint);
                 break;
+            case L't':
+                argtos(Tag);
+                break;
             default:
                 goto usage;
         }
@@ -2611,7 +2647,8 @@ usage:
         "options:\n"
         "    -d DebugFlags       [-1: enable all debug logs]\n"
         "    -D DebugLogFile     [file path; use - for stderr]\n"
-        "    -m MountPoint       [X:|* (required if no UNC prefix)]\n";
+        "    -m MountPoint       [X:|* (required if no UNC prefix)]\n"
+        "    -t Tag              [mount tag; max 36 symbols]\n";
 
     FspServiceLog(EVENTLOG_ERROR_TYPE, usage, FS_SERVICE_NAME);
 
@@ -2709,13 +2746,14 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
     std::wstring DebugLogFile{};
     ULONG DebugFlags{ 0 };
     std::wstring MountPoint{ L"*" };
+    std::wstring Tag{};
     VIRTFS *VirtFs;
     NTSTATUS Status{ STATUS_SUCCESS };
     DWORD Error;
 
     if (argc > 1)
     {
-        Status = ParseArgs(argc, argv, DebugFlags, DebugLogFile, MountPoint);
+        Status = ParseArgs(argc, argv, DebugFlags, DebugLogFile, MountPoint, Tag);
     }
     else
     {
@@ -2768,7 +2806,7 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
         goto out_close_event;
     }
 
-    Error = FindDeviceInterface(&VirtFs->Device);
+    Error = FindDeviceInterface(&VirtFs->Device, Tag);
     if (Error != ERROR_SUCCESS)
     {
         // Wait for device to be found by arrival notification callback.
