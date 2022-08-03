@@ -10,7 +10,7 @@
 Signature="$Windows NT$"
 Class=Display
 ClassGUID={4d36e968-e325-11ce-bfc1-08002be10318}
-Provider=%RHEL%
+Provider=%VENDOR%
 DriverVer= 09/05/2018, 1.01.01.0001
 CatalogFile=viogpudo.cat
 PnpLockdown     = 1
@@ -27,10 +27,10 @@ viogpudo.sys = 1,,
 
 
 [Manufacturer]
-%RHEL%=RHEL,NT$ARCH$
+%VENDOR%=VioGpu,NT$ARCH$
 
-[RHEL.NT$ARCH$]
-%VioGpuDod.DeviceDesc% = VioGpuDod_Inst, PCI\VEN_1AF4&DEV_1050&SUBSYS_11001AF4&REV_01
+[VioGpu.NT$ARCH$]
+%VioGpuDod.DeviceDesc% = VioGpuDod_Inst, PCI\VEN_1AF4&DEV_1050&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01
 
 [VioGpuDod_Files_Driver]
 viogpudo.sys,,,2
@@ -79,9 +79,9 @@ HKR, "Interrupt Management\MessageSignaledInterruptProperties", MessageNumberLim
 [Strings]
 
 ;  *******Localizable Strings*******
-diskId1 = "Red Hat VirtIO GPU controller Installation Disk"
-VioGpuDod.DeviceDesc = "Red Hat VirtIO GPU DOD controller"
-RHEL = "Red Hat, Inc."
+diskId1 = "INX_PREFIX_VENDORVirtIO GPU controller Installation Disk"
+VioGpuDod.DeviceDesc = "INX_PREFIX_VENDORVirtIO GPU DOD controller"
+VENDOR = "INX_COMPANY"
 
 ;  *******Non Localizable Strings*******
 SERVICE_BOOT_START = 0x0
