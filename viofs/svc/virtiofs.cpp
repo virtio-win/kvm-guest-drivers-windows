@@ -80,6 +80,7 @@
 #define SafeHeapFree(p) if (p != NULL) { HeapFree(GetProcessHeap(), 0, p); }
 
 #define ReadAndExecute(x) ((x) | (((x) & 0444) >> 2))
+#define GroupAsOwner(x) (((x) & ~0070) | (((x) & 0700) >> 3))
 
 typedef struct
 {
@@ -1130,7 +1131,7 @@ static NTSTATUS GetFileInfoInternal(VIRTFS *VirtFs,
         {
             Status = FspPosixMapPermissionsToSecurityDescriptor(
                 VirtFs->LocalUid, VirtFs->LocalGid,
-                ReadAndExecute(attr->mode), SecurityDescriptor);
+                GroupAsOwner(ReadAndExecute(attr->mode)), SecurityDescriptor);
         }
     }
 
@@ -1306,7 +1307,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
         }
 
         Status = FspPosixMapPermissionsToSecurityDescriptor(VirtFs->LocalUid,
-            VirtFs->LocalGid, ReadAndExecute(attr->mode), &Security);
+            VirtFs->LocalGid, GroupAsOwner(ReadAndExecute(attr->mode)), &Security);
 
         if (NT_SUCCESS(Status))
         {
