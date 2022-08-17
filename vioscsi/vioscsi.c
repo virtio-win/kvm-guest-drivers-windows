@@ -470,14 +470,15 @@ ENTER_FN();
     adaptExt->scsi_config.num_queues = 1;
     adaptExt->scsi_config.seg_max    = SCSI_MINIMUM_PHYSICAL_BREAKS;
     adaptExt->indirect               = FALSE;
+    adaptExt->max_physical_breaks    = SCSI_MINIMUM_PHYSICAL_BREAKS;
     GetScsiConfig(DeviceExtension);
     SetGuestFeatures(DeviceExtension);
 
     ConfigInfo->NumberOfBuses               = 1;
     ConfigInfo->MaximumNumberOfTargets      = min((UCHAR)adaptExt->scsi_config.max_target, 255/*SCSI_MAXIMUM_TARGETS_PER_BUS*/);
     ConfigInfo->MaximumNumberOfLogicalUnits = min((UCHAR)adaptExt->scsi_config.max_lun, SCSI_MAXIMUM_LUNS_PER_TARGET);
-    ConfigInfo->MaximumTransferLength       = SP_UNINITIALIZED_VALUE;       // Unlimited
-    ConfigInfo->NumberOfPhysicalBreaks      = SCSI_MINIMUM_PHYSICAL_BREAKS; // 16
+    ConfigInfo->MaximumTransferLength       = SP_UNINITIALIZED_VALUE; // Unlimited
+    ConfigInfo->NumberOfPhysicalBreaks      = SP_UNINITIALIZED_VALUE; // Unlimited
 
     if (!adaptExt->dump_mode) {
         adaptExt->max_physical_breaks = adaptExt->indirect ? MAX_PHYS_SEGMENTS : PHYS_SEGMENTS;
@@ -494,9 +495,9 @@ ENTER_FN();
 
             adaptExt->max_physical_breaks = adaptExt->scsi_config.max_sectors * SECTOR_SIZE / PAGE_SIZE;
         }
-        ConfigInfo->NumberOfPhysicalBreaks = adaptExt->max_physical_breaks + 1;
-        ConfigInfo->MaximumTransferLength  = adaptExt->max_physical_breaks * PAGE_SIZE;
     }
+    ConfigInfo->NumberOfPhysicalBreaks = adaptExt->max_physical_breaks + 1;
+    ConfigInfo->MaximumTransferLength  = adaptExt->max_physical_breaks * PAGE_SIZE;
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " NumberOfPhysicalBreaks %d\n", ConfigInfo->NumberOfPhysicalBreaks);
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MaximumTransferLength %d\n", ConfigInfo->MaximumTransferLength);
