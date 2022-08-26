@@ -121,11 +121,18 @@ VOID BalloonIoStop(IN WDFQUEUE Queue,
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
         "--> %!FUNC! Request: %p", Request);
 
-    if (WdfRequestUnmarkCancelable(Request) == STATUS_CANCELLED)
+    if (ActionFlags & WdfRequestStopRequestCancelable)
     {
-        WdfRequestStopAcknowledge(Request, FALSE);
+        NTSTATUS status = WdfRequestUnmarkCancelable(Request);
+        __analysis_assume(status != STATUS_NOT_SUPPORTED);
+        if (status == STATUS_CANCELLED)
+        {
+            WdfRequestStopAcknowledge(Request, FALSE);
+            goto end_io_stop;
+        }
     }
-    else if (ActionFlags & WdfRequestStopActionSuspend)
+
+    if (ActionFlags & WdfRequestStopActionSuspend)
     {
         WdfRequestStopAcknowledge(Request, TRUE);
     }
@@ -138,6 +145,7 @@ VOID BalloonIoStop(IN WDFQUEUE Queue,
         WdfRequestComplete(Request, STATUS_UNSUCCESSFUL);
     }
 
+end_io_stop:
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %!FUNC!");
 }
 
