@@ -1528,16 +1528,16 @@ RhelScsiGetInquiryData(
         REVERSE_BYTES(&LimitsPage->OptimalTransferLength, &adaptExt->info.opt_io_size);
         if ((CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD)) &&
             (dataLen >= 0x14)) {
-            ULONG opt_unmap_granularity = 8;
-            ULONG max_discard_sectors = adaptExt->info.max_discard_sectors / (adaptExt->info.blk_size / SECTOR_SIZE);
-            ULONG discard_sector_alignment = adaptExt->info.discard_sector_alignment / (adaptExt->info.blk_size / SECTOR_SIZE);
+            ULONG max_discard_sectors = adaptExt->info.max_discard_sectors;
+            ULONG discard_sector_alignment = 0;
+            ULONG opt_unmap_granularity = adaptExt->info.discard_sector_alignment / adaptExt->info.blk_size;
 
             pageLen = 0x3c;
             REVERSE_BYTES(&LimitsPage->MaximumUnmapLBACount, &max_discard_sectors);
             REVERSE_BYTES(&LimitsPage->MaximumUnmapBlockDescriptorCount, &adaptExt->info.max_discard_seg);
             REVERSE_BYTES(&LimitsPage->OptimalUnmapGranularity, &opt_unmap_granularity);
             REVERSE_BYTES(&LimitsPage->UnmapGranularityAlignment, &discard_sector_alignment);
-            LimitsPage->UGAValid = discard_sector_alignment ? 1 : 0;
+            LimitsPage->UGAValid = 1;
         }
         REVERSE_BYTES_SHORT(&LimitsPage->PageLength, &pageLen);
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, (FIELD_OFFSET(VPD_BLOCK_LIMITS_PAGE, Reserved0) + pageLen));
