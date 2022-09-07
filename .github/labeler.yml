@@ -1,0 +1,20 @@
+ivshmem:
+    - '[Ii][Vv][Ss][Hh][Mm][Ee][Mm]'
+Balloon:
+    - '[Bb][Aa][Ll][Ll][Oo][Oo][Nn]'
+NetKVM:
+    - '[Nn][Ee][Tt](\s|-)*[Kk][Vv][Mm]'
+Spice:
+    - '[Ss][Pp][Ii][Cc][Ee]'
+vioscsi:
+    - '[Vv][Ii]([Rr][Tt][Ii])?[Oo](\s|-)*[Ss][Cc][Ss][Ii]'
+viosock:
+    - '[Vv][Ii]([Rr][Tt][Ii])?[Oo](\s|-)*[Ss][Oo][Cc][Kk]'
+viostor:
+    - '[Vv][Ii]([Rr][Tt][Ii])?[Oo](\s|-)*[Ss][Tt][Oo][Rr]'
+virtio-fs:
+    - '[Vv][Ii]([Rr][Tt][Ii])?[Oo](\s|-)*[Ff][Ss]'
+virtio-gpu:
+    - '[Vv][Ii]([Rr][Tt][Ii])?[Oo](\s|-)*[Gg][Pp][Uu]'
+virtio-input:
+    - '[Vv][Ii]([Rr][Tt][Ii])?[Oo](\s|-)*[Ii][Nn][Pp][Uu][Tt]'
