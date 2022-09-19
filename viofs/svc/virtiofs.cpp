@@ -117,6 +117,7 @@ struct VIRTFS
     // Used to handle device remove notification.
     VIRTFS_NOTIFICATION DevHandleNotification{};
 
+    bool CaseInsensitive{ false };
     std::wstring MountPoint{ L"*" };
     std::wstring Tag{};
 
@@ -136,7 +137,7 @@ struct VIRTFS
     // Maps NodeId to its Nlookup counter.
     std::map<UINT64, UINT64> LookupMap{};
 
-    VIRTFS(ULONG DebugFlags, const std::wstring& MountPoint);
+    VIRTFS(ULONG DebugFlags, bool CaseInsensitive, const std::wstring& MountPoint);
     NTSTATUS Start();
     VOID Stop();
     NTSTATUS SubmitInitRequest();
@@ -145,8 +146,9 @@ struct VIRTFS
     NTSTATUS SubmitDestroyRequest();
 };
 
-VIRTFS::VIRTFS(ULONG DebugFlags, const std::wstring& MountPoint)
-    : DebugFlags{ DebugFlags }, MountPoint{ MountPoint }, Tag{ Tag }
+VIRTFS::VIRTFS(ULONG DebugFlags, bool CaseInsensitive, const std::wstring& MountPoint)
+    : DebugFlags{ DebugFlags }, CaseInsensitive{ CaseInsensitive },
+    MountPoint{ MountPoint }, Tag{ Tag }
 {
 }
 
@@ -2557,8 +2559,8 @@ out_del_fs:
 }
 
 static NTSTATUS ParseArgs(ULONG argc, PWSTR *argv,
-    ULONG& DebugFlags, std::wstring& DebugLogFile, std::wstring& MountPoint,
-    std::wstring& Tag)
+    ULONG& DebugFlags, std::wstring& DebugLogFile, bool &CaseInsensitive,
+    std::wstring& MountPoint, std::wstring& Tag)
 {
 #define argtos(v) if (arge > ++argp && *argp) v.assign(*argp); else goto usage
 #define argtol(v) if (arge > ++argp) v = wcstol_deflt(*argp, v); \
@@ -2582,6 +2584,9 @@ static NTSTATUS ParseArgs(ULONG argc, PWSTR *argv,
                 break;
             case L'D':
                 argtos(DebugLogFile);
+                break;
+            case L'i':
+                CaseInsensitive = true;
                 break;
             case L'm':
                 argtos(MountPoint);
@@ -2611,6 +2616,7 @@ usage:
         "options:\n"
         "    -d DebugFlags       [-1: enable all debug logs]\n"
         "    -D DebugLogFile     [file path; use - for stderr]\n"
+        "    -i                  [case insensitive file system]\n"
         "    -m MountPoint       [X:|* (required if no UNC prefix)]\n"
         "    -t Tag              [mount tag; max 36 symbols]\n";
 
@@ -2620,10 +2626,11 @@ usage:
 }
 
 static VOID ParseRegistry(ULONG& DebugFlags, std::wstring& DebugLogFile,
-    std::wstring& MountPoint)
+    bool &CaseInsensitive, std::wstring& MountPoint)
 {
     RegistryGetVal(FS_SERVICE_REGKEY, L"DebugFlags", DebugFlags);
     RegistryGetVal(FS_SERVICE_REGKEY, L"DebugLogFile", DebugLogFile);
+    RegistryGetVal(FS_SERVICE_REGKEY, L"CaseInsensitive", CaseInsensitive);
     RegistryGetVal(FS_SERVICE_REGKEY, L"MountPoint", MountPoint);
 }
 
@@ -2658,6 +2665,7 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 {
     std::wstring DebugLogFile{};
     ULONG DebugFlags{ 0 };
+    bool CaseInsensitive{ false };
     std::wstring MountPoint{ L"*" };
     std::wstring Tag{};
     VIRTFS *VirtFs;
@@ -2666,11 +2674,12 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 
     if (argc > 1)
     {
-        Status = ParseArgs(argc, argv, DebugFlags, DebugLogFile, MountPoint, Tag);
+        Status = ParseArgs(argc, argv, DebugFlags, DebugLogFile,
+            CaseInsensitive, MountPoint, Tag);
     }
     else
     {
-        ParseRegistry(DebugFlags, DebugLogFile, MountPoint);
+        ParseRegistry(DebugFlags, DebugLogFile, CaseInsensitive, MountPoint);
     }
 
     if (!NT_SUCCESS(Status))
@@ -2689,7 +2698,7 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 
     try
     {
-        VirtFs = new VIRTFS(DebugFlags, MountPoint);
+        VirtFs = new VIRTFS(DebugFlags, CaseInsensitive, MountPoint);
     }
     catch (std::bad_alloc)
     {
