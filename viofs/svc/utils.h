@@ -47,7 +47,8 @@ public:
 
 #define SCOPE_EXIT(x, action, ...) scope_exit x##_se([x, __VA_ARGS__] action);
 
-static DWORD RegistryGetVal(PCWSTR SubKey, PCWSTR ValueName, DWORD& Value)
+template<typename T>
+static DWORD RegistryGetVal(PCWSTR SubKey, PCWSTR ValueName, T& Value)
 {
     LSTATUS Status;
     DWORD Val;
