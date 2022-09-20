@@ -52,6 +52,7 @@
 
 #include "virtiofs.h"
 #include "fusereq.h"
+#include "utils.h"
 
 #define FS_SERVICE_NAME TEXT("VirtIO-FS")
 #define FS_SERVICE_REGKEY   TEXT("Software\\") FS_SERVICE_NAME
@@ -148,19 +149,6 @@ VIRTFS::VIRTFS(ULONG DebugFlags, const std::wstring& MountPoint)
     : DebugFlags{ DebugFlags }, MountPoint{ MountPoint }, Tag{ Tag }
 {
 }
-
-template <typename EF>
-class scope_exit
-{
-    EF exit_func;
-
-public:
-    scope_exit(EF&& exit_func) : exit_func{ exit_func } {};
-    ~scope_exit()
-    {
-        exit_func();
-    }
-};
 
 static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     UINT32 FileAttributes, UINT64 CreationTime, UINT64 LastAccessTime,
