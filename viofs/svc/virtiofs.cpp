@@ -1027,17 +1027,15 @@ static NTSTATUS VirtFsLookupFileName(VIRTFS *VirtFs, PWSTR FileName,
     Status = FspPosixMapWindowsToPosixPath(FileName, &fullpath);
     if (!NT_SUCCESS(Status))
     {
-        FspPosixDeletePath(fullpath);
         return Status;
     }
+    SCOPE_EXIT(fullpath, { FspPosixDeletePath(fullpath); });
 
     Status = PathWalkthough(VirtFs, fullpath, &filename, &parent);
     if (NT_SUCCESS(Status))
     {
         Status = SubmitLookupRequest(VirtFs, parent, filename, LookupOut);
     }
-
-    FspPosixDeletePath(fullpath);
 
     return Status;
 }
@@ -1379,11 +1377,11 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
     {
         return Status;
     }
+    SCOPE_EXIT(fullpath, { FspPosixDeletePath(fullpath); });
 
     Status = PathWalkthough(VirtFs, fullpath, &filename, &parent);
     if (!NT_SUCCESS(Status) && (Status != STATUS_OBJECT_NAME_NOT_FOUND))
     {
-        FspPosixDeletePath(fullpath);
         return Status;
     }
 
@@ -1392,7 +1390,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
 
     if (FileContext == NULL)
     {
-        FspPosixDeletePath(fullpath);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -1420,8 +1417,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
         Status = VirtFsCreateFile(VirtFs, FileContext, GrantedAccess,
             filename, parent, Mode, AllocationSize, FileInfo);
     }
-
-    FspPosixDeletePath(fullpath);
 
     if (!NT_SUCCESS(Status))
     {
@@ -1856,14 +1851,13 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     Status = FspPosixMapWindowsToPosixPath(FileName + 1, &fullpath);
     if (!NT_SUCCESS(Status))
     {
-        FspPosixDeletePath(fullpath);
         return;
     }
+    SCOPE_EXIT(fullpath, { FspPosixDeletePath(fullpath); });
 
     Status = PathWalkthough(VirtFs, fullpath, &filename, &parent);
     if (!NT_SUCCESS(Status))
     {
-        FspPosixDeletePath(fullpath);
         return;
     }
 
@@ -1897,8 +1891,6 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         (VOID)SetBasicInfo(FileSystem, FileContext0, 0, 0, LastAccessTime,
             LastWriteTime, 0, NULL);
     }
-
-    FspPosixDeletePath(fullpath);
 }
 
 static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
@@ -2000,31 +1992,26 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     Status = FspPosixMapWindowsToPosixPath(FileName + 1, &oldfullpath);
     if (!NT_SUCCESS(Status))
     {
-        FspPosixDeletePath(oldfullpath);
         return Status;
     }
+    SCOPE_EXIT(oldfullpath, { FspPosixDeletePath(oldfullpath); });
 
     Status = FspPosixMapWindowsToPosixPath(NewFileName + 1, &newfullpath);
     if (!NT_SUCCESS(Status))
     {
-        FspPosixDeletePath(oldfullpath);
-        FspPosixDeletePath(newfullpath);
         return Status;
     }
+    SCOPE_EXIT(newfullpath, { FspPosixDeletePath(newfullpath); });
 
     Status = PathWalkthough(VirtFs, oldfullpath, &oldname, &oldparent);
     if (!NT_SUCCESS(Status))
     {
-        FspPosixDeletePath(oldfullpath);
-        FspPosixDeletePath(newfullpath);
         return Status;
     }
 
     Status = PathWalkthough(VirtFs, newfullpath, &newname, &newparent);
     if (!NT_SUCCESS(Status))
     {
-        FspPosixDeletePath(oldfullpath);
-        FspPosixDeletePath(newfullpath);
         return Status;
     }
 
@@ -2056,9 +2043,6 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     {
         Status = STATUS_ACCESS_DENIED;
     }
-
-    FspPosixDeletePath(oldfullpath);
-    FspPosixDeletePath(newfullpath);
 
     return Status;
 }
@@ -2348,24 +2332,22 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     Status = FspPosixMapWindowsToPosixPath(TargetName, &targetname);
     if (!NT_SUCCESS(Status))
     {
-        FspPosixDeletePath(targetname);
         return Status;
     }
+    SCOPE_EXIT(targetname, { FspPosixDeletePath(targetname); });
 
     Status = PathWalkthough(VirtFs, targetname, &filename, &parent);
     if (!NT_SUCCESS(Status))
     {
-        FspPosixDeletePath(targetname);
         return Status;
     }
 
     Status = FspPosixMapWindowsToPosixPath(FileName + 1, &linkname);
     if (!NT_SUCCESS(Status))
     {
-        FspPosixDeletePath(targetname);
-        FspPosixDeletePath(linkname);
         return Status;
     }
+    SCOPE_EXIT(linkname, { FspPosixDeletePath(linkname); });
 
     linkname_len = lstrlenA(linkname) + 1;
     targetname_len = lstrlenA(targetname) + 1;
@@ -2375,8 +2357,6 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
 
     if (symlink_in == NULL)
     {
-        FspPosixDeletePath(targetname);
-        FspPosixDeletePath(linkname);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -2385,9 +2365,6 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
 
     CopyMemory(symlink_in->names, linkname, linkname_len);
     CopyMemory(symlink_in->names + linkname_len, targetname, targetname_len);
-
-    FspPosixDeletePath(targetname);
-    FspPosixDeletePath(linkname);
 
     Status = VirtFsFuseRequest(VirtFs->Device, symlink_in,
         symlink_in->hdr.len, &symlink_out, sizeof(symlink_out));
@@ -2411,9 +2388,9 @@ static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
     Status = FspPosixMapWindowsToPosixPath(FileName, &filename);
     if (!NT_SUCCESS(Status))
     {
-        FspPosixDeletePath(filename);
         return Status;
     }
+    SCOPE_EXIT(filename, { FspPosixDeletePath(filename); });
 
     Status = SubmitLookupRequest(VirtFs, FileContext->NodeId,
         filename, &lookup_out);
@@ -2428,8 +2405,6 @@ static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
         CopyMemory(DirInfo->FileNameBuf, FileName,
             DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
     }
-
-    FspPosixDeletePath(filename);
 
     return Status;
 }
