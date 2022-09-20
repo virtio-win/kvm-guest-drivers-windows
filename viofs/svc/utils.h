@@ -40,3 +40,4 @@ public:
     }
 };
 
+#define SCOPE_EXIT(x, action, ...) scope_exit x##_se([x, __VA_ARGS__] action);
