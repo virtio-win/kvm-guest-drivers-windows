@@ -140,9 +140,26 @@ struct VIRTFS
     VIRTFS(ULONG DebugFlags, bool CaseInsensitive, const std::wstring& MountPoint);
     NTSTATUS Start();
     VOID Stop();
+
+    VOID LookupMapNewOrIncNode(UINT64 NodeId);
+    UINT64 LookupMapPopNode(UINT64 NodeId);
+
+    NTSTATUS ReadDirAndIgnoreCaseSearch(const VIRTFS_FILE_CONTEXT* ParentContext,
+        const char *filename, std::string& result);
+    template<class Request, class... Args>
+    requires std::invocable<Request, VIRTFS *, uint64_t, const char *, Args...>
+    NTSTATUS NameAwareRequest(uint64_t parent, const char *name, Request req, Args... args);
+
     NTSTATUS SubmitInitRequest();
     NTSTATUS SubmitOpenRequest(UINT32 GrantedAccess,
         VIRTFS_FILE_CONTEXT *FileContext);
+    NTSTATUS SubmitReadDirRequest(const VIRTFS_FILE_CONTEXT *FileContext, uint64_t Offset,
+        bool Plus, FUSE_READ_OUT *read_out, uint32_t read_out_size);
+    NTSTATUS SubmitReleaseRequest(const VIRTFS_FILE_CONTEXT *FileContext);
+    NTSTATUS SubmitLookupRequest(uint64_t parent, const char *filename,
+        FUSE_LOOKUP_OUT *lookup_out);
+    NTSTATUS SubmitDeleteRequest(uint64_t parent, const char *filename,
+        const VIRTFS_FILE_CONTEXT *FileContext);
     NTSTATUS SubmitDestroyRequest();
 };
 
@@ -785,9 +802,9 @@ static NTSTATUS VirtFsCreateDir(VIRTFS *VirtFs,
     return Status;
 }
 
-static VOID VirtFsLookupMapNewOrIncNode(VIRTFS *VirtFs, UINT64 NodeId)
+VOID VIRTFS::LookupMapNewOrIncNode(UINT64 NodeId)
 {
-    auto EmplaceResult = VirtFs->LookupMap.emplace(NodeId, 1);
+    auto EmplaceResult = LookupMap.emplace(NodeId, 1);
 
     if (!EmplaceResult.second)
     {
@@ -795,9 +812,9 @@ static VOID VirtFsLookupMapNewOrIncNode(VIRTFS *VirtFs, UINT64 NodeId)
     }
 }
 
-static UINT64 VirtFsLookupMapPopNode(VIRTFS* VirtFs, UINT64 NodeId)
+UINT64 VIRTFS::LookupMapPopNode(UINT64 NodeId)
 {
-    auto Item = VirtFs->LookupMap.extract(NodeId);
+    auto Item = LookupMap.extract(NodeId);
 
     return Item.empty() ? 0 : Item.mapped();
 }
@@ -818,28 +835,36 @@ static VOID SubmitForgetRequest(HANDLE Device, UINT64 NodeId, UINT64 Nlookup)
         &forget_out, sizeof(forget_out));
 }
 
-static VOID SubmitDeleteRequest(VIRTFS *VirtFs,
-    VIRTFS_FILE_CONTEXT *FileContext, CHAR *FileName, UINT64 Parent)
+NTSTATUS VIRTFS::SubmitDeleteRequest(uint64_t parent, const char *filename,
+    const VIRTFS_FILE_CONTEXT *FileContext)
 {
     FUSE_UNLINK_IN unlink_in;
     FUSE_UNLINK_OUT unlink_out;
-    UINT64 Nlookup = VirtFsLookupMapPopNode(VirtFs, FileContext->NodeId);
 
     FUSE_HEADER_INIT(&unlink_in.hdr,
-        FileContext->IsDirectory ? FUSE_RMDIR : FUSE_UNLINK, Parent,
-        lstrlenA(FileName) + 1);
+        FileContext->IsDirectory ? FUSE_RMDIR : FUSE_UNLINK, parent,
+        lstrlenA(filename) + 1);
 
-    lstrcpyA(unlink_in.name, FileName);
+    lstrcpyA(unlink_in.name, filename);
 
-    (VOID)VirtFsFuseRequest(VirtFs->Device, &unlink_in, unlink_in.hdr.len,
+    NTSTATUS Status = VirtFsFuseRequest(Device, &unlink_in, unlink_in.hdr.len,
         &unlink_out, sizeof(unlink_out));
 
-    SubmitForgetRequest(VirtFs->Device, FileContext->NodeId, Nlookup);
+    if (NT_SUCCESS(Status))
+    {
+        UINT64 Nlookup = LookupMapPopNode(FileContext->NodeId);
+
+        SubmitForgetRequest(Device, FileContext->NodeId, Nlookup);
+    }
+
+    return Status;
 }
 
-static NTSTATUS SubmitLookupRequest(VIRTFS *VirtFs, uint64_t parent,
-    char *filename, FUSE_LOOKUP_OUT *LookupOut)
+NTSTATUS VIRTFS::SubmitLookupRequest(uint64_t parent, const char *filename,
+    FUSE_LOOKUP_OUT *lookup_out)
 {
+    DBG("filename = '%s' parent = %I64u", filename, parent);
+
     NTSTATUS Status;
     FUSE_LOOKUP_IN lookup_in;
 
@@ -848,19 +873,19 @@ static NTSTATUS SubmitLookupRequest(VIRTFS *VirtFs, uint64_t parent,
 
     lstrcpyA(lookup_in.name, filename);
 
-    Status = VirtFsFuseRequest(VirtFs->Device, &lookup_in, lookup_in.hdr.len,
-        LookupOut, sizeof(*LookupOut));
+    Status = VirtFsFuseRequest(Device, &lookup_in, lookup_in.hdr.len,
+        lookup_out, sizeof(*lookup_out));
 
     if (NT_SUCCESS(Status))
     {
-        struct fuse_attr *attr = &LookupOut->entry.attr;
+        struct fuse_attr *attr = &lookup_out->entry.attr;
 
-        VirtFsLookupMapNewOrIncNode(VirtFs, LookupOut->entry.nodeid);
+        LookupMapNewOrIncNode(lookup_out->entry.nodeid);
 
         DBG("nodeid=%I64u ino=%I64u size=%I64u blocks=%I64u atime=%I64u mtime=%I64u "
             "ctime=%I64u atimensec=%u mtimensec=%u ctimensec=%u mode=%x "
             "nlink=%u uid=%u gid=%u rdev=%u blksize=%u",
-            LookupOut->entry.nodeid, attr->ino, attr->size, attr->blocks,
+            lookup_out->entry.nodeid, attr->ino, attr->size, attr->blocks,
             attr->atime, attr->mtime, attr->ctime, attr->atimensec,
             attr->mtimensec, attr->ctimensec, attr->mode, attr->nlink,
             attr->uid, attr->gid, attr->rdev, attr->blksize);
@@ -963,6 +988,39 @@ static NTSTATUS SubmitRename2Request(HANDLE Device, uint64_t oldparent,
     return Status;
 }
 
+template<class Request, class... Args>
+requires std::invocable<Request, VIRTFS *, uint64_t, const char *, Args...>
+NTSTATUS VIRTFS::NameAwareRequest(uint64_t parent, const char *name, Request req, Args... args)
+{
+    // First attempt
+    NTSTATUS Status = std::invoke(req, this, parent, name, args...);
+    if (NT_SUCCESS(Status) || !CaseInsensitive)
+    {
+        return Status;
+    }
+
+    VIRTFS_FILE_CONTEXT ParentContext = { .IsDirectory = TRUE, .NodeId = parent, };
+
+    Status = SubmitOpenRequest(0, &ParentContext);
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+    SCOPE_EXIT(ParentContext, { SubmitReleaseRequest(&ParentContext); }, this);
+
+    std::string result_name{};
+    Status = ReadDirAndIgnoreCaseSearch(&ParentContext, name, result_name);
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    // Second attempt
+    Status = std::invoke(req, this, parent, result_name.c_str(), args...);
+
+    return Status;
+}
+
 static NTSTATUS PathWalkthough(VIRTFS *VirtFs, CHAR *FullPath,
     CHAR **FileName, UINT64 *Parent)
 {
@@ -979,7 +1037,8 @@ static NTSTATUS PathWalkthough(VIRTFS *VirtFs, CHAR *FullPath,
     {
         *Separator = '\0';
 
-        Status = SubmitLookupRequest(VirtFs, *Parent, *FileName, &LookupOut);
+        Status = VirtFs->NameAwareRequest(*Parent, *FileName,
+            &VIRTFS::SubmitLookupRequest, &LookupOut);
         if (!NT_SUCCESS(Status))
         {
             break;
@@ -1036,7 +1095,8 @@ static NTSTATUS VirtFsLookupFileName(VIRTFS *VirtFs, PWSTR FileName,
     Status = PathWalkthough(VirtFs, fullpath, &filename, &parent);
     if (NT_SUCCESS(Status))
     {
-        Status = SubmitLookupRequest(VirtFs, parent, filename, LookupOut);
+        Status = VirtFs->NameAwareRequest(parent, filename,
+            &VIRTFS::SubmitLookupRequest, LookupOut);
     }
 
     return Status;
@@ -1518,14 +1578,10 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
         FileInfo);
 }
 
-static VOID Close(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0)
+NTSTATUS VIRTFS::SubmitReleaseRequest(const VIRTFS_FILE_CONTEXT *FileContext)
 {
-    VIRTFS *VirtFs = (VIRTFS *)FileSystem->UserContext;
-    VIRTFS_FILE_CONTEXT *FileContext = (VIRTFS_FILE_CONTEXT *)FileContext0;
     FUSE_RELEASE_IN release_in;
     FUSE_RELEASE_OUT release_out;
-
-    DBG("fh: %I64u nodeid: %I64u", FileContext->FileHandle, FileContext->NodeId);
 
     FUSE_HEADER_INIT(&release_in.hdr,
         FileContext->IsDirectory ? FUSE_RELEASEDIR : FUSE_RELEASE,
@@ -1536,8 +1592,18 @@ static VOID Close(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0)
     release_in.release.lock_owner = 0;
     release_in.release.release_flags = 0;
 
-    (VOID)VirtFsFuseRequest(VirtFs->Device, &release_in, sizeof(release_in),
+    return VirtFsFuseRequest(Device, &release_in, sizeof(release_in),
         &release_out, sizeof(release_out));
+}
+
+static VOID Close(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0)
+{
+    VIRTFS *VirtFs = (VIRTFS *)FileSystem->UserContext;
+    VIRTFS_FILE_CONTEXT *FileContext = (VIRTFS_FILE_CONTEXT *)FileContext0;
+
+    DBG("fh: %I64u nodeid: %I64u", FileContext->FileHandle, FileContext->NodeId);
+
+    (VOID)VirtFs->SubmitReleaseRequest(FileContext);
 
     FspFileSystemDeleteDirectoryBuffer(&FileContext->DirBuffer);
 
@@ -1865,7 +1931,8 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
 
     if (Flags & FspCleanupDelete)
     {
-        SubmitDeleteRequest(VirtFs, FileContext, filename, parent);
+        VirtFs->NameAwareRequest(parent, filename,
+            &VIRTFS::SubmitDeleteRequest, FileContext);
     }
     else
     {
@@ -2157,6 +2224,87 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     return Status;
 }
 
+NTSTATUS VIRTFS::SubmitReadDirRequest(const VIRTFS_FILE_CONTEXT *FileContext,
+    uint64_t Offset, bool Plus, FUSE_READ_OUT *read_out, uint32_t read_out_size)
+{
+    FUSE_READ_IN read_in;
+
+    FUSE_HEADER_INIT(&read_in.hdr, Plus ? FUSE_READDIRPLUS : FUSE_READDIR,
+        FileContext->NodeId, sizeof(read_in.read));
+
+    read_in.read.fh = FileContext->FileHandle;
+    read_in.read.offset = Offset;
+    read_in.read.size = read_out_size - sizeof(struct fuse_out_header);
+    read_in.read.read_flags = 0;
+    read_in.read.lock_owner = 0;
+    read_in.read.flags = 0;
+
+    return VirtFsFuseRequest(Device, &read_in, sizeof(read_in),
+        read_out, read_out_size);
+}
+
+NTSTATUS VIRTFS::ReadDirAndIgnoreCaseSearch(const VIRTFS_FILE_CONTEXT *ParentContext,
+    const char *filename, std::string &result)
+{
+    NTSTATUS Status;
+    struct fuse_dirent *dirent;
+    UINT64 Offset = 0;
+    UINT32 Remains;
+    uint32_t buf_size = PAGE_SZ_4K - sizeof(struct fuse_out_header);
+    WCHAR FileName[MAX_PATH];
+
+    DBG("filename = '%s'", filename);
+
+    FUSE_READ_OUT *read_out = (FUSE_READ_OUT *)HeapAlloc(GetProcessHeap(), 0,
+        sizeof(struct fuse_out_header) + buf_size);
+    if (read_out == NULL)
+    {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    SCOPE_EXIT(read_out, { SafeHeapFree(read_out); });
+
+    if (MultiByteToWideChar(CP_UTF8, 0, filename, -1, FileName, MAX_PATH) == 0)
+    {
+        return FspNtStatusFromWin32(GetLastError());
+    }
+
+    for (;;)
+    {
+        Status = SubmitReadDirRequest(ParentContext, Offset, FALSE,
+            read_out, buf_size + sizeof(struct fuse_out_header));
+        if (!NT_SUCCESS(Status))
+        {
+            return Status;
+        }
+
+        Remains = read_out->hdr.len - sizeof(struct fuse_out_header);
+        if (Remains == 0)
+        {
+            break;
+        }
+
+        dirent = (struct fuse_dirent *)read_out->buf;
+
+        while (Remains > sizeof(struct fuse_dirent))
+        {
+            if (FileNameIgnoreCaseCompare(FileName, dirent->name, dirent->namelen))
+            {
+                result.assign(dirent->name, dirent->namelen);
+                DBG("match: name = '%s' (%u) type = %u",
+                    result.c_str(), dirent->namelen, dirent->type);
+
+                return STATUS_SUCCESS;
+            }
+
+            Offset = dirent->off;
+            Remains -= FUSE_DIRENT_SIZE(dirent);
+            dirent = (struct fuse_dirent *)((PBYTE)dirent + FUSE_DIRENT_SIZE(dirent));
+        }
+    }
+
+    return STATUS_OBJECT_NAME_NOT_FOUND;
+}
+
 static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     PWSTR Pattern, PWSTR Marker, PVOID Buffer, ULONG BufferLength,
     PULONG PBytesTransferred)
@@ -2171,7 +2319,6 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     UINT32 Remains;
     BOOLEAN Result;
     int FileNameLength;
-    FUSE_READ_IN read_in;
     FUSE_READ_OUT *read_out;
 
     DBG("Pattern: %S Marker: %S BufferLength: %u",
@@ -2190,19 +2337,8 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         {
             for (;;)
             {
-                FUSE_HEADER_INIT(&read_in.hdr, FUSE_READDIRPLUS,
-                    FileContext->NodeId, sizeof(read_in.read));
-
-                read_in.read.fh = FileContext->FileHandle;
-                read_in.read.offset = Offset;
-                read_in.read.size = BufferLength * 2;
-                read_in.read.read_flags = 0;
-                read_in.read.lock_owner = 0;
-                read_in.read.flags = 0;
-
-                Status = VirtFsFuseRequest(VirtFs->Device, &read_in,
-                    sizeof(read_in), read_out,
-                    sizeof(struct fuse_out_header) + read_in.read.size);
+                VirtFs->SubmitReadDirRequest(FileContext, Offset, TRUE, read_out,
+                    sizeof(struct fuse_out_header) + (ULONG64)BufferLength * 2);
 
                 if (!NT_SUCCESS(Status))
                 {
@@ -2257,8 +2393,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
                     if (wcscmp(DirInfo->FileNameBuf, L".") &&
                         wcscmp(DirInfo->FileNameBuf, L".."))
                     {
-                        VirtFsLookupMapNewOrIncNode(VirtFs,
-                            DirEntryPlus->entry_out.nodeid);
+                        VirtFs->LookupMapNewOrIncNode(DirEntryPlus->entry_out.nodeid);
                     }
 
                     Offset = DirEntryPlus->dirent.off;
@@ -2394,8 +2529,8 @@ static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
     }
     SCOPE_EXIT(filename, { FspPosixDeletePath(filename); });
 
-    Status = SubmitLookupRequest(VirtFs, FileContext->NodeId,
-        filename, &lookup_out);
+    Status = VirtFs->NameAwareRequest(FileContext->NodeId, filename,
+        &VIRTFS::SubmitLookupRequest, &lookup_out);
 
     if (NT_SUCCESS(Status))
     {
