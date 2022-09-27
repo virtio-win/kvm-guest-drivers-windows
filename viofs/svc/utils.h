@@ -96,3 +96,16 @@ static DWORD RegistryGetVal(PCWSTR SubKey, PCWSTR ValueName, std::wstring& Value
 
     return Status;
 }
+
+static bool FileNameIgnoreCaseCompare(PCWSTR a, const char *b, uint32_t b_len)
+{
+    WCHAR wide_b[MAX_PATH];
+
+    int wide_b_len = MultiByteToWideChar(CP_UTF8, 0, b, b_len, wide_b, MAX_PATH);
+    if (wide_b_len == 0)
+    {
+        return false;
+    }
+
+    return (CompareStringW(LOCALE_INVARIANT, NORM_IGNORECASE, a, -1, wide_b, wide_b_len) == CSTR_EQUAL);
+}
