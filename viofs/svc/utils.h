@@ -27,6 +27,11 @@
 
 #pragma once
 
+#include <Windows.h>
+
+#include <memory>
+#include <string>
+
 template <typename EF>
 class scope_exit
 {
@@ -41,3 +46,52 @@ public:
 };
 
 #define SCOPE_EXIT(x, action, ...) scope_exit x##_se([x, __VA_ARGS__] action);
+
+static DWORD RegistryGetVal(PCWSTR SubKey, PCWSTR ValueName, DWORD& Value)
+{
+    LSTATUS Status;
+    DWORD Val;
+    DWORD ValSize = sizeof(Val);
+
+    Status = RegGetValueW(HKEY_LOCAL_MACHINE, SubKey, ValueName,
+        RRF_RT_REG_DWORD, NULL, &Val, &ValSize);
+    if (Status == ERROR_SUCCESS)
+    {
+        Value = Val;
+    }
+
+    return Status;
+}
+
+static DWORD RegistryGetVal(PCWSTR SubKey, PCWSTR ValueName, std::wstring& Value)
+{
+    LSTATUS Status;
+    DWORD BufSize = 0;
+    std::unique_ptr<WCHAR[]> Buf;
+
+    // Determine required buffer size
+    Status = RegGetValueW(HKEY_LOCAL_MACHINE, SubKey, ValueName,
+        RRF_RT_REG_SZ, NULL, NULL, &BufSize);
+    if (Status != ERROR_SUCCESS)
+    {
+        return Status;
+    }
+
+    try
+    {
+        Buf = std::make_unique<WCHAR[]>(BufSize / sizeof(WCHAR));
+    }
+    catch (std::bad_alloc)
+    {
+        return ERROR_NO_SYSTEM_RESOURCES;
+    }
+
+    Status = RegGetValueW(HKEY_LOCAL_MACHINE, SubKey, ValueName,
+        RRF_RT_REG_SZ, NULL, Buf.get(), &BufSize);
+    if (Status == ERROR_SUCCESS)
+    {
+        Value.assign(Buf.get());
+    }
+
+    return Status;
+}

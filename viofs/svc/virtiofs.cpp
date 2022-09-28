@@ -2644,63 +2644,12 @@ usage:
     return STATUS_UNSUCCESSFUL;
 }
 
-static DWORD VirtFsRegistryGetDword(PCWSTR ValueName, DWORD& Value)
-{
-    LSTATUS Status;
-    DWORD Val;
-    DWORD ValSize = sizeof(Val);
-
-    Status = RegGetValue(HKEY_LOCAL_MACHINE, FS_SERVICE_REGKEY, ValueName,
-        RRF_RT_REG_DWORD, NULL, &Val, &ValSize);
-    if (Status == ERROR_SUCCESS)
-    {
-        Value = Val;
-    }
-
-    return Status;
-}
-
-static DWORD VirtFsRegistryGetString(PCWSTR ValueName, std::wstring& Str)
-{
-    LSTATUS Status;
-    DWORD BufSize = 0;
-    PWSTR Buf;
-
-    // Determine required buffer size
-    Status = RegGetValue(HKEY_LOCAL_MACHINE, FS_SERVICE_REGKEY, ValueName,
-        RRF_RT_REG_SZ, NULL, NULL, &BufSize);
-    if (Status != ERROR_SUCCESS)
-    {
-        return Status;
-    }
-
-    try
-    {
-        Buf = new WCHAR[BufSize];
-    }
-    catch (std::bad_alloc)
-    {
-        return ERROR_NO_SYSTEM_RESOURCES;
-    }
-
-    Status = RegGetValue(HKEY_LOCAL_MACHINE, FS_SERVICE_REGKEY, ValueName,
-        RRF_RT_REG_SZ, NULL, Buf, &BufSize);
-    if (Status == ERROR_SUCCESS)
-    {
-        Str.assign(Buf);
-    }
-
-    delete[] Buf;
-
-    return Status;
-}
-
 static VOID ParseRegistry(ULONG& DebugFlags, std::wstring& DebugLogFile,
     std::wstring& MountPoint)
 {
-    VirtFsRegistryGetDword(L"DebugFlags", DebugFlags);
-    VirtFsRegistryGetString(L"DebugLogFile", DebugLogFile);
-    VirtFsRegistryGetString(L"MountPoint", MountPoint);
+    RegistryGetVal(FS_SERVICE_REGKEY, L"DebugFlags", DebugFlags);
+    RegistryGetVal(FS_SERVICE_REGKEY, L"DebugLogFile", DebugLogFile);
+    RegistryGetVal(FS_SERVICE_REGKEY, L"MountPoint", MountPoint);
 }
 
 static NTSTATUS DebugLogSet(const std::wstring& DebugLogFile)
