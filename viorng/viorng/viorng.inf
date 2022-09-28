@@ -34,7 +34,6 @@ VirtRng_Wdf_CoInstaller_CopyFiles = 11
 [SourceDisksFiles]
 viorng.sys = 1,,
 viorngum.dll = 1
-viorngci.dll = 1
 WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll = 1 ; make sure the number matches with SourceDisksNames
 
 ; ---------------
@@ -99,12 +98,11 @@ AddReg=VirtRng_Wdf_CoInstaller_AddReg
 CopyFiles=VirtRng_Wdf_CoInstaller_CopyFiles
 
 [VirtRng_Wdf_CoInstaller_AddReg]
-HKR,,CoInstallers32,0x00010000,"viorngci.dll,VirtRngCoInstaller", \
+HKR,,CoInstallers32,0x00010000, \
     "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
 
 [VirtRng_Wdf_CoInstaller_CopyFiles]
 WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
-viorngci.dll
 
 [VirtRng_Device.NT.Wdf]
 KmdfService = VirtRng, VirtRng_wdfsect
