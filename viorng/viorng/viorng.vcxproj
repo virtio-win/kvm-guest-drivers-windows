@@ -61,6 +61,9 @@
     <DriverType>KMDF</DriverType>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Win10 Release'" Label="Configuration">
+    <DriverTargetPlatform>Universal</DriverTargetPlatform>
+  </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\viorng.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
