@@ -1320,7 +1320,11 @@ VIOSockReadDequeueCb(
 
     status = WdfIoQueueRetrieveNextRequest(pSocket->ReadQueue, &ReadRequest);
     if (!NT_SUCCESS(status))
+    {
+        InterlockedExchange(&lInProgress, 0);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "The read queue is empty, exiting from VIOSockReadDequeueCb\n");
         return FALSE;
+    }
 
     pRequest = GetRequestRxContext(ReadRequest);
 
