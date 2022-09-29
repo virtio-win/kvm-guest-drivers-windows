@@ -61,47 +61,6 @@ CRYPT_PROVIDER_REG VirtRngProvider = {
     0, NULL, &VirtRngImage, NULL
 };
 
-typedef ULONG (WINAPI* RtlNtStatusToDosErrorFunc)(IN NTSTATUS status);
-
-static DWORD ToDosError(NTSTATUS status)
-{
-    DWORD error = NO_ERROR;
-    HMODULE ntdll;
-    RtlNtStatusToDosErrorFunc RtlNtStatusToDosError;
-
-    ntdll = LoadLibrary(L"Ntdll.dll");
-    if (ntdll != NULL)
-    {
-        RtlNtStatusToDosError = (RtlNtStatusToDosErrorFunc)
-            GetProcAddress(ntdll, "RtlNtStatusToDosError");
-
-        if (RtlNtStatusToDosError != NULL)
-        {
-            error = RtlNtStatusToDosError(status);
-        }
-        else
-        {
-            error = GetLastError();
-            SetupWriteTextLogError(SetupGetThreadLogToken(),
-                TXTLOG_INSTALLER,
-                TXTLOG_ERROR,
-                error,
-                "RtlNtStatusToDosError function not found.");
-        }
-    }
-    else
-    {
-        error = GetLastError();
-        SetupWriteTextLogError(SetupGetThreadLogToken(),
-            TXTLOG_INSTALLER,
-            TXTLOG_ERROR,
-            error,
-            "Failed to load ntdll.dll.");
-    }
-
-    return error;
-}
-
 NTSTATUS WINAPI RegisterProvider(BOOLEAN KernelMode)
 {
     NTSTATUS status;
@@ -113,11 +72,7 @@ NTSTATUS WINAPI RegisterProvider(BOOLEAN KernelMode)
 
     if (!NT_SUCCESS(status))
     {
-        SetupWriteTextLogError(SetupGetThreadLogToken(),
-            TXTLOG_INSTALLER,
-            TXTLOG_ERROR,
-            ToDosError(status),
-            "Failed to register as a CNG provider.");
+        printf("Failed to register as a CNG provider, error %ld\n", status);
         return status;
     }
 
@@ -127,11 +82,7 @@ NTSTATUS WINAPI RegisterProvider(BOOLEAN KernelMode)
 
     if (!NT_SUCCESS(status))
     {
-        SetupWriteTextLogError(SetupGetThreadLogToken(),
-            TXTLOG_INSTALLER,
-            TXTLOG_ERROR,
-            ToDosError(status),
-            "Failed to add cryptographic function.");
+        printf("Failed to add cryptographic function, error %ld\n", status);
     }
 
     return status;
@@ -146,59 +97,46 @@ NTSTATUS WINAPI UnregisterProvider()
 
     if (!NT_SUCCESS(status))
     {
-        SetupWriteTextLogError(SetupGetThreadLogToken(),
-            TXTLOG_INSTALLER,
-            TXTLOG_WARNING,
-            ToDosError(status),
-            "Failed to remove cryptographic function.");
+        printf("Failed to remove cryptographic function, error %ld\n", status);
     }
 
     status = BCryptUnregisterProvider(VIRTRNG_PROVIDER_NAME);
     if (!NT_SUCCESS(status))
     {
-        SetupWriteTextLogError(SetupGetThreadLogToken(),
-            TXTLOG_INSTALLER,
-            TXTLOG_WARNING,
-            ToDosError(status),
-            "Failed to unregister as a CNG provider.");
+        printf("Failed to unregister as a CNG provider, error %ld\n", status);
     }
 
-    return STATUS_SUCCESS;
+    return status;
 }
 
-DWORD CALLBACK VirtRngCoInstaller(IN DI_FUNCTION InstallFunction,
-                                  IN HDEVINFO DeviceInfoSet,
-                                  IN PSP_DEVINFO_DATA DeviceInfoData OPTIONAL,
-                                  IN OUT PCOINSTALLER_CONTEXT_DATA Context)
+ULONG
+_cdecl
+wmain(
+    __in              ULONG argc,
+    __in_ecount(argc) PWCHAR argv[]
+)
 {
-    NTSTATUS status;
-    DWORD error = NO_ERROR;
+    NTSTATUS status = STATUS_SUCCESS;
 
-    UNREFERENCED_PARAMETER(DeviceInfoSet);
-    UNREFERENCED_PARAMETER(DeviceInfoData);
-    UNREFERENCED_PARAMETER(Context);
-
-    switch (InstallFunction)
+    if (argc == 2)
     {
-        case DIF_INSTALLDEVICE:
+        if (_tcsicmp(L"--register", argv[1]) == 0) {
             status = RegisterProvider(FALSE);
-            if (!NT_SUCCESS(status))
-            {
-                error = ToDosError(status);
-            }
-            break;
+            printf("Register finished with status %ld\n", status);
 
-        case DIF_REMOVE:
+        }
+        else if (_tcsicmp(L"--unregister", argv[1]) == 0) {
             status = UnregisterProvider();
-            if (!NT_SUCCESS(status))
-            {
-                error = ToDosError(status);
-            }
-            break;
+            printf("Unregister finished with status %ld\n", status);
 
-        default:
-            break;
+        }
+        else {
+            printf("viorngci.exe --register|--unregister\n");
+        }
+    }
+    else {
+        printf("viorngci.exe --register|--unregister\n");
     }
 
-    return error;
+    return NT_SUCCESS(status) ? 0 : 1;
 }
