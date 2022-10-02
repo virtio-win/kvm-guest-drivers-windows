@@ -137,9 +137,15 @@ struct VIRTFS
     // Maps NodeId to its Nlookup counter.
     std::map<UINT64, UINT64> LookupMap{};
 
-    VIRTFS(ULONG DebugFlags, bool CaseInsensitive, const std::wstring& MountPoint);
+    VIRTFS(ULONG DebugFlags, bool CaseInsensitive, const std::wstring& MountPoint,
+        const std::wstring& Tag) : DebugFlags{ DebugFlags },
+        CaseInsensitive{ CaseInsensitive }, MountPoint{ MountPoint }, Tag{ Tag }
+    {
+    }
     NTSTATUS Start();
     VOID Stop();
+
+    DWORD FindDeviceInterface();
 
     VOID LookupMapNewOrIncNode(UINT64 NodeId);
     UINT64 LookupMapPopNode(UINT64 NodeId);
@@ -163,12 +169,6 @@ struct VIRTFS
     NTSTATUS SubmitDestroyRequest();
 };
 
-VIRTFS::VIRTFS(ULONG DebugFlags, bool CaseInsensitive, const std::wstring& MountPoint)
-    : DebugFlags{ DebugFlags }, CaseInsensitive{ CaseInsensitive },
-    MountPoint{ MountPoint }, Tag{ Tag }
-{
-}
-
 static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     UINT32 FileAttributes, UINT64 CreationTime, UINT64 LastAccessTime,
     UINT64 LastWriteTime, UINT64 ChangeTime, FSP_FSCTL_FILE_INFO *FileInfo);
@@ -183,8 +183,6 @@ static VOID GetVolumeName(HANDLE Device, PWSTR VolumeName, DWORD VolumeNameSize)
 
 static NTSTATUS VirtFsLookupFileName(VIRTFS *VirtFs, PWSTR FileName,
     FUSE_LOOKUP_OUT *LookupOut);
-
-static DWORD FindDeviceInterface(PHANDLE Device, const std::wstring& Tag);
 
 static DWORD WINAPI DeviceNotificationCallback(HCMNOTIFICATION Notify,
     PVOID Context, CM_NOTIFY_ACTION Action, PCM_NOTIFY_EVENT_DATA EventData,
@@ -318,6 +316,22 @@ VOID VIRTFS::Stop()
     SubmitDestroyRequest();
 }
 
+DWORD VIRTFS::FindDeviceInterface()
+{
+    if (Tag.empty())
+    {
+        return ::FindDeviceInterface(&GUID_DEVINTERFACE_VIRT_FS, &Device, 0);
+    }
+
+    auto tag_cmp_fn = [this](HANDLE Device) {
+        WCHAR VolumeName[MAX_FILE_SYSTEM_NAME + 1];
+        GetVolumeName(Device, VolumeName, sizeof(VolumeName));
+        return Tag == VolumeName;
+    };
+
+    return ::FindDeviceInterface(&GUID_DEVINTERFACE_VIRT_FS, &Device, tag_cmp_fn);
+}
+
 static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
 {
     DWORD Error;
@@ -329,7 +343,7 @@ static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
     // Wait for unregister work to end, if any.
     WaitForThreadpoolWorkCallbacks(Notification->UnregWork, FALSE);
 
-    Error = FindDeviceInterface(&VirtFs->Device, VirtFs->Tag);
+    Error = VirtFs->FindDeviceInterface();
     if (Error != ERROR_SUCCESS)
     {
         return Error;
@@ -430,93 +444,6 @@ static DWORD VirtFsRegDevInterfaceNotification(VIRTFS *VirtFs)
     }
 
     return CM_MapCrToWin32Err(ConfigRet, ERROR_NOT_SUPPORTED);
-}
-
-static DWORD FindDeviceInterface(PHANDLE Device, DWORD MemberIndex)
-{
-    HDEVINFO DevInfo;
-    SECURITY_ATTRIBUTES SecurityAttributes;
-    SP_DEVICE_INTERFACE_DATA DevIfaceData;
-    PSP_DEVICE_INTERFACE_DETAIL_DATA DevIfaceDetail = NULL;
-    ULONG Length, RequiredLength = 0;
-
-    DevInfo = SetupDiGetClassDevs(&GUID_DEVINTERFACE_VIRT_FS, NULL, NULL,
-        (DIGCF_PRESENT | DIGCF_DEVICEINTERFACE));
-    if (DevInfo == INVALID_HANDLE_VALUE)
-    {
-        return GetLastError();
-    }
-    scope_exit devinfo_se([DevInfo] { SetupDiDestroyDeviceInfoList(DevInfo); });
-
-    DevIfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
-
-    if (!SetupDiEnumDeviceInterfaces(DevInfo, 0,
-        &GUID_DEVINTERFACE_VIRT_FS, MemberIndex, &DevIfaceData))
-    {
-        return GetLastError();
-    }
-
-    SetupDiGetDeviceInterfaceDetail(DevInfo, &DevIfaceData, NULL, 0,
-        &RequiredLength, NULL);
-
-    DevIfaceDetail = (PSP_DEVICE_INTERFACE_DETAIL_DATA)LocalAlloc(LMEM_FIXED,
-            RequiredLength);
-    if (DevIfaceDetail == NULL)
-    {
-        return GetLastError();
-    }
-    scope_exit devifacedetail_se([DevIfaceDetail] { LocalFree(DevIfaceDetail); });
-
-    DevIfaceDetail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
-    Length = RequiredLength;
-
-    if (!SetupDiGetDeviceInterfaceDetail(DevInfo, &DevIfaceData,
-        DevIfaceDetail, Length, &RequiredLength, NULL))
-    {
-        return GetLastError();
-    }
-
-    SecurityAttributes.nLength = sizeof(SecurityAttributes);
-    SecurityAttributes.lpSecurityDescriptor = NULL;
-    SecurityAttributes.bInheritHandle = FALSE;
-
-    *Device = CreateFile(DevIfaceDetail->DevicePath, GENERIC_READ | GENERIC_WRITE,
-        0, &SecurityAttributes, OPEN_EXISTING, 0L, NULL);
-    if (*Device == INVALID_HANDLE_VALUE)
-    {
-        return GetLastError();
-    }
-
-    return ERROR_SUCCESS;
-}
-
-static DWORD FindDeviceInterface(PHANDLE Device, const std::wstring& Tag)
-{
-    if (Tag.empty())
-    {
-        return FindDeviceInterface(Device, 0);
-    }
-
-    for (DWORD MemberIndex = 0; ; MemberIndex++)
-    {
-        DWORD Error = FindDeviceInterface(Device, MemberIndex);
-        if (Error != ERROR_SUCCESS)
-        {
-            return Error;
-        }
-
-        WCHAR VolumeName[MAX_FILE_SYSTEM_NAME + 1];
-        GetVolumeName(*Device, VolumeName, sizeof(VolumeName));
-
-        if (Tag == VolumeName)
-        {
-            return ERROR_SUCCESS;
-        }
-        else
-        {
-            CloseHandle(*Device);
-        }
-    }
 }
 
 static UINT32 PosixUnixModeToAttributes(VIRTFS *VirtFs, uint64_t nodeid,
@@ -2833,7 +2760,7 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 
     try
     {
-        VirtFs = new VIRTFS(DebugFlags, CaseInsensitive, MountPoint);
+        VirtFs = new VIRTFS(DebugFlags, CaseInsensitive, MountPoint, Tag);
     }
     catch (std::bad_alloc)
     {
@@ -2863,7 +2790,7 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
         goto out_close_event;
     }
 
-    Error = FindDeviceInterface(&VirtFs->Device, Tag);
+    Error = VirtFs->FindDeviceInterface();
     if (Error != ERROR_SUCCESS)
     {
         // Wait for device to be found by arrival notification callback.
