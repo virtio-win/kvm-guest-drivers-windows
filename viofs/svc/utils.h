@@ -28,7 +28,9 @@
 #pragma once
 
 #include <Windows.h>
+#include <setupapi.h>
 
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -95,6 +97,86 @@ static DWORD RegistryGetVal(PCWSTR SubKey, PCWSTR ValueName, std::wstring& Value
     }
 
     return Status;
+}
+
+static DWORD FindDeviceInterface(const GUID *ClassGuid, PHANDLE Device, DWORD MemberIndex)
+{
+    HDEVINFO DevInfo;
+    SECURITY_ATTRIBUTES SecurityAttributes;
+    SP_DEVICE_INTERFACE_DATA DevIfaceData;
+    PSP_DEVICE_INTERFACE_DETAIL_DATA DevIfaceDetail = NULL;
+    ULONG Length, RequiredLength = 0;
+
+    DevInfo = SetupDiGetClassDevs(ClassGuid, NULL, NULL,
+        (DIGCF_PRESENT | DIGCF_DEVICEINTERFACE));
+    if (DevInfo == INVALID_HANDLE_VALUE)
+    {
+        return GetLastError();
+    }
+    SCOPE_EXIT(DevInfo, { SetupDiDestroyDeviceInfoList(DevInfo); });
+
+    DevIfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+
+    if (!SetupDiEnumDeviceInterfaces(DevInfo, 0,
+        ClassGuid, MemberIndex, &DevIfaceData))
+    {
+        return GetLastError();
+    }
+
+    SetupDiGetDeviceInterfaceDetail(DevInfo, &DevIfaceData, NULL, 0,
+        &RequiredLength, NULL);
+
+    DevIfaceDetail = (PSP_DEVICE_INTERFACE_DETAIL_DATA)LocalAlloc(LMEM_FIXED,
+        RequiredLength);
+    if (DevIfaceDetail == NULL)
+    {
+        return GetLastError();
+    }
+    SCOPE_EXIT(DevIfaceDetail, { LocalFree(DevIfaceDetail); });
+
+    DevIfaceDetail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
+    Length = RequiredLength;
+
+    if (!SetupDiGetDeviceInterfaceDetail(DevInfo, &DevIfaceData,
+        DevIfaceDetail, Length, &RequiredLength, NULL))
+    {
+        return GetLastError();
+    }
+
+    SecurityAttributes.nLength = sizeof(SecurityAttributes);
+    SecurityAttributes.lpSecurityDescriptor = NULL;
+    SecurityAttributes.bInheritHandle = FALSE;
+
+    *Device = CreateFile(DevIfaceDetail->DevicePath, GENERIC_READ | GENERIC_WRITE,
+        0, &SecurityAttributes, OPEN_EXISTING, 0L, NULL);
+    if (*Device == INVALID_HANDLE_VALUE)
+    {
+        return GetLastError();
+    }
+
+    return ERROR_SUCCESS;
+}
+
+static DWORD FindDeviceInterface(const GUID *ClassGuid, PHANDLE Device,
+    std::function<BOOLEAN(HANDLE Device)> cmp_fn)
+{
+    for (DWORD MemberIndex = 0; ; MemberIndex++)
+    {
+        DWORD Error = FindDeviceInterface(ClassGuid, Device, MemberIndex);
+        if (Error != ERROR_SUCCESS)
+        {
+            return Error;
+        }
+
+        if (cmp_fn(*Device))
+        {
+            return ERROR_SUCCESS;
+        }
+        else
+        {
+            CloseHandle(*Device);
+        }
+    }
 }
 
 static bool FileNameIgnoreCaseCompare(PCWSTR a, const char *b, uint32_t b_len)
