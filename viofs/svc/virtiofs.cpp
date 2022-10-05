@@ -156,6 +156,9 @@ struct VIRTFS
     requires std::invocable<Request, VIRTFS *, uint64_t, const char *, Args...>
     NTSTATUS NameAwareRequest(uint64_t parent, const char *name, Request req, Args... args);
 
+    NTSTATUS RenameWithFallbackRequest(uint64_t oldparent, const char *oldname,
+        uint64_t newparent, const char *newname, uint32_t flags);
+
     NTSTATUS SubmitInitRequest();
     NTSTATUS SubmitOpenRequest(UINT32 GrantedAccess,
         VIRTFS_FILE_CONTEXT *FileContext);
@@ -166,6 +169,11 @@ struct VIRTFS
         FUSE_LOOKUP_OUT *lookup_out);
     NTSTATUS SubmitDeleteRequest(uint64_t parent, const char *filename,
         const VIRTFS_FILE_CONTEXT *FileContext);
+    NTSTATUS SubmitRenameRequest(uint64_t oldparent, uint64_t newparent,
+        const char *oldname, int oldname_size, const char *newname, int newname_size);
+    NTSTATUS SubmitRename2Request(uint64_t oldparent, uint64_t newparent,
+        const char *oldname, int oldname_size, const char *newname, int newname_size,
+        uint32_t flags);
     NTSTATUS SubmitDestroyRequest();
 };
 
@@ -852,8 +860,8 @@ static NTSTATUS SubmitReadLinkRequest(HANDLE Device, UINT64 NodeId,
     return Status;
 }
 
-static NTSTATUS SubmitRenameRequest(HANDLE Device, uint64_t oldparent,
-    uint64_t newparent, char *oldname, int oldname_size, char *newname,
+NTSTATUS VIRTFS::SubmitRenameRequest(uint64_t oldparent,
+    uint64_t newparent, const char *oldname, int oldname_size, const char *newname,
     int newname_size)
 {
     FUSE_RENAME_IN *rename_in;
@@ -883,8 +891,8 @@ static NTSTATUS SubmitRenameRequest(HANDLE Device, uint64_t oldparent,
     return Status;
 }
 
-static NTSTATUS SubmitRename2Request(HANDLE Device, uint64_t oldparent,
-    uint64_t newparent, char *oldname, int oldname_size, char *newname,
+NTSTATUS VIRTFS::SubmitRename2Request(uint64_t oldparent,
+    uint64_t newparent, const char *oldname, int oldname_size, const char *newname,
     int newname_size, uint32_t flags)
 {
     FUSE_RENAME2_IN *rename2_in;
@@ -911,6 +919,29 @@ static NTSTATUS SubmitRename2Request(HANDLE Device, uint64_t oldparent,
         &rename_out, sizeof(rename_out));
 
     SafeHeapFree(rename2_in);
+
+    return Status;
+}
+
+NTSTATUS VIRTFS::RenameWithFallbackRequest(uint64_t oldparent, const char *oldname,
+    uint64_t newparent, const char *newname, uint32_t flags)
+{
+    int oldname_size = lstrlenA(oldname) + 1;
+    int newname_size = lstrlenA(newname) + 1;
+
+    DBG("old: %s (%d) new: %s (%d) flags: %d",
+        oldname, oldname_size, newname, newname_size, flags);
+
+    NTSTATUS Status = SubmitRename2Request(oldparent, newparent,
+        oldname, oldname_size, newname, newname_size, flags);
+
+    // Rename2 fails on NFS shared folder with EINVAL error. So retry to
+    // rename the file without the flags.
+    if (Status == STATUS_INVALID_PARAMETER)
+    {
+        Status = SubmitRenameRequest(oldparent, newparent,
+            oldname, oldname_size, newname, newname_size);
+    }
 
     return Status;
 }
@@ -1977,7 +2008,6 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
     VIRTFS_FILE_CONTEXT *FileContext = (VIRTFS_FILE_CONTEXT *)FileContext0;
     NTSTATUS Status;
     char *oldname, *newname, *oldfullpath, *newfullpath;
-    int oldname_size, newname_size;
     uint64_t oldparent, newparent;
     uint32_t flags;
 
@@ -2011,27 +2041,13 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return Status;
     }
 
-    oldname_size = lstrlenA(oldname) + 1;
-    newname_size = lstrlenA(newname) + 1;
-
     // It is not allowed to rename to an existing directory even when
     // ReplaceIfExists is set.
     flags = ((FileContext->IsDirectory == FALSE) &&
         (ReplaceIfExists == TRUE)) ? 0 : (1 << 0) /* RENAME_NOREPLACE */;
 
-    DBG("old: %s (%d) new: %s (%d) flags: %d", oldname, oldname_size, newname,
-        newname_size, flags);
-
-    Status = SubmitRename2Request(VirtFs->Device, oldparent, newparent,
-        oldname, oldname_size, newname, newname_size, flags);
-
-    // Rename2 fails on NFS shared folder with EINVAL error. So retry to
-    // rename the file without the flags.
-    if (Status == STATUS_INVALID_PARAMETER)
-    {
-        Status = SubmitRenameRequest(VirtFs->Device, oldparent, newparent,
-            oldname, oldname_size, newname, newname_size);
-    }
+    Status = VirtFs->NameAwareRequest(oldparent, oldname,
+        &VIRTFS::RenameWithFallbackRequest, newparent, newname, flags);
 
     // Fix to expected error when renaming a directory to existing directory.
     if ((FileContext->IsDirectory == TRUE) && (ReplaceIfExists == TRUE) &&
