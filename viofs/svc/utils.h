@@ -29,6 +29,7 @@
 
 #include <Windows.h>
 #include <setupapi.h>
+#include <cfgmgr32.h>
 
 #include <functional>
 #include <memory>
@@ -191,3 +192,114 @@ static bool FileNameIgnoreCaseCompare(PCWSTR a, const char *b, uint32_t b_len)
 
     return (CompareStringW(LOCALE_INVARIANT, NORM_IGNORECASE, a, -1, wide_b, wide_b_len) == CSTR_EQUAL);
 }
+
+class DeviceHandleNotification
+{
+    HCMNOTIFICATION     Handle{ nullptr };
+    CRITICAL_SECTION    Lock;
+    BOOL                UnregInProgress{ FALSE };
+    PTP_WORK            UnregWork{ nullptr };
+
+    DeviceHandleNotification(const DeviceHandleNotification&) = delete;
+    DeviceHandleNotification& operator=(const DeviceHandleNotification&) = delete;
+    DeviceHandleNotification(DeviceHandleNotification&&) = delete;
+    DeviceHandleNotification& operator=(DeviceHandleNotification&&) = delete;
+
+public:
+    DeviceHandleNotification()
+    {
+        InitializeCriticalSection(&Lock);
+    }
+
+    ~DeviceHandleNotification()
+    {
+        if (UnregWork != nullptr)
+        {
+            CloseThreadpoolWork(UnregWork);
+        }
+
+        DeleteCriticalSection(&Lock);
+    }
+
+    DWORD Register(PCM_NOTIFY_CALLBACK pCallback, PVOID pContext, HANDLE DeviceHandle)
+    {
+        HCMNOTIFICATION NotifyHandle = nullptr;
+        CM_NOTIFY_FILTER Filter;
+        CONFIGRET ConfigRet;
+
+        ZeroMemory(&Filter, sizeof(Filter));
+        Filter.cbSize = sizeof(Filter);
+        Filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEHANDLE;
+        Filter.u.DeviceHandle.hTarget = DeviceHandle;
+
+        ConfigRet = CM_Register_Notification(&Filter, pContext, pCallback, &NotifyHandle);
+
+        if (ConfigRet == CR_SUCCESS)
+        {
+            Handle = NotifyHandle;
+            UnregInProgress = FALSE;
+        }
+
+        return CM_MapCrToWin32Err(ConfigRet, ERROR_NOT_SUPPORTED);
+    }
+
+    void Unregister()
+    {
+        BOOL ShouldUnregister = FALSE;
+
+        EnterCriticalSection(&Lock);
+
+        if (!UnregInProgress)
+        {
+            UnregInProgress = TRUE;
+            ShouldUnregister = TRUE;
+        }
+
+        LeaveCriticalSection(&Lock);
+
+        if (ShouldUnregister)
+        {
+            CM_Unregister_Notification(Handle);
+        }
+        else
+        {
+            WaitForThreadpoolWorkCallbacks(UnregWork, FALSE);
+        }
+    }
+
+    // Must be used instead of Unregister() when unregistering
+    // device notification callback from itself.
+    void AsyncUnregister()
+    {
+        EnterCriticalSection(&Lock);
+
+        if (!UnregInProgress)
+        {
+            UnregInProgress = TRUE;
+            SubmitThreadpoolWork(UnregWork);
+        }
+
+        LeaveCriticalSection(&Lock);
+    }
+
+    bool CreateUnregWork()
+    {
+        auto cb = [](PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work)
+        {
+            auto Notification = static_cast<DeviceHandleNotification *>(Context);
+
+            UNREFERENCED_PARAMETER(Instance);
+            UNREFERENCED_PARAMETER(Work);
+
+            CM_Unregister_Notification(Notification->Handle);
+        };
+        UnregWork = CreateThreadpoolWork(cb, this, nullptr);
+
+        return (UnregWork != nullptr);
+    }
+
+    void WaitForUnregWork()
+    {
+        WaitForThreadpoolWorkCallbacks(UnregWork, FALSE);
+    }
+};
