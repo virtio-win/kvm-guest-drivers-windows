@@ -85,14 +85,6 @@
 
 typedef struct
 {
-    HCMNOTIFICATION     Handle;
-    CRITICAL_SECTION    Lock;
-    BOOL                Unregister;
-    PTP_WORK            UnregWork;
-} VIRTFS_NOTIFICATION;
-
-typedef struct
-{
     PVOID   DirBuffer;
     BOOLEAN IsDirectory;
 
@@ -115,7 +107,7 @@ struct VIRTFS
     // Used to handle device arrive notification.
     HCMNOTIFICATION     DevInterfaceNotification{ NULL };
     // Used to handle device remove notification.
-    VIRTFS_NOTIFICATION DevHandleNotification{};
+    DeviceHandleNotification DevHandleNotification{};
 
     bool CaseInsensitive{ false };
     std::wstring MountPoint{ L"*" };
@@ -215,99 +207,6 @@ static void FUSE_HEADER_INIT(struct fuse_in_header *hdr, uint32_t opcode,
     hdr->pid = GetCurrentProcessId();
 }
 
-VOID WINAPI UnregisterNotificationWork(PTP_CALLBACK_INSTANCE Instance,
-    PVOID Context, PTP_WORK Work)
-{
-    VIRTFS_NOTIFICATION *Notification = (VIRTFS_NOTIFICATION *)Context;
-
-    UNREFERENCED_PARAMETER(Instance);
-    UNREFERENCED_PARAMETER(Work);
-
-    CM_Unregister_Notification(Notification->Handle);
-}
-
-static VOID VirtFsNotificationUnreg(VIRTFS_NOTIFICATION *Notification)
-{
-    BOOL ShouldUnregister = FALSE;
-
-    EnterCriticalSection(&Notification->Lock);
-
-    if (!Notification->Unregister)
-    {
-        Notification->Unregister = TRUE;
-        ShouldUnregister = TRUE;
-    }
-
-    LeaveCriticalSection(&Notification->Lock);
-
-    if (ShouldUnregister)
-    {
-        CM_Unregister_Notification(Notification->Handle);
-    }
-    else
-    {
-        WaitForThreadpoolWorkCallbacks(Notification->UnregWork, FALSE);
-    }
-}
-
-// Must be used instead of VirtFsNotificationUnreg when unregistering
-// device notification callback from itself.
-static VOID VirtFsNotificationAsyncUnreg(VIRTFS_NOTIFICATION *Notification)
-{
-    EnterCriticalSection(&Notification->Lock);
-
-    if (!Notification->Unregister)
-    {
-        Notification->Unregister = TRUE;
-        SubmitThreadpoolWork(Notification->UnregWork);
-    }
-
-    LeaveCriticalSection(&Notification->Lock);
-}
-
-static BOOL VirtFsNotificationCreate(VIRTFS_NOTIFICATION *Notification)
-{
-    InitializeCriticalSection(&Notification->Lock);
-
-    Notification->UnregWork = CreateThreadpoolWork(UnregisterNotificationWork,
-            Notification, NULL);
-    if (Notification->UnregWork == NULL)
-    {
-        return FALSE;
-    }
-
-    return TRUE;
-}
-
-static VOID VirtFsNotificationDelete(VIRTFS_NOTIFICATION *Notification)
-{
-    CloseThreadpoolWork(Notification->UnregWork);
-    DeleteCriticalSection(&Notification->Lock);
-}
-
-static DWORD VirtFsRegDevHandleNotification(VIRTFS *VirtFs)
-{
-    HCMNOTIFICATION Handle = NULL;
-    CM_NOTIFY_FILTER Filter;
-    CONFIGRET ConfigRet;
-
-    ZeroMemory(&Filter, sizeof(Filter));
-    Filter.cbSize = sizeof(Filter);
-    Filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEHANDLE;
-    Filter.u.DeviceHandle.hTarget = VirtFs->Device;
-
-    ConfigRet = CM_Register_Notification(&Filter, VirtFs,
-            DeviceNotificationCallback, &Handle);
-
-    if (ConfigRet == CR_SUCCESS)
-    {
-        VirtFs->DevHandleNotification.Handle = Handle;
-        VirtFs->DevHandleNotification.Unregister = FALSE;
-    }
-
-    return CM_MapCrToWin32Err(ConfigRet, ERROR_NOT_SUPPORTED);
-}
-
 VOID VIRTFS::Stop()
 {
     if (FileSystem == NULL)
@@ -344,12 +243,11 @@ static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
 {
     DWORD Error;
     NTSTATUS Status;
-    VIRTFS_NOTIFICATION *Notification = &VirtFs->DevHandleNotification;
 
     DBG("Notify = 0x%x", Notify);
 
     // Wait for unregister work to end, if any.
-    WaitForThreadpoolWorkCallbacks(Notification->UnregWork, FALSE);
+    VirtFs->DevHandleNotification.WaitForUnregWork();
 
     Error = VirtFs->FindDeviceInterface();
     if (Error != ERROR_SUCCESS)
@@ -357,7 +255,8 @@ static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
         return Error;
     }
 
-    Error = VirtFsRegDevHandleNotification(VirtFs);
+    Error = VirtFs->DevHandleNotification.Register(DeviceNotificationCallback,
+        VirtFs, VirtFs->Device);
     if (Error != ERROR_SUCCESS)
     {
         goto out_close_handle;
@@ -381,7 +280,7 @@ static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
 out_stop_virtfs:
     VirtFs->Stop();
 out_unreg_dh_notify:
-    VirtFsNotificationAsyncUnreg(&VirtFs->DevHandleNotification);
+    VirtFs->DevHandleNotification.AsyncUnregister();
 out_close_handle:
     CloseHandle(VirtFs->Device);
 
@@ -402,7 +301,7 @@ static VOID VirtFsDevQueryRemove(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
     DBG("Notify = 0x%x", Notify);
 
     VirtFs->Stop();
-    VirtFsNotificationAsyncUnreg(&VirtFs->DevHandleNotification);
+    VirtFs->DevHandleNotification.AsyncUnregister();
     CloseDeviceInterface(&VirtFs->Device);
 }
 
@@ -2785,7 +2684,7 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 
     Service->UserContext = VirtFs;
 
-    if (!VirtFsNotificationCreate(&VirtFs->DevHandleNotification))
+    if (!VirtFs->DevHandleNotification.CreateUnregWork())
     {
         Status = STATUS_UNSUCCESSFUL;
         goto out_free_virtfs;
@@ -2796,7 +2695,7 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
     {
         Error = GetLastError();
         Status = FspNtStatusFromWin32(Error);
-        goto out_delete_dh_notify;
+        goto out_free_virtfs;
     }
 
     Error = VirtFsRegDevInterfaceNotification(VirtFs);
@@ -2822,7 +2721,8 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
         }
     }
 
-    Error = VirtFsRegDevHandleNotification(VirtFs);
+    Error = VirtFs->DevHandleNotification.Register(DeviceNotificationCallback,
+        VirtFs, VirtFs->Device);
     if (Error != ERROR_SUCCESS)
     {
         Status = FspNtStatusFromWin32(Error);
@@ -2838,15 +2738,13 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
     return STATUS_SUCCESS;
 
 out_unreg_dh_notify:
-    VirtFsNotificationUnreg(&VirtFs->DevHandleNotification);
+    VirtFs->DevHandleNotification.Unregister();
 out_close_handle:
     CloseHandle(VirtFs->Device);
 out_unreg_di_notify:
     CM_Unregister_Notification(VirtFs->DevInterfaceNotification);
 out_close_event:
     CloseHandle(VirtFs->EvtDeviceFound);
-out_delete_dh_notify:
-    VirtFsNotificationDelete(&VirtFs->DevHandleNotification);
 out_free_virtfs:
     delete VirtFs;
 
@@ -2858,9 +2756,8 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
     VIRTFS *VirtFs = (VIRTFS *)Service->UserContext;
 
     VirtFs->Stop();
-    VirtFsNotificationUnreg(&VirtFs->DevHandleNotification);
+    VirtFs->DevHandleNotification.Unregister();
     CloseDeviceInterface(&VirtFs->Device);
-    VirtFsNotificationDelete(&VirtFs->DevHandleNotification);
     CloseHandle(VirtFs->EvtDeviceFound);
     CM_Unregister_Notification(VirtFs->DevInterfaceNotification);
     delete VirtFs;
