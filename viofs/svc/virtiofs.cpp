@@ -138,6 +138,10 @@ struct VIRTFS
     VOID Stop();
 
     DWORD FindDeviceInterface();
+    VOID CloseDeviceInterface();
+
+    DWORD DevInterfaceArrival();
+    VOID DevQueryRemove();
 
     VOID LookupMapNewOrIncNode(UINT64 NodeId);
     UINT64 LookupMapPopNode(UINT64 NodeId);
@@ -239,37 +243,34 @@ DWORD VIRTFS::FindDeviceInterface()
     return ::FindDeviceInterface(&GUID_DEVINTERFACE_VIRT_FS, &Device, tag_cmp_fn);
 }
 
-static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
+DWORD VIRTFS::DevInterfaceArrival()
 {
     DWORD Error;
     NTSTATUS Status;
 
-    DBG("Notify = 0x%x", Notify);
-
     // Wait for unregister work to end, if any.
-    VirtFs->DevHandleNotification.WaitForUnregWork();
+    DevHandleNotification.WaitForUnregWork();
 
-    Error = VirtFs->FindDeviceInterface();
+    Error = FindDeviceInterface();
     if (Error != ERROR_SUCCESS)
     {
         return Error;
     }
 
-    Error = VirtFs->DevHandleNotification.Register(DeviceNotificationCallback,
-        VirtFs, VirtFs->Device);
+    Error = DevHandleNotification.Register(DeviceNotificationCallback, this, Device);
     if (Error != ERROR_SUCCESS)
     {
         goto out_close_handle;
     }
 
-    Status = VirtFs->Start();
+    Status = Start();
     if (!NT_SUCCESS(Status))
     {
         Error = FspWin32FromNtStatus(Status);
         goto out_unreg_dh_notify;
     }
 
-    if (SetEvent(VirtFs->EvtDeviceFound) == FALSE)
+    if (SetEvent(EvtDeviceFound) == FALSE)
     {
         Error = GetLastError();
         goto out_stop_virtfs;
@@ -278,39 +279,38 @@ static DWORD VirtFsDevInterfaceArrival(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
     return ERROR_SUCCESS;
 
 out_stop_virtfs:
-    VirtFs->Stop();
+    Stop();
 out_unreg_dh_notify:
-    VirtFs->DevHandleNotification.AsyncUnregister();
+    DevHandleNotification.AsyncUnregister();
 out_close_handle:
-    CloseHandle(VirtFs->Device);
+    CloseHandle(Device);
 
     return Error;
 }
 
-static VOID CloseDeviceInterface(PHANDLE Device)
+VOID VIRTFS::CloseDeviceInterface()
 {
-    if (*Device != INVALID_HANDLE_VALUE)
+    if (Device != INVALID_HANDLE_VALUE)
     {
-        CloseHandle(*Device);
-        *Device = INVALID_HANDLE_VALUE;
+        CloseHandle(Device);
+        Device = INVALID_HANDLE_VALUE;
     }
 }
 
-static VOID VirtFsDevQueryRemove(VIRTFS *VirtFs, HCMNOTIFICATION Notify)
+VOID VIRTFS::DevQueryRemove()
 {
-    DBG("Notify = 0x%x", Notify);
-
-    VirtFs->Stop();
-    VirtFs->DevHandleNotification.AsyncUnregister();
-    CloseDeviceInterface(&VirtFs->Device);
+    Stop();
+    DevHandleNotification.AsyncUnregister();
+    CloseDeviceInterface();
 }
 
 DWORD WINAPI DeviceNotificationCallback(HCMNOTIFICATION Notify,
     PVOID Context, CM_NOTIFY_ACTION Action, PCM_NOTIFY_EVENT_DATA EventData,
     DWORD EventDataSize)
 {
-    VIRTFS *VirtFs = (VIRTFS *)Context;
+    auto VirtFs = static_cast<VIRTFS *>(Context);
 
+    UNREFERENCED_PARAMETER(Notify);
     UNREFERENCED_PARAMETER(EventData);
     UNREFERENCED_PARAMETER(EventDataSize);
 
@@ -318,11 +318,11 @@ DWORD WINAPI DeviceNotificationCallback(HCMNOTIFICATION Notify,
     {
         case CM_NOTIFY_ACTION_DEVICEINTERFACEARRIVAL:
         case CM_NOTIFY_ACTION_DEVICEQUERYREMOVEFAILED:
-            VirtFsDevInterfaceArrival(VirtFs, Notify);
+            VirtFs->DevInterfaceArrival();
             break;
         case CM_NOTIFY_ACTION_DEVICEQUERYREMOVE:
         case CM_NOTIFY_ACTION_DEVICEREMOVECOMPLETE:
-            VirtFsDevQueryRemove(VirtFs, Notify);
+            VirtFs->DevQueryRemove();
             break;
         default:
             break;
@@ -2736,7 +2736,7 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
 
     VirtFs->Stop();
     VirtFs->DevHandleNotification.Unregister();
-    CloseDeviceInterface(&VirtFs->Device);
+    VirtFs->CloseDeviceInterface();
     CloseHandle(VirtFs->EvtDeviceFound);
     VirtFs->DevInterfaceNotification.Unregister();
     delete VirtFs;
