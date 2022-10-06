@@ -193,6 +193,45 @@ static bool FileNameIgnoreCaseCompare(PCWSTR a, const char *b, uint32_t b_len)
     return (CompareStringW(LOCALE_INVARIANT, NORM_IGNORECASE, a, -1, wide_b, wide_b_len) == CSTR_EQUAL);
 }
 
+class DeviceInterfaceNotification
+{
+    HCMNOTIFICATION     Handle{ nullptr };
+
+    DeviceInterfaceNotification(const DeviceInterfaceNotification&) = delete;
+    DeviceInterfaceNotification& operator=(const DeviceInterfaceNotification&) = delete;
+    DeviceInterfaceNotification(DeviceInterfaceNotification&&) = delete;
+    DeviceInterfaceNotification& operator=(DeviceInterfaceNotification&&) = delete;
+
+public:
+    DeviceInterfaceNotification() = default;
+
+    DWORD Register(PCM_NOTIFY_CALLBACK pCallback, PVOID pContext, const GUID &ClassGuid)
+    {
+        HCMNOTIFICATION NotifyHandle = nullptr;
+        CM_NOTIFY_FILTER Filter;
+        CONFIGRET ConfigRet;
+
+        ZeroMemory(&Filter, sizeof(Filter));
+        Filter.cbSize = sizeof(Filter);
+        Filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE;
+        Filter.u.DeviceInterface.ClassGuid = ClassGuid;
+
+        ConfigRet = CM_Register_Notification(&Filter, pContext, pCallback, &NotifyHandle);
+
+        if (ConfigRet == CR_SUCCESS)
+        {
+            Handle = NotifyHandle;
+        }
+
+        return CM_MapCrToWin32Err(ConfigRet, ERROR_NOT_SUPPORTED);
+    }
+
+    void Unregister()
+    {
+        CM_Unregister_Notification(Handle);
+    }
+};
+
 class DeviceHandleNotification
 {
     HCMNOTIFICATION     Handle{ nullptr };
