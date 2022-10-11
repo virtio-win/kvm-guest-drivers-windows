@@ -2267,10 +2267,14 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     int linkname_len, targetname_len;
     uint64_t parent;
 
-    UNREFERENCED_PARAMETER(FileContext);
     UNREFERENCED_PARAMETER(Size);
 
     DBG("\"%S\"", FileName);
+
+    if (!(ReparseData->SymbolicLinkReparseBuffer.Flags & SYMLINK_FLAG_RELATIVE))
+    {
+        return STATUS_INVALID_PARAMETER;
+    }
 
     Cleanup(FileSystem, FileContext, FileName, FspCleanupDelete);
 
@@ -2293,12 +2297,6 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     }
     SCOPE_EXIT(targetname, { FspPosixDeletePath(targetname); });
 
-    Status = PathWalkthough(VirtFs, targetname, &filename, &parent);
-    if (!NT_SUCCESS(Status))
-    {
-        return Status;
-    }
-
     Status = FspPosixMapWindowsToPosixPath(FileName + 1, &linkname);
     if (!NT_SUCCESS(Status))
     {
@@ -2306,7 +2304,13 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     }
     SCOPE_EXIT(linkname, { FspPosixDeletePath(linkname); });
 
-    linkname_len = lstrlenA(linkname) + 1;
+    Status = PathWalkthough(VirtFs, linkname, &filename, &parent);
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    linkname_len = lstrlenA(filename) + 1;
     targetname_len = lstrlenA(targetname) + 1;
 
     symlink_in = (FUSE_SYMLINK_IN *)HeapAlloc(GetProcessHeap(),
@@ -2320,7 +2324,7 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     FUSE_HEADER_INIT(&symlink_in->hdr, FUSE_SYMLINK, parent,
         linkname_len + targetname_len);
 
-    CopyMemory(symlink_in->names, linkname, linkname_len);
+    CopyMemory(symlink_in->names, filename, linkname_len);
     CopyMemory(symlink_in->names + linkname_len, targetname, targetname_len);
 
     Status = VirtFsFuseRequest(VirtFs->Device, symlink_in,
