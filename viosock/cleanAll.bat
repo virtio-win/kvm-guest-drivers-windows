@@ -13,6 +13,10 @@ pushd sys
 call cleanAll.bat
 popd
 
+pushd wsk
+call cleanAll.bat
+popd
+
 pushd viosock-test
 call cleanAll.bat
 popd
