@@ -26,6 +26,8 @@ call tools\build.bat vioserial\sys\vioser.vcxproj "Win11_SDV" %*
 if errorlevel 1 goto :fail
 call tools\build.bat viosock\sys\viosock.vcxproj "Win11_SDV" %*
 if errorlevel 1 goto :fail
+call tools\build.bat viosock\wsk\wsk.vcxproj "Win11_SDV" %*
+if errorlevel 1 goto :fail
 call tools\build.bat viofs\pci\viofs.vcxproj "Win11_SDV" %*
 if errorlevel 1 goto :fail
 call tools\build.bat vioinput\hidpassthrough\hidpassthrough.vcxproj "Win11_SDV" %*
