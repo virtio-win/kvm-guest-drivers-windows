@@ -647,6 +647,9 @@ RhelGetDiskGeometry(
     if(CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD)) {
         virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, discard_sector_alignment),
                           &v, sizeof(v));
+        if (v == UINT_MAX) {
+            v = 8;
+        }
         adaptExt->info.discard_sector_alignment = v ? v << SECTOR_SHIFT : 0;
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " discard_sector_alignment = %d\n", adaptExt->info.discard_sector_alignment);
 
