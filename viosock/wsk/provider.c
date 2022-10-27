@@ -102,9 +102,11 @@ VioWskSocketInternal(
 
     *CompleteIrp = TRUE;
 
-    pSocket = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(VIOWSK_SOCKET), VIOSOCK_WSK_MEMORY_TAG);
+    pSocket = ExAllocatePoolUninitialized(NonPagedPoolNx, sizeof(VIOWSK_SOCKET), VIOSOCK_WSK_MEMORY_TAG);
     if (pSocket)
     {
+        RtlZeroMemory(pSocket, sizeof(VIOWSK_SOCKET));
+
         pSocket->SocketContext = SocketContext;
         pSocket->Type = Flags;
 

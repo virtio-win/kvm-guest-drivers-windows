@@ -50,7 +50,7 @@ VioWskRegister(
     if (!WskClientNpi || !WskRegistration)
         return STATUS_INVALID_PARAMETER;
 
-    pContext = ExAllocatePoolWithTag(NonPagedPoolNx,
+    pContext = ExAllocatePoolUninitialized(NonPagedPoolNx,
         sizeof(VIOWSK_REG_CONTEXT), VIOSOCK_WSK_MEMORY_TAG);
 
     if (!pContext)
