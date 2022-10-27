@@ -105,7 +105,7 @@ static void *mem_alloc_nonpaged_block(void *context, size_t size)
 {
     PVIRTIO_WDF_DRIVER pWdfDriver = (PVIRTIO_WDF_DRIVER)context;
 
-    PVOID addr = ExAllocatePoolWithTag(
+    PVOID addr = ExAllocatePoolUninitialized(
         NonPagedPool,
         size,
         pWdfDriver->MemoryTag);

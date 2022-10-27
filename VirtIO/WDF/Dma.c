@@ -261,7 +261,7 @@ PVIRTIO_DMA_MEMORY_SLICED VirtIOWdfDeviceAllocDmaMemorySliced(
 {
     PVIRTIO_WDF_DRIVER pWdfDriver = vdev->DeviceContext;
     size_t allocSize = sizeof(VIRTIO_DMA_MEMORY_SLICED) + (blockSize / sliceSize) / 8 + sizeof(ULONG);
-    PVIRTIO_DMA_MEMORY_SLICED p = ExAllocatePoolWithTag(NonPagedPool, allocSize, pWdfDriver->MemoryTag);
+    PVIRTIO_DMA_MEMORY_SLICED p = ExAllocatePoolUninitialized(NonPagedPool, allocSize, pWdfDriver->MemoryTag);
     if (!p) {
         return NULL;
     }
@@ -350,7 +350,7 @@ BOOLEAN VirtIOWdfDeviceDmaTxAsync(VirtIODevice *vdev,
         status = WdfDmaTransactionInitializeUsingRequest(
             tr, params->req, OnDmaTransactionProgramDma, WdfDmaDirectionWriteToDevice);
     } else {
-        ctx->buffer = ExAllocatePoolWithTag(NonPagedPool, ctx->parameters.size, ctx->parameters.allocationTag);
+        ctx->buffer = ExAllocatePoolUninitialized(NonPagedPool, ctx->parameters.size, ctx->parameters.allocationTag);
         if (ctx->buffer) {
             RtlCopyMemory(ctx->buffer, params->buffer, params->size);
             ctx->mdl = IoAllocateMdl(ctx->buffer, params->size, FALSE, FALSE, NULL);
