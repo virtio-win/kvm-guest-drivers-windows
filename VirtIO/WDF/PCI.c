@@ -59,7 +59,7 @@ NTSTATUS PCIAllocBars(WDFCMRESLIST ResourcesTranslated,
             switch (pResDescriptor->Type) {
                 case CmResourceTypePort:
                 case CmResourceTypeMemory:
-                    pBar = (PVIRTIO_WDF_BAR)ExAllocatePoolWithTag(
+                    pBar = (PVIRTIO_WDF_BAR)ExAllocatePoolUninitialized(
                         NonPagedPool,
                         sizeof(VIRTIO_WDF_BAR),
                         pWdfDriver->MemoryTag);
