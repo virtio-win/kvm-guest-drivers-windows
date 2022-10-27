@@ -23,6 +23,10 @@ Common PlatformTools definitions used by all projects:
   <VisualStudioToolset>v142</VisualStudioToolset>
   <CETCompatSupported>true</CETCompatSupported>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(VisualStudioVersionMajor)'>='17'">
+  <VisualStudioToolset>v143</VisualStudioToolset>
+  <CETCompatSupported>true</CETCompatSupported>
+  </PropertyGroup>
 
   <PropertyGroup Condition= "'$(PlatformToolset)'=='' OR '$(PlatformToolset)'=='AutoVSToolset'">
   <PlatformToolset>$(VisualStudioToolset)</PlatformToolset>
