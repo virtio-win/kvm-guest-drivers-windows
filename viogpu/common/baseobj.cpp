@@ -7,7 +7,7 @@ _When_((PoolType & NonPagedPoolMustSucceed) != 0,
 {
     Size = (Size != 0) ? Size : 1;
 
-    void* pObject = ExAllocatePoolWithTag(PoolType, Size, VIOGPUTAG);
+    void* pObject = ExAllocatePoolUninitialized(PoolType, Size, VIOGPUTAG);
 
     if (pObject != NULL)
     {
@@ -28,7 +28,7 @@ _When_((PoolType & NonPagedPoolMustSucceed) != 0,
 
     Size = (Size != 0) ? Size : 1;
 
-    void* pObject = ExAllocatePoolWithTag(PoolType, Size, VIOGPUTAG);
+    void* pObject = ExAllocatePoolUninitialized(PoolType, Size, VIOGPUTAG);
 
     if (pObject != NULL)
     {
