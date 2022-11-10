@@ -38,6 +38,8 @@ public:
 
     PARANDIS_RECEIVE_QUEUE &UnclassifiedPacketsQueue() { return m_UnclassifiedPacketsQueue;  }
 
+    UINT GetAvailRecvBufferCount() { return  m_NetNofReceiveBuffers; }
+
 private:
     /* list of Rx buffers available for data (under VIRTIO management) */
     LIST_ENTRY              m_NetReceiveBuffers;

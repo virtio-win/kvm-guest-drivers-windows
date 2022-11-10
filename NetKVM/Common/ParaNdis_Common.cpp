@@ -1588,13 +1588,14 @@ UpdateReceiveFailStatistics(PPARANDIS_ADAPTER pContext, UINT nCoalescedSegmentsC
     pContext->Statistics.ifInDiscards += nCoalescedSegmentsCount;
 }
 
-static void ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
+static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
                                 PULONG pnPacketsToIndicateLeft,
                                 PPARANDIS_RECEIVE_QUEUE pTargetReceiveQueue,
                                 PNET_BUFFER_LIST *indicate,
                                 PNET_BUFFER_LIST *indicateTail,
                                 ULONG *nIndicate)
 {
+    BOOLEAN ret = FALSE;
     pRxNetDescriptor pBufferDescriptor;
 
     while( (*pnPacketsToIndicateLeft > 0) &&
@@ -1622,6 +1623,10 @@ static void ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
                 NET_BUFFER_LIST_NEXT_NBL(*indicateTail) = NULL;
                 (*pnPacketsToIndicateLeft)--;
                 (*nIndicate)++;
+
+                //According to the feedback from customer who originally faced packet loss issue, 
+                //64 is enough and no side effect observed.
+                ret = (!ret) ? (pBufferDescriptor->Queue->GetAvailRecvBufferCount() < 64) : ret;
             }
             else
             {
@@ -1635,6 +1640,8 @@ static void ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
             pBufferDescriptor->Queue->ReuseReceiveBuffer(pBufferDescriptor);
         }
     }
+
+    return  ret;
 }
 
 
@@ -1668,6 +1675,7 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathBundle *pathBundle, ULO
     bool rxPathOwner = false;
     PNET_BUFFER_LIST indicate, indicateTail;
     ULONG nIndicate;
+    BOOLEAN ReuseBufferImmediately = FALSE;
 
     CCHAR CurrCpuReceiveQueue = GetReceiveQueueForCurrentCPU(pContext);
 
@@ -1686,7 +1694,7 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathBundle *pathBundle, ULO
 
         if (rxPathOwner)
         {
-            ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pathBundle->rxPath.UnclassifiedPacketsQueue(),
+            ReuseBufferImmediately = ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pathBundle->rxPath.UnclassifiedPacketsQueue(),
                                 &indicate, &indicateTail, &nIndicate);
         }
     }
@@ -1694,7 +1702,7 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathBundle *pathBundle, ULO
 #ifdef PARANDIS_SUPPORT_RSS
     if (CurrCpuReceiveQueue != PARANDIS_RECEIVE_NO_QUEUE)
     {
-        ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pContext->ReceiveQueues[CurrCpuReceiveQueue],
+        ReuseBufferImmediately = ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pContext->ReceiveQueues[CurrCpuReceiveQueue],
                             &indicate, &indicateTail, &nIndicate);
         res |= ReceiveQueueHasBuffers(&pContext->ReceiveQueues[CurrCpuReceiveQueue]);
     }
@@ -1704,8 +1712,33 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathBundle *pathBundle, ULO
     {
         if(pContext->m_RxStateMachine.RegisterOutstandingItems(nIndicate))
         {
-            NdisMIndicateReceiveNetBufferLists(pContext->MiniportHandle,
-                                                indicate, 0, nIndicate, NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL);
+            if (ReuseBufferImmediately)
+            {
+                /*
+                  When indicating packets to protocol drivers, we check the amount of available receive buffer
+                  descriptors(see ProcessReceiveQueue above), if less than an empirical value of 64, then force
+                  the protocol drivers to copy the data by set NDIS_RECEIVE_FLAGS_RESOURCES in ReceiveFlags,
+                  so that we can reuse recv buffer descriptors immediately.
+
+                  In most cases, this won't happen.
+                  But with out this workaround, packet loss may occur in some special case, such as a poor designed
+                  TCP server application doesn't receive data from windows socket function driver afd.sys as quickly
+                  as possible, then afd.sys will hold recv buffers temporaryly, and don't return recv buffers to netkvm
+                  until afd timer expired(at most 1 second).
+                */
+
+                NdisMIndicateReceiveNetBufferLists(pContext->MiniportHandle,
+                    indicate, 0, nIndicate, 
+                    NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL | NDIS_RECEIVE_FLAGS_RESOURCES);
+
+                ParaNdis_ReuseRxNBLs(indicate);
+            }
+            else
+            {
+                NdisMIndicateReceiveNetBufferLists(pContext->MiniportHandle,
+                    indicate, 0, nIndicate, 
+                    NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL);
+            }
         }
         else
         {
