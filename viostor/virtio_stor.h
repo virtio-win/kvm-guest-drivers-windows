@@ -84,6 +84,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_BLK_QUEUE_LAST   MAX_CPU
 
 #define VIRTIO_BLK_MSIX_CONFIG_VECTOR   0
+#define MIN_DISCARD_SECTOR_ALIGNMENT    8
 
 #define BLOCK_SERIAL_STRLEN     20
 
