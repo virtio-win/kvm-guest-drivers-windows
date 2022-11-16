@@ -488,6 +488,7 @@ static NTSTATUS VirtFsFuseRequest(HANDLE Device, LPVOID InBuffer,
         switch (out_hdr->error)
         {
             case -EPERM:
+            case -EACCES:
                 Status = STATUS_ACCESS_DENIED;
                 break;
             case -ENOENT:
