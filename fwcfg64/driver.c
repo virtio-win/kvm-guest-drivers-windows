@@ -143,6 +143,7 @@ NTSTATUS FwCfgEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
     WDFDEVICE device;
     PDEVICE_CONTEXT ctx;
     WDF_DMA_ENABLER_CONFIG dmaEnablerConfig;
+    WDF_DEVICE_STATE devState;
 
     UNREFERENCED_PARAMETER(Driver);
 
@@ -196,6 +197,10 @@ NTSTATUS FwCfgEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
     }
 
     FwCfgContextInit(ctx);
+
+    WDF_DEVICE_STATE_INIT(&devState);
+    devState.NotDisableable = WdfFalse;
+    WdfDeviceSetDeviceState(device, &devState);
 
     return STATUS_SUCCESS;
 }
