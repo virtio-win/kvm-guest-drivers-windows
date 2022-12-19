@@ -2393,24 +2393,6 @@ VIOSockSetSockOpt(
     return status;
 }
 
-#define IOCPARM_MASK    0x7f            /* parameters must be < 128 bytes */
-#define IOC_VOID        0x20000000      /* no parameters */
-#define IOC_OUT         0x40000000      /* copy out parameters */
-#define IOC_IN          0x80000000      /* copy in parameters */
-
-#define _IOR(x,y,t)     (IOC_OUT|(((long)sizeof(t)&IOCPARM_MASK)<<16)|((x)<<8)|(y))
-#define _IOW(x,y,t)     (IOC_IN|(((long)sizeof(t)&IOCPARM_MASK)<<16)|((x)<<8)|(y))
-
-#define FIONREAD    _IOR('f', 127, ULONG) /* get # bytes to read */
-#define FIONBIO     _IOW('f', 126, ULONG) /* set/clear non-blocking i/o */
-
-#define IOC_WS2                       0x08000000
-
-#define _WSAIO(x,y)                   (IOC_VOID|(x)|(y))
-#define _WSAIOR(x,y)                  (IOC_OUT|(x)|(y))
-
-#define SIO_ADDRESS_LIST_QUERY        _WSAIOR(IOC_WS2,22)
-#define SIO_ADDRESS_LIST_CHANGE       _WSAIO(IOC_WS2,23)
 
 static
 NTSTATUS
