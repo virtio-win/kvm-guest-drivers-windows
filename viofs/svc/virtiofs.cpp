@@ -2777,8 +2777,14 @@ int wmain(int argc, wchar_t **argv)
     UNREFERENCED_PARAMETER(argc);
     UNREFERENCED_PARAMETER(argv);
 
-    if (!NT_SUCCESS(FspLoad(0)))
+    Result = FspLoad(0);
+
+    if (!NT_SUCCESS(Result))
     {
+        fwprintf(stderr,
+            L"The service %s failed to load WinFsp DLL (Status=%lx).",
+            FS_SERVICE_NAME, Result);
+
         return ERROR_DELAY_LOAD_FAILED;
     }
 
