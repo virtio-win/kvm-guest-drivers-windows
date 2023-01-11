@@ -83,6 +83,7 @@ NTSTATUS PVPanicEvtDeviceAdd(IN WDFDRIVER Driver,
     WDF_PNPPOWER_EVENT_CALLBACKS pnpPowerCallbacks;
     WDF_FILEOBJECT_CONFIG fileConfig;
     WDF_OBJECT_ATTRIBUTES attributes;
+    WDF_DEVICE_STATE deviceState;
 
     UNREFERENCED_PARAMETER(Driver);
 
@@ -114,6 +115,10 @@ NTSTATUS PVPanicEvtDeviceAdd(IN WDFDRIVER Driver,
             "WdfDeviceCreate failed: %!STATUS!", status);
         return status;
     }
+
+    WDF_DEVICE_STATE_INIT(&deviceState);
+    deviceState.NotDisableable = WdfFalse;
+    WdfDeviceSetDeviceState(device, &deviceState);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<-- %!FUNC!");
 
