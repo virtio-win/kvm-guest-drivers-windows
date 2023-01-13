@@ -75,6 +75,9 @@
 #define S_IFDIR     040000
 #define S_IFLNK     0120000
 
+#define DEFAULT_OVERFLOWUID 65534
+#define DEFAULT_OVERFLOWGID 65534
+
 #define DBG(format, ...) \
     FspDebugLog("*** %s: " format "\n", __FUNCTION__, __VA_ARGS__)
 
@@ -1180,8 +1183,14 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
 
         if (lstrcmp(FileName, TEXT("\\")) == 0)
         {
-            VirtFs->OwnerUid = attr->uid;
-            VirtFs->OwnerGid = attr->gid;
+            // If the shared directory UID or GID turns out to be 'nobody', it
+            // means the host daemon is inside the user namespace. So, the
+            // previous identity is 0 or another valid value. So, let's try to
+            // preserve it.
+            VirtFs->OwnerUid = (attr->uid != DEFAULT_OVERFLOWUID) ?
+                                attr->uid : VirtFs->OwnerUid;
+            VirtFs->OwnerGid = (attr->gid != DEFAULT_OVERFLOWGID) ?
+                                attr->gid : VirtFs->OwnerGid;
         }
 
         if (PFileAttributes != NULL)
