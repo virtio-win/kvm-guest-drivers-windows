@@ -283,8 +283,10 @@ USHORT CopyBufferToAnsiString(void* _pDest, const void* _pSrc, const char delimi
     return _length;
 }
 
-BOOLEAN VioScsiReadRegistryPhysicalBreaks(
-    IN PVOID DeviceExtension
+BOOLEAN VioScsiReadRegistryParameter(
+    IN PVOID DeviceExtension,
+    IN PUCHAR ValueName,
+    IN LONG offset
 )
 {
     BOOLEAN Ret = FALSE;
@@ -303,7 +305,7 @@ BOOLEAN VioScsiReadRegistryPhysicalBreaks(
     memset(pBuf, 0, sizeof(ULONG));
 
     Ret = StorPortRegistryRead(DeviceExtension,
-                               MAX_PH_BREAKS ,
+                               ValueName,
                                1,
                                MINIPORT_REG_DWORD,
                                pBuf,
@@ -314,12 +316,9 @@ BOOLEAN VioScsiReadRegistryPhysicalBreaks(
         return FALSE;
     }
 
-    StorPortCopyMemory((PVOID)(&adaptExt->max_physical_breaks),
+    StorPortCopyMemory((PVOID)((UINT_PTR)adaptExt + offset),
            (PVOID)pBuf,
            sizeof(ULONG));
-    adaptExt->max_physical_breaks = min(
-                                        max(SCSI_MINIMUM_PHYSICAL_BREAKS, adaptExt->max_physical_breaks),
-                                        MAX_PHYS_SEGMENTS);
 
     StorPortFreeRegistryBuffer(DeviceExtension, pBuf );
 
@@ -487,13 +486,15 @@ ENTER_FN();
          * [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\vioscsi\Parameters\Device]
          * "PhysicalBreaks"={dword value here}
          */
-        VioScsiReadRegistryPhysicalBreaks(DeviceExtension);
+        VioScsiReadRegistryParameter(DeviceExtension, MAX_PH_BREAKS, FIELD_OFFSET(ADAPTER_EXTENSION, max_physical_breaks));
+        adaptExt->max_physical_breaks = min(
+                                    max(SCSI_MINIMUM_PHYSICAL_BREAKS, adaptExt->max_physical_breaks),
+                                    MAX_PHYS_SEGMENTS);
 
         if (adaptExt->scsi_config.max_sectors > 0 &&
             adaptExt->scsi_config.max_sectors != 0xFFFF &&
             adaptExt->max_physical_breaks * PAGE_SIZE > adaptExt->scsi_config.max_sectors * SECTOR_SIZE) {
-
-            adaptExt->max_physical_breaks = adaptExt->scsi_config.max_sectors * SECTOR_SIZE / PAGE_SIZE;
+                adaptExt->max_physical_breaks = adaptExt->scsi_config.max_sectors * SECTOR_SIZE / PAGE_SIZE;
         }
     }
     ConfigInfo->NumberOfPhysicalBreaks = adaptExt->max_physical_breaks + 1;
