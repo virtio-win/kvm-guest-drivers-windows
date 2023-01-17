@@ -86,6 +86,9 @@
 #define ReadAndExecute(x) ((x) | (((x) & 0444) >> 2))
 #define GroupAsOwner(x) (((x) & ~0070) | (((x) & 0700) >> 3))
 
+static uint32_t OverflowUid;
+static uint32_t OverflowGid;
+
 typedef struct
 {
     PVOID   DirBuffer;
@@ -1187,9 +1190,9 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName,
             // means the host daemon is inside the user namespace. So, the
             // previous identity is 0 or another valid value. So, let's try to
             // preserve it.
-            VirtFs->OwnerUid = (attr->uid != DEFAULT_OVERFLOWUID) ?
+            VirtFs->OwnerUid = (attr->uid != OverflowUid) ?
                                 attr->uid : VirtFs->OwnerUid;
-            VirtFs->OwnerGid = (attr->gid != DEFAULT_OVERFLOWGID) ?
+            VirtFs->OwnerGid = (attr->gid != OverflowGid) ?
                                 attr->gid : VirtFs->OwnerGid;
         }
 
@@ -2603,6 +2606,15 @@ static VOID ParseRegistry(ULONG& DebugFlags, std::wstring& DebugLogFile,
     RegistryGetVal(FS_SERVICE_REGKEY, L"MountPoint", MountPoint);
 }
 
+static VOID ParseRegistryCommon()
+{
+    OverflowUid = DEFAULT_OVERFLOWUID;
+    OverflowGid = DEFAULT_OVERFLOWGID;
+
+    RegistryGetVal(FS_SERVICE_REGKEY, L"OverflowUid", OverflowUid);
+    RegistryGetVal(FS_SERVICE_REGKEY, L"OverflowGid", OverflowGid);
+}
+
 static NTSTATUS DebugLogSet(const std::wstring& DebugLogFile)
 {
     HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
@@ -2650,6 +2662,8 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
     {
         ParseRegistry(DebugFlags, DebugLogFile, CaseInsensitive, MountPoint);
     }
+
+    ParseRegistryCommon();
 
     if (!NT_SUCCESS(Status))
     {
