@@ -265,6 +265,7 @@ PVIRTIO_DMA_MEMORY_SLICED VirtIOWdfDeviceAllocDmaMemorySliced(
     if (!p) {
         return NULL;
     }
+    __analysis_assume(allocSize > sizeof(*p));
     RtlZeroMemory(p, sizeof(*p));
     p->va = AllocateCommonBuffer(pWdfDriver, blockSize, 0);
     p->pa = GetPhysicalAddress(pWdfDriver, p->va);
