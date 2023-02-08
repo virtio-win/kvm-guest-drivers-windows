@@ -354,12 +354,14 @@ BOOLEAN VirtIOWdfDeviceDmaTxAsync(VirtIODevice *vdev,
         if (ctx->buffer) {
             RtlCopyMemory(ctx->buffer, params->buffer, params->size);
             ctx->mdl = IoAllocateMdl(ctx->buffer, params->size, FALSE, FALSE, NULL);
-        }
-        if (ctx->mdl) {
-            MmBuildMdlForNonPagedPool(ctx->mdl);
-            status = WdfDmaTransactionInitialize(
-                tr, OnDmaTransactionProgramDma, WdfDmaDirectionWriteToDevice,
-                ctx->mdl, ctx->buffer, params->size);
+            if (ctx->mdl) {
+                MmBuildMdlForNonPagedPool(ctx->mdl);
+                status = WdfDmaTransactionInitialize(
+                    tr, OnDmaTransactionProgramDma, WdfDmaDirectionWriteToDevice,
+                    ctx->mdl, ctx->buffer, params->size);
+            } else {
+                status = STATUS_INSUFFICIENT_RESOURCES;
+            }
         } else {
             status = STATUS_INSUFFICIENT_RESOURCES;
         }
