@@ -398,10 +398,8 @@ static VOID FileTimeToUnixTime(UINT64 FileTime, uint64_t *time,
 static VOID UnixTimeToFileTime(uint64_t time, uint32_t nsec,
     PUINT64 PFileTime)
 {
-    __int3264 UnixTime[2];
-    UnixTime[0] = time;
-    UnixTime[1] = nsec;
-    FspPosixUnixTimeToFileTime(UnixTime, PFileTime);
+    *PFileTime = time * 10000000 + nsec / 100 +
+        116444736000000000LL;
 }
 
 static VOID SetFileInfo(VIRTFS *VirtFs, struct fuse_entry_out *entry,
