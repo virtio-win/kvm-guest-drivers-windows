@@ -115,7 +115,7 @@ static const tConfigurationEntries defaultConfiguration =
     { "DoLog",          1,  0,  1 },
     { "DebugLevel",     2,  0,  8 },
     { "TxCapacity",     1024,   16, 1024 },
-    { "RxCapacity",     256, 16, 1024 },
+    { "RxCapacity",     256, 16, 4096 },
     { "Offload.TxChecksum", 0, 0, 31},
     { "Offload.TxLSO",  0, 0, 2},
     { "Offload.RxCS",   0, 0, 31},

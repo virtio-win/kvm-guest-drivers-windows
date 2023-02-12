@@ -117,6 +117,8 @@ HKR, Ndi\Params\RxCapacity\enum,    "128",      0,          %String_128%
 HKR, Ndi\Params\RxCapacity\enum,    "256",      0,          %String_256%
 HKR, Ndi\Params\RxCapacity\enum,    "512",      0,          %String_512%
 HKR, Ndi\Params\RxCapacity\enum,    "1024",     0,          %String_1024%
+HKR, Ndi\Params\RxCapacity\enum,    "2048",     0,          %String_2048%
+HKR, Ndi\Params\RxCapacity\enum,    "4096",     0,          %String_4096%
 
 HKR, Ndi\params\NetworkAddress,     ParamDesc,  0,          %NetworkAddress%
 HKR, Ndi\params\NetworkAddress,     type,       0,          "edit"
@@ -267,6 +269,8 @@ String_128 = "128"
 String_256 = "256"
 String_512 = "512"
 String_1024 = "1024"
+String_2048 = "2048"
+String_4096 = "4096"
 PriorityVlanTag = "Priority and VLAN tagging"
 PriorityOnly = "Priority"
 VLan = "VLan"
