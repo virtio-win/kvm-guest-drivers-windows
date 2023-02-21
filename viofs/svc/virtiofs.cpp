@@ -2695,6 +2695,9 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
     if (Error != ERROR_SUCCESS)
     {
         // Wait for device to be found by arrival notification callback.
+        FspServiceLog(EVENTLOG_INFORMATION_TYPE,
+            (PWSTR)L"The %s service will start and wait for the device.",
+	    FS_SERVICE_NAME);
         return STATUS_SUCCESS;
     }
 
