@@ -342,3 +342,15 @@ public:
         WaitForThreadpoolWorkCallbacks(UnregWork, FALSE);
     }
 };
+
+static bool ParseIds(const std::wstring& ids, uint32_t& uid, uint32_t& gid)
+{
+    return (swscanf_s(ids.c_str(), L"%u:%u", &uid, &gid) == 2);
+}
+
+static bool CheckIds(const std::wstring& ids)
+{
+    uint32_t uid, gid;
+
+    return ParseIds(ids, uid, gid);
+}
