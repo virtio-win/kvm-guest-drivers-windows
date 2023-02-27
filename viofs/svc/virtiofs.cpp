@@ -473,7 +473,7 @@ static NTSTATUS VirtFsFuseRequest(HANDLE Device, LPVOID InBuffer,
         (BytesReturned < OutBufferSize))
     {
         DBG("Bytes Returned: %d Expected: %d", BytesReturned, OutBufferSize);
-        // XXX return STATUS_UNSUCCESSFUL;
+        // return STATUS_UNSUCCESSFUL;
     }
 
     if (out_hdr->error < 0)
