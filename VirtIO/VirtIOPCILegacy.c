@@ -160,7 +160,7 @@ static NTSTATUS vio_legacy_query_vq_alloc(VirtIODevice *vdev,
 
     /* Check if queue is either not available or already active. */
     num = ioread16(vdev, vdev->addr + VIRTIO_PCI_QUEUE_NUM);
-    if (!num || ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_PFN)) {
+    if (!num && ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_PFN)) {
         return STATUS_NOT_FOUND;
     }
 
