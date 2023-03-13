@@ -49,6 +49,9 @@ NTSTATUS FwCfgEvtDeviceD0Entry(IN WDFDEVICE Device,
 
     PAGED_CODE();
 
+    if (!ctx->kdbg)
+        return STATUS_SUCCESS;
+
     note->n_namesz = sizeof(VMCI_ELF_NOTE_NAME);
     note->n_descsz = DUMP_HDR_SIZE;
     note->n_type = 0;
@@ -68,6 +71,42 @@ NTSTATUS FwCfgEvtDeviceD0Entry(IN WDFDEVICE Device,
     status = VMCoreInfoSend(ctx);
 
     return status;
+}
+
+NTSTATUS PrepareVMCoreInfo(PDEVICE_CONTEXT ctx)
+{
+    NTSTATUS status;
+
+    if (FWCfgCheckSig(ctx->ioBase) ||
+        FWCfgCheckFeatures(ctx->ioBase, FW_CFG_VERSION_DMA) ||
+        FWCfgCheckDma(ctx->ioBase))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+            "FwCfg device is not suitable for VMCoreInfo");
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    status = FWCfgFindEntry(ctx->ioBase, ENTRY_NAME, &ctx->index,
+        sizeof(VMCOREINFO));
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+            "VMCoreInfo entry is not found");
+        return status;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP,
+        "VMCoreInfo entry index is 0x%x", ctx->index);
+
+    status = GetKdbg(ctx);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+            "Failed to get KdDebuggerDataBlock");
+        return status;
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS FwCfgEvtDevicePrepareHardware(IN WDFDEVICE Device,
@@ -107,28 +146,14 @@ NTSTATUS FwCfgEvtDevicePrepareHardware(IN WDFDEVICE Device,
         return status;
     }
 
-    if (FWCfgCheckSig(ctx->ioBase) ||
-        FWCfgCheckFeatures(ctx->ioBase, FW_CFG_VERSION_DMA) ||
-        FWCfgCheckDma(ctx->ioBase))
-    {
-        return STATUS_BAD_DATA;
-    }
-
-    ctx->index = 0;
-    FWCfgFindEntry(ctx->ioBase, ENTRY_NAME, &ctx->index, sizeof(VMCOREINFO));
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP,
-                "VMCoreInfo index is 0x%x", ctx->index);
-    if (!ctx->index)
-    {
-        return STATUS_BAD_DATA;
-    }
-
-    status = GetKdbg(ctx);
+    status = PrepareVMCoreInfo(ctx);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "Failed to get KdDebuggerDataBlock");
-        return status;
+        /*
+         * Don't fail here, because the driver is not only for vmcoreinfo,
+         * but for the whole fw_cfg device. But the driver will be useless.
+         */
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VMCoreInfo will not work");
     }
 
     return STATUS_SUCCESS;
