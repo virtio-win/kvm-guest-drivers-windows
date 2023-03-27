@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Win10 Release|Win32">
@@ -62,13 +62,15 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'" Label="Configuration">
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <_NT_TARGET_VERSION>
+    </_NT_TARGET_VERSION>
+    <TargetVersion>Windows10</TargetVersion>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
     <_NT_TARGET_VERSION>
     </_NT_TARGET_VERSION>
-    <TargetVersion>
-    </TargetVersion>
+    <TargetVersion>Windows10</TargetVersion>
   </PropertyGroup>
   <PropertyGroup Label="PropertySheets" />
   <!-- Needed by any VcxProj -->
