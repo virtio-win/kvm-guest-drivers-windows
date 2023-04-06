@@ -30,9 +30,11 @@ sdv
 sdv-map.h
 sdv-user.*
 SDV-default.xml
+smvstats.txt
 netkvmmof.h
 .vs
 codeql.build.bat
 codeql_db
 *.sarif
 *CodeAnalysis.log
+vc.nativecodeanalysis.all.xml
