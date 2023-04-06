@@ -62,13 +62,13 @@ Global
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8 Release|x86.ActiveCfg = Win8 Release|Win32
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8 Release|x86.Build.0 = Win8 Release|Win32
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8 Release|x86.Deploy.0 = Win8 Release|Win32
-		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|ARM64.ActiveCfg = Win8 Release|x64
-		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|x64.ActiveCfg = Win8 Release|x64
-		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|x64.Build.0 = Win8 Release|x64
-		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|x64.Deploy.0 = Win8 Release|x64
-		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|x86.ActiveCfg = Win8 Release|Win32
-		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|x86.Build.0 = Win8 Release|Win32
-		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|x86.Deploy.0 = Win8 Release|Win32
+		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|ARM64.ActiveCfg = Win8.1 Release|x64
+		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
+		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|x64.Build.0 = Win8.1 Release|x64
+		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|x64.Deploy.0 = Win8.1 Release|x64
+		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
+		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
+		{DAD407F3-186A-48FC-88CE-E236AF3165C4}.Win8.1 Release|x86.Deploy.0 = Win8.1 Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

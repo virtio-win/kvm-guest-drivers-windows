@@ -112,10 +112,10 @@ Global
 		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win8 Release|x86.ActiveCfg = Win8 Release|Win32
 		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win8 Release|x86.Build.0 = Win8 Release|Win32
 		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win8.1 Release|ARM64.ActiveCfg = Release|x64
-		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win8.1 Release|x64.ActiveCfg = Release|x64
-		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win8.1 Release|x64.Build.0 = Release|x64
-		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win8.1 Release|x86.ActiveCfg = Release|Win32
-		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win8.1 Release|x86.Build.0 = Release|Win32
+		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
+		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win8.1 Release|x64.Build.0 = Win8.1 Release|x64
+		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
+		{B953395B-010B-432C-AFCD-6C4F6553905F}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
