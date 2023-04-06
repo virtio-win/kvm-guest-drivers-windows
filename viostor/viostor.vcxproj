@@ -13,6 +13,14 @@
       <Configuration>Win10 Release</Configuration>
       <Platform>ARM64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8.1 Release|Win32">
+      <Configuration>Win8.1 Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8.1 Release|x64">
+      <Configuration>Win8.1 Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Win8 Release|Win32">
       <Configuration>Win8 Release</Configuration>
       <Platform>Win32</Platform>
@@ -39,6 +47,11 @@
     <UseDebugLibraries>false</UseDebugLibraries>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
   </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
+    <TargetVersion>WindowsV6.3</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <SourceInfFile>viostor.inx</SourceInfFile>
+  </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <TargetVersion>Windows8</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
@@ -46,6 +59,11 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <SourceInfFile>viostor.inx</SourceInfFile>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
+    <TargetVersion>WindowsV6.3</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <SourceInfFile>viostor.inx</SourceInfFile>
   </PropertyGroup>
@@ -81,6 +99,10 @@
     <TargetName>viostor</TargetName>
     <TargetExt>.sys</TargetExt>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
+    <OutDir>objfre_win8.1_x86\i386\</OutDir>
+    <IntDir>objfre_win8.1_x86\i386\</IntDir>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <OutDir>objfre_win8_x86\i386\</OutDir>
     <IntDir>objfre_win8_x86\i386\</IntDir>
@@ -88,6 +110,10 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <OutDir>objfre_win10_x86\i386\</OutDir>
     <IntDir>objfre_win10_x86\i386\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
+    <OutDir>objfre_win8.1_amd64\amd64\</OutDir>
+    <IntDir>objfre_win8.1_amd64\amd64\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <OutDir>objfre_win8_amd64\amd64\</OutDir>
@@ -120,6 +146,14 @@
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..\Inc</AdditionalIncludeDirectories>
     </ResourceCompile>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Win8.1 Release'">
+    <ClCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>%(AdditionalDependencies);storport.lib</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Win8 Release'">
     <ClCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -148,6 +182,13 @@
       <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viostor.DVL.XML;$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viostor.DVL-win10.XML</Outputs>
     </CustomBuildStep>
     <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">true</WppEnabled>
+      <WppSearchString Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
+      </WppSearchString>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">virtio_stor_trace.h</WppScanConfigurationData>
+    </ClCompile>
+    <ClCompile>
       <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">true</WppEnabled>
       <WppSearchString Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
       </WppSearchString>
@@ -170,6 +211,11 @@
       <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">true</WppEnabled>
       <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">virtio_stor_trace.h</WppScanConfigurationData>
       <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
+    </ClCompile>
+    <ClCompile>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">true</WppEnabled>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">virtio_stor_trace.h</WppScanConfigurationData>
+      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
     </ClCompile>
     <ClCompile>
       <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">true</WppEnabled>
