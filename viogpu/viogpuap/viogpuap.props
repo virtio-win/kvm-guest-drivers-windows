@@ -11,6 +11,6 @@ Enabling and customizing virtio build features
     <CopyrightStrings>VioGpuDodCopyrightStrings</CopyrightStrings>
   </PropertyGroup>
   <ItemGroup>
-    <PackOne_UnsupportedOS Include="@(PackOne_UnsupportedOS);Win8.1" />
+    <PackOne_UnsupportedOS Include="@(PackOne_UnsupportedOS)" />
   </ItemGroup>
 </Project>
