@@ -571,7 +571,7 @@ static NTSTATUS VirtFsCreateFile(VIRTFS *VirtFs,
 
         if (AllocationSize > 0)
         {
-            Status = SetFileSize(VirtFs->FileSystem, FileContext,
+            SetFileSize(VirtFs->FileSystem, FileContext,
                 AllocationSize, TRUE, FileInfo);
         }
         else
