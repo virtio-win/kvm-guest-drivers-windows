@@ -53,8 +53,6 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{7F794CE4-EFAC-4C54-AEEC-7873510C36EA}</ProjectGuid>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
-    <_NT_TARGET_VERSION>0x0601</_NT_TARGET_VERSION>
-    <TargetVersion>Windows7</TargetVersion>
     <UseDebugLibraries>False</UseDebugLibraries>
     <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
     <SpectreMitigation>false</SpectreMitigation>
@@ -62,13 +60,31 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'" Label="Configuration">
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <TargetVersion>Windows10</TargetVersion>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
-    <_NT_TARGET_VERSION>
-    </_NT_TARGET_VERSION>
-    <TargetVersion>
-    </TargetVersion>
+    <TargetVersion>Windows10</TargetVersion>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
+    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <TargetVersion>Windows10</TargetVersion>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
+    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <TargetVersion>WindowsV6.3</TargetVersion>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
+    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <TargetVersion>WindowsV6.3</TargetVersion>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <TargetVersion>Windows8</TargetVersion>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
+    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <TargetVersion>Windows8</TargetVersion>
   </PropertyGroup>
   <PropertyGroup Label="PropertySheets" />
   <!-- Needed by any VcxProj -->
