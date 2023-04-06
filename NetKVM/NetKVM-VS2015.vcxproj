@@ -61,7 +61,7 @@
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
-    <DEP_LIB_PATH>objfre_win8_x86\i386</DEP_LIB_PATH>
+    <DEP_LIB_PATH>objfre_win8.1_x86\i386</DEP_LIB_PATH>
     <SourceInfFile>netkvm_no_USO.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
@@ -105,7 +105,7 @@
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
-    <DEP_LIB_PATH>objfre_win8_amd64\amd64</DEP_LIB_PATH>
+    <DEP_LIB_PATH>objfre_win8.1_amd64\amd64</DEP_LIB_PATH>
     <SourceInfFile>netkvm_no_USO.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
