@@ -9,12 +9,24 @@
       <Configuration>Win10 Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Win10 Release|ARM64">
+      <Configuration>Win10 Release</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Win8 Release|Win32">
       <Configuration>Win8 Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win8 Release|x64">
       <Configuration>Win8 Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8.1 Release|Win32">
+      <Configuration>Win8.1 Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Win8.1 Release|x64">
+      <Configuration>Win8.1 Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
@@ -42,6 +54,10 @@
     <TargetVersion>Windows8</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'" Label="Configuration">
+    <TargetVersion>WindowsV6.3</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'" Label="Configuration">
     <UseDebugLibraries>false</UseDebugLibraries>
   </PropertyGroup>
@@ -49,7 +65,15 @@
     <TargetVersion>Windows8</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'" Label="Configuration">
+    <TargetVersion>WindowsV6.3</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'" Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
   </PropertyGroup>
@@ -64,15 +88,24 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <OutDir>$(ProjectDir)..\Install\win8\x86\</OutDir>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
+    <OutDir>$(ProjectDir)..\Install\win8.1\x86\</OutDir>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <OutDir>$(ProjectDir)..\Install\win10\x86\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <OutDir>$(ProjectDir)..\Install\win8\amd64\</OutDir>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
+    <OutDir>$(ProjectDir)..\Install\win8.1\amd64\</OutDir>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <OutDir>$(ProjectDir)..\Install\win10\amd64\</OutDir>
     <Inf2CatWindowsVersionList>Server10_$(DDKPlatform);$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">
+    <OutDir>$(ProjectDir)..\Install\win10\arm64\</OutDir>
   </PropertyGroup>
   <PropertyGroup>
     <PackageDir>$(OutDir)</PackageDir>
@@ -93,40 +126,13 @@
     <PackageDir>$(OutDir)</PackageDir>
   </PropertyGroup>
   <ItemGroup>
-    <FilesToPackage Include="..\pci\$(IntDir)\viofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
+    <FilesToPackage Include="..\pci\$(IntDir)\viofs.pdb">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\pci\$(IntDir)\viofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+    <FilesToPackage Include="..\svc\$(IntDir)\virtiofs.exe">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\svc\Release\virtiofs.exe" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\svc\Release\virtiofs.exe" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\svc\Release\virtiofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\svc\Release\virtiofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\svc\x64\Release\virtiofs.exe" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\svc\x64\Release\virtiofs.exe" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\svc\x64\Release\virtiofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\pci\$(IntDir)\viofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\pci\$(IntDir)\viofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\svc\x64\Release\virtiofs.pdb" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
+    <FilesToPackage Include="..\svc\$(IntDir)\virtiofs.pdb">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
   </ItemGroup>
