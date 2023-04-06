@@ -108,8 +108,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
-    <OutDir>objfre_win8_x86\i386\</OutDir>
-    <IntDir>objfre_win8_x86\i386\</IntDir>
+    <OutDir>objfre_win8.1_x86\i386\</OutDir>
+    <IntDir>objfre_win8.1_x86\i386\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <OutDir>objfre_win8_x86\i386\</OutDir>
@@ -120,8 +120,8 @@
     <IntDir>objfre_win10_x86\i386\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
-    <OutDir>objfre_win8_amd64\amd64\</OutDir>
-    <IntDir>objfre_win8_amd64\amd64\</IntDir>
+    <OutDir>objfre_win8.1_amd64\amd64\</OutDir>
+    <IntDir>objfre_win8.1_amd64\amd64\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <OutDir>objfre_win8_amd64\amd64\</OutDir>
