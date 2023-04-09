@@ -16,13 +16,15 @@ Common property definitions used by all drivers:
   </Target>
 
   <PropertyGroup Condition="'$(TargetVersion)'=='Windows10'">
-  <_NT_TARGET_VERSION>0x0A00</_NT_TARGET_VERSION>
+    <KmdfVersion>1.15</KmdfVersion>
+    <_NT_TARGET_VERSION>0x0A00</_NT_TARGET_VERSION>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TargetVersion)'=='WindowsV6.3'">
+    <KmdfVersion>1.13</KmdfVersion>
     <_NT_TARGET_VERSION>0x0603</_NT_TARGET_VERSION>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TargetVersion)'=='Windows8'">
+    <KmdfVersion>1.11</KmdfVersion>
     <_NT_TARGET_VERSION>0x0602</_NT_TARGET_VERSION>
   </PropertyGroup>
-
 </Project>
