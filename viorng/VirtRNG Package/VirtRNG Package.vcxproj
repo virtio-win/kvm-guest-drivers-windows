@@ -120,12 +120,6 @@
     <FilesToPackage Include="..\viorng\$(IntDir)viorng.pdb">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
-    <FilesToPackage Include="..\coinstaller\$(IntDir)viorngci.dll">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
-    <FilesToPackage Include="..\coinstaller\$(IntDir)viorngci.pdb">
-      <PackageRelativeDirectory>.</PackageRelativeDirectory>
-    </FilesToPackage>
     <FilesToPackage Include="..\cng\um\$(IntDir)viorngum.dll">
       <PackageRelativeDirectory>.</PackageRelativeDirectory>
     </FilesToPackage>
