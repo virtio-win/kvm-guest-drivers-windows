@@ -34,7 +34,6 @@ VirtRng_Wdf_CoInstaller_CopyFiles = 11
 [SourceDisksFiles]
 viorng.sys = 1,,
 viorngum.dll = 1
-viorngci.dll = 1
 WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll = 1 ; make sure the number matches with SourceDisksNames
 
 ; ---------------
@@ -51,6 +50,7 @@ WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll = 1 ; make sure the number matches wi
 [VirtRng_Device.NT]
 CopyFiles = VirtRng_CopyFiles
 CopyFiles = VirtRng_Provider_CopyFiles
+AddReg = VirtRng_Provider_AddReg
 
 [VirtRng_Device.NT.HW]
 AddReg = VirtRng_AddReg
@@ -90,6 +90,13 @@ HKR,Parameters,DmaRemappingCompatible,0x00010001,1
 [VirtRng_Provider_CopyFiles]
 viorngum.dll
 
+[VirtRng_Provider_AddReg]
+HKLM,SYSTEM\CurrentControlSet\Control\Cryptography\Providers\%PROVIDER_NAME%\UM,Image,,viorngum.dll
+HKLM,SYSTEM\CurrentControlSet\Control\Cryptography\Providers\%PROVIDER_NAME%\UM\00000006,Flags,%REG_DWORD%,0x00000001
+HKLM,SYSTEM\CurrentControlSet\Control\Cryptography\Providers\%PROVIDER_NAME%\UM\00000006,Functions,%REG_MULTI_SZ%,RNG
+HKLM,SYSTEM\CurrentControlSet\Control\Cryptography\Configuration\Local\Default\00000006\RNG,Providers,%REG_MULTI_SZ_APPEND%,%PROVIDER_NAME%
+
+
 ; -------------------------------------
 ; WDF & Device CoInstaller Installation
 ; -------------------------------------
@@ -99,12 +106,10 @@ AddReg=VirtRng_Wdf_CoInstaller_AddReg
 CopyFiles=VirtRng_Wdf_CoInstaller_CopyFiles
 
 [VirtRng_Wdf_CoInstaller_AddReg]
-HKR,,CoInstallers32,0x00010000,"viorngci.dll,VirtRngCoInstaller", \
-    "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+HKR,,CoInstallers32,0x00010000,"WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
 
 [VirtRng_Wdf_CoInstaller_CopyFiles]
 WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
-viorngci.dll
 
 [VirtRng_Device.NT.Wdf]
 KmdfService = VirtRng, VirtRng_wdfsect
@@ -117,3 +122,7 @@ VENDOR              = "INX_COMPANY"
 DiskName            = "INX_PREFIX_VIRTIOVirtIO RNG Installation Disk"
 VirtRng.DeviceDesc  = "INX_PREFIX_VIRTIOVirtIO RNG Device"
 VirtRng.Service     = "INX_PREFIX_VIRTIOVirtIO RNG Service"
+REG_DWORD           = 0x00010001
+REG_MULTI_SZ        = 0x00010000
+REG_MULTI_SZ_APPEND = 0x00010008
+PROVIDER_NAME       = "QEMU VirtIO RNG Provider"
