@@ -78,9 +78,4 @@
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
-  <ItemGroup>
-    <Inf Include="vioinput.inx">
-      <Filter>Driver Files</Filter>
-    </Inf>
-  </ItemGroup>
 </Project>

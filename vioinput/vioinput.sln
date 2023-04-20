@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31702.278
@@ -16,10 +16,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vioinput", "sys\vioinput.vc
 	ProjectSection(ProjectDependencies) = postProject
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E} = {01D87C47-437A-4A16-8FD9-33FA5C99339E}
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632} = {EC1B7990-EA6A-45FE-836C-2F050F6BB632}
-		{EC5DCAF5-3514-4E61-8201-10F5F060E096} = {EC5DCAF5-3514-4E61-8201-10F5F060E096}
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "hidpassthrough", "hidpassthrough\hidpassthrough.vcxproj", "{EC5DCAF5-3514-4E61-8201-10F5F060E096}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vioinput package", "package\package.vcxproj", "{4BEE8BEA-413F-4262-BC96-B03B509241E4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -122,6 +123,28 @@ Global
 		{EC5DCAF5-3514-4E61-8201-10F5F060E096}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
 		{EC5DCAF5-3514-4E61-8201-10F5F060E096}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 		{EC5DCAF5-3514-4E61-8201-10F5F060E096}.Win8.1 Release|x86.Deploy.0 = Win8.1 Release|Win32
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win10 Release|x64.Build.0 = Win10 Release|x64
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win10 Release|x64.Deploy.0 = Win10 Release|x64
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win10 Release|x86.Build.0 = Win10 Release|Win32
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win10 Release|x86.Deploy.0 = Win10 Release|Win32
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win8 Release|ARM64.ActiveCfg = Win8 Release|ARM64
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win8 Release|x64.ActiveCfg = Win8 Release|x64
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win8 Release|x64.Build.0 = Win8 Release|x64
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win8 Release|x64.Deploy.0 = Win8 Release|x64
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win8 Release|x86.ActiveCfg = Win8 Release|Win32
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win8 Release|x86.Build.0 = Win8 Release|Win32
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win8 Release|x86.Deploy.0 = Win8 Release|Win32
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win8.1 Release|ARM64.ActiveCfg = Win8.1 Release|ARM64
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win8.1 Release|x64.Build.0 = Win8.1 Release|x64
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win8.1 Release|x64.Deploy.0 = Win8.1 Release|x64
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
+		{4BEE8BEA-413F-4262-BC96-B03B509241E4}.Win8.1 Release|x86.Deploy.0 = Win8.1 Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
