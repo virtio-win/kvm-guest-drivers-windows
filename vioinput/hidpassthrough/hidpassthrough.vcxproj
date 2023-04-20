@@ -83,45 +83,8 @@
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <TargetName>viohidkmdf</TargetName>
     <TargetExt>.sys</TargetExt>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
-    <OutDir>objfre_win10_x86\i386\</OutDir>
-    <IntDir>objfre_win10_x86\i386\</IntDir>
-    <EnableInf2cat>false</EnableInf2cat>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">
-    <OutDir>objfre_win8.1_x86\i386\</OutDir>
-    <IntDir>objfre_win8.1_x86\i386\</IntDir>
-    <EnableInf2cat>false</EnableInf2cat>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-    <OutDir>objfre_win8_x86\i386\</OutDir>
-    <IntDir>objfre_win8_x86\i386\</IntDir>
-    <EnableInf2cat>false</EnableInf2cat>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
-    <OutDir>objfre_win10_amd64\amd64\</OutDir>
-    <IntDir>objfre_win10_amd64\amd64\</IntDir>
-    <EnableInf2cat>false</EnableInf2cat>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
-    <OutDir>objfre_win8.1_amd64\amd64\</OutDir>
-    <IntDir>objfre_win8.1_amd64\amd64\</IntDir>
-    <EnableInf2cat>false</EnableInf2cat>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">
-    <OutDir>objfre_win10_arm64\arm64\</OutDir>
-    <IntDir>objfre_win10_arm64\arm64\</IntDir>
-    <EnableInf2cat>false</EnableInf2cat>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|ARM64'">
-    <OutDir>objfre_win8.1_arm64\arm64\</OutDir>
-    <IntDir>objfre_win8.1_arm64\arm64\</IntDir>
-    <EnableInf2cat>false</EnableInf2cat>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-    <OutDir>objfre_win8_amd64\amd64\</OutDir>
-    <IntDir>objfre_win8_amd64\amd64\</IntDir>
+    <OutDir>$(Platform)\$(Configuration.Replace(' ',''))\</OutDir>
+    <IntDir>$(Platform)\$(Configuration.Replace(' ',''))\</IntDir>
     <EnableInf2cat>false</EnableInf2cat>
   </PropertyGroup>
   <PropertyGroup>
@@ -141,13 +104,6 @@
       <Inputs>$(ProjectDir)viohidkmdf.DVL.XML</Inputs>
       <Outputs>$(ProjectDir)$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)\viohidkmdf.DVL.XML</Outputs>
     </CustomBuildStep>
-    <PostBuildEvent>
-      <Command>
-        mkdir ..\Install\$(TargetOS)\$(TargetArch)
-        copy $(OutDir)viohidkmdf.sys ..\Install\$(TargetOS)\$(TargetArch)
-        copy $(OutDir)viohidkmdf.pdb ..\Install\$(TargetOS)\$(TargetArch)
-      </Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="hidpassthrough.c" />

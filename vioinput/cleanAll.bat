@@ -8,4 +8,6 @@ cd sys
 call cleanAll.bat
 cd ..\hidpassthrough
 call cleanAll.bat
+cd ..\package
+call cleanAll.bat
 cd ..
