@@ -20,8 +20,6 @@ call tools\build.bat ivshmem\ivshmem.vcxproj "Win10_SDV" %*
 if errorlevel 1 goto :fail
 call tools\build.bat pvpanic\pvpanic\pvpanic.vcxproj "Win10_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat viocrypt\sys\viocrypt.vcxproj "Win10_SDV" %*
-if errorlevel 1 goto :fail
 call tools\build.bat viorng\viorng\viorng.vcxproj "Win10_SDV" %*
 if errorlevel 1 goto :fail
 call tools\build.bat vioserial\sys\vioser.vcxproj "Win10_SDV" %*
