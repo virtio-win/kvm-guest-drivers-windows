@@ -185,6 +185,7 @@
     <PackageDir>$(OutDir)</PackageDir>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
