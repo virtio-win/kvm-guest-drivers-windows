@@ -719,6 +719,7 @@ VirtIoHwInitialize(
     adaptExt->msix_vectors = 0;
     adaptExt->pageOffset = 0;
     adaptExt->poolOffset = 0;
+    adaptExt->stopped = FALSE;
 
     while(StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MessageId = %x\n", msi_info.MessageId);
@@ -957,6 +958,9 @@ VirtIoStartIo(
                 adaptExt->removed = TRUE;
                 DeviceChangeNotification(DeviceExtension, FALSE);
                 break;
+            case StorStopDevice:
+                adaptExt->stopped = TRUE;
+                break;
             default:
                 RhelDbgPrint(TRACE_LEVEL_FATAL, " Unsupported PnPAction SrbPnPFlags = %d, PnPAction = %d\n", SrbPnPFlags, PnPAction);
                 SrbStatus = SRB_STATUS_INVALID_REQUEST;
@@ -1122,8 +1126,8 @@ VirtIoInterrupt(
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " IRQL (%d)\n", KeGetCurrentIrql());
-    if (adaptExt->removed == TRUE) {
-        RhelDbgPrint(TRACE_LEVEL_ERROR, " Interrupt on removed device)");
+    if (adaptExt->removed == TRUE || adaptExt->stopped == TRUE) {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, " Interrupt on removed or stopped device)");
         return FALSE;
     }
     intReason = virtio_read_isr_status(&adaptExt->vdev);
@@ -1285,6 +1289,10 @@ VirtIoBuildIo(
         CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_NO_DEVICE);
         return FALSE;
     }
+    if (adaptExt->stopped == TRUE) {
+        CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_ABORTED);
+        return FALSE;
+    }
 
     RtlZeroMemory(srbExt, sizeof(*srbExt));
 
@@ -1381,7 +1389,9 @@ VirtIoMSInterruptRoutine (
 {
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if (MessageID > adaptExt->num_queues || adaptExt->removed == TRUE) {
+    if (MessageID > adaptExt->num_queues ||
+        adaptExt->removed == TRUE ||
+        adaptExt->stopped == TRUE) {
         RhelDbgPrint(TRACE_LEVEL_ERROR, " MessageID = %d\n", MessageID);
         return FALSE;
     }

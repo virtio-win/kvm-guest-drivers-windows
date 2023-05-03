@@ -242,6 +242,7 @@ typedef struct _ADAPTER_EXTENSION {
     BOOLEAN               check_condition;
     SENSE_INFO            sense_info;
     BOOLEAN               removed;
+    BOOLEAN               stopped;
     ULONG                 max_tx_length;
     PGROUP_AFFINITY       pmsg_affinity;
     ULONG                 num_affinity;
