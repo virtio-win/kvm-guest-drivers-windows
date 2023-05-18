@@ -34,6 +34,10 @@
 #include "viowsk-internal.h"
 #include "wsk-workitem.h"
 #include "..\inc\vio_wsk.h"
+#ifdef EVENT_TRACING
+#include "provider.tmh"
+#endif
+
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VioWskGetAddressInfo)
@@ -61,7 +65,7 @@ VioWskSocket(
 	PWSK_WORKITEM WorkItem = NULL;
 	PVIOWSK_SOCKET pSocket = NULL;
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
-	DEBUG_ENTER_FUNCTION("Client=0x%p; AddressFamily=%u; SocketType=%u; Protocol=%u; Flags=0x%x; SocketContext=0x%p; Dispatch=0x%p; OwningProcess=0x%p; OwningThread=0x%p; SecurityDescriptor=0x%p; Irp=0x%p", Client, AddressFamily, SocketType, Protocol, Flags, SocketContext, Dispatch, OwningProcess, OwningThread, SecurityDescriptor, Irp);
+    DEBUG_ENTER_FUNCTION("Client=0x%p; AddressFamily=%u; SocketType=%u; Protocol=%u; Flags=0x%x; SocketContext=0x%p; Dispatch=0x%p; OwningProcess=0x%p; OwningThread=0x%p; SecurityDescriptor=0x%p; Irp=0x%p", Client, AddressFamily, SocketType, Protocol, Flags, SocketContext, Dispatch, OwningProcess, OwningThread, SecurityDescriptor, Irp);
 
 	_At_((void*)Irp->IoStatus.Information, __drv_allocatesMem(Mem))
 
@@ -151,7 +155,7 @@ VioWskControlClient(
 )
 {
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
-    DEBUG_ENTER_FUNCTION("Client=0x%p; ControlCode=0x%x; InputSize=%zu; InputBuffer=0x%p; OutputSize=%zu; OutputBuffer=0x%p; OutputSizeReturned=0x%p; Irp=0x%p", Client, ControlCode, InputSize, InputBuffer, OutputSize, OutputBuffer, OutputSizeReturned, Irp);
+    DEBUG_ENTER_FUNCTION("Client=0x%p; ControlCode=0x%x; InputSize=%Iu; InputBuffer=0x%p; OutputSize=%Iu; OutputBuffer=0x%p; OutputSizeReturned=0x%p; Irp=0x%p", Client, ControlCode, InputSize, InputBuffer, OutputSize, OutputBuffer, OutputSizeReturned, Irp);
 
     UNREFERENCED_PARAMETER(Client);
     UNREFERENCED_PARAMETER(ControlCode);

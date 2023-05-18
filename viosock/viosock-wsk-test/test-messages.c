@@ -30,6 +30,9 @@
 #include <bcrypt.h>
 #include "..\inc\debug-utils.h"
 #include "test-messages.h"
+#ifdef EVENT_TRACING
+#include "test-messages.tmh"
+#endif
 
 
 static ULONG _randSeed;

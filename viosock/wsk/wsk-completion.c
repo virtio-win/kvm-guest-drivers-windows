@@ -32,7 +32,9 @@
 #include "wsk-utils.h"
 #include "viowsk-internal.h"
 #include "wsk-completion.h"
-
+#ifdef EVENT_TRACING
+#include "wsk-completion.tmh"
+#endif
 
 
 
@@ -230,7 +232,7 @@ WskGeneralIrpCompletion(
 
     WskCompContextDereference(Ctx);
     
-    DEBUG_EXIT_FUNCTION("0x%x", STATUS_MORE_PROCESSING_REQUIRED);
+    DEBUG_EXIT_FUNCTION("0x%ix", STATUS_MORE_PROCESSING_REQUIRED);
     return STATUS_MORE_PROCESSING_REQUIRED;
 }
 

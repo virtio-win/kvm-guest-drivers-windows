@@ -31,6 +31,12 @@
 #define __DEBUG_UTILS_H__
 
 
+#include <Evntrace.h>
+#include "wpp-trace.h"
+#include "..\..\virtio\kdebugprint.h"
+
+#ifndef EVENT_TRACING
+
 
 #if defined(DBG) || defined(_DEBUG)
 
@@ -79,5 +85,7 @@
     DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_INFO_LEVEL, "[0x%x:0x%x:%u]: " __FUNCTION__ ": INFO: " Format "\n", \
         PtrToUlong(PsGetCurrentProcessId()), PtrToUlong(PsGetCurrentThreadId()), KeGetCurrentIrql(), __VA_ARGS__)
 
+
+#endif
 
 #endif

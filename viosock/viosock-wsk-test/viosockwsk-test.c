@@ -52,7 +52,9 @@
 #include "..\inc\vio_sockets.h"
 #include "..\sys\public.h"
 #include "test-messages.h"
-
+#ifdef EVENT_TRACING
+#include "viosockwsk-test.tmh"
+#endif
 
 
 #define LISTEN_PORT_MIN				1337
@@ -797,6 +799,7 @@ DriverUnload(
 	VioWskDeregister(&_vioWskRegistration);
 	VioWskModuleFinit();
 	IoDeleteDevice(_shutdownDeviceObject);
+	WPP_CLEANUP(DriverObject);
 
 	DEBUG_EXIT_FUNCTION_VOID();
 	return;
@@ -813,6 +816,7 @@ DriverEntry(
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 	DEBUG_ENTER_FUNCTION("DriverObject=0x%p; RegistryPath=\"%wZ\"", DriverObject, RegistryPath);
 
+	WPP_INIT_TRACING(DriverObject, RegistryPath);
 	Status = IoCreateDevice(DriverObject, 0, NULL, FILE_DEVICE_UNKNOWN, 0, FALSE, &Device);
 	if (!NT_SUCCESS(Status))
 		goto Exit;
@@ -865,6 +869,11 @@ DeleteDevice:
 	if (Device)
 		IoDeleteDevice(Device);
 Exit:
+	if (!NT_SUCCESS(Status))
+	{
+		WPP_CLEANUP(DriverObject);
+	}
+
 	DEBUG_EXIT_FUNCTION("0x%x", Status);
 	return Status;
 }
