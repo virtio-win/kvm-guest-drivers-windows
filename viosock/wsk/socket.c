@@ -35,6 +35,11 @@
 #include "wsk-completion.h"
 #include "wsk-workitem.h"
 #include "..\inc\vio_wsk.h"
+#ifdef EVENT_TRACING
+#include "socket.tmh"
+#endif
+
+
 
 NTSTATUS
 WSKAPI
@@ -293,7 +298,7 @@ VioWskControlSocket(
     PVIOSOCKET_COMPLETION_CONTEXT CompContext = NULL;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
     PVIOWSK_SOCKET pSocket = CONTAINING_RECORD(Socket, VIOWSK_SOCKET, WskSocket);
-    DEBUG_ENTER_FUNCTION("Socket=0x%p; RequestType=%u; ControlCode=0x%x; Level=%u; InputSize=%zu; InputBuffer=0x%p; OutputSize=%zu; OutputBuffer=0x%p; OutputSizeReturned=0x%p; Irp=0x%p", Socket, RequestType, ControlCode, Level, InputSize, InputBuffer, OutputSize, OutputBuffer, OutputSizeReturned, Irp);
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; RequestType=%u; ControlCode=0x%x; Level=%u; InputSize=%Iu; InputBuffer=0x%p; OutputSize=%Iu; OutputBuffer=0x%p; OutputSizeReturned=0x%p; Irp=0x%p", Socket, RequestType, ControlCode, Level, InputSize, InputBuffer, OutputSize, OutputBuffer, OutputSizeReturned, Irp);
 
     UNREFERENCED_PARAMETER(OutputSizeReturned);
 

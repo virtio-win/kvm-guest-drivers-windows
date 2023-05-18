@@ -36,6 +36,9 @@
     <ClInclude Include="wsk-completion.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="wpp-trace.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="provider.c">

@@ -29,6 +29,7 @@
   <ItemGroup>
     <ClInclude Include="..\inc\debug-utils.h" />
     <ClInclude Include="precomp.h" />
+    <ClInclude Include="wpp-trace.h" />
     <ClInclude Include="viowsk-internal.h" />
     <ClInclude Include="viowsk.h" />
     <ClInclude Include="wsk-completion.h" />
@@ -125,12 +126,36 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <PreprocessorDefinitions>WINAPI_FAMILY=WINAPI_FAMILY_DESKTOP_APP;WINAPI_PARTITION_DESKTOP=1;WINAPI_PARTITION_SYSTEM=1;WINAPI_PARTITION_APP=1;WINAPI_PARTITION_PC_APP=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>TRACE_PROJECT_NAME=VioWsk;WINAPI_FAMILY=WINAPI_FAMILY_DESKTOP_APP;WINAPI_PARTITION_DESKTOP=1;WINAPI_PARTITION_SYSTEM=1;WINAPI_PARTITION_APP=1;WINAPI_PARTITION_PC_APP=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">true</WppEnabled>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">true</WppEnabled>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">true</WppEnabled>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">true</WppEnabled>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">true</WppEnabled>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">wpp-trace.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">wpp-trace.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">trace.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">wpp-trace.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">trace.h</WppScanConfigurationData>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win11 Release|ARM64'">true</WppEnabled>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32'">true</WppEnabled>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win11 Release|x64'">true</WppEnabled>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win11 Release|ARM64'">wpp-trace.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32'">wpp-trace.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win11 Release|x64'">wpp-trace.h</WppScanConfigurationData>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="$(Configuration.EndsWith('Debug'))">
     <ClCompile>
-      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>TRACE_PROJECT_NAME=VioWsk;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|ARM64'">true</WppEnabled>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|ARM64'">true</WppEnabled>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">true</WppEnabled>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">true</WppEnabled>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|ARM64'">trace.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|ARM64'">trace.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|Win32'">trace.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Debug|x64'">trace.h</WppScanConfigurationData>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

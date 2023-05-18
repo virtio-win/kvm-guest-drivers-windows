@@ -32,11 +32,16 @@
 #include "..\inc\debug-utils.h"
 #include "wsk-utils.h"
 #include "viowsk-internal.h"
+#ifdef EVENT_TRACING
+#include "socket-internal.tmh"
+#endif
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VioWskSocketInternal)
 #pragma alloc_text (PAGE, VioWskCloseSocketInternal)
 #endif
+
+
 
 
 _Must_inspect_result_

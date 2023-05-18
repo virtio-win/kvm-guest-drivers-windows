@@ -32,11 +32,15 @@
 #include "viowsk.h"
 #include "..\inc\vio_wsk.h"
 #include "viowsk-internal.h"
+#ifdef EVENT_TRACING
+#include "viowsk.tmh"
+#endif
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (PAGE, VioWskRegister)
 #pragma alloc_text (PAGE, VioWskDeregister)
 #endif
+
 
 
 typedef struct _VIOSOCK_WAIT_CONTEXT {

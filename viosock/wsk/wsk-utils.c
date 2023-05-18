@@ -34,6 +34,9 @@
 #include "viowsk-internal.h"
 #include "wsk-completion.h"
 #include "wsk-utils.h"
+#ifdef EVENT_TRACING
+#include "wsk-utils.tmh"
+#endif
 
 #ifdef ALLOC_PRAGMA
 #endif
@@ -89,6 +92,7 @@ VioWskIrpRelease(
 }
 
 
+
 NTSTATUS
 VioWskIrpComplete(
 	_Inout_opt_ PVIOWSK_SOCKET Socket,
@@ -97,7 +101,7 @@ VioWskIrpComplete(
 	_In_ ULONG_PTR             Information
 )
 {
-    DEBUG_ENTER_FUNCTION("Socket=0x%p; Irp=0x%p; Status=0x%x; Information=%zu", Socket, Irp, Status, Information);
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; Irp=0x%p; Status=0x%x; Information=%Iu", Socket, Irp, Status, (ULONG64)Information);
 
     IoSetCancelRoutine(Irp, NULL);
     if (Socket)

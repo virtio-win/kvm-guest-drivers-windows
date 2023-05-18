@@ -34,6 +34,9 @@
 #include "..\inc\vio_wsk.h"
 #include "viowsk-internal.h"
 #include "wsk-workitem.h"
+#ifdef EVENT_TRACING
+#include "wsk-workitem.tmh"
+#endif
 
 
 #pragma warning(disable : 4996)
