@@ -113,6 +113,7 @@ struct VIRTFS
     DeviceHandleNotification DevHandleNotification{};
 
     bool CaseInsensitive{ false };
+    std::wstring FileSystemName{};
     std::wstring MountPoint{ L"*" };
     std::wstring Tag{};
 
@@ -136,10 +137,12 @@ struct VIRTFS
     // Maps NodeId to its Nlookup counter.
     std::map<UINT64, UINT64> LookupMap{};
 
-    VIRTFS(ULONG DebugFlags, bool CaseInsensitive, const std::wstring& MountPoint,
+    VIRTFS(ULONG DebugFlags, bool CaseInsensitive,
+        const std::wstring& FileSystemName, const std::wstring& MountPoint,
         const std::wstring& Tag, bool AutoOwnerIds,
         uint32_t OwnerUid,  uint32_t OwnerGid) :
         DebugFlags{ DebugFlags }, CaseInsensitive{ CaseInsensitive },
+        FileSystemName { FileSystemName },
         MountPoint{ MountPoint }, Tag{ Tag }, AutoOwnerIds{ AutoOwnerIds }
     {
         if (!AutoOwnerIds)
@@ -2494,7 +2497,8 @@ NTSTATUS VIRTFS::Start()
     VolumeParams.UmFileContextIsUserContext2 = 1;
 //    VolumeParams.DirectoryMarkerAsNextOffset = 1;
     wcscpy_s(VolumeParams.FileSystemName,
-        sizeof(VolumeParams.FileSystemName) / sizeof(WCHAR), FS_SERVICE_NAME);
+        sizeof(VolumeParams.FileSystemName) / sizeof(WCHAR),
+        FileSystemName.empty() ?  FS_SERVICE_NAME : FileSystemName.c_str());
 
     Status = FspFileSystemCreate((PWSTR)TEXT(FSP_FSCTL_DISK_DEVICE_NAME),
         &VolumeParams, &VirtFsInterface, &FileSystem);
@@ -2531,7 +2535,7 @@ out_del_fs:
 
 static NTSTATUS ParseArgs(ULONG argc, PWSTR *argv,
     ULONG& DebugFlags, std::wstring& DebugLogFile, bool& CaseInsensitive,
-    std::wstring& MountPoint, std::wstring& Tag, std::wstring& Owner)
+    std::wstring& FileSystemName, std::wstring& MountPoint, std::wstring& Tag, std::wstring& Owner)
 {
 #define argtos(v) if (arge > ++argp && *argp) v.assign(*argp); else goto usage
 #define argtol(v) if (arge > ++argp) v = wcstol_deflt(*argp, v); \
@@ -2558,6 +2562,9 @@ static NTSTATUS ParseArgs(ULONG argc, PWSTR *argv,
                 break;
             case L'i':
                 CaseInsensitive = true;
+                break;
+            case L'F':
+                argtos(FileSystemName);
                 break;
             case L'm':
                 argtos(MountPoint);
@@ -2595,6 +2602,7 @@ usage:
         "    -d DebugFlags       [-1: enable all debug logs]\n"
         "    -D DebugLogFile     [file path; use - for stderr]\n"
         "    -i                  [case insensitive file system]\n"
+        "    -F FileSystemName   [file system name for OS]\n"
         "    -m MountPoint       [X:|* (required if no UNC prefix)]\n"
         "    -t Tag              [mount tag; max 36 symbols]\n"
         "    -o UID:GID          [host owner UID:GID]\n";
@@ -2605,11 +2613,12 @@ usage:
 }
 
 static VOID ParseRegistry(ULONG& DebugFlags, std::wstring& DebugLogFile,
-    bool &CaseInsensitive, std::wstring& MountPoint, std::wstring& Owner)
+    bool &CaseInsensitive, std::wstring& FileSystemName, std::wstring& MountPoint, std::wstring& Owner)
 {
     RegistryGetVal(FS_SERVICE_REGKEY, L"DebugFlags", DebugFlags);
     RegistryGetVal(FS_SERVICE_REGKEY, L"DebugLogFile", DebugLogFile);
     RegistryGetVal(FS_SERVICE_REGKEY, L"CaseInsensitive", CaseInsensitive);
+    RegistryGetVal(FS_SERVICE_REGKEY, L"FileSystemName", FileSystemName);
     RegistryGetVal(FS_SERVICE_REGKEY, L"MountPoint", MountPoint);
     RegistryGetVal(FS_SERVICE_REGKEY, L"Owner", Owner);
 }
@@ -2656,6 +2665,7 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
     ULONG DebugFlags{ 0 };
     bool CaseInsensitive{ false };
     std::wstring MountPoint{ L"*" };
+    std::wstring FileSystemName{};
     std::wstring Tag{};
     std::wstring Owner{};
     uint32_t OwnerUid, OwnerGid;
@@ -2667,11 +2677,11 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
     if (argc > 1)
     {
         Status = ParseArgs(argc, argv, DebugFlags, DebugLogFile,
-            CaseInsensitive, MountPoint, Tag, Owner);
+            CaseInsensitive, FileSystemName, MountPoint, Tag, Owner);
     }
     else
     {
-        ParseRegistry(DebugFlags, DebugLogFile, CaseInsensitive, MountPoint,
+        ParseRegistry(DebugFlags, DebugLogFile, CaseInsensitive, FileSystemName, MountPoint,
             Owner);
     }
 
@@ -2695,7 +2705,7 @@ static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 
     try
     {
-        VirtFs = new VIRTFS(DebugFlags, CaseInsensitive, MountPoint, Tag,
+        VirtFs = new VIRTFS(DebugFlags, CaseInsensitive, FileSystemName, MountPoint, Tag,
             AutoOwnerIds, OwnerUid, OwnerGid);
     }
     catch (std::bad_alloc)
