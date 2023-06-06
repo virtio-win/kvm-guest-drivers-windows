@@ -53,6 +53,7 @@ SendSRB(
     ULONG               QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
+    UCHAR               ScsiStatus = SCSISTAT_GOOD;
     ULONG MessageID;
     int res = 0;
     PREQUEST_LIST       element;
@@ -111,7 +112,9 @@ ENTER_FN_SRB();
         }
     } else {
         virtqueue_notify(adaptExt->vq[QueueNumber]);
+        ScsiStatus = SCSISTAT_QUEUE_FULL;
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUSY);
+        SRB_SET_SCSI_STATUS(Srb, ScsiStatus);
         StorPortBusy(DeviceExtension, 10);
         CompleteRequest(DeviceExtension, Srb);
         RhelDbgPrint(TRACE_LEVEL_FATAL, " CompleteRequest queue (%d) SRB = %p Lun = %d TimeOut = %d.\n", QueueNumber, srbExt->Srb, SRB_LUN(Srb), Srb->TimeOutValue);
