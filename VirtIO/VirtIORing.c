@@ -294,7 +294,9 @@ static int virtqueue_add_buf_split(
     vring->avail->ring[DESC_INDEX(vring->num, vq->master_vring_avail.idx)] = idx;
     KeMemoryBarrier();
     vring->avail->idx = ++vq->master_vring_avail.idx;
-    vq->num_added_since_kick++;
+    if (_vq->vdev->event_suppression_enabled) {
+        vq->num_added_since_kick++;
+    }
 
     return 0;
 }
@@ -349,16 +351,14 @@ static bool virtqueue_kick_prepare_split(struct virtqueue *_vq)
     u16 old, new;
     KeMemoryBarrier();
 
-    wrap_around = (vq->num_added_since_kick >= (1 << 16));
-
-    old = (u16)(vq->master_vring_avail.idx - vq->num_added_since_kick);
-    new = vq->master_vring_avail.idx;
-    vq->num_added_since_kick = 0;
-
     if (_vq->vdev->event_suppression_enabled) {
+        wrap_around = (vq->num_added_since_kick >= (1 << 16));
+        old = (u16)(vq->master_vring_avail.idx - vq->num_added_since_kick);
+        new = vq->master_vring_avail.idx;
+        vq->num_added_since_kick = 0;
         return wrap_around || (bool)vring_need_event(vring_avail_event(&vq->vring), new, old);
     } else {
-        return !(vq->vring.used->flags & VIRTQ_USED_F_NO_NOTIFY);
+        return !(vq->vring.used->flags & VIRTQ_USED_F_NO_NOTIFY) || vq->num_unused <= 1;
     }
 }
 

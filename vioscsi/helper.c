@@ -58,6 +58,7 @@ SendSRB(
     int res = 0;
     PREQUEST_LIST       element;
     ULONG               index;
+    BOOLEAN             notify = FALSE;
 ENTER_FN_SRB();
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " SRB %p.\n", Srb);
@@ -104,10 +105,11 @@ ENTER_FN_SRB();
         element = &adaptExt->processing_srbs[index];
         InsertTailList(&element->srb_list, &srbExt->list_entry);
         element->srb_cnt++;
+        notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
     }
     VioScsiVQUnlock(DeviceExtension, MessageID, &LockHandle, FALSE);
-    if ( res >= 0){
-        if (virtqueue_kick_prepare(adaptExt->vq[QueueNumber])) {
+    if (res >= 0) {
+        if (notify) {
             virtqueue_notify(adaptExt->vq[QueueNumber]);
         }
     } else {
