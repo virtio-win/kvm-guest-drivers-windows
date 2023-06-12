@@ -598,8 +598,8 @@ VIOSockPendedTimerFunc(
     if (NT_SUCCESS(VIOSockPendedRequestGetLocked(pSocket, &PendedRequest)) &&
         PendedRequest != WDF_NO_HANDLE)
     {
-        WdfRequestComplete(PendedRequest, STATUS_TIMEOUT);
-        //        VIOSockTxCancel(GetDeviceContextFromSocket(pSocket), pSocket, STATUS_TIMEOUT);
+        WdfRequestComplete(PendedRequest, STATUS_IO_TIMEOUT);
+        //        VIOSockTxCancel(GetDeviceContextFromSocket(pSocket), pSocket, STATUS_IO_TIMEOUT);
     }
 }
 
@@ -670,7 +670,7 @@ VIOSockPendedRequestSetEx(
             if (!NT_SUCCESS(WdfRequestUnmarkCancelable(Request)))
                 status = STATUS_CANCELLED;
             else
-                status = STATUS_TIMEOUT;
+                status = STATUS_IO_TIMEOUT;
 
             pSocket->PendedRequest = WDF_NO_HANDLE;
             WdfObjectDereference(Request);
