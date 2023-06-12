@@ -77,6 +77,7 @@ NtReadFile(
 #define STATUS_CONNECTION_RESET          ((NTSTATUS)0xC000020DL)
 #define STATUS_LOCAL_DISCONNECT          ((NTSTATUS)0xC000013BL)
 #define STATUS_HOST_UNREACHABLE          ((NTSTATUS)0xC000023DL)
+#define STATUS_IO_TIMEOUT                ((NTSTATUS)0xc00000b5L)
 
 INT
 NtStatusToWsaError(
@@ -90,6 +91,7 @@ NtStatusToWsaError(
         wsaError = WSAEINVAL;
         break;
     case STATUS_TIMEOUT:
+    case STATUS_IO_TIMEOUT:
         wsaError = WSAETIMEDOUT;
         break;
     case STATUS_CANT_WAIT:
