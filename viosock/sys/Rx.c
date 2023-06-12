@@ -1378,7 +1378,7 @@ VIOSockReadDequeueCb(
         bStop = TRUE;
         if (llTimeout && llTimeout <= VIOSOCK_TIMER_TOLERANCE)
         {
-            status = STATUS_TIMEOUT;
+            status = STATUS_IO_TIMEOUT;
         }
         else
         {
@@ -1486,7 +1486,7 @@ VIOSockReadDequeueCb(
     {
         if (llTimeout && llTimeout <= VIOSOCK_TIMER_TOLERANCE)
         {
-            status = STATUS_TIMEOUT;
+            status = STATUS_IO_TIMEOUT;
         }
         else
         {
@@ -1797,7 +1797,7 @@ VIOSockReadTimerFunc(
     while (!IsListEmpty(&CompletionList))
     {
         pRequest = CONTAINING_RECORD(RemoveHeadList(&CompletionList), VIOSOCK_RX_CONTEXT, ListEntry);
-        WdfRequestCompleteWithInformation(pRequest->ThisRequest, STATUS_TIMEOUT, pRequest->BufferLen - pRequest->FreeBytes);
+        WdfRequestCompleteWithInformation(pRequest->ThisRequest, STATUS_IO_TIMEOUT, pRequest->BufferLen - pRequest->FreeBytes);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s, status: 0x%08x, counter: %u\n", __FUNCTION__, status, lCounter);

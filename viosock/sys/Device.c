@@ -944,7 +944,7 @@ VIOSockSelectWorkitem(
                 if (pPkt->Timeout <= TimePassed + VIOSOCK_TIMER_TOLERANCE)
                 {
                     bRemove = TRUE;
-                    pPkt->Status = STATUS_TIMEOUT;
+                    pPkt->Status = STATUS_IO_TIMEOUT;
                 }
                 else
                 {

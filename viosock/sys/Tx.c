@@ -1115,7 +1115,7 @@ VIOSockTxTimerFunc(
             PVIOSOCK_TX_ENTRY pTxEntry = CONTAINING_RECORD(RemoveHeadList(&CompletionList),
                 VIOSOCK_TX_ENTRY, ListEntry);
 
-            WdfRequestComplete(pTxEntry->Request, STATUS_TIMEOUT);
+            WdfRequestComplete(pTxEntry->Request, STATUS_IO_TIMEOUT);
         }
     }
 
