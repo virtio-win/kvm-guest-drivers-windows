@@ -238,6 +238,7 @@ typedef struct _SOCKET_CONTEXT {
     _Guarded_by_(StateLock) NTSTATUS        EventsStatus[FD_MAX_EVENTS];
 
     WDFSPINLOCK     RxLock;         //accept list lock for listen socket
+    HANDLE RxProcessingThreadId; // Prevents recursion in 
     _Guarded_by_(RxLock) LIST_ENTRY      RxCbList;
     _Guarded_by_(RxLock) volatile ULONG           RxBytes;        //used bytes in rx buffer
     _Guarded_by_(RxLock) ULONG           RxBuffers;      //used rx buffers (for debug)

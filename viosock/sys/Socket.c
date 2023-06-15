@@ -1042,6 +1042,7 @@ VIOSockCreate(
     }
 
     pSocket = GetSocketContext(FileObject);
+    pSocket->RxProcessingThreadId = NULL;
     pSocket->ThisSocket = FileObject;
     pSocket->SocketId = InterlockedIncrement(&pContext->SocketId);
 
