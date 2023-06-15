@@ -1297,7 +1297,6 @@ VIOSockReadDequeueCb(
     IN PSOCKET_CONTEXT  pSocket
 )
 {
-    static volatile LONG    lInProgress;
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
     WDFREQUEST      ReadRequest = WDF_NO_HANDLE;
     NTSTATUS        status = STATUS_SUCCESS;
@@ -1310,7 +1309,7 @@ VIOSockReadDequeueCb(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
 
-    if (InterlockedCompareExchange(&lInProgress, 1, 0) == 1)
+    if (pSocket->RxProcessingThreadId == PsGetCurrentThreadId())
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "Another instance of VIOSockReadDequeueCb already running, stop Cb dequeue\n");
         return FALSE; //one running instance allowed
@@ -1321,7 +1320,6 @@ VIOSockReadDequeueCb(
     status = WdfIoQueueRetrieveNextRequest(pSocket->ReadQueue, &ReadRequest);
     if (!NT_SUCCESS(status))
     {
-        InterlockedExchange(&lInProgress, 0);
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "The read queue is empty, exiting from VIOSockReadDequeueCb\n");
         return FALSE;
     }
@@ -1382,7 +1380,9 @@ VIOSockReadDequeueCb(
         }
         else
         {
+            pSocket->RxProcessingThreadId = PsGetCurrentThreadId();
             status = WdfRequestRequeue(ReadRequest);
+            pSocket->RxProcessingThreadId = NULL;
             if (NT_SUCCESS(status))
             {
                 //continue timer
@@ -1396,7 +1396,6 @@ VIOSockReadDequeueCb(
 
     if (bStop)
     {
-        InterlockedExchange(&lInProgress, 0);
         WdfSpinLockRelease(pSocket->RxLock);
 
         if (ReadRequest != WDF_NO_HANDLE)
@@ -1491,7 +1490,9 @@ VIOSockReadDequeueCb(
         else
         {
             //requeue request
+            pSocket->RxProcessingThreadId = PsGetCurrentThreadId();
             status = WdfRequestRequeue(ReadRequest);
+            pSocket->RxProcessingThreadId = NULL;
             if (NT_SUCCESS(status))
             {
                 //continue timer
@@ -1507,7 +1508,6 @@ VIOSockReadDequeueCb(
     bSetBit = (ReadRequest != WDF_NO_HANDLE && VIOSockRxHasData(pSocket));
     FreeSpace = pSocket->buf_alloc - (pSocket->fwd_cnt - pSocket->last_fwd_cnt);
 
-    InterlockedExchange(&lInProgress, 0);
     WdfSpinLockRelease(pSocket->RxLock);
 
     if (bSetBit)
