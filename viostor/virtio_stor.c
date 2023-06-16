@@ -1580,13 +1580,12 @@ RhelScsiGetInquiryData(
         ProvisioningPage->DeviceTypeQualifier = DEVICE_CONNECTED;
         ProvisioningPage->PageCode = VPD_LOGICAL_BLOCK_PROVISIONING;
         REVERSE_BYTES_SHORT(&ProvisioningPage->PageLength, &pageLen);
-
         ProvisioningPage->DP = 0;
         ProvisioningPage->LBPRZ = 0;
         ProvisioningPage->LBPWS10 = 0;
         ProvisioningPage->LBPWS = 0;
         ProvisioningPage->LBPU = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD) ? 1 : 0;
-        ProvisioningPage->ProvisioningType = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD) ? PROVISIONING_TYPE_THIN : PROVISIONING_TYPE_RESOURCE;
+        ProvisioningPage->ProvisioningType = adaptExt->info.discard_sector_alignment ? PROVISIONING_TYPE_THIN : PROVISIONING_TYPE_RESOURCE;
     }
 
     else if (dataLen > sizeof(INQUIRYDATA)) {
