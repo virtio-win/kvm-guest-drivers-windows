@@ -629,6 +629,44 @@ public:
     }
 };
 
+class CFileFinder
+{
+public:
+    CFileFinder(const CString& WildCard) : m_WildCard(WildCard) {};
+    template<typename T> bool Process(T Functor)
+    {
+        HANDLE h = FindFirstFile(m_WildCard, &m_fd);
+        if (h == INVALID_HANDLE_VALUE)
+        {
+            return false;
+        }
+        while (Functor(m_fd.cFileName) && FindNextFile(h, &m_fd)) {}
+        FindClose(h);
+        return true;
+    }
+private:
+    WIN32_FIND_DATA m_fd = {};
+    const CString& m_WildCard;
+};
+
+class CInfDirectory : public CString
+{
+public:
+    CInfDirectory()
+    {
+        WCHAR* p = new WCHAR[MAX_PATH];
+        if (p)
+        {
+            if (GetWindowsDirectory(p, MAX_PATH))
+            {
+                Append(p);
+                Append(L"\\INF\\");
+            }
+            delete[] p;
+        }
+    }
+};
+
 class CProtocolServiceImplementation :
     public CServiceImplementation,
     public CThreadOwner
@@ -745,10 +783,35 @@ private:
 
 static CProtocolServiceImplementation DummyService;
 
-static bool UninstallProtocol()
+static void UninstallProtocol()
 {
     puts("Uninstalling VIOPROT");
-    return !system("netcfg -v -u VIOPROT");
+    system("netcfg -v -u VIOPROT");
+    CInfDirectory dir;
+    puts("Scan for protocol INF file...");
+    CFileFinder f(dir + L"oem*.inf");
+    f.Process([&](const TCHAR* Name)
+        {
+            CString completeName = dir + Name;
+            //printf("Checking %S...\n", Name);
+            CString s;
+            s.Format(L"type %s | findstr /i vioprot.cat", completeName.GetString());
+            int res = _wsystem(s);
+            if (!res)
+            {
+                printf("Uninstalling %S... ", Name);
+                res = SetupUninstallOEMInf(Name, SUOI_FORCEDELETE, NULL);
+                if (res)
+                {
+                    puts("Done");
+                }
+                else
+                {
+                    printf("Not done, error, error %d", GetLastError());
+                }
+            }
+            return true;
+        });
 }
 
 static bool InstallProtocol()
@@ -795,7 +858,8 @@ int __cdecl main(int argc, char **argv)
             }
             else
             {
-                puts("Not installed");
+                puts("Service is not installed");
+                UninstallProtocol();
             }
         }
         if (!s.CompareNoCase("q"))
