@@ -60,7 +60,7 @@ public:
         ULONG flags = SERVICE_QUERY_STATUS;
         if (!bQueryOnly)
         {
-            flags |= SERVICE_STOP | SERVICE_START | DELETE;
+            flags |= SERVICE_STOP | SERVICE_START | DELETE | SERVICE_USER_DEFINED_CONTROL;
         }
         if (m_ServiceManager.Handle())
         {
@@ -194,17 +194,90 @@ public:
         else
             return ERROR_INVALID_HANDLE;
     }
+    void Control(UCHAR code)
+    {
+        if (m_Handle)
+        {
+            SERVICE_STATUS status;
+            if (!ControlService(m_Handle, code, &status))
+            {
+                Log("%s: error %d", __FUNCTION__, GetLastError());
+            }
+        }
+    }
 protected:
     CServiceManager m_ServiceManager;
     SC_HANDLE m_Handle;
     SERVICE_STATUS m_Status;
 };
 
+class CEvent
+{
+public:
+    CEvent(bool Manual)
+    {
+        m_Handle = CreateEvent(NULL, Manual, false, NULL);
+    }
+    ~CEvent()
+    {
+        if (m_Handle) CloseHandle(m_Handle);
+    }
+    ULONG Wait(ULONG Millies = INFINITE)
+    {
+        return WaitForSingleObject(m_Handle, Millies);
+    }
+    void Set()
+    {
+        SetEvent(m_Handle);
+    }
+private:
+    HANDLE m_Handle;
+};
+
+class CMutex
+{
+public:
+    CMutex()
+    {
+        m_Handle = CreateMutex(NULL, false, NULL);
+    }
+    ~CMutex()
+    {
+        if (m_Handle) CloseHandle(m_Handle);
+    }
+    ULONG Wait(ULONG Millies = INFINITE)
+    {
+        return WaitForSingleObject(m_Handle, Millies);
+    }
+    void Release()
+    {
+        ReleaseMutex(m_Handle);
+    }
+private:
+    HANDLE m_Handle;
+};
+
+class CMutexProtect
+{
+public:
+    CMutexProtect(CMutex& Mutex) : m_Mutex(Mutex)
+    {
+        Mutex.Wait();
+    }
+    ~CMutexProtect()
+    {
+        m_Mutex.Release();
+    }
+private:
+    CMutex& m_Mutex;
+};
+
 class CServiceImplementation
 {
 public:
     CServiceImplementation(LPCTSTR name) :
-        m_Name(name)
+        m_Name(name),
+        m_StopEvent(true)
     {
         Register(this);
     }
@@ -288,9 +361,14 @@ public:
         s = path;
         return s;
     }
+    void Control(UCHAR code)
+    {
+        CService service(ServiceName());
+        service.Control(code);
+    }
 protected:
     CString m_Name;
-    HANDLE  m_StopEvent = NULL;
+    CEvent m_StopEvent;
     class CServiceState
     {
     public:
@@ -299,7 +377,7 @@ protected:
             status.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
             status.dwCurrentState = SERVICE_STOPPED;
             status.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SESSIONCHANGE;
-            status.dwWaitHint = 2000;
+            status.dwWaitHint = 30000;
             status.dwCheckPoint = 0;
             status.dwWin32ExitCode = NO_ERROR;
             status.dwServiceSpecificExitCode = 0;
@@ -349,17 +427,12 @@ protected:
             this);
         if (m_State.hService)
         {
-            m_StopEvent = CreateEvent(NULL, true, false, NULL);
             m_State.Set(SERVICE_START_PENDING);
             if (OnStart())
             {
                 m_State.Set(SERVICE_RUNNING);
             }
-            if (m_StopEvent)
-            {
-                WaitForSingleObject(m_StopEvent, INFINITE);
-                CloseHandle(m_StopEvent);
-            }
+            m_StopEvent.Wait();
         }
         else
         {
@@ -383,10 +456,7 @@ protected:
             {
                 res = NO_ERROR;
                 m_State.Set(SERVICE_STOP_PENDING);
-                if (m_StopEvent)
-                {
-                    SetEvent(m_StopEvent);
-                }
+                m_StopEvent.Set();
                 if (OnStop())
                 {
                     m_State.Set(SERVICE_STOPPED);
@@ -427,4 +497,63 @@ protected:
         return NULL;
     }
     static CAtlArray<CServiceImplementation *> m_Registered;
+};
+
+class CThreadOwner
+{
+public:
+    CThreadOwner() { }
+    ~CThreadOwner()
+    {
+        StopThread(true);
+        while (IsThreadRunning()) {
+            Sleep(10);
+        }
+    }
+    bool IsThreadRunning() const { return m_ThreadHandle != NULL; }
+    enum tThreadState { tsNotRunning, tsRunning, tsAborted, tsDeleting };
+    bool StartThread()
+    {
+        if (IsThreadRunning()) {
+            return false;
+        }
+        InterlockedCompareExchange(&m_State, tsRunning, tsNotRunning);
+        m_ThreadHandle = (HANDLE)_beginthread(_ThreadProc, 0, this);
+        if (IsThreadRunning()) {
+            return true;
+        }
+        else {
+            InterlockedCompareExchange(&m_State, tsNotRunning, tsRunning);
+            return false;
+        }
+    }
+    virtual tThreadState StopThread(bool bDeleting = false)
+    {
+        LONG val;
+        if (bDeleting) {
+            val = InterlockedCompareExchange(&m_State, tsDeleting, tsRunning);
+        }
+        else {
+            val = InterlockedCompareExchange(&m_State, tsAborted, tsRunning);
+        }
+        return (tThreadState)val;
+    }
+private:
+    LONG   m_State = tsNotRunning;
+protected:
+    tThreadState ThreadState() { return (tThreadState)m_State; }
+    HANDLE m_ThreadHandle = NULL;
+    virtual void ThreadProc() = 0;
+    virtual void ThreadTerminated(tThreadState previous)
+    {
+        UNREFERENCED_PARAMETER(previous);
+        m_ThreadHandle = NULL;
+    }
+    static void __cdecl _ThreadProc(PVOID param)
+    {
+        CThreadOwner* pOwner = (CThreadOwner*)param;
+        pOwner->ThreadProc();
+        LONG val = InterlockedExchange(&pOwner->m_State, tsNotRunning);
+        pOwner->ThreadTerminated((tThreadState)val);
+    }
 };
