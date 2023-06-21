@@ -802,6 +802,10 @@ int __cdecl main(int argc, char **argv)
         {
             puts(DummyService.Installed() ? "installed" : "not installed");
         }
+        if (!s.CompareNoCase("d"))
+        {
+            DummyService.Control(CProtocolServiceImplementation::ctlDump);
+        }
     }
     else
     {
