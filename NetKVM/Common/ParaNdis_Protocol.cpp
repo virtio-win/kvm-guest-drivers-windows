@@ -325,7 +325,10 @@ public:
     // when VFIO adapter enters operational state
     void OnAdapterAttached()
     {
-        ULONG waitTime = 100; //ms
+        if (m_Started)
+        {
+            return;
+        }
         TraceNoPrefix(0, "[%s] %p\n", __FUNCTION__, m_BoundAdapter);
         if (m_BoundAdapter->MulticastData.nofMulticastEntries)
         {
@@ -342,9 +345,6 @@ public:
 
         m_TxStateMachine.Start();
         m_RxStateMachine.Start();
-
-        TraceNoPrefix(0, "[%s] Wait %d ms until the adapter finally restarted\n", __FUNCTION__, waitTime);
-        NdisMSleep(waitTime * 1000);
 
         m_BoundAdapter->bSuppressLinkUp = false;
         ParaNdis_SynchronizeLinkState(m_BoundAdapter);
@@ -363,17 +363,6 @@ public:
             return;
         }
         m_BoundAdapter = Adapter;
-        if (!m_Operational)
-        {
-            ULONG millies = 100;
-            NdisMSleep(millies * 1000);
-        }
-        if (m_Operational)
-        {
-            OnAdapterAttached();
-        } else {
-            TraceNoPrefix(0, "[%s] WARNING: the adapter is not in operational state!\n", __FUNCTION__);
-        }
     }
 
     // called under protocol mutex before close VFIO adapter
@@ -415,15 +404,6 @@ public:
                             m_Operational = state;
                             TraceNoPrefix(0, "[%s] the adapter is %sperational\n",
                                 __FUNCTION__, m_Operational ? "O" : "NOT O");
-                            CPassiveSpinLockedContext lock(m_OpStateLock);
-                            if (m_BoundAdapter)
-                            {
-                                auto wi = new (m_BindingHandle)COperationWorkItem(this, state, m_BoundAdapter->MiniportHandle);
-                                if (wi && !wi->Run())
-                                {
-                                    wi->Destroy(wi, m_BindingHandle);
-                                }
-                            }
                         }
                     }
                 }
@@ -478,7 +458,6 @@ private:
     void QueryCurrentOffload();
     void QueryCurrentRSS();
     bool QueryOid(ULONG oid, PVOID data, ULONG size);
-    void OnOpStateChange(bool State);
     void CompleteInternalNbl(PNET_BUFFER_LIST Nbl)
     {
         m_InternalNbls.ForEachDetachedIf(
@@ -556,35 +535,6 @@ private:
     } m_Capabilies = {};
     CNdisSpinLock m_OpStateLock;
     CNdisList<CInternalNblEntry, CLockedAccess, CNonCountingObject> m_InternalNbls;
-    class COperationWorkItem : public CNdisAllocatable<COperationWorkItem, 'IWRP'>
-    {
-    public:
-        COperationWorkItem(CProtocolBinding  *Binding, bool State, NDIS_HANDLE AdapterHandle);
-        ~COperationWorkItem();
-        bool Run()
-        {
-            if (m_Handle)
-            {
-                NdisQueueIoWorkItem(m_Handle, [](PVOID WorkItemContext, NDIS_HANDLE NdisIoWorkItemHandle)
-                {
-                    COperationWorkItem *wi = (COperationWorkItem *)WorkItemContext;
-                    UNREFERENCED_PARAMETER(NdisIoWorkItemHandle);
-                    wi->Fired();
-                }, this);
-            }
-            return m_Handle;
-        }
-        void Fired()
-        {
-            m_Binding->OnOpStateChange(m_State);
-            Destroy(this, m_Binding->m_BindingHandle);
-        }
-    private:
-        NDIS_HANDLE       m_Handle;
-        CProtocolBinding  *m_Binding;
-        bool              m_State;
-    };
-    friend class COperationWorkItem;
 };
 
 static CParaNdisProtocol *ProtocolData = NULL;
@@ -1588,35 +1538,6 @@ void CProtocolBinding::QueryCapabilities(PNDIS_BIND_PARAMETERS BindParameters)
         TraceNoPrefix(0, "[%s] No offload capabilies\n", __FUNCTION__);
     }
     TraceNoPrefix(0, "[%s] Best guess for NDIS revision: 6.%d\n", __FUNCTION__, m_Capabilies.NdisMinor);
-}
-
-CProtocolBinding::COperationWorkItem::COperationWorkItem(CProtocolBinding  *Binding, bool State, NDIS_HANDLE AdapterHandle) :
-    m_State(State), m_Binding(Binding)
-{
-    TraceNoPrefix(0, "[%s]\n", __FUNCTION__);
-    m_Handle = NdisAllocateIoWorkItem(AdapterHandle);
-    m_Binding->AddRef();
-    m_Binding->m_Protocol.AddRef();
-}
-
-CProtocolBinding::COperationWorkItem::~COperationWorkItem()
-{
-    TraceNoPrefix(0, "[%s]\n", __FUNCTION__);
-    if (m_Handle)
-    {
-        NdisFreeIoWorkItem(m_Handle);
-    }
-    m_Binding->m_Protocol.Release();
-    m_Binding->Release();
-}
-
-void CProtocolBinding::OnOpStateChange(bool State)
-{
-    CMutexLockedContext protect(m_Protocol);
-    if (State && !m_Started && m_BoundAdapter)
-    {
-        OnAdapterAttached();
-    }
 }
 
 // Do not call this procedure directly, only via ParaNdis_PropagateOid
