@@ -745,6 +745,18 @@ private:
 
 static CProtocolServiceImplementation DummyService;
 
+static bool UninstallProtocol()
+{
+    puts("Uninstalling VIOPROT");
+    return !system("netcfg -v -u VIOPROT");
+}
+
+static bool InstallProtocol()
+{
+    puts("Installing VIOPROT");
+    return !system("netcfg -v -l vioprot.inf -c p -i VIOPROT");
+}
+
 int __cdecl main(int argc, char **argv)
 {
     CStringA s;
@@ -765,19 +777,20 @@ int __cdecl main(int argc, char **argv)
     {
         if (!s.CompareNoCase("i"))
         {
-            if (!DummyService.Installed())
-            {
-                DummyService.Install();
-            }
-            else
+            if (DummyService.Installed())
             {
                 puts("Already installed");
+            }
+            else if (InstallProtocol())
+            {
+                puts("Protocol installed");
             }
         }
         if (!s.CompareNoCase("u"))
         {
             if (DummyService.Installed())
             {
+                UninstallProtocol();
                 DummyService.Uninstall();
             }
             else
