@@ -1101,6 +1101,7 @@ NDIS_STATUS CProtocolBinding::Bind(PNDIS_BIND_PARAMETERS BindParameters)
     {
         TraceNoPrefix(0, "[%s] rejected binding to NETKVM instance\n", __FUNCTION__);
         Unbind(m_BindContext);
+        Release();
         return NDIS_STATUS_NOT_SUPPORTED;
     }
 
