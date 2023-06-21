@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Red Hat, Inc.
+ * Copyright (c) 2023 Red Hat, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -65,6 +65,21 @@ LPCSTR GetName(const eServiceControl& val)
         MAKE_ENTRY(SERVICE_CONTROL_PRESHUTDOWN)
         MAKE_ENTRY(SERVICE_CONTROL_TIMECHANGE)
         MAKE_ENTRY(SERVICE_CONTROL_TRIGGEREVENT)
+    };
+    return GET_NAME(names, val);
+}
+
+LPCSTR GetName(const tAdapterState& val)
+{
+    static tNamedEntry names[] = {
+        MAKE_ENTRY(asAbsent)
+        MAKE_ENTRY(asStandalone)
+        MAKE_ENTRY(asAloneInactive)
+        MAKE_ENTRY(asAloneActive)
+        MAKE_ENTRY(asBoundInitial)
+        MAKE_ENTRY(asBoundInactive)
+        MAKE_ENTRY(asBoundActive)
+        MAKE_ENTRY(asUnknown)
     };
     return GET_NAME(names, val);
 }
