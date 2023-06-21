@@ -16,6 +16,7 @@
 #include <ws2ipdef.h>
 #include <iphlpapi.h>
 #include <devguid.h>
+#include <setupapi.h>
 
 #define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS      // some CString constructors will be explicit
 //#include <atlbase.h>
