@@ -1191,6 +1191,7 @@ void CProtocolBinding::OnReceive(PNET_BUFFER_LIST Nbls, ULONG NofNbls, ULONG Fla
 {
     // Flags may contain RESOURCES  (but why this should make difference?)
     bool bDrop = true;
+    bool bResources = Flags & NDIS_RECEIVE_FLAGS_RESOURCES;
     if (m_RxStateMachine.RegisterOutstandingItems(NofNbls))
     {
         if (m_BoundAdapter)
@@ -1199,8 +1200,12 @@ void CProtocolBinding::OnReceive(PNET_BUFFER_LIST Nbls, ULONG NofNbls, ULONG Fla
             NdisMIndicateReceiveNetBufferLists(
                 m_BoundAdapter->MiniportHandle, Nbls,
                 NDIS_DEFAULT_PORT_NUMBER, NofNbls, Flags);
+            if (bResources)
+            {
+                m_RxStateMachine.UnregisterOutstandingItems(NofNbls);
+            }
         }
-        else
+        else if (!bResources)
         {
             // should never happen
             TraceNoPrefix(0, "[%s] ERROR: dropped %d NBLs\n", __FUNCTION__, NofNbls);
@@ -1208,7 +1213,7 @@ void CProtocolBinding::OnReceive(PNET_BUFFER_LIST Nbls, ULONG NofNbls, ULONG Fla
         }
         bDrop = false;
     }
-    if (bDrop)
+    if (bDrop && !bResources)
     {
         TraceNoPrefix(0, "[%s] dropped %d NBLs\n", __FUNCTION__, NofNbls);
         NdisReturnNetBufferLists(m_BindingHandle, Nbls,
