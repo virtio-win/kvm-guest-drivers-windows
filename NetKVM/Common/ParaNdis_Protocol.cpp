@@ -32,6 +32,7 @@
 #include "ParaNdis_Protocol.h"
 #include "ParaNdis-SM.h"
 #include "ParaNdis-Oid.h"
+#include "netkvmd.h"
 #include "Trace.h"
 
 #if NDIS_SUPPORT_NDIS630
@@ -126,6 +127,7 @@ public:
     {
         Notifier(m_Binding, NotifyEvent::Detach);
     }
+    void GetData(NETKVMD_ADAPTER* ad);
     PARANDIS_ADAPTER *m_Adapter;
     PVOID m_Binding;
 private:
@@ -469,6 +471,9 @@ public:
     void SetRSS();
     void SetOffloadEncapsulation();
     void SetOffloadParameters();
+    bool IsOperational() const { return m_Operational; }
+    ULONG VfInterfaceIndex() const { return m_Capabilies.ifIndex; }
+    bool IsStarted() const { return m_Started; }
 private:
     void QueryCurrentOffload();
     void QueryCurrentRSS();
@@ -546,6 +551,8 @@ private:
             bool tcp;
             bool udp;
         } checksumRx;
+        ULONG sriovCaps;
+        ULONG ifIndex;
     } m_Capabilies = {};
     CNdisSpinLock m_OpStateLock;
     CNdisList<CInternalNblEntry, CLockedAccess, CNonCountingObject> m_InternalNbls;
@@ -696,6 +703,10 @@ public:
             TraceNoPrefix(0, "[%s] Deregistering protocol\n", __FUNCTION__);
             NdisDeregisterProtocolDriver(m_ProtocolHandle);
             TraceNoPrefix(0, "[%s] Deregistering protocol done\n", __FUNCTION__);
+        }
+        if (m_DeviceHandle)
+        {
+            NdisDeregisterDeviceEx(m_DeviceHandle);
         }
     }
     NDIS_STATUS OnBindAdapter(_In_ NDIS_HANDLE BindContext, _In_ PNDIS_BIND_PARAMETERS BindParameters)
@@ -863,6 +874,39 @@ public:
             return false;
         });
     }
+    NDIS_STATUS RegisterDevice()
+    {
+        NDIS_DEVICE_OBJECT_ATTRIBUTES a = {};
+        PDRIVER_DISPATCH dispatchTable[IRP_MJ_MAXIMUM_FUNCTION + 1] = {};
+        NDIS_STRING devName = {};
+        NDIS_STRING linkName = {};
+        NdisInitUnicodeString(&devName, L"\\Device\\" NETKVM_DEVICE_NAME);
+        NdisInitUnicodeString(&linkName, L"\\DosDevices\\" NETKVM_DEVICE_NAME);
+
+        a.Header.Type = NDIS_OBJECT_TYPE_DEVICE_OBJECT_ATTRIBUTES;
+        a.Header.Revision = NDIS_DEVICE_OBJECT_ATTRIBUTES_REVISION_1;
+        a.Header.Size = sizeof(NDIS_DEVICE_OBJECT_ATTRIBUTES);
+        a.DeviceName = &devName;
+        a.SymbolicName = &linkName;
+        a.MajorFunctions = dispatchTable;
+        a.ExtensionSize = sizeof(PVOID);
+
+        dispatchTable[IRP_MJ_CREATE] = OnDeviceDispatch;
+        dispatchTable[IRP_MJ_CLEANUP] = OnDeviceDispatch;
+        dispatchTable[IRP_MJ_CLOSE] = OnDeviceDispatch;
+        dispatchTable[IRP_MJ_DEVICE_CONTROL] = OnDeviceIoctl;
+
+        NDIS_STATUS status = NdisRegisterDeviceEx(m_DriverHandle, &a, &m_DeviceObject, &m_DeviceHandle);
+        if (status == NDIS_STATUS_SUCCESS) {
+            PVOID* p = (PVOID*)NdisGetDeviceReservedExtension(m_DeviceObject);
+            *p = this;
+            TraceNoPrefix(0, "[%s] OK", __FUNCTION__);
+        }
+        else {
+            TraceNoPrefix(0, "[%s] Device registration = %X", __FUNCTION__, status);
+        }
+        return status;
+    }
     NDIS_HANDLE DriverHandle() const { return m_DriverHandle; }
     NDIS_HANDLE ProtocolHandle() const { return m_ProtocolHandle; }
     operator CMutexProtectedAccess& () { return m_Mutex; }
@@ -872,11 +916,38 @@ private:
     // we need to protected them together, so use separate mutex
     CMutexProtectedAccess m_Mutex;
     NDIS_HANDLE m_DriverHandle;
-    NDIS_HANDLE m_ProtocolHandle;
+    NDIS_HANDLE m_ProtocolHandle = NULL;
+    PDEVICE_OBJECT m_DeviceObject = NULL;
+    NDIS_HANDLE m_DeviceHandle = NULL;
     void OnLastReferenceGone() override
     {
         Destroy(this, m_DriverHandle);
     }
+    static NTSTATUS OnDeviceDispatch(PDEVICE_OBJECT DeviceObject, PIRP Irp)
+    {
+        PIO_STACK_LOCATION irpStack;
+        NTSTATUS status;
+        UNREFERENCED_PARAMETER(DeviceObject);
+
+        irpStack = IoGetCurrentIrpStackLocation(Irp);
+        switch (irpStack->MajorFunction)
+        {
+            case IRP_MJ_CREATE:
+            case IRP_MJ_CLOSE:
+            case IRP_MJ_CLEANUP:
+                status = STATUS_SUCCESS;
+                break;
+            default:
+                status = STATUS_INVALID_PARAMETER;
+                break;
+        }
+        Irp->IoStatus.Status = status;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        return status;
+    }
+    static NTSTATUS OnDeviceIoctl(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+    NTSTATUS QueryAdapters(PVOID Buffer, ULONG Size, ULONG_PTR& Written);
+    NTSTATUS SetLink(PVOID Buffer, ULONG Size);
 };
 
 NDIS_STATUS ParaNdis_ProtocolInitialize(NDIS_HANDLE DriverHandle)
@@ -886,7 +957,11 @@ NDIS_STATUS ParaNdis_ProtocolInitialize(NDIS_HANDLE DriverHandle)
         return NDIS_STATUS_SUCCESS;
     }
     ProtocolData = new (DriverHandle) CParaNdisProtocol(DriverHandle);
-    NDIS_STATUS status = ProtocolData->RegisterDriver();
+    NDIS_STATUS status = ProtocolData->RegisterDevice();
+    if (status == NDIS_STATUS_SUCCESS)
+    {
+        status = ProtocolData->RegisterDriver();
+    }
     if (status != NDIS_STATUS_SUCCESS)
     {
         ProtocolData->Destroy(ProtocolData, DriverHandle);
@@ -911,6 +986,105 @@ void ParaNdis_ProtocolUnregisterAdapter(PARANDIS_ADAPTER *pContext, bool Unregis
         ProtocolData->Release();
         ProtocolData = NULL;
     }
+}
+
+NTSTATUS CParaNdisProtocol::OnDeviceIoctl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
+{
+    NTSTATUS status = STATUS_NOT_SUPPORTED;
+
+    PIO_STACK_LOCATION irpStack;
+    CParaNdisProtocol* prot = *(CParaNdisProtocol**)NdisGetDeviceReservedExtension(DeviceObject);
+    irpStack = IoGetCurrentIrpStackLocation(Irp);
+    ULONG code = irpStack->Parameters.DeviceIoControl.IoControlCode;
+    ULONG inSize = irpStack->Parameters.DeviceIoControl.InputBufferLength;
+    ULONG outSize = irpStack->Parameters.DeviceIoControl.OutputBufferLength;
+    PVOID buffer = Irp->AssociatedIrp.SystemBuffer;
+    TraceNoPrefix(0, "[%s] code %d, buf %p, in %d, out %d\n", __FUNCTION__, (code >> 2) & 0xfff, buffer, inSize, outSize);
+    Irp->IoStatus.Information = 0;
+    switch (code) {
+        case IOCTL_NETKVMD_QUERY_ADAPTERS:
+            status = prot->QueryAdapters(buffer, outSize, Irp->IoStatus.Information);
+            break;
+        case IOCTL_NETKVMD_SET_LINK:
+            status = prot->SetLink(buffer, inSize);
+            break;
+        default:
+            break;
+    }
+
+    Irp->IoStatus.Status = status;
+    if (status != STATUS_PENDING) {
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    }
+    else {
+        IoMarkIrpPending(Irp);
+    }
+    return status;
+}
+
+NTSTATUS CParaNdisProtocol::QueryAdapters(PVOID Buffer, ULONG Size, ULONG_PTR& Written)
+{
+    NETKVMD_ADAPTER* ad = (NETKVMD_ADAPTER*)Buffer;
+    NTSTATUS status = STATUS_SUCCESS;
+    Written = 0;
+
+    CMutexLockedContext protect(m_Mutex);
+
+    m_Adapters.ForEach([&](CAdapterEntry* e)
+    {
+        if (Size < sizeof(NETKVMD_ADAPTER)) {
+            status = STATUS_BUFFER_TOO_SMALL;
+            return false;
+        }
+        e->GetData(ad);
+        ad++;
+        Size -= sizeof(NETKVMD_ADAPTER);
+        Written += sizeof(NETKVMD_ADAPTER);
+        return true;
+    });
+
+    return status;
+}
+
+NTSTATUS CParaNdisProtocol::SetLink(PVOID Buffer, ULONG Size)
+{
+    NETKVMD_SET_LINK* sl = (NETKVMD_SET_LINK*)Buffer;
+    NTSTATUS status = STATUS_SUCCESS;
+
+    if (Size < sizeof(NETKVMD_SET_LINK)) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    TraceNoPrefix(0, "[%s] %s\n", __FUNCTION__, sl->LinkOn ? "on" : "off");
+    CMutexLockedContext protect(m_Mutex);
+
+    m_Adapters.ForEach([&](CAdapterEntry* e)
+    {
+        if (!e->MatchMac(sl->MacAddress) || !e->m_Adapter)
+        {
+            return true;
+        }
+
+        if (e->m_Binding && sl->LinkOn)
+        {
+            // start the pair of adapters
+            CProtocolBinding* pb = (CProtocolBinding*)e->m_Binding;
+            pb->OnAdapterAttached();
+        }
+        if (!e->m_Binding && sl->LinkOn)
+        {
+            e->m_Adapter->bSuppressLinkUp = false;
+            ParaNdis_SynchronizeLinkState(e->m_Adapter);
+        }
+        if (!sl->LinkOn)
+        {
+            e->m_Adapter->bSuppressLinkUp = true;
+            ParaNdis_SynchronizeLinkState(e->m_Adapter);
+        }
+        return false;
+    });
+
+    return status;
 }
 
 NDIS_STATUS CProtocolBinding::Bind(PNDIS_BIND_PARAMETERS BindParameters)
@@ -1368,6 +1542,16 @@ void CProtocolBinding::QueryCapabilities(PNDIS_BIND_PARAMETERS BindParameters)
     {
         TraceNoPrefix(0, "[%s] No RSS capabilies\n", __FUNCTION__);
     }
+    if (BindParameters->SriovCapabilities)
+    {
+        m_Capabilies.sriovCaps = BindParameters->SriovCapabilities->SriovCapabilities;
+    }
+    if (m_Capabilies.sriovCaps)
+    {
+        TraceNoPrefix(0, "[%s] SRIOV caps: %X\n", __FUNCTION__, m_Capabilies.sriovCaps);
+    }
+    m_Capabilies.ifIndex = BindParameters->LowestIfIndex;
+
     // If RSC enabled, it is 6.30 at least
     if (BindParameters->DefaultOffloadConfiguration)
     {
@@ -1608,6 +1792,26 @@ void CProtocolBinding::SetOffloadParameters()
     }
     if (current) {
         current->Destroy(current, m_Protocol.DriverHandle());
+    }
+}
+
+void CAdapterEntry::GetData(NETKVMD_ADAPTER* ad)
+{
+    NdisZeroMemory(ad, sizeof(*ad));
+    NdisMoveMemory(ad->MacAddress, m_MacAddress, ETH_HARDWARE_ADDRESS_SIZE);
+    if (m_Adapter)
+    {
+        ad->Virtio = 1;
+        ad->IsStandby = virtio_is_feature_enabled(m_Adapter->u64GuestFeatures, VIRTIO_NET_F_STANDBY);
+        ad->SuppressLink = m_Adapter->bSuppressLinkUp;
+        ad->VirtioLink = m_Adapter->bConnected;
+    }
+    if (m_Binding) {
+        CProtocolBinding* pb = (CProtocolBinding *)m_Binding;
+        ad->HasVf = 1;
+        ad->VfLink = pb->IsOperational();
+        ad->VfIfIndex = pb->VfInterfaceIndex();
+        ad->Started = pb->IsStarted();
     }
 }
 
