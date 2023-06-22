@@ -74,8 +74,8 @@ public:
             Log("Applying binding changes");
             m_NetCfg->Apply();
         }
-        m_NetCfgLock->ReleaseWriteLock();
         m_NetCfg->Uninitialize();
+        m_NetCfgLock->ReleaseWriteLock();
     }
     bool Usable() const { return m_Usable; }
     void EnableVioProtOnly(const CString& Name, bool Enable)
