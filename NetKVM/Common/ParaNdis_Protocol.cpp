@@ -128,6 +128,7 @@ public:
         Notifier(m_Binding, NotifyEvent::Detach);
     }
     void GetData(NETKVMD_ADAPTER* ad);
+    void SetLink(bool LinkOn);
     PARANDIS_ADAPTER *m_Adapter;
     PVOID m_Binding;
 private:
@@ -1014,23 +1015,7 @@ NTSTATUS CParaNdisProtocol::SetLink(PVOID Buffer, ULONG Size)
         {
             return true;
         }
-
-        if (e->m_Binding && sl->LinkOn)
-        {
-            // start the pair of adapters
-            CProtocolBinding* pb = (CProtocolBinding*)e->m_Binding;
-            pb->OnAdapterAttached();
-        }
-        if (!e->m_Binding && sl->LinkOn)
-        {
-            e->m_Adapter->bSuppressLinkUp = false;
-            ParaNdis_SynchronizeLinkState(e->m_Adapter);
-        }
-        if (!sl->LinkOn)
-        {
-            e->m_Adapter->bSuppressLinkUp = true;
-            ParaNdis_SynchronizeLinkState(e->m_Adapter);
-        }
+        e->SetLink(sl->LinkOn);
         return false;
     });
 
@@ -1742,6 +1727,25 @@ void CAdapterEntry::GetData(NETKVMD_ADAPTER* ad)
     }
 }
 
+void CAdapterEntry::SetLink(bool LinkOn)
+{
+    if (m_Binding && LinkOn)
+    {
+        // start the pair of adapters
+        CProtocolBinding* pb = (CProtocolBinding*)m_Binding;
+        pb->OnAdapterAttached();
+    }
+    if (!m_Binding && LinkOn)
+    {
+        m_Adapter->bSuppressLinkUp = false;
+        ParaNdis_SynchronizeLinkState(m_Adapter);
+}
+    if (!LinkOn && m_Adapter)
+    {
+        m_Adapter->bSuppressLinkUp = true;
+        ParaNdis_SynchronizeLinkState(m_Adapter);
+    }
+}
 #else
 
 void ParaNdis_ProtocolUnregisterAdapter(PARANDIS_ADAPTER *, bool) { }
