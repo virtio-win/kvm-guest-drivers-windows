@@ -38,7 +38,6 @@ CopyFiles=Copy.Exec
 ;-------------------------------------------------------------------------
 [Inst_Ndi]
 HKR, Ndi, ClsID, 0, {F69513F1-8E1A-4F35-82D9-046406970E6D}
-HKR, Ndi, ComponentDll, , netkvmno.dll
 HKR,Ndi,Service,,netkvmp
 HKR,Ndi,HelpText,,%NETKVMP_HelpText%
 HKR,Ndi\Interfaces, UpperRange,, noupper
