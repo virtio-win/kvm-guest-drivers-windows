@@ -704,6 +704,10 @@ protected:
     {
         StopThread();
         m_ThreadEvent.Set();
+        while (IsThreadRunning())
+        {
+            Sleep(50);
+        }
         return true;
     }
     virtual void ThreadProc()
