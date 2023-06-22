@@ -419,14 +419,7 @@ public:
                 break;
         }
         m_State = State;
-        NETKVMD_SET_LINK sl;
-        RtlCopyMemory(sl.MacAddress, m_MacAddress, sizeof(m_MacAddress));
-        sl.LinkOn = action == acOn ? 1 : 0;
-        if (action == acOn || action == acOff)
-        {
-            CNetkvmDeviceFile d;
-            d.ControlSet(IOCTL_NETKVMD_SET_LINK, &sl, sizeof(sl));
-        }
+        SetLink(action);
     }
     void Update(const NETKVMD_ADAPTER& a)
     {
@@ -467,6 +460,16 @@ public:
     {
         CMACString s(m_MacAddress);
         Log("[%s] %s vfIdx %d", s.Get(), Name<tAdapterState>(m_State), m_VfIndex);
+    }
+    void SetLink(tAction Action)
+    {
+        if (Action == acNone)
+            return;
+        NETKVMD_SET_LINK sl;
+        RtlCopyMemory(sl.MacAddress, m_MacAddress, sizeof(m_MacAddress));
+        sl.LinkOn = Action == acOn ? 1 : 0;
+        CNetkvmDeviceFile d;
+        d.ControlSet(IOCTL_NETKVMD_SET_LINK, &sl, sizeof(sl));
     }
     void PreRemove()
     {
