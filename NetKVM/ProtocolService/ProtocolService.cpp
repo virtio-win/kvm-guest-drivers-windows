@@ -705,7 +705,7 @@ public:
         CServiceImplementation(_T("netkvmp")),
         m_ThreadEvent(false)
         {}
-    enum { ctlDump = 128 };
+    enum { ctlDump = 128, ctlNoRestore = 129 };
 protected:
     virtual bool OnStart() override
     {
@@ -719,6 +719,10 @@ protected:
         {
             case ctlDump:
                 Dump();
+                return res;
+            case ctlNoRestore:
+                Log("Got ctlNoRestore, restart/update expected");
+                m_NoRestoreOnStop = true;
                 return res;
             default:
                 break;
@@ -746,7 +750,27 @@ protected:
             SyncVirtioAdapters();
             m_ThreadEvent.Wait(3000);
         } while (true);
-        m_Adapters.RemoveAllAdapters();
+        // Typical flow: the protocol is uninstalled
+        if (!m_NoRestoreOnStop)
+        {
+            for (UINT i = 0; i < m_Adapters.GetCount(); ++i)
+            {
+                CVirtioAdapter& a = m_Adapters[i];
+                if (a.m_VfIndex == INFINITE)
+                    continue;
+                if (a.m_State == asBoundActive)
+                {
+                    CheckBinding(a.m_VfIndex, bsBindNone);
+                    a.SetLink(a.acOff);
+                    Sleep(3000);
+                }
+                CheckBinding(a.m_VfIndex, bsBindOther);
+            }
+        }
+        else
+        {
+            // The protocol will be restarted
+        }
         CoUninitialize();
     }
     void Dump()
@@ -762,6 +786,7 @@ private:
     CEvent m_ThreadEvent;
     CVirtioAdaptersArray m_Adapters;
     CMutex m_AdaptersMutex;
+    bool m_NoRestoreOnStop = false;
 private:
     NETKVMD_ADAPTER m_IoctlBuffer[256];
     void SyncVirtioAdapters()
