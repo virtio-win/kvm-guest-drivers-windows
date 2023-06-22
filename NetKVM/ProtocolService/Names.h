@@ -59,3 +59,13 @@ typedef enum _tAdapterState
     // covers invalid combinations of statuses
     asUnknown /* THE LAST!*/
 } tAdapterState;
+
+typedef enum _tBindingState
+{
+    bsBindAll,
+    bsBindVioProt,
+    bsBindOther,
+    bsUnbindTcpip,
+    bsBindTcpip,
+    bsBindNone
+} tBindingState;

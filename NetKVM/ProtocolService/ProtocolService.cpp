@@ -78,9 +78,10 @@ public:
         m_NetCfgLock->ReleaseWriteLock();
     }
     bool Usable() const { return m_Usable; }
-    void EnableVioProtOnly(const CString& Name, bool Enable)
+    void EnableComponents(const CString& Name, tBindingState State)
     {
         CString sVioProt = L"vioprot";
+        CString sTcpip = L"ms_tcpip";
         CComPtr<INetCfgClass> netClass;
         hr = m_NetCfg->QueryNetCfgClass(&GUID_DEVCLASS_NET, IID_INetCfgClass, (LPVOID*)&netClass);
         if (hr != S_OK) {
@@ -140,8 +141,31 @@ public:
                             if (upperId && lowerId && lower == adapter)
                             {
                                 bool bIsVioProt = !sVioProt.CompareNoCase(upperId);
+                                bool bIsTcpip = !sTcpip.CompareNoCase(upperId);
+                                bool bShouldBeEnabled;
                                 // vioprot should be enabled always, all the rest - if 'Enable{OnlyVioProt}==false'
-                                bool bShouldBeEnabled = !Enable || bIsVioProt;
+                                switch (State)
+                                {
+                                    case bsBindVioProt:
+                                        bShouldBeEnabled = bIsVioProt;
+                                        break;
+                                    case bsBindOther:
+                                        bShouldBeEnabled = !bIsVioProt;
+                                        break;
+                                    case bsBindNone:
+                                        bShouldBeEnabled = false;
+                                        break;
+                                    case bsUnbindTcpip:
+                                        bShouldBeEnabled = enabled && !bIsTcpip;
+                                        break;
+                                    case bsBindTcpip:
+                                        bShouldBeEnabled = enabled || bIsTcpip;
+                                        break;
+                                    case bsBindAll:
+                                    default:
+                                        bShouldBeEnabled = true;
+                                        break;
+                                }
                                 Log("%sabled U:%S L:%S (should be %sabled)",
                                     enabled ? "en" : "dis", upperId, lowerId,
                                     bShouldBeEnabled ? "en" : "dis");
@@ -207,7 +231,7 @@ public:
     {
         GetIfTable2(&m_Table);
     }
-    void CheckBinding(ULONG index, bool OnlyVioProt)
+    void CheckBinding(ULONG Index, tBindingState State)
     {
         CNetCfg cfg;
         for (ULONG i = 0; m_Table && i < m_Table->NumEntries; ++i)
@@ -221,9 +245,9 @@ public:
                 // Description - adapter name
                 // Alias - connection name
                 Log("IF %d (%S)(%S)", row.InterfaceIndex, row.Description, row.Alias);
-                if (index == INFINITE || index == row.InterfaceIndex)
+                if (Index == INFINITE || Index == row.InterfaceIndex)
                 {
-                    cfg.EnableVioProtOnly(row.Description, OnlyVioProt);
+                    cfg.EnableComponents(row.Description, State);
                 }
             }
         }
@@ -343,10 +367,10 @@ protected:
     ULONG m_Returned = 0;
 };
 
-static void CheckBinding(ULONG index, bool OnlyVioProt)
+static void CheckBinding(ULONG Index, tBindingState State)
 {
     CInterfaceTable t;
-    t.CheckBinding(index, OnlyVioProt);
+    t.CheckBinding(Index, State);
 }
 
 class CVirtioAdapter
@@ -398,7 +422,7 @@ public:
                 // virtio, standby, vf, suppress, not started
                 // for example after netkvm parameters change
                 action = acOn;
-                CheckBinding(a.VfIfIndex, true);
+                CheckBinding(a.VfIfIndex, bsBindVioProt);
                 break;
             case asBoundActive:
                 // working failover
@@ -407,13 +431,13 @@ public:
                     // VF comes when virtio becomes active after initial timeout
                     action = acOff;
                     m_Count = INFINITE;
-                    CheckBinding(a.VfIfIndex, true);
+                    CheckBinding(a.VfIfIndex, bsBindVioProt);
                 }
                 break;
             case asAbsent:
                 // working VF without virtio
-                // VF should be bound to all the default protocols (virtio is optional)
-                CheckBinding(a.VfIfIndex, false);
+                // VF should be bound to all the protocols
+                CheckBinding(a.VfIfIndex, bsBindAll);
                 break;
             default:
                 break;
@@ -471,12 +495,11 @@ public:
         CNetkvmDeviceFile d;
         d.ControlSet(IOCTL_NETKVMD_SET_LINK, &sl, sizeof(sl));
     }
-    void PreRemove()
+    void PreRemove(tBindingState State)
     {
-        if ((m_State == asBoundInactive || m_State == asBoundActive) &&
-            m_VfIndex != INFINITE)
+        if (m_VfIndex != INFINITE)
         {
-            CheckBinding(m_VfIndex, false);
+            CheckBinding(m_VfIndex, State);
         }
     }
 private:
@@ -618,18 +641,18 @@ const tAdapterState CVirtioAdapter::m_TargetStates[128] =
 class CVirtioAdaptersArray : public CAtlArray<CVirtioAdapter>
 {
 public:
-    void RemoveAdapter(UINT Index)
+    void RemoveAdapter(UINT Index, tBindingState State)
     {
         CVirtioAdapter& a = GetAt(Index);
-        a.PreRemove();
+        a.PreRemove(State);
         RemoveAt(Index);
     }
-    void RemoveAllAdapters()
+    void RemoveAllAdapters(tBindingState State)
     {
         for (UINT i = 0; i < GetCount(); ++i)
         {
             CVirtioAdapter& a = GetAt(i);
-            a.PreRemove();
+            a.PreRemove(State);
         }
         RemoveAll();
     }
@@ -750,11 +773,11 @@ private:
         {
             CNetkvmDeviceFile d;
             if (!d.Usable()) {
-                m_Adapters.RemoveAllAdapters();
+                m_Adapters.RemoveAllAdapters(bsBindAll);
             }
             if (!d.ControlGet(IOCTL_NETKVMD_QUERY_ADAPTERS, m_IoctlBuffer, sizeof(m_IoctlBuffer)))
             {
-                m_Adapters.RemoveAllAdapters();
+                m_Adapters.RemoveAllAdapters(bsBindAll);
             }
             else
             {
@@ -785,7 +808,7 @@ private:
                 found = m_Adapters[i].Match(adapters[j].MacAddress);
             }
             if (found) continue;
-            m_Adapters.RemoveAdapter(i);
+            m_Adapters.RemoveAdapter(i, bsBindAll);
             i--;
         }
     }
