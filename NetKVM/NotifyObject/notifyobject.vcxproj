@@ -220,8 +220,8 @@
 xcopy /y /q $(PlatformTarget)\$(ConfigurationName)\vioprot.inf $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
 xcopy /y /q $(PlatformTarget)\$(ConfigurationName)\netkvmno.dll $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
 xcopy /y /q $(PlatformTarget)\$(ConfigurationName)\netkvmno.pdb $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
-xcopy /y /q ..\ProtocolService\$(PlatformTarget)\Release\netkvmp.exe $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
-xcopy /y /q ..\ProtocolService\$(PlatformTarget)\Release\netkvmp.pdb $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
+xcopy /y /q ..\ProtocolService\$(PlatformTarget)\$(ConfigurationName)\netkvmp.exe $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
+xcopy /y /q ..\ProtocolService\$(PlatformTarget)\$(ConfigurationName)\netkvmp.pdb $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
 
 cd $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)
 echo Generating CAT file
