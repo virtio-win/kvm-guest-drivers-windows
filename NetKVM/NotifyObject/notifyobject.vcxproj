@@ -228,7 +228,7 @@ echo Generating CAT file
 inf2cat /driver:. /os:$(Inf2CatWindowsVersionList)
 if not exist $(ProjectDir).dosigning goto :eof
 echo Signing executables and CAT
-signtool sign /a /fd sha256 /tr "http://sha256timestamp.ws.symantec.com/sha256/timestamp" netkvmno.dll netkvmp.exe vioprot.cat
+signtool sign /a /fd sha256 /tr "http://sha256timestamp.ws.symantec.com/sha256/timestamp" /td sha256 netkvmno.dll netkvmp.exe vioprot.cat
       </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
