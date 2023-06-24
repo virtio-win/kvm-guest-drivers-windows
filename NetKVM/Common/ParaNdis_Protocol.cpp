@@ -165,7 +165,7 @@ public:
             TraceNoPrefix(0, "[%s] (%s)%s = %X\n", __FUNCTION__, reqType, ParaNdis_OidName(m_Request.DATA.SET_INFORMATION.Oid), status);
         }
         else {
-            TraceNoPrefix(0, "[%s] (%s)%s OK, %d bytes\n", __FUNCTION__, reqType,
+            TraceNoPrefix(m_Silent ? 2 : 0, "[%s] (%s)%s OK, %d bytes\n", __FUNCTION__, reqType,
                 ParaNdis_OidName(m_Request.DATA.SET_INFORMATION.Oid),
                 m_Request.DATA.QUERY_INFORMATION.BytesWritten);
         }
@@ -175,7 +175,7 @@ public:
     void Run(NDIS_HANDLE Owner)
     {
         bool synchronous = m_Synchronous;
-        NDIS_STATUS status = NdisOidRequest(Owner, &m_Request);
+        NDIS_STATUS status = m_SkipRun ? m_SkipRun : NdisOidRequest(Owner, &m_Request);
         if (status == NDIS_STATUS_PENDING)
         {
             // it's risky to touch the object, it may be async
@@ -194,6 +194,8 @@ public:
     virtual ~COidWrapper() { }
 protected:
     bool m_Synchronous = true;
+    bool m_Silent = false;
+    NDIS_STATUS m_SkipRun = NDIS_STATUS_SUCCESS;
 private:
     void Wait()
     {
@@ -219,9 +221,16 @@ public:
         }
         if (m_Data)
         {
-            NdisMoveMemory(m_Data, buffer, length);
+            if (buffer)
+            {
+                NdisMoveMemory(m_Data, buffer, length);
+            }
             m_Request.DATA.SET_INFORMATION.InformationBuffer = m_Data;
             m_Request.DATA.SET_INFORMATION.InformationBufferLength = m_Length;
+        }
+        else if (m_Length)
+        {
+            m_SkipRun = NDIS_STATUS_RESOURCES;
         }
     }
     void Complete(NDIS_STATUS status) override
@@ -237,12 +246,59 @@ public:
             NdisFreeMemoryWithTagPriority(m_Handle, m_Data, DataTag);
         }
     }
+protected:
+    PARANDIS_ADAPTER* m_Adapter;
 private:
     const ULONG DataTag = '3ORP';
     PVOID m_Data = NULL;
     ULONG m_Length = 0;
     NDIS_HANDLE m_Handle;
-    PARANDIS_ADAPTER *m_Adapter;
+};
+
+class CStatisticsWrapper : public COidWrapperAsync
+{
+public:
+    CStatisticsWrapper(PARANDIS_ADAPTER* Adapter, bool Initial) :
+        COidWrapperAsync(Adapter, NdisRequestQueryInformation, OID_GEN_STATISTICS, NULL, sizeof(Adapter->VfStatistics)),
+        m_Initial(Initial)
+    {
+        m_Silent = true;
+    }
+    void Complete(NDIS_STATUS status) override
+    {
+        NDIS_STATISTICS_INFO* pNew = (NDIS_STATISTICS_INFO*)m_Request.DATA.QUERY_INFORMATION.InformationBuffer;
+        NDIS_STATISTICS_INFO* pOld = &m_Adapter->VfStatistics;
+        if (NT_SUCCESS(status))
+        {
+            if (!m_Initial)
+            {
+            #define UPDATE_FIELD(f) m_Adapter->Statistics.##f += (pNew->##f - pOld->##f); pOld->##f = pNew->##f;
+                UPDATE_FIELD(ifHCInOctets);
+                UPDATE_FIELD(ifHCInUcastOctets);
+                UPDATE_FIELD(ifHCInMulticastOctets);
+                UPDATE_FIELD(ifHCInBroadcastOctets);
+                UPDATE_FIELD(ifHCInUcastPkts);
+                UPDATE_FIELD(ifHCInMulticastPkts);
+                UPDATE_FIELD(ifHCInBroadcastPkts);
+                UPDATE_FIELD(ifHCOutOctets);
+                UPDATE_FIELD(ifHCOutUcastOctets);
+                UPDATE_FIELD(ifHCOutMulticastOctets);
+                UPDATE_FIELD(ifHCOutBroadcastOctets);
+                UPDATE_FIELD(ifHCOutUcastPkts);
+                UPDATE_FIELD(ifHCOutMulticastPkts);
+                UPDATE_FIELD(ifHCOutBroadcastPkts);
+            }
+            else
+            {
+                *pOld = *pNew;
+                TraceNoPrefix(0, "[%s] Supported VF statistics %X(kvm statistics %X)\n", __FUNCTION__,
+                    pNew->SupportedStatistics, m_Adapter->Statistics.SupportedStatistics);
+            }
+        }
+        __super::Complete(status);
+    }
+protected:
+    bool m_Initial;
 };
 
 static void PrintOffload(LPCSTR caller, NDIS_OFFLOAD& current)
@@ -452,6 +508,7 @@ public:
     void SetRSS();
     void SetOffloadEncapsulation();
     void SetOffloadParameters();
+    void QueryStatistics();
     bool IsOperational() const { return m_Operational; }
     ULONG VfInterfaceIndex() const { return m_Capabilies.ifIndex; }
     bool IsStarted() const { return m_Started; }
@@ -485,6 +542,7 @@ private:
     bool       m_Operational = false;
     // set and clear under protocol mutex
     bool       m_Started = false;
+    bool       m_GotStatistics = false;
     PDEVICE_OBJECT m_Pdo = NULL;
     NDIS_STATUS m_Status;
     struct
@@ -1255,6 +1313,18 @@ void CProtocolBinding::SetOidAsync(ULONG oid, PVOID data, ULONG size)
     p->Run(m_BindingHandle);
 }
 
+void CProtocolBinding::QueryStatistics()
+{
+    CStatisticsWrapper* p = new (m_Protocol.DriverHandle()) CStatisticsWrapper(m_BoundAdapter, !m_GotStatistics);
+    if (!p)
+    {
+        ParaNdis_DereferenceBinding(m_BoundAdapter);
+        return;
+    }
+    p->Run(m_BindingHandle);
+    m_GotStatistics = true;
+}
+
 static bool KeepSourceHandleInContext(PNET_BUFFER_LIST Nbl)
 {
 #if 0
@@ -1424,6 +1494,9 @@ VOID ParaNdis_PropagateOid(PARANDIS_ADAPTER *pContext, NDIS_OID oid, PVOID buffe
             break;
         case OID_TCP_OFFLOAD_PARAMETERS:
             pb->SetOffloadParameters();
+            break;
+        case OID_GEN_STATISTICS:
+            pb->QueryStatistics();
             break;
         default:
             pb->SetOidAsync(oid, buffer, length);

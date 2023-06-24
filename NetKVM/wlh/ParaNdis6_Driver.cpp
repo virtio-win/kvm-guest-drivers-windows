@@ -223,6 +223,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
         pContext->Statistics.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
         pContext->Statistics.Header.Revision = NDIS_STATISTICS_INFO_REVISION_1;
         pContext->Statistics.Header.Size = NDIS_SIZEOF_STATISTICS_INFO_REVISION_1;
+        pContext->VfStatistics = pContext->Statistics;
         /* let Common do all the rest */
         status = ParaNdis_InitializeContext(pContext, miniportInitParameters->AllocatedResources);
         if (status != NDIS_STATUS_SUCCESS)

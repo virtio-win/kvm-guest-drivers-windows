@@ -467,6 +467,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
 
     /* send part */
     NDIS_STATISTICS_INFO    Statistics = {};
+    NDIS_STATISTICS_INFO    VfStatistics = {};
     struct
     {
         ULONG framesCSOffload;

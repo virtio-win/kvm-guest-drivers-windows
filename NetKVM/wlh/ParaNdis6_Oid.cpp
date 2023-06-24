@@ -562,6 +562,11 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     {
         status = ParaNdis_OidQueryCopy(pOid, pInfo, ulSize, bFreeInfo);
     }
+    if (status == NDIS_STATUS_SUCCESS && pOid->Oid == OID_GEN_STATISTICS)
+    {
+        // trigger getting stats from Vf and updating netkvm stats
+        ParaNdis_PropagateOid(pContext, pOid->Oid, NULL, NULL);
+    }
     return status;
 }
 
