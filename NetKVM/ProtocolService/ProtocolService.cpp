@@ -776,7 +776,7 @@ public:
         CServiceImplementation(_T("netkvmp")),
         m_ThreadEvent(false)
         {}
-    enum { ctlDump = 128, ctlNoRestore = 129 };
+    enum { ctlDump = 128 };
 protected:
     virtual bool OnStart() override
     {
@@ -790,10 +790,6 @@ protected:
         {
             case ctlDump:
                 Dump();
-                return res;
-            case ctlNoRestore:
-                Log("Got ctlNoRestore, restart/update expected");
-                m_NoRestoreOnStop = true;
                 return res;
             default:
                 break;
@@ -823,7 +819,7 @@ protected:
             m_ThreadEvent.Wait(3000);
         } while (true);
         // Typical flow: the protocol is uninstalled
-        if (!m_NoRestoreOnStop)
+        if (!IsVioProtInstalled())
         {
             for (UINT i = 0; i < m_Adapters.GetCount(); ++i)
             {
