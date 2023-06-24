@@ -395,7 +395,7 @@ public:
         m_Filter.u.DeviceInterface.ClassGuid = GUID_DEVINTERFACE_NET;
         Register(&m_Filter);
     }
-    CM_NOTIFY_FILTER m_Filter;
+    CM_NOTIFY_FILTER m_Filter = {};
 };
 
 class CNetkvmDeviceFile
@@ -768,7 +768,8 @@ public:
 
 class CProtocolServiceImplementation :
     public CServiceImplementation,
-    public CThreadOwner
+    public CThreadOwner,
+    public CDeviceNotificationOwner
 {
 public:
     CProtocolServiceImplementation() :
@@ -812,6 +813,7 @@ protected:
     }
     virtual void ThreadProc()
     {
+        CNetworkDeviceNotification dn(*this);
         CoInitialize(NULL);
 
         do {
@@ -856,7 +858,15 @@ private:
     CEvent m_ThreadEvent;
     CVirtioAdaptersArray m_Adapters;
     CMutex m_AdaptersMutex;
-    bool m_NoRestoreOnStop = false;
+    bool Notification(CM_NOTIFY_ACTION action, PCM_NOTIFY_EVENT_DATA data, DWORD dataSize) override
+    {
+        UNREFERENCED_PARAMETER(action);
+        UNREFERENCED_PARAMETER(data);
+        UNREFERENCED_PARAMETER(dataSize);
+        Log(" => Network change notification");
+        m_ThreadEvent.Set();
+        return true;
+    }
 private:
     NETKVMD_ADAPTER m_IoctlBuffer[256];
     void SyncVirtioAdapters()

@@ -17,6 +17,7 @@
 #include <iphlpapi.h>
 #include <devguid.h>
 #include <setupapi.h>
+#include <ShlObj.h>
 
 #define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS      // some CString constructors will be explicit
 //#include <atlbase.h>
