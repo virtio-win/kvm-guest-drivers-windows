@@ -83,3 +83,26 @@ LPCSTR GetName(const tAdapterState& val)
     };
     return GET_NAME(names, val);
 }
+
+LPCSTR GetName(const IF_OPER_STATUS& val)
+{
+    static tNamedEntry names[] = {
+        MAKE_ENTRY(IfOperStatusUp)
+        MAKE_ENTRY(IfOperStatusDown)
+        MAKE_ENTRY(IfOperStatusTesting)
+        MAKE_ENTRY(IfOperStatusUnknown)
+        MAKE_ENTRY(IfOperStatusDormant)
+        MAKE_ENTRY(IfOperStatusNotPresent)
+        MAKE_ENTRY(IfOperStatusLowerLayerDown)
+    };
+    return GET_NAME(names, val);
+}
+
+LPCSTR GetName(const CM_NOTIFY_ACTION& val)
+{
+    static tNamedEntry names[] = {
+        MAKE_ENTRY(CM_NOTIFY_ACTION_DEVICEINTERFACEARRIVAL)
+        MAKE_ENTRY(CM_NOTIFY_ACTION_DEVICEINTERFACEREMOVAL)
+    };
+    return GET_NAME(names, val);
+}
