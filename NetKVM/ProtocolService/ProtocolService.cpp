@@ -532,9 +532,19 @@ public:
             index |= 32;
             m_VfIndex = a.VfIfIndex;
         }
+        else if (m_VfIndex != INFINITE && IsVioProtInstalled())
+        {
+            CheckBinding(m_VfIndex, bsBindAll);
+            m_VfIndex = INFINITE;
+        }
+        else if (m_VfIndex == INFINITE)
+        {
+            // no change
+        }
         else
         {
-            m_VfIndex = INFINITE;
+            // protocol is uninstalled, this is the last round of update
+            // the rest will be done by the tail of the thread
         }
         if (a.VfLink) index |= 64;
         tAdapterState State = m_TargetStates[index];
@@ -567,10 +577,7 @@ public:
     }
     void PreRemove(tBindingState State)
     {
-        if (m_VfIndex != INFINITE)
-        {
-            CheckBinding(m_VfIndex, State);
-        }
+        CheckBinding(m_VfIndex, State);
     }
 private:
     static const tAdapterState CVirtioAdapter::m_TargetStates[];
@@ -813,26 +820,36 @@ protected:
         CoInitialize(NULL);
 
         do {
+            SyncVirtioAdapters();
             if (ThreadState() != tsRunning)
                 break;
-            SyncVirtioAdapters();
             m_ThreadEvent.Wait(3000);
         } while (true);
         // Typical flow: the protocol is uninstalled
         if (!IsVioProtInstalled())
         {
+            CInterfaceTable t;
             for (UINT i = 0; i < m_Adapters.GetCount(); ++i)
             {
                 CVirtioAdapter& a = m_Adapters[i];
                 if (a.m_VfIndex == INFINITE)
                     continue;
-                if (a.m_State == asBoundActive)
+                switch (a.m_State)
                 {
-                    CheckBinding(a.m_VfIndex, bsBindNone);
-                    a.SetLink(a.acOff);
-                    Sleep(3000);
+                    case asBoundInactive:
+                    case asBoundActive:
+                    case asAloneInactive:
+                    case asAloneActive:
+                        // make virtio-net inactive
+                        a.SetLink(a.acOff);
+                        // pulse the tcpip on virtio adapter, freeing the IP address
+                        // and preventing DHCP error "Address ... being plumbed for adapter ... already exists"
+                        t.PulseTcpip(a.m_MacAddress, a.m_VfIndex, false);
+                        CheckBinding(a.m_VfIndex, bsBindAll);
+                        break;
+                    default:
+                        break;
                 }
-                CheckBinding(a.m_VfIndex, bsBindOther);
             }
         }
         else
