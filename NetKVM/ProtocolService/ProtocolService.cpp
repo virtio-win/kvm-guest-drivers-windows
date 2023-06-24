@@ -241,36 +241,86 @@ private:
     char m_Buffer[6 * 3] = {};
 };
 
-// we can't use GetAdaptersTable
-// as it does not allow to enumerate adapters
-// when both ms_tcpip and ms_tcpip6 are disabled
 class CInterfaceTable
 {
 public:
     CInterfaceTable()
     {
+        // we can't use GetAdaptersTable as it does not allow to enumerate adapters
+        // when both ms_tcpip and ms_tcpip6 are disabled
+        // GetIfTable2 provides all the adapters including disabled ones
         GetIfTable2(&m_Table);
     }
-    void CheckBinding(ULONG Index, tBindingState State)
+private:
+    template<typename TWorker> void TraverseTable(
+        ULONG Index, UCHAR* Mac, bool Equal,
+        tBindingState State, bool Existing, TWorker Worker)
     {
         CNetCfg cfg;
         for (ULONG i = 0; m_Table && i < m_Table->NumEntries; ++i)
         {
             auto& row = m_Table->Table[i];
-            if (row.Type == IF_TYPE_ETHERNET_CSMACD &&
-                row.MediaConnectState == MediaConnectStateConnected &&
-                !row.InterfaceAndOperStatusFlags.FilterInterface &&
-                !row.InterfaceAndOperStatusFlags.NotMediaConnected)
+            auto Compare = [&](const MIB_IF_ROW2& row) -> bool
+            {
+                bool res = row.Type == IF_TYPE_ETHERNET_CSMACD;
+                res = res && !row.InterfaceAndOperStatusFlags.FilterInterface;
+                if (Existing)
+                {
+                    res = res && row.OperStatus != IfOperStatusNotPresent;
+                }
+                if (Mac)
+                {
+                    res = res && !memcmp(Mac, row.PhysicalAddress, 6);
+                }
+                if (Equal)
+                {
+                    res = res && row.InterfaceIndex == Index;
+                }
+                else
+                {
+                    res = res && row.InterfaceIndex != Index;
+                }
+                return res;
+            };
+            if (Compare(row))
             {
                 // Description - adapter name
                 // Alias - connection name
                 Log("IF %d (%S)(%S)", row.InterfaceIndex, row.Description, row.Alias);
-                if (Index == INFINITE || Index == row.InterfaceIndex)
-                {
-                    cfg.EnableComponents(row.Description, State);
-                }
+                Worker(row);
+                cfg.EnableComponents(row.Description, State);
             }
         }
+    }
+public:
+    void CheckBinding(ULONG Index, UCHAR* Mac, bool Equal, tBindingState State, bool Existing)
+    {
+        TraverseTable(Index, Mac, Equal, State, Existing, [](const MIB_IF_ROW2&){});
+    }
+    // turn on-off TCPIP on existing adater, whose index is
+    // equal or not equal to the known one
+    void PulseTcpip(UCHAR *Mac, ULONG VfIndex, bool Equal)
+    {
+        CheckBinding(VfIndex, Mac, Equal, bsUnbindTcpip, true);
+        CheckBinding(VfIndex, Mac, Equal, bsBindTcpip, true);
+    }
+    // simple version without MAC validation for all adapters (also disabled ones)
+    void CheckBinding(ULONG Index, tBindingState State)
+    {
+        CheckBinding(Index, NULL, true, State, false);
+    }
+    void Dump()
+    {
+        TraverseTable(INFINITE, NULL, false, bsBindNoChange, false,
+        [](const MIB_IF_ROW2& row)
+        {
+            CMACString sMac(row.PhysicalAddress);
+            auto& fl = row.InterfaceAndOperStatusFlags;
+            Log("[%s]  hw %d, paused %d, lp %d, %s",
+                sMac.Get(),
+                fl.HardwareInterface, fl.Paused, fl.LowPower,
+                Name<IF_OPER_STATUS>(row.OperStatus));
+        });
     }
     ~CInterfaceTable()
     {
