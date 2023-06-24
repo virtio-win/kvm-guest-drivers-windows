@@ -889,6 +889,17 @@ static void UninstallProtocol()
 
 static bool InstallProtocol()
 {
+    FILE* f = NULL;
+    fopen_s(&f, "vioprot.inf", "r");
+    if (f)
+    {
+        fclose(f);
+    }
+    if (!f)
+    {
+        puts("ERROR: File VIOPROT.INF is not in the current directory.");
+        return false;
+    }
     puts("Installing VIOPROT");
     return !system("netcfg -v -l vioprot.inf -c p -i VIOPROT");
 }
