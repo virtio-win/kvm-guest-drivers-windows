@@ -78,6 +78,15 @@ public:
         m_NetCfgLock->ReleaseWriteLock();
     }
     bool Usable() const { return m_Usable; }
+    bool Find(LPCWSTR Name)
+    {
+        if (!Usable())
+            return false;
+        CComPtr<INetCfgComponent> component;
+        hr = m_NetCfg->FindComponent(Name, &component);
+        Log("%sound component %S(hr %X)", hr == S_OK ? "F" : "Not f", Name, hr);
+        return hr == S_OK;
+    }
     void EnableComponents(const CString& Name, tBindingState State)
     {
         CString sVioProt = L"vioprot";
@@ -200,6 +209,12 @@ private:
     bool m_Modified = false;
     HRESULT hr;
 };
+
+static bool IsVioProtInstalled()
+{
+    CNetCfg cfg;
+    return cfg.Find(L"vioprot");
+}
 
 class CMACString
 {
@@ -896,6 +911,7 @@ int __cdecl main(int argc, char **argv)
     }
     if (!s.IsEmpty())
     {
+        CoInitialize(NULL);
         if (!s.CompareNoCase("i"))
         {
             if (DummyService.Installed())
@@ -922,12 +938,14 @@ int __cdecl main(int argc, char **argv)
         }
         if (!s.CompareNoCase("q"))
         {
-            puts(DummyService.Installed() ? "installed" : "not installed");
+            printf("Service %sinstalled\n", DummyService.Installed() ? "" : "not");
+            printf("VIOPROT %sinstalled\n", IsVioProtInstalled() ? "" : "not ");
         }
         if (!s.CompareNoCase("d"))
         {
             DummyService.Control(CProtocolServiceImplementation::ctlDump);
         }
+        CoUninitialize();
     }
     else
     {
