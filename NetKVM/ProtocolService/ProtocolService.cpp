@@ -971,11 +971,6 @@ int __cdecl main(int argc, char **argv)
     if (argc > 1)
     {
        s = argv[1];
-       if (!s.CompareNoCase("x"))
-       {
-           ProcessProtocolUninstall();
-           return 0;
-       }
     }
     if (CServiceImplementation::CheckInMain())
     {
