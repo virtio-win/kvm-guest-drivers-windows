@@ -89,6 +89,8 @@ public:
     }
     void EnableComponents(const CString& Name, tBindingState State)
     {
+        if (!Usable())
+            return;
         CString sVioProt = L"vioprot";
         CString sTcpip = L"ms_tcpip";
         CComPtr<INetCfgClass> netClass;
@@ -169,6 +171,9 @@ public:
                                         break;
                                     case bsBindTcpip:
                                         bShouldBeEnabled = enabled || bIsTcpip;
+                                        break;
+                                    case bsBindNoChange:
+                                        bShouldBeEnabled = enabled;
                                         break;
                                     case bsBindAll:
                                     default:
@@ -955,6 +960,12 @@ int __cdecl main(int argc, char **argv)
         if (!s.CompareNoCase("d"))
         {
             DummyService.Control(CProtocolServiceImplementation::ctlDump);
+        }
+        if (!s.CompareNoCase("e"))
+        {
+            puts("Dumping interface table to debug output");
+            CInterfaceTable t;
+            t.Dump();
         }
         CoUninitialize();
     }
