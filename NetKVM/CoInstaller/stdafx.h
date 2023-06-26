@@ -42,7 +42,7 @@ using namespace std;
 #ifdef _DEBUG
 #define NETCO_DEBUG_PRINT(x) { tcout << TEXT("NETKVM: ") << x << endl;}
 #else
-#define NETCO_DEBUG_PRINT(x)
+#define NETCO_DEBUG_PRINT(x) { wstringbuf sb; wostream s(&sb); s << TEXT("NETKVM: ") << x << endl; OutputDebugString(sb.str().c_str()); }
 #endif
 
 #ifndef ARRAY_SIZE

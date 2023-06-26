@@ -27,6 +27,55 @@ static const LPCTSTR NETKVM_VALUE_PARAM_NAME_T = TEXT("value");
 
 static HINSTANCE g_hinstThisDLL = NULL;
 
+class CFileVersion
+{
+public:
+    CFileVersion(LPCTSTR Name)
+    {
+        ULONG size = GetFileVersionInfoSize(Name, NULL);
+        if (!size)
+        {
+            NETCO_DEBUG_PRINT(TEXT("Can't get version info size for ") << Name);
+            return;
+        }
+        PVOID data = NULL;
+        data = malloc(size);
+        if (!data)
+        {
+            NETCO_DEBUG_PRINT(TEXT("Can't alloc file version memory of ") << size);
+            return;
+        }
+        if (!GetFileVersionInfo(Name, NULL, size, data))
+        {
+            NETCO_DEBUG_PRINT(TEXT("Can't get file version, error ") << GetLastError());
+            free(data);
+            return;
+        }
+        VS_FIXEDFILEINFO* info;
+        UINT len;
+        if (!VerQueryValue(data, L"\\", (PVOID*)&info, &len))
+        {
+            NETCO_DEBUG_PRINT(TEXT("Can't get fixed file version, error ") << GetLastError());
+            free(data);
+            return;
+        }
+        m_Ver[3] = LOWORD(info->dwFileVersionLS);
+        m_Ver[2] = HIWORD(info->dwFileVersionLS);
+        m_Ver[1] = LOWORD(info->dwFileVersionMS);
+        m_Ver[0] = HIWORD(info->dwFileVersionMS);
+        m_Valid = true;
+        NETCO_DEBUG_PRINT(Name << ": version " << (ULONG)m_Ver[0] <<
+            "." << (ULONG)m_Ver[1] << "." << (ULONG)m_Ver[2] << "." << (ULONG)m_Ver[3]);
+    }
+    const USHORT* GetVersion()
+    {
+        return m_Valid ? m_Ver : NULL;
+    }
+private:
+    USHORT m_Ver[4] = {};
+    bool m_Valid = false;
+};
+
 static bool _NetKVMGetDeviceClassGuids(vector<GUID>& GUIDs)
 {
     GUID *pguidDevClassPtr = NULL;
@@ -978,6 +1027,17 @@ DWORD WINAPI _NetKVMRestartDeviceCmdHandler(__in   PWCHAR  /*pwszMachine*/,
 #define HLP_NETKVM_SHOW_PARAMINFO     IDS_SHOWPARAMINFOSHORT
 #define HLP_NETKVM_SHOW_PARAMINFO_EX  IDS_SHOWPARAMINFOLONG
 
+// win32: sizeof(CMD_ENTRY)=24 bytes
+// x64:   sizeof(CMD_ENTRY)=40 bytes
+// fail in case of build with 22h2 WDK (22621)
+_STATIC_ASSERT(sizeof(CMD_ENTRY) == (4*sizeof(PVOID) + 8));
+
+typedef struct
+{
+    CMD_ENTRY e;
+    PVOID     p;
+} CMD_ENTRY11;
+
 CMD_ENTRY  g_ShowCmdTable[] =
 {
     CREATE_CMD_ENTRY_EX(NETKVM_SHOW_DEVICES,
@@ -989,6 +1049,20 @@ CMD_ENTRY  g_ShowCmdTable[] =
     CREATE_CMD_ENTRY_EX(NETKVM_SHOW_PARAMINFO,
                         (PFN_HANDLE_CMD) _NetKVMShowParamInfoCmdHandler,
                         CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL)
+
+};
+
+CMD_ENTRY11  g_ShowCmdTable11[] =
+{
+    { CREATE_CMD_ENTRY_EX(NETKVM_SHOW_DEVICES,
+                        (PFN_HANDLE_CMD)_NetKVMShowDevicesCmdHandler,
+                        /*CMD_FLAG_PRIVATE |*/ CMD_FLAG_LOCAL)},
+    { CREATE_CMD_ENTRY_EX(NETKVM_SHOW_PARAMS,
+                        (PFN_HANDLE_CMD)_NetKVMShowParamsCmdHandler,
+                        CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL) },
+    { CREATE_CMD_ENTRY_EX(NETKVM_SHOW_PARAMINFO,
+                        (PFN_HANDLE_CMD)_NetKVMShowParamInfoCmdHandler,
+                        CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL) }
 
 };
 
@@ -1017,6 +1091,19 @@ CMD_ENTRY  g_TopLevelCommands[] =
                         CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL)
 };
 
+CMD_ENTRY11  g_TopLevelCommands11[] =
+{
+    { CREATE_CMD_ENTRY_EX(NETKVM_RESTART_DEVICE,
+                        (PFN_HANDLE_CMD)_NetKVMRestartDeviceCmdHandler,
+                        CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL) },
+    { CREATE_CMD_ENTRY_EX(NETKVM_GET_PARAM,
+                        (PFN_HANDLE_CMD)_NetKVMGetParamCmdHandler,
+                        CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL) },
+    { CREATE_CMD_ENTRY_EX(NETKVM_SET_PARAM,
+                        (PFN_HANDLE_CMD)_NetKVMSetParamCmdHandler,
+                        CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL) }
+};
+
 
 #define HLP_GROUP_SHOW       IDS_SHOWCMDHELP
 #define CMD_GROUP_SHOW       L"show"
@@ -1024,6 +1111,11 @@ CMD_ENTRY  g_TopLevelCommands[] =
 static CMD_GROUP_ENTRY g_TopLevelGroups[] =
 {
     CREATE_CMD_GROUP_ENTRY_EX(GROUP_SHOW, g_ShowCmdTable, CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL)
+};
+
+static CMD_GROUP_ENTRY g_TopLevelGroups11[] =
+{
+    CREATE_CMD_GROUP_ENTRY_EX(GROUP_SHOW, g_ShowCmdTable, /*CMD_FLAG_PRIVATE | */CMD_FLAG_LOCAL)
 };
 
 DWORD WINAPI _NetKVMDumpCdmHandler(__in  PWCHAR      pwszRouter,
@@ -1085,8 +1177,12 @@ DWORD WINAPI _NetKVMNetshStartHelper(__in  const GUID *pguidParent,
     {
         UNREFERENCED_PARAMETER(pguidParent);
         UNREFERENCED_PARAMETER(dwVersion);
+        CFileVersion ver(TEXT("netsh.exe"));
+        const USHORT* v = ver.GetVersion();
+        bool Is11_22H2 = v && v[0] == 10 && v[2] >= 22621;
 
-        NETCO_DEBUG_PRINT(TEXT("_NetKVMNetshStartHelper called"));
+
+        NETCO_DEBUG_PRINT(TEXT("_NetKVMNetshStartHelper called, scheme of Win") << (int)(10 + Is11_22H2));
 
         pair< HDEVINFO, vector<_NetKVMDeviceInfo> > Devices = _NetKVMGetDevicesOfInterest();
         g_hDeviceInfoList = Devices.first;
@@ -1108,13 +1204,17 @@ DWORD WINAPI _NetKVMNetshStartHelper(__in  const GUID *pguidParent,
         attr.ulPriority = DEFAULT_CONTEXT_PRIORITY;
         attr.ulNumTopCmds = ARRAYSIZE(g_TopLevelCommands);
         attr.pTopCmds = (CMD_ENTRY (*)[])g_TopLevelCommands;
+        if (Is11_22H2) attr.pTopCmds = (CMD_ENTRY(*)[])g_TopLevelCommands11;
         attr.ulNumGroups = ARRAYSIZE(g_TopLevelGroups);
         attr.pCmdGroups = (CMD_GROUP_ENTRY (*)[])g_TopLevelGroups;
+        if (Is11_22H2) g_TopLevelGroups->pCmdGroup = (PCMD_ENTRY)&g_ShowCmdTable11[0];
         attr.pfnCommitFn = NULL;
         attr.pfnDumpFn = (PNS_CONTEXT_DUMP_FN) _NetKVMDumpCdmHandler;
         attr.pfnConnectFn = NULL;
         attr.pReserved = NULL;
         RegisterContext(&attr);
+
+        NETCO_DEBUG_PRINT(TEXT("RegisterContext returned"));
     }
     catch(const exception& ex)
     {
@@ -1124,6 +1224,7 @@ DWORD WINAPI _NetKVMNetshStartHelper(__in  const GUID *pguidParent,
     }
     catch(...)
     {
+        NETCO_DEBUG_PRINT(TEXT("Unknown exception"));
         return ERROR_UNKNOWN_EXCEPTION;
     }
 
@@ -1145,6 +1246,8 @@ DWORD NETCO_API InitHelperDll(__in DWORD dwNetshVersion,
 {
     UNREFERENCED_PARAMETER(dwNetshVersion);
     UNREFERENCED_PARAMETER(pReserved);
+
+    NETCO_DEBUG_PRINT(TEXT("InitHelperDll called. dwNetshVersion: ") << hex << dwNetshVersion);
 
     NS_HELPER_ATTRIBUTES attr;
 
