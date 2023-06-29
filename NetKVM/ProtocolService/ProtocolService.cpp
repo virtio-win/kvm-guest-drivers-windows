@@ -986,6 +986,11 @@ static bool InstallProtocol()
     return !system("netcfg -v -l vioprot.inf -c p -i VIOPROT");
 }
 
+static void Usage()
+{
+    puts("i(nstall)|u(ninstall)|q(uery)");
+}
+
 int __cdecl main(int argc, char **argv)
 {
     CStringA s;
@@ -1000,7 +1005,7 @@ int __cdecl main(int argc, char **argv)
     if (!s.IsEmpty())
     {
         CoInitialize(NULL);
-        if (!s.CompareNoCase("i"))
+        if (!s.CompareNoCase("i") || !s.CompareNoCase("install"))
         {
             if (DummyService.Installed())
             {
@@ -1011,7 +1016,7 @@ int __cdecl main(int argc, char **argv)
                 puts("Protocol installed");
             }
         }
-        if (!s.CompareNoCase("u"))
+        else if (!s.CompareNoCase("u") || !s.CompareNoCase("uninstall"))
         {
             if (DummyService.Installed())
             {
@@ -1024,26 +1029,30 @@ int __cdecl main(int argc, char **argv)
                 UninstallProtocol();
             }
         }
-        if (!s.CompareNoCase("q"))
+        else if (!s.CompareNoCase("q") || !s.CompareNoCase("query"))
         {
             printf("Service %sinstalled\n", DummyService.Installed() ? "" : "not");
             printf("VIOPROT %sinstalled\n", IsVioProtInstalled() ? "" : "not ");
         }
-        if (!s.CompareNoCase("d"))
+        else if (!s.CompareNoCase("d") || !s.CompareNoCase("dump"))
         {
             DummyService.Control(CProtocolServiceImplementation::ctlDump);
         }
-        if (!s.CompareNoCase("e"))
+        else if (!s.CompareNoCase("e"))
         {
             puts("Dumping interface table to debug output");
             CInterfaceTable t;
             t.Dump();
         }
+        else
+        {
+            Usage();
+        }
         CoUninitialize();
     }
     else
     {
-        puts("i(nstall)|u(ninstall)|q(uery)");
+        Usage();
     }
     return 0;
 }
