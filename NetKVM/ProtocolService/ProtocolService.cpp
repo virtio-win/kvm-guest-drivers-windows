@@ -91,8 +91,6 @@ public:
     {
         if (!Usable())
             return;
-        CString sVioProt = L"vioprot";
-        CString sTcpip = L"ms_tcpip";
         CComPtr<INetCfgClass> netClass;
         hr = m_NetCfg->QueryNetCfgClass(&GUID_DEVCLASS_NET, IID_INetCfgClass, (LPVOID*)&netClass);
         if (hr != S_OK) {
@@ -112,7 +110,7 @@ public:
             LPWSTR id = NULL;
             hr = adapter->GetDisplayName(&id);
             if (hr != S_OK) {
-                break;
+                continue;
             }
             bool found = !Name.CompareNoCase(id);
             CoTaskMemFree(id);
@@ -122,90 +120,23 @@ public:
                 CComPtr<IEnumNetCfgBindingPath> paths;
                 hr = adapter->QueryInterface(IID_INetCfgComponentBindings, (LPVOID*)&bindings);
                 if (hr != S_OK) {
-                    return;
+                    break;
                 }
                 hr = bindings->EnumBindingPaths(EBP_ABOVE, &paths);
                 if (!paths) {
-                    return;
+                    break;
                 }
-                do
-                {
+                while (true) {
                     CComPtr<INetCfgBindingPath> path;
                     hr = paths->Next(1, &path, NULL);
                     if (hr != S_OK) {
                         break;
                     }
-                    bool enabled = path->IsEnabled() == S_OK;
-                    CComPtr<IEnumNetCfgBindingInterface> enumBindingIf;
-                    hr = path->EnumBindingInterfaces(&enumBindingIf);
-                    if (hr == S_OK) {
-                        CComPtr<INetCfgBindingInterface> bindingIf;
-                        hr = enumBindingIf->Next(1, &bindingIf, NULL);
-                        if (hr == S_OK)
-                        {
-                            LPWSTR upperId = NULL, lowerId = NULL;
-                            CComPtr<INetCfgComponent> upper, lower;
-                            bindingIf->GetUpperComponent(&upper);
-                            bindingIf->GetLowerComponent(&lower);
-                            if (upper) upper->GetId(&upperId);
-                            if (lower) lower->GetId(&lowerId);
-                            if (upperId && lowerId && lower == adapter)
-                            {
-                                bool bIsVioProt = !sVioProt.CompareNoCase(upperId);
-                                bool bIsTcpip = !sTcpip.CompareNoCase(upperId);
-                                bool bShouldBeEnabled;
-                                // vioprot should be enabled always, all the rest - if 'Enable{OnlyVioProt}==false'
-                                switch (State)
-                                {
-                                    case bsBindVioProt:
-                                        bShouldBeEnabled = bIsVioProt;
-                                        break;
-                                    case bsBindOther:
-                                        bShouldBeEnabled = !bIsVioProt;
-                                        break;
-                                    case bsBindNone:
-                                        bShouldBeEnabled = false;
-                                        break;
-                                    case bsUnbindTcpip:
-                                        bShouldBeEnabled = enabled && !bIsTcpip;
-                                        break;
-                                    case bsBindTcpip:
-                                        bShouldBeEnabled = enabled || bIsTcpip;
-                                        break;
-                                    case bsBindNoChange:
-                                        bShouldBeEnabled = enabled;
-                                        break;
-                                    case bsBindAll:
-                                    default:
-                                        bShouldBeEnabled = true;
-                                        break;
-                                }
-                                Log("%sabled U:%S L:%S (should be %sabled)",
-                                    enabled ? "en" : "dis", upperId, lowerId,
-                                    bShouldBeEnabled ? "en" : "dis");
-                                if (bShouldBeEnabled != enabled)
-                                {
-                                    hr = path->Enable(bShouldBeEnabled);
-                                    if (hr != S_OK)
-                                    {
-                                        Log("Can't %sable hr=%X", bShouldBeEnabled ? "en" : "dis", hr);
-                                    }
-                                    else
-                                    {
-                                        m_Modified = true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                } while (true);
-
+                    ProcessAdapterPath(adapter, path, State);
+                }
                 break;
             }
-
         } while (true);
-
     }
 private:
     CComPtr<INetCfg> m_NetCfg;
@@ -213,6 +144,79 @@ private:
     bool m_Usable = false;
     bool m_Modified = false;
     HRESULT hr;
+    void ProcessAdapterPath(INetCfgComponent* Adapter, INetCfgBindingPath* path, tBindingState State)
+    {
+        CString sVioProt = L"vioprot";
+        CString sTcpip = L"ms_tcpip";
+        bool enabled = path->IsEnabled() == S_OK;
+        CComPtr<IEnumNetCfgBindingInterface> enumBindingIf;
+        hr = path->EnumBindingInterfaces(&enumBindingIf);
+        if (hr != S_OK) {
+            return;
+        }
+        CComPtr<INetCfgBindingInterface> bindingIf;
+        hr = enumBindingIf->Next(1, &bindingIf, NULL);
+        if (hr != S_OK) {
+            return;
+        }
+        LPWSTR upperId = NULL, lowerId = NULL;
+        CComPtr<INetCfgComponent> upper, lower;
+        bindingIf->GetUpperComponent(&upper);
+        bindingIf->GetLowerComponent(&lower);
+        if (upper) upper->GetId(&upperId);
+        if (lower) lower->GetId(&lowerId);
+        if (!upperId || !lowerId || lower != Adapter) {
+            CoTaskMemFree(upperId);
+            CoTaskMemFree(lowerId);
+            return;
+        }
+        bool bIsVioProt = !sVioProt.CompareNoCase(upperId);
+        bool bIsTcpip = !sTcpip.CompareNoCase(upperId);
+        bool bShouldBeEnabled;
+        // vioprot should be enabled always, all the rest - if 'Enable{OnlyVioProt}==false'
+        switch (State)
+        {
+            case bsBindVioProt:
+                bShouldBeEnabled = bIsVioProt;
+                break;
+            case bsBindOther:
+                bShouldBeEnabled = !bIsVioProt;
+                break;
+            case bsBindNone:
+                bShouldBeEnabled = false;
+                break;
+            case bsUnbindTcpip:
+                bShouldBeEnabled = enabled && !bIsTcpip;
+                break;
+            case bsBindTcpip:
+                bShouldBeEnabled = enabled || bIsTcpip;
+                break;
+            case bsBindNoChange:
+                bShouldBeEnabled = enabled;
+                break;
+            case bsBindAll:
+            default:
+                bShouldBeEnabled = true;
+                break;
+        }
+        Log("%sabled U:%S L:%S (should be %sabled)",
+            enabled ? "en" : "dis", upperId, lowerId,
+            bShouldBeEnabled ? "en" : "dis");
+        if (bShouldBeEnabled != enabled)
+        {
+            hr = path->Enable(bShouldBeEnabled);
+            if (hr != S_OK)
+            {
+                Log("Can't %sable hr=%X", bShouldBeEnabled ? "en" : "dis", hr);
+            }
+            else
+            {
+                m_Modified = true;
+            }
+        }
+        CoTaskMemFree(upperId);
+        CoTaskMemFree(lowerId);
+    }
 };
 
 static bool IsVioProtInstalled()
