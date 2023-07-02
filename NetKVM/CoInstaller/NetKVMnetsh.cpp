@@ -1027,16 +1027,16 @@ DWORD WINAPI _NetKVMRestartDeviceCmdHandler(__in   PWCHAR  /*pwszMachine*/,
 #define HLP_NETKVM_SHOW_PARAMINFO     IDS_SHOWPARAMINFOSHORT
 #define HLP_NETKVM_SHOW_PARAMINFO_EX  IDS_SHOWPARAMINFOLONG
 
-// win32: sizeof(CMD_ENTRY)=24 bytes
-// x64:   sizeof(CMD_ENTRY)=40 bytes
-// fail in case of build with 22h2 WDK (22621)
-_STATIC_ASSERT(sizeof(CMD_ENTRY) == (4*sizeof(PVOID) + 8));
+#define CREATE_CMD_ENTRY(t,f)            {CMD_##t, f, HLP_##t, HLP_##t##_EX, CMD_FLAG_PRIVATE, NULL}
+#define CREATE_CMD_ENTRY_EX(t,f,i)       {CMD_##t, f, HLP_##t, HLP_##t##_EX, i, NULL}
+#define CREATE_CMD_ENTRY_EX_VER(t,f,i,v) {CMD_##t, f, HLP_##t, HLP_##t##_EX, i, v}
 
-typedef struct
-{
-    CMD_ENTRY e;
-    PVOID     p;
-} CMD_ENTRY11;
+#define CREATE_CMD_GROUP_ENTRY(t,s)            {CMD_##t, HLP_##t, sizeof(s)/sizeof(CMD_ENTRY), 0, s, NULL }
+#define CREATE_CMD_GROUP_ENTRY_EX(t,s,i)       {CMD_##t, HLP_##t, sizeof(s)/sizeof(CMD_ENTRY), i, s, NULL }
+#define CREATE_CMD_GROUP_ENTRY_EX_VER(t,s,i,v) {CMD_##t, HLP_##t, sizeof(s)/sizeof(CMD_ENTRY), i, s, v }
+
+#define CMD_FLAG_PRIVATE 0
+#define CMD_FLAG_LOCAL   0
 
 CMD_ENTRY  g_ShowCmdTable[] =
 {
@@ -1170,19 +1170,15 @@ DWORD WINAPI _NetKVMDumpCdmHandler(__in  PWCHAR      pwszRouter,
     }
 }
 
-DWORD WINAPI _NetKVMNetshStartHelper(__in  const GUID *pguidParent,
+DWORD WINAPI NetKVMNetshStartHelper(__in  const GUID *pguidParent,
                                      __in  DWORD dwVersion)
 {
     try
     {
         UNREFERENCED_PARAMETER(pguidParent);
         UNREFERENCED_PARAMETER(dwVersion);
-        CFileVersion ver(TEXT("netsh.exe"));
-        const USHORT* v = ver.GetVersion();
-        bool Is11_22H2 = v && v[0] == 10 && v[2] >= 22621;
 
-
-        NETCO_DEBUG_PRINT(TEXT("_NetKVMNetshStartHelper called, scheme of Win") << (int)(10 + Is11_22H2));
+        NETCO_DEBUG_PRINT(TEXT("NetKVMNetshStartHelper called"));
 
         pair< HDEVINFO, vector<_NetKVMDeviceInfo> > Devices = _NetKVMGetDevicesOfInterest();
         g_hDeviceInfoList = Devices.first;
@@ -1201,7 +1197,7 @@ DWORD WINAPI _NetKVMNetshStartHelper(__in  const GUID *pguidParent,
         attr.pwszContext = NETKVM_HELPER_NAME_W;
         attr.guidHelper = NETKVM_HELPER_GUID;
         attr.dwFlags = CMD_FLAG_LOCAL;
-        attr.ulPriority = DEFAULT_CONTEXT_PRIORITY;
+        attr.ulPriority = 0;
         attr.ulNumTopCmds = ARRAYSIZE(g_TopLevelCommands);
         attr.pTopCmds = (CMD_ENTRY (*)[])g_TopLevelCommands;
         if (Is11_22H2) attr.pTopCmds = (CMD_ENTRY(*)[])g_TopLevelCommands11;
@@ -1231,11 +1227,11 @@ DWORD WINAPI _NetKVMNetshStartHelper(__in  const GUID *pguidParent,
     return NO_ERROR;
 }
 
-DWORD WINAPI _NetKVMNetshStopHelper(__in  DWORD dwReserved)
+DWORD WINAPI NetKVMNetshStopHelper(__in  DWORD dwReserved)
 {
     UNREFERENCED_PARAMETER(dwReserved);
 
-    NETCO_DEBUG_PRINT(TEXT("_NetKVMNetshStopHelper called"));
+    NETCO_DEBUG_PRINT(TEXT("NetKVMNetshStopHelper called"));
 
     return SetupDiDestroyDeviceInfoList(g_hDeviceInfoList) ? NO_ERROR
                                                            : GetLastError();

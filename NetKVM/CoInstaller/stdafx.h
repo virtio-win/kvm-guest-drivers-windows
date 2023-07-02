@@ -18,7 +18,7 @@
 #include <tchar.h>
 #include <windows.h>
 #include <winscard.h>
-#include <netsh.h>
+#include "netkvmco.h"
 #include <setupapi.h>
 #include <strsafe.h>
 #include <Cfgmgr32.h>
