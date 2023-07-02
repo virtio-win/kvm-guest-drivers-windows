@@ -27,55 +27,6 @@ static const LPCTSTR NETKVM_VALUE_PARAM_NAME_T = TEXT("value");
 
 static HINSTANCE g_hinstThisDLL = NULL;
 
-class CFileVersion
-{
-public:
-    CFileVersion(LPCTSTR Name)
-    {
-        ULONG size = GetFileVersionInfoSize(Name, NULL);
-        if (!size)
-        {
-            NETCO_DEBUG_PRINT(TEXT("Can't get version info size for ") << Name);
-            return;
-        }
-        PVOID data = NULL;
-        data = malloc(size);
-        if (!data)
-        {
-            NETCO_DEBUG_PRINT(TEXT("Can't alloc file version memory of ") << size);
-            return;
-        }
-        if (!GetFileVersionInfo(Name, NULL, size, data))
-        {
-            NETCO_DEBUG_PRINT(TEXT("Can't get file version, error ") << GetLastError());
-            free(data);
-            return;
-        }
-        VS_FIXEDFILEINFO* info;
-        UINT len;
-        if (!VerQueryValue(data, L"\\", (PVOID*)&info, &len))
-        {
-            NETCO_DEBUG_PRINT(TEXT("Can't get fixed file version, error ") << GetLastError());
-            free(data);
-            return;
-        }
-        m_Ver[3] = LOWORD(info->dwFileVersionLS);
-        m_Ver[2] = HIWORD(info->dwFileVersionLS);
-        m_Ver[1] = LOWORD(info->dwFileVersionMS);
-        m_Ver[0] = HIWORD(info->dwFileVersionMS);
-        m_Valid = true;
-        NETCO_DEBUG_PRINT(Name << ": version " << (ULONG)m_Ver[0] <<
-            "." << (ULONG)m_Ver[1] << "." << (ULONG)m_Ver[2] << "." << (ULONG)m_Ver[3]);
-    }
-    const USHORT* GetVersion()
-    {
-        return m_Valid ? m_Ver : NULL;
-    }
-private:
-    USHORT m_Ver[4] = {};
-    bool m_Valid = false;
-};
-
 static bool _NetKVMGetDeviceClassGuids(vector<GUID>& GUIDs)
 {
     GUID *pguidDevClassPtr = NULL;
@@ -1052,20 +1003,6 @@ CMD_ENTRY  g_ShowCmdTable[] =
 
 };
 
-CMD_ENTRY11  g_ShowCmdTable11[] =
-{
-    { CREATE_CMD_ENTRY_EX(NETKVM_SHOW_DEVICES,
-                        (PFN_HANDLE_CMD)_NetKVMShowDevicesCmdHandler,
-                        /*CMD_FLAG_PRIVATE |*/ CMD_FLAG_LOCAL)},
-    { CREATE_CMD_ENTRY_EX(NETKVM_SHOW_PARAMS,
-                        (PFN_HANDLE_CMD)_NetKVMShowParamsCmdHandler,
-                        CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL) },
-    { CREATE_CMD_ENTRY_EX(NETKVM_SHOW_PARAMINFO,
-                        (PFN_HANDLE_CMD)_NetKVMShowParamInfoCmdHandler,
-                        CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL) }
-
-};
-
 #define CMD_NETKVM_RESTART_DEVICE       L"restart"
 #define CMD_NETKVM_RESTART_DEVICE_T     TEXT("restart")
 #define HLP_NETKVM_RESTART_DEVICE       IDS_RESTARTDEVICE
@@ -1091,31 +1028,12 @@ CMD_ENTRY  g_TopLevelCommands[] =
                         CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL)
 };
 
-CMD_ENTRY11  g_TopLevelCommands11[] =
-{
-    { CREATE_CMD_ENTRY_EX(NETKVM_RESTART_DEVICE,
-                        (PFN_HANDLE_CMD)_NetKVMRestartDeviceCmdHandler,
-                        CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL) },
-    { CREATE_CMD_ENTRY_EX(NETKVM_GET_PARAM,
-                        (PFN_HANDLE_CMD)_NetKVMGetParamCmdHandler,
-                        CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL) },
-    { CREATE_CMD_ENTRY_EX(NETKVM_SET_PARAM,
-                        (PFN_HANDLE_CMD)_NetKVMSetParamCmdHandler,
-                        CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL) }
-};
-
-
 #define HLP_GROUP_SHOW       IDS_SHOWCMDHELP
 #define CMD_GROUP_SHOW       L"show"
 
 static CMD_GROUP_ENTRY g_TopLevelGroups[] =
 {
     CREATE_CMD_GROUP_ENTRY_EX(GROUP_SHOW, g_ShowCmdTable, CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL)
-};
-
-static CMD_GROUP_ENTRY g_TopLevelGroups11[] =
-{
-    CREATE_CMD_GROUP_ENTRY_EX(GROUP_SHOW, g_ShowCmdTable, /*CMD_FLAG_PRIVATE | */CMD_FLAG_LOCAL)
 };
 
 DWORD WINAPI _NetKVMDumpCdmHandler(__in  PWCHAR      pwszRouter,
@@ -1200,13 +1118,9 @@ DWORD WINAPI NetKVMNetshStartHelper(__in  const GUID *pguidParent,
         attr.ulPriority = 0;
         attr.ulNumTopCmds = ARRAYSIZE(g_TopLevelCommands);
         attr.pTopCmds = (CMD_ENTRY (*)[])g_TopLevelCommands;
-        if (Is11_22H2) attr.pTopCmds = (CMD_ENTRY(*)[])g_TopLevelCommands11;
         attr.ulNumGroups = ARRAYSIZE(g_TopLevelGroups);
         attr.pCmdGroups = (CMD_GROUP_ENTRY (*)[])g_TopLevelGroups;
-        if (Is11_22H2) g_TopLevelGroups->pCmdGroup = (PCMD_ENTRY)&g_ShowCmdTable11[0];
-        attr.pfnCommitFn = NULL;
         attr.pfnDumpFn = (PNS_CONTEXT_DUMP_FN) _NetKVMDumpCdmHandler;
-        attr.pfnConnectFn = NULL;
         attr.pReserved = NULL;
         RegisterContext(&attr);
 
@@ -1235,114 +1149,4 @@ DWORD WINAPI NetKVMNetshStopHelper(__in  DWORD dwReserved)
 
     return SetupDiDestroyDeviceInfoList(g_hDeviceInfoList) ? NO_ERROR
                                                            : GetLastError();
-}
-
-DWORD NETCO_API InitHelperDll(__in DWORD dwNetshVersion,
-                                   PVOID pReserved)
-{
-    UNREFERENCED_PARAMETER(dwNetshVersion);
-    UNREFERENCED_PARAMETER(pReserved);
-
-    NETCO_DEBUG_PRINT(TEXT("InitHelperDll called. dwNetshVersion: ") << hex << dwNetshVersion);
-
-    NS_HELPER_ATTRIBUTES attr;
-
-    ZeroMemory(&attr, sizeof(attr));
-    attr.guidHelper = NETKVM_HELPER_GUID;
-    attr.dwVersion  = NETKVM_HELPER_VERSION;
-    attr.pfnStart   = _NetKVMNetshStartHelper;
-    attr.pfnStop    = _NetKVMNetshStopHelper;
-    RegisterHelper( NULL, &attr );
-
-    return NO_ERROR;
-}
-
-static DWORD _GetThisDLLPathName(LPTSTR szPathName, DWORD *pdwLength)
-{
-    DWORD dwPathLength = GetModuleFileName(g_hinstThisDLL, szPathName, *pdwLength);
-    DWORD dwErr = GetLastError();
-    if(ERROR_SUCCESS != dwErr)
-    {
-        NETCO_DEBUG_PRINT(TEXT("GetModuleFileName failed. Error code: ") << dwErr);
-        return dwErr;
-    }
-    else if(dwPathLength == *pdwLength)
-    {
-        NETCO_DEBUG_PRINT(TEXT("Buffer provided to GetModuleFileName is too small"));
-        return ERROR_BUFFER_OVERFLOW;
-    }
-    else
-    {
-        NETCO_DEBUG_PRINT(TEXT("DLL pathname: ") << szPathName);
-        *pdwLength = dwPathLength;
-        return ERROR_SUCCESS;
-    }
-}
-
-static const LPCTSTR NETSH_HELPERS_LIST_PATH = TEXT("SOFTWARE\\Microsoft\\NetSh");
-static const HKEY    NETSH_HELPERS_LIST_HIVE = HKEY_LOCAL_MACHINE;
-
-DWORD NETCO_API RegisterNetKVMNetShHelper(void)
-{
-    try
-    {
-        TCHAR szDllPathName[MAX_PATH];
-        DWORD dwPathNameLength = TBUF_SIZEOF(szDllPathName);
-
-        DWORD dwErr = _GetThisDLLPathName(szDllPathName, &dwPathNameLength);
-        if(ERROR_SUCCESS != dwErr)
-        {
-            tstringstream strmError;
-            strmError << TEXT("_GetThisDLLPathName failed with code ") << dwErr;
-            OutputDebugString(strmError.str().c_str());
-            return dwErr;
-        }
-
-        neTKVMRegAccess regAccess(NETSH_HELPERS_LIST_HIVE, NETSH_HELPERS_LIST_PATH);
-        if(!regAccess.WriteString(NETKVM_HELPER_NAME, szDllPathName))
-        {
-            dwErr = GetLastError();
-            tstringstream strmError;
-            strmError << TEXT("Registry operation failed with code ") << dwErr;
-            OutputDebugString(strmError.str().c_str());
-            return dwErr;
-        }
-        return ERROR_SUCCESS;
-    }
-    catch (const exception& ex)
-    {
-        OutputDebugStringA(ex.what());
-        return ERROR_INSTALL_FAILURE;
-    }
-}
-DWORD NETCO_API UnregisterNetKVMNetShHelper(void)
-{
-    try
-    {
-        neTKVMRegAccess regAccess(NETSH_HELPERS_LIST_HIVE, NETSH_HELPERS_LIST_PATH);
-        regAccess.DeleteValue(NETKVM_HELPER_NAME);
-        return ERROR_SUCCESS;
-    }
-    catch (const exception& ex)
-    {
-        OutputDebugStringA(ex.what());
-        return ERROR_INSTALL_FAILURE;
-    }
-}
-
-BOOL NETCO_API __stdcall DllMain(__in  HINSTANCE hinstDLL,
-                                 __in  DWORD fdwReason,
-                                 __in  LPVOID lpvReserved)
-{
-    UNREFERENCED_PARAMETER(lpvReserved);
-
-    NETCO_DEBUG_PRINT(TEXT("DllMain(") << fdwReason << TEXT(") called"));
-
-    //Obtain DLL path name and store it for future use
-    if(DLL_PROCESS_ATTACH == fdwReason)
-    {
-        g_hinstThisDLL = hinstDLL;
-    }
-
-    return TRUE;
 }
