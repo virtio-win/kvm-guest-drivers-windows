@@ -165,7 +165,7 @@
         xcopy /y /q $(OutDir)netkvm.pdb $(InstallRoot)\$(TargetOS)\$(TargetArch)\
         xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(InstallRoot)\$(TargetOS)\$(TargetArch)\
         xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(InstallRoot)\$(TargetOS)\$(TargetArch)\
-        xcopy /y /q $(ProjectDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.dll $(InstallRoot)\$(TargetOS)\$(TargetArch)\
+        xcopy /y /q $(ProjectDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.exe $(InstallRoot)\$(TargetOS)\$(TargetArch)\
         xcopy /y /q $(ProjectDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.pdb $(InstallRoot)\$(TargetOS)\$(TargetArch)\
         xcopy /y /q $(ProjectDir)Documentation\readme.md $(InstallRoot)\$(TargetOS)\$(TargetArch)\
       </Command>
