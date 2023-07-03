@@ -138,17 +138,35 @@ DWORD neTKVMRegAccess::ReadString(LPCTSTR lpzValueName,
                      KEY_QUERY_VALUE,
                      &hkReadKeyHandle) == ERROR_SUCCESS)
     {
-        if (RegQueryValueEx(hkReadKeyHandle,
-                            lpzValueName,
-                            NULL,
-                            &dwType,
-                            (LPBYTE)lpzData,
-                            &dwBuffSize) == ERROR_SUCCESS)
+        //NETCO_DEBUG_PRINT(TEXT("Reading ") << tcaFullRegPath << TEXT(":") << lpzValueName);
+        DWORD res = RegQueryValueEx(hkReadKeyHandle,
+            lpzValueName,
+            NULL,
+            &dwType,
+            (LPBYTE)lpzData,
+            &dwBuffSize);
+        if (res == ERROR_SUCCESS)
+        {
+            if (dwType == REG_DWORD)
+            {
+                NETCO_DEBUG_PRINT(TEXT("Type mistake!"));
+                DWORD val;
+                if (ReadDWord(lpzValueName, &val, lpzSubKey))
+                {
+                    wsprintf(lpzData, TEXT("%u"), val);
+                    dwBuffSize = (DWORD)(wcslen(lpzData) + 1) * sizeof(lpzData[0]);
+                }
+            }
             dwRes = dwBuffSize / sizeof(lpzData[0]);
-
+        }
+        else
+        {
+            //NETCO_DEBUG_PRINT(TEXT("Error ") << res);
+        }
         RegCloseKey(hkReadKeyHandle);
     }
 
+//    NETCO_DEBUG_PRINT(__FUNCTIONW__ << TEXT(": returns ") << dwRes);
     return dwRes;
 }
 
