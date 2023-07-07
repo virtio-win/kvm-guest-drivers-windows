@@ -289,14 +289,6 @@ public:
 
 private:
 
-    void CallFillQueue()
-    {
-        if (m_AccessCount > m_Size)
-        {
-            FillQueue();
-        }
-    }
-
     void DecrementCount(BOOLEAN decrement)
     {
         if (decrement)

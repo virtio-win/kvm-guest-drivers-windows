@@ -270,7 +270,6 @@ private:
 
     CNBL *PopMappedNBL() { return m_SendQueue.Dequeue(); }
     CNBL *PeekMappedNBL() { return m_SendQueue.Peek(); }
-    void PushMappedNBL(CNBL *NBLHolder) { m_SendQueue.Enqueue(NBLHolder); }
 
     CDataFlowStateMachine m_StateMachine;
     bool m_StateMachineRegistered = false;
