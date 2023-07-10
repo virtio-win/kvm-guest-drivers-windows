@@ -211,6 +211,16 @@ private:
 };
 
 
+// NOTE1: Calls to Dequeue() and Peek()
+// must be externally synchronized!
+// Peek returns object that valid till you're in context
+// where Dequeue() can't change the queue state
+// IsEmpty() returns only momentary state that can be
+// changed at eny time by Dequeue or Enqueue()
+
+// NOTE2: Enqueue() is not synchronized with anything
+// and can be used simultaneously from various contexts
+
 template <typename TEntryType>
 class CLockFreeDynamicQueue : public CPlacementAllocatable
 {
@@ -238,8 +248,8 @@ public:
         }
     }
 
-    // Single consumer Dequeue, a lock is needed when using this method
-
+    // Note: This  procedure must be externally synchronized with
+    // calls to Peek() and Dequeue(), see note NOTE1
     TEntryType *Dequeue()
     {
         TEntryType * ptr = m_Queue.Dequeue();
@@ -266,6 +276,8 @@ public:
         return ptr;
     }
 
+    // Note: This  procedure must be externally synchronized with
+    // calls to Peek() and Dequeue(), see note NOTE1
     TEntryType *Peek()
     {
         TEntryType * element = m_Queue.Peek();
@@ -277,6 +289,8 @@ public:
         return element;
     }
 
+    // This procedure is for informational purpose only
+    // see note NOTE1
     BOOLEAN IsEmpty()
     {
         return m_Queue.IsEmpty() ? (BOOLEAN) m_QueueFullListIsEmpty : FALSE;
