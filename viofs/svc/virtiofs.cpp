@@ -2484,7 +2484,7 @@ NTSTATUS VIRTFS::Start()
     VolumeParams.VolumeCreationTime = ((PLARGE_INTEGER)&FileTime)->QuadPart;
 //    VolumeParams.VolumeSerialNumber = 0;
     VolumeParams.FileInfoTimeout = 1000;
-    VolumeParams.CaseSensitiveSearch = 1;
+    VolumeParams.CaseSensitiveSearch = !CaseInsensitive;
     VolumeParams.CasePreservedNames = 1;
     VolumeParams.UnicodeOnDisk = 1;
     VolumeParams.PersistentAcls = 1;
