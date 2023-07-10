@@ -560,36 +560,14 @@ void CParaNdisTX::Notify(SMNotifications message)
     PostProcessPendingTask(nbToFree, completedNBLs);
 }
 
-PNET_BUFFER_LIST CParaNdisTX::BuildCancelList(PVOID CancelId)
-{
-    PNET_BUFFER_LIST CanceledNBLs = nullptr;
-    TPassiveSpinLocker LockedContext(m_Lock);
-    CNBL* NBL = nullptr;
-
-    NBL = PopMappedNBL();
-    while (NBL)
-    {
-        if (NBL->MatchCancelID(CancelId) && !NBL->HaveDetachedBuffers())
-        {
-            NBL->SetStatus(NDIS_STATUS_SEND_ABORTED);
-            auto RawNBL = NBL->DetachInternalObject();
-            NBL->Release();
-            NET_BUFFER_LIST_NEXT_NBL(RawNBL) = CanceledNBLs;
-            CanceledNBLs = RawNBL;
-        }
-        NBL = PopMappedNBL();
-    }
-
-    return CanceledNBLs;
-}
-
+// with lockless queue the implementation of NBL cancellation
+// becomes very complicated: we do not have enumeration of
+// queued NBLs, there is no synchronization with Enqueue() etc
+// this functionality is optional, so leave it for now
 void CParaNdisTX::CancelNBLs(PVOID CancelId)
 {
-    auto CanceledNBLs = BuildCancelList(CancelId);
-    if (CanceledNBLs != nullptr)
-    {
-        CompleteOutstandingNBLChain(CanceledNBLs);
-    }
+    UNREFERENCED_PARAMETER(CancelId);
+    DPrintf(0, "[%s] not supported\n", __FUNCTION__);
 }
 
 //called with TX lock held
