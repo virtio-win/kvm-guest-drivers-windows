@@ -180,6 +180,20 @@ static DWORD FindDeviceInterface(const GUID *ClassGuid, PHANDLE Device,
     }
 }
 
+static bool FileNameIgnoreCaseCompare(const char *a, const char *b)
+{
+    WCHAR wide_a[MAX_PATH];
+    WCHAR wide_b[MAX_PATH];
+
+    if (!MultiByteToWideChar(CP_UTF8, 0, a, -1, wide_a, MAX_PATH) ||
+        !MultiByteToWideChar(CP_UTF8, 0, b, -1, wide_b, MAX_PATH))
+    {
+        return false;
+    }
+
+    return (CompareStringW(LOCALE_INVARIANT, NORM_IGNORECASE, wide_a, -1, wide_b, -1) == CSTR_EQUAL);
+}
+
 static bool FileNameIgnoreCaseCompare(PCWSTR a, const char *b, uint32_t b_len)
 {
     WCHAR wide_b[MAX_PATH];

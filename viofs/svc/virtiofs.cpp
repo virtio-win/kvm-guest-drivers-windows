@@ -1933,6 +1933,12 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0,
         return Status;
     }
 
+    if (VirtFs->CaseInsensitive && oldparent == newparent &&
+        FileNameIgnoreCaseCompare(oldname, newname))
+    {
+        return STATUS_SUCCESS;
+    }
+
     // It is not allowed to rename to an existing directory even when
     // ReplaceIfExists is set.
     flags = ((FileContext->IsDirectory == FALSE) &&
