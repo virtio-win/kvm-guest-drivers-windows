@@ -36,48 +36,45 @@
     <ProjectName>NotifyObject</ProjectName>
     <UseOfMfc>Static</UseOfMfc>
     <UseOfAtl>Static</UseOfAtl>
-    <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
     <CharacterSet>NotSet</CharacterSet>
     <TargetName>netkvmno</TargetName>
     <UseDebugLibraries>False</UseDebugLibraries>
+    <Driver_SpectreMitigation>Spectre</Driver_SpectreMitigation>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);advapi32.lib;comctl32.lib;kernel32.lib;setupapi.lib;ole32.lib;oleaut32.lib;user32.lib;uuid.lib</AdditionalDependencies>
-      <ModuleDefinitionFile>netkvmno.def</ModuleDefinitionFile>
+      <AdditionalDependencies>ntoskrnl.lib</AdditionalDependencies>
+      <ModuleDefinitionFile>
+      </ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
-    <DriverType />
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win11 Release|x64'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
-    <DriverType />
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
-    <DriverType />
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
-    <DriverType />
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
-    <DriverType />
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win11 Release|ARM64'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
-    <DriverType />
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\notifyobject.props" />
   <Import Project="..\..\Tools\Driver.Common.props" />
@@ -102,109 +99,27 @@
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Win11 Release|ARM64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" />
   </ImportGroup>
-  <ItemGroup Label="WrappedTaskItems" />
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
-    <Midl>
-      <AdditionalOptions>%(AdditionalOptions)  -no_format_opt</AdditionalOptions>
-    </Midl>
-    <ResourceCompile>
-      <AdditionalOptions>%(AdditionalOptions) -i $(IntDir) -N</AdditionalOptions>
-    </ResourceCompile>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win11 Release|x64'">
-    <Midl>
-      <AdditionalOptions>%(AdditionalOptions)  -no_format_opt</AdditionalOptions>
-    </Midl>
-    <ResourceCompile>
-      <AdditionalOptions>%(AdditionalOptions) -i $(IntDir) -N</AdditionalOptions>
-    </ResourceCompile>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
-    <Midl>
-      <AdditionalOptions>%(AdditionalOptions)  -no_format_opt</AdditionalOptions>
-    </Midl>
-    <ResourceCompile>
-      <AdditionalOptions>%(AdditionalOptions) -i $(IntDir) -N</AdditionalOptions>
-    </ResourceCompile>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32'">
-    <Midl>
-      <AdditionalOptions>%(AdditionalOptions)  -no_format_opt</AdditionalOptions>
-    </Midl>
-    <ResourceCompile>
-      <AdditionalOptions>%(AdditionalOptions) -i $(IntDir) -N</AdditionalOptions>
-    </ResourceCompile>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
-    <ClCompile>
-      <ExceptionHandling>Sync</ExceptionHandling>
-      <RuntimeTypeInfo>true</RuntimeTypeInfo>
-    </ClCompile>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win11 Release|x64'">
-    <ClCompile>
-      <ExceptionHandling>Sync</ExceptionHandling>
-      <RuntimeTypeInfo>true</RuntimeTypeInfo>
-    </ClCompile>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
-    <ClCompile>
-      <ExceptionHandling>Sync</ExceptionHandling>
-      <RuntimeTypeInfo>true</RuntimeTypeInfo>
-    </ClCompile>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32'">
-    <ClCompile>
-      <ExceptionHandling>Sync</ExceptionHandling>
-      <RuntimeTypeInfo>true</RuntimeTypeInfo>
-    </ClCompile>
-  </ItemDefinitionGroup>
+  <ItemGroup Label="WrappedTaskItems" >
+    <ClCompile Include="netkvmno.cpp" />
+  </ItemGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32'">
     <IntDir>$(PlatformTarget)\$(ConfigurationName)\</IntDir>
   </PropertyGroup>
-  <ItemDefinitionGroup>
-    <PostBuildEvent>
-      <Command>
-xcopy /y /q $(PlatformTarget)\$(ConfigurationName)\vioprot.inf $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
-xcopy /y /q $(PlatformTarget)\$(ConfigurationName)\netkvmno.dll $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
-xcopy /y /q $(PlatformTarget)\$(ConfigurationName)\netkvmno.pdb $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
-xcopy /y /q ..\ProtocolService\$(PlatformTarget)\$(ConfigurationName)\netkvmp.exe $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
-xcopy /y /q ..\ProtocolService\$(PlatformTarget)\$(ConfigurationName)\netkvmp.pdb $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)\
-
-cd $(InstallRoot)\$(PlatformTarget)\$(ConfigurationName)
-echo Generating CAT file
-inf2cat /driver:. /os:$(Inf2CatWindowsVersionList)
-if not exist $(ProjectDir).dosigning goto :eof
-echo Signing executables and CAT
-signtool sign /a /fd sha256 /tr "http://sha256timestamp.ws.symantec.com/sha256/timestamp" /td sha256 netkvmno.dll netkvmp.exe vioprot.cat
-      </Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="utils.cpp" />
-    <ClCompile Include="netkvmno.cpp" />
-    <Midl Include="netkvmnoif.idl" />
-    <ResourceCompile Include="netkvmno.rc" />
-  </ItemGroup>
-  <ItemGroup>
-    <Inf Exclude="@(Inf)" Include="*.inf" />
-    <FilesToPackage Include="$(TargetPath)" Condition="'$(ConfigurationType)'=='Driver' or '$(ConfigurationType)'=='DynamicLibrary'" />
+    <Inf Exclude="@(Inf)" Include="vioprot.inf" />
+    <FilesToPackage Include="$(ProjectDir)..\ProtocolService\$(PlatformTarget)\$(ConfigurationName)\netkvmp.exe" />
   </ItemGroup>
   <ItemGroup>
     <None Exclude="@(None)" Include="*.txt;*.htm;*.html" />
     <None Exclude="@(None)" Include="*.ico;*.cur;*.bmp;*.dlg;*.rct;*.gif;*.jpg;*.jpeg;*.wav;*.jpe;*.tiff;*.tif;*.png;*.rc2" />
-    <None Include="netkvmno.RGS" />
-    <None Include="vioprot.inf" />
-    <None Exclude="@(None)" Include="netkvmno.def" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="netkvmno.h" />
-    <ClInclude Include="resource.h" />
-    <ClInclude Include="stdafx.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Import Project="..\..\Tools\Driver.Common.targets" />
+  <PropertyGroup>
+    <TargetExt>.dummy</TargetExt>
+    <TargetPath>$(OutDir)$(TargetName)$(TargetExt)</TargetPath>
+  </PropertyGroup>
 </Project>
