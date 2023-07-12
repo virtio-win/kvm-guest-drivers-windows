@@ -18,15 +18,12 @@ ClassGUID   = {4d36e975-e325-11ce-bfc1-08002be10318}
 Provider    = %VENDOR%
 DriverVer   = 01/01/2020,1.1
 CatalogFile  = vioprot.cat
-
+PnpLockDown  = 1
 
 [Manufacturer]
-%VENDOR%=Standard,NTx86,NTamd64
+%VENDOR%=Standard,NT$ARCH$
 
-[Standard.NTx86]
-%NETKVMP_Desc%=Install,VIOPROT
-
-[Standard.NTamd64]
+[Standard.NT$ARCH$]
 %NETKVMP_Desc%=Install,VIOPROT
 
 ;-------------------------------------------------------------------------
@@ -71,7 +68,6 @@ DelService=netkvmp,0x200 ;SPSVCINST_STOPSERVICE
 1=%DiskDescription%,"",,
 
 [SourceDisksFiles]
-netkvmno.dll=1
 netkvmp.exe=1
 
 [DestinationDirs]
@@ -81,7 +77,6 @@ Copy.Exec    = 11    ; %windir%\System32
 ; Files to Copy/Delete - Referenced by Install and Remove sections above
 ;-------------------------------------------------------------------------
 [Copy.Exec]
-netkvmno.dll,,,0x00004002     ; COPYFLG_NOSKIP | COPYFLG_IN_USE_RENAME
 netkvmp.exe,,,0x00004002      ; COPYFLG_NOSKIP | COPYFLG_IN_USE_RENAME
 
 [Strings]
