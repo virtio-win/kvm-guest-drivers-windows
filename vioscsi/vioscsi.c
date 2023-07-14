@@ -313,6 +313,7 @@ BOOLEAN VioScsiReadRegistryParameter(
 
     if ((Ret == FALSE) || (Len == 0)) {
         RhelDbgPrint(TRACE_LEVEL_FATAL, "StorPortRegistryRead returned 0x%x, Len = %d\n", Ret, Len);
+        StorPortFreeRegistryBuffer(DeviceExtension, pBuf);
         return FALSE;
     }
 
