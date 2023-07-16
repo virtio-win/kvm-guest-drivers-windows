@@ -237,10 +237,22 @@ class CtrlQueue : public VioGpuQueue
     PGPU_VBUFFER DequeueBuffer(_Out_ UINT *len);
 
     void CreateResource(UINT res_id, UINT format, UINT width, UINT height);
+    void CreateResource3D(UINT res_id, VIOGPU_RESOURCE_OPTIONS *options);
     void DestroyResource(UINT id);
+    void CtxResource(bool attach, UINT ctx_id, UINT res_id);
+
+    void SubmitCommand(void *cmdbuf, ULONG size, ULONG ctx_id, void (*complete_cb)(void *), void *complete_ctx);
+    void TransferHostCmd(bool to_host,
+                         ULONG res_id,
+                         VIOGPU_TRANSFER_CMD *options,
+                         void (*complete_cb)(void *),
+                         void *complete_ctx);
+
     void SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, UINT x, UINT y);
     void ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y);
     void TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y);
+    void TransferToHost3D(UINT res_id, GPU_BOX *box);
+
     void AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents);
     void DetachBacking(UINT id);
 
@@ -248,6 +260,11 @@ class CtrlQueue : public VioGpuQueue
     BOOLEAN AskDisplayInfo(PGPU_VBUFFER *buf);
     BOOLEAN AskEdidInfo(PGPU_VBUFFER *buf, UINT id);
     BOOLEAN GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid);
+    BOOLEAN AskCapsetInfo(PGPU_VBUFFER *buf, ULONG idx);
+    BOOLEAN AskCapset(PGPU_VBUFFER *buf, ULONG capset_id, ULONG capset_size, ULONG capset_version);
+
+    void CreateCtx(UINT ctx_id, UINT context_init);
+    void DestroyCtx(UINT ctx_id);
 
   private:
     volatile LONG m_FenceIdr;
