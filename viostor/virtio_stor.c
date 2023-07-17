@@ -608,7 +608,7 @@ static BOOLEAN InitializeVirtualQueues(PADAPTER_EXTENSION adaptExt)
     NTSTATUS status;
     ULONG numQueues = adaptExt->num_queues;
 
-    RhelDbgPrint(TRACE_LEVEL_FATAL, " InitializeVirtualQueues numQueues %d\n", numQueues);
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " InitializeVirtualQueues numQueues %d\n", numQueues);
     status = virtio_find_queues(
         &adaptExt->vdev,
         numQueues,
@@ -943,7 +943,7 @@ VirtIoStartIo(
             ULONG SrbPnPFlags;
             ULONG PnPAction;
             SRB_GET_PNP_INFO(Srb, SrbPnPFlags, PnPAction);
-            RhelDbgPrint(TRACE_LEVEL_FATAL, " SrbPnPFlags = %d, PnPAction = %d\n", SrbPnPFlags, PnPAction);
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " SrbPnPFlags = %d, PnPAction = %d\n", SrbPnPFlags, PnPAction);
             switch (PnPAction) {
             case StorQueryCapabilities:
                 if (CHECKFLAG(SrbPnPFlags, SRB_PNP_FLAGS_ADAPTER_REQUEST) &&
@@ -962,7 +962,7 @@ VirtIoStartIo(
                 adaptExt->stopped = TRUE;
                 break;
             default:
-                RhelDbgPrint(TRACE_LEVEL_FATAL, " Unsupported PnPAction SrbPnPFlags = %d, PnPAction = %d\n", SrbPnPFlags, PnPAction);
+                RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Unsupported PnPAction SrbPnPFlags = %d, PnPAction = %d\n", SrbPnPFlags, PnPAction);
                 SrbStatus = SRB_STATUS_INVALID_REQUEST;
             }
             CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SrbStatus);
@@ -1094,7 +1094,7 @@ VirtIoStartIo(
         case SCSIOP_UNMAP: {
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_PENDING);
             if (!RhelDoUnMap(DeviceExtension, (PSRB_TYPE)Srb)) {
-                RhelDbgPrint(TRACE_LEVEL_FATAL, "RhelDoUnMap failed.\n");
+                RhelDbgPrint(TRACE_LEVEL_ERROR, "RhelDoUnMap failed.\n");
                 CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_ERROR);
             }
             return TRUE;
@@ -1493,7 +1493,7 @@ RhelScsiGetInquiryData(
             SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_SERIAL_NUMBER_PAGE) + SerialPage->PageLength));
         }
         else {
-            RhelDbgPrint(TRACE_LEVEL_FATAL, "RhelGetSerialNumber invalid dataLen = %d.\n", dataLen);
+            RhelDbgPrint(TRACE_LEVEL_ERROR, "RhelGetSerialNumber invalid dataLen = %d.\n", dataLen);
             return SRB_STATUS_INVALID_REQUEST;
         }
     }
@@ -1885,7 +1885,7 @@ DeviceChangeNotification(
                                 0,
                                 NULL,
                                 NULL);
-     RhelDbgPrint(TRACE_LEVEL_FATAL, " StorPortStateChangeDetected.\n");
+     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " StorPortStateChangeDetected.\n");
 }
 
 BOOLEAN
@@ -1909,13 +1909,13 @@ SetSenseInfo(
         senseInfoBuffer->AdditionalSenseCode = adaptExt->sense_info.additionalSenseCode;
         senseInfoBuffer->AdditionalSenseCodeQualifier = adaptExt->sense_info.additionalSenseCodeQualifier;
         SRB_SET_SCSI_STATUS(((PSRB_TYPE)Srb), ScsiStatus);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, " senseKey = 0x%x asc = 0x%x ascq = 0x%x\n",
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " senseKey = 0x%x asc = 0x%x ascq = 0x%x\n",
                     adaptExt->sense_info.senseKey,
                     adaptExt->sense_info.additionalSenseCode,
                     adaptExt->sense_info.additionalSenseCodeQualifier);
         return TRUE;
     }
-    RhelDbgPrint(TRACE_LEVEL_FATAL, " INVALID senseInfoBuffer %p or senseInfoBufferLength = %d\n",
+    RhelDbgPrint(TRACE_LEVEL_ERROR, " INVALID senseInfoBuffer %p or senseInfoBufferLength = %d\n",
                     senseInfoBuffer, senseInfoBufferLength);
     return FALSE;
 }
@@ -1988,7 +1988,7 @@ UCHAR DeviceToSrbStatus(UCHAR status)
         RhelDbgPrint(TRACE_LEVEL_ERROR, " VIRTIO_BLK_S_UNSUPP\n");
         return SRB_STATUS_INVALID_REQUEST;
     }
-    RhelDbgPrint(TRACE_LEVEL_FATAL, " Unknown device status %x\n", status);
+    RhelDbgPrint(TRACE_LEVEL_ERROR, " Unknown device status %x\n", status);
     return SRB_STATUS_ERROR;
 }
 
@@ -2068,7 +2068,7 @@ VioStorCompleteRequest(
 
                         SerialPage->PageLength = min(BLOCK_SERIAL_STRLEN, len);
                         StorPortCopyMemory(&SerialPage->SerialNumber, &adaptExt->sn, SerialPage->PageLength);
-                        RhelDbgPrint(TRACE_LEVEL_FATAL, "PageLength = %d (%d)\n", SerialPage->PageLength, len);
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, "PageLength = %d (%d)\n", SerialPage->PageLength, len);
 
                         SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_SERIAL_NUMBER_PAGE) + SerialPage->PageLength));
                         CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
@@ -2178,7 +2178,7 @@ UCHAR FirmwareRequest(
     if (dataLen < (sizeof(SRB_IO_CONTROL) + sizeof(FIRMWARE_REQUEST_BLOCK))) {
         srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
         srbStatus = SRB_STATUS_BAD_SRB_BLOCK_LENGTH;
-        RhelDbgPrint(TRACE_LEVEL_FATAL,
+        RhelDbgPrint(TRACE_LEVEL_ERROR,
                          " FirmwareRequest Bad Block Length  %ul\n", dataLen);
         return srbStatus;
     }
@@ -2189,7 +2189,7 @@ UCHAR FirmwareRequest(
     case FIRMWARE_FUNCTION_GET_INFO: {
         PSTORAGE_FIRMWARE_INFO_V2   firmwareInfo;
         firmwareInfo = (PSTORAGE_FIRMWARE_INFO_V2)((PUCHAR)srbControl + firmwareRequest->DataBufferOffset);
-        RhelDbgPrint(TRACE_LEVEL_FATAL,
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                          " FIRMWARE_FUNCTION_GET_INFO \n");
         if ((firmwareInfo->Version >= STORAGE_FIRMWARE_INFO_STRUCTURE_VERSION_V2) ||
             (firmwareInfo->Size >= sizeof(STORAGE_FIRMWARE_INFO_V2))) {
@@ -2216,7 +2216,7 @@ UCHAR FirmwareRequest(
             }
         }
         else {
-            RhelDbgPrint(TRACE_LEVEL_FATAL,
+            RhelDbgPrint(TRACE_LEVEL_ERROR,
                          " Wrong Version %ul or Size %ul\n", firmwareInfo->Version, firmwareInfo->Size);
             srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
             srbStatus = SRB_STATUS_BAD_SRB_BLOCK_LENGTH;
@@ -2226,8 +2226,7 @@ UCHAR FirmwareRequest(
     case FIRMWARE_FUNCTION_DOWNLOAD: {
         PSTORAGE_FIRMWARE_DOWNLOAD_V2   firmwareDwnld;
         firmwareDwnld = (PSTORAGE_FIRMWARE_DOWNLOAD_V2)((PUCHAR)srbControl + firmwareRequest->DataBufferOffset);
-        RhelDbgPrint(TRACE_LEVEL_FATAL,
-            " FIRMWARE_FUNCTION_DOWNLOAD \n");
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " FIRMWARE_FUNCTION_DOWNLOAD \n");
         if ((firmwareDwnld->Version >= STORAGE_FIRMWARE_DOWNLOAD_STRUCTURE_VERSION_V2) ||
             (firmwareDwnld->Size >= sizeof(STORAGE_FIRMWARE_DOWNLOAD_V2))) {
             firmwareDwnld->Version = STORAGE_FIRMWARE_DOWNLOAD_STRUCTURE_VERSION_V2;
@@ -2236,7 +2235,7 @@ UCHAR FirmwareRequest(
             srbControl->ReturnCode = FIRMWARE_STATUS_SUCCESS;
         }
         else {
-            RhelDbgPrint(TRACE_LEVEL_FATAL,
+            RhelDbgPrint(TRACE_LEVEL_ERROR,
                 " Wrong Version %ul or Size %ul\n", firmwareDwnld->Version, firmwareDwnld->Size);
             srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
             srbStatus = SRB_STATUS_BAD_SRB_BLOCK_LENGTH;
@@ -2253,17 +2252,16 @@ UCHAR FirmwareRequest(
             srbControl->ReturnCode = FIRMWARE_STATUS_SUCCESS;
         }
         else {
-            RhelDbgPrint(TRACE_LEVEL_FATAL,
+            RhelDbgPrint(TRACE_LEVEL_ERROR,
                 " Wrong Version %ul or Size %ul\n", firmwareActivate->Version, firmwareActivate->Size);
             srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
             srbStatus = SRB_STATUS_BAD_SRB_BLOCK_LENGTH;
         }
-        RhelDbgPrint(TRACE_LEVEL_FATAL,
-            " FIRMWARE_FUNCTION_ACTIVATE \n");
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " FIRMWARE_FUNCTION_ACTIVATE \n");
     }
     break;
     default:
-        RhelDbgPrint(TRACE_LEVEL_FATAL,
+        RhelDbgPrint(TRACE_LEVEL_ERROR,
                      " Unsupported Function %ul\n", firmwareRequest->Function);
         srbStatus = SRB_STATUS_INVALID_REQUEST;
         break;
