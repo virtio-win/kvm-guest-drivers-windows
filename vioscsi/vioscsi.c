@@ -515,14 +515,9 @@ ENTER_FN();
     {
         adaptExt->num_queues = 1;
     }
-    else if (adaptExt->num_queues < num_cpus)
-    {
-//FIXME
-        adaptExt->num_queues = 1;
-    }
     else
     {
-        adaptExt->num_queues = num_cpus;
+        adaptExt->num_queues = min(adaptExt->num_queues, (USHORT)num_cpus);
     }
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus);
@@ -733,8 +728,7 @@ ENTER_FN();
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d msix_vectors %d\n", adaptExt->num_queues, adaptExt->msix_vectors);
     if (adaptExt->num_queues > 1 &&
         ((adaptExt->num_queues + 3) > adaptExt->msix_vectors)) {
-        //FIXME
-        adaptExt->num_queues = 1;
+        adaptExt->num_queues = (USHORT)adaptExt->msix_vectors;
     }
 
     if (!adaptExt->dump_mode && adaptExt->msix_vectors > 0) {
@@ -1198,6 +1192,12 @@ ENTER_FN();
     case ScsiStopAdapter: {
         RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ScsiStopAdapter\n");
         ShutDown(DeviceExtension);
+        if (adaptExt->pmsg_affinity != NULL) {
+            StorPortFreePool(DeviceExtension,
+                (PVOID)adaptExt->pmsg_affinity);
+            adaptExt->pmsg_affinity = NULL;
+        }
+        adaptExt->perfFlags = 0;
         status = ScsiAdapterControlSuccess;
         break;
     }
@@ -1353,17 +1353,19 @@ ProcessQueue(
 {
     PVirtIOSCSICmd      cmd;
     unsigned int        len;
-    PADAPTER_EXTENSION  adaptExt;
-    ULONG               index = MESSAGE_TO_QUEUE(MessageID) - VIRTIO_SCSI_REQUEST_QUEUE_0;
+    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG               index = MESSAGE_TO_QUEUE(MessageID);
     STOR_LOCK_HANDLE    queueLock = { 0 };
     struct virtqueue    *vq;
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSRB_TYPE           Srb = NULL;
     PSRB_EXTENSION      srbExt = NULL;
-    PREQUEST_LIST element = &adaptExt->processing_srbs[index];
+    if (index >= (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0)) {
+        index %= adaptExt->num_queues;
+    }
+    PREQUEST_LIST element = &adaptExt->processing_srbs[index - VIRTIO_SCSI_REQUEST_QUEUE_0];
 
 ENTER_FN();
-    vq = adaptExt->vq[VIRTIO_SCSI_REQUEST_QUEUE_0 + index];
+    vq = adaptExt->vq[index];
 
     VioScsiVQLock(DeviceExtension, MessageID, &queueLock, isr);
 

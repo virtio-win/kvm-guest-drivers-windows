@@ -71,6 +71,9 @@ ENTER_FN_SRB();
         status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
         if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
             QueueNumber = MESSAGE_TO_QUEUE(param.MessageNumber);
+            if (QueueNumber >= adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0) {
+                QueueNumber %= adaptExt->num_queues;
+            }
         } else {
             RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed srb %p status 0x%x MessageNumber %d.\n", Srb, status, param.MessageNumber);
         }
@@ -497,16 +500,18 @@ VioScsiVQLock(
     IN BOOLEAN isr
     )
 {
-    PADAPTER_EXTENSION  adaptExt;
-ENTER_FN();
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG               QueueNumber = MESSAGE_TO_QUEUE(MessageID);
+    ENTER_FN();
 
     if (!isr) {
         if (adaptExt->msix_enabled) {
             // Queue numbers start at 0, message ids at 1.
             NT_ASSERT(MessageID > VIRTIO_SCSI_REQUEST_QUEUE_0);
-            NT_ASSERT(MessageID <= VIRTIO_SCSI_REQUEST_QUEUE_0 + adaptExt->num_queues);
-            StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[MESSAGE_TO_QUEUE(MessageID) - VIRTIO_SCSI_REQUEST_QUEUE_0], LockHandle);
+            if (QueueNumber >= (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0)) {
+                QueueNumber %= adaptExt->num_queues;
+            }
+            StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0], LockHandle);
         }
         else {
             StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, LockHandle);
