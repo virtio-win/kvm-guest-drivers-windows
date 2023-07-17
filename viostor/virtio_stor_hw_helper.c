@@ -43,6 +43,15 @@
                       pa = va ? StorPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0; \
                     }
 
+#define MESSAGENUMBER_TO_QUEUE() { \
+                    MessageId = param.MessageNumber; \
+                    QueueNumber = MessageId - 1; \
+                    if (QueueNumber >= adaptExt->num_queues) { \
+                        QueueNumber %= adaptExt->num_queues; \
+                        MessageId += 1; \
+                    } \
+}
+
 BOOLEAN
 RhelDoFlush(
     PVOID DeviceExtension,
@@ -58,8 +67,8 @@ RhelDoFlush(
     ULONGLONG           pa = 0ULL;
 
     ULONG               QueueNumber = 0;
+    ULONG               MessageId = 1;
     ULONG               OldIrql = 0;
-    ULONG               MessageId = 0;
     BOOLEAN             result = FALSE;
     bool                notify = FALSE;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
@@ -77,21 +86,16 @@ RhelDoFlush(
         param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
         status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
         if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
-           MessageId = param.MessageNumber;
-           QueueNumber = MessageId - 1;
-           RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",
-                        Srb, QueueNumber, param.MessageNumber, param.ChannelNumber);
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",
+                Srb, QueueNumber, param.MessageNumber, param.ChannelNumber);
+            MESSAGENUMBER_TO_QUEUE();
         }
         else {
            RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed. srb %p status 0x%x.\n",
                         Srb, status);
-           QueueNumber = 0;
-           MessageId = 1;
         }
-    } else {
-        QueueNumber = 0;
-        MessageId = 1;
     }
+
     if (adaptExt->reset_in_progress) {
         CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
         return TRUE;
@@ -155,8 +159,8 @@ RhelDoReadWrite(PVOID DeviceExtension,
     ULONGLONG           pa = 0ULL;
 
     ULONG               QueueNumber = 0;
+    ULONG               MessageId = 1;
     ULONG               OldIrql = 0;
-    ULONG               MessageId = 0;
     BOOLEAN             result = FALSE;
     bool                notify = FALSE;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
@@ -171,22 +175,16 @@ RhelDoReadWrite(PVOID DeviceExtension,
         param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
         status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
         if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
-           MessageId = param.MessageNumber;
-           QueueNumber = MessageId - 1;
-           RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",
-                        Srb, QueueNumber, param.MessageNumber, param.ChannelNumber);
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",
+                Srb, QueueNumber, param.MessageNumber, param.ChannelNumber);
+            MESSAGENUMBER_TO_QUEUE();
         }
         else {
            RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed srb %p status 0x%x.\n",
                         Srb, status);
-           QueueNumber = 0;
-           MessageId = 1;
         }
     }
-    else {
-        QueueNumber = 0;
-        MessageId = 1;
-    }
+
     if (adaptExt->reset_in_progress) {
         CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
         return TRUE;
@@ -255,7 +253,7 @@ RhelDoUnMap(
 
     ULONG               QueueNumber = 0;
     ULONG               OldIrql = 0;
-    ULONG               MessageId = 0;
+    ULONG               MessageId = 1;
     BOOLEAN             result = FALSE;
     BOOLEAN             notify = FALSE;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
@@ -312,22 +310,16 @@ RhelDoUnMap(
         param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
         status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
         if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
-           MessageId = param.MessageNumber;
-           QueueNumber = MessageId - 1;
-           RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",
-                        Srb, QueueNumber, param.MessageNumber, param.ChannelNumber);
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",
+                Srb, QueueNumber, param.MessageNumber, param.ChannelNumber);
+            MESSAGENUMBER_TO_QUEUE();
         }
         else {
            RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed srb %p status 0x%x.\n",
                         Srb, status);
-           QueueNumber = 0;
-           MessageId = 1;
         }
     }
-    else {
-        QueueNumber = 0;
-        MessageId = 1;
-    }
+
     if (adaptExt->reset_in_progress) {
         CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
         return TRUE;
@@ -394,10 +386,9 @@ RhelGetSerialNumber(
         param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
         status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
         if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
-           MessageId = param.MessageNumber;
-           QueueNumber = MessageId - 1;
-           RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",
-                        Srb, QueueNumber, param.MessageNumber, param.ChannelNumber);
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",
+                Srb, QueueNumber, param.MessageNumber, param.ChannelNumber);
+            MESSAGENUMBER_TO_QUEUE();
         }
         else {
            RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed srb %p status 0x%x.\n",
@@ -408,8 +399,6 @@ RhelGetSerialNumber(
         CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
         return TRUE;
     }
-
-    vq = adaptExt->vq[QueueNumber];
 
     srbExt->MessageID = MessageId;
     vq = adaptExt->vq[QueueNumber];
@@ -454,7 +443,6 @@ RhelGetSerialNumber(
 
     return result;
 }
-
 
 VOID
 RhelShutDown(

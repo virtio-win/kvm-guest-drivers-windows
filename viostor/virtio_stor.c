@@ -504,14 +504,9 @@ VirtIoFindAdapter(
     {
         adaptExt->num_queues = 1;
     }
-    else if (adaptExt->num_queues < num_cpus)
-    {
-//FIXME
-        adaptExt->num_queues = 1;
-    }
     else
     {
-        adaptExt->num_queues = (USHORT)num_cpus;
+        adaptExt->num_queues = min (adaptExt->num_queues, (USHORT)num_cpus);
     }
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus);
@@ -734,8 +729,7 @@ VirtIoHwInitialize(
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d msix_vectors %d\n", adaptExt->num_queues, adaptExt->msix_vectors);
     if (adaptExt->num_queues > 1 &&
         ((adaptExt->num_queues + 1U) > adaptExt->msix_vectors)) {
-        //FIXME
-        adaptExt->num_queues = 1;
+        adaptExt->num_queues = (USHORT)adaptExt->msix_vectors;
     }
 
     if (adaptExt->msix_vectors >= (adaptExt->num_queues + 1U)) {
@@ -849,7 +843,6 @@ VirtIoHwInitialize(
           InitializeListHead(&element->srb_list);
           element->srb_cnt = 0;
     }
-
 
     return ret;
 }
@@ -1201,8 +1194,16 @@ VirtIoAdapterControl(
     }
     case ScsiStopAdapter: {
         RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ScsiStopAdapter\n");
-        if (adaptExt->removed == TRUE) {
+        if (adaptExt->removed == TRUE || adaptExt->stopped == TRUE) {
             RhelShutDown(DeviceExtension);
+        }
+        if (adaptExt->stopped) {
+            if (adaptExt->pmsg_affinity != NULL) {
+            StorPortFreePool(DeviceExtension,
+                (PVOID)adaptExt->pmsg_affinity);
+                adaptExt->pmsg_affinity = NULL;
+            }
+            adaptExt->perfFlags = 0;
         }
         status = ScsiAdapterControlSuccess;
         break;
