@@ -100,6 +100,7 @@ HKR, "Interrupt Management\MessageSignaledInterruptProperties", MSISupported, 0x
 HKR, "Interrupt Management\MessageSignaledInterruptProperties", MessageNumberLimit, 0x00010001, 256
 HKR, "Interrupt Management\Affinity Policy",, 0x00000010
 HKR, "Interrupt Management\Affinity Policy", DevicePolicy, 0x00010001, 5
+HKR, "Interrupt Management\Affinity Policy", GroupPolicy, 0x00010001, 1
 
 
 [Strings]
