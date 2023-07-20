@@ -953,21 +953,18 @@ VioWskSendEx(
     PVIOWSK_SOCKET pSocket = CONTAINING_RECORD(Socket, VIOWSK_SOCKET, WskSocket);
     DEBUG_ENTER_FUNCTION("Socket=0x%p; Buffer=0x%p; Flags=0x%x; ControlInfoLength=%u; ControlInfo=0x%p; Irp=0x%p", Socket, Buffer, Flags, ControlInfoLength, ControlInfo, Irp);
 
-    UNREFERENCED_PARAMETER(Buffer);
-    UNREFERENCED_PARAMETER(Flags);
-    UNREFERENCED_PARAMETER(ControlInfoLength);
-    UNREFERENCED_PARAMETER(ControlInfo);
-
-    Status = VioWskIrpAcquire(pSocket, Irp);
-    if (!NT_SUCCESS(Status))
+    if (ControlInfoLength)
     {
+        Status = STATUS_NOT_SUPPORTED;
         pSocket = NULL;
         goto CompleteIrp;
     }
 
-    Status = STATUS_NOT_IMPLEMENTED;
+    Status = VioWskSend(Socket, Buffer, Flags, Irp);
+    Irp = NULL;
 CompleteIrp:
-    VioWskIrpComplete(pSocket, Irp, Status, 0);
+    if (Irp)
+        VioWskIrpComplete(pSocket, Irp, Status, 0);
 
     DEBUG_EXIT_FUNCTION("0x%x", Status);
     return Status;
