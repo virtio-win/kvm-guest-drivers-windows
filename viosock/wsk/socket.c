@@ -915,13 +915,18 @@ VioWskConnectEx(
     _Inout_ PIRP      Irp
 )
 {
+    PIRP ConnIrp = NULL;
+    SOCKADDR_VM VMRemoteAddr;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PVIOSOCKET_COMPLETION_CONTEXT CompContext = NULL;
     PVIOWSK_SOCKET pSocket = CONTAINING_RECORD(Socket, VIOWSK_SOCKET, WskSocket);
     DEBUG_ENTER_FUNCTION("Socket=0x%p; RemoteAddress=0x%p; Buffer=0x%p; Flags=0x%x; Irp=0x%p", Socket, RemoteAddress, Buffer, Flags, Irp);
 
-    UNREFERENCED_PARAMETER(RemoteAddress);
-    UNREFERENCED_PARAMETER(Buffer);
     UNREFERENCED_PARAMETER(Flags);
+
+    VMRemoteAddr = *(PSOCKADDR_VM)RemoteAddress;
+    if (VMRemoteAddr.svm_cid == VMADDR_CID_ANY)
+        VMRemoteAddr.svm_cid = pSocket->GuestId;
 
     Status = VioWskIrpAcquire(pSocket, Irp);
     if (!NT_SUCCESS(Status))
@@ -930,9 +935,39 @@ VioWskConnectEx(
         goto CompleteIrp;
     }
 
-    Status = STATUS_NOT_IMPLEMENTED;
+    Status = VioWskSocketBuildIOCTL(pSocket, IOCTL_SOCKET_CONNECT, &VMRemoteAddr, sizeof(VMRemoteAddr), NULL, 0, &ConnIrp);
+    if (!NT_SUCCESS(Status))
+        goto CompleteIrp;
+
+    CompContext = WskCompContextAlloc(wsksConnectEx, pSocket, Irp, NULL);
+    if (!CompContext) {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto FreeConnIrp;
+    }
+
+    if (Buffer && Buffer->Length > 0)
+    {
+        Status = WskBufferValidate(Buffer, &CompContext->Specific.Transfer.CurrentMdlSize, &CompContext->Specific.Transfer.LastMdlSize);
+        if (!NT_SUCCESS(Status))
+            goto FreeConnIrp;
+
+        CompContext->Specific.Transfer.NextMdl = Buffer->Mdl;
+        CompContext->Specific.Transfer.CurrentMdlOffset = Buffer->Offset;
+    }
+
+    Status = WskCompContextSendIrp(CompContext, ConnIrp);
+    WskCompContextDereference(CompContext);
+    if (NT_SUCCESS(Status))
+        ConnIrp = NULL;
+
+    Irp = NULL;
+
+FreeConnIrp:
+    if (ConnIrp)
+        IoFreeIrp(ConnIrp);
 CompleteIrp:
-    VioWskIrpComplete(pSocket, Irp, Status, 0);
+    if (Irp)
+        VioWskIrpComplete(pSocket, Irp, Status, 0);
 
     DEBUG_EXIT_FUNCTION("0x%x", Status);
     return Status;
