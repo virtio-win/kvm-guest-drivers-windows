@@ -33,6 +33,7 @@
 #include "wsk-utils.h"
 #include "viowsk-internal.h"
 #include "wsk-workitem.h"
+#include "wsk-completion.h"
 #include "..\inc\vio_wsk.h"
 #ifdef EVENT_TRACING
 #include "provider.tmh"
@@ -119,24 +120,91 @@ VioWskSocketConnect(
     _Inout_ PIRP                                   Irp
 )
 {
+    PIRP BindIrp = NULL;
+    PWSK_WORKITEM WorkItem = NULL;
     PVIOWSK_SOCKET pSocket = NULL;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PVIOSOCKET_COMPLETION_CONTEXT CompContext = NULL;
+    DEBUG_ENTER_FUNCTION("Client=0x%p; SocketType=%u; Protocol=%u; LocalAddress=0x%p; RemoteAddress=0x%p; Flags=0x%x; SocketContext=0x%p; Dispatch=0x%p; OwningProcess=0x%p; OwningThread=0x%p; SecurityDescriptor=0x%p; Irp=0x%p", Client, SocketType, Protocol, LocalAddress, RemoteAddress, Flags, SocketContext, Dispatch, OwningProcess, OwningThread, SecurityDescriptor, Irp);
 
-    UNREFERENCED_PARAMETER(Client);
-    UNREFERENCED_PARAMETER(SocketType);
-    UNREFERENCED_PARAMETER(Protocol);
-    UNREFERENCED_PARAMETER(LocalAddress);
-    UNREFERENCED_PARAMETER(RemoteAddress);
-    UNREFERENCED_PARAMETER(Flags);
-    UNREFERENCED_PARAMETER(SocketContext);
-    UNREFERENCED_PARAMETER(Dispatch);
-    UNREFERENCED_PARAMETER(OwningProcess);
-    UNREFERENCED_PARAMETER(OwningThread);
-    UNREFERENCED_PARAMETER(SecurityDescriptor);
+    if (KeGetCurrentIrql() > PASSIVE_LEVEL)
+    {
+        WorkItem = WskWorkItemAlloc(wskwitSocketAndConnect, Irp);
+        if (!WorkItem)
+        {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            pSocket = NULL;
+            goto CompleteIrp;
+        }
 
-    Status = STATUS_NOT_IMPLEMENTED;
-    VioWskCompleteIrp(Irp, Status, (ULONG_PTR)pSocket);
+        WorkItem->Specific.SocketConnect.Client = Client;
+        WorkItem->Specific.SocketConnect.Dispatch = Dispatch;
+        WorkItem->Specific.SocketConnect.Flags = Flags;
+        WorkItem->Specific.SocketConnect.LocalAddress = LocalAddress;
+        WorkItem->Specific.SocketConnect.OwningProcess = OwningProcess;
+        WorkItem->Specific.SocketConnect.OwningThread = OwningThread;
+        WorkItem->Specific.SocketConnect.Protocol = Protocol;
+        WorkItem->Specific.SocketConnect.RemoteAddress = RemoteAddress;
+        WorkItem->Specific.SocketConnect.SecurityDescriptor = SecurityDescriptor;
+        WorkItem->Specific.SocketConnect.SocketContext = SocketContext;
+        WorkItem->Specific.SocketConnect.SocketType = SocketType;
+        WskWorkItemQueue(WorkItem);
+        Status = STATUS_PENDING;
+        goto Exit;
+    }
 
+    Status = VioWskSocketInternal(Client, NULL, WSK_FLAG_CONNECTION_SOCKET, SocketContext,
+        Dispatch, OwningProcess, OwningThread, SecurityDescriptor, &pSocket);
+
+    if (!NT_SUCCESS(Status))
+        goto CompleteIrp;
+
+    Status = VioWskIrpAcquire(pSocket, Irp);
+    if (!NT_SUCCESS(Status))
+        goto CloseNewSocket;
+
+    Status = VioWskSocketBuildIOCTL(pSocket, IOCTL_SOCKET_BIND, LocalAddress, sizeof(SOCKADDR_VM), NULL, 0, &BindIrp);
+    if (!NT_SUCCESS(Status))
+        goto CloseNewSocket;
+
+    CompContext = WskCompContextAlloc(wsksBind, pSocket, Irp, NULL);
+    if (!CompContext)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto FreeBindIrp;
+    }
+
+    Status = WskCompContextAllocCloseWorkItem(CompContext);
+    if (!NT_SUCCESS(Status))
+        goto FreeCompContext;
+
+    CompContext->Specific.BindConnect.RemoteAddress = RemoteAddress;
+    Status = WskCompContextSendIrp(CompContext, BindIrp);
+    if (NT_SUCCESS(Status))
+    {
+        BindIrp = NULL;
+        pSocket = NULL;
+    }
+
+    Irp = NULL;
+
+FreeCompContext:
+    WskCompContextDereference(CompContext);
+FreeBindIrp:
+    if (BindIrp)
+        IoFreeIrp(BindIrp);
+CloseNewSocket:
+    if (pSocket)
+    {
+        VioWskIrpComplete(pSocket, Irp, Status, (ULONG_PTR)pSocket);
+        VioWskCloseSocketInternal(pSocket, Irp);
+        Irp = NULL;
+        pSocket = NULL;
+    }
+CompleteIrp:
+    if (Irp)
+        VioWskIrpComplete(pSocket, Irp, Status, (ULONG_PTR)pSocket);
+Exit:
     DEBUG_EXIT_FUNCTION("0x%x", Status);
     return Status;
 }

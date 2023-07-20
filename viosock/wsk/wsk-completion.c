@@ -108,6 +108,30 @@ WskGeneralIrpCompletion(
                     VioWskIrpFree(NextIrp, NULL, FALSE);
                 }
             }
+            else if (Ctx->Specific.BindConnect.RemoteAddress)
+            {
+                SOCKADDR_VM remoteAddress;
+
+                remoteAddress = *(PSOCKADDR_VM)Ctx->Specific.BindConnect.RemoteAddress;
+                if (remoteAddress.svm_cid == VMADDR_CID_ANY)
+                    remoteAddress.svm_cid = Ctx->Socket->GuestId;
+
+                Irp->IoStatus.Status = VioWskSocketBuildIOCTL(Ctx->Socket, IOCTL_SOCKET_CONNECT, &remoteAddress, sizeof(remoteAddress), NULL, 0, &NextIrp);
+                if (!NT_SUCCESS(Irp->IoStatus.Status))
+                    break;
+
+                Ctx->Specific.BindConnect.RemoteAddress = NULL;
+                Ctx->State = wsksFinished;
+                Ctx->IOSBInformation = (ULONG_PTR)Ctx->Socket;
+                Ctx->UseIOSBInformation = 1;
+                NextIrpStatus = WskCompContextSendIrp(Ctx, NextIrp);
+                if (!NT_SUCCESS(NextIrpStatus))
+                {
+                    Irp->IoStatus.Status = NextIrpStatus;
+                    Ctx->MasterIrp = NULL;
+                    IoFreeIrp(NextIrp);
+                }
+            }
  			else opState = wsksFinished;
 			break;
         case wsksAcceptLocal:
@@ -130,8 +154,7 @@ WskGeneralIrpCompletion(
 			else
             {
                 opState = wsksFinished;
-                WskWorkItemFree(Ctx->Specific.Accept.CloseWorkItem);
-                Ctx->Specific.Accept.CloseWorkItem = NULL;
+                Ctx->State = opState;
                 Ctx->IOSBInformation = (ULONG_PTR)Ctx->Specific.Accept.Socket;
                 Ctx->UseIOSBInformation = 1;
             }
@@ -139,8 +162,7 @@ WskGeneralIrpCompletion(
         case wsksAcceptRemote:
             memcpy(Ctx->Specific.Accept.RemoteAddress, Irp->AssociatedIrp.SystemBuffer, sizeof(SOCKADDR_VM));
             opState = wsksFinished;
-            WskWorkItemFree(Ctx->Specific.Accept.CloseWorkItem);
-            Ctx->Specific.Accept.CloseWorkItem = NULL;
+            Ctx->State = opState;
             Ctx->IOSBInformation = (ULONG_PTR)Ctx->Specific.Accept.Socket;
             Ctx->UseIOSBInformation = 1;
             break;
@@ -220,13 +242,10 @@ WskGeneralIrpCompletion(
     VioWskIrpFree(Irp, Ctx->DeviceObject, TRUE);
     if (!NT_SUCCESS(irpStatus.Status) ||
         opState == wsksFinished) {
-        if (Ctx->State == wsksAcceptLocal ||
-            Ctx->State == wsksAcceptRemote) {
-            if (Ctx->Specific.Accept.CloseWorkItem)
-            {
-                WskWorkItemQueue(Ctx->Specific.Accept.CloseWorkItem);
-                Ctx->Specific.Accept.CloseWorkItem = NULL;
-            }
+        if (!NT_SUCCESS(irpStatus.Status) &&
+            Ctx->CloseWorkItem) {
+            WskWorkItemQueue(Ctx->CloseWorkItem);
+            Ctx->CloseWorkItem = NULL;
         }
 
         if (Ctx->IoStatusBlock)
@@ -261,6 +280,9 @@ WskCompContextFree(
 )
 {
     DEBUG_ENTER_FUNCTION("CompContext=0x%p", CompContext);
+
+    if (CompContext->CloseWorkItem)
+        WskWorkItemFree(CompContext->CloseWorkItem);
 
     ExFreePoolWithTag(CompContext, VIOSOCK_WSK_MEMORY_TAG);
 
@@ -365,5 +387,61 @@ CompleteMasterIrp:
         VioWskIrpComplete(CompContext->Socket, CompContext->MasterIrp, Status, 0);
 
     DEBUG_EXIT_FUNCTION("0x%x", Status);
+    return Status;
+}
+
+
+static
+NTSTATUS
+_CloseCompletionRoutine(
+    PDEVICE_OBJECT DeviceObject,
+    PIRP Irp,
+    PVOID Context
+)
+{
+    NTSTATUS status = STATUS_UNSUCCESSFUL;
+    DEBUG_ENTER_FUNCTION("DeviceObject=0x%p; Irp=0x%p; Context=0x%p", DeviceObject, Irp, Context);
+
+    IoFreeIrp(Irp);
+    status = STATUS_MORE_PROCESSING_REQUIRED;
+
+    DEBUG_EXIT_FUNCTION("0x%x", status);
+    return status;
+}
+
+
+NTSTATUS
+WskCompContextAllocCloseWorkItem(
+    PVIOSOCKET_COMPLETION_CONTEXT CompContext
+)
+{
+    PIRP CloseIrp = NULL;
+    PWSK_WORKITEM CloseWorkItem = NULL;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+
+    CloseIrp = IoAllocateIrp(1, FALSE);
+    if (!CloseIrp)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    IoSetCompletionRoutine(CloseIrp, _CloseCompletionRoutine, NULL, TRUE, TRUE, TRUE);
+    CloseWorkItem = WskWorkItemAlloc(wskwitCloseSocket, CloseIrp);
+    if (!CloseWorkItem)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto FreeCloseIrp;
+    }
+
+    CloseWorkItem->Specific.CloseSocket.Socket = &CompContext->Socket->WskSocket;
+    CloseIrp = NULL;
+    CompContext->CloseWorkItem = CloseWorkItem;
+    CloseWorkItem = NULL;
+    Status = STATUS_SUCCESS;
+FreeCloseIrp:
+    if (CloseIrp)
+        IoFreeIrp(CloseIrp);
+Exit:
     return Status;
 }

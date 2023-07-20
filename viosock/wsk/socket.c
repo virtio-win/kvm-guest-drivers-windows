@@ -506,8 +506,6 @@ VioWskAccept(
 )
 {
     PIRP AddrIrp = NULL;
-    PIRP CloseIrp = NULL;
-    PWSK_WORKITEM CloseWorkItem = NULL;
     BOOLEAN acceptSocketAcquired = FALSE;
     PWSK_WORKITEM WorkItem = NULL;
     PVIOSOCKET_COMPLETION_CONTEXT CompContext = NULL;
@@ -543,24 +541,9 @@ VioWskAccept(
         goto Exit;
     }
 
-    CloseIrp = IoAllocateIrp(1, FALSE);
-    if (!CloseIrp)
-    {
-        Status = STATUS_INSUFFICIENT_RESOURCES;
-        goto CompleteIrp;
-	}
-
-	CloseWorkItem = WskWorkItemAlloc(wskwitCloseSocket, CloseIrp);
-	if (!CloseWorkItem)
-	{
-		Status = STATUS_INSUFFICIENT_RESOURCES;
-		goto FreeCloseIrp;
-	}
-
-    CloseIrp = NULL;
     Status = VioWskSocketInternal(pListenSocket->Client, pListenSocket, Flags, AcceptSocketContext, AcceptSocketDispatch, NULL, NULL, NULL, &pSocket);
     if (!NT_SUCCESS(Status))
-        goto FreeCloseWorkItem;
+        goto CompleteIrp;
 
     if (LocalAddress || RemoteAddress)
     {
@@ -576,7 +559,6 @@ VioWskAccept(
             goto CloseNewSocket;
         }
 
-        CloseWorkItem->Specific.CloseSocket.Socket = &pSocket->WskSocket;
         CompContext = WskCompContextAlloc((LocalAddress ? wsksAcceptLocal : wsksAcceptRemote), pSocket, Irp, NULL);
         if (!CompContext)
         {
@@ -584,21 +566,23 @@ VioWskAccept(
             goto FreeAddrIrp;
         }
 
+        Status = WskCompContextAllocCloseWorkItem(CompContext);
+        if (!NT_SUCCESS(Status))
+            goto FreeCompContext;
+
         VioWskIrpRelease(pListenSocket, Irp);
         Irp = NULL;
         CompContext->Specific.Accept.LocalAddress = LocalAddress;
         CompContext->Specific.Accept.RemoteAddress = RemoteAddress;
         CompContext->Specific.Accept.Socket = &pSocket->WskSocket;
-        CompContext->Specific.Accept.CloseWorkItem = CloseWorkItem;
         Status = WskCompContextSendIrp(CompContext, AddrIrp);
-        WskCompContextDereference(CompContext);
         if (NT_SUCCESS(Status))
-        {
-            CloseWorkItem = NULL;
             AddrIrp = NULL;
-        }
      }
 
+FreeCompContext:
+    if (CompContext)
+        WskCompContextDereference(CompContext);
 FreeAddrIrp:
     if (AddrIrp)
         VioWskIrpFree(AddrIrp, NULL, FALSE);
@@ -608,12 +592,6 @@ CloseNewSocket:
         VioWskCloseSocketInternal(pSocket, (acceptSocketAcquired ? Irp : NULL));
         pSocket = NULL;
     }
-FreeCloseWorkItem:
-    if (CloseWorkItem)
-        WskWorkItemFree(CloseWorkItem);
-FreeCloseIrp:
-    if (CloseIrp)
-        VioWskIrpFree(CloseIrp, NULL, FALSE);
 CompleteIrp:
     if (Irp)
         VioWskIrpComplete(pListenSocket, Irp, Status, (ULONG_PTR)pSocket);

@@ -54,6 +54,7 @@ typedef enum _EWSKState {
 typedef struct _VIOSOCKET_COMPLETION_CONTEXT {
     volatile LONG ReferenceCount;
     PVIOWSK_SOCKET Socket;
+    PWSK_WORKITEM CloseWorkItem;
     PDEVICE_OBJECT DeviceObject;
     EWSKState State;
     PIRP MasterIrp;
@@ -67,7 +68,6 @@ typedef struct _VIOSOCKET_COMPLETION_CONTEXT {
             PWSK_SOCKET Socket;
             PSOCKADDR LocalAddress;
             PSOCKADDR RemoteAddress;
-            PWSK_WORKITEM CloseWorkItem;
         } Accept;
         struct {
             PMDL NextMdl;
@@ -75,8 +75,11 @@ typedef struct _VIOSOCKET_COMPLETION_CONTEXT {
             ULONG CurrentMdlSize;
             ULONG LastMdlSize;
         } Transfer;
+        struct {
+            PSOCKADDR RemoteAddress;
+        } BindConnect;
     } Specific;
-} VIOSOCKET_COMPLETION_CONTEXT, * PVIOSOCKET_COMPLETION_CONTEXT;
+} VIOSOCKET_COMPLETION_CONTEXT, *PVIOSOCKET_COMPLETION_CONTEXT;
 
 
 
@@ -104,6 +107,10 @@ WskCompContextSendIrp(
     _In_ PIRP                             Irp
 );
 
+NTSTATUS
+WskCompContextAllocCloseWorkItem(
+    PVIOSOCKET_COMPLETION_CONTEXT CompContext
+);
 
 
 #endif
