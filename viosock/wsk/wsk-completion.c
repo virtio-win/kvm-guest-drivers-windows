@@ -151,6 +151,23 @@ WskGeneralIrpCompletion(
         case wsksReceive:
             opState = wsksFinished;
             break;
+        case wsksConnectEx:
+            if (Ctx->Specific.Transfer.NextMdl)
+            {
+                Irp->IoStatus.Status = VioWskSocketBuildReadWriteSingleMdl(Ctx->Socket, Ctx->Specific.Transfer.NextMdl, Ctx->Specific.Transfer.CurrentMdlOffset, Ctx->Specific.Transfer.CurrentMdlSize, IRP_MJ_WRITE, &NextIrp);
+                if (!NT_SUCCESS(Irp->IoStatus.Status))
+                    break;
+
+                Ctx->Specific.Transfer.NextMdl = Ctx->Specific.Transfer.NextMdl->Next;
+                Ctx->State = wsksSend;
+                NextIrpStatus = WskCompContextSendIrp(Ctx, NextIrp);
+                if (!NT_SUCCESS(NextIrpStatus)) {
+                    Irp->IoStatus.Status = NextIrpStatus;
+                    Ctx->MasterIrp = NULL;
+                    VioWskIrpFree(NextIrp, DeviceObject, FALSE);
+                }
+            } else opState = wsksFinished;
+            break;
         case wsksSend:
          case wsksDisconnect:
             if (Ctx->Specific.Transfer.NextMdl &&

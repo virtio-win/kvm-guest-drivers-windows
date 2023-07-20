@@ -47,6 +47,7 @@ typedef enum _EWSKState {
     wsksAcceptRemote,
     wsksBind,
     wsksListen,
+    wsksConnectEx,
     wsksFinished,
 } EWSKState, * PEWSKState;
 
@@ -70,6 +71,7 @@ typedef struct _VIOSOCKET_COMPLETION_CONTEXT {
         } Accept;
         struct {
             PMDL NextMdl;
+            ULONG CurrentMdlOffset;
             ULONG CurrentMdlSize;
             ULONG LastMdlSize;
         } Transfer;
