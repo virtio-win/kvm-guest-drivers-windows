@@ -1463,8 +1463,6 @@ VIOSockReadDequeueCb(
         {
             memcpy(pRequest->FreePtr, pCurrentCb->ReadPtr, pRequest->FreeBytes);
 
-            pRequest->FreeBytes = 0;
-
             if (!(pRequest->Flags & MSG_PEEK))
             {
                 //update current CB data ptr
@@ -1472,6 +1470,7 @@ VIOSockReadDequeueCb(
                 pCurrentCb->BytesToRead -= pRequest->FreeBytes;
                 VIOSockRxPktDec(pSocket, pRequest->FreeBytes);
             }
+            pRequest->FreeBytes = 0;
 
             break;
         }
