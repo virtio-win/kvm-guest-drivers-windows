@@ -760,7 +760,7 @@ VIOSockAcceptEnqueuePkt(
 
             pAcceptSocket->dst_cid = (ULONG32)pPkt->src_cid;
             pAcceptSocket->dst_port = pPkt->src_port;
-            pAcceptSocket->peer_buf_alloc = pPkt->src_port;
+            pAcceptSocket->peer_buf_alloc = pPkt->buf_alloc;
             pAcceptSocket->peer_fwd_cnt = pPkt->fwd_cnt;
 
             VIOSockAcceptInitSocket(pAcceptSocket, pListenSocket);
@@ -781,7 +781,7 @@ VIOSockAcceptEnqueuePkt(
 
         pAccept->dst_cid = (ULONG32)pPkt->src_cid;
         pAccept->dst_port = pPkt->src_port;
-        pAccept->peer_buf_alloc = pPkt->src_port;
+        pAccept->peer_buf_alloc = pPkt->buf_alloc;
         pAccept->peer_fwd_cnt = pPkt->fwd_cnt;
 
         WdfSpinLockAcquire(pListenSocket->RxLock);
