@@ -988,7 +988,7 @@ VIOSockSelectWorkitem(
             PVIOSOCK_SELECT_PKT pPkt = CONTAINING_RECORD(RemoveHeadList(&CompletionList), VIOSOCK_SELECT_PKT, ListEntry);
 
             VIOSockSelectCleanupPkt(pPkt);
-            WdfRequestComplete(WdfObjectContextGetObject(pPkt), pPkt->Status);
+            WdfRequestCompleteWithInformation(WdfObjectContextGetObject(pPkt), pPkt->Status, pPkt->Status == STATUS_SUCCESS ? sizeof(VIRTIO_VSOCK_SELECT) : 0);
         }
 
     } while (InterlockedCompareExchange(&pContext->SelectInProgress, 0, 1) != 1);
