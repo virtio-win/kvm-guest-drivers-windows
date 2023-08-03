@@ -105,6 +105,7 @@ typedef struct VirtIOBufferDescriptor VIOSOCK_SG_DESC, *PVIOSOCK_SG_DESC;
 
 #define LAST_RESERVED_PORT  1023
 #define MAX_PORT_RETRIES    24
+#define INVALID_THREAD_ID   LONG64_ERROR
 //////////////////////////////////////////////////////////////////////////
 #define VIOSOCK_TIMER_TOLERANCE MSEC_TO_NANO(50)
 typedef struct _VIOSOCK_TIMER
@@ -238,7 +239,7 @@ typedef struct _SOCKET_CONTEXT {
     _Guarded_by_(StateLock) NTSTATUS        EventsStatus[FD_MAX_EVENTS];
 
     WDFSPINLOCK     RxLock;         //accept list lock for listen socket
-    HANDLE RxProcessingThreadId; // Prevents recursion in 
+    LONG64 RxProcessingThreadId; // Prevents recursion in
     _Guarded_by_(RxLock) LIST_ENTRY      RxCbList;
     _Guarded_by_(RxLock) volatile ULONG           RxBytes;        //used bytes in rx buffer
     _Guarded_by_(RxLock) ULONG           RxBuffers;      //used rx buffers (for debug)
