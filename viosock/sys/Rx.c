@@ -1433,8 +1433,6 @@ VIOSockReadDequeueCb(
                 pCurrentItem = pCurrentItem->Blink;
                 RemoveEntryList(&pCurrentCb->ListEntry);
 
-                pCurrentCb->BytesToRead = 0;
-
                 if (VIOSockIsLoopbackCb(pCurrentCb))
                 {
                     status = WdfRequestUnmarkCancelable(pCurrentCb->Request);
@@ -1457,6 +1455,7 @@ VIOSockReadDequeueCb(
                     VIOSockRxCbPushLocked(pContext, pCurrentCb);
                     VIOSockRxPktDec(pSocket, pCurrentCb->BytesToRead);
                 }
+                pCurrentCb->BytesToRead = 0;
             }
         }
         else //request buffer is not big enough
