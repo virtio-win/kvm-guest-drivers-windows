@@ -1339,7 +1339,7 @@ VIOSockReadDequeueCb(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
 
-    if (pSocket->RxProcessingThreadId == PsGetCurrentThreadId())
+    if (pSocket->RxProcessingThreadId == (LONG64)PsGetCurrentThreadId())
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "Another instance of VIOSockReadDequeueCb already running, stop Cb dequeue\n");
         return FALSE; //one running instance allowed
@@ -1410,9 +1410,9 @@ VIOSockReadDequeueCb(
         }
         else
         {
-            pSocket->RxProcessingThreadId = PsGetCurrentThreadId();
+            pSocket->RxProcessingThreadId = (LONG64)PsGetCurrentThreadId();
             status = WdfRequestRequeue(ReadRequest);
-            pSocket->RxProcessingThreadId = NULL;
+            pSocket->RxProcessingThreadId = INVALID_THREAD_ID;
             if (NT_SUCCESS(status))
             {
                 //continue timer
@@ -1519,9 +1519,9 @@ VIOSockReadDequeueCb(
         else
         {
             //requeue request
-            pSocket->RxProcessingThreadId = PsGetCurrentThreadId();
+            pSocket->RxProcessingThreadId = (LONG64)PsGetCurrentThreadId();
             status = WdfRequestRequeue(ReadRequest);
-            pSocket->RxProcessingThreadId = NULL;
+            pSocket->RxProcessingThreadId = INVALID_THREAD_ID;
             if (NT_SUCCESS(status))
             {
                 //continue timer
