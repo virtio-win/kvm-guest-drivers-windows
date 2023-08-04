@@ -923,7 +923,7 @@ VIOSockSelect(
     if (timeout)
     {
         //timeout in 100-ns intervals
-        Select.Timeout = -(SEC_TO_NANO((LONGLONG)timeout->tv_sec) + USEC_TO_NANO(timeout->tv_usec));
+        Select.Timeout = (SEC_TO_NANO((LONGLONG)timeout->tv_sec) + USEC_TO_NANO(timeout->tv_usec));
     }
 
     hFile = VIOSockCreateFile(NULL, lpErrno);
