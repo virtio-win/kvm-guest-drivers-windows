@@ -464,6 +464,36 @@ VIOSockRxPktListProcess(
 _Requires_lock_not_held_(pContext->RxLock)
 __inline
 VOID
+VIOSockRxPktListProcessOneLocked(
+    IN PDEVICE_CONTEXT pContext
+)
+{
+    bool bNotify = false;
+    PSINGLE_LIST_ENTRY pListEntry;
+
+    WdfSpinLockAcquire(pContext->RxLock);
+    if (pListEntry = PopEntryList(&pContext->RxPktList))
+    {
+        PVIOSOCK_RX_PKT pPkt = CONTAINING_RECORD(pListEntry, VIOSOCK_RX_PKT, RxPktListEntry);
+
+        if (!VIOSockRxPktInsert(pContext, pPkt))
+        {
+            PushEntryList(&pContext->RxPktList, &pPkt->RxPktListEntry);
+        }
+        else
+        {
+            bNotify = virtqueue_kick_prepare(pContext->RxVq);
+        }
+    }
+    WdfSpinLockRelease(pContext->RxLock);
+
+    if (bNotify)
+        virtqueue_notify(pContext->RxVq);
+}
+
+_Requires_lock_not_held_(pContext->RxLock)
+__inline
+VOID
 VIOSockRxPktInsertOrPostpone(
     IN PDEVICE_CONTEXT pContext,
     IN PVIOSOCK_RX_PKT pPkt
@@ -1456,6 +1486,7 @@ VIOSockReadDequeueCb(
                 {
                     VIOSockRxCbPushLocked(pContext, pCurrentCb);
                     VIOSockRxPktDec(pSocket, pCurrentCb->BytesToRead);
+                    VIOSockRxPktListProcessOneLocked(pContext);
                 }
             }
         }
