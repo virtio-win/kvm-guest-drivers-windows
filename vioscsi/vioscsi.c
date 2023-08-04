@@ -896,7 +896,7 @@ HandleResponse(
 
 ENTER_FN();
 
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> %s (%d::%d::%d), SRB 0x%p\n", DbgGetScsiOpStr((PSCSI_REQUEST_BLOCK)Srb), SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), Srb);
+    LOG_SRB_INFO();
 
     switch (resp->response) {
     case VIRTIO_SCSI_S_OK:
@@ -1258,7 +1258,7 @@ ENTER_FN_SRB();
         return FALSE;
     }
 
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <--> %s (%d::%d::%d), SRB 0x%p\n", DbgGetScsiOpStr(Srb), SRB_PATH_ID(Srb), TargetId, Lun, Srb);
+    LOG_SRB_INFO();
 
     RtlZeroMemory(srbExt, sizeof(*srbExt));
     srbExt->Srb = Srb;
@@ -1491,7 +1491,7 @@ ENTER_FN_SRB();
         case SRB_FUNCTION_RESET_BUS:
         case SRB_FUNCTION_RESET_DEVICE:
         case SRB_FUNCTION_RESET_LOGICAL_UNIT:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> SRB_FUNCTION_RESET_LOGICAL_UNIT (%d::%d::%d), SRB 0x%p\n", SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), Srb);
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> SRB_FUNCTION_RESET_LOGICAL_UNIT Target (%d::%d::%d), SRB 0x%p\n", SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), Srb);
             CompletePendingRequests(DeviceExtension);
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
             return TRUE;

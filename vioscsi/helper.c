@@ -63,7 +63,7 @@ ENTER_FN_SRB();
     if (!Srb)
         return;
 
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> %s (%d::%d::%d), SRB 0x%p\n", DbgGetScsiOpStr((PSCSI_REQUEST_BLOCK)Srb), SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), Srb);
+    LOG_SRB_INFO();
 
     if (adaptExt->num_queues > 1) {
         STARTIO_PERFORMANCE_PARAMETERS param;

@@ -39,7 +39,10 @@
 #include <stdarg.h>
 #include "kdebugprint.h"
 
-char *DbgGetScsiOpStr(PSCSI_REQUEST_BLOCK Srb);
+#define UCHAR_MAX 0xFF
+#define DbgGetScsiOp(Srb) (SRB_CDB(Srb) ? SRB_CDB(Srb)->CDB6GENERIC.OperationCode : UCHAR_MAX)
+
+char *DbgGetScsiOpStr(UCHAR opCode);
 
 #if !defined(DBG)
 #define EVENT_TRACING 1
@@ -72,7 +75,7 @@ extern int nVioscsiDebugLevel;
 #define VioScsiDbgBreak()\
     if (KD_DEBUGGER_ENABLED && !KD_DEBUGGER_NOT_PRESENT) DbgBreakPoint();
 #else
-#define RhelDbgPrint(Level, MSG, ...) 
+#define RhelDbgPrint(Level, MSG, ...)
 #define VioScsiDbgBreak()
 #endif
 
@@ -83,6 +86,7 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
 #define EXIT_ERR() RhelDbgPrint(TRACE_LEVEL_ERROR, " <--> %s (%d).\n", __FUNCTION__, __LINE__)
 #define ENTER_FN_SRB() RhelDbgPrint(TRACE_LEVEL_VERBOSE, " --> %s Srb = 0x%p.\n",__FUNCTION__, Srb)
 #define EXIT_FN_SRB()  RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <-- %s Srb = 0x%p.\n",__FUNCTION__, Srb)
+#define LOG_SRB_INFO() RhelDbgPrint(TRACE_LEVEL_INFORMATION, "%s <--> Operation %s (0x%X), Target (%d::%d::%d), SRB 0x%p\n",__FUNCTION__, DbgGetScsiOpStr(DbgGetScsiOp(Srb)), DbgGetScsiOp(Srb), SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), Srb)
 
 #else
 #pragma warning(disable: 28170)
@@ -125,6 +129,9 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
 // FUNC ENTER_FN_SRB{LEVEL=TRACE_LEVEL_VERBOSE}(...);
 // USEPREFIX (EXIT_FN_SRB(PVOID Srb), "%!STDPREFIX! <--- %!FUNC! 0x%p.", Srb);
 // FUNC EXIT_FN_SRB{LEVEL=TRACE_LEVEL_VERBOSE}(...);
+
+// USEPREFIX (LOG_SRB_INFO(PVOID Srb), "%!STDPREFIX! %!FUNC! <--> Operation %s (0x%X), Target (%d::%d::%d), SRB 0x%p", DbgGetScsiOpStr(DbgGetScsiOp(Srb)), DbgGetScsiOp(Srb), SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), Srb);
+// FUNC LOG_SRB_INFO{LEVEL=TRACE_LEVEL_INFORMATION}(...);
 
 // end_wpp
 
