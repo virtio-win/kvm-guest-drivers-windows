@@ -896,6 +896,8 @@ HandleResponse(
 
 ENTER_FN();
 
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> %s (%d::%d::%d), SRB 0x%p\n", DbgGetScsiOpStr((PSCSI_REQUEST_BLOCK)Srb), SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), Srb);
+
     switch (resp->response) {
     case VIRTIO_SCSI_S_OK:
         SRB_SET_SCSI_STATUS(Srb, resp->status);
@@ -1256,7 +1258,7 @@ ENTER_FN_SRB();
         return FALSE;
     }
 
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <--> %s (%d::%d::%d)\n", DbgGetScsiOpStr(Srb), SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <--> %s (%d::%d::%d), SRB 0x%p\n", DbgGetScsiOpStr(Srb), SRB_PATH_ID(Srb), TargetId, Lun, Srb);
 
     RtlZeroMemory(srbExt, sizeof(*srbExt));
     srbExt->Srb = Srb;
@@ -1463,7 +1465,7 @@ CompletePendingRequests(
         StorPortResume(DeviceExtension);
     }
     else {
-        RhelDbgPrint(TRACE_LEVEL_FATAL, "RESET IN THE PROGRESS !!!!\n");
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " Reset is already in progress, doing nothing.\n");
     }
     adaptExt->reset_in_progress = FALSE;
 }
@@ -1489,7 +1491,7 @@ ENTER_FN_SRB();
         case SRB_FUNCTION_RESET_BUS:
         case SRB_FUNCTION_RESET_DEVICE:
         case SRB_FUNCTION_RESET_LOGICAL_UNIT:
-            RhelDbgPrint(TRACE_LEVEL_VERBOSE, "SRB_FUNCTION_RESET_LOGICAL_UNIT %d::%d::%d\n", SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb));
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> SRB_FUNCTION_RESET_LOGICAL_UNIT (%d::%d::%d), SRB 0x%p\n", SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), Srb);
             CompletePendingRequests(DeviceExtension);
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
             return TRUE;
