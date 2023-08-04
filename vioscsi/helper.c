@@ -60,10 +60,10 @@ SendSRB(
     ULONG               index;
 ENTER_FN_SRB();
 
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " SRB %p.\n", Srb);
-
     if (!Srb)
         return;
+
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> %s (%d::%d::%d), SRB 0x%p\n", DbgGetScsiOpStr((PSCSI_REQUEST_BLOCK)Srb), SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), Srb);
 
     if (adaptExt->num_queues > 1) {
         STARTIO_PERFORMANCE_PARAMETERS param;
@@ -75,14 +75,14 @@ ENTER_FN_SRB();
                 QueueNumber %= adaptExt->num_queues;
             }
         } else {
-            RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed srb %p status 0x%x MessageNumber %d.\n", Srb, status, param.MessageNumber);
+            RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed srb 0x%p status 0x%x MessageNumber %d.\n", Srb, status, param.MessageNumber);
         }
     }
 
     srbExt = SRB_EXTENSION(Srb);
 
     if (!srbExt) {
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " No SRB Ext after ExInterlockedRemoveHeadList QueueNumber (%d) \n", QueueNumber);
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " No SRB Extenstion for SRB 0x%p \n", Srb);
         return;
     }
 
@@ -90,7 +90,7 @@ ENTER_FN_SRB();
     index = QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0;
 
     if (adaptExt->reset_in_progress) {
-        RhelDbgPrint(TRACE_LEVEL_FATAL, "WHAT ATE YOU DOING SPB = %p ??\n", Srb);
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " Reset is in progress, completing SRB 0x%p with SRB_STATUS_BUS_RESET.\n", Srb);
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUS_RESET);
         CompleteRequest(DeviceExtension, Srb);
         return;
@@ -120,7 +120,7 @@ ENTER_FN_SRB();
         SRB_SET_SCSI_STATUS(Srb, ScsiStatus);
         StorPortBusy(DeviceExtension, 10);
         CompleteRequest(DeviceExtension, Srb);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, " CompleteRequest queue (%d) SRB = %p Lun = %d TimeOut = %d.\n", QueueNumber, srbExt->Srb, SRB_LUN(Srb), Srb->TimeOutValue);
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " Could not put an SRB into a VQ, so complete it with SRB_STATUS_BUSY. QueueNumber = %d, SRB = 0x%p, Lun = %d, TimeOut = %d.\n", QueueNumber, srbExt->Srb, SRB_LUN(Srb), Srb->TimeOutValue);
     }
 
 EXIT_FN_SRB();
