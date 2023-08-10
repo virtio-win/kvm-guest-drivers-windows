@@ -52,7 +52,7 @@ typedef struct _VIOSOCK_TX_PKT
     WDFDMATRANSACTION Transaction;
     union
     {
-        BYTE IndirectDescs[SIZE_OF_SINGLE_INDIRECT_DESC * (1 + VIOSOCK_DMA_TX_PAGES)]; //Header + sglist
+        BYTE IndirectDescs[SIZE_OF_SINGLE_INDIRECT_DESC * (1 + (VIOSOCK_DMA_TX_PAGES + 1))]; //Header + sglist(maybe not aligned)
         struct
         {
             LIST_ENTRY ListEntry;
@@ -252,7 +252,7 @@ VIOSockTxPktInsert(
     IN PVIRTIO_DMA_TRANSACTION_PARAMS pParams OPTIONAL
 )
 {
-    VIOSOCK_SG_DESC sg[VIOSOCK_DMA_TX_PAGES + 1];
+    VIOSOCK_SG_DESC sg[VIOSOCK_DMA_TX_PAGES + 2];
     ULONG uElements = 1, uPktLen = 0;
     PVOID va_indirect = NULL;
     ULONGLONG phys_indirect = 0;
@@ -276,9 +276,14 @@ VIOSockTxPktInsert(
     {
         ULONG i;
 
-        ASSERT(SgList->NumberOfElements <= VIOSOCK_DMA_TX_PAGES);
         for (i = 0; i < SgList->NumberOfElements; i++)
         {
+            if (i + 1 >= VIOSOCK_DMA_TX_PAGES + 2) 
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Error creating sg list, number of sg elements exceeds limit.\n");
+                return FALSE;
+            }
+
             sg[i + 1].length = SgList->Elements[i].Length;
             sg[i + 1].physAddr = SgList->Elements[i].Address;
 
