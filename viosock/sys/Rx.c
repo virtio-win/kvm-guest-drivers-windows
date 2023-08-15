@@ -1445,7 +1445,8 @@ VIOSockReadDequeueCb(
 
             if (!(pRequest->Flags & MSG_PEEK))
             {
-
+                ULONG uBytesToRead = pCurrentCb->BytesToRead;
+                pCurrentCb->BytesToRead = 0;
                 pCurrentItem = pCurrentItem->Blink;
                 RemoveEntryList(&pCurrentCb->ListEntry);
 
@@ -1456,7 +1457,7 @@ VIOSockReadDequeueCb(
                     if (NT_SUCCESS(status))
                     {
                         InsertTailList(&LoopbackList, &pCurrentCb->ListEntry); //complete loopback requests later
-                        VIOSockRxPktDec(pSocket, pCurrentCb->BytesToRead);
+                        VIOSockRxPktDec(pSocket, uBytesToRead);
                     }
                     else
                     {
@@ -1469,10 +1470,9 @@ VIOSockReadDequeueCb(
                 else
                 {
                     VIOSockRxCbPushLocked(pContext, pCurrentCb);
-                    VIOSockRxPktDec(pSocket, pCurrentCb->BytesToRead);
+                    VIOSockRxPktDec(pSocket, uBytesToRead);
                     bProcessRxPktList = TRUE;
                 }
-                pCurrentCb->BytesToRead = 0;
             }
         }
         else //request buffer is not big enough
