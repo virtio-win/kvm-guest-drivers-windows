@@ -464,27 +464,13 @@ VIOSockRxPktListProcess(
 _Requires_lock_not_held_(pContext->RxLock)
 __inline
 VOID
-VIOSockRxPktListProcessOneLocked(
+VIOSockRxPktListProcessLocked(
     IN PDEVICE_CONTEXT pContext
 )
 {
-    bool bNotify = false;
-    PSINGLE_LIST_ENTRY pListEntry;
-
     WdfSpinLockAcquire(pContext->RxLock);
-    if (pListEntry = PopEntryList(&pContext->RxPktList))
-    {
-        PVIOSOCK_RX_PKT pPkt = CONTAINING_RECORD(pListEntry, VIOSOCK_RX_PKT, RxPktListEntry);
-
-        if (!VIOSockRxPktInsert(pContext, pPkt))
-        {
-            PushEntryList(&pContext->RxPktList, &pPkt->RxPktListEntry);
-        }
-        else
-        {
-            bNotify = virtqueue_kick_prepare(pContext->RxVq);
-        }
-    }
+    VIOSockRxPktListProcess(pContext);
+    bool bNotify = virtqueue_kick_prepare(pContext->RxVq);
     WdfSpinLockRelease(pContext->RxLock);
 
     if (bNotify)
@@ -1333,7 +1319,7 @@ VIOSockReadDequeueCb(
     PVIOSOCK_RX_CB  pCurrentCb;
     LIST_ENTRY      LoopbackList, *pCurrentItem;
     ULONG           FreeSpace;
-    BOOLEAN         bSetBit, bStop = FALSE, bRequeue = FALSE, bRestart = TRUE, bAlwaysTrue = TRUE;
+    BOOLEAN         bSetBit, bStop = FALSE, bRequeue = FALSE, bRestart = TRUE, bAlwaysTrue = TRUE, bProcessRxPktList = FALSE;
     PVIOSOCK_RX_CONTEXT pRequest = NULL;
     LONGLONG llTimeout = 0;
 
@@ -1484,7 +1470,7 @@ VIOSockReadDequeueCb(
                 {
                     VIOSockRxCbPushLocked(pContext, pCurrentCb);
                     VIOSockRxPktDec(pSocket, pCurrentCb->BytesToRead);
-                    VIOSockRxPktListProcessOneLocked(pContext);
+                    bProcessRxPktList = TRUE;
                 }
                 pCurrentCb->BytesToRead = 0;
             }
@@ -1504,6 +1490,11 @@ VIOSockReadDequeueCb(
 
             break;
         }
+    }
+
+    if (bProcessRxPktList)
+    {
+        VIOSockRxPktListProcessLocked(pContext);
     }
 
     if (!pRequest->FreeBytes || pRequest->Flags & MSG_PEEK)
@@ -1620,6 +1611,8 @@ VIOSockReadCleanupCb(
     }
 
     WdfSpinLockRelease(pSocket->RxLock);
+
+    VIOSockRxPktListProcessLocked(pContext);
 
     //Static Driver Verifier(SDV) tracks only one request, and when SDV unwinds the loop,
     //it treats completion of the second request as another completion of the first request.
