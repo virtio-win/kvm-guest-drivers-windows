@@ -186,6 +186,9 @@
     <!-- Works around a bug in WindowsDriver.Common.targets where WdfCoInstaller is spelled with lower-case i -->
     <KmdfCoinstaller>$(WDKContentRoot)redist\wdf\$(DDKPlatform)\WdfCoInstaller$(KMDF_VERSION_MAJOR_STRING)$(KMDF_VERSION_MINOR_STRING).dll</KmdfCoinstaller>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">
+    <Inf2CatWindowsVersionList>10_$(DDKPlatform)</Inf2CatWindowsVersionList>
+  </PropertyGroup>
   <Target Name="GetDriverProjectAttributes" Returns="@(DriverProjectAttributes)">
   </Target>
   <Target Name="GetPackageFiles" Returns="@(FullyQualifiedFilesToPackage)">
