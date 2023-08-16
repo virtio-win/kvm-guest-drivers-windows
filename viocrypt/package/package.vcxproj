@@ -98,7 +98,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <OutDir>$(ProjectDir)..\Install\win8\amd64\</OutDir>
-  </PropertyGroup>  
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <OutDir>$(ProjectDir)..\Install\win8.1\amd64\</OutDir>
   </PropertyGroup>
@@ -108,7 +108,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">
     <OutDir>$(ProjectDir)..\Install\win10\arm64\</OutDir>
-    <Inf2CatWindowsVersionList>Server10_$(DDKPlatform);$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
+    <Inf2CatWindowsVersionList>$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup>
     <PackageDir>$(OutDir)</PackageDir>
