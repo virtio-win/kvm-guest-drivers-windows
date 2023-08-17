@@ -111,7 +111,14 @@ NTSTATUS VioGpuDod::StartDevice(_In_  DXGK_START_INFO*   pDxgkStartInfo,
     VIOGPU_ASSERT(pDxgkInterface != NULL);
     VIOGPU_ASSERT(pNumberOfViews != NULL);
     VIOGPU_ASSERT(pNumberOfChildren != NULL);
-    RtlCopyMemory(&m_DxgkInterface, pDxgkInterface, sizeof(m_DxgkInterface));
+
+    if (pDxgkInterface->Size > sizeof(m_DxgkInterface))
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("VIOGPU: Provided interface cannot be used by Viogpudo (version %u, size %u, max size %llu)\n", pDxgkInterface->Version, pDxgkInterface->Size, sizeof(m_DxgkInterface)));
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    RtlCopyMemory(&m_DxgkInterface, pDxgkInterface, pDxgkInterface->Size);
     RtlZeroMemory(&m_CurrentMode, sizeof(m_CurrentMode));
     m_CurrentMode.DispInfo.TargetId = D3DDDI_ID_UNINITIALIZED;
 
@@ -155,7 +162,8 @@ NTSTATUS VioGpuDod::StartDevice(_In_  DXGK_START_INFO*   pDxgkStartInfo,
         return Status;
     }
 
-    if (IsVgaDevice())
+    if (IsVgaDevice() &&
+        m_DxgkInterface.DxgkCbAcquirePostDisplayOwnership)
     {
         Status = m_DxgkInterface.DxgkCbAcquirePostDisplayOwnership(m_DxgkInterface.DeviceHandle, &m_SystemDisplayInfo);
     }
@@ -292,7 +300,9 @@ NTSTATUS VioGpuDod::SetPowerState(_In_  ULONG HardwareUid,
     {
         if (DevicePowerState == PowerDeviceD0)
         {
-            Status = m_DxgkInterface.DxgkCbAcquirePostDisplayOwnership(m_DxgkInterface.DeviceHandle, &m_SystemDisplayInfo);
+            if (m_DxgkInterface.DxgkCbAcquirePostDisplayOwnership)
+                Status = m_DxgkInterface.DxgkCbAcquirePostDisplayOwnership(m_DxgkInterface.DeviceHandle, &m_SystemDisplayInfo);
+            
             if (!NT_SUCCESS(Status))
             {
                 DbgPrint(TRACE_LEVEL_FATAL, ("DxgkCbAcquirePostDisplayOwnership failed with status 0x%X Width = %d\n",
