@@ -214,14 +214,21 @@ VIOSockDeviceControl(
     if(lpBytesReturned)
         *lpBytesReturned = 0;
 
-    status = NtDeviceIoControlFile((HANDLE)s, NULL, NULL, NULL, &iosb,
+    HANDLE evt = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (!evt)
+    {
+        return FALSE;
+    }
+
+    status = NtDeviceIoControlFile((HANDLE)s, evt, NULL, NULL, &iosb,
         dwIoControlCode, lpInBuffer, nInBufferSize, lpOutBuffer, nOutBufferSize);
 
     if (status == STATUS_PENDING)
     {
-        WaitForSingleObject((HANDLE)s, INFINITE);
+        WaitForSingleObject(evt, INFINITE);
         status = iosb.Status;
     }
+    CloseHandle(evt);
 
     if (NT_SUCCESS(status))
     {
@@ -255,15 +262,22 @@ VIOSockWriteFile(
     if (lpNumberOfBytesWritten)
         *lpNumberOfBytesWritten = 0;
 
-    status = NtWriteFile((HANDLE)s, NULL, NULL, NULL,
+    HANDLE evt = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (!evt) 
+    {
+        return FALSE;
+    }
+
+    status = NtWriteFile((HANDLE)s, evt, NULL, NULL,
         &iosb, lpBuffer, nNumberOfBytesToWrite,
         &liBytesOffset, NULL);
 
     if (status == STATUS_PENDING)
     {
-        WaitForSingleObject((HANDLE)s, INFINITE);
+        WaitForSingleObject(evt, INFINITE);
         status = iosb.Status;
     }
+    CloseHandle(evt);
 
     if (NT_SUCCESS(status))
     {
@@ -297,15 +311,22 @@ VIOSockReadFile(
     if (lpNumberOfBytesRead)
         *lpNumberOfBytesRead = 0;
 
-    status = NtReadFile((HANDLE)s, NULL, NULL, NULL,
+    HANDLE evt = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (!evt) 
+    {
+        return FALSE;
+    }
+
+    status = NtReadFile((HANDLE)s, evt, NULL, NULL,
         &iosb, lpBuffer, nNumberOfBytesToRead,
         &liBytesOffset, NULL);
 
     if (status == STATUS_PENDING)
     {
-        WaitForSingleObject((HANDLE)s, INFINITE);
+        WaitForSingleObject(evt, INFINITE);
         status = iosb.Status;
     }
+    CloseHandle(evt);
 
     if (NT_SUCCESS(status))
     {
