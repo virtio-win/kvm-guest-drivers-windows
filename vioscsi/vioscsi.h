@@ -58,7 +58,8 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define IO_PORT_LENGTH          0x40
 #define MAX_CPU                 256
 
-#define MAX_PH_BREAKS           "PhysicalBreaks"
+#define REGISTRY_MAX_PH_BREAKS           "PhysicalBreaks"
+#define REGISTRY_ACTION_ON_RESET         "VioscsiActionOnReset"
 
 
 /* Feature Bits */
@@ -271,6 +272,12 @@ typedef struct virtio_bar {
     BOOLEAN           bPortSpace;
 } VIRTIO_BAR, *PVIRTIO_BAR;
 
+typedef enum ACTION_ON_RESET {
+    VioscsiResetCompleteRequests,
+    VioscsiResetDoNothing,
+    VioscsiResetBugCheck = 0xDEADDEAD,
+} ACTION_ON_RESET;
+
 typedef struct _ADAPTER_EXTENSION {
     VirtIODevice          vdev;
 
@@ -326,10 +333,11 @@ typedef struct _ADAPTER_EXTENSION {
     UCHAR                 prod_id[16 + 1];
     UCHAR                 rev_id[4 + 1];
     BOOLEAN               reset_in_progress;
+    ACTION_ON_RESET       action_on_reset;
 #if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
     ULONGLONG             fw_ver;
 #endif
-}ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
+} ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
 
 #ifndef PCIX_TABLE_POINTER
 typedef struct {

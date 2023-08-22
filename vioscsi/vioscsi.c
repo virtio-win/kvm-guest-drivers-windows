@@ -487,7 +487,7 @@ ENTER_FN();
          * [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\vioscsi\Parameters\Device]
          * "PhysicalBreaks"={dword value here}
          */
-        VioScsiReadRegistryParameter(DeviceExtension, MAX_PH_BREAKS, FIELD_OFFSET(ADAPTER_EXTENSION, max_physical_breaks));
+        VioScsiReadRegistryParameter(DeviceExtension, REGISTRY_MAX_PH_BREAKS, FIELD_OFFSET(ADAPTER_EXTENSION, max_physical_breaks));
         adaptExt->max_physical_breaks = min(
                                     max(SCSI_MINIMUM_PHYSICAL_BREAKS, adaptExt->max_physical_breaks),
                                     MAX_PHYS_SEGMENTS);
@@ -519,6 +519,9 @@ ENTER_FN();
     {
         adaptExt->num_queues = min(adaptExt->num_queues, (USHORT)num_cpus);
     }
+
+    adaptExt->action_on_reset = VioscsiResetCompleteRequests;
+    VioScsiReadRegistryParameter(DeviceExtension, REGISTRY_ACTION_ON_RESET, FIELD_OFFSET(ADAPTER_EXTENSION, action_on_reset));
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus);
 
@@ -1493,10 +1496,21 @@ ENTER_FN_SRB();
         case SRB_FUNCTION_RESET_DEVICE:
         case SRB_FUNCTION_RESET_LOGICAL_UNIT:
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> SRB_FUNCTION_RESET_LOGICAL_UNIT Target (%d::%d::%d), SRB 0x%p\n", SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), Srb);
-            CompletePendingRequests(DeviceExtension);
-            SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
-            return TRUE;
-
+            switch (adaptExt->action_on_reset) {
+                case VioscsiResetCompleteRequests:
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Completing all pending SRBs\n");
+                    CompletePendingRequests(DeviceExtension);
+                    SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
+                    return TRUE;
+                case VioscsiResetDoNothing:
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Doing nothing with all pending SRBs\n");
+                    SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
+                    return TRUE;
+                case VioscsiResetBugCheck:
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Let's bugcheck due to this reset event\n");
+                    KeBugCheckEx(0xDEADDEAD, (ULONG_PTR)Srb, SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb));
+                    return TRUE;
+            }
         case SRB_FUNCTION_WMI:
             VioScsiWmiSrb(DeviceExtension, Srb);
             return TRUE;
