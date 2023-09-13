@@ -247,7 +247,8 @@ VIOSerialSendCtrlMsg(
     IN WDFDEVICE hDevice,
     IN ULONG id,
     IN USHORT event,
-    IN USHORT value
+    IN USHORT value,
+    IN BOOLEAN LongWaitAllowed
 );
 
 VOID

@@ -13,12 +13,16 @@ VIOSerialHandleCtrlMsg(
     IN PPORT_BUFFER buf
 );
 
+#define     CTRL_MSG_INITIAL_WAIT           (-1000000LL)
+#define     CTRL_MSG_NORMAL_WAIT           (-10000000LL)
+
 VOID
 VIOSerialSendCtrlMsg(
     IN WDFDEVICE Device,
     IN ULONG id,
     IN USHORT event,
-    IN USHORT value
+    IN USHORT value,
+    IN BOOLEAN LongWaitAllowed
 )
 {
     struct VirtIOBufferDescriptor sg;
@@ -51,12 +55,26 @@ VIOSerialSendCtrlMsg(
     WdfWaitLockAcquire(pContext->COutVqLock, NULL);
     if(0 <= virtqueue_add_buf(vq, &sg, 1, 0, &cpkt, NULL, 0))
     {
+        LARGE_INTEGER interval;
+
         virtqueue_kick(vq);
+        interval.QuadPart = CTRL_MSG_INITIAL_WAIT;
         while(!virtqueue_get_buf(vq, &len))
         {
-            LARGE_INTEGER interval;
-            interval.QuadPart = -1;
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s waiting for the hypervisor (%lld ms)\n", __FUNCTION__, -interval.QuadPart / 10000);
             KeDelayExecutionThread(KernelMode, FALSE, &interval);
+            if (!LongWaitAllowed &&
+                interval.QuadPart == CTRL_MSG_NORMAL_WAIT)
+            {
+                if (!virtqueue_get_buf(vq, &len))
+                {
+                    TraceEvents(TRACE_LEVEL_WARNING, DBG_PNP, "--> %s log waits not possible, exiting the wait loop\n", __FUNCTION__);
+                }
+
+                break;
+            }
+
+            interval.QuadPart = CTRL_MSG_NORMAL_WAIT;
         }
     }
     WdfWaitLockRelease(pContext->COutVqLock);
