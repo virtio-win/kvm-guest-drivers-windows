@@ -165,7 +165,7 @@ VIOSerialInitPortConsoleWork(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
-    VIOSerialSendCtrlMsg(pport->BusDevice, pport->PortId, VIRTIO_CONSOLE_PORT_OPEN, 1);
+    VIOSerialSendCtrlMsg(pport->BusDevice, pport->PortId, VIRTIO_CONSOLE_PORT_OPEN, 1, TRUE);
 
     WdfObjectDelete(WorkItem);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
@@ -593,7 +593,7 @@ VIOSerialDeviceListCreatePdo(
     if (!NT_SUCCESS(status))
     {
         // We can send this before PDO is PRESENT since the device won't send any response.
-        VIOSerialSendCtrlMsg(pport->BusDevice, pport->PortId, VIRTIO_CONSOLE_PORT_READY, 0);
+        VIOSerialSendCtrlMsg(pport->BusDevice, pport->PortId, VIRTIO_CONSOLE_PORT_READY, 0, TRUE);
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s status 0x%x\n", __FUNCTION__, status);
@@ -918,7 +918,7 @@ VIOSerialPortCreate(
         VIOSerialReclaimConsumedBuffers(pdoData->port);
 
         VIOSerialSendCtrlMsg(pdoData->port->BusDevice, pdoData->port->PortId,
-            VIRTIO_CONSOLE_PORT_OPEN, 1);
+            VIRTIO_CONSOLE_PORT_OPEN, 1, TRUE);
     }
 
     WdfRequestComplete(Request, status);
@@ -942,7 +942,7 @@ VIOSerialPortClose(
     {
         if (pdoData->port->GuestConnected) {
             VIOSerialSendCtrlMsg(pdoData->port->BusDevice,
-                pdoData->port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
+                pdoData->port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 0, TRUE);
         }
 
         WdfSpinLockAcquire(pdoData->port->InBufLock);
@@ -1424,12 +1424,12 @@ NTSTATUS VIOSerialPortEvtDeviceD0Entry(
     }
 
     VIOSerialSendCtrlMsg(port->BusDevice, port->PortId,
-        VIRTIO_CONSOLE_PORT_READY, 1);
+        VIRTIO_CONSOLE_PORT_READY, 1, TRUE);
 
     if (port->GuestConnected)
     {
         VIOSerialSendCtrlMsg(port->BusDevice, port->PortId,
-            VIRTIO_CONSOLE_PORT_OPEN, 1);
+            VIRTIO_CONSOLE_PORT_OPEN, 1, TRUE);
     }
 
     port->Removed = FALSE;
@@ -1460,7 +1460,7 @@ VIOSerialPortEvtDeviceD0Exit(
     if (Port->GuestConnected)
     {
         VIOSerialSendCtrlMsg(Port->BusDevice,
-            Port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 0);
+            Port->PortId, VIRTIO_CONSOLE_PORT_OPEN, 0, (TargetState != WdfPowerDeviceD3Final));
     }
 
     WdfSpinLockAcquire(Port->InBufLock);
