@@ -114,11 +114,16 @@ NTSTATUS VioGpuDod::StartDevice(_In_  DXGK_START_INFO*   pDxgkStartInfo,
 
     if (pDxgkInterface->Size > sizeof(m_DxgkInterface))
     {
-        DbgPrint(TRACE_LEVEL_FATAL, ("VIOGPU: Provided interface cannot be used by Viogpudo (version %u, size %u, max size %llu)\n", pDxgkInterface->Version, pDxgkInterface->Size, sizeof(m_DxgkInterface)));
-        return STATUS_NOT_SUPPORTED;
+        RtlCopyMemory(&m_DxgkInterface, pDxgkInterface, sizeof(m_DxgkInterface));
+        m_DxgkInterface.Version = DXGKDDI_INTERFACE_VERSION;
+        m_DxgkInterface.Size = sizeof(m_DxgkInterface);
+        DbgPrint(TRACE_LEVEL_FATAL, ("VIOGPU: Provided interface version cannot be used by Viogpudo (version %u, size %u), degrading to version %u, size %u)\n", pDxgkInterface->Version, pDxgkInterface->Size, m_DxgkInterface.Version, m_DxgkInterface.Size));
+    }
+    else
+    {
+        RtlCopyMemory(&m_DxgkInterface, pDxgkInterface, pDxgkInterface->Size);
     }
 
-    RtlCopyMemory(&m_DxgkInterface, pDxgkInterface, pDxgkInterface->Size);
     RtlZeroMemory(&m_CurrentMode, sizeof(m_CurrentMode));
     m_CurrentMode.DispInfo.TargetId = D3DDDI_ID_UNINITIALIZED;
 
