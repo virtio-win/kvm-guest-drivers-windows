@@ -2653,7 +2653,6 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
         RtlZeroMemory(crsr, sizeof(*crsr));
 
         crsr->hdr.type = VIRTIO_GPU_CMD_MOVE_CURSOR;
-        crsr->resource_id = m_pCursorBuf->GetId();
 
         if (!pSetPointerPosition->Flags.Visible ||
             (UINT)pSetPointerPosition->X > pModeCur->SrcModeWidth ||
@@ -2669,6 +2668,7 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
                 pSetPointerPosition->VidPnSourceId));
             crsr->pos.x = 0;
             crsr->pos.y = 0;
+            crsr->resource_id = 0;
         }
         else {
             DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s (%d - %d) Visiable = %d Value = %x VidPnSourceId = %d posX = %d, psY = %d\n",
@@ -2682,6 +2682,7 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
                 pSetPointerPosition->Y));
             crsr->pos.x = pSetPointerPosition->X;
             crsr->pos.y = pSetPointerPosition->Y;
+            crsr->resource_id = m_pCursorBuf->GetId();
         }
         ret = m_CursorQueue.QueueCursor(vbuf);
         DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s vbuf = %p, ret = %d\n", __FUNCTION__, vbuf, ret));
