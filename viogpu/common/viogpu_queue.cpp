@@ -455,7 +455,7 @@ void CtrlQueue::ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y, PUINT fence_id)
+void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y, PUINT fence_id, PKEVENT event)
 {
     PAGED_CODE();
 
@@ -463,6 +463,7 @@ void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT hei
     PGPU_RES_TRANSF_TO_HOST_2D cmd;
     PGPU_VBUFFER vbuf;
     cmd = (PGPU_RES_TRANSF_TO_HOST_2D)AllocCmd(&vbuf, sizeof(*cmd));
+    vbuf->event = event;
     RtlZeroMemory(cmd, sizeof(*cmd));
 
     cmd->hdr.type = VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D;
