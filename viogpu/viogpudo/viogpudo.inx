@@ -63,7 +63,7 @@ HKR,,EventMessageFile,%REG_EXPAND_SZ%,"%%SystemRoot%%\System32\IoLogMsg.dll"
 HKR,,TypesSupported,%REG_DWORD%,7
 
 [VioGpuDod_DeviceSettings]
-HKR,, HWCursor,                    %REG_DWORD%, 0
+HKR,, HWCursor,                    %REG_DWORD%, 1
 HKR,, FlexResolution,              %REG_DWORD%, 1
 HKR,, UsePhysicalMemory,           %REG_DWORD%, 1
 HKR,, UsePresentProgress,          %REG_DWORD%, 1
