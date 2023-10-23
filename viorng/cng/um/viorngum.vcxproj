@@ -13,18 +13,6 @@
       <Configuration>Win10 Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8 Release|ARM64">
-      <Configuration>Win8 Release</Configuration>
-      <Platform>ARM64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8 Release|Win32">
-      <Configuration>Win8 Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8 Release|x64">
-      <Configuration>Win8 Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Win8.1 Release|ARM64">
       <Configuration>Win8.1 Release</Configuration>
       <Platform>ARM64</Platform>
@@ -63,9 +51,6 @@
     <UseDebugLibraries>false</UseDebugLibraries>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Win10 Release'" Label="Configuration">
-    <WholeProgramOptimization>true</WholeProgramOptimization>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)'=='Win8 Release'" Label="Configuration">
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Win8.1 Release'" Label="Configuration">

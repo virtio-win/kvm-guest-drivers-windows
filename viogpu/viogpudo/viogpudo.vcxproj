@@ -13,18 +13,6 @@
       <Configuration>Win10 Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8 Release|ARM64">
-      <Configuration>Win8 Release</Configuration>
-      <Platform>ARM64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8 Release|Win32">
-      <Configuration>Win8 Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8 Release|x64">
-      <Configuration>Win8 Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Win8.1 Release|ARM64">
       <Configuration>Win8.1 Release</Configuration>
       <Platform>ARM64</Platform>
@@ -86,26 +74,6 @@
     <DriverTargetPlatform>
     </DriverTargetPlatform>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" Label="Configuration">
-    <TargetVersion>Windows8</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <ConfigurationType>Driver</ConfigurationType>
-    <DriverType>WDM</DriverType>
-    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
-    <DriverTargetPlatform>
-    </DriverTargetPlatform>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|ARM64'" Label="Configuration">
-    <TargetVersion>Windows8</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <ConfigurationType>Driver</ConfigurationType>
-    <DriverType>WDM</DriverType>
-    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
-    <DriverTargetPlatform>
-    </DriverTargetPlatform>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -117,16 +85,6 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'" Label="Configuration">
     <TargetVersion>WindowsV6.3</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <ConfigurationType>Driver</ConfigurationType>
-    <DriverType>WDM</DriverType>
-    <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
-    <DriverTargetPlatform>
-    </DriverTargetPlatform>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" Label="Configuration">
-    <TargetVersion>Windows8</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <ConfigurationType>Driver</ConfigurationType>
@@ -168,20 +126,6 @@
     <OutDir>objfre_win8.1_arm64\arm64\</OutDir>
     <IntDir>objfre_win8.1_arm64\arm64\</IntDir>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <OutDir>objfre_win8_x86\i386\</OutDir>
-    <IntDir>objfre_win8_x86\i386\</IntDir>
-    <Inf2CatWindowsVersionList>8_$(DDKPlatform)</Inf2CatWindowsVersionList>
-    <Inf2CatVerbose>false</Inf2CatVerbose>
-    <TargetName>viogpudo</TargetName>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|ARM64'">
-    <Inf2CatWindowsVersionList>8_$(DDKPlatform)</Inf2CatWindowsVersionList>
-    <Inf2CatVerbose>false</Inf2CatVerbose>
-    <TargetName>viogpudo</TargetName>
-    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <OutDir>objfre_win10_amd64\amd64\</OutDir>
@@ -194,13 +138,6 @@
     <IntDir>objfre_win8.1_amd64\amd64\</IntDir>
     <TargetName>viogpudo</TargetName>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <OutDir>objfre_win8_amd64\amd64\</OutDir>
-    <IntDir>objfre_win8_amd64\amd64\</IntDir>
-    <Inf2CatWindowsVersionList>8_$(DDKPlatform)</Inf2CatWindowsVersionList>
-    <TargetName>viogpudo</TargetName>
-  </PropertyGroup>
   <PropertyGroup>
     <CustomBuildAfterTargets>dvl</CustomBuildAfterTargets>
   </PropertyGroup>
@@ -210,59 +147,6 @@
       <Inputs>$(ProjectDir)viogpudo.DVL.XML</Inputs>
       <Outputs>$(ProjectDir)$(PackOne_DestinationPrefix)Install\$(TargetOS)\$(TargetArch)\viogpudo.DVL.XML</Outputs>
     </CustomBuildStep>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-    <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib;$(DDK_LIB_PATH)\displib.lib;virtiolib.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\VirtIO\$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-    </Link>
-    <ClCompile>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;</AdditionalIncludeDirectories>
-      <DisableSpecificWarnings>4201;4603;4627;4986;4987;4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>VIOGPU_DOD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <WppEnabled>true</WppEnabled>
-      <WppScanConfigurationData>trace.h</WppScanConfigurationData>
-    </ClCompile>
-    <Inf>
-      <SpecifyDriverVerDirectiveDate>true</SpecifyDriverVerDirectiveDate>
-    </Inf>
-    <Inf>
-      <KmdfVersionNumber>$(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)</KmdfVersionNumber>
-      <EnableVerbose>
-      </EnableVerbose>
-      <SpecifyDriverVerDirectiveVersion>true</SpecifyDriverVerDirectiveVersion>
-    </Inf>
-    <PostBuildEvent>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|ARM64'">
-    <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib;$(DDK_LIB_PATH)\displib.lib;virtiolib.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\VirtIO\$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-    </Link>
-    <ClCompile>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;</AdditionalIncludeDirectories>
-      <DisableSpecificWarnings>4201;4603;4627;4986;4987;4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>VIOGPU_DOD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <WppEnabled>true</WppEnabled>
-      <WppScanConfigurationData>trace.h</WppScanConfigurationData>
-    </ClCompile>
-    <Inf>
-      <SpecifyDriverVerDirectiveDate>true</SpecifyDriverVerDirectiveDate>
-    </Inf>
-    <Inf>
-      <KmdfVersionNumber>$(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)</KmdfVersionNumber>
-      <EnableVerbose>
-      </EnableVerbose>
-      <SpecifyDriverVerDirectiveVersion>true</SpecifyDriverVerDirectiveVersion>
-    </Inf>
-    <PostBuildEvent />
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64 '">
-    <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib;$(DDK_LIB_PATH)\displib.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\VirtIO\objfre_win8_x86\amd64\</AdditionalLibraryDirectories>
-    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <Link>
@@ -364,26 +248,6 @@
       <AdditionalLibraryDirectories>..\..\VirtIO\$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent />
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-    <ClCompile>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>VIOGPU_DOD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <WppEnabled>true</WppEnabled>
-      <WppScanConfigurationData>trace.h</WppScanConfigurationData>
-    </ClCompile>
-    <Inf>
-      <SpecifyDriverVerDirectiveDate>true</SpecifyDriverVerDirectiveDate>
-    </Inf>
-    <Inf>
-      <KmdfVersionNumber>$(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)</KmdfVersionNumber>
-    </Inf>
-    <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib;$(DDK_LIB_PATH)\displib.lib;virtiolib.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\VirtIO\$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-    </Link>
-    <PostBuildEvent>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\common\baseobj.h" />

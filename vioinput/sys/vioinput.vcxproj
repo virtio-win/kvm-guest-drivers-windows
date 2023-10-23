@@ -5,20 +5,12 @@
       <Configuration>Win8.1 Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8 Release|Win32">
-      <Configuration>Win8 Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Win10 Release|Win32">
       <Configuration>Win10 Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win8.1 Release|x64">
       <Configuration>Win8.1 Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8 Release|x64">
-      <Configuration>Win8 Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Win10 Release|x64">
@@ -35,7 +27,7 @@
     <TemplateGuid>{1bc93793-694f-48fe-9372-81e2b05556fd}</TemplateGuid>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <MinimumVisualStudioVersion>11.0</MinimumVisualStudioVersion>
-    <Configuration>Win8 Release</Configuration>
+    <Configuration>Win10 Release</Configuration>
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
     <SignMode>Off</SignMode>
   </PropertyGroup>
@@ -52,11 +44,6 @@
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <KMDF_VERSION_MINOR>13</KMDF_VERSION_MINOR>
   </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-    <TargetVersion>Windows8</TargetVersion>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
-  </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <TargetVersion>Windows10</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
@@ -66,11 +53,6 @@
     <TargetVersion>WindowsV6.3</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <KMDF_VERSION_MINOR>13</KMDF_VERSION_MINOR>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-    <TargetVersion>Windows8</TargetVersion>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <TargetVersion>Windows10</TargetVersion>
@@ -122,11 +104,9 @@
     <Link>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">..\..\VirtIO\objfre_win8_x86\i386;..\..\VirtIO\WDF\objfre_win8_x86\i386;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">..\..\VirtIO\objfre_win8.1_x86\i386;..\..\VirtIO\WDF\objfre_win8.1_x86\i386;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">..\..\VirtIO\objfre_win10_x86\i386;..\..\VirtIO\WDF\objfre_win10_x86\i386;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">..\..\VirtIO\objfre_win10_arm64\arm64;..\..\VirtIO\WDF\objfre_win10_arm64\arm64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">..\..\VirtIO\objfre_win8_amd64\amd64;..\..\VirtIO\WDF\objfre_win8_amd64\amd64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">..\..\VirtIO\objfre_win8.1_amd64\amd64;..\..\VirtIO\WDF\objfre_win8.1_amd64\amd64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">..\..\VirtIO\objfre_win10_amd64\amd64;..\..\VirtIO\WDF\objfre_win10_amd64\amd64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>virtiolib.lib;virtiolib_wdf.lib;ntstrsafe.lib;wdmsec.lib;%(AdditionalDependencies)</AdditionalDependencies>

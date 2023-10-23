@@ -3,7 +3,7 @@
 if "%VIRTIO_WIN_NO_ARM%"=="" call tools\build.bat virtio-win.sln Win10 ARM64
 if errorlevel 1 goto :fail
 
-call tools\build.bat virtio-win.sln "Win8 Win8.1 Win10" %*
+call tools\build.bat virtio-win.sln "Win8.1 Win10" %*
 if errorlevel 1 goto :fail
 call tools\build.bat NetKVM\NetKVM-VS2015.vcxproj "Win10_SDV" %*
 if errorlevel 1 goto :fail

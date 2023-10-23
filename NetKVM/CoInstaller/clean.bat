@@ -13,8 +13,6 @@ goto rmfiles
 :start
 
 call :rmdir x64
-call :rmdir Win8Debug
-call :rmdir Win8Release
 call :rmdir Win8.1Debug
 call :rmdir Win8.1Release
 call :rmdir Win10Release

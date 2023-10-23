@@ -9,10 +9,6 @@
       <Configuration>Win8.1 Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8 Release|Win32">
-      <Configuration>Win8 Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Win10 Release|x64">
       <Configuration>Win10 Release</Configuration>
       <Platform>x64</Platform>
@@ -25,17 +21,13 @@
       <Configuration>Win8.1 Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8 Release|x64">
-      <Configuration>Win8 Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{1530C86E-90C0-4270-B3A2-0FB90152CA48}</ProjectGuid>
     <TemplateGuid>{dd38f7fc-d7bd-488b-9242-7d8754cde80d}</TemplateGuid>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <MinimumVisualStudioVersion>11.0</MinimumVisualStudioVersion>
-    <Configuration>Win8 Release</Configuration>
+    <Configuration>Win10 Release</Configuration>
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
     <SignMode>Off</SignMode>
   </PropertyGroup>
@@ -60,10 +52,6 @@
     <TargetVersion>WindowsV6.3</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
   </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-    <TargetVersion>Windows8</TargetVersion>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-  </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <TargetVersion>Windows10</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
@@ -74,10 +62,6 @@
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <TargetVersion>WindowsV6.3</TargetVersion>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-    <TargetVersion>Windows8</TargetVersion>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\vioscsi.props" />
@@ -101,10 +85,6 @@
     <OutDir>objfre_win8.1_x86\i386\</OutDir>
     <IntDir>objfre_win8.1_x86\i386\</IntDir>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-    <OutDir>objfre_win8_x86\i386\</OutDir>
-    <IntDir>objfre_win8_x86\i386\</IntDir>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <OutDir>objfre_win10_amd64\amd64\</OutDir>
     <IntDir>objfre_win10_amd64\amd64\</IntDir>
@@ -116,10 +96,6 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">
     <OutDir>objfre_win8.1_amd64\amd64\</OutDir>
     <IntDir>objfre_win8.1_amd64\amd64\</IntDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-    <OutDir>objfre_win8_amd64\amd64\</OutDir>
-    <IntDir>objfre_win8_amd64\amd64\</IntDir>
   </PropertyGroup>
   <PropertyGroup>
     <CustomBuildAfterTargets>dvl</CustomBuildAfterTargets>
@@ -156,11 +132,6 @@
       <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">trace.h</WppScanConfigurationData>
     </ClCompile>
     <ClCompile>
-      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">true</WppEnabled>
-      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
-      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">trace.h</WppScanConfigurationData>
-    </ClCompile>
-    <ClCompile>
       <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">true</WppEnabled>
       <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
       <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">trace.h</WppScanConfigurationData>
@@ -174,11 +145,6 @@
       <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">true</WppEnabled>
       <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
       <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">trace.h</WppScanConfigurationData>
-    </ClCompile>
-    <ClCompile>
-      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">true</WppEnabled>
-      <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
-      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">trace.h</WppScanConfigurationData>
     </ClCompile>
     <ClCompile>
       <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">true</WppEnabled>

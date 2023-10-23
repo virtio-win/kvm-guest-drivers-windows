@@ -13,14 +13,6 @@
       <Configuration>Win10 Release</Configuration>
       <Platform>ARM64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8 Release|Win32">
-      <Configuration>Win8 Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8 Release|x64">
-      <Configuration>Win8 Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Win8.1 Release|ARM64">
       <Configuration>Win8.1 Release</Configuration>
       <Platform>ARM64</Platform>
@@ -56,14 +48,6 @@
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
     <CharacterSet>NotSet</CharacterSet>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
-    <TargetVersion>Windows8</TargetVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -113,14 +97,6 @@
     <CharacterSet>Unicode</CharacterSet>
     <TargetVersion>WindowsV6.3</TargetVersion>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>WindowsApplicationForDrivers10.0</PlatformToolset>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
-    <TargetVersion>Windows8</TargetVersion>
-  </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <Import Project="$(MSBuildProjectDirectory)\vioser-test.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -129,12 +105,6 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-    <LinkIncremental>false</LinkIncremental>
-    <OutDir>objfre_win8_x86\i386\</OutDir>
-    <IntDir>objfre_win8_x86\i386\</IntDir>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(ProjectDir)win</IncludePath>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>objfre_win10_x86\i386\</OutDir>
@@ -145,12 +115,6 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>objfre_win8.1_x86\i386\</OutDir>
     <IntDir>objfre_win8.1_x86\i386\</IntDir>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(ProjectDir)win</IncludePath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-    <LinkIncremental>false</LinkIncremental>
-    <OutDir>objfre_win8_amd64\amd64\</OutDir>
-    <IntDir>objfre_win8_amd64\amd64\</IntDir>
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(ProjectDir)win</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">

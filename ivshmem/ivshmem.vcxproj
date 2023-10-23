@@ -21,14 +21,6 @@
       <Configuration>Win8.1 Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8 Release|Win32">
-      <Configuration>Win8 Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8 Release|x64">
-      <Configuration>Win8 Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Device.c" />
@@ -95,22 +87,6 @@
     <DriverType>KMDF</DriverType>
     <KMDF_VERSION_MINOR>13</KMDF_VERSION_MINOR>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'" Label="Configuration">
-    <TargetVersion>Windows8</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <ConfigurationType>Driver</ConfigurationType>
-    <DriverType>KMDF</DriverType>
-    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'" Label="Configuration">
-    <TargetVersion>Windows8</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <ConfigurationType>Driver</ConfigurationType>
-    <DriverType>KMDF</DriverType>
-    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
-  </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\ivshmem.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -154,20 +130,6 @@
     <TargetName>ivshmem</TargetName>
     <OutDir>objfre_win8.1_amd64\amd64\</OutDir>
     <IntDir>objfre_win8.1_amd64\amd64\</IntDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
-    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
-    <TargetName>ivshmem</TargetName>
-    <OutDir>objfre_win8_x86\i386\</OutDir>
-    <IntDir>objfre_win8_x86\i386\</IntDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
-    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
-    <TargetName>ivshmem</TargetName>
-    <OutDir>objfre_win8_amd64\amd64\</OutDir>
-    <IntDir>objfre_win8_amd64\amd64\</IntDir>
   </PropertyGroup>
   <PropertyGroup>
     <CustomBuildAfterTargets>dvl</CustomBuildAfterTargets>
