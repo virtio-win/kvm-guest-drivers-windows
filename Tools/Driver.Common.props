@@ -57,11 +57,6 @@ Common property definitions used by all drivers:
     <TargetOS>Win8.1</TargetOS>
     <InfArch>$(TargetArch).6.3</InfArch>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)'=='Win8 Release' OR '$(Configuration)'=='Win8 Debug'">
-    <_NT_TARGET_MAJ>62</_NT_TARGET_MAJ>
-    <TargetOS>Win8</TargetOS>
-    <InfArch>$(TargetArch).6.2</InfArch>
-  </PropertyGroup>
 
   <!-- WPP settings -->
   <ItemDefinitionGroup>
