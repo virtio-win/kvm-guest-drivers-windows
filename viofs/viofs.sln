@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31702.278
@@ -49,9 +49,9 @@ Global
 		{B415038E-1FD4-4001-AEAB-CFA2177B1806}.Win8 Release|x86.ActiveCfg = Win8 Release|Win32
 		{B415038E-1FD4-4001-AEAB-CFA2177B1806}.Win8 Release|x86.Build.0 = Win8 Release|Win32
 		{B415038E-1FD4-4001-AEAB-CFA2177B1806}.Win8 Release|x86.Deploy.0 = Win8 Release|Win32
-		{B415038E-1FD4-4001-AEAB-CFA2177B1806}.Win8.1 Release|ARM64.ActiveCfg = Win8 Release|Win32
-		{B415038E-1FD4-4001-AEAB-CFA2177B1806}.Win8.1 Release|ARM64.Build.0 = Win8 Release|Win32
-		{B415038E-1FD4-4001-AEAB-CFA2177B1806}.Win8.1 Release|ARM64.Deploy.0 = Win8 Release|Win32
+		{B415038E-1FD4-4001-AEAB-CFA2177B1806}.Win8.1 Release|ARM64.ActiveCfg = Win8.1 Release|ARM64
+		{B415038E-1FD4-4001-AEAB-CFA2177B1806}.Win8.1 Release|ARM64.Build.0 = Win8.1 Release|ARM64
+		{B415038E-1FD4-4001-AEAB-CFA2177B1806}.Win8.1 Release|ARM64.Deploy.0 = Win8.1 Release|ARM64
 		{B415038E-1FD4-4001-AEAB-CFA2177B1806}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
 		{B415038E-1FD4-4001-AEAB-CFA2177B1806}.Win8.1 Release|x64.Build.0 = Win8.1 Release|x64
 		{B415038E-1FD4-4001-AEAB-CFA2177B1806}.Win8.1 Release|x64.Deploy.0 = Win8.1 Release|x64
@@ -73,9 +73,9 @@ Global
 		{209E8947-494D-4104-B44B-530CB68A6494}.Win8 Release|x86.ActiveCfg = Win8 Release|Win32
 		{209E8947-494D-4104-B44B-530CB68A6494}.Win8 Release|x86.Build.0 = Win8 Release|Win32
 		{209E8947-494D-4104-B44B-530CB68A6494}.Win8 Release|x86.Deploy.0 = Win8 Release|Win32
-		{209E8947-494D-4104-B44B-530CB68A6494}.Win8.1 Release|ARM64.ActiveCfg = Win8 Release|Win32
-		{209E8947-494D-4104-B44B-530CB68A6494}.Win8.1 Release|ARM64.Build.0 = Win8 Release|Win32
-		{209E8947-494D-4104-B44B-530CB68A6494}.Win8.1 Release|ARM64.Deploy.0 = Win8 Release|Win32
+		{209E8947-494D-4104-B44B-530CB68A6494}.Win8.1 Release|ARM64.ActiveCfg = Win8.1 Release|ARM64
+		{209E8947-494D-4104-B44B-530CB68A6494}.Win8.1 Release|ARM64.Build.0 = Win8.1 Release|ARM64
+		{209E8947-494D-4104-B44B-530CB68A6494}.Win8.1 Release|ARM64.Deploy.0 = Win8.1 Release|ARM64
 		{209E8947-494D-4104-B44B-530CB68A6494}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
 		{209E8947-494D-4104-B44B-530CB68A6494}.Win8.1 Release|x64.Build.0 = Win8.1 Release|x64
 		{209E8947-494D-4104-B44B-530CB68A6494}.Win8.1 Release|x64.Deploy.0 = Win8.1 Release|x64
