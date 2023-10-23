@@ -190,12 +190,12 @@ Global
 		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8 Release|x64.Deploy.0 = Win8 Release|x64
 		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8 Release|x86.ActiveCfg = Win8 Release|Win32
 		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8 Release|x86.Build.0 = Win8 Release|Win32
-		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8.1 Release|ARM64.ActiveCfg = Win10 Debug|ARM64
-		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8.1 Release|x64.ActiveCfg = Win8 Release|x64
-		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8.1 Release|x64.Build.0 = Win8 Release|x64
-		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8.1 Release|x64.Deploy.0 = Win8 Release|x64
-		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8.1 Release|x86.ActiveCfg = Win8 Release|Win32
-		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8.1 Release|x86.Build.0 = Win8 Release|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8.1 Release|ARM64.ActiveCfg = Win8.1 Release|ARM64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8.1 Release|x64.Build.0 = Win8.1 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8.1 Release|x64.Deploy.0 = Win8.1 Release|x64
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8.1 Release|x86.ActiveCfg = Win8.1 Release|Win32
+		{96FDD976-0035-4E24-A61B-E93BED675101}.Win8.1 Release|x86.Build.0 = Win8.1 Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
