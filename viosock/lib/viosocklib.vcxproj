@@ -13,18 +13,6 @@
       <Configuration>Win10 Release</Configuration>
       <Platform>ARM64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8.1 Release|ARM64">
-      <Configuration>Win8.1 Release</Configuration>
-      <Platform>ARM64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8.1 Release|Win32">
-      <Configuration>Win8.1 Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Win8.1 Release|x64">
-      <Configuration>Win8.1 Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{315D93F9-0F5C-4ACD-AFB1-96B1E62559BC}</ProjectGuid>
@@ -45,9 +33,6 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <LinkIncremental Condition="'$(Configuration)'!='Win10 Debug'">true</LinkIncremental>
     <WholeProgramOptimization>false</WholeProgramOptimization>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)'=='Win8.1 Release'" Label="Configuration">
-    <TargetVersion>WindowsV6.3</TargetVersion>
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\viosocklib.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />

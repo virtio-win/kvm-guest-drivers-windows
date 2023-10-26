@@ -52,11 +52,6 @@ Common property definitions used by all drivers:
 	<DriverTargetPlatform>Universal</DriverTargetPlatform>
     <InfArch>$(TargetArch).$(INF_ARCH_FOR_WIN10)</InfArch>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)'=='Win8.1 Release' OR '$(Configuration)'=='Win8.1 Debug'">
-    <_NT_TARGET_MAJ>63</_NT_TARGET_MAJ>
-    <TargetOS>Win8.1</TargetOS>
-    <InfArch>$(TargetArch).6.3</InfArch>
-  </PropertyGroup>
 
   <!-- WPP settings -->
   <ItemDefinitionGroup>
