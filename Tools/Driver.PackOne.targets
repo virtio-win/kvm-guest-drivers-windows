@@ -45,7 +45,7 @@ Related features:
   <!-- checking $(TargetOS) and $(TargetArch) -->
   <Target Condition="'$(Feature_PackOne)'=='true'" Name="CheckPackOne" BeforeTargets="PackOneTarget">
     <ItemGroup>
-      <PackOne_ValidOS Include="Win8.1;Win10"/>
+      <PackOne_ValidOS Include="Win10"/>
       <PackOne_ValidArch Include="x86;amd64;ARM64"/>
     </ItemGroup>
     <Message Text="Checking PackOne: TargetOS=$(TargetOS) and TargetArch=$(TargetArch)" Importance="high"/>
@@ -68,13 +68,6 @@ Related features:
     <PackOne_FileName>$(TargetName)</PackOne_FileName>
   </PropertyGroup>
 
-  <!-- variant for win8.1 -->
-  <PropertyGroup Condition="'$(TargetOS)'=='Win8.1' AND '$(TargetArch)'=='x86'">
-    <PackOne_OsMask>6_3_X86</PackOne_OsMask>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(TargetOS)'=='Win8.1' AND '$(TargetArch)'=='amd64'">
-    <PackOne_OsMask>6_3_X64,Server6_3_X64</PackOne_OsMask>
-  </PropertyGroup>
   <!-- from packone.bat create_win10 variant -->
   <PropertyGroup Condition="'$(TargetOS)'=='Win10' AND '$(TargetArch)'=='x86'">
     <PackOne_OsMask>10_X86</PackOne_OsMask>
@@ -119,7 +112,6 @@ Related features:
   <!-- $(PackOne_CopyWdf) and $(PackOne_WdfCoinstaller) -->
   <PropertyGroup Condition="'$(Feature_UsingWDF)'!='false'">
     <PackOne_CopyWdf>true</PackOne_CopyWdf>
-    <PackOne_WdfCoinstaller Condition="'$(TargetOS)'=='Win8.1'"></PackOne_WdfCoinstaller>
     <PackOne_WdfCoinstaller Condition="'$(TargetOS)'=='Win10'"></PackOne_WdfCoinstaller>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Feature_UsingWDF)'=='false' OR '$(PackOne_WdfCoinstaller)'==''">
