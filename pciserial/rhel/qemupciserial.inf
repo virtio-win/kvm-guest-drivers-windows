@@ -13,6 +13,11 @@
 
 ; This file covers pci-serial (1x only) for both 32 and 64 bit platforms.
 
+;Installation Notes:
+;    Step by step driver installation wiki:
+;        https://github.com/virtio-win/kvm-guest-drivers-windows/wiki/Driver-installation
+;
+
 [Version]
 Signature="$CHICAGO$"
 Class=Ports

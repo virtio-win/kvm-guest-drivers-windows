@@ -6,6 +6,10 @@
 ; Copyright (c) 2017 Red Hat, Inc.  All rights reserved.
 ;
 ;-------------------------------------------------------------------------------
+;Installation Notes:
+;    Step by step driver installation wiki:
+;        https://github.com/virtio-win/kvm-guest-drivers-windows/wiki/Driver-installation
+;
 
 [Version]
 Signature = "$Windows NT$"

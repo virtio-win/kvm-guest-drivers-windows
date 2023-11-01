@@ -14,6 +14,11 @@
 ; This file covers all options: pci-serial, pci-serial-2x, pci-serial-4x
 ; for both 32 and 64 bit platforms.
 
+;Installation Notes:
+;    Step by step driver installation wiki:
+;        https://github.com/virtio-win/kvm-guest-drivers-windows/wiki/Driver-installation
+;
+
 [Version]
 Signature="$Windows NT$"
 Class=MultiFunction

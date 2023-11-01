@@ -6,6 +6,10 @@
 ;-----------------------------------
 ;       VIRTIO network protocol
 ;-----------------------------------
+;Installation Notes:
+;    Step by step driver installation wiki:
+;        https://github.com/virtio-win/kvm-guest-drivers-windows/wiki/Driver-installation
+;
 
 [version]
 Signature   = "$Windows NT$"

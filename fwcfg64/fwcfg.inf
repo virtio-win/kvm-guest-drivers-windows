@@ -9,7 +9,8 @@
 ;Abstract:
 ;
 ;Installation Notes:
-;    Using Devcon: Type "devcon install fwcfg.inf ACPI\QEMU0002" to install
+;    Step by step driver installation wiki:
+;        https://github.com/virtio-win/kvm-guest-drivers-windows/wiki/Driver-installation
 ;
 ;--*/
 

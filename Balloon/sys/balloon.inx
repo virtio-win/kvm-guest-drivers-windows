@@ -9,8 +9,8 @@
 ;Abstract:
 ;
 ;Installation Notes: 
-;    Using Devcon: Type "devcon install BALLOON.inf PCI\VEN_1AF4&DEV_1002&SUBSYS_0005_INX_SUBSYS_VENDOR_ID&REV_00" or
-;                       "devcon install BALLOON.inf PCI\VEN_1AF4&DEV_1045&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01" to install
+;    Step by step driver installation wiki:
+;        https://github.com/virtio-win/kvm-guest-drivers-windows/wiki/Driver-installation
 ;
 ;--*/
 
