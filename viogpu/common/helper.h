@@ -72,9 +72,9 @@ extern "C" {
     #include "kdebugprint.h"
     #include "viogpu_pci.h"
     #include "viogpu.h"
-    #include "viogpu_queue.h"
-    #include "viogpu_idr.h"
     #include "viogpum.h"
+    #include "viogpu_idr.h"
+    #include "viogpu_queue.h"
 }
 
 #define MAX_CHILDREN               1

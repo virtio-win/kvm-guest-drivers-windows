@@ -2187,7 +2187,7 @@ NTSTATUS VioGpuAdapter::VirtIoDeviceInit()
     return virtio_device_initialize(
         &m_VioDev,
         &VioGpuSystemOps,
-        this,
+        reinterpret_cast<IVioGpuPCI*>(this),
         m_PciResources.IsMSIEnabled());
 }
 
@@ -2561,7 +2561,7 @@ NTSTATUS VioGpuAdapter::ExecutePresentDisplayOnly(
         pModeCur->SrcModeWidth,
         pModeCur->SrcModeHeight));
 
-    m_CtrlQueue.TransferToHost2D(resid, offset, updrect.right - updrect.left, updrect.bottom - updrect.top, updrect.left, updrect.top, NULL);
+    m_CtrlQueue.TransferToHost2D(resid, offset, updrect.right - updrect.left, updrect.bottom - updrect.top, updrect.left, updrect.top);
     m_CtrlQueue.ResFlush(resid, updrect.right - updrect.left, updrect.bottom - updrect.top, updrect.left, updrect.top);
 
     return STATUS_SUCCESS;
@@ -2589,7 +2589,7 @@ VOID VioGpuAdapter::BlackOutScreen(CURRENT_MODE* pCurrentMod)
 
         resid = m_pFrameBuf->GetId();
 
-        m_CtrlQueue.TransferToHost2D(resid, 0UL, pCurrentMod->DispInfo.Width, pCurrentMod->DispInfo.Height, 0, 0, NULL);
+        m_CtrlQueue.TransferToHost2D(resid, 0UL, pCurrentMod->DispInfo.Width, pCurrentMod->DispInfo.Height, 0, 0);
         m_CtrlQueue.ResFlush(resid, pCurrentMod->DispInfo.Width, pCurrentMod->DispInfo.Height, 0, 0);
     }
 
@@ -3140,29 +3140,21 @@ VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)
                 DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s m_CtrlQueue pvbuf = %p len = %d\n", __FUNCTION__, pvbuf, len));
                 PGPU_CTRL_HDR pcmd = (PGPU_CTRL_HDR)pvbuf->buf;
                 PGPU_CTRL_HDR resp = (PGPU_CTRL_HDR)pvbuf->resp_buf;
-                PKEVENT evnt = pvbuf->event;
-                if (evnt == NULL)
+
+                if (resp->type >= VIRTIO_GPU_RESP_ERR_UNSPEC) {
+                   DbgPrint(TRACE_LEVEL_FATAL, ("!!!!! Command failed %d", resp->type));
+                }
+                if (resp->type != VIRTIO_GPU_RESP_OK_NODATA)
                 {
-                    if (resp->type != VIRTIO_GPU_RESP_OK_NODATA)
-                    {
-                        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s type = %xlu flags = %lu fence_id = %llu ctx_id = %lu cmd_type = %lu\n",
-                            __FUNCTION__, resp->type, resp->flags, resp->fence_id, resp->ctx_id, pcmd->type));
-                    }
+                    DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s type = %xlu flags = %lu fence_id = %llu ctx_id = %lu cmd_type = %lu\n",
+                        __FUNCTION__, resp->type, resp->flags, resp->fence_id, resp->ctx_id, pcmd->type));
+                }
+                if (pvbuf->complete_cb != NULL)
+                {
+                    pvbuf->complete_cb(pvbuf->complete_ctx);
+                }
+                if (pvbuf->auto_release) {
                     m_CtrlQueue.ReleaseBuffer(pvbuf);
-                    continue;
-                }
-                switch (pcmd->type)
-                {
-                case VIRTIO_GPU_CMD_GET_DISPLAY_INFO:
-                case VIRTIO_GPU_CMD_GET_EDID:
-                {
-                    ASSERT(evnt);
-                    KeSetEvent(evnt, IO_NO_INCREMENT, FALSE);
-                }
-                break;
-                default:
-                    DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Unknown cmd type 0x%x\n", __FUNCTION__, resp->type));
-                    break;
                 }
             };
         }
@@ -3228,7 +3220,7 @@ BOOLEAN VioGpuAdapter::CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, C
 
     GpuObjectAttach(resid, obj);
     m_CtrlQueue.SetScanout(0/*FIXME m_Id*/, resid, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
-    m_CtrlQueue.TransferToHost2D(resid, 0, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0, NULL);
+    m_CtrlQueue.TransferToHost2D(resid, 0, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
     m_CtrlQueue.ResFlush(resid, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
     m_pFrameBuf = obj;
     pCurrentMode->FrameBuffer = obj->GetVirtualAddress();
@@ -3246,8 +3238,8 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset)
     if (m_pFrameBuf != NULL)
     {
         resid = (UINT)m_pFrameBuf->GetId();
-        m_CtrlQueue.InvalBacking(resid);
-        m_CtrlQueue.UnrefResource(resid);
+        m_CtrlQueue.DetachBacking(resid);
+        m_CtrlQueue.DestroyResource(resid);
         if (bReset == TRUE) {
             m_CtrlQueue.SetScanout(0, 0, 0, 0, 0, 0);
         }
@@ -3337,7 +3329,7 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPoin
         &SrcBltInfo,
         &Rect);
 
-    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(), 0, pSetPointerShape->Width, pSetPointerShape->Height, 0, 0, NULL);
+    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(), 0, pSetPointerShape->Width, pSetPointerShape->Height, 0, 0);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;
@@ -3350,8 +3342,8 @@ void VioGpuAdapter::DestroyCursor()
     if (m_pCursorBuf != NULL)
     {
         UINT id = (UINT)m_pCursorBuf->GetId();
-        m_CtrlQueue.InvalBacking(id);
-        m_CtrlQueue.UnrefResource(id);
+        m_CtrlQueue.DetachBacking(id);
+        m_CtrlQueue.DestroyResource(id);
         delete m_pCursorBuf;
         m_pCursorBuf = NULL;
         m_Idr.PutId(id);
@@ -3391,3 +3383,7 @@ BOOLEAN VioGpuAdapter::GpuObjectAttach(UINT res_id, VioGpuObj* obj)
     return TRUE;
 }
 PAGED_CODE_SEG_END
+
+PDXGKRNL_INTERFACE VioGpuAdapter::GetDxgkInterface() {
+    return m_pVioGpuDod->GetDxgkInterface();
+}

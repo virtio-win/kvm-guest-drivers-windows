@@ -49,8 +49,12 @@ typedef struct virtio_gpu_vbuffer {
 
     char *resp_buf;
     int resp_size;
-    PKEVENT event;
     LIST_ENTRY list_entry;
+
+    void (*complete_cb)(void *ctx);
+    void *complete_ctx;
+
+    bool auto_release;
 }GPU_VBUFFER, *PGPU_VBUFFER;
 //#pragma pack()
 
@@ -175,6 +179,10 @@ protected:
 class CtrlQueue : public VioGpuQueue
 {
 public:
+    CtrlQueue() : VioGpuQueue() {
+        m_FenceIdr = 0;
+    };
+
     PVOID AllocCmd(PGPU_VBUFFER* buf, int sz);
     PVOID AllocCmdResp(PGPU_VBUFFER* buf, int cmd_sz, PVOID resp_buf, int resp_sz);
 
@@ -182,16 +190,33 @@ public:
     PGPU_VBUFFER DequeueBuffer(_Out_ UINT* len);
 
     void CreateResource(UINT res_id, UINT format, UINT width, UINT height);
-    void UnrefResource(UINT id);
-    void InvalBacking(UINT id);
+    void CreateResource3D(UINT res_id, VIOGPU_RESOURCE_OPTIONS* options);
+    void DestroyResource(UINT id);
+    void CtxResource(bool attach, UINT ctx_id, UINT res_id);
+
+    void SubmitCommand(void* cmdbuf, ULONG size, ULONG ctx_id, void(*complete_cb)(void*), void* complete_ctx);
+    void TransferHostCmd(bool to_host, ULONG res_id, VIOGPU_TRANSFER_CMD* options, void(*complete_cb)(void*), void* complete_ctx);
+    
     void SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, UINT x, UINT y);
     void ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y);
-    void TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y, PUINT fence_id);
+    void TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y);
+    void TransferToHost3D(UINT res_id, GPU_BOX* box);
+    
     void AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents);
+    void DetachBacking(UINT id);
+
     BOOLEAN GetDisplayInfo(PGPU_VBUFFER buf, UINT id, PULONG xres, PULONG yres);
     BOOLEAN AskDisplayInfo(PGPU_VBUFFER* buf);
     BOOLEAN AskEdidInfo(PGPU_VBUFFER* buf, UINT id);
     BOOLEAN GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid);
+    BOOLEAN AskCapsetInfo(PGPU_VBUFFER* buf, ULONG idx);
+    BOOLEAN AskCapset(PGPU_VBUFFER* buf, ULONG capset_id, ULONG capset_size, ULONG capset_version);
+
+    void CreateCtx(UINT ctx_id, UINT context_init);
+    void DestroyCtx(UINT ctx_id);
+
+private:
+    volatile LONG m_FenceIdr;
 };
 
 class CrsrQueue : public VioGpuQueue

@@ -108,6 +108,14 @@ private:
     CPciBar            m_Bars[PCI_TYPE0_ADDRESSES];
 };
 
+class IVioGpuPCI {
+public:
+    virtual PDXGKRNL_INTERFACE GetDxgkInterface() = 0;
+    virtual CPciResources* GetPciResources() = 0;
+    virtual BOOLEAN IsMSIEnabled() = 0;
+    //virtual 
+};
+
 NTSTATUS
 MapFrameBuffer(
     _In_                PHYSICAL_ADDRESS    PhysicalAddress,

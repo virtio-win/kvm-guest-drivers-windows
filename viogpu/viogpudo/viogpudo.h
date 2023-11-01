@@ -72,7 +72,7 @@ typedef struct _CURRENT_MODE
 
 class VioGpuDod;
 
-class VioGpuAdapter
+class VioGpuAdapter: IVioGpuPCI
 {
 public:
     VioGpuAdapter(_In_ VioGpuDod* pVioGpuDod);
@@ -103,6 +103,7 @@ public:
     CPciResources* GetPciResources(void) { return &m_PciResources; }
     BOOLEAN IsMSIEnabled() { return m_PciResources.IsMSIEnabled(); }
     PHYSICAL_ADDRESS GetFrameBufferPA(void) { return  m_PciResources.GetPciBar(0)->GetPA(); }
+    PDXGKRNL_INTERFACE GetDxgkInterface(void);
 
     PVIDEO_MODE_INFORMATION GetModeInfo(UINT idx) { return &m_ModeInfo[idx]; }
     USHORT GetModeNumber(USHORT idx) { return m_ModeNumbers[idx]; }

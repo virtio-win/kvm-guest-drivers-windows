@@ -29,6 +29,7 @@
 #pragma once
 #include "helper.h"
 
+
 class VioGpuIdr
 {
 public:
@@ -39,10 +40,13 @@ public:
     VOID PutId(_In_ ULONG id);
 private:
     VOID Close(VOID);
-    VOID Lock(VOID);
-    VOID Unlock(VOID);
 private:
-    ULONG m_uStartIndex;
-    RTL_BITMAP m_IdBitMap;
-    FAST_MUTEX m_IdBitMapMutex;
+    struct FreeId {
+        LIST_ENTRY list_entry;
+        ULONG id;
+    };
+
+    ULONG m_nextId;
+    KSPIN_LOCK m_lock;
+    LIST_ENTRY m_freeList;
 };
