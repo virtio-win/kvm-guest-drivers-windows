@@ -9,8 +9,8 @@
 ;Abstract:
 ;
 ;Installation Notes:
-;    Using Devcon: Type "devcon install vioser.inf PCI\VEN_1AF4&DEV_1003&SUBSYS_0003_INX_SUBSYS_VENDOR_ID&REV_00" or
-;                       "devcon install vioser.inf PCI\VEN_1AF4&DEV_1043&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01" to install
+;    Step by step driver installation wiki:
+;        https://github.com/virtio-win/kvm-guest-drivers-windows/wiki/Driver-installation
 ;
 ;--*/
 
