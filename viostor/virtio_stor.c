@@ -1333,15 +1333,15 @@ VirtIoBuildIo(
 
     lba = RhelGetLba(DeviceExtension, cdb);
     blocks = (SRB_DATA_TRANSFER_LENGTH(Srb) + adaptExt->info.blk_size - 1) / adaptExt->info.blk_size;
-    if (lba > adaptExt->lastLBA) {
+    if (lba > adaptExt->lastLBA - 1) {
         RhelDbgPrint(TRACE_LEVEL_ERROR, " SRB_STATUS_BAD_SRB_BLOCK_LENGTH lba = %llu lastLBA= %llu\n", lba, adaptExt->lastLBA);
         CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
         return FALSE;
     }
     if ((lba + blocks) > adaptExt->lastLBA) {
-        blocks = (ULONG)(adaptExt->lastLBA + 1 - lba);
-        RhelDbgPrint(TRACE_LEVEL_ERROR, " lba = %llu lastLBA= %llu blocks = %lu\n", lba, adaptExt->lastLBA, blocks);
-        SRB_SET_DATA_TRANSFER_LENGTH(Srb, (blocks * adaptExt->info.blk_size));
+        RhelDbgPrint(TRACE_LEVEL_ERROR, " SRB_STATUS_BAD_SRB_BLOCK_LENGTH lba = %llu lastLBA= %llu blocks = %lu\n", lba, adaptExt->lastLBA, blocks);
+        CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
+        return FALSE;
     }
 
     sgList = StorPortGetScatterGatherList(DeviceExtension, Srb);
