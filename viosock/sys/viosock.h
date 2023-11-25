@@ -299,7 +299,7 @@ VIOSockInterruptInit(
 //////////////////////////////////////////////////////////////////////////
 //Socket functions
 EVT_WDF_DEVICE_FILE_CREATE  VIOSockCreateStub;
-EVT_WDF_FILE_CLOSE          VIOSockClose;
+EVT_WDF_FILE_CLEANUP          VIOSockCleanup;
 
 NTSTATUS
 VIOSockDeviceControl(
@@ -916,5 +916,31 @@ VIOSockTimerResume(
 }
 
 //////////////////////////////////////////////////////////////////////////
+
+__inline
+VOID
+VioSockReference(
+    IN WDFFILEOBJECT Socket
+)
+{
+    ObReferenceObject(WdfFileObjectWdmGetFileObject(Socket));
+    WdfObjectReference(Socket);
+
+    return;
+}
+
+
+__inline
+VOID
+VioSockDereference(
+    IN WDFFILEOBJECT Socket
+)
+{
+    WdfObjectDereference(Socket);
+    ObDereferenceObject(WdfFileObjectWdmGetFileObject(Socket));
+
+    return;
+}
+
 
 #endif /* VIOSOCK_H */

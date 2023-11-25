@@ -282,8 +282,8 @@ VIOSockEvtDeviceAdd(
     WDF_FILEOBJECT_CONFIG_INIT(
         &fileConfig,
         VIOSockCreateStub,
-        VIOSockClose,
-        WDF_NO_EVENT_CALLBACK // Cleanup
+        WDF_NO_EVENT_CALLBACK, // Close
+        VIOSockCleanup
     );
     fileConfig.FileObjectClass = WdfFileObjectWdfCanUseFsContext;
 
@@ -778,7 +778,7 @@ VIOSockSelectCleanupFds(
         ASSERT(pHandleSet[i].Socket);
 
         InterlockedDecrement(&GetSocketContext(pHandleSet[i].Socket)->SelectRefs[iFdSet]); //dereference socket
-        WdfObjectDereference(pHandleSet[i].Socket);
+        VioSockDereference(pHandleSet[i].Socket);
     }
 
     pPkt->FdCount[iFdSet] = 0;
