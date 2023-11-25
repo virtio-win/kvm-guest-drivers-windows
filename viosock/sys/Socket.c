@@ -122,7 +122,7 @@ EVT_WDF_TIMER          VIOSockPendedTimerFunc;
 #pragma alloc_text (PAGE, VIOSockConnectedListInit)
 
 #pragma alloc_text (PAGE, VIOSockCreateStub)
-#pragma alloc_text (PAGE, VIOSockClose)
+#pragma alloc_text (PAGE, VIOSockCleanup)
 
 #pragma alloc_text (PAGE, VIOSockBind)
 #pragma alloc_text (PAGE, VIOSockConnect)
@@ -988,7 +988,7 @@ VIOSockAcceptCleanup(
 
         if (pAccept->ConnectSocket != WDF_NO_HANDLE)
         {
-            WdfObjectDereference(pAccept->ConnectSocket);
+            VioSockDereference(pAccept->ConnectSocket);
         }
 
         WdfObjectDelete(pAccept->Memory);
@@ -1253,7 +1253,7 @@ VIOSockDoClose(
 }
 
 VOID
-VIOSockClose(
+VIOSockCleanup(
     IN WDFFILEOBJECT FileObject
 )
 {
@@ -1321,7 +1321,7 @@ VIOSockClose(
     }
 
     if (pSocket->LoopbackSocket != WDF_NO_HANDLE)
-        WdfObjectDereference(pSocket->LoopbackSocket);
+        VioSockDereference(pSocket->LoopbackSocket);
 
     if (PrevState == VIOSOCK_STATE_LISTEN)
         VIOSockAcceptCleanup(pSocket);
@@ -2710,7 +2710,7 @@ VIOSockGetSocketFromHandle(
 
         if (pSocket)
         {
-            WdfObjectReference(pSocket->ThisSocket);
+            VioSockReference(pSocket->ThisSocket);
             return pSocket->ThisSocket;
         }
     }

@@ -77,7 +77,7 @@ VIOSockLoopbackAcceptEnqueue(
 
             //link accepted socket to connecting one
             pAcceptSocket->LoopbackSocket = pConnectSocket->ThisSocket;
-            WdfObjectReference(pAcceptSocket->LoopbackSocket);
+            VioSockReference(pAcceptSocket->LoopbackSocket);
             VIOSockSetFlag(pAcceptSocket, SOCK_LOOPBACK);
 
             VIOSockAcceptInitSocket(pAcceptSocket, pListenSocket);
@@ -95,7 +95,7 @@ VIOSockLoopbackAcceptEnqueue(
 
         pAccept->Memory = Memory;
         pAccept->ConnectSocket = pConnectSocket->ThisSocket;
-        WdfObjectReference(pAccept->ConnectSocket);
+        VioSockReference(pAccept->ConnectSocket);
 
         pAccept->dst_cid = pContext->Config.guest_cid;
         pAccept->dst_port = pConnectSocket->src_port;
@@ -141,7 +141,7 @@ VIOSockLoopbackAcceptDequeue(
     {
         ASSERT(FALSE);
         //skip accept entry
-        WdfObjectDereference(pAcceptEntry->ConnectSocket);
+        VioSockDereference(pAcceptEntry->ConnectSocket);
         bRes = FALSE;
     }
 
@@ -238,7 +238,7 @@ VIOSockLoopbackHandleConnecting(
                 ASSERT(pSrcSocket);
                 //link connecting socket to accepted one
                 pDestSocket->LoopbackSocket = pSrcSocket->ThisSocket;
-                WdfObjectReference(pDestSocket->LoopbackSocket);
+                VioSockReference(pDestSocket->LoopbackSocket);
 
                 WdfSpinLockAcquire(pDestSocket->StateLock);
                 VIOSockStateSet(pDestSocket, VIOSOCK_STATE_CONNECTED);
