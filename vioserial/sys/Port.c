@@ -1454,6 +1454,7 @@ VIOSerialPortEvtDeviceD0Exit(
         __FUNCTION__, Port->PortId, TargetState - WdfPowerDeviceD0);
 
     Port->Removed = TRUE;
+    Port->HostConnected = FALSE;
 
     VIOSerialDisableInterruptQueue(GetInQueue(Port));
 
