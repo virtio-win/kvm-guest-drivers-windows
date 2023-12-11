@@ -853,19 +853,6 @@ VOID RSSCalcHash_Unsafe(
             packetInfo->RSSHash.Function = NdisHashFunctionToeplitz;
             return;
         }
-
-        if(hashTypes & NDIS_HASH_IPV6)
-        {
-            IPv6Header *pIpHeader = (IPv6Header *) RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen);
-
-            sgBuff[0].chunkPtr = RtlOffsetToPointer(pIpHeader, FIELD_OFFSET(IPv6Header, ip6_src_address));
-            sgBuff[0].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_src_address) + RTL_FIELD_SIZE(IPv6Header, ip6_dst_address);
-
-            packetInfo->RSSHash.Value = ToeplitzHash(sgBuff, 2, RSSParameters->ActiveHashingSettings.HashSecretKey);
-            packetInfo->RSSHash.Type = NDIS_HASH_IPV6;
-            packetInfo->RSSHash.Function = NdisHashFunctionToeplitz;
-            return;
-        }
     }
 
     packetInfo->RSSHash.Value = 0;
