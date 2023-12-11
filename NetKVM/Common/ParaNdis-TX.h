@@ -50,6 +50,7 @@ public:
     }
 
     bool BindToDescriptor(CTXDescriptor &Descriptor);
+    void Report(int level, bool Success);
 private:
     ULONG Copy(PVOID Dst, ULONG Length) const;
     bool CopyHeaders(PVOID Destination, ULONG MaxSize, ULONG &HeadersLength, ULONG &L4HeaderOffset) const;
@@ -156,7 +157,7 @@ public:
             m_TransferSize += ChunkSize;
         }
     }
-
+    ULONG NumberOfBuffers() const { return m_BuffersNumber; }
 private:
     virtual void OnLastReferenceGone() override;
 
