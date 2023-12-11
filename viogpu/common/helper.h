@@ -82,13 +82,10 @@ extern "C" {
 #define BITS_PER_BYTE              8
 
 #define POINTER_SIZE               64
-#if NTDDI_VERSION > NTDDI_WINBLUE
+
 #define MIN_WIDTH_SIZE             640
 #define MIN_HEIGHT_SIZE            480
-#else
-#define MIN_WIDTH_SIZE             1024
-#define MIN_HEIGHT_SIZE            768
-#endif
+
 #define NOM_WIDTH_SIZE             1024
 #define NOM_HEIGHT_SIZE            768
 

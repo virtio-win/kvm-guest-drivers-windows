@@ -75,11 +75,11 @@ HKR,, UsePresentProgress,          %REG_DWORD%, 1
 [VioGpuDod_PCI_MSIX]
 HKR, "Interrupt Management",, 0x00000010
 HKR, "Interrupt Management\MessageSignaledInterruptProperties",, 0x00000010
-HKR, "Interrupt Management\MessageSignaledInterruptProperties", MSISupported, 0x00010001, 0
+HKR, "Interrupt Management\MessageSignaledInterruptProperties", MSISupported, 0x00010001, 1
 HKR, "Interrupt Management\MessageSignaledInterruptProperties", MessageNumberLimit, 0x00010001, 4
-;HKR, "Interrupt Management\Affinity Policy",, 0x00000010
-;HKR, "Interrupt Management\Affinity Policy", DevicePolicy, 0x00010001, 5
-;HKR, "Interrupt Management\Affinity Policy", DevicePriority, 0x00010001, 3
+HKR, "Interrupt Management\Affinity Policy",, 0x00000010
+HKR, "Interrupt Management\Affinity Policy", DevicePolicy, 0x00010001, 5
+HKR, "Interrupt Management\Affinity Policy", DevicePriority, 0x00010001, 3
 
 [Strings]
 

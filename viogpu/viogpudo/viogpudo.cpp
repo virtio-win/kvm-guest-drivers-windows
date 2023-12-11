@@ -2031,9 +2031,9 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION* pDispInfo)
             status = STATUS_UNSUCCESSFUL;
             break;
         }
-#if (NTDDI_VERSION >= NTDDI_WIN10)
+
         AckFeature(VIRTIO_F_ACCESS_PLATFORM);
-#endif
+
         status = virtio_set_features(&m_VioDev, m_u64GuestFeatures);
         if (!NT_SUCCESS(status))
         {
@@ -2341,12 +2341,10 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
     PHYSICAL_ADDRESS fb_pa = m_PciResources.GetPciBar(0)->GetPA();
     UINT fb_size = (UINT)m_PciResources.GetPciBar(0)->GetSize();
     UINT req_size = pDispInfo->Pitch * pDispInfo->Height;
+
 //FIXME
-#if NTDDI_VERSION > NTDDI_WINBLUE
     req_size = 0x1000000;
-#else
-    req_size = 0x800000;
-#endif
+
     if (fb_pa.QuadPart != 0LL) {
         pDispInfo->PhysicAddress = fb_pa;
     }
@@ -2815,16 +2813,12 @@ BOOLEAN VioGpuAdapter::GetEdids(void)
 
 VIOGPU_DISP_MODE gpu_disp_modes[16] =
 {
-#if NTDDI_VERSION > NTDDI_WINBLUE
     {640, 480},
     {800, 600},
-#endif
     {1024, 768},
     {1280, 1024},
     {1920, 1080},
-#if NTDDI_VERSION > NTDDI_WINBLUE
     {2560, 1600},
-#endif
     {0, 0},
 };
 
@@ -2837,12 +2831,10 @@ void VioGpuAdapter::AddEdidModes(void)
     int modecount = 0;
     while (gpu_disp_modes[modecount].XResolution != 0 && gpu_disp_modes[modecount].XResolution != 0) modecount++;
     VioGpuDbgBreak();
-#if NTDDI_VERSION > NTDDI_WINBLUE
     if (est_timing.Timing_720x400_88 || est_timing.Timing_720x400_70) {
         gpu_disp_modes[modecount].XResolution = 720; gpu_disp_modes[modecount].YResolution = 400;
         modecount++;
     }
-#endif
     if (est_timing.Timing_832x624_75) {
         gpu_disp_modes[modecount].XResolution = 832; gpu_disp_modes[modecount].YResolution = 624;
         modecount++;
