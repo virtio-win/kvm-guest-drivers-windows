@@ -995,6 +995,13 @@ void CNB::PrepareOffloads(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG Et
     }
 }
 
+void CNB::Report(int level, bool Success)
+{
+    DPrintf(level, "[%s]:%s packet of %d:%d bytes:frag (NBL of %d)\n", __FUNCTION__,
+        Success ? "OK" : "Failed",
+        GetDataLength(), GetSGLLength(), m_ParentNBL->NumberOfBuffers());
+}
+
 bool CNB::BindToDescriptor(CTXDescriptor &Descriptor)
 {
     if (m_SGL == nullptr)

@@ -99,6 +99,13 @@ u16 CVirtQueue::SetMSIVector(u16 vector)
 bool CTXVirtQueue::PrepareBuffers()
 {
     auto NumBuffers = min(m_MaxBuffers, GetRingSize());
+    auto SGTableCapacity = m_SGTableCapacity;
+
+    if (SGTableCapacity > NumBuffers)
+    {
+        DPrintf(0, "%s: Limit m_SGTableCapacity by %d\n", __FUNCTION__, NumBuffers);
+        SGTableCapacity = NumBuffers;
+    }
 
     for (m_TotalDescriptors = 0; m_TotalDescriptors < NumBuffers; m_TotalDescriptors++)
     {
@@ -111,7 +118,7 @@ bool CTXVirtQueue::PrepareBuffers()
         if (!TXDescr->Create(m_DrvHandle,
             m_HeaderSize,
             m_SGTable,
-            m_SGTableCapacity,
+            SGTableCapacity,
             m_Context->bUseIndirect ? true : false,
             m_Context->bAnyLayout ? true : false))
         {
@@ -240,6 +247,7 @@ SubmitTxPacketResult CTXVirtQueue::SubmitPacket(CNB &NB)
     if (!NB.BindToDescriptor(*TXDescriptor))
     {
         m_Descriptors.Push(TXDescriptor);
+        NB.Report(0, false);
         return SubmitTxPacketResult::SUBMIT_FAILURE;
     }
 
@@ -258,6 +266,7 @@ SubmitTxPacketResult CTXVirtQueue::SubmitPacket(CNB &NB)
         case SubmitTxPacketResult::SUBMIT_FAILURE:
         {
             m_Descriptors.Push(TXDescriptor);
+            NB.Report(0, false);
             break;
         }
         case SubmitTxPacketResult::SUBMIT_SUCCESS:
@@ -265,6 +274,7 @@ SubmitTxPacketResult CTXVirtQueue::SubmitPacket(CNB &NB)
             m_FreeHWBuffers -= TXDescriptor->GetUsedBuffersNum();
             m_DescriptorsInUse.PushBack(TXDescriptor);
             UpdateTXStats(NB, *TXDescriptor);
+            NB.Report(1, true);
             break;
         }
     }
