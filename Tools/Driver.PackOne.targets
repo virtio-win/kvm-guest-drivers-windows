@@ -45,7 +45,7 @@ Related features:
   <!-- checking $(TargetOS) and $(TargetArch) -->
   <Target Condition="'$(Feature_PackOne)'=='true'" Name="CheckPackOne" BeforeTargets="PackOneTarget">
     <ItemGroup>
-      <PackOne_ValidOS Include="Win10"/>
+      <PackOne_ValidOS Include="Win10;Win11"/>
       <PackOne_ValidArch Include="x86;amd64;ARM64"/>
     </ItemGroup>
     <Message Text="Checking PackOne: TargetOS=$(TargetOS) and TargetArch=$(TargetArch)" Importance="high"/>
@@ -76,6 +76,14 @@ Related features:
     <PackOne_OsMask>10_X64,Server10_X64</PackOne_OsMask>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TargetOS)'=='Win10' AND '$(TargetArch)'=='ARM64'">
+    <PackOne_OsMask>Server10_ARM64</PackOne_OsMask>
+  </PropertyGroup>
+
+  <!-- from packone.bat create_win11 variant (x86 unsuported) -->
+  <PropertyGroup Condition="'$(TargetOS)'=='Win11' AND '$(TargetArch)'=='amd64'">
+    <PackOne_OsMask>10_X64,Server10_X64</PackOne_OsMask>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetOS)'=='Win11' AND '$(TargetArch)'=='ARM64'">
     <PackOne_OsMask>Server10_ARM64</PackOne_OsMask>
   </PropertyGroup>
 
@@ -113,6 +121,7 @@ Related features:
   <PropertyGroup Condition="'$(Feature_UsingWDF)'!='false'">
     <PackOne_CopyWdf>true</PackOne_CopyWdf>
     <PackOne_WdfCoinstaller Condition="'$(TargetOS)'=='Win10'"></PackOne_WdfCoinstaller>
+    <PackOne_WdfCoinstaller Condition="'$(TargetOS)'=='Win11'"></PackOne_WdfCoinstaller>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Feature_UsingWDF)'=='false' OR '$(PackOne_WdfCoinstaller)'==''">
     <PackOne_CopyWdf>false</PackOne_CopyWdf>

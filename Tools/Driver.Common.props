@@ -49,9 +49,17 @@ Common property definitions used by all drivers:
   <PropertyGroup Condition="'$(Configuration)'=='Win10 Release' OR '$(Configuration)'=='Win10 Debug'">
     <_NT_TARGET_MAJ>100</_NT_TARGET_MAJ>
     <TargetOS>Win10</TargetOS>
-	<DriverTargetPlatform>Universal</DriverTargetPlatform>
+	  <DriverTargetPlatform>Universal</DriverTargetPlatform>
     <InfArch>$(TargetArch).$(INF_ARCH_FOR_WIN10)</InfArch>
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Win11 Release' OR '$(Configuration)'=='Win11 Debug'">
+    <_NT_TARGET_MAJ>100</_NT_TARGET_MAJ>
+    <TargetOS>Win11</TargetOS>
+	  <DriverTargetPlatform>Universal</DriverTargetPlatform>
+    <InfArch>$(TargetArch).$(INF_ARCH_FOR_WIN10)</InfArch>
+  </PropertyGroup>
+
 
   <!-- WPP settings -->
   <ItemDefinitionGroup>

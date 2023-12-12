@@ -10,6 +10,9 @@ Global
 		Win10 Release|ARM64 = Win10 Release|ARM64
 		Win10 Release|x64 = Win10 Release|x64
 		Win10 Release|x86 = Win10 Release|x86
+		Win11 Release|ARM64 = Win11 Release|ARM64
+		Win11 Release|x64 = Win11 Release|x64
+		Win11 Release|x86 = Win11 Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
@@ -18,6 +21,13 @@ Global
 		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win10 Release|x64.Build.0 = Win10 Release|x64
 		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
 		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win10 Release|x86.Build.0 = Win10 Release|Win32
+		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win11 Release|ARM64.ActiveCfg = Win11 Release|ARM64
+		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win11 Release|ARM64.Build.0 = Win11 Release|ARM64
+		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win11 Release|ARM64.Deploy.0 = Win11 Release|ARM64
+		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win11 Release|x64.ActiveCfg = Win11 Release|x64
+		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win11 Release|x64.Build.0 = Win11 Release|x64
+		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win11 Release|x64.Deploy.0 = Win11 Release|x64
+		{D9EF1144-4779-444C-ADD6-F733B749A862}.Win11 Release|x86.ActiveCfg = Win11 Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -11,6 +11,9 @@ Global
 		Win10 Release|ARM64 = Win10 Release|ARM64
 		Win10 Release|x64 = Win10 Release|x64
 		Win10 Release|x86 = Win10 Release|x86
+		Win11 Release|ARM64 = Win11 Release|ARM64
+		Win11 Release|x64 = Win11 Release|x64
+		Win11 Release|x86 = Win11 Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{CDABF347-89AB-4E09-A93F-324D4EFBC74F}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
@@ -20,6 +23,11 @@ Global
 		{CDABF347-89AB-4E09-A93F-324D4EFBC74F}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
 		{CDABF347-89AB-4E09-A93F-324D4EFBC74F}.Win10 Release|x86.Build.0 = Win10 Release|Win32
 		{CDABF347-89AB-4E09-A93F-324D4EFBC74F}.Win10 Release|x86.Deploy.0 = Win10 Release|Win32
+		{CDABF347-89AB-4E09-A93F-324D4EFBC74F}.Win11 Release|ARM64.ActiveCfg = Win11 Release|ARM64
+		{CDABF347-89AB-4E09-A93F-324D4EFBC74F}.Win11 Release|ARM64.Build.0 = Win11 Release|ARM64
+		{CDABF347-89AB-4E09-A93F-324D4EFBC74F}.Win11 Release|x64.ActiveCfg = Win11 Release|x64
+		{CDABF347-89AB-4E09-A93F-324D4EFBC74F}.Win11 Release|x64.Build.0 = Win11 Release|x64
+		{CDABF347-89AB-4E09-A93F-324D4EFBC74F}.Win11 Release|x86.ActiveCfg = Win11 Release|Win32
 		{3E9E272D-6299-4B69-A49E-6D286EAB8CCA}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
 		{3E9E272D-6299-4B69-A49E-6D286EAB8CCA}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
 		{3E9E272D-6299-4B69-A49E-6D286EAB8CCA}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
@@ -27,6 +35,11 @@ Global
 		{3E9E272D-6299-4B69-A49E-6D286EAB8CCA}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
 		{3E9E272D-6299-4B69-A49E-6D286EAB8CCA}.Win10 Release|x86.Build.0 = Win10 Release|Win32
 		{3E9E272D-6299-4B69-A49E-6D286EAB8CCA}.Win10 Release|x86.Deploy.0 = Win10 Release|Win32
+		{3E9E272D-6299-4B69-A49E-6D286EAB8CCA}.Win11 Release|ARM64.ActiveCfg = Win11 Release|ARM64
+		{3E9E272D-6299-4B69-A49E-6D286EAB8CCA}.Win11 Release|ARM64.Build.0 = Win11 Release|ARM64
+		{3E9E272D-6299-4B69-A49E-6D286EAB8CCA}.Win11 Release|x64.ActiveCfg = Win11 Release|x64
+		{3E9E272D-6299-4B69-A49E-6D286EAB8CCA}.Win11 Release|x64.Build.0 = Win11 Release|x64
+		{3E9E272D-6299-4B69-A49E-6D286EAB8CCA}.Win11 Release|x86.ActiveCfg = Win11 Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
