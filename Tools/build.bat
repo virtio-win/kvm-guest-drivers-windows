@@ -24,7 +24,7 @@ rem This is a list of supported build target specifications A_B where A is the
 rem VS project configuration name and B is the corresponding platform identifier
 rem used in log file names and intermediate directory names. Either of the two can
 rem be used in the <target_os_version> command line argument.
-set SUPPORTED_BUILD_SPECS=Win10_win10
+set SUPPORTED_BUILD_SPECS=Win10_win10 Win11_win11
 
 set BUILD_TARGETS=%~2
 set BUILD_DIR=%~dp1
@@ -160,18 +160,14 @@ if %BUILD_ARCH%==amd64 set BUILD_ARCH=x64
 set TARGET_VS_CONFIG="%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%|%BUILD_ARCH%"
 
 pushd %BUILD_DIR%
-call "%~dp0\SetVsEnv.bat" x86
+call "%~dp0\SetVsEnv.bat" %TARGET_PROJ_CONFIG%
 
 if /I "!TAG!"=="SDV" (
   echo Running SDV for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
   call :runsdv "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
   if exist "%CODEQL_BIN%" (
-    if "%TARGET_PROJ_CONFIG%"=="Win10" (
-      echo Running CodeQL for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
-      call :runql "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
-    ) else (
-      echo Skipping CodeQL for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
-    )
+    echo Running CodeQL for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
+    call :runql "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
   ) else (
       echo CodeQL binary is missing!
   )
