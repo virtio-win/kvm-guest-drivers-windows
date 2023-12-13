@@ -132,6 +132,10 @@ bool CTXVirtQueue::PrepareBuffers()
     m_FreeHWBuffers = m_TotalHWBuffers = m_TotalDescriptors;
     DPrintf(0, "[%s] available %d Tx descriptors\n", __FUNCTION__, m_TotalDescriptors);
 
+    if (m_Context->extraStatistics.minFreeTxBuffers == 0 || m_Context->extraStatistics.minFreeTxBuffers > m_FreeHWBuffers)
+    {
+        m_Context->extraStatistics.minFreeTxBuffers = m_FreeHWBuffers;
+    }
     return m_TotalDescriptors > 0;
 }
 
@@ -232,6 +236,11 @@ void CTXVirtQueue::UpdateTXStats(const CNB &NB, CTXDescriptor &Descriptor)
     else if (NBL->IsTcpCSO() || NBL->IsUdpCSO())
     {
         m_Context->extraStatistics.framesCSOffload++;
+    }
+
+    if (m_Context->extraStatistics.minFreeTxBuffers > m_FreeHWBuffers)
+    {
+        m_Context->extraStatistics.minFreeTxBuffers = m_FreeHWBuffers;
     }
 }
 
