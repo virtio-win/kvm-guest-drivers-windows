@@ -481,6 +481,8 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
         ULONG framesRSSMisses;
         ULONG framesRSSUnclassified;
         ULONG framesRSSError;
+        ULONG minFreeTxBuffers;
+        ULONG droppedTxPackets;
     } extraStatistics = {};
 
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */

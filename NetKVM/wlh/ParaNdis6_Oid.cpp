@@ -407,9 +407,12 @@ static NDIS_STATUS OnSetVendorSpecific2(PARANDIS_ADAPTER *pContext, tOidDesc *pO
 {
     ULONG dummy = 0;
     NDIS_STATUS status;
-    UNREFERENCED_PARAMETER(pContext);
     status = ParaNdis_OidSetCopy(pOid, &dummy, sizeof(dummy));
+
+    // do not clear this minFreeTxBuffers
+    dummy = pContext->extraStatistics.minFreeTxBuffers;
     RtlZeroMemory(&pContext->extraStatistics, sizeof(pContext->extraStatistics));
+    pContext->extraStatistics.minFreeTxBuffers = dummy;
     return status;
 }
 
@@ -508,6 +511,8 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             wmiStatistics.rxChecksumOK = pContext->extraStatistics.framesRxCSHwOK;
             wmiStatistics.rxCoalescedWin = pContext->extraStatistics.framesCoalescedWindows;
             wmiStatistics.rxCoalescedHost = pContext->extraStatistics.framesCoalescedHost;
+            wmiStatistics.txMinFreeBuffers = pContext->extraStatistics.minFreeTxBuffers;
+            wmiStatistics.txDropped = pContext->extraStatistics.droppedTxPackets;
             break;
         case OID_VENDOR_3:
             pInfo = &rssDiag;

@@ -1000,6 +1000,10 @@ void CNB::Report(int level, bool Success)
     DPrintf(level, "[%s]:%s packet of %d:%d bytes:frag (NBL of %d)\n", __FUNCTION__,
         Success ? "OK" : "Failed",
         GetDataLength(), GetSGLLength(), m_ParentNBL->NumberOfBuffers());
+    if (!Success)
+    {
+        m_Context->extraStatistics.droppedTxPackets++;
+    }
 }
 
 bool CNB::BindToDescriptor(CTXDescriptor &Descriptor)

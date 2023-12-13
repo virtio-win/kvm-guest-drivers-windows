@@ -24,6 +24,8 @@ class NetKvm_Statistics : MSNdis
     [read,write,WmiDataId(4)] uint32 rxPriority;
     [read,write,WmiDataId(5)] uint32 txLargeOffload;
     [read,write,WmiDataId(6)] uint32 txChecksumOffload;
+    [read,write,WmiDataId(7)] uint32 txMinFreeBuffers;
+    [read,write,WmiDataId(8)] uint32 txDropped;
 };
 
 [Dynamic : ToInstance, Provider("WMIProv"), WMI,
