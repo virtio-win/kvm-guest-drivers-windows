@@ -13,7 +13,7 @@ call :dowmic netkvm_logging set level=%2
 goto :eof
 
 :stat
-call :dowmic netkvm_statistics get
+call :dowmic netkvm_statistics get /value
 goto :eof
 
 :reset
@@ -21,7 +21,7 @@ call :dowmic netkvm_statistics set rxChecksumOK=0
 goto :eof
 
 :rss
-call :dowmic NetKvm_RssDiagnostics get
+call :dowmic NetKvm_RssDiagnostics get /value
 goto :eof
 
 :rss_set
@@ -32,11 +32,6 @@ goto :eof
 :failover_query
 call :dowmic NetKvm_Standby get /value
 goto :eof
-
-:failover_end
-call :dowmic NetKvm_Standby set value=0
-goto :eof
-
 
 :dowmic
 wmic /namespace:\\root\wmi path %*
@@ -51,6 +46,5 @@ echo reset                  Resets internal statistics
 echo rss                    Query RSS statistics
 echo rss 0/1                Disable/enable RSS device support
 echo qfo                    Query failover setting
-echo efo                    End failover command (do not use)
 goto :eof
 
