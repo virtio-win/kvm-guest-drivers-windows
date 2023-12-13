@@ -199,8 +199,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
         miniportAttributes.RegistrationAttributes.Header.Size = NDIS_SIZEOF_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES_REVISION_1;
         miniportAttributes.RegistrationAttributes.MiniportAdapterContext = pContext;
         miniportAttributes.RegistrationAttributes.AttributeFlags =
-            // actual for USB
-            // NDIS_MINIPORT_ATTRIBUTES_SURPRISE_REMOVE_OK
+            NDIS_MINIPORT_ATTRIBUTES_SURPRISE_REMOVE_OK |
             NDIS_MINIPORT_ATTRIBUTES_HARDWARE_DEVICE |
             NDIS_MINIPORT_ATTRIBUTES_BUS_MASTER;
 
