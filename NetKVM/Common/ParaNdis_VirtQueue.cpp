@@ -129,7 +129,7 @@ bool CTXVirtQueue::PrepareBuffers()
         m_Descriptors.Push(TXDescr);
     }
 
-    m_FreeHWBuffers = m_TotalHWBuffers = NumBuffers;
+    m_FreeHWBuffers = m_TotalHWBuffers = m_TotalDescriptors;
     DPrintf(0, "[%s] available %d Tx descriptors\n", __FUNCTION__, m_TotalDescriptors);
 
     return m_TotalDescriptors > 0;
