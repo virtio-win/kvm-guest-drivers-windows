@@ -283,19 +283,6 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     case OID_GEN_MAXIMUM_TOTAL_SIZE:
         SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOS);
         break;
-    case OID_GEN_TRANSMIT_QUEUE_LENGTH:
-    {
-        // TODO: this is not completely correct, but only if
-        // the TX queue is not full
-        ULONG totalFreeTxDescriptors = 0;
-
-        for (UINT i = 0; i < pContext->nPathBundles; i++)
-        {
-            totalFreeTxDescriptors += pContext->pPathBundles[i].txPath.GetFreeTXDescriptors();
-        }
-        SETINFO(ul, (pContext->nPathBundles * pContext->maxFreeTxDescriptors) - totalFreeTxDescriptors);
-        break;
-    }
     case OID_GEN_VENDOR_ID:
         SETINFO(ul, 0x00ffffff);
         break;
