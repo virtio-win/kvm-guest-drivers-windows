@@ -47,6 +47,12 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
     WDF_DMA_ENABLER_CONFIG dmaEnablerConfig;
     WDF_OBJECT_ATTRIBUTES  attributes;
 
+    // prevent the appearance in "Safely eject" list
+    WDF_DEVICE_PNP_CAPABILITIES caps;
+    WDF_DEVICE_PNP_CAPABILITIES_INIT(&caps);
+    caps.SurpriseRemovalOK = WdfTrue;
+    WdfDeviceSetPnpCapabilities(Device, &caps);
+
     RtlZeroMemory(pWdfDriver, sizeof(*pWdfDriver));
     pWdfDriver->MemoryTag = MemoryTag;
     pWdfDriver->bLegacyMode = FALSE;
