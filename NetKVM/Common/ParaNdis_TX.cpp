@@ -437,6 +437,35 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
     }
 }
 
+bool CParaNdisTX::AllocateExtraPages()
+{
+    for (ULONG j = 0; j < MAX_PACKET_PAGES; j++)
+    {
+        auto Page = new (m_Context->MiniportHandle) CNdisSharedMemory();
+        if (Page == nullptr)
+        {
+            return false;
+        }
+        Page->Create(m_Context->MiniportHandle);
+        if (Page->Allocate(PAGE_SIZE))
+        {
+            m_ExtraPages.Push(Page);
+        }
+        else
+        {
+            DPrintf(0, "[%s] failed to allocate pages, [%d] pages have been allocated\n", __FUNCTION__, j);
+            return false;
+        }
+    }
+    return true;
+}
+
+void CParaNdisTX::FreeExtraPages()
+{
+    m_ExtraPages.ForEachDetached([this](CNdisSharedMemory* e)
+                                     { CNdisSharedMemory::Destroy(e, m_Context->MiniportHandle); });
+}
+
 CNB *CNBL::PopMappedNB()
 {
     m_MappedBuffersDetached.AddRef();
