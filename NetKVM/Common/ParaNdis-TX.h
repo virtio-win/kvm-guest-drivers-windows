@@ -16,6 +16,13 @@ class CParaNdisTX;
 
 class CNBL;
 
+typedef enum class _tagNBMappingStatus
+{
+    SUCCESS = 0,
+    NO_RESOURCE,
+    FAILURE
+} NBMappingStatus;
+
 class CNB : public CNdisAllocatableViaHelper<CNB>
 {
 public:
@@ -53,7 +60,7 @@ public:
         return m_SGL->NumberOfElements;
     }
 
-    bool BindToDescriptor(CTXDescriptor &Descriptor);
+    NBMappingStatus BindToDescriptor(CTXDescriptor &Descriptor);
     void Report(int level, bool Success);
 private:
     ULONG Copy(PVOID Dst, ULONG Length) const;

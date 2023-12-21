@@ -254,7 +254,7 @@ SubmitTxPacketResult CTXVirtQueue::SubmitPacket(CNB &NB)
     }
 
     auto TXDescriptor = m_Descriptors.Pop();
-    if (!NB.BindToDescriptor(*TXDescriptor))
+    if (NB.BindToDescriptor(*TXDescriptor) == NBMappingStatus::FAILURE)
     {
         m_Descriptors.Push(TXDescriptor);
         NB.Report(0, false);
