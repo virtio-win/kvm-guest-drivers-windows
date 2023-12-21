@@ -79,6 +79,10 @@ extern "C"
     }
 #endif
 
+#ifndef MAX_FRAGMENTS_IN_ONE_NB
+#define MAX_FRAGMENTS_IN_ONE_NB 256
+#endif
+
 #include "kdebugprint.h"
 #include "virtio_pci.h"
 #include "DebugData.h"
@@ -556,6 +560,8 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
         }                           Statistics;
     } RSC = {};
 #endif
+
+    ULONG                           uMaxFragmentsInOneNB;
 
     _PARANDIS_ADAPTER(const _PARANDIS_ADAPTER&) = delete;
     _PARANDIS_ADAPTER& operator= (const _PARANDIS_ADAPTER&) = delete;
