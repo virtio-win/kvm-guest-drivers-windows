@@ -341,6 +341,8 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             pContext->RSC.bIPv4SupportedSW = (UCHAR)pConfiguration->RSCIPv4Supported.ulValue;
             pContext->RSC.bIPv6SupportedSW = (UCHAR)pConfiguration->RSCIPv6Supported.ulValue;
 #endif
+            pContext->uMaxFragmentsInOneNB = MAX_FRAGMENTS_IN_ONE_NB;
+
             if (!pContext->bDoSupportPriority)
                 pContext->ulPriorityVlanSetting = 0;
             // if Vlan not supported
