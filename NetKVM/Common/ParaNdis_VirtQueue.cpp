@@ -254,11 +254,26 @@ SubmitTxPacketResult CTXVirtQueue::SubmitPacket(CNB &NB)
     }
 
     auto TXDescriptor = m_Descriptors.Pop();
-    if (NB.BindToDescriptor(*TXDescriptor) == NBMappingStatus::FAILURE)
+    auto status = NB.BindToDescriptor(*TXDescriptor);
+
+    switch (status)
     {
-        m_Descriptors.Push(TXDescriptor);
-        NB.Report(0, false);
-        return SubmitTxPacketResult::SUBMIT_FAILURE;
+        case NBMappingStatus::FAILURE:
+        {
+            NB.ReturnPages();
+            m_Descriptors.Push(TXDescriptor);
+            NB.Report(0, false);
+            return SubmitTxPacketResult::SUBMIT_FAILURE;
+        }
+        case NBMappingStatus::NO_RESOURCE:
+        {
+            m_Descriptors.Push(TXDescriptor);
+            return SubmitTxPacketResult::SUBMIT_NO_PLACE_IN_QUEUE;
+        }
+        case NBMappingStatus::SUCCESS:
+        {
+            //do nothing
+        }
     }
 
     auto res = TXDescriptor->Enqueue(this, m_TotalHWBuffers, m_FreeHWBuffers);
@@ -298,6 +313,7 @@ void CTXVirtQueue::ReleaseOneBuffer(CTXDescriptor *TXDescriptor, CRawCNBList& li
     {
         DPrintf(0, "[%s] ERROR: nofUsedBuffers not set!\n", __FUNCTION__);
     }
+    TXDescriptor->GetNB()->ReturnPages();
     m_FreeHWBuffers += TXDescriptor->GetUsedBuffersNum();
     listDone.PushBack(TXDescriptor->GetNB());
     m_Descriptors.Push(TXDescriptor);

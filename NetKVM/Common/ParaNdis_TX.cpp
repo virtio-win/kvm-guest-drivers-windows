@@ -317,6 +317,8 @@ CParaNdisTX::~CParaNdisTX()
         m_Context->m_StateMachine.UnregisterFlow(m_StateMachine);
         m_StateMachineRegistered = false;
     }
+
+    FreeExtraPages();
 }
 
 bool CParaNdisTX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
@@ -331,6 +333,12 @@ bool CParaNdisTX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     m_nblPool.Create(Context->MiniportHandle);
 
     CreatePath();
+
+    if (!AllocateExtraPages())
+    {
+        FreeExtraPages();
+        return false;
+    }
 
     return m_VirtQueue.Create(DeviceQueueIndex,
         &m_Context->IODevice,
@@ -464,6 +472,33 @@ void CParaNdisTX::FreeExtraPages()
 {
     m_ExtraPages.ForEachDetached([this](CNdisSharedMemory* e)
                                      { CNdisSharedMemory::Destroy(e, m_Context->MiniportHandle); });
+}
+
+bool CParaNdisTX::BorrowPages(CExtendedNBStorage *extraNBStorage, ULONG NeedPages)
+{
+    if (m_ExtraPages.GetCount() < NeedPages)
+    {
+        return false;
+    }
+    for (ULONG i = 0; i < NeedPages; i++)
+    {
+        auto pPage = m_ExtraPages.Pop();
+        extraNBStorage->m_UsedPages[i] = pPage;
+    }
+    extraNBStorage->m_UsedPagesCount = NeedPages;
+    return true;
+}
+
+void CParaNdisTX::ReturnPages(CExtendedNBStorage *extraNBStorage)
+{
+    if (extraNBStorage)
+    {
+        for (ULONG i = 0; i < extraNBStorage->m_UsedPagesCount; i++)
+        {
+            m_ExtraPages.Push(extraNBStorage->m_UsedPages[i]);
+        }
+        extraNBStorage->m_UsedPagesCount = 0;
+    }
 }
 
 CNB *CNBL::PopMappedNB()
@@ -923,13 +958,28 @@ void CNB::DoIPHdrCSO(PVOID IpHeader, ULONG EthPayloadLength) const
                                 FALSE, __FUNCTION__);
 }
 
-bool CNB::FillDescriptorSGList(CTXDescriptor &Descriptor, ULONG ParsedHeadersLength) const
+NBMappingStatus CNB::FillDescriptorSGList(CTXDescriptor &Descriptor, ULONG ParsedHeadersLength)
 {
-    return Descriptor.SetupHeaders(ParsedHeadersLength) &&
-           MapDataToVirtioSGL(Descriptor, ParsedHeadersLength + NET_BUFFER_DATA_OFFSET(m_NB));
+    if (!Descriptor.SetupHeaders(ParsedHeadersLength))
+    {
+        return NBMappingStatus::FAILURE;
+    }
+    if (Descriptor.HasRoom(m_SGL->NumberOfElements))
+    {
+        return MapDataToVirtioSGL(Descriptor, ParsedHeadersLength + NET_BUFFER_DATA_OFFSET(m_NB));
+    }
+    else
+    {
+        auto res = AllocateAndFillCopySGL(ParsedHeadersLength);
+        if (res != NBMappingStatus::SUCCESS)
+        {
+            return res;
+        }
+        return MapCopyDataToVirtioSGL(Descriptor);
+    }
 }
 
-bool CNB::MapDataToVirtioSGL(CTXDescriptor &Descriptor, ULONG Offset) const
+NBMappingStatus CNB::MapDataToVirtioSGL(CTXDescriptor &Descriptor, ULONG Offset) const
 {
     for (ULONG i = 0; i < m_SGL->NumberOfElements; i++)
     {
@@ -940,7 +990,7 @@ bool CNB::MapDataToVirtioSGL(CTXDescriptor &Descriptor, ULONG Offset) const
 
             if (!Descriptor.AddDataChunk(PA, m_SGL->Elements[i].Length - Offset))
             {
-                return false;
+                return NBMappingStatus::FAILURE;
             }
 
             Offset = 0;
@@ -951,7 +1001,7 @@ bool CNB::MapDataToVirtioSGL(CTXDescriptor &Descriptor, ULONG Offset) const
         }
     }
 
-    return true;
+    return NBMappingStatus::SUCCESS;
 }
 
 bool CNB::CopyHeaders(PVOID Destination, ULONG MaxSize, ULONG &HeadersLength, ULONG &L4HeaderOffset) const
@@ -1060,12 +1110,7 @@ NBMappingStatus CNB::BindToDescriptor(CTXDescriptor &Descriptor)
                     GetDataLength() - m_Context->Offload.ipHeaderOffset,
                     L4HeaderOffset);
 
-    if (!FillDescriptorSGList(Descriptor, HeadersLength))
-    {
-        NBMappingStatus::FAILURE;
-    }
-
-    return NBMappingStatus::SUCCESS;
+    return FillDescriptorSGList(Descriptor, HeadersLength);
 }
 
 ULONG CNB::Copy(PVOID Dst, ULONG Length) const
@@ -1168,4 +1213,65 @@ ULONG CNB::CopyFromMdlChain(PVOID Dst, ULONG Length, PMDL &Source, ULONG &Offset
     }
 
     return Copied;
+}
+
+void CNB::ReturnPages()
+{
+    if (m_ExtraNBStorage)
+    {
+        m_ParentNBL->GetParentTXPath()->ReturnPages(m_ExtraNBStorage);
+        NdisFreeMemory(m_ExtraNBStorage, sizeof(CExtendedNBStorage), 0);
+    }
+    m_ExtraNBStorage = nullptr;
+}
+
+NBMappingStatus CNB::AllocateAndFillCopySGL(ULONG ParsedHeadersLength)
+{
+    // Calculate the number of pages needed for data, excluding protocol header length.
+    ULONG DataLength = GetDataLength() - ParsedHeadersLength;
+    ULONG Pages = (DataLength + PAGE_SIZE - 1) / PAGE_SIZE;
+
+    m_ExtraNBStorage = (CExtendedNBStorage*)ParaNdis_AllocateMemory(m_Context, sizeof(CExtendedNBStorage));
+
+    if (m_ExtraNBStorage == nullptr)
+    {
+        DPrintf(0, "[%s] ExtendedNBStorage allocation failed \n", __FUNCTION__);
+        return NBMappingStatus::FAILURE;
+    }
+
+    RtlZeroMemory(m_ExtraNBStorage, sizeof(CExtendedNBStorage));
+    if (!m_ParentNBL->GetParentTXPath()->BorrowPages(m_ExtraNBStorage, Pages))
+    {
+        return NBMappingStatus::NO_RESOURCE;
+    }
+
+    PMDL mdl = NET_BUFFER_CURRENT_MDL(m_NB);
+    ULONG DataOffset = ParsedHeadersLength + NET_BUFFER_CURRENT_MDL_OFFSET(m_NB);
+    for (ULONG i = 0; i < Pages; i++)
+    {
+        PVOID pVirtualAddress = m_ExtraNBStorage->m_UsedPages[i]->GetVA();
+        ULONG toCopyNow = (i == Pages - 1) ? DataLength : PAGE_SIZE;
+        ULONG Copied = CopyFromMdlChain(pVirtualAddress, toCopyNow, mdl, DataOffset);
+        if (Copied != toCopyNow)
+        {
+            DPrintf(0, "[%s] copy failed! expected %lu, copied %lu bytes\n", __FUNCTION__, toCopyNow, Copied);
+            return NBMappingStatus::FAILURE;
+        }
+        m_ExtraNBStorage->m_Elements[i].Address = m_ExtraNBStorage->m_UsedPages[i]->GetPA();
+        m_ExtraNBStorage->m_Elements[i].Length = toCopyNow;
+        DataLength -= toCopyNow;
+    }
+    return NBMappingStatus::SUCCESS;
+}
+
+NBMappingStatus CNB::MapCopyDataToVirtioSGL(CTXDescriptor &Descriptor) const
+{
+    for (ULONG i = 0; i < m_ExtraNBStorage->m_UsedPagesCount; i++)
+    {
+        if (!Descriptor.AddDataChunk(m_ExtraNBStorage->m_Elements[i].Address, m_ExtraNBStorage->m_Elements[i].Length))
+        {
+            return NBMappingStatus::FAILURE;
+        }
+    }
+    return NBMappingStatus::SUCCESS;
 }
