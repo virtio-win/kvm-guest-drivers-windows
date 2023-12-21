@@ -1035,11 +1035,11 @@ void CNB::Report(int level, bool Success)
     }
 }
 
-bool CNB::BindToDescriptor(CTXDescriptor &Descriptor)
+NBMappingStatus CNB::BindToDescriptor(CTXDescriptor &Descriptor)
 {
     if (m_SGL == nullptr)
     {
-        return false;
+        return NBMappingStatus::FAILURE;
     }
 
     Descriptor.SetNB(this);
@@ -1051,7 +1051,7 @@ bool CNB::BindToDescriptor(CTXDescriptor &Descriptor)
 
     if (!CopyHeaders(EthHeaders, HeadersArea.MaxEthHeadersSize(), HeadersLength, L4HeaderOffset))
     {
-        return false;
+        return NBMappingStatus::FAILURE;
     }
 
     BuildPriorityHeader(HeadersArea.EthHeader(), HeadersArea.VlanHeader());
@@ -1060,7 +1060,12 @@ bool CNB::BindToDescriptor(CTXDescriptor &Descriptor)
                     GetDataLength() - m_Context->Offload.ipHeaderOffset,
                     L4HeaderOffset);
 
-    return FillDescriptorSGList(Descriptor, HeadersLength);
+    if (!FillDescriptorSGList(Descriptor, HeadersLength))
+    {
+        NBMappingStatus::FAILURE;
+    }
+
+    return NBMappingStatus::SUCCESS;
 }
 
 ULONG CNB::Copy(PVOID Dst, ULONG Length) const
