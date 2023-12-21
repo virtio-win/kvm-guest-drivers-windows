@@ -1078,3 +1078,67 @@ ULONG CNB::Copy(PVOID Dst, ULONG Length) const
 
     return Copied;
 }
+
+/*
+ * Copies data from an MDL chain to a destination buffer.
+ *
+ * @param Dst Pointer to the destination buffer where the data will be copied to.
+ * @param Length The maximum number of bytes to copy.
+ * @param Source Reference to a pointer to the current MDL in the chain. This MDL pointer
+ *               will be updated as the function traverses the MDL chain.
+ * @param Offset Reference to the current offset within the current MDL. This offset will
+ *               be updated as data is copied from the MDL.
+ * @return The total number of bytes copied to the destination buffer.
+ *
+ * Note: The function updates 'Source' to point to the next MDL in the chain after the
+ *       current MDL has been processed. If the end of the current MDL is reached before
+ *       copying 'Length' bytes, 'Source' will point to the next MDL for further copying.
+ *       'Offset' is updated to reflect the position within the current MDL after the copy
+ *       operation. If the end of the MDL is reached, 'Offset' will be set to zero to indicate
+ *       the start of the next MDL in the chain.
+*/
+ULONG CNB::CopyFromMdlChain(PVOID Dst, ULONG Length, PMDL &Source, ULONG &Offset)
+{
+    /*Skip over MDLs until we reach the one that contains the offset we're interested in*/
+    while (Source && MmGetMdlByteCount(Source) < Offset) {
+        Offset -= MmGetMdlByteCount(Source);
+        Source = Source->Next;
+    }
+
+    ULONG Copied = 0;
+
+    while (Source && Copied < Length)
+    {
+        ULONG CurrLen;
+        PVOID CurrAddr = nullptr;
+
+        NdisQueryMdl(Source, &CurrAddr, &CurrLen, MM_PAGE_PRIORITY(LowPagePriority | MdlMappingNoExecute));
+
+        if (CurrAddr == nullptr)
+        {
+            break;
+        }
+
+        ULONG toCopyNow = min(CurrLen - Offset, Length - Copied);
+        NdisMoveMemory(RtlOffsetToPointer(Dst, Copied),
+            RtlOffsetToPointer(CurrAddr, Offset),
+            toCopyNow);
+
+        if (Length - Copied < CurrLen - Offset)
+        {
+            /*We have not reached the end of the current MDL and have copied the required data*/
+            Copied += toCopyNow;
+            Offset += toCopyNow;
+            break;
+        }
+        else
+        {
+            /*We have reached the end of the current MDL*/
+            Copied += toCopyNow;
+            Offset = 0;
+            Source = Source->Next;
+        }
+    }
+
+    return Copied;
+}

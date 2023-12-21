@@ -57,6 +57,7 @@ public:
     void Report(int level, bool Success);
 private:
     ULONG Copy(PVOID Dst, ULONG Length) const;
+    static ULONG CopyFromMdlChain(PVOID Dst, ULONG Length, PMDL &Source, ULONG &Offset);
     bool CopyHeaders(PVOID Destination, ULONG MaxSize, ULONG &HeadersLength, ULONG &L4HeaderOffset) const;
     void BuildPriorityHeader(PETH_HEADER EthHeader, PVLAN_HEADER VlanHeader) const;
     void PrepareOffloads(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength, ULONG L4HeaderOffset) const;
