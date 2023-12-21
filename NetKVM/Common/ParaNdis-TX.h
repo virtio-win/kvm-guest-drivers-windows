@@ -7,6 +7,10 @@
 /* Must be a power of 2 */
 #define PARANDIS_TX_LOCK_FREE_QUEUE_DEFAULT_SIZE 2048
 
+/* the maximum number of pages that a single network packet can span.
+refer linux kernel code #define MAX_SKB_FRAGS (65536/PAGE_SIZE + 1), */
+#define MAX_PACKET_PAGES 17
+
 class CNB;
 class CParaNdisTX;
 
@@ -217,6 +221,8 @@ private:
 
 typedef CNdisList<CNBL, CRawAccess, CNonCountingObject> CRawCNBLList;
 
+typedef CNdisList<CNdisSharedMemory, CRawAccess, CCountingObject> CRawPageList;
+
 typedef CLockFreeDynamicQueue<CNBL> CLockFreeCNBLQueue;
 
 class CParaNdisTX : public CParaNdisTemplatePath<CTXVirtQueue>, public CNdisAllocatable<CParaNdisTX, 'XTHR'>
@@ -273,6 +279,9 @@ private:
     CNBL *PeekMappedNBL() { return m_SendQueue.Peek(); }
     void PushMappedNBL(CNBL *NBLHolder) { m_SendQueue.Enqueue(NBLHolder); }
 
+    bool AllocateExtraPages();
+    void FreeExtraPages();
+
     CDataFlowStateMachine m_StateMachine;
     bool m_StateMachineRegistered = false;
 
@@ -283,6 +292,8 @@ private:
 
     CRawCNBLList m_WaitingList;
     CNdisSpinLock m_WaitingListLock;
+
+    CRawPageList m_ExtraPages;
 
     CPool<CNB, 'BNHR'>  m_nbPool;
     CPool<CNBL, 'LNHR'> m_nblPool;

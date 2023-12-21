@@ -549,7 +549,7 @@ private:
     }
 };
 
-class CNdisSharedMemory
+class CNdisSharedMemory : public CNdisAllocatable<CNdisSharedMemory, 'XTSM'>
 {
 public:
     explicit CNdisSharedMemory()
@@ -578,6 +578,8 @@ private:
 
     CNdisSharedMemory(const CNdisSharedMemory&) = delete;
     CNdisSharedMemory& operator= (const CNdisSharedMemory&) = delete;
+
+    DECLARE_CNDISLIST_ENTRY(CNdisSharedMemory);
 };
 
 class CNdisEvent
