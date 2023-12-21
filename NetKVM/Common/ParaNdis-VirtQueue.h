@@ -126,6 +126,11 @@ public:
     bool AddDataChunk(const PHYSICAL_ADDRESS &PA, ULONG Length);
     bool SetupHeaders(ULONG ParsedHeadersLength);
 
+    bool HasRoom(ULONG NumEntries)
+    {
+        return (m_VirtioSGLSize - m_CurrVirtioSGLEntry) >= NumEntries;
+    }
+
 private:
     CTXHeaders m_Headers;
     CNdisSharedMemory m_IndirectArea;

@@ -23,6 +23,17 @@ typedef enum class _tagNBMappingStatus
     FAILURE
 } NBMappingStatus;
 
+struct CExtendedNBStorage
+{
+    ULONG                  m_UsedPagesCount;
+    /* Array to hold pages storing packet data. Although MAX_PACKET_PAGES - 1 might be
+     * sufficient since protocol headers are not stored, we're currently using
+     * MAX_PACKET_PAGES for simplicity and potential future use cases.
+     */
+    CNdisSharedMemory     *m_UsedPages[MAX_PACKET_PAGES];
+    SCATTER_GATHER_ELEMENT m_Elements[MAX_PACKET_PAGES];
+};
+
 class CNB : public CNdisAllocatableViaHelper<CNB>
 {
 public:
@@ -62,6 +73,7 @@ public:
 
     NBMappingStatus BindToDescriptor(CTXDescriptor &Descriptor);
     void Report(int level, bool Success);
+    void ReturnPages();
 private:
     ULONG Copy(PVOID Dst, ULONG Length) const;
     static ULONG CopyFromMdlChain(PVOID Dst, ULONG Length, PMDL &Source, ULONG &Offset);
@@ -73,14 +85,17 @@ private:
     USHORT QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const;
     void DoIPHdrCSO(PVOID EthHeaders, ULONG HeadersLength) const;
     void SetupCSO(virtio_net_hdr *VirtioHeader, ULONG L4HeaderOffset) const;
-    bool FillDescriptorSGList(CTXDescriptor &Descriptor, ULONG DataOffset) const;
-    bool MapDataToVirtioSGL(CTXDescriptor &Descriptor, ULONG Offset) const;
+    NBMappingStatus FillDescriptorSGList(CTXDescriptor &Descriptor, ULONG DataOffset);
+    NBMappingStatus MapDataToVirtioSGL(CTXDescriptor &Descriptor, ULONG Offset) const;
     void PopulateIPLength(IPHeader *IpHeader, USHORT IpLength) const;
+    NBMappingStatus MapCopyDataToVirtioSGL(CTXDescriptor &Descriptor) const;
+    NBMappingStatus AllocateAndFillCopySGL(ULONG ParsedHeadersLength);
 
     PNET_BUFFER m_NB;
     CNBL *m_ParentNBL;
     PPARANDIS_ADAPTER m_Context;
     PSCATTER_GATHER_LIST m_SGL = nullptr;
+    CExtendedNBStorage *m_ExtraNBStorage = nullptr;
 
     CNB(const CNB&) = delete;
     CNB& operator= (const CNB&) = delete;
@@ -170,6 +185,7 @@ public:
         }
     }
     ULONG NumberOfBuffers() const { return m_BuffersNumber; }
+    CParaNdisTX *GetParentTXPath() const { return m_ParentTXPath; }
 private:
     virtual void OnLastReferenceGone() override;
 
@@ -269,6 +285,9 @@ public:
 
     void CompleteOutstandingNBLChain(PNET_BUFFER_LIST NBL, ULONG Flags = 0);
     void CompleteOutstandingInternalNBL(PNET_BUFFER_LIST NBL, BOOLEAN UnregisterOutstanding = TRUE);
+
+    bool BorrowPages(CExtendedNBStorage *extraNBStorage, ULONG NeedPages);
+    void ReturnPages(CExtendedNBStorage *extraNBStorage);
 private:
 
     virtual void Notify(SMNotifications message) override;
