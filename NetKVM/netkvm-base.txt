@@ -113,7 +113,7 @@ HKR, Ndi\Params\TxCapacity\enum,    "1024",     0,          %String_1024%
 
 HKR, Ndi\params\RxCapacity,         ParamDesc,  0,          %RxCapacity%
 HKR, Ndi\params\RxCapacity,         type,       0,          "enum"
-HKR, Ndi\params\RxCapacity,         default,    0,          "256"
+HKR, Ndi\params\RxCapacity,         default,    0,          "1024"
 HKR, Ndi\Params\RxCapacity\enum,    "16",       0,          %String_16%
 HKR, Ndi\Params\RxCapacity\enum,    "32",       0,          %String_32%
 HKR, Ndi\Params\RxCapacity\enum,    "64",       0,          %String_64%
