@@ -346,7 +346,7 @@ bool CParaNdisTX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
         m_Context->maxFreeTxDescriptors,
         m_Context->nVirtioHeaderSize,
         m_Context) &&
-        m_SendQueue.Create(Context, m_SendQueue.IsPowerOfTwo(m_Context->maxFreeTxDescriptors) ?
+        m_SendQueue.Create(Context, IsPowerOfTwo(m_Context->maxFreeTxDescriptors) ?
             8 * m_Context->maxFreeTxDescriptors : PARANDIS_TX_LOCK_FREE_QUEUE_DEFAULT_SIZE);
 }
 
