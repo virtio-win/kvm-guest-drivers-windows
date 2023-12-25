@@ -273,12 +273,6 @@ static BOOLEAN IsValidHashInfo(ULONG HashInformation)
 }
 
 static __inline
-BOOLEAN IsPowerOfTwo(ULONG n)
-{
-    return ((n != 0) && ((n & (~n + 1)) == n));
-}
-
-static __inline
 BOOLEAN IsCompatibleAffinities(PGROUP_AFFINITY a1, PGROUP_AFFINITY a2)
 {
     return (a1->Group == a2->Group) && (a1->Mask & a2->Mask);

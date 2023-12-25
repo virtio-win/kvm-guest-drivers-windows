@@ -190,11 +190,6 @@ public:
         return (((m_ProducerHead + 1) & m_ProducerMask) == m_ConsumerTail);
     }
 
-    BOOLEAN IsPowerOfTwo(INT x)
-    {
-        return (x & (x - 1)) == 0 && (x != 0);
-    }
-
 private:
 
     volatile LONG m_ProducerHead;
@@ -294,11 +289,6 @@ public:
     BOOLEAN IsEmpty()
     {
         return m_Queue.IsEmpty() ? (BOOLEAN) m_QueueFullListIsEmpty : FALSE;
-    }
-
-    BOOLEAN IsPowerOfTwo(INT x)
-    {
-        return m_Queue.IsPowerOfTwo(x);
     }
 
 private:

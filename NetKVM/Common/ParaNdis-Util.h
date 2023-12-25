@@ -26,6 +26,12 @@ void NetKvmAssert(bool Statement, ULONG Code);
 #define _Ndis_acquires_exclusive_lock_(lock) _Ndis_acquires_lock_(_exclusive_, lock)
 #define _Ndis_acquires_shared_lock_(lock) _Ndis_acquires_lock_(_shared_, lock)
 
+static __inline
+BOOLEAN IsPowerOfTwo(ULONG n)
+{
+    return ((n != 0) && ((n & (~n + 1)) == n));
+}
+
 class CNdisAllocatableBase
 {
 protected:
