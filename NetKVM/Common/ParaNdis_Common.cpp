@@ -1096,6 +1096,62 @@ static NDIS_STATUS SetupDPCTarget(PARANDIS_ADAPTER *pContext)
     return NDIS_STATUS_SUCCESS;
 }
 
+/**************************************************************************
+For each RX packet we need:
+0 or more page-sized blocks for data (eth header and up)
+header block (4K or less) to accomodate header, indirect are and
+the remainder of the packet that is less than a page
+***************************************************************************/
+static void PrepareRXLayout(PARANDIS_ADAPTER* pContext)
+{
+#define RX_LAYOUT_AS_BEFORE
+#ifndef RX_LAYOUT_AS_BEFORE
+    USHORT alignment = 32;
+    pContext->RxLayout.ReserveForHeader = ALIGN_UP_BY(pContext->nVirtioHeaderSize, alignment);
+    ULONG rxPayloadSize = pContext->MaxPacketSize.nMaxDataSizeHwRx;
+    // include the header
+    pContext->RxLayout.TotalAllocationsPerBuffer = USHORT(rxPayloadSize / PAGE_SIZE) + 1;
+    USHORT tail = rxPayloadSize % PAGE_SIZE;
+    // we need one entry for each data page + header + tail (if any)
+    pContext->RxLayout.IndirectEntries = pContext->RxLayout.TotalAllocationsPerBuffer + !!tail;
+    pContext->RxLayout.ReserveForIndirectArea =
+        ALIGN_UP_BY(pContext->RxLayout.IndirectEntries * sizeof(VirtIOBufferDescriptor), alignment);
+    pContext->RxLayout.HeaderPageAllocation =
+        pContext->RxLayout.ReserveForHeader + pContext->RxLayout.ReserveForIndirectArea;
+    if (pContext->RxLayout.HeaderPageAllocation + tail > PAGE_SIZE)
+    {
+        // packet tail is quite big, placing it in additional page
+        pContext->RxLayout.TotalAllocationsPerBuffer++;
+    }
+    else
+    {
+        pContext->RxLayout.HeaderPageAllocation += tail;
+        pContext->RxLayout.ReserveForPacketTail = tail;
+    }
+    while (!IsPowerOfTwo(pContext->RxLayout.HeaderPageAllocation))
+    {
+        pContext->RxLayout.HeaderPageAllocation++;
+    }
+#else
+    USHORT alignment = 8;
+    pContext->RxLayout.ReserveForHeader = ALIGN_UP_BY(pContext->nVirtioHeaderSize, alignment);
+    pContext->RxLayout.ReserveForIndirectArea = PAGE_SIZE - pContext->RxLayout.ReserveForHeader;
+    pContext->RxLayout.ReserveForPacketTail = 0;
+    pContext->RxLayout.HeaderPageAllocation = PAGE_SIZE;
+    // this includes header
+    pContext->RxLayout.TotalAllocationsPerBuffer = USHORT(pContext->MaxPacketSize.nMaxDataSizeHwRx / PAGE_SIZE) + 2;
+    pContext->RxLayout.IndirectEntries = pContext->RxLayout.TotalAllocationsPerBuffer;
+#endif
+    TraceNoPrefix(0, "[%s]: header: h%d + i%d(%d) + t%d = %d, allocs: %d\n",
+        __FUNCTION__,
+        pContext->RxLayout.ReserveForHeader,
+        pContext->RxLayout.IndirectEntries,
+        pContext->RxLayout.ReserveForIndirectArea,
+        pContext->RxLayout.ReserveForPacketTail,
+        pContext->RxLayout.HeaderPageAllocation,
+        pContext->RxLayout.TotalAllocationsPerBuffer);
+}
+
 /**********************************************************
 Initializes VirtIO buffering and related stuff:
 Allocates RX and TX queues and buffers
@@ -1124,6 +1180,8 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         DPrintf(0, "[%s] - failed to reserve %u queues\n", __FUNCTION__, nVirtIOQueues);
         return NTStatusToNdisStatus(nt_status);
     }
+
+    PrepareRXLayout(pContext);
 
     if (pContext->bControlQueueSupported && pContext->CXPath.Create(2 * pContext->nHardwareQueues))
     {
