@@ -274,24 +274,61 @@ static FORCEINLINE CCHAR ParaNdis_GetScalingDataForPacket(PARANDIS_ADAPTER *pCon
 }
 #endif
 
-static FORCEINLINE BOOLEAN ParaNdis_PerformPacketAnalysis(
-#if PARANDIS_SUPPORT_RSS
-    PPARANDIS_RSS_PARAMS RSSParameters,
-#endif
-    PNET_PACKET_INFO PacketInfo,
-    PVOID HeadersBuffer,
-    ULONG DataLength)
+static ULONG ShallPassPacket(PARANDIS_ADAPTER* pContext, PNET_PACKET_INFO pPacketInfo)
 {
-    if (!ParaNdis_AnalyzeReceivedPacket(HeadersBuffer, DataLength, PacketInfo))
+    ULONG i;
+
+    if (pPacketInfo->dataLength > pContext->MaxPacketSize.nMaxFullSizeOsRx + ETH_PRIORITY_HEADER_SIZE)
         return FALSE;
 
-#if PARANDIS_SUPPORT_RSS
-    if (RSSParameters->RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED)
+    if ((pPacketInfo->dataLength > pContext->MaxPacketSize.nMaxFullSizeOsRx) && !pPacketInfo->hasVlanHeader)
+        return FALSE;
+
+    if (IsVlanSupported(pContext) && pPacketInfo->hasVlanHeader)
     {
-        ParaNdis6_RSSAnalyzeReceivedPacket(RSSParameters, HeadersBuffer, PacketInfo);
+        if (pContext->VlanId && pContext->VlanId != pPacketInfo->Vlan.VlanId)
+        {
+            return FALSE;
+        }
     }
-#endif
-    return TRUE;
+
+    if (pContext->PacketFilter & NDIS_PACKET_TYPE_PROMISCUOUS)
+        return TRUE;
+
+    if (pPacketInfo->isUnicast)
+    {
+        ULONG Res;
+
+        if (!(pContext->PacketFilter & NDIS_PACKET_TYPE_DIRECTED))
+            return FALSE;
+
+        ETH_COMPARE_NETWORK_ADDRESSES_EQ_SAFE(pPacketInfo->ethDestAddr, pContext->CurrentMacAddress, &Res);
+        return !Res;
+    }
+
+    if (pPacketInfo->isBroadcast)
+        return (pContext->PacketFilter & NDIS_PACKET_TYPE_BROADCAST);
+
+    // Multi-cast
+
+    if (pContext->PacketFilter & NDIS_PACKET_TYPE_ALL_MULTICAST)
+        return TRUE;
+
+    if (!(pContext->PacketFilter & NDIS_PACKET_TYPE_MULTICAST))
+        return FALSE;
+
+    for (i = 0; i < pContext->MulticastData.nofMulticastEntries; i++)
+    {
+        ULONG Res;
+        PUCHAR CurrMcastAddr = &pContext->MulticastData.MulticastList[i * ETH_ALEN];
+
+        ETH_COMPARE_NETWORK_ADDRESSES_EQ_SAFE(pPacketInfo->ethDestAddr, CurrMcastAddr, &Res);
+
+        if (!Res)
+            return TRUE;
+    }
+
+    return FALSE;
 }
 
 #define LogRedirectedPacket(p)
@@ -389,17 +426,11 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
         RemoveEntryList(&pBufferDescriptor->listEntry);
         m_NetNofReceiveBuffers--;
 
-        BOOLEAN packetAnalysisRC;
-
-        packetAnalysisRC = ParaNdis_PerformPacketAnalysis(
-#if PARANDIS_SUPPORT_RSS
-            &m_Context->RSSParameters,
-#endif
-
-            &pBufferDescriptor->PacketInfo,
+        // basic MAC-based analysis + L3 header info
+        BOOLEAN packetAnalysisRC = ParaNdis_AnalyzeReceivedPacket(
             pBufferDescriptor->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE].Virtual,
-            nFullLength - m_Context->nVirtioHeaderSize);
-
+            nFullLength - m_Context->nVirtioHeaderSize,
+            &pBufferDescriptor->PacketInfo);
 
         if (!packetAnalysisRC)
         {
@@ -409,7 +440,22 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
             continue;
         }
 
+        // filtering based on prev stage analysis
+        if (!ShallPassPacket(m_Context, &pBufferDescriptor->PacketInfo))
+        {
+            pBufferDescriptor->Queue->ReuseReceiveBufferNoLock(pBufferDescriptor);
+            m_Context->Statistics.ifInDiscards++;
+            m_Context->extraStatistics.framesFilteredOut++;
+            continue;
+        }
 #ifdef PARANDIS_SUPPORT_RSS
+        if (m_Context->RSSParameters.RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED)
+        {
+            ParaNdis6_RSSAnalyzeReceivedPacket(
+                &m_Context->RSSParameters,
+                pBufferDescriptor->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE].Virtual,
+                &pBufferDescriptor->PacketInfo);
+        }
         CCHAR nTargetReceiveQueueNum;
         GROUP_AFFINITY TargetAffinity;
         PROCESSOR_NUMBER TargetProcessor;
