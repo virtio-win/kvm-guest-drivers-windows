@@ -1112,7 +1112,7 @@ the remainder of the packet that is less than a page
 ***************************************************************************/
 static void PrepareRXLayout(PARANDIS_ADAPTER* pContext)
 {
-#define RX_LAYOUT_AS_BEFORE
+//#define RX_LAYOUT_AS_BEFORE
 #ifndef RX_LAYOUT_AS_BEFORE
     USHORT alignment = 32;
     pContext->RxLayout.ReserveForHeader = ALIGN_UP_BY(pContext->nVirtioHeaderSize, alignment);
