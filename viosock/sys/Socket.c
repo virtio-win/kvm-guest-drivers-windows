@@ -142,6 +142,57 @@ EVT_WDF_TIMER          VIOSockPendedTimerFunc;
 #endif
 
 //////////////////////////////////////////////////////////////////////////
+
+_Requires_lock_not_held_(pSocket->RxLock)
+__declspec(noinline)
+NTSTATUS
+VIOSockPendedRequestGetLocked(
+    IN PSOCKET_CONTEXT  pSocket,
+    OUT WDFREQUEST* Request
+)
+{
+    NTSTATUS status;
+
+    WdfSpinLockAcquire(pSocket->RxLock);
+    status = VIOSockPendedRequestGet(pSocket, Request);
+    WdfSpinLockRelease(pSocket->RxLock);
+
+    return status;
+}
+
+_Requires_lock_not_held_(pSocket->RxLock)
+NTSTATUS
+VIOSockPendedRequestSetLocked(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN WDFREQUEST Request,
+    IN LONGLONG Timeout
+)
+{
+    NTSTATUS status;
+
+    WdfSpinLockAcquire(pSocket->RxLock);
+    status = VIOSockPendedRequestSet(pSocket, Request, Timeout);
+    WdfSpinLockRelease(pSocket->RxLock);
+
+    return status;
+}
+
+_Requires_lock_not_held_(pSocket->RxLock)
+NTSTATUS
+VIOSockPendedRequestSetResumeLocked(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN WDFREQUEST       Request
+)
+{
+    NTSTATUS status;
+
+    WdfSpinLockAcquire(pSocket->RxLock);
+    status = VIOSockPendedRequestSetResume(pSocket, Request);
+    WdfSpinLockRelease(pSocket->RxLock);
+
+    return status;
+}
+
 NTSTATUS
 VIOSockBoundListInit(
     IN WDFDEVICE hDevice

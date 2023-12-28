@@ -409,41 +409,21 @@ VIOSockPendedRequestSetEx(
 #define VIOSockPendedRequestSet(s,r,t) VIOSockPendedRequestSetEx(s,r,t,FALSE)
 
 _Requires_lock_not_held_(pSocket->RxLock)
-__inline
 NTSTATUS
 VIOSockPendedRequestSetLocked(
     IN PSOCKET_CONTEXT  pSocket,
     IN WDFREQUEST Request,
     IN LONGLONG Timeout
-)
-{
-    NTSTATUS status;
-
-    WdfSpinLockAcquire(pSocket->RxLock);
-    status = VIOSockPendedRequestSet(pSocket, Request, Timeout);
-    WdfSpinLockRelease(pSocket->RxLock);
-
-    return status;
-}
+);
 
 #define VIOSockPendedRequestSetResume(s,r) VIOSockPendedRequestSetEx(s,r,0,TRUE)
 
 _Requires_lock_not_held_(pSocket->RxLock)
-__inline
 NTSTATUS
 VIOSockPendedRequestSetResumeLocked(
     IN PSOCKET_CONTEXT  pSocket,
     IN WDFREQUEST       Request
-)
-{
-    NTSTATUS status;
-
-    WdfSpinLockAcquire(pSocket->RxLock);
-    status = VIOSockPendedRequestSetResume(pSocket, Request);
-    WdfSpinLockRelease(pSocket->RxLock);
-
-    return status;
-}
+);
 
 _Requires_lock_held_(pSocket->RxLock)
 NTSTATUS
@@ -452,22 +432,14 @@ VIOSockPendedRequestGet(
     OUT WDFREQUEST      *Request
 );
 
-__inline
+
 _Requires_lock_not_held_(pSocket->RxLock)
+__declspec(noinline)
 NTSTATUS
 VIOSockPendedRequestGetLocked(
     IN PSOCKET_CONTEXT  pSocket,
     OUT WDFREQUEST      *Request
-)
-{
-    NTSTATUS status;
-
-    WdfSpinLockAcquire(pSocket->RxLock);
-    status = VIOSockPendedRequestGet(pSocket, Request);
-    WdfSpinLockRelease(pSocket->RxLock);
-
-    return status;
-}
+);
 
 NTSTATUS
 VIOSockAcceptInitSocket(
