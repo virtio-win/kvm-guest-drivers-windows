@@ -29,28 +29,25 @@
 
 #pragma once
 
-extern "C" {
-
-}
 #define VIOGPU_GET_DEVICE_ID                              0x00
 #define VIOGPU_GET_CUSTOM_RESOLUTION                      0x01
 
 #pragma pack(1)
-typedef struct _VIOGPU_DISP_MODE {
-    USHORT XResolution;
-    USHORT YResolution;
-}VIOGPU_DISP_MODE, *PVIOGPU_DISP_MODE;
+    typedef struct _VIOGPU_DISP_MODE {
+        USHORT XResolution;
+        USHORT YResolution;
+    }VIOGPU_DISP_MODE, * PVIOGPU_DISP_MODE;
 #pragma pack()
 
 #pragma pack(1)
-typedef struct  _VIOGPU_ESCAPE{
-    USHORT      Type;
-    USHORT      DataLength;
-    union {
-        ULONG Id;
-        VIOGPU_DISP_MODE Resolution;
-    } DUMMYUNIONNAME;
-} VIOGPU_ESCAPE, *PVIOGPU_ESCAPE;
+    typedef struct  _VIOGPU_ESCAPE {
+        USHORT      Type;
+        USHORT      DataLength;
+        union {
+            ULONG Id;
+            VIOGPU_DISP_MODE Resolution;
+        } DUMMYUNIONNAME;
+    } VIOGPU_ESCAPE, * PVIOGPU_ESCAPE;
 #pragma pack()
 
 #define BASE_NAMED_OBJECTS    L"\\BaseNamedObjects\\"

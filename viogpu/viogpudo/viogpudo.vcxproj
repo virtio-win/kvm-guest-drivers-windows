@@ -249,6 +249,7 @@
   <ItemGroup>
     <ClInclude Include="..\common\baseobj.h" />
     <ClInclude Include="..\common\bitops.h" />
+    <ClInclude Include="..\common\edid.h" />
     <ClInclude Include="..\common\helper.h" />
     <ClInclude Include="driver.h" />
     <ClInclude Include="trace.h" />
@@ -256,6 +257,7 @@
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\common\edid.cpp" />
     <ClCompile Include="..\common\viogpu_idr.cpp" />
     <ClCompile Include="..\common\viogpu_pci.cpp" />
     <ClCompile Include="..\common\viogpu_queue.cpp" />

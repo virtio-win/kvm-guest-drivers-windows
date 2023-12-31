@@ -33,6 +33,8 @@
 #include "baseobj.h"
 #include "bitops.h"
 #include "viogpum.h"
+#include "edid.h"
+
 #if !DBG
 #include "viogpudo.tmh"
 #endif
@@ -399,15 +401,17 @@ NTSTATUS VioGpuDod::QueryDeviceDescriptor(_In_  ULONG ChildUid,
     VIOGPU_ASSERT(ChildUid < MAX_CHILDREN);
     PBYTE edid = NULL;
 
+    VioGpuDbgBreak();
+
     edid = m_pHWDevice->GetEdidData();
 
     if (!edid)
     {
         return STATUS_GRAPHICS_CHILD_DESCRIPTOR_NOT_SUPPORTED;
     }
-    else if (pDeviceDescriptor->DescriptorOffset < EDID_V1_BLOCK_SIZE)
+    else if (pDeviceDescriptor->DescriptorOffset < EDID_RAW_BLOCK_SIZE)
     {
-        ULONG len = min(pDeviceDescriptor->DescriptorLength, (EDID_V1_BLOCK_SIZE - pDeviceDescriptor->DescriptorOffset));
+        ULONG len = min(pDeviceDescriptor->DescriptorLength, (EDID_RAW_BLOCK_SIZE - pDeviceDescriptor->DescriptorOffset));
         RtlCopyMemory(pDeviceDescriptor->DescriptorBuffer, (edid + pDeviceDescriptor->DescriptorOffset), len);
         pDeviceDescriptor->DescriptorLength = len;
         return STATUS_SUCCESS;
@@ -821,7 +825,6 @@ NTSTATUS VioGpuDod::AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTER
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return STATUS_SUCCESS;
 }
-
 
 NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODES* CONST pRecommendMonitorModes)
 {
@@ -1929,7 +1932,7 @@ NTSTATUS VioGpuDod::GetRegisterInfo(void)
     return Status;
 }
 
-VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod* pVioGpuDod) // : IVioGpuAdapter(pVioGpuDod)
+VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod* pVioGpuDod)
 {
     PAGED_CODE();
     RtlZeroMemory(&m_VioDev, sizeof(m_VioDev));
@@ -2139,47 +2142,6 @@ BOOLEAN VioGpuAdapter::AckFeature(UINT64 Feature)
     return FALSE;
 }
 
-static UCHAR g_gpu_edid[EDID_V1_BLOCK_SIZE] = {
-    0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF ,0xFF, 0x00, // Header
-    0x49, 0x14,                                     // Manufacturef Id
-    0x34, 0x12,                                     // Manufacturef product code
-    0x00, 0x00, 0x00, 0x00,                         // serial number
-    0xff, 0x1d,                                     // year of manufacture
-    0x01,                                           // EDID version
-    0x04,                                           // EDID revision
-    0xa3,                                           // VideoInputDefinition digital, 8-bit, HDMI
-    0x00,                                           //MaximumHorizontalImageSize
-    0x00,                                           //MaximumVerticallImageSize
-    0x78,                                           //DisplayTransferCharacteristics
-    0x22,                                           //FeatureSupport
-    0xEE, 0x95, 0xA3, 0x54, 0x4C,                   //ColorCharacteristics
-    0x99, 0x26, 0x0F, 0x50, 0x54,
-    0x00, 0x00,                                     //EstablishedTimings
-    0x00,                                           //ManufacturerTimings
-    0x01, 0x01,                                     //StandardTimings[8]
-    0x01, 0x01,
-    0x01, 0x01,
-    0x01, 0x01,
-    0x01, 0x01,
-    0x01, 0x01,
-    0x01, 0x01,
-    0x01, 0x01,
-    0x6c, 0x20, 0x80, 0x30, 0x42, 0x00,             // Descriptor 1
-    0x32, 0x30, 0x40, 0xc0, 0x13, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x1e,
-    0x00, 0x00, 0x00, 0xFD, 0x00, 0x32,             // Descriptor 2
-    0x7d, 0x1e, 0xa0, 0x78, 0x01, 0x0a,
-    0x20, 0x20 ,0x20, 0x20, 0x20, 0x20,
-    0x00, 0x00, 0x00, 0x10, 0x00, 0x00,             // Descriptor 3
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x10, 0x00, 0x00,             // Descriptor 4
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00,                                           // Number of Extentions
-    0x00                                            // CheckSum
-};
-
 NTSTATUS VioGpuAdapter::VirtIoDeviceInit()
 {
     PAGED_CODE();
@@ -2196,6 +2158,26 @@ PBYTE VioGpuAdapter::GetEdidData()
     PAGED_CODE();
 
     return m_bEDID ? m_EDIDs : (PBYTE)(g_gpu_edid);
+}
+
+PBYTE VioGpuAdapter::GetCTA861Data(void)
+{
+    PAGED_CODE();
+
+    if (m_bEDID)
+    {
+        PEDID_DATA_V1 edid_data = (PEDID_DATA_V1)m_EDIDs;
+        if (edid_data->ExtensionFlag)
+        {
+            PEDID_CTA_861 cta_data = (PEDID_CTA_861)(m_EDIDs + EDID_V1_BLOCK_SIZE);
+            if (cta_data->ExtentionTag[0] >= 2 &&
+                cta_data->Revision[0] >= 3)
+            {
+                return (PBYTE)cta_data;
+            }
+        }
+    }
+    return NULL;
 }
 
 VOID VioGpuAdapter::CreateResolutionEvent(VOID)
@@ -2341,9 +2323,17 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
     PHYSICAL_ADDRESS fb_pa = m_PciResources.GetPciBar(0)->GetPA();
     UINT fb_size = (UINT)m_PciResources.GetPciBar(0)->GetSize();
     UINT req_size = pDispInfo->Pitch * pDispInfo->Height;
+    req_size = max(req_size, 0x1000000);
 
-//FIXME
-    req_size = 0x1000000;
+    VioGpuDbgBreak();
+    UINT max_res_size = MIN_WIDTH_SIZE * MIN_HEIGHT_SIZE;
+    for (UINT idx = 0; idx < m_ModeCount; idx++)
+    {
+        UINT res_size = m_ModeInfo[idx].VisScreenWidth * m_ModeInfo[idx].VisScreenHeight;
+        max_res_size = max(max_res_size, res_size);
+    }
+
+    req_size = max(req_size, (max_res_size * 4));
 
     if (fb_pa.QuadPart != 0LL) {
         pDispInfo->PhysicAddress = fb_pa;
@@ -2762,15 +2752,21 @@ BOOLEAN VioGpuAdapter::GetDisplayInfo(void)
     return TRUE;
 }
 
-void VioGpuAdapter::ProcessEdid(void)
+int VioGpuAdapter::ProcessEdid(void)
 {
     PAGED_CODE();
+    VioGpuDbgBreak();
 
-    if (virtio_is_feature_enabled(m_u64HostFeatures, VIRTIO_GPU_F_EDID)) {
+    if (virtio_is_feature_enabled(m_u64HostFeatures, VIRTIO_GPU_F_EDID))
+    {
         GetEdids();
     }
-    FixEdid();
-    AddEdidModes();
+    else
+    {
+        FixEdid();
+    }
+
+    return AddEdidModes();
 }
 
 void VioGpuAdapter::FixEdid(void)
@@ -2810,48 +2806,241 @@ BOOLEAN VioGpuAdapter::GetEdids(void)
     return TRUE;
 }
 
-
-VIOGPU_DISP_MODE gpu_disp_modes[16] =
+BOOLEAN VioGpuAdapter::UpdateModes(USHORT xres, USHORT yres, int& cnt)
 {
-    {640, 480},
-    {800, 600},
-    {1024, 768},
-    {1280, 1024},
-    {1920, 1080},
-    {2560, 1600},
-    {0, 0},
-};
+    int idx = 0;
 
+    if ((xres < MIN_WIDTH_SIZE) ||
+        (yres < MIN_HEIGHT_SIZE))
+    {
+        return FALSE;
+    }
 
-void VioGpuAdapter::AddEdidModes(void)
-{
-    PAGED_CODE();
-    ESTABLISHED_TIMINGS est_timing = ((PEDID_DATA_V1)(GetEdidData()))->EstablishedTimings;
-    MANUFACTURER_TIMINGS manufact_timing = ((PEDID_DATA_V1)(GetEdidData()))->ManufacturerTimings;
-    int modecount = 0;
-    while (gpu_disp_modes[modecount].XResolution != 0 && gpu_disp_modes[modecount].XResolution != 0) modecount++;
-    VioGpuDbgBreak();
-    if (est_timing.Timing_720x400_88 || est_timing.Timing_720x400_70) {
-        gpu_disp_modes[modecount].XResolution = 720; gpu_disp_modes[modecount].YResolution = 400;
-        modecount++;
+    for (; idx < cnt; idx++)
+    {
+        if ((gpu_disp_modes[idx].XResolution == xres) &&
+            (gpu_disp_modes[idx].YResolution == yres))
+        {
+            return FALSE;
+        }
     }
-    if (est_timing.Timing_832x624_75) {
-        gpu_disp_modes[modecount].XResolution = 832; gpu_disp_modes[modecount].YResolution = 624;
-        modecount++;
-    }
-    if (est_timing.Timing_1280x1024_75) {
-        gpu_disp_modes[modecount].XResolution = 1280; gpu_disp_modes[modecount].YResolution = 1024;
-        modecount++;
-    }
-    if (manufact_timing.Timing_1152x870_75) {
-        gpu_disp_modes[modecount].XResolution = 1152; gpu_disp_modes[modecount].YResolution = 870;
-        modecount++;
-    }
-    gpu_disp_modes[modecount].XResolution = 0; gpu_disp_modes[modecount].YResolution = 0;
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+    gpu_disp_modes[idx].XResolution = xres;
+    gpu_disp_modes[idx].YResolution = yres;
+    cnt++;
+    return TRUE;
 }
 
+
+int VioGpuAdapter::AddEdidModes(void)
+{
+    PAGED_CODE();
+    PEDID_DATA_V1 edid_data = (PEDID_DATA_V1)(GetEdidData());
+    ESTABLISHED_TIMINGS_1_2 est_timing_1_2 = edid_data->EstablishedTimings;
+    MANUFACTURER_TIMINGS manufact_timing = edid_data->ManufacturerTimings;
+    int modecount = 0;
+
+    VioGpuDbgBreak();
+
+    UpdateModes(MIN_WIDTH_SIZE, MIN_HEIGHT_SIZE, modecount);
+    UpdateModes(NOM_WIDTH_SIZE, NOM_HEIGHT_SIZE, modecount);
+
+    if (est_timing_1_2.Timing_800x600_60 ||
+        est_timing_1_2.Timing_800x600_56 ||
+        est_timing_1_2.Timing_800x600_75 ||
+        est_timing_1_2.Timing_800x600_72)
+    {
+        UpdateModes(800, 600, modecount);
+    }
+
+    if (est_timing_1_2.Timing_720x400_88 ||
+        est_timing_1_2.Timing_720x400_70)
+    {
+        UpdateModes(720, 400, modecount);
+    }
+
+    if (est_timing_1_2.Timing_832x624_75)
+    {
+        UpdateModes(832, 624, modecount);
+    }
+
+    if (est_timing_1_2.Timing_1280x1024_75)
+    {
+        UpdateModes(1280, 1024, modecount);
+    }
+
+    if (manufact_timing.Timing_1152x870_75)
+    {
+        UpdateModes(1152, 870, modecount);
+    }
+
+    PSTANDARD_TIMING_DESCRIPTOR standard_timing = edid_data->StandardTimings;
+    for (int i = 0; i < 8; i++, standard_timing++)
+    {
+        VIOGPU_DISP_MODE mode{ 0 };
+        if (GetStandardTimingResolution(standard_timing, &mode))
+        {
+            UpdateModes(mode.XResolution, mode.YResolution, modecount);
+        }
+    }
+
+    if (edid_data->Revision[0] == 4)
+    {
+        PEDID_DETAILED_DESCRIPTOR detailed_desc = edid_data->EDIDDetailedTimings;
+        for (int i = 0; i < 4; i++, detailed_desc++)
+        {
+            if (detailed_desc->PixelClock == 0)
+            {
+                PEDID_DISPLAY_DESCRIPTOR disp = (PEDID_DISPLAY_DESCRIPTOR)detailed_desc;
+                if (disp->Tag == 0xF7 && disp->Reserved1 == 0)
+                {
+                    PESTABLISHED_TIMINGS_3 est_timing_3 = (PESTABLISHED_TIMINGS_3)disp->Data;
+                    if (est_timing_3->Timing_640x350_85)
+                    {
+                        UpdateModes(640, 350, modecount);
+                    }
+
+                    if (est_timing_3->Timing_640x400_85)
+                    {
+                        UpdateModes(640, 400, modecount);
+                    }
+
+                    if (est_timing_3->Timing_640x480_85)
+                    {
+                        UpdateModes(640, 480, modecount);
+                    }
+
+                    if (est_timing_3->Timing_720x400_85)
+                    {
+                        UpdateModes(720, 400, modecount);
+                    }
+
+                    if (est_timing_3->Timing_800x600_85)
+                    {
+                        UpdateModes(800, 600, modecount);
+                    }
+
+                    if (est_timing_3->Timing_848x480_60)
+                    {
+                        UpdateModes(848, 480, modecount);
+                    }
+
+                    if (est_timing_3->Timing_1024x768_85)
+                    {
+                        UpdateModes(1024, 768, modecount);
+                    }
+
+                    if (est_timing_3->Timing_1152x864_75)
+                    {
+                        UpdateModes(1152, 864, modecount);
+                    }
+
+                    if (est_timing_3->Timing_1280x768_60 ||
+                        est_timing_3->Timing_1280x768_60_RB ||
+                        est_timing_3->Timing_1280x768_75 ||
+                        est_timing_3->Timing_1280x768_85)
+                    {
+                        UpdateModes(1280, 768, modecount);
+                    }
+
+                    if (est_timing_3->Timing_1280x960_60 ||
+                        est_timing_3->Timing_1280x960_85)
+                    {
+                        UpdateModes(1280, 960, modecount);
+                    }
+
+                    if (est_timing_3->Timing_1280x1024_60 ||
+                        est_timing_3->Timing_1280x1024_85)
+                    {
+                        UpdateModes(1280, 1024, modecount);
+                    }
+
+                    if (est_timing_3->Timing_1360x768_60)
+                    {
+                        UpdateModes(1360, 768, modecount);
+                    }
+
+                    if (est_timing_3->Timing_1400x1050_60 ||
+                        est_timing_3->Timing_1400x1050_60_RB ||
+                        est_timing_3->Timing_1400x1050_75 ||
+                        est_timing_3->Timing_1400x1050_85)
+                    {
+                        UpdateModes(1400, 1050, modecount);
+                    }
+
+                    if (est_timing_3->Timing_1440x900_60 ||
+                        est_timing_3->Timing_1440x900_60_RB ||
+                        est_timing_3->Timing_1440x900_75 ||
+                        est_timing_3->Timing_1440x900_85)
+                    {
+                        UpdateModes(1440, 900, modecount);
+                    }
+
+                    if (est_timing_3->Timing_1600x1200_60 ||
+                        est_timing_3->Timing_1600x1200_65 ||
+                        est_timing_3->Timing_1600x1200_70 ||
+                        est_timing_3->Timing_1600x1200_75 ||
+                        est_timing_3->Timing_1600x1200_85)
+                    {
+                        UpdateModes(1600, 1200, modecount);
+                    }
+
+                    if (est_timing_3->Timing_1680x1050_60 ||
+                        est_timing_3->Timing_1680x1050_60_RB ||
+                        est_timing_3->Timing_1680x1050_75 ||
+                        est_timing_3->Timing_1680x1050_85)
+                    {
+                        UpdateModes(1680, 1050, modecount);
+                    }
+
+                    if (est_timing_3->Timing_1792x1344_60 ||
+                        est_timing_3->Timing_1792x1344_75)
+                    {
+                        UpdateModes(1792, 1344, modecount);
+                    }
+
+                    if (est_timing_3->Timing_1856x1392_60 ||
+                        est_timing_3->Timing_1856x1392_75)
+                    {
+                        UpdateModes(1856, 1392, modecount);
+                    }
+
+                    if (est_timing_3->Timing_1920x1200_60 ||
+                        est_timing_3->Timing_1920x1200_60_RB ||
+                        est_timing_3->Timing_1920x1200_75 ||
+                        est_timing_3->Timing_1920x1200_85)
+                    {
+                        UpdateModes(1920, 1200, modecount);
+                    }
+
+                    if (est_timing_3->Timing_1920x1440_60 ||
+                        est_timing_3->Timing_1920x1440_75)
+                    {
+                        UpdateModes(1920, 1440, modecount);
+                    }
+                }
+            }
+        }
+    }
+
+    PEDID_CTA_861 cta_data = (PEDID_CTA_861)GetCTA861Data();
+    if (cta_data &&
+        cta_data->DTDBegin[0] > 4)
+    {
+        int vics = (cta_data->DTDBegin[0] - 1) - 4;
+        for (int idx = 0; idx < vics; idx++)
+        {
+            VIOGPU_DISP_MODE mode{ 0 };
+            USHORT vic_num = cta_data->Data[idx];
+            if (GetVICResolution(vic_num, &mode))
+            {
+                UpdateModes(mode.XResolution, mode.YResolution, modecount);
+            }
+        }
+    }
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+    return modecount;
+}
 
 void VioGpuAdapter::SetVideoModeInfo(UINT Idx, PVIOGPU_DISP_MODE pModeInfo)
 {
@@ -2921,10 +3110,12 @@ NTSTATUS VioGpuAdapter::GetModeList(DXGK_DISPLAY_INFORMATION* pDispInfo)
     m_ModeInfo = NULL;
     m_ModeNumbers = NULL;
 
-    while ((gpu_disp_modes[ModeCount].XResolution >= MIN_WIDTH_SIZE) &&
-        (gpu_disp_modes[ModeCount].YResolution >= MIN_HEIGHT_SIZE)) ModeCount++;
+    VioGpuDbgBreak();
 
-    ModeCount += 1;
+    ModeCount = ProcessEdid();
+
+    ModeCount++;
+
     m_ModeInfo = new (PagedPool) VIDEO_MODE_INFORMATION[ModeCount];
     if (!m_ModeInfo)
     {
@@ -2943,8 +3134,6 @@ NTSTATUS VioGpuAdapter::GetModeList(DXGK_DISPLAY_INFORMATION* pDispInfo)
     }
     RtlZeroMemory(m_ModeNumbers, sizeof(USHORT) * ModeCount);
 
-    ProcessEdid();
-
     SetCurrentModeIndex(0);
     DbgPrint(TRACE_LEVEL_INFORMATION, ("m_ModeInfo = 0x%p, m_ModeNumbers = 0x%p\n", m_ModeInfo, m_ModeNumbers));
 
@@ -2953,61 +3142,45 @@ NTSTATUS VioGpuAdapter::GetModeList(DXGK_DISPLAY_INFORMATION* pDispInfo)
     pDispInfo->ColorFormat = D3DDDIFMT_X8R8G8B8;
     pDispInfo->Pitch = (BPPFromPixelFormat(pDispInfo->ColorFormat) / BITS_PER_BYTE) * 	pDispInfo->Width;
 
-    USHORT SuitableModeCount;
-    USHORT CurrentMode;
+    VioGpuDbgBreak();
 
-    for (CurrentMode = 0, SuitableModeCount = 0;
-        CurrentMode < ModeCount - 1;
-        CurrentMode++)
+    for (USHORT indx = 0; indx < ModeCount - 1; indx++)
     {
 
-        PVIOGPU_DISP_MODE pModeInfo = &gpu_disp_modes[CurrentMode];
+        PVIOGPU_DISP_MODE pModeInfo = &gpu_disp_modes[indx];
 
         DbgPrint(TRACE_LEVEL_INFORMATION, ("%s: modes[%d] x_res = %d, y_res = %d\n",
-            __FUNCTION__, CurrentMode, pModeInfo->XResolution, pModeInfo->YResolution));
+            __FUNCTION__, indx, pModeInfo->XResolution, pModeInfo->YResolution));
 
-        if (pModeInfo->XResolution >= pDispInfo->Width &&
-            pModeInfo->YResolution >= pDispInfo->Height)
+        m_ModeNumbers[indx] = indx;
+        SetVideoModeInfo(indx, pModeInfo);
+        if (pModeInfo->XResolution == NOM_WIDTH_SIZE &&
+            pModeInfo->YResolution == NOM_HEIGHT_SIZE)
         {
-            m_ModeNumbers[SuitableModeCount] = SuitableModeCount;
-            SetVideoModeInfo(SuitableModeCount, pModeInfo);
-            if (pModeInfo->XResolution == NOM_WIDTH_SIZE &&
-                pModeInfo->YResolution == NOM_HEIGHT_SIZE)
-            {
-                m_CurrentModeIndex = SuitableModeCount;
-            }
-            SuitableModeCount++;
+            m_CurrentModeIndex = indx;
+            DbgPrint(TRACE_LEVEL_FATAL, ("%s: modes[%d] x_res = %d, y_res = %d\n",
+                __FUNCTION__, m_CurrentModeIndex, pModeInfo->XResolution, pModeInfo->YResolution));
         }
     }
 
-    if (SuitableModeCount == 0)
-    {
-        DbgPrint(TRACE_LEVEL_ERROR, ("No video modes supported\n"));
-        Status = STATUS_UNSUCCESSFUL;
-    }
+    VioGpuDbgBreak();
+    m_CustomModeIndex = (USHORT)(ModeCount-1);
 
-    m_CustomModeIndex = SuitableModeCount;
-    for (CurrentMode = SuitableModeCount;
-        CurrentMode < SuitableModeCount + 1;
-        CurrentMode++)
-    {
-        m_ModeNumbers[CurrentMode] = CurrentMode;
-        memcpy(&m_ModeInfo[CurrentMode], &m_ModeInfo[GetCurrentModeIndex()], sizeof(VIDEO_MODE_INFORMATION));
-    }
+    m_ModeNumbers[m_CustomModeIndex] = m_CustomModeIndex;
+    memcpy(&m_ModeInfo[m_CustomModeIndex], &m_ModeInfo[GetCurrentModeIndex()], sizeof(VIDEO_MODE_INFORMATION));
 
-    m_ModeCount = SuitableModeCount + 1;
+    m_ModeCount = ModeCount;
     DbgPrint(TRACE_LEVEL_INFORMATION, ("ModeCount filtered %d\n", m_ModeCount));
 
     GetDisplayInfo();
 
-    for (ULONG idx = 0; idx < ModeCount; idx++)
+    for (UINT idx = 0; idx < ModeCount; idx++)
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("type %d, XRes = %d, YRes = %d\n",
             m_ModeNumbers[idx],
             m_ModeInfo[idx].VisScreenWidth,
             m_ModeInfo[idx].VisScreenHeight));
     }
-
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return Status;

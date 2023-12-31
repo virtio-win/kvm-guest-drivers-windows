@@ -27,7 +27,7 @@
  * SUCH DAMAGE.
  */
 
-#include "helper.h"
+#include "viogpu_queue.h"
 #include "baseobj.h"
 #if !DBG
 #include "viogpu_queue.tmh"
@@ -326,7 +326,7 @@ BOOLEAN CtrlQueue::GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid)
     PAGED_CODE();
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
+    VioGpuDbgBreak();
     PGPU_CMD_GET_EDID cmd = (PGPU_CMD_GET_EDID)buf->buf;
     PGPU_RESP_EDID resp = (PGPU_RESP_EDID)buf->resp_buf;
     PUCHAR resp_edit = (PUCHAR)(resp->edid + (ULONGLONG)id * EDID_V1_BLOCK_SIZE);
@@ -341,7 +341,7 @@ BOOLEAN CtrlQueue::GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid)
         return FALSE;
     }
 
-    RtlCopyMemory(edid, resp_edit, EDID_V1_BLOCK_SIZE);
+    RtlCopyMemory(edid, resp_edit, EDID_RAW_BLOCK_SIZE);
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     return TRUE;

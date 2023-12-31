@@ -29,6 +29,7 @@
 
 #pragma once
 #include "helper.h"
+#include "viogpu.h"
 
 #pragma pack(1)
 typedef struct virtio_gpu_config {
