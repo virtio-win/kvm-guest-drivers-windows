@@ -30,7 +30,7 @@
 #pragma once
 
 #include "helper.h"
-
+#include "viogpu_queue.h"
 
 #pragma pack(push)
 #pragma pack(1)
@@ -111,6 +111,7 @@ public:
     VioGpuDod* GetVioGpu(void) { return m_pVioGpuDod; }
     ULONG GetInstanceId(void) { return m_Id; }
     PBYTE GetEdidData(void);
+    PBYTE GetCTA861Data(void);
 
 protected:
 private:
@@ -120,10 +121,11 @@ private:
     NTSTATUS GetModeList(DXGK_DISPLAY_INFORMATION* pDispInfo);
     BOOLEAN AckFeature(UINT64 Feature);
     BOOLEAN GetDisplayInfo(void);
-    void ProcessEdid(void);
+    int ProcessEdid(void);
     void FixEdid(void);
     BOOLEAN GetEdids(void);
-    void AddEdidModes(void);
+    int AddEdidModes(void);
+    BOOLEAN UpdateModes(USHORT xres, USHORT yres, int& cnt);
     NTSTATUS UpdateChildStatus(BOOLEAN connect);
     void SetCustomDisplay(_In_ USHORT xres,
         _In_ USHORT yres);
@@ -148,7 +150,7 @@ private:
     USHORT m_CurrentModeIndex;
     USHORT m_CustomModeIndex;
     ULONG  m_Id;
-    BYTE m_EDIDs[EDID_V1_BLOCK_SIZE];
+    BYTE m_EDIDs[EDID_RAW_BLOCK_SIZE];
     BOOLEAN m_bEDID;
 
     VirtIODevice m_VioDev;
