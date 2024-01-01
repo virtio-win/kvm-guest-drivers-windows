@@ -334,9 +334,7 @@ typedef struct _ADAPTER_EXTENSION {
     UCHAR                 rev_id[4 + 1];
     BOOLEAN               reset_in_progress;
     ACTION_ON_RESET       action_on_reset;
-#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
     ULONGLONG             fw_ver;
-#endif
 } ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
 
 #ifndef PCIX_TABLE_POINTER

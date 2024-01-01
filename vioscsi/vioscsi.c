@@ -635,10 +635,7 @@ ENTER_FN();
                              (PVOID*)&adaptExt->pmsg_affinity);
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " pmsg_affinity = %p Status = %lu\n",adaptExt->pmsg_affinity, Status);
     }
-
-#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
     adaptExt->fw_ver = '0';
-#endif
 
 EXIT_FN();
     return SP_RETURN_FOUND;
@@ -1738,12 +1735,10 @@ ENTER_FN_SRB();
                 srbControl->Signature[4], srbControl->Signature[5], srbControl->Signature[6], srbControl->Signature[7]);
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> IOCTL_SCSI_MINIPORT_NOT_QUORUM_CAPABLE\n");
             break;
-#if (NTDDI_VERSION >=NTDDI_WINTHRESHOLD)
         case IOCTL_SCSI_MINIPORT_FIRMWARE:
             FirmwareRequest(DeviceExtension, Srb);
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> IOCTL_SCSI_MINIPORT_FIRMWARE\n");
             break;
-#endif
         default:
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_INVALID_REQUEST);
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> Unsupport control code 0x%x\n", srbControl->ControlCode);

@@ -303,11 +303,9 @@ ENTER_FN();
     if (CHECKBIT(adaptExt->features, VIRTIO_F_ANY_LAYOUT)) {
         guestFeatures |= (1ULL << VIRTIO_F_ANY_LAYOUT);
     }
-#if (NTDDI_VERSION >=NTDDI_WINTHRESHOLD)
     if (CHECKBIT(adaptExt->features, VIRTIO_F_ACCESS_PLATFORM)) {
         guestFeatures |= (1ULL << VIRTIO_F_ACCESS_PLATFORM);
     }
-#endif
     if (CHECKBIT(adaptExt->features, VIRTIO_RING_F_EVENT_IDX)) {
         guestFeatures |= (1ULL << VIRTIO_RING_F_EVENT_IDX);
     }
@@ -536,7 +534,6 @@ ENTER_FN();
 EXIT_FN();
 }
 
-#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
 VOID FirmwareRequest(
     IN PVOID DeviceExtension,
     IN PSRB_TYPE Srb
@@ -650,5 +647,3 @@ ENTER_FN();
     }
 EXIT_FN();
 }
-
-#endif

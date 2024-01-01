@@ -212,12 +212,10 @@ CompleteRequest(
     IN PSRB_TYPE Srb
  );
 
-#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
 VOID FirmwareRequest(
     IN PVOID DeviceExtension,
     IN PSRB_TYPE Srb
     );
-#endif
 
 extern VirtIOSystemOps VioScsiSystemOps;
 
