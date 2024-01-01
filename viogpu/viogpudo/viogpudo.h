@@ -105,7 +105,7 @@ public:
     PHYSICAL_ADDRESS GetFrameBufferPA(void) { return  m_PciResources.GetPciBar(0)->GetPA(); }
 
     PVIDEO_MODE_INFORMATION GetModeInfo(UINT idx) { return &m_ModeInfo[idx]; }
-    USHORT GetModeNumber(USHORT idx) { return m_ModeNumbers[idx]; }
+    USHORT GetModeNumber(USHORT idx) { return (USHORT)m_ModeInfo[idx].ModeIndex; }
     USHORT GetCurrentModeIndex(void) { return m_CurrentModeIndex; }
     VOID SetCurrentModeIndex(USHORT idx) { m_CurrentModeIndex = idx; }
     VioGpuDod* GetVioGpu(void) { return m_pVioGpuDod; }
@@ -118,7 +118,7 @@ private:
     NTSTATUS VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION* pDispInfo);
     void SetVideoModeInfo(UINT Idx, PVIOGPU_DISP_MODE pModeInfo);
     void VioGpuAdapterClose(void);
-    NTSTATUS GetModeList(DXGK_DISPLAY_INFORMATION* pDispInfo);
+    NTSTATUS BuildModeList(DXGK_DISPLAY_INFORMATION* pDispInfo);
     BOOLEAN AckFeature(UINT64 Feature);
     BOOLEAN GetDisplayInfo(void);
     int ProcessEdid(void);
@@ -146,7 +146,6 @@ private:
     VioGpuDod* m_pVioGpuDod;
     PVIDEO_MODE_INFORMATION m_ModeInfo;
     ULONG m_ModeCount;
-    PUSHORT m_ModeNumbers;
     USHORT m_CurrentModeIndex;
     USHORT m_CustomModeIndex;
     ULONG  m_Id;

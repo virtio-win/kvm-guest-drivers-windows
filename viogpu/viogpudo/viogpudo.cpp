@@ -401,8 +401,6 @@ NTSTATUS VioGpuDod::QueryDeviceDescriptor(_In_  ULONG ChildUid,
     VIOGPU_ASSERT(ChildUid < MAX_CHILDREN);
     PBYTE edid = NULL;
 
-    VioGpuDbgBreak();
-
     edid = m_pHWDevice->GetEdidData();
 
     if (!edid)
@@ -1941,24 +1939,22 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod* pVioGpuDod)
     m_CustomModeIndex = 0;
     RtlZeroMemory(m_EDIDs, sizeof(m_EDIDs));
     m_bEDID = FALSE;
-
-
     m_ModeInfo = NULL;
     m_ModeCount = 0;
-    m_ModeNumbers = NULL;
     m_Id = g_InstanceId++;
     m_pFrameBuf = NULL;
     m_pCursorBuf = NULL;
     m_PendingWorks = 0;
-    KeInitializeEvent(&m_ConfigUpdateEvent,
-        SynchronizationEvent,
-        FALSE);
     m_bStopWorkThread = FALSE;
     m_pWorkThread = NULL;
     m_ResolutionEvent = NULL;
     m_ResolutionEventHandle = NULL;
     m_u32NumCapsets = 0;
     m_u32NumScanouts = 0;
+
+    KeInitializeEvent(&m_ConfigUpdateEvent,
+        SynchronizationEvent,
+        FALSE);
 }
 
 VioGpuAdapter::~VioGpuAdapter(void)
@@ -1971,9 +1967,7 @@ VioGpuAdapter::~VioGpuAdapter(void)
     VioGpuAdapterClose();
     HWClose();
     delete[] m_ModeInfo;
-    delete[] m_ModeNumbers;
     m_ModeInfo = NULL;
-    m_ModeNumbers = NULL;
     m_CurrentModeIndex = 0;
     m_ModeCount = 0;
     m_Id = 0;
@@ -1986,7 +1980,7 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE* pCurrentMode)
     DbgPrint(TRACE_LEVEL_ERROR, ("---> %s - %d: Mode = %d\n", __FUNCTION__, m_Id, Mode));
     for (ULONG idx = 0; idx < GetModeCount(); idx++)
     {
-        if (Mode == m_ModeNumbers[idx])
+        if (Mode == m_ModeInfo[idx].ModeIndex/*m_ModeNumbers[idx]*/)
         {
             if (pCurrentMode->Flags.FrameBufferIsActive) {
                 DestroyFrameBufferObj(FALSE);
@@ -2313,7 +2307,7 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
 
     ZwClose(threadHandle);
 
-    status = GetModeList(pDispInfo);
+    status = BuildModeList(pDispInfo);
     if (!NT_SUCCESS(status))
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("%s GetModeList failed with %x\n", __FUNCTION__, status));
@@ -2325,7 +2319,6 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
     UINT req_size = pDispInfo->Pitch * pDispInfo->Height;
     req_size = max(req_size, 0x1000000);
 
-    VioGpuDbgBreak();
     UINT max_res_size = MIN_WIDTH_SIZE * MIN_HEIGHT_SIZE;
     for (UINT idx = 0; idx < m_ModeCount; idx++)
     {
@@ -2744,18 +2737,22 @@ BOOLEAN VioGpuAdapter::GetDisplayInfo(void)
             m_CtrlQueue.ReleaseBuffer(vbuf);
             if (xres && yres) {
                 DbgPrint(TRACE_LEVEL_FATAL, ("---> %s (%dx%d)\n", __FUNCTION__, xres, yres));
+                VioGpuDbgBreak();
                 SetCustomDisplay((USHORT)xres, (USHORT)yres);
+                return TRUE;
             }
         }
     }
+    xres = NOM_WIDTH_SIZE;
+    yres = NOM_HEIGHT_SIZE;
+    SetCustomDisplay((USHORT)xres, (USHORT)yres);
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-    return TRUE;
+    return FALSE;
 }
 
 int VioGpuAdapter::ProcessEdid(void)
 {
     PAGED_CODE();
-    VioGpuDbgBreak();
 
     if (virtio_is_feature_enabled(m_u64HostFeatures, VIRTIO_GPU_F_EDID))
     {
@@ -2838,8 +2835,6 @@ int VioGpuAdapter::AddEdidModes(void)
     ESTABLISHED_TIMINGS_1_2 est_timing_1_2 = edid_data->EstablishedTimings;
     MANUFACTURER_TIMINGS manufact_timing = edid_data->ManufacturerTimings;
     int modecount = 0;
-
-    VioGpuDbgBreak();
 
     UpdateModes(MIN_WIDTH_SIZE, MIN_HEIGHT_SIZE, modecount);
     UpdateModes(NOM_WIDTH_SIZE, NOM_HEIGHT_SIZE, modecount);
@@ -3089,14 +3084,12 @@ void VioGpuAdapter::SetCustomDisplay(_In_ USHORT xres, _In_ USHORT yres)
     tmpModeInfo.XResolution = m_pVioGpuDod->IsFlexResolution() ? xres : max(MIN_WIDTH_SIZE, xres);
     tmpModeInfo.YResolution = m_pVioGpuDod->IsFlexResolution() ? yres : max(MIN_HEIGHT_SIZE, yres);
 
-    m_CustomModeIndex = (USHORT)(m_ModeCount - 1);
-
     DbgPrint(TRACE_LEVEL_FATAL, ("%s - %d (%dx%d)\n", __FUNCTION__, m_CustomModeIndex, tmpModeInfo.XResolution, tmpModeInfo.YResolution));
 
     SetVideoModeInfo(m_CustomModeIndex, &tmpModeInfo);
 }
 
-NTSTATUS VioGpuAdapter::GetModeList(DXGK_DISPLAY_INFORMATION* pDispInfo)
+NTSTATUS VioGpuAdapter::BuildModeList(DXGK_DISPLAY_INFORMATION* pDispInfo)
 {
     PAGED_CODE();
 
@@ -3104,47 +3097,29 @@ NTSTATUS VioGpuAdapter::GetModeList(DXGK_DISPLAY_INFORMATION* pDispInfo)
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
-    UINT ModeCount = 0;
     delete[] m_ModeInfo;
-    delete[] m_ModeNumbers;
     m_ModeInfo = NULL;
-    m_ModeNumbers = NULL;
+    m_ModeCount = 0;
 
-    VioGpuDbgBreak();
+    m_ModeCount = ProcessEdid() + 1;
 
-    ModeCount = ProcessEdid();
-
-    ModeCount++;
-
-    m_ModeInfo = new (PagedPool) VIDEO_MODE_INFORMATION[ModeCount];
+    m_ModeInfo = new (PagedPool) VIDEO_MODE_INFORMATION[m_ModeCount];
     if (!m_ModeInfo)
     {
         Status = STATUS_NO_MEMORY;
         DbgPrint(TRACE_LEVEL_ERROR, ("VioGpuAdapter::GetModeList failed to allocate m_ModeInfo memory\n"));
         return Status;
     }
-    RtlZeroMemory(m_ModeInfo, sizeof(VIDEO_MODE_INFORMATION) * ModeCount);
-
-    m_ModeNumbers = new (PagedPool) USHORT[ModeCount];
-    if (!m_ModeNumbers)
-    {
-        Status = STATUS_NO_MEMORY;
-        DbgPrint(TRACE_LEVEL_ERROR, ("VioGpuAdapter::GetModeList failed to allocate m_ModeNumbers memory\n"));
-        return Status;
-    }
-    RtlZeroMemory(m_ModeNumbers, sizeof(USHORT) * ModeCount);
+    RtlZeroMemory(m_ModeInfo, sizeof(VIDEO_MODE_INFORMATION) * m_ModeCount);
 
     SetCurrentModeIndex(0);
-    DbgPrint(TRACE_LEVEL_INFORMATION, ("m_ModeInfo = 0x%p, m_ModeNumbers = 0x%p\n", m_ModeInfo, m_ModeNumbers));
 
     pDispInfo->Height = max(pDispInfo->Height, MIN_HEIGHT_SIZE);
     pDispInfo->Width = max(pDispInfo->Width, MIN_WIDTH_SIZE);
     pDispInfo->ColorFormat = D3DDDIFMT_X8R8G8B8;
     pDispInfo->Pitch = (BPPFromPixelFormat(pDispInfo->ColorFormat) / BITS_PER_BYTE) * 	pDispInfo->Width;
 
-    VioGpuDbgBreak();
-
-    for (USHORT indx = 0; indx < ModeCount - 1; indx++)
+    for (USHORT indx = 0; indx < m_ModeCount - 1; indx++)
     {
 
         PVIOGPU_DISP_MODE pModeInfo = &gpu_disp_modes[indx];
@@ -3152,32 +3127,26 @@ NTSTATUS VioGpuAdapter::GetModeList(DXGK_DISPLAY_INFORMATION* pDispInfo)
         DbgPrint(TRACE_LEVEL_INFORMATION, ("%s: modes[%d] x_res = %d, y_res = %d\n",
             __FUNCTION__, indx, pModeInfo->XResolution, pModeInfo->YResolution));
 
-        m_ModeNumbers[indx] = indx;
         SetVideoModeInfo(indx, pModeInfo);
         if (pModeInfo->XResolution == NOM_WIDTH_SIZE &&
             pModeInfo->YResolution == NOM_HEIGHT_SIZE)
         {
-            m_CurrentModeIndex = indx;
+            SetCurrentModeIndex(indx);
             DbgPrint(TRACE_LEVEL_FATAL, ("%s: modes[%d] x_res = %d, y_res = %d\n",
                 __FUNCTION__, m_CurrentModeIndex, pModeInfo->XResolution, pModeInfo->YResolution));
         }
     }
 
-    VioGpuDbgBreak();
-    m_CustomModeIndex = (USHORT)(ModeCount-1);
+    m_CustomModeIndex = (USHORT)(m_ModeCount - 1);
 
-    m_ModeNumbers[m_CustomModeIndex] = m_CustomModeIndex;
-    memcpy(&m_ModeInfo[m_CustomModeIndex], &m_ModeInfo[GetCurrentModeIndex()], sizeof(VIDEO_MODE_INFORMATION));
-
-    m_ModeCount = ModeCount;
     DbgPrint(TRACE_LEVEL_INFORMATION, ("ModeCount filtered %d\n", m_ModeCount));
 
     GetDisplayInfo();
 
-    for (UINT idx = 0; idx < ModeCount; idx++)
+    for (UINT idx = 0; idx < m_ModeCount; idx++)
     {
-        DbgPrint(TRACE_LEVEL_FATAL, ("type %d, XRes = %d, YRes = %d\n",
-            m_ModeNumbers[idx],
+        DbgPrint(TRACE_LEVEL_FATAL, ("index %d, XRes = %d, YRes = %d\n",
+            m_ModeInfo[idx].ModeIndex,
             m_ModeInfo[idx].VisScreenWidth,
             m_ModeInfo[idx].VisScreenHeight));
     }
