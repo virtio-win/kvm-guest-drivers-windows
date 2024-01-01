@@ -258,7 +258,6 @@ BOOLEAN CtrlQueue::AskDisplayInfo(PGPU_VBUFFER* buf)
     if (status == STATUS_TIMEOUT) {
         DbgPrint(TRACE_LEVEL_FATAL, ("---> Failed to ask display info\n"));
         VioGpuDbgBreak();
-        //        return FALSE;
     }
     *buf = vbuf;
 
@@ -311,7 +310,6 @@ BOOLEAN CtrlQueue::AskEdidInfo(PGPU_VBUFFER* buf, UINT id)
     if (status == STATUS_TIMEOUT) {
         DbgPrint(TRACE_LEVEL_FATAL, ("---> Failed to get edid info\n"));
         VioGpuDbgBreak();
-        //        return FALSE;
     }
 
     *buf = vbuf;
@@ -326,7 +324,6 @@ BOOLEAN CtrlQueue::GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid)
     PAGED_CODE();
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-    VioGpuDbgBreak();
     PGPU_CMD_GET_EDID cmd = (PGPU_CMD_GET_EDID)buf->buf;
     PGPU_RESP_EDID resp = (PGPU_RESP_EDID)buf->resp_buf;
     PUCHAR resp_edit = (PUCHAR)(resp->edid + (ULONGLONG)id * EDID_V1_BLOCK_SIZE);
