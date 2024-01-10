@@ -238,6 +238,7 @@ void FreeVirtFsRequest(IN PVIRTIO_FS_REQUEST Request)
     if (Request->InputBuffer != NULL)
     {
         MmFreePagesFromMdl(Request->InputBuffer);
+        ExFreePool(Request->InputBuffer);
         Request->InputBuffer = NULL;
         Request->InputBufferLength = 0;
     }
@@ -245,6 +246,7 @@ void FreeVirtFsRequest(IN PVIRTIO_FS_REQUEST Request)
     if (Request->OutputBuffer != NULL)
     {
         MmFreePagesFromMdl(Request->OutputBuffer);
+        ExFreePool(Request->OutputBuffer);
         Request->OutputBuffer = NULL;
         Request->OutputBufferLength = 0;
     }
