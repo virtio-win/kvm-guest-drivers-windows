@@ -64,8 +64,12 @@ typedef struct _VioScsiExtendedInfo
     #define VioScsiExtendedInfo_PhysicalBreaks_SIZE sizeof(ULONG)
     #define VioScsiExtendedInfo_PhysicalBreaks_ID 10
 
+    //
+    ULONG ResponseTime;
+    #define VioScsiExtendedInfo_ResponseTime_SIZE sizeof(ULONG)
+    #define VioScsiExtendedInfo_ResponseTime_ID 11
 } VioScsiExtendedInfo, *PVioScsiExtendedInfo;
 
-#define VioScsiExtendedInfo_SIZE (FIELD_OFFSET(VioScsiExtendedInfo, PhysicalBreaks) + VioScsiExtendedInfo_PhysicalBreaks_SIZE)
+#define VioScsiExtendedInfo_SIZE (FIELD_OFFSET(VioScsiExtendedInfo, ResponseTime) + VioScsiExtendedInfo_ResponseTime_SIZE)
 
 #endif

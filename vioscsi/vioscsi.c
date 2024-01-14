@@ -68,6 +68,7 @@ HW_DPC_ROUTINE       VioScsiCompleteDpcRoutine;
 HW_PASSIVE_INITIALIZE_ROUTINE         VioScsiIoPassiveInitializeRoutine;
 HW_MESSAGE_SIGNALED_INTERRUPT_ROUTINE VioScsiMSInterrupt;
 
+
 #ifdef EVENT_TRACING
 PVOID TraceContext = NULL;
 VOID WppCleanupRoutine(PVOID arg1) {
@@ -362,6 +363,7 @@ DriverEntry(
     hwInitData.HwResetBus               = VioScsiResetBus;
     hwInitData.HwAdapterControl         = VioScsiAdapterControl;
     hwInitData.HwBuildIo                = VioScsiBuildIo;
+
     hwInitData.NeedPhysicalAddresses    = TRUE;
     hwInitData.TaggedQueuing            = TRUE;
     hwInitData.AutoRequestSense         = TRUE;
@@ -522,6 +524,9 @@ ENTER_FN();
 
     adaptExt->action_on_reset = VioscsiResetCompleteRequests;
     VioScsiReadRegistryParameter(DeviceExtension, REGISTRY_ACTION_ON_RESET, FIELD_OFFSET(ADAPTER_EXTENSION, action_on_reset));
+
+    adaptExt->resp_time = 0;
+    VioScsiReadRegistryParameter(DeviceExtension, REGISTRY_RESP_TIME_LIMIT, FIELD_OFFSET(ADAPTER_EXTENSION, resp_time));
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus);
 
@@ -1316,6 +1321,21 @@ ENTER_FN_SRB();
     }
     srbExt->in = sgElement - srbExt->out;
 
+    if (adaptExt->resp_time)
+    {
+        LARGE_INTEGER counter = { 0 };
+        ULONG status = STOR_STATUS_SUCCESS;
+        status = StorPortQueryPerformanceCounter(DeviceExtension, NULL, &counter);
+        if ( status == STOR_STATUS_SUCCESS)
+        {
+            srbExt->time = counter.QuadPart;
+        }
+        else
+        {
+            RhelDbgPrint(TRACE_LEVEL_FATAL, "SRB 0x%p StorPortQueryPerformanceCounter failed with status  0x%lx\n", Srb, status);
+        }
+    }
+
 EXIT_FN_SRB();
     return TRUE;
 }
@@ -1567,8 +1587,41 @@ CompleteRequest(
     IN PSRB_TYPE Srb
     )
 {
-ENTER_FN_SRB();
+    PADAPTER_EXTENSION    adaptExt = NULL;
+    PSRB_EXTENSION        srbExt = NULL;
+
+ ENTER_FN_SRB();
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PostProcessRequest(DeviceExtension, Srb);
+
+    if (adaptExt->resp_time)
+    {
+        srbExt = SRB_EXTENSION(Srb);
+        if (srbExt->time != 0)
+        {
+            LARGE_INTEGER counter = { 0 };
+            LARGE_INTEGER freq = { 0 };
+            ULONG status = StorPortQueryPerformanceCounter(DeviceExtension, &freq, &counter);
+
+            if (status == STOR_STATUS_SUCCESS)
+            {
+                ULONGLONG time_100ns = ((counter.QuadPart - srbExt->time)) / freq.QuadPart;
+                ULONGLONG time_sec = time_100ns / (10 * 1000 /* 1000*/);
+                if (time_sec >= adaptExt->resp_time)
+                {
+                    UCHAR OpCode = SRB_CDB(Srb)->CDB6GENERIC.OperationCode;
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, "Response Time SRB 0x%p : time %I64d (%lu) : length %d : OpCode 0x%x (%s)\n", 
+                        Srb, time_sec, SRB_GET_TIMEOUTVALUE(Srb) * 1000, SRB_DATA_TRANSFER_LENGTH(Srb), OpCode, DbgGetScsiOpStr(OpCode));
+                    DPrintf(1, "ResponseTime SRB 0x%p : time %I64d (%lu) : length %d : OpCode 0x%x (%s)\n",
+                        Srb, time_sec, SRB_GET_TIMEOUTVALUE(Srb) * 1000, SRB_DATA_TRANSFER_LENGTH(Srb), OpCode, DbgGetScsiOpStr(OpCode));
+                }
+            }
+            else
+            {
+                RhelDbgPrint(TRACE_LEVEL_FATAL, "SRB 0x%p StorPortQueryPerformanceCounter failed with status  0x%lx\n", Srb, status);
+            }
+        }
+    }
     StorPortNotification(RequestComplete,
                          DeviceExtension,
                          Srb);
@@ -2343,6 +2396,6 @@ ENTER_FN();
     extInfo->InterruptMsgRanges = CHECKFLAG(adaptExt->perfFlags, STOR_PERF_INTERRUPT_MESSAGE_RANGES);
     extInfo->CompletionDuringStartIo = CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO);
     extInfo->PhysicalBreaks = adaptExt->max_physical_breaks;
-
+    extInfo->ResponseTime = adaptExt->resp_time;
 EXIT_FN();
 }
