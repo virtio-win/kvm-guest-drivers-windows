@@ -60,6 +60,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define REGISTRY_MAX_PH_BREAKS           "PhysicalBreaks"
 #define REGISTRY_ACTION_ON_RESET         "VioscsiActionOnReset"
+#define REGISTRY_RESP_TIME_LIMIT         "TraceResponseTime"
 
 
 /* Feature Bits */
@@ -250,6 +251,7 @@ typedef struct _SRB_EXTENSION {
     PVRING_DESC_ALIAS POINTER_ALIGN pdesc;
     VIO_SG                vio_sg[VIRTIO_MAX_SG];
     VRING_DESC_ALIAS      desc_alias[VIRTIO_MAX_SG];
+    ULONGLONG             time;
 }SRB_EXTENSION, * PSRB_EXTENSION;
 #pragma pack()
 
@@ -335,6 +337,7 @@ typedef struct _ADAPTER_EXTENSION {
     BOOLEAN               reset_in_progress;
     ACTION_ON_RESET       action_on_reset;
     ULONGLONG             fw_ver;
+    ULONG                 resp_time;
 } ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
 
 #ifndef PCIX_TABLE_POINTER

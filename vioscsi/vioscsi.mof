@@ -22,4 +22,5 @@ class VioScsiExtendedInfoGuid
     [read, WmiDataId(8), WmiVersion(1)] boolean CompletionDuringStartIo;
     [read, WmiDataId(9), WmiVersion(1)] boolean RingPacked;
     [read, WmiDataId(10), WmiVersion(1)] uint32 PhysicalBreaks;
+    [read, WmiDataId(11), WmiVersion(1)] uint32 ResponseTime;
 };
