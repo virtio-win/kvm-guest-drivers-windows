@@ -805,7 +805,14 @@ NTSTATUS VioGpuDod::AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTER
         pVidPnTargetModeInfo->VideoSignalInfo.ActiveSize = pVidPnTargetModeInfo->VideoSignalInfo.TotalSize;
         BuildVideoSignalInfo(&pVidPnTargetModeInfo->VideoSignalInfo, pModeInfo);
 
-        pVidPnTargetModeInfo->Preference = D3DKMDT_MP_NOTPREFERRED; // TODO: another logic for prefferred mode. Maybe the pinned source mode
+        if (pModeInfo->VisScreenWidth == NOM_WIDTH_SIZE && pModeInfo->VisScreenHeight == NOM_HEIGHT_SIZE)
+        {
+            pVidPnTargetModeInfo->Preference = D3DKMDT_MP_PREFERRED;
+        }
+        else
+        {
+            pVidPnTargetModeInfo->Preference = D3DKMDT_MP_NOTPREFERRED;
+        }
 
         Status = pVidPnTargetModeSetInterface->pfnAddMode(hVidPnTargetModeSet, pVidPnTargetModeInfo);
         if (!NT_SUCCESS(Status))
@@ -891,12 +898,19 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
         BuildVideoSignalInfo(&pMonitorSourceMode->VideoSignalInfo, pVbeModeInfo);
 
         pMonitorSourceMode->Origin = D3DKMDT_MCO_DRIVER;
-        pMonitorSourceMode->Preference = D3DKMDT_MP_NOTPREFERRED;
         pMonitorSourceMode->ColorBasis = D3DKMDT_CB_SRGB;
         pMonitorSourceMode->ColorCoeffDynamicRanges.FirstChannel = 8;
         pMonitorSourceMode->ColorCoeffDynamicRanges.SecondChannel = 8;
         pMonitorSourceMode->ColorCoeffDynamicRanges.ThirdChannel = 8;
         pMonitorSourceMode->ColorCoeffDynamicRanges.FourthChannel = 8;
+        if (pVbeModeInfo->VisScreenWidth == NOM_WIDTH_SIZE && pVbeModeInfo->VisScreenHeight == NOM_HEIGHT_SIZE)
+        {
+            pMonitorSourceMode->Preference = D3DKMDT_MP_PREFERRED;
+        }
+        else
+        {
+            pMonitorSourceMode->Preference = D3DKMDT_MP_NOTPREFERRED;
+        }
 
         Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnAddMode(pRecommendMonitorModes->hMonitorSourceModeSet, pMonitorSourceMode);
         if (!NT_SUCCESS(Status))
