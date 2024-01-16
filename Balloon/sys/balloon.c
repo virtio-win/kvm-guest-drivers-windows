@@ -168,13 +168,8 @@ BalloonFill(
     HighAddress.QuadPart = (ULONGLONG)-1;
     SkipBytes.QuadPart = 0;
 
-#if (NTDDI_VERSION < NTDDI_WS03SP1)
-    pPageMdl = MmAllocatePagesForMdl(LowAddress, HighAddress, SkipBytes,
-        num * PAGE_SIZE);
-#else
     pPageMdl = MmAllocatePagesForMdlEx(LowAddress, HighAddress, SkipBytes,
         num * PAGE_SIZE, MmNonCached, MM_DONT_ZERO_ALLOCATION);
-#endif
 
     if (pPageMdl == NULL)
     {
