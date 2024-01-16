@@ -207,6 +207,8 @@ struct CPUPathBundle : public CPlacementAllocatable {
 
 #define PARANDIS_UNLIMITED_PACKETS_TO_INDICATE  (~0ul)
 
+#define PARANDIS_MIN_RX_BUFFER_PERCENT_DEFAULT 0
+
 static const ULONG PARANDIS_PACKET_FILTERS =
     NDIS_PACKET_TYPE_DIRECTED |
     NDIS_PACKET_TYPE_MULTICAST |
@@ -449,6 +451,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     ULONG                   ulCurrentVlansFilterSet = false;
     tMulticastData          MulticastData = {};
     UINT                    uNumberOfHandledRXPacketsInDPC = 0;
+    UINT                    MinRxBufferPercent;
     LONG                    counterDPCInside = 0;
     ULONG                   ulPriorityVlanSetting = 0;
     ULONG                   VlanId = 0;
@@ -487,6 +490,9 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
         ULONG framesRSSError;
         ULONG minFreeTxBuffers;
         ULONG droppedTxPackets;
+        ULONG minFreeRxBuffers;
+        LARGE_INTEGER totalRxIndicates;
+        LARGE_INTEGER rxIndicatesWithResourcesFlag;
     } extraStatistics = {};
 
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */

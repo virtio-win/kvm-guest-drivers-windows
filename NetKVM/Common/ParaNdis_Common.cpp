@@ -106,6 +106,7 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry USOv4Supported;
     tConfigurationEntry USOv6Supported;
 #endif
+    tConfigurationEntry MinRxBufferPercent;
 }tConfigurationEntries;
 
 static const tConfigurationEntries defaultConfiguration =
@@ -143,6 +144,7 @@ static const tConfigurationEntries defaultConfiguration =
     { "*UsoIPv4", 1, 0, 1},
     { "*UsoIPv6", 1, 0, 1},
 #endif
+    { "MinRxBufferPercent", PARANDIS_MIN_RX_BUFFER_PERCENT_DEFAULT, 0, 100},
 };
 
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
@@ -276,6 +278,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             GetConfigurationEntry(cfg, &pConfiguration->USOv4Supported);
             GetConfigurationEntry(cfg, &pConfiguration->USOv6Supported);
 #endif
+            GetConfigurationEntry(cfg, &pConfiguration->MinRxBufferPercent);
 
             bDebugPrint = pConfiguration->isLogEnabled.ulValue;
             virtioDebugLevel = pConfiguration->debugLevel.ulValue;
@@ -285,6 +288,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             pContext->uNumberOfHandledRXPacketsInDPC = pConfiguration->NumberOfHandledRXPacketsInDPC.ulValue;
             pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;
             pContext->Offload.flagsValue = 0;
+            pContext->MinRxBufferPercent = pConfiguration->MinRxBufferPercent.ulValue;
             // TX caps: 1 - TCP, 2 - UDP, 4 - IP, 8 - TCPv6, 16 - UDPv6
             if (pConfiguration->OffloadTxChecksum.ulValue & 1) pContext->Offload.flagsValue |= osbT4TcpChecksum | osbT4TcpOptionsChecksum;
             if (pConfiguration->OffloadTxChecksum.ulValue & 2) pContext->Offload.flagsValue |= osbT4UdpChecksum;
@@ -1530,7 +1534,7 @@ UpdateReceiveFailStatistics(PPARANDIS_ADAPTER pContext, UINT nCoalescedSegmentsC
     pContext->Statistics.ifInDiscards += nCoalescedSegmentsCount;
 }
 
-static void ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
+static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
                                 PULONG pnPacketsToIndicateLeft,
                                 PPARANDIS_RECEIVE_QUEUE pTargetReceiveQueue,
                                 PNET_BUFFER_LIST *indicate,
@@ -1538,6 +1542,7 @@ static void ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
                                 ULONG *nIndicate)
 {
     pRxNetDescriptor pBufferDescriptor;
+    BOOLEAN isRxBufferShortage = FALSE;
 
     while( (*pnPacketsToIndicateLeft > 0) &&
             (NULL != (pBufferDescriptor = ReceiveQueueGetBuffer(pTargetReceiveQueue))) )
@@ -1564,6 +1569,9 @@ static void ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
                 NET_BUFFER_LIST_NEXT_NBL(*indicateTail) = NULL;
                 (*pnPacketsToIndicateLeft)--;
                 (*nIndicate)++;
+
+                if (!isRxBufferShortage)
+                    isRxBufferShortage = pBufferDescriptor->Queue->IsRxBuffersShortage();
             }
             else
             {
@@ -1577,6 +1585,7 @@ static void ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
             pBufferDescriptor->Queue->ReuseReceiveBuffer(pBufferDescriptor);
         }
     }
+    return isRxBufferShortage;
 }
 
 
@@ -1612,6 +1621,7 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathBundle *pathBundle, ULO
     ULONG nIndicate;
 
     CCHAR CurrCpuReceiveQueue = GetReceiveQueueForCurrentCPU(pContext);
+    BOOLEAN isRxBufferShortage = FALSE;
 
     indicate = nullptr;
     indicateTail = nullptr;
@@ -1628,7 +1638,7 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathBundle *pathBundle, ULO
 
         if (rxPathOwner)
         {
-            ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pathBundle->rxPath.UnclassifiedPacketsQueue(),
+            isRxBufferShortage = ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pathBundle->rxPath.UnclassifiedPacketsQueue(),
                                 &indicate, &indicateTail, &nIndicate);
         }
     }
@@ -1636,7 +1646,7 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathBundle *pathBundle, ULO
 #ifdef PARANDIS_SUPPORT_RSS
     if (CurrCpuReceiveQueue != PARANDIS_RECEIVE_NO_QUEUE)
     {
-        ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pContext->ReceiveQueues[CurrCpuReceiveQueue],
+        isRxBufferShortage = ProcessReceiveQueue(pContext, &nPacketsToIndicate, &pContext->ReceiveQueues[CurrCpuReceiveQueue],
                             &indicate, &indicateTail, &nIndicate);
         res |= ReceiveQueueHasBuffers(&pContext->ReceiveQueues[CurrCpuReceiveQueue]);
     }
@@ -1646,8 +1656,27 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathBundle *pathBundle, ULO
     {
         if(pContext->m_RxStateMachine.RegisterOutstandingItems(nIndicate))
         {
-            NdisMIndicateReceiveNetBufferLists(pContext->MiniportHandle,
-                                                indicate, 0, nIndicate, NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL);
+            if (!isRxBufferShortage)
+            {
+                NdisMIndicateReceiveNetBufferLists(pContext->MiniportHandle,
+                    indicate, 0, nIndicate,
+                    NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL);
+            }
+            else
+            {
+                /* If the number of available RX buffers is insufficient, we set the
+                NDIS_RECEIVE_FLAGS_RESOURCES flag so that the RX buffers can be immediately
+                reclaimed once the call to NdisMIndicateReceiveNetBufferLists returns. */
+
+                NdisMIndicateReceiveNetBufferLists(pContext->MiniportHandle,
+                    indicate, 0, nIndicate,
+                    NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL | NDIS_RECEIVE_FLAGS_RESOURCES);
+
+                NdisInterlockedAddLargeStatistic(&pContext->extraStatistics.rxIndicatesWithResourcesFlag, nIndicate);
+                ParaNdis_ReuseRxNBLs(indicate);
+                pContext->m_RxStateMachine.UnregisterOutstandingItems(nIndicate);
+            }
+            NdisInterlockedAddLargeStatistic(&pContext->extraStatistics.totalRxIndicates, nIndicate);
         }
         else
         {
