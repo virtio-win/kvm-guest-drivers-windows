@@ -180,12 +180,10 @@ CompleteDPC(
     IN ULONG  MessageID
     );
 
-#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
 UCHAR FirmwareRequest(
     IN PVOID DeviceExtension,
     IN PSRB_TYPE Srb
     );
-#endif
 
 VOID
 ReportDeviceIdentifier(
@@ -576,9 +574,7 @@ VirtIoFindAdapter(
         RhelDbgPrint(TRACE_LEVEL_FATAL, " pmsg_affinity = %p Status = %lu\n",adaptExt->pmsg_affinity, Status);
     }
 
-#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
     adaptExt->fw_ver = '0';
-#endif
     return SP_RETURN_FOUND;
 }
 
@@ -631,11 +627,9 @@ RhelSetGuestFeatures(
         }
     }
 
-#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
     if (CHECKBIT(adaptExt->features, VIRTIO_F_ACCESS_PLATFORM)) {
         guestFeatures |= (1ULL << VIRTIO_F_ACCESS_PLATFORM);
     }
-#endif
 
     if (CHECKBIT(adaptExt->features, VIRTIO_F_ANY_LAYOUT)) {
         guestFeatures |= (1ULL << VIRTIO_F_ANY_LAYOUT);
@@ -917,12 +911,10 @@ VirtIoStartIo(
             PSRB_IO_CONTROL srbControl = (PSRB_IO_CONTROL)srbDataBuffer;
             UCHAR srbStatus = SRB_STATUS_INVALID_REQUEST;
             switch (srbControl->ControlCode) {
-#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
             case IOCTL_SCSI_MINIPORT_FIRMWARE:
                 srbStatus = FirmwareRequest(DeviceExtension, (PSRB_TYPE)Srb);
                 RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> IOCTL_SCSI_MINIPORT_FIRMWARE\n");
                 break;
-#endif
             default:
                 RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> Unsupport control code 0x%x\n", srbControl->ControlCode);
                 break;
@@ -2159,7 +2151,6 @@ VioStorPoolAlloc(
     return NULL;
 }
 
-#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
 UCHAR FirmwareRequest(
     IN PVOID DeviceExtension,
     IN PSRB_TYPE Srb
@@ -2270,4 +2261,3 @@ UCHAR FirmwareRequest(
 
     return srbStatus;
 }
-#endif
