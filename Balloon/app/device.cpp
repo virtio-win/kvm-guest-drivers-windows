@@ -69,7 +69,7 @@ VOID CDevice::Fini()
 
 DWORD CDevice::Run()
 {
-	PWCHAR DevicePath = GetDevicePath((LPGUID)&GUID_DEVINTERFACE_BALLOON);
+    PWCHAR DevicePath = GetDevicePath((LPGUID)&GUID_DEVINTERFACE_BALLOON);
     if (DevicePath == NULL) {
         PrintMessage("File not found.");
         return ERROR_FILE_NOT_FOUND;
@@ -85,7 +85,7 @@ DWORD CDevice::Run()
         return GetLastError();
     }
 
-    NOTIFY_HANDLE devnotify = m_pService->RegisterDeviceHandleNotification(
+    HCMNOTIFICATION devnotify = m_pService->RegisterDeviceHandleNotification(
         hDevice);
 
     if (!devnotify) {
@@ -192,92 +192,6 @@ DWORD WINAPI CDevice::DeviceThread(LPDWORD lParam)
     return pDev->Run();
 }
 
-#ifndef UNIVERSAL
-
-PTCHAR CDevice::GetDevicePath( IN  LPGUID InterfaceGuid )
-{
-    HDEVINFO HardwareDeviceInfo;
-    SP_DEVICE_INTERFACE_DATA DeviceInterfaceData;
-    PSP_DEVICE_INTERFACE_DETAIL_DATA DeviceInterfaceDetailData = NULL;
-    ULONG Length, RequiredLength = 0;
-    BOOL bResult;
-    PTCHAR DevicePath;
-
-    HardwareDeviceInfo = SetupDiGetClassDevs(
-                             InterfaceGuid,
-                             NULL,
-                             NULL,
-                             (DIGCF_PRESENT | DIGCF_DEVICEINTERFACE)
-                             );
-
-    if (HardwareDeviceInfo == INVALID_HANDLE_VALUE) {
-        PrintMessage("Cannot get class devices");
-        return NULL;
-    }
-
-    DeviceInterfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
-
-    bResult = SetupDiEnumDeviceInterfaces(
-                             HardwareDeviceInfo,
-                             0,
-                             InterfaceGuid,
-                             0,
-                             &DeviceInterfaceData
-                             );
-
-    if (bResult == FALSE) {
-        PrintMessage("Cannot get enumerate device interfaces");
-        SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
-        return NULL;
-    }
-
-    SetupDiGetDeviceInterfaceDetail(
-                             HardwareDeviceInfo,
-                             &DeviceInterfaceData,
-                             NULL,
-                             0,
-                             &RequiredLength,
-                             NULL
-                             );
-
-    DeviceInterfaceDetailData = (PSP_DEVICE_INTERFACE_DETAIL_DATA) LocalAlloc(LMEM_FIXED, RequiredLength);
-
-    if (DeviceInterfaceDetailData == NULL) {
-        PrintMessage("Cannot allocate memory");
-        SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
-        return NULL;
-    }
-
-    DeviceInterfaceDetailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
-
-    Length = RequiredLength;
-
-    bResult = SetupDiGetDeviceInterfaceDetail(
-                             HardwareDeviceInfo,
-                             &DeviceInterfaceData,
-                             DeviceInterfaceDetailData,
-                             Length,
-                             &RequiredLength,
-                             NULL
-                             );
-
-    if (bResult == FALSE) {
-        PrintMessage("Cannot get device interface details");
-        SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
-        LocalFree(DeviceInterfaceDetailData);
-        return NULL;
-    }
-
-    DevicePath = _tcsdup(DeviceInterfaceDetailData->DevicePath);
-
-    SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
-    LocalFree(DeviceInterfaceDetailData);
-
-    return DevicePath;
-}
-
-#else // UNIVERSAL
-
 PTCHAR CDevice::GetDevicePath(IN LPGUID InterfaceGuid)
 {
     PWSTR DeviceInterfaceList = NULL;
@@ -327,5 +241,3 @@ PTCHAR CDevice::GetDevicePath(IN LPGUID InterfaceGuid)
 
     return DevicePath;
 }
-
-#endif // UNIVERSAL
