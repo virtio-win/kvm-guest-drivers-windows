@@ -93,10 +93,6 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define VIOBLK_POOL_TAG        'BoiV'
 
-#ifndef NTDDI_WINTHRESHOLD
-#define NTDDI_WINTHRESHOLD                  0x0A000000  /* ABRACADABRA_THRESHOLD */
-#endif
-
 #pragma pack(1)
 typedef struct virtio_blk_config {
     /* The capacity (in 512-byte sectors). */
@@ -250,9 +246,7 @@ typedef struct _ADAPTER_EXTENSION {
     blk_discard_write_zeroes blk_discard[16];
     REQUEST_LIST          processing_srbs[MAX_CPU];
     BOOLEAN               reset_in_progress;
-#if (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
     ULONGLONG             fw_ver;
-#endif
 #ifdef DBG
     LONG                  srb_cnt;
     LONG                  inqueue_cnt;
