@@ -159,11 +159,7 @@ BalloonDeviceAdd(
                       &devCtx->LookAsideList,
                       NULL,
                       NULL,
-#if !defined(NTDDI_WIN8) || (NTDDI_VERSION < NTDDI_WIN8)
-                      0,
-#else
                       POOL_NX_ALLOCATION,
-#endif
                       sizeof(PAGE_LIST_ENTRY),
                       BALLOON_MGMT_POOL_TAG,
                       0
