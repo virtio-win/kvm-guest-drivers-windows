@@ -13,11 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <strsafe.h>
-
-#ifdef UNIVERSAL
 #include <cfgmgr32.h>
-#endif // UNIVERSAL
-
 #include "targetver.h"
 #include "utils.h"
 #include "service.h"

@@ -248,8 +248,6 @@ void CService::GetStatus(SC_HANDLE service)
     SendStatusToSCM(CurrentState, NO_ERROR, 0, 0, 0);
 }
 
-#ifdef UNIVERSAL
-
 DWORD WINAPI CService::DeviceNotificationCallback(HCMNOTIFICATION Notify,
     PVOID Context, CM_NOTIFY_ACTION Action, PCM_NOTIFY_EVENT_DATA EventData,
     DWORD EventDataSize)
@@ -296,13 +294,10 @@ VOID WINAPI UnregisterNotificationWork(PTP_CALLBACK_INSTANCE Instance,
     CloseThreadpoolWork(Work);
 }
 
-#endif // UNIVERSAL
-
-NOTIFY_HANDLE CService::RegisterDeviceInterfaceNotification()
+HCMNOTIFICATION CService::RegisterDeviceInterfaceNotification()
 {
-    NOTIFY_HANDLE handle = NULL;
+    HCMNOTIFICATION handle = NULL;
 
-#ifdef UNIVERSAL
     CM_NOTIFY_FILTER filter;
     CONFIGRET cr;
 
@@ -319,26 +314,13 @@ NOTIFY_HANDLE CService::RegisterDeviceInterfaceNotification()
         SetLastError(CM_MapCrToWin32Err(cr, ERROR_NOT_SUPPORTED));
     }
 
-#else // UNIVERSAL
-    DEV_BROADCAST_DEVICEINTERFACE filter;
-
-    ZeroMemory(&filter, sizeof(filter));
-    filter.dbcc_size = sizeof(filter);
-    filter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
-    filter.dbcc_classguid = GUID_DEVINTERFACE_BALLOON;
-
-    handle = ::RegisterDeviceNotification(m_StatusHandle, &filter,
-        DEVICE_NOTIFY_SERVICE_HANDLE);
-#endif // UNIVERSAL
-
     return handle;
 }
 
-NOTIFY_HANDLE CService::RegisterDeviceHandleNotification(HANDLE DeviceHandle)
+HCMNOTIFICATION CService::RegisterDeviceHandleNotification(HANDLE DeviceHandle)
 {
-    NOTIFY_HANDLE handle = NULL;
+    HCMNOTIFICATION handle = NULL;
 
-#ifdef UNIVERSAL
     CM_NOTIFY_FILTER filter;
     CONFIGRET cr;
 
@@ -354,28 +336,16 @@ NOTIFY_HANDLE CService::RegisterDeviceHandleNotification(HANDLE DeviceHandle)
     {
         SetLastError(CM_MapCrToWin32Err(cr, ERROR_NOT_SUPPORTED));
     }
-#else // UNIVERSAL
-    DEV_BROADCAST_HANDLE filter;
-
-    ZeroMemory(&filter, sizeof(filter));
-    filter.dbch_size = sizeof(filter);
-    filter.dbch_devicetype = DBT_DEVTYP_HANDLE;
-    filter.dbch_handle = DeviceHandle;
-
-    handle = ::RegisterDeviceNotification(m_StatusHandle, &filter,
-        DEVICE_NOTIFY_SERVICE_HANDLE);
-#endif // UNIVERSAL
 
     return handle;
 }
 
-BOOL CService::UnregisterNotification(NOTIFY_HANDLE Handle)
+BOOL CService::UnregisterNotification(HCMNOTIFICATION Handle)
 {
     BOOL ret = FALSE;
 
     if (Handle)
     {
-#ifdef UNIVERSAL
         PTP_WORK work;
 
         work = CreateThreadpoolWork(UnregisterNotificationWork, Handle, NULL);
@@ -385,9 +355,6 @@ BOOL CService::UnregisterNotification(NOTIFY_HANDLE Handle)
         }
 
         ret = TRUE;
-#else // UNIVERSAL
-        ret = ::UnregisterDeviceNotification(Handle);
-#endif // UNIVERSAL
     }
 
     return ret;

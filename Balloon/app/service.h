@@ -4,12 +4,6 @@
 #include <windows.h>
 #include <dbt.h>
 
-#ifdef UNIVERSAL
-#define NOTIFY_HANDLE HCMNOTIFICATION
-#else
-#define NOTIFY_HANDLE HDEVNOTIFY
-#endif
-
 class CDevice;
 
 class CService
@@ -23,15 +17,13 @@ public:
     static void __stdcall ServiceMainThunk(CService* service, DWORD argc, TCHAR* argv[]);
     SERVICE_STATUS_HANDLE m_StatusHandle;
 
-    NOTIFY_HANDLE RegisterDeviceInterfaceNotification();
-    NOTIFY_HANDLE RegisterDeviceHandleNotification(HANDLE DeviceHandle);
-    BOOL UnregisterNotification(NOTIFY_HANDLE Handle);
+    HCMNOTIFICATION RegisterDeviceInterfaceNotification();
+    HCMNOTIFICATION RegisterDeviceHandleNotification(HANDLE DeviceHandle);
+    BOOL UnregisterNotification(HCMNOTIFICATION Handle);
 
-#ifdef UNIVERSAL
     static DWORD WINAPI DeviceNotificationCallback(HCMNOTIFICATION Notify,
         PVOID Context, CM_NOTIFY_ACTION Action,
         PCM_NOTIFY_EVENT_DATA EventData, DWORD EventDataSize);
-#endif
 
 private:
     BOOL SendStatusToSCM(DWORD dwCurrentState, DWORD dwWin32ExitCode, DWORD dwServiceSpecificExitCode, DWORD dwCheckPoint, DWORD dwWaitHint);
@@ -42,7 +34,7 @@ private:
     DWORD ServiceHandleDeviceChange(DWORD evtype);
     DWORD ServiceHandlePowerEvent(DWORD evtype, DWORD flags);
 
-    NOTIFY_HANDLE m_hDevNotify;
+    HCMNOTIFICATION m_hDevNotify;
     HANDLE m_evTerminate;
     BOOL   m_bRunningService;
     DWORD  m_Status;
