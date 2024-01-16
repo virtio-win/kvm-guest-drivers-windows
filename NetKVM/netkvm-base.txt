@@ -205,6 +205,13 @@ HKR, Ndi\Params\*UDPChecksumOffloadIPv6\enum,   "2",    0,      %Rx%
 HKR, Ndi\Params\*UDPChecksumOffloadIPv6\enum,   "1",    0,      %Tx%
 HKR, Ndi\Params\*UDPChecksumOffloadIPv6\enum,   "0",    0,      %Disable%
 
+HKR, Ndi\params\MinRxBufferPercent,         ParamDesc,  0,          %MinRxBufferPercent%
+HKR, Ndi\params\MinRxBufferPercent,         type,       0,          "int"
+HKR, Ndi\params\MinRxBufferPercent,         default,    0,          "0"
+HKR, Ndi\params\MinRxBufferPercent,         min,        0,          "0"
+HKR, Ndi\params\MinRxBufferPercent,         max,        0,          "100"
+HKR, Ndi\params\MinRxBufferPercent,         step,       0,          "1"
+
 [kvmnet6.CopyFiles]
 netkvm.sys,,,2
 
@@ -290,6 +297,7 @@ TCPUDPAll = "TCP/UDP(v4,v6)"
 All = "All"
 IPv4 = "IPv4"
 Maximal = "Maximal"
+MinRxBufferPercent = "MinRxBufferPercent"
 
 [kvmnet6.Reg] 
 HKR,    ,                         BusNumber,           0, "0"

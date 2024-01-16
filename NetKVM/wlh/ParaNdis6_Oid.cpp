@@ -405,13 +405,16 @@ static NDIS_STATUS OnSetVendorSpecific1(PARANDIS_ADAPTER *pContext, tOidDesc *pO
 static NDIS_STATUS OnSetVendorSpecific2(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
     ULONG dummy = 0;
+    ULONG oldMinFreeRxBuffers;
     NDIS_STATUS status;
     status = ParaNdis_OidSetCopy(pOid, &dummy, sizeof(dummy));
 
     // do not clear this minFreeTxBuffers
     dummy = pContext->extraStatistics.minFreeTxBuffers;
+    oldMinFreeRxBuffers = pContext->extraStatistics.minFreeRxBuffers;
     RtlZeroMemory(&pContext->extraStatistics, sizeof(pContext->extraStatistics));
     pContext->extraStatistics.minFreeTxBuffers = dummy;
+    pContext->extraStatistics.minFreeRxBuffers = oldMinFreeRxBuffers;
     return status;
 }
 

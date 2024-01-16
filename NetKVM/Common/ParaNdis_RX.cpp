@@ -128,7 +128,12 @@ int CParaNdisRX::PrepareReceiveBuffers()
     }
     /* TODO - NetMaxReceiveBuffers should take into account all queues */
     m_Context->NetMaxReceiveBuffers = m_NetNofReceiveBuffers;
-    DPrintf(0, "[%s] MaxReceiveBuffers %d\n", __FUNCTION__, m_Context->NetMaxReceiveBuffers);
+    m_MinRxBufferLimit = m_NetNofReceiveBuffers * m_Context->MinRxBufferPercent / 100;
+    DPrintf(0, "[%s] MaxReceiveBuffers %d, m_MinRxBufferLimit %u\n", __FUNCTION__, m_Context->NetMaxReceiveBuffers, m_MinRxBufferLimit);
+    if (m_Context->extraStatistics.minFreeRxBuffers == 0 || m_Context->extraStatistics.minFreeRxBuffers > m_NetNofReceiveBuffers)
+    {
+        m_Context->extraStatistics.minFreeRxBuffers = m_NetNofReceiveBuffers;
+    }
     m_Reinsert = true;
 
     return nRet;
@@ -420,6 +425,11 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 #endif
 
     TDPCSpinLocker autoLock(m_Lock);
+
+    if (m_Context->extraStatistics.minFreeRxBuffers > m_NetNofReceiveBuffers)
+    {
+        m_Context->extraStatistics.minFreeRxBuffers = m_NetNofReceiveBuffers;
+    }
 
     while (NULL != (pBufferDescriptor = (pRxNetDescriptor)m_VirtQueue.GetBuf(&nFullLength)))
     {
