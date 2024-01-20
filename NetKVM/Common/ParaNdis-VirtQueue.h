@@ -295,6 +295,11 @@ public:
     ULONG GetFreeHWBuffers()
     { return m_FreeHWBuffers; }
 
+    ULONG GetActualQueueSize() const
+    {
+        return m_TotalDescriptors;
+    }
+
     //TODO: Needs review
     void Shutdown();
 

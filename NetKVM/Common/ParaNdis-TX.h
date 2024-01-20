@@ -277,6 +277,9 @@ public:
     ULONG GetFreeTXDescriptors()
     { return m_VirtQueue.GetFreeTXDescriptors(); }
 
+    ULONG GetActualQueueSize() const
+    { return m_VirtQueue.GetActualQueueSize(); }
+
     //TODO: Needs review/temporary?
     ULONG GetFreeHWBuffers()
     { return m_VirtQueue.GetFreeHWBuffers(); }
