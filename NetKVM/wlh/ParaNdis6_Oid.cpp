@@ -272,14 +272,7 @@ static NDIS_OID SupportedOids[] =
         OID_GEN_XMIT_OK,
         OID_GEN_RCV_OK,
         OID_GEN_VLAN_ID,
-#if NDIS_SUPPORT_NDIS61
-// disable WMI custom command on 2008 due to non-filtered NDIS test failure
         OID_GEN_SUPPORTED_GUIDS,
-        OID_VENDOR_1,
-        OID_VENDOR_2,
-        OID_VENDOR_3,
-        OID_VENDOR_4,
-#endif
         OID_OFFLOAD_ENCAPSULATION,
         OID_TCP_OFFLOAD_PARAMETERS,
 #if PARANDIS_SUPPORT_RSS
