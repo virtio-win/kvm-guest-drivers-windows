@@ -419,7 +419,7 @@ static NDIS_STATUS OnSetVendorSpecific4(PARANDIS_ADAPTER *pContext, tOidDesc *pO
         pContext->extraStatistics.framesLSO = 0;
         pContext->extraStatistics.framesCSOffload = 0;
         pContext->extraStatistics.droppedTxPackets = 0;
-        //pContext->extraStatistics.copiedTxPackets = 0; //TODO
+        pContext->extraStatistics.copiedTxPackets = 0;
         // keep this one
         pContext->extraStatistics.minFreeTxBuffers;
     }
@@ -522,7 +522,7 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             u.WmiDiag.tx.ChecksumOffload = pContext->extraStatistics.framesCSOffload;
             u.WmiDiag.tx.MinFreeBuffers = pContext->extraStatistics.minFreeTxBuffers;
             u.WmiDiag.tx.Dropped = pContext->extraStatistics.droppedTxPackets;
-            u.WmiDiag.tx.Copied = 0; //TODO
+            u.WmiDiag.tx.Copied = pContext->extraStatistics.copiedTxPackets;
             //----------------- RX ------------------------------------------
             u.WmiDiag.rx.ChecksumOK = pContext->extraStatistics.framesRxCSHwOK;
             u.WmiDiag.rx.CoalescedHost = pContext->extraStatistics.framesCoalescedHost;
