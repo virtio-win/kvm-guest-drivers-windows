@@ -119,6 +119,7 @@ BOOLEAN ParaNdis_InitialAllocatePhysicalMemory(
     if (pAddresses->Virtual != NULL)
     {
         pAddresses->size = ulSize;
+        pContext->extraStatistics.allocatedSharedMemory += ulSize;
         return TRUE;
     }
     return FALSE;

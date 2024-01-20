@@ -492,6 +492,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
         ULONG droppedTxPackets;
         ULONG copiedTxPackets;
         ULONG minFreeRxBuffers;
+        ULONG allocatedSharedMemory;
         LARGE_INTEGER totalRxIndicates;
         LARGE_INTEGER rxIndicatesWithResourcesFlag;
     } extraStatistics = {};
