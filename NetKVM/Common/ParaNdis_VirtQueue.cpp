@@ -164,7 +164,7 @@ bool CTXVirtQueue::Create(UINT Index,
 
     m_SGTableCapacity = m_Context->bUseIndirect ? virtio_get_indirect_page_capacity() : GetRingSize();
     m_SGTableCapacity = min(m_SGTableCapacity, m_Context->uMaxFragmentsInOneNB);
-    
+
     auto SGBuffer = ParaNdis_AllocateMemoryRaw(m_DrvHandle, m_SGTableCapacity * sizeof(m_SGTable[0]));
     m_SGTable = static_cast<struct VirtIOBufferDescriptor *>(SGBuffer);
 
