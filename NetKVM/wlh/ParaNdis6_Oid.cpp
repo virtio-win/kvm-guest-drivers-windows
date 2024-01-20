@@ -67,14 +67,14 @@ static NDIS_STATUS OnSetOffloadParameters(PARANDIS_ADAPTER *pContext, tOidDesc *
 static NDIS_STATUS OnSetOffloadEncapsulation(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 static NDIS_STATUS OnSetLinkParameters(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 static NDIS_STATUS OnSetVendorSpecific1(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
-static NDIS_STATUS OnSetVendorSpecific2(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
-static NDIS_STATUS OnSetVendorSpecific3(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
 static NDIS_STATUS OnSetVendorSpecific4(PARANDIS_ADAPTER *pContext, tOidDesc *pOid);
+static NDIS_STATUS OnSetVendorSpecific5(PARANDIS_ADAPTER* pContext, tOidDesc* pOid);
 
 #define OID_VENDOR_1                    0xff010201
 #define OID_VENDOR_2                    0xff010202
 #define OID_VENDOR_3                    0xff010203
 #define OID_VENDOR_4                    0xff010204
+#define OID_VENDOR_5                    0xff010205
 
 #if PARANDIS_SUPPORT_RSS
 
@@ -202,9 +202,10 @@ OIDENTRY(OID_IP6_OFFLOAD_STATS,                 4,4,4, 0),
 OIDENTRYPROC(OID_TCP_OFFLOAD_PARAMETERS,        0,0,0, ohfSet | ohfSetMoreOK | ohfSetLessOK | ohfSetPropagatePost, OnSetOffloadParameters),
 OIDENTRYPROC(OID_OFFLOAD_ENCAPSULATION,         0,0,0, ohfQuerySet | ohfSetPropagatePost, OnSetOffloadEncapsulation),
 OIDENTRYPROC(OID_VENDOR_1,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific1),
-OIDENTRYPROC(OID_VENDOR_2,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific2),
-OIDENTRYPROC(OID_VENDOR_3,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific3),
+OIDENTRY(OID_VENDOR_2,                          0,0,0, ohfQueryStat),
+OIDENTRY(OID_VENDOR_3,                          0,0,0, ohfQueryStat),
 OIDENTRYPROC(OID_VENDOR_4,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific4),
+OIDENTRYPROC(OID_VENDOR_5,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific5),
 
 #if PARANDIS_SUPPORT_RSS
     OIDENTRYPROC(OID_GEN_RECEIVE_SCALE_PARAMETERS,  0,0,0, ohfSet | ohfSetPropagatePost | ohfSetMoreOK, RSSSetParameters),
@@ -287,9 +288,10 @@ static NDIS_OID SupportedOids[] =
 static const NDIS_GUID supportedGUIDs[] =
 {
     { NetKvm_LoggingGuid,    OID_VENDOR_1, NetKvm_Logging_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE },
-    { NetKvm_StatisticsGuid, OID_VENDOR_2, NetKvm_Statistics_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE },
-    { NetKvm_RssDiagnosticsGuid, OID_VENDOR_3, NetKvm_RssDiagnostics_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE },
-    { NetKvm_StandbyGuid, OID_VENDOR_4, NetKvm_Standby_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE },
+    { NetKvm_ConfigGuid,     OID_VENDOR_2, NetKvm_Config_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ },
+    { NetKvm_DiagGuid,       OID_VENDOR_3, NetKvm_Diag_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ },
+    { NetKvm_DiagResetGuid,  OID_VENDOR_4, NetKvm_DiagReset_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_WRITE | fNDIS_GUID_ALLOW_READ },
+    { NetKvm_DeviceRssGuid,  OID_VENDOR_5, NetKvm_DeviceRss_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_WRITE | fNDIS_GUID_ALLOW_READ},
 };
 
 /**********************************************************
@@ -395,63 +397,58 @@ static NDIS_STATUS OnSetVendorSpecific1(PARANDIS_ADAPTER *pContext, tOidDesc *pO
     return status;
 }
 
-static NDIS_STATUS OnSetVendorSpecific2(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
+static NDIS_STATUS OnSetVendorSpecific4(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
-    ULONG dummy = 0;
-    ULONG oldMinFreeRxBuffers;
+    UCHAR temp = 0;
     NDIS_STATUS status;
-    status = ParaNdis_OidSetCopy(pOid, &dummy, sizeof(dummy));
-
-    // do not clear this minFreeTxBuffers
-    dummy = pContext->extraStatistics.minFreeTxBuffers;
-    oldMinFreeRxBuffers = pContext->extraStatistics.minFreeRxBuffers;
-    RtlZeroMemory(&pContext->extraStatistics, sizeof(pContext->extraStatistics));
-    pContext->extraStatistics.minFreeTxBuffers = dummy;
-    pContext->extraStatistics.minFreeRxBuffers = oldMinFreeRxBuffers;
+    status = ParaNdis_OidSetCopy(pOid, &temp, sizeof(temp));
+    if (temp & 1)
+    {
+        // reset Rx stats
+        pContext->extraStatistics.framesRxCSHwOK = 0;
+        pContext->extraStatistics.framesCoalescedHost = 0;
+        pContext->extraStatistics.framesCoalescedWindows = 0;
+        pContext->extraStatistics.framesRxPriority = 0;
+        pContext->extraStatistics.rxIndicatesWithResourcesFlag.QuadPart = 0;
+        // keep this one
+        pContext->extraStatistics.minFreeRxBuffers;
+    }
+    if (temp & 2)
+    {
+        // reset Tx stats
+        pContext->extraStatistics.framesLSO = 0;
+        pContext->extraStatistics.framesCSOffload = 0;
+        pContext->extraStatistics.droppedTxPackets = 0;
+        //pContext->extraStatistics.copiedTxPackets = 0; //TODO
+        // keep this one
+        pContext->extraStatistics.minFreeTxBuffers;
+    }
+    if (temp & 4)
+    {
+        ResetRssStatistics(pContext);
+    }
     return status;
 }
 
-static NDIS_STATUS OnSetVendorSpecific3(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
+static NDIS_STATUS OnSetVendorSpecific5(PARANDIS_ADAPTER* pContext, tOidDesc* pOid)
 {
-    ULONG temp = 0;
+    BOOLEAN temp = 0;
     NDIS_STATUS status;
     UNREFERENCED_PARAMETER(pContext);
     status = ParaNdis_OidSetCopy(pOid, &temp, sizeof(temp));
 #if PARANDIS_SUPPORT_RSS
     switch (temp)
     {
-        case 0:
-            ParaNdis6_EnableDeviceRssSupport(pContext, false);
-            break;
-        case 1:
-            ParaNdis6_EnableDeviceRssSupport(pContext, true);
-            break;
-        default:
-            break;
+    case 0:
+        ParaNdis6_EnableDeviceRssSupport(pContext, false);
+        break;
+    case 1:
+        ParaNdis6_EnableDeviceRssSupport(pContext, true);
+        break;
+    default:
+        break;
     }
 #endif
-    ResetRssStatistics(pContext);
-    return status;
-}
-
-static NDIS_STATUS OnSetVendorSpecific4(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
-{
-    ULONG temp = 0;
-    NDIS_STATUS status;
-    status = ParaNdis_OidSetCopy(pOid, &temp, sizeof(temp));
-    switch (temp)
-    {
-        case 0:
-            // inform VIOPROT uninstalled
-            if (virtio_is_feature_enabled(pContext->u64GuestFeatures, VIRTIO_NET_F_STANDBY))
-            {
-                pContext->bSuppressLinkUp = true;
-                ParaNdis_SynchronizeLinkState(pContext);
-            }
-            break;
-        default:
-            break;
-    }
     return status;
 }
 
@@ -462,7 +459,6 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
     union _tagtemp
     {
-        ULONG                                   StandbySupported;
         NDIS_LINK_SPEED                         LinkSpeed;
         NDIS_INTERRUPT_MODERATION_PARAMETERS    InterruptModeration;
         NDIS_LINK_PARAMETERS                    LinkParameters;
@@ -472,13 +468,15 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 #if PARANDIS_SUPPORT_RSC
         NDIS_RSC_STATISTICS_INFO                RSCStatistics;
 #endif
+        NetKvm_Diag                             WmiDiag;
+        NetKvm_Config                           WmiConfig;
+        NetKvm_DeviceRss                        WmiDevRss;
+        NetKvm_DiagReset                        WmiReset;
     } u;
     NDIS_STATUS  status = NDIS_STATUS_SUCCESS;
     PVOID pInfo  = NULL;
     ULONG ulSize = 0;
     BOOLEAN bFreeInfo = FALSE;
-    NetKvm_Statistics wmiStatistics;
-    NetKvm_RssDiagnostics rssDiag;
 
 #define SETINFO(field, value) pInfo = &u.##field; ulSize = sizeof(u.##field); u.##field = (value)
     switch(pOid->Oid)
@@ -498,33 +496,50 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             ulSize = sizeof(virtioDebugLevel);
             break;
         case OID_VENDOR_2:
-            pInfo = &wmiStatistics;
-            ulSize = sizeof(wmiStatistics);
-            wmiStatistics.txChecksumOffload = pContext->extraStatistics.framesCSOffload;
-            wmiStatistics.txLargeOffload = pContext->extraStatistics.framesLSO;
-            wmiStatistics.rxPriority = pContext->extraStatistics.framesRxPriority;
-            wmiStatistics.rxChecksumOK = pContext->extraStatistics.framesRxCSHwOK;
-            wmiStatistics.rxCoalescedWin = pContext->extraStatistics.framesCoalescedWindows;
-            wmiStatistics.rxCoalescedHost = pContext->extraStatistics.framesCoalescedHost;
-            wmiStatistics.txMinFreeBuffers = pContext->extraStatistics.minFreeTxBuffers;
-            wmiStatistics.txDropped = pContext->extraStatistics.droppedTxPackets;
+            pInfo = &u.WmiConfig;
+            ulSize = sizeof(u.WmiConfig);
+            u.WmiConfig.NumOfQueues = pContext->nPathBundles;
+            u.WmiConfig.RxQueueSize = pContext->NetMaxReceiveBuffers;
+            u.WmiConfig.TxQueueSize = pContext->maxFreeTxDescriptors;
+            u.WmiConfig.RscEnabledv4 = pContext->ReportedOffloadConfiguration.Rsc.IPv4.Enabled;
+            u.WmiConfig.RscEnabledv6 = pContext->ReportedOffloadConfiguration.Rsc.IPv6.Enabled;
+            u.WmiConfig.Standby = !!virtio_is_feature_enabled(pContext->u64GuestFeatures, VIRTIO_NET_F_STANDBY);
+            u.WmiConfig.MemoryKB = 0; //TODO
             break;
         case OID_VENDOR_3:
-            pInfo = &rssDiag;
-            ulSize = sizeof(rssDiag);
-            // bit 0 - RSS supported, bit 1 - Hash supported
-            rssDiag.DeviceSupport = pContext->bRSSSupportedByDevice;
-            rssDiag.DeviceSupport += 2 * pContext->bHashReportedByDevice;
-            rssDiag.rxUnclassified = pContext->extraStatistics.framesRSSUnclassified;
-            rssDiag.rxMissed = pContext->extraStatistics.framesRSSMisses;
-            rssDiag.rxHits = pContext->extraStatistics.framesRSSHits;
-            rssDiag.rxErrors = pContext->extraStatistics.framesRSSError;
-            ResetRssStatistics(pContext);
+            pInfo = &u.WmiDiag;
+            ulSize = sizeof(u.WmiDiag);
+            //----------------- RSS ----------------------------------------
+            u.WmiDiag.rss.DeviceRssSupport = pContext->bRSSSupportedByDevicePersistent;
+            u.WmiDiag.rss.DeviceHashSupport = pContext->bHashReportedByDevice;
+            u.WmiDiag.rss.DeviceRssOn = pContext->bRSSSupportedByDevice;
+            u.WmiDiag.rss.Unclassified = pContext->extraStatistics.framesRSSUnclassified;
+            u.WmiDiag.rss.Misses = pContext->extraStatistics.framesRSSMisses;
+            u.WmiDiag.rss.Hits = pContext->extraStatistics.framesRSSHits;
+            u.WmiDiag.rss.Errors = pContext->extraStatistics.framesRSSError;
+            //----------------- TX ------------------------------------------
+            u.WmiDiag.tx.LargeOffload = pContext->extraStatistics.framesLSO;
+            u.WmiDiag.tx.ChecksumOffload = pContext->extraStatistics.framesCSOffload;
+            u.WmiDiag.tx.MinFreeBuffers = pContext->extraStatistics.minFreeTxBuffers;
+            u.WmiDiag.tx.Dropped = pContext->extraStatistics.droppedTxPackets;
+            u.WmiDiag.tx.Copied = 0; //TODO
+            //----------------- RX ------------------------------------------
+            u.WmiDiag.rx.ChecksumOK = pContext->extraStatistics.framesRxCSHwOK;
+            u.WmiDiag.rx.CoalescedHost = pContext->extraStatistics.framesCoalescedHost;
+            u.WmiDiag.rx.CoalescedWin = pContext->extraStatistics.framesCoalescedWindows;
+            u.WmiDiag.rx.Priority = pContext->extraStatistics.framesRxPriority;
+            u.WmiDiag.rx.MinFreeBuffers = pContext->extraStatistics.minFreeRxBuffers;
+            u.WmiDiag.rx.LowResources = (ULONG)pContext->extraStatistics.rxIndicatesWithResourcesFlag.LowPart;
             break;
         case OID_VENDOR_4:
-            u.StandbySupported = virtio_is_feature_enabled(pContext->u64GuestFeatures, VIRTIO_NET_F_STANDBY);
-            pInfo = &u.StandbySupported;
-            ulSize = sizeof(u.StandbySupported);
+            pInfo = &u.WmiReset;
+            ulSize = sizeof(u.WmiReset);
+            u.WmiReset.type = 0;
+            break;
+        case OID_VENDOR_5:
+            pInfo = &u.WmiDevRss;
+            ulSize = sizeof(u.WmiDevRss);
+            u.WmiDevRss.value = 2;
             break;
         case OID_GEN_INTERRUPT_MODERATION:
             u.InterruptModeration.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;

@@ -13,39 +13,82 @@ class NetKvm_Logging : MSNdis
 };
 
 [Dynamic : ToInstance, Provider("WMIProv"), WMI,
-guid("{76EA6A8E-FD60-4F0E-B98D-22CDC8B99721}")]
-class NetKvm_Statistics : MSNdis
+guid("{FED9CC79-5742-48F3-92C4-11698BD750E7}")]
+class NetKvm_DiagReset : MSNdis
 {
     [key, read] string InstanceName;
     [read] boolean Active;
-    [read,write,WmiDataId(1)] uint32 rxCoalescedWin;
-    [read,write,WmiDataId(2)] uint32 rxCoalescedHost;
-    [read,write,WmiDataId(3)] uint32 rxChecksumOK;
-    [read,write,WmiDataId(4)] uint32 rxPriority;
-    [read,write,WmiDataId(5)] uint32 txLargeOffload;
-    [read,write,WmiDataId(6)] uint32 txChecksumOffload;
-    [read,write,WmiDataId(7)] uint32 txMinFreeBuffers;
-    [read,write,WmiDataId(8)] uint32 txDropped;
+// bit 0 - rx, bit 1 - tx, bit 2 - rss
+    [read,write,WmiDataId(1)] uint8 type;
 };
 
 [Dynamic : ToInstance, Provider("WMIProv"), WMI,
+guid("{8F4D3DFA-06C0-4520-88C1-5F18184BEB09}")]
+class NetKvm_DeviceRss : MSNdis
+{
+    [key, read] string InstanceName;
+    [read] boolean Active;
+    [read,write,WmiDataId(1)] boolean value;
+};
+
+[Dynamic : ToInstance, Provider("WMIProv"), WMI,
+guid("{DDA1EC5D-1CA9-448D-8B19-1F7E57180DAD}")]
+class NetKvm_Config : MSNdis
+{
+    [key, read] string InstanceName;
+    [read] boolean Active;
+    [WmiDataId(1), read] uint32 NumOfQueues;
+    [WmiDataId(2), read] uint32 RxQueueSize;
+    [WmiDataId(3), read] uint32 TxQueueSize;
+    [WmiDataId(4), read] boolean RscEnabledv4;
+    [WmiDataId(5), read] boolean RscEnabledv6;
+    [WmiDataId(6), read] boolean Standby;
+    [WmiDataId(7), read] uint32 MemoryKB;
+};
+
+[WMI,
+guid("{09880234-BCB9-4D9D-BCE6-135640671630}")]
+class NetKvm_Tx
+{
+    [WmiDataId(1), read] uint32 LargeOffload;
+    [WmiDataId(2), read] uint32 ChecksumOffload;
+    [WmiDataId(3), read] uint32 MinFreeBuffers;
+    [WmiDataId(4), read] uint32 Copied;
+    [WmiDataId(5), read] uint32 Dropped;
+};
+
+[WMI,
+ guid("{DEE2E74A-45B5-4CAF-B3F7-EE90660F1A70}")]
+class NetKvm_Rx
+{
+    [read,WmiDataId(1)] uint32 CoalescedWin;
+    [read,WmiDataId(2)] uint32 CoalescedHost;
+    [read,WmiDataId(3)] uint32 ChecksumOK;
+    [read,WmiDataId(4)] uint32 Priority;
+    [read,WmiDataId(5)] uint32 MinFreeBuffers;
+    [read,WmiDataId(6)] uint32 LowResources;
+};
+
+[WMI,
 guid("{7C03D07F-52FA-4C2F-8A85-9F24D575C518}")]
-class NetKvm_RssDiagnostics : MSNdis
+class NetKvm_Rss
 {
-    [key, read] string InstanceName;
-    [read] boolean Active;
-    [read,write,WmiDataId(1)] uint32 DeviceSupport;
-    [read,write,WmiDataId(2)] uint32 rxHits;
-    [read,write,WmiDataId(3)] uint32 rxMissed;
-    [read,write,WmiDataId(4)] uint32 rxUnclassified;
-    [read,write,WmiDataId(5)] uint32 rxErrors;
+    [read,WmiDataId(1)] boolean DeviceRssSupport;
+    [read,WmiDataId(2)] boolean DeviceHashSupport;
+    [read,WmiDataId(3)] boolean DeviceRssOn;
+    [read,WmiDataId(4)] uint32 Hits;
+    [read,WmiDataId(5)] uint32 Misses;
+    [read,WmiDataId(6)] uint32 Unclassified;
+    [read,WmiDataId(7)] uint32 Errors;
 };
 
 [Dynamic : ToInstance, Provider("WMIProv"), WMI,
-guid("{15C62B55-F41F-4784-AECE-E9952BA5951B}")]
-class NetKvm_Standby : MSNdis
+guid("{85888FE2-CBCE-4857-A512-4694CF5B2797}")]
+class NetKvm_Diag : MSNdis
 {
     [key, read] string InstanceName;
     [read] boolean Active;
-    [read,write,WmiDataId(1)] uint32 value;
+    [read,WmiDataId(1)] NetKvm_Tx tx;
+    [read,WmiDataId(2)] NetKvm_Rx rx;
+    [read,WmiDataId(3)] NetKvm_Rss rss;
 };
