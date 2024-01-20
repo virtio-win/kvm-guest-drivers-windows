@@ -1251,5 +1251,6 @@ NBMappingStatus CNB::MapCopyDataToVirtioSGL(CTXDescriptor &Descriptor) const
             return NBMappingStatus::FAILURE;
         }
     }
+    m_Context->extraStatistics.copiedTxPackets++;
     return NBMappingStatus::SUCCESS;
 }
