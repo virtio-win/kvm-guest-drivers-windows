@@ -1383,7 +1383,21 @@ VIOSockReadDequeueCb(
         }
         else
         {
-            bRequeue = TRUE;
+            // The socket is connected, however, it might
+            // receive a shutdown notification from the other end.
+            // In such a case, we need to complete the recv request with success,
+            // possibly reporting zero data received. If the shutdown is here,
+            // the request must not be requeued since that may cause it being
+            // in the queue forever.
+            status = VIOSockStateValidate(pSocket, FALSE);
+            if (!NT_SUCCESS(status))
+            {
+                bStop = TRUE;
+                if (status == STATUS_LOCAL_DISCONNECT ||
+                    status == STATUS_REMOTE_DISCONNECT)
+                    status = STATUS_SUCCESS;
+            }
+            else bRequeue = TRUE;
         }
     }
 
