@@ -1553,9 +1553,19 @@ VIOSockShutdownFromPeer(
     pSocket->PeerShutdown |= uFlags;
     bRes = (pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_MASK) == VIRTIO_VSOCK_SHUTDOWN_MASK;
     WdfSpinLockRelease(pSocket->StateLock);
+    if (uDrain & VIRTIO_VSOCK_SHUTDOWN_SEND)
+    {
+        // Let's empty the recv() request queue. We need to
+        // complete pending requests for which there are no
+        // data. SInce VIOSockReadProcessDequeueCb may process
+        // one such request per call, the loop is needed.
+        //
+        // New recv() requests should not be an issue since they
+        // get removed by queue's Ready Notify callback.
+        while ((WdfIoQueueGetState(pSocket->ReadQueue, NULL, NULL) & WdfIoQueueNoRequests) == 0)
+            VIOSockReadProcessDequeueCb(pSocket);
+    }
 
-//     if (uDrain & VIRTIO_VSOCK_SHUTDOWN_SEND)
-//         VIOSockReadDequeueCb(pSocket, WDF_NO_HANDLE);
 //     if (uDrain & VIRTIO_VSOCK_SHUTDOWN_RCV)
 //     {
 //         //TODO: dequeue requests for current socket only
