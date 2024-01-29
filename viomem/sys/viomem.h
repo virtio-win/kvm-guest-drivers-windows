@@ -118,7 +118,7 @@ typedef struct _virtio_mem_resp {
 }virtio_mem_resp;
 #pragma pack(pop)
 
-/*-- - virtio - mem: feature bits-- - */
+/*-- - virtio-mem: feature bits-- - */
 
 /* node_id is an ACPI PXM and is valid */
 #define VIRTIO_MEM_F_ACPI_PXM		0

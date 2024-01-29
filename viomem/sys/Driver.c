@@ -46,9 +46,8 @@ NTSTATUS DriverEntry(
     WDFDRIVER              driver;
     WDF_OBJECT_ATTRIBUTES  attrib;
 
-#if (NTDDI_VERSION > NTDDI_WIN7)
     ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
-#endif
+    
     InitializeDebugPrints( DriverObject, RegistryPath);
 
     TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "viomem driver, built on %s %s\n",

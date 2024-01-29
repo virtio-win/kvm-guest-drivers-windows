@@ -30,9 +30,6 @@
     <ClInclude Include="ProtoTypes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="public.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="trace.h">
       <Filter>Header Files</Filter>
     </ClInclude>

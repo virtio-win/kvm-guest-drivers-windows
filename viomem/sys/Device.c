@@ -103,9 +103,6 @@ ViomemDeviceAdd(
     interruptConfig.EvtInterruptEnable  = ViomemEnableInterrupts;
     interruptConfig.EvtInterruptDisable = ViomemDisableInterrupts;
 
-	// Is this usable??
-    //interruptConfig.AutomaticSerialization = TRUE;
-
     status = WdfInterruptCreate(device,
                             &interruptConfig,
                             WDF_NO_OBJECT_ATTRIBUTES,
@@ -203,7 +200,7 @@ ViomemEvtDevicePrepareHardware(
     }
 
 	//
-	// Initialize memory for request, response and bitmap.
+	// Initialize memory for request, response, and bitmap.
 	//
 
 	if (NT_SUCCESS(status))
@@ -242,7 +239,7 @@ ViomemEvtDevicePrepareHardware(
 	devCtx->bitmapBuffer = NULL;
 
 	//
-	// Set processing state to initialization.
+	// Set the processing state to initialization.
 	//
 
 	devCtx->state = VIOMEM_PROCESS_STATE_INIT;
@@ -422,7 +419,6 @@ ViomemEvtDeviceD0ExitPreInterruptsDisabled(
     ViomemCloseWorkerThread(Device);
     if (TargetState == WdfPowerDeviceD3Final)
     {
-		// Nothing here ?
 	}
 
 	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "%s Return\n", __FUNCTION__);

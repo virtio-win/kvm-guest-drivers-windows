@@ -161,6 +161,9 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <AdditionalLibraryDirectories>..\..\VirtIO\$(OutDir);..\..\VirtIO\WDF\$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>%(AdditionalDependencies);virtiolib.lib;virtiolib_wdf.lib;ntstrsafe.lib;wdmsec.lib</AdditionalDependencies>
+      <CETCompat Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">true</CETCompat>
+      <CETCompat Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">true</CETCompat>
+      <CETCompat Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">false</CETCompat>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

@@ -1,7 +1,7 @@
 /*
  * This file contains virtio-mem driver routines
  *
- * Copyright (c) 2022  Red Hat, Inc.
+ * Copyright (c) 2022-2024  Red Hat, Inc.
  *
  * Author(s):
  *  Marek Kedzierski <mkedzier@redhat.com>
@@ -51,13 +51,18 @@ ViomemInit(IN WDFOBJECT    WdfDevice)
 
     WdfObjectAcquireLock(WdfDevice);
 
-	// 
-	// Read features offered by the virtio-mem. Currently only one feature 
-	// is available - per node (NUMA) memory plug/unplug
-	// But ignore it in this version.
+	//
+	// Read features offered by the virtio-mem. 
 	//
 
 	u64HostFeatures = VirtIOWdfGetDeviceFeatures(&devCtx->VDevice);
+
+	//
+	// Currently, only one feature is available - per node(for NUMA)
+	// memory plug / unplug. However, the Windows physical memory add function 
+	/// doesn't provide a way to (explicitly) specify nodes for the memory block. 
+	// So, the driver ignores it.
+	// 
 
 	if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_MEM_F_ACPI_PXM))
 	{
@@ -134,7 +139,7 @@ VOID inline DumpViomemResponseType(virtio_mem_resp	*MemoryResponse)
 //			  													
 //  Return value: TRUE if all memory ranges were unplugged (device returned ACK
 //				  and plugged_size was set to zero)
-//				  FALSE if timeout occured or device returned an error code or 
+//				  FALSE if timeout occurred or device returned an error code or 
 //				  device returned ACK but plugged_size was not set to zero.
 //
 
@@ -271,7 +276,6 @@ BOOLEAN SendUnplugAllRequest(IN WDFOBJECT WdfDevice)
 	return FALSE;
 }
 
-
 //
 // Function sends VIRTIO_MEM_REQ_UNPLUG request to a device.
 //	
@@ -281,7 +285,7 @@ BOOLEAN SendUnplugAllRequest(IN WDFOBJECT WdfDevice)
 //                              at Address  
 //								
 //  Return value: TRUE if plug operation finished with success
-//				  FALSE if timeout occured or device returned an error code
+//				  FALSE if timeout occurred or device returned an error code
 //
 
 BOOLEAN SendUnPlugRequest(
@@ -455,8 +459,8 @@ BOOLEAN SendPlugRequest(
 	sg[1].length = sizeof(virtio_mem_resp);
 
 	//
-	// Under spinlock add prepared request and response to the virtio queue. After
-	// preparation release the spinlock and notify queue about transmission request.
+	// Under spin lock add prepared request and response to the virtio queue. After
+	// preparation release the spin lock and notify queue about transmission request.
 	//
 
 	WdfSpinLockAcquire(devCtx->infVirtQueueLock);
@@ -473,7 +477,7 @@ BOOLEAN SendPlugRequest(
 	}
 
 	//
-	// Wait for the reponse from a device.
+	// Wait for the response from a device.
 	//
 
 	timeout.QuadPart = Int32x32To64(1000, -10000);
@@ -528,7 +532,7 @@ BOOLEAN SendPlugRequest(
 // The function is used by GetMemoryRangesFromMdl.
 //
 
-ULONG FindConsecutivePagesCountMDL(PPFN_NUMBER Pages, ULONG Remaining)
+LONGLONG FindConsecutivePagesCountMDL(PPFN_NUMBER Pages, LONGLONG Remaining)
 {
 	PFN_NUMBER start = Pages[0];
 	ULONG index = 1;
@@ -563,15 +567,15 @@ ULONG GetMemoryRangesFromMdl(PMDL Mdl, PHYSICAL_MEMORY_RANGE MemoryRanges[])
 	// Calculate a number of PFNs from the MDL.
 	//
 
-	ULONG pagesToScan = Mdl->ByteCount >> PAGE_SHIFT;
+	LONGLONG pagesToScan = Mdl->ByteCount >> PAGE_SHIFT;
 
 	//
 	// Initialize starting position of a block and a number of consecutive 
 	// pages.
 	//
 
-	ULONG blockStartPosition = 0;
-	ULONG consecutivePagesCount = 0;
+	LONGLONG blockStartPosition = 0;
+	LONGLONG consecutivePagesCount = 0;
 
 	// Get a pointer to PFNs.
 
@@ -584,7 +588,7 @@ ULONG GetMemoryRangesFromMdl(PMDL Mdl, PHYSICAL_MEMORY_RANGE MemoryRanges[])
 	while (pagesToScan > 0)
 	{
 		//
-		// Mark start of memory range and then scan for sequence of consecutives
+		// Mark start of memory range and then scan for sequence of consecutive
 		// pages.
 		//
 
@@ -643,10 +647,10 @@ ULONG GetNumberOfMBytesAllocatedInBitmap(RTL_BITMAP *Bitmap, ULONG BlockSize)
 
 void DumpBitmapMemoryRanges(LONGLONG BaseAddress,
 	RTL_BITMAP *Bitmap,
-	ULONG BlockSize)
+	LONGLONG BlockSize)
 {
 	PHYSICAL_MEMORY_RANGE range;
-	ULONG rangeStartIndex = 0;
+	LONGLONG rangeStartIndex = 0;
 	ULONG bitsNumberToScan = Bitmap->SizeOfBitMap;
 	ULONG previousBitValue = RtlCheckBit(Bitmap, 0);
 	ULONG i = 0;
@@ -743,9 +747,9 @@ VOID DeallocateMemoryRangeInMemoryBitmap(LONGLONG BaseAddress,
 }
 
 //
-// Helper function that dumps system memory ranges.
-// Note: after each succesful memory plug or memory unplug, the system memory ranges
-//       are updated so this function is for just obserability purposes.
+// Helper function that dumps system memory ranges information.
+// Note: after each successful memory plug or memory unplug, the system memory ranges
+//       are updated so this function is for just observability purposes.
 //
 
 VOID DumpSystemMemoryRanges(LONGLONG Start, LONGLONG End)
@@ -817,6 +821,12 @@ ULONG RtlFindLongestRunSet(IN  PRTL_BITMAP BitMapHeader, OUT PULONG StartingInde
 	return longestRunFound;
 }
 
+//
+// This function searches for a busy (used) memory range that starts at the given address and 
+// is less or equal to LessOrEqualExpectedSizeInBlocks in size. If the function finds the range, 
+// it fills in the physical address of the range and the range's size and returns a boolean value 
+// of TRUE. Otherwise, it returns a boolean value of FALSE.
+//
 
 inline BOOLEAN FindAllocatedMemoryRangeInBitmap(RTL_BITMAP *Bitmap,
 	LONGLONG BaseAddress,
@@ -840,8 +850,10 @@ inline BOOLEAN FindAllocatedMemoryRangeInBitmap(RTL_BITMAP *Bitmap,
 }
 
 //
-// Function returns free memory range in the bitmap of less or 
-// equal to LessOrEqualExpectedSizeInBlocks.
+// This function searches for a free memory range that starts at the given address and is less 
+// or equal to LessOrEqualExpectedSizeInBlocks in size. If the function finds the range, 
+// it fills in the physical address of the range and the range's size and returns a boolean value 
+// of TRUE. Otherwise, it returns a boolean value of FALSE.
 //
 
 inline BOOLEAN FindFreeMemoryRangeInBitmap(RTL_BITMAP *Bitmap,
@@ -864,6 +876,10 @@ inline BOOLEAN FindFreeMemoryRangeInBitmap(RTL_BITMAP *Bitmap,
 
 	return FALSE;
 }
+
+//
+// This function marks a range of memory as busy (used) in bitmap's memory representation.
+//
 
 inline VOID AllocateMemoryRangeInMemoryBitmap(LONGLONG BaseAddress,
 	PPHYSICAL_MEMORY_RANGE RangeToAllocate,
@@ -938,7 +954,7 @@ BOOLEAN VirtioMemAddPhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Confi
 	{
 		// 
 		// Request failed. There is no need to update anything (as memory has 
-		// not been added) so return errror.
+		// not been added) so return error.
 		//
 
 		return FALSE;
@@ -1012,25 +1028,34 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
 	}
 
 	//
-	// Try to remove a memory range. 
+	// Let's *try* to remove a memory range. 
 	// 
-	// Notes: 
-	//	      1. it may be not possible to remove the memory range, because
-	//	         the whole range can be already used by the system.
-	//		  2. for removal an undocumented flag MM_ALLOCATE_AND_HOT_REMOVE is used;
-	//			 the flag is not mentioned on MSDN but is used by Hyper-V dynamic 
-	//		     memory driver and the flag is defined in one of the WDK header files
-	//		  3. "skip" is set to block_size which means that range address is aligned
-	//			 to this value
-	//			 
+	// Note: Removing the memory range may not be possible because the system can already use the 
+	// whole range.
+	// 
+
+	//
+	// The "skip" value is set to block_size, which means that the range address is aligned 
+	// to this value.
+	//
 
 	skip.QuadPart = Configuration->block_size;
+
+	//
+	// The function MmAllocateNodePagesForMdlEx with the MM_ALLOCATE_AND_HOT_REMOVE flag must be 
+	// used to remove the physical memory range from the system. While the name of this function 
+	// is misleading, it is the only correct and documented way
+	// (https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-mmallocatepagesformdlex)
+	// 
+	// Note that older DDKs also mention a function called MmRemovePhysicalMemory. However, the function 
+	// is not documented and has limitations that exclude it from current usage.
+	//
 
 	ULONG flagsContigRemove = MM_ALLOCATE_REQUIRE_CONTIGUOUS_CHUNKS
 		| MM_ALLOCATE_AND_HOT_REMOVE;
 
 	//
-	// Trace information about block to be removed.
+	// Trace information about the block to be removed.
 	//
 
 	LONGLONG startAddress = range.BaseAddress.QuadPart;
@@ -1045,25 +1070,37 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
 	highAddress.QuadPart = range.BaseAddress.QuadPart + range.NumberOfBytes.QuadPart;
 
 	//
-	// Call the removal procedure which is hidden under MmAllocateNodePagesForMdlEx
-	// name.
+	// Call the removal function - the mentioned MmAllocateNodePagesForMdlEx
 	//
+	
+#if defined(_WIN64)
+
+	LONGLONG bytesToRemoveCount = range.NumberOfBytes.QuadPart;
+
+#else
+	// 
+	// Just a compilation fix for 32 bit platforms.
+	//
+
+	SIZE_T bytesToRemoveCount = (SIZE_T) range.NumberOfBytes.QuadPart;
+
+#endif
 
 	PMDL removedMemoryMdl = MmAllocateNodePagesForMdlEx(range.BaseAddress,
 		highAddress,
 		skip,
-		range.NumberOfBytes.QuadPart,
+		bytesToRemoveCount,
 		MmCached,
 		0,
 		flagsContigRemove
 	);
 
 	//
-	// If memory has been removed convert MDLs returned by MmAllocateNodePagesForMdlEx
-	// call to memory ranges, inform the device about removal and then update the 
-	// bitmap representation of memory blocks to reflect the change.
+	// If the memory has been removed, convert MDLs returned by the MmAllocateNodePagesForMdlEx call to 
+	// memory ranges, inform the device about removal, and then update the bitmap representation of 
+    // memory blocks to reflect the change.
 	//
-	
+
 	if (removedMemoryMdl)
 	{
 
@@ -1115,8 +1152,9 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
 	}
 
 	//
-	// Return status OK. Removal may fail because the memory may be already used by the system,
-	// but this situation (for obvious reasons) is not considered an error.
+	// Return status OK.
+	// Removal may fail because the system may already use the memory, but 
+	// this situation(for obvious reasons) is not considered an error.
 	//
 
 	return TRUE;
