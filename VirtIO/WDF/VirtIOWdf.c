@@ -49,7 +49,6 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
 
     RtlZeroMemory(pWdfDriver, sizeof(*pWdfDriver));
     pWdfDriver->MemoryTag = MemoryTag;
-    pWdfDriver->bLegacyMode = FALSE;
 
     /* get the PCI bus interface */
     status = WdfFdoQueryForInterface(
