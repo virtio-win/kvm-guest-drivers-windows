@@ -61,7 +61,7 @@ typedef struct virtio_wdf_driver {
     WDFDMAENABLER           DmaEnabler;
     WDFCOLLECTION           MemoryBlockCollection;
     WDFSPINLOCK             DmaSpinlock;
-    BOOLEAN                 bLegacyMode;
+
     
 } VIRTIO_WDF_DRIVER, *PVIRTIO_WDF_DRIVER;
 
