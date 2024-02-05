@@ -61,8 +61,17 @@
 #define LISTEN_PORT_MAX				1340
 #define SERVER_THREAD_COUNT			((LISTEN_PORT_MAX) - (LISTEN_PORT_MIN) + 1)
 #define CLIENT_THREAD_COUNT			16
+#define TEST_COUNT					16
 
 #define VIOWSK_TEST_TAG				(ULONG)'TKSW'
+
+#define VIOWSK_TEST_FLAG_CONNECTEX		0x1
+#define VIOWSK_TEST_FLAG_SOCKCONN		0x2
+#define VIOWSK_TEST_FLAG_SENDEX			0x4
+#define VIOWSK_TEST_FLAG_RECVEX			0x8
+#define VIOWSK_TEST_FLAG_DISCONNECTEX	0x10
+#define VIOWSK_TEST_FLAG_MASK	\
+	(VIOWSK_TEST_FLAG_CONNECTEX|VIOWSK_TEST_FLAG_SOCKCONN|VIOWSK_TEST_FLAG_SENDEX|VIOWSK_TEST_FLAG_RECVEX|VIOWSK_TEST_FLAG_DISCONNECTEX)
 
 static volatile LONG _readyThreads;
 static volatile LONG _terminate;
@@ -136,7 +145,10 @@ NTSTATUS
 _TestSocket(
     _In_ PWSK_SOCKET Socket,
     _In_ PIRP        Irp,
-    _In_ BOOLEAN     Server
+	_Inout_ PVIOWSK_MSG_HASH_OBJECT HashObject,
+    _In_ BOOLEAN     Server,
+	_Inout_ volatile LONG *TerminationFlag,
+	_In_ ULONG TestFlags
 )
 {
     KEVENT event;
@@ -145,37 +157,12 @@ _TestSocket(
     PVOID msgFlat = NULL;
     WSK_BUF recvMsg;
     PVOID recvFlat = NULL;
-    ULONG hashObjectSize = 0;
-    ULONG returnedLength = 0;
-    void *hashObject = NULL;
-    BCRYPT_HASH_HANDLE hashHandle = NULL;
     BOOLEAN verified = FALSE;
-    BCRYPT_ALG_HANDLE sha256Handle = NULL;
-    DEBUG_ENTER_FUNCTION("Socket=0x%p; Irp=0x%p; Server=%u", Socket, Irp, Server);
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; Irp=0x%p; HashObject=0x%p; Server=%u; TestFlags=0x%x", Socket, Irp, HashObject, Server, TestFlags);
 
-    KeInitializeEvent(&event, NotificationEvent, FALSE);
-    iosb.Status = BCryptOpenAlgorithmProvider(&sha256Handle, BCRYPT_SHA256_ALGORITHM, NULL, BCRYPT_PROV_DISPATCH);
-    if (!NT_SUCCESS(iosb.Status))
-    {
-        DEBUG_ERROR("Unable to open SHA256 provider: 0x%x", iosb.Status);
-        goto Exit;
-    }
-
-    iosb.Status = BCryptGetProperty(sha256Handle, BCRYPT_OBJECT_LENGTH, (PUCHAR)&hashObjectSize, sizeof(hashObjectSize), &returnedLength, 0);
-    if (!NT_SUCCESS(iosb.Status))
-    {
-        DEBUG_ERROR("BCryptGetProperty: 0x%x", iosb.Status);
-        goto CloseProvider;
-    }
-
-    hashObject = ExAllocatePoolUninitialized(NonPagedPool, hashObjectSize, VIOWSK_TEST_TAG);
-	if (!hashObject)
-    {
-        iosb.Status = STATUS_INSUFFICIENT_RESOURCES;
-        goto CloseProvider;
-    }
-	
-	for (size_t i = 0; i < 16; ++i)
+	memset(&iosb, 0, sizeof(iosb));
+    KeInitializeEvent(&event, NotificationEvent, FALSE);	
+	for (size_t i = 0; i < TEST_COUNT; ++i)
     {
         if (!NT_SUCCESS(iosb.Status))
             break;
@@ -187,30 +174,14 @@ _TestSocket(
             continue;
         }
 
-        iosb.Status = BCryptCreateHash(sha256Handle, &hashHandle, hashObject, hashObjectSize, NULL, 0, 0);
-        if (!NT_SUCCESS(iosb.Status))
-        {
-            DEBUG_ERROR("BCryptCreateHash: 0x%x", iosb.Status);
-            goto FreeRecvMessage;
-        }
-
-        iosb.Status = VioWskMessageGenerate(hashHandle, &msg, &msgFlat);
-        BCryptDestroyHash(hashObject);
+        iosb.Status = VioWskMessageGenerate(HashObject, &msg, &msgFlat);
         if (!NT_SUCCESS(iosb.Status))
         {
             DEBUG_ERROR("Unable to generate test message: 0x%x", iosb.Status);
             goto FreeRecvMessage;
         }
 
-        iosb.Status = BCryptCreateHash(sha256Handle, &hashHandle, hashObject, hashObjectSize, NULL, 0, 0);
-        if (!NT_SUCCESS(iosb.Status))
-        {
-            DEBUG_ERROR("BCryptCreateHash: 0x%x", iosb.Status);
-            goto FreeMessage;
-        }
-
-        iosb.Status = VIoWskMessageVerify(hashHandle, &msg, &verified);
-        BCryptDestroyHash(hashObject);
+        iosb.Status = VIoWskMessageVerify(HashObject, &msg, &verified);
         if (!NT_SUCCESS(iosb.Status) || !verified)
         {
              if (!verified)
@@ -224,19 +195,27 @@ _TestSocket(
              goto FreeMessage;
         }
 
-		if (!Server)
+		if (!Server &&
+			(i != 0 ||
+			(TestFlags & VIOWSK_TEST_FLAG_CONNECTEX) == 0))
 		{
 			while (NT_SUCCESS(iosb.Status) && msg.Length > 0)
 			{
-				WSK_SYNCHRONOUS_CALL(Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSend(Socket, &msg, 0, Irp), &iosb);
+				if ((TestFlags & VIOWSK_TEST_FLAG_SENDEX) != 0)
+					WSK_SYNCHRONOUS_CALL(Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSendEx(Socket, &msg, 0, 0, NULL, Irp), &iosb);
+				else WSK_SYNCHRONOUS_CALL(Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSend(Socket, &msg, 0, Irp), &iosb);
+				
 				if (iosb.Status == STATUS_CANT_WAIT)
 				{
 					LARGE_INTEGER timeout;
 
-					iosb.Status = STATUS_SUCCESS;
 					DEBUG_WARNING("Cannot wait for receive, sleeping\n");
 					timeout.QuadPart = -10000000;
 					KeDelayExecutionThread(KernelMode, FALSE, &timeout);
+					if (InterlockedCompareExchange(TerminationFlag, 1, 1))
+						break;
+					
+					iosb.Status = STATUS_SUCCESS;
 					continue;
 				}
 
@@ -253,15 +232,21 @@ _TestSocket(
 
 		while (NT_SUCCESS(iosb.Status) && recvMsg.Length > 0)
 		{
-			WSK_SYNCHRONOUS_CALL(Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskReceive(Socket, &recvMsg, 0, Irp), &iosb);
+			if ((TestFlags & VIOWSK_TEST_FLAG_RECVEX) != 0)
+				WSK_SYNCHRONOUS_CALL(Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskReceiveEx(Socket, &recvMsg, 0, NULL, NULL, NULL, Irp), &iosb);
+			else WSK_SYNCHRONOUS_CALL(Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskReceive(Socket, &recvMsg, 0, Irp), &iosb);
+			
 			if (iosb.Status == STATUS_CANT_WAIT) 
 			{
 				LARGE_INTEGER timeout;
 
-				iosb.Status = STATUS_SUCCESS;
 				DEBUG_WARNING("Cannot wait for receive, sleeping\n");
 				timeout.QuadPart = -10000000;
 				KeDelayExecutionThread(KernelMode, FALSE, &timeout);
+				if (InterlockedCompareExchange(TerminationFlag, 1, 1))
+					break;
+
+				iosb.Status = STATUS_SUCCESS;
 				continue;
 			}
 			
@@ -275,38 +260,41 @@ _TestSocket(
 			VioWskMessageAdvance(&recvMsg, iosb.Information);
 		}
 
-		iosb.Status = BCryptCreateHash(sha256Handle, &hashHandle, hashObject, hashObjectSize, NULL, 0, 0);
-		if (!NT_SUCCESS(iosb.Status))
+		if (NT_SUCCESS(iosb.Status))
 		{
-			DEBUG_ERROR("BCryptCreateHash: 0x%x", iosb.Status);
-			goto SendMessage;
-		}
+			iosb.Status = VIoWskMessageVerifyBuffer(HashObject, recvFlat, &verified);
+			if (!NT_SUCCESS(iosb.Status) || !verified)
+			{
+				if (!verified)
+					iosb.Status = STATUS_UNSUCCESSFUL;
 
-		iosb.Status = VIoWskMessageVerifyBuffer(hashHandle, recvFlat, &verified);
-		BCryptDestroyHash(hashObject);
-		if (!NT_SUCCESS(iosb.Status) || !verified)
-		{
-			if (!verified)
-				iosb.Status = STATUS_UNSUCCESSFUL;
-
-			DEBUG_ERROR("Unable to verify test message: 0x%x", iosb.Status);
-			goto SendMessage;
+				DEBUG_ERROR("Unable to verify test message: 0x%x", iosb.Status);
+				goto SendMessage;
+			}
 		}
 
 	SendMessage:
-		if (Server)
+		if (Server &&
+			((i != TEST_COUNT - 1) ||
+			(TestFlags & VIOWSK_TEST_FLAG_DISCONNECTEX) == 0))
 		{
 			while (NT_SUCCESS(iosb.Status) && msg.Length > 0)
 			{
-				WSK_SYNCHRONOUS_CALL(Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSend(Socket, &msg, 0, Irp), &iosb);
+				if ((TestFlags & VIOWSK_TEST_FLAG_SENDEX) != 0)
+					WSK_SYNCHRONOUS_CALL(Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSendEx(Socket, &msg, 0, 0, NULL, Irp), &iosb);
+				else WSK_SYNCHRONOUS_CALL(Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSend(Socket, &msg, 0, Irp), &iosb);
+				
 				if (iosb.Status == STATUS_CANT_WAIT)
 				{
 					LARGE_INTEGER timeout;
 
-					iosb.Status = STATUS_SUCCESS;
 					DEBUG_WARNING("Cannot wait for receive, sleeping\n");
 					timeout.QuadPart = -10000000;
 					KeDelayExecutionThread(KernelMode, FALSE, &timeout);
+					if (InterlockedCompareExchange(TerminationFlag, 1, 1))
+						break;
+
+					iosb.Status = STATUS_SUCCESS;
 					continue;
 				}
 
@@ -328,13 +316,9 @@ _TestSocket(
 
 	if (Server)
 	{
-		DEBUG_INFO("Server thread test finished\n");
+		DEBUG_INFO("Server thread test finished (flags 0x%x, status 0x%x)\n", TestFlags, iosb.Status);
 	}
 
-	ExFreePoolWithTag(hashObject, VIOWSK_TEST_TAG);
-CloseProvider:
-	BCryptCloseAlgorithmProvider(sha256Handle, 0);
-Exit:
 	DEBUG_EXIT_FUNCTION("0x%x", iosb.Status);
 	return iosb.Status;
 }
@@ -346,7 +330,11 @@ typedef struct _TEST_THREAD_CONTEXT {
 	PETHREAD Thread;
 	PIRP Irp;
 	PWSK_SOCKET Socket;
+	VIOWSK_MSG_HASH_OBJECT Hash;
 	volatile LONG Terminated;
+	ULONG TestFlags;
+	WSK_BUF FarewellMsg;
+	PVOID FarewellMsgFlat;
 } TEST_THREAD_CONTEXT, *PTEST_THREAD_CONTEXT;
 
 static
@@ -354,7 +342,8 @@ NTSTATUS
 _SocketTestThreadCreate(
     _In_ PWSK_SOCKET Socket,
     _In_ PLIST_ENTRY ListHead,
-    _In_ PKSPIN_LOCK ListLock
+    _In_ PKSPIN_LOCK ListLock,
+	_In_ ULONG TestFlags
 );
 
 static
@@ -371,7 +360,7 @@ _TestThreadRoutine(
     PTEST_THREAD_CONTEXT ctx = (PTEST_THREAD_CONTEXT)Context;
     DEBUG_ENTER_FUNCTION("Context=0x%p", Context);
 
-    Status = _TestSocket(ctx->Socket, ctx->Irp, TRUE);
+    Status = _TestSocket(ctx->Socket, ctx->Irp, &ctx->Hash, TRUE, &ctx->Terminated, ctx->TestFlags);
 	KeAcquireSpinLock(ctx->ListLock, &irql);
     if (!IsListEmpty(&ctx->Entry))
 	{
@@ -384,7 +373,7 @@ _TestThreadRoutine(
     {
         memset(&iosb, 0, sizeof(iosb));
         KeInitializeEvent(&event, NotificationEvent, FALSE);
-		WSK_SYNCHRONOUS_CALL(ctx->Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)ctx->Socket->Dispatch)->WskDisconnect(ctx->Socket, NULL, 0, ctx->Irp), &iosb);
+		WSK_SYNCHRONOUS_CALL(ctx->Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)ctx->Socket->Dispatch)->WskDisconnect(ctx->Socket, &ctx->FarewellMsg, 0, ctx->Irp), &iosb);
 		if (iosb.Status == STATUS_CONNECTION_INVALID)
 			iosb.Status = STATUS_SUCCESS;
 		
@@ -401,7 +390,11 @@ _TestThreadRoutine(
 
         ObDereferenceObject(ctx->Thread);
         IoFreeIrp(ctx->Irp);
-        ExFreePoolWithTag(ctx, VIOWSK_TEST_TAG);
+		if (ctx->FarewellMsgFlat)
+			VioWskMessageFree(&ctx->FarewellMsg, ctx->FarewellMsgFlat);
+
+		VIoWskMessageDestroyHashObject(&ctx->Hash);
+		ExFreePoolWithTag(ctx, VIOWSK_TEST_TAG);
     }
 
     DEBUG_EXIT_FUNCTION("0x%x", Status);
@@ -425,6 +418,7 @@ _ServerThreadRoutine(
 	PADDRINFOEXW addrInfo = NULL;
 	PWSK_SOCKET serverSocket = NULL;
 	IO_STATUS_BLOCK iosb;
+	ULONG testFlags = 0;
 	KSPIN_LOCK threadListLock;
 	LIST_ENTRY threadListHead;
 	DEBUG_ENTER_FUNCTION("Context=0x%p", Context);
@@ -522,7 +516,8 @@ _ServerThreadRoutine(
 
 		if (NT_SUCCESS(iosb.Status)) {
 			DEBUG_INFO("  Remote: %wZ:%wZ", &listenHost, &listenPort);
-			iosb.Status = _SocketTestThreadCreate(clientSocket, &threadListHead, &threadListLock);
+			iosb.Status = _SocketTestThreadCreate(clientSocket, &threadListHead, &threadListLock, testFlags);
+			testFlags = (testFlags + 1) % (VIOWSK_TEST_FLAG_MASK + 1);
 			if (!NT_SUCCESS(iosb.Status)) {
 				DEBUG_ERROR("Socket test thread failed to create: 0x%x", iosb.Status);
 			}
@@ -547,6 +542,10 @@ _ServerThreadRoutine(
 		ObDereferenceObject(ctx->Thread);
 		WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_BASIC_DISPATCH)ctx->Socket->Dispatch)->WskCloseSocket(ctx->Socket, irp), &iosb);
 		IoFreeIrp(ctx->Irp);
+		if (ctx->FarewellMsgFlat)
+			VioWskMessageFree(&ctx->FarewellMsg, ctx->FarewellMsgFlat);
+		
+		VIoWskMessageDestroyHashObject(&ctx->Hash);
 		ExFreePoolWithTag(ctx, VIOWSK_TEST_TAG);
 		KeAcquireSpinLock(&threadListLock, &irql);
 	}
@@ -581,73 +580,182 @@ _ClientThreadRoutine(
 	SOCKADDR_VM localAddr;
 	SOCKADDR_VM remoteAddr;
 	PWSK_SOCKET socket = NULL;
+	VIOWSK_MSG_HASH_OBJECT ho;
 	DEBUG_ENTER_FUNCTION("Context=0x%p", Context);
 
 	UNREFERENCED_PARAMETER(Context);
 
-	iosb.Status = STATUS_SUCCESS;
 	if (InterlockedIncrement(&_readyThreads) == (CLIENT_THREAD_COUNT + SERVER_THREAD_COUNT))
 		KeSetEvent(&_initEvent, IO_NO_INCREMENT, FALSE);
+
+	iosb.Status = VioWskMessageCreateHashObject(&ho);
+	if (!NT_SUCCESS(iosb.Status))
+		goto Exit;
 
 	irp = IoAllocateIrp(1, FALSE);
 	if (!irp) {
 		iosb.Status = STATUS_INSUFFICIENT_RESOURCES;
 		DEBUG_ERROR("Failed to allocate IRP: 0x%x", iosb.Status);
-		goto Exit;
+		goto FreeHashObject;
 	}
 
 	timeout.QuadPart = -10000000;
 	KeQuerySystemTime(&timeSeed);
 	KeInitializeEvent(&event, NotificationEvent, FALSE);
 	while (!InterlockedCompareExchange(&_terminate, 1, 1)) {
-		memset(&localAddr, 0, sizeof(localAddr));
-		localAddr.svm_family = AF_VSOCK;
-		localAddr.svm_cid = (UINT)VMADDR_CID_ANY;
-		localAddr.svm_port = (UINT)VMADDR_PORT_ANY;
-		memset(&remoteAddr, 0, sizeof(remoteAddr));
-		remoteAddr.svm_family = AF_VSOCK;
-		remoteAddr.svm_cid = (UINT)VMADDR_CID_ANY;
-		remoteAddr.svm_port = LISTEN_PORT_MIN + (RtlRandomEx(&timeSeed.LowPart) % (SERVER_THREAD_COUNT));
-		WSK_SYNCHRONOUS_CALL(irp, &event, _vioWskProviderNPI.Dispatch->WskSocket(_vioWskProviderNPI.Client, AF_VSOCK, SOCK_STREAM, 0, WSK_FLAG_CONNECTION_SOCKET, NULL, NULL, NULL, NULL, NULL, irp), &iosb);
-		if (!NT_SUCCESS(iosb.Status)) {
-			DEBUG_ERROR("Unable to create client socket: 0x%x", iosb.Status);
-			break;
-		}
+		for (ULONG i = 0; i < VIOWSK_TEST_FLAG_MASK + 1; ++i) {
+			ULONG testFlags = i;
+			ULONG testStatus = STATUS_SUCCESS;
 
-		socket = (PWSK_SOCKET)iosb.Information;
-		WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskBind(socket, (PSOCKADDR)&localAddr, 0, irp), &iosb);
-		if (NT_SUCCESS(iosb.Status))
-        {
-            WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskConnect(socket, (PSOCKADDR)&remoteAddr, 0, irp), &iosb);
-        }
+			if (InterlockedCompareExchange(&_terminate, 1, 1))
+				break;
 
-        if (NT_SUCCESS(iosb.Status)) {
-			iosb.Status = _TestSocket(socket, irp, FALSE);
-			if (!NT_SUCCESS(iosb.Status)) {
-				DEBUG_ERROR("Client socket test failed: 0x%x", iosb.Status);
+			if (((testFlags & VIOWSK_TEST_FLAG_SOCKCONN) != 0) &&
+				((testFlags & VIOWSK_TEST_FLAG_CONNECTEX) != 0))
+				testFlags &= ~VIOWSK_TEST_FLAG_SOCKCONN;
+
+			socket = NULL;
+			memset(&localAddr, 0, sizeof(localAddr));
+			localAddr.svm_family = AF_VSOCK;
+			localAddr.svm_cid = (UINT)VMADDR_CID_ANY;
+			localAddr.svm_port = (UINT)VMADDR_PORT_ANY;
+			memset(&remoteAddr, 0, sizeof(remoteAddr));
+			remoteAddr.svm_family = AF_VSOCK;
+			remoteAddr.svm_cid = (UINT)VMADDR_CID_ANY;
+			remoteAddr.svm_port = LISTEN_PORT_MIN + (RtlRandomEx(&timeSeed.LowPart) % (SERVER_THREAD_COUNT));
+			if ((testFlags & VIOWSK_TEST_FLAG_SOCKCONN) != 0)
+			{
+				do {
+					WSK_SYNCHRONOUS_CALL(irp, &event, _vioWskProviderNPI.Dispatch->WskSocketConnect(_vioWskProviderNPI.Client, SOCK_STREAM, 0, (PSOCKADDR)&localAddr, (PSOCKADDR)&remoteAddr, WSK_FLAG_CONNECTION_SOCKET, NULL, NULL, NULL, NULL, NULL, irp), &iosb);
+					if (!NT_SUCCESS(iosb.Status)) {
+						DEBUG_ERROR("Unable to create client socket and connect it: 0x%x", iosb.Status);
+						break;
+					}
+
+					socket = (PWSK_SOCKET)iosb.Information;
+				} while (FALSE);
+			} else {
+				do {
+					WSK_SYNCHRONOUS_CALL(irp, &event, _vioWskProviderNPI.Dispatch->WskSocket(_vioWskProviderNPI.Client, AF_VSOCK, SOCK_STREAM, 0, WSK_FLAG_CONNECTION_SOCKET, NULL, NULL, NULL, NULL, NULL, irp), &iosb);
+					if (!NT_SUCCESS(iosb.Status))
+					{
+						DEBUG_ERROR("Unable to create client socket: 0x%x", iosb.Status);
+						break;
+					}
+
+					socket = (PWSK_SOCKET)iosb.Information;
+					WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskBind(socket, (PSOCKADDR)&localAddr, 0, irp), &iosb);
+				} while (FALSE);
+
+				if (NT_SUCCESS(iosb.Status))
+				{
+					if ((testFlags & VIOWSK_TEST_FLAG_CONNECTEX) != 0)
+					{
+						WSK_BUF msg;
+						PVOID msgFlat = NULL;
+						BOOLEAN verified = FALSE;
+
+						memset(&msg, 0, sizeof(msg));
+						do {
+							iosb.Status = VioWskMessageGenerate(&ho, &msg, &msgFlat);
+							if (!NT_SUCCESS(iosb.Status))
+							{
+								DEBUG_ERROR("Failed to generate a message: 0x%x", iosb.Status);
+								break;
+							}
+
+							iosb.Status = VIoWskMessageVerify(&ho, &msg, &verified);
+							if (!NT_SUCCESS(iosb.Status))
+							{
+								DEBUG_ERROR("Failed to verify a message: 0x%x", iosb.Status);
+								break;
+							}
+
+							if (!verified)
+							{
+								DEBUG_ERROR("Message hash mismatch: 0x%x", iosb.Status);
+								break;
+							}
+
+							WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskConnectEx(socket, (PSOCKADDR)&remoteAddr, &msg, 0, irp), &iosb);
+							if (NT_SUCCESS(iosb.Status))
+							{
+								DEBUG_INFO("%Iu bytes sent (0x%x)\n", iosb.Information, iosb.Status);
+								VioWskMessageAdvance(&msg, iosb.Information);
+								while (NT_SUCCESS(iosb.Status) && msg.Length > 0)
+								{
+									if ((testFlags & VIOWSK_TEST_FLAG_SENDEX) != 0)
+										WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskSendEx(socket, &msg, 0, 0, NULL, irp), &iosb);
+									else WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskSend(socket, &msg, 0, irp), &iosb);
+
+									if (iosb.Status == STATUS_CANT_WAIT)
+									{
+										DEBUG_WARNING("Cannot wait for receive, sleeping\n");
+										KeDelayExecutionThread(KernelMode, FALSE, &timeout);
+										if (InterlockedCompareExchange(&_terminate, 1, 1))
+											break;
+
+										iosb.Status = STATUS_SUCCESS;
+										continue;
+									}
+
+									if (!NT_SUCCESS(iosb.Status) || iosb.Information != msg.Length)
+									{
+										DEBUG_ERROR("Unable to send the test message: 0x%x (%Iu sent, %Iu requested)\n", iosb.Status, iosb.Information, msg.Length);
+										break;
+									}
+
+									DEBUG_INFO("%Iu bytes sent (0x%x)\n", iosb.Information, iosb.Status);
+									VioWskMessageAdvance(&msg, iosb.Information);
+								}
+							}
+						} while (FALSE);
+
+						if (msgFlat)
+							VioWskMessageFree(&msg, msgFlat);
+				   } else WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskConnect(socket, (PSOCKADDR)&remoteAddr, 0, irp), &iosb);
+				}
 			}
-			
-			WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskDisconnect(socket, NULL, 0, irp), &iosb);
-			if (iosb.Status == STATUS_CONNECTION_INVALID)
-				iosb.Status = STATUS_SUCCESS;
 
-			if (!NT_SUCCESS(iosb.Status)) {
-				DEBUG_ERROR("Client socket disconnect failed: 0x%x", iosb.Status);
+			if (NT_SUCCESS(iosb.Status)) {
+				iosb.Status = _TestSocket(socket, irp, &ho, FALSE, &_terminate, testFlags);
+				if (!NT_SUCCESS(iosb.Status)) {
+					testStatus = iosb.Status;
+					DEBUG_ERROR("Client socket test failed: 0x%x", iosb.Status);
+				}
+
+				WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskDisconnect(socket, NULL, 0, irp), &iosb);
+				if (iosb.Status == STATUS_CONNECTION_INVALID)
+					iosb.Status = STATUS_SUCCESS;
+
+				if (!NT_SUCCESS(iosb.Status))
+				{
+					testStatus = iosb.Status;
+					DEBUG_ERROR("Client socket disconnect failed: 0x%x", iosb.Status);
+				}
+			} else 
+			{
+				testStatus = iosb.Status;
+				DEBUG_ERROR("Unable to connect to the server: 0x%x", iosb.Status);
 			}
-		} else {
-			DEBUG_ERROR("Unable to connect to the server: 0x%x", iosb.Status);
+
+			if (socket != NULL)
+			{
+				WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskCloseSocket(socket, irp), &iosb);
+				if (!NT_SUCCESS(iosb.Status)) {
+					DEBUG_ERROR("Unable to close the client socket: 0x%x", iosb.Status);
+				}
+			}
+
+			DEBUG_INFO("Client thread test finished (flags 0x%x, status 0x%x)\n", testFlags, testStatus);
 		}
 
-		WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskCloseSocket(socket, irp), &iosb);
-		if (!NT_SUCCESS(iosb.Status)) {
-			DEBUG_ERROR("Unable to close the client socket: 0x%x", iosb.Status);
-		}
-
-		DEBUG_INFO("Client thread test finished\n");
 		KeDelayExecutionThread(KernelMode, FALSE, &timeout);
 	}
-
+	
 	IoFreeIrp(irp);
+FreeHashObject:
+	VIoWskMessageDestroyHashObject(&ho);
 Exit:
 	InterlockedExchange(&_terminate, 1);
 
@@ -717,7 +825,8 @@ NTSTATUS
 _SocketTestThreadCreate(
 	_In_ PWSK_SOCKET Socket,
 	_In_ PLIST_ENTRY ListHead,
-	_In_ PKSPIN_LOCK ListLock
+	_In_ PKSPIN_LOCK ListLock,
+	_In_ ULONG TestFlags
 )
 {
 	KIRQL irql;
@@ -726,7 +835,7 @@ _SocketTestThreadCreate(
 	HANDLE hThread = NULL;
 	PTEST_THREAD_CONTEXT ctx = NULL;
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
-	DEBUG_ENTER_FUNCTION("Socket=0x%p; ListHead=0x%p; ListLock=0x%p", Socket, ListHead, ListLock);
+	DEBUG_ENTER_FUNCTION("Socket=0x%p; ListHead=0x%p; ListLock=0x%p; TestFlags=0x%x", Socket, ListHead, ListLock, TestFlags);
 
 	ctx = ExAllocatePoolUninitialized(NonPagedPool, sizeof(TEST_THREAD_CONTEXT), VIOWSK_TEST_TAG);
 	if (!ctx) {
@@ -734,14 +843,26 @@ _SocketTestThreadCreate(
 		goto Exit;
 	}
 
+	memset(ctx, 0, sizeof(TEST_THREAD_CONTEXT));
+	Status = VioWskMessageCreateHashObject(&ctx->Hash);
+	if (!NT_SUCCESS(Status))
+		goto FreeCtx;
+
+	if ((TestFlags & VIOWSK_TEST_FLAG_DISCONNECTEX) != 0) {
+		Status = VioWskMessageGenerate(&ctx->Hash, &ctx->FarewellMsg, &ctx->FarewellMsgFlat);
+		if (!NT_SUCCESS(Status))
+			goto FreeHashObject;
+	}
+
 	InterlockedExchange(&ctx->Terminated, 0);
 	InitializeListHead(&ctx->Entry);
 	ctx->ListLock = ListLock;
 	ctx->Socket = Socket;
+	ctx->TestFlags = TestFlags;
 	ctx->Irp = IoAllocateIrp(1, FALSE);
 	if (!ctx->Irp) {
 		Status = STATUS_INSUFFICIENT_RESOURCES;
-		goto FreeCtx;
+		goto FreeHashObject;
 	}
 
 	KeAcquireSpinLock(ListLock, &irql);
@@ -774,6 +895,14 @@ FreeIrp:
 
 	if (ctx && ctx->Irp)
 		IoFreeIrp(ctx->Irp);
+FreeHashObject:
+	if (ctx)
+	{
+		if (ctx->FarewellMsgFlat)
+			VioWskMessageFree(&ctx->FarewellMsg, ctx->FarewellMsgFlat);
+		
+		VIoWskMessageDestroyHashObject(&ctx->Hash);
+	}
 FreeCtx:
 	if (ctx)
 		ExFreePoolWithTag(ctx, VIOWSK_TEST_TAG);
@@ -799,9 +928,10 @@ DriverUnload(
 	VioWskDeregister(&_vioWskRegistration);
 	VioWskModuleFinit();
 	IoDeleteDevice(_shutdownDeviceObject);
-	WPP_CLEANUP(DriverObject);
+	VioWskMessageModuleFinit();
 
 	DEBUG_EXIT_FUNCTION_VOID();
+	WPP_CLEANUP(DriverObject);
 	return;
 }
 
@@ -814,12 +944,16 @@ DriverEntry(
 {
 	PDEVICE_OBJECT Device = NULL;
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
+	WPP_INIT_TRACING(DriverObject, RegistryPath);
 	DEBUG_ENTER_FUNCTION("DriverObject=0x%p; RegistryPath=\"%wZ\"", DriverObject, RegistryPath);
 
-	WPP_INIT_TRACING(DriverObject, RegistryPath);
-	Status = IoCreateDevice(DriverObject, 0, NULL, FILE_DEVICE_UNKNOWN, 0, FALSE, &Device);
+	Status = VioWskMessageModuleInit();
 	if (!NT_SUCCESS(Status))
 		goto Exit;
+
+	Status = IoCreateDevice(DriverObject, 0, NULL, FILE_DEVICE_UNKNOWN, 0, FALSE, &Device);
+	if (!NT_SUCCESS(Status))
+		goto FinalizeMsgModule;
 
 	Status = VioWskModuleInit(DriverObject, RegistryPath, Device);
 	if (!NT_SUCCESS(Status))
@@ -868,6 +1002,9 @@ VioWskFinit:
 DeleteDevice:
 	if (Device)
 		IoDeleteDevice(Device);
+FinalizeMsgModule:
+	if (!NT_SUCCESS(Status))
+		VioWskMessageModuleFinit();
 Exit:
 	if (!NT_SUCCESS(Status))
 	{

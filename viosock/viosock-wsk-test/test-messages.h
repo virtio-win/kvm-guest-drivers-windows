@@ -39,23 +39,29 @@
 
 #define VIOWSK_MSG_SIZE						64
 
+typedef struct _VIOWSK_MSG_HASH_OBJECT {
+	PVOID HashObject;
+	BCRYPT_HASH_HANDLE HashHandle;
+} VIOWSK_MSG_HASH_OBJECT, *PVIOWSK_MSG_HASH_OBJECT;
+
+
 NTSTATUS
 VioWskMessageGenerate(
-	_In_opt_ BCRYPT_HASH_HANDLE SHA256Handle,
+	_Inout_opt_ PVIOWSK_MSG_HASH_OBJECT HashObject,
 	_Out_ PWSK_BUF WskBuffer,
 	_Out_ PVOID* FlatBuffer
 );
 
 NTSTATUS
 VIoWskMessageVerify(
-	_In_ BCRYPT_HASH_HANDLE SHA256Handle,
+	_In_ PVIOWSK_MSG_HASH_OBJECT HashObject,
 	_In_ const WSK_BUF* WskBuf,
 	_Out_ PBOOLEAN Verified
 );
 
 NTSTATUS
 VIoWskMessageVerifyBuffer(
-	_In_ BCRYPT_HASH_HANDLE SHA256Handle,
+	_In_ PVIOWSK_MSG_HASH_OBJECT HashObject,
 	_In_ const void* Buffer,
 	_Out_ PBOOLEAN Verified
 );
@@ -72,6 +78,26 @@ VioWskMessageFree(
 	_In_opt_ PVOID FlatBuffer
 );
 
+NTSTATUS
+VioWskMessageCreateHashObject(
+	_Out_ PVIOWSK_MSG_HASH_OBJECT Object
+);
+
+NTSTATUS
+VioWskMessageRefreshHashObject(
+	_Inout_ PVIOWSK_MSG_HASH_OBJECT Object
+);
+
+void
+VIoWskMessageDestroyHashObject(
+	_In_ PVIOWSK_MSG_HASH_OBJECT Object
+);
+
+NTSTATUS
+VioWskMessageModuleInit();
+
+void
+VioWskMessageModuleFinit();
 
 
 
