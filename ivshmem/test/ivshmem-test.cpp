@@ -124,24 +124,24 @@ int __cdecl main()
 		}
 		TEST_PASS();
 
-		TEST_START("Mapping more then once fails");
-		if (DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(IVSHMEM_MMAP), &ulReturnedLength, NULL))
+		TEST_START("Mapping more then once from the same handle fails");
+		if (DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, &config, sizeof(IVSHMEM_MMAP_CONFIG), &map, sizeof(IVSHMEM_MMAP), &ulReturnedLength, NULL))
 		{
 			TEST_FAIL("mapping succeeded, this should not happen!");
 			break;
 		}
 		TEST_PASS();
 
-		TEST_START("Mapping from another handle fails");
+		TEST_START("Mapping from another handle succeeds");
 		HANDLE devHandle2 = CreateFile(infData->DevicePath, 0, 0, NULL, OPEN_EXISTING, 0, 0);
 		if (!devHandle2)
 		{
 			TEST_FAIL("Failed to open second handle");
 			break;
 		}
-		if (DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(IVSHMEM_MMAP), &ulReturnedLength, NULL))
+		if (!DeviceIoControl(devHandle2, IOCTL_IVSHMEM_REQUEST_MMAP, &config, sizeof(IVSHMEM_MMAP_CONFIG), &map, sizeof(IVSHMEM_MMAP), &ulReturnedLength, NULL))
 		{
-			TEST_FAIL("mapping succeeded, this should not happen!");
+			TEST_FAIL("mapping failed, this should not happen!");
 			break;
 		}
 		CloseHandle(devHandle2);
@@ -174,7 +174,7 @@ int __cdecl main()
 			TEST_FAIL("Failed to re-open handle");
 			break;
 		}
-		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(IVSHMEM_MMAP), &ulReturnedLength, NULL))
+		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, &config, sizeof(IVSHMEM_MMAP_CONFIG), &map, sizeof(IVSHMEM_MMAP), &ulReturnedLength, NULL))
 		{
 			TEST_FAIL("Mapping failed!");
 			break;
@@ -190,7 +190,7 @@ int __cdecl main()
 			TEST_FAIL("Failed to re-open handle");
 			break;
 		}
-		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, NULL, 0, &map, sizeof(IVSHMEM_MMAP), &ulReturnedLength, NULL))
+		if (!DeviceIoControl(devHandle, IOCTL_IVSHMEM_REQUEST_MMAP, &config, sizeof(IVSHMEM_MMAP_CONFIG), &map, sizeof(IVSHMEM_MMAP), &ulReturnedLength, NULL))
 		{
 			TEST_FAIL("Mapping failed!");
 			break;
