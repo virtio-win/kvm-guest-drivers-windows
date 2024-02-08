@@ -143,9 +143,39 @@ IVSHMEMEvtIoStop(
     return;
 }
 
+VOID IVSHMEMEvtDeviceFileCreate(
+    _In_ WDFDEVICE Device,
+    _In_ WDFREQUEST Request,
+    _In_ WDFFILEOBJECT FileObject
+)
+{
+    UNREFERENCED_PARAMETER(Device);
+
+    if (!FileObject) {
+        DEBUG_ERROR("EvtDeviceFileCreate callback: FileObject was null");
+        WdfRequestComplete(Request, STATUS_SUCCESS);
+        return;
+    }
+
+    PFILE_CONTEXT fileContext = NULL;
+
+    WDF_OBJECT_ATTRIBUTES deviceAttributes;
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, FILE_CONTEXT);
+    NTSTATUS status = WdfObjectAllocateContext(FileObject, &deviceAttributes, &fileContext);
+    if (!NT_SUCCESS(status)) {
+        DEBUG_ERROR("EvtDeviceFileCreate callback: WdfObjectAllocateContext failed: %d", status);
+        WdfRequestComplete(Request, status);
+        return;
+    }
+
+    WdfRequestComplete(Request, STATUS_SUCCESS);
+}
+
 VOID IVSHMEMEvtDeviceFileCleanup(_In_ WDFFILEOBJECT FileObject)
 {
-    PDEVICE_CONTEXT deviceContext = DeviceGetContext(WdfFileObjectGetDevice(FileObject));
+    PFILE_CONTEXT fileContext = FileGetContext(FileObject);
+    WDFDEVICE device = WdfFileObjectGetDevice(FileObject);
+    PDEVICE_CONTEXT deviceContext = DeviceGetContext(device);
 
     // remove queued events that belonged to the session
     KIRQL oldIRQL;
@@ -172,15 +202,11 @@ VOID IVSHMEMEvtDeviceFileCleanup(_In_ WDFFILEOBJECT FileObject)
     }
     KeReleaseSpinLock(&deviceContext->eventListLock, oldIRQL);
 
-    if (!deviceContext->shmemMap)
+    if (!fileContext->shmemMap)
         return;
 
-    if (deviceContext->owner != FileObject)
-        return;
-
-    MmUnmapLockedPages(deviceContext->shmemMap, deviceContext->shmemMDL);
-    deviceContext->shmemMap = NULL;
-    deviceContext->owner    = NULL;
+    MmUnmapLockedPages(fileContext->shmemMap, deviceContext->shmemMDL);
+    fileContext->shmemMap = NULL;
 }
 
 static NTSTATUS ioctl_request_peerid(
@@ -242,8 +268,10 @@ static NTSTATUS ioctl_request_mmap(
     BOOLEAN               ForKernel
 )
 {
-    // only one mapping at a time is allowed
-    if (DeviceContext->shmemMap)
+    WDFFILEOBJECT fileObject = WdfRequestGetFileObject(Request);
+    PFILE_CONTEXT fileContext = FileGetContext(fileObject);
+    // only one mapping per driver handle is allowed
+    if (fileContext->shmemMap)
         return STATUS_DEVICE_ALREADY_ATTACHED;
   
     if (InputBufferLength != sizeof(IVSHMEM_MMAP_CONFIG))
@@ -293,7 +321,7 @@ static NTSTATUS ioctl_request_mmap(
   
     __try
     {
-        DeviceContext->shmemMap = MmMapLockedPagesSpecifyCache(
+        fileContext->shmemMap = MmMapLockedPagesSpecifyCache(
           DeviceContext->shmemMDL,
           ForKernel ? KernelMode : UserMode,
           cacheType,
@@ -308,20 +336,19 @@ static NTSTATUS ioctl_request_mmap(
         return STATUS_DRIVER_INTERNAL_ERROR;
     }
   
-    if (!DeviceContext->shmemMap)
+    if (!fileContext->shmemMap)
     {
         DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REQUEST_MMAP: shmemMap is NULL");
         return STATUS_DRIVER_INTERNAL_ERROR;
     }
-  
-    DeviceContext->owner = WdfRequestGetFileObject(Request);
+
   #ifdef _WIN64
     if (is32Bit)
     {
         PIVSHMEM_MMAP32 out = (PIVSHMEM_MMAP32)buffer;
         out->peerID  = (UINT16)DeviceContext->devRegisters->ivProvision;
         out->size    = (UINT64)DeviceContext->shmemAddr.NumberOfBytes;
-        out->ptr     = PtrToUint(DeviceContext->shmemMap);
+        out->ptr     = PtrToUint(fileContext->shmemMap);
         out->vectors = DeviceContext->interruptsUsed;
     }
     else
@@ -330,7 +357,7 @@ static NTSTATUS ioctl_request_mmap(
         PIVSHMEM_MMAP out = (PIVSHMEM_MMAP)buffer;
         out->peerID  = (UINT16)DeviceContext->devRegisters->ivProvision;
         out->size    = (UINT64)DeviceContext->shmemAddr.NumberOfBytes;
-        out->ptr     = DeviceContext->shmemMap;
+        out->ptr     = fileContext->shmemMap;
         out->vectors = DeviceContext->interruptsUsed;
     }
     
@@ -344,23 +371,24 @@ static NTSTATUS ioctl_release_mmap(
     size_t              * BytesReturned
 )
 {
+    WDFFILEOBJECT fileObject = WdfRequestGetFileObject(Request);
+    PFILE_CONTEXT fileContext = FileGetContext(fileObject);
     // ensure the mapping exists
-    if (!DeviceContext->shmemMap)
+    if (!fileContext->shmemMap)
     {
         DEBUG_ERROR("%s", "IOCTL_IVSHMEM_RELEASE_MMAP: not mapped");
         return STATUS_INVALID_DEVICE_REQUEST;
     }
   
     // ensure someone else other then the owner doesn't attempt to release the mapping
-    if (DeviceContext->owner != WdfRequestGetFileObject(Request))
+    /*if (DeviceContext->owner != WdfRequestGetFileObject(Request))
     {
         DEBUG_ERROR("%s", "IOCTL_IVSHMEM_RELEASE_MMAP: Invalid owner");
         return STATUS_INVALID_HANDLE;
-    }
+    }*/
   
-    MmUnmapLockedPages(DeviceContext->shmemMap, DeviceContext->shmemMDL);
-    DeviceContext->shmemMap = NULL;
-    DeviceContext->owner    = NULL;
+    MmUnmapLockedPages(fileContext->shmemMap, DeviceContext->shmemMDL);
+    fileContext->shmemMap = NULL;
     *BytesReturned = 0;
     return STATUS_SUCCESS;
 }
@@ -372,13 +400,15 @@ static NTSTATUS ioctl_ring_doorbell(
     size_t              * BytesReturned
 )
 {
+    WDFFILEOBJECT fileObject = WdfRequestGetFileObject(Request);
+    PFILE_CONTEXT fileContext = FileGetContext(fileObject);
+
     // ensure someone else other then the owner doesn't attempt to trigger IRQs
-    if (DeviceContext->owner != WdfRequestGetFileObject(Request))
-    {
-        DEBUG_ERROR("%s", "IOCTL_IVSHMEM_RING_DOORBELL: Invalid owner");
+    if (!fileContext->shmemMap) {
+        DEBUG_ERROR("%s", "IOCTL_IVSHMEM_RING_DOORBELL: Caller has no mapping");
         return STATUS_INVALID_HANDLE;
     }
-  
+
     if (InputBufferLength != sizeof(IVSHMEM_RING))
     {
         DEBUG_ERROR("IOCTL_IVSHMEM_RING_DOORBELL: Invalid size, expected %u but got %u", sizeof(IVSHMEM_RING), InputBufferLength);
@@ -407,10 +437,12 @@ static NTSTATUS ioctl_register_event(
     size_t              * BytesReturned
 )
 {
+    WDFFILEOBJECT fileObject = WdfRequestGetFileObject(Request);
+    PFILE_CONTEXT fileContext = FileGetContext(fileObject);
+
     // ensure someone else other then the owner isn't attempting to register events
-    if (DeviceContext->owner != WdfRequestGetFileObject(Request))
-    {
-        DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REGISTER_EVENT: Invalid owner");
+    if (!fileContext->shmemMap) {
+        DEBUG_ERROR("%s", "IOCTL_IVSHMEM_REGISTER_EVENT: Caller has no mapping");
         return STATUS_INVALID_HANDLE;
     }
   
@@ -473,7 +505,7 @@ static NTSTATUS ioctl_register_event(
                 continue;
       
             // found one, assign the event to it and add it to the list
-            event->owner = WdfRequestGetFileObject(Request);
+            event->owner = fileObject;
             event->event = hObject;
             event->vector = in->vector;
             event->singleShot = in->singleShot;
