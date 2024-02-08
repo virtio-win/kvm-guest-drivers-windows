@@ -27,7 +27,7 @@ NTSTATUS IVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit)
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
 
     WDF_FILEOBJECT_CONFIG fileConfig;
-    WDF_FILEOBJECT_CONFIG_INIT(&fileConfig, NULL, NULL, IVSHMEMEvtDeviceFileCleanup);
+    WDF_FILEOBJECT_CONFIG_INIT(&fileConfig, IVSHMEMEvtDeviceFileCreate, NULL, IVSHMEMEvtDeviceFileCleanup);
     WdfDeviceInitSetFileObjectConfig(DeviceInit, &fileConfig, WDF_NO_OBJECT_ATTRIBUTES);
 
     status = WdfDeviceCreate(&DeviceInit, &deviceAttributes, &device);
@@ -260,11 +260,12 @@ NTSTATUS IVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
         MmUnmapIoSpace(deviceContext->devRegisters, sizeof(PIVSHMEMDeviceRegisters));
     }
 
-    if (deviceContext->shmemMap)
+    // TODO: do this for all (open) file objects
+    /*if (deviceContext->shmemMap)
     {
         MmUnmapLockedPages(deviceContext->shmemMap, deviceContext->shmemMDL);
         deviceContext->shmemMap = NULL;
-    }
+    }*/
 
     if (deviceContext->shmemMDL)
     {
