@@ -260,13 +260,6 @@ NTSTATUS IVSHMEMEvtDeviceReleaseHardware(_In_ WDFDEVICE Device, _In_ WDFCMRESLIS
         MmUnmapIoSpace(deviceContext->devRegisters, sizeof(PIVSHMEMDeviceRegisters));
     }
 
-    // TODO: do this for all (open) file objects
-    /*if (deviceContext->shmemMap)
-    {
-        MmUnmapLockedPages(deviceContext->shmemMap, deviceContext->shmemMDL);
-        deviceContext->shmemMap = NULL;
-    }*/
-
     if (deviceContext->shmemMDL)
     {
         IoFreeMdl(deviceContext->shmemMDL);

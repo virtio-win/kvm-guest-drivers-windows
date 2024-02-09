@@ -379,14 +379,7 @@ static NTSTATUS ioctl_release_mmap(
         DEBUG_ERROR("%s", "IOCTL_IVSHMEM_RELEASE_MMAP: not mapped");
         return STATUS_INVALID_DEVICE_REQUEST;
     }
-  
-    // ensure someone else other then the owner doesn't attempt to release the mapping
-    /*if (DeviceContext->owner != WdfRequestGetFileObject(Request))
-    {
-        DEBUG_ERROR("%s", "IOCTL_IVSHMEM_RELEASE_MMAP: Invalid owner");
-        return STATUS_INVALID_HANDLE;
-    }*/
-  
+
     MmUnmapLockedPages(fileContext->shmemMap, DeviceContext->shmemMDL);
     fileContext->shmemMap = NULL;
     *BytesReturned = 0;
