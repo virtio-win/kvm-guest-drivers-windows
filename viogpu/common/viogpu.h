@@ -29,7 +29,17 @@
 
 #pragma once
 #include "helper.h"
-#include "virtio.h"
+
+extern "C" {
+    #include "virtio_pci.h"
+    #include "virtio.h"
+}
+
+#include "viogpu_pci.h"
+#include "viogpu_idr.h"
+#include "viogpum.h"
+
+extern VirtIOSystemOps VioGpuSystemOps;
 
 enum virtio_gpu_ctrl_type {
     VIRTIO_GPU_UNDEFINED = 0,

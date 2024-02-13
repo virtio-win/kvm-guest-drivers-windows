@@ -65,10 +65,6 @@ extern "C" {
     #include <dispmprt.h>
 
     #include "trace.h"
-    #include "virtio_pci.h"
-    #include "viogpu_pci.h"
-    #include "viogpu_idr.h"
-    #include "viogpum.h"
 }
 
 #define MAX_CHILDREN               1
@@ -84,8 +80,6 @@ extern "C" {
 #define NOM_HEIGHT_SIZE            768
 
 #define VIOGPUTAG                  'OIVg'
-
-extern VirtIOSystemOps VioGpuSystemOps;
 
 #define VIOGPU_LOG_ASSERTION0(Msg) NT_ASSERT(FALSE)
 #define VIOGPU_LOG_ASSERTION1(Msg,Param1) NT_ASSERT(FALSE)

@@ -1,4 +1,5 @@
 #include "baseobj.h"
+#include "viogpu.h"
 
 _When_((PoolType & NonPagedPoolMustSucceed) != 0,
     __drv_reportError("Must succeed pool allocations are forbidden. "

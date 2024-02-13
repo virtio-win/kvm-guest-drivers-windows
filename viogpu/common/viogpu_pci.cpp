@@ -22,7 +22,6 @@
   * the COPYING file in the top-level directory.
   *
  **********************************************************************/
-#include "helper.h"
 #include "viogpu.h"
 #include "..\viogpudo\viogpudo.h"
 #if !DBG

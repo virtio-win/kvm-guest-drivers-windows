@@ -27,7 +27,7 @@
  * SUCH DAMAGE.
  */
 
-#include "helper.h"
+#include "viogpu.h"
 #include "baseobj.h"
 #if !DBG
 #include "viogpu_idr.tmh"

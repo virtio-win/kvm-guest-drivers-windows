@@ -1,4 +1,6 @@
 #include "bitops.h"
+#include "viogpu.h"
+
 #if !DBG
 #include "bitops.tmh"
 #endif
