@@ -1,5 +1,4 @@
 #pragma once
-#include "helper.h"
 
 #define REDHAT_PCI_VENDOR_ID       0x1AF4
 

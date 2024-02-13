@@ -27,7 +27,6 @@
  * SUCH DAMAGE.
  */
 #pragma once
-#include "helper.h"
 
 class VioGpuIdr
 {

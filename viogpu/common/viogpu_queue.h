@@ -28,7 +28,6 @@
  */
 
 #pragma once
-#include "helper.h"
 #include "viogpu.h"
 
 #pragma pack(1)
