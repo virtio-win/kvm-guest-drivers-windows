@@ -39,8 +39,7 @@ viostor.sys = 1,,
 ;ExcludeFromSelect = *
 
 [DestinationDirs]
-DefaultDestDir = 10
-viostor_Files_Driver = 12
+viostor_Files_Driver = 13
 
 ;
 ; Driver information
@@ -74,7 +73,7 @@ AddService = viostor, 0x00000002 , scsi_Service_Inst, scsi_EventLog_Inst
 ServiceType    = %SERVICE_KERNEL_DRIVER%
 StartType      = %SERVICE_BOOT_START%
 ErrorControl   = %SERVICE_ERROR_NORMAL%
-ServiceBinary  = %12%\viostor.sys
+ServiceBinary  = %13%\viostor.sys
 LoadOrderGroup = SCSI miniport
 AddReg         = pnpsafe_pci_addreg
 
