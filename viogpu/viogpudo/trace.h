@@ -2,6 +2,7 @@
 #include "kdebugprint.h"
 
 //#define DBG 1
+#define EVENT_TRACING 1
 
 #ifndef TRACE_LEVEL_INFORMATION
 #define TRACE_LEVEL_NONE        0   // Tracing is not on
@@ -31,6 +32,7 @@
 #define VioGpuDbgBreak()\
     if (KD_DEBUGGER_ENABLED && !KD_DEBUGGER_NOT_PRESENT && bBreakAlways) DbgBreakPoint();
 
+#undef EVENT_TRACING // DBG build excludes WPP
 #define WPP_INIT_TRACING(driver, regpath)  InitializeDebugPrints(driver, regpath);
 #define WPP_CLEANUP(driver)
 #else
@@ -64,5 +66,13 @@
 // DbgPrint{FLAG = TRACE_ALL}(LEVEL, (MSG, ...));
 // end_wpp
 //
+
+#ifndef EVENT_TRACING
+
+#define WPP_INIT_TRACING(driver, regpath)
+#define WPP_CLEANUP(driver)
+#define DbgPrint
+
+#endif
 
 #endif
