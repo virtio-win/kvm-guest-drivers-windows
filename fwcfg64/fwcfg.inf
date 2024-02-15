@@ -27,7 +27,6 @@ PnpLockdown = 1
 
 [DestinationDirs]
 DefaultDestDir = 12
-FwCfg_Device_CoInstaller_CopyFiles = 11
 
 ; ================= Class section =====================
 
@@ -36,7 +35,6 @@ FwCfg_Device_CoInstaller_CopyFiles = 11
 
 [SourceDisksFiles]
 fwcfg.sys  = 1,,
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1
 
 ;*****************************************
 ; Install Section
@@ -66,19 +64,6 @@ StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %12%\fwcfg.sys
 
-;
-;--- FwCfg_Device Coinstaller installation ------
-;
-
-[FwCfg_Device.NT.CoInstallers]
-AddReg=FwCfg_Device_CoInstaller_AddReg
-CopyFiles=FwCfg_Device_CoInstaller_CopyFiles
-
-[FwCfg_Device_CoInstaller_AddReg]
-HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
-
-[FwCfg_Device_CoInstaller_CopyFiles]
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
 
 [FwCfg_Device.NT.Wdf]
 KmdfService =  FwCfg, FwCfg_wdfsect
