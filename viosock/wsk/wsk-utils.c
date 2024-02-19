@@ -124,15 +124,11 @@ VioWskIrpFree(
     _In_ BOOLEAN            Completion
 )
 {
-    PDEVICE_OBJECT targetDevice = NULL;
     DEBUG_ENTER_FUNCTION("Irp=0x%p; DeviceObject=0x%p; Completion=%u", Irp, DeviceObject, Completion);
 
-    targetDevice = (Completion) ? DeviceObject : IoGetNextIrpStackLocation(Irp)->DeviceObject;
     if (Irp->MdlAddress)
     {
-        if ((targetDevice->Flags & DO_DIRECT_IO) == DO_DIRECT_IO)
-            MmUnlockPages(Irp->MdlAddress);
-
+        MmPrepareMdlForReuse(Irp->MdlAddress);
         IoFreeMdl(Irp->MdlAddress);
         Irp->MdlAddress = NULL;
     }
@@ -477,8 +473,8 @@ VioWskSocketBuildReadWriteSingleMdl(
 )
 {
     PIRP OpIrp = NULL;
+    PMDL OpMdl = NULL;
     PVOID mdlBuffer = NULL;
-    LARGE_INTEGER StartingOffset = { 0 };
     PIO_STACK_LOCATION IrpStack = NULL;
     PVIOWSK_REG_CONTEXT pContext = NULL;
     PWSK_REGISTRATION Registraction = NULL;
@@ -494,19 +490,54 @@ VioWskSocketBuildReadWriteSingleMdl(
         goto Exit;
     }
 
-    OpIrp = IoBuildAsynchronousFsdRequest(MajorFunction, pContext->VIOSockDevice, (PUCHAR)mdlBuffer + Offset, Length, &StartingOffset, NULL);
+    OpIrp = IoAllocateIrp(pContext->VIOSockDevice->StackSize, FALSE);
     if (!OpIrp)
     {
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;
     }
 
+    OpMdl = IoAllocateMdl((unsigned char *)mdlBuffer + Offset, Length, FALSE, FALSE, NULL);
+    if (!OpMdl)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto FreeIrp;
+    }
+
+    IoBuildPartialMdl(Mdl, OpMdl, (unsigned char *)mdlBuffer + Offset, Length);
+    OpIrp->MdlAddress = OpMdl;
+    OpIrp->UserIosb = NULL;
+    OpIrp->Tail.Overlay.Thread = PsGetCurrentThread();
     IrpStack = IoGetNextIrpStackLocation(OpIrp);
+    IrpStack->MajorFunction = MajorFunction;
     IrpStack->DeviceObject = pContext->VIOSockDevice;
     IrpStack->FileObject = Socket->FileObject;
+    switch (MajorFunction)
+    {
+        case IRP_MJ_READ:
+            IrpStack->Parameters.Read.Flags = 0;
+            IrpStack->Parameters.Read.ByteOffset.QuadPart = 0;
+            IrpStack->Parameters.Read.Key = 0;
+            IrpStack->Parameters.Read.Length = Length;
+            break;
+        case IRP_MJ_WRITE:
+            IrpStack->Parameters.Write.Flags = 0;
+            IrpStack->Parameters.Write.ByteOffset.QuadPart = 0;
+            IrpStack->Parameters.Write.Key = 0;
+            IrpStack->Parameters.Write.Length = Length;
+            break;
+        default:
+            ASSERT(FALSE);
+            break;
+    }
+
     *Irp = OpIrp;
+    OpIrp = NULL;
     Status = STATUS_SUCCESS;
 
+FreeIrp:
+    if (OpIrp)
+        VioWskIrpFree(OpIrp, NULL, FALSE);
 Exit:
     DEBUG_EXIT_FUNCTION("0x%x, *Irp=0x%p", Status, *Irp);
     return Status;
