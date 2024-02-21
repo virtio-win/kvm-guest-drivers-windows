@@ -25,7 +25,6 @@ PnpLockDown=1
 
 [DestinationDirs]
 DefaultDestDir = 12
-IVSHMEM_Device_CoInstaller_CopyFiles = 11
 
 ; ================= Class section =====================
 
@@ -34,7 +33,6 @@ IVSHMEM_Device_CoInstaller_CopyFiles = 11
 
 [SourceDisksFiles]
 IVSHMEM.sys  = 1,,
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 ;*****************************************
 ; Install Section
@@ -74,20 +72,6 @@ ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %12%\IVSHMEM.sys
-
-;
-;--- IVSHMEM_Device Coinstaller installation ------
-;
-
-[IVSHMEM_Device.NT.CoInstallers]
-AddReg=IVSHMEM_Device_CoInstaller_AddReg
-CopyFiles=IVSHMEM_Device_CoInstaller_CopyFiles
-
-[IVSHMEM_Device_CoInstaller_AddReg]
-HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
-
-[IVSHMEM_Device_CoInstaller_CopyFiles]
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
 
 [IVSHMEM_Device.NT.Wdf]
 KmdfService = IVSHMEM, IVSHMEM_wdfsect
