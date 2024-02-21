@@ -24,7 +24,7 @@ CatalogFile     = pvpanic.cat
 PnpLockdown     = 1
 
 [DestinationDirs]
-DefaultDestDir = 12
+DefaultDestDir = 13
 
 [SourceDisksNames]
 1 = %DiskName%,,,""
@@ -60,7 +60,7 @@ DisplayName    = %PVPanic.Service%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %12%\pvpanic.sys
+ServiceBinary  = %13%\pvpanic.sys
 LoadOrderGroup = Extended Base
 
 [PVPanic_Device.NT.Wdf]
