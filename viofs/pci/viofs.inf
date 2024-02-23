@@ -25,14 +25,12 @@ DriverVer       = 01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 
 [DestinationDirs]
 DefaultDestDir = 12
-VirtioFs_Wdf_CoInstaller_CopyFiles = 11
 
 [SourceDisksNames]
 1 = %DiskName%,,,""
 
 [SourceDisksFiles]
 viofs.sys = 1,,
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll = 1 ; make sure the number matches with SourceDisksNames
 
 ; ---------------
 ; Install Section
@@ -73,21 +71,6 @@ StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %12%\viofs.sys
 LoadOrderGroup = Extended Base
-
-; -------------------------------------
-; WDF & Device CoInstaller Installation
-; -------------------------------------
-
-[VirtioFs_Device.NT.CoInstallers]
-AddReg=VirtioFs_Wdf_CoInstaller_AddReg
-CopyFiles=VirtioFs_Wdf_CoInstaller_CopyFiles
-
-[VirtioFs_Wdf_CoInstaller_AddReg]
-HKR,,CoInstallers32,0x00010000, \
-    "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
-
-[VirtioFs_Wdf_CoInstaller_CopyFiles]
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
 
 [VirtioFs_Device.NT.Wdf]
 KmdfService = VirtioFsDrv, VirtioFs_wdfsect
