@@ -26,7 +26,6 @@ DriverVer       =01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 [DestinationDirs]
 DefaultDestDir = 12
 VirtRng_Provider_CopyFiles = 11
-VirtRng_Wdf_CoInstaller_CopyFiles = 11
 
 [SourceDisksNames]
 1 = %DiskName%,,,""
@@ -34,7 +33,6 @@ VirtRng_Wdf_CoInstaller_CopyFiles = 11
 [SourceDisksFiles]
 viorng.sys = 1,,
 viorngum.dll = 1
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll = 1 ; make sure the number matches with SourceDisksNames
 
 ; ---------------
 ; Install Section
@@ -96,20 +94,6 @@ HKLM,SYSTEM\CurrentControlSet\Control\Cryptography\Providers\%PROVIDER_NAME%\UM\
 HKLM,SYSTEM\CurrentControlSet\Control\Cryptography\Providers\%PROVIDER_NAME%\UM\00000006,Functions,%REG_MULTI_SZ%,RNG
 HKLM,SYSTEM\CurrentControlSet\Control\Cryptography\Configuration\Local\Default\00000006\RNG,Providers,%REG_MULTI_SZ_APPEND%,%PROVIDER_NAME%
 
-
-; -------------------------------------
-; WDF & Device CoInstaller Installation
-; -------------------------------------
-
-[VirtRng_Device.NT.CoInstallers]
-AddReg=VirtRng_Wdf_CoInstaller_AddReg
-CopyFiles=VirtRng_Wdf_CoInstaller_CopyFiles
-
-[VirtRng_Wdf_CoInstaller_AddReg]
-HKR,,CoInstallers32,0x00010000,"WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
-
-[VirtRng_Wdf_CoInstaller_CopyFiles]
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
 
 [VirtRng_Device.NT.Wdf]
 KmdfService = VirtRng, VirtRng_wdfsect
