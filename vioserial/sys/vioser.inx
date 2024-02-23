@@ -27,11 +27,9 @@ PnpLockdown = 1
 
 [DestinationDirs]
 DefaultDestDir = 12
-VirtioSerial_Device_CoInstaller_CopyFiles = 11
 
 [SourceDisksFiles]
 vioser.sys  = 1,,
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 [SourceDisksNames]
 1 = %DiskId1%,,,""
@@ -78,19 +76,6 @@ ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %12%\vioser.sys
-
-;--- VirtioSerial_Device Coinstaller installation ------
-;
-
-[VirtioSerial_Device.NT.CoInstallers]
-AddReg=VirtioSerial_Device_CoInstaller_AddReg
-CopyFiles=VirtioSerial_Device_CoInstaller_CopyFiles
-
-[VirtioSerial_Device_CoInstaller_AddReg]
-HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
-
-[VirtioSerial_Device_CoInstaller_CopyFiles]
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
 
 [VirtioSerial_Device.NT.Wdf]
 KmdfService =  VirtioSerial, VirtioSerial_wdfsect
