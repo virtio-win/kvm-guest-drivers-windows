@@ -36,12 +36,10 @@ PnpLockdown = 1
 
 [DestinationDirs]
 DefaultDestDir = 12
-VirtioInput_Device_CoInstaller_CopyFiles = 11
 
 [SourceDisksFiles]
 vioinput.sys  = 1,,
 viohidkmdf.sys = 1,,
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 [SourceDisksNames]
 1 = %DiskId1%,,,""
@@ -102,19 +100,6 @@ ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %12%\vioinput.sys
-
-;--- VirtioInput_Device Coinstaller installation ------
-;
-
-[VirtioInput_Device.NT.CoInstallers]
-AddReg=VirtioInput_Device_CoInstaller_AddReg
-CopyFiles=VirtioInput_Device_CoInstaller_CopyFiles
-
-[VirtioInput_Device_CoInstaller_AddReg]
-HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
-
-[VirtioInput_Device_CoInstaller_CopyFiles]
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
 
 [VirtioInput_Device.NT.Wdf]
 KmdfService =  VirtioInput, VirtioInput_wdfsect
