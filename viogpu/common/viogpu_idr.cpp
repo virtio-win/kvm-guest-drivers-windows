@@ -29,7 +29,7 @@
 
 #include "helper.h"
 #include "baseobj.h"
-#if !DBG
+#if defined(EVENT_TRACING)
 #include "viogpu_idr.tmh"
 #endif
 
