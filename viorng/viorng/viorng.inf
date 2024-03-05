@@ -23,8 +23,16 @@ CatalogFile     = viorng.cat
 PnpLockdown     = 1
 DriverVer       =01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 
+;
+; Bcrypt always looking for provider DLL at system32 directory
+; Check that provider works fine on both client and server windows
+; before moving VirtRng_Provider_CopyFiles destination
+; Related documentation
+; https://learn.microsoft.com/en-us/windows/win32/api/bcrypt/ns-bcrypt-crypt_image_reg
+; pszImage - A pointer to a null-terminated Unicode string that contains only the file name of the provider module.
+;
 [DestinationDirs]
-DefaultDestDir = 12
+DefaultDestDir = 13
 VirtRng_Provider_CopyFiles = 11
 
 [SourceDisksNames]
@@ -74,7 +82,7 @@ DisplayName    = %VirtRng.Service%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %12%\viorng.sys
+ServiceBinary  = %13%\viorng.sys
 LoadOrderGroup = Extended Base
 AddReg         = DmaRemappingCompatible.Reg
 
