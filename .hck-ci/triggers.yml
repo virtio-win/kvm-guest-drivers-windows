@@ -103,6 +103,11 @@ viostor:
     - viostor/
   exclude:
     - viostor/LICENSE
+viomem:
+  include:
+    - viomem/
+  exclude:
+    - viomem/LICENSE
 "*":
   include:
     - /
