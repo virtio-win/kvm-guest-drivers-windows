@@ -36,6 +36,8 @@ call tools\build.bat vioinput\hidpassthrough\hidpassthrough.vcxproj "Win11_SDV" 
 if errorlevel 1 goto :fail
 call tools\build.bat vioinput\sys\vioinput.vcxproj "Win11_SDV" %*
 if errorlevel 1 goto :fail
+call tools\build.bat viomem\sys\viomem.vcxproj "Win11_SDV" %*
+if errorlevel 1 goto :fail
 
 
 :nosdv2022

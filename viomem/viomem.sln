@@ -1,0 +1,75 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31702.278
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "VirtIO", "VirtIO", "{76FBAA35-F812-452F-8B7B-1FA3A72A6696}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtioLib", "..\VirtIO\VirtioLib.vcxproj", "{01D87C47-437A-4A16-8FD9-33FA5C99339E}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtioLib-WDF", "..\VirtIO\WDF\VirtioLib-WDF.vcxproj", "{EC1B7990-EA6A-45FE-836C-2F050F6BB632}"
+	ProjectSection(ProjectDependencies) = postProject
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E} = {01D87C47-437A-4A16-8FD9-33FA5C99339E}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viomem", "sys\viomem.vcxproj", "{9D17F7FB-A784-4958-8DB4-0D50118334F0}"
+	ProjectSection(ProjectDependencies) = postProject
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E} = {01D87C47-437A-4A16-8FD9-33FA5C99339E}
+		{EC1B7990-EA6A-45FE-836C-2F050F6BB632} = {EC1B7990-EA6A-45FE-836C-2F050F6BB632}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Win10 Release|ARM64 = Win10 Release|ARM64
+		Win10 Release|x64 = Win10 Release|x64
+		Win10 Release|x86 = Win10 Release|x86
+		Win11 Release|ARM64 = Win11 Release|ARM64
+		Win11 Release|x64 = Win11 Release|x64
+		Win11 Release|x86 = Win11 Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x64.Build.0 = Win10 Release|x64
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x86.Build.0 = Win10 Release|Win32
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win11 Release|ARM64.ActiveCfg = Win11 Release|ARM64
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win11 Release|ARM64.Build.0 = Win11 Release|ARM64
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win11 Release|x64.ActiveCfg = Win11 Release|x64
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win11 Release|x64.Build.0 = Win11 Release|x64
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win11 Release|x86.ActiveCfg = Win11 Release|x64
+		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
+		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
+		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
+		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win10 Release|x64.Build.0 = Win10 Release|x64
+		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
+		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win10 Release|x86.Build.0 = Win10 Release|Win32
+		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win11 Release|ARM64.ActiveCfg = Win11 Release|ARM64
+		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win11 Release|ARM64.Build.0 = Win11 Release|ARM64
+		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win11 Release|x64.ActiveCfg = Win11 Release|x64
+		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win11 Release|x64.Build.0 = Win11 Release|x64
+		{EC1B7990-EA6A-45FE-836C-2F050F6BB632}.Win11 Release|x86.ActiveCfg = Win11 Release|x64
+		{9D17F7FB-A784-4958-8DB4-0D50118334F0}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
+		{9D17F7FB-A784-4958-8DB4-0D50118334F0}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
+		{9D17F7FB-A784-4958-8DB4-0D50118334F0}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
+		{9D17F7FB-A784-4958-8DB4-0D50118334F0}.Win10 Release|x64.Build.0 = Win10 Release|x64
+		{9D17F7FB-A784-4958-8DB4-0D50118334F0}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
+		{9D17F7FB-A784-4958-8DB4-0D50118334F0}.Win10 Release|x86.Build.0 = Win10 Release|Win32
+		{9D17F7FB-A784-4958-8DB4-0D50118334F0}.Win11 Release|ARM64.ActiveCfg = Win11 Release|ARM64
+		{9D17F7FB-A784-4958-8DB4-0D50118334F0}.Win11 Release|ARM64.Build.0 = Win11 Release|ARM64
+		{9D17F7FB-A784-4958-8DB4-0D50118334F0}.Win11 Release|x64.ActiveCfg = Win11 Release|x64
+		{9D17F7FB-A784-4958-8DB4-0D50118334F0}.Win11 Release|x64.Build.0 = Win11 Release|x64
+		{9D17F7FB-A784-4958-8DB4-0D50118334F0}.Win11 Release|x86.ActiveCfg = Win11 Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{01D87C47-437A-4A16-8FD9-33FA5C99339E} = {76FBAA35-F812-452F-8B7B-1FA3A72A6696}
+		{EC1B7990-EA6A-45FE-836C-2F050F6BB632} = {76FBAA35-F812-452F-8B7B-1FA3A72A6696}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C7DBBCE5-C8CA-4EC8-99A8-AC4377C240B3}
+	EndGlobalSection
+EndGlobal
