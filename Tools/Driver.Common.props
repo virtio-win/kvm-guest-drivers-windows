@@ -41,6 +41,7 @@ Common property definitions used by all drivers:
 
   <PropertyGroup Condition="'$(WIN10_INF_DIFX_COMPAT)'=='' OR '$(WIN10_INF_DIFX_COMPAT)'=='0'">
     <INF_ARCH_FOR_WIN10>10.0</INF_ARCH_FOR_WIN10>
+    <INF_ARCH_FOR_WIN11>10.0...16299</INF_ARCH_FOR_WIN11>
   </PropertyGroup>
 
   <!-- _NT_TARGET_MAJ is one of the components of driver version (always reflects target OS version) -->
@@ -57,7 +58,7 @@ Common property definitions used by all drivers:
     <_NT_TARGET_MAJ>100</_NT_TARGET_MAJ>
     <TargetOS>Win11</TargetOS>
 	  <DriverTargetPlatform>Universal</DriverTargetPlatform>
-    <InfArch>$(TargetArch).$(INF_ARCH_FOR_WIN10)</InfArch>
+    <InfArch>$(TargetArch).$(INF_ARCH_FOR_WIN11)</InfArch>
   </PropertyGroup>
 
 
