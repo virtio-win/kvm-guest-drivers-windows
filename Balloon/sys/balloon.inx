@@ -27,14 +27,12 @@ PnpLockdown = 1
 
 [DestinationDirs]
 DefaultDestDir = 12
-BALLOON_Device_CoInstaller_CopyFiles = 11
 
 [SourceDisksNames]
 1 = %DiskId1%,,,""
 
 [SourceDisksFiles]
 balloon.sys  = 1,,
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 ;*****************************************
 ; BALLOON  Install Section
@@ -78,19 +76,6 @@ AddReg = BALLOON_Logging_Inst_AddReg
 [BALLOON_Logging_Inst_AddReg]
 HKR,,EventMessageFile,0x00020000,"%%SystemRoot%%\System32\IoLogMsg.dll;%%SystemRoot%%\System32\drivers\balloon.sys"
 HKR,,TypesSupported,0x00010001,7
-
-;--- BALLOON_Device Coinstaller installation ------
-;
-
-[BALLOON_Device.NT.CoInstallers]
-AddReg=BALLOON_Device_CoInstaller_AddReg
-CopyFiles=BALLOON_Device_CoInstaller_CopyFiles
-
-[BALLOON_Device_CoInstaller_AddReg]
-HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
-
-[BALLOON_Device_CoInstaller_CopyFiles]
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
 
 [BALLOON_Device.NT.Wdf]
 KmdfService =  BALLOON, BALLOON_wdfsect
