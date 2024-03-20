@@ -220,7 +220,7 @@ DisplayName     = %kvmnet6.Service.DispName%
 ServiceType     = 1 ;%SERVICE_KERNEL_DRIVER%
 StartType       = 3 ;%SERVICE_DEMAND_START%
 ErrorControl    = 1 ;%SERVICE_ERROR_NORMAL%
-ServiceBinary   = %12%\netkvm.sys
+ServiceBinary   = %13%\netkvm.sys
 LoadOrderGroup  = NDIS
 AddReg          = TextModeFlags.Reg
 
@@ -243,7 +243,7 @@ HKR,Parameters,EarlyDebug,,"3"
 netkvm.sys  = 1,,
 
 [DestinationDirs]
-kvmnet6.CopyFiles = 12
+kvmnet6.CopyFiles = 13
 
 [Strings]
 VENDOR = "INX_COMPANY"
