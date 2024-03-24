@@ -26,7 +26,7 @@ DriverPackageDisplayName = %VirtioSocket.DeviceDesc%
 PnpLockdown = 1
 
 [DestinationDirs]
-DefaultDestDir = 12
+DefaultDestDir = INX_PLATFORM_DRIVERS_DIR
 VirtioSocket_Lib_CopyFiles = 11
 
 [SourceDisksFiles]
@@ -80,7 +80,7 @@ DisplayName    = %VirtioSocket.ServiceDesc%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %12%\viosock.sys
+ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\viosock.sys
 
 ;--- VirtioSocket_Device WDF ------
 ;
