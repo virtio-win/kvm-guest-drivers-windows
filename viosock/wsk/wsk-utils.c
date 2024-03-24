@@ -515,13 +515,17 @@ VioWskSocketBuildReadWriteSingleMdl(
     switch (MajorFunction)
     {
         case IRP_MJ_READ:
+#ifdef _WIN64
             IrpStack->Parameters.Read.Flags = 0;
+#endif
             IrpStack->Parameters.Read.ByteOffset.QuadPart = 0;
             IrpStack->Parameters.Read.Key = 0;
             IrpStack->Parameters.Read.Length = Length;
             break;
         case IRP_MJ_WRITE:
+#ifdef _WIN64
             IrpStack->Parameters.Write.Flags = 0;
+#endif
             IrpStack->Parameters.Write.ByteOffset.QuadPart = 0;
             IrpStack->Parameters.Write.Key = 0;
             IrpStack->Parameters.Write.Length = Length;
