@@ -96,11 +96,13 @@ typedef struct _tagRunTimeNdisVersion
 {
     UCHAR major;
     UCHAR minor;
+    UCHAR osmajor;
+    UCHAR osminor;
 }tRunTimeNdisVersion;
 
 extern const tRunTimeNdisVersion& ParandisVersion;
 
-/* true if NDIS version is at least major.minor */
+/* true if effective NDIS version is at least major.minor */
 static bool FORCEINLINE CheckNdisVersion(UCHAR major, UCHAR minor)
 {
     if (ParandisVersion.major == major)
@@ -108,6 +110,17 @@ static bool FORCEINLINE CheckNdisVersion(UCHAR major, UCHAR minor)
         return ParandisVersion.minor >= minor;
     }
     return ParandisVersion.major > major;
+}
+
+/* true if OS NDIS version is at least major.minor */
+/* Note that effective NDIS version might be lower! */
+static bool FORCEINLINE CheckOSNdisVersion(UCHAR osmajor, UCHAR osminor)
+{
+    if (ParandisVersion.osmajor == osmajor)
+    {
+        return ParandisVersion.osminor >= osminor;
+    }
+    return ParandisVersion.osmajor > osmajor;
 }
 
 typedef struct _PARANDIS_ADAPTER PARANDIS_ADAPTER;
