@@ -130,6 +130,15 @@ public:
     // CX queue shall redefine it
     bool FireDPC(ULONG messageId) override
     {
+#if PARANDIS_SUPPORT_POLL
+        if (m_Context->bPollModeEnabled)
+        {
+            //rx index is 2*n, tx index is 2*n+1
+            ParaNdisPollNotify(m_Context, m_queueIndex / 2);
+            return TRUE;
+        }
+#endif
+
 #if NDIS_SUPPORT_NDIS620
         if (DPCAffinity.Mask)
         {
