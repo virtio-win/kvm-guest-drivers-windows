@@ -1,0 +1,7 @@
+
+HKR, Ndi\params\*NdisPoll,       ParamDesc,            0, "Ndis Poll Mode"
+HKR, Ndi\params\*NdisPoll,       Type,                 0, "enum"
+HKR, Ndi\params\*NdisPoll,       Default,              0, "1"
+HKR, Ndi\params\*NdisPoll,       Optional,             0, "0"
+HKR, Ndi\params\*NdisPoll\enum,  "0",                  0, "Disabled"
+HKR, Ndi\params\*NdisPoll\enum,  "1",                  0, "Enabled"

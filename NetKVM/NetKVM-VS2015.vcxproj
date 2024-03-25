@@ -80,7 +80,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win11_amd64\amd64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inx</SourceInfFile>
+    <SourceInfFile>netkvmpoll.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'" Label="Configuration">
@@ -102,7 +102,7 @@
     <DriverType>WDM</DriverType>
     <ALLOW_DATE_TIME>1</ALLOW_DATE_TIME>
     <DEP_LIB_PATH>objfre_win11_arm64\arm64</DEP_LIB_PATH>
-    <SourceInfFile>netkvm.inx</SourceInfFile>
+    <SourceInfFile>netkvmpoll.inx</SourceInfFile>
     <InstallRoot>$(ProjectDir)Install</InstallRoot>
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\NetKVM-VS2015.props" />
