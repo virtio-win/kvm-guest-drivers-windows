@@ -1329,7 +1329,7 @@ ENTER_FN_SRB();
         }
         else
         {
-            RhelDbgPrint(TRACE_LEVEL_FATAL, "SRB 0x%p StorPortQueryPerformanceCounter failed with status  0x%lx\n", Srb, status);
+            RhelDbgPrint(TRACE_LEVEL_ERROR, "SRB 0x%p StorPortQueryPerformanceCounter failed with status  0x%lx\n", Srb, status);
         }
     }
 
@@ -1602,20 +1602,23 @@ CompleteRequest(
 
             if (status == STOR_STATUS_SUCCESS)
             {
-                ULONGLONG time_100ns = ((counter.QuadPart - srbExt->time)) / freq.QuadPart;
-                ULONGLONG time_sec = time_100ns / (10 * 1000 /* 1000*/);
-                if (time_sec >= adaptExt->resp_time)
+                ULONGLONG time_msec = ((counter.QuadPart - srbExt->time) * 1000) / freq.QuadPart;
+                RhelDbgPrint(TRACE_LEVEL_INFORMATION, "time_msec %I64d Start %llu End %llu Freq %llu\n",
+                      time_msec, srbExt->time, counter.QuadPart, freq.QuadPart);
+                if (time_msec >= adaptExt->resp_time)
                 {
                     UCHAR OpCode = SRB_CDB(Srb)->CDB6GENERIC.OperationCode;
-                    RhelDbgPrint(TRACE_LEVEL_FATAL, "Response Time SRB 0x%p : time %I64d (%lu) : length %d : OpCode 0x%x (%s)\n", 
-                        Srb, time_sec, SRB_GET_TIMEOUTVALUE(Srb) * 1000, SRB_DATA_TRANSFER_LENGTH(Srb), OpCode, DbgGetScsiOpStr(OpCode));
-                    DPrintf(1, "ResponseTime SRB 0x%p : time %I64d (%lu) : length %d : OpCode 0x%x (%s)\n",
-                        Srb, time_sec, SRB_GET_TIMEOUTVALUE(Srb) * 1000, SRB_DATA_TRANSFER_LENGTH(Srb), OpCode, DbgGetScsiOpStr(OpCode));
+                    RhelDbgPrint(TRACE_LEVEL_WARNING, "Response Time SRB 0x%p : time %I64d (%lu) : length %d : OpCode 0x%x (%s)\n", 
+                        Srb, time_msec, SRB_GET_TIMEOUTVALUE(Srb) * 1000, SRB_DATA_TRANSFER_LENGTH(Srb),
+                        OpCode, DbgGetScsiOpStr(OpCode));
+                    DbgPrint("Response Time SRB 0x%p : time %I64d (%lu) : length %d : OpCode 0x%x (%s)\n",
+                        Srb, time_msec, SRB_GET_TIMEOUTVALUE(Srb) * 1000, SRB_DATA_TRANSFER_LENGTH(Srb),
+                        OpCode, DbgGetScsiOpStr(OpCode));
                 }
             }
             else
             {
-                RhelDbgPrint(TRACE_LEVEL_FATAL, "SRB 0x%p StorPortQueryPerformanceCounter failed with status  0x%lx\n", Srb, status);
+                RhelDbgPrint(TRACE_LEVEL_ERROR, "SRB 0x%p StorPortQueryPerformanceCounter failed with status  0x%lx\n", Srb, status);
             }
         }
     }
