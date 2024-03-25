@@ -486,8 +486,15 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 
             if (nTargetReceiveQueueNum != nCurrCpuReceiveQueue)
             {
-                ParaNdis_ProcessorNumberToGroupAffinity(&TargetAffinity, &TargetProcessor);
-                ParaNdis_QueueRSSDpc(m_Context, m_messageIndex, &TargetAffinity);
+                if (m_Context->bPollModeEnabled)
+                {
+                    ParaNdisPollNotify(m_Context, nTargetReceiveQueueNum);
+                }
+                else
+                {
+                    ParaNdis_ProcessorNumberToGroupAffinity(&TargetAffinity, &TargetProcessor);
+                    ParaNdis_QueueRSSDpc(m_Context, m_messageIndex, &TargetAffinity);
+                }
                 m_Context->extraStatistics.framesRSSMisses++;
                 LogRedirectedPacket(pBufferDescriptor);
             }
