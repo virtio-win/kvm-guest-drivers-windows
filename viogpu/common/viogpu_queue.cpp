@@ -150,40 +150,6 @@ UINT VioGpuQueue::QueryAllocation()
 PAGED_CODE_SEG_END
 
 PAGED_CODE_SEG_BEGIN
-PVOID CtrlQueue::AllocCmd(PGPU_VBUFFER* buf, int sz)
-{
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    if (buf == NULL || sz == 0 ) {
-        return NULL;
-    }
-
-    PGPU_VBUFFER vbuf = m_pBuf->GetBuf(sz, sizeof(GPU_CTRL_HDR), NULL);
-    ASSERT(vbuf);
-    *buf = vbuf;
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s  vbuf = %p\n", __FUNCTION__, vbuf));
-
-    return vbuf ? vbuf->buf : NULL;
-}
-
-PVOID CtrlQueue::AllocCmdResp(PGPU_VBUFFER* buf, int cmd_sz, PVOID resp_buf, int resp_sz)
-{
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_VBUFFER vbuf;
-    vbuf = m_pBuf->GetBuf(cmd_sz, resp_sz, resp_buf);
-    ASSERT(vbuf);
-    *buf = vbuf;
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-
-    return vbuf ? vbuf->buf : NULL;
-}
 
 BOOLEAN CtrlQueue::GetDisplayInfo(PGPU_VBUFFER buf, UINT id, PULONG xres, PULONG yres)
 {
@@ -405,31 +371,6 @@ void CtrlQueue::InvalBacking(UINT res_id)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-void CtrlQueue::SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, UINT x, UINT y)
-{
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_SET_SCANOUT cmd;
-    PGPU_VBUFFER vbuf;
-    cmd = (PGPU_SET_SCANOUT)AllocCmd(&vbuf, sizeof(*cmd));
-    RtlZeroMemory(cmd, sizeof(*cmd));
-
-    cmd->hdr.type = VIRTIO_GPU_CMD_SET_SCANOUT;
-    cmd->resource_id = res_id;
-    cmd->scanout_id = scan_id;
-    cmd->r.width = width;
-    cmd->r.height = height;
-    cmd->r.x = x;
-    cmd->r.y = y;
-
-    //FIXME if 
-    QueueBuffer(vbuf);
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-}
-
 void CtrlQueue::ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y)
 {
     PAGED_CODE();
@@ -504,6 +445,61 @@ void CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
 }
 
 PAGED_CODE_SEG_END
+
+PVOID CtrlQueue::AllocCmdResp(PGPU_VBUFFER* buf, int cmd_sz, PVOID resp_buf, int resp_sz)
+{
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    PGPU_VBUFFER vbuf;
+    vbuf = m_pBuf->GetBuf(cmd_sz, resp_sz, resp_buf);
+    ASSERT(vbuf);
+    *buf = vbuf;
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+
+    return vbuf ? vbuf->buf : NULL;
+}
+
+PVOID CtrlQueue::AllocCmd(PGPU_VBUFFER* buf, int sz)
+{
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    if (buf == NULL || sz == 0) {
+        return NULL;
+    }
+
+    PGPU_VBUFFER vbuf = m_pBuf->GetBuf(sz, sizeof(GPU_CTRL_HDR), NULL);
+    ASSERT(vbuf);
+    *buf = vbuf;
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s  vbuf = %p\n", __FUNCTION__, vbuf));
+
+    return vbuf ? vbuf->buf : NULL;
+}
+
+void CtrlQueue::SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, UINT x, UINT y)
+{
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    PGPU_SET_SCANOUT cmd;
+    PGPU_VBUFFER vbuf;
+    cmd = (PGPU_SET_SCANOUT)AllocCmd(&vbuf, sizeof(*cmd));
+    RtlZeroMemory(cmd, sizeof(*cmd));
+
+    cmd->hdr.type = VIRTIO_GPU_CMD_SET_SCANOUT;
+    cmd->resource_id = res_id;
+    cmd->scanout_id = scan_id;
+    cmd->r.width = width;
+    cmd->r.height = height;
+    cmd->r.x = x;
+    cmd->r.y = y;
+
+    //FIXME if
+    QueueBuffer(vbuf);
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
 
 #define SGLIST_SIZE 64
 UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
@@ -694,9 +690,17 @@ PGPU_VBUFFER VioGpuBuf::GetBuf(
 
     PGPU_VBUFFER pbuf = NULL;
     PLIST_ENTRY pListItem = NULL;
-    KIRQL                   OldIrql;
+    KIRQL SavedIrql = KeGetCurrentIrql();
 
-    KeAcquireSpinLock(&m_SpinLock, &OldIrql);
+    if (SavedIrql < DISPATCH_LEVEL) {
+        KeAcquireSpinLock(&m_SpinLock, &SavedIrql);
+    }
+    else if (SavedIrql == DISPATCH_LEVEL) {
+        KeAcquireSpinLockAtDpcLevel(&m_SpinLock);
+    }
+    else {
+        VioGpuDbgBreak();
+    }
 
     if (!IsListEmpty(&m_FreeBufs))
     {
@@ -726,7 +730,15 @@ PGPU_VBUFFER VioGpuBuf::GetBuf(
         DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Cannot allocate buffer\n", __FUNCTION__));
         VioGpuDbgBreak();
     }
-    KeReleaseSpinLock(&m_SpinLock, OldIrql);
+    if (SavedIrql < DISPATCH_LEVEL) {
+        KeReleaseSpinLock(&m_SpinLock, SavedIrql);
+    }
+    else if (SavedIrql == DISPATCH_LEVEL) {
+        KeReleaseSpinLockFromDpcLevel(&m_SpinLock);
+    }
+    else {
+        VioGpuDbgBreak();
+    }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s buf = %p\n", __FUNCTION__, pbuf));
 
