@@ -339,11 +339,9 @@ DriverEntry(
 
 #ifdef EVENT_TRACING
     STORAGE_TRACE_INIT_INFO initInfo;
-#else
-#ifdef DBG
+#endif
+
     InitializeDebugPrints((PDRIVER_OBJECT)DriverObject, (PUNICODE_STRING)RegistryPath);
-#endif
-#endif
 
     IsCrashDumpMode = FALSE;
     RhelDbgPrint(TRACE_LEVEL_FATAL, " Vioscsi driver started...built on %s %s\n", __DATE__, __TIME__);
@@ -695,10 +693,9 @@ VioScsiPoolAlloc(
         adaptExt->poolOffset += (ULONG)size;
         RtlZeroMemory(ptr, size);
         return ptr;
-    } else {
-        RhelDbgPrint(TRACE_LEVEL_FATAL, " Out of memory %Id \n", size);
-        return NULL;
     }
+    RhelDbgPrint(TRACE_LEVEL_FATAL, " Out of memory %Id \n", size);
+    return NULL;
 }
 
 BOOLEAN

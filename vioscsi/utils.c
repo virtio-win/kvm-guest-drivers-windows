@@ -101,9 +101,14 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
 
 tDebugPrintFunc VirtioDebugPrintProc;
 #else
-bDebugPrint = 1;
-virtioDebugLevel = 0xFF;
-nViostorDebugLevel = 0xFF;
+void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath)
+{
+    //TBD - Read nDebugLevel and bDebugPrint from the registry
+    bDebugPrint = 0;
+    virtioDebugLevel = 0;
+    nVioscsiDebugLevel = 4;// TRACE_LEVEL_ERROR;
+}
+
 tDebugPrintFunc VirtioDebugPrintProc = DbgPrint;
 #endif
 
