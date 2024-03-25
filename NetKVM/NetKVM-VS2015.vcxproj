@@ -238,6 +238,7 @@
     <ClCompile Include="Common\ParaNdis_Protocol.cpp" />
     <ClCompile Include="Common\ParaNdis_RX.cpp" />
     <ClCompile Include="Common\ParaNdis_TX.cpp" />
+    <ClCompile Include="wlh\ParaNdis_Poll.cpp" />
     <ClInclude Include="Common\ParaNdis-SM.h" />
     <ClCompile Include="Common\ParaNdis_Util.cpp" />
     <ClCompile Include="Common\ParaNdis_VirtIO.cpp" />

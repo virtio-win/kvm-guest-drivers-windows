@@ -112,6 +112,10 @@ static bool FORCEINLINE CheckNdisVersion(UCHAR major, UCHAR minor)
 
 typedef struct _PARANDIS_ADAPTER PARANDIS_ADAPTER;
 
+void ParaNdisPollNotify(PARANDIS_ADAPTER *, UINT Index);
+void ParaNdisPollSetAffinity(PARANDIS_ADAPTER *, const CCHAR *Indices, CCHAR Size);
+void RxPoll(PARANDIS_ADAPTER* pContext, UINT BundleIndex, NDIS_POLL_RECEIVE_DATA& RxData);
+
 #include "ParaNdis-SM.h"
 #include "ParaNdis-RSS.h"
 
@@ -151,6 +155,21 @@ typedef PARANDIS_RECEIVE_QUEUE *PPARANDIS_RECEIVE_QUEUE;
 #include "ParaNdis-CX.h"
 #include "ParaNdis_GuestAnnounce.h"
 #include "ParaNdis-VirtIO.h"
+
+struct NdisPollHandler
+{
+    NDIS_POLL_HANDLE m_PollContext = NULL;
+    PPARANDIS_ADAPTER m_AdapterContext = NULL;
+    CNdisRefCounter m_EnableNotify;
+    int m_Index = -1;
+    PROCESSOR_NUMBER m_ProcessorNumber = {};
+    BOOLEAN m_UpdateAffinity = false;
+
+    bool Register(PPARANDIS_ADAPTER AdapterContext, int Index);
+    void Unregister();
+    void EnableNotification(BOOLEAN Enable);
+    void HandlePoll(NDIS_POLL_DATA* PollData);
+};
 
 struct CPUPathBundle : public CPlacementAllocatable {
     CParaNdisRX rxPath;
@@ -447,6 +466,8 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     BOOLEAN                 bCtrlMACAddrSupported = false;
     BOOLEAN                 bCfgMACAddrSupported = false;
     BOOLEAN                 bMultiQueue = false;
+    BOOLEAN                 bPollModeTry = false;
+    BOOLEAN                 bPollModeEnabled = false;
     USHORT                  nHardwareQueues = false;
     ULONG                   ulCurrentVlansFilterSet = false;
     tMulticastData          MulticastData = {};
@@ -508,6 +529,8 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
 
 #ifdef PARANDIS_SUPPORT_RSS
     PARANDIS_RECEIVE_QUEUE      ReceiveQueues[PARANDIS_RSS_MAX_RECEIVE_QUEUES];
+    NdisPollHandler             PollHandlers[PARANDIS_RSS_MAX_RECEIVE_QUEUES];
+
 #define PARANDIS_FIRST_RSS_RECEIVE_QUEUE    (0)
 #endif
 #define PARANDIS_RECEIVE_UNCLASSIFIED_PACKET (-1)

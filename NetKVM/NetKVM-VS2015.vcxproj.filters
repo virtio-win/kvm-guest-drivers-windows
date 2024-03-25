@@ -167,6 +167,9 @@
     <ClCompile Include="Common\ParaNdis_Protocol.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
+    <ClCompile Include="wlh\ParaNdis_Poll.cpp">
+      <Filter>Source Files\wlh</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="tools\cleanemptystrings.vbs">
