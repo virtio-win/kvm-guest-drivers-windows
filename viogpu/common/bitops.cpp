@@ -93,7 +93,6 @@ VOID CopyBitsGeneric(
     GetPitches(pDst, &DstPixelPitch, &DstRowPitch);
     GetPitches(pSrc, &SrcPixelPitch, &SrcRowPitch);
 
-
     VIOGPU_ASSERT(pRect->right >= pRect->left);
     VIOGPU_ASSERT(pRect->bottom >= pRect->top);
 
@@ -112,6 +111,12 @@ VOID CopyBitsGeneric(
                 UINT32* pDstPixelAs32 = (UINT32*)pDstPixel;
                 UINT32* pSrcPixelAs32 = (UINT32*)pSrcPixel;
                 *pDstPixelAs32 = *pSrcPixelAs32;
+            }
+            else if ((pDst->BitsPerPel == 24) ||
+                (pSrc->BitsPerPel == 24)) {
+                pDstPixel[0] = pSrcPixel[0];
+                pDstPixel[1] = pSrcPixel[1];
+                pDstPixel[2] = pSrcPixel[2];
             }
             else {
                 VioGpuDbgBreak();
@@ -156,7 +161,6 @@ VOID CopyBits32_32(
     }
 }
 
-
 VOID BltBits(
     _In_ BLT_INFO* pDst,
     _In_ CONST BLT_INFO* pSrc,
@@ -164,8 +168,10 @@ VOID BltBits(
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     __try {
-        if (pDst->Rotation == D3DKMDT_VPPR_IDENTITY &&
-            pSrc->Rotation == D3DKMDT_VPPR_IDENTITY) {
+        if ((pDst->Rotation == D3DKMDT_VPPR_IDENTITY &&
+            pSrc->Rotation == D3DKMDT_VPPR_IDENTITY) &&
+            (pDst->BitsPerPel == 32 &&
+             pSrc->BitsPerPel == 32)) {
             CopyBits32_32(pDst, pSrc, pRect);
         }
         else {
@@ -190,7 +196,10 @@ UINT BPPFromPixelFormat(_In_ D3DDDIFORMAT Format)
     case D3DDDIFMT_R8G8B8: return 24;
     case D3DDDIFMT_X8R8G8B8:
     case D3DDDIFMT_A8R8G8B8: return 32;
-    default: VIOGPU_LOG_ASSERTION1("Unknown D3DDDIFORMAT 0x%I64x", Format); return 0;
+    default:
+        VIOGPU_LOG_ASSERTION1("Unknown D3DDDIFORMAT 0x%I64x", Format);
+        VioGpuDbgBreak();
+        return 32;
     }
 }
 
