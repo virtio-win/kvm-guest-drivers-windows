@@ -107,6 +107,7 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry USOv6Supported;
 #endif
     tConfigurationEntry MinRxBufferPercent;
+    tConfigurationEntry PollMode;
 }tConfigurationEntries;
 
 static const tConfigurationEntries defaultConfiguration =
@@ -145,6 +146,7 @@ static const tConfigurationEntries defaultConfiguration =
     { "*UsoIPv6", 1, 0, 1},
 #endif
     { "MinRxBufferPercent", PARANDIS_MIN_RX_BUFFER_PERCENT_DEFAULT, 0, 100},
+    { "*NdisPoll", 0, 0, 1},
 };
 
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
@@ -279,6 +281,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             GetConfigurationEntry(cfg, &pConfiguration->USOv6Supported);
 #endif
             GetConfigurationEntry(cfg, &pConfiguration->MinRxBufferPercent);
+            GetConfigurationEntry(cfg, &pConfiguration->PollMode);
 
             bDebugPrint = pConfiguration->isLogEnabled.ulValue;
             virtioDebugLevel = pConfiguration->debugLevel.ulValue;
