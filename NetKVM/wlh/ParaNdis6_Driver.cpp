@@ -1066,6 +1066,8 @@ static void SetRuntimeNdisVersion()
     ULONG ul = NdisGetVersion();
     UCHAR major = (UCHAR)(ul >> 16);
     UCHAR minor = ul & 0xff;
+    UCHAR osMajor = major;
+    UCHAR osMinor = minor;
     DPrintf(0, "system NDIS is %d.%d\n", major, minor);
     if (major > NDIS_MINIPORT_MAJOR_VERSION)
     {
@@ -1090,6 +1092,8 @@ static void SetRuntimeNdisVersion()
     }
     _ParandisVersion.major = major;
     _ParandisVersion.minor = minor;
+    _ParandisVersion.osmajor = osMajor;
+    _ParandisVersion.osminor = osMinor;
 
     DPrintf(0, "runtime NDIS as %d.%d\n", major, minor);
 #else
