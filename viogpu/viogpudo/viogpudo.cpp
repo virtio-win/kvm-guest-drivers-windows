@@ -1650,70 +1650,73 @@ NTSTATUS VioGpuDod::SystemDisplayEnable(_In_  D3DDDI_VIDEO_PRESENT_TARGET_ID Tar
 
     VIOGPU_ASSERT((TargetId < MAX_CHILDREN) || (TargetId == D3DDDI_ID_UNINITIALIZED));
 
-    if (m_CurrentMode.FrameBuffer == NULL)
+    if (!IsVgaDevice())
     {
         return STATUS_UNSUCCESSFUL;
     }
 
-    if ((m_CurrentMode.Rotation == D3DKMDT_VPPR_ROTATE90) ||
-        (m_CurrentMode.Rotation == D3DKMDT_VPPR_ROTATE270))
+    m_CurrentMode.Flags.FrameBufferIsActive = FALSE;
+    m_pHWDevice->ResetToVgaMode();
+    m_CurrentMode.FrameBuffer = m_pHWDevice->GetPciResources()[0].GetMappedAddress(0, 0);
+
+    if (m_CurrentMode.FrameBuffer == nullptr)
     {
-        *pHeight = m_CurrentMode.DispInfo.Width;
-        *pWidth = m_CurrentMode.DispInfo.Height;
-    }
-    else
-    {
-        *pWidth = m_CurrentMode.DispInfo.Width;
-        *pHeight = m_CurrentMode.DispInfo.Height;
+        return STATUS_UNSUCCESSFUL;
     }
 
-    *pColorFormat = m_CurrentMode.DispInfo.ColorFormat;
-    DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s ColorFormat = %d\n", __FUNCTION__, m_CurrentMode.DispInfo.ColorFormat));
+    m_CurrentMode.Flags.FrameBufferIsActive = TRUE;
+    m_CurrentMode.Rotation = D3DKMDT_VPPR_IDENTITY;
+    *pWidth = m_CurrentMode.DispInfo.Width = m_SystemDisplayInfo.Width;
+    *pHeight = m_CurrentMode.DispInfo.Height = m_SystemDisplayInfo.Height;
+    *pColorFormat = m_CurrentMode.DispInfo.ColorFormat = m_SystemDisplayInfo.ColorFormat;
+    m_CurrentMode.DispInfo.Pitch = m_SystemDisplayInfo.Pitch = (BPPFromPixelFormat(m_SystemDisplayInfo.ColorFormat) / BITS_PER_BYTE) * m_SystemDisplayInfo.Width;
+
+    DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s (%dx%dx%d)\n", __FUNCTION__, *pWidth, *pHeight, *pColorFormat));
 
     return STATUS_SUCCESS;
 }
 
-VOID VioGpuDod::SystemDisplayWrite(_In_reads_bytes_(SourceHeight * SourceStride) VOID* pSource,
+VOID VioGpuDod::SystemDisplayWrite(_In_reads_bytes_(SourceHeight* SourceStride) VOID* pSource,
     _In_ UINT SourceWidth,
     _In_ UINT SourceHeight,
     _In_ UINT SourceStride,
     _In_ INT PositionX,
     _In_ INT PositionY)
 {
-    UNREFERENCED_PARAMETER(pSource);
-    UNREFERENCED_PARAMETER(SourceStride);
+    if (m_CurrentMode.Flags.FrameBufferIsActive)
+    {
+        RECT Rect = { 0 };
+        BLT_INFO SrcBltInfo = { 0 };
+        BLT_INFO DstBltInfo = { 0 };
 
-    RECT Rect;
-    Rect.left = PositionX;
-    Rect.top = PositionY;
-    Rect.right = Rect.left + SourceWidth;
-    Rect.bottom = Rect.top + SourceHeight;
+        Rect.left = PositionX;
+        Rect.top = PositionY;
+        Rect.right = Rect.left + SourceWidth;
+        Rect.bottom = Rect.top + SourceHeight;
 
-    BLT_INFO DstBltInfo;
-    DstBltInfo.pBits = m_CurrentMode.FrameBuffer;
-    DstBltInfo.Pitch = m_CurrentMode.DispInfo.Pitch;
-    DstBltInfo.BitsPerPel = BPPFromPixelFormat(m_CurrentMode.DispInfo.ColorFormat);
-    DstBltInfo.Offset.x = 0;
-    DstBltInfo.Offset.y = 0;
-    DstBltInfo.Rotation = m_CurrentMode.Rotation;
-    DstBltInfo.Width = m_CurrentMode.DispInfo.Width;
-    DstBltInfo.Height = m_CurrentMode.DispInfo.Height;
+        DstBltInfo.pBits = m_CurrentMode.FrameBuffer;
+        DstBltInfo.Pitch = m_CurrentMode.DispInfo.Pitch;
+        DstBltInfo.BitsPerPel = BPPFromPixelFormat(m_CurrentMode.DispInfo.ColorFormat);
+        DstBltInfo.Offset.x = 0;
+        DstBltInfo.Offset.y = 0;
+        DstBltInfo.Rotation = m_CurrentMode.Rotation;
+        DstBltInfo.Width = m_CurrentMode.DispInfo.Width;
+        DstBltInfo.Height = m_CurrentMode.DispInfo.Height;
 
-    BLT_INFO SrcBltInfo;
-    SrcBltInfo.pBits = pSource;
-    SrcBltInfo.Pitch = SourceStride;
-    SrcBltInfo.BitsPerPel = 32;
+        SrcBltInfo.pBits = pSource;
+        SrcBltInfo.Pitch = SourceStride;
+        SrcBltInfo.BitsPerPel = BPPFromPixelFormat(D3DDDIFMT_A8R8G8B8);
+        SrcBltInfo.Offset.x = -PositionX;
+        SrcBltInfo.Offset.y = -PositionY;
+        SrcBltInfo.Rotation = D3DKMDT_VPPR_IDENTITY;
+        SrcBltInfo.Width = SourceWidth;
+        SrcBltInfo.Height = SourceHeight;
 
-    SrcBltInfo.Offset.x = -PositionX;
-    SrcBltInfo.Offset.y = -PositionY;
-    SrcBltInfo.Rotation = D3DKMDT_VPPR_IDENTITY;
-    SrcBltInfo.Width = SourceWidth;
-    SrcBltInfo.Height = SourceHeight;
+        BltBits(&DstBltInfo,
+            &SrcBltInfo,
+            &Rect);
 
-    BltBits(&DstBltInfo,
-        &SrcBltInfo,
-        &Rect);
-
+    }
 }
 
 #pragma code_seg(pop) // End Non-Paged Code
@@ -2735,6 +2738,13 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE* pEscape)
     return status;
 }
 
+BOOLEAN VioGpuAdapter::ResetToVgaMode(void)
+{
+    DestroyFrameBufferObj(TRUE);
+    VioGpuAdapterClose();
+    return TRUE;
+}
+
 BOOLEAN VioGpuAdapter::GetDisplayInfo(void)
 {
     PAGED_CODE();
@@ -2750,8 +2760,7 @@ BOOLEAN VioGpuAdapter::GetDisplayInfo(void)
             m_CtrlQueue.GetDisplayInfo(vbuf, i, &xres, &yres);
             m_CtrlQueue.ReleaseBuffer(vbuf);
             if (xres && yres) {
-                DbgPrint(TRACE_LEVEL_FATAL, ("---> %s (%dx%d)\n", __FUNCTION__, xres, yres));
-                VioGpuDbgBreak();
+                DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s (%dx%d)\n", __FUNCTION__, xres, yres));
                 SetCustomDisplay((USHORT)xres, (USHORT)yres);
                 return TRUE;
             }

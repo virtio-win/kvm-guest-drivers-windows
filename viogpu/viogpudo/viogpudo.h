@@ -101,6 +101,7 @@ public:
     NTSTATUS SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION* pSetPointerPosition, _In_ CONST CURRENT_MODE* pModeCur);
     NTSTATUS Escape(_In_ CONST DXGKARG_ESCAPE* pEscap);
     CPciResources* GetPciResources(void) { return &m_PciResources; }
+    BOOLEAN ResetToVgaMode(void);
     BOOLEAN IsMSIEnabled() { return m_PciResources.IsMSIEnabled(); }
     PHYSICAL_ADDRESS GetFrameBufferPA(void) { return  m_PciResources.GetPciBar(0)->GetPA(); }
 
