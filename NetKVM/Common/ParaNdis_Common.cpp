@@ -349,7 +349,11 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             pContext->RSC.bIPv6SupportedSW = (UCHAR)pConfiguration->RSCIPv6Supported.ulValue;
 #endif
             pContext->uMaxFragmentsInOneNB = MAX_FRAGMENTS_IN_ONE_NB;
-
+#if PARANDIS_SUPPORT_POLL
+            // Win10: poll mode is disabled by compilation, keyword is not in the INF
+            // Win11: poll mode is enabled by compilation, keyword is in the INF, but ignored for NDIS < 6.89
+            pContext->bPollModeTry = pConfiguration->PollMode.ulValue && CheckOSNdisVersion(6,89) ? TRUE : FALSE;
+#endif
             if (!pContext->bDoSupportPriority)
                 pContext->ulPriorityVlanSetting = 0;
             // if Vlan not supported
@@ -1320,6 +1324,26 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
         DPrintf(0, "[%s] SetupDPCTarget passed, status = %d\n", __FUNCTION__, status);
     }
 
+    if (status == NDIS_STATUS_SUCCESS && pContext->bPollModeTry &&
+        pContext->RSSMaxQueuesNumber && pContext->bRSSOffloadSupported &&
+        (UINT)pContext->RSSMaxQueuesNumber >= pContext->nPathBundles)
+    {
+        int nPollModeOK = 0;
+        for (int i = 0; i < pContext->RSSMaxQueuesNumber; i++)
+        {
+            nPollModeOK += pContext->PollHandlers[i].Register(pContext, i);
+        }
+        if (nPollModeOK == pContext->RSSMaxQueuesNumber)
+        {
+            pContext->bPollModeEnabled = true;
+        }
+    }
+
+    if (pContext->bPollModeTry)
+    {
+        DPrintf(0, "[%s] Poll mode tried and %sabled\n", __FUNCTION__, pContext->bPollModeEnabled ? "en" : "dis");
+    }
+
     if (status == NDIS_STATUS_SUCCESS)
     {
         ParaNdis_DeviceEnterD0(pContext);
@@ -1364,6 +1388,11 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
     }
 
     RestoreMAC(pContext);
+
+    for (i = 0; i < (UINT)pContext->RSSMaxQueuesNumber; i++)
+    {
+        pContext->PollHandlers[i].Unregister();
+    }
 
     for (i = 0; i < pContext->nPathBundles; i++)
     {
