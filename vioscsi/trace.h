@@ -30,9 +30,8 @@
 #ifndef ___TRACING_H___
 #define ___TRACING_H___
 
-//#define DBG 1
-//#define PRINT_DEBUG 1
-//#define COM_DEBUG 1
+
+#define EVENT_TRACING 1
 
 #include <ntddk.h>
 #include <storport.h>
@@ -42,10 +41,15 @@
 #define UCHAR_MAX 0xFF
 #define DbgGetScsiOp(Srb) (SRB_CDB(Srb) ? SRB_CDB(Srb)->CDB6GENERIC.OperationCode : UCHAR_MAX)
 
-char *DbgGetScsiOpStr(UCHAR opCode);
+char *DbgGetScsiOpStr(IN UCHAR opCode);
+void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath);
 
-#if !defined(DBG)
-#define EVENT_TRACING 1
+#if !defined(EVENT_TRACING)
+#define define DBG 1
+#define PRINT_DEBUG 1
+#if !defined(PRINT_DEBUG)
+#define COM_DEBUG 1
+#endif
 #endif
 
 #if !defined(EVENT_TRACING)
@@ -79,8 +83,6 @@ extern int nVioscsiDebugLevel;
 #define VioScsiDbgBreak()
 #endif
 
-void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath);
-
 #define ENTER_FN() RhelDbgPrint(TRACE_LEVEL_VERBOSE, " --> %s.\n",__FUNCTION__)
 #define EXIT_FN()  RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <-- %s.\n",__FUNCTION__)
 #define EXIT_ERR() RhelDbgPrint(TRACE_LEVEL_ERROR, " <--> %s (%d).\n", __FUNCTION__, __LINE__)
@@ -105,37 +107,59 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
         WPP_DEFINE_BIT(TRACE_LEVEL_VERBOSE)            /* bit  5 = 0x00000020 */ \
         )
 
-#define WPP_Flags_LEVEL_LOGGER(Flags, level)                                  \
-    WPP_LEVEL_LOGGER(Flags)
-#define WPP_Flags_LEVEL_ENABLED(Flags, level)                                 \
-    (level <= virtioDebugLevel)
-
-#define WPP_FLAGS_LEVEL_STATUS_LOGGER(Flags, level, status)                                  \
-    WPP_LEVEL_LOGGER(Flags)
-#define WPP_Flags_LEVEL_STATUS_ENABLED(Flags, level, status)                                 \
-    (level <= virtioDebugLevel)
-
 // begin_wpp config
 // USEPREFIX (RhelDbgPrint, "%!STDPREFIX! %!FUNC!");
 // FUNC RhelDbgPrint(LEVEL, MSG, ...);
-// USEPREFIX (ENTER_FN, "%!STDPREFIX! ---> %!FUNC!");
-// FUNC ENTER_FN{LEVEL=TRACE_LEVEL_VERBOSE}(...);
-// USEPREFIX (EXIT_FN, "%!STDPREFIX! <--- %!FUNC!");
-// FUNC EXIT_FN{LEVEL=TRACE_LEVEL_VERBOSE}(...);
-// USEPREFIX (EXIT_ERR, "%!STDPREFIX! <--> %!FUNC! ERROR line %d", __LINE__);
-// FUNC EXIT_ERR{LEVEL=TRACE_LEVEL_ERROR}(...);
-
-// USEPREFIX (ENTER_FN_SRB(PVOID Srb), "%!STDPREFIX! ---> %!FUNC! 0x%p.", Srb);
-// FUNC ENTER_FN_SRB{LEVEL=TRACE_LEVEL_VERBOSE}(...);
-// USEPREFIX (EXIT_FN_SRB(PVOID Srb), "%!STDPREFIX! <--- %!FUNC! 0x%p.", Srb);
-// FUNC EXIT_FN_SRB{LEVEL=TRACE_LEVEL_VERBOSE}(...);
-
-// USEPREFIX (LOG_SRB_INFO(PVOID Srb), "%!STDPREFIX! %!FUNC! <--> Operation %s (0x%X), Target (%d::%d::%d), SRB 0x%p", DbgGetScsiOpStr(DbgGetScsiOp(Srb)), DbgGetScsiOp(Srb), SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), Srb);
-// FUNC LOG_SRB_INFO{LEVEL=TRACE_LEVEL_INFORMATION}(...);
-
 // end_wpp
 
-#define WPP_CHECK_FOR_NULL_STRING
+#define WPP_Flags_LEVEL_LOGGER(Flags, level) WPP_LEVEL_LOGGER(Flags)
+#define WPP_Flags_LEVEL_ENABLED(Flags, level) \
+    (WPP_LEVEL_ENABLED(Flags) && \
+    WPP_CONTROL(WPP_BIT_ ## Flags).Level >= level)
+
+// begin_wpp config
+// USEPREFIX (ENTER_FN, "%!STDPREFIX! [%!FUNC!] --> entry");
+// FUNC ENTER_FN{ENTRYLEVEL=TRACE_LEVEL_VERBOSE}(...);
+// end_wpp
+
+#define WPP_ENTRYLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
+#define WPP_ENTRYLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
+
+// begin_wpp config
+// USEPREFIX (EXIT_FN, "%!STDPREFIX! [%!FUNC!] <-- exit");
+// FUNC EXIT_FN{EXITLEVEL=TRACE_LEVEL_VERBOSE}(...);
+// end_wpp
+#define WPP_EXITLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
+#define WPP_EXITLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
+
+// begin_wpp config
+// USEPREFIX (EXIT_ERR, "%!STDPREFIX! <--> %!FUNC! ERROR line %d", __LINE__);
+// FUNC EXIT_ERR{ERRORLEVEL=TRACE_LEVEL_ERROR}(...);
+// end_wpp
+#define WPP_ERRORLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
+#define WPP_ERRORLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
+
+// begin_wpp config
+// USEPREFIX (ENTER_FN_SRB(PVOID Srb), "%!STDPREFIX! ---> %!FUNC! 0x%p.", Srb);
+// FUNC ENTER_FN_SRB{SRBENTRYLEVEL=TRACE_LEVEL_INFORMATION}(...);
+// end_wpp
+#define WPP_SRBENTRYLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
+#define WPP_SRBENTRYLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
+
+// begin_wpp config
+// USEPREFIX (EXIT_FN_SRB(PVOID Srb), "%!STDPREFIX! <--- %!FUNC! 0x%p.", Srb);
+// FUNC EXIT_FN_SRB{SRBEXITLEVEL=TRACE_LEVEL_INFORMATION}(...);
+// end_wpp
+#define WPP_SRBEXITLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
+#define WPP_SRBEXITLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
+
+// begin_wpp config
+// USEPREFIX (LOG_SRB_INFO(PVOID Srb), "%!STDPREFIX! %!FUNC! <--> Operation %s (0x%X), Target (%d::%d::%d), SRB 0x%p", DbgGetScsiOpStr(DbgGetScsiOp(Srb)), DbgGetScsiOp(Srb), SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), Srb);
+// FUNC LOG_SRB_INFO{SRBINFOLEVEL=TRACE_LEVEL_INFORMATION}(...);
+// end_wpp
+#define WPP_SRBINFOLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
+#define WPP_SRBINFOLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
 
 #endif
+
 #endif //__TRACING_H___
