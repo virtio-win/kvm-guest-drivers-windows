@@ -1732,6 +1732,67 @@ BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathBundle *pathBundle, ULO
     return res;
 }
 
+void RxPoll(PARANDIS_ADAPTER* pContext, UINT BundleIndex, NDIS_POLL_RECEIVE_DATA& RxData)
+{
+    ULONG& collected = RxData.NumberOfIndicatedNbls;
+    ULONG MaxPacketsToIndicate = RxData.MaxNblsToIndicate;
+    BOOLEAN hasMore = FALSE;
+    bool rxPathOwner = false;
+    PNET_BUFFER_LIST indicateTail = nullptr;
+    PNET_BUFFER_LIST& indicate = RxData.IndicatedNblChain;
+    CPUPathBundle* pathBundle = BundleIndex < pContext->nPathBundles ? &pContext->pPathBundles[BundleIndex] : NULL;
+
+    collected = 0;
+
+    if (pathBundle != nullptr)
+    {
+        rxPathOwner = pathBundle->rxPath.UnclassifiedPacketsQueue().Ownership.Acquire();
+
+        pathBundle->rxPath.ProcessRxRing((CCHAR)BundleIndex);
+
+        if (rxPathOwner)
+        {
+            ProcessReceiveQueue(pContext, &MaxPacketsToIndicate, &pathBundle->rxPath.UnclassifiedPacketsQueue(),
+                &indicate, &indicateTail, &collected);
+        }
+    }
+
+    ProcessReceiveQueue(pContext, &MaxPacketsToIndicate, &pContext->ReceiveQueues[BundleIndex],
+            &indicate, &indicateTail, &collected);
+    hasMore |= ReceiveQueueHasBuffers(&pContext->ReceiveQueues[BundleIndex]);
+
+    if (collected)
+    {
+        if (!pContext->m_RxStateMachine.RegisterOutstandingItems(collected))
+        {
+            ParaNdis_ReuseRxNBLs(indicate);
+            collected = 0;
+            indicate = NULL;
+        }
+        else
+        {
+            NdisInterlockedAddLargeStatistic(&pContext->extraStatistics.totalRxIndicates, collected);
+        }
+    }
+
+    if (rxPathOwner)
+    {
+        pathBundle->rxPath.UnclassifiedPacketsQueue().Ownership.Release();
+    }
+
+    // we do not need to make a check of rx queue restart etc. if we already know
+    // that we need to respawn the DPC to get more data from the queue
+    if (pathBundle != nullptr && !hasMore)
+    {
+        hasMore |= pathBundle->rxPath.RestartQueue() |
+            ReceiveQueueHasBuffers(&pathBundle->rxPath.UnclassifiedPacketsQueue());
+    }
+    if (hasMore)
+    {
+        RxData.NumberOfRemainingNbls = NDIS_ANY_NUMBER_OF_NBLS;
+    }
+}
+
 void ParaNdis_ReuseRxNBLs(PNET_BUFFER_LIST pNBL)
 {
     while (pNBL)
