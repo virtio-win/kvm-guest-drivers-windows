@@ -565,6 +565,13 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
     if (NT_SUCCESS(status))
     {
         SetDeviceRSSSettings(pContext);
+        if (pContext->bPollModeEnabled)
+        {
+            ParaNdisPollSetAffinity(
+                pContext,
+                RSSParameters->RSSScalingSettings.QueueIndirectionTable,
+                RSSParameters->ReceiveQueuesNumber);
+        }
     }
 
     return status;
