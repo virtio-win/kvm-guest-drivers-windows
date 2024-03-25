@@ -55,6 +55,10 @@ extern "C"
 {
 #include "osdep.h"
 
+#if NDIS_SUPPORT_NDIS686
+#define PARANDIS_SUPPORT_POLL 1
+#endif
+
 #if NDIS_SUPPORT_NDIS683
 #define PARANDIS_SUPPORT_USO 1
 #endif
