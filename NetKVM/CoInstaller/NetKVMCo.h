@@ -71,7 +71,7 @@ typedef struct _NS_CONTEXT_ATTRIBUTES
 
 } NS_CONTEXT_ATTRIBUTES, * PNS_CONTEXT_ATTRIBUTES;
 
-typedef DWORD(FN_HANDLE_CMD)(
+typedef DWORD(WINAPI FN_HANDLE_CMD)(
     IN      LPCWSTR   pwszMachine,
     _Inout_updates_(dwArgCount) LPWSTR* ppwcArguments,
     IN      DWORD     dwCurrentIndex,
