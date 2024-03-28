@@ -20,7 +20,7 @@ CatalogFile=viogpudo.cat
 PnpLockdown     = 1
 
 [DestinationDirs]
-DefaultDestDir = 13
+DefaultDestDir = INX_PLATFORM_DRIVERS_DIR
 
 
 [SourceDisksNames]
@@ -57,7 +57,7 @@ AddReg = VioGpuDod_PCI_MSIX
 ServiceType = %SERVICE_KERNEL_DRIVER%
 StartType = %SERVICE_DEMAND_START%
 ErrorControl = %SERVICE_ERROR_IGNORE%
-ServiceBinary = %13%\viogpudo.sys
+ServiceBinary = %INX_PLATFORM_DRIVERS_DIR%\viogpudo.sys
 
 [VioGpuDod_EventLog_Inst]
 AddReg = VioGpuDod_EventLog_Inst.AddReg
