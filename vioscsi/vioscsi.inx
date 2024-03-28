@@ -39,7 +39,7 @@ vioscsi.sys = 1,,
 ;ExcludeFromSelect = *
 
 [DestinationDirs]
-vioscsi_Files_Driver = 13
+vioscsi_Files_Driver = INX_PLATFORM_DRIVERS_DIR
 
 ;
 ; Driver information
@@ -74,7 +74,7 @@ DisplayName    = %VirtioScsi.SVCDESC%
 ServiceType    = %SERVICE_KERNEL_DRIVER%
 StartType      = %SERVICE_BOOT_START%
 ErrorControl   = %SERVICE_ERROR_NORMAL%
-ServiceBinary  = %13%\vioscsi.sys
+ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\vioscsi.sys
 LoadOrderGroup = SCSI miniport
 AddReg         = pnpsafe_pci_addreg
 
