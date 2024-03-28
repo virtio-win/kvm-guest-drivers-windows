@@ -50,17 +50,32 @@ Common property definitions used by all drivers:
   <PropertyGroup Condition="'$(Configuration)'=='Win10 Release' OR '$(Configuration)'=='Win10 Debug'">
     <_NT_TARGET_MAJ>100</_NT_TARGET_MAJ>
     <TargetOS>Win10</TargetOS>
-	  <DriverTargetPlatform>Universal</DriverTargetPlatform>
+    <DriverTargetPlatform>Universal</DriverTargetPlatform>
     <InfArch>$(TargetArch).$(INF_ARCH_FOR_WIN10)</InfArch>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Win11 Release' OR '$(Configuration)'=='Win11 Debug'">
     <_NT_TARGET_MAJ>100</_NT_TARGET_MAJ>
     <TargetOS>Win11</TargetOS>
-	  <DriverTargetPlatform>Universal</DriverTargetPlatform>
+    <DriverTargetPlatform>Universal</DriverTargetPlatform>
     <InfArch>$(TargetArch).$(INF_ARCH_FOR_WIN11)</InfArch>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Substitution Include="INX_PLATFORM_DRIVERS_DIR" Condition="'$(Configuration)'=='Win10 Release' OR '$(Configuration)'=='Win10 Debug'">
+      <ReplaceWith>12</ReplaceWith>
+    </Substitution>
+    <Substitution Include="INX_PLATFORM_DRIVERS_DIR" Condition="'$(Configuration)'=='Win11 Release' OR '$(Configuration)'=='Win11 Debug'">
+      <ReplaceWith>13</ReplaceWith>
+    </Substitution>
+
+    <Substitution Include="INX_BASE_ON_SYSTEM_ROOT_DRIVER_DIR" Condition="'$(Configuration)'=='Win10 Release' OR '$(Configuration)'=='Win10 Debug'">
+      <ReplaceWith>%25%25SystemRoot%25%25\System32\drivers</ReplaceWith>
+    </Substitution>
+    <Substitution Include="INX_BASE_ON_SYSTEM_ROOT_DRIVER_DIR" Condition="'$(Configuration)'=='Win11 Release' OR '$(Configuration)'=='Win11 Debug'">
+      <ReplaceWith>%2513%25</ReplaceWith>
+    </Substitution>
+  </ItemGroup>
 
   <!-- WPP settings -->
   <ItemDefinitionGroup>
