@@ -32,7 +32,7 @@ DriverVer       =01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 ; pszImage - A pointer to a null-terminated Unicode string that contains only the file name of the provider module.
 ;
 [DestinationDirs]
-DefaultDestDir = 13
+DefaultDestDir = INX_PLATFORM_DRIVERS_DIR
 VirtRng_Provider_CopyFiles = 11
 
 [SourceDisksNames]
@@ -82,7 +82,7 @@ DisplayName    = %VirtRng.Service%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %13%\viorng.sys
+ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\viorng.sys
 LoadOrderGroup = Extended Base
 AddReg         = DmaRemappingCompatible.Reg
 

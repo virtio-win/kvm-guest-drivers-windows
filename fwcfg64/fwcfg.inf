@@ -26,7 +26,7 @@ DriverPackageDisplayName = %FwCfg.DeviceDesc%
 PnpLockdown = 1
 
 [DestinationDirs]
-DefaultDestDir = 13
+DefaultDestDir = INX_PLATFORM_DRIVERS_DIR
 
 ; ================= Class section =====================
 
@@ -62,7 +62,7 @@ DisplayName    = %FwCfg.SVCDESC%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %13%\fwcfg.sys
+ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\fwcfg.sys
 
 
 [FwCfg_Device.NT.Wdf]
