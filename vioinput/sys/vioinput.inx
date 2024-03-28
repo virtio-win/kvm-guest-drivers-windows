@@ -35,7 +35,7 @@ PnpLockdown = 1
 ;HKR,,Icon,,-5
 
 [DestinationDirs]
-DefaultDestDir = 13
+DefaultDestDir = INX_PLATFORM_DRIVERS_DIR
 
 [SourceDisksFiles]
 vioinput.sys  = 1,,
@@ -92,14 +92,14 @@ AddService = viohidkmdf, 0x00000002, viohidkmdf_Service_Inst
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %13%\viohidkmdf.sys
+ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\viohidkmdf.sys
 
 [VirtioInput_Service_Inst]
 DisplayName    = %VirtioInput.ServiceDesc%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %13%\vioinput.sys
+ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\vioinput.sys
 
 [VirtioInput_Device.NT.Wdf]
 KmdfService =  VirtioInput, VirtioInput_wdfsect
