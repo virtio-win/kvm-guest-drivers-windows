@@ -26,7 +26,7 @@ DriverPackageDisplayName = %BALLOON.DeviceDesc%
 PnpLockdown = 1
 
 [DestinationDirs]
-DefaultDestDir = 13
+DefaultDestDir = INX_PLATFORM_DRIVERS_DIR
 
 [SourceDisksNames]
 1 = %DiskId1%,,,""
@@ -67,14 +67,14 @@ DisplayName    = %BALLOON.SVCDESC%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START 
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %13%\balloon.sys
+ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\balloon.sys
 
 ; -------------- BALLOON driver eventlog install sections
 [BALLOON_Logging_Inst]
 AddReg = BALLOON_Logging_Inst_AddReg
 
 [BALLOON_Logging_Inst_AddReg]
-HKR,,EventMessageFile,0x00020000,"%%SystemRoot%%\System32\IoLogMsg.dll;%13%\balloon.sys"
+HKR,,EventMessageFile,0x00020000,"%%SystemRoot%%\System32\IoLogMsg.dll;INX_BASE_ON_SYSTEM_ROOT_DRIVER_DIR\balloon.sys"
 HKR,,TypesSupported,0x00010001,7
 
 [BALLOON_Device.NT.Wdf]
