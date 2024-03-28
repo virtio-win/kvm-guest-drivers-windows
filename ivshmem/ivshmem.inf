@@ -24,7 +24,7 @@ DriverVer=01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 PnpLockDown=1
 
 [DestinationDirs]
-DefaultDestDir = 13
+DefaultDestDir = INX_PLATFORM_DRIVERS_DIR
 
 ; ================= Class section =====================
 
@@ -71,7 +71,7 @@ DisplayName    = %IVSHMEM.SVCDESC%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %13%\IVSHMEM.sys
+ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\IVSHMEM.sys
 
 [IVSHMEM_Device.NT.Wdf]
 KmdfService = IVSHMEM, IVSHMEM_wdfsect
