@@ -41,6 +41,8 @@
       is not present and reconnect via VF when the VF comes
     - enable all other protocols on VF when the netkvm is disabled
 */
+#define SERVICE_EXEFILE  L"netkvmps.exe"
+#define SERVICE_ORGFILE  L"netkvmp.exe"
 
 class CNetCfg
 {
@@ -794,6 +796,32 @@ public:
         }
     }
 };
+
+// should always be called from the application
+// instance, not from service one
+static bool CopySelf()
+{
+    CSystemDirectory s;
+    s += SERVICE_EXEFILE;
+    bool done;
+    int  retries = 0;
+    do
+    {
+        done = CopyFile(CServiceImplementation::BinaryPath(), s, false);
+        if (!done)
+        {
+            Log("%s: error %d", __FUNCTION__, GetLastError());
+            retries++;
+            Sleep(1000);
+        }
+        else
+        {
+            Log("%s: done", __FUNCTION__);
+        }
+    } while (!done && retries < 5);
+    return done;
+}
+
 class CProtocolServiceImplementation :
     public CServiceImplementation,
     public CThreadOwner,
@@ -843,7 +871,26 @@ protected:
             SyncVirtioAdapters();
             if (ThreadState() != tsRunning)
                 break;
-            m_ThreadEvent.Wait(3000);
+            if (m_ThreadEvent.Wait(3000) == ERROR_SUCCESS)
+            {
+                // in most of cases this is network change
+                // so let's check the file change
+                CSystemDirectory sysdir;
+                CString originalName = sysdir + SERVICE_ORGFILE;
+                CString serviceName = BinaryPath();
+                CString cmdLine;
+                cmdLine.Format(L"fc /b %s %s > nul", originalName.GetString(), serviceName.GetString());
+                int result = _wsystem(cmdLine);
+                Log("Running %S = %d", cmdLine.GetString(), result);
+                if (result)
+                {
+                    // run the original netkvmp.exe detached
+                    CProcessRunner r(false, 0);
+                    originalName += L" restartservice";
+                    r.RunProcess(originalName);
+                    break;
+                }
+            }
         } while (true);
         // Typical flow: the protocol is uninstalled
         if (!IsVioProtInstalled())
@@ -1004,6 +1051,11 @@ static bool InstallProtocol()
         puts("ERROR: File VIOPROT.INF is not in the current directory.");
         return false;
     }
+    if (!CopySelf())
+    {
+        puts("ERROR: Failed preparation for protocol installation.");
+        return false;
+    }
     puts("Installing VIOPROT");
     return !system("netcfg -v -l vioprot.inf -c p -i VIOPROT");
 }
@@ -1019,6 +1071,23 @@ int __cdecl main(int argc, char **argv)
     if (argc > 1)
     {
        s = argv[1];
+    }
+    if (!s.CompareNoCase("restartservice"))
+    {
+        // will run in session 0, but it is not a service
+        CService service(DummyService.ServiceName());
+        ULONG state = SERVICE_RUNNING;
+        for (UINT i = 0; i < 5; ++i)
+        {
+            if (!service.Query(state) && state == SERVICE_STOPPED)
+            {
+                CopySelf();
+                service.Start();
+                break;
+            }
+            Sleep(1000);
+        }
+        return 0;
     }
     if (CServiceImplementation::CheckInMain())
     {
