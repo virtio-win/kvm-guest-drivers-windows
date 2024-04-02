@@ -219,6 +219,8 @@ BOOLEAN SendUnplugAllRequest(IN WDFOBJECT WdfDevice)
 	INT result = 0;
 	virtio_mem_config configuration;
 
+	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Entry\n", __FUNCTION__);
+
 	//
 	// Fill unplug request and response command buffers with zeros before submission.
 	//
@@ -965,6 +967,8 @@ inline VOID AllocateMemoryRangeInMemoryBitmap(LONGLONG BaseAddress,
 
 BOOLEAN VirtioMemAddPhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Configuration)
 {
+	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Entry\n", __FUNCTION__);
+
 	NTSTATUS status = STATUS_SUCCESS;
 	BOOLEAN result = FALSE;
 	PHYSICAL_MEMORY_RANGE range;
@@ -995,6 +999,8 @@ BOOLEAN VirtioMemAddPhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Confi
 
 	if (!result)
 	{
+		TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s FindFreeMemoryRangeInBitmap failed FALSE\n", __FUNCTION__);
+
 		return FALSE;
 	}
 
@@ -1020,6 +1026,7 @@ BOOLEAN VirtioMemAddPhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Confi
 		// Request failed. There is no need to update anything (as memory has 
 		// not been added) so return error.
 		//
+		TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s SendPlugRequest failed FALSE\n", __FUNCTION__);
 
 		return FALSE;
 	}
@@ -1033,7 +1040,7 @@ BOOLEAN VirtioMemAddPhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Confi
 
 		if (!NT_SUCCESS(status))
 		{
-			TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "MmAddPhysicalMemory failed \n");
+			TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "%s MmAddPhysicalMemory failed 0x%x\n", __FUNCTION__, status);
 			return FALSE;
 		}
 
@@ -1047,6 +1054,8 @@ BOOLEAN VirtioMemAddPhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Confi
 			(ULONG)Configuration->block_size);
 	}
 
+	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Return TRUE\n", __FUNCTION__);
+
 	return TRUE;
 }
 
@@ -1056,6 +1065,8 @@ BOOLEAN VirtioMemAddPhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Confi
 
 BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Configuration)
 {
+	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Entry\n", __FUNCTION__);
+
 	NTSTATUS status = STATUS_SUCCESS;
 	BOOLEAN result = FALSE;
 	PHYSICAL_MEMORY_RANGE range = { 0 };
@@ -1088,6 +1099,8 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
 
 	if (!result)
 	{
+		TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s FindAllocatedMemoryRangeInBitmap failed FALSE\n", __FUNCTION__);
+
 		return FALSE;
 	}
 
@@ -1208,7 +1221,7 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
 					//
 
 					TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-						"MmAddPhysicalMemory failed\n");
+						"%s MmAddPhysicalMemory failed 0x%x\n", __FUNCTION__, status);
 
 				}		
 			}
@@ -1220,6 +1233,7 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
 	// Removal may fail because the system may already use the memory, but 
 	// this situation(for obvious reasons) is not considered an error.
 	//
+	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Return TRUE\n", __FUNCTION__);
 
 	return TRUE;
 }
@@ -1380,7 +1394,8 @@ VOID ViomemWorkerThread(
 							//
 							// Synchronization failed so quit this thread.
 							//
-
+							TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+								"Failed to SynchronizeDeviceAndDriverMemory...\n");
 							break;
 						}
 					}
