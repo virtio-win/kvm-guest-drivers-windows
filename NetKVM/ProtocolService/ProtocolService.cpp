@@ -777,6 +777,23 @@ public:
     }
 };
 
+class CSystemDirectory : public CString
+{
+public:
+    CSystemDirectory()
+    {
+        WCHAR* p = new WCHAR[MAX_PATH];
+        if (p)
+        {
+            if (GetSystemDirectory(p, MAX_PATH))
+            {
+                Append(p);
+                Append(L"\\");
+            }
+            delete[] p;
+        }
+    }
+};
 class CProtocolServiceImplementation :
     public CServiceImplementation,
     public CThreadOwner,
