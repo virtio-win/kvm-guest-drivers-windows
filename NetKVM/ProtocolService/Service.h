@@ -351,7 +351,7 @@ public:
     {
         return m_Registered;
     }
-    CString BinaryPath()
+    static CString BinaryPath()
     {
         CString s;
         HMODULE hModule = GetModuleHandle(NULL);
