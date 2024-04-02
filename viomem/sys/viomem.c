@@ -44,6 +44,7 @@ ViomemInit(IN WDFOBJECT    WdfDevice)
     u64 u64GuestFeatures = 0;
     bool notify_stat_queue = false;
     VIRTIO_WDF_QUEUE_PARAM params[3];
+    virtio_mem_config configReqest = { 0 };
     PVIOQUEUE vqs[3];
     ULONG nvqs;
     
@@ -92,7 +93,50 @@ ViomemInit(IN WDFOBJECT    WdfDevice)
 		if (NT_SUCCESS(status))
 		{
 			devCtx->infVirtQueue = vqs[0];
-			VirtIOWdfSetDriverOK(&devCtx->VDevice);
+
+			// 
+			// If bitmap buffer representing memory blocks is empty, 
+			// it means that we are starting, so we have to allocate memory 
+			// for the bitmap representing memory blocks (memory region)
+			//
+			VirtIOWdfDeviceGet(&devCtx->VDevice, 0, &configReqest, sizeof(configReqest));
+
+			//
+			// Calculate the size of bitmap representing memory region and 
+			// try to allocate memory for the bitmap.
+			//
+			// Note: each bit represents one block of memory where size of block 
+			//	     is equal to block_size field of VIRTIO_MEM_CONFIG.
+			//
+			ULONG bitmapSizeInBits = (ULONG)(configReqest.region_size / configReqest.block_size);
+
+			devCtx->bitmapBuffer = (ULONG*)ExAllocatePoolZero(NonPagedPool,
+				bitmapSizeInBits >> 3,
+				VIRTIO_MEM_POOL_TAG);
+
+			//
+			// If the memory was allocated init bitmap: assign the bitmap buffer to 
+			// handle and then reset bitmap bits to zero.
+			// If operation failed then try to add an event informing about failure and
+			// fail the driver initialization.
+			//
+			if (devCtx->bitmapBuffer != NULL)
+			{
+				RtlInitializeBitMap(&devCtx->memoryBitmapHandle, devCtx->bitmapBuffer,
+					bitmapSizeInBits);
+
+				RtlClearAllBits(&devCtx->memoryBitmapHandle);
+				
+				VirtIOWdfSetDriverOK(&devCtx->VDevice);
+			}
+			else
+			{
+				TraceEvents(TRACE_LEVEL_FATAL, DBG_PNP, "Can't allocate memory for memory bitmap!\n");
+
+				status = STATUS_INSUFFICIENT_RESOURCES;
+
+				VirtIOWdfSetDriverFailed(&devCtx->VDevice);
+			}
 		}
 		else
 		{
@@ -1322,54 +1366,6 @@ VOID ViomemWorkerThread(
 				if (devCtx->state == VIOMEM_PROCESS_STATE_INIT)
 				{
 					// 
-					// If bitmap buffer representing memory blocks is empty, 
-					// it means that we are starting, so we have to allocate memory 
-					// for the bitmap representing memory blocks (memory region)
-					//
-
-					if (devCtx->bitmapBuffer == NULL)
-					{
-						//
-						// Calculate the size of bitmap representing memory region and 
-						// try to allocate memory for the bitmap.
-						//
-						// Note: each bit represents one block of memory where size of block 
-						//	     is equal to block_size field of VIRTIO_MEM_CONFIG.
-						//
-
-						ULONG bitmapSizeInBits = (ULONG)(configReqest.region_size / configReqest.block_size);
-
-						devCtx->bitmapBuffer = (ULONG*)ExAllocatePoolZero(NonPagedPool,
-							bitmapSizeInBits >> 3,
-							VIRTIO_MEM_POOL_TAG);
-
-						//
-						// If the memory was allocated init bitmap: assign the bitmap buffer to 
-						// handle and then reset bitmap bits to zero.
-						// If operation failed then try to add an event informing about failure and
-						// finish the thread processing.
-						//
-
-						if (devCtx->bitmapBuffer != NULL)
-						{
-							RtlInitializeBitMap(&devCtx->memoryBitmapHandle, devCtx->bitmapBuffer,
-								bitmapSizeInBits);
-
-							RtlClearAllBits(&devCtx->memoryBitmapHandle);
-						}
-						else
-						{
-							//
-							// Memory allocation failure handler.
-							//
-
-							TraceEvents(TRACE_LEVEL_FATAL, DBG_PNP,
-								"Can't allocate memory for memory bitmap, exiting thread!\n");
-							break;
-						}
-					}
-
-					//
 					// If memory is plugged then issue UNPLUG ALL request.
 					//
 
