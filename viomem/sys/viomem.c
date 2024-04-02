@@ -1339,7 +1339,7 @@ VOID ViomemWorkerThread(
 
 						ULONG bitmapSizeInBits = (ULONG)(configReqest.region_size / configReqest.block_size);
 
-						devCtx->bitmapBuffer = (ULONG*)ExAllocatePoolZero(POOL_FLAG_NON_PAGED,
+						devCtx->bitmapBuffer = (ULONG*)ExAllocatePoolZero(NonPagedPool,
 							bitmapSizeInBits >> 3,
 							VIRTIO_MEM_POOL_TAG);
 
