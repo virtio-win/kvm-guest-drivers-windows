@@ -276,8 +276,7 @@ class CServiceImplementation
 {
 public:
     CServiceImplementation(LPCTSTR name) :
-        m_Name(name),
-        m_StopEvent(true)
+        m_Name(name)
     {
         Register(this);
     }
@@ -368,11 +367,14 @@ public:
     }
 protected:
     CString m_Name;
-    CEvent m_StopEvent;
+    void SetState(ULONG State)
+    {
+        m_State.Set(State);
+    }
     class CServiceState
     {
     public:
-        CServiceState()
+        CServiceState() : m_StopEvent(true)
         {
             status.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
             status.dwCurrentState = SERVICE_STOPPED;
@@ -382,13 +384,17 @@ protected:
             status.dwWin32ExitCode = NO_ERROR;
             status.dwServiceSpecificExitCode = 0;
         }
-        SERVICE_STATUS_HANDLE hService;
+        SERVICE_STATUS_HANDLE hService = NULL;
         SERVICE_STATUS status;
         void Set(ULONG state)
         {
             status.dwCurrentState = state;
             Log("%s: %s", __FUNCTION__, CService::StateName(state));
             SetServiceStatus(hService, &status);
+            if (state == SERVICE_STOPPED)
+            {
+                m_StopEvent.Set();
+            }
         }
         void Stoppable(bool b)
         {
@@ -409,6 +415,7 @@ protected:
             Log("%s = %d", __FUNCTION__, b);
             return b;
         }
+        CEvent m_StopEvent;
     };
     CServiceState m_State;
     void ServiceMain(_In_ ULONG dwArgc, _In_ LPTSTR *lpszArgv)
@@ -432,7 +439,7 @@ protected:
             {
                 m_State.Set(SERVICE_RUNNING);
             }
-            m_StopEvent.Wait();
+            m_State.m_StopEvent.Wait();
         }
         else
         {
@@ -452,15 +459,20 @@ protected:
             {
                 res = ERROR_CALL_NOT_IMPLEMENTED;
             }
-            else
+            else if (m_State.status.dwCurrentState == SERVICE_RUNNING)
             {
                 res = NO_ERROR;
                 m_State.Set(SERVICE_STOP_PENDING);
-                m_StopEvent.Set();
                 if (OnStop())
                 {
                     m_State.Set(SERVICE_STOPPED);
                 }
+            }
+            else
+            {
+                Log("%s: got STOP, current state %s(%d)", __FUNCTION__,
+                    CService::StateName(m_State.status.dwCurrentState),
+                    m_State.status.dwCurrentState);
             }
             break;
         default:

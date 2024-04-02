@@ -810,13 +810,12 @@ protected:
     }
     virtual bool OnStop() override
     {
+        bool res = !IsThreadRunning();
         StopThread();
         m_ThreadEvent.Set();
-        while (IsThreadRunning())
-        {
-            Sleep(50);
-        }
-        return true;
+        // if the thread is running, it will indicate stopped
+        // state when the thread is terminated
+        return res;
     }
     virtual void ThreadProc()
     {
@@ -862,6 +861,12 @@ protected:
         }
         CoUninitialize();
     }
+    void ThreadTerminated(tThreadState previous)
+    {
+        __super::ThreadTerminated(previous);
+        SetState(SERVICE_STOPPED);
+    }
+
     void Dump()
     {
         CMutexProtect pr(m_AdaptersMutex);
