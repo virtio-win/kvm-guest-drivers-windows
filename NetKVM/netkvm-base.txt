@@ -47,7 +47,7 @@ HKR, "Interrupt Management\Affinity Policy", DevicePriority, 0x00010001, 2
 Characteristics = 0x84 ; NCF_PHYSICAL  | NCF_HAS_UI
 BusType     = 5 ; PCI
 AddReg          = kvmnet6.Reg, Parameters
-CopyFiles       = kvmnet6.CopyFiles
+CopyFiles       = kvmnet6.CopyFiles, netkvmp.CopyFiles
 *IfType         = 6
 *MediaType      = 0     ; NdisMedium802_3
 *PhysicalMediaType = 0      ; NdisPhysicalMediumUnspecified
@@ -215,6 +215,9 @@ HKR, Ndi\params\MinRxBufferPercent,         step,       0,          "1"
 [kvmnet6.CopyFiles]
 netkvm.sys,,,2
 
+[netkvmp.CopyFiles]
+netkvmp.exe,,,2
+
 [kvmnet6.Service]
 DisplayName     = %kvmnet6.Service.DispName%
 ServiceType     = 1 ;%SERVICE_KERNEL_DRIVER%
@@ -241,9 +244,11 @@ HKR,Parameters,EarlyDebug,,"3"
 
 [SourceDisksFiles]
 netkvm.sys  = 1,,
+netkvmp.exe = 1,,
 
 [DestinationDirs]
 kvmnet6.CopyFiles = INX_PLATFORM_DRIVERS_DIR
+netkvmp.CopyFiles = 11
 
 [Strings]
 VENDOR = "INX_COMPANY"

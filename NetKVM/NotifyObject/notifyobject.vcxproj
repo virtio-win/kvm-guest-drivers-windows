@@ -110,7 +110,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Inf Exclude="@(Inf)" Include="vioprot.inf" />
-    <FilesToPackage Include="$(ProjectDir)..\ProtocolService\$(PlatformTarget)\$(ConfigurationName)\netkvmp.exe" />
   </ItemGroup>
   <ItemGroup>
     <None Exclude="@(None)" Include="*.txt;*.htm;*.html" />

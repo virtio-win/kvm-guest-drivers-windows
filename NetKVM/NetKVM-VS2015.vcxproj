@@ -156,6 +156,8 @@
         xcopy /y /q $(OutDir)netkvm.pdb $(InstallRoot)\$(TargetOS)\$(TargetArch)\
         xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(InstallRoot)\$(TargetOS)\$(TargetArch)\
         xcopy /y /q $(OutDir)$(ProjectName)\netkvm.sys $(InstallRoot)\$(TargetOS)\$(TargetArch)\
+        xcopy /y /q $(OutDir)$(ProjectName)\netkvmp.exe $(InstallRoot)\$(TargetOS)\$(TargetArch)\
+        xcopy /y /q $(OutDir)$(ProjectName)\netkvmp.pdb $(InstallRoot)\$(TargetOS)\$(TargetArch)\
         xcopy /y /q $(ProjectDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.exe $(InstallRoot)\$(TargetOS)\$(TargetArch)\
         xcopy /y /q $(ProjectDir)CoInstaller\$(ConfigurationName)\$(PlatformTarget)\netkvmco.pdb $(InstallRoot)\$(TargetOS)\$(TargetArch)\
         xcopy /y /q $(ProjectDir)Documentation\readme.md $(InstallRoot)\$(TargetOS)\$(TargetArch)\
@@ -199,6 +201,8 @@
       </PackageRelativeDirectory>
     </FilesToPackage>
     <FilesToPackage Include="@(Inf->'%(CopyOutput)')" Condition="'@(Inf)'!=''" />
+    <FilesToPackage Include="ProtocolService\$(PlatformTarget)\$(ConfigurationName)\netkvmp.exe" />
+    <FilesToPackage Include="ProtocolService\$(PlatformTarget)\$(ConfigurationName)\netkvmp.pdb" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Common\DebugData.h" />
