@@ -74,6 +74,7 @@ public:
             si.dwFlags |= STARTF_USESTDHANDLES;
         }
 
+        Log(" Running %S ...", CommandLine.GetString());
         if (CreateProcess(NULL, CommandLine.GetBuffer(), NULL, NULL, m_Redirect, CREATE_SUSPENDED, NULL, _T("."), &si, &pi))
         {
             if (m_Redirect)
@@ -82,6 +83,7 @@ public:
                 m_StdErr.CloseWrite();
             }
             ResumeThread(pi.hThread);
+            Log(" Running %S succeded", CommandLine.GetString());
             while (m_WaitTime && WaitForSingleObject(pi.hProcess, m_WaitTime) == WAIT_TIMEOUT)
             {
                 if (ShouldTerminate())
@@ -96,6 +98,10 @@ public:
                 exitCode = GetLastError();
             }
             PostProcess(exitCode);
+        }
+        else
+        {
+            Log(" Running %S failed, error %d", CommandLine.GetString(), GetLastError());
         }
         if (pi.hProcess) CloseHandle(pi.hProcess);
         if (pi.hThread) CloseHandle(pi.hThread);
