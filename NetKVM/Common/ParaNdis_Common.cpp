@@ -350,8 +350,10 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
 #endif
             pContext->uMaxFragmentsInOneNB = MAX_FRAGMENTS_IN_ONE_NB;
 #if PARANDIS_SUPPORT_POLL
-            // Win10: poll mode is disabled by compilation, keyword is not in the INF
-            // Win11: poll mode is enabled by compilation, keyword is in the INF, but ignored for NDIS < 6.89
+            // Win10 build: poll mode keyword is not in the INF, poll mode is disabled by compilation
+            // Win11 build: poll mode keyword is in the INF
+            // The poll mode keyword setting has effect currently only on Server 2025 (NDIS 6.89)
+            // TODO - check Win11 24H2, probably on it the poll mode will work also
             pContext->bPollModeTry = pConfiguration->PollMode.ulValue && CheckOSNdisVersion(6,89) ? TRUE : FALSE;
 #endif
             if (!pContext->bDoSupportPriority)
