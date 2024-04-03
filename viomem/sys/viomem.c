@@ -1297,13 +1297,152 @@ BOOLEAN IsMemoryRangeInUse(LONGLONG StartAddress, LONGLONG Size)
 }
 
 //
+// Function sends VIRTIO_MEM_REQ_STATE request to a device.
+//	
+//	Arguments: WdfDevice: device
+//			   Address:			address of memory block to unplug
+//			   NumberOfBlocks:	a number of contiguous blocks starting 
+//                              at Address  
+//								
+//  Return value: TRUE if STATE operation finished with success and 
+//						set state variable 
+//				  FALSE if timeout occurred or device returned an error code
+//
+
+BOOLEAN SendStateRequest(
+	IN WDFOBJECT WdfDevice,
+	__virtio64 Address,
+	__virtio16 NumberOfBlocks,
+	__virtio16* state)
+{
+	PDEVICE_CONTEXT devCtx = GetDeviceContext(WdfDevice);
+	VIO_SG              sg[2];
+	LARGE_INTEGER       timeout = { 0 };
+	BOOLEAN				do_notify = FALSE;
+	NTSTATUS            status;
+	PVOID buffer;
+	UINT len;
+	INT result = 0;
+
+	//
+	// Fill unplug request and response command buffers with zeros before submission.
+	//
+
+	memset(devCtx->MemoryResponse, 0, sizeof(virtio_mem_resp));
+	memset(devCtx->plugRequest, 0, sizeof(virtio_mem_req));
+
+	//
+	// Build STATE request command.
+	//
+
+	devCtx->plugRequest->type = VIRTIO_MEM_REQ_STATE;
+	devCtx->plugRequest->u.state.addr = Address;
+	devCtx->plugRequest->u.state.nb_blocks = NumberOfBlocks;
+
+	sg[0].physAddr = VirtIOWdfDeviceGetPhysicalAddress(&devCtx->VDevice.VIODevice,
+		devCtx->plugRequest);
+	sg[0].length = sizeof(virtio_mem_req);
+
+
+	sg[1].physAddr = VirtIOWdfDeviceGetPhysicalAddress(&devCtx->VDevice.VIODevice,
+		devCtx->MemoryResponse);
+	sg[1].length = sizeof(virtio_mem_resp);
+
+	WdfSpinLockAcquire(devCtx->infVirtQueueLock);
+	result = virtqueue_add_buf(devCtx->infVirtQueue, sg, 1, 1, devCtx, NULL, 0);
+
+	if (result < 0)
+	{
+		WdfSpinLockRelease(devCtx->infVirtQueueLock);
+
+		TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
+			"%s: Cannot add buffer = [0x%x]\n", __FUNCTION__, result);
+		return FALSE;
+	}
+	else
+	{
+		do_notify = virtqueue_kick_prepare(devCtx->infVirtQueue);
+	}
+
+	WdfSpinLockRelease(devCtx->infVirtQueueLock);
+
+	if (do_notify)
+	{
+		virtqueue_notify(devCtx->infVirtQueue);
+	}
+
+	//
+	// Wait for device response. If timeout return false
+	//
+
+	timeout.QuadPart = Int32x32To64(1000, -10000);
+	status = KeWaitForSingleObject(
+		&devCtx->hostAcknowledge,
+		Executive,
+		KernelMode,
+		FALSE,
+		&timeout);
+
+	if (STATUS_TIMEOUT == status)
+	{
+		TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "%s TimeOut\n", __FUNCTION__);
+		return FALSE;
+	}
+
+	WdfSpinLockAcquire(devCtx->infVirtQueueLock);
+	if (virtqueue_has_buf(devCtx->infVirtQueue))
+	{
+		// 
+		// Remove buffer from the virtio queue.
+		//
+
+		buffer = virtqueue_get_buf(devCtx->infVirtQueue, &len);
+		if (buffer)
+		{
+			TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
+				"%s Buffer got, len = [%d]!\n", __FUNCTION__, len);
+		}
+		else
+		{
+			TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
+				"%s No buffer got, len = [%d]!\n", __FUNCTION__, len);
+
+			WdfSpinLockRelease(devCtx->infVirtQueueLock);
+			return FALSE;
+		}
+	}
+
+	WdfSpinLockRelease(devCtx->infVirtQueueLock);
+
+#if 0
+	DumpViomemResponseType(devCtx->MemoryResponse);
+#endif
+
+	if (devCtx->MemoryResponse->type == VIRTIO_MEM_RESP_ACK)
+	{
+		*state = devCtx->MemoryResponse->u.state.state;
+		TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
+			"%s For address 0x%I64x, blocks count %hu get state %hu\n", __FUNCTION__,
+			Address, NumberOfBlocks, devCtx->MemoryResponse->u.state.state);
+
+		return TRUE;
+	}
+
+	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
+		"%s Failed to get state for address 0x%I64x, blocks count %hu\n", __FUNCTION__,
+		Address, NumberOfBlocks);
+
+	return FALSE;
+}
+
+//
 // Function synchronizes host virtio-mem device and guest driver during 
 // initialization.
 // 
 // Notes:
 //		   1. According to virtio-spec, if after reset driver detects that memory
 //		   is plugged (plugged_size > 0) the driver should: unplug memory or 
-//         issue a STATE command. In this function UNPLUG ALL is issued.
+//         issue a STATE command. In this function STATE is issued.
 //  
 //		   2. According to section 5.15.6.2 of virtio spec[Device Requirements: 
 //	       Device Operation], "the device should unplug all memory blocks 
@@ -1319,11 +1458,55 @@ BOOLEAN SynchronizeDeviceAndDriverMemory(IN WDFOBJECT Device,
 	if (devCtx)
 	{
 		//
-		// Send request to unplug all memory blocks
-		//
+		// Set all bit for unplaghed state
+		// bitmap will be filled with STATE requests
+ 		//
+		RtlClearAllBits(&devCtx->memoryBitmapHandle);
 
-		result = SendUnplugAllRequest(Device);
-		return result;
+		// region_size 
+		//		is the size of device-managed memory region in bytes. Cannot change.
+		// usable_region_size
+		//	    is the size of the usable device-managed memory region. Can grow up to region_size.
+		//	    Can only shrink due to VIRTIO_MEM_REQ_UNPLUG_ALL requests.
+		// 
+		// STATE request for memory > usable_region_size always FAIL
+
+		ULONG NumberOfBlocks = (ULONG)(min(Config->region_size, Config->usable_region_size) / Config->block_size);
+
+		PHYSICAL_ADDRESS address = { 0 };
+		address.QuadPart = (LONGLONG)Config->addr;
+
+		for (ULONG blockId = 0; blockId < NumberOfBlocks; blockId++)
+		{
+			__virtio16 state;
+			__virtio64 startBlockAddr = Config->addr + blockId * Config->block_size;
+
+			TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP,
+				"Processing block id=%d startBlockAddr=0x%I64x endBlockAddr=0x%I64x\n",
+				blockId, startBlockAddr, startBlockAddr + Config->block_size);
+
+			if (SendStateRequest(Device, startBlockAddr, 1, &state))
+			{
+				if (state == VIRTIO_MEM_STATE_PLUGGED)
+				{
+					PHYSICAL_MEMORY_RANGE range;
+
+					range.BaseAddress.QuadPart = (LONGLONG)startBlockAddr;
+					range.NumberOfBytes.QuadPart = (LONGLONG)Config->block_size;
+
+					AllocateMemoryRangeInMemoryBitmap(address.QuadPart,
+						&range,
+						&devCtx->memoryBitmapHandle,
+						(ULONG)Config->block_size);
+				}
+			}
+			else
+			{
+				return FALSE;
+			}
+		}
+
+		return TRUE;
 	}
 
 	return FALSE;
@@ -1372,15 +1555,16 @@ VOID ViomemWorkerThread(
 				VirtIOWdfDeviceGet(&devCtx->VDevice, 0, &configReqest, sizeof(configReqest));
 
 				TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, 
-					"Memory config: address [%I64x] requested_size [%I64x] plugged_size[%I64x]\n",
+					"Memory config: address [%I64x] requested_size [%I64x] plugged_size[%I64x] usable_region_size[%I64x]\n",
 					configReqest.addr,
 					configReqest.requested_size,
-					configReqest.plugged_size);
+					configReqest.plugged_size,
+					configReqest.usable_region_size);
 
 				if (devCtx->state == VIOMEM_PROCESS_STATE_INIT)
 				{
 					// 
-					// If memory is plugged then issue UNPLUG ALL request.
+					// If memory is plugged then issue STATE requests.
 					//
 
 					if (configReqest.plugged_size > 0)
