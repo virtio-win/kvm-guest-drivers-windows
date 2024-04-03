@@ -1589,7 +1589,6 @@ VOID ViomemWorkerThread(
 					//
 
 					devCtx->state = VIOMEM_PROCESS_STATE_RUNNING;
-					continue;
 				}
 
 				//
