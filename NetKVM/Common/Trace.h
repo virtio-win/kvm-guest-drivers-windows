@@ -19,7 +19,7 @@
 #define TraceNoPrefix DPrintf
 #endif
 
-#define POLL_PRINT_LEVEL 2
+#define POLL_PRINT_LEVEL 3
 
 //
 // Define the tracing flags.

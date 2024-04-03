@@ -354,7 +354,7 @@ void CParaNdisTX::CompleteOutstandingNBLChain(PNET_BUFFER_LIST NBL, ULONG Flags)
 {
     ULONG NBLNum = ParaNdis_CountNBLs(NBL);
 
-    DPrintf(POLL_PRINT_LEVEL, "[%s] completing %d nbls\n", __FUNCTION__, NBLNum);
+    DPrintf(3, "[%s] completing %d nbls\n", __FUNCTION__, NBLNum);
     ParaNdis_CompleteNBLChain(m_Context->MiniportHandle, NBL, Flags);
 
     m_StateMachine.UnregisterOutstandingItems(NBLNum);
