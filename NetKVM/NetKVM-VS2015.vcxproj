@@ -259,7 +259,7 @@
     <None Include="tools\make_inf.bat" />
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="$(SourceInfFile)" />
+    <Inf Include="$(SourceInfFile)" CopyOutput="netkvm.inf" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.targets" />
