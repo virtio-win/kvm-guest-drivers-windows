@@ -324,14 +324,14 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             if (pConfiguration->USOv4Supported.ulValue)
             {
                 // Uncomment later
-                // pContext->InitialOffloadParameters.UdpSegmentation.IPv4 = (UCHAR)pConfiguration->USOv4Supported.ulValue;
-                // pContext->Offload.flagsValue |= osbT4Uso;
+                pContext->InitialOffloadParameters.UdpSegmentation.IPv4 = (UCHAR)pConfiguration->USOv4Supported.ulValue;
+                pContext->Offload.flagsValue |= osbT4Uso;
             }
             if (pConfiguration->USOv6Supported.ulValue)
             {
                 // Uncomment later
-                // pContext->InitialOffloadParameters.UdpSegmentation.IPv6 = (UCHAR)pConfiguration->USOv6Supported.ulValue;
-                // pContext->Offload.flagsValue |= osbT6Uso;
+                pContext->InitialOffloadParameters.UdpSegmentation.IPv6 = (UCHAR)pConfiguration->USOv6Supported.ulValue;
+                pContext->Offload.flagsValue |= osbT6Uso;
             }
 #endif
             pContext->ulPriorityVlanSetting = pConfiguration->PriorityVlanTagging.ulValue;
@@ -461,6 +461,7 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
         {VIRTIO_NET_F_RSS, "VIRTIO_NET_F_RSS" },
         {VIRTIO_NET_F_HASH_REPORT, "VIRTIO_NET_F_HASH_REPORT" },
         {VIRTIO_NET_F_STANDBY, "VIRTIO_NET_F_STANDBY" },
+        {VIRTIO_NET_F_HOST_USO, "VIRTIO_NET_F_HOST_USO" },
     };
     UINT i;
     for (i = 0; i < sizeof(Features)/sizeof(Features[0]); ++i)
