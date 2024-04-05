@@ -238,8 +238,16 @@ struct CPUPathBundle : public CPlacementAllocatable {
 #define PARANDIS_MEMORY_TAG                 '5muQ'
 #define PARANDIS_DEFAULT_LINK_SPEED         10000000000  // 10Gbps link speed
 #define PARANDIS_MIN_LSO_SEGMENTS           2
-// reported
+// reported for TSO
 #define PARANDIS_MAX_LSO_SIZE               0xF800
+
+// with this define HLK USO passes with change MAX_USO_SEGMENTS 64->128 in kernel
+// #define PARANDIS_MAX_USO_SIZE               PARANDIS_MAX_LSO_SIZE
+
+#if !defined(PARANDIS_MAX_USO_SIZE)
+//kernel has a limitation of 64 segments, minimal mss in Windows is 536
+#define PARANDIS_MAX_USO_SIZE               (536 * 64)
+#endif
 
 #define PARANDIS_UNLIMITED_PACKETS_TO_INDICATE  (~0ul)
 
