@@ -874,12 +874,19 @@ static void FillOffloadStructure(NDIS_OFFLOAD *po, tOffloadSettingsFlags f)
     if (CheckNdisVersion(6, 83))
     {
         po->UdpSegmentation.IPv4.Encapsulation = f.fUsov4 ? NDIS_ENCAPSULATION_IEEE_802_3 : NDIS_ENCAPSULATION_NOT_SUPPORTED;
-        po->UdpSegmentation.IPv4.MaxOffLoadSize = f.fUsov4 ? PARANDIS_MAX_LSO_SIZE : 0;
+        po->UdpSegmentation.IPv4.MaxOffLoadSize = f.fUsov4 ? PARANDIS_MAX_USO_SIZE : 0;
         po->UdpSegmentation.IPv4.MinSegmentCount = f.fUsov4 ? PARANDIS_MIN_LSO_SEGMENTS : 0;
 
         po->UdpSegmentation.IPv6.Encapsulation = f.fUsov6 ? NDIS_ENCAPSULATION_IEEE_802_3 : NDIS_ENCAPSULATION_NOT_SUPPORTED;
-        po->UdpSegmentation.IPv6.MaxOffLoadSize = f.fUsov6 ? PARANDIS_MAX_LSO_SIZE : 0;
+        po->UdpSegmentation.IPv6.MaxOffLoadSize = f.fUsov6 ? PARANDIS_MAX_USO_SIZE : 0;
         po->UdpSegmentation.IPv6.MinSegmentCount = f.fUsov6 ? PARANDIS_MIN_LSO_SEGMENTS : 0;
+#if (NDIS_SUPPORT_NDIS684)
+        if (CheckNdisVersion(6, 84))
+        {
+            po->UdpSegmentation.IPv4.SubMssFinalSegmentSupported = f.fUsov4 ? 1 : 0;
+            po->UdpSegmentation.IPv6.SubMssFinalSegmentSupported = f.fUsov6 ? 1 : 0;
+        }
+#endif
     }
 #endif
 }
