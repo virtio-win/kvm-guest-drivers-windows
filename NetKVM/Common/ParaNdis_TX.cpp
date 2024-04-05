@@ -174,7 +174,7 @@ bool CNBL::ParseLSO()
 #if PARANDIS_SUPPORT_USO
 bool CNBL::ParseUSO()
 {
-    if (m_MaxDataLength > PARANDIS_MAX_LSO_SIZE + (ULONGLONG)LsoTcpHeaderOffset() + sizeof(UDPHeader))
+    if (m_MaxDataLength > PARANDIS_MAX_USO_SIZE + (ULONGLONG)m_UsoInfo.Transmit.UdpHeaderOffset + sizeof(UDPHeader))
         return false;
     if (!m_UsoInfo.Transmit.MSS || !m_UsoInfo.Transmit.UdpHeaderOffset)
         return false;
