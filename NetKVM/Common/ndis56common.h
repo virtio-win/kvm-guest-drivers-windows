@@ -333,7 +333,6 @@ typedef struct _tagOffloadSettings
     /* load once, do not modify - bitmask of offload features, enabled in configuration */
     ULONG flagsValue;
     ULONG ipHeaderOffset;
-    ULONG maxPacketSize;
 }tOffloadSettings;
 
 typedef struct _tagChecksumCheckResult

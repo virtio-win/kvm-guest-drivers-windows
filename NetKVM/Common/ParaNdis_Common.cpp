@@ -306,9 +306,6 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             if (pConfiguration->OffloadRxCS.ulValue & 4) pContext->Offload.flagsValue |= osbT4RxIPChecksum | osbT4RxIPOptionsChecksum;
             if (pConfiguration->OffloadRxCS.ulValue & 8) pContext->Offload.flagsValue |= osbT6RxTCPChecksum | osbT6RxTCPOptionsChecksum;
             if (pConfiguration->OffloadRxCS.ulValue & 16) pContext->Offload.flagsValue |= osbT6RxUDPChecksum;
-            /* full packet size that can be configured as GSO for VIRTIO is short */
-            /* NDIS test fails sometimes fails on segments 50-60K */
-            pContext->Offload.maxPacketSize = PARANDIS_MAX_LSO_SIZE;
             /* InitialOffloadParameters is used only internally */
             pContext->InitialOffloadParameters.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
             pContext->InitialOffloadParameters.Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_1;
