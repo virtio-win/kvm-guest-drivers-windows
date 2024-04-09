@@ -809,6 +809,11 @@ CNB::~CNB()
     {
         NdisMFreeNetBufferSGList(m_Context->DmaHandle, m_SGL, m_NB);
     }
+    if (m_ExtraNBStorage)
+    {
+        // for unknown case it was not freed before
+        ReturnPages();
+    }
 }
 
 void CNB::ReleaseResources()
@@ -1221,6 +1226,8 @@ NBMappingStatus CNB::AllocateAndFillCopySGL(ULONG ParsedHeadersLength)
     RtlZeroMemory(m_ExtraNBStorage, sizeof(CExtendedNBStorage));
     if (!m_ParentNBL->GetParentTXPath()->BorrowPages(m_ExtraNBStorage, Pages))
     {
+        NdisFreeMemory(m_ExtraNBStorage, sizeof(CExtendedNBStorage), 0);
+        m_ExtraNBStorage = NULL;
         return NBMappingStatus::NO_RESOURCE;
     }
 
