@@ -35,6 +35,7 @@
     <ProjectName>virtiofs</ProjectName>
     <PlatformToolset>AutoVSToolset</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
+    <EnableCppModules>false</EnableCppModules>
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'" Label="Configuration">
