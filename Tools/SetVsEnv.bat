@@ -5,8 +5,8 @@ set CODEQL_DRIVER_SUITES=%CODEQL_HOME%\Windows-Driver-Developer-Supplemental-Too
 
 if not "%EnterpriseWDK%"=="" goto ready
 if "%1"=="Win11" (
-    if "%EWDK11_22H2_DIR%"=="" set EWDK11_22H2_DIR=c:\ewdk11_22h2
-    call %EWDK11_22H2_DIR%\BuildEnv\SetupBuildEnv.cmd
+    if "%EWDK11_24H2_DIR%"=="" set EWDK11_24H2_DIR=c:\ewdk11_24h2
+    call %EWDK11_24H2_DIR%\BuildEnv\SetupBuildEnv.cmd
     goto :eof
 ) else (
     if "%EWDK11_DIR%"=="" set EWDK11_DIR=c:\ewdk11
