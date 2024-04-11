@@ -196,6 +196,9 @@ msbuild.exe -maxCpuCount %BUILD_FILE% /t:%__TARGET__% /p:Configuration="%~1" /P:
 goto :eof
 
 :runsdv
+echo "Removing previously created SDV artifacts"
+rmdir /s/q sdv
+
 msbuild.exe -maxCpuCount %BUILD_FILE% /t:clean /p:Configuration="%~1" /P:Platform=%2
 
 IF ERRORLEVEL 1 (
