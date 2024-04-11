@@ -221,7 +221,7 @@ goto :eof
 echo "Removing previously created rules database"
 rmdir /s/q codeql_db
 
-echo call "%~dp0\SetVsEnv.bat" x86 > %~dp1\codeql.build.bat
+echo call "%~dp0\SetVsEnv.bat" %~1 > %~dp1\codeql.build.bat
 echo msbuild.exe -maxCpuCount %~dp1\%BUILD_FILE% /t:rebuild /p:Configuration="%~1" /P:Platform=%2 >> %~dp1\codeql.build.bat
 
 call %CODEQL_BIN% database create -l=cpp -s=%~dp1 -c "%~dp1\codeql.build.bat" %~dp1\codeql_db -j 0
