@@ -1,6 +1,7 @@
 @echo off
 if "%CODEQL_HOME%"=="" set CODEQL_HOME=c:\codeql-home
 set CODEQL_BIN=%CODEQL_HOME%\codeql\codeql.cmd
+set CODEQL_DRIVER_SUITES=%CODEQL_HOME%\Windows-Driver-Developer-Supplemental-Tools\suites
 
 if not "%EnterpriseWDK%"=="" goto ready
 if "%1"=="Win11" (
