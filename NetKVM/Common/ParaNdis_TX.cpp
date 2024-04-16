@@ -783,6 +783,9 @@ bool CParaNdisTX::DoPendingTasks(CNBL *nblHolder)
                 m_VirtQueue.ProcessTXCompletions(nbToFree);
                 bRestartQueueStatus = SendMapped(true, completedNBLs);
             }
+
+            bRestartQueueStatus |= !m_SendQueue.IsEmpty();
+
         } else
         {
             // the call initiated by Send(), we can give up
