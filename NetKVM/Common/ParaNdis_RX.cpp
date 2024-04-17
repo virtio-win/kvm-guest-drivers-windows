@@ -39,10 +39,21 @@ static BOOLEAN ParaNdis_BindRxBufferToPacket(
 
     for (i = PARANDIS_FIRST_RX_DATA_PAGE; i < p->BufferSGLength; i++)
     {
-        *NextMdlLinkage = NdisAllocateMdl(
-            pContext->MiniportHandle,
-            p->PhysicalPages[i].Virtual,
-            p->PhysicalPages[i].size);
+        //For the first physical page, which contains the VirtioHeader information, special handling is required.
+        if (0 == i)
+        {
+            *NextMdlLinkage = NdisAllocateMdl(
+                pContext->MiniportHandle,
+                (PVOID)((PCHAR)p->PhysicalPages[i].Virtual + pContext->nVirtioHeaderSize),
+                p->PhysicalPages[i].size - pContext->nVirtioHeaderSize);
+        }
+        else
+        {
+            *NextMdlLinkage = NdisAllocateMdl(
+                pContext->MiniportHandle,
+                (PVOID)((PCHAR)p->PhysicalPages[i].Virtual),
+                p->PhysicalPages[i].size);
+        }
         if (*NextMdlLinkage == NULL) goto error_exit;
 
         NextMdlLinkage = &(NDIS_MDL_LINKAGE(*NextMdlLinkage));
@@ -66,6 +77,7 @@ static void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDe
     {
         ParaNdis_FreePhysicalMemory(pContext, &p->PhysicalPages[i]);
     }
+    ParaNdis_FreePhysicalMemory(pContext, &p->IndirectArea);
 
     if (p->BufferSGArray) NdisFreeMemory(p->BufferSGArray, 0, 0);
     if (p->PhysicalPages) NdisFreeMemory(p->PhysicalPages, 0, 0);
@@ -164,7 +176,7 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
     while (ulNumPages > 0)
     {
         // Allocate the first page separately, the rest can be one contiguous block
-        ULONG ulPagesToAlloc = (p->BufferSGLength == 0 ? 1 : ulNumPages);
+        ULONG ulPagesToAlloc = ulNumPages;
 
         while (!ParaNdis_InitialAllocatePhysicalMemory(
                     m_Context,
@@ -185,14 +197,11 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
         p->BufferSGLength++;
     }
 
-    //First page is for virtio header, size needs to be adjusted correspondingly
-    p->BufferSGArray[0].length = m_Context->nVirtioHeaderSize;
-
-    ULONG indirectAreaOffset = ALIGN_UP(m_Context->nVirtioHeaderSize, ULONGLONG);
-    //Pre-cache indirect area addresses
-    p->IndirectArea.Physical.QuadPart = p->PhysicalPages[0].Physical.QuadPart + indirectAreaOffset;
-    p->IndirectArea.Virtual = RtlOffsetToPointer(p->PhysicalPages[0].Virtual, indirectAreaOffset);
-    p->IndirectArea.size = PAGE_SIZE - indirectAreaOffset;
+    //Allocate an entire physical page to store the indirect Area separately.
+    //Subsequently, the last page of the packet can be utilized to store the indirect area, optimizing memory usage.
+    //Currently, this is only for discussion purposes.
+    if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, PAGE_SIZE, &p->IndirectArea))
+        goto error_exit;
 
     if (!ParaNdis_BindRxBufferToPacket(m_Context, p))
         goto error_exit;
@@ -438,7 +447,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 
         // basic MAC-based analysis + L3 header info
         BOOLEAN packetAnalysisRC = ParaNdis_AnalyzeReceivedPacket(
-            pBufferDescriptor->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE].Virtual,
+            PVOID((PCHAR)(pBufferDescriptor->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE].Virtual) + m_Context->nVirtioHeaderSize),
             nFullLength - m_Context->nVirtioHeaderSize,
             &pBufferDescriptor->PacketInfo);
 
