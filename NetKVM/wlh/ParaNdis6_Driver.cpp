@@ -1074,6 +1074,13 @@ static void SetRuntimeNdisVersion()
         major = NDIS_MINIPORT_MAJOR_VERSION;
         minor = NDIS_MINIPORT_MINOR_VERSION;
     }
+    else if (NDIS_MINIPORT_MINOR_VERSION == 86 && osMinor >= 89)
+    {
+        // temporary, to allow building driver
+        // suitable for HCK 2025 before complete
+        // EWDK environment is ready
+        minor = 89;
+    }
     else if (minor >= NDIS_MINIPORT_MINOR_VERSION)
     {
         minor = NDIS_MINIPORT_MINOR_VERSION;
