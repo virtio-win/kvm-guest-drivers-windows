@@ -91,12 +91,6 @@
   <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <PropertyGroup Label="Configuration">
-    <SourceInfFile Condition="'$(USE_VIOSOCK_COINSTALLER)'!=''">viosock_co.inx</SourceInfFile>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Platform)'=='x64'">
-    <SourceInfFile Condition="'$(USE_VIOSOCK_COINSTALLER)'!=''">viosock_wow_co.inx</SourceInfFile>
-  </PropertyGroup>
   <PropertyGroup Label="PropertySheets">
     <DriverTargetPlatform Condition="'$(USE_VIOSOCK_COINSTALLER)'!=''">Desktop</DriverTargetPlatform>
   </PropertyGroup>
