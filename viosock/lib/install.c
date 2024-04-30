@@ -154,37 +154,3 @@ DeinstallProtocol()
     }
     return bRes;
 }
-
-DWORD
-CALLBACK
-ViosockCoInstaller(
-    IN DI_FUNCTION InstallFunction,
-    IN HDEVINFO DeviceInfoSet,
-    IN PSP_DEVINFO_DATA DeviceInfoData OPTIONAL,
-    IN OUT PCOINSTALLER_CONTEXT_DATA Context)
-{
-    DWORD error = NO_ERROR;
-
-    UNREFERENCED_PARAMETER(DeviceInfoSet);
-    UNREFERENCED_PARAMETER(DeviceInfoData);
-    UNREFERENCED_PARAMETER(Context);
-
-    switch (InstallFunction)
-    {
-    case DIF_INSTALLDEVICE:
-        DeinstallProtocol();
-        if (!InstallProtocol())
-            error = GetLastError();
-        break;
-
-    case DIF_REMOVE:
-        if (!DeinstallProtocol())
-            error = GetLastError();
-        break;
-
-    default:
-        break;
-    }
-
-    return error;
-}
