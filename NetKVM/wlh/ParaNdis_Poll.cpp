@@ -90,6 +90,13 @@ void NdisPollHandler::EnableNotification(BOOLEAN Enable)
     }
 }
 
+// normal cycle of polling is (<= is callback, => is call):
+// <= enable notification
+// notify ... trigger ... => request poll
+// <= disable notification
+// <= handle poll
+// <= enable notification
+// <= handle poll
 void NdisPollHandler::HandlePoll(NDIS_POLL_DATA* PollData)
 {
     DPrintf(POLL_PRINT_LEVEL, "[%s] #%d\n", __FUNCTION__, m_Index);
@@ -97,7 +104,8 @@ void NdisPollHandler::HandlePoll(NDIS_POLL_DATA* PollData)
 
     // RX
     RxPoll(m_AdapterContext, m_Index, PollData->Receive);
-    if (PollData->Receive.NumberOfIndicatedNbls)
+    if (PollData->Receive.NumberOfIndicatedNbls ||
+        PollData->Receive.NumberOfRemainingNbls)
     {
         DPrintf(POLL_PRINT_LEVEL, "[%s] RX #%d indicated %d, max %d, still here %d\n",
             __FUNCTION__, m_Index, PollData->Receive.NumberOfIndicatedNbls,
@@ -111,7 +119,21 @@ void NdisPollHandler::HandlePoll(NDIS_POLL_DATA* PollData)
         if (bundle->txPath.DoPendingTasks(NULL))
         {
             PollData->Transmit.NumberOfRemainingNbls = NDIS_ANY_NUMBER_OF_NBLS;
+            DPrintf(POLL_PRINT_LEVEL, "[%s] TX #%d requests attention\n",
+                __FUNCTION__, bundle->txPath.getQueueIndex());
         }
+    }
+    // There are various cases when RX returns 0 NBLs and NumberOfRemainingNbls != 0.
+    // TX currently always returns 0 NBLs and sometimes NumberOfRemainingNbls != 0.
+    // In these cases poll thread still may decide that there is no progress and then
+    // start waiting for notifications but they may never come.
+    // When there is a reason to resume polling - issue notification.
+    // It will trigger the polling if notifications are enabled (m_EnableNotify==0)
+    // Otherwise (m_EnableNotify>0) this has no effect and that's ok, this means
+    // the handler will be invoked anyway
+    if (PollData->Receive.NumberOfRemainingNbls || PollData->Transmit.NumberOfRemainingNbls)
+    {
+        ParaNdisPollNotify(m_AdapterContext, m_Index, "Self");
     }
 }
 
