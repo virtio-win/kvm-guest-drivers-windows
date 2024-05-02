@@ -291,6 +291,7 @@ public:
 
     bool BorrowPages(CExtendedNBStorage *extraNBStorage, ULONG NeedPages);
     void ReturnPages(CExtendedNBStorage *extraNBStorage);
+    void CheckStuckPackets(ULONG GraceTimeMillies);
 private:
 
     virtual void Notify(SMNotifications message) override;
@@ -310,6 +311,8 @@ private:
     bool AllocateExtraPages();
     void FreeExtraPages();
 
+    ULONG IsStuck();
+
     CDataFlowStateMachine m_StateMachine;
     bool m_StateMachineRegistered = false;
 
@@ -322,6 +325,15 @@ private:
     CNdisSpinLock m_WaitingListLock;
 
     CRawPageList m_ExtraPages;
+
+    struct
+    {
+        ULONGLONG LastTxProcess;
+        ULONGLONG LastAudit;
+        ULONGLONG LastSendTime;
+        ULONG Stucks;
+        ULONG Recovered;
+    } m_AuditState = {};
 
     CPool<CNB, 'BNHR'>  m_nbPool;
     CPool<CNBL, 'LNHR'> m_nblPool;

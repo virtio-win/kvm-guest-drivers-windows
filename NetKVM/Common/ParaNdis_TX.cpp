@@ -6,6 +6,13 @@
 #include "ParaNdis_TX.tmh"
 #endif
 
+static FORCEINLINE void UpdateTimestamp(ULONGLONG& Variable)
+{
+    LARGE_INTEGER li;
+    NdisGetCurrentSystemTime(&li);
+    Variable = li.QuadPart;
+}
+
 CNBL::CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath, CAllocationHelper<CNBL> *NBLAllocator, CAllocationHelper<CNB> *NBAllocator)
     : m_NBL(NBL)
     , m_Context(Context)
@@ -432,6 +439,7 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
 
     if (NBLHolder->MappingSucceeded() && m_VirtQueue.Alive())
     {
+        UpdateTimestamp(m_AuditState.LastSendTime);
         m_SendQueue.Enqueue(NBLHolder);
 
         if (m_DpcWaiting == 0)
@@ -751,6 +759,49 @@ void CParaNdisTX::PostProcessPendingTask(
     }
 }
 
+// should be called on DISPATCH with no locks held
+// or on PASSIVE
+// returns flags:
+// 1 - waiting list is not empty
+// 2 - send queue is not empty
+ULONG CParaNdisTX::IsStuck()
+{
+    ULONG ret = 0;
+    DoWithTXLock([&]()
+        {
+            TDPCSpinLocker LockedContext(m_WaitingListLock);
+            ret |= m_WaitingList.IsEmpty() ? 0 : 1;
+            ret |= m_SendQueue.IsEmpty() ? 0 : 2;
+        });
+    return ret;
+}
+
+void CParaNdisTX::CheckStuckPackets(ULONG GraceTimeMillies)
+{
+    // skip if less than N sec ago TX was serviced
+    ULONGLONG& timeStamp = m_AuditState.LastAudit;
+    ULONGLONG diff, threshold = (ULONGLONG)GraceTimeMillies * 1000L * 10L;
+
+    UpdateTimestamp(timeStamp);
+    diff = timeStamp - m_AuditState.LastTxProcess;
+    if (diff < threshold)
+    {
+        return;
+    }
+    DPrintf(3, "[%s] TXQ#%d\n", __FUNCTION__, m_queueIndex);
+
+    ULONG flags = IsStuck();
+    if (flags)
+    {
+        DPrintf(0, "[%s] STUCK condition=%d detected TXQ#%d\n", __FUNCTION__, flags, m_queueIndex);
+        m_AuditState.Stucks++;
+        DoPendingTasks(NULL);
+        flags = IsStuck();
+        DPrintf(0, "[%s] On recovery: condition=%d TXQ#%d\n", __FUNCTION__, flags, m_queueIndex);
+        m_AuditState.Recovered += flags == 0;
+    }
+}
+
 bool CParaNdisTX::DoPendingTasks(CNBL *nblHolder)
 {
     bool bRestartQueueStatus = false;
@@ -783,6 +834,7 @@ bool CParaNdisTX::DoPendingTasks(CNBL *nblHolder)
                 m_VirtQueue.ProcessTXCompletions(nbToFree);
                 bRestartQueueStatus = SendMapped(true, completedNBLs);
             }
+            UpdateTimestamp(m_AuditState.LastTxProcess);
         } else
         {
             // the call initiated by Send(), we can give up
