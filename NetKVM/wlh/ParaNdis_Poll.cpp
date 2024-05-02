@@ -98,7 +98,9 @@ void NdisPollHandler::HandlePoll(NDIS_POLL_DATA* PollData)
     RxPoll(m_AdapterContext, m_Index, PollData->Receive);
     if (PollData->Receive.NumberOfIndicatedNbls)
     {
-        DPrintf(POLL_PRINT_LEVEL, "[%s] RX #%d indicated %d\n", __FUNCTION__, m_Index, PollData->Receive.NumberOfIndicatedNbls);
+        DPrintf(POLL_PRINT_LEVEL, "[%s] RX #%d indicated %d, max %d, still here %d\n",
+            __FUNCTION__, m_Index, PollData->Receive.NumberOfIndicatedNbls,
+            PollData->Receive.MaxNblsToIndicate, PollData->Receive.NumberOfRemainingNbls);
     }
 
     // TX
