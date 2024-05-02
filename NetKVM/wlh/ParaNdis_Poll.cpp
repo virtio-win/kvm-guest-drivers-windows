@@ -8,9 +8,9 @@
 
 #if PARANDIS_SUPPORT_POLL
 
-void ParaNdisPollNotify(PPARANDIS_ADAPTER pContext, UINT Index)
+void ParaNdisPollNotify(PPARANDIS_ADAPTER pContext, UINT Index, const char *Origin)
 {
-    DPrintf(POLL_PRINT_LEVEL, " notify #%d\n", Index);
+    DPrintf(POLL_PRINT_LEVEL, " notify #%d from %s\n", Index, Origin);
     NdisPollHandler* poll = &pContext->PollHandlers[Index];
     while (true)
     {
@@ -85,6 +85,7 @@ void NdisPollHandler::EnableNotification(BOOLEAN Enable)
     DPrintf(POLL_PRINT_LEVEL, "[%s] #%d = %X\n", __FUNCTION__, m_Index, Enable);
     if (Enable)
     {
+        // allow triggering
         m_EnableNotify.Release();
     }
 }
@@ -120,7 +121,7 @@ void ParaNdisPollSetAffinity(PARANDIS_ADAPTER*, const CCHAR*, CCHAR)
 {
 }
 
-void ParaNdisPollNotify(PPARANDIS_ADAPTER, UINT)
+void ParaNdisPollNotify(PPARANDIS_ADAPTER, UINT, const char*)
 {
 }
 

@@ -134,7 +134,7 @@ public:
         if (m_Context->bPollModeEnabled)
         {
             //rx index is 2*n, tx index is 2*n+1
-            ParaNdisPollNotify(m_Context, m_queueIndex / 2);
+            ParaNdisPollNotify(m_Context, m_queueIndex / 2, (m_queueIndex % 2) ? "TX" : "RX");
             return TRUE;
         }
 #endif
