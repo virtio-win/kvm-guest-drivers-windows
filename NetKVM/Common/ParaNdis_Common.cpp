@@ -351,7 +351,9 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             // Win11 build: poll mode keyword is in the INF
             // The poll mode keyword setting has effect currently only on Server 2025 (NDIS 6.89)
             // TODO - check Win11 24H2, probably on it the poll mode will work also
-            pContext->bPollModeTry = pConfiguration->PollMode.ulValue && CheckOSNdisVersion(6,89) ? TRUE : FALSE;
+            bool bPollModeTestOnWin11 = false;
+            pContext->bPollModeTry = pConfiguration->PollMode.ulValue &&
+                CheckOSNdisVersion(6, bPollModeTestOnWin11 ? 85 : 89);
 #endif
             if (!pContext->bDoSupportPriority)
                 pContext->ulPriorityVlanSetting = 0;
