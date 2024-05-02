@@ -488,7 +488,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
             {
                 if (m_Context->bPollModeEnabled)
                 {
-                    ParaNdisPollNotify(m_Context, nTargetReceiveQueueNum);
+                    ParaNdisPollNotify(m_Context, nTargetReceiveQueueNum, "RSS");
                 }
                 else
                 {
