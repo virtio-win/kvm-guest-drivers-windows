@@ -42,27 +42,37 @@ static void UpdatePollAffinities(PPARANDIS_ADAPTER pContext)
     DPrintf(0, "updated #%d affinities\n", done);
 }
 
-void ParaNdisPollSetAffinity(PARANDIS_ADAPTER* pContext, const CCHAR* Indices, CCHAR Size)
+bool NdisPollHandler::UpdateAffinity(const PROCESSOR_NUMBER& Number)
+{
+    if (Number.Group != m_ProcessorNumber.Group || Number.Number != m_ProcessorNumber.Number)
+    {
+        m_ProcessorNumber = Number;
+        m_UpdateAffinity = true;
+        DPrintf(POLL_PRINT_LEVEL, "[%s] #%d => %d:%d\n", __FUNCTION__, m_Index, Number.Group, Number.Number);
+        return true;
+    }
+    return false;
+}
+
+void ParaNdisPollSetAffinity(PARANDIS_ADAPTER* pContext)
 {
     bool needUpdate = false;
-    for (CCHAR i = 0; i < Size && i < ARRAYSIZE(pContext->PollHandlers); ++i)
+    const auto& rssSettings = pContext->RSSParameters.ActiveRSSScalingSettings;
+
+    for (ULONG i = 0; i <= rssSettings.RSSHashMask; ++i)
     {
-        LONG index = Indices[i];
-        if (index >= 0)
+        CCHAR index = rssSettings.QueueIndirectionTable[i];
+        const PROCESSOR_NUMBER& procNo = rssSettings.IndirectionTable[i];
+        if (index < ARRAYSIZE(pContext->PollHandlers))
         {
-            PROCESSOR_NUMBER number;
-            if (KeGetProcessorNumberFromIndex(index, &number) == STATUS_SUCCESS)
+            NdisPollHandler* poll = &pContext->PollHandlers[index];
+            if (poll->UpdateAffinity(procNo))
             {
-                NdisPollHandler* poll = &pContext->PollHandlers[i];
-                if (number.Group != poll->m_ProcessorNumber.Group || number.Number != poll->m_ProcessorNumber.Number)
-                {
-                    poll->m_ProcessorNumber = number;
-                    poll->m_UpdateAffinity = true;
-                    needUpdate = true;
-                }
+                needUpdate = true;
             }
         }
     }
+
     if (needUpdate)
     {
         NDIS_HANDLE hwo = NdisAllocateIoWorkItem(pContext->MiniportHandle);
@@ -139,7 +149,7 @@ void NdisPollHandler::HandlePoll(NDIS_POLL_DATA* PollData)
 
 #else
 
-void ParaNdisPollSetAffinity(PARANDIS_ADAPTER*, const CCHAR*, CCHAR)
+void ParaNdisPollSetAffinity(PARANDIS_ADAPTER*)
 {
 }
 
