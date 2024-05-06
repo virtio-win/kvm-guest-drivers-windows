@@ -130,7 +130,7 @@ static bool FORCEINLINE CheckOSNdisVersion(UCHAR osmajor, UCHAR osminor)
 typedef struct _PARANDIS_ADAPTER PARANDIS_ADAPTER;
 
 void ParaNdisPollNotify(PARANDIS_ADAPTER *, UINT Index, const char *Origin);
-void ParaNdisPollSetAffinity(PARANDIS_ADAPTER *, const CCHAR *Indices, CCHAR Size);
+void ParaNdisPollSetAffinity(PARANDIS_ADAPTER *);
 void RxPoll(PARANDIS_ADAPTER* pContext, UINT BundleIndex, NDIS_POLL_RECEIVE_DATA& RxData);
 
 #include "ParaNdis-SM.h"
@@ -186,6 +186,7 @@ struct NdisPollHandler
     void Unregister();
     void EnableNotification(BOOLEAN Enable);
     void HandlePoll(NDIS_POLL_DATA* PollData);
+    bool UpdateAffinity(const PROCESSOR_NUMBER&);
 };
 
 struct CPUPathBundle : public CPlacementAllocatable {
