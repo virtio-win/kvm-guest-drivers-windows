@@ -1811,7 +1811,7 @@ RhelScsiVerify(
 
     lba = RhelGetLba(DeviceExtension, cdb);
     blocks = RhelGetSectors(DeviceExtension, cdb);
-    if ((lba + blocks) >= adaptExt->lastLBA) {
+    if ((lba + blocks) > adaptExt->lastLBA) {
         RhelDbgPrint(TRACE_LEVEL_ERROR, " lba = %llu lastLBA= %llu blocks = %lu\n", lba, adaptExt->lastLBA, blocks);
         SrbStatus = SRB_STATUS_INVALID_REQUEST;
     }
