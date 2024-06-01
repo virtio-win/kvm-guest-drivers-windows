@@ -27,6 +27,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\installer\viosock-installer.vcxproj">
+      <Project>{b8c784b3-7914-4539-b728-f2eae5c9795e}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\sys\viosock.vcxproj">
       <Project>{c65da065-5828-45cf-89db-fc4f21bc9e05}</Project>
     </ProjectReference>

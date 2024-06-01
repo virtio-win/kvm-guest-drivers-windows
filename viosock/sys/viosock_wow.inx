@@ -34,7 +34,7 @@ VirtioSocket_Lib_CopyFiles.WOW64 = 16425
 viosock.sys  = 1,,
 viosocklib_x64.dll = 1
 viosocklib_x86.dll = 1
-viosocklib-test.exe = 1
+viosock-installer.exe = 1
 
 [SourceDisksNames]
 1 = %DiskId1%,,,""
@@ -44,9 +44,9 @@ viosocklib-test.exe = 1
 ;*****************************************
 
 [Manufacturer]
-%VENDOR%=VirtioSocket,NT$ARCH$
+%VENDOR%=VirtioSocket,NT$ARCH$...15063
 
-[VirtioSocket.NT$ARCH$]
+[VirtioSocket.NT$ARCH$...15063]
 ;
 ; Hw Ids are PCI\VEN_1AF4&DEV_1012&SUBSYS_0013_INX_SUBSYS_VENDOR_ID&REV_00
 ;
@@ -56,14 +56,13 @@ viosocklib-test.exe = 1
 [VirtioSocket_Device.NT]
 CopyFiles=Drivers_Dir,VirtioSocket_Lib_CopyFiles,VirtioSocket_Lib_CopyFiles.WOW64
 
- [VirtioSocket_Device.10.0.15063.Software]
- AddSoftware=WSKWSP,,VirtioSocket_Software
+[VirtioSocket_Device.NT.Software]
+AddSoftware="VirtioSocketWSP",,VirtioSocket_Software
 
- [VirtioSocket_Software]
- SoftwareType=1
- SoftwareBinary=viosocklib-test.exe
- SoftwareArguments="/i"
- SoftwareVersion=1.0.0.0
+[VirtioSocket_Software]
+SoftwareType=1
+SoftwareBinary=viosock-installer.exe
+SoftwareArguments="/install"
 
 [VirtioSocket_Device.NT.HW]
 AddReg=VirtioSocket_AddReg
@@ -76,10 +75,10 @@ HKR,Interrupt Management\MessageSignaledInterruptProperties,MessageNumberLimit,0
 
 [Drivers_Dir]
 viosock.sys
-viosocklib-test.exe
 
 [VirtioSocket_Lib_CopyFiles]
 viosocklib.dll,viosocklib_x64.dll,,0x00004000   ;  COPYFLG_IN_USE_TRY_RENAME
+viosock-installer.exe
 
 [VirtioSocket_Lib_CopyFiles.WOW64]
 viosocklib.dll,viosocklib_x86.dll,,0x00004000   ;  COPYFLG_IN_USE_TRY_RENAME
