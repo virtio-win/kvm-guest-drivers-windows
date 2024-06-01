@@ -36,6 +36,9 @@
     <ProjectReference Include="..\viosocklib-test\viosocklib-test.vcxproj">
       <Project>{2cfbbf52-9646-4e42-9e43-9cee50735254}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\wspsvc\viosockwspsvc.vcxproj">
+      <Project>{b8c784b3-7914-4539-b728-f2eae5c9795e}</Project>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{3F2854A7-A604-4006-A79B-9EAFC63015B8}</ProjectGuid>
