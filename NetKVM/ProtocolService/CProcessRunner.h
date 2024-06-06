@@ -62,8 +62,9 @@ public:
             TerminateProcess(pi.hProcess, 0);
         }
     }
-    void RunProcess(CString& CommandLine)
+    bool RunProcess(CString& CommandLine)
     {
+        bool result;
         Clean();
         si.cb = sizeof(si);
         if (m_Redirect)
@@ -75,7 +76,8 @@ public:
         }
 
         Log(" Running %S ...", CommandLine.GetString());
-        if (CreateProcess(NULL, CommandLine.GetBuffer(), NULL, NULL, m_Redirect, CREATE_SUSPENDED, NULL, _T("."), &si, &pi))
+        result = CreateProcess(NULL, CommandLine.GetBuffer(), NULL, NULL, m_Redirect, CREATE_SUSPENDED, NULL, _T("."), &si, &pi);
+        if (result)
         {
             if (m_Redirect)
             {
@@ -92,23 +94,26 @@ public:
                 }
             }
             Flush();
-            ULONG exitCode;
-            if (!GetExitCodeProcess(pi.hProcess, &exitCode))
+            if (!GetExitCodeProcess(pi.hProcess, &m_ExitCode))
             {
-                exitCode = GetLastError();
+                m_ExitCode = GetLastError();
+                Log(" exit code %d after waiting %d ms", m_ExitCode, m_WaitTime);
             }
-            PostProcess(exitCode);
+            PostProcess(m_ExitCode);
         }
         else
         {
-            Log(" Running %S failed, error %d", CommandLine.GetString(), GetLastError());
+            m_ExitCode = GetLastError();
+            Log(" Running %S failed, error %d", CommandLine.GetString(), m_ExitCode);
         }
         if (pi.hProcess) CloseHandle(pi.hProcess);
         if (pi.hThread) CloseHandle(pi.hThread);
         Clean();
+        return result;
     }
     const CString& StdOutResult() const { return m_StdOutResult; }
     const CString& StdErrResult() const { return m_StdErrResult; }
+    ULONG ExitCode() const { return m_ExitCode; }
 protected:
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
@@ -123,6 +128,7 @@ protected:
         memset(&pi, 0, sizeof(pi));
     }
     ULONG m_WaitTime;
+    ULONG m_ExitCode = 0;
     bool  m_Redirect;
     virtual bool ShouldTerminate()
     {
