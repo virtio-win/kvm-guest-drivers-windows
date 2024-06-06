@@ -63,6 +63,12 @@ ENTER_FN_SRB();
     if (!Srb)
         return;
 
+    if (adaptExt->bRemoved) {
+        SRB_SET_SRB_STATUS(Srb, SRB_STATUS_NO_DEVICE);
+        CompleteRequest(DeviceExtension, Srb);
+        return;
+    }
+
     LOG_SRB_INFO();
 
     if (adaptExt->num_queues > 1) {

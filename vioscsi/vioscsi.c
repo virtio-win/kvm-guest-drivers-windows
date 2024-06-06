@@ -122,6 +122,12 @@ VioScsiAdapterControl(
     IN PVOID Parameters
     );
 
+UCHAR
+VioScsiProcessPnP(
+    IN PVOID  DeviceExtension,
+    IN PSRB_TYPE Srb
+);
+
 BOOLEAN
 FORCEINLINE
 PreProcessRequest(
@@ -991,6 +997,11 @@ VioScsiInterrupt(
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
+    if (adaptExt->bRemoved)
+    {
+        return FALSE;
+    }
+
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " IRQL (%d)\n", KeGetCurrentIrql());
     intReason = virtio_read_isr_status(&adaptExt->vdev);
 
@@ -1134,6 +1145,11 @@ VioScsiMSInterrupt(
     BOOLEAN isInterruptServiced = FALSE;
     ULONG i;
 
+    if (adaptExt->bRemoved)
+    {
+        return FALSE;
+    }
+
     if (!adaptExt->msix_one_vector) {
         /* Each queue has its own vector, this is the fast and common case */
         return VioScsiMSInterruptWorker(DeviceExtension, MessageID);
@@ -1171,11 +1187,14 @@ VioScsiAdapterControl(
     ULONG                             Index;
     PADAPTER_EXTENSION                adaptExt;
     SCSI_ADAPTER_CONTROL_STATUS       status = ScsiAdapterControlUnsuccessful;
-    BOOLEAN SupportedControlTypes[5] = {TRUE, TRUE, TRUE, FALSE, FALSE};
-
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    BOOLEAN SupportedControlTypes[17] = { 0 };
 
 ENTER_FN();
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    SupportedControlTypes[0]  = 1; //ScsiQuerySupportedControlTypes
+    SupportedControlTypes[1]  = 1; //ScsiStopAdapter
+    SupportedControlTypes[2]  = 1; //ScsiRestartAdapter
+    SupportedControlTypes[16] = 1; //ScsiAdapterSurpriseRemoval
 
     switch (ControlType) {
 
@@ -1216,6 +1235,12 @@ ENTER_FN();
         status = ScsiAdapterControlSuccess;
         break;
     }
+    case ScsiAdapterSurpriseRemoval: {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " ScsiAdapterSurpriseRemoval\n");
+        adaptExt->bRemoved = TRUE;
+        status = ScsiAdapterControlSuccess;
+        break;
+    }
     default:
         RhelDbgPrint(TRACE_LEVEL_ERROR, " Unsupported ControlType %d\n", ControlType);
         break;
@@ -1252,7 +1277,8 @@ ENTER_FN_SRB();
 
     if( (SRB_PATH_ID(Srb) > (UCHAR)adaptExt->num_queues) ||
         (TargetId >= adaptExt->scsi_config.max_target) ||
-        (Lun >= adaptExt->scsi_config.max_lun) ) {
+        (Lun >= adaptExt->scsi_config.max_lun) ||
+        adaptExt->bRemoved) {
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_NO_DEVICE);
         StorPortNotification(RequestComplete,
                              DeviceExtension,
@@ -1488,6 +1514,55 @@ CompletePendingRequests(
     adaptExt->reset_in_progress = FALSE;
 }
 
+UCHAR
+VioScsiProcessPnP(
+    IN PVOID DeviceExtension,
+    IN PSRB_TYPE Srb
+    )
+{
+    PADAPTER_EXTENSION      adaptExt;
+    PSCSI_PNP_REQUEST_BLOCK pnpBlock;
+    ULONG                   SrbPnPFlags;
+    ULONG                   PnPAction;
+    UCHAR                   SrbStatus;
+
+ENTER_FN();
+    adaptExt  = (PADAPTER_EXTENSION)DeviceExtension;
+    pnpBlock  = (PSCSI_PNP_REQUEST_BLOCK)Srb;
+    SrbStatus = SRB_STATUS_SUCCESS;
+    SRB_GET_PNP_INFO(Srb, SrbPnPFlags, PnPAction);
+    switch (PnPAction) {
+        case StorQueryCapabilities:
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                " StorQueryCapabilities on %d::%d::%d\n",
+                SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb));
+            if (((SrbPnPFlags & SRB_PNP_FLAGS_ADAPTER_REQUEST) == 0) ||
+                (SRB_DATA_TRANSFER_LENGTH(Srb) >= sizeof(STOR_DEVICE_CAPABILITIES))) {
+                PSTOR_DEVICE_CAPABILITIES devCap =
+                    (PSTOR_DEVICE_CAPABILITIES)SRB_DATA_BUFFER(Srb);
+                RtlZeroMemory(devCap, sizeof(*devCap));
+                devCap->Removable = 1;
+                devCap->SurpriseRemovalOK = 1;
+            }
+            break;
+        case StorRemoveDevice:
+        case StorSurpriseRemoval:
+            RhelDbgPrint(TRACE_LEVEL_FATAL,
+                " Adapter Removal happens on %d::%d::%d\n",
+                SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb));
+            adaptExt->bRemoved = TRUE;
+            break;
+        default:
+            RhelDbgPrint(TRACE_LEVEL_FATAL,
+                " Unsupported PnPAction SrbPnPFlags = %d, PnPAction = %d\n",
+                SrbPnPFlags, PnPAction);
+            SrbStatus = SRB_STATUS_INVALID_REQUEST;
+            break;
+    }
+EXIT_FN();
+    return SrbStatus;
+}
+
 BOOLEAN
 FORCEINLINE
 PreProcessRequest(
@@ -1502,6 +1577,9 @@ ENTER_FN_SRB();
 
     switch (SRB_FUNCTION(Srb)) {
         case SRB_FUNCTION_PNP:
+            SRB_SET_SRB_STATUS(Srb, VioScsiProcessPnP(DeviceExtension, Srb));
+            return TRUE;
+
         case SRB_FUNCTION_POWER:
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
             return TRUE;
