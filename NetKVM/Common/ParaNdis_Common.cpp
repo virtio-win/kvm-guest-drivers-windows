@@ -835,7 +835,10 @@ NDIS_STATUS ParaNdis_InitializeContext(
 #if (WINVER == 0x0A00)
         AckFeature(pContext, VIRTIO_F_ACCESS_PLATFORM);
 #endif
-        pContext->bSuppressLinkUp = AckFeature(pContext, VIRTIO_NET_F_STANDBY);
+        if (AckFeature(pContext, VIRTIO_NET_F_STANDBY)) {
+            pContext->bSuppressLinkUp = true;
+            pContext->bPollModeTry = false;
+        }
 
         pContext->bLinkDetectSupported = AckFeature(pContext, VIRTIO_NET_F_STATUS);
         ReadLinkState(pContext);
