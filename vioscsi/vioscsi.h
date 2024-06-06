@@ -338,6 +338,7 @@ typedef struct _ADAPTER_EXTENSION {
     ACTION_ON_RESET       action_on_reset;
     ULONGLONG             fw_ver;
     ULONG                 resp_time;
+    BOOLEAN               bRemoved;
 } ADAPTER_EXTENSION, * PADAPTER_EXTENSION;
 
 #ifndef PCIX_TABLE_POINTER
