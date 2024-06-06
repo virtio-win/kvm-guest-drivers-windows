@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="*.inf" />
+    <Inf Include="vioprot.inf" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="netkvmno.cpp">
