@@ -1126,7 +1126,7 @@ int __cdecl main(int argc, char **argv)
         }
         else if (!s.CompareNoCase("q") || !s.CompareNoCase("query"))
         {
-            printf("Service %sinstalled\n", DummyService.Installed() ? "" : "not");
+            printf("Service %sinstalled\n", DummyService.Installed() ? "" : "not ");
             printf("VIOPROT %sinstalled\n", IsVioProtInstalled() ? "" : "not ");
         }
         else if (!s.CompareNoCase("d") || !s.CompareNoCase("dump"))
