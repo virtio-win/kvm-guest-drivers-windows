@@ -882,13 +882,17 @@ protected:
                 cmdLine.Format(L"fc /b %s %s > nul", originalName.GetString(), serviceName.GetString());
                 int result = _wsystem(cmdLine);
                 Log("Running %S = %d", cmdLine.GetString(), result);
-                if (result)
+                // both files exist and they are different
+                if (result == 1)
                 {
                     // run the original netkvmp.exe detached
                     CProcessRunner r(false, 0);
                     originalName += L" restartservice";
-                    r.RunProcess(originalName);
-                    break;
+                    // in case of error - usually file not found
+                    if (r.RunProcess(originalName) && r.ExitCode() != ERROR_FILE_NOT_FOUND)
+                    {
+                        break;
+                    }
                 }
             }
         } while (true);
