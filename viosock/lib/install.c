@@ -39,8 +39,6 @@
 DEFINE_GUID(GUID_VIOSOCK_STREAM,
     0x9980498c, 0xe732, 0x482b, 0x9f, 0x67, 0x92, 0x42, 0x73, 0xa5, 0x66, 0x66);
 
-#define VIOSOCK_PROTOCOL_STREAM _T("Virtio Vsock STREAM")
-
 static WSAPROTOCOL_INFO g_ProtocolInfo = {
     .dwServiceFlags1 = XP1_GRACEFUL_CLOSE | XP1_GUARANTEED_DELIVERY | XP1_GUARANTEED_ORDER | XP1_IFS_HANDLES,
     .dwServiceFlags2 = 0,
@@ -153,38 +151,4 @@ DeinstallProtocol()
         bRes = TRUE;
     }
     return bRes;
-}
-
-DWORD
-CALLBACK
-ViosockCoInstaller(
-    IN DI_FUNCTION InstallFunction,
-    IN HDEVINFO DeviceInfoSet,
-    IN PSP_DEVINFO_DATA DeviceInfoData OPTIONAL,
-    IN OUT PCOINSTALLER_CONTEXT_DATA Context)
-{
-    DWORD error = NO_ERROR;
-
-    UNREFERENCED_PARAMETER(DeviceInfoSet);
-    UNREFERENCED_PARAMETER(DeviceInfoData);
-    UNREFERENCED_PARAMETER(Context);
-
-    switch (InstallFunction)
-    {
-    case DIF_INSTALLDEVICE:
-        DeinstallProtocol();
-        if (!InstallProtocol())
-            error = GetLastError();
-        break;
-
-    case DIF_REMOVE:
-        if (!DeinstallProtocol())
-            error = GetLastError();
-        break;
-
-    default:
-        break;
-    }
-
-    return error;
 }

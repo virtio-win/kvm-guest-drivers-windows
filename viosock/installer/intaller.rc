@@ -1,5 +1,5 @@
 /*
- * Header file for viosock protocol provider installation routines.
+ * This file contains resource (version) definitions for virtio socket provider.
  *
  * Copyright (c) 2019 Virtuozzo International GmbH
  *
@@ -27,18 +27,16 @@
  * SUCH DAMAGE.
  */
 
-#ifndef INSTALL_H
-#define INSTALL_H
+#include <windows.h>
+#include <ntverp.h>
 
+#include "..\..\Tools\vendor.ver"
 
-#define VIOSOCK_PROTOCOL_STREAM _T("Virtio Vsock STREAM")
-#define VIOSOCK_INF_PROGRAM     _T("VirtioSocketWSP")
+#undef  VER_FILEDESCRIPTION_STR
+#undef  VER_INTERNALNAME_STR
 
+#define VENDOR_VIRTIO_PRODUCT      VENDOR_PRODUCT_PREFIX "VirtIO Socket Installer"
+#define VER_FILEDESCRIPTION_STR    VENDOR_DESC_PREFIX "Virtio Socket Provider Installer" VENDOR_DESC_POSTFIX
+#define VER_INTERNALNAME_STR       "viosock-installer.exe"
 
-BOOL
-InstallProtocol();
-
-BOOL
-DeinstallProtocol();
-
-#endif //INSTALL_H
+#include "common.ver"
