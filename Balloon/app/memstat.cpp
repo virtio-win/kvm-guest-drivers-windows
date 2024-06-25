@@ -233,5 +233,15 @@ BOOL CMemStat::Update()
         m_Stats[idx++].val = 0;
     }
 
+    // Consume the enumerator
+    while (enumerator != NULL && !FAILED(enumerator->Next(
+        WBEM_INFINITE,
+        1L,
+        &memory,
+        &retcnt))) {
+            if (retcnt == 0)
+                break;
+    }
+
     return TRUE;
 }
