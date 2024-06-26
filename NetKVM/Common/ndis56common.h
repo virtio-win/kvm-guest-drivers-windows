@@ -211,6 +211,19 @@ struct CPUPathBundle : public CPlacementAllocatable {
     }
 } ;
 
+struct tRxLayout
+{
+    USHORT ReserveForHeader;
+    USHORT ReserveForIndirectArea;
+    USHORT ReserveForPacketTail;
+    // 2^N, 4K or less
+    USHORT HeaderPageAllocation;
+    // including header area
+    USHORT TotalAllocationsPerBuffer;
+    // including header and tail, if any
+    USHORT IndirectEntries;
+};
+
 // those stuff defined in NDIS
 //NDIS_MINIPORT_MAJOR_VERSION
 //NDIS_MINIPORT_MINOR_VERSION
@@ -503,6 +516,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     ULONG                   VlanId = 0;
     ULONG                   ulEnableWakeup = 0;
     tMaxPacketSize          MaxPacketSize = {};
+    tRxLayout               RxLayout = {};
     tLinkProperties         LinkProperties = {};
     ULONG                   ulUniqueID = 0;
     UCHAR                   PermanentMacAddress[ETH_ALEN] = {};
