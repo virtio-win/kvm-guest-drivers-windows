@@ -2096,25 +2096,6 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION* pDispInfo)
     return status;
 }
 
-void VioGpuAdapter::VioGpuAdapterClose()
-{
-    PAGED_CODE();
-    DbgPrint(TRACE_LEVEL_FATAL, ("---> %s\n", __FUNCTION__));
-
-    if (m_pVioGpuDod->IsHardwareInit())
-    {
-        m_pVioGpuDod->SetHardwareInit(FALSE);
-        m_CtrlQueue.DisableInterrupt();
-        m_CursorQueue.DisableInterrupt();
-        virtio_device_reset(&m_VioDev);
-        virtio_delete_queues(&m_VioDev);
-        m_CtrlQueue.Close();
-        m_CursorQueue.Close();
-        virtio_device_shutdown(&m_VioDev);
-    }
-    DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s\n", __FUNCTION__));
-}
-
 NTSTATUS VioGpuAdapter::SetPowerState(DXGK_DEVICE_INFO* pDeviceInfo, DEVICE_POWER_STATE DevicePowerState, CURRENT_MODE* pCurrentMode)
 {
     PAGED_CODE();
@@ -2738,13 +2719,6 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE* pEscape)
     return status;
 }
 
-BOOLEAN VioGpuAdapter::ResetToVgaMode(void)
-{
-    DestroyFrameBufferObj(TRUE);
-    VioGpuAdapterClose();
-    return TRUE;
-}
-
 BOOLEAN VioGpuAdapter::GetDisplayInfo(void)
 {
     PAGED_CODE();
@@ -3179,6 +3153,52 @@ NTSTATUS VioGpuAdapter::BuildModeList(DXGK_DISPLAY_INFORMATION* pDispInfo)
 }
 PAGED_CODE_SEG_END
 
+BOOLEAN VioGpuAdapter::ResetToVgaMode(void)
+{
+    DestroyFrameBufferObj(TRUE);
+    VioGpuAdapterClose();
+    return TRUE;
+}
+
+void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset)
+{
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+    UINT resid = 0;
+
+    if (m_pFrameBuf != NULL)
+    {
+        resid = (UINT)m_pFrameBuf->GetId();
+        m_CtrlQueue.InvalBacking(resid);
+        m_CtrlQueue.UnrefResource(resid);
+        if (bReset == TRUE) {
+            m_CtrlQueue.SetScanout(0, 0, 0, 0, 0, 0);
+        }
+        delete m_pFrameBuf;
+        m_pFrameBuf = NULL;
+        m_Idr.PutId(resid);
+    }
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
+void VioGpuAdapter::VioGpuAdapterClose()
+{
+    DbgPrint(TRACE_LEVEL_FATAL, ("---> %s\n", __FUNCTION__));
+
+    if (m_pVioGpuDod->IsHardwareInit())
+    {
+        m_pVioGpuDod->SetHardwareInit(FALSE);
+        m_CtrlQueue.DisableInterrupt();
+        m_CursorQueue.DisableInterrupt();
+        virtio_device_reset(&m_VioDev);
+        virtio_delete_queues(&m_VioDev);
+        m_CtrlQueue.Close();
+        m_CursorQueue.Close();
+        virtio_device_shutdown(&m_VioDev);
+    }
+    DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s\n", __FUNCTION__));
+}
+
+
 BOOLEAN VioGpuAdapter::InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, _In_  ULONG MessageNumber)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s MessageNumber = %d\n", __FUNCTION__, MessageNumber));
@@ -3392,27 +3412,6 @@ BOOLEAN VioGpuAdapter::CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, C
     pCurrentMode->Flags.FrameBufferIsActive = TRUE;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;
-}
-
-void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset)
-{
-    PAGED_CODE();
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-    UINT resid = 0;
-
-    if (m_pFrameBuf != NULL)
-    {
-        resid = (UINT)m_pFrameBuf->GetId();
-        m_CtrlQueue.InvalBacking(resid);
-        m_CtrlQueue.UnrefResource(resid);
-        if (bReset == TRUE) {
-            m_CtrlQueue.SetScanout(0, 0, 0, 0, 0, 0);
-        }
-        delete m_pFrameBuf;
-        m_pFrameBuf = NULL;
-        m_Idr.PutId(resid);
-    }
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
 BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPointerShape, _In_ CONST CURRENT_MODE* pCurrentMode)

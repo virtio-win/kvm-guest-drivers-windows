@@ -333,44 +333,6 @@ void CtrlQueue::CreateResource(UINT res_id, UINT format, UINT width, UINT height
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-void CtrlQueue::UnrefResource(UINT res_id)
-{
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_RES_UNREF cmd;
-    PGPU_VBUFFER vbuf;
-    cmd = (PGPU_RES_UNREF)AllocCmd(&vbuf, sizeof(*cmd));
-    RtlZeroMemory(cmd, sizeof(*cmd));
-
-    cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_UNREF;
-    cmd->resource_id = res_id;
-
-    QueueBuffer(vbuf);
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-}
-
-void CtrlQueue::InvalBacking(UINT res_id)
-{
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_RES_DETACH_BACKING cmd;
-    PGPU_VBUFFER vbuf;
-    cmd = (PGPU_RES_DETACH_BACKING)AllocCmd(&vbuf, sizeof(*cmd));
-    RtlZeroMemory(cmd, sizeof(*cmd));
-
-    cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_DETACH_BACKING;
-    cmd->resource_id = res_id;
-
-    QueueBuffer(vbuf);
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-}
-
 void CtrlQueue::ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y)
 {
     PAGED_CODE();
@@ -446,6 +408,40 @@ void CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
 
 PAGED_CODE_SEG_END
 
+void CtrlQueue::UnrefResource(UINT res_id)
+{
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    PGPU_RES_UNREF cmd;
+    PGPU_VBUFFER vbuf;
+    cmd = (PGPU_RES_UNREF)AllocCmd(&vbuf, sizeof(*cmd));
+    RtlZeroMemory(cmd, sizeof(*cmd));
+
+    cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_UNREF;
+    cmd->resource_id = res_id;
+
+    QueueBuffer(vbuf);
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
+void CtrlQueue::InvalBacking(UINT res_id)
+{
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    PGPU_RES_DETACH_BACKING cmd;
+    PGPU_VBUFFER vbuf;
+    cmd = (PGPU_RES_DETACH_BACKING)AllocCmd(&vbuf, sizeof(*cmd));
+    RtlZeroMemory(cmd, sizeof(*cmd));
+
+    cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_DETACH_BACKING;
+    cmd->resource_id = res_id;
+
+    QueueBuffer(vbuf);
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
 PVOID CtrlQueue::AllocCmdResp(PGPU_VBUFFER* buf, int cmd_sz, PVOID resp_buf, int resp_sz)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
@@ -504,8 +500,6 @@ void CtrlQueue::SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, U
 #define SGLIST_SIZE 64
 UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
 {
-    //    PAGED_CODE();
-
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     VirtIOBufferDescriptor  sg[SGLIST_SIZE];
