@@ -30,6 +30,7 @@ RHEL inf substitutions and versioning used by all drivers.
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'NetKVMCopyrightStrings'">2008</RHEL_COPYRIGHT_STARTING_YEAR>
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'FwCfgCopyrightStrings'">2018</RHEL_COPYRIGHT_STARTING_YEAR>
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioGpuDodCopyrightStrings'">2019</RHEL_COPYRIGHT_STARTING_YEAR>
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'ViomemCopyrightStrings'">2021</RHEL_COPYRIGHT_STARTING_YEAR>
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(RHEL_COPYRIGHT_STARTING_YEAR)' == ''">20??</RHEL_COPYRIGHT_STARTING_YEAR>
 
     <!-- RHEL uses a user-mode service to collect memory statistics -->
