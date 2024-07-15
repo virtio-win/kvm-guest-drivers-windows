@@ -38,6 +38,8 @@ VZ inf substitutions and versioning used by all drivers.
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'VioStorCopyrightStrings'">2008</RHEL_COPYRIGHT_STARTING_YEAR>
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'IvshmemCopyrightStrings'">2017</RHEL_COPYRIGHT_STARTING_YEAR>
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'NetKVMCopyrightStrings'">2008</RHEL_COPYRIGHT_STARTING_YEAR>
+    <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(CopyrightStrings)' == 'ViomemCopyrightStrings'">2021</RHEL_COPYRIGHT_STARTING_YEAR>
+
     <RHEL_COPYRIGHT_STARTING_YEAR Condition="'$(RHEL_COPYRIGHT_STARTING_YEAR)' == ''">20??</RHEL_COPYRIGHT_STARTING_YEAR>
 
     <VZ_COPYRIGHT_STARTING_YEAR>2016</VZ_COPYRIGHT_STARTING_YEAR>
