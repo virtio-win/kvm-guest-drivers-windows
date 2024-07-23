@@ -152,6 +152,17 @@ function Export-InstalledKBs {
     }
 }
 
+function Export-NetworkConfiguration {
+    try {
+        Get-NetAdapterAdvancedProperty | Out-File -FilePath (Join-Path $folderPath 'NetworkInterfaces.txt')
+        ipconfig /all | Out-File -FilePath (Join-Path $folderPath 'IPConfiguration.txt')
+
+        Write-Host 'Network configuration collection completed.'
+    } catch {
+        Write-Warning "Failed to collect network configuration: $_"
+    }
+}
+
 function Export-WindowsMemoryDump {
     $memoryDumpPaths = @("$env:SystemRoot\MEMORY.DMP", "$env:SystemRoot\Minidump")
     
@@ -188,6 +199,7 @@ Export-WindowsUptime
 Export-RunningProcesses
 Export-InstalledApplications
 Export-InstalledKBs
+Export-NetworkConfiguration
 
 if ($IncludeSensitiveData) {
     Export-WindowsMemoryDump
