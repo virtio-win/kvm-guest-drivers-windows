@@ -34,6 +34,7 @@ VirtioSocket_Lib_CopyFiles.WOW64 = 16425
 viosock.sys  = 1,,
 viosocklib_x64.dll = 1
 viosocklib_x86.dll = 1
+viosockwspsvc.exe = 1
 
 [SourceDisksNames]
 1 = %DiskId1%,,,""
@@ -69,6 +70,7 @@ viosock.sys
 
 [VirtioSocket_Lib_CopyFiles]
 viosocklib.dll,viosocklib_x64.dll,,0x00004000   ;  COPYFLG_IN_USE_TRY_RENAME
+viosockwspsvc.exe
 
 [VirtioSocket_Lib_CopyFiles.WOW64]
 viosocklib.dll,viosocklib_x86.dll,,0x00004000   ;  COPYFLG_IN_USE_TRY_RENAME
@@ -77,6 +79,7 @@ viosocklib.dll,viosocklib_x86.dll,,0x00004000   ;  COPYFLG_IN_USE_TRY_RENAME
 
 [VirtioSocket_Device.NT.Services]
 AddService = VirtioSocket, 0x00000002, VirtioSocket_Service_Inst
+AddService = VirtioSocketWSP, 0x00000800, VirtioSockWSP_Service_Inst
 
 ; -------------- VirtioSocket driver install sections
 [VirtioSocket_Service_Inst]
@@ -85,6 +88,14 @@ ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\viosock.sys
+
+; -------------- WSP service install sections
+[VirtioSockWSP_Service_Inst]
+DisplayName    = %VirtioSockWSP.ServiceDesc%
+ServiceType    = 0x10            ; SERVICE_WIN32_OWN_PROCESS
+StartType      = 2               ; SERVICE_AUTO_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %11%\viosockwspsvc.exe
 
 ;--- VirtioSocket_Device WDF ------
 ;
@@ -99,4 +110,5 @@ KmdfLibraryVersion = $KMDFVERSION$
 VENDOR = "INX_COMPANY"
 DiskId1 = "INX_PREFIX_VIRTIOVirtIO Socket Installation Disk #1"
 VirtioSocket.DeviceDesc = "INX_PREFIX_VIRTIOVirtIO Socket Driver"
+VirtioSockWSP.ServiceDesc = "INX_PREFIX_VIRTIOVirtIO Socket WSP Service"
 VirtioSocket.ServiceDesc = "INX_PREFIX_VIRTIOVirtIO Socket Service"
