@@ -23,13 +23,12 @@ if errorlevel 1 goto :fail
 call tools\build.bat viorng\viorng\viorng.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
 call tools\build.bat vioserial\sys\vioser.vcxproj "Win10_SDV Win11_SDV" %*
-rem NO WIN11 build for viosock for now
 if errorlevel 1 goto :fail
-call tools\build.bat viosock\sys\viosock.vcxproj "Win10_SDV" %*
+call tools\build.bat viosock\sys\viosock.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat viosock\wsk\wsk.vcxproj "Win10_SDV" %*
+call tools\build.bat viosock\wsk\wsk.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat viosock\viosock-wsk-test\viosock-wsk-test.vcxproj "Win10_SDV" %*
+call tools\build.bat viosock\viosock-wsk-test\viosock-wsk-test.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
 call tools\build.bat viofs\pci\viofs.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
