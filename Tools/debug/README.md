@@ -2,7 +2,7 @@
 
 ## Overview
 
-This PowerShell script is designed for comprehensive system diagnostics. It gathers a wide range of information, including system configuration, event logs, drivers, registry settings, update logs, services, uptime, processes, installed applications, installed KBs (knowledge base articles), and optionally, memory dumps.
+This PowerShell script is designed for comprehensive system diagnostics. It gathers a wide range of information, including system configuration, event logs, drivers, registry settings, update logs, services, uptime, processes, installed applications, installed KBs (knowledge base articles), network configuration, and optionally, memory dumps.
 
 The collected data is organized into a timestamped folder and then compressed into a ZIP archive for easy sharing and analysis.
 
@@ -42,6 +42,7 @@ The collected data is organized into a timestamped folder and then compressed in
 - `RunningProcesses.csv`: Snapshot of active processes.
 - `InstalledApplications.csv`: List of installed applications.
 - `InstalledKBs.csv`: List of installed Windows updates.
+- `NetworkInterfaces.txt` and `IPConfiguration.txt`: Network configuration details.
 - `MEMORY.DMP` and `Minidump` folder: Full or mini memory dumps (if `-IncludeSensitiveData` is used).
 
 ## Contributing
