@@ -186,9 +186,12 @@ function Write-InformationToArchive {
 $timestamp = Get-Date -Format 'yyyy-MM-dd_HH-mm-ss'
 $folderName = "SystemInfo_$timestamp"
 $folderPath = Join-Path -Path (Get-Location) -ChildPath $folderName
+$progressFile = "$folderPath\Collecting_Status.txt"
 New-Item -Path $folderPath -ItemType Directory | Out-Null
-Write-Host "Stating system info collecting into $folderPath"
+New-Item -Path $progressFile -ItemType File | Out-Null
+Write-Host "Starting system info collecting into $folderPath"
 
+Start-Transcript -Path $progressFile -Append
 Export-SystemConfiguration
 Export-EventLogs
 Export-DriversList
@@ -200,9 +203,11 @@ Export-RunningProcesses
 Export-InstalledApplications
 Export-InstalledKBs
 Export-NetworkConfiguration
+Stop-Transcript
 
 if ($IncludeSensitiveData) {
     Export-WindowsMemoryDump
 }
 
+Remove-Item -Path $progressFile -ErrorAction SilentlyContinue
 Write-InformationToArchive

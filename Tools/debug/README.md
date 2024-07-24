@@ -44,6 +44,7 @@ The collected data is organized into a timestamped folder and then compressed in
 - `InstalledKBs.csv`: List of installed Windows updates.
 - `NetworkInterfaces.txt` and `IPConfiguration.txt`: Network configuration details.
 - `MEMORY.DMP` and `Minidump` folder: Full or mini memory dumps (if `-IncludeSensitiveData` is used).
+- `Collecting_Status.txt`: Generated during data collection and deleted after completion. If the script is interrupted, this file indicates incomplete data collection.
 
 ## Contributing
 
