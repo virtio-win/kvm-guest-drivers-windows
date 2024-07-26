@@ -1748,6 +1748,27 @@ VIOSockEventUnregister(
     }
 }
 
+_Requires_lock_not_held_(pSocket->StateLock)
+static
+VOID
+VIOSockEventsReport(
+    IN PSOCKET_CONTEXT  pSocket,
+    IN PVIRTIO_VSOCK_NETWORK_EVENTS  lpNetworkEvents,
+    IN PKEVENT          pEvent
+)
+{
+    WdfSpinLockAcquire(pSocket->StateLock);
+    lpNetworkEvents->NetworkEvents = pSocket->Events & pSocket->EventsMask;
+    RtlCopyMemory(lpNetworkEvents->Status, pSocket->EventsStatus, sizeof(pSocket->EventsStatus));
+    pSocket->Events = 0;
+    if (pEvent)
+    {
+        KeClearEvent(pEvent);
+    }
+
+    WdfSpinLockRelease(pSocket->StateLock);
+}
+
 static
 NTSTATUS
 VIOSockEnumNetEvents(
@@ -1812,10 +1833,15 @@ VIOSockEnumNetEvents(
     if (pEvent && pEvent != pSocket->EventObject)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid event handle\n");
+        ObDereferenceObject(pEvent);
         return STATUS_INVALID_PARAMETER;
     }
 
-    VIOSockEventUnregister(pSocket, lpNetworkEvents, pEvent);
+    VIOSockEventsReport(pSocket, lpNetworkEvents, pEvent);
+    if (pEvent)
+    {
+        ObDereferenceObject(pEvent);
+    }
 
     *pLength = sizeof(*lpNetworkEvents);
 
