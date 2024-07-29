@@ -39,8 +39,19 @@
 #  Example:  .\CollectSystemInfo.ps1 -IncludeSensitiveData
 
 param (
-    [switch]$IncludeSensitiveData
+    [switch]$IncludeSensitiveData,
+    [switch]$Help
 )
+
+function Show-Help {
+    Write-Host "Usage: .\CollectSystemInfo.ps1 [-IncludeSensitiveData] [-Help]"
+    Write-Host ""
+    Write-Host "Parameters:"
+    Write-Host "  -IncludeSensitiveData  Include sensitive data (memory dump)"
+    Write-Host "  -Help                  Show this help message"
+    Write-Host ""
+    Write-Host "If no parameters are provided, the script will run with default behavior."
+}
 
 function Export-SystemConfiguration {
     try {
@@ -187,6 +198,20 @@ function StopTranscriptAndCloseFile {
     if ($transcriptStarted) {
         Stop-Transcript | Out-Null
         $transcriptStarted = $false
+    }
+}
+
+$validParams = @('IncludeSensitiveData', 'Help')
+if ($Help -or $args -contains '-?' -or $args -contains '--Help') {
+    Show-Help
+    return
+}
+
+foreach ($param in $args) {
+    if ($param -like '-*' -and $validParams -notcontains $param.TrimStart('-')) {
+        Write-Host "A parameter cannot be found that matches parameter name '$param'"
+        Show-Help
+        return
     }
 }
 

@@ -24,6 +24,7 @@ The collected data is organized into a timestamped folder and then compressed in
       .\CollectSystemInfo.ps1 -IncludeSensitiveData
       ```
       - `-IncludeSensitiveData`: Optional switch to include memory dumps in the collection (use with caution).
+      - `-Help`: Provide basic usage of the script.
 
 3. **Output:**
    - A folder named `SystemInfo_YYYY-MM-DD_HH-MM-SS` will be created in the script's directory.
