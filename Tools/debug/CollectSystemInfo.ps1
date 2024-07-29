@@ -183,6 +183,21 @@ function Write-InformationToArchive {
     }
 }
 
+function StopTranscriptAndCloseFile {
+    if ($transcriptStarted) {
+        Stop-Transcript | Out-Null
+        $transcriptStarted = $false
+    }
+}
+
+$breakHandler = {
+    Write-Host "Script interrupted by user. Stopping transcript..."
+    StopTranscriptAndCloseFile
+    exit
+}
+Register-EngineEvent -SourceIdentifier ConsoleBreak -Action $breakHandler | Out-Null
+Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action $breakHandler | Out-Null
+
 $timestamp = Get-Date -Format 'yyyy-MM-dd_HH-mm-ss'
 $folderName = "SystemInfo_$timestamp"
 $folderPath = Join-Path -Path (Get-Location) -ChildPath $folderName
@@ -191,22 +206,32 @@ New-Item -Path $folderPath -ItemType Directory | Out-Null
 New-Item -Path $progressFile -ItemType File | Out-Null
 Write-Host "Starting system info collecting into $folderPath"
 
-Start-Transcript -Path $progressFile -Append
-Export-SystemConfiguration
-Export-EventLogs
-Export-DriversList
-Export-VirtioWinStorageDrivers
-Export-WindowsUpdateLogs
-Export-ServicesList
-Export-WindowsUptime
-Export-RunningProcesses
-Export-InstalledApplications
-Export-InstalledKBs
-Export-NetworkConfiguration
-Stop-Transcript
+try {
+    Start-Transcript -Path $progressFile -Append
+    $transcriptStarted = $true
+    Export-SystemConfiguration
+    Export-EventLogs
+    Export-DriversList
+    Export-VirtioWinStorageDrivers
+    Export-WindowsUpdateLogs
+    Export-ServicesList
+    Export-WindowsUptime
+    Export-RunningProcesses
+    Export-InstalledApplications
+    Export-InstalledKBs
+    Export-NetworkConfiguration
 
-if ($IncludeSensitiveData) {
-    Export-WindowsMemoryDump
+    if ($IncludeSensitiveData) {
+        Export-WindowsMemoryDump
+    }
+} catch {
+    $errorMsg = "An error occurred: $_"
+    Write-Host $errorMsg
+    Add-Content -Path $progressFile -Value $errorMsg
+} finally {
+    StopTranscriptAndCloseFile
+    Unregister-Event -SourceIdentifier ConsoleBreak
+    Unregister-Event -SourceIdentifier PowerShell.Exiting
 }
 
 Remove-Item -Path $progressFile -ErrorAction SilentlyContinue
