@@ -1711,17 +1711,18 @@ VIOSockListen(
     return status;
 }
 __inline
-PKEVENT
+NTSTATUS
 VIOSockGetEventFromHandle(
-    IN HANDLE hEvent
+    IN HANDLE hEvent,
+    OUT PKEVENT *pEvent
 )
 {
-    PKEVENT pEvent = NULL;
+    NTSTATUS status = STATUS_UNSUCCESSFUL;
 
-    ObReferenceObjectByHandle(hEvent, STANDARD_RIGHTS_REQUIRED, *ExEventObjectType,
-        KernelMode, (PVOID)&pEvent, NULL);
+    status = ObReferenceObjectByHandle(hEvent, STANDARD_RIGHTS_REQUIRED, *ExEventObjectType,
+        KernelMode, (PVOID)pEvent, NULL);
 
-    return pEvent;
+    return status;
 }
 
 _Requires_lock_not_held_(pSocket->StateLock)
@@ -1822,11 +1823,11 @@ VIOSockEnumNetEvents(
 
     if (hEvent)
     {
-        pEvent = VIOSockGetEventFromHandle(hEvent);
-        if (!pEvent)
+        status = VIOSockGetEventFromHandle(hEvent, &pEvent);
+        if (!NT_SUCCESS(status))
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockGetEventFromHandle failed\n");
-            return STATUS_INVALID_PARAMETER;
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockGetEventFromHandle failed: 0x%x\n", status);
+            return status;
         }
     }
 
@@ -1931,11 +1932,11 @@ VIOSockEventSelect(
             return STATUS_INVALID_PARAMETER;
         }
 
-        pEvent = VIOSockGetEventFromHandle(hEvent);
-        if (!pEvent)
+        status = VIOSockGetEventFromHandle(hEvent, &pEvent);
+        if (!NT_SUCCESS(status))
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockGetEventFromHandle failed\n");
-            return STATUS_INVALID_PARAMETER;
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockGetEventFromHandle failed: 0x%x\n", status);
+            return status;
         }
     }
 
