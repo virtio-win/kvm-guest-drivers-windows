@@ -1880,8 +1880,11 @@ VIOSockEventRegister(
     pSocket->EventsMask = lNetworkEvents;
     if (pSocket->EventObject)
         ObDereferenceObject(pSocket->EventObject);
-    pSocket->Events = 0;
+ 
     pSocket->EventObject = pEvent;
+    if (pSocket->EventObject && (pSocket->Events & pSocket->EventsMask) != 0)
+        KeSetEvent(pSocket->EventObject, IO_NO_INCREMENT, FALSE);
+
     WdfSpinLockRelease(pSocket->StateLock);
 }
 
