@@ -208,7 +208,7 @@ if ($Help -or $args -contains '-?' -or $args -contains '--Help') {
 }
 
 foreach ($param in $args) {
-    if ($param -like '-*' -and $validParams -notcontains $param.TrimStart('-')) {
+    if ($param -notlike '-*' -or ($param -like '-*' -and $validParams -notcontains $param.TrimStart('-'))) {
         Write-Host "A parameter cannot be found that matches parameter name '$param'"
         Show-Help
         return
