@@ -176,9 +176,9 @@ function Export-NetworkConfiguration {
 
 function Export-WindowsMemoryDump {
     $memoryDumpPaths = @("$env:SystemRoot\MEMORY.DMP", "$env:SystemRoot\Minidump")
-    
+
     foreach ($dump in $memoryDumpPaths) {
-        Copy-Item -Path $dump -Destination $folderPath -ErrorAction SilentlyContinue
+        Copy-Item -Path $dump -Destination $folderPath -Recurse -ErrorAction SilentlyContinue
     }
     Write-Host 'Windows memory dump collection completed.'
 }
