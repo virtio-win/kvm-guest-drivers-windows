@@ -4,7 +4,7 @@
 
 This PowerShell script is designed for comprehensive system diagnostics. It gathers a wide range of information, including system configuration, event logs, drivers, registry settings, update logs, services, uptime, processes, installed applications, installed KBs (knowledge base articles), network configuration, and optionally, memory dumps.
 
-The collected data is organized into a timestamped folder and then compressed into a ZIP archive for easy sharing and analysis.
+The collected data is organized into two subfolders within the time-stamped summary folder, one for log and the other for dump. and then compressed into two ZIP archives correspondingly for easy sharing and analysis.
 
 ## Usage
 
@@ -28,8 +28,11 @@ The collected data is organized into a timestamped folder and then compressed in
 
 3. **Output:**
    - A folder named `SystemInfo_YYYY-MM-DD_HH-MM-SS` will be created in the script's directory.
-   - This folder contains the collected data files.
-   - A ZIP archive named `SystemInfo_YYYY-MM-DD_HH-MM-SS.zip` will also be created.
+   - This folder contains the collected data folders:
+      - A foler named `Log_folder_YYYY-MM-DD_HH-MM-SS` will be created for log data.
+      - A ZIP archive named `Log_folder_YYYY-MM-DD_HH-MM-SS.zip` will also be created correspondingly.
+      - A foler named `Dump_folder_YYYY-MM-DD_HH-MM-SS` will be created for dump files if add param `-IncludeSensitiveData`.
+      - A ZIP archive named `Dump_folder_YYYY-MM-DD_HH-MM-SS.zip` will also be created correspondingly.
 
 ## Data Collected
 
