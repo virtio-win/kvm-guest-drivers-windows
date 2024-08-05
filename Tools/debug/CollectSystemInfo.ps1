@@ -43,6 +43,17 @@ param (
     [switch]$Help
 )
 
+Add-Type -AssemblyName 'System.IO.Compression.FileSystem'
+
+function Compress-Files {
+    param (
+        [string]$SourcePath,
+        [string]$DestinationPath
+    )
+
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($SourcePath, $DestinationPath)
+}
+
 function Show-Help {
     Write-Host "Usage: .\CollectSystemInfo.ps1 [-IncludeSensitiveData] [-Help]"
     Write-Host ""
@@ -56,7 +67,7 @@ function Show-Help {
 function Export-SystemConfiguration {
     try {
         Write-Host 'Collecting system configuration started it may take a while...'
-        Start-Process -FilePath 'msinfo32.exe' -ArgumentList '/report', (Join-Path $folderPath 'msinfo32.txt') -Wait
+        Start-Process -FilePath 'msinfo32.exe' -ArgumentList '/report', (Join-Path $logfolderPath 'msinfo32.txt') -Wait
         Write-Host 'System configuration collection completed.'
     } catch {
         Write-Warning "Failed to collect system configuration: $_"
@@ -67,7 +78,7 @@ function Export-EventLogs {
     try {
         $logNames = @('system', 'security', 'application')
         foreach ($logName in $logNames) {
-            $logPath = Join-Path $folderPath "$logName.evtx"
+            $logPath = Join-Path $logfolderPath "$logName.evtx"
             wevtutil epl $logName $logPath
             wevtutil al $logPath
         }
@@ -79,7 +90,7 @@ function Export-EventLogs {
 
 function Export-DriversList {
     try {
-        Get-WindowsDriver -Online -All | Select-Object -Property * | Export-Csv -Path (Join-Path $folderPath 'drv_list.csv') -NoTypeInformation
+        Get-WindowsDriver -Online -All | Select-Object -Property * | Export-Csv -Path (Join-Path $logfolderPath 'drv_list.csv') -NoTypeInformation
         Write-Host 'Drivers list collection completed.'
     } catch {
         Write-Warning "Failed to collect drivers list: $_"
@@ -98,7 +109,7 @@ function Export-VirtioWinStorageDrivers {
         foreach ($value in $valuesToQuery) {
             $property = Get-ItemProperty -Path $path -Name $value -ErrorAction SilentlyContinue
             $output = "$path\$value : $($property.$value)" 
-            $output | Out-File -FilePath (Join-Path $folderPath 'virtio_disk.txt') -Append
+            $output | Out-File -FilePath (Join-Path $logfolderPath 'virtio_disk.txt') -Append
         }
     }
     Write-Host 'Virtio-Win storage drivers configuration collection completed.'
@@ -106,9 +117,9 @@ function Export-VirtioWinStorageDrivers {
 
 function Export-WindowsUpdateLogs {
     try {
-        $logPath = Join-Path $folderPath 'WindowsUpdate.log'
+        $logPath = Join-Path $logfolderPath 'WindowsUpdate.log'
         $command = "Get-WindowsUpdateLog -LogPath '$logPath'"
-        Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoLogo', '-NoProfile', '-Command', $command -NoNewWindow -Wait -RedirectStandardOutput (Join-Path $folderPath 'OutputWindowsUpdate.log') -RedirectStandardError (Join-Path $folderPath 'ErrorWindowsUpdate.log')
+        Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoLogo', '-NoProfile', '-Command', $command -NoNewWindow -Wait -RedirectStandardOutput (Join-Path $logfolderPath 'OutputWindowsUpdate.log') -RedirectStandardError (Join-Path $logfolderPath 'ErrorWindowsUpdate.log')
         Write-Host 'Windows Update logs collection completed.'
     } catch {
         Write-Warning "Failed to collect Windows Update logs: $_"
@@ -118,7 +129,7 @@ function Export-WindowsUpdateLogs {
 function Export-WindowsUptime {
     try {
         $uptime = (Get-Date) - (gcim Win32_OperatingSystem).LastBootUpTime
-        $uptime.ToString() | Out-File -FilePath (Join-Path $folderPath 'WindowsUptime.txt')
+        $uptime.ToString() | Out-File -FilePath (Join-Path $logfolderPath 'WindowsUptime.txt')
         Write-Host 'Windows uptime collection completed.'
     } catch {
         Write-Warning "Failed to collect Windows uptime: $_"
@@ -127,7 +138,7 @@ function Export-WindowsUptime {
 
 function Export-ServicesList {
     try {
-        Get-Service | Select-Object -Property Name, DisplayName, Status, StartType | Export-Csv -Path (Join-Path $folderPath 'Services.csv') -NoTypeInformation
+        Get-Service | Select-Object -Property Name, DisplayName, Status, StartType | Export-Csv -Path (Join-Path $logfolderPath 'Services.csv') -NoTypeInformation
         Write-Host 'Services list collection completed.'
     } catch {
         Write-Warning "Failed to collect list of services: $_"
@@ -136,7 +147,7 @@ function Export-ServicesList {
 
 function Export-RunningProcesses {
     try {
-        Get-Process | Select-Object -Property Id, ProcessName, StartTime | Export-Csv -Path (Join-Path $folderPath 'RunningProcesses.csv') -NoTypeInformation
+        Get-Process | Select-Object -Property Id, ProcessName, StartTime | Export-Csv -Path (Join-Path $logfolderPath 'RunningProcesses.csv') -NoTypeInformation
         Write-Host 'Running processes collection completed.'
     } catch {
         Write-Warning "Failed to collect list of running processes: $_"
@@ -147,7 +158,7 @@ function Export-InstalledApplications {
     try {
         Get-ItemProperty -Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' |
         Select-Object -Property DisplayName, DisplayVersion, Publisher, InstallDate |
-        Export-Csv -Path (Join-Path $folderPath 'InstalledApplications.csv') -NoTypeInformation
+        Export-Csv -Path (Join-Path $logfolderPath 'InstalledApplications.csv') -NoTypeInformation
         Write-Host 'Installed applications collection completed.'
     } catch {
         Write-Warning "Failed to collect list of installed applications: $_"
@@ -156,7 +167,7 @@ function Export-InstalledApplications {
 
 function Export-InstalledKBs {
     try {
-        Get-HotFix | Select-Object -Property Description, HotFixID, InstalledOn | Export-Csv -Path (Join-Path $folderPath 'InstalledKBs.csv') -NoTypeInformation
+        Get-HotFix | Select-Object -Property Description, HotFixID, InstalledOn | Export-Csv -Path (Join-Path $logfolderPath 'InstalledKBs.csv') -NoTypeInformation
         Write-Host 'Installed KBs collection completed.'
     } catch {
         Write-Warning "Failed to collect list of installed KBs: $_"
@@ -165,8 +176,8 @@ function Export-InstalledKBs {
 
 function Export-NetworkConfiguration {
     try {
-        Get-NetAdapterAdvancedProperty | Out-File -FilePath (Join-Path $folderPath 'NetworkInterfaces.txt')
-        ipconfig /all | Out-File -FilePath (Join-Path $folderPath 'IPConfiguration.txt')
+        Get-NetAdapterAdvancedProperty | Out-File -FilePath (Join-Path $logfolderPath 'NetworkInterfaces.txt')
+        ipconfig /all | Out-File -FilePath (Join-Path $logfolderPath 'IPConfiguration.txt')
 
         Write-Host 'Network configuration collection completed.'
     } catch {
@@ -178,19 +189,23 @@ function Export-WindowsMemoryDump {
     $memoryDumpPaths = @("$env:SystemRoot\MEMORY.DMP", "$env:SystemRoot\Minidump")
 
     foreach ($dump in $memoryDumpPaths) {
-        Copy-Item -Path $dump -Destination $folderPath -Recurse -ErrorAction SilentlyContinue
+        Copy-Item -Path $dump -Destination $dumpfolderPath -Recurse -ErrorAction SilentlyContinue
     }
     Write-Host 'Windows memory dump collection completed.'
 }
 
 function Write-InformationToArchive {
+    param (
+        [string]$FolderPath,
+        [string]$SubFolderPath,
+        [string]$ArchiveFileName
+    )
     try {
-        $archiveFile = "$folderName.zip"
-        
-        Compress-Archive -Path $folderPath -DestinationPath $archiveFile
-        Write-Host "Archiving completed ($archiveFile)."
+        $archivePath = Join-Path -Path $FolderPath -ChildPath "$ArchiveFileName.zip"
+        Compress-Files -SourcePath $SubFolderPath -DestinationPath $archivePath
+        Write-Host "Archiving completed ($ArchiveFileName.zip)."
     } catch {
-        Write-Warning "Failed to archive information: $_"
+        Write-Warning "Failed to archive ($ArchiveFileName.zip): $_"
     }
 }
 
@@ -225,11 +240,16 @@ Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action $breakHandler 
 
 $timestamp = Get-Date -Format 'yyyy-MM-dd_HH-mm-ss'
 $folderName = "SystemInfo_$timestamp"
+$logfolderName = "Log_folder_$timestamp"
+$dumpfolderName = "Dump_folder_$timestamp"
 $folderPath = Join-Path -Path (Get-Location) -ChildPath $folderName
+$logfolderPath = Join-Path -Path $folderPath -ChildPath $logfolderName
+$dumpfolderPath = Join-Path -Path $folderPath -ChildPath $dumpfolderName
 $progressFile = "$folderPath\Collecting_Status.txt"
-New-Item -Path $folderPath -ItemType Directory | Out-Null
+New-Item -Path $logfolderPath -ItemType Directory | Out-Null
 New-Item -Path $progressFile -ItemType File | Out-Null
 Write-Host "Starting system info collecting into $folderPath"
+Write-Output "Log folder path: $logfolderPath"
 
 try {
     Start-Transcript -Path $progressFile -Append
@@ -247,6 +267,8 @@ try {
     Export-NetworkConfiguration
 
     if ($IncludeSensitiveData) {
+        Write-Output "Dump folder path: $dumpfolderPath"
+        New-Item -Path $dumpfolderPath -ItemType Directory | Out-Null
         Export-WindowsMemoryDump
     }
 } catch {
@@ -260,4 +282,7 @@ try {
 }
 
 Remove-Item -Path $progressFile -ErrorAction SilentlyContinue
-Write-InformationToArchive
+Write-InformationToArchive -FolderPath $folderPath -SubFolderPath $logfolderPath -ArchiveFileName $logfolderName
+if ($IncludeSensitiveData) {
+    Write-InformationToArchive -FolderPath $folderPath -SubFolderPath $dumpfolderPath -ArchiveFileName $dumpfolderName
+}
