@@ -17,14 +17,14 @@ This script enables the "Always Keep Memory Dump" feature in Windows by setting 
 1. Sets the `AlwaysKeepMemoryDump` registry value to 1 under `HKLM:\System\CurrentControlSet\Control\CrashControl`.
 2. Verifies the change and outputs the result.
 
-## Planned Scripts
+### EnableSetupAPILogging.ps1
 
-Additional helper scripts are planned for this directory. They may include:
+This script enables detailed logging for the Windows Setup API by setting the appropriate registry key.
 
-- System information collection
-- Driver installation and management
-- Performance optimization for KVM guests
-- Troubleshooting tools
+#### What it does
+
+1. Sets the LogMask registry value to 0xFFFFFFFF (4294967295 in decimal) under HKLM:\Software\Microsoft\Windows\CurrentVersion\Setup.
+2. Verifies the change and outputs the result.
 
 ## Usage Guidelines
 
@@ -49,17 +49,6 @@ Additional helper scripts are planned for this directory. They may include:
      - Console messages
      - Log files
      - Modified system settings
-
-## Contributing
-
-Contributions to this collection of helper scripts are welcome. If you have ideas for new scripts or improvements to existing ones, please consider the following:
-
-1. Ensure your script has a clear, descriptive name.
-2. Include detailed comments explaining the scripts purpose and usage.
-3. Follow existing style conventions and PowerShell best practices.
-4. Update this README with information about new scripts.
-5. If applicable, include error handling and logging.
-
 
 ## Disclaimer
 
