@@ -158,12 +158,40 @@ BOOLEAN VirtFsEvtInterruptIsr(IN WDFINTERRUPT Interrupt, IN ULONG MessageId)
     return serviced;
 }
 
+BOOLEAN VirtFsDequeueRequest(PDEVICE_CONTEXT Context, PVIRTIO_FS_REQUEST Req)
+{
+    PSINGLE_LIST_ENTRY iter;
+    BOOLEAN found = FALSE;
+
+    WdfSpinLockAcquire(Context->RequestsLock);
+    iter = &Context->RequestsList;
+    while (iter->Next != NULL)
+    {
+        PVIRTIO_FS_REQUEST removed = CONTAINING_RECORD(iter->Next,
+            VIRTIO_FS_REQUEST, ListEntry);
+
+        if (Req == removed)
+        {
+            TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC,
+                "Delete %p Request: %p", removed, removed->Request);
+            iter->Next = removed->ListEntry.Next;
+            found = TRUE;
+            break;
+        }
+        else
+        {
+            iter = iter->Next;
+        }
+    };
+    WdfSpinLockRelease(Context->RequestsLock);
+    return found;
+}
+
 static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context,
                                 struct virtqueue *vq,
                                 WDFSPINLOCK vq_lock)
 {
     PVIRTIO_FS_REQUEST fs_req;
-    PSINGLE_LIST_ENTRY iter;
     NTSTATUS status;
     PVOID out_buf_va;
     PUCHAR out_buf;    
@@ -186,26 +214,7 @@ static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context,
         TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC,
             "Got %p Request: %p", fs_req, fs_req->Request);
 
-        WdfSpinLockAcquire(context->RequestsLock);
-        iter = &context->RequestsList;
-        while (iter->Next != NULL)
-        {
-            PVIRTIO_FS_REQUEST removed = CONTAINING_RECORD(iter->Next,
-                VIRTIO_FS_REQUEST, ListEntry);
-
-            if (fs_req == removed)
-            {
-                TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC,
-                    "Delete %p Request: %p", removed, removed->Request);
-                iter->Next = removed->ListEntry.Next;
-                break;
-            }
-            else
-            {
-                iter = iter->Next;
-            }
-        };
-        WdfSpinLockRelease(context->RequestsLock);
+        VirtFsDequeueRequest(context, fs_req);
 
         if ((fs_req->Request == NULL) ||
             (WdfRequestUnmarkCancelable(fs_req->Request) == STATUS_CANCELLED))
