@@ -156,29 +156,10 @@ static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
         indirect_va, indirect_pa);
     if (ret < 0)
     {
-        PSINGLE_LIST_ENTRY iter;
-
         WdfSpinLockRelease(vq_lock);
 
-        WdfSpinLockAcquire(Context->RequestsLock);
-        iter = &Context->RequestsList;
-        while (iter->Next != NULL)
-        {
-            PVIRTIO_FS_REQUEST removed = CONTAINING_RECORD(iter->Next,
-                VIRTIO_FS_REQUEST, ListEntry);
+        VirtFsDequeueRequest(Context, Request);
 
-            if (Request == removed)
-            {
-                TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC,
-                    "Delete %p Request: %p", removed, removed->Request);
-                iter->Next = removed->ListEntry.Next;
-                break;
-            }
-
-            iter = iter->Next;
-        };
-        WdfSpinLockRelease(Context->RequestsLock);
-        
         ExFreePoolWithTag(sg, VIRT_FS_MEMORY_TAG);
 
         return STATUS_UNSUCCESSFUL;
