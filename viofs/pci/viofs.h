@@ -135,3 +135,5 @@ EVT_WDF_INTERRUPT_DISABLE VirtFsEvtInterruptDisable;
 
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL VirtFsEvtIoDeviceControl;
 EVT_WDF_IO_QUEUE_IO_STOP VirtFsEvtIoStop;
+
+BOOLEAN VirtFsDequeueWdfRequest(PDEVICE_CONTEXT Context, WDFREQUEST WdfRequest);
