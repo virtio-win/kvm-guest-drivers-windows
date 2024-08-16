@@ -434,24 +434,7 @@ VOID VirtFsEvtIoStop(IN WDFQUEUE Queue,
     }
     else if (ActionFlags & WdfRequestStopActionPurge)
     {
-        PSINGLE_LIST_ENTRY iter;
-
-        WdfSpinLockAcquire(context->RequestsLock);
-        iter = &context->RequestsList;
-        while (iter->Next != NULL)
-        {
-            PVIRTIO_FS_REQUEST removed = CONTAINING_RECORD(iter->Next,
-                VIRTIO_FS_REQUEST, ListEntry);
-
-            if (Request == removed->Request)
-            {
-                removed->Request = NULL;
-                break;
-            }
-
-            iter = iter->Next;
-        };
-        WdfSpinLockRelease(context->RequestsLock);
+        VirtFsDequeueWdfRequest(context, Request);
 
         WdfRequestComplete(Request, STATUS_CANCELLED);
     }
@@ -468,31 +451,41 @@ VOID VirtFsEvtRequestCancel(IN WDFREQUEST Request)
 {
     PDEVICE_CONTEXT context = GetDeviceContext(WdfIoQueueGetDevice(
         WdfRequestGetIoQueue(Request)));
-    PSINGLE_LIST_ENTRY iter;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL,
         "--> %!FUNC! Cancelled Request: %p", Request);
-    
+
+    VirtFsDequeueWdfRequest(context, Request);
+
     WdfRequestComplete(Request, STATUS_CANCELLED);
 
-    WdfSpinLockAcquire(context->RequestsLock);
-    iter = &context->RequestsList;
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "<-- %!FUNC!");
+}
+
+// find respective queue entry and clear WDF request in it
+// the PVIRTIO_FS_REQUEST structure stays in the list
+BOOLEAN VirtFsDequeueWdfRequest(PDEVICE_CONTEXT Context, WDFREQUEST WdfRequest)
+{
+    PSINGLE_LIST_ENTRY iter;
+    BOOLEAN found = FALSE;
+    WdfSpinLockAcquire(Context->RequestsLock);
+    iter = &Context->RequestsList;
     while (iter->Next != NULL)
     {
         PVIRTIO_FS_REQUEST entry = CONTAINING_RECORD(iter->Next,
             VIRTIO_FS_REQUEST, ListEntry);
 
-        if (Request == entry->Request)
+        if (WdfRequest == entry->Request)
         {
             TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL,
                 "Clear virtio fs request %p", entry);
             entry->Request = NULL;
+            found = TRUE;
             break;
         }
 
         iter = iter->Next;
     };
-    WdfSpinLockRelease(context->RequestsLock);
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "<-- %!FUNC!");
+    WdfSpinLockRelease(Context->RequestsLock);
+    return found;
 }
