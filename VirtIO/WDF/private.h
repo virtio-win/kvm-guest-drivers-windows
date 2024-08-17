@@ -89,6 +89,7 @@ typedef struct virtio_wdf_dma_transaction_context {
     PMDL                            mdl;
     PVOID                           buffer;
     LONG                            refCount;
+    WDF_DMA_DIRECTION               direction;
 } VIRTIO_WDF_DMA_TRANSACTION_CONTEXT, *PVIRTIO_WDF_DMA_TRANSACTION_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIRTIO_WDF_DMA_TRANSACTION_CONTEXT, GetDmaTransactionContext)
