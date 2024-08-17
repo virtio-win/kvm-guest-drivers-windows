@@ -198,8 +198,14 @@ typedef BOOLEAN (*VirtIOWdfDmaTransactionCallback)(PVIRTIO_DMA_TRANSACTION_PARAM
 BOOLEAN VirtIOWdfDeviceDmaTxAsync(VirtIODevice *vdev,
                                  PVIRTIO_DMA_TRANSACTION_PARAMS params,
                                  VirtIOWdfDmaTransactionCallback);
+BOOLEAN VirtIOWdfDeviceDmaRxAsync(VirtIODevice* vdev,
+                                 PVIRTIO_DMA_TRANSACTION_PARAMS params,
+                                 VirtIOWdfDmaTransactionCallback);
+
 /* <= DISPATCH transaction = VIRTIO_DMA_TRANSACTION_PARAMS.transaction */
 void VirtIOWdfDeviceDmaTxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transaction);
+/* <= DISPATCH transaction = VIRTIO_DMA_TRANSACTION_PARAMS.transaction */
+void VirtIOWdfDeviceDmaRxComplete(VirtIODevice* vdev, WDFDMATRANSACTION transaction, ULONG length);
 
 typedef struct virtio_dma_memory_sliced
 {
