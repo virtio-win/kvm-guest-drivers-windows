@@ -49,6 +49,7 @@
 #define VIRT_FS_INDIRECT_PAGE_CAPACITY 256
 #define VIRT_FS_INDIRECT_AREA_CAPACITY (VIRT_FS_INDIRECT_AREA_PAGES * \
                                         VIRT_FS_INDIRECT_PAGE_CAPACITY)
+#define VIRT_FS_MAX_QUEUE_SIZE      1024
 
 enum {
     VQ_TYPE_HIPRIO = 0,
@@ -80,8 +81,17 @@ typedef struct _VIRTIO_FS_REQUEST
     // Device-writable part.
     PMDL OutputBuffer;
     size_t OutputBufferLength;
-
+#else
+    VIRTIO_DMA_TRANSACTION_PARAMS H2D_Params;
+    VIRTIO_DMA_TRANSACTION_PARAMS D2H_Params;
+    struct virtqueue* VQ;
+    WDFSPINLOCK       VQ_Lock;
+    BOOLEAN           Use_Indirect;
+    struct VirtIOBufferDescriptor SGTable[VIRT_FS_MAX_QUEUE_SIZE];
+#endif
 } VIRTIO_FS_REQUEST, *PVIRTIO_FS_REQUEST;
+
+
 
 void FreeVirtFsRequest(IN PVIRTIO_FS_REQUEST Request);
 
@@ -89,6 +99,7 @@ typedef struct _DEVICE_CONTEXT {
 
     VIRTIO_WDF_DRIVER   VDevice;
     UINT32              NumQueues;
+    UINT32              QueueSize;
     struct virtqueue    **VirtQueues;
     BOOLEAN             UseIndirect;
     PVOID               IndirectVA;

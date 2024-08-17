@@ -105,6 +105,7 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
     // #0 - high priority queue
     // #1 - request queue
     context->NumQueues = 2;
+    context->QueueSize = VIRT_FS_MAX_QUEUE_SIZE;
 
     context->VirtQueues = ExAllocatePoolZero(NonPagedPool,
         context->NumQueues * sizeof(struct virtqueue *),
@@ -230,6 +231,11 @@ NTSTATUS VirtFsEvtDeviceD0Entry(IN WDFDEVICE Device,
 
     if (NT_SUCCESS(status))
     {
+        // set limit number of SG elements to exact queue size
+        ULONG queue_size = virtio_get_queue_size(context->VirtQueues[0]);
+        queue_size = min(queue_size, VIRT_FS_MAX_QUEUE_SIZE);
+        context->QueueSize = virtio_get_queue_size(context->VirtQueues[0]);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER, "%s: queue size %d, max usable size %d", __FUNCTION__, queue_size, context->QueueSize);
         VirtIOWdfSetDriverOK(&context->VDevice);
     }
     else
