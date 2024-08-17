@@ -327,9 +327,10 @@ BOOLEAN OnDmaTransactionProgramDma(
     return TRUE;
 }
 
-BOOLEAN VirtIOWdfDeviceDmaTxAsync(VirtIODevice *vdev,
+static BOOLEAN VirtIOWdfDeviceDmaAsync(VirtIODevice *vdev,
     PVIRTIO_DMA_TRANSACTION_PARAMS params,
-    VirtIOWdfDmaTransactionCallback callback)
+    VirtIOWdfDmaTransactionCallback callback,
+    WDF_DMA_DIRECTION Direction)
 {
     PVIRTIO_WDF_DRIVER pWdfDriver = vdev->DeviceContext;
     WDFDMATRANSACTION tr;
@@ -347,18 +348,21 @@ BOOLEAN VirtIOWdfDeviceDmaTxAsync(VirtIODevice *vdev,
     ctx->parameters = *params;
     ctx->callback = callback;
     ctx->refCount = 1;
+    ctx->direction = Direction;
     if (params->req) {
         status = WdfDmaTransactionInitializeUsingRequest(
-            tr, params->req, OnDmaTransactionProgramDma, WdfDmaDirectionWriteToDevice);
+            tr, params->req, OnDmaTransactionProgramDma, Direction);
     } else {
         ctx->buffer = ExAllocatePoolUninitialized(NonPagedPool, ctx->parameters.size, ctx->parameters.allocationTag);
         if (ctx->buffer) {
-            RtlCopyMemory(ctx->buffer, params->buffer, params->size);
+            if (Direction == WdfDmaDirectionWriteToDevice) {
+                RtlCopyMemory(ctx->buffer, params->buffer, params->size);
+            }
             ctx->mdl = IoAllocateMdl(ctx->buffer, params->size, FALSE, FALSE, NULL);
             if (ctx->mdl) {
                 MmBuildMdlForNonPagedPool(ctx->mdl);
                 status = WdfDmaTransactionInitialize(
-                    tr, OnDmaTransactionProgramDma, WdfDmaDirectionWriteToDevice,
+                    tr, OnDmaTransactionProgramDma, Direction,
                     ctx->mdl, ctx->buffer, params->size);
             } else {
                 status = STATUS_INSUFFICIENT_RESOURCES;
@@ -384,6 +388,20 @@ BOOLEAN VirtIOWdfDeviceDmaTxAsync(VirtIODevice *vdev,
     return TRUE;
 }
 
+BOOLEAN VirtIOWdfDeviceDmaTxAsync(VirtIODevice* vdev,
+    PVIRTIO_DMA_TRANSACTION_PARAMS params,
+    VirtIOWdfDmaTransactionCallback callback)
+{
+    return VirtIOWdfDeviceDmaAsync(vdev, params, callback, WdfDmaDirectionWriteToDevice);
+}
+
+BOOLEAN VirtIOWdfDeviceDmaRxAsync(VirtIODevice* vdev,
+    PVIRTIO_DMA_TRANSACTION_PARAMS params,
+    VirtIOWdfDmaTransactionCallback callback)
+{
+    return VirtIOWdfDeviceDmaAsync(vdev, params, callback, WdfDmaDirectionReadFromDevice);
+}
+
 void VirtIOWdfDeviceDmaTxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transaction)
 {
     PVIRTIO_WDF_DRIVER pWdfDriver = vdev->DeviceContext;
@@ -391,5 +409,18 @@ void VirtIOWdfDeviceDmaTxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transact
     NTSTATUS status;
     DPrintf(1, "%s %p\n", __FUNCTION__, transaction);
     WdfDmaTransactionDmaCompletedFinal(transaction, 0, &status);
+    DerefTransaction(ctx);
+}
+
+void VirtIOWdfDeviceDmaRxComplete(VirtIODevice* vdev, WDFDMATRANSACTION transaction, ULONG length)
+{
+    PVIRTIO_WDF_DRIVER pWdfDriver = vdev->DeviceContext;
+    PVIRTIO_WDF_DMA_TRANSACTION_CONTEXT ctx = GetDmaTransactionContext(transaction);
+    NTSTATUS status;
+    DPrintf(1, "%s %p, len %d\n", __FUNCTION__, transaction, length);
+    WdfDmaTransactionDmaCompletedFinal(transaction, length, &status);
+    if (length && ctx->buffer && ctx->parameters.buffer) {
+        RtlCopyMemory(ctx->parameters.buffer, ctx->buffer, length);
+    }
     DerefTransaction(ctx);
 }
