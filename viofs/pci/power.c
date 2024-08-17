@@ -81,7 +81,7 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     HostFeatures = VirtIOWdfGetDeviceFeatures(&context->VDevice);
 
-    if (virtio_is_feature_enabled(HostFeatures, VIRTIO_RING_F_INDIRECT_DESC))
+    if (virtio_is_feature_enabled(HostFeatures, VIRTIO_RING_F_INDIRECT_DESC) && VIRT_FS_ENABLE_INDIRECT)
     {
         virtio_feature_enable(GuestFeatures, VIRTIO_RING_F_INDIRECT_DESC);
         context->UseIndirect = TRUE;
