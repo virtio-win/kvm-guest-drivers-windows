@@ -2448,6 +2448,7 @@ NTSTATUS VIRTFS::SubmitInitRequest()
     MaxPages = init_out.init.max_pages ?
         init_out.init.max_pages : FUSE_DEFAULT_MAX_PAGES_PER_REQ;
 
+    DBG("Init: MaxWrite %u bytes, MaxPages %u", MaxWrite, MaxPages);
     return STATUS_SUCCESS;
 }
 
