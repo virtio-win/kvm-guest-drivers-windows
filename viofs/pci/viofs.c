@@ -235,6 +235,7 @@ VOID VirtFsEvtDriverContextCleanup(IN WDFOBJECT DriverObject)
 
 void FreeVirtFsRequest(IN PVIRTIO_FS_REQUEST Request)
 {
+#if !VIRT_FS_DMAR
     if (Request->InputBuffer != NULL)
     {
         MmFreePagesFromMdl(Request->InputBuffer);
@@ -250,7 +251,7 @@ void FreeVirtFsRequest(IN PVIRTIO_FS_REQUEST Request)
         Request->OutputBuffer = NULL;
         Request->OutputBufferLength = 0;
     }
-
+#endif
     if (Request->Handle != NULL)
     {
         WdfObjectDelete(Request->Handle);

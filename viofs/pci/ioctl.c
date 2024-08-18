@@ -46,6 +46,7 @@ static inline int GetVirtQueueIndex(IN PDEVICE_CONTEXT Context,
     return index;
 }
 
+#if !VIRT_FS_DMAR
 static SIZE_T GetRequiredScatterGatherSize(IN PVIRTIO_FS_REQUEST Request)
 {
     SIZE_T n;
@@ -57,6 +58,7 @@ static SIZE_T GetRequiredScatterGatherSize(IN PVIRTIO_FS_REQUEST Request)
 
     return n;
 }
+#endif
 
 static PMDL VirtFsAllocatePages(IN SIZE_T TotalBytes)
 {
@@ -101,6 +103,7 @@ static int FillScatterGatherFromMdl(OUT struct scatterlist sg[],
     return i;
 }
 
+#if !VIRT_FS_DMAR
 static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
                                      IN PVIRTIO_FS_REQUEST Request,
                                      IN BOOLEAN HighPrio)
@@ -174,6 +177,189 @@ static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
 
     return STATUS_SUCCESS;
 }
+#else
+
+void FailFsRequest(IN PDEVICE_CONTEXT Context, IN PVIRTIO_FS_REQUEST Request)
+{
+    // failing FS request that already was queued but not sent
+    WDFREQUEST wdfReq;
+    TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "%s: in %d, out %d", __FUNCTION__, Request->H2D_Params.size, Request->D2H_Params.size);
+    if (Request->H2D_Params.transaction) {
+        VirtIOWdfDeviceDmaTxComplete(&Context->VDevice.VIODevice, Request->H2D_Params.transaction);
+        Request->H2D_Params.transaction = NULL;
+    }
+    if (Request->D2H_Params.transaction) {
+        VirtIOWdfDeviceDmaRxComplete(&Context->VDevice.VIODevice, Request->D2H_Params.transaction, 0);
+        Request->D2H_Params.transaction = NULL;
+    }
+
+    VirtFsDequeueRequest(Context, Request);
+    wdfReq = Request->Request;
+
+    if (wdfReq)
+    {
+        // TODO: why are we sure the wdfReq is valid and not destroyed yet?
+        NTSTATUS status = WdfRequestUnmarkCancelable(wdfReq);
+        if (status != STATUS_CANCELLED)
+        {
+            status = STATUS_UNSUCCESSFUL;
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "%s: completing %p with %X", __FUNCTION__, wdfReq, status);
+            WdfRequestComplete(wdfReq, status);
+        }
+        else
+        {
+            // cancellation flow already started and will complete the WDF request
+        }
+    }
+    FreeVirtFsRequest(Request);
+}
+
+static FORCEINLINE ULONG FragmentSize(PHYSICAL_ADDRESS Addr, ULONG Length)
+{
+    ULONG offset = Addr.LowPart & (PAGE_SIZE - 1);
+    return min(PAGE_SIZE - offset, Length);
+}
+
+// split SG elements to fragments <= PAGE_SIZE and inside the same page
+// with large SG elements the virtiofsd may fail to map the fragment (happens with 1M elements)
+// DestSG = NULL for dry run (just calculate)
+static ULONG PopulateSG(struct VirtIOBufferDescriptor* DestSG, PSCATTER_GATHER_LIST SrcSG)
+{
+    ULONG i, n = 0;
+    for (i = 0; i < SrcSG->NumberOfElements; ++i)
+    {
+        PHYSICAL_ADDRESS pa = SrcSG->Elements[i].Address;
+        ULONG len = SrcSG->Elements[i].Length;
+        while (len)
+        {
+            ULONG current;
+            current = FragmentSize(pa, len);
+            if (DestSG)
+            {
+                DestSG[n].physAddr = pa;
+                DestSG[n].length = current;
+            }
+            n++;
+            if (current < len)
+            {
+                len -= current;
+                pa.QuadPart += current;
+            }
+            else
+            {
+                len = 0;
+            }
+        }
+    }
+    return n;
+}
+
+static ULONG CalculateFragments(PSCATTER_GATHER_LIST SGList)
+{
+    return PopulateSG(NULL, SGList);
+}
+
+static BOOLEAN VirtioFsRxTransactionCallback(PVIRTIO_DMA_TRANSACTION_PARAMS Params)
+{
+    PDEVICE_CONTEXT context = Params->param1;
+    PVIRTIO_FS_REQUEST fs_req = Params->param2;
+    void* indirect_va = NULL;
+    ULONGLONG indirect_pa = 0;
+    ULONG sgNum, sgNumIn, sgNumOut;
+
+    // save actual RX DMA data
+    fs_req->D2H_Params.sgList = Params->sgList;
+    fs_req->D2H_Params.transaction = Params->transaction;
+
+    sgNumIn = CalculateFragments(fs_req->H2D_Params.sgList);
+    sgNumOut = CalculateFragments(fs_req->D2H_Params.sgList);
+    sgNum = sgNumIn + sgNumOut;
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "--> %s: %d + %d fragments", __FUNCTION__, sgNumIn, sgNumOut);
+    if (sgNum > VIRT_FS_MAX_QUEUE_SIZE) {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "--> %s: SG SIZE %d is too large", __FUNCTION__, sgNum);
+        FailFsRequest(context, fs_req);
+        return TRUE;
+    }
+#if 0
+    if (sgNum > context->QueueSize) {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "--> %s: SG SIZE %d is too large", __FUNCTION__, sgNum);
+        FailFsRequest(context, fs_req);
+        return TRUE;
+    }
+#endif
+    fs_req->Use_Indirect = fs_req->Use_Indirect && 2 < sgNum && sgNum <= VIRT_FS_INDIRECT_AREA_CAPACITY;
+    if (fs_req->Use_Indirect) {
+        indirect_va = context->IndirectVA;
+        indirect_pa = (ULONGLONG)context->IndirectPA.QuadPart;
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "%s: using indirect transfer", __FUNCTION__);
+    }
+    // populate fs_req->SGTable with SG elements
+    sgNumIn = PopulateSG(fs_req->SGTable, fs_req->H2D_Params.sgList);
+    sgNumOut = PopulateSG(fs_req->SGTable + sgNumIn, fs_req->D2H_Params.sgList);
+    // push buffers to virtqueue
+    WdfSpinLockAcquire(fs_req->VQ_Lock);
+    int ret = virtqueue_add_buf(
+        fs_req->VQ, fs_req->SGTable,
+        sgNumIn,
+        sgNumOut,
+        fs_req,
+        indirect_va, indirect_pa);
+    WdfSpinLockRelease(fs_req->VQ_Lock);
+    if (ret < 0)
+    {
+        FailFsRequest(context, fs_req);
+    }
+    else
+    {
+        virtqueue_kick(fs_req->VQ);
+    }
+    return TRUE;
+}
+
+static BOOLEAN VirtioFsTxTransactionCallback(PVIRTIO_DMA_TRANSACTION_PARAMS Params)
+{
+    PDEVICE_CONTEXT context = Params->param1;
+    PVIRTIO_FS_REQUEST fs_req = Params->param2;
+
+    // save actual TX DMA data
+    fs_req->H2D_Params.sgList = Params->sgList;
+    fs_req->H2D_Params.transaction = Params->transaction;
+
+    if (!VirtIOWdfDeviceDmaRxAsync(&context->VDevice.VIODevice, &fs_req->D2H_Params, VirtioFsRxTransactionCallback)) {
+        FailFsRequest(context, fs_req);
+    }
+    return TRUE;
+}
+
+static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
+    IN PVIRTIO_FS_REQUEST Request,
+    IN BOOLEAN HighPrio)
+{
+    int vq_index;
+    NTSTATUS status = STATUS_UNSUCCESSFUL;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "--> %!FUNC!");
+
+    vq_index = GetVirtQueueIndex(Context, HighPrio);
+    Request->VQ = Context->VirtQueues[vq_index];
+    Request->VQ_Lock = Context->VirtQueueLocks[vq_index];
+    Request->Use_Indirect = Context->UseIndirect && !HighPrio;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "Push %p Request: %p",
+        Request, Request->Request);
+
+    // save the request structure in request queue
+    WdfSpinLockAcquire(Context->RequestsLock);
+    PushEntryList(&Context->RequestsList, &Request->ListEntry);
+    WdfSpinLockRelease(Context->RequestsLock);
+
+    // initiate TX part of the DMA mapping
+    if (VirtIOWdfDeviceDmaTxAsync(&Context->VDevice.VIODevice, &Request->H2D_Params, VirtioFsTxTransactionCallback)) {
+        status = STATUS_PENDING;
+    }
+    return status;
+}
+#endif
 
 static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context,
     IN WDFREQUEST Request,
@@ -252,6 +438,8 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
     PVOID in_buf, out_buf;
     BOOLEAN hiprio;
 
+    UNREFERENCED_PARAMETER(in_buf_va);
+
     if (InputBufferLength < sizeof(struct fuse_in_header))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Insufficient in buffer");
@@ -299,6 +487,7 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
     fs_req = WdfMemoryGetBuffer(handle, NULL);
     fs_req->Handle = handle;
     fs_req->Request = Request;
+#if !VIRT_FS_DMAR
     fs_req->InputBuffer = VirtFsAllocatePages(InputBufferLength);
     fs_req->InputBufferLength = InputBufferLength;
     fs_req->OutputBuffer = VirtFsAllocatePages(OutputBufferLength);
@@ -323,7 +512,22 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
 
     CopyBuffer(in_buf_va, in_buf, InputBufferLength);
     MmUnmapLockedPages(in_buf_va, fs_req->InputBuffer);
+#else
+    RtlZeroMemory(&fs_req->H2D_Params, sizeof(fs_req->H2D_Params));
+    RtlZeroMemory(&fs_req->D2H_Params, sizeof(fs_req->D2H_Params));
 
+    fs_req->H2D_Params.allocationTag = VIRT_FS_MEMORY_TAG;
+    fs_req->H2D_Params.buffer = in_buf;
+    fs_req->H2D_Params.size = (ULONG)InputBufferLength;
+    fs_req->H2D_Params.param1 = Context;
+    fs_req->H2D_Params.param2 = fs_req;
+
+    fs_req->D2H_Params.allocationTag = VIRT_FS_MEMORY_TAG;
+    fs_req->D2H_Params.buffer = out_buf;
+    fs_req->D2H_Params.size = (ULONG)OutputBufferLength;
+    fs_req->D2H_Params.param1 = Context;
+    fs_req->D2H_Params.param2 = fs_req;
+#endif
     status = WdfRequestMarkCancelableEx(Request, VirtFsEvtRequestCancel);
     if (!NT_SUCCESS(status))
     {

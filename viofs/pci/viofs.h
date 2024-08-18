@@ -43,6 +43,8 @@
 #include "VirtIOWdf.h"
 #include "fuse.h"
 
+#define VIRT_FS_DMAR    1
+
 #define VIRT_FS_MEMORY_TAG ((ULONG)'sf_V')
 
 #define VIRT_FS_ENABLE_INDIRECT     1
@@ -75,6 +77,7 @@ typedef struct _VIRTIO_FS_REQUEST
 
     WDFREQUEST Request;
 
+#if !VIRT_FS_DMAR
     // Device-readable part.
     PMDL InputBuffer;
     size_t InputBufferLength;

@@ -192,10 +192,7 @@ static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context,
                                 WDFSPINLOCK vq_lock)
 {
     PVIRTIO_FS_REQUEST fs_req;
-    NTSTATUS status;
-    PVOID out_buf_va;
-    PUCHAR out_buf;    
-    size_t out_len;
+    NTSTATUS status = STATUS_SUCCESS;
     unsigned int length;
 
     for (;;)
@@ -227,6 +224,11 @@ static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context,
 
         if (fs_req->Request != NULL)
         {
+#if !VIRT_FS_DMAR
+            PUCHAR out_buf;
+            size_t out_len;
+            PVOID out_buf_va;
+
             status = WdfRequestRetrieveOutputBuffer(fs_req->Request, length,
                 &out_buf, &out_len);
 
@@ -256,6 +258,13 @@ static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context,
                 TraceEvents(TRACE_LEVEL_ERROR, DBG_DPC,
                     "WdfRequestRetrieveOutputBuffer failed");
             }
+#else
+            VirtIOWdfDeviceDmaTxComplete(&context->VDevice.VIODevice,
+                                         fs_req->H2D_Params.transaction);
+            VirtIOWdfDeviceDmaRxComplete(&context->VDevice.VIODevice,
+                                         fs_req->D2H_Params.transaction,
+                                         length);
+#endif
 
             TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC,
                 "Complete Request: %p Status: %!STATUS! Length: %d",
