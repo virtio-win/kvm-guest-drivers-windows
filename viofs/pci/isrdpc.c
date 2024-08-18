@@ -213,13 +213,16 @@ static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context,
 
         VirtFsDequeueRequest(context, fs_req);
 
-        if ((fs_req->Request == NULL) ||
-            (WdfRequestUnmarkCancelable(fs_req->Request) == STATUS_CANCELLED))
+        if (fs_req->Request != NULL)
         {
+            // TODO: why are we sure the wdfReq is valid and not destroyed yet?
+            NTSTATUS status2 = WdfRequestUnmarkCancelable(fs_req->Request);
             TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
-                "Ignoring a cancelled request: %p", fs_req->Request);
-
-            fs_req->Request = NULL;
+                "request %p -> uncancellable = %X", fs_req->Request, status2);
+            if (status2 == STATUS_CANCELLED)
+            {
+                fs_req->Request = NULL;
+            }
         }
 
         if (fs_req->Request != NULL)

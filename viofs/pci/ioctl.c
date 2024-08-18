@@ -640,8 +640,10 @@ VOID VirtFsEvtRequestCancel(IN WDFREQUEST Request)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL,
         "--> %!FUNC! Cancelled Request: %p", Request);
 
-    VirtFsDequeueWdfRequest(context, Request);
-
+    if (!VirtFsDequeueWdfRequest(context, Request))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTL, "--> %!FUNC! the request %p is not found", Request);
+    }
     WdfRequestComplete(Request, STATUS_CANCELLED);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "<-- %!FUNC!");
