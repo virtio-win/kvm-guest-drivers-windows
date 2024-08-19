@@ -211,7 +211,6 @@ BOOLEAN SendUnplugAllRequest(IN WDFOBJECT WdfDevice)
 {
 	PDEVICE_CONTEXT devCtx = GetDeviceContext(WdfDevice);
 	VIO_SG              sg[2];
-	LARGE_INTEGER       timeout = { 0 };
 	BOOLEAN				do_notify = FALSE;
 	NTSTATUS            status;
 	PVOID buffer;
@@ -267,20 +266,19 @@ BOOLEAN SendUnplugAllRequest(IN WDFOBJECT WdfDevice)
 	}
 
 	//
-	// Wait for device response. If timeout return FALSE
+	// Wait indefinitely for the device's response.
 	//
 
-	timeout.QuadPart = Int32x32To64(1000, -10000);
 	status = KeWaitForSingleObject(
 		&devCtx->hostAcknowledge,
 		Executive,
 		KernelMode,
 		FALSE,
-		&timeout);
+		NULL);
 
-	if (STATUS_TIMEOUT == status)
+	if (!NT_SUCCESS(status))
 	{
-		TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "%s TimeOut\n", 
+		TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "%s KeWaitForSingleObject failed!\n", 
 			__FUNCTION__);
 		
 		return FALSE;
@@ -361,7 +359,6 @@ BOOLEAN SendUnPlugRequest(
 {
 	PDEVICE_CONTEXT devCtx = GetDeviceContext(WdfDevice);
 	VIO_SG              sg[2];
-	LARGE_INTEGER       timeout = { 0 };
 	BOOLEAN				do_notify = FALSE;
 	NTSTATUS            status;
 	PVOID buffer;
@@ -416,20 +413,21 @@ BOOLEAN SendUnPlugRequest(
 	}
 
 	//
-	// Wait for device response. If timeout return false
+	// Wait indefinitely for the device's response.
 	//
 
-	timeout.QuadPart = Int32x32To64(1000, -10000);
 	status = KeWaitForSingleObject(
 		&devCtx->hostAcknowledge,
 		Executive,
 		KernelMode,
 		FALSE,
-		&timeout);
+		NULL);
 
-	if (STATUS_TIMEOUT == status)
+	if (!NT_SUCCESS(status))
 	{
-		TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "%s TimeOut\n", __FUNCTION__);
+		TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "%s KeWaitForSingleObject failed!\n",
+			__FUNCTION__);
+
 		return FALSE;
 	}
 
@@ -487,7 +485,6 @@ BOOLEAN SendPlugRequest(
 	__virtio16 NumberOfBlocks)
 {
 	VIO_SG              sg[2];
-	LARGE_INTEGER       timeout = { 0 };
 	bool                doNotify;
 	NTSTATUS            status;
 	PVOID               buffer;
@@ -543,17 +540,23 @@ BOOLEAN SendPlugRequest(
 	}
 
 	//
-	// Wait for the response from a device.
+	// Wait indefinitely for the device's response.
 	//
 
-	timeout.QuadPart = Int32x32To64(1000, -10000);
 	status = KeWaitForSingleObject(
 		&devCtx->hostAcknowledge,
 		Executive,
 		KernelMode,
 		FALSE,
-		&timeout);
-	ASSERT(NT_SUCCESS(status));
+		NULL);
+
+	if (!NT_SUCCESS(status))
+	{
+		TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "%s KeWaitForSingleObject failed!\n",
+			__FUNCTION__);
+
+		return FALSE;
+	}
 
 	WdfSpinLockAcquire(devCtx->infVirtQueueLock);
 	if (virtqueue_has_buf(devCtx->infVirtQueue))
@@ -569,17 +572,6 @@ BOOLEAN SendPlugRequest(
 		}
 	}
 	WdfSpinLockRelease(devCtx->infVirtQueueLock);
-
-	// 
-	// If there was no response from the device or device returned error
-	// return FALSE status. Otherwise return TRUE status.
-	//
-
-	if (status == STATUS_TIMEOUT)
-	{
-		TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "%s TimeOut\n", __FUNCTION__);
-		return FALSE;
-	}
 
 #if 0
 	DumpViomemResponseType(devCtx->MemoryResponse);
@@ -1317,7 +1309,6 @@ BOOLEAN SendStateRequest(
 {
 	PDEVICE_CONTEXT devCtx = GetDeviceContext(WdfDevice);
 	VIO_SG              sg[2];
-	LARGE_INTEGER       timeout = { 0 };
 	BOOLEAN				do_notify = FALSE;
 	NTSTATUS            status;
 	PVOID buffer;
@@ -1372,20 +1363,21 @@ BOOLEAN SendStateRequest(
 	}
 
 	//
-	// Wait for device response. If timeout return false
+	// Wait indefinitely for the device's response.
 	//
 
-	timeout.QuadPart = Int32x32To64(1000, -10000);
 	status = KeWaitForSingleObject(
 		&devCtx->hostAcknowledge,
 		Executive,
 		KernelMode,
 		FALSE,
-		&timeout);
+		NULL);
 
-	if (STATUS_TIMEOUT == status)
+	if (!NT_SUCCESS(status))
 	{
-		TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "%s TimeOut\n", __FUNCTION__);
+		TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "%s KeWaitForSingleObject failed!\n",
+			__FUNCTION__);
+
 		return FALSE;
 	}
 
