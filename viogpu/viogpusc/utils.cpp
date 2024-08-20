@@ -75,7 +75,7 @@ BOOL InstallService()
                              ServiceName,
                              DisplayName,
                              SERVICE_ALL_ACCESS,
-                             SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS,
+                             SERVICE_WIN32_OWN_PROCESS,
                              SERVICE_AUTO_START,
                              SERVICE_ERROR_NORMAL,
                              szBuffer,
