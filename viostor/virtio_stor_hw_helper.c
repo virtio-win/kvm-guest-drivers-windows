@@ -160,6 +160,7 @@ RhelDoReadWrite(PVOID DeviceExtension,
 
     ULONG               QueueNumber = 0;
     ULONG               MessageId = 1;
+    int                 res = 0;
     ULONG               OldIrql = 0;
     BOOLEAN             result = FALSE;
     bool                notify = FALSE;
@@ -194,30 +195,29 @@ RhelDoReadWrite(PVOID DeviceExtension,
     vq = adaptExt->vq[QueueNumber];
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " QueueNumber 0x%x vq = %p\n", QueueNumber, vq);
 
-    element = &adaptExt->processing_srbs[QueueNumber];
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
-    if (virtqueue_add_buf(vq,
-                     &srbExt->sg[0],
-                     srbExt->out, srbExt->in,
-                     &srbExt->vbr, va, pa) >= 0) {
+    res = virtqueue_add_buf(vq,
+        &srbExt->sg[0],
+        srbExt->out, srbExt->in,
+        &srbExt->vbr, va, pa);
+
+    if (res >= 0) {
         notify = virtqueue_kick_prepare(vq);
+        element = &adaptExt->processing_srbs[QueueNumber];
         InsertTailList(&element->srb_list, &srbExt->vbr.list_entry);
         element->srb_cnt++;
-        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
 #ifdef DBG
         InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
 #endif
         result = TRUE;
-    }
-    else {
-        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+    } else {
         RhelDbgPrint(TRACE_LEVEL_ERROR, " Can not add packet to queue %d.\n", QueueNumber);
         StorPortBusy(DeviceExtension, 2);
     }
-    if (notify) {
+    VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+    if (notify){
         virtqueue_notify(vq);
     }
-
     if (adaptExt->num_queues > 1) {
         if (CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) {
            VioStorCompleteRequest(DeviceExtension, MessageId, FALSE);
