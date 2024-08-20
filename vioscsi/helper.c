@@ -59,19 +59,22 @@ SendSRB(
     BOOLEAN             notify = FALSE;
     PREQUEST_LIST       element;
     ULONG               index;
+
 ENTER_FN_SRB();
 
-    if (!Srb)
-        return;
-
+    if (!Srb) {
+EXIT_FN_SRB();
+            return;
+    }
+    
     if (adaptExt->bRemoved) {
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_NO_DEVICE);
         CompleteRequest(DeviceExtension, Srb);
-        return;
-    }
-
+EXIT_FN_SRB();
+            return;
+        }
     LOG_SRB_INFO();
-
+    
     if (adaptExt->num_queues > 1) {
         STARTIO_PERFORMANCE_PARAMETERS param;
         param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
@@ -83,33 +86,38 @@ ENTER_FN_SRB();
             }
         } else {
             RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed srb 0x%p status 0x%x MessageNumber %d.\n", Srb, status, param.MessageNumber);
+            // FIXME
+            // Should we return on this error..?
+            // Should it be TRACE_LEVEL_FATAL..?
+            //is_done = TRUE;
         }
     }
-
+    
     srbExt = SRB_EXTENSION(Srb);
-
+    
     if (!srbExt) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " No SRB Extenstion for SRB 0x%p \n", Srb);
+EXIT_FN_SRB();
         return;
     }
-
+    
     MessageID = QUEUE_TO_MESSAGE(QueueNumber);
     index = QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0;
-
+    
     if (adaptExt->reset_in_progress) {
-        RhelDbgPrint(TRACE_LEVEL_FATAL, " Reset is in progress, completing SRB 0x%p with SRB_STATUS_BUS_RESET.\n", Srb);
+        RhelDbgPrint(TRACE_LEVEL_WARNING, " Reset is in progress, completing SRB 0x%p with SRB_STATUS_BUS_RESET.\n", Srb);
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUS_RESET);
         CompleteRequest(DeviceExtension, Srb);
+EXIT_FN_SRB();
         return;
     }
-
-    VioScsiVQLock(DeviceExtension, MessageID, &LockHandle, FALSE);
+    VioScsiLockManager(DeviceExtension, MessageID, &LockHandle, FALSE, VIOSCSI_VQLOCKOP_LOCK);
     SET_VA_PA();
     res = virtqueue_add_buf(adaptExt->vq[QueueNumber],
         srbExt->psgl,
         srbExt->out, srbExt->in,
         &srbExt->cmd, va, pa);
-
+    
     if (res >= 0) {
         notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
         element = &adaptExt->processing_srbs[index];
@@ -121,9 +129,9 @@ ENTER_FN_SRB();
         SRB_SET_SCSI_STATUS(Srb, ScsiStatus);
         StorPortBusy(DeviceExtension, 10);
         CompleteRequest(DeviceExtension, Srb);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, " Could not put an SRB into a VQ, so complete it with SRB_STATUS_BUSY. QueueNumber = %d, SRB = 0x%p, Lun = %d, TimeOut = %d.\n", QueueNumber, srbExt->Srb, SRB_LUN(Srb), Srb->TimeOutValue);
+        RhelDbgPrint(TRACE_LEVEL_WARNING, " Could not put an SRB into a VQ, so complete it with SRB_STATUS_BUSY. QueueNumber = %d, SRB = 0x%p, Lun = %d, TimeOut = %d.\n", QueueNumber, srbExt->Srb, SRB_LUN(Srb), Srb->TimeOutValue);
     }
-    VioScsiVQUnlock(DeviceExtension, MessageID, &LockHandle, FALSE);
+    VioScsiLockManager(DeviceExtension, MessageID, &LockHandle, FALSE, VIOSCSI_VQLOCKOP_UNLOCK);
     if (notify){
         virtqueue_notify(adaptExt->vq[QueueNumber]);
     }
@@ -183,6 +191,7 @@ DeviceReset(
 
 ENTER_FN();
     if (adaptExt->dump_mode) {
+EXIT_FN();
         return TRUE;
     }
     ASSERT(adaptExt->tmf_infly == FALSE);
@@ -195,7 +204,7 @@ ENTER_FN();
     cmd->req.tmf.lun[3] = 0;
     cmd->req.tmf.type = VIRTIO_SCSI_T_TMF;
     cmd->req.tmf.subtype = VIRTIO_SCSI_T_TMF_LOGICAL_UNIT_RESET;
-
+    
     srbExt->psgl = srbExt->vio_sg;
     srbExt->pdesc = srbExt->desc_alias;
     sgElement = 0;
@@ -210,9 +219,11 @@ ENTER_FN();
     StorPortPause(DeviceExtension, 60);
     if (!SendTMF(DeviceExtension, Srb)) {
         StorPortResume(DeviceExtension);
+EXIT_FN();
         return FALSE;
     }
     adaptExt->tmf_infly = TRUE;
+EXIT_FN();
     return TRUE;
 }
 
@@ -382,46 +393,48 @@ ENTER_FN();
                 SP_INTERNAL_ADAPTER_ERROR,
                 __LINE__);
         RhelDbgPrint(TRACE_LEVEL_FATAL, " CANNOT READ PCI CONFIGURATION SPACE %d\n", pci_cfg_len);
+EXIT_FN();
         return FALSE;
     }
-
+    
+    UCHAR CapOffset;
+    PPCI_MSIX_CAPABILITY pMsixCapOffset;
+    PPCI_COMMON_HEADER   pPciComHeader;
+    pPciComHeader = &adaptExt->pci_config;
+    if ((pPciComHeader->Status & PCI_STATUS_CAPABILITIES_LIST) == 0)
     {
-        UCHAR CapOffset;
-        PPCI_MSIX_CAPABILITY pMsixCapOffset;
-        PPCI_COMMON_HEADER   pPciComHeader;
-        pPciComHeader = &adaptExt->pci_config;
-        if ((pPciComHeader->Status & PCI_STATUS_CAPABILITIES_LIST) == 0)
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " NO CAPABILITIES_LIST\n");
+    } else
+    {
+        if ((pPciComHeader->HeaderType & (~PCI_MULTIFUNCTION)) == PCI_DEVICE_TYPE)
         {
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " NO CAPABILITIES_LIST\n");
-        }
-        else
-        {
-            if ((pPciComHeader->HeaderType & (~PCI_MULTIFUNCTION)) == PCI_DEVICE_TYPE)
+            CapOffset = pPciComHeader->u.type0.CapabilitiesPtr;
+            while (CapOffset != 0)
             {
-                CapOffset = pPciComHeader->u.type0.CapabilitiesPtr;
-                while (CapOffset != 0)
+                pMsixCapOffset = (PPCI_MSIX_CAPABILITY)&adaptExt->pci_config_buf[CapOffset];
+                if (pMsixCapOffset->Header.CapabilityID == PCI_CAPABILITY_ID_MSIX)
                 {
-                    pMsixCapOffset = (PPCI_MSIX_CAPABILITY)&adaptExt->pci_config_buf[CapOffset];
-                    if (pMsixCapOffset->Header.CapabilityID == PCI_CAPABILITY_ID_MSIX)
-                    {
-                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, "MessageControl.TableSize = %d\n", pMsixCapOffset->MessageControl.TableSize);
-                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, "MessageControl.FunctionMask = %d\n", pMsixCapOffset->MessageControl.FunctionMask);
-                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, "MessageControl.MSIXEnable = %d\n", pMsixCapOffset->MessageControl.MSIXEnable);
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, "MessageControl.TableSize = %d\n", pMsixCapOffset->MessageControl.TableSize);
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, "MessageControl.FunctionMask = %d\n", pMsixCapOffset->MessageControl.FunctionMask);
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, "MessageControl.MSIXEnable = %d\n", pMsixCapOffset->MessageControl.MSIXEnable);
 
-                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MessageTable = %lu\n", pMsixCapOffset->MessageTable.TableOffset);
-                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " PBATable = %lu\n", pMsixCapOffset->PBATable.TableOffset);
-                        adaptExt->msix_enabled = (pMsixCapOffset->MessageControl.MSIXEnable == 1);
-                    } else
-                    {
-                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " CapabilityID = %x, Next CapOffset = %x\n", pMsixCapOffset->Header.CapabilityID, CapOffset);
-                    }
-                    CapOffset = pMsixCapOffset->Header.Next;
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MessageTable = %lu\n", pMsixCapOffset->MessageTable.TableOffset);
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " PBATable = %lu\n", pMsixCapOffset->PBATable.TableOffset);
+                    adaptExt->msix_enabled = (pMsixCapOffset->MessageControl.MSIXEnable == 1);
+                } else
+                {
+                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " CapabilityID = %x, Next CapOffset = %x\n", pMsixCapOffset->Header.CapabilityID, CapOffset);
                 }
-                RhelDbgPrint(TRACE_LEVEL_INFORMATION, " msix_enabled = %d\n", adaptExt->msix_enabled);
-            } else
-            {
-                RhelDbgPrint(TRACE_LEVEL_FATAL, " NOT A PCI_DEVICE_TYPE\n");
+                CapOffset = pMsixCapOffset->Header.Next;
             }
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " msix_enabled = %d\n", adaptExt->msix_enabled);
+        } else
+        {
+            RhelDbgPrint(TRACE_LEVEL_FATAL, " NOT A PCI_DEVICE_TYPE\n");
+            // FIXME
+            // Should we not return on this error..?
+//EXIT_FN();
+            //return FALSE;
         }
     }
 
@@ -433,6 +446,7 @@ ENTER_FN();
             if (iBar == -1) {
                 RhelDbgPrint(TRACE_LEVEL_FATAL,
                              " Cannot get index for BAR %I64d\n", accessRange->RangeStart.QuadPart);
+EXIT_FN();
                 return FALSE;
             }
             adaptExt->pci_bars[iBar].BasePA = accessRange->RangeStart;
@@ -440,12 +454,13 @@ ENTER_FN();
             adaptExt->pci_bars[iBar].bPortSpace = !accessRange->RangeInMemory;
         }
     }
-
+    
     /* initialize the virtual device */
     if (!InitVirtIODevice(DeviceExtension)) {
+EXIT_FN();
         return FALSE;
     }
-
+    
 EXIT_FN();
     return TRUE;
 }
@@ -489,53 +504,78 @@ ENTER_FN();
     RtlZeroMemory((PVOID)EventNode, sizeof(VirtIOSCSIEventNode));
     EventNode->sg.physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &EventNode->event, &fragLen);
     EventNode->sg.length   = sizeof(VirtIOSCSIEvent);
-    return SynchronizedKickEventRoutine(DeviceExtension, (PVOID)EventNode);
 EXIT_FN();
+    return SynchronizedKickEventRoutine(DeviceExtension, (PVOID)EventNode);
 }
 
 VOID
-//FORCEINLINE
-VioScsiVQLock(
+//
+// FORCEINLINE <<---- DO NOT FORCE INLINE
+// Wrapper for VioScsiVQLock and VioScsiVQUnlock, so they can be forced inline for optimum performance.
+//
+VioScsiLockManager(
     IN PVOID DeviceExtension,
     IN ULONG MessageID,
     IN OUT PSTOR_LOCK_HANDLE LockHandle,
-    IN BOOLEAN isr
-    )
-{
-    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    ULONG               QueueNumber = MESSAGE_TO_QUEUE(MessageID);
-    ENTER_FN();
-
-    if (!isr) {
-        if (adaptExt->msix_enabled) {
-            // Queue numbers start at 0, message ids at 1.
-            NT_ASSERT(MessageID > VIRTIO_SCSI_REQUEST_QUEUE_0);
-            if (QueueNumber >= (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0)) {
-                QueueNumber %= adaptExt->num_queues;
-            }
-            StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0], LockHandle);
-        }
-        else {
-            StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, LockHandle);
-        }
-    }
-EXIT_FN();
-}
-
-VOID
-//FORCEINLINE
-VioScsiVQUnlock(
-    IN PVOID DeviceExtension,
-    IN ULONG MessageID,
-    IN PSTOR_LOCK_HANDLE LockHandle,
-    IN BOOLEAN isr
+    IN BOOLEAN isr,
+    IN BOOLEAN LockOp
     )
 {
 ENTER_FN();
     if (!isr) {
-        StorPortReleaseSpinLock(DeviceExtension, LockHandle);
+    // ^^^^^^ Checking NOT isr moved here...
+        switch (LockOp) {
+        case VIOSCSI_VQLOCKOP_LOCK:
+            VioScsiVQLock(DeviceExtension, MessageID, LockHandle, "VioScsiVQLock");
+            break;
+        case VIOSCSI_VQLOCKOP_UNLOCK:
+            VioScsiVQUnlock(DeviceExtension, LockHandle, "VioScsiVQUnlock");
+            break;
+        default:
+            break;
+        }
     }
 EXIT_FN();
+}
+
+VOID
+FORCEINLINE
+VioScsiVQLock(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageID,
+    IN OUT PSTOR_LOCK_HANDLE LockHandle,
+    IN PVOID InlineFuncName
+    )
+{
+    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG               QueueNumber = MESSAGE_TO_QUEUE(MessageID);
+    
+ENTER_INL_FN();
+
+    if (adaptExt->msix_enabled) {
+        // Queue numbers start at 0, message ids at 1.
+        NT_ASSERT(MessageID > VIRTIO_SCSI_REQUEST_QUEUE_0);
+        if (QueueNumber >= (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0)) {
+            QueueNumber %= adaptExt->num_queues;
+        }
+        StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0], LockHandle);
+    } else {
+        StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, LockHandle);
+    }
+EXIT_INL_FN();
+}
+
+VOID
+FORCEINLINE
+VioScsiVQUnlock(
+    IN PVOID DeviceExtension,
+    IN PSTOR_LOCK_HANDLE LockHandle,
+    IN PVOID InlineFuncName
+    )
+{
+ENTER_INL_FN();
+    StorPortReleaseSpinLock(DeviceExtension, LockHandle);
+EXIT_INL_FN();
 }
 
 VOID FirmwareRequest(
@@ -558,6 +598,7 @@ ENTER_FN();
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
         RhelDbgPrint(TRACE_LEVEL_ERROR,
                          " FirmwareRequest Bad Block Length  %ul\n", dataLen);
+EXIT_FN();
         return;
     }
 
