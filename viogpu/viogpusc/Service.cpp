@@ -100,7 +100,7 @@ BOOL CService::SendStatusToSCM(DWORD dwCurrentState, DWORD dwWin32ExitCode, DWOR
 
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    serviceStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS;
+    serviceStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
     serviceStatus.dwCurrentState = dwCurrentState;
 
     if (dwCurrentState == SERVICE_START_PENDING) {
