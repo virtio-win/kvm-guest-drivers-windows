@@ -47,6 +47,7 @@
 #endif
 
 
+_At_((void*)Irp->IoStatus.Information, __drv_allocatesMem(Mem))
 NTSTATUS
 WSKAPI
 VioWskSocket(
@@ -67,8 +68,6 @@ VioWskSocket(
 	PVIOWSK_SOCKET pSocket = NULL;
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
     DEBUG_ENTER_FUNCTION("Client=0x%p; AddressFamily=%u; SocketType=%u; Protocol=%u; Flags=0x%x; SocketContext=0x%p; Dispatch=0x%p; OwningProcess=0x%p; OwningThread=0x%p; SecurityDescriptor=0x%p; Irp=0x%p", Client, AddressFamily, SocketType, Protocol, Flags, SocketContext, Dispatch, OwningProcess, OwningThread, SecurityDescriptor, Irp);
-
-	_At_((void*)Irp->IoStatus.Information, __drv_allocatesMem(Mem))
 
 	if (KeGetCurrentIrql() > PASSIVE_LEVEL) {
 		WorkItem = WskWorkItemAlloc(wskwitSocket, Irp);
