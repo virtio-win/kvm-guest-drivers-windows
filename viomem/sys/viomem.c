@@ -60,12 +60,18 @@ ViomemInit(IN WDFOBJECT    WdfDevice)
 
 	TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP,
 		"VirtIO device features: %I64X\n", u64HostFeatures);
+	
 	//
-	// Currently, only one feature is available - per node(for NUMA)
-	// memory plug / unplug. However, the Windows physical memory add function 
-	// doesn't provide a way to (explicitly) specify nodes for the memory block. 
-	// So, the driver ignores it.
+	// Currently, two features are supported:
+	// VIRTIO_MEM_F_ACPI_PXM and VIRTIO_MEM_F_UNPLUGGED_INACCESSIBLE
 	// 
+	// VIRTIO_MEM_F_ACPI_PXM is related to NUMA per node memory
+	// plug / unplug support.Windows' physical memory add function doesn't
+	// provide a way to specify the node number. The driver informs that
+	// this feature is supported because the Windows memory manager
+	// implicitly makes decisions about nodes based on memory ACPI configuration.
+	//
+
 	if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_MEM_F_ACPI_PXM))
 	{
 		TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
@@ -75,13 +81,24 @@ ViomemInit(IN WDFOBJECT    WdfDevice)
 		devCtx->ACPIProximityIdActive = TRUE;
 	}
 
+	//
+	// According to the official virtio-mem specs, VIRTIO_MEM_F_UNPLUGGED_INACCESSIBLE
+	// support requires unplugged (removed) memory not to be accessed.
+    //
+	// This requirement is met because:
+	// 
+	// - The driver doesn't access the removed memory. 
+	// - The Windows memory manager guarantees that removed memory will not 
+	//   be accessed, even when the OS runs under Hyper-V as root partition
+	//   (proved by empirical study).
+	//
+
 	if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_MEM_F_UNPLUGGED_INACCESSIBLE))
 	{
 		TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
 			"VIRTIO_MEM_F_UNPLUGGED_INACCESSIBLE enabled\n");
 
 		virtio_feature_enable(u64GuestFeatures, VIRTIO_MEM_F_UNPLUGGED_INACCESSIBLE);
-		// TODO: FIX THIS! Add proper logic
 	}
 
 	status = VirtIOWdfSetDriverFeatures(&devCtx->VDevice, u64GuestFeatures, 0);
@@ -1230,9 +1247,14 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
 	return TRUE;
 }
 
+
+#if 0
 //
 // Function returns TRUE if a given memory range is on the list of system
 // memory ranges. Otherwise it returns FALSE.
+//
+// Currently, the function is not being used. However, it is kept here for 
+// reference if needed.
 //
 
 BOOLEAN IsMemoryRangeInUse(LONGLONG StartAddress, LONGLONG Size)
@@ -1287,6 +1309,7 @@ BOOLEAN IsMemoryRangeInUse(LONGLONG StartAddress, LONGLONG Size)
 
 	return FALSE;
 }
+#endif
 
 //
 // Function sends VIRTIO_MEM_REQ_STATE request to a device.
@@ -1450,7 +1473,7 @@ BOOLEAN SynchronizeDeviceAndDriverMemory(IN WDFOBJECT Device,
 	if (devCtx)
 	{
 		//
-		// Set all bit for unplaghed state
+		// Set all bit for unplugged state
 		// bitmap will be filled with STATE requests
  		//
 		RtlClearAllBits(&devCtx->memoryBitmapHandle);
