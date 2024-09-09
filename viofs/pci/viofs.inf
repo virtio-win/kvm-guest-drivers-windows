@@ -71,6 +71,11 @@ StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\viofs.sys
 LoadOrderGroup = Extended Base
+AddReg = DMAR.AddReg
+
+[DMAR.AddReg]
+; currently DMAR is not supported due to backend limitations
+HKR,Parameters,DmaRemappingCompatible,0x00010001,0
 
 [VirtioFs_Device.NT.Wdf]
 KmdfService = VirtioFsDrv, VirtioFs_wdfsect
