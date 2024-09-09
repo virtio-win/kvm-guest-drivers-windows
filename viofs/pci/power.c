@@ -91,8 +91,12 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
         context->UseIndirect = FALSE;
     }
 
-    VirtIOWdfSetDriverFeatures(&context->VDevice, GuestFeatures,
-		VIRTIO_F_ACCESS_PLATFORM);
+    if (virtio_is_feature_enabled(HostFeatures, VIRTIO_F_ACCESS_PLATFORM))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER, "VIRTIO_F_ACCESS_PLATFORM present on the host!");
+    }
+
+    VirtIOWdfSetDriverFeatures(&context->VDevice, GuestFeatures, 0);
 
     VirtIOWdfDeviceGet(&context->VDevice,
         FIELD_OFFSET(VIRTIO_FS_CONFIG, RequestQueues),
