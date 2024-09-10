@@ -100,6 +100,10 @@ ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\vioinput.sys
+AddReg         = Dmar.AddReg
+
+[Dmar.AddReg]
+HKR,Parameters,DmaRemappingCompatible,0x00010001,2
 
 [VirtioInput_Device.NT.Wdf]
 KmdfService =  VirtioInput, VirtioInput_wdfsect
