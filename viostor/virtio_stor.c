@@ -1267,6 +1267,8 @@ VirtIoBuildIo(
     ULONG                 dummy;
     ULONG                 sgElement;
     ULONG                 sgMaxElements;
+    ULONG                 sgLength;
+    ULONG                 sgOffset;
     PADAPTER_EXTENSION    adaptExt;
     PSRB_EXTENSION        srbExt;
     PSTOR_SCATTER_GATHER_LIST sgList;
@@ -1349,9 +1351,34 @@ VirtIoBuildIo(
 
     sgMaxElements = min((MAX_PHYS_SEGMENTS + 1), sgList->NumberOfElements);
 
-    for (i = 0, sgElement = 1; i < sgMaxElements; i++, sgElement++) {
-        srbExt->sg[sgElement].physAddr = sgList->List[i].PhysicalAddress;
-        srbExt->sg[sgElement].length   = sgList->List[i].Length;
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SIZE_MAX)) {
+        for (i = 0, sgElement = 1; i < sgMaxElements; i++) {
+            sgLength = sgList->List[i].Length;
+            sgOffset = 0;
+            while (sgLength > 0) {
+                if (sgElement > adaptExt->info.seg_max) {
+                    RhelDbgPrint(TRACE_LEVEL_ERROR, " wrong SGL, the numer of elements or the size is wrong\n");
+                    CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
+                    return FALSE;
+                }
+
+                srbExt->sg[sgElement].physAddr.QuadPart = sgList->List[i].PhysicalAddress.QuadPart + sgOffset;
+                if (sgLength > adaptExt->info.size_max) {
+                    srbExt->sg[sgElement].length = adaptExt->info.size_max;
+                    sgOffset += adaptExt->info.size_max;
+                    sgLength -= adaptExt->info.size_max;
+                } else {
+                    srbExt->sg[sgElement].length = sgLength;
+                    sgLength = 0;
+                }
+                sgElement ++;
+            }
+        }
+    } else {
+        for (i = 0, sgElement = 1; i < sgMaxElements; i++, sgElement++) {
+            srbExt->sg[sgElement].physAddr = sgList->List[i].PhysicalAddress;
+            srbExt->sg[sgElement].length   = sgList->List[i].Length;
+        }
     }
 
     srbExt->vbr.out_hdr.sector = lba;
