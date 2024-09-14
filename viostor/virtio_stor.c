@@ -683,6 +683,10 @@ RhelSetGuestFeatures(
         guestFeatures |= (1ULL << VIRTIO_BLK_F_WRITE_ZEROES);
     }
 
+    if (CHECKBIT(adaptExt->features, VIRTIO_F_ORDER_PLATFORM)) {
+        guestFeatures |= (1ULL << VIRTIO_F_ORDER_PLATFORM);
+    }
+
     if (!NT_SUCCESS(virtio_set_features(&adaptExt->vdev, guestFeatures))) {
         RhelDbgPrint(TRACE_LEVEL_FATAL, " virtio_set_features failed\n");
         return;
