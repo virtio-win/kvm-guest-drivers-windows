@@ -67,6 +67,12 @@
 /* This feature indicates support for the packed virtqueue layout. */
 #define VIRTIO_F_RING_PACKED            34
 
+/*
+ * This feature indicates that memory accesses by the driver and the
+ * device are ordered in a way described by the platform.
+ */
+#define VIRTIO_F_ORDER_PLATFORM         36
+
 // if this number is not equal to desc size, queue creation fails
 #define SIZE_OF_SINGLE_INDIRECT_DESC    16
 
