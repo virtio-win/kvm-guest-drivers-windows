@@ -355,7 +355,7 @@ void CtrlQueue::ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y, PUINT fence_id)
+void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y)
 {
     PAGED_CODE();
 
@@ -372,11 +372,6 @@ void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT hei
     cmd->r.height = height;
     cmd->r.x = x;
     cmd->r.y = y;
-
-    if (fence_id) {
-        cmd->hdr.flags |= VIRTIO_GPU_FLAG_FENCE;
-        cmd->hdr.fence_id = *fence_id;
-    }
 
     QueueBuffer(vbuf);
 
