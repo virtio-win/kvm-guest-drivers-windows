@@ -109,7 +109,7 @@ ENTER_FN_SRB();
         srbExt->out, srbExt->in,
         &srbExt->cmd, va, pa);
 
-    if (res >= 0) {
+    if (res == VQ_ADD_BUFFER_SUCCESS) {
         element = &adaptExt->processing_srbs[index];
         InsertTailList(&element->srb_list, &srbExt->list_entry);
         element->srb_cnt++;
@@ -120,13 +120,16 @@ ENTER_FN_SRB();
             virtqueue_notify(adaptExt->vq[QueueNumber]);
         }
     } else {
+        // virtqueue_add_buf() returned -28 (ENOSPC), i.e. no space for buffer, or some other error
         virtqueue_notify(adaptExt->vq[QueueNumber]);
         ScsiStatus = SCSISTAT_QUEUE_FULL;
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUSY);
         SRB_SET_SCSI_STATUS(Srb, ScsiStatus);
         StorPortBusy(DeviceExtension, 10);
+        RhelDbgPrint(TRACE_LEVEL_WARNING, 
+                " Could not put an SRB into a VQ, so complete it with SRB_STATUS_BUSY. QueueNumber = %lu, SRB = 0x%p, Lun = %d, TimeOut = %d.\n", 
+                QueueNumber, srbExt->Srb, SRB_LUN(Srb), Srb->TimeOutValue);
         CompleteRequest(DeviceExtension, Srb);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, " Could not put an SRB into a VQ, so complete it with SRB_STATUS_BUSY. QueueNumber = %d, SRB = 0x%p, Lun = %d, TimeOut = %d.\n", QueueNumber, srbExt->Srb, SRB_LUN(Srb), Srb->TimeOutValue);
     }
 
 EXIT_FN_SRB();
