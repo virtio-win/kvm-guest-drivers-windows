@@ -66,7 +66,7 @@ HW_ADAPTER_CONTROL   VioScsiAdapterControl;
 HW_UNIT_CONTROL      VioScsiUnitControl;
 HW_INTERRUPT         VioScsiInterrupt;
 HW_DPC_ROUTINE       VioScsiCompleteDpcRoutine;
-HW_PASSIVE_INITIALIZE_ROUTINE         VioScsiIoPassiveInitializeRoutine;
+HW_PASSIVE_INITIALIZE_ROUTINE         VioScsiPassiveInitializeRoutine;
 HW_MESSAGE_SIGNALED_INTERRUPT_ROUTINE VioScsiMSInterrupt;
 
 
@@ -1062,7 +1062,9 @@ VioScsiInterrupt(
                 ULongToPtr(QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)));
         }
         else
+        {
             ProcessQueue(DeviceExtension, QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0), TRUE);
+        }
     }
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " isInterruptServiced = %d\n", isInterruptServiced);
