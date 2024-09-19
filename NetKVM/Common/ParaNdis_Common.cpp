@@ -981,6 +981,11 @@ NDIS_STATUS ParaNdis_InitializeContext(
         {
             DPrintf(0, "[%s] Using PACKED ring\n", __FUNCTION__);
         }
+
+        if (AckFeature(pContext, VIRTIO_F_ORDER_PLATFORM))
+        {
+            DPrintf(0, "[%s] Ack VIRTIO_F_ORDER_PLATFORM to device\n", __FUNCTION__);
+        }
     }
 
     if (pContext->bControlQueueSupported)
