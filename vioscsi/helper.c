@@ -51,6 +51,7 @@ SendSRB(
     PVOID               va = NULL;
     ULONGLONG           pa = 0;
     ULONG               QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
+    BOOLEAN             notify = FALSE;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
     UCHAR               ScsiStatus = SCSISTAT_GOOD;
@@ -110,23 +111,21 @@ ENTER_FN_SRB();
         &srbExt->cmd, va, pa);
 
     if (res >= 0) {
+        notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
         element = &adaptExt->processing_srbs[index];
         InsertTailList(&element->srb_list, &srbExt->list_entry);
         element->srb_cnt++;
-    }
-    VioScsiVQUnlock(DeviceExtension, MessageID, &LockHandle, FALSE);
-    if ( res >= 0){
-        if (virtqueue_kick_prepare(adaptExt->vq[QueueNumber])) {
-            virtqueue_notify(adaptExt->vq[QueueNumber]);
-        }
     } else {
-        virtqueue_notify(adaptExt->vq[QueueNumber]);
         ScsiStatus = SCSISTAT_QUEUE_FULL;
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUSY);
         SRB_SET_SCSI_STATUS(Srb, ScsiStatus);
         StorPortBusy(DeviceExtension, 10);
         CompleteRequest(DeviceExtension, Srb);
         RhelDbgPrint(TRACE_LEVEL_FATAL, " Could not put an SRB into a VQ, so complete it with SRB_STATUS_BUSY. QueueNumber = %d, SRB = 0x%p, Lun = %d, TimeOut = %d.\n", QueueNumber, srbExt->Srb, SRB_LUN(Srb), Srb->TimeOutValue);
+    }
+    VioScsiVQUnlock(DeviceExtension, MessageID, &LockHandle, FALSE);
+    if (notify){
+        virtqueue_notify(adaptExt->vq[QueueNumber]);
     }
 
 EXIT_FN_SRB();
