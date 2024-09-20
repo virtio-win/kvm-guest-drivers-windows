@@ -55,7 +55,7 @@ SendSRB(
     ULONG               status = STOR_STATUS_SUCCESS;
     UCHAR               ScsiStatus = SCSISTAT_GOOD;
     ULONG               MessageID;
-    INT                 add_buffer_req_status = VQ_ADD_BUFFER_SUCCESS;
+    INT                 res = VQ_ADD_BUFFER_SUCCESS;
     PREQUEST_LIST       element;
     ULONG               vq_req_idx;
 ENTER_FN_SRB();
@@ -104,12 +104,12 @@ ENTER_FN_SRB();
 
     VioScsiVQLock(DeviceExtension, MessageID, &LockHandle, FALSE);
     SET_VA_PA();
-    add_buffer_req_status = virtqueue_add_buf(adaptExt->vq[QueueNumber],
+    res = virtqueue_add_buf(adaptExt->vq[QueueNumber],
                                               srbExt->psgl,
                                               srbExt->out, srbExt->in,
                                               &srbExt->cmd, va, pa);
 
-    if (add_buffer_req_status == VQ_ADD_BUFFER_SUCCESS) {
+    if (res == VQ_ADD_BUFFER_SUCCESS) {
         element = &adaptExt->processing_srbs[vq_req_idx];
         InsertTailList(&element->srb_list, &srbExt->list_entry);
         element->srb_cnt++;
@@ -128,7 +128,7 @@ ENTER_FN_SRB();
         StorPortBusy(DeviceExtension, 10);
         RhelDbgPrint(TRACE_LEVEL_WARNING, 
                 " Could not put an SRB into a VQ due to error %i. To be completed with SRB_STATUS_BUSY. QueueNumber = %lu, SRB = 0x%p, Lun = %d, TimeOut = %d.\n", 
-                add_buffer_req_status, QueueNumber, srbExt->Srb, SRB_LUN(Srb), Srb->TimeOutValue);
+                res, QueueNumber, srbExt->Srb, SRB_LUN(Srb), Srb->TimeOutValue);
         CompleteRequest(DeviceExtension, Srb);
     }
 
