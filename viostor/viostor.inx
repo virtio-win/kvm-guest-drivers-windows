@@ -91,6 +91,7 @@ HKR,,TypesSupported,%REG_DWORD%,7
 [pnpsafe_pci_addreg]
 HKR, "Parameters\PnpInterface", "5", %REG_DWORD%, 0x00000001
 HKR, "Parameters", "BusType", %REG_DWORD%, 0x00000001
+HKR, "Parameters", DmaRemappingCompatible,0x00010001,2
 
 [pnpsafe_pci_addreg_msix]
 HKR, "Interrupt Management",, 0x00000010
