@@ -135,11 +135,12 @@ BalloonInit(
     return status;
 }
 
-VOID
+NTSTATUS
 BalloonFill(
     IN WDFOBJECT WdfDevice,
     IN size_t num)
 {
+    NTSTATUS status = STATUS_UNSUCCESSFUL;
     PDEVICE_CONTEXT ctx = GetDeviceContext(WdfDevice);
     PHYSICAL_ADDRESS LowAddress;
     PHYSICAL_ADDRESS HighAddress;
@@ -156,7 +157,7 @@ BalloonFill(
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
             "Low memory. Allocated pages: %d\n", ctx->num_pages);
-        return;
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
 #endif // !BALLOON_INFLATE_IGNORE_LOWMEM
 
@@ -175,7 +176,7 @@ BalloonFill(
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS,
             "Failed to allocate pages.\n");
-        return;
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
 
     if (MmGetMdlByteCount(pPageMdl) != (num * PAGE_SIZE))
@@ -185,7 +186,7 @@ BalloonFill(
             MmGetMdlByteCount(pPageMdl), num * PAGE_SIZE);
         MmFreePagesFromMdl(pPageMdl);
         ExFreePool(pPageMdl);
-        return;
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
 
     pNewPageListEntry = (PPAGE_LIST_ENTRY)ExAllocateFromNPagedLookasideList(
@@ -197,7 +198,7 @@ BalloonFill(
             "Failed to allocate list entry.\n");
         MmFreePagesFromMdl(pPageMdl);
         ExFreePool(pPageMdl);
-        return;
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
 
     pNewPageListEntry->PageMdl = pPageMdl;
@@ -209,17 +210,19 @@ BalloonFill(
     RtlCopyMemory(ctx->pfns_table, MmGetMdlPfnArray(pPageMdl),
         ctx->num_pfns * sizeof(PFN_NUMBER));
 
-    BalloonTellHost(WdfDevice, ctx->InfVirtQueue);
+    status = BalloonTellHost(WdfDevice, ctx->InfVirtQueue);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+    return status;
 }
 
-VOID
+NTSTATUS
 BalloonLeak(
     IN WDFOBJECT WdfDevice,
     IN size_t num
     )
 {
+    NTSTATUS status = STATUS_UNSUCCESSFUL;
     PDEVICE_CONTEXT ctx = GetDeviceContext(WdfDevice);
     PPAGE_LIST_ENTRY pPageListEntry;
     PMDL pPageMdl;
@@ -230,7 +233,7 @@ BalloonLeak(
     if (pPageListEntry == NULL)
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "No list entries.\n");
-        return;
+        return STATUS_NOT_FOUND;
     }
 
     pPageMdl = pPageListEntry->PageMdl;
@@ -249,12 +252,14 @@ BalloonLeak(
     ExFreePool(pPageMdl);
     ExFreeToNPagedLookasideList(&ctx->LookAsideList, pPageListEntry);
 
-    BalloonTellHost(WdfDevice, ctx->DefVirtQueue);
+    status = BalloonTellHost(WdfDevice, ctx->DefVirtQueue);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+
+    return status;
 }
 
-VOID
+NTSTATUS
 BalloonTellHost(
     IN WDFOBJECT WdfDevice,
     IN PVIOQUEUE vq
@@ -270,7 +275,7 @@ BalloonTellHost(
     if (devCtx->SurpriseRemoval)
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "<-- %s Skipped\n", __FUNCTION__);
-        return;
+        return STATUS_NO_SUCH_DEVICE;
     }
 
     sg.physAddr = VirtIOWdfDeviceGetPhysicalAddress(&devCtx->VDevice.VIODevice, devCtx->pfns_table);
@@ -281,7 +286,7 @@ BalloonTellHost(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "<-> %s :: Cannot add buffer\n", __FUNCTION__);
         WdfSpinLockRelease(devCtx->InfDefQueueLock);
-        return;
+        return STATUS_NO_MORE_ENTRIES;
     }
     do_notify = virtqueue_kick_prepare(vq);
     WdfSpinLockRelease(devCtx->InfDefQueueLock);
@@ -303,6 +308,8 @@ BalloonTellHost(
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "<--> TimeOut\n");
     }
+
+    return status;
 }
 
 
