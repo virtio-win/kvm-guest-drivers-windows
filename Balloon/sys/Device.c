@@ -747,12 +747,23 @@ BalloonRoutine(
                 diff = BalloonGetSize(Device);
                 if (diff > 0)
                 {
-                    BalloonFill(Device, (size_t)(diff));
+                    status = BalloonFill(Device, (size_t)(diff));
                 }
                 else if (diff < 0)
                 {
-                    BalloonLeak(Device, (size_t)(-diff));
+                    status = BalloonLeak(Device, (size_t)(-diff));
                 }
+
+                if (status == STATUS_TIMEOUT || status == STATUS_NO_MORE_ENTRIES)
+                {
+                    TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "Failed to inform the host\n");
+                    if (diff != 0)
+                    {
+                        TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "Operation is in progress, continuing\n");
+                        KeSetEvent(&devCtx->WakeUpThread, IO_NO_INCREMENT, FALSE);
+                    }
+                }
+
                 BalloonSetSize(Device, devCtx->num_pages);
             }
         }

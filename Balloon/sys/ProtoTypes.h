@@ -168,13 +168,13 @@ BalloonTerm(
     IN WDFOBJECT    WdfDevice
     );
 
-VOID
+NTSTATUS
 BalloonFill(
     IN WDFOBJECT WdfDevice,
     IN size_t num
     );
 
-VOID
+NTSTATUS
 BalloonLeak(
     IN WDFOBJECT WdfDevice,
     IN size_t num
@@ -185,7 +185,7 @@ BalloonMemStats(
     IN WDFOBJECT WdfDevice
     );
 
-VOID
+NTSTATUS
 BalloonTellHost(
     IN WDFOBJECT WdfDevice,
     IN PVIOQUEUE vq
