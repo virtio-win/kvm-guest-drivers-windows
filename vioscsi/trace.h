@@ -108,7 +108,7 @@ extern int nVioscsiDebugLevel;
         )
 
 // begin_wpp config
-// USEPREFIX (RhelDbgPrint, "%!STDPREFIX! %!FUNC!");
+// USEPREFIX (RhelDbgPrint, "%!STDPREFIX! ####\t\t[%!FUNC!]");
 // FUNC RhelDbgPrint(LEVEL, MSG, ...);
 // end_wpp
 
@@ -118,7 +118,7 @@ extern int nVioscsiDebugLevel;
     WPP_CONTROL(WPP_BIT_ ## Flags).Level >= level)
 
 // begin_wpp config
-// USEPREFIX (ENTER_FN, "%!STDPREFIX! [%!FUNC!] --> entry");
+// USEPREFIX (ENTER_FN, "%!STDPREFIX! ===>\t\t[%!FUNC!] X---X Working X---X");
 // FUNC ENTER_FN{ENTRYLEVEL=TRACE_LEVEL_VERBOSE}(...);
 // end_wpp
 
@@ -126,40 +126,82 @@ extern int nVioscsiDebugLevel;
 #define WPP_ENTRYLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
 
 // begin_wpp config
-// USEPREFIX (EXIT_FN, "%!STDPREFIX! [%!FUNC!] <-- exit");
+// USEPREFIX (EXIT_FN, "%!STDPREFIX! <===\t\t[%!FUNC!] Processing complete.");
 // FUNC EXIT_FN{EXITLEVEL=TRACE_LEVEL_VERBOSE}(...);
 // end_wpp
 #define WPP_EXITLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
 #define WPP_EXITLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
 
 // begin_wpp config
-// USEPREFIX (EXIT_ERR, "%!STDPREFIX! <--> %!FUNC! ERROR line %d", __LINE__);
+// USEPREFIX (ENTER_INL_FN(PVOID InlineFuncName), "%!STDPREFIX! ===>\t\t[%!FUNC!]>>>[%s] X---X Working X---X", InlineFuncName);
+// FUNC ENTER_INL_FN{INLENTRYLEVEL=TRACE_LEVEL_VERBOSE}(...);
+// end_wpp
+#define WPP_INLENTRYLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
+#define WPP_INLENTRYLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
+
+// begin_wpp config
+// USEPREFIX (EXIT_INL_FN(PVOID InlineFuncName), "%!STDPREFIX! <===\t\t[%!FUNC!]<<<[%s] Processing complete.", InlineFuncName);
+// FUNC EXIT_INL_FN{INLEXITLEVEL=TRACE_LEVEL_VERBOSE}(...);
+// end_wpp
+#define WPP_INLEXITLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
+#define WPP_INLEXITLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
+
+// begin_wpp config
+// USEPREFIX (EXIT_ERR, "%!STDPREFIX! >>>>\t\t[%!FUNC!] ERROR line %d", __LINE__);
 // FUNC EXIT_ERR{ERRORLEVEL=TRACE_LEVEL_ERROR}(...);
 // end_wpp
 #define WPP_ERRORLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
 #define WPP_ERRORLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
 
 // begin_wpp config
-// USEPREFIX (ENTER_FN_SRB(PVOID Srb), "%!STDPREFIX! ---> %!FUNC! 0x%p.", Srb);
-// FUNC ENTER_FN_SRB{SRBENTRYLEVEL=TRACE_LEVEL_INFORMATION}(...);
+// USEPREFIX (ENTER_FN_SRB(PVOID Srb), "%!STDPREFIX! ===>\t\t[%!FUNC!] SRB 0x%p", Srb);
+// FUNC ENTER_FN_SRB{SRBENTRYLEVEL=TRACE_LEVEL_VERBOSE}(...);
 // end_wpp
 #define WPP_SRBENTRYLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
 #define WPP_SRBENTRYLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
 
 // begin_wpp config
-// USEPREFIX (EXIT_FN_SRB(PVOID Srb), "%!STDPREFIX! <--- %!FUNC! 0x%p.", Srb);
-// FUNC EXIT_FN_SRB{SRBEXITLEVEL=TRACE_LEVEL_INFORMATION}(...);
+// USEPREFIX (EXIT_FN_SRB(PVOID Srb), "%!STDPREFIX! <===\t\t[%!FUNC!] SRB 0x%p", Srb);
+// FUNC EXIT_FN_SRB{SRBEXITLEVEL=TRACE_LEVEL_VERBOSE}(...);
 // end_wpp
 #define WPP_SRBEXITLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
 #define WPP_SRBEXITLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
 
 // begin_wpp config
-// USEPREFIX (LOG_SRB_INFO(PVOID Srb), "%!STDPREFIX! %!FUNC! <--> Operation %s (0x%X), Target (%d::%d::%d), SRB 0x%p", DbgGetScsiOpStr(DbgGetScsiOp(Srb)), DbgGetScsiOp(Srb), SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), Srb);
+// USEPREFIX (LOG_SRB_INFO(PVOID Srb), "%!STDPREFIX! ####\t\t[%!FUNC!] Operation %s (0x%X), Target (%d::%d::%d), SRB 0x%p", DbgGetScsiOpStr(DbgGetScsiOp(Srb)), DbgGetScsiOp(Srb), SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), Srb);
 // FUNC LOG_SRB_INFO{SRBINFOLEVEL=TRACE_LEVEL_INFORMATION}(...);
 // end_wpp
 #define WPP_SRBINFOLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
 #define WPP_SRBINFOLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
 
+// begin_wpp config
+// USEPREFIX (ENTER_INL_FN_SRB(PVOID InlineFuncName, PVOID Srb), "%!STDPREFIX! ===>\t\t[%!FUNC!]>>>[%s] SRB 0x%p", InlineFuncName, Srb);
+// FUNC ENTER_INL_FN_SRB{INLSRBENTRYLEVEL=TRACE_LEVEL_VERBOSE}(...);
+// end_wpp
+#define WPP_INLSRBENTRYLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
+#define WPP_INLSRBENTRYLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
+
+// begin_wpp config
+// USEPREFIX (EXIT_INL_FN_SRB(PVOID InlineFuncName, PVOID Srb), "%!STDPREFIX! <===\t\t[%!FUNC!]<<<[%s] SRB 0x%p", InlineFuncName, Srb);
+// FUNC EXIT_INL_FN_SRB{INLSRBEXITLEVEL=TRACE_LEVEL_VERBOSE}(...);
+// end_wpp
+#define WPP_INLSRBEXITLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
+#define WPP_INLSRBEXITLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
+
+// begin_wpp config
+// USEPREFIX (LOG_SRB_INFO_FROM_INLFN(PVOID InlineFuncName, PVOID Srb), "%!STDPREFIX! ####\t\t[%!FUNC!]:[%s] Operation %s (0x%X), Target (%d::%d::%d), SRB 0x%p", InlineFuncName, DbgGetScsiOpStr(DbgGetScsiOp(Srb)), DbgGetScsiOp(Srb), SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb), Srb);
+// FUNC LOG_SRB_INFO_FROM_INLFN{INLSRBINFOLEVEL=TRACE_LEVEL_INFORMATION}(...);
+// end_wpp
+#define WPP_INLSRBINFOLEVEL_ENABLED(LEVEL) WPP_LEVEL_ENABLED(LEVEL)
+#define WPP_INLSRBINFOLEVEL_LOGGER(LEVEL) WPP_LEVEL_LOGGER(LEVEL)
+
+//
+// Configure WPP macros for optimum performance
+// by disabling checking for 'WPP_INIT_TRACING'
+// as we call it in DriverEntry() anyway.
+//
+#define WPP_CHECK_INIT
+    
 #endif
 
 #endif //__TRACING_H___
