@@ -57,6 +57,13 @@ error_exit:
     return FALSE;
 }
 
+static bool IsRegionInside(const tCompletePhysicalAddress& a1, const tCompletePhysicalAddress& a2)
+{
+    const LONGLONG& p1 = a1.Physical.QuadPart;
+    const LONGLONG& p2 = a2.Physical.QuadPart;
+    return p1 >= p2 && p1 <= p2 + a2.size;
+}
+
 static void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p)
 {
     ULONG i;
@@ -64,6 +71,11 @@ static void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDe
     ParaNdis_UnbindRxBufferFromPacket(p);
     for (i = 0; i < p->BufferSGLength; i++)
     {
+        if (!p->PhysicalPages[i].Virtual)
+            break;
+        // do not try do free the region derived from header block
+        if (i != 0 && IsRegionInside(p->PhysicalPages[i], p->PhysicalPages[0]))
+            continue;
         ParaNdis_FreePhysicalMemory(pContext, &p->PhysicalPages[i]);
     }
 
@@ -142,10 +154,12 @@ int CParaNdisRX::PrepareReceiveBuffers()
 pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
 {
     //For RX packets we allocate following pages
-    //  1 page for virtio header and indirect buffers array
-    //  X pages needed to fit maximal length buffer of data
-    //  The assumption is virtio header and indirect buffers array fit 1 page
-    ULONG ulNumPages = m_Context->MaxPacketSize.nMaxDataSizeHwRx / PAGE_SIZE + 2;
+    //  X pages needed to fit most of data payload (or all the payload)
+    //  1 page or less for virtio header, indirect buffers array and the data tail if any
+    //  virtio header and indirect buffers take ~300 bytes
+    //  if the data tail (payload % page size) is small it is also goes to the header block
+    ULONG ulNumDataPages = m_Context->RxLayout.TotalAllocationsPerBuffer; // including header block
+    ULONG sgArraySize = m_Context->RxLayout.IndirectEntries;
 
     pRxNetDescriptor p = (pRxNetDescriptor)ParaNdis_AllocateMemory(m_Context, sizeof(*p));
     if (p == NULL) return NULL;
@@ -153,22 +167,29 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
     NdisZeroMemory(p, sizeof(*p));
 
     p->BufferSGArray = (struct VirtIOBufferDescriptor *)
-        ParaNdis_AllocateMemory(m_Context, sizeof(*p->BufferSGArray) * ulNumPages);
+        ParaNdis_AllocateMemory(m_Context, sizeof(*p->BufferSGArray) * sgArraySize);
     if (p->BufferSGArray == NULL) goto error_exit;
 
     p->PhysicalPages = (tCompletePhysicalAddress *)
-        ParaNdis_AllocateMemory(m_Context, sizeof(*p->PhysicalPages) * ulNumPages);
+        ParaNdis_AllocateMemory(m_Context, sizeof(*p->PhysicalPages) * sgArraySize);
     if (p->PhysicalPages == NULL) goto error_exit;
 
+    // must initialize for case of exit in the middle of the loop
+    NdisZeroMemory(p->PhysicalPages, sizeof(*p->PhysicalPages) * sgArraySize);
+
     p->BufferSGLength = 0;
-    while (ulNumPages > 0)
+
+    while (ulNumDataPages > 0)
     {
-        // Allocate the first page separately, the rest can be one contiguous block
-        ULONG ulPagesToAlloc = (p->BufferSGLength == 0 ? 1 : ulNumPages);
+        // Allocate the first block separately, the rest can be one contiguous block
+        ULONG ulPagesToAlloc = (p->BufferSGLength == 0) ?
+            1 : ulNumDataPages;
+        ULONG sizeToAlloc = (p->BufferSGLength == 0) ?
+            m_Context->RxLayout.HeaderPageAllocation : PAGE_SIZE * ulPagesToAlloc;
 
         while (!ParaNdis_InitialAllocatePhysicalMemory(
                     m_Context,
-                    PAGE_SIZE * ulPagesToAlloc,
+                    sizeToAlloc,
                     &p->PhysicalPages[p->BufferSGLength]))
         {
             // Retry with half the pages
@@ -181,18 +202,43 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
         p->BufferSGArray[p->BufferSGLength].physAddr = p->PhysicalPages[p->BufferSGLength].Physical;
         p->BufferSGArray[p->BufferSGLength].length = p->PhysicalPages[p->BufferSGLength].size;
 
-        ulNumPages -= ulPagesToAlloc;
+        ulNumDataPages -= ulPagesToAlloc;
         p->BufferSGLength++;
     }
 
     //First page is for virtio header, size needs to be adjusted correspondingly
     p->BufferSGArray[0].length = m_Context->nVirtioHeaderSize;
 
-    ULONG indirectAreaOffset = ALIGN_UP(m_Context->nVirtioHeaderSize, ULONGLONG);
+    ULONG offsetInTheHeader = m_Context->RxLayout.ReserveForHeader;
     //Pre-cache indirect area addresses
-    p->IndirectArea.Physical.QuadPart = p->PhysicalPages[0].Physical.QuadPart + indirectAreaOffset;
-    p->IndirectArea.Virtual = RtlOffsetToPointer(p->PhysicalPages[0].Virtual, indirectAreaOffset);
-    p->IndirectArea.size = PAGE_SIZE - indirectAreaOffset;
+    p->IndirectArea.Physical.QuadPart = p->PhysicalPages[0].Physical.QuadPart + offsetInTheHeader;
+    p->IndirectArea.Virtual = RtlOffsetToPointer(p->PhysicalPages[0].Virtual, offsetInTheHeader);
+    p->IndirectArea.size = m_Context->RxLayout.ReserveForIndirectArea;
+
+    if (m_Context->RxLayout.ReserveForPacketTail)
+    {
+        // the payload tail is located in the header block
+        offsetInTheHeader += m_Context->RxLayout.ReserveForIndirectArea;
+
+        // fill the tail's physical page fields
+        p->PhysicalPages[p->BufferSGLength].Physical.QuadPart =
+            p->PhysicalPages[0].Physical.QuadPart + offsetInTheHeader;
+        p->PhysicalPages[p->BufferSGLength].Virtual =
+            RtlOffsetToPointer(p->PhysicalPages[0].Virtual, offsetInTheHeader);
+        p->PhysicalPages[p->BufferSGLength].size = m_Context->RxLayout.ReserveForPacketTail;
+
+        // fill the tail's SG buffer fields
+        p->BufferSGArray[p->BufferSGLength].physAddr.QuadPart =
+            p->PhysicalPages[p->BufferSGLength].Physical.QuadPart;
+        p->BufferSGArray[p->BufferSGLength].length =
+            p->PhysicalPages[p->BufferSGLength].size;
+        p->BufferSGLength++;
+    }
+    else
+    {
+        // the payload tail is located in the full data block
+        // and was already allocated and counted
+    }
 
     if (!ParaNdis_BindRxBufferToPacket(m_Context, p))
         goto error_exit;
