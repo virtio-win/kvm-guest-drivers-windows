@@ -49,6 +49,8 @@
 #define CACHE_LINE_SIZE 64
 #define ROUND_TO_CACHE_LINES(Size)  (((ULONG_PTR)(Size) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1))
 
+#define VQ_ADD_BUFFER_SUCCESS 0
+
 #include <srbhelper.h>
 
 // Note: SrbGetCdbLength is defined in srbhelper.h
