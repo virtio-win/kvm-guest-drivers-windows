@@ -40,6 +40,7 @@
 
 #include "osdep.h"
 #include "virtio_pci.h"
+#include "virtio_ring.h"
 #include "vioscsi.h"
 
 #define CHECKBIT(value, nbit) virtio_is_feature_enabled(value, nbit)

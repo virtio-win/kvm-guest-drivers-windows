@@ -55,10 +55,11 @@ SendSRB(
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
     UCHAR               ScsiStatus = SCSISTAT_GOOD;
-    ULONG MessageID;
-    int res = 0;
+    ULONG               MessageId;
+    INT                 add_buffer_req_status = VQ_ADD_BUFFER_SUCCESS;
     PREQUEST_LIST       element;
-    ULONG               index;
+    ULONG               vq_req_idx;
+
 ENTER_FN_SRB();
 
     if (!Srb)
@@ -93,8 +94,8 @@ ENTER_FN_SRB();
         return;
     }
 
-    MessageID = QUEUE_TO_MESSAGE(QueueNumber);
-    index = QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0;
+    MessageId = QUEUE_TO_MESSAGE(QueueNumber);
+    vq_req_idx = QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0;
 
     if (adaptExt->reset_in_progress) {
         RhelDbgPrint(TRACE_LEVEL_FATAL, " Reset is in progress, completing SRB 0x%p with SRB_STATUS_BUS_RESET.\n", Srb);
@@ -103,27 +104,30 @@ ENTER_FN_SRB();
         return;
     }
 
-    VioScsiVQLock(DeviceExtension, MessageID, &LockHandle, FALSE);
+    VioScsiVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     SET_VA_PA();
-    res = virtqueue_add_buf(adaptExt->vq[QueueNumber],
-        srbExt->psgl,
-        srbExt->out, srbExt->in,
-        &srbExt->cmd, va, pa);
+    add_buffer_req_status = virtqueue_add_buf(adaptExt->vq[QueueNumber],
+                                              srbExt->psgl,
+                                              srbExt->out, srbExt->in,
+                                              &srbExt->cmd, va, pa);
 
-    if (res >= 0) {
+    if (add_buffer_req_status == VQ_ADD_BUFFER_SUCCESS) {
         notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
-        element = &adaptExt->processing_srbs[index];
+        element = &adaptExt->processing_srbs[vq_req_idx];
         InsertTailList(&element->srb_list, &srbExt->list_entry);
         element->srb_cnt++;
     } else {
+        // virtqueue_add_buf() returned -28 (ENOSPC), i.e. no space for buffer, or some other error
         ScsiStatus = SCSISTAT_QUEUE_FULL;
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUSY);
         SRB_SET_SCSI_STATUS(Srb, ScsiStatus);
         StorPortBusy(DeviceExtension, 10);
+        RhelDbgPrint(TRACE_LEVEL_WARNING, 
+                     " Could not put an SRB into a VQ due to error %s (%i). To be completed with SRB_STATUS_BUSY. QueueNumber = %lu, SRB = 0x%p, Lun = %d, TimeOut = %d.\n", 
+                     (add_buffer_req_status == -ENOSPC) ? "ENOSPC" : "UNKNOWN", add_buffer_req_status, QueueNumber, srbExt->Srb, SRB_LUN(Srb), Srb->TimeOutValue);
         CompleteRequest(DeviceExtension, Srb);
-        RhelDbgPrint(TRACE_LEVEL_FATAL, " Could not put an SRB into a VQ, so complete it with SRB_STATUS_BUSY. QueueNumber = %d, SRB = 0x%p, Lun = %d, TimeOut = %d.\n", QueueNumber, srbExt->Srb, SRB_LUN(Srb), Srb->TimeOutValue);
     }
-    VioScsiVQUnlock(DeviceExtension, MessageID, &LockHandle, FALSE);
+    VioScsiVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (notify){
         virtqueue_notify(adaptExt->vq[QueueNumber]);
     }
