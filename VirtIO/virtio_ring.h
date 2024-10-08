@@ -44,6 +44,8 @@
 * at the end of the used ring. Guest should ignore the used->flags field. */
 #define VIRTIO_RING_F_EVENT_IDX		29
 
+#define VQ_ADD_BUFFER_SUCCESS 0
+
 void vring_transport_features(VirtIODevice *vdev, u64 *features);
 unsigned long vring_size(unsigned int num, unsigned long align, bool packed);
 
