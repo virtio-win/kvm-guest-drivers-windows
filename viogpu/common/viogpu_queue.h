@@ -41,16 +41,17 @@ typedef struct virtio_gpu_config {
 
 //#pragma pack(1)
 typedef struct virtio_gpu_vbuffer {
-    char *buf;
-    int size;
+    LIST_ENTRY list_entry;
+    PKEVENT event;
 
     void *data_buf;
     u32 data_size;
 
+    int size;
+    char *buf;
+
     char *resp_buf;
     int resp_size;
-    PKEVENT event;
-    LIST_ENTRY list_entry;
 }GPU_VBUFFER, *PGPU_VBUFFER;
 //#pragma pack()
 
