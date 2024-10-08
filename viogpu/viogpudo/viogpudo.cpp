@@ -2540,7 +2540,7 @@ NTSTATUS VioGpuAdapter::ExecutePresentDisplayOnly(
         pModeCur->SrcModeWidth,
         pModeCur->SrcModeHeight));
 
-    m_CtrlQueue.TransferToHost2D(resid, offset, updrect.right - updrect.left, updrect.bottom - updrect.top, updrect.left, updrect.top, NULL);
+    m_CtrlQueue.TransferToHost2D(resid, offset, updrect.right - updrect.left, updrect.bottom - updrect.top, updrect.left, updrect.top, NULL, NULL);
     m_CtrlQueue.ResFlush(resid, updrect.right - updrect.left, updrect.bottom - updrect.top, updrect.left, updrect.top);
 
     return STATUS_SUCCESS;
@@ -2568,7 +2568,7 @@ VOID VioGpuAdapter::BlackOutScreen(CURRENT_MODE* pCurrentMod)
 
         resid = m_pFrameBuf->GetId();
 
-        m_CtrlQueue.TransferToHost2D(resid, 0UL, pCurrentMod->DispInfo.Width, pCurrentMod->DispInfo.Height, 0, 0, NULL);
+        m_CtrlQueue.TransferToHost2D(resid, 0UL, pCurrentMod->DispInfo.Width, pCurrentMod->DispInfo.Height, 0, 0, NULL, NULL);
         m_CtrlQueue.ResFlush(resid, pCurrentMod->DispInfo.Width, pCurrentMod->DispInfo.Height, 0, 0);
     }
 
@@ -2632,7 +2632,6 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
         RtlZeroMemory(crsr, sizeof(*crsr));
 
         crsr->hdr.type = VIRTIO_GPU_CMD_MOVE_CURSOR;
-        crsr->resource_id = m_pCursorBuf->GetId();
 
         if (!pSetPointerPosition->Flags.Visible ||
             (UINT)pSetPointerPosition->X > pModeCur->SrcModeWidth ||
@@ -2648,6 +2647,7 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
                 pSetPointerPosition->VidPnSourceId));
             crsr->pos.x = 0;
             crsr->pos.y = 0;
+            crsr->resource_id = 0;
         }
         else {
             DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s (%d - %d) Visiable = %d Value = %x VidPnSourceId = %d posX = %d, psY = %d\n",
@@ -2661,6 +2661,7 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
                 pSetPointerPosition->Y));
             crsr->pos.x = pSetPointerPosition->X;
             crsr->pos.y = pSetPointerPosition->Y;
+            crsr->resource_id = m_pCursorBuf->GetId();
         }
         ret = m_CursorQueue.QueueCursor(vbuf);
         DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s vbuf = %p, ret = %d\n", __FUNCTION__, vbuf, ret));
@@ -3318,7 +3319,11 @@ VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)
                 PGPU_CTRL_HDR pcmd = (PGPU_CTRL_HDR)pvbuf->buf;
                 PGPU_CTRL_HDR resp = (PGPU_CTRL_HDR)pvbuf->resp_buf;
                 PKEVENT evnt = pvbuf->event;
-                if (evnt == NULL)
+                if (evnt != NULL)
+                {
+                    KeSetEvent(evnt, IO_NO_INCREMENT, FALSE);
+                }
+                else
                 {
                     if (resp->type != VIRTIO_GPU_RESP_OK_NODATA)
                     {
@@ -3334,7 +3339,10 @@ VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)
                 case VIRTIO_GPU_CMD_GET_EDID:
                 {
                     ASSERT(evnt);
-                    KeSetEvent(evnt, IO_NO_INCREMENT, FALSE);
+                }
+                case VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D:
+                {
+                    break;
                 }
                 break;
                 default:
@@ -3405,7 +3413,7 @@ BOOLEAN VioGpuAdapter::CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, C
 
     GpuObjectAttach(resid, obj);
     m_CtrlQueue.SetScanout(0/*FIXME m_Id*/, resid, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
-    m_CtrlQueue.TransferToHost2D(resid, 0, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0, NULL);
+    m_CtrlQueue.TransferToHost2D(resid, 0, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0, NULL, NULL);
     m_CtrlQueue.ResFlush(resid, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
     m_pFrameBuf = obj;
     pCurrentMode->FrameBuffer = obj->GetVirtualAddress();
@@ -3448,6 +3456,8 @@ BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPoin
 
 BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPointerShape, _In_ CONST CURRENT_MODE* pCurrentMode)
 {
+    KEVENT event;
+    NTSTATUS status;
     PAGED_CODE();
     RECT Rect;
     Rect.left = 0;
@@ -3493,7 +3503,16 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPoin
         &SrcBltInfo,
         &Rect);
 
-    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(), 0, pSetPointerShape->Width, pSetPointerShape->Height, 0, 0, NULL);
+    KeInitializeEvent(&event, NotificationEvent, FALSE);
+    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(), 0, pSetPointerShape->Width, pSetPointerShape->Height, 0, 0, NULL, &event);
+    // wait for transfer to complete in order to prevent racing with cursor queue handler
+    status = KeWaitForSingleObject(&event,
+        Executive,
+        KernelMode,
+        FALSE,
+        NULL
+    );
+    ASSERT(NT_SUCCESS(status));
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;
