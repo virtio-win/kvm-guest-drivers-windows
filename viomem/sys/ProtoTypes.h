@@ -79,12 +79,6 @@ typedef struct _DEVICE_CONTEXT {
     BOOLEAN                 finishProcessing;
 
 	UINT					state;
-	//
-	// Memory ranges used by converting from MDL to Ranges
-	// todo: add dynamic allocation
-	//
-
-	PHYSICAL_MEMORY_RANGE	MemoryRange[255];
 
 	RTL_BITMAP				memoryBitmapHandle;
 	ULONG					*bitmapBuffer;
