@@ -628,6 +628,66 @@ LONGLONG FindConsecutivePagesCountMDL(PPFN_NUMBER Pages, LONGLONG Remaining)
 }
 
 //
+// Function calculates and returns count of memory ranges from MDL.
+//
+
+ULONG GetMemoryRangesCountFromMdl(PMDL Mdl)
+{
+	PPFN_NUMBER pfnNumbers = 0;
+	ULONG memoryBlockIndex = 0;
+
+	//
+	// Calculate a number of PFNs from the MDL.
+	//
+
+	LONGLONG pagesToScan = Mdl->ByteCount >> PAGE_SHIFT;
+
+	//
+	// Initialize starting position of a block and a number of consecutive 
+	// pages.
+	//
+
+	LONGLONG blockStartPosition = 0;
+	LONGLONG consecutivePagesCount = 0;
+
+	// Get a pointer to PFNs.
+
+	pfnNumbers = MmGetMdlPfnArray(Mdl);
+
+	// 
+	// Form memory ranges from arithmetics sequences of pages. 
+	//
+
+	while (pagesToScan > 0)
+	{
+		//
+		// Mark start of memory range and then scan for sequence of consecutive
+		// pages.
+		//
+
+		consecutivePagesCount = FindConsecutivePagesCountMDL(&pfnNumbers[blockStartPosition],
+			pagesToScan);
+		
+		memoryBlockIndex++;
+
+		//
+		// Update next block's start position and number of remaining pages to
+		// check.
+		//
+
+		blockStartPosition += consecutivePagesCount;
+		pagesToScan = pagesToScan - consecutivePagesCount;
+	}
+
+	// 
+	// Return number of memory ranges found.
+	//
+
+	return memoryBlockIndex;
+}
+
+
+//
 // Function converts MDL returned by MmAllocateNodePagesForMdlEx call to memory 
 // ranges.
 //
@@ -635,7 +695,6 @@ LONGLONG FindConsecutivePagesCountMDL(PPFN_NUMBER Pages, LONGLONG Remaining)
 ULONG GetMemoryRangesFromMdl(PMDL Mdl, PHYSICAL_MEMORY_RANGE MemoryRanges[])
 {
 	PPFN_NUMBER pfnNumbers = 0;
-	ULONG i = 0;
 	ULONG memoryBlockIndex = 0;
 
 	//
@@ -1086,6 +1145,7 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
 	PHYSICAL_ADDRESS skip = { 0 };
 	PHYSICAL_ADDRESS address = { 0 };
 	ULONG rangeCount = 0;
+	PHYSICAL_MEMORY_RANGE* memoryRanges = NULL;
 
 	address.QuadPart = (LONGLONG)Configuration->addr;
 
@@ -1182,9 +1242,10 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
 	);
 
 	//
-	// If the memory has been removed, convert MDLs returned by the MmAllocateNodePagesForMdlEx call to 
-	// memory ranges, inform the device about removal, and then update the bitmap representation of 
-    // memory blocks to reflect the change.
+	// If the memory has been removed, convert MDLs returned by the 
+	// MmAllocateNodePagesForMdlEx call to memory ranges, inform the device 
+	// about removal, and then update the bitmap representation of memory 
+	// blocks to reflect the change.
 	//
 
 	if (removedMemoryMdl)
@@ -1195,21 +1256,56 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
 			Configuration->addr + Configuration->plugged_size - 1);
 #endif
 
-		rangeCount = GetMemoryRangesFromMdl(removedMemoryMdl, devCtx->MemoryRange);
+		//
+		// Calculate the number of memory ranges from MDL and allocate memory 
+		// for an array to store memory ranges.
+		//
+
+		rangeCount = GetMemoryRangesCountFromMdl(removedMemoryMdl);
+
+		//
+		// A number of ranges should be always greater then zero so this
+		// just a sanity check.
+		//
+
+		if (rangeCount > 0)
+		{
+			memoryRanges = (PHYSICAL_MEMORY_RANGE*)ExAllocatePoolZero(NonPagedPool,
+				rangeCount * sizeof(PHYSICAL_MEMORY_RANGE),
+				VIRTIO_MEM_POOL_TAG);
+
+			if (!memoryRanges)
+			{
+				//
+				// If memory allocation failed log error and return status
+				// indicating error.
+				//
+
+				TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
+					"%s - allocation memory for ranges failed \n", __FUNCTION__);
+				return FALSE;
+			}
+		}
+		else
+		{
+			return FALSE;
+		}
+
+		GetMemoryRangesFromMdl(removedMemoryMdl, memoryRanges);
 
 		for (ULONG i = 0; i < rangeCount; i++)
 		{
 			numberOfBlocks = (__virtio16)
-				(devCtx->MemoryRange[i].NumberOfBytes.QuadPart / Configuration->block_size);
-			
-			if (SendUnPlugRequest(Device, devCtx->MemoryRange[i].BaseAddress.QuadPart, numberOfBlocks))
+				(memoryRanges[i].NumberOfBytes.QuadPart / Configuration->block_size);
+
+			if (SendUnPlugRequest(Device, memoryRanges[i].BaseAddress.QuadPart, numberOfBlocks))
 			{
 				TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "HotRemove address [0x%I64x] len[0x%x]\n",
-					devCtx->MemoryRange[i].BaseAddress.QuadPart,
-					devCtx->MemoryRange[i].NumberOfBytes.QuadPart);
+					memoryRanges[i].BaseAddress.QuadPart,
+					memoryRanges[i].NumberOfBytes.QuadPart);
 
 				DeallocateMemoryRangeInMemoryBitmap(address.QuadPart,
-					&devCtx->MemoryRange[i],
+					&memoryRanges[i],
 					&devCtx->memoryBitmapHandle,
 					(ULONG)Configuration->block_size);
 			}
@@ -1220,9 +1316,9 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
 				// revert the operation.
 				//
 
-				status = MmAddPhysicalMemory(&devCtx->MemoryRange[i].BaseAddress, 
-					&devCtx->MemoryRange[i].NumberOfBytes);
-				
+				status = MmAddPhysicalMemory(&memoryRanges[i].BaseAddress,
+					&memoryRanges[i].NumberOfBytes);
+
 				if (!NT_SUCCESS(status))
 				{
 					// 
@@ -1232,9 +1328,15 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
 					TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
 						"%s MmAddPhysicalMemory failed 0x%x\n", __FUNCTION__, status);
 
-				}		
+				}
 			}
 		}
+
+	}
+
+	if (memoryRanges)
+	{
+		ExFreePoolWithTag(memoryRanges, VIRTIO_MEM_POOL_TAG);
 	}
 
 	//
@@ -1242,6 +1344,7 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
 	// Removal may fail because the system may already use the memory, but 
 	// this situation(for obvious reasons) is not considered an error.
 	//
+
 	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Return TRUE\n", __FUNCTION__);
 
 	return TRUE;
