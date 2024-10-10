@@ -25,9 +25,13 @@ NetKVM:
     - NetKVM/CoInstaller/
     - NetKVM/ProtocolService/
     - NetKVM/NotifyObject/
+    - VirtIO/WDF/
 fwcfg64:
   include:
     - fwcfg64/
+  exclude:
+    - fwcfg64/LICENSE
+    - VirtIO/WDF/
 ivshmem:
   include:
     - ivshmem/
@@ -38,6 +42,7 @@ pvpanic:
     - pvpanic/
   exclude:
     - pvpanic/LICENSE
+    - VirtIO/WDF/
 viocrypt:
   include:
     - viocrypt/
@@ -62,6 +67,7 @@ viogpu:
   exclude:
     - viogpu/viogpuap/
     - viogpu/viogpusc/
+    - VirtIO/WDF/
 vioinput:
   include:
     - vioinput/
@@ -79,6 +85,7 @@ vioscsi:
     - vioscsi/
   exclude:
     - vioscsi/LICENSE
+    - VirtIO/WDF/
 vioserial:
   include:
     - vioserial/
@@ -103,6 +110,7 @@ viostor:
     - viostor/
   exclude:
     - viostor/LICENSE
+    - VirtIO/WDF/
 viomem:
   include:
     - viomem/
@@ -111,10 +119,12 @@ viomem:
 "*":
   include:
     - /
-    - Tools/
+    - build/
     - VirtIO/
   exclude:
+    - .github/
     - .hck-ci/triggers.yml
+    - Tools/
     - packaging/
     - Documentation/
     - Q35/
