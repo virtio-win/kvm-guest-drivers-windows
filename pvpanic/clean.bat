@@ -8,7 +8,7 @@ call :cleandir
 
 pushd pvpanic
 call :cleandir
-call ..\..\Tools\cleanDrv.bat
+call ..\..\build\clean.bat
 popd
 
 pushd "PVPanic Package"

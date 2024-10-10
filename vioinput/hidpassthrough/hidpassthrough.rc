@@ -1,7 +1,7 @@
 #include <windows.h>
 #include <ntverp.h>
 
-#include "..\..\Tools\vendor.ver"
+#include "..\..\build\vendor.ver"
 
 #undef  VER_FILEDESCRIPTION_STR
 #undef  VER_INTERNALNAME_STR

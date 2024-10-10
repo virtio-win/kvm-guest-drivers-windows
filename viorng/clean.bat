@@ -19,7 +19,7 @@ call :cleandir
 popd
 
 pushd viorng
-call ..\..\Tools\clean.bat
+call ..\..\build\clean.bat
 popd
 
 pushd "VirtRNG Package"

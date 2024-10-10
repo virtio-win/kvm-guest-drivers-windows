@@ -80,7 +80,7 @@
     <CharacterSet>Unicode</CharacterSet>
     <TargetVersion>Windows10</TargetVersion>
   </PropertyGroup>
-  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\build\Driver.Common.props" />
   <Import Project="$(MSBuildProjectDirectory)\blnsvr.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
@@ -293,7 +293,7 @@
     <ClCompile Include="utils.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.targets" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\build\Driver.Common.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>

@@ -73,7 +73,7 @@
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\vioscsi.props" />
-  <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\build\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="PropertySheets">
@@ -132,7 +132,7 @@
       <Command>
         copy /Y $(ProjectDir)vioscsi.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)
         copy /Y $(IntDir)vc.nativecodeanalysis.all.xml $(ProjectDir)
-        call "..\Tools\dvl1903.bat" "$(ProjectDir)\$(IntDir)" "$(TargetName)" "$(Configuration)" "$(Platform)"
+        call "..\build\dvl1903.bat" "$(ProjectDir)\$(IntDir)" "$(TargetName)" "$(Configuration)" "$(Platform)"
         copy /Y $(ProjectDir)vioscsi.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\vioscsi.DVL-win10.XML
       </Command>
       <Inputs>$(IntDir)vc.nativecodeanalysis.all.xml;$(ProjectDir)vioscsi.DVL.XML</Inputs>
@@ -188,7 +188,7 @@
     <Mofcomp Include="vioscsi.mof" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.targets" />
+  <Import Project="$(MSBuildProjectDirectory)\..\build\Driver.Common.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>

@@ -30,7 +30,7 @@
     <OutDir>$(Platform)\$(Configuration.Replace(' ',''))\</OutDir>
     <IntDir>$(Platform)\$(Configuration.Replace(' ',''))\</IntDir>
   </PropertyGroup>
-  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\build\Driver.Common.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -137,7 +137,7 @@
     <ResourceCompile Include="viocrypt-test.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.targets" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\build\Driver.Common.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>

@@ -83,7 +83,7 @@
     <TargetVersion>Windows10</TargetVersion>
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\viogpuap.props" />
-  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\build\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="Shared">

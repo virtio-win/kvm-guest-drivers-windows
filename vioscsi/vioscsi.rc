@@ -30,7 +30,7 @@
 #include <ntverp.h>
 
 #include "resources.h"
-#include "..\Tools\vendor.ver"
+#include "..\build\vendor.ver"
 
 #undef  VER_FILEDESCRIPTION_STR
 #undef  VER_INTERNALNAME_STR
@@ -43,5 +43,3 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 MOFRESOURCE MOFDATA MOVEABLE PURE   "vioscsi.bmf"
 
 #include "common.ver"
-
-
