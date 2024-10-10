@@ -78,7 +78,7 @@
     <DriverType>Miniport</DriverType>
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\viostor.props" />
-  <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\build\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="PropertySheets">
@@ -154,7 +154,7 @@
       <Command>
         copy /Y $(ProjectDir)viostor.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)
         copy /Y $(IntDir)vc.nativecodeanalysis.all.xml $(ProjectDir)
-        call "..\Tools\dvl1903.bat" "$(ProjectDir)\$(IntDir)" "$(TargetName)" "$(Configuration)" "$(Platform)"
+        call "..\build\dvl1903.bat" "$(ProjectDir)\$(IntDir)" "$(TargetName)" "$(Configuration)" "$(Platform)"
         copy /Y $(ProjectDir)viostor.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viostor.DVL-win10.XML
       </Command>
       <Inputs>$(IntDir)vc.nativecodeanalysis.all.xml;$(ProjectDir)viostor.DVL.XML</Inputs>
@@ -210,7 +210,7 @@
     <ClCompile Include="virtio_stor_utils.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <Import Project="$(MSBuildProjectDirectory)\..\Tools\Driver.Common.targets" />
+  <Import Project="$(MSBuildProjectDirectory)\..\build\Driver.Common.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>

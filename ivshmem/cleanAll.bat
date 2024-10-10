@@ -1,7 +1,7 @@
 @echo on
 
 rmdir /S /Q Install
-call ..\Tools\clean.bat
+call ..\build\clean.bat
 
 pushd test
 call cleanAll.bat

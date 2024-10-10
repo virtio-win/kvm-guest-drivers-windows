@@ -6,7 +6,7 @@
 #include <WinSock2.h>
 #include <windows.h>
 #include <winsvc.h>
-#include "..\..\tools\vendor.ver"
+#include "..\..\build\vendor.ver"
 #include "..\inc\install.h"
 
 
@@ -60,7 +60,7 @@ static void WINAPI _ServiceMain(_In_ DWORD  dwArgc, _In_ LPTSTR* lpszArgv)
 				_statusRecord.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SESSIONCHANGE;
 				SetServiceStatus(_statusHandle, &_statusRecord);
 			} else err = GetLastError();
-		
+
 			if (err != ERROR_SUCCESS)
 				WSACleanup();
 		}

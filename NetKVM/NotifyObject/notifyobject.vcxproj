@@ -81,7 +81,7 @@
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\notifyobject.props" />
-  <Import Project="..\..\Tools\Driver.Common.props" />
+  <Import Project="..\..\build\Driver.Common.props" />
   <PropertyGroup>
     <OutDir>$(ProjectDir)$(PlatformTarget)\$(ConfigurationName)\</OutDir>
   </PropertyGroup>
@@ -120,7 +120,7 @@
     <None Exclude="@(None)" Include="*.ico;*.cur;*.bmp;*.dlg;*.rct;*.gif;*.jpg;*.jpeg;*.wav;*.jpe;*.tiff;*.tif;*.png;*.rc2" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <Import Project="..\..\Tools\Driver.Common.targets" />
+  <Import Project="..\..\build\Driver.Common.targets" />
   <PropertyGroup>
     <TargetExt>.dummy</TargetExt>
     <TargetPath>$(OutDir)$(TargetName)$(TargetExt)</TargetPath>

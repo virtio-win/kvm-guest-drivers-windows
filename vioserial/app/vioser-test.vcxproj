@@ -97,7 +97,7 @@
     <CharacterSet>Unicode</CharacterSet>
     <TargetVersion>Windows10</TargetVersion>
   </PropertyGroup>
-  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\build\Driver.Common.props" />
   <Import Project="$(MSBuildProjectDirectory)\vioser-test.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>

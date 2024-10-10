@@ -1,42 +1,42 @@
 @echo off
 
-if "%VIRTIO_WIN_NO_ARM%"=="" call tools\build.bat virtio-win.sln "Win10 Win11" ARM64
+if "%VIRTIO_WIN_NO_ARM%"=="" call build\build.bat virtio-win.sln "Win10 Win11" ARM64
 if errorlevel 1 goto :fail
 
-call tools\build.bat virtio-win.sln "Win10 Win11" %*
+call build\build.bat virtio-win.sln "Win10 Win11" %*
 if errorlevel 1 goto :fail
-call tools\build.bat NetKVM\NetKVM-VS2015.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat NetKVM\NetKVM-VS2015.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat vioscsi\vioscsi.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat vioscsi\vioscsi.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat viostor\viostor.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat viostor\viostor.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
 if "%VIRTIO_WIN_SDV_2022%"=="" goto :nosdv2022
-call tools\build.bat Balloon\sys\balloon.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat Balloon\sys\balloon.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat fwcfg64\fwcfg.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat fwcfg64\fwcfg.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat ivshmem\ivshmem.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat ivshmem\ivshmem.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat pvpanic\pvpanic\pvpanic.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat pvpanic\pvpanic\pvpanic.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat viorng\viorng\viorng.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat viorng\viorng\viorng.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat vioserial\sys\vioser.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat vioserial\sys\vioser.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat viosock\sys\viosock.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat viosock\sys\viosock.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat viosock\wsk\wsk.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat viosock\wsk\wsk.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat viosock\viosock-wsk-test\viosock-wsk-test.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat viosock\viosock-wsk-test\viosock-wsk-test.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat viofs\pci\viofs.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat viofs\pci\viofs.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat vioinput\hidpassthrough\hidpassthrough.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat vioinput\hidpassthrough\hidpassthrough.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat vioinput\sys\vioinput.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat vioinput\sys\vioinput.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call tools\build.bat viomem\sys\viomem.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat viomem\sys\viomem.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
 
 

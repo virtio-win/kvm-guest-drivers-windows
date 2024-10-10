@@ -66,7 +66,7 @@
   <PropertyGroup Label="Configuration" Condition="'$(Platform)'=='x64'">
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\viosock_pack.props" />
-  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\build\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="PropertySheets">
@@ -136,7 +136,7 @@
     <Copy SourceFiles="@(LibFiles)" DestinationFiles="@(LibFiles->'$(PackageDir)%(OutLib)')" />
   </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.targets" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\build\Driver.Common.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
