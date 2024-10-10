@@ -81,7 +81,7 @@
     <DriverType>KMDF</DriverType>
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\viofs.props" />
-  <Import Project="$(MSBuildProjectDirectory)\..\..\Tools\Driver.Common.props" />
+  <Import Project="$(MSBuildProjectDirectory)\..\..\build\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="PropertySheets">

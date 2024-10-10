@@ -48,7 +48,7 @@
 #define VioScsiWmi_MofResourceName        L"MofResource"
 
 #include "resources.h"
-#include "..\Tools\vendor.ver"
+#include "..\build\vendor.ver"
 
 #define VIOSCSI_SETUP_GUID_INDEX               0
 #define VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX   1
@@ -1778,7 +1778,7 @@ CompleteRequest(
                 if (time_msec >= adaptExt->resp_time)
                 {
                     UCHAR OpCode = SRB_CDB(Srb)->CDB6GENERIC.OperationCode;
-                    RhelDbgPrint(TRACE_LEVEL_WARNING, "Response Time SRB 0x%p : time %I64d (%lu) : length %d : OpCode 0x%x (%s)\n", 
+                    RhelDbgPrint(TRACE_LEVEL_WARNING, "Response Time SRB 0x%p : time %I64d (%lu) : length %d : OpCode 0x%x (%s)\n",
                         Srb, time_msec, SRB_GET_TIMEOUTVALUE(Srb) * 1000, SRB_DATA_TRANSFER_LENGTH(Srb),
                         OpCode, DbgGetScsiOpStr(OpCode));
                     DbgPrint("Response Time SRB 0x%p : time %I64d (%lu) : length %d : OpCode 0x%x (%s)\n",

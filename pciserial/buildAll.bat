@@ -1,6 +1,6 @@
 setlocal
 call clean.bat
-call ..\Tools\SetVsEnv x86
+call ..\build\SetVsEnv x86
 
 mkdir Install\rhel
 

@@ -5,7 +5,7 @@
 #undef _NT_TARGET_MAJ
 #define _NT_TARGET_MAJ 61
 
-#include "..\..\Tools\vendor.ver"
+#include "..\..\build\vendor.ver"
 #undef __BUILDMACHINE__
 #undef  VER_FILEDESCRIPTION_STR
 #undef  VER_INTERNALNAME_STR

@@ -57,7 +57,7 @@
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\viorngum.props" />
-  <Import Project="..\..\..\Tools\Driver.Common.props" />
+  <Import Project="..\..\..\build\Driver.Common.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="PropertySheets">
