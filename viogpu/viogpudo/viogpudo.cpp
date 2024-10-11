@@ -35,7 +35,7 @@
 #include "viogpum.h"
 #include "edid.h"
 
-#if !DBG
+#if defined(EVENT_TRACING)
 #include "viogpudo.tmh"
 #endif
 
@@ -3419,6 +3419,8 @@ BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPoin
     UINT resid, format, size;
     VioGpuObj* obj;
     PAGED_CODE();
+    (void)pSetPointerShape; // unused
+    (void)pCurrentMode; // unused
     DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s - %d: (%d x %d - %d) (%d + %d)\n", __FUNCTION__, m_Id,
         pSetPointerShape->Width, pSetPointerShape->Height, pSetPointerShape->Pitch, pSetPointerShape->XHot, pSetPointerShape->YHot));
 
