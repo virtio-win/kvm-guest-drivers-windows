@@ -17,7 +17,7 @@
 #include <ntddk.h>
 
 #if !defined(ENOSPC)
-#define ENOSPC 28
+#define ENOSPC 1
 #endif
 
 #if !defined(__cplusplus) && !defined(bool)
