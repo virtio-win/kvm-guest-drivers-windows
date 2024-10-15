@@ -288,7 +288,7 @@ static int virtqueue_add_buf_packed(
         DPrintf(5, "Added buffer head @%i+%d to Q%d\n", head, descs_used, vq->vq.index);
     }
 
-    return VQ_ADD_BUFFER_SUCCESS;
+    return 0;
 }
 
 static void detach_buf_packed(struct virtqueue_packed *vq, unsigned int id)

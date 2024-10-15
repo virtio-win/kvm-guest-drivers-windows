@@ -40,7 +40,6 @@
 
 #include "osdep.h"
 #include "virtio_pci.h"
-#include "virtio_ring.h"
 #include "vioscsi.h"
 
 #define CHECKBIT(value, nbit) virtio_is_feature_enabled(value, nbit)
@@ -49,6 +48,8 @@
 
 #define CACHE_LINE_SIZE 64
 #define ROUND_TO_CACHE_LINES(Size)  (((ULONG_PTR)(Size) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1))
+
+#define VQ_ADD_BUFFER_SUCCESS 0
 
 #include <srbhelper.h>
 

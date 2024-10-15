@@ -296,7 +296,7 @@ static int virtqueue_add_buf_split(
     vring->avail->idx = ++vq->master_vring_avail.idx;
     vq->num_added_since_kick++;
 
-    return VQ_ADD_BUFFER_SUCCESS;
+    return 0;
 }
 
 /* Gets the opaque pointer associated with a returned buffer, or NULL if no buffer is available */
