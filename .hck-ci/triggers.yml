@@ -83,6 +83,7 @@ viorng:
 vioscsi:
   include:
     - vioscsi/
+    - VirtIO/
   exclude:
     - vioscsi/LICENSE
     - VirtIO/WDF/
@@ -120,7 +121,6 @@ viomem:
   include:
     - /
     - build/
-    - VirtIO/
   exclude:
     - .github/
     - .hck-ci/triggers.yml
