@@ -1567,18 +1567,99 @@ BOOLEAN SendStateRequest(
 //		   during system resets". So this code is for hypothetical scenario 
 //		   because after reset plugged_size will be always set to zero.
 //
+// The optimization is based on replacing simple loop iteration with a query 
+// and processing a set of blocks at once. The performance depends on block 
+// distribution in a given range, i.e., 'holes' between blocks.
+//
+// It can be described with simplified (recursive) code:
+//
+// void process_recursive(int address, int blockCount)
+// {
+//	unsigned char state = get_state(address, blockCount);
+//	if (state == VIRTIO_MEM_STATE_PLUGGED || state == VIRTIO_MEM_STATE_UNPLUGGED)
+//	{
+//		for (int i = 0; i < blockCount; i++)
+//		{
+//			memory[address + i] = 1;
+//		}
+//	}
+//	else
+//		if (state == STATE_MIXED)
+//		{
+//			process_recursive(address, blockCount / 2);
+//			process_recursive(address + (blockCount / 2), (blockCount / 2));
+//		}
+// }
+// 
+// If a range consists of plugged and unplugged blocks(is 'mixed'), then the 
+// range is split into two subranges, and the function checks further if it 
+// is possible to plug the range.If subrange(s) is also 'mixed,' the subrange 
+// is split further. Finally, at some point, the range consists of a block(s) 
+// of only one state : plugged or unplugged.Then, the function plugs block(s) 
+// and returns.The operation is similar to tree traversal.
+//
+// Since recurrency can't be used in kernel mode, the function has been 
+// modified to use iteration by introducing 'stack' to emulate recurrency:
+//
+// void process_iterative(int address, int blockCount)
+// {
+//	private_stack.push({ address, blockCount });
+//
+//	while (!private_stack.empty())
+//	{
+//		unsigned char state = get_state_iterative(address, blockCount);
+//		if (state == STATE_PLUGGED || state == STATE_NOT_PLUGGED)
+//		{
+//			if (state == STATE_PLUGGED)
+//			{
+//				for (int i = 0; i < blockCount; i++)
+//				{
+//					memory[address + i] = 1;
+//				}
+//			}
+//			std::pair<int, int> p = private_stack.top();
+//			private_stack.pop();
+//
+//			address = p.first;
+//			blockCount = p.second;
+//
+//			address = address + blockCount;
+//		}//
+//		else
+//			if (state == STATE_MIXED)
+//			{
+//				blockCount = blockCount / 2;
+//				private_stack.push({ address, blockCount });
+//			}
+//	}
+// }
+//
 
-BOOLEAN SynchronizeDeviceAndDriverMemory(IN WDFOBJECT Device, 
-	virtio_mem_config *Config)
+#pragma pack(push, 1)
+typedef struct _stack
+{
+	PHYSICAL_ADDRESS address;
+	ULONG numberOfBlocks;
+} stack;
+#pragma pack(pop)
+
+BOOLEAN SynchronizeDeviceAndDriverMemory(IN WDFOBJECT Device,
+	virtio_mem_config* Config)
 {
 	PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
-	BOOLEAN result = FALSE;
 	if (devCtx)
 	{
+		ULONG Top = 0;
+		stack* st = NULL;
+		__virtio64 startBlockAddr = 0;
+		__virtio16 state = 0;
+		PHYSICAL_ADDRESS address = { 0 };
+
 		//
 		// Set all bit for unplugged state
-		// bitmap will be filled with STATE requests
- 		//
+		// The bitmap will be filled during STATE requests
+		//
+
 		RtlClearAllBits(&devCtx->memoryBitmapHandle);
 
 		// region_size 
@@ -1588,21 +1669,43 @@ BOOLEAN SynchronizeDeviceAndDriverMemory(IN WDFOBJECT Device,
 		//	    Can only shrink due to VIRTIO_MEM_REQ_UNPLUG_ALL requests.
 		// 
 		// STATE request for memory > usable_region_size always FAIL
+		//
 
 		ULONG NumberOfBlocks = (ULONG)(min(Config->region_size, Config->usable_region_size) / Config->block_size);
 
-		PHYSICAL_ADDRESS address = { 0 };
+		//
+		// Currently synchronization of up to 65535 blocks is possible
+		// (member virtio_mem_req_state::nb_blocks is type of DWORD)
+		//
+
+		if (NumberOfBlocks > 65535)
+		{
+			return FALSE;
+		}
+
 		address.QuadPart = (LONGLONG)Config->addr;
 
-		for (ULONG blockId = 0; blockId < NumberOfBlocks; blockId++)
+		//
+		// If the number of blocks for processing is not even, then process 
+		// the odd block separately.
+		//
+
+		ULONG remaining = NumberOfBlocks & 1;
+
+		if (remaining)
 		{
-			__virtio16 state;
-			__virtio64 startBlockAddr = Config->addr + blockId * Config->block_size;
+			// 
+			// Decrease the number of blocks for further processing.
+			//
 
-			TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP,
-				"Processing block id=%d startBlockAddr=0x%I64x endBlockAddr=0x%I64x\n",
-				blockId, startBlockAddr, startBlockAddr + Config->block_size);
+			--NumberOfBlocks;
 
+			// 
+			// Get the state of a block.If the block is in a 'plugged' state, 
+			// then mark the block as allocated in the bitmap representation.
+			//
+
+			startBlockAddr = Config->addr;
 			if (SendStateRequest(Device, startBlockAddr, 1, &state))
 			{
 				if (state == VIRTIO_MEM_STATE_PLUGGED)
@@ -1620,15 +1723,137 @@ BOOLEAN SynchronizeDeviceAndDriverMemory(IN WDFOBJECT Device,
 			}
 			else
 			{
+				//
+				// It should not happen because a device will always respond.
+				//
+
 				return FALSE;
 			}
 		}
 
+		//
+		// Check if there are still blocks for processing. The number of blocks 
+		// left for further processing is even because the odd block (if there was one) 
+		// was processed earlier.
+		//
+
+		if (NumberOfBlocks)
+		{
+			//
+			// Allocate memory for the 'stack' used for emulating recurrency.
+			//
+
+			st = (stack*)ExAllocatePoolZero(NonPagedPool,
+				NumberOfBlocks * sizeof(stack),
+				VIRTIO_MEM_POOL_TAG);
+
+			if (!st)
+			{
+				return FALSE;
+			}
+
+			//
+			// The correct start address is needed if an odd remaining block 
+			// has already been processed.
+			//  			
+
+			startBlockAddr = Config->addr + remaining * Config->block_size;
+
+			// 
+			// Push on the top of the 'stack' address and number of blocks.
+			//
+
+			st[Top].address.QuadPart = startBlockAddr;
+			st[Top].numberOfBlocks = NumberOfBlocks;
+
+			//
+			// As long as there is data for processing, do it in a loop:
+			//
+
+			while (Top)
+			{
+
+				//
+				// Send STATE request and check the state of blocks at the given address. 
+				// If all blocks of memory are plugged, the state VIRTIO_MEM_STATE_PLUGGED 
+				// is returned. The bitmap representation of memory must be updated to 
+				// reflect the state. For VIRTIO_MEM_STATE_UNPLUGGED, there is no need 
+				// to do anything (the bitmap representation is filled with zeros already).
+				//
+
+				if (SendStateRequest(Device, startBlockAddr, (__virtio16)NumberOfBlocks, &state))
+				{
+					if (state == VIRTIO_MEM_STATE_PLUGGED || state == VIRTIO_MEM_STATE_UNPLUGGED)
+					{
+						if (state == VIRTIO_MEM_STATE_PLUGGED)
+						{
+							PHYSICAL_MEMORY_RANGE range;
+
+							range.BaseAddress.QuadPart = (LONGLONG)startBlockAddr;
+							range.NumberOfBytes.QuadPart = (LONGLONG)Config->block_size * NumberOfBlocks;
+
+							AllocateMemoryRangeInMemoryBitmap(address.QuadPart,
+								&range,
+								&devCtx->memoryBitmapHandle,
+								(ULONG)Config->block_size);
+						}
+
+						//
+						// Pop from the 'stack' the number of blocks and address 
+						// of memory for the subsequent processing.
+						//
+
+						NumberOfBlocks = st[--Top].numberOfBlocks;
+						startBlockAddr = st[Top].address.QuadPart;
+
+						//
+						// Update address with number of recently processed
+						// blocks. 
+						//
+
+						startBlockAddr = startBlockAddr + NumberOfBlocks * Config->block_size;
+					}
+					else
+					{
+						//
+						// If VIRTIO_MEM_STATE_MIXED is returned, the given 
+						// block range consists of both plugged and unplugged blocks.
+						//
+
+						if (state == VIRTIO_MEM_STATE_MIXED)
+						{
+							//
+							// Split number of blocks, push this information
+							// on 'stack' for subsequent processing.
+							//
+
+							NumberOfBlocks = NumberOfBlocks / 2;
+
+							st[Top].address.QuadPart = startBlockAddr;
+							st[Top++].numberOfBlocks = NumberOfBlocks;
+						}
+					}
+				}
+				else
+				{
+					if (st)
+						ExFreePoolWithTag(st, VIRTIO_MEM_POOL_TAG);
+
+					//
+					// It should not happen because a device will always respond.
+					//
+
+					return FALSE;
+				}
+			}
+		}
+		if (st)
+			ExFreePoolWithTag(st, VIRTIO_MEM_POOL_TAG);
+
 		return TRUE;
 	}
-
 	return FALSE;
-} 
+}
 
 //
 // Main worker thread that processes init and virtio-mem configuration changes.
