@@ -32,7 +32,10 @@
 #include "pipe.h"
 
 
-CSession::CSession(ULONG Id) : m_PipeServer(NULL)
+CSession::CSession(ULONG Id) :
+    m_PipeServer(NULL),
+    m_hToken(NULL),
+    m_lpvEnv(NULL)
 {
     PrintMessage(L"%ws Id = %d\n", __FUNCTIONW__, Id);
 
@@ -71,96 +74,17 @@ void CSession::Close(void)
         delete m_PipeServer;
         m_PipeServer = NULL;
     }
-}
 
-void CSession::Pause(void)
-{
-}
-
-void CSession::Resume(void)
-{
-}
-
-bool CSession::CreateProcessInSession(const std::wstring & commandLine)
-{
-    HANDLE hToken = NULL;
-    STARTUPINFO si = { sizeof(si) };
-    LPVOID lpvEnv = NULL;
-    DWORD dwError = ERROR_SUCCESS;
-    wchar_t szUserProfileDir[MAX_PATH];
-    DWORD cchUserProfileDir = ARRAYSIZE(szUserProfileDir);
-    DWORD ExitCode;
-    DWORD dwWaitResult;
-
-    PrintMessage(L"%ws\n", __FUNCTIONW__);
-
-    do {
-        if (WTSGetActiveConsoleSessionId() != m_SessionInfo.SessionId)
-        {
-            PrintMessage(L"WTSGetActiveConsoleSessionId() != m_SessionInfo.SessionId\n");
-            break;
-        }
-
-        if (!WTSQueryUserToken(m_SessionInfo.SessionId, &hToken))
-        {
-            dwError = GetLastError();
-            PrintMessage(L"WTSQueryUserToken failed with error 0x%x\n", dwError);
-            break;
-        }
-
-        TOKEN_LINKED_TOKEN admin = {};
-        HANDLE hAdmToken = 0;
-        DWORD dw = 0;
-        if (GetTokenInformation(hToken, (TOKEN_INFORMATION_CLASS)TokenLinkedToken, &admin, sizeof(TOKEN_LINKED_TOKEN), &dw))
-        {
-            hAdmToken = admin.LinkedToken;
-        }
-        else
-        {
-            DuplicateTokenEx(hToken, MAXIMUM_ALLOWED, NULL, SecurityIdentification, TokenPrimary, &hAdmToken);
-        }
-
-        if (!CreateEnvironmentBlock(&lpvEnv, hToken, TRUE))
-        {
-            dwError = GetLastError();
-            PrintMessage(L"CreateEnvironmentBlock failed with error 0x%x\n", dwError);
-            break;
-        }
-
-        if (!GetUserProfileDirectory(hToken, szUserProfileDir,
-            &cchUserProfileDir))
-        {
-            dwError = GetLastError();
-            PrintMessage(L"GetUserProfileDirectory failed with error 0x%x\n", dwError);
-            break;
-        }
-
-        si.lpDesktop = TEXT("winsta0\\default");
-
-        if (!CreateProcessAsUser(hAdmToken, NULL, const_cast<wchar_t *>(commandLine.c_str()), NULL, NULL, FALSE,
-            CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW, lpvEnv, szUserProfileDir, &si, &m_ProcessInfo))
-        {
-            dwError = GetLastError();
-            PrintMessage(L"CreateProcessAsUser failed with error 0x%x\n", dwError);
-            break;
-        }
-
-        WaitForSingleObject(m_ProcessInfo.hProcess, INFINITE);
-        GetExitCodeProcess(m_ProcessInfo.hProcess, &ExitCode);
-        PrintMessage(L"Process finished with code 0x%x\n", ExitCode);
-
-    } while (0);
-
-    if (hToken)
+    if (m_hToken)
     {
-        CloseHandle(hToken);
-        hToken = NULL;
+        CloseHandle(m_hToken);
+        m_hToken = NULL;
     }
 
-    if (lpvEnv)
+    if (m_lpvEnv)
     {
-        DestroyEnvironmentBlock(lpvEnv);
-        lpvEnv = NULL;
+        DestroyEnvironmentBlock(m_lpvEnv);
+        m_lpvEnv = NULL;
     }
 
     if (m_ProcessInfo.hProcess)
@@ -174,6 +98,77 @@ bool CSession::CreateProcessInSession(const std::wstring & commandLine)
         CloseHandle(m_ProcessInfo.hThread);
         m_ProcessInfo.hThread = NULL;
     }
+}
+
+void CSession::Pause(void)
+{
+}
+
+void CSession::Resume(void)
+{
+}
+
+bool CSession::CreateProcessInSession(const std::wstring & commandLine)
+{
+    STARTUPINFO si = { sizeof(si) };
+    DWORD dwError = ERROR_SUCCESS;
+    wchar_t szUserProfileDir[MAX_PATH];
+    DWORD cchUserProfileDir = ARRAYSIZE(szUserProfileDir);
+    DWORD dwWaitResult;
+
+    PrintMessage(L"%ws\n", __FUNCTIONW__);
+
+    do {
+        if (WTSGetActiveConsoleSessionId() != m_SessionInfo.SessionId)
+        {
+            PrintMessage(L"WTSGetActiveConsoleSessionId() != m_SessionInfo.SessionId\n");
+            break;
+        }
+
+        if (!WTSQueryUserToken(m_SessionInfo.SessionId, &m_hToken))
+        {
+            dwError = GetLastError();
+            PrintMessage(L"WTSQueryUserToken failed with error 0x%x\n", dwError);
+            break;
+        }
+
+        TOKEN_LINKED_TOKEN admin = {};
+        HANDLE hAdmToken = 0;
+        DWORD dw = 0;
+        if (GetTokenInformation(m_hToken, (TOKEN_INFORMATION_CLASS)TokenLinkedToken, &admin, sizeof(TOKEN_LINKED_TOKEN), &dw))
+        {
+            hAdmToken = admin.LinkedToken;
+        }
+        else
+        {
+            DuplicateTokenEx(m_hToken, MAXIMUM_ALLOWED, NULL, SecurityIdentification, TokenPrimary, &hAdmToken);
+        }
+
+        if (!CreateEnvironmentBlock(&m_lpvEnv, m_hToken, TRUE))
+        {
+            dwError = GetLastError();
+            PrintMessage(L"CreateEnvironmentBlock failed with error 0x%x\n", dwError);
+            break;
+        }
+
+        if (!GetUserProfileDirectory(m_hToken, szUserProfileDir,
+            &cchUserProfileDir))
+        {
+            dwError = GetLastError();
+            PrintMessage(L"GetUserProfileDirectory failed with error 0x%x\n", dwError);
+            break;
+        }
+
+        si.lpDesktop = TEXT("winsta0\\default");
+
+        if (!CreateProcessAsUser(hAdmToken, NULL, const_cast<wchar_t *>(commandLine.c_str()), NULL, NULL, FALSE,
+            CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW, m_lpvEnv, szUserProfileDir, &si, &m_ProcessInfo))
+        {
+            dwError = GetLastError();
+            PrintMessage(L"CreateProcessAsUser failed with error 0x%x\n", dwError);
+            break;
+        }
+    } while (0);
 
     if (dwError != ERROR_SUCCESS)
     {

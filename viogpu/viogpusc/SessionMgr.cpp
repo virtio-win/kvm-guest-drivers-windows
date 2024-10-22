@@ -43,7 +43,18 @@ CSessionMgr::~CSessionMgr()
 
 DWORD WINAPI CSessionMgr::ServiceThread(CSessionMgr* prt)
 {
+    HANDLE hProcessHandle;
+    DWORD ExitCode;
+
     prt->Run();
+    for (Iterator it = prt->Sessions.begin(); it != prt->Sessions.end(); it++)
+    {
+        hProcessHandle = prt->GetSessioinCreateProcess((*it)->GetId());
+        WaitForSingleObject(hProcessHandle, INFINITE);
+        GetExitCodeProcess(hProcessHandle, &ExitCode);
+        PrintMessage(L"Process finished with code 0x%x\n", ExitCode);
+    }
+
     return 0;
 }
 
@@ -106,6 +117,7 @@ void CSessionMgr::Close()
 
     for (Iterator it = Sessions.begin(); it != Sessions.end(); it++)
     {
+        (*it)->Close();
         delete *it;
     }
 
@@ -133,6 +145,18 @@ void CSessionMgr::SetSessionStatus(UINT Indx, SESSION_STATUS status)
     if (ptr) {
         return (ptr)->SetStatus(status);
     }
+}
+
+HANDLE CSessionMgr::GetSessioinCreateProcess(UINT Indx)
+{
+    PrintMessage(L"%ws\n", __FUNCTIONW__);
+
+    CSession* ptr = FindSession(Indx);
+    if (ptr) {
+        return (ptr)->GetCreateProcess();
+    }
+
+    return (HANDLE)NULL;
 }
 
 HANDLE CSessionMgr::GetSessioinProcess(UINT Indx)
