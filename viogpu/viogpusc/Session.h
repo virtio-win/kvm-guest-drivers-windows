@@ -48,6 +48,7 @@ public:
     HANDLE GetProcess(void) { return m_SessionInfo.hProcess; }
     void SetProcess(HANDLE Handle) { m_SessionInfo.hProcess = Handle; }
     ULONG GetId(void) { return m_SessionInfo.SessionId; }
+    HANDLE GetCreateProcess(void) { return m_ProcessInfo.hProcess; }
 private:
     bool PipeServerActive(void) { return (m_PipeServer != NULL); }
     bool CreateProcessInSession(const std::wstring & commandLine);
@@ -56,5 +57,7 @@ private:
     PipeServer* m_PipeServer;
     SESSION_INFORMATION m_SessionInfo;
     PROCESS_INFORMATION m_ProcessInfo;
+    HANDLE m_hToken;
+    LPVOID m_lpvEnv;
 };
 
