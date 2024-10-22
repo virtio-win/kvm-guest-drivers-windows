@@ -44,6 +44,7 @@ public:
     void SetSessionStatus(UINT Indx, SESSION_STATUS status);
     HANDLE GetSessioinProcess(UINT Indx);
     void SetSessionProcess(UINT Indx, HANDLE Handle);
+    HANDLE GetSessioinCreateProcess(UINT Indx);
 private:
     CSession* FindSession(ULONG Indx, bool bCreate = false);
     void AddSession(CSession* session);
