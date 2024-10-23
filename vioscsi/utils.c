@@ -88,7 +88,9 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
     //TBD - Read nDebugLevel and bDebugPrint from the registry
     bDebugPrint = 1;
     virtioDebugLevel = 0;
-    nVioscsiDebugLevel = TRACE_LEVEL_ERROR;
+#if !defined(RUN_UNCHECKED)
+    nVioscsiDebugLevel = TRACE_ALL;
+#endif
 
 #if defined(PRINT_DEBUG)
     VirtioDebugPrintProc = DebugPrintFunc;
@@ -103,13 +105,24 @@ tDebugPrintFunc VirtioDebugPrintProc;
 #else
 void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath)
 {
-    //TBD - Read nDebugLevel and bDebugPrint from the registry
+    //
+    // We implement RhelDbgPrint() messages via ETW using WPP.
+    // Implementation is via FLAGS and LEVEL [nVioscsiDebugLevel() here] has no effect.
+    // This way RhelDbgPrint() messages match TRACE_LEVEL of WPP functions, which is very convenient.
+    // No need for DEBUG settings here - breaks are never sent...
+    //
+    // Note: Messages matching definitions in stortrce.h are logged to the Windows System Event Log instead.
+    //
+    
+    // TODO - Remove this code... ¯\_(ツ)_/¯
+    /*
     bDebugPrint = 0;
     virtioDebugLevel = 0;
-    nVioscsiDebugLevel = 4;// TRACE_LEVEL_ERROR;
+    nVioscsiDebugLevel = 3;// TRACE_LEVEL_WARNING
+    */
 }
 
-tDebugPrintFunc VirtioDebugPrintProc = DbgPrint;
+tDebugPrintFunc VirtioDebugPrintProc;
 #endif
 
 
