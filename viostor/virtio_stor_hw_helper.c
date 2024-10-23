@@ -73,7 +73,7 @@ RhelDoFlush(
     bool                notify = FALSE;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
-    struct virtqueue    *vq = NULL;
+    INT                 add_buffer_req_status = VQ_ADD_BUFFER_SUCCESS;
     PREQUEST_LIST       element;
 
     SET_VA_PA();
@@ -102,7 +102,6 @@ RhelDoFlush(
     }
 
     srbExt->MessageID = MessageId;
-    vq = adaptExt->vq[QueueNumber];
 
     srbExt->vbr.out_hdr.sector = 0;
     srbExt->vbr.out_hdr.ioprio = 0;
@@ -120,30 +119,29 @@ RhelDoFlush(
     if (!resend) {
         VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     }
-    if (virtqueue_add_buf(vq,
-                     &srbExt->sg[0],
-                     srbExt->out, srbExt->in,
-                     &srbExt->vbr, va, pa) >= 0) {
-        notify = virtqueue_kick_prepare(vq);
+    add_buffer_req_status = virtqueue_add_buf(adaptExt->vq[QueueNumber],
+                                              &srbExt->sg[0],
+                                              srbExt->out, srbExt->in,
+                                              &srbExt->vbr, va, pa);
+    
+    if (add_buffer_req_status == VQ_ADD_BUFFER_SUCCESS) {
+        notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
+        element = &adaptExt->processing_srbs[QueueNumber];
         InsertTailList(&element->srb_list, &srbExt->vbr.list_entry);
         element->srb_cnt++;
-        if (!resend) {
-            VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
-        }
-        result = TRUE;
-#ifdef DBG
-        InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
-#endif
-    }
-    else {
-        if (!resend) {
-            VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
-        }
+    } else {
         RhelDbgPrint(TRACE_LEVEL_ERROR, " Can not add packet to queue %d.\n", QueueNumber);
         StorPortBusy(DeviceExtension, 2);
     }
+    if (!resend) {
+        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+    }
+#ifdef DBG
+    InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
+#endif
+    result = TRUE;
     if (notify) {
-        virtqueue_notify(vq);
+        virtqueue_notify(adaptExt->vq[QueueNumber]);
     }
 
     return result;
@@ -165,7 +163,7 @@ RhelDoReadWrite(PVOID DeviceExtension,
     bool                notify = FALSE;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
-    struct virtqueue    *vq = NULL;
+    INT                 add_buffer_req_status = VQ_ADD_BUFFER_SUCCESS;
     PREQUEST_LIST       element;
 
     SET_VA_PA();
@@ -191,31 +189,30 @@ RhelDoReadWrite(PVOID DeviceExtension,
     }
 
     srbExt->MessageID = MessageId;
-    vq = adaptExt->vq[QueueNumber];
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " QueueNumber 0x%x vq = %p\n", QueueNumber, vq);
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " QueueNumber 0x%x vq = %p\n", QueueNumber, adaptExt->vq[QueueNumber]);
 
-    element = &adaptExt->processing_srbs[QueueNumber];
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
-    if (virtqueue_add_buf(vq,
-                     &srbExt->sg[0],
-                     srbExt->out, srbExt->in,
-                     &srbExt->vbr, va, pa) >= 0) {
-        notify = virtqueue_kick_prepare(vq);
+    add_buffer_req_status = virtqueue_add_buf(adaptExt->vq[QueueNumber],
+                                              &srbExt->sg[0],
+                                              srbExt->out, srbExt->in,
+                                              &srbExt->vbr, va, pa);
+    
+    if (add_buffer_req_status == VQ_ADD_BUFFER_SUCCESS) {
+        notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
+        element = &adaptExt->processing_srbs[QueueNumber];
         InsertTailList(&element->srb_list, &srbExt->vbr.list_entry);
         element->srb_cnt++;
-        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
-#ifdef DBG
-        InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
-#endif
-        result = TRUE;
-    }
-    else {
-        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+    } else {
         RhelDbgPrint(TRACE_LEVEL_ERROR, " Can not add packet to queue %d.\n", QueueNumber);
         StorPortBusy(DeviceExtension, 2);
     }
+    VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+#ifdef DBG
+    InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
+#endif
+    result = TRUE;
     if (notify) {
-        virtqueue_notify(vq);
+        virtqueue_notify(adaptExt->vq[QueueNumber]);
     }
 
     if (adaptExt->num_queues > 1) {
@@ -245,6 +242,7 @@ RhelDoUnMap(
     PUNMAP_BLOCK_DESCRIPTOR BlockDescriptors = NULL;
     USHORT BlockDescrCount = 0;
     ULONG               fragLen = 0UL;
+    INT                 add_buffer_req_status = VQ_ADD_BUFFER_SUCCESS;
     PREQUEST_LIST       element;
 
 
@@ -258,7 +256,6 @@ RhelDoUnMap(
     BOOLEAN             notify = FALSE;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
     ULONG               status = STOR_STATUS_SUCCESS;
-    struct virtqueue    *vq = NULL;
 
     SET_VA_PA();
 
@@ -326,32 +323,31 @@ RhelDoUnMap(
     }
 
     srbExt->MessageID = MessageId;
-    vq = adaptExt->vq[QueueNumber];
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " QueueNumber 0x%x vq = %p type = %d\n", QueueNumber, vq, srbExt->vbr.out_hdr.type);
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " QueueNumber 0x%x vq = %p type = %d\n", QueueNumber, adaptExt->vq[QueueNumber], srbExt->vbr.out_hdr.type);
 
-    element = &adaptExt->processing_srbs[QueueNumber];
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
-    if (virtqueue_add_buf(vq,
-                     &srbExt->sg[0],
-                     srbExt->out, srbExt->in,
-                     &srbExt->vbr, va, pa) >= 0) {
-        notify = virtqueue_kick_prepare(vq);
+    add_buffer_req_status = virtqueue_add_buf(adaptExt->vq[QueueNumber],
+                                              &srbExt->sg[0],
+                                              srbExt->out, srbExt->in,
+                                              &srbExt->vbr, va, pa);
+    
+    if (add_buffer_req_status == VQ_ADD_BUFFER_SUCCESS) {
+        notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
+        element = &adaptExt->processing_srbs[QueueNumber];
         InsertTailList(&element->srb_list, &srbExt->vbr.list_entry);
         element->srb_cnt++;
-        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
-#ifdef DBG
-        InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
-#endif
-        result = TRUE;
-    }
-    else {
-        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+    } else {
         RhelDbgPrint(TRACE_LEVEL_ERROR, " Can not add packet to queue %d.\n", QueueNumber);
         StorPortBusy(DeviceExtension, 2);
     }
+    VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+#ifdef DBG
+    InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
+#endif
+    result = TRUE;
     if (notify) {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " %s virtqueue_notify %d.\n", __FUNCTION__,  QueueNumber);
-        virtqueue_notify(vq);
+        virtqueue_notify(adaptExt->vq[QueueNumber]);
     }
     return result;
 }
@@ -366,7 +362,6 @@ RhelGetSerialNumber(
     ULONG               OldIrql = 0;
     ULONG               MessageId = 1;
     STOR_LOCK_HANDLE    LockHandle = { 0 };
-    struct virtqueue    *vq = NULL;
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSRB_EXTENSION      srbExt   = SRB_EXTENSION(Srb);
     ULONG               status = STOR_STATUS_SUCCESS;
@@ -375,6 +370,7 @@ RhelGetSerialNumber(
     BOOLEAN             result = FALSE;
     BOOLEAN             notify = FALSE;
     ULONG               fragLen = 0UL;
+    INT                 add_buffer_req_status = VQ_ADD_BUFFER_SUCCESS;
     PREQUEST_LIST       element;
 
     SET_VA_PA();
@@ -401,7 +397,6 @@ RhelGetSerialNumber(
     }
 
     srbExt->MessageID = MessageId;
-    vq = adaptExt->vq[QueueNumber];
 
     srbExt->vbr.out_hdr.sector = 0;
     srbExt->vbr.out_hdr.ioprio = 0;
@@ -417,28 +412,28 @@ RhelGetSerialNumber(
     srbExt->sg[2].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
     srbExt->sg[2].length   = sizeof(srbExt->vbr.status);
 
-    element = &adaptExt->processing_srbs[QueueNumber];
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
-    if (virtqueue_add_buf(vq,
-                     &srbExt->sg[0],
-                     srbExt->out, srbExt->in,
-                     &srbExt->vbr, va, pa) >= 0) {
-        notify = virtqueue_kick_prepare(vq);
+    add_buffer_req_status = virtqueue_add_buf(adaptExt->vq[QueueNumber],
+                                              &srbExt->sg[0],
+                                              srbExt->out, srbExt->in,
+                                              &srbExt->vbr, va, pa);
+    
+    if (add_buffer_req_status == VQ_ADD_BUFFER_SUCCESS) {
+        notify = virtqueue_kick_prepare(adaptExt->vq[QueueNumber]);
+        element = &adaptExt->processing_srbs[QueueNumber];
         InsertTailList(&element->srb_list, &srbExt->vbr.list_entry);
         element->srb_cnt++;
-        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
-        result = TRUE;
-#ifdef DBG
-        InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
-#endif
-    }
-    else {
-        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+    } else {
         RhelDbgPrint(TRACE_LEVEL_ERROR, " Can not add packet to queue %d.\n", QueueNumber);
         StorPortBusy(DeviceExtension, 2);
     }
+    VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+#ifdef DBG
+    InterlockedIncrement((LONG volatile*)&adaptExt->inqueue_cnt);
+#endif
+    result = TRUE;
     if (notify) {
-        virtqueue_notify(vq);
+        virtqueue_notify(adaptExt->vq[QueueNumber]);
     }
 
     return result;
