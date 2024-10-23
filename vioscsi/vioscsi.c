@@ -154,7 +154,7 @@ VOID
 FORCEINLINE
 DispatchQueue(
     IN PVOID DeviceExtension,
-    IN ULONG MessageID
+    IN ULONG MessageId
     );
 
 BOOLEAN
@@ -1063,7 +1063,7 @@ VioScsiInterrupt(
         }
         else
         {
-            ProcessQueue(DeviceExtension, QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0), TRUE);
+            ProcessBuffer(DeviceExtension, QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0), InterruptLock);
         }
     }
 
@@ -1299,16 +1299,16 @@ ENTER_FN();
             break;
         case ScsiUnitRemove:
         case ScsiUnitSurpriseRemoval:
-            ULONG QueuNum;
-            ULONG MsgId;
+            ULONG            vq_req_idx;
+            PREQUEST_LIST    element;
             STOR_LOCK_HANDLE LockHandle = { 0 };
+            PVOID            LockContext = NULL; //sanity check for LockMode = InterruptLock or StartIoLock
             PSTOR_ADDR_BTL8  stor_addr = (PSTOR_ADDR_BTL8)Parameters;
 
-            for (index = 0; index < adaptExt->num_queues; index++) {
-                PREQUEST_LIST element = &adaptExt->processing_srbs[index];
-                QueuNum = index + VIRTIO_SCSI_REQUEST_QUEUE_0;
-                MsgId = QUEUE_TO_MESSAGE(QueuNum);
-                VioScsiVQLock(DeviceExtension, MsgId, &LockHandle, FALSE);
+            for (vq_req_idx = 0; vq_req_idx < adaptExt->num_queues; vq_req_idx++) {
+                element = &adaptExt->processing_srbs[vq_req_idx];
+                LockContext = &adaptExt->dpc[vq_req_idx];
+                StorPortAcquireSpinLock(DeviceExtension, DpcLock, LockContext, &LockHandle);
                 if (!IsListEmpty(&element->srb_list))
                 {
                     PLIST_ENTRY entry = element->srb_list.Flink;
@@ -1329,7 +1329,7 @@ ENTER_FN();
                         }
                     }
                 }
-                VioScsiVQUnlock(DeviceExtension, MsgId, &LockHandle, FALSE);
+                StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
             }
             Status = ScsiUnitControlSuccess;
             break;
@@ -1460,7 +1460,7 @@ VOID
 FORCEINLINE
 DispatchQueue(
     IN PVOID DeviceExtension,
-    IN ULONG MessageID
+    IN ULONG MessageId
 )
 {
     PADAPTER_EXTENSION  adaptExt;
@@ -1469,42 +1469,52 @@ ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     if (!adaptExt->dump_mode && adaptExt->dpc_ok) {
-        NT_ASSERT(MessageID >= QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0));
+        NT_ASSERT(MessageId >= QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0));
         StorPortIssueDpc(DeviceExtension,
-            &adaptExt->dpc[MessageID - QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)],
-            ULongToPtr(MessageID),
-            ULongToPtr(MessageID));
+            &adaptExt->dpc[MessageId - QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)],
+            ULongToPtr(MessageId),
+            ULongToPtr(MessageId));
 EXIT_FN();
         return;
     }
-    ProcessQueue(DeviceExtension, MessageID, TRUE);
+    ProcessBuffer(DeviceExtension, MessageId, InterruptLock);
 EXIT_FN();
 }
 
 VOID
-ProcessQueue(
+ProcessBuffer(
     IN PVOID DeviceExtension,
-    IN ULONG MessageID,
-    IN BOOLEAN isr
+    IN ULONG MessageId,
+    IN STOR_SPINLOCK LockMode
 )
 {
     PVirtIOSCSICmd      cmd;
     unsigned int        len;
     PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    ULONG               index = MESSAGE_TO_QUEUE(MessageID);
-    STOR_LOCK_HANDLE    queueLock = { 0 };
+    ULONG               QueueNumber = MESSAGE_TO_QUEUE(MessageId);
+    STOR_LOCK_HANDLE    LockHandle = { 0 };
     struct virtqueue    *vq;
     PSRB_TYPE           Srb = NULL;
     PSRB_EXTENSION      srbExt = NULL;
-    if (index >= (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0)) {
-        index %= adaptExt->num_queues;
-    }
-    PREQUEST_LIST element = &adaptExt->processing_srbs[index - VIRTIO_SCSI_REQUEST_QUEUE_0];
+    PREQUEST_LIST       element;
+    ULONG               vq_req_idx;
+    PVOID               LockContext = NULL; //sanity check for LockMode = InterruptLock or StartIoLock
 
 ENTER_FN();
-    vq = adaptExt->vq[index];
 
-    VioScsiVQLock(DeviceExtension, MessageID, &queueLock, isr);
+    if (QueueNumber >= (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0)) {
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Modulo assignment required for QueueNumber as it exceeds the number of virtqueues available.\n");
+        QueueNumber %= adaptExt->num_queues;
+    }
+    vq_req_idx = QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0;
+    element = &adaptExt->processing_srbs[vq_req_idx];
+
+    vq = adaptExt->vq[QueueNumber];
+
+    if (LockMode == DpcLock) {
+        LockContext = &adaptExt->dpc[vq_req_idx];
+    }
+    StorPortAcquireSpinLock(DeviceExtension, LockMode, LockContext, &LockHandle);    
 
     do {
         virtqueue_disable_cb(vq);
@@ -1513,9 +1523,9 @@ ENTER_FN();
             BOOLEAN bFound = FALSE;
 
             Srb = (PSRB_TYPE)(cmd->srb);
-            if (!Srb)
+            if (!Srb) {
                 continue;
-
+            }
             srbExt = SRB_EXTENSION(Srb);
             for (le = element->srb_list.Flink; le != &element->srb_list && !bFound; le = le->Flink)
             {
@@ -1536,7 +1546,7 @@ ENTER_FN();
         }
     } while (!virtqueue_enable_cb(vq));
 
-    VioScsiVQUnlock(DeviceExtension, MessageID, &queueLock, isr);
+    StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
 
 EXIT_FN();
 }
@@ -1553,18 +1563,21 @@ VioScsiCompleteDpcRoutine(
 
 ENTER_FN();
     MessageId = PtrToUlong(SystemArgument1);
-    ProcessQueue(Context, MessageId, FALSE);
+    ProcessBuffer(Context, MessageId, DpcLock);
 EXIT_FN();
 }
 
 VOID
-CompletePendingRequests(
+CompletePendingRequestsOnReset(
     IN PVOID DeviceExtension
     )
 {
-    PADAPTER_EXTENSION adaptExt;
-    ULONG QueueNum;
-    ULONG MsgId;
+    PADAPTER_EXTENSION  adaptExt;
+    ULONG               QueueNumber;
+    ULONG               vq_req_idx;
+    PREQUEST_LIST       element;
+    STOR_LOCK_HANDLE    LockHandle = { 0 };
+    PVOID               LockContext = NULL; //sanity check for LockMode = InterruptLock or StartIoLock
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
@@ -1574,13 +1587,11 @@ CompletePendingRequests(
         StorPortPause(DeviceExtension, 10);
         DeviceReset(DeviceExtension);
 
-        for (ULONG index = 0; index < adaptExt->num_queues; index++) {
-            PREQUEST_LIST element = &adaptExt->processing_srbs[index];
-            STOR_LOCK_HANDLE    LockHandle = { 0 };
-            RhelDbgPrint(TRACE_LEVEL_FATAL, " queue %d cnt %d\n", index, element->srb_cnt);
-            QueueNum = index + VIRTIO_SCSI_REQUEST_QUEUE_0;
-            MsgId = QUEUE_TO_MESSAGE(QueueNum);
-            VioScsiVQLock(DeviceExtension, MsgId, &LockHandle, FALSE);
+        for (vq_req_idx = 0; vq_req_idx < adaptExt->num_queues; vq_req_idx++) {
+            element = &adaptExt->processing_srbs[vq_req_idx];
+            RhelDbgPrint(TRACE_LEVEL_FATAL, " queue %d cnt %d\n", vq_req_idx, element->srb_cnt);
+            LockContext = &adaptExt->dpc[vq_req_idx];
+            StorPortAcquireSpinLock(DeviceExtension, DpcLock, LockContext, &LockHandle);
             while (!IsListEmpty(&element->srb_list)) {
                 PLIST_ENTRY entry = RemoveHeadList(&element->srb_list);
                 if (entry) {
@@ -1596,7 +1607,7 @@ CompletePendingRequests(
             if (element->srb_cnt) {
                 element->srb_cnt = 0;
             }
-            VioScsiVQUnlock(DeviceExtension, MsgId, &LockHandle, FALSE);
+            StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
         }
         StorPortResume(DeviceExtension);
     }
@@ -1683,7 +1694,7 @@ ENTER_FN_SRB();
             switch (adaptExt->action_on_reset) {
                 case VioscsiResetCompleteRequests:
                     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Completing all pending SRBs\n");
-                    CompletePendingRequests(DeviceExtension);
+                    CompletePendingRequestsOnReset(DeviceExtension);
                     SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
                     return TRUE;
                 case VioscsiResetDoNothing:
