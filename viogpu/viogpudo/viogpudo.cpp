@@ -2141,7 +2141,7 @@ NTSTATUS VioGpuAdapter::VirtIoDeviceInit()
     return virtio_device_initialize(
         &m_VioDev,
         &VioGpuSystemOps,
-        this,
+        reinterpret_cast<IVioGpuPCI*>(this),
         m_PciResources.IsMSIEnabled());
 }
 
@@ -3539,3 +3539,7 @@ BOOLEAN VioGpuAdapter::GpuObjectAttach(UINT res_id, VioGpuObj* obj)
     return TRUE;
 }
 PAGED_CODE_SEG_END
+
+PDXGKRNL_INTERFACE VioGpuAdapter::GetDxgkInterface() {
+    return m_pVioGpuDod->GetDxgkInterface();
+}
