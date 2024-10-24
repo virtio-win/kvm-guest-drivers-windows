@@ -500,7 +500,7 @@ void CtrlQueue::SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, U
 }
 
 
-#define SGLIST_SIZE 64
+#define SGLIST_SIZE 256
 UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
