@@ -411,7 +411,7 @@ void CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
 
 PAGED_CODE_SEG_END
 
-void CtrlQueue::UnrefResource(UINT res_id)
+void CtrlQueue::DestroyResource(UINT res_id)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
@@ -428,7 +428,7 @@ void CtrlQueue::UnrefResource(UINT res_id)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-void CtrlQueue::InvalBacking(UINT res_id)
+void CtrlQueue::DetachBacking(UINT res_id)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
