@@ -175,6 +175,10 @@ protected:
 class CtrlQueue : public VioGpuQueue
 {
 public:
+    CtrlQueue() : VioGpuQueue() {
+        m_FenceIdr = 0;
+    };
+
     PVOID AllocCmd(PGPU_VBUFFER* buf, int sz);
     PVOID AllocCmdResp(PGPU_VBUFFER* buf, int cmd_sz, PVOID resp_buf, int resp_sz);
 
@@ -192,6 +196,9 @@ public:
     BOOLEAN AskDisplayInfo(PGPU_VBUFFER* buf);
     BOOLEAN AskEdidInfo(PGPU_VBUFFER* buf, UINT id);
     BOOLEAN GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid);
+
+private:
+    volatile LONG m_FenceIdr;
 };
 
 class CrsrQueue : public VioGpuQueue
