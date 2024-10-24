@@ -3317,29 +3317,21 @@ VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)
                 DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s m_CtrlQueue pvbuf = %p len = %d\n", __FUNCTION__, pvbuf, len));
                 PGPU_CTRL_HDR pcmd = (PGPU_CTRL_HDR)pvbuf->buf;
                 PGPU_CTRL_HDR resp = (PGPU_CTRL_HDR)pvbuf->resp_buf;
-                PKEVENT evnt = pvbuf->event;
-                if (evnt == NULL)
-                {
+
+                if (resp->type >= VIRTIO_GPU_RESP_ERR_UNSPEC) {
+                   DbgPrint(TRACE_LEVEL_FATAL, ("!!!!! Command failed %d", resp->type));
+                }
                     if (resp->type != VIRTIO_GPU_RESP_OK_NODATA)
                     {
                         DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s type = %xlu flags = %lu fence_id = %llu ctx_id = %lu cmd_type = %lu\n",
                             __FUNCTION__, resp->type, resp->flags, resp->fence_id, resp->ctx_id, pcmd->type));
                     }
+                if (pvbuf->complete_cb != NULL)
+                {
+                    pvbuf->complete_cb(pvbuf->complete_ctx);
+                }
+                if (pvbuf->auto_release) {
                     m_CtrlQueue.ReleaseBuffer(pvbuf);
-                    continue;
-                }
-                switch (pcmd->type)
-                {
-                case VIRTIO_GPU_CMD_GET_DISPLAY_INFO:
-                case VIRTIO_GPU_CMD_GET_EDID:
-                {
-                    ASSERT(evnt);
-                    KeSetEvent(evnt, IO_NO_INCREMENT, FALSE);
-                }
-                break;
-                default:
-                    DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Unknown cmd type 0x%x\n", __FUNCTION__, resp->type));
-                    break;
                 }
             };
         }
