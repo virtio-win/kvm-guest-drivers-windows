@@ -49,8 +49,12 @@ typedef struct virtio_gpu_vbuffer {
 
     char *resp_buf;
     int resp_size;
-    PKEVENT event;
     LIST_ENTRY list_entry;
+
+    void (*complete_cb)(void *ctx);
+    void *complete_ctx;
+
+    bool auto_release;
 }GPU_VBUFFER, *PGPU_VBUFFER;
 //#pragma pack()
 

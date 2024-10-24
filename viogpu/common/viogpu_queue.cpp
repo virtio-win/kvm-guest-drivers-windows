@@ -44,6 +44,10 @@ static BOOLEAN BuildSGElement(VirtIOBufferDescriptor* sg, PVOID buf, ULONG size)
     return FALSE;
 }
 
+static void NotifyEventCompleteCB(void* ctx) {
+    KeSetEvent((PKEVENT)ctx, IO_NO_INCREMENT, FALSE);
+}
+
 VioGpuQueue::VioGpuQueue()
 {
     m_pBuf = NULL;
@@ -209,7 +213,9 @@ BOOLEAN CtrlQueue::AskDisplayInfo(PGPU_VBUFFER* buf)
     cmd->type = VIRTIO_GPU_CMD_GET_DISPLAY_INFO;
 
     KeInitializeEvent(&event, NotificationEvent, FALSE);
-    vbuf->event = &event;
+    vbuf->complete_cb = NotifyEventCompleteCB;
+    vbuf->complete_ctx = &event;
+    vbuf->auto_release = false;
 
     LARGE_INTEGER timeout = { 0 };
     timeout.QuadPart = Int32x32To64(1000, -10000);
@@ -259,7 +265,9 @@ BOOLEAN CtrlQueue::AskEdidInfo(PGPU_VBUFFER* buf, UINT id)
     cmd->scanout = id;
 
     KeInitializeEvent(&event, NotificationEvent, FALSE);
-    vbuf->event = &event;
+    vbuf->complete_cb = NotifyEventCompleteCB;
+    vbuf->complete_ctx = &event;
+    vbuf->auto_release = false;
 
     LARGE_INTEGER timeout = { 0 };
     timeout.QuadPart = Int32x32To64(1000, -10000);
@@ -701,6 +709,7 @@ PGPU_VBUFFER VioGpuBuf::GetBuf(
 
         pbuf->buf = (char *)((ULONG_PTR)pbuf + sizeof(*pbuf));
         pbuf->size = size;
+        pbuf->auto_release = true;  
 
         pbuf->resp_size = resp_size;
         if (resp_size <= MAX_INLINE_RESP_SIZE)
