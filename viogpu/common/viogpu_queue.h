@@ -190,12 +190,13 @@ public:
     PGPU_VBUFFER DequeueBuffer(_Out_ UINT* len);
 
     void CreateResource(UINT res_id, UINT format, UINT width, UINT height);
-    void UnrefResource(UINT id);
-    void InvalBacking(UINT id);
+    void DestroyResource(UINT id);
     void SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, UINT x, UINT y);
     void ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y);
     void TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y);
     void AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents);
+    void DetachBacking(UINT id);
+
     BOOLEAN GetDisplayInfo(PGPU_VBUFFER buf, UINT id, PULONG xres, PULONG yres);
     BOOLEAN AskDisplayInfo(PGPU_VBUFFER* buf);
     BOOLEAN AskEdidInfo(PGPU_VBUFFER* buf, UINT id);
