@@ -151,7 +151,7 @@ void mem_free_nonpaged_block(void *context, void *addr)
 
 PAGED_CODE_SEG_BEGIN
 static int PCIReadConfig(
-    VioGpuAdapter* pdev,
+    IVioGpuPCI* pDev,
     int where,
     void *buffer,
     size_t length)
@@ -159,8 +159,7 @@ static int PCIReadConfig(
     PAGED_CODE();
 
     NTSTATUS Status;
-    VioGpuDod* pVioGpu = pdev->GetVioGpu();
-    PDXGKRNL_INTERFACE pDxgkInterface = pVioGpu->GetDxgkInterface();
+    PDXGKRNL_INTERFACE pDxgkInterface = pDev->GetDxgkInterface();
     ULONG BytesRead = 0;
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
@@ -187,28 +186,28 @@ static int PCIReadConfig(
 static int pci_read_config_byte(void *context, int where, u8 *bVal)
 {
     PAGED_CODE();
-    VioGpuAdapter* pdev = static_cast<VioGpuAdapter*>(context);
+    IVioGpuPCI* pdev = static_cast<IVioGpuPCI*>(context);
     return PCIReadConfig(pdev, where, bVal, sizeof(*bVal));
 }
 
 int pci_read_config_word(void *context, int where, u16 *wVal)
 {
     PAGED_CODE();
-    VioGpuAdapter* pdev = static_cast<VioGpuAdapter*>(context);
+    IVioGpuPCI* pdev = static_cast<IVioGpuPCI*>(context);
     return PCIReadConfig(pdev, where, wVal, sizeof(*wVal));
 }
 
 int pci_read_config_dword(void *context, int where, u32 *dwVal)
 {
     PAGED_CODE();
-    VioGpuAdapter* pdev = static_cast<VioGpuAdapter*>(context);
+    IVioGpuPCI* pdev = static_cast<IVioGpuPCI*>(context);
     return PCIReadConfig(pdev, where, dwVal, sizeof(*dwVal));
 }
 PAGED_CODE_SEG_END
 
 size_t pci_get_resource_len(void *context, int bar)
 {
-    VioGpuAdapter* pdev = static_cast<VioGpuAdapter*>(context);
+    IVioGpuPCI* pdev = static_cast<IVioGpuPCI*>(context);
     return pdev->GetPciResources()->GetBarSize(bar);
 }
 
@@ -216,13 +215,13 @@ void *pci_map_address_range(void *context, int bar, size_t offset, size_t maxlen
 {
     UNREFERENCED_PARAMETER(maxlen);
 
-    VioGpuAdapter* pdev = static_cast<VioGpuAdapter*>(context);
+    IVioGpuPCI* pdev = static_cast<IVioGpuPCI*>(context);
     return pdev->GetPciResources()->GetMappedAddress(bar, (ULONG)offset);
 }
 
 u16 vdev_get_msix_vector(void *context, int queue)
 {
-    VioGpuAdapter* pdev = static_cast<VioGpuAdapter*>(context);
+    IVioGpuPCI* pdev = static_cast<IVioGpuPCI*>(context);
     u16 vector = VIRTIO_MSI_NO_VECTOR;
 
     if (queue >= 0) {
