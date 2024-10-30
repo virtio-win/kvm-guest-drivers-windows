@@ -101,30 +101,15 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
 #endif
 }
 
-tDebugPrintFunc VirtioDebugPrintProc;
 #else
+static void NoDebugPrintFunc(const char *format, ...) {} // This is NOT strictly required for ETW
 void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath)
 {
-    //
-    // We implement RhelDbgPrint() messages via ETW using WPP.
-    // Implementation is via FLAGS and LEVEL [nVioscsiDebugLevel() here] has no effect.
-    // This way RhelDbgPrint() messages match TRACE_LEVEL of WPP functions, which is very convenient.
-    // No need for DEBUG settings here - breaks are never sent...
-    //
-    // Note: Messages matching definitions in stortrce.h are logged to the Windows System Event Log instead.
-    //
-    
-    // TODO - Remove this code... ¯\_(ツ)_/¯
-    /*
-    bDebugPrint = 0;
-    virtioDebugLevel = 0;
-    nVioscsiDebugLevel = 3;// TRACE_LEVEL_WARNING
-    */
+    VirtioDebugPrintProc = NoDebugPrintFunc; // This is NOT strictly required for ETW - neither DbgPrint nor DbgPrintEx will be called when EVENT_TRACING is defined
 }
-
-tDebugPrintFunc VirtioDebugPrintProc;
 #endif
 
+tDebugPrintFunc VirtioDebugPrintProc; // This is necessary for compilation due to VirtIO\kdebugprint.h requisites
 
 #undef MAKE_CASE
 #define MAKE_CASE(scsiOpCode)    \
