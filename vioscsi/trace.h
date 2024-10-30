@@ -61,7 +61,10 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
 
 #if !defined(EVENT_TRACING)
 #define DBG 1
+/* EVENT_TRACING - CHOOSE BETWEEN DEBUG TO STDIO OR SERIAL PORT
+ * if PRINT_DEBUG is undefined, output to the serial port (COM_DEBUG) will be enabled below... */
 #define PRINT_DEBUG 1
+//#undef PRINT_DEBUG  // <== switch me here with comment
 #if !defined(PRINT_DEBUG)
 #define COM_DEBUG 1
 #endif
@@ -99,20 +102,15 @@ extern int nVioscsiDebugLevel;
 #define TRACE_ALL               31
 #endif
 
-#if DBG
 #define RhelDbgPrint(Level, MSG, ...) \
     if ((!bDebugPrint) || Level > nVioscsiDebugLevel) {} \
     else VirtioDebugPrintProc (MSG, __VA_ARGS__)
 #define VioScsiDbgBreak()\
     if (KD_DEBUGGER_ENABLED && !KD_DEBUGGER_NOT_PRESENT) DbgBreakPoint();
-#else
-#define RhelDbgPrint(Level, MSG, ...)
-#define VioScsiDbgBreak()
-#endif
 
-#define ENTER_FN()  RhelDbgPrint(TRACE_LEVEL_VERBOSE, " --> %s.\n",__FUNCTION__)
+#define ENTER_FN() RhelDbgPrint(TRACE_LEVEL_VERBOSE, " --> %s.\n",__FUNCTION__)
 #define EXIT_FN()  RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <-- %s.\n",__FUNCTION__)
-#define ENTER_INL_FN()  RhelDbgPrint(TRACE_LEVEL_VERBOSE, " --> %s.\n",__FUNCTION__)
+#define ENTER_INL_FN() RhelDbgPrint(TRACE_LEVEL_VERBOSE, " --> %s.\n",__FUNCTION__)
 #define EXIT_INL_FN()  RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <-- %s.\n",__FUNCTION__)
 #define EXIT_ERR() RhelDbgPrint(TRACE_LEVEL_ERROR, " <--> %s (%d).\n", __FUNCTION__, __LINE__)
 #define ENTER_FN_SRB() RhelDbgPrint(TRACE_LEVEL_VERBOSE, " --> %s Srb = 0x%p.\n",__FUNCTION__, Srb)
