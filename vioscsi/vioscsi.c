@@ -1011,7 +1011,9 @@ VioScsiInterrupt(
         return FALSE;
     }
 
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " IRQL (%d)\n", KeGetCurrentIrql());
+    //NOTE : SDV banned function
+    //RhelDbgPrint(TRACE_LEVEL_VERBOSE, " IRQL (%d)\n", KeGetCurrentIrql());
+
     intReason = virtio_read_isr_status(&adaptExt->vdev);
 
     if (intReason == 1 || adaptExt->dump_mode) {
@@ -1788,13 +1790,16 @@ CompleteRequest(
                       time_msec, srbExt->time, counter.QuadPart, freq.QuadPart);
                 if (time_msec >= adaptExt->resp_time)
                 {
-                    UCHAR OpCode = SRB_CDB(Srb)->CDB6GENERIC.OperationCode;
-                    RhelDbgPrint(TRACE_LEVEL_WARNING, "Response Time SRB 0x%p : time %I64d (%lu) : length %d : OpCode 0x%x (%s)\n",
-                        Srb, time_msec, SRB_GET_TIMEOUTVALUE(Srb) * 1000, SRB_DATA_TRANSFER_LENGTH(Srb),
-                        OpCode, DbgGetScsiOpStr(OpCode));
-                    DbgPrint("Response Time SRB 0x%p : time %I64d (%lu) : length %d : OpCode 0x%x (%s)\n",
-                        Srb, time_msec, SRB_GET_TIMEOUTVALUE(Srb) * 1000, SRB_DATA_TRANSFER_LENGTH(Srb),
-                        OpCode, DbgGetScsiOpStr(OpCode));
+                    PCDB cdb = SRB_CDB(Srb);
+                    if (cdb) { // Check for SDV compliance
+                        UCHAR OpCode = cdb->CDB6GENERIC.OperationCode;
+                        RhelDbgPrint(TRACE_LEVEL_WARNING, "Response Time SRB 0x%p : time %I64d (%lu) : length %d : OpCode 0x%x (%s)\n",
+                            Srb, time_msec, SRB_GET_TIMEOUTVALUE(Srb) * 1000, SRB_DATA_TRANSFER_LENGTH(Srb),
+                            OpCode, DbgGetScsiOpStr(OpCode));
+                        DbgPrint("Response Time SRB 0x%p : time %I64d (%lu) : length %d : OpCode 0x%x (%s)\n",
+                            Srb, time_msec, SRB_GET_TIMEOUTVALUE(Srb) * 1000, SRB_DATA_TRANSFER_LENGTH(Srb),
+                            OpCode, DbgGetScsiOpStr(OpCode));
+                    }
                 }
             }
             else
