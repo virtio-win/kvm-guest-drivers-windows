@@ -1,10 +1,10 @@
 ECHO off
 SETLOCAL EnableDelayedExpansion
 
-SET PDPFile=%1
+SET PDBFile=%1
 SET ETLFile=%2
 
-IF [%PDPFile%] == [] (
+IF [%PDBFile%] == [] (
     GOTO PRINT_HELP_TEXT
 )
 
@@ -12,9 +12,9 @@ IF [%ETLFile%] == [] (
     GOTO PRINT_HELP_TEXT
 )
 
-IF EXIST "%PDPFile%" (
+IF EXIST "%PDBFile%" (
     IF EXIST "%ETLFile%" (
-        tracepdb -f %PDPFile%
+        tracepdb -f %PDBFile%
         tracefmt.exe -display -p . %ETLFile%
         IF !ERRORLEVEL! NEQ 0 EXIT /B 1
         GOTO EIXT_SCRIPT
