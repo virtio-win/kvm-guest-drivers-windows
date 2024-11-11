@@ -44,11 +44,13 @@
                     }
 
 #define MESSAGENUMBER_TO_QUEUE() { \
-                    MessageId = param.MessageNumber; \
-                    QueueNumber = MessageId - 1; \
-                    if (QueueNumber >= adaptExt->num_queues) { \
-                        QueueNumber %= adaptExt->num_queues; \
-                        MessageId += 1; \
+                    if (param.MessageNumber != 0) { \
+                        MessageId = param.MessageNumber; \
+                        QueueNumber = MessageId - 1; \
+                        if (QueueNumber >= adaptExt->num_queues) { \
+                            QueueNumber %= adaptExt->num_queues; \
+                            MessageId += 1; \
+                        } \
                     } \
 }
 
@@ -85,7 +87,7 @@ RhelDoFlush(
         STARTIO_PERFORMANCE_PARAMETERS param;
         param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
         status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
-        if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
+        if (status == STOR_STATUS_SUCCESS) {
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",
                 Srb, QueueNumber, param.MessageNumber, param.ChannelNumber);
             MESSAGENUMBER_TO_QUEUE();
@@ -172,7 +174,7 @@ RhelDoReadWrite(PVOID DeviceExtension,
         STARTIO_PERFORMANCE_PARAMETERS param;
         param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
         status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
-        if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
+        if (status == STOR_STATUS_SUCCESS) {
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",
                 Srb, QueueNumber, param.MessageNumber, param.ChannelNumber);
             MESSAGENUMBER_TO_QUEUE();
@@ -306,7 +308,7 @@ RhelDoUnMap(
         STARTIO_PERFORMANCE_PARAMETERS param;
         param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
         status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
-        if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
+        if (status == STOR_STATUS_SUCCESS) {
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",
                 Srb, QueueNumber, param.MessageNumber, param.ChannelNumber);
             MESSAGENUMBER_TO_QUEUE();
@@ -381,7 +383,7 @@ RhelGetSerialNumber(
         STARTIO_PERFORMANCE_PARAMETERS param;
         param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
         status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
-        if (status == STOR_STATUS_SUCCESS && param.MessageNumber != 0) {
+        if (status == STOR_STATUS_SUCCESS) {
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srb %p, QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",
                 Srb, QueueNumber, param.MessageNumber, param.ChannelNumber);
             MESSAGENUMBER_TO_QUEUE();
